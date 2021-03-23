@@ -86,7 +86,7 @@ private:
     const double CompressionRatio_;
     const TChunkReaderMemoryManagerPtr MemoryManager_;
     NCompression::ICodec* const Codec_;
-    const TClientChunkReadOptions BlockReadOptions_;
+    const TClientChunkReadOptions ChunkReadOptions_;
     NLogging::TLogger Logger;
 
     std::atomic<i64> UncompressedDataSize_ = {0};

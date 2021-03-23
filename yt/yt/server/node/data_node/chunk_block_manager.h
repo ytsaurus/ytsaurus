@@ -39,7 +39,7 @@ struct IChunkBlockManager
         TChunkId chunkId,
         int firstBlockIndex,
         int blockCount,
-        const TBlockReadOptions& options) = 0;
+        const TChunkReadOptions& options) = 0;
 
     //! Asynchronously reads a set of blocks from the store.
     /*!
@@ -51,7 +51,7 @@ struct IChunkBlockManager
     virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockSet(
         TChunkId chunkId,
         const std::vector<int>& blockIndexes,
-        const TBlockReadOptions& options) = 0;
+        const TChunkReadOptions& options) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkBlockManager)

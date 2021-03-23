@@ -83,7 +83,7 @@ public:
                     dataSourceDirectory,
                     std::move(dataSliceDescriptors),
                     nameTable,
-                    BlockReadOptions_,
+                    ChunkReadOptions_,
                     /* columnFilter */ {},
                     sortColumns,
                     /* partitionTag */ std::nullopt,

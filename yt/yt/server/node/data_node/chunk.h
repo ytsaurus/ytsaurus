@@ -16,7 +16,7 @@ namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TBlockReadOptions
+struct TChunkReadOptions
     : public NChunkClient::TClientChunkReadOptions
 {
     NChunkClient::IBlockCachePtr BlockCache;
@@ -59,7 +59,7 @@ struct IChunk
      *  Thread affinity: any
      */
     virtual TFuture<NChunkClient::TRefCountedChunkMetaPtr> ReadMeta(
-        const TBlockReadOptions& options,
+        const TChunkReadOptions& options,
         const std::optional<std::vector<int>>& extensionTags = std::nullopt) = 0;
 
     //! Asynchronously reads a set of blocks.
@@ -69,7 +69,7 @@ struct IChunk
      */
     virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockSet(
         const std::vector<int>& blockIndexes,
-        const TBlockReadOptions& options) = 0;
+        const TChunkReadOptions& options) = 0;
 
     //! Asynchronously reads a range of blocks.
     /*!
@@ -79,7 +79,7 @@ struct IChunk
     virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockRange(
         int firstBlockIndex,
         int blockCount,
-        const TBlockReadOptions& options) = 0;
+        const TChunkReadOptions& options) = 0;
 
     //! Prepares a block fragment read request to be passed to IIOEngine.
     /*!

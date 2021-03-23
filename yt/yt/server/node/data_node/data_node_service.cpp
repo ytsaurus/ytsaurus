@@ -575,7 +575,7 @@ private:
         auto chunkReaderStatistics = New<TChunkReaderStatistics>();
 
         if (fetchFromCache || fetchFromDisk) {
-            TBlockReadOptions options;
+            TChunkReadOptions options;
             options.WorkloadDescriptor = workloadDescriptor;
             options.PopulateCache = populateCache;
             options.BlockCache = Bootstrap_->GetBlockCache();
@@ -694,7 +694,7 @@ private:
 
         auto chunkReaderStatistics = New<TChunkReaderStatistics>();
 
-        TBlockReadOptions options;
+        TChunkReadOptions options;
         options.WorkloadDescriptor = workloadDescriptor;
         options.PopulateCache = populateCache;
         options.BlockCache = Bootstrap_->GetBlockCache();
@@ -1112,7 +1112,7 @@ private:
         const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->GetChunkOrThrow(chunkId, AllMediaIndex);
 
-        TBlockReadOptions options;
+        TChunkReadOptions options;
         options.WorkloadDescriptor = workloadDescriptor;
         options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
@@ -1155,7 +1155,7 @@ private:
         const TWorkloadDescriptor& workloadDescriptor,
         const TRequests& requests)
     {
-        TBlockReadOptions options;
+        TChunkReadOptions options;
         options.WorkloadDescriptor = workloadDescriptor;
         options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
@@ -1568,7 +1568,7 @@ private:
                 columnNames.emplace_back(nameTable->GetNameOrThrow(id));
             }
 
-            TBlockReadOptions options;
+            TChunkReadOptions options;
             options.WorkloadDescriptor = workloadDescriptor;
             options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 

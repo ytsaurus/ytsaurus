@@ -41,7 +41,7 @@ protected:
     const NChunkClient::TBlockFetcherConfigPtr Config_;
     const NChunkClient::IBlockCachePtr BlockCache_;
     const NChunkClient::IChunkReaderPtr UnderlyingReader_;
-    const NChunkClient::TClientChunkReadOptions BlockReadOptions_;
+    const NChunkClient::TClientChunkReadOptions ChunkReadOptions_;
 
     NChunkClient::TSequentialBlockFetcherPtr SequentialBlockFetcher_;
     NChunkClient::TChunkReaderMemoryManagerPtr MemoryManager_;

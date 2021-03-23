@@ -25,17 +25,17 @@ public:
     virtual NChunkClient::NProto::TChunkInfo GetInfo() const override;
 
     virtual TFuture<NChunkClient::TRefCountedChunkMetaPtr> ReadMeta(
-        const TBlockReadOptions& options,
+        const TChunkReadOptions& options,
         const std::optional<std::vector<int>>& extensionTags) override;
 
     virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockSet(
         const std::vector<int>& blockIndexes,
-        const TBlockReadOptions& options) override;
+        const TChunkReadOptions& options) override;
 
     virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockRange(
         int firstBlockIndex,
         int blockCount,
-        const TBlockReadOptions& options) override;
+        const TChunkReadOptions& options) override;
 
     virtual NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
         const NIO::TChunkFragmentDescriptor& fragmentDescriptor,

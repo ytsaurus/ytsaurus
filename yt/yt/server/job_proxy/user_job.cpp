@@ -190,7 +190,7 @@ public:
             Host_->LocalDescriptor(),
             BIND(&IJobHost::ReleaseNetwork, MakeWeak(Host_)),
             SandboxDirectoryNames[ESandboxKind::Udf],
-            BlockReadOptions_,
+            ChunkReadOptions_,
             Host_->GetReaderBlockCache(),
             Host_->GetTrafficMeter(),
             Host_->GetInBandwidthThrottler(),
@@ -1110,7 +1110,7 @@ private:
             DumpCodecStatistics(*codecStatistics, "/codec/cpu/decode", &statistics);
         }
 
-        DumpChunkReaderStatistics(&statistics, "/chunk_reader_statistics", BlockReadOptions_.ChunkReaderStatistics);
+        DumpChunkReaderStatistics(&statistics, "/chunk_reader_statistics", ChunkReadOptions_.ChunkReaderStatistics);
 
         auto writers = UserJobWriteController_->GetWriters();
         for (size_t index = 0; index < writers.size(); ++index) {

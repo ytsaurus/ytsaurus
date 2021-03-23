@@ -71,7 +71,7 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
     };
 
     ChunkMeta_ = WaitFor(UnderlyingReader_->GetMeta(
-        BlockReadOptions_,
+        ChunkReadOptions_,
         PartitionTag_,
         extensionTags))
         .ValueOrThrow();

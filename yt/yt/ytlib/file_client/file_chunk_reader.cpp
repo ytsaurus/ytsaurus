@@ -63,7 +63,7 @@ public:
         , ChunkReader_(std::move(chunkReader))
         , BlockCache_(std::move(blockCache))
         , CodecId_(codecId)
-        , BlockReadOptions_(chunkReadOptions)
+        , ChunkReadOptions_(chunkReadOptions)
         , StartOffset_(startOffset)
         , EndOffset_(endOffset)
     {
@@ -74,8 +74,8 @@ public:
         }
 
         Logger.AddTag("ChunkId: %v", ChunkReader_->GetChunkId());
-        if (BlockReadOptions_.ReadSessionId) {
-            Logger.AddTag("ReadSessionId: %v", BlockReadOptions_.ReadSessionId);
+        if (ChunkReadOptions_.ReadSessionId) {
+            Logger.AddTag("ReadSessionId: %v", ChunkReadOptions_.ReadSessionId);
         }
 
         YT_LOG_DEBUG("Creating file chunk reader (StartOffset: %v, EndOffset: %v)",
@@ -158,7 +158,7 @@ private:
     const IChunkReaderPtr ChunkReader_;
     const IBlockCachePtr BlockCache_;
     const NCompression::ECodec CodecId_;
-    const TClientChunkReadOptions BlockReadOptions_;
+    const TClientChunkReadOptions ChunkReadOptions_;
 
     i64 StartOffset_;
     i64 EndOffset_;
@@ -177,7 +177,7 @@ private:
     {
         YT_LOG_DEBUG("Requesting chunk meta");
 
-        auto metaOrError = WaitFor(ChunkReader_->GetMeta(BlockReadOptions_));
+        auto metaOrError = WaitFor(ChunkReader_->GetMeta(ChunkReadOptions_));
         THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Failed to get file chunk meta");
 
         YT_LOG_DEBUG("Chunk meta received");
@@ -252,7 +252,7 @@ private:
             BlockCache_,
             CodecId_,
             static_cast<double>(miscExt.compressed_data_size()) / miscExt.uncompressed_data_size(),
-            BlockReadOptions_);
+            ChunkReadOptions_);
 
         YT_LOG_DEBUG("File chunk reader opened (BlockIndexes: %v-%v, SelectedSize: %v)",
             blockIndex,

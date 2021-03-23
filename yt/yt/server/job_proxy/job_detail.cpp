@@ -51,9 +51,9 @@ TJob::TJob(IJobHost* host)
 {
     YT_VERIFY(Host_);
 
-    BlockReadOptions_.WorkloadDescriptor = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader->WorkloadDescriptor;
-    BlockReadOptions_.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-    BlockReadOptions_.ReadSessionId = TReadSessionId::Create();
+    ChunkReadOptions_.WorkloadDescriptor = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader->WorkloadDescriptor;
+    ChunkReadOptions_.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+    ChunkReadOptions_.ReadSessionId = TReadSessionId::Create();
 }
 
 std::vector<NChunkClient::TChunkId> TJob::DumpInputContext()
@@ -218,7 +218,7 @@ TStatistics TSimpleJobBase::GetStatistics() const
     if (Reader_) {
         result.AddSample("/data/input", Reader_->GetDataStatistics());
         DumpCodecStatistics(Reader_->GetDecompressionStatistics(), "/codec/cpu/decode", &result);
-        DumpChunkReaderStatistics(&result, "/chunk_reader_statistics", BlockReadOptions_.ChunkReaderStatistics);
+        DumpChunkReaderStatistics(&result, "/chunk_reader_statistics", ChunkReadOptions_.ChunkReaderStatistics);
     }
 
     if (Writer_) {

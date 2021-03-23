@@ -61,7 +61,7 @@ private:
         }
 
         return IYPathService::FromProducer(BIND([=] (IYsonConsumer* consumer) {
-            TBlockReadOptions options;
+            TChunkReadOptions options;
             options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
             auto chunkMeta = NYT::NConcurrency::WaitFor(chunk->ReadMeta(options))
                 .ValueOrThrow();

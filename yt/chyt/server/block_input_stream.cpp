@@ -74,7 +74,7 @@ TTableSchemaPtr InsertVirtualColumns(
         schema->GetSchemaModification());
 }
 
-TClientChunkReadOptions CreateBlockReadOptions(const TString& user)
+TClientChunkReadOptions CreateChunkReadOptions(const TString& user)
 {
     TClientChunkReadOptions chunkReadOptions;
     chunkReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
@@ -366,7 +366,7 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
     DB::PrewhereInfoPtr prewhereInfo)
 {
     auto* queryContext = storageContext->QueryContext;
-    auto chunkReadOptions = CreateBlockReadOptions(queryContext->User);
+    auto chunkReadOptions = CreateChunkReadOptions(queryContext->User);
 
     auto readSchema = subquerySpec.ReadSchema->Filter(realColumns);
     auto readSchemaWithVirtualColumns = InsertVirtualColumns(readSchema, subquerySpec.DataSourceDirectory, virtualColumns);

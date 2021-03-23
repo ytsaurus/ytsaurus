@@ -61,7 +61,7 @@ private:
     NCompression::ICodec* const Codec_;
     const NQueryClient::TTimestamp ChunkTimestamp_;
 
-    TBlockReadOptions Options_;
+    TChunkReadOptions Options_;
     NChunkClient::IChunkReaderPtr UnderlyingChunkReader_;
     TSharedRange<NTableClient::TUnversionedRow> RequestedKeys_;
     const NTableClient::TRowBufferPtr KeyReaderRowBuffer_ = New<NTableClient::TRowBuffer>(TKeyReaderBufferTag());

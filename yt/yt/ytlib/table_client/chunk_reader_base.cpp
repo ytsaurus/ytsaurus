@@ -34,7 +34,7 @@ TChunkReaderBase::TChunkReaderBase(
     : Config_(std::move(config))
     , BlockCache_(std::move(blockCache))
     , UnderlyingReader_(std::move(underlyingReader))
-    , BlockReadOptions_(chunkReadOptions)
+    , ChunkReadOptions_(chunkReadOptions)
     , Logger(TableClientLogger.WithTag("ChunkId: %v", UnderlyingReader_->GetChunkId()))
 {
     if (memoryManager) {
@@ -43,10 +43,10 @@ TChunkReaderBase::TChunkReaderBase(
         MemoryManager_ = New<TChunkReaderMemoryManager>(TChunkReaderMemoryManagerOptions(Config_->WindowSize));
     }
 
-    MemoryManager_->AddReadSessionInfo(BlockReadOptions_.ReadSessionId);
+    MemoryManager_->AddReadSessionInfo(ChunkReadOptions_.ReadSessionId);
 
-    if (BlockReadOptions_.ReadSessionId) {
-        Logger.AddTag("ReadSessionId: %v", BlockReadOptions_.ReadSessionId);
+    if (ChunkReadOptions_.ReadSessionId) {
+        Logger.AddTag("ReadSessionId: %v", ChunkReadOptions_.ReadSessionId);
     }
 }
 
@@ -71,7 +71,7 @@ TFuture<void> TChunkReaderBase::DoOpen(
         BlockCache_,
         CheckedEnumCast<ECodec>(miscExt.compression_codec()),
         static_cast<double>(miscExt.compressed_data_size()) / miscExt.uncompressed_data_size(),
-        BlockReadOptions_);
+        ChunkReadOptions_);
 
     InitFirstBlockNeeded_ = true;
     YT_VERIFY(SequentialBlockFetcher_->HasMoreBlocks());

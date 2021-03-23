@@ -42,7 +42,7 @@ TBlockFetcher::TBlockFetcher(
     , CompressionRatio_(compressionRatio)
     , MemoryManager_(std::move(memoryManager))
     , Codec_(NCompression::GetCodec(codecId))
-    , BlockReadOptions_(chunkReadOptions)
+    , ChunkReadOptions_(chunkReadOptions)
     , Logger(ChunkClientLogger)
 {
     YT_VERIFY(ChunkReader_);
@@ -50,8 +50,8 @@ TBlockFetcher::TBlockFetcher(
     YT_VERIFY(!BlockInfos_.empty());
 
     Logger.AddTag("ChunkId: %v", ChunkReader_->GetChunkId());
-    if (BlockReadOptions_.ReadSessionId) {
-        Logger.AddTag("ReadSessionId: %v", BlockReadOptions_.ReadSessionId);
+    if (ChunkReadOptions_.ReadSessionId) {
+        Logger.AddTag("ReadSessionId: %v", ChunkReadOptions_.ReadSessionId);
     }
 
     std::sort(
@@ -164,7 +164,7 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int blockIndex)
             GetBlockPromise(windowSlot).Set(
                 TBlock(TSharedRef(managedBlock->Data, managedBlock)));
             TotalRemainingSize_ -= BlockInfos_[windowIndex].UncompressedDataSize;
-            BlockReadOptions_.ChunkReaderStatistics->DataBytesReadFromCache += uncompressedBlock.Size();
+            ChunkReadOptions_.ChunkReaderStatistics->DataBytesReadFromCache += uncompressedBlock.Size();
         } else {
             ReaderInvoker_->Invoke(BIND(
                 &TBlockFetcher::RequestBlocks,
@@ -285,7 +285,7 @@ void TBlockFetcher::FetchNextGroup(TErrorOr<TMemoryUsageGuardPtr> memoryUsageGua
                 GetBlockPromise(windowSlot).Set(
                     TBlock(TSharedRef(managedBlock->Data, managedBlock)));
                 TotalRemainingSize_ -= blockInfo.UncompressedDataSize;
-                BlockReadOptions_.ChunkReaderStatistics->DataBytesReadFromCache += uncompressedBlock.Size();
+                ChunkReadOptions_.ChunkReaderStatistics->DataBytesReadFromCache += uncompressedBlock.Size();
             } else {
                 uncompressedSize += blockInfo.UncompressedDataSize;
                 windowIndexes.push_back(FirstUnfetchedWindowIndex_);
@@ -360,7 +360,7 @@ void TBlockFetcher::RequestBlocks(
     TotalRemainingSize_ -= uncompressedSize;
 
     auto future = ChunkReader_->ReadBlocks(
-        BlockReadOptions_,
+        ChunkReadOptions_,
         blockIndexes,
         static_cast<i64>(uncompressedSize * CompressionRatio_));
 

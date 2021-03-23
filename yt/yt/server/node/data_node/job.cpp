@@ -591,7 +591,7 @@ private:
 
         auto chunk = GetLocalChunkOrThrow(chunkId, sourceMediumIndex);
 
-        TBlockReadOptions chunkReadOptions;
+        TChunkReadOptions chunkReadOptions;
         chunkReadOptions.WorkloadDescriptor = workloadDescriptor;
         chunkReadOptions.BlockCache = Bootstrap_->GetBlockCache();
         chunkReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();

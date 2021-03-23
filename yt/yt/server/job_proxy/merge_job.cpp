@@ -94,7 +94,7 @@ public:
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 std::move(nameTable),
-                BlockReadOptions_,
+                ChunkReadOptions_,
                 columnFilter,
                 /* sortColumns */ {},
                 partitionTag,

@@ -42,7 +42,7 @@ protected:
             store->GetStartingRowIndex() + index,
             store->GetStartingRowIndex() + index + 1,
             columnFilter,
-            BlockReadOptions_);
+            ChunkReadOptions_);
 
         NTableClient::TRowBatchReadOptions options{
             .MaxRowsPerRead = 1

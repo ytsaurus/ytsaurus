@@ -20,7 +20,7 @@ using NNodeTrackerClient::TNodeId;
 
 struct TChunkDescriptor;
 struct TSessionOptions;
-struct TBlockReadOptions;
+struct TChunkReadOptions;
 
 class TPendingIOGuard;
 class TChunkReadGuard;
