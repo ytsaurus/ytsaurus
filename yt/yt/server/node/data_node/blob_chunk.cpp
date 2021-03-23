@@ -21,6 +21,8 @@
 
 #include <yt/yt/client/misc/workload.h>
 
+#include <yt/yt/core/misc/fs.h>
+
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/profiling/timing.h>
@@ -312,6 +314,12 @@ void TBlobChunkBase::DoReadMeta(
         auto reader = GetReader();
         meta = WaitFor(reader->GetMeta(session->Options))
             .ValueOrThrow();
+    } catch (const TErrorException& ex) {
+        if (ex.Error().FindMatching(NFS::EErrorCode::IOError)) {
+            // Location is probably broken.
+            Location_->Disable(ex.Error());
+        }
+        throw;
     } catch (const std::exception& ex) {
         cookie.Cancel(ex);
         return;
