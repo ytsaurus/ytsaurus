@@ -202,6 +202,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
                         /* partitionTag */ std::nullopt,
                         blockCache,
                         trafficMeter,
+                        /* nodeStatusDirectory */ nullptr,
                         bandwidthThrottler,
                         rpsThrottler);
 

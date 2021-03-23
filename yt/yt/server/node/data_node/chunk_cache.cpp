@@ -919,6 +919,7 @@ private:
                 seedReplicas,
                 Bootstrap_->GetBlockCache(),
                 trafficMeter,
+                /* nodeStatusDirectory */ nullptr,
                 Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ArtifactCacheIn),
                 Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ReadRpsOut));
 

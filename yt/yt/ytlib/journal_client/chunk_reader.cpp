@@ -80,6 +80,7 @@ std::vector<IChunkReaderPtr> CreatePartReaders(
             partReplicas,
             blockCache,
             trafficMeter,
+            /* nodeStatusDirectory */ nullptr,
             bandwidthThrottler,
             rpsThrottler));
     }
@@ -356,6 +357,7 @@ IChunkReaderPtr CreateChunkReader(
             replicas,
             std::move(blockCache),
             std::move(trafficMeter),
+            /* nodeStatusDirectory */ nullptr,
             std::move(bandwidthThrottler),
             std::move(rpsThrottler));
     } else {

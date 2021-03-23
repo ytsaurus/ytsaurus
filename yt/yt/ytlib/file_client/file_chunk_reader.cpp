@@ -425,6 +425,7 @@ IFileReaderPtr CreateFileMultiChunkReader(
                 localNodeId,
                 blockCache,
                 trafficMeter,
+                /* nodeStatusDirectory */ nullptr,
                 bandwidthThrottler,
                 rpsThrottler);
 

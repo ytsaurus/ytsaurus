@@ -529,10 +529,11 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
     ]
 
     def _set_nodes_state(self):
-        nodes = ls("//sys/cluster_nodes")
+        self._nodes = ls("//sys/cluster_nodes")
+        assert len(self._nodes) == self.NUM_NODES
 
-        set("//sys/cluster_nodes/{0}/@disable_write_sessions".format(nodes[0]), True)
-        for node in nodes[1:]:
+        set("//sys/cluster_nodes/{0}/@disable_write_sessions".format(self._nodes[0]), True)
+        for node in self._nodes[1:]:
             set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), True)
 
     @authors("akozhikhov")
@@ -794,6 +795,59 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
             assert lookup_rows("//tmp/t", random_keys, use_lookup_cache=use_lookup_cache) == random_rows
         for use_lookup_cache in [False, True, True]:
             assert lookup_rows("//tmp/t", all_keys, use_lookup_cache=use_lookup_cache) == all_rows
+
+
+class TestLookupFromSuspiciousNodes(TestSortedDynamicTablesBase):
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "block_cache": {
+                "compressed_data": {
+                    "capacity": 0
+                },
+                "uncompressed_data": {
+                    "capacity": 0
+                }
+            }
+        }
+    }
+
+    def _set_nodes_state(self):
+        self._nodes = ls("//sys/cluster_nodes")
+        assert len(self._nodes) == self.NUM_NODES
+
+        set("//sys/cluster_nodes/{0}/@disable_write_sessions".format(self._nodes[0]), True)
+        for node in self._nodes[1:]:
+            set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), True)
+
+    @authors("akozhikhov")
+    def test_lookup_from_suspicious_node(self):
+        set("//sys/@config/tablet_manager/chunk_reader", {"probe_peer_count": self.NUM_NODES - 1})
+
+        self._set_nodes_state()
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t", replication_factor=self.NUM_NODES - 1)
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+        set("//tmp/t/@chunk_writer", {"upload_replication_factor": self.NUM_NODES - 1})
+        sync_mount_table("//tmp/t")
+
+        row = [{"key": 1, "value": "1"}]
+        insert_rows("//tmp/t", row)
+        sync_flush_table("//tmp/t")
+
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == row
+
+        set_banned_flag(True, self._nodes[1:2])
+
+        # Banned node is marked as suspicious and will be avoided within next lookup.
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == row
+
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == row
+
+        set_banned_flag(False, self._nodes[1:2])
+
+        # Node shall not be suspicious anymore.
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == row
 
 
 ################################################################################

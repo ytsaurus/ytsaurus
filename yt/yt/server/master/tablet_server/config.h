@@ -537,6 +537,10 @@ public:
         RegisterParameter("tablet_node_tracker", TabletNodeTracker)
             .DefaultNew();
 
+        RegisterPreprocessor([&] {
+            ChunkReader->SuspiciousNodeGracePeriod = TDuration::Minutes(5);
+        });
+
         RegisterPostprocessor([&] {
             MaxSnapshotCountToKeep = 2;
         });

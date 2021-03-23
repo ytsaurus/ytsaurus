@@ -155,6 +155,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TOrderedChunkStore::TOrderedChunkStore(
+    NClusterNode::TBootstrap* bootstrap,
     TTabletManagerConfigPtr config,
     TStoreId id,
     TTablet* tablet,
@@ -165,6 +166,7 @@ TOrderedChunkStore::TOrderedChunkStore(
     NNative::IClientPtr client,
     const TNodeDescriptor& localDescriptor)
     : TChunkStoreBase(
+        bootstrap,
         config,
         id /*storeId*/,
         id /*chunkId*/,

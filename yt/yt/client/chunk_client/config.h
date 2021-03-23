@@ -237,6 +237,14 @@ public:
     //! synchronous interface will be used.
     bool UseAsyncBlockCache;
 
+    //! Will locate new replicas from master
+    //! if node was suspicious for at least the period (unless null).
+    std::optional<TDuration> SuspiciousNodeGracePeriod;
+
+    //! Is used to increase interval between Locates
+    //! that are called for discarding seeds that are suspicious.
+    TDuration ProlongedDiscardSeedsDelay;
+
     TReplicationReaderConfig()
     {
         RegisterParameter("block_rpc_timeout", BlockRpcTimeout)
@@ -312,6 +320,10 @@ public:
             .Default(true);
         RegisterParameter("use_async_block_cache", UseAsyncBlockCache)
             .Default(false);
+        RegisterParameter("suspicious_node_grace_period", SuspiciousNodeGracePeriod)
+            .Default();
+        RegisterParameter("prolonged_discard_seeds_delay", ProlongedDiscardSeedsDelay)
+            .Default(TDuration::Minutes(1));
 
         RegisterPostprocessor([&] {
             // Seems unreasonable to make backoff greater than half of total session timeout.
