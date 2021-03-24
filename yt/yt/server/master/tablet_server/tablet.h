@@ -50,11 +50,9 @@ struct TTabletCellStatisticsBase
     void Persist(const NCellMaster::TPersistenceContext& context);
 };
 
+// COMPAT(akozhikhov): Persist is noop here, hence may drop this class later. 
 struct TUncountableTabletCellStatisticsBase
 {
-    bool Decommissioned = false;
-    ETabletCellHealth Health = ETabletCellHealth::Initializing;
-
     void Persist(const NCellMaster::TPersistenceContext& context);
 };
 
@@ -132,6 +130,7 @@ TString ToString(const TTabletStatistics& statistics, const NChunkServer::TChunk
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(akozhikhov)
 class TSerializableTabletCellStatisticsBase
     : public virtual NYTree::TYsonSerializable
     , public TTabletCellStatisticsBase
@@ -150,19 +149,6 @@ private:
     void InitParameters();
 };
 
-class TSerializableUncountableTabletCellStatisticsBase
-    : public virtual NYTree::TYsonSerializable
-    , public TUncountableTabletCellStatisticsBase
-{
-public:
-    TSerializableUncountableTabletCellStatisticsBase();
-
-    explicit TSerializableUncountableTabletCellStatisticsBase(const TUncountableTabletCellStatisticsBase& statistics);
-
-private:
-    void InitParameters();
-};
-
 class TSerializableTabletStatisticsBase
     : public virtual NYTree::TYsonSerializable
     , public TTabletStatisticsBase
@@ -178,7 +164,6 @@ private:
 
 class TSerializableTabletCellStatistics
     : public TSerializableTabletCellStatisticsBase
-    , public TSerializableUncountableTabletCellStatisticsBase
 {
 public:
     TSerializableTabletCellStatistics();

@@ -196,25 +196,20 @@ private:
                 }
                 break;
 
-            case EInternedAttributeKey::TabletCount: {
+            case EInternedAttributeKey::TabletCount:
                 if (multicellManager->IsSecondaryMaster()) {
                     BuildYsonFluently(consumer)
                         .Value(cell->Tablets().size());
                     return true;
                 }
                 break;
-            }
 
-            case EInternedAttributeKey::TotalStatistics: {
-                // COMPAT(savrus)
-                auto statistics = cell->GossipStatistics().Cluster();
-                statistics.Health = cell->GossipStatus().Cluster().Health;
+            case EInternedAttributeKey::TotalStatistics:
                 BuildYsonFluently(consumer)
                     .Value(New<TSerializableTabletCellStatistics>(
-                        statistics,
+                        cell->GossipStatistics().Cluster(),
                         chunkManager));
                 return true;
-            }
 
             case EInternedAttributeKey::MulticellStatistics:
                 BuildYsonFluently(consumer)

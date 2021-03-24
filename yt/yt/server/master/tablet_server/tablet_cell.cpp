@@ -65,12 +65,8 @@ TTabletCellBundle* TTabletCell::GetTabletCellBundle() const
 void TTabletCell::RecomputeClusterStatistics()
 {
     GossipStatistics().Cluster() = TTabletCellStatistics();
-    GossipStatistics().Cluster().Decommissioned = true;
-    GossipStatistics().Cluster().Health = GetHealth();
     for (const auto& [cellTag, statistics] : GossipStatistics().Multicell()) {
         GossipStatistics().Cluster() += statistics;
-        GossipStatistics().Cluster().Decommissioned &= statistics.Decommissioned;
-        GossipStatistics().Cluster().Health = CombineHealths(GossipStatistics().Cluster().Health, statistics.Health);
     }
 }
 
