@@ -1186,8 +1186,6 @@ private:
 
     void BuildAndSaveProgress();
 
-    void UpdateMemoryDigests(const TJobletPtr& joblet, const TStatistics& statistics, bool resourceOverdraft = false);
-
     void UpdateActualHistogram(const TStatistics& statistics);
 
     virtual void OnExecNodesUpdated();

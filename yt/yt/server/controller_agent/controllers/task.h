@@ -191,6 +191,8 @@ public:
 
     virtual NChunkPools::IChunkPoolOutput::TCookie ExtractCookie(NNodeTrackerClient::TNodeId nodeId);
 
+    void UpdateMemoryDigests(const TJobletPtr& joblet, const TStatistics& statistics, bool resourceOverdraft);
+
 protected:
     NLogging::TLogger Logger;
 

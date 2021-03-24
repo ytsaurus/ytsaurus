@@ -1243,6 +1243,41 @@ void TTask::ResetCachedMinNeededResources()
     CachedMinNeededResources_.reset();
 }
 
+void TTask::UpdateMemoryDigests(const TJobletPtr& joblet, const TStatistics& statistics, bool resourceOverdraft)
+{
+    if (auto userJobMaxMemoryUsage = FindNumericValue(statistics, "/user_job/max_memory")) {
+        auto* digest = GetUserJobMemoryDigest();
+        YT_VERIFY(digest);
+        double actualFactor = static_cast<double>(*userJobMaxMemoryUsage) / joblet->EstimatedResourceUsage.GetUserJobMemory();
+        if (resourceOverdraft) {
+            // During resource overdraft actual max memory values may be outdated,
+            // since statistics are updated periodically. To ensure that digest converge to large enough
+            // values we introduce additional factor.
+            actualFactor = std::max(actualFactor, *joblet->UserJobMemoryReserveFactor * TaskHost_->GetConfig()->ResourceOverdraftFactor);
+        }
+        YT_LOG_DEBUG("Adding sample to the job proxy memory digest (Sample: %v, JobId: %v, ResourceOverdraft: %v)",
+            actualFactor,
+            joblet->JobId,
+            resourceOverdraft);
+        digest->AddSample(actualFactor);
+    }
+
+    if (auto jobProxyMaxMemoryUsage = FindNumericValue(statistics, "/job_proxy/max_memory")) {
+        auto* digest = GetJobProxyMemoryDigest();
+        YT_VERIFY(digest);
+        double actualFactor = static_cast<double>(*jobProxyMaxMemoryUsage) /
+            (joblet->EstimatedResourceUsage.GetJobProxyMemory() + joblet->EstimatedResourceUsage.GetFootprintMemory());
+        if (resourceOverdraft) {
+            actualFactor = std::max(actualFactor, *joblet->JobProxyMemoryReserveFactor * TaskHost_->GetConfig()->ResourceOverdraftFactor);
+        }
+        YT_LOG_DEBUG("Adding sample to the user job memory digest (Sample: %v, JobId: %v, ResourceOverdraft: %v)",
+            actualFactor,
+            joblet->JobId,
+            resourceOverdraft);
+        digest->AddSample(actualFactor);
+    }
+}
+
 TJobResources TTask::ApplyMemoryReserve(const TExtendedJobResources& jobResources) const
 {
     TJobResources result;

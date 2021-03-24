@@ -2502,51 +2502,6 @@ void TOperationControllerBase::SafeOnJobStarted(std::unique_ptr<TStartedJobSumma
     LogProgress();
 }
 
-void TOperationControllerBase::UpdateMemoryDigests(const TJobletPtr& joblet, const TStatistics& statistics, bool resourceOverdraft)
-{
-    bool taskUpdateNeeded = false;
-
-    auto userJobMaxMemoryUsage = FindNumericValue(statistics, "/user_job/max_memory");
-    if (userJobMaxMemoryUsage) {
-        auto* digest = joblet->Task->GetUserJobMemoryDigest();
-        YT_VERIFY(digest);
-        double actualFactor = static_cast<double>(*userJobMaxMemoryUsage) / joblet->EstimatedResourceUsage.GetUserJobMemory();
-        if (resourceOverdraft) {
-            // During resource overdraft actual max memory values may be outdated,
-            // since statistics are updated periodically. To ensure that digest converge to large enough
-            // values we introduce additional factor.
-            actualFactor = std::max(actualFactor, *joblet->UserJobMemoryReserveFactor * Config->ResourceOverdraftFactor);
-        }
-        YT_LOG_TRACE("Adding sample to the job proxy memory digest (JobType: %v, Sample: %v, JobId: %v)",
-            joblet->JobType,
-            actualFactor,
-            joblet->JobId);
-        digest->AddSample(actualFactor);
-        taskUpdateNeeded = true;
-    }
-
-    auto jobProxyMaxMemoryUsage = FindNumericValue(statistics, "/job_proxy/max_memory");
-    if (jobProxyMaxMemoryUsage) {
-        auto* digest = joblet->Task->GetJobProxyMemoryDigest();
-        YT_VERIFY(digest);
-        double actualFactor = static_cast<double>(*jobProxyMaxMemoryUsage) /
-            (joblet->EstimatedResourceUsage.GetJobProxyMemory() + joblet->EstimatedResourceUsage.GetFootprintMemory());
-        if (resourceOverdraft) {
-            actualFactor = std::max(actualFactor, *joblet->JobProxyMemoryReserveFactor * Config->ResourceOverdraftFactor);
-        }
-        YT_LOG_TRACE("Adding sample to the user job memory digest (JobType: %v, Sample: %v, JobId: %v)",
-            joblet->JobType,
-            actualFactor,
-            joblet->JobId);
-        digest->AddSample(actualFactor);
-        taskUpdateNeeded = true;
-    }
-
-    if (taskUpdateNeeded) {
-        UpdateAllTasksIfNeeded();
-    }
-}
-
 void TOperationControllerBase::InitializeHistograms()
 {
     if (IsInputDataSizeHistogramSupported()) {
@@ -2693,7 +2648,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
 
     const auto& statistics = *jobSummary->Statistics;
 
-    UpdateMemoryDigests(joblet, statistics);
+    joblet->Task->UpdateMemoryDigests(joblet, statistics, /*resourceOverdraft*/ false);
     UpdateActualHistogram(statistics);
 
     FinalizeJoblet(joblet, jobSummary.get());
@@ -2872,7 +2827,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     const auto& statistics = *jobSummary->Statistics;
 
     if (abortReason == EAbortReason::ResourceOverdraft) {
-        UpdateMemoryDigests(joblet, statistics, true /* resourceOverdraft */);
+        joblet->Task->UpdateMemoryDigests(joblet, statistics, /*resourceOverdraft*/ true);
     }
 
     if (jobSummary->LogAndProfile) {
