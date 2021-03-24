@@ -7,8 +7,6 @@
 #include <mapreduce/yt/interface/error_codes.h>
 #include <mapreduce/yt/interface/logging/log.h>
 
-#include <library/cpp/testing/unittest/registar.h>
-
 #include <util/stream/printf.h>
 
 #include <util/system/env.h>
