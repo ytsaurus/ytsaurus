@@ -1421,6 +1421,8 @@ private:
             if (preparedRequest.OperationAlertsSent || sentAlerts) {
                 auto* protoAlerts = protoOperation->mutable_alerts();
                 for (const auto& [alertType, alert] : controller->GetAlerts()) {
+                    // TODO(ignat): remove/refactor this log message after fixing the bug.
+                    YT_LOG_DEBUG("Add alert to heartbeat (OperationId: %v, AlertType: %v)", operation->GetId(), alertType);
                     auto* protoAlert = protoAlerts->add_alerts();
                     protoAlert->set_type(static_cast<int>(alertType));
                     ToProto(protoAlert->mutable_error(), alert);
