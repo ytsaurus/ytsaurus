@@ -1707,10 +1707,11 @@ private:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         if (artifact.BypassArtifactCache) {
-            YT_LOG_INFO("Downloading artifact with cache bypass (FileName: %v, Executable: %v, SandboxKind: %v)",
+            YT_LOG_INFO("Downloading artifact with cache bypass (FileName: %v, Executable: %v, SandboxKind: %v, CompressedDataSize: %v)",
                 artifact.Name,
                 artifact.Executable,
-                artifact.SandboxKind);
+                artifact.SandboxKind,
+                artifact.Key.GetCompressedDataSize());
 
             const auto& chunkCache = Bootstrap_->GetChunkCache();
             auto downloadOptions = MakeArtifactDownloadOptions();
@@ -1725,10 +1726,11 @@ private:
             YT_VERIFY(artifact.Chunk);
 
             if (artifact.CopyFile) {
-                YT_LOG_INFO("Copying artifact (FileName: %v, Executable: %v, SandboxKind: %v)",
+                YT_LOG_INFO("Copying artifact (FileName: %v, Executable: %v, SandboxKind: %v, CompressedDataSize: %v)",
                     artifact.Name,
                     artifact.Executable,
-                    artifact.SandboxKind);
+                    artifact.SandboxKind,
+                    artifact.Key.GetCompressedDataSize());
 
                 return Slot_->MakeCopy(
                     artifact.SandboxKind,
@@ -1736,10 +1738,11 @@ private:
                     artifact.Name,
                     artifact.Executable);
             } else {
-                YT_LOG_INFO("Making symlink for artifact (FileName: %v, Executable: %v, SandboxKind: %v)",
+                YT_LOG_INFO("Making symlink for artifact (FileName: %v, Executable: %v, SandboxKind: %v, CompressedDataSize: %v)",
                     artifact.Name,
                     artifact.Executable,
-                    artifact.SandboxKind);
+                    artifact.SandboxKind,
+                    artifact.Key.GetCompressedDataSize());
 
                 return Slot_->MakeLink(
                     artifact.SandboxKind,
