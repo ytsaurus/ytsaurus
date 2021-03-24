@@ -462,11 +462,17 @@ public:
             }
             YT_VERIFY(operationIdToOperationJobMetrics.emplace(operationId, std::move(operationInfo.JobMetrics)).second);
 
+            // TODO(ignat): remove/refactor this log message after fixing the bug.
+            if (!operationInfo.AlertMap.empty()) {
+                YT_LOG_DEBUG("Received alert information (OperationId: %v)", operation->GetId());
+            }
             for (const auto& [alertType, alert] : operationInfo.AlertMap) {
                 if (alert.IsOK()) {
                     operation->ResetAlert(alertType);
+                    YT_LOG_DEBUG("Reset alert (OperationId: %v, AlertType: %v)", operation->GetId(), alertType);
                 } else {
                     operation->SetAlert(alertType, alert);
+                    YT_LOG_DEBUG("Set alert (OperationId: %v, AlertType: %v)", operation->GetId(), alertType);
                 }
             }
 
