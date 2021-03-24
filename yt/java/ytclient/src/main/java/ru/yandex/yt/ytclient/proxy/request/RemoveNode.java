@@ -3,6 +3,7 @@ package ru.yandex.yt.ytclient.proxy.request;
 import javax.annotation.Nonnull;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
@@ -22,6 +23,12 @@ public class RemoveNode extends MutatePath<RemoveNode> implements HighLevelReque
 
     public RemoveNode(YPath path) {
         super(path);
+    }
+
+    public RemoveNode(RemoveNode other) {
+        super(other);
+        this.recursive = other.recursive;
+        this.force = other.force;
     }
 
     public RemoveNode setRecursive(boolean f) {
@@ -50,6 +57,14 @@ public class RemoveNode extends MutatePath<RemoveNode> implements HighLevelReque
         if (additionalData != null) {
             builder.body().mergeFrom(additionalData);
         }
+    }
+
+    public YTreeBuilder toTree(YTreeBuilder builder) {
+        return builder
+                .apply(super::toTree)
+                .key("path").apply(path::toTree)
+                .when(recursive, b -> b.key("recursive").value(recursive))
+                .when(force, b -> b.key("force").value(true));
     }
 
     @Override
