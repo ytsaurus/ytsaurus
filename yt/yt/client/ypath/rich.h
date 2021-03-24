@@ -135,14 +135,14 @@ public:
     // "partially_sorted"
     bool GetPartiallySorted() const;
 
-    // "chunk_key_column_count"
-    std::optional<int> GetChunkKeyColumnCount() const;
-
     // "chunk_unique_keys"
     std::optional<bool> GetChunkUniqueKeys() const;
 
     // "copy_file"
     std::optional<bool> GetCopyFile() const;
+
+    // "chunk_sort_columns"
+    std::optional<NTableClient::TSortColumns> GetChunkSortColumns() const;
 
 private:
     TYPath Path_;

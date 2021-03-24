@@ -830,7 +830,9 @@ TTableSchemaPtr TTableSchema::ToSorted(const TSortColumns& sortColumns) const
 
         if (it == columns.end()) {
             if (Strict_) {
-                THROW_ERROR_EXCEPTION("Column %Qv is not found in strict schema", sortColumns[index].Name)
+                THROW_ERROR_EXCEPTION(
+                    EErrorCode::IncompatibleKeyColumns,
+                    "Column %Qv is not found in strict schema", sortColumns[index].Name)
                     << TErrorAttribute("schema", *this)
                     << TErrorAttribute("sort_columns", sortColumns);
             } else {

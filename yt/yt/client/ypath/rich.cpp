@@ -4,8 +4,9 @@
 
 #include <yt/yt/client/chunk_client/read_limit.h>
 
-#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/column_sort_schema.h>
 #include <yt/yt/client/table_client/column_rename_descriptor.h>
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/core/misc/error.h>
 
@@ -551,11 +552,6 @@ bool TRichYPath::GetPartiallySorted() const
     return GetAttribute<bool>(*this, "partially_sorted", false);
 }
 
-std::optional<int> TRichYPath::GetChunkKeyColumnCount() const
-{
-    return FindAttribute<int>(*this, "chunk_key_column_count");
-}
-
 std::optional<bool> TRichYPath::GetChunkUniqueKeys() const
 {
     return FindAttribute<bool>(*this, "chunk_unique_keys");
@@ -564,6 +560,11 @@ std::optional<bool> TRichYPath::GetChunkUniqueKeys() const
 std::optional<bool> TRichYPath::GetCopyFile() const
 {
     return FindAttribute<bool>(*this, "copy_file");
+}
+
+std::optional<TSortColumns> TRichYPath::GetChunkSortColumns() const
+{
+    return FindAttribute<TSortColumns>(*this, "chunk_sort_columns");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
