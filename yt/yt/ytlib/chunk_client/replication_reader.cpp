@@ -1208,44 +1208,7 @@ private:
         };
     }
 
-    TFuture<std::pair<TPeer, TErrorOrPeerProbeResult>> ProbePeerViaGetBlockSet(
-        const IChannelPtr& channel,
-        const TPeer& peer,
-        const std::vector<int>& blockIndexes,
-        const TReplicationReaderPtr& reader)
-    {
-        TDataNodeServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(ReaderConfig_->ProbeRpcTimeout);
-
-        auto req = proxy.GetBlockSet();
-        req->SetHeavy(true);
-        req->set_fetch_from_cache(false);
-        req->set_fetch_from_disk(false);
-        ToProto(req->mutable_chunk_id(), ChunkId_);
-        ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
-        ToProto(req->mutable_block_indexes(), blockIndexes);
-        req->SetAcknowledgementTimeout(std::nullopt);
-
-        if (peer.NodeSuspicionMarkTime) {
-            return req->Invoke().Apply(BIND(
-                [=, this_ = MakeStrong(this), currentSeedsFuture = SeedsFuture_, totalPeerCount = Peers_.size()]
-                (const TDataNodeServiceProxy::TErrorOrRspGetBlockSetPtr& rspOrError)
-                {
-                    return ParseSuspiciousPeerAndProbeResponse(
-                        std::move(peer),
-                        rspOrError,
-                        currentSeedsFuture,
-                        totalPeerCount);
-                })
-                .AsyncVia(SessionInvoker_));
-        } else {
-            return req->Invoke().Apply(BIND([=] (const TDataNodeServiceProxy::TErrorOrRspGetBlockSetPtr& rspOrError) {
-                return ParsePeerAndProbeResponse(std::move(peer), rspOrError);
-            }));
-        }
-    }
-
-    TFuture<std::pair<TPeer, TErrorOrPeerProbeResult>> ProbePeerViaProbeBlockSet(
+    TFuture<std::pair<TPeer, TErrorOrPeerProbeResult>> ProbePeer(
         const IChannelPtr& channel,
         const TPeer& peer,
         const std::vector<int>& blockIndexes,
@@ -1278,19 +1241,6 @@ private:
             return req->Invoke().Apply(BIND([=] (const TDataNodeServiceProxy::TErrorOrRspProbeBlockSetPtr& rspOrError) {
                 return ParsePeerAndProbeResponse(std::move(peer), rspOrError);
             }));
-        }
-    }
-
-    TFuture<std::pair<TPeer, TErrorOrPeerProbeResult>> ProbePeer(
-        const IChannelPtr& channel,
-        const TPeer& peer,
-        const std::vector<int>& blockIndexes,
-        const TReplicationReaderPtr& reader)
-    {
-        if (ReaderConfig_->EnableProbeBlockSet) {
-            return ProbePeerViaProbeBlockSet(channel, peer, blockIndexes, reader);
-        } else {
-            return ProbePeerViaGetBlockSet(channel, peer, blockIndexes, reader);
         }
     }
 
@@ -1376,7 +1326,7 @@ private:
     {
         std::vector<std::pair<TPeer, TPeerProbeResult>> peerAndSuccessfulProbeResults;
         bool receivedNewPeers = false;
-        for (const auto& [peer, probeResultOrError] : peerAndProbeResults) {
+        for (auto& [peer, probeResultOrError] : peerAndProbeResults) {
             if (!probeResultOrError.IsOK()) {
                 ProcessError(
                     probeResultOrError,
@@ -1385,7 +1335,7 @@ private:
                 continue;
             }
 
-            const auto& probeResult = probeResultOrError.Value();
+            auto& probeResult = probeResultOrError.Value();
 
             if (UpdatePeerBlockMap(probeResult, reader)) {
                 receivedNewPeers = true;
@@ -1400,7 +1350,7 @@ private:
                 continue;
             }
 
-            peerAndSuccessfulProbeResults.emplace_back(peer, probeResult);
+            peerAndSuccessfulProbeResults.emplace_back(std::move(peer), std::move(probeResult));
         }
 
         if (peerAndSuccessfulProbeResults.empty()) {
