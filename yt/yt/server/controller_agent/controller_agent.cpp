@@ -54,6 +54,8 @@
 
 #include <yt/yt/build/build.h>
 
+#include <util/generic/cast.h>
+
 namespace NYT::NControllerAgent {
 
 using namespace NScheduler;
@@ -1817,6 +1819,7 @@ private:
                         ->GetNativeConnection()
                         ->GetMediumDirectory()
                 )
+                .Item("snapshot_version").Value(ToUnderlying(GetCurrentSnapshotVersion()))
                 .Item("snapshotted_operation_ids")
                     .BeginAttributes()
                         .Item("opaque").Value(true)
