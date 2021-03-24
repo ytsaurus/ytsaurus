@@ -1061,7 +1061,11 @@ private:
                 Result_.Operations.begin(),
                 Result_.Operations.end(),
                 [] (const TOperationPtr& lhs, const TOperationPtr& rhs) {
-                    // NB: starting operations have no slot index and should be processed after all other operations.
+                    // Remind that:
+                    // 1. Starting operations have no slot index and should be processed after all other operations
+                    //    to avoid slot index changes.
+                    // 2. Pending operations should be processes after running operations
+                    //    to save current list of pending operations.
                     if (lhs->GetState() != rhs->GetState()) {
                         return static_cast<int>(lhs->GetState()) > static_cast<int>(rhs->GetState());
                     }
