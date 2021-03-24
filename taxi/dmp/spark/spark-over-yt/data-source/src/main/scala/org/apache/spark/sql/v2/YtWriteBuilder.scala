@@ -10,6 +10,7 @@ import org.apache.spark.sql.types.{DataType, StructType}
 import ru.yandex.spark.yt.format.conf.{SparkYtWriteConfiguration, YtTableSparkSettings}
 import ru.yandex.spark.yt.format.{YtOutputCommitter, YtOutputWriter}
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
+import ru.yandex.spark.yt.serializers.SchemaConverter
 
 class YtWriteBuilder(paths: Seq[String],
                      formatName: String,
@@ -21,6 +22,8 @@ class YtWriteBuilder(paths: Seq[String],
                             job: Job,
                             options: Map[String, String],
                             dataSchema: StructType): OutputWriterFactory = {
+    SchemaConverter.checkSchema(dataSchema)
+
     val ytClientConf = ytClientConfiguration(sqlConf)
     val writeConfiguration = SparkYtWriteConfiguration(sqlConf)
     YtTableSparkSettings.serialize(options, dataSchema, job.getConfiguration)

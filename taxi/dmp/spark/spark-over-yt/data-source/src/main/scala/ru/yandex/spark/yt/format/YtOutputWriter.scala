@@ -11,14 +11,15 @@ import org.apache.spark.sql.execution.datasources.OutputWriter
 import org.apache.spark.sql.types.StructType
 import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.common.GUID
-import ru.yandex.spark.yt.format.conf.{SparkYtWriteConfiguration, YtTableSparkSettings}
+import ru.yandex.spark.yt.format.conf.SparkYtWriteConfiguration
+import ru.yandex.spark.yt.format.conf.YtTableSparkSettings._
 import ru.yandex.spark.yt.fs.conf._
 import ru.yandex.spark.yt.fs.{GlobalTableSettings, YtClientProvider}
 import ru.yandex.spark.yt.serializers.InternalRowSerializer
 import ru.yandex.spark.yt.wrapper.LogLazy
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
-import ru.yandex.yt.ytclient.proxy.TableWriter
 import ru.yandex.yt.ytclient.proxy.request.{TransactionalOptions, WriteTable}
+import ru.yandex.yt.ytclient.proxy.{CompoundClient, TableWriter}
 
 import scala.concurrent.{Await, Future}
 
@@ -33,21 +34,36 @@ class YtOutputWriter(path: String,
 
   private val log = LoggerFactory.getLogger(getClass)
 
-  private val schemaHint = options.ytConf(YtTableSparkSettings.WriteSchemaHint)
+  private val schemaHint = options.ytConf(WriteSchemaHint)
 
-  private val client = YtClientProvider.ytClient(ytClientConfiguration)
-  private val requestPath = s"""<"append"=true>/${new Path(path).toUri}"""
+  private val client = createYtClient()
+
+  private val splitPartitions = options.ytConf(SortColumns).isEmpty
 
   private var writers = Seq(initializeWriter())
   private var writeFutures = Seq.empty[CompletableFuture[Void]]
   private var prevFuture: Option[Future[Unit]] = None
 
   private var list = new util.ArrayList[InternalRow](miniBatchSize)
-  private var count = 0
-  private var batchCount = 0
+  private var count = 0L
+  private var batchCount = 0L
 
-  YtMetricsRegister.register()
-  GlobalTableSettings.setTransaction(path, transactionGuid)
+  initialize()
+
+  /**
+   * @deprecated Do not use before YT 21.1 release
+   */
+  @Deprecated
+  private def sortedChunkPath(): String = {
+    s"""<
+       |chunk_key_column_count=${options.ytConf(SortColumns).length};
+       |append=true
+       |>/${new Path(path).toUri}""".stripMargin
+  }
+
+  private def appendPath(): String = {
+    s"""<append=true>/${new Path(path).toUri}""".stripMargin
+  }
 
   override def write(record: InternalRow): Unit = {
     try {
@@ -60,7 +76,7 @@ class YtOutputWriter(path: String,
           list = new util.ArrayList[InternalRow](miniBatchSize)
           count = 0
         }
-        if (batchCount == batchSize) {
+        if (batchCount == batchSize && splitPartitions) {
           writeBatch()
           batchCount = 0
         }
@@ -119,9 +135,18 @@ class YtOutputWriter(path: String,
     }
   }
 
-  private def initializeWriter(): TableWriter[InternalRow] = {
-    val request = new WriteTable[InternalRow](requestPath, new InternalRowSerializer(schema, schemaHint))
+  protected def initializeWriter(): TableWriter[InternalRow] = {
+    val request = new WriteTable[InternalRow](appendPath(), new InternalRowSerializer(schema, schemaHint))
       .setTransactionalOptions(new TransactionalOptions(GUID.valueOf(transactionGuid)))
     client.writeTable(request).join()
+  }
+
+  protected def createYtClient(): CompoundClient = {
+    YtClientProvider.ytClient(ytClientConfiguration)
+  }
+
+  protected def initialize(): Unit = {
+    YtMetricsRegister.register()
+    GlobalTableSettings.setTransaction(path, transactionGuid)
   }
 }

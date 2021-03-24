@@ -2,12 +2,12 @@ package ru.yandex.spark.yt.wrapper.table
 
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.wrapper.cypress.{YtAttributes, YtCypressUtils}
-import ru.yandex.yt.ytclient.proxy.YtClient
+import ru.yandex.yt.ytclient.proxy.{CompoundClient, YtClient}
 
 trait YtTableAttributes {
   self: YtCypressUtils =>
 
-  def rowCount(path: String, transaction: Option[String] = None)(implicit yt: YtClient): Long = {
+  def rowCount(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Long = {
     attribute(path, YtAttributes.rowCount, transaction).longValue()
   }
 
@@ -15,7 +15,7 @@ trait YtTableAttributes {
     attrs(YtAttributes.rowCount).longValue()
   }
 
-  def chunkCount(path: String, transaction: Option[String] = None)(implicit yt: YtClient): Int = {
+  def chunkCount(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Int = {
     attribute(path, YtAttributes.chunkCount, transaction).longValue().toInt
   }
 
@@ -23,7 +23,7 @@ trait YtTableAttributes {
     attrs(YtAttributes.chunkCount).longValue().toInt
   }
 
-  def optimizeMode(path: String, transaction: Option[String] = None)(implicit yt: YtClient): OptimizeMode = {
+  def optimizeMode(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): OptimizeMode = {
     optimizeMode(attribute(path, YtAttributes.optimizeFor, transaction))
   }
 
@@ -35,7 +35,7 @@ trait YtTableAttributes {
     optimizeMode(attrs(YtAttributes.optimizeFor))
   }
 
-  def tableType(path: String, transaction: Option[String] = None)(implicit yt: YtClient): TableType = {
+  def tableType(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): TableType = {
     tableType(attribute(path, YtAttributes.dynamic, transaction))
   }
 

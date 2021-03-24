@@ -3,26 +3,34 @@ package ru.yandex.spark.yt.wrapper.table
 import java.nio.ByteBuffer
 import java.nio.file.Paths
 
-import ru.yandex.bolts.collection.impl.DefaultListF
+import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.Yt
 import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.inside.yt.kosher.cypress.YPath
-import ru.yandex.inside.yt.kosher.operations.specs.{MergeMode, MergeSpec}
+import ru.yandex.inside.yt.kosher.impl.YtConfiguration
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
+import ru.yandex.inside.yt.kosher.operations.OperationStatus
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
-import ru.yandex.spark.yt.wrapper.YtJavaConverters._
+import ru.yandex.misc.io.exec.ProcessUtils
+import ru.yandex.misc.net.HostnameUtils
+import ru.yandex.spark.yt.wrapper.YtJavaConverters
 import ru.yandex.spark.yt.wrapper.cypress.YtCypressUtils
 import ru.yandex.spark.yt.wrapper.transaction.YtTransactionUtils
-import ru.yandex.yt.rpcproxy.ERowsetFormat
+import ru.yandex.yt.rpcproxy.{EOperationType, ERowsetFormat}
 import ru.yandex.yt.ytclient.`object`.WireRowDeserializer
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentByteBufferReader
 import ru.yandex.yt.ytclient.proxy.request._
 
+import scala.annotation.tailrec
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
 trait YtTableUtils {
   self: YtCypressUtils with YtTransactionUtils =>
+
+  private val log = LoggerFactory.getLogger(getClass)
 
   def createTable(path: String,
                   settings: YtTableSettings,
@@ -75,18 +83,75 @@ trait YtTableUtils {
     new TableCopyByteStream(reader, timeout)
   }
 
+  private def startedBy(builder: YTreeBuilder): YTreeBuilder = {
+    builder
+      .beginMap
+      .key("user").value(System.getProperty("user.name"))
+      .key("command").beginList.value("command").endList
+      .key("hostname").value(HostnameUtils.localHostname)
+      .key("pid").value(ProcessUtils.getPid)
+      .key("wrapper_version").value(YtConfiguration.getVersion)
+      .endMap
+  }
+
+  private def pathToTree(path: String, transaction: Option[String]): YTreeNode = {
+    transaction.foldLeft(YPath.simple(formatPath(path))) { case (p, t) =>
+      p.plusAdditionalAttribute("transaction_id", t)
+    }.toTree
+  }
+
+  private def ysonPaths(paths: Seq[String], transaction: Option[String]): YTreeNode = {
+    paths.foldLeft(new YTreeBuilder().beginList()) { case (b, path) =>
+      b.value(pathToTree(path, transaction))
+    }.endList().build()
+  }
+
+  private def operationResult(guid: GUID)(implicit yt: CompoundClient): String = {
+    val info = yt.getOperation(new GetOperation(guid)).join()
+    YtJavaConverters.toOption(info.asMap().getOptional("result"))
+      .map(YTreeTextSerializer.serialize).getOrElse("unknown")
+  }
+
+  @tailrec
+  private def awaitOperation(guid: GUID)(implicit yt: CompoundClient): OperationStatus = {
+    val info = yt.getOperation(new GetOperation(guid)).join()
+    val status = OperationStatus.R.valueOfOrUnknown(info.asMap().getOrThrow("state").stringValue())
+    if (status.isFinished) {
+      status
+    } else {
+      log.info(s"Operation $guid is in status $status")
+      Thread.sleep((5 seconds).toMillis)
+      awaitOperation(guid)
+    }
+  }
+
   def mergeTables(srcDir: String, dstTable: String,
                   sorted: Boolean,
-                  transaction: Option[String] = None)
+                  transaction: Option[String] = None,
+                  specParams: Map[String, YTreeNode] = Map.empty)
                  (implicit yt: CompoundClient, ytHttp: Yt): Unit = {
-    import scala.collection.JavaConverters._
-    val srcList = formatPath(dstTable) +: listDir(srcDir, transaction).map(name => formatPath(s"$srcDir/$name"))
-    ytHttp.operations().mergeAndGetOp(
-      toOptional(transaction.map(GUID.valueOf)),
-      false,
-      new MergeSpec(
-        DefaultListF.wrap(seqAsJavaList(srcList)), formatPath(dstTable)
-      ).mergeMode(if (sorted) MergeMode.SORTED else MergeMode.UNORDERED)
-    ).awaitAndThrowIfNotSuccess()
+    val srcList = dstTable +: listDir(srcDir, transaction).map(name => s"$srcDir/$name")
+
+    val operationSpec = new YTreeBuilder()
+      .beginMap()
+      .key("mode").value(if (sorted) "sorted" else "unordered")
+      .key("combine_chunks").value(false)
+      .key("started_by").apply(startedBy)
+      .key("input_table_paths").value(ysonPaths(srcList, None))
+      .key("output_table_path").value(pathToTree(dstTable, None))
+      .apply(specParams.foldLeft(_) { case (b, (k, v)) => b.key(k).value(v) })
+      .endMap()
+      .build()
+
+    val operationRequest = new StartOperation(EOperationType.OT_MERGE, operationSpec)
+      .optionalTransaction(transaction)
+    val guid = yt.startOperation(operationRequest).join()
+
+    val finalStatus = awaitOperation(guid)
+
+    if (!finalStatus.isSuccess) {
+      throw new IllegalStateException(s"Merge operation finished with unsuccessful status $finalStatus, " +
+        s"result is ${operationResult(guid)}")
+    }
   }
 }

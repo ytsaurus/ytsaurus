@@ -3,10 +3,11 @@ package ru.yandex.spark.yt.serializers
 import io.circe.parser._
 import io.circe.syntax._
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.v2.YtTable
 import org.apache.spark.sql.yson.YsonType
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType.StructFieldMeta
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType.StructFieldMeta
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.common.utils.TypeUtils.isTuple
 import ru.yandex.yt.ytclient.tables.{ColumnSchema, ColumnSortOrder, ColumnValueType, TableSchema}
@@ -188,6 +189,15 @@ object SchemaConverter {
       case StructType(fields) => "s#" + fields.map(f => f.name -> stringType(f.dataType)).asJson.noSpaces
       case MapType(keyType, valueType, _) => "m#" + Seq(keyType, valueType).map(stringType).asJson.noSpaces
       case _ => ytLogicalType(sparkType).name
+    }
+  }
+
+  def checkSchema(schema: StructType): Unit = {
+    schema.foreach { field =>
+      if (!YtTable.supportsDataType(field.dataType)) {
+        throw new IllegalArgumentException(
+          s"YT data source does not support ${field.dataType.simpleString} data type.")
+      }
     }
   }
 }

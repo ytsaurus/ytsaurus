@@ -125,4 +125,14 @@ trait YtCypressUtils {
     import YsonableProduct._
     createDocument(path, doc, transaction)
   }
+
+  /**
+   * @deprecated Do not use before YT 21.1 release
+   */
+  @Deprecated
+  def concatenate(from: Array[String], to: String, transaction: Option[String] = None)
+                 (implicit yt: CompoundClient): Unit = {
+    val request = new ConcatenateNodes(from.map(formatPath), formatPath(to)).optionalTransaction(transaction)
+    yt.concatenateNodes(request).join()
+  }
 }
