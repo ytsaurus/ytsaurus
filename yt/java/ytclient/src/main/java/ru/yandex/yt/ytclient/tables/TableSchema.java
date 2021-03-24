@@ -350,7 +350,6 @@ public class TableSchema implements YTreeConvertible {
         private String group;
         private boolean strict;
         private boolean uniqueKeys;
-        private int keysCount;
 
         public Builder() {
             columns = new ArrayList<>();
@@ -358,7 +357,6 @@ public class TableSchema implements YTreeConvertible {
             group = null;
             strict = true;
             uniqueKeys = true;
-            keysCount = 0;
         }
 
         public Builder(TableSchema tableSchema) {
@@ -367,7 +365,6 @@ public class TableSchema implements YTreeConvertible {
             this.group = tableSchema.group;
             this.strict = tableSchema.strict;
             this.uniqueKeys = tableSchema.uniqueKeys;
-            this.keysCount = tableSchema.keyColumnsCount;
         }
 
         public Builder addKey(String name, ColumnValueType type) {
@@ -388,9 +385,6 @@ public class TableSchema implements YTreeConvertible {
 
         public Builder add(ColumnSchema column) {
             columns.add(Objects.requireNonNull(column));
-            if (column.getSortOrder() != null) {
-                ++keysCount;
-            }
             return this;
         }
 
@@ -420,10 +414,14 @@ public class TableSchema implements YTreeConvertible {
             return this;
         }
 
+        public Builder setColumns(List<ColumnSchema> columns) {
+            this.columns.clear();
+            this.columns.addAll(columns);
+            return this;
+        }
+
         public Builder addAll(List<ColumnSchema> columns) {
-            for (ColumnSchema column : columns) {
-                add(column);
-            }
+            this.columns.addAll(columns);
             return this;
         }
 
