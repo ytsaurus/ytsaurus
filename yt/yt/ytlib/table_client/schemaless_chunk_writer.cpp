@@ -2098,34 +2098,45 @@ private:
     {
         auto chunkSchema = GetSchema();
 
-        auto chunkKeyColumnCount = RichPath_.GetChunkKeyColumnCount();
-        if (chunkKeyColumnCount) {
-            if (chunkKeyColumnCount < 0 || chunkKeyColumnCount > chunkSchema->GetColumnCount()) {
-                THROW_ERROR_EXCEPTION(EErrorCode::InvalidSchemaValue, "Invalid chunk key column count")
-                    << TErrorAttribute("key_column_count", chunkKeyColumnCount)
-                    << TErrorAttribute("column_count", chunkSchema->GetColumnCount());
-            }
-
-            if (*chunkKeyColumnCount < GetSchema()->GetKeyColumnCount()) {
-                THROW_ERROR_EXCEPTION(
-                    EErrorCode::SchemaViolation,
-                    "Chunk key column count is less than table schema key column count")
-                    << TErrorAttribute("chunk_key_column_count", *chunkKeyColumnCount)
-                    << TErrorAttribute("table_key_column_count", GetSchema()->GetKeyColumnCount());
-            }
-
-            chunkSchema = chunkSchema->SetKeyColumnCount(*chunkKeyColumnCount);
-        }
-
+        bool tableUniqueKeys = chunkSchema->IsUniqueKeys();
         auto chunkUniqueKeys = RichPath_.GetChunkUniqueKeys();
         if (chunkUniqueKeys) {
-            if (!*chunkUniqueKeys && GetSchema()->IsUniqueKeys()) {
+            if (!*chunkUniqueKeys && tableUniqueKeys) {
                 THROW_ERROR_EXCEPTION(
                     EErrorCode::SchemaViolation,
                     "Table schema forces keys to be unique while chunk schema does not");
             }
 
             chunkSchema = chunkSchema->SetUniqueKeys(*chunkUniqueKeys);
+        }
+
+        auto chunkSortColumns = RichPath_.GetChunkSortColumns();
+        if (chunkSortColumns) {
+            auto tableSchemaSortColumns = GetSchema()->GetSortColumns();
+            if (chunkSortColumns->size() < tableSchemaSortColumns.size()) {
+                THROW_ERROR_EXCEPTION(
+                    EErrorCode::SchemaViolation,
+                    "Chunk sort columns list is shorter than table schema sort columns")
+                    << TErrorAttribute("chunk_sort_columns_count", chunkSortColumns->size())
+                    << TErrorAttribute("table_sort_column_count", tableSchemaSortColumns.size());
+            }
+
+            if (tableUniqueKeys && !tableSchemaSortColumns.empty()) {
+                THROW_ERROR_EXCEPTION(
+                    EErrorCode::SchemaViolation,
+                    "Chunk sort columns cannot be set when table is sorted with unique keys");
+            }
+
+            for (int columnIndex = 0; columnIndex < tableSchemaSortColumns.size(); ++columnIndex) {
+                if ((*chunkSortColumns)[columnIndex] != tableSchemaSortColumns[columnIndex]) {
+                    THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns,
+                        "Incompatible sort columns: chunk sort columns %v, table sort columns %v",
+                        chunkSortColumns,
+                        tableSchemaSortColumns);
+                }
+            }
+
+            chunkSchema = chunkSchema->ToSorted(*chunkSortColumns);
         }
 
         if (chunkSchema->IsUniqueKeys() && !chunkSchema->IsSorted()) {

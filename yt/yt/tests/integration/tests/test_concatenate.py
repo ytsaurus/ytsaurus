@@ -416,7 +416,7 @@ class TestConcatenate(YTEnvSetup):
             set("//tmp/in/@erasure_codec", "reed_solomon_6_3")
 
         for x in [1, 3, 2]:
-            write_table("<chunk_key_column_count=1;append=true>//tmp/in", make_rows([x]))
+            write_table("<chunk_sort_columns=[a];append=true>//tmp/in", make_rows([x]))
         assert get("//tmp/in/@chunk_count") == 3
 
         assert read_table("//tmp/in") == make_rows([1, 3, 2])
@@ -539,11 +539,11 @@ class TestConcatenate(YTEnvSetup):
         )
 
         write_table(
-            "<chunk_key_column_count=3;append=true>//tmp/in1",
+            "<chunk_sort_columns=[a;b;c];append=true>//tmp/in1",
             [make_row(3, 3, 3), make_row(4, 4, 4)],
         )
         write_table(
-            "<chunk_key_column_count=2;append=true>//tmp/in1",
+            "<chunk_sort_columns=[a;b];append=true>//tmp/in1",
             [make_row(1, 1, 1), make_row(2, 2, 2)],
         )
         assert read_table("//tmp/in1") == [
