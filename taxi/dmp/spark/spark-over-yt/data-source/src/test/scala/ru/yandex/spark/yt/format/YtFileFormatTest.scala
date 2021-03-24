@@ -16,7 +16,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.serializers.YtLogicalType
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
-import ru.yandex.spark.yt.wrapper.YtWrapper
+import ru.yandex.spark.yt.wrapper.{YtJavaConverters, YtWrapper}
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 
@@ -223,36 +223,6 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
       val tmpFilePath = "/tmp/retry"
       Files.deleteIfExists(Paths.get(tmpFilePath))
     }.show()
-  }
-
-  it should "write sorted table" in {
-    import spark.implicits._
-
-    import scala.collection.JavaConverters._
-
-    (1 to 9).toDF.coalesce(3).write.sortedBy("value").yt(tmpPath)
-
-    val sortColumns = YtWrapper.attribute(tmpPath, "sorted_by").asList().asScala.map(_.stringValue())
-    sortColumns should contain theSameElementsAs Seq("value")
-
-    val schemaCheck = Seq("name", "type", "sort_order")
-    val schema = YtWrapper.attribute(tmpPath, "schema").asList().asScala.map { field =>
-      val map = field.asMap()
-      schemaCheck.map(n => n -> map.getOrThrow(n).stringValue())
-    }
-    schema should contain theSameElementsAs Seq(
-      Seq("name" -> "value", "type" -> "int32", "sort_order" -> "ascending")
-    )
-  }
-
-  it should "abort transaction if failed to create sorted table" in {
-    val df = (1 to 9).toDF("my_name").coalesce(3)
-    an[Exception] shouldBe thrownBy {
-      df.write.sortedBy("bad_name").yt(tmpPath)
-    }
-    noException shouldBe thrownBy {
-      df.write.sortedBy("my_name").yt(tmpPath)
-    }
   }
 
   it should "read int32" in {

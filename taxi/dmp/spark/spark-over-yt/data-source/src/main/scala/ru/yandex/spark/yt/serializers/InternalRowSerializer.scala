@@ -46,19 +46,6 @@ class InternalRowSerializer(schema: StructType, schemaHint: Map[String, YtLogica
     writeable.onBytes(bytes)
   }
 
-  @tailrec
-  final def writeRowsInternal(writer: TableWriter[InternalRow],
-                              rows: java.util.ArrayList[InternalRow],
-                              timeout: Duration): Unit = {
-    if (!writer.write(rows, tableSchema)) {
-      log.debugLazy("Waiting for writer ready event")
-      YtMetricsRegister.time(writeReadyEventTime, writeReadyEventTimeSum) {
-        writer.readyEvent().get(timeout.toMillis, TimeUnit.MILLISECONDS)
-      }
-      writeRowsInternal(writer, rows, timeout)
-    }
-  }
-
   override def serializeRow(row: InternalRow,
                             writeable: WireProtocolWriteable,
                             keyFieldsOnly: Boolean,

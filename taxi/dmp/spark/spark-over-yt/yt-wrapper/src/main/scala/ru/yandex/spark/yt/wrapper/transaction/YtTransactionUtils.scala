@@ -7,7 +7,7 @@ import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper._
 import ru.yandex.yt.rpcproxy.ETransactionType.TT_MASTER
-import ru.yandex.yt.ytclient.proxy.request.{GetLikeReq, MutateNode, TransactionalOptions, WriteFile}
+import ru.yandex.yt.ytclient.proxy.request.{GetLikeReq, MutateNode, StartOperation, TransactionalOptions, WriteFile}
 import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, ApiServiceTransactionOptions, CompoundClient}
 
 import scala.annotation.tailrec
@@ -109,6 +109,14 @@ trait YtTransactionUtils {
     def optionalTransaction(transaction: Option[String]): T = {
       transaction.map { t =>
         request.setTransactionalOptions(new TransactionalOptions(GUID.valueOf(t))).asInstanceOf[T]
+      }.getOrElse(request)
+    }
+  }
+
+  implicit class RichStartOperationRequest[T <: StartOperation](val request: T) {
+    def optionalTransaction(transaction: Option[String]): T = {
+      transaction.map { t =>
+        request.setTransactionOptions(new TransactionalOptions(GUID.valueOf(t))).asInstanceOf[T]
       }.getOrElse(request)
     }
   }

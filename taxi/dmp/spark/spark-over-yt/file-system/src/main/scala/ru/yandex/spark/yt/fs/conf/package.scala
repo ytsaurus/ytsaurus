@@ -5,6 +5,8 @@ import org.apache.spark.SparkConf
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
+import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 
 import scala.util.Try
 
@@ -54,6 +56,16 @@ package object conf {
 
     override def getYtConf(name: String): Option[String] = {
       Option(configuration.get(s"$configurationPrefix.$name"))
+    }
+
+    def getYtSpecConf(name: String): Map[String, YTreeNode] = {
+      import scala.collection.JavaConverters._
+      configuration.asScala.collect{
+        case entry if entry.getKey.startsWith(s"spark.yt.$name") =>
+          val key = entry.getKey.drop(s"spark.yt.$name.".length)
+          val value = YTreeTextSerializer.deserialize(entry.getValue)
+          key -> value
+      }.toMap
     }
 
     def setYtConf(name: String, value: Any): Unit = {

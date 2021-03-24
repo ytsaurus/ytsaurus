@@ -6,6 +6,7 @@ import org.apache.hadoop.mapreduce.{JobContext, TaskAttemptContext}
 import org.apache.spark.internal.io.FileCommitProtocol
 import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.Yt
+import ru.yandex.spark.yt.format.conf.YtTableSparkSettings._
 import ru.yandex.spark.yt.format.conf.{SparkYtConfiguration, YtTableSparkSettings}
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
 import ru.yandex.spark.yt.fs.conf._
@@ -29,14 +30,29 @@ class YtOutputCommitter(jobId: String,
     val conf = jobContext.getConfiguration
     implicit val ytClient: CompoundClient = yt(conf)
     withTransaction(createTransaction(conf, GlobalTransaction, None))({ transaction =>
-      if (YtTableSparkSettings.isTableSorted(conf)) {
-        YtWrapper.createDir(tmpPath, Some(transaction))
-      }
       GlobalTableSettings.setTransaction(path, transaction)
-      if (YtTableSparkSettings.isTable(conf)) {
-        setupTable(path, conf, transaction)
-      }
-    }, GlobalTableSettings.removeTransaction(path))
+      if (isTableSorted(conf)) setupSortedTmpTables(transaction)
+      if (isTable(conf)) setupTable(path, conf, transaction)
+    }, removeGlobalTransactions())
+  }
+
+  private def setupSortedTmpTables(transaction: String)(implicit yt: CompoundClient): Unit = {
+    YtWrapper.createDir(tmpPath, Some(transaction))
+  }
+
+  /**
+   * @deprecated Do not use before YT 21.1 release
+   */
+  @Deprecated
+  private def setupSortedTable(transaction: String, conf: Configuration)
+                              (implicit yt: CompoundClient): Unit = {
+    GlobalTableSettings.setTransaction(tmpPath, transaction)
+    setupUnsortedTable(tmpPath, conf, transaction)
+  }
+
+  private def removeGlobalTransactions(): Unit = {
+    GlobalTableSettings.removeTransaction(path)
+    GlobalTableSettings.removeTransaction(tmpPath)
   }
 
   private def setupTable(path: String, conf: Configuration, transaction: String)
@@ -47,18 +63,29 @@ class YtOutputCommitter(jobId: String,
     }
   }
 
+  private def setupUnsortedTable(path: String, conf: Configuration, transaction: String)
+                                (implicit yt: CompoundClient): Unit = {
+    import ru.yandex.spark.yt.fs.conf._
+    val newConf = new Configuration(conf)
+    newConf.setYtConf(SortColumns, Seq.empty)
+    setupTable(path, newConf, transaction)
+  }
+
+  private def setupTmpTable(taskContext: TaskAttemptContext, transaction: String): Unit = {
+    val conf = taskContext.getConfiguration
+    setupTable(tmpTablePath(taskContext), conf, transaction)(yt(conf))
+  }
+
   override def setupTask(taskContext: TaskAttemptContext): Unit = {
     val conf = taskContext.getConfiguration
-    val globalTransaction = YtOutputCommitter.getGlobalWriteTransaction(conf)
-    withTransaction(createTransaction(conf, Transaction, Some(globalTransaction))) { transaction =>
-      if (YtTableSparkSettings.isTableSorted(conf)) {
-        setupTable(newTaskTempFile(taskContext, None, ""), conf, transaction)(yt(conf))
-      }
+    val parent = YtOutputCommitter.getGlobalWriteTransaction(conf)
+    withTransaction(createTransaction(conf, Transaction, Some(parent))) { transaction =>
+      if (isTableSorted(conf)) setupTmpTable(taskContext, transaction)
     }
   }
 
   override def abortJob(jobContext: JobContext): Unit = {
-    GlobalTableSettings.removeTransaction(path)
+    removeGlobalTransactions()
     abortTransaction(jobContext.getConfiguration, GlobalTransaction)
   }
 
@@ -66,16 +93,29 @@ class YtOutputCommitter(jobId: String,
     abortTransaction(taskContext.getConfiguration, Transaction)
   }
 
+  /**
+   * @deprecated Do not use before YT 21.1 release
+   */
+  @Deprecated
+  private def concatenateSortedTable(conf: Configuration, transaction: String): Unit = {
+    implicit val yt: CompoundClient = YtClientProvider.ytClient(ytClientConfiguration(conf))
+    YtWrapper.concatenate(Array(tmpPath), path, Some(transaction))
+    YtWrapper.remove(tmpPath, Some(transaction))
+  }
+
+  private def mergeSortedTables(conf: Configuration, transaction: String): Unit = {
+    implicit val yt: CompoundClient = YtClientProvider.ytClient(ytClientConfiguration(conf))
+    implicit val ytHttp: Yt = YtClientProvider.httpClient
+    val mergeSpec = conf.getYtSpecConf("merge")
+    YtWrapper.mergeTables(tmpPath, path, sorted = true, Some(transaction), mergeSpec)
+    YtWrapper.removeDir(tmpPath, recursive = true, Some(transaction))
+  }
+
   override def commitJob(jobContext: JobContext, taskCommits: Seq[FileCommitProtocol.TaskCommitMessage]): Unit = {
     val conf = jobContext.getConfiguration
     withTransaction(YtOutputCommitter.getGlobalWriteTransaction(conf)) { transaction =>
-      if (YtTableSparkSettings.isTableSorted(conf)) {
-        implicit val yt: CompoundClient = YtClientProvider.ytClient(ytClientConfiguration(conf))
-        implicit val ytHttp: Yt = YtClientProvider.httpClient
-        YtWrapper.mergeTables(tmpPath, path, sorted = true, Some(transaction))
-        YtWrapper.removeDir(tmpPath, recursive = true, Some(transaction))
-      }
-      GlobalTableSettings.removeTransaction(path)
+      if (isTableSorted(conf)) mergeSortedTables(conf, transaction)
+      removeGlobalTransactions()
       commitTransaction(jobContext.getConfiguration, GlobalTransaction)
     }
   }
@@ -85,10 +125,12 @@ class YtOutputCommitter(jobId: String,
     null
   }
 
+  private def tmpTablePath(taskContext: TaskAttemptContext): String = {
+    s"$tmpPath/part-${taskContext.getTaskAttemptID.getTaskID.getId}"
+  }
+
   override def newTaskTempFile(taskContext: TaskAttemptContext, dir: Option[String], ext: String): String = {
-    if (YtTableSparkSettings.isTableSorted(taskContext.getConfiguration)) {
-      s"${path}_tmp/part-${taskContext.getTaskAttemptID.getTaskID.getId}"
-    } else path
+    if (isTableSorted(taskContext.getConfiguration)) tmpTablePath(taskContext) else path
   }
 
   override def newTaskTempFileAbsPath(taskContext: TaskAttemptContext, absoluteDir: String, ext: String): String = path
@@ -148,7 +190,6 @@ object YtOutputCommitter {
     pingFutures.remove(transaction).foreach { case (transaction, (cancel, _)) =>
       cancel.complete(Success())
       transaction.abort().join()
-      log.info("")
     }
   }
 
