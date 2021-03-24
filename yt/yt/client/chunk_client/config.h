@@ -230,9 +230,6 @@ public:
     //! Maximum number of retries for lookup request.
     int LookupRequestRetryCount;
 
-    // COMPAT(babenko): replace with 'true' once all clusters support ProbeBlockSet
-    bool EnableProbeBlockSet;
-
     //! If |true| block cache will be accessed via asynchronous interface, if |false|
     //! synchronous interface will be used.
     bool UseAsyncBlockCache;
@@ -316,8 +313,6 @@ public:
         RegisterParameter("lookup_request_retry_count", LookupRequestRetryCount)
             .GreaterThan(0)
             .Default(5);
-        RegisterParameter("enable_probe_block_set", EnableProbeBlockSet)
-            .Default(true);
         RegisterParameter("use_async_block_cache", UseAsyncBlockCache)
             .Default(false);
         RegisterParameter("suspicious_node_grace_period", SuspiciousNodeGracePeriod)
