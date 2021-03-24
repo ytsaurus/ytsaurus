@@ -61,8 +61,13 @@ void TUncountableTabletCellStatisticsBase::Persist(const NCellMaster::TPersisten
 {
     using NYT::Persist;
 
-    Persist(context, Decommissioned);
-    Persist(context, Health);
+    if (context.GetVersion() < EMasterReign::DropHealthFromTabletCellStatistics) {
+        bool decommissioned = false;
+        ETabletCellHealth health = ETabletCellHealth::Initializing;
+
+        Persist(context, decommissioned);
+        Persist(context, health);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -324,8 +329,6 @@ void ToProto(NProto::TTabletCellStatistics* protoStatistics, const TTabletCellSt
     protoStatistics->set_preload_failed_store_count(statistics.PreloadFailedStoreCount);
     protoStatistics->set_dynamic_memory_pool_size(statistics.DynamicMemoryPoolSize);
     protoStatistics->set_tablet_count(statistics.TabletCount);
-    protoStatistics->set_decommissioned(statistics.Decommissioned);
-    protoStatistics->set_health(static_cast<i32>(statistics.Health));
 
     // COMPAT(aozeritsky)
     const auto oldMaxMediumCount = 7;
@@ -356,8 +359,6 @@ void FromProto(TTabletCellStatistics* statistics, const NProto::TTabletCellStati
     statistics->PreloadFailedStoreCount = protoStatistics.preload_failed_store_count();
     statistics->DynamicMemoryPoolSize = protoStatistics.dynamic_memory_pool_size();
     statistics->TabletCount = protoStatistics.tablet_count();
-    statistics->Decommissioned = protoStatistics.decommissioned();
-    statistics->Health = static_cast<ETabletCellHealth>(protoStatistics.health());
 
     // COMPAT(aozeritsky)
     const auto oldMaxMediumCount = 7;
@@ -445,34 +446,14 @@ void TSerializableTabletStatisticsBase::InitParameters()
     RegisterParameter("overlapping_store_count", OverlappingStoreCount);
 }
 
-TSerializableUncountableTabletCellStatisticsBase::TSerializableUncountableTabletCellStatisticsBase()
-{
-    InitParameters();
-}
-
-TSerializableUncountableTabletCellStatisticsBase::TSerializableUncountableTabletCellStatisticsBase(
-    const TUncountableTabletCellStatisticsBase& statistics)
-    : TUncountableTabletCellStatisticsBase(statistics)
-{
-    InitParameters();
-}
-
-void TSerializableUncountableTabletCellStatisticsBase::InitParameters()
-{
-    RegisterParameter("decommissioned", Decommissioned);
-    RegisterParameter("health", Health);
-}
-
 TSerializableTabletCellStatistics::TSerializableTabletCellStatistics()
     : TSerializableTabletCellStatisticsBase()
-    , TSerializableUncountableTabletCellStatisticsBase()
 { }
 
 TSerializableTabletCellStatistics::TSerializableTabletCellStatistics(
     const TTabletCellStatistics& statistics,
     const NChunkServer::TChunkManagerPtr& chunkManager)
     : TSerializableTabletCellStatisticsBase(statistics, chunkManager)
-    , TSerializableUncountableTabletCellStatisticsBase(statistics)
 { }
 
 TSerializableTabletStatistics::TSerializableTabletStatistics()

@@ -143,6 +143,7 @@ DEFINE_ENUM(EMasterReign,
     ((RegisteredLocationUuids)                                      (1459))  // aleksandra-zh
     ((MigrateMinShareResourcesToStrongGuaranteeResources2)          (1460))  // renadeen
     ((ValidateNoDuplicateLocationUuidsFromSameNode)                 (1461))  // babenko
+    ((DropHealthFromTabletCellStatistics)                           (1462))  // akozhikhov
     // 21.1 starts here.
     ((SlotLocationStatisticsInNodeNode)                             (1500))  // gritukan
     ((EnableDescendingSortOrder)                                    (1501))  // max42

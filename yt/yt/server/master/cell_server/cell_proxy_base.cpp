@@ -191,7 +191,6 @@ bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYson
                 });
             return true;
 
-
         default:
             break;
     }
