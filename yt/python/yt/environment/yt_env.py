@@ -77,7 +77,7 @@ def _get_yt_binary_path(binary, custom_paths):
 def _get_yt_versions(custom_paths):
     result = OrderedDict()
     binaries = ["ytserver-master", "ytserver-node", "ytserver-scheduler", "ytserver-controller-agent",
-                "ytserver-http-proxy", "ytserver-proxy", "ytserver-job-proxy", "ytserver-clock",
+                "ytserver-http-proxy", "ytserver-proxy", "ytserver-job-proxy", "ytserver-clock", "ytserver-discovery",
                 "ytserver-exec", "ytserver-tools", "ytserver-timestamp-provider", "ytserver-master-cache"]
     for binary in binaries:
         binary_path = _get_yt_binary_path(binary, custom_paths=custom_paths)
@@ -157,7 +157,7 @@ class YTInstance(object):
                     raise YtError("ytserver-all binary is missing at path " + ytserver_all_path)
                 makedirp(self.bin_path)
                 programs = ["master", "clock", "node", "job-proxy", "exec",
-                            "proxy", "http-proxy", "tools", "scheduler",
+                            "proxy", "http-proxy", "tools", "scheduler", "discovery",
                             "controller-agent", "timestamp-provider", "master-cache"]
                 for program in programs:
                     os.symlink(os.path.abspath(ytserver_all_path), os.path.join(self.bin_path, "ytserver-" + program))
@@ -247,6 +247,10 @@ class YTInstance(object):
         for dir_ in timestamp_provider_dirs:
             makedirp(dir_)
 
+        discovery_server_dirs = [os.path.join(self.runtime_data_path, "discovery", str(i)) for i in xrange(self.yt_config.discovery_server_count)]
+        for dir_ in discovery_server_dirs:
+            makedirp(dir_)
+
         scheduler_dirs = [os.path.join(self.runtime_data_path, "scheduler", str(i)) for i in xrange(self.yt_config.scheduler_count)]
         for dir_ in scheduler_dirs:
             makedirp(dir_)
@@ -293,6 +297,7 @@ class YTInstance(object):
     def _prepare_environment(self, ports_generator, modify_configs_func):
         logger.info("Preparing cluster instance as follows:")
         logger.info("  clocks                %d", self.yt_config.clock_count)
+        logger.info("  discovery servers     %d", self.yt_config.discovery_server_count)
         logger.info("  masters               %d (%d nonvoting)", self.yt_config.master_count, self.yt_config.nonvoting_master_count)
         logger.info("  timestamp providers   %d", self.yt_config.timestamp_provider_count)
         logger.info("  nodes                 %d", self.yt_config.node_count)
@@ -328,6 +333,8 @@ class YTInstance(object):
             self._prepare_clocks(cluster_configuration["clock"])
         if self.yt_config.timestamp_provider_count > 0:
             self._prepare_timestamp_providers(cluster_configuration["timestamp_provider"])
+        if self.yt_config.discovery_server_count > 0:
+            self._prepare_discovery_servers(cluster_configuration["discovery"])
         if self.yt_config.node_count > 0:
             self._prepare_nodes(cluster_configuration["node"])
         if self.yt_config.master_cache_count > 0:
@@ -379,6 +386,9 @@ class YTInstance(object):
 
             if self.yt_config.clock_count > 0:
                 self.start_clock(sync=False)
+
+            if self.yt_config.discovery_server_count > 0:
+                self.start_discovery_server(sync=False)
 
             if self.yt_config.timestamp_provider_count > 0:
                 self.start_timestamp_providers(sync=False)
@@ -934,6 +944,26 @@ class YTInstance(object):
                 logger.setLevel(old_level)
 
         self._wait_or_skip(lambda: self._wait_for(quorum_ready, "clock", max_wait_time=30), sync)
+
+    def _prepare_discovery_servers(self, discovery_server_configs):
+        for discovery_server_index in xrange(self.yt_config.discovery_server_count):
+            discovery_server_config_name = "discovery-{0}.yson".format(discovery_server_index)
+            config_path = os.path.join(self.configs_path, discovery_server_config_name)
+            if self._load_existing_environment:
+                if not os.path.isfile(config_path):
+                    raise YtError("Discovery server config {0} not found. It is possible that you requested "
+                                  "more discovery servers than configs exist".format(config_path))
+                config = read_config(config_path)
+            else:
+                config = discovery_server_configs[discovery_server_index]
+                write_config(config, config_path)
+
+            self.configs["discovery"].append(config)
+            self.config_paths["discovery"].append(config_path)
+            self._service_processes["discovery"].append(None)
+
+    def start_discovery_server(self, sync=True):
+        self._run_yt_component("discovery")
 
     def _prepare_timestamp_providers(self, timestamp_provider_configs):
         for timestamp_provider_index in xrange(self.yt_config.timestamp_provider_count):

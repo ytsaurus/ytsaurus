@@ -45,11 +45,17 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         ports_generator,
         logs_dir)
 
+    discovery_configs = _build_discovery_server_configs(
+        yt_config,
+        ports_generator,
+        logs_dir)
+
     master_configs, master_connection_configs = _build_master_configs(
         yt_config,
         dirs["master"],
         dirs["master_tmpfs"],
         clock_connection_configs,
+        discovery_configs,
         ports_generator,
         logs_dir)
 
@@ -156,6 +162,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
     cluster_configuration = {
         "master": master_configs,
         "clock": clock_configs,
+        "discovery": discovery_configs,
         "timestamp_provider": timestamp_provider_configs,
         "driver": driver_configs,
         "rpc_driver": rpc_driver_config,
@@ -174,6 +181,7 @@ def _build_master_configs(yt_config,
                           master_dirs,
                           master_tmpfs_dirs,
                           clock_connection_configs,
+                          discovery_configs,
                           ports_generator,
                           logs_dir):
     ports = []
@@ -232,6 +240,11 @@ def _build_master_configs(yt_config,
                                            for tag in connection_configs["secondary_cell_tags"]]
 
             config["enable_timestamp_manager"] = (yt_config.clock_count == 0)
+            
+            if yt_config.discovery_server_count > 0:
+                discovery_server_config = {}
+                discovery_server_config["addresses"] = discovery_configs[0]["discovery_server"]["server_addresses"]
+                config["discovery_server"] = discovery_server_config
 
             set_at(config, "timestamp_provider/addresses",
                    _get_timestamp_provider_addresses(yt_config, connection_configs, clock_connection_configs, None))
@@ -322,6 +335,33 @@ def _build_clock_configs(yt_config, clock_dirs, clock_tmpfs_dirs, ports_generato
     connection_configs["cell_tag"] = cell_tag
 
     return configs, connection_configs
+
+def _build_discovery_server_configs(yt_config, ports_generator, logs_dir):
+    server_addresses = []
+    ports = []
+
+    for i in xrange(yt_config.discovery_server_count):
+        rpc_port, monitoring_port = next(ports_generator), next(ports_generator)
+        address = to_yson_type("{0}:{1}".format(yt_config.fqdn, rpc_port))
+        server_addresses.append(address)
+        ports.append((rpc_port, monitoring_port))
+
+    configs = []
+    for i in xrange(yt_config.discovery_server_count):
+        discovery_server_config = {}
+        discovery_server_config["server_addresses"] = server_addresses
+
+        config = {}
+        config["discovery_server"] = discovery_server_config
+        config["logging"] = _init_logging(logs_dir,
+                                        "discovery-" + str(i),
+                                        yt_config,
+                                        log_errors_to_stderr=True)
+
+        config["rpc_port"], config["monitoring_port"] = ports[i]
+        configs.append(config)
+
+    return configs
 
 def _build_timestamp_provider_configs(yt_config,
                                       master_connection_configs,

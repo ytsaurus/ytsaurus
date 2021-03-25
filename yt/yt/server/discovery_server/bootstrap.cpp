@@ -143,6 +143,7 @@ private:
             ChannelFactory_,
             GetWorkerInvoker(),
             GetWorkerInvoker());
+        DiscoveryServer_->Initialize();
 
         NMonitoring::Initialize(
             HttpServer_,

@@ -62,6 +62,7 @@ class LocalYtConfig(object):
     master_count = attr.ib(1)
     nonvoting_master_count = attr.ib(0)
     clock_count = attr.ib(0)
+    discovery_server_count = attr.ib(0)
     timestamp_provider_count = attr.ib(0)
     secondary_cell_count = attr.ib(0)
     scheduler_count = attr.ib(1)

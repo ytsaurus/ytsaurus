@@ -185,6 +185,7 @@ class Checker(Thread):
 class YTEnvSetup(object):
     NUM_MASTERS = 3
     NUM_CLOCKS = 0
+    NUM_DISCOVERY_SERVERS = 0
     NUM_TIMESTAMP_PROVIDERS = 0
     NUM_NONVOTING_MASTERS = 0
     NUM_SECONDARY_MASTER_CELLS = 0
@@ -304,6 +305,7 @@ class YTEnvSetup(object):
             defer_secondary_cell_start=cls.get_param("DEFER_SECONDARY_CELL_START", index),
             clock_count=cls.get_param("NUM_CLOCKS", index),
             timestamp_provider_count=cls.get_param("NUM_TIMESTAMP_PROVIDERS", index),
+            discovery_server_count=cls.get_param("NUM_DISCOVERY_SERVERS", index),
             node_count=cls.get_param("NUM_NODES", index),
             defer_node_start=cls.get_param("DEFER_NODE_START", index),
             master_cache_count=cls.get_param("NUM_MASTER_CACHES", index),

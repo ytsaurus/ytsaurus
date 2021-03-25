@@ -793,7 +793,7 @@ public:
             }
             Throttlers_.Throttlers[throttlerId] = wrappedThrottler;
 
-            YT_LOG_INFO("Distributed throttler created (ThrottlerId: %v)", throttlerId);
+            YT_LOG_DEBUG("Distributed throttler created (ThrottlerId: %v)", throttlerId);
             return wrappedThrottler;
         }
     }

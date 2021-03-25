@@ -46,6 +46,8 @@ TCellMasterConfig::TCellMasterConfig()
     RegisterParameter("timestamp_manager", TimestampManager)
         .DefaultNew();
     RegisterParameter("timestamp_provider", TimestampProvider);
+    RegisterParameter("discovery_server", DiscoveryServer)
+        .Default();
     RegisterParameter("transaction_supervisor", TransactionSupervisor)
         .DefaultNew();
     RegisterParameter("multicell_manager", MulticellManager)

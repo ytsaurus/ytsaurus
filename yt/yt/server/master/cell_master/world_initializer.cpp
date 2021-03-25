@@ -658,13 +658,20 @@ private:
                             .Item("remote_root").Value("//discovery_server")
                         .EndMap());
             };
+
             createDiscoveryOrchid("//sys/discovery/primary_master_cell", Config_->PrimaryMaster);
             for (auto cellConfig : Config_->SecondaryMasters) {
                 auto cellTag = CellTagFromId(cellConfig->CellId);
                 auto cellPath = "//sys/discovery/secondary_master_cells/" + ToYPathLiteral(cellTag);
                 createDiscoveryOrchid(cellPath, cellConfig);
             }
-
+            
+            if (Config_->DiscoveryServer && Config_->DiscoveryServer->Addresses) {
+                for (const auto& discoveryServerAddress : *Config_->DiscoveryServer->Addresses) {
+                    auto addressPath = "//sys/discovery_servers/" + ToYPathLiteral(discoveryServerAddress);
+                    createOrchidNode(addressPath, discoveryServerAddress);
+                }
+            }
             OrchidAddresses_.Store(orchidAddresses);
 
             FlushScheduled();
