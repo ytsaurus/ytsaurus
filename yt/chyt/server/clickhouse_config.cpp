@@ -138,6 +138,10 @@ TClickHouseConfig::TClickHouseConfig()
         Settings["max_concurrent_queries_for_user"] = NYTree::ConvertToNode(10);
         Settings["connect_timeout_with_failover_ms"] = NYTree::ConvertToNode(1000); // 1 sec.
         Settings["log_queries"] = NYTree::ConvertToNode(1);
+        Settings["optimize_move_to_prewhere"] = NYTree::ConvertToNode(0);
+        // CH hedged requests use their own poller implementation over epoll, which is kind of
+        // broken around our 2.04 branch (it imposes busy loop in polling thread).
+        Settings["use_hedged_requests"] = NYTree::ConvertToNode(0);
     });
 
     RegisterPostprocessor([&] {

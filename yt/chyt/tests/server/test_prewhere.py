@@ -8,17 +8,17 @@ import itertools
 import random
 
 
-class TestClickHouseCommon(ClickHouseTestBase):
+class TestClickHousePrewhere(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
-    def get_config_patch(self):
-        return {"clickhouse": {"settings": {"optimize_move_to_prewhere": 0}}}
+    def get_config_patch(self, value):
+        return {"clickhouse": {"settings": {"optimize_move_to_prewhere": int(value)}}}
 
     @authors("evgenstf")
     @pytest.mark.parametrize("optimize_for, required", itertools.product(["lookup", "scan"], [False, True]))
     def test_prewhere_actions(self, optimize_for, required):
-        with Clique(1, config_patch=self.get_config_patch()) as clique:
+        with Clique(1, config_patch=self.get_config_patch(False)) as clique:
             create(
                 "table",
                 "//tmp/t1",
@@ -65,7 +65,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
     @authors("evgenstf")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_prewhere_one_chunk(self, optimize_for):
-        with Clique(1, config_patch=self.get_config_patch()) as clique:
+        with Clique(1, config_patch=self.get_config_patch(False)) as clique:
             create(
                 "table",
                 "//tmp/table_1",
@@ -103,7 +103,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
     @authors("evgenstf")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_prewhere_several_chunks(self, optimize_for):
-        with Clique(1, config_patch=self.get_config_patch()) as clique:
+        with Clique(1, config_patch=self.get_config_patch(False)) as clique:
             create(
                 "table",
                 "//tmp/test_table",
@@ -153,7 +153,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
         rows = [{"heavy": random_str(), "light": i} for i in range(1024)]
         write_table("//tmp/t", rows, table_writer={"block_size": 1024, "desired_chunk_size": 10 * 1024})
 
-        with Clique(1) as clique:
+        with Clique(1, config_patch=self.get_config_patch(True)) as clique:
             query = "select light from `//tmp/t` where heavy == '{}'".format(rows[42]["heavy"])
             explain_result = clique.make_query("explain syntax " + query)
             print_debug(explain_result)
