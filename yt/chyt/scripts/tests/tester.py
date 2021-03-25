@@ -415,7 +415,10 @@ def invoke_testset(testset_key, alias, table_paths=None, name_regex=None, tag_ex
 
 def invoke_testset_cli(**kwargs):
     if "attributes" in kwargs:
-        kwargs["attributes"] = yson.loads(kwargs["attributes"])
+        if kwargs["attributes"] is not None:
+            kwargs["attributes"] = yson.loads(kwargs["attributes"])
+        else:
+            del kwargs["attributes"]
     result = invoke_testset(**kwargs)
     print(result.invocation_path)
 
@@ -528,7 +531,7 @@ def main():
     list_testsets_parser.set_defaults(func=list_testsets)
 
     invoke_testset_parser = subparsers.add_parser("invoke-testset", help="Invoke testset on given clique")
-    invoke_testset_parser.add_argument("--testset", help="Testset key", required=True)
+    invoke_testset_parser.add_argument("--testset", help="Testset key", required=True, dest="testset_key")
     invoke_testset_parser.add_argument("--alias", help="Clique alias (with asterisk)", required=True)
     invoke_testset_parser.add_argument("--table-paths", help="Dict with table substitutions to override "
                                                              "the default ones")
@@ -574,6 +577,7 @@ def main():
 
     if "verbose" in func_args:
         del func_args["verbose"]
+    del func_args["func"]
 
     args.func(**func_args)
 
