@@ -19,6 +19,7 @@ struct TChunkReaderStatistics
     std::atomic<i64> DataBytesTransmitted{0};
     std::atomic<i64> DataBytesReadFromCache{0};
     std::atomic<i64> MetaBytesReadFromDisk{0};
+    std::atomic<i64> OmittedSuspiciousNodeCount{0};
 
     // TODO(prime@): replace with max time. Cumulative disk IO time has not physical meaning.
     std::atomic<NProfiling::TValue> DataWaitTime{0};
@@ -61,6 +62,7 @@ private:
     NProfiling::TCounter DataBytesTransmitted_;
     NProfiling::TCounter DataBytesReadFromCache_;
     NProfiling::TCounter MetaBytesReadFromDisk_;
+    NProfiling::TCounter OmittedSuspiciousNodeCount_;
 
     NProfiling::TTimeCounter DataWaitTime_;
     NProfiling::TTimeCounter MetaWaitTime_;
