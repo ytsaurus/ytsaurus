@@ -134,14 +134,33 @@ void Deserialize(TDuration& value, TYsonPullParserCursor* cursor)
             value = TDuration::MilliSeconds((*cursor)->UncheckedAsInt64());
             cursor->Next();
             break;
+
         case EYsonItemType::Uint64Value:
             value = TDuration::MilliSeconds((*cursor)->UncheckedAsUint64());
             cursor->Next();
             break;
+
+        case EYsonItemType::StringValue:
+            value = TDuration::Parse((*cursor)->UncheckedAsString());
+            cursor->Next();
+            break;
+
+        case EYsonItemType::DoubleValue: {
+            auto ms = (*cursor)->UncheckedAsDouble();
+            if (ms < 0) {
+                THROW_ERROR_EXCEPTION("Duration cannot be negative");
+            }
+            value = TDuration::MicroSeconds(static_cast<ui64>(ms * 1000.0));
+            cursor->Next();
+            break;
+        }
+
         case EYsonItemType::BeginAttributes:
             NDetail::SkipAttributes(cursor);
             Deserialize(value, cursor);
             break;
+
+
         default:
             ThrowUnexpectedYsonTokenException(
                 "TDuration",
@@ -158,18 +177,32 @@ void Deserialize(TInstant& value, TYsonPullParserCursor* cursor)
             value = TInstant::MilliSeconds((*cursor)->UncheckedAsInt64());
             cursor->Next();
             break;
+
         case EYsonItemType::Uint64Value:
             value = TInstant::MilliSeconds((*cursor)->UncheckedAsUint64());
             cursor->Next();
             break;
+
         case EYsonItemType::StringValue:
             value = TInstant::ParseIso8601((*cursor)->UncheckedAsString());
             cursor->Next();
             break;
+
+        case EYsonItemType::DoubleValue: {
+            auto ms = (*cursor)->UncheckedAsDouble();
+            if (ms < 0) {
+                THROW_ERROR_EXCEPTION("Duration cannot be negative");
+            }
+            value = TInstant::MicroSeconds(static_cast<ui64>(ms * 1000.0));
+            cursor->Next();
+            break;
+        }
+
         case EYsonItemType::BeginAttributes:
             NDetail::SkipAttributes(cursor);
             Deserialize(value, cursor);
             break;
+
         default:
             ThrowUnexpectedYsonTokenException(
                 "TInstant",
