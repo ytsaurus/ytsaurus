@@ -194,7 +194,6 @@ void Deserialize(double& value, INodePtr node)
 // TString
 void Deserialize(TString& value, INodePtr node)
 {
-
     value = node->AsString()->GetValue();
 }
 
