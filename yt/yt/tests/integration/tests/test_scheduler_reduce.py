@@ -2915,6 +2915,72 @@ for line in sys.stdin:
         expected = [{"a": str(x), "c": "A" * 500} for x in range(100)]
         assert sorted(read_table("//tmp/out")) == sorted(expected)
 
+    @authors("max42")
+    def test_proper_slice_ordering_shorter_key(self):
+        schema = make_schema([
+            {"name": "a", "type": "int64", "sort_order": "ascending"},
+            {"name": "b", "type": "int64", "sort_order": "ascending"},
+        ])
+
+        create("table", "//tmp/in", attributes={"schema": schema})
+        for i in range(20):
+            write_table("<append=%true>//tmp/in", [{"a": 0, "b": i}])
+
+        create("table", "//tmp/out")
+        reduce(
+            in_=["//tmp/in"],
+            out="//tmp/out",
+            command="cat",
+            reduce_by=["a"],
+        )
+
+        assert read_table("//tmp/out") == [{"a": 0, "b": i} for i in xrange(20)]
+
+    @authors("max42")
+    def test_proper_slice_ordering_no_key_guarantee(self):
+        # YT-14566.
+        schema = make_schema([
+            {"name": "a", "type": "string", "sort_order": "ascending"},
+            {"name": "b", "type": "int64", "sort_order": "ascending"},
+        ])
+        create("table", "//tmp/in", attributes={"schema": schema})
+
+        rows = []
+
+        counter = [0]
+
+        def next_counter():
+            result = counter[0]
+            counter[0] += 1
+            return result
+
+        for c in 'ABCDE':
+            rows += [{"a": c * 10**3, "b": next_counter()}] * 2000
+        rows += [{"a": 'E' * 10**3, "b": next_counter()}] * (20 * 1000)
+        for c in 'EFGHI':
+            rows += [{"a": c * 10**3, "b": next_counter()}] * 2000
+        write_table("//tmp/in", rows, table_writer={
+            "block_size": 128 * 1024,
+        }, verbose=False)
+        chunk_ids = get("//tmp/in/@chunk_ids")
+        assert len(chunk_ids) == 1
+        print_debug("max block size = {}".format(get("#" + chunk_ids[0] + "/@max_block_size")))
+
+        create("table", "//tmp/out", attributes={"schema": schema})
+
+        for job_count in (1, 5, 15):
+            op = reduce(
+                in_=["//tmp/in"],
+                out="//tmp/out",
+                command="cat",
+                reduce_by=["a"],
+                spec={"job_count": job_count, "job_io": {"table_writer": {"max_key_weight": 10**5 + 100}},
+                      "enable_key_guarantee": False})
+            actual_job_count = op.get_job_count("completed", from_orchid=False)
+            print_debug("requested job count = {}, actual_job_count = {}".format(job_count, actual_job_count))
+            correct = read_table("//tmp/in", verbose=False) == read_table("//tmp/out", verbose=False)
+            assert correct
+
 
 ##################################################################
 

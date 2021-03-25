@@ -235,14 +235,26 @@ void TInputSliceLimit::Persist(const TPersistenceContext& context)
 
 TString ToString(const TInputSliceLimit& limit)
 {
-    return Format("RowIndex: %v, KeyBound: %v", limit.RowIndex, limit.KeyBound);
+    return ToStringViaBuilder(limit);
 }
 
 void FormatValue(TStringBuilderBase* builder, const TInputSliceLimit& limit, TStringBuf /*format*/)
 {
-    builder->AppendFormat("{RowIndex: %v, KeyBound: %v}",
-        limit.RowIndex,
-        limit.KeyBound);
+    if (!limit.RowIndex && !limit.KeyBound) {
+        builder->AppendChar('#');
+        return;
+    }
+    builder->AppendChar('[');
+    if (limit.RowIndex) {
+        builder->AppendFormat("#%v", limit.RowIndex);
+    }
+    if (limit.RowIndex && limit.KeyBound) {
+        builder->AppendString(", ");
+    }
+    if (limit.KeyBound) {
+        builder->AppendFormat("%v", limit.KeyBound);
+    }
+    builder->AppendChar(']');
 }
 
 bool IsTrivial(const TInputSliceLimit& limit)
@@ -297,6 +309,7 @@ TInputChunkSlice::TInputChunkSlice(
 
 TInputChunkSlice::TInputChunkSlice(const TInputChunkSlice& inputSlice)
     : InputChunk_(inputSlice.GetInputChunk())
+    , ChunkSliceIndex_(inputSlice.GetChunkSliceIndex())
     , IsLegacy(inputSlice.IsLegacy)
     , PartIndex_(inputSlice.GetPartIndex())
     , SizeOverridden_(inputSlice.GetSizeOverridden())
@@ -319,6 +332,7 @@ TInputChunkSlice::TInputChunkSlice(
     : InputChunk_(inputSlice.GetInputChunk())
     , LegacyLowerLimit_(inputSlice.LegacyLowerLimit())
     , LegacyUpperLimit_(inputSlice.LegacyUpperLimit())
+    , ChunkSliceIndex_(inputSlice.GetChunkSliceIndex())
     , IsLegacy(inputSlice.IsLegacy)
     , PartIndex_(inputSlice.GetPartIndex())
     , SizeOverridden_(inputSlice.GetSizeOverridden())
@@ -343,6 +357,7 @@ TInputChunkSlice::TInputChunkSlice(
     : InputChunk_(inputSlice.GetInputChunk())
     , LowerLimit_(inputSlice.LowerLimit())
     , UpperLimit_(inputSlice.UpperLimit())
+    , ChunkSliceIndex_(inputSlice.GetChunkSliceIndex())
     , IsLegacy(false)
     , PartIndex_(inputSlice.GetPartIndex())
     , SizeOverridden_(inputSlice.GetSizeOverridden())
@@ -365,6 +380,7 @@ TInputChunkSlice::TInputChunkSlice(
     , LegacyUpperLimit_(chunkSlice.LegacyUpperLimit())
     , LowerLimit_(chunkSlice.LowerLimit())
     , UpperLimit_(chunkSlice.UpperLimit())
+    , ChunkSliceIndex_(chunkSlice.GetChunkSliceIndex())
     , IsLegacy(chunkSlice.IsLegacy)
 {
     if (IsLegacy) {
@@ -431,6 +447,7 @@ TInputChunkSlice::TInputChunkSlice(
     : InputChunk_(chunkSlice.GetInputChunk())
     , LegacyLowerLimit_(chunkSlice.LegacyLowerLimit())
     , LegacyUpperLimit_(chunkSlice.LegacyUpperLimit())
+    , ChunkSliceIndex_(chunkSlice.GetChunkSliceIndex())
     , IsLegacy(chunkSlice.IsLegacy)
 {
     YT_VERIFY(chunkSlice.IsLegacy);
@@ -455,6 +472,7 @@ TInputChunkSlice::TInputChunkSlice(
     : InputChunk_(chunkSlice.GetInputChunk())
     , LowerLimit_(chunkSlice.LowerLimit())
     , UpperLimit_(chunkSlice.UpperLimit())
+    , ChunkSliceIndex_(chunkSlice.GetChunkSliceIndex())
     , IsLegacy(chunkSlice.IsLegacy)
 {
     YT_VERIFY(!chunkSlice.IsLegacy);
@@ -700,6 +718,7 @@ void TInputChunkSlice::Persist(const TPersistenceContext& context)
     Persist(context, SizeOverridden_);
     Persist(context, RowCount_);
     Persist(context, DataWeight_);
+    Persist(context, ChunkSliceIndex_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

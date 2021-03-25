@@ -83,6 +83,10 @@ public:
         const NTableClient::TRowBufferPtr& rowBuffer,
         NTableClient::TComparator comparator);
 
+    //! For unversioned slices, returns index of this chunk slice among all slices of the same chunk.
+    //! For versioned tables, returns std::nullopt.
+    std::optional<int> GetChunkSliceIndex() const;
+
     TChunkSliceList ChunkSlices;
     EDataSourceType Type;
 

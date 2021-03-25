@@ -200,7 +200,8 @@ TString TNewJobStub::GetDebugString() const
     TStringBuilder builder;
     builder.AppendString("{");
     bool isFirst = true;
-    for (const auto& stripe : StripeList_->Stripes) {
+    for (const auto& [key, stripe] : StripeMap_) {
+        builder.AppendFormat("(%v, %v): ", key.first, key.second);
         for (const auto& dataSlice : stripe->DataSlices) {
             if (isFirst) {
                 isFirst = false;
