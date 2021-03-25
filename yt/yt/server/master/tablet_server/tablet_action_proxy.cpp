@@ -97,10 +97,7 @@ private:
 
             case EInternedAttributeKey::TabletIds:
                 BuildYsonFluently(consumer)
-                    .DoListFor(action->Tablets(), [] (TFluentList fluent, const TTablet* tablet) {
-                        fluent
-                            .Item().Value(tablet->GetId());
-                    });
+                    .List(action->GetTabletIds());
                 return true;
 
             case EInternedAttributeKey::CellIds:

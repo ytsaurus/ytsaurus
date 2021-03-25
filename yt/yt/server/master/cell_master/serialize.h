@@ -144,6 +144,7 @@ DEFINE_ENUM(EMasterReign,
     ((MigrateMinShareResourcesToStrongGuaranteeResources2)          (1460))  // renadeen
     ((ValidateNoDuplicateLocationUuidsFromSameNode)                 (1461))  // babenko
     ((DropHealthFromTabletCellStatistics)                           (1462))  // akozhikhov
+    ((TabletIdsForFinishedTabletActions)                            (1463))  // ifsmirnov
     // 21.1 starts here.
     ((SlotLocationStatisticsInNodeNode)                             (1500))  // gritukan
     ((EnableDescendingSortOrder)                                    (1501))  // max42

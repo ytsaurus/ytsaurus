@@ -65,10 +65,21 @@ public:
     virtual TString GetLowercaseObjectName() const override;
     virtual TString GetCapitalizedObjectName() const override;
 
+    //! Save ids of the participating tablets for future retrieval.
+    //! Subsequent calls have no effect.
+    void SaveTabletIds();
+    std::vector<TTabletId> GetTabletIds() const;
+
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
     bool IsFinished() const;
+
+private:
+    //! Ids of tablets for a finished action. For a completed action
+    //! these are always resulting tablets. For a failed one these might be
+    //! either resulting or initial ones.
+    std::optional<std::vector<TTabletId>> SavedTabletIds_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
