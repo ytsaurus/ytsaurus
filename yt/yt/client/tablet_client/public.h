@@ -59,6 +59,9 @@ DEFINE_ENUM(EErrorCode,
     ((UpstreamReplicaMismatch)          (1718))
     ((NoSuchDynamicStore)               (1719))
     ((BundleResourceLimitExceeded)      (1720))
+    ((SyncReplicaIsNotKnown)            (1722))
+    ((SyncReplicaIsNotInSyncMode)       (1723))
+    ((SyncReplicaIsNotWritten)          (1724))
 );
 
 DEFINE_ENUM(EInMemoryMode,
