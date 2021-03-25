@@ -2505,12 +2505,16 @@ private:
         for (auto replicaId : syncReplicaIds) {
             const auto* replicaInfo = tablet->FindReplicaInfo(replicaId);
             if (!replicaInfo) {
-                THROW_ERROR_EXCEPTION("Synchronous replica %v is not known for tablet %v",
+                THROW_ERROR_EXCEPTION(
+                    NTabletClient::EErrorCode::SyncReplicaIsNotKnown,
+                    "Synchronous replica %v is not known for tablet %v",
                     replicaId,
                     tablet->GetId());
             }
             if (replicaInfo->GetMode() != ETableReplicaMode::Sync) {
-                THROW_ERROR_EXCEPTION("Replica %v of tablet %v is not in sync mode",
+                THROW_ERROR_EXCEPTION(
+                    NTabletClient::EErrorCode::SyncReplicaIsNotInSyncMode,
+                    "Replica %v of tablet %v is not in sync mode",
                     replicaId,
                     tablet->GetId());
             }
@@ -2519,7 +2523,9 @@ private:
         for (const auto& [replicaId, replicaInfo] : tablet->Replicas()) {
             if (replicaInfo.GetMode() == ETableReplicaMode::Sync) {
                 if (std::find(syncReplicaIds.begin(), syncReplicaIds.end(), replicaId) == syncReplicaIds.end()) {
-                    THROW_ERROR_EXCEPTION("Synchronous replica %v of tablet %v is not being written by client",
+                    THROW_ERROR_EXCEPTION(
+                        NTabletClient::EErrorCode::SyncReplicaIsNotWritten,
+                        "Synchronous replica %v of tablet %v is not being written by client",
                         replicaId,
                         tablet->GetId());
                 }
@@ -3498,10 +3504,10 @@ private:
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::AllWritesDisabled,
                 "Too many eden stores in tablet, all writes disabled")
-                    << TErrorAttribute("tablet_id", tablet->GetId())
-                    << TErrorAttribute("table_path", tablet->GetTablePath())
-                    << TErrorAttribute("eden_store_count", edenStoreCount)
-                    << TErrorAttribute("eden_store_limit", edenStoreCountLimit);
+                << TErrorAttribute("tablet_id", tablet->GetId())
+                << TErrorAttribute("table_path", tablet->GetTablePath())
+                << TErrorAttribute("eden_store_count", edenStoreCount)
+                << TErrorAttribute("eden_store_limit", edenStoreCountLimit);
         }
 
         auto overflow = tablet->GetStoreManager()->CheckOverflow();
