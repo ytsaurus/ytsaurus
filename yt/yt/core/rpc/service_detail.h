@@ -12,6 +12,7 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/spinlock.h>
+#include <yt/yt/core/concurrency/moody_camel_concurrent_queue.h>
 
 #include <yt/yt/core/logging/log.h>
 
@@ -20,6 +21,8 @@
 #include <yt/yt/core/misc/object_pool.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/ref.h>
+#include <yt/yt/core/misc/ring_queue.h>
+#include <yt/yt/core/misc/atomic_object.h>
 
 #include <yt/yt/core/profiling/profiler.h>
 
@@ -32,8 +35,6 @@
 #include <yt/yt/library/profiling/sensor.h>
 
 #include <yt/yt/library/syncmap/map.h>
-
-#include <util/thread/lfqueue.h>
 
 #include <atomic>
 
@@ -436,7 +437,10 @@ protected:
     class TServiceContext;
     using TServiceContextPtr = TIntrusivePtr<TServiceContext>;
 
-    using TInvokerProvider = TCallback<IInvokerPtr(const IServiceContextPtr&)>;
+    class TRequestQueue;
+
+    using TRequestQueueProvider = TCallback<TRequestQueue*(const NRpc::NProto::TRequestHeader&)>;
+    using TInvokerProvider = TCallback<IInvokerPtr(const NRpc::NProto::TRequestHeader&)>;
 
     //! Information needed to a register a service method.
     struct TMethodDescriptor
@@ -447,13 +451,18 @@ protected:
             TLiteHandler liteHandler,
             THeavyHandler heavyHandler);
 
-        //! Invoker used for executing the handler.
-        //! Overrides the default one (unless null).
+        //! When a request is received and parsed, RPC service puts it into a queue.
+        //! This enables specifying a relevant queue on a per-request basis.
+        //! If not given or returns null then the default (per-method) queue is used.
+        TRequestQueueProvider RequestQueueProvider;
+
+        //! When a request is dequeued from its queue, it is delegated to an appropriate
+        //! invoker for the actual execution.
+        //! If not given then the per-service default is used.
         IInvokerPtr Invoker;
 
-        //! Invoker provider is called upon receiving a request to determine
-        //! the actual invoker to be used for handling the request.
-        //! Overrides #Invoker (unless null).
+        //! Enables overriding #Invoker on a per-request basis.
+        //! If not given or returns null then #Invoker is used as a fallback.
         TInvokerProvider InvokerProvider;
 
         //! Service method name.
@@ -502,6 +511,7 @@ protected:
         //! If |true| then requests and responses are pooled.
         bool Pooled = true;
 
+        TMethodDescriptor SetRequestQueueProvider(TRequestQueueProvider value) const;
         TMethodDescriptor SetInvoker(IInvokerPtr value) const;
         TMethodDescriptor SetInvokerProvider(TInvokerProvider value) const;
         TMethodDescriptor SetHeavy(bool value) const;
@@ -568,6 +578,57 @@ protected:
 
     using TMethodPerformanceCountersPtr = TIntrusivePtr<TMethodPerformanceCounters>;
 
+    struct TRuntimeMethodInfo;
+
+    class TRequestQueue
+    {
+    public:
+        explicit TRequestQueue(TString name);
+
+        const TString& GetName() const;
+
+        bool Register(TServiceBase* service, TRuntimeMethodInfo* runtimeInfo);
+        void Configure(const TMethodConfigPtr& config);
+
+        bool IsQueueLimitSizeExceeded() const;
+
+        int GetQueueSize() const;
+        int GetConcurrency() const;
+
+        void OnRequestArrived(TServiceContextPtr context);
+        void OnRequestFinished();
+
+    private:
+        const TString Name_;
+
+        YT_DECLARE_SPINLOCK(TSpinLock, RegisterLock_);
+        std::atomic<bool> Registered_ = false;
+        TServiceBase* Service_;
+        TRuntimeMethodInfo* RuntimeInfo_ = nullptr;
+
+        std::atomic<int> Concurrency_ = 0;
+
+        const NConcurrency::IReconfigurableThroughputThrottlerPtr RequestBytesThrottler_;
+        std::atomic<bool> RequestBytesThrottlerSpecified_ = false;
+
+        std::atomic<int> QueueSize_ = 0;
+        moodycamel::ConcurrentQueue<TServiceContextPtr> RequestQueue_;
+
+
+        void ScheduleRequestsFromQueue();
+        void RunRequest(TServiceContextPtr context);
+
+        int IncrementQueueSize();
+        void DecrementQueueSize();
+
+        int IncrementConcurrency();
+        void DecrementConcurrency();
+
+        bool IsRequestBytesThrottlerOverdraft() const;
+        void AcquireRequestBytesThrottler(const TServiceContextPtr& context);
+        void SubscribeToRequestBytesThrottler();
+    };
+
     //! Describes a service method and its runtime statistics.
     struct TRuntimeMethodInfo
         : public TRefCounted
@@ -576,23 +637,16 @@ protected:
             const TMethodDescriptor& descriptor,
             const NProfiling::TProfiler& profiler);
 
-        TMethodDescriptor Descriptor;
+        const TMethodDescriptor Descriptor;
         const NProfiling::TProfiler Registry;
 
         std::atomic<bool> Heavy = false;
 
         std::atomic<int> QueueSizeLimit = 0;
-        std::atomic<int> QueueSize = 0;
-
         std::atomic<int> ConcurrencyLimit = 0;
-        std::atomic<int> ConcurrencySemaphore = 0;
-        TLockFreeQueue<TServiceContextPtr> RequestQueue;
 
         std::atomic<NLogging::ELogLevel> LogLevel = {};
         std::atomic<TDuration> LoggingSuppressionTimeout = {};
-
-        NConcurrency::IReconfigurableThroughputThrottlerPtr RequestBytesThrottler;
-        std::atomic<bool> RequestBytesThrottlerSpecified = false;
 
         NConcurrency::TSyncMap<TString, TMethodPerformanceCountersPtr> UserTagToPerformanceCounters;
         TMethodPerformanceCountersPtr RootPerformanceCounters;
@@ -601,9 +655,15 @@ protected:
         NConcurrency::IReconfigurableThroughputThrottlerPtr LoggingSuppressionFailedRequestThrottler;
 
         std::atomic<ERequestTracingMode> TracingMode = ERequestTracingMode::Enable;
+
+        TRequestQueue DefaultRequestQueue;
+
+        YT_DECLARE_SPINLOCK(TSpinLock, RequestQueuesLock);
+        std::vector<TRequestQueue*> RequestQueues;
     };
 
     using TRuntimeMethodInfoPtr = TIntrusivePtr<TRuntimeMethodInfo>;
+
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Discover);
 
@@ -640,15 +700,12 @@ protected:
     //! Throws on failure.
     void ValidateRequestFeatures(const IServiceContextPtr& context);
 
-    //! Returns a reference to TRuntimeMethodInfo for a given method's name
+    //! Returns a (non-owning!) pointer to TRuntimeMethodInfo for a given method's name
     //! or |nullptr| if no such method is registered.
-    TRuntimeMethodInfoPtr FindMethodInfo(const TString& method);
-
-    //! Similar to #FindMethodInfo but fails if no method is found.
-    TRuntimeMethodInfoPtr GetMethodInfo(const TString& method);
+    TRuntimeMethodInfo* FindMethodInfo(const TString& method);
 
     //! Similar to #FindMethodInfo but throws if no method is found.
-    TRuntimeMethodInfoPtr GetMethodInfoOrThrow(const TString& method);
+    TRuntimeMethodInfo* GetMethodInfoOrThrow(const TString& method);
 
     //! Returns the default invoker passed during construction.
     const IInvokerPtr& GetDefaultInvoker() const;
@@ -687,6 +744,8 @@ private:
     const TServiceId ServiceId_;
 
     const NProfiling::TProfiler ProfilingRegistry_;
+
+    TAtomicObject<TServiceConfigPtr> Config_;
 
     struct TPendingPayloadsEntry
     {
@@ -738,10 +797,11 @@ private:
     {
         TRequestId RequestId;
         NYT::NBus::IBusPtr ReplyBus;
-        TRuntimeMethodInfoPtr RuntimeInfo;
+        TRuntimeMethodInfo* RuntimeInfo;
         NTracing::TTraceContextPtr TraceContext;
         std::unique_ptr<NRpc::NProto::TRequestHeader> Header;
         TSharedRefArray Message;
+        TRequestQueue* RequestQueue;
     };
 
     void DoDeclareServerFeature(int featureId);
@@ -756,17 +816,20 @@ private:
         TError error,
         const NProto::TRequestHeader& header,
         const NYT::NBus::IBusPtr& replyBus);
+
     void OnRequestAuthenticated(
         const NProfiling::TWallTimer& timer,
-        TAcceptedRequest acceptedRequest,
+        TAcceptedRequest&& acceptedRequest,
         const TErrorOr<TAuthenticationResult>& authResultOrError);
     bool IsAuthenticationNeeded(const TAcceptedRequest& acceptedRequest);
-    void HandleAuthenticatedRequest(TAcceptedRequest acceptedRequest);
+    void HandleAuthenticatedRequest(TAcceptedRequest&& acceptedRequest);
 
-    static bool TryAcquireRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo);
-    static void ReleaseRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo);
-    static void ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo);
-    static void RunRequest(const TServiceContextPtr& context);
+    TRequestQueue* GetRequestQueue(
+        TRuntimeMethodInfo* runtimeInfo,
+        const NRpc::NProto::TRequestHeader& requestHeader);
+    void RegisterRequestQueue(
+        TRuntimeMethodInfo* runtimeInfo,
+        TRequestQueue* requestQueue);
 
     TRequestBucket* GetRequestBucket(TRequestId requestId);
     TReplyBusBucket* GetReplyBusBucket(const NYT::NBus::IBusPtr& bus);
@@ -781,14 +844,18 @@ private:
     void OnPendingPayloadsLeaseExpired(TRequestId requestId);
 
     TMethodPerformanceCountersPtr CreateMethodPerformanceCounters(
-        const TRuntimeMethodInfoPtr& runtimeInfo,
+        TRuntimeMethodInfo* runtimeInfo,
         const std::optional<TString>& userTag);
     TMethodPerformanceCounters* GetMethodPerformanceCounters(
-        const TRuntimeMethodInfoPtr& runtimeInfo,
+        TRuntimeMethodInfo* runtimeInfo,
         const TString& userTag);
 
     void SetActive();
     void ValidateInactive();
+
+    bool IsStopped();
+    void IncrementActiveRequestCount();
+    void DecrementActiveRequestCount();
 };
 
 DEFINE_REFCOUNTED_TYPE(TServiceBase)

@@ -919,6 +919,42 @@ TYPED_TEST(TRpcTest, ResponseMemoryTag)
 
 #endif
 
+TYPED_TEST(TNotGrpcTest, RequestBytesThrottling)
+{
+    auto configText = TString(R"({
+        services = {
+            MyService = {
+                methods = {
+                    RequestBytesThrottledCall = {
+                        request_bytes_throttler = {
+                            limit = 1000000;
+                        }
+                    }
+                }
+            };
+        };
+    })");
+    auto config = ConvertTo<TServerConfigPtr>(TYsonString(configText));
+    this->Server_->Configure(config);
+
+    TMyProxy proxy(this->CreateChannel());
+
+    auto makeCall = [&] {
+        auto req = proxy.RequestBytesThrottledCall();
+        req->Attachments().push_back(TSharedMutableRef::Allocate(1'000'000));
+        return req->Invoke().AsVoid();
+    };
+
+    std::vector<TFuture<void>> futures;
+    for (int i = 0; i < 3; ++i) {
+        futures.push_back(makeCall());
+    }
+
+    NProfiling::TWallTimer timer;
+    EXPECT_TRUE(AllSucceeded(std::move(futures)).Get().IsOK());
+    EXPECT_LE(std::abs(static_cast<i64>(timer.GetElapsedTime().MilliSeconds()) - 3000), 100);
+}
+
 // Now test different types of errors
 
 TYPED_TEST(TRpcTest, OK)
@@ -1005,6 +1041,47 @@ TYPED_TEST(TRpcTest, SlowCall)
     auto req = proxy.SlowCall();
     auto rspOrError = req->Invoke().Get();
     EXPECT_TRUE(rspOrError.IsOK());
+}
+
+TYPED_TEST(TRpcTest, RequestQueueSizeLimit)
+{
+    TMyProxy proxy(this->CreateChannel());
+    std::vector<TFuture<void>> futures;
+    for (int i = 0; i < 30; ++i) {
+        auto req = proxy.SlowCall();
+        futures.push_back(req->Invoke().AsVoid());
+    }
+    Sleep(TDuration::MilliSeconds(100));
+    {
+        auto req = proxy.SlowCall();
+        EXPECT_EQ(NRpc::EErrorCode::RequestQueueSizeLimitExceeded, req->Invoke().Get().GetCode());
+    }
+    EXPECT_TRUE(AllSucceeded(std::move(futures)).Get().IsOK());
+}
+
+TYPED_TEST(TRpcTest, ConcurrencyLimit)
+{
+    TMyProxy proxy(this->CreateChannel());
+    std::vector<TFuture<void>> futures;
+    for (int i = 0; i < 10; ++i) {
+        auto req = proxy.SlowCall();
+        futures.push_back(req->Invoke().AsVoid());
+    }
+
+    Sleep(TDuration::MilliSeconds(100));
+
+    TFuture<void> backlogFuture;
+    {
+        auto req = proxy.SlowCall();
+        backlogFuture = req->Invoke().AsVoid();
+    }
+
+    EXPECT_TRUE(AllSucceeded(std::move(futures)).Get().IsOK());
+
+    Sleep(TDuration::MilliSeconds(400));
+    EXPECT_FALSE(backlogFuture.IsSet());
+
+    EXPECT_TRUE(backlogFuture.Get().IsOK());
 }
 
 TYPED_TEST(TRpcTest, NoReply)

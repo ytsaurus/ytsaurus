@@ -392,11 +392,7 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetCancelable(true)
-            .SetInvokerProvider(BIND(
-                &TQueryService::GetExecuteInvoker,
-                Bootstrap_,
-                PoolWeightCache_,
-                GetDefaultInvoker())));
+            .SetInvokerProvider(BIND(&TQueryService::GetExecuteInvoker, Unretained(this))));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Multiread)
             .SetCancelable(true)
             .SetInvoker(bootstrap->GetTabletLookupPoolInvoker()));
@@ -420,30 +416,24 @@ private:
     const IMemoryUsageTrackerPtr MemoryTracker_;
     const TMemoryProviderMapByTagPtr MemoryProvider_ = New<TMemoryProviderMapByTag>();
 
-    static IInvokerPtr GetExecuteInvoker(
-        NClusterNode::TBootstrap* bootstrap,
-        const TPoolWeightCachePtr& poolWeightCache,
-        const IInvokerPtr& defaultInvoker,
-        const IServiceContextPtr& context)
+    IInvokerPtr GetExecuteInvoker(const NRpc::NProto::TRequestHeader& requestHeader)
     {
-        const auto& ext = context->RequestHeader().GetExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext);
+        const auto& ext = requestHeader.GetExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext);
 
         if (!ext.has_execution_pool_name()) {
-            return defaultInvoker;
+            return nullptr;
         }
 
         const auto& poolName = ext.execution_pool_name();
         const auto& tag = ext.execution_tag();
 
         auto poolWeight = DefaultQLExecutionPoolWeight;
-        auto weightFuture = poolWeightCache->Get(poolName);
+        auto weightFuture = PoolWeightCache_->Get(poolName);
         if (auto optionalWeightOrError = weightFuture.TryGet()) {
             poolWeight = optionalWeightOrError->ValueOrThrow();
         }
 
-        context->SetIncrementalResponseInfo("ExecutionPool: %v", poolName);
-
-        return bootstrap->GetQueryPoolInvoker(poolName, poolWeight, tag);
+        return Bootstrap_->GetQueryPoolInvoker(poolName, poolWeight, tag);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute)
