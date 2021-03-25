@@ -940,9 +940,21 @@ def init_logging(path, name,
         })
         config["writers"]["debug"] = {
             "type": "file",
-            "file_name": "{path}/{name}.debug.log".format(path=path, name=name)  + suffix,
+            "file_name": "{path}/{name}.debug.log".format(path=path, name=name) + suffix,
         }
         config["writers"]["debug"].update(compression_options)
+
+    if "YT_ENABLE_TRACE_LOGGING" in os.environ:
+        config["rules"].append({
+            "min_level": "trace",
+            "exclude_categories": ["Bus"],
+            "writers": ["trace"],
+        })
+        config["writers"]["trace"] = {
+            "type": "file",
+            "file_name": "{path}/{name}.trace.log".format(path=path, name=name) + suffix,
+        }
+        config["writers"]["trace"].update(compression_options)
 
     if enable_structured_logging:
         config["rules"].append({
