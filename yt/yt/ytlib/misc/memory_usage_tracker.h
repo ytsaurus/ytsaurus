@@ -71,6 +71,7 @@ private:
     struct TPool
         : public TRefCounted
     {
+        TPoolTag Tag;
         std::atomic<i64> Weight = 0;
         TEnumIndexedVector<ECategory, std::atomic<i64>> Used;
 
@@ -95,8 +96,6 @@ private:
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler_;
 
-    const NConcurrency::TPeriodicExecutorPtr PeriodicUpdater_;
-
     i64 DoGetLimit(ECategory category) const;
     i64 DoGetLimit(ECategory category, const TPool* pool) const;
     i64 DoGetUsed(ECategory category) const;
@@ -104,6 +103,7 @@ private:
     i64 DoGetFree(ECategory category) const;
     i64 DoGetFree(ECategory category, const TPool* pool) const;
 
+    TError DoTryAcquire(ECategory category, i64 size, TPool* pool);
     void DoAcquire(ECategory category, i64 size, TPool* pool);
     void DoRelease(ECategory category, i64 size, TPool* pool);
 
