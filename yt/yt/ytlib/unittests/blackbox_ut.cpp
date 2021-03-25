@@ -296,11 +296,32 @@ TEST_F(TTokenAuthenticatorTest, FailOnInvalidScope)
 TEST_F(TTokenAuthenticatorTest, Success)
 {
     Config_->Scope = "yt:api";
-    MockCall(R"yy({status={id=0};oauth={scope="x:1 yt:api x:2";client_id="cid";client_name="nm"};login=sandello})yy");
+    MockCall(R"yy(
+        {
+            status={id=0};
+            oauth={scope="x:1 yt:api x:2";client_id="cid";client_name="nm"};
+            login=sandello;
+            user_ticket=good_ticket})yy");
     auto result = Invoke("mytoken", "127.0.0.1").Get();
     ASSERT_TRUE(result.IsOK());
     EXPECT_EQ("sandello", result.Value().Login);
     EXPECT_EQ("blackbox:token:cid:nm", result.Value().Realm);
+    EXPECT_EQ("good_ticket", result.Value().UserTicket);
+}
+
+TEST_F(TTokenAuthenticatorTest, SuccessWithoutTicket)
+{
+    Config_->Scope = "yt:api";
+    MockCall(R"yy(
+        {
+            status={id=0};
+            oauth={scope="x:1 yt:api x:2";client_id="cid";client_name="nm"};
+            login=sandello})yy");
+    auto result = Invoke("mytoken", "127.0.0.1").Get();
+    ASSERT_TRUE(result.IsOK());
+    EXPECT_EQ("sandello", result.Value().Login);
+    EXPECT_EQ("blackbox:token:cid:nm", result.Value().Realm);
+    EXPECT_EQ("", result.Value().UserTicket);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -507,11 +528,22 @@ TEST_F(TCookieAuthenticatorTest, FailOnRejection)
 
 TEST_F(TCookieAuthenticatorTest, Success)
 {
+    MockCall("{status={id=0};login=sandello;user_ticket=good_ticket}");
+    auto result = Authenticate("mysessionid", "mysslsessionid", "127.0.0.1").Get();
+    ASSERT_TRUE(result.IsOK());
+    EXPECT_EQ("sandello", result.Value().Login);
+    EXPECT_EQ("blackbox:cookie", result.Value().Realm);
+    EXPECT_EQ("good_ticket", result.Value().UserTicket);
+}
+
+TEST_F(TCookieAuthenticatorTest, SuccessWithoutTicket)
+{
     MockCall("{status={id=0};login=sandello}");
     auto result = Authenticate("mysessionid", "mysslsessionid", "127.0.0.1").Get();
     ASSERT_TRUE(result.IsOK());
     EXPECT_EQ("sandello", result.Value().Login);
     EXPECT_EQ("blackbox:cookie", result.Value().Realm);
+    EXPECT_EQ("", result.Value().UserTicket);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -570,6 +602,7 @@ TEST_F(TTicketAuthenticatorTest, Success)
     ASSERT_TRUE(result.IsOK());
     EXPECT_EQ("TheUser", result.Value().Login);
     EXPECT_EQ("blackbox:user-ticket", result.Value().Realm);
+    EXPECT_EQ("good_ticket", result.Value().UserTicket);
 }
 
 TEST_F(TTicketAuthenticatorTest, ScopeFailure)

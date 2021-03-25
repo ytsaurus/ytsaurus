@@ -97,6 +97,7 @@ struct TAuthenticationResult
 {
     TString Login;
     TString Realm;
+    TString UserTicket;
 };
 
 struct TParsedTicket

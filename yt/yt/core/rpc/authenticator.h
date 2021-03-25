@@ -14,6 +14,7 @@ struct TAuthenticationResult
 {
     TString User;
     TString Realm;
+    TString UserTicket;
 };
 
 struct TAuthenticationContext
