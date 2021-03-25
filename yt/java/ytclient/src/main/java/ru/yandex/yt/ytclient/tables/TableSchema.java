@@ -12,6 +12,7 @@ import java.util.stream.Stream;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
+import ru.yandex.type_info.TiType;
 import ru.yandex.yt.ytclient.ytree.YTreeConvertible;
 
 /**
@@ -32,21 +33,17 @@ public class TableSchema implements YTreeConvertible {
     private final String lock;
     private final String group;
 
-    static public Builder builder() {
-        return new Builder();
-    }
-
-    private TableSchema(List<ColumnSchema> columns, boolean strict, boolean uniqueKeys, String lock, String group) {
+    public TableSchema(List<ColumnSchema> columns, boolean strict, boolean uniqueKeys, String lock, String group) {
         this.columns = Objects.requireNonNull(columns);
         this.strict = strict;
         this.uniqueKeys = uniqueKeys;
         this.lock = lock;
         this.group = group;
-        int keyColumnsCount = 0;
-        boolean isKeysSchema = true;
-        boolean isValuesSchema = true;
-        boolean isWriteSchema = true;
-        boolean isLookupSchema = true;
+        int localKeyColumnsCount = 0;
+        boolean localIsKeyColumnSchema = true;
+        boolean localIsValuesSchema = true;
+        boolean localIsWriteSchema = true;
+        boolean localIsLookupSchema = true;
         for (int index = 0; index < columns.size(); index++) {
             ColumnSchema column = columns.get(index);
             if (columnsByName.containsKey(column.getName())) {
@@ -63,28 +60,32 @@ public class TableSchema implements YTreeConvertible {
                 if (column.getAggregate() != null) {
                     throw new IllegalArgumentException("Key column " + column.getName() + " cannot be aggregated");
                 }
-                if (index != keyColumnsCount) {
+                if (index != localKeyColumnsCount) {
                     throw new IllegalArgumentException("Key columns must form a prefix of schema");
                 }
-                ++keyColumnsCount;
-                isValuesSchema = false;
+                ++localKeyColumnsCount;
+                localIsValuesSchema = false;
             } else {
-                isKeysSchema = false;
-                isLookupSchema = false;
+                localIsKeyColumnSchema = false;
+                localIsLookupSchema = false;
             }
             if (column.getExpression() != null) {
-                isWriteSchema = false;
-                isLookupSchema = false;
+                localIsWriteSchema = false;
+                localIsLookupSchema = false;
             }
         }
-        this.keyColumnsCount = keyColumnsCount;
-        if (uniqueKeys && keyColumnsCount == 0) {
+        this.keyColumnsCount = localKeyColumnsCount;
+        if (uniqueKeys && localKeyColumnsCount == 0) {
             throw new IllegalArgumentException("Cannot set uniqueKeys on schemas without key columns");
         }
-        this.isKeysSchema = isKeysSchema;
-        this.isValuesSchema = isValuesSchema;
-        this.isWriteSchema = isWriteSchema;
-        this.isLookupSchema = isLookupSchema;
+        this.isKeysSchema = localIsKeyColumnSchema;
+        this.isValuesSchema = localIsValuesSchema;
+        this.isWriteSchema = localIsWriteSchema;
+        this.isLookupSchema = localIsLookupSchema;
+    }
+
+    public static Builder builder() {
+        return new Builder();
     }
 
     public List<ColumnSchema> getColumns() {
@@ -306,8 +307,8 @@ public class TableSchema implements YTreeConvertible {
         for (YTreeNode columnNode : list) {
             columns.add(ColumnSchema.fromYTree(columnNode));
         }
-        boolean strict = node.getAttribute("strict").map(YTreeNode::boolValue).getOrElse(true);
-        boolean uniqueKeys = node.getAttribute("unique_keys").map(YTreeNode::boolValue).getOrElse(false);
+        boolean strict = node.getAttribute("strict").map(YTreeNode::boolValue).orElse(true);
+        boolean uniqueKeys = node.getAttribute("unique_keys").map(YTreeNode::boolValue).orElse(false);
         return new TableSchema(columns, strict, uniqueKeys, null, null);
     }
 
@@ -371,8 +372,16 @@ public class TableSchema implements YTreeConvertible {
             return add(new ColumnSchema(name, type, ColumnSortOrder.ASCENDING, lock, null, null, group, false));
         }
 
+        public Builder addKey(String name, TiType type) {
+            return add(new ColumnSchema(name, type, ColumnSortOrder.ASCENDING));
+        }
+
         public Builder addKeyExpression(String name, ColumnValueType type, String expression) {
             return add(new ColumnSchema(name, type, ColumnSortOrder.ASCENDING, lock, expression, null, group, false));
+        }
+
+        public Builder addValue(String name, TiType type) {
+            return add(new ColumnSchema(name, type));
         }
 
         public Builder addValue(String name, ColumnValueType type) {
@@ -395,7 +404,9 @@ public class TableSchema implements YTreeConvertible {
                             keyCol -> columns.stream()
                                     .filter(col -> col.getName().equals(keyCol))
                                     .findAny()
-                                    .orElseThrow(() -> new IllegalArgumentException("Can't find column in schema: " + keyCol))
+                                    .orElseThrow(() -> new IllegalArgumentException(
+                                            "Can't find column in schema: " + keyCol
+                                    ))
                     )
                     .map(keyCol -> keyCol.toBuilder().setSortOrder(ColumnSortOrder.ASCENDING).build());
 
