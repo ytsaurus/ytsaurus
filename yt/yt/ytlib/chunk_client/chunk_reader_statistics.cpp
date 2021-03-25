@@ -15,6 +15,7 @@ void ToProto(NProto::TChunkReaderStatistics* protoChunkReaderStatistics, const T
     protoChunkReaderStatistics->set_data_bytes_transmitted(chunkReaderStatistics->DataBytesTransmitted);
     protoChunkReaderStatistics->set_data_bytes_read_from_cache(chunkReaderStatistics->DataBytesReadFromCache);
     protoChunkReaderStatistics->set_meta_bytes_read_from_disk(chunkReaderStatistics->MetaBytesReadFromDisk);
+    protoChunkReaderStatistics->set_omitted_suspicious_node_count(chunkReaderStatistics->OmittedSuspiciousNodeCount);
     protoChunkReaderStatistics->set_data_wait_time(chunkReaderStatistics->DataWaitTime);
     protoChunkReaderStatistics->set_meta_wait_time(chunkReaderStatistics->MetaWaitTime);
     protoChunkReaderStatistics->set_meta_read_from_disk_time(chunkReaderStatistics->MetaReadFromDiskTime);
@@ -29,6 +30,7 @@ void FromProto(TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, const NProto
     chunkReaderStatistics->DataBytesTransmitted = protoChunkReaderStatistics.data_bytes_transmitted();
     chunkReaderStatistics->DataBytesReadFromCache = protoChunkReaderStatistics.data_bytes_read_from_cache();
     chunkReaderStatistics->MetaBytesReadFromDisk = protoChunkReaderStatistics.meta_bytes_read_from_disk();
+    chunkReaderStatistics->OmittedSuspiciousNodeCount = protoChunkReaderStatistics.omitted_suspicious_node_count();
     chunkReaderStatistics->DataWaitTime = protoChunkReaderStatistics.data_wait_time();
     chunkReaderStatistics->MetaWaitTime = protoChunkReaderStatistics.meta_wait_time();
     chunkReaderStatistics->MetaReadFromDiskTime = protoChunkReaderStatistics.meta_read_from_disk_time();
@@ -42,6 +44,7 @@ void UpdateFromProto(const TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, 
     chunkReaderStatistics->DataBytesTransmitted += protoChunkReaderStatistics.data_bytes_transmitted();
     chunkReaderStatistics->DataBytesReadFromCache += protoChunkReaderStatistics.data_bytes_read_from_cache();
     chunkReaderStatistics->MetaBytesReadFromDisk += protoChunkReaderStatistics.meta_bytes_read_from_disk();
+    chunkReaderStatistics->OmittedSuspiciousNodeCount += protoChunkReaderStatistics.omitted_suspicious_node_count();
     chunkReaderStatistics->DataWaitTime += protoChunkReaderStatistics.data_wait_time();
     chunkReaderStatistics->MetaWaitTime += protoChunkReaderStatistics.meta_wait_time();
     chunkReaderStatistics->MetaReadFromDiskTime += protoChunkReaderStatistics.meta_read_from_disk_time();
@@ -66,6 +69,7 @@ TChunkReaderStatisticsCounters::TChunkReaderStatisticsCounters(const NProfiling:
     , DataBytesTransmitted_(profiler.Counter("/data_bytes_transmitted"))
     , DataBytesReadFromCache_(profiler.Counter("/data_bytes_read_from_cache"))
     , MetaBytesReadFromDisk_(profiler.Counter("/meta_bytes_read_from_disk"))
+    , OmittedSuspiciousNodeCount_(profiler.Counter("/omitted_suspicious_node_count"))
     , DataWaitTime_(profiler.TimeCounter("/data_wait_time"))
     , MetaWaitTime_(profiler.TimeCounter("/meta_wait_time"))
     , MetaReadFromDiskTime_(profiler.TimeCounter("/meta_read_from_disk_time"))
@@ -79,6 +83,7 @@ void TChunkReaderStatisticsCounters::Increment(
     DataBytesTransmitted_.Increment(chunkReaderStatistics->DataBytesTransmitted);
     DataBytesReadFromCache_.Increment(chunkReaderStatistics->DataBytesReadFromCache);
     MetaBytesReadFromDisk_.Increment(chunkReaderStatistics->MetaBytesReadFromDisk);
+    OmittedSuspiciousNodeCount_.Increment(chunkReaderStatistics->OmittedSuspiciousNodeCount);
 
     DataWaitTime_.Add(TDuration::FromValue(chunkReaderStatistics->DataWaitTime));
     MetaWaitTime_.Add(TDuration::FromValue(chunkReaderStatistics->MetaWaitTime));

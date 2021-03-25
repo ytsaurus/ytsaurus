@@ -1292,6 +1292,7 @@ private:
                 ] (const TErrorOr<std::vector<std::pair<TPeer, TErrorOrPeerProbeResult>>>& resultsOrError) {
                     YT_VERIFY(resultsOrError.IsOK());
                     auto results = resultsOrError.Value();
+                    int totalCandidateCount = results.size() + asyncSuspiciousResults.size();
 
                     for (const auto& asyncSuspiciousResult : asyncSuspiciousResults) {
                         auto maybeSuspiciousResult = asyncSuspiciousResult.TryGet();
@@ -1311,6 +1312,11 @@ private:
                                 TError("Error probing suspicious node %v",
                                     suspiciousResultValue.first.AddressWithNetwork));
                         }
+                    }
+
+                    auto omittedSuspiciousNodeCount = totalCandidateCount - results.size();
+                    if (omittedSuspiciousNodeCount > 0) {
+                        SessionOptions_.ChunkReaderStatistics->OmittedSuspiciousNodeCount += omittedSuspiciousNodeCount;
                     }
 
                     return results;
