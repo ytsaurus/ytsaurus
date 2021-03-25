@@ -2581,6 +2581,7 @@ private:
             tablet->SetAction(nullptr);
         }
 
+        action->SaveTabletIds();
         action->Tablets().clear();
     }
 
@@ -2727,6 +2728,8 @@ private:
         if (!touched) {
             return;
         }
+
+        action->SaveTabletIds();
 
         auto& tablets = action->Tablets();
         tablets.erase(

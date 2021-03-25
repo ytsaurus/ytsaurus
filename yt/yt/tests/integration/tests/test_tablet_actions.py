@@ -224,7 +224,7 @@ class TestTabletActions(TabletActionsBase):
         wait(lambda: len(ls("//sys/tablet_actions")) > 0)
         assert action == ls("//sys/tablet_actions")[0]
         wait(lambda: get("#{0}/@state".format(action)) == "completed")
-        assert get("#{0}/@tablet_ids".format(action)) == []
+        assert len(get("#{0}/@tablet_ids".format(action))) == 2
         wait(lambda: not exists("#{0}".format(action)))
 
     @authors("ifsmirnov", "ilpauzner")
@@ -310,6 +310,7 @@ class TestTabletActions(TabletActionsBase):
         wait(lambda: get("//tmp/t/@tablets/1/state") == expected_state)
         wait(lambda: get("//tmp/t/@tablets/0/state") == expected_touch_state)
         self._validate_tablets("//tmp/t", expected_state=[expected_touch_state, expected_state])
+        assert get("#{0}/@tablet_ids".format(action)) == [tablet1, tablet2]
 
     @authors("ifsmirnov", "ilpauzner")
     @pytest.mark.parametrize("skip_freezing", [False, True])
@@ -447,6 +448,26 @@ class TestTabletActions(TabletActionsBase):
         assert exists("//sys/tablet_actions/{}".format(action_id))
         remove("#{}".format(action_id))
         assert not exists("//sys/tablet_actions/{}".format(action_id))
+
+    @authors("ifsmirnov")
+    def test_finished_tablet_action_tablet_ids(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        action_id = create(
+            "tablet_action",
+            "",
+            attributes={
+                "kind": "reshard",
+                "tablet_ids": [get("//tmp/t/@tablets/0/tablet_id")],
+                "pivot_keys": [[], [1]],
+                "keep_finished": True,
+            },
+        )
+        wait(lambda: get("#{}/@state".format(action_id)) == "completed")
+        expected_tablet_ids = get("#{}/@tablet_ids".format(action_id))
+        actual_tablet_ids = [t["tablet_id"] for t in get("//tmp/t/@tablets")]
+        assert expected_tablet_ids == actual_tablet_ids
 
 
 ##################################################################

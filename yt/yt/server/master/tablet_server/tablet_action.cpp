@@ -28,6 +28,35 @@ TString TTabletAction::GetCapitalizedObjectName() const
     return Format("Tablet action %v", GetId());
 }
 
+void TTabletAction::SaveTabletIds()
+{
+    if (SavedTabletIds_) {
+        return;
+    }
+
+    std::vector<TTabletId> tabletIds;
+    tabletIds.reserve(Tablets_.size());
+    for (const auto* tablet : Tablets_) {
+        tabletIds.push_back(tablet->GetId());
+    }
+
+    SavedTabletIds_ = std::move(tabletIds);
+}
+
+std::vector<TTabletId> TTabletAction::GetTabletIds() const
+{
+    if (SavedTabletIds_) {
+        return *SavedTabletIds_;
+    }
+
+    std::vector<TTabletId> tabletIds;
+    tabletIds.reserve(Tablets_.size());
+    for (const auto* tablet : Tablets_) {
+        tabletIds.push_back(tablet->GetId());
+    }
+    return tabletIds;
+}
+
 void TTabletAction::Save(NCellMaster::TSaveContext& context) const
 {
     TNonversionedObjectBase::Save(context);
@@ -45,6 +74,7 @@ void TTabletAction::Save(NCellMaster::TSaveContext& context) const
     Save(context, CorrelationId_);
     Save(context, ExpirationTime_);
     Save(context, TabletCellBundle_);
+    Save(context, SavedTabletIds_);
 }
 
 void TTabletAction::Load(NCellMaster::TLoadContext& context)
@@ -64,6 +94,11 @@ void TTabletAction::Load(NCellMaster::TLoadContext& context)
     Load(context, CorrelationId_);
     Load(context, ExpirationTime_);
     Load(context, TabletCellBundle_);
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::TabletIdsForFinishedTabletActions) {
+        Load(context, SavedTabletIds_);
+    }
 }
 
 bool TTabletAction::IsFinished() const
