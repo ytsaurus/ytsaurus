@@ -150,10 +150,11 @@ private:
 
         TMasterReadOptions GetMasterReadOptions()
         {
+            auto refreshTime = Owner_->Config_->RefreshTime.value_or(TDuration::Max());
             return {
                 .ReadFrom = EMasterChannelKind::Cache,
-                .ExpireAfterSuccessfulUpdateTime = Owner_->Config_->ExpireAfterSuccessfulUpdateTime,
-                .ExpireAfterFailedUpdateTime = Owner_->Config_->ExpireAfterFailedUpdateTime,
+                .ExpireAfterSuccessfulUpdateTime = Min(Owner_->Config_->ExpireAfterSuccessfulUpdateTime, refreshTime),
+                .ExpireAfterFailedUpdateTime = Min(Owner_->Config_->ExpireAfterFailedUpdateTime, refreshTime),
                 .EnableClientCacheStickiness = true
             };
         }
@@ -201,7 +202,7 @@ private:
         {
             THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attributes of table %v",
                 Key_.Path);
-            
+
             const auto& batchRsp = batchRspOrError.Value();
             auto getAttributesRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
             auto& rsp = getAttributesRspOrError.Value();
