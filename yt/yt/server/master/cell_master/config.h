@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/lib/misc/config.h>
 
+#include <yt/yt/server/master/cell_server/config.h>
+
 #include <yt/yt/server/master/node_tracker_server/config.h>
 
 #include <yt/yt/server/master/object_server/config.h>
@@ -328,6 +330,7 @@ public:
     bool EnableDescendingSortOrder;
     bool EnableDescendingSortOrderDynamic;
     NChunkServer::TDynamicChunkManagerConfigPtr ChunkManager;
+    NCellServer::TDynamicCellManagerConfigPtr CellManager;
     NTabletServer::TDynamicTabletManagerConfigPtr TabletManager;
     NNodeTrackerServer::TDynamicNodeTrackerConfigPtr NodeTracker;
     NObjectServer::TDynamicObjectManagerConfigPtr ObjectManager;

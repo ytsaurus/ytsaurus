@@ -6,7 +6,7 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/ytlib/tablet_client/proto/heartbeat.pb.h>
+#include <yt/yt/ytlib/cellar_node_tracker_client/proto/heartbeat.pb.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
@@ -21,7 +21,7 @@ struct ICellar
     : public TRefCounted
 {
     virtual void Initialize() = 0;
-    virtual void Reconfigure(const TDynamicCellarConfigPtr& config) = 0;
+    virtual void Reconfigure(const TCellarDynamicConfigPtr& config) = 0;
 
     virtual int GetAvailableSlotCount() const = 0;
     virtual int GetOccupantCount() const = 0;
@@ -29,10 +29,10 @@ struct ICellar
     virtual ICellarOccupantPtr FindOccupant(NElection::TCellId id) const = 0;
     virtual ICellarOccupantPtr GetOccupantOrCrash(NElection::TCellId id) const = 0;
 
-    virtual void CreateOccupant(const NTabletClient::NProto::TCreateTabletSlotInfo& createInfo) = 0;
+    virtual void CreateOccupant(const NCellarNodeTrackerClient::NProto::TCreateCellSlotInfo& createInfo) = 0;
     virtual void ConfigureOccupant(
         const ICellarOccupantPtr& occupant,
-        const NTabletClient::NProto::TConfigureTabletSlotInfo& configureInfo) = 0;
+        const NCellarNodeTrackerClient::NProto::TConfigureCellSlotInfo& configureInfo) = 0;
     virtual TFuture<void> RemoveOccupant(const ICellarOccupantPtr& occupant) = 0;
 
     virtual void RegisterOccupierProvider(ICellarOccupierProviderPtr provider) = 0;
@@ -43,6 +43,7 @@ struct ICellar
 DEFINE_REFCOUNTED_TYPE(ICellar)
 
 ICellarPtr CreateCellar(
+    NCellarClient::ECellarType type,
     TCellarConfigPtr config,
     ICellarBootstrapProxyPtr bootstrap);
 

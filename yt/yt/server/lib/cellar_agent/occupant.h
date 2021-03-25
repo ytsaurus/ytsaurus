@@ -3,8 +3,9 @@
 #include "config.h"
 #include "public.h"
 
+#include <yt/yt/ytlib/cellar_node_tracker_client/proto/heartbeat.pb.h>
+
 #include <yt/yt/ytlib/tablet_client/config.h>
-#include <yt/yt/ytlib/tablet_client/proto/heartbeat.pb.h>
 
 #include <yt/yt/client/object_client/public.h>
 
@@ -37,13 +38,16 @@ struct ICellarOccupant
 
     virtual void Initialize() = 0;
     virtual bool CanConfigure() const = 0;
-    virtual void Configure(const NTabletClient::NProto::TConfigureTabletSlotInfo& configureInfo) = 0;
+    virtual void Configure(const NCellarNodeTrackerClient::NProto::TConfigureCellSlotInfo& configureInfo) = 0;
+    virtual int GetDynamicConfigVersion() const = 0;
+    virtual void UpdateDynamicConfig(const NCellarNodeTrackerClient::NProto::TUpdateCellSlotInfo& updateInfo) = 0;
     virtual TFuture<void> Finalize() = 0;
 
     virtual const NYTree::IYPathServicePtr& GetOrchidService() const = 0;
 
     virtual const TString& GetCellBundleName() const = 0;
 
+    virtual NTabletClient::TDynamicTabletCellOptionsPtr GetDynamicOptions() const = 0;
     virtual const NTabletClient::TTabletCellOptionsPtr& GetOptions() const = 0;
 };
 
@@ -53,7 +57,7 @@ ICellarOccupantPtr CreateCellarOccupant(
     int index,
     TCellarOccupantConfigPtr config,
     ICellarBootstrapProxyPtr bootstrap,
-    const NTabletClient::NProto::TCreateTabletSlotInfo& createInfo,
+    const NCellarNodeTrackerClient::NProto::TCreateCellSlotInfo& createInfo,
     ICellarOccupierPtr occupier);
 
 ////////////////////////////////////////////////////////////////////////////////

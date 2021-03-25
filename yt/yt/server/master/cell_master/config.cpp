@@ -104,6 +104,8 @@ TDynamicClusterConfig::TDynamicClusterConfig()
         .Default(false);
     RegisterParameter("chunk_manager", ChunkManager)
         .DefaultNew();
+    RegisterParameter("cell_manager", CellManager)
+        .DefaultNew();
     RegisterParameter("tablet_manager", TabletManager)
         .DefaultNew();
     RegisterParameter("node_tracker", NodeTracker)

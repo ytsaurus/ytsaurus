@@ -5,7 +5,7 @@
 #include "cell_bundle.h"
 #include "cell_bundle_type_handler.h"
 #include "cell_type_handler_base.h"
-#include "tablet_node_tracker.h"
+#include "cellar_node_tracker.h"
 #include "tamed_cell_manager.h"
 #include "cell_tracker.h"
 
@@ -50,6 +50,8 @@
 
 #include <yt/yt/server/lib/hydra/mutation_context.h>
 
+#include <yt/yt/ytlib/cellar_client/public.h>
+
 #include <yt/yt/ytlib/election/config.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
@@ -76,6 +78,7 @@
 namespace NYT::NCellServer {
 
 using namespace NCellMaster;
+using namespace NCellarClient;
 using namespace NChunkClient::NProto;
 using namespace NChunkClient;
 using namespace NChunkServer;
@@ -95,7 +98,7 @@ using namespace NObjectServer;
 using namespace NProfiling;
 using namespace NSecurityServer;
 using namespace NTableServer;
-using namespace NTabletNodeTrackerClient::NProto;
+using namespace NCellarNodeTrackerClient::NProto;
 using namespace NTabletServer::NProto;
 using namespace NTransactionClient;
 using namespace NTransactionServer;
@@ -175,8 +178,8 @@ public:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeUnregistered, MakeWeak(this)));
 
-        const auto& tabletNodeTracker = Bootstrap_->GetTabletNodeTracker();
-        tabletNodeTracker->SubscribeHeartbeat(BIND(&TImpl::OnTabletNodeHeartbeat, MakeWeak(this)));
+        const auto& cellarNodeTracker = Bootstrap_->GetCellarNodeTracker();
+        cellarNodeTracker->SubscribeHeartbeat(BIND(&TImpl::OnCellarNodeHeartbeat, MakeWeak(this)));
 
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
@@ -1077,12 +1080,30 @@ private:
         UpdateNodeTabletSlotCount(node, 0);
     }
 
-    void OnTabletNodeHeartbeat(
+    void OnCellarNodeHeartbeat(
         TNode* node,
-        NTabletNodeTrackerClient::NProto::TReqHeartbeat* request,
-        NTabletNodeTrackerClient::NProto::TRspHeartbeat* response)
+        NCellarNodeTrackerClient::NProto::TReqHeartbeat* request,
+        NCellarNodeTrackerClient::NProto::TRspHeartbeat* response)
+    {
+        for (auto cellarRequest : request->cellars()) {
+            auto* cellarResponse = response->add_cellars();
+            cellarResponse->set_type(cellarRequest.type());
+            ProcessCellarHeartbeat(node, &cellarRequest, cellarResponse);
+        }
+    }
+
+    void ProcessCellarHeartbeat(
+        TNode* node,
+        NCellarNodeTrackerClient::NProto::TReqCellarHeartbeat* request,
+        NCellarNodeTrackerClient::NProto::TRspCellarHeartbeat* response)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto cellarType = FromProto<ECellarType>(request->type());
+        // COMPAT(savrus)
+        YT_VERIFY(cellarType == ECellarType::Tablet);
+
+        auto Logger = CellServerLogger.WithTag("CellarType: %Qlv", cellarType);
 
         // Various request helpers.
         auto requestCreateSlot = [&] (const TCellBase* cell) {
@@ -1095,7 +1116,7 @@ private:
                 return;
             }
 
-            auto* protoInfo = response->add_tablet_slots_to_create();
+            auto* protoInfo = response->add_slots_to_create();
 
             auto cellId = cell->GetId();
             auto peerId = cell->GetPeerId(node->GetDefaultAddress());
@@ -1106,9 +1127,9 @@ private:
             const auto* cellBundle = cell->GetCellBundle();
             protoInfo->set_options(ConvertToYsonString(cellBundle->GetOptions()).ToString());
 
-            protoInfo->set_tablet_cell_bundle(cellBundle->GetName());
+            protoInfo->set_cell_bundle(cellBundle->GetName());
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet slot creation requested (Address: %v, CellId: %v, PeerId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Occupant creation requested (Address: %v, CellId: %v, PeerId: %v)",
                 node->GetDefaultAddress(),
                 cellId,
                 peerId);
@@ -1124,7 +1145,7 @@ private:
                 return;
             }
 
-            auto* protoInfo = response->add_tablet_slots_to_configure();
+            auto* protoInfo = response->add_slots_to_configure();
 
             auto cellId = cell->GetId();
             auto peerId = cell->GetPeerId(node->GetDefaultAddress());
@@ -1140,7 +1161,7 @@ private:
             protoInfo->set_options(ConvertToYsonString(cell->GetCellBundle()->GetOptions()).ToString());
 
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet slot configuration update requested "
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Occupant configuration update requested "
                 "(Address: %v, CellId: %v, PeerId: %v, Version: %v, PrerequisiteTransactionId: %v, AbandonLeaderLeaseDuringRecovery: %v)",
                 node->GetDefaultAddress(),
                 cellId,
@@ -1160,7 +1181,7 @@ private:
                 return;
             }
 
-            auto* protoInfo = response->add_tablet_slots_to_update();
+            auto* protoInfo = response->add_slots_to_update();
 
             auto cellId = cell->GetId();
 
@@ -1170,7 +1191,7 @@ private:
             protoInfo->set_dynamic_config_version(cellBundle->GetDynamicConfigVersion());
             protoInfo->set_dynamic_options(ConvertToYsonString(cellBundle->GetDynamicOptions()).ToString());
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet slot update requested (Address: %v, CellId: %v, DynamicConfigVersion: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Occupant update requested (Address: %v, CellId: %v, DynamicConfigVersion: %v)",
                 node->GetDefaultAddress(),
                 cellId,
                 cellBundle->GetDynamicConfigVersion());
@@ -1186,10 +1207,10 @@ private:
                 return;
             }
 
-            auto* protoInfo = response->add_tablet_slots_to_remove();
+            auto* protoInfo = response->add_slots_to_remove();
             ToProto(protoInfo->mutable_cell_id(), cellId);
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet slot removal requested (Address: %v, CellId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Occupant removal requested (Address: %v, CellId: %v)",
                 node->GetDefaultAddress(),
                 cellId);
         };
@@ -1199,7 +1220,7 @@ private:
 
         const auto& address = node->GetDefaultAddress();
 
-        UpdateNodeTabletSlotCount(node, request->tablet_slots_size());
+        UpdateNodeTabletSlotCount(node, request->cell_slots_size());
 
         // Our expectations.
         THashSet<TCellBase*> expectedCells;
@@ -1215,12 +1236,12 @@ private:
 
         // Figure out and analyze the reality.
         THashSet<const TCellBase*> actualCells;
-        for (int slotIndex = 0; slotIndex < request->tablet_slots_size(); ++slotIndex) {
+        for (int slotIndex = 0; slotIndex < request->cell_slots_size(); ++slotIndex) {
             // Pre-erase slot.
             auto& slot = node->TabletSlots()[slotIndex];
             slot = TNode::TCellSlot();
 
-            const auto& slotInfo = request->tablet_slots(slotIndex);
+            const auto& slotInfo = request->cell_slots(slotIndex);
 
             auto state = EPeerState(slotInfo.peer_state());
             if (state == EPeerState::None)
@@ -1230,7 +1251,7 @@ private:
             auto cellId = cellInfo.CellId;
             auto* cell = FindCell(cellId);
             if (!IsObjectAlive(cell)) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Unknown tablet slot is running (Address: %v, CellId: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Unknown cell is running (Address: %v, CellId: %v)",
                     address,
                     cellId);
                 requestRemoveSlot(cellId);
@@ -1239,7 +1260,7 @@ private:
 
             auto peerId = cell->FindPeerId(address);
             if (peerId == InvalidPeerId) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Unexpected tablet cell is running (Address: %v, CellId: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Unexpected cell is running (Address: %v, CellId: %v)",
                     address,
                     cellId);
                 requestRemoveSlot(cellId);
@@ -1249,7 +1270,7 @@ private:
             if (CountVotingPeers(cell) > 1 && slotInfo.peer_id() != InvalidPeerId && slotInfo.peer_id() != peerId) {
                 YT_LOG_DEBUG_IF(
                     IsMutationLoggingEnabled(),
-                    "Invalid peer id for tablet cell: %v instead of %v (Address: %v, CellId: %v)",
+                    "Invalid peer id for cell: %v instead of %v (Address: %v, CellId: %v)",
                     slotInfo.peer_id(),
                     peerId,
                     address,
@@ -1259,7 +1280,7 @@ private:
             }
 
             if (state == EPeerState::Stopped) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Peer is stopped, removing (PeerId: %v, Address: %v, CellId: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell peer is stopped, removing (PeerId: %v, Address: %v, CellId: %v)",
                     slotInfo.peer_id(),
                     address,
                     cellId);
@@ -1270,7 +1291,7 @@ private:
             auto expectedIt = expectedCells.find(cell);
             if (expectedIt == expectedCells.end()) {
                 cell->AttachPeer(node, peerId);
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell peer online (Address: %v, CellId: %v, PeerId: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell peer online (Address: %v, CellId: %v, PeerId: %v)",
                     address,
                     cellId,
                     peerId);
@@ -1291,7 +1312,7 @@ private:
             slot.PreloadCompletedStoreCount = slotInfo.preload_completed_store_count();
             slot.PreloadFailedStoreCount = slotInfo.preload_failed_store_count();
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell is running (Address: %v, CellId: %v, PeerId: %v, State: %v, ConfigVersion: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell is running (Address: %v, CellId: %v, PeerId: %v, State: %v, ConfigVersion: %v)",
                 address,
                 cell->GetId(),
                 slot.PeerId,
@@ -1312,7 +1333,7 @@ private:
         // Check for expected slots that are missing.
         for (auto* cell : expectedCells) {
             if (actualCells.find(cell) == actualCells.end()) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell peer offline: slot is missing (CellId: %v, Address: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell peer offline: slot is missing (CellId: %v, Address: %v)",
                     cell->GetId(),
                     address);
                 cell->DetachPeer(node);
@@ -1321,7 +1342,7 @@ private:
 
         // Request slot starts.
         {
-            int availableSlots = node->TabletNodeStatistics().available_tablet_slots();
+            int availableSlots = node->TabletNodeStatistics().available_cell_slots();
             auto it = AddressToCell_.find(address);
             if (it != AddressToCell_.end()) {
                 for (auto [cell, peerId] : it->second) {

@@ -1,7 +1,7 @@
-#include "tablet_node_tracker_service.h"
+#include "cellar_node_tracker_service.h"
 
 #include "private.h"
-#include "tablet_node_tracker.h"
+#include "cellar_node_tracker.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/master_hydra_service.h>
@@ -9,7 +9,7 @@
 #include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
-#include <yt/yt/ytlib/tablet_node_tracker_client/tablet_node_tracker_service_proxy.h>
+#include <yt/yt/ytlib/cellar_node_tracker_client/cellar_node_tracker_service_proxy.h>
 
 namespace NYT::NCellServer {
 
@@ -17,52 +17,50 @@ using namespace NCellMaster;
 using namespace NHydra;
 using namespace NNodeTrackerServer;
 using namespace NRpc;
-using namespace NTabletNodeTrackerClient;
+using namespace NCellarNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletNodeTrackerService
+class TCellarNodeTrackerService
     : public TMasterHydraServiceBase
 {
 public:
-    explicit TTabletNodeTrackerService(TBootstrap* bootstrap)
+    explicit TCellarNodeTrackerService(TBootstrap* bootstrap)
         : TMasterHydraServiceBase(
             bootstrap,
-            TTabletNodeTrackerServiceProxy::GetDescriptor(),
-            EAutomatonThreadQueue::TabletNodeTrackerService,
+            TCellarNodeTrackerServiceProxy::GetDescriptor(),
+            EAutomatonThreadQueue::CellarNodeTrackerService,
             CellServerLogger)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat));
     }
 
 private:
-    DECLARE_RPC_SERVICE_METHOD(NTabletNodeTrackerClient::NProto, Heartbeat)
+    DECLARE_RPC_SERVICE_METHOD(NCellarNodeTrackerClient::NProto, Heartbeat)
     {
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
         SyncWithUpstream();
 
         auto nodeId = request->node_id();
-        const auto& statistics = request->statistics();
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
-        context->SetRequestInfo("NodeId: %v, Address: %v, %v",
+        context->SetRequestInfo("NodeId: %v, Address: %v",
             nodeId,
-            node->GetDefaultAddress(),
-            statistics);
+            node->GetDefaultAddress());
 
-        const auto& tabletNodeTracker = Bootstrap_->GetTabletNodeTracker();
-        tabletNodeTracker->ProcessHeartbeat(context);
+        const auto& cellarNodeTracker = Bootstrap_->GetCellarNodeTracker();
+        cellarNodeTracker->ProcessHeartbeat(context);
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IServicePtr CreateTabletNodeTrackerService(TBootstrap* bootstrap)
+IServicePtr CreateCellarNodeTrackerService(TBootstrap* bootstrap)
 {
-    return New<TTabletNodeTrackerService>(bootstrap);
+    return New<TCellarNodeTrackerService>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -10,7 +10,7 @@
 
 #include <yt/yt/core/actions/signal.h>
 
-namespace NYT::NCellServer {
+namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,4 +48,4 @@ ITabletNodeTrackerPtr CreateTabletNodeTracker(NCellMaster::TBootstrap* bootstrap
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCellServer
+} // namespace NYT::NTabletServer

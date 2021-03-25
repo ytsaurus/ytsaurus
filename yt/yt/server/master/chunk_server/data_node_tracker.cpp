@@ -71,7 +71,7 @@ public:
         node->SetDataNodeStatistics(std::move(statistics), chunkManager);
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        nodeTracker->OnNodeHeartbeat(node, ENodeFlavor::Data);
+        nodeTracker->OnNodeHeartbeat(node, ENodeHeartbeatType::Data);
 
         FullHeartbeat_.Fire(node, request);
     }
@@ -98,7 +98,7 @@ public:
         node->SetDataNodeStatistics(std::move(statistics), chunkManager);
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        nodeTracker->OnNodeHeartbeat(node, ENodeFlavor::Data);
+        nodeTracker->OnNodeHeartbeat(node, ENodeHeartbeatType::Data);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {

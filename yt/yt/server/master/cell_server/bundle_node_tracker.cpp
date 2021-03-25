@@ -1,7 +1,6 @@
 #include "public.h"
 #include "private.h"
 #include "bundle_node_tracker.h"
-#include "tablet_node_tracker.h"
 #include "tamed_cell_manager.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>

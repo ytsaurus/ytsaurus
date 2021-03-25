@@ -10,6 +10,8 @@
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
+#include <yt/yt/server/node/cellar_node/config.h>
+
 #include <yt/yt/server/node/data_node/config.h>
 
 #include <yt/yt/server/node/query_agent/config.h>
@@ -437,6 +439,9 @@ public:
     //! Exec node configuration part.
     NExecAgent::TExecAgentConfigPtr ExecAgent;
 
+    //! Cellar node configuration part.
+    NCellarNode::TCellarNodeConfigPtr CellarNode;
+
     //! Tablet node configuration part.
     NTabletNode::TTabletNodeConfigPtr TabletNode;
 
@@ -502,6 +507,8 @@ public:
         RegisterParameter("data_node", DataNode)
             .DefaultNew();
         RegisterParameter("exec_agent", ExecAgent)
+            .DefaultNew();
+        RegisterParameter("cellar_node", CellarNode)
             .DefaultNew();
         RegisterParameter("tablet_node", TabletNode)
             .DefaultNew();
@@ -671,6 +678,9 @@ public:
     //! Data node configuration part.
     NDataNode::TDataNodeDynamicConfigPtr DataNode;
 
+    //! Cellar node configuration part.
+    NCellarNode::TCellarNodeDynamicConfigPtr CellarNode;
+
     //! Tablet node configuration part.
     NTabletNode::TTabletNodeDynamicConfigPtr TabletNode;
 
@@ -693,6 +703,8 @@ public:
         RegisterParameter("resource_limits", ResourceLimits)
             .DefaultNew();
         RegisterParameter("data_node", DataNode)
+            .DefaultNew();
+        RegisterParameter("cellar_node", CellarNode)
             .DefaultNew();
         RegisterParameter("tablet_node", TabletNode)
             .DefaultNew();

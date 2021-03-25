@@ -96,16 +96,17 @@ public:
     bool IsDataNode() const;
     bool IsExecNode() const;
     bool IsTabletNode() const;
+    bool IsCellarNode() const;
 
-    //! Each node flavor corresponds to some node heartbeat type. This set contains heartbeat
-    //! types that were reported by the node since last registration. In particular,
-    //! node is considered online iff |Flavors| == |ReportedHeartbeats|.
-    DEFINE_BYREF_RW_PROPERTY(THashSet<NNodeTrackerClient::ENodeFlavor>, ReportedHeartbeats);
+    //! This set contains heartbeat types that were reported by the node since last registration.
+    //! Node is considered online iff it received all heartbeats corresponded to its flavors.
+    DEFINE_BYREF_RW_PROPERTY(THashSet<ENodeHeartbeatType>, ReportedHeartbeats);
 
     //! Helpers for |ReportedHeartbeats| access.
     bool ReportedClusterNodeHeartbeat() const;
     bool ReportedDataNodeHeartbeat() const;
     bool ReportedExecNodeHeartbeat() const;
+    bool ReportedCellarNodeHeartbeat() const;
     bool ReportedTabletNodeHeartbeat() const;
 
     void ValidateRegistered();
@@ -227,8 +228,8 @@ public:
     using TCellSlotList = SmallVector<TCellSlot, NTabletClient::TypicalTabletSlotCount>;
     DEFINE_BYREF_RW_PROPERTY(TCellSlotList, TabletSlots);
 
-    DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TTabletNodeStatistics, TabletNodeStatistics);
-    void SetTabletNodeStatistics(NNodeTrackerClient::NProto::TTabletNodeStatistics&& statistics);
+    DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TCellarNodeStatistics, TabletNodeStatistics);
+    void SetTabletNodeStatistics(NNodeTrackerClient::NProto::TCellarNodeStatistics&& statistics);
 
 public:
     explicit TNode(NObjectServer::TObjectId objectId);

@@ -16,11 +16,31 @@ namespace NYT::NCellarAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCellarConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    int Size;
+    TCellarOccupantConfigPtr Occupant;
+
+    TCellarConfig()
+    {
+        RegisterParameter("size", Size)
+            .GreaterThanOrEqual(0);
+        RegisterParameter("occupant", Occupant)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TCellarConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCellarManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    std::vector<TCellarConfigPtr> Cellars;
+    THashMap<NCellarClient::ECellarType, TCellarConfigPtr> Cellars;
 
     TCellarManagerConfig()
     {
@@ -33,62 +53,38 @@ DEFINE_REFCOUNTED_TYPE(TCellarManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellarConfig
+class TCellarDynamicConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    ECellarType Type;
-    int Size;
-    TCellarOccupantConfigPtr Occupant;
-
-    TCellarConfig()
-    {
-        RegisterParameter("type", Type);
-        RegisterParameter("size", Size)
-            .GreaterThanOrEqual(0);
-        RegisterParameter("occupant", Occupant)
-            .DefaultNew();
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TCellarConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TDynamicCellarManagerConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    std::vector<TDynamicCellarConfigPtr> Cellars;
-
-    TDynamicCellarManagerConfig()
-    {
-        RegisterParameter("cellars", Cellars)
-            .Default();
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TDynamicCellarManagerConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TDynamicCellarConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    ECellarType Type;
     std::optional<int> Size;
 
-    TDynamicCellarConfig()
+    TCellarDynamicConfig()
     {
-        RegisterParameter("type", Type);
         RegisterParameter("size", Size)
             .GreaterThanOrEqual(0)
             .Optional();
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TDynamicCellarConfig)
+DEFINE_REFCOUNTED_TYPE(TCellarDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCellarManagerDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    THashMap<NCellarClient::ECellarType, TCellarDynamicConfigPtr> Cellars;
+
+    TCellarManagerDynamicConfig()
+    {
+        RegisterParameter("cellars", Cellars)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TCellarManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

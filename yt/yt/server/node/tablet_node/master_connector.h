@@ -23,13 +23,6 @@ struct IMasterConnector
     //! Initialize master connector.
     virtual void Initialize() = 0;
 
-    //! Schedules next tablet node heartbeat.
-    /*!
-    *  \note
-    *  Thread affinity: any
-    */
-    virtual void ScheduleHeartbeat(NObjectClient::TCellTag cellTag, bool immediately) = 0;
-
     //! Return tablet node master heartbeat request for a given cell. This function is used only for compatibility
     //! with legacy master connector and will be removed after switching to new heartbeats.
     virtual NTabletNodeTrackerClient::NProto::TReqHeartbeat GetHeartbeatRequest(NObjectClient::TCellTag cellTag) const = 0;

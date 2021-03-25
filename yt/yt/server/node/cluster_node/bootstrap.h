@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/node/exec_agent/public.h>
 
+#include <yt/yt/server/node/cellar_node/public.h>
+
 #include <yt/yt/server/node/data_node/public.h>
 
 #include <yt/yt/server/node/job_agent/public.h>
@@ -107,6 +109,7 @@ public:
     const IMasterConnectorPtr& GetClusterNodeMasterConnector() const;
     const NDataNode::IMasterConnectorPtr& GetDataNodeMasterConnector() const;
     const NExecAgent::IMasterConnectorPtr& GetExecNodeMasterConnector() const;
+    const NCellarNode::IMasterConnectorPtr& GetCellarNodeMasterConnector() const;
     const NTabletNode::IMasterConnectorPtr& GetTabletNodeMasterConnector() const;
     const NQueryClient::IColumnEvaluatorCachePtr& GetColumnEvaluatorCache() const;
     const NTabletNode::IRowComparerProviderPtr& GetRowComparerProvider() const;
@@ -146,6 +149,7 @@ public:
     const THashSet<NNodeTrackerClient::ENodeFlavor>& GetFlavors() const;
     bool IsDataNode() const;
     bool IsExecNode() const;
+    bool IsCellarNode() const;
     bool IsTabletNode() const;
 
 private:
@@ -200,6 +204,7 @@ private:
     IMasterConnectorPtr ClusterNodeMasterConnector_;
     NDataNode::IMasterConnectorPtr DataNodeMasterConnector_;
     NExecAgent::IMasterConnectorPtr ExecNodeMasterConnector_;
+    NCellarNode::IMasterConnectorPtr CellarNodeMasterConnector_;
     NTabletNode::IMasterConnectorPtr TabletNodeMasterConnector_;
     ICoreDumperPtr CoreDumper_;
     TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;

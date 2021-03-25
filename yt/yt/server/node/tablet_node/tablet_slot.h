@@ -48,7 +48,7 @@ class TTabletSlot
     : public NCellarAgent::ICellarOccupier
 {
 public:
-    static constexpr NCellarAgent::ECellarType CellarType = NCellarAgent::ECellarType::Tablet;
+    static constexpr NCellarClient::ECellarType CellarType = NCellarClient::ECellarType::Tablet;
 
 public:
     TTabletSlot(
@@ -69,7 +69,7 @@ public:
         NYTree::TCompositeMapServicePtr orchidService) override;
     virtual void Stop() override;
     virtual void Finalize() override;
-    virtual NCellarAgent::ECellarType GetCellarType() override;
+    virtual NCellarClient::ECellarType GetCellarType() override;
     virtual NProfiling::TProfiler GetProfiler() override;
     
     NHydra::TCellId GetCellId() const;
@@ -103,9 +103,6 @@ public:
 
     NTabletClient::TDynamicTabletCellOptionsPtr GetDynamicOptions() const;
     NTabletClient::TTabletCellOptionsPtr GetOptions() const;
-
-    i32 GetDynamicConfigVersion() const;
-    void UpdateDynamicConfig(const NTabletClient::NProto::TUpdateTabletSlotInfo& updateInfo);
 
 private:
     class TImpl;

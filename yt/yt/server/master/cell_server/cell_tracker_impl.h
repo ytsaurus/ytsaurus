@@ -40,7 +40,7 @@ private:
 
     void OnCellPeersReassigned();
 
-    const TDynamicCellManagerConfigPtr& GetDynamicConfig();
+    const NTabletServer::TDynamicTabletManagerConfigPtr& GetDynamicConfig();
 
     void Profile(const std::vector<TCellMoveDescriptor>& moveDescriptors);
 

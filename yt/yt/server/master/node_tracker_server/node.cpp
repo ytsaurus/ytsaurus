@@ -152,24 +152,34 @@ bool TNode::IsTabletNode() const
     return Flavors_.contains(ENodeFlavor::Tablet);
 }
 
+bool TNode::IsCellarNode() const
+{
+    return IsTabletNode();
+}
+
 bool TNode::ReportedClusterNodeHeartbeat() const
 {
-    return ReportedHeartbeats_.contains(ENodeFlavor::Cluster);
+    return ReportedHeartbeats_.contains(ENodeHeartbeatType::Cluster);
 }
 
 bool TNode::ReportedDataNodeHeartbeat() const
 {
-    return ReportedHeartbeats_.contains(ENodeFlavor::Data);
+    return ReportedHeartbeats_.contains(ENodeHeartbeatType::Data);
 }
 
 bool TNode::ReportedExecNodeHeartbeat() const
 {
-    return ReportedHeartbeats_.contains(ENodeFlavor::Exec);
+    return ReportedHeartbeats_.contains(ENodeHeartbeatType::Exec);
+}
+
+bool TNode::ReportedCellarNodeHeartbeat() const
+{
+    return ReportedHeartbeats_.contains(ENodeHeartbeatType::Cellar);
 }
 
 bool TNode::ReportedTabletNodeHeartbeat() const
 {
-    return ReportedHeartbeats_.contains(ENodeFlavor::Tablet);
+    return ReportedHeartbeats_.contains(ENodeHeartbeatType::Tablet);
 }
 
 void TNode::ValidateRegistered()
@@ -491,6 +501,7 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     // COMPAT(gritukan)
     if (context.GetVersion() >= EMasterReign::NodeFlavors) {
         Load(context, Flavors_);
+        // COMPAT(savrus) ENodeHeartbeatType is compatible with ENodeFlavor.
         Load(context, ReportedHeartbeats_);
     }
 
@@ -820,8 +831,8 @@ void TNode::ValidateNotBanned()
 int TNode::GetTotalTabletSlots() const
 {
     return
-        TabletNodeStatistics_.used_tablet_slots() +
-        TabletNodeStatistics_.available_tablet_slots();
+        TabletNodeStatistics_.used_cell_slots() +
+        TabletNodeStatistics_.available_cell_slots();
 }
 
 bool TNode::HasMedium(int mediumIndex) const
@@ -997,7 +1008,7 @@ void TNode::SetResourceLimits(const NNodeTrackerClient::NProto::TNodeResources& 
     ResourceLimits_ = resourceLimits;
 }
 
-void TNode::SetTabletNodeStatistics(NNodeTrackerClient::NProto::TTabletNodeStatistics&& statistics)
+void TNode::SetTabletNodeStatistics(NNodeTrackerClient::NProto::TCellarNodeStatistics&& statistics)
 {
     TabletNodeStatistics_.Swap(&statistics);
 }

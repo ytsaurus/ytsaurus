@@ -212,7 +212,7 @@ public:
     const std::vector<TString>& GetNodeAddressesForRole(NNodeTrackerClient::ENodeRole nodeRole);
 
     //! Called by node trackers when node reports a heartbeat.
-    void OnNodeHeartbeat(TNode* node, NNodeTrackerClient::ENodeFlavor heartbeatFlavor);
+    void OnNodeHeartbeat(TNode* node, ENodeHeartbeatType heartbeatType);
 
     void RequestNodeHeartbeat(TNodeId nodeId);
 

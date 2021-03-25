@@ -6,7 +6,7 @@
 
 #include <yt/yt/core/rpc/public.h>
 
-namespace NYT::NCellServer {
+namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,4 +14,4 @@ NRpc::IServicePtr CreateTabletNodeTrackerService(NCellMaster::TBootstrap* bootst
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCellServer
+} // namespace NYT::NTabletServer

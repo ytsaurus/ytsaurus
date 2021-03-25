@@ -251,7 +251,7 @@ void TCellTrackerImpl::OnCellPeersReassigned()
     WaitForCommit_ = false;
 }
 
-const TDynamicCellManagerConfigPtr& TCellTrackerImpl::GetDynamicConfig()
+const TDynamicTabletManagerConfigPtr& TCellTrackerImpl::GetDynamicConfig()
 {
     return Bootstrap_->GetConfigManager()->GetConfig()->TabletManager;
 }

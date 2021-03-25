@@ -86,7 +86,7 @@ DEFINE_ENUM(ENodeFlavor,
     ((Data)         (1))
     // Node that is used to execute jobs.
     ((Exec)         (2))
-    // Node that is used to host tablet cells.
+    // Node that is used to host dynamic tables tablets.
     ((Tablet)       (3))
 );
 

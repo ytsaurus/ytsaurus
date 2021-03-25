@@ -1,5 +1,6 @@
-#include "tablet_node_tracker.h"
+#include "cellar_node_tracker.h"
 
+#include "config.h"
 #include "private.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
@@ -11,19 +12,21 @@
 #include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
-#include <yt/yt/server/master/tablet_server/config.h>
+#include <yt/yt/server/lib/cellar_agent/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
+
+#include <yt/yt/ytlib/cellar_node_tracker_client/proto/cellar_node_tracker_service.pb.h>
 
 namespace NYT::NCellServer {
 
 using namespace NCellMaster;
+using namespace NCellarClient;
+using namespace NCellarNodeTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NHydra;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
-using namespace NTabletNodeTrackerClient::NProto;
-using namespace NTabletServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,28 +34,28 @@ static const auto& Logger = CellServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletNodeTracker
-    : public ITabletNodeTracker
+class TCellarNodeTracker
+    : public ICellarNodeTracker
     , public TMasterAutomatonPart
 {
 public:
     DEFINE_SIGNAL(void(
         NNodeTrackerServer::TNode* node,
-        NTabletNodeTrackerClient::NProto::TReqHeartbeat* request,
-        NTabletNodeTrackerClient::NProto::TRspHeartbeat* response),
+        NCellarNodeTrackerClient::NProto::TReqHeartbeat* request,
+        NCellarNodeTrackerClient::NProto::TRspHeartbeat* response),
         Heartbeat);
 
 public:
-    explicit TTabletNodeTracker(TBootstrap* bootstrap)
-        : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::TabletNodeTracker)
+    explicit TCellarNodeTracker(TBootstrap* bootstrap)
+        : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::CellarNodeTracker)
     {
-        RegisterMethod(BIND(&TTabletNodeTracker::HydraTabletNodeHeartbeat, Unretained(this)));
+        RegisterMethod(BIND(&TCellarNodeTracker::HydraCellarNodeHeartbeat, Unretained(this)));
     }
 
     virtual void Initialize() override
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TTabletNodeTracker::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND(&TCellarNodeTracker::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     virtual void ProcessHeartbeat(TCtxHeartbeatPtr context) override
@@ -60,7 +63,7 @@ public:
         auto mutation = CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             context,
-            &TTabletNodeTracker::HydraTabletNodeHeartbeat,
+            &TCellarNodeTracker::HydraCellarNodeHeartbeat,
             this);
         CommitMutationWithSemaphore(std::move(mutation), std::move(context), HeartbeatSemaphore_);
     }
@@ -71,13 +74,24 @@ public:
         TRspHeartbeat* response,
         bool legacyFullHeartbeat) override
     {
-        YT_VERIFY(node->IsTabletNode());
+        YT_VERIFY(node->IsCellarNode());
 
-        auto& statistics = *request->mutable_statistics();
-        node->SetTabletNodeStatistics(std::move(statistics));
+        for (auto& cellarInfo : *request->mutable_cellars()) {
+            auto cellarType = FromProto<ECellarType>(cellarInfo.type());
+            auto& statistics = *cellarInfo.mutable_statistics();
+
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing cellar heartbeat (NodeId: %v, Address: %v, CellarType: %v, Statistics: %v)",
+                node->GetId(),
+                node->GetDefaultAddress(),
+                cellarType,
+                statistics);
+
+            // TODO(savrus) Separate statistics for different cellars
+            node->SetTabletNodeStatistics(std::move(statistics));
+        }
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        nodeTracker->OnNodeHeartbeat(node, ENodeFlavor::Tablet);
+        nodeTracker->OnNodeHeartbeat(node, ENodeHeartbeatType::Cellar);
 
         if (!legacyFullHeartbeat) {
             Heartbeat_.Fire(node, request, response);
@@ -87,26 +101,24 @@ public:
 private:
     const TAsyncSemaphorePtr HeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
 
-    void HydraTabletNodeHeartbeat(
+    void HydraCellarNodeHeartbeat(
         const TCtxHeartbeatPtr& context,
         TReqHeartbeat* request,
         TRspHeartbeat* response)
     {
         auto nodeId = request->node_id();
-        auto& statistics = *request->mutable_statistics();
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
         node->ValidateRegistered();
 
-        YT_PROFILE_TIMING("/cell_server/tablet_node_heartbeat_time") {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing tablet node heartbeat (NodeId: %v, Address: %v, State: %v, ReportedTabletNodeHeartbeat: %v, %v",
+        YT_PROFILE_TIMING("/cell_server/cellar_node_heartbeat_time") {
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing cellar node heartbeat (NodeId: %v, Address: %v, State: %v, ReportedCellarNodeHeartbeat: %v)",
                 nodeId,
                 node->GetDefaultAddress(),
                 node->GetLocalState(),
-                node->ReportedTabletNodeHeartbeat(),
-                statistics);
+                node->ReportedCellarNodeHeartbeat());
 
             nodeTracker->UpdateLastSeenTime(node);
 
@@ -126,9 +138,9 @@ private:
         semaphore->AsyncAcquire(handler, EpochAutomatonInvoker_);
     }
 
-    const TDynamicTabletNodeTrackerConfigPtr& GetDynamicConfig() const
+    const TDynamicCellarNodeTrackerConfigPtr& GetDynamicConfig() const
     {
-        return Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->TabletNodeTracker;
+        return Bootstrap_->GetConfigManager()->GetConfig()->CellManager->CellarNodeTracker;
     }
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
@@ -139,9 +151,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ITabletNodeTrackerPtr CreateTabletNodeTracker(TBootstrap* bootstrap)
+ICellarNodeTrackerPtr CreateCellarNodeTracker(TBootstrap* bootstrap)
 {
-    return New<TTabletNodeTracker>(bootstrap);
+    return New<TCellarNodeTracker>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -73,4 +73,15 @@ static_assert(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(savrus) Keep in sync with ENodeFlavor until 21.1 prevails.
+DEFINE_ENUM(ENodeHeartbeatType,
+    ((Cluster)      (0))
+    ((Data)         (1))
+    ((Exec)         (2))
+    ((Tablet)       (3))
+    ((Cellar)       (4))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NNodeTrackerServer

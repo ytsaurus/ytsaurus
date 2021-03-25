@@ -199,10 +199,10 @@ message TExecNodeStatistics
     repeated TSlotLocationStatistics slot_locations = 1;
 }
 
-message TTabletNodeStatistics
+message TCellarNodeStatistics
 {
-    required int32 available_tablet_slots = 1;
-    required int32 used_tablet_slots = 2;
+    required int32 available_cell_slots = 1;
+    required int32 used_cell_slots = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

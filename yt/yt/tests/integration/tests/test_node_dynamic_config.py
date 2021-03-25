@@ -341,8 +341,9 @@ class TestNodeDynamicConfig(YTEnvSetup):
             assert not exists("//sys/cluster_nodes/dynamic_config_manager/applied_config")
             assert len(get("//sys/cluster_nodes/{0}/@alerts".format(node))) == 0
 
-    @authors("gritukan")
-    def test_dynamic_tablet_slot_count(self):
+    @authors("gritukan", "savrus")
+    @pytest.mark.parametrize("config_node", ["tablet", "cellar"])
+    def test_dynamic_tablet_slot_count(self, config_node):
         set("//sys/@config/tablet_manager/tablet_cell_balancer/rebalance_wait_time", 100)
         set(
             "//sys/@config/tablet_manager/tablet_cell_balancer/enable_verbose_logging",
@@ -382,7 +383,22 @@ class TestNodeDynamicConfig(YTEnvSetup):
 
         wait(lambda: healthy_cell_count() == 0)
 
+        if config_node == "cellar":
+            config["nodeA"]["cellar_node"] = {
+                "cellar_manager": {
+                    "cellars": {
+                        "tablet" : {
+                            "type": "tablet",
+                            "size": 0,
+                        }
+                    }
+                }
+            }
+
         for slot_count in [2, 0, 7, 3, 1, 0, 2, 4]:
-            config["nodeA"]["tablet_node"]["slots"] = slot_count
+            if config_node == "cellar":
+                config["nodeA"]["cellar_node"]["cellar_manager"]["cellars"]["tablet"]["size"] = slot_count
+            else:
+                config["nodeA"]["tablet_node"]["slots"] = slot_count
             set("//sys/cluster_nodes/@config", config)
             wait(lambda: healthy_cell_count() == min(5, slot_count))

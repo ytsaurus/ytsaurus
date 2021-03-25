@@ -2616,10 +2616,8 @@ def get_nodes_with_flavor(flavor):
 def get_data_nodes():
     return get_nodes_with_flavor("data")
 
-
 def get_exec_nodes():
     return get_nodes_with_flavor("exec")
-
 
 def get_tablet_nodes():
     return get_nodes_with_flavor("tablet")

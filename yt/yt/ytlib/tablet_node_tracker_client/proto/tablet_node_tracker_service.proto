@@ -2,26 +2,15 @@ package NYT.NTabletNodeTrackerClient.NProto;
 
 import "yt/ytlib/tablet_client/proto/heartbeat.proto";
 
-import "yt/client/node_tracker_client/proto/node.proto";
-
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqHeartbeat
 {
     required int32 node_id = 1;
-
-    required NNodeTrackerClient.NProto.TTabletNodeStatistics statistics = 2;
-
-    repeated NTabletClient.NProto.TTabletSlotInfo tablet_slots = 3;
-    repeated NTabletClient.NProto.TTabletInfo tablets = 4;
+    repeated NTabletClient.NProto.TTabletInfo tablets = 2;
 }
 
 message TRspHeartbeat
-{
-    repeated NTabletClient.NProto.TCreateTabletSlotInfo tablet_slots_to_create = 1;
-    repeated NTabletClient.NProto.TRemoveTabletSlotInfo tablet_slots_to_remove = 2;
-    repeated NTabletClient.NProto.TConfigureTabletSlotInfo tablet_slots_to_configure = 3;
-    repeated NTabletClient.NProto.TUpdateTabletSlotInfo tablet_slots_to_update = 4;
-}
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -92,7 +92,8 @@ public:
     const NNodeTrackerServer::TNodeTrackerPtr& GetNodeTracker() const;
     const NChunkServer::IDataNodeTrackerPtr& GetDataNodeTracker() const;
     const NNodeTrackerServer::IExecNodeTrackerPtr& GetExecNodeTracker() const;
-    const NCellServer::ITabletNodeTrackerPtr& GetTabletNodeTracker() const;
+    const NCellServer::ICellarNodeTrackerPtr& GetCellarNodeTracker() const;
+    const NTabletServer::ITabletNodeTrackerPtr& GetTabletNodeTracker() const;
     const NTransactionServer::TTransactionManagerPtr& GetTransactionManager() const;
     const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() const;
     const NHiveServer::ITransactionSupervisorPtr& GetTransactionSupervisor() const;
@@ -157,7 +158,8 @@ private:
     NNodeTrackerServer::TNodeTrackerPtr NodeTracker_;
     NChunkServer::IDataNodeTrackerPtr DataNodeTracker_;
     NNodeTrackerServer::IExecNodeTrackerPtr ExecNodeTracker_;
-    NCellServer::ITabletNodeTrackerPtr TabletNodeTracker_;
+    NCellServer::ICellarNodeTrackerPtr CellarNodeTracker_;
+    NTabletServer::ITabletNodeTrackerPtr TabletNodeTracker_;
     NTransactionServer::TTransactionManagerPtr TransactionManager_;
     NTimestampServer::TTimestampManagerPtr TimestampManager_;
     NTransactionClient::ITimestampProviderPtr TimestampProvider_;

@@ -1,5 +1,6 @@
-#include "bootstrap_proxy.h"
 #include "cellar.h"
+
+#include "bootstrap_proxy.h"
 #include "cellar_manager.h"
 #include "occupant.h"
 #include "occupier.h"
@@ -20,6 +21,8 @@
 
 namespace NYT::NCellarAgent {
 
+using namespace NCellarClient;
+using namespace NCellarNodeTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NElection;
 using namespace NYTree;
@@ -35,9 +38,10 @@ class TCellar
 {
 public:
     TCellar(
+        ECellarType type,
         TCellarConfigPtr config,
         ICellarBootstrapProxyPtr bootstrap)
-        : Type_(config->Type)
+        : Type_(type)
         , Config_(std::move(config))
         , Bootstrap_(std::move(bootstrap))
         , OrchidService_(TOrchidService::Create(MakeWeak(this), Bootstrap_->GetControlInvoker()))
@@ -52,7 +56,7 @@ public:
             Config_->Size);
     }
 
-    virtual void Reconfigure(const TDynamicCellarConfigPtr& config) override
+    virtual void Reconfigure(const TCellarDynamicConfigPtr& config) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -98,7 +102,7 @@ public:
         return occupant;
     }
 
-    virtual void CreateOccupant(const NTabletClient::NProto::TCreateTabletSlotInfo& createInfo) override
+    virtual void CreateOccupant(const TCreateCellSlotInfo& createInfo) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -123,7 +127,7 @@ public:
 
     virtual void ConfigureOccupant(
         const ICellarOccupantPtr& occupant,
-        const NTabletClient::NProto::TConfigureTabletSlotInfo& configureInfo) override
+        const TConfigureCellSlotInfo& configureInfo) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -317,10 +321,12 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ICellarPtr CreateCellar(
+    ECellarType type,
     TCellarConfigPtr config,
     ICellarBootstrapProxyPtr bootstrap)
 {
     return New<TCellar>(
+        type,
         std::move(config),
         std::move(bootstrap));
 }
