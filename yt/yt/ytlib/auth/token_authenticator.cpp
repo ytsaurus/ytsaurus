@@ -56,7 +56,8 @@ public:
 
         THashMap<TString, TString> params{
             {"oauth_token", token},
-            {"userip", userIP}
+            {"userip", userIP},
+            {"get_user_ticket", "yes"}
         };
 
         return Blackbox_->Call("oauth", params)
@@ -148,6 +149,10 @@ private:
         TAuthenticationResult result;
         result.Login = login.Value();
         result.Realm = "blackbox:token:" + oauthClientId.Value() + ":" + oauthClientName.Value();
+        auto userTicket = GetByYPath<TString>(data, "/user_ticket");
+        if (userTicket.IsOK()) {
+            result.UserTicket = userTicket.Value();
+        }
         return result;
     }
 };
@@ -423,6 +428,7 @@ public:
                 NRpc::TAuthenticationResult rpcResult;
                 rpcResult.User = authResult.Login;
                 rpcResult.Realm = authResult.Realm;
+                rpcResult.UserTicket = authResult.UserTicket;
                 return rpcResult;
             }));
     }

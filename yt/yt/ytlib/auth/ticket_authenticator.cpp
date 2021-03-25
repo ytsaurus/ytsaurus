@@ -51,6 +51,7 @@ public:
             .Apply(BIND(
                 &TBlackboxTicketAuthenticator::OnBlackboxCallResult,
                 MakeStrong(this),
+                ticket,
                 ticketHash));
     }
 
@@ -88,21 +89,27 @@ private:
         }
     }
 
-    TAuthenticationResult OnBlackboxCallResult(const TString& ticketHash, const INodePtr& data)
+    TAuthenticationResult OnBlackboxCallResult(
+        const TString& ticket,
+        const TString& ticketHash,
+        const INodePtr& data)
     {
-        auto result = OnCallResultImpl(data);
-        if (!result.IsOK()) {
-            YT_LOG_DEBUG(result, "Blackbox authentication failed (TicketHash: %v)",
+        auto errorOrResult = OnCallResultImpl(data);
+        if (!errorOrResult.IsOK()) {
+            YT_LOG_DEBUG(errorOrResult, "Blackbox authentication failed (TicketHash: %v)",
                 ticketHash);
-            THROW_ERROR result
+            THROW_ERROR errorOrResult
                 << TErrorAttribute("ticket_hash", ticketHash);
         }
 
+        auto result = errorOrResult.Value();
+        result.UserTicket = ticket;
+
         YT_LOG_DEBUG("Blackbox authentication successful (TicketHash: %v, Login: %v, Realm: %v)",
             ticketHash,
-            result.Value().Login,
-            result.Value().Realm);
-        return result.Value();
+            result.Login,
+            result.Realm);
+        return result;
     }
 
     TErrorOr<TAuthenticationResult> OnCallResultImpl(const INodePtr& data)
@@ -163,6 +170,7 @@ public:
                 NRpc::TAuthenticationResult rpcResult;
                 rpcResult.User = authResult.Login;
                 rpcResult.Realm = authResult.Realm;
+                rpcResult.UserTicket = authResult.UserTicket;
                 return rpcResult;
             }));
     }

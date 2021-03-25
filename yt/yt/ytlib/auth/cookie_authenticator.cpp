@@ -89,7 +89,8 @@ public:
         THashMap<TString, TString> params{
             {"sessionid", credentials.SessionId},
             {"host", Config_->Domain},
-            {"userip", userIP}
+            {"userip", userIP},
+            {"get_user_ticket", "yes"}
         };
 
         if (credentials.SslSessionId) {
@@ -155,6 +156,10 @@ private:
         TAuthenticationResult result;
         result.Login = login.Value();
         result.Realm = "blackbox:cookie";
+        auto userTicket = GetByYPath<TString>(data, "/user_ticket");
+        if (userTicket.IsOK()) {
+            result.UserTicket = userTicket.Value();
+        }
         return result;
     }
 };
@@ -265,6 +270,7 @@ public:
                 NRpc::TAuthenticationResult rpcResult;
                 rpcResult.User = authResult.Login;
                 rpcResult.Realm = authResult.Realm;
+                rpcResult.UserTicket = authResult.UserTicket;
                 return rpcResult;
             }));
     }

@@ -17,6 +17,8 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/tree_builder.h>
 
+#include <library/cpp/uri/encode.h>
+
 namespace NYT::NAuth {
 
 using namespace NConcurrency;
@@ -122,7 +124,9 @@ private:
 
         try {
             const auto url = MakeRequestUrl("/1/tokens/", true);
-            const auto headers = MakeRequestHeaders();
+            const auto headers = New<THeaders>();
+            headers->Add("Content-Type", "application/json");
+
             const auto vaultTicket = TvmService_->GetServiceTicket(Config_->VaultServiceId);
             const auto body = MakeGetSecretsRequestBody(vaultTicket, subrequests);
 
@@ -227,7 +231,9 @@ private:
 
         try {
             const auto url = MakeRequestUrl(Format("/1/secrets/%v/tokens/", request.SecretId), false);
-            const auto headers = MakeRequestHeaders(request.UserTicket);
+            const auto headers = New<THeaders>();
+            headers->Add("Content-Type", "application/json");
+            headers->Add("X-Ya-User-Ticket", request.UserTicket);
             const auto body = MakeGetDelegationTokenRequestBody(request);
 
             const auto responseBody = HttpPost(url, body, headers);
@@ -270,16 +276,6 @@ private:
         return url;
     }
 
-    static THeadersPtr MakeRequestHeaders(TString userTicket = {})
-    {
-        auto headers = New<THeaders>();
-        headers->Add("Content-Type", "application/json");
-        if (!userTicket.empty()) {
-            headers->Add("X-Ya-User-Ticket", userTicket);
-        }
-        return headers;
-    }
-
     TSharedRef MakeGetSecretsRequestBody(
         const TString& vaultTicket,
         const std::vector<TSecretSubrequest>& subrequests)
@@ -307,12 +303,19 @@ private:
 
     TSharedRef MakeGetDelegationTokenRequestBody(const TDelegationTokenRequest& request)
     {
-        auto body = Format("signature=%Qv&tvm_client_id=%v",
-            request.Signature,
-            TvmService_->GetSelfTvmId());
-        if (!request.Comment.empty()) {
-            body = Format("%v&comment=%Qv", body, request.Comment);
-        }
+        TString body;
+        TStringOutput stream(body);
+        auto jsonWriter = CreateJsonConsumer(&stream);
+        BuildYsonFluently(jsonWriter.get())
+            .BeginMap()
+                .Item("signature").Value(request.Signature)
+                .Item("tvm_client_id").Value(TvmService_->GetSelfTvmId())
+                .DoIf(!request.Comment.empty(),
+                    [&] (auto fluent) {
+                        fluent.Item("comment").Value(request.Comment);
+                    })
+            .EndMap();
+        jsonWriter->Flush();
         return TSharedRef::FromString(std::move(body));
     }
 
