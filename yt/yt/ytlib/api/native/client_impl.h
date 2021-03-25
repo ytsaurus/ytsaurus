@@ -535,6 +535,7 @@ private:
     NRpc::IChannelPtr GetReadCellChannelOrThrow(NObjectClient::TCellId cellId);
     NRpc::IChannelPtr GetLeaderCellChannelOrThrow(NObjectClient::TCellId cellId);
     NHiveClient::TCellDescriptor GetCellDescriptorOrThrow(NObjectClient::TCellId cellId);
+    std::vector<TString> GetCellAddressesOrThrow(NObjectClient::TCellId cellId);
 
     void ValidateSuperuserPermissions();
 

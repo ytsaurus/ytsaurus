@@ -13,6 +13,7 @@ DECLARE_REFCOUNTED_CLASS(TClientCache)
 DECLARE_REFCOUNTED_CLASS(TStickyGroupSizeCache)
 
 DECLARE_REFCOUNTED_CLASS(TMasterConnectionConfig)
+DECLARE_REFCOUNTED_CLASS(TClockServersConfig)
 DECLARE_REFCOUNTED_CLASS(TConnectionConfig)
 
 struct TConnectionOptions;

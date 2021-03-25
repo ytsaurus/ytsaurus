@@ -123,6 +123,7 @@ public:
     //! Returns |true| if the cell was unregistered by calling #UnregisterCell.
     bool IsCellUnregistered(TCellId cellId);
 
+    bool IsCellRegistered(TCellId cellId);
 
     struct TSynchronizationResult
     {

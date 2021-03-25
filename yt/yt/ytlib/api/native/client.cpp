@@ -33,6 +33,8 @@
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 #include <yt/yt/ytlib/transaction_client/transaction_manager.h>
 
+#include <yt/yt/ytlib/hydra/peer_channel.h>
+
 #include <yt/yt/ytlib/query_client/functions_cache.h>
 
 #include <yt/yt/client/security_client/helpers.h>
@@ -61,6 +63,7 @@ using namespace NQueryClient;
 using namespace NChunkClient;
 using namespace NHiveClient;
 using namespace NScheduler;
+using namespace NHydra;
 
 using NNodeTrackerClient::CreateNodeChannelFactory;
 using NNodeTrackerClient::INodeChannelFactoryPtr;
@@ -391,7 +394,20 @@ IChannelPtr TClient::GetLeaderCellChannelOrThrow(TCellId cellId)
         .ThrowOnError();
 
     const auto& cellDirectory = Connection_->GetCellDirectory();
-    return cellDirectory->GetChannelOrThrow(cellId);
+    if (cellDirectory->IsCellRegistered(cellId)) {
+        return cellDirectory->GetChannelOrThrow(cellId);
+    }
+
+    auto config = Connection_->GetConfig()->ClockServers;
+    if (config && config->CellId == cellId) {
+        if (!config->Addresses) {
+            THROW_ERROR_EXCEPTION("Clock server addresses are empty");
+        }
+        return CreatePeerChannel(config, Connection_->GetChannelFactory(), EPeerKind::Leader);
+    }
+
+    THROW_ERROR_EXCEPTION("Unknown cell %v",
+        cellId);
 }
 
 TCellDescriptor TClient::GetCellDescriptorOrThrow(TCellId cellId)
@@ -405,6 +421,30 @@ TCellDescriptor TClient::GetCellDescriptorOrThrow(TCellId cellId)
         .ThrowOnError();
 
     return cellDirectory->GetDescriptorOrThrow(cellId);
+}
+
+std::vector<TString> TClient::GetCellAddressesOrThrow(NObjectClient::TCellId cellId)
+{
+    const auto& cellDirectory = Connection_->GetCellDirectory();
+    if (cellDirectory->IsCellRegistered(cellId)) {
+        std::vector<TString> addresses;
+        auto cellDescriptor = GetCellDescriptorOrThrow(cellId);
+        for (const auto& peerDescriptor : cellDescriptor.Peers) {
+            addresses.push_back(peerDescriptor.GetDefaultAddress());
+        }
+        return addresses;
+    }
+
+    auto config = Connection_->GetConfig()->ClockServers;
+    if (config && config->CellId == cellId) {
+        if (!config->Addresses) {
+            THROW_ERROR_EXCEPTION("Clock server addresses are empty");
+        }
+        return *config->Addresses;
+    }
+
+    THROW_ERROR_EXCEPTION("Unknown cell %v",
+        cellId);
 }
 
 void TClient::ValidateSuperuserPermissions()
