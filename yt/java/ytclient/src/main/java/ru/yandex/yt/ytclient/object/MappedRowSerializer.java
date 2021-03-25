@@ -25,14 +25,9 @@ import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class MappedRowSerializer<T> implements WireRowSerializer<T> {
-
     // Маленький размер буфера для кодирования заголовков и размеров
     private static final int BUFFER_SIZE = 64;
     private static final int OUTPUT_SIZE = 256;
-
-    public static <T> MappedRowSerializer<T> forClass(YTreeSerializer<T> serializer) {
-        return new MappedRowSerializer<>(serializer);
-    }
 
     private final YTreeSerializer<T> objectSerializer;
     private final TableSchema tableSchema;
@@ -44,6 +39,10 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         this.tableSchema = asTableSchema(objectSerializer.getFieldMap());
         this.delegate = new YTreeConsumerProxy(tableSchema);
         this.supportState = objectSerializer.getClazz().isAssignableTo(YTreeStateSupport.class);
+    }
+
+    public static <T> MappedRowSerializer<T> forClass(YTreeSerializer<T> serializer) {
+        return new MappedRowSerializer<>(serializer);
     }
 
     @Override

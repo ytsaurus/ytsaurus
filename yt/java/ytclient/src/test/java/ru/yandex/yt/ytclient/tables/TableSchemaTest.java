@@ -1,27 +1,43 @@
 package ru.yandex.yt.ytclient.tables;
 
-import java.io.ByteArrayInputStream;
-
 import org.junit.Test;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
+import ru.yandex.type_info.TiType;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
 
 public class TableSchemaTest {
-    private static YTreeNode parseString(String input) {
-        return YTreeTextSerializer.deserialize(new ByteArrayInputStream(input.getBytes()));
-    }
-
     private static final TableSchema KEY_VALUE_SCHEMA = new TableSchema.Builder()
             .addKey("key", ColumnValueType.STRING)
             .addValue("value", ColumnValueType.STRING)
             .build();
-    private static final YTreeNode KEY_VALUE_SCHEMA_YTREE = parseString(
-            "<\"strict\"=%true;\"unique_keys\"=%true>[{\"name\"=\"key\";\"type\"=\"string\";\"sort_order\"=\"ascending\";\"required\"=%false};{\"name\"=\"value\";\"type\"=\"string\";\"required\"=%false}]");
+    private static final YTreeNode KEY_VALUE_SCHEMA_YTREE = YTree.builder()
+            .beginAttributes()
+                .key("strict").value(true)
+                .key("unique_keys").value(true)
+            .endAttributes()
+            .beginList()
+                .beginMap()
+                    .key("name").value("key")
+                    .key("sort_order").value("ascending")
+                    .key("type_v3").beginMap()
+                        .key("type_name").value("optional")
+                        .key("item").value("string")
+                    .endMap()
+                .endMap()
+                .beginMap()
+                    .key("name").value("value")
+                    .key("type_v3").beginMap()
+                        .key("type_name").value("optional")
+                        .key("item").value("string")
+                    .endMap()
+                .endMap()
+            .endList()
+            .build();
 
     private static final TableSchema HASH_COLUMN_SCHEMA = new TableSchema.Builder()
             .add(new ColumnSchema.Builder("h", ColumnValueType.INT64)
@@ -32,8 +48,46 @@ public class TableSchemaTest {
             .addValue("b", ColumnValueType.STRING)
             .addValue("c", ColumnValueType.STRING)
             .build();
-    private static final YTreeNode HASH_COLUMN_SCHEMA_YTREE = parseString(
-            "<\"strict\"=%true;\"unique_keys\"=%true>[{\"name\"=\"h\";\"type\"=\"int64\";\"sort_order\"=\"ascending\";\"expression\"=\"hash(...)\";\"required\"=%false};{\"name\"=\"a\";\"type\"=\"string\";\"sort_order\"=\"ascending\";\"required\"=%false};{\"name\"=\"b\";\"type\"=\"string\";\"required\"=%false};{\"name\"=\"c\";\"type\"=\"string\";\"required\"=%false}]");
+
+    private static final YTreeNode HASH_COLUMN_SCHEMA_YTREE = YTree.builder()
+            .beginAttributes()
+                .key("strict").value(true)
+                .key("unique_keys").value(true)
+            .endAttributes()
+            .beginList()
+                .beginMap()
+                    .key("name").value("h")
+                    .key("sort_order").value("ascending")
+                    .key("expression").value("hash(...)")
+                    .key("type_v3").beginMap()
+                        .key("type_name").value("optional")
+                        .key("item").value("int64")
+                    .endMap()
+                .endMap()
+                .beginMap()
+                    .key("name").value("a")
+                    .key("sort_order").value("ascending")
+                    .key("type_v3").beginMap()
+                        .key("type_name").value("optional")
+                        .key("item").value("string")
+                    .endMap()
+                .endMap()
+                .beginMap()
+                    .key("name").value("b")
+                    .key("type_v3").beginMap()
+                        .key("type_name").value("optional")
+                        .key("item").value("string")
+                    .endMap()
+                .endMap()
+                .beginMap()
+                    .key("name").value("c")
+                    .key("type_v3").beginMap()
+                        .key("type_name").value("optional")
+                        .key("item").value("string")
+                    .endMap()
+                .endMap()
+            .endList()
+            .build();
 
     @Test
     public void keyValueSchemaToYTree() {
@@ -78,5 +132,35 @@ public class TableSchemaTest {
     @Test
     public void hashColumnSchemaToValues() {
         assertThat(HASH_COLUMN_SCHEMA.toValues().getColumnNames(), contains("b", "c"));
+    }
+
+    @Test
+    public void testOldColumnDeserialization() {
+        assertThat(
+                TableSchema.fromYTree(YTree.builder().beginList().beginMap()
+                        .key("name").value("foo")
+                        .key("type").value("string")
+                        .endMap().endList().build()
+                ),
+                is(TableSchema.builder()
+                        .setUniqueKeys(false)
+                        .addValue("foo", TiType.optional(TiType.string()))
+                        .build()
+                )
+        );
+
+        assertThat(
+                TableSchema.fromYTree(YTree.builder().beginList().beginMap()
+                        .key("name").value("foo")
+                        .key("type").value("string")
+                        .key("required").value(true)
+                        .endMap().endList().build()
+                ),
+                is(TableSchema.builder()
+                        .setUniqueKeys(false)
+                        .addValue("foo", TiType.string())
+                        .build()
+                )
+        );
     }
 }
