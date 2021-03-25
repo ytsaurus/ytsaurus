@@ -137,25 +137,28 @@ void TClient::DoSwitchLeader(
     ValidateSuperuserPermissions();
 
     if (TypeFromId(cellId) != EObjectType::MasterCell) {
-        THROW_ERROR_EXCEPTION("%v is not a valid master cell id",
+        THROW_ERROR_EXCEPTION("%v is not a valid cell id",
             cellId);
     }
 
+    auto addresses = GetCellAddressesOrThrow(cellId);
     auto currentLeaderChannel = GetLeaderCellChannelOrThrow(cellId);
 
-    auto cellDescriptor = GetCellDescriptorOrThrow(cellId);
+    if (newLeaderId < 0 || newLeaderId >= addresses.size()) {
+        THROW_ERROR_EXCEPTION("New leader peer id is invalid: expected in range [0,%v], got %v",
+            addresses.size() - 1,
+            newLeaderId);
+    }
+
+    const auto& newLeaderAddress = addresses[newLeaderId];
+
     std::vector<IChannelPtr> peerChannels;
-    for (const auto& peerDescriptor : cellDescriptor.Peers) {
+    for (const auto& address : addresses) {
         peerChannels.push_back(CreateRealmChannel(
-            Connection_->GetChannelFactory()->CreateChannel(peerDescriptor.GetDefaultAddress()),
+            Connection_->GetChannelFactory()->CreateChannel(address),
             cellId));
     }
 
-    if (newLeaderId < 0 || newLeaderId >= peerChannels.size()) {
-        THROW_ERROR_EXCEPTION("New leader peer id is invalid: expected in range [0,%v], got %v",
-            peerChannels.size() - 1,
-            newLeaderId);
-    }
     const auto& newLeaderChannel = peerChannels[newLeaderId];
 
     {
@@ -182,7 +185,7 @@ void TClient::DoSwitchLeader(
 
     TError restartReason(
         "Switching leader to %v by %Qv request",
-        cellDescriptor.Peers[newLeaderId].GetDefaultAddress(),
+        newLeaderAddress,
         Options_.User);
 
     {

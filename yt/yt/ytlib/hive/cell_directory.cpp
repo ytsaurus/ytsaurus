@@ -193,6 +193,12 @@ public:
         return UnregisteredCellIds_.find(cellId) != UnregisteredCellIds_.end();
     }
 
+    bool IsCellRegistered(TCellId cellId)
+    {
+        auto guard = ReaderGuard(SpinLock_);
+        return RegisteredCellMap_.find(cellId) != RegisteredCellMap_.end();
+    }
+
     std::optional<TCellDescriptor> FindDescriptor(TCellId cellId)
     {
         auto guard = ReaderGuard(SpinLock_);
@@ -427,6 +433,11 @@ std::vector<TCellInfo> TCellDirectory::GetRegisteredCells()
 bool TCellDirectory::IsCellUnregistered(TCellId cellId)
 {
     return Impl_->IsCellUnregistered(cellId);
+}
+
+bool TCellDirectory::IsCellRegistered(TCellId cellId)
+{
+    return Impl_->IsCellRegistered(cellId);
 }
 
 TCellDirectory::TSynchronizationResult TCellDirectory::Synchronize(const std::vector<TCellInfo>& knownCells)

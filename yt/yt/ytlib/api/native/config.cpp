@@ -41,6 +41,14 @@ TMasterConnectionConfig::TMasterConnectionConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TClockServersConfig::TClockServersConfig()
+{
+    RegisterParameter("rpc_timeout", RpcTimeout)
+        .Default(TDuration::Seconds(30));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TConnectionConfig::TConnectionConfig()
 {
     RegisterParameter("networks", Networks)
@@ -51,6 +59,8 @@ TConnectionConfig::TConnectionConfig()
         .DefaultNew();
     RegisterParameter("cell_directory_synchronizer", CellDirectorySynchronizer)
         .DefaultNew();
+    RegisterParameter("clock_servers", ClockServers)
+        .Default();
     RegisterParameter("master_cell_directory_synchronizer", MasterCellDirectorySynchronizer)
         .DefaultNew();
     RegisterParameter("scheduler", Scheduler)

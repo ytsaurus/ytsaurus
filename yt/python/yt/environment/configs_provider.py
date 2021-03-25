@@ -825,6 +825,9 @@ def _build_cluster_connection_config(yt_config,
             "cell_id": master_connection_configs[primary_cell_tag]["cell_id"],
         }
 
+    if yt_config.clock_count > 0:
+        cluster_connection["clock_servers"] = clock_connection_configs[clock_connection_configs["cell_tag"]]
+
     if not yt_config.enable_permission_cache:
         cluster_connection["permission_cache"] = {
             "expire_after_successful_update_time": 0,

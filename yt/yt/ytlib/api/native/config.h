@@ -56,6 +56,21 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TClockServersConfig
+    : public NHydra::TPeerConnectionConfig
+    , public NRpc::TRetryingChannelConfig
+{
+public:
+    //! Timeout for RPC requests to clock servers.
+    TDuration RpcTimeout;
+
+    TClockServersConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TClockServersConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TConnectionConfig
     : public NApi::TConnectionConfig
     , public NChunkClient::TChunkTeleporterConfig
@@ -67,6 +82,7 @@ public:
     NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
     NHiveClient::TCellDirectoryConfigPtr CellDirectory;
     NHiveClient::TCellDirectorySynchronizerConfigPtr CellDirectorySynchronizer;
+    TClockServersConfigPtr ClockServers;
 
     NCellMasterClient::TCellDirectorySynchronizerConfigPtr MasterCellDirectorySynchronizer;
 
