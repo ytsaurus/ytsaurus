@@ -35,6 +35,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NMyRpc, NoReply);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, FlakyCall);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, RequireCoolFeature);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, RequestBytesThrottledCall);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, StreamingEcho,
         .SetStreamingEnabled(true));
     DEFINE_RPC_PROXY_METHOD(NMyRpc, ServerStreamsAborted,

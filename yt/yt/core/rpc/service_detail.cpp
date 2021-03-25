@@ -79,6 +79,13 @@ TServiceBase::TMethodDescriptor::TMethodDescriptor(
     , HeavyHandler(std::move(heavyHandler))
 { }
 
+auto TServiceBase::TMethodDescriptor::SetRequestQueueProvider(TRequestQueueProvider value) const -> TMethodDescriptor
+{
+    auto result = *this;
+    result.RequestQueueProvider = std::move(value);
+    return result;
+}
+
 auto TServiceBase::TMethodDescriptor::SetInvoker(IInvokerPtr value) const -> TMethodDescriptor
 {
     auto result = *this;
@@ -194,24 +201,10 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     const NProfiling::TProfiler& profiler)
     : Descriptor(descriptor)
     , Registry(profiler.WithTag("method", descriptor.Method, -1))
-    , RequestBytesThrottler(
-        CreateReconfigurableThroughputThrottler(DefaultRequestBytesThrottlerConfig))
     , LoggingSuppressionFailedRequestThrottler(
         CreateReconfigurableThroughputThrottler(DefaultLoggingSuppressionFailedRequestThrottlerConfig))
-{
-    Registry.AddFuncGauge("/request_queue_size", MakeStrong(this), [this] {
-        return QueueSize.load(std::memory_order_relaxed);
-    });
-    Registry.AddFuncGauge("/request_queue_size_limit", MakeStrong(this), [this] {
-        return Descriptor.QueueSizeLimit;
-    });
-    Registry.AddFuncGauge("/concurrency", MakeStrong(this), [this] {
-        return ConcurrencySemaphore.load(std::memory_order_relaxed);
-    });
-    Registry.AddFuncGauge("/concurrency_limit", MakeStrong(this), [this] {
-        return Descriptor.ConcurrencyLimit;
-    });
-}
+    , DefaultRequestQueue("default")
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -222,18 +215,19 @@ public:
     TServiceContext(
         TServiceBasePtr&& service,
         TAcceptedRequest&& acceptedRequest,
-        const NLogging::TLogger& logger)
+        NLogging::TLogger logger)
         : TServiceContextBase(
             std::move(acceptedRequest.Header),
             std::move(acceptedRequest.Message),
-            logger,
+            std::move(logger),
             acceptedRequest.RuntimeInfo->LogLevel.load(std::memory_order_relaxed))
-        , Service_(std::move(service))
+        , Service_(service)
         , RequestId_(acceptedRequest.RequestId)
         , ReplyBus_(std::move(acceptedRequest.ReplyBus))
-        , RuntimeInfo_(std::move(acceptedRequest.RuntimeInfo))
+        , RuntimeInfo_(acceptedRequest.RuntimeInfo)
         , PerformanceCounters_(Service_->GetMethodPerformanceCounters(RuntimeInfo_, GetAuthenticationIdentity().UserTag))
         , TraceContext_(std::move(acceptedRequest.TraceContext))
+        , RequestQueue_(acceptedRequest.RequestQueue)
         , ArriveInstant_(GetCpuInstant())
 
     {
@@ -254,6 +248,11 @@ public:
         Finalize();
     }
 
+    TRequestQueue* GetRequestQueue() const
+    {
+        return RequestQueue_;
+    }
+
     virtual bool IsPooled() const override
     {
         return RuntimeInfo_->Descriptor.Pooled;
@@ -269,7 +268,7 @@ public:
         return ReplyBus_->GetEndpointAttributes();
     }
 
-    const TRuntimeMethodInfoPtr& GetRuntimeInfo() const
+    TRuntimeMethodInfo* GetRuntimeInfo() const
     {
         return RuntimeInfo_;
     }
@@ -296,19 +295,21 @@ public:
 
     void Run(const TLiteHandler& handler)
     {
-        auto this_ = MakeStrong(this);
         const auto& descriptor = RuntimeInfo_->Descriptor;
-        IInvoker* invoker;
+        // NB: Try to avoid contention on invoker ref-counter.
+        IInvoker* invoker = nullptr;
         IInvokerPtr invokerHolder;
         if (descriptor.InvokerProvider) {
-            invokerHolder = descriptor.InvokerProvider(this_);
+            invokerHolder = descriptor.InvokerProvider(RequestHeader());
             invoker = invokerHolder.Get();
-        } else if (descriptor.Invoker) {
+        }
+        if (!invoker) {
             invoker = descriptor.Invoker.Get();
-        } else {
+        }
+        if (!invoker) {
             invoker = Service_->DefaultInvoker_.Get();
         }
-        invoker->Invoke(BIND(&TServiceContext::DoRun, std::move(this_), handler));
+        invoker->Invoke(BIND(&TServiceContext::DoRun, MakeStrong(this), handler));
     }
 
     virtual void SubscribeCanceled(const TClosure& callback) override
@@ -450,9 +451,10 @@ private:
     const TServiceBasePtr Service_;
     const TRequestId RequestId_;
     const IBusPtr ReplyBus_;
-    const TRuntimeMethodInfoPtr RuntimeInfo_;
+    TRuntimeMethodInfo* const RuntimeInfo_;
     TMethodPerformanceCounters* const PerformanceCounters_;
     const TTraceContextPtr TraceContext_;
+    TRequestQueue* const RequestQueue_;
 
     EMemoryZone ResponseMemoryZone_;
 
@@ -552,6 +554,14 @@ private:
             ResponseCodec_ = NCompression::ECodec::None;
         }
 
+        Service_->IncrementActiveRequestCount();
+        if (Service_->IsStopped()) {
+                Reply(TError(
+                    NRpc::EErrorCode::Unavailable,
+                    "Service is stopped"));
+                return;
+        }
+
         BuildGlobalRequestInfo();
 
         if (IsRegistrable()) {
@@ -560,16 +570,12 @@ private:
 
         if (RuntimeInfo_->Descriptor.Cancelable && !RequestHeader_->uncancelable()) {
             Cancelable_ = true;
-            auto timeout = GetTimeout();
-            if (timeout) {
+            if (auto timeout = GetTimeout()) {
                 TimeoutCookie_ = TDelayedExecutor::Submit(
                     BIND(&TServiceBase::OnRequestTimeout, Service_, RequestId_),
                     *timeout);
             }
         }
-
-        ++RuntimeInfo_->QueueSize;
-        ++Service_->ActiveRequestCount_;
     }
 
     void BuildGlobalRequestInfo()
@@ -743,7 +749,7 @@ private:
 
         {
             TCurrentAuthenticationIdentityGuard identityGuard(&GetAuthenticationIdentity());
-            handler.Run(this, descriptor.Options);
+            handler(this, descriptor.Options);
         }
     }
 
@@ -832,13 +838,10 @@ private:
             return;
         }
 
-        --RuntimeInfo_->QueueSize;
-        if (--Service_->ActiveRequestCount_ == 0 && Service_->Stopped_.load()) {
-            Service_->StopResult_.TrySet();
-        }
 
-        TServiceBase::ReleaseRequestSemaphore(RuntimeInfo_);
-        TServiceBase::ScheduleRequests(RuntimeInfo_);
+        RequestQueue_->OnRequestFinished();
+
+        Service_->DecrementActiveRequestCount();
     }
 
 
@@ -1044,14 +1047,205 @@ private:
             RequestAttachmentsStream_->Abort(error);
         }
     }
-
-
-    const IInvokerPtr& GetInvoker()
-    {
-        const auto& descriptor = RuntimeInfo_->Descriptor;
-        return descriptor.Invoker ? descriptor.Invoker : Service_->DefaultInvoker_;
-    }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TServiceBase::TRequestQueue::TRequestQueue(TString name)
+    : Name_(std::move(name))
+    , RequestBytesThrottler_(
+        CreateReconfigurableThroughputThrottler(DefaultRequestBytesThrottlerConfig))
+{ }
+
+const TString& TServiceBase::TRequestQueue::GetName() const
+{
+    return Name_;
+}
+
+bool TServiceBase::TRequestQueue::Register(TServiceBase* service, TRuntimeMethodInfo* runtimeInfo)
+{
+    // Fast path.
+    if (Registered_.load()) {
+        YT_ASSERT(service == Service_);
+        YT_ASSERT(runtimeInfo == RuntimeInfo_);
+        return false;
+    }
+
+    // Slow path.
+    {
+        auto guard = Guard(RegisterLock_);
+        if (!Registered_) {
+            Service_ = service;
+            RuntimeInfo_ = runtimeInfo;
+        }
+        Registered_.store(true);
+    }
+
+    return true;
+}
+
+void TServiceBase::TRequestQueue::Configure(const TMethodConfigPtr& config)
+{
+    auto requestBytesThrottlerConfig = config->RequestBytesThrottler
+        ? config->RequestBytesThrottler
+        : DefaultRequestBytesThrottlerConfig;
+    RequestBytesThrottler_->Reconfigure(requestBytesThrottlerConfig);
+    RequestBytesThrottlerSpecified_.store(config->RequestBytesThrottler.operator bool());
+
+    ScheduleRequestsFromQueue();
+    SubscribeToRequestBytesThrottler();
+}
+
+bool TServiceBase::TRequestQueue::IsQueueLimitSizeExceeded() const
+{
+    return
+        QueueSize_.load(std::memory_order_relaxed) >=
+        RuntimeInfo_->QueueSizeLimit.load(std::memory_order_relaxed);
+}
+
+int TServiceBase::TRequestQueue::GetQueueSize() const
+{
+    return QueueSize_.load(std::memory_order_relaxed);
+}
+
+int TServiceBase::TRequestQueue::GetConcurrency() const
+{
+    return Concurrency_.load(std::memory_order_relaxed);
+}
+
+void TServiceBase::TRequestQueue::OnRequestArrived(TServiceContextPtr context)
+{
+    // Fast path.
+    auto newConcurrencySemaphore = IncrementConcurrency();
+    if (newConcurrencySemaphore <= RuntimeInfo_->ConcurrencyLimit.load(std::memory_order_relaxed) &&
+        !IsRequestBytesThrottlerOverdraft())
+    {
+        RunRequest(std::move(context));
+        return;
+    }
+
+    // Slow path.
+    DecrementConcurrency();
+    IncrementQueueSize();
+    RequestQueue_.enqueue(std::move(context));
+    ScheduleRequestsFromQueue();
+}
+
+void TServiceBase::TRequestQueue::OnRequestFinished()
+{
+    DecrementConcurrency();
+
+    if (QueueSize_.load() > 0) {
+        // Slow path.
+        ScheduleRequestsFromQueue();
+    }
+}
+
+// Prevents reentrant invocations.
+static thread_local bool ScheduleRequestsLatch;
+
+void TServiceBase::TRequestQueue::ScheduleRequestsFromQueue()
+{
+    if (ScheduleRequestsLatch) {
+        return;
+    }
+    ScheduleRequestsLatch = true;
+    auto latchGuard = Finally([&] {
+        ScheduleRequestsLatch = false;
+    });
+
+#ifndef NDEBUG
+    // Method handlers are allowed to run via sync invoker;
+    // however these handlers must not yield.
+    TForbidContextSwitchGuard contextSwitchGuard;
+#endif
+
+    // NB: racy, may lead to overcommit in concurrency semaphore and request bytes throttler.
+    auto concurrencyLimit = RuntimeInfo_->ConcurrencyLimit.load(std::memory_order_relaxed);
+    while (QueueSize_.load() > 0 && Concurrency_.load() < concurrencyLimit) {
+        if (IsRequestBytesThrottlerOverdraft()) {
+            SubscribeToRequestBytesThrottler();
+            break;
+        }
+
+        TServiceContextPtr context;
+        if (!RequestQueue_.try_dequeue(context)) {
+            break;
+        }
+
+        DecrementQueueSize();
+        IncrementConcurrency();
+        AcquireRequestBytesThrottler(context);
+        RunRequest(std::move(context));
+    }
+}
+
+void TServiceBase::TRequestQueue::RunRequest(TServiceContextPtr context)
+{
+    AcquireRequestBytesThrottler(context);
+
+    auto options = RuntimeInfo_->Descriptor.Options;
+    options.SetHeavy(RuntimeInfo_->Heavy.load(std::memory_order_relaxed));
+
+    if (options.Heavy) {
+        BIND(RuntimeInfo_->Descriptor.HeavyHandler)
+            .AsyncVia(TDispatcher::Get()->GetHeavyInvoker())
+            .Run(context, options)
+            .Subscribe(BIND(&TServiceContext::CheckAndRun, std::move(context)));
+    } else {
+        context->Run(RuntimeInfo_->Descriptor.LiteHandler);
+    }
+}
+
+int TServiceBase::TRequestQueue::IncrementQueueSize()
+{
+    return ++QueueSize_;
+}
+
+void  TServiceBase::TRequestQueue::DecrementQueueSize()
+{
+    auto newQueueSize = --QueueSize_;
+    YT_ASSERT(newQueueSize >= 0);
+}
+
+int TServiceBase::TRequestQueue::IncrementConcurrency()
+{
+    return ++Concurrency_;
+}
+
+void  TServiceBase::TRequestQueue::DecrementConcurrency()
+{
+    auto newConcurrencySemaphore = --Concurrency_;
+    YT_ASSERT(newConcurrencySemaphore >= 0);
+}
+
+bool TServiceBase::TRequestQueue::IsRequestBytesThrottlerOverdraft() const
+{
+    return
+        RequestBytesThrottlerSpecified_.load(std::memory_order_relaxed) &&
+        RequestBytesThrottler_->IsOverdraft();
+}
+
+void TServiceBase::TRequestQueue::AcquireRequestBytesThrottler(const TServiceContextPtr& context)
+{
+    if (RequestBytesThrottlerSpecified_.load(std::memory_order_relaxed)) {
+        // Slow path.
+        auto requestSize =
+            GetMessageBodySize(context->GetRequestMessage()) +
+            GetTotalMessageAttachmentSize(context->GetRequestMessage());
+        RequestBytesThrottler_->Acquire(requestSize);
+    }
+}
+
+void TServiceBase::TRequestQueue::SubscribeToRequestBytesThrottler()
+{
+    RequestBytesThrottler_->Throttle(1)
+        .Subscribe(BIND([=, weakService = MakeWeak(Service_)] (const TError&) {
+            if (auto service = weakService.Lock()) {
+                ScheduleRequestsFromQueue();
+            }
+        }));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1075,7 +1269,7 @@ TServiceBase::TServiceBase(
         .SetInvoker(GetSyncInvoker())
         .SetSystem(true));
 
-    ProfilingRegistry_.AddFuncGauge("/authentication_queue_size", MakeStrong(this), [this] {
+    ProfilingRegistry_.AddFuncGauge("/authentication_queue_size", MakeStrong(this), [=] {
         return AuthenticationQueueSize_.load(std::memory_order_relaxed);
     });
 }
@@ -1099,9 +1293,9 @@ void TServiceBase::HandleRequest(
         ReplyError(std::move(error), *header, replyBus);
     };
 
-    if (Stopped_) {
+    if (IsStopped()) {
         replyError(TError(
-            EErrorCode::Unavailable,
+            NRpc::EErrorCode::Unavailable,
             "Service is stopped"));
         return;
     }
@@ -1111,21 +1305,11 @@ void TServiceBase::HandleRequest(
         return;
     }
 
-    auto runtimeInfo = FindMethodInfo(method);
+    auto* runtimeInfo = FindMethodInfo(method);
     if (!runtimeInfo) {
         replyError(TError(
-            EErrorCode::NoSuchMethod,
+            NRpc::EErrorCode::NoSuchMethod,
             "Unknown method"));
-        return;
-    }
-
-    // Not actually atomic but should work fine as long as some small error is OK.
-    auto queueSizeLimit = runtimeInfo->QueueSizeLimit.load(std::memory_order_relaxed);
-    if (runtimeInfo->QueueSize.load() > queueSizeLimit) {
-        replyError(TError(
-            NRpc::EErrorCode::RequestQueueSizeLimitExceeded,
-            "Request queue size limit exceeded")
-            << TErrorAttribute("limit", queueSizeLimit));
         return;
     }
 
@@ -1137,6 +1321,18 @@ void TServiceBase::HandleRequest(
         traceContext->AddTag(EndpointAnnotation, replyBus->GetEndpointDescription());
     }
 
+    auto* requestQueue = GetRequestQueue(runtimeInfo, *header);
+    RegisterRequestQueue(runtimeInfo, requestQueue);
+
+    if (requestQueue->IsQueueLimitSizeExceeded()) {
+        replyError(TError(
+            NRpc::EErrorCode::RequestQueueSizeLimitExceeded,
+            "Request queue size limit exceeded")
+            << TErrorAttribute("limit", runtimeInfo->QueueSizeLimit.load())
+            << TErrorAttribute("queue", requestQueue->GetName()));
+        return;
+    }
+
     TCurrentTraceContextGuard traceContextGuard(traceContext);
 
     // NOTE: Do not use replyError() after this line.
@@ -1144,9 +1340,10 @@ void TServiceBase::HandleRequest(
         requestId,
         std::move(replyBus),
         std::move(runtimeInfo),
-        traceContext,
+        std::move(traceContext),
         std::move(header),
-        std::move(message)
+        std::move(message),
+        requestQueue
     };
 
     if (!IsAuthenticationNeeded(acceptedRequest)) {
@@ -1169,11 +1366,11 @@ void TServiceBase::HandleRequest(
 
     NProfiling::TWallTimer timer;
 
-    TAuthenticationContext context{
+    TAuthenticationContext authenticationContext{
         .Header = acceptedRequest.Header.get(),
         .UserIP = acceptedRequest.ReplyBus->GetEndpointAddress()
     };
-    auto asyncAuthResult = Authenticator_->Authenticate(context);
+    auto asyncAuthResult = Authenticator_->Authenticate(authenticationContext);
     if (asyncAuthResult.IsSet()) {
         OnRequestAuthenticated(timer, std::move(acceptedRequest), asyncAuthResult.Get());
     } else {
@@ -1208,11 +1405,13 @@ void TServiceBase::ReplyError(
 
 void TServiceBase::OnRequestAuthenticated(
     const NProfiling::TWallTimer& timer,
-    TAcceptedRequest acceptedRequest,
+    TAcceptedRequest&& acceptedRequest,
     const TErrorOr<TAuthenticationResult>& authResultOrError)
 {
     AuthenticationTimer_.Record(timer.GetElapsedTime());
     --AuthenticationQueueSize_;
+
+    auto& requestHeader = *acceptedRequest.Header;
 
     if (authResultOrError.IsOK()) {
         const auto& authResult = authResultOrError.Value();
@@ -1222,27 +1421,29 @@ void TServiceBase::OnRequestAuthenticated(
             authResult.User,
             authResult.Realm);
         const auto& authenticatedUser = authResult.User;
-        if (acceptedRequest.Header->has_user()) {
-            const auto& user = acceptedRequest.Header->user();
+        if (requestHeader.has_user()) {
+            const auto& user = requestHeader.user();
             if (user != authenticatedUser) {
                 ReplyError(
-                    TError("Manually specified and authenticated users mismatch")
+                    TError(
+                        NRpc::EErrorCode::AuthenticationError,
+                        "Manually specified and authenticated users mismatch")
                         << TErrorAttribute("user", user)
                         << TErrorAttribute("authenticated_user", authenticatedUser),
-                    *acceptedRequest.Header,
+                    requestHeader,
                     acceptedRequest.ReplyBus);
                 return;
             }
         }
-        acceptedRequest.Header->set_user(std::move(authResult.User));
+        requestHeader.set_user(std::move(authResult.User));
         HandleAuthenticatedRequest(std::move(acceptedRequest));
     } else {
         ReplyError(
             TError(
-                NYT::NRpc::EErrorCode::AuthenticationError,
+                NRpc::EErrorCode::AuthenticationError,
                 "Request authentication failed")
-            << authResultOrError,
-            *acceptedRequest.Header,
+                << authResultOrError,
+            requestHeader,
             acceptedRequest.ReplyBus);
     }
 }
@@ -1254,18 +1455,60 @@ bool TServiceBase::IsAuthenticationNeeded(const TAcceptedRequest& acceptedReques
         !acceptedRequest.RuntimeInfo->Descriptor.System;
 }
 
-void TServiceBase::HandleAuthenticatedRequest(
-    TAcceptedRequest acceptedRequest)
+void TServiceBase::HandleAuthenticatedRequest(TAcceptedRequest&& acceptedRequest)
 {
-    auto runtimeInfo = acceptedRequest.RuntimeInfo;
-
     auto context = New<TServiceContext>(
         this,
         std::move(acceptedRequest),
         Logger);
+    auto* requestQueue = context->GetRequestQueue();
+    requestQueue->OnRequestArrived(std::move(context));
+}
 
-    runtimeInfo->RequestQueue.Enqueue(std::move(context));
-    ScheduleRequests(runtimeInfo);
+TServiceBase::TRequestQueue* TServiceBase::GetRequestQueue(
+    TRuntimeMethodInfo* runtimeInfo,
+    const NRpc::NProto::TRequestHeader& requestHeader)
+{
+    TRequestQueue* requestQueue = nullptr;
+    if (runtimeInfo->Descriptor.RequestQueueProvider) {
+        requestQueue = runtimeInfo->Descriptor.RequestQueueProvider(requestHeader);
+    }
+    if (!requestQueue) {
+        requestQueue = &runtimeInfo->DefaultRequestQueue;
+    }
+    return requestQueue;
+}
+
+void TServiceBase::RegisterRequestQueue(
+    TRuntimeMethodInfo* runtimeInfo,
+    TRequestQueue* requestQueue)
+{
+    if (!requestQueue->Register(this, runtimeInfo)) {
+        return;
+    }
+
+    YT_LOG_DEBUG("Request queue registered (Method: %v, Queue: %v)",
+        runtimeInfo->Descriptor.Method,
+        requestQueue->GetName());
+
+    auto registry = runtimeInfo->Registry.WithRequiredTag("queue", requestQueue->GetName());
+    registry.AddFuncGauge("/request_queue_size", MakeStrong(this), [=] {
+        return requestQueue->GetQueueSize();
+    });
+    registry.AddFuncGauge("/concurrency", MakeStrong(this), [=] {
+        return requestQueue->GetConcurrency();
+    });
+
+    if (auto config = Config_.Load()) {
+        if (auto methodIt = config->Methods.find(runtimeInfo->Descriptor.Method)) {
+            requestQueue->Configure(methodIt->second);
+        }
+    }
+
+    {
+        auto guard = Guard(runtimeInfo->RequestQueuesLock);
+        runtimeInfo->RequestQueues.push_back(requestQueue);
+    }
 }
 
 void TServiceBase::HandleRequestCancelation(TRequestId requestId)
@@ -1346,7 +1589,7 @@ TError TServiceBase::DoCheckRequestProtocol(const NRpc::NProto::TRequestHeader& 
     if (requestProtocolVersion.Major != GenericProtocolVersion.Major) {
         if (ServiceDescriptor_.ProtocolVersion.Major != requestProtocolVersion.Major) {
             return TError(
-                EErrorCode::ProtocolError,
+                NRpc::EErrorCode::ProtocolError,
                 "Server major protocol version differs from client major protocol version: %v != %v",
                 requestProtocolVersion.Major,
                 ServiceDescriptor_.ProtocolVersion.Major);
@@ -1354,7 +1597,7 @@ TError TServiceBase::DoCheckRequestProtocol(const NRpc::NProto::TRequestHeader& 
 
         if (ServiceDescriptor_.ProtocolVersion.Minor < requestProtocolVersion.Minor) {
             return TError(
-                EErrorCode::ProtocolError,
+                NRpc::EErrorCode::ProtocolError,
                 "Server minor protocol version is less than minor protocol version required by client: %v < %v",
                 ServiceDescriptor_.ProtocolVersion.Minor,
                 requestProtocolVersion.Minor);
@@ -1368,7 +1611,7 @@ TError TServiceBase::DoCheckRequestFeatures(const NRpc::NProto::TRequestHeader& 
     for (auto featureId : header.required_server_feature_ids()) {
         if (!SupportedServerFeatureIds_.contains(featureId)) {
             return TError(
-                EErrorCode::UnsupportedServerFeature,
+                NRpc::EErrorCode::UnsupportedServerFeature,
                 "Server does not support the feature requested by client")
                 << TErrorAttribute("feature_id", featureId);
         }
@@ -1411,91 +1654,6 @@ void TServiceBase::OnReplyBusTerminated(const IBusPtr& bus, const TError& error)
         YT_LOG_DEBUG(error, "Reply bus terminated, canceling request (RequestId: %v)",
             context->GetRequestId());
         context->Cancel();
-    }
-}
-
-bool TServiceBase::TryAcquireRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo)
-{
-    auto& semaphore = runtimeInfo->ConcurrencySemaphore;
-    auto limit = runtimeInfo->ConcurrencyLimit.load(std::memory_order_relaxed);
-    auto current = semaphore.load(std::memory_order_relaxed);
-    while (true) {
-        if (current >= limit) {
-            return false;
-        }
-        if (semaphore.compare_exchange_weak(current, current + 1)) {
-            return true;
-        }
-    }
-}
-
-void TServiceBase::ReleaseRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo)
-{
-    --runtimeInfo->ConcurrencySemaphore;
-}
-
-void TServiceBase::ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo)
-{
-    // Prevent reentrant invocations.
-    static thread_local bool ScheduleRequestsLatch;
-    if (ScheduleRequestsLatch) {
-        return;
-    }
-    ScheduleRequestsLatch = true;
-    auto latchGuard = Finally([&] {
-        ScheduleRequestsLatch = false;
-    });
-
-#ifndef NDEBUG
-    // Method handlers are allowed to run via sync invoker;
-    // however these handlers must not yield.
-    TForbidContextSwitchGuard contextSwitchGuard;
-#endif
-
-    auto* requestBytesThrottler = runtimeInfo->RequestBytesThrottlerSpecified
-        ? runtimeInfo->RequestBytesThrottler.Get()
-        : nullptr;
-
-    while (true) {
-        if (requestBytesThrottler && requestBytesThrottler->IsOverdraft()) {
-            break;
-        }
-
-        if (!TryAcquireRequestSemaphore(runtimeInfo)) {
-            break;
-        }
-
-        TServiceContextPtr context;
-        if (!runtimeInfo->RequestQueue.Dequeue(&context)) {
-            ReleaseRequestSemaphore(runtimeInfo);
-            if (!runtimeInfo->RequestQueue.IsEmpty()) {
-                continue;
-            }
-            break;
-        }
-
-        if (requestBytesThrottler) {
-            i64 requestSize = GetMessageBodySize(context->GetRequestMessage()) +
-                GetTotalMessageAttachmentSize(context->GetRequestMessage());
-            requestBytesThrottler->Acquire(requestSize);
-        }
-
-        RunRequest(std::move(context));
-    }
-}
-
-void TServiceBase::RunRequest(const TServiceContextPtr& context)
-{
-    const auto& runtimeInfo = context->GetRuntimeInfo();
-    auto options = runtimeInfo->Descriptor.Options
-        .SetHeavy(runtimeInfo->Heavy.load(std::memory_order_relaxed));
-    if (options.Heavy) {
-        BIND(runtimeInfo->Descriptor.HeavyHandler)
-            .AsyncVia(TDispatcher::Get()->GetHeavyInvoker())
-            .Run(context, options)
-            .Subscribe(BIND(&TServiceContext::CheckAndRun, context));
-    } else {
-        context->Run(runtimeInfo->Descriptor.LiteHandler);
     }
 }
 
@@ -1626,7 +1784,7 @@ void TServiceBase::OnPendingPayloadsLeaseExpired(TRequestId requestId)
 }
 
 TServiceBase::TMethodPerformanceCountersPtr TServiceBase::CreateMethodPerformanceCounters(
-    const TRuntimeMethodInfoPtr& runtimeInfo,
+    TRuntimeMethodInfo* runtimeInfo,
     const std::optional<TString>& userTag)
 {
     auto profiler = runtimeInfo->Registry.WithSparse();
@@ -1638,7 +1796,7 @@ TServiceBase::TMethodPerformanceCountersPtr TServiceBase::CreateMethodPerformanc
 }
 
 TServiceBase::TMethodPerformanceCounters* TServiceBase::GetMethodPerformanceCounters(
-    const TRuntimeMethodInfoPtr& runtimeInfo,
+    TRuntimeMethodInfo* runtimeInfo,
     const TString& userTag)
 {
     if (!EnablePerUserProfiling_.load(std::memory_order_relaxed)) {
@@ -1658,20 +1816,37 @@ TServiceBase::TMethodPerformanceCounters* TServiceBase::GetMethodPerformanceCoun
 
 void TServiceBase::SetActive()
 {
+    // Fast path.
     if (Active_.load(std::memory_order_relaxed)) {
         return;
     }
 
-    if (Active_.exchange(true)) {
-        return;
-    }
+    // Slow path.
+    Active_.store(true);
 }
 
 void TServiceBase::ValidateInactive()
 {
     // Failure here means that some service metadata (e.g. registered methods or supported
     // features) are changing after the service has started serving requests.
-    YT_VERIFY(!Active_.load());
+    YT_VERIFY(!Active_.load(std::memory_order_relaxed));
+}
+
+bool TServiceBase::IsStopped()
+{
+    return Stopped_.load();
+}
+
+void TServiceBase::IncrementActiveRequestCount()
+{
+    ++ActiveRequestCount_;
+}
+
+void TServiceBase::DecrementActiveRequestCount()
+{
+    if (--ActiveRequestCount_ == 0 && IsStopped()) {
+        StopResult_.TrySet();
+    }
 }
 
 TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor)
@@ -1680,8 +1855,8 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDe
 
     auto runtimeInfo = New<TRuntimeMethodInfo>(descriptor, ProfilingRegistry_);
 
-    runtimeInfo->GlobalPerformanceCounters = CreateMethodPerformanceCounters(runtimeInfo, std::nullopt);
-    runtimeInfo->RootPerformanceCounters = CreateMethodPerformanceCounters(runtimeInfo, RootUserName);
+    runtimeInfo->GlobalPerformanceCounters = CreateMethodPerformanceCounters(runtimeInfo.Get(), std::nullopt);
+    runtimeInfo->RootPerformanceCounters = CreateMethodPerformanceCounters(runtimeInfo.Get(), RootUserName);
 
     runtimeInfo->Heavy.store(descriptor.Options.Heavy);
     runtimeInfo->QueueSizeLimit.store(descriptor.QueueSizeLimit);
@@ -1691,6 +1866,14 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDe
 
     // Failure here means that such method is already registered.
     YT_VERIFY(MethodMap_.emplace(descriptor.Method, runtimeInfo).second);
+
+    auto& registry = runtimeInfo->Registry;
+    registry.AddFuncGauge("/request_queue_size_limit", MakeStrong(this), [=] {
+        return runtimeInfo->QueueSizeLimit.load(std::memory_order_relaxed);
+    });
+    registry.AddFuncGauge("/concurrency_limit", MakeStrong(this), [=] {
+        return runtimeInfo->ConcurrencyLimit.load(std::memory_order_relaxed);
+    });
 
     return runtimeInfo;
 }
@@ -1735,11 +1918,12 @@ void TServiceBase::DoConfigure(
             runtimeInfo->LogLevel.store(methodConfig->LogLevel.value_or(descriptor.LogLevel));
             runtimeInfo->LoggingSuppressionTimeout.store(methodConfig->LoggingSuppressionTimeout.value_or(descriptor.LoggingSuppressionTimeout));
 
-            auto requestBytesThrottlerConfig = methodConfig->RequestBytesThrottler
-                ? methodConfig->RequestBytesThrottler
-                : DefaultRequestBytesThrottlerConfig;
-            runtimeInfo->RequestBytesThrottler->Reconfigure(requestBytesThrottlerConfig);
-            runtimeInfo->RequestBytesThrottlerSpecified.store(methodConfig->RequestBytesThrottler.operator bool());
+            {
+                auto guard = Guard(runtimeInfo->RequestQueuesLock);
+                for (auto* requestQueue : runtimeInfo->RequestQueues) {
+                    requestQueue->Configure(methodConfig);
+                }
+            }
 
             auto loggingSuppressionFailedRequestThrottlerConfig = methodConfig->LoggingSuppressionFailedRequestThrottler
                 ? methodConfig->LoggingSuppressionFailedRequestThrottler
@@ -1751,6 +1935,8 @@ void TServiceBase::DoConfigure(
                     config->TracingMode.value_or(
                         configDefaults->TracingMode)));
         }
+
+        Config_.Store(config);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error configuring RPC service %v",
             ServiceId_.ServiceName)
@@ -1779,8 +1965,7 @@ void TServiceBase::Configure(
 
 TFuture<void> TServiceBase::Stop()
 {
-    bool expected = false;
-    if (Stopped_.compare_exchange_strong(expected, true)) {
+    if (!Stopped_.exchange(true)) {
         if (ActiveRequestCount_.load() == 0) {
             StopResult_.TrySet();
         }
@@ -1788,22 +1973,15 @@ TFuture<void> TServiceBase::Stop()
     return StopResult_.ToFuture();
 }
 
-TServiceBase::TRuntimeMethodInfoPtr TServiceBase::FindMethodInfo(const TString& method)
+TServiceBase::TRuntimeMethodInfo* TServiceBase::FindMethodInfo(const TString& method)
 {
     auto it = MethodMap_.find(method);
-    return it == MethodMap_.end() ? nullptr : it->second;
+    return it == MethodMap_.end() ? nullptr : it->second.Get();
 }
 
-TServiceBase::TRuntimeMethodInfoPtr TServiceBase::GetMethodInfo(const TString& method)
+TServiceBase::TRuntimeMethodInfo* TServiceBase::GetMethodInfoOrThrow(const TString& method)
 {
-    auto runtimeInfo = FindMethodInfo(method);
-    YT_VERIFY(runtimeInfo);
-    return runtimeInfo;
-}
-
-TServiceBase::TRuntimeMethodInfoPtr TServiceBase::GetMethodInfoOrThrow(const TString& method)
-{
-    auto runtimeInfo = FindMethodInfo(method);
+    auto* runtimeInfo = FindMethodInfo(method);
     if (!runtimeInfo) {
         THROW_ERROR_EXCEPTION("Method %Qv is not registered");
     }

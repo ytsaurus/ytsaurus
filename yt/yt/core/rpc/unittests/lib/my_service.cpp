@@ -38,9 +38,12 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DoNothing));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CustomMessageError));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SlowCall)
-            .SetCancelable(true));
+            .SetCancelable(true)
+            .SetConcurrencyLimit(10)
+            .SetQueueSizeLimit(20));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SlowCanceledCall)
             .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RequestBytesThrottledCall));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(NoReply));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FlakyCall));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RequireCoolFeature));
@@ -136,7 +139,7 @@ public:
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, SlowCall)
     {
         context->SetRequestInfo();
-        Sleep(TDuration::Seconds(1.0));
+        TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
         context->Reply();
     }
 
@@ -155,6 +158,11 @@ public:
     TFuture<void> GetSlowCallCanceled() const override
     {
         return SlowCallCanceled_.ToFuture();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, RequestBytesThrottledCall)
+    {
+        context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, NoReply)
