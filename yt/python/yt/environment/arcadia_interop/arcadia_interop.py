@@ -75,6 +75,7 @@ def get_binary_path(path, arcadia_root, **kwargs):
 PROGRAMS = [("master", "master/bin"),
             ("clock", "clock_server/bin"),
             ("timestamp-provider", "timestamp_provider/bin"),
+            ("discovery", "discovery_server/bin"),
             ("node", "node/bin"),
             ("job-proxy", "job_proxy/bin"),
             ("exec", "exec/bin"),

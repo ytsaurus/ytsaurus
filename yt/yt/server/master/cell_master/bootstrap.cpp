@@ -696,8 +696,16 @@ void TBootstrap::DoInitialize()
             addresses.push_back(*peer.Address);
         }
     }
-    Config_->SecurityManager->UserThrottler->MemberClient->ServerAddresses = addresses;
-    Config_->SecurityManager->UserThrottler->DiscoveryClient->ServerAddresses = addresses;
+
+    auto getDiscoveryServerAddresses = [&] () {
+        if (Config_->DiscoveryServer && Config_->DiscoveryServer->Addresses) {
+            return *Config_->DiscoveryServer->Addresses;
+        }
+        return addresses;
+    };
+    const auto& discoveryServerAddresses = getDiscoveryServerAddresses();
+    Config_->SecurityManager->UserThrottler->MemberClient->ServerAddresses = discoveryServerAddresses;
+    Config_->SecurityManager->UserThrottler->DiscoveryClient->ServerAddresses = discoveryServerAddresses;
 
     // NB: This is exactly the order in which parts get registered and there are some
     // dependencies in Clear methods.

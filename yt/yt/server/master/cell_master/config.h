@@ -85,6 +85,25 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDiscoveryServersConfig
+    : public NRpc::TBalancingChannelConfig
+    , public NRpc::TRetryingChannelConfig
+{
+public:
+    //! Timeout for RPC requests to discovery servers.
+    TDuration RpcTimeout;
+
+    TDiscoveryServersConfig()
+    {
+        RegisterParameter("rpc_timeout", RpcTimeout)
+            .Default(TDuration::Seconds(30));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDiscoveryServersConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TMulticellManagerConfig
     : public NYTree::TYsonSerializable
 {
@@ -248,6 +267,8 @@ public:
 
     bool EnableTimestampManager;
     NTimestampServer::TTimestampManagerConfigPtr TimestampManager;
+
+    TDiscoveryServersConfigPtr DiscoveryServer;
 
     NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
 
