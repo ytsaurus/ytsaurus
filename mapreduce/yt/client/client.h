@@ -52,6 +52,11 @@ public:
         const TNode& value,
         const TSetOptions& options) override;
 
+    void MultisetAttributes(
+        const TYPath& path,
+        const TNode::TMapType& value,
+        const TMultisetAttributesOptions& options) override;
+
     TNode::TListType List(
         const TYPath& path,
         const TListOptions& options) override;

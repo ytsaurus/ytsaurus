@@ -61,6 +61,14 @@ void Set(
     const TNode& value,
     const TSetOptions& options = TSetOptions());
 
+void MultisetAttributes(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    const TNode::TMapType& value,
+    const TMultisetAttributesOptions& options = TMultisetAttributesOptions());
+
 bool Exists(
     const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,

@@ -639,4 +639,30 @@ Y_UNIT_TEST_SUITE(CypressClient) {
             UNIT_ASSERT_VALUES_EQUAL(client->Get(workingDir + "/x").AsString(), data);
         }
     }
+
+    Y_UNIT_TEST(TestMultisetAttributes)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        client->Create(workingDir + "/node", NT_MAP);
+
+        auto tx = client->StartTransaction();
+
+        tx->MultisetAttributes(workingDir + "/node/@", {
+            {"a", TNode("foo")},
+            {"b", TNode()("c", "bar")},
+        });
+        UNIT_ASSERT_VALUES_EQUAL(tx->Get(workingDir + "/node/@a"), TNode("foo"));
+        UNIT_ASSERT_VALUES_EQUAL(tx->Get(workingDir + "/node/@b/c"), TNode("bar"));
+        UNIT_ASSERT_VALUES_EQUAL(tx->Exists(workingDir + "/node/@a"), true);
+        UNIT_ASSERT_VALUES_EQUAL(client->Exists(workingDir + "/node/@a"), false);
+
+        tx->MultisetAttributes(workingDir + "/node/@", {
+            {"b", TNode()("d", "qux")},
+        });
+        UNIT_ASSERT_VALUES_EQUAL(tx->Get(workingDir + "/node/@a"), TNode("foo"));
+        UNIT_ASSERT_VALUES_EQUAL(tx->Get(workingDir + "/node/@b/d"), TNode("qux"));
+    }
 }

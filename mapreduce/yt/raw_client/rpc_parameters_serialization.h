@@ -32,6 +32,11 @@ TNode SerializeParamsForSet(
     const TYPath& path,
     const TSetOptions& options);
 
+TNode SerializeParamsForMultisetAttributes(
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    const TMultisetAttributesOptions& options);
+
 TNode SerializeParamsForList(
     const TTransactionId& transactionId,
     const TYPath& path,

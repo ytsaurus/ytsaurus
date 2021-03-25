@@ -95,6 +95,8 @@ namespace NYT {
 
     struct TSetOptions;
 
+    struct TMultisetAttributesOptions;
+
     struct TListOptions;
 
     struct TCopyOptions;

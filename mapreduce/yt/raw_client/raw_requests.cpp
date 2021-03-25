@@ -102,7 +102,6 @@ TNode TryGet(
     }
 }
 
-
 void Set(
     const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
@@ -114,6 +113,22 @@ void Set(
     THttpHeader header("PUT", "set");
     header.AddMutationId();
     header.MergeParameters(SerializeParamsForSet(transactionId, path, options));
+    auto body = NodeToYsonString(value);
+    RetryRequestWithPolicy(retryPolicy, auth, header, body);
+}
+
+void MultisetAttributes(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    const TNode::TMapType& value,
+    const TMultisetAttributesOptions& options)
+{
+    THttpHeader header("PUT", "api/v4/multiset_attributes", false);
+    header.AddMutationId();
+    header.MergeParameters(SerializeParamsForMultisetAttributes(transactionId, path, options));
+
     auto body = NodeToYsonString(value);
     RetryRequestWithPolicy(retryPolicy, auth, header, body);
 }
