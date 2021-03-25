@@ -206,7 +206,7 @@ private:
             if (!chunk->BoundaryKeys()) {
                 THROW_ERROR_EXCEPTION("Missing boundary keys in chunk %v", chunk->GetChunkId());
             }
-            
+
             const auto& comparator = sliceRequest.Comparator;
             auto minKey = chunk->BoundaryKeys()->MinKey;
             auto maxKey = chunk->BoundaryKeys()->MaxKey;
@@ -316,6 +316,8 @@ private:
 
             const auto& originalChunkSlice = sliceRequest.DataSlice->ChunkSlices[0];
 
+            int chunkSliceIndex = 0;
+
             for (const auto& protoChunkSlice : sliceResponse.chunk_slices()) {
                 TInputChunkSlicePtr chunkSlice;
                 if (sliceRequest.DataSlice->IsLegacy) {
@@ -324,6 +326,7 @@ private:
                     chunkSlice = New<TInputChunkSlice>(*originalChunkSlice, sliceRequest.Comparator, RowBuffer_, protoChunkSlice, keys, keyBoundPrefixes);
                     InferLimitsFromBoundaryKeys(chunkSlice);
                 }
+                chunkSlice->SetChunkSliceIndex(chunkSliceIndex++);
                 SlicesByChunkIndex_[index].push_back(chunkSlice);
                 SliceCount_++;
             }

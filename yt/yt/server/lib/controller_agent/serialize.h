@@ -20,6 +20,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((NoOrderedDynamicStoreInterrupts)      (300506))
     ((CorrectLoggerSerialization)           (300507))
     ((TimeStatistics)                       (300608))
+    ((ChunkSliceIndex)                      (300609))
     // 21.2 start here
     ((CorrectLoggerSerialization_21_2)      (300602))
 );

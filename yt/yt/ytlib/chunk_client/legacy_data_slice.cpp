@@ -149,6 +149,15 @@ std::pair<TLegacyDataSlicePtr, TLegacyDataSlicePtr> TLegacyDataSlice::SplitByRow
     auto first = CreateUnversionedInputDataSlice(slices.first);
     auto second = CreateUnversionedInputDataSlice(slices.second);
 
+    // CreateUnversionedInputDataSlice infers key bounds both from chunk slice key bounds and
+    // from data slice key bounds making resulting parts key bounds wider than our own key bounds.
+    // This is undesired behavior for new sorted pool, so workaround that by simply copying
+    // our them with our key bounds.
+    first->LowerLimit().KeyBound = LowerLimit().KeyBound;
+    first->UpperLimit().KeyBound = UpperLimit().KeyBound;
+    second->LowerLimit().KeyBound = LowerLimit().KeyBound;
+    second->UpperLimit().KeyBound = UpperLimit().KeyBound;
+
     first->CopyPayloadFrom(*this);
     second->CopyPayloadFrom(*this);
 
@@ -237,6 +246,13 @@ void TLegacyDataSlice::TransformToNew(
     } else {
         TransformToNewKeyless();
     }
+}
+
+std::optional<int> TLegacyDataSlice::GetChunkSliceIndex() const
+{
+    return Type == EDataSourceType::UnversionedTable
+        ? std::make_optional(ChunkSlices[0]->GetChunkSliceIndex())
+        : std::nullopt;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

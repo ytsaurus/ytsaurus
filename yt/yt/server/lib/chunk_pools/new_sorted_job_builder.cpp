@@ -110,18 +110,13 @@ TString ToString(const TAggregatedStatistics& statistics)
 
 TString GetDataSliceDebugString(const TLegacyDataSlicePtr& dataSlice)
 {
-    std::vector<TChunkId> chunkIds;
-    chunkIds.reserve(dataSlice->ChunkSlices.size());
-    for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-        chunkIds.push_back(chunkSlice->GetInputChunk()->GetChunkId());
-    }
-    return Format("{Address: %v, DataWeight: %v, KeyBounds: %v:%v, InputStreamIndex: %v, ChunkIds: %v}",
-        dataSlice.Get(),
-        dataSlice->GetDataWeight(),
-        dataSlice->LowerLimit().KeyBound,
-        dataSlice->UpperLimit().KeyBound,
+    return Format("{DS: %v.%v.%v, L: %v:%v, DW: %v}",
         dataSlice->InputStreamIndex,
-        chunkIds);
+        dataSlice->Tag,
+        dataSlice->GetChunkSliceIndex(),
+        dataSlice->LowerLimit(),
+        dataSlice->UpperLimit(),
+        dataSlice->GetDataWeight());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -272,8 +267,15 @@ public:
         , RowBuffer_(rowBuffer)
         , InputStreamDirectory_(inputStreamDirectory)
         , Logger(logger)
+        , MainDomain_("Main", logger)
+        , BufferNonSingletonDomain_("BufferNonSingleton", logger)
         , ForeignDomain_(ForeignComparator_)
     {
+        // Singletons have special meaning only when key guarantee is disabled.
+        if (!EnableKeyGuarantee_) {
+            BufferSingletonDomain_ = TPrimaryDomain("BufferSingleton", logger);
+        }
+
         YT_LOG_TRACE("Staging area instantiated (LimitStatistics: %v)", LimitStatistics_);
     }
 
@@ -303,16 +305,16 @@ public:
         YT_VERIFY(dataSlice->LowerLimit().KeyBound == UpperBound_.Invert());
 
         if (!isPrimary) {
-            PutToDomain(EDomainKind::Foreign, dataSlice);
+            ForeignDomain_.AddDataSlice(dataSlice);
         } else if (
             !EnableKeyGuarantee_ &&
             PrimaryComparator_.TryAsSingletonKey(dataSlice->LowerLimit().KeyBound, dataSlice->UpperLimit().KeyBound) &&
             // NB: versioned data slices can't be sliced by rows.
             !InputStreamDirectory_.GetDescriptor(*dataSlice->Tag).IsVersioned())
         {
-            PutToDomain(EDomainKind::BufferSingleton, dataSlice);
+            BufferSingletonDomain_.PushBack(dataSlice);
         } else {
-            PutToDomain(EDomainKind::BufferNonSingleton, dataSlice);
+            BufferNonSingletonDomain_.PushBack(dataSlice);
         }
     }
 
@@ -374,8 +376,7 @@ public:
         // If we were explicitly asked to forcefully flush, make a sanity check
         // that Main and BufferSingleton domains are empty.
         if (force) {
-            for (const auto& domainKind : {EDomainKind::Main, EDomainKind::BufferSingleton}) {
-                const auto& domain = PrimaryDomains_[domainKind];
+            for (const auto& domain : {MainDomain_, BufferSingletonDomain_}) {
                 YT_VERIFY(domain.DataSlices.empty());
                 YT_VERIFY(domain.Statistics.IsZero());
             }
@@ -390,7 +391,7 @@ public:
         PromoteUpperBound(TKeyBound::MakeUniversal(/* isUpper */ true));
 
         Flush(/* force */ true);
-        for (const auto& domain : PrimaryDomains_) {
+        for (const auto& domain : {MainDomain_, BufferSingletonDomain_, BufferNonSingletonDomain_}) {
             YT_VERIFY(domain.DataSlices.empty());
             YT_VERIFY(domain.Statistics.IsZero());
         }
@@ -440,12 +441,35 @@ private:
     struct TPrimaryDomain
     {
         TAggregatedStatistics Statistics;
-        TRingQueue<TLegacyDataSlicePtr> DataSlices = TRingQueue<TLegacyDataSlicePtr>();
+        std::deque<TLegacyDataSlicePtr> DataSlices;
+        bool Enabled;
+        TLogger Logger;
 
-        void AddDataSlice(TLegacyDataSlicePtr dataSlice)
+        TPrimaryDomain()
+            : Enabled(false)
+        { }
+
+        TPrimaryDomain(TStringBuf kind, const TLogger& logger)
+            : Enabled(true)
+            , Logger(logger.WithTag("Domain: %v", kind))
+        { }
+
+        void PushBack(TLegacyDataSlicePtr dataSlice)
         {
+            YT_VERIFY(Enabled);
+
+            YT_LOG_TRACE("Pushing to domain back (DataSlice: %v)", GetDataSliceDebugString(dataSlice));
             Statistics += TAggregatedStatistics::FromDataSlice(dataSlice, /* isPrimary */ true);
-            DataSlices.push(std::move(dataSlice));
+            DataSlices.push_back(std::move(dataSlice));
+        }
+
+        void PushFront(TLegacyDataSlicePtr dataSlice)
+        {
+            YT_VERIFY(Enabled);
+
+            YT_LOG_TRACE("Pushing to domain front (DataSlice: %v)", GetDataSliceDebugString(dataSlice));
+            Statistics += TAggregatedStatistics::FromDataSlice(dataSlice, /* isPrimary */ true);
+            DataSlices.push_front(std::move(dataSlice));
         }
 
         void Clear()
@@ -479,35 +503,27 @@ private:
         }
     };
 
-    TEnumIndexedVector<EDomainKind, TPrimaryDomain> PrimaryDomains_;
+    TPrimaryDomain MainDomain_;
+    TPrimaryDomain BufferNonSingletonDomain_;
+    TPrimaryDomain BufferSingletonDomain_;
     TForeignDomain ForeignDomain_;
-
-    void PutToDomain(EDomainKind domain, const TLegacyDataSlicePtr& dataSlice)
-    {
-        bool isPrimary = domain != EDomainKind::Foreign;
-        if (isPrimary) {
-            PrimaryDomains_[domain].AddDataSlice(dataSlice);
-        } else {
-            ForeignDomain_.AddDataSlice(dataSlice);
-        }
-    }
 
     TAggregatedStatistics GetTotalStatistics() const
     {
         return
-            PrimaryDomains_[EDomainKind::Main].Statistics +
-            PrimaryDomains_[EDomainKind::BufferNonSingleton].Statistics +
-            PrimaryDomains_[EDomainKind::BufferSingleton].Statistics +
+            MainDomain_.Statistics +
+            BufferNonSingletonDomain_.Statistics +
+            BufferSingletonDomain_.Statistics +
             ForeignDomain_.Statistics;
     }
 
     TString GetStatisticsDebugString() const
     {
         std::vector<TString> parts;
-        parts.emplace_back(Format("Main: %v", PrimaryDomains_[EDomainKind::Main].Statistics));
-        parts.emplace_back(Format("BufferNonSingleton: %v", PrimaryDomains_[EDomainKind::BufferNonSingleton].Statistics));
+        parts.emplace_back(Format("Main: %v", MainDomain_.Statistics));
+        parts.emplace_back(Format("BufferNonSingleton: %v", BufferNonSingletonDomain_.Statistics));
         if (!EnableKeyGuarantee_) {
-            parts.emplace_back(Format("BufferSingleton: %v", PrimaryDomains_[EDomainKind::BufferSingleton].Statistics));
+            parts.emplace_back(Format("BufferSingleton: %v", BufferSingletonDomain_.Statistics));
         }
         return Format("{%v}", JoinToString(parts, AsStringBuf(", ")));
     }
@@ -523,24 +539,36 @@ private:
     //! Check if we have at least one data slice to build job right now.
     bool IsExhausted() const
     {
-        return PrimaryDomains_[EDomainKind::Main].Statistics.IsZero() && PrimaryDomains_[EDomainKind::BufferSingleton].Statistics.IsZero();
+        return MainDomain_.Statistics.IsZero() && BufferSingletonDomain_.Statistics.IsZero();
     }
 
     void CutMainByUpperBound()
     {
         YT_LOG_TRACE("Cutting main domain by upper bound (UpperBound: %v)", UpperBound_);
 
-        auto& mainDataSlices = PrimaryDomains_[EDomainKind::Main].DataSlices;
-        for (auto it = mainDataSlices.begin(); it != mainDataSlices.end(); mainDataSlices.move_forward(it)) {
-            auto& dataSlice = *it;
-
+        for (auto& dataSlice : MainDomain_.DataSlices) {
             // Right part of the data slice goes to the BufferNonSingleton domain.
             auto restDataSlice = CreateInputDataSlice(dataSlice, PrimaryComparator_, UpperBound_.Invert(), dataSlice->UpperLimit().KeyBound);
             restDataSlice->LowerLimit().KeyBound = PrimaryComparator_.StrongerKeyBound(UpperBound_.Invert(), restDataSlice->LowerLimit().KeyBound);
-            // It may happen that data slice is entirely inside current upper bound (e.g. slice E from example 1 above).
+            // It may happen that data slice is entirely inside current upper bound (e.g. slice E from example 1 above), so
+            // check if rest data slice is non-empty.
             if (!PrimaryComparator_.IsRangeEmpty(restDataSlice->LowerLimit().KeyBound, restDataSlice->UpperLimit().KeyBound)) {
                 restDataSlice->CopyPayloadFrom(*dataSlice);
-                PutToDomain(EDomainKind::BufferNonSingleton, restDataSlice);
+                // Refer to explanation in YT-14566 for more details.
+                // PushFront and distinction between singleton and non-singleton rest is crucial!
+                if (!EnableKeyGuarantee_ &&
+                    PrimaryComparator_.TryAsSingletonKey(restDataSlice->LowerLimit().KeyBound, restDataSlice->UpperLimit().KeyBound))
+                {
+                    // We cut our main domain data slice and remaining part is a singleton data slice. We must keep invariant of
+                    // taking data slices in the same order they follow in the original table, so we must ensure that this remaining part
+                    // follows strictly before singleton slices that were put to staging area after it (i.e. those that are right now in
+                    // BufferSingleton domain). That's why we put our data slice to the front of BufferSingletonDomain.
+                    BufferSingletonDomain_.PushFront(restDataSlice);
+                } else {
+                    // Note that since rest is not a singleton data slice, there may be no other singleton data slices from our table
+                    // at this moment.
+                    BufferNonSingletonDomain_.PushFront(restDataSlice);
+                }
             }
 
             // Left part of the data slice resides in the Main domain.
@@ -557,24 +585,21 @@ private:
     //! return true; otherwise return false.
     bool TryTransferSingletonsToMain(bool force)
     {
-        auto& mainDomain = PrimaryDomains_[EDomainKind::Main];
-        auto& singletonDomain = PrimaryDomains_[EDomainKind::BufferSingleton];
-
         while (true) {
             // Check if there is at least one data slices to transfer.
-            if (singletonDomain.Statistics.IsZero()) {
+            if (BufferSingletonDomain_.Statistics.IsZero()) {
                 YT_LOG_TRACE("Singleton domain exhausted");
                 return false;
             }
 
             // Stop process if we are not forced to transfer singletons up to the end
             // and if Main domain is already full.
-            if (!force && mainDomain.Statistics >= LimitStatistics_) {
-                YT_LOG_TRACE("Main domain saturated (Statistics: %v)", mainDomain.Statistics);
+            if (!force && MainDomain_.Statistics >= LimitStatistics_) {
+                YT_LOG_TRACE("Main domain saturated (Statistics: %v)", MainDomain_.Statistics);
                 return false;
             }
 
-            auto& dataSlice = singletonDomain.DataSlices.front();
+            auto& dataSlice = BufferSingletonDomain_.DataSlices.front();
 
             // Check invariants for buffer singleton data slices.
             YT_VERIFY(dataSlice->LowerLimit().KeyBound == UpperBound_.Invert());
@@ -587,23 +612,23 @@ private:
                     "Adding whole singleton data slice to main domain (DataSlice: %v, Statistics: %v)",
                     GetDataSliceDebugString(dataSlice),
                     statistics);
-                mainDomain.AddDataSlice(dataSlice);
-                singletonDomain.Statistics -= statistics;
-                singletonDomain.DataSlices.pop();
+                MainDomain_.PushBack(dataSlice);
+                BufferSingletonDomain_.Statistics -= statistics;
+                BufferSingletonDomain_.DataSlices.pop_front();
                 CurrentJobContainsSingleton_ = true;
             };
 
             // Why would we want to take the whole slice? There are three cases.
             // 1) It may fit into the gap; 2) it may be small enough to be considered negligible
             // or 3) we have no other choice.
-            if (mainDomain.Statistics + statistics <= LimitStatistics_ ||
+            if (MainDomain_.Statistics + statistics <= LimitStatistics_ ||
                 statistics.DataWeight <= InputSliceDataWeight_ ||
                 force)
             {
                 takeWhole();
             } else {
                 auto gapStatistics = LimitStatistics_;
-                gapStatistics -= mainDomain.Statistics;
+                gapStatistics -= MainDomain_.Statistics;
 
                 YT_LOG_TRACE(
                     "Trying to fill the gap (GapStatistics: %v, DataSlice: %v)",
@@ -635,7 +660,7 @@ private:
                 if (fraction >= UpperFractionThreshold) {
                     YT_LOG_TRACE("Fraction for the remaining data slice is high enough to take it as a whole (Fraction: %v)", fraction);
                     takeWhole();
-                    YT_LOG_TRACE("Main domain saturated after transferring final whole data slice (Statistics: %v)", mainDomain.Statistics);
+                    YT_LOG_TRACE("Main domain saturated after transferring final whole data slice (Statistics: %v)", MainDomain_.Statistics);
                 } else {
                     // Divide slice in desired proportion using row indices.
                     auto lowerRowIndex = dataSlice->LowerLimit().RowIndex.value_or(0);
@@ -653,22 +678,24 @@ private:
                         lowerRowIndex + rowCount);
                     auto [leftDataSlice, rightDataSlice] = dataSlice->SplitByRowIndex(rowCount);
                     // Discard the original singleton data slice.
-                    singletonDomain.Statistics -= TAggregatedStatistics::FromDataSlice(dataSlice, /* isPrimary */ true);
+                    BufferSingletonDomain_.Statistics -= TAggregatedStatistics::FromDataSlice(dataSlice, /* isPrimary */ true);
 
                     if (rowCount == upperRowIndex - lowerRowIndex) {
                         // In some borderline cases this may happen... just discard this data slice.
-                        singletonDomain.DataSlices.pop();
+                        BufferSingletonDomain_.DataSlices.pop_front();
                     } else {
                         // Add right part to the singleton domain.
-                        singletonDomain.Statistics += TAggregatedStatistics::FromDataSlice(rightDataSlice, /* isPrimary */ true);
+                        BufferSingletonDomain_.Statistics += TAggregatedStatistics::FromDataSlice(rightDataSlice, /* isPrimary */ true);
                         dataSlice.Swap(rightDataSlice);
                     }
 
                     if (rowCount > 0) {
                         // Finally, add left part to the Main domain.
-                        mainDomain.AddDataSlice(leftDataSlice);
+                        MainDomain_.PushBack(leftDataSlice);
                         CurrentJobContainsSingleton_ = true;
-                        YT_LOG_TRACE("Main domain saturated after transferring final partial data slice (Statistics: %v)", mainDomain.Statistics);
+                        YT_LOG_TRACE(
+                            "Main domain saturated after transferring final partial data slice (Statistics: %v)",
+                            MainDomain_.Statistics);
                     }
                 }
 
@@ -681,12 +708,11 @@ private:
 
     void TransferWholeBufferToMain()
     {
-        for (auto bufferDomain : {EDomainKind::BufferNonSingleton, EDomainKind::BufferSingleton}) {
-            auto& domain = PrimaryDomains_[bufferDomain];
-            for (auto it = domain.DataSlices.begin(); it != domain.DataSlices.end(); domain.DataSlices.move_forward(it)) {
-                PrimaryDomains_[EDomainKind::Main].AddDataSlice(std::move(*it));
+        for (auto* domain : {&BufferNonSingletonDomain_, &BufferSingletonDomain_}) {
+            for (auto& dataSlice : domain->DataSlices) {
+                MainDomain_.PushBack(std::move(dataSlice));
             }
-            PrimaryDomains_[bufferDomain].Clear();
+            domain->Clear();
         }
     }
 
@@ -758,35 +784,38 @@ private:
     //! Otherwise, return false.
     bool TryFlushMain()
     {
-        if (PrimaryDomains_[EDomainKind::Main].Statistics.IsZero()) {
+        if (MainDomain_.Statistics.IsZero()) {
             YT_LOG_TRACE("Nothing to flush");
             return false;
         }
 
         auto& job = PreparedJobs_.emplace_back();
 
-        auto& mainDataSlices = PrimaryDomains_[EDomainKind::Main].DataSlices;
-
-        YT_LOG_TRACE("Flushing main domain into job (Statistics: %v)", PrimaryDomains_[EDomainKind::Main].Statistics);
+        YT_LOG_TRACE("Flushing main domain into job (Statistics: %v)", MainDomain_.Statistics);
 
         // Calculate the actual lower and upper bounds of newly formed job and move data slices to the job.
         auto actualLowerBound = TKeyBound::MakeEmpty(/* isUpper */ false);
         auto actualUpperBound = TKeyBound::MakeEmpty(/* isUpper */ true);
-        for (auto it = mainDataSlices.begin(); it != mainDataSlices.end(); mainDataSlices.move_forward(it)) {
-            const auto& dataSlice = *it;
+        for (auto& dataSlice : MainDomain_.DataSlices) {
             actualLowerBound = PrimaryComparator_.WeakerKeyBound(dataSlice->LowerLimit().KeyBound, actualLowerBound);
             actualUpperBound = PrimaryComparator_.WeakerKeyBound(dataSlice->UpperLimit().KeyBound, actualUpperBound);
             YT_VERIFY(dataSlice->Tag);
-            // Yeah! In the other words, take the value of the tag contained in TLegacyDataSlicePtr pointed by iterator.
             auto tag = *dataSlice->Tag;
-            job.AddDataSlice(std::move(*it), tag, /* isPrimary */ true);
+            job.AddDataSlice(std::move(dataSlice), tag, /* isPrimary */ true);
+            YT_LOG_TRACE(
+                "Adding primary data slice to job (InputStreamIndex: %v, Tag: %v, ChunkSliceIndex: %v, LowerLimit: %v, UpperLimit: %v)",
+                dataSlice->InputStreamIndex,
+                tag,
+                dataSlice->GetChunkSliceIndex(),
+                dataSlice->LowerLimit(),
+                dataSlice->UpperLimit());
         }
         YT_VERIFY(job.GetPrimarySliceCount() > 0);
 
         job.SetPrimaryLowerBound(actualLowerBound);
         job.SetPrimaryUpperBound(actualUpperBound);
 
-        PrimaryDomains_[EDomainKind::Main].Clear();
+        MainDomain_.Clear();
 
         // Perform sanity checks and prepare information for the next sanity check.
         ValidateCurrentJobBounds(actualLowerBound, actualUpperBound);
@@ -886,6 +915,12 @@ public:
             // Chunk slice fetcher can produce empty slices.
             return;
         }
+
+        YT_LOG_TRACE(
+            "Adding data slice to builder (LowerLimit: %v, UpperLimit: %v, InputStreamIndex: %v)",
+            dataSlice->LowerLimit(),
+            dataSlice->UpperLimit(),
+            dataSlice->InputStreamIndex);
 
         TEndpoint endpoint = {
             isPrimary ? ENewEndpointType::Primary : ENewEndpointType::Foreign,
