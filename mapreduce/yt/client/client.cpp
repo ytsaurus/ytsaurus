@@ -112,6 +112,13 @@ void TClientBase::Set(
     NRawClient::Set(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, path, value, options);
 }
 
+void TClientBase::MultisetAttributes(
+    const TYPath& path, const TNode::TMapType& value, const TMultisetAttributesOptions& options)
+{
+    NRawClient::MultisetAttributes(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, path, value, options);
+}
+
+
 TNode::TListType TClientBase::List(
     const TYPath& path,
     const TListOptions& options)

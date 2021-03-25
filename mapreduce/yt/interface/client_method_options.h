@@ -104,6 +104,13 @@ struct TSetOptions
 };
 
 ///
+/// @brief Options for @ref NYT::ICypressClient::MultisetAttributes
+///
+/// @see https://yt.yandex-team.ru/docs/api/commands.html#multiset_attributes
+struct TMultisetAttributesOptions
+{ };
+
+///
 /// @brief Options for @ref NYT::ICypressClient::List
 ///
 /// @see https://yt.yandex-team.ru/docs/api/commands.html#list

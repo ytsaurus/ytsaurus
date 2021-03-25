@@ -52,7 +52,7 @@ public:
     ///
     /// @return Id of the created node.
     ///
-    /// @note If "schema" is passed in `options.Attributes` it has prority over the deduced schema (the latter is ignored).
+    /// @note If "schema" is passed in `options.Attributes` it has priority over the deduced schema (the latter is ignored).
     template <typename TRowType>
     TNodeId CreateTable(
         const TYPath& path,
@@ -62,7 +62,7 @@ public:
     ///
     /// @brief Remove Cypress node.
     ///
-    /// @see [YT doc](https://yt.yandex-team.ru/docs//api/commands.html#remove)
+    /// @see [YT doc](https://yt.yandex-team.ru/docs/api/commands.html#remove)
     virtual void Remove(
         const TYPath& path,
         const TRemoveOptions& options = TRemoveOptions()) = 0;
@@ -70,14 +70,14 @@ public:
     ///
     /// @brief Check if Cypress node exists.
     ///
-    /// @see [YT doc](https://yt.yandex-team.ru/docs//api/commands.html#exists)
+    /// @see [YT doc](https://yt.yandex-team.ru/docs/api/commands.html#exists)
     virtual bool Exists(
         const TYPath& path) = 0;
 
     ///
     /// @brief Get Cypress node contents.
     ///
-    /// @see [YT doc](https://yt.yandex-team.ru/docs//api/commands.html#get)
+    /// @see [YT doc](https://yt.yandex-team.ru/docs/api/commands.html#get)
     virtual TNode Get(
         const TYPath& path,
         const TGetOptions& options = TGetOptions()) = 0;
@@ -85,11 +85,25 @@ public:
     ///
     /// @brief Set Cypress node contents.
     ///
-    /// @see [YT doc](https://yt.yandex-team.ru/docs//api/commands.html#set)
+    /// @see [YT doc](https://yt.yandex-team.ru/docs/api/commands.html#set)
     virtual void Set(
         const TYPath& path,
         const TNode& value,
         const TSetOptions& options = TSetOptions()) = 0;
+
+    ///
+    /// @brief Set multiple attributes for cypress path.
+    ///
+    /// @param path Path to root of the attributes to be set e.g. "//path/to/table/@";
+    ///     it is important to make sure that path ends with "/@".
+    /// @param attributes Map with attributes
+    /// @param options Optional parameters.
+    ///
+    /// @see [YT doc](https://yt.yandex-team.ru/docs/api/commands.html#multiset_attributes)
+    virtual void MultisetAttributes(
+        const TYPath& path,
+        const TNode::TMapType& attributes,
+        const TMultisetAttributesOptions& options = TMultisetAttributesOptions()) = 0;
 
     ///
     /// @brief List Cypress map or attribute node keys.
@@ -99,7 +113,7 @@ public:
     ///
     /// @return List of keys with attributes (if they were required in @ref NYT::TListOptions::AttributeFilter).
     ///
-    /// @see [YT doc](https://yt.yandex-team.ru/docs//api/commands.html#list)
+    /// @see [YT doc](https://yt.yandex-team.ru/docs/api/commands.html#list)
     virtual TNode::TListType List(
         const TYPath& path,
         const TListOptions& options = TListOptions()) = 0;
@@ -107,7 +121,7 @@ public:
     ///
     /// @brief Copy Cypress node.
     ///
-    /// @see [YT doc](https://yt.yandex-team.ru/docs//api/commands.html#copy)
+    /// @see [YT doc](https://yt.yandex-team.ru/docs/api/commands.html#copy)
     virtual TNodeId Copy(
         const TYPath& sourcePath,
         const TYPath& destinationPath,
@@ -116,7 +130,7 @@ public:
     ///
     /// @brief Move Cypress node (equivalent to copy-then-remove).
     ///
-    /// @see [YT doc](https://yt.yandex-team.ru/docs//api/commands.html#move)
+    /// @see [YT doc](https://yt.yandex-team.ru/docs/api/commands.html#move)
     virtual TNodeId Move(
         const TYPath& sourcePath,
         const TYPath& destinationPath,
@@ -125,7 +139,7 @@ public:
     ///
     /// @brief Create link to Cypress node.
     ///
-    /// @see [YT doc](https://yt.yandex-team.ru/docs//api/commands.html#link)
+    /// @see [YT doc](https://yt.yandex-team.ru/docs/api/commands.html#link)
     virtual TNodeId Link(
         const TYPath& targetPath,
         const TYPath& linkPath,
@@ -134,7 +148,7 @@ public:
     ///
     /// @brief Concatenate several tables into one.
     ///
-    /// @see [YT doc](https://yt.yandex-team.ru/docs//api/commands.html#concatenate)
+    /// @see [YT doc](https://yt.yandex-team.ru/docs/api/commands.html#concatenate)
     virtual void Concatenate(
         const TVector<TRichYPath>& sourcePaths,
         const TRichYPath& destinationPath,
@@ -143,7 +157,7 @@ public:
     ///
     /// @brief Concatenate several tables into one.
     ///
-    /// @see [YT doc](https://yt.yandex-team.ru/docs//api/commands.html#concatenate)
+    /// @see [YT doc](https://yt.yandex-team.ru/docs/api/commands.html#concatenate)
     virtual void Concatenate(
         const TVector<TYPath>& sourcePaths,
         const TYPath& destinationPath,
@@ -152,7 +166,7 @@ public:
     ///
     /// @brief Canonize YPath, moving all the complex YPath features to attributes.
     ///
-    /// @see [YT doc](https://yt.yandex-team.ru/docs//api/commands.html#parse-ypath)
+    /// @see [YT doc](https://yt.yandex-team.ru/docs/api/commands.html#parse-ypath)
     virtual TRichYPath CanonizeYPath(const TRichYPath& path) = 0;
 
     ///
@@ -160,7 +174,7 @@ public:
     ///
     /// @note Paths must contain column selectors.
     ///
-    /// @see [YT doc](https://yt.yandex-team.ru/docs//api/commands.html#get-table-columnar-statistics)
+    /// @see [YT doc](https://yt.yandex-team.ru/docs/api/commands.html#get-table-columnar-statistics)
     virtual TVector<TTableColumnarStatistics> GetTableColumnarStatistics(
         const TVector<TRichYPath>& paths,
         const TGetTableColumnarStatisticsOptions& options = {}) = 0;
@@ -172,7 +186,7 @@ public:
     /// @param cachePath Path to the file cache.
     /// @param options Optional parameters.
     ///
-    /// @see [YT doc](https://yt.yandex-team.ru/docs//api/commands.html#get-file-from-cache)
+    /// @see [YT doc](https://yt.yandex-team.ru/docs/api/commands.html#get-file-from-cache)
     virtual TMaybe<TYPath> GetFileFromCache(
         const TString& md5Signature,
         const TYPath& cachePath,
@@ -188,7 +202,7 @@ public:
     ///
     /// @note The file in `filePath` must have been written with @ref NYT::TFileWriterOptions::ComputeMD5 set to `true`.
     ///
-    /// @see [YT doc](https://yt.yandex-team.ru/docs//api/commands.html#put-file-to-cache)
+    /// @see [YT doc](https://yt.yandex-team.ru/docs/api/commands.html#put-file-to-cache)
     virtual TYPath PutFileToCache(
         const TYPath& filePath,
         const TString& md5Signature,
