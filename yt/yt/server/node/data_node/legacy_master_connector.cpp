@@ -11,6 +11,8 @@
 #include "session_manager.h"
 #include "network_statistics.h"
 
+#include <yt/yt/server/node/cellar_node/master_connector.h>
+
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -225,8 +227,8 @@ void TLegacyMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
     auto fullDataNodeHeartbeat = Bootstrap_->GetDataNodeMasterConnector()->GetFullHeartbeatRequest(cellTag);
     FillDataNodeHeartbeatPart(request.Get(), fullDataNodeHeartbeat);
 
-    auto tabletNodeHeartbeat = Bootstrap_->GetTabletNodeMasterConnector()->GetHeartbeatRequest(cellTag);
-    FillTabletNodeHeartbeatPart(request.Get(), tabletNodeHeartbeat);
+    auto cellarNodeHeartbeat = Bootstrap_->GetCellarNodeMasterConnector()->GetHeartbeatRequest(cellTag);
+    FillCellarNodeHeartbeatPart(request.Get(), cellarNodeHeartbeat);
 
     auto execNodeHeartbeat = Bootstrap_->GetExecNodeMasterConnector()->GetHeartbeatRequest();
     FillExecNodeHeartbeatPart(request.Get(), execNodeHeartbeat);
@@ -306,6 +308,9 @@ void TLegacyMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
     auto clusterNodeHeartbeat = Bootstrap_->GetClusterNodeMasterConnector()->GetHeartbeatRequest();
     FillClusterNodeHeartbeatPart(request.Get(), clusterNodeHeartbeat);
 
+    auto cellarNodeHeartbeat = Bootstrap_->GetCellarNodeMasterConnector()->GetHeartbeatRequest(cellTag);
+    FillCellarNodeHeartbeatPart(request.Get(), cellarNodeHeartbeat);
+
     auto tabletNodeHeartbeat = Bootstrap_->GetTabletNodeMasterConnector()->GetHeartbeatRequest(cellTag);
     FillTabletNodeHeartbeatPart(request.Get(), tabletNodeHeartbeat);
 
@@ -345,9 +350,9 @@ void TLegacyMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
         FromIncrementalHeartbeatResponse(&clusterNodeHeartbeatResponse, *rsp);
         Bootstrap_->GetClusterNodeMasterConnector()->OnHeartbeatResponse(clusterNodeHeartbeatResponse);
 
-        NTabletNodeTrackerClient::NProto::TRspHeartbeat tabletNodeHeartbeatResponse;
-        FromIncrementalHeartbeatResponse(&tabletNodeHeartbeatResponse, *rsp);
-        Bootstrap_->GetTabletNodeMasterConnector()->OnHeartbeatResponse(tabletNodeHeartbeatResponse);
+        NCellarNodeTrackerClient::NProto::TRspHeartbeat cellarNodeHeartbeatResponse;
+        FromIncrementalHeartbeatResponse(&cellarNodeHeartbeatResponse, *rsp);
+        Bootstrap_->GetCellarNodeMasterConnector()->OnHeartbeatResponse(cellarNodeHeartbeatResponse);
 
         NExecNodeTrackerClient::NProto::TRspHeartbeat execNodeHeartbeatResponse;
         FromIncrementalHeartbeatResponse(&execNodeHeartbeatResponse, *rsp);

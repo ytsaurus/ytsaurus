@@ -39,7 +39,7 @@ struct ICellarOccupier
     virtual void Stop() = 0;
     virtual void Finalize() = 0;
 
-    virtual ECellarType GetCellarType() = 0;
+    virtual NCellarClient::ECellarType GetCellarType() = 0;
 
     virtual NProfiling::TProfiler GetProfiler() = 0;
 };

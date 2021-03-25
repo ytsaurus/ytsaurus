@@ -407,6 +407,13 @@ b"""
         };
     };
 
+    cellar_node = {
+        master_connector = {
+            heartbeat_period = 100;
+            heartbeat_period_splay = 30;
+        };
+    };
+
     tablet_node = {
         slot_scan_period = 100;
 

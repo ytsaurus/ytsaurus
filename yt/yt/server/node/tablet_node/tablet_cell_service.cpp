@@ -4,6 +4,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/server/node/cellar_node/master_connector.h>
+
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
@@ -50,7 +52,7 @@ private:
         if (clusterNodeMasterConnector->IsConnected()) {
             auto primaryCellTag = CellTagFromId(Bootstrap_->GetCellId());
             if (clusterNodeMasterConnector->UseNewHeartbeats()) {
-                const auto& masterConnector = Bootstrap_->GetTabletNodeMasterConnector();
+                const auto& masterConnector = Bootstrap_->GetCellarNodeMasterConnector();
                 masterConnector->ScheduleHeartbeat(primaryCellTag, /* immediately */ true);
             } else {
                 Bootstrap_->GetLegacyMasterConnector()->ScheduleNodeHeartbeat(primaryCellTag, /* immediately */ true);

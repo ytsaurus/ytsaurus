@@ -27,6 +27,7 @@ using namespace NCellMaster;
 using namespace NConcurrency;
 using namespace NObjectServer;
 using namespace NNodeTrackerServer;
+using namespace NTabletServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,7 +55,7 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig = nullptr);
-    const TDynamicCellManagerConfigPtr& GetDynamicConfig();
+    const TDynamicTabletManagerConfigPtr& GetDynamicConfig();
     bool IsEnabled();
     void ScanCells();
 };

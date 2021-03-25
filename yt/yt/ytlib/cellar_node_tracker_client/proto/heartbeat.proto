@@ -1,0 +1,51 @@
+package NYT.NCellarNodeTrackerClient.NProto;
+
+import "yt/ytlib/hive/proto/cell_directory.proto";
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TCellSlotInfo
+{
+    required int32 peer_state = 1;
+    optional int32 peer_id = 2;
+    optional NYT.NHiveClient.NProto.TCellInfo cell_info = 3;
+    optional int32 dynamic_config_version = 4;
+    optional bool is_response_keeper_warming_up = 5;
+    optional int32 preload_pending_store_count = 6;
+    optional int32 preload_completed_store_count = 7;
+    optional int32 preload_failed_store_count = 8;
+}
+
+message TCreateCellSlotInfo
+{
+    required NYT.NProto.TGuid cell_id = 1;
+    required int32 peer_id = 2;
+    required bytes options = 3; // NTabletClient::TTabletCellOptions
+    optional string cell_bundle = 4 [default = ""];
+}
+
+message TConfigureCellSlotInfo
+{
+    required NYT.NHiveClient.NProto.TCellDescriptor cell_descriptor = 1;
+    required NYT.NProto.TGuid prerequisite_transaction_id = 2;
+    optional int32 peer_id = 3;
+    // TODO(gritukan): Remove it when dynamic node config will be ready.
+    optional bool abandon_leader_lease_during_recovery = 4;
+    optional bytes options = 5; // NTabletClient::TTabletCellOptions
+}
+
+message TUpdateCellSlotInfo
+{
+    required NYT.NProto.TGuid cell_id = 1;
+    required int32 dynamic_config_version = 2;
+    optional bytes dynamic_options = 3; // NTabletClient::TDynamicTabletCellOptions
+}
+
+message TRemoveCellSlotInfo
+{
+    required NYT.NProto.TGuid cell_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

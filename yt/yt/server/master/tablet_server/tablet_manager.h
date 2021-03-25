@@ -151,8 +151,6 @@ public:
         NTableServer::TTableNode* table,
         bool keepActions);
 
-    const TBundleNodeTrackerPtr& GetBundleNodeTracker();
-
     void MergeTable(
         NTableServer::TTableNode* originatingNode,
         NTableServer::TTableNode* branchedNode);

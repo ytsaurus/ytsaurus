@@ -32,6 +32,7 @@ namespace NYT::NTabletNode {
 
 using namespace NConcurrency;
 using namespace NCellarAgent;
+using namespace NCellarClient;
 using namespace NClusterNode;
 using namespace NYTree;
 using namespace NYson;

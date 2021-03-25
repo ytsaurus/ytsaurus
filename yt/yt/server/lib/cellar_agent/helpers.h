@@ -1,0 +1,15 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/yt/client/election/public.h>
+
+namespace NYT::NCellarAgent {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NCellarClient::ECellarType GetCellarTypeFromId(NElection::TCellId id);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NCellarAgent

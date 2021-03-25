@@ -151,7 +151,13 @@ NODE_CONFIG_PATCHES = [
                 "heartbeat_period": 300,
                 "heartbeat_period_splay": 50,
             },
-        }
+        },
+        "cellar_node": {
+            "master_connector": {
+                "heartbeat_period": 300,
+                "heartbeat_period_splay": 50,
+            },
+        },
     },
     {
         "cell_directory_synchronizer": None,

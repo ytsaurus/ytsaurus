@@ -43,8 +43,8 @@
 #include <yt/yt/server/master/journal_server/journal_node.h>
 #include <yt/yt/server/master/journal_server/journal_node_type_handler.h>
 
-#include <yt/yt/server/master/cell_server/tablet_node_tracker.h>
-#include <yt/yt/server/master/cell_server/tablet_node_tracker_service.h>
+#include <yt/yt/server/master/cell_server/cellar_node_tracker.h>
+#include <yt/yt/server/master/cell_server/cellar_node_tracker_service.h>
 #include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
 #include <yt/yt/server/master/cell_server/cell_hydra_janitor.h>
 
@@ -78,6 +78,8 @@
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
 #include <yt/yt/server/master/tablet_server/tablet_cell_map_type_handler.h>
 #include <yt/yt/server/master/tablet_server/replicated_table_tracker.h>
+#include <yt/yt/server/master/tablet_server/tablet_node_tracker.h>
+#include <yt/yt/server/master/tablet_server/tablet_node_tracker_service.h>
 
 #include <yt/yt/server/master/transaction_server/cypress_integration.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
@@ -312,6 +314,11 @@ const IDataNodeTrackerPtr& TBootstrap::GetDataNodeTracker() const
 const IExecNodeTrackerPtr& TBootstrap::GetExecNodeTracker() const
 {
     return ExecNodeTracker_;
+}
+
+const ICellarNodeTrackerPtr& TBootstrap::GetCellarNodeTracker() const
+{
+    return CellarNodeTracker_;
 }
 
 const ITabletNodeTrackerPtr& TBootstrap::GetTabletNodeTracker() const
@@ -725,6 +732,8 @@ void TBootstrap::DoInitialize()
 
     ExecNodeTracker_ = CreateExecNodeTracker(this);
 
+    CellarNodeTracker_ = CreateCellarNodeTracker(this);
+
     TabletNodeTracker_ = CreateTabletNodeTracker(this);
 
     CypressManager_ = New<TCypressManager>(this);
@@ -783,6 +792,7 @@ void TBootstrap::DoInitialize()
     NodeTracker_->Initialize();
     DataNodeTracker_->Initialize();
     ExecNodeTracker_->Initialize();
+    CellarNodeTracker_->Initialize();
     TabletNodeTracker_->Initialize();
     CypressManager_->Initialize();
     ChunkManager_->Initialize();
@@ -823,6 +833,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateNodeTrackerService(this)); // master hydra service
     RpcServer_->RegisterService(CreateDataNodeTrackerService(this)); // master hydra service
     RpcServer_->RegisterService(CreateExecNodeTrackerService(this)); // master hydra service
+    RpcServer_->RegisterService(CreateCellarNodeTrackerService(this)); // master hydra service
     RpcServer_->RegisterService(CreateTabletNodeTrackerService(this)); // master hydra service
     RpcServer_->RegisterService(CreateObjectService(Config_->ObjectService, this)); // master hydra service
     RpcServer_->RegisterService(CreateJobTrackerService(this)); // master hydra service

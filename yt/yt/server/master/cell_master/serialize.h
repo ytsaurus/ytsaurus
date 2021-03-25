@@ -164,6 +164,7 @@ DEFINE_ENUM(EMasterReign,
     ((UuidType)                                                     (1515))  // ermolovd
     ((MoveTableStatisticsGossipToTableManager)                      (1516))  // shakurov
     ((NativeContentRevision)                                        (1517))  // shakurov
+    ((CellarHeartbeat)                                              (1518))  // savrus
 );
 
 ////////////////////////////////////////////////////////////////////////////////

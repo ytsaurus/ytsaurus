@@ -67,7 +67,7 @@ public:
         node->SetExecNodeStatistics(std::move(statistics));
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        nodeTracker->OnNodeHeartbeat(node, ENodeFlavor::Exec);
+        nodeTracker->OnNodeHeartbeat(node, ENodeHeartbeatType::Exec);
 
         response->set_disable_scheduler_jobs(node->GetDisableSchedulerJobs());
     }

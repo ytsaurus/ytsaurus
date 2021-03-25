@@ -5,6 +5,7 @@ import "yt_proto/yt/core/misc/proto/error.proto";
 import "yt/client/node_tracker_client/proto/node.proto";
 import "yt/ytlib/tablet_client/proto/heartbeat.proto";
 import "yt/ytlib/chunk_client/proto/heartbeat.proto";
+import "yt/ytlib/cellar_node_tracker_client/proto/heartbeat.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,17 +62,17 @@ message TReqIncrementalHeartbeat
     optional bool write_sessions_disabled = 9;
 
     // Tablet Manager stuff.
-    repeated NTabletClient.NProto.TTabletSlotInfo tablet_slots = 6;
+    repeated NCellarNodeTrackerClient.NProto.TCellSlotInfo tablet_slots = 6;
     repeated NTabletClient.NProto.TTabletInfo tablets = 8;
 }
 
 message TRspIncrementalHeartbeat
 {
     // Tablet Manager stuff.
-    repeated NTabletClient.NProto.TCreateTabletSlotInfo tablet_slots_to_create = 1;
-    repeated NTabletClient.NProto.TRemoveTabletSlotInfo tablet_slots_to_remove = 2;
-    repeated NTabletClient.NProto.TConfigureTabletSlotInfo tablet_slots_configure = 3;
-    repeated NTabletClient.NProto.TUpdateTabletSlotInfo tablet_slots_update = 4;
+    repeated NCellarNodeTrackerClient.NProto.TCreateCellSlotInfo tablet_slots_to_create = 1;
+    repeated NCellarNodeTrackerClient.NProto.TRemoveCellSlotInfo tablet_slots_to_remove = 2;
+    repeated NCellarNodeTrackerClient.NProto.TConfigureCellSlotInfo tablet_slots_configure = 3;
+    repeated NCellarNodeTrackerClient.NProto.TUpdateCellSlotInfo tablet_slots_update = 4;
 
     // Node Tracker stuff.
     optional string rack = 6;

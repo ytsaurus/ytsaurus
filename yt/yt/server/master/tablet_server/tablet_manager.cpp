@@ -16,6 +16,7 @@
 #include "tablet_resources.h"
 #include "tablet_service.h"
 #include "tablet_type_handler.h"
+#include "tablet_node_tracker.h"
 
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
@@ -23,7 +24,6 @@
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 
-#include <yt/yt/server/master/cell_server/tablet_node_tracker.h>
 #include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_list.h>

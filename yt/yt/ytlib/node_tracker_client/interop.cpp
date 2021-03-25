@@ -1,6 +1,12 @@
 #include "interop.h"
 
+#include <yt/yt/ytlib/cellar_client/public.h>
+
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
 namespace NYT::NNodeTrackerClient {
+
+using namespace NCellarClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,74 +68,106 @@ void FillIncrementalHeartbeatResponse(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FillTabletNodeStatistics(
+void FillCellarNodeStatistics(
     NProto::TNodeStatistics* nodeStatistics,
-    const NProto::TTabletNodeStatistics& tabletNodeStatistics)
+    const NProto::TCellarNodeStatistics& cellarNodeStatistics)
 {
-    nodeStatistics->set_available_tablet_slots(tabletNodeStatistics.available_tablet_slots());
-    nodeStatistics->set_used_tablet_slots(tabletNodeStatistics.used_tablet_slots());
+    nodeStatistics->set_available_tablet_slots(cellarNodeStatistics.available_cell_slots());
+    nodeStatistics->set_used_tablet_slots(cellarNodeStatistics.used_cell_slots());
 }
 
 void FromNodeStatistics(
-    NProto::TTabletNodeStatistics* tabletNodeStatistics,
+    NProto::TCellarNodeStatistics* cellarNodeStatistics,
     const NProto::TNodeStatistics& nodeStatistics)
 {
-    tabletNodeStatistics->set_available_tablet_slots(nodeStatistics.available_tablet_slots());
-    tabletNodeStatistics->set_used_tablet_slots(nodeStatistics.used_tablet_slots());
+    cellarNodeStatistics->set_available_cell_slots(nodeStatistics.available_tablet_slots());
+    cellarNodeStatistics->set_used_cell_slots(nodeStatistics.used_tablet_slots());
 }
+
+void FromIncrementalHeartbeatRequest(
+    NCellarNodeTrackerClient::NProto::TReqHeartbeat* cellarNodeHeartbeat,
+    const NProto::TReqIncrementalHeartbeat& incrementalHeartbeat)
+{
+    auto* cellarHeartbeat = cellarNodeHeartbeat->add_cellars();
+    cellarHeartbeat->set_type(ToProto<int>(ECellarType::Tablet));
+
+    FromNodeStatistics(cellarHeartbeat->mutable_statistics(), incrementalHeartbeat.statistics());
+
+    cellarHeartbeat->mutable_cell_slots()->CopyFrom(incrementalHeartbeat.tablet_slots());
+}
+
+void FromFullHeartbeatRequest(
+    NCellarNodeTrackerClient::NProto::TReqHeartbeat* cellarNodeHeartbeat,
+    const NProto::TReqFullHeartbeat& fullHeartbeat)
+{
+    auto* cellarHeartbeat = cellarNodeHeartbeat->add_cellars();
+    cellarHeartbeat->set_type(ToProto<int>(ECellarType::Tablet));
+
+    FromNodeStatistics(cellarHeartbeat->mutable_statistics(), fullHeartbeat.statistics());
+}
+
+void FillCellarNodeHeartbeatPart(
+    NProto::TReqIncrementalHeartbeat* incrementalHeartbeat,
+    const NCellarNodeTrackerClient::NProto::TReqHeartbeat& cellarNodeHeartbeat)
+{
+    YT_VERIFY(cellarNodeHeartbeat.cellars_size() == 1);
+    const auto& cellarHeartbeat = cellarNodeHeartbeat.cellars(0);
+
+    FillCellarNodeStatistics(incrementalHeartbeat->mutable_statistics(), cellarHeartbeat.statistics());
+
+    incrementalHeartbeat->mutable_tablet_slots()->CopyFrom(cellarHeartbeat.cell_slots());
+}
+
+void FillCellarNodeHeartbeatPart(
+    NProto::TReqFullHeartbeat* fullHeartbeat,
+    const NCellarNodeTrackerClient::NProto::TReqHeartbeat& cellarNodeHeartbeat)
+{
+    YT_VERIFY(cellarNodeHeartbeat.cellars_size() == 1);
+    const auto& cellarHeartbeat = cellarNodeHeartbeat.cellars(0);
+
+    FillCellarNodeStatistics(fullHeartbeat->mutable_statistics(), cellarHeartbeat.statistics());
+}
+
+void FromIncrementalHeartbeatResponse(
+    NCellarNodeTrackerClient::NProto::TRspHeartbeat* cellarNodeHeartbeatResponse,
+    const NProto::TRspIncrementalHeartbeat& incrementalHeartbeatResponse)
+{
+    auto* cellarHeartbeatResponse = cellarNodeHeartbeatResponse->add_cellars();
+    cellarHeartbeatResponse->set_type(ToProto<int>(ECellarType::Tablet));
+
+    cellarHeartbeatResponse->mutable_slots_to_create()->CopyFrom(incrementalHeartbeatResponse.tablet_slots_to_create());
+    cellarHeartbeatResponse->mutable_slots_to_remove()->CopyFrom(incrementalHeartbeatResponse.tablet_slots_to_remove());
+    cellarHeartbeatResponse->mutable_slots_to_configure()->CopyFrom(incrementalHeartbeatResponse.tablet_slots_configure());
+    cellarHeartbeatResponse->mutable_slots_to_update()->CopyFrom(incrementalHeartbeatResponse.tablet_slots_update());
+}
+
+void FillIncrementalHeartbeatResponse(
+    NProto::TRspIncrementalHeartbeat* incrementalHeartbeatResponse,
+    const NCellarNodeTrackerClient::NProto::TRspHeartbeat& cellarNodeHeartbeatResponse)
+{
+    YT_VERIFY(cellarNodeHeartbeatResponse.cellars_size() == 1);
+    const auto& cellarHeartbeatResponse = cellarNodeHeartbeatResponse.cellars(0);
+
+    incrementalHeartbeatResponse->mutable_tablet_slots_to_create()->CopyFrom(cellarHeartbeatResponse.slots_to_create());
+    incrementalHeartbeatResponse->mutable_tablet_slots_to_remove()->CopyFrom(cellarHeartbeatResponse.slots_to_remove());
+    incrementalHeartbeatResponse->mutable_tablet_slots_configure()->CopyFrom(cellarHeartbeatResponse.slots_to_configure());
+    incrementalHeartbeatResponse->mutable_tablet_slots_update()->CopyFrom(cellarHeartbeatResponse.slots_to_update());
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 void FromIncrementalHeartbeatRequest(
     NTabletNodeTrackerClient::NProto::TReqHeartbeat* tabletNodeHeartbeat,
     const NProto::TReqIncrementalHeartbeat& incrementalHeartbeat)
 {
-    FromNodeStatistics(tabletNodeHeartbeat->mutable_statistics(), incrementalHeartbeat.statistics());
-
-    tabletNodeHeartbeat->mutable_tablet_slots()->CopyFrom(incrementalHeartbeat.tablet_slots());
     tabletNodeHeartbeat->mutable_tablets()->CopyFrom(incrementalHeartbeat.tablets());
-}
-
-void FromFullHeartbeatRequest(
-    NTabletNodeTrackerClient::NProto::TReqHeartbeat* tabletNodeHeartbeat,
-    const NProto::TReqFullHeartbeat& fullHeartbeat)
-{
-    FromNodeStatistics(tabletNodeHeartbeat->mutable_statistics(), fullHeartbeat.statistics());
 }
 
 void FillTabletNodeHeartbeatPart(
     NProto::TReqIncrementalHeartbeat* incrementalHeartbeat,
     const NTabletNodeTrackerClient::NProto::TReqHeartbeat& tabletNodeHeartbeat)
 {
-    FillTabletNodeStatistics(incrementalHeartbeat->mutable_statistics(), tabletNodeHeartbeat.statistics());
-
-    incrementalHeartbeat->mutable_tablet_slots()->CopyFrom(tabletNodeHeartbeat.tablet_slots());
     incrementalHeartbeat->mutable_tablets()->CopyFrom(tabletNodeHeartbeat.tablets());
-}
-
-void FillTabletNodeHeartbeatPart(
-    NProto::TReqFullHeartbeat* fullHeartbeat,
-    const NTabletNodeTrackerClient::NProto::TReqHeartbeat& tabletNodeHeartbeat)
-{
-    FillTabletNodeStatistics(fullHeartbeat->mutable_statistics(), tabletNodeHeartbeat.statistics());
-}
-
-void FromIncrementalHeartbeatResponse(
-    NTabletNodeTrackerClient::NProto::TRspHeartbeat* tabletNodeHeartbeatResponse,
-    const NProto::TRspIncrementalHeartbeat& incrementalHeartbeatResponse)
-{
-    tabletNodeHeartbeatResponse->mutable_tablet_slots_to_create()->CopyFrom(incrementalHeartbeatResponse.tablet_slots_to_create());
-    tabletNodeHeartbeatResponse->mutable_tablet_slots_to_remove()->CopyFrom(incrementalHeartbeatResponse.tablet_slots_to_remove());
-    tabletNodeHeartbeatResponse->mutable_tablet_slots_to_configure()->CopyFrom(incrementalHeartbeatResponse.tablet_slots_configure());
-    tabletNodeHeartbeatResponse->mutable_tablet_slots_to_update()->CopyFrom(incrementalHeartbeatResponse.tablet_slots_update());
-}
-
-void FillIncrementalHeartbeatResponse(
-    NProto::TRspIncrementalHeartbeat* incrementalHeartbeatResponse,
-    const NTabletNodeTrackerClient::NProto::TRspHeartbeat& tabletNodeHeartbeatResponse)
-{
-    incrementalHeartbeatResponse->mutable_tablet_slots_to_create()->CopyFrom(tabletNodeHeartbeatResponse.tablet_slots_to_create());
-    incrementalHeartbeatResponse->mutable_tablet_slots_to_remove()->CopyFrom(tabletNodeHeartbeatResponse.tablet_slots_to_remove());
-    incrementalHeartbeatResponse->mutable_tablet_slots_configure()->CopyFrom(tabletNodeHeartbeatResponse.tablet_slots_to_configure());
-    incrementalHeartbeatResponse->mutable_tablet_slots_update()->CopyFrom(tabletNodeHeartbeatResponse.tablet_slots_to_update());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

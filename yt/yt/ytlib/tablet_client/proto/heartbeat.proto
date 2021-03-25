@@ -6,18 +6,6 @@ import "yt/ytlib/hive/proto/cell_directory.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TTabletSlotInfo
-{
-    required int32 peer_state = 1;
-    optional int32 peer_id = 2;
-    optional NYT.NHiveClient.NProto.TCellInfo cell_info = 3;
-    optional int32 dynamic_config_version = 4;
-    optional bool is_response_keeper_warming_up = 5;
-    optional int32 preload_pending_store_count = 6;
-    optional int32 preload_completed_store_count = 7;
-    optional int32 preload_failed_store_count = 8;
-}
-
 message TTableReplicaStatistics
 {
     required int64 current_replication_row_index = 1;
@@ -93,36 +81,6 @@ message TTabletInfo
     reserved 6;
 
     optional int32 error_count = 7 [default = 0];
-}
-
-message TCreateTabletSlotInfo
-{
-    required NYT.NProto.TGuid cell_id = 1;
-    required int32 peer_id = 2;
-    required bytes options = 3; // NTabletClient::TTabletCellOptions
-    optional string tablet_cell_bundle = 4 [default = ""];
-}
-
-message TConfigureTabletSlotInfo
-{
-    required NYT.NHiveClient.NProto.TCellDescriptor cell_descriptor = 1;
-    required NYT.NProto.TGuid prerequisite_transaction_id = 2;
-    optional int32 peer_id = 3;
-    // TODO(gritukan): Remove it when dynamic node config will be ready.
-    optional bool abandon_leader_lease_during_recovery = 4;
-    optional bytes options = 5; // NTabletClient::TTabletCellOptions
-}
-
-message TUpdateTabletSlotInfo
-{
-    required NYT.NProto.TGuid cell_id = 1;
-    required int32 dynamic_config_version = 2;
-    optional bytes dynamic_options = 3; // NTabletClient::TDynamicTabletCellOptions
-}
-
-message TRemoveTabletSlotInfo
-{
-    required NYT.NProto.TGuid cell_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -12,11 +12,7 @@
 // COMPAT(gritukan)
 #include "exec_node_tracker.h"
 #include <yt/yt/server/master/chunk_server/data_node_tracker.h>
-#include <yt/yt/server/master/cell_server/tablet_node_tracker.h>
-#include <yt/yt/ytlib/node_tracker_client/interop.h>
-#include <yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
-#include <yt/yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.pb.h>
-#include <yt/yt/ytlib/tablet_node_tracker_client/proto/tablet_node_tracker_service.pb.h>
+#include <yt/yt/server/master/cell_server/cellar_node_tracker.h>
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
@@ -37,10 +33,22 @@
 #include <yt/yt/server/master/object_server/object_manager.h>
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
+#include <yt/yt/server/master/tablet_server/tablet_node_tracker.h>
+
 #include <yt/yt/server/master/transaction_server/transaction.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
 
 #include <yt/yt/server/lib/node_tracker_server/name_helpers.h>
+
+#include <yt/yt/ytlib/node_tracker_client/interop.h>
+
+#include <yt/yt/ytlib/cellar_node_tracker_client/proto/cellar_node_tracker_service.pb.h>
+
+#include <yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
+
+#include <yt/yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.pb.h>
+
+#include <yt/yt/ytlib/tablet_node_tracker_client/proto/tablet_node_tracker_service.pb.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
@@ -732,17 +740,46 @@ public:
         return NodeListPerRole_[nodeRole].Addresses();
     }
 
-    void OnNodeHeartbeat(TNode* node, ENodeFlavor heartbeatFlavor)
+    void OnNodeHeartbeat(TNode* node, ENodeHeartbeatType heartbeatType)
     {
-        if (node->ReportedHeartbeats().emplace(heartbeatFlavor).second) {
+        if (node->ReportedHeartbeats().emplace(heartbeatType).second) {
             YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node reported heartbeat for the first time "
-                "(NodeId: %v, Address: %v, HeartbeatFlavor: %v)",
+                "(NodeId: %v, Address: %v, HeartbeatType: %v)",
                 node->GetId(),
                 node->GetDefaultAddress(),
-                heartbeatFlavor);
+                heartbeatType);
 
             CheckNodeOnline(node);
         }
+    }
+
+    THashSet<ENodeHeartbeatType> GetExpectedHeartbeatsForFlavors(const THashSet<ENodeFlavor>& flavors)
+    {
+        THashSet<ENodeHeartbeatType> result;
+        for (auto flavor : flavors) {
+            switch (flavor) {
+                case ENodeFlavor::Cluster:
+                    result.insert(ENodeHeartbeatType::Cluster);
+                    break;
+
+                case ENodeFlavor::Data:
+                    result.insert(ENodeHeartbeatType::Data);
+                    break;
+
+                case ENodeFlavor::Exec:
+                    result.insert(ENodeHeartbeatType::Exec);
+                    break;
+
+                case ENodeFlavor::Tablet:
+                    result.insert(ENodeHeartbeatType::Tablet);
+                    result.insert(ENodeHeartbeatType::Cellar);
+                    break;
+
+                default:
+                    YT_ABORT();
+            }
+        }
+        return result;
     }
 
     void CheckNodeOnline(TNode* node)
@@ -755,7 +792,7 @@ public:
             expectedFlavors.erase(ENodeFlavor::Cluster);
         }
 
-        if (node->GetLocalState() == ENodeState::Registered && node->ReportedHeartbeats() == expectedFlavors) {
+        if (node->GetLocalState() == ENodeState::Registered && node->ReportedHeartbeats() == GetExpectedHeartbeatsForFlavors(expectedFlavors)) {
             UpdateNodeCounters(node, -1);
             node->SetLocalState(ENodeState::Online);
             UpdateNodeCounters(node, +1);
@@ -1153,9 +1190,17 @@ private:
             }
 
             {
+                NCellarNodeTrackerClient::NProto::TReqHeartbeat req;
+                NCellarNodeTrackerClient::NProto::TRspHeartbeat rsp;
+                FromFullHeartbeatRequest(&req, *request);
+
+                const auto& cellarNodeTracker = Bootstrap_->GetCellarNodeTracker();
+                cellarNodeTracker->ProcessHeartbeat(node, &req, &rsp, /* legacyFullHeartbeat */ true);
+            }
+
+            {
                 NTabletNodeTrackerClient::NProto::TReqHeartbeat req;
                 NTabletNodeTrackerClient::NProto::TRspHeartbeat rsp;
-                FromFullHeartbeatRequest(&req, *request);
 
                 const auto& tabletNodeTracker = Bootstrap_->GetTabletNodeTracker();
                 tabletNodeTracker->ProcessHeartbeat(node, &req, &rsp, /* legacyFullHeartbeat */ true);
@@ -1224,14 +1269,23 @@ private:
             }
 
             {
+                NCellarNodeTrackerClient::NProto::TReqHeartbeat req;
+                NCellarNodeTrackerClient::NProto::TRspHeartbeat rsp;
+                FromIncrementalHeartbeatRequest(&req, *request);
+
+                const auto& cellarNodeTracker = Bootstrap_->GetCellarNodeTracker();
+                cellarNodeTracker->ProcessHeartbeat(node, &req, &rsp);
+
+                FillIncrementalHeartbeatResponse(response, rsp);
+            }
+
+            {
                 NTabletNodeTrackerClient::NProto::TReqHeartbeat req;
                 NTabletNodeTrackerClient::NProto::TRspHeartbeat rsp;
                 FromIncrementalHeartbeatRequest(&req, *request);
 
                 const auto& tabletNodeTracker = Bootstrap_->GetTabletNodeTracker();
                 tabletNodeTracker->ProcessHeartbeat(node, &req, &rsp);
-
-                FillIncrementalHeartbeatResponse(response, rsp);
             }
         }
     }
@@ -1315,7 +1369,7 @@ private:
 
         node->Alerts() = FromProto<std::vector<TError>>(request->alerts());
 
-        OnNodeHeartbeat(node, ENodeFlavor::Cluster);
+        OnNodeHeartbeat(node, ENodeHeartbeatType::Cluster);
 
         if (auto* rack = node->GetRack()) {
             response->set_rack(rack->GetName());
@@ -1467,20 +1521,22 @@ private:
 
         // COMPAT(gritukan)
         if (NeedToRunCompatForNodeFlavors_) {
+            auto fullFlavor = THashSet<ENodeFlavor>{
+                ENodeFlavor::Cluster,
+                ENodeFlavor::Data,
+                ENodeFlavor::Exec,
+                ENodeFlavor::Tablet,
+            };
+            auto fullHeartbeat = GetExpectedHeartbeatsForFlavors(fullFlavor);
+
             for (const auto& [nodeId, node] : NodeMap_) {
                 if (!IsObjectAlive(node)) {
                     continue;
                 }
 
-                node->Flavors() = {
-                    ENodeFlavor::Cluster,
-                    ENodeFlavor::Data,
-                    ENodeFlavor::Exec,
-                    ENodeFlavor::Tablet,
-                };
-
+                node->Flavors() = fullFlavor;
                 if (node->GetLocalState() == ENodeState::Online) {
-                    node->ReportedHeartbeats() = node->Flavors();
+                    node->ReportedHeartbeats() = fullHeartbeat;
                 } else {
                     node->ReportedHeartbeats() = {};
                 }
@@ -2407,9 +2463,9 @@ const std::vector<TString>& TNodeTracker::GetNodeAddressesForRole(ENodeRole node
     return Impl_->GetNodeAddressesForRole(nodeRole);
 }
 
-void TNodeTracker::OnNodeHeartbeat(TNode* node, ENodeFlavor heartbeatFlavor)
+void TNodeTracker::OnNodeHeartbeat(TNode* node, ENodeHeartbeatType heartbeatType)
 {
-    return Impl_->OnNodeHeartbeat(node, heartbeatFlavor);
+    return Impl_->OnNodeHeartbeat(node, heartbeatType);
 }
 
 void TNodeTracker::RequestNodeHeartbeat(TNodeId nodeId)

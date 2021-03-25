@@ -99,6 +99,8 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (RecursiveResourceUsageCache)
     (ExecNodeTracker)
     (ExecNodeTrackerService)
+    (CellarNodeTracker)
+    (CellarNodeTrackerService)
     (TabletNodeTracker)
     (TabletNodeTrackerService)
     (DataNodeTracker)

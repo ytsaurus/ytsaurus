@@ -18,11 +18,13 @@
 namespace NYT::NClusterNode {
 
 using namespace NApi;
+using namespace NCellarClient;
 using namespace NCellarAgent;
 using namespace NConcurrency;
 using namespace NHiveClient;
 using namespace NObjectClient;
 using namespace NTabletClient;
+using namespace NCellarNodeTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,11 +42,11 @@ void ValidateTabletCellSnapshot(TBootstrap* bootstrap, const IAsyncZeroCopyInput
         options->SnapshotAccount = "a";
         options->ChangelogAccount = "a";
 
-        NTabletClient::NProto::TCreateTabletSlotInfo protoInfo;
+        TCreateCellSlotInfo protoInfo;
         ToProto(protoInfo.mutable_cell_id(), cellId);
         protoInfo.set_peer_id(0);
         protoInfo.set_options(ConvertToYsonString(*options).ToString());
-        protoInfo.set_tablet_cell_bundle("b");
+        protoInfo.set_cell_bundle("b");
 
         cellar->CreateOccupant(protoInfo);
     }
@@ -60,7 +62,7 @@ void ValidateTabletCellSnapshot(TBootstrap* bootstrap, const IAsyncZeroCopyInput
         cellDescriptor.Peers = {peerDescriptor};
         auto prerequisiteTransactionId = MakeId(EObjectType::Transaction, 1, 1, 1);
 
-        NTabletClient::NProto::TConfigureTabletSlotInfo protoInfo;
+        TConfigureCellSlotInfo protoInfo;
         ToProto(protoInfo.mutable_cell_descriptor(), cellDescriptor);
         ToProto(protoInfo.mutable_prerequisite_transaction_id(), prerequisiteTransactionId);
 

@@ -50,14 +50,13 @@ DECLARE_REFCOUNTED_CLASS(TCellBaseDecommissioner)
 DECLARE_REFCOUNTED_CLASS(TCellHydraJanitor)
 
 DECLARE_REFCOUNTED_STRUCT(ICellBalancerProvider)
-DECLARE_REFCOUNTED_STRUCT(ITabletNodeTracker)
+DECLARE_REFCOUNTED_STRUCT(ICellarNodeTracker)
 
 DECLARE_REFCOUNTED_CLASS(TCellBalancerConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicCellarNodeTrackerConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicCellManagerConfig)
 
 struct ICellBalancer;
-
-using TDynamicCellManagerConfig = NTabletServer::TDynamicTabletManagerConfig;
-using TDynamicCellManagerConfigPtr = NTabletServer::TDynamicTabletManagerConfigPtr;
 
 DECLARE_ENTITY_TYPE(TCellBundle, TCellBundleId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TCellBase, TTamedCellId, NObjectClient::TDirectObjectIdHash)

@@ -1,10 +1,22 @@
-#include "config.h"
-#include "public.h"
+#include "cellar_manager.h"
+
 #include "cellar.h"
+#include "config.h"
+#include "private.h"
+#include "public.h"
 
 #include <yt/yt/core/actions/invoker_util.h>
 
+#include <yt/yt/core/yson/string.h>
+
 namespace NYT::NCellarAgent {
+
+using namespace NCellarClient;
+using namespace NYson;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = CellarAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,10 +35,10 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        for (const auto& config : Config_->Cellars) {
-            auto cellar = CreateCellar(config, Bootstrap_);
+        for (const auto& [type, config] : Config_->Cellars) {
+            auto cellar = CreateCellar(type, config, Bootstrap_);
             cellar->Initialize();
-            Cellars_.emplace(config->Type, std::move(cellar));
+            Cellars_.emplace(type, std::move(cellar));
         }
     }
 
@@ -55,13 +67,27 @@ public:
         return nullptr;
     }
 
-    virtual void Reconfigure(TDynamicCellarManagerConfigPtr config) override
+    virtual void Reconfigure(TCellarManagerDynamicConfigPtr config) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        for (const auto& cellarConfig : config->Cellars) {
-            if (auto it = Cellars_.find(cellarConfig->Type)) {
-                it->second->Reconfigure(cellarConfig);
+        // TODO(savrus) Remove when reconfiguration is deployed and verified.
+        YT_LOG_DEBUG("Reconfigure cellar manager (NewConfig: %v)",
+             ConvertToYsonString(config, EYsonFormat::Text).AsStringBuf());
+
+        THashSet<ECellarType> updatedCellarTypes;
+        for (const auto& [type, cellarConfig] : config->Cellars) {
+            if (auto cellar = FindCellar(type)) {
+                cellar->Reconfigure(cellarConfig);
+                updatedCellarTypes.insert(type);
+            }
+        }
+
+        for (const auto& [type, cellarConfig] : Config_->Cellars) {
+            if (!updatedCellarTypes.contains(type)) {
+                auto newConfig = New<TCellarDynamicConfig>();
+                auto cellar = GetCellar(type);
+                cellar->Reconfigure(newConfig);
             }
         }
     }

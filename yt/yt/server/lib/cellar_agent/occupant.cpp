@@ -1,5 +1,6 @@
-#include "bootstrap_proxy.h"
 #include "occupant.h"
+
+#include "bootstrap_proxy.h"
 #include "occupier.h"
 #include "private.h"
 
@@ -88,7 +89,7 @@ using namespace NHiveServer;
 using namespace NObjectClient;
 using namespace NApi;
 using namespace NTabletClient;
-using namespace NTabletClient::NProto;
+using namespace NCellarNodeTrackerClient::NProto;
 
 using NHydra::EPeerState;
 
@@ -106,7 +107,7 @@ public:
         TCellarOccupantConfigPtr config,
         ICellarBootstrapProxyPtr bootstrap,
         int index,
-        const TCreateTabletSlotInfo& createInfo,
+        const TCreateCellSlotInfo& createInfo,
         ICellarOccupierPtr occupier)
         : Config_(config)
         , Bootstrap_(bootstrap)
@@ -114,7 +115,7 @@ public:
         , Index_(index)
         , PeerId_(createInfo.peer_id())
         , CellDescriptor_(FromProto<TCellId>(createInfo.cell_id()))
-        , CellBundleName_(createInfo.tablet_cell_bundle())
+        , CellBundleName_(createInfo.cell_bundle())
         , Options_(ConvertTo<TTabletCellOptionsPtr>(TYsonString(createInfo.options())))
         , Logger(GetLogger())
     {
@@ -244,7 +245,7 @@ public:
         return Initialized_ && !Finalizing_;
     }
 
-    virtual void Configure(const TConfigureTabletSlotInfo& configureInfo) override
+    virtual void Configure(const TConfigureCellSlotInfo& configureInfo) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(CanConfigure());
@@ -268,7 +269,7 @@ public:
         }
 
         if (configureInfo.has_options()) {
-            YT_LOG_DEBUG("Tablet cell options updated to: %v",
+            YT_LOG_DEBUG("Dynamic cell options updated to: %v",
                 ConvertToYsonString(TYsonString(configureInfo.options()), EYsonFormat::Text).AsStringBuf());
             Options_ = ConvertTo<TTabletCellOptionsPtr>(TYsonString(configureInfo.options()));
         }
@@ -283,7 +284,7 @@ public:
                 newPrerequisiteTransactionId);
             PrerequisiteTransactionId_ = newPrerequisiteTransactionId;
             if (ElectionManager_) {
-                ElectionManager_->Abandon(TError("Tablet slot reconfigured"));
+                ElectionManager_->Abandon(TError("Cell slot reconfigured"));
             }
         }
 
@@ -443,6 +444,60 @@ public:
         }
     }
 
+    virtual TDynamicTabletCellOptionsPtr GetDynamicOptions() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return DynamicOptions_.Load();
+    }
+
+    virtual int GetDynamicConfigVersion() const override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return DynamicConfigVersion_;
+    }
+
+    virtual void UpdateDynamicConfig(const TUpdateCellSlotInfo& updateInfo) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto updateVersion = updateInfo.dynamic_config_version();
+
+        if (DynamicConfigVersion_ >= updateVersion) {
+            YT_LOG_DEBUG("Received outdated dynamic config update (DynamicConfigVersion: %v, UpdateVersion: %v)",
+                DynamicConfigVersion_,
+                updateVersion);
+            return;
+        }
+
+        try {
+            TDynamicTabletCellOptionsPtr dynamicOptions;
+
+            if (updateInfo.has_dynamic_options()) {
+                dynamicOptions = New<TDynamicTabletCellOptions>();
+                dynamicOptions->SetUnrecognizedStrategy(EUnrecognizedStrategy::Keep);
+                dynamicOptions->Load(ConvertTo<INodePtr>(TYsonString(updateInfo.dynamic_options())));
+                auto unrecognized = dynamicOptions->GetUnrecognized();
+
+                if (unrecognized->GetChildCount() > 0) {
+                    THROW_ERROR_EXCEPTION("Dynamic options contains unrecognized parameters (Unrecognized: %v)",
+                        ConvertToYsonString(unrecognized, EYsonFormat::Text).AsStringBuf());
+                }
+            }
+
+            DynamicConfigVersion_ = updateInfo.dynamic_config_version();
+            DynamicOptions_.Store(std::move(dynamicOptions));
+
+            YT_LOG_DEBUG("Updated dynamic config (DynamicConfigVersion: %v)",
+                DynamicConfigVersion_);
+
+        } catch (const std::exception& ex) {
+            // TODO(savrus): Write this to cell errors once we have them.
+            YT_LOG_ERROR(ex, "Error while updating dynamic config");
+        }
+    }
+
     virtual TFuture<void> Finalize() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -497,6 +552,9 @@ private:
 
     const TString CellBundleName_;
 
+    TAtomicObject<TDynamicTabletCellOptionsPtr> DynamicOptions_ = New<TDynamicTabletCellOptions>();
+    int DynamicConfigVersion_ = -1;
+
     TTabletCellOptionsPtr Options_;
 
     TTransactionId PrerequisiteTransactionId_;
@@ -540,6 +598,12 @@ private:
                 MakeWeak(this)))
             ->AddChild("config_version", IYPathService::FromMethod(
                 &TCellarOccupant::GetConfigVersion,
+                MakeWeak(this)))
+            ->AddChild("dynamic_options", IYPathService::FromMethod(
+                &TCellarOccupant::GetDynamicOptions,
+                MakeWeak(this)))
+            ->AddChild("dynamic_config_version", IYPathService::FromMethod(
+                &TCellarOccupant::GetDynamicConfigVersion,
                 MakeWeak(this)))
             ->AddChild("prerequisite_transaction_id", IYPathService::FromMethod(
                 &TCellarOccupant::GetPrerequisiteTransactionId,
@@ -655,7 +719,7 @@ ICellarOccupantPtr CreateCellarOccupant(
     int index,
     TCellarOccupantConfigPtr config,
     ICellarBootstrapProxyPtr bootstrap,
-    const TCreateTabletSlotInfo& createInfo,
+    const TCreateCellSlotInfo& createInfo,
     ICellarOccupierPtr occupier)
 {
     return New<TCellarOccupant>(

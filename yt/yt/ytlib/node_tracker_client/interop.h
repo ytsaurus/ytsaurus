@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
 
+#include <yt/yt/ytlib/cellar_node_tracker_client/proto/cellar_node_tracker_service.pb.h>
+
 #include <yt/yt/ytlib/tablet_node_tracker_client/proto/tablet_node_tracker_service.pb.h>
 
 #include <yt/yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.pb.h>
@@ -50,37 +52,47 @@ void FillIncrementalHeartbeatResponse(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FillTabletNodeStatistics(
+void FillCellarNodeStatistics(
     NProto::TNodeStatistics* nodeStatistics,
-    const NProto::TTabletNodeStatistics& tabletNodeStatistics);
+    const NProto::TCellarNodeStatistics& cellarNodeStatistics);
 
 void FromNodeStatistics(
-    NProto::TTabletNodeStatistics* tabletNodeStatistics,
+    NProto::TCellarNodeStatistics* cellarNodeStatistics,
     const NProto::TNodeStatistics& nodeStatistics);
+
+void FromIncrementalHeartbeatRequest(
+    NCellarNodeTrackerClient::NProto::TReqHeartbeat* cellarNodeHeartbeat,
+    const NProto::TReqIncrementalHeartbeat& incrementalHeartbeat);
+
+void FromFullHeartbeatRequest(
+    NCellarNodeTrackerClient::NProto::TReqHeartbeat* cellarNodeHeartbeat,
+    const NProto::TReqFullHeartbeat& fullHeartbeat);
+
+void FillCellarNodeHeartbeatPart(
+    NProto::TReqIncrementalHeartbeat* incrementalHeartbeat,
+    const NCellarNodeTrackerClient::NProto::TReqHeartbeat& cellarNodeHeartbeat);
+
+void FillCellarNodeHeartbeatPart(
+    NProto::TReqFullHeartbeat* fullHeartbeat,
+    const NCellarNodeTrackerClient::NProto::TReqHeartbeat& cellarNodeHeartbeat);
+
+void FromIncrementalHeartbeatResponse(
+    NCellarNodeTrackerClient::NProto::TRspHeartbeat* cellarNodeHeartbeatResponse,
+    const NProto::TRspIncrementalHeartbeat& incrementalHeartbeatResponse);
+
+void FillIncrementalHeartbeatResponse(
+    NProto::TRspIncrementalHeartbeat* incrementalHeartbeatResponse,
+    const NCellarNodeTrackerClient::NProto::TRspHeartbeat& cellarNodeHeartbeatResponse);
+
+////////////////////////////////////////////////////////////////////////////////
 
 void FromIncrementalHeartbeatRequest(
     NTabletNodeTrackerClient::NProto::TReqHeartbeat* tabletNodeHeartbeat,
     const NProto::TReqIncrementalHeartbeat& incrementalHeartbeat);
 
-void FromFullHeartbeatRequest(
-    NTabletNodeTrackerClient::NProto::TReqHeartbeat* tabletNodeHeartbeat,
-    const NProto::TReqFullHeartbeat& fullHeartbeat);
-
 void FillTabletNodeHeartbeatPart(
     NProto::TReqIncrementalHeartbeat* incrementalHeartbeat,
     const NTabletNodeTrackerClient::NProto::TReqHeartbeat& tabletNodeHeartbeat);
-
-void FillTabletNodeHeartbeatPart(
-    NProto::TReqFullHeartbeat* fullHeartbeat,
-    const NTabletNodeTrackerClient::NProto::TReqHeartbeat& tabletNodeHeartbeat);
-
-void FromIncrementalHeartbeatResponse(
-    NTabletNodeTrackerClient::NProto::TRspHeartbeat* tabletNodeHeartbeatResponse,
-    const NProto::TRspIncrementalHeartbeat& incrementalHeartbeatResponse);
-
-void FillIncrementalHeartbeatResponse(
-    NProto::TRspIncrementalHeartbeat* incrementalHeartbeatResponse,
-    const NTabletNodeTrackerClient::NProto::TRspHeartbeat& tabletNodeHeartbeatResponse);
 
 ////////////////////////////////////////////////////////////////////////////////
 

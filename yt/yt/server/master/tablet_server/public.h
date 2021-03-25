@@ -56,11 +56,11 @@ using NTabletClient::ETabletActionState;
 DECLARE_REFCOUNTED_CLASS(TTabletManager)
 DECLARE_REFCOUNTED_CLASS(TTabletService)
 DECLARE_REFCOUNTED_CLASS(TTabletBalancer)
-DECLARE_REFCOUNTED_CLASS(TBundleNodeTracker)
 DECLARE_REFCOUNTED_CLASS(TTabletCellDecommissioner)
 DECLARE_REFCOUNTED_CLASS(TTabletActionManager)
 DECLARE_REFCOUNTED_CLASS(TReplicatedTableTracker)
 DECLARE_REFCOUNTED_STRUCT(ITabletCellBalancerProvider)
+DECLARE_REFCOUNTED_STRUCT(ITabletNodeTracker)
 
 struct ITabletCellBalancer;
 

@@ -10,6 +10,9 @@
 
 #include <yt/yt/server/lib/exec_agent/config.h>
 
+#include <yt/yt/server/node/cellar_node/config.h>
+#include <yt/yt/server/node/cellar_node/master_connector.h>
+
 #include <yt/yt/server/node/data_node/blob_reader_cache.h>
 #include <yt/yt/server/node/data_node/chunk_block_manager.h>
 #include <yt/yt/server/node/data_node/chunk_cache.h>
@@ -114,6 +117,7 @@
 
 #include <yt/yt/ytlib/query_client/column_evaluator.h>
 
+#include <yt/yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/program/helpers.h>
@@ -174,6 +178,7 @@ using namespace NAdmin;
 using namespace NApi;
 using namespace NBus;
 using namespace NCellarAgent;
+using namespace NCellarClient;
 using namespace NChunkClient;
 using namespace NContainers;
 using namespace NNodeTrackerClient;
@@ -285,6 +290,11 @@ bool TBootstrap::IsTabletNode() const
     return Flavors_.contains(ENodeFlavor::Tablet);
 }
 
+bool TBootstrap::IsCellarNode() const
+{
+    return IsTabletNode();
+}
+
 void TBootstrap::DoInitialize()
 {
     auto localRpcAddresses = GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
@@ -385,6 +395,7 @@ void TBootstrap::DoInitialize()
 
     DataNodeMasterConnector_ = NDataNode::CreateMasterConnector(this);
     ExecNodeMasterConnector_ = NExecAgent::CreateMasterConnector(this);
+    CellarNodeMasterConnector_ = NCellarNode::CreateMasterConnector(this);
     TabletNodeMasterConnector_ = NTabletNode::CreateMasterConnector(this);
 
     DynamicConfigManager_ = New<TClusterNodeDynamicConfigManager>(this);
@@ -414,7 +425,6 @@ void TBootstrap::DoInitialize()
 
     // COMPAT(savrus)
     auto cellarConfig = New<TCellarConfig>();
-    cellarConfig->Type = ECellarType::Tablet;
     cellarConfig->Size = Config_->TabletNode->ResourceLimits->Slots;
     cellarConfig->Occupant = New<TCellarOccupantConfig>();
     cellarConfig->Occupant->Snapshots = Config_->TabletNode->Snapshots;
@@ -425,7 +435,7 @@ void TBootstrap::DoInitialize()
     cellarConfig->Occupant->TransactionSupervisor = Config_->TabletNode->TransactionSupervisor;
     cellarConfig->Occupant->ResponseKeeper = Config_->TabletNode->HydraManager->ResponseKeeper;
     auto cellarManagerConfig = New<TCellarManagerConfig>();
-    cellarManagerConfig->Cellars.push_back(std::move(cellarConfig));
+    cellarManagerConfig->Cellars.insert({ECellarType::Tablet, std::move(cellarConfig)});
 
     CellarManager_ = CreateCellarManager(cellarManagerConfig, CreateCellarBootstrapProxy(this));
 
@@ -854,6 +864,9 @@ void TBootstrap::DoRun()
     if (IsExecNode()) {
         ExecNodeMasterConnector_->Initialize();
     }
+    if (IsCellarNode()) {
+        CellarNodeMasterConnector_->Initialize();
+    }
     if (IsTabletNode()) {
         TabletNodeMasterConnector_->Initialize();
     }
@@ -1149,6 +1162,11 @@ const NExecAgent::IMasterConnectorPtr& TBootstrap::GetExecNodeMasterConnector() 
     return ExecNodeMasterConnector_;
 }
 
+const NCellarNode::IMasterConnectorPtr& TBootstrap::GetCellarNodeMasterConnector() const
+{
+    return CellarNodeMasterConnector_;
+}
+
 const NTabletNode::IMasterConnectorPtr& TBootstrap::GetTabletNodeMasterConnector() const
 {
     return TabletNodeMasterConnector_;
@@ -1428,14 +1446,27 @@ void TBootstrap::OnDynamicConfigChanged(
         service->Reconfigure(newConfig->CachingObjectService);
     }
 
-    // Reconfigure cellars
     // COMPAT(savrus)
-    auto cellarConfig = New<TDynamicCellarConfig>();
-    cellarConfig->Type = ECellarType::Tablet;
-    cellarConfig->Size = newConfig->TabletNode->Slots;
-    auto cellarManagerConfig = New<TDynamicCellarManagerConfig>();
-    cellarManagerConfig->Cellars.push_back(std::move(cellarConfig));
-    CellarManager_->Reconfigure(std::move(cellarManagerConfig));
+    auto getCellarManagerConfig = [&] {
+        auto& config = newConfig->CellarNode->CellarManager;
+        if (!newConfig->TabletNode->Slots) {
+            return config;
+        } else {
+            for (const auto& [type, _] : config->Cellars) {
+                if (type == ECellarType::Tablet) {
+                    return config;
+                }
+            }
+
+            auto cellarManagerConfig = CloneYsonSerializable(config);
+            auto cellarConfig = New<TCellarDynamicConfig>();
+            cellarConfig->Size = newConfig->TabletNode->Slots;
+            cellarManagerConfig->Cellars.insert({ECellarType::Tablet, std::move(cellarConfig)});
+            return cellarManagerConfig;
+        }
+    };
+
+    CellarManager_->Reconfigure(getCellarManagerConfig());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

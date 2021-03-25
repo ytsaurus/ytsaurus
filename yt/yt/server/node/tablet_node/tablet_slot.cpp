@@ -1,6 +1,5 @@
 #include "automaton.h"
 #include "private.h"
-#include "master_connector.h"
 #include "security_manager.h"
 #include "serialize.h"
 #include "slot_manager.h"
@@ -27,6 +26,8 @@
 #include <yt/yt/server/lib/hive/transaction_participant_provider.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
+
+#include <yt/yt/server/node/cellar_node/master_connector.h>
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
@@ -68,6 +69,7 @@
 namespace NYT::NTabletNode {
 
 using namespace NApi;
+using namespace NCellarClient;
 using namespace NCellarAgent;
 using namespace NConcurrency;
 using namespace NElection;
@@ -186,53 +188,6 @@ public:
         return Occupant_->GenerateId(type);
     }
 
-    int GetDynamicConfigVersion() const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return DynamicConfigVersion_;
-    }
-
-    void UpdateDynamicConfig(const TUpdateTabletSlotInfo& updateInfo)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto updateVersion = updateInfo.dynamic_config_version();
-
-        if (DynamicConfigVersion_ >= updateVersion) {
-            YT_LOG_DEBUG("Received outdated dynamic config update (DynamicConfigVersion: %v, UpdateVersion: %v)",
-                DynamicConfigVersion_,
-                updateVersion);
-            return;
-        }
-
-        try {
-            TDynamicTabletCellOptionsPtr dynamicOptions;
-
-            if (updateInfo.has_dynamic_options()) {
-                dynamicOptions = New<TDynamicTabletCellOptions>();
-                dynamicOptions->SetUnrecognizedStrategy(EUnrecognizedStrategy::Keep);
-                dynamicOptions->Load(ConvertTo<INodePtr>(TYsonString(updateInfo.dynamic_options())));
-                auto unrecognized = dynamicOptions->GetUnrecognized();
-
-                if (unrecognized->GetChildCount() > 0) {
-                    THROW_ERROR_EXCEPTION("Dynamic options contains unrecognized parameters (Unrecognized: %v)",
-                        ConvertToYsonString(unrecognized, EYsonFormat::Text).AsStringBuf());
-                }
-            }
-
-            DynamicConfigVersion_ = updateInfo.dynamic_config_version();
-            DynamicOptions_.Store(std::move(dynamicOptions));
-
-            YT_LOG_DEBUG("Updated dynamic config (DynamicConfigVersion: %v)",
-                DynamicConfigVersion_);
-
-        } catch (const std::exception& ex) {
-            // TODO(savrus): Write this to tablet cell errors once we have them.
-            YT_LOG_ERROR(ex, "Error while updating dynamic config");
-        }
-    }
-
     TCompositeAutomatonPtr CreateAutomaton()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -315,12 +270,6 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return orchid
-            ->AddChild("dynamic_options", IYPathService::FromMethod(
-                &TImpl::GetDynamicOptions,
-                MakeWeak(this)))
-            ->AddChild("dynamic_config_version", IYPathService::FromMethod(
-                &TImpl::GetDynamicConfigVersion,
-                MakeWeak(this)))
             ->AddChild("life_stage", IYPathService::FromMethod(
                 &TTabletManager::GetTabletCellLifeStage,
                 MakeWeak(TabletManager_))
@@ -347,7 +296,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return DynamicOptions_.Load();
+        return Occupant_->GetDynamicOptions();
     }
 
     const TTabletCellOptionsPtr& GetOptions() const
@@ -377,9 +326,6 @@ private:
     NLogging::TLogger Logger;
 
     const TRuntimeTabletCellDataPtr RuntimeData_ = New<TRuntimeTabletCellData>();
-
-    TAtomicObject<TDynamicTabletCellOptionsPtr> DynamicOptions_ = New<TDynamicTabletCellOptions>();
-    int DynamicConfigVersion_ = -1;
 
     TTabletManagerPtr TabletManager_;
 
@@ -415,7 +361,7 @@ private:
 
         // Notify master about recovery completion as soon as possible via out-of-order heartbeat.
         if (clusterNodeMasterConnector->UseNewHeartbeats()) {
-            const auto& masterConnector = Bootstrap_->GetTabletNodeMasterConnector();
+            const auto& masterConnector = Bootstrap_->GetCellarNodeMasterConnector();
             for (auto masterCellTag : clusterNodeMasterConnector->GetMasterCellTags()) {
                 masterConnector->ScheduleHeartbeat(masterCellTag, /* immediately */ true);
             }
@@ -602,16 +548,6 @@ TDynamicTabletCellOptionsPtr TTabletSlot::GetDynamicOptions() const
 TTabletCellOptionsPtr TTabletSlot::GetOptions() const
 {
     return Impl_->GetOptions();
-}
-
-int TTabletSlot::GetDynamicConfigVersion() const
-{
-    return Impl_->GetDynamicConfigVersion();
-}
-
-void TTabletSlot::UpdateDynamicConfig(const NTabletClient::NProto::TUpdateTabletSlotInfo& updateInfo)
-{
-    Impl_->UpdateDynamicConfig(updateInfo);
 }
 
 NProfiling::TProfiler TTabletSlot::GetProfiler()
