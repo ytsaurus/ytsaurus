@@ -27,7 +27,7 @@ class TestResponseKeeper(YTEnvSetup):
         create("table", "//tmp/t", mutation_id=mutation_id)
         table_id = get("//tmp/t/@id")
 
-        time.sleep(1.3)
+        time.sleep(1.6)
 
         # Denied by mutation idempotizer.
         with pytest.raises(YtError, match="Mutation is already applied"):
@@ -41,7 +41,7 @@ class TestResponseKeeper(YTEnvSetup):
         with pytest.raises(YtError, match="Mutation is already applied"):
             create("table", "//tmp/t", mutation_id=mutation_id, retry=True)
 
-        time.sleep(1.3)
+        time.sleep(1.6)
 
         # Denied by mutation idempotizer again.
         with pytest.raises(YtError, match="Mutation is already applied"):
