@@ -42,13 +42,14 @@ DEFINE_ENUM(EJobType,
     ((RemoveChunk)       (101))
     ((RepairChunk)       (102))
     ((SealChunk)         (103))
+    ((MergeChunks)       (104))
 );
 
 constexpr auto FirstSchedulerJobType = EJobType::Map;
 constexpr auto LastSchedulerJobType = EJobType::SchedulerUnknown;
 
 constexpr auto FirstMasterJobType = EJobType::ReplicateChunk;
-constexpr auto LastMasterJobType = EJobType::SealChunk;
+constexpr auto LastMasterJobType = EJobType::MergeChunks;
 
 // NB: Please keep the range of values small as this type
 // is used as a key of TEnumIndexedVector.

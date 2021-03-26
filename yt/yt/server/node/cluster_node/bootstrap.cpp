@@ -636,6 +636,7 @@ void TBootstrap::DoInitialize()
     JobController_->RegisterJobFactory(NJobAgent::EJobType::ReplicateChunk, createChunkJob);
     JobController_->RegisterJobFactory(NJobAgent::EJobType::RepairChunk, createChunkJob);
     JobController_->RegisterJobFactory(NJobAgent::EJobType::SealChunk, createChunkJob);
+    JobController_->RegisterJobFactory(NJobAgent::EJobType::MergeChunks, createChunkJob);
 
     JobReporter_ = New<TJobReporter>(
         Config_->ExecAgent->JobReporter,

@@ -3,6 +3,7 @@
 #include "chunk.h"
 #include "chunk_list.h"
 #include "chunk_list_proxy.h"
+#include "chunk_merger.h"
 #include "chunk_owner_base.h"
 #include "chunk_placement.h"
 #include "chunk_proxy.h"
@@ -352,6 +353,7 @@ public:
         , Config_(config)
         , ChunkTreeBalancer_(New<TChunkTreeBalancerCallbacks>(Bootstrap_))
         , ExpirationTracker_(New<TExpirationTracker>(bootstrap))
+        , ChunkMerger_(New<TChunkMerger>(Bootstrap_))
     {
         RegisterMethod(BIND(&TImpl::HydraConfirmChunkListsRequisitionTraverseFinished, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateChunkRequisition, Unretained(this)));
@@ -704,6 +706,74 @@ public:
             auto* rightSibling = children[index + 1]->AsChunk();
             ScheduleChunkSeal(rightSibling);
         }
+    }
+
+    TChunk* CreateChunk(
+        TTransaction* transaction,
+        TChunkList* chunkList,
+        NObjectClient::EObjectType chunkType,
+        TAccount* account,
+        int replicationFactor,
+        NErasure::ECodec erasureCodecId,
+        TMedium* medium,
+        int readQuorum,
+        int writeQuorum,
+        bool movable,
+        bool vital,
+        bool overlayed)
+    {
+        YT_VERIFY(HasMutationContext());
+
+        bool isErasure = IsErasureChunkType(chunkType);
+
+        auto* chunk = DoCreateChunk(chunkType);
+        chunk->SetReadQuorum(readQuorum);
+        chunk->SetWriteQuorum(writeQuorum);
+        chunk->SetErasureCodec(erasureCodecId);
+        chunk->SetMovable(movable);
+        chunk->SetOverlayed(overlayed);
+
+        YT_ASSERT(chunk->GetLocalRequisitionIndex() == (isErasure ? MigrationErasureChunkRequisitionIndex : MigrationChunkRequisitionIndex));
+
+        int mediumIndex = medium->GetIndex();
+        TChunkRequisition requisition(
+            account,
+            mediumIndex,
+            TReplicationPolicy(replicationFactor, false /* dataPartsOnly */),
+            false /* committed */);
+        requisition.SetVital(vital);
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto requisitionIndex = ChunkRequisitionRegistry_.GetOrCreate(requisition, objectManager);
+        chunk->SetLocalRequisitionIndex(requisitionIndex, GetChunkRequisitionRegistry(), objectManager);
+
+        StageChunk(chunk, transaction, account);
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        transactionManager->StageObject(transaction, chunk);
+
+        if (chunkList) {
+            AttachToChunkList(chunkList, chunk);
+        }
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Chunk created "
+            "(ChunkId: %v, ChunkListId: %v, TransactionId: %v, Account: %v, Medium: %v, "
+            "ReplicationFactor: %v, ReadQuorum: %v, WriteQuorum: %v, ErasureCodec: %v, "
+            "Movable: %v, Vital: %v, Overlayed: %v)",
+            chunk->GetId(),
+            GetObjectId(chunkList),
+            transaction->GetId(),
+            account->GetName(),
+            medium->GetName(),
+            replicationFactor,
+            readQuorum,
+            writeQuorum,
+            erasureCodecId,
+            movable,
+            vital,
+            overlayed);
+
+        return chunk;
     }
 
     TChunkView* CreateChunkView(TChunkTree* underlyingTree, NChunkClient::TLegacyReadRange readRange, TTransactionId transactionId = {})
@@ -1116,20 +1186,30 @@ public:
         std::vector<TJobPtr>* jobsToAbort,
         std::vector<TJobPtr>* jobsToRemove)
     {
+        YT_VERIFY(IsLeader());
+
         JobTracker_->OverrideResourceLimits(
             &resourceLimits,
             *node);
+
         JobTracker_->ProcessJobs(
             node,
             currentJobs,
             jobsToAbort,
             jobsToRemove);
+        ChunkMerger_->ProcessJobs(*jobsToRemove);
+
         ChunkReplicator_->ScheduleJobs(
             node,
             &resourceUsage,
             resourceLimits,
             jobsToStart);
         ChunkSealer_->ScheduleJobs(
+            node,
+            &resourceUsage,
+            resourceLimits,
+            jobsToStart);
+        ChunkMerger_->ScheduleJobs(
             node,
             &resourceUsage,
             resourceLimits,
@@ -1254,6 +1334,12 @@ public:
         }
     }
 
+    void ScheduleChunkMerge(TChunkOwnerBase* node)
+    {
+        if (IsLeader()) {
+            ChunkMerger_->ScheduleMerge(node);
+        }
+    }
 
     TChunk* GetChunkOrThrow(TChunkId id)
     {
@@ -1566,6 +1652,8 @@ private:
     TJobTrackerPtr JobTracker_;
 
     const TExpirationTrackerPtr ExpirationTracker_;
+
+    const TChunkMergerPtr ChunkMerger_;
 
     // Global chunk lists; cf. TChunkDynamicData.
     TIntrusiveLinkedList<TChunk, TChunkToLinkedListNode> BlobChunks_;
@@ -2302,29 +2390,28 @@ private:
         TReqExecuteBatch::TCreateChunkSubrequest* subrequest,
         TRspExecuteBatch::TCreateChunkSubresponse* subresponse)
     {
-        auto transactionId = FromProto<TTransactionId>(subrequest->transaction_id());
         auto chunkType = CheckedEnumCast<EObjectType>(subrequest->type());
         bool isErasure = IsErasureChunkType(chunkType);
         bool isJournal = IsJournalChunkType(chunkType);
         auto erasureCodecId = isErasure ? CheckedEnumCast<NErasure::ECodec>(subrequest->erasure_codec()) : NErasure::ECodec::None;
-        int replicationFactor = isErasure ? 1 : subrequest->replication_factor();
-        const auto& mediumName = subrequest->medium_name();
         int readQuorum = isJournal ? subrequest->read_quorum() : 0;
         int writeQuorum = isJournal ? subrequest->write_quorum() : 0;
-        bool movable = subrequest->movable();
-        bool vital = subrequest->vital();
-        bool overlayed = subrequest->overlayed();
 
+        const auto& mediumName = subrequest->medium_name();
         auto* medium = GetMediumByNameOrThrow(mediumName);
         int mediumIndex = medium->GetIndex();
 
+        auto replicationFactor = isErasure ? 1 : subrequest->replication_factor();
         ValidateReplicationFactor(replicationFactor);
 
+        auto transactionId = FromProto<TTransactionId>(subrequest->transaction_id());
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->GetAccountByNameOrThrow(subrequest->account(), true /*activeLifeStageOnly*/);
+
+        auto overlayed = subrequest->overlayed();
 
         if (subrequest->validate_resource_usage_increase()) {
             auto resourceUsageIncrease = TClusterResources()
@@ -2345,58 +2432,24 @@ private:
         }
 
         // NB: Once the chunk is created, no exceptions could be thrown.
-        auto* chunk = DoCreateChunk(chunkType);
-        chunk->SetReadQuorum(readQuorum);
-        chunk->SetWriteQuorum(writeQuorum);
-        chunk->SetErasureCodec(erasureCodecId);
-        chunk->SetMovable(movable);
-        chunk->SetOverlayed(overlayed);
-
-        YT_ASSERT(chunk->GetLocalRequisitionIndex() ==
-                 (isErasure
-                      ? MigrationErasureChunkRequisitionIndex
-                      : MigrationChunkRequisitionIndex));
-
-        TChunkRequisition requisition(
+        auto* chunk = CreateChunk(
+            transaction,
+            chunkList,
+            chunkType,
             account,
-            mediumIndex,
-            TReplicationPolicy(replicationFactor, false /* dataPartsOnly */),
-            false /* committed */);
-        requisition.SetVital(vital);
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto requisitionIndex = ChunkRequisitionRegistry_.GetOrCreate(requisition, objectManager);
-        chunk->SetLocalRequisitionIndex(requisitionIndex, GetChunkRequisitionRegistry(), objectManager);
-
-        StageChunk(chunk, transaction, account);
-
-        transactionManager->StageObject(transaction, chunk);
-
-        if (chunkList) {
-            AttachToChunkList(chunkList, chunk);
-        }
+            replicationFactor,
+            erasureCodecId,
+            medium,
+            readQuorum,
+            writeQuorum,
+            subrequest->movable(),
+            subrequest->vital(),
+            overlayed);
 
         if (subresponse) {
             auto sessionId = TSessionId(chunk->GetId(), mediumIndex);
             ToProto(subresponse->mutable_session_id(), sessionId);
         }
-
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-            "Chunk created "
-            "(ChunkId: %v, ChunkListId: %v, TransactionId: %v, Account: %v, Medium: %v, "
-            "ReplicationFactor: %v, ReadQuorum: %v, WriteQuorum: %v, ErasureCodec: %v, "
-            "Movable: %v, Vital: %v, Overlayed: %v)",
-            chunk->GetId(),
-            GetObjectId(chunkList),
-            transaction->GetId(),
-            account->GetName(),
-            medium->GetName(),
-            replicationFactor,
-            readQuorum,
-            writeQuorum,
-            erasureCodecId,
-            movable,
-            vital,
-            overlayed);
     }
 
     void ExecuteConfirmChunkSubrequest(
@@ -3006,6 +3059,7 @@ private:
         TMasterAutomatonPart::OnLeaderRecoveryComplete();
 
         JobTracker_ = New<TJobTracker>(Config_, Bootstrap_);
+        ChunkMerger_->SetJobTracker(JobTracker_);
         ChunkPlacement_ = New<TChunkPlacement>(Config_, Bootstrap_);
         ChunkReplicator_ = New<TChunkReplicator>(Config_, Bootstrap_, ChunkPlacement_, JobTracker_);
         ChunkSealer_ = New<TChunkSealer>(Config_, Bootstrap_, JobTracker_);
@@ -3396,6 +3450,7 @@ private:
         ChunkReplicator_->OnProfiling(&buffer);
         ChunkSealer_->OnProfiling(&buffer);
         JobTracker_->OnProfiling(&buffer);
+        ChunkMerger_->OnProfiling(&buffer);
 
         buffer.AddGauge("/chunk_count", ChunkMap_.GetSize());
         buffer.AddCounter("/chunks_created", ChunksCreated_);
@@ -3918,6 +3973,35 @@ TChunkView* TChunkManager::CreateChunkView(
     return Impl_->CreateChunkView(underlyingTree, std::move(readRange));
 }
 
+TChunk* TChunkManager::CreateChunk(
+    TTransaction* transaction,
+    TChunkList* chunkList,
+    NObjectClient::EObjectType chunkType,
+    TAccount* account,
+    int replicationFactor,
+    NErasure::ECodec erasureCodecId,
+    TMedium* medium,
+    int readQuorum,
+    int writeQuorum,
+    bool movable,
+    bool vital,
+    bool overlayed)
+{
+    return Impl_->CreateChunk(
+        transaction,
+        chunkList,
+        chunkType,
+        account,
+        replicationFactor,
+        erasureCodecId,
+        medium,
+        readQuorum,
+        writeQuorum,
+        movable,
+        vital,
+        overlayed);
+}
+
 TChunkView* TChunkManager::CloneChunkView(
     TChunkView* chunkView,
     NChunkClient::TLegacyReadRange readRange)
@@ -3997,6 +4081,11 @@ void TChunkManager::ScheduleChunkRequisitionUpdate(TChunkTree* chunkTree)
 void TChunkManager::ScheduleChunkSeal(TChunk* chunk)
 {
     Impl_->ScheduleChunkSeal(chunk);
+}
+
+void TChunkManager::ScheduleChunkMerge(TChunkOwnerBase* node)
+{
+    Impl_->ScheduleChunkMerge(node);
 }
 
 int TChunkManager::GetTotalReplicaCount()

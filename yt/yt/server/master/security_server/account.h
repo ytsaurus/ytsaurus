@@ -117,7 +117,16 @@ public:
     TClusterResources ComputeTotalChildrenResourceUsage() const;
     TClusterResources ComputeTotalChildrenCommittedResourceUsage() const;
 
+    int GetMergeJobRateLimit() const;
+    void SetMergeJobRateLimit(int mergeJobRateLimit);
+
+    int GetMergeJobRate() const;
+    void IncrementMergeJobRate(int value);
+
 private:
+    int MergeJobRateLimit_ = 0;
+    int MergeJobRate_ = 0;
+
     virtual TString GetRootName() const override;
 };
 

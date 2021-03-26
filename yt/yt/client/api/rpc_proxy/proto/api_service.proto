@@ -147,6 +147,7 @@ enum EJobType
     JT_REMOVE_CHUNK = 101;
     JT_REPAIR_CHUNK = 102;
     JT_SEAL_CHUNK = 103;
+    JT_MERGE_CHUNKS = 104;
 }
 
 enum EJobState

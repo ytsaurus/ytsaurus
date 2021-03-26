@@ -197,6 +197,71 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TMediumConfig)
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicChunkMergerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool Enable;
+
+    int MaxChunkCount;
+    int MinChunkCount;
+    i64 MaxRowCount;
+    i64 MaxDataWeight;
+    i64 MaxUncompressedDataSize;
+    i64 MaxAverageChunkSize;
+
+    TDuration SchedulePeriod;
+    TDuration CreateChunksPeriod;
+    TDuration TransactionUpdatePeriod;
+    TDuration StatisticsUpdatePeriod;
+
+    int CreateChunksBatchSize;
+
+    TDynamicChunkMergerConfig()
+    {
+        RegisterParameter("enable", Enable)
+            .Default(false);
+
+        RegisterParameter("max_chunk_count", MaxChunkCount)
+            .GreaterThan(1)
+            .Default(20);
+        RegisterParameter("min_chunk_count", MinChunkCount)
+            .GreaterThan(1)
+            .Default(2);
+        RegisterParameter("max_row_count", MaxRowCount)
+            .GreaterThan(1)
+            .Default(1000000);
+        RegisterParameter("max_data_weight", MaxDataWeight)
+            .GreaterThan(1)
+            .Default(1_GB);
+        RegisterParameter("max_uncompressed_data_size", MaxUncompressedDataSize)
+            .GreaterThan(1)
+            .Default(2_GB);
+        RegisterParameter("max_average_chunk_size", MaxAverageChunkSize)
+            .GreaterThan(1)
+            .Default(512_MB);
+
+        RegisterParameter("schedule_period", SchedulePeriod)
+            .Default(TDuration::Seconds(1));
+        RegisterParameter("create_chunks_period", CreateChunksPeriod)
+            .Default(TDuration::Seconds(1));
+        RegisterParameter("transaction_update_period", TransactionUpdatePeriod)
+            .Default(TDuration::Minutes(10));
+        RegisterParameter("statistics_update_period", StatisticsUpdatePeriod)
+            .Default(TDuration::Seconds(1));
+
+        RegisterParameter("create_chunks_batch_size", CreateChunksBatchSize)
+            .GreaterThan(1)
+            .Default(100);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicChunkMergerConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicDataNodeTrackerConfig
@@ -242,7 +307,9 @@ public:
     int MaxMisscheduledRemovalJobsPerHeartbeat;
     //! Controls the maximum number of unsuccessful attempts to schedule a seal job.
     int MaxMisscheduledSealJobsPerHeartbeat;
-
+    //! Controls the maximum number of unsuccessful attempts to schedule a merge job.
+    int MaxMisscheduledMergeJobsPerHeartbeat;
+    
     //! Minimum difference in fill coefficient (between the most and the least loaded nodes) to start balancing.
     double MinChunkBalancingFillFactorDiff;
     //! Minimum fill coefficient of the most loaded node to start balancing.
@@ -353,6 +420,8 @@ public:
     // COMPAT(babenko)
     bool EnableHunks;
 
+    TDynamicChunkMergerConfigPtr ChunkMerger;
+
     TDynamicChunkManagerConfig()
     {
         RegisterParameter("enable_chunk_replicator", EnableChunkReplicator)
@@ -371,6 +440,8 @@ public:
         RegisterParameter("max_misscheduled_removal_jobs_per_heartbeat", MaxMisscheduledRemovalJobsPerHeartbeat)
             .Default(128);
         RegisterParameter("max_misscheduled_seal_jobs_per_heartbeat", MaxMisscheduledSealJobsPerHeartbeat)
+            .Default(128);
+        RegisterParameter("max_misscheduled_merge_jobs_per_heartbeat", MaxMisscheduledMergeJobsPerHeartbeat)
             .Default(128);
 
         RegisterParameter("min_chunk_balancing_fill_factor_diff", MinChunkBalancingFillFactorDiff)
@@ -491,6 +562,9 @@ public:
 
             RegisterParameter("enable_hunks", EnableHunks)
             .Default(false);
+
+        RegisterParameter("chunk_merger", ChunkMerger)
+            .DefaultNew();
 
         RegisterPreprocessor([&] () {
             JobThrottler->Limit = 10000;

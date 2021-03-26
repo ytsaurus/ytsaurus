@@ -115,6 +115,7 @@
     XX(EnableResourceTreeStructureLockProfiling, enable_resource_tree_structure_lock_profiling) \
     XX(EnableResourceTreeUsageLockProfiling, enable_resource_tree_usage_lock_profiling) \
     XX(EnableSchedulingTags, enable_scheduling_tags) \
+    XX(EnableChunkMerger, enable_chunk_merger) \
     XX(EntranceCellTag, entrance_cell_tag) \
     XX(EntranceNodeId, entrance_node_id) \
     XX(EphemeralRefCounter, ephemeral_ref_counter) \
@@ -227,6 +228,8 @@
     XX(MemberOf, member_of) \
     XX(MemberOfClosure, member_of_closure) \
     XX(Members, members) \
+    XX(MergeJobCounter, merge_job_counter) \
+    XX(MergeJobRateLimit, merge_job_rate_limit) \
     XX(MetaSize, meta_size) \
     XX(MinChildHeapSize, min_child_heap_size) \
     XX(MinKey, min_key) \
@@ -337,6 +340,7 @@
     XX(SchemaDuplicateCount, schema_duplicate_count) \
     XX(SchemaMode, schema_mode) \
     XX(Sealed, sealed) \
+    XX(IsSharedToSkynet, is_shared_to_skynet) \
     XX(ReplicatedToCellTags, replicated_to_cell_tags) \
     XX(ResolveCached, resolve_cached) \
     XX(SecurityTags, security_tags) \

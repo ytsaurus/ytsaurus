@@ -773,6 +773,12 @@ public:
     //! Reader configuration used to seal chunks.
     NJournalClient::TChunkReaderConfigPtr SealReader;
 
+    //! Reader configuration used to merge chunks.
+    NChunkClient::TReplicationReaderConfigPtr MergeReader;
+
+    //! Writer configuration used to merge chunks.
+    NChunkClient::TMultiChunkWriterConfigPtr MergeWriter;
+
     //! Configuration for various Data Node throttlers.
     TEnumIndexedVector<EDataNodeThrottlerKind, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
 
@@ -924,6 +930,11 @@ public:
             .DefaultNew();
 
         RegisterParameter("seal_reader", SealReader)
+            .DefaultNew();
+
+        RegisterParameter("merge_reader", MergeReader)
+            .DefaultNew();
+        RegisterParameter("merge_writer", MergeWriter)
             .DefaultNew();
 
         RegisterParameter("throttlers", Throttlers)

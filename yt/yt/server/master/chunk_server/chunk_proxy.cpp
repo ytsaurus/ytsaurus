@@ -167,13 +167,15 @@ private:
             .SetPresent(chunk->IsConfirmed()));
         descriptors->push_back(EInternedAttributeKey::ScanFlags);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CreationTime)
-            .SetPresent(miscExt.has_creation_time()));
+            .SetPresent(chunk->IsConfirmed() && miscExt.has_creation_time()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Job)
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PartLossTime)
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkRefs)
             .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::IsSharedToSkynet)
+            .SetPresent(chunk->IsConfirmed() && miscExt.has_shared_to_skynet()));
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -749,6 +751,15 @@ private:
                         .EndList();
                 }
                 break;
+            }
+
+            case EInternedAttributeKey::IsSharedToSkynet: {
+                if (!isConfirmed || !miscExt.has_shared_to_skynet()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(miscExt.shared_to_skynet());
+                return true;
             }
 
             default:

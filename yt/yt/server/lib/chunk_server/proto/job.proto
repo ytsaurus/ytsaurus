@@ -2,6 +2,8 @@ package NYT.NChunkClient.NProto;
 
 import "yt/ytlib/job_tracker_client/proto/job.proto";
 import "yt/client/node_tracker_client/proto/node_directory.proto";
+import "yt/client/table_client/proto/chunk_meta.proto";
+
 import "yt_proto/yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -107,6 +109,39 @@ message TSealChunkJobSpecExt
     // Replica indexes are not used.
     // No medium indexes are provided (hence fixed32).
     repeated fixed32 source_replicas = 5;
+}
+
+message TMergeChunkInfo
+{
+    required NYT.NProto.TGuid id = 1;
+
+    // Nodes where existing replicas reside.
+    // Replica indexes are not used.
+    // No medium indexes are provided (hence fixed32).
+    repeated fixed32 source_replicas = 2;
+}
+
+message TChunkMergerWriterOptions
+{
+    optional NYT.NTableClient.NProto.TTableSchemaExt schema = 1;
+    required int32 compression_codec = 2; // NCompression::ECodec
+    optional int32 optimize_for = 3; // EOptimizeFor
+    optional bool enable_skynet_sharing = 4;
+}
+
+message TMergeChunksJobSpecExt
+{
+    extend NJobTrackerClient.NProto.TJobSpec
+    {
+        optional TMergeChunksJobSpecExt merge_chunks_job_spec_ext = 208;
+    }
+
+    required int32 cell_tag = 1;
+    repeated TMergeChunkInfo input_chunks = 2;
+    required NYT.NProto.TGuid output_chunk_id = 3;
+    required int32 medium_index = 4;
+    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 5;
+    required TChunkMergerWriterOptions chunk_merger_writer_options = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

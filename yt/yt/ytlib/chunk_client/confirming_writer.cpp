@@ -57,7 +57,8 @@ public:
         NNative::IClientPtr client,
         IBlockCachePtr blockCache,
         IThroughputThrottlerPtr throttler,
-        TTrafficMeterPtr trafficMeter)
+        TTrafficMeterPtr trafficMeter,
+        TSessionId sessionId)
         : Config_(CloneYsonSerializable(config))
         , Options_(options)
         , CellTag_(cellTag)
@@ -68,6 +69,7 @@ public:
         , BlockCache_(blockCache)
         , Throttler_(throttler)
         , TrafficMeter_(trafficMeter)
+        , SessionId_(sessionId)
         , Logger(ChunkClientLogger.WithTag("TransactionId: %v", TransactionId_))
     {
         Config_->UploadReplicationFactor = std::min(
@@ -199,16 +201,20 @@ private:
             Initialized_ = true;
         });
 
-        SessionId_ = NChunkClient::CreateChunk(
-            Client_,
-            CellTag_,
-            Options_,
-            TransactionId_,
-            ParentChunkListId_,
-            Logger);
+        if (SessionId_.ChunkId) {
+            YT_LOG_DEBUG("Writing existing chunk (ChunkId: %v)", SessionId_.ChunkId);
+        } else {
+            SessionId_ = NChunkClient::CreateChunk(
+                Client_,
+                CellTag_,
+                Options_,
+                TransactionId_,
+                ParentChunkListId_,
+                Logger);
+            YT_LOG_DEBUG("Chunk created");
+        }
 
         Logger.AddTag("ChunkId: %v", SessionId_);
-        YT_LOG_DEBUG("Chunk created");
 
         UnderlyingWriter_ = CreateUnderlyingWriter();
         WaitFor(UnderlyingWriter_->Open())
@@ -334,7 +340,8 @@ IChunkWriterPtr CreateConfirmingWriter(
     NNative::IClientPtr client,
     IBlockCachePtr blockCache,
     TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr throttler,
+    TSessionId sessionId)
 {
     return New<TConfirmingWriter>(
         config,
@@ -346,7 +353,8 @@ IChunkWriterPtr CreateConfirmingWriter(
         client,
         blockCache,
         throttler,
-        trafficMeter);
+        trafficMeter,
+        sessionId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

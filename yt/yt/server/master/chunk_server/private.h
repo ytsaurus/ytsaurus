@@ -28,6 +28,7 @@ extern const NProfiling::TProfiler ChunkServerProfilerRegistry;
 DECLARE_REFCOUNTED_STRUCT(IChunkVisitor)
 DECLARE_REFCOUNTED_STRUCT(IChunkTraverserContext)
 DECLARE_REFCOUNTED_STRUCT(IChunkTreeBalancerCallbacks)
+DECLARE_REFCOUNTED_STRUCT(IChunkReplacerCallbacks)
 DECLARE_REFCOUNTED_CLASS(TExpirationTracker)
 DECLARE_REFCOUNTED_CLASS(TJobTracker)
 

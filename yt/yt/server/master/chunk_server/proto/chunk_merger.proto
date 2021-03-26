@@ -1,0 +1,41 @@
+package NYT.NChunkServer.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqStartMergeTransaction
+{ }
+
+message TReqCreateChunks
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+
+    message TSubrequest
+    {
+        required string account = 1;
+        required int32 type = 2; // NObjectClient::EObjectType
+        required int32 replication_factor = 3;
+        required int32 erasure_codec = 4; // NErasure::ECodec
+        optional bool movable = 5 [default = true];
+        required bool vital = 6;
+        required int32 medium_index = 7;
+        required int64 chunk_counter = 8;
+    }
+
+    repeated TSubrequest subrequests = 2;
+}
+
+message TReqReplaceChunks
+{
+    repeated NYT.NProto.TGuid old_chunk_ids = 1;
+    required NYT.NProto.TGuid new_chunk_id = 2;
+    required NYT.NProto.TGuid node_id = 3;
+}
+
+message TReqRemoveNodeFromStatisticsUpdateQueue
+{
+    required NYT.NProto.TGuid node_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

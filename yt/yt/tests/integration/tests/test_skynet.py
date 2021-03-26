@@ -428,3 +428,34 @@ class TestSkynetIntegration(YTEnvSetup):
 
             file_content[row["filename"]] = file_content.get(row["filename"], "") + row["data"]
             assert hashlib.md5(file_content[row["filename"]]).digest() == row["md5"]
+
+    @authors("aleksandra-zh")
+    def test_chunk_merge_skynet_share(self):
+        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
+
+        create(
+            "table",
+            "//tmp/table",
+            attributes={
+                "enable_skynet_sharing": True,
+                "schema": SKYNET_TABLE_SCHEMA,
+            },
+        )
+
+        write_table("<append=true>//tmp/table", {"filename": "a", "part_index": 0, "data": "a1"})
+        write_table("<append=true>//tmp/table", {"filename": "b", "part_index": 0, "data": "a2"})
+        write_table("<append=true>//tmp/table", {"filename": "c", "part_index": 0, "data": "a3"})
+
+        info = read_table("//tmp/table")
+
+        chunk_ids = get("//tmp/table/@chunk_ids")
+        assert get("#{0}/@is_shared_to_skynet".format(chunk_ids[0]))
+
+        set("//tmp/table/@enable_chunk_merger", True)
+        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+
+        wait(lambda: get("//tmp/table/@resource_usage/chunk_count") == 1)
+        assert read_table("//tmp/table") == info
+
+        chunk_ids = get("//tmp/table/@chunk_ids")
+        assert get("#{0}/@is_shared_to_skynet".format(chunk_ids[0]))

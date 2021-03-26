@@ -13,6 +13,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NCellMaster;
 using namespace NObjectServer;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,6 +93,7 @@ void TAccount::Save(NCellMaster::TSaveContext& context) const
     Save(context, MulticellStatistics_);
     Save(context, ClusterResourceLimits_);
     Save(context, AllowChildrenLimitOvercommit_);
+    Save(context, MergeJobRateLimit_);
 }
 
 void TAccount::Load(NCellMaster::TLoadContext& context)
@@ -115,6 +117,11 @@ void TAccount::Load(NCellMaster::TLoadContext& context)
         Load(context, MulticellStatistics_);
         Load(context, ClusterResourceLimits_);
         Load(context, AllowChildrenLimitOvercommit_);
+    }
+
+    // COMPAT(aleksandra-zh)
+    if (context.GetVersion() >= EMasterReign::MasterMergeJobs) {
+        Load(context, MergeJobRateLimit_);
     }
 }
 
@@ -287,6 +294,26 @@ TClusterResources TAccount::ComputeTotalChildrenCommittedResourceUsage() const
         result += child->ClusterStatistics().CommittedResourceUsage;
     }
     return result;
+}
+
+int TAccount::GetMergeJobRateLimit() const
+{
+    return MergeJobRateLimit_;
+}
+
+void TAccount::SetMergeJobRateLimit(int mergeJobRateLimit)
+{
+    MergeJobRateLimit_ = mergeJobRateLimit;
+}
+
+int TAccount::GetMergeJobRate() const
+{
+    return MergeJobRate_;
+}
+
+void TAccount::IncrementMergeJobRate(int value)
+{
+    MergeJobRate_ += value;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

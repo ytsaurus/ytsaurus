@@ -1,6 +1,7 @@
 #include "chunk_owner_base.h"
 #include "chunk_list.h"
 #include "helpers.h"
+#include "private.h"
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
@@ -22,6 +23,8 @@ using namespace NCypressClient;
 using namespace NCypressClient::NProto;
 using namespace NCypressServer;
 using namespace NSecurityServer;
+
+static const auto& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,6 +53,7 @@ void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
     Save(context, ErasureCodec_);
     Save(context, SnapshotSecurityTags_);
     Save(context, DeltaSecurityTags_);
+    Save(context, EnableChunkMerger_);
 }
 
 void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
@@ -67,6 +71,11 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, ErasureCodec_);
     Load(context, SnapshotSecurityTags_);
     Load(context, DeltaSecurityTags_);
+    
+    // COMPAT(aleksandra-zh)
+    if (context.GetVersion() >= EMasterReign::MasterMergeJobs) {
+        Load(context, EnableChunkMerger_);
+    }
 }
 
 const TChunkList* TChunkOwnerBase::GetSnapshotChunkList() const
@@ -236,6 +245,32 @@ NSecurityServer::TClusterResources TChunkOwnerBase::GetDiskUsage(const TDataStat
     }
     result.ChunkCount = statistics.chunk_count();
     return result;
+}
+
+void TChunkOwnerBase::MaybeResetObsoleteMergeJobCounter(NObjectServer::TEpoch epoch)
+{
+    if (epoch != MergeJobCounterEpoch_) {
+        MergeJobCounter_ = 0;
+        MergeJobCounterEpoch_ = epoch;
+    }
+}
+
+void TChunkOwnerBase::IncrementMergeJobCounter(NObjectServer::TEpoch epoch, int value)
+{
+    MaybeResetObsoleteMergeJobCounter(epoch);
+    MergeJobCounter_ += value;
+    YT_LOG_ALERT_IF(MergeJobCounter_ < 0, "Negative merge job counter (NodeId: %v)", GetId());
+}
+
+int TChunkOwnerBase::GetMergeJobCounter(NObjectServer::TEpoch epoch)
+{
+    MaybeResetObsoleteMergeJobCounter(epoch);
+    return MergeJobCounter_;
+}
+
+int TChunkOwnerBase::GetCurrentEpochMergeJobCounter()
+{
+    return MergeJobCounter_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

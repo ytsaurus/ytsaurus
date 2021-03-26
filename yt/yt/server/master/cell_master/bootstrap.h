@@ -173,6 +173,7 @@ private:
     NObjectServer::IYsonInternRegistryPtr YsonInternRegistry_;
     NObjectServer::TRequestProfilingManagerPtr RequestProfilingManager_;
     NChunkServer::TChunkManagerPtr ChunkManager_;
+    NChunkServer::TChunkMergerPtr ChunkMerger_;
     NJournalServer::TJournalManagerPtr JournalManager_;
     NSecurityServer::TSecurityManagerPtr SecurityManager_;
     NCellServer::TTamedCellManagerPtr TamedCellManager_;

@@ -16,6 +16,8 @@
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
+#include <yt/yt/server/master/table_server/shared_table_schema.h>
+
 #include <yt/yt/server/lib/chunk_server/proto/job.pb.h>
 
 #include <yt/yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
@@ -245,6 +247,28 @@ private:
                     break;
                 }
 
+                case EJobType::MergeChunks: {
+                    auto* jobSpecExt = jobSpec.MutableExtension(TMergeChunksJobSpecExt::merge_chunks_job_spec_ext);
+
+                    jobSpecExt->set_cell_tag(Bootstrap_->GetCellTag());
+
+                    ToProto(jobSpecExt->mutable_output_chunk_id(), EncodeChunkId(chunkIdWithIndexes));
+                    jobSpecExt->set_medium_index(chunkIdWithIndexes.MediumIndex);
+                    *jobSpecExt->mutable_chunk_merger_writer_options() = job->ChunkMergerWriterOptions();
+
+                    NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
+
+                    for (auto* chunk : job->GetChunks()) {
+                        auto* protoChunk = jobSpecExt->add_input_chunks();
+                        ToProto(protoChunk->mutable_id(), chunk->GetId());
+
+                        const auto& replicas = chunk->StoredReplicas();
+                        ToProto(protoChunk->mutable_source_replicas(), replicas);
+                        builder.Add(replicas);
+                    }
+
+                    break;
+                }
                 default:
                     YT_ABORT();
             }

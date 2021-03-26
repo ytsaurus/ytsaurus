@@ -83,6 +83,11 @@ public:
         const TNameTableToSchemaIdMapping& idMapping,
         std::vector<bool>* columnPresenceBuffer);
 
+    //! Captures the row applying #idMapping to value ids.
+    TMutableUnversionedRow CaptureAndPermuteRow(
+        TUnversionedRow row,
+        const TNameTableToSchemaIdMapping& idMapping);
+
     i64 GetSize() const;
     i64 GetCapacity() const;
 

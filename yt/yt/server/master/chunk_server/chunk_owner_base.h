@@ -40,6 +40,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TInternedSecurityTags, DeltaSecurityTags);
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TChunkOwnerBase, NCompression::ECodec, CompressionCodec);
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TChunkOwnerBase, NErasure::ECodec, ErasureCodec);
+    DEFINE_BYVAL_RW_PROPERTY(bool, EnableChunkMerger, false);
 
 public:
     explicit TChunkOwnerBase(const NCypressServer::TVersionedNodeId& id);
@@ -84,10 +85,23 @@ public:
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;
 
+    // Indicates how many entries for this node there is in merge job queues.
+    // Do not schedule merge if this number is greater than zero.
+    void IncrementMergeJobCounter(NObjectServer::TEpoch epoch, int value);
+    int GetMergeJobCounter(NObjectServer::TEpoch epoch);
+
+    // To show the value in attributes.
+    int GetCurrentEpochMergeJobCounter();
+
 private:
+    int MergeJobCounter_ = 0;
+    NObjectServer::TEpoch MergeJobCounterEpoch_ = 0;
+
     NChunkClient::NProto::TDataStatistics ComputeUpdateStatistics() const;
 
     NSecurityServer::TClusterResources GetDiskUsage(const NChunkClient::NProto::TDataStatistics& statistics) const;
+
+    void MaybeResetObsoleteMergeJobCounter(NObjectServer::TEpoch epoch);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

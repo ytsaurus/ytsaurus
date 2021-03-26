@@ -333,6 +333,9 @@ public:
         const TAccessControlList& acl,
         TPermissionCheckOptions options = {});
 
+    //! Checks if given user is a member of superusers group.
+    bool IsSuperuser(const TUser* user) const;
+
     //! Similar to #CheckPermission but throws a human-readable exception on failure.
     void ValidatePermission(
         NObjectServer::TObject* object,

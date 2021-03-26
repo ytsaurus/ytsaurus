@@ -126,6 +126,10 @@ DEFINE_ENUM(EDataNodeThrottlerKind,
     (RepairIn)
     //! Controls outcoming bandwidth used by repair jobs.
     (RepairOut)
+    //! Controls incoming bandwidth used by merge jobs.
+    (MergeIn)
+    //! Controls outcoming bandwidth used by merge jobs.
+    (MergeOut)
     //! Controls incoming bandwidth used by Artifact Cache downloads.
     (ArtifactCacheIn)
     //! Controls outcoming bandwidth used by Artifact Cache downloads.

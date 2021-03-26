@@ -145,6 +145,20 @@ public:
     TChunkView* CreateChunkView(TChunkTree* underlyingTree, NChunkClient::TLegacyReadRange readRange);
     TChunkView* CloneChunkView(TChunkView* chunkView, NChunkClient::TLegacyReadRange readRange);
 
+    TChunk* CreateChunk(
+        NTransactionServer::TTransaction* transaction,
+        TChunkList* chunkList,
+        NObjectClient::EObjectType chunkType,
+        NSecurityServer::TAccount* account,
+        int replicationFactor,
+        NErasure::ECodec erasureCodecId,
+        TMedium* medium,
+        int readQuorum,
+        int writeQuorum,
+        bool movable,
+        bool vital,
+        bool overlayed);
+
     TDynamicStore* CreateDynamicStore(TDynamicStoreId storeId, const NTabletServer::TTablet* tablet);
 
     void RebalanceChunkTree(TChunkList* chunkList);
@@ -175,6 +189,7 @@ public:
     void ScheduleNodeRefresh(TNode* node);
     void ScheduleChunkRequisitionUpdate(TChunkTree* chunkTree);
     void ScheduleChunkSeal(TChunk* chunk);
+    void ScheduleChunkMerge(TChunkOwnerBase* node);
     TChunkRequisitionRegistry* GetChunkRequisitionRegistry();
 
     const THashSet<TChunk*>& LostVitalChunks() const;

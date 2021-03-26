@@ -30,6 +30,7 @@ public:
     int RepairSlots;
     i64 RepairDataSize;
     int SealSlots;
+    int MergeSlots;
 
     TResourceLimitsConfig()
     {
@@ -72,6 +73,9 @@ public:
         RegisterParameter("seal_slots", SealSlots)
             .GreaterThanOrEqual(0)
             .Default(16);
+        RegisterParameter("merge_slots", MergeSlots)
+            .GreaterThanOrEqual(0)
+            .Default(4);
     }
 };
 

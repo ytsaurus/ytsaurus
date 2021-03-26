@@ -687,8 +687,7 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
             auto name = ConvertTo<TString>(value);
             auto* owner = securityManager->GetSubjectByNameOrAliasOrThrow(name, true /*activeLifeStageOnly*/);
             auto* user = securityManager->GetAuthenticatedUser();
-            auto* superusers = securityManager->GetSuperusersGroup();
-            if (user != owner && user->RecursiveMemberOf().find(superusers) == user->RecursiveMemberOf().end()) {
+            if (user != owner && !securityManager->IsSuperuser(user)) {
                 THROW_ERROR_EXCEPTION(
                     NSecurityClient::EErrorCode::AuthorizationError,
                     "Access denied: can only set owner to self");

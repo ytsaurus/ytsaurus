@@ -1,5 +1,6 @@
 #include "job.h"
 #include "chunk.h"
+#include "public.h"
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 
@@ -12,6 +13,8 @@ using namespace NNodeTrackerServer;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NChunkClient;
+using namespace NTableServer;
+using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,6 +27,8 @@ TJob::TJob(
     const TNodePtrWithIndexesList& targetReplicas,
     TInstant startTime,
     const TNodeResources& resourceUsage,
+    TChunkVector chunks,
+    TChunkMergerWriterOptions chunkMergerWriterOptions,
     bool decommission)
     : JobId_(jobId)
     , Type_(type)
@@ -34,6 +39,8 @@ TJob::TJob(
     , TargetReplicas_(targetReplicas)
     , StartTime_(startTime)
     , ResourceUsage_(resourceUsage)
+    , Chunks_(std::move(chunks))
+    , ChunkMergerWriterOptions_(std::move(chunkMergerWriterOptions))
     , State_(EJobState::Running)
 { }
 
@@ -58,7 +65,9 @@ TJobPtr TJob::CreateReplicate(
         node,
         targetReplicas,
         TInstant::Now(),
-        resourceUsage);
+        resourceUsage,
+        TChunkVector(),
+        TChunkMergerWriterOptions());
 }
 
 TJobPtr TJob::CreateRemove(
@@ -78,7 +87,9 @@ TJobPtr TJob::CreateRemove(
         node,
         TNodePtrWithIndexesList(),
         TInstant::Now(),
-        resourceUsage);
+        resourceUsage,
+        TChunkVector(),
+        TChunkMergerWriterOptions());
 }
 
 TJobPtr TJob::CreateRepair(
@@ -105,6 +116,8 @@ TJobPtr TJob::CreateRepair(
         targetReplicas,
         TInstant::Now(),
         resourceUsage,
+        TChunkVector(),
+        TChunkMergerWriterOptions(),
         decommisssion);
 }
 
@@ -126,9 +139,35 @@ TJobPtr TJob::CreateSeal(
         node,
         TNodePtrWithIndexesList(),
         TInstant::Now(),
-        resourceUsage);
+        resourceUsage,
+        TChunkVector(),
+        TChunkMergerWriterOptions());
 }
 
+
+TJobPtr TJob::CreateMerge(
+    TJobId jobId,
+    TChunkId chunkId,
+    int mediumIndex,
+    TChunkVector chunks,
+    NNodeTrackerServer::TNode* node,
+    TChunkMergerWriterOptions chunkMergeTableOptions)
+{
+    TNodeResources resourceUsage;
+    resourceUsage.set_merge_slots(1);
+
+    return New<TJob>(
+        EJobType::MergeChunks,
+        jobId,
+        nullptr,
+        TChunkIdWithIndexes(chunkId, GenericChunkReplicaIndex, mediumIndex),
+        node,
+        TNodePtrWithIndexesList(),
+        TInstant::Now(),
+        resourceUsage,
+        std::move(chunks),
+        std::move(chunkMergeTableOptions));
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

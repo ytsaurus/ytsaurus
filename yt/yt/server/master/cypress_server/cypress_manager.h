@@ -23,6 +23,8 @@
 #include <yt/yt/server/master/transaction_server/transaction.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
 
+#include <yt/yt/ytlib/cypress_client/proto/cypress_service.pb.h>
+
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/misc/id_generator.h>

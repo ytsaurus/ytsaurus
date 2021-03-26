@@ -75,6 +75,7 @@ using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NYson;
 using namespace NYPath;
+using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3430,7 +3431,6 @@ private:
         securityManager->ValidatePermission(schema, EPermission::Create);
     }
 
-
     void HydraUpdateAccessStatistics(NProto::TReqUpdateAccessStatistics* request) noexcept
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -4059,7 +4059,6 @@ TFuture<TYsonString> TCypressManager::ComputeRecursiveResourceUsage(TCypressNode
 {
     return Impl_->ComputeRecursiveResourceUsage(trunkNode, transaction);
 }
-
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TCypressManager, Node, TCypressNode, *Impl_);
 DELEGATE_ENTITY_MAP_ACCESSORS(TCypressManager, Lock, TLock, *Impl_)

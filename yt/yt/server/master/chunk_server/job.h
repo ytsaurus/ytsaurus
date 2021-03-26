@@ -4,6 +4,10 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_replica.h>
 
+#include <yt/yt/server/master/table_server/shared_table_schema.h>
+
+#include <yt/yt/server/lib/chunk_server/proto/job.pb.h>
+
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/yt/client/node_tracker_client/proto/node.pb.h>
@@ -33,6 +37,9 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TNodePtrWithIndexesList, TargetReplicas);
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
+    using TChunkVector = SmallVector<TChunk*, 16>;
+    DEFINE_BYVAL_RO_PROPERTY(TChunkVector, Chunks);
+    DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TChunkMergerWriterOptions, ChunkMergerWriterOptions);
 
     //! Current state (as reported by node).
     DEFINE_BYVAL_RW_PROPERTY(EJobState, State);
@@ -65,6 +72,14 @@ public:
         TChunkPtrWithIndexes chunkWithIndexes,
         NNodeTrackerServer::TNode* node);
 
+    static TJobPtr CreateMerge(
+        TJobId jobId,
+        TChunkId chunkId,
+        int mediumIndex,
+        TChunkVector chunks,
+        NNodeTrackerServer::TNode* node,
+        NChunkClient::NProto::TChunkMergerWriterOptions chunkMergerWriterOptions);
+
 private:
     TJob(
         EJobType type,
@@ -75,6 +90,8 @@ private:
         const TNodePtrWithIndexesList& targetReplicas,
         TInstant startTime,
         const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
+        TChunkVector chunks,
+        NChunkClient::NProto::TChunkMergerWriterOptions chunkMergerWriterOptions,
         bool decommission = false);
     DECLARE_NEW_FRIEND();
 
