@@ -165,6 +165,7 @@ DEFINE_ENUM(EMasterReign,
     ((MoveTableStatisticsGossipToTableManager)                      (1516))  // shakurov
     ((NativeContentRevision)                                        (1517))  // shakurov
     ((CellarHeartbeat)                                              (1518))  // savrus
+    ((RemoveClusterNodeFlavor)                                      (1519))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

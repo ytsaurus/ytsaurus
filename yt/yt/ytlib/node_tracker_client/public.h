@@ -80,7 +80,7 @@ DEFINE_ENUM(ENodeRole,
 );
 
 DEFINE_ENUM(ENodeFlavor,
-    // Used internally. Every node is a cluster node.
+    // COMPAT(gritukan)
     ((Cluster)      (0))
     // Node that is used to store chunks.
     ((Data)         (1))

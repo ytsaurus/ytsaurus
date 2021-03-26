@@ -26,8 +26,9 @@ class TestNodeFlavors(YTEnvSetup):
 
     @authors("gritukan")
     def test_data_nodes(self):
-        data_nodes = get_data_nodes()
-        assert len(data_nodes) == 3
+        # TODO(gritukan): Disable store locations for exec nodes.
+        data_nodes = get_data_nodes() + get_exec_nodes()
+        assert len(data_nodes) == 5
 
         create("table", "//tmp/t")
         for i in range(5):
