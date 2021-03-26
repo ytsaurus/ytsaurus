@@ -340,6 +340,9 @@ class TestSchedulingTags(YTEnvSetup):
     def test_missing_nodes_after_revive(self):
         self._prepare()
 
+        # Set safe_scheduler_online_time to infinity to avoid operations failure by controller.
+        set("//sys/controller_agents/config", {"safe_scheduler_online_time": 120000})
+
         custom_node = None
         for node in ls("//sys/cluster_nodes", attributes=["user_tags"]):
             if "tagC" in node.attributes["user_tags"]:
