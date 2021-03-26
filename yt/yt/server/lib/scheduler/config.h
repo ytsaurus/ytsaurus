@@ -216,9 +216,6 @@ public:
 
     NRe2::TRe2Ptr CustomProfilingTagFilter;
 
-    //! If usage ratio is less than threshold multiplied by demand ratio we enables regularization.
-    double ThresholdToEnableMaxPossibleUsageRegularization;
-
     //! Limit on number of operations in tree.
     int MaxRunningOperationCount;
     int MaxOperationCount;
@@ -240,9 +237,6 @@ public:
 
     //! List of operation types which should not be run in that tree as tentative.
     std::optional<THashSet<EOperationType>> NonTentativeOperationTypes;
-
-    // TODO(ignat): Remove this.
-    double LogFairShareRatioDisagreementThreshold;
 
     //! Period of best allocation ratio update for operations.
     TDuration BestAllocationRatioUpdatePeriod;

@@ -203,7 +203,6 @@
     XX(LockMode, lock_mode) \
     XX(LockedNodeIds, locked_node_ids) \
     XX(Locks, locks) \
-    XX(LogFairShareRatioDisagreementThreshold, log_fair_share_ratio_disagreement_threshold) \
     XX(LowerLimit, lower_limit) \
     XX(MainResource, main_resource) \
     XX(MasterAlerts, master_alerts) \
@@ -383,7 +382,6 @@
     XX(Tags, tags) \
     XX(TargetPath, target_path) \
     XX(TentativeTreeSaturationDeactivationPeriod, tentative_tree_saturation_deactivation_period) \
-    XX(ThresholdToEnableMaxPossibleUsageRegularization, threshold_to_enable_max_possible_usage_regularization) \
     XX(Timeout, timeout) \
     XX(Timestamp, timestamp) \
     XX(TimestampProviderNodes, timestamp_provider_nodes) \
