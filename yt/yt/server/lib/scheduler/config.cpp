@@ -177,9 +177,6 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
         .GreaterThanOrEqual(1)
         .Default(1);
 
-    RegisterParameter("update_preemptable_list_duration_logging_threshold", UpdatePreemptableListDurationLoggingThreshold)
-        .Default(TDuration::MilliSeconds(100));
-
     RegisterParameter("enable_operations_profiling", EnableOperationsProfiling)
         .Default(true);
 
