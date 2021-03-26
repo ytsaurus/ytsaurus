@@ -2014,7 +2014,9 @@ private:
         YT_LOG_DEBUG("Synchronizing with leader");
 
         return BIND(&TDistributedHydraManager::DoSyncWithLeaderCore, this_, timer)
-            .AsyncVia(epochContext->EpochUserAutomatonInvoker)
+            .AsyncViaGuarded(
+                epochContext->EpochUserAutomatonInvoker,
+                TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped"))
             .Run();
     }
 
