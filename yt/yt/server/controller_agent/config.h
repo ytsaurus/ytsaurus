@@ -535,6 +535,8 @@ public:
     //! If |true|, snapshots are periodically constructed and uploaded into the system.
     bool EnableSnapshotBuilding;
 
+    bool EnableSnapshotBuildingDisabledAlert;
+
     //! Interval between consequent snapshots.
     TDuration SnapshotPeriod;
 
@@ -556,6 +558,8 @@ public:
 
     //! If |true|, snapshots are loaded during revival.
     bool EnableSnapshotLoading;
+
+    bool EnableSnapshotLoadingDisabledAlert;
 
     //! Configuration for downloading snapshots from Cypress.
     NApi::TFileReaderConfigPtr SnapshotReader;

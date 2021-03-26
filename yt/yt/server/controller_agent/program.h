@@ -93,8 +93,11 @@ protected:
             }
             defaultConfig->ControllerAgent->Tags = std::vector<TString>({Tag_});
             defaultConfig->RpcPort = 9014;
-            // Building snapshots at local controller agent seems pretty dangerous and useless, so let's disable it by default.
+            // Building and loading snapshots at local controller agent seems pretty dangerous and useless, so let's disable it by default.
             defaultConfig->ControllerAgent->EnableSnapshotBuilding = false;
+            defaultConfig->ControllerAgent->EnableSnapshotBuildingDisabledAlert = false;
+            defaultConfig->ControllerAgent->EnableSnapshotLoading = false;
+            defaultConfig->ControllerAgent->EnableSnapshotLoadingDisabledAlert = false;
             // Scheduler will not work with controller agent without memory limit.
             defaultConfig->ControllerAgent->TotalControllerMemoryLimit = 100_GB;
             // Dump it into node and apply patch from config file (if present).
