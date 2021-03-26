@@ -253,8 +253,8 @@ TEST_F(TBusTest, TerminateBeforeAccept)
 
     EXPECT_EQ(terminated.Get().GetCode(), error.GetCode());
 
-    close(clientSocket);
-    close(serverSocket);
+    NNet::CloseSocket(clientSocket);
+    NNet::CloseSocket(serverSocket);
 }
 
 TEST_F(TBusTest, Failed)

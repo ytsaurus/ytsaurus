@@ -100,21 +100,19 @@ const TTcpDispatcherCountersPtr& TTcpDispatcher::TImpl::GetCounters(const TStrin
 }
 
 IPollerPtr TTcpDispatcher::TImpl::GetOrCreatePoller(
-    IPollerPtr* poller,
+    IPollerPtr* pollerPtr,
     int threadCount,
     const TString& threadNamePrefix)
 {
-    auto throwAlreadyTerminated = [] () {
-        THROW_ERROR_EXCEPTION("Bus subsystem is already terminated");
-    };
+    IPollerPtr poller;
 
     {
         auto guard = ReaderGuard(PollerLock_);
         if (Terminated_) {
-            throwAlreadyTerminated();
+            return nullptr;
         }
-        if (*poller) {
-            return *poller;
+        if (*pollerPtr) {
+            return *pollerPtr;
         }
     }
 
@@ -122,26 +120,25 @@ IPollerPtr TTcpDispatcher::TImpl::GetOrCreatePoller(
     {
         auto guard = WriterGuard(PollerLock_);
         if (Terminated_) {
-            throwAlreadyTerminated();
+            return nullptr;
         }
-        if (!*poller) {
-            createdPoller = CreateThreadPoolPoller(threadCount, threadNamePrefix);
-            *poller = createdPoller;
+        if (!*pollerPtr) {
+            *pollerPtr = createdPoller = CreateThreadPoolPoller(threadCount, threadNamePrefix);
         }
     }
 
     StartPeriodicExecutors();
 
-    return *poller;
+    return createdPoller;
 }
 
-void TTcpDispatcher::TImpl::ShutdownPoller(IPollerPtr* poller)
+void TTcpDispatcher::TImpl::ShutdownPoller(IPollerPtr* pollerPtr)
 {
     IPollerPtr swappedPoller;
     {
         auto guard = WriterGuard(PollerLock_);
         Terminated_ = true;
-        std::swap(*poller, swappedPoller);
+        std::swap(*pollerPtr, swappedPoller);
     }
     if (swappedPoller) {
         swappedPoller->Shutdown();
@@ -180,7 +177,12 @@ void TTcpDispatcher::TImpl::RegisterConnection(TTcpConnectionPtr connection)
 
 void TTcpDispatcher::TImpl::StartPeriodicExecutors()
 {
-    auto invoker = GetXferPoller()->GetInvoker();
+    auto pollerPtr = GetXferPoller();
+    if (!pollerPtr) {
+        return;
+    }
+
+    auto invoker = pollerPtr->GetInvoker();
 
     auto guard = Guard(PeriodicExecutorsLock_);
     if (!LivenessCheckExecutor_) {

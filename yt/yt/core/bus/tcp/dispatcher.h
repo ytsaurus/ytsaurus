@@ -52,6 +52,8 @@ public:
 
     const TTcpDispatcherCountersPtr& GetCounters(const TString& networkName);
 
+    //! Returns the poller used by TCP transport.
+    //! May return null if shutdown is already initiated.
     NConcurrency::IPollerPtr GetXferPoller();
 
     //! Disables all networking. Safety measure for local runs and snapshot validation.

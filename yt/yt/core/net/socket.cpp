@@ -109,7 +109,7 @@ SOCKET CreateTcpServerSocket()
 
     try {
         SetReuseAddrFlag(serverSocket);
-        // SO_REUSEPORT is necessary for Darwin build. 
+        // SO_REUSEPORT is necessary for Darwin build.
         // More details here: https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ
 #ifdef _darwin_
         SetReusePortFlag(serverSocket);
@@ -381,6 +381,11 @@ void ListenSocket(SOCKET serverSocket, int backlog)
             "Failed to listen to server socket")
             << TError::FromSystem();
     }
+}
+
+void CloseSocket(SOCKET socket)
+{
+    YT_VERIFY(close(socket) == 0);
 }
 
 int GetSocketError(SOCKET socket)
