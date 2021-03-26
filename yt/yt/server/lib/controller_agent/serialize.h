@@ -19,8 +19,8 @@ DEFINE_ENUM(ESnapshotVersion,
     ((AutoMergePendingJobCount)             (300505))
     ((NoOrderedDynamicStoreInterrupts)      (300506))
     ((CorrectLoggerSerialization)           (300507))
-    ((TimeStatistics)                       (300608))
-    ((ChunkSliceIndex)                      (300609))
+    ((TimeStatistics)                       (300508))
+    ((ChunkSliceIndex)                      (300509))
     // 21.2 start here
     ((CorrectLoggerSerialization_21_2)      (300602))
 );
