@@ -35,6 +35,8 @@ struct IProxyCoordinator
     virtual NTracing::TSampler* GetTraceSampler() = 0;
 
     virtual NYTree::IYPathServicePtr CreateOrchidService() = 0;
+
+    DECLARE_INTERFACE_SIGNAL(void(const TDynamicProxyConfigPtr&), OnDynamicConfigChanged);
 };
 
 DEFINE_REFCOUNTED_TYPE(IProxyCoordinator)

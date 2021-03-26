@@ -28,13 +28,16 @@ public:
             Config_->Cache,
             Bootstrap_->GetNativeConnection(),
             RpcProxyProfiler.WithPrefix("/access_checker_cache")))
-    { }
+        , Enabled_(Config_->Enabled)
+    {
+        Bootstrap_->GetProxyCoordinator()->SubscribeOnDynamicConfigChanged(BIND(&TAccessChecker::OnDynamicConfigChanged, MakeWeak(this)));
+    }
 
     virtual TError ValidateAccess(const TString& user) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (!Config_->Enabled) {
+        if (!Enabled_.load()) {
             return TError();
         }
 
@@ -67,6 +70,15 @@ private:
     const TAccessCheckerConfigPtr Config_;
 
     const TPermissionCachePtr Cache_;
+
+    std::atomic<bool> Enabled_;
+
+    void OnDynamicConfigChanged(const TDynamicProxyConfigPtr& newConfig)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        Enabled_.store(newConfig->AccessChecker->Enabled.value_or(Config_->Enabled));
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

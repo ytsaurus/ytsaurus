@@ -117,6 +117,14 @@ TAccessCheckerConfig::TAccessCheckerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TAccessCheckerDynamicConfig::TAccessCheckerDynamicConfig()
+{
+    RegisterParameter("enabled", Enabled)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TProxyConfig::TProxyConfig()
 {
     RegisterParameter("port", Port)
@@ -198,6 +206,8 @@ TDynamicConfig::TDynamicConfig()
     RegisterParameter("framing", Framing)
         .DefaultNew();
 
+    RegisterParameter("access_checker", AccessChecker)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

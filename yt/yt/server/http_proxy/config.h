@@ -136,6 +136,20 @@ DEFINE_REFCOUNTED_TYPE(TAccessCheckerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAccessCheckerDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Whether access checker is enabled.
+    std::optional<bool> Enabled;
+
+    TAccessCheckerDynamicConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TAccessCheckerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TProxyConfig
     : public TServerConfig
 {
@@ -196,6 +210,8 @@ public:
     TFramingConfigPtr Framing;
 
     THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;
+
+    TAccessCheckerDynamicConfigPtr AccessChecker;
 
     TDynamicConfig();
 };
