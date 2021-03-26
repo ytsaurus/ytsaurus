@@ -72,7 +72,6 @@ public:
         PYCXX_ADD_KEYWORDS_METHOD(write_operation_controller_core_dump, WriteOperationControllerCoreDump, "Write a core dump of a controller agent holding the operation controller for a given operation id");
         PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "Forces to build a snapshot");
         PYCXX_ADD_KEYWORDS_METHOD(build_master_snapshots, BuildMasterSnapshots, "Forces to build snapshots for all master cells");
-        PYCXX_ADD_KEYWORDS_METHOD(switch_leader, SwitchLeader, "Tries switching leader at a given cell");
         PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GCCollect, "Runs garbage collection");
         PYCXX_ADD_KEYWORDS_METHOD(clear_metadata_caches, ClearMetadataCaches, "Clears metadata caches");
 
@@ -212,34 +211,6 @@ public:
         } CATCH_AND_CREATE_YT_ERROR("Failed to build master snapshots");
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, BuildMasterSnapshots)
-
-    Py::Object SwitchLeader(Py::Tuple& args, Py::Dict& kwargs)
-    {
-        auto options = TSwitchLeaderOptions();
-
-        if (!HasArgument(args, kwargs, "cell_id")) {
-            throw CreateYtError("Missing argument 'cell_id'");
-        }
-        auto cellId = ExtractArgument(args, kwargs, "cell_id");
-
-        if (!HasArgument(args, kwargs, "new_leader_id")) {
-            throw CreateYtError("Missing argument 'new_leader_id'");
-        }
-        auto newLeaderId = ExtractArgument(args, kwargs, "new_leader_id");
-        
-        ValidateArgumentsEmpty(args, kwargs);
-
-        try {
-            auto client = CreateClient();
-            WaitFor(client->SwitchLeader(
-                NHydra::TCellId::FromString(ConvertStringObjectToString(cellId)),
-                CheckedIntegralCast<NHydra::TPeerId>(ConvertToLongLong(newLeaderId)),
-                options))
-                .ThrowOnError();
-            return Py::None();
-        } CATCH_AND_CREATE_YT_ERROR("Failed to switch leader");
-    }
-    PYCXX_KEYWORDS_METHOD_DECL(TDriver, SwitchLeader)
 
     Py::Object ClearMetadataCaches(Py::Tuple& args, Py::Dict& kwargs)
     {
