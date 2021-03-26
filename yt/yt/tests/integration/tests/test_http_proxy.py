@@ -284,6 +284,18 @@ class TestHttpProxy(HttpProxyTestBase):
         set("//sys/proxies/" + proxy + "/@role", "r3")
         wait(lambda: check_access(proxy_address, "u"))
 
+        # Set proxy role back to "r2". User "u" still can't use it.
+        set("//sys/proxies/" + proxy + "/@role", "r2")
+        wait(lambda: not check_access(proxy_address, "u"))
+
+        # Disable access checker via dynamic config. Now "u" can use proxy.
+        set("//sys/proxies/@config", {"access_checker": {"enabled": False}})
+        wait(lambda: check_access(proxy_address, "u"))
+
+        # Enable access checker via dynamic config. And "u" is banned again.
+        set("//sys/proxies/@config", {"access_checker": {"enabled": True}})
+        wait(lambda: not check_access(proxy_address, "u"))
+
 
 class TestHttpProxyFraming(HttpProxyTestBase):
     SUSPENDING_TABLE = "//tmp/suspending_table"

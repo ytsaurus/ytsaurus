@@ -289,6 +289,8 @@ void TCoordinator::SetDynamicConfig(TDynamicConfigPtr config)
         Sampler_.UpdateConfig(DynamicConfig_->Tracing);
         Sampler_.ResetPerUserLimits();
     }
+
+    OnDynamicConfigChanged_.Fire(DynamicConfig_);
 }
 
 IYPathServicePtr TCoordinator::CreateOrchidService()

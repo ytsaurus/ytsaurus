@@ -48,6 +48,9 @@ public:
 
     virtual NYTree::IYPathServicePtr CreateOrchidService() override;
 
+public:
+    DEFINE_SIGNAL(void(const TDynamicProxyConfigPtr&), OnDynamicConfigChanged);
+
 private:
     std::atomic<bool> Banned_ = false;
     std::atomic<bool> Available_ = false;
@@ -126,7 +129,8 @@ void TProxyCoordinator::SetDynamicConfig(TDynamicProxyConfigPtr config)
         Sampler_.ResetPerUserLimits();
     }
 
-    Config_.Store(std::move(config));
+    Config_.Store(config);
+    OnDynamicConfigChanged_.Fire(config);
 }
 
 TDynamicProxyConfigPtr TProxyCoordinator::GetDynamicConfig() const

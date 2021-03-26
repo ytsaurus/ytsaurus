@@ -28,26 +28,6 @@ namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicProxyConfig
-    : public virtual NYTree::TYsonSerializable
-{
-public:
-    NTracing::TSamplingConfigPtr Tracing;
-    THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;
-
-    TDynamicProxyConfig()
-    {
-        RegisterParameter("tracing", Tracing)
-            .DefaultNew();
-        RegisterParameter("formats", Formats)
-            .Default();
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TDynamicProxyConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TSecurityManagerConfig
     : public virtual NYTree::TYsonSerializable
 {
@@ -176,6 +156,24 @@ DEFINE_REFCOUNTED_TYPE(TAccessCheckerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAccessCheckerDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Whether access checker is enabled.
+    std::optional<bool> Enabled;
+
+    TAccessCheckerDynamicConfig()
+    {
+        RegisterParameter("enabled", Enabled)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TAccessCheckerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TProxyConfig
     : public TServerConfig
     , public NAuth::TAuthenticationManagerConfig
@@ -240,6 +238,31 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TProxyConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicProxyConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    NTracing::TSamplingConfigPtr Tracing;
+    THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;
+
+    TAccessCheckerDynamicConfigPtr AccessChecker;
+
+    TDynamicProxyConfig()
+    {
+        RegisterParameter("tracing", Tracing)
+            .DefaultNew();
+        RegisterParameter("formats", Formats)
+            .Default();
+
+        RegisterParameter("access_checker", AccessChecker)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicProxyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

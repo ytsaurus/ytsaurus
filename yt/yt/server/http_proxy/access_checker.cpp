@@ -28,16 +28,18 @@ public:
             Bootstrap_->GetNativeConnection(),
             HttpProxyProfiler.WithPrefix("/access_checker_cache")))
         , ProxyRole_(Bootstrap_->GetCoordinator()->GetSelf()->Role)
+        , Enabled_(Config_->Enabled)
     {
         const auto& coordinator = Bootstrap_->GetCoordinator();
         coordinator->SubscribeOnSelfRoleChanged(BIND(&TAccessChecker::OnProxyRoleUpdated, MakeWeak(this)));
+        coordinator->SubscribeOnDynamicConfigChanged(BIND(&TAccessChecker::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     virtual TError ValidateAccess(const TString& user) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (!Config_->Enabled) {
+        if (!Enabled_.load()) {
             return TError();
         }
 
@@ -69,11 +71,20 @@ private:
 
     TAtomicObject<TString> ProxyRole_;
 
+    std::atomic<bool> Enabled_;
+
     void OnProxyRoleUpdated(TString newRole)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         ProxyRole_.Store(newRole);
+    }
+
+    void OnDynamicConfigChanged(const TDynamicConfigPtr& newConfig)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        Enabled_.store(newConfig->AccessChecker->Enabled.value_or(Config_->Enabled));
     }
 };
 

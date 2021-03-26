@@ -85,6 +85,9 @@ public:
     //! Raised when proxy role changes.
     DEFINE_SIGNAL(void(const TString), OnSelfRoleChanged);
 
+    //! Raised when dynamic config changes.
+    DEFINE_SIGNAL(void(const TDynamicConfigPtr& newConfig), OnDynamicConfigChanged);
+
 private:
     const TCoordinatorConfigPtr Config_;
     TBootstrap* const Bootstrap_;

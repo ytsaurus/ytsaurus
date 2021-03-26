@@ -92,6 +92,18 @@ class TestRpcProxy(YTEnvSetup):
         set("//sys/rpc_proxies/" + proxy_name + "/@role", "r3")
         wait(lambda: check_access("u"))
 
+        # Set proxy role back to "r2". User "u" still can't use it.
+        set("//sys/rpc_proxies/" + proxy_name + "/@role", "r2")
+        wait(lambda: not check_access("u"))
+
+        # Disable access checker via dynamic config. Now "u" can use proxy.
+        set("//sys/rpc_proxies/@config", {"access_checker": {"enabled": False}})
+        wait(lambda: check_access("u"))
+
+        # Enable access checker via dynamic config. And "u" is banned again.
+        set("//sys/rpc_proxies/@config", {"access_checker": {"enabled": True}})
+        wait(lambda: not check_access("u"))
+
 
 ##################################################################
 
