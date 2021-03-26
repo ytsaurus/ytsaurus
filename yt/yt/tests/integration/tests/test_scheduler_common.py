@@ -983,7 +983,7 @@ class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
     def test_hot_standby(self):
         self._prepare_tables()
 
-        op = map(track=False, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 5")
+        op = map(track=False, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 15")
 
         op.wait_for_fresh_snapshot()
 
