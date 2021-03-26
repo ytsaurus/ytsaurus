@@ -2021,3 +2021,30 @@ class TestOperationsSkiffFormat(object):
         yt.run_map(mapper2, yt.TablePath(input_table, attributes={"rename_columns": {"x": "z"}}), output_table3)
         assert list(yt.read_table(output_table3)) == [{"y": 9}, {"y": 25}, {"y": 0}]
 
+    @authors("ignat")
+    def test_hidden_token(self, yt_env_with_rpc):
+        # yt-python binary does not support native driver.
+        # It is made intentionally to reduce binary size.
+        if yt.config["backend"] == "native":
+            pytest.skip()
+
+        script = """
+from __future__ import print_function
+
+import yt.wrapper as yt
+import sys
+
+input, output = sys.argv[1:3]
+op = yt.run_map("sleep 1000", input, output, format="json", sync=False)
+print(op.id)
+"""
+        dir_ = yt_env_with_rpc.env.path
+        with tempfile.NamedTemporaryFile(mode="w", dir=dir_, prefix="mapper", delete=False) as file:
+            file.write(script)
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1}])
+
+        op_id = subprocess.check_output([get_python(), file.name, table, table, "AQAD-token"],
+                                        env=self.env, stderr=sys.stderr).strip()
+        assert "AQAD" not in str(yt.get_operation(op_id)["spec"])
