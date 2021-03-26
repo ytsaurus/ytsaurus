@@ -158,7 +158,7 @@ protected:
     void CloseServerSocket()
     {
         if (ServerSocket_ != INVALID_SOCKET) {
-            close(ServerSocket_);
+            CloseSocket(ServerSocket_);
             if (Config_->UnixDomainSocketPath) {
                 unlink(Config_->UnixDomainSocketPath->c_str());
             }
@@ -172,16 +172,20 @@ protected:
         while (true) {
             TNetworkAddress clientAddress;
             SOCKET clientSocket;
-
             try {
                 clientSocket = AcceptSocket(ServerSocket_, &clientAddress);
-                if (clientSocket == INVALID_SOCKET) {
-                    break;
-                }
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Error accepting client connection");
                 break;
             }
+
+            if (clientSocket == INVALID_SOCKET) {
+                break;
+            }
+
+            auto rejectConnection = [&] {
+                CloseSocket(clientSocket);
+            };
 
             auto clientNetwork = GetNetworkNameForAddress(clientAddress);
 
@@ -195,16 +199,24 @@ protected:
                     formattedClientAddress,
                     connectionCount,
                     connectionLimit);
-                close(clientSocket);
+                rejectConnection();
                 continue;
-            } else {
-                YT_LOG_DEBUG("Connection accepted (ConnectionId: %v, Address: %v, Network: %v, ConnectionCount: %v, ConnectionLimit: %v)",
-                    connectionId,
-                    formattedClientAddress,
-                    clientNetwork,
-                    connectionCount,
-                    connectionLimit);
             }
+
+            auto poller = TTcpDispatcher::TImpl::Get()->GetXferPoller();
+            if (!poller) {
+                YT_LOG_WARNING("Bus poller is already terminated; dropping connection (Address: %v)",
+                    formattedClientAddress);
+                rejectConnection();
+                break;
+            }
+
+            YT_LOG_DEBUG("Connection accepted (ConnectionId: %v, Address: %v, Network: %v, ConnectionCount: %v, ConnectionLimit: %v)",
+                connectionId,
+                formattedClientAddress,
+                clientNetwork,
+                connectionCount,
+                connectionLimit);
 
             InitClientSocket(clientSocket);
 
@@ -228,7 +240,7 @@ protected:
                 address,
                 std::nullopt,
                 Handler_,
-                TTcpDispatcher::TImpl::Get()->GetXferPoller());
+                std::move(poller));
 
             {
                 auto guard = WriterGuard(ConnectionsSpinLock_);

@@ -107,7 +107,7 @@ void TTcpConnection::Close()
                 Poller_->Unarm(Socket_);
                 UpdateConnectionCount(-1);
             }
-            close(Socket_);
+            CloseSocket(Socket_);
             Socket_ = INVALID_SOCKET;
         }
 

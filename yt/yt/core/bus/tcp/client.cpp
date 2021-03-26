@@ -152,6 +152,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        auto poller = TTcpDispatcher::TImpl::Get()->GetXferPoller();
+        if (!poller) {
+            THROW_ERROR_EXCEPTION("Bus poller is already terminated");
+        }
+
         auto id = TConnectionId::Create();
 
         YT_LOG_DEBUG("Connecting to server (Address: %v, ConnectionId: %v)",
@@ -175,18 +180,18 @@ public:
             TNetworkAddress{},
             Config_->Address,
             Config_->UnixDomainSocketPath,
-            handler,
-            TTcpDispatcher::TImpl::Get()->GetXferPoller());
+            std::move(handler),
+            std::move(poller));
         connection->Start();
 
-        return New<TTcpClientBusProxy>(connection);
+        return New<TTcpClientBusProxy>(std::move(connection));
     }
 
 private:
     const TTcpBusClientConfigPtr Config_;
+
     TString EndpointDescription_;
     IAttributeDictionaryPtr EndpointAttributes_;
-
 };
 
 IBusClientPtr CreateTcpBusClient(TTcpBusClientConfigPtr config)
