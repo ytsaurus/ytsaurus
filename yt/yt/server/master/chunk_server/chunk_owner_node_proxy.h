@@ -96,6 +96,7 @@ private:
     void SetVital(bool vital);
     void SetReplication(const TChunkReplication& replication);
     void SetPrimaryMedium(TMedium* medium);
+    void SetEnableChunkMerger(bool enable);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

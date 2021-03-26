@@ -300,6 +300,7 @@ private:
 
         auto millisecondsPassed = (current - lastUpdated).MilliSeconds();
         auto deltaAvailable = static_cast<i64>(millisecondsPassed * limit / 1000);
+
         if (deltaAvailable == 0) {
             return;
         }

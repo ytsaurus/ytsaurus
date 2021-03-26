@@ -133,6 +133,22 @@ TMutableUnversionedRow TRowBuffer::CaptureAndPermuteRow(
     return capturedRow;
 }
 
+TMutableUnversionedRow TRowBuffer::CaptureAndPermuteRow(
+    TUnversionedRow row,
+    const TNameTableToSchemaIdMapping& idMapping)
+{
+    auto capturedRow = TMutableUnversionedRow::Allocate(&Pool_, row.GetCount());
+
+    for (int i = 0; i < row.GetCount(); ++i) {
+        const auto& value = row[i];
+
+        capturedRow[i] = value;
+        capturedRow[i].Id = idMapping[value.Id];
+    }
+
+    return capturedRow;
+}
+
 TMutableVersionedRow TRowBuffer::CaptureAndPermuteRow(
     TVersionedRow row,
     const TTableSchema& tableSchema,

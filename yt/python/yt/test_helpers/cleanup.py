@@ -15,6 +15,8 @@ def abort_transactions(list_action, abort_action):
             continue
         if "Prerequisite for" in title:
             continue
+        if "Chunk merger" in title:
+            continue
         try:
             abort_action(tx)
         except YtError:

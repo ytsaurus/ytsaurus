@@ -30,7 +30,8 @@ TString FormatResources(
         "ReplicationSlots: %v/%v, ReplicationDataSize: %v/%v, "
         "RemovalSlots: %v/%v, "
         "RepairSlots: %v/%v, RepairDataSize: %v/%v, "
-        "SealSlots: %v/%v",
+        "SealSlots: %v/%v, "
+        "MergeSlots: %v/%v",
         // User slots
         usage.user_slots(),
         limits.user_slots(),
@@ -66,7 +67,10 @@ TString FormatResources(
         limits.repair_data_size(),
         // Seal slots
         usage.seal_slots(),
-        limits.seal_slots());
+        limits.seal_slots(),
+        // Merge slots
+        usage.merge_slots(),
+        limits.merge_slots());
 }
 
 TString FormatResourceUsage(
@@ -127,6 +131,7 @@ TString FormatResources(const TNodeResources& resources)
         "RemovalSlots: %v, "
         "RepairSlots: %v, RepairDataSize: %vMB, "
         "SealSlots: %v"
+        "MergeSlots: %v"
         "}",
         resources.user_slots(),
         resources.cpu(),
@@ -139,7 +144,8 @@ TString FormatResources(const TNodeResources& resources)
         resources.removal_slots(),
         resources.repair_slots(),
         resources.repair_data_size() / 1_MB,
-        resources.seal_slots());
+        resources.seal_slots(),
+        resources.merge_slots());
 }
 
 void ProfileResources(TLegacyProfiler& profiler, const TNodeResources& resources)

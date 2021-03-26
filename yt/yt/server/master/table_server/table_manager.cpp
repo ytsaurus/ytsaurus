@@ -129,10 +129,11 @@ public:
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsSecondaryMaster()) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Schedule node statistics update (NodeId: %v, UpdateDataStatistics: %v, UpdateTabletStatistics: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Schedule node statistics update (NodeId: %v, UpdateDataStatistics: %v, UpdateTabletStatistics: %v, UseNativeContentRevisionCas: %v)",
                 chunkOwner->GetId(),
                 updateDataStatistics,
-                updateTabletStatistics);
+                updateTabletStatistics,
+                useNativeContentRevisionCas);
 
             auto& statistics = StatisticsUpdateRequests_[chunkOwner->GetId()];
             statistics.UpdateTabletResourceUsage |= updateTabletStatistics;

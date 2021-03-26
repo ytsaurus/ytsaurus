@@ -1739,6 +1739,20 @@ public:
         return checker.GetResponse();
     }
 
+    bool IsSuperuser(const TUser* user) const
+    {
+        // NB: This is also useful for migration when "superusers" is initially created.
+        if (user == RootUser_) {
+            return true;
+        }
+
+        if (user->RecursiveMemberOf().find(SuperusersGroup_) != user->RecursiveMemberOf().end()) {
+            return true;
+        }
+
+        return false;
+    }
+
     void ValidatePermission(
         TObject* object,
         TUser* user,
@@ -3757,7 +3771,7 @@ private:
             }
 
             // "root" and "superusers" need no authorization.
-            if (IsUserRootOrSuperuser(User_)) {
+            if (Impl_->IsSuperuser(User_)) {
                 return ESecurityAction::Allow;
             }
 
@@ -3774,20 +3788,6 @@ private:
             }
 
             return ESecurityAction::Undefined;
-        }
-
-        bool IsUserRootOrSuperuser(const TUser* user)
-        {
-            // NB: This is also useful for migration when "superusers" is initially created.
-            if (user == Impl_->RootUser_) {
-                return true;
-            }
-
-            if (user->RecursiveMemberOf().find(Impl_->SuperusersGroup_) != user->RecursiveMemberOf().end()) {
-                return true;
-            }
-
-            return false;
         }
 
         static bool CheckSubjectMatch(TSubject* subject, TUser* user)
@@ -4392,6 +4392,11 @@ TPermissionCheckResponse TSecurityManager::CheckPermission(
         permission,
         acl,
         std::move(options));
+}
+
+bool TSecurityManager::IsSuperuser(const TUser* user) const
+{
+    return Impl_->IsSuperuser(user);
 }
 
 void TSecurityManager::ValidatePermission(

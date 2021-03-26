@@ -10,48 +10,68 @@
 #include "location.h"
 #include "master_connector.h"
 
+#include <yt/yt/server/lib/chunk_server/proto/job.pb.h>
+
+#include <yt/yt/server/lib/hydra/changelog.h>
+
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/job_agent/job.h>
 
-#include <yt/yt/server/lib/hydra/changelog.h>
-
-#include <yt/yt/server/lib/chunk_server/proto/job.pb.h>
-
-#include <yt/yt/client/api/client.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/chunk_writer.h>
+#include <yt/yt/ytlib/chunk_client/confirming_writer.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/yt/ytlib/chunk_client/erasure_repair.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/yt/ytlib/chunk_client/replication_writer.h>
-#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+
+#include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
 
 #include <yt/yt/ytlib/journal_client/erasure_repair.h>
 #include <yt/yt/ytlib/journal_client/chunk_reader.h>
 
-#include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
-
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
-#include <yt/yt/client/node_tracker_client/node_directory.h>
+#include <yt/yt/ytlib/table_client/chunk_state.h>
+#include <yt/yt/ytlib/table_client/columnar_chunk_meta.h>
+#include <yt/yt/ytlib/table_client/schemaless_chunk_reader.h>
+#include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 
-#include <yt/yt/client/object_client/helpers.h>
+#include <yt/yt/library/erasure/impl/codec.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/yt/library/erasure/impl/codec.h>
-
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/string.h>
+
+#include <yt/yt/client/api/client.h>
+
+#include <yt/yt/client/chunk_client/read_limit.h>
+
+#include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt/client/object_client/helpers.h>
+
+#include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+
+#include <yt/yt/client/transaction_client/public.h>
 
 #include <util/generic/algorithm.h>
 
@@ -69,6 +89,8 @@ using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NYson;
 using namespace NCoreDump;
+using namespace NTableClient;
+using namespace NTransactionClient;
 
 using NNodeTrackerClient::TNodeDescriptor;
 using NChunkClient::TChunkReaderStatistics;
@@ -1057,6 +1079,171 @@ private:
     }
 };
 
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChunkMergeJob
+    : public TChunkJobBase
+{
+public:
+    TChunkMergeJob(
+        TJobId jobId,
+        const TJobSpec& jobSpec,
+        const TNodeResources& resourceLimits,
+        TDataNodeConfigPtr config,
+        TBootstrap* bootstrap)
+        : TChunkJobBase(
+            jobId,
+            std::move(jobSpec),
+            resourceLimits,
+            std::move(config),
+            bootstrap)
+        , JobSpecExt_(JobSpec_.GetExtension(TMergeChunksJobSpecExt::merge_chunks_job_spec_ext))
+        , CellTag_(FromProto<TCellTag>(JobSpecExt_.cell_tag()))
+    { }
+
+private:
+    const TMergeChunksJobSpecExt JobSpecExt_;
+    const TCellTag CellTag_;
+        
+    virtual void DoRun() override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+        nodeDirectory->MergeFrom(JobSpecExt_.node_directory());
+
+        const auto& chunkMergerWriterOptions = JobSpecExt_.chunk_merger_writer_options();
+        auto schema = New<TTableSchema>(FromProto<TTableSchema>(chunkMergerWriterOptions.schema()));
+
+        auto outputChunkId = FromProto<TChunkId>(JobSpecExt_.output_chunk_id());
+        int mediumIndex = JobSpecExt_.medium_index();
+        auto sessionId = TSessionId(outputChunkId, mediumIndex);
+        auto codec = CheckedEnumCast<NCompression::ECodec>(chunkMergerWriterOptions.compression_codec());
+
+        auto options = New<TMultiChunkWriterOptions>();
+        options->TableSchema = schema;
+        options->CompressionCodec = codec;
+
+        auto confirmingWriter = CreateConfirmingWriter(
+            Config_->MergeWriter,
+            options,
+            CellTag_,
+            NullTransactionId,
+            NullChunkListId,
+            nodeDirectory,
+            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetBlockCache(),
+            /*trafficMeter*/ nullptr,
+            Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::MergeOut),
+            sessionId);
+
+        auto chunkWriterOptions = New<TChunkWriterOptions>();
+        chunkWriterOptions->CompressionCodec = codec;
+        if (chunkMergerWriterOptions.has_optimize_for()) {
+            chunkWriterOptions->OptimizeFor = CheckedEnumCast<EOptimizeFor>(chunkMergerWriterOptions.optimize_for());
+        }
+        if (chunkMergerWriterOptions.has_enable_skynet_sharing()) {
+            chunkWriterOptions->EnableSkynetSharing = chunkMergerWriterOptions.enable_skynet_sharing();
+        }
+
+        auto writer = CreateSchemalessChunkWriter(
+            New<TChunkWriterConfig>(),
+            chunkWriterOptions,
+            schema,
+            confirmingWriter);
+
+        auto rowBuffer = New<TRowBuffer>();
+        auto writeNameTable = writer->GetNameTable();
+
+        for (const auto& chunk : JobSpecExt_.input_chunks()) {
+            auto inputChunkId = FromProto<TChunkId>(chunk.id());
+            auto inputChunkReplicas = FromProto<TChunkReplicaList>(chunk.source_replicas());
+
+            YT_LOG_INFO("Reading input chunk (ChunkId: %v)", inputChunkId);
+
+            auto replicationReader = CreateReplicationReader(
+                Config_->MergeReader,
+                New<TRemoteReaderOptions>(),
+                Bootstrap_->GetMasterClient(),
+                nodeDirectory,
+                Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor(),
+                Bootstrap_->GetClusterNodeMasterConnector()->GetNodeId(),
+                inputChunkId,
+                inputChunkReplicas,
+                Bootstrap_->GetBlockCache(),
+                /*trafficMeter*/ nullptr ,
+                /*nodeStatusDirectory*/ nullptr ,
+                Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::MergeIn));
+
+            auto chunkMeta = GetChunkMeta(replicationReader);
+
+            TChunkSpec chunkSpec;
+            ToProto(chunkSpec.mutable_chunk_id(), inputChunkId);
+
+            auto chunkState = New<TChunkState>(
+                Bootstrap_->GetBlockCache(),
+                chunkSpec,
+                nullptr,
+                NullTimestamp,
+                nullptr,
+                nullptr,
+                nullptr,
+                nullptr);
+
+            auto reader = CreateSchemalessRangeChunkReader(
+                std::move(chunkState),
+                New<TColumnarChunkMeta>(*chunkMeta),
+                New<TChunkReaderConfig>(),
+                New<TChunkReaderOptions>(),
+                replicationReader,
+                New<TNameTable>(),
+                TClientChunkReadOptions(),
+                /*keyColumns*/ {},
+                /*omittedInaccessibleColumns*/ {},
+                TColumnFilter(),
+                NChunkClient::TReadRange());
+
+            while (auto batch = WaitForRowBatch(reader)) {
+                auto rows = batch->MaterializeRows();
+
+                if (rows.empty()) {
+                    continue;
+                }
+
+                const auto& readNameTable = reader->GetNameTable();
+                auto readTableSize = readNameTable->GetSize();
+                TNameTableToSchemaIdMapping idMapping(readTableSize);
+                const auto& names = readNameTable->GetNames();
+
+                for (auto i = 0; i < readTableSize; ++i) {
+                    const auto& name = names[i];
+                    idMapping[i] = writeNameTable->GetIdOrRegisterName(name);
+                }
+
+                for (auto row : rows) {
+                    auto capturedRow = rowBuffer->CaptureAndPermuteRow(row, idMapping);
+                    writer->Write({capturedRow});
+                }
+            }
+        }
+
+        WaitFor(writer->Close())
+            .ThrowOnError();
+    }
+
+    TDeferredChunkMetaPtr GetChunkMeta(IChunkReaderPtr reader)
+    {
+        auto result = WaitFor(reader->GetMeta(TClientChunkReadOptions()));
+        if (!result.IsOK()) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(result, "Merge job failed");
+        }
+        auto deferredChunkMeta = New<TDeferredChunkMeta>();
+        deferredChunkMeta->CopyFrom(*result.Value());
+        return deferredChunkMeta;
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 IJobPtr CreateChunkJob(
@@ -1094,6 +1281,14 @@ IJobPtr CreateChunkJob(
 
         case EJobType::SealChunk:
             return New<TSealChunkJob>(
+                jobId,
+                std::move(jobSpec),
+                resourceLimits,
+                config,
+                bootstrap);
+
+        case EJobType::MergeChunks:
+            return New<TChunkMergeJob>(
                 jobId,
                 std::move(jobSpec),
                 resourceLimits,

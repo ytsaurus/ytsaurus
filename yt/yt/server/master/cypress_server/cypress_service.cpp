@@ -52,7 +52,6 @@ public:
 
         context->Reply();
     }
-
 };
 
 IServicePtr CreateCypressService(TBootstrap* boostrap)

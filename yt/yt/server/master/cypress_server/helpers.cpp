@@ -388,6 +388,14 @@ bool IsAncestorOf(
     return false;
 }
 
+bool IsChunkOwnerType(EObjectType type)
+{
+    return
+        IsTableType(type) ||
+        type == EObjectType::File ||
+        type == EObjectType::Journal;
+}
+
 TNodeId MakePortalExitNodeId(
     TNodeId entranceNodeId,
     TCellTag exitCellTag)

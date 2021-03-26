@@ -3,6 +3,7 @@
 #include "public.h"
 #include "chunk_writer.h"
 #include "client_block_cache.h"
+#include "session_id.h"
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -27,7 +28,8 @@ IChunkWriterPtr CreateConfirmingWriter(
     NApi::NNative::IClientPtr client,
     IBlockCachePtr blockCache = GetNullBlockCache(),
     TTrafficMeterPtr trafficMeter = nullptr,
-    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
+    TSessionId sessionId = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

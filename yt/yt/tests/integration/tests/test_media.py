@@ -554,6 +554,58 @@ class TestMedia(YTEnvSetup):
         wait(persistent_chunk_is_lost_vital)
         wait(transient_chunk_is_lost_but_not_vital)
 
+    @authors("aleksandra-zh")
+    def test_merge_chunks_for_nondefault_medium(self):
+        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
+
+        primary_medium = TestMedia.NON_DEFAULT_MEDIUM
+
+        create("table", "//tmp/t", attributes={"primary_medium": primary_medium})
+
+        write_table("<append=true>//tmp/t", {"a": "b"})
+        write_table("<append=true>//tmp/t", {"a": "c"})
+        write_table("<append=true>//tmp/t", {"a": "d"})
+
+        info = read_table("//tmp/t")
+
+        set("//tmp/t/@enable_chunk_merger", True)
+        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+
+        wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
+        assert read_table("//tmp/t") == info
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        assert get("#{0}/@requisition/0/medium".format(chunk_ids[0])) == primary_medium
+
+    @authors("aleksandra-zh")
+    def test_merge_chunks_change_medium(self):
+        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
+
+        primary_medium = TestMedia.NON_DEFAULT_MEDIUM
+
+        create("table", "//tmp/t", attributes={"primary_medium": primary_medium})
+
+        write_table("<append=true>//tmp/t", {"a": "b"})
+        write_table("<append=true>//tmp/t", {"a": "c"})
+        write_table("<append=true>//tmp/t", {"a": "d"})
+
+        info = read_table("//tmp/t")
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        assert get("#{0}/@requisition/0/medium".format(chunk_ids[0])) == primary_medium
+
+        another_primary_medium = TestMedia.NON_DEFAULT_TRANSIENT_MEDIUM
+        set("//tmp/t/@primary_medium", another_primary_medium)
+
+        set("//tmp/t/@enable_chunk_merger", True)
+        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+
+        wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
+        assert read_table("//tmp/t") == info
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        assert get("#{0}/@requisition/0/medium".format(chunk_ids[0])) == another_primary_medium
+
 
 ################################################################################
 

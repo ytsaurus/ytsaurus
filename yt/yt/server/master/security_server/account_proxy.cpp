@@ -152,6 +152,9 @@ private:
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TotalChildrenResourceLimits)
             .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MergeJobRateLimit)
+            .SetWritable(true)
+            .SetWritePermission(EPermission::Administer));
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -268,6 +271,12 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::MergeJobRateLimit: {
+                BuildYsonFluently(consumer)
+                    .Value(account->GetMergeJobRateLimit());
+                return true;
+            }
+
             default:
                 break;
         }
@@ -290,6 +299,19 @@ private:
 
                 auto overcommitAllowed = ConvertTo<bool>(value);
                 securityManager->SetAccountAllowChildrenLimitOvercommit(account, overcommitAllowed);
+                return true;
+            }
+
+            case EInternedAttributeKey::MergeJobRateLimit: {
+                auto* user = securityManager->GetAuthenticatedUser();
+                if (!securityManager->IsSuperuser(user)) {
+                    THROW_ERROR_EXCEPTION(
+                        NSecurityClient::EErrorCode::AuthorizationError,
+                        "Access denied: only superusers can change merge job rate limit");
+                }
+
+                auto mergeJobRateLimit = ConvertTo<int>(value);
+                account->SetMergeJobRateLimit(mergeJobRateLimit);
                 return true;
             }
 

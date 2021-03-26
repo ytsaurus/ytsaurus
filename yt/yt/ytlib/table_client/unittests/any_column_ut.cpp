@@ -90,4 +90,4 @@ TEST(TAnyColumnTest, Simple)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NTableCLient
+} // namespace NYT::NTableClient
