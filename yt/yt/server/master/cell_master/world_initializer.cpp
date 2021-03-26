@@ -570,16 +570,6 @@ private:
                 transactionId,
                 EObjectType::MapNode);
 
-            ScheduleCreateNode(
-                "//sys/http_proxy_roles",
-                transactionId,
-                EObjectType::HttpProxyRoleMap);
-
-            ScheduleCreateNode(
-                "//sys/rpc_proxy_roles",
-                transactionId,
-                EObjectType::RpcProxyRoleMap);
-
             FlushScheduled();
 
             // Level 3
