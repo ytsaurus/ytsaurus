@@ -5206,7 +5206,7 @@ void TOperationControllerBase::FetchInputTables()
             .Config = Config->Fetcher,
             .NodeDirectory = InputNodeDirectory_,
             .ChunkScraper = CreateFetcherChunkScraper(),
-            .Mode = EColumnarStatisticsFetcherMode::Fallback,
+            .Mode = Spec_->InputTableColumnarStatistics->Mode,
             .Logger = Logger,
         });
 
@@ -5220,7 +5220,7 @@ void TOperationControllerBase::FetchInputTables()
             const auto& table = InputTables_[tableIndex];
             req->set_fetch_all_meta_extensions(false);
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-            if (table->Path.GetColumns() && Spec_->UseColumnarStatistics) {
+            if (table->Path.GetColumns() && Spec_->InputTableColumnarStatistics->Enabled) {
                 req->add_extension_tags(TProtoExtensionTag<THeavyColumnStatisticsExt>::Value);
             }
             if (table->Dynamic || IsBoundaryKeysFetchEnabled()) {
@@ -5345,7 +5345,7 @@ void TOperationControllerBase::FetchInputTables()
             RegisterInputChunk(table->Chunks.back());
 
             auto hasColumnSelectors = table->Path.GetColumns().operator bool();
-            if (hasColumnSelectors && Spec_->UseColumnarStatistics) {
+            if (hasColumnSelectors && Spec_->InputTableColumnarStatistics->Enabled) {
                 columnarStatisticsFetcher->AddChunk(inputChunk, *table->Path.GetColumns());
             }
         }
@@ -6060,7 +6060,7 @@ void TOperationControllerBase::FetchUserFiles()
             const auto& file = *userFiles[fileIndex];
             req->set_fetch_all_meta_extensions(false);
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-            if (file.Type == EObjectType::File && file.Path.GetColumns() && Spec_->UseColumnarStatistics) {
+            if (file.Type == EObjectType::File && file.Path.GetColumns() && Spec_->UserFileColumnarStatistics->Enabled) {
                 req->add_extension_tags(TProtoExtensionTag<THeavyColumnStatisticsExt>::Value);
             }
             if (file.Dynamic || IsBoundaryKeysFetchEnabled()) {
@@ -6136,7 +6136,7 @@ void TOperationControllerBase::ValidateUserFileSizes()
             .Config = Config->Fetcher,
             .NodeDirectory = InputNodeDirectory_,
             .ChunkScraper = CreateFetcherChunkScraper(),
-            .Mode = EColumnarStatisticsFetcherMode::Fallback,
+            .Mode = Spec_->UserFileColumnarStatistics->Mode,
             .Logger = Logger,
         });
 
@@ -6147,7 +6147,7 @@ void TOperationControllerBase::ValidateUserFileSizes()
                 for (const auto& chunkSpec : file.ChunkSpecs) {
                     auto chunk = New<TInputChunk>(chunkSpec);
                     file.Chunks.emplace_back(chunk);
-                    if (file.Path.GetColumns() && Spec_->UseColumnarStatistics) {
+                    if (file.Path.GetColumns() && Spec_->UserFileColumnarStatistics->Enabled) {
                         columnarStatisticsFetcher->AddChunk(chunk, *file.Path.GetColumns());
                     }
                 }
