@@ -938,7 +938,7 @@ private:
 
         auto connection = Owner_->Connection_.Lock();
         if (!connection) {
-            THROW_ERROR_EXCEPTION(NYT::EErrorCode::Canceled, "Connection destoyred");
+            THROW_ERROR_EXCEPTION(NYT::EErrorCode::Canceled, "Connection destroyed");
 
         }
 
