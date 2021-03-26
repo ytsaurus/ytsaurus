@@ -186,10 +186,6 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("custom_profiling_tag_filter", CustomProfilingTagFilter)
         .Default();
 
-    RegisterParameter("threshold_to_enable_max_possible_usage_regularization", ThresholdToEnableMaxPossibleUsageRegularization)
-        .InRange(0.0, 1.0)
-        .Default(0.5);
-
     RegisterParameter("total_resource_limits_consider_delay", TotalResourceLimitsConsiderDelay)
         .Default(TDuration::Seconds(60));
 
@@ -209,10 +205,6 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
 
     RegisterParameter("non_tentative_operation_types", NonTentativeOperationTypes)
         .Default(std::nullopt);
-
-    RegisterParameter("log_fair_share_ratio_disagreement_threshold", LogFairShareRatioDisagreementThreshold)
-        // Effectively disabled.
-        .Default(1.0);
 
     RegisterParameter("best_allocation_ratio_update_period", BestAllocationRatioUpdatePeriod)
         .Default(TDuration::Minutes(1));
