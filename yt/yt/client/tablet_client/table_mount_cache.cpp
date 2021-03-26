@@ -16,23 +16,6 @@ TKeyBound TTabletInfo::GetLowerKeyBound() const
     return TKeyBound::FromRow() >= PivotKey;
 }
 
-bool TTabletInfo::IsInMemory() const
-{
-    switch (InMemoryMode) {
-        case EInMemoryMode::None:
-            return false;
-
-        case EInMemoryMode::Compressed:
-            return true;
-
-        case EInMemoryMode::Uncompressed:
-            return true;
-
-        default:
-            YT_ABORT();
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 bool TTableMountInfo::IsSorted() const

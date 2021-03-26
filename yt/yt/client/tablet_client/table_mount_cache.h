@@ -40,8 +40,6 @@ struct TTabletInfo
     std::vector<TWeakPtr<TTableMountInfo>> Owners;
 
     NTableClient::TKeyBound GetLowerKeyBound() const;
-
-    bool IsInMemory() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletInfo)
