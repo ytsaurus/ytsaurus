@@ -64,7 +64,7 @@ public:
         TNode* node,
         TReqFullHeartbeat* request) override
     {
-        YT_VERIFY(node->IsDataNode());
+        YT_VERIFY(node->IsDataNode() || node->IsExecNode());
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto& statistics = *request->mutable_statistics();
@@ -91,7 +91,7 @@ public:
         TReqIncrementalHeartbeat* request,
         TRspIncrementalHeartbeat* response) override
     {
-        YT_VERIFY(node->IsDataNode());
+        YT_VERIFY(node->IsDataNode() || node->IsExecNode());
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto& statistics = *request->mutable_statistics();

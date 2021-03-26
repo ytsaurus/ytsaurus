@@ -753,21 +753,26 @@ public:
         }
     }
 
-    THashSet<ENodeHeartbeatType> GetExpectedHeartbeatsForFlavors(const THashSet<ENodeFlavor>& flavors)
+    THashSet<ENodeHeartbeatType> GetExpectedHeartbeatsForFlavors(
+        const THashSet<ENodeFlavor>& flavors,
+        bool primaryMaster)
     {
         THashSet<ENodeHeartbeatType> result;
+        if (primaryMaster) {
+            result.insert(ENodeHeartbeatType::Cluster);
+        }
+
         for (auto flavor : flavors) {
             switch (flavor) {
-                case ENodeFlavor::Cluster:
-                    result.insert(ENodeHeartbeatType::Cluster);
-                    break;
-
                 case ENodeFlavor::Data:
                     result.insert(ENodeHeartbeatType::Data);
                     break;
 
                 case ENodeFlavor::Exec:
-                    result.insert(ENodeHeartbeatType::Exec);
+                    result.insert(ENodeHeartbeatType::Data);
+                    if (primaryMaster) {
+                        result.insert(ENodeHeartbeatType::Exec);
+                    }
                     break;
 
                 case ENodeFlavor::Tablet:
@@ -784,15 +789,9 @@ public:
 
     void CheckNodeOnline(TNode* node)
     {
-        auto expectedFlavors = node->Flavors();
-
-        // Exec and cluster node heartbeats are not reported to secondary masters.
-        if (Bootstrap_->GetMulticellManager()->IsSecondaryMaster()) {
-            expectedFlavors.erase(ENodeFlavor::Exec);
-            expectedFlavors.erase(ENodeFlavor::Cluster);
-        }
-
-        if (node->GetLocalState() == ENodeState::Registered && node->ReportedHeartbeats() == GetExpectedHeartbeatsForFlavors(expectedFlavors)) {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto expectedHeartbeats = GetExpectedHeartbeatsForFlavors(node->Flavors(), multicellManager->IsPrimaryMaster());
+        if (node->GetLocalState() == ENodeState::Registered && node->ReportedHeartbeats() == expectedHeartbeats) {
             UpdateNodeCounters(node, -1);
             node->SetLocalState(ENodeState::Online);
             UpdateNodeCounters(node, +1);
@@ -934,14 +933,11 @@ private:
         // COMPAT(gritukan)
         if (flavors.empty()) {
             flavors = THashSet<ENodeFlavor>{
-                ENodeFlavor::Cluster,
                 ENodeFlavor::Data,
                 ENodeFlavor::Exec,
                 ENodeFlavor::Tablet,
             };
         }
-
-        flavors.insert(ENodeFlavor::Cluster);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster() && IsLeader()) {
@@ -1521,13 +1517,13 @@ private:
 
         // COMPAT(gritukan)
         if (NeedToRunCompatForNodeFlavors_) {
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
             auto fullFlavor = THashSet<ENodeFlavor>{
-                ENodeFlavor::Cluster,
                 ENodeFlavor::Data,
                 ENodeFlavor::Exec,
                 ENodeFlavor::Tablet,
             };
-            auto fullHeartbeat = GetExpectedHeartbeatsForFlavors(fullFlavor);
+            auto fullHeartbeat = GetExpectedHeartbeatsForFlavors(fullFlavor, multicellManager->IsPrimaryMaster());
 
             for (const auto& [nodeId, node] : NodeMap_) {
                 if (!IsObjectAlive(node)) {

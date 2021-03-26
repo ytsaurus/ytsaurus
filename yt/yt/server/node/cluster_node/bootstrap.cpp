@@ -858,7 +858,7 @@ void TBootstrap::DoRun()
     MediumUpdater_->Start();
 
     ClusterNodeMasterConnector_->Initialize();
-    if (IsDataNode()) {
+    if (IsDataNode() || IsExecNode()) {
         DataNodeMasterConnector_->Initialize();
     }
     if (IsExecNode()) {

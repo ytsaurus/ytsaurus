@@ -504,6 +504,9 @@ void TNode::Load(NCellMaster::TLoadContext& context)
         // COMPAT(savrus) ENodeHeartbeatType is compatible with ENodeFlavor.
         Load(context, ReportedHeartbeats_);
     }
+    if (context.GetVersion() < EMasterReign::RemoveClusterNodeFlavor) {
+        Flavors_.erase(ENodeFlavor::Cluster);
+    }
 
     ComputeDefaultAddress();
 }
