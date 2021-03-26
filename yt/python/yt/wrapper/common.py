@@ -1,10 +1,10 @@
 from yt.common import (require, flatten, update, update_inplace, which, YtError, update_from_env, unlist,
                        get_value, filter_dict, date_string_to_timestamp, datetime_to_string, date_string_to_datetime,
-                       uuid_to_parts, declare_deprecated, deprecated_with_message, deprecated)
+                       uuid_to_parts, declare_deprecated, deprecated_with_message, deprecated)  # noqa
 import yt.yson as yson
 
 from yt.packages.decorator import decorator
-from yt.packages.six import iteritems, itervalues, PY3, Iterator, text_type
+from yt.packages.six import iteritems, itervalues, PY3, Iterator, text_type, binary_type
 from yt.packages.six.moves import xrange, map as imap, filter as ifilter, zip as izip
 
 try:
@@ -57,14 +57,14 @@ def hide_fields(object, fields, prefixes, hidden_value="hidden"):
             if key in object:
                 object[key] = hidden_value
         for key, value in iteritems(object):
-            if isinstance(value, text_type) and any(value.startswith(prefix) for prefix in prefixes):
+            if isinstance(value, text_type if PY3 else binary_type) and any(value.startswith(prefix) for prefix in prefixes):
                 object[key] = hidden_value
             else:
                 hide_fields(value, fields, prefixes, hidden_value)
     elif isinstance(object, list):
         for index in xrange(len(object)):
             value = object[index]
-            if isinstance(value, text_type) and any(value.startswith(prefix) for prefix in prefixes):
+            if isinstance(value, text_type if PY3 else binary_type) and any(value.startswith(prefix) for prefix in prefixes):
                 object[index] = hidden_value
             else:
                 hide_fields(value, fields, prefixes, hidden_value)
