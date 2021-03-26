@@ -645,7 +645,22 @@ private:
     static const std::vector<TString>& GetDefaultSensorNames();
 };
 
-DEFINE_REFCOUNTED_TYPE(TUserJobMonitoringConfig);
+DEFINE_REFCOUNTED_TYPE(TUserJobMonitoringConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TColumnarStatisticsConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool Enabled;
+
+    NTableClient::EColumnarStatisticsFetcherMode Mode;
+
+    TColumnarStatisticsConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TColumnarStatisticsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -815,6 +830,12 @@ public:
 
     //! Enable trace log level for operation controller.
     bool EnableTraceLogging;
+
+    //! Columnar statistics config for input tables.
+    TColumnarStatisticsConfigPtr InputTableColumnarStatistics;
+
+    //! Columnar statistics config for user files.
+    TColumnarStatisticsConfigPtr UserFileColumnarStatistics;
 
     TOperationSpecBase();
 

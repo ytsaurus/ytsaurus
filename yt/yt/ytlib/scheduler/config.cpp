@@ -1,6 +1,7 @@
 #include "config.h"
 
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
+
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
 #include <yt/yt/client/security_client/acl.h>
@@ -15,6 +16,7 @@
 #include <yt/yt/core/misc/fs.h>
 
 #include <util/string/split.h>
+
 #include <util/folder/path.h>
 
 namespace NYT::NScheduler {
@@ -417,6 +419,17 @@ const std::vector<TString>& TUserJobMonitoringConfig::GetDefaultSensorNames()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TColumnarStatisticsConfig::TColumnarStatisticsConfig()
+{
+    RegisterParameter("enabled", Enabled)
+        .Default(false);
+
+    RegisterParameter("mode", Mode)
+        .Default(EColumnarStatisticsFetcherMode::Fallback);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TOperationSpecBase::TOperationSpecBase()
 {
     SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -588,7 +601,12 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("enable_trace_logging", EnableTraceLogging)
         .Default(false);
 
-    RegisterPostprocessor([&] () {
+    RegisterParameter("input_table_columnar_statistics", InputTableColumnarStatistics)
+        .DefaultNew();
+    RegisterParameter("user_file_columnar_statistics", UserFileColumnarStatistics)
+        .DefaultNew();
+
+    RegisterPostprocessor([&] {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)
         {
@@ -624,6 +642,11 @@ TOperationSpecBase::TOperationSpecBase()
                         << TErrorAttribute("duplicate_shell_name", jobShell->Name);
                 }
             }
+        }
+
+        if (UseColumnarStatistics) {
+            InputTableColumnarStatistics->Enabled = true;
+            UserFileColumnarStatistics->Enabled = true;
         }
     });
 }
