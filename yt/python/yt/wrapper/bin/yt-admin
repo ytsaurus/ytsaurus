@@ -3,6 +3,8 @@
 from __future__ import print_function
 import sys
 
+from yt.wrapper.admin_commands import add_switch_leader_parser
+
 from yt.wrapper.cli_helpers import ParseStructuredArgument
 from yt.wrapper.native_driver import get_driver_instance
 import yt.wrapper as yt
@@ -14,9 +16,6 @@ def build_snapshot(*args, **kwargs):
 
 def build_master_snapshots(*args, **kwargs):
     print(get_driver_instance(None).build_master_snapshots(*args, **kwargs))
-
-def switch_leader(*args, **kwargs):
-    print(get_driver_instance(None).switch_leader(*args, **kwargs))
 
 def gc_collect(*args, **kwargs):
     get_driver_instance(None).gc_collect(*args, **kwargs)
@@ -37,6 +36,8 @@ def clear_metadata_caches(*args, **kwargs):
 def main():
     config_parser = ArgumentParser(add_help=False)
     config_parser.add_argument("--config", action=ParseStructuredArgument, help="specify configuration", default={})
+    config_parser.add_argument("--proxy", help="specify cluster to run command, "
+                                               "by default we expect that --config is specified")
 
     parser = ArgumentParser(
         parents=[config_parser],
@@ -58,10 +59,7 @@ def main():
     build_master_snapshot_parser.add_argument("--wait-for-snapshot-completion", action="store_true", default=False)
     build_master_snapshot_parser.add_argument("--retry", action="store_true", default=True)
 
-    switch_leader_parser = subparsers.add_parser("switch-leader", help="Switch master cell leader")
-    switch_leader_parser.set_defaults(func=switch_leader)
-    switch_leader_parser.add_argument("--cell-id", required=True)
-    switch_leader_parser.add_argument("--new-leader-id", required=True)
+    add_switch_leader_parser(subparsers)
 
     gc_collect_parser = subparsers.add_parser("gc-collect", help="Run garbage collection at master")
     gc_collect_parser.set_defaults(func=gc_collect)
@@ -91,12 +89,18 @@ def main():
     clear_metadata_caches_parser.set_defaults(func=clear_metadata_caches)
 
     config_args, unparsed = config_parser.parse_known_args()
-    yt.config.update_config(config_args.config)
+    if config_args.proxy is not None:
+        yt.config["backend"] = "http"
+        yt.config["proxy"]["url"] = config_args.proxy
+    else:
+        yt.config["backend"] = "native"
+        yt.config.update_config(config_args.config)
 
     args = parser.parse_args(unparsed)
     func_args = dict(vars(args))
     func_args.pop("func")
     func_args.pop("config")
+    func_args.pop("proxy")
     args.func(**func_args)
 
 if __name__ == "__main__":

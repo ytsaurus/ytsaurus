@@ -1512,9 +1512,9 @@ def build_master_snapshots(*args, **kwargs):
     return get_driver().build_master_snapshots(*args, **kwargs)
 
 
-def switch_leader(*args, **kwargs):
-    return get_driver().switch_leader(*args, **kwargs)
-
+def switch_leader(cell_id, new_leader_id):
+    parameters = {"cell_id": cell_id, "new_leader_id": new_leader_id}
+    return execute_command("switch_leader", parameters, parse_yson=True)
 
 def get_version():
     return execute_command("get_version", {}, parse_yson=True)
