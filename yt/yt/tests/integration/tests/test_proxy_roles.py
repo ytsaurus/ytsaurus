@@ -9,6 +9,11 @@ from yt_commands import *
 class TestProxyRoles(YTEnvSetup):
     NUM_MASTERS = 1
 
+    def setup_class(cls):
+        super(TestProxyRoles, cls).setup_class()
+        create("http_proxy_role_map", "//sys/http_proxy_roles")
+        create("rpc_proxy_role_map", "//sys/rpc_proxy_roles")
+
     @authors("gritukan")
     @pytest.mark.parametrize("proxy_kind", ["http", "rpc"])
     def test_simple(self, proxy_kind):

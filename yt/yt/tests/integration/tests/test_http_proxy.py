@@ -255,6 +255,8 @@ class TestHttpProxy(HttpProxyTestBase):
             assert rsp.status_code == 200 or rsp.status_code == 403
             return rsp.status_code == 200
 
+        create("http_proxy_role_map", "//sys/http_proxy_roles")
+
         create_user("u")
         create_proxy_role("r1", "http")
         create_proxy_role("r2", "http")

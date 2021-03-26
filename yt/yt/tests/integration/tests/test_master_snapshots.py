@@ -264,6 +264,8 @@ def check_duplicate_attributes():
 
 
 def check_proxy_roles():
+    create("http_proxy_role_map", "//sys/http_proxy_roles")
+    create("rpc_proxy_role_map", "//sys/rpc_proxy_roles")
     create_proxy_role("h", "http")
     create_proxy_role("r", "rpc")
 

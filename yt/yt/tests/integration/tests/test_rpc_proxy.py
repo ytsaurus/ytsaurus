@@ -66,6 +66,8 @@ class TestRpcProxy(YTEnvSetup):
                 return False
             return True
 
+        create("rpc_proxy_role_map", "//sys/rpc_proxy_roles")
+
         create_user("u")
         create_proxy_role("r1", "rpc")
         create_proxy_role("r2", "rpc")
