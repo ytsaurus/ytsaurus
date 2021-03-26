@@ -1371,10 +1371,16 @@ private:
             }
         }
 
-        if (!Config_->EnableSnapshotLoading) {
+        if (!Config_->EnableSnapshotLoading && Config_->EnableSnapshotLoadingDisabledAlert) {
             auto error = TError("Snapshot loading is disabled; consider enabling it using the controller agent config");
             YT_LOG_WARNING(error);
             SetControllerAgentAlert(EControllerAgentAlertType::SnapshotLoadingDisabled, error);
+        }
+
+        if (!Config_->EnableSnapshotBuilding && Config_->EnableSnapshotBuildingDisabledAlert) {
+            auto error = TError("Snapshot building is disabled; consider enabling it using the controller agent config");
+            YT_LOG_WARNING(error);
+            SetControllerAgentAlert(EControllerAgentAlertType::SnapshotBuildingDisabled, error);
         }
     }
 

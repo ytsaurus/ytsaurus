@@ -392,6 +392,8 @@ TControllerAgentConfig::TControllerAgentConfig()
 
     RegisterParameter("enable_snapshot_building", EnableSnapshotBuilding)
         .Default(true);
+    RegisterParameter("enable_snapshot_building_disabled_alert", EnableSnapshotBuildingDisabledAlert)
+        .Default(true);
     RegisterParameter("snapshot_period", SnapshotPeriod)
         .Default(TDuration::Seconds(300));
     RegisterParameter("snapshot_timeout", SnapshotTimeout)
@@ -408,6 +410,8 @@ TControllerAgentConfig::TControllerAgentConfig()
 
     RegisterParameter("enable_snapshot_loading", EnableSnapshotLoading)
         .Default(false);
+    RegisterParameter("enable_snapshot_loading_disabled_alert", EnableSnapshotLoadingDisabledAlert)
+        .Default(true);
     RegisterParameter("snapshot_reader", SnapshotReader)
         .DefaultNew();
 
