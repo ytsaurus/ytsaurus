@@ -395,7 +395,8 @@ public:
             .SetInvokerProvider(BIND(&TQueryService::GetExecuteInvoker, Unretained(this))));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Multiread)
             .SetCancelable(true)
-            .SetInvoker(bootstrap->GetTabletLookupPoolInvoker()));
+            .SetInvoker(bootstrap->GetTabletLookupPoolInvoker())
+            .SetRequestQueueProvider(BIND(&TQueryService::GetMultireadRequestQueue, Unretained(this))));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfo)
             .SetInvoker(bootstrap->GetTabletLookupPoolInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadDynamicStore)
@@ -416,15 +417,17 @@ private:
     const IMemoryUsageTrackerPtr MemoryTracker_;
     const TMemoryProviderMapByTagPtr MemoryProvider_ = New<TMemoryProviderMapByTag>();
 
+    TRequestQueue InMemoryMultireadRequestQueue_{"in_memory"};
+
+
     IInvokerPtr GetExecuteInvoker(const NRpc::NProto::TRequestHeader& requestHeader)
     {
         const auto& ext = requestHeader.GetExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext);
-
-        if (!ext.has_execution_pool_name()) {
+        if (!ext.has_execution_pool()) {
             return nullptr;
         }
 
-        const auto& poolName = ext.execution_pool_name();
+        const auto& poolName = ext.execution_pool();
         const auto& tag = ext.execution_tag();
 
         auto poolWeight = DefaultQLExecutionPoolWeight;
@@ -436,9 +439,21 @@ private:
         return Bootstrap_->GetQueryPoolInvoker(poolName, poolWeight, tag);
     }
 
+    TRequestQueue* GetMultireadRequestQueue(const NRpc::NProto::TRequestHeader& requestHeader)
+    {
+        const auto& ext = requestHeader.GetExtension(NQueryClient::NProto::TReqMultireadExt::req_multiread_ext);
+        auto inMemoryMode = FromProto<EInMemoryMode>(ext.in_memory_mode());
+        return inMemoryMode == EInMemoryMode::None
+            ? nullptr
+            : &InMemoryMultireadRequestQueue_;
+    }
+
+
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute)
     {
-        context->SetRequestInfo();
+        const auto& requestHeaderExt = context->RequestHeader().GetExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext);
+        context->SetRequestInfo("ExecutionPool: %v",
+            requestHeaderExt.execution_pool());
 
         TServiceProfilerGuard profilerGuard;
 
@@ -564,7 +579,11 @@ private:
                 request->mount_revisions_size());
         }
 
-        context->SetRequestInfo("TabletIds: %v, Timestamp: %llx, RequestCodec: %v, ResponseCodec: %v, ReadSessionId: %v, RetentionConfig: %v",
+        const auto& requestHeaderExt = context->RequestHeader().GetExtension(NQueryClient::NProto::TReqMultireadExt::req_multiread_ext);
+        auto inMemoryMode = FromProto<EInMemoryMode>(requestHeaderExt.in_memory_mode());
+
+        context->SetRequestInfo("TabletIds: %v, Timestamp: %llx, RequestCodec: %v, ResponseCodec: %v, "
+            "ReadSessionId: %v, InMemoryMode: %v, RetentionConfig: %v",
             MakeFormattableView(request->tablet_ids(), [] (auto* builder, const auto& protoTabletId) {
                 FormatValue(builder, FromProto<TTabletId>(protoTabletId), TStringBuf());
             }),
@@ -572,6 +591,7 @@ private:
             requestCodecId,
             responseCodecId,
             chunkReadOptions.ReadSessionId,
+            inMemoryMode,
             retentionConfig);
 
         // COMAPT(babenko)

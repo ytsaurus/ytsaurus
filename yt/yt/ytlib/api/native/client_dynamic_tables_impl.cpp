@@ -572,7 +572,8 @@ TRowset TClient::DoLookupRowsOnce(
     std::vector<std::vector<TBatch>> batchesByCells;
     THashMap<TCellId, size_t> cellIdToBatchIndex;
 
-    std::optional<bool> inMemory;
+
+    auto inMemoryMode = EInMemoryMode::None;
 
     {
         auto itemsBegin = sortedKeys.begin();
@@ -635,8 +636,8 @@ TRowset TClient::DoLookupRowsOnce(
             batch.MountRevision = startShard->MountRevision;
             batch.OffsetInResult = currentResultIndex;
 
-            YT_VERIFY(!inMemory || *inMemory == startShard->IsInMemory());
-            inMemory = startShard->IsInMemory();
+            // Take an arbitrary one; these are all the same.
+            inMemoryMode = startShard->InMemoryMode;
 
             std::vector<TLegacyKey> rows;
             rows.reserve(endItemsIt - itemsIt);
@@ -691,7 +692,7 @@ TRowset TClient::DoLookupRowsOnce(
         req->set_enable_partial_result(options.EnablePartialResult);
         req->set_use_lookup_cache(options.UseLookupCache);
 
-        if (inMemory && *inMemory) {
+        if (inMemoryMode != EInMemoryMode::None) {
             req->Header().set_uncancelable(true);
         }
         if (retentionConfig) {
@@ -705,6 +706,9 @@ TRowset TClient::DoLookupRowsOnce(
             auto requestData = codec->Compress(boundEncoder(batch.Keys));
             req->Attachments().push_back(requestData);
         }
+
+        auto* ext = req->Header().MutableExtension(NQueryClient::NProto::TReqMultireadExt::req_multiread_ext);
+        ext->set_in_memory_mode(ToProto<int>(inMemoryMode));
 
         asyncResults[cellIndex] = req->Invoke();
     }

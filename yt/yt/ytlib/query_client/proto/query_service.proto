@@ -20,8 +20,8 @@ message TReqExecuteExt
         optional TReqExecuteExt req_execute_ext = 200;
     }
 
-    optional string execution_pool_name = 1;
-    optional string execution_tag = 2;
+    optional string execution_pool = 1 [default = "default"];
+    optional string execution_tag = 2 [default = "default"];
 }
 
 message TReqExecute
@@ -33,7 +33,8 @@ message TReqExecute
     repeated TDataSource data_sources = 3;
     // TODO(kiselyovp) move codec to header
     required int32 response_codec = 4; // ECodec
-    reserved 7; // deprecated
+
+    reserved 7;
 }
 
 message TRspExecute
@@ -43,6 +44,16 @@ message TRspExecute
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqMultireadExt
+{
+    extend NRpc.NProto.TRequestHeader
+    {
+        optional TReqMultireadExt req_multiread_ext = 201;
+    }
+
+    optional int32 in_memory_mode = 1 [default = 0]; // EInMemoryMode, EInMemoryMode::None by default
+}
 
 message TReqMultiread
 {
