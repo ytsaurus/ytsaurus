@@ -236,7 +236,7 @@ TCGValue MakePhi(
         phiLength->addIncoming(elseLength, elseBB);
     }
 
-    return TCGValue::CreateFromValue(builder, phiNull, phiLength, phiData, type, name);
+    return TCGValue::Create(builder, phiNull, phiLength, phiData, type, name);
 }
 
 Value* MakePhi(

@@ -68,14 +68,20 @@ Type* GetLLVMType(llvm::LLVMContext& context, NYT::NTableClient::EValueType stat
 class TCGValue
 {
 private:
+    // Can be either boolean value or type value.
+    // It is converted lazily from one representation to another.
     Value* IsNull_;
+    // Is usually undefined (nullptr).
+    // It allows not to emit code for store and load.
+    Value* IsAggregate_;
     Value* Length_;
     Value* Data_;
     EValueType StaticType_;
     std::string Name_;
 
-    TCGValue(Value* isNull, Value* length, Value* data, EValueType staticType, Twine name)
+    TCGValue(EValueType staticType, Value* isNull, Value* isAggregate, Value* length, Value* data, Twine name)
         : IsNull_(isNull)
+        , IsAggregate_(isAggregate)
         , Length_(length)
         , Data_(data)
         , StaticType_(staticType)
@@ -95,6 +101,7 @@ public:
 
     TCGValue(TCGValue&& other)
         : IsNull_(other.IsNull_)
+        , IsAggregate_(other.IsAggregate_)
         , Length_(other.Length_)
         , Data_(other.Data_)
         , StaticType_(other.StaticType_)
@@ -106,6 +113,7 @@ public:
     TCGValue& operator=(TCGValue&& other)
     {
         IsNull_ = other.IsNull_;
+        IsAggregate_ = other.IsAggregate_;
         Length_ = other.Length_;
         Data_ = other.Data_;
         StaticType_ = other.StaticType_;
@@ -123,6 +131,7 @@ public:
     void Reset()
     {
         IsNull_ = nullptr;
+        IsAggregate_ = nullptr;
         Length_ = nullptr;
         Data_ = nullptr;
         StaticType_ = EValueType::TheBottom;
@@ -133,9 +142,10 @@ public:
         return StaticType_;
     }
 
-    static TCGValue CreateFromValue(
+    static TCGValue Create(
         TCGIRBuilderPtr& builder,
         Value* isNull,
+        Value* isAggregate,
         Value* length,
         Value* data,
         EValueType staticType,
@@ -150,23 +160,62 @@ public:
         YT_VERIFY(
             data->getType() == GetLLVMType(builder->getContext(), staticType) ||
             data->getType() == TDataTypeBuilder::Get(builder->getContext()));
-        return TCGValue(isNull, length, data, staticType, name);
+        return TCGValue(staticType, isNull, isAggregate, length, data, name);
     }
 
-    static TCGValue CreateFromRowValues(
+    static TCGValue Create(
+        TCGIRBuilderPtr& builder,
+        Value* isNull,
+        Value* length,
+        Value* data,
+        EValueType staticType,
+        Twine name = Twine())
+    {
+        return Create(builder, isNull, nullptr, length, data, staticType, name);
+    }
+
+    static TCGValue CreateNull(
+        TCGIRBuilderPtr& builder,
+        EValueType staticType,
+        Twine name = Twine())
+    {
+        Value* length = nullptr;
+        if (IsStringLikeType(staticType)) {
+            length = llvm::UndefValue::get(TValueTypeBuilder::TLength::Get(builder->getContext()));
+        }
+
+        return Create(
+            builder,
+            builder->getTrue(),
+            length,
+            llvm::UndefValue::get(GetLLVMType(builder->getContext(), staticType)),
+            staticType,
+            name);
+    }
+
+    static TCGValue LoadFromRowValues(
         TCGIRBuilderPtr& builder,
         Value* rowValues,
         int index,
-        bool nullbale,
+        bool nullable,
+        bool aggregate,
         EValueType staticType,
         Twine name = Twine())
     {
         Value* isNull = builder->getFalse();
-        if (nullbale) {
+        if (nullable) {
             Value* typePtr = builder->CreateConstInBoundsGEP2_32(
                 nullptr, rowValues, index, TValueTypeBuilder::Type, name + ".typePtr");
 
             isNull = builder->CreateLoad(typePtr, name + ".type");
+        }
+
+        Value* isAggregate = nullptr;
+        if (aggregate) {
+            Value* aggregatePtr = builder->CreateConstInBoundsGEP2_32(
+                nullptr, rowValues, index, TValueTypeBuilder::Aggregate, name + ".aggregatePtr");
+
+            isAggregate = builder->CreateLoad(aggregatePtr, name + ".aggregate");
         }
 
         Value* length = nullptr;
@@ -182,67 +231,52 @@ public:
 
         Value* data = builder->CreateLoad(dataPtr, name + ".data");
 
-        return CreateFromValue(builder, isNull, length, data, staticType, name);
+        return Create(builder, isNull, isAggregate, length, data, staticType, name);
     }
 
-    static TCGValue CreateFromRowValues(
+    static TCGValue LoadFromRowValues(
         TCGIRBuilderPtr& builder,
         Value* rowValues,
         int index,
         EValueType staticType,
         Twine name = Twine())
     {
-        return CreateFromRowValues(
+        return LoadFromRowValues(
             builder,
             rowValues,
             index,
             true,
+            false,
             staticType,
             name);
     }
 
-    static TCGValue CreateFromLlvmValue(
+    static TCGValue LoadFromRowValue(
         TCGIRBuilderPtr& builder,
         Value* valuePtr,
-        bool nullbale,
+        bool nullable,
         EValueType staticType,
         Twine name = Twine())
     {
-        return CreateFromRowValues(
-            builder,
-            valuePtr,
-            0,
-            nullbale,
-            staticType,
-            name);
+        return LoadFromRowValues(builder, valuePtr, 0, nullable, false, staticType, name);
     }
 
-    static TCGValue CreateFromLlvmValue(
+    static TCGValue LoadFromRowValue(
         TCGIRBuilderPtr& builder,
         Value* valuePtr,
         EValueType staticType,
         Twine name = Twine())
     {
-        return CreateFromLlvmValue(builder, valuePtr, true, staticType, name);
+        return LoadFromRowValue(builder, valuePtr, true, staticType, name);
     }
 
-    static TCGValue CreateNull(
+    static TCGValue LoadFromAggregate(
         TCGIRBuilderPtr& builder,
+        Value* valuePtr,
         EValueType staticType,
         Twine name = Twine())
     {
-        Value* length = nullptr;
-        if (IsStringLikeType(staticType)) {
-            length = llvm::UndefValue::get(TValueTypeBuilder::TLength::Get(builder->getContext()));
-        }
-
-        return CreateFromValue(
-            builder,
-            builder->getTrue(),
-            length,
-            llvm::UndefValue::get(GetLLVMType(builder->getContext(), staticType)),
-            staticType,
-            name);
+        return LoadFromRowValues(builder, valuePtr, 0, true, true, staticType, name);
     }
 
     void StoreToValues(TCGIRBuilderPtr& builder, Value* valuePtr, size_t index, Twine name) const
@@ -262,6 +296,13 @@ public:
                 IsNull_,
                 builder->CreateConstInBoundsGEP2_32(
                     nullptr, valuePtr, index, TValueTypeBuilder::Type, name + ".typePtr"));
+        }
+
+        if (IsAggregate_) {
+            builder->CreateStore(
+                IsAggregate_,
+                builder->CreateConstInBoundsGEP2_32(
+                    nullptr, valuePtr, index, TValueTypeBuilder::Aggregate, name + ".aggregatePtr"));
         }
 
         if (IsStringLikeType(StaticType_)) {
@@ -384,7 +425,7 @@ public:
             YT_ABORT();
         }
 
-        return CreateFromValue(
+        return Create(
             builder,
             // type changed, so we have to get isNull explicitly
             GetIsNull(builder),

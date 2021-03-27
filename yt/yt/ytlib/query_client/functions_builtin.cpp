@@ -159,14 +159,14 @@ public:
         ] (TCGExprContext& builder) {
             if (builder.ExpressionFragments.Items[argIds[0]].Nullable) {
                 auto argValue = CodegenFragment(builder, argIds[0]);
-                return TCGValue::CreateFromValue(
+                return TCGValue::Create(
                     builder,
                     builder->getFalse(),
                     nullptr,
                     argValue.GetIsNull(builder),
                     type);
             } else {
-                return TCGValue::CreateFromValue(
+                return TCGValue::Create(
                     builder,
                     builder->getFalse(),
                     nullptr,
@@ -217,7 +217,7 @@ public:
                         argValue.GetLength());
                 }
 
-                return TCGValue::CreateFromValue(
+                return TCGValue::Create(
                     builder,
                     builder->CreateAnd(argIsNull, constant.GetIsNull(builder)),
                     length,
@@ -262,7 +262,7 @@ public:
             auto argValue = CodegenFragment(builder, argIds[0]);
             Value* data = CodegenFragment(builder, argIds[0]).GetTypedData(builder);
             if (builder.ExpressionFragments.Items[argIds[0]].Nullable) {
-                return TCGValue::CreateFromValue(
+                return TCGValue::Create(
                     builder,
                     builder->getFalse(),
                     nullptr,
@@ -271,7 +271,7 @@ public:
                         builder->CreateFCmpUNO(data, data)),
                     type);
             } else {
-                return TCGValue::CreateFromValue(
+                return TCGValue::Create(
                     builder,
                     builder->getFalse(),
                     nullptr,
@@ -350,7 +350,7 @@ public:
                         valuePtr
                     });
 
-                return TCGValue::CreateFromLlvmValue(
+                return TCGValue::LoadFromRowValue(
                     builder,
                     resultPtr,
                     type);
@@ -434,7 +434,7 @@ public:
                                     newData,
                                     llvm::Align(1),
                                     valueLength);
-                                return TCGValue::CreateFromValue(
+                                return TCGValue::Create(
                                     builder,
                                     builder->getFalse(),
                                     valueLength,
@@ -591,7 +591,7 @@ public:
                                 YT_UNIMPLEMENTED();
                             }
 
-                            return TCGValue::CreateFromValue(
+                            return TCGValue::Create(
                                 builder,
                                 builder->getFalse(),
                                 resultLength,
