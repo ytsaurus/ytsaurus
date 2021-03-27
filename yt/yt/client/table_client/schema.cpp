@@ -38,66 +38,87 @@ TLockMask MaxMask(TLockMask lhs, TLockMask rhs)
 ////////////////////////////////////////////////////////////////////////////////
 
 TColumnSchema::TColumnSchema()
-    : TColumnSchema(TString(), NullLogicalType, std::nullopt)
+    : TColumnSchema(
+        TString(),
+        NullLogicalType,
+        std::nullopt)
 { }
 
 TColumnSchema::TColumnSchema(
-    const TString& name,
+    TString name,
     EValueType type,
     std::optional<ESortOrder> sortOrder)
-    : TColumnSchema(name, MakeLogicalType(GetLogicalType(type), /*required*/ false), sortOrder)
+    : TColumnSchema(
+        std::move(name),
+        MakeLogicalType(GetLogicalType(type), /*required*/ false),
+        sortOrder)
 { }
 
 TColumnSchema::TColumnSchema(
-    const TString& name,
+    TString name,
     ESimpleLogicalValueType type,
     std::optional<ESortOrder> sortOrder)
-    : TColumnSchema(name, MakeLogicalType(type, /*required*/ false), sortOrder)
+    : TColumnSchema(
+        std::move(name),
+        MakeLogicalType(type, /*required*/ false),
+        sortOrder)
 { }
 
 TColumnSchema::TColumnSchema(
-    const TString& name,
+    TString name,
     TLogicalTypePtr type,
     std::optional<ESortOrder> sortOrder)
-    : Name_(name)
+    : Name_(std::move(name))
     , SortOrder_(sortOrder)
 {
     SetLogicalType(std::move(type));
 }
 
-TColumnSchema& TColumnSchema::SetName(const TString& value)
+TColumnSchema& TColumnSchema::SetName(TString value)
 {
-    Name_ = value;
+    Name_ = std::move(value);
     return *this;
 }
 
-TColumnSchema& TColumnSchema::SetSortOrder(const std::optional<ESortOrder>& value)
+TColumnSchema& TColumnSchema::SetSortOrder(std::optional<ESortOrder> value)
 {
     SortOrder_ = value;
     return *this;
 }
 
-TColumnSchema& TColumnSchema::SetLock(const std::optional<TString>& value)
+TColumnSchema& TColumnSchema::SetLock(std::optional<TString> value)
 {
-    Lock_ = value;
+    Lock_ = std::move(value);
     return *this;
 }
 
-TColumnSchema& TColumnSchema::SetGroup(const std::optional<TString>& value)
+TColumnSchema& TColumnSchema::SetGroup(std::optional<TString> value)
 {
-    Group_ = value;
+    Group_ = std::move(value);
     return *this;
 }
 
-TColumnSchema& TColumnSchema::SetExpression(const std::optional<TString>& value)
+TColumnSchema& TColumnSchema::SetExpression(std::optional<TString> value)
 {
-    Expression_ = value;
+    Expression_ = std::move(value);
     return *this;
 }
 
-TColumnSchema& TColumnSchema::SetAggregate(const std::optional<TString>& value)
+TColumnSchema& TColumnSchema::SetAggregate(std::optional<TString> value)
 {
-    Aggregate_ = value;
+    Aggregate_ = std::move(value);
+    return *this;
+}
+
+TColumnSchema& TColumnSchema::SetRequired(bool value)
+{
+    Required_ = value;
+    return *this;
+}
+
+TColumnSchema& TColumnSchema::SetMaxInlineHunkSize(std::optional<i64> value)
+{
+    MaxInlineHunkSize_ = value;
     return *this;
 }
 
@@ -116,7 +137,8 @@ EValueType TColumnSchema::GetPhysicalType() const
 
 i64 TColumnSchema::GetMemoryUsage() const
 {
-    return sizeof(TColumnSchema) +
+    return
+        sizeof(TColumnSchema) +
         Name_.size() +
         (LogicalType_ ? LogicalType_->GetMemoryUsage() : 0) +
         (Lock_ ? Lock_->size() : 0) +
@@ -235,14 +257,15 @@ struct TSerializableColumnSchema
             .Default();
         RegisterParameter("group", Group_)
             .Default();
+        RegisterParameter("max_inline_hunk_size", MaxInlineHunkSize_)
+            .Default();
 
-        RegisterPostprocessor([&] () {
+        RegisterPostprocessor([&] {
             RunColumnSchemaPostprocessor(
                 *this,
                 LogicalTypeV1_,
                 RequiredV1_,
-                LogicalTypeV3_ ? LogicalTypeV3_->LogicalType : nullptr
-            );
+                LogicalTypeV3_ ? LogicalTypeV3_->LogicalType : nullptr);
         });
     }
 
@@ -301,6 +324,10 @@ void FormatValue(TStringBuilderBase* builder, const TColumnSchema& schema, TStri
 
     builder->AppendFormat("; required=%v", schema.Required());
 
+    if (auto maxInlineHunkSize = schema.MaxInlineHunkSize()) {
+        builder->AppendFormat("; max_inline_hunk_size=%v", *maxInlineHunkSize);
+    }
+
     builder->AppendChar('}');
 }
 
@@ -354,6 +381,9 @@ void Deserialize(TColumnSchema& schema, NYson::TYsonPullParserCursor* cursor)
         } else if (key == TStringBuf("group")) {
             cursor->Next();
             schema.SetGroup(ExtractTo<std::optional<TString>>(cursor));
+        } else if (key == TStringBuf("max_inline_hunk_size")) {
+            cursor->Next();
+            schema.SetMaxInlineHunkSize(ExtractTo<std::optional<i64>>(cursor));
         } else {
             cursor->Next();
             cursor->SkipComplexValue();
@@ -370,26 +400,44 @@ void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema)
 
     if (schema.IsOfV1Type()) {
         protoSchema->set_simple_logical_type(static_cast<int>(schema.CastToV1Type()));
+    } else {
+        protoSchema->clear_simple_logical_type();
     }
     if (schema.Required()) {
         protoSchema->set_required(true);
+    } else {
+        protoSchema->clear_required();
     }
     ToProto(protoSchema->mutable_logical_type(), schema.LogicalType());
-
     if (schema.Lock()) {
         protoSchema->set_lock(*schema.Lock());
+    } else {
+        protoSchema->clear_lock();
     }
     if (schema.Expression()) {
         protoSchema->set_expression(*schema.Expression());
+    } else {
+        protoSchema->clear_expression();
     }
     if (schema.Aggregate()) {
         protoSchema->set_aggregate(*schema.Aggregate());
+    } else {
+        protoSchema->clear_aggregate();
     }
     if (schema.SortOrder()) {
         protoSchema->set_sort_order(static_cast<int>(*schema.SortOrder()));
+    } else {
+        protoSchema->clear_sort_order();
     }
     if (schema.Group()) {
         protoSchema->set_group(*schema.Group());
+    } else {
+        protoSchema->clear_group();
+    }
+    if (schema.MaxInlineHunkSize()) {
+        protoSchema->set_max_inline_hunk_size(*schema.MaxInlineHunkSize());
+    } else {
+        protoSchema->clear_max_inline_hunk_size();
     }
 }
 
@@ -416,15 +464,10 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
     schema->SetAggregate(protoSchema.has_aggregate() ? std::make_optional(protoSchema.aggregate()) : std::nullopt);
     schema->SetSortOrder(protoSchema.has_sort_order() ? std::make_optional(CheckedEnumCast<ESortOrder>(protoSchema.sort_order())) : std::nullopt);
     schema->SetGroup(protoSchema.has_group() ? std::make_optional(protoSchema.group()) : std::nullopt);
+    schema->SetMaxInlineHunkSize(protoSchema.has_max_inline_hunk_size() ? std::make_optional(protoSchema.max_inline_hunk_size()) : std::nullopt);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TTableSchema::TTableSchema()
-    : Strict_(false)
-    , UniqueKeys_(false)
-    , SchemaModification_(ETableSchemaModification::None)
-{ }
 
 TTableSchema::TTableSchema(
     std::vector<TColumnSchema> columns,
@@ -1182,14 +1225,16 @@ void FromProto(
 
 bool operator==(const TColumnSchema& lhs, const TColumnSchema& rhs)
 {
-    return lhs.Name() == rhs.Name()
-           && *lhs.LogicalType() == *rhs.LogicalType()
-           && lhs.Required() == rhs.Required()
-           && lhs.SortOrder() == rhs.SortOrder()
-           && lhs.Lock() == rhs.Lock()
-           && lhs.Expression() == rhs.Expression()
-           && lhs.Aggregate() == rhs.Aggregate()
-           && lhs.Group() == rhs.Group();
+    return
+        lhs.Name() == rhs.Name() &&
+        *lhs.LogicalType() == *rhs.LogicalType() &&
+        lhs.Required() == rhs.Required() &&
+        lhs.SortOrder() == rhs.SortOrder() &&
+        lhs.Lock() == rhs.Lock() &&
+        lhs.Expression() == rhs.Expression() &&
+        lhs.Aggregate() == rhs.Aggregate() &&
+        lhs.Group() == rhs.Group() &&
+        lhs.MaxInlineHunkSize() == rhs.MaxInlineHunkSize();
 }
 
 bool operator!=(const TColumnSchema& lhs, const TColumnSchema& rhs)
@@ -1199,7 +1244,8 @@ bool operator!=(const TColumnSchema& lhs, const TColumnSchema& rhs)
 
 bool operator==(const TTableSchema& lhs, const TTableSchema& rhs)
 {
-    return lhs.Columns() == rhs.Columns() &&
+    return
+        lhs.Columns() == rhs.Columns() &&
         lhs.GetStrict() == rhs.GetStrict() &&
         lhs.GetUniqueKeys() == rhs.GetUniqueKeys() &&
         lhs.GetSchemaModification() == rhs.GetSchemaModification();
@@ -1387,6 +1433,19 @@ void ValidateColumnSchema(
         if (columnSchema.Expression() && columnSchema.Required()) {
             THROW_ERROR_EXCEPTION("Computed column cannot be required");
         }
+
+        if (columnSchema.MaxInlineHunkSize()) {
+            if (columnSchema.MaxInlineHunkSize() <= 0) {
+                THROW_ERROR_EXCEPTION("Max inline hunk size must be positive");
+            }
+            if (!IsStringLikeType(columnSchema.GetPhysicalType())) {
+                THROW_ERROR_EXCEPTION("Max inline hunk size can only be set for string-like columns, not %Qlv",
+                    columnSchema.GetPhysicalType());
+            }
+            if (columnSchema.SortOrder()) {
+                THROW_ERROR_EXCEPTION("Max inline hunk size cannot be set for key column");
+            }
+        }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error validating schema of a column %Qv",
             name)
@@ -1409,7 +1468,7 @@ void ValidateDynamicTableConstraints(const TTableSchema& schema)
     }
 
     if (schema.GetKeyColumnCount() > MaxKeyColumnCountInDynamicTable) {
-        THROW_ERROR_EXCEPTION("Key column count must be not greater than %v, actual: %v",
+        THROW_ERROR_EXCEPTION("Too many key columns: limit %v, actual: %v",
             MaxKeyColumnCountInDynamicTable,
             schema.GetKeyColumnCount());
     }
@@ -1420,7 +1479,7 @@ void ValidateDynamicTableConstraints(const TTableSchema& schema)
                 THROW_ERROR_EXCEPTION("Complex types are not allowed in dynamic tables yet");
             }
             if (column.SortOrder() && column.GetPhysicalType() == EValueType::Any) {
-                THROW_ERROR_EXCEPTION("Dynamic table cannot have key column of type: %Qv",
+                THROW_ERROR_EXCEPTION("Dynamic table cannot have key column of type %Qv",
                     *column.LogicalType());
             }
         } catch (const std::exception& ex) {
@@ -1600,9 +1659,7 @@ TLockMask GetLockMask(
     const std::vector<TString>& locks,
     ELockType lockType)
 {
-    THashMap<TString, int> groupToIndex = GetLocksMapping(
-        schema,
-        fullAtomicity);
+    auto groupToIndex = GetLocksMapping(schema, fullAtomicity);
 
     TLockMask lockMask;
     for (const auto& lock : locks) {

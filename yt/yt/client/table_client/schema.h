@@ -66,24 +66,24 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Expression);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Aggregate);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Group);
-
     DEFINE_BYREF_RO_PROPERTY(bool, Required);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, MaxInlineHunkSize);
 
 public:
     TColumnSchema();
     TColumnSchema(
-        const TString& name,
+        TString name,
         EValueType type,
-        std::optional<ESortOrder> SortOrder = std::nullopt);
+        std::optional<ESortOrder> sortOrder = {});
     TColumnSchema(
-        const TString& name,
+        TString name,
         ESimpleLogicalValueType type,
-        std::optional<ESortOrder> SortOrder = std::nullopt);
+        std::optional<ESortOrder> sortOrder = {});
 
     TColumnSchema(
-        const TString& name,
+        TString name,
         TLogicalTypePtr type,
-        std::optional<ESortOrder> SortOrder = std::nullopt);
+        std::optional<ESortOrder> sortOrder = {});
 
     TColumnSchema(const TColumnSchema&) = default;
     TColumnSchema(TColumnSchema&&) = default;
@@ -91,13 +91,15 @@ public:
     TColumnSchema& operator=(const TColumnSchema&) = default;
     TColumnSchema& operator=(TColumnSchema&&) = default;
 
-    TColumnSchema& SetName(const TString& name);
+    TColumnSchema& SetName(TString name);
     TColumnSchema& SetLogicalType(TLogicalTypePtr valueType);
-    TColumnSchema& SetSortOrder(const std::optional<ESortOrder>& value);
-    TColumnSchema& SetLock(const std::optional<TString>& value);
-    TColumnSchema& SetExpression(const std::optional<TString>& value);
-    TColumnSchema& SetAggregate(const std::optional<TString>& value);
-    TColumnSchema& SetGroup(const std::optional<TString>& value);
+    TColumnSchema& SetSortOrder(std::optional<ESortOrder> value);
+    TColumnSchema& SetLock(std::optional<TString> value);
+    TColumnSchema& SetExpression(std::optional<TString> value);
+    TColumnSchema& SetAggregate(std::optional<TString> value);
+    TColumnSchema& SetGroup(std::optional<TString> value);
+    TColumnSchema& SetRequired(bool value);
+    TColumnSchema& SetMaxInlineHunkSize(std::optional<i64> value);
 
     EValueType GetPhysicalType() const;
 
@@ -132,12 +134,12 @@ class TTableSchema final
 public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<TColumnSchema>, Columns);
     //! Strict schema forbids columns not specified in the schema.
-    DEFINE_BYVAL_RO_PROPERTY(bool, Strict);
-    DEFINE_BYVAL_RO_PROPERTY(bool, UniqueKeys);
-    DEFINE_BYVAL_RO_PROPERTY(ETableSchemaModification, SchemaModification);
+    DEFINE_BYVAL_RO_PROPERTY(bool, Strict, false);
+    DEFINE_BYVAL_RO_PROPERTY(bool, UniqueKeys, false);
+    DEFINE_BYVAL_RO_PROPERTY(ETableSchemaModification, SchemaModification, ETableSchemaModification::None);
 
     //! Constructs an empty non-strict schema.
-    TTableSchema();
+    TTableSchema() = default;
 
     //! Constructs a schema with given columns and strictness flag.
     //! No validation is performed.
@@ -395,7 +397,8 @@ struct THash<NYT::NTableClient::TColumnSchema>
             columnSchema.Lock(),
             columnSchema.Expression(),
             columnSchema.Aggregate(),
-            columnSchema.Group());
+            columnSchema.Group(),
+            columnSchema.MaxInlineHunkSize());
     }
 };
 

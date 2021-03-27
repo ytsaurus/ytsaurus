@@ -247,7 +247,7 @@ void Deserialize(TEnumIndexedVector<E, T, Min, Max>& vector, TYsonPullParserCurs
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<typename TTo>
+template <typename TTo>
 TTo ExtractTo(TYsonPullParserCursor* cursor)
 {
     TTo result;
