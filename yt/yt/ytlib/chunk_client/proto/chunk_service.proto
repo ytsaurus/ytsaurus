@@ -223,6 +223,10 @@ message TReqExecuteBatch
 
         // If true then the writer will be appending this chunk to an overlayed journal.
         optional bool overlayed = 13 [default = false];
+
+        // If given, forces master to collocate chunks with coinciding hashes.
+        // NB: Zeroes are also treated as nulls.
+        optional uint64 consistent_placement_hash = 14;
     }
 
     repeated TCreateChunkSubrequest create_chunk_subrequests = 1;
