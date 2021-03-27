@@ -55,6 +55,7 @@ struct ICallingConvention
         std::vector<TCodegenValue> codegenArguments,
         std::function<Value*(TCGBaseContext&, std::vector<Value*>)> codegenBody,
         EValueType type,
+        bool aggregate,
         const TString& name) const = 0;
 
     virtual llvm::FunctionType* GetCalleeType(
@@ -78,6 +79,7 @@ public:
         std::vector<TCodegenValue> codegenArguments,
         std::function<Value*(TCGBaseContext&, std::vector<Value*>)> codegenBody,
         EValueType type,
+        bool aggregate,
         const TString& name) const override;
 
     virtual llvm::FunctionType* GetCalleeType(
@@ -99,6 +101,7 @@ public:
         std::vector<TCodegenValue> codegenArguments,
         std::function<Value*(TCGBaseContext&, std::vector<Value*>)> codegenBody,
         EValueType type,
+        bool aggregate,
         const TString& name) const override;
 
     virtual llvm::FunctionType* GetCalleeType(

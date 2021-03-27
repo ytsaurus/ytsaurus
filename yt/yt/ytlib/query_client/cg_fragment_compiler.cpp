@@ -189,7 +189,7 @@ TValueTypeLabels CodegenHasherBody(
         hashScalarBB = builder->CreateBBHere("hashNull");
         builder->SetInsertPoint(hashScalarBB);
 
-        auto value = TCGValue::CreateFromLlvmValue(
+        auto value = TCGValue::LoadFromRowValue(
             builder,
             builder->CreateInBoundsGEP(
                 values,
@@ -214,7 +214,7 @@ TValueTypeLabels CodegenHasherBody(
         cmpStringBB = builder->CreateBBHere("hashNull");
         builder->SetInsertPoint(cmpStringBB);
 
-        auto value = TCGValue::CreateFromLlvmValue(
+        auto value = TCGValue::LoadFromRowValue(
             builder,
             builder->CreateInBoundsGEP(
                 values,
@@ -306,14 +306,14 @@ TValueTypeLabels CodegenLessComparerBody(
         BasicBlock* cmpBB = builder->CreateBBHere(Twine("cmp.").concat(name));
         builder->SetInsertPoint(cmpBB);
 
-        auto lhsValue = TCGValue::CreateFromLlvmValue(
+        auto lhsValue = TCGValue::LoadFromRowValue(
             builder,
             builder->CreateInBoundsGEP(
                 lhsValues,
                 indexPhi),
             type);
 
-        auto rhsValue = TCGValue::CreateFromLlvmValue(
+        auto rhsValue = TCGValue::LoadFromRowValue(
             builder,
             builder->CreateInBoundsGEP(
                 rhsValues,
@@ -352,14 +352,14 @@ TValueTypeLabels CodegenLessComparerBody(
         BasicBlock* cmpBB = builder->CreateBBHere(Twine("cmp.").concat(name));
         builder->SetInsertPoint(cmpBB);
 
-        auto lhsValue = TCGValue::CreateFromLlvmValue(
+        auto lhsValue = TCGValue::LoadFromRowValue(
             builder,
             builder->CreateInBoundsGEP(
                 lhsValues,
                 indexPhi),
             type);
 
-        auto rhsValue = TCGValue::CreateFromLlvmValue(
+        auto rhsValue = TCGValue::LoadFromRowValue(
             builder,
             builder->CreateInBoundsGEP(
                 rhsValues,
@@ -429,14 +429,14 @@ TValueTypeLabels CodegenLessComparerBody(
         cmpStringBB = builder->CreateBBHere("cmp.string");
         builder->SetInsertPoint(cmpStringBB);
 
-        auto lhsValue = TCGValue::CreateFromLlvmValue(
+        auto lhsValue = TCGValue::LoadFromRowValue(
             builder,
             builder->CreateInBoundsGEP(
                 lhsValues,
                 indexPhi),
             EValueType::String);
 
-        auto rhsValue = TCGValue::CreateFromLlvmValue(
+        auto rhsValue = TCGValue::LoadFromRowValue(
             builder,
             builder->CreateInBoundsGEP(
                 rhsValues,
@@ -1038,11 +1038,12 @@ TCodegenExpression MakeCodegenLiteralExpr(
             nullbale,
             type
         ] (TCGExprContext& builder) {
-            return TCGValue::CreateFromRowValues(
+            return TCGValue::LoadFromRowValues(
                 builder,
                 builder.GetLiterals(),
                 index,
                 nullbale,
+                false,
                 type,
                 "literal." + Twine(index))
                 .Steal();
@@ -1059,7 +1060,7 @@ TCodegenExpression MakeCodegenReferenceExpr(
             =,
             name = std::move(name)
         ] (TCGExprContext& builder) {
-            return TCGValue::CreateFromRowValues(
+            return TCGValue::LoadFromRowValues(
                 builder,
                 builder.RowValues,
                 index,
@@ -1083,7 +1084,7 @@ TCGValue CodegenFragment(
                 builder.RowValues
             });
 
-        return TCGValue::CreateFromLlvmValue(
+        return TCGValue::LoadFromRowValue(
             builder,
             builder.GetFragmentResult(id),
             expressionFragment.Nullable,
@@ -1225,7 +1226,7 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
                     YT_ABORT();
             }
 
-            return TCGValue::CreateFromValue(
+            return TCGValue::Create(
                 builder,
                 builder->getFalse(),
                 nullptr,
@@ -1298,7 +1299,7 @@ TCodegenExpression MakeCodegenLogicalBinaryOpExpr(
             result = builder->CreateAnd(lhsData, rhsData);
         }
 
-        return TCGValue::CreateFromValue(builder, isNull, nullptr, result, type);
+        return TCGValue::Create(builder, isNull, nullptr, result, type);
     };
 }
 
@@ -1407,7 +1408,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                     ThrowNaNException);
             }
 
-            return TCGValue::CreateFromValue(
+            return TCGValue::Create(
                 builder,
                 builder->getFalse(),
                 nullptr,
@@ -1624,7 +1625,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                 nameTwine)
             : compare(builder);
 
-        return TCGValue::CreateFromValue(
+        return TCGValue::Create(
             builder,
             builder->getFalse(),
             nullptr,
@@ -1722,7 +1723,7 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
                             YT_ABORT();
                     }
 
-                    return TCGValue::CreateFromValue(
+                    return TCGValue::Create(
                         builder,
                         builder->getFalse(),
                         nullptr,
@@ -1778,7 +1779,7 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
                     YT_ABORT();
             }
 
-            return TCGValue::CreateFromValue(
+            return TCGValue::Create(
                 builder,
                 anyNull,
                 nullptr,
@@ -1854,7 +1855,7 @@ TCodegenExpression MakeCodegenInExpr(
                 builder.GetOpaqueValue(hashtableIndex)
             });
 
-        return TCGValue::CreateFromValue(
+        return TCGValue::Create(
             builder,
             builder->getFalse(),
             nullptr,
@@ -1892,7 +1893,7 @@ TCodegenExpression MakeCodegenBetweenExpr(
                 builder.GetOpaqueValue(arrayIndex)
             });
 
-        return TCGValue::CreateFromValue(
+        return TCGValue::Create(
             builder,
             builder->getFalse(),
             nullptr,
@@ -1940,7 +1941,7 @@ TCodegenExpression MakeCodegenTransformExpr(
             builder,
             builder->CreateIsNotNull(result),
             [&] (TCGExprContext& builder) {
-                return TCGValue::CreateFromRowValues(
+                return TCGValue::LoadFromRowValues(
                     builder,
                     result,
                     keyTypes.size(),
@@ -2047,7 +2048,7 @@ std::tuple<size_t, size_t, size_t> MakeCodegenSplitterOp(
             Value* intermediateFinishRef = builder->ViaClosure(intermediateFinish);
             Value* totalsFinishRef = builder->ViaClosure(totalsFinish);
 
-            auto streamIndexValue = TCGValue::CreateFromRowValues(
+            auto streamIndexValue = TCGValue::LoadFromRowValues(
                 builder,
                 values,
                 streamIndex,
@@ -2180,7 +2181,7 @@ size_t MakeCodegenMultiJoinOp(
                 Value* primaryValuesPtrRef = builder->ViaClosure(primaryValuesPtr);
                 Value* primaryValues = builder->CreateLoad(primaryValuesPtrRef);
                 for (size_t column = 0; column < primaryColumns.size(); ++column) {
-                    TCGValue::CreateFromRowValues(
+                    TCGValue::LoadFromRowValues(
                         builder,
                         values,
                         primaryColumns[column].first,
@@ -2363,7 +2364,7 @@ size_t MakeCodegenFilterFinalizedOp(
                 keySize * sizeof(TValue));
 
             for (int index = 0; index < codegenAggregates.size(); index++) {
-                auto value = TCGValue::CreateFromRowValues(
+                auto value = TCGValue::LoadFromRowValues(
                     builder,
                     values,
                     keySize + index,
@@ -2436,7 +2437,7 @@ size_t MakeCodegenAddStreamOp(
                 llvm::Align(8),
                 rowSize * sizeof(TValue));
 
-            TCGValue::CreateFromValue(
+            TCGValue::Create(
                 builder,
                 builder->getFalse(),
                 nullptr,
@@ -2707,7 +2708,7 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
 
                 CodegenIf<TCGContext>(builder, notSkip, [&] (TCGContext& builder) {
                     for (int index = 0; index < codegenAggregates.size(); index++) {
-                        auto aggState = TCGValue::CreateFromRowValues(
+                        auto aggState = TCGValue::LoadFromRowValues(
                             builder,
                             groupValues,
                             keySize + index,
@@ -2715,7 +2716,7 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
 
                         auto newValue = !isMerge
                             ? CodegenFragment(innerBuilder, aggregateExprIds[index])
-                            : TCGValue::CreateFromRowValues(
+                            : TCGValue::LoadFromRowValues(
                                 builder,
                                 innerBuilder.RowValues,
                                 keySize + index,
@@ -2828,13 +2829,13 @@ size_t MakeCodegenGroupTotalsOp(
                 builder->CreateStore(builder->getTrue(), builder->ViaClosure(hasRows));
 
                 for (int index = 0; index < codegenAggregates.size(); index++) {
-                    auto aggState = TCGValue::CreateFromRowValues(
+                    auto aggState = TCGValue::LoadFromRowValues(
                         builder,
                         groupValuesRef,
                         keySize + index,
                         stateTypes[index]);
 
-                    auto newValue = TCGValue::CreateFromRowValues(
+                    auto newValue = TCGValue::LoadFromRowValues(
                         builder,
                         values,
                         keySize + index,
@@ -2892,7 +2893,7 @@ size_t MakeCodegenFinalizeOp(
     ] (TCGOperatorContext& builder) {
         builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
             for (int index = 0; index < codegenAggregates.size(); index++) {
-                auto value = TCGValue::CreateFromRowValues(
+                auto value = TCGValue::LoadFromRowValues(
                     builder,
                     values,
                     keySize + index,
@@ -3215,8 +3216,8 @@ TCGAggregateCallbacks CodegenAggregate(
             Value* statePtr,
             Value* newValuePtr
         ) {
-            auto state = TCGValue::CreateFromLlvmValue(builder, statePtr, stateType);
-            auto newValue = TCGValue::CreateFromLlvmValue(builder, newValuePtr, argumentType);
+            auto state = TCGValue::LoadFromAggregate(builder, statePtr, stateType);
+            auto newValue = TCGValue::LoadFromAggregate(builder, newValuePtr, argumentType);
             codegenAggregate.Update(builder, buffer, state, newValue)
                 .StoreToValue(builder, statePtr, "writeResult");
             builder->CreateRetVoid();
@@ -3233,8 +3234,8 @@ TCGAggregateCallbacks CodegenAggregate(
             Value* dstStatePtr,
             Value* statePtr
         ) {
-            auto state = TCGValue::CreateFromLlvmValue(builder, statePtr, stateType);
-            auto dstState = TCGValue::CreateFromLlvmValue(builder, dstStatePtr, stateType);
+            auto state = TCGValue::LoadFromAggregate(builder, statePtr, stateType);
+            auto dstState = TCGValue::LoadFromAggregate(builder, dstStatePtr, stateType);
 
             codegenAggregate.Merge(builder, buffer, dstState, state)
                 .StoreToValue(builder, dstStatePtr, "writeResult");
@@ -3255,7 +3256,7 @@ TCGAggregateCallbacks CodegenAggregate(
             auto result = codegenAggregate.Finalize(
                 builder,
                 buffer,
-                TCGValue::CreateFromLlvmValue(builder, statePtr, stateType));
+                TCGValue::LoadFromAggregate(builder, statePtr, stateType));
             result.StoreToValue(builder, resultPtr, "writeResult");
             builder->CreateRetVoid();
         });

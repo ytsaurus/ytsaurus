@@ -185,6 +185,7 @@ TCGValue TSimpleCallingConvention::MakeCodegenFunctionCall(
     std::vector<TCodegenValue> codegenArguments,
     std::function<Value*(TCGBaseContext&, std::vector<Value*>)> codegenBody,
     EValueType type,
+    bool aggregate,
     const TString& name) const
 {
     std::reverse(codegenArguments.begin(), codegenArguments.end());
@@ -210,7 +211,7 @@ TCGValue TSimpleCallingConvention::MakeCodegenFunctionCall(
             resultPtr
         ] (std::vector<Value*> argValues) {
             codegenBody(builder, argValues);
-            return TCGValue::CreateFromValue(
+            return TCGValue::Create(
                 builder,
                 builder->getFalse(),
                 builder->CreateLoad(resultLength),
@@ -225,7 +226,7 @@ TCGValue TSimpleCallingConvention::MakeCodegenFunctionCall(
                 llvmResult = builder->CreateTrunc(llvmResult, builder->getInt1Ty());
             }
 
-            return TCGValue::CreateFromValue(
+            return TCGValue::Create(
                 builder,
                 builder->getFalse(),
                 nullptr,
@@ -294,6 +295,7 @@ TCGValue TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
     std::vector<TCodegenValue> codegenArguments,
     std::function<Value*(TCGBaseContext&, std::vector<Value*>)> codegenBody,
     EValueType type,
+    bool aggregate,
     const TString& name) const
 {
     auto argumentValues = std::vector<Value*>();
@@ -354,11 +356,9 @@ TCGValue TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
 
     codegenBody(builder, argumentValues);
 
-    return TCGValue::CreateFromLlvmValue(
-        builder,
-        resultPtr,
-        type);
-
+    return aggregate
+        ? TCGValue::LoadFromAggregate(builder, resultPtr, type)
+        : TCGValue::LoadFromRowValue(builder, resultPtr, type);
 }
 
 llvm::FunctionType* TUnversionedValueCallingConvention::GetCalleeType(
@@ -663,6 +663,7 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
             codegenArguments,
             codegenBody,
             type,
+            false,
             name);
     };
 }
@@ -777,6 +778,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
             std::vector<TCodegenValue>(),
             makeCodegenBody(initName, buffer),
             stateType,
+            true,
             name + "_init");
     };
 
@@ -800,6 +802,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
             codegenArgs,
             makeCodegenBody(updateName, buffer),
             stateType,
+            true,
             name + "_update");
     };
 
@@ -823,6 +826,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
             codegenArgs,
             makeCodegenBody(mergeName, buffer),
             stateType,
+            true,
             name + "_merge");
     };
 
@@ -843,6 +847,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
             codegenArgs,
             makeCodegenBody(finalizeName, buffer),
             resultType,
+            true,
             name + "_finalize");
     };
 

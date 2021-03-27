@@ -12,6 +12,9 @@
 #include <yt/yt/ytlib/query_client/functions.h>
 #include <yt/yt/ytlib/query_client/functions_cg.h>
 #include <yt/yt/ytlib/query_client/coordinator.h>
+#include <yt/yt/ytlib/query_client/functions_builder.h>
+
+#include <library/cpp/resource/resource.h>
 
 // Tests:
 // TCompareExpressionTest
@@ -1359,6 +1362,69 @@ class TEvaluateAggregationTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<TEvaluateAggregationParam>
 { };
+
+TEST_F(TEvaluateAggregationTest, AggregateFlag)
+{
+    TAggregateProfilerMapPtr aggregateProfilers = New<TAggregateProfilerMap>();
+
+    TFunctionRegistryBuilder builder(
+        nullptr,
+        nullptr,
+        aggregateProfilers.Get());
+
+    builder.RegisterAggregate(
+        "xor_aggregate",
+        std::unordered_map<TTypeArgument, TUnionType>(),
+        EValueType::Int64,
+        EValueType::Int64,
+        EValueType::Int64,
+        UDF_BC(xor_aggregate),
+        ECallingConvention::UnversionedValue);
+
+    auto callbacks = CodegenAggregate(
+        aggregateProfilers->GetAggregate("xor_aggregate")->Profile(
+            EValueType::Int64, EValueType::Int64, EValueType::Int64, "xor_aggregate"),
+        EValueType::Int64, EValueType::Int64);
+
+    auto buffer = New<TRowBuffer>();
+
+    auto state = MakeUint64(0);
+    auto value = MakeUint64(0);
+
+    state.Aggregate = false;
+    // Init sets aggregate flag to true.
+    callbacks.Init(buffer.Get(), &state);
+    EXPECT_EQ(true, state.Aggregate);
+
+    value.Aggregate = true;
+    callbacks.Update(buffer.Get(), &state, &value);
+    EXPECT_EQ(false, state.Aggregate);
+
+    callbacks.Update(buffer.Get(), &state, &value);
+    EXPECT_EQ(true, state.Aggregate);
+
+    value.Aggregate = false;
+    callbacks.Update(buffer.Get(), &state, &value);
+    EXPECT_EQ(true, state.Aggregate);
+
+    value.Aggregate = false;
+    callbacks.Merge(buffer.Get(), &state, &value);
+    EXPECT_EQ(true, state.Aggregate);
+
+    value.Aggregate = true;
+    callbacks.Merge(buffer.Get(), &state, &value);
+    EXPECT_EQ(false, state.Aggregate);
+
+    TUnversionedValue result;
+    // Finalize preserves aggregate flag.
+    state.Aggregate = false;
+    callbacks.Finalize(buffer.Get(), &result, &state);
+    EXPECT_EQ(false, state.Aggregate);
+
+    state.Aggregate = true;
+    callbacks.Finalize(buffer.Get(), &result, &state);
+    EXPECT_EQ(true, state.Aggregate);
+}
 
 TEST_P(TEvaluateAggregationTest, Basic)
 {
