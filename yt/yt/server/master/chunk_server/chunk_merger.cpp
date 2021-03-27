@@ -569,7 +569,7 @@ void TChunkMerger::OnTransactionAborted(TTransaction* transaction)
     YT_VERIFY(HasMutationContext());
 
     auto transactionId = transaction->GetId();
-    
+
     if (transactionId == PreviousTransactionId_) {
         PreviousTransactionId_ = {};
     }
@@ -852,12 +852,11 @@ void TChunkMerger::HydraCreateChunks(NProto::TReqCreateChunks* request)
             chunkInfo.replication_factor(),
             CheckedEnumCast<NErasure::ECodec>(chunkInfo.erasure_codec()),
             medium,
-            0,
-            0,
-            true,
-            chunkInfo.vital(),
-            false);
-        
+            /*readQuorum*/ 0,
+            /*writeQuorum*/ 0,
+            /*movable*/ true,
+            chunkInfo.vital());
+
         if (it != JobsUndergoingChunkCreation_.end()) {
             auto& entry = it->second;
             entry.OutputChunkId = chunk->GetId();
@@ -956,7 +955,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
 void TChunkMerger::HydraStartMergeTransaction(NProto::TReqStartMergeTransaction* request)
 {
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
-    
+
     if (PreviousTransactionId_) {
         auto* previousTransaction = transactionManager->FindTransaction(PreviousTransactionId_);
         if (IsObjectAlive(previousTransaction)) {

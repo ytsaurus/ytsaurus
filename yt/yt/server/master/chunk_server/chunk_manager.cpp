@@ -720,11 +720,13 @@ public:
         int writeQuorum,
         bool movable,
         bool vital,
-        bool overlayed)
+        bool overlayed,
+        TConsistentPlacementHash consistentPlacementHash)
     {
         YT_VERIFY(HasMutationContext());
 
         bool isErasure = IsErasureChunkType(chunkType);
+        bool isJournal = IsJournalChunkType(chunkType);
 
         auto* chunk = DoCreateChunk(chunkType);
         chunk->SetReadQuorum(readQuorum);
@@ -732,6 +734,7 @@ public:
         chunk->SetErasureCodec(erasureCodecId);
         chunk->SetMovable(movable);
         chunk->SetOverlayed(overlayed);
+        // TODO(shakurov): handle consistentPlacementHash
 
         YT_ASSERT(chunk->GetLocalRequisitionIndex() == (isErasure ? MigrationErasureChunkRequisitionIndex : MigrationChunkRequisitionIndex));
 
@@ -758,20 +761,30 @@ public:
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
             "Chunk created "
             "(ChunkId: %v, ChunkListId: %v, TransactionId: %v, Account: %v, Medium: %v, "
-            "ReplicationFactor: %v, ReadQuorum: %v, WriteQuorum: %v, ErasureCodec: %v, "
-            "Movable: %v, Vital: %v, Overlayed: %v)",
+            "ReplicationFactor: %v, ErasureCodec: %v, Movable: %v, Vital: %v%v%v)",
             chunk->GetId(),
             GetObjectId(chunkList),
             transaction->GetId(),
             account->GetName(),
             medium->GetName(),
             replicationFactor,
-            readQuorum,
-            writeQuorum,
             erasureCodecId,
             movable,
             vital,
-            overlayed);
+            MakeFormatterWrapper([&] (auto* builder) {
+                if (isJournal) {
+                    builder->AppendFormat(", ReadQuorum: %v, WriteQuorum: %v, Overlayed: %v",
+                        readQuorum,
+                        writeQuorum,
+                        overlayed);
+                }
+            }),
+            MakeFormatterWrapper([&] (auto* builder) {
+                if (consistentPlacementHash != NullConsistentPlacementHash) {
+                    builder->AppendFormat(", ConsistentPlacementHash: %llx",
+                        consistentPlacementHash);
+                }
+            }));
 
         return chunk;
     }
@@ -2412,6 +2425,7 @@ private:
         auto* account = securityManager->GetAccountByNameOrThrow(subrequest->account(), true /*activeLifeStageOnly*/);
 
         auto overlayed = subrequest->overlayed();
+        auto consistentPlacementHash = subrequest->consistent_placement_hash();
 
         if (subrequest->validate_resource_usage_increase()) {
             auto resourceUsageIncrease = TClusterResources()
@@ -2444,7 +2458,8 @@ private:
             writeQuorum,
             subrequest->movable(),
             subrequest->vital(),
-            overlayed);
+            overlayed,
+            consistentPlacementHash);
 
         if (subresponse) {
             auto sessionId = TSessionId(chunk->GetId(), mediumIndex);
@@ -3985,7 +4000,8 @@ TChunk* TChunkManager::CreateChunk(
     int writeQuorum,
     bool movable,
     bool vital,
-    bool overlayed)
+    bool overlayed,
+    TConsistentPlacementHash consistentPlacementHash)
 {
     return Impl_->CreateChunk(
         transaction,
@@ -3999,7 +4015,8 @@ TChunk* TChunkManager::CreateChunk(
         writeQuorum,
         movable,
         vital,
-        overlayed);
+        overlayed,
+        consistentPlacementHash);
 }
 
 TChunkView* TChunkManager::CloneChunkView(

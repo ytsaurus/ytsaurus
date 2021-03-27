@@ -157,7 +157,8 @@ public:
         int writeQuorum,
         bool movable,
         bool vital,
-        bool overlayed);
+        bool overlayed = false,
+        NChunkClient::TConsistentPlacementHash consistentPlacementHash = NChunkClient::NullConsistentPlacementHash);
 
     TDynamicStore* CreateDynamicStore(TDynamicStoreId storeId, const NTabletServer::TTablet* tablet);
 
