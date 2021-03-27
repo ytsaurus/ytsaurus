@@ -166,6 +166,7 @@ DEFINE_ENUM(EMasterReign,
     ((NativeContentRevision)                                        (1517))  // shakurov
     ((CellarHeartbeat)                                              (1518))  // savrus
     ((RemoveClusterNodeFlavor)                                      (1519))  // gritukan
+    ((MaxInlineHunkSizeInSchema)                                    (1520))  // babenko
     // 21.2 starts here.
     ((MasterMergeJobs)                                              (1600))  // aleksandra-zh
 );

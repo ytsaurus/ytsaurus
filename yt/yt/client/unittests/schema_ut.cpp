@@ -197,6 +197,56 @@ TEST(TTableSchemaTest, ColumnTypeV3Deserialization)
     );
 }
 
+TEST(TTableSchemaTest, MaxInlineHunkSizeSerialization)
+{
+    {
+        auto column = ColumnFromYson(R"(
+            {
+              name=x;
+              type=string;
+            }
+        )");
+        auto serializedColumn = ConvertToAttributes(column);
+        EXPECT_FALSE(serializedColumn->FindYson("max_inline_hunk_size").operator bool());
+    }
+
+    {
+        auto column = ColumnFromYson(R"(
+            {
+              name=x;
+              type=string;
+              max_inline_hunk_size=100
+            }
+        )");
+        auto serializedColumn = ConvertToAttributes(column);
+        EXPECT_EQ(100, serializedColumn->Get<i64>("max_inline_hunk_size"));
+    }
+}
+
+TEST(TTableSchemaTest, MaxInlineHunkSizeDeserialization)
+{
+    {
+        auto column = ColumnFromYson(R"(
+            {
+              name=x;
+              type=string;
+            }
+        )");
+        EXPECT_FALSE(column.MaxInlineHunkSize().has_value());
+    }
+
+    {
+        auto column = ColumnFromYson(R"(
+            {
+              name=x;
+              type=string;
+              max_inline_hunk_size=100
+            }
+        )");
+        EXPECT_EQ(column.MaxInlineHunkSize(), 100);
+    }
+}
+
 TEST(TTableSchemaTest, ColumnSchemaValidation)
 {
     auto expectBad = [] (const auto& schema) {
@@ -277,6 +327,36 @@ TEST(TTableSchemaTest, ColumnSchemaValidation)
     );
 
     expectBad(
+        TColumnSchema("Column", EValueType::String)
+            .SetMaxInlineHunkSize(0)
+    );
+
+    expectBad(
+        TColumnSchema("Column", EValueType::String)
+            .SetMaxInlineHunkSize(-1)
+    );
+
+    expectBad(
+        TColumnSchema("Column", EValueType::Int64)
+            .SetMaxInlineHunkSize(100)
+    );
+
+    expectBad(
+        TColumnSchema("Column", EValueType::String, ESortOrder::Ascending)
+            .SetMaxInlineHunkSize(100)
+    );
+
+    ValidateColumnSchema(
+        TColumnSchema("Column", EValueType::String)
+            .SetMaxInlineHunkSize(100)
+    );
+
+    ValidateColumnSchema(
+        TColumnSchema("Column", EValueType::Any)
+            .SetMaxInlineHunkSize(100)
+    );
+
+    expectBad(
         TColumnSchema("Column", StructLogicalType({
             {"foo", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
             {"bar", SimpleLogicalType(ESimpleLogicalValueType::String)},
@@ -319,17 +399,17 @@ TEST(TTableSchemaTest, ColumnSchemaProtobufBackwardCompatibility)
     EXPECT_EQ(columnSchema.Name(), "foo");
 }
 
-TEST(TTableSchemaTest, TestEqualIgnoringRequiredness)
+TEST(TTableSchemaTest, EqualIgnoringRequiredness)
 {
-    TTableSchema schema1 = TTableSchema({
+    auto schema1 = TTableSchema({
         TColumnSchema("foo", SimpleLogicalType(ESimpleLogicalValueType::Int64)),
     });
 
-    TTableSchema schema2 = TTableSchema({
+    auto schema2 = TTableSchema({
         TColumnSchema("foo", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
     });
 
-    TTableSchema schema3 = TTableSchema({
+    auto schema3 = TTableSchema({
         TColumnSchema("foo", SimpleLogicalType(ESimpleLogicalValueType::String)),
     });
 

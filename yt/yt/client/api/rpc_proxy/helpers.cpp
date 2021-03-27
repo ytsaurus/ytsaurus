@@ -406,21 +406,38 @@ void ToProto(NProto::TColumnSchema* protoSchema, const NTableClient::TColumnSche
     }
     if (schema.Lock()) {
         protoSchema->set_lock(*schema.Lock());
+    } else {
+        protoSchema->clear_lock();
     }
     if (schema.Expression()) {
         protoSchema->set_expression(*schema.Expression());
+    } else {
+        protoSchema->clear_expression();
     }
     if (schema.Aggregate()) {
         protoSchema->set_aggregate(*schema.Aggregate());
+    } else {
+        protoSchema->clear_aggregate();
     }
     if (schema.SortOrder()) {
         protoSchema->set_sort_order(NYT::ToProto<int>(*schema.SortOrder()));
+    } else {
+        protoSchema->clear_sort_order();
     }
     if (schema.Group()) {
         protoSchema->set_group(*schema.Group());
+    } else {
+        protoSchema->clear_group();
     }
     if (schema.Required()) {
         protoSchema->set_required(schema.Required());
+    } else {
+        protoSchema->clear_required();
+    }
+    if (schema.MaxInlineHunkSize()) {
+        protoSchema->set_max_inline_hunk_size(*schema.MaxInlineHunkSize());
+    } else {
+        protoSchema->clear_max_inline_hunk_size();
     }
 }
 
@@ -442,6 +459,7 @@ void FromProto(NTableClient::TColumnSchema* schema, const NProto::TColumnSchema&
     schema->SetAggregate(protoSchema.has_aggregate() ? std::make_optional(protoSchema.aggregate()) : std::nullopt);
     schema->SetSortOrder(protoSchema.has_sort_order() ? std::make_optional(ESortOrder(protoSchema.sort_order())) : std::nullopt);
     schema->SetGroup(protoSchema.has_group() ? std::make_optional(protoSchema.group()) : std::nullopt);
+    schema->SetMaxInlineHunkSize(protoSchema.has_max_inline_hunk_size() ? std::make_optional(protoSchema.max_inline_hunk_size()) : std::nullopt);
 }
 
 void ToProto(NProto::TTableSchema* protoSchema, const NTableClient::TTableSchema& schema)
