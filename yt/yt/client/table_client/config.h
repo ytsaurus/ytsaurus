@@ -345,7 +345,7 @@ public:
         RegisterParameter("max_heavy_columns", MaxHeavyColumns)
             .Default(0);
 
-        RegisterPostprocessor([&] () {
+        RegisterPostprocessor([&] {
             if (ValidateUniqueKeys && !ValidateSorted) {
                 THROW_ERROR_EXCEPTION("\"validate_unique_keys\" is allowed to be true only if \"validate_sorted\" is true");
             }

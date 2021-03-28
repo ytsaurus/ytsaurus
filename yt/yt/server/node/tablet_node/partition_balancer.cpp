@@ -129,14 +129,14 @@ private:
             ScanPartitionToSample(slot, partition.get());
         }
 
-        if (!tablet->GetConfig()->EnableCompactionAndPartitioning) {
+        if (!tablet->GetMountConfig()->EnableCompactionAndPartitioning) {
             return;
         }
 
         int currentMaxOverlappingStoreCount = tablet->GetOverlappingStoreCount();
         int estimatedMaxOverlappingStoreCount = currentMaxOverlappingStoreCount;
 
-        YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
+        YT_LOG_DEBUG_IF(tablet->GetMountConfig()->EnableLsmVerboseLogging,
             "Partition balancer started tablet scan for splits (%v, CurrentMosc: %v)",
             tablet->GetLoggingTag(),
             currentMaxOverlappingStoreCount);
@@ -161,10 +161,10 @@ private:
                 secondLargestPartitionStoreCount);
         }
 
-        int maxAllowedOverlappingStoreCount = tablet->GetConfig()->MaxOverlappingStoreCount -
+        int maxAllowedOverlappingStoreCount = tablet->GetMountConfig()->MaxOverlappingStoreCount -
             (estimatedMaxOverlappingStoreCount - currentMaxOverlappingStoreCount);
 
-        YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
+        YT_LOG_DEBUG_IF(tablet->GetMountConfig()->EnableLsmVerboseLogging,
             "Partition balancer started tablet scan for merges (%v, "
             "EstimatedMosc: %v, MaxAllowedOsc: %v)",
             tablet->GetLoggingTag(),
@@ -183,14 +183,14 @@ private:
         int secondLargestPartitionStoreCount)
     {
         auto* tablet = partition->GetTablet();
-        const auto& config = tablet->GetConfig();
+        const auto& config = tablet->GetMountConfig();
         int partitionCount = tablet->PartitionList().size();
         i64 actualDataSize = partition->GetCompressedDataSize();
         int estimatedStoresDelta = partition->Stores().size();
 
         auto Logger = BuildLogger(slot, partition);
 
-        if (tablet->GetConfig()->EnableLsmVerboseLogging) {
+        if (tablet->GetMountConfig()->EnableLsmVerboseLogging) {
             YT_LOG_DEBUG(
                 "Scanning partition to split (PartitionIndex: %v of %v, "
                 "EstimatedMosc: %v, DataSize: %v, StoreCount: %v, SecondLargestPartitionStoreCount: %v)",
@@ -203,7 +203,7 @@ private:
         }
 
         if (partition->GetState() != EPartitionState::Normal) {
-            YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
+            YT_LOG_DEBUG_IF(tablet->GetMountConfig()->EnableLsmVerboseLogging,
                 "Will not split partition due to improper partition state (PartitionState: %v)",
                 partition->GetState());
             return;
@@ -265,7 +265,7 @@ private:
     void ScanPartitionToMerge(TTabletSlotPtr slot, TPartition* partition, int maxAllowedOverlappingStoreCount)
     {
         auto* tablet = partition->GetTablet();
-        const auto& config = tablet->GetConfig();
+        const auto& config = tablet->GetMountConfig();
         int partitionCount = tablet->PartitionList().size();
         i64 actualDataSize = partition->GetCompressedDataSize();
 
@@ -279,7 +279,7 @@ private:
 
         auto Logger = BuildLogger(slot, partition);
 
-        YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
+        YT_LOG_DEBUG_IF(tablet->GetMountConfig()->EnableLsmVerboseLogging,
             "Scanning partition to merge (PartitionIndex: %v of %v, "
             "DataSize: %v, MaxPotentialDataSize: %v)",
             partition->GetIndex(),
@@ -298,7 +298,7 @@ private:
                 tablet->PartitionList()[firstPartitionIndex]->Stores().size() +
                 tablet->PartitionList()[lastPartitionIndex]->Stores().size();
 
-            YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
+            YT_LOG_DEBUG_IF(tablet->GetMountConfig()->EnableLsmVerboseLogging,
                 "Found candidate partitions to merge (FirstPartitionIndex: %v, "
                 "LastPartitionIndex: %v, EstimatedOsc: %v, WillRunMerge: %v",
                 firstPartitionIndex,
@@ -330,7 +330,7 @@ private:
 
         auto Logger = BuildLogger(slot, partition);
 
-        if (!tablet->GetConfig()->EnablePartitionSplitWhileEdenPartitioning &&
+        if (!tablet->GetMountConfig()->EnablePartitionSplitWhileEdenPartitioning &&
             tablet->GetEden()->GetState() == EPartitionState::Partitioning)
         {
             YT_LOG_DEBUG("Eden is partitioning, will not split partition (EdenPartitionId: %v)",
@@ -340,7 +340,7 @@ private:
 
         for (const auto& store : partition->Stores()) {
             if (store->GetStoreState() != EStoreState::Persistent) {
-                YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
+                YT_LOG_DEBUG_IF(tablet->GetMountConfig()->EnableLsmVerboseLogging,
                     "Will not split partition due to improper store state "
                     "(StoreId: %v, StoreState: %v)",
                     store->GetId(),
@@ -353,7 +353,7 @@ private:
             const auto& pivotKeys = partition->PivotKeysForImmediateSplit();
             YT_VERIFY(!pivotKeys.empty());
             if (pivotKeys[0] != partition->GetPivotKey()) {
-                YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
+                YT_LOG_DEBUG_IF(tablet->GetMountConfig()->EnableLsmVerboseLogging,
                     "Will not perform immediate partition split: first proposed pivot key "
                     "does not match partition pivot key (PartitionPivotKey: %v, ProposedPivotKey: %v)",
                     partition->GetPivotKey(),
@@ -365,7 +365,7 @@ private:
 
             for (int index = 1; index < pivotKeys.size(); ++index) {
                 if (pivotKeys[index] <= pivotKeys[index - 1]) {
-                    YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
+                    YT_LOG_DEBUG_IF(tablet->GetMountConfig()->EnableLsmVerboseLogging,
                         "Will not perform immediate partition split: proposed pivots are not sorted");
 
                     partition->PivotKeysForImmediateSplit().clear();
@@ -374,7 +374,7 @@ private:
             }
 
             if (pivotKeys.back() >= partition->GetNextPivotKey()) {
-                YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
+                YT_LOG_DEBUG_IF(tablet->GetMountConfig()->EnableLsmVerboseLogging,
                     "Will not perform immediate partition split: last proposed pivot key "
                     "is not less than partition next pivot key (NextPivotKey: %v, ProposedPivotKey: %v)",
                     partition->GetNextPivotKey(),
@@ -385,7 +385,7 @@ private:
             }
 
             if (pivotKeys.size() <= 1) {
-                YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
+                YT_LOG_DEBUG_IF(tablet->GetMountConfig()->EnableLsmVerboseLogging,
                     "Will not perform immediate partition split: too few pivot keys");
 
                 partition->PivotKeysForImmediateSplit().clear();
@@ -510,7 +510,7 @@ private:
 
         for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
             if (tablet->PartitionList()[index]->GetState() != EPartitionState::Normal) {
-                YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
+                YT_LOG_DEBUG_IF(tablet->GetMountConfig()->EnableLsmVerboseLogging,
                     "Will not merge partitions due to improper partition state "
                     "(%v, InitialPartitionId: %v, PartitionId: %v, PartitionIndex: %v, PartitionState: %v)",
                     tablet->GetLoggingTag(),
@@ -599,7 +599,7 @@ private:
         YT_LOG_DEBUG("Sampling partition");
 
         YT_VERIFY(tablet == partition->GetTablet());
-        auto config = tablet->GetConfig();
+        auto config = tablet->GetMountConfig();
 
         const auto& hydraManager = slot->GetHydraManager();
 

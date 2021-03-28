@@ -346,3 +346,49 @@ class TestMultipleErasurePartsPerNode(YTEnvSetup):
         assert not status["parity_missing"]
         assert not status["overreplicated"]
         assert not status["underreplicated"]
+
+
+##################################################################
+
+
+class TestChunkConsistentPlacement(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 5
+    USE_DYNAMIC_TABLES = True
+
+    @authors("babenko")
+    def test_simple(self):
+        schema = [
+            {"name": "key", "type": "string", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}
+        ]
+
+        sync_create_cells(1)
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "enable_chunk_consistent_placement": True,
+                "schema": schema,
+            }
+        )
+
+        sync_mount_table("//tmp/t")
+        row1 = {"key": "k1", "value": "v1"}
+        insert_rows("//tmp/t", [row1])
+        assert select_rows("* from [//tmp/t]") == [row1]
+        sync_unmount_table("//tmp/t")
+
+        sync_mount_table("//tmp/t")
+        row2 = {"key": "k2", "value": "v2"}
+        insert_rows("//tmp/t", [row2])
+        assert select_rows("* from [//tmp/t]") == [row1, row2]
+        sync_unmount_table("//tmp/t")
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        assert len(chunk_ids) == 2
+
+        # TODO(shakurov): check some placement constraints
+        get("#{}/@stored_replicas".format(chunk_ids[0]))
+        get("#{}/@stored_replicas".format(chunk_ids[1]))

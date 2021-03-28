@@ -150,7 +150,7 @@ private:
             tabletSnapshot->WriterOptions->Account,
             tabletSnapshot->WriterOptions->MediumName,
             Slot_->GetTabletCellBundleName(),
-            tabletSnapshot->Config->InMemoryMode);
+            tabletSnapshot->MountConfig->InMemoryMode);
 
         auto slotOptions = Slot_->GetOptions();
         securityManager->ValidateResourceLimits(

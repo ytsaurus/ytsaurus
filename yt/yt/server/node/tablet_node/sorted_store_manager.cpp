@@ -322,7 +322,7 @@ void TSortedStoreManager::BuildPivotKeysBeforeChunkViewsForPivots(
         if (boundary.Type == -1 &&
             depth == 0 &&
             boundary.Key > Tablet_->GetPivotKey() &&
-            cumulativeDataSize >= Tablet_->GetConfig()->MinPartitionDataSize)
+            cumulativeDataSize >= Tablet_->GetMountConfig()->MinPartitionDataSize)
         {
             pivotKeys->push_back(boundary.Key);
             cumulativeDataSize = 0;
@@ -346,7 +346,7 @@ void TSortedStoreManager::BuildPivotKeys(
         if (boundary.Type == 1 &&
             depth == 0 &&
             boundary.Key > Tablet_->GetPivotKey() &&
-            cumulativeDataSize >= Tablet_->GetConfig()->MinPartitionDataSize)
+            cumulativeDataSize >= Tablet_->GetMountConfig()->MinPartitionDataSize)
         {
             pivotKeys->push_back(boundary.Key);
             cumulativeDataSize = 0;
@@ -468,7 +468,7 @@ void TSortedStoreManager::Mount(
                        std::tie(rhs.Key, rhs.Type, rhs.DescriptorIndex, rhs.DataSize);
         });
 
-        if (Tablet_->GetConfig()->EnableLsmVerboseLogging) {
+        if (Tablet_->GetMountConfig()->EnableLsmVerboseLogging) {
             YT_LOG_DEBUG("Considering store boundaries during table mount (BoundaryCount: %v)",
                 chunkBoundaries.size());
             for (const auto& boundary : chunkBoundaries) {
@@ -501,7 +501,7 @@ void TSortedStoreManager::Remount(
     TTabletChunkWriterConfigPtr writerConfig,
     TTabletWriterOptionsPtr writerOptions)
 {
-    int oldSamplesPerPartition = Tablet_->GetConfig()->SamplesPerPartition;
+    int oldSamplesPerPartition = Tablet_->GetMountConfig()->SamplesPerPartition;
     int newSamplesPerPartition = mountConfig->SamplesPerPartition;
 
     TStoreManagerBase::Remount(
@@ -542,7 +542,7 @@ void TSortedStoreManager::BulkAddStores(TRange<IStorePtr> stores, bool onMount)
         }
 
         auto* partition = Tablet_->GetPartition(partitionId);
-        YT_LOG_DEBUG_IF(Tablet_->GetConfig()->EnableLsmVerboseLogging,
+        YT_LOG_DEBUG_IF(Tablet_->GetMountConfig()->EnableLsmVerboseLogging,
             "Added %v stores to partition (PartitionId: %v)",
             partition->GetId(),
             addedStores.size());
@@ -663,6 +663,8 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
         writerOptions->ChunksEden = true;
         writerOptions->ValidateResourceUsageIncrease = false;
+        writerOptions->ChunkConsistentPlacementHash = tabletSnapshot->ChunkConsistentPlacementHash;
+
         auto writerConfig = CloneYsonSerializable(tabletSnapshot->WriterConfig);
         writerConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
         writerConfig->MinUploadReplicationFactor = writerConfig->UploadReplicationFactor;
@@ -706,13 +708,13 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             tabletSnapshot->QuerySchema->GetColumnCount(),
             tabletSnapshot->QuerySchema->GetKeyColumnCount(),
             TColumnFilter(),
-            tabletSnapshot->Config,
+            tabletSnapshot->MountConfig,
             currentTimestamp,
             MinTimestamp,
             tabletSnapshot->ColumnEvaluator,
             /*lookup*/ false,
             /*mergeRowsOnFlush*/ true,
-            /*mergeDeletionsOnFlush*/ tabletSnapshot->Config->MergeDeletionsOnFlush);
+            /*mergeDeletionsOnFlush*/ tabletSnapshot->MountConfig->MergeDeletionsOnFlush);
 
         auto unflushedTimestamp = MaxTimestamp;
         auto edenStores = tabletSnapshot->GetEdenStores();
@@ -729,7 +731,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             tabletSnapshot->QuerySchema->GetColumnCount(),
             tabletSnapshot->QuerySchema->GetKeyColumnCount(),
             TColumnFilter(),
-            tabletSnapshot->Config,
+            tabletSnapshot->MountConfig,
             currentTimestamp,
             majorTimestamp,
             tabletSnapshot->ColumnEvaluator,
@@ -739,7 +741,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         using NTransactionClient::InstantToTimestamp;
         using NTransactionClient::TimestampToInstant;
 
-        auto retainedTimestamp = InstantToTimestamp(TimestampToInstant(currentTimestamp).first - tabletSnapshot->Config->MinDataTtl).first;
+        auto retainedTimestamp = InstantToTimestamp(TimestampToInstant(currentTimestamp).first - tabletSnapshot->MountConfig->MinDataTtl).first;
 
         const auto& rowCache = tabletSnapshot->RowCache;
 
@@ -755,9 +757,9 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         YT_LOG_DEBUG("Sorted store flush started (StoreId: %v, MergeRowsOnFlush: %v, "
             "MergeDeletionsOnFlush: %v, RetentionConfig: %v, HaveRowCache: %v, RetainedTimestamp: %v)",
             store->GetId(),
-            tabletSnapshot->Config->MergeRowsOnFlush,
-            tabletSnapshot->Config->MergeDeletionsOnFlush,
-            ConvertTo<TRetentionConfigPtr>(tabletSnapshot->Config),
+            tabletSnapshot->MountConfig->MergeRowsOnFlush,
+            tabletSnapshot->MountConfig->MergeDeletionsOnFlush,
+            ConvertTo<TRetentionConfigPtr>(tabletSnapshot->MountConfig),
             static_cast<bool>(rowCache),
             tabletSnapshot->RetainedTimestamp);
 
@@ -777,7 +779,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             auto range = batch->MaterializeRows();
             std::vector<TVersionedRow> rows(range.begin(), range.end());
 
-            if (tabletSnapshot->Config->MergeRowsOnFlush) {
+            if (tabletSnapshot->MountConfig->MergeRowsOnFlush) {
                 auto outputIt = rows.begin();
                 for (auto row : rows) {
                     onFlushRowMerger.AddPartialRow(row);
@@ -969,7 +971,7 @@ bool TSortedStoreManager::SplitPartition(
     partition->SetState(EPartitionState::Normal);
     partition->SetAllowedSplitTime(TInstant::Now());
 
-    if (Tablet_->PartitionList().size() >= Tablet_->GetConfig()->MaxPartitionCount) {
+    if (Tablet_->PartitionList().size() >= Tablet_->GetMountConfig()->MaxPartitionCount) {
         StructuredLogger_->LogEvent("abort_partition_split")
             .Item("partition_id").Value(partition->GetId())
             .Item("reason").Value("partition_count_limit_exceeded");
@@ -1057,7 +1059,7 @@ void TSortedStoreManager::TrySplitPartitionByAddedStores(
             return lhs->GetId() < rhs->GetId();
         });
 
-    const auto& config = partition->GetTablet()->GetConfig();
+    const auto& config = partition->GetTablet()->GetMountConfig();
 
     int formerPartitionStoreCount = partition->Stores().size() - addedStores.size();
 
@@ -1201,7 +1203,7 @@ bool TSortedStoreManager::IsOverflowRotationNeeded() const
         return false;
     }
 
-    const auto& config = Tablet_->GetConfig();
+    const auto& config = Tablet_->GetMountConfig();
     auto threshold = config->DynamicStoreOverflowThreshold;
     if (ActiveStore_->GetMaxDataWeight() >= threshold * config->MaxDynamicStoreRowDataWeight) {
         return true;
@@ -1212,7 +1214,7 @@ bool TSortedStoreManager::IsOverflowRotationNeeded() const
 
 TError TSortedStoreManager::CheckOverflow() const
 {
-    const auto& config = Tablet_->GetConfig();
+    const auto& config = Tablet_->GetMountConfig();
     if (ActiveStore_ && ActiveStore_->GetMaxDataWeight() >= config->MaxDynamicStoreRowDataWeight) {
         return TError("Maximum row data weight limit reached")
             << TErrorAttribute("store_id", ActiveStore_->GetId())

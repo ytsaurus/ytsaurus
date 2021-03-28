@@ -247,6 +247,8 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
 
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
         writerOptions->ValidateResourceUsageIncrease = false;
+        writerOptions->ChunkConsistentPlacementHash = tabletSnapshot->ChunkConsistentPlacementHash;
+
         auto writerConfig = CloneYsonSerializable(tabletSnapshot->WriterConfig);
         writerConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
         writerConfig->MinUploadReplicationFactor = writerConfig->UploadReplicationFactor;

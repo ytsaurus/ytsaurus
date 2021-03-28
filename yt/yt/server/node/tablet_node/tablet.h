@@ -22,6 +22,8 @@
 
 #include <yt/yt/ytlib/query_client/public.h>
 
+#include <yt/yt/ytlib/chunk_client/public.h>
+
 #include <yt/yt/core/actions/cancelable_context.h>
 
 #include <yt/yt/core/misc/property.h>
@@ -141,7 +143,7 @@ struct TTabletSnapshot
     NTabletClient::TTabletId TabletId;
     TString LoggingTag;
     NYPath::TYPath TablePath;
-    TTableMountConfigPtr Config;
+    TTableMountConfigPtr MountConfig;
     TTabletChunkWriterConfigPtr WriterConfig;
     TTabletWriterOptionsPtr WriterOptions;
     TLegacyOwningKey PivotKey;
@@ -199,6 +201,8 @@ struct TTabletSnapshot
     TLockManagerEpoch LockManagerEpoch;
     TRowCachePtr RowCache;
     ui32 StoreFlushIndex;
+
+    NChunkClient::TConsistentPlacementHash ChunkConsistentPlacementHash = NChunkClient::NullConsistentPlacementHash;
 
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
@@ -386,7 +390,7 @@ public:
         TTabletId tabletId,
         ITabletContext* context);
     TTablet(
-        TTableMountConfigPtr config,
+        TTableMountConfigPtr mountConfig,
         TTabletChunkReaderConfigPtr readerConfig,
         TTabletChunkWriterConfigPtr writerConfig,
         TTabletWriterOptionsPtr writerOptions,
@@ -405,8 +409,8 @@ public:
 
     ETabletState GetPersistentState() const;
 
-    const TTableMountConfigPtr& GetConfig() const;
-    void SetConfig(TTableMountConfigPtr config);
+    const TTableMountConfigPtr& GetMountConfig() const;
+    void SetMountConfig(TTableMountConfigPtr config);
 
     const TTabletChunkReaderConfigPtr& GetReaderConfig() const;
     void SetReaderConfig(TTabletChunkReaderConfigPtr config);
@@ -521,12 +525,14 @@ public:
 
     NTabletNode::NProto::TMountHint GetMountHint() const;
 
+    NChunkClient::TConsistentPlacementHash GetChunkConsistentPlacementHash() const;
+
     void ThrottleTabletStoresUpdate(
         const TTabletSlotPtr& slot,
         const NLogging::TLogger& Logger) const;
 
 private:
-    TTableMountConfigPtr Config_;
+    TTableMountConfigPtr MountConfig_;
     TTabletChunkReaderConfigPtr ReaderConfig_;
     TTabletChunkWriterConfigPtr WriterConfig_;
     TTabletWriterOptionsPtr WriterOptions_;

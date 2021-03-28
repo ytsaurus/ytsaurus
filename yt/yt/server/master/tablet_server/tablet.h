@@ -50,7 +50,7 @@ struct TTabletCellStatisticsBase
     void Persist(const NCellMaster::TPersistenceContext& context);
 };
 
-// COMPAT(akozhikhov): Persist is noop here, hence may drop this class later. 
+// COMPAT(akozhikhov): Persist is noop here, hence may drop this class later.
 struct TUncountableTabletCellStatisticsBase
 {
     void Persist(const NCellMaster::TPersistenceContext& context);
@@ -285,9 +285,6 @@ public:
     DECLARE_BYVAL_RW_PROPERTY(ETabletState, ExpectedState);
     DECLARE_BYVAL_RW_PROPERTY(NTableServer::TTableNode*, Table);
 
-    int GetTabletErrorCount() const;
-    void SetTabletErrorCount(int tabletErrorCount);
-
 public:
     explicit TTablet(TTabletId id);
 
@@ -315,6 +312,9 @@ public:
     i64 GetTabletStaticMemorySize(NTabletClient::EInMemoryMode mode) const;
     i64 GetTabletStaticMemorySize() const;
     i64 GetTabletMasterMemoryUsage() const;
+
+    int GetTabletErrorCount() const;
+    void SetTabletErrorCount(int tabletErrorCount);
 
 private:
     ETabletState State_ = ETabletState::Unmounted;

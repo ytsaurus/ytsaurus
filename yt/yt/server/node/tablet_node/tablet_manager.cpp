@@ -1672,7 +1672,7 @@ private:
 
         const auto& storeManager = tablet->GetStoreManager();
 
-        if (tablet->GetConfig()->EnableDynamicStoreRead && tablet->DynamicStoreIdPool().empty()) {
+        if (tablet->GetMountConfig()->EnableDynamicStoreRead && tablet->DynamicStoreIdPool().empty()) {
             if (!tablet->GetDynamicStoreIdRequested()) {
                 AllocateDynamicStore(tablet);
             }
@@ -1800,7 +1800,7 @@ private:
     bool IsBackingStoreRequired(TTablet* tablet)
     {
         return tablet->GetAtomicity() == EAtomicity::Full &&
-            tablet->GetConfig()->BackingStoreRetentionTime != TDuration::Zero();
+            tablet->GetMountConfig()->BackingStoreRetentionTime != TDuration::Zero();
     }
 
     void HydraCommitUpdateTabletStores(TTransaction* transaction, TReqUpdateTabletStores* request)
@@ -1820,7 +1820,7 @@ private:
 
         const auto& storeManager = tablet->GetStoreManager();
 
-        auto mountConfig = tablet->GetConfig();
+        auto mountConfig = tablet->GetMountConfig();
         auto inMemoryManager = Bootstrap_->GetInMemoryManager();
 
         // NB: Must handle store removals before store additions since
@@ -3265,7 +3265,7 @@ private:
             // we need the store to be released even if the epoch ends.
             BIND(&TTabletManager::TImpl::ReleaseBackingStoreWeak, MakeWeak(this), MakeWeak(store))
                 .Via(Slot_->GetAutomatonInvoker()),
-            tablet->GetConfig()->BackingStoreRetentionTime);
+            tablet->GetMountConfig()->BackingStoreRetentionTime);
     }
 
     void ReleaseBackingStoreWeak(const TWeakPtr<IChunkStore>& storeWeak)
@@ -3290,7 +3290,7 @@ private:
                     .BeginAttributes()
                         .Item("opaque").Value(true)
                     .EndAttributes()
-                    .Value(tablet->GetConfig())
+                    .Value(tablet->GetMountConfig())
                 .Item("writer_config")
                     .BeginAttributes()
                         .Item("opaque").Value(true)
@@ -3366,7 +3366,7 @@ private:
                                 .Item(ToString(replicaId)).Value(error);
                         }
                     })
-                .DoIf(tablet->GetConfig()->EnableDynamicStoreRead, [&] (TFluentMap fluent) {
+                .DoIf(tablet->GetMountConfig()->EnableDynamicStoreRead, [&] (TFluentMap fluent) {
                     fluent
                         .Item("dynamic_store_id_pool")
                             .BeginAttributes()
@@ -3475,7 +3475,7 @@ private:
     void ValidateTabletStoreLimit(TTablet* tablet)
     {
         auto storeCount = tablet->StoreIdMap().size();
-        auto storeLimit = tablet->GetConfig()->MaxStoresPerTablet;
+        auto storeLimit = tablet->GetMountConfig()->MaxStoresPerTablet;
         if (storeCount >= storeLimit) {
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::AllWritesDisabled,
@@ -3487,7 +3487,7 @@ private:
         }
 
         auto overlappingStoreCount = tablet->GetOverlappingStoreCount();
-        auto overlappingStoreLimit = tablet->GetConfig()->MaxOverlappingStoreCount;
+        auto overlappingStoreLimit = tablet->GetMountConfig()->MaxOverlappingStoreCount;
         if (overlappingStoreCount >= overlappingStoreLimit) {
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::AllWritesDisabled,
@@ -3499,7 +3499,7 @@ private:
         }
 
         auto edenStoreCount = tablet->GetEdenStoreCount();
-        auto edenStoreCountLimit = tablet->GetConfig()->MaxEdenStoresPerTablet;
+        auto edenStoreCountLimit = tablet->GetMountConfig()->MaxEdenStoresPerTablet;
         if (edenStoreCount >= edenStoreCountLimit) {
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::AllWritesDisabled,
@@ -3893,7 +3893,7 @@ private:
             return;
         }
 
-        const auto& config = tablet->GetConfig();
+        const auto& config = tablet->GetMountConfig();
         auto retentionDeadline = transaction
             ? TimestampToInstant(transaction->GetCommitTimestamp()).first - config->MinReplicationLogTtl
             : TInstant::Max();

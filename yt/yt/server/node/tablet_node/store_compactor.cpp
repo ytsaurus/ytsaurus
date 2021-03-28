@@ -487,7 +487,7 @@ private:
             return;
         }
 
-        const auto& config = tablet->GetConfig();
+        const auto& config = tablet->GetMountConfig();
         if (!config->EnableCompactionAndPartitioning) {
             return;
         }
@@ -516,7 +516,7 @@ private:
         auto candidate = std::make_unique<TTask>(slot, tablet, eden, std::move(stores));
         // We aim to improve OSC; partitioning unconditionally improves OSC (given at least two stores).
         // So we consider how constrained is the tablet, and how many stores we consider for partitioning.
-        const int overlappingStoreLimit = GetOverlappingStoreLimit(tablet->GetConfig());
+        const int overlappingStoreLimit = GetOverlappingStoreLimit(tablet->GetMountConfig());
         const int overlappingStoreCount = tablet->GetOverlappingStoreCount();
         candidate->Slack = std::max(0, overlappingStoreLimit - overlappingStoreCount);
         candidate->Effect = candidate->StoreIds.size() - 1;
@@ -541,7 +541,7 @@ private:
 
         const auto* tablet = partition->GetTablet();
 
-        const auto& config = tablet->GetConfig();
+        const auto& config = tablet->GetMountConfig();
         if (!config->EnableDiscardingExpiredPartitions || config->MinDataVersions != 0) {
             return false;
         }
@@ -631,12 +631,12 @@ private:
         auto candidate = std::make_unique<TTask>(slot, tablet, partition, std::move(stores));
         // We aim to improve OSC; compaction improves OSC _only_ if the partition contributes towards OSC.
         // So we consider how constrained is the partition, and how many stores we consider for compaction.
-        const int overlappingStoreLimit = GetOverlappingStoreLimit(tablet->GetConfig());
+        const int overlappingStoreLimit = GetOverlappingStoreLimit(tablet->GetMountConfig());
         const int overlappingStoreCount = tablet->GetOverlappingStoreCount();
         if (partition->IsEden()) {
             // Normalized eden store count dominates when number of eden stores is too close to its limit.
             int normalizedEdenStoreCount = tablet->GetEdenStoreCount() * overlappingStoreLimit /
-                tablet->GetConfig()->MaxEdenStoresPerTablet;
+                tablet->GetMountConfig()->MaxEdenStoresPerTablet;
             int overlappingStoreLimitSlackness = overlappingStoreLimit -
                 std::max(overlappingStoreCount, normalizedEdenStoreCount);
 
@@ -673,7 +673,7 @@ private:
 
         const auto* tablet = eden->GetTablet();
         const auto& storeManager = tablet->GetStoreManager();
-        const auto& config = tablet->GetConfig();
+        const auto& config = tablet->GetMountConfig();
 
         std::vector<TSortedChunkStorePtr> candidates;
 
@@ -742,7 +742,7 @@ private:
 
         const auto* tablet = partition->GetTablet();
         const auto& storeManager = tablet->GetStoreManager();
-        const auto& config = tablet->GetConfig();
+        const auto& config = tablet->GetMountConfig();
 
         auto Logger = TabletNodeLogger;
         Logger.AddTag("%v, PartitionId: %v",
@@ -1188,7 +1188,7 @@ private:
 
         std::vector<TLegacyOwningKey> pivotKeys;
         for (const auto& partition : tablet->PartitionList()) {
-            if (!partition->GetTablet()->GetConfig()->EnablePartitionSplitWhileEdenPartitioning &&
+            if (!partition->GetTablet()->GetMountConfig()->EnablePartitionSplitWhileEdenPartitioning &&
                 partition->GetState() == EPartitionState::Splitting)
             {
                 YT_LOG_DEBUG("Other partition is splitting, aborting eden partitioning (PartitionId: %v)",
@@ -1246,7 +1246,7 @@ private:
                 dataSize,
                 stores.size(),
                 currentTimestamp,
-                ConvertTo<TRetentionConfigPtr>(tabletSnapshot->Config));
+                ConvertTo<TRetentionConfigPtr>(tabletSnapshot->MountConfig));
 
             reader = CreateVersionedTabletReader(
                 tabletSnapshot,
@@ -1395,8 +1395,10 @@ private:
         auto writerConfig = CloneYsonSerializable(tabletSnapshot->WriterConfig);
         writerConfig->MinUploadReplicationFactor = writerConfig->UploadReplicationFactor;
         writerConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPartitioning);
+
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
         writerOptions->ValidateResourceUsageIncrease = false;
+        writerOptions->ChunkConsistentPlacementHash = tabletSnapshot->ChunkConsistentPlacementHash;
 
         std::vector<TVersionedRow> writeRows;
         writeRows.reserve(MaxRowsPerWrite);
@@ -1419,13 +1421,13 @@ private:
                 ->GetNativeConnection()
                 ->GetCellDirectory()
                 ->GetDescriptorOrThrow(tabletSnapshot->CellId),
-            tabletSnapshot->Config->InMemoryMode,
+            tabletSnapshot->MountConfig->InMemoryMode,
             Bootstrap_->GetInMemoryManager()->GetConfig());
 
         auto blockCache = WaitFor(asyncBlockCache)
             .ValueOrThrow();
 
-        TMemoryZoneGuard memoryZoneGuard(tabletSnapshot->Config->InMemoryMode == EInMemoryMode::None
+        TMemoryZoneGuard memoryZoneGuard(tabletSnapshot->MountConfig->InMemoryMode == EInMemoryMode::None
             ? EMemoryZone::Normal
             : EMemoryZone::Undumpable);
 
@@ -1776,7 +1778,7 @@ private:
             partition->SetCompactionTime(beginInstant);
 
             auto retainedTimestamp = std::min(
-                InstantToTimestamp(TimestampToInstant(currentTimestamp).second - tablet->GetConfig()->MinDataTtl).second,
+                InstantToTimestamp(TimestampToInstant(currentTimestamp).second - tablet->GetMountConfig()->MinDataTtl).second,
                 currentTimestamp
             );
 
@@ -1804,7 +1806,7 @@ private:
                 currentTimestamp,
                 majorTimestamp,
                 retainedTimestamp,
-                ConvertTo<TRetentionConfigPtr>(tabletSnapshot->Config));
+                ConvertTo<TRetentionConfigPtr>(tabletSnapshot->MountConfig));
 
             reader = CreateVersionedTabletReader(
                 tabletSnapshot,
@@ -1924,9 +1926,11 @@ private:
         auto writerConfig = CloneYsonSerializable(tabletSnapshot->WriterConfig);
         writerConfig->MinUploadReplicationFactor = writerConfig->UploadReplicationFactor;
         writerConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction);
+
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
         writerOptions->ChunksEden = isEden;
         writerOptions->ValidateResourceUsageIncrease = false;
+        writerOptions->ChunkConsistentPlacementHash = tabletSnapshot->ChunkConsistentPlacementHash;
 
         auto asyncBlockCache = CreateRemoteInMemoryBlockCache(
             Bootstrap_->GetMasterClient(),
@@ -1937,7 +1941,7 @@ private:
                 ->GetNativeConnection()
                 ->GetCellDirectory()
                 ->GetDescriptorOrThrow(tabletSnapshot->CellId),
-            tabletSnapshot->Config->InMemoryMode,
+            tabletSnapshot->MountConfig->InMemoryMode,
             Bootstrap_->GetInMemoryManager()->GetConfig());
 
         auto blockCache = WaitFor(asyncBlockCache)
@@ -1947,7 +1951,7 @@ private:
             Bootstrap_->GetTabletNodeOutThrottler(EWorkloadCategory::SystemTabletCompaction),
             tabletSnapshot->CompactionThrottler});
 
-        TMemoryZoneGuard memoryZoneGuard(tabletSnapshot->Config->InMemoryMode == EInMemoryMode::None
+        TMemoryZoneGuard memoryZoneGuard(tabletSnapshot->MountConfig->InMemoryMode == EInMemoryMode::None
             ? NYTAlloc::EMemoryZone::Normal
             : NYTAlloc::EMemoryZone::Undumpable);
 
@@ -2013,7 +2017,7 @@ private:
     {
         std::optional<NHydra::TRevision> forcedCompactionRevision;
 
-        const auto& config = store->GetTablet()->GetConfig();
+        const auto& config = store->GetTablet()->GetMountConfig();
         if (config->ForcedCompactionRevision) {
             forcedCompactionRevision = config->ForcedCompactionRevision;
         }
@@ -2040,7 +2044,7 @@ private:
 
     static bool IsPeriodicCompactionNeeded(const TSortedChunkStorePtr& store)
     {
-        const auto& config = store->GetTablet()->GetConfig();
+        const auto& config = store->GetTablet()->GetMountConfig();
         if (!config->AutoCompactionPeriod) {
             return false;
         }
