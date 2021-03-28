@@ -227,28 +227,33 @@ TUnversionedRow TSchemafulRowMerger::BuildMergedRow()
             }),
         AggregateValues_.end());
 
-    int begin = 0;
-    for (int index = 0; index < AggregateValues_.size(); ++index) {
-        if (index == AggregateValues_.size() - 1 || AggregateValues_[begin].Id != AggregateValues_[index + 1].Id) {
-            int id = AggregateValues_[begin].Id;
-            auto state = MakeUnversionedSentinelValue(EValueType::Null, id);
+    for (auto it = AggregateValues_.begin(), end = AggregateValues_.end(); it != end;) {
+        int id = it->Id;
 
-            for (int valueIndex = index; valueIndex >= begin; --valueIndex) {
-                if (!AggregateValues_[valueIndex].Aggregate) {
-                    begin = valueIndex;
-                }
+        // Find first element with different id.
+        auto next = it;
+        while (++next != end && id == next->Id) {
+            if (!next->Aggregate) {
+                // Skip older aggregate values.
+                it = next;
             }
-
-            for (int valueIndex = begin; valueIndex <= index; ++valueIndex) {
-                ColumnEvaluator_->MergeAggregate(id, &state, AggregateValues_[valueIndex], RowBuffer_);
-            }
-
-            state.Aggregate = false;
-            auto columnIndex = ColumnIdToIndex_[id];
-            MergedTimestamps_[columnIndex] = AggregateValues_[index].Timestamp;
-            MergedRow_[columnIndex] = state;
-            begin = index + 1;
         }
+
+        TUnversionedValue state = *it++;
+        while (it != next) {
+            ColumnEvaluator_->MergeAggregate(id, &state, *it, RowBuffer_);
+            ++it;
+        }
+
+        ColumnEvaluator_->FinalizeAggregate(id, &state, state, RowBuffer_);
+
+#if 0
+        state.Aggregate = false;
+#endif
+
+        auto columnIndex = ColumnIdToIndex_[id];
+        MergedTimestamps_[columnIndex] = (it - 1)->Timestamp;
+        MergedRow_[columnIndex] = state;
     }
 
     for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
@@ -627,6 +632,8 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         // For aggregate columns merge values before MajorTimestamp_ and leave other values.
         int id = partialValueIt->Id;
         if (ColumnEvaluator_->IsAggregate(id) && retentionBeginIt < ColumnValues_.end()) {
+
+            // TODO: Use MajorTimestamp_ == int max for MergeRowsOnFlush_.
             while (retentionBeginIt != ColumnValues_.begin()
                 && retentionBeginIt->Timestamp >= MajorTimestamp_
                 && !MergeRowsOnFlush_)
@@ -635,58 +642,51 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
             }
 
             if (retentionBeginIt > ColumnValues_.begin()) {
-                auto aggregateBeginIt = ColumnValues_.begin();
-                for (auto valueIt = retentionBeginIt; ; --valueIt) {
+                auto valueIt = retentionBeginIt;
+                while (valueIt != ColumnValues_.begin()) {
                     if (valueIt->Type == EValueType::TheBottom) {
-                        aggregateBeginIt = valueIt + 1;
-                        break;
-                    }
-                    if (!valueIt->Aggregate) {
-                        aggregateBeginIt = valueIt;
+                        ++valueIt;
                         break;
                     }
 
-                    if (valueIt == aggregateBeginIt) {
+                    if (!valueIt->Aggregate) {
                         break;
                     }
+                    --valueIt;
                 }
 
-                if (aggregateBeginIt < retentionBeginIt) {
-                    TVersionedValue state;
-                    ColumnEvaluator_->InitAggregate(id, &state, RowBuffer_);
+                if (valueIt < retentionBeginIt) {
+                    TVersionedValue state = *valueIt++;
 
-                    for (auto valueIt = aggregateBeginIt; valueIt <= retentionBeginIt; ++valueIt) {
+                    // The very first aggregated value determines the final aggregation mode.
+                    // Preserve initial aggregate flag.
+                    bool initialAggregate = state.Aggregate;
+
+                    for (; valueIt <= retentionBeginIt; ++valueIt) {
                         const auto& value = *valueIt;
                         // Do no expect any tombstones.
                         YT_ASSERT(value.Type != EValueType::TheBottom);
                         // Only expect overwrites at the very beginning.
-                        YT_ASSERT(value.Aggregate || valueIt == aggregateBeginIt);
+                        YT_ASSERT(value.Aggregate);
                         ColumnEvaluator_->MergeAggregate(id, &state, value, RowBuffer_);
+
+                        // Or preserve aggregate flag in aggregate functions.
+                        state.Aggregate = initialAggregate;
                     }
 
-                    TUnversionedValue& targetValue = *retentionBeginIt;
-                    ColumnEvaluator_->FinalizeAggregate(id, &targetValue, state, RowBuffer_);
-
-                    // The very first aggregated value determines the final aggregation mode.
-                    targetValue.Aggregate = aggregateBeginIt->Aggregate;
+                    // Value is not finalized yet. Further merges may happen.
+                    static_cast<TUnversionedValue&>(*retentionBeginIt) = state;
+                    YT_ASSERT(retentionBeginIt->Aggregate == initialAggregate);
                 }
-            }
-
-            // TODO(lukyan): Remove this branches after YTADMINREQ-11127 fix?
-            if (IgnoreMajorTimestamp_) {
-                retentionBeginIt->Aggregate = true;
-            } else if (retentionBeginIt->Timestamp < MajorTimestamp_) {
-                retentionBeginIt->Aggregate = false;
             }
         }
 
         // Save output values and timestamps.
         for (auto it = ColumnValues_.rbegin(); it.base() != retentionBeginIt; ++it) {
-            const auto& value = *it;
-            if (value.Type != EValueType::TheBottom) {
-                WriteTimestamps_.push_back(value.Timestamp);
+            if (it->Type != EValueType::TheBottom) {
+                WriteTimestamps_.push_back(it->Timestamp);
                 if (needToSaveColumn) {
-                    MergedValues_.push_back(value);
+                    MergedValues_.push_back(*it);
                 }
             }
         }
