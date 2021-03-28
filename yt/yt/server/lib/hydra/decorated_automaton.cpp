@@ -906,7 +906,6 @@ const TDecoratedAutomaton::TPendingMutation& TDecoratedAutomaton::LogFollowerMut
         MutationHeader_.sequence_number());
 
     if (Changelog_) {
-        // XXX(babenko): append multiple records a time.
         auto future = Changelog_->Append({recordData});
         if (localFlushFuture) {
             *localFlushFuture = std::move(future);
