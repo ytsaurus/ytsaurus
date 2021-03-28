@@ -213,8 +213,6 @@ private:
     std::atomic<i64> ModifyRowsRequestSequenceCounter_ = 0;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
-    // XXX(babenko): drop once YTADMINREQ-22173 is resolved
-    int SpinLockTag_ = -1;
     ETransactionState State_ = ETransactionState::Active;
     const TPromise<void> AbortPromise_ = NewPromise<void>();
     std::vector<NApi::ITransactionPtr> AlienTransactions_;
