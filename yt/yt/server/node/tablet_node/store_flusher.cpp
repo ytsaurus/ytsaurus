@@ -447,7 +447,7 @@ private:
     {
         const auto& storeManager = tablet->GetStoreManager();
         auto tabletId = tablet->GetId();
-        TWriterProfilerPtr writerProfiler = New<TWriterProfiler>();
+        auto writerProfiler = New<TWriterProfiler>();
 
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("%v, StoreId: %v",
@@ -487,9 +487,8 @@ private:
 
             auto currentTimestamp = transaction->GetStartTimestamp();
             auto retainedTimestamp = std::min(
-                InstantToTimestamp(TimestampToInstant(currentTimestamp).second - tablet->GetConfig()->MinDataTtl).second,
-                currentTimestamp
-            );
+                InstantToTimestamp(TimestampToInstant(currentTimestamp).second - tablet->GetMountConfig()->MinDataTtl).second,
+                currentTimestamp);
 
             YT_LOG_INFO("Store flush transaction created (TransactionId: %v)",
                 transaction->GetId());
@@ -517,7 +516,7 @@ private:
             ToProto(actionRequest.add_stores_to_remove()->mutable_store_id(), store->GetId());
             actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Flush));
 
-            if (tablet->GetConfig()->EnableDynamicStoreRead) {
+            if (tablet->GetMountConfig()->EnableDynamicStoreRead) {
                 int potentialDynamicStoreCount = tablet->DynamicStoreIdPool().size() + tablet->ComputeDynamicStoreCount();
 
                 // NB: Race is possible here. Consider a tablet with an active store, two passive
@@ -535,7 +534,7 @@ private:
                 }
             }
 
-            if (tabletSnapshot->Config->MergeRowsOnFlush) {
+            if (tabletSnapshot->MountConfig->MergeRowsOnFlush) {
                 actionRequest.set_retained_timestamp(retainedTimestamp);
             }
 

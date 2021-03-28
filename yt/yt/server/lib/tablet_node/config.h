@@ -115,9 +115,9 @@ public:
 
     bool EnableLookupHashTable;
 
-    int LookupCacheRowsPerTablet;
+    i64 LookupCacheRowsPerTablet;
 
-    int RowCountToKeep;
+    i64 RowCountToKeep;
 
     TDuration ReplicationTickPeriod;
     TDuration MinReplicationLogTtl;
@@ -156,6 +156,8 @@ public:
     bool EnableDynamicStoreRead;
     bool EnableNewScanReaderForLookup;
     bool EnableNewScanReaderForSelect;
+
+    bool EnableChunkConsistentPlacement;
 
     TTableMountConfig()
     {
@@ -363,12 +365,12 @@ public:
             .Default(false);
 
         RegisterParameter("enable_new_scan_reader_for_lookup", EnableNewScanReaderForLookup)
-            .Default(false)
-            .DontSerializeDefault();
-
+            .Default(false);
         RegisterParameter("enable_new_scan_reader_for_select", EnableNewScanReaderForSelect)
-            .Default(false)
-            .DontSerializeDefault();
+            .Default(false);
+
+        RegisterParameter("enable_chunk_consistent_placement", EnableChunkConsistentPlacement)
+            .Default(false);
 
         RegisterPostprocessor([&] () {
             if (MaxDynamicStoreRowCount > MaxDynamicStoreValueCount) {

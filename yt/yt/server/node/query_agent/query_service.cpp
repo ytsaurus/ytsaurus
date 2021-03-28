@@ -1201,7 +1201,7 @@ private:
                             }
 
                             case EStoreType::SortedDynamic:
-                                if (tabletSnapshot->Config->EnableDynamicStoreRead &&
+                                if (tabletSnapshot->MountConfig->EnableDynamicStoreRead &&
                                     !request->omit_dynamic_stores())
                                 {
                                     BuildDynamicStoreSpec(

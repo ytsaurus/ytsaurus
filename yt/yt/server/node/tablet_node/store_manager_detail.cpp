@@ -124,7 +124,7 @@ void TStoreManagerBase::StopEpoch()
 
 void TStoreManagerBase::InitializeRotation()
 {
-    const auto& config = Tablet_->GetConfig();
+    const auto& config = Tablet_->GetMountConfig();
     if (config->DynamicStoreAutoFlushPeriod) {
         LastRotated_ = TInstant::Now() - RandomDuration(*config->DynamicStoreAutoFlushPeriod);
     }
@@ -322,7 +322,7 @@ bool TStoreManagerBase::TryPreloadStoreFromInterceptedData(
         return false;
     }
 
-    auto mode = Tablet_->GetConfig()->InMemoryMode;
+    auto mode = Tablet_->GetMountConfig()->InMemoryMode;
     if (mode != chunkData->InMemoryMode) {
         YT_LOG_WARNING_IF(
             IsMutationLoggingEnabled(),
@@ -408,7 +408,7 @@ void TStoreManagerBase::BackoffStorePreload(IChunkStorePtr store)
 
 EInMemoryMode TStoreManagerBase::GetInMemoryMode() const
 {
-    return Tablet_->GetConfig()->InMemoryMode;
+    return Tablet_->GetMountConfig()->InMemoryMode;
 }
 
 void TStoreManagerBase::Mount(
@@ -450,10 +450,10 @@ void TStoreManagerBase::Remount(
     TTabletChunkWriterConfigPtr writerConfig,
     TTabletWriterOptionsPtr writerOptions)
 {
-    Tablet_->SetConfig(mountConfig);
-    Tablet_->SetReaderConfig(readerConfig);
-    Tablet_->SetWriterConfig(writerConfig);
-    Tablet_->SetWriterOptions(writerOptions);
+    Tablet_->SetMountConfig(std::move(mountConfig));
+    Tablet_->SetReaderConfig(std::move(readerConfig));
+    Tablet_->SetWriterConfig(std::move(writerConfig));
+    Tablet_->SetWriterOptions(std::move(writerOptions));
 
     UpdateInMemoryMode();
 
@@ -464,7 +464,7 @@ void TStoreManagerBase::Remount(
 
 void TStoreManagerBase::Rotate(bool createNewStore)
 {
-    const auto& config = Tablet_->GetConfig();
+    const auto& config = Tablet_->GetMountConfig();
 
     RotationScheduled_ = false;
     LastRotated_ = TInstant::Now() + RandomDuration(config->DynamicStoreFlushPeriodSplay);
@@ -522,7 +522,7 @@ bool TStoreManagerBase::IsOverflowRotationNeeded() const
     }
 
     const auto* activeStore = GetActiveStore();
-    const auto& config = Tablet_->GetConfig();
+    const auto& config = Tablet_->GetMountConfig();
     auto threshold = config->DynamicStoreOverflowThreshold;
     return
         activeStore->GetRowCount() >= threshold * config->MaxDynamicStoreRowCount ||
@@ -533,7 +533,7 @@ bool TStoreManagerBase::IsOverflowRotationNeeded() const
 
 TError TStoreManagerBase::CheckOverflow() const
 {
-    const auto& config = Tablet_->GetConfig();
+    const auto& config = Tablet_->GetMountConfig();
     const auto* activeStore = GetActiveStore();
     if (!activeStore) {
         return TError();
@@ -577,7 +577,7 @@ bool TStoreManagerBase::IsPeriodicRotationNeeded() const
     }
 
     const auto* activeStore = GetActiveStore();
-    const auto& config = Tablet_->GetConfig();
+    const auto& config = Tablet_->GetMountConfig();
     return
         config->DynamicStoreAutoFlushPeriod  &&
         TInstant::Now() > LastRotated_ + *config->DynamicStoreAutoFlushPeriod &&
@@ -590,11 +590,11 @@ bool TStoreManagerBase::IsRotationPossible() const
         return false;
     }
 
-    if (Tablet_->GetOverlappingStoreCount() >= Tablet_->GetConfig()->MaxOverlappingStoreCount) {
+    if (Tablet_->GetOverlappingStoreCount() >= Tablet_->GetMountConfig()->MaxOverlappingStoreCount) {
         return false;
     }
 
-    if (!Tablet_->GetConfig()->EnableStoreRotation) {
+    if (!Tablet_->GetMountConfig()->EnableStoreRotation) {
         return false;
     }
 
@@ -640,7 +640,7 @@ IOrderedStoreManagerPtr TStoreManagerBase::AsOrdered()
 
 TDynamicStoreId TStoreManagerBase::GenerateDynamicStoreId()
 {
-    if (Tablet_->GetConfig()->EnableDynamicStoreRead) {
+    if (Tablet_->GetMountConfig()->EnableDynamicStoreRead) {
         return Tablet_->PopDynamicStoreIdFromPool();
     } else {
         return TabletContext_->GenerateId(Tablet_->IsPhysicallySorted()

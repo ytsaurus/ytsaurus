@@ -15,10 +15,9 @@ public:
     NObjectClient::TObjectId GetId() const;
 
 protected:
-    explicit TObjectBase(NObjectClient::TObjectId id);
-
     const NObjectClient::TObjectId Id_;
 
+    explicit TObjectBase(NObjectClient::TObjectId id);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

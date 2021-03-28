@@ -172,7 +172,7 @@ void TPartition::StartEpoch()
 {
     CompactionTime_ = TInstant::Now();
 
-    const auto& config = Tablet_->GetConfig();
+    const auto& config = Tablet_->GetMountConfig();
     if (config->AutoCompactionPeriod) {
         CompactionTime_ -= RandomDuration(*config->AutoCompactionPeriod);
     }

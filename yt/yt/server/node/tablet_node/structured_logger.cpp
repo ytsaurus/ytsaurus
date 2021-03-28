@@ -159,10 +159,9 @@ public:
     TPerTabletStructuredLogger(TStructuredLoggerPtr logger, TTablet* tablet)
         : Logger_(std::move(logger))
         , Tablet_(tablet)
-        , TabletId_(tablet->GetId())
-    {
-        Enabled_ = tablet->GetConfig()->EnableStructuredLogger;
-    }
+        , TabletId_(Tablet_->GetId())
+        , Enabled_(Tablet_->GetMountConfig()->EnableStructuredLogger)
+    { }
 
     // Only for tests.
     explicit TPerTabletStructuredLogger(TTablet* tablet)

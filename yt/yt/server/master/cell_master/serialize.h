@@ -167,6 +167,7 @@ DEFINE_ENUM(EMasterReign,
     ((CellarHeartbeat)                                              (1518))  // savrus
     ((RemoveClusterNodeFlavor)                                      (1519))  // gritukan
     ((MaxInlineHunkSizeInSchema)                                    (1520))  // babenko
+    ((ChunkConsistentPlacementForDynamicTables)                     (1521))  // babenko
     // 21.2 starts here.
     ((MasterMergeJobs)                                              (1600))  // aleksandra-zh
 );

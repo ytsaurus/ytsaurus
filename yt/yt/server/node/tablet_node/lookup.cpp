@@ -153,8 +153,8 @@ public:
 
         // NB: We allow more parallelization in case of data node lookup
         // due to lower cpu and memory usage on tablet nodes.
-        if (TabletSnapshot_->Config->MaxParallelPartitionLookups &&
-            TabletSnapshot_->Config->EnableDataNodeLookup)
+        if (TabletSnapshot_->MountConfig->MaxParallelPartitionLookups &&
+            TabletSnapshot_->MountConfig->EnableDataNodeLookup)
         {
             auto asyncReadSessions = CreateReadSessions(
                 &DynamicEdenSessions_,
@@ -542,15 +542,15 @@ private:
         const std::function<void(TVersionedRow, TTimestamp)>& onPartialRow,
         const std::function<std::pair<bool, size_t>()>& onRow)
     {
-        YT_VERIFY(TabletSnapshot_->Config->MaxParallelPartitionLookups);
-        PartitionSessions_.resize(*TabletSnapshot_->Config->MaxParallelPartitionLookups);
+        YT_VERIFY(TabletSnapshot_->MountConfig->MaxParallelPartitionLookups);
+        PartitionSessions_.resize(*TabletSnapshot_->MountConfig->MaxParallelPartitionLookups);
 
         auto currentIt = LookupKeys_.Begin();
         int startChunkKeyIndex = 0;
         while (currentIt != LookupKeys_.End()) {
             std::vector<TPartitionSessionInfo> partitionSessionInfos;
 
-            while (partitionSessionInfos.size() < *TabletSnapshot_->Config->MaxParallelPartitionLookups &&
+            while (partitionSessionInfos.size() < *TabletSnapshot_->MountConfig->MaxParallelPartitionLookups &&
                 currentIt != LookupKeys_.End())
             {
                 auto sessionInfo = CreatePartitionSession(&currentIt, &startChunkKeyIndex, partitionSessionInfos.size());
@@ -566,7 +566,7 @@ private:
             YT_LOG_DEBUG("Starting parallel lookups "
                 "(PartitionCount: %v, MaxPartitionCount: %v, ReadSessionId: %v, partitionSessionInfos: %v)",
                 partitionSessionInfos.size(),
-                *TabletSnapshot_->Config->MaxParallelPartitionLookups,
+                *TabletSnapshot_->MountConfig->MaxParallelPartitionLookups,
                 ChunkReadOptions_.ReadSessionId,
                 MakeFormattableView(partitionSessionInfos, [] (auto* builder, const TPartitionSessionInfo& partitionInfo) {
                     builder->AppendFormat("{Id: %v, KeyCount: %v}",

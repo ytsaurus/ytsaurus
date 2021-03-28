@@ -9,6 +9,8 @@
 
 #include <yt/yt/client/chunk_client/config.h>
 
+#include <util/generic/size_literals.h>
+
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,8 +33,8 @@ public:
     TBlobTableWriterConfig()
     {
         RegisterParameter("max_part_size", MaxPartSize)
-            .Default(4 * 1024 * 1024)
-            .GreaterThanOrEqual(1 * 1024 * 1024)
+            .Default(4_MB)
+            .GreaterThanOrEqual(1_MB)
             .LessThanOrEqual(MaxRowWeightLimit);
     }
 };
@@ -56,7 +58,7 @@ public:
         RegisterParameter("flush_period", FlushPeriod)
             .Default(TDuration::Seconds(60));
         RegisterParameter("row_buffer_chunk_size", RowBufferChunkSize)
-            .Default(64 * 1024);
+            .Default(64_KB);
     }
 };
 

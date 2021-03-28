@@ -296,7 +296,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 
     ValidateBlockSize(tabletSnapshot, chunkState, chunkReadOptions.WorkloadDescriptor);
 
-    if (tabletSnapshot->Config->EnableNewScanReaderForSelect &&
+    if (tabletSnapshot->MountConfig->EnableNewScanReaderForSelect &&
         chunkState->ChunkMeta->GetChunkFormat() == ETableChunkFormat::VersionedColumnar &&
         timestamp != AllCommittedTimestamp)
     {
@@ -410,7 +410,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     auto readers = GetReaders(
         bandwidthThrottler,
         /* rpsThrottler */ GetUnlimitedThrottler());
-    if (tabletSnapshot->Config->EnableDataNodeLookup && readers.LookupReader) {
+    if (tabletSnapshot->MountConfig->EnableDataNodeLookup && readers.LookupReader) {
         return createFilteringReader(CreateRowLookupReader(
             std::move(readers.LookupReader),
             chunkReadOptions,
@@ -420,14 +420,14 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             timestamp,
             produceAllVersions,
             ChunkTimestamp_,
-            tabletSnapshot->Config->EnablePeerProbingInDataNodeLookup,
-            tabletSnapshot->Config->EnableRejectsInDataNodeLookupIfThrottling));
+            tabletSnapshot->MountConfig->EnablePeerProbingInDataNodeLookup,
+            tabletSnapshot->MountConfig->EnableRejectsInDataNodeLookupIfThrottling));
     }
 
     auto chunkState = PrepareChunkState(readers.ChunkReader, chunkReadOptions);
     ValidateBlockSize(tabletSnapshot, chunkState, chunkReadOptions.WorkloadDescriptor);
 
-    if (tabletSnapshot->Config->EnableNewScanReaderForLookup &&
+    if (tabletSnapshot->MountConfig->EnableNewScanReaderForLookup &&
         chunkState->ChunkMeta->GetChunkFormat() == ETableChunkFormat::VersionedColumnar)
     {
         return createFilteringReader(NNewTableClient::CreateVersionedChunkReader(
@@ -585,7 +585,7 @@ void TSortedChunkStore::ValidateBlockSize(
         chunkState->ChunkMeta->GetChunkFormat() == ETableChunkFormat::UnversionedColumnar))
     {
         // For unversioned chunks verify that block size is correct.
-        if (auto blockSizeLimit = tabletSnapshot->Config->MaxUnversionedBlockSize) {
+        if (auto blockSizeLimit = tabletSnapshot->MountConfig->MaxUnversionedBlockSize) {
             auto miscExt = FindProtoExtension<TMiscExt>(chunkState->ChunkSpec.chunk_meta().extensions());
             if (miscExt && miscExt->max_block_size() > *blockSizeLimit) {
                 THROW_ERROR_EXCEPTION("Maximum block size limit violated")

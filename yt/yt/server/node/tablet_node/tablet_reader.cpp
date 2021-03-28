@@ -250,11 +250,11 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
         takePartition((*it)->Stores);
     }
 
-    if (stores.size() > tabletSnapshot->Config->MaxReadFanIn) {
+    if (stores.size() > tabletSnapshot->MountConfig->MaxReadFanIn) {
         THROW_ERROR_EXCEPTION("Read fan-in limit exceeded; please wait until your data is merged")
             << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
             << TErrorAttribute("fan_in", stores.size())
-            << TErrorAttribute("fan_in_limit", tabletSnapshot->Config->MaxReadFanIn);
+            << TErrorAttribute("fan_in_limit", tabletSnapshot->MountConfig->MaxReadFanIn);
     }
 
     YT_LOG_DEBUG("Creating schemaful sorted tablet reader (TabletId: %v, CellId: %v, Timestamp: %llx, "
@@ -678,7 +678,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         tabletSnapshot->QuerySchema->GetColumnCount(),
         tabletSnapshot->QuerySchema->GetKeyColumnCount(),
         TColumnFilter(),
-        tabletSnapshot->Config,
+        tabletSnapshot->MountConfig,
         currentTimestamp,
         majorTimestamp,
         tabletSnapshot->ColumnEvaluator,

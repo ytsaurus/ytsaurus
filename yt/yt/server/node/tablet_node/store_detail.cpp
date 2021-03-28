@@ -461,7 +461,7 @@ TChunkStoreBase::TChunkStoreBase(
 
 void TChunkStoreBase::Initialize(const TAddStoreDescriptor* descriptor)
 {
-    auto inMemoryMode = Tablet_->GetConfig()->InMemoryMode;
+    auto inMemoryMode = Tablet_->GetMountConfig()->InMemoryMode;
 
     SetInMemoryMode(inMemoryMode);
 

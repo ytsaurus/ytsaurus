@@ -366,7 +366,7 @@ TTablet::TTablet(
     TTabletId tabletId,
     ITabletContext* context)
     : TObjectBase(tabletId)
-    , Config_(New<TTableMountConfig>())
+    , MountConfig_(New<TTableMountConfig>())
     , ReaderConfig_(New<TTabletChunkReaderConfig>())
     , WriterConfig_(New<TTabletChunkWriterConfig>())
     , WriterOptions_(New<TTabletWriterOptions>())
@@ -405,10 +405,10 @@ TTablet::TTablet(
     , UpstreamReplicaId_(upstreamReplicaId)
     , HashTableSize_(config->EnableLookupHashTable ? config->MaxDynamicStoreRowCount : 0)
     , RetainedTimestamp_(retainedTimestamp)
-    , Config_(config)
-    , ReaderConfig_(readerConfig)
-    , WriterConfig_(writerConfig)
-    , WriterOptions_(writerOptions)
+    , MountConfig_(std::move(config))
+    , ReaderConfig_(std::move(readerConfig))
+    , WriterConfig_(std::move(writerConfig))
+    , WriterOptions_(std::move(writerOptions))
     , Eden_(std::make_unique<TPartition>(
         this,
         context->GenerateId(EObjectType::TabletPartition),
@@ -438,14 +438,14 @@ ETabletState TTablet::GetPersistentState() const
     }
 }
 
-const TTableMountConfigPtr& TTablet::GetConfig() const
+const TTableMountConfigPtr& TTablet::GetMountConfig() const
 {
-    return Config_;
+    return MountConfig_;
 }
 
-void TTablet::SetConfig(TTableMountConfigPtr config)
+void TTablet::SetMountConfig(TTableMountConfigPtr config)
 {
-    Config_ = config;
+    MountConfig_ = std::move(config);
 }
 
 const TTabletChunkReaderConfigPtr& TTablet::GetReaderConfig() const
@@ -455,7 +455,7 @@ const TTabletChunkReaderConfigPtr& TTablet::GetReaderConfig() const
 
 void TTablet::SetReaderConfig(TTabletChunkReaderConfigPtr config)
 {
-    ReaderConfig_ = config;
+    ReaderConfig_ = std::move(config);
 }
 
 const TTabletChunkWriterConfigPtr& TTablet::GetWriterConfig() const
@@ -465,7 +465,7 @@ const TTabletChunkWriterConfigPtr& TTablet::GetWriterConfig() const
 
 void TTablet::SetWriterConfig(TTabletChunkWriterConfigPtr config)
 {
-    WriterConfig_ = config;
+    WriterConfig_ = std::move(config);
 }
 
 const TTabletWriterOptionsPtr& TTablet::GetWriterOptions() const
@@ -475,7 +475,7 @@ const TTabletWriterOptionsPtr& TTablet::GetWriterOptions() const
 
 void TTablet::SetWriterOptions(TTabletWriterOptionsPtr options)
 {
-    WriterOptions_ = options;
+    WriterOptions_ = std::move(options);
 }
 
 const IStoreManagerPtr& TTablet::GetStoreManager() const
@@ -673,7 +673,7 @@ TCallback<void(TSaveContext&)> TTablet::AsyncSave()
         ] (TSaveContext& context) {
             using NYT::Save;
 
-            Save(context, *snapshot->Config);
+            Save(context, *snapshot->MountConfig);
             Save(context, *snapshot->WriterConfig);
             Save(context, *snapshot->WriterOptions);
             Save(context, snapshot->PivotKey);
@@ -696,7 +696,7 @@ void TTablet::AsyncLoad(TLoadContext& context)
 {
     using NYT::Load;
 
-    Load(context, *Config_);
+    Load(context, *MountConfig_);
     Load(context, *WriterConfig_);
     Load(context, *WriterOptions_);
     Load(context, PivotKey_);
@@ -1200,7 +1200,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot, std::optional<TLo
     snapshot->MountRevision = MountRevision_;
     snapshot->TablePath = TablePath_;
     snapshot->TableId = TableId_;
-    snapshot->Config = Config_;
+    snapshot->MountConfig = MountConfig_;
     snapshot->WriterConfig = WriterConfig_;
     snapshot->WriterOptions = WriterOptions_;
     snapshot->PivotKey = PivotKey_;
@@ -1281,7 +1281,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot, std::optional<TLo
         }
     }
 
-    if (Config_->EnableDynamicStoreRead) {
+    if (MountConfig_->EnableDynamicStoreRead) {
         snapshot->PreallocatedDynamicStoreIds = std::vector<TDynamicStoreId>(
             DynamicStoreIdPool_.begin(),
             DynamicStoreIdPool_.end());
@@ -1299,6 +1299,8 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot, std::optional<TLo
     UpdateUnflushedTimestamp();
 
     snapshot->TableProfiler = TableProfiler_;
+
+    snapshot->ChunkConsistentPlacementHash = GetChunkConsistentPlacementHash();
 
     return snapshot;
 }
@@ -1323,13 +1325,13 @@ void TTablet::Initialize()
     StoresUpdateCommitSemaphore_ = New<NConcurrency::TAsyncSemaphore>(1);
 
     FlushThrottler_ = CreateReconfigurableThroughputThrottler(
-        Config_->FlushThrottler,
+        MountConfig_->FlushThrottler,
         Logger);
     CompactionThrottler_ = CreateReconfigurableThroughputThrottler(
-        Config_->CompactionThrottler,
+        MountConfig_->CompactionThrottler,
         Logger);
     PartitioningThrottler_ = CreateReconfigurableThroughputThrottler(
-        Config_->PartitioningThrottler,
+        MountConfig_->PartitioningThrottler,
         Logger);
 
     LoggingTag_ = Format("TabletId: %v, TableId: %v, TablePath: %v",
@@ -1340,15 +1342,15 @@ void TTablet::Initialize()
 
 void TTablet::ConfigureRowCache()
 {
-    if (Config_->LookupCacheRowsPerTablet > 0) {
+    if (MountConfig_->LookupCacheRowsPerTablet > 0) {
         if (!RowCache_) {
             RowCache_ = New<TRowCache>(
-                Config_->LookupCacheRowsPerTablet,
+                MountConfig_->LookupCacheRowsPerTablet,
                 Context_
                     ->GetMemoryUsageTracker()
                     ->WithCategory(NNodeTrackerClient::EMemoryCategory::LookupRowsCache));
         } else {
-            RowCache_->Cache.SetCapacity(Config_->LookupCacheRowsPerTablet);
+            RowCache_->Cache.SetCapacity(MountConfig_->LookupCacheRowsPerTablet);
         }
     } else if (RowCache_) {
         RowCache_.Reset();
@@ -1363,26 +1365,26 @@ void TTablet::ResetRowCache()
 void TTablet::FillProfilerTags()
 {
     TableProfiler_ = CreateTableProfiler(
-        Config_->ProfilingMode,
+        MountConfig_->ProfilingMode,
         Context_->GetTabletCellBundleName(),
         TablePath_,
-        Config_->ProfilingTag,
+        MountConfig_->ProfilingTag,
         WriterOptions_->Account,
         WriterOptions_->MediumName);
 }
 
 void TTablet::ReconfigureThrottlers()
 {
-    FlushThrottler_->Reconfigure(Config_->FlushThrottler);
-    CompactionThrottler_->Reconfigure(Config_->CompactionThrottler);
-    PartitioningThrottler_->Reconfigure(Config_->PartitioningThrottler);
+    FlushThrottler_->Reconfigure(MountConfig_->FlushThrottler);
+    CompactionThrottler_->Reconfigure(MountConfig_->CompactionThrottler);
+    PartitioningThrottler_->Reconfigure(MountConfig_->PartitioningThrottler);
 }
 
 void TTablet::ReconfigureDistributedThrottlers(const IDistributedThrottlerManagerPtr& throttlerManager)
 {
     auto getThrottlerConfig = [&] (const TString& key) {
-        auto it = Config_->Throttlers.find(key);
-        return it != Config_->Throttlers.end()
+        auto it = MountConfig_->Throttlers.find(key);
+        return it != MountConfig_->Throttlers.end()
             ? it->second
             : New<TThroughputThrottlerConfig>();
     };
@@ -1407,7 +1409,7 @@ void TTablet::ReconfigureDistributedThrottlers(const IDistributedThrottlerManage
             LookupThrottlerRpcTimeout,
             /* admitUnlimitedThrottler */ false);
     YT_VERIFY(
-        Config_->Throttlers.contains("lookup") ||
+        MountConfig_->Throttlers.contains("lookup") ||
         !DistributedThrottlers_[ETabletDistributedThrottlerKind::Lookup]);
 
     DistributedThrottlers_[ETabletDistributedThrottlerKind::Select] =
@@ -1448,7 +1450,7 @@ void TTablet::UpdateReplicaCounters()
 {
     for (auto& [replicaId, replica] : Replicas_) {
         replica.SetCounters(TableProfiler_->GetReplicaCounters(
-            Config_->EnableProfiling,
+            MountConfig_->EnableProfiling,
             replica.GetClusterName(),
             replica.GetReplicaPath(),
             replicaId));
@@ -1640,6 +1642,20 @@ TMountHint TTablet::GetMountHint() const
     }
 
     return mountHint;
+}
+
+TConsistentPlacementHash TTablet::GetChunkConsistentPlacementHash() const
+{
+    if (!MountConfig_->EnableChunkConsistentPlacement) {
+        return NullConsistentPlacementHash;
+    }
+
+    auto hash = Id_.Parts64[0] ^ Id_.Parts64[1];
+    if (hash == NullConsistentPlacementHash) {
+        // Unbelievable.
+        hash = 1;
+    }
+    return hash;
 }
 
 void TTablet::ThrottleTabletStoresUpdate(

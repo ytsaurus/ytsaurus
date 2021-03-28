@@ -119,7 +119,7 @@ private:
             return;
         }
 
-        const auto& config = tablet->GetConfig();
+        const auto& config = tablet->GetMountConfig();
 
         if (config->MinDataVersions != 0) {
             return;

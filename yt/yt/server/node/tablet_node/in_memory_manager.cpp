@@ -525,7 +525,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     const NConcurrency::IThroughputThrottlerPtr& bandwidthThrottler,
     const TReaderProfilerPtr& readerProfiler)
 {
-    auto mode = tabletSnapshot->Config->InMemoryMode;
+    auto mode = tabletSnapshot->MountConfig->InMemoryMode;
 
     NLogging::TLogger Logger(TabletNodeLogger);
     Logger.AddTag("%v, StoreId: %v, Mode: %v, ReadSessionId: %v",
@@ -557,7 +557,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         format == ETableChunkFormat::UnversionedColumnar)
     {
         // For unversioned chunks verify that block size is correct
-        if (auto blockSizeLimit = tabletSnapshot->Config->MaxUnversionedBlockSize) {
+        if (auto blockSizeLimit = tabletSnapshot->MountConfig->MaxUnversionedBlockSize) {
             if (miscExt.max_block_size() > *blockSizeLimit) {
                 THROW_ERROR_EXCEPTION("Maximum block size limit violated")
                     << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
