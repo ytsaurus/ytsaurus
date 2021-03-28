@@ -947,7 +947,7 @@ TEST_F(TVersionedRowMergerTest, Aggregate3)
     EXPECT_EQ(
         TIdentityComparableVersionedRow{BuildVersionedRow(
             "<id=0> 0",
-            "<id=3;ts=100;aggregate=false> 1; <id=3;ts=200;aggregate=true> 2; <id=3;ts=300;aggregate=true> 10")},
+            "<id=3;ts=100;aggregate=true> 1; <id=3;ts=200;aggregate=true> 2; <id=3;ts=300;aggregate=true> 10")},
         TIdentityComparableVersionedRow{merger->BuildMergedRow()});
 }
 
@@ -969,7 +969,7 @@ TEST_F(TVersionedRowMergerTest, Aggregate4)
     EXPECT_EQ(
         TIdentityComparableVersionedRow{BuildVersionedRow(
             "<id=0> 0",
-            "<id=3;ts=200000000000;aggregate=false> 3; <id=3;ts=300000000000;aggregate=true> 10")},
+            "<id=3;ts=200000000000;aggregate=true> 3; <id=3;ts=300000000000;aggregate=true> 10")},
         TIdentityComparableVersionedRow{merger->BuildMergedRow()});
 }
 
@@ -991,7 +991,7 @@ TEST_F(TVersionedRowMergerTest, Aggregate5)
     EXPECT_EQ(
         TIdentityComparableVersionedRow{BuildVersionedRow(
             "<id=0> 0",
-            "<id=3;ts=300000000000;aggregate=false> 13")},
+            "<id=3;ts=300000000000;aggregate=true> 13")},
         TIdentityComparableVersionedRow{merger->BuildMergedRow()});
 }
 
@@ -1012,7 +1012,7 @@ TEST_F(TVersionedRowMergerTest, DeletedAggregate1)
     EXPECT_EQ(
         TIdentityComparableVersionedRow{BuildVersionedRow(
             "<id=0> 0",
-            "<id=3;ts=100000000000;aggregate=false> 1",
+            "<id=3;ts=100000000000;aggregate=true> 1",
             { 300000000000ULL })},
         TIdentityComparableVersionedRow{merger->BuildMergedRow()});
 }
@@ -1076,7 +1076,7 @@ TEST_F(TVersionedRowMergerTest, DeletedAggregate4)
     EXPECT_EQ(
         TIdentityComparableVersionedRow{BuildVersionedRow(
             "<id=0> 0",
-            "<id=3;ts=400000000000;aggregate=false> 2; <id=3;ts=500000000000;aggregate=true> 3")},
+            "<id=3;ts=400000000000;aggregate=true> 2; <id=3;ts=500000000000;aggregate=true> 3")},
         TIdentityComparableVersionedRow{merger->BuildMergedRow()});
 }
 
@@ -1099,7 +1099,7 @@ TEST_F(TVersionedRowMergerTest, DeletedAggregate5)
     EXPECT_EQ(
         TIdentityComparableVersionedRow{BuildVersionedRow(
             "<id=0> 0",
-            "<id=3;ts=400000000000;aggregate=false> 4; <id=3;ts=500000000000;aggregate=true> 3",
+            "<id=3;ts=400000000000;aggregate=true> 4; <id=3;ts=500000000000;aggregate=true> 3",
             { 600000000000 })},
         TIdentityComparableVersionedRow{merger->BuildMergedRow()});
 }
