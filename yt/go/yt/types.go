@@ -17,6 +17,7 @@ const (
 	NodeFile NodeType = "file"
 	// NodeTable is table.
 	NodeTable             NodeType = "table"
+	NodeDocument          NodeType = "document"
 	NodeTableReplica      NodeType = "table_replica"
 	NodeReplicatedTable   NodeType = "replicated_table"
 	NodeUser              NodeType = "user"
