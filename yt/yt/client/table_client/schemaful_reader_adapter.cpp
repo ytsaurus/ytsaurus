@@ -64,7 +64,6 @@ public:
                 for (int valueIndex = 0; valueIndex < ReaderSchema_->Columns().size(); ++valueIndex) {
                     const auto& value = schemafulRow[valueIndex];
                     ValidateDataValue(value);
-                    // XXX(babenko)
                     // The underlying schemaless reader may unpack typed scalar values even
                     // if the schema has "any" type. For schemaful reader, this is not an expected behavior
                     // so we have to convert such values back into YSON.

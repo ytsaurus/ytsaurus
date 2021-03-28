@@ -282,7 +282,7 @@ TCompatibilityPair CheckFieldsCompatibility(
             result = {
                 ESchemaCompatibility::Incompatible,
                 TError(
-                    "Member name mismatch in %Qv; old name: %Qv; new name: %Qv",
+                    "Member name mismatch in %Qv: old name %Qv, new name %Qv",
                     oldDescriptor.GetDescription(),
                     oldName,
                     newName)
