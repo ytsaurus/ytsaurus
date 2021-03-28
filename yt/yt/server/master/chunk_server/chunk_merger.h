@@ -23,7 +23,7 @@ namespace NYT::NChunkServer {
 struct TMergeJobInfo
 {
     std::vector<TChunk*> InputChunks;
-    TChunkOwnerBase* Root;
+    TChunkOwnerBase* Node;
     TChunkList* RootChunkList;
 
     i64 OutputChunkCounter;
@@ -34,7 +34,7 @@ struct TMergeJobInfo
 
     TMergeJobInfo(
         std::vector<TChunk*> inputChunks,
-        TChunkOwnerBase* root,
+        TChunkOwnerBase* node,
         TChunkList* rootChunkList,
         i64 outputChunkCounter);
 };
@@ -69,7 +69,7 @@ private:
 
     TChunkReplacer ChunkReplacer_;
 
-    TJobTrackerPtr JobTracker_; 
+    TJobTrackerPtr JobTracker_;
 
     NConcurrency::TPeriodicExecutorPtr ScheduleExecutor_;
     NConcurrency::TPeriodicExecutorPtr ChunkCreatorExecutor_;
@@ -108,13 +108,13 @@ private:
 
     bool IsMergeTransactionAlive() const;
 
-    bool CanScheduleMerge(TChunkOwnerBase* root, TChunkList* rootChunkList) const;
+    bool CanScheduleMerge(TChunkOwnerBase* node, TChunkList* rootChunkList) const;
 
     void StartMergeTransaction();
 
     void OnTransactionAborted(NTransactionServer::TTransaction* transaction);
 
-    void DoScheduleMerge(TChunkOwnerBase* root);
+    void DoScheduleMerge(TChunkOwnerBase* node);
 
     void ProcessTouchedNodes();
 

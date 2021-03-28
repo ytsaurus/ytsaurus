@@ -91,7 +91,7 @@ public:
     }
 
 private:
-    const TBootstrap* Bootstrap_;
+    TBootstrap* const Bootstrap_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -99,45 +99,45 @@ private:
 namespace {
 
 void LockNode(
-    const TBootstrap* bootstrap,
-    TChunkOwnerBase* root,
+    TBootstrap* bootstrap,
+    TChunkOwnerBase* node,
     TChunkList* rootChunkList)
 {
     const auto& objectManager = bootstrap->GetObjectManager();
-    objectManager->EphemeralRefObject(root);
+
+    objectManager->EphemeralRefObject(node);
     if (rootChunkList) {
         objectManager->EphemeralRefObject(rootChunkList);
     }
 
-    if (IsObjectAlive(root)) {
+    if (IsObjectAlive(node)) {
         auto epoch = objectManager->GetCurrentEpoch();
-        root->IncrementMergeJobCounter(epoch, +1);
+        node->IncrementMergeJobCounter(epoch, +1);
         YT_LOG_DEBUG("Incrementing merge job counter (NodeId: %v, MergeJobCounter: %v)",
-            root->GetId(),
-            root->GetMergeJobCounter(epoch));
+            node->GetId(),
+            node->GetMergeJobCounter(epoch));
     }
 }
 
 void UnlockNode(
-    const TBootstrap* bootstrap,
-    TChunkOwnerBase* root,
+    TBootstrap* bootstrap,
+    TChunkOwnerBase* node,
     TChunkList* rootChunkList)
 {
     const auto& objectManager = bootstrap->GetObjectManager();
 
-    if (IsObjectAlive(root)) {
+    if (IsObjectAlive(node)) {
         auto epoch = objectManager->GetCurrentEpoch();
-        root->IncrementMergeJobCounter(epoch, -1);
+        node->IncrementMergeJobCounter(epoch, -1);
         YT_LOG_DEBUG("Decrementing merge job counter (NodeId: %v, MergeJobCounter: %v)",
-            root->GetId(),
-            root->GetMergeJobCounter(epoch));
+            node->GetId(),
+            node->GetMergeJobCounter(epoch));
     }
 
-    objectManager->EphemeralUnrefObject(root);
+    objectManager->EphemeralUnrefObject(node);
     if (rootChunkList) {
         objectManager->EphemeralUnrefObject(rootChunkList);
     }
-
 }
 
 } // namespace
@@ -150,20 +150,22 @@ class TMergeChunkVisitor
 public:
     TMergeChunkVisitor(
         TBootstrap* bootstrap,
-        TChunkOwnerBase* root,
+        TChunkOwnerBase* node,
         std::queue<TMergeJobInfo>* jobsAwaitingChunkCreation,
         i64* createdChunkCounter)
         : Bootstrap_(bootstrap)
-        , Root_(root)
-        , RootChunkList_(Root_->GetChunkList())
-        , Account_(Root_->GetAccount())
+        , Node_(node)
+        , RootChunkList_(Node_->GetChunkList())
+        , Account_(Node_->GetAccount())
         , JobsAwaitingChunkCreation_(jobsAwaitingChunkCreation)
         , CreatedChunkCounter_(createdChunkCounter)
     { }
 
     void Run()
     {
-        YT_VERIFY(IsObjectAlive(Root_));
+        YT_VERIFY(IsObjectAlive(Node_));
+        YT_VERIFY(IsObjectAlive(Account_));
+
         auto callbacks = CreateAsyncChunkTraverserContext(
             Bootstrap_,
             EAutomatonThreadQueue::ChunkMerger);
@@ -171,12 +173,27 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->EphemeralRefObject(Account_);
 
-        LockNode(Bootstrap_, Root_, RootChunkList_);
+        LockNode(Bootstrap_, Node_, RootChunkList_);
 
         TraverseChunkTree(std::move(callbacks), this, RootChunkList_);
     }
 
 private:
+    TBootstrap* const Bootstrap_;
+    TChunkOwnerBase* const Node_;
+    TChunkList* const RootChunkList_;
+    TAccount* const Account_;
+
+    std::queue<TMergeJobInfo>* const JobsAwaitingChunkCreation_;
+    i64* const CreatedChunkCounter_;
+
+    std::vector<TChunk*> Chunks_;
+
+    i64 CurrentRowCount_ = 0;
+    i64 CurrentDataWeight_ = 0;
+    i64 CurrentUncompressedDataSize_ = 0;
+
+
     virtual bool OnChunk(
         TChunk* chunk,
         std::optional<i64> rowIndex,
@@ -187,7 +204,7 @@ private:
     {
         if (chunk->IsErasure()) {
             YT_LOG_DEBUG("Chunk merging is not supported for erasure chunks (NodeId: %v, ChunkId: %v)",
-                Root_->GetId(),
+                Node_->GetId(),
                 chunk->GetId());
             return false;
         }
@@ -214,7 +231,7 @@ private:
 
     virtual bool OnDynamicStore(
         TDynamicStore*,
-        std::optional<i32>,
+        std::optional<int>,
         const NChunkClient::TReadLimit&,
         const NChunkClient::TReadLimit&) override
     {
@@ -228,14 +245,14 @@ private:
             Account_->IncrementMergeJobRate(-1);
         }
 
-        if (!error.IsOK() || Root_->GetChunkList() != RootChunkList_) {
-            Bootstrap_->GetChunkManager()->ScheduleChunkMerge(Root_);
+        if (!error.IsOK() || Node_->GetChunkList() != RootChunkList_) {
+            Bootstrap_->GetChunkManager()->ScheduleChunkMerge(Node_);
         }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->EphemeralUnrefObject(Account_);
 
-        UnlockNode(Bootstrap_, Root_, RootChunkList_);
+        UnlockNode(Bootstrap_, Node_, RootChunkList_);
     }
 
     bool MaybeAddChunk(TChunk* chunk)
@@ -261,12 +278,13 @@ private:
         const auto& config = GetDynamicConfig();
 
         if (Chunks_.size() >= config->MinChunkCount) {
-            LockNode(Bootstrap_, Root_, RootChunkList_);
+            LockNode(Bootstrap_, Node_, RootChunkList_);
 
-            JobsAwaitingChunkCreation_->emplace(std::move(Chunks_), Root_, RootChunkList_, *CreatedChunkCounter_);
+            JobsAwaitingChunkCreation_->emplace(std::move(Chunks_), Node_, RootChunkList_, *CreatedChunkCounter_);
             ++(*CreatedChunkCounter_);
-            YT_LOG_DEBUG("Planning merge job (NodeId: %v, ChunkListId: %v)",
-                Root_->GetId(),
+
+            YT_LOG_DEBUG("Planning merge job (NodeId: %v, RootChunkListId: %v)",
+                Node_->GetId(),
                 RootChunkList_->GetId());
         }
     }
@@ -276,32 +294,17 @@ private:
         const auto& configManager = Bootstrap_->GetConfigManager();
         return configManager->GetConfig()->ChunkManager->ChunkMerger;
     }
-
-    TBootstrap* const Bootstrap_;
-    TChunkOwnerBase* const Root_;
-    TChunkList* const RootChunkList_;
-    TAccount* const Account_;
-
-    std::queue<TMergeJobInfo>* JobsAwaitingChunkCreation_;
-    i64* CreatedChunkCounter_;
-
-    std::vector<TChunk*> Chunks_;
-
-    i64 CurrentRowCount_ = 0;
-    i64 CurrentDataWeight_ = 0;
-    i64 CurrentUncompressedDataSize_ = 0;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TMergeJobInfo::TMergeJobInfo(
     std::vector<TChunk*> inputChunks,
-    TChunkOwnerBase* root,
+    TChunkOwnerBase* node,
     TChunkList* rootChunkList,
     i64 outputChunkCounter)
     : InputChunks(std::move(inputChunks))
-    , Root(root)
+    , Node(node)
     , RootChunkList(rootChunkList)
     , OutputChunkCounter(outputChunkCounter)
 { }
@@ -374,20 +377,19 @@ void TChunkMerger::ScheduleJobs(
 
         TJobPtr job;
         if (!CreateMergeJob(node, jobInfo, &job)) {
-            UnlockNode(Bootstrap_, jobInfo.Root, jobInfo.RootChunkList);
-
-            if (IsObjectAlive(jobInfo.Root)) {
-                DoScheduleMerge(jobInfo.Root);
+            if (IsObjectAlive(jobInfo.Node)) {
+                DoScheduleMerge(jobInfo.Node);
             }
+            UnlockNode(Bootstrap_, jobInfo.Node, jobInfo.RootChunkList);
             continue;
         }
 
         JobTracker_->RegisterJob(std::move(job), jobsToStart, resourceUsage);
 
-        YT_LOG_DEBUG("Merge job scheduled (JobId: %v, Address: %v, RootId: %v, ChunkId: %v)",
+        YT_LOG_DEBUG("Merge job scheduled (JobId: %v, Address: %v, NodeId: %v, ChunkId: %v)",
             job->GetJobId(),
             node->GetDefaultAddress(),
-            jobInfo.Root->GetId(),
+            jobInfo.Node->GetId(),
             jobInfo.OutputChunkId);
 
         YT_VERIFY(RunningJobs_.emplace(job->GetJobId(), std::move(jobInfo)).second);
@@ -411,21 +413,22 @@ void TChunkMerger::ProcessJobs(const std::vector<TJobPtr>& jobs)
             continue;
         }
 
-        UnlockNode(Bootstrap_, it->second.Root, it->second.RootChunkList);
-
+        auto&& jobInfo = it->second;
         switch (job->GetState()) {
             case EJobState::Completed:
-                ReplaceChunks(std::move(it->second));
+                ReplaceChunks(jobInfo);
                 break;
 
             case EJobState::Failed:
             case EJobState::Aborted:
-                ScheduleMerge(it->second.Root);
+                ScheduleMerge(jobInfo.Node);
                 break;
 
             default:
                 break;
         }
+
+        UnlockNode(Bootstrap_, jobInfo.Node, jobInfo.RootChunkList);
         RunningJobs_.erase(it);
     }
 }
@@ -543,7 +546,7 @@ bool TChunkMerger::IsMergeTransactionAlive() const
     return IsObjectAlive(transaction);
 }
 
-bool TChunkMerger::CanScheduleMerge(TChunkOwnerBase* root, TChunkList* rootChunkList) const
+bool TChunkMerger::CanScheduleMerge(TChunkOwnerBase* node, TChunkList* rootChunkList) const
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -551,7 +554,7 @@ bool TChunkMerger::CanScheduleMerge(TChunkOwnerBase* root, TChunkList* rootChunk
         return false;
     }
 
-    return IsObjectAlive(root) && IsObjectAlive(rootChunkList);
+    return IsObjectAlive(node) && IsObjectAlive(rootChunkList);
 }
 
 void TChunkMerger::StartMergeTransaction()
@@ -582,16 +585,16 @@ void TChunkMerger::OnTransactionAborted(TTransaction* transaction)
     }
 }
 
-void TChunkMerger::DoScheduleMerge(TChunkOwnerBase* root)
+void TChunkMerger::DoScheduleMerge(TChunkOwnerBase* node)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(IsLeader());
 
-    auto* account = root->GetAccount();
+    auto* account = node->GetAccount();
 
     YT_LOG_DEBUG("Scheduling merge (NodeId: %v, ChunkListId: %v, Account: %v)",
-        root->GetId(),
-        root->GetChunkList()->GetId(),
+        node->GetId(),
+        node->GetChunkList()->GetId(),
         account->GetName());
 
     const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -599,9 +602,9 @@ void TChunkMerger::DoScheduleMerge(TChunkOwnerBase* root)
         objectManager->EphemeralRefObject(account);
     }
 
-    TouchedNodes_[account].push(root);
+    TouchedNodes_[account].push(node);
 
-    LockNode(Bootstrap_, root, nullptr);
+    LockNode(Bootstrap_, node, nullptr);
 }
 
 void TChunkMerger::ProcessTouchedNodes()
@@ -619,13 +622,15 @@ void TChunkMerger::ProcessTouchedNodes()
 
         auto maxRate = account->GetMergeJobRateLimit();
         while (!queue.empty() && account->GetMergeJobRate() < maxRate) {
-            auto* root = queue.front();
+            auto* node = queue.front();
             queue.pop();
-            UnlockNode(Bootstrap_, root, nullptr);
-            if (CanScheduleMerge(root, root->GetChunkList())) {
+
+            if (CanScheduleMerge(node, node->GetChunkList())) {
                 account->IncrementMergeJobRate(1);
-                New<TMergeChunkVisitor>(Bootstrap_, root, &JobsAwaitingChunkCreation_, &CreatedChunkCounter_)->Run();
+                New<TMergeChunkVisitor>(Bootstrap_, node, &JobsAwaitingChunkCreation_, &CreatedChunkCounter_)->Run();
             }
+
+            UnlockNode(Bootstrap_, node, nullptr);
         }
     }
 
@@ -635,8 +640,8 @@ void TChunkMerger::ProcessTouchedNodes()
 
         auto& queue = it->second;
         while (!queue.empty()) {
-            auto* root = queue.front();
-            UnlockNode(Bootstrap_, root, nullptr);
+            auto* node = queue.front();
+            UnlockNode(Bootstrap_, node, nullptr);
             queue.pop();
         }
 
@@ -664,33 +669,33 @@ void TChunkMerger::CreateChunks()
 
     for (auto i = 0; i < config->CreateChunksBatchSize && !JobsAwaitingChunkCreation_.empty(); ++i) {
         auto& entry = JobsAwaitingChunkCreation_.front();
-        auto* root = entry.Root;
-        if (!IsObjectAlive(root)) {
-            UnlockNode(Bootstrap_, root, entry.RootChunkList);
+        auto* node = entry.Node;
+        if (!IsObjectAlive(node)) {
+            UnlockNode(Bootstrap_, node, entry.RootChunkList);
             JobsAwaitingChunkCreation_.pop();
             continue;
         }
 
-        YT_LOG_DEBUG("Creating chunks for merge (RootId: %v)", root->GetId());
+        YT_LOG_DEBUG("Creating chunks for merge (NodeId: %v)", node->GetId());
 
         auto* req = createChunksReq.add_subrequests();
 
-        auto mediumIndex = root->GetPrimaryMediumIndex();
+        auto mediumIndex = node->GetPrimaryMediumIndex();
         req->set_medium_index(mediumIndex);
 
-        const auto& policy = root->Replication().Get(mediumIndex);
+        const auto& policy = node->Replication().Get(mediumIndex);
         req->set_replication_factor(policy.GetReplicationFactor());
 
-        auto erasureCodec = root->GetErasureCodec();
+        auto erasureCodec = node->GetErasureCodec();
         req->set_erasure_codec(NYT::ToProto<int>(erasureCodec));
-        req->set_account(root->GetAccount()->GetName());
+        req->set_account(node->GetAccount()->GetName());
 
         auto chunkType = erasureCodec == NErasure::ECodec::None
             ? EObjectType::Chunk
             : EObjectType::ErasureChunk;
         req->set_type(NYT::ToProto<int>(chunkType));
 
-        req->set_vital(root->Replication().GetVital());
+        req->set_vital(node->Replication().GetVital());
         req->set_chunk_counter(entry.OutputChunkCounter);
 
         JobsUndergoingChunkCreation_.emplace(entry.OutputChunkCounter, std::move(entry));
@@ -705,7 +710,7 @@ bool TChunkMerger::CreateMergeJob(TNode* node, const TMergeJobInfo& jobInfo, TJo
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (!CanScheduleMerge(jobInfo.Root, jobInfo.RootChunkList)) {
+    if (!CanScheduleMerge(jobInfo.Node, jobInfo.RootChunkList)) {
         return false;
     }
 
@@ -716,30 +721,30 @@ bool TChunkMerger::CreateMergeJob(TNode* node, const TMergeJobInfo& jobInfo, TJo
     }
 
     TChunkMergerWriterOptions chunkMergerWriterOptions;
-    if (jobInfo.Root->GetType() == EObjectType::Table) {
-        const auto* table = jobInfo.Root->As<TTableNode>();
+    if (jobInfo.Node->GetType() == EObjectType::Table) {
+        const auto* table = jobInfo.Node->As<TTableNode>();
         const auto& schema = table->SharedTableSchema();
         if (schema) {
             ToProto(chunkMergerWriterOptions.mutable_schema(), schema->GetTableSchema());
         }
         chunkMergerWriterOptions.set_optimize_for(NYT::ToProto<int>(table->GetOptimizeFor()));
     }
-    chunkMergerWriterOptions.set_compression_codec(NYT::ToProto<int>(jobInfo.Root->GetCompressionCodec()));
+    chunkMergerWriterOptions.set_compression_codec(NYT::ToProto<int>(jobInfo.Node->GetCompressionCodec()));
 
     // TODO(aleksandra-zh): make enable_skynet_sharing builtin to avoid this.
     try {
-        auto enableSkynetSharing = jobInfo.Root->FindAttribute("enable_skynet_sharing");
+        auto enableSkynetSharing = jobInfo.Node->FindAttribute("enable_skynet_sharing");
         if (enableSkynetSharing) {
             chunkMergerWriterOptions.set_enable_skynet_sharing(ConvertTo<bool>(*enableSkynetSharing));
         }
     } catch (const std::exception& ex) {
-        YT_LOG_WARNING(ex, "Attribute 'enable_skynet_sharing' contails invalid value (NodeId: %v)", jobInfo.Root->GetId());
+        YT_LOG_WARNING(ex, "Attribute 'enable_skynet_sharing' contails invalid value (NodeId: %v)", jobInfo.Node->GetId());
     }
 
     *job = TJob::CreateMerge(
         JobTracker_->GenerateJobId(),
         jobInfo.OutputChunkId,
-        jobInfo.Root->GetPrimaryMediumIndex(),
+        jobInfo.Node->GetPrimaryMediumIndex(),
         jobInfo.InputChunks,
         node,
         std::move(chunkMergerWriterOptions));
@@ -753,7 +758,7 @@ void TChunkMerger::ReplaceChunks(const TMergeJobInfo& jobInfo)
 
     TReqReplaceChunks request;
     ToProto(request.mutable_new_chunk_id(), jobInfo.OutputChunkId);
-    ToProto(request.mutable_node_id(), jobInfo.Root->GetId());
+    ToProto(request.mutable_node_id(), jobInfo.Node->GetId());
     for (auto* chunk : jobInfo.InputChunks) {
         ToProto(request.add_old_chunk_ids(), chunk->GetId());
     }
@@ -815,7 +820,7 @@ void TChunkMerger::HydraCreateChunks(NProto::TReqCreateChunks* request)
         auto eraseFromQueue = [&] () {
             if (it != JobsUndergoingChunkCreation_.end()) {
                 const auto& entry = it->second;
-                UnlockNode(Bootstrap_, entry.Root, entry.RootChunkList);
+                UnlockNode(Bootstrap_, entry.Node, entry.RootChunkList);
                 JobsUndergoingChunkCreation_.erase(it);
             }
         };
@@ -901,16 +906,15 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
 
     auto oldChunkIds = FromProto<std::vector<TChunkId>>(request->old_chunk_ids());
 
-    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replacing chunks after merge (NewChunkId: %v, RootId: %v)",
+    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replacing chunks after merge (NewChunkId: %v, NodeId: %v)",
         newChunk->GetId(),
         chunkOwner->GetId());
 
     auto* newChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
 
     if (!ChunkReplacer_.Replace(oldChunkList, newChunkList, newChunk, oldChunkIds)) {
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cannot replace chunks after merge: root has changed (NodeId: %v, RootId: %v)",
-            nodeId,
-            chunkOwner->GetId());
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cannot replace chunks after merge: root has changed (NodeId: %v)",
+            nodeId);
         if (IsLeader()) {
             DoScheduleMerge(chunkOwner);
         }
@@ -928,11 +932,10 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
 
     objectManager->RefObject(newChunkList);
 
-    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk list replaced after merge (OldChunkListId: %v, NewChunkListId: %v, NodeId: %v, RootId: %v)",
+    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk list replaced after merge (OldChunkListId: %v, NewChunkListId: %v, NodeId: %v)",
         oldChunkList->GetId(),
         newChunkList->GetId(),
-        nodeId,
-        chunkOwner->GetId());
+        nodeId);
 
     objectManager->UnrefObject(oldChunkList);
 
