@@ -8,6 +8,8 @@ namespace NYT::NErasure {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct ICodec;
+
 using ::NErasure::TPartIndexList;
 using ::NErasure::TPartIndexSet;
 

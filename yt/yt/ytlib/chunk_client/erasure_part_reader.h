@@ -9,7 +9,7 @@
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
-#include <yt/yt/library/erasure/impl/codec.h>
+#include <yt/yt/library/erasure/impl/public.h>
 
 #include <yt/yt/core/misc/error.h>
 

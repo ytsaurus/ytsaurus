@@ -19,7 +19,7 @@ namespace NYT::NJournalClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 void ValidateJournalAttributes(
-    NErasure::ECodec erasureCodec,
+    NErasure::ECodec codecId,
     int replicationFactor,
     int readQuorum,
     int writeQuorum);
@@ -74,18 +74,18 @@ TFuture<TChunkQuorumInfo> ComputeQuorumInfo(
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<std::vector<TSharedRef>> EncodeErasureJournalRows(
-    NErasure::ECodec codecId,
+    NErasure::ICodec* codec,
     const std::vector<TSharedRef>& rows);
 std::vector<TSharedRef> EncodeErasureJournalRow(
-    NErasure::ECodec codecId,
+    NErasure::ICodec* codec,
     const TSharedRef& row);
 
 std::vector<TSharedRef> DecodeErasureJournalRows(
-    NErasure::ECodec codecId,
+    NErasure::ICodec* codec,
     const std::vector<std::vector<TSharedRef>>& encodedRowLists);
 
 std::vector<std::vector<TSharedRef>> RepairErasureJournalRows(
-    NErasure::ECodec codecId,
+    NErasure::ICodec* codec,
     const NErasure::TPartIndexList& erasedIndices,
     const std::vector<std::vector<TSharedRef>>& repairRowLists);
 

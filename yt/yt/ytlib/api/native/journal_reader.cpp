@@ -31,6 +31,8 @@
 
 #include <yt/yt/client/chunk_client/read_limit.h>
 
+#include <yt/yt/library/erasure/impl/codec.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 
 namespace NYT::NApi::NNative {
@@ -204,6 +206,7 @@ private:
                 auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
                 auto codecId = FromProto<NErasure::ECodec>(chunkSpec.erasure_codec());
                 auto replicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
+
                 CurrentChunkReader_ = NJournalClient::CreateChunkReader(
                     Config_,
                     Client_,

@@ -21,6 +21,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/library/erasure/impl/public.h>
+
 #include <yt/yt/core/actions/signal.h>
 
 #include <yt/yt/core/misc/optional.h>

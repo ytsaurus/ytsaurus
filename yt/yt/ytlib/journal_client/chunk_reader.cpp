@@ -87,10 +87,9 @@ std::vector<IChunkReaderPtr> CreatePartReaders(
     return partReaders;
 }
 
-NErasure::TPartIndexList GetPartIndexesToRead(TChunkId chunkId, NErasure::ECodec codecId)
+NErasure::TPartIndexList GetPartIndexesToRead(TChunkId chunkId, NErasure::ICodec* codec)
 {
     if (TypeFromId(chunkId) == EObjectType::ErasureJournalChunk) {
-        auto* codec = NErasure::GetCodec(codecId);
         int dataPartCount = codec->GetDataPartCount();
         NErasure::TPartIndexList result;
         result.resize(dataPartCount);
@@ -125,7 +124,7 @@ public:
         IClientPtr client,
         TNodeDirectoryPtr nodeDirectory,
         TChunkId chunkId,
-        NErasure::ECodec codecId,
+        NErasure::ICodec* codec,
         const TChunkReplicaList& replicas,
         IBlockCachePtr blockCache,
         TTrafficMeterPtr trafficMeter,
@@ -135,7 +134,7 @@ public:
         , Client_(std::move(client))
         , NodeDirectory_(std::move(nodeDirectory))
         , ChunkId_(chunkId)
-        , CodecId_(codecId)
+        , Codec_(codec)
         , BlockCache_(std::move(blockCache))
         , TrafficMeter_(std::move(trafficMeter))
         , BandwidthThrottler_(std::move(bandwidthThrottler))
@@ -151,7 +150,7 @@ public:
     {
         YT_LOG_DEBUG("Erasure chunk reader created (ChunkId: %v, Codec: %v, InitialReplicas: %v)",
             ChunkId_,
-            CodecId_,
+            Codec_->GetId(),
             MakeFormattableView(replicas, TChunkReplicaAddressFormatter(NodeDirectory_)));
     }
 
@@ -222,7 +221,7 @@ public:
             const auto& replicas = replicasOrError.Value();
             auto partsReader = New<TErasurePartsReader>(
                 Reader_->Config_,
-                Reader_->CodecId_,
+                Reader_->Codec_,
                 CreatePartReaders(
                     Reader_->Config_,
                     Reader_->Client_,
@@ -233,7 +232,7 @@ public:
                     Reader_->TrafficMeter_,
                     Reader_->BandwidthThrottler_,
                     Reader_->RpsThrottler_),
-                GetPartIndexesToRead(Reader_->ChunkId_, Reader_->CodecId_),
+                GetPartIndexesToRead(Reader_->ChunkId_, Reader_->Codec_),
                 Logger);
 
             partsReader->ReadRows(Options_, FirstBlockIndex_, BlockCount_)
@@ -250,7 +249,7 @@ public:
 
             const auto& rowLists = rowListsOrError.Value();
             if (TypeFromId(Reader_->ChunkId_) == EObjectType::ErasureJournalChunk) {
-                auto rows = DecodeErasureJournalRows(Reader_->CodecId_, rowLists);
+                auto rows = DecodeErasureJournalRows(Reader_->Codec_, rowLists);
                 Promise_.Set(RowsToBlocks(rows));
             } else {
                 YT_VERIFY(rowLists.size() == 1);
@@ -319,7 +318,7 @@ private:
     const IClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
     const TChunkId ChunkId_;
-    const NErasure::ECodec CodecId_;
+    NErasure::ICodec* const Codec_;
     const IBlockCachePtr BlockCache_;
     const TTrafficMeterPtr TrafficMeter_;
     const NConcurrency::IThroughputThrottlerPtr BandwidthThrottler_;
@@ -366,7 +365,7 @@ IChunkReaderPtr CreateChunkReader(
             std::move(client),
             std::move(nodeDirectory),
             chunkId,
-            codecId,
+            NErasure::GetCodec(codecId),
             replicas,
             std::move(blockCache),
             std::move(trafficMeter),

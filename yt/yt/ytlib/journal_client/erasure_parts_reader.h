@@ -28,7 +28,7 @@ class TErasurePartsReader
 public:
     TErasurePartsReader(
         TChunkReaderConfigPtr config,
-        NErasure::ECodec codecId,
+        NErasure::ICodec* codec,
         std::vector<NChunkClient::IChunkReaderPtr> readers,
         const NErasure::TPartIndexList& partIndices,
         NLogging::TLogger logger);
@@ -40,7 +40,7 @@ public:
 
 private:
     const TChunkReaderConfigPtr Config_;
-    const NErasure::ECodec CodecId_;
+    NErasure::ICodec* const Codec_;
     const std::vector<NChunkClient::IChunkReaderPtr> ChunkReaders_;
     const NErasure::TPartIndexList PartIndices_;
     const NLogging::TLogger Logger;
