@@ -198,7 +198,7 @@ private:
             {
                 auto throttleFuture = Throttler_->Throttle(1);
                 if (!throttleFuture.IsSet()) {
-                    TEventTimer timerGuard(counters.ReplicationTransactionCommitTime);
+                    TEventTimerGuard timerGuard(counters.ReplicationTransactionCommitTime);
                     YT_LOG_DEBUG("Started waiting for replication throttling");
                     WaitFor(throttleFuture)
                         .ThrowOnError();
@@ -254,7 +254,7 @@ private:
             NNative::ITransactionPtr localTransaction;
             ITransactionPtr alienTransaction;
             {
-                TEventTimer timerGuard(counters.ReplicationTransactionStartTime);
+                TEventTimerGuard timerGuard(counters.ReplicationTransactionStartTime);
 
                 YT_LOG_DEBUG("Starting replication transactions");
 
@@ -293,7 +293,7 @@ private:
             };
 
             {
-                TEventTimer timerGuard(counters.ReplicationRowsReadTime);
+                TEventTimerGuard timerGuard(counters.ReplicationRowsReadTime);
                 auto readReplicationBatch = [&]() {
                     return ReadReplicationBatch(
                         MountConfig_,
@@ -322,7 +322,7 @@ private:
             }
 
             {
-                TEventTimer timerGuard(counters.ReplicationRowsWriteTime);
+                TEventTimerGuard timerGuard(counters.ReplicationRowsWriteTime);
 
                 TModifyRowsOptions options;
                 options.UpstreamReplicaId = ReplicaId_;
@@ -346,7 +346,7 @@ private:
             }
 
             {
-                TEventTimer timerGuard(counters.ReplicationTransactionCommitTime);
+                TEventTimerGuard timerGuard(counters.ReplicationTransactionCommitTime);
                 YT_LOG_DEBUG("Started committing replication transaction");
 
                 TTransactionCommitOptions commitOptions;

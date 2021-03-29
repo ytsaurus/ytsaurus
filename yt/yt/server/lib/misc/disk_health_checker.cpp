@@ -89,9 +89,9 @@ void TDiskHealthChecker::DoRunCheck()
     auto fileName = NFS::CombinePaths(Path_, HealthCheckFileName);
 
     try {
-        TEventTimer totalGuard(TotalTimer_);
+        TEventTimerGuard totalGuard(TotalTimer_);
         {
-            TEventTimer totalGuard(WriteTimer_);
+            TEventTimerGuard totalGuard(WriteTimer_);
             try {
                 TFile file(fileName, CreateAlways | WrOnly | Seq | Direct);
                 file.Write(writeData.data(), Config_->TestSize);
@@ -105,7 +105,7 @@ void TDiskHealthChecker::DoRunCheck()
             }
         }
         {
-            TEventTimer totalGuard(ReadTimer_);
+            TEventTimerGuard totalGuard(ReadTimer_);
             TFile file(fileName, OpenExisting | RdOnly | Seq | Direct);
             if (file.GetLength() != Config_->TestSize) {
                 THROW_ERROR_EXCEPTION("Wrong test file size: %v instead of %v",

@@ -544,7 +544,7 @@ private:
 
                 i64 reallyRead;
                 {
-                    TEventTimer eventTimer(PreadTimer_);
+                    TEventTimerGuard eventTimer(PreadTimer_);
                     NTracing::TNullTraceContextGuard nullTraceContextGuard;
                     reallyRead = HandleEintr(::pread, request.Handle, request.Buffer.Begin() + bufferOffset, toRead, fileOffset);
                 }
@@ -698,13 +698,13 @@ private:
         }
 
         auto doFsync = [&] {
-            TEventTimer timer(FsyncTimer_);
+            TEventTimerGuard timer(FsyncTimer_);
             return HandleEintr(::fsync, request.Handle);
         };
 
 #ifdef _linux_
         auto doFdatasync = [&] {
-            TEventTimer timer(FdatasyncTimer_);
+            TEventTimerGuard timer(FdatasyncTimer_);
             return HandleEintr(::fdatasync, request.Handle);
         };
 #else

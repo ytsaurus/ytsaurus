@@ -1099,7 +1099,7 @@ private:
 
         auto rootElement = RootElement_->Clone();
         {
-            TEventTimer timer(FairSharePreUpdateTimer_);
+            TEventTimerGuard timer(FairSharePreUpdateTimer_);
             rootElement->PreUpdate(&updateContext);
         }
 
@@ -1107,7 +1107,7 @@ private:
             {
                 TForbidContextSwitchGuard contextSwitchGuard;
                 {
-                    TEventTimer timer(FairShareUpdateTimer_);
+                    TEventTimerGuard timer(FairShareUpdateTimer_);
 
                     NFairShare::TFairShareUpdateExecutor updateExecutor(rootElement, &updateContext);
                     updateExecutor.Run();
@@ -2274,14 +2274,14 @@ private:
     void DoLogFairShare(const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, NEventLog::TFluentLogEvent fluent) const
     {
         {
-            TEventTimer timer(FairShareFluentLogTimer_);
+            TEventTimerGuard timer(FairShareFluentLogTimer_);
             fluent
                 .Item(EventLogPoolTreeKey).Value(TreeId_)
                 .Do(BIND(&TFairShareTree::DoBuildFairShareInfo, Unretained(this), treeSnapshotImpl));
         }
 
         {
-            TEventTimer timer(FairShareTextLogTimer_);
+            TEventTimerGuard timer(FairShareTextLogTimer_);
             LogPoolsInfo(treeSnapshotImpl);
             LogOperationsInfo(treeSnapshotImpl);
         }
@@ -2290,14 +2290,14 @@ private:
     void DoEssentialLogFairShare(const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, NEventLog::TFluentLogEvent fluent) const
     {
         {
-            TEventTimer timer(FairShareFluentLogTimer_);
+            TEventTimerGuard timer(FairShareFluentLogTimer_);
             fluent
                 .Item(EventLogPoolTreeKey).Value(TreeId_)
                 .Do(BIND(&TFairShareTree::DoBuildEssentialFairShareInfo, Unretained(this), treeSnapshotImpl));
         }
 
         {
-            TEventTimer timer(FairShareTextLogTimer_);
+            TEventTimerGuard timer(FairShareTextLogTimer_);
             LogPoolsInfo(treeSnapshotImpl);
             LogOperationsInfo(treeSnapshotImpl);
         }

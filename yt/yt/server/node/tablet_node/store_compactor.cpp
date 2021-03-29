@@ -443,7 +443,7 @@ private:
 
     void OnScanSlot(const TTabletSlotPtr& slot)
     {
-        TEventTimer timerGuard(ScanTimer_);
+        TEventTimerGuard timerGuard(ScanTimer_);
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         auto dynamicConfig = dynamicConfigManager->GetConfig()->TabletNode->StoreCompactor;
