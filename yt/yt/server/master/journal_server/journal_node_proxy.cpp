@@ -15,6 +15,8 @@
 #include <yt/yt/ytlib/journal_client/helpers.h>
 #include <yt/yt/ytlib/journal_client/proto/journal_ypath.pb.h>
 
+#include <yt/yt/library/erasure/impl/codec.h>
+
 namespace NYT::NJournalServer {
 
 using namespace NChunkClient;

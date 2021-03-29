@@ -991,7 +991,7 @@ private:
         void HandleBatch(const TBatchPtr& batch)
         {
             if (ErasureCodec_ != NErasure::ECodec::None) {
-                batch->ErasureRows = EncodeErasureJournalRows(ErasureCodec_, batch->Rows);
+                batch->ErasureRows = EncodeErasureJournalRows(NErasure::GetCodec(ErasureCodec_), batch->Rows);
                 batch->Rows.clear();
             }
             PendingBatches_.push_back(batch);
@@ -1001,7 +1001,7 @@ private:
         void EnqueueBatchToCurrentChunkSession(const TBatchPtr& batch)
         {
             // Check flushed replica count: this batch might have already been
-            // flushed (partially) by the previous (failed session).
+            // flushed (partially) by the previous (failed) session.
             if (batch->FlushedReplicas > 0) {
                 YT_LOG_DEBUG("Resetting flushed replica counter (Rows: %v-%v, FlushCounter: %v)",
                     batch->FirstRowIndex,

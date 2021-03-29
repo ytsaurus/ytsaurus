@@ -15,7 +15,7 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
-#include <yt/yt/library/erasure/impl/codec.h>
+#include <yt/yt/library/erasure/impl/public.h>
 
 #include <yt/yt/library/profiling/producer.h>
 

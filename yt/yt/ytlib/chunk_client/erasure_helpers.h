@@ -7,7 +7,7 @@
 
 #include <yt/yt/core/actions/future.h>
 
-#include <yt/yt/library/erasure/impl/codec.h>
+#include <yt/yt/library/erasure/impl/public.h>
 
 namespace NYT::NChunkClient::NErasureHelpers {
 

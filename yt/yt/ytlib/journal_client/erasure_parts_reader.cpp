@@ -207,9 +207,8 @@ private:
 
     TPartIndexList GetErasedIndices(const TPartIndexList& availableIndicies)
     {
-        auto* codec = NErasure::GetCodec(Reader_->CodecId_);
         TPartIndexSet set;
-        for (int index = 0; index < codec->GetTotalPartCount(); ++index) {
+        for (int index = 0; index < Reader_->Codec_->GetTotalPartCount(); ++index) {
             set.insert(index);
         }
         for (int index : availableIndicies) {
@@ -231,8 +230,7 @@ private:
                 << TErrorAttribute("available_indices", availableIndices);
         };
 
-        auto* codec = NErasure::GetCodec(Reader_->CodecId_);
-        auto optionalRepairIndices = codec->GetRepairIndices(erasedIndices);
+        auto optionalRepairIndices = Reader_->Codec_->GetRepairIndices(erasedIndices);
         if (!optionalRepairIndices) {
             throwError();
         }
@@ -297,7 +295,7 @@ private:
                 }
 
                 auto erasedRowLists = RepairErasureJournalRows(
-                    Reader_->CodecId_,
+                    Reader_->Codec_,
                     erasedIndices,
                     repairRowLists);
 
@@ -359,12 +357,12 @@ private:
 
 TErasurePartsReader::TErasurePartsReader(
     TChunkReaderConfigPtr config,
-    NErasure::ECodec codecId,
+    NErasure::ICodec* codec,
     std::vector<IChunkReaderPtr> readers,
     const TPartIndexList& partIndices,
     NLogging::TLogger logger)
     : Config_(std::move(config))
-    , CodecId_(codecId)
+    , Codec_(codec)
     , ChunkReaders_(std::move(readers))
     , PartIndices_(partIndices)
     , Logger(std::move(logger))

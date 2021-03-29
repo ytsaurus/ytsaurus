@@ -21,7 +21,7 @@ namespace {
 
 void DoRepairErasedParts(
     TChunkReaderConfigPtr config,
-    ECodec codecId,
+    ICodec* codec,
     i64 rowCount,
     const TPartIndexList& erasedIndices,
     const std::vector<IChunkReaderPtr>& readers,
@@ -36,7 +36,7 @@ void DoRepairErasedParts(
 
     auto partsReader = New<TErasurePartsReader>(
         std::move(config),
-        codecId,
+        codec,
         readers,
         erasedIndices,
         logger);
@@ -131,7 +131,7 @@ void DoRepairErasedParts(
 
 TFuture<void> RepairErasedParts(
     TChunkReaderConfigPtr config,
-    ECodec codecId,
+    ICodec* codec,
     i64 rowCount,
     const TPartIndexList& erasedIndices,
     std::vector<IChunkReaderPtr> readers,
@@ -143,7 +143,7 @@ TFuture<void> RepairErasedParts(
         .AsyncVia(CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker()))
         .Run(
             std::move(config),
-            codecId,
+            codec,
             rowCount,
             erasedIndices,
             std::move(readers),

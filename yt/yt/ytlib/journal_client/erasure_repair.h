@@ -4,7 +4,7 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/yt/library/erasure/impl/public.h>
+#include <yt/yt/library/erasure/impl/codec.h>
 
 #include <yt/yt/core/actions/future-inl.h>
 
@@ -16,7 +16,7 @@ namespace NYT::NJournalClient {
 
 TFuture<void> RepairErasedParts(
     TChunkReaderConfigPtr config,
-    NErasure::ECodec codecId,
+    NErasure::ICodec* codec,
     i64 rowCount,
     const NErasure::TPartIndexList& erasedIndices,
     std::vector<NChunkClient::IChunkReaderPtr> readers,

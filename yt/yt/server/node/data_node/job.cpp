@@ -895,12 +895,11 @@ private:
                     }
 
                     future = NChunkClient::RepairErasedParts(
-                        codec, // XXX(babenko): codec id?
+                        codec,
                         erasedPartIndexes,
                         readers,
                         writers,
                         chunkReadOptions);
-                        // XXX(babenko): pass logger
                     break;
                 }
 
@@ -912,7 +911,7 @@ private:
 
                     future = NJournalClient::RepairErasedParts(
                         Config_->RepairReader,
-                        codecId,
+                        codec,
                         *rowCount,
                         erasedPartIndexes,
                         readers,
@@ -1105,7 +1104,7 @@ public:
 private:
     const TMergeChunksJobSpecExt JobSpecExt_;
     const TCellTag CellTag_;
-        
+
     virtual void DoRun() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);

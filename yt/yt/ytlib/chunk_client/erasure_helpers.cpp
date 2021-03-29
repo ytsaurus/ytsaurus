@@ -7,6 +7,8 @@
 
 #include <yt/yt/client/misc/workload.h>
 
+#include <yt/yt/library/erasure/impl/codec.h>
+
 #include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/core/misc/numeric_helpers.h>

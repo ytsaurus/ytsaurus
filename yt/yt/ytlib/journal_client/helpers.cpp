@@ -37,7 +37,7 @@ using NChunkClient::TSessionId; // Suppress ambiguity with NProto::TSessionId.
 ////////////////////////////////////////////////////////////////////////////////
 
 void ValidateJournalAttributes(
-    NErasure::ECodec erasureCodecId,
+    NErasure::ECodec codecId,
     int replicationFactor,
     int readQuorum,
     int writeQuorum)
@@ -48,7 +48,7 @@ void ValidateJournalAttributes(
     if (writeQuorum < 1) {
         THROW_ERROR_EXCEPTION("\"write_quorum\" cannot be less than 1");
     }
-    if (erasureCodecId == NErasure::ECodec::None) {
+    if (codecId == NErasure::ECodec::None) {
         ValidateReplicationFactor(replicationFactor);
         if (readQuorum > replicationFactor) {
             THROW_ERROR_EXCEPTION("\"read_quorum\" cannot be greater than \"replication_factor\"");
@@ -69,11 +69,11 @@ void ValidateJournalAttributes(
             NErasure::ECodec::IsaReedSolomon_3_3,
             NErasure::ECodec::IsaReedSolomon_6_3
         };
-        if (Find(BytewiseCodecIds, erasureCodecId) == BytewiseCodecIds.end()) {
+        if (Find(BytewiseCodecIds, codecId) == BytewiseCodecIds.end()) {
             THROW_ERROR_EXCEPTION("%Qlv codec is not suitable for erasure journals",
-                erasureCodecId);
+                codecId);
         }
-        auto* codec = NErasure::GetCodec(erasureCodecId);
+        auto* codec = NErasure::GetCodec(codecId);
         if (replicationFactor != 1) {
             THROW_ERROR_EXCEPTION("\"replication_factor\" must be 1 for erasure journals",
                 codec->GetGuaranteedRepairablePartCount());
@@ -160,10 +160,9 @@ private:
 };
 
 std::vector<std::vector<TSharedRef>> EncodeErasureJournalRows(
-    NErasure::ECodec codecId,
+    NErasure::ICodec* codec,
     const std::vector<TSharedRef>& rows)
 {
-    auto* codec = NErasure::GetCodec(codecId);
     int dataPartCount = codec->GetDataPartCount();
     int totalPartCount = codec->GetTotalPartCount();
 
@@ -229,17 +228,16 @@ std::vector<std::vector<TSharedRef>> EncodeErasureJournalRows(
 }
 
 std::vector<TSharedRef> EncodeErasureJournalRow(
-    NErasure::ECodec codecId,
+    NErasure::ICodec* codec,
     const TSharedRef& row)
 {
-    return EncodeErasureJournalRows(codecId, {row})[0];
+    return EncodeErasureJournalRows(codec, {row})[0];
 }
 
 std::vector<TSharedRef> DecodeErasureJournalRows(
-    NErasure::ECodec codecId,
+    NErasure::ICodec* codec,
     const std::vector<std::vector<TSharedRef>>& encodedRowLists)
 {
-    auto* codec = NErasure::GetCodec(codecId);
     int dataPartCount = codec->GetDataPartCount();
 
     YT_VERIFY(dataPartCount == encodedRowLists.size());
@@ -287,7 +285,7 @@ std::vector<TSharedRef> DecodeErasureJournalRows(
 }
 
 std::vector<std::vector<TSharedRef>> RepairErasureJournalRows(
-    NErasure::ECodec codecId,
+    NErasure::ICodec* codec,
     const NErasure::TPartIndexList& erasedIndices,
     const std::vector<std::vector<TSharedRef>>& repairRowLists)
 {
@@ -318,7 +316,6 @@ std::vector<std::vector<TSharedRef>> RepairErasureJournalRows(
     }
     YT_VERIFY(buffer.IsFull());
 
-    auto* codec = NErasure::GetCodec(codecId);
     auto erasedParts = codec->Decode(repairParts, erasedIndices);
 
     std::vector<std::vector<TSharedRef>> erasedRowLists;
