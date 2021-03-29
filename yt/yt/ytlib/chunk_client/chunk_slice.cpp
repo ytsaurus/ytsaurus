@@ -191,6 +191,10 @@ public:
                 : BlockDescriptors_[blockIndex - 1].UpperBound.Invert();
             const auto& blockUpperBound = block.UpperBound;
 
+            if (!sliceByKeys && blockIndex > 0) {
+                blockLowerBound = blockLowerBound.ToggleInclusiveness();
+            }
+
             // This might happen if block consisnts of single key.
             if (SliceComparator_.IsRangeEmpty(blockLowerBound, blockUpperBound)) {
                 blockLowerBound = blockLowerBound.ToggleInclusiveness();
