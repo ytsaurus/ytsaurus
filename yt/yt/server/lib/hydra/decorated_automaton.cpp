@@ -1057,7 +1057,7 @@ void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
     TForbidContextSwitchGuard contextSwitchGuard;
 
     TWallTimer timer;
-    TEventTimer timerGuard(BatchCommitTimer_);
+    TEventTimerGuard timerGuard(BatchCommitTimer_);
     while (!PendingMutations_.empty()) {
         auto& pendingMutation = PendingMutations_.front();
         if (pendingMutation.Version >= CommittedVersion_) {
