@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 
@@ -20,6 +21,12 @@ public abstract class MutatePath<T extends MutatePath<T>> extends MutateNode<T> 
 
     public YPath getPath() {
         return path;
+    }
+
+    public YTreeBuilder toTree(YTreeBuilder builder) {
+        return builder
+                .apply(super::toTree)
+                .key("path").apply(path::toTree);
     }
 
     @Override

@@ -2,11 +2,15 @@ package ru.yandex.yt.ytclient.proxy.request;
 
 import java.util.Optional;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
 
+@NonNullFields
+@NonNullApi
 public abstract class MutateNode<T extends MutateNode<T>> extends RequestBase<T> {
     protected @Nullable TransactionalOptions transactionalOptions;
     protected @Nullable PrerequisiteOptions prerequisiteOptions;
@@ -27,7 +31,12 @@ public abstract class MutateNode<T extends MutateNode<T>> extends RequestBase<T>
         }
     }
 
-    public T setTransactionalOptions(TransactionalOptions to) {
+    public T setTransactionalOptionsOfTransactionId(GUID transactionId) {
+        this.transactionalOptions = new TransactionalOptions(transactionId);
+        return self();
+    }
+
+    public T setTransactionalOptions(@Nullable TransactionalOptions to) {
         this.transactionalOptions = to;
         return self();
     }
@@ -36,7 +45,7 @@ public abstract class MutateNode<T extends MutateNode<T>> extends RequestBase<T>
         return Optional.ofNullable(transactionalOptions);
     }
 
-    public T setPrerequisiteOptions(PrerequisiteOptions prerequisiteOptions) {
+    public T setPrerequisiteOptions(@Nullable PrerequisiteOptions prerequisiteOptions) {
         this.prerequisiteOptions = prerequisiteOptions;
         return self();
     }
@@ -55,7 +64,7 @@ public abstract class MutateNode<T extends MutateNode<T>> extends RequestBase<T>
     }
 
     @Override
-    protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
+    protected void writeArgumentsLogString(StringBuilder sb) {
         if (transactionalOptions != null) {
             sb.append("TransactionId: ").append(transactionalOptions.getTransactionId()).append("; ");
         }

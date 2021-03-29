@@ -8,6 +8,7 @@ import javax.annotation.Nonnull;
 import com.google.protobuf.ByteString;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.lang.NonNullApi;
@@ -24,6 +25,14 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 public class SetNode extends MutatePath<SetNode> implements HighLevelRequest<TReqSetNode.Builder> {
     private final byte[] value;
     private boolean force;
+    private boolean recursive;
+
+    public SetNode(SetNode other) {
+        super(other);
+        value = other.value.clone();
+        force = other.force;
+        recursive = other.recursive;
+    }
 
     public SetNode(String path, byte[]value) {
         super(YPath.simple(path));
@@ -45,8 +54,18 @@ public class SetNode extends MutatePath<SetNode> implements HighLevelRequest<TRe
         }
     }
 
-    public void setForce(boolean force) {
+    public byte[] getValue() {
+        return value;
+    }
+
+    public SetNode setForce(boolean force) {
         this.force = force;
+        return this;
+    }
+
+    public SetNode setRecursive(boolean recursive) {
+        this.recursive = recursive;
+        return this;
     }
 
     @Override
@@ -66,6 +85,16 @@ public class SetNode extends MutatePath<SetNode> implements HighLevelRequest<TRe
         if (additionalData != null) {
             builder.body().mergeFrom(additionalData);
         }
+        if (recursive) {
+            builder.body().setRecursive(true);
+        }
+    }
+
+    public YTreeBuilder toTree(@Nonnull YTreeBuilder builder) {
+        return builder
+                .apply(super::toTree)
+                .when(force, b -> b.key("force").value(true))
+                .when(recursive, b -> b.key("recursive").value(true));
     }
 
     @Override
@@ -73,6 +102,9 @@ public class SetNode extends MutatePath<SetNode> implements HighLevelRequest<TRe
         super.writeArgumentsLogString(sb);
         if (force) {
             sb.append("Force: true; ");
+        }
+        if (recursive) {
+            sb.append("Recursive: true; ");
         }
     }
 

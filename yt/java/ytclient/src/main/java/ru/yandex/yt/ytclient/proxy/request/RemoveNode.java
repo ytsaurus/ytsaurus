@@ -59,10 +59,10 @@ public class RemoveNode extends MutatePath<RemoveNode> implements HighLevelReque
         }
     }
 
+    @Override
     public YTreeBuilder toTree(YTreeBuilder builder) {
         return builder
                 .apply(super::toTree)
-                .key("path").apply(path::toTree)
                 .when(recursive, b -> b.key("recursive").value(recursive))
                 .when(force, b -> b.key("force").value(true));
     }

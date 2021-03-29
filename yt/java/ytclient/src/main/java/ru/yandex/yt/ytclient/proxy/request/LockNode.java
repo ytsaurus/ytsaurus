@@ -4,6 +4,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
@@ -20,6 +21,14 @@ public class LockNode extends MutatePath<LockNode> implements HighLevelRequest<T
     private boolean waitable = false;
     private @Nullable String childKey;
     private @Nullable String attributeKey;
+
+    public LockNode(LockNode other) {
+        super(other);
+        this.mode = other.mode;
+        this.waitable = other.waitable;
+        this.childKey = other.childKey;
+        this.attributeKey = other.attributeKey;
+    }
 
     public LockNode(String path, LockMode mode) {
         super(YPath.simple(path));
@@ -50,7 +59,7 @@ public class LockNode extends MutatePath<LockNode> implements HighLevelRequest<T
     public void writeTo(RpcClientRequestBuilder<TReqLockNode.Builder, ?> builder) {
         builder.body()
                 .setPath(path.toString())
-                .setMode(mode.value())
+                .setMode(mode.getProtoValue())
                 .setWaitable(waitable);
 
         if (childKey != null) {
@@ -71,6 +80,15 @@ public class LockNode extends MutatePath<LockNode> implements HighLevelRequest<T
         if (additionalData != null) {
             builder.body().mergeFrom(additionalData);
         }
+    }
+
+    public YTreeBuilder toTree(@Nonnull YTreeBuilder builder) {
+        return builder
+                .apply(super::toTree)
+                .key("mode").value(mode.getWireName())
+                .when(waitable, b -> b.key("waitable").value(true))
+                .when(childKey != null, b -> b.key("child_key").value(childKey))
+                .when(attributeKey != null, b -> b.key("attribute_key").value(attributeKey));
     }
 
     @Override

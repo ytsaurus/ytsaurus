@@ -21,7 +21,7 @@ public abstract class RequestBase<T extends RequestBase<T>> {
 
     Message additionalData;
 
-    abstract protected @Nonnull T self();
+    protected abstract @Nonnull T self();
 
     @SuppressWarnings("unused")
     Message getAdditionalData() {
