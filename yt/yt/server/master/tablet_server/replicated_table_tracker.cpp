@@ -270,6 +270,7 @@ private:
     TAtomicObject<TBundleHealthCachePtr> BundleHealthCache_;
     TAtomicObject<TClusterStateCachePtr> ClusterStateCache_;
     TAtomicObject<NTabletNode::TReplicatorHintConfigPtr> ReplicatorHintConfig_;
+    std::atomic<i64> MaxIterationsWithoutAcceptableBundleHealth_{1};
 
     class TReplica
         : public TRefCounted
@@ -289,7 +290,8 @@ private:
             TDuration tabletCellBundleNameTtl,
             TDuration retryOnFailureInterval,
             TDuration syncReplicaLagThreshold,
-            bool checkPreloadState)
+            bool checkPreloadState,
+            i64 maxIterationsWithoutAcceptableBundleHealth)
             : Id_(id)
             , Mode_(mode)
             , ClusterName_(clusterName)
@@ -304,6 +306,7 @@ private:
             , RetryOnFailureInterval_(retryOnFailureInterval)
             , SyncReplicaLagThreshold_(syncReplicaLagThreshold)
             , CheckPreloadState_(checkPreloadState)
+            , MaxIterationsWithoutAcceptableBundleHealth_(maxIterationsWithoutAcceptableBundleHealth)
         { }
 
         TObjectId GetId()
@@ -414,6 +417,7 @@ private:
             RetryOnFailureInterval_ = other.RetryOnFailureInterval_;
             SyncReplicaLagThreshold_ = other.SyncReplicaLagThreshold_;
             CheckPreloadState_ = other.CheckPreloadState_;
+            MaxIterationsWithoutAcceptableBundleHealth_ = other.MaxIterationsWithoutAcceptableBundleHealth_;
         }
 
     private:
@@ -436,6 +440,9 @@ private:
         bool CheckPreloadState_;
 
         TInstant LastUpdateTime_;
+
+        i64 IterationsWithoutAcceptableBundleHealth_ = 0;
+        i64 MaxIterationsWithoutAcceptableBundleHealth_;
 
 
         TFuture<void> CheckClusterState()
@@ -468,13 +475,20 @@ private:
 
                     const auto& bundleName = bundleNameOrError.Value();
                     return bundleHealthCache->Get({client, clusterName, bundleName});
-                })).Apply(BIND([] (const TErrorOr<ETabletCellHealth>& healthOrError) {
+                })).Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<ETabletCellHealth>& healthOrError) {
                     THROW_ERROR_EXCEPTION_IF_FAILED(healthOrError, "Error getting tablet cell bundle health");
 
                     auto health = healthOrError.Value();
-                    if (health != ETabletCellHealth::Good) {
+                    if (health != ETabletCellHealth::Good && health != ETabletCellHealth::Degraded) {
+                        ++IterationsWithoutAcceptableBundleHealth_;
+                        if (IterationsWithoutAcceptableBundleHealth_ <= MaxIterationsWithoutAcceptableBundleHealth_) {
+                            return;
+                        }
+
                         THROW_ERROR_EXCEPTION("Bad tablet cell health %Qlv",
                             health);
+                    } else {
+                        IterationsWithoutAcceptableBundleHealth_ = 0;
                     }
                 }));
         }
@@ -1034,7 +1048,8 @@ private:
                 config->TabletCellBundleNameTtl,
                 config->RetryOnFailureInterval,
                 config->SyncReplicaLagThreshold,
-                config->EnablePreloadStateCheck));
+                config->EnablePreloadStateCheck,
+                MaxIterationsWithoutAcceptableBundleHealth_));
         }
 
         const auto [maxSyncReplicaCount,  minSyncReplicaCount] = config->GetEffectiveMinMaxReplicaCount(static_cast<int>(replicas.size()));
@@ -1092,6 +1107,8 @@ private:
         }
 
         ReplicatorHintConfig_.Store(dynamicConfig->ReplicatorHint);
+
+        MaxIterationsWithoutAcceptableBundleHealth_ = dynamicConfig->MaxIterationsWithoutAcceptableBundleHealth;
 
         if (IsLeader() && (ReconfigureYsonSerializable(ClusterDirectorySynchronizerConfig_, dynamicConfig->ClusterDirectorySynchronizer) || !ClusterDirectorySynchronizer_)) {
             if (ClusterDirectorySynchronizer_) {
