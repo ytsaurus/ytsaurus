@@ -638,11 +638,29 @@ private:
             blockedJobCount = 0;
         }
 
-        if (FreeStripes_.empty()) {
-            FreeJobCounter_->SetSuspended(pendingJobCount + blockedJobCount);
-        } else {
+        bool canScheduleJobs = !FreeStripes_.empty();
+
+        // NB(gritukan): YT-14498, if job count is explicit,
+        // last job cannot be scheduled unless all the data is available.
+        if (JobSizeConstraints_->IsExplicitJobCount() &&
+            pendingJobCount == 1 &&
+            FreeDataWeightCounter_->GetSuspended() > 0)
+        {
+            canScheduleJobs = false;
+        }
+
+        if (JobSizeConstraints_->IsExplicitJobCount() &&
+            pendingJobCount + blockedJobCount == 0 &&
+            FreeDataWeightCounter_->GetTotal() > 0)
+        {
+            YT_LOG_ALERT("Explicit job count guarantee cannot be satisfied; scheduling an extra job");
+        }
+
+        if (canScheduleJobs) {
             FreeJobCounter_->SetPending(pendingJobCount);
             FreeJobCounter_->SetBlocked(blockedJobCount);
+        } else {
+            FreeJobCounter_->SetSuspended(pendingJobCount + blockedJobCount);
         }
     }
 
