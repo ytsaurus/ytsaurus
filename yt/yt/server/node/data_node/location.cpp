@@ -58,10 +58,9 @@ TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TPr
 {
     for (auto direction : TEnumTraits<EIODirection>::GetDomainValues()) {
         for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
-            // Do not export both location_id and (direction, category).
             auto r = profiler
-                .WithAlternativeTag("direction", FormatEnum(direction), -1)
-                .WithAlternativeTag("category", FormatEnum(category), -2);
+                .WithTag("direction", FormatEnum(direction), -1)
+                .WithTag("category", FormatEnum(category), -2);
 
             r.AddFuncGauge("/pending_data_size", MakeStrong(this), [this, direction, category] {
                 return PendingIOSize[direction][category].load();
@@ -86,8 +85,8 @@ TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TPr
     BlobBlockReadBytes = profiler.Counter("/blob_block_read_bytes");
 
     for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
-        // Do not export both location_id and category.
-        auto categoryProfiler = profiler.WithAlternativeTag("category", FormatEnum(category), -1);
+        auto categoryProfiler = profiler
+            .WithTag("category", FormatEnum(category), -1);
 
         BlobBlockReadLatencies[category] = categoryProfiler.Timer("/blob_block_read_latency");
         BlobChunkMetaReadLatencies[category] = categoryProfiler.Timer("/blob_chunk_meta_read_latency");
@@ -142,6 +141,7 @@ TLocation::TLocation(
     , MediumName_(Config_->MediumName)
 {
     Profiler_ = LocationProfiler
+        .WithSparse()
         .WithTag("location_type", ToString(Type_))
         .WithTag("medium", GetMediumName(), -1)
         .WithTag("location_id", Id_, -1);
