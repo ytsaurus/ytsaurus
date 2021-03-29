@@ -153,10 +153,9 @@ public class CreateNode extends MutatePath<CreateNode> implements HighLevelReque
         }
     }
 
-    public YTreeBuilder toTree(YTreeBuilder builder) {
+    public YTreeBuilder toTree(@Nonnull YTreeBuilder builder) {
         return builder
                 .apply(super::toTree)
-                .key("path").apply(path::toTree)
                 .key("type").value(type.toCypressNodeType().value())
                 .when(recursive, b -> b.key("recursive").value(recursive))
                 .when(ignoreExisting, b -> b.key("ignore_existing").value(ignoreExisting))
