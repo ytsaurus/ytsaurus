@@ -69,7 +69,7 @@ public class CreateNode extends MutatePath<CreateNode> implements HighLevelReque
         return type;
     }
 
-    public boolean getRecursive() {
+    public boolean isRecursive() {
         return recursive;
     }
 
@@ -78,7 +78,7 @@ public class CreateNode extends MutatePath<CreateNode> implements HighLevelReque
         return this;
     }
 
-    public boolean getForce() {
+    public boolean isForce() {
         return force;
     }
 
@@ -87,7 +87,7 @@ public class CreateNode extends MutatePath<CreateNode> implements HighLevelReque
         return this;
     }
 
-    public boolean getIgnoreExisting() {
+    public boolean isIgnoreExisting() {
         return ignoreExisting;
     }
 

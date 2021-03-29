@@ -34,7 +34,7 @@ public class SetNode extends MutatePath<SetNode> implements HighLevelRequest<TRe
         recursive = other.recursive;
     }
 
-    public SetNode(String path, byte[]value) {
+    public SetNode(String path, byte[] value) {
         super(YPath.simple(path));
         this.value = value;
         this.force = false;
@@ -58,9 +58,17 @@ public class SetNode extends MutatePath<SetNode> implements HighLevelRequest<TRe
         return value;
     }
 
+    public boolean isForce() {
+        return force;
+    }
+
     public SetNode setForce(boolean force) {
         this.force = force;
         return this;
+    }
+
+    public boolean isRecursive() {
+        return recursive;
     }
 
     public SetNode setRecursive(boolean recursive) {
