@@ -20,6 +20,10 @@ namespace NYT::NCellarAgent {
 struct ICellar
     : public TRefCounted
 {
+    DECLARE_INTERFACE_SIGNAL(void(), CreateOccupant);
+    DECLARE_INTERFACE_SIGNAL(void(), RemoveOccupant);
+    DECLARE_INTERFACE_SIGNAL(void(), UpdateOccupant);
+
     virtual void Initialize() = 0;
     virtual void Reconfigure(const TCellarDynamicConfigPtr& config) = 0;
 
@@ -33,6 +37,9 @@ struct ICellar
     virtual void ConfigureOccupant(
         const ICellarOccupantPtr& occupant,
         const NCellarNodeTrackerClient::NProto::TConfigureCellSlotInfo& configureInfo) = 0;
+    virtual void UpdateOccupant(
+        const ICellarOccupantPtr& occupant,
+        const NCellarNodeTrackerClient::NProto::TUpdateCellSlotInfo& updateInfo) = 0;
     virtual TFuture<void> RemoveOccupant(const ICellarOccupantPtr& occupant) = 0;
 
     virtual void RegisterOccupierProvider(ICellarOccupierProviderPtr provider) = 0;

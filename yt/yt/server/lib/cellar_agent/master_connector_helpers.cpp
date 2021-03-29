@@ -154,7 +154,7 @@ void UpdateCellarFromHeartbeatResponse(
         YT_LOG_DEBUG("Updating cell dynamic config (CellId: %v)",
             cellId);
 
-        slot->UpdateDynamicConfig(info);
+        cellar->UpdateOccupant(slot, info);
     }
 }
 
