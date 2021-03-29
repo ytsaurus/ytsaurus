@@ -72,7 +72,7 @@ cdef TString _to_TString(s):
     return TString(<const char*>s, len(s))
 
 
-cdef _TNode_to_pyobj(TNode node):
+cdef _TNode_to_pyobj(TNode node) except +:
     if node.IsString():
         return node.AsString()
     elif node.IsInt64():
@@ -98,7 +98,7 @@ cdef _TNode_to_pyobj(TNode node):
         raise Exception()
 
 
-cdef TNode _pyobj_to_TNode(obj):
+cdef TNode _pyobj_to_TNode(obj) except +:
     if isinstance(obj, Node):
         if obj.node_type == Node.INT64:
             return TNode(<i64>obj.data)
@@ -126,7 +126,7 @@ cdef TNode _pyobj_to_TNode(obj):
         for k, v in items_iterator:
             node(_to_TString(k), _pyobj_to_TNode(v))
         return node
-    elif isinstance(obj, list):
+    elif isinstance(obj, (list, tuple)):
         node = TNode.CreateList()
         for x in obj:
             node.Add(_pyobj_to_TNode(x))
