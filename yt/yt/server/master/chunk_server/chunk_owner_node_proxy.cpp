@@ -1473,6 +1473,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
 
     node->EndUpload(uploadContext);
 
+    SetModified();
+
     if (node->IsNative()) {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->CommitTransaction(Transaction_, NullTimestamp);
