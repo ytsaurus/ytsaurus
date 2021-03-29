@@ -414,7 +414,7 @@ private:
                     CurrentJob()->SetUnsplittable();
                 }
 
-                CurrentJob()->Finalize(false /* sortByPosition */);
+                CurrentJob()->Finalize(/*validateOrder*/ false);
 
                 auto cookie = JobManager_->AddJob(std::move(CurrentJob()));
                 if (OutputOrder_) {

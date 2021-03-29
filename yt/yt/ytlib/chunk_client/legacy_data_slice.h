@@ -84,8 +84,8 @@ public:
         NTableClient::TComparator comparator);
 
     //! For unversioned slices, returns index of this chunk slice among all slices of the same chunk.
-    //! For versioned tables, returns std::nullopt.
-    std::optional<int> GetChunkSliceIndex() const;
+    //! For versioned tables, returns 0.
+    int GetSliceIndex() const;
 
     TChunkSliceList ChunkSlices;
     EDataSourceType Type;
@@ -174,6 +174,13 @@ i64 GetCumulativeDataWeight(const std::vector<TLegacyDataSlicePtr>& dataSlices);
 std::vector<TLegacyDataSlicePtr> CombineVersionedChunkSlices(
     const std::vector<TInputChunkSlicePtr>& chunkSlices,
     const NTableClient::TComparator& comparator);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! This debug string will eventually become ToString for new data slices.
+//! In particular, it does not mention anything related to data slice
+//! internal structure (i.e. chunk slices).
+TString GetDataSliceDebugString(const TLegacyDataSlicePtr& dataSlice);
 
 ////////////////////////////////////////////////////////////////////////////////
 

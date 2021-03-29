@@ -45,13 +45,13 @@ public:
     TNewJobStub() = default;
 
     void AddDataSlice(const NChunkClient::TLegacyDataSlicePtr& dataSlice, IChunkPoolInput::TCookie cookie, bool isPrimary);
+    // TODO(max42): this seems to be unused, clean up.
     void AddPreliminaryForeignDataSlice(const NChunkClient::TLegacyDataSlicePtr& dataSlice);
 
-    //! Removes all empty stripes, sets `Foreign` = true for all foreign stripes,
-    //! calculates the statistics for the stripe list and maybe additionally sorts slices
-    //! in all stripes according to their original table position in order to satisfy
-    //! silly^W tricky sorted operation guarantees.
-    void Finalize(bool sortByPosition, NTableClient::TComparator comparator = NTableClient::TComparator());
+    //! Calculates the statistics for the stripe list and maybe additionally validates
+    //! slice sort order in all stripes according to their original table position
+    //! in order to satisfy silly^W tricky sorted operation guarantees.
+    void Finalize(bool validateOrder);
 
     i64 GetDataWeight() const;
     i64 GetRowCount() const;

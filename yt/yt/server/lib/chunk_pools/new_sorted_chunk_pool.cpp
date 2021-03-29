@@ -110,11 +110,7 @@ public:
                 YT_VERIFY(!dataSlice->UpperLimit().KeyBound.IsUniversal());
             }
 
-            YT_LOG_TRACE(
-                "Data slice added (LowerLimit: %v, UpperLimit: %v, InputStreamIndex: %v)",
-                dataSlice->LowerLimit(),
-                dataSlice->UpperLimit(),
-                dataSlice->InputStreamIndex);
+            YT_LOG_TRACE("Data slice added (DataSlice: %v)", GetDataSliceDebugString(dataSlice));
 
             dataSlice->LowerLimit().KeyBound = ShortenKeyBound(dataSlice->LowerLimit().KeyBound, prefixLength, RowBuffer_);
             dataSlice->UpperLimit().KeyBound = ShortenKeyBound(dataSlice->UpperLimit().KeyBound, prefixLength, RowBuffer_);
@@ -348,20 +344,15 @@ private:
                     auto sliceSize = isPrimary
                         ? primarySliceSize
                         : foreignSliceSize;
-                    auto sliceByKeys = isPrimary
-                        ? ShouldSlicePrimaryTableByKeys_
-                        : false;
-
                     if (chunkSliceFetcher && (isPrimary || SliceForeignChunks_)) {
-                        YT_LOG_TRACE("Slicing chunk (ChunkId: %v, DataWeight: %v, IsPrimary: %v, Comparator: %v, SliceSize: %v, SliceByKeys: %v)",
+                        YT_LOG_TRACE("Slicing chunk (ChunkId: %v, DataWeight: %v, IsPrimary: %v, Comparator: %v, SliceSize: %v)",
                             inputChunk->GetChunkId(),
                             inputChunk->GetDataWeight(),
                             isPrimary,
                             comparator,
-                            sliceSize,
-                            sliceByKeys);
+                            sliceSize);
 
-                        chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, comparator, sliceSize, sliceByKeys);
+                        chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, comparator, sliceSize, /*sliceByKeys*/ true);
                     } else if (!isPrimary) {
                         // Take foreign slice as-is.
                         processDataSlice(dataSlice, inputCookie);
@@ -687,6 +678,26 @@ private:
 
         validateDataSlices(unreadInputDataSlices, PrimaryPrefixLength_);
         validateDataSlices(foreignInputDataSlices, ForeignPrefixLength_);
+
+        // Note that reader returns lower limit which may be more accurate in terms of lower key bound.
+        // This may lead to a situation when first data slice from certain input stream has
+        // lower key bound >=K1 while second has lower bound >=K2 s.t. K2 < K1.
+        // This leads to issues in sorted job builder which expects data slices from same stream
+        // to go "from left to right".
+        std::vector<TLegacyDataSlicePtr> inputStreamIndexToLastDataSlice;
+        for (const auto& dataSlice : unreadInputDataSlices) {
+            auto inputStreamIndex = dataSlice->InputStreamIndex;
+            if (inputStreamIndex >= inputStreamIndexToLastDataSlice.size()) {
+                inputStreamIndexToLastDataSlice.resize(inputStreamIndex + 1);
+            }
+            auto& lastDataSlice = inputStreamIndexToLastDataSlice[inputStreamIndex];
+            if (lastDataSlice &&
+                PrimaryComparator_.CompareKeyBounds(dataSlice->LowerLimit().KeyBound, lastDataSlice->LowerLimit().KeyBound) < 0)
+            {
+                dataSlice->LowerLimit().KeyBound = lastDataSlice->LowerLimit().KeyBound;
+            }
+            lastDataSlice = dataSlice;
+        }
 
         i64 dataWeight = 0;
         for (auto& dataSlice : unreadInputDataSlices) {

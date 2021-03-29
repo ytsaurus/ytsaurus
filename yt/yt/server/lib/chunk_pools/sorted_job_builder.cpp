@@ -17,7 +17,7 @@ void TSortedJobOptions::Persist(const TPersistenceContext& context)
     Persist(context, EnablePeriodicYielder);
     Persist(context, PivotKeys);
     Persist(context, ShouldSlicePrimaryTableByKeys);
-    Persist(context, SortByPosition);
+    Persist(context, ValidateOrder);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

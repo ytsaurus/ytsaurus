@@ -217,7 +217,12 @@ TLogManagerConfigPtr TLogManagerConfig::CreateYtServer(const TString& componentN
 {
     auto config = New<TLogManagerConfig>();
 
-    for (const auto& logLevel : {ELogLevel::Debug, ELogLevel::Info, ELogLevel::Error}) {
+    std::vector<ELogLevel> levels = {ELogLevel::Debug, ELogLevel::Info, ELogLevel::Error};
+    if (getenv("YT_ENABLE_TRACE_LOGGING")) {
+        levels.push_back(ELogLevel::Trace);
+    }
+
+    for (const auto& logLevel : levels) {
         auto rule = New<TRuleConfig>();
         rule->MinLevel = logLevel;
         rule->Writers.push_back(ToString(logLevel));

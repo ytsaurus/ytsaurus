@@ -910,7 +910,7 @@ std::vector<TSubquery> BuildSubqueries(
                     .PrimaryComparator = comparator,
                     .PrimaryPrefixLength = *keyColumnCount,
                     .ShouldSlicePrimaryTableByKeys = true,
-                    .SortByPosition = false,
+                    .ValidateOrder = false,
                     .MaxTotalSliceCount = std::numeric_limits<int>::max() / 2,
                 },
                 .MinTeleportChunkSize = std::numeric_limits<i64>::max() / 2,
