@@ -3192,7 +3192,7 @@ void TOperationControllerBase::OnInputChunkUnavailable(TChunkId chunkId, TInputC
 
     switch (Spec_->UnavailableChunkTactics) {
         case EUnavailableChunkAction::Fail:
-            OnOperationFailed(TError("Input chunk %v is unavailable",
+            OnOperationFailed(TError(NChunkClient::EErrorCode::ChunkUnavailable, "Input chunk %v is unavailable",
                 chunkId));
             break;
 
@@ -3208,7 +3208,9 @@ void TOperationControllerBase::OnInputChunkUnavailable(TChunkId chunkId, TInputC
                                 return chunkId == slice->GetSingleUnversionedChunkOrThrow()->GetChunkId();
                             } catch (const std::exception& ex) {
                                 //FIXME(savrus) allow data slices to be unavailable.
-                                THROW_ERROR_EXCEPTION("Dynamic table chunk became unavailable") << ex;
+                                OnOperationFailed(TError(NChunkClient::EErrorCode::ChunkUnavailable, "Dynamic table chunk became unavailable")
+                                    << ex);
+                                return true;
                             }
                         }),
                     inputStripe.Stripe->DataSlices.end());
