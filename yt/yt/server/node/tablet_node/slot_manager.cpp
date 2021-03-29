@@ -64,6 +64,10 @@ public:
         auto cellar = Bootstrap_->GetCellarManager()->GetCellar(ECellarType::Tablet);
         cellar->RegisterOccupierProvider(CreateTabletSlotOccupierProvider(Config_, Bootstrap_));
 
+        cellar->SubscribeCreateOccupant(BIND(&TSlotManager::UpdateMemoryPoolWeights, MakeWeak(this)));
+        cellar->SubscribeRemoveOccupant(BIND(&TSlotManager::UpdateMemoryPoolWeights, MakeWeak(this)));
+        cellar->SubscribeUpdateOccupant(BIND(&TSlotManager::UpdateMemoryPoolWeights, MakeWeak(this)));
+
         SlotScanExecutor_->Start();
     }
 
@@ -140,8 +144,7 @@ private:
             });
     }
 
-
-    void UpdateMemoryPoolWeights(TBundlesMemoryPoolWeights weights)
+    void UpdateMemoryPoolWeights()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -153,6 +156,13 @@ private:
                 weight);
             memoryTracker->SetPoolWeight(bundleName, weight);
         };
+
+        TBundlesMemoryPoolWeights weights;
+        for (const auto& occupant : Occupants()) {
+            if (occupant) {
+                weights[occupant->GetCellBundleName()] += occupant->GetDynamicOptions()->DynamicMemoryPoolWeight;
+            }
+        }
 
         for (const auto& [bundle, weight] : weights) {
             if (auto it = BundlesMemoryPoolWeights_.find(bundle); !it || it->second != weight) {
@@ -178,8 +188,6 @@ private:
 
         BeginSlotScan_.Fire();
 
-        TBundlesMemoryPoolWeights memoryPoolWeights;
-
         std::vector<TFuture<void>> asyncResults;
         for (const auto& occupant : Occupants()) {
             if (!occupant) {
@@ -190,8 +198,6 @@ private:
             if (!occupier) {
                 continue;
             }
-
-            memoryPoolWeights[occupant->GetCellBundleName()] += occupier->GetDynamicOptions()->DynamicMemoryPoolWeight;
 
             asyncResults.push_back(
                 BIND([=, this_ = MakeStrong(this)] () {
@@ -204,8 +210,6 @@ private:
         }
         auto result = WaitFor(AllSucceeded(asyncResults));
         YT_VERIFY(result.IsOK());
-
-        UpdateMemoryPoolWeights(std::move(memoryPoolWeights));
 
         EndSlotScan_.Fire();
 

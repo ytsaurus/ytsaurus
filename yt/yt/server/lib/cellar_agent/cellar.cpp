@@ -36,6 +36,10 @@ const auto& Logger = CellarAgentLogger;
 class TCellar
     : public ICellar
 {
+    DEFINE_SIGNAL(void(), CreateOccupant);
+    DEFINE_SIGNAL(void(), RemoveOccupant);
+    DEFINE_SIGNAL(void(), UpdateOccupant);
+
 public:
     TCellar(
         ECellarType type,
@@ -120,6 +124,8 @@ public:
             YT_VERIFY(CellIdToOccupant_.emplace(occupant->GetCellId(), occupant).second);
         }
 
+        CreateOccupant_.Fire();
+
         YT_LOG_DEBUG("Created cellar occupant (CellarType: %Qlv, Index: %v)",
             Type_,
             index);
@@ -132,6 +138,17 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         occupant->Configure(configureInfo);
+    }
+
+    virtual void UpdateOccupant(
+        const ICellarOccupantPtr& occupant,
+        const TUpdateCellSlotInfo& updateInfo) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        occupant->UpdateDynamicConfig(updateInfo);
+
+        UpdateOccupant_.Fire();
     }
 
     virtual TFuture<void> RemoveOccupant(const ICellarOccupantPtr& occupant) override
@@ -153,6 +170,8 @@ public:
                         CellIdToOccupant_.erase(it);
                     }
                 }
+
+                RemoveOccupant_.Fire();
             }).Via(Bootstrap_->GetControlInvoker()));
     }
 
