@@ -13,7 +13,7 @@ from yt.wrapper.spec_builders import VanillaSpecBuilder
 
 from .conf import read_remote_conf, validate_cluster_version, spyt_jar_path, spyt_python_path, \
     validate_spyt_version, validate_versions_compatibility, latest_compatible_spyt_version, \
-    latest_cluster_version, update_config_inplace, validate_custom_params, validate_network_project, \
+    latest_cluster_version, update_config_inplace, validate_custom_params, validate_mtn_config, \
     latest_ytserver_proxy_path, ytserver_proxy_attributes, read_global_conf
 from .utils import get_spark_master, base_spark_conf, SparkDiscovery, SparkCluster
 from .enabler import SpytEnablers
@@ -229,7 +229,8 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
             "discovery_path": spark_discovery.base_discovery_path,
             "version": config["cluster_version"],
             "enable_byop": enablers.enable_byop,
-            "enable_arrow": enablers.enable_arrow
+            "enable_arrow": enablers.enable_arrow,
+            "enable_mtn": enablers.enable_mtn
         }
     }
 
@@ -248,7 +249,8 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
         "SPARK_YT_BYOP_ENABLED": str(enablers.enable_byop),
         "SPARK_YT_BYOP_BINARY_PATH": "$HOME/{}".format(ytserver_binary_name),
         "SPARK_YT_BYOP_CONFIG_PATH": "$HOME/ytserver-proxy.template.yson",
-        "SPARK_YT_BYOP_HOST": "localhost"
+        "SPARK_YT_BYOP_HOST": "localhost",
+        "SPARK_YT_BYOP_TVM_ENABLED": str(enablers.enable_mtn)
     }
 
     if enablers.enable_byop:
@@ -275,11 +277,10 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
 
     secure_vault = {"YT_USER": user, "YT_TOKEN": get_token(client=client)}
 
-    if network_project:
+    if enablers.enable_mtn:
         common_task_spec["network_project"] = network_project
         secure_vault["SPARK_TVM_ID"] = tvm_id
         secure_vault["SPARK_TVM_SECRET"] = tvm_secret
-        worker_environment["SPARK_YT_BYOP_TVM_ENABLED"] = "true"
 
     return VanillaSpecBuilder() \
         .begin_task("master") \
@@ -348,7 +349,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
 
     validate_cluster_version(spark_cluster_version, client=client)
     validate_custom_params(params)
-    validate_network_project(network_project, tvm_id, tvm_secret)
+    validate_mtn_config(enablers, network_project, tvm_id, tvm_secret)
 
     dynamic_config = SparkDefaultArguments.get_params()
     update_config_inplace(dynamic_config, read_remote_conf(global_conf, spark_cluster_version, client=client))

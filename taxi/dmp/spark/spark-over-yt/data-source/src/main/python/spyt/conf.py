@@ -54,9 +54,9 @@ def validate_versions_compatibility(spyt_version, spark_cluster_version):
                        "Please update your cluster with spark-launch-yt utility".format(spyt_version, spark_cluster_version))
 
 
-def validate_network_project(network_project, tvm_id, tvm_secret):
-    if network_project and not (tvm_id and tvm_secret):
-        raise RuntimeError("When using network_project, env variables SPARK_TVM_ID and SPARK_TVM_SECRET must be set.")
+def validate_mtn_config(enablers, network_project, tvm_id, tvm_secret):
+    if enablers.enable_mtn and not (network_project and tvm_id and tvm_secret):
+        raise RuntimeError("When using MTN, network_project arg, env variables SPARK_TVM_ID and SPARK_TVM_SECRET must be set.")
 
 
 def latest_compatible_spyt_version(spark_cluster_version, client=None):
@@ -81,7 +81,6 @@ def check_cluster_version_exists(cluster_version, client=None):
 
 def read_global_conf(client=None):
     return get(GLOBAL_CONF_PATH, client=client)
-
 
 def read_remote_conf(global_conf, cluster_version, client=None):
     version_conf_path = _get_version_conf_path(cluster_version)
