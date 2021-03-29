@@ -322,6 +322,8 @@ public:
     TAsyncExpiringCacheConfigPtr ClusterStateCache;
     NHiveServer::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizer;
 
+    i64 MaxIterationsWithoutAcceptableBundleHealth;
+
     TDynamicReplicatedTableTrackerConfig()
     {
         RegisterParameter("enable_replicated_table_tracker", EnableReplicatedTableTracker)
@@ -338,6 +340,9 @@ public:
             .DefaultNew();
         RegisterParameter("cluster_directory_synchronizer", ClusterDirectorySynchronizer)
             .DefaultNew();
+        RegisterParameter("max_iterations_without_acceptable_bundle_health", MaxIterationsWithoutAcceptableBundleHealth)
+            .Default(1)
+            .DontSerializeDefault();
 
         RegisterPreprocessor([&] {
             ClusterStateCache->RefreshTime = CheckPeriod;
