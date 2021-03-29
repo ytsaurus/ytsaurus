@@ -104,8 +104,6 @@ IPollerPtr TTcpDispatcher::TImpl::GetOrCreatePoller(
     int threadCount,
     const TString& threadNamePrefix)
 {
-    IPollerPtr poller;
-
     {
         auto guard = ReaderGuard(PollerLock_);
         if (Terminated_) {
@@ -116,20 +114,21 @@ IPollerPtr TTcpDispatcher::TImpl::GetOrCreatePoller(
         }
     }
 
-    IPollerPtr createdPoller;
+    IPollerPtr poller;
     {
         auto guard = WriterGuard(PollerLock_);
         if (Terminated_) {
             return nullptr;
         }
         if (!*pollerPtr) {
-            *pollerPtr = createdPoller = CreateThreadPoolPoller(threadCount, threadNamePrefix);
+            *pollerPtr = CreateThreadPoolPoller(threadCount, threadNamePrefix);
         }
+        poller = *pollerPtr;
     }
 
     StartPeriodicExecutors();
 
-    return createdPoller;
+    return poller;
 }
 
 void TTcpDispatcher::TImpl::ShutdownPoller(IPollerPtr* pollerPtr)
