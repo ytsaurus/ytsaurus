@@ -1416,14 +1416,7 @@ private:
     void LoadValues(NCellMaster::TLoadContext& context)
     {
         Load(context, NodeIdGenerator_);
-
-        // COMPAT(aleksandra-zh)
-        if (context.GetVersion() >= EMasterReign::DynamicTimestampProviderDiscovery) {
-            Load(context, NodeListPerRole_);
-        } else {
-            Load(context, NodeListPerRole_[ENodeRole::MasterCache].Nodes());
-        }
-
+        Load(context, NodeListPerRole_);
         NodeMap_.LoadValues(context);
         RackMap_.LoadValues(context);
         DataCenterMap_.LoadValues(context);

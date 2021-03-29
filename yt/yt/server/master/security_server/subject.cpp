@@ -39,10 +39,7 @@ void TSubject::Load(NCellMaster::TLoadContext& context)
     Load(context, RecursiveMemberOf_);
     Load(context, LinkedObjects_);
     Load(context, Acd_);
-    // COMPAT(s-v-m)
-    if (context.GetVersion() >= EMasterReign::SubjectAliases) {
-        Load(context, Aliases_);
-    }
+    Load(context, Aliases_);
 }
 
 bool TSubject::IsUser() const

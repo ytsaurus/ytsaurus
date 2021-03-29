@@ -98,26 +98,13 @@ void TAccount::Save(NCellMaster::TSaveContext& context) const
 
 void TAccount::Load(NCellMaster::TLoadContext& context)
 {
+    TNonversionedMapObjectBase<TAccount>::Load(context);
+
     using NYT::Load;
-
-    // COMPAT(kiselyovp)
-    if (context.GetVersion() < EMasterReign::HierarchicalAccounts) {
-        TNonversionedObjectBase::Load(context);
-
-        Load(context, LegacyName_);
-        Load(context, ClusterStatistics_);
-        Load(context, MulticellStatistics_);
-        Load(context, ClusterResourceLimits_);
-        Load(context, Acd_);
-        AllowChildrenLimitOvercommit_ = false;
-    } else {
-        TNonversionedMapObjectBase<TAccount>::Load(context);
-
-        Load(context, ClusterStatistics_);
-        Load(context, MulticellStatistics_);
-        Load(context, ClusterResourceLimits_);
-        Load(context, AllowChildrenLimitOvercommit_);
-    }
+    Load(context, ClusterStatistics_);
+    Load(context, MulticellStatistics_);
+    Load(context, ClusterResourceLimits_);
+    Load(context, AllowChildrenLimitOvercommit_);
 
     // COMPAT(aleksandra-zh)
     if (context.GetVersion() >= EMasterReign::MasterMergeJobs) {

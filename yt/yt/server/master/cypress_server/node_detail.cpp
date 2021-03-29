@@ -502,9 +502,7 @@ void TCompositeNodeBase::TAttributes::Persist(const NCellMaster::TPersistenceCon
     // COMPAT(shakurov)
     if (auto reign = context.GetVersion(); reign < EMasterReign::CorrectMergeBranchSemanticsForAttributes) {
         // COMPAT(akozhikhov)
-        if ((reign >= EMasterReign::MakeProfilingModeAnInheritedAttribute_20_2 && reign < EMasterReign::SubjectAliases) ||
-            reign >= EMasterReign::MakeProfilingModeAnInheritedAttribute_20_3)
-        {
+        if (reign >= EMasterReign::MakeProfilingModeAnInheritedAttribute_20_3) {
             FOR_EACH_INHERITABLE_ATTRIBUTE(LOAD_AS_OPTIONAL);
         } else {
             FOR_EACH_INHERITABLE_ATTRIBUTE_BEFORE_1403(LOAD_AS_OPTIONAL);

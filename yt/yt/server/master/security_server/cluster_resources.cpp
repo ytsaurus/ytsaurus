@@ -114,28 +114,12 @@ void TClusterResources::Save(NCellMaster::TSaveContext& context) const
 void TClusterResources::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
-    // COMPAT(aozeritsky)
-    if (context.GetVersion() < NCellMaster::EMasterReign::FixDenseMapSerialization) {
-        auto mediumCount = Load<int>(context);
-        for (auto i = 0; i < mediumCount; ++i) {
-            auto space = Load<i64>(context);
-            auto mediumIndex = Load<int>(context);
-            if (space != 0) {
-                DiskSpace_[mediumIndex] = space;
-            }
-        }
-    } else {
-        Load(context, DiskSpace_);
-    }
-
+    Load(context, DiskSpace_);
     Load(context, NodeCount);
     Load(context, ChunkCount);
     Load(context, TabletCount);
     Load(context, TabletStaticMemory);
-    // COMPAT(aleksandra-zh)
-    if (context.GetVersion() >= NCellMaster::EMasterReign::MasterMemoryUsageAccounting) {
-        Load(context, MasterMemory);
-    }
+    Load(context, MasterMemory);
 }
 
 void TClusterResources::Save(NCypressServer::TBeginCopyContext& context) const

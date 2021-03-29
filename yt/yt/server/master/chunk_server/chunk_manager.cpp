@@ -2639,29 +2639,18 @@ private:
         ChunkListMap_.LoadKeys(context);
         MediumMap_.LoadKeys(context);
         ChunkViewMap_.LoadKeys(context);
-
-        // COMPAT(ifsmirnov)
-        if (context.GetVersion() >= EMasterReign::DynamicStoreRead) {
-            DynamicStoreMap_.LoadKeys(context);
-        }
+        DynamicStoreMap_.LoadKeys(context);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
         ChunkMap_.LoadValues(context);
-
         ChunkListMap_.LoadValues(context);
         MediumMap_.LoadValues(context);
-
         Load(context, ChunkRequisitionRegistry_);
         Load(context, ChunkListsAwaitingRequisitionTraverse_);
-
         ChunkViewMap_.LoadValues(context);
-
-        // COMPAT(ifsmirnov)
-        if (context.GetVersion() >= EMasterReign::DynamicStoreRead) {
-            DynamicStoreMap_.LoadValues(context);
-        }
+        DynamicStoreMap_.LoadValues(context);
 
         // COMPAT(shakurov)
         NeedFixTrunkNodeInvalidDeltaStatistics_ = context.GetVersion() < EMasterReign::FixTrunkNodeInvalidDeltaStatistics;

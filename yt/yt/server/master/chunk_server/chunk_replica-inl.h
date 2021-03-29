@@ -278,13 +278,7 @@ Y_FORCE_INLINE void TPtrWithIndexes<T>::Load(C& context)
     auto* ptr = Load<T*>(context);
     int replicaIndex = Load<i8>(context);
     int mediumIndex = Load<i8>(context);
-    EChunkReplicaState state;
-    // COMPAT(babenko)
-    if (context.GetVersion() < NCellMaster::EMasterReign::ErasureJournals) {
-        state = EChunkReplicaState::Generic;
-    } else {
-        state = Load<EChunkReplicaState>(context);
-    }
+    auto state = Load<EChunkReplicaState>(context);
     *this = TPtrWithIndexes<T>(ptr, replicaIndex, mediumIndex, state);
 }
 
