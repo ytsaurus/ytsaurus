@@ -31,13 +31,21 @@ public class RemoveNode extends MutatePath<RemoveNode> implements HighLevelReque
         this.force = other.force;
     }
 
-    public RemoveNode setRecursive(boolean f) {
-        this.recursive = f;
+    public boolean isRecursive() {
+        return recursive;
+    }
+
+    public RemoveNode setRecursive(boolean recursive) {
+        this.recursive = recursive;
         return this;
     }
 
-    public RemoveNode setForce(boolean f) {
-        this.force = f;
+    public boolean isForce() {
+        return force;
+    }
+
+    public RemoveNode setForce(boolean force) {
+        this.force = force;
         return this;
     }
 

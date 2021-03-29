@@ -40,14 +40,32 @@ public class LockNode extends MutatePath<LockNode> implements HighLevelRequest<T
         this.mode = mode;
     }
 
+    public LockMode getMode() {
+        return mode;
+    }
+
+    public boolean isWaitable() {
+        return waitable;
+    }
+
     public LockNode setWaitable(boolean waitable) {
         this.waitable = waitable;
         return this;
     }
 
+    @Nullable
+    public String getChildKey() {
+        return childKey;
+    }
+
     public LockNode setChildKey(@Nullable String childKey) {
         this.childKey = childKey;
         return this;
+    }
+
+    @Nullable
+    public String getAttributeKey() {
+        return attributeKey;
     }
 
     public LockNode setAttributeKey(@Nullable String attributeKey) {
