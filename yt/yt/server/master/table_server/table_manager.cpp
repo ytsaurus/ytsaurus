@@ -430,33 +430,13 @@ private:
         {
             using NYT::Persist;
 
-            // COMPAT(savrus)
-            if (context.GetVersion() <= EMasterReign::TruncateJournals ||
-                context.GetVersion() >= EMasterReign::TuneTabletStatisticsUpdate_20_2)
-            {
-                Persist(context, UpdateDataStatistics);
-                Persist(context, UpdateTabletResourceUsage);
-                Persist(context, UpdateModificationTime);
-                Persist(context, UpdateAccessTime);
-                // COMPAT(shakurov)
-                if (context.GetVersion() >= EMasterReign::NativeContentRevision) {
-                    Persist(context, UseNativeContentRevisionCas);
-                }
-            } else {
-                std::optional<TDataStatistics> dataStatistics;
-                std::optional<TClusterResources> tabletResourceUsage;
-                std::optional<TInstant> modificationTime;
-                std::optional<TInstant> accessTime;
-
-                Persist(context, dataStatistics);
-                Persist(context, tabletResourceUsage);
-                Persist(context, modificationTime);
-                Persist(context, accessTime);
-
-                UpdateDataStatistics = dataStatistics.has_value();
-                UpdateTabletResourceUsage = tabletResourceUsage.has_value();
-                UpdateModificationTime = modificationTime.has_value();
-                UpdateAccessTime = accessTime.has_value();
+            Persist(context, UpdateDataStatistics);
+            Persist(context, UpdateTabletResourceUsage);
+            Persist(context, UpdateModificationTime);
+            Persist(context, UpdateAccessTime);
+            // COMPAT(shakurov)
+            if (context.GetVersion() >= EMasterReign::NativeContentRevision) {
+                Persist(context, UseNativeContentRevisionCas);
             }
         }
     };

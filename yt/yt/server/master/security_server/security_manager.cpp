@@ -2270,16 +2270,8 @@ private:
 
     bool MustRecomputeMembershipClosure_ = false;
 
-    // COMPAT(kiselyovp)
-    bool MustInitializeAccountHierarchy_ = false;
-
-    // COMPAT(aleksandra-zh)
-    bool MustInitializeMasterMemoryLimits_ = false;
-
     // COMPAT(aleksandra-zh)
     bool MustInitializeChunkHostMasterMemoryLimits_ = false;
-
-    bool NeedAdjustRootAccountLimits_ = false;
 
     static i64 GetDiskSpaceToCharge(i64 diskSpace, NErasure::ECodec erasureCodec, TReplicationPolicy policy)
     {
@@ -2598,17 +2590,8 @@ private:
         ValidateAccountResourceUsage_ = true;
         RecomputeAccountResourceUsage_ = false;
 
-        // COMPAT(kiselyovp)
-        MustInitializeAccountHierarchy_ = context.GetVersion() < EMasterReign::HierarchicalAccounts;
-
-        // COMPAT(aleksandra-zh)
-        MustInitializeMasterMemoryLimits_ = context.GetVersion() < EMasterReign::InitializeAccountMasterMemoryUsage;
-
         // COMPAT(aleksandra-zh)
         MustInitializeChunkHostMasterMemoryLimits_ = context.GetVersion() < EMasterReign::InitializeAccountChunkHostMasterMemory;
-
-        // COMPAT(aleksandra-zh)
-        NeedAdjustRootAccountLimits_ = context.GetVersion() < EMasterReign::FixRootAccountLimits;
 
         // COMPAT(gritukan)
         if (context.GetVersion() >= EMasterReign::ProxyRoles) {
@@ -2626,13 +2609,10 @@ private:
             // NB: This also provides the necessary data migration for pre-0.18 versions.
             InitializeAccountStatistics(account);
 
-            // COMPAT(kiselyovp)
-            if (MustInitializeAccountHierarchy_) {
-                continue;
-            }
             if (!IsObjectAlive(account)) {
                 continue;
             }
+
             if (!account->GetParent() && account->GetId() != RootAccountId_) {
                 YT_LOG_ALERT("Unattended account found in snapshot (Id: %v)",
                     account->GetId());
@@ -2695,49 +2675,6 @@ private:
 
         InitBuiltins();
 
-        // COMPAT(kiselyovp)
-        if (MustInitializeAccountHierarchy_) {
-            if (ChunkWiseAccountingMigrationAccount_->ClusterResourceLimits().DiskSpace().lookup(NChunkServer::DefaultStoreMediumIndex) >
-                std::numeric_limits<i64>::max() / 4)
-            {
-                auto newResourceLimits = ChunkWiseAccountingMigrationAccount_->ClusterResourceLimits();
-                newResourceLimits.SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, std::numeric_limits<i64>::max() / 4);
-                TrySetResourceLimits(ChunkWiseAccountingMigrationAccount_, newResourceLimits);
-            }
-
-            for (auto [accountId, account] : AccountMap_) {
-                YT_VERIFY(!account->GetParent());
-                if (!IsObjectAlive(account) || account == RootAccount_) {
-                    continue;
-                }
-
-                auto name = account->GetLegacyName();
-                account->SetLegacyName("");
-                RootAccount_->AttachChild(name, account);
-                const auto& objectManager = Bootstrap_->GetObjectManager();
-                objectManager->RefObject(RootAccount_);
-                RegisterAccountName(name, account);
-            }
-        }
-
-        // Leads to overcommit in hierarchical accounts!
-        if (MustInitializeMasterMemoryLimits_) {
-            auto resourceLimits = RootAccount_->ClusterResourceLimits();
-            resourceLimits.MasterMemory = 100_GB;
-            TrySetResourceLimits(RootAccount_, resourceLimits);
-            
-            for (auto [accountId, account] : AccountMap_) {
-                if (!IsObjectAlive(account)) {
-                    continue;
-                }
-
-                auto resourceLimits = account->ClusterResourceLimits();
-                resourceLimits.MasterMemory = 100_GB;
-
-                TrySetResourceLimits(account, resourceLimits);
-            }
-        }
-
         // Leads to overcommit in hierarchical accounts!
         if (MustInitializeChunkHostMasterMemoryLimits_) {
             auto resourceLimits = RootAccount_->ClusterResourceLimits();
@@ -2754,10 +2691,6 @@ private:
 
                 TrySetResourceLimits(account, resourceLimits);
             }
-        }
-
-        if (NeedAdjustRootAccountLimits_) {
-            RootAccount_->ClusterResourceLimits() = TClusterResourceLimits::Infinite();
         }
 
         RecomputeAccountMasterMemoryUsage();

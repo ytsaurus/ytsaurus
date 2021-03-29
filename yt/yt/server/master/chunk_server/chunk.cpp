@@ -192,24 +192,8 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
         Load(context, data->CachedReplicas);
         Load(context, data->LastSeenReplicas);
         Load(context, data->CurrentLastSeenReplicaIndex);
-
-        // COMPAT(babenko)
-        if (context.GetVersion() < NCellMaster::EMasterReign::ErasureJournals && IsJournal()) {
-            for (auto& replica : data->StoredReplicas) {
-                EChunkReplicaState state;
-                constexpr int ActiveChunkReplicaIndex   = 0; // the replica is currently being written
-                constexpr int UnsealedChunkReplicaIndex = 1; // the replica is finished but not sealed yet
-                constexpr int SealedChunkReplicaIndex   = 2; // the replica is finished and sealed
-                switch (replica.GetReplicaIndex()) {
-                    case ActiveChunkReplicaIndex:     state = EChunkReplicaState::Active; break;
-                    case UnsealedChunkReplicaIndex:   state = EChunkReplicaState::Unsealed; break;
-                    case SealedChunkReplicaIndex:     state = EChunkReplicaState::Sealed; break;
-                    default:                          YT_ABORT();
-                }
-                replica = TNodePtrWithIndexes(replica.GetPtr(), GenericChunkReplicaIndex, replica.GetMediumIndex(), state);
-            }
-        }
     }
+
     Load(context, ExportCounter_);
     if (ExportCounter_ > 0) {
         ExportDataList_ = std::make_unique<TChunkExportDataList>();
@@ -218,6 +202,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
             ExportDataList_->begin(), ExportDataList_->end(),
             [] (auto data) { return data.RefCounter != 0; }));
     }
+
     if (IsConfirmed()) {
         MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
     }

@@ -164,28 +164,13 @@ void TClusterResourceLimits::Save(NCellMaster::TSaveContext& context) const
 void TClusterResourceLimits::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
-    // COMPAT(aozeritsky)
-    if (context.GetVersion() < NCellMaster::EMasterReign::FixDenseMapSerialization) {
-        auto mediumCount = Load<int>(context);
-        for (auto i = 0; i < mediumCount; ++i) {
-            auto space = Load<i64>(context);
-            auto mediumIndex = Load<int>(context);
-            if (space != 0) {
-                DiskSpace_[mediumIndex] = space;
-            }
-        }
-    } else {
-        Load(context, DiskSpace_);
-    }
-
+    Load(context, DiskSpace_);
     Load(context, NodeCount);
     Load(context, ChunkCount);
     Load(context, TabletCount);
     Load(context, TabletStaticMemory);
+    Load(context, MasterMemory);
     // COMPAT(aleksandra-zh)
-    if (context.GetVersion() >= NCellMaster::EMasterReign::MasterMemoryUsageAccounting) {
-        Load(context, MasterMemory);
-    }
     if (context.GetVersion() >= NCellMaster::EMasterReign::PerCellPerRoleMasterMemoryLimit) {
         Load(context, ChunkHostMasterMemory);
         Load(context, CellMasterMemoryLimits_);
@@ -442,7 +427,7 @@ TClusterResourceLimits& operator += (TClusterResourceLimits& lhs, const TCluster
         if (it != rhsCellMasterMemoryLimits.end()) {
             lhs.AddMasterMemory(cellTag, it->second);
         } else {
-            lhs.RemoveCellMasterMemoryEntry(cellTag);   
+            lhs.RemoveCellMasterMemoryEntry(cellTag);
         }
     }
 
@@ -476,7 +461,7 @@ TClusterResourceLimits& operator -= (TClusterResourceLimits& lhs, const TCluster
         } else {
             // We are actually subtracting infinity from a finite number.
             // The result does not matter, it does not make any sense anyway.
-            lhs.RemoveCellMasterMemoryEntry(cellTag);   
+            lhs.RemoveCellMasterMemoryEntry(cellTag);
         }
     }
     for (auto [cellTag, masterMemory] : rhs.CellMasterMemoryLimits()) {

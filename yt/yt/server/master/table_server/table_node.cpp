@@ -113,19 +113,11 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, *TabletBalancerConfig);
     Load(context, DynamicTableLocks);
     Load(context, UnconfirmedDynamicTableLockCount);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::DynamicStoreRead) {
-        Load(context, EnableDynamicStoreRead);
-        Load(context, MountedWithEnabledDynamicStoreRead);
-    }
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::AggregateTabletStatistics) {
-        Load(context, TabletStatistics);
-    }
+    Load(context, EnableDynamicStoreRead);
+    Load(context, MountedWithEnabledDynamicStoreRead);
+    Load(context, TabletStatistics);
     // COMPAT(akozhikhov)
-    if ((context.GetVersion() >= EMasterReign::MakeProfilingModeAnInheritedAttribute_20_2 && context.GetVersion() < EMasterReign::SubjectAliases) ||
-        context.GetVersion() >= EMasterReign::MakeProfilingModeAnInheritedAttribute_20_3)
-    {
+    if (context.GetVersion() >= EMasterReign::MakeProfilingModeAnInheritedAttribute_20_3) {
         Load(context, ProfilingMode);
         Load(context, ProfilingTag);
     }
@@ -296,47 +288,6 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     Load(context, UnflushedTimestamp_);
     Load(context, TabletCellBundle_);
     TUniquePtrSerializer<>::Load(context, DynamicTableAttributes_);
-
-    // COMPAT(akozhikhov)
-    if (context.GetVersion() < EMasterReign::MakeProfilingModeAnInheritedAttribute_20_2 && Attributes_)
-    {
-        auto& attributes = Attributes_->Attributes();
-
-        auto processAttribute = [&] (
-            const TString& attributeName,
-            std::function<void(const TYsonString&)> functor)
-        {
-            auto it = attributes.find(attributeName);
-            if (it != attributes.end()) {
-                YT_LOG_DEBUG("Change attribute from custom to builtin (AttributeName: %v, AttributeValue: %v, TableId: %v)",
-                    attributeName,
-                    ConvertToYsonString(it->second, EYsonFormat::Text),
-                    Id_);
-
-                try {
-                    functor(it->second);
-                } catch (const std::exception& ex) {
-                    YT_LOG_ALERT(ex, "Exception was raised while changing attribute from custom to builtin (AttributeName: %v, AttributeValue: %v, TableId: %v)",
-                        attributeName,
-                        ConvertToYsonString(it->second, EYsonFormat::Text),
-                        Id_);
-                }
-
-                YT_VERIFY(Attributes_->Remove(attributeName));
-            }
-        };
-
-        processAttribute(EInternedAttributeKey::ProfilingMode.Unintern(), [&] (const TYsonString& value) {
-            SetProfilingMode(ConvertTo<NTabletNode::EDynamicTableProfilingMode>(value));
-        });
-        processAttribute(EInternedAttributeKey::ProfilingTag.Unintern(), [&] (const TYsonString& value) {
-            SetProfilingTag(ConvertTo<TString>(value));
-        });
-
-        if (attributes.empty()) {
-            Attributes_.reset();
-        }
-    }
 }
 
 void TTableNode::LoadTableSchema(NCellMaster::TLoadContext& context)

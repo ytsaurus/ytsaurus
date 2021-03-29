@@ -572,10 +572,7 @@ void TTablet::Load(TLoadContext& context)
     Load(context, ReplicationErrorCount_);
     Load(context, ExpectedState_);
     Load(context, UnconfirmedDynamicTableLocks_);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::MountHint) {
-        Load(context, EdenStoreIds_);
-    }
+    Load(context, EdenStoreIds_);
 }
 
 void TTablet::CopyFrom(const TTablet& other)

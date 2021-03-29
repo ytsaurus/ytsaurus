@@ -76,12 +76,8 @@ void TCellBase::TPeer::Persist(const NCellMaster::TPersistenceContext& context)
     Persist(context, Descriptor);
     Persist(context, Node);
     Persist(context, LastSeenTime);
-    if (context.GetVersion() >= EMasterReign::CellPeerRevocationReason) {
-        Persist(context, LastRevocationReason);
-    }
-    if (context.GetVersion() >= EMasterReign::CellPeerLastSeenState) {
-        Persist(context, LastSeenState);
-    }
+    Persist(context, LastRevocationReason);
+    Persist(context, LastSeenState);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -126,14 +122,7 @@ void TCellBase::Load(TLoadContext& context)
     Load(context, CellLifeStage_);
     Load(context, GossipStatus_);
     Load(context, PeerCount_);
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= EMasterReign::ExtraPeerDroppingDelay) {
-        Load(context, LastLeaderChangeTime_);
-    }
-    // COMPAT(gritukan)
-    if (context.GetVersion() < EMasterReign::CellPeerLastSeenState) {
-        LastLeaderChangeTime_ = TInstant::Zero();
-    }
+    Load(context, LastLeaderChangeTime_);
 }
 
 TPeerId TCellBase::FindPeerId(const TString& address) const

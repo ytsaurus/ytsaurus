@@ -38,14 +38,7 @@ void TNetworkProject::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, Name_);
     Load(context, ProjectId_);
-
-    // COMPAT(gritukan)
-    using NCellMaster::EMasterReign;
-    if (context.GetVersion() >= EMasterReign::FixNetworkProjectSerialization ||
-        context.GetVersion() < EMasterReign::TruncateJournals)
-    {
-        Load(context, Acd_);
-    }
+    Load(context, Acd_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

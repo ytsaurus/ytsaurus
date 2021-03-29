@@ -32,56 +32,6 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign);
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EMasterReign,
-    // 20.2
-    ((TruncateJournals)                                             (1200))  // aleksandra-zh
-    ((PrevRandomSeed)                                               (1201))  // aleksandra-zh
-    ((FixDenseMapSerialization)                                     (1202))  // aleksandra-zh
-    ((YT_12145_FixReplicatedTablesCopy)                             (1203))  // babenko
-    ((HierarchicalAccounts)                                         (1204))  // kiselyovp
-    ((FixDoBranch)                                                  (1205))  // aleksandra-zh
-    ((MasterMemoryUsageAccounting)                                  (1206))  // aleksandra-zh
-    ((InitializeAccountMasterMemoryUsage)                           (1207))  // aleksandra-zh
-    ((YT_11279_UnmountForceOnlySuperuser)                           (1208))  // lexolordan
-    ((FixNetworkProjectSerialization)                               (1209))  // gritukan
-    ((DisableMasterMemoryUsageAccountOvercommitValidation)          (1300))  // aleksandra-zh
-    ((FasterTError)                                                 (1301))  // babenko
-    ((FixRootAccountLimits)                                         (1302))  // aleksandra-zh
-    ((SwitchToAlterTableReplica)                                    (1303))  // babenko
-    ((DynamicTimestampProviderDiscovery)                            (1304))  // aleksandra-zh
-    ((YT_12365_FixCalculatingStaticMemoryInMounting)                (1305))  // lexolordan
-    ((IgnoreTypeMismatch)                                           (1306))  // gritukan
-    ((FixTErrorSerialization)                                       (1307))  // ifsmirnov
-    ((DynamicTabletSlotCount)                                       (1308))  // gritukan
-    ((DynamicStoreRead)                                             (1309))  // ifsmirnov
-    ((BeginUploadConcatenateFixes)                                  (1310))  // shakurov
-    ((CellPeerRevocationReason)                                     (1311))  // babenko
-    ((ErasureJournals)                                              (1312))  // babenko
-    ((CellReconfigurationFixes)                                     (1313))  // akozhikhov
-    ((InternalizeAbcSchedulerPoolAttribute)                         (1314))  // mrkastep
-    ((AggregateTabletStatistics)                                    (1315))  // ifsmirnov
-    ((TuneTabletStatisticsUpdate_20_2)                              (1316))  // savrus
-    ((ApproximateColumnarStatistics)                                (1317))  // gritukan
-    ((BetterClusterResourcesDeserialization)                        (1318))  // kiselyovp
-    ((TransferQuota)                                                (1319))  // kiselyovp
-    ((RenameTransferQuota)                                          (1320))  // kiselyovp
-    ((YT_13015_CorrectSrcTxForCrossShardCopy)                       (1321))  // shakurov
-    ((AclCheckWorkaroundForMutatingRequests_20_2)                   (1322))  // shakurov
-    ((MountHint)                                                    (1323))  // ifsmirnov
-    ((YTINCIDENTS_56_SyncOnPrepare)                                 (1324))  // babenko
-    ((MakeProfilingModeAnInheritedAttribute_20_2)                   (1325))  // akozhikhov
-    ((FixInheritanceOfProfilingModeForStaticTables)                 (1326))  // akozhikhov
-    ((AddSnapshotErasureCodec)                                      (1327))  // babenko
-    ((AllowProfilingModeModificationUnderTx)                        (1328))  // akozhikhov
-    ((ForbidReshardWhenTableIsLockedByTransaction)                  (1329))  // savrus
-    ((FixReshardNonEmptyReplicatedTable)                            (1330))  // ifsmirnov
-    ((DisallowSettingBundleOfMountedTables)                         (1331))  // ifsmirnov
-    ((NonAliveTxInCloneForeignNode)                                 (1332))  // babenko
-    ((ExtraPeerDroppingDelay)                                       (1333))  // gritukan
-    ((CellPeerLastSeenState)                                        (1334))  // gritukan
-    ((ReservedAttributes)                                           (1335))  // ifsmirnov
-    ((RecognizeSchedulerPoolCustomAttributesOnLoad)                 (1336))  // renadeen
-    ((OptOutTabletDynamicMemoryLimit)                               (1337))  // ifsmirnov
-    ((EnableForcedRotationBackingMemoryAccounting_20_2)             (1338))  // babenko
     // 20.3
     ((SubjectAliases)                                               (1400))  // s-v-m
     ((OpaquePortalEntrances)                                        (1401))  // shakurov
