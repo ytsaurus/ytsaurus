@@ -294,11 +294,11 @@ private:
         }
     }
 
-    void RecomputePoolAncestryIntegralResources(TSchedulerPool* schedulerPool, const std::function<TResourceLimitsConfig*(TSchedulerPool*)>& resourcesGetter)
+    void RecomputePoolAncestryIntegralResources(TSchedulerPool* schedulerPool, const std::function<TJobResourcesConfig*(TSchedulerPool*)>& resourcesGetter)
     {
-        New<TResourceLimitsConfig>()->ForEachResource(
-            [&] (auto TResourceLimitsConfig::* resourceDataMember, EJobResourceType resourceType) {
-                using TResource = typename std::remove_reference_t<decltype(std::declval<TResourceLimitsConfig>().*resourceDataMember)>::value_type;
+        New<TJobResourcesConfig>()->ForEachResource(
+            [&] (auto TJobResourcesConfig::* resourceDataMember, EJobResourceType resourceType) {
+                using TResource = typename std::remove_reference_t<decltype(std::declval<TJobResourcesConfig>().*resourceDataMember)>::value_type;
                 TResource value = (resourcesGetter(schedulerPool)->*resourceDataMember).value_or(0);
                 if (value > 0) {
                     auto* current = schedulerPool->GetParent();

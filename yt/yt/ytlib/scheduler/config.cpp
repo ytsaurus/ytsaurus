@@ -1633,7 +1633,7 @@ TVanillaOperationSpec::TVanillaOperationSpec()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TResourceLimitsConfig::TResourceLimitsConfig()
+TJobResourcesConfig::TJobResourcesConfig()
 {
     RegisterParameter("user_slots", UserSlots)
         .Default()

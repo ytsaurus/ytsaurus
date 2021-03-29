@@ -2,10 +2,23 @@
 
 #include "experiments.h"
 
+#include <yt/yt/ytlib/scheduler/config.h>
+
 #include <yt/yt/server/lib/node_tracker_server/name_helpers.h>
 #include <yt/yt/server/scheduler/private.h>
 
 namespace NYT::NScheduler {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobResourcesConfigPtr GetDefaultMinSpareJobResourcesOnNode()
+{
+    auto config = New<TJobResourcesConfig>();
+    config->UserSlots = 1;
+    config->Cpu = 1;
+    config->Memory = 256_MB;
+    return config;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -725,6 +738,9 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("experiments", Experiments)
         .Default();
+
+    RegisterParameter("min_spare_job_resources_on_node", MinSpareJobResourcesOnNode)
+        .Default(GetDefaultMinSpareJobResourcesOnNode());
 
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;

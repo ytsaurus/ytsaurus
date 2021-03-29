@@ -19,12 +19,6 @@ using std::round;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Nodes having less free memory are considered fully occupied,
-//! thus no scheduling attempts will be made.
-static const i64 LowWatermarkMemorySize = 256_MB;
-
-////////////////////////////////////////////////////////////////////////////////
-
 i64 TExtendedJobResources::GetMemory() const
 {
     return JobProxyMemory_ + UserJobMemory_ + FootprintMemory_;
@@ -541,23 +535,6 @@ TJobResourcesWithQuota Min(const TJobResourcesWithQuota& lhs, const TJobResource
     result.SetDiskQuota(Min(lhs.GetDiskQuota(), rhs.GetDiskQuota()));
     return result;
 }
-
-TJobResources GetMinSpareResources()
-{
-    TJobResources result;
-    result.SetUserSlots(1);
-    result.SetCpu(1);
-    result.SetGpu(0);
-    result.SetMemory(LowWatermarkMemorySize);
-    return result;
-}
-
-const TJobResources& MinSpareNodeResources()
-{
-    static auto result = GetMinSpareResources();
-    return result;
-}
-
 
 bool CanSatisfyDiskQuotaRequests(
     std::vector<i64> availableDiskSpacePerLocation,

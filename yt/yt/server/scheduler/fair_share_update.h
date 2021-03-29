@@ -3,7 +3,7 @@
 #include <yt/yt/server/scheduler/resource_vector.h>
 #include <yt/yt/server/scheduler/resource_volume.h>
 
-// Used for TResourceLimitsConfig.
+// Used for TJobResourcesConfig.
 #include <yt/yt/ytlib/scheduler/config.h>
 
 #include <yt/yt/ytlib/scheduler/job_resources.h>
@@ -17,8 +17,8 @@ using NScheduler::TResourceVector;
 using NScheduler::TResourceVolume;
 using NScheduler::EJobResourceType;
 using NScheduler::EIntegralGuaranteeType;
-using NScheduler::TResourceLimitsConfig;
-using NScheduler::TResourceLimitsConfigPtr;
+using NScheduler::TJobResourcesConfig;
+using NScheduler::TJobResourcesConfigPtr;
 using NScheduler::ESchedulingMode;
 using NScheduler::ResourceCount;
 using NScheduler::RatioComputationPrecision;
@@ -99,7 +99,7 @@ struct TSchedulableAttributes
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobResources ToJobResources(const TResourceLimitsConfigPtr& config, TJobResources defaultValue);
+TJobResources ToJobResources(const TJobResourcesConfigPtr& config, TJobResources defaultValue);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,7 +112,7 @@ public:
     // New method - should incapsulate ResourceLimits_ calculation logic and BestAllocation logic for operations.
     virtual const TJobResources& GetResourceLimits() const = 0;
 
-    virtual TResourceLimitsConfigPtr GetStrongGuaranteeResourcesConfig() const = 0;
+    virtual TJobResourcesConfigPtr GetStrongGuaranteeResourcesConfig() const = 0;
     virtual double GetWeight() const = 0;
 
     virtual TSchedulableAttributes& Attributes() = 0;

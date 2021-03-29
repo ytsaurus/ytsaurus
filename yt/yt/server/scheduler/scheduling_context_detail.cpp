@@ -1,4 +1,5 @@
 #include "scheduling_context_detail.h"
+#include "fair_share_update.h"
 #include "exec_node.h"
 #include "job.h"
 #include "private.h"
@@ -17,6 +18,7 @@ namespace NYT::NScheduler {
 
 using namespace NObjectClient;
 using namespace NControllerAgent;
+using NFairShare::ToJobResources;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,6 +32,7 @@ TSchedulingContextBase::TSchedulingContextBase(
     , ResourceUsage_(node->GetResourceUsage())
     , ResourceLimits_(node->GetResourceLimits())
     , DiskResources_(node->GetDiskResources())
+    , MinSpareJobResources_(ToJobResources(config->MinSpareJobResourcesOnNode, TJobResources()))
     , RunningJobs_(runningJobs)
     , Config_(std::move(config))
     , Node_(std::move(node))
@@ -61,7 +64,7 @@ bool TSchedulingContextBase::CanStartJob(const TJobResourcesWithQuota& jobResour
 
 bool TSchedulingContextBase::CanStartMoreJobs() const
 {
-    if (!CanSatisfyResourceRequest(MinSpareNodeResources())) {
+    if (!CanSatisfyResourceRequest(MinSpareJobResources_)) {
         return false;
     }
 

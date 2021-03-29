@@ -219,8 +219,6 @@ TJobResources Max(const TJobResources& lhs, const TJobResources& rhs);
 TJobResources Min(const TJobResources& lhs, const TJobResources& rhs);
 TJobResourcesWithQuota Min(const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs);
 
-const TJobResources& MinSpareNodeResources();
-
 bool CanSatisfyDiskQuotaRequest(
     const NNodeTrackerClient::NProto::TDiskResources& diskResources,
     TDiskQuota diskQuotaRequest);
