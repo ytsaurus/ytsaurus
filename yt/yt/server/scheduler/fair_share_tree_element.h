@@ -359,7 +359,7 @@ public:
     virtual const TSchedulableAttributes& Attributes() const override;
 
     virtual TElement* GetParentElement() const override;
-    virtual TResourceLimitsConfigPtr GetStrongGuaranteeResourcesConfig() const override;
+    virtual TJobResourcesConfigPtr GetStrongGuaranteeResourcesConfig() const override;
 
     TInstant GetStartTime() const;
 
@@ -740,7 +740,7 @@ public:
 
     //! Fair share update methods that implements NFairShare::TPool interface.
     virtual bool AreDetailedLogsEnabled() const override;
-    virtual TResourceLimitsConfigPtr GetStrongGuaranteeResourcesConfig() const override;
+    virtual TJobResourcesConfigPtr GetStrongGuaranteeResourcesConfig() const override;
 
     virtual double GetSpecifiedBurstRatio() const override;
     virtual double GetSpecifiedResourceFlowRatio() const override;
@@ -1027,7 +1027,7 @@ public:
 
     void InitOrUpdateSchedulingSegment(ESegmentedSchedulingMode mode);
 
-    virtual TResourceLimitsConfigPtr GetStrongGuaranteeResourcesConfig() const override;
+    virtual TJobResourcesConfigPtr GetStrongGuaranteeResourcesConfig() const override;
     virtual TResourceVector GetMaxShare() const override;
 
     //! Trunk node interface.

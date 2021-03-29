@@ -86,7 +86,7 @@ DEFINE_REFCOUNTED_TYPE(TSupportsSchedulingTagsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TResourceLimitsConfig
+class TJobResourcesConfig
     : public NYTree::TYsonSerializable
 {
 public:
@@ -102,26 +102,26 @@ public:
         // NB(renadeen): must be in sync with the lines below.
         YT_VERIFY(GetParameterCount() == 5);
 
-        processResource(&TResourceLimitsConfig::UserSlots, EJobResourceType::UserSlots);
-        processResource(&TResourceLimitsConfig::Cpu, EJobResourceType::Cpu);
-        processResource(&TResourceLimitsConfig::Network, EJobResourceType::Network);
-        processResource(&TResourceLimitsConfig::Memory, EJobResourceType::Memory);
-        processResource(&TResourceLimitsConfig::Gpu, EJobResourceType::Gpu);
+        processResource(&TJobResourcesConfig::UserSlots, EJobResourceType::UserSlots);
+        processResource(&TJobResourcesConfig::Cpu, EJobResourceType::Cpu);
+        processResource(&TJobResourcesConfig::Network, EJobResourceType::Network);
+        processResource(&TJobResourcesConfig::Memory, EJobResourceType::Memory);
+        processResource(&TJobResourcesConfig::Gpu, EJobResourceType::Gpu);
     }
 
     bool IsNonTrivial()
     {
         bool isNonTrivial = false;
-        ForEachResource([&, this] (auto TResourceLimitsConfig::* resourceDataMember, EJobResourceType /* resourceType */) {
+        ForEachResource([&, this] (auto TJobResourcesConfig::* resourceDataMember, EJobResourceType /* resourceType */) {
             isNonTrivial |= (this->*resourceDataMember).has_value();
         });
         return isNonTrivial;
     }
 
-    TResourceLimitsConfig();
+    TJobResourcesConfig();
 };
 
-DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
+DEFINE_REFCOUNTED_TYPE(TJobResourcesConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -133,11 +133,12 @@ public:
 
     // Specifies resource limits in terms of a share of all cluster resources.
     std::optional<double> MaxShareRatio;
+
     // Specifies resource limits in absolute values.
-    TResourceLimitsConfigPtr ResourceLimits;
+    TJobResourcesConfigPtr ResourceLimits;
 
     // Specifies guaranteed resources in absolute values.
-    TResourceLimitsConfigPtr StrongGuaranteeResources;
+    TJobResourcesConfigPtr StrongGuaranteeResources;
 
     // The following settings override scheduler configuration.
     std::optional<TDuration> FairSharePreemptionTimeout;
@@ -175,7 +176,7 @@ public:
     std::optional<int> MaxRunningOperationCount;
     std::optional<int> MaxOperationCount;
 
-    TResourceLimitsConfigPtr ResourceLimits;
+    TJobResourcesConfigPtr ResourceLimits;
 
     TEphemeralSubpoolConfig();
 };
@@ -213,9 +214,9 @@ class TPoolIntegralGuaranteesConfig
 public:
     EIntegralGuaranteeType GuaranteeType;
 
-    TResourceLimitsConfigPtr ResourceFlow;
+    TJobResourcesConfigPtr ResourceFlow;
 
-    TResourceLimitsConfigPtr BurstGuaranteeResources;
+    TJobResourcesConfigPtr BurstGuaranteeResources;
 
     std::optional<double> RelaxedShareMultiplierLimit;
 
@@ -1484,7 +1485,7 @@ class TOperationFairShareTreeRuntimeParameters
 public:
     std::optional<double> Weight;
     TPoolName Pool;
-    TResourceLimitsConfigPtr ResourceLimits;
+    TJobResourcesConfigPtr ResourceLimits;
 
     // Can only be enabled by an administrator.
     bool EnableDetailedLogs;
@@ -1525,7 +1526,7 @@ class TOperationFairShareTreeRuntimeParametersUpdate
 public:
     std::optional<double> Weight;
     std::optional<TPoolName> Pool;
-    TResourceLimitsConfigPtr ResourceLimits;
+    TJobResourcesConfigPtr ResourceLimits;
     // Can only be set by an administrator.
     std::optional<bool> EnableDetailedLogs;
 

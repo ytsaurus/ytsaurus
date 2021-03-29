@@ -52,7 +52,7 @@ void TSchedulableAttributes::SetFairShare(const TResourceVector& fairShare)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobResources ToJobResources(const TResourceLimitsConfigPtr& config, TJobResources defaultValue)
+TJobResources ToJobResources(const TJobResourcesConfigPtr& config, TJobResources defaultValue)
 {
     if (config->UserSlots) {
         defaultValue.SetUserSlots(*config->UserSlots);
@@ -268,7 +268,7 @@ void TCompositeElement::DetermineEffectiveStrongGuaranteeResources(TFairShareUpd
 
         auto residualGuaranteeResources = Max(effectiveStrongGuaranteeResources - totalExplicitChildrenGuaranteeResources, TJobResources{});
         auto totalImplicitChildrenGuaranteeResources = totalEffectiveChildrenGuaranteeResources - totalExplicitChildrenGuaranteeResources;
-        auto adjustImplicitGuaranteesForResource = [&] (EJobResourceType resourceType, auto TResourceLimitsConfig::* resourceDataMember) {
+        auto adjustImplicitGuaranteesForResource = [&] (EJobResourceType resourceType, auto TJobResourcesConfig::* resourceDataMember) {
             if (resourceType == mainResource) {
                 return;
             }
@@ -292,7 +292,7 @@ void TCompositeElement::DetermineEffectiveStrongGuaranteeResources(TFairShareUpd
         };
 
         #define XX(name, Name) \
-            adjustImplicitGuaranteesForResource(EJobResourceType::Name, &TResourceLimitsConfig::Name);
+            adjustImplicitGuaranteesForResource(EJobResourceType::Name, &TJobResourcesConfig::Name);
         ITERATE_JOB_RESOURCES(XX)
         #undef XX
     }

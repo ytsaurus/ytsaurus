@@ -68,8 +68,8 @@ void TSchedulerPool::ValidateChildrenCompatibility()
     }
 
     // TODO(renadeen): move children validation to pool config?
-    FullConfig()->StrongGuaranteeResources->ForEachResource([this] (auto TResourceLimitsConfig::* resourceDataMember, EJobResourceType resourceType) {
-        using TResource = typename std::remove_reference_t<decltype(std::declval<TResourceLimitsConfig>().*resourceDataMember)>::value_type;
+    FullConfig()->StrongGuaranteeResources->ForEachResource([this] (auto TJobResourcesConfig::* resourceDataMember, EJobResourceType resourceType) {
+        using TResource = typename std::remove_reference_t<decltype(std::declval<TJobResourcesConfig>().*resourceDataMember)>::value_type;
 
         ValidateChildrenGuaranteeSum<TResource>("Strong guarantee", resourceType, [&] (const TPoolConfigPtr& config) -> std::optional<TResource> {
             return config->StrongGuaranteeResources.Get()->*resourceDataMember;
@@ -118,7 +118,7 @@ void TSchedulerPool::DoValidateStrongGuarantees(const TFairShareStrategyTreeConf
 {
     bool hasMainResourceGuarantee = false;
     bool hasAnyResourceGuarantee = false;
-    FullConfig()->StrongGuaranteeResources->ForEachResource([&] (auto TResourceLimitsConfig::* resourceDataMember, EJobResourceType resourceType) {
+    FullConfig()->StrongGuaranteeResources->ForEachResource([&] (auto TJobResourcesConfig::* resourceDataMember, EJobResourceType resourceType) {
         bool hasResourse = (FullConfig()->StrongGuaranteeResources.Get()->*resourceDataMember).has_value();
         hasAnyResourceGuarantee |= hasResourse;
         if (resourceType == poolTreeConfig->MainResource) {

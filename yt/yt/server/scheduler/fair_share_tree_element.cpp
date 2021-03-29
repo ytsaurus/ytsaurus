@@ -31,36 +31,11 @@ using namespace NProfiling;
 using namespace NControllerAgent;
 
 using NProfiling::CpuDurationToDuration;
+using NFairShare::ToJobResources;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const TString InvalidCustomProfilingTag("invalid");
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-TJobResources ToJobResources(const TResourceLimitsConfigPtr& config, TJobResources defaultValue)
-{
-    if (config->UserSlots) {
-        defaultValue.SetUserSlots(*config->UserSlots);
-    }
-    if (config->Cpu) {
-        defaultValue.SetCpu(*config->Cpu);
-    }
-    if (config->Network) {
-        defaultValue.SetNetwork(*config->Network);
-    }
-    if (config->Memory) {
-        defaultValue.SetMemory(*config->Memory);
-    }
-    if (config->Gpu) {
-        defaultValue.SetGpu(*config->Gpu);
-    }
-    return defaultValue;
-}
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -460,7 +435,7 @@ const TJobResources& TSchedulerElement::GetResourceLimits() const
     return ResourceLimits_;
 }
 
-TResourceLimitsConfigPtr TSchedulerElement::GetStrongGuaranteeResourcesConfig() const
+TJobResourcesConfigPtr TSchedulerElement::GetStrongGuaranteeResourcesConfig() const
 {
     return nullptr;
 }
@@ -1584,7 +1559,7 @@ std::optional<double> TSchedulerPoolElement::GetSpecifiedWeight() const
     return Config_->Weight;
 }
 
-TResourceLimitsConfigPtr TSchedulerPoolElement::GetStrongGuaranteeResourcesConfig() const
+TJobResourcesConfigPtr TSchedulerPoolElement::GetStrongGuaranteeResourcesConfig() const
 {
     return Config_->StrongGuaranteeResources;
 }
@@ -2801,7 +2776,7 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
             FormatResources(context->SchedulingContext()->ResourceUsageDiscount()),
             FormatResources(AggregatedMinNeededJobResources_),
             MakeFormattableView(
-                Controller_->GetDetailedMinNeededJobResources(),
+                DetailedMinNeededJobResources_,
                 [&] (TStringBuilderBase* builder, const TJobResourcesWithQuota& resources) {
                     builder->AppendFormat("%v",
                         Host_->FormatResources(resources));
@@ -2931,7 +2906,7 @@ std::optional<double> TSchedulerOperationElement::GetSpecifiedWeight() const
     return RuntimeParameters_->Weight;
 }
 
-TResourceLimitsConfigPtr TSchedulerOperationElement::GetStrongGuaranteeResourcesConfig() const
+TJobResourcesConfigPtr TSchedulerOperationElement::GetStrongGuaranteeResourcesConfig() const
 {
     return Spec_->StrongGuaranteeResources;
 }
