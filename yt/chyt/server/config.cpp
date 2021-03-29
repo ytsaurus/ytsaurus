@@ -380,6 +380,12 @@ TClickHouseServerBootstrapConfig::TClickHouseServerBootstrapConfig()
     RegisterParameter("memory", Memory)
         .Default();
 
+    RegisterPreprocessor([&] {
+        Jaeger->ServiceName = "clickhouse_server";
+        Jaeger->CollectorChannelConfig = New<NRpc::NGrpc::TChannelConfig>();
+        Jaeger->CollectorChannelConfig->Address = "yt.c.jaeger.yandex-team.ru:14250";
+    });
+
     RegisterPostprocessor([&] {
         if (CpuLimit) {
             Yt->CpuLimit = CpuLimit;
