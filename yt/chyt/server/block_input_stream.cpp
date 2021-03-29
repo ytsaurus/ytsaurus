@@ -225,9 +225,11 @@ void TBlockInputStream::readSuffixImpl()
 
 DB::Block TBlockInputStream::readImpl()
 {
-    std::optional<TCurrentTraceContextGuard> guard;
+    TCurrentTraceContextGuard guard(TraceContext_);
+    
+    TNullTraceContextGuard nullGuard;
     if (Settings_->EnableReaderTracing) {
-        guard.emplace(TraceContext_);
+        nullGuard.Release();
     }
 
     IdleTimer_.Stop();
@@ -375,9 +377,11 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
         traceContext,
         "ClickHouseYt.BlockInputStream");
 
-    std::optional<NTracing::TCurrentTraceContextGuard> guard;
+    TCurrentTraceContextGuard guard(blockInputStreamTraceContext);
+    // Readers capture context implicitly, so create NullTraceContextGuard if tracing is disabled.
+    NTracing::TNullTraceContextGuard nullGuard;
     if (storageContext->Settings->EnableReaderTracing) {
-        guard.emplace(blockInputStreamTraceContext);
+        nullGuard.Release();
     }
 
     ISchemalessMultiChunkReaderPtr reader;
