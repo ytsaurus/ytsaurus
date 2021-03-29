@@ -1583,6 +1583,7 @@ std::vector<TChunkStripePtr> TTask::BuildChunkStripes(
         inputChunk->SetTableRowIndex(currentTableRowIndex);
         currentTableRowIndex += inputChunk->GetRowCount();
         auto chunkSlice = CreateInputChunkSlice(std::move(inputChunk));
+        chunkSlice->SetSliceIndex(index);
         auto dataSlice = CreateUnversionedInputDataSlice(std::move(chunkSlice));
         dataSlice->TransformToNewKeyless();
         // NB(max42): This heavily relies on the property of intermediate data being deterministic

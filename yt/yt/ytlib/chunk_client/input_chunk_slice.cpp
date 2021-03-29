@@ -309,7 +309,7 @@ TInputChunkSlice::TInputChunkSlice(
 
 TInputChunkSlice::TInputChunkSlice(const TInputChunkSlice& inputSlice)
     : InputChunk_(inputSlice.GetInputChunk())
-    , ChunkSliceIndex_(inputSlice.GetChunkSliceIndex())
+    , SliceIndex_(inputSlice.GetSliceIndex())
     , IsLegacy(inputSlice.IsLegacy)
     , PartIndex_(inputSlice.GetPartIndex())
     , SizeOverridden_(inputSlice.GetSizeOverridden())
@@ -332,7 +332,7 @@ TInputChunkSlice::TInputChunkSlice(
     : InputChunk_(inputSlice.GetInputChunk())
     , LegacyLowerLimit_(inputSlice.LegacyLowerLimit())
     , LegacyUpperLimit_(inputSlice.LegacyUpperLimit())
-    , ChunkSliceIndex_(inputSlice.GetChunkSliceIndex())
+    , SliceIndex_(inputSlice.GetSliceIndex())
     , IsLegacy(inputSlice.IsLegacy)
     , PartIndex_(inputSlice.GetPartIndex())
     , SizeOverridden_(inputSlice.GetSizeOverridden())
@@ -357,7 +357,7 @@ TInputChunkSlice::TInputChunkSlice(
     : InputChunk_(inputSlice.GetInputChunk())
     , LowerLimit_(inputSlice.LowerLimit())
     , UpperLimit_(inputSlice.UpperLimit())
-    , ChunkSliceIndex_(inputSlice.GetChunkSliceIndex())
+    , SliceIndex_(inputSlice.GetSliceIndex())
     , IsLegacy(false)
     , PartIndex_(inputSlice.GetPartIndex())
     , SizeOverridden_(inputSlice.GetSizeOverridden())
@@ -380,7 +380,7 @@ TInputChunkSlice::TInputChunkSlice(
     , LegacyUpperLimit_(chunkSlice.LegacyUpperLimit())
     , LowerLimit_(chunkSlice.LowerLimit())
     , UpperLimit_(chunkSlice.UpperLimit())
-    , ChunkSliceIndex_(chunkSlice.GetChunkSliceIndex())
+    , SliceIndex_(chunkSlice.GetSliceIndex())
     , IsLegacy(chunkSlice.IsLegacy)
 {
     if (IsLegacy) {
@@ -447,7 +447,7 @@ TInputChunkSlice::TInputChunkSlice(
     : InputChunk_(chunkSlice.GetInputChunk())
     , LegacyLowerLimit_(chunkSlice.LegacyLowerLimit())
     , LegacyUpperLimit_(chunkSlice.LegacyUpperLimit())
-    , ChunkSliceIndex_(chunkSlice.GetChunkSliceIndex())
+    , SliceIndex_(chunkSlice.GetSliceIndex())
     , IsLegacy(chunkSlice.IsLegacy)
 {
     YT_VERIFY(chunkSlice.IsLegacy);
@@ -472,7 +472,7 @@ TInputChunkSlice::TInputChunkSlice(
     : InputChunk_(chunkSlice.GetInputChunk())
     , LowerLimit_(chunkSlice.LowerLimit())
     , UpperLimit_(chunkSlice.UpperLimit())
-    , ChunkSliceIndex_(chunkSlice.GetChunkSliceIndex())
+    , SliceIndex_(chunkSlice.GetSliceIndex())
     , IsLegacy(chunkSlice.IsLegacy)
 {
     YT_VERIFY(!chunkSlice.IsLegacy);
@@ -718,7 +718,7 @@ void TInputChunkSlice::Persist(const TPersistenceContext& context)
     Persist(context, SizeOverridden_);
     Persist(context, RowCount_);
     Persist(context, DataWeight_);
-    Persist(context, ChunkSliceIndex_);
+    Persist(context, SliceIndex_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

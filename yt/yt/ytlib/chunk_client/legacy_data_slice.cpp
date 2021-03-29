@@ -248,11 +248,11 @@ void TLegacyDataSlice::TransformToNew(
     }
 }
 
-std::optional<int> TLegacyDataSlice::GetChunkSliceIndex() const
+int TLegacyDataSlice::GetSliceIndex() const
 {
     return Type == EDataSourceType::UnversionedTable
-        ? std::make_optional(ChunkSlices[0]->GetChunkSliceIndex())
-        : std::nullopt;
+        ? ChunkSlices[0]->GetSliceIndex()
+        : 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -660,6 +660,19 @@ std::vector<TLegacyDataSlicePtr> CombineVersionedChunkSlices(const std::vector<T
     }
 
     return dataSlices;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString GetDataSliceDebugString(const TLegacyDataSlicePtr& dataSlice)
+{
+    return Format("{DS: %v.%v.%v, L: %v:%v, DW: %v}",
+        dataSlice->InputStreamIndex,
+        dataSlice->Tag,
+        dataSlice->GetSliceIndex(),
+        dataSlice->LowerLimit(),
+        dataSlice->UpperLimit(),
+        dataSlice->GetDataWeight());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

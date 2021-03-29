@@ -326,7 +326,7 @@ private:
                     chunkSlice = New<TInputChunkSlice>(*originalChunkSlice, sliceRequest.Comparator, RowBuffer_, protoChunkSlice, keys, keyBoundPrefixes);
                     InferLimitsFromBoundaryKeys(chunkSlice);
                 }
-                chunkSlice->SetChunkSliceIndex(chunkSliceIndex++);
+                chunkSlice->SetSliceIndex(chunkSliceIndex++);
                 SlicesByChunkIndex_[index].push_back(chunkSlice);
                 SliceCount_++;
             }

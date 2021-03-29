@@ -20,6 +20,8 @@
 #include <yt/yt/core/misc/blob_output.h>
 #include <yt/yt/core/misc/phoenix.h>
 
+#include <library/cpp/iterator/functools.h>
+
 #include <util/generic/cast.h>
 #include <util/generic/size_literals.h>
 
@@ -325,9 +327,9 @@ protected:
         const auto& inputTable = InputTables_[tableIndex];
         if (!inputTable.IsVersioned()) {
             if (inputTable.IsForeign()) {
-                CreatedUnversionedForeignDataSliceSet_.insert(dataSlice);
+                CreatedUnversionedForeignDataSlices_.push_back(dataSlice);
             } else {
-                CreatedUnversionedPrimaryDataSliceSet_.insert(dataSlice);
+                CreatedUnversionedPrimaryDataSlices_.push_back(dataSlice);
             }
         }
 
@@ -361,8 +363,9 @@ protected:
     IChunkPoolInput::TCookie AddMultiChunkStripe(std::vector<TInputChunkPtr> chunks)
     {
         std::vector<TLegacyDataSlicePtr> dataSlices;
-        for (const auto& chunk : chunks) {
-            dataSlices.emplace_back(CreateDataSlice(chunk));
+        for (const auto& [index, chunk] : Enumerate(chunks)) {
+            auto& dataSlice = dataSlices.emplace_back(CreateDataSlice(chunk));
+            dataSlice->ChunkSlices[0]->SetSliceIndex(index);
         }
         auto stripe = New<TChunkStripe>();
         std::move(dataSlices.begin(), dataSlices.end(), std::back_inserter(stripe->DataSlices));
@@ -555,7 +558,7 @@ protected:
         // TODO(max42): this check looks quite sound; maybe extract it into a chunk pool
         // internal validation routine and run always as a sanity check?
         // First check.
-        for (const auto& dataSlice : CreatedUnversionedPrimaryDataSliceSet_) {
+        for (const auto& dataSlice : CreatedUnversionedPrimaryDataSlices_) {
             if (teleportChunksSet.contains(dataSlice->GetSingleUnversionedChunkOrThrow())) {
                 continue;
             }
@@ -760,10 +763,10 @@ protected:
 
     //! Vector containing all unversioned data slices that have ever been created in order of their creation.
     std::vector<TLegacyDataSlicePtr> CreatedUnversionedDataSlices_;
-    //! Set containing all unversioned primary data slices that have ever been created.
-    THashSet<TLegacyDataSlicePtr> CreatedUnversionedPrimaryDataSliceSet_;
-    //! Set containing all unversioned foreign data slices that have ever been created.
-    THashSet<TLegacyDataSlicePtr> CreatedUnversionedForeignDataSliceSet_;
+    //! All unversioned primary data slices that have ever been created.
+    std::vector<TLegacyDataSlicePtr> CreatedUnversionedPrimaryDataSlices_;
+    //! All unversioned foreign data slices that have ever been created.
+    std::vector<TLegacyDataSlicePtr> CreatedUnversionedForeignDataSlices_;
     //! Set containing all chunks that are added to the pool without being suspended.
     THashSet<TChunkId> ActiveChunks_;
 
@@ -2031,7 +2034,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitSimple)
 
     CreateChunkPool();
 
-    for (const auto& dataSlice : CreatedUnversionedPrimaryDataSliceSet_) {
+    for (const auto& dataSlice : CreatedUnversionedDataSlices_) {
         AddDataSlice(dataSlice);
     }
 
@@ -2191,7 +2194,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitStripeSuspension)
     ASSERT_EQ(0, ChunkPool_->GetJobCounter()->GetPending());
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, TestCorrectOrderInsideStripe)
+// TODO(max42): this test is no longer viable since we require
+// slices to be added to new sorted pool in correct order.
+TEST_F(TSortedChunkPoolNewKeysTest, DISABLED_TestCorrectOrderInsideStripe)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -3280,7 +3285,7 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, VariousOperationsWithPoolTest)
 
     THashMap<TChunkStripePtr, TChunkId> stripeToChunkId;
 
-    for (const auto& dataSlice : CreatedUnversionedPrimaryDataSliceSet_) {
+    for (const auto& dataSlice : CreatedUnversionedPrimaryDataSlices_) {
         auto chunkId = dataSlice->GetSingleUnversionedChunkOrThrow()->GetChunkId();
         chunkIdToDataSlice[chunkId] = dataSlice;
         auto stripe = CreateStripe({dataSlice});
