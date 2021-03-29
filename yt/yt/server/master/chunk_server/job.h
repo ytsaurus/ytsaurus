@@ -38,7 +38,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
     using TChunkVector = SmallVector<TChunk*, 16>;
-    DEFINE_BYVAL_RO_PROPERTY(TChunkVector, Chunks);
+    DEFINE_BYREF_RO_PROPERTY(TChunkVector, InputChunks);
     DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TChunkMergerWriterOptions, ChunkMergerWriterOptions);
 
     //! Current state (as reported by node).
@@ -76,7 +76,7 @@ public:
         TJobId jobId,
         TChunkId chunkId,
         int mediumIndex,
-        TChunkVector chunks,
+        TChunkVector inputChunks,
         NNodeTrackerServer::TNode* node,
         NChunkClient::NProto::TChunkMergerWriterOptions chunkMergerWriterOptions);
 
@@ -88,13 +88,11 @@ private:
         const NChunkClient::TChunkIdWithIndexes& chunkIdWithIndexes,
         NNodeTrackerServer::TNode* node,
         const TNodePtrWithIndexesList& targetReplicas,
-        TInstant startTime,
         const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
-        TChunkVector chunks,
-        NChunkClient::NProto::TChunkMergerWriterOptions chunkMergerWriterOptions,
+        TChunkVector inputChunks = {},
+        NChunkClient::NProto::TChunkMergerWriterOptions chunkMergerWriterOptions = {},
         bool decommission = false);
     DECLARE_NEW_FRIEND();
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TJob)

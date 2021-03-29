@@ -25,9 +25,8 @@ TJob::TJob(
     const TChunkIdWithIndexes& chunkIdWithIndexes,
     TNode* node,
     const TNodePtrWithIndexesList& targetReplicas,
-    TInstant startTime,
     const TNodeResources& resourceUsage,
-    TChunkVector chunks,
+    TChunkVector inputChunks,
     TChunkMergerWriterOptions chunkMergerWriterOptions,
     bool decommission)
     : JobId_(jobId)
@@ -37,9 +36,9 @@ TJob::TJob(
     , ChunkIdWithIndexes_(chunkIdWithIndexes)
     , Node_(node)
     , TargetReplicas_(targetReplicas)
-    , StartTime_(startTime)
+    , StartTime_(TInstant::Now())
     , ResourceUsage_(resourceUsage)
-    , Chunks_(std::move(chunks))
+    , InputChunks_(std::move(inputChunks))
     , ChunkMergerWriterOptions_(std::move(chunkMergerWriterOptions))
     , State_(EJobState::Running)
 { }
@@ -64,10 +63,7 @@ TJobPtr TJob::CreateReplicate(
         TChunkIdWithIndexes(chunk->GetId(), chunkWithIndexes.GetReplicaIndex(), chunkWithIndexes.GetMediumIndex()),
         node,
         targetReplicas,
-        TInstant::Now(),
-        resourceUsage,
-        TChunkVector(),
-        TChunkMergerWriterOptions());
+        resourceUsage);
 }
 
 TJobPtr TJob::CreateRemove(
@@ -86,10 +82,7 @@ TJobPtr TJob::CreateRemove(
         chunkIdWithIndexes,
         node,
         TNodePtrWithIndexesList(),
-        TInstant::Now(),
-        resourceUsage,
-        TChunkVector(),
-        TChunkMergerWriterOptions());
+        resourceUsage);
 }
 
 TJobPtr TJob::CreateRepair(
@@ -114,7 +107,6 @@ TJobPtr TJob::CreateRepair(
         TChunkIdWithIndexes(chunk->GetId(), GenericChunkReplicaIndex, GenericMediumIndex),
         node,
         targetReplicas,
-        TInstant::Now(),
         resourceUsage,
         TChunkVector(),
         TChunkMergerWriterOptions(),
@@ -138,18 +130,14 @@ TJobPtr TJob::CreateSeal(
         TChunkIdWithIndexes(chunk->GetId(), chunkWithIndexes.GetReplicaIndex(), chunkWithIndexes.GetMediumIndex()),
         node,
         TNodePtrWithIndexesList(),
-        TInstant::Now(),
-        resourceUsage,
-        TChunkVector(),
-        TChunkMergerWriterOptions());
+        resourceUsage);
 }
-
 
 TJobPtr TJob::CreateMerge(
     TJobId jobId,
     TChunkId chunkId,
     int mediumIndex,
-    TChunkVector chunks,
+    TChunkVector inputChunks,
     NNodeTrackerServer::TNode* node,
     TChunkMergerWriterOptions chunkMergeTableOptions)
 {
@@ -163,9 +151,8 @@ TJobPtr TJob::CreateMerge(
         TChunkIdWithIndexes(chunkId, GenericChunkReplicaIndex, mediumIndex),
         node,
         TNodePtrWithIndexesList(),
-        TInstant::Now(),
         resourceUsage,
-        std::move(chunks),
+        std::move(inputChunks),
         std::move(chunkMergeTableOptions));
 }
 ////////////////////////////////////////////////////////////////////////////////

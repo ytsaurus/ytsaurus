@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
+#include <yt/yt/server/master/cypress_server/public.h>
+
 #include <yt/yt/library/profiling/producer.h>
 
 #include <queue>
@@ -22,21 +24,13 @@ namespace NYT::NChunkServer {
 
 struct TMergeJobInfo
 {
-    std::vector<TChunk*> InputChunks;
-    TChunkOwnerBase* Node;
-    TChunkList* RootChunkList;
+    NCypressServer::TNodeId NodeId;
+    TChunkListId RootChunkListId;
+
+    std::vector<TChunkId> InputChunkIds;
 
     i64 OutputChunkCounter;
     TChunkId OutputChunkId;
-
-    TMergeJobInfo(TMergeJobInfo&&) = default;
-    TMergeJobInfo(const TMergeJobInfo&) = delete;
-
-    TMergeJobInfo(
-        std::vector<TChunk*> inputChunks,
-        TChunkOwnerBase* node,
-        TChunkList* rootChunkList,
-        i64 outputChunkCounter);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,6 +41,7 @@ class TChunkMerger
 public:
     explicit TChunkMerger(NCellMaster::TBootstrap* bootstrap);
 
+    void ScheduleMerge(NCypressServer::TNodeId nodeId);
     void ScheduleMerge(TChunkOwnerBase* trunkNode);
 
     void ScheduleJobs(
@@ -60,7 +55,6 @@ public:
     void SetJobTracker(TJobTrackerPtr jobTracker);
 
     void OnProfiling(NProfiling::TSensorBuffer* buffer) const;
-
 
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -86,14 +80,16 @@ private:
         BIND(&TChunkMerger::OnTransactionAborted, MakeWeak(this));
 
     // Per-account queue. All touched tables start here.
-    THashMap<NSecurityServer::TAccount*, std::queue<TChunkOwnerBase*>> TouchedNodes_;
+    // Keys (accounts) and  values (Cypress nodes) are locked ephemerally.
+    using TNodeQueue = std::queue<TChunkOwnerBase*>;
+    THashMap<NSecurityServer::TAccount*, TNodeQueue> AccountToNodeQueue_;
 
     // After traversal, before creating chunks. We want to batch chunk creation,
     // so we do not create them right away.
     std::queue<TMergeJobInfo> JobsAwaitingChunkCreation_;
 
     // Chunk creation in progress. Stores i64 -> TMergeJobInfo to find the right TMergeJobInfo
-    // after creating chunk. This queue is transient, so we cannot rely on FIFO order
+    // after creating chunk.
     THashMap<i64, TMergeJobInfo> JobsUndergoingChunkCreation_;
 
     // After creating chunks, before scheduling (waiting for node heartbeat to schedule jobs).
@@ -108,13 +104,13 @@ private:
 
     bool IsMergeTransactionAlive() const;
 
-    bool CanScheduleMerge(TChunkOwnerBase* node, TChunkList* rootChunkList) const;
+    bool CanScheduleMerge(TChunkOwnerBase* chunkOwner) const;
 
     void StartMergeTransaction();
 
     void OnTransactionAborted(NTransactionServer::TTransaction* transaction);
 
-    void DoScheduleMerge(TChunkOwnerBase* node);
+    void DoScheduleMerge(TChunkOwnerBase* chunkOwner);
 
     void ProcessTouchedNodes();
 
@@ -126,6 +122,8 @@ private:
 
     const TDynamicChunkMergerConfigPtr& GetDynamicConfig() const;
     void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr /*oldConfig*/ = nullptr);
+
+    TChunkOwnerBase* FindChunkOwner(NCypressServer::TNodeId nodeId);
 
     void HydraCreateChunks(NProto::TReqCreateChunks* request);
     void HydraReplaceChunks(NProto::TReqReplaceChunks* request);

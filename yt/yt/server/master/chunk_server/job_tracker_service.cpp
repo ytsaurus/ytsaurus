@@ -258,7 +258,7 @@ private:
 
                     NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
 
-                    for (auto* chunk : job->GetChunks()) {
+                    for (auto* chunk : job->InputChunks()) {
                         auto* protoChunk = jobSpecExt->add_input_chunks();
                         ToProto(protoChunk->mutable_id(), chunk->GetId());
 
