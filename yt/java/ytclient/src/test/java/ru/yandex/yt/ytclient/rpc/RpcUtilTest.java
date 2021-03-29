@@ -7,10 +7,10 @@ import java.util.concurrent.TimeUnit;
 import org.hamcrest.core.IsSame;
 import org.junit.Test;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertThat;
 import static ru.yandex.yt.testlib.FutureUtils.getError;
 import static ru.yandex.yt.testlib.FutureUtils.waitFuture;
 
@@ -49,7 +49,7 @@ public class RpcUtilTest {
         var futureWithTimeout = RpcUtil.withTimeout(
                 future,
                 "timeout happened",
-                20, TimeUnit.MILLISECONDS,
+                100, TimeUnit.MILLISECONDS,
                 executor);
 
         assertThat(executor.getQueue().size(), greaterThan(0));
@@ -57,8 +57,9 @@ public class RpcUtilTest {
         boolean completed = future.complete("ok");
         assertThat(completed, is(true));
         assertThat(executor.getQueue().size(), is(0));
+        assertThat(futureWithTimeout.isDone(), is(true));
 
-        Thread.sleep(100);
-        assertThat(future.getNow(null), is("ok"));
+        Thread.sleep(150);
+        assertThat(futureWithTimeout.getNow(null), is("ok"));
     }
 }
