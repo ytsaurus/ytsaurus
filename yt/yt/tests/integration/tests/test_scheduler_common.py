@@ -2344,6 +2344,14 @@ class TestResourceMetering(YTEnvSetup):
         )
 
         create_pool(
+            "misirlou",
+            pool_tree="yggdrasil",
+            parent_name="pixies",
+            # Intentionally wait for pool creation.
+            wait_for_orchid=True,
+        )
+
+        create_pool(
             "nidhogg",
             pool_tree="yggdrasil",
             attributes={
@@ -2360,9 +2368,13 @@ class TestResourceMetering(YTEnvSetup):
 
         op1 = run_test_vanilla("sleep 1000", job_count=2, spec={"pool": "francis", "pool_trees": ["yggdrasil"]})
         op2 = run_test_vanilla("sleep 1000", job_count=1, spec={"pool": "nidhogg", "pool_trees": ["yggdrasil"]})
+        op3 = run_test_vanilla("sleep 1000", job_count=1, spec={"pool": "misirlou", "pool_trees": ["yggdrasil"]})
+        op4 = run_test_vanilla("sleep 1000", job_count=1, spec={"pool": "abcless", "pool_trees": ["yggdrasil"]})
 
         wait(lambda: op1.get_job_count("running") == 2)
         wait(lambda: op2.get_job_count("running") == 1)
+        wait(lambda: op3.get_job_count("running") == 1)
+        wait(lambda: op4.get_job_count("running") == 1)
 
         root_key = (42, "yggdrasil", "<Root>")
 
@@ -2371,13 +2383,15 @@ class TestResourceMetering(YTEnvSetup):
                 "strong_guarantee_resources/cpu": 4,
                 "resource_flow/cpu": 0,
                 "burst_guarantee_resources/cpu": 0,
-                "allocated_resources/cpu": 0,
+                # Aggregated from op4 in abcless pool.
+                "allocated_resources/cpu": 1,
             },
             (1, "yggdrasil", "pixies"): {
                 "strong_guarantee_resources/cpu": 2,
                 "resource_flow/cpu": 0,
                 "burst_guarantee_resources/cpu": 0,
-                "allocated_resources/cpu": 0},
+                # Aggregated from op3 in misilrou pool.
+                "allocated_resources/cpu": 1},
             (2, "yggdrasil", "francis"): {
                 "strong_guarantee_resources/cpu": 1,
                 "resource_flow/cpu": 0,
