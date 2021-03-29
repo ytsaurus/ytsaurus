@@ -19,7 +19,6 @@ void TMeteringStatistics::AccountChild(const TMeteringStatistics& child, bool is
 {
     ResourceFlow_ += child.ResourceFlow_;
     BurstGuaranteeResources_ += child.BurstGuaranteeResources_;
-    AllocatedResources_ += child.AllocatedResources_;
     // NB: we have no specified strong guarantee resources at root and
     // therefore calculate unaccounted guarantees at root by this hack.
     if (isRoot) {
