@@ -55,13 +55,12 @@ class TCube
 public:
     TCube(int windowSize, i64 nextIteration);
 
-    void Add(const TTagIdList& tagIds);
+    void Add(TTagIdList tagIds);
     void AddAll(const TTagIdList& tagIds, const TProjectionSet& projections);
-    void Remove(const TTagIdList& tagIds);
+    void Remove(TTagIdList tagIds);
     void RemoveAll(const TTagIdList& tagIds, const TProjectionSet& projections);
 
-    void Update(const TTagIdList& tagIds, T value);
-
+    void Update(TTagIdList tagIds, T value);
     void StartIteration();
     void FinishIteration();
 

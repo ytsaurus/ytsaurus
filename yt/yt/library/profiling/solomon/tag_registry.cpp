@@ -22,8 +22,6 @@ TTagIdList TTagRegistry::Encode(const TTagList& tags)
         }
     }
 
-    std::sort(ids.begin(), ids.end());
-
     return ids;
 }
 
@@ -43,8 +41,6 @@ std::optional<TTagIdList> TTagRegistry::TryEncode(const TTagList& tags) const
             return {};
         }
     }
-
-    std::sort(ids.begin(), ids.end());
 
     return ids;
 }

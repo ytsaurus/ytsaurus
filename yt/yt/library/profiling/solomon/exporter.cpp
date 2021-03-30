@@ -838,20 +838,17 @@ void TSolomonExporter::TSensorService::ListSelf(TReqList* request, TRspList* res
                     << sensorInfo.Error;
             }
 
-            if (attributeKeys.empty()) {
-                fluent.Item().Value(sensorInfo.Name);
-            } else {
-                fluent
-                    .Item().BeginMap()
-                    .Item("name").Value(sensorInfo.Name)
+            fluent
+                .Item()
+                .BeginAttributes()
                     .DoIf(attributeKeys.contains("cube_size"), [&] (TFluentMap fluent) {
                         fluent.Item("cube_size").Value(sensorInfo.CubeSize);
                     })
                     .DoIf(attributeKeys.contains("object_count"), [&] (TFluentMap fluent) {
                         fluent.Item("object_count").Value(sensorInfo.CubeSize);
                     })
-                    .EndMap();
-            }
+                .EndAttributes()
+                .Value(sensorInfo.Name);
         }).ToString());
 
     context->Reply();
