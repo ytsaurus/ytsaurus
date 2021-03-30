@@ -122,12 +122,12 @@ struct IChunkPoolOutput
     virtual void Lost(TCookie cookie) = 0;
 
     //! Raises when chunk teleports.
-    DEFINE_SIGNAL(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
+    DECLARE_INTERFACE_SIGNAL(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
 
     //! Raises when chunk pool completes.
-    DEFINE_SIGNAL(void(), Completed);
+    DECLARE_INTERFACE_SIGNAL(void(), Completed);
     //! Raises when chunk pool uncompletes.
-    DEFINE_SIGNAL(void(), Uncompleted);
+    DECLARE_INTERFACE_SIGNAL(void(), Uncompleted);
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkPoolOutput)
@@ -211,6 +211,11 @@ public:
     virtual const NControllerAgent::TProgressCounterPtr& GetDataSliceCounter() const override;
 
     virtual void Persist(const TPersistenceContext& context) override;
+
+public:
+    DEFINE_SIGNAL(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
+    DEFINE_SIGNAL(void(), Completed);
+    DEFINE_SIGNAL(void(), Uncompleted);
 
 protected:
     TIntrusivePtr<TJobManager> JobManager_;

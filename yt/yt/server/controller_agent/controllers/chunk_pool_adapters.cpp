@@ -152,6 +152,19 @@ DELEGATE_SIGNAL(TChunkPoolOutputAdapterBase, void(), Uncompleted, *UnderlyingOut
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TChunkPoolAdapterBase::TChunkPoolAdapterBase(IChunkPoolPtr underlyingPool)
+    : TChunkPoolInputAdapterBase(underlyingPool)
+    , TChunkPoolOutputAdapterBase(underlyingPool)
+{ }
+
+void TChunkPoolAdapterBase::Persist(const TPersistenceContext& context)
+{
+    TChunkPoolInputAdapterBase::Persist(context);
+    TChunkPoolOutputAdapterBase::Persist(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TIntermediateLivePreviewAdapter
     : public TChunkPoolInputAdapterBase
 {

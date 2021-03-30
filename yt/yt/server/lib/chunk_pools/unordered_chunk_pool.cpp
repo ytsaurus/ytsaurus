@@ -39,6 +39,11 @@ class TUnorderedChunkPool
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
+    DEFINE_SIGNAL(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
+    DEFINE_SIGNAL(void(), Completed);
+    DEFINE_SIGNAL(void(), Uncompleted);
+
+public:
     //! For persistence only.
     TUnorderedChunkPool()
         : MaxBlockSize_(-1)

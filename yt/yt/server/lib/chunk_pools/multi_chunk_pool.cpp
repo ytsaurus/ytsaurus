@@ -160,6 +160,11 @@ class TMultiChunkPoolOutput
     : public virtual IMultiChunkPoolOutput
 {
 public:
+    DEFINE_SIGNAL(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
+    DEFINE_SIGNAL(void(), Completed);
+    DEFINE_SIGNAL(void(), Uncompleted);
+
+public:
     using TExternalCookie = TCookie;
 
     //! Pair of underlying pool and its cookie uniquely representing cookie in multi chunk pool.
