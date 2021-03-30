@@ -54,8 +54,9 @@ void TCube<T>::FinishIteration()
 { }
 
 template <class T>
-void TCube<T>::Add(const TTagIdList& tagIds)
+void TCube<T>::Add(TTagIdList tagIds)
 {
+    std::sort(tagIds.begin(), tagIds.end());
     if (auto it = Projections_.find(tagIds); it != Projections_.end()) {
         it->second.UsageCount++;
     } else {
@@ -71,13 +72,14 @@ template <class T>
 void TCube<T>::AddAll(const TTagIdList& tagIds, const TProjectionSet& projections)
 {
     projections.Range(tagIds, [this] (auto tagIds) mutable {
-        Add(tagIds);
+        Add(std::move(tagIds));
     });
 }
 
 template <class T>
-void TCube<T>::Remove(const TTagIdList& tagIds)
+void TCube<T>::Remove(TTagIdList tagIds)
 {
+    std::sort(tagIds.begin(), tagIds.end());
     auto it = Projections_.find(tagIds);
     if (it == Projections_.end()) {
         THROW_ERROR_EXCEPTION("Broken cube");
@@ -93,13 +95,14 @@ template <class T>
 void TCube<T>::RemoveAll(const TTagIdList& tagIds, const TProjectionSet& projections)
 {
     projections.Range(tagIds, [this] (auto tagIds) mutable {
-        Remove(tagIds);
+        Remove(std::move(tagIds));
     });
 }
 
 template <class T>
-void TCube<T>::Update(const TTagIdList& tagIds, T value)
+void TCube<T>::Update(TTagIdList tagIds, T value)
 {
+    std::sort(tagIds.begin(), tagIds.end());
     auto it = Projections_.find(tagIds);
     if (it == Projections_.end()) {
         THROW_ERROR_EXCEPTION("Broken cube");
@@ -340,7 +343,7 @@ int TCube<T>::ReadSensors(
                         consumer->OnDouble(time, value.SecondsFloat() / options.RateDenominator);
                     }
                 } else {
-                    // TODO(prime@): RATE is incompatible with windowed read. 
+                    // TODO(prime@): RATE is incompatible with windowed read.
                     if constexpr (std::is_same_v<T, i64>) {
                         consumer->OnInt64(time, Rollup(window, indices.back()));
                     } else {

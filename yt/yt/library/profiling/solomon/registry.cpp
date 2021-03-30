@@ -376,6 +376,7 @@ void TSolomonRegistry::ReadRecentSensorValue(
 
             auto index = IndexOf((Iteration_ - 1) / set.GetGridFactor());
 
+            std::sort(tagIds->begin(), tagIds->end());
             valuesRead += set.ReadSensorValues(*tagIds, index, options, fluent);
         }
     }

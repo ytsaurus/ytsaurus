@@ -118,7 +118,7 @@ int TSensorSet::Collect()
             }
 
             counter->Projections.Range(counter->TagIds, [&, value=value] (auto tags) {
-                cube.Update(tags, value);
+                cube.Update(std::move(tags), value);
             });
         }
         cube.FinishIteration();
