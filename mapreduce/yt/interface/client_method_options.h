@@ -25,6 +25,7 @@ enum ENodeType : int
     NT_TABLE_REPLICA        /* "table_replica" */,
     NT_USER                 /* "user" */,
     NT_SCHEDULER_POOL       /* "scheduler_pool" */,
+    NT_LINK                 /* "link" */,
 };
 
 ///
