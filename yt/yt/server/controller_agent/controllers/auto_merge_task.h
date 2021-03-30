@@ -11,15 +11,16 @@ namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAutoMergeInputChunkPoolAdapter
-    : public TChunkPoolInputAdapterBase
+class TAutoMergeChunkPoolAdapter
+    : public TChunkPoolAdapterBase
 {
 public:
     //! Used only for persistence.
-    TAutoMergeInputChunkPoolAdapter() = default;
+    TAutoMergeChunkPoolAdapter() = default;
 
-    TAutoMergeInputChunkPoolAdapter(
-        NChunkPools::IChunkPoolInputPtr underlyingInput,
+    TAutoMergeChunkPoolAdapter(
+        NChunkPools::IChunkPoolPtr underlyingPool,
+        int poolIndex,
         TAutoMergeTask* task);
 
     virtual NChunkPools::IChunkPoolInput::TCookie AddWithKey(
@@ -29,38 +30,23 @@ public:
     virtual NChunkPools::IChunkPoolInput::TCookie Add(
         NChunkPools::TChunkStripePtr stripe) override;
 
-    virtual void Suspend(TCookie cookie);
-
-    void Persist(const TPersistenceContext& context);
-
-private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TAutoMergeInputChunkPoolAdapter, 0xfb888bac);
-
-    TAutoMergeTask* Task_;
-    std::vector<int> CookieChunkCount_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TAutoMergeOutputChunkPoolAdapter
-    : public TChunkPoolOutputAdapterBase
-{
-public:
-    //! Used only for persistence.
-    TAutoMergeOutputChunkPoolAdapter() = default;
-
-    explicit TAutoMergeOutputChunkPoolAdapter(NChunkPools::IChunkPoolOutputPtr underlyingOutput);
+    virtual void Suspend(IChunkPoolInput::TCookie cookie);
 
     virtual const TProgressCounterPtr& GetJobCounter() const override;
 
-    virtual TCookie Extract(NNodeTrackerClient::TNodeId nodeId) override;
+    virtual IChunkPoolOutput::TCookie Extract(NNodeTrackerClient::TNodeId nodeId) override;
 
     void SetShouldScheduleJob(bool shouldScheduleJob);
 
     void Persist(const TPersistenceContext& context);
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TAutoMergeOutputChunkPoolAdapter, 0xaf23bcf0);
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TAutoMergeChunkPoolAdapter, 0x54ab375c);
+
+    TAutoMergeTask* Task_;
+    std::vector<int> CookieChunkCount_;
+
+    int PoolIndex_ = -1;
 
     bool ShouldScheduleJob_ = false;
 
@@ -77,7 +63,7 @@ class TAutoMergeTask
     : public TTask
 {
 public:
-    friend class TAutoMergeInputChunkPoolAdapter;
+    friend class TAutoMergeChunkPoolAdapter;
 
     //! Used only for persistense.
     TAutoMergeTask() = default;
@@ -129,15 +115,13 @@ protected:
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TAutoMergeTask, 0x4ef99f1a);
 
-    //! Multi chunk pool built over unordered chunk pools.
+    std::vector<TIntrusivePtr<TAutoMergeChunkPoolAdapter>> ChunkPools_;
+
+    //! Multi chunk pool built over wrapped unordered chunk pools.
     NChunkPools::IChunkPoolPtr ChunkPool_;
 
-    //! Input adapter built over multi chunk pool.
-    NChunkPools::IChunkPoolInputPtr ChunkPoolInput_;
-
-    TIntrusivePtr<TAutoMergeOutputChunkPoolAdapter> ChunkPoolOutput_;
-
-    int CurrentChunkCount_ = 0;
+    //! Output chunk pool index -> number of the intermediate chunks in it.
+    std::vector<int> CurrentChunkCounts_;
 
     void UpdateSelf();
 

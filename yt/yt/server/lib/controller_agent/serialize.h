@@ -11,6 +11,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((RemovePartitionedTables)              (300426))
     ((OverrideTimestampInInputChunks)       (300427))
     ((UserJobMonitoring)                    (300428))
+    ((PerTableCurrentChunkCount)            (300429))
     // 21.1 start here
     ((NewSlices)                            (300501))
     ((FixForeignSliceDataWeight)            (300502))

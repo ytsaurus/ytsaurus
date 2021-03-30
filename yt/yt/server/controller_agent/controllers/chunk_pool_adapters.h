@@ -11,8 +11,8 @@ namespace NYT::NControllerAgent::NControllers {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkPoolInputAdapterBase
-    : public NChunkPools::IChunkPoolInput
-    , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
+    : public virtual NChunkPools::IChunkPoolInput
+    , public virtual NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
     TChunkPoolInputAdapterBase() = default;
@@ -35,7 +35,7 @@ public:
 
     void Persist(const TPersistenceContext& context);
 
-private:
+protected:
     // NB: Underlying input is owned by the owner of the adapter.
     NChunkPools::IChunkPoolInputPtr UnderlyingInput_;
 };
@@ -43,8 +43,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkPoolOutputAdapterBase
-    : public NChunkPools::IChunkPoolOutput
-    , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
+    : public virtual NChunkPools::IChunkPoolOutput
+    , public virtual NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
     //! Used only for persistence.
@@ -85,6 +85,22 @@ public:
 
 protected:
     NChunkPools::IChunkPoolOutputPtr UnderlyingOutput_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChunkPoolAdapterBase
+    : public virtual NChunkPools::IChunkPool
+    , public TChunkPoolInputAdapterBase
+    , public TChunkPoolOutputAdapterBase
+{
+public:
+    //! Used only for persistence.
+    TChunkPoolAdapterBase() = default;
+
+    explicit TChunkPoolAdapterBase(NChunkPools::IChunkPoolPtr underlyingPool);
+
+    void Persist(const TPersistenceContext& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -23,56 +23,13 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAutoMergeInputChunkPoolAdapter::TAutoMergeInputChunkPoolAdapter(
-    IChunkPoolInputPtr underlyingInput,
+TAutoMergeChunkPoolAdapter::TAutoMergeChunkPoolAdapter(
+    IChunkPoolPtr underlyingPool,
+    int poolIndex,
     TAutoMergeTask* task)
-    : TChunkPoolInputAdapterBase(std::move(underlyingInput))
+    : TChunkPoolAdapterBase(underlyingPool)
     , Task_(task)
-{ }
-
-IChunkPoolInput::TCookie TAutoMergeInputChunkPoolAdapter::AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key)
-{
-    // We perform an in-place filtration of all large chunks.
-    Task_->GetTaskHost()->GetAutoMergeDirector()->AccountMergeInputChunks(stripe->GetChunkCount() /* intermediateChunkCount */);
-    Task_->CurrentChunkCount_ += stripe->GetChunkCount();
-
-    auto cookie = TChunkPoolInputAdapterBase::AddWithKey(stripe, key);
-    if (CookieChunkCount_.size() <= cookie) {
-        CookieChunkCount_.resize(cookie + 1);
-    }
-    CookieChunkCount_[cookie] = stripe->GetChunkCount();
-    return cookie;
-}
-
-IChunkPoolInput::TCookie TAutoMergeInputChunkPoolAdapter::Add(TChunkStripePtr stripe)
-{
-    return AddWithKey(stripe, TChunkStripeKey());
-}
-
-void TAutoMergeInputChunkPoolAdapter::Suspend(TCookie cookie)
-{
-    Task_->GetTaskHost()->GetAutoMergeDirector()->AccountMergeInputChunks(-CookieChunkCount_[cookie]);
-    Task_->CurrentChunkCount_ -= CookieChunkCount_[cookie];
-
-    TChunkPoolInputAdapterBase::Suspend(cookie);
-}
-
-void TAutoMergeInputChunkPoolAdapter::Persist(const TPersistenceContext& context)
-{
-    TChunkPoolInputAdapterBase::Persist(context);
-
-    using NYT::Persist;
-
-    Persist(context, Task_);
-    Persist(context, CookieChunkCount_);
-}
-
-DEFINE_DYNAMIC_PHOENIX_TYPE(TAutoMergeInputChunkPoolAdapter);
-
-////////////////////////////////////////////////////////////////////////////////
-
-TAutoMergeOutputChunkPoolAdapter::TAutoMergeOutputChunkPoolAdapter(IChunkPoolOutputPtr underlyingOutput)
-    : TChunkPoolOutputAdapterBase(std::move(underlyingOutput))
+    , PoolIndex_(poolIndex)
 {
     UnderlyingOutput_->GetJobCounter()->AddParent(JobCounter_);
 
@@ -80,24 +37,66 @@ TAutoMergeOutputChunkPoolAdapter::TAutoMergeOutputChunkPoolAdapter(IChunkPoolOut
     UpdatePendingJobCount();
 }
 
-const TProgressCounterPtr& TAutoMergeOutputChunkPoolAdapter::GetJobCounter() const
+IChunkPoolInput::TCookie TAutoMergeChunkPoolAdapter::AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key)
+{
+    Task_->GetTaskHost()->GetAutoMergeDirector()->AccountMergeInputChunks(stripe->GetChunkCount() /* intermediateChunkCount */);
+
+    Task_->CurrentChunkCounts_[PoolIndex_] += stripe->GetChunkCount();
+
+    auto cookie = TChunkPoolInputAdapterBase::AddWithKey(stripe, key);
+    if (CookieChunkCount_.size() <= cookie) {
+        CookieChunkCount_.resize(cookie + 1);
+    }
+    CookieChunkCount_[cookie] = stripe->GetChunkCount();
+
+    return cookie;
+}
+
+IChunkPoolInput::TCookie TAutoMergeChunkPoolAdapter::Add(TChunkStripePtr stripe)
+{
+    return AddWithKey(stripe, TChunkStripeKey());
+}
+
+void TAutoMergeChunkPoolAdapter::Suspend(IChunkPoolInput::TCookie cookie)
+{
+    Task_->GetTaskHost()->GetAutoMergeDirector()->AccountMergeInputChunks(-CookieChunkCount_[cookie]);
+
+    Task_->CurrentChunkCounts_[PoolIndex_] -= CookieChunkCount_[cookie];
+    YT_VERIFY(Task_->CurrentChunkCounts_[PoolIndex_] >= 0);
+
+    TChunkPoolAdapterBase::Suspend(cookie);
+}
+
+const TProgressCounterPtr& TAutoMergeChunkPoolAdapter::GetJobCounter() const
 {
     return JobCounter_;
 }
 
-void TAutoMergeOutputChunkPoolAdapter::SetShouldScheduleJob(bool shouldScheduleJob)
+IChunkPoolOutput::TCookie TAutoMergeChunkPoolAdapter::Extract(TNodeId nodeId)
+{
+    if (GetJobCounter()->GetPending() > 0) {
+        return UnderlyingOutput_->Extract(nodeId);
+    } else {
+        return IChunkPoolOutput::NullCookie;
+    }
+}
+
+void TAutoMergeChunkPoolAdapter::SetShouldScheduleJob(bool shouldScheduleJob)
 {
     ShouldScheduleJob_ = shouldScheduleJob;
 
     UpdatePendingJobCount();
 }
 
-void TAutoMergeOutputChunkPoolAdapter::Persist(const TPersistenceContext& context)
+void TAutoMergeChunkPoolAdapter::Persist(const TPersistenceContext& context)
 {
-    TChunkPoolOutputAdapterBase::Persist(context);
+    TChunkPoolAdapterBase::Persist(context);
 
     using NYT::Persist;
 
+    Persist(context, Task_);
+    Persist(context, CookieChunkCount_);
+    Persist(context, PoolIndex_);
     Persist(context, ShouldScheduleJob_);
     Persist(context, JobCounter_);
 
@@ -106,24 +105,15 @@ void TAutoMergeOutputChunkPoolAdapter::Persist(const TPersistenceContext& contex
     }
 }
 
-IChunkPoolOutput::TCookie TAutoMergeOutputChunkPoolAdapter::Extract(TNodeId nodeId)
-{
-    if (GetJobCounter()->GetPending() > 0) {
-        return UnderlyingOutput_->Extract(nodeId);
-    } else {
-        return NullCookie;
-    }
-}
-
-void TAutoMergeOutputChunkPoolAdapter::SetupCallbacks()
+void TAutoMergeChunkPoolAdapter::SetupCallbacks()
 {
     UnderlyingOutput_->GetJobCounter()->SubscribePendingUpdated(
-        BIND(&TAutoMergeOutputChunkPoolAdapter::UpdatePendingJobCount, MakeWeak(this)));
+        BIND(&TAutoMergeChunkPoolAdapter::UpdatePendingJobCount, MakeWeak(this)));
     UnderlyingOutput_->GetJobCounter()->SubscribeBlockedUpdated(
-        BIND(&TAutoMergeOutputChunkPoolAdapter::UpdatePendingJobCount, MakeWeak(this)));
+        BIND(&TAutoMergeChunkPoolAdapter::UpdatePendingJobCount, MakeWeak(this)));
 }
 
-void TAutoMergeOutputChunkPoolAdapter::UpdatePendingJobCount()
+void TAutoMergeChunkPoolAdapter::UpdatePendingJobCount()
 {
     const auto& underlyingJobCounter = UnderlyingOutput_->GetJobCounter();
     int pendingJobCount = underlyingJobCounter->GetPending();
@@ -137,7 +127,7 @@ void TAutoMergeOutputChunkPoolAdapter::UpdatePendingJobCount()
     JobCounter_->SetBlocked(blockedJobCount);
 }
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TAutoMergeOutputChunkPoolAdapter);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TAutoMergeChunkPoolAdapter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -150,8 +140,8 @@ TAutoMergeTask::TAutoMergeTask(
     std::vector<TStreamDescriptor> streamDescriptors)
     : TTask(taskHost, std::move(streamDescriptors))
 {
-    std::vector<IChunkPoolPtr> underlyingPools;
-    underlyingPools.reserve(StreamDescriptors_.size());
+    ChunkPools_.reserve(StreamDescriptors_.size());
+    CurrentChunkCounts_.resize(StreamDescriptors_.size(), 0);
     for (int poolIndex = 0; poolIndex < StreamDescriptors_.size(); ++poolIndex) {
         auto autoMergeJobSizeConstraints = CreateExplicitJobSizeConstraints(
             false /* canAdjustDataSizePerJob */,
@@ -175,20 +165,21 @@ TAutoMergeTask::TAutoMergeTask(
         options.MinTeleportChunkSize = chunkSizeThreshold;
         options.Logger = Logger.WithTag("Name: %v(%v)", GetTitle(), poolIndex);
 
-        underlyingPools.emplace_back(CreateUnorderedChunkPool(
+        auto unorderedPool = CreateUnorderedChunkPool(
             std::move(options),
-            TeleportableIntermediateInputStreamDirectory));
+            TeleportableIntermediateInputStreamDirectory);
+        ChunkPools_.push_back(New<TAutoMergeChunkPoolAdapter>(unorderedPool, poolIndex, this));
     }
 
-    auto chunkPool = CreateMultiChunkPool(std::move(underlyingPools));
+    std::vector<IChunkPoolPtr> underlyingPools;
+    for (const auto& chunkPool : ChunkPools_) {
+        underlyingPools.push_back(chunkPool);
+    }
+    auto chunkPool = CreateMultiChunkPool(underlyingPools);
     chunkPool->Finalize();
     ChunkPool_ = std::move(chunkPool);
 
     ChunkPool_->SubscribeChunkTeleported(BIND(&TAutoMergeTask::OnChunkTeleported, MakeWeak(this)));
-
-    ChunkPoolInput_ = New<TAutoMergeInputChunkPoolAdapter>(ChunkPool_, this);
-
-    ChunkPoolOutput_ = New<TAutoMergeOutputChunkPoolAdapter>(ChunkPool_);
 
     // Tentative trees are not allowed for auto-merge jobs since they are genuinely IO-bound.
     TentativeTreeEligibility_.Disable();
@@ -213,12 +204,12 @@ TExtendedJobResources TAutoMergeTask::GetNeededResources(const TJobletPtr& joble
 
 NChunkPools::IChunkPoolInputPtr TAutoMergeTask::GetChunkPoolInput() const
 {
-    return ChunkPoolInput_;
+    return ChunkPool_;
 }
 
 NChunkPools::IChunkPoolOutputPtr TAutoMergeTask::GetChunkPoolOutput() const
 {
-    return ChunkPoolOutput_;
+    return ChunkPool_;
 }
 
 EJobType TAutoMergeTask::GetJobType() const
@@ -251,19 +242,29 @@ bool TAutoMergeTask::IsJobInterruptible() const
 
 void TAutoMergeTask::UpdateSelf()
 {
-    bool shouldScheduleJob = TaskHost_->GetAutoMergeDirector()->ShouldScheduleMergeJob(CurrentChunkCount_);
+    std::vector<bool> shouldScheduleJobs;
+    shouldScheduleJobs.reserve(ChunkPools_.size());
+    for (int poolIndex = 0; poolIndex < ChunkPools_.size(); ++poolIndex) {
+        const auto& chunkPool = ChunkPools_[poolIndex];
+        int currentChunkCount = CurrentChunkCounts_[poolIndex];
 
-    ChunkPoolOutput_->SetShouldScheduleJob(shouldScheduleJob);
+        bool shouldScheduleJob = TaskHost_->GetAutoMergeDirector()->ShouldScheduleMergeJob(currentChunkCount);
+        chunkPool->SetShouldScheduleJob(shouldScheduleJob);
+        shouldScheduleJobs.push_back(shouldScheduleJob);
+    }
+
     TaskHost_->UpdateTask(this);
 
-    YT_LOG_DEBUG("Task updated (ShouldScheduleJob: %v)", shouldScheduleJob);
+    YT_LOG_DEBUG("Task updated (ShouldScheduleJobs: %v)", shouldScheduleJobs);
 }
 
 void TAutoMergeTask::OnJobStarted(TJobletPtr joblet)
 {
     TTask::OnJobStarted(joblet);
 
-    CurrentChunkCount_ -= joblet->InputStripeList->TotalChunkCount;
+    int poolIndex = *joblet->InputStripeList->PartitionTag;
+    CurrentChunkCounts_[poolIndex] -= joblet->InputStripeList->TotalChunkCount;
+    YT_VERIFY(CurrentChunkCounts_[poolIndex] >= 0);
 
     TaskHost_->GetAutoMergeDirector()->OnMergeJobStarted();
 }
@@ -272,7 +273,8 @@ TJobFinishedResult TAutoMergeTask::OnJobAborted(TJobletPtr joblet, const TAborte
 {
     auto result = TTask::OnJobAborted(joblet, jobSummary);
 
-    CurrentChunkCount_ += joblet->InputStripeList->TotalChunkCount;
+    int poolIndex = *joblet->InputStripeList->PartitionTag;
+    CurrentChunkCounts_[poolIndex] += joblet->InputStripeList->TotalChunkCount;
 
     TaskHost_->GetAutoMergeDirector()->OnMergeJobFinished(0 /* unregisteredIntermediateChunkCount */);
 
@@ -298,7 +300,8 @@ TJobFinishedResult TAutoMergeTask::OnJobFailed(TJobletPtr joblet, const TFailedJ
 {
     auto result = TTask::OnJobFailed(joblet, jobSummary);
 
-    CurrentChunkCount_ += joblet->InputStripeList->TotalChunkCount;
+    int poolIndex = *joblet->InputStripeList->PartitionTag;
+    CurrentChunkCounts_[poolIndex] += joblet->InputStripeList->TotalChunkCount;
 
     TaskHost_->GetAutoMergeDirector()->OnMergeJobFinished(0 /* unregisteredIntermediateChunkCount */);
 
@@ -323,10 +326,9 @@ void TAutoMergeTask::Persist(const TPersistenceContext& context)
 
     using NYT::Persist;
 
+    Persist(context, ChunkPools_);
     Persist(context, ChunkPool_);
-    Persist(context, ChunkPoolInput_);
-    Persist(context, ChunkPoolOutput_);
-    Persist(context, CurrentChunkCount_);
+    Persist(context, CurrentChunkCounts_);
 
     ChunkPool_->SubscribeChunkTeleported(BIND(&TAutoMergeTask::OnChunkTeleported, MakeWeak(this)));
 }
@@ -336,8 +338,10 @@ void TAutoMergeTask::OnChunkTeleported(TInputChunkPtr teleportChunk, std::any ta
     TTask::OnChunkTeleported(teleportChunk, tag);
 
     auto poolIndex = std::any_cast<int>(tag);
-    TaskHost_->RegisterTeleportChunk(std::move(teleportChunk), /*key=*/0, GetTableIndex(poolIndex));
-    --CurrentChunkCount_;
+    TaskHost_->RegisterTeleportChunk(std::move(teleportChunk), /*key*/ 0, GetTableIndex(poolIndex));
+
+    --CurrentChunkCounts_[poolIndex];
+    YT_VERIFY(CurrentChunkCounts_[poolIndex] >= 0);
 }
 
 void TAutoMergeTask::SetStreamDescriptors(TJobletPtr joblet) const

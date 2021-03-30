@@ -63,6 +63,11 @@ class TChunkPoolOutputMock
     : public virtual IChunkPoolOutput
 {
 public:
+    DEFINE_SIGNAL(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
+    DEFINE_SIGNAL(void(), Completed);
+    DEFINE_SIGNAL(void(), Uncompleted);
+
+public:
     MOCK_METHOD(TOutputOrderPtr, GetOutputOrder, (), (const override));
 
     MOCK_METHOD(i64, GetLocality, (TNodeId), (const override));
