@@ -32,8 +32,8 @@ public class PrerequisiteOptions {
         revisions = prerequisiteOptions.revisions;
     }
 
-    public PrerequisiteOptions setTransactionsIds(List<GUID> transacionIds) {
-        this.transactionsIds = new ArrayList<>(transacionIds);
+    public PrerequisiteOptions setTransactionsIds(List<GUID> transactionIds) {
+        this.transactionsIds = new ArrayList<>(transactionIds);
         return this;
     }
 

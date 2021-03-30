@@ -73,7 +73,7 @@ public abstract class MutateNode<T extends MutateNode<T>> extends RequestBase<T>
 
     YTreeBuilder toTree(YTreeBuilder builder) {
         if (prerequisiteOptions != null) {
-            throw new IllegalStateException("prerequisite options are not supported yet");
+            builder = builder.apply(prerequisiteOptions::toTree);
         }
         if (mutatingOptions != null) {
             throw new IllegalStateException("mutating options are not supported");
