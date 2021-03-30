@@ -33,6 +33,9 @@ class TestClockServer(YTEnvSetup):
         for timestamp_provider in ls("//sys/timestamp_providers"):
             assert "monitoring" in get("//sys/timestamp_providers/{}/orchid".format(timestamp_provider))
 
+    def _wait_for_hydra(self, ts):
+        wait(lambda: exists("//sys/timestamp_providers/{}/orchid/monitoring/hydra".format(ts)))
+
     @authors("aleksandra-zh")
     def test_leader_switch(self):
         timestamp_providers = ls("//sys/timestamp_providers")
@@ -41,6 +44,7 @@ class TestClockServer(YTEnvSetup):
 
         current_leader_id = None
         for i, ts_provider in enumerate(ordered_timestamp_providers):
+            self._wait_for_hydra(ts_provider)
             if get("//sys/timestamp_providers/{}/orchid/monitoring/hydra/state".format(ts_provider)) == "leading":
                 current_leader_id = i
         new_leader_id = (current_leader_id + 1) % 3
@@ -55,6 +59,7 @@ class TestClockServer(YTEnvSetup):
         cell_id = get("//sys/timestamp_providers/{}/orchid/config/clock_cell/cell_id".format(ts))
 
         def get_last_snapshot_id():
+            self._wait_for_hydra(ts)
             return int(get("//sys/timestamp_providers/{}/orchid/monitoring/hydra/committed_version".format(ts)).split(":")[0])
 
         last_snapshot_id = get_last_snapshot_id()
