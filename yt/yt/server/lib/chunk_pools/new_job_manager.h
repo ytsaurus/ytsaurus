@@ -39,6 +39,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(i64, ForeignRowCount, 0);
     DEFINE_BYVAL_RO_PROPERTY(i64, PreliminaryForeignRowCount, 0);
 
+    DEFINE_BYVAL_RO_PROPERTY(TChunkStripeListPtr, StripeList, New<TChunkStripeList>());
+
     friend class TNewJobManager;
 
 public:
@@ -48,10 +50,9 @@ public:
     // TODO(max42): this seems to be unused, clean up.
     void AddPreliminaryForeignDataSlice(const NChunkClient::TLegacyDataSlicePtr& dataSlice);
 
-    //! Calculates the statistics for the stripe list and maybe additionally validates
-    //! slice sort order in all stripes according to their original table position
-    //! in order to satisfy silly^W tricky sorted operation guarantees.
-    void Finalize(bool validateOrder);
+    //! Calculates the statistics for the stripe list and moves stripes from stripe map
+    //! into stripe list.
+    void Finalize();
 
     i64 GetDataWeight() const;
     i64 GetRowCount() const;
@@ -66,8 +67,6 @@ public:
     void SetUnsplittable();
 
 private:
-    TChunkStripeListPtr StripeList_ = New<TChunkStripeList>();
-
     //! All the input cookies that provided data that forms this job.
     std::vector<IChunkPoolInput::TCookie> InputCookies_;
 

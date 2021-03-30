@@ -8337,7 +8337,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_cuda_toolkit_version(*config->CudaToolkitVersion);
     }
 
-    if (Config->GpuCheckLayerDirectoryPath && 
+    if (Config->GpuCheckLayerDirectoryPath &&
         config->GpuCheckBinaryPath &&
         config->GpuCheckLayerName &&
         config->EnableGpuLayers)
@@ -9186,7 +9186,7 @@ std::vector<NYPath::TRichYPath> TOperationControllerBase::GetLayerPaths(
         layerPaths.insert(layerPaths.begin(), path);
     }
     if (Config->GpuCheckLayerDirectoryPath &&
-        userJobSpec->GpuCheckLayerName && 
+        userJobSpec->GpuCheckLayerName &&
         userJobSpec->GpuCheckBinaryPath &&
         !layerPaths.empty() &&
         userJobSpec->EnableGpuLayers)

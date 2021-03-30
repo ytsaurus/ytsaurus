@@ -55,7 +55,7 @@ void TNewJobStub::AddPreliminaryForeignDataSlice(const TLegacyDataSlicePtr& data
     ++PreliminaryForeignSliceCount_;
 }
 
-void TNewJobStub::Finalize(bool validateOrder)
+void TNewJobStub::Finalize()
 {
     for (const auto& [tableAndRangeIndex, stripe] : StripeMap_) {
         for (const auto& dataSlice : stripe->DataSlices) {
@@ -65,54 +65,6 @@ void TNewJobStub::Finalize(bool validateOrder)
         StripeList_->TotalDataWeight += statistics.DataWeight;
         StripeList_->TotalRowCount += statistics.RowCount;
         StripeList_->TotalChunkCount += statistics.ChunkCount;
-        if (validateOrder) {
-            // New sorted pool implementation guarantees that each stripe contains data slices in the
-            // order they follow in the input, but achieving that is utterly hard, so we put some
-            // effort in verification of this fact.
-
-            auto validatePair = [&, tableAndRangeIndex = tableAndRangeIndex] (
-                int index,
-                const TLegacyDataSlicePtr& lhs,
-                const TLegacyDataSlicePtr& rhs) {
-                YT_VERIFY(lhs->Tag);
-                YT_VERIFY(rhs->Tag);
-                auto lhsLocation = std::make_pair(*lhs->Tag, lhs->GetSliceIndex());
-                auto rhsLocation = std::make_pair(*rhs->Tag, rhs->GetSliceIndex());
-                if (lhsLocation < rhsLocation) {
-                    return;
-                }
-                if (lhsLocation == rhsLocation) {
-                    // These are two slices of the same unversioned chunk or versioned data slice.
-                    //
-                    // Note that our current implementation meets the following formal property.
-                    // Consider some "initial" data slice (one from chunk slice fetcher or intial
-                    // dynamic table slice). We claim that all resulting subslices are obtained from
-                    // it by repeatedly splitting some subslice into two parts by either key bound or
-                    // row limit.
-                    //
-                    // Validation of this property is enough to conclude that resulting slices
-                    // follow in correct order.
-                    bool jointByKeyBounds = lhs->UpperLimit().KeyBound && rhs->LowerLimit().KeyBound &&
-                        lhs->UpperLimit().KeyBound.Invert() == rhs->LowerLimit().KeyBound;
-                    bool jointByRowIndices = lhs->UpperLimit().RowIndex && rhs->LowerLimit().RowIndex &&
-                        lhs->UpperLimit().RowIndex == rhs->LowerLimit().RowIndex;
-                    if (jointByKeyBounds || jointByRowIndices) {
-                        return;
-                    }
-                }
-                YT_LOG_ERROR(
-                    "Error validating slice order guarantee (Index: %v, Lhs: %v, Rhs: %v)",
-                    index,
-                    GetDataSliceDebugString(lhs),
-                    GetDataSliceDebugString(rhs));
-                // Actually a safe core dump.
-                YT_VERIFY(false && "Slice order guarantee violation");
-            };
-
-            for (int index = 0; index + 1 < stripe->DataSlices.size(); ++index) {
-                validatePair(index, stripe->DataSlices[index], stripe->DataSlices[index + 1]);
-            }
-        }
         StripeList_->Stripes.emplace_back(std::move(stripe));
     }
     StripeMap_.clear();
@@ -687,7 +639,7 @@ void TNewJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJob, 
                 auto& job = Jobs_[index];
                 job.Remove();
             }
-            currentJobStub->Finalize(/*validateOrder*/ false);
+            currentJobStub->Finalize();
             newJobs.emplace_back(std::move(currentJobStub));
         } else {
             YT_LOG_DEBUG("Leaving job as is (Cookie: %v)", startIndex);
