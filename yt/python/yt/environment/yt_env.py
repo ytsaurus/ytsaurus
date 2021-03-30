@@ -692,6 +692,19 @@ class YTInstance(object):
             yson.dump(info, fout, yson_format="pretty")
 
     def _kill_process(self, proc, name):
+        def print_proc_info(pid):
+            try:
+                tasks_path = "/proc/{0}/task".format(pid)
+                for task_id in os.listdir(tasks_path):
+                    for name in ["status", "sched", "wchan"]:
+                        try:
+                            with open(os.path.join(tasks_path, task_id, name), "r") as fin:
+                                logger.error("Process %s task %s %s: %s", pid, task_id, name, fin.read().replace("\n", "\\n"))
+                        except Exception as e:
+                            logger.warning("Failed to print process %s task %s %s: %s", pid, task_id, name, e)
+            except Exception as e:
+                logger.warning("Failed to print process %s info: %s", pid, e)
+
         proc.poll()
         if proc.returncode is not None:
             if self._started:
@@ -707,19 +720,30 @@ class YTInstance(object):
             logger.error("killpg({}) failed: {}({})".format(proc.pid, e.errno, errno.errorcode[e.errno]))
             if e.errno != errno.ESRCH:
                 raise
-        try:
-            wait(lambda: is_dead(proc.pid))
-        except WaitFailed:
-            if not is_dead(proc.pid):
-                exc_info = sys.exc_info()
-                try:
-                    with open("/proc/{0}/status".format(proc.pid), "r") as fin:
-                        logger.error("Process status: %s", fin.read().replace("\n", "\\n"))
-                    stack = subprocess.check_output(["sudo", "cat", "/proc/{0}/stack".format(proc.pid)])
-                    logger.error("Process stack: %s", stack.replace("\n", "\\n"))
-                except (IOError, subprocess.CalledProcessError):
-                    pass
-                reraise(*exc_info)
+
+        # XXX: KERNEL-579 – temporarily solution for diagnostics
+        # try:
+        #     wait(lambda: is_dead(proc.pid))
+        # except WaitFailed:
+        #     if not is_dead(proc.pid):
+        #         exc_info = sys.exc_info()
+        #         try:
+        #             with open("/proc/{0}/status".format(proc.pid), "r") as fin:
+        #                 logger.error("Process status: %s", fin.read().replace("\n", "\\n"))
+        #             stack = subprocess.check_output(["sudo", "cat", "/proc/{0}/stack".format(proc.pid)])
+        #             logger.error("Process stack: %s", stack.replace("\n", "\\n"))
+        #         except (IOError, subprocess.CalledProcessError):
+        #             pass
+        #         reraise(*exc_info)
+        for i in range(100):
+            verbose = i > 50 and (i + 1) % 10 == 0
+            if is_dead(proc.pid, verbose=verbose):
+                break
+            if verbose:
+                print_proc_info(proc.pid)
+            time.sleep(0.3)
+        else:
+            raise WaitFailed("Wait failed")
 
     def _append_pid(self, pid):
         self.pids_file.write(str(pid) + "\n")

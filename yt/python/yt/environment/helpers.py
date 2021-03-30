@@ -276,11 +276,14 @@ def read_config(filename, format="yson"):
         else:
             return to_native_str(f.read())
 
-def is_dead(pid):
+def is_dead(pid, verbose=False):
     try:
-        os.waitpid(pid, os.P_NOWAIT)
-    except OSError:
-        pass
+        waitpid_ret = os.waitpid(pid, os.WNOHANG)
+    except OSError as e:
+        waitpid_ret = e
+
+    if verbose:
+        logger.info("XXX os.waitpid({}, WNOHANG) returned {!r}".format(pid, waitpid_ret))
 
     try:
         with open("/proc/{0}/status".format(pid), "r") as f:
