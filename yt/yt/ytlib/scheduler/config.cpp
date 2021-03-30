@@ -765,6 +765,10 @@ TUserJobSpec::TUserJobSpec()
         .Default(true);
     RegisterParameter("cuda_toolkit_version", CudaToolkitVersion)
         .Default();
+    RegisterParameter("gpu_check_layer_name", GpuCheckLayerName)
+        .Default();
+    RegisterParameter("gpu_check_binary_path", GpuCheckBinaryPath)
+        .Default();
     RegisterParameter("job_speculation_timeout", JobSpeculationTimeout)
         .Default()
         .GreaterThan(TDuration::Zero());

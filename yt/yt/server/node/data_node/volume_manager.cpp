@@ -1307,16 +1307,17 @@ private:
 
         std::vector<TFuture<TFetchedArtifactKey>> futures;
         for (const auto& pair : CachedLayerDescriptors_) {
-            auto future = BIND([=, this_ = MakeStrong(this)] () {
-                const auto& path = pair.first;
-                const auto& fetchedKey = pair.second;
-                auto revision = fetchedKey.ArtifactKey
-                    ? fetchedKey.ContentRevision
-                    : NHydra::NullRevision;
-                return FetchLayerArtifactKeyIfRevisionChanged(path, revision, Bootstrap_, Logger);
-            })
-            .AsyncVia(GetCurrentInvoker())
-            .Run();
+            auto future = BIND(
+                [=, this_ = MakeStrong(this)] () {
+                    const auto& path = pair.first;
+                    const auto& fetchedKey = pair.second;
+                    auto revision = fetchedKey.ArtifactKey
+                        ? fetchedKey.ContentRevision
+                        : NHydra::NullRevision;
+                    return FetchLayerArtifactKeyIfRevisionChanged(path, revision, Bootstrap_, Logger);
+                })
+                .AsyncVia(GetCurrentInvoker())
+                .Run();
 
             futures.push_back(std::move(future));
         }

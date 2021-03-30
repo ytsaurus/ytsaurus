@@ -1115,7 +1115,6 @@ private:
             RootVolume_ = volumeOrError.Value();
 
             SetJobPhase(EJobPhase::RunningSetupCommands);
-            YT_LOG_INFO("Running setup commands");
 
             // Even though #RunSetupCommands returns future, we still need to pass it through invoker
             // since Porto API is used and can cause context switch.
@@ -1126,6 +1125,7 @@ private:
                     &TJob::OnSetupCommandsFinished,
                     MakeWeak(this))
                     .Via(Invoker_));
+
         });
     }
 
@@ -1138,6 +1138,68 @@ private:
             if (!error.IsOK()) {
                 THROW_ERROR_EXCEPTION(EErrorCode::SetupCommandFailed, "Failed to run setup commands")
                     << error;
+            }
+
+            if (UserJobSpec_ && UserJobSpec_->has_gpu_check_binary_path()) {
+                SetJobPhase(EJobPhase::RunningGpuCheckCommand);
+
+                // since Porto API is used and can cause context switch.
+                BIND(&TJob::RunGpuCheckCommand, MakeStrong(this))
+                    .AsyncVia(Invoker_)
+                    .Run(UserJobSpec_->gpu_check_binary_path())
+                    .Subscribe(BIND(
+                        &TJob::OnGpuCheckCommandFinished,
+                        MakeWeak(this))
+                        .Via(Invoker_));
+            } else {
+                RunJobProxy();
+            }
+        });
+    }
+
+    TFuture<void> RunGpuCheckCommand(const TString& gpuCheckBinaryPath)
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        YT_LOG_INFO("Running GPU check commands");
+
+        {
+            auto testFileCommand = New<TShellCommandConfig>();
+            testFileCommand->Path = "/usr/bin/test";
+            testFileCommand->Args = {"-f", gpuCheckBinaryPath};
+
+            auto testFileError = WaitFor(Slot_->RunSetupCommands(
+                Id_,
+                {testFileCommand},
+                MakeWritableRootFS(),
+                Config_->JobController->SetupCommandUser));
+            if (!testFileError.IsOK()) {
+                THROW_ERROR_EXCEPTION(EErrorCode::GpuCheckCommandFailed, "Path to GPU check binary is not a file")
+                    << TErrorAttribute("path", gpuCheckBinaryPath)
+                    << testFileError;
+            }
+        }
+
+        auto checkCommand = New<TShellCommandConfig>();
+        checkCommand->Path = gpuCheckBinaryPath;
+
+        return Slot_->RunSetupCommands(
+            Id_,
+            {checkCommand},
+            MakeWritableRootFS(),
+            Config_->JobController->SetupCommandUser);
+    }
+
+    void OnGpuCheckCommandFinished(const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        GuardedAction([&] {
+            ValidateJobPhase(EJobPhase::RunningGpuCheckCommand);
+            if (!error.IsOK()) {
+                auto checkError = TError(EErrorCode::GpuCheckCommandFailed, "GPU check command failed")
+                    << error;
+                THROW_ERROR checkError;
             }
 
             RunJobProxy();
@@ -1341,6 +1403,11 @@ private:
                 YT_LOG_WARNING("Sandbox cleanup is disabled by environment variable %v; should be used for testing purposes only",
                     DisableSandboxCleanupEnv);
             }
+        }
+        
+        // NB: we should disable slot here to give scheduler information about job failure.
+        if (error.FindMatching(EErrorCode::GpuCheckCommandFailed)) {
+            Bootstrap_->GetExecSlotManager()->Disable(error);
         }
 
         ResourcesUpdated_.Fire(-oneUserSlotResources);
@@ -1612,8 +1679,8 @@ private:
                 }
             }
 
-            for (const auto& descriptor : UserJobSpec_->layers()) {
-                LayerArtifactKeys_.emplace_back(descriptor);
+            for (const auto& layerKey : UserJobSpec_->layers()) {
+                LayerArtifactKeys_.emplace_back(layerKey);
             }
         }
 
@@ -1790,6 +1857,7 @@ private:
         }
 
         YT_LOG_INFO("Running setup commands");
+
         return Slot_->RunSetupCommands(Id_, commands, MakeWritableRootFS(), Config_->JobController->SetupCommandUser);
     }
 
@@ -1935,6 +2003,7 @@ private:
             error.FindMatching(NTableClient::EErrorCode::FormatCannotRepresentRow) ||
             error.FindMatching(EErrorCode::SetupCommandFailed) ||
             error.FindMatching(EErrorCode::GpuJobWithoutLayers) ||
+            error.FindMatching(EErrorCode::GpuCheckCommandFailed) ||
             error.FindMatching(EErrorCode::TmpfsOverflow);
     }
 
