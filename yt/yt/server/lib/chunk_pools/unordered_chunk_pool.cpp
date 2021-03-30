@@ -268,7 +268,7 @@ public:
                 nodeId,
                 idealDataWeightPerJob);
 
-            jobStub->Finalize(/*validateOrder*/ false);
+            jobStub->Finalize();
             JobManager_->AddJob(std::move(jobStub));
 
             if (JobSizeConstraints_->IsExplicitJobCount()) {
@@ -707,7 +707,7 @@ private:
         for (const auto& dataSlice : suspendableStripe.GetStripe()->DataSlices) {
             jobStub->AddDataSlice(dataSlice, stripeIndex, /*primary=*/true);
         }
-        jobStub->Finalize(/*validateOrder*/ false);
+        jobStub->Finalize();
 
         JobManager_->AddJob(std::move(jobStub));
     }

@@ -1018,7 +1018,7 @@ public:
         BuildJobs();
 
         for (auto& job : Jobs_) {
-            job.Finalize(Options_.ValidateOrder);
+            job.Finalize();
             ValidateJob(&job);
         }
 
@@ -1027,6 +1027,7 @@ public:
 
     void ValidateJob(const TNewJobStub* job)
     {
+        // These are user-facing checks.
         if (job->GetDataWeight() > JobSizeConstraints_->GetMaxDataWeightPerJob()) {
             YT_LOG_DEBUG("Maximum allowed data weight per sorted job exceeds the limit (DataWeight: %v, MaxDataWeightPerJob: %v, "
                 "PrimaryLowerBound: %v, PrimaryUpperBound: %v, JobDebugString: %v)",
@@ -1059,6 +1060,71 @@ public:
                 JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob())
                 << TErrorAttribute("lower_bound", job->GetPrimaryLowerBound())
                 << TErrorAttribute("upper_bound", job->GetPrimaryUpperBound());
+        }
+
+        // These are internal assertions.
+        if (Options_.ValidateOrder) {
+            // New sorted pool implementation guarantees that each stripe contains data slices in the
+            // order they follow in the input, but achieving that is utterly hard, so we put some
+            // effort in verification of this fact.
+
+            auto validatePair = [&] (
+                int index,
+                const TComparator& comparator,
+                const TLegacyDataSlicePtr& lhs,
+                const TLegacyDataSlicePtr& rhs)
+            {
+                YT_VERIFY(lhs->Tag);
+                YT_VERIFY(rhs->Tag);
+                auto lhsLocation = std::make_pair(*lhs->Tag, lhs->GetSliceIndex());
+                auto rhsLocation = std::make_pair(*rhs->Tag, rhs->GetSliceIndex());
+                if (lhsLocation < rhsLocation) {
+                    return;
+                }
+                if (lhsLocation == rhsLocation) {
+                    // These are two slices of the same unversioned chunk or versioned data slice.
+                    //
+                    // Note that our current implementation meets the following formal property.
+                    // Consider some "initial" data slice (one from chunk slice fetcher or intial
+                    // dynamic table slice). We claim that all resulting subslices are obtained from
+                    // it by repeatedly splitting some subslice into two parts by either key bound or
+                    // row limit.
+                    //
+                    // Also note that reader in job proxy may adjust lower bound of data slice by
+                    // making it tighter. This becomes important when we obtain unread data slices
+                    // during job interruption.
+                    //
+                    // Thus we may validate that for any two adjacent data slices they are separated
+                    // either by key bounds, or by row indices; this property is enough to conclude
+                    // that resulting slices follow in correct order.
+                    bool separatedByKeyBounds = lhs->UpperLimit().KeyBound && rhs->LowerLimit().KeyBound &&
+                        comparator.CompareKeyBounds(lhs->UpperLimit().KeyBound, rhs->LowerLimit().KeyBound) <= 0;
+                    bool separatedByRowIndices = lhs->UpperLimit().RowIndex && rhs->LowerLimit().RowIndex &&
+                        *lhs->UpperLimit().RowIndex <= *rhs->LowerLimit().RowIndex;
+                    if (separatedByKeyBounds || separatedByRowIndices) {
+                        return;
+                    }
+                }
+                YT_LOG_ERROR(
+                    "Error validating slice order guarantee (Index: %v, Lhs: %v, Rhs: %v)",
+                    index,
+                    GetDataSliceDebugString(lhs),
+                    GetDataSliceDebugString(rhs));
+                // Actually a safe core dump.
+                YT_VERIFY(false && "Slice order guarantee violation");
+            };
+
+            for (const auto& stripe : job->GetStripeList()->Stripes) {
+                for (int index = 0; index + 1 < stripe->DataSlices.size(); ++index) {
+                    validatePair(
+                        index,
+                        InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex()).IsPrimary()
+                            ? PrimaryComparator_
+                            : ForeignComparator_,
+                        stripe->DataSlices[index],
+                        stripe->DataSlices[index + 1]);
+                }
+            }
         }
     }
 
