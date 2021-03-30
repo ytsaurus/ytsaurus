@@ -196,6 +196,8 @@ message TUserJobSpec
     optional bool use_smaps_memory_tracker = 57 [default = false];
 
     optional TUserJobMonitoringConfig monitoring_config = 58;
+
+    optional string gpu_check_binary_path = 59;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

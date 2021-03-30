@@ -8337,6 +8337,14 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_cuda_toolkit_version(*config->CudaToolkitVersion);
     }
 
+    if (Config->GpuCheckLayerDirectoryPath && 
+        config->GpuCheckBinaryPath &&
+        config->GpuCheckLayerName &&
+        config->EnableGpuLayers)
+    {
+        jobSpec->set_gpu_check_binary_path(*config->GpuCheckBinaryPath);
+    }
+
     if (config->NetworkProject) {
         const auto& client = Host->GetClient();
         const auto networkProjectPath = "//sys/network_projects/" + ToYPathLiteral(*config->NetworkProject);
@@ -9175,6 +9183,16 @@ std::vector<NYPath::TRichYPath> TOperationControllerBase::GetLayerPaths(
     {
         // If cuda toolkit is requested, add the layer as the topmost user layer.
         auto path = *Config->CudaToolkitLayerDirectoryPath + "/" + *userJobSpec->CudaToolkitVersion;
+        layerPaths.insert(layerPaths.begin(), path);
+    }
+    if (Config->GpuCheckLayerDirectoryPath &&
+        userJobSpec->GpuCheckLayerName && 
+        userJobSpec->GpuCheckBinaryPath &&
+        !layerPaths.empty() &&
+        userJobSpec->EnableGpuLayers)
+    {
+        // If cuda toolkit is requested, add the layer as the topmost user layer.
+        auto path = *Config->GpuCheckLayerDirectoryPath + "/" + *userJobSpec->GpuCheckLayerName;
         layerPaths.insert(layerPaths.begin(), path);
     }
     if (Config->SystemLayerPath && !layerPaths.empty()) {

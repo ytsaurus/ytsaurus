@@ -26,6 +26,7 @@ DEFINE_ENUM(EJobPhase,
     ((PreparingArtifacts)           ( 20))
     ((PreparingRootVolume)          ( 25))
     ((RunningSetupCommands)         ( 27))
+    ((RunningGpuCheckCommand)       ( 28))
     ((PreparingProxy)               ( 30))
     ((Running)                      ( 40))
     ((FinalizingProxy)              ( 50))

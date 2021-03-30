@@ -997,3 +997,181 @@ class TestRootFS(YTEnvSetup):
 
         assert dict(table_stderrs_per_task) == {"task_a\n": 3, "task_b\n": 2}
         assert dict(cypress_stderrs_per_task) == {"task_a\n": 3, "task_b\n": 2}
+
+
+@authors("ignat")
+class TestGpuCheck(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+
+    USE_PORTO = True
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "test_root_fs": True,
+            "job_controller": {
+                "gpu_manager": {
+                    "driver_version": "0",
+                    "test_resource": True,
+                    "test_layers": True,
+                    "test_gpu_count": 1,
+                },
+            },
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+        },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "gpu_check_layer_directory_path": "//tmp/gpu_check"
+        }
+    }
+
+    def setup_files(self):
+        create("map_node", "//tmp/gpu_check")
+
+        create("file", "//tmp/gpu_check/0", attributes={"replication_factor": 1})
+        file_name = "layers/gpu_check.tar.gz"
+        write_file(
+            "//tmp/gpu_check/0",
+            open(file_name).read(),
+            file_writer={"upload_replication_factor": 1},
+        )
+
+        create("file", "//tmp/base_layer", attributes={"replication_factor": 1})
+        file_name = "rootfs/rootfs.tar.gz"
+        write_file(
+            "//tmp/base_layer",
+            open(file_name).read(),
+            file_writer={"upload_replication_factor": 1},
+        )
+
+        # Reload node to reset alerts.
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes").values()[0]["resource_limits"]["user_slots"] > 0)
+
+    def test_gpu_check_success(self):
+        self.setup_files()
+
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={"replication_factor": 1},
+        )
+        create(
+            "table",
+            "//tmp/t_out",
+            attributes={"replication_factor": 1},
+        )
+
+        write_table("//tmp/t_in", [{"k": 0}])
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="echo AAA >&2",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "job_count": 1,
+                    "layer_paths": ["//tmp/base_layer"],
+                    "enable_gpu_layers": True,
+                    "gpu_check_layer_name": "0",
+                    "gpu_check_binary_path": "/gpu_check/gpu_check_success",
+                },
+            },
+        )
+
+        jobs_path = op.get_path() + "/jobs"
+        assert get(jobs_path + "/@count") == 1
+        job_id = ls(jobs_path)[0]
+
+        res = op.read_stderr(job_id)
+        assert res == "AAA\n"
+
+    def test_gpu_check_fail(self):
+        self.setup_files()
+
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={"replication_factor": 1},
+        )
+        create(
+            "table",
+            "//tmp/t_out",
+            attributes={"replication_factor": 1},
+        )
+
+        node = ls("//sys/cluster_nodes")[0]
+
+        write_table("//tmp/t_in", [{"k": 0}])
+        op = map(
+            track=False,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="echo AAA >&2",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "job_count": 1,
+                    "layer_paths": ["//tmp/base_layer"],
+                    "enable_gpu_layers": True,
+                    "gpu_check_layer_name": "0",
+                    "gpu_check_binary_path": "/gpu_check/gpu_check_fail",
+                },
+            },
+        )
+
+        alerts_path = "//sys/cluster_nodes/{}/@alerts".format(node)
+        wait(lambda: get(alerts_path))
+
+        alerts = get(alerts_path)
+        assert len(alerts) == 1
+        assert "GPU check command failed" in str(alerts[0])
+
+        wait(lambda: op.get_state() == "failed")
+
+    def test_gpu_check_missing(self):
+        self.setup_files()
+
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={"replication_factor": 1},
+        )
+        create(
+            "table",
+            "//tmp/t_out",
+            attributes={"replication_factor": 1},
+        )
+
+        node = ls("//sys/cluster_nodes")[0]
+
+        write_table("//tmp/t_in", [{"k": 0}])
+        op = map(
+            track=False,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="echo AAA >&2",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "job_count": 1,
+                    "layer_paths": ["//tmp/base_layer"],
+                    "enable_gpu_layers": True,
+                    "gpu_check_layer_name": "0",
+                    "gpu_check_binary_path": "/gpu_check/gpu_check_missing",
+                },
+            },
+        )
+
+        wait(lambda: op.get_state() == "failed")
+
+        alerts_path = "//sys/cluster_nodes/{}/@alerts".format(node)
+        assert len(get(alerts_path)) == 0
