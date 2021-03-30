@@ -125,12 +125,12 @@ cdef TNode _pyobj_to_TNode(obj) except +:
         items_iterator = (obj.iteritems() if PY_MAJOR_VERSION < 3 else obj.items())
         for k, v in items_iterator:
             node(_to_TString(k), _pyobj_to_TNode(v))
-        return node
+        return <TNode&&>node
     elif isinstance(obj, (list, tuple)):
         node = TNode.CreateList()
         for x in obj:
             node.Add(_pyobj_to_TNode(x))
-        return node
+        return <TNode&&>node
     elif obj is None:
         return TNode()
     else:
