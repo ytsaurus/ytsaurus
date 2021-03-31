@@ -19,7 +19,7 @@ struct INodeStatusDirectory
     virtual std::vector<std::optional<TInstant>> RetrieveSuspicionMarkTimes(
         const std::vector<TString>& nodeAddresses) const = 0;
 
-    virtual bool ShouldMarkNodeSuspicious(TErrorCode errorCode) const = 0;
+    virtual bool ShouldMarkNodeSuspicious(const TError& error) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(INodeStatusDirectory)
