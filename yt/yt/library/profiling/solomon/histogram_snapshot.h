@@ -10,13 +10,15 @@ namespace NYT::NProfiling {
 
 struct THistogramSnapshot
 {
-    std::vector<TDuration> Times;
+    // When Values.size() == Times.size() + 1, Values.back() stores "Inf" bucket.
     std::vector<int> Values;
+    std::vector<TDuration> Times;
 
     THistogramSnapshot& operator += (const THistogramSnapshot& other);
 
     bool operator == (const THistogramSnapshot& other) const;
     bool operator != (const THistogramSnapshot& other) const;
+    bool IsEmpty() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

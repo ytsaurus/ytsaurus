@@ -69,7 +69,10 @@ struct TTestMetricConsumer
     {
         Cerr << FormatName() << " historgram{";
         for (size_t i = 0; i < value->Count(); ++i) {
-            Cerr << value->Value(i) << ",";
+            Cerr << value->UpperBound(i) << ":" << value->Value(i);
+            if (i + 1 != value->Count()) {
+                Cerr << ", ";
+            }
         }
         Cerr << "}" << Endl;
         Histograms[FormatName()] = value;
@@ -237,6 +240,30 @@ TEST(TSolomonRegistry, ExponentialHistogramProjections)
 
     CollectSensors(impl, 2);
     CollectSensors(impl, 3);
+}
+
+TEST(TSolomonRegistry, DifferentBuckets)
+{
+    auto impl = New<TSolomonRegistry>();
+    impl->SetWindowSize(12);
+    TProfiler profiler(impl, "/d");
+
+    std::vector<TDuration> firstBounds{
+        TDuration::Zero(), TDuration::MilliSeconds(5), TDuration::MilliSeconds(10)
+    };
+
+    std::vector<TDuration> secondBounds{
+        TDuration::Zero(), TDuration::MilliSeconds(500), TDuration::MilliSeconds(1000)
+    };
+
+    auto c0 = profiler.WithTag("user", "u0").Histogram("/histogram", firstBounds);
+    auto c1 = profiler.WithTag("user", "u1").Histogram("/histogram", secondBounds);
+
+    auto result = CollectSensors(impl).Histograms;
+
+    ASSERT_EQ(result.size(), 3u);
+    ASSERT_EQ(result["yt.d.histogram{}"]->Count(), 6u);
+    ASSERT_EQ(result["yt.d.histogram{user=u0}"]->Count(), 4u);
 }
 
 TEST(TSolomonRegistry, CustomHistogramProjections)

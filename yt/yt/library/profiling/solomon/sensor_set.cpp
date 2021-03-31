@@ -45,7 +45,7 @@ void TSensorSet::Profile(const TProfiler &profiler)
 
 void TSensorSet::ValidateOptions(TSensorOptions options)
 {
-    if (Options_ != options) {
+    if (!Options_.IsCompatibleWith(options)) {
         OnError(TError("Conflicting sensor settings")
             << TErrorAttribute("current", ToString(Options_))
             << TErrorAttribute("provided", ToString(options)));

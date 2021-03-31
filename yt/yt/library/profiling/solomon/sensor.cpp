@@ -157,22 +157,14 @@ void THistogram::Record(TDuration value)
 
 THistogramSnapshot THistogram::GetSnapshotAndReset()
 {
-    bool empty = true;
-
     THistogramSnapshot snapshot;
     snapshot.Times = Bounds_;
     snapshot.Values.resize(Buckets_.size());
 
     for (size_t i = 0; i < Buckets_.size(); ++i) {
         snapshot.Values[i] = Buckets_[i].exchange(0, std::memory_order_relaxed);
-        if (snapshot.Values[i] != 0) {
-            empty = false;
-        }
     }
 
-    if (empty) {
-        snapshot.Values.clear();
-    }
     return snapshot;
 }
 
