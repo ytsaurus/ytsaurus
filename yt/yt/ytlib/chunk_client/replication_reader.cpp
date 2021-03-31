@@ -668,10 +668,11 @@ protected:
 
         if (NodeStatusDirectory_ &&
             !peer.NodeSuspicionMarkTime &&
-            NodeStatusDirectory_->ShouldMarkNodeSuspicious(code))
+            NodeStatusDirectory_->ShouldMarkNodeSuspicious(rspOrError))
         {
-            YT_LOG_WARNING("Node is marked as suspicious (NodeAddress: %v)",
-                peer.AddressWithNetwork.Address);
+            YT_LOG_WARNING("Node is marked as suspicious (NodeAddress: %v, ErrorCode: %v)",
+                peer.AddressWithNetwork.Address,
+                static_cast<int>(code));
             NodeStatusDirectory_->UpdateSuspicionMarkTime(
                 peer.AddressWithNetwork.Address,
                 /* suspicious */ true,

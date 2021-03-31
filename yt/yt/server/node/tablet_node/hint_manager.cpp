@@ -132,8 +132,9 @@ public:
         return markTimes;
     }
 
-    virtual bool ShouldMarkNodeSuspicious(TErrorCode errorCode) const override
+    virtual bool ShouldMarkNodeSuspicious(const TError& error) const override
     {
+        auto errorCode = error.GetCode();
         return
             errorCode == NRpc::EErrorCode::TransportError ||
             errorCode == NChunkClient::EErrorCode::MasterNotConnected;
