@@ -90,6 +90,11 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    if (!IsReadable()) {
+        return MakeFuture<TRefCountedChunkMetaPtr>(TError("Chunk %v is not readable",
+            GetId()));
+    }
+
     auto session = New<TReadMetaSession>();
     try {
         StartReadSession(session, options);
@@ -688,11 +693,23 @@ bool TBlobChunkBase::ShouldSyncOnClose()
     return blocksExt->sync_on_close();
 }
 
+bool TBlobChunkBase::IsReadable()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return !IsArtifactChunkId(GetId());
+}
+
 TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
     const std::vector<int>& blockIndexes,
     const TChunkReadOptions& options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    if (!IsReadable()) {
+        return MakeFuture<std::vector<TBlock>>(TError("Chunk %v is not readable",
+            GetId()));
+    }
 
     auto session = New<TReadBlockSetSession>();
     try {
@@ -788,9 +805,13 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockRange(
     const TChunkReadOptions& options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-
     YT_VERIFY(firstBlockIndex >= 0);
     YT_VERIFY(blockCount >= 0);
+
+    if (!IsReadable()) {
+        return MakeFuture<std::vector<TBlock>>(TError("Chunk %v is not readable",
+            GetId()));
+    }
 
     std::vector<int> blockIndexes;
     for (int blockIndex = firstBlockIndex; blockIndex < firstBlockIndex + blockCount; ++blockIndex) {
@@ -806,6 +827,11 @@ IIOEngine::TReadRequest TBlobChunkBase::MakeChunkFragmentReadRequest(
 {
     YT_ASSERT(ReadLockCounter_.load() > 0);
     YT_ASSERT(PreparedReader_);
+
+    if (!IsReadable()) {
+        THROW_ERROR_EXCEPTION("Chunk %v is not readable",
+            GetId());
+    }
 
     return PreparedReader_->MakeChunkFragmentReadRequest(fragmentDescriptor, std::move(data));
 }
