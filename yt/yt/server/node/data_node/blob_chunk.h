@@ -134,6 +134,9 @@ private:
     //! Returns `true` if chunk was writen with `sync_on_close` option.
     //! Default value is `true`.
     bool ShouldSyncOnClose();
+
+    //! Artifact chunks are not readable.
+    bool IsReadable();
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlobChunkBase)
@@ -150,7 +153,6 @@ public:
         TLocationPtr location,
         const TChunkDescriptor& descriptor,
         NChunkClient::TRefCountedChunkMetaPtr meta = nullptr);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoredBlobChunk)
