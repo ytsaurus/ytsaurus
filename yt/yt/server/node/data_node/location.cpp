@@ -142,7 +142,7 @@ TLocation::TLocation(
 {
     Profiler_ = LocationProfiler
         .WithSparse()
-        .WithTag("location_type", ToString(Type_))
+        .WithTag("location_type", FormatEnum(Type_))
         .WithTag("medium", GetMediumName(), -1)
         .WithTag("location_id", Id_, -1);
 
