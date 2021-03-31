@@ -101,6 +101,24 @@ void Deserialize(bool& value, TYsonPullParserCursor* cursor)
             value = ParseBool(TString((*cursor)->UncheckedAsString()));
             cursor->Next();
             break;
+        case EYsonItemType::Int64Value: {
+            auto intValue = (*cursor)->UncheckedAsInt64();
+            if (intValue != 0 && intValue != 1) {
+                THROW_ERROR_EXCEPTION("Expected 0 or 1 but found %v", intValue);
+            }
+            value = static_cast<bool>(intValue);
+            cursor->Next();
+            break;
+        }
+        case EYsonItemType::Uint64Value: {
+            auto uintValue = (*cursor)->UncheckedAsUint64();
+            if (uintValue != 0 && uintValue != 1) {
+                THROW_ERROR_EXCEPTION("Expected 0 or 1 but found %v", uintValue);
+            }
+            value = static_cast<bool>(uintValue);
+            cursor->Next();
+            break;
+        }
         case EYsonItemType::BeginAttributes:
             NDetail::SkipAttributes(cursor);
             Deserialize(value, cursor);

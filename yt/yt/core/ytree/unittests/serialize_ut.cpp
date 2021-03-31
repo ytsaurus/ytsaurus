@@ -65,6 +65,15 @@ void TestSerializationDeserialization(const TOriginal& original)
     TestSerializationDeserializationNode<TOriginal, TResult>(original);
 }
 
+template <typename TResult, typename TSource>
+void TestDeserialization(const TResult& expected, const TSource& source)
+{
+    auto yson = ConvertToYsonString(source);
+    auto node = ConvertTo<INodePtr>(yson);
+    EXPECT_EQ(expected, PullParserConvert<TResult>(yson));
+    EXPECT_EQ(expected, ConvertTo<TResult>(node));
+}
+
 TString RemoveSpaces(const TString& str)
 {
     TString res = str;
@@ -86,15 +95,6 @@ TEST(TYTreeSerializationTest, All)
     auto root = ConvertToNode(canonicalYson);
     auto deserializedYson = ConvertToYsonString(root, NYson::EYsonFormat::Text);
     EXPECT_EQ(RemoveSpaces(canonicalYson.ToString()), deserializedYson.ToString());
-}
-
-template <typename TResult, typename TSource>
-void TestDeserialization(const TResult& expected, const TSource& source)
-{
-    auto yson = ConvertToYsonString(source);
-    auto node = ConvertTo<INodePtr>(yson);
-    EXPECT_EQ(expected, PullParserConvert<TResult>(yson));
-    EXPECT_EQ(expected, ConvertTo<TResult>(node));
 }
 
 TEST(TCustomTypeSerializationTest, TInstant)
@@ -197,8 +197,19 @@ TEST(TSerializationTest, Simple)
         TestSerializationDeserialization(value);
         value = false;
         TestSerializationDeserialization(value);
+
         TestDeserialization(true, TString("true"));
         TestDeserialization(false, TString("false"));
+
+        TestDeserialization(false, i64(0));
+        TestDeserialization(true, i64(1));
+        TestDeserialization(false, ui64(0));
+        TestDeserialization(true, ui64(1));
+
+        EXPECT_THROW(ConvertTo<bool>(ConvertTo<INodePtr>(i64(-1))), std::exception);
+        EXPECT_THROW(ConvertTo<bool>(ConvertTo<INodePtr>(ui64(12))), std::exception);
+        EXPECT_THROW(PullParserConvert<bool>(ConvertToYsonString(i64(-1))), std::exception);
+        EXPECT_THROW(PullParserConvert<bool>(ConvertToYsonString(ui64(12U))), std::exception);
     }
 
     {
