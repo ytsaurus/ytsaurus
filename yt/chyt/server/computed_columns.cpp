@@ -53,8 +53,8 @@ struct TInclusionStatement
 {
     std::vector<TString> ColumnNames;
     THashMap<TString, int> ColumnPosition;
-    std::vector<std::vector<DB::Field>> PossibleTuples;
-    TInclusionStatement(std::vector<TString> columnNames, std::vector<std::vector<DB::Field>> possibleTuples)
+    std::vector<DB::FieldVector> PossibleTuples;
+    TInclusionStatement(std::vector<TString> columnNames, std::vector<DB::FieldVector> possibleTuples)
         : ColumnNames(std::move(columnNames))
         , PossibleTuples(std::move(possibleTuples))
     {
@@ -79,7 +79,7 @@ struct TInclusionStatement
 
     TInclusionStatement Filter(const std::vector<TString>& references) const
     {
-        std::vector<std::vector<DB::Field>> filteredTuples(PossibleTuples.size());
+        std::vector<DB::FieldVector> filteredTuples(PossibleTuples.size());
         for (const auto& reference : references) {
             auto columnIndex = GetOrCrash(ColumnPosition, reference);
             for (size_t tupleIndex = 0; tupleIndex < PossibleTuples.size(); ++tupleIndex) {
@@ -90,12 +90,12 @@ struct TInclusionStatement
     }
 };
 
-std::vector<std::vector<DB::Field>> Transpose(std::vector<DB::Field> fields)
+std::vector<DB::FieldVector> Transpose(DB::FieldVector fields)
 {
-    std::vector<std::vector<DB::Field>> result;
+    std::vector<DB::FieldVector> result;
     result.reserve(fields.size());
     for (const auto& field : fields) {
-        result.emplace_back(std::vector<DB::Field>{field});
+        result.emplace_back(DB::FieldVector{field});
     }
     return result;
 }
@@ -170,7 +170,7 @@ struct TComputedColumnPopulationMatcher
 
         auto rowBuffer = New<TRowBuffer>();
 
-        std::vector<std::vector<DB::Field>> ResultTuples;
+        std::vector<DB::FieldVector> ResultTuples;
 
         for (auto possibleTuple : statement.PossibleTuples) {
             // Convert field to YT unversioned value.
@@ -386,7 +386,7 @@ struct TComputedColumnPopulationMatcher
                 }
                 YT_LOG_TRACE("Right-hand is constant (Rhs: %v, Value: %v, SwapAttempt: %v)", rhs, constField, swapAttempt);
 
-                std::vector<DB::Field> constTuple;
+                DB::FieldVector constTuple;
 
                 if (isLhsTuple) {
                     if (constField.getType() == DB::Field::Types::Tuple) {
@@ -433,7 +433,7 @@ struct TComputedColumnPopulationMatcher
                 columnNames,
                 isLhsTuple);
 
-            std::vector<DB::Field> constFields;
+            DB::FieldVector constFields;
 
             // Check if expression is constant.
             DB::Field constField;
@@ -452,7 +452,7 @@ struct TComputedColumnPopulationMatcher
                 constFields = {constField};
             }
 
-            std::vector<std::vector<DB::Field>> possibleTuples;
+            std::vector<DB::FieldVector> possibleTuples;
 
             if (isLhsTuple) {
                 for (const auto& constField : constFields) {
