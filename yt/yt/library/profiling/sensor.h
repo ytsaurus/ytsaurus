@@ -141,8 +141,7 @@ struct TSensorOptions
 
     std::vector<TDuration> HistogramBounds;
 
-    bool operator == (const TSensorOptions& other) const;
-    bool operator != (const TSensorOptions& other) const;
+    bool IsCompatibleWith(const TSensorOptions& other) const;
 };
 
 TString ToString(const TSensorOptions& options);

@@ -140,22 +140,14 @@ TString ToString(const TSensorOptions& options)
     );
 }
 
-bool TSensorOptions::operator == (const TSensorOptions& other) const
+bool TSensorOptions::IsCompatibleWith(const TSensorOptions& other) const
 {
     return Sparse == other.Sparse &&
         Global == other.Global &&
         Hot == other.Hot &&
         DisableSensorsRename == other.DisableSensorsRename &&
         DisableDefault == other.DisableDefault &&
-        DisableProjections == other.DisableProjections &&
-        HistogramMin == other.HistogramMin &&
-        HistogramMax == other.HistogramMax &&
-        HistogramBounds == other.HistogramBounds;
-}
-
-bool TSensorOptions::operator != (const TSensorOptions& other) const
-{
-    return !(*this == other);
+        DisableProjections == other.DisableProjections;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
