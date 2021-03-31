@@ -288,10 +288,10 @@ struct TValueFormatter<TFormatterWrapper<TFormatter>>
 };
 
 // std::vector
-template <class T>
-struct TValueFormatter<std::vector<T>>
+template <class T, class TAllocator>
+struct TValueFormatter<std::vector<T, TAllocator>>
 {
-    static void Do(TStringBuilderBase* builder, const std::vector<T>& collection, TStringBuf /*format*/)
+    static void Do(TStringBuilderBase* builder, const std::vector<T, TAllocator>& collection, TStringBuf /*format*/)
     {
         FormatRange(builder, collection, TDefaultFormatter());
     }
