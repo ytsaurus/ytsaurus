@@ -5,9 +5,7 @@ import java.util.AbstractQueue;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -69,6 +67,56 @@ public class ApiServiceTransaction extends TransactionalClient implements AutoCl
     private final AtomicReference<State> state = new AtomicReference<>(State.ACTIVE);
     private final AbstractQueue<CompletableFuture<Void>> modifyRowsResults = new ConcurrentLinkedQueue<>();
 
+    @SuppressWarnings("checkstyle:ParameterNumber")
+    ApiServiceTransaction(
+            ApiServiceClient client,
+            GUID id,
+            YtTimestamp startTimestamp,
+            boolean ping,
+            boolean pingAncestors,
+            boolean sticky,
+            Duration pingPeriod,
+            ScheduledExecutorService executor
+    ) {
+        this.client = client;
+        this.id = Objects.requireNonNull(id);
+        this.startTimestamp = Objects.requireNonNull(startTimestamp);
+        this.ping = ping;
+        this.sticky = sticky;
+        this.transactionalOptions = new TransactionalOptions(id, sticky);
+        this.pingPeriod = pingPeriod;
+        this.executor = executor;
+
+        if (pingPeriod != null && !pingPeriod.isZero() && !pingPeriod.isNegative()) {
+            executor.schedule(this::runPeriodicPings, pingPeriod.toMillis(), TimeUnit.MILLISECONDS);
+        }
+    }
+
+    @SuppressWarnings("checkstyle:ParameterNumber")
+    ApiServiceTransaction(
+            RpcClient rpcClient,
+            RpcOptions rpcOptions,
+            GUID id,
+            YtTimestamp startTimestamp,
+            boolean ping,
+            boolean pingAncestors,
+            boolean sticky,
+            Duration pingPeriod,
+            ScheduledExecutorService executor
+    ) {
+        this(
+                new ApiServiceClient(Objects.requireNonNull(rpcClient), rpcOptions),
+                id,
+                startTimestamp,
+                ping,
+                pingAncestors,
+                sticky,
+                pingPeriod,
+                executor
+        );
+    }
+
+
     @Override
     public String toString() {
         return "Transaction(" + client + ")@" + id;
@@ -92,53 +140,6 @@ public class ApiServiceTransaction extends TransactionalClient implements AutoCl
 
     public boolean isSticky() {
         return sticky;
-    }
-
-    ApiServiceTransaction(
-            ApiServiceClient client,
-            GUID id,
-            YtTimestamp startTimestamp,
-            boolean ping,
-            boolean pingAncestors,
-            boolean sticky,
-            Duration pingPeriod,
-            ScheduledExecutorService executor)
-    {
-        this.client = client;
-        this.id = Objects.requireNonNull(id);
-        this.startTimestamp = Objects.requireNonNull(startTimestamp);
-        this.ping = ping;
-        this.sticky = sticky;
-        this.transactionalOptions = new TransactionalOptions(id, sticky);
-        this.pingPeriod = pingPeriod;
-        this.executor = executor;
-
-        if (pingPeriod != null && !pingPeriod.isZero() && !pingPeriod.isNegative()) {
-            executor.schedule(this::runPeriodicPings, pingPeriod.toMillis(), TimeUnit.MILLISECONDS);
-        }
-    }
-
-    ApiServiceTransaction(
-            RpcClient rpcClient,
-            RpcOptions rpcOptions,
-            GUID id,
-            YtTimestamp startTimestamp,
-            boolean ping,
-            boolean pingAncestors,
-            boolean sticky,
-            Duration pingPeriod,
-            ScheduledExecutorService executor)
-    {
-        this(
-                new ApiServiceClient(Objects.requireNonNull(rpcClient), rpcOptions),
-                id,
-                startTimestamp,
-                ping,
-                pingAncestors,
-                sticky,
-                pingPeriod,
-                executor
-        );
     }
 
     CompletableFuture<Void> getTransactionCompleteFuture() {
@@ -180,7 +181,8 @@ public class ApiServiceTransaction extends TransactionalClient implements AutoCl
         State currentState = state.get();
         throw new IllegalStateException(
                 String.format(
-                        "Failed to set transaction into '%s' state; expected state: '%s'; current state (maybe outdated): '%s'",
+                        "Failed to set transaction into '%s' state; " +
+                                "expected state: '%s'; current state (maybe outdated): '%s'",
                         newState,
                         expectedOldState,
                         currentState
@@ -240,16 +242,13 @@ public class ApiServiceTransaction extends TransactionalClient implements AutoCl
         return CompletableFuture.completedFuture(null);
     }
 
+    /**
+     * Aborts transaction unless it was committed or aborted before.
+     */
     @Override
     public void close() {
-        CompletableFuture<Void> future = abortImpl(false);
-        try {
-            future.join();
-        } catch (CancellationException | CompletionException ignored) {
-            // игнорируем ошибки abort'а
-        } finally {
-            this.state.set(State.CLOSED);
-        }
+        // NB. We intentionally ignore all errors of abort.
+        abortImpl(false);
     }
 
     @Override
@@ -258,7 +257,10 @@ public class ApiServiceTransaction extends TransactionalClient implements AutoCl
     }
 
     @Override
-    public <T> CompletableFuture<List<T>> lookupRows(AbstractLookupRowsRequest<?> request, YTreeObjectSerializer<T> serializer) {
+    public <T> CompletableFuture<List<T>> lookupRows(
+            AbstractLookupRowsRequest<?> request,
+            YTreeObjectSerializer<T> serializer
+    ) {
         return client.lookupRows(request.setTimestamp(startTimestamp), serializer);
     }
 
