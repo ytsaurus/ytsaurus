@@ -267,6 +267,8 @@ private:
 
     std::atomic<bool> Enabled_ = false;
 
+    std::atomic<TDuration> GeneralCheckTimeout_ = TDuration::Minutes(1);
+
     TAtomicObject<TBundleHealthCachePtr> BundleHealthCache_;
     TAtomicObject<TClusterStateCachePtr> ClusterStateCache_;
     TAtomicObject<NTabletNode::TReplicatorHintConfigPtr> ReplicatorHintConfig_;
@@ -291,7 +293,8 @@ private:
             TDuration retryOnFailureInterval,
             TDuration syncReplicaLagThreshold,
             bool checkPreloadState,
-            i64 maxIterationsWithoutAcceptableBundleHealth)
+            i64 maxIterationsWithoutAcceptableBundleHealth,
+            TDuration generalCheckTimeout)
             : Id_(id)
             , Mode_(mode)
             , ClusterName_(clusterName)
@@ -307,6 +310,7 @@ private:
             , SyncReplicaLagThreshold_(syncReplicaLagThreshold)
             , CheckPreloadState_(checkPreloadState)
             , MaxIterationsWithoutAcceptableBundleHealth_(maxIterationsWithoutAcceptableBundleHealth)
+            , GeneralCheckTimeout_(generalCheckTimeout)
         { }
 
         TObjectId GetId()
@@ -418,6 +422,7 @@ private:
             SyncReplicaLagThreshold_ = other.SyncReplicaLagThreshold_;
             CheckPreloadState_ = other.CheckPreloadState_;
             MaxIterationsWithoutAcceptableBundleHealth_ = other.MaxIterationsWithoutAcceptableBundleHealth_;
+            GeneralCheckTimeout_ = other.GeneralCheckTimeout_;
         }
 
     private:
@@ -444,6 +449,8 @@ private:
         i64 IterationsWithoutAcceptableBundleHealth_ = 0;
         i64 MaxIterationsWithoutAcceptableBundleHealth_;
 
+        TDuration GeneralCheckTimeout_;
+
 
         TFuture<void> CheckClusterState()
         {
@@ -461,10 +468,11 @@ private:
                 return MakeFuture<void>(std::move(replicaLagError));
             }
 
-            return AllSucceeded(std::vector<TFuture<void>>{
-                CheckTableAttributes(),
-                CheckBundleHealth()
-            });
+            return
+                AllSucceeded(std::vector<TFuture<void>>{
+                    CheckTableAttributes(),
+                    CheckBundleHealth()})
+                .WithTimeout(GeneralCheckTimeout_);
         }
 
         TFuture<void> CheckBundleHealth()
@@ -1049,7 +1057,8 @@ private:
                 config->RetryOnFailureInterval,
                 config->SyncReplicaLagThreshold,
                 config->EnablePreloadStateCheck,
-                MaxIterationsWithoutAcceptableBundleHealth_));
+                MaxIterationsWithoutAcceptableBundleHealth_.load(),
+                GeneralCheckTimeout_.load()));
         }
 
         const auto [maxSyncReplicaCount,  minSyncReplicaCount] = config->GetEffectiveMinMaxReplicaCount(static_cast<int>(replicas.size()));
@@ -1097,6 +1106,8 @@ private:
         if (CheckerExecutor_) {
             CheckerExecutor_->SetPeriod(dynamicConfig->CheckPeriod);
         }
+
+        GeneralCheckTimeout_.store(dynamicConfig->GeneralCheckTimeout);
 
         if (ReconfigureYsonSerializable(BundleHealthCacheConfig_, dynamicConfig->BundleHealthCache)) {
             BundleHealthCache_.Store(New<TBundleHealthCache>(BundleHealthCacheConfig_));

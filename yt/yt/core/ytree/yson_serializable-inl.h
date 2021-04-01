@@ -472,7 +472,7 @@ TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::Dont
     // We should check for equality-comparability here but it is rather hard
     // to do the deep validation.
     static_assert(
-        std::is_arithmetic_v<T> || std::is_same_v<T, TString> || std::is_same_v<T, std::optional<TString>>,
+        std::is_arithmetic_v<T> || std::is_same_v<T, TString> || std::is_same_v<T, std::optional<TString>> || std::is_same_v<T, TDuration>,
         "DontSerializeDefault requires |Parameter| to be TString or arithmetic type");
 
     SerializeDefault = false;

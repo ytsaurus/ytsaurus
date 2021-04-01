@@ -317,6 +317,8 @@ public:
     TDuration CheckPeriod;
     TDuration UpdatePeriod;
 
+    TDuration GeneralCheckTimeout;
+
     NTabletNode::TReplicatorHintConfigPtr ReplicatorHint;
     TAsyncExpiringCacheConfigPtr BundleHealthCache;
     TAsyncExpiringCacheConfigPtr ClusterStateCache;
@@ -332,6 +334,9 @@ public:
             .Default(TDuration::Seconds(3));
         RegisterParameter("update_period", UpdatePeriod)
             .Default(TDuration::Seconds(3));
+        RegisterParameter("general_check_timeout", GeneralCheckTimeout)
+            .Default(TDuration::Minutes(1))
+            .DontSerializeDefault();
         RegisterParameter("replicator_hint", ReplicatorHint)
             .DefaultNew();
         RegisterParameter("bundle_health_cache", BundleHealthCache)
