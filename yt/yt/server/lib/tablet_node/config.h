@@ -677,7 +677,7 @@ public:
     size_t BatchSize;
     TWorkloadDescriptor WorkloadDescriptor;
     // COMPAT(babenko): use /tablet_node/throttlers/static_store_preload_in instead.
-    NConcurrency::TThroughputThrottlerConfigPtr PreloadThrottler;
+    NConcurrency::TRelativeThroughputThrottlerConfigPtr PreloadThrottler;
 
     TInMemoryManagerConfig()
     {
@@ -888,7 +888,7 @@ public:
 
     TTabletManagerDynamicConfigPtr TabletManager;
 
-    TEnumIndexedVector<ETabletNodeThrottlerKind, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
+    TEnumIndexedVector<ETabletNodeThrottlerKind, NConcurrency::TRelativeThroughputThrottlerConfigPtr> Throttlers;
 
     TStoreCompactorDynamicConfigPtr StoreCompactor;
     TStoreFlusherDynamicConfigPtr StoreFlusher;
@@ -1001,7 +1001,7 @@ public:
     TSlruCacheConfigPtr VersionedChunkMetaCache;
 
     //! Configuration for various Tablet Node throttlers.
-    TEnumIndexedVector<ETabletNodeThrottlerKind, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
+    TEnumIndexedVector<ETabletNodeThrottlerKind, NConcurrency::TRelativeThroughputThrottlerConfigPtr> Throttlers;
 
     //! Interval between slots examination.
     TDuration SlotScanPeriod;
@@ -1091,11 +1091,11 @@ public:
             HydraManager->MaxCommitBatchDelay = TDuration::MilliSeconds(5);
 
             // Instantiate default throttler configs.
-            Throttlers[ETabletNodeThrottlerKind::StaticStorePreloadIn] = New<NConcurrency::TThroughputThrottlerConfig>(100_MB);
-            Throttlers[ETabletNodeThrottlerKind::DynamicStoreReadOut] = New<NConcurrency::TThroughputThrottlerConfig>(100_MB);
+            Throttlers[ETabletNodeThrottlerKind::StaticStorePreloadIn] = New<NConcurrency::TRelativeThroughputThrottlerConfig>(100_MB);
+            Throttlers[ETabletNodeThrottlerKind::DynamicStoreReadOut] = New<NConcurrency::TRelativeThroughputThrottlerConfig>(100_MB);
             for (auto kind : TEnumTraits<ETabletNodeThrottlerKind>::GetDomainValues()) {
                 if (!Throttlers[kind]) {
-                    Throttlers[kind] = New<NConcurrency::TThroughputThrottlerConfig>();
+                    Throttlers[kind] = New<NConcurrency::TRelativeThroughputThrottlerConfig>();
                 }
             }
         });

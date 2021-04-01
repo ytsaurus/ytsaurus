@@ -239,7 +239,7 @@ DEFINE_ENUM(ETabletNodeThrottlerKind,
     (ReplicationIn)
     //! Controls outcoming bandwidth used by table replication.
     (ReplicationOut)
-    //! Controls incoming bandwidth used by in-memory tables prload.
+    //! Controls incoming bandwidth used by in-memory tables preload.
     (StaticStorePreloadIn)
     //! Controls outcoming bandwidth used by dynamic store remote reads.
     (DynamicStoreReadOut)

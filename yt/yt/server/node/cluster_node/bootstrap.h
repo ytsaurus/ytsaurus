@@ -259,6 +259,9 @@ private:
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& oldConfig,
         const TClusterNodeDynamicConfigPtr& newConfig);
+
+    NConcurrency::TRelativeThroughputThrottlerConfigPtr PatchRelativeNetworkThrottlerConfig(
+        const NConcurrency::TRelativeThroughputThrottlerConfigPtr& config) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

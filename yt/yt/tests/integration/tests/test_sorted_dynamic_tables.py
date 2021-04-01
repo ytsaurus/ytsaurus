@@ -176,6 +176,14 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
         set("//tmp/t/@enable_compaction_and_partitioning", False)
         sync_reshard_table("//tmp/t", [[]])
 
+    def _separate_tablet_and_data_nodes(self):
+        self._nodes = ls("//sys/cluster_nodes")
+        assert len(self._nodes) == self.NUM_NODES
+
+        set("//sys/cluster_nodes/{0}/@disable_write_sessions".format(self._nodes[0]), True)
+        for node in self._nodes[1:]:
+            set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), True)
+
 
 ##################################################################
 

@@ -26,6 +26,7 @@ DECLARE_REFCOUNTED_STRUCT(TDelayedExecutorEntry)
 using TDelayedExecutorCookie = NDetail::TDelayedExecutorEntryPtr;
 
 DECLARE_REFCOUNTED_CLASS(TThroughputThrottlerConfig)
+DECLARE_REFCOUNTED_CLASS(TRelativeThroughputThrottlerConfig)
 DECLARE_REFCOUNTED_STRUCT(IThroughputThrottler)
 DECLARE_REFCOUNTED_STRUCT(IReconfigurableThroughputThrottler)
 

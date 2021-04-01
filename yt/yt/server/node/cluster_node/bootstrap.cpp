@@ -214,6 +214,21 @@ using namespace NYTree;
 
 static const NLogging::TLogger Logger("Bootstrap");
 
+static const THashSet<EDataNodeThrottlerKind> DataNodeNetworkThrottlers = {
+    EDataNodeThrottlerKind::TotalIn,
+    EDataNodeThrottlerKind::TotalOut,
+    EDataNodeThrottlerKind::ReplicationIn,
+    EDataNodeThrottlerKind::ReplicationOut,
+    EDataNodeThrottlerKind::RepairIn,
+    EDataNodeThrottlerKind::RepairOut,
+    EDataNodeThrottlerKind::ArtifactCacheIn,
+    EDataNodeThrottlerKind::ArtifactCacheOut,
+    EDataNodeThrottlerKind::ReadRpsOut,
+    EDataNodeThrottlerKind::JobIn,
+    EDataNodeThrottlerKind::JobOut,
+    EDataNodeThrottlerKind::P2POut
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TBootstrap::TBootstrap(TClusterNodeConfigPtr config, INodePtr configNode)
@@ -454,8 +469,12 @@ void TBootstrap::DoInitialize()
     ChunkCache_ = New<TChunkCache>(Config_->DataNode, this);
 
     for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
+        const auto& initialThrottlerConfig = Config_->DataNode->Throttlers[kind];
+        auto throttlerConfig = DataNodeNetworkThrottlers.contains(kind)
+            ? PatchRelativeNetworkThrottlerConfig(initialThrottlerConfig)
+            : initialThrottlerConfig;
         RawDataNodeThrottlers_[kind] = CreateNamedReconfigurableThroughputThrottler(
-            Config_->DataNode->Throttlers[kind],
+            std::move(throttlerConfig),
             ToString(kind),
             DataNodeLogger,
             DataNodeProfiler.WithPrefix("/throttlers"));
@@ -466,7 +485,6 @@ void TBootstrap::DoInitialize()
         EDataNodeThrottlerKind::ReplicationIn,
         EDataNodeThrottlerKind::RepairIn,
         EDataNodeThrottlerKind::ArtifactCacheIn,
-        EDataNodeThrottlerKind::TabletCompactionAndPartitioningIn,
         EDataNodeThrottlerKind::TabletCompactionAndPartitioningIn,
         EDataNodeThrottlerKind::TabletLoggingIn,
         EDataNodeThrottlerKind::TabletSnapshotIn,
@@ -479,7 +497,6 @@ void TBootstrap::DoInitialize()
         EDataNodeThrottlerKind::ArtifactCacheOut,
         EDataNodeThrottlerKind::TabletCompactionAndPartitioningOut,
         EDataNodeThrottlerKind::SkynetOut,
-        EDataNodeThrottlerKind::TabletCompactionAndPartitioningOut,
         EDataNodeThrottlerKind::TabletPreloadOut,
         EDataNodeThrottlerKind::TabletRecoveryOut,
         EDataNodeThrottlerKind::TabletReplicationOut,
@@ -497,8 +514,9 @@ void TBootstrap::DoInitialize()
     }
 
     for (auto kind : TEnumTraits<ETabletNodeThrottlerKind>::GetDomainValues()) {
+        auto throttlerConfig = PatchRelativeNetworkThrottlerConfig(Config_->TabletNode->Throttlers[kind]);
         RawTabletNodeThrottlers_[kind] = CreateNamedReconfigurableThroughputThrottler(
-            Config_->TabletNode->Throttlers[kind],
+            std::move(throttlerConfig),
             ToString(kind),
             TabletNodeLogger,
             TabletNodeProfiler.WithPrefix("/throttlers"));
@@ -1423,17 +1441,21 @@ void TBootstrap::OnDynamicConfigChanged(
         newConfig->DataNode->StorageLookupThreadCount.value_or(Config_->DataNode->StorageLookupThreadCount));
 
     for (auto kind : TEnumTraits<NDataNode::EDataNodeThrottlerKind>::GetDomainValues()) {
-        auto throttlerConfig = newConfig->DataNode->Throttlers[kind]
+        const auto& initialThrottlerConfig = newConfig->DataNode->Throttlers[kind]
             ? newConfig->DataNode->Throttlers[kind]
             : Config_->DataNode->Throttlers[kind];
-        RawDataNodeThrottlers_[kind]->Reconfigure(throttlerConfig);
+        auto throttlerConfig = DataNodeNetworkThrottlers.contains(kind)
+            ? PatchRelativeNetworkThrottlerConfig(initialThrottlerConfig)
+            : initialThrottlerConfig;
+        RawDataNodeThrottlers_[kind]->Reconfigure(std::move(throttlerConfig));
     }
 
     for (auto kind : TEnumTraits<NTabletNode::ETabletNodeThrottlerKind>::GetDomainValues()) {
-        auto throttlerConfig = newConfig->TabletNode->Throttlers[kind]
+        const auto& initialThrottlerConfig = newConfig->TabletNode->Throttlers[kind]
             ? newConfig->TabletNode->Throttlers[kind]
             : Config_->TabletNode->Throttlers[kind];
-        RawTabletNodeThrottlers_[kind]->Reconfigure(throttlerConfig);
+        auto throttlerConfig = PatchRelativeNetworkThrottlerConfig(initialThrottlerConfig);
+        RawTabletNodeThrottlers_[kind]->Reconfigure(std::move(throttlerConfig));
     }
 
     ClientBlockCache_->Reconfigure(newConfig->DataNode->BlockCache);
@@ -1468,6 +1490,20 @@ void TBootstrap::OnDynamicConfigChanged(
     };
 
     CellarManager_->Reconfigure(getCellarManagerConfig());
+}
+
+TRelativeThroughputThrottlerConfigPtr TBootstrap::PatchRelativeNetworkThrottlerConfig(
+    const TRelativeThroughputThrottlerConfigPtr& config) const
+{
+    // NB: Absolute value limit suppresses relative one.
+    if (config->Limit || !config->RelativeLimit) {
+        return config;
+    }
+
+    auto patchedConfig = CloneYsonSerializable(config);
+    patchedConfig->Limit = *config->RelativeLimit * Config_->NetworkBandwidth;
+
+    return patchedConfig;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

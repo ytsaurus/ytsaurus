@@ -528,18 +528,10 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
         {"name": "value", "type": "string"},
     ]
 
-    def _set_nodes_state(self):
-        self._nodes = ls("//sys/cluster_nodes")
-        assert len(self._nodes) == self.NUM_NODES
-
-        set("//sys/cluster_nodes/{0}/@disable_write_sessions".format(self._nodes[0]), True)
-        for node in self._nodes[1:]:
-            set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), True)
-
     @authors("akozhikhov")
     @pytest.mark.parametrize("parallel_lookups", [0, 1, 2])
     def test_data_node_lookup_simple(self, parallel_lookups):
-        self._set_nodes_state()
+        self._separate_tablet_and_data_nodes()
         sync_create_cells(1)
 
         self._create_simple_table("//tmp/t", replication_factor=1)
@@ -566,7 +558,7 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
     @authors("akozhikhov")
     @pytest.mark.parametrize("replication_factor", [1, 3])
     def test_data_node_lookup_with_alter(self, replication_factor):
-        self._set_nodes_state()
+        self._separate_tablet_and_data_nodes()
         sync_create_cells(1)
 
         self._create_simple_table("//tmp/t", replication_factor=replication_factor)
@@ -606,7 +598,7 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
     @authors("akozhikhov")
     @pytest.mark.parametrize("replication_factor", [1, 3])
     def test_data_node_lookup_chunks_with_overlap(self, replication_factor):
-        self._set_nodes_state()
+        self._separate_tablet_and_data_nodes()
         sync_create_cells(1)
 
         self._create_simple_table("//tmp/t", replication_factor=replication_factor, schema=self.schema)
@@ -669,7 +661,7 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
     @authors("akozhikhov")
     @pytest.mark.parametrize("replication_factor", [1, 3])
     def test_data_node_lookup_with_timestamp(self, replication_factor):
-        self._set_nodes_state()
+        self._separate_tablet_and_data_nodes()
         sync_create_cells(1)
 
         self._create_simple_table("//tmp/t", replication_factor=replication_factor, schema=self.schema)
@@ -703,7 +695,7 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
     @pytest.mark.parametrize("enable_peer_probing", [True, False])
     @pytest.mark.parametrize("enable_rejects_if_throttling", [True, False])
     def test_data_node_lookup_stress(self, replication_factor, enable_peer_probing, enable_rejects_if_throttling):
-        self._set_nodes_state()
+        self._separate_tablet_and_data_nodes()
         sync_create_cells(1)
 
         self._create_simple_table("//tmp/t", replication_factor=replication_factor)
@@ -760,7 +752,7 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
     @authors("akozhikhov")
     @pytest.mark.parametrize("parallel_lookups", [1, 3, 5])
     def test_parallel_lookup_stress(self, parallel_lookups):
-        self._set_nodes_state()
+        self._separate_tablet_and_data_nodes()
         sync_create_cells(1)
 
         self._create_simple_table("//tmp/t", replication_factor=1, lookup_cache_rows_per_tablet=5)
@@ -811,19 +803,11 @@ class TestLookupFromSuspiciousNodes(TestSortedDynamicTablesBase):
         }
     }
 
-    def _set_nodes_state(self):
-        self._nodes = ls("//sys/cluster_nodes")
-        assert len(self._nodes) == self.NUM_NODES
-
-        set("//sys/cluster_nodes/{0}/@disable_write_sessions".format(self._nodes[0]), True)
-        for node in self._nodes[1:]:
-            set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), True)
-
     @authors("akozhikhov")
     def test_lookup_from_suspicious_node(self):
         set("//sys/@config/tablet_manager/chunk_reader", {"probe_peer_count": self.NUM_NODES - 1})
 
-        self._set_nodes_state()
+        self._separate_tablet_and_data_nodes()
         sync_create_cells(1)
 
         self._create_simple_table("//tmp/t", replication_factor=self.NUM_NODES - 1)
@@ -848,6 +832,70 @@ class TestLookupFromSuspiciousNodes(TestSortedDynamicTablesBase):
 
         # Node shall not be suspicious anymore.
         assert lookup_rows("//tmp/t", [{"key": 1}]) == row
+
+
+class TestLookupWithRelativeNetworkThrottler(TestSortedDynamicTablesBase):
+    NUM_NODES = 2
+
+    DELTA_NODE_CONFIG = {
+        "network_bandwidth": 100,
+
+        "data_node": {
+            "total_out_throttler": {
+                "relative_limit": 0.5,
+            },
+            "block_cache": {
+                "compressed_data": {
+                    "capacity": 0
+                },
+                "uncompressed_data": {
+                    "capacity": 0
+                }
+            }
+        }
+    }
+
+    @authors("akozhikhov")
+    def test_lookup_with_relative_network_throttler(self):
+        self._separate_tablet_and_data_nodes()
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t", replication_factor=1)
+        sync_mount_table("//tmp/t")
+
+        row = [{"key": 1, "value": "1"}]
+        insert_rows("//tmp/t", row)
+        sync_flush_table("//tmp/t")
+
+        def _check():
+            start_time = time.time()
+            for i in range(3):
+                assert lookup_rows("//tmp/t", [{"key": 1}]) == row
+            return time.time() - start_time
+
+        assert _check() > 3
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "throttlers": {
+                    "total_out": {
+                        "limit": 1000,
+                    }
+                }
+            }
+        })
+        assert _check() < 0.5
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "throttlers": {
+                    "total_out": {
+                        "relative_limit": 0.5,
+                    }
+                }
+            }
+        })
+        assert _check() > 3
 
 
 ################################################################################
