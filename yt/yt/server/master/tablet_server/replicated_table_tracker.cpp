@@ -248,6 +248,7 @@ public:
         , Config_(std::move(config))
         , BundleHealthCache_(New<TBundleHealthCache>(BundleHealthCacheConfig_))
         , ClusterStateCache_(New<TClusterStateCache>(ClusterStateCacheConfig_))
+        , ReplicatorHintConfig_(New<NTabletNode::TReplicatorHintConfig>())
         , CheckerThreadPool_(New<TThreadPool>(Config_->CheckerThreadCount, "RplTableTracker"))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ReplicatedTableTracker), AutomatonThread);
@@ -409,20 +410,10 @@ private:
             return !(*this == other);
         }
 
-        void Merge(const TReplica& other)
+        void Merge(const TIntrusivePtr<TReplica>& oldReplica)
         {
-            Mode_ = other.Mode_;
-            ReplicatorHintConfig_ = other.ReplicatorHintConfig_;
-            if (Client_ != other.Client_) {
-                Client_ = other.Client_;
-            }
-            Lag_ = other.Lag_;
-            TabletCellBundleNameTtl_ = other.TabletCellBundleNameTtl_;
-            RetryOnFailureInterval_ = other.RetryOnFailureInterval_;
-            SyncReplicaLagThreshold_ = other.SyncReplicaLagThreshold_;
-            CheckPreloadState_ = other.CheckPreloadState_;
-            MaxIterationsWithoutAcceptableBundleHealth_ = other.MaxIterationsWithoutAcceptableBundleHealth_;
-            GeneralCheckTimeout_ = other.GeneralCheckTimeout_;
+            // NB: Thread safe because new replica hasn't been used yet.
+            AsyncTabletCellBundleName_.Store(oldReplica->AsyncTabletCellBundleName_.Load());
         }
 
     private:
@@ -431,18 +422,20 @@ private:
         const TString ClusterName_;
         const TYPath Path_;
 
-        TBundleHealthCachePtr BundleHealthCache_;
-        TClusterStateCachePtr ClusterStateCache_;
-        NTabletNode::TReplicatorHintConfigPtr ReplicatorHintConfig_;
-        NApi::IClientPtr Client_;
-        const IInvokerPtr CheckerInvoker_;
-        TDuration Lag_;
-        TFuture<TString> AsyncTabletCellBundleName_ = MakeFuture<TString>(TError("<unknown>"));
+        const TBundleHealthCachePtr BundleHealthCache_;
+        const TClusterStateCachePtr ClusterStateCache_;
 
-        TDuration TabletCellBundleNameTtl_;
-        TDuration RetryOnFailureInterval_;
-        TDuration SyncReplicaLagThreshold_;
+        const NTabletNode::TReplicatorHintConfigPtr ReplicatorHintConfig_;
+        const NApi::IClientPtr Client_;
+        const IInvokerPtr CheckerInvoker_;
+        const TDuration Lag_;
+
+        const TDuration TabletCellBundleNameTtl_;
+        const TDuration RetryOnFailureInterval_;
+        const TDuration SyncReplicaLagThreshold_;
         bool CheckPreloadState_;
+
+        TAtomicObject<TFuture<TString>> AsyncTabletCellBundleName_ = MakeFuture<TString>(TError("<unknown>"));
 
         TInstant LastUpdateTime_;
 
@@ -538,20 +531,23 @@ private:
         TFuture<TString> GetAsyncTabletCellBundleName()
         {
             auto now = NProfiling::GetInstant();
-            auto interval = (AsyncTabletCellBundleName_.IsSet() && !AsyncTabletCellBundleName_.Get().IsOK())
+            auto asyncTabletCellBundleName = AsyncTabletCellBundleName_.Load();
+
+            auto interval = (asyncTabletCellBundleName.IsSet() && !asyncTabletCellBundleName.Get().IsOK())
                 ? RetryOnFailureInterval_
                 : TabletCellBundleNameTtl_;
 
             if (LastUpdateTime_ + interval < now) {
                 LastUpdateTime_ = now;
-                AsyncTabletCellBundleName_ = Client_->GetNode(Path_ + "/@tablet_cell_bundle")
+                asyncTabletCellBundleName = Client_->GetNode(Path_ + "/@tablet_cell_bundle")
                     .Apply(BIND([] (const TErrorOr<TYsonString>& bundleNameOrError) {
                         THROW_ERROR_EXCEPTION_IF_FAILED(bundleNameOrError, "Error getting table bundle name");
                         return ConvertTo<TString>(bundleNameOrError.Value());
                     }));
+                AsyncTabletCellBundleName_.Store(asyncTabletCellBundleName);
             }
 
-            return AsyncTabletCellBundleName_;
+            return asyncTabletCellBundleName;
         }
     };
 
@@ -594,11 +590,10 @@ private:
             auto guard = Guard(Lock_);
             Replicas_.resize(replicas.size());
             for (int i = 0; i < static_cast<int>(replicas.size()); ++i) {
-                if (!Replicas_[i] || *Replicas_[i] != *replicas[i]) {
-                    Replicas_[i] = replicas[i];
-                } else {
-                    Replicas_[i]->Merge(*replicas[i]);
+                if (Replicas_[i] && *replicas[i] == *Replicas_[i]) {
+                    replicas[i]->Merge(Replicas_[i]);
                 }
+                Replicas_[i] = replicas[i];
             }
         }
 
