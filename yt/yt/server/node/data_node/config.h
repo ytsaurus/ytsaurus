@@ -780,7 +780,7 @@ public:
     NChunkClient::TMultiChunkWriterConfigPtr MergeWriter;
 
     //! Configuration for various Data Node throttlers.
-    TEnumIndexedVector<EDataNodeThrottlerKind, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
+    TEnumIndexedVector<EDataNodeThrottlerKind, NConcurrency::TRelativeThroughputThrottlerConfigPtr> Throttlers;
 
     //! Keeps chunk peering information.
     TBlockPeerTableConfigPtr BlockPeerTable;
@@ -1069,7 +1069,7 @@ public:
 
             // Instantiate default throttler configs.
             for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
-                Throttlers[kind] = New<NConcurrency::TThroughputThrottlerConfig>();
+                Throttlers[kind] = New<NConcurrency::TRelativeThroughputThrottlerConfig>();
             }
         });
 
@@ -1120,7 +1120,7 @@ public:
     std::optional<int> StorageLightThreadCount;
     std::optional<int> StorageLookupThreadCount;
 
-    TEnumIndexedVector<EDataNodeThrottlerKind, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
+    TEnumIndexedVector<EDataNodeThrottlerKind, NConcurrency::TRelativeThroughputThrottlerConfigPtr> Throttlers;
 
     TSlruCacheDynamicConfigPtr ChunkMetaCache;
     TSlruCacheDynamicConfigPtr BlocksExtCache;
