@@ -3,6 +3,7 @@
 #include "private.h"
 #include "bootstrap.h"
 #include "config.h"
+#include "dynamic_config_manager.h"
 #include "proxy_coordinator.h"
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
@@ -22,15 +23,18 @@ class TAccessChecker
 {
 public:
     explicit TAccessChecker(TBootstrap* bootstrap)
-        : Bootstrap_(bootstrap)
-        , Config_(Bootstrap_->GetConfig()->AccessChecker)
+        : Config_(bootstrap->GetConfig()->AccessChecker)
         , Cache_(New<TPermissionCache>(
             Config_->Cache,
-            Bootstrap_->GetNativeConnection(),
+            bootstrap->GetNativeConnection(),
             RpcProxyProfiler.WithPrefix("/access_checker_cache")))
         , Enabled_(Config_->Enabled)
     {
-        Bootstrap_->GetProxyCoordinator()->SubscribeOnDynamicConfigChanged(BIND(&TAccessChecker::OnDynamicConfigChanged, MakeWeak(this)));
+        const auto& dynamicConfigManager = bootstrap->GetDynamicConfigManager();
+        dynamicConfigManager->SubscribeConfigChanged(BIND(&TAccessChecker::OnDynamicConfigChanged, MakeWeak(this)));
+
+        const auto& proxyCoordinator = bootstrap->GetProxyCoordinator();
+        proxyCoordinator->SubscribeOnProxyRoleChanged(BIND(&TAccessChecker::OnProxyRoleChanged, MakeWeak(this)));
     }
 
     virtual TError ValidateAccess(const TString& user) const override
@@ -41,7 +45,7 @@ public:
             return TError();
         }
 
-        auto proxyRole = Bootstrap_->GetProxyCoordinator()->GetProxyRole();
+        auto proxyRole = ProxyRole_.Load();
         if (!proxyRole) {
             return TError();
         }
@@ -66,18 +70,28 @@ public:
     }
 
 private:
-    TBootstrap const* Bootstrap_;
     const TAccessCheckerConfigPtr Config_;
 
     const TPermissionCachePtr Cache_;
 
     std::atomic<bool> Enabled_;
 
-    void OnDynamicConfigChanged(const TDynamicProxyConfigPtr& newConfig)
+    TAtomicObject<std::optional<TString>> ProxyRole_;
+
+    void OnDynamicConfigChanged(
+        const TProxyDynamicConfigPtr& /*oldConfig*/,
+        const TProxyDynamicConfigPtr& newConfig)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         Enabled_.store(newConfig->AccessChecker->Enabled.value_or(Config_->Enabled));
+    }
+
+    void OnProxyRoleChanged(const std::optional<TString>& newRole)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        ProxyRole_.Store(newRole);
     }
 };
 

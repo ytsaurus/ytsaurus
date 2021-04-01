@@ -15,6 +15,8 @@ namespace NYT::NRpcProxy {
 struct IProxyCoordinator
     : public virtual TRefCounted
 {
+    virtual void Initialize() = 0;
+
     virtual bool SetBannedState(bool banned) = 0;
     virtual bool GetBannedState() const = 0;
 
@@ -30,20 +32,16 @@ struct IProxyCoordinator
     virtual bool GetOperableState() const = 0;
     virtual void ValidateOperable() const = 0;
 
-    virtual void SetDynamicConfig(TDynamicProxyConfigPtr config) = 0;
-    virtual TDynamicProxyConfigPtr GetDynamicConfig() const = 0;
     virtual NTracing::TSampler* GetTraceSampler() = 0;
 
-    virtual NYTree::IYPathServicePtr CreateOrchidService() = 0;
-
-    DECLARE_INTERFACE_SIGNAL(void(const TDynamicProxyConfigPtr&), OnDynamicConfigChanged);
+    DECLARE_INTERFACE_SIGNAL(void(const std::optional<TString>& newRole), OnProxyRoleChanged);
 };
 
 DEFINE_REFCOUNTED_TYPE(IProxyCoordinator)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IProxyCoordinatorPtr CreateProxyCoordinator();
+IProxyCoordinatorPtr CreateProxyCoordinator(TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

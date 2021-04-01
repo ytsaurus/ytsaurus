@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/misc/config.h>
+#include <yt/yt/server/lib/dynamic_config/config.h>
 
-#include <yt/yt/server/rpc_proxy/config.h>
+#include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/ytlib/auth/config.h>
 
@@ -84,6 +84,23 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TApiServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TApiServiceDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;
+
+    TApiServiceDynamicConfig()
+    {
+        RegisterParameter("formats", Formats)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TApiServiceDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -198,6 +215,12 @@ public:
     //! For testing purposes.
     bool RetryRequestQueueSizeLimitExceeded;
 
+    NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
+
+    // COMPAT(gritukan): Drop it after migration to tagged configs.
+    TString DynamicConfigPath;
+    bool UseTaggedDynamicConfig;
+
     TProxyConfig()
     {
         RegisterParameter("cluster_connection", ClusterConnection);
@@ -229,6 +252,14 @@ public:
         RegisterParameter("retry_request_queue_size_limit_exceeded", RetryRequestQueueSizeLimitExceeded)
             .Default(true);
 
+        RegisterParameter("dynamic_config_manager", DynamicConfigManager)
+            .DefaultNew();
+
+        RegisterParameter("dynamic_config_path", DynamicConfigPath)
+            .Default("//sys/rpc_proxies/@config");
+        RegisterParameter("use_tagged_dynamic_config", UseTaggedDynamicConfig)
+            .Default(false);
+
         RegisterPostprocessor([&] {
             if (GrpcServer && GrpcServer->Addresses.size() > 1) {
                 THROW_ERROR_EXCEPTION("Multiple GRPC addresses are not supported");
@@ -241,17 +272,22 @@ DEFINE_REFCOUNTED_TYPE(TProxyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicProxyConfig
-    : public virtual NYTree::TYsonSerializable
+class TProxyDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
+    TApiServiceDynamicConfigPtr Api;
+
     NTracing::TSamplingConfigPtr Tracing;
     THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;
 
     TAccessCheckerDynamicConfigPtr AccessChecker;
 
-    TDynamicProxyConfig()
+    TProxyDynamicConfig()
     {
+        RegisterParameter("api", Api)
+            .DefaultNew();
+
         RegisterParameter("tracing", Tracing)
             .DefaultNew();
         RegisterParameter("formats", Formats)
@@ -259,10 +295,17 @@ public:
 
         RegisterParameter("access_checker", AccessChecker)
             .DefaultNew();
+
+        // COMPAT(gritukan, levysotsky)
+        RegisterPostprocessor([&] {
+            if (Api->Formats.empty()) {
+                Api->Formats = Formats;
+            }
+        });
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TDynamicProxyConfig)
+DEFINE_REFCOUNTED_TYPE(TProxyDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

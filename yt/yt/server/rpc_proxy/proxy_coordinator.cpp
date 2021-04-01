@@ -1,5 +1,8 @@
 #include "proxy_coordinator.h"
 
+#include "bootstrap.h"
+#include "dynamic_config_manager.h"
+
 #include <yt/yt/ytlib/security_client/public.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -27,6 +30,10 @@ class TProxyCoordinator
     : public IProxyCoordinator
 {
 public:
+    explicit TProxyCoordinator(TBootstrap* bootstrap);
+
+    virtual void Initialize() override;
+
     virtual bool SetBannedState(bool banned) override;
     virtual bool GetBannedState() const override;
 
@@ -42,16 +49,14 @@ public:
     virtual bool GetOperableState() const override;
     virtual void ValidateOperable() const override;
 
-    virtual void SetDynamicConfig(TDynamicProxyConfigPtr config) override;
-    virtual TDynamicProxyConfigPtr GetDynamicConfig() const override;
     virtual TSampler* GetTraceSampler() override;
 
-    virtual NYTree::IYPathServicePtr CreateOrchidService() override;
-
 public:
-    DEFINE_SIGNAL(void(const TDynamicProxyConfigPtr&), OnDynamicConfigChanged);
+    DEFINE_SIGNAL(void(const std::optional<TString>&), OnProxyRoleChanged);
 
 private:
+    TBootstrap* Bootstrap_;
+
     std::atomic<bool> Banned_ = false;
     std::atomic<bool> Available_ = false;
 
@@ -61,10 +66,22 @@ private:
 
     NTracing::TSampler Sampler_;
 
-    TAtomicObject<TDynamicProxyConfigPtr> Config_ = New<TDynamicProxyConfig>();
-
     void BuildOrchid(IYsonConsumer* consumer);
+
+    void OnDynamicConfigChanged(
+        const TProxyDynamicConfigPtr& /*oldConfig*/,
+        const TProxyDynamicConfigPtr& newConfig);
 };
+
+TProxyCoordinator::TProxyCoordinator(TBootstrap* bootstrap)
+    : Bootstrap_(bootstrap)
+{ }
+
+void TProxyCoordinator::Initialize()
+{
+    const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+    dynamicConfigManager->SubscribeConfigChanged(BIND(&TProxyCoordinator::OnDynamicConfigChanged, MakeWeak(this)));
+}
 
 bool TProxyCoordinator::SetBannedState(bool banned)
 {
@@ -89,6 +106,7 @@ TString TProxyCoordinator::GetBanMessage() const
 void TProxyCoordinator::SetProxyRole(const std::optional<TString>& role)
 {
     ProxyRole_.Store(role);
+    OnProxyRoleChanged_.Fire(role);
 }
 
 std::optional<TString> TProxyCoordinator::GetProxyRole() const
@@ -122,45 +140,24 @@ void TProxyCoordinator::ValidateOperable() const
     }
 }
 
-void TProxyCoordinator::SetDynamicConfig(TDynamicProxyConfigPtr config)
-{
-    if (config->Tracing) {
-        Sampler_.UpdateConfig(config->Tracing);
-        Sampler_.ResetPerUserLimits();
-    }
-
-    Config_.Store(config);
-    OnDynamicConfigChanged_.Fire(config);
-}
-
-TDynamicProxyConfigPtr TProxyCoordinator::GetDynamicConfig() const
-{
-    return Config_.Load();
-}
-
 TSampler* TProxyCoordinator::GetTraceSampler()
 {
     return &Sampler_;
 }
 
-NYTree::IYPathServicePtr TProxyCoordinator::CreateOrchidService()
+void TProxyCoordinator::OnDynamicConfigChanged(
+    const TProxyDynamicConfigPtr& /*oldConfig*/,
+    const TProxyDynamicConfigPtr& newConfig)
 {
-   return IYPathService::FromProducer(BIND(&TProxyCoordinator::BuildOrchid, MakeStrong(this)));
-}
-
-void TProxyCoordinator::BuildOrchid(IYsonConsumer* consumer)
-{
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("dynamic_config").Value(GetDynamicConfig())
-        .EndMap();
+    Sampler_.UpdateConfig(newConfig->Tracing);
+    Sampler_.ResetPerUserLimits();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IProxyCoordinatorPtr CreateProxyCoordinator()
+IProxyCoordinatorPtr CreateProxyCoordinator(TBootstrap* bootstrap)
 {
-    return New<TProxyCoordinator>();
+    return New<TProxyCoordinator>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
