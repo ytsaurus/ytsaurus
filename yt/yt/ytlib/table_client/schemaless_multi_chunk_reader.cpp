@@ -1116,13 +1116,15 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
 
         if (chunkSpec.has_lower_limit()) {
             lowerLimit = NYT::FromProto<TLegacyReadLimit>(chunkSpec.lower_limit());
-        } else {
+        }
+        if (!lowerLimit.HasLegacyKey() || !lowerLimit.GetLegacyKey()) {
             lowerLimit.SetLegacyKey(MinKey());
         }
 
         if (chunkSpec.has_upper_limit()) {
             upperLimit = NYT::FromProto<TLegacyReadLimit>(chunkSpec.upper_limit());
-        } else {
+        }
+        if (!upperLimit.HasLegacyKey() || !upperLimit.GetLegacyKey()) {
             upperLimit.SetLegacyKey(MaxKey());
         }
 
