@@ -81,12 +81,7 @@ public:
         , GroupId_(groupId)
         , MessageOfTheDay_(messageOfTheDay)
         , Environment_(std::move(environment))
-    {
-        Environment_.emplace_back(Format("HOME=%v", WorkingDir_));
-        Environment_.emplace_back(Format("G_HOME=%v", WorkingDir_));
-        auto tmpDirPath = NFS::CombinePaths(WorkingDir_, "tmp");
-        Environment_.emplace_back(Format("TMPDIR=%v", tmpDirPath));
-    }
+    { }
 
     virtual TYsonString PollJobShell(
         const TJobShellDescriptor& jobShellDescriptor,
@@ -128,7 +123,6 @@ public:
                     parameters.Environment.end());
                 options->Environment = Environment_;
                 options->PreparationDir = PreparationDir_;
-                options->WorkingDir = WorkingDir_;
                 if (parameters.Command) {
                     options->Command = parameters.Command;
                 } else {
@@ -158,6 +152,13 @@ public:
                     if (enablePorto && enablePorto != "none" && enablePorto != "false") {
                         options->EnablePorto = true;
                     }
+                }
+
+                if (!jobShellDescriptor.Subcontainer.empty()) {
+                    options->WorkingDir = *WaitFor(PortoExecutor_->GetContainerProperty(subcontainerAbsoluteName, "cwd"))
+                        .ValueOrThrow();
+                } else {
+                    options->WorkingDir = WorkingDir_;
                 }
 #endif
 

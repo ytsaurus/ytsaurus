@@ -133,6 +133,8 @@ public:
 
         // Init environment variables.
         addEnv("HOME", workingDir);
+        addEnv("G_HOME", workingDir);
+        addEnv("TMPDIR", NFS::CombinePaths(workingDir, "tmp"));
         addEnv("LOGNAME", user);
         addEnv("USER", user);
         addEnv("TERM", Options_->Term);
