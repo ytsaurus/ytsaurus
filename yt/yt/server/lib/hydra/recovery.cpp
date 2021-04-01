@@ -89,21 +89,8 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         targetVersion);
 
     TVersion snapshotVersion;
-    i64 sequenceNumber;
-    ui64 randomSeed;
-    ui64 stateHash;
-    ISnapshotReaderPtr snapshotReader;
     if (snapshotId != InvalidSegmentId) {
-        snapshotReader = SnapshotStore_->CreateReader(snapshotId);
-
-        WaitFor(snapshotReader->Open())
-            .ThrowOnError();
-
-        auto meta = snapshotReader->GetParams().Meta;
         snapshotVersion = TVersion(snapshotId, 0);
-        randomSeed = meta.random_seed();
-        sequenceNumber = meta.sequence_number();
-        stateHash = meta.state_hash();
     }
 
     int initialChangelogId;
@@ -113,6 +100,17 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
             snapshotId,
             snapshotVersion,
             currentVersion);
+
+        YT_VERIFY(snapshotId != InvalidSegmentId);
+        auto snapshotReader = SnapshotStore_->CreateReader(snapshotId);
+
+        WaitFor(snapshotReader->Open())
+            .ThrowOnError();
+
+        auto meta = snapshotReader->GetParams().Meta;
+        auto randomSeed = meta.random_seed();
+        auto sequenceNumber = meta.sequence_number();
+        auto stateHash = meta.state_hash();
 
         if (ResponseKeeper_) {
             ResponseKeeper_->Stop();
