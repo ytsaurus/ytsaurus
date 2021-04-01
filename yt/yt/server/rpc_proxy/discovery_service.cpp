@@ -303,7 +303,6 @@ private:
                 std::vector<TString>{
                     RoleAttributeName,
                     BannedAttributeName,
-                    ConfigAttributeName,
                 });
             SetCachingHeader(req, connection->GetConfig(), options);
             batchReq->AddRequest(req, "get_proxies");
@@ -339,10 +338,6 @@ private:
 
             auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_proxies").Value();
             auto nodeResult = ConvertToNode(TYsonString(rsp->value()));
-
-            if (auto dynamicConfig = nodeResult->Attributes().Find<TDynamicProxyConfigPtr>(ConfigAttributeName)) {
-                Coordinator_->SetDynamicConfig(dynamicConfig);
-            }
 
             for (const auto& child : nodeResult->AsMap()->GetChildren()) {
                 bool banned = child.second->Attributes().Get(BannedAttributeName, false);

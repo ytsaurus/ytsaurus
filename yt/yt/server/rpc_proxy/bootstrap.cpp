@@ -2,6 +2,7 @@
 
 #include "access_checker.h"
 #include "config.h"
+#include "dynamic_config_manager.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
@@ -23,6 +24,8 @@
 #include <yt/yt/ytlib/monitoring/monitoring_manager.h>
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
+
+#include <yt/yt/ytlib/program/helpers.h>
 
 #include <yt/yt/ytlib/auth/authentication_manager.h>
 
@@ -129,7 +132,11 @@ void TBootstrap::DoRun()
         Config_,
         HttpPoller_,
         NativeClient_);
-    ProxyCoordinator_ = CreateProxyCoordinator();
+    ProxyCoordinator_ = CreateProxyCoordinator(this);
+
+    DynamicConfigManager_ = CreateDynamicConfigManager(this);
+    DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
+
     AccessChecker_ = CreateAccessChecker(this);
 
     BusServer_ = CreateTcpBusServer(Config_->BusServer);
@@ -155,8 +162,8 @@ void TBootstrap::DoRun()
         ConfigNode_);
     SetNodeByYPath(
         orchidRoot,
-        "/coordinator",
-        CreateVirtualNode(ProxyCoordinator_->CreateOrchidService()));
+        "/dynamic_config_manager",
+        CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
     SetBuildAttributes(
         orchidRoot,
         "proxy");
@@ -167,6 +174,10 @@ void TBootstrap::DoRun()
 
     ApiService_ = CreateApiService(this);
     RpcServer_->RegisterService(ApiService_);
+
+    ProxyCoordinator_->Initialize();
+    DynamicConfigManager_->Initialize();
+    DynamicConfigManager_->Start();
 
     if (Config_->DiscoveryService->Enable) {
         DiscoveryService_ = CreateDiscoveryService(this);
@@ -207,6 +218,11 @@ const TProxyConfigPtr& TBootstrap::GetConfig() const
     return Config_;
 }
 
+TProxyDynamicConfigPtr TBootstrap::GetDynamicConfig() const
+{
+    return DynamicConfig_.Load();
+}
+
 const IInvokerPtr& TBootstrap::GetControlInvoker() const
 {
     return ControlQueue_->GetInvoker();
@@ -242,9 +258,23 @@ const NNodeTrackerClient::TAddressMap& TBootstrap::GetLocalAddresses() const
     return LocalAddresses_;
 }
 
+const IDynamicConfigManagerPtr& TBootstrap::GetDynamicConfigManager() const
+{
+    return DynamicConfigManager_;
+}
+
 const IAccessCheckerPtr& TBootstrap::GetAccessChecker() const
 {
     return AccessChecker_;
+}
+
+void TBootstrap::OnDynamicConfigChanged(
+    const TProxyDynamicConfigPtr& /*oldConfig*/,
+    const TProxyDynamicConfigPtr& newConfig)
+{
+    ReconfigureSingletons(Config_, newConfig);
+
+    DynamicConfig_.Store(newConfig);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

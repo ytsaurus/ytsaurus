@@ -771,7 +771,10 @@ def _build_rpc_proxy_configs(logs_dir,
                         "expire_after_access_time": 0,
                     }
                 }
-            }
+            },
+            "dynamic_config_manager": {
+                "update_period": 100,
+            },
         }
         init_singletons(config, yt_config.fqdn, "rpc_proxy", {"rpc_proxy_index": str(rpc_proxy_index)})
         config["cluster_connection"] = _build_cluster_connection_config(

@@ -18,6 +18,7 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
+#include <yt/yt/core/misc/atomic_object.h>
 #include <yt/yt/core/misc/public.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -39,6 +40,7 @@ public:
     ~TBootstrap();
 
     const TProxyConfigPtr& GetConfig() const;
+    TProxyDynamicConfigPtr GetDynamicConfig() const;
     const IInvokerPtr& GetControlInvoker() const;
     const IInvokerPtr& GetWorkerInvoker() const;
     const NApi::NNative::IConnectionPtr& GetNativeConnection() const;
@@ -46,6 +48,7 @@ public:
     const NRpc::IAuthenticatorPtr& GetRpcAuthenticator() const;
     const NRpcProxy::IProxyCoordinatorPtr& GetProxyCoordinator() const;
     const NNodeTrackerClient::TAddressMap& GetLocalAddresses() const;
+    const IDynamicConfigManagerPtr& GetDynamicConfigManager() const;
     const IAccessCheckerPtr& GetAccessChecker() const;
 
     void Run();
@@ -53,6 +56,8 @@ public:
 private:
     const TProxyConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
+
+    TAtomicObject<TProxyDynamicConfigPtr> DynamicConfig_ = New<TProxyDynamicConfig>();
 
     const NConcurrency::TActionQueuePtr ControlQueue_;
     const NConcurrency::TThreadPoolPtr WorkerPool_;
@@ -72,9 +77,14 @@ private:
     NAuth::TAuthenticationManagerPtr AuthenticationManager_;
     NRpcProxy::IProxyCoordinatorPtr ProxyCoordinator_;
     NNodeTrackerClient::TAddressMap LocalAddresses_;
+    IDynamicConfigManagerPtr DynamicConfigManager_;
     IAccessCheckerPtr AccessChecker_;
 
     void DoRun();
+
+    void OnDynamicConfigChanged(
+        const TProxyDynamicConfigPtr& /*oldConfig*/,
+        const TProxyDynamicConfigPtr& newConfig);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

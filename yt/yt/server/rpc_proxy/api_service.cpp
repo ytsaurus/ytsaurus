@@ -1889,7 +1889,7 @@ private:
 
         {
             auto user = context->GetAuthenticationIdentity().User;
-            auto formatConfigs = Coordinator_->GetDynamicConfig()->Formats;
+            auto formatConfigs = Bootstrap_->GetDynamicConfig()->Api->Formats;
             TFormatManager formatManager(formatConfigs, user);
             auto specNode = ConvertToNode(specYson);
             formatManager.ValidateAndPatchOperationSpec(specNode, type);

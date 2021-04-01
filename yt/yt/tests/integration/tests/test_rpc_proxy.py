@@ -48,7 +48,7 @@ class TestRpcProxy(YTEnvSetup):
         )
 
         def config_updated():
-            config = get("//sys/rpc_proxies/" + proxy_name + "/orchid/coordinator/dynamic_config")
+            config = get("//sys/rpc_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
             return "prime" in config["tracing"]["user_sample_rate"]
 
         wait(config_updated)
@@ -658,7 +658,7 @@ class TestRpcProxyFormatConfig(TestRpcProxyBase, _TestProxyFormatConfigBase):
         set("//sys/rpc_proxies/@config", {"formats": self.FORMAT_CONFIG})
 
         def config_updated():
-            config = get("//sys/rpc_proxies/" + proxy_name + "/orchid/coordinator/dynamic_config")
+            config = get("//sys/rpc_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
             return config \
                 .get("formats", {}) \
                 .get("yamred_dsv", {}) \
