@@ -3,6 +3,7 @@
 #include "bootstrap.h"
 #include "config.h"
 #include "coordinator.h"
+#include "dynamic_config_manager.h"
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 
@@ -32,7 +33,9 @@ public:
     {
         const auto& coordinator = Bootstrap_->GetCoordinator();
         coordinator->SubscribeOnSelfRoleChanged(BIND(&TAccessChecker::OnProxyRoleUpdated, MakeWeak(this)));
-        coordinator->SubscribeOnDynamicConfigChanged(BIND(&TAccessChecker::OnDynamicConfigChanged, MakeWeak(this)));
+
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        dynamicConfigManager->SubscribeConfigChanged(BIND(&TAccessChecker::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     virtual TError ValidateAccess(const TString& user) const override
@@ -80,7 +83,9 @@ private:
         ProxyRole_.Store(newRole);
     }
 
-    void OnDynamicConfigChanged(const TDynamicConfigPtr& newConfig)
+    void OnDynamicConfigChanged(
+        const TProxyDynamicConfigPtr& /*oldConfig*/,
+        const TProxyDynamicConfigPtr& newConfig)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

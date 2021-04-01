@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/http_proxy/clickhouse/public.h>
 
+#include <yt/yt/server/lib/dynamic_config/config.h>
+
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/ytlib/auth/public.h>
@@ -111,6 +113,21 @@ DEFINE_REFCOUNTED_TYPE(TApiConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TApiDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TFramingConfigPtr Framing;
+
+    THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;
+
+    TApiDynamicConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TApiDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TAccessCheckerConfig
     : public NYTree::TYsonSerializable
 {
@@ -181,6 +198,12 @@ public:
     TString DefaultNetwork;
     THashMap<TString, std::vector<NNet::TIP6Network>> Networks;
 
+    NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
+
+    // COMPAT(gritukan): Drop it after migration to tagged configs.
+    TString DynamicConfigPath;
+    bool UseTaggedDynamicConfig;
+
     TProxyConfig();
 };
 
@@ -192,10 +215,12 @@ DEFINE_REFCOUNTED_TYPE(TProxyConfig)
 //
 // NOTE: config might me unavalable. Users must handle such cases
 // gracefully.
-class TDynamicConfig
-    : public NYTree::TYsonSerializable
+class TProxyDynamicConfig
+    : public TSingletonsDynamicConfig
 {
 public:
+    TApiDynamicConfigPtr Api;
+
     NTracing::TSamplingConfigPtr Tracing;
 
     TString FitnessFunction;
@@ -207,16 +232,16 @@ public:
 
     NClickHouse::TDynamicClickHouseConfigPtr ClickHouse;
 
-    TFramingConfigPtr Framing;
-
-    THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;
-
     TAccessCheckerDynamicConfigPtr AccessChecker;
 
-    TDynamicConfig();
+    // COMPAT(gritukan, levysotsky)
+    TFramingConfigPtr Framing;
+    THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;
+
+    TProxyDynamicConfig();
 };
 
-DEFINE_REFCOUNTED_TYPE(TDynamicConfig)
+DEFINE_REFCOUNTED_TYPE(TProxyDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

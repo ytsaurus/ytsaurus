@@ -1,6 +1,7 @@
 #include "http_authenticator.h"
 
-#include "coordinator.h"
+#include "bootstrap.h"
+#include "config.h"
 
 #include <yt/yt/ytlib/auth/config.h>
 #include <yt/yt/ytlib/auth/token_authenticator.h>
@@ -38,15 +39,11 @@ void SetStatusFromAuthError(const NHttp::IResponseWriterPtr& rsp, const TError& 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THttpAuthenticator::THttpAuthenticator(
-    TAuthenticationManagerConfigPtr config,
-    ITokenAuthenticatorPtr tokenAuthenticator,
-    ICookieAuthenticatorPtr cookieAuthenticator,
-    TCoordinatorPtr coordinator)
-    : Config_(std::move(config))
-    , TokenAuthenticator_(std::move(tokenAuthenticator))
-    , CookieAuthenticator_(std::move(cookieAuthenticator))
-    , Coordinator_(std::move(coordinator))
+THttpAuthenticator::THttpAuthenticator(TBootstrap* bootstrap)
+    : Bootstrap_(bootstrap)
+    , Config_(Bootstrap_->GetConfig()->Auth)
+    , TokenAuthenticator_(Bootstrap_->GetTokenAuthenticator())
+    , CookieAuthenticator_(Bootstrap_->GetCookieAuthenticator())
 {
     YT_VERIFY(Config_);
 }
@@ -130,7 +127,7 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
             if (!rsp.IsOK()) {
                 return TError(rsp);
             }
-            
+
             auto tokenHash = GetCryptoHash(credentials.Token);
             return TAuthenticationResultAndToken{rsp.Value(), tokenHash};
         }
@@ -184,11 +181,9 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
                 Config_->GetCsrfSecret(),
                 Config_->GetCsrfTokenExpirationTime());
 
-            if (Coordinator_) {
-                auto dynamicConfig = Coordinator_->GetDynamicConfig();
-                if (!error.IsOK() && !dynamicConfig->RelaxCsrfCheck) {
-                    return error;
-                }
+            auto dynamicConfig = Bootstrap_->GetDynamicConfig();
+            if (!error.IsOK() && !dynamicConfig->RelaxCsrfCheck) {
+                return error;
             }
         }
 

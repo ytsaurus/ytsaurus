@@ -7,6 +7,8 @@
 
 #include <yt/yt/core/http/http.h>
 
+#include <yt/yt/core/misc/atomic_object.h>
+
 #include <yt/yt/core/concurrency/spinlock.h>
 
 #include <yt/yt/library/profiling/sensor.h>
@@ -56,6 +58,7 @@ public:
     const THttpAuthenticatorPtr& GetHttpAuthenticator() const;
     const TCoordinatorPtr& GetCoordinator() const;
     const TApiConfigPtr& GetConfig() const;
+    TApiDynamicConfigPtr GetDynamicConfig() const;
     const NConcurrency::IPollerPtr& GetPoller() const;
 
     bool IsUserBannedInCache(const TString& user);
@@ -87,6 +90,7 @@ public:
 
 private:
     const TApiConfigPtr Config_;
+    TAtomicObject<TApiDynamicConfigPtr> DynamicConfig_;
 
     const NDriver::IDriverPtr DriverV3_;
     const NDriver::IDriverPtr DriverV4_;
@@ -144,6 +148,10 @@ private:
         THashMap<NHttp::EStatusCode, NProfiling::TCounter>* counters,
         NHttp::EStatusCode httpStatusCode,
         NProfiling::TTagIdList tags);
+
+    void OnDynamicConfigChanged(
+        const TProxyDynamicConfigPtr& /*oldConfig*/,
+        const TProxyDynamicConfigPtr& newConfig);
 };
 
 DEFINE_REFCOUNTED_TYPE(TApi)

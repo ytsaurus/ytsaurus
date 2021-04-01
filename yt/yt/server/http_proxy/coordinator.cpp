@@ -1,9 +1,9 @@
 #include "coordinator.h"
 
+#include "api.h"
 #include "bootstrap.h"
 #include "config.h"
 #include "private.h"
-#include "api.h"
 
 #include <yt/yt/server/lib/misc/address_helpers.h>
 
@@ -105,28 +105,18 @@ TCoordinator::TCoordinator(
         bootstrap->GetControlInvoker(),
         BIND(&TCoordinator::UpdateState, MakeWeak(this)),
         TPeriodicExecutorOptions::WithJitter(Config_->HeartbeatInterval)))
-    , UpdateDynamicConfigExecutor_(New<TPeriodicExecutor>(
-        bootstrap->GetControlInvoker(),
-        BIND(&TCoordinator::UpdateDynamicConfig, MakeWeak(this)),
-        TPeriodicExecutorOptions::WithJitter(Config_->HeartbeatInterval)))
 {
     Self_ = New<TProxyEntry>();
     Self_->Endpoint = Config_->PublicFqdn
         ? *Config_->PublicFqdn
         : Format("%v:%v", NNet::GetLocalHostName(), config->Port);
     Self_->Role = "data";
-
-    auto dynamicConfig = New<TDynamicConfig>();
-    dynamicConfig->SetDefaults();
-    SetDynamicConfig(dynamicConfig);
 }
 
 void TCoordinator::Start()
 {
     UpdateStateExecutor_->Start();
     UpdateStateExecutor_->ScheduleOutOfBand();
-
-    UpdateDynamicConfigExecutor_->Start();
 
     auto result = WaitFor(FirstUpdateIterationFinished_.ToFuture());
     YT_LOG_INFO(result, "Initial coordination iteration finished");
@@ -169,7 +159,7 @@ std::vector<TProxyEntryPtr> TCoordinator::ListProxies(std::optional<TString> rol
         }
     }
 
-    auto dynamicConfig = GetDynamicConfig();
+    auto dynamicConfig = Bootstrap_->GetDynamicConfig();
     TString fitnessFunction = dynamicConfig->FitnessFunction;
 
     std::vector<std::pair<double, TProxyEntryPtr>> ordered;
@@ -226,12 +216,6 @@ const TCoordinatorConfigPtr& TCoordinator::GetConfig() const
     return Config_;
 }
 
-TDynamicConfigPtr TCoordinator::GetDynamicConfig()
-{
-    auto guard = Guard(Lock_);
-    return DynamicConfig_;
-}
-
 TSampler* TCoordinator::GetTraceSampler()
 {
     return &Sampler_;
@@ -259,51 +243,6 @@ std::vector<TProxyEntryPtr> TCoordinator::ListCypressProxies()
     }
 
     return proxies;
-}
-
-void TCoordinator::UpdateDynamicConfig()
-{
-    try {
-        TGetNodeOptions options;
-        options.ReadFrom = EMasterChannelKind::Cache;
-
-        auto configYsonOrError = WaitFor(Client_->GetNode(SysProxies + "/@config", options));
-        if (configYsonOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            YT_LOG_INFO("Dynamic config is missing");
-            return;
-        }
-
-        auto config = ConvertTo<TDynamicConfigPtr>(configYsonOrError.ValueOrThrow());
-        SetDynamicConfig(config);
-    } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Error loading dynamic config");
-    }
-}
-
-void TCoordinator::SetDynamicConfig(TDynamicConfigPtr config)
-{
-    auto guard = Guard(Lock_);
-    std::swap(config, DynamicConfig_);
-
-    if (DynamicConfig_->Tracing) {
-        Sampler_.UpdateConfig(DynamicConfig_->Tracing);
-        Sampler_.ResetPerUserLimits();
-    }
-
-    OnDynamicConfigChanged_.Fire(DynamicConfig_);
-}
-
-IYPathServicePtr TCoordinator::CreateOrchidService()
-{
-   return IYPathService::FromProducer(BIND(&TCoordinator::BuildOrchid, MakeStrong(this)));
-}
-
-void TCoordinator::BuildOrchid(IYsonConsumer* consumer)
-{
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("dynamic_config").Value(GetDynamicConfig())
-        .EndMap();
 }
 
 void TCoordinator::UpdateState()

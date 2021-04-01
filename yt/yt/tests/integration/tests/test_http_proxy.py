@@ -173,7 +173,7 @@ class TestHttpProxy(HttpProxyTestBase):
     @authors("prime")
     def test_dynamic_config(self):
         monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
-        config_url = "http://localhost:{}/orchid/coordinator/dynamic_config".format(monitoring_port)
+        config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
 
         set("//sys/proxies/@config", {"tracing": {"user_sample_rate": {"prime": 1.0}}})
 
@@ -352,7 +352,7 @@ class TestHttpProxyFraming(HttpProxyTestBase):
 
     def setup(self):
         monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
-        config_url = "http://localhost:{}/orchid/coordinator/dynamic_config".format(monitoring_port)
+        config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
         set(
             "//sys/proxies/@config",
             {"framing": {"keep_alive_period": self.KEEP_ALIVE_PERIOD}},
@@ -447,7 +447,7 @@ class TestHttpProxyFraming(HttpProxyTestBase):
 class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
     def setup(self):
         monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
-        config_url = "http://localhost:{}/orchid/coordinator/dynamic_config".format(monitoring_port)
+        config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
         set("//sys/proxies/@config", {"formats": self.FORMAT_CONFIG})
 
         def config_updated():

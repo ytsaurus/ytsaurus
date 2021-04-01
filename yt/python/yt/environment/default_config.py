@@ -545,6 +545,10 @@ b"""
         heartbeat_interval = 500;
         show_ports = %true;
     };
+
+    dynamic_config_manager = {
+        update_period = 100;
+    };
 }
 """)
 

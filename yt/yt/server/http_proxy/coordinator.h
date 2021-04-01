@@ -75,18 +75,12 @@ public:
     TProxyEntryPtr GetSelf();
 
     const TCoordinatorConfigPtr& GetConfig() const;
-    TDynamicConfigPtr GetDynamicConfig();
     NTracing::TSampler* GetTraceSampler();
-
-    NYTree::IYPathServicePtr CreateOrchidService();
 
     bool IsDead(const TProxyEntryPtr& proxy, TInstant at) const;
 
     //! Raised when proxy role changes.
     DEFINE_SIGNAL(void(const TString), OnSelfRoleChanged);
-
-    //! Raised when dynamic config changes.
-    DEFINE_SIGNAL(void(const TDynamicConfigPtr& newConfig), OnDynamicConfigChanged);
 
 private:
     const TCoordinatorConfigPtr Config_;
@@ -101,7 +95,6 @@ private:
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
     TProxyEntryPtr Self_;
-    TDynamicConfigPtr DynamicConfig_;
     NTracing::TSampler Sampler_;
     std::vector<TProxyEntryPtr> Proxies_;
 
@@ -112,11 +105,6 @@ private:
     std::vector<TProxyEntryPtr> ListCypressProxies();
 
     TLivenessPtr GetSelfLiveness();
-
-    void UpdateDynamicConfig();
-    void SetDynamicConfig(TDynamicConfigPtr config);
-
-    void BuildOrchid(NYson::IYsonConsumer* consumer);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCoordinator)

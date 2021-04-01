@@ -27,7 +27,7 @@ template <typename TConfig>
 TDynamicConfigManagerBase<TConfig>::TDynamicConfigManagerBase(
     TDynamicConfigManagerOptions options,
     TDynamicConfigManagerConfigPtr config,
-    NApi::NNative::IClientPtr masterClient,
+    NApi::IClientPtr masterClient,
     IInvokerPtr invoker)
     : Options_(std::move(options))
     , Config_(std::move(config))

@@ -1,7 +1,7 @@
 #include "handler.h"
 
-#include "discovery_cache.h"
 #include "config.h"
+#include "discovery_cache.h"
 
 #include <yt/yt/server/http_proxy/bootstrap.h>
 #include <yt/yt/server/http_proxy/coordinator.h>
@@ -26,10 +26,11 @@
 #include <library/cpp/string_utils/base64/base64.h>
 
 #include <library/cpp/cgiparam/cgiparam.h>
+
+#include <util/string/cast.h>
 #include <util/string/vector.h>
 
 #include <util/random/random.h>
-#include <util/string/cast.h>
 
 namespace NYT::NHttpProxy::NClickHouse {
 
@@ -786,7 +787,7 @@ void TClickHouseHandler::HandleRequest(
         QueryCount_.Increment();
         ProcessDebugHeaders(request, response, Coordinator_);
 
-        auto config = Bootstrap_->GetCoordinator()->GetDynamicConfig()->ClickHouse;
+        auto config = Bootstrap_->GetDynamicConfig()->ClickHouse;
 
         if (!Bootstrap_->GetConfig()->Auth->RequireAuthentication) {
             YT_LOG_INFO("Authorization is not set up in config, ignoring missing credentials");
