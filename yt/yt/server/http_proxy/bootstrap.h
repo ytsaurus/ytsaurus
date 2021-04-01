@@ -19,6 +19,7 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
+#include <yt/yt/core/misc/atomic_object.h>
 #include <yt/yt/core/misc/public.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -47,6 +48,7 @@ public:
     const IInvokerPtr& GetControlInvoker() const;
 
     const TProxyConfigPtr& GetConfig() const;
+    TProxyDynamicConfigPtr GetDynamicConfig() const;
     const NApi::IClientPtr& GetRootClient() const;
     const NApi::NNative::IConnectionPtr& GetNativeConnection() const;
     const NDriver::IDriverPtr& GetDriverV3() const;
@@ -55,6 +57,8 @@ public:
     const IAccessCheckerPtr& GetAccessChecker() const;
     const THttpAuthenticatorPtr& GetHttpAuthenticator() const;
     const NAuth::ITokenAuthenticatorPtr& GetTokenAuthenticator() const;
+    const NAuth::ICookieAuthenticatorPtr& GetCookieAuthenticator() const;
+    const IDynamicConfigManagerPtr& GetDynamicConfigManager() const;
     const NConcurrency::IPollerPtr& GetPoller() const;
     const TApiPtr& GetApi() const;
 
@@ -67,6 +71,8 @@ private:
     const NYTree::INodePtr ConfigNode_;
     const TInstant StartTime_ = TInstant::Now();
 
+    TAtomicObject<TProxyDynamicConfigPtr> DynamicConfig_ = New<TProxyDynamicConfig>();
+
     NConcurrency::TActionQueuePtr Control_;
     NConcurrency::IPollerPtr Poller_;
     NConcurrency::IPollerPtr Acceptor_;
@@ -76,12 +82,15 @@ private:
 
     NApi::NNative::IConnectionPtr Connection_;
     NApi::IClientPtr RootClient_;
+    NApi::NNative::IClientPtr NativeClient_;
     NDriver::IDriverPtr DriverV3_;
     NDriver::IDriverPtr DriverV4_;
 
     NAuth::ITokenAuthenticatorPtr TokenAuthenticator_;
     NAuth::ICookieAuthenticatorPtr CookieAuthenticator_;
     THttpAuthenticatorPtr HttpAuthenticator_;
+
+    IDynamicConfigManagerPtr DynamicConfigManager_;
 
     NRpc::IServerPtr RpcServer_;
 
@@ -101,6 +110,10 @@ private:
     void RegisterRoutes(const NHttp::IServerPtr& server);
 
     void SetupClients();
+
+    void OnDynamicConfigChanged(
+        const TProxyDynamicConfigPtr& /*oldConfig*/,
+        const TProxyDynamicConfigPtr& newConfig);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

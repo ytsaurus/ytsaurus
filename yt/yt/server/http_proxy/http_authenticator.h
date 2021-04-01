@@ -28,11 +28,7 @@ class THttpAuthenticator
     : public NHttp::IHttpHandler
 {
 public:
-    THttpAuthenticator(
-        NAuth::TAuthenticationManagerConfigPtr config,
-        NAuth::ITokenAuthenticatorPtr tokenAuthenticator,
-        NAuth::ICookieAuthenticatorPtr cookieAuthenticator,
-        TCoordinatorPtr coordinator);
+    explicit THttpAuthenticator(TBootstrap* bootstrap);
 
     virtual void HandleRequest(
         const NHttp::IRequestPtr& req,
@@ -43,10 +39,11 @@ public:
         bool disableCsrfTokenCheck = false);
 
 private:
+    TBootstrap* Bootstrap_;
+
     const NAuth::TAuthenticationManagerConfigPtr Config_;
     const NAuth::ITokenAuthenticatorPtr TokenAuthenticator_;
     const NAuth::ICookieAuthenticatorPtr CookieAuthenticator_;
-    const TCoordinatorPtr Coordinator_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -100,6 +100,17 @@ TApiConfig::TApiConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TApiDynamicConfig::TApiDynamicConfig()
+{
+    RegisterParameter("framing", Framing)
+        .DefaultNew();
+
+    RegisterParameter("formats", Formats)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TAccessCheckerConfig::TAccessCheckerConfig()
 {
     RegisterParameter("enabled", Enabled)
@@ -175,12 +186,23 @@ TProxyConfig::TProxyConfig()
         .Default(NBus::DefaultNetworkName);
     RegisterParameter("networks", Networks)
         .Default();
+
+    RegisterParameter("dynamic_config_manager", DynamicConfigManager)
+        .DefaultNew();
+
+    RegisterParameter("dynamic_config_path", DynamicConfigPath)
+        .Default("//sys/proxies/@config");
+    RegisterParameter("use_tagged_dynamic_config", UseTaggedDynamicConfig)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicConfig::TDynamicConfig()
+TProxyDynamicConfig::TProxyDynamicConfig()
 {
+    RegisterParameter("api", Api)
+        .Default();
+
     RegisterParameter("tracing", Tracing)
         .DefaultNew();
 
@@ -208,6 +230,15 @@ TDynamicConfig::TDynamicConfig()
 
     RegisterParameter("access_checker", AccessChecker)
         .DefaultNew();
+
+    // COMPAT(gritukan, levysotsky)
+    RegisterPostprocessor([&] {
+        if (!Api) {
+            Api = New<TApiDynamicConfig>();
+            Api->Formats = Formats;
+            Api->Framing = Framing;
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -222,7 +222,7 @@ bool TContext::TryParseUser()
 bool TContext::TryInitFormatManager()
 {
     FormatManager_ = std::make_unique<TFormatManager>(
-        Api_->GetCoordinator()->GetDynamicConfig()->Formats,
+        Api_->GetDynamicConfig()->Formats,
         DriverRequest_.AuthenticatedUser);
     return true;
 }
@@ -989,7 +989,7 @@ void TContext::OnOutputParameters()
 
 TFramingConfigPtr TContext::GetFramingConfig() const
 {
-    return Api_->GetCoordinator()->GetDynamicConfig()->Framing;
+    return Api_->GetDynamicConfig()->Framing;
 }
 
 void TContext::ProcessDelayBeforeCommandTestingOption()

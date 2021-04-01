@@ -36,7 +36,7 @@ public:
     TDynamicConfigManagerBase(
         TDynamicConfigManagerOptions options,
         TDynamicConfigManagerConfigPtr config,
-        NApi::NNative::IClientPtr masterClient,
+        NApi::IClientPtr masterClient,
         IInvokerPtr invoker);
 
     //! Starts the dynamic config manager.
@@ -70,7 +70,7 @@ private:
     const TDynamicConfigManagerOptions Options_;
     const TDynamicConfigManagerConfigPtr Config_;
 
-    const NApi::NNative::IClientPtr MasterClient_;
+    const NApi::IClientPtr MasterClient_;
 
     const IInvokerPtr Invoker_;
     const NConcurrency::TPeriodicExecutorPtr UpdateExecutor_;

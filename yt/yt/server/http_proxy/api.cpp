@@ -4,6 +4,7 @@
 #include "bootstrap.h"
 #include "config.h"
 #include "context.h"
+#include "dynamic_config_manager.h"
 #include "private.h"
 
 #include <yt/yt/core/http/helpers.h>
@@ -39,6 +40,7 @@ TSemaphoreGuard::~TSemaphoreGuard()
 
 TApi::TApi(TBootstrap* bootstrap)
     : Config_(bootstrap->GetConfig()->Api)
+    , DynamicConfig_(New<TApiDynamicConfig>())
     , DriverV3_(bootstrap->GetDriverV3())
     , DriverV4_(bootstrap->GetDriverV4())
     , HttpAuthenticator_(bootstrap->GetHttpAuthenticator())
@@ -56,6 +58,9 @@ TApi::TApi(TBootstrap* bootstrap)
     std::sort(Networks_.begin(), Networks_.end(), [] (auto&& lhs, auto&& rhs) {
         return lhs.first.GetMaskSize() > rhs.first.GetMaskSize();
     });
+
+    const auto& dynamicConfigManager = bootstrap->GetDynamicConfigManager();
+    dynamicConfigManager->SubscribeConfigChanged(BIND(&TApi::OnDynamicConfigChanged, MakeWeak(this)));
 }
 
 TString TApi::GetNetworkNameForAddress(const NNet::TNetworkAddress& address) const
@@ -97,6 +102,11 @@ const TCoordinatorPtr& TApi::GetCoordinator() const
 const TApiConfigPtr& TApi::GetConfig() const
 {
     return Config_;
+}
+
+TApiDynamicConfigPtr TApi::GetDynamicConfig() const
+{
+    return DynamicConfig_.Load();
 }
 
 const IPollerPtr& TApi::GetPoller() const
@@ -294,6 +304,15 @@ void TApi::HandleRequest(
         context->LogAndProfile();
     });
     context->Finalize();
+}
+
+void TApi::OnDynamicConfigChanged(
+    const TProxyDynamicConfigPtr& /*oldConfig*/,
+    const TProxyDynamicConfigPtr& newConfig)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    DynamicConfig_.Store(newConfig->Api);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

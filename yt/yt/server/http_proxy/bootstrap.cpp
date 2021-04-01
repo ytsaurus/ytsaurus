@@ -3,6 +3,7 @@
 #include "access_checker.h"
 #include "config.h"
 #include "coordinator.h"
+#include "dynamic_config_manager.h"
 #include "api.h"
 #include "http_authenticator.h"
 #include "private.h"
@@ -22,6 +23,7 @@
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/yt/ytlib/program/build_attributes.h>
+#include <yt/yt/ytlib/program/helpers.h>
 
 #include <yt/yt/client/driver/driver.h>
 #include <yt/yt/client/driver/config.h>
@@ -114,11 +116,6 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
 
     Coordinator_ = New<TCoordinator>(Config_, this);
 
-    SetNodeByYPath(
-        orchidRoot,
-        "/coordinator",
-        CreateVirtualNode(Coordinator_->CreateOrchidService()));
-
     auto setGlobalRoleTag = [] (const TString& role) {
         auto id = TProfileManager::Get()->RegisterTag("proxy_role", role);
         TProfileManager::Get()->SetGlobalTag(id);
@@ -127,6 +124,14 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     };
     setGlobalRoleTag(Coordinator_->GetSelf()->Role);
     Coordinator_->SubscribeOnSelfRoleChanged(BIND(setGlobalRoleTag));
+
+    DynamicConfigManager_ = CreateDynamicConfigManager(this);
+    DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, MakeWeak(this)));
+
+    SetNodeByYPath(
+        orchidRoot,
+        "/dynamic_config_manager",
+        CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
 
     Config_->BusServer->Port = Config_->RpcPort;
     RpcServer_ = NRpc::NBus::CreateBusServer(CreateTcpBusServer(Config_->BusServer));
@@ -159,11 +164,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     TokenAuthenticator_ = authenticationManager->GetTokenAuthenticator();
     CookieAuthenticator_ = authenticationManager->GetCookieAuthenticator();
 
-    HttpAuthenticator_ = New<THttpAuthenticator>(
-        Config_->Auth,
-        TokenAuthenticator_,
-        CookieAuthenticator_,
-        Coordinator_);
+    HttpAuthenticator_ = New<THttpAuthenticator>(this);
 
     Api_ = New<TApi>(this);
     Config_->HttpServer->ServerName = "http_api";
@@ -183,6 +184,15 @@ void TBootstrap::SetupClients()
 {
     auto options = TClientOptions::FromUser(NSecurityClient::RootUserName);
     RootClient_ = Connection_->CreateClient(options);
+}
+
+void TBootstrap::OnDynamicConfigChanged(
+    const TProxyDynamicConfigPtr& /*oldConfig*/,
+    const TProxyDynamicConfigPtr& newConfig)
+{
+    ReconfigureSingletons(Config_, newConfig);
+
+    DynamicConfig_.Store(newConfig);
 }
 
 void TBootstrap::HandleRequest(
@@ -210,6 +220,8 @@ void TBootstrap::HandleRequest(
 
 void TBootstrap::Run()
 {
+    DynamicConfigManager_->Start();
+
     MonitoringServer_->Start();
 
     ApiHttpServer_->Start();
@@ -231,6 +243,11 @@ const IInvokerPtr& TBootstrap::GetControlInvoker() const
 const TProxyConfigPtr& TBootstrap::GetConfig() const
 {
     return Config_;
+}
+
+TProxyDynamicConfigPtr TBootstrap::GetDynamicConfig() const
+{
+    return DynamicConfig_.Load();
 }
 
 const NApi::IClientPtr& TBootstrap::GetRootClient() const
@@ -271,6 +288,16 @@ const THttpAuthenticatorPtr& TBootstrap::GetHttpAuthenticator() const
 const ITokenAuthenticatorPtr& TBootstrap::GetTokenAuthenticator() const
 {
     return TokenAuthenticator_;
+}
+
+const ICookieAuthenticatorPtr& TBootstrap::GetCookieAuthenticator() const
+{
+    return CookieAuthenticator_;
+}
+
+const IDynamicConfigManagerPtr& TBootstrap::GetDynamicConfigManager() const
+{
+    return DynamicConfigManager_;
 }
 
 const IPollerPtr& TBootstrap::GetPoller() const
