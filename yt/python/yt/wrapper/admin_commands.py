@@ -1,25 +1,32 @@
 from .common import YtError
-from .cypress_commands import get
+from .cypress_commands import get, list
 from .driver import make_request
 
 def _find_cell_id_and_new_leader_id_by_master_address(specified_address, client):
     guessed_cell_id = None
     guessed_leader_id = None
 
-    cluster_connection = get("//sys/@cluster_connection")
-    for leader_id, address in enumerate(cluster_connection["primary_master"]["addresses"]):
+    try:
+        master_config = get("//sys/primary_masters/{}/orchid/config".format(specified_address), client=client)
+    except YtError as err:
+        if err.is_resolve_error() and specified_address not in list("//sys/primary_masters", client=client):
+            raise YtError("Master {} is not found at //sys/primary_masters, "
+                          "check that cluster proxy and master address speicified correctly".format(specified_address))
+        else:
+            raise
+    for leader_id, address in enumerate(master_config["primary_master"]["addresses"]):
         if specified_address == address or specified_address == address.split(":")[0]:
-            guessed_cell_id = cluster_connection["primary_master"]["cell_id"]
+            guessed_cell_id = master_config["primary_master"]["cell_id"]
             guessed_leader_id = leader_id
-    for secondary_cell in cluster_connection.get("secondary_masters", []):
+    for secondary_cell in master_config.get("secondary_masters", []):
         for leader_id, address in enumerate(secondary_cell["addresses"]):
             if specified_address == address or specified_address == address.split(":")[0]:
                 guessed_cell_id = secondary_cell["cell_id"]
                 guessed_leader_id = leader_id
-    if "clock_servers" in cluster_connection:
-        for leader_id, address in enumerate(cluster_connection["clock_servers"]["addresses"]):
+    if "clock_servers" in master_config:
+        for leader_id, address in enumerate(master_config["clock_servers"]["addresses"]):
             if specified_address == address or specified_address == address.split(":")[0]:
-                guessed_cell_id = cluster_connection["clock_servers"]["cell_id"]
+                guessed_cell_id = master_config["clock_servers"]["cell_id"]
                 guessed_leader_id = leader_id
 
     if guessed_cell_id is None:
