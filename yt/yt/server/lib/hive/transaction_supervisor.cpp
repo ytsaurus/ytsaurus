@@ -1552,13 +1552,13 @@ private:
     }
 
 
-    void SetCommitFailed(TCommit* commit, const TError& error)
+    void SetCommitFailed(TCommit* commit, const TError& error, bool remember = true)
     {
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), error, "Transaction commit failed (TransactionId: %v)",
             commit->GetTransactionId());
 
         auto responseMessage = CreateErrorResponseMessage(error);
-        SetCommitResponse(commit, responseMessage);
+        SetCommitResponse(commit, responseMessage, remember);
     }
 
     void SetCommitSucceeded(TCommit* commit)
@@ -1574,11 +1574,11 @@ private:
         SetCommitResponse(commit, std::move(responseMessage));
     }
 
-    void SetCommitResponse(TCommit* commit, TSharedRefArray responseMessage)
+    void SetCommitResponse(TCommit* commit, TSharedRefArray responseMessage, bool remember = true)
     {
         auto mutationId = commit->GetMutationId();
         if (mutationId) {
-            ResponseKeeper_->EndRequest(mutationId, responseMessage);
+            ResponseKeeper_->EndRequest(mutationId, responseMessage, remember);
         }
 
         commit->SetResponseMessage(std::move(responseMessage));
@@ -1627,13 +1627,13 @@ private:
         return &pair.first->second;
     }
 
-    void SetAbortFailed(TAbort* abort, const TError& error)
+    void SetAbortFailed(TAbort* abort, const TError& error, bool remember = true)
     {
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), error, "Transaction abort failed (TransactionId: %v)",
             abort->GetTransactionId());
 
         auto responseMessage = CreateErrorResponseMessage(error);
-        SetAbortResponse(abort, std::move(responseMessage));
+        SetAbortResponse(abort, std::move(responseMessage), remember);
     }
 
     void SetAbortSucceeded(TAbort* abort)
@@ -1647,11 +1647,11 @@ private:
         SetAbortResponse(abort, std::move(responseMessage));
     }
 
-    void SetAbortResponse(TAbort* abort, TSharedRefArray responseMessage)
+    void SetAbortResponse(TAbort* abort, TSharedRefArray responseMessage, bool remember = true)
     {
         auto mutationId = abort->GetMutationId();
         if (mutationId) {
-            ResponseKeeper_->EndRequest(mutationId, responseMessage);
+            ResponseKeeper_->EndRequest(mutationId, responseMessage, remember);
         }
 
         abort->SetResponseMessage(std::move(responseMessage));
@@ -2095,12 +2095,12 @@ private:
         auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
 
         for (auto [transactionId, commit] : TransientCommitMap_) {
-            SetCommitFailed(commit, error);
+            SetCommitFailed(commit, error, /*remember*/ false);
         }
         TransientCommitMap_.Clear();
 
         for (auto& [transactionId, abort] : TransientAbortMap_) {
-            SetAbortFailed(&abort, error);
+            SetAbortFailed(&abort, error, /*remember*/ false);
         }
         TransientAbortMap_.clear();
 
