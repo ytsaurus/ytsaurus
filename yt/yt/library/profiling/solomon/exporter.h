@@ -5,6 +5,7 @@
 
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/async_rw_lock.h>
 
 #include <yt/yt/core/actions/public.h>
 
@@ -190,22 +191,23 @@ public:
     void Start();
     void Stop();
 
-    NYTree::IYPathServicePtr GetService() const;
+    NYTree::IYPathServicePtr GetService();
 
 private:
     const TSolomonExporterConfigPtr Config_;
     const IInvokerPtr Invoker_;
     const TSolomonRegistryPtr Registry_;
+    const NConcurrency::TPeriodicExecutorPtr CoreProfilingPusher_;
     
     NConcurrency::TThreadPoolPtr ThreadPool_;
-
     TFuture<void> Collector_;
 
+    NConcurrency::TAsyncReaderWriterLock Lock_;
     std::vector<std::pair<i64, TInstant>> Window_;
 
-    const NConcurrency::TPeriodicExecutorPtr CoreProfilingPusher_;
-
     TInstant StartTime_ = TInstant::Now();
+
+    TSpinLock StatusLock_;
     std::optional<TInstant> LastFetch_;
     THashMap<TString, std::optional<TInstant>> LastShardFetch_;
 
@@ -224,7 +226,8 @@ private:
         operator size_t () const;
     };
 
-    THashMap<TCacheKey, TSharedRef> ResponseCache_;
+    TSpinLock CacheLock_;
+    THashMap<TCacheKey, TFuture<TSharedRef>> ResponseCache_;
 
     TEventTimer CollectionStartDelay_;
     TCounter WindowErrors_;
@@ -237,20 +240,18 @@ private:
         , public NYTree::TSupportsList
     {
     public:
-        TSensorService(TSolomonRegistryPtr registry, IInvokerPtr invoker);
+        TSensorService(TSolomonRegistryPtr registry, TSolomonExporterPtr exporter);
 
     private:
         using TTagMap = THashMap<TString, TString>;
 
         const TSolomonRegistryPtr Registry_;
-        const IInvokerPtr Invoker_;
+        const TSolomonExporterPtr Exporter_;
 
         virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
         virtual void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
         virtual void ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context) override;
     };
-
-    const TIntrusivePtr<TSensorService> Root_;
 
     void DoCollect();
     void DoPushCoreProfiling();
@@ -266,11 +267,14 @@ private:
         const NHttp::IRequestPtr& req,
         const NHttp::IResponseWriterPtr& rsp);
 
+    void DoHandleShard(
+        const std::optional<TString>& name,
+        const NHttp::IRequestPtr& req,
+        const NHttp::IResponseWriterPtr& rsp);
+
     void ValidatePeriodAndGrid(std::optional<TDuration> period, std::optional<TDuration> readGridStep, TDuration gridStep);
 
     TErrorOr<TReadWindow> SelectReadWindow(TInstant now, TDuration period, std::optional<TDuration> readGridStep, TDuration gridStep);
-
-    bool TryReplyFromCache(const TCacheKey& cacheKey, const NHttp::IResponseWriterPtr& rsp);
 
     void CleanResponseCache();
 

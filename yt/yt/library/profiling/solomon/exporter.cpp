@@ -70,7 +70,6 @@ TSolomonExporter::TSolomonExporter(
         Invoker_,
         BIND(&TSolomonExporter::DoPushCoreProfiling, MakeWeak(this)),
         TDuration::MilliSeconds(500)))
-    , Root_(New<TSensorService>(Registry_, Invoker_))
 {
     if (Config_->EnableSelfProfiling) {
         Registry_->Profile(TProfiler{Registry_, ""});
@@ -121,28 +120,16 @@ TSolomonExporter::TSolomonExporter(
 
 void TSolomonExporter::Register(const TString& prefix, const NHttp::IServerPtr& server)
 {
-    auto via = [this] (auto cb) {
-        return BIND([this, cb] (const IRequestPtr& req, const IResponseWriterPtr& rsp) {
-            auto result = BIND([cb, req, rsp] () {
-                cb(req, rsp);
-            })
-                .AsyncVia(Invoker_)
-                .Run();
-
-            WaitFor(result).ThrowOnError();
-        });
-    };
-
-    server->AddHandler(prefix + "/", via(BIND(&TSolomonExporter::HandleIndex, MakeStrong(this), prefix)));
-    server->AddHandler(prefix + "/sensors", via(BIND(&TSolomonExporter::HandleDebugSensors, MakeStrong(this))));
-    server->AddHandler(prefix + "/tags", via(BIND(&TSolomonExporter::HandleDebugTags, MakeStrong(this))));
-    server->AddHandler(prefix + "/status", via(BIND(&TSolomonExporter::HandleStatus, MakeStrong(this))));
-    server->AddHandler(prefix + "/all", via(BIND(&TSolomonExporter::HandleShard, MakeStrong(this), std::nullopt)));
+    server->AddHandler(prefix + "/", BIND(&TSolomonExporter::HandleIndex, MakeStrong(this), prefix));
+    server->AddHandler(prefix + "/sensors", BIND(&TSolomonExporter::HandleDebugSensors, MakeStrong(this)));
+    server->AddHandler(prefix + "/tags", BIND(&TSolomonExporter::HandleDebugTags, MakeStrong(this)));
+    server->AddHandler(prefix + "/status", BIND(&TSolomonExporter::HandleStatus, MakeStrong(this)));
+    server->AddHandler(prefix + "/all", BIND(&TSolomonExporter::HandleShard, MakeStrong(this), std::nullopt));
 
     for (const auto& [shardName, shard] : Config_->Shards) {
         server->AddHandler(
             prefix + "/shard/" + shardName,
-            via(BIND(&TSolomonExporter::HandleShard, MakeStrong(this), shardName)));
+            BIND(&TSolomonExporter::HandleShard, MakeStrong(this), shardName));
     }
 }
 
@@ -216,6 +203,9 @@ void TSolomonExporter::DoCollect()
 
         waitUntil(nextGridTime);
 
+        auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&Lock_))
+            .ValueOrThrow();
+
         auto delay = TInstant::Now() - nextGridTime;
         CollectionStartDelay_.Record(delay);
 
@@ -223,10 +213,7 @@ void TSolomonExporter::DoCollect()
         Registry_->ProcessRegistrations();
 
         auto iteration = Registry_->GetNextIteration();
-        {
-            TForbidContextSwitchGuard guard;
-            Registry_->Collect(ThreadPool_ ? ThreadPool_->GetInvoker() : GetSyncInvoker());
-        }
+        Registry_->Collect(ThreadPool_ ? ThreadPool_->GetInvoker() : GetSyncInvoker());
 
         Window_.emplace_back(iteration, nextGridTime);
         if (Window_.size() > static_cast<size_t>(Registry_->GetWindowSize())) {
@@ -269,6 +256,9 @@ void TSolomonExporter::HandleIndex(const TString& prefix, const IRequestPtr& req
 
 void TSolomonExporter::HandleStatus(const IRequestPtr&, const IResponseWriterPtr& rsp)
 {
+    auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&Lock_))
+        .ValueOrThrow();
+
     auto sensors = Registry_->ListSensors();
     THashMap<TString, TError> invalidSensors;
     for (const auto& sensor : sensors) {
@@ -281,6 +271,8 @@ void TSolomonExporter::HandleStatus(const IRequestPtr&, const IResponseWriterPtr
 
     rsp->SetStatus(EStatusCode::OK);
     ReplyJson(rsp, [&] (auto consumer) {
+        auto statusGuard = Guard(StatusLock_);
+
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("start_time").Value(StartTime_)
@@ -301,6 +293,9 @@ void TSolomonExporter::HandleStatus(const IRequestPtr&, const IResponseWriterPtr
 
 void TSolomonExporter::HandleDebugSensors(const IRequestPtr&, const IResponseWriterPtr& rsp)
 {
+    auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&Lock_))
+        .ValueOrThrow();
+
     rsp->SetStatus(EStatusCode::OK);
     rsp->GetHeaders()->Add("Content-Type", "text/plain; charset=UTF-8");
 
@@ -327,6 +322,9 @@ void TSolomonExporter::HandleDebugSensors(const IRequestPtr&, const IResponseWri
 
 void TSolomonExporter::HandleDebugTags(const IRequestPtr&, const IResponseWriterPtr& rsp)
 {
+    auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&Lock_))
+        .ValueOrThrow();
+
     rsp->SetStatus(EStatusCode::OK);
     rsp->GetHeaders()->Add("Content-Type", "text/plain; charset=UTF-8");
 
@@ -349,6 +347,9 @@ void TSolomonExporter::HandleDebugTags(const IRequestPtr&, const IResponseWriter
 std::optional<TString> TSolomonExporter::ReadJson(const TReadOptions& options)
 {
     auto result = BIND([this, options, this_ = MakeStrong(this)] () -> std::optional<TString> {
+        auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&Lock_))
+            .ValueOrThrow();
+
         TStringStream buffer;
         auto encoder = NMonitoring::BufferedEncoderJson(&buffer);
 
@@ -380,6 +381,7 @@ std::optional<TString> TSolomonExporter::ReadJson(const TReadOptions& options)
         encoder->OnStreamBegin();
         Registry_->ReadSensors(readOptions, encoder.Get());
         encoder->OnStreamEnd();
+        guard->Release();
         encoder->Close();
 
         return buffer.Str();
@@ -395,6 +397,21 @@ void TSolomonExporter::HandleShard(
     const IRequestPtr& req,
     const IResponseWriterPtr& rsp)
 {
+    auto reply = BIND(&TSolomonExporter::DoHandleShard, MakeStrong(this), name, req, rsp)
+        .AsyncVia(ThreadPool_ ? ThreadPool_->GetInvoker() : Invoker_)
+        .Run();
+
+    WaitFor(reply)
+        .ThrowOnError();
+}
+
+void TSolomonExporter::DoHandleShard(
+    const std::optional<TString>& name,
+    const IRequestPtr& req,
+    const IResponseWriterPtr& rsp)
+{
+    TPromise<TSharedRef> responsePromise = NewPromise<TSharedRef>();
+
     try {
         NMonitoring::EFormat format = NMonitoring::EFormat::JSON;
         if (auto accept = req->GetHeaders()->Find("Accept")) {
@@ -470,6 +487,9 @@ void TSolomonExporter::HandleShard(
 
         ValidatePeriodAndGrid(period, readGridStep, gridStep);
 
+        auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&Lock_))
+            .ValueOrThrow();
+
         if (Window_.empty()) {
             WindowErrors_.Increment();
             THROW_ERROR_EXCEPTION("Window is empty");
@@ -496,8 +516,27 @@ void TSolomonExporter::HandleShard(
             period,
             readGridStep);
 
-        if (cacheKey && TryReplyFromCache(*cacheKey, rsp)) {
-            return;
+        if (cacheKey) {
+            auto cacheGuard = Guard(CacheLock_);
+
+            auto cacheHitIt = ResponseCache_.find(*cacheKey);
+            if (cacheHitIt != ResponseCache_.end() && !(cacheHitIt->second.IsSet() && !cacheHitIt->second.Get().IsOK())) {
+                YT_LOG_DEBUG("Replying from cache");
+
+                ResponseCacheHit_.Increment();
+
+                auto cachedResponse = cacheHitIt->second;
+                cacheGuard.Release();
+                guard->Release();
+
+                rsp->SetStatus(EStatusCode::OK);
+                WaitFor(rsp->WriteBody(WaitFor(cachedResponse).ValueOrThrow()))
+                    .ThrowOnError();
+ 
+                return;
+            }
+
+            ResponseCache_[*cacheKey] = responsePromise.ToFuture();
         }
 
         TReadWindow readWindow;
@@ -505,11 +544,11 @@ void TSolomonExporter::HandleShard(
             if (auto errorOrWindow = SelectReadWindow(*now, *period, readGridStep, gridStep); !errorOrWindow.IsOK()) {
                 ReadDelays_.Increment();
                 YT_LOG_WARNING(errorOrWindow, "Delaying sensor read (Delay: %v)", Config_->ReadDelay);
-                TDelayedExecutor::WaitForDuration(Config_->ReadDelay);
 
-                if (cacheKey && TryReplyFromCache(*cacheKey, rsp)) {
-                    return;
-                }
+                guard->Release();
+                TDelayedExecutor::WaitForDuration(Config_->ReadDelay);
+                guard = WaitFor(TAsyncLockReaderGuard::Acquire(&Lock_))
+                    .ValueOrThrow();
 
                 if (auto errorOrWindow = SelectReadWindow(*now, *period, readGridStep, gridStep); !errorOrWindow.IsOK()) {
                     WindowErrors_.Increment();
@@ -575,28 +614,33 @@ void TSolomonExporter::HandleShard(
             };
         }
 
+        {
+            auto statusGuard = Guard(StatusLock_);
+            if (name) {
+                LastShardFetch_[*name] = TInstant::Now();
+            } else {
+                LastFetch_ = TInstant::Now();
+            }
+        }
+
         encoder->OnStreamBegin();
         Registry_->ReadSensors(options, encoder.Get());
         encoder->OnStreamEnd();
-        encoder->Close();
 
-        if (name) {
-            LastShardFetch_[*name] = TInstant::Now();
-        } else {
-            LastFetch_ = TInstant::Now();
-        }
+        guard->Release();
+
+        encoder->Close();
 
         rsp->SetStatus(EStatusCode::OK);
 
         auto replyBlob = TSharedRef::FromString(buffer.Str());
-        if (cacheKey) {
-            ResponseCache_[*cacheKey] = replyBlob;
-        }
+        responsePromise.Set(replyBlob);
 
         WaitFor(rsp->WriteBody(replyBlob))
             .ThrowOnError();
     } catch(const std::exception& ex) {
         YT_LOG_ERROR(ex, "Failed to export sensors");
+        responsePromise.TrySet(TError(ex));
 
         if (!rsp->IsHeadersFlushed()) {
             try {
@@ -662,7 +706,9 @@ void TSolomonExporter::ValidatePeriodAndGrid(std::optional<TDuration> period, st
 void TSolomonExporter::DoPushCoreProfiling()
 {
     try {
-        TForbidContextSwitchGuard guard;
+        auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&Lock_))
+            .ValueOrThrow();
+
         Registry_->ProcessRegistrations();
         Registry_->LegacyReadSensors();
     } catch (const std::exception& ex) {
@@ -670,9 +716,9 @@ void TSolomonExporter::DoPushCoreProfiling()
     }
 }
 
-IYPathServicePtr TSolomonExporter::GetService() const
+IYPathServicePtr TSolomonExporter::GetService()
 {
-    return Root_->Via(Invoker_);
+    return New<TSensorService>(Registry_, MakeStrong(this));
 }
 
 TErrorOr<TReadWindow> TSolomonExporter::SelectReadWindow(
@@ -728,26 +774,10 @@ TErrorOr<TReadWindow> TSolomonExporter::SelectReadWindow(
     return readWindow;
 }
 
-bool TSolomonExporter::TryReplyFromCache(const TCacheKey& cacheKey, const NHttp::IResponseWriterPtr& rsp)
-{
-    auto cacheHitIt = ResponseCache_.find(cacheKey);
-    if (cacheHitIt != ResponseCache_.end()) {
-        YT_LOG_DEBUG("Replying from cache");
-
-        ResponseCacheHit_.Increment();
-
-        rsp->SetStatus(EStatusCode::OK);
-        WaitFor(rsp->WriteBody(cacheHitIt->second))
-            .ThrowOnError();
-
-        return true;
-    }
-
-    return false;
-}
-
 void TSolomonExporter::CleanResponseCache()
 {
+    auto guard = Guard(CacheLock_);
+
     std::vector<TCacheKey> toRemove;
     for (const auto& [key, response] : ResponseCache_) {
         if (key.Now < TInstant::Now() - Config_->ResponseCacheTtl) {
@@ -786,9 +816,9 @@ TSolomonExporter::TCacheKey::operator size_t() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSolomonExporter::TSensorService::TSensorService(TSolomonRegistryPtr registry, IInvokerPtr invoker)
+TSolomonExporter::TSensorService::TSensorService(TSolomonRegistryPtr registry, TSolomonExporterPtr exporter)
     : Registry_(std::move(registry))
-    , Invoker_(std::move(invoker))
+    , Exporter_(std::move(exporter))
 { }
 
 bool TSolomonExporter::TSensorService::DoInvoke(const NRpc::IServiceContextPtr& context)
@@ -800,8 +830,6 @@ bool TSolomonExporter::TSensorService::DoInvoke(const NRpc::IServiceContextPtr& 
 
 void TSolomonExporter::TSensorService::GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
-
     auto options = FromProto(request->options());
     auto name = options->Find<TString>("name");
     auto tagMap = options->Find<TTagMap>("tags").value_or(TTagMap{});
@@ -814,6 +842,9 @@ void TSolomonExporter::TSensorService::GetSelf(TReqGet* request, TRspGet* respon
         return;
     }
 
+    auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&Exporter_->Lock_))
+        .ValueOrThrow();
+
     TTagList tags(tagMap.begin(), tagMap.end());
     TReadOptions readOptions{.ExportSummaryAsMax = exportSummaryAsMax};
     response->set_value(BuildYsonStringFluently()
@@ -825,7 +856,8 @@ void TSolomonExporter::TSensorService::GetSelf(TReqGet* request, TRspGet* respon
 
 void TSolomonExporter::TSensorService::ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&Exporter_->Lock_))
+        .ValueOrThrow();
 
     auto attributeKeys = FromProto<THashSet<TString>>(request->attributes().keys());
     context->SetRequestInfo("AttributeKeys: %v", attributeKeys);
