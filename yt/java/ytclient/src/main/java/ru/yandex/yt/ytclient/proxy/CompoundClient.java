@@ -200,7 +200,7 @@ public abstract class CompoundClient extends ApiServiceClient implements Closeab
      * @see #unmountTableAndWaitTablets(String)
      */
     public CompletableFuture<Void> unmountTable(String path) {
-        return unmountTable(path, null);
+        return unmountTable(new UnmountTable(path));
     }
 
     /**
@@ -225,7 +225,6 @@ public abstract class CompoundClient extends ApiServiceClient implements Closeab
      *
      * @deprecated prefer to use {@link ApiServiceClient#unmountTable(UnmountTable)} or {@link #unmountTable(String)}.
      */
-    @SuppressWarnings("DeprecatedIsStillUsed")
     @Deprecated
     public CompletableFuture<Void> unmountTable(String path, @Nullable Duration requestTimeout) {
         return unmountTable(path, false, requestTimeout, false);
