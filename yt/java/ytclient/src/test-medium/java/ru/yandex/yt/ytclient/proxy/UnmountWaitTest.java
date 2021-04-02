@@ -25,6 +25,7 @@ public class UnmountWaitTest extends YtClientTestBase {
 
         while (!yt.getNode("//sys/tablet_cell_bundles/default/@health").join().stringValue().equals("good")) {
             try {
+                //noinspection BusyWait
                 Thread.sleep(100);
             } catch (InterruptedException e) {
                 e.printStackTrace();
@@ -45,7 +46,7 @@ public class UnmountWaitTest extends YtClientTestBase {
 
         yt.createNode(new CreateNode(path, CypressNodeType.TABLE, attributes)).join();
         yt.mountTable(path.toTree().stringValue(), null, false, true).join();
-        yt.unmountTable(path.toTree().stringValue(), false, true).join();
+        yt.unmountTableAndWaitTablets(path.toString()).join();
 
         List<YTreeNode> tablets = yt.getNode(path + "/@tablets").join().asList();
         boolean allTabletsReady = true;
