@@ -23,8 +23,8 @@
 #include <yt/yt/ytlib/chunk_client/memory_reader.h>
 #include <yt/yt/ytlib/chunk_client/memory_writer.h>
 
-#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
-#include <yt/yt/client/chunk_client/proto/chunk_spec.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>

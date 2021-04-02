@@ -4,7 +4,7 @@
 
 #include "column_reader_detail.h"
 
-#include <yt/yt/client/table_chunk_format/proto/column_meta.pb.h>
+#include <yt/yt_proto/yt/client/table_chunk_format/proto/column_meta.pb.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
 

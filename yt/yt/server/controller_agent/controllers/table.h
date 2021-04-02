@@ -10,7 +10,7 @@
 
 #include <yt/yt/server/lib/controller_agent/serialize.h>
 
-#include <yt/yt/client/chunk_client/proto/data_statistics.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
 
 #include <yt/yt/ytlib/cypress_client/public.h>
 

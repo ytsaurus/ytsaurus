@@ -3,7 +3,7 @@
 #include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/sorted_merging_reader.h>
 
-#include <yt/yt/client/chunk_client/proto/data_statistics.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
 
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/name_table.h>

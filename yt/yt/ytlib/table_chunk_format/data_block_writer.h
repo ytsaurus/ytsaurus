@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/client/table_chunk_format/proto/column_meta.pb.h>
+#include <yt/yt_proto/yt/client/table_chunk_format/proto/column_meta.pb.h>
 #include <yt/yt/ytlib/table_client/block_writer.h>
 
 #include <yt/yt/core/misc/property.h>

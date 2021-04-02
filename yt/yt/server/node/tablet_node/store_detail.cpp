@@ -24,7 +24,7 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
-#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/remote_chunk_reader.h>

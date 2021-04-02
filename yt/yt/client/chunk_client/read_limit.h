@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/client/chunk_client/proto/read_limit.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/read_limit.pb.h>
 
 #include <yt/yt/client/table_client/key_bound.h>
 #include <yt/yt/client/table_client/unversioned_row.h>

@@ -1,7 +1,7 @@
 package NYT.NTableServer.NProto;
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
-import "yt/client/chunk_client/proto/data_statistics.proto";
+import "yt_proto/yt/client/chunk_client/proto/data_statistics.proto";
 
 import "yt/server/lib/tablet_server/proto/tablet_manager.proto";
 

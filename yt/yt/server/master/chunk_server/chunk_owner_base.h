@@ -12,7 +12,7 @@
 
 #include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/yt/client/chunk_client/proto/data_statistics.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
 
 #include <yt/yt/core/crypto/crypto.h>
 

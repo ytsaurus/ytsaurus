@@ -9,8 +9,8 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/yson_serializable.h>
 
-#include <yt/yt/client/table_client/proto/chunk_meta.pb.h>
-#include <yt/yt/client/table_client/proto/wire_protocol.pb.h>
+#include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
+#include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
 
 #include <yt/yt/client/tablet_client/public.h>
 

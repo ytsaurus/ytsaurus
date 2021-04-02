@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_replica.h>
 
-#include <yt/yt/client/node_tracker_client/proto/node.pb.h>
+#include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
 namespace NYT::NNodeTrackerServer {
 

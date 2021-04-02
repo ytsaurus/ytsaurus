@@ -2,7 +2,7 @@
 #include "cluster_directory.h"
 #include "private.h"
 
-#include <yt/yt/client/hive/proto/cluster_directory.pb.h>
+#include <yt/yt_proto/yt/client/hive/proto/cluster_directory.pb.h>
 
 #include <yt/yt/ytlib/api/connection.h>
 

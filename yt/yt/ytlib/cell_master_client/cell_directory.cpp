@@ -16,7 +16,7 @@
 #include <yt/yt/ytlib/object_client/caching_object_service.h>
 #include <yt/yt/ytlib/object_client/object_service_cache.h>
 
-#include <yt/yt/client/cell_master_client/proto/cell_directory.pb.h>
+#include <yt/yt_proto/yt/client/cell_master/proto/cell_directory.pb.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/spinlock.h>

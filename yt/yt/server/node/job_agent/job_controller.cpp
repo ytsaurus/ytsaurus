@@ -33,7 +33,7 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/client/node_tracker_client/proto/node.pb.h>
+#include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/object_client/helpers.h>

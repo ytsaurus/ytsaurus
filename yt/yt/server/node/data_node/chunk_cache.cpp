@@ -35,7 +35,7 @@
 
 #include <yt/yt/client/api/config.h>
 
-#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/yt/client/formats/config.h>
 #include <yt/yt/client/formats/format.h>

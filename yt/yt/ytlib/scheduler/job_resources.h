@@ -4,7 +4,7 @@
 
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
-#include <yt/yt/client/node_tracker_client/proto/node.pb.h>
+#include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
 #include <yt/yt/core/misc/fixed_point_number.h>
 #include <yt/yt/core/misc/small_vector.h>

@@ -65,7 +65,7 @@
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 
-#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/logging/log.h>

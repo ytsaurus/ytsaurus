@@ -28,7 +28,7 @@
 #include <yt/yt/ytlib/table_client/row_merger.h>
 
 #include <yt/yt/client/table_client/wire_protocol.h>
-#include <yt/yt/client/table_client/proto/wire_protocol.pb.h>
+#include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
 

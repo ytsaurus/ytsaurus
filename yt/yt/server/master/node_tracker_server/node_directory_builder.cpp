@@ -2,7 +2,7 @@
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 
-#include <yt/yt/client/node_tracker_client/proto/node_directory.pb.h>
+#include <yt/yt_proto/yt/client/node_tracker_client/proto/node_directory.pb.h>
 
 namespace NYT::NNodeTrackerServer {
 

@@ -8,7 +8,7 @@
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
-#include <yt/yt/client/table_client/proto/wire_protocol.pb.h>
+#include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
 
 #include <yt/yt/client/table_client/wire_protocol.h>
 #include <yt/yt/client/table_client/name_table.h>

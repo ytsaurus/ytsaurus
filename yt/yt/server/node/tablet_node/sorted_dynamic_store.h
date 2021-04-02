@@ -7,7 +7,7 @@
 #include "transaction.h"
 #include "store_manager.h"
 
-#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 

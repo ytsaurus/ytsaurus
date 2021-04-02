@@ -2,7 +2,7 @@ package NYT.NDataNodeTrackerClient.NProto;
 
 import "yt/ytlib/chunk_client/proto/heartbeat.proto";
 
-import "yt/client/node_tracker_client/proto/node.proto";
+import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -8,7 +8,7 @@
 
 #include <yt/yt/ytlib/query_client/parser.h>
 
-#include <yt/yt/client/chunk_client/proto/chunk_spec.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 

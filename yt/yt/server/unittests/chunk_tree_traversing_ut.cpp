@@ -11,7 +11,7 @@
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
-#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 #include <yt/yt/client/chunk_client/read_limit.h>
 
 #include <yt/yt/client/table_client/helpers.h>

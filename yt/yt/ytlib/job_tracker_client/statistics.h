@@ -4,7 +4,7 @@
 
 #include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
 
-#include <yt/yt/client/chunk_client/proto/data_statistics.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
 
 #include <yt/yt/core/misc/public.h>
 

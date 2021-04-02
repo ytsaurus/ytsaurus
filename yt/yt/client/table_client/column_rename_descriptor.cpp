@@ -1,6 +1,6 @@
 #include "column_rename_descriptor.h"
 
-#include <yt/yt/client/table_client/proto/chunk_meta.pb.h>
+#include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
 
 #include <yt/yt/core/yson/consumer.h>
 #include <yt/yt/core/yson/parser.h>

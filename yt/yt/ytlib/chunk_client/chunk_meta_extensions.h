@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 

@@ -7,7 +7,7 @@
 #include <yt/yt/server/master/chunk_server/chunk_tree_balancer.h>
 #include <yt/yt/server/master/chunk_server/helpers.h>
 
-#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <yt/yt/client/object_client/helpers.h>

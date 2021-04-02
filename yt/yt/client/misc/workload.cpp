@@ -1,6 +1,6 @@
 #include "workload.h"
 
-#include <yt/yt/client/misc/proto/workload.pb.h>
+#include <yt/yt_proto/yt/client/misc/proto/workload.pb.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/fair_share_thread_pool.h>
