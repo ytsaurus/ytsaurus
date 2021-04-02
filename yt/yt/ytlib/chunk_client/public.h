@@ -213,6 +213,9 @@ DECLARE_REFCOUNTED_STRUCT(TMemoryUsageGuard)
 DECLARE_REFCOUNTED_STRUCT(IMultiReaderMemoryManager)
 DECLARE_REFCOUNTED_STRUCT(IReaderMemoryManagerHost)
 
+DECLARE_REFCOUNTED_CLASS(TCachedChunkMeta)
+DECLARE_REFCOUNTED_CLASS(TClientChunkMetaCache)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient

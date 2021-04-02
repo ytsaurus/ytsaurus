@@ -32,6 +32,8 @@ public:
 
     const TKey& GetKey() const;
 
+    void UpdateWeight() const;
+
 protected:
     explicit TAsyncCacheValueBase(const TKey& key);
 
