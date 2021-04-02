@@ -103,7 +103,7 @@ class YtDatabaseMetaData extends AbstractWrapper implements DatabaseMetaData {
     private CompletableFuture<List<YTreeMapNode>> columns(String table, Predicate<MapF<String, YTreeNode>> filter,
                                                           RowFill rowFill) {
         return client.getNode(table + "/@schema").thenApply(node -> {
-            final Option<YTreeNode> uniqueKeys = node.getAttribute("unique_keys");
+            final Optional<YTreeNode> uniqueKeys = node.getAttribute("unique_keys");
             if (!uniqueKeys.isPresent() || !uniqueKeys.get().boolValue()) {
                 return null;
             }
