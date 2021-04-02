@@ -5,12 +5,10 @@ import javax.annotation.Nullable;
 import ru.yandex.lang.NonNullApi;
 
 @NonNullApi
-public abstract class GetLikeReq<T extends GetLikeReq<T>> extends RequestBase<T> {
+public abstract class GetLikeReq<T extends GetLikeReq<T>> extends TransactionalRequest<T> {
     protected final String path;
     @Nullable protected ColumnFilter attributes;
     @Nullable protected Integer maxSize;
-    @Nullable protected TransactionalOptions transactionalOptions;
-    @Nullable protected PrerequisiteOptions prerequisiteOptions;
     @Nullable protected MasterReadOptions masterReadOptions;
     @Nullable protected SuppressableAccessTrackingOptions suppressableAccessTrackingOptions;
 
@@ -32,16 +30,6 @@ public abstract class GetLikeReq<T extends GetLikeReq<T>> extends RequestBase<T>
         return self();
     }
 
-    public T setTransactionalOptions(@Nullable TransactionalOptions to) {
-        this.transactionalOptions = to;
-        return self();
-    }
-
-    public T setPrerequisiteOptions(@Nullable PrerequisiteOptions prerequisiteOptions) {
-        this.prerequisiteOptions = prerequisiteOptions;
-        return self();
-    }
-
     public T setMasterReadOptions(@Nullable MasterReadOptions mo) {
         this.masterReadOptions = mo;
         return self();
@@ -54,9 +42,6 @@ public abstract class GetLikeReq<T extends GetLikeReq<T>> extends RequestBase<T>
 
     @Override
     protected void writeArgumentsLogString(StringBuilder sb) {
-        if (transactionalOptions != null) {
-            transactionalOptions.writeArgumentsLogString(sb);
-        }
         sb.append("Path: ").append(path).append("; ");
         if (attributes != null) {
             sb.append("Attributes: ").append(attributes).append("; ");

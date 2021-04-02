@@ -21,6 +21,17 @@ public abstract class RequestBase<T extends RequestBase<T>> {
 
     Message additionalData;
 
+    protected RequestBase() {
+    }
+
+    protected RequestBase(RequestBase<?> other) {
+        timeout = other.timeout;
+        requestId = other.requestId;
+        traceId = other.traceId;
+        traceSampled = other.traceSampled;
+        additionalData = other.additionalData;
+    }
+
     protected abstract @Nonnull T self();
 
     @SuppressWarnings("unused")
