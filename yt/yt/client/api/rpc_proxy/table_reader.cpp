@@ -6,7 +6,7 @@
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/table_reader.h>
 
-#include <yt/yt/client/chunk_client/proto/data_statistics.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
 
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>

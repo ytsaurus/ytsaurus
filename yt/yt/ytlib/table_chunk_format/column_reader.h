@@ -4,7 +4,7 @@
 
 #include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/yt/client/table_chunk_format/proto/column_meta.pb.h>
+#include <yt/yt_proto/yt/client/table_chunk_format/proto/column_meta.pb.h>
 
 #include <yt/yt/client/table_client/comparator.h>
 #include <yt/yt/client/table_client/unversioned_row.h>

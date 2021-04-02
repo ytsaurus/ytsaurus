@@ -1,0 +1,16 @@
+package NYT.NChunkClient.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/client/chunk_client/proto/read_limit.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TChunkView
+{
+    required NYT.NProto.TGuid chunk_view_id = 1;
+    required NYT.NProto.TGuid underlying_chunk_id = 2;
+    optional TReadRange read_range = 3;
+    optional int64 timestamp = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////

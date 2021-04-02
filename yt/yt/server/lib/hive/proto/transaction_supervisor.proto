@@ -1,6 +1,6 @@
 package NYT.NHiveServer.NProto;
 
-import "yt/client/hive/proto/timestamp_map.proto";
+import "yt_proto/yt/client/hive/proto/timestamp_map.proto";
 import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt_proto/yt/core/misc/proto/error.proto";
 

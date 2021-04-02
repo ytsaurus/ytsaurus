@@ -16,7 +16,7 @@
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
-#include <yt/yt/client/table_client/proto/chunk_meta.pb.h>
+#include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>

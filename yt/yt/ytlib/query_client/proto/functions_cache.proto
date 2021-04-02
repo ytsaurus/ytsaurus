@@ -1,6 +1,6 @@
 package NYT.NQueryClient.NProto;
 
-import "yt/client/chunk_client/proto/chunk_spec.proto";
+import "yt_proto/yt/client/chunk_client/proto/chunk_spec.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -18,8 +18,8 @@
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/yt/ytlib/chunk_client/block_fetcher.h>
 
-#include <yt/yt/client/chunk_client/proto/data_statistics.pb.h>
-#include <yt/yt/client/chunk_client/proto/chunk_spec.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_row.h>

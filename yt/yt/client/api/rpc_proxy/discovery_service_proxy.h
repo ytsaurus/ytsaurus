@@ -4,7 +4,7 @@
 
 #include "protocol_version.h"
 
-#include <yt/yt/client/api/rpc_proxy/proto/discovery_service.pb.h>
+#include <yt/yt_proto/yt/client/api/rpc_proxy/proto/discovery_service.pb.h>
 
 #include <yt/yt/core/rpc/client.h>
 

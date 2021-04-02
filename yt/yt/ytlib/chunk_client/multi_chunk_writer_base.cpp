@@ -9,7 +9,7 @@
 #include <yt/yt/client/api/config.h>
 #include <yt/yt/client/api/connection.h>
 
-#include <yt/yt/client/chunk_client/proto/chunk_spec.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 

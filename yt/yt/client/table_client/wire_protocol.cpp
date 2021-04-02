@@ -1,6 +1,6 @@
 #include "wire_protocol.h"
 
-#include <yt/yt/client/table_client/proto/chunk_meta.pb.h>
+#include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>

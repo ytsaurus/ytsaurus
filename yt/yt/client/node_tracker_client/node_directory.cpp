@@ -3,7 +3,7 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/yt/client/node_tracker_client/proto/node_directory.pb.h>
+#include <yt/yt_proto/yt/client/node_tracker_client/proto/node_directory.pb.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 

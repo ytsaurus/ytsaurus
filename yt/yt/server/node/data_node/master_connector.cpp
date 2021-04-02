@@ -31,7 +31,7 @@
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
-#include <yt/yt/client/node_tracker_client/proto/node.pb.h>
+#include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
 #include <yt/yt/core/utilex/random.h>
 

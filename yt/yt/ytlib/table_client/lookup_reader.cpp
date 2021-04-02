@@ -5,7 +5,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 
 #include <yt/yt/client/chunk_client/reader_base.h>
-#include <yt/yt/client/chunk_client/proto/data_statistics.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>

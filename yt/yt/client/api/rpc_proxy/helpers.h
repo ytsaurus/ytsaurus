@@ -10,7 +10,7 @@
 
 #include <yt/yt/client/api/client.h>
 
-#include <yt/yt/client/api/rpc_proxy/proto/api_service.pb.h>
+#include <yt/yt_proto/yt/client/api/rpc_proxy/proto/api_service.pb.h>
 
 namespace NYT::NApi::NRpcProxy {
 

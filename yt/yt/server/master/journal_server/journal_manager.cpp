@@ -14,7 +14,7 @@
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
 
-#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/yt/ytlib/journal_client/helpers.h>
 #include <yt/yt/ytlib/journal_client/journal_ypath_proxy.h>

@@ -19,7 +19,7 @@
 
 #include <yt/yt/client/api/client.h>
 
-#include <yt/yt/client/chunk_client/proto/data_statistics.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 

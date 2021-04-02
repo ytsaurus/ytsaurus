@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/misc/serialize.h>
 
-#include <yt/yt/client/hive/proto/timestamp_map.pb.h>
+#include <yt/yt_proto/yt/client/hive/proto/timestamp_map.pb.h>
 
 namespace NYT::NHiveClient {
 

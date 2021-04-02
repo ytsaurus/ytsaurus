@@ -10,7 +10,7 @@
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
-#include <yt/yt/client/node_tracker_client/proto/node.pb.h>
+#include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
 #include <yt/yt/library/erasure/public.h>
 

@@ -3,7 +3,7 @@
 
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 
-#include <yt/yt/client/chunk_client/proto/data_statistics.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
 
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/schemaless_row_reorderer.h>

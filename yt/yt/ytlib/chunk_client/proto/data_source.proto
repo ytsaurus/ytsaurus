@@ -1,6 +1,6 @@
 package NYT.NChunkClient.NProto;
 
-import "yt/client/table_client/proto/chunk_meta.proto";
+import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 import "yt/ytlib/table_client/proto/virtual_value_directory.proto";
 
 ////////////////////////////////////////////////////////////////////////////////

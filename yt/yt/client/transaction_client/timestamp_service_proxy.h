@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/client/transaction_client/proto/timestamp_service.pb.h>
+#include <yt/yt_proto/yt/client/transaction_client/proto/timestamp_service.pb.h>
 
 #include <yt/yt/core/rpc/client.h>
 

@@ -31,11 +31,11 @@
 #include <yt/yt/ytlib/table_client/chunk_lookup_hash_table.h>
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
-#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/client/table_client/proto/chunk_meta.pb.h>
+#include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
 
 #include <yt/yt/core/compression/codec.h>
 

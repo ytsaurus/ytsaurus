@@ -10,7 +10,7 @@
 
 #include <yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
 
-#include <yt/yt/client/node_tracker_client/proto/node.pb.h>
+#include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
 #include <yt/yt/core/actions/signal.h>
 

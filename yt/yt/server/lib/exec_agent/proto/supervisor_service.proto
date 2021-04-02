@@ -1,7 +1,7 @@
 package NYT.NExecAgent.NProto;
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
-import "yt/client/misc/proto/workload.proto";
+import "yt_proto/yt/client/misc/proto/workload.proto";
 import "yt/ytlib/job_tracker_client/proto/job.proto";
 import "yt/ytlib/core_dump/proto/core_info.proto";
 

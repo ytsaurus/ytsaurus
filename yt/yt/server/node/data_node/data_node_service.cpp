@@ -51,7 +51,7 @@
 #include <yt/yt/server/node/tablet_node/sorted_dynamic_comparer.h>
 #include <yt/yt/server/node/tablet_node/versioned_chunk_meta_manager.h>
 
-#include <yt/yt/client/chunk_client/proto/chunk_spec.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 #include <yt/yt/client/chunk_client/read_limit.h>
 
 #include <yt/yt/client/misc/workload.h>

@@ -2,7 +2,7 @@ package NYT.NClickHouseServer.NProto;
 
 import "yt/ytlib/chunk_client/proto/data_source.proto";
 import "yt/ytlib/scheduler/proto/job.proto";
-import "yt/client/table_client/proto/chunk_meta.proto";
+import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

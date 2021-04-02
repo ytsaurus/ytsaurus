@@ -3,7 +3,7 @@
 #include "public.h"
 
 // TODO(dakovalkov): move to .cpp?
-#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/yt/core/concurrency/spinlock.h>
 

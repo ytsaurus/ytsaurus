@@ -6,7 +6,7 @@
 
 #include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/yt/client/node_tracker_client/proto/node.pb.h>
+#include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
 #include <yt/yt/core/profiling/profiler.h>
 

@@ -12,7 +12,7 @@
 
 #include <yt/yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.pb.h>
 
-#include <yt/yt/client/node_tracker_client/proto/node.pb.h>
+#include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
 namespace NYT::NNodeTrackerClient {
 

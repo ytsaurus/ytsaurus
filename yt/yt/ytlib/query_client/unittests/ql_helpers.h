@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/client/chunk_client/proto/chunk_spec.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 

@@ -12,7 +12,7 @@
 #include <yt/yt/ytlib/chunk_client/proto/chunk_info.pb.h>
 #include <yt/yt/ytlib/chunk_client/proto/chunk_service.pb.h>
 
-#include <yt/yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/yt/library/erasure/public.h>
 

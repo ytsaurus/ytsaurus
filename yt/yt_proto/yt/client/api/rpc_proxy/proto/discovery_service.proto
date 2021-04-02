@@ -1,0 +1,23 @@
+package NYT.NApi.NRpcProxy.NProto;
+
+option java_package = "ru.yandex.yt";
+option java_outer_classname = "DiscoveryProtos";
+option java_multiple_files = true;
+
+option go_package = "a.yandex-team.ru/yt/go/proto/client/api/rpc_proxy";
+
+//------------------------------------------------------------------------------
+
+message TReqDiscoverProxies
+{
+    optional string role = 1;
+}
+
+message TRspDiscoverProxies
+{
+    repeated string addresses = 1;
+}
+
+//------------------------------------------------------------------------------
+
+////////////////////////////////////////////////////////////////////////////////
