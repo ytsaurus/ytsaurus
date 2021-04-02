@@ -1,5 +1,10 @@
 package ru.yandex.yt.ytclient.rpc;
 
+import java.util.HashSet;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
+
 import javax.annotation.Nullable;
 
 import ru.yandex.lang.NonNullApi;
@@ -24,6 +29,13 @@ public class RpcError extends RuntimeException {
     }
 
     /**
+     * Check if error or one of inner error satisfy given predicate.
+     */
+    public boolean matches(Predicate<Integer> predicate) {
+        return findMatching(error, e -> predicate.test(e.getCode())) != null;
+    }
+
+    /**
      * Check if error or one of inner error has specified code.
      */
     public boolean matches(int code) {
@@ -36,7 +48,25 @@ public class RpcError extends RuntimeException {
      */
     @Nullable
     public TError findMatchingError(int code) {
-        return findMatching(error, code);
+        return findMatching(error, e -> e.getCode() == code);
+    }
+
+    /**
+     * Get error code of this error and all inner errors.
+     */
+    public Set<Integer> getErrorCodes() {
+        Set<Integer> result = new HashSet<>();
+        Consumer<TError> walker = new Consumer<TError>() {
+            @Override
+            public void accept(TError e) {
+                result.add(e.getCode());
+                for (TError inner : e.getInnerErrorsList()) {
+                    this.accept(inner);
+                }
+            }
+        };
+        walker.accept(error);
+        return result;
     }
 
     /**
@@ -48,7 +78,7 @@ public class RpcError extends RuntimeException {
         if (error.getCode() == code) {
             return this;
         }
-        TError matching = findMatching(error, code);
+        TError matching = findMatching(error, e -> e.getCode() == code);
         if (matching == null) {
             return null;
         }
@@ -83,16 +113,16 @@ public class RpcError extends RuntimeException {
     }
 
     @Nullable
-    private static TError findMatching(@Nullable TError error, int code) {
+    private static TError findMatching(@Nullable TError error, Predicate<TError> predicate) {
         if (error == null) {
             return null;
-        } else if (error.getCode() == code) {
+        } else if (predicate.test(error)) {
             return error;
         }
 
         TError result = null;
         for (TError inner : error.getInnerErrorsList()) {
-            result = findMatching(inner, code);
+            result = findMatching(inner, predicate);
             if (result != null) {
                 break;
             }
@@ -117,35 +147,30 @@ public class RpcError extends RuntimeException {
 
     private static void serializeError(TError error, YsonConsumer consumer) {
         consumer.onBeginMap();
-        {
-            consumer.onKeyedItem("code");
-            consumer.onInteger(error.getCode());
 
-            consumer.onKeyedItem("message");
-            consumer.onString(error.getMessage());
+        consumer.onKeyedItem("code");
+        consumer.onInteger(error.getCode());
 
-            if (error.getAttributes().getAttributesCount() != 0) {
-                consumer.onKeyedItem("attributes");
-                consumer.onBeginMap();
-                {
-                    for (TAttribute attribute : error.getAttributes().getAttributesList()) {
-                        consumer.onKeyedItem(attribute.getKey());
-                        new YsonParser(attribute.getValue().toByteArray()).parseNode(consumer);
-                    }
-                }
-                consumer.onEndMap();
+        consumer.onKeyedItem("message");
+        consumer.onString(error.getMessage());
+
+        if (error.getAttributes().getAttributesCount() != 0) {
+            consumer.onKeyedItem("attributes");
+            consumer.onBeginMap();
+            for (TAttribute attribute : error.getAttributes().getAttributesList()) {
+                consumer.onKeyedItem(attribute.getKey());
+                new YsonParser(attribute.getValue().toByteArray()).parseNode(consumer);
             }
+            consumer.onEndMap();
+        }
 
-            if (error.getInnerErrorsCount() > 0) {
-                consumer.onKeyedItem("inner_errors");
-                {
-                    consumer.onBeginList();
-                    for (TError innerError : error.getInnerErrorsList()) {
-                        serializeError(innerError, consumer);
-                    }
-                    consumer.onEndList();
-                }
+        if (error.getInnerErrorsCount() > 0) {
+            consumer.onKeyedItem("inner_errors");
+            consumer.onBeginList();
+            for (TError innerError : error.getInnerErrorsList()) {
+                serializeError(innerError, consumer);
             }
+            consumer.onEndList();
         }
         consumer.onEndMap();
     }
