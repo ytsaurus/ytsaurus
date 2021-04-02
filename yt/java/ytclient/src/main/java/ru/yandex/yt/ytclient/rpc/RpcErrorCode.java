@@ -19,12 +19,19 @@ public enum RpcErrorCode {
     InvalidCsrfToken(110),
     InvalidCredentials(111),
     StreamingNotSupported(112),
-    TableMountInfoNotReady(1707),
-    ;
+    TableMountInfoNotReady(1707);
 
+    @SuppressWarnings("CheckStyle")
     public final int code;
 
     RpcErrorCode(int code) {
         this.code = code;
+    }
+
+    /**
+     * Get value of error code.
+     */
+    public int getCode() {
+        return code;
     }
 }

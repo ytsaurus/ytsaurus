@@ -112,13 +112,13 @@ public class ApiServiceClient extends TransactionalClient {
 
     @Nonnull private final Executor heavyExecutor;
     @Nullable private final RpcClient rpcClient;
-    @Nonnull private final RpcOptions rpcOptions;
+    @Nonnull final RpcOptions rpcOptions;
 
     private ApiServiceClient(
             @Nullable RpcClient client,
             @Nonnull RpcOptions options,
-            @Nonnull Executor heavyExecutor)
-    {
+            @Nonnull Executor heavyExecutor
+    ) {
         this.heavyExecutor = Objects.requireNonNull(heavyExecutor);
         this.rpcClient = client;
         this.rpcOptions = options;
@@ -383,7 +383,10 @@ public class ApiServiceClient extends TransactionalClient {
     }
 
     @Override
-    public <T> CompletableFuture<List<T>> lookupRows(AbstractLookupRowsRequest<?> request, YTreeObjectSerializer<T> serializer) {
+    public <T> CompletableFuture<List<T>> lookupRows(
+            AbstractLookupRowsRequest<?> request,
+            YTreeObjectSerializer<T> serializer
+    ) {
         return lookupRowsImpl(request, response -> {
             final ConsumerSourceRet<T> result = ConsumerSource.list();
             ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
@@ -392,8 +395,11 @@ public class ApiServiceClient extends TransactionalClient {
         });
     }
 
-    public <T> CompletableFuture<Void> lookupRows(AbstractLookupRowsRequest<?> request, YTreeObjectSerializer<T> serializer,
-                                                  ConsumerSource<T> consumer) {
+    public <T> CompletableFuture<Void> lookupRows(
+            AbstractLookupRowsRequest<?> request,
+            YTreeObjectSerializer<T> serializer,
+            ConsumerSource<T> consumer
+    ) {
         return lookupRowsImpl(request, response -> {
             ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
                     response.attachments(), serializer, consumer);
@@ -403,10 +409,13 @@ public class ApiServiceClient extends TransactionalClient {
 
     private <T> CompletableFuture<T> lookupRowsImpl(
             AbstractLookupRowsRequest<?> request,
-            Function<RpcClientResponse<TRspLookupRows>, T> responseReader)
-    {
+            Function<RpcClientResponse<TRspLookupRows>, T> responseReader
+    ) {
         return handleHeavyResponse(
-                sendRequest(request.asLookupRowsWritable(), ApiServiceMethodTable.lookupRows.createRequestBuilder(rpcOptions)),
+                sendRequest(
+                        request.asLookupRowsWritable(),
+                        ApiServiceMethodTable.lookupRows.createRequestBuilder(rpcOptions)
+                ),
                 response -> {
                     logger.trace("LookupRows incoming rowset descriptor: {}", response.body().getRowsetDescriptor());
                     return responseReader.apply(response);
@@ -435,8 +444,11 @@ public class ApiServiceClient extends TransactionalClient {
         });
     }
 
-    public <T> CompletableFuture<Void> versionedLookupRows(LookupRowsRequest request,
-                                                           YTreeObjectSerializer<T> serializer, ConsumerSource<T> consumer) {
+    public <T> CompletableFuture<Void> versionedLookupRows(
+            LookupRowsRequest request,
+            YTreeObjectSerializer<T> serializer,
+            ConsumerSource<T> consumer
+    ) {
         return versionedLookupRowsImpl(request, response -> {
             ApiServiceUtil.deserializeVersionedRowset(response.body().getRowsetDescriptor(),
                     response.attachments(), serializer, consumer);
@@ -446,12 +458,16 @@ public class ApiServiceClient extends TransactionalClient {
 
     private <T> CompletableFuture<T> versionedLookupRowsImpl(
             AbstractLookupRowsRequest<?> request,
-            Function<RpcClientResponse<TRspVersionedLookupRows>, T> responseReader)
-    {
+            Function<RpcClientResponse<TRspVersionedLookupRows>, T> responseReader
+    ) {
         return handleHeavyResponse(
-                sendRequest(request.asVersionedLookupRowsWritable(), ApiServiceMethodTable.versionedLookupRows.createRequestBuilder(rpcOptions)),
+                sendRequest(
+                        request.asVersionedLookupRowsWritable(),
+                        ApiServiceMethodTable.versionedLookupRows.createRequestBuilder(rpcOptions)
+                ),
                 response -> {
-                    logger.trace("VersionedLookupRows incoming rowset descriptor: {}", response.body().getRowsetDescriptor());
+                    logger.trace("VersionedLookupRows incoming rowset descriptor: {}",
+                            response.body().getRowsetDescriptor());
                     return responseReader.apply(response);
                 });
     }
@@ -507,7 +523,10 @@ public class ApiServiceClient extends TransactionalClient {
 
     public CompletableFuture<Void> modifyRows(GUID transactionId, AbstractModifyRowsRequest<?> request) {
         return RpcUtil.apply(
-                sendRequest(new ModifyRowsWrapper(transactionId, request), ApiServiceMethodTable.modifyRows.createRequestBuilder(rpcOptions)),
+                sendRequest(
+                        new ModifyRowsWrapper(transactionId, request),
+                        ApiServiceMethodTable.modifyRows.createRequestBuilder(rpcOptions)
+                ),
                 response -> null);
     }
 
@@ -597,7 +616,10 @@ public class ApiServiceClient extends TransactionalClient {
 
     public CompletableFuture<List<GUID>> getInSyncReplicas(GetInSyncReplicas request, YtTimestamp timestamp) {
         return RpcUtil.apply(
-                sendRequest(new GetInSyncReplicasWrapper(timestamp, request), ApiServiceMethodTable.getInSyncReplicas.createRequestBuilder(rpcOptions)),
+                sendRequest(
+                        new GetInSyncReplicasWrapper(timestamp, request),
+                        ApiServiceMethodTable.getInSyncReplicas.createRequestBuilder(rpcOptions)
+                ),
                 response -> response.body().getReplicaIdsList()
                         .stream().map(RpcUtil::fromProto).collect(Collectors.toList()));
     }
@@ -607,8 +629,8 @@ public class ApiServiceClient extends TransactionalClient {
             String path,
             YtTimestamp timestamp,
             TableSchema schema,
-            Iterable<? extends List<?>> keys)
-    {
+            Iterable<? extends List<?>> keys
+    ) {
         return getInSyncReplicas(new GetInSyncReplicas(path, schema, keys), timestamp);
     }
 
@@ -680,8 +702,8 @@ public class ApiServiceClient extends TransactionalClient {
             boolean enabled,
             ETableReplicaMode mode,
             boolean preserveTimestamp,
-            EAtomicity atomicity)
-    {
+            EAtomicity atomicity
+    ) {
         TableReplicaMode convertedMode;
         switch (mode) {
             case TRM_ASYNC:
@@ -779,7 +801,8 @@ public class ApiServiceClient extends TransactionalClient {
                 req.getPacketSize(),
                 req.getSerializer());
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableWriter);
-        CompletableFuture<TableWriter<T>> result = streamControlFuture.thenCompose(control -> tableWriter.startUpload());
+        CompletableFuture<TableWriter<T>> result = streamControlFuture
+                .thenCompose(control -> tableWriter.startUpload());
         RpcUtil.relayCancel(result, streamControlFuture);
         return result;
     }
@@ -830,16 +853,14 @@ public class ApiServiceClient extends TransactionalClient {
     }
 
     protected <RequestType extends MessageLite.Builder, ResponseType> CompletableFuture<RpcClientStreamControl>
-    startStream(RpcClientRequestBuilder<RequestType, ResponseType> builder, RpcStreamConsumer consumer)
-    {
+    startStream(RpcClientRequestBuilder<RequestType, ResponseType> builder, RpcStreamConsumer consumer) {
         return CompletableFuture.completedFuture(builder.startStream(rpcClient, consumer));
     }
 
     private <RequestMsgBuilder extends MessageLite.Builder, ResponseMsg,
             RequestType extends HighLevelRequest<RequestMsgBuilder>>
     CompletableFuture<ResponseMsg>
-    sendRequest(RequestType req, RpcClientRequestBuilder<RequestMsgBuilder, ResponseMsg> builder)
-    {
+    sendRequest(RequestType req, RpcClientRequestBuilder<RequestMsgBuilder, ResponseMsg> builder) {
         logger.debug("Starting request {}; {}", builder, req.getArgumentsLogString());
         req.writeHeaderTo(builder.header());
         req.writeTo(builder);
@@ -859,7 +880,7 @@ public class ApiServiceClient extends TransactionalClient {
         return rpcClient.getAddressString();
     }
 
-    static private YTreeNode parseByteString(ByteString byteString) {
+    private static YTreeNode parseByteString(ByteString byteString) {
         return YTreeBinarySerializer.deserialize(byteString.newInput());
     }
 }

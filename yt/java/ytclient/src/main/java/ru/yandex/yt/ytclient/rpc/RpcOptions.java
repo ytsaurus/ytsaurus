@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.rpc;
 
 import java.time.Duration;
+import java.util.Objects;
 
 import javax.annotation.Nullable;
 
@@ -21,24 +22,32 @@ public class RpcOptions {
     private int clientsCacheSize = 10000; // will be used only when useClientsCache is true
     private Duration clientCacheExpiration = Duration.ofMillis(1); // will be used only when useClientsCache is true
 
-    // Client fails request if acknowlegdgement is not received within this timeout.
+    /**
+     * @see #setAcknowledgementTimeout
+     */
     private @Nullable Duration acknowledgementTimeout = Duration.ofSeconds(15);
 
     private Duration globalTimeout = Duration.ofMillis(60000);  // fails request after this timeout
-    private Duration failoverTimeout = Duration.ofMillis(30000); // sends fallback request to other proxy after this timeout
+
+    // sends fallback request to other proxy after this timeout
+    private Duration failoverTimeout = Duration.ofMillis(30000);
     private Duration proxyUpdateTimeout = Duration.ofMillis(60000);
     private Duration pingTimeout = Duration.ofMillis(5000); // marks proxy as dead/live after this timeout
     private Duration channelPoolRebalanceInterval = Duration.ofMinutes(10);
     private Duration rpcClientSelectionTimeout = Duration.ofSeconds(30);
     private int channelPoolSize = 3;
 
+    private Duration minBackoffTime = Duration.ofSeconds(3);
+    private Duration maxBackoffTime = Duration.ofSeconds(30);
+
     // steaming options
     private Duration readTimeout = Duration.ofMillis(60000);
     private Duration writeTimeout = Duration.ofMillis(60000);
-    private int windowSize = 32*1024*1024;
+    private int windowSize = 32 * 1024 * 1024;
 
     private RpcFailoverPolicy failoverPolicy = new DefaultRpcFailoverPolicy();
-    private BalancingResponseHandlerMetricsHolder responseMetricsHolder = new BalancingResponseHandlerMetricsHolderImpl();
+    private BalancingResponseHandlerMetricsHolder responseMetricsHolder =
+            new BalancingResponseHandlerMetricsHolderImpl();
     private DataCenterMetricsHolder dataCenterMetricsHolder = DataCenterMetricsHolderImpl.instance;
     private BalancingDestinationMetricsHolder destinationMetricsHolder = new BalancingDestinationMetricsHolderImpl();
 
@@ -294,5 +303,50 @@ public class RpcOptions {
     public RpcOptions setAcknowledgementTimeout(@Nullable Duration acknowledgementTimeout) {
         this.acknowledgementTimeout = acknowledgementTimeout;
         return this;
+    }
+
+    /**
+     * Set minimal backoff time.
+     * <p>
+     *     When retrying request ytclient might wait for some time before making next attempt.
+     *     This time lies in interval [minBackoffTime, maxBackoffTime].
+     *     Exact value is unspecified. It might depend on:
+     *       - error that is being retried (e.g RequestQueueSizeLimitExceeded is retried with increasing backoff time)
+     *       - version of the ytclient library (we might tune backoff times)
+     * </p>
+     * @see #setMaxBackoffTime
+     */
+    public RpcOptions setMinBackoffTime(Duration minBackoffTime) {
+        this.minBackoffTime = Objects.requireNonNull(minBackoffTime);
+        return this;
+    }
+
+    /**
+     * Set maximum backoff time.
+     *
+     * @see #setMinBackoffTime for explanation.
+     */
+    public RpcOptions setMaxBackoffTime(Duration maxBackoffTime) {
+        this.maxBackoffTime = Objects.requireNonNull(maxBackoffTime);
+        return this;
+    }
+
+    /**
+     * Get minimum backoff time.
+     *
+     * @see #setMinBackoffTime for explanation.
+     */
+    public Duration getMinBackoffTime() {
+        return minBackoffTime;
+    }
+
+    /**
+     * Get maximum backoff time.
+     *
+     * @see #setMinBackoffTime for explanation.
+     * @see #setMaxBackoffTime
+     */
+    public Duration getMaxBackoffTime() {
+        return maxBackoffTime;
     }
 }

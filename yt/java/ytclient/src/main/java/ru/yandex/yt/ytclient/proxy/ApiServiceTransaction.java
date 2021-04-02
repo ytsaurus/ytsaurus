@@ -146,6 +146,10 @@ public class ApiServiceTransaction extends TransactionalClient implements AutoCl
         return transactionCompleteFuture;
     }
 
+    boolean isActive() {
+        return state.get() == State.ACTIVE;
+    }
+
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     private boolean isPingableState() {
         State currentState = state.get();
