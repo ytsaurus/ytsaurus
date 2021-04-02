@@ -18,6 +18,15 @@ const TKey& TAsyncCacheValueBase<TKey, TValue, THash>::GetKey() const
 }
 
 template <class TKey, class TValue, class THash>
+void TAsyncCacheValueBase<TKey, TValue, THash>::UpdateWeight() const
+{
+    auto cache = Cache_.Lock();
+    if (cache) {
+        cache->UpdateWeight(GetKey());
+    }
+}
+
+template <class TKey, class TValue, class THash>
 TAsyncCacheValueBase<TKey, TValue, THash>::TAsyncCacheValueBase(const TKey& key)
     : Key_(key)
 { }
