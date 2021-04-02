@@ -29,6 +29,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeFloa
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeInstantSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeIntEnumSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeIntegerSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeJavaDurationSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeJavaInstantSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeLocalDateTimeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeLongSerializer;
@@ -128,6 +129,7 @@ public class ObjectsGenerators {
                     serializer instanceof YTreeInstantSerializer ||
                     serializer instanceof YTreeDurationSerializer ||
                     serializer instanceof YTreeJavaInstantSerializer ||
+                    serializer instanceof YTreeJavaDurationSerializer ||
                     serializer instanceof YTreeOffsetDateTimeSerializer) {
                 return new YTreeLongGenerator();
             } else if (serializer instanceof YTreeSerializerForCollections) {
