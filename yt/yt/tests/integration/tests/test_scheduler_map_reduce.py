@@ -434,6 +434,31 @@ print "x={0}\ty={1}".format(x, y)
 
         assert len(read_table("//tmp/t_out")) == 1
 
+    @authors("gritukan")
+    def test_row_count_limit_sorted_merge(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"x": 1, "y": 2, "z": "A" * 100000}])
+        write_table("<append=true>//tmp/t_in", [{"x": 2, "y": 3, "z": "A" * 100000}])
+
+        map_reduce(
+            in_="//tmp/t_in",
+            out="<row_count_limit=2>//tmp/t_out",
+            reduce_by="x",
+            sort_by="x",
+            reducer_command="cat",
+            spec={
+                "partition_count": 1,
+                "data_size_per_map_job": 1,
+                "data_size_per_sort_job": 1,
+                "reducer": {"format": "dsv"},
+                "resource_limits": {"user_slots": 1},
+            },
+        )
+
+        assert len(read_table("//tmp/t_out", verbose=False)) == 2
+
     @authors("levysotsky")
     def test_intermediate_live_preview(self):
         create_user("u")
