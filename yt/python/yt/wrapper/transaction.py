@@ -164,8 +164,10 @@ class Transaction(object):
         if self._finished or self.transaction_id == null_transaction_id:
             return
         self._stop_pinger()
-        abort_transaction(self.transaction_id, client=self._client)
-        self._finished = True
+        try:
+            abort_transaction(self.transaction_id, client=self._client)
+        finally:
+            self._finished = True
 
     def commit(self):
         """Commits transaction.
@@ -184,9 +186,11 @@ class Transaction(object):
             raise YtError("Transaction is already finished, cannot commit")
 
         self._prepare_stop_pinger()
-        commit_transaction(self.transaction_id, client=self._client)
-        self._stop_pinger()
-        self._finished = True
+        try:
+            commit_transaction(self.transaction_id, client=self._client)
+        finally:
+            self._stop_pinger()
+            self._finished = True
 
     def is_pinger_alive(self):
         """Checks if pinger is alive."""
