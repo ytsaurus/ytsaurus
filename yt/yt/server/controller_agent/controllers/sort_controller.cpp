@@ -2318,11 +2318,11 @@ protected:
         } else {
             if (RowCountLimitTableIndex && CompletedRowCount_ >= RowCountLimit) {
                 // We have to save all output in SortedMergeTask.
-                for (const auto& task : Tasks) {
-                    task->CheckCompleted();
-                    if (!task->IsCompleted() && task->GetJobType() == EJobType::SortedMerge) {
+                if (SortedMergeTask) {
+                    SortedMergeTask->CheckCompleted();
+                    if (!SortedMergeTask->IsCompleted()) {
                         // Dirty hack to save chunks.
-                        task->ForceComplete();
+                        SortedMergeTask->ForceComplete();
                     }
                 }
             }
