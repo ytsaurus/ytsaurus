@@ -507,6 +507,29 @@ test_dynamic_table_commands()
     $YT unmount-table "$table" --sync
 }
 
+test_atomicity_argument()
+{
+    local tablet_cell="$($YT create tablet_cell --attributes "{size=1}")"
+
+    local schema="[{name=x; type=string; sort_order=ascending};{name=y; type=int64}]"
+    local table="//home/wrapper_test/dyn_table"
+    $YT create table "$table" --attributes "{schema=$schema; dynamic=%true; atomicity=none}"
+
+    while true; do
+        if [ "$($YT get //sys/tablet_cells/${tablet_cell}/@health)" = '"good"' ]; then
+            break
+        fi
+        sleep 0.1
+    done
+
+    $YT mount-table "$table" --sync
+
+    echo -ne "{x=a; y=1};{x=b;y=2}" | $YT insert-rows "$table" --format "<format=text>yson" --atomicity "none"
+    echo -ne "{x=a}" | $YT delete-rows "$table" --format "<format=text>yson" --atomicity "none"
+
+    $YT unmount-table "$table" --sync
+}
+
 test_sandbox_file_name_specification()
 {
     local table="//home/wrapper_test/table"
@@ -654,6 +677,7 @@ run_test test_json_structured_format
 run_test test_transform
 run_test test_create_temp_table
 run_test test_dynamic_table_commands
+run_test test_atomicity_argument
 run_test test_sandbox_file_name_specification
 run_test test_execute
 run_test test_brotli_write
