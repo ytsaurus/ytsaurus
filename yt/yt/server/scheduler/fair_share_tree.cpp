@@ -2433,6 +2433,13 @@ private:
             .Item("fifo_index").Value(element->Attributes().FifoIndex)
             .Item("deactivation_reasons").Value(element->GetDeactivationReasons())
             .Item("min_needed_resources_unsatisfied_count").Value(element->GetMinNeededResourcesUnsatisfiedCount())
+            .Item("detailed_min_needed_job_resources").BeginList()
+                .DoFor(element->GetDetailedMinNeededJobResources(), [&] (TFluentList fluent, const TJobResourcesWithQuota& jobResourcesWithQuota) {
+                    fluent.Item().Do([&] (TFluentAny fluent) {
+                        StrategyHost_->SerializeResources(jobResourcesWithQuota, fluent.GetConsumer());
+                    });
+                })
+            .EndList()
             .Item("tentative").Value(element->GetRuntimeParameters()->Tentative)
             .Item("starving_since").Value(element->GetStarving()
                 ? std::make_optional(element->GetLastNonStarvingTime())

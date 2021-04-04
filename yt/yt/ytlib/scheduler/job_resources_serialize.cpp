@@ -30,8 +30,34 @@ void Serialize(const TJobResources& resources, IYsonConsumer* consumer)
     #define XX(name, Name) .Item(#name).Value(resources.Get##Name())
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
-            // COMPAT(psushin): fix for a web-face.
-            .Item("memory").Value(resources.GetMemory())
+        .EndMap();
+}
+
+void SerializeDiskQuota(
+    const TDiskQuota& quota,
+    const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
+    IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .DoMapFor(quota.DiskSpacePerMedium, [&] (TFluentMap fluent, const std::pair<int, i64>& pair) {
+            auto [mediumIndex, diskSpace] = pair;
+            fluent.Item(mediumDirectory->FindByIndex(mediumIndex)->Name).Value(diskSpace);
+        });
+}
+
+void SerializeJobResourcesWithQuota(
+    const TJobResourcesWithQuota& resources,
+    const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
+    IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+    #define XX(name, Name) .Item(#name).Value(resources.Get##Name())
+    ITERATE_JOB_RESOURCES(XX)
+    #undef XX
+            .Item("disk_space").BeginMap()
+                //.Do(std::bind(&SerializeDiskQuota, resources.GetDiskQuota(), mediumDirectory, std::placeholders::_1))
+            .EndMap()
         .EndMap();
 }
 

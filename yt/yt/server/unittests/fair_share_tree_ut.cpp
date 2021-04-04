@@ -187,6 +187,11 @@ struct TSchedulerStrategyHostMock
         return NScheduler::FormatResourceUsage(usage, limits, diskResources, MediumDirectory_);
     }
 
+    virtual void SerializeResources(const TJobResourcesWithQuota& resources, NYson::IYsonConsumer* consumer) const override
+    {
+        YT_ABORT();
+    }
+
     virtual void LogResourceMetering(
         const TMeteringKey& /*key*/,
         const TMeteringStatistics& /*statistics*/,

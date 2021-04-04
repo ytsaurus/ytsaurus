@@ -2251,6 +2251,11 @@ std::optional<TString> TSchedulerOperationElement::GetCustomProfilingTag() const
     return tagName;
 }
 
+TJobResourcesWithQuotaList TSchedulerOperationElement::GetDetailedMinNeededJobResources() const
+{
+    return DetailedMinNeededJobResources_;
+}
+
 void TSchedulerOperationElement::Disable(bool markAsNonAlive)
 {
     YT_LOG_DEBUG("Operation element disabled in strategy");

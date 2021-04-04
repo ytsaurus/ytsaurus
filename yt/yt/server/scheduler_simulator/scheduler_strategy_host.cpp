@@ -2,6 +2,8 @@
 
 #include "event_log.h"
 
+#include <yt/yt/ytlib/scheduler/job_resources_serialize.h>
+
 namespace NYT::NSchedulerSimulator {
 
 using namespace NScheduler;
@@ -174,6 +176,11 @@ TString TSchedulerStrategyHost::FormatResourceUsage(
     const NNodeTrackerClient::NProto::TDiskResources& diskResources) const
 {
     return NScheduler::FormatResourceUsage(usage, limits, diskResources, MediumDirectory_);
+}
+    
+void TSchedulerStrategyHost::SerializeResources(const TJobResourcesWithQuota& resources, NYson::IYsonConsumer* consumer) const
+{
+    return NScheduler::SerializeJobResourcesWithQuota(resources, MediumDirectory_, consumer);
 }
 
 void TSchedulerStrategyHost::ValidatePoolPermission(
