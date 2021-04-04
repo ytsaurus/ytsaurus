@@ -11,6 +11,72 @@ namespace NYT::NNewTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <>
+Y_FORCE_INLINE ui64 ConvertInt<ui64>(ui64 value)
+{
+    return value;
+}
+
+template <>
+Y_FORCE_INLINE i64 ConvertInt<i64>(ui64 value)
+{
+    return ZigZagDecode64(value);
+}
+
+Y_FORCE_INLINE void ReadUnversionedValueData(TUnversionedValue* value, ui64 data)
+{
+    value->Data.Uint64 = data;
+}
+
+Y_FORCE_INLINE void ReadUnversionedValueData(TUnversionedValue* value, i64 data)
+{
+    value->Data.Int64 = data;
+}
+
+Y_FORCE_INLINE void ReadUnversionedValueData(TUnversionedValue* value, double data)
+{
+    value->Data.Double = data;
+}
+
+Y_FORCE_INLINE void ReadUnversionedValueData(TUnversionedValue* value, bool data)
+{
+    value->Data.Uint64 = 0;
+    value->Data.Boolean = data;
+}
+
+Y_FORCE_INLINE void ReadUnversionedValueData(TUnversionedValue* value, TStringBuf data)
+{
+    value->Length = data.Size();
+    value->Data.String = data.Data();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline bool GetIsDirect(int type)
+{
+    // DirectRle/DirectSparse: 2,  DirectDense: 3
+    return type == 2 || type == 3;
+}
+
+inline bool GetIsDense(int type)
+{
+    // DictionaryDense: 1, DirectDense: 3
+    return type == 1 || type == 3;
+}
+
+inline bool GetIsDense(const NProto::TSegmentMeta& meta, EValueType dataType)
+{
+    if (dataType == EValueType::Int64 || dataType == EValueType::Uint64 || IsStringLikeType(dataType)) {
+        return GetIsDense(meta.type());
+    } else if (dataType == EValueType::Boolean || dataType == EValueType::Double) {
+        return meta.HasExtension(NProto::TDenseVersionedSegmentMeta::dense_versioned_segment_meta);
+    } else {
+        Y_UNREACHABLE();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 inline ui32 TTimestampExtractor::GetSegmentRowLimit() const
 {
     return SegmentRowOffset_ + RowCount_;
@@ -212,6 +278,12 @@ inline ui32 TMultiValueBase::SkipTo(ui32 rowIndex, ui32 position) const
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
+TLookupIntegerExtractor<T>::TLookupIntegerExtractor(const NProto::TSegmentMeta& meta)
+    : BaseValue_(meta.GetExtension(NProto::TIntegerSegmentMeta::integer_segment_meta).min_value())
+    , IsDirect_(GetIsDirect(meta.type()))
+{ }
+
+template <class T>
 inline const ui64* TLookupIntegerExtractor<T>::Init(const ui64* ptr)
 {
     Ptr_ = ptr;
@@ -256,6 +328,9 @@ inline void TLookupIntegerExtractor<T>::Extract(TUnversionedValue* value, ui32 i
     }
 }
 
+inline TLookupDoubleExtractor::TLookupDoubleExtractor(const NProto::TSegmentMeta& /*meta*/)
+{ }
+
 inline const ui64* TLookupDoubleExtractor::Init(const ui64* ptr)
 {
     Ptr_ = ptr;
@@ -282,6 +357,9 @@ inline void TLookupDoubleExtractor::Extract(TUnversionedValue* value, ui32 index
     ReadUnversionedValueData(value, items[index]);
 }
 
+inline TLookupBooleanExtractor::TLookupBooleanExtractor(const NProto::TSegmentMeta& /*meta*/)
+{ }
+
 inline const ui64* TLookupBooleanExtractor::Init(const ui64* ptr)
 {
     Ptr_ = ptr;
@@ -292,6 +370,12 @@ inline const ui64* TLookupBooleanExtractor::Init(const ui64* ptr)
 
     return ptr;
 }
+
+inline TLookupBlobExtractor::TLookupBlobExtractor(const NProto::TSegmentMeta& meta, EValueType type)
+    : ExpectedLength_(meta.GetExtension(NProto::TStringSegmentMeta::string_segment_meta).expected_length())
+    , IsDirect_(GetIsDirect(meta.type()))
+    , Type_(type)
+{ }
 
 inline void TLookupBooleanExtractor::Extract(TUnversionedValue* value, ui32 index) const
 {
@@ -365,6 +449,14 @@ inline void TLookupBlobExtractor::Extract(TUnversionedValue* value, ui32 index) 
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+inline TLookupIndexReader::TLookupIndexReader(const NProto::TSegmentMeta& meta, bool isDense)
+    : RowOffset_(meta.chunk_row_count() - meta.row_count())
+    , RowLimit_(meta.chunk_row_count())
+    , IsDense_(isDense)
+{ }
+
 inline const ui64* TLookupIndexReader::Init(const ui64* ptr)
 {
     Ptr_ = ptr;
@@ -417,6 +509,95 @@ inline ui32 TLookupIndexReader::SkipTo(ui32 rowIndex, ui32 position) const
         return position;
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline TLookupSegmentReader<EValueType::Int64>::TLookupSegmentReader(const NProto::TSegmentMeta& meta, const ui64* ptr)
+    : TLookupIntegerExtractor<i64>(meta)
+    , TLookupIndexReader(meta, GetIsDense(meta.type()))
+{
+    ptr = TLookupIntegerExtractor<i64>::Init(ptr);
+    TLookupIndexReader::Init(ptr);
+}
+
+inline TUnversionedValue TLookupSegmentReader<EValueType::Int64>::GetLastValue() const
+{
+    TUnversionedValue result;
+    Extract(&result, GetCount() - 1);
+    return result;
+}
+
+inline TLookupSegmentReader<EValueType::Uint64>::TLookupSegmentReader(const NProto::TSegmentMeta& meta, const ui64* ptr)
+    : TLookupIntegerExtractor<ui64>(meta)
+    , TLookupIndexReader(meta, GetIsDense(meta.type()))
+{
+    ptr = TLookupIntegerExtractor<ui64>::Init(ptr);
+    TLookupIndexReader::Init(ptr);
+}
+
+inline TUnversionedValue TLookupSegmentReader<EValueType::Uint64>::GetLastValue() const
+{
+    TUnversionedValue result;
+    Extract(&result, GetCount() - 1);
+    return result;
+}
+
+inline TLookupSegmentReader<EValueType::Double>::TLookupSegmentReader(const NProto::TSegmentMeta& meta, const ui64* ptr)
+    : TLookupDoubleExtractor(meta)
+    , TLookupIndexReader(meta, GetIsDense(meta.type()))
+{
+    ptr = TLookupDoubleExtractor::Init(ptr);
+    TLookupIndexReader::Init(ptr);
+}
+
+inline TUnversionedValue TLookupSegmentReader<EValueType::Double>::GetLastValue() const
+{
+    TUnversionedValue result;
+    Extract(&result, GetCount() - 1);
+    return result;
+}
+
+inline TLookupSegmentReader<EValueType::Boolean>::TLookupSegmentReader(const NProto::TSegmentMeta& meta, const ui64* ptr)
+    : TLookupBooleanExtractor(meta)
+    , TLookupIndexReader(meta, GetIsDense(meta.type()))
+{
+    ptr = TLookupBooleanExtractor::Init(ptr);
+    TLookupIndexReader::Init(ptr);
+}
+
+inline TUnversionedValue TLookupSegmentReader<EValueType::Boolean>::GetLastValue() const
+{
+    TUnversionedValue result;
+    Extract(&result, GetCount() - 1);
+    return result;
+}
+
+inline TLookupBlobReaderBase::TLookupBlobReaderBase(const NProto::TSegmentMeta& meta, const ui64* ptr, EValueType type)
+    : TLookupIndexReader(meta, GetIsDense(meta.type()))
+    , TLookupBlobExtractor(meta, type)
+{
+    ptr = TLookupIndexReader::Init(ptr);
+    TLookupBlobExtractor::Init(ptr);
+}
+
+inline TUnversionedValue TLookupBlobReaderBase::GetLastValue() const
+{
+    TUnversionedValue result;
+    Extract(&result, GetCount() - 1);
+    return result;
+}
+
+inline TLookupSegmentReader<EValueType::String>::TLookupSegmentReader(const NProto::TSegmentMeta& meta, const ui64*& ptr)
+    : TLookupBlobReaderBase(meta, ptr, EValueType::String)
+{ }
+
+inline TLookupSegmentReader<EValueType::Composite>::TLookupSegmentReader(const NProto::TSegmentMeta& meta, const ui64* ptr)
+    : TLookupBlobReaderBase(meta, ptr, EValueType::Composite)
+{ }
+
+inline TLookupSegmentReader<EValueType::Any>::TLookupSegmentReader(const NProto::TSegmentMeta& meta, const ui64* ptr)
+    : TLookupBlobReaderBase(meta, ptr, EValueType::Any)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
