@@ -151,7 +151,7 @@ ISlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest)
             ++skippedByDiskSpace;
             continue;
         }
-        if (diskResources.medium_index() != diskRequest.medium_index()) {
+        if (diskRequest.has_medium_index() && diskResources.medium_index() != diskRequest.medium_index()) {
             ++skippedByMedium;
             continue;
         }

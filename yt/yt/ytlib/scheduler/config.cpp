@@ -360,19 +360,21 @@ TDiskRequestConfig::TDiskRequestConfig()
     RegisterParameter("inode_count", InodeCount)
         .Default();
     RegisterParameter("medium_name", MediumName)
-        .Default(NChunkClient::DefaultSlotsMediumName);
+        .Default(std::nullopt);
 }
 
 void ToProto(
     NProto::TDiskRequest* protoDiskRequest,
     const TDiskRequestConfig& diskRequestConfig)
 {
-    YT_VERIFY(diskRequestConfig.MediumIndex);
     protoDiskRequest->set_disk_space(diskRequestConfig.DiskSpace);
     if (diskRequestConfig.InodeCount) {
         protoDiskRequest->set_inode_count(*diskRequestConfig.InodeCount);
     }
-    protoDiskRequest->set_medium_index(*diskRequestConfig.MediumIndex);
+    if (diskRequestConfig.MediumName) {
+        YT_VERIFY(diskRequestConfig.MediumIndex);
+        protoDiskRequest->set_medium_index(*diskRequestConfig.MediumIndex);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

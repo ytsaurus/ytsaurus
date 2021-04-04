@@ -602,7 +602,7 @@ class TDiskRequestConfig
 public:
     i64 DiskSpace;
     std::optional<i64> InodeCount;
-    TString MediumName;
+    std::optional<TString> MediumName;
     std::optional<int> MediumIndex;
 
     TDiskRequestConfig();

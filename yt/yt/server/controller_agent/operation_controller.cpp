@@ -323,7 +323,7 @@ public:
 
     virtual TControllerScheduleJobResultPtr ScheduleJob(
         ISchedulingContext* context,
-        const TJobResourcesWithQuota& jobLimits,
+        const TJobResources& jobLimits,
         const TString& treeId) override
     {
         return Underlying_->ScheduleJob(context, jobLimits, treeId);

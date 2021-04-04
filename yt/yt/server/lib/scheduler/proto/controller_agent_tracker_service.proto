@@ -134,6 +134,7 @@ message TScheduleJobRequest
     required NYT.NProto.TGuid job_id = 2;
     required string tree_id = 3;
     required TJobResources job_resource_limits = 4;
+    // COMPAT
     required TJobResources node_resource_limits = 5;
     required NNodeTrackerClient.NProto.TDiskResources node_disk_resources = 6;
     optional TScheduleJobSpec spec = 7;

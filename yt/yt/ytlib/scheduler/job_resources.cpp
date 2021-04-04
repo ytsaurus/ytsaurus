@@ -77,17 +77,18 @@ void TDiskQuota::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, DiskSpacePerMedium);
+    Persist(context, DiskSpaceWithoutMedium);
 }
 
-TString ToString(NScheduler::TDiskQuota diskQuota)
+void FormatValue(TStringBuilderBase* builder, const TDiskQuota& diskQuota, TStringBuf /* format */)
 {
-    return Format(
-        "%v",
+    builder->AppendFormat(
+        "%v {DiskSpaceWithoutMedium: %v}",
         MakeFormattableView(diskQuota.DiskSpacePerMedium, [] (TStringBuilderBase* builder, const std::pair<int, i64>& pair) {
             auto [mediumIndex, diskSpace] = pair;
             builder->AppendFormat("{MediumIndex: %v, DiskSpace: %v}", mediumIndex, diskSpace);
-        })
-    );
+        }),
+        diskQuota.DiskSpaceWithoutMedium);
 }
 
 TDiskQuota CreateDiskQuota(i32 mediumIndex, i64 diskSpace)
@@ -97,15 +98,10 @@ TDiskQuota CreateDiskQuota(i32 mediumIndex, i64 diskSpace)
     return result;
 }
 
-TDiskQuota Min(TDiskQuota lhs, TDiskQuota rhs)
+TDiskQuota CreateDiskQuotaWithoutMedium(i64 diskSpace)
 {
     TDiskQuota result;
-    for (auto [mediumIndex, diskSpace] : lhs.DiskSpacePerMedium) {
-        auto it = rhs.DiskSpacePerMedium.find(mediumIndex);
-        if (it != rhs.DiskSpacePerMedium.end()) {
-            result.DiskSpacePerMedium[mediumIndex] = std::min(diskSpace, it->second);
-        }
-    }
+    result.DiskSpaceWithoutMedium = diskSpace;
     return result;
 }
 
@@ -526,16 +522,6 @@ TJobResources Min(const TJobResources& lhs, const TJobResources& rhs)
     return result;
 }
 
-TJobResourcesWithQuota Min(const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs)
-{
-    TJobResourcesWithQuota result;
-    #define XX(name, Name) result.Set##Name(std::min(lhs.Get##Name(), rhs.Get##Name()));
-    ITERATE_JOB_RESOURCES(XX)
-    #undef XX
-    result.SetDiskQuota(Min(lhs.GetDiskQuota(), rhs.GetDiskQuota()));
-    return result;
-}
-
 bool CanSatisfyDiskQuotaRequests(
     std::vector<i64> availableDiskSpacePerLocation,
     std::vector<i64> diskSpaceRequests)
@@ -619,7 +605,10 @@ bool CanSatisfyDiskQuotaRequests(
         for (auto [mediumIndex, diskSpace] : diskQuotaRequest.DiskSpacePerMedium) {
             diskSpaceRequestsPerMedium[mediumIndex].push_back(diskSpace);
         }
-        if (diskQuotaRequest.DiskSpacePerMedium.empty()) {
+        if (diskQuotaRequest.DiskSpaceWithoutMedium) {
+            diskSpaceRequestsPerMedium[diskResources.default_medium_index()].push_back(*diskQuotaRequest.DiskSpaceWithoutMedium);
+        }
+        if (diskQuotaRequest.DiskSpacePerMedium.empty() && !diskQuotaRequest.DiskSpaceWithoutMedium) {
             hasEmptyDiskRequest = true;
         }
     }
@@ -637,18 +626,6 @@ bool CanSatisfyDiskQuotaRequests(
     return true;
 }
 
-TDiskQuota GetMaxAvailableDiskSpace(
-    const NNodeTrackerClient::NProto::TDiskResources& diskResources)
-{
-    TDiskQuota result;
-    for (const auto& diskLocationResources : diskResources.disk_location_resources()) {
-        result.DiskSpacePerMedium[diskLocationResources.medium_index()] = std::max(
-            result.DiskSpacePerMedium[diskLocationResources.medium_index()],
-            diskLocationResources.limit() - diskLocationResources.usage());
-    }
-    return result;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NProto {
@@ -660,12 +637,20 @@ void ToProto(NScheduler::NProto::TDiskQuota* protoDiskQuota, const NScheduler::T
         protoDiskLocationQuotaProto->set_medium_index(mediumIndex);
         protoDiskLocationQuotaProto->set_disk_space(diskSpace);
     }
+    if (diskQuota.DiskSpaceWithoutMedium) {
+        auto* protoDiskLocationQuotaProto = protoDiskQuota->add_disk_location_quota();
+        protoDiskLocationQuotaProto->set_disk_space(*diskQuota.DiskSpaceWithoutMedium);
+    }
 }
 
 void FromProto(NScheduler::TDiskQuota* diskQuota, const NScheduler::NProto::TDiskQuota& protoDiskQuota)
 {
     for (const auto& protoDiskLocationQuota : protoDiskQuota.disk_location_quota()) {
-        diskQuota->DiskSpacePerMedium.emplace(protoDiskLocationQuota.medium_index(), protoDiskLocationQuota.disk_space());
+        if (protoDiskLocationQuota.has_medium_index()) {
+            diskQuota->DiskSpacePerMedium.emplace(protoDiskLocationQuota.medium_index(), protoDiskLocationQuota.disk_space());
+        } else {
+            diskQuota->DiskSpaceWithoutMedium = protoDiskLocationQuota.disk_space();
+        }
     }
 }
 
@@ -697,10 +682,6 @@ void ToProto(NScheduler::NProto::TJobResourcesWithQuota* protoResources, const N
 
     auto diskQuota = resources.GetDiskQuota();
     ToProto(protoResources->mutable_disk_quota(), diskQuota);
-    auto defaultMediumIt = diskQuota.DiskSpacePerMedium.find(NChunkClient::DefaultSlotsMediumIndex);
-    if (defaultMediumIt != diskQuota.DiskSpacePerMedium.end()) {
-        protoResources->set_disk_quota_legacy(defaultMediumIt->second);
-    }
 }
 
 void FromProto(NScheduler::TJobResourcesWithQuota* resources, const NScheduler::NProto::TJobResourcesWithQuota& protoResources)
@@ -712,11 +693,7 @@ void FromProto(NScheduler::TJobResourcesWithQuota* resources, const NScheduler::
     resources->SetNetwork(protoResources.network());
 
     NScheduler::TDiskQuota diskQuota;
-    if (protoResources.has_disk_quota()) {
-        FromProto(&diskQuota, protoResources.disk_quota());
-    } else {
-        diskQuota.DiskSpacePerMedium[NChunkClient::DefaultSlotsMediumIndex] = protoResources.disk_quota_legacy();
-    }
+    FromProto(&diskQuota, protoResources.disk_quota());
     resources->SetDiskQuota(diskQuota);
 }
 

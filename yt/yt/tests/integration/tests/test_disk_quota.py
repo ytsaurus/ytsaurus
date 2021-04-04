@@ -188,12 +188,41 @@ class TestDiskUsagePorto(YTEnvSetup):
 
 ##################################################################
 
+class DiskMediumTestConfiguration(object):
+    MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1
+        }
+    }
 
-class TestDiskMediumsPorto(YTEnvSetup):
+    CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "safe_scheduler_online_time": 60000,
+        },
+        "cluster_connection": {
+            "medium_directory_synchronizer": {
+                "sync_period": 100,
+            }
+        },
+    }
+
+    SCHEDULER_CONFIG = {
+        "cluster_connection": {
+            "medium_directory_synchronizer": {
+                "sync_period": 100,
+            }
+        },
+    }
+
+
+class TestDiskMediumsPorto(YTEnvSetup, DiskMediumTestConfiguration):
     NUM_SCHEDULERS = 1
     NUM_MASTERS = 1
     NUM_NODES = 1
 
+    DELTA_MASTER_CONFIG = DiskMediumTestConfiguration.MASTER_CONFIG
+    DELTA_SCHEDULER_CONFIG = DiskMediumTestConfiguration.SCHEDULER_CONFIG
+    DELTA_CONTROLLER_AGENT_CONFIG = DiskMediumTestConfiguration.CONTROLLER_AGENT_CONFIG
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "slot_manager": {
@@ -204,18 +233,6 @@ class TestDiskMediumsPorto(YTEnvSetup):
                 "resource_limits": {"user_slots": 3, "cpu": 3.0},
             },
             "min_required_disk_space": 0,
-        }
-    }
-
-    DELTA_MASTER_CONFIG = {
-        "cypress_manager": {
-            "default_table_replication_factor": 1
-        }
-    }
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "safe_scheduler_online_time": 60000,
         }
     }
 
@@ -420,11 +437,14 @@ class TestDiskMediumsPorto(YTEnvSetup):
             assert op3.get_job_count(type) == 0
 
 
-class TestDiskMediumRenamePorto(YTEnvSetup):
+class TestDiskMediumRenamePorto(YTEnvSetup, DiskMediumTestConfiguration):
     NUM_SCHEDULERS = 1
     NUM_MASTERS = 1
     NUM_NODES = 1
 
+    DELTA_MASTER_CONFIG = DiskMediumTestConfiguration.MASTER_CONFIG
+    DELTA_SCHEDULER_CONFIG = DiskMediumTestConfiguration.SCHEDULER_CONFIG
+    DELTA_CONTROLLER_AGENT_CONFIG = DiskMediumTestConfiguration.CONTROLLER_AGENT_CONFIG
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "slot_manager": {
@@ -436,31 +456,6 @@ class TestDiskMediumRenamePorto(YTEnvSetup):
             },
             "min_required_disk_space": 0,
         }
-    }
-
-    DELTA_MASTER_CONFIG = {
-        "cypress_manager": {
-            "default_table_replication_factor": 1
-        }
-    }
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "safe_scheduler_online_time": 60000,
-        },
-        "cluster_connection": {
-            "medium_directory_synchronizer": {
-                "sync_period": 100,
-            }
-        },
-    }
-
-    DELTA_SCHEDULER_CONFIG = {
-        "cluster_connection": {
-            "medium_directory_synchronizer": {
-                "sync_period": 100,
-            }
-        },
     }
 
     USE_PORTO = True
@@ -546,11 +541,14 @@ class TestDiskMediumRenamePorto(YTEnvSetup):
         start_op(3, "ssd_renamed", track=True)
 
 
-class TestDefaultDiskMediumPorto(YTEnvSetup):
+class TestDefaultDiskMediumPorto(YTEnvSetup, DiskMediumTestConfiguration):
     NUM_SCHEDULERS = 1
     NUM_MASTERS = 1
     NUM_NODES = 1
 
+    DELTA_MASTER_CONFIG = DiskMediumTestConfiguration.MASTER_CONFIG
+    DELTA_SCHEDULER_CONFIG = DiskMediumTestConfiguration.SCHEDULER_CONFIG
+    DELTA_CONTROLLER_AGENT_CONFIG = DiskMediumTestConfiguration.CONTROLLER_AGENT_CONFIG
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "slot_manager": {
@@ -559,31 +557,6 @@ class TestDefaultDiskMediumPorto(YTEnvSetup):
             "job_controller": {"resource_limits": {"user_slots": 1, "cpu": 1.0}},
             "min_required_disk_space": 0,
         }
-    }
-
-    DELTA_MASTER_CONFIG = {
-        "cypress_manager": {
-            "default_table_replication_factor": 1
-        }
-    }
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "safe_scheduler_online_time": 60000,
-        },
-        "cluster_connection": {
-            "medium_directory_synchronizer": {
-                "sync_period": 100,
-            }
-        },
-    }
-
-    DELTA_SCHEDULER_CONFIG = {
-        "cluster_connection": {
-            "medium_directory_synchronizer": {
-                "sync_period": 100,
-            }
-        },
     }
 
     USE_PORTO = True
@@ -617,27 +590,115 @@ class TestDefaultDiskMediumPorto(YTEnvSetup):
         create("table", "//tmp/out")
 
         def start_op(medium_type, track):
+            disk_request = {"disk_space": 1024 * 1024}
+            if medium_type is not None:
+                disk_request["medium_name"] = medium_type
+
             return map(
                 command="cat; echo $(pwd) >&2",
                 in_="//tmp/in",
                 out="//tmp/out",
                 spec={
                     "mapper": {
-                        "disk_request": {
-                            "disk_space": 1024 * 1024,
-                            "medium_name": medium_type,
-                        },
+                        "disk_request": disk_request
                     },
                     "max_failed_job_count": 1,
                 },
                 track=track,
             )
 
+        # Node has disk with SSD.
         start_op("ssd", track=True)
 
+        # Node has no disks with SSD.
         op = start_op("hdd", track=False)
         op.wait_for_state("running")
         time.sleep(5)
         assert op.get_state() == "running"
         assert op.get_job_count("running") == 0
         assert op.get_job_count("aborted") == 0
+        op.abort()
+
+        # Default medium is also HDD.
+        op = start_op(None, track=False)
+        op.wait_for_state("running")
+        time.sleep(5)
+        assert op.get_state() == "running"
+        assert op.get_job_count("running") == 0
+        assert op.get_job_count("aborted") == 0
+        op.abort()
+
+
+class TestDefaultDiskMediumWithUnspecifiedMediumPorto(YTEnvSetup, DiskMediumTestConfiguration):
+    NUM_SCHEDULERS = 1
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+
+    DELTA_MASTER_CONFIG = DiskMediumTestConfiguration.MASTER_CONFIG
+    DELTA_SCHEDULER_CONFIG = DiskMediumTestConfiguration.SCHEDULER_CONFIG
+    DELTA_CONTROLLER_AGENT_CONFIG = DiskMediumTestConfiguration.CONTROLLER_AGENT_CONFIG
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "slot_manager": {
+                "disk_resources_update_period": 100,
+            },
+            "job_controller": {"resource_limits": {"user_slots": 1, "cpu": 1.0}},
+            "min_required_disk_space": 0,
+        }
+    }
+
+    USE_PORTO = True
+
+    @classmethod
+    def modify_node_config(cls, config):
+        for disk in (cls.default_disk_path, cls.ssd_disk_path):
+            if os.path.exists(disk):
+                shutil.rmtree(disk)
+            os.makedirs(disk)
+
+        config["exec_agent"]["slot_manager"]["locations"] = [
+            {
+                "path": cls.ssd_disk_path,
+                "disk_quota": 2 * 1024 * 1024,
+                "disk_usage_watermark": 0,
+                "medium_name": "ssd",
+            }
+        ]
+        config["exec_agent"]["slot_manager"]["default_medium_name"] = "ssd"
+
+    @classmethod
+    def on_masters_started(cls):
+        create_medium("hdd")
+        create_medium("ssd")
+
+    @authors("ignat")
+    def test_default_medium_on_node(self):
+        assert hasattr(TestDefaultDiskMediumWithUnspecifiedMediumPorto, "DELTA_MASTER_CONFIG")
+
+        create("table", "//tmp/in")
+        write_table("//tmp/in", [{"foo": "bar"}])
+        create("table", "//tmp/out")
+
+        def start_op(medium_type, track):
+            disk_request = {"disk_space": 1024 * 1024}
+            if medium_type is not None:
+                disk_request["medium_name"] = medium_type
+
+            return map(
+                command="cat; echo $(pwd) >&2",
+                in_="//tmp/in",
+                out="//tmp/out",
+                spec={
+                    "mapper": {
+                        "disk_request": disk_request
+                    },
+                    "max_failed_job_count": 1,
+                },
+                track=track,
+            )
+
+        # Default medium is also SSD.
+        start_op(None, track=True)
+
+        # Node has disk with SSD.
+        start_op("ssd", track=True)

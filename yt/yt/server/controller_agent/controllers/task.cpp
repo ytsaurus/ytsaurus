@@ -18,6 +18,7 @@
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/yt/ytlib/node_tracker_client/node_directory_builder.h>
+#include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/yt/ytlib/job_tracker_client/statistics.h>
 
@@ -355,7 +356,7 @@ bool TTask::ValidateChunkCount(int /* chunkCount */)
 
 void TTask::ScheduleJob(
     ISchedulingContext* context,
-    const TJobResourcesWithQuota& jobLimits,
+    const TJobResources& jobLimits,
     const TString& treeId,
     bool treeIsTentative,
     TControllerScheduleJobResult* scheduleJobResult)
@@ -382,7 +383,6 @@ void TTask::ScheduleJob(
     auto joblet = New<TJoblet>(this, jobIndex, taskJobIndex, treeId, treeIsTentative);
     joblet->StartTime = TInstant::Now();
 
-    const auto& nodeResourceLimits = context->ResourceLimits();
     auto nodeId = context->GetNodeDescriptor().Id;
     const auto& address = context->GetNodeDescriptor().Address;
 
@@ -432,17 +432,22 @@ void TTask::ScheduleJob(
 
     joblet->EstimatedResourceUsage = estimatedResourceUsage;
     joblet->ResourceLimits = neededResources.ToJobResources();
+
+    TDiskQuota neededDiskQuota;
     auto userJobSpec = GetUserJobSpec();
     if (userJobSpec && userJobSpec->DiskRequest) {
         neededResources.SetDiskQuota(CreateDiskQuota(userJobSpec->DiskRequest, TaskHost_->GetMediumDirectory()));
     }
 
     // Check the usage against the limits. This is the last chance to give up.
-    if (!Dominates(jobLimits, neededResources)) {
-        YT_LOG_DEBUG("Job actual resource demand is not met (Limits: %v, Demand: %v)",
-            FormatResources(jobLimits, TaskHost_->GetMediumDirectory()),
-            FormatResources(neededResources, TaskHost_->GetMediumDirectory()));
-        CheckResourceDemandSanity(nodeResourceLimits, neededResources);
+    if (!Dominates(jobLimits, neededResources.ToJobResources()) ||
+        !CanSatisfyDiskQuotaRequests(context->DiskResources(), {neededResources.GetDiskQuota()})) 
+    {
+        YT_LOG_DEBUG("Job actual resource demand is not met (AvailableJobResources: %v, AvailableDiskResources: %v, NeededResources: %v)",
+            FormatResources(jobLimits),
+            NNodeTrackerClient::ToString(context->DiskResources(), TaskHost_->GetMediumDirectory()),
+            neededResources.GetDiskQuota());
+        CheckResourceDemandSanity(neededResources);
         abortJob(EScheduleJobFailReason::NotEnoughResources, EAbortReason::SchedulingOther);
         // Seems like cached min needed resources are too optimistic.
         ResetCachedMinNeededResources();
@@ -993,43 +998,33 @@ std::optional<EScheduleJobFailReason> TTask::GetScheduleFailReason(ISchedulingCo
     return std::nullopt;
 }
 
-void TTask::DoCheckResourceDemandSanity(
-    const TJobResourcesWithQuota& neededResources)
+void TTask::DoCheckResourceDemandSanity(const TJobResources& neededResources)
 {
     if (TaskHost_->ShouldSkipSanityCheck()) {
         return;
     }
 
-    if (!Dominates(*TaskHost_->CachedMaxAvailableExecNodeResources(), neededResources.ToJobResources())) {
+    if (!Dominates(*TaskHost_->CachedMaxAvailableExecNodeResources(), neededResources)) {
         // It seems nobody can satisfy the demand.
         TaskHost_->OnOperationFailed(
             TError(
                 EErrorCode::NoOnlineNodeToScheduleJob,
                 "No online node can satisfy the resource demand")
                 << TErrorAttribute("task_name", GetTitle())
-                << TErrorAttribute("needed_resources", neededResources.ToJobResources()));
+                << TErrorAttribute("needed_resources", neededResources));
     }
 }
 
-void TTask::CheckResourceDemandSanity(
-    const TJobResourcesWithQuota& nodeResourceLimits,
-    const TJobResourcesWithQuota& neededResources)
+void TTask::CheckResourceDemandSanity(const TJobResources& neededResources)
 {
-    // The task is requesting more than some node is willing to provide it.
-    // Maybe it's OK and we should wait for some time.
-    // Or maybe it's not and the task is requesting something no one is able to provide.
-
-    // First check if this very node has enough resources (including those currently
-    // allocated by other jobs).
-    if (Dominates(nodeResourceLimits, neededResources)) {
-        return;
+    auto maxAvailableExecNodeResources = TaskHost_->CachedMaxAvailableExecNodeResources();
+    if (maxAvailableExecNodeResources && !Dominates(*maxAvailableExecNodeResources, neededResources)) {
+        // Schedule check in controller thread.
+        TaskHost_->GetCancelableInvoker()->Invoke(BIND(
+            &TTask::DoCheckResourceDemandSanity,
+            MakeWeak(this),
+            neededResources));
     }
-
-    // Schedule check in controller thread.
-    TaskHost_->GetCancelableInvoker()->Invoke(BIND(
-        &TTask::DoCheckResourceDemandSanity,
-        MakeWeak(this),
-        neededResources));
 }
 
 IDigest* TTask::GetUserJobMemoryDigest() const

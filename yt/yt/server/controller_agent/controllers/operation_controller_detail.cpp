@@ -4133,7 +4133,7 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
 
 TControllerScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     ISchedulingContext* context,
-    const TJobResourcesWithQuota& jobLimits,
+    const TJobResources& jobLimits,
     const TString& treeId)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->ScheduleJobControllerQueue));
@@ -4339,22 +4339,9 @@ void TOperationControllerBase::ResetTaskLocalityDelays()
     }
 }
 
-bool TOperationControllerBase::CheckJobLimits(
-    const TTaskPtr& task,
-    const TJobResourcesWithQuota& jobLimits,
-    const TJobResourcesWithQuota& nodeResourceLimits)
-{
-    auto neededResources = task->GetMinNeededResources();
-    if (Dominates(jobLimits, neededResources)) {
-        return true;
-    }
-    task->CheckResourceDemandSanity(nodeResourceLimits, neededResources);
-    return false;
-}
-
 void TOperationControllerBase::DoScheduleJob(
     ISchedulingContext* context,
-    const TJobResourcesWithQuota& jobLimits,
+    const TJobResources& jobLimits,
     const TString& treeId,
     TControllerScheduleJobResult* scheduleJobResult)
 {
@@ -4386,7 +4373,7 @@ void TOperationControllerBase::DoScheduleJob(
 
 void TOperationControllerBase::TryScheduleJob(
     ISchedulingContext* context,
-    const TJobResourcesWithQuota& jobLimits,
+    const TJobResources& jobLimits,
     const TString& treeId,
     TControllerScheduleJobResult* scheduleJobResult,
     bool scheduleLocalJob)
@@ -4396,7 +4383,6 @@ void TOperationControllerBase::TryScheduleJob(
         return;
     }
 
-    const auto& nodeResourceLimits = context->ResourceLimits();
     const auto& address = context->GetNodeDescriptor().Address;
     auto nodeId = context->GetNodeDescriptor().Id;
     auto now = NProfiling::CpuInstantToInstant(context->GetNow());
@@ -4406,7 +4392,12 @@ void TOperationControllerBase::TryScheduleJob(
             break;
         }
 
-        if (!Dominates(jobLimits, task->GetMinNeededResources())) {
+        // NB: we do not consider disk resources occupied by jobs that had already be scheduled in
+        // current heartbeat. This check would be performed in scheduler.
+        auto minNeededResources = task->GetMinNeededResources();
+        if (!Dominates(jobLimits, minNeededResources.ToJobResources()) ||
+            !CanSatisfyDiskQuotaRequests(context->DiskResources(), {minNeededResources.GetDiskQuota()})) 
+        {
             scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
             continue;
         }
@@ -4440,11 +4431,6 @@ void TOperationControllerBase::TryScheduleJob(
             continue;
         }
 
-        if (!CheckJobLimits(task, jobLimits, nodeResourceLimits)) {
-            scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
-            continue;
-        }
-
         YT_LOG_DEBUG(
             "Attempting to schedule a %v job (Task: %v, Address: %v, Locality: %v, JobLimits: %v, "
             "PendingDataWeight: %v, PendingJobCount: %v)",
@@ -4452,7 +4438,7 @@ void TOperationControllerBase::TryScheduleJob(
             task->GetTitle(),
             address,
             locality,
-            FormatResources(jobLimits, GetMediumDirectory()),
+            FormatResources(jobLimits),
             task->GetPendingDataWeight(),
             task->GetPendingJobCount());
 
@@ -8281,12 +8267,13 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     if (config->DiskRequest) {
         auto mediumDirectory = GetMediumDirectory();
-        auto* mediumDescriptor = mediumDirectory->FindByName(config->DiskRequest->MediumName);
-        if (!mediumDescriptor) {
-            THROW_ERROR_EXCEPTION("Unknown medium %Qv", config->DiskRequest->MediumName);
+        if (config->DiskRequest->MediumName) {
+            auto* mediumDescriptor = mediumDirectory->FindByName(*config->DiskRequest->MediumName);
+            if (!mediumDescriptor) {
+                THROW_ERROR_EXCEPTION("Unknown medium %Qv", *config->DiskRequest->MediumName);
+            }
+            config->DiskRequest->MediumIndex = mediumDescriptor->Index;
         }
-
-        config->DiskRequest->MediumIndex = mediumDescriptor->Index;
 
         ToProto(jobSpec->mutable_disk_request(), *config->DiskRequest);
 

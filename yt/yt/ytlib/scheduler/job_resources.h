@@ -95,14 +95,16 @@ struct TDiskQuota
 {
     SmallDenseMap<int, i64> DiskSpacePerMedium = SmallDenseMap<int, i64>{1};
 
+    std::optional<i64> DiskSpaceWithoutMedium;
+
     void Persist(const TStreamPersistenceContext& context);
 };
 
 
-void FormatValue(TStringBuilderBase* builder, TDiskQuota diskQuota, TStringBuf spec);
-TString ToString(TDiskQuota diskQuota);
+void FormatValue(TStringBuilderBase* builder, const TDiskQuota& diskQuota, TStringBuf /* format */);
 
 TDiskQuota CreateDiskQuota(i32 mediumIndex, i64 diskSpace);
+TDiskQuota CreateDiskQuotaWithoutMedium(i64 diskSpace);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -217,7 +219,6 @@ bool Dominates(const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& 
 
 TJobResources Max(const TJobResources& lhs, const TJobResources& rhs);
 TJobResources Min(const TJobResources& lhs, const TJobResources& rhs);
-TJobResourcesWithQuota Min(const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs);
 
 bool CanSatisfyDiskQuotaRequest(
     const NNodeTrackerClient::NProto::TDiskResources& diskResources,
@@ -226,9 +227,6 @@ bool CanSatisfyDiskQuotaRequest(
 bool CanSatisfyDiskQuotaRequests(
     const NNodeTrackerClient::NProto::TDiskResources& diskResources,
     const std::vector<TDiskQuota>& diskQuotaRequests);
-
-TDiskQuota GetMaxAvailableDiskSpace(
-    const NNodeTrackerClient::NProto::TDiskResources& diskResources);
 
 ////////////////////////////////////////////////////////////////////////////////
 
