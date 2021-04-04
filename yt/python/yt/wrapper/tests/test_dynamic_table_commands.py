@@ -14,8 +14,9 @@ import yt.wrapper as yt
 import os
 import pytest
 import uuid
+import threading
 
-@pytest.mark.usefixtures("yt_env")
+@pytest.mark.usefixtures("yt_env_with_rpc")
 class TestDynamicTableCommands(object):
     def _sync_create_tablet_cell(self):
         cell_id = yt.create("tablet_cell", attributes={"size": 1})
@@ -32,7 +33,7 @@ class TestDynamicTableCommands(object):
         yt.create("table", path, attributes=attributes)
 
     @authors("ifsmirnov")
-    def test_mount_unmount(self, yt_env):
+    def test_mount_unmount(self):
         table = TEST_DIR + "/table"
         self._create_dynamic_table(table)
 
@@ -56,7 +57,7 @@ class TestDynamicTableCommands(object):
         _check_tablet_state("unmounted")
 
     @authors("ifsmirnov")
-    def test_reshard(self, yt_env):
+    def test_reshard(self):
         table = TEST_DIR + "/table_reshard"
         self._create_dynamic_table(table)
 
@@ -71,7 +72,7 @@ class TestDynamicTableCommands(object):
         assert yt.get("{}/@tablet_count".format(table)) == 1
 
     @authors("ifsmirnov")
-    def test_reshard_uniform(self, yt_env):
+    def test_reshard_uniform(self):
         table = TEST_DIR + "/table_reshard_uniform"
         self._create_dynamic_table(table, schema=[
             {"type": "uint64", "name": "key", "sort_order": "ascending"},
@@ -83,7 +84,7 @@ class TestDynamicTableCommands(object):
         assert yt.get("{}/@tablet_count".format(table)) == 5
 
     @authors("ifsmirnov")
-    def test_insert_lookup_delete(self, yt_env):
+    def test_insert_lookup_delete(self):
         with set_config_option("tabular_data_format", None):
             # Name must differ with name of table in select test because of metadata caches
             table = TEST_DIR + "/table2"
@@ -130,7 +131,7 @@ class TestDynamicTableCommands(object):
         assert [{"x": 1, "y": 2, "z": 3}] == select()
 
     @authors("ifsmirnov")
-    def test_insert_lookup_delete_with_transaction(self, yt_env):
+    def test_insert_lookup_delete_with_transaction(self):
         if yt.config["backend"] != "native":
             pytest.skip()
 
@@ -389,3 +390,21 @@ class TestDynamicTableCommands(object):
         yt.mount_table(table, sync=True)
 
         list(yt.explain_query("* from [{}]".format(table)))
+
+    @authors("ignat")
+    def test_transaction_abort_on_commit_failure(self):
+        table = TEST_DIR + "/dyntable_unmounted"
+        self._create_dynamic_table(table)
+
+        thread_count_before = threading.active_count()
+
+        with pytest.raises(yt.YtError):
+            with yt.Transaction(type="tablet"):
+                try:
+                    yt.insert_rows(table, [{"x": "a", "y": "b"}])
+                except yt.YtError:
+                    assert False, "insert_rows should not throw"
+
+        thread_count_after = threading.active_count()
+
+        assert thread_count_before == thread_count_after
