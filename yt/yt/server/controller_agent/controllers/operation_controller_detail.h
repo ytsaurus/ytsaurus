@@ -165,7 +165,7 @@ private: \
     IMPLEMENT_SAFE_METHOD(
         NScheduler::TControllerScheduleJobResultPtr,
         ScheduleJob,
-        (ISchedulingContext* context, const NScheduler::TJobResourcesWithQuota& jobLimits, const TString& treeId),
+        (ISchedulingContext* context, const NScheduler::TJobResources& jobLimits, const TString& treeId),
         (context, jobLimits, treeId),
         true)
 
@@ -544,11 +544,6 @@ protected:
 
     void ResetTaskLocalityDelays();
 
-    bool CheckJobLimits(
-        const TTaskPtr& task,
-        const NScheduler::TJobResourcesWithQuota& jobLimits,
-        const NScheduler::TJobResourcesWithQuota& nodeResourceLimits);
-
     void CheckTimeLimit();
 
     void CheckAvailableExecNodes();
@@ -576,13 +571,13 @@ protected:
 
     void DoScheduleJob(
         ISchedulingContext* context,
-        const NScheduler::TJobResourcesWithQuota& jobLimits,
+        const NScheduler::TJobResources& jobLimits,
         const TString& treeId,
         NScheduler::TControllerScheduleJobResult* scheduleJobResult);
 
     void TryScheduleJob(
         ISchedulingContext* context,
-        const NScheduler::TJobResourcesWithQuota& jobLimits,
+        const NScheduler::TJobResources& jobLimits,
         const TString& treeId,
         NScheduler::TControllerScheduleJobResult* scheduleJobResult,
         bool scheduleLocalJob);

@@ -445,7 +445,7 @@ struct IOperationController
      */
     virtual NScheduler::TControllerScheduleJobResultPtr ScheduleJob(
         ISchedulingContext* context,
-        const NScheduler::TJobResourcesWithQuota& jobLimits,
+        const NScheduler::TJobResources& jobLimits,
         const TString& treeId) = 0;
 
     //! Called during schedule job when failure happens even before calling #IOpertionController::ScheduleJob().

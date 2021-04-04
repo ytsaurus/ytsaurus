@@ -372,10 +372,14 @@ TDiskQuota CreateDiskQuota(
     const TDiskRequestConfigPtr& diskRequestConfig,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
 {
+    if (!diskRequestConfig->MediumName) {
+        return CreateDiskQuotaWithoutMedium(diskRequestConfig->DiskSpace);
+    }
+    // Enrich diskRequestConfig with MediumIndex.
     if (!diskRequestConfig->MediumIndex) {
-        auto* mediumDescriptor = mediumDirectory->FindByName(diskRequestConfig->MediumName);
+        auto* mediumDescriptor = mediumDirectory->FindByName(*diskRequestConfig->MediumName);
         if (!mediumDescriptor) {
-            THROW_ERROR_EXCEPTION("Unknown medium %Qv", diskRequestConfig->MediumName);
+            THROW_ERROR_EXCEPTION("Unknown medium %Qv", *diskRequestConfig->MediumName);
         }
         diskRequestConfig->MediumIndex = mediumDescriptor->Index;
     }

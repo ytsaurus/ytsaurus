@@ -96,8 +96,7 @@ public:
         const NScheduler::NProto::TScheduleJobRequest* request,
         const TExecNodeDescriptor& nodeDescriptor,
         const NScheduler::NProto::TScheduleJobSpec& scheduleJobSpec)
-        : ResourceLimits_(FromProto<TJobResources>(request->node_resource_limits()))
-        , DiskResources_(request->node_disk_resources())
+        : DiskResources_(request->node_disk_resources())
         , JobId_(FromProto<TJobId>(request->job_id()))
         , NodeDescriptor_(nodeDescriptor)
         , ScheduleJobSpec_(scheduleJobSpec)
@@ -106,11 +105,6 @@ public:
     virtual const TExecNodeDescriptor& GetNodeDescriptor() const override
     {
         return NodeDescriptor_;
-    }
-
-    virtual const TJobResources& ResourceLimits() const override
-    {
-        return ResourceLimits_;
     }
 
     virtual const NNodeTrackerClient::NProto::TDiskResources& DiskResources() const override
@@ -134,7 +128,6 @@ public:
     }
 
 private:
-    const TJobResources ResourceLimits_;
     const NNodeTrackerClient::NProto::TDiskResources& DiskResources_;
     const TJobId JobId_;
     const TExecNodeDescriptor& NodeDescriptor_;
@@ -1718,14 +1711,11 @@ private:
                         TAgentToSchedulerScheduleJobResponse response;
                         TSchedulingContext context(protoRequest, descriptorIt->second, protoRequest->spec());
 
-                        TJobResourcesWithQuota jobLimitsWithQuota(jobLimits);
-                        jobLimitsWithQuota.SetDiskQuota(GetMaxAvailableDiskSpace(context.DiskResources()));
-
                         response.OperationId = operationId;
                         response.JobId = jobId;
                         response.Result = controller->ScheduleJob(
                             &context,
-                            jobLimitsWithQuota,
+                            jobLimits,
                             treeId);
                         auto scheduleJobFinishInstant = TInstant::Now();
                         YT_LOG_DEBUG("Schedule job finished (OperationId: %v, JobId: %v, ScheduleJobDuration: %v)",

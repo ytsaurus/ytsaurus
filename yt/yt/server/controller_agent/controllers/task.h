@@ -107,7 +107,7 @@ public:
 
     void ScheduleJob(
         ISchedulingContext* context,
-        const NScheduler::TJobResourcesWithQuota& jobLimits,
+        const NScheduler::TJobResources& jobLimits,
         const TString& treeId,
         bool treeIsTentative,
         NScheduler::TControllerScheduleJobResult* scheduleJobResult);
@@ -127,12 +127,8 @@ public:
         const NChunkPools::TChunkStripePtr& stripe,
         const TStreamDescriptor& streamDescriptor);
 
-    // First checks against a given node, then against all nodes if needed.
-    void CheckResourceDemandSanity(
-        const NScheduler::TJobResourcesWithQuota& nodeResourceLimits,
-        const NScheduler::TJobResourcesWithQuota& neededResources);
-
-    void DoCheckResourceDemandSanity(const NScheduler::TJobResourcesWithQuota& neededResources);
+    void CheckResourceDemandSanity(const NScheduler::TJobResources& neededResources);
+    void DoCheckResourceDemandSanity(const NScheduler::TJobResources& neededResources);
 
     virtual bool IsCompleted() const;
 
