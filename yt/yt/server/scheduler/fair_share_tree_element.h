@@ -1125,6 +1125,9 @@ public:
     // Other methods.
     std::optional<TString> GetCustomProfilingTag() const;
 
+    // Used in orchid.
+    TJobResourcesWithQuotaList GetDetailedMinNeededJobResources() const;
+
 protected:
     // Pre update methods.
     virtual void CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const override;

@@ -1739,6 +1739,15 @@ public:
             ->GetMediumDirectory();
         return NScheduler::FormatResourceUsage(usage, limits, diskResources, mediumDirectory);
     }
+    
+    virtual void SerializeResources(const TJobResourcesWithQuota& resources, IYsonConsumer* consumer) const override
+    {
+        auto mediumDirectory = Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetMediumDirectory();
+        SerializeJobResourcesWithQuota(resources, mediumDirectory, consumer);
+    }
 
     virtual TString FormatHeartbeatResourceUsage(
         const TJobResources& usage,

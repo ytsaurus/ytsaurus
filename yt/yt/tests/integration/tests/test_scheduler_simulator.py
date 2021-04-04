@@ -111,7 +111,7 @@ def group_by_operation(key, rows):
             job_descriptions.append(
                 (
                     row["duration"],
-                    row["resource_limits"]["memory"],
+                    row["resource_limits"]["user_memory"],
                     row["resource_limits"]["cpu"],
                     row["resource_limits"]["user_slots"],
                     row["resource_limits"]["network"],
@@ -198,6 +198,12 @@ def resource_usage_sum(resource_usages):
 def resources_equal(lhs, rhs):
     lhs = defaultdict(int, lhs)
     rhs = defaultdict(int, rhs)
+    if "user_memory" in lhs:
+        lhs["memory"] = lhs["user_memory"]
+        del lhs["user_memory"]
+    if "user_memory" in rhs:
+        rhs["memory"] = rhs["user_memory"]
+        del rhs["user_memory"]
 
     return all(
         lhs[resource] == rhs[resource] for resource in {resource for resource in lhs} | {resource for resource in rhs}
@@ -490,9 +496,6 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
     def _parse_nodes_info(self, item):
         assert "nodes" in item
         nodes = item["nodes"]
-
-        for node_info in nodes.itervalues():
-            del node_info["resource_limits"]["user_memory"]
 
         total_node_count = sum(node_group["count"] for node_group in node_groups)
         assert len(nodes) == total_node_count
