@@ -55,9 +55,10 @@ void SerializeJobResourcesWithQuota(
     #define XX(name, Name) .Item(#name).Value(resources.Get##Name())
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
-            .Item("disk_space").BeginMap()
-                //.Do(std::bind(&SerializeDiskQuota, resources.GetDiskQuota(), mediumDirectory, std::placeholders::_1))
-            .EndMap()
+            .Item("disk_space")
+                .Do([&] (TFluentAny fluent) {
+                    SerializeDiskQuota(resources.GetDiskQuota(), mediumDirectory, fluent.GetConsumer());
+                })
         .EndMap();
 }
 
