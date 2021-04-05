@@ -172,14 +172,12 @@ template <class T>
 int TCube<T>::ReadSensors(
     const TString& name,
     const TReadOptions& options,
-    const TTagRegistry& tagsRegistry,
-    NMonitoring::IMetricConsumer* consumer) const
+    TTagWriter* tagWriter,
+    ::NMonitoring::IMetricConsumer* consumer) const
 {
     int sensorsEmitted = 0;
 
-    auto writeLabels = [&] (const auto& tagIds, std::optional<TStringBuf> suffix, bool allowAggregate) {
-        consumer->OnLabelsBegin();
-
+    auto prepareNameLabel = [&] (std::optional<TStringBuf> suffix) {
         TString sensorName;
         sensorName.reserve(name.size() + (suffix ? suffix->size() : 0));
         if (options.DisableSensorsRename) {
@@ -204,22 +202,36 @@ int TCube<T>::ReadSensors(
             sensorName += *suffix;
         }
 
-        consumer->OnLabel("sensor", sensorName);
+        return consumer->PrepareLabel("sensor", sensorName);
+    };
+
+    auto nameLabel = prepareNameLabel({});
+    auto maxNameLabel = prepareNameLabel(".max");
+    auto avgNameLabel = prepareNameLabel(".avg");
+    auto rateNameLabel = prepareNameLabel(".rate");
+    auto globalHostLabel = consumer->PrepareLabel("host", "");
+    auto hostLabel = consumer->PrepareLabel("host", options.Host.value_or(""));
+    auto ytAggrLabel = consumer->PrepareLabel("yt_aggr", "1");
+
+    auto writeLabels = [&] (const auto& tagIds, std::pair<ui32, ui32> nameLabel, bool allowAggregate) {
+        consumer->OnLabelsBegin();
+
+        consumer->OnLabel(nameLabel.first, nameLabel.second);
 
         if (options.Global) {
-            consumer->OnLabel("host", "");
+            consumer->OnLabel(globalHostLabel.first, globalHostLabel.second);
         } else if (options.Host) {
-            consumer->OnLabel("host", *options.Host);
+            consumer->OnLabel(hostLabel.first, hostLabel.second);
         }
 
         SmallVector<bool, 8> replacedInstanceTags(options.InstanceTags.size());
 
         if (allowAggregate && options.MarkAggregates && !options.Global) {
-            consumer->OnLabel("yt_aggr", "1");
+            consumer->OnLabel(ytAggrLabel.first, ytAggrLabel.second);
         }
 
         for (auto tagId : tagIds) {
-            const auto& tag = tagsRegistry.Decode(tagId);
+            const auto& tag = tagWriter->Decode(tagId);
 
             for (size_t i = 0; i < options.InstanceTags.size(); i++) {
                 if (options.InstanceTags[i].first == tag.first) {
@@ -227,7 +239,7 @@ int TCube<T>::ReadSensors(
                 }
             }
 
-            consumer->OnLabel(tag.first, tag.second);
+            tagWriter->WriteLabel(tagId);
         }
 
         if (!options.Global) {
@@ -283,7 +295,7 @@ int TCube<T>::ReadSensors(
         auto writeSummary = [&, tagIds=tagIds] (auto time, auto snapshot) {
             if (options.ExportSummary) {
                 consumer->OnMetricBegin(NMonitoring::EMetricType::DSUMMARY);
-                writeLabels(tagIds, {}, true);
+                writeLabels(tagIds, nameLabel, true);
                 sensorCount += 5;
                 consumer->OnSummaryDouble(time, snapshot);
                 consumer->OnMetricEnd();
@@ -291,7 +303,7 @@ int TCube<T>::ReadSensors(
 
             if (options.ExportSummaryAsMax) {
                 consumer->OnMetricBegin(NMonitoring::EMetricType::GAUGE);
-                writeLabels(tagIds, ".max", false);
+                writeLabels(tagIds, maxNameLabel, false);
                 sensorCount += 1;
                 consumer->OnDouble(time, snapshot->GetMax());
                 consumer->OnMetricEnd();
@@ -299,7 +311,7 @@ int TCube<T>::ReadSensors(
 
             if (options.ExportSummaryAsAvg && snapshot->GetCount() > 0) {
                 consumer->OnMetricBegin(NMonitoring::EMetricType::GAUGE);
-                writeLabels(tagIds, ".avg", false);
+                writeLabels(tagIds, avgNameLabel, false);
                 sensorCount += 1;
                 consumer->OnDouble(time, snapshot->GetSum() / snapshot->GetCount());
                 consumer->OnMetricEnd();
@@ -329,7 +341,7 @@ int TCube<T>::ReadSensors(
                     consumer->OnMetricBegin(NMonitoring::EMetricType::RATE);
                 }
 
-                writeLabels(tagIds, options.ConvertCountersToRateGauge ? std::optional(".rate") : std::nullopt, true);
+                writeLabels(tagIds, options.ConvertCountersToRateGauge ? rateNameLabel : nameLabel, true);
 
                 sensorCount = 1;
                 if (options.ConvertCountersToRateGauge) {
@@ -359,7 +371,7 @@ int TCube<T>::ReadSensors(
 
                 consumer->OnMetricBegin(NMonitoring::EMetricType::GAUGE);
 
-                writeLabels(tagIds, {}, true);
+                writeLabels(tagIds, nameLabel, true);
 
                 sensorCount = 1;
                 consumer->OnDouble(time, window.Values[indices.back()]);
@@ -387,7 +399,7 @@ int TCube<T>::ReadSensors(
             } else if constexpr (std::is_same_v<T, THistogramSnapshot>) {
                 consumer->OnMetricBegin(NMonitoring::EMetricType::HIST);
 
-                writeLabels(tagIds, {}, true);
+                writeLabels(tagIds, nameLabel, true);
 
                 size_t n = value.Times.size();
                 auto hist = NMonitoring::TExplicitHistogramSnapshot::New(n + 1);
@@ -395,9 +407,11 @@ int TCube<T>::ReadSensors(
                     int bucketValue = i < value.Values.size() ? value.Values[i] : 0u;
                     (*hist)[i] = {value.Times[i].SecondsFloat(), bucketValue};
                 }
+
                 // add inf
                 (*hist)[n] = {Max<NMonitoring::TBucketBound>(), n < value.Values.size() ? value.Values[n] : 0u};
                 sensorCount = n + 1;
+
                 consumer->OnHistogram(time, hist);
                 consumer->OnMetricEnd();
             } else {

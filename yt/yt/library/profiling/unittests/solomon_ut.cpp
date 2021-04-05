@@ -50,6 +50,18 @@ struct TTestMetricConsumer
         }
     }
 
+    virtual void OnLabel(ui32 name, ui32 value) override
+    {
+        OnLabel(LabelsCache[name], LabelsCache[value]);
+    }
+
+    std::pair<ui32, ui32> PrepareLabel(const TStringBuf name, const TStringBuf value)
+    {
+        LabelsCache.emplace_back(name);
+        LabelsCache.emplace_back(value);
+        return {LabelsCache.size() - 2, LabelsCache.size() - 1};
+    }
+
     virtual void OnDouble(TInstant, double value)
     {
         Cerr << FormatName() << " " << value << Endl;
@@ -90,6 +102,8 @@ struct TTestMetricConsumer
     THashMap<TString, i64> Counters;
     THashMap<TString, double> Gauges;
     THashMap<TString, NMonitoring::IHistogramSnapshotPtr> Histograms;
+
+    std::vector<TString> LabelsCache;
 
     TString FormatName() const
     {
