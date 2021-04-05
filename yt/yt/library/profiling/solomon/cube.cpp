@@ -292,58 +292,102 @@ int TCube<T>::ReadSensors(
         }
 
         int sensorCount = 0;
-        auto writeSummary = [&, tagIds=tagIds] (auto time, auto snapshot) {
+
+        bool empty = true;
+        for (const auto& [indices, time] : options.Times) {
+            if (!options.EnableSolomonAggregationWorkaround && skipSparse(window, indices)) {
+                continue;
+            }
+
+            empty = false;
+        }
+        if (empty) {
+            continue;
+        }
+
+        auto rangeValues = [&, window=&window] (auto cb) {
+            for (const auto& [indices, time] : options.Times) {
+                if (!options.EnableSolomonAggregationWorkaround && skipSparse(*window, indices)) {
+                    continue;
+                }
+
+                T value{};
+                for (auto index : indices) {
+                    if (index < 0 || static_cast<size_t>(index) >= window->Values.size()) {
+                        THROW_ERROR_EXCEPTION("Read index is invalid")
+                            << TErrorAttribute("index", index)
+                            << TErrorAttribute("window_size", window->Values.size());
+                    }
+
+                    value += window->Values[index];
+                }
+
+                cb(value, time, indices);
+            }
+        };
+
+        auto writeSummary = [&, tagIds=tagIds] (auto makeSummary) {
             if (options.ExportSummary) {
                 consumer->OnMetricBegin(NMonitoring::EMetricType::DSUMMARY);
                 writeLabels(tagIds, nameLabel, true);
-                sensorCount += 5;
-                consumer->OnSummaryDouble(time, snapshot);
+
+                rangeValues([&] (auto value, auto time, const auto& /* indices */) {
+                    sensorCount += 5;
+                    consumer->OnSummaryDouble(time, makeSummary(value));
+                });
+
                 consumer->OnMetricEnd();
             }
 
             if (options.ExportSummaryAsMax) {
                 consumer->OnMetricBegin(NMonitoring::EMetricType::GAUGE);
                 writeLabels(tagIds, maxNameLabel, false);
-                sensorCount += 1;
-                consumer->OnDouble(time, snapshot->GetMax());
+
+                rangeValues([&] (auto value, auto time, const auto& /* indices */) {
+                    sensorCount += 1;
+                    consumer->OnDouble(time, makeSummary(value)->GetMax());
+                });
+
                 consumer->OnMetricEnd();
             }
 
-            if (options.ExportSummaryAsAvg && snapshot->GetCount() > 0) {
-                consumer->OnMetricBegin(NMonitoring::EMetricType::GAUGE);
-                writeLabels(tagIds, avgNameLabel, false);
-                sensorCount += 1;
-                consumer->OnDouble(time, snapshot->GetSum() / snapshot->GetCount());
-                consumer->OnMetricEnd();
+            if (options.ExportSummaryAsAvg) {
+                bool empty = true;
+
+                rangeValues([&] (auto value, auto time, const auto& /* indices */) {
+                    auto snapshot = makeSummary(value);
+                    if (snapshot->GetCount() == 0) {
+                        return;
+                    }
+
+                    if (empty) {
+                        empty = false;
+                        consumer->OnMetricBegin(NMonitoring::EMetricType::GAUGE);
+                        writeLabels(tagIds, avgNameLabel, false);
+                    }
+
+                    sensorCount += 1;
+
+                    consumer->OnDouble(time, snapshot->GetSum() / snapshot->GetCount());
+                });
+
+                if (!empty) {
+                    consumer->OnMetricEnd();
+                }
             }
         };
 
-        for (const auto& [indices, time] : options.Times) {
-            if (!options.EnableSolomonAggregationWorkaround && skipSparse(window, indices)) {
-                continue;
+        if constexpr (std::is_same_v<T, i64> || std::is_same_v<T, TDuration>) {
+            if (options.ConvertCountersToRateGauge) {
+                consumer->OnMetricBegin(NMonitoring::EMetricType::GAUGE);
+            } else {
+                consumer->OnMetricBegin(NMonitoring::EMetricType::RATE);
             }
 
-            T value{};
-            for (auto index : indices) {
-                if (index < 0 || static_cast<size_t>(index) >= window.Values.size()) {
-                    THROW_ERROR_EXCEPTION("Read index is invalid")
-                        << TErrorAttribute("index", index)
-                        << TErrorAttribute("window_size", window.Values.size());
-                }
+            writeLabels(tagIds, options.ConvertCountersToRateGauge ? rateNameLabel : nameLabel, true);
 
-                value += window.Values[index];
-            }
-
-            if constexpr (std::is_same_v<T, i64> || std::is_same_v<T, TDuration>) {
-                if (options.ConvertCountersToRateGauge) {
-                    consumer->OnMetricBegin(NMonitoring::EMetricType::GAUGE);
-                } else {
-                    consumer->OnMetricBegin(NMonitoring::EMetricType::RATE);
-                }
-
-                writeLabels(tagIds, options.ConvertCountersToRateGauge ? rateNameLabel : nameLabel, true);
-
-                sensorCount = 1;
+            rangeValues([&, window=&window] (auto value, auto time, const auto& indices) {
+                sensorCount += 1;
                 if (options.ConvertCountersToRateGauge) {
                     if (options.RateDenominator < 0.1) {
                         THROW_ERROR_EXCEPTION("Invalid rate denominator");
@@ -357,50 +401,53 @@ int TCube<T>::ReadSensors(
                 } else {
                     // TODO(prime@): RATE is incompatible with windowed read.
                     if constexpr (std::is_same_v<T, i64>) {
-                        consumer->OnInt64(time, Rollup(window, indices.back()));
+                        consumer->OnInt64(time, Rollup(*window, indices.back()));
                     } else {
-                        consumer->OnDouble(time, Rollup(window, indices.back()).SecondsFloat());
+                        consumer->OnDouble(time, Rollup(*window, indices.back()).SecondsFloat());
                     }
                 }
+            });
 
-                consumer->OnMetricEnd();
-            } else if constexpr (std::is_same_v<T, double>) {
-                if (options.DisableDefault && !window.HasValue[indices.back()]) {
-                    continue;
+            consumer->OnMetricEnd();
+        } else if constexpr (std::is_same_v<T, double>) {
+            consumer->OnMetricBegin(NMonitoring::EMetricType::GAUGE);
+
+            writeLabels(tagIds, nameLabel, true);
+
+            rangeValues([&, window=&window] (auto /* value */, auto time, const auto& indices) {
+                if (options.DisableDefault && !window->HasValue[indices.back()]) {
+                    return;
                 }
 
-                consumer->OnMetricBegin(NMonitoring::EMetricType::GAUGE);
+                sensorCount += 1;
+                consumer->OnDouble(time, window->Values[indices.back()]);
+            });
 
-                writeLabels(tagIds, nameLabel, true);
-
-                sensorCount = 1;
-                consumer->OnDouble(time, window.Values[indices.back()]);
-                consumer->OnMetricEnd();
-            } else if constexpr (std::is_same_v<T, TSummarySnapshot<double>>) {
-                auto snapshot = MakeIntrusive<NMonitoring::TSummaryDoubleSnapshot>(
+            consumer->OnMetricEnd();
+        } else if constexpr (std::is_same_v<T, TSummarySnapshot<double>>) {
+            writeSummary([] (auto value) {
+                return MakeIntrusive<NMonitoring::TSummaryDoubleSnapshot>(
                     value.Sum(),
                     value.Min(),
                     value.Max(),
                     value.Last(),
-                    static_cast<ui64>(value.Count())
-                );
-
-                writeSummary(time, snapshot);
-            } else if constexpr (std::is_same_v<T, TSummarySnapshot<TDuration>>) {
-                auto snapshot = MakeIntrusive<NMonitoring::TSummaryDoubleSnapshot>(
+                    static_cast<ui64>(value.Count()));
+            });
+        } else if constexpr (std::is_same_v<T, TSummarySnapshot<TDuration>>) {
+            writeSummary([] (auto value) {
+                return MakeIntrusive<NMonitoring::TSummaryDoubleSnapshot>(
                     value.Sum().SecondsFloat(),
                     value.Min().SecondsFloat(),
                     value.Max().SecondsFloat(),
                     value.Last().SecondsFloat(),
-                    static_cast<ui64>(value.Count())
-                );
+                    static_cast<ui64>(value.Count()));
+            });
+        } else if constexpr (std::is_same_v<T, THistogramSnapshot>) {
+            consumer->OnMetricBegin(NMonitoring::EMetricType::HIST);
 
-                writeSummary(time, snapshot);
-            } else if constexpr (std::is_same_v<T, THistogramSnapshot>) {
-                consumer->OnMetricBegin(NMonitoring::EMetricType::HIST);
+            writeLabels(tagIds, nameLabel, true);
 
-                writeLabels(tagIds, nameLabel, true);
-
+            rangeValues([&, window=&window] (auto value, auto time, const auto& /* indices */) {
                 size_t n = value.Times.size();
                 auto hist = NMonitoring::TExplicitHistogramSnapshot::New(n + 1);
                 for (size_t i = 0; i != n; ++i) {
@@ -413,10 +460,11 @@ int TCube<T>::ReadSensors(
                 sensorCount = n + 1;
 
                 consumer->OnHistogram(time, hist);
-                consumer->OnMetricEnd();
-            } else {
-                THROW_ERROR_EXCEPTION("Unexpected cube type");
-            }
+            });
+
+            consumer->OnMetricEnd();
+        } else {
+            THROW_ERROR_EXCEPTION("Unexpected cube type");
         }
 
         sensorsEmitted += sensorCount;

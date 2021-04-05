@@ -438,8 +438,7 @@ void TSolomonExporter::DoHandleShard(
                 encoder = NMonitoring::EncoderSpackV1(
                     &buffer,
                     NMonitoring::ETimePrecision::SECONDS,
-                    compression,
-                    NMonitoring::EMetricsMergingMode::MERGE_METRICS);
+                    compression);
                 break;
 
             default:
