@@ -190,7 +190,7 @@ public:
     void ReadSensors(
         const TString& name,
         const TReadOptions& options,
-        const TTagRegistry& tagsRegistry,
+        TTagWriter* tagWriter,
         ::NMonitoring::IMetricConsumer* consumer) const;
 
     int ReadSensorValues(

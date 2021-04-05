@@ -335,7 +335,7 @@ void TSolomonRegistry::Collect(IInvokerPtr offloadInvoker)
 
 void TSolomonRegistry::ReadSensors(
     const TReadOptions& options,
-    NMonitoring::IMetricConsumer* consumer) const
+    ::NMonitoring::IMetricConsumer* consumer) const
 {
     auto readOptions = options;
     {
@@ -346,13 +346,14 @@ void TSolomonRegistry::ReadSensors(
             DynamicTags_.end());
     }
 
+    TTagWriter tagWriter(Tags_, consumer);
     for (const auto& [name, set] : Sensors_) {
         if (readOptions.SensorFilter && !readOptions.SensorFilter(name)) {
             continue;
         }
 
         auto start = TInstant::Now();
-        set.ReadSensors(name, readOptions, Tags_, consumer);
+        set.ReadSensors(name, readOptions, &tagWriter, consumer);
         ReadDuration_.Record(TInstant::Now() - start);
     }
 }

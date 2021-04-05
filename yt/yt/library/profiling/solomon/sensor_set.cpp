@@ -214,8 +214,8 @@ int TSensorSet::Collect()
 void TSensorSet::ReadSensors(
     const TString& name,
     const TReadOptions& options,
-    const TTagRegistry& tagsRegistry,
-    NMonitoring::IMetricConsumer* consumer) const
+    TTagWriter* tagWriter,
+    ::NMonitoring::IMetricConsumer* consumer) const
 {
     if (!Error_.IsOK()) {
         return;
@@ -229,12 +229,12 @@ void TSensorSet::ReadSensors(
 
     int sensorsEmitted = 0;
 
-    sensorsEmitted += CountersCube_.ReadSensors(name, readOptions, tagsRegistry, consumer);
-    sensorsEmitted += TimeCountersCube_.ReadSensors(name, readOptions, tagsRegistry, consumer);
-    sensorsEmitted += GaugesCube_.ReadSensors(name, readOptions, tagsRegistry, consumer);
-    sensorsEmitted += SummariesCube_.ReadSensors(name, readOptions, tagsRegistry, consumer);
-    sensorsEmitted += TimersCube_.ReadSensors(name, readOptions, tagsRegistry, consumer);
-    sensorsEmitted += HistogramsCube_.ReadSensors(name, readOptions, tagsRegistry, consumer);
+    sensorsEmitted += CountersCube_.ReadSensors(name, readOptions, tagWriter, consumer);
+    sensorsEmitted += TimeCountersCube_.ReadSensors(name, readOptions, tagWriter, consumer);
+    sensorsEmitted += GaugesCube_.ReadSensors(name, readOptions, tagWriter, consumer);
+    sensorsEmitted += SummariesCube_.ReadSensors(name, readOptions, tagWriter, consumer);
+    sensorsEmitted += TimersCube_.ReadSensors(name, readOptions, tagWriter, consumer);
+    sensorsEmitted += HistogramsCube_.ReadSensors(name, readOptions, tagWriter, consumer);
 
     SensorsEmitted_.Update(sensorsEmitted);
 }
