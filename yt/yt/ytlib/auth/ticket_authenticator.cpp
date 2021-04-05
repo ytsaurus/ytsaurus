@@ -68,7 +68,7 @@ private:
         try {
             const auto result = TvmService_->ParseUserTicket(ticket);
             const auto& scopes = result.Scopes;
-            YT_LOG_DEBUG("Got user ticket with scopes %v", scopes);
+            YT_LOG_DEBUG("Got user ticket (Scopes: %v)", scopes);
 
             const auto& allowedScopes = Config_->Scopes;
             for (const auto& scope : scopes) {

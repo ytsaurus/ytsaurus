@@ -103,9 +103,10 @@ public:
             SuccessfulGetServiceTicketCountCounter_.Increment();
             return result;
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(TError(ex));
+            auto error = TError(NRpc::EErrorCode::Unavailable, "TVM call failed") << TError(ex);
+            YT_LOG_WARNING(error);
             FailedGetServiceTicketCountCounter_.Increment();
-            throw;
+            THROW_ERROR error;
         }
     }
 
@@ -134,9 +135,10 @@ public:
             SuccessfulParseUserTicketCountCounter_.Increment();
             return result;
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(TError(ex));
+            auto error = TError(NRpc::EErrorCode::Unavailable, "TVM call failed") << TError(ex);
+            YT_LOG_WARNING(error);
             FailedParseUserTicketCountCounter_.Increment();
-            throw;
+            THROW_ERROR error;
         }
     }
 
