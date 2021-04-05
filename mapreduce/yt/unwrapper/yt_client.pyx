@@ -5,6 +5,7 @@ from util.generic.string cimport TString
 from util.system.types cimport i64, ui64, ui32
 
 include 'mapreduce/yt/unwrapper/node.pyx'
+include 'util/string/cast.pxd'
 
 
 cdef extern from "mapreduce/yt/interface/init.h" namespace "NYT":
@@ -81,6 +82,12 @@ cdef extern from "mapreduce/yt/interface/client_method_options.h" namespace "NYT
         TLookupRowsOptions KeepMissingRows(bint)
         TLookupRowsOptions Versioned(bint)
 
+    cdef cppclass TDeleteRowsOptions:
+        TDeleteRowsOptions() except +
+        TDeleteRowsOptions Atomicity(EAtomicity)
+        TDeleteRowsOptions Durability(EDurability)
+        TDeleteRowsOptions RequireSyncReplica(bint)
+
     cdef cppclass TCreateClientOptions:
         TCreateClientOptions() except +
         TCreateClientOptions Token(TString)
@@ -140,16 +147,6 @@ cdef _to_cypress_node_type(s):
         raise Exception('unknown cypress node type {}'.format(s))
 
 
-cdef extern from "mapreduce/yt/interface/client_method_options.h" namespace "NYT::EAtomicity" nogil:
-    cdef EAtomicity _None "NYT::EAtomicity::None"
-    cdef EAtomicity Full
-
-
-cdef extern from "mapreduce/yt/interface/client_method_options.h" namespace "NYT::EDurability" nogil:
-    cdef EDurability Sync
-    cdef EDurability Async
-
-
 cdef extern from "mapreduce/yt/interface/fwd.h" namespace "NYT" nogil:
     cdef cppclass TNodeId:
         ui32 dw[4]
@@ -165,6 +162,7 @@ cdef extern from "mapreduce/yt/interface/fwd.h" namespace "NYT" nogil:
         void MountTable(TString, TMountTableOptions) except +
         void UnmountTable(TString, TUnmountTableOptions) except +
         void InsertRows(TString, TVector[TNode], TInsertRowsOptions) except +
+        void DeleteRows(TString, TVector[TNode], TDeleteRowsOptions) except +
         TVector[TNode] SelectRows(TString, TSelectRowsOptions) except +
         TVector[TNode] LookupRows(TString, TVector[TNode], TLookupRowsOptions) except +
 
@@ -185,7 +183,7 @@ cdef class Client:
             opts.Token(_to_TString(token))
         self._client = CreateClient(_to_TString(proxy), opts)
 
-    def get(self, path, max_size=None, attributes=None):
+    def get(self, path, max_size=None, attributes=None, yson=False):
         cdef TGetOptions opts
         cdef TAttributeFilter attrs_filter
         if max_size is not None:
@@ -194,7 +192,11 @@ cdef class Client:
             for attr in attributes:
                 attrs_filter.AddAttribute(_to_TString(attr))
             opts.AttributeFilter(attrs_filter)
-        return _TNode_to_pyobj(cython.operator.dereference(self._client).Get(_to_TString(path), opts))
+        value = cython.operator.dereference(self._client).Get(_to_TString(path), opts)
+        if yson:
+            return _TNode_to_yson(value)
+        else:
+            return _TNode_to_pyobj(value)
 
     def set(self, path, value):
         cython.operator.dereference(self._client).Set(_to_TString(path), _pyobj_to_TNode(value))
@@ -255,19 +257,9 @@ cdef class Client:
         if aggregate is not None:
             opts.Aggregate(<bint>aggregate)
         if atomicity is not None:
-            if atomicity == 'full':
-                opts.Atomicity(Full)
-            elif atomicity == 'none':
-                opts.Atomicity(_None)
-            else:
-                raise Exception('wrong atomicity: {}'.format(atomicity))
+            opts.Atomicity(FromString[EAtomicity](atomicity))
         if durability is not None:
-            if durability == 'sync':
-                opts.Durability(Sync)
-            elif durability == 'async':
-                opts.Durability(Async)
-            else:
-                raise Exception('wrong durability: {}'.format(durability))
+            opts.Durability(FromString[EDurability](durability))
         if require_sync_replica is not None:
             opts.RequireSyncReplica(<bint>require_sync_replica)
         cdef TString cpath = _to_TString(path)
@@ -275,7 +267,7 @@ cdef class Client:
         with nogil:
             cython.operator.dereference(self._client).InsertRows(cpath, crows, opts)
 
-    def select_rows(self, query, input_row_limit=None, output_row_limit=None, range_expansion_limit=1000, fail_on_inclomplete_result=True, verbose_logging=False, enable_code_cache=True, timeout=None):
+    def select_rows(self, query, input_row_limit=None, output_row_limit=None, range_expansion_limit=1000, fail_on_inclomplete_result=True, verbose_logging=False, enable_code_cache=True, timeout=None, yson=False):
         cdef TSelectRowsOptions opts
         if input_row_limit is not None:
             opts.InputRowLimit(<i64>input_row_limit)
@@ -291,9 +283,12 @@ cdef class Client:
         cdef TVector[TNode] rows
         with nogil:
             rows = cython.operator.dereference(self._client).SelectRows(cquery, opts)
-        return [_TNode_to_pyobj(row) for row in rows]
+        if yson:
+            return [_TNode_to_yson(row) for row in rows]
+        else:
+            return [_TNode_to_pyobj(row) for row in rows]
 
-    def lookup_rows(self, path, keys, timeout=None, columns=None, keep_missing_rows=False, versioned=False):
+    def lookup_rows(self, path, keys, timeout=None, columns=None, keep_missing_rows=False, versioned=False, yson=False):
         cdef TLookupRowsOptions opts
         if timeout is not None:
             opts.Timeout(TDuration.MilliSeconds(<int>timeout))
@@ -306,4 +301,20 @@ cdef class Client:
         cdef TVector[TNode] ckeys = _pyobj_to_TNode(keys).AsList()
         with nogil:
             rows = cython.operator.dereference(self._client).LookupRows(cpath, ckeys, opts)
-        return [_TNode_to_pyobj(row) for row in rows]
+        if yson:
+            return [_TNode_to_yson(row) for row in rows]
+        else:
+            return [_TNode_to_pyobj(row) for row in rows]
+
+    def delete_rows(self, path, keys, atomicity=None, durability=None, require_sync_replica=None):
+        cdef TDeleteRowsOptions opts
+        if atomicity is not None:
+            opts.Atomicity(FromString[EAtomicity](atomicity))
+        if durability is not None:
+            opts.Durability(FromString[EDurability](durability))
+        if require_sync_replica is not None:
+            opts.RequireSyncReplica(<bint>require_sync_replica)
+        cdef TString cpath = _to_TString(path)
+        cdef TVector[TNode] ckeys = _pyobj_to_TNode(keys).AsList()
+        with nogil:
+            cython.operator.dereference(self._client).DeleteRows(cpath, ckeys, opts)

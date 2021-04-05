@@ -2,6 +2,8 @@ import sys
 import time
 import yt_client
 from mapreduce.yt.python.yt_stuff import yt_stuff
+from yt.yson.yson_types import YsonInt64, YsonUint64, YsonString, YsonUnicode, YsonMap, YsonList
+from yt.yson.convert import to_yson_type
 
 
 def test_get(yt_stuff):
@@ -81,6 +83,50 @@ def test_set(yt_stuff):
     assert yt.get('//test_set/string/@yyy') == ['a', 2, 'c']
     client.set('//test_set/string/@ui64', 2**64 - 1)
     assert yt.get('//test_set/string/@ui64') == 2**64 - 1
+
+
+def test_get_set_yson(yt_stuff):
+    client = yt_client.Client('localhost:{}'.format(yt_stuff.yt_proxy_port))
+    yt = yt_stuff.get_yt_client()
+    test_root = '//test_get_set_yson'
+    attrs = {'attr_key': 'attr_value'}
+    yt.create('map_node', test_root, ignore_existing=True)
+
+    # test entity (test via attributes because there is no entity type node in the YT cypress)
+    entity_node = test_root + '/entity_node'
+    val_with_entity_attr = to_yson_type('dummy', {"k" : to_yson_type(None)})
+    yt.create('string_node', entity_node)
+    client.set(entity_node, val_with_entity_attr)
+    assert client.get(entity_node, attributes=['k'], yson=True) == val_with_entity_attr
+
+    # test string
+    string_node = test_root + '/string_node'
+    string_val = to_yson_type('ABCDEFG', attrs)
+    yt.create('string_node', string_node)
+    client.set(string_node, string_val)
+    assert client.get(string_node, attributes=['attr_key'], yson=True) == string_val
+
+    # test int64
+    int64_node = test_root + '/int64_node'
+    int64_val = to_yson_type(13, attrs)
+    yt.create('int64_node', int64_node)
+    client.set(int64_node, int64_val)
+    assert client.get(int64_node, attributes=['attr_key'], yson=True) == int64_val
+
+    # test uint64
+    uint64_node = test_root + '/uint64_node'
+    uint64_val = YsonUint64(13)
+    uint64_val.attributes = attrs
+    yt.create('uint64_node', uint64_node)
+    client.set(uint64_node, uint64_val)
+    assert client.get(uint64_node, attributes=['attr_key'], yson=True) == uint64_val
+
+    # test list
+    list_node = test_root + '/list_node'
+    list_val = to_yson_type([1, 2, 'a', 'b', ['x', 'z'], {'a': 1, 'b': 2}], attrs)
+    yt.create('list_node', list_node)
+    client.set(list_node, list_val)
+    assert client.get(list_node, attributes=['attr_key'], yson=True) == list_val
 
 
 def test_exists(yt_stuff):
@@ -321,3 +367,127 @@ def test_lookup(yt_stuff):
 
     rows = client.lookup_rows('//test_lookup/table', [{'key': 'c'}, {'key': 'a'}], columns=['value'], keep_missing_rows=True)
     assert rows == [None, {'value': 'x'}]
+
+
+def test_lookup_versioned(yt_stuff):
+    client = yt_client.Client('localhost:{}'.format(yt_stuff.yt_proxy_port))
+    yt = yt_stuff.get_yt_client()
+    yt.create('map_node', '//test_lookup_yson', ignore_existing=True)
+
+    test_table = '//test_lookup_yson/table'
+    client.create_table(
+        test_table,
+        attributes={
+            'dynamic': 'true',
+            'schema': [
+                {'name': 'hash', 'type': 'uint64', 'sort_order': 'ascending', 'expression': 'farm_hash(key) % 128'},
+                {'name': 'key', 'type': 'string', 'sort_order': 'ascending'},
+                {'name': 'value', 'type': 'string'},
+            ],
+            'pivot_keys': [
+                [],
+                [YsonUint64(32)],
+                [YsonUint64(64)],
+                [YsonUint64(96)],
+                [YsonUint64(128)]
+            ],
+            'disable_tablet_balancer': 'true',
+        }
+    )
+
+    retry(lambda: client.mount_table(test_table), 10)
+    wait_true(lambda: all(t['state'] == 'mounted' for t in client.get(test_table + '/@tablets')), 15)
+
+    # Test yson result and versioned=True additional attributes
+    client.insert_rows(test_table, [to_yson_type({'key': 'a', 'value': 'x'})])
+    rows = client.lookup_rows(test_table, [{'key': 'a'}], yson=True, versioned=True)
+    assert len(rows) == 1
+    row = rows[0]
+    assert len(row.attributes["write_timestamps"]) == 1
+    timestamp = row.attributes["write_timestamps"][0]
+    assert isinstance(row, YsonMap)
+    assert isinstance(row['hash'], YsonUint64)
+    assert isinstance(row['key'], YsonString)
+    assert isinstance(row['value'], YsonList)
+    assert isinstance(row['value'][0], YsonString)
+    assert len(row) == 3
+    assert row['key'] == 'a'
+    assert row['value'] == [to_yson_type('x', {'aggregate': False, 'timestamp': timestamp})]
+
+
+def test_delete_rows(yt_stuff):
+    client = yt_client.Client('localhost:{}'.format(yt_stuff.yt_proxy_port))
+    yt = yt_stuff.get_yt_client()
+    yt.create('map_node', '//test_delete_rows', ignore_existing=True)
+
+    test_table = '//test_delete_rows/table'
+    client.create_table(
+        test_table,
+        attributes={
+            'dynamic': 'true',
+            'schema': [
+                {'name': 'hash', 'type': 'uint64', 'sort_order': 'ascending', 'expression': 'farm_hash(key) % 128'},
+                {'name': 'key', 'type': 'string', 'sort_order': 'ascending'},
+                {'name': 'value', 'type': 'string'},
+            ],
+            'pivot_keys': [
+                [],
+                [YsonUint64(32)],
+                [YsonUint64(64)],
+                [YsonUint64(96)],
+                [YsonUint64(128)]
+            ],
+            'disable_tablet_balancer': 'true',
+        }
+    )
+
+    retry(lambda: client.mount_table(test_table), 10)
+    wait_true(lambda: all(t['state'] == 'mounted' for t in client.get(test_table + '/@tablets')), 15)
+
+    rows_before_delete = [{'key': 'a', 'value': 'x'}, {'key': 'b', 'value': 'y'}]
+    client.insert_rows(test_table, rows_before_delete)
+    # Check rows is really inserted just in case
+    rows = client.lookup_rows(test_table, [{'key': 'a'}, {'key': 'b'}], columns=['key', 'value'])
+    assert rows == rows_before_delete
+
+    client.delete_rows(test_table, [{'key': 'b'}])
+
+    rows = client.lookup_rows(test_table, [{'key': 'a'}, {'key': 'b'}], columns=['key', 'value'])
+    assert rows == [{'key': 'a', 'value': 'x'}]
+
+
+def test_atomicity_none(yt_stuff):
+    client = yt_client.Client('localhost:{}'.format(yt_stuff.yt_proxy_port))
+    yt = yt_stuff.get_yt_client()
+    yt.create('map_node', '//test_atomicity_none', ignore_existing=True)
+
+    test_table = '//test_atomicity_none/table'
+    client.create_table(
+        test_table,
+        attributes={
+            'dynamic': 'true',
+            'atomicity': 'none',
+            'schema': [
+                {'name': 'hash', 'type': 'uint64', 'sort_order': 'ascending', 'expression': 'farm_hash(key) % 128'},
+                {'name': 'key', 'type': 'string', 'sort_order': 'ascending'},
+                {'name': 'value', 'type': 'string'},
+            ],
+            'pivot_keys': [
+                [],
+                [YsonUint64(32)],
+                [YsonUint64(64)],
+                [YsonUint64(96)],
+                [YsonUint64(128)]
+            ],
+            'disable_tablet_balancer': 'true',
+        }
+    )
+
+    retry(lambda: client.mount_table(test_table), 10)
+    wait_true(lambda: all(t['state'] == 'mounted' for t in client.get(test_table + '/@tablets')), 15)
+
+    client.insert_rows(test_table, [{'key': 'a', 'value': 'x'}, {'key': 'b', 'value': 'y'}], atomicity='none')
+    client.delete_rows(test_table, [{'key': 'b'}], atomicity='none')
+
+    rows = client.lookup_rows(test_table, [{'key': 'a'}, {'key': 'b'}], columns=['key', 'value'])
+    assert rows == [{'key': 'a', 'value': 'x'}]
