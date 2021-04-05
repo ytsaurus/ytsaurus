@@ -6,7 +6,7 @@ from util.generic.hash cimport THashMap
 from util.generic.string cimport TString
 from util.system.types cimport i64, ui64
 
-from yt.yson.yson_types import YsonStringProxy, get_bytes
+from yt.yson.yson_types import YsonStringProxy, get_bytes, YsonType, YsonUint64, YsonInt64, YsonDouble, YsonBoolean, YsonList, YsonMap, YsonString, YsonUnicode, YsonEntity
 
 
 cdef extern from "library/cpp/yson/node/node.h" namespace "NYT" nogil:
@@ -41,9 +41,21 @@ cdef extern from "library/cpp/yson/node/node.h" namespace "NYT" nogil:
         TNode CreateList()
         @staticmethod
         TNode CreateMap()
+        @staticmethod
+        TNode CreateEntity()
 
         TNode operator()(TString, TNode)
         TNode Add(TNode)
+
+        cpp_bool HasAttributes()
+        TNode GetAttributes()
+        TNode& Attributes()
+
+
+cdef _set_node_attributes(TNode& node, const TNode& attributes):
+    # Trick with assigning to reference
+    cdef TNode* attrPtr = &(node.Attributes())
+    attrPtr[0] = attributes
 
 
 class Node(object):
@@ -107,6 +119,8 @@ cdef TNode _pyobj_to_TNode(obj) except +:
         else:
             # should never happen
             raise Exception()
+    elif isinstance(obj, YsonType):
+        return _yson_to_TNode(obj)
     elif isinstance(obj, bool):
         return TNode(<cpp_bool>obj)
     elif isinstance(obj, (basestring, bytes, YsonStringProxy)):
@@ -135,3 +149,63 @@ cdef TNode _pyobj_to_TNode(obj) except +:
         return TNode()
     else:
         raise Exception('Can\'t convert {} object to TNode'.format(type(obj)))
+
+
+cdef _TNode_to_yson(TNode node) except +:
+    # Be very precise about node type so don't use convert.to_yson_type function
+    if node.IsString():
+        yson = YsonString(node.AsString())
+    elif node.IsInt64():
+        yson = YsonInt64(node.AsInt64())
+    elif node.IsUint64():
+        yson = YsonUint64(node.AsUint64())
+    elif node.IsDouble():
+        yson = YsonDouble(node.AsDouble())
+    elif node.IsBool():
+        yson = YsonBoolean(node.AsBool())
+    elif node.IsEntity():
+        yson = YsonEntity()
+    elif node.IsUndefined():
+        yson = YsonEntity()
+    elif node.IsList():
+        node_list = node.AsList()
+        yson = YsonList([_TNode_to_yson(n) for n in node_list])
+    elif node.IsMap():
+        node_map = node.AsMap()
+        yson = YsonMap({p.first: _TNode_to_yson(p.second) for p in node_map})
+    else:
+        # should never happen
+        raise Exception()
+
+    if (node.HasAttributes()):
+        yson.attributes = _TNode_to_yson(node.GetAttributes())
+    return yson
+
+
+cdef TNode _yson_to_TNode(obj) except +:
+    cdef TNode node
+    if isinstance(obj, YsonBoolean):
+        node = TNode(<cpp_bool>obj)
+    elif isinstance(obj, YsonString) or isinstance(obj, YsonUnicode):
+        node = TNode(_to_TString(obj))
+    elif isinstance(obj, YsonInt64):
+        node = TNode(<i64>obj)
+    elif isinstance(obj, YsonUint64):
+        node = TNode(<ui64>obj)
+    elif isinstance(obj, YsonDouble):
+        node = TNode(<float>obj)
+    elif isinstance(obj, YsonEntity):
+        node = TNode.CreateEntity()
+    elif isinstance(obj, YsonMap):
+        node = _pyobj_to_TNode(dict(obj))
+    elif isinstance(obj, YsonList):
+        node = _pyobj_to_TNode(list(obj))
+    else:
+        raise Exception('Can\'t convert yson object {} to TNode'.format(obj))
+
+    if obj.has_attributes():
+        attributes = _pyobj_to_TNode(obj.attributes)
+        _set_node_attributes(node, attributes)
+
+    return node
+
