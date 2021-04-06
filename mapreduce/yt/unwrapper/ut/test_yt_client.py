@@ -1,8 +1,7 @@
-import sys
 import time
+
 import yt_client
-from mapreduce.yt.python.yt_stuff import yt_stuff
-from yt.yson.yson_types import YsonInt64, YsonUint64, YsonString, YsonUnicode, YsonMap, YsonList
+from yt.yson.yson_types import YsonUint64, YsonString, YsonMap, YsonList
 from yt.yson.convert import to_yson_type
 
 
