@@ -1582,6 +1582,7 @@ private:
         {
             ExecAttributes_.SlotIndex = Slot_->GetSlotIndex();
             ExecAttributes_.SandboxPath = Slot_->GetSandboxPath(ESandboxKind::User);
+            ExecAttributes_.MediumName = Slot_->GetMediumName();
 
             ExecAttributes_.IPAddresses.reserve(ipAddresses.size());
             for (const auto& address : ipAddresses) {

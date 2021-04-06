@@ -180,6 +180,11 @@ public:
     {
         return Location_->GetSandboxPath(SlotIndex_, sandbox);
     }
+    
+    virtual TString GetMediumName() const override
+    {
+        return Location_->GetMediumName();
+    }
 
     virtual TTcpBusServerConfigPtr GetBusServerConfig() const override
     {

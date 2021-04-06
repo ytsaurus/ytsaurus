@@ -702,3 +702,88 @@ class TestDefaultDiskMediumWithUnspecifiedMediumPorto(YTEnvSetup, DiskMediumTest
 
         # Node has disk with SSD.
         start_op("ssd", track=True)
+
+
+class TestDefaultDiskMediumWithUnspecifiedMediumAndMultipleSlotsPorto(YTEnvSetup, DiskMediumTestConfiguration):
+    NUM_SCHEDULERS = 1
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+
+    DELTA_MASTER_CONFIG = DiskMediumTestConfiguration.MASTER_CONFIG
+    DELTA_SCHEDULER_CONFIG = DiskMediumTestConfiguration.SCHEDULER_CONFIG
+    DELTA_CONTROLLER_AGENT_CONFIG = DiskMediumTestConfiguration.CONTROLLER_AGENT_CONFIG
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "slot_manager": {
+                "disk_resources_update_period": 100,
+            },
+            "job_controller": {"resource_limits": {"user_slots": 1, "cpu": 1.0}},
+            "min_required_disk_space": 0,
+        }
+    }
+
+    USE_PORTO = True
+
+    @classmethod
+    def modify_node_config(cls, config):
+        for disk in (cls.default_disk_path, cls.ssd_disk_path):
+            if os.path.exists(disk):
+                shutil.rmtree(disk)
+            os.makedirs(disk)
+
+        config["exec_agent"]["slot_manager"]["locations"] = [
+            {
+                "path": cls.default_disk_path,
+                "disk_quota": 2 * 1024 * 1024,
+                "disk_usage_watermark": 0,
+                "medium_name": "hdd",
+            },
+            {
+                "path": cls.ssd_disk_path,
+                "disk_quota": 2 * 1024 * 1024,
+                "disk_usage_watermark": 0,
+                "medium_name": "ssd",
+            },
+        ]
+        config["exec_agent"]["slot_manager"]["default_medium_name"] = "ssd"
+
+    @classmethod
+    def on_masters_started(cls):
+        create_medium("hdd")
+        create_medium("ssd")
+
+    @authors("ignat")
+    def test_slot_index(self):
+        create("table", "//tmp/in")
+        write_table("//tmp/in", [{"foo": "bar"}])
+        create("table", "//tmp/out")
+
+        def start_op(medium_type, track):
+            disk_request = {"disk_space": 1024 * 1024}
+            if medium_type is not None:
+                disk_request["medium_name"] = medium_type
+
+            return map(
+                command="cat; echo $(pwd) >&2; sleep 100",
+                in_="//tmp/in",
+                out="//tmp/out",
+                spec={
+                    "mapper": {
+                        "disk_request": disk_request
+                    },
+                    "max_failed_job_count": 1,
+                },
+                track=track,
+            )
+
+        op = start_op(None, track=False)
+        wait(lambda: op.get_running_jobs())
+
+        nodes = ls("//sys/cluster_nodes")
+        jobs = op.get_running_jobs().keys()
+        assert len(nodes) == 1
+        assert len(jobs) == 1
+
+        node_orchid_job_path = "//sys/cluster_nodes/{}/orchid/job_controller/active_jobs/scheduler/{}".format(nodes[0], jobs[0])
+        wait(lambda: exists(node_orchid_job_path))
+        wait(lambda: get(node_orchid_job_path + "/exec_attributes/medium_name") == "ssd")
