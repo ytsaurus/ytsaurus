@@ -35,8 +35,8 @@ trait YtFileUtils {
     }
   }
 
-  def createFile(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Unit = {
-    val request = new CreateNode(formatPath(path), ObjectType.File).optionalTransaction(transaction)
+  def createFile(path: String, transaction: Option[String] = None, force: Boolean = false)(implicit yt: CompoundClient): Unit = {
+    val request = new CreateNode(formatPath(path), ObjectType.File).optionalTransaction(transaction).setForce(force)
     yt.createNode(request).join()
   }
 

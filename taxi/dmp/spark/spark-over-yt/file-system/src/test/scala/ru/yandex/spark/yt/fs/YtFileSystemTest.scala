@@ -74,6 +74,25 @@ class YtFileSystemTest extends FlatSpec with Matchers with LocalYtClient with Tm
     res shouldEqual "123"
   }
 
+  it should "overwrite existed file" in {
+    var out = fs.create(new Path(tmpPath))
+    try {
+      out.write("123".getBytes())
+    } finally {
+      out.close()
+    }
+
+    out = fs.create(new Path(tmpPath), true)
+    try {
+      out.write("345".getBytes())
+    } finally {
+      out.close()
+    }
+
+    val res = YtWrapper.readFileAsString(tmpPath)
+    res shouldEqual "345"
+  }
+
   it should "rename" in {
     YtWrapper.createDir(tmpPath)
     YtWrapper.createFile(s"$tmpPath/1")
@@ -92,6 +111,14 @@ class YtFileSystemTest extends FlatSpec with Matchers with LocalYtClient with Tm
     fs.delete(new Path(tmpPath), recursive = false)
 
     YtWrapper.exists(tmpPath) shouldEqual false
+  }
+
+  it should "return 'false' when deleted path isn't exist" in {
+    YtWrapper.createDir(tmpPath)
+
+    val result = fs.delete(new Path(s"$tmpPath/file_is_not_exist"), false)
+
+    result shouldEqual false
   }
 
   it should "consider timeout" ignore {

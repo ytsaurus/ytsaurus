@@ -49,7 +49,7 @@ trait YtFileSystemBase extends FileSystem with LogLazy {
     YtWrapper.createDir(ytPath(f.getParent), None, ignoreExisting = true)(yt)
 
     def createFile(ytRpcClient: Option[YtRpcClient], ytClient: CompoundClient): FSDataOutputStream = {
-      YtWrapper.createFile(path)(ytClient)
+      YtWrapper.createFile(path, None, overwrite)(ytClient)
       statistics.incrementWriteOps(1)
       new FSDataOutputStream(YtWrapper.writeFile(path, 7 days, ytRpcClient, None)(ytClient), statistics)
     }
@@ -86,6 +86,11 @@ trait YtFileSystemBase extends FileSystem with LogLazy {
 
   override def delete(f: Path, recursive: Boolean): Boolean = {
     log.debugLazy(s"Delete $f")
+    if (!YtWrapper.exists(ytPath(f))(yt)) {
+      log.debugLazy(s"$f is not exist")
+      return false
+    }
+
     YtWrapper.remove(ytPath(f))(yt)
     true
   }
