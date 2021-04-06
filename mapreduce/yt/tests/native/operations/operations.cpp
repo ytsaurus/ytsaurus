@@ -47,6 +47,8 @@
 
 #include <util/thread/factory.h>
 
+#include <utility>
+
 using namespace NYT;
 using namespace NYT::NTesting;
 
@@ -55,17 +57,18 @@ namespace NYdlAllTypes = mapreduce::yt::tests::native::ydl_lib::all_types;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRangeBasedTIdMapper : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
+class TRangeBasedTIdMapper
+    : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
 public:
-    void Do(TReader* reader, TWriter* writer)
+    void Do(TReader* reader, TWriter* writer) override
     {
         for (const auto& cursor : *reader) {
             writer->AddRow(cursor.GetRow());
         }
     }
 };
-REGISTER_MAPPER(TRangeBasedTIdMapper);
+REGISTER_MAPPER(TRangeBasedTIdMapper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,7 +76,7 @@ class TYdlMultipleInputMapper
     : public IMapper<TTableReader<TYdlOneOf<NYdlRows::TUrlRow, NYdlRows::THostRow>>, TTableWriter<NYdlRows::TRow>>
 {
 public:
-    void Do(TReader* reader, TWriter* writer)
+    void Do(TReader* reader, TWriter* writer) override
     {
         for (; reader->IsValid(); reader->Next()) {
             NYdlRows::TRow row;
@@ -86,7 +89,7 @@ public:
         }
     }
 };
-REGISTER_MAPPER(TYdlMultipleInputMapper);
+REGISTER_MAPPER(TYdlMultipleInputMapper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,7 +97,7 @@ class TYdlFailingInputMapper
     : public IMapper<TTableReader<TYdlOneOf<NYdlRows::TUrlRow, NYdlRows::THostRow>>, TTableWriter<NYdlRows::TRow>>
 {
 public:
-    void Do(TReader* reader, TWriter* writer)
+    void Do(TReader* reader, TWriter* writer) override
     {
         for (; reader->IsValid(); reader->Next()) {
             NYdlRows::TRow row;
@@ -107,7 +110,7 @@ public:
         }
     }
 };
-REGISTER_MAPPER(TYdlFailingInputMapper);
+REGISTER_MAPPER(TYdlFailingInputMapper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -115,7 +118,7 @@ class TYdlFailingOutputMapper
     : public IMapper<TTableReader<NYdlRows::TUrlRow>, TYdlTableWriter>
 {
 public:
-    void Do(TReader* reader, TWriter* writer)
+    void Do(TReader* reader, TWriter* writer) override
     {
         for (; reader->IsValid(); reader->Next()) {
             NYdlRows::TRow row;
@@ -124,34 +127,38 @@ public:
         }
     }
 };
-REGISTER_MAPPER(TYdlFailingOutputMapper);
+REGISTER_MAPPER(TYdlFailingOutputMapper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 
-class TMapperThatWritesToIncorrectTable : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
+class TMapperThatWritesToIncorrectTable
+    : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
 public:
-    void Do(TReader*, TWriter* writer) {
+    void Do(TReader*, TWriter* writer) override
+    {
         try {
             writer->AddRow(TNode(), 100500);
         } catch (...) {
         }
     }
 };
-REGISTER_MAPPER(TMapperThatWritesToIncorrectTable);
+REGISTER_MAPPER(TMapperThatWritesToIncorrectTable)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMapperThatChecksFile : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
+class TMapperThatChecksFile
+    : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
 public:
     TMapperThatChecksFile() = default;
-    TMapperThatChecksFile(const TString& file)
-        : File_(file)
+    explicit TMapperThatChecksFile(TString file)
+        : File_(std::move(file))
     { }
 
-    virtual void Do(TReader*, TWriter*) override {
+    void Do(TReader*, TWriter*) override
+    {
         if (!TFsPath(File_).Exists()) {
             Cerr << "File `" << File_ << "' does not exist." << Endl;
             exit(1);
@@ -163,14 +170,16 @@ public:
 private:
     TString File_;
 };
-REGISTER_MAPPER(TMapperThatChecksFile);
+REGISTER_MAPPER(TMapperThatChecksFile)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TIdAndKvSwapMapper : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
+class TIdAndKvSwapMapper
+    : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
 public:
-    virtual void Do(TReader* reader, TWriter* writer) override {
+    void Do(TReader* reader, TWriter* writer) override
+    {
         for (; reader->IsValid(); reader->Next()) {
             const auto& node = reader->GetRow();
             TNode swapped;
@@ -181,19 +190,22 @@ public:
         }
     }
 };
-REGISTER_MAPPER(TIdAndKvSwapMapper);
+REGISTER_MAPPER(TIdAndKvSwapMapper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMapperThatReadsProtobufFile : public IMapper<TTableReader<TNode>, TTableWriter<TAllTypesMessage>>
+class TMapperThatReadsProtobufFile
+    : public IMapper<TTableReader<TNode>, TTableWriter<TAllTypesMessage>>
 {
 public:
     TMapperThatReadsProtobufFile() = default;
-    TMapperThatReadsProtobufFile(const TString& file)
-        : File_(file)
+
+    explicit TMapperThatReadsProtobufFile(TString file)
+        : File_(std::move(file))
     { }
 
-    virtual void Do(TReader*, TWriter* writer) override {
+    void Do(TReader*, TWriter* writer) override
+    {
         TIFStream stream(File_);
         auto fileReader = CreateTableReader<TAllTypesMessage>(&stream);
         for (; fileReader->IsValid(); fileReader->Next()) {
@@ -206,14 +218,15 @@ public:
 private:
     TString File_;
 };
-REGISTER_MAPPER(TMapperThatReadsProtobufFile);
+REGISTER_MAPPER(TMapperThatReadsProtobufFile)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProtobufMapper : public IMapper<TTableReader<TAllTypesMessage>, TTableWriter<TAllTypesMessage>>
+class TProtobufMapper
+    : public IMapper<TTableReader<TAllTypesMessage>, TTableWriter<TAllTypesMessage>>
 {
 public:
-    virtual void Do(TReader* reader, TWriter* writer) override
+    void Do(TReader* reader, TWriter* writer) override
     {
         TAllTypesMessage row;
         for (; reader->IsValid(); reader->Next()) {
@@ -223,14 +236,15 @@ public:
         }
     }
 };
-REGISTER_MAPPER(TProtobufMapper);
+REGISTER_MAPPER(TProtobufMapper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProtobufMapperProto3 : public IMapper<TTableReader<TAllTypesMessageProto3>, TTableWriter<TAllTypesMessageProto3>>
+class TProtobufMapperProto3
+    : public IMapper<TTableReader<TAllTypesMessageProto3>, TTableWriter<TAllTypesMessageProto3>>
 {
 public:
-    virtual void Do(TReader* reader, TWriter* writer) override
+    void Do(TReader* reader, TWriter* writer) override
     {
         TAllTypesMessageProto3 row;
         for (; reader->IsValid(); reader->Next()) {
@@ -240,7 +254,7 @@ public:
         }
     }
 };
-REGISTER_MAPPER(TProtobufMapperProto3);
+REGISTER_MAPPER(TProtobufMapperProto3)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -265,7 +279,7 @@ public:
         }
     }
 };
-REGISTER_MAPPER(TComplexTypesProtobufMapper);
+REGISTER_MAPPER(TComplexTypesProtobufMapper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -288,14 +302,15 @@ public:
         }
     }
 };
-REGISTER_MAPPER(TProtobufMapperTypeOptions);
+REGISTER_MAPPER(TProtobufMapperTypeOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYdlMapper : public IMapper<TTableReader<NYdlRows::TRow>, TYdlTableWriter>
+class TYdlMapper
+    : public IMapper<TTableReader<NYdlRows::TRow>, TYdlTableWriter>
 {
 public:
-    virtual void Do(TReader* reader, TWriter* writer) override
+    void Do(TReader* reader, TWriter* writer) override
     {
         NYdlRows::TRow row;
         for (; reader->IsValid(); reader->Next()) {
@@ -305,17 +320,18 @@ public:
         }
     }
 };
-REGISTER_MAPPER(TYdlMapper);
+REGISTER_MAPPER(TYdlMapper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSplitGoodUrlMapper : public IMapper<TTableReader<TUrlRow>, TTableWriter<::google::protobuf::Message>>
+class TSplitGoodUrlMapper
+    : public IMapper<TTableReader<TUrlRow>, TTableWriter<::google::protobuf::Message>>
 {
 public:
-    virtual void Do(TReader* reader, TWriter* writer) override
+    void Do(TReader* reader, TWriter* writer) override
     {
         for (; reader->IsValid(); reader->Next()) {
-            auto urlRow = reader->GetRow();
+            const auto& urlRow = reader->GetRow();
             if (urlRow.GetHttpCode() == 200) {
                 TGoodUrl goodUrl;
                 goodUrl.SetUrl(urlRow.GetHost() + urlRow.GetPath());
@@ -325,19 +341,20 @@ public:
         }
     }
 };
-REGISTER_MAPPER(TSplitGoodUrlMapper);
+REGISTER_MAPPER(TSplitGoodUrlMapper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCountHttpCodeTotalReducer : public IReducer<TTableReader<TUrlRow>, TTableWriter<THostRow>>
+class TCountHttpCodeTotalReducer
+    : public IReducer<TTableReader<TUrlRow>, TTableWriter<THostRow>>
 {
 public:
-    virtual void Do(TReader* reader, TWriter* writer) override
+    void Do(TReader* reader, TWriter* writer) override
     {
         THostRow hostRow;
         i32 total = 0;
         for (; reader->IsValid(); reader->Next()) {
-            auto urlRow = reader->GetRow();
+            const auto& urlRow = reader->GetRow();
             if (!hostRow.HasHost()) {
                 hostRow.SetHost(urlRow.GetHost());
             }
@@ -347,14 +364,15 @@ public:
         writer->AddRow(hostRow);
     }
 };
-REGISTER_REDUCER(TCountHttpCodeTotalReducer);
+REGISTER_REDUCER(TCountHttpCodeTotalReducer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSplitGoodUrlYdlMapper : public IMapper<TTableReader<NYdlRows::TUrlRow>, TYdlTableWriter>
+class TSplitGoodUrlYdlMapper
+    : public IMapper<TTableReader<NYdlRows::TUrlRow>, TYdlTableWriter>
 {
 public:
-    virtual void Do(TReader* reader, TWriter* writer) override
+    void Do(TReader* reader, TWriter* writer) override
     {
         for (; reader->IsValid(); reader->Next()) {
             auto urlRow = reader->GetRow();
@@ -367,14 +385,15 @@ public:
         }
     }
 };
-REGISTER_MAPPER(TSplitGoodUrlYdlMapper);
+REGISTER_MAPPER(TSplitGoodUrlYdlMapper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCountHttpCodeTotalYdlReducer : public IReducer<TTableReader<NYdlRows::TUrlRow>, TTableWriter<NYdlRows::THostRow>>
+class TCountHttpCodeTotalYdlReducer
+    : public IReducer<TTableReader<NYdlRows::TUrlRow>, TTableWriter<NYdlRows::THostRow>>
 {
 public:
-    virtual void Do(TReader* reader, TWriter* writer) override
+    void Do(TReader* reader, TWriter* writer) override
     {
         NYdlRows::THostRow hostRow;
         i32 total = 0;
@@ -389,7 +408,7 @@ public:
         writer->AddRow(hostRow);
     }
 };
-REGISTER_REDUCER(TCountHttpCodeTotalYdlReducer);
+REGISTER_REDUCER(TCountHttpCodeTotalYdlReducer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -397,11 +416,13 @@ class TJobBaseThatUsesEnv
 {
 public:
     TJobBaseThatUsesEnv() = default;
-    TJobBaseThatUsesEnv(const TString& envName)
-        : EnvName_(envName)
+
+    explicit TJobBaseThatUsesEnv(TString envName)
+        : EnvName_(std::move(envName))
     { }
 
-    void Process(TTableReader<TNode>* reader, TTableWriter<TNode>* writer) {
+    void Process(TTableReader<TNode>* reader, TTableWriter<TNode>* writer)
+    {
         for (; reader->IsValid(); reader->Next()) {
             auto row = reader->GetRow();
             TString prevValue;
@@ -419,48 +440,54 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMapperThatUsesEnv : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>, public TJobBaseThatUsesEnv
+class TMapperThatUsesEnv
+    : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
+    , public TJobBaseThatUsesEnv
 {
 public:
     TMapperThatUsesEnv() = default;
-    TMapperThatUsesEnv(const TString& envName)
-        : TJobBaseThatUsesEnv(envName)
+    explicit TMapperThatUsesEnv(TString envName)
+        : TJobBaseThatUsesEnv(std::move(envName))
     { }
 
-    virtual void Do(TReader* reader, TWriter* writer) override {
+    void Do(TReader* reader, TWriter* writer) override
+    {
         TJobBaseThatUsesEnv::Process(reader, writer);
     }
 
     Y_SAVELOAD_JOB(EnvName_);
 };
 
-REGISTER_MAPPER(TMapperThatUsesEnv);
+REGISTER_MAPPER(TMapperThatUsesEnv)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReducerThatUsesEnv : public IReducer<TTableReader<TNode>, TTableWriter<TNode>>, public TJobBaseThatUsesEnv
+class TReducerThatUsesEnv
+    : public IReducer<TTableReader<TNode>, TTableWriter<TNode>>
+    , public TJobBaseThatUsesEnv
 {
 public:
     TReducerThatUsesEnv() = default;
-    TReducerThatUsesEnv(const TString& envName)
-        : TJobBaseThatUsesEnv(envName)
+
+    explicit TReducerThatUsesEnv(TString envName)
+        : TJobBaseThatUsesEnv(std::move(envName))
     { }
 
-    virtual void Do(TReader* reader, TWriter* writer) override {
+    void Do(TReader* reader, TWriter* writer) override {
         TJobBaseThatUsesEnv::Process(reader, writer);
     }
 
     Y_SAVELOAD_JOB(EnvName_);
 };
 
-REGISTER_REDUCER(TReducerThatUsesEnv);
+REGISTER_REDUCER(TReducerThatUsesEnv)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMapperThatWritesCustomStatistics : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
 public:
-    void Do(TReader* /* reader */, TWriter* /* writer */)
+    void Do(TReader* /* reader */, TWriter* /* writer */) override
     {
         WriteCustomStatistics("some/path/to/stat", std::numeric_limits<i64>::min());
         auto node = TNode()
@@ -472,7 +499,7 @@ public:
         WriteCustomStatistics("ambiguous\\/path", i64(1337));
     }
 };
-REGISTER_MAPPER(TMapperThatWritesCustomStatistics);
+REGISTER_MAPPER(TMapperThatWritesCustomStatistics)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -497,7 +524,7 @@ private:
     TString FileName_;
     TString Message_;
 };
-REGISTER_VANILLA_JOB(TVanillaAppendingToFile);
+REGISTER_VANILLA_JOB(TVanillaAppendingToFile)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -521,7 +548,7 @@ public:
         writer->AddRow(TNode()("first", 0)("second", 0), 1);
     }
 };
-REGISTER_VANILLA_JOB(TVanillaWithTableOutput);
+REGISTER_VANILLA_JOB(TVanillaWithTableOutput)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -534,7 +561,7 @@ public:
         ::exit(1);
     }
 };
-REGISTER_VANILLA_JOB(TFailingVanilla);
+REGISTER_VANILLA_JOB(TFailingVanilla)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -562,14 +589,14 @@ private:
     TString FileName_;
     size_t PortCount_;
 };
-REGISTER_VANILLA_JOB(TVanillaWithPorts);
+REGISTER_VANILLA_JOB(TVanillaWithPorts)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReducerThatSumsFirstThreeValues : public IReducer<TTableReader<TNode>, TTableWriter<TNode>>
 {
 public:
-    void Do(TReader* reader, TWriter* writer)
+    void Do(TReader* reader, TWriter* writer) override
     {
         i64 sum = 0;
         auto key = reader->GetRow()["key"];
@@ -583,7 +610,7 @@ public:
         writer->AddRow(TNode()("key", key)("sum", sum));
     }
 };
-REGISTER_REDUCER(TReducerThatSumsFirstThreeValues);
+REGISTER_REDUCER(TReducerThatSumsFirstThreeValues)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -593,7 +620,8 @@ class TMapperThatWritesRowsAndRanges : public ::IMapper<TTableReader<TInputRowTy
 public:
     using TReader = TTableReader<TInputRowTypeType>;
     using TWriter = TNodeWriter;
-    void Do(TReader* reader, TWriter* writer) override {
+    void Do(TReader* reader, TWriter* writer) override
+    {
         for (; reader->IsValid(); reader->Next()) {
             auto row = TNode()
                 ("row_id", reader->GetRowIndex())
@@ -603,10 +631,10 @@ public:
     }
 };
 
-REGISTER_MAPPER(TMapperThatWritesRowsAndRanges<TNode>);
-REGISTER_MAPPER(TMapperThatWritesRowsAndRanges<TYaMRRow>);
-REGISTER_MAPPER(TMapperThatWritesRowsAndRanges<TEmbeddedMessage>);
-REGISTER_MAPPER(TMapperThatWritesRowsAndRanges<NYdlRows::TMessage>);
+REGISTER_MAPPER(TMapperThatWritesRowsAndRanges<TNode>)
+REGISTER_MAPPER(TMapperThatWritesRowsAndRanges<TYaMRRow>)
+REGISTER_MAPPER(TMapperThatWritesRowsAndRanges<TEmbeddedMessage>)
+REGISTER_MAPPER(TMapperThatWritesRowsAndRanges<NYdlRows::TMessage>)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -621,7 +649,7 @@ public:
         }
     }
 };
-REGISTER_MAPPER(TMapperThatNumbersRows);
+REGISTER_MAPPER(TMapperThatNumbersRows)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -635,13 +663,13 @@ public:
         writer->AddRow(TNode()("result", GetOutputTableCount()), 0);
     }
 };
-REGISTER_REDUCER(TReducerThatCountsOutputTables);
+REGISTER_REDUCER(TReducerThatCountsOutputTables)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TIdTRowVer2Mapper : public IMapper<TTableReader<NProtoBuf::Message>, TTableWriter<TRowVer2>>
 {
-    virtual void Do(TReader* reader, TWriter* writer) override
+    void Do(TReader* reader, TWriter* writer) override
     {
         for (auto& cursor : *reader) {
             writer->AddRow(cursor.GetRow<TRowVer2>());
@@ -655,7 +683,8 @@ REGISTER_MAPPER(TIdTRowVer2Mapper)
 
 class TMapperForOrderedDynamicTables : public IMapper<TNodeReader, TNodeWriter>
 {
-    void Do(TReader* reader, TWriter* writer) {
+    void Do(TReader* reader, TWriter* writer) override
+    {
         for (; reader->IsValid(); reader->Next()) {
             auto row = reader->GetRow();
             row["range_index"] = reader->GetRangeIndex();
@@ -702,11 +731,11 @@ Y_UNIT_TEST_SUITE(Operations)
             .AddOutput<TNode>(workingDir + "/output"),
             new TIdMapper);
 
-        auto reader = client->CreateTableReader<TNode>(workingDir + "/output");
-        UNIT_ASSERT(reader->IsValid());
-        UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(), TNode()("NewKey", "key")("Value", "value"));
-        reader->Next();
-        UNIT_ASSERT(!reader->IsValid());
+        auto actual = ReadTable(client, workingDir + "/output");
+        const auto expected = TVector({
+            TNode()("NewKey", "key")("Value", "value"),
+        });
+        UNIT_ASSERT_VALUES_EQUAL(actual, expected);
     }
 
     Y_UNIT_TEST(RenameColumns_Yson)
@@ -854,12 +883,8 @@ Y_UNIT_TEST_SUITE(Operations)
                 .AddInput<TNode>(workingDir + "/input")
                 .AddOutput<TNode>(outputTable),
             new TRangeBasedTIdMapper);
-        auto reader = client->CreateTableReader<TNode>(outputTable);
 
-        TVector<TNode> result;
-        for (const auto& cursor : *reader) {
-            result.push_back(cursor.GetRow());
-        }
+        TVector<TNode> result = ReadTable(client, outputTable);
         UNIT_ASSERT_VALUES_EQUAL(data, result);
     }
 
@@ -879,12 +904,8 @@ Y_UNIT_TEST_SUITE(Operations)
                 .AddInput<TNode>(workingDir + "/input")
                 .AddOutput<TNode>(outputTable),
             new TRangeBasedTIdMapper);
-        auto reader = client->CreateTableReader<TNode>(outputTable);
 
-        TVector<TNode> result;
-        for (const auto& cursor : *reader) {
-            result.push_back(cursor.GetRow());
-        }
+        TVector<TNode> result = ReadTable(client, outputTable);
         UNIT_ASSERT(result.empty());
     }
 
@@ -972,11 +993,9 @@ Y_UNIT_TEST_SUITE(Operations)
             .StderrTablePath(workingDir + "/stderr"),
             new TMapperThatWritesStderr(expectedStderr));
 
-        auto reader = client->CreateTableReader<TNode>(workingDir + "/stderr");
-        UNIT_ASSERT(reader->IsValid());
-        UNIT_ASSERT(reader->GetRow()["data"].AsString().Contains(expectedStderr));
-        reader->Next();
-        UNIT_ASSERT(!reader->IsValid());
+        auto result = ReadTable(client, workingDir + "/stderr");
+        UNIT_ASSERT_VALUES_EQUAL(result.size(), 1);
+        UNIT_ASSERT(result[0]["data"].AsString().Contains(expectedStderr));
     }
 
     Y_UNIT_TEST(CreateDebugOutputTables)
@@ -2068,8 +2087,8 @@ Y_UNIT_TEST_SUITE(Operations)
             .MaxFailedJobCount(1),
             new TIdMapper());
 
-        auto reader = client->CreateTableReader<TNode>(outputPath);
-        UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(), row);
+        auto result = ReadTable(client, outputPath);
+        UNIT_ASSERT_VALUES_EQUAL(result, TVector<TNode>{row});
     }
 
     Y_UNIT_TEST(JobNodeReader_Skiff_Strict)
@@ -2109,21 +2128,20 @@ Y_UNIT_TEST_SUITE(Operations)
 
         client->Create(inTablePath, NT_TABLE, TCreateOptions().Attributes(TNode()("schema", schema.ToNode())));
 
-        const auto row = TNode()("value", TNode::CreateList({TNode(1), TNode(2), TNode(3)}));
+        const auto expected = TVector<TNode>{
+            TNode()("value", TNode::CreateList({TNode(1), TNode(2), TNode(3)})),
+        };
         {
             auto writer = client->CreateTableWriter<TNode>(inTablePath);
-            writer->AddRow(row);
+            for (const auto& row : expected) {
+                writer->AddRow(row);
+            }
             writer->Finish();
         }
         TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Auto;
         client->Map(new TIdMapper(), inTablePath, outTablePath);
-        auto reader = client->CreateTableReader<TNode>(outTablePath);
-        std::vector<TNode> actualRows;
-        for (const auto& cursor : *reader) {
-            actualRows.push_back(cursor.GetRow());
-        }
-
-        UNIT_ASSERT_VALUES_EQUAL(std::vector<TNode>{row}, actualRows);
+        TVector<TNode> actual = ReadTable(client, outTablePath);
+        UNIT_ASSERT_VALUES_EQUAL(expected, actual);
     }
 
     Y_UNIT_TEST(TestSkiffOperationHint)
@@ -2154,12 +2172,71 @@ Y_UNIT_TEST_SUITE(Operations)
             new TIdMapper);
 
         const std::vector<TNode> expected = {TNode()("key", "foo")};
-        auto reader = client->CreateTableReader<TNode>(workingDir + "/output");
-        std::vector<TNode> actual;
-        for (; reader->IsValid(); reader->Next()) {
-            actual.push_back(reader->GetRow());
-        }
+        std::vector<TNode> actual = ReadTable(client, workingDir + "/output");
         UNIT_ASSERT_VALUES_EQUAL(actual, expected);
+    }
+
+    Y_UNIT_TEST(TestComplexTypeMode)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Auto;
+
+        const auto structType = NTi::Struct({
+            {"foo", NTi::String()},
+            {"bar", NTi::Int64()},
+        });
+        const auto tableSchema = TTableSchema()
+            .AddColumn(TColumnSchema().Name("value").Type(structType));
+
+        const auto initialData = std::vector<TNode>{
+            TNode::CreateMap({
+                {
+                    "value",
+                    TNode::CreateMap({
+                        {"foo", "foo-value"},
+                        {"bar", 5},
+                    })
+                }
+            }),
+        };
+
+        {
+            auto writer = client->CreateTableWriter<TNode>(TRichYPath(workingDir + "/input").Schema(tableSchema));
+
+            for (const auto& row : initialData) {
+                writer->AddRow(row);
+            }
+
+            writer->Finish();
+        }
+
+        client->Map(
+            TMapOperationSpec()
+                .InputFormatHints(TFormatHints().ComplexTypeMode(EComplexTypeMode::Positional))
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(workingDir + "/intermediate"),
+            new TIdMapper);
+
+        {
+            const std::vector<TNode> expected = {TNode()("value", TNode::CreateList({"foo-value", 5}))};
+            std::vector<TNode> actual = ReadTable(client, workingDir + "/intermediate");
+            UNIT_ASSERT_VALUES_EQUAL(actual, expected);
+        }
+
+        client->Map(
+            TMapOperationSpec()
+                .OutputFormatHints(TFormatHints().ComplexTypeMode(EComplexTypeMode::Positional))
+                .AddInput<TNode>(workingDir + "/intermediate")
+                .AddOutput<TNode>(TRichYPath(workingDir + "/output").Schema(tableSchema)),
+            new TIdMapper);
+
+        {
+            std::vector<TNode> actual = ReadTable(client, workingDir + "/output");
+            UNIT_ASSERT_VALUES_EQUAL(actual, initialData);
+        }
     }
 
     Y_UNIT_TEST(TestSkiffOperationHintConfigurationConflict)
@@ -2980,13 +3057,9 @@ Y_UNIT_TEST_SUITE(Operations)
             writer->AddRow(TNode()("key", "foo")("value", TNode::CreateEntity()));
             writer->Finish();
         }
-        const std::vector<TNode> expected = {TNode()("key", "foo")};
+        const TVector<TNode> expected = {TNode()("key", "foo")};
         auto readOutputAndRemove = [&] () {
-            auto reader = client->CreateTableReader<TNode>(workingDir + "/output");
-            std::vector<TNode> result;
-            for (; reader->IsValid(); reader->Next()) {
-                result.push_back(reader->GetRow());
-            }
+            auto result = ReadTable(client, workingDir + "/output");
             client->Remove(workingDir + "/output");
             return result;
         };
@@ -3131,11 +3204,9 @@ Y_UNIT_TEST_SUITE(Operations)
                     .AddOutput<TNode>(workingDir + "/output1"),
                 new TReducerThatCountsOutputTables());
 
-                auto reader = client->CreateTableReader<TNode>(workingDir + "/output1");
-                UNIT_ASSERT(reader->IsValid());
-                UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(), TNode()("result", 1));
-                reader->Next();
-                UNIT_ASSERT(!reader->IsValid());
+                auto result = ReadTable(client, workingDir + "/output1");
+                const auto expected = TVector<TNode>{TNode()("result", 1)};
+                UNIT_ASSERT_VALUES_EQUAL(result, expected);
         }
 
         {
@@ -3147,11 +3218,9 @@ Y_UNIT_TEST_SUITE(Operations)
                     .AddOutput<TNode>(workingDir + "/output2"),
                 new TReducerThatCountsOutputTables());
 
-                auto reader = client->CreateTableReader<TNode>(workingDir + "/output1");
-                UNIT_ASSERT(reader->IsValid());
-                UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(), TNode()("result", 2));
-                reader->Next();
-                UNIT_ASSERT(!reader->IsValid());
+                auto actual = ReadTable(client, workingDir + "/output1");
+                const auto expected = TVector<TNode>{TNode()("result", 2)};
+                UNIT_ASSERT_VALUES_EQUAL(actual, expected);
         }
     }
 
@@ -3247,13 +3316,9 @@ Y_UNIT_TEST_SUITE(Operations)
             writer->AddRow(TNode()("key", "foo")("value", "7"));
             writer->Finish();
         }
-        const std::vector<TNode> expected = {TNode()("key", "foo")("value", "7")};
+        const TVector<TNode> expected = {TNode()("key", "foo")("value", "7")};
         auto readOutputAndRemove = [&] () {
-            auto reader = client->CreateTableReader<TNode>(workingDir + "/output");
-            std::vector<TNode> result;
-            for (; reader->IsValid(); reader->Next()) {
-                result.push_back(reader->GetRow());
-            }
+            auto result = ReadTable(client, workingDir + "/output");
             client->Remove(workingDir + "/output");
             return result;
         };
@@ -3303,21 +3368,13 @@ Y_UNIT_TEST_SUITE(Operations)
             writer->AddRow(TNode()("key", "bar"));
             writer->Finish();
         }
-        const std::vector<TNode> expected = {TNode()("key", "bar"), TNode()("key", "foo")};
-        auto readOutput = [&] () {
-            auto reader = client->CreateTableReader<TNode>(workingDir + "/output");
-            std::vector<TNode> result;
-            for (; reader->IsValid(); reader->Next()) {
-                result.push_back(reader->GetRow());
-            }
-            return result;
-        };
+        const TVector<TNode> expected = {TNode()("key", "bar"), TNode()("key", "foo")};
 
         client->Sort(
             workingDir + "/input",
             workingDir + "/output",
             "key");
-        UNIT_ASSERT_VALUES_EQUAL(readOutput(), expected);
+        UNIT_ASSERT_VALUES_EQUAL(ReadTable(client, workingDir + "/output"), expected);
     }
 
     Y_UNIT_TEST(OperationTimeout)
@@ -3447,13 +3504,8 @@ Y_UNIT_TEST_SUITE(Operations)
                 .Format(TFormat::Json()),
             new TCommandRawJob("grep dza"));
 
-        auto reader = client->CreateTableReader<TNode>(outputTable);
-        TVector<TNode> rows;
-        for (const auto& cursor : *reader) {
-            rows.push_back(cursor.GetRow());
-        }
-        UNIT_ASSERT_VALUES_EQUAL(rows.size(), 1);
-        UNIT_ASSERT_VALUES_EQUAL(rows[0], TNode()("a", "koo")("b", "kindzadza"));
+        TVector<TNode> rows = ReadTable(client, outputTable.Path_);
+        UNIT_ASSERT_VALUES_EQUAL(rows, TVector{TNode()("a", "koo")("b", "kindzadza")});
     }
 
     Y_UNIT_TEST(CommandVanillaJob)

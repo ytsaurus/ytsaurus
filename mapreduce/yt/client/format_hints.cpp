@@ -3,8 +3,9 @@
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/interface/operation.h>
 
-namespace NYT {
-namespace NDetail {
+#include <util/string/builder.h>
+
+namespace NYT::NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,6 +45,13 @@ void ApplyFormatHints<TNode>(TFormat* format, const TMaybe<TFormatHints>& format
         format->Config.Attributes()["skip_null_values"] = formatHints->SkipNullValuesForTNode_;
     }
 
+    if (formatHints->ComplexTypeMode_) {
+        Y_ENSURE_EX(
+            format->Config.AsString() == "yson",
+            TApiUsageError() << "ComplexTypeMode option must be used with yson format, actual format: "
+                << format->Config.AsString());
+        format->Config.Attributes()["complex_type_mode"] = ::ToString(*formatHints->ComplexTypeMode_);
+    }
 }
 
 template <>
@@ -70,5 +78,4 @@ void ApplyFormatHints<::google::protobuf::Message>(TFormat* format, const TMaybe
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDetail
-} // namespace NYT
+} // namespace NYT::NDetail

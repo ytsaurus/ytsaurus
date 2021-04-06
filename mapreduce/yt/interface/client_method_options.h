@@ -29,6 +29,16 @@ enum ENodeType : int
 };
 
 ///
+/// @brief Mode of composite type representation in yson.
+///
+/// @see https://yt.yandex-team.ru/docs/description/storage/data_types#yson
+enum class EComplexTypeMode : int
+{
+    Named /* "named" */,
+    Positional /* "positional" */,
+};
+
+///
 /// @brief Options for @ref NYT::ICypressClient::Create
 ///
 /// @see https://yt.yandex-team.ru/docs/api/commands.html#create
@@ -401,6 +411,12 @@ public:
     // Shortcut for enabling all type conversions.
     FLUENT_FIELD_OPTION(bool, EnableTypeConversion);
 
+    ///
+    /// Controls how complex types are represented in TNode or yson-strings.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/description/storage/data_types#yson
+    FLUENT_FIELD_OPTION(EComplexTypeMode, ComplexTypeMode);
+
     /// @brief Apply the patch to the fields.
     ///
     /// Non-default and non-empty values replace the default and empty ones.
@@ -434,14 +450,15 @@ struct TTableWriterOptions
     /// before it reads the whole input so it just drops the connection).
     FLUENT_FIELD_DEFAULT(bool, SingleHttpRequest, false);
 
+    //
     // Allows to change the size of locally buffered rows before flushing to yt
     // Measured in bytes
     // Default value is 64Mb
     FLUENT_FIELD_DEFAULT(size_t, BufferSize, 64 << 20);
 
-    // Allows to fine tune format that is used for writing tables.
-    //
-    // Has no effect when used with raw-writer.
+    /// @brief Allows to fine tune format that is used for writing tables.
+    ///
+    /// Has no effect when used with raw-writer.
     FLUENT_FIELD_OPTION(TFormatHints, FormatHints);
 
     // Try to infer schema of inexistent table from the type of written rows.

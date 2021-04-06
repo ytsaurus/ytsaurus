@@ -170,6 +170,7 @@ class TUserJobInputFormatHintsBase
 public:
     using TSelf = TDerived;
 
+    /// @brief Fine tune input format of the job.
     FLUENT_FIELD_OPTION(TFormatHints, InputFormatHints);
 };
 
@@ -180,6 +181,7 @@ class TUserJobOutputFormatHintsBase
 public:
     using TSelf = TDerived;
 
+    /// @brief Fine tune output format of the job.
     FLUENT_FIELD_OPTION(TFormatHints, OutputFormatHints);
 };
 
