@@ -2,10 +2,10 @@ cimport cython
 from libc.stdlib cimport malloc, free
 from util.generic.vector cimport TVector
 from util.generic.string cimport TString
+from util.string.cast cimport FromString
 from util.system.types cimport i64, ui64, ui32
 
 include 'mapreduce/yt/unwrapper/node.pyx'
-include 'util/string/cast.pxd'
 
 
 cdef extern from "mapreduce/yt/interface/init.h" namespace "NYT":
