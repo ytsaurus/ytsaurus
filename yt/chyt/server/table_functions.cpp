@@ -84,8 +84,11 @@ public:
         return DB::ColumnsDescription(ToNamesAndTypesList(*subquerySpec.ReadSchema, queryContext->Settings->Composite));
     }
 
-    virtual StoragePtr executeImpl(const ASTPtr& /* functionAst */, const Context& context,
-                                   const std::string& /* tableName */, ColumnsDescription /* cached_columns */) const override
+    virtual StoragePtr executeImpl(
+        const ASTPtr& /* functionAst */,
+        const Context& context,
+        const std::string& /* tableName */,
+        ColumnsDescription /* cached_columns */) const override
     {
         return Execute(context, std::move(subquerySpec));
     }

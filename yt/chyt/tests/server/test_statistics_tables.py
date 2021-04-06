@@ -5,6 +5,7 @@ from yt.wrapper import yson
 from base import ClickHouseTestBase, Clique
 
 import re
+import pytest
 
 
 def validate_statistics_row(row, expected):
@@ -308,4 +309,22 @@ class TestStatistisTables(ClickHouseTestBase):
                 ("^SELECT a FROM `//tmp/t2`$", []),
                 ("^SELECT a FROM `//tmp/t1` WHERE a GLOBAL IN \\(.*\\)$", []),
                 ("^SELECT a FROM `//tmp/t0` WHERE a GLOBAL IN \\(.*\\)$", []),
+            ])
+
+    @pytest.mark.xfail(reason="Fails due to KeyError: 'x-clickhouse-query-id'")
+    @authors("max42")
+    def test_distributed_insert_select(self):
+        create("table", "//tmp/t_in", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        rows = [{"a": i} for i in range(100)]
+        write_table("//tmp/t_in", rows, verbose=False)
+        create("table", "//tmp/t_out", attributes={"schema": [{"name": "a", "type": "int64"}]})
+
+        with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
+            query = 'insert into `//tmp/t_out` select a from `//tmp/t_in` ' \
+                    'settings parallel_distributed_insert_select = 1'
+            validate_query_statistics(clique, query, expected_structure=[
+                ("^INSERT INTO `//tmp/t_out` SELECT a FROM `//tmp/t_in` "
+                 "SETTINGS parallel_distributed_insert_select = 1$", [
+                     ("^INSERT INTO `//tmp/t_out` SELECT a from \\(.*\\)$", [])
+                 ])
             ])

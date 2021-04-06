@@ -264,6 +264,11 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
             rows_are_equal = rows == written_rows
             assert rows_are_equal
 
+            with raises_yt_error("Overriding dynamic tables"):
+                clique.make_query(
+                    "insert into `<append=%false>//tmp/t` select number as key, "
+                    "toString(number) as value from numbers(10)")
+
     @authors("dakovalkov")
     def test_write_to_unmounted_dynamic_table(self):
         self._create_simple_dynamic_table("//tmp/t", enable_dynamic_store_read=True)

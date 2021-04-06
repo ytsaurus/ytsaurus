@@ -9,7 +9,6 @@
 #include "logging_transform.h"
 #include "query_analyzer.h"
 #include "query_context.h"
-#include "query_context.h"
 #include "query_registry.h"
 #include "conversion.h"
 #include "storage_base.h"
@@ -34,6 +33,7 @@
 #include <DataStreams/RemoteBlockInputStream.h>
 #include <Interpreters/InterpreterSelectQuery.h>
 #include <Interpreters/ProcessList.h>
+#include <Interpreters/JoinedTables.h>
 #include <DataTypes/DataTypeFactory.h>
 #include <DataTypes/DataTypeNullable.h>
 #include <DataStreams/RemoteQueryExecutor.h>
@@ -43,11 +43,14 @@
 #include <Parsers/ASTLiteral.h>
 #include <Parsers/ASTIdentifier.h>
 #include <Parsers/ASTSelectQuery.h>
+#include <Parsers/ASTInsertQuery.h>
 #include <Parsers/ASTCreateQuery.h>
 #include <Parsers/ASTSampleRatio.h>
 #include <Parsers/queryToString.h>
 #include <Processors/Sources/SourceFromInputStream.h>
 #include <Processors/Sources/RemoteSource.h>
+#include <Processors/ResizeProcessor.h>
+#include <Processors/NullSink.h>
 
 #include <library/cpp/iterator/functools.h>
 
@@ -130,10 +133,17 @@ DB::Pipe CreateRemoteSource(
     std::string query = queryToString(queryAst);
 
     // TODO(max42): can be done only once?
-    DB::Block blockHeader = DB::InterpreterSelectQuery(
-        queryAst,
-        context,
-        DB::SelectQueryOptions(processedStage).analyze()).getSampleBlock();
+    DB::Block blockHeader;
+
+    bool isInsert = queryAst->as<DB::ASTInsertQuery>();
+
+    if (!isInsert) {
+        blockHeader = DB::InterpreterSelectQuery(
+            queryAst,
+            context,
+            DB::SelectQueryOptions(processedStage).analyze())
+            .getSampleBlock();
+    }
 
     auto remoteQueryExecutor = std::make_shared<DB::RemoteQueryExecutor>(
         remoteNode->GetConnection(),
@@ -171,14 +181,14 @@ DB::Pipe CreateRemoteSource(
     bool addTotals = false;
     bool addExtremes = false;
     bool asyncRead = false;
-    if (processedStage == DB::QueryProcessingStage::Complete) {
+    if (!isInsert && processedStage == DB::QueryProcessingStage::Complete) {
         addTotals = queryAst->as<DB::ASTSelectQuery &>().group_by_with_totals;
         addExtremes = context.getSettingsRef().extremes;
     }
 
     auto pipe = createRemoteSourcePipe(remoteQueryExecutor, addAggregationInfo, addTotals, addExtremes, asyncRead);
 
-    pipe.addSimpleTransform([&](const DB::Block & header) {
+    pipe.addSimpleTransform([&] (const DB::Block & header) {
         return std::make_shared<TLoggingTransform>(
             header,
             queryContext->Logger.WithTag("RemoteQueryId: %v, RemoteNode: %v",
@@ -206,12 +216,12 @@ void ValidateReadPermissions(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! This class is extracted for better encapsulation of read() call context.
+//! This class is extracted for better encapsulation of distributed query call context.
 //! Recall that TStorageDistributor may be reused for several subqueries.
-class TDistributionPreparer
+class TDistributedQueryPreparer
 {
 public:
-    TDistributionPreparer(
+    TDistributedQueryPreparer(
         const std::vector<TString>& realColumnNames,
         const std::vector<TString>& virtualColumnNames,
         DB::SelectQueryInfo& queryInfo,
@@ -229,7 +239,7 @@ public:
         , Logger(StorageContext_->Logger)
     { }
 
-    DB::Pipe Prepare()
+    void PrepareSubqueries()
     {
         YT_LOG_DEBUG("Preparing distribution (QueryAST: %v)", *QueryInfo_.query, static_cast<void*>(this));
 
@@ -240,48 +250,38 @@ public:
                 << TErrorAttribute("storage_index", StorageContext_->Index);
         }
 
-        int selectQueryIndex = QueryContext_->SelectQueries.size();
+        SelectQueryIndex_ = QueryContext_->SelectQueries.size();
         QueryContext_->SelectQueries.push_back(TString(queryToString(QueryInfo_.query)));
 
         SpecTemplate_ = TSubquerySpec();
         SpecTemplate_.InitialQuery = SerializeAndMaybeTruncateSubquery(*QueryInfo_.query);
         SpecTemplate_.QuerySettings = StorageContext_->Settings;
 
-        auto cliqueNodes = QueryContext_->Host->GetNodes();
-        if (cliqueNodes.empty()) {
+        CliqueNodes_ = QueryContext_->Host->GetNodes();
+        if (CliqueNodes_.empty()) {
             THROW_ERROR_EXCEPTION("There are no instances available through discovery");
         }
 
         QueryContext_->MoveToPhase(EQueryPhase::Preparation);
 
-        PrepareSubqueries(cliqueNodes.size(), QueryInfo_, Context_);
+        PrepareThreadSubqueries(CliqueNodes_.size(), QueryInfo_, Context_);
 
         YT_LOG_INFO("Starting distribution (RealColumnNames_: %v, NodeCount: %v, MaxThreads: %v, SubqueryCount: %v)",
             RealColumnNames_,
-            cliqueNodes.size(),
+            CliqueNodes_.size(),
             static_cast<ui64>(Context_.getSettings().max_threads),
             Subqueries_.size());
-
-        const auto& settings = Context_.getSettingsRef();
-
-        DB::Context newContext(Context_);
-        newContext.setSettings(PrepareLeafJobSettings(settings));
-
-        // TODO(max42): do we need them?
-        auto throttler = CreateNetThrottler(settings);
-
-        DB::Pipes pipes;
 
         std::sort(Subqueries_.begin(), Subqueries_.end(), [] (const TSubquery& lhs, const TSubquery& rhs) {
             return lhs.Cookie < rhs.Cookie;
         });
 
         // NB: this is important for queries to distribute deterministically across cluster.
-        std::sort(cliqueNodes.begin(), cliqueNodes.end(), [] (const IClusterNodePtr& lhs, const IClusterNodePtr& rhs) {
+        std::sort(CliqueNodes_.begin(), CliqueNodes_.end(), [] (const IClusterNodePtr& lhs, const IClusterNodePtr& rhs) {
             return lhs->GetName().ToString() < rhs->GetName().ToString();
         });
 
-        for (const auto& cliqueNode : cliqueNodes) {
+        for (const auto& cliqueNode : CliqueNodes_) {
             YT_LOG_DEBUG("Clique node (Host: %v, Port: %v, IsLocal: %v)",
                 cliqueNode->GetName().Host,
                 cliqueNode->GetName().Port,
@@ -290,7 +290,7 @@ public:
 
         QueryContext_->MoveToPhase(EQueryPhase::Execution);
 
-        int subqueryCount = std::min(Subqueries_.size(), cliqueNodes.size());
+        int subqueryCount = std::min(Subqueries_.size(), CliqueNodes_.size());
 
         if (subqueryCount == 0) {
             // NB: if we make no subqueries, there will be a tricky issue around schemas.
@@ -324,7 +324,6 @@ public:
 
             YT_VERIFY(!threadSubqueries.Empty() || Subqueries_.empty());
 
-            const auto& cliqueNode = cliqueNodes[index];
             auto subqueryAst = QueryAnalyzer_->RewriteQuery(
                 threadSubqueries,
                 SpecTemplate_,
@@ -332,11 +331,53 @@ public:
                 index,
                 index + 1 == subqueryCount /* isLastSubquery */);
 
-            YT_LOG_DEBUG("Subquery prepared (Node: %v, ThreadSubqueryCount: %v, SubqueryIndex: %v, TotalSubqueryCount: %v)",
-                cliqueNode->GetName().ToString(),
+            YT_LOG_DEBUG(
+                "Subquery prepared (ThreadSubqueryCount: %v, SubqueryIndex: %v, TotalSubqueryCount: %v)",
                 lastSubqueryIndex - firstSubqueryIndex,
                 index,
                 subqueryCount);
+
+            YT_LOG_TRACE(
+                "Subquery AST (SubqueryIndex: %v, AST: %v)",
+                index,
+                subqueryAst);
+
+            SubqueryAsts_.emplace_back(std::move(subqueryAst));
+        }
+
+        YT_LOG_INFO("Finished distribution");
+    }
+
+    void ModifySubqueries(std::function<void(DB::ASTPtr& subqueryAst)> callback)
+    {
+        for (size_t index = 0; index < SubqueryAsts_.size(); ++index) {
+            auto& subqueryAst = SubqueryAsts_[index];
+            callback(subqueryAst);
+            YT_LOG_TRACE(
+                "Modified subquery AST (SubqueryIndex: %v, AST: %v)",
+                index,
+                subqueryAst);
+        }
+    }
+
+    void Fire()
+    {
+        const auto& settings = Context_.getSettingsRef();
+
+        DB::Context newContext(Context_);
+        newContext.setSettings(PrepareLeafJobSettings(settings));
+
+        // TODO(max42): do we need them?
+        auto throttler = CreateNetThrottler(settings);
+
+        for (size_t index = 0; index < SubqueryAsts_.size(); ++index) {
+            const auto& cliqueNode = CliqueNodes_[index];
+            const auto& subqueryAst = SubqueryAsts_[index];
+
+            YT_LOG_DEBUG(
+                "Firing subquery (SubqueryIndex: %v, Node: %v)",
+                index,
+                cliqueNode->GetName().ToString());
 
             auto remoteQueryId = TQueryId::Create();
 
@@ -348,20 +389,96 @@ public:
                 throttler,
                 Context_.getExternalTables(),
                 ProcessedStage_,
-                selectQueryIndex,
+                SelectQueryIndex_,
                 Logger);
 
             QueryContext_->SecondaryQueryIds.push_back(ToString(remoteQueryId));
 
-            pipes.emplace_back(std::move(pipe));
+            Pipes_.emplace_back(std::move(pipe));
         }
-
-        YT_LOG_INFO("Finished distribution");
-
-        return DB::Pipe::unitePipes(std::move(pipes));
     }
 
-    void PrepareSubqueries(
+    DB::Pipes ExtractPipes()
+    {
+        return std::move(Pipes_);
+    }
+
+    DB::QueryPipelinePtr ExtractPipeline(std::function<void()> commitCallback)
+    {
+        // We need some sort of async signal indicating that all distributed
+        // queries have finished. This may be done by introducing out own sink
+        // storing callback which must be called upon all query completion.
+
+        struct TSink
+            : public DB::ISink
+        {
+            TSink(const TLogger& logger, const DB::Block& header, std::function<void()> commitCallback)
+                : DB::ISink(header)
+                , Logger(logger)
+                , CommitCallback_(std::move(commitCallback))
+            { }
+
+            virtual void consume(DB::Chunk /* chunk */) override
+            { }
+
+            virtual void onFinish() override
+            {
+                YT_LOG_DEBUG("All subqueries finished, calling commit callback");
+                CommitCallback_();
+                YT_LOG_DEBUG("Commit callback succeeded");
+            }
+
+            virtual std::string getName() const override
+            {
+                return "CommitSink";
+            }
+
+        private:
+            TLogger Logger;
+            std::function<void()> CommitCallback_;
+        };
+
+        std::vector<DB::QueryPipelinePtr> pipelines;
+        for (size_t index = 0; index < Pipes_.size(); ++index) {
+            auto& pipe = Pipes_[index];
+            auto& pipeline = pipelines.emplace_back(std::make_unique<DB::QueryPipeline>());
+            pipeline->init(std::move(pipe));
+        }
+        auto result = std::make_unique<DB::QueryPipeline>(
+            DB::QueryPipeline::unitePipelines(std::move(pipelines), {}, DB::ExpressionActionsSettings::fromContext(Context_)));
+        result->addTransform(std::make_shared<DB::ResizeProcessor>(DB::Block(), Pipes_.size(), 1));
+        result->setSinks(
+            [=] (const DB::Block & header, DB::QueryPipeline::StreamType) mutable -> DB::ProcessorPtr {
+                return std::make_shared<TSink>(Logger, header, std::move(commitCallback));
+            });
+
+        return result;
+    }
+
+private:
+    std::vector<TString> RealColumnNames_;
+    std::vector<TString> VirtualColumnNames_;
+    const DB::SelectQueryInfo& QueryInfo_;
+    DB::Context Context_;
+    TQueryContext* const QueryContext_;
+    TStorageContext* const StorageContext_;
+    const DB::QueryProcessingStage::Enum ProcessedStage_;
+    const TLogger Logger;
+
+    TSubquerySpec SpecTemplate_;
+    std::vector<TSubquery> Subqueries_;
+    std::optional<TQueryAnalyzer> QueryAnalyzer_;
+    // TODO(max42): YT-11778.
+    // TMiscExt is used for better memory estimation in readers, but it is dropped when using
+    // TInputChunk, so for now we store it explicitly in a map and use when serializing subquery input.
+    THashMap<TChunkId, TRefCountedMiscExtPtr> MiscExtMap_;
+
+    int SelectQueryIndex_ = -1;
+    TClusterNodes CliqueNodes_;
+    std::vector<DB::ASTPtr> SubqueryAsts_;
+    DB::Pipes Pipes_;
+
+    void PrepareThreadSubqueries(
         int subqueryCount,
         const DB::SelectQueryInfo& queryInfo,
         const DB::Context& context)
@@ -472,23 +589,6 @@ public:
         NTracing::GetCurrentTraceContext()->AddTag("chyt.total_chunk_count", totalChunkCount);
     }
 
-private:
-    std::vector<TString> RealColumnNames_;
-    std::vector<TString> VirtualColumnNames_;
-    const DB::SelectQueryInfo& QueryInfo_;
-    const DB::Context& Context_;
-    TQueryContext* const QueryContext_;
-    TStorageContext* const StorageContext_;
-    const DB::QueryProcessingStage::Enum ProcessedStage_;
-    const TLogger Logger;
-
-    TSubquerySpec SpecTemplate_;
-    std::vector<TSubquery> Subqueries_;
-    std::optional<TQueryAnalyzer> QueryAnalyzer_;
-    // TODO(max42): YT-11778.
-    // TMiscExt is used for better memory estimation in readers, but it is dropped when using
-    // TInputChunk, so for now we store it explicitly in a map and use when serializing subquery input.
-    THashMap<TChunkId, TRefCountedMiscExtPtr> MiscExtMap_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -595,22 +695,15 @@ public:
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
 
-        auto* queryContext = GetQueryContext(context);
-        auto* storageContext = queryContext->GetOrRegisterStorageContext(this, context);
-
-        auto [realColumnNames, virtualColumnNames] = DecoupleColumns(columnNames, metadataSnapshot);
-
-        ValidateReadPermissions(realColumnNames, Tables_, queryContext);
-
-        return TDistributionPreparer(
-            realColumnNames,
-            virtualColumnNames,
+        auto preparer = BuildPreparer(
+            columnNames,
+            metadataSnapshot,
             queryInfo,
             context,
-            queryContext,
-            storageContext,
-            processedStage)
-                .Prepare();
+            processedStage);
+        preparer.Fire();
+        auto pipes = preparer.ExtractPipes();
+        return DB::Pipe::unitePipes(std::move(pipes));
     }
 
     virtual bool supportsSampling() const override
@@ -628,6 +721,10 @@ public:
         }
         const auto& table = Tables_.front();
         auto path = table->Path;
+
+        if (table->Dynamic && !table->Path.GetAppend(/*defaultValue*/ true)) {
+            THROW_ERROR_EXCEPTION("Overriding dynamic tables is not supported");
+        }
 
         auto dataTypes = ToDataTypes(*table->Schema, QueryContext_->Settings->Composite, /* enableReadOnlyConversions */ false);
         YT_LOG_DEBUG(
@@ -656,6 +753,81 @@ public:
                 QueryContext_->Client(),
                 QueryContext_->Logger);
         }
+    }
+
+    virtual DB::QueryPipelinePtr distributedWrite(const DB::ASTInsertQuery & query, const DB::Context& context) override
+    {
+        TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
+
+        // First, validate if SELECT part is suitable for distributed INSERT SELECT.
+
+        if (Tables_.size() != 1) {
+            // We are a concatenation; it is impossible to INSERT at all,
+            // but let regular write procedure produce proper error.
+            return nullptr;
+        }
+        const auto& table = Tables_.back();
+
+        auto* selectWithUnion = query.select->as<DB::ASTSelectWithUnionQuery>();
+        if (selectWithUnion->list_of_selects->children.size() != 1) {
+            // There is non-trivial union in SELECT part, fall back to non-distributed INSERT SELECT.
+            return nullptr;
+        }
+
+        auto* select = selectWithUnion->list_of_selects->children[0]->as<DB::ASTSelectQuery>();
+        YT_VERIFY(select);
+
+        DB::JoinedTables joinedTables(DB::Context(context), *select);
+        auto sourceStorage = std::dynamic_pointer_cast<TStorageDistributor>(joinedTables.getLeftTableStorage());
+        if (!sourceStorage) {
+            // Source storage is not a distributor; no distributed INSERT for today, sorry.
+            return nullptr;
+        }
+
+        bool overwrite = !table->Path.GetAppend(/*defaultValue*/ true);
+
+        if (table->Dynamic && overwrite) {
+            // Overwriting dyntables is not supported, let regular write procedure produce proper error.
+            return nullptr;
+        }
+
+        // Then, prepare distributed query; we need to interpret SELECT part in order to obtain some additional information
+        // for preparer (like required columns or select query info).
+
+        DB::InterpreterSelectQuery selectInterpreter(select->clone(), DB::Context(context), DB::SelectQueryOptions());
+        selectInterpreter.execute();
+        auto selectQueryInfo = selectInterpreter.getQueryInfo();
+
+        auto preparer = sourceStorage->BuildPreparer(
+            selectInterpreter.getRequiredColumns(),
+            /* metadataSnapshot */ nullptr,
+            selectQueryInfo,
+            DB::Context(context),
+            DB::QueryProcessingStage::Complete);
+
+        if (overwrite) {
+            // Trying to override destination table in straightforward way would result in lock conflict.
+            // In order to fix that we clear table by ourselves and drop that append = %false flag.
+            table->Path.SetAppend(true);
+            EraseTable(context);
+        }
+
+        // Prepend each SELECT query with proper INSERT INTO ...
+
+        preparer.ModifySubqueries([&] (DB::ASTPtr& subqueryAst) {
+            auto queryClone = query.clone();
+            queryClone->as<DB::ASTInsertQuery>()->table_id.table_name = ToString(table->Path);
+            auto insertAst = queryClone->as<DB::ASTInsertQuery>();
+            insertAst->select = subqueryAst;
+            subqueryAst = queryClone;
+        });
+
+        preparer.Fire();
+
+        // Finally, build pipeline of all those pipes.
+        auto pipeline = preparer.ExtractPipeline([] {});
+
+        return std::move(pipeline);
     }
 
     virtual std::unordered_map<std::string, DB::ColumnSize> getColumnSizes() const
@@ -744,6 +916,51 @@ private:
     std::vector<TTablePtr> Tables_;
     TTableSchemaPtr Schema_;
     TLogger Logger;
+
+    TDistributedQueryPreparer BuildPreparer(
+        const DB::Names& columnNames,
+        DB::StorageMetadataPtr metadataSnapshot,
+        DB::SelectQueryInfo& queryInfo,
+        const DB::Context& context,
+        DB::QueryProcessingStage::Enum processedStage)
+    {
+        if (!metadataSnapshot) {
+            metadataSnapshot = getInMemoryMetadataPtr();
+        }
+
+        auto* queryContext = GetQueryContext(context);
+        auto* storageContext = queryContext->GetOrRegisterStorageContext(this, context);
+
+        auto [realColumnNames, virtualColumnNames] = DecoupleColumns(columnNames, metadataSnapshot);
+
+        ValidateReadPermissions(realColumnNames, Tables_, queryContext);
+
+        TDistributedQueryPreparer preparer(
+            realColumnNames,
+            virtualColumnNames,
+            queryInfo,
+            context,
+            queryContext,
+            storageContext,
+            processedStage);
+        preparer.PrepareSubqueries();
+
+        return std::move(preparer);
+    }
+
+    //! Erase underlying table (assuming that we have single underlying static table)
+    void EraseTable(const DB::Context& context)
+    {
+        auto* queryContext = GetQueryContext(context);
+
+        const auto& client = queryContext->Client();
+        const auto& path = Tables_[0]->Path.GetPath();
+
+        YT_LOG_DEBUG("Erasing table (Path: %v)", path);
+        WaitFor(client->ConcatenateNodes({}, TRichYPath(path)))
+            .ThrowOnError();
+        YT_LOG_DEBUG("Table erased (Path: %v)", path);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
