@@ -163,6 +163,9 @@ struct TExecAttributes
 
     //! Absolute path to job sandbox directory.
     TString SandboxPath;
+    
+    //! Medium of disk acquired by slot.
+    TString MediumName;
 
     struct TGpuDevice
         : public NYTree::TYsonSerializable
@@ -191,6 +194,8 @@ struct TExecAttributes
         RegisterParameter("ip_addresses", IPAddresses)
             .Default();
         RegisterParameter("sandbox_path", SandboxPath)
+            .Default();
+        RegisterParameter("medium_name", MediumName)
             .Default();
         RegisterParameter("gpu_devices", GpuDevices)
             .Default();

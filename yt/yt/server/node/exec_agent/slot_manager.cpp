@@ -151,9 +151,16 @@ ISlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest)
             ++skippedByDiskSpace;
             continue;
         }
-        if (diskRequest.has_medium_index() && diskResources.medium_index() != diskRequest.medium_index()) {
-            ++skippedByMedium;
-            continue;
+        if (diskRequest.has_medium_index()) {
+            if (diskResources.medium_index() != diskRequest.medium_index()) {
+                ++skippedByMedium;
+                continue;
+            }
+        } else {
+            if (diskResources.medium_index() != DefaultMediumIndex_) {
+                ++skippedByMedium;
+                continue;
+            }
         }
         ++feasibleSlotCount;
         if (!bestLocation || bestLocation->GetSessionCount() > location->GetSessionCount()) {
