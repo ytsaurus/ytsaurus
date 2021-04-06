@@ -20,6 +20,7 @@ void TFormatHints::Merge(const TFormatHints& patch)
     MergeMaybe(EnableIntegralTypeConversion_, patch.EnableIntegralTypeConversion_);
     MergeMaybe(EnableIntegralToDoubleConversion_, patch.EnableIntegralToDoubleConversion_);
     MergeMaybe(EnableTypeConversion_, patch.EnableTypeConversion_);
+    MergeMaybe(ComplexTypeMode_, patch.ComplexTypeMode_);
 }
 
 } // namespace NYT

@@ -32,7 +32,8 @@ using namespace NYT::NTesting;
 namespace NYdlRows = mapreduce::yt::tests::native::ydl_lib::row;
 namespace NYdlAllTypes = mapreduce::yt::tests::native::ydl_lib::all_types;
 
-static TString RandomBytes() {
+static TString RandomBytes()
+{
     static TReallyFastRng32 RNG(42);
     ui64 value = RNG.GenRand64();
     return TString((const char*)&value, sizeof(value));
@@ -69,7 +70,8 @@ void Out<TRowWithTypeOptions_Color>(IOutputStream& o, TRowWithTypeOptions_Color 
     o << TRowWithTypeOptions::Color_Name(color);
 }
 
-Y_UNIT_TEST_SUITE(TableIo) {
+Y_UNIT_TEST_SUITE(TableIo)
+{
 
 #define INSTANTIATE_NODE_READER_TESTS(test) \
     Y_UNIT_TEST(test ## _Yson_NonStrict) \
@@ -141,6 +143,7 @@ Y_UNIT_TEST_SUITE(TableIo) {
         reader->Next();
         UNIT_ASSERT(!reader->IsValid());
     }
+
     Y_UNIT_TEST(NonEmptyColumns_Yson)
     {
         TConfigSaverGuard configGuard;
@@ -168,6 +171,7 @@ Y_UNIT_TEST_SUITE(TableIo) {
         reader->Next();
         UNIT_ASSERT(!reader->IsValid());
     }
+
     Y_UNIT_TEST(EmptyColumns_Yson)
     {
         TConfigSaverGuard configGuard;
@@ -194,19 +198,20 @@ Y_UNIT_TEST_SUITE(TableIo) {
         reader->Next();
         UNIT_ASSERT(!reader->IsValid());
     }
+
     Y_UNIT_TEST(MissingColumns_Yson)
     {
         TConfigSaverGuard configGuard;
         TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Yson;
         MissingColumns();
     }
+
     Y_UNIT_TEST(MissingColumns_Skiff)
     {
         TConfigSaverGuard configGuard;
         TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Skiff;
         MissingColumns();
     }
-
 
     void Move(bool strictSchema)
     {
@@ -1753,6 +1758,70 @@ Y_UNIT_TEST_SUITE(TableIo) {
         }
     }
 
+    Y_UNIT_TEST(TestComplexTypeMode)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        auto tablePath = workingDir + "/table";
+
+        const auto structType = NTi::Struct({
+            {"foo", NTi::String()},
+            {"bar", NTi::Int64()},
+        });
+        const auto tableSchema = TTableSchema()
+            .AddColumn(TColumnSchema().Name("value").Type(structType));
+
+        const auto namedData = std::vector<TNode>{
+            TNode::CreateMap({
+                {
+                    "value",
+                    TNode::CreateMap({
+                        {"foo", "foo-value"},
+                        {"bar", 5},
+                    })
+                }
+            }),
+        };
+        const auto positionalData = std::vector<TNode>{
+            TNode::CreateMap({
+                {"value", TNode::CreateList({"foo-value", 5})}
+            })
+        };
+
+        {
+            auto writer = client->CreateTableWriter<TNode>(
+                TRichYPath(tablePath).Schema(tableSchema),
+                TTableWriterOptions()
+                    .FormatHints(TFormatHints().ComplexTypeMode(EComplexTypeMode::Positional))
+            );
+            for (const auto& row : positionalData) {
+                writer->AddRow(row);
+            }
+            writer->Finish();
+        }
+
+        {
+            auto actual = ReadTable(client, tablePath);
+            UNIT_ASSERT_EQUAL(actual, namedData);
+        }
+
+        {
+            auto reader = client->CreateTableReader<TNode>(
+                tablePath,
+                TTableReaderOptions()
+                    .FormatHints(TFormatHints().ComplexTypeMode(EComplexTypeMode::Positional))
+            );
+
+            TVector<TNode> actual;
+            for (const auto& cursor : *reader) {
+                actual.push_back(cursor.GetRow());
+            }
+
+            UNIT_ASSERT_VALUES_EQUAL(actual, positionalData);
+        }
+    }
+
     // Checks we are able to read the whole table even if the connections
     // are aborted after every row. It emulates reading of a huge table
     // during which the server can drop the connections every now and then.
@@ -1784,7 +1853,9 @@ Y_UNIT_TEST_SUITE(TableIo) {
                 const auto& row = reader->GetRow();
                 UNIT_ASSERT(AllOf(
                     row["foo"].AsString(),
-                    std::bind(std::equal_to<char>(), std::placeholders::_1, i + 'a')));
+                    [&i] (char c) {
+                        return c == i + 'a';
+                    }));
 
                 abortedRequestCount += TAbortableHttpResponse::AbortAll("/read_table");
 
@@ -1912,7 +1983,8 @@ Y_UNIT_TEST_SUITE(TableIo) {
     }
 }
 
-Y_UNIT_TEST_SUITE(BlobTableIo) {
+Y_UNIT_TEST_SUITE(BlobTableIo)
+{
     Y_UNIT_TEST(Simple)
     {
         const std::vector<TString> testDataParts = {
@@ -1939,7 +2011,7 @@ Y_UNIT_TEST_SUITE(BlobTableIo) {
                 row["part_index"] = static_cast<i64>(i);
                 row["data"] = testDataParts[i];
                 writer->AddRow(row);
-            };
+            }
 
             {
                 TNode row;
@@ -1993,7 +2065,7 @@ Y_UNIT_TEST_SUITE(BlobTableIo) {
                 row["part_index"] = static_cast<i64>(i);
                 row["data"] = testDataParts[i];
                 writer->AddRow(row);
-            };
+            }
 
             {
                 TNode row;
@@ -2056,7 +2128,7 @@ Y_UNIT_TEST_SUITE(BlobTableIo) {
                 row["part_index"] = static_cast<i64>(i);
                 row["data"] = testDataParts[i];
                 writer->AddRow(row);
-            };
+            }
 
             {
                 TNode row;
@@ -2083,14 +2155,14 @@ Y_UNIT_TEST_SUITE(BlobTableIo) {
             auto outage = TAbortableHttpResponse::StartOutage(
                 "/read_blob_table",
                 TOutageOptions().LengthLimit(16 * 1024 * 1024));
-            auto reader = client->CreateBlobTableReader(workingDir + "/table", {"myfile_big"});;
+            auto reader = client->CreateBlobTableReader(workingDir + "/table", {"myfile_big"});
             UNIT_ASSERT_EQUAL(reader->ReadAll(), expected);
         }
         {
             auto outage = TAbortableHttpResponse::StartOutage(
                 "/read_blob_table",
                 TOutageOptions().LengthLimit(1 * 1024 * 1024));
-            auto reader = client->CreateBlobTableReader(workingDir + "/table", {"myfile_big"});;
+            auto reader = client->CreateBlobTableReader(workingDir + "/table", {"myfile_big"});
             UNIT_ASSERT_EQUAL(reader->ReadAll(), expected);
         }
     }
@@ -2119,7 +2191,7 @@ Y_UNIT_TEST_SUITE(BlobTableIo) {
                 row["part_index"] = static_cast<i64>(i);
                 row["data"] = testDataParts[i];
                 writer->AddRow(row);
-            };
+            }
 
             writer->Finish();
         }
