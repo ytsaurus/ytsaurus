@@ -219,6 +219,57 @@ class TestMutations(ClickHouseTestBase):
             ]
 
     @authors("max42")
+    def test_distributed_insert_select(self):
+        create("table", "//tmp/t_in", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        rows = [{"a": i} for i in range(100)]
+        write_table("//tmp/t_in", rows, verbose=False)
+        create("table", "//tmp/t_out", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        with Clique(5, config_patch={"clickhouse": {"settings": {"max_threads": 1}},
+                                     "yt": {"subquery": {"min_data_weight_per_subquery": 1}}}) as clique:
+            clique.make_query("insert into `//tmp/t_out` select * from `//tmp/t_in`")
+            assert sorted(read_table("//tmp/t_out", verbose=False)) == rows
+            assert get("//tmp/t_out/@chunk_count") == 1
+
+            # Distributed INSERT is suitable in cases below.
+            write_table("//tmp/t_out", [])
+
+            clique.make_query("insert into `//tmp/t_out` select * from `//tmp/t_in`",
+                              settings={"parallel_distributed_insert_select": 1})
+            assert sorted(read_table("//tmp/t_out", verbose=False)) == rows
+            assert get("//tmp/t_out/@chunk_count") == 5
+
+            clique.make_query("insert into `//tmp/t_out` select * from `//tmp/t_in`",
+                              settings={"parallel_distributed_insert_select": 1})
+            assert sorted(read_table("//tmp/t_out", verbose=False)) == sorted(rows + rows)
+            assert get("//tmp/t_out/@chunk_count") == 10
+
+            clique.make_query("insert into `<append=%false>//tmp/t_out` select * from `//tmp/t_in`",
+                              settings={"parallel_distributed_insert_select": 1})
+            assert sorted(read_table("//tmp/t_out", verbose=False)) == rows
+            assert get("//tmp/t_out/@chunk_count") == 5
+
+            # Distributed INSERT produces underaggregated result, but we did our best.
+            write_table("//tmp/t_out", [])
+            clique.make_query("insert into `//tmp/t_out` select sum(a) from `//tmp/t_in`",
+                              settings={"parallel_distributed_insert_select": 1})
+            aggregated_rows = read_table("//tmp/t_out")
+            assert sum(row["a"] for row in aggregated_rows) == sum([row["a"] for row in rows])
+
+            # Distributed INSERT is not suitable for cases below.
+            with raises_yt_error(QueryFailedError):
+                clique.make_query("insert into concatYtTables(`//tmp/t_out`, `//tmp/t_out`) select * from `//tmp/t_in`")
+
+            clique.make_query("insert into `<append=%false>//tmp/t_out` select * from `//tmp/t_in` "
+                              "union all select * from `//tmp/t_in`",
+                              settings={"parallel_distributed_insert_select": 1})
+            assert sorted(read_table("//tmp/t_out", verbose=False)) == sorted(rows + rows)
+            assert get("//tmp/t_out/@chunk_count") == 1
+
+            clique.make_query("insert into `<append=%false>//tmp/t_out` select 1 union all select 2 union all select 3")
+            assert sorted(read_table("//tmp/t_out", verbose=False)) == [{"a": 1}, {"a": 2}, {"a": 3}]
+            assert get("//tmp/t_out/@chunk_count") == 1
+
+    @authors("max42")
     def test_create_table_simple(self):
         with Clique(1, config_patch={"yt": {"create_table_default_attributes": {"foo": 42}}}) as clique:
             clique.make_query(
