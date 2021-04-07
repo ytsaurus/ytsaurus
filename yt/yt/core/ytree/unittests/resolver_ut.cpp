@@ -67,6 +67,14 @@ TEST(TYPathResolver, GetString)
     EXPECT_NULL(TryGetString("{key3=2;key4=\"s\"}", "/key2"));
 }
 
+TEST(TYPathResolver, Attribute)
+{
+    EXPECT_VALUE("x", TryGetString("{key=1;value=x;}", "/value"));
+    EXPECT_VALUE("x", TryGetString("{key=<attr=c>1;value=x;}", "/value"));
+    EXPECT_VALUE("x", TryGetString("[<attr=a>1;2;x]", "/2"));
+    EXPECT_VALUE(1, TryGetInt64("[<attr=a>1;2;x]", "/0"));
+}
+
 TEST(TYPathResolver, InvalidYPath)
 {
     EXPECT_THROW(TryGetInt64("{key3=2;key4=5}", "//"), std::exception);
