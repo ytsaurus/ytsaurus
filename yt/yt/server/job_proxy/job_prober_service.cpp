@@ -33,7 +33,7 @@ class TJobProberService
     : public TServiceBase
 {
 public:
-    TJobProberService(IJobProbe* jobProxy, IInvokerPtr controlInvoker)
+    TJobProberService(IJobProbePtr jobProxy, IInvokerPtr controlInvoker)
         : TServiceBase(
             controlInvoker,
             TJobProberServiceProxy::GetDescriptor(),
@@ -48,11 +48,11 @@ public:
     }
 
 private:
-    IJobProbe* JobProxy_;
+    TWeakPtr<IJobProbe> JobProxy_;
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, DumpInputContext)
     {
-        auto chunkIds = JobProxy_->DumpInputContext();
+        auto chunkIds = GetJobProxy()->DumpInputContext();
         context->SetResponseInfo("ChunkIds: %v", chunkIds);
 
         ToProto(response->mutable_chunk_ids(), chunkIds);
@@ -61,7 +61,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, GetStderr)
     {
-        auto stderrData = JobProxy_->GetStderr();
+        auto stderrData = GetJobProxy()->GetStderr();
 
         response->set_stderr_data(stderrData);
         context->Reply();
@@ -78,7 +78,7 @@ private:
             ConvertToYsonString(parameters, EYsonFormat::Text),
             jobShellDescriptor.Subcontainer);
 
-        auto result = JobProxy_->PollJobShell(jobShellDescriptor, parameters);
+        auto result = GetJobProxy()->PollJobShell(jobShellDescriptor, parameters);
         response->set_result(result.ToString());
         context->Reply();
     }
@@ -87,7 +87,7 @@ private:
     {
         Y_UNUSED(response);
 
-        JobProxy_->Interrupt();
+        GetJobProxy()->Interrupt();
 
         context->Reply();
     }
@@ -96,13 +96,22 @@ private:
     {
         Y_UNUSED(response);
 
-        JobProxy_->Fail();
+        GetJobProxy()->Fail();
 
         context->Reply();
     }
+
+    IJobProbePtr GetJobProxy()
+    {
+        auto jobProxy = JobProxy_.Lock();
+        if (!jobProxy) {
+            THROW_ERROR_EXCEPTION("Job is missing");
+        }
+        return jobProxy;
+    }
 };
 
-IServicePtr CreateJobProberService(IJobProbe* jobProbe, IInvokerPtr controlInvoker)
+IServicePtr CreateJobProberService(IJobProbePtr jobProbe, IInvokerPtr controlInvoker)
 {
     return New<TJobProberService>(jobProbe, controlInvoker);
 }
