@@ -251,25 +251,6 @@ func encodeAny(w *Writer, value interface{}) (err error) {
 	case RawValue:
 		w.RawNode([]byte(vv))
 
-	case ValueWithAttrs:
-		if len(vv.Attrs) != 0 {
-			w.BeginAttrs()
-
-			for k, attr := range vv.Attrs {
-				w.MapKeyString(k)
-
-				if err = encodeAny(w, attr); err != nil {
-					return err
-				}
-			}
-
-			w.EndAttrs()
-		}
-
-		if err = encodeAny(w, vv.Value); err != nil {
-			return err
-		}
-
 	case map[string]interface{}:
 		w.BeginMap()
 		for k, item := range vv {
@@ -376,7 +357,7 @@ func encodeReflect(w *Writer, value reflect.Value) error {
 
 		return encodeAny(w, value.Elem().Interface())
 	case reflect.Map:
-		return encodeReflectMap(w, value)
+		return encodeReflectMap(w, value, false)
 	}
 
 	return fmt.Errorf("yson: type %T not supported", value.Interface())
@@ -387,7 +368,7 @@ var (
 	binaryMarshalerType = reflect.TypeOf((*encoding.BinaryMarshaler)(nil)).Elem()
 )
 
-func encodeReflectMap(w *Writer, value reflect.Value) (err error) {
+func encodeReflectMap(w *Writer, value reflect.Value, attrs bool) (err error) {
 	switch value.Type().Key().Kind() {
 	case reflect.String:
 	default:
@@ -399,7 +380,11 @@ func encodeReflectMap(w *Writer, value reflect.Value) (err error) {
 		}
 	}
 
-	w.BeginMap()
+	if !attrs {
+		w.BeginMap()
+	} else {
+		w.BeginAttrs()
+	}
 
 	mr := value.MapRange()
 	for mr.Next() {
@@ -412,7 +397,11 @@ func encodeReflectMap(w *Writer, value reflect.Value) (err error) {
 		}
 	}
 
-	w.EndMap()
+	if !attrs {
+		w.EndMap()
+	} else {
+		w.EndAttrs()
+	}
 	return w.Err()
 }
 
@@ -492,6 +481,10 @@ func encodeReflectStruct(w *Writer, value reflect.Value) (err error) {
 		}
 
 		w.EndAttrs()
+	} else if t.attrs != nil {
+		if err = encodeReflectMap(w, value.FieldByIndex(t.attrs.index), true); err != nil {
+			return
+		}
 	}
 
 	if t.value != nil {

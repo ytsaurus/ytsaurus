@@ -11,6 +11,7 @@ type Tag struct {
 	Omitempty bool
 	Value     bool
 	Attr      bool
+	Attrs     bool
 	Key       bool
 }
 
@@ -44,6 +45,9 @@ func ParseTag(fieldName string, fieldTag reflect.StructTag) (tag *Tag, skip bool
 			tag.Name = ""
 		case "attr":
 			tag.Attr = true
+		case "attrs":
+			tag.Attrs = true
+			tag.Name = ""
 		}
 	}
 
