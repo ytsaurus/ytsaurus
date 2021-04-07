@@ -13,6 +13,7 @@ import (
 func New() (*logzap.Logger, error) {
 	conf := zap.NewProductionConfig()
 	conf.Level.SetLevel(zap.DebugLevel)
+	conf.Sampling = nil
 	conf.DisableStacktrace = true
 	conf.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	conf.OutputPaths = []string{"stderr"}
