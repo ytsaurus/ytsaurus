@@ -1883,6 +1883,126 @@ TEST_F(TMultiLockSortedDynamicStoreTest, SerializeSnapshot1)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAtomicSortedDynamicStoreTest
+    : public TSingleLockSortedDynamicStoreTest
+{
+protected:
+    virtual TTableSchemaPtr GetSchema() const
+    {
+        // NB: Key columns must go first.
+        return New<TTableSchema>(std::vector{
+            TColumnSchema(TColumnSchema("key", EValueType::Int64).SetSortOrder(ESortOrder::Ascending)),
+            TColumnSchema(TColumnSchema("a", EValueType::Int64).SetLock(TString("l1"))),
+            TColumnSchema(TColumnSchema("b", EValueType::Int64).SetLock(TString("l1"))),
+            TColumnSchema(TColumnSchema("c", EValueType::Int64).SetLock(TString("l1"))),
+            TColumnSchema(TColumnSchema("d", EValueType::Int64).SetLock(TString("l1"))),
+            TColumnSchema(TColumnSchema("e", EValueType::Int64).SetLock(TString("l1"))),
+            TColumnSchema(TColumnSchema("f", EValueType::Int64).SetLock(TString("l1"))),
+            TColumnSchema(TColumnSchema("g", EValueType::Int64).SetLock(TString("l1"))),
+            TColumnSchema(TColumnSchema("x", EValueType::Int64).SetLock(TString("l2"))),
+            TColumnSchema(TColumnSchema("y", EValueType::Int64).SetLock(TString("l3"))),
+            TColumnSchema(TColumnSchema("z", EValueType::Int64).SetLock(TString("l4")))
+        });
+    }
+
+    std::atomic<bool> Stopped = {false};
+
+    void WriteRows()
+    {
+        auto tx1 = StartTransaction();
+        auto tx2 = StartTransaction();
+        auto tx3 = StartTransaction();
+        auto tx4 = StartTransaction();
+
+        i64 cellValue = std::rand() % 100;
+        auto rowString = Format("key=1;a=%v;b=%v;c=%v;d=%v;e=%v;f=%v;g=%v;",
+            cellValue,cellValue, cellValue, cellValue, cellValue, cellValue, cellValue);
+
+        TLockMask lockMask;
+        auto row1 = WriteRow(tx1.get(), BuildRow(rowString, false), false, lockMask);
+        auto row2 = WriteRow(tx2.get(), BuildRow("key=1;x=1;", false), false, lockMask);
+        auto row3 = WriteRow(tx3.get(), BuildRow("key=1;y=2;", false), false, lockMask);
+        auto row4 = WriteRow(tx4.get(), BuildRow("key=1;z=3;", false), false, lockMask);
+
+
+        PrepareTransaction(tx1.get());
+        PrepareRow(tx1.get(), row1);
+
+        PrepareTransaction(tx2.get());
+        PrepareRow(tx2.get(), row2);
+
+        PrepareTransaction(tx3.get());
+        PrepareRow(tx3.get(), row3);
+
+        PrepareTransaction(tx4.get());
+        PrepareRow(tx4.get(), row4);
+
+        // Generate timestamps.
+        CommitTransaction(tx1.get());
+        CommitTransaction(tx2.get());
+        CommitTransaction(tx3.get());
+        CommitTransaction(tx4.get());
+
+        CommitRow(tx4.get(), row4);
+        CommitRow(tx3.get(), row3);
+        CommitRow(tx2.get(), row2);
+        CommitRow(tx1.get(), row1);
+    }
+
+    void ReadRowAndCheck()
+    {
+        auto key = BuildKey("1");
+        auto owningRow = LookupRow(key, AsyncLastCommittedTimestamp);
+
+        TUnversionedRow row = owningRow;
+        for (int i = 2; i < 8; ++i) {
+            EXPECT_EQ(row[1], row[i]);
+        }
+    }
+
+    virtual void SetUp() override
+    {
+        TSingleLockSortedDynamicStoreTest::SetUp();
+    }
+};
+
+TEST_F(TAtomicSortedDynamicStoreTest, ReadAtomicity)
+{
+    // First lock group consists of self verified columns (values must be equal after each transaction write).
+    // Other lock groups consists of one column.
+    // Write any value in other lock groups.
+
+    WriteRows();
+
+    using TThis = typename std::remove_reference<decltype(*this)>::type;
+    TThread thread1([] (void* opaque) -> void* {
+        auto this_ = static_cast<TThis*>(opaque);
+        while (!this_->Stopped.load()) {
+            this_->WriteRows();
+        }
+        return nullptr;
+    }, this);
+    TThread thread2([] (void* opaque) -> void* {
+        auto this_ = static_cast<TThis*>(opaque);
+        while (!this_->Stopped.load()) {
+            this_->ReadRowAndCheck();
+        }
+        return nullptr;
+    }, this);
+
+    thread1.Start();
+    thread2.Start();
+
+    Sleep(TDuration::Seconds(2));
+
+    Stopped.store(true);
+
+    thread1.Join();
+    thread2.Join();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNonAtomicSortedDynamicStoreTest
     : public TSingleLockSortedDynamicStoreTest
 {

@@ -216,6 +216,22 @@ protected:
 
     TLockMask LockMask_;
 
+    TTimestamp FillLatestWriteTimestamps(TSortedDynamicRow dynamicRow, TTimestamp* latestWriteTimestampPerLock)
+    {
+        auto* lock = dynamicRow.BeginLocks(KeyColumnCount_);
+        auto maxTimestamp = NullTimestamp;
+        for (int index = 0; index < ColumnLockCount_; ++index, ++lock) {
+            auto list = TSortedDynamicRow::GetWriteRevisionList(*lock);
+            const auto* revisionPtr = SearchByTimestamp(list, Timestamp_);
+
+            auto timestamp = revisionPtr
+                ? Store_->TimestampFromRevision(*revisionPtr)
+                : NullTimestamp;
+            latestWriteTimestampPerLock[index] = timestamp;
+            maxTimestamp = std::max(maxTimestamp, timestamp);
+        }
+        return maxTimestamp;
+    }
 
     TTimestamp GetLatestWriteTimestamp(TSortedDynamicRow dynamicRow)
     {
@@ -236,7 +252,9 @@ protected:
     {
         auto list = dynamicRow.GetDeleteRevisionList(KeyColumnCount_, ColumnLockCount_);
         const auto* revisionPtr = SearchByTimestamp(list, Timestamp_);
-        return  revisionPtr ? Store_->TimestampFromRevision(*revisionPtr) : NullTimestamp;
+        return revisionPtr
+            ? Store_->TimestampFromRevision(*revisionPtr)
+            : NullTimestamp;
     }
 
 
@@ -245,7 +263,8 @@ protected:
         Store_->WaitOnBlockedRow(dynamicRow, LockMask_, Timestamp_);
 
         // Prepare timestamps.
-        auto latestWriteTimestamp = GetLatestWriteTimestamp(dynamicRow);
+        std::array<TTimestamp, MaxColumnLockCount> latestWriteTimestampPerLock;
+        auto latestWriteTimestamp = FillLatestWriteTimestamps(dynamicRow, latestWriteTimestampPerLock.data());
         auto latestDeleteTimestamp = GetLatestDeleteTimestamp(dynamicRow);
 
         if (latestWriteTimestamp == NullTimestamp && latestDeleteTimestamp == NullTimestamp) {
@@ -272,6 +291,10 @@ protected:
             // two steps there might be "phantom" values present in the row.
             // To work this around, we cap the value lists by #latestWriteTimestamp to make sure that
             // no "phantom" value is listed.
+
+            int lockIndex = Store_->ColumnIndexToLockIndex_[index];
+            auto latestWriteTimestamp = latestWriteTimestampPerLock[lockIndex];
+
             auto list = dynamicRow.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
             if (schemaColumns[index].Aggregate()) {
                 ExtractByTimestamp(
@@ -329,24 +352,30 @@ protected:
     {
         Store_->WaitOnBlockedRow(dynamicRow, LockMask_, Timestamp_);
 
+        std::array<TTimestamp, MaxColumnLockCount> latestWriteTimestampPerLock;
+        FillLatestWriteTimestamps(dynamicRow, latestWriteTimestampPerLock.data());
+
         // Prepare values and write timestamps.
         VersionedValues_.clear();
         WriteTimestamps_.clear();
         for (int columnIndex = KeyColumnCount_; columnIndex < SchemaColumnCount_; ++columnIndex) {
-            for (auto list = dynamicRow.GetFixedValueList(columnIndex, KeyColumnCount_, ColumnLockCount_);
-                 list;
-                 list = list.GetSuccessor())
-            {
-                for (int itemIndex = UpperBoundByTimestamp(list, Timestamp_) - 1; itemIndex >= 0; --itemIndex) {
-                    const auto& value = list[itemIndex];
-                    ui32 revision = value.Revision;
-                    if (revision <= Revision_) {
-                        VersionedValues_.push_back(TVersionedValue());
-                        ProduceVersionedValue(&VersionedValues_.back(), columnIndex, value);
-                        WriteTimestamps_.push_back(Store_->TimestampFromRevision(revision));
-                    }
-                }
-            }
+            int lockIndex = Store_->ColumnIndexToLockIndex_[columnIndex];
+            auto latestWriteTimestamp = latestWriteTimestampPerLock[lockIndex];
+            auto list = dynamicRow.GetFixedValueList(columnIndex, KeyColumnCount_, ColumnLockCount_);
+
+            ExtractByTimestamp(
+                    list,
+                    NullTimestamp,
+                    latestWriteTimestamp,
+                    [&] (const TDynamicValue& value) {
+                        if (value.Revision > Revision_) {
+                            return;
+                        }
+
+                        auto* versionedValue = &VersionedValues_.emplace_back();
+                        ProduceVersionedValue(versionedValue, columnIndex, value);
+                        WriteTimestamps_.push_back(versionedValue->Timestamp);
+                    });
         }
         std::sort(WriteTimestamps_.begin(), WriteTimestamps_.end(), std::greater<TTimestamp>());
         WriteTimestamps_.erase(
