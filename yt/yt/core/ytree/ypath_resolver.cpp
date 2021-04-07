@@ -174,6 +174,9 @@ public:
                     break;
 
                 case EExpectedItem::BeginMap:
+                case EExpectedItem::Key:
+                case EExpectedItem::ListItem:
+                case EExpectedItem::Value:
                     break;
 
                 default:
@@ -226,7 +229,7 @@ private:
     template <typename T>
     void OnValue(const T& t)
     {
-        if (Expected_ == EExpectedItem::Value) {
+        if (CurrentDepth_ == PathDepth_ && Expected_ == EExpectedItem::Value) {
             Result_ = t;
             Parser_.Stop();
         }
@@ -234,7 +237,7 @@ private:
 
     void OnStringValue(TStringBuf t)
     {
-        if (Expected_ == EExpectedItem::Value) {
+        if (CurrentDepth_ == PathDepth_ && Expected_ == EExpectedItem::Value) {
             Result_ = TString(t);
             Parser_.Stop();
         }
