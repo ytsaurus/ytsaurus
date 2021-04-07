@@ -175,8 +175,8 @@ class Toucher(object):
 def spec_option(description=None, nested_spec_builder=None):
     def spec_method_decorator(func):
         @functools.wraps(func)
-        def spec_method(self, value):
-            return func(self, value)
+        def spec_method(self, *args, **kwargs):
+            return func(self, *args, **kwargs)
         spec_method.description = description
         spec_method.__doc__ = description
         spec_method.nested_spec_builder = nested_spec_builder
