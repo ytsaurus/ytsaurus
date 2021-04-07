@@ -20,7 +20,9 @@ message TReqCreateChunks
         optional bool movable = 5 [default = true];
         required bool vital = 6;
         required int32 medium_index = 7;
-        required int64 chunk_counter = 8;
+        required NYT.NProto.TGuid job_id = 9;
+
+        reserved 8;
     }
 
     repeated TSubrequest subrequests = 2;

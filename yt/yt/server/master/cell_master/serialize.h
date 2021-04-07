@@ -120,6 +120,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChunkConsistentPlacementForDynamicTables)                     (1521))  // babenko
     // 21.2 starts here.
     ((MasterMergeJobs)                                              (1600))  // aleksandra-zh
+    ((ChunkCounterInMasterMergeJobsIsNoMore)                        (1601))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////
