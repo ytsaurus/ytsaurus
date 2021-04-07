@@ -450,35 +450,6 @@ TVersionedRowMerger::TVersionedRowMerger(
     Cleanup();
 }
 
-void TVersionedRowMerger::AddPartialRow(TVersionedRow row)
-{
-    if (!row) {
-        return;
-    }
-
-    if (!Started_) {
-        Started_ = true;
-        YT_ASSERT(row.GetKeyCount() == KeyColumnCount_);
-        for (int index = 0; index < ColumnIds_.size(); ++index) {
-            int id = ColumnIds_[index];
-            if (id < KeyColumnCount_) {
-                YT_ASSERT(index < Keys_.size());
-                Keys_.data()[index] = row.BeginKeys()[id];
-            }
-        }
-    }
-
-    PartialValues_.insert(
-        PartialValues_.end(),
-        row.BeginValues(),
-        row.EndValues());
-
-    DeleteTimestamps_.insert(
-        DeleteTimestamps_.end(),
-        row.BeginDeleteTimestamps(),
-        row.EndDeleteTimestamps());
-}
-
 void TVersionedRowMerger::AddPartialRow(TVersionedRow row, TTimestamp upperTimestampLimit)
 {
     if (!row) {
@@ -499,8 +470,7 @@ void TVersionedRowMerger::AddPartialRow(TVersionedRow row, TTimestamp upperTimes
 
     for (auto it = row.BeginValues(); it != row.EndValues(); ++it) {
         if (it->Timestamp < upperTimestampLimit) {
-        PartialValues_.push_back(*it);
-            continue;
+            PartialValues_.push_back(*it);
         }
     }
 

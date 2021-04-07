@@ -166,6 +166,13 @@ TCachedRowPtr BuildCachedRow(TAlloc* allocator, TRange<NTableClient::TVersionedR
     std::sort(versionedRow.BeginWriteTimestamps(), versionedRow.EndWriteTimestamps(), std::greater<NTableClient::TTimestamp>());
     std::sort(versionedRow.BeginDeleteTimestamps(), versionedRow.EndDeleteTimestamps(), std::greater<NTableClient::TTimestamp>());
 
+    std::sort(
+        versionedRow.BeginValues(),
+        versionedRow.EndValues(),
+        [&] (const NTableClient::TVersionedValue& lhs, const NTableClient::TVersionedValue& rhs) {
+            return lhs.Id == rhs.Id ? lhs.Timestamp > rhs.Timestamp : lhs.Id < rhs.Id;
+        });
+
     cachedRow->Hash = GetFarmFingerprint(versionedRow.BeginKeys(), versionedRow.EndKeys());
     cachedRow->RetainedTimestamp = retainedTimestamp;
 
