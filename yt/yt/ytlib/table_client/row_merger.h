@@ -104,8 +104,7 @@ public:
         bool mergeRowsOnFlush,
         bool mergeDeletionsOnFlush = false);
 
-    void AddPartialRow(TVersionedRow row);
-    void AddPartialRow(TVersionedRow row, TTimestamp upperTimestampLimit);
+    void AddPartialRow(TVersionedRow row, TTimestamp upperTimestampLimit = MaxTimestamp);
     TVersionedRow BuildMergedRow();
     void Reset();
 

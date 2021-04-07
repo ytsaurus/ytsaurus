@@ -749,7 +749,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             // Discard cached rows with revision not greater than lastStoreTimestamp.
             auto currentFlushIndex = rowCache->FlushIndex.load(std::memory_order_acquire);
             // Check that stores are flushed in proper order.
-            // Revsion is equal if retrying flush.
+            // Revisions are equal if retrying flush.
             YT_VERIFY(currentFlushIndex <= storeFlushIndex);
             rowCache->FlushIndex.store(storeFlushIndex, std::memory_order_release);
         }

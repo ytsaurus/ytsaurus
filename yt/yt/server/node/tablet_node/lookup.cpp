@@ -159,13 +159,11 @@ public:
             auto asyncReadSessions = CreateReadSessions(
                 &DynamicEdenSessions_,
                 dynamicEdenStores,
-                LookupKeys_,
-                UseLookupCache_);
+                LookupKeys_);
             auto otherAsyncReadSessions = CreateReadSessions(
                 &ChunkEdenSessions_,
                 chunkEdenStores,
-                ChunkLookupKeys_,
-                UseLookupCache_);
+                ChunkLookupKeys_);
             asyncReadSessions.insert(asyncReadSessions.end(), otherAsyncReadSessions.begin(), otherAsyncReadSessions.end());
 
             ParallelLookupInPartitions(std::move(asyncReadSessions), onPartialRow, onRow);
@@ -173,8 +171,7 @@ public:
             auto dynamicEdenReadSessions = CreateReadSessions(
                 &DynamicEdenSessions_,
                 dynamicEdenStores,
-                LookupKeys_,
-                UseLookupCache_);
+                LookupKeys_);
             if (!dynamicEdenReadSessions.empty()) {
                 WaitFor(AllSucceeded(dynamicEdenReadSessions))
                     .ThrowOnError();
@@ -182,8 +179,7 @@ public:
             auto chunkEdenReadSessions = CreateReadSessions(
                 &ChunkEdenSessions_,
                 chunkEdenStores,
-                ChunkLookupKeys_,
-                UseLookupCache_);
+                ChunkLookupKeys_);
             if (!chunkEdenReadSessions.empty()) {
                 WaitFor(AllSucceeded(chunkEdenReadSessions))
                     .ThrowOnError();
@@ -351,10 +347,16 @@ private:
     std::vector<TFuture<void>> CreateReadSessions(
         TReadSessionList* sessions,
         const std::vector<ISortedStorePtr>& stores,
-        const TSharedRange<TLegacyKey>& keys,
-        bool produceAllValues)
+        const TSharedRange<TLegacyKey>& keys)
     {
         sessions->clear();
+
+        // When using lookup cache we must read all versions.
+        // It is safe to change fixed timestamp to SyncLastCommitted and drop newer than timestamp versions
+        // in row merger.
+        auto readTimestamp = UseLookupCache_ && Timestamp_ != AsyncLastCommittedTimestamp
+            ? SyncLastCommittedTimestamp
+            : Timestamp_;
 
         // NB: Will remain empty for in-memory tables.
         std::vector<TFuture<void>> asyncFutures;
@@ -367,9 +369,9 @@ private:
             auto reader = store->CreateReader(
                 TabletSnapshot_,
                 keys,
-                produceAllValues ? AllCommittedTimestamp : Timestamp_,
-                produceAllValues || ProduceAllVersions_,
-                produceAllValues ? UniversalColumnFilter : ColumnFilter_,
+                readTimestamp,
+                UseLookupCache_ || ProduceAllVersions_,
+                UseLookupCache_ ? UniversalColumnFilter : ColumnFilter_,
                 ChunkReadOptions_);
             auto future = reader->Open();
             if (auto optionalError = future.TryGet()) {
@@ -411,8 +413,7 @@ private:
         auto asyncReadSessions = CreateReadSessions(
             &PartitionSessions_[sessionIndex],
             partitionSnapshot->Stores,
-            ChunkLookupKeys_.Slice(*startChunkKeyIndex, endChunkKeyIndex),
-            UseLookupCache_);
+            ChunkLookupKeys_.Slice(*startChunkKeyIndex, endChunkKeyIndex));
 
         *startChunkKeyIndex = endChunkKeyIndex;
         *currentIt = nextIt;
@@ -433,7 +434,7 @@ private:
         auto processSessions = [&] (TReadSessionList& sessions) {
             for (auto& session : sessions) {
                 auto row = session.FetchRow();
-                onPartialRow(row, MaxTimestamp);
+                onPartialRow(row, Timestamp_ + 1);
                 if (UseLookupCache_) {
                     versionedRows.push_back(row);
                 }
@@ -464,7 +465,8 @@ private:
                         TabletSnapshot_->TabletId);
                 }
 
-                auto minDynamicTimestamp = MaxTimestamp;
+                // Include versions with timestamp equal to Timestamp_.
+                auto minDynamicTimestamp = Timestamp_ + 1;
                 for (auto row : versionedRows) {
                     minDynamicTimestamp = std::min(minDynamicTimestamp, GetMinTimestamp(row));
                 }
@@ -507,7 +509,7 @@ private:
 
                         auto flushIndex = TabletSnapshot_->RowCache->FlushIndex.load(std::memory_order_acquire);
 
-                        // Row revision is equal to flushRevsion if last passive dynamic store is already flushing.
+                        // Row revision is equal to flushRevision if the last passive dynamic store has started flushing.
                         if (revision >= flushIndex) {
                             cachedItem->Revision.compare_exchange_strong(revision, std::numeric_limits<ui32>::max());
                         }

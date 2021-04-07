@@ -363,6 +363,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(IDynamicStorePtr, ActiveStore);
 
     // NB: This field is transient.
+    // Flush index of last rotated (last passive dynamic) store.
     DEFINE_BYVAL_RW_PROPERTY(ui32, StoreFlushIndex, 0);
 
     using TReplicaMap = THashMap<TTableReplicaId, TTableReplicaInfo>;
