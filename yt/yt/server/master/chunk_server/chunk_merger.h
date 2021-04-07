@@ -24,12 +24,12 @@ namespace NYT::NChunkServer {
 
 struct TMergeJobInfo
 {
+    TJobId JobId;
+
     NCypressServer::TNodeId NodeId;
     TChunkListId RootChunkListId;
 
     std::vector<TChunkId> InputChunkIds;
-
-    i64 OutputChunkCounter;
     TChunkId OutputChunkId;
 };
 
@@ -74,8 +74,6 @@ private:
     TTransactionId TransactionId_;
     TTransactionId PreviousTransactionId_;
 
-    i64 CreatedChunkCounter_ = 0;
-
     const TCallback<void(NTransactionServer::TTransaction* transaction)> TransactionAbortedCallback_ =
         BIND(&TChunkMerger::OnTransactionAborted, MakeWeak(this));
 
@@ -90,7 +88,7 @@ private:
 
     // Chunk creation in progress. Stores i64 -> TMergeJobInfo to find the right TMergeJobInfo
     // after creating chunk.
-    THashMap<i64, TMergeJobInfo> JobsUndergoingChunkCreation_;
+    THashMap<TJobId, TMergeJobInfo> JobsUndergoingChunkCreation_;
 
     // After creating chunks, before scheduling (waiting for node heartbeat to schedule jobs).
     std::queue<TMergeJobInfo> JobsAwaitingNodeHeartbeat_;
@@ -101,6 +99,10 @@ private:
     virtual void OnRecoveryComplete() override;
     virtual void OnLeaderActive() override;
     virtual void OnStopLeading() override;
+
+    virtual void Clear() override;
+
+    void ResetTransientState();
 
     bool IsMergeTransactionAlive() const;
 
@@ -118,7 +120,7 @@ private:
 
     bool CreateMergeJob(TNode* node, const TMergeJobInfo& jobInfo, TJobPtr* job);
 
-    void ReplaceChunks(const TMergeJobInfo& jobInfo);
+    void ScheduleReplaceChunks(const TMergeJobInfo& jobInfo);
 
     const TDynamicChunkMergerConfigPtr& GetDynamicConfig() const;
     void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr /*oldConfig*/ = nullptr);
