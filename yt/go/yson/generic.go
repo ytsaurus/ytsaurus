@@ -2,8 +2,8 @@ package yson
 
 // ValueWithAttrs is generic representation of YSON node with attached attributes.
 type ValueWithAttrs struct {
-	Attrs map[string]interface{}
-	Value interface{}
+	Attrs map[string]interface{} `yson:",attrs"`
+	Value interface{}            `yson:",value"`
 }
 
 // AttrsOf is a helper function for working with ValueWithAttrs.

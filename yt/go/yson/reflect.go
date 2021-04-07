@@ -15,6 +15,7 @@ type field struct {
 	omitempty bool
 	attribute bool
 	value     bool
+	attrs     bool
 }
 
 type structType struct {
@@ -27,6 +28,7 @@ type structType struct {
 	fieldsByName map[string]*field
 
 	value *field // field decoded directly from the whole value
+	attrs *field // field decoded directly from attributes map
 }
 
 var typeCache sync.Map
@@ -83,6 +85,7 @@ func newStructType(t reflect.Type) *structType {
 				attribute: tag.Attr,
 				omitempty: tag.Omitempty,
 				value:     tag.Value,
+				attrs:     tag.Attrs,
 			}
 
 			// Add field, resolving name conflict according to go embedding rules.
@@ -107,6 +110,18 @@ func newStructType(t reflect.Type) *structType {
 					structType.value = &nameConflict
 				}
 
+			case structField.attrs:
+				// ",attrs" field must have type map[K]V
+				if f.Type.Kind() != reflect.Map {
+					break
+				}
+
+				if structType.attrs == nil {
+					structType.attrs = &structField
+				} else {
+					structType.attrs = &nameConflict
+				}
+
 			case structField.attribute:
 				addField(&attributeOrder, structType.attributesByName, &structField)
 
@@ -120,6 +135,9 @@ func newStructType(t reflect.Type) *structType {
 
 	if structType.value == &nameConflict {
 		structType.value = nil
+	}
+	if structType.attrs == &nameConflict {
+		structType.attrs = nil
 	}
 
 	filterConflicts := func(order []string, fieldMap map[string]*field) (fields []*field) {
@@ -189,7 +207,7 @@ func decodeReflect(d *Reader, v reflect.Value) error {
 	case reflect.Ptr:
 		return decodeReflectPtr(d, v.Elem())
 	case reflect.Map:
-		return decodeReflectMap(d, v)
+		return decodeReflectMap(d, v, false)
 	default:
 		return &UnsupportedTypeError{v.Type()}
 	}
@@ -304,7 +322,7 @@ var (
 	binaryUnmarshalerType = reflect.TypeOf((*encoding.BinaryUnmarshaler)(nil)).Elem()
 )
 
-func decodeReflectMap(r *Reader, v reflect.Value) error {
+func decodeReflectMap(r *Reader, v reflect.Value, attrs bool) error {
 	kt := v.Type().Elem().Key()
 
 	switch kt.Kind() {
@@ -318,17 +336,23 @@ func decodeReflectMap(r *Reader, v reflect.Value) error {
 		}
 	}
 
-	e, err := r.Next(true)
+	e, err := r.Next(!attrs)
 	if err != nil {
 		return err
 	}
 
-	if e == EventLiteral && r.currentType == TypeEntity {
-		return nil
-	}
+	if !attrs {
+		if e == EventLiteral && r.currentType == TypeEntity {
+			return nil
+		}
 
-	if e != EventBeginMap {
-		return &TypeError{UserType: v.Type(), YSONType: r.currentType}
+		if e != EventBeginMap {
+			return &TypeError{UserType: v.Type(), YSONType: r.currentType}
+		}
+	} else {
+		if e != EventBeginAttrs {
+			return &TypeError{UserType: v.Type(), YSONType: r.currentType}
+		}
 	}
 
 	m := reflect.MakeMap(v.Elem().Type())
@@ -377,8 +401,15 @@ func decodeReflectMap(r *Reader, v reflect.Value) error {
 	if e, err = r.Next(false); err != nil {
 		return err
 	}
-	if e != EventEndMap {
-		panic("invalid decoder state")
+
+	if !attrs {
+		if e != EventEndMap {
+			panic("invalid decoder state")
+		}
+	} else {
+		if e != EventEndAttrs {
+			panic("invalid decoder state")
+		}
 	}
 
 	return nil
@@ -476,6 +507,18 @@ func decodeReflectStruct(r *Reader, v reflect.Value) error {
 			}
 		} else {
 			r.Undo(e)
+		}
+	} else if structType.attrs != nil {
+		e, err = r.Next(false)
+		if err != nil {
+			return err
+		}
+		r.Undo(e)
+
+		if e == EventBeginAttrs {
+			if err := decodeReflectMap(r, v.FieldByIndex(structType.attrs.index).Addr(), true); err != nil {
+				return err
+			}
 		}
 	} else {
 		e, err = r.Next(true)

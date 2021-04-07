@@ -157,3 +157,16 @@ func TestDecodeIntWithAttrs(t *testing.T) {
 	require.Equal(t, 1, v.TableIndex)
 	require.Equal(t, 12, v.Value)
 }
+
+type valueWithGenericAttrs struct {
+	Attrs map[string]interface{} `yson:",attrs"`
+	Value interface{}            `yson:",value"`
+}
+
+func TestDecodeValueWithGenericAttrs(t *testing.T) {
+	var v valueWithGenericAttrs
+
+	require.NoError(t, Unmarshal([]byte("<table_index=1>11"), &v))
+	require.Equal(t, map[string]interface{}{"table_index": int64(1)}, v.Attrs)
+	require.Equal(t, int64(11), v.Value)
+}
