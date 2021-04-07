@@ -74,6 +74,7 @@ type Rich struct {
 	Ranges   []Range        `yson:"ranges,attr,omitempty"`
 	Columns  []string       `yson:"columns,attr,omitempty"`
 	Schema   *schema.Schema `yson:"schema,attr,omitempty"`
+	FileName string         `yson:"file_name,attr,omitempty"`
 
 	Teleport bool `yson:"teleport,attr,omitempty"`
 	Foreign  bool `yson:"foreign,attr,omitempty"`
