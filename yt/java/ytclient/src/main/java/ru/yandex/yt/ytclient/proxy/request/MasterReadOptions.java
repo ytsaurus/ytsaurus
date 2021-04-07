@@ -1,15 +1,14 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
-import ru.yandex.yt.rpcproxy.EMasterReadKind;
 import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 
 public class MasterReadOptions {
-    private EMasterReadKind readFrom = EMasterReadKind.MRK_FOLLOWER;
+    private MasterReadKind readFrom = MasterReadKind.Follower;
     private Long expireAfterSuccessfulUpdateTime;
     private Long expireAfterFailedUpdateTime;
     private Integer cacheStickyGroupSize;
 
-    public MasterReadOptions setReadFrom(EMasterReadKind f) {
+    public MasterReadOptions setReadFrom(MasterReadKind f) {
         readFrom = f;
         return this;
     }
@@ -30,7 +29,7 @@ public class MasterReadOptions {
     }
 
     public TMasterReadOptions.Builder writeTo(TMasterReadOptions.Builder builder) {
-        builder.setReadFrom(readFrom);
+        builder.setReadFrom(readFrom.getProtoValue());
         if (expireAfterSuccessfulUpdateTime != null) {
             builder.setExpireAfterSuccessfulUpdateTime(expireAfterSuccessfulUpdateTime);
         }
