@@ -107,7 +107,6 @@ bool TFutureState<void>::OnCanceled(TCancelHandler handler)
             return true;
         } else if (!Set_) {
             CancelHandlers_.push_back(std::move(handler));
-            HasHandlers_ = true;
             return true;
         }
 

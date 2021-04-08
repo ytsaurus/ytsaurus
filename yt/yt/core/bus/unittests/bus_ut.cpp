@@ -21,13 +21,13 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSharedRefArray CreateMessage(int numParts)
+TSharedRefArray CreateMessage(int numParts, int partSize = 1)
 {
-    auto data = TSharedMutableRef::Allocate(numParts);
+    auto data = TSharedMutableRef::Allocate(numParts * partSize);
 
     std::vector<TSharedRef> parts;
     for (int i = 0; i < numParts; ++i) {
-        parts.push_back(data.Slice(i, i + 1));
+        parts.push_back(data.Slice(i * partSize, (i + 1) * partSize));
     }
 
     return TSharedRefArray(std::move(parts), TSharedRefArray::TMoveParts{});
@@ -58,6 +58,20 @@ public:
         Y_UNUSED(message);
         Y_UNUSED(replyBus);
     }
+};
+
+class TCountingBusHandler
+    : public IMessageHandler
+{
+public:
+    virtual void HandleMessage(
+        TSharedRefArray message,
+        IBusPtr replyBus) noexcept override
+    {
+        Count++;
+    }
+
+    std::atomic<int> Count = 0;
 };
 
 class TReplying42BusHandler
@@ -288,6 +302,40 @@ TEST_F(TBusTest, BlackHole)
 
     auto result = bus->Send(message, options).Get();
     EXPECT_FALSE(result.IsOK());
+
+    server->Stop()
+        .Get()
+        .ThrowOnError();
+}
+
+TEST_F(TBusTest, SendCancel)
+{
+    auto handler = New<TCountingBusHandler>();
+    auto server = StartBusServer(handler);
+    auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp(Address));
+    auto bus = client->CreateBus(New<TEmptyBusHandler>());
+    auto message = CreateMessage(4, 16_MB);
+
+    auto options = NBus::TSendOptions(EDeliveryTrackingLevel::Full);
+    options.EnableSendCancelation = true;
+
+    for (int i = 0; i < 16; i++) {
+        auto future = bus->Send(message, options);
+        future.Cancel(TError("Canceled"));
+    }
+
+    Sleep(TDuration::Seconds(1));
+    ASSERT_LE(handler->Count, 16);
+    handler->Count = 0;
+
+    options.TrackingLevel = EDeliveryTrackingLevel::None;
+    for (int i = 0; i < 2; i++) {
+        bus->Send(message, options).Cancel(TError("Canceled"));
+    }
+
+    Sleep(TDuration::Seconds(1));
+    ASSERT_LE(handler->Count, 16);
+    handler->Count = 0;
 
     server->Stop()
         .Get()
