@@ -81,7 +81,6 @@ public:
     TUserRequestLimitsOptionsPtr ReadRequestRateLimits;
     TUserRequestLimitsOptionsPtr WriteRequestRateLimits;
     TUserRequestLimitsOptionsPtr RequestQueueSizeLimits;
-    bool EnableFifoThrottling;
 
     TUserRequestLimitsConfig()
     {
@@ -91,9 +90,6 @@ public:
             .DefaultNew();
         RegisterParameter("request_queue_size", RequestQueueSizeLimits)
             .DefaultNew();
-        RegisterParameter("enable_fifo_throttling", EnableFifoThrottling)
-            .Default(true)
-            .DontSerializeDefault();
 
         RegisterPostprocessor([&] () {
             if (!ReadRequestRateLimits) {
@@ -148,8 +144,6 @@ public:
 
     int GetRequestQueueSizeLimit(NObjectServer::TCellTag cellTag = NObjectClient::InvalidCellTag) const;
     void SetRequestQueueSizeLimit(int limit, NObjectServer::TCellTag cellTag = NObjectClient::InvalidCellTag);
-
-    bool IsFifoThrottlingEnabled() const;
 
     void UpdateCounters(const TUserWorkload& workloadType);
 
