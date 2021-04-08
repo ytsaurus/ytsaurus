@@ -156,7 +156,6 @@ void TRequestTracker::ReconfigureUserRequestRateThrottlers(TUser* user)
 
         auto config = New<TThroughputThrottlerConfig>();
         config->Period = GetDynamicConfig()->RequestRateSmoothingPeriod;
-        config->EnableFifoOrder = user->IsFifoThrottlingEnabled();
 
         auto cellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
         auto requestRateLimit = user->GetRequestRateLimit(workloadType, cellTag);

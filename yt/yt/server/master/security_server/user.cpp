@@ -148,11 +148,6 @@ void TUser::SetRequestQueueSizeLimit(int limit, NObjectServer::TCellTag cellTag)
     RequestLimits_->RequestQueueSizeLimits->SetValue(cellTag, limit);
 }
 
-bool TUser::IsFifoThrottlingEnabled() const
-{
-    return RequestLimits_->EnableFifoThrottling;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityServer
