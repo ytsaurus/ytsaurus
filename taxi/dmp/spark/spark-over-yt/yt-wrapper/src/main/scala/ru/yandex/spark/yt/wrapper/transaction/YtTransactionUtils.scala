@@ -6,9 +6,8 @@ import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper._
-import ru.yandex.yt.rpcproxy.ETransactionType.TT_MASTER
-import ru.yandex.yt.ytclient.proxy.request.{GetLikeReq, MutateNode, StartOperation, TransactionalOptions, WriteFile}
-import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, ApiServiceTransactionOptions, CompoundClient}
+import ru.yandex.yt.ytclient.proxy.request._
+import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient}
 
 import scala.annotation.tailrec
 import scala.concurrent.duration._
@@ -28,13 +27,15 @@ trait YtTransactionUtils {
 
   def createTransaction(parent: Option[String], timeout: Duration, sticky: Boolean = false)
                        (implicit yt: CompoundClient): ApiServiceTransaction = {
-    val options = new ApiServiceTransactionOptions(TT_MASTER)
+    log.info(s"Start transaction, parent $parent, timeout $timeout, sticky $sticky")
+    val request = (if (sticky) StartTransaction.stickyMaster() else StartTransaction.master())
+      .setTransactionTimeout(toJavaDuration(timeout))
       .setTimeout(toJavaDuration(timeout))
-      .setSticky(sticky)
       .setPing(true)
       .setPingPeriod(toJavaDuration(30 seconds))
-    parent.foreach(p => options.setParentId(GUID.valueOf(p)))
-    val tr = yt.startTransaction(options).join()
+
+    parent.foreach(p => request.setParentId(GUID.valueOf(p)))
+    val tr = yt.startTransaction(request).join()
     tr
   }
 

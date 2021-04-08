@@ -33,6 +33,8 @@ object YtTableSparkSettings {
 
   case object ArrowEnabled extends BooleanConfigEntry("arrow_enabled", Some(true))
 
+  case object Dynamic extends BooleanConfigEntry("dynamic")
+
   // write
   case object IsTable extends BooleanConfigEntry("is_table", Some(false))
 
@@ -43,8 +45,6 @@ object YtTableSparkSettings {
   case object Schema extends StructTypeConfigEntry("schema")
 
   case object OptimizeFor extends StringConfigEntry("optimize_for")
-
-  case object Dynamic extends BooleanConfigEntry("dynamic")
 
   case object Path extends StringListConfigEntry("path")
 
