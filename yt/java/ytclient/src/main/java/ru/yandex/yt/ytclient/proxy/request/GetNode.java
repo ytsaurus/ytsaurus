@@ -13,16 +13,16 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 public class GetNode extends GetLikeReq<GetNode> implements HighLevelRequest<TReqGetNode.Builder> {
     public GetNode(String path) {
-        super(path);
+        this(YPath.simple(path));
     }
 
     public GetNode(YPath path) {
-        this(path.toString());
+        super(path);
     }
 
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqGetNode.Builder, ?> builder) {
-        builder.body().setPath(path);
+        builder.body().setPath(path.toString());
         if (attributes != null) {
             builder.body().setAttributes(attributes.writeTo(TAttributeKeys.newBuilder()));
         }

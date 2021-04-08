@@ -12,16 +12,16 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 public class ExistsNode extends GetLikeReq<ExistsNode> implements HighLevelRequest<TReqExistsNode.Builder> {
     public ExistsNode(String path) {
-        super(path);
+        this(YPath.simple(path));
     }
 
     public ExistsNode(YPath path) {
-        this(path.toString());
+        super(path);
     }
 
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqExistsNode.Builder, ?> builder) {
-        builder.body().setPath(path);
+        builder.body().setPath(path.toString());
         if (transactionalOptions != null) {
             builder.body().setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
         }

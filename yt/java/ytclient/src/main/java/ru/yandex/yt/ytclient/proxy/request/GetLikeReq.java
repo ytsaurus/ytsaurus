@@ -2,21 +2,22 @@ package ru.yandex.yt.ytclient.proxy.request;
 
 import javax.annotation.Nullable;
 
+import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
 
 @NonNullApi
 public abstract class GetLikeReq<T extends GetLikeReq<T>> extends TransactionalRequest<T> {
-    protected final String path;
+    protected final YPath path;
     @Nullable protected ColumnFilter attributes;
     @Nullable protected Integer maxSize;
     @Nullable protected MasterReadOptions masterReadOptions;
     @Nullable protected SuppressableAccessTrackingOptions suppressableAccessTrackingOptions;
 
-    public GetLikeReq(String path) {
-        this.path = path;
+    GetLikeReq(YPath path) {
+        this.path = path.justPath();
     }
 
-    public String getPath() {
+    public YPath getPath() {
         return path;
     }
 

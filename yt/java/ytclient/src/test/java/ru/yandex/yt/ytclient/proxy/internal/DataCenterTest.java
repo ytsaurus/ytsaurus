@@ -3,7 +3,9 @@ package ru.yandex.yt.ytclient.proxy.internal;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import ru.yandex.bolts.collection.Cf;
@@ -52,7 +54,7 @@ public class DataCenterTest {
     }
 
     @Test
-    public void testProxyFail() throws Exception {
+    public void testProxyFail() {
         RpcOptions options = new RpcOptions().setChannelPoolSize(3);
         DataCenter dc = new DataCenter("test", -1.0, options);
         RpcClientFactory factory = new RpcClientTestStubs.RpcClientFactoryStub();
@@ -73,12 +75,13 @@ public class DataCenterTest {
 
         RpcClient client = res.get(0);
         ApiServiceClient service = new ApiServiceClient(client);
-        CompletableFuture<YTreeNode> response = service.listNode("//");
-        while (!response.isDone()) {
-            Thread.sleep(100);
-        }
+        CompletableFuture<YTreeNode> response = service.listNode("//path/to/nonexistent/table");
 
-        assertThat(response.isCompletedExceptionally(), is(true));
+        try {
+            response.join();
+            Assert.fail("expected exception");
+        } catch (CompletionException ignored) {
+        }
 
         res = dc.selectDestinations(2, rnd);
         assertThat(res.toString(), is("[test/1, test/2]"));
@@ -93,10 +96,9 @@ public class DataCenterTest {
     }
 
     @Test
-    public void testProxyFailRecoverable() throws Exception {
+    public void testProxyFailRecoverable() {
         RpcOptions options = new RpcOptions().setChannelPoolSize(3);
         DataCenter dc = new DataCenter("test", -1.0, options);
-        RpcClientFactory factory = new RpcClientTestStubs.RpcClientFactoryStub();
         RpcClientFactory failFactory = new RpcClientFactoryStub((name) -> new RpcClientTestStubs.RpcClientStub(name) {
             @Override
             public RpcClientRequestControl send(
@@ -120,12 +122,12 @@ public class DataCenterTest {
 
         RpcClient client = res.get(0);
         ApiServiceClient service = new ApiServiceClient(client);
-        CompletableFuture<YTreeNode> response = service.listNode("//");
-        while (!response.isDone()) {
-            Thread.sleep(100);
+        CompletableFuture<YTreeNode> response = service.listNode("//path/to/nonexistent/table");
+        try {
+            response.join();
+            Assert.fail("expected exception");
+        } catch (CompletionException ignored) {
         }
-
-        assertThat(response.isCompletedExceptionally(), is(true));
 
         res = dc.selectDestinations(2, rnd);
         assertThat(res.toString(), is("[test/3, test/1]")); // Request failed, but not unrecoverable, proxy is still good
