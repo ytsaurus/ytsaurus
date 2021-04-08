@@ -638,7 +638,7 @@ void TSolomonExporter::DoHandleShard(
         WaitFor(rsp->WriteBody(replyBlob))
             .ThrowOnError();
     } catch(const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Failed to export sensors");
+        YT_LOG_DEBUG(ex, "Failed to export sensors");
         responsePromise.TrySet(TError(ex));
 
         if (!rsp->IsHeadersFlushed()) {
@@ -651,7 +651,7 @@ void TSolomonExporter::DoHandleShard(
                 WaitFor(rsp->WriteBody(TSharedRef::FromString(TError(ex).GetMessage())))
                     .ThrowOnError();
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Failed to send export error");
+                YT_LOG_DEBUG(ex, "Failed to send export error");
             }
         }
     }
