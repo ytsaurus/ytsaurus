@@ -82,7 +82,7 @@ TConnectionConfig::TConnectionConfig()
         .Default(false);
 
     RegisterPreprocessor([&] {
-        DynamicChannelPool->MaxPeerCount = 5;
+        DynamicChannelPool->MaxPeerCount = 100;
     });
 
     RegisterPostprocessor([&] {
