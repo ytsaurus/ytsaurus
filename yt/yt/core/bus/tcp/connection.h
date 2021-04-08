@@ -38,6 +38,13 @@ DEFINE_ENUM(ETcpConnectionState,
     (Aborted)
 );
 
+DEFINE_ENUM(EPacketState,
+    (Queued)
+    (Encoded)
+    (Canceled)
+);
+
+
 class TTcpConnection
     : public IBus
     , public NConcurrency::TPollableBase
@@ -88,7 +95,9 @@ private:
         TQueuedMessage() = default;
 
         TQueuedMessage(TSharedRefArray message, const TSendOptions& options)
-            : Promise(options.TrackingLevel != EDeliveryTrackingLevel::None ? NewPromise<void>() : std::nullopt)
+            : Promise((options.TrackingLevel != EDeliveryTrackingLevel::None || options.EnableSendCancelation)
+                ? NewPromise<void>()
+                : std::nullopt)
             , Message(std::move(message))
             , PayloadSize(GetByteSize(Message))
             , Options(options)
@@ -102,7 +111,7 @@ private:
         TPacketId PacketId;
     };
 
-    struct TPacket
+    struct TPacket final
     {
         TPacket(
             EPacketType type,
@@ -125,23 +134,22 @@ private:
         EPacketFlags Flags;
         int ChecksummedPartCount;
         TPacketId PacketId;
+
         TSharedRefArray Message;
+
         size_t PayloadSize;
         size_t PacketSize;
-    };
 
-    struct TUnackedMessage
-    {
-        TUnackedMessage() = default;
-
-        TUnackedMessage(TPacketId packetId, TPromise<void> promise)
-            : PacketId(packetId)
-            , Promise(std::move(promise))
-        { }
-
-        TPacketId PacketId;
+        std::atomic<EPacketState> State = EPacketState::Queued;
         TPromise<void> Promise;
+        TTcpConnectionPtr Connection;
+
+        bool MarkEncoded();
+        void OnCancel(const TError& error);
+        void EnableCancel(TTcpConnectionPtr connection);
     };
+
+    using TPacketPtr = TIntrusivePtr<TPacket>;
 
     const TTcpBusConfigPtr Config_;
     const EConnectionType ConnectionType_;
@@ -188,8 +196,9 @@ private:
     std::atomic<NProfiling::TCpuInstant> LastIncompleteReadTime_ = std::numeric_limits<NProfiling::TCpuInstant>::max();
     TBlob ReadBuffer_;
 
-    TRingQueue<TPacket> QueuedPackets_;
-    TRingQueue<TPacket> EncodedPackets_;
+    TRingQueue<TPacketPtr> QueuedPackets_;
+    TRingQueue<TPacketPtr> EncodedPackets_;
+    TRingQueue<TPacketPtr> UnackedPackets_;
 
     TPacketEncoder Encoder_;
     const NProfiling::TCpuDuration WriteStallTimeout_;
@@ -199,8 +208,6 @@ private:
     TRingQueue<size_t> EncodedPacketSizes_;
 
     std::vector<struct iovec> SendVector_;
-
-    TRingQueue<TUnackedMessage> UnackedMessages_;
 
     std::atomic<TTosLevel> TosLevel_ = DefaultTosLevel;
 
@@ -240,6 +247,7 @@ private:
         TPacketId packetId,
         TSharedRefArray message = TSharedRefArray(),
         size_t payloadSize = 0);
+
     void OnSocketWrite();
     bool HasUnsentData() const;
     bool WriteFragments(size_t* bytesWritten);

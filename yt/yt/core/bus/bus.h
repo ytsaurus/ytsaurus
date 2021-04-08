@@ -56,6 +56,7 @@ struct TSendOptions
     EDeliveryTrackingLevel TrackingLevel;
     int ChecksummedPartCount;
     NYTAlloc::EMemoryZone MemoryZone = NYTAlloc::EMemoryZone::Normal;
+    bool EnableSendCancelation = false;
 };
 
 //! A bus, i.e. something capable of transmitting messages.
@@ -79,6 +80,9 @@ struct IBus
      *  \param message A message to send.
      *  \return An asynchronous flag indicating if the delivery (not the processing!) of the message
      *  was successful.
+     *
+     *  Underlying transport may support delivery cancellation. In that case, when returned future is cancelled,
+     *  message is dropped from the send queue.
      *
      *  \note Thread affinity: any
      */

@@ -51,6 +51,35 @@ struct TTcpConnectionWriteBufferTag { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool TTcpConnection::TPacket::MarkEncoded()
+{
+    auto expected = EPacketState::Queued;
+    return State.compare_exchange_strong(expected, EPacketState::Encoded);
+}
+
+void TTcpConnection::TPacket::OnCancel(const TError& /* error */)
+{
+    auto expected = EPacketState::Queued;
+    if (!State.compare_exchange_strong(expected, EPacketState::Canceled)) {
+        return;
+    }
+
+    Message.Reset();
+    if (Connection) {
+        Connection->UpdatePendingOut(-1, -PacketSize);
+    }
+}
+
+void TTcpConnection::TPacket::EnableCancel(TTcpConnectionPtr connection)
+{
+    Connection = std::move(connection);
+    if (!Promise.OnCanceled(BIND(&TPacket::OnCancel, MakeWeak(this)))) {
+        OnCancel(TError());
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTcpConnection::TTcpConnection(
     TTcpBusConfigPtr config,
     EConnectionType connectionType,
@@ -120,13 +149,17 @@ void TTcpConnection::Close()
 
     while (!QueuedPackets_.empty()) {
         const auto& packet = QueuedPackets_.front();
-        UpdatePendingOut(-1, -packet.PacketSize);
+        if (packet->Connection) {
+            packet->OnCancel(TError());
+        } else {
+            UpdatePendingOut(-1, -packet->PacketSize);
+        }
         QueuedPackets_.pop();
     }
 
     while (!EncodedPackets_.empty()) {
         const auto& packet = EncodedPackets_.front();
-        UpdatePendingOut(-1, -packet.PacketSize);
+        UpdatePendingOut(-1, -packet->PacketSize);
         EncodedPackets_.pop();
     }
 
@@ -786,29 +819,29 @@ bool TTcpConnection::OnPacketReceived() noexcept
 
 bool TTcpConnection::OnAckPacketReceived()
 {
-    if (UnackedMessages_.empty()) {
+    if (UnackedPackets_.empty()) {
         Abort(TError(NBus::EErrorCode::TransportError, "Unexpected ack received"));
         return false;
     }
 
-    auto& unackedMessage = UnackedMessages_.front();
+    auto& unackedMessage = UnackedPackets_.front();
 
-    if (Decoder_.GetPacketId() != unackedMessage.PacketId) {
+    if (Decoder_.GetPacketId() != unackedMessage->PacketId) {
         Abort(TError(
             NBus::EErrorCode::TransportError,
             "Ack for invalid packet ID received: expected %v, found %v",
-            unackedMessage.PacketId,
+            unackedMessage->PacketId,
             Decoder_.GetPacketId()));
         return false;
     }
 
     YT_LOG_DEBUG("Ack received (PacketId: %v)", Decoder_.GetPacketId());
 
-    if (unackedMessage.Promise) {
-        unackedMessage.Promise.Set(TError());
+    if (unackedMessage->Promise) {
+        unackedMessage->Promise.TrySet(TError());
     }
 
-    UnackedMessages_.pop();
+    UnackedPackets_.pop();
 
     return true;
 }
@@ -839,16 +872,16 @@ TTcpConnection::TPacket* TTcpConnection::EnqueuePacket(
     size_t payloadSize)
 {
     size_t packetSize = TPacketEncoder::GetPacketSize(type, message, payloadSize);
-    auto& packet = QueuedPackets_.emplace(
+    auto& packet = QueuedPackets_.emplace(New<TPacket>(
         type,
         flags,
         checksummedPartCount,
         packetId,
         std::move(message),
         payloadSize,
-        packetSize);
+        packetSize));
     UpdatePendingOut(+1, +packetSize);
-    return &packet;
+    return packet.Get();
 }
 
 void TTcpConnection::OnSocketWrite()
@@ -1021,21 +1054,33 @@ bool TTcpConnection::MaybeEncodeFragments()
            encodedSize <= MaxBatchWriteSize &&
            !QueuedPackets_.empty())
     {
+        auto& queuedPacket = QueuedPackets_.front();
+        YT_LOG_TRACE("Checking packet cancel state (PacketId: %v)", queuedPacket->PacketId);
+        if (!queuedPacket->MarkEncoded()) {
+            YT_LOG_TRACE("Packet was canceled (PacketId: %v)", queuedPacket->PacketId);
+            QueuedPackets_.pop();
+            continue;
+        }
+
         // Move the packet from queued to encoded.
-        EncodedPackets_.push(std::move(QueuedPackets_.front()));
+        if (Any(queuedPacket->Flags & EPacketFlags::RequestAcknowledgement)) {
+            UnackedPackets_.push(queuedPacket);
+        }
+        EncodedPackets_.push(std::move(queuedPacket));
         QueuedPackets_.pop();
+
         const auto& packet = EncodedPackets_.back();
 
         // Encode the packet.
-        YT_LOG_TRACE("Starting encoding packet (PacketId: %v)", packet.PacketId);
+        YT_LOG_TRACE("Starting encoding packet (PacketId: %v)", packet->PacketId);
 
         bool encodeResult = Encoder_.Start(
-            packet.Type,
-            packet.Flags,
+            packet->Type,
+            packet->Flags,
             GenerateChecksums_,
-            packet.ChecksummedPartCount,
-            packet.PacketId,
-            packet.Message);
+            packet->ChecksummedPartCount,
+            packet->PacketId,
+            packet->Message);
         if (!encodeResult) {
             Counters_->EncoderErrors.fetch_add(1, std::memory_order_relaxed);
             Abort(TError(NBus::EErrorCode::TransportError, "Error encoding outcoming packet"));
@@ -1054,10 +1099,10 @@ bool TTcpConnection::MaybeEncodeFragments()
             Encoder_.NextFragment();
         } while (!Encoder_.IsFinished());
 
-        EncodedPacketSizes_.push(packet.PacketSize);
-        encodedSize += packet.PacketSize;
+        EncodedPacketSizes_.push(packet->PacketSize);
+        encodedSize += packet->PacketSize;
 
-        YT_LOG_TRACE("Finished encoding packet (PacketId: %v)", packet.PacketId);
+        YT_LOG_TRACE("Finished encoding packet (PacketId: %v)", packet->PacketId);
     }
 
     flushCoalesced();
@@ -1083,13 +1128,13 @@ bool TTcpConnection::CheckWriteError(ssize_t result)
 void TTcpConnection::OnPacketSent()
 {
     const auto& packet = EncodedPackets_.front();
-    switch (packet.Type) {
+    switch (packet->Type) {
         case EPacketType::Ack:
-            OnAckPacketSent(packet);
+            OnAckPacketSent(*packet);
             break;
 
         case EPacketType::Message:
-            OnMessagePacketSent(packet);
+            OnMessagePacketSent(*packet);
             break;
 
         default:
@@ -1097,7 +1142,7 @@ void TTcpConnection::OnPacketSent()
     }
 
 
-    UpdatePendingOut(-1, -packet.PacketSize);
+    UpdatePendingOut(-1, -packet->PacketSize);
     Counters_->OutPackets.fetch_add(1, std::memory_order_relaxed);
 
     EncodedPackets_.pop();
@@ -1164,15 +1209,18 @@ void TTcpConnection::ProcessQueuedMessages()
             std::move(queuedMessage.Message),
             queuedMessage.PayloadSize);
 
+        packet->Promise = queuedMessage.Promise;
+        if (queuedMessage.Options.EnableSendCancelation) {
+            packet->EnableCancel(MakeStrong(this));
+        }
+
         YT_LOG_DEBUG("Outcoming message dequeued (PacketId: %v, PacketSize: %v, Flags: %v)",
             packetId,
             packet->PacketSize,
             flags);
 
-        if (Any(flags & EPacketFlags::RequestAcknowledgement)) {
-            UnackedMessages_.push(TUnackedMessage(packetId, std::move(queuedMessage.Promise)));
-        } else if (queuedMessage.Promise) {
-            queuedMessage.Promise.Set();
+        if (queuedMessage.Promise && !queuedMessage.Options.EnableSendCancelation && !Any(flags & EPacketFlags::RequestAcknowledgement)) {
+            queuedMessage.Promise.TrySet();
         }
     }
 }
@@ -1184,19 +1232,19 @@ void TTcpConnection::DiscardOutcomingMessages(const TError& error)
         YT_LOG_DEBUG("Outcoming message discarded (PacketId: %v)",
             queuedMessage.PacketId);
         if (queuedMessage.Promise) {
-            queuedMessage.Promise.Set(error);
+            queuedMessage.Promise.TrySet(error);
         }
     }
 }
 
 void TTcpConnection::DiscardUnackedMessages(const TError& error)
 {
-    while (!UnackedMessages_.empty()) {
-        auto& message = UnackedMessages_.front();
-        if (message.Promise) {
-            message.Promise.Set(error);
+    while (!UnackedPackets_.empty()) {
+        auto& message = UnackedPackets_.front();
+        if (message->Promise) {
+            message->Promise.TrySet(error);
         }
-        UnackedMessages_.pop();
+        UnackedPackets_.pop();
     }
 }
 
