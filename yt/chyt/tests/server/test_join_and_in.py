@@ -51,14 +51,12 @@ class TestJoinAndIn(ClickHouseTestBase):
             assert clique.make_query('select * from "//tmp/t1" t1 global join "//tmp/t3" t3 '
                                      'on t3.a = t1.a order by t3.a') == expected_on
 
-            with raises_yt_error(QueryFailedError):
-                # When JOIN is present, all joined expressions should be provided with aliases.
-                assert clique.make_query('select * from "//tmp/t1" global join "//tmp/t2" on a = c') == expected
-                assert clique.make_query('select * from "//tmp/t1" global join "//tmp/t2" on c = a') == expected
-                assert (
-                    clique.make_query('select * from "//tmp/t1" global join "//tmp/t3" using a order by a')
-                    == expected_using
-                )
+            assert clique.make_query('select * from "//tmp/t1" global join "//tmp/t2" on a = c') == expected
+            assert clique.make_query('select * from "//tmp/t1" global join "//tmp/t2" on c = a') == expected
+            assert (
+                clique.make_query('select * from "//tmp/t1" global join "//tmp/t3" using a order by a')
+                == expected_using
+            )
 
     @authors("max42")
     def test_global_in(self):

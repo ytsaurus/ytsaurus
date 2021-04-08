@@ -270,25 +270,6 @@ void TQueryAnalyzer::ParseQuery()
                     static_cast<DB::IAST&>(*tableExpression));
             }
         }
-
-        if (Join_) {
-            // Validate that if join is present, all table expressions have aliases.
-            DB::ASTWithAlias* astWithAlias = nullptr;
-            if (tableExpression->database_and_table_name) {
-                astWithAlias = dynamic_cast<DB::ASTWithAlias*>(tableExpression->database_and_table_name.get());
-            } else if (tableExpression->table_function) {
-                astWithAlias = dynamic_cast<DB::ASTWithAlias*>(tableExpression->table_function.get());
-            } else if (tableExpression->subquery) {
-                astWithAlias = dynamic_cast<DB::ASTWithAlias*>(tableExpression->subquery.get());
-            } else {
-                YT_VERIFY(false);
-            }
-            YT_VERIFY(astWithAlias);
-            if (astWithAlias->alias.empty()) {
-                THROW_ERROR_EXCEPTION("In queries with JOIN all joined expressions should be provided with aliases")
-                    << TErrorAttribute("table_expression", tableExpression);
-            }
-        }
     }
 
     YT_VERIFY(YtTableCount_ > 0);
