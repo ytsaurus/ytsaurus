@@ -98,9 +98,6 @@ private:
     TWeakPtr<NIO::TChunkFileReader> CachedWeakReader_;
     NIO::TChunkFileReaderPtr PreparedReader_;
 
-    //! Returns true if location must be disabled.
-    static bool IsFatalError(const TError& error);
-
     NIO::TChunkFileReaderPtr GetReader();
 
     virtual TFuture<void> PrepareReader(TReaderGuard& readerGuard) override;
