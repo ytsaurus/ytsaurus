@@ -11,31 +11,36 @@
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 #include <yt/yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/hunks.h>
 
+#include <yt/yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/yt/ytlib/chunk_client/confirming_writer.h>
+#include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
+
+#include <yt/yt/ytlib/table_client/versioned_chunk_writer.h>
+
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/table_client/row_merger.h>
+
+#include <yt/yt/ytlib/transaction_client/helpers.h>
+
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
-#include <yt/yt/ytlib/table_client/versioned_chunk_writer.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
 #include <yt/yt/client/table_client/versioned_row.h>
 #include <yt/yt/client/table_client/versioned_writer.h>
-#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/yt/ytlib/table_client/row_merger.h>
 
 #include <yt/yt/client/table_client/wire_protocol.h>
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
-
-#include <yt/yt/ytlib/transaction_client/helpers.h>
-
-#include <yt/yt/ytlib/api/native/client.h>
-#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/client/api/transaction.h>
 
@@ -43,8 +48,9 @@
 
 #include <yt/yt/core/ytalloc/memory_zone.h>
 
-#include <util/generic/cast.h>
 #include <yt/yt/core/misc/finally.h>
+
+#include <util/generic/cast.h>
 
 namespace NYT::NTabletNode {
 
@@ -65,13 +71,15 @@ using namespace NYTAlloc;
 
 using NTableClient::TLegacyKey;
 
-struct TMergeRowsOnFlushTag
-{ };
-
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t MaxRowsPerFlushRead = 1024;
+struct THunkScratchBufferTag
+{ };
 
+struct TMergeRowsOnFlushBufferTag
+{ };
+
+static const size_t MaxRowsPerFlushRead = 1024;
 static const auto BlockedRowWaitQuantum = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -318,11 +326,12 @@ void TSortedStoreManager::BuildPivotKeysBeforeChunkViewsForPivots(
 {
     int depth = 0;
     i64 cumulativeDataSize = 0;
+    const auto& mountConfig = Tablet_->GetSettings().MountConfig;
     for (const auto& boundary : chunkBoundaries) {
         if (boundary.Type == -1 &&
             depth == 0 &&
             boundary.Key > Tablet_->GetPivotKey() &&
-            cumulativeDataSize >= Tablet_->GetMountConfig()->MinPartitionDataSize)
+            cumulativeDataSize >= mountConfig->MinPartitionDataSize)
         {
             pivotKeys->push_back(boundary.Key);
             cumulativeDataSize = 0;
@@ -342,11 +351,12 @@ void TSortedStoreManager::BuildPivotKeys(
 
     int depth = 0;
     i64 cumulativeDataSize = 0;
+    const auto& mountConfig = Tablet_->GetSettings().MountConfig;
     for (const auto& boundary : chunkBoundaries) {
         if (boundary.Type == 1 &&
             depth == 0 &&
             boundary.Key > Tablet_->GetPivotKey() &&
-            cumulativeDataSize >= Tablet_->GetMountConfig()->MinPartitionDataSize)
+            cumulativeDataSize >= mountConfig->MinPartitionDataSize)
         {
             pivotKeys->push_back(boundary.Key);
             cumulativeDataSize = 0;
@@ -359,7 +369,8 @@ void TSortedStoreManager::BuildPivotKeys(
 }
 
 void TSortedStoreManager::Mount(
-    const std::vector<TAddStoreDescriptor>& storeDescriptors,
+    TRange<const TAddStoreDescriptor*> storeDescriptors,
+    TRange<const TAddHunkChunkDescriptor*> hunkChunkDescriptors,
     bool createDynamicStore,
     const TMountHint& mountHint)
 {
@@ -384,11 +395,11 @@ void TSortedStoreManager::Mount(
             : edenStoreIds.contains(storeId);
     };
 
-    for (const auto& descriptor : storeDescriptors) {
-        const auto& extensions = descriptor.chunk_meta().extensions();
+    for (const auto* descriptor : storeDescriptors) {
+        const auto& extensions = descriptor->chunk_meta().extensions();
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(extensions);
 
-        if (isEden(miscExt.eden(), FromProto<TStoreId>(descriptor.store_id()))) {
+        if (isEden(miscExt.eden(), FromProto<TStoreId>(descriptor->store_id()))) {
             ++descriptorIndex;
             continue;
         }
@@ -403,19 +414,15 @@ void TSortedStoreManager::Mount(
             chunkBoundaries.push_back({maxBoundaryKey, 1, descriptorIndex, miscExt.compressed_data_size()});
             ++descriptorIndex;
         } else {
-            const auto& chunkView = descriptor.chunk_view_descriptor();
+            const auto& chunkViewDescriptor = descriptor->chunk_view_descriptor();
 
             // Here we use three types.
             // 0 - )
             // 1 - [
             // 2 - ]
             TLegacyOwningKey minKey;
-            if (descriptor.has_chunk_view_descriptor()
-                && chunkView.has_read_range()
-                && chunkView.read_range().has_lower_limit()
-                && chunkView.read_range().lower_limit().has_legacy_key())
-            {
-                auto chunkViewLimit = FromProto<TLegacyOwningKey>(chunkView.read_range().lower_limit().legacy_key());
+            if (chunkViewDescriptor.read_range().lower_limit().has_legacy_key()) {
+                auto chunkViewLimit = FromProto<TLegacyOwningKey>(chunkViewDescriptor.read_range().lower_limit().legacy_key());
 
                 // COMPAT(ifsmirnov)
                 if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(ETabletReign::ChunkViewWideRange_YT_12532)) {
@@ -429,12 +436,8 @@ void TSortedStoreManager::Mount(
 
             int maxKeyType;
             TLegacyOwningKey maxKey;
-            if (descriptor.has_chunk_view_descriptor()
-                && chunkView.has_read_range()
-                && chunkView.read_range().has_upper_limit()
-                && chunkView.read_range().upper_limit().has_legacy_key())
-            {
-                auto chunkViewLimit = FromProto<TLegacyOwningKey>(chunkView.read_range().upper_limit().legacy_key());
+            if (chunkViewDescriptor.read_range().upper_limit().has_legacy_key()) {
+                auto chunkViewLimit = FromProto<TLegacyOwningKey>(chunkViewDescriptor.read_range().upper_limit().legacy_key());
 
                 // COMPAT(ifsmirnov)
                 if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(ETabletReign::ChunkViewWideRange_YT_12532)) {
@@ -468,12 +471,16 @@ void TSortedStoreManager::Mount(
                        std::tie(rhs.Key, rhs.Type, rhs.DescriptorIndex, rhs.DataSize);
         });
 
-        if (Tablet_->GetMountConfig()->EnableLsmVerboseLogging) {
+        const auto& mountConfig = Tablet_->GetSettings().MountConfig;
+        if (mountConfig->EnableLsmVerboseLogging) {
             YT_LOG_DEBUG("Considering store boundaries during table mount (BoundaryCount: %v)",
                 chunkBoundaries.size());
             for (const auto& boundary : chunkBoundaries) {
                 YT_LOG_DEBUG("Next chunk boundary (Key: %v, Type: %v, DescriptorIndex: %v, DataSize: %v)",
-                    boundary.Key, boundary.Type, boundary.DescriptorIndex, boundary.DataSize);
+                    boundary.Key,
+                    boundary.Type,
+                    boundary.DescriptorIndex,
+                    boundary.DataSize);
             }
         }
 
@@ -492,23 +499,19 @@ void TSortedStoreManager::Mount(
         DoSplitPartition(0, pivotKeys);
     }
 
-    TStoreManagerBase::Mount(storeDescriptors, createDynamicStore, mountHint);
+    TStoreManagerBase::Mount(
+        storeDescriptors,
+        hunkChunkDescriptors,
+        createDynamicStore,
+        mountHint);
 }
 
-void TSortedStoreManager::Remount(
-    TTableMountConfigPtr mountConfig,
-    TTabletChunkReaderConfigPtr readerConfig,
-    TTabletChunkWriterConfigPtr writerConfig,
-    TTabletWriterOptionsPtr writerOptions)
+void TSortedStoreManager::Remount(const NTabletNode::TTableSettings& settings)
 {
-    int oldSamplesPerPartition = Tablet_->GetMountConfig()->SamplesPerPartition;
-    int newSamplesPerPartition = mountConfig->SamplesPerPartition;
+    int oldSamplesPerPartition = Tablet_->GetSettings().MountConfig->SamplesPerPartition;
+    int newSamplesPerPartition = settings.MountConfig->SamplesPerPartition;
 
-    TStoreManagerBase::Remount(
-        std::move(mountConfig),
-        std::move(readerConfig),
-        std::move(writerConfig),
-        std::move(writerOptions));
+    TStoreManagerBase::Remount(settings);
 
     if (oldSamplesPerPartition != newSamplesPerPartition) {
         SchedulePartitionsSampling(0, Tablet_->PartitionList().size());
@@ -534,7 +537,8 @@ void TSortedStoreManager::BulkAddStores(TRange<IStorePtr> stores, bool onMount)
         addedStoresByPartition[sortedStore->GetPartition()->GetId()].push_back(sortedStore);
     }
 
-    auto Logger = this->Logger;
+    const auto& Logger = this->Logger;
+    const auto& mountConfig = Tablet_->GetSettings().MountConfig;
 
     for (auto& [partitionId, addedStores] : addedStoresByPartition) {
         if (partitionId == Tablet_->GetEden()->GetId()) {
@@ -542,8 +546,8 @@ void TSortedStoreManager::BulkAddStores(TRange<IStorePtr> stores, bool onMount)
         }
 
         auto* partition = Tablet_->GetPartition(partitionId);
-        YT_LOG_DEBUG_IF(Tablet_->GetMountConfig()->EnableLsmVerboseLogging,
-            "Added %v stores to partition (PartitionId: %v)",
+        YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
+            "Added stores to partition (PartitionId: %v, StoreCount: %v)",
             partition->GetId(),
             addedStores.size());
 
@@ -593,6 +597,7 @@ void TSortedStoreManager::CreateActiveStore()
     ActiveStore_ = TabletContext_
         ->CreateStore(Tablet_, EStoreType::SortedDynamic, storeId, nullptr)
         ->AsSortedDynamic();
+    ActiveStore_->Initialize();
 
     ActiveStore_->SetRowBlockedHandler(CreateRowBlockedHandler(ActiveStore_));
 
@@ -645,10 +650,10 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
     auto storeFlushIndex = sortedDynamicStore->GetFlushIndex();
 
     return BIND([=, this_ = MakeStrong(this)] (
-        ITransactionPtr transaction,
-        IThroughputThrottlerPtr throttler,
+        const ITransactionPtr& transaction,
+        const IThroughputThrottlerPtr& throttler,
         TTimestamp currentTimestamp,
-        TWriterProfilerPtr writerProfiler
+        const TWriterProfilerPtr& writerProfiler
     ) {
         IVersionedChunkWriterPtr tableWriter;
 
@@ -660,14 +665,24 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             ? EMemoryZone::Normal
             : EMemoryZone::Undumpable);
 
-        auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
-        writerOptions->ChunksEden = true;
-        writerOptions->ValidateResourceUsageIncrease = false;
-        writerOptions->ChunkConsistentPlacementHash = tabletSnapshot->ChunkConsistentPlacementHash;
+        const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
 
-        auto writerConfig = CloneYsonSerializable(tabletSnapshot->WriterConfig);
-        writerConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
-        writerConfig->MinUploadReplicationFactor = writerConfig->UploadReplicationFactor;
+        auto storeWriterConfig = CloneYsonSerializable(tabletSnapshot->Settings.StoreWriterConfig);
+        storeWriterConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
+        storeWriterConfig->MinUploadReplicationFactor = storeWriterConfig->UploadReplicationFactor;
+
+        auto storeWriterOptions = CloneYsonSerializable(tabletSnapshot->Settings.StoreWriterOptions);
+        storeWriterOptions->ChunksEden = true;
+        storeWriterOptions->ValidateResourceUsageIncrease = false;
+        storeWriterOptions->ChunkConsistentPlacementHash = tabletSnapshot->ChunkConsistentPlacementHash;
+
+        auto hunkWriterConfig = CloneYsonSerializable(tabletSnapshot->Settings.HunkWriterConfig);
+        hunkWriterConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
+        hunkWriterConfig->MinUploadReplicationFactor = hunkWriterConfig->UploadReplicationFactor;
+
+        auto hunkWriterOptions = CloneYsonSerializable(tabletSnapshot->Settings.HunkWriterOptions);
+        hunkWriterOptions->ValidateResourceUsageIncrease = false;
+        hunkWriterOptions->ChunkConsistentPlacementHash = tabletSnapshot->ChunkConsistentPlacementHash;
 
         auto asyncBlockCache = CreateRemoteInMemoryBlockCache(
             Client_,
@@ -680,41 +695,71 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         auto blockCache = WaitFor(asyncBlockCache)
             .ValueOrThrow();
 
-        throttler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
-            std::move(throttler),
-            tabletSnapshot->FlushThrottler});
+        auto combinedThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+            throttler,
+            tabletSnapshot->FlushThrottler
+        });
 
-        auto chunkWriter = CreateConfirmingWriter(
-            writerConfig,
-            writerOptions,
-            CellTagFromId(tabletSnapshot->TabletId),
+        auto tabletCellTag = CellTagFromId(tabletSnapshot->TabletId);
+
+        auto nodeDirectory = New<TNodeDirectory>();
+
+        auto storeChunkWriter = CreateConfirmingWriter(
+            storeWriterConfig,
+            storeWriterOptions,
+            tabletCellTag,
             transaction->GetId(),
-            NullChunkListId,
-            New<TNodeDirectory>(),
+            /*parentChunkListId*/ {},
+            nodeDirectory,
             Client_,
             blockCache,
-            nullptr,
-            std::move(throttler));
+            /*trafficMeter*/ nullptr,
+            combinedThrottler);
+
+        IChunkWriterPtr hunkChunkWriter;
+        IHunkChunkPayloadWriterPtr hunkChunkPayloadWriter;
+        TRowBufferPtr hunkScratchRowBuffer;
+        if (tabletSnapshot->PhysicalSchema->HasHunkColumns()) {
+            hunkChunkWriter = CreateConfirmingWriter(
+                hunkWriterConfig,
+                hunkWriterOptions,
+                tabletCellTag,
+                transaction->GetId(),
+                /*parentChunkListId*/ {},
+                nodeDirectory,
+                Client_,
+                GetNullBlockCache(),
+                /*trafficMeter*/ nullptr,
+                combinedThrottler);
+            hunkChunkPayloadWriter = CreateHunkChunkPayloadWriter(
+                hunkWriterConfig,
+                hunkChunkWriter,
+                /*chunkIndex*/ 0);
+            hunkScratchRowBuffer = New<TRowBuffer>(THunkScratchBufferTag());
+
+            WaitFor(hunkChunkPayloadWriter->Open())
+                .ThrowOnError();
+        }
 
         tableWriter = CreateVersionedChunkWriter(
-            writerConfig,
-            writerOptions,
+            storeWriterConfig,
+            storeWriterOptions,
             tabletSnapshot->PhysicalSchema,
-            chunkWriter,
+            storeChunkWriter,
             blockCache);
 
         TVersionedRowMerger onFlushRowMerger(
-            New<TRowBuffer>(TMergeRowsOnFlushTag()),
+            New<TRowBuffer>(TMergeRowsOnFlushBufferTag()),
             tabletSnapshot->QuerySchema->GetColumnCount(),
             tabletSnapshot->QuerySchema->GetKeyColumnCount(),
             TColumnFilter(),
-            tabletSnapshot->MountConfig,
+            mountConfig,
             currentTimestamp,
             MinTimestamp,
             tabletSnapshot->ColumnEvaluator,
             /*lookup*/ false,
             /*mergeRowsOnFlush*/ true,
-            /*mergeDeletionsOnFlush*/ tabletSnapshot->MountConfig->MergeDeletionsOnFlush);
+            /*mergeDeletionsOnFlush*/ mountConfig->MergeDeletionsOnFlush);
 
         auto unflushedTimestamp = MaxTimestamp;
         auto edenStores = tabletSnapshot->GetEdenStores();
@@ -727,21 +772,18 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         auto majorTimestamp = std::min(unflushedTimestamp, tabletSnapshot->RetainedTimestamp);
 
         TVersionedRowMerger compactionRowMerger(
-            New<TRowBuffer>(TMergeRowsOnFlushTag()),
+            New<TRowBuffer>(TMergeRowsOnFlushBufferTag()),
             tabletSnapshot->QuerySchema->GetColumnCount(),
             tabletSnapshot->QuerySchema->GetKeyColumnCount(),
             TColumnFilter(),
-            tabletSnapshot->MountConfig,
+            mountConfig,
             currentTimestamp,
             majorTimestamp,
             tabletSnapshot->ColumnEvaluator,
             /*lookup*/ true, // Forbid null rows. All rows in cache must have a key.
             /*mergeRowsOnFlush*/ false);
 
-        using NTransactionClient::InstantToTimestamp;
-        using NTransactionClient::TimestampToInstant;
-
-        auto retainedTimestamp = InstantToTimestamp(TimestampToInstant(currentTimestamp).first - tabletSnapshot->MountConfig->MinDataTtl).first;
+        auto retainedTimestamp = InstantToTimestamp(TimestampToInstant(currentTimestamp).first - mountConfig->MinDataTtl).first;
 
         const auto& rowCache = tabletSnapshot->RowCache;
 
@@ -757,9 +799,9 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         YT_LOG_DEBUG("Sorted store flush started (StoreId: %v, MergeRowsOnFlush: %v, "
             "MergeDeletionsOnFlush: %v, RetentionConfig: %v, HaveRowCache: %v, RetainedTimestamp: %v)",
             store->GetId(),
-            tabletSnapshot->MountConfig->MergeRowsOnFlush,
-            tabletSnapshot->MountConfig->MergeDeletionsOnFlush,
-            ConvertTo<TRetentionConfigPtr>(tabletSnapshot->MountConfig),
+            mountConfig->MergeRowsOnFlush,
+            mountConfig->MergeDeletionsOnFlush,
+            ConvertTo<TRetentionConfigPtr>(mountConfig),
             static_cast<bool>(rowCache),
             tabletSnapshot->RetainedTimestamp);
 
@@ -779,7 +821,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             auto range = batch->MaterializeRows();
             std::vector<TVersionedRow> rows(range.begin(), range.end());
 
-            if (tabletSnapshot->MountConfig->MergeRowsOnFlush) {
+            if (mountConfig->MergeRowsOnFlush) {
                 auto outputIt = rows.begin();
                 for (auto row : rows) {
                     onFlushRowMerger.AddPartialRow(row);
@@ -869,16 +911,54 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                 }
             }
 
+            if (hunkChunkPayloadWriter) {
+                for (auto& row : rows) {
+                    row = EncodeHunkValues(
+                        row,
+                        *tabletSnapshot->PhysicalSchema,
+                        hunkScratchRowBuffer,
+                        hunkChunkPayloadWriter);
+                }
+            }
+
             if (!tableWriter->Write(rows)) {
                 WaitFor(tableWriter->GetReadyEvent())
                     .ThrowOnError();
             }
+
             onFlushRowMerger.Reset();
             compactionRowMerger.Reset();
+            if (hunkScratchRowBuffer) {
+                hunkScratchRowBuffer->Clear();
+            }
         }
 
         if (tableWriter->GetRowCount() == 0) {
-            return std::vector<TAddStoreDescriptor>();
+            YT_LOG_DEBUG("Sorted store is empty, nothing to flush (StoreId: %v)",
+                store->GetId());
+            return TStoreFlushResult();
+        }
+
+        bool hasHunkRefs =
+            hunkChunkPayloadWriter &&
+            hunkChunkPayloadWriter->GetHunkChunkRef().HunkCount > 0;
+
+        if (hasHunkRefs) {
+            WaitFor(hunkChunkPayloadWriter->Close())
+                .ThrowOnError();
+
+            auto hunkChunkRef = hunkChunkPayloadWriter->GetHunkChunkRef();
+
+            tableWriter->GetMeta()->RegisterFinalizer(
+                [=] (TDeferredChunkMeta* meta) {
+                    NTableClient::NProto::THunkChunkRefsExt hunkChunkRefsExt;
+                    ToProto(hunkChunkRefsExt.add_refs(), hunkChunkRef);
+                    SetProtoExtension(meta->mutable_extensions(), hunkChunkRefsExt);
+                });
+
+            YT_LOG_DEBUG("Hunk chunk reference written (StoreId: %v, HunkChunkRef: %v)",
+                store->GetId(),
+                hunkChunkRef);
         }
 
         WaitFor(tableWriter->Close())
@@ -887,29 +967,42 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         std::vector<TChunkInfo> chunkInfos;
         chunkInfos.emplace_back(
             tableWriter->GetChunkId(),
-            tableWriter->GetNodeMeta(),
+            tableWriter->GetMeta(),
             tabletSnapshot->TabletId,
             tabletSnapshot->MountRevision);
 
         WaitFor(blockCache->Finish(chunkInfos))
             .ThrowOnError();
 
-        auto dataStatistics = tableWriter->GetDataStatistics();
-        auto diskSpace = CalculateDiskSpaceUsage(
-            tabletSnapshot->WriterOptions->ReplicationFactor,
-            dataStatistics.regular_disk_space(),
-            dataStatistics.erasure_disk_space());
-        YT_LOG_DEBUG("Flushed sorted store (StoreId: %v, ChunkId: %v, DiskSpace: %v)",
-            store->GetId(),
-            chunkWriter->GetChunkId(),
-            diskSpace);
+        auto getDiskSpace = [&] (const auto& writer, const auto& writerOptions) {
+            auto dataStatistics = writer->GetDataStatistics();
+            return CalculateDiskSpaceUsage(
+                writerOptions->ReplicationFactor,
+                dataStatistics.regular_disk_space(),
+                dataStatistics.erasure_disk_space());
+        };
 
-        TAddStoreDescriptor descriptor;
-        descriptor.set_store_type(static_cast<int>(EStoreType::SortedChunk));
-        ToProto(descriptor.mutable_store_id(), chunkWriter->GetChunkId());
-        descriptor.mutable_chunk_meta()->CopyFrom(tableWriter->GetMasterMeta());
-        ToProto(descriptor.mutable_backing_store_id(), store->GetId());
-        return std::vector<TAddStoreDescriptor>{descriptor};
+        YT_LOG_DEBUG("Sorted store flushed (StoreId: %v, ChunkId: %v, DiskSpace: %v)",
+            store->GetId(),
+            storeChunkWriter->GetChunkId(),
+            getDiskSpace(tableWriter, tabletSnapshot->Settings.StoreWriterOptions));
+
+        TStoreFlushResult result;
+        {
+            auto& descriptor = result.StoresToAdd.emplace_back();
+            descriptor.set_store_type(ToProto<int>(EStoreType::SortedChunk));
+            ToProto(descriptor.mutable_store_id(), storeChunkWriter->GetChunkId());
+            ToProto(descriptor.mutable_backing_store_id(), store->GetId());
+            *descriptor.mutable_chunk_meta() = *tableWriter->GetMeta();
+            FilterProtoExtensions(descriptor.mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
+        }
+        if (hasHunkRefs) {
+            auto& descriptor = result.HunkChunksToAdd.emplace_back();
+            ToProto(descriptor.mutable_chunk_id(), hunkChunkWriter->GetChunkId());
+            *descriptor.mutable_chunk_meta() = *hunkChunkPayloadWriter->GetMeta();
+            FilterProtoExtensions(descriptor.mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
+        }
+        return result;
     });
 }
 
@@ -971,7 +1064,8 @@ bool TSortedStoreManager::SplitPartition(
     partition->SetState(EPartitionState::Normal);
     partition->SetAllowedSplitTime(TInstant::Now());
 
-    if (Tablet_->PartitionList().size() >= Tablet_->GetMountConfig()->MaxPartitionCount) {
+    const auto& mountConfig = Tablet_->GetSettings().MountConfig;
+    if (Tablet_->PartitionList().size() >= mountConfig->MaxPartitionCount) {
         StructuredLogger_->LogEvent("abort_partition_split")
             .Item("partition_id").Value(partition->GetId())
             .Item("reason").Value("partition_count_limit_exceeded");
@@ -1059,9 +1153,9 @@ void TSortedStoreManager::TrySplitPartitionByAddedStores(
             return lhs->GetId() < rhs->GetId();
         });
 
-    const auto& config = partition->GetTablet()->GetMountConfig();
+    const auto& mountConfig = partition->GetTablet()->GetSettings().MountConfig;
 
-    int formerPartitionStoreCount = partition->Stores().size() - addedStores.size();
+    int formerPartitionStoreCount = static_cast<int>(partition->Stores().size()) - static_cast<int>(addedStores.size());
 
     std::vector<TLegacyOwningKey> proposedPivots{partition->GetPivotKey()};
     i64 cumulativeDataSize = 0;
@@ -1077,12 +1171,12 @@ void TSortedStoreManager::TrySplitPartitionByAddedStores(
 
         i64 dataSize = store->GetCompressedDataSize();
 
-        bool strongEvidence = cumulativeDataSize >= config->DesiredPartitionDataSize ||
-            cumulativeStoreCount >= config->OverlappingStoreImmediateSplitThreshold;
-        bool weakEvidence = cumulativeDataSize + dataSize > config->MaxPartitionDataSize ||
-            cumulativeStoreCount + formerPartitionStoreCount >= config->OverlappingStoreImmediateSplitThreshold;
+        bool strongEvidence = cumulativeDataSize >= mountConfig->DesiredPartitionDataSize ||
+            cumulativeStoreCount >= mountConfig->OverlappingStoreImmediateSplitThreshold;
+        bool weakEvidence = cumulativeDataSize + dataSize > mountConfig->MaxPartitionDataSize ||
+            cumulativeStoreCount + formerPartitionStoreCount >= mountConfig->OverlappingStoreImmediateSplitThreshold;
 
-        if (strongEvidence || (weakEvidence && cumulativeDataSize >= config->MinPartitionDataSize)) {
+        if (strongEvidence || (weakEvidence && cumulativeDataSize >= mountConfig->MinPartitionDataSize)) {
             if (store->GetMinKey() >= partition->GetPivotKey()) {
                 proposedPivots.push_back(store->GetMinKey());
                 cumulativeDataSize = 0;
@@ -1203,9 +1297,9 @@ bool TSortedStoreManager::IsOverflowRotationNeeded() const
         return false;
     }
 
-    const auto& config = Tablet_->GetMountConfig();
-    auto threshold = config->DynamicStoreOverflowThreshold;
-    if (ActiveStore_->GetMaxDataWeight() >= threshold * config->MaxDynamicStoreRowDataWeight) {
+    const auto& mountConfig = Tablet_->GetSettings().MountConfig;
+    auto threshold = mountConfig->DynamicStoreOverflowThreshold;
+    if (ActiveStore_->GetMaxDataWeight() >= threshold * mountConfig->MaxDynamicStoreRowDataWeight) {
         return true;
     }
 
@@ -1214,13 +1308,13 @@ bool TSortedStoreManager::IsOverflowRotationNeeded() const
 
 TError TSortedStoreManager::CheckOverflow() const
 {
-    const auto& config = Tablet_->GetMountConfig();
-    if (ActiveStore_ && ActiveStore_->GetMaxDataWeight() >= config->MaxDynamicStoreRowDataWeight) {
+    const auto& mountConfig = Tablet_->GetSettings().MountConfig;
+    if (ActiveStore_ && ActiveStore_->GetMaxDataWeight() >= mountConfig->MaxDynamicStoreRowDataWeight) {
         return TError("Maximum row data weight limit reached")
             << TErrorAttribute("store_id", ActiveStore_->GetId())
             << TErrorAttribute("key", RowToKey(*Tablet_->GetPhysicalSchema(), ActiveStore_->GetMaxDataWeightWitnessKey()))
             << TErrorAttribute("data_weight", ActiveStore_->GetMaxDataWeight())
-            << TErrorAttribute("data_weight_limit", config->MaxDynamicStoreRowDataWeight);
+            << TErrorAttribute("data_weight_limit", mountConfig->MaxDynamicStoreRowDataWeight);
     }
 
     return TStoreManagerBase::CheckOverflow();

@@ -3,8 +3,37 @@
 #include "sorted_dynamic_store.h"
 #include "ordered_chunk_store.h"
 #include "ordered_dynamic_store.h"
+#include "hunk_chunk.h"
+
+#include <yt/yt/ytlib/table_client/hunks.h>
 
 namespace NYT::NTabletNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NTableClient::THunkChunkRef THunkChunkRef::ToBase() const
+{
+    return NTableClient::THunkChunkRef{
+        .ChunkId = HunkChunk ? HunkChunk->GetId() : NChunkClient::TChunkId(),
+        .HunkCount = HunkCount,
+        .TotalHunkLength = TotalHunkLength
+    };
+}
+
+void Serialize(const THunkChunkRef& ref, NYson::IYsonConsumer* consumer)
+{
+    Serialize(ref.ToBase(), consumer);
+}
+
+void FormatValue(TStringBuilderBase* builder, const THunkChunkRef& ref, TStringBuf spec)
+{
+    FormatValue(builder, ref.ToBase(), spec);
+}
+
+TString ToString(const THunkChunkRef& ref)
+{
+    return ToStringViaBuilder(ref);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

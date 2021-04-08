@@ -1,7 +1,6 @@
 #pragma once
 
 #include "data_statistics.h"
-#include "public.h"
 #include "ready_event_reader_base.h"
 
 namespace NYT::NChunkClient {

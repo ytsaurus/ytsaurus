@@ -1109,7 +1109,14 @@ void TTableNodeProxy::ValidateCustomAttributeUpdate(
             if (!newValue) {
                 break;
             }
-            ConvertTo<NTabletNode::TTabletChunkWriterConfigPtr>(newValue);
+            ConvertTo<NTabletNode::TTabletStoreWriterConfigPtr>(newValue);
+            return;
+
+        case EInternedAttributeKey::HunkChunkWriter:
+            if (!newValue) {
+                break;
+            }
+            ConvertTo<NTabletNode::TTabletHunkWriterConfigPtr>(newValue);
             return;
 
         case EInternedAttributeKey::ChunkReader:

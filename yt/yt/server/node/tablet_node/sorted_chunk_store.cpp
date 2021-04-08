@@ -166,6 +166,7 @@ TSortedChunkStore::TSortedChunkStore(
     const NChunkClient::TLegacyReadRange& readRange,
     TTimestamp chunkTimestamp,
     TTablet* tablet,
+    const NTabletNode::NProto::TAddStoreDescriptor* addStoreDescriptor,
     IBlockCachePtr blockCache,
     IChunkRegistryPtr chunkRegistry,
     IChunkBlockManagerPtr chunkBlockManager,
@@ -179,6 +180,7 @@ TSortedChunkStore::TSortedChunkStore(
         chunkId,
         chunkTimestamp,
         tablet,
+        addStoreDescriptor,
         blockCache,
         chunkRegistry,
         chunkBlockManager,
@@ -199,18 +201,28 @@ TSortedChunkStore::TSortedChunkStore(
     }
 
     ReadRange_ = MakeSingletonRowRange(lowerBound, upperBound);
-
-    YT_LOG_DEBUG("Sorted chunk store created (Id: %v, ChunkId: %v, Type: %v, LowerBound: %v, UpperBound: %v)",
-        id,
-        ChunkId_,
-        TypeFromId(id),
-        lowerBound,
-        upperBound);
 }
 
-TSortedChunkStore::~TSortedChunkStore()
+void TSortedChunkStore::Initialize()
 {
-    YT_LOG_DEBUG("Sorted chunk store destroyed");
+    TChunkStoreBase::Initialize();
+
+    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_->extensions());
+
+    MinKey_ = FromProto<TLegacyOwningKey>(boundaryKeysExt.min());
+    const auto& chunkViewLowerBound = ReadRange_.Front().first;
+    if (chunkViewLowerBound && chunkViewLowerBound > MinKey_) {
+        MinKey_ = TLegacyOwningKey(chunkViewLowerBound);
+    }
+    MinKey_ = WidenKey(MinKey_, KeyColumnCount_);
+
+    UpperBoundKey_ = FromProto<TLegacyOwningKey>(boundaryKeysExt.max());
+    const auto& chunkViewUpperBound = ReadRange_.Front().second;
+    if (chunkViewUpperBound && chunkViewUpperBound <= UpperBoundKey_) {
+        UpperBoundKey_ = TLegacyOwningKey(chunkViewUpperBound);
+    } else {
+        UpperBoundKey_ = WidenKeySuccessor(UpperBoundKey_, KeyColumnCount_);
+    }
 }
 
 EStoreType TSortedChunkStore::GetType() const
@@ -296,7 +308,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 
     ValidateBlockSize(tabletSnapshot, chunkState, chunkReadOptions.WorkloadDescriptor);
 
-    if (tabletSnapshot->MountConfig->EnableNewScanReaderForSelect &&
+    const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
+    if (mountConfig->EnableNewScanReaderForSelect &&
         chunkState->ChunkMeta->GetChunkFormat() == ETableChunkFormat::VersionedColumnar &&
         timestamp != AllCommittedTimestamp)
     {
@@ -410,7 +423,9 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     auto readers = GetReaders(
         bandwidthThrottler,
         /* rpsThrottler */ GetUnlimitedThrottler());
-    if (tabletSnapshot->MountConfig->EnableDataNodeLookup && readers.LookupReader) {
+
+    const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
+    if (mountConfig->EnableDataNodeLookup && readers.LookupReader) {
         return createFilteringReader(CreateRowLookupReader(
             std::move(readers.LookupReader),
             chunkReadOptions,
@@ -420,14 +435,14 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             timestamp,
             produceAllVersions,
             ChunkTimestamp_,
-            tabletSnapshot->MountConfig->EnablePeerProbingInDataNodeLookup,
-            tabletSnapshot->MountConfig->EnableRejectsInDataNodeLookupIfThrottling));
+            mountConfig->EnablePeerProbingInDataNodeLookup,
+            mountConfig->EnableRejectsInDataNodeLookupIfThrottling));
     }
 
     auto chunkState = PrepareChunkState(readers.ChunkReader, chunkReadOptions);
     ValidateBlockSize(tabletSnapshot, chunkState, chunkReadOptions.WorkloadDescriptor);
 
-    if (tabletSnapshot->MountConfig->EnableNewScanReaderForLookup &&
+    if (mountConfig->EnableNewScanReaderForLookup &&
         chunkState->ChunkMeta->GetChunkFormat() == ETableChunkFormat::VersionedColumnar)
     {
         return createFilteringReader(NNewTableClient::CreateVersionedChunkReader(
@@ -585,7 +600,8 @@ void TSortedChunkStore::ValidateBlockSize(
         chunkState->ChunkMeta->GetChunkFormat() == ETableChunkFormat::UnversionedColumnar))
     {
         // For unversioned chunks verify that block size is correct.
-        if (auto blockSizeLimit = tabletSnapshot->MountConfig->MaxUnversionedBlockSize) {
+        const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
+        if (auto blockSizeLimit = mountConfig->MaxUnversionedBlockSize) {
             auto miscExt = FindProtoExtension<TMiscExt>(chunkState->ChunkSpec.chunk_meta().extensions());
             if (miscExt && miscExt->max_block_size() > *blockSizeLimit) {
                 THROW_ERROR_EXCEPTION("Maximum block size limit violated")
@@ -601,28 +617,6 @@ void TSortedChunkStore::ValidateBlockSize(
 TKeyComparer TSortedChunkStore::GetKeyComparer()
 {
     return KeyComparer_;
-}
-
-void TSortedChunkStore::PrecacheProperties()
-{
-    TChunkStoreBase::PrecacheProperties();
-
-    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_->extensions());
-
-    MinKey_ = FromProto<TLegacyOwningKey>(boundaryKeysExt.min());
-    const auto& chunkViewLowerBound = ReadRange_.Front().first;
-    if (chunkViewLowerBound && chunkViewLowerBound > MinKey_) {
-        MinKey_ = TLegacyOwningKey(chunkViewLowerBound);
-    }
-    MinKey_ = WidenKey(MinKey_, KeyColumnCount_);
-
-    UpperBoundKey_ = FromProto<TLegacyOwningKey>(boundaryKeysExt.max());
-    const auto& chunkViewUpperBound = ReadRange_.Front().second;
-    if (chunkViewUpperBound && chunkViewUpperBound <= UpperBoundKey_) {
-        UpperBoundKey_ = TLegacyOwningKey(chunkViewUpperBound);
-    } else {
-        UpperBoundKey_ = WidenKeySuccessor(UpperBoundKey_, KeyColumnCount_);
-    }
 }
 
 ISortedStorePtr TSortedChunkStore::GetSortedBackingStore()

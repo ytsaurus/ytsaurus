@@ -1193,8 +1193,8 @@ private:
             auto reader = CreateSchemalessRangeChunkReader(
                 std::move(chunkState),
                 New<TColumnarChunkMeta>(*chunkMeta),
-                New<TChunkReaderConfig>(),
-                New<TChunkReaderOptions>(),
+                TChunkReaderConfig::GetDefault(),
+                TChunkReaderOptions::GetDefault(),
                 replicationReader,
                 New<TNameTable>(),
                 TClientChunkReadOptions(),

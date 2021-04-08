@@ -16,9 +16,6 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 
-using NTabletNode::NProto::TAddStoreDescriptor;
-using NTabletNode::NProto::TMountHint;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TReplicatedStoreManager::TReplicatedStoreManager(
@@ -266,24 +263,21 @@ void TReplicatedStoreManager::BackoffStoreCompaction(IChunkStorePtr store)
 }
 
 void TReplicatedStoreManager::Mount(
-    const std::vector<TAddStoreDescriptor>& storeDescriptors,
+    TRange<const NTabletNode::NProto::TAddStoreDescriptor*> storeDescriptors,
+    TRange<const NTabletNode::NProto::TAddHunkChunkDescriptor*> hunkChunkDescriptors,
     bool createDynamicStore,
-    const TMountHint& mountHint)
+    const NTabletNode::NProto::TMountHint& mountHint)
 {
-    LogStoreManager_->Mount(storeDescriptors, createDynamicStore, mountHint);
+    LogStoreManager_->Mount(
+        storeDescriptors,
+        hunkChunkDescriptors,
+        createDynamicStore,
+        mountHint);
 }
 
-void TReplicatedStoreManager::Remount(
-    TTableMountConfigPtr mountConfig,
-    TTabletChunkReaderConfigPtr readerConfig,
-    TTabletChunkWriterConfigPtr writerConfig,
-    TTabletWriterOptionsPtr writerOptions)
+void TReplicatedStoreManager::Remount(const TTableSettings& settings)
 {
-    LogStoreManager_->Remount(
-        std::move(mountConfig),
-        std::move(readerConfig),
-        std::move(writerConfig),
-        std::move(writerOptions));
+    LogStoreManager_->Remount(settings);
 }
 
 ISortedStoreManagerPtr TReplicatedStoreManager::AsSorted()

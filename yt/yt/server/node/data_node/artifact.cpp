@@ -19,12 +19,13 @@ using namespace NChunkClient::NProto;
 
 TArtifactKey::TArtifactKey(TChunkId chunkId)
 {
-    mutable_data_source()->set_type(static_cast<int>(EDataSourceType::File));
+    mutable_data_source()->set_type(ToProto<int>(EDataSourceType::File));
+
     NChunkClient::NProto::TChunkSpec chunkSpec;
     ToProto(chunkSpec.mutable_chunk_id(), chunkId);
 
     TMiscExt miscExt;
-    miscExt.set_compression_codec(static_cast<int>(NCompression::ECodec::None));
+    miscExt.set_compression_codec(ToProto<int>(NCompression::ECodec::None));
     SetProtoExtension(chunkSpec.mutable_chunk_meta()->mutable_extensions(), miscExt);
 
     *add_chunk_specs() = chunkSpec;

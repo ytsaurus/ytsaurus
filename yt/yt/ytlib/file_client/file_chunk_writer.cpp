@@ -51,9 +51,8 @@ public:
     virtual i64 GetDataWeight() const override;
 
     virtual bool IsCloseDemanded() const override;
-    virtual TChunkMeta GetMasterMeta() const override;
-    virtual TChunkMeta GetSchedulerMeta() const override;
-    virtual TChunkMeta GetNodeMeta() const override;
+
+    virtual TDeferredChunkMetaPtr GetMeta() const override;
     virtual TChunkId GetChunkId() const override;
 
     virtual TDataStatistics GetDataStatistics() const override;
@@ -64,7 +63,7 @@ private:
     const TFileChunkWriterConfigPtr Config_;
     const TEncodingChunkWriterPtr EncodingChunkWriter_;
 
-    TBlob Buffer_ { TFileChunkWriterBufferTag() };
+    TBlob Buffer_{TFileChunkWriterBufferTag()};
 
     TBlocksExt BlocksExt_;
     i64 BlocksExtSize_ = 0;
@@ -146,11 +145,10 @@ TFuture<void> TFileChunkWriter::Close()
         FlushBlock();
     }
 
-    auto& meta = *EncodingChunkWriter_->Meta();
-    meta.set_type(ToProto<int>(EChunkType::File));
-    meta.set_format(ToProto<int>(EFileChunkFormat::Default));
-
-    SetProtoExtension(meta.mutable_extensions(), BlocksExt_);
+    auto meta = EncodingChunkWriter_->GetMeta();
+    meta->set_type(ToProto<int>(EChunkType::File));
+    meta->set_format(ToProto<int>(EFileChunkFormat::Default));
+    SetProtoExtension(meta->mutable_extensions(), BlocksExt_);
 
     return BIND(&TEncodingChunkWriter::Close, EncodingChunkWriter_)
         .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
@@ -177,23 +175,9 @@ bool TFileChunkWriter::IsCloseDemanded() const
     return EncodingChunkWriter_->IsCloseDemanded();
 }
 
-TChunkMeta TFileChunkWriter::GetMasterMeta() const
+TDeferredChunkMetaPtr TFileChunkWriter::GetMeta() const
 {
-    TChunkMeta meta;
-    meta.set_type(ToProto<int>(EChunkType::File));
-    meta.set_format(ToProto<int>(EFileChunkFormat::Default));
-    SetProtoExtension(meta.mutable_extensions(), EncodingChunkWriter_->MiscExt());
-    return meta;
-}
-
-TChunkMeta TFileChunkWriter::GetSchedulerMeta() const
-{
-    return GetMasterMeta();
-}
-
-TChunkMeta TFileChunkWriter::GetNodeMeta() const
-{
-    return GetMasterMeta();
+    return EncodingChunkWriter_->GetMeta();
 }
 
 TChunkId TFileChunkWriter::GetChunkId() const

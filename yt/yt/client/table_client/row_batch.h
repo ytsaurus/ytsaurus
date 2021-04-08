@@ -208,11 +208,13 @@ struct IVersionedRowBatch
     //! This call is cheap (in contrast to #IVersionedRowBatch::MaterializeRows).
     virtual int GetRowCount() const = 0;
 
-    //! A helper method that returns |true| iff #GetRowCount is zero.
-    bool IsEmpty() const;
-
     //! Returns the rows representing the batch.
     virtual TSharedRange<TVersionedRow> MaterializeRows() = 0;
+
+    // Extension methods
+
+    //! Returns |true| iff #GetRowCount is zero.
+    bool IsEmpty() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(IVersionedRowBatch)

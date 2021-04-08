@@ -9,7 +9,6 @@ using namespace NChunkClient::NProto;
 REGISTER_PROTO_EXTENSION(TMiscExt, 0, misc)
 REGISTER_PROTO_EXTENSION(TBlocksExt, 1, blocks)
 REGISTER_PROTO_EXTENSION(TErasurePlacementExt, 2, erasure_placement)
-REGISTER_PROTO_EXTENSION(THunkRefsExt, 3, hunk_refs)
 
 ////////////////////////////////////////////////////////////////////////////////
 

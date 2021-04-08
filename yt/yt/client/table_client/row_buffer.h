@@ -66,6 +66,8 @@ public:
     TMutableUnversionedRow Capture(const TUnversionedValue* begin, int count, bool deep = true);
     std::vector<TMutableUnversionedRow> Capture(TRange<TUnversionedRow> rows, bool deep = true);
 
+    TMutableVersionedRow Capture(TVersionedRow row, bool deep = true);
+
     //! Captures the row applying #idMapping to value ids and placing values to the proper positions.
     //! The returned row is schemaful.
     //! Skips values that map to negative ids with via #idMapping.

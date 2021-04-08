@@ -24,6 +24,7 @@
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/hunks.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
@@ -38,6 +39,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -487,8 +489,8 @@ private:
             return;
         }
 
-        const auto& config = tablet->GetMountConfig();
-        if (!config->EnableCompactionAndPartitioning) {
+        const auto& mountConfig = tablet->GetSettings().MountConfig;
+        if (!mountConfig->EnableCompactionAndPartitioning) {
             return;
         }
 
@@ -514,9 +516,10 @@ private:
         }
 
         auto candidate = std::make_unique<TTask>(slot, tablet, eden, std::move(stores));
+        const auto& mountConfig = tablet->GetSettings().MountConfig;
         // We aim to improve OSC; partitioning unconditionally improves OSC (given at least two stores).
         // So we consider how constrained is the tablet, and how many stores we consider for partitioning.
-        const int overlappingStoreLimit = GetOverlappingStoreLimit(tablet->GetMountConfig());
+        const int overlappingStoreLimit = GetOverlappingStoreLimit(mountConfig);
         const int overlappingStoreCount = tablet->GetOverlappingStoreCount();
         candidate->Slack = std::max(0, overlappingStoreLimit - overlappingStoreCount);
         candidate->Effect = candidate->StoreIds.size() - 1;
@@ -541,8 +544,8 @@ private:
 
         const auto* tablet = partition->GetTablet();
 
-        const auto& config = tablet->GetMountConfig();
-        if (!config->EnableDiscardingExpiredPartitions || config->MinDataVersions != 0) {
+        const auto& mountConfig = tablet->GetSettings().MountConfig;
+        if (!mountConfig->EnableDiscardingExpiredPartitions || mountConfig->MinDataVersions != 0) {
             return false;
         }
 
@@ -564,7 +567,7 @@ private:
         }
 
         if (partitionMaxTimestamp >= currentTimestamp ||
-            TimestampDiffToDuration(partitionMaxTimestamp, currentTimestamp).first <= config->MaxDataTtl)
+            TimestampDiffToDuration(partitionMaxTimestamp, currentTimestamp).first <= mountConfig->MaxDataTtl)
         {
             return false;
         }
@@ -629,14 +632,15 @@ private:
         }
 
         auto candidate = std::make_unique<TTask>(slot, tablet, partition, std::move(stores));
+        const auto& mountConfig = tablet->GetSettings().MountConfig;
         // We aim to improve OSC; compaction improves OSC _only_ if the partition contributes towards OSC.
         // So we consider how constrained is the partition, and how many stores we consider for compaction.
-        const int overlappingStoreLimit = GetOverlappingStoreLimit(tablet->GetMountConfig());
+        const int overlappingStoreLimit = GetOverlappingStoreLimit(mountConfig);
         const int overlappingStoreCount = tablet->GetOverlappingStoreCount();
         if (partition->IsEden()) {
             // Normalized eden store count dominates when number of eden stores is too close to its limit.
             int normalizedEdenStoreCount = tablet->GetEdenStoreCount() * overlappingStoreLimit /
-                tablet->GetMountConfig()->MaxEdenStoresPerTablet;
+                mountConfig->MaxEdenStoresPerTablet;
             int overlappingStoreLimitSlackness = overlappingStoreLimit -
                 std::max(overlappingStoreCount, normalizedEdenStoreCount);
 
@@ -673,7 +677,7 @@ private:
 
         const auto* tablet = eden->GetTablet();
         const auto& storeManager = tablet->GetStoreManager();
-        const auto& config = tablet->GetMountConfig();
+        const auto& mountConfig = tablet->GetSettings().MountConfig;
 
         std::vector<TSortedChunkStorePtr> candidates;
 
@@ -692,7 +696,7 @@ private:
                 finalists.push_back(candidate->GetId());
             }
 
-            if (finalists.size() >= config->MaxPartitioningStoreCount) {
+            if (finalists.size() >= mountConfig->MaxPartitioningStoreCount) {
                 break;
             }
         }
@@ -715,11 +719,11 @@ private:
         for (int i = 0; i < candidates.size(); ++i) {
             dataSizeSum += candidates[i]->GetCompressedDataSize();
             int storeCount = i + 1;
-            if (storeCount >= config->MinPartitioningStoreCount &&
-                storeCount <= config->MaxPartitioningStoreCount &&
-                dataSizeSum >= config->MinPartitioningDataSize &&
+            if (storeCount >= mountConfig->MinPartitioningStoreCount &&
+                storeCount <= mountConfig->MaxPartitioningStoreCount &&
+                dataSizeSum >= mountConfig->MinPartitioningDataSize &&
                 // Ignore max_partitioning_data_size limit for a minimal set of stores.
-                (dataSizeSum <= config->MaxPartitioningDataSize || storeCount == config->MinPartitioningStoreCount))
+                (dataSizeSum <= mountConfig->MaxPartitioningDataSize || storeCount == mountConfig->MinPartitioningStoreCount))
             {
                 // Prefer to partition more data.
                 bestStoreCount = storeCount;
@@ -742,14 +746,14 @@ private:
 
         const auto* tablet = partition->GetTablet();
         const auto& storeManager = tablet->GetStoreManager();
-        const auto& config = tablet->GetMountConfig();
+        const auto& mountConfig = tablet->GetSettings().MountConfig;
 
         auto Logger = TabletNodeLogger;
         Logger.AddTag("%v, PartitionId: %v",
             tablet->GetLoggingTag(),
             partition->GetId());
 
-        YT_LOG_DEBUG_IF(config->EnableLsmVerboseLogging,
+        YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
             "Picking stores for compaction");
 
         std::vector<TSortedChunkStorePtr> candidates;
@@ -760,7 +764,7 @@ private:
             }
 
             // Don't compact large Eden stores.
-            if (partition->IsEden() && store->GetCompressedDataSize() >= config->MinPartitioningDataSize) {
+            if (partition->IsEden() && store->GetCompressedDataSize() >= mountConfig->MinPartitioningDataSize) {
                 continue;
             }
 
@@ -773,7 +777,7 @@ private:
             {
                 finalists.push_back(candidate->GetId());
 
-                if (config->EnableLsmVerboseLogging) {
+                if (mountConfig->EnableLsmVerboseLogging) {
                     TString reason;
                     if (IsCompactionForced(candidate)) {
                         reason = "forced compaction";
@@ -788,7 +792,7 @@ private:
                 }
             }
 
-            if (finalists.size() >= config->MaxCompactionStoreCount) {
+            if (finalists.size() >= mountConfig->MaxCompactionStoreCount) {
                 break;
             }
         }
@@ -813,10 +817,10 @@ private:
             overlappingStoreCount = partition->Stores().size() + tablet->GetEdenOverlappingStoreCount();
         }
         // Partition is critical if it contributes towards the OSC, and MOSC is reached.
-        bool criticalPartition = overlappingStoreCount >= GetOverlappingStoreLimit(config);
+        bool criticalPartition = overlappingStoreCount >= GetOverlappingStoreLimit(mountConfig);
 
         if (criticalPartition) {
-            YT_LOG_DEBUG_IF(config->EnableLsmVerboseLogging,
+            YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
                 "Partition is critical, picking as many stores as possible");
         }
 
@@ -825,13 +829,13 @@ private:
             int j = i;
             while (j < candidates.size()) {
                 int storeCount = j - i;
-                if (storeCount > config->MaxCompactionStoreCount) {
+                if (storeCount > mountConfig->MaxCompactionStoreCount) {
                    break;
                 }
                 i64 dataSize = candidates[j]->GetCompressedDataSize();
                 if (!criticalPartition &&
-                    dataSize > config->CompactionDataSizeBase &&
-                    dataSizeSum > 0 && dataSize > dataSizeSum * config->CompactionDataSizeRatio) {
+                    dataSize > mountConfig->CompactionDataSizeBase &&
+                    dataSizeSum > 0 && dataSize > dataSizeSum * mountConfig->CompactionDataSizeRatio) {
                     break;
                 }
                 dataSizeSum += dataSize;
@@ -839,13 +843,13 @@ private:
             }
 
             int storeCount = j - i;
-            if (storeCount >= config->MinCompactionStoreCount) {
+            if (storeCount >= mountConfig->MinCompactionStoreCount) {
                 finalists.reserve(storeCount);
                 while (i < j) {
                     finalists.push_back(candidates[i]->GetId());
                     ++i;
                 }
-                YT_LOG_DEBUG_IF(config->EnableLsmVerboseLogging,
+                YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
                     "Picked stores for compaction (DataSize: %v, StoreId: %v)",
                     dataSizeSum,
                     MakeFormattableView(
@@ -1040,7 +1044,7 @@ private:
     {
         auto transactionAttributes = CreateEphemeralAttributes();
         transactionAttributes->Set("title", title);
-        auto asyncTransaction = Bootstrap_->GetMasterClient()->StartNativeTransaction(
+        auto transactionFuture = Bootstrap_->GetMasterClient()->StartNativeTransaction(
             NTransactionClient::ETransactionType::Master,
             TTransactionStartOptions{
                 .AutoAbort = false,
@@ -1048,7 +1052,7 @@ private:
                 .CoordinatorMasterCellTag = CellTagFromId(tabletSnapshot->TabletId),
                 .ReplicateToMasterCellTags = TCellTagList()
             });
-        return WaitFor(asyncTransaction)
+        return WaitFor(transactionFuture)
             .ValueOrThrow();
     }
 
@@ -1114,10 +1118,10 @@ private:
             .ReadSessionId = TReadSessionId::Create()
         };
 
-        NLogging::TLogger Logger(TabletNodeLogger);
-        Logger.AddTag("%v, ReadSessionId: %v",
-            task->TabletLoggingTag,
-            chunkReadOptions.ReadSessionId);
+        auto Logger = TabletNodeLogger
+            .WithTag("%v, ReadSessionId: %v",
+                task->TabletLoggingTag,
+                chunkReadOptions.ReadSessionId);
 
         auto doneGuard = Finally([&] {
             ScheduleMorePartitionings();
@@ -1187,8 +1191,9 @@ private:
         }
 
         std::vector<TLegacyOwningKey> pivotKeys;
+        const auto& mountConfig = tablet->GetSettings().MountConfig;
         for (const auto& partition : tablet->PartitionList()) {
-            if (!partition->GetTablet()->GetMountConfig()->EnablePartitionSplitWhileEdenPartitioning &&
+            if (!mountConfig->EnablePartitionSplitWhileEdenPartitioning &&
                 partition->GetState() == EPartitionState::Splitting)
             {
                 YT_LOG_DEBUG("Other partition is splitting, aborting eden partitioning (PartitionId: %v)",
@@ -1226,8 +1231,8 @@ private:
             auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
                 .ValueOrThrow();
 
-            auto beginInstant = TInstant::Now();
-            eden->SetCompactionTime(beginInstant);
+            NProfiling::TWallTimer timer;
+            eden->SetCompactionTime(timer.GetStartTime());
 
             structuredLogger->LogEvent("start_partitioning")
                 .Item("partition_id").Value(eden->GetId())
@@ -1246,7 +1251,7 @@ private:
                 dataSize,
                 stores.size(),
                 currentTimestamp,
-                ConvertTo<TRetentionConfigPtr>(tabletSnapshot->MountConfig));
+                ConvertTo<TRetentionConfigPtr>(mountConfig));
 
             reader = CreateVersionedTabletReader(
                 tabletSnapshot,
@@ -1263,7 +1268,7 @@ private:
             auto transaction = StartPartitioningTransaction(tabletSnapshot, Logger);
             Logger.AddTag("TransactionId: %v", transaction->GetId());
 
-            auto asyncResult =
+            auto parititioningResultFuture =
                 BIND(
                     &TStoreCompactor::DoPartitionEden,
                     MakeStrong(this),
@@ -1276,11 +1281,9 @@ private:
                 .AsyncVia(ThreadPool_->GetInvoker())
                 .Run();
 
-            auto partitioningResult = WaitFor(asyncResult)
+            auto partitioningResult = WaitFor(parititioningResultFuture)
                 .ValueOrThrow();
             const auto& partitionWritersWithIndex = partitioningResult.Writers;
-
-            auto endInstant = TInstant::Now();
 
             // We can release semaphore, because we are no longer actively using resources.
             task->SemaphoreGuard.Release();
@@ -1289,7 +1292,7 @@ private:
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Partitioning));
 
-            TStoreIdList storeIdsToRemove;
+            std::vector<TStoreId> storeIdsToRemove;
             for (const auto& store : stores) {
                 auto* descriptor = actionRequest.add_stores_to_remove();
                 auto storeId = store->GetId();
@@ -1299,16 +1302,15 @@ private:
 
             std::vector<std::pair<TChunkId, int>> loggableChunkInfos;
 
-            // TODO(sandello): Move specs?
-            TStoreIdList storeIdsToAdd;
+            std::vector<TStoreId> storeIdsToAdd;
             for (const auto& [writer, partitionIndex] : partitionWritersWithIndex) {
-                for (const auto& chunkSpec : writer->GetWrittenChunksMasterMeta()) {
+                for (const auto& chunkSpec : writer->GetWrittenChunkSpecs()) {
                     auto* descriptor = actionRequest.add_stores_to_add();
-                    descriptor->set_store_type(static_cast<int>(EStoreType::SortedChunk));
-                    descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
-                    descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
+                    descriptor->set_store_type(ToProto<int>(EStoreType::SortedChunk));
+                    *descriptor->mutable_store_id() = chunkSpec.chunk_id();
+                    *descriptor->mutable_chunk_meta() = chunkSpec.chunk_meta();
+                    FilterProtoExtensions(descriptor->mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
                     storeIdsToAdd.push_back(FromProto<TStoreId>(chunkSpec.chunk_id()));
-
                     loggableChunkInfos.emplace_back(
                         FromProto<TChunkId>(chunkSpec.chunk_id()),
                         partitionIndex
@@ -1322,7 +1324,7 @@ private:
                 partitioningResult.RowCount,
                 storeIdsToAdd,
                 storeIdsToRemove,
-                endInstant - beginInstant);
+                timer.GetElapsedTime());
 
             structuredLogger->LogEvent("end_partitioning")
                 .Item("partition_id").Value(eden->GetId())
@@ -1392,16 +1394,15 @@ private:
         const TLegacyOwningKey& nextTabletPivotKey,
         NLogging::TLogger Logger)
     {
-        auto writerConfig = CloneYsonSerializable(tabletSnapshot->WriterConfig);
+        const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
+
+        auto writerConfig = CloneYsonSerializable(tabletSnapshot->Settings.StoreWriterConfig);
         writerConfig->MinUploadReplicationFactor = writerConfig->UploadReplicationFactor;
         writerConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPartitioning);
 
-        auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
+        auto writerOptions = CloneYsonSerializable(tabletSnapshot->Settings.StoreWriterOptions);
         writerOptions->ValidateResourceUsageIncrease = false;
         writerOptions->ChunkConsistentPlacementHash = tabletSnapshot->ChunkConsistentPlacementHash;
-
-        std::vector<TVersionedRow> writeRows;
-        writeRows.reserve(MaxRowsPerWrite);
 
         int currentPartitionIndex = 0;
         TLegacyOwningKey currentPivotKey;
@@ -1412,7 +1413,7 @@ private:
         int writeRowCount = 0;
         IVersionedMultiChunkWriterPtr currentWriter;
 
-        auto asyncBlockCache = CreateRemoteInMemoryBlockCache(
+        auto blockCacheFuture = CreateRemoteInMemoryBlockCache(
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor(),
             Bootstrap_->GetRpcServer(),
@@ -1421,13 +1422,13 @@ private:
                 ->GetNativeConnection()
                 ->GetCellDirectory()
                 ->GetDescriptorOrThrow(tabletSnapshot->CellId),
-            tabletSnapshot->MountConfig->InMemoryMode,
+            mountConfig->InMemoryMode,
             Bootstrap_->GetInMemoryManager()->GetConfig());
 
-        auto blockCache = WaitFor(asyncBlockCache)
+        auto blockCache = WaitFor(blockCacheFuture)
             .ValueOrThrow();
 
-        TMemoryZoneGuard memoryZoneGuard(tabletSnapshot->MountConfig->InMemoryMode == EInMemoryMode::None
+        TMemoryZoneGuard memoryZoneGuard(mountConfig->InMemoryMode == EInMemoryMode::None
             ? EMemoryZone::Normal
             : EMemoryZone::Undumpable);
 
@@ -1435,9 +1436,10 @@ private:
             Bootstrap_->GetTabletNodeOutThrottler(EWorkloadCategory::SystemTabletPartitioning),
             tabletSnapshot->PartitioningThrottler});
 
-        auto ensurePartitionStarted = [&] () {
-            if (currentWriter)
+        auto ensurePartitionStarted = [&] {
+            if (currentWriter) {
                 return;
+            }
 
             YT_LOG_INFO("Started writing partition (PartitionIndex: %v, Keys: %v .. %v)",
                 currentPartitionIndex,
@@ -1447,18 +1449,23 @@ private:
             currentWriter = CreateVersionedMultiChunkWriter(
                 writerConfig,
                 writerOptions,
-                tabletSnapshot->PhysicalSchema,
-                Bootstrap_->GetMasterClient(),
-                CellTagFromId(tabletSnapshot->TabletId),
-                transaction->GetId(),
-                NullChunkListId,
+                tabletSnapshot,
+                transaction,
                 throttler,
                 blockCache);
         };
 
-        auto flushOutputRows = [&] () {
-            if (writeRows.empty())
+        std::vector<TVersionedRow> writeRows;
+        writeRows.reserve(MaxRowsPerWrite);
+
+        auto addOutputRow = [&] (TVersionedRow row) {
+            writeRows.push_back(row);
+        };
+
+        auto flushOutputRows = [&] {
+            if (writeRows.empty()) {
                 return;
+            }
 
             writeRowCount += writeRows.size();
 
@@ -1475,11 +1482,11 @@ private:
             if (writeRows.size() == writeRows.capacity()) {
                 flushOutputRows();
             }
-            writeRows.push_back(row);
+            addOutputRow(row);
             ++currentPartitionRowCount;
         };
 
-        std::vector<TFuture<void>> asyncCloseResults;
+        std::vector<TFuture<void>> closeFutures;
         std::vector<TEdenPartitioningResult::TPartitionWriter> releasedWriters;
 
         auto flushPartition = [&] (int partitionIndex) {
@@ -1490,7 +1497,7 @@ private:
                     currentPartitionIndex,
                     currentPartitionRowCount);
 
-                asyncCloseResults.push_back(currentWriter->Close());
+                closeFutures.push_back(currentWriter->Close());
                 releasedWriters.push_back({std::move(currentWriter), partitionIndex});
                 currentWriter.Reset();
             }
@@ -1500,18 +1507,17 @@ private:
         };
 
         IVersionedRowBatchPtr rowBatch;
-        TRowBatchReadOptions options{
+        TRowBatchReadOptions readOptions{
             .MaxRowsPerRead = MaxRowsPerRead
         };
         int currentRowIndex = 0;
 
-        auto peekInputRow = [&] () -> TVersionedRow {
+        auto peekInputRow = [&] {
             if (!rowBatch || currentRowIndex == rowBatch->GetRowCount()) {
-                // readRows will be invalidated, must flush writeRows.
                 flushOutputRows();
                 currentRowIndex = 0;
                 while (true) {
-                    rowBatch = reader->Read(options);
+                    rowBatch = reader->Read(readOptions);
                     if (!rowBatch) {
                         return TVersionedRow();
                     }
@@ -1526,7 +1532,7 @@ private:
             return rowBatch->MaterializeRows()[currentRowIndex];
         };
 
-        auto skipInputRow = [&] () {
+        auto skipInputRow = [&] {
             ++currentRowIndex;
         };
 
@@ -1559,16 +1565,16 @@ private:
 
         YT_VERIFY(readRowCount == writeRowCount);
 
-        WaitFor(AllSucceeded(asyncCloseResults))
+        WaitFor(AllSucceeded(closeFutures))
             .ThrowOnError();
 
         std::vector<TChunkInfo> chunkInfos;
         for (const auto& partitionWriterInfo : releasedWriters) {
             const auto& writer = partitionWriterInfo.Writer;
-            for (const auto& chunkSpec : writer->GetWrittenChunksFullMeta()) {
+            for (const auto& chunkSpec : writer->GetWrittenChunkSpecs()) {
                 chunkInfos.emplace_back(
                     FromProto<TChunkId>(chunkSpec.chunk_id()),
-                    chunkSpec.chunk_meta(),
+                    New<TRefCountedChunkMeta>(chunkSpec.chunk_meta()),
                     tabletSnapshot->TabletId,
                     tabletSnapshot->MountRevision);
             }
@@ -1614,7 +1620,7 @@ private:
             actionRequest.set_retained_timestamp(retainedTimestamp);
             actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Compaction));
 
-            TStoreIdList storeIdsToRemove;
+            std::vector<TStoreId> storeIdsToRemove;
             for (const auto& store : stores) {
                 auto* descriptor = actionRequest.add_stores_to_remove();
                 auto storeId = store->GetId();
@@ -1663,10 +1669,10 @@ private:
             .ReadSessionId = TReadSessionId::Create()
         };
 
-        NLogging::TLogger Logger(TabletNodeLogger);
-        Logger.AddTag("%v, ReadSessionId: %v",
-            task->TabletLoggingTag,
-            chunkReadOptions.ReadSessionId);
+        auto Logger = TabletNodeLogger
+            .WithTag("%v, ReadSessionId: %v",
+                task->TabletLoggingTag,
+                chunkReadOptions.ReadSessionId);
 
         auto doneGuard = Finally([&] {
             ScheduleMoreCompactions();
@@ -1751,7 +1757,7 @@ private:
         partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Compacting);
 
         IVersionedReaderPtr reader;
-        IVersionedMultiChunkWriterPtr writer;
+        TPartitionCompactionResult compactionResult;
 
         auto writerProfiler = New<TWriterProfiler>();
         auto readerProfiler = New<TReaderProfiler>();
@@ -1774,13 +1780,13 @@ private:
             auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
                 .ValueOrThrow();
 
-            auto beginInstant = TInstant::Now();
-            partition->SetCompactionTime(beginInstant);
+            NProfiling::TWallTimer timer;
+            partition->SetCompactionTime(timer.GetStartTime());
 
+            const auto& mountConfig = tablet->GetSettings().MountConfig;
             auto retainedTimestamp = std::min(
-                InstantToTimestamp(TimestampToInstant(currentTimestamp).second - tablet->GetMountConfig()->MinDataTtl).second,
-                currentTimestamp
-            );
+                InstantToTimestamp(TimestampToInstant(currentTimestamp).second - mountConfig->MinDataTtl).second,
+                currentTimestamp);
 
             auto majorTimestamp = std::min(ComputeMajorTimestamp(partition, stores), retainedTimestamp);
 
@@ -1806,7 +1812,7 @@ private:
                 currentTimestamp,
                 majorTimestamp,
                 retainedTimestamp,
-                ConvertTo<TRetentionConfigPtr>(tabletSnapshot->MountConfig));
+                ConvertTo<TRetentionConfigPtr>(mountConfig));
 
             reader = CreateVersionedTabletReader(
                 tabletSnapshot,
@@ -1823,7 +1829,7 @@ private:
             auto transaction = StartCompactionTransaction(tabletSnapshot, Logger);
             Logger.AddTag("TransactionId: %v", transaction->GetId());
 
-            auto asyncResult =
+            auto compactionResultFuture =
                 BIND(
                     &TStoreCompactor::DoCompactPartition,
                     MakeStrong(this),
@@ -1835,12 +1841,8 @@ private:
                 .AsyncVia(ThreadPool_->GetInvoker())
                 .Run();
 
-            i64 outputRowCount;
-            i64 outputDataSize;
-            std::tie(writer, outputRowCount, outputDataSize) = WaitFor(asyncResult)
+            compactionResult = WaitFor(compactionResultFuture)
                 .ValueOrThrow();
-
-            auto endInstant = TInstant::Now();
 
             // We can release semaphore, because we are no longer actively using resources.
             task->SemaphoreGuard.Release();
@@ -1850,7 +1852,7 @@ private:
             actionRequest.set_retained_timestamp(retainedTimestamp);
             actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Compaction));
 
-            TStoreIdList storeIdsToRemove;
+            std::vector<TStoreId> storeIdsToRemove;
             for (const auto& store : stores) {
                 auto* descriptor = actionRequest.add_stores_to_remove();
                 auto storeId = store->GetId();
@@ -1858,30 +1860,30 @@ private:
                 storeIdsToRemove.push_back(storeId);
             }
 
-            // TODO(sandello): Move specs?
-            TStoreIdList storeIdsToAdd;
-            for (const auto& chunkSpec : writer->GetWrittenChunksMasterMeta()) {
+            std::vector<TStoreId> storeIdsToAdd;
+            for (const auto& chunkSpec : compactionResult.Writer->GetWrittenChunkSpecs()) {
                 auto* descriptor = actionRequest.add_stores_to_add();
-                descriptor->set_store_type(static_cast<int>(EStoreType::SortedChunk));
-                descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
-                descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
+                descriptor->set_store_type(ToProto<int>(EStoreType::SortedChunk));
+                *descriptor->mutable_store_id() = chunkSpec.chunk_id();
+                *descriptor->mutable_chunk_meta() = chunkSpec.chunk_meta();
+                FilterProtoExtensions(descriptor->mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
                 storeIdsToAdd.push_back(FromProto<TStoreId>(chunkSpec.chunk_id()));
             }
 
-            tabletSnapshot->PerformanceCounters->CompactionDataWeightCount += writer->GetDataStatistics().data_weight();
+            tabletSnapshot->PerformanceCounters->CompactionDataWeightCount += compactionResult.Writer->GetDataStatistics().data_weight();
 
             YT_LOG_INFO("Partition compaction completed (RowCount: %v, CompressedDataSize: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, WallTime: %v)",
-                outputRowCount,
-                outputDataSize,
+                compactionResult.RowCount,
+                compactionResult.CompressedDataSize,
                 storeIdsToAdd,
                 storeIdsToRemove,
-                endInstant - beginInstant);
+                timer.GetElapsedTime());
 
             structuredLogger->LogEvent("end_compaction")
                 .Item("partition_id").Value(partition->GetId())
                 .Item("store_ids_to_add").List(storeIdsToAdd)
-                .Item("output_row_count").Value(outputRowCount)
-                .Item("output_data_size").Value(outputDataSize);
+                .Item("output_row_count").Value(compactionResult.RowCount)
+                .Item("output_compressed_data_size").Value(compactionResult.CompressedDataSize);
 
             FinishTabletStoresUpdateTransaction(tablet, slot, std::move(actionRequest), std::move(transaction), Logger);
 
@@ -1907,7 +1909,7 @@ private:
             failed = true;
         }
 
-        writerProfiler->Update(writer);
+        writerProfiler->Update(compactionResult.Writer);
         readerProfiler->Update(reader, chunkReadOptions.ChunkReaderStatistics);
 
         writerProfiler->Profile(tabletSnapshot, EChunkWriteProfilingMethod::Compaction, failed);
@@ -1916,23 +1918,32 @@ private:
         partition->CheckedSetState(EPartitionState::Compacting, EPartitionState::Normal);
     }
 
-    std::tuple<IVersionedMultiChunkWriterPtr, i64, i64> DoCompactPartition(
+    struct TPartitionCompactionResult
+    {
+        IVersionedMultiChunkWriterPtr Writer;
+        i64 RowCount;
+        i64 CompressedDataSize;
+    };
+
+    TPartitionCompactionResult DoCompactPartition(
         const IVersionedReaderPtr& reader,
         const TTabletSnapshotPtr& tabletSnapshot,
         const ITransactionPtr& transaction,
         bool isEden,
         NLogging::TLogger Logger)
     {
-        auto writerConfig = CloneYsonSerializable(tabletSnapshot->WriterConfig);
+        const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
+
+        auto writerConfig = CloneYsonSerializable(tabletSnapshot->Settings.StoreWriterConfig);
         writerConfig->MinUploadReplicationFactor = writerConfig->UploadReplicationFactor;
         writerConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction);
 
-        auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
+        auto writerOptions = CloneYsonSerializable(tabletSnapshot->Settings.StoreWriterOptions);
         writerOptions->ChunksEden = isEden;
         writerOptions->ValidateResourceUsageIncrease = false;
         writerOptions->ChunkConsistentPlacementHash = tabletSnapshot->ChunkConsistentPlacementHash;
 
-        auto asyncBlockCache = CreateRemoteInMemoryBlockCache(
+        auto blockCacheFuture = CreateRemoteInMemoryBlockCache(
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor(),
             Bootstrap_->GetRpcServer(),
@@ -1941,42 +1952,39 @@ private:
                 ->GetNativeConnection()
                 ->GetCellDirectory()
                 ->GetDescriptorOrThrow(tabletSnapshot->CellId),
-            tabletSnapshot->MountConfig->InMemoryMode,
+            mountConfig->InMemoryMode,
             Bootstrap_->GetInMemoryManager()->GetConfig());
 
-        auto blockCache = WaitFor(asyncBlockCache)
+        auto blockCache = WaitFor(blockCacheFuture)
             .ValueOrThrow();
 
         auto throttler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
             Bootstrap_->GetTabletNodeOutThrottler(EWorkloadCategory::SystemTabletCompaction),
             tabletSnapshot->CompactionThrottler});
 
-        TMemoryZoneGuard memoryZoneGuard(tabletSnapshot->MountConfig->InMemoryMode == EInMemoryMode::None
+        TMemoryZoneGuard memoryZoneGuard(mountConfig->InMemoryMode == EInMemoryMode::None
             ? NYTAlloc::EMemoryZone::Normal
             : NYTAlloc::EMemoryZone::Undumpable);
 
         auto writer = CreateVersionedMultiChunkWriter(
             writerConfig,
             writerOptions,
-            tabletSnapshot->PhysicalSchema,
-            Bootstrap_->GetMasterClient(),
-            CellTagFromId(tabletSnapshot->TabletId),
-            transaction->GetId(),
-            NullChunkListId,
+            tabletSnapshot,
+            transaction,
             throttler,
             blockCache);
 
         WaitFor(reader->Open())
             .ThrowOnError();
 
-        TRowBatchReadOptions options{
+        TRowBatchReadOptions readOptions{
             .MaxRowsPerRead = MaxRowsPerRead
         };
 
         i64 readRowCount = 0;
         i64 writeRowCount = 0;
 
-        while (auto batch = reader->Read(options)) {
+        while (auto batch = reader->Read(readOptions)) {
             readRowCount += batch->GetRowCount();
 
             if (batch->IsEmpty()) {
@@ -1996,10 +2004,10 @@ private:
             .ThrowOnError();
 
         std::vector<TChunkInfo> chunkInfos;
-        for (const auto& chunkSpec : writer->GetWrittenChunksFullMeta()) {
+        for (const auto& chunkSpec : writer->GetWrittenChunkSpecs()) {
             chunkInfos.emplace_back(
                 FromProto<TChunkId>(chunkSpec.chunk_id()),
-                chunkSpec.chunk_meta(),
+                New<TRefCountedChunkMeta>(chunkSpec.chunk_meta()),
                 tabletSnapshot->TabletId,
                 tabletSnapshot->MountRevision);
         }
@@ -2009,24 +2017,66 @@ private:
 
         YT_VERIFY(readRowCount == writeRowCount);
 
-        i64 dataSize = writer->GetDataStatistics().compressed_data_size();
-        return std::make_tuple(writer, readRowCount, dataSize);
+        return {
+            writer,
+            readRowCount,
+            writer->GetDataStatistics().compressed_data_size()
+        };
     }
+
+
+    IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
+        const TTabletStoreWriterConfigPtr writerConfig,
+        const TTabletStoreWriterOptionsPtr& writerOptions,
+        const TTabletSnapshotPtr& tabletSnapshot,
+        const ITransactionPtr& transaction,
+        const IThroughputThrottlerPtr throttler,
+        const IBlockCachePtr& blockCache)
+    {
+        auto chunkWriterFactory = [=] (IChunkWriterPtr underlyingWriter) {
+            auto writer = CreateVersionedChunkWriter(
+                writerConfig,
+                writerOptions,
+                tabletSnapshot->PhysicalSchema,
+                underlyingWriter,
+                blockCache);
+
+            if (tabletSnapshot->PhysicalSchema->HasHunkColumns()) {
+                writer = CreateHunkRefLocalizingVersionedWriterAdapter(
+                    std::move(writer),
+                    tabletSnapshot->PhysicalSchema);
+            }
+
+            return writer;
+        };
+
+        return NTableClient::CreateVersionedMultiChunkWriter(
+            std::move(chunkWriterFactory),
+            writerConfig,
+            writerOptions,
+            Bootstrap_->GetMasterClient(),
+            CellTagFromId(tabletSnapshot->TabletId),
+            transaction->GetId(),
+            /*parentChunkListId*/ {},
+            throttler,
+            blockCache);
+    }
+
 
     static bool IsCompactionForced(const TSortedChunkStorePtr& store)
     {
         std::optional<NHydra::TRevision> forcedCompactionRevision;
 
-        const auto& config = store->GetTablet()->GetMountConfig();
-        if (config->ForcedCompactionRevision) {
-            forcedCompactionRevision = config->ForcedCompactionRevision;
+        const auto& mountConfig = store->GetTablet()->GetSettings().MountConfig;
+        if (mountConfig->ForcedCompactionRevision) {
+            forcedCompactionRevision = mountConfig->ForcedCompactionRevision;
         }
-        if (config->ForcedChunkViewCompactionRevision &&
+        if (mountConfig->ForcedChunkViewCompactionRevision &&
             TypeFromId(store->GetId()) == EObjectType::ChunkView)
         {
             // NB: std::nullopt is less than any nonempty optional.
             forcedCompactionRevision = std::max(
-                config->ForcedChunkViewCompactionRevision,
+                mountConfig->ForcedChunkViewCompactionRevision,
                 forcedCompactionRevision);
         }
 
@@ -2044,16 +2094,14 @@ private:
 
     static bool IsPeriodicCompactionNeeded(const TSortedChunkStorePtr& store)
     {
-        const auto& config = store->GetTablet()->GetMountConfig();
-        if (!config->AutoCompactionPeriod) {
+        const auto& mountConfig = store->GetTablet()->GetSettings().MountConfig;
+        if (!mountConfig->AutoCompactionPeriod) {
             return false;
         }
 
-        auto splayRatio = config->AutoCompactionPeriodSplayRatio *
+        auto splayRatio = mountConfig->AutoCompactionPeriodSplayRatio *
             store->GetId().Parts32[0] / std::numeric_limits<ui32>::max();
-        auto effectivePeriod = TDuration::FromValue(
-            static_cast<TDuration::TValue>(config->AutoCompactionPeriod->GetValue() * (1 + splayRatio)));
-
+        auto effectivePeriod = *mountConfig->AutoCompactionPeriod * (1 + splayRatio);
         if (TInstant::Now() < store->GetCreationTime() + effectivePeriod) {
             return false;
         }

@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/hydra/composite_automaton.h>
+
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,7 +26,26 @@ DEFINE_ENUM(ETabletReign,
     ((MountHint)                          (100102)) // ifsmirnov
     ((ReplicationBarrier_YT_14346)        (100103)) // babenko
     ((RowBufferEmptyRowDeserialization)   (100200)) // max42
+    ((Hunks)                              (100201)) // babenko
 );
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSaveContext
+    : public NHydra::TSaveContext
+{
+public:
+    ETabletReign GetVersion() const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLoadContext
+    : public NHydra::TLoadContext
+{
+public:
+    ETabletReign GetVersion() const;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

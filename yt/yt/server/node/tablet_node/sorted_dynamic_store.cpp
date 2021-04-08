@@ -4,6 +4,7 @@
 #include "automaton.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/hunks.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
@@ -873,8 +874,7 @@ TSortedDynamicStore::TSortedDynamicStore(
         static_cast<bool>(LookupHashTable_));
 }
 
-TSortedDynamicStore::~TSortedDynamicStore()
-{ }
+TSortedDynamicStore::~TSortedDynamicStore() = default;
 
 IVersionedReaderPtr TSortedDynamicStore::CreateFlushReader()
 {
@@ -1832,14 +1832,22 @@ TDynamicValueData TSortedDynamicStore::CaptureStringValue(TDynamicValueData src)
 
 TDynamicValueData TSortedDynamicStore::CaptureStringValue(const TUnversionedValue& src)
 {
-    YT_ASSERT(IsStringLikeType(EValueType(src.Type)));
+    YT_ASSERT(IsStringLikeType(src.Type));
     ui32 length = src.Length;
+    auto isHunk = HunkColumnFlags_[src.Id];
+    if (isHunk) {
+        ++length;
+    }
     TDynamicValueData dst;
     dst.String = reinterpret_cast<TDynamicString*>(RowBuffer_->GetPool()->AllocateAligned(
         sizeof(ui32) + length,
         sizeof(ui32)));
     dst.String->Length = length;
-    ::memcpy(dst.String->Data, src.Data.String, length);
+    auto* currentPtr = dst.String->Data;
+    if (isHunk) {
+        *currentPtr++ = static_cast<char>(EHunkValueTag::Inline);
+    }
+    ::memcpy(currentPtr, src.Data.String, src.Length);
     return dst;
 }
 
@@ -1971,7 +1979,7 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
         auto tableWriterConfig = New<TChunkWriterConfig>();
         tableWriterConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery);
 
-        auto tableWriterOptions = New<TTabletWriterOptions>();
+        auto tableWriterOptions = New<TTabletStoreWriterOptions>();
         tableWriterOptions->OptimizeFor = EOptimizeFor::Scan;
 
         auto tableWriter = CreateVersionedChunkWriter(

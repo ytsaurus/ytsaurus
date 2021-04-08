@@ -84,7 +84,12 @@ inline ui32 TReaderBase::GetKeyColumnCount() const
 template <class T>
 inline T* TReaderBase::Allocate(size_t size)
 {
-    return reinterpret_cast<T*>(Buffer_->GetPool()->AllocateAligned(sizeof(T) * size));
+    return reinterpret_cast<T*>(GetPool()->AllocateAligned(sizeof(T) * size));
+}
+
+inline TChunkedMemoryPool* TReaderBase::GetPool() const
+{
+    return Buffer_->GetPool();
 }
 
 inline void TReaderBase::ClearBuffer()

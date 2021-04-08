@@ -3,7 +3,7 @@
 #include "lock_manager.h"
 #include "object_detail.h"
 #include "partition.h"
-#include "public.h"
+#include "store.h"
 #include "sorted_dynamic_comparer.h"
 #include "cached_row.h"
 #include "tablet_profiling.h"
@@ -38,14 +38,8 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDeleteListFlusher
-{
-    ~TDeleteListFlusher();
-};
-
 struct TRowCache
     : public TRefCounted
-    , public TDeleteListFlusher
 {
     TSlabAllocator Allocator;
     TConcurrentCache<TCachedRow> Cache;
@@ -54,6 +48,7 @@ struct TRowCache
     std::atomic<ui32> FlushIndex = 0;
 
     TRowCache(size_t elementCount, IMemoryUsageTrackerPtr memoryTracker);
+    ~TRowCache();
 };
 
 DEFINE_REFCOUNTED_TYPE(TRowCache)
@@ -63,19 +58,19 @@ DEFINE_REFCOUNTED_TYPE(TRowCache)
 struct TTabletPerformanceCounters
     : public TChunkReaderPerformanceCounters
 {
-    std::atomic<i64> DynamicRowReadCount = {0};
-    std::atomic<i64> DynamicRowReadDataWeightCount = {0};
-    std::atomic<i64> DynamicRowLookupCount = {0};
-    std::atomic<i64> DynamicRowLookupDataWeightCount = {0};
-    std::atomic<i64> DynamicRowWriteCount = {0};
-    std::atomic<i64> DynamicRowWriteDataWeightCount = {0};
-    std::atomic<i64> DynamicRowDeleteCount = {0};
-    std::atomic<i64> UnmergedRowReadCount = {0};
-    std::atomic<i64> MergedRowReadCount = {0};
-    std::atomic<i64> CompactionDataWeightCount = {0};
-    std::atomic<i64> PartitioningDataWeightCount = {0};
-    std::atomic<i64> LookupErrorCount = {0};
-    std::atomic<i64> WriteErrorCount = {0};
+    std::atomic<i64> DynamicRowReadCount = 0;
+    std::atomic<i64> DynamicRowReadDataWeightCount = 0;
+    std::atomic<i64> DynamicRowLookupCount = 0;
+    std::atomic<i64> DynamicRowLookupDataWeightCount = 0;
+    std::atomic<i64> DynamicRowWriteCount = 0;
+    std::atomic<i64> DynamicRowWriteDataWeightCount = 0;
+    std::atomic<i64> DynamicRowDeleteCount = 0;
+    std::atomic<i64> UnmergedRowReadCount = 0;
+    std::atomic<i64> MergedRowReadCount = 0;
+    std::atomic<i64> CompactionDataWeightCount = 0;
+    std::atomic<i64> PartitioningDataWeightCount = 0;
+    std::atomic<i64> LookupErrorCount = 0;
+    std::atomic<i64> WriteErrorCount = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletPerformanceCounters)
@@ -86,13 +81,13 @@ DEFINE_REFCOUNTED_TYPE(TTabletPerformanceCounters)
 struct TRuntimeTableReplicaData
     : public TRefCounted
 {
-    std::atomic<ETableReplicaMode> Mode = {ETableReplicaMode::Async};
-    std::atomic<i64> CurrentReplicationRowIndex = {0};
-    std::atomic<TTimestamp> CurrentReplicationTimestamp = {NullTimestamp};
-    std::atomic<TTimestamp> LastReplicationTimestamp = {NullTimestamp};
-    std::atomic<i64> PreparedReplicationRowIndex = {-1};
-    std::atomic<bool> PreserveTimestamps = {true};
-    std::atomic<NTransactionClient::EAtomicity> Atomicity = {NTransactionClient::EAtomicity::Full};
+    std::atomic<ETableReplicaMode> Mode = ETableReplicaMode::Async;
+    std::atomic<i64> CurrentReplicationRowIndex = 0;
+    std::atomic<TTimestamp> CurrentReplicationTimestamp = NullTimestamp;
+    std::atomic<TTimestamp> LastReplicationTimestamp = NullTimestamp;
+    std::atomic<i64> PreparedReplicationRowIndex = -1;
+    std::atomic<bool> PreserveTimestamps = true;
+    std::atomic<NTransactionClient::EAtomicity> Atomicity = NTransactionClient::EAtomicity::Full;
     TAtomicObject<TError> Error;
 
     void Populate(NTabletClient::NProto::TTableReplicaStatistics* statistics) const;
@@ -120,18 +115,32 @@ DEFINE_REFCOUNTED_TYPE(TTableReplicaSnapshot)
 struct TRuntimeTabletData
     : public TRefCounted
 {
-    std::atomic<i64> TotalRowCount = {0};
-    std::atomic<i64> TrimmedRowCount = {0};
-    std::atomic<TTimestamp> LastCommitTimestamp = {NullTimestamp};
-    std::atomic<TTimestamp> LastWriteTimestamp = {NullTimestamp};
-    std::atomic<TTimestamp> UnflushedTimestamp = {MinTimestamp};
-    std::atomic<TInstant> ModificationTime = {NProfiling::GetInstant()};
-    std::atomic<TInstant> AccessTime = {TInstant::Zero()};
+    std::atomic<i64> TotalRowCount = 0;
+    std::atomic<i64> TrimmedRowCount = 0;
+    std::atomic<TTimestamp> LastCommitTimestamp = NullTimestamp;
+    std::atomic<TTimestamp> LastWriteTimestamp = NullTimestamp;
+    std::atomic<TTimestamp> UnflushedTimestamp = MinTimestamp;
+    std::atomic<TInstant> ModificationTime = NProfiling::GetInstant();
+    std::atomic<TInstant> AccessTime = TInstant::Zero();
     TEnumIndexedVector<ETabletDynamicMemoryType, std::atomic<i64>> DynamicMemoryUsagePerType;
     TEnumIndexedVector<NTabletClient::ETabletBackgroundActivity, TAtomicObject<TError>> Errors;
 };
 
 DEFINE_REFCOUNTED_TYPE(TRuntimeTabletData)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTableSettings
+{
+    TTableMountConfigPtr MountConfig;
+    TTabletChunkReaderConfigPtr ReaderConfig;
+    TTabletStoreWriterConfigPtr StoreWriterConfig;
+    TTabletStoreWriterOptionsPtr StoreWriterOptions;
+    TTabletHunkWriterConfigPtr HunkWriterConfig;
+    TTabletHunkWriterOptionsPtr HunkWriterOptions;
+
+    static TTableSettings CreateNew();
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -143,9 +152,7 @@ struct TTabletSnapshot
     NTabletClient::TTabletId TabletId;
     TString LoggingTag;
     NYPath::TYPath TablePath;
-    TTableMountConfigPtr MountConfig;
-    TTabletChunkWriterConfigPtr WriterConfig;
-    TTabletWriterOptionsPtr WriterOptions;
+    TTableSettings Settings;
     TLegacyOwningKey PivotKey;
     TLegacyOwningKey NextPivotKey;
     NTableClient::TTableSchemaPtr PhysicalSchema;
@@ -257,6 +264,10 @@ struct ITabletContext
         EStoreType type,
         TStoreId storeId,
         const NTabletNode::NProto::TAddStoreDescriptor* descriptor) = 0;
+    virtual THunkChunkPtr CreateHunkChunk(
+        TTablet* tablet,
+        NChunkClient::TChunkId chunkId,
+        const NTabletNode::NProto::TAddHunkChunkDescriptor* descriptor) = 0;
     virtual TTransactionManagerPtr GetTransactionManager() = 0;
     virtual NRpc::IServerPtr GetLocalRpcServer() = 0;
     virtual NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() = 0;
@@ -391,11 +402,8 @@ public:
         TTabletId tabletId,
         ITabletContext* context);
     TTablet(
-        TTableMountConfigPtr mountConfig,
-        TTabletChunkReaderConfigPtr readerConfig,
-        TTabletChunkWriterConfigPtr writerConfig,
-        TTabletWriterOptionsPtr writerOptions,
         TTabletId tabletId,
+        TTableSettings settings,
         NHydra::TRevision mountRevision,
         NObjectClient::TObjectId tableId,
         const NYPath::TYPath& path,
@@ -410,17 +418,8 @@ public:
 
     ETabletState GetPersistentState() const;
 
-    const TTableMountConfigPtr& GetMountConfig() const;
-    void SetMountConfig(TTableMountConfigPtr config);
-
-    const TTabletChunkReaderConfigPtr& GetReaderConfig() const;
-    void SetReaderConfig(TTabletChunkReaderConfigPtr config);
-
-    const TTabletChunkWriterConfigPtr& GetWriterConfig() const;
-    void SetWriterConfig(TTabletChunkWriterConfigPtr config);
-
-    const TTabletWriterOptionsPtr& GetWriterOptions() const;
-    void SetWriterOptions(TTabletWriterOptionsPtr options);
+    const TTableSettings& GetSettings() const;
+    void SetSettings(TTableSettings settings);
 
     const IStoreManagerPtr& GetStoreManager() const;
     void SetStoreManager(IStoreManagerPtr storeManager);
@@ -449,6 +448,17 @@ public:
     IStorePtr FindStore(TStoreId id);
     IStorePtr GetStore(TStoreId id);
     IStorePtr GetStoreOrThrow(TStoreId id);
+
+    const THashMap<NChunkClient::TChunkId, THunkChunkPtr>& HunkChunkMap() const;
+    void AddHunkChunk(THunkChunkPtr hunkChunk);
+    void RemoveHunkChunk(THunkChunkPtr hunkChunk);
+    THunkChunkPtr FindHunkChunk(NChunkClient::TChunkId id);
+    THunkChunkPtr GetHunkChunk(NChunkClient::TChunkId id);
+    THunkChunkPtr GetHunkChunkOrThrow(NChunkClient::TChunkId id);
+
+    void UpdatePreparedStoreRefCount(const THunkChunkPtr& hunkChunk, int delta);
+    void UpdateHunkChunkRef(const THunkChunkRef& ref, int delta);
+    const THashSet<THunkChunkPtr>& DanglingHunkChunks() const;
 
     TTableReplicaInfo* FindReplicaInfo(TTableReplicaId id);
     TTableReplicaInfo* GetReplicaInfoOrThrow(TTableReplicaId id);
@@ -532,11 +542,16 @@ public:
         const TTabletSlotPtr& slot,
         const NLogging::TLogger& Logger) const;
 
+    // COMPAT(babenko)
+    static TTabletHunkWriterOptionsPtr CreateFallbackHunkWriterOptions(const TTabletStoreWriterOptionsPtr& storeWriterOptions);
+
 private:
-    TTableMountConfigPtr MountConfig_;
-    TTabletChunkReaderConfigPtr ReaderConfig_;
-    TTabletChunkWriterConfigPtr WriterConfig_;
-    TTabletWriterOptionsPtr WriterOptions_;
+    ITabletContext* const Context_;
+
+    const TLockManagerPtr LockManager_;
+    const NLogging::TLogger Logger;
+
+    TTableSettings Settings_;
 
     TString LoggingTag_;
 
@@ -552,9 +567,10 @@ private:
     THashMap<TStoreId, IStorePtr> StoreIdMap_;
     std::map<i64, IOrderedStorePtr> StoreRowIndexMap_;
 
-    TSortedDynamicRowKeyComparer RowKeyComparer_;
+    THashMap<NChunkClient::TChunkId, THunkChunkPtr> HunkChunkMap_;
+    THashSet<THunkChunkPtr> DanglingHunkChunks_;
 
-    ITabletContext* const Context_;
+    TSortedDynamicRowKeyComparer RowKeyComparer_;
 
     NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
 
@@ -563,11 +579,7 @@ private:
     i64 TabletLockCount_ = 0;
     i64 DelayedLocklessRowCount_ = 0;
 
-    TLockManagerPtr LockManager_;
-
     IPerTabletStructuredLoggerPtr StructuredLogger_;
-
-    NLogging::TLogger Logger;
 
     NConcurrency::IReconfigurableThroughputThrottlerPtr FlushThrottler_;
     NConcurrency::IReconfigurableThroughputThrottlerPtr CompactionThrottler_;
@@ -579,6 +591,8 @@ private:
 
     void UpdateOverlappingStoreCount();
     int ComputeEdenOverlappingStoreCount() const;
+
+    void UpdateDanglingHunkChunks(const THunkChunkPtr& hunkChunk);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -17,7 +17,7 @@ class TEncodingChunkWriter
     : public virtual TRefCounted
 {
 public:
-    DEFINE_BYREF_RO_PROPERTY(TDeferredChunkMetaPtr, Meta, New<TDeferredChunkMeta>());
+    DEFINE_BYVAL_RO_PROPERTY(TDeferredChunkMetaPtr, Meta, New<TDeferredChunkMeta>());
     DEFINE_BYREF_RW_PROPERTY(NProto::TMiscExt, MiscExt);
 
 public:
@@ -26,10 +26,10 @@ public:
         TEncodingWriterOptionsPtr options,
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache,
-        const NLogging::TLogger& logger);
+        NLogging::TLogger logger);
 
-    void WriteBlock(std::vector<TSharedRef> vectorizedBlock, std::optional<int> groupIndex = std::nullopt);
-    void WriteBlock(TSharedRef block, std::optional<int> groupIndex = std::nullopt);
+    void WriteBlock(std::vector<TSharedRef> vectorizedBlock, std::optional<int> groupIndex = {});
+    void WriteBlock(TSharedRef block, std::optional<int> groupIndex = {});
 
     void Close();
 
@@ -53,7 +53,6 @@ private:
     i64 LargestBlockSize_ = 0;
 
     bool Closed_ = false;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TEncodingChunkWriter)

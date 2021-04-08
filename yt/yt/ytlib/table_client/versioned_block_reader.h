@@ -26,7 +26,7 @@ struct IVersionedBlockReader
     virtual bool SkipToKey(TLegacyKey key) = 0;
 
     virtual TLegacyKey GetKey() const = 0;
-    virtual TVersionedRow GetRow(TChunkedMemoryPool* memoryPool) = 0;
+    virtual TMutableVersionedRow GetRow(TChunkedMemoryPool* memoryPool) = 0;
 
     virtual i64 GetRowIndex() const = 0;
 };
@@ -55,7 +55,7 @@ public:
     virtual bool SkipToKey(TLegacyKey key) override;
 
     virtual TLegacyKey GetKey() const override;
-    virtual TVersionedRow GetRow(TChunkedMemoryPool* memoryPool) override;
+    virtual TMutableVersionedRow GetRow(TChunkedMemoryPool* memoryPool) override;
 
     virtual i64 GetRowIndex() const override;
 
@@ -102,8 +102,8 @@ private:
     const TKeyComparer& KeyComparer_;
 
     bool JumpToRowIndex(i64 index);
-    TVersionedRow ReadAllVersions(TChunkedMemoryPool* memoryPool);
-    TVersionedRow ReadOneVersion(TChunkedMemoryPool* memoryPool);
+    TMutableVersionedRow ReadAllVersions(TChunkedMemoryPool* memoryPool);
+    TMutableVersionedRow ReadOneVersion(TChunkedMemoryPool* memoryPool);
 
     TTimestamp ReadTimestamp(int timestampIndex);
     void ReadValue(TVersionedValue* value, int valueIndex, int id, int chunkSchemaId);
@@ -113,7 +113,6 @@ private:
     Y_FORCE_INLINE void ReadStringLike(TUnversionedValue* value, const char* ptr);
 
     ui32 GetColumnValueCount(int schemaColumnId) const;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -137,7 +136,7 @@ public:
     virtual bool SkipToKey(TLegacyKey key) override;
 
     virtual TLegacyKey GetKey() const override;
-    virtual TVersionedRow GetRow(TChunkedMemoryPool* memoryPool) override;
+    virtual TMutableVersionedRow GetRow(TChunkedMemoryPool* memoryPool) override;
 
     virtual i64 GetRowIndex() const override;
 

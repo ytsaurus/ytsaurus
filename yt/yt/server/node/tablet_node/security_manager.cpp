@@ -240,7 +240,8 @@ public:
             account,
             mediumName,
             tabletCellBundle,
-            inMemoryMode});
+            inMemoryMode
+        });
     }
 
     void ValidateResourceLimits(

@@ -34,6 +34,7 @@ class TSchemaDictionary;
 class TColumnFilter;
 class TReqLookupRows;
 class TColumnRenameDescriptor;
+class THunkChunkRef;
 
 } // namespace NProto
 

@@ -19,12 +19,17 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TStoreFlushResult = std::vector<NTabletNode::NProto::TAddStoreDescriptor>;
+struct TStoreFlushResult
+{
+    std::vector<NTabletNode::NProto::TAddStoreDescriptor> StoresToAdd;
+    std::vector<NTabletNode::NProto::TAddHunkChunkDescriptor> HunkChunksToAdd;
+};
+
 using TStoreFlushCallback = TCallback<TStoreFlushResult(
-    NApi::ITransactionPtr transaction,
-    NConcurrency::IThroughputThrottlerPtr,
+    const NApi::ITransactionPtr& transaction,
+    const NConcurrency::IThroughputThrottlerPtr& throttler,
     TTimestamp currentTimestamp,
-    TWriterProfilerPtr writerProfiler)>;
+    const TWriterProfilerPtr& writerProfiler)>;
 
 //! Provides a facade for modifying data within a given tablet.
 /*!
@@ -95,14 +100,11 @@ struct IStoreManager
     virtual void BackoffStoreCompaction(IChunkStorePtr store) = 0;
 
     virtual void Mount(
-        const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors,
+        TRange<const NTabletNode::NProto::TAddStoreDescriptor*> storeDescriptors,
+        TRange<const NTabletNode::NProto::TAddHunkChunkDescriptor*> hunkChunkDescriptors,
         bool createDynamicStore,
         const NTabletNode::NProto::TMountHint& mountHint) = 0;
-    virtual void Remount(
-        TTableMountConfigPtr mountConfig,
-        TTabletChunkReaderConfigPtr readerConfig,
-        TTabletChunkWriterConfigPtr writerConfig,
-        TTabletWriterOptionsPtr writerOptions) = 0;
+    virtual void Remount(const TTableSettings& settings) = 0;
 
     virtual ISortedStoreManagerPtr AsSorted() = 0;
     virtual IOrderedStoreManagerPtr AsOrdered() = 0;

@@ -11,6 +11,8 @@ namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
 
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEncodingChunkWriter::TEncodingChunkWriter(
@@ -18,17 +20,17 @@ TEncodingChunkWriter::TEncodingChunkWriter(
     TEncodingWriterOptionsPtr options,
     IChunkWriterPtr chunkWriter,
     IBlockCachePtr blockCache,
-    const NLogging::TLogger& logger)
+    NLogging::TLogger logger)
     : ChunkWriter_(std::move(chunkWriter))
     , EncodingWriter_(New<TEncodingWriter>(
         config,
         options,
         ChunkWriter_,
         blockCache,
-        logger))
+        std::move(logger)))
 {
-    MiscExt_.set_compression_codec(static_cast<int>(options->CompressionCodec));
-    MiscExt_.set_erasure_codec(static_cast<int>(ChunkWriter_->GetErasureCodecId()));
+    MiscExt_.set_compression_codec(ToProto<int>(options->CompressionCodec));
+    MiscExt_.set_erasure_codec(ToProto<int>(ChunkWriter_->GetErasureCodecId()));
     MiscExt_.set_eden(options->ChunksEden);
 }
 

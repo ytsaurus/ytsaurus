@@ -2,11 +2,13 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
-
 #include <yt/yt/client/chunk_client/config.h>
 
 #include <yt/yt/client/tablet_client/config.h>
+
+#include <yt/yt/core/ytree/yson_serializable.h>
+
+#include <yt/yt/core/misc/singleton.h>
 
 namespace NYT::NTableClient {
 
@@ -75,6 +77,11 @@ public:
                 SamplingMode = ESamplingMode::Row;
             }
         });
+    }
+
+    static TChunkReaderConfigPtr GetDefault()
+    {
+        return RefCountedSingleton<TChunkReaderConfig>();
     }
 };
 
@@ -283,6 +290,11 @@ public:
                 THROW_ERROR_EXCEPTION("\"enable_row_index\" must be set when \"enable_range_index\" is set");
             }
         });
+    }
+
+    static TChunkReaderOptionsPtr GetDefault()
+    {
+        return RefCountedSingleton<TChunkReaderOptions>();
     }
 };
 

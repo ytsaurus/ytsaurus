@@ -82,7 +82,7 @@ TColumnFilter CreateColumnFilter(
 ////////////////////////////////////////////////////////////////////////////////
 
 NScheduler::NProto::TOutputResult GetWrittenChunksBoundaryKeys(
-    ISchemalessMultiChunkWriterPtr writer);
+    const ISchemalessMultiChunkWriterPtr& writer);
 
 std::pair<TLegacyOwningKey, TLegacyOwningKey> GetChunkBoundaryKeys(
     const NChunkClient::NProto::TChunkMeta& chunkMeta,

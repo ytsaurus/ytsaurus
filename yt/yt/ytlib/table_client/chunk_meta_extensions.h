@@ -22,9 +22,8 @@ DECLARE_PROTO_EXTENSION(NTableClient::NProto::TPartitionsExt, 59)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TColumnMetaExt, 58)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TColumnarStatisticsExt, 60)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::THeavyColumnStatisticsExt, 61)
-
-// Moved from old table client.
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TKeyColumnsExt, 14)
+DECLARE_PROTO_EXTENSION(NTableClient::NProto::THunkChunkRefsExt, 62)
 
 ////////////////////////////////////////////////////////////////////////////////
 

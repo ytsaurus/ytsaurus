@@ -160,14 +160,12 @@ bool TSimpleVersionedBlockReader::JumpToRowIndex(i64 index)
     return true;
 }
 
-TVersionedRow TSimpleVersionedBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
+TMutableVersionedRow TSimpleVersionedBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
 {
     YT_VERIFY(!Closed_);
-    if (ProduceAllVersions_) {
-        return ReadAllVersions(memoryPool);
-    } else {
-        return ReadOneVersion(memoryPool);
-    }
+    return ProduceAllVersions_
+        ? ReadAllVersions(memoryPool)
+        : ReadOneVersion(memoryPool);
 }
 
 ui32 TSimpleVersionedBlockReader::GetColumnValueCount(int schemaColumnId) const
@@ -176,7 +174,7 @@ ui32 TSimpleVersionedBlockReader::GetColumnValueCount(int schemaColumnId) const
     return *(reinterpret_cast<const ui32*>(KeyDataPtr_) + schemaColumnId - ChunkKeyColumnCount_);
 }
 
-TVersionedRow TSimpleVersionedBlockReader::ReadAllVersions(TChunkedMemoryPool* memoryPool)
+TMutableVersionedRow TSimpleVersionedBlockReader::ReadAllVersions(TChunkedMemoryPool* memoryPool)
 {
     int writeTimestampIndex = 0;
     int deleteTimestampIndex = 0;
@@ -254,7 +252,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadAllVersions(TChunkedMemoryPool* m
     return row;
 }
 
-TVersionedRow TSimpleVersionedBlockReader::ReadOneVersion(TChunkedMemoryPool* memoryPool)
+TMutableVersionedRow TSimpleVersionedBlockReader::ReadOneVersion(TChunkedMemoryPool* memoryPool)
 {
     int writeTimestampIndex = 0;
     int deleteTimestampIndex = 0;
@@ -273,13 +271,13 @@ TVersionedRow TSimpleVersionedBlockReader::ReadOneVersion(TChunkedMemoryPool* me
 
     if (!hasWriteTimestamp & !hasDeleteTimestamp) {
         // Row didn't exist at given timestamp.
-        return TVersionedRow();
+        return TMutableVersionedRow();
     }
 
-    TTimestamp writeTimestamp = hasWriteTimestamp
+    auto writeTimestamp = hasWriteTimestamp
         ? ReadTimestamp(TimestampOffset_ + writeTimestampIndex)
         : NullTimestamp;
-    TTimestamp deleteTimestamp = hasDeleteTimestamp
+    auto deleteTimestamp = hasDeleteTimestamp
         ? ReadTimestamp(TimestampOffset_ + WriteTimestampCount_ + deleteTimestampIndex)
         : NullTimestamp;
 
@@ -510,7 +508,7 @@ TLegacyKey THorizontalSchemalessVersionedBlockReader::GetKey() const
     return UnderlyingReader_->GetLegacyKey();
 }
 
-TVersionedRow THorizontalSchemalessVersionedBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
+TMutableVersionedRow THorizontalSchemalessVersionedBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
 {
     return UnderlyingReader_->GetVersionedRow(memoryPool, Timestamp_);
 }

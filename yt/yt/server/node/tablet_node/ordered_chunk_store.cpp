@@ -36,7 +36,6 @@ using namespace NApi;
 using namespace NDataNode;
 using namespace NConcurrency;
 
-using NTabletNode::NProto::TAddStoreDescriptor;
 using NChunkClient::NProto::TDataStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -159,6 +158,7 @@ TOrderedChunkStore::TOrderedChunkStore(
     TTabletManagerConfigPtr config,
     TStoreId id,
     TTablet* tablet,
+    const NTabletNode::NProto::TAddStoreDescriptor* addStoreDescriptor,
     IBlockCachePtr blockCache,
     IChunkRegistryPtr chunkRegistry,
     IChunkBlockManagerPtr chunkBlockManager,
@@ -168,24 +168,21 @@ TOrderedChunkStore::TOrderedChunkStore(
     : TChunkStoreBase(
         bootstrap,
         config,
-        id /*storeId*/,
-        id /*chunkId*/,
+        /*storeId*/ id,
+        /*chunkId*/ id,
         NullTimestamp,
         tablet,
+        addStoreDescriptor,
         blockCache,
         chunkRegistry,
         chunkBlockManager,
         chunkMetaManager,
         client,
         localDescriptor)
-{ }
-
-void TOrderedChunkStore::Initialize(const TAddStoreDescriptor* descriptor)
 {
-    TChunkStoreBase::Initialize(descriptor);
-    if (descriptor) {
-        YT_VERIFY(descriptor->has_starting_row_index());
-        SetStartingRowIndex(descriptor->starting_row_index());
+    if (addStoreDescriptor) {
+        YT_VERIFY(addStoreDescriptor->has_starting_row_index());
+        SetStartingRowIndex(addStoreDescriptor->starting_row_index());
     }
 }
 

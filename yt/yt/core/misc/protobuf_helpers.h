@@ -292,16 +292,16 @@ void RegisterProtobufExtension(
 //! Finds and deserializes an extension of the given type. Fails if no matching
 //! extension is found.
 template <class T>
-T GetProtoExtension(const NProto::TExtensionSet& extensions);
+T GetProtoExtension(const NYT::NProto::TExtensionSet& extensions);
 
 // Returns |true| iff an extension of a given type is present.
 template <class T>
-bool HasProtoExtension(const NProto::TExtensionSet& extensions);
+bool HasProtoExtension(const NYT::NProto::TExtensionSet& extensions);
 
 //! Finds and deserializes an extension of the given type. Returns null if no matching
 //! extension is found.
 template <class T>
-std::optional<T> FindProtoExtension(const NProto::TExtensionSet& extensions);
+std::optional<T> FindProtoExtension(const NYT::NProto::TExtensionSet& extensions);
 
 //! Serializes and stores an extension.
 //! Overwrites any extension with the same tag (if exists).
@@ -313,9 +313,16 @@ void SetProtoExtension(NProto::TExtensionSet* extensions, const T& value);
 template <class T>
 bool RemoveProtoExtension(NProto::TExtensionSet* extensions);
 
+//! Filters extensions leaving only those matching #tags set.
 void FilterProtoExtensions(
-    NProto::TExtensionSet* target,
-    const NProto::TExtensionSet& source,
+    NYT::NProto::TExtensionSet* target,
+    const NYT::NProto::TExtensionSet& source,
+    const THashSet<int>& tags);
+void FilterProtoExtensions(
+    NYT::NProto::TExtensionSet* inplace,
+    const THashSet<int>& tags);
+NYT::NProto::TExtensionSet FilterProtoExtensions(
+    const NYT::NProto::TExtensionSet& source,
     const THashSet<int>& tags);
 
 ////////////////////////////////////////////////////////////////////////////////

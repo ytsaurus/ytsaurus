@@ -227,11 +227,11 @@ TColumnFilter CreateColumnFilter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOutputResult GetWrittenChunksBoundaryKeys(ISchemalessMultiChunkWriterPtr writer)
+TOutputResult GetWrittenChunksBoundaryKeys(const ISchemalessMultiChunkWriterPtr& writer)
 {
     TOutputResult result;
 
-    const auto& chunks = writer->GetWrittenChunksMasterMeta();
+    const auto& chunks = writer->GetWrittenChunkSpecs();
     result.set_empty(chunks.empty());
 
     if (chunks.empty()) {
@@ -248,6 +248,7 @@ TOutputResult GetWrittenChunksBoundaryKeys(ISchemalessMultiChunkWriterPtr writer
 
     auto frontBoundaryKeys = GetProtoExtension<NProto::TBoundaryKeysExt>(chunks.front().chunk_meta().extensions());
     result.set_min(frontBoundaryKeys.min());
+
     auto backBoundaryKeys = GetProtoExtension<NProto::TBoundaryKeysExt>(chunks.back().chunk_meta().extensions());
     result.set_max(backBoundaryKeys.max());
 

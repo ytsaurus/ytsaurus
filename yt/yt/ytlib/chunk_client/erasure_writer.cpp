@@ -308,9 +308,7 @@ void TErasureWriter::PrepareChunkMeta(const TDeferredChunkMetaPtr& chunkMeta)
     }
 
     ChunkMeta_ = chunkMeta;
-
     ChunkMeta_->BlockIndexMapping() = BlockReorderer_.BlockIndexMapping();
-    YT_VERIFY(!ChunkMeta_->IsFinalized());
     ChunkMeta_->Finalize();
 }
 

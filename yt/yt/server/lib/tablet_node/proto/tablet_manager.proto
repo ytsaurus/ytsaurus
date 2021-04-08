@@ -15,12 +15,23 @@ message TAddStoreDescriptor
     required NYT.NChunkClient.NProto.TChunkMeta chunk_meta = 3;
     optional NYT.NProto.TGuid backing_store_id = 4;
     optional int64 starting_row_index = 5;
-    optional NYT.NChunkClient.NProto.TChunkView chunk_view_descriptor = 6;
+    optional NYT.NChunkClient.NProto.TChunkViewDescriptor chunk_view_descriptor = 6;
 }
 
 message TRemoveStoreDescriptor
 {
     required NYT.NProto.TGuid store_id = 1;
+}
+
+message TAddHunkChunkDescriptor
+{
+    required NYT.NProto.TGuid chunk_id = 1;
+    required NYT.NChunkClient.NProto.TChunkMeta chunk_meta = 2;
+}
+
+message TRemoveHunkChunkDescriptor
+{
+    required NYT.NProto.TGuid chunk_id = 1;
 }
 
 message TTableReplicaDescriptor
@@ -46,18 +57,34 @@ message TMountHint
     repeated NYT.NProto.TGuid eden_store_ids = 1;
 }
 
+message TTableSettings
+{
+    required bytes mount_config = 1; // YSON-serialized
+    required bytes reader_config = 2; // YSON-serialized
+    required bytes store_writer_config = 3; // YSON-serialized
+    required bytes store_writer_options = 4; // YSON-serialized
+    required bytes hunk_writer_config = 5; // YSON-serialized
+    required bytes hunk_writer_options = 6; // YSON-serialized
+}
+
 message TReqMountTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NProto.TGuid table_id = 9;
     required NYT.NTableClient.NProto.TTableSchemaExt schema = 2;
     repeated TAddStoreDescriptor stores = 4;
+    repeated TAddHunkChunkDescriptor hunk_chunks = 24;
     optional bytes pivot_key = 5;
     optional bytes next_pivot_key = 6;
-    required string mount_config = 7;
-    required string reader_config = 16;
-    required string writer_config = 17;
-    required string writer_options = 8;
+    // COMPAT(babenko)
+    required bytes mount_config = 7; // YSON-serialized
+    // COMPAT(babenko)
+    required bytes reader_config = 16; // YSON-serialized
+    // COMPAT(babenko)
+    required bytes store_writer_config = 17; // YSON-serialized
+    // COMPAT(babenko)
+    required bytes store_writer_options = 8; // YSON-serialized
+    optional TTableSettings table_settings = 25;
     required int32 atomicity = 10; // EAtomicity
     required int32 commit_ordering = 15; // ECommitOrdering
     required int64 mount_revision = 11;
@@ -81,10 +108,15 @@ message TReqUnmountTablet
 message TReqRemountTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
-    required string mount_config = 7;
-    required string reader_config = 9;
-    required string writer_config = 10;
-    required string writer_options = 8;
+    // COMPAT(babenko)
+    required bytes mount_config = 7; // YSON-serialized
+    // COMPAT(babenko)
+    required bytes reader_config = 9; // YSON-serialized
+    // COMPAT(babenko)
+    required bytes store_writer_config = 10; // YSON-serialized
+    // COMPAT(babenko)
+    required bytes store_writer_options = 8; // YSON-serialized
+    optional TTableSettings table_settings = 11;
 }
 
 message TReqFreezeTablet

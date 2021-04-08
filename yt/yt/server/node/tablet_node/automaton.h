@@ -15,24 +15,6 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSaveContext
-    : public NHydra::TSaveContext
-{
-public:
-    ETabletReign GetVersion() const;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TLoadContext
-    : public NHydra::TLoadContext
-{
-public:
-    ETabletReign GetVersion() const;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! An instance of Hydra automaton managing a number of tablets.
 class TTabletAutomaton
     : public NHydra::TCompositeAutomaton

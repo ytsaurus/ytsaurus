@@ -379,7 +379,7 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
         auto tableReader = CreateSchemafulChunkReader(
             std::move(chunkState),
             New<TColumnarChunkMeta>(*chunkMeta),
-            New<TChunkReaderConfig>(),
+            TChunkReaderConfig::GetDefault(),
             chunkReader,
             TClientChunkReadOptions(),
             Schema_,

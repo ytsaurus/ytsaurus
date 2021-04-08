@@ -96,7 +96,7 @@ public:
         , ReplicaId_(replicaInfo->GetId())
         , ClusterName_(replicaInfo->GetClusterName())
         , ReplicaPath_(replicaInfo->GetReplicaPath())
-        , MountConfig_(tablet->GetMountConfig())
+        , MountConfig_(tablet->GetSettings().MountConfig)
         , PreserveTabletIndex_(MountConfig_->PreserveTabletIndex)
         , TabletIndexColumnId_(TableSchema_->ToReplicationLog()->GetColumnCount() + 1) /* maxColumnId - 1(timestamp) + 3(header size)*/
         , Logger(TabletNodeLogger.WithTag("%v, ReplicaId: %v",

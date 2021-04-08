@@ -9,6 +9,7 @@
 #include "versioned_block_reader.h"
 #include "versioned_chunk_reader.h"
 #include "versioned_reader_adapter.h"
+#include "hunks.h"
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/block_id.h>
@@ -51,8 +52,8 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const i64 CacheSize = 32 * 1024;
-static const i64 MinRowsPerRead = 32;
+static constexpr i64 CacheSize = 32_KBs;
+static constexpr i64 MinRowsPerRead = 32;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -275,6 +276,8 @@ public:
         i64 rowCount = 0;
         i64 dataWeight = 0;
 
+        auto hasHunkColumns = ChunkMeta_->GetSchema()->HasHunkColumns();
+
         while (rows.size() < rows.capacity()) {
             if (CheckKeyLimit_ && KeyComparer_(
                 BlockReader_->GetKey(), GetCurrentRangeUpperKey()) >= 0)
@@ -300,6 +303,9 @@ public:
                     CompareRows(
                         rows.back().BeginKeys(), rows.back().EndKeys(),
                         row.BeginKeys(), row.EndKeys()) < 0);
+                if (hasHunkColumns) {
+                    GlobalizeHunkValues(&MemoryPool_, ChunkMeta_, row);
+                }
             }
             rows.push_back(row);
             ++rowCount;
@@ -520,6 +526,8 @@ public:
             return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
         }
 
+        auto hasHunkColumns = ChunkMeta_->GetSchema()->HasHunkColumns();
+
         while (rows.size() < rows.capacity()) {
             if (RowCount_ == Keys_.Size()) {
                 BlockEnded_ = true;
@@ -538,6 +546,9 @@ public:
 
                 if (key == BlockReader_->GetKey()) {
                     auto row = BlockReader_->GetRow(&MemoryPool_);
+                    if (hasHunkColumns) {
+                        GlobalizeHunkValues(&MemoryPool_, ChunkMeta_, row);
+                    }
                     rows.push_back(row);
                     ++RowCount_;
                     dataWeight += GetDataWeight(rows.back());
@@ -660,25 +671,25 @@ public:
             chunkReadOptions,
             [] (int) { YT_ABORT(); }, // Rows should not be skipped in versioned reader.
             memoryManager)
-        , VersionedChunkMeta_(std::move(chunkMeta))
+        , ChunkMeta_(std::move(chunkMeta))
         , Timestamp_(timestamp)
-        , SchemaIdMapping_(BuildVersionedSimpleSchemaIdMapping(columnFilter, VersionedChunkMeta_))
+        , SchemaIdMapping_(BuildVersionedSimpleSchemaIdMapping(columnFilter, ChunkMeta_))
         , PerformanceCounters_(std::move(performanceCounters))
     {
-        YT_VERIFY(VersionedChunkMeta_->Misc().sorted());
-        YT_VERIFY(VersionedChunkMeta_->GetChunkType() == EChunkType::Table);
-        YT_VERIFY(VersionedChunkMeta_->GetChunkFormat() == ETableChunkFormat::VersionedColumnar);
+        YT_VERIFY(ChunkMeta_->Misc().sorted());
+        YT_VERIFY(ChunkMeta_->GetChunkType() == EChunkType::Table);
+        YT_VERIFY(ChunkMeta_->GetChunkFormat() == ETableChunkFormat::VersionedColumnar);
         YT_VERIFY(Timestamp_ != AllCommittedTimestamp || columnFilter.IsUniversal());
         YT_VERIFY(PerformanceCounters_);
 
-        KeyColumnReaders_.resize(VersionedChunkMeta_->GetKeyColumnCount());
+        KeyColumnReaders_.resize(ChunkMeta_->GetKeyColumnCount());
         for (int keyColumnIndex = 0;
-             keyColumnIndex < VersionedChunkMeta_->GetChunkKeyColumnCount();
+             keyColumnIndex < ChunkMeta_->GetChunkKeyColumnCount();
              ++keyColumnIndex)
         {
             auto columnReader = CreateUnversionedColumnReader(
-                VersionedChunkMeta_->GetChunkSchema()->Columns()[keyColumnIndex],
-                VersionedChunkMeta_->ColumnMeta()->columns(keyColumnIndex),
+                ChunkMeta_->GetChunkSchema()->Columns()[keyColumnIndex],
+                ChunkMeta_->ColumnMeta()->columns(keyColumnIndex),
                 keyColumnIndex,
                 keyColumnIndex,
                 ESortOrder::Ascending);
@@ -687,7 +698,7 @@ public:
         }
 
         // Null readers for wider keys.
-        for (int keyColumnIndex = VersionedChunkMeta_->GetChunkKeyColumnCount();
+        for (int keyColumnIndex = ChunkMeta_->GetChunkKeyColumnCount();
              keyColumnIndex < KeyColumnReaders_.size();
              ++keyColumnIndex)
         {
@@ -701,8 +712,8 @@ public:
 
         for (const auto& idMapping : SchemaIdMapping_) {
             auto columnReader = CreateVersionedColumnReader(
-                VersionedChunkMeta_->GetChunkSchema()->Columns()[idMapping.ChunkSchemaIndex],
-                VersionedChunkMeta_->ColumnMeta()->columns(idMapping.ChunkSchemaIndex),
+                ChunkMeta_->GetChunkSchema()->Columns()[idMapping.ChunkSchemaIndex],
+                ChunkMeta_->ColumnMeta()->columns(idMapping.ChunkSchemaIndex),
                 idMapping.ReaderSchemaIndex);
 
             ValueColumnReaders_.push_back(columnReader.get());
@@ -724,7 +735,7 @@ public:
     }
 
 protected:
-    const TCachedVersionedChunkMetaPtr VersionedChunkMeta_;
+    const TCachedVersionedChunkMetaPtr ChunkMeta_;
     const TTimestamp Timestamp_;
 
     const std::vector<TColumnIdMapping> SchemaIdMapping_;
@@ -740,7 +751,27 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TRowBuilderBase
+{
+public:
+    void Clear()
+    {
+        Pool_.Clear();
+    }
+
+    TChunkedMemoryPool* GetMemoryPool()
+    {
+        return &Pool_;
+    }
+
+protected:
+    TChunkedMemoryPool Pool_{TVersionedChunkReaderPoolTag()};
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TScanColumnarRowBuilder
+    : public TRowBuilderBase
 {
 public:
     TScanColumnarRowBuilder(
@@ -750,7 +781,6 @@ public:
         TTimestamp timestamp)
         : ChunkMeta_(chunkMeta)
         , ValueColumnReaders_(valueColumnReaders)
-        , Pool_(TVersionedChunkReaderPoolTag())
         , SchemaIdMapping_(schemaIdMapping)
         , Timestamp_(timestamp)
     { }
@@ -759,7 +789,7 @@ public:
     // All column reader are owned by the chunk reader.
     std::unique_ptr<IColumnReaderBase> CreateTimestampReader()
     {
-        YT_VERIFY(TimestampReader_ == nullptr);
+        YT_VERIFY(!TimestampReader_);
 
         int timestampReaderIndex = ChunkMeta_->ColumnMeta()->columns().size() - 1;
         TimestampReader_ = new TScanTransactionTimestampReader(
@@ -858,7 +888,9 @@ public:
         for (i64 index = 0; index < range.Size(); ++index) {
             if (!range[index]) {
                 continue;
-            } else if (range[index].GetWriteTimestampCount() == 0 && range[index].GetDeleteTimestampCount() == 0) {
+            }
+
+            if (range[index].GetWriteTimestampCount() == 0 && range[index].GetDeleteTimestampCount() == 0) {
                 // This row was created in order to compare with UpperLimit.
                 range[index] = TMutableVersionedRow();
                 continue;
@@ -874,19 +906,12 @@ public:
         TimestampReader_->SkipPreparedRows();
     }
 
-    void Clear()
-    {
-        Pool_.Clear();
-    }
-
 private:
     TScanTransactionTimestampReader* TimestampReader_ = nullptr;
 
     const TCachedVersionedChunkMetaPtr ChunkMeta_;
 
     std::vector<IVersionedColumnReader*>& ValueColumnReaders_;
-
-    TChunkedMemoryPool Pool_;
 
     const std::vector<TColumnIdMapping>& SchemaIdMapping_;
 
@@ -896,6 +921,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCompactionColumnarRowBuilder
+    : public TRowBuilderBase
 {
 public:
     TCompactionColumnarRowBuilder(
@@ -905,7 +931,6 @@ public:
         TTimestamp /* timestamp */)
         : ChunkMeta_(chunkMeta)
         , ValueColumnReaders_(valueColumnReaders)
-        , Pool_(TVersionedChunkReaderPoolTag())
     { }
 
     std::unique_ptr<IColumnReaderBase> CreateTimestampReader()
@@ -993,19 +1018,12 @@ public:
         TimestampReader_->SkipPreparedRows();
     }
 
-    void Clear()
-    {
-        Pool_.Clear();
-    }
-
 private:
     TCompactionTimestampReader* TimestampReader_ = nullptr;
 
     const TCachedVersionedChunkMetaPtr ChunkMeta_;
 
     std::vector<IVersionedColumnReader*>& ValueColumnReaders_;
-
-    TChunkedMemoryPool Pool_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1047,7 +1065,7 @@ public:
         LowerLimit_ = ReadLimitFromLegacyReadLimit(LegacyLowerLimit_, /* isUpper */ false, Comparator_.GetLength());
         UpperLimit_ = ReadLimitFromLegacyReadLimit(LegacyUpperLimit_, /* isUpper */ true, Comparator_.GetLength());
 
-        int timestampReaderIndex = VersionedChunkMeta_->ColumnMeta()->columns().size() - 1;
+        int timestampReaderIndex = ChunkMeta_->ColumnMeta()->columns().size() - 1;
         Columns_.emplace_back(RowBuilder_.CreateTimestampReader(), timestampReaderIndex);
 
         // Empirical formula to determine max rows per read for better cache friendliness.
@@ -1092,6 +1110,8 @@ public:
             return nullptr;
         }
 
+        auto hasHunkColumns = ChunkMeta_->GetSchema()->HasHunkColumns();
+
         while (rows.size() < rows.capacity()) {
             FeedBlocksToReaders();
             ArmColumnReaders();
@@ -1134,6 +1154,12 @@ public:
 
             RowBuilder_.ReadValues(range, RowIndex_);
 
+            if (hasHunkColumns) {
+                for (auto row : range) {
+                    GlobalizeHunkValues(RowBuilder_.GetMemoryPool(), ChunkMeta_, row);
+                }
+            }
+
             RowIndex_ += range.Size();
             if (Completed_ || !TryFetchNextRow()) {
                 break;
@@ -1170,6 +1196,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLookupSingleVersionColumnarRowBuilder
+    : public TRowBuilderBase
 {
 public:
     TLookupSingleVersionColumnarRowBuilder(
@@ -1181,14 +1208,13 @@ public:
         : ChunkMeta_(chunkMeta)
         , KeyColumnReaders_(keyColumnReaders)
         , ValueColumnReaders_(valueColumnReaders)
-        , Pool_(TVersionedChunkReaderPoolTag())
         , SchemaIdMapping_(schemaIdMapping)
         , Timestamp_(timestamp)
     { }
 
     std::unique_ptr<IColumnReaderBase> CreateTimestampReader()
     {
-        YT_VERIFY(TimestampReader_ == nullptr);
+        YT_VERIFY(!TimestampReader_);
 
         int timestampReaderIndex = ChunkMeta_->ColumnMeta()->columns().size() - 1;
         TimestampReader_ = new TLookupTransactionTimestampReader(
@@ -1261,11 +1287,6 @@ public:
         return row;
     }
 
-    void Clear()
-    {
-        Pool_.Clear();
-    }
-
 private:
     TLookupTransactionTimestampReader* TimestampReader_ = nullptr;
 
@@ -1273,8 +1294,6 @@ private:
 
     std::vector<IUnversionedColumnReader*>& KeyColumnReaders_;
     std::vector<IVersionedColumnReader*>& ValueColumnReaders_;
-
-    TChunkedMemoryPool Pool_;
 
     const std::vector<TColumnIdMapping>& SchemaIdMapping_;
 
@@ -1284,6 +1303,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLookupAllVersionsColumnarRowBuilder
+    : public TRowBuilderBase
 {
 public:
     TLookupAllVersionsColumnarRowBuilder(
@@ -1295,7 +1315,6 @@ public:
         : ChunkMeta_(chunkMeta)
         , KeyColumnReaders_(keyColumnReaders)
         , ValueColumnReaders_(valueColumnReaders)
-        , Pool_(TVersionedChunkReaderPoolTag())
         , SchemaIdMapping_(schemaIdMapping)
         , Timestamp_(timestamp)
     { }
@@ -1378,11 +1397,6 @@ public:
         return row;
     }
 
-    void Clear()
-    {
-        Pool_.Clear();
-    }
-
 private:
     TLookupTransactionAllVersionsTimestampReader* TimestampReader_ = nullptr;
 
@@ -1390,8 +1404,6 @@ private:
 
     std::vector<IUnversionedColumnReader*>& KeyColumnReaders_;
     std::vector<IVersionedColumnReader*>& ValueColumnReaders_;
-
-    TChunkedMemoryPool Pool_;
 
     const std::vector<TColumnIdMapping>& SchemaIdMapping_;
 
@@ -1428,6 +1440,7 @@ public:
             std::move(performanceCounters),
             timestamp,
             memoryManager)
+        , HasHunkColumns_(ChunkMeta_->GetSchema()->HasHunkColumns())
         , RowBuilder_(
             chunkMeta,
             KeyColumnReaders_,
@@ -1437,7 +1450,7 @@ public:
     {
         Keys_ = keys;
 
-        int timestampReaderIndex = VersionedChunkMeta_->ColumnMeta()->columns().size() - 1;
+        int timestampReaderIndex = ChunkMeta_->ColumnMeta()->columns().size() - 1;
         Columns_.emplace_back(RowBuilder_.CreateTimestampReader(), timestampReaderIndex);
 
         Initialize();
@@ -1466,14 +1479,14 @@ public:
             FeedBlocksToReaders();
 
             bool found = false;
-            if (RowIndexes_[NextKeyIndex_] < VersionedChunkMeta_->Misc().row_count()) {
+            if (RowIndexes_[NextKeyIndex_] < ChunkMeta_->Misc().row_count()) {
                 auto key = Keys_[NextKeyIndex_];
-                YT_VERIFY(key.GetCount() == VersionedChunkMeta_->GetKeyColumnCount());
+                YT_VERIFY(key.GetCount() == ChunkMeta_->GetKeyColumnCount());
 
                 // Reading row.
                 i64 lowerRowIndex = KeyColumnReaders_[0]->GetCurrentRowIndex();
                 i64 upperRowIndex = KeyColumnReaders_[0]->GetBlockUpperRowIndex();
-                for (int i = 0; i < VersionedChunkMeta_->GetKeyColumnCount(); ++i) {
+                for (int i = 0; i < ChunkMeta_->GetKeyColumnCount(); ++i) {
                     std::tie(lowerRowIndex, upperRowIndex) = KeyColumnReaders_[i]->GetEqualRange(
                         key[i],
                         lowerRowIndex,
@@ -1513,7 +1526,7 @@ public:
     }
 
 private:
-    TLookupTransactionTimestampReader* TimestampReader_;
+    const bool HasHunkColumns_;
 
     TRowBuilder RowBuilder_;
 
@@ -1522,7 +1535,11 @@ private:
         for (const auto& column : Columns_) {
             column.ColumnReader->SkipToRowIndex(rowIndex);
         }
-        return RowBuilder_.ReadRow(rowIndex);
+        auto row = RowBuilder_.ReadRow(rowIndex);
+        if (HasHunkColumns_) {
+            GlobalizeHunkValues(RowBuilder_.GetMemoryPool(), ChunkMeta_, row);
+        }
+        return row;
     }
 };
 
@@ -1533,10 +1550,10 @@ class TFilteringReader
 {
 public:
     TFilteringReader(
-        const IVersionedReaderPtr& underlyingReader,
+        IVersionedReaderPtr underlyingReader,
         TSharedRange<TRowRange> ranges)
-        : UnderlyingReader_(underlyingReader)
-        , Ranges_(ranges)
+        : UnderlyingReader_(std::move(underlyingReader))
+        , Ranges_(std::move(ranges))
     { }
 
     virtual TDataStatistics GetDataStatistics() const override
@@ -1564,7 +1581,7 @@ public:
         return UnderlyingReader_->IsFetchingCompleted();
     }
 
-    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
+    virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return UnderlyingReader_->GetFailedChunkIds();
     }
@@ -1645,10 +1662,9 @@ public:
     }
 
 private:
-    IVersionedReaderPtr UnderlyingReader_;
-    TSharedRange<TRowRange> Ranges_;
+    const IVersionedReaderPtr UnderlyingReader_;
+    const TSharedRange<TRowRange> Ranges_;
     size_t RangeIndex_ = 0;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1846,7 +1862,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
 IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
-    NChunkClient::IChunkReaderPtr chunkReader,
+    IChunkReaderPtr chunkReader,
     const TChunkStatePtr& chunkState,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
     const TClientChunkReadOptions& chunkReadOptions,

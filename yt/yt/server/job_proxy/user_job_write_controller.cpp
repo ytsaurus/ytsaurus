@@ -5,6 +5,7 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/ytlib/job_proxy/user_job_io_factory.h>
 
@@ -342,9 +343,9 @@ void TUserJobWriteController::PopulateResult(TSchedulerJobResultExt* schedulerJo
         if (options->ReturnBoundaryKeys) {
             *schedulerJobResultExt->add_output_boundary_keys() = GetWrittenChunksBoundaryKeys(writer);
         }
-        auto writtenChunks = writer->GetWrittenChunksMasterMeta();
-        for (auto& chunkSpec : writtenChunks) {
-            writtenChunkSpecs.emplace_back(std::move(chunkSpec));
+        for (const auto& chunkSpec : writer->GetWrittenChunkSpecs()) {
+            writtenChunkSpecs.push_back(chunkSpec);
+            FilterProtoExtensions(writtenChunkSpecs.back().mutable_chunk_meta()->mutable_extensions(), GetSchedulerChunkMetaExtensionTagsFilter());
         }
     }
     ToProto(schedulerJobResultExt->mutable_output_chunk_specs(), writtenChunkSpecs);

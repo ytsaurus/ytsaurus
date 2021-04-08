@@ -39,6 +39,7 @@ namespace NProto {
 class TError;
 class TBloomFilter;
 class TDataStatistics;
+class TExtensionSet;
 
 } // namespace NProto
 

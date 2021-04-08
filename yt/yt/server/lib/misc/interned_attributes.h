@@ -162,7 +162,8 @@
     XX(Health, health) \
     XX(HeartbeatTreeSchedulingInfoLogPeriod, heartbeat_tree_scheduling_info_log_period) \
     XX(HistoricUsageConfig, historic_usage_config) \
-    XX(HunkRefs, hunk_refs) \
+    XX(HunkChunkRefs, hunk_chunk_refs) \
+    XX(HunkChunkWriter, hunk_chunk_writer) \
     XX(HydraReadOnly, hydra_read_only) \
     XX(Id, id) \
     XX(Implicit, implicit) \

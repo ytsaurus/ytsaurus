@@ -1,23 +1,28 @@
 #include "deferred_chunk_meta.h"
 
+#include "chunk_meta_extensions.h"
+
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDeferredChunkMeta::PushCallback(std::function<void(TDeferredChunkMeta*)> callback)
+void TDeferredChunkMeta::RegisterFinalizer(std::function<void(TDeferredChunkMeta*)> finalizer)
 {
-    Callbacks_.emplace_back(std::move(callback));
+    YT_VERIFY(!Finalized_);
+    Finalizers_.emplace_back(std::move(finalizer));
 }
 
 void TDeferredChunkMeta::Finalize()
 {
     YT_VERIFY(!Finalized_);
 
-    for (auto& callback : Callbacks_) {
-        callback(this);
-        callback = nullptr;
+    for (auto& finalizer : Finalizers_) {
+        finalizer(this);
+        finalizer = nullptr;
     }
-    Callbacks_.clear();
+    Finalizers_.clear();
 
     Finalized_ = true;
 }

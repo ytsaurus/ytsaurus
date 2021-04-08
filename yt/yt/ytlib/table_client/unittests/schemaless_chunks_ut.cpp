@@ -323,8 +323,8 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
     auto chunkReader = CreateSchemalessRangeChunkReader(
         std::move(chunkState),
         ChunkMeta_,
-        New<TChunkReaderConfig>(),
-        New<TChunkReaderOptions>(),
+        TChunkReaderConfig::GetDefault(),
+        TChunkReaderOptions::GetDefault(),
         MemoryReader_,
         readNameTable,
         /* chunkReadOptions */ {},
@@ -462,8 +462,8 @@ protected:
         return CreateSchemalessRangeChunkReader(
             ChunkState_,
             ChunkMeta_,
-            New<TChunkReaderConfig>(),
-            New<TChunkReaderOptions>(),
+            TChunkReaderConfig::GetDefault(),
+            TChunkReaderOptions::GetDefault(),
             MemoryReader_,
             TNameTable::FromSchema(*Schema_),
             /* chunkReadOptions */ {},
@@ -701,7 +701,7 @@ protected:
         return CreateSchemalessLookupChunkReader(
             std::move(chunkState),
             chunkMeta,
-            New<TChunkReaderConfig>(),
+            TChunkReaderConfig::GetDefault(),
             options,
             MemoryReader_,
             WriteNameTable_,

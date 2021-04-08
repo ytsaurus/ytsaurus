@@ -41,6 +41,7 @@ DEFINE_ENUM(ETabletStoresUpdateReason,
     ((Compaction)       (2))
     ((Partitioning)     (3))
     ((Trim)             (4))
+    ((Sweep)            (5))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -239,7 +239,7 @@ TSharedRef TLookupSession::DoRun(TCachedVersionedChunkMetaPtr chunkMeta)
     };
 
     auto rowReaderAdapter = New<TRowReaderAdapter>(
-        New<TChunkReaderConfig>(),
+        TChunkReaderConfig::GetDefault(),
         UnderlyingChunkReader_,
         chunkState,
         chunkState->ChunkMeta,

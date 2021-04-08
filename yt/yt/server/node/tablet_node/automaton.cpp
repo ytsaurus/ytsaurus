@@ -19,20 +19,6 @@ using namespace NClusterNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ETabletReign TSaveContext::GetVersion() const
-{
-    return static_cast<ETabletReign>(NHydra::TSaveContext::GetVersion());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-ETabletReign TLoadContext::GetVersion() const
-{
-    return static_cast<ETabletReign>(NHydra::TLoadContext::GetVersion());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TTabletAutomaton::TTabletAutomaton(
     TTabletSlotPtr slot,
     IInvokerPtr snapshotInvoker)

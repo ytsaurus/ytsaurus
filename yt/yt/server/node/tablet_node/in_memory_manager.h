@@ -95,7 +95,7 @@ struct TChunkInfo
 {
     TChunkInfo(
         NChunkClient::TChunkId chunkId,
-        NChunkClient::NProto::TChunkMeta chunkMeta,
+        NChunkClient::TRefCountedChunkMetaPtr chunkMeta,
         TTabletId tabletId,
         NHydra::TRevision mountRevision)
         : ChunkId(chunkId)
@@ -105,7 +105,7 @@ struct TChunkInfo
     { }
 
     NChunkClient::TChunkId ChunkId;
-    NChunkClient::NProto::TChunkMeta ChunkMeta;
+    NChunkClient::TRefCountedChunkMetaPtr ChunkMeta;
     TTabletId TabletId;
     NHydra::TRevision MountRevision;
 };

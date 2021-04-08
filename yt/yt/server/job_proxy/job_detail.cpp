@@ -175,7 +175,11 @@ TJobResult TSimpleJobBase::Run()
 
             // ToDo(psushin): return written chunks only if required.
             auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-            ToProto(schedulerResultExt->mutable_output_chunk_specs(), Writer_->GetWrittenChunksMasterMeta());
+            for (const auto& chunkSpec : Writer_->GetWrittenChunkSpecs()) {
+                auto* resultChunkSpec = schedulerResultExt->add_output_chunk_specs();
+                *resultChunkSpec = chunkSpec;
+                FilterProtoExtensions(resultChunkSpec->mutable_chunk_meta()->mutable_extensions(), GetSchedulerChunkMetaExtensionTagsFilter());
+            }
 
             if (ShouldSendBoundaryKeys()) {
                 *schedulerResultExt->add_output_boundary_keys() = GetWrittenChunksBoundaryKeys(Writer_);

@@ -35,6 +35,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(int, ChunkKeyColumnCount);
     DEFINE_BYVAL_RO_PROPERTY(int, KeyColumnCount);
     DEFINE_BYVAL_RO_PROPERTY(TTableSchemaPtr, Schema);
+    DEFINE_BYREF_RO_PROPERTY(NTableClient::NProto::THunkChunkRefsExt, HunkChunkRefsExt);
 
     static TCachedVersionedChunkMetaPtr Create(
         NChunkClient::TChunkId chunkId,

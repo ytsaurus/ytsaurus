@@ -172,9 +172,9 @@ void TPartition::StartEpoch()
 {
     CompactionTime_ = TInstant::Now();
 
-    const auto& config = Tablet_->GetMountConfig();
-    if (config->AutoCompactionPeriod) {
-        CompactionTime_ -= RandomDuration(*config->AutoCompactionPeriod);
+    const auto& mountConfig = Tablet_->GetSettings().MountConfig;
+    if (mountConfig->AutoCompactionPeriod) {
+        CompactionTime_ -= RandomDuration(*mountConfig->AutoCompactionPeriod);
     }
 
     AllowedSplitTime_ = TInstant::Zero();

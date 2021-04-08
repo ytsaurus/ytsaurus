@@ -250,11 +250,11 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
         takePartition((*it)->Stores);
     }
 
-    if (stores.size() > tabletSnapshot->MountConfig->MaxReadFanIn) {
+    if (stores.size() > tabletSnapshot->Settings.MountConfig->MaxReadFanIn) {
         THROW_ERROR_EXCEPTION("Read fan-in limit exceeded; please wait until your data is merged")
             << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
             << TErrorAttribute("fan_in", stores.size())
-            << TErrorAttribute("fan_in_limit", tabletSnapshot->MountConfig->MaxReadFanIn);
+            << TErrorAttribute("fan_in_limit", tabletSnapshot->Settings.MountConfig->MaxReadFanIn);
     }
 
     YT_LOG_DEBUG("Creating schemaful sorted tablet reader (TabletId: %v, CellId: %v, Timestamp: %llx, "
@@ -652,7 +652,6 @@ IVersionedReaderPtr CreateVersionedTabletReader(
             tabletSnapshot->TableId);
     }
 
-    // XXX will this work?
     tabletSnapshot->WaitOnLocks(majorTimestamp);
 
     if (tabletThrottlerKind) {
@@ -678,7 +677,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         tabletSnapshot->QuerySchema->GetColumnCount(),
         tabletSnapshot->QuerySchema->GetKeyColumnCount(),
         TColumnFilter(),
-        tabletSnapshot->MountConfig,
+        tabletSnapshot->Settings.MountConfig,
         currentTimestamp,
         majorTimestamp,
         tabletSnapshot->ColumnEvaluator,
@@ -701,8 +700,9 @@ IVersionedReaderPtr CreateVersionedTabletReader(
             upperBound = std::move(upperBound),
             bandwidthThrottler = std::move(bandwidthThrottler)
         ] (int index) {
-            YT_ASSERT(index < stores.size());
-            return stores[index]->CreateReader(
+            YT_VERIFY(index < stores.size());
+            const auto& store = stores[index];
+            return store->CreateReader(
                 tabletSnapshot,
                 MakeSingletonRowRange(lowerBound, upperBound),
                 AllCommittedTimestamp,

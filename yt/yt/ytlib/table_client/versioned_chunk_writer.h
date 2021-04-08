@@ -29,8 +29,6 @@ struct IVersionedChunkWriter
 
 DEFINE_REFCOUNTED_TYPE(IVersionedChunkWriter)
 
-////////////////////////////////////////////////////////////////////////////////
-
 IVersionedChunkWriterPtr CreateVersionedChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
@@ -47,7 +45,16 @@ struct IVersionedMultiChunkWriter
 
 DEFINE_REFCOUNTED_TYPE(IVersionedMultiChunkWriter)
 
-////////////////////////////////////////////////////////////////////////////////
+IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
+    std::function<IVersionedChunkWriterPtr(NChunkClient::IChunkWriterPtr)> chunkWriterFactory,
+    TTableWriterConfigPtr config,
+    TTableWriterOptionsPtr options,
+    NApi::NNative::IClientPtr client,
+    NObjectClient::TCellTag cellTag,
+    NTransactionClient::TTransactionId transactionId,
+    NChunkClient::TChunkListId parentChunkListId = {},
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
+    NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 
 IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     TTableWriterConfigPtr config,
@@ -56,7 +63,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     NApi::NNative::IClientPtr client,
     NObjectClient::TCellTag cellTag,
     NTransactionClient::TTransactionId transactionId,
-    NChunkClient::TChunkListId parentChunkListId = NChunkClient::NullChunkListId,
+    NChunkClient::TChunkListId parentChunkListId = {},
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 

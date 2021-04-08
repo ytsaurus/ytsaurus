@@ -84,6 +84,30 @@ using NNodeTrackerClient::TNodeId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const THashSet<int>& GetMasterChunkMetaExtensionTagsFilter()
+{
+    static const THashSet<int> Result{
+        TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
+        TProtoExtensionTag<NTableClient::NProto::THunkChunkRefsExt>::Value,
+        TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value,
+        TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value
+    };
+    return Result;
+}
+
+const THashSet<int>& GetSchedulerChunkMetaExtensionTagsFilter()
+{
+    static const THashSet<int> Result{
+        TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
+        TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value,
+        TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value,
+        TProtoExtensionTag<NTableClient::NProto::TPartitionsExt>::Value
+    };
+    return Result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ValidateReplicationFactor(int replicationFactor)
 {
     if (replicationFactor < MinReplicationFactor || replicationFactor > MaxReplicationFactor)

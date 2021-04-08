@@ -4,6 +4,7 @@
 #include "config.h"
 #include "confirming_writer.h"
 #include "dispatcher.h"
+#include "deferred_chunk_meta.h"
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/config.h>
@@ -94,14 +95,9 @@ TFuture<void> TNontemplateMultiChunkWriterBase::GetReadyEvent()
     }
 }
 
-const std::vector<TChunkSpec>& TNontemplateMultiChunkWriterBase::GetWrittenChunksMasterMeta() const
+const std::vector<TChunkSpec>& TNontemplateMultiChunkWriterBase::GetWrittenChunkSpecs() const
 {
-    return WrittenChunks_;
-}
-
-const std::vector<TChunkSpec>& TNontemplateMultiChunkWriterBase::GetWrittenChunksFullMeta() const
-{
-    return WrittenChunksFullMeta_;
+    return WrittenChunkSpecs_;
 }
 
 TNodeDirectoryPtr TNontemplateMultiChunkWriterBase::GetNodeDirectory() const
@@ -154,28 +150,29 @@ void TNontemplateMultiChunkWriterBase::FinishSession()
     WaitFor(CurrentSession_.TemplateWriter->Close())
         .ThrowOnError();
 
-    TChunkSpec chunkSpec;
-    *chunkSpec.mutable_chunk_meta() = CurrentSession_.TemplateWriter->GetSchedulerMeta();
-    ToProto(chunkSpec.mutable_chunk_id(), CurrentSession_.UnderlyingWriter->GetChunkId());
-    NYT::ToProto(chunkSpec.mutable_replicas(), CurrentSession_.UnderlyingWriter->GetWrittenChunkReplicas());
-    chunkSpec.set_erasure_codec(static_cast<int>(Options_->ErasureCodec));
-    if (Options_->TableIndex != TMultiChunkWriterOptions::InvalidTableIndex) {
-        chunkSpec.set_table_index(Options_->TableIndex);
+    {
+        auto& chunkSpec = WrittenChunkSpecs_.emplace_back();
+        ToProto(chunkSpec.mutable_chunk_id(), CurrentSession_.UnderlyingWriter->GetChunkId());
+        ToProto(chunkSpec.mutable_replicas(), CurrentSession_.UnderlyingWriter->GetWrittenChunkReplicas());
+        chunkSpec.set_erasure_codec(ToProto<int>(Options_->ErasureCodec));
+        if (Options_->TableIndex != TMultiChunkWriterOptions::InvalidTableIndex) {
+            chunkSpec.set_table_index(Options_->TableIndex);
+        }
+        *chunkSpec.mutable_chunk_meta() = *CurrentSession_.TemplateWriter->GetMeta();
     }
 
-    WrittenChunks_.push_back(chunkSpec);
-
-    *chunkSpec.mutable_chunk_meta() = CurrentSession_.TemplateWriter->GetNodeMeta();
-    WrittenChunksFullMeta_.push_back(chunkSpec);
-
-    auto guard = Guard(SpinLock_);
-    DataStatistics_ += CurrentSession_.TemplateWriter->GetDataStatistics();
-    CodecStatistics += CurrentSession_.TemplateWriter->GetCompressionStatistics();
-    CurrentSession_.Reset();
+    {
+        auto guard = Guard(SpinLock_);
+        DataStatistics_ += CurrentSession_.TemplateWriter->GetDataStatistics();
+        CodecStatistics += CurrentSession_.TemplateWriter->GetCompressionStatistics();
+        CurrentSession_.Reset();
+    }
 }
 
 void TNontemplateMultiChunkWriterBase::InitSession()
 {
+    auto guard = Guard(SpinLock_);
+
     CurrentSession_.UnderlyingWriter = CreateConfirmingWriter(
         Config_,
         Options_,

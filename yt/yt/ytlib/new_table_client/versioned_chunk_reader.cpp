@@ -11,6 +11,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/yt/ytlib/table_client/hunks.h>
 
 #include <yt/yt/ytlib/query_client/coordination_helpers.h>
 
@@ -698,22 +699,22 @@ class TVersionedChunkReader
 {
 public:
     TVersionedChunkReader(
+        TCachedVersionedChunkMetaPtr chunkMeta,
         std::vector<TColumnBlockHolder> columnBlockHolders,
-        TRefCountedBlockMetaPtr blockMeta,
         TBlockFetcherPtr blockFetcher,
         std::unique_ptr<IRefiner> refiner,
         std::unique_ptr<TVersionedRowsetBuilder> rowsetBuilder,
-        ui32 chunkKeyColumnCount,
         std::vector<TSpanMatching>&& windowsList,
         TReaderTimeStatisticsPtr timeStatistics)
         : TBlockWindowManager(
             std::move(columnBlockHolders),
-            std::move(blockMeta),
+            chunkMeta->BlockMeta(),
             std::move(blockFetcher),
             timeStatistics)
+        , ChunkMeta_(std::move(chunkMeta))
         , Refiner_(std::move(refiner))
         , RowsetBuilder_(std::move(rowsetBuilder))
-        , ChunkKeyColumnCount_(chunkKeyColumnCount)
+        , ChunkKeyColumnCount_(ChunkMeta_->GetChunkKeyColumnCount())
         , WindowsList_(std::move(windowsList))
     {
         std::reverse(WindowsList_.begin(), WindowsList_.end());
@@ -748,7 +749,8 @@ public:
         return true;
     }
 
-private:
+protected:
+    const TCachedVersionedChunkMetaPtr ChunkMeta_;
     const std::unique_ptr<IRefiner> Refiner_;
     const std::unique_ptr<TVersionedRowsetBuilder> RowsetBuilder_;
     const ui32 ChunkKeyColumnCount_;
@@ -941,27 +943,26 @@ class TReaderWrapper
 {
 public:
     TReaderWrapper(
+        TCachedVersionedChunkMetaPtr chunkMeta,
         std::vector<TColumnBlockHolder> columnBlockHolders,
-        TRefCountedBlockMetaPtr blockMeta,
         TBlockFetcherPtr blockFetcher,
         std::unique_ptr<IRefiner> refiner,
         std::unique_ptr<TVersionedRowsetBuilder> rowsetBuilder,
-        ui32 chunkKeyColumnCount,
         std::vector<TSpanMatching>&& windowsList,
         TChunkReaderPerformanceCountersPtr performanceCounters,
-        bool isLookup,
+        bool lookup,
         TReaderTimeStatisticsPtr timeStatistics)
         : TVersionedChunkReader(
+            std::move(chunkMeta),
             std::move(columnBlockHolders),
-            std::move(blockMeta),
             std::move(blockFetcher),
             std::move(refiner),
             std::move(rowsetBuilder),
-            chunkKeyColumnCount,
             std::move(windowsList),
-            timeStatistics)
+            std::move(timeStatistics))
         , PerformanceCounters_(std::move(performanceCounters))
-        , IsLookup(isLookup)
+        , Lookup_(lookup)
+        , HasHunkColumns_(ChunkMeta_->GetSchema()->HasHunkColumns())
     { }
 
     virtual TFuture<void> Open() override
@@ -969,41 +970,11 @@ public:
         return VoidFuture;
     }
 
-    bool Read(std::vector<TVersionedRow>* rows)
-    {
-        TDataWeightStatistics dataWeightStatistics;
-
-        rows->clear();
-        bool hasMore = ReadRows(
-            reinterpret_cast<std::vector<TMutableVersionedRow>*>(rows),
-            rows->capacity(),
-            &dataWeightStatistics);
-
-        i64 rowCount = rows->size();
-
-        RowCount_ += rowCount;
-        DataWeight_ += dataWeightStatistics.Count;
-
-        if (IsLookup) {
-            PerformanceCounters_->StaticChunkRowLookupCount += rowCount;
-            PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeightStatistics.Count;
-        } else {
-            PerformanceCounters_->StaticChunkRowReadCount += rowCount;
-            PerformanceCounters_->StaticChunkRowReadDataWeightCount += dataWeightStatistics.Count;
-        }
-
-        if (hasMore) {
-            return true;
-        }
-
-        // Actually does not have more but caller expect true if rows are not empty.
-        return !rows->empty();
-    }
-
     virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         YT_VERIFY(options.MaxRowsPerRead > 0);
-        std::vector<TVersionedRow> rows;
+
+        std::vector<TMutableVersionedRow> rows;
         rows.reserve(options.MaxRowsPerRead);
 
         bool hasMore = Read(&rows);
@@ -1016,7 +987,12 @@ public:
             return CreateEmptyVersionedRowBatch();
         }
 
-        return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
+        auto* rowsData = rows.data();
+        auto rowsSize = rows.size();
+        return CreateBatchFromVersionedRows(MakeSharedRange(
+            TRange<TVersionedRow>(rowsData, rowsSize),
+            std::move(rows),
+            MakeStrong(this)));
     }
 
     virtual TFuture<void> GetReadyEvent() const
@@ -1025,7 +1001,7 @@ public:
     }
 
     // TODO(lukyan): Provide statistics object to BlockFetcher.
-    virtual TDataStatistics GetDataStatistics() const
+    virtual TDataStatistics GetDataStatistics() const override
     {
         if (!BlockFetcher_) {
             return TDataStatistics();
@@ -1040,34 +1016,74 @@ public:
         return dataStatistics;
     }
 
-    virtual TCodecStatistics GetDecompressionStatistics() const
+    virtual TCodecStatistics GetDecompressionStatistics() const override
     {
         return BlockFetcher_
             ? TCodecStatistics().Append(BlockFetcher_->GetDecompressionTime())
             : TCodecStatistics();
     }
 
-    virtual bool IsFetchingCompleted() const
+    virtual bool IsFetchingCompleted() const override
     {
-        if (BlockFetcher_) {
-            return BlockFetcher_->IsFetchingCompleted();
-        } else {
+        if (!BlockFetcher_) {
             return true;
         }
+
+        return BlockFetcher_->IsFetchingCompleted();
     }
 
-    virtual std::vector<TChunkId> GetFailedChunkIds() const
+    virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
-        return std::vector<TChunkId>();
+        return {};
     }
 
 private:
+    const TChunkReaderPerformanceCountersPtr PerformanceCounters_;
+    // TODO(lukyan): Use performance counters adapter and increment counters uniformly and remove this flag.
+    const bool Lookup_;
+    const bool HasHunkColumns_;
+
     i64 RowCount_ = 0;
     i64 DataWeight_ = 0;
-    TChunkReaderPerformanceCountersPtr PerformanceCounters_;
 
-    // TODO(lukyan): Use performance counters adapter and increment counters uniformly and remove this flag.
-    bool IsLookup = false;
+
+    bool Read(std::vector<TMutableVersionedRow>* rows)
+    {
+        TDataWeightStatistics dataWeightStatistics;
+
+        rows->clear();
+        bool hasMore = ReadRows(
+            rows,
+            rows->capacity(),
+            &dataWeightStatistics);
+
+        if (HasHunkColumns_) {
+            auto* pool = RowsetBuilder_->GetPool();
+            for (auto row : *rows) {
+                GlobalizeHunkValues(pool, ChunkMeta_, row);
+            }
+        }
+
+        i64 rowCount = static_cast<i64>(rows->size());
+
+        RowCount_ += rowCount;
+        DataWeight_ += dataWeightStatistics.Count;
+
+        if (Lookup_) {
+            PerformanceCounters_->StaticChunkRowLookupCount += rowCount;
+            PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeightStatistics.Count;
+        } else {
+            PerformanceCounters_->StaticChunkRowReadCount += rowCount;
+            PerformanceCounters_->StaticChunkRowReadDataWeightCount += dataWeightStatistics.Count;
+        }
+
+        if (hasMore) {
+            return true;
+        }
+
+        // Actually does not have more but caller expect true if rows are not empty.
+        return !rows->empty();
+    }
 };
 
 bool IsKeys(const TSharedRange<TRowRange>&)
@@ -1141,12 +1157,11 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     auto rowBuilder = CreateVersionedRowsetBuilder(keyTypes, valueSchema, timestamp, produceAll);
 
     return New<TReaderWrapper>(
+        std::move(chunkMeta),
         std::move(columnBlockHolders),
-        chunkMeta->BlockMeta(),
         std::move(blockFetcher),
         std::move(refiner),
         std::move(rowBuilder),
-        chunkMeta->GetChunkKeyColumnCount(),
         std::move(windowsList),
         std::move(performanceCounters),
         IsKeys(readItems),

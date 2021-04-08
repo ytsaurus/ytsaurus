@@ -28,6 +28,7 @@ REGISTER_PROTO_EXTENSION(TColumnMetaExt, 58, column_meta)
 REGISTER_PROTO_EXTENSION(TColumnarStatisticsExt, 60, columnar_statistics)
 REGISTER_PROTO_EXTENSION(THeavyColumnStatisticsExt, 61, heavy_column_statistics)
 REGISTER_PROTO_EXTENSION(TKeyColumnsExt, 14, key_columns)
+REGISTER_PROTO_EXTENSION(THunkChunkRefsExt, 62, hunk_chunk_refs)
 
 ////////////////////////////////////////////////////////////////////////////////
 

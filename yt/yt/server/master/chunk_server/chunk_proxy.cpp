@@ -23,11 +23,12 @@
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
-#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/proto/chunk_owner_ypath.pb.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/table_client/hunks.h>
+
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
@@ -172,7 +173,8 @@ private:
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PartLossTime)
             .SetOpaque(true));
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkRefs)
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkChunkRefs)
+            .SetPresent(chunk->IsConfirmed())
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::IsSharedToSkynet)
             .SetPresent(chunk->IsConfirmed() && miscExt.has_shared_to_skynet()));
@@ -735,22 +737,17 @@ private:
                 return true;
             }
 
-            case EInternedAttributeKey::HunkRefs: {
-                if (auto optionalHunkRefsExt = FindProtoExtension<NChunkClient::NProto::THunkRefsExt>(chunk->ChunkMeta().extensions())) {
-                    BuildYsonFluently(consumer)
-                        .DoListFor(optionalHunkRefsExt->refs(), [] (auto fluent, const auto& protoRef) {
-                            fluent
-                                .Item().BeginMap()
-                                    .Item("chunk_id").Value(FromProto<TChunkId>(protoRef.chunk_id()))
-                                    .Item("uncompressed_data_size").Value(protoRef.uncompressed_data_size())
-                                .EndMap();
-                        });
-                } else {
-                    BuildYsonFluently(consumer)
-                        .BeginList()
-                        .EndList();
+            case EInternedAttributeKey::HunkChunkRefs: {
+                if (!isConfirmed) {
+                    break;
                 }
-                break;
+                std::vector<THunkChunkRef> hunkChunkRefs;
+                if (auto optionalHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(chunk->ChunkMeta().extensions())) {
+                    hunkChunkRefs = FromProto<std::vector<THunkChunkRef>>(optionalHunkChunkRefsExt->refs());
+                }
+                BuildYsonFluently(consumer)
+                    .Value(hunkChunkRefs);
+                return true;
             }
 
             case EInternedAttributeKey::IsSharedToSkynet: {
