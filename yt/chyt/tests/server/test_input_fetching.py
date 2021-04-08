@@ -1,7 +1,7 @@
 from yt_commands import (create, authors, write_table, insert_rows, get, sync_reshard_table, sync_mount_table,
-                         read_table, get_singular_chunk_id, copy)
+                         read_table, get_singular_chunk_id, copy, raises_yt_error)
 
-from base import ClickHouseTestBase, Clique
+from base import ClickHouseTestBase, Clique, QueryFailedError
 
 import yt.yson as yson
 
@@ -554,3 +554,44 @@ class TestInputFetching(ClickHouseTestBase):
             assert clique.make_query("select * from concatYtTables(`//tmp/d/t1`, `//tmp/d/t1`)") == [{"a": 1}] * 2
             assert clique.make_query("select * from concatYtTables(`//tmp/d/t1`, `//tmp/d/t1`, `//tmp/d/t2`, "
                                      "`//tmp/d/t2`, `//tmp/d/t2`)") == [{"a": 1}] * 5
+
+    @authors("dakovalkov")
+    def test_chyt_526(self):
+
+        create(
+            "table",
+            "//tmp/t_static",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "int64", "sort_order": "ascending"},
+                ],
+            },
+        )
+        create(
+            "table",
+            "//tmp/t_dynamic",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "int64", "sort_order": "ascending"},
+                    {"name": "b", "type": "int64"},
+                ],
+                "dynamic": True,
+                "enable_dynamic_store_read": True,
+            },
+        )
+
+        with Clique(1) as clique:
+            with raises_yt_error(QueryFailedError):
+                clique.make_query("select * from concatYtTables(`//tmp/t_dynamic`, `//tmp/t_dynamic`)")
+            with raises_yt_error(QueryFailedError):
+                clique.make_query("select * from concatYtTables(`//tmp/t_dynamic`, `//tmp/t_static`)")
+
+            assert clique.make_query("select * from concatYtTables(`//tmp/t_dynamic`)") == []
+            assert clique.make_query("select * from concatYtTables(`//tmp/t_static`)") == []
+            assert clique.make_query("select * from concatYtTables(`//tmp/t_static`, `//tmp/t_static`)") == []
+            assert clique.make_query("select * from `//tmp/t_dynamic` as a join `//tmp/t_dynamic` as b using a") == []
+
+            with raises_yt_error(QueryFailedError):
+                clique.make_query("select * from `//tmp/t_dynamic` as a join `//tmp/t_static` as b using a") == []
+            with raises_yt_error(QueryFailedError):
+                clique.make_query("select * from `//tmp/t_static` as a join `//tmp/t_dynamic` as b using a") == []

@@ -89,12 +89,6 @@ std::vector<TTablePtr> FetchTables(
                     allowedTypes,
                     type);
             }
-            // COMPAT(max42): remove this when 20.2 is everywhere.
-            if (attributes->Get<bool>("dynamic", false) && !host->GetConfig()->EnableDynamicTables) {
-                THROW_ERROR_EXCEPTION(
-                    "Table %Qv is dynamic; dynamic tables are not supported yet (CHYT-57)",
-                    path.GetPath());
-            }
             if (attributes->Get<bool>("dynamic", false) && !attributes->Get<TTableSchemaPtr>("schema")->IsSorted()) {
                 THROW_ERROR_EXCEPTION(
                     "Table %Qv is an ordered dynamic table; they are not supported yet (CHYT-419)",

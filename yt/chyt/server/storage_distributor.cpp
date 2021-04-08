@@ -609,7 +609,16 @@ public:
         , Tables_(std::move(tables))
         , Schema_(std::move(schema))
         , Logger(QueryContext_->Logger)
-    { }
+    {
+        // TODO(dakovalkov): https://st.yandex-team.ru/CHYT-526
+        if (Tables_.size() > 1) {
+            for (const auto& table : Tables_) {
+                if (table->Dynamic) {
+                    THROW_ERROR_EXCEPTION("Reading multiple dynamic tables or dynamic table together with static table is not supported (CHYT-526)");
+                }
+            }
+        }
+    }
 
     virtual void startup() override
     {
