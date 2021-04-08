@@ -333,8 +333,7 @@ public:
         }
 
         auto counters = TabletSnapshots_.GetTableProfiler()->GetQueryServiceCounters(GetCurrentProfilingUser());
-        counters->ExecuteRequestCount.Increment();
-        profilerGuard.SetTimer(counters->ExecuteCpuTime, counters->ExecuteRequestDuration);
+        profilerGuard.Start(counters->Execute);
 
         return DoExecute();
     }

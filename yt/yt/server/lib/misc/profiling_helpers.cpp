@@ -75,6 +75,8 @@ TServiceProfilerGuard::TServiceProfilerGuard()
 
 TServiceProfilerGuard::~TServiceProfilerGuard()
 {
+    Timer_.Record(NProfiling::CpuDurationToDuration(NProfiling::GetCpuInstant() - StartTime_));
+
     if (!TraceContext_) {
         return;
     }
@@ -83,12 +85,12 @@ TServiceProfilerGuard::~TServiceProfilerGuard()
     TimeCounter_.Add(CpuDurationToDuration(TraceContext_->GetElapsedCpuTime()));
 }
 
-void TServiceProfilerGuard::SetTimer(
-    NProfiling::TTimeCounter timeCounter,
-    NProfiling::TEventTimer timer)
+void TServiceProfilerGuard::Start(const TMethodCounters& counters)
 {
-    TimeCounter_ = timeCounter;
-    Timer_.Record(NProfiling::CpuDurationToDuration(NProfiling::GetCpuInstant() - StartTime_));
+    counters.RequestCount.Increment();
+
+    TimeCounter_ = counters.CpuTime;
+    Timer_ = counters.RequestDuration;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

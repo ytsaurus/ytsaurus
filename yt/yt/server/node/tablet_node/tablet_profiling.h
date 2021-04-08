@@ -250,26 +250,21 @@ struct TReplicaCounters
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TQueryServiceCounters
 {
     TQueryServiceCounters() = default;
 
     explicit TQueryServiceCounters(const NProfiling::TProfiler& profiler)
-        : ExecuteCpuTime(profiler.TimeCounter("/execute/cumulative_cpu_time"))
-        , ExecuteRequestCount(profiler.Counter("/execute/request_count"))
-        , ExecuteRequestDuration(profiler.Timer("/execute/request_duration"))
-        , MultireadCpuTime(profiler.TimeCounter("/multiread/cumulative_cpu_time"))
-        , MultireadRequestCount(profiler.Counter("/multiread/request_count"))
-        , MultireadRequestDuration(profiler.Timer("/multiread/request_duration"))
+        : Execute(profiler.WithPrefix("/execute"))
+        , Multiread(profiler.WithPrefix("/multiread"))
     { }
 
-    NProfiling::TTimeCounter ExecuteCpuTime;
-    NProfiling::TCounter ExecuteRequestCount;
-    NProfiling::TEventTimer ExecuteRequestDuration;
-
-    NProfiling::TTimeCounter MultireadCpuTime;
-    NProfiling::TCounter MultireadRequestCount;
-    NProfiling::TEventTimer MultireadRequestDuration;
+    TMethodCounters Execute;
+    TMethodCounters Multiread;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
