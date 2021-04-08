@@ -16,7 +16,11 @@ const (
 	// NodeFile is regular file. Used for artifacts and opaque blobs.
 	NodeFile NodeType = "file"
 	// NodeTable is table.
-	NodeTable             NodeType = "table"
+	NodeTable NodeType = "table"
+
+	NodeString  NodeType = "string_node"
+	NodeBoolean NodeType = "boolean_node"
+
 	NodeDocument          NodeType = "document"
 	NodeTableReplica      NodeType = "table_replica"
 	NodeReplicatedTable   NodeType = "replicated_table"
