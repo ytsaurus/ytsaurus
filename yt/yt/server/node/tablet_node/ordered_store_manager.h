@@ -28,7 +28,8 @@ public:
 
     // IStoreManager overrides.
     virtual void Mount(
-        const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors,
+        TRange<const NTabletNode::NProto::TAddStoreDescriptor*> storeDescriptors,
+        TRange<const NTabletNode::NProto::TAddHunkChunkDescriptor*> hunkChunkDescriptors,
         bool createDynamicStore,
         const NTabletNode::NProto::TMountHint& mountHint) override;
 

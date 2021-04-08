@@ -38,7 +38,7 @@ void TWriterProfiler::Profile(
     bool failed)
 {
     auto diskSpace = CalculateDiskSpaceUsage(
-        tabletSnapshot->WriterOptions->ReplicationFactor,
+        tabletSnapshot->Settings.StoreWriterOptions->ReplicationFactor,
         DataStatistics_.regular_disk_space(),
         DataStatistics_.erasure_disk_space());
     auto compressionCpuTime = CodecStatistics_.GetTotalDuration();
@@ -134,7 +134,7 @@ public:
             case EDynamicTableProfilingMode::Disabled:
                 key = {profilingMode, bundle, "", account, medium};
                 break;
-                
+
             case EDynamicTableProfilingMode::Path:
                 key = {profilingMode, bundle, tablePath, account, medium};
                 AllTables_.insert(tablePath);
@@ -166,7 +166,7 @@ public:
                 diskTagSet.AddTag({"account", account});
                 diskTagSet.AddTag({"medium", medium});
                 break;
-                
+
             case EDynamicTableProfilingMode::Path:
                 tableTagSet.AddTag({"table_path", tablePath}, -1);
 
@@ -350,7 +350,7 @@ TChunkWriteCounters* TTableProfiler::GetWriteCounters(EChunkWriteProfilingMethod
 
 TChunkReadCounters* TTableProfiler::GetReadCounters(EChunkReadProfilingMethod method, bool failed)
 {
-    return &ChunkReadCounters_[method][failed ? 1 : 0];    
+    return &ChunkReadCounters_[method][failed ? 1 : 0];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

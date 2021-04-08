@@ -29,13 +29,15 @@ public:
         const NChunkClient::TLegacyReadRange& readRange,
         TTimestamp chunkTimestamp,
         TTablet* tablet,
+        const NTabletNode::NProto::TAddStoreDescriptor* addStoreDescriptor,
         NChunkClient::IBlockCachePtr blockCache,
         NDataNode::IChunkRegistryPtr chunkRegistry = nullptr,
         NDataNode::IChunkBlockManagerPtr chunkBlockManager = nullptr,
         IVersionedChunkMetaManagerPtr chunkMetaManager = nullptr,
         NApi::NNative::IClientPtr client = nullptr,
         const NNodeTrackerClient::TNodeDescriptor& localDescriptor = {});
-    ~TSortedChunkStore();
+
+    virtual void Initialize() override;
 
     // IStore implementation.
     virtual EStoreType GetType() const override;
@@ -114,8 +116,6 @@ private:
         const TTabletSnapshotPtr& tabletSnapshot,
         const NTableClient::TChunkStatePtr& chunkState,
         const TWorkloadDescriptor& workloadDescriptor);
-
-    virtual void PrecacheProperties() override;
 
     virtual NTableClient::TKeyComparer GetKeyComparer() override;
 

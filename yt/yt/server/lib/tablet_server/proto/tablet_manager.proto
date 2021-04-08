@@ -113,6 +113,8 @@ message TReqUpdateTabletStores
     required int64 mount_revision = 4;
     repeated NTabletNode.NProto.TAddStoreDescriptor stores_to_add = 2;
     repeated NTabletNode.NProto.TRemoveStoreDescriptor stores_to_remove = 3;
+    repeated NTabletNode.NProto.TAddHunkChunkDescriptor hunk_chunks_to_add = 8;
+    repeated NTabletNode.NProto.TRemoveHunkChunkDescriptor hunk_chunks_to_remove = 9;
     required uint64 retained_timestamp = 5;
     optional int32 update_reason = 6 [default = 0]; // ETabletStoresUpdateReason
     optional bool request_dynamic_store_id = 7 [default = false];

@@ -189,31 +189,9 @@ public:
         return EncodingChunkWriter_->IsCloseDemanded();
     }
 
-    virtual NChunkClient::NProto::TChunkMeta GetMasterMeta() const override
+    virtual TDeferredChunkMetaPtr GetMeta() const override
     {
-        TChunkMeta meta;
-        SetProtoExtension(meta.mutable_extensions(), EncodingChunkWriter_->MiscExt());
-        FillCommonMeta(&meta);
-
-        if (IsSorted()) {
-            SetProtoExtension(meta.mutable_extensions(), BoundaryKeysExt_);
-        }
-
-        if (Options_->MaxHeavyColumns > 0) {
-            SetProtoExtension(meta.mutable_extensions(), GetHeavyColumnStatisticsExt());
-        }
-
-        return meta;
-    }
-
-    virtual NChunkClient::NProto::TChunkMeta GetSchedulerMeta() const override
-    {
-        return GetMasterMeta();
-    }
-
-    virtual NChunkClient::NProto::TChunkMeta GetNodeMeta() const override
-    {
-        return *EncodingChunkWriter_->Meta();
+        return EncodingChunkWriter_->GetMeta();
     }
 
     virtual TChunkId GetChunkId() const override
@@ -221,7 +199,7 @@ public:
         return EncodingChunkWriter_->GetChunkId();
     }
 
-    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    virtual TDataStatistics GetDataStatistics() const override
     {
         auto dataStatistics = EncodingChunkWriter_->GetDataStatistics();
         dataStatistics.set_row_count(RowCount_);
@@ -327,16 +305,16 @@ protected:
             miscExt.set_shared_to_skynet(true);
         }
 
-        auto& meta = *EncodingChunkWriter_->Meta();
-        FillCommonMeta(&meta);
+        auto meta = EncodingChunkWriter_->GetMeta();
+        FillCommonMeta(meta.Get());
 
         auto nameTableExt = ToProto<TNameTableExt>(ChunkNameTable_);
-        SetProtoExtension(meta.mutable_extensions(), nameTableExt);
+        SetProtoExtension(meta->mutable_extensions(), nameTableExt);
 
         auto schemaExt = ToProto<TTableSchemaExt>(*Schema_);
-        SetProtoExtension(meta.mutable_extensions(), schemaExt);
+        SetProtoExtension(meta->mutable_extensions(), schemaExt);
 
-        meta.PushCallback([blockMetaExt = std::move(BlockMetaExt_)] (TDeferredChunkMeta* meta) mutable {
+        meta->RegisterFinalizer([blockMetaExt = std::move(BlockMetaExt_)] (TDeferredChunkMeta* meta) mutable {
             YT_VERIFY(meta->BlockIndexMapping());
             const auto& mapping = *meta->BlockIndexMapping();
             // Note that simply mapping each block's block_index is not enough.
@@ -360,30 +338,31 @@ protected:
         if (SamplesExtSize_ == 0 && Sample_) {
             EmitSample(Sample_);
         }
-        SetProtoExtension(meta.mutable_extensions(), SamplesExt_);
+        SetProtoExtension(meta->mutable_extensions(), SamplesExt_);
 
-        SetProtoExtension(meta.mutable_extensions(), ColumnarStatisticsExt_);
+        SetProtoExtension(meta->mutable_extensions(), ColumnarStatisticsExt_);
 
         if (IsSorted()) {
             ToProto(BoundaryKeysExt_.mutable_max(), LastKey_);
-            SetProtoExtension(meta.mutable_extensions(), BoundaryKeysExt_);
+            SetProtoExtension(meta->mutable_extensions(), BoundaryKeysExt_);
         }
 
         if (Options_->MaxHeavyColumns > 0) {
-            SetProtoExtension(meta.mutable_extensions(), GetHeavyColumnStatisticsExt());
+            SetProtoExtension(meta->mutable_extensions(), GetHeavyColumnStatisticsExt());
         }
 
         if (Schema_->IsSorted()) {
             // Sorted or partition chunks.
             TKeyColumnsExt keyColumnsExt;
-            NYT::ToProto(keyColumnsExt.mutable_names(), Schema_->GetKeyColumns());
-            SetProtoExtension(meta.mutable_extensions(), keyColumnsExt);
+            ToProto(keyColumnsExt.mutable_names(), Schema_->GetKeyColumns());
+            SetProtoExtension(meta->mutable_extensions(), keyColumnsExt);
         }
     }
 
     virtual void DoClose()
     {
         PrepareChunkMeta();
+
         EncodingChunkWriter_->Close();
     }
 
@@ -423,7 +402,7 @@ private:
 
     mutable NProto::TColumnarStatisticsExt ColumnarStatisticsExt_;
 
-    void FillCommonMeta(NChunkClient::NProto::TChunkMeta* meta) const
+    void FillCommonMeta(TChunkMeta* meta) const
     {
         meta->set_type(ToProto<int>(EChunkType::Table));
         meta->set_format(ToProto<int>(GetTableChunkFormat()));
@@ -820,8 +799,6 @@ private:
 
     virtual void DoClose() override
     {
-        using NYT::ToProto;
-
         for (int i = 0; i < BlockWriters_.size(); ++i) {
             if (BlockWriters_[i]->GetCurrentSize() > 0) {
                 FinishBlock(i, LastKey_.Get());
@@ -840,8 +817,8 @@ private:
             *columnMetaExt.add_columns() = valueColumnWriter->ColumnMeta();
         }
 
-        auto& meta = *EncodingChunkWriter_->Meta();
-        meta.PushCallback([columnMetaExt = std::move(columnMetaExt)] (NChunkClient::TDeferredChunkMeta* meta) mutable {
+        auto meta = EncodingChunkWriter_->GetMeta();
+        meta->RegisterFinalizer([columnMetaExt = std::move(columnMetaExt)] (NChunkClient::TDeferredChunkMeta* meta) mutable {
             YT_VERIFY(meta->BlockIndexMapping());
             const auto& mapping = *meta->BlockIndexMapping();
             for (auto& column : *columnMetaExt.mutable_columns()) {
@@ -956,13 +933,6 @@ public:
         return EncodingChunkWriter_->GetDataStatistics().uncompressed_data_size();
     }
 
-    virtual TChunkMeta GetSchedulerMeta() const override
-    {
-        auto meta = TUnversionedChunkWriterBase::GetSchedulerMeta();
-        SetProtoExtension(meta.mutable_extensions(), PartitionsExt_);
-        return meta;
-    }
-
     virtual bool IsCloseDemanded() const override
     {
         return LargestPartitionRowCount_ > PartitionRowCountLimit;
@@ -990,9 +960,8 @@ private:
 
         YT_LOG_DEBUG("Partition totals: %v", PartitionsExt_.DebugString());
 
-        auto& meta = *EncodingChunkWriter_->Meta();
-
-        SetProtoExtension(meta.mutable_extensions(), PartitionsExt_);
+        auto meta = EncodingChunkWriter_->GetMeta();
+        SetProtoExtension(meta->mutable_extensions(), PartitionsExt_);
     }
 };
 

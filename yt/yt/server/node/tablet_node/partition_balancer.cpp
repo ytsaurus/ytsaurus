@@ -129,14 +129,15 @@ private:
             ScanPartitionToSample(slot, partition.get());
         }
 
-        if (!tablet->GetMountConfig()->EnableCompactionAndPartitioning) {
+        const auto& mountConfig = tablet->GetSettings().MountConfig;
+        if (!mountConfig->EnableCompactionAndPartitioning) {
             return;
         }
 
         int currentMaxOverlappingStoreCount = tablet->GetOverlappingStoreCount();
         int estimatedMaxOverlappingStoreCount = currentMaxOverlappingStoreCount;
 
-        YT_LOG_DEBUG_IF(tablet->GetMountConfig()->EnableLsmVerboseLogging,
+        YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
             "Partition balancer started tablet scan for splits (%v, CurrentMosc: %v)",
             tablet->GetLoggingTag(),
             currentMaxOverlappingStoreCount);
@@ -161,10 +162,10 @@ private:
                 secondLargestPartitionStoreCount);
         }
 
-        int maxAllowedOverlappingStoreCount = tablet->GetMountConfig()->MaxOverlappingStoreCount -
+        int maxAllowedOverlappingStoreCount = mountConfig->MaxOverlappingStoreCount -
             (estimatedMaxOverlappingStoreCount - currentMaxOverlappingStoreCount);
 
-        YT_LOG_DEBUG_IF(tablet->GetMountConfig()->EnableLsmVerboseLogging,
+        YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
             "Partition balancer started tablet scan for merges (%v, "
             "EstimatedMosc: %v, MaxAllowedOsc: %v)",
             tablet->GetLoggingTag(),
@@ -183,27 +184,25 @@ private:
         int secondLargestPartitionStoreCount)
     {
         auto* tablet = partition->GetTablet();
-        const auto& config = tablet->GetMountConfig();
+        const auto& mountConfig = tablet->GetSettings().MountConfig;
         int partitionCount = tablet->PartitionList().size();
         i64 actualDataSize = partition->GetCompressedDataSize();
         int estimatedStoresDelta = partition->Stores().size();
 
         auto Logger = BuildLogger(slot, partition);
 
-        if (tablet->GetMountConfig()->EnableLsmVerboseLogging) {
-            YT_LOG_DEBUG(
-                "Scanning partition to split (PartitionIndex: %v of %v, "
-                "EstimatedMosc: %v, DataSize: %v, StoreCount: %v, SecondLargestPartitionStoreCount: %v)",
-                partition->GetIndex(),
-                partitionCount,
-                *estimatedMaxOverlappingStoreCount,
-                actualDataSize,
-                partition->Stores().size(),
-                secondLargestPartitionStoreCount);
-        }
+        YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
+            "Scanning partition to split (PartitionIndex: %v of %v, "
+            "EstimatedMosc: %v, DataSize: %v, StoreCount: %v, SecondLargestPartitionStoreCount: %v)",
+            partition->GetIndex(),
+            partitionCount,
+            *estimatedMaxOverlappingStoreCount,
+            actualDataSize,
+            partition->Stores().size(),
+            secondLargestPartitionStoreCount);
 
         if (partition->GetState() != EPartitionState::Normal) {
-            YT_LOG_DEBUG_IF(tablet->GetMountConfig()->EnableLsmVerboseLogging,
+            YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
                 "Will not split partition due to improper partition state (PartitionState: %v)",
                 partition->GetState());
             return;
@@ -230,13 +229,13 @@ private:
             maxOverlappingStoreCountAfterSplit -= partition->Stores().size() - secondLargestPartitionStoreCount;
         }
 
-        if (maxOverlappingStoreCountAfterSplit <= config->MaxOverlappingStoreCount &&
-            actualDataSize > config->MaxPartitionDataSize)
+        if (maxOverlappingStoreCountAfterSplit <= mountConfig->MaxOverlappingStoreCount &&
+            actualDataSize > mountConfig->MaxPartitionDataSize)
         {
             int splitFactor = std::min({
-                actualDataSize / config->DesiredPartitionDataSize + 1,
-                actualDataSize / config->MinPartitionDataSize,
-                static_cast<i64>(config->MaxPartitionCount - partitionCount)});
+                actualDataSize / mountConfig->DesiredPartitionDataSize + 1,
+                actualDataSize / mountConfig->MinPartitionDataSize,
+                static_cast<i64>(mountConfig->MaxPartitionCount - partitionCount)});
 
             if (splitFactor > 1 && ValidateSplit(slot, partition, false)) {
                 partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Splitting);
@@ -265,7 +264,7 @@ private:
     void ScanPartitionToMerge(TTabletSlotPtr slot, TPartition* partition, int maxAllowedOverlappingStoreCount)
     {
         auto* tablet = partition->GetTablet();
-        const auto& config = tablet->GetMountConfig();
+        const auto& mountConfig = tablet->GetSettings().MountConfig;
         int partitionCount = tablet->PartitionList().size();
         i64 actualDataSize = partition->GetCompressedDataSize();
 
@@ -279,7 +278,7 @@ private:
 
         auto Logger = BuildLogger(slot, partition);
 
-        YT_LOG_DEBUG_IF(tablet->GetMountConfig()->EnableLsmVerboseLogging,
+        YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
             "Scanning partition to merge (PartitionIndex: %v of %v, "
             "DataSize: %v, MaxPotentialDataSize: %v)",
             partition->GetIndex(),
@@ -287,7 +286,7 @@ private:
             actualDataSize,
             maxPotentialDataSize);
 
-        if (maxPotentialDataSize < config->MinPartitionDataSize && partitionCount > 1) {
+        if (maxPotentialDataSize < mountConfig->MinPartitionDataSize && partitionCount > 1) {
             int firstPartitionIndex = partition->GetIndex();
             int lastPartitionIndex = firstPartitionIndex + 1;
             if (lastPartitionIndex == partitionCount) {
@@ -298,7 +297,7 @@ private:
                 tablet->PartitionList()[firstPartitionIndex]->Stores().size() +
                 tablet->PartitionList()[lastPartitionIndex]->Stores().size();
 
-            YT_LOG_DEBUG_IF(tablet->GetMountConfig()->EnableLsmVerboseLogging,
+            YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
                 "Found candidate partitions to merge (FirstPartitionIndex: %v, "
                 "LastPartitionIndex: %v, EstimatedOsc: %v, WillRunMerge: %v",
                 firstPartitionIndex,
@@ -330,7 +329,8 @@ private:
 
         auto Logger = BuildLogger(slot, partition);
 
-        if (!tablet->GetMountConfig()->EnablePartitionSplitWhileEdenPartitioning &&
+        const auto& mountConfig = tablet->GetSettings().MountConfig;
+        if (!mountConfig->EnablePartitionSplitWhileEdenPartitioning &&
             tablet->GetEden()->GetState() == EPartitionState::Partitioning)
         {
             YT_LOG_DEBUG("Eden is partitioning, will not split partition (EdenPartitionId: %v)",
@@ -340,7 +340,7 @@ private:
 
         for (const auto& store : partition->Stores()) {
             if (store->GetStoreState() != EStoreState::Persistent) {
-                YT_LOG_DEBUG_IF(tablet->GetMountConfig()->EnableLsmVerboseLogging,
+                YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
                     "Will not split partition due to improper store state "
                     "(StoreId: %v, StoreState: %v)",
                     store->GetId(),
@@ -353,7 +353,7 @@ private:
             const auto& pivotKeys = partition->PivotKeysForImmediateSplit();
             YT_VERIFY(!pivotKeys.empty());
             if (pivotKeys[0] != partition->GetPivotKey()) {
-                YT_LOG_DEBUG_IF(tablet->GetMountConfig()->EnableLsmVerboseLogging,
+                YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
                     "Will not perform immediate partition split: first proposed pivot key "
                     "does not match partition pivot key (PartitionPivotKey: %v, ProposedPivotKey: %v)",
                     partition->GetPivotKey(),
@@ -365,7 +365,7 @@ private:
 
             for (int index = 1; index < pivotKeys.size(); ++index) {
                 if (pivotKeys[index] <= pivotKeys[index - 1]) {
-                    YT_LOG_DEBUG_IF(tablet->GetMountConfig()->EnableLsmVerboseLogging,
+                    YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
                         "Will not perform immediate partition split: proposed pivots are not sorted");
 
                     partition->PivotKeysForImmediateSplit().clear();
@@ -374,7 +374,7 @@ private:
             }
 
             if (pivotKeys.back() >= partition->GetNextPivotKey()) {
-                YT_LOG_DEBUG_IF(tablet->GetMountConfig()->EnableLsmVerboseLogging,
+                YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
                     "Will not perform immediate partition split: last proposed pivot key "
                     "is not less than partition next pivot key (NextPivotKey: %v, ProposedPivotKey: %v)",
                     partition->GetNextPivotKey(),
@@ -385,7 +385,7 @@ private:
             }
 
             if (pivotKeys.size() <= 1) {
-                YT_LOG_DEBUG_IF(tablet->GetMountConfig()->EnableLsmVerboseLogging,
+                YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
                     "Will not perform immediate partition split: too few pivot keys");
 
                 partition->PivotKeysForImmediateSplit().clear();
@@ -508,9 +508,10 @@ private:
     {
         auto* tablet = partition->GetTablet();
 
+        const auto& mountConfig = tablet->GetSettings().MountConfig;
         for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
             if (tablet->PartitionList()[index]->GetState() != EPartitionState::Normal) {
-                YT_LOG_DEBUG_IF(tablet->GetMountConfig()->EnableLsmVerboseLogging,
+                YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
                     "Will not merge partitions due to improper partition state "
                     "(%v, InitialPartitionId: %v, PartitionId: %v, PartitionIndex: %v, PartitionState: %v)",
                     tablet->GetLoggingTag(),
@@ -599,7 +600,7 @@ private:
         YT_LOG_DEBUG("Sampling partition");
 
         YT_VERIFY(tablet == partition->GetTablet());
-        auto config = tablet->GetMountConfig();
+        const auto& mountConfig = tablet->GetSettings().MountConfig;
 
         const auto& hydraManager = slot->GetHydraManager();
 
@@ -611,7 +612,7 @@ private:
 
             auto uncompressedDataSize = partition->GetUncompressedDataSize();
             auto scaledSamples = static_cast<int>(
-                config->SamplesPerPartition * std::max(compressedDataSize, uncompressedDataSize) / compressedDataSize);
+                mountConfig->SamplesPerPartition * std::max(compressedDataSize, uncompressedDataSize) / compressedDataSize);
             YT_LOG_INFO("Sampling partition (DesiredSampleCount: %v)", scaledSamples);
 
             auto rowBuffer = New<TRowBuffer>();

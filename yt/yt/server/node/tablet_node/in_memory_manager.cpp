@@ -277,12 +277,12 @@ private:
         auto readSessionId = TReadSessionId::Create();
         auto mode = store->GetInMemoryMode();
 
-        NLogging::TLogger Logger(TabletNodeLogger);
-        Logger.AddTag("%v, StoreId: %v, Mode: %v, ReadSessionId: %v",
-            tablet->GetLoggingTag(),
-            store->GetId(),
-            mode,
-            readSessionId);
+        auto Logger = TabletNodeLogger
+            .WithTag("%v, StoreId: %v, Mode: %v, ReadSessionId: %v",
+                tablet->GetLoggingTag(),
+                store->GetId(),
+                mode,
+                readSessionId);
 
         YT_LOG_INFO("Preloading in-memory store");
 
@@ -525,14 +525,15 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     const NConcurrency::IThroughputThrottlerPtr& bandwidthThrottler,
     const TReaderProfilerPtr& readerProfiler)
 {
-    auto mode = tabletSnapshot->MountConfig->InMemoryMode;
+    const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
+    auto mode = mountConfig->InMemoryMode;
 
-    NLogging::TLogger Logger(TabletNodeLogger);
-    Logger.AddTag("%v, StoreId: %v, Mode: %v, ReadSessionId: %v",
-        tabletSnapshot->LoggingTag,
-        store->GetId(),
-        mode,
-        readSessionId);
+    auto Logger = TabletNodeLogger
+        .WithTag("%v, StoreId: %v, Mode: %v, ReadSessionId: %v",
+            tabletSnapshot->LoggingTag,
+            store->GetId(),
+            mode,
+            readSessionId);
 
     YT_LOG_INFO("Store preload started");
 
@@ -557,7 +558,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         format == ETableChunkFormat::UnversionedColumnar)
     {
         // For unversioned chunks verify that block size is correct
-        if (auto blockSizeLimit = tabletSnapshot->MountConfig->MaxUnversionedBlockSize) {
+        if (auto blockSizeLimit = mountConfig->MaxUnversionedBlockSize) {
             if (miscExt.max_block_size() > *blockSizeLimit) {
                 THROW_ERROR_EXCEPTION("Maximum block size limit violated")
                     << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
@@ -568,7 +569,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         }
     }
 
-    auto erasureCodec = NErasure::ECodec(miscExt.erasure_codec());
+    auto erasureCodec = FromProto<NErasure::ECodec>(miscExt.erasure_codec());
     if (erasureCodec != NErasure::ECodec::None) {
         THROW_ERROR_EXCEPTION("Preloading erasure-coded store %v is not supported; consider using replicated chunks or disabling in-memory mode",
             store->GetId());
@@ -968,7 +969,7 @@ private:
 
             for (const auto& chunkInfo : chunkInfos) {
                 ToProto(req->add_chunk_id(), chunkInfo.ChunkId);
-                ToProto(req->add_chunk_meta(), chunkInfo.ChunkMeta);
+                *req->add_chunk_meta() = *chunkInfo.ChunkMeta;
                 ToProto(req->add_tablet_id(), chunkInfo.TabletId);
                 req->add_mount_revision(chunkInfo.MountRevision);
             }

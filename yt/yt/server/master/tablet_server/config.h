@@ -414,8 +414,11 @@ public:
     //! Chunk reader config for all dynamic tables.
     NTabletNode::TTabletChunkReaderConfigPtr ChunkReader;
 
-    //! Chunk writer config for all dynamic tables.
-    NTabletNode::TTabletChunkWriterConfigPtr ChunkWriter;
+    //! Store chunk writer config for all dynamic tables.
+    NTabletNode::TTabletStoreWriterConfigPtr StoreChunkWriter;
+
+    //! Hunk chunk writer config for all dynamic tables.
+    NTabletNode::TTabletHunkWriterConfigPtr HunkChunkWriter;
 
     //! Tablet balancer config.
     TTabletBalancerMasterConfigPtr TabletBalancer;
@@ -476,6 +479,9 @@ public:
 
     TDynamicTabletNodeTrackerConfigPtr TabletNodeTracker;
 
+    // COMPAT(babenko)
+    bool EnableHunks;
+
     TDynamicTabletManagerConfig()
     {
         RegisterParameter("peer_revocation_timeout", PeerRevocationTimeout)
@@ -498,7 +504,10 @@ public:
             .Default(64_MB);
         RegisterParameter("chunk_reader", ChunkReader)
             .DefaultNew();
-        RegisterParameter("chunk_writer", ChunkWriter)
+        RegisterParameter("store_chunk_writer", StoreChunkWriter)
+            .Alias("chunk_writer")
+            .DefaultNew();
+        RegisterParameter("hunk_chunk_writer", HunkChunkWriter)
             .DefaultNew();
         RegisterParameter("tablet_balancer", TabletBalancer)
             .DefaultNew();
@@ -546,6 +555,9 @@ public:
 
         RegisterParameter("tablet_node_tracker", TabletNodeTracker)
             .DefaultNew();
+
+        RegisterParameter("enable_hunks", EnableHunks)
+            .Default(false);
 
         RegisterPreprocessor([&] {
             ChunkReader->SuspiciousNodeGracePeriod = TDuration::Minutes(5);

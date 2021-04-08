@@ -48,6 +48,8 @@ public:
     void SetMemoryTracker(NClusterNode::TNodeMemoryTrackerPtr memoryTracker);
     virtual i64 GetDynamicMemoryUsage() const override;
 
+    virtual void Initialize() override;
+
     virtual void Save(TSaveContext& context) const override;
     virtual void Load(TLoadContext& context) override;
 
@@ -143,6 +145,7 @@ protected:
     const NTransactionClient::EAtomicity Atomicity_;
 
     const NTableClient::TRowBufferPtr RowBuffer_;
+    const std::unique_ptr<bool[]> HunkColumnFlags_;
 
     TTimestamp MinTimestamp_ = NTransactionClient::MaxTimestamp;
     TTimestamp MaxTimestamp_ = NTransactionClient::MinTimestamp;
@@ -162,10 +165,6 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TPreloadedBlockCache)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TChunkStoreBase
     : public TStoreBase
     , public IChunkStore
@@ -178,6 +177,7 @@ public:
         NChunkClient::TChunkId chunkId,
         TTimestamp chunkTimestamp,
         TTablet* tablet,
+        const NTabletNode::NProto::TAddStoreDescriptor* addStoreDescriptor,
         NChunkClient::IBlockCachePtr blockCache,
         NDataNode::IChunkRegistryPtr chunkRegistry,
         NDataNode::IChunkBlockManagerPtr chunkBlockManager,
@@ -185,7 +185,7 @@ public:
         NApi::NNative::IClientPtr client,
         const NNodeTrackerClient::TNodeDescriptor& localDescriptor);
 
-    virtual void Initialize(const NTabletNode::NProto::TAddStoreDescriptor* descriptor);
+    virtual void Initialize() override;
 
     // IStore implementation.
     virtual TTimestamp GetMinTimestamp() const override;
@@ -242,6 +242,8 @@ public:
 
     virtual const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const override;
 
+    virtual const std::vector<THunkChunkRef>& HunkChunkRefs() const override;
+
 protected:
     NClusterNode::TBootstrap* const Bootstrap_;
     const NChunkClient::IBlockCachePtr BlockCache_;
@@ -250,6 +252,8 @@ protected:
     const IVersionedChunkMetaManagerPtr ChunkMetaManager_;
     const NApi::NNative::IClientPtr Client_;
     const NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
+
+    std::vector<THunkChunkRef> HunkChunkRefs_;
 
     NTabletClient::EInMemoryMode InMemoryMode_ = NTabletClient::EInMemoryMode::None;
     EStorePreloadState PreloadState_ = EStorePreloadState::None;
@@ -280,7 +284,6 @@ protected:
 
     NChunkClient::IBlockCachePtr GetBlockCache();
 
-    virtual void PrecacheProperties();
     virtual NNodeTrackerClient::EMemoryCategory GetMemoryCategory() const override;
 
     NTableClient::TChunkStatePtr FindPreloadedChunkState();
@@ -311,7 +314,6 @@ public:
 
 protected:
     TPartition* Partition_ = nullptr;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -331,7 +333,6 @@ public:
 
 protected:
     i64 StartingRowIndex_ = 0;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

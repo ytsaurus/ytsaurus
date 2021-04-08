@@ -280,14 +280,14 @@ protected:
                     chunkMeta,
                     TColumnFilter(),
                     chunkState->BlockCache,
-                    New<TChunkReaderConfig>(),
+                    TChunkReaderConfig::GetDefault(),
                     MemoryReader,
                     chunkState->PerformanceCounters,
                     /* chunkReadOptions */ {},
                     false);
             } else {
                 chunkReader = CreateVersionedChunkReader(
-                    New<TChunkReaderConfig>(),
+                    TChunkReaderConfig::GetDefault(),
                     MemoryReader,
                     std::move(chunkState),
                     std::move(chunkMeta),
@@ -437,14 +437,14 @@ protected:
                 chunkMeta,
                 TColumnFilter(),
                 chunkState->BlockCache,
-                New<TChunkReaderConfig>(),
+                TChunkReaderConfig::GetDefault(),
                 memoryReader,
                 chunkState->PerformanceCounters,
                 /* chunkReadOptions */ {},
                 produceAllVersions);
         } else {
             chunkReader = CreateVersionedChunkReader(
-                New<TChunkReaderConfig>(),
+                TChunkReaderConfig::GetDefault(),
                 memoryReader,
                 std::move(chunkState),
                 std::move(chunkMeta),

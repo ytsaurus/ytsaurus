@@ -25,7 +25,6 @@ void ThrottleUponOverdraft(
 
 //! Creates a range reader that merges data from the relevant stores and
 //! returns a single version of each value.
-
 NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,

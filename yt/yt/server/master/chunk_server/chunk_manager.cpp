@@ -527,7 +527,7 @@ public:
         TChunkInfo* chunkInfo,
         TChunkMeta* chunkMeta)
     {
-        const auto& id = chunk->GetId();
+        auto id = chunk->GetId();
 
         if (chunk->IsConfirmed()) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk is already confirmed (ChunkId: %v)",
@@ -536,31 +536,6 @@ public:
         }
 
         chunk->Confirm(chunkInfo, chunkMeta);
-
-        std::vector<TChunk*> hunkChunks;
-        if (auto hunkRefsExt = FindProtoExtension<THunkRefsExt>(chunk->ChunkMeta().extensions())) {
-            const auto& dynamicConfig = GetDynamicConfig();
-            if (!dynamicConfig->EnableHunks) {
-                THROW_ERROR_EXCEPTION("Hunks are not enabled");
-            }
-
-            hunkChunks.reserve(hunkRefsExt->refs_size());
-            for (const auto& protoRef : hunkRefsExt->refs()) {
-                auto hunkChunkId = FromProto<TChunkId>(protoRef.chunk_id());
-                auto* hunkChunk = FindChunk(hunkChunkId);
-                if (!IsObjectAlive(hunkChunk)) {
-                    THROW_ERROR_EXCEPTION("Store %v references a non-existing hunk chunk %v",
-                        chunk->GetId(),
-                        hunkChunkId);
-                }
-                hunkChunks.push_back(hunkChunk);
-            }
-
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            for (auto* hunkChunk : hunkChunks) {
-                objectManager->RefObject(hunkChunk);
-            }
-        }
 
         CancelChunkExpiration(chunk);
 
@@ -627,10 +602,9 @@ public:
 
         ScheduleChunkRefresh(chunk);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk confirmed (ChunkId: %v, Replicas: %v, HunkChunkIds: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk confirmed (ChunkId: %v, Replicas: %v)",
             chunk->GetId(),
-            replicas,
-            MakeFormattableView(hunkChunks, TObjectIdFormatter()));
+            replicas);
     }
 
     // Adds #chunk to its staging transaction resource usage.
@@ -1794,20 +1768,6 @@ private:
             Bootstrap_->GetObjectManager());
 
         UnregisterChunk(chunk);
-
-        if (auto hunkRefsExt = FindProtoExtension<THunkRefsExt>(chunk->ChunkMeta().extensions())) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            for (const auto& protoRef : hunkRefsExt->refs()) {
-                auto hunkChunkId = FromProto<TChunkId>(protoRef.chunk_id());
-                auto* hunkChunk = FindChunk(hunkChunkId);
-                if (!IsObjectAlive(hunkChunk)) {
-                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Chunk references a non-existing hunk chunk (ChunkId: %v, HunkChunkId: %v)",
-                        chunk->GetId(),
-                        hunkChunkId);
-                }
-                objectManager->UnrefObject(hunkChunk);
-            }
-        }
 
         ++ChunksDestroyed_;
     }

@@ -20,6 +20,8 @@ struct TChunkFragmentDescriptor;
 
 struct IBlocksExtCache;
 
+constexpr i64 SectorSize = 512;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NIO

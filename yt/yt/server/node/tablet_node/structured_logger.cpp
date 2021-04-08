@@ -1,5 +1,6 @@
 #include "structured_logger.h"
 
+#include "hunk_chunk.h"
 #include "partition.h"
 #include "private.h"
 #include "sorted_chunk_store.h"
@@ -41,7 +42,7 @@ class TStructuredLogger
     : public IStructuredLogger
 {
 public:
-    TStructuredLogger(const TBootstrap* bootstrap)
+    explicit TStructuredLogger(TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
         , Logger_(LsmLogger)
     {
@@ -116,13 +117,12 @@ public:
     }
 
 private:
-    const TBootstrap* const Bootstrap_;
-    NLogging::TLogger Logger_;
+    TBootstrap* const Bootstrap_;
+    const NLogging::TLogger Logger_;
 
     // TODO(ifsmirnov): MPSC queue collector thread that handles reordering and throttling.
-    std::atomic<i64> SequenceNumber_{0};
-
-    std::atomic_bool Enabled_{true};
+    std::atomic<i64> SequenceNumber_ = 0;
+    std::atomic<bool> Enabled_ = true;
 
     TTabletNodeDynamicConfigPtr Config_;
     YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SpinLock_);
@@ -160,7 +160,7 @@ public:
         : Logger_(std::move(logger))
         , Tablet_(tablet)
         , TabletId_(Tablet_->GetId())
-        , Enabled_(Tablet_->GetMountConfig()->EnableStructuredLogger)
+        , Enabled_(Tablet_->GetSettings().MountConfig->EnableStructuredLogger)
     { }
 
     // Only for tests.
@@ -202,7 +202,7 @@ public:
             .Item("tablet_id").Value(Tablet_->GetId())
             .Item("table_id").Value(Tablet_->GetTableId())
             .Item("state").Value(Tablet_->GetState())
-            .DoIf(Tablet_->IsPhysicallySorted(), [&] (TFluentMap fluent) {
+            .DoIf(Tablet_->IsPhysicallySorted(), [&] (auto fluent) {
                 fluent
                     .Item("pivot_key").Value(Tablet_->GetPivotKey())
                     .Item("next_pivot_key").Value(Tablet_->GetNextPivotKey())
@@ -212,7 +212,7 @@ public:
                         Tablet_->GetEden()))
                     .Item("partitions").DoListFor(
                         Tablet_->PartitionList(),
-                        [&] (TFluentList fluent, const std::unique_ptr<TPartition>& partition) {
+                        [&] (auto fluent, const std::unique_ptr<TPartition>& partition) {
                             fluent
                                 .Item()
                                 .DoMap(BIND(
@@ -221,6 +221,17 @@ public:
                                     partition.get()));
                     });
 
+            })
+            .Item("hunk_chunks").DoMapFor(
+                Tablet_->HunkChunkMap(),
+                [&] (auto fluent, const auto& pair) {
+                    const auto& [chunkId, hunkChunk] = pair;
+                    fluent
+                        .Item(ToString(chunkId))
+                        .DoMap(BIND(
+                            &TPerTabletStructuredLogger::OnHunkChunkFullHeartbeat,
+                            Unretained(this),
+                            hunkChunk));
             })
             .Item("dynamic_store_id_pool").List(Tablet_->DynamicStoreIdPool());
 
@@ -253,7 +264,7 @@ public:
             .Item("tablet_id").Value(Tablet_->GetId())
             .Item("stores").DoMapFor(
                 dynamicStores,
-                [&] (TFluentMap fluent, const IDynamicStorePtr& store) {
+                [&] (auto fluent, const IDynamicStorePtr& store) {
                     fluent
                         .Item(ToString(store->GetId()))
                         .DoMap(BIND(
@@ -272,7 +283,7 @@ public:
         LogEvent("rotate_store")
             .Item("previous_store_id").Value(GetObjectId(previousStore))
             .Item("new_store_id").Value(GetObjectId(newStore))
-            .DoIf(static_cast<bool>(newStore), [&] (TFluentMap fluent) {
+            .DoIf(static_cast<bool>(newStore), [&] (auto fluent) {
                 fluent
                     .Item("new_store").DoMap(BIND(
                         &TPerTabletStructuredLogger::OnDynamicStoreFullHeartbeat,
@@ -301,8 +312,8 @@ public:
     }
 
     virtual void OnTabletStoresUpdatePrepared(
-        const TStoreIdList& addedStoreIds,
-        const TStoreIdList& removedStoreIds,
+        const std::vector<TStoreId>& addedStoreIds,
+        const std::vector<TStoreId>& removedStoreIds,
         NTabletClient::ETabletStoresUpdateReason updateReason,
         TTransactionId transactionId) override
     {
@@ -316,6 +327,8 @@ public:
     virtual void OnTabletStoresUpdateCommitted(
         const std::vector<IStorePtr>& addedStores,
         const std::vector<TStoreId>& removedStoreIds,
+        const std::vector<THunkChunkPtr>& addedHunkChunkds,
+        const std::vector<NChunkClient::TChunkId>& removedHunkChunkIds,
         ETabletStoresUpdateReason updateReason,
         TDynamicStoreId allocatedDynamicStoreId,
         TTransactionId transactionId) override
@@ -323,7 +336,7 @@ public:
         LogEvent("commit_update_tablet_stores")
             .Item("added_stores").DoMapFor(
                 addedStores,
-                [&] (TFluentMap fluent, const IStorePtr& store) {
+                [&] (auto fluent, const IStorePtr& store) {
                     fluent
                         .Item(ToString(store->GetId()))
                         .DoMap(BIND(
@@ -332,8 +345,19 @@ public:
                             store));
                 })
             .Item("removed_store_ids").List(removedStoreIds)
+            .Item("added_hunk_chunks").DoMapFor(
+                addedHunkChunkds,
+                [&] (auto fluent, const THunkChunkPtr& hunkChunk) {
+                    fluent
+                        .Item(ToString(hunkChunk->GetId()))
+                        .DoMap(BIND(
+                            &TPerTabletStructuredLogger::OnHunkChunkFullHeartbeat,
+                            Unretained(this),
+                            hunkChunk));
+                })
+            .Item("removed_hunk_chunk_ids").List(removedHunkChunkIds)
             .Item("update_reason").Value(updateReason)
-            .DoIf(static_cast<bool>(allocatedDynamicStoreId), [&] (TFluentMap fluent) {
+            .DoIf(static_cast<bool>(allocatedDynamicStoreId), [&] (auto fluent) {
                 fluent
                     .Item("allocated_dynamic_store_id").Value(allocatedDynamicStoreId);
                 })
@@ -352,6 +376,13 @@ public:
         LogEvent("set_store_state")
             .Item("store_id").Value(store->GetId())
             .Item("state").Value(store->GetStoreState());
+    }
+
+    virtual void OnHunkChunkStateChanged(const THunkChunkPtr& hunkChunk) override
+    {
+        LogEvent("set_hunk_chunk_state")
+            .Item("chunk_id").Value(hunkChunk->GetId())
+            .Item("state").Value(hunkChunk->GetState());
     }
 
     virtual void OnStoreCompactionStateChanged(const IChunkStorePtr& store) override
@@ -386,7 +417,7 @@ public:
             .Item("old_partition_id").Value(oldPartition->GetId())
             .Item("new_partitions").DoListFor(
                 newPartitions,
-                [&] (TFluentList fluent, const auto& partition) {
+                [&] (auto fluent, const auto& partition) {
                     fluent
                         .Item().BeginMap()
                             .Item("partition_id").Value(partition->GetId())
@@ -397,7 +428,7 @@ public:
             // NB: deducible.
             .Item("new_store_partitions").DoMapFor(
                 oldPartition->Stores(),
-                [&] (TFluentMap fluent, const auto& store) {
+                [&] (auto fluent, const auto& store) {
                     fluent
                         .Item(ToString(store->GetId())).Value(store->GetPartition()->GetId());
                 });
@@ -437,7 +468,7 @@ private:
             .Item("sampling_request_time").Value(partition->GetSamplingRequestTime())
             .Item("compaction_time").Value(partition->GetCompactionTime())
             .Item("allowed_split_time").Value(partition->GetAllowedSplitTime())
-            .Item("stores").DoMapFor(partition->Stores(), [&] (TFluentMap fluent, const IStorePtr& store) {
+            .Item("stores").DoMapFor(partition->Stores(), [&] (auto fluent, const IStorePtr& store) {
                 fluent
                     .Item(ToString(store->GetId()))
                     .DoMap(BIND(
@@ -445,7 +476,7 @@ private:
                         Unretained(this),
                         store));
             })
-            .DoIf(partition->IsImmediateSplitRequested(), [&] (TFluentMap fluent) {
+            .DoIf(partition->IsImmediateSplitRequested(), [&] (auto fluent) {
                 fluent
                     .Item("immediate_split_keys").List(
                         partition->PivotKeysForImmediateSplit());
@@ -519,9 +550,9 @@ private:
             .Item("uncompressed_data_size").Value(store->GetUncompressedDataSize())
             .Item("row_count").Value(store->GetRowCount())
             .Item("creation_time").Value(store->GetCreationTime())
-            .DoIf(backingStore.operator bool(), [&] (TFluentMap fluent) {
+            .DoIf(backingStore.operator bool(), [&] (auto fluent) {
                 fluent
-                    .Item("backing_store").DoMap([&] (TFluentMap fluent) {
+                    .Item("backing_store").DoMap([&] (auto fluent) {
                         fluent
                             .Item(ToString(backingStore->GetId()))
                             .DoMap(BIND(
@@ -530,6 +561,12 @@ private:
                                 backingStore));
                     });
             });
+    }
+
+    void OnHunkChunkFullHeartbeat(const THunkChunkPtr& hunkChunk, TFluentMap fluent)
+    {
+        fluent
+            .Item("uncompressed_data_size").Value(hunkChunk->GetUncompressedDataSize());
     }
 
     void OnDynamicStoreIncrementalHeartbeat(const IDynamicStorePtr& store, TFluentMap fluent)
@@ -554,7 +591,7 @@ IPerTabletStructuredLoggerPtr TStructuredLogger::CreateLogger(TTablet* tablet)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IStructuredLoggerPtr CreateStructuredLogger(const TBootstrap* bootstrap)
+IStructuredLoggerPtr CreateStructuredLogger(TBootstrap* bootstrap)
 {
     return New<TStructuredLogger>(bootstrap);
 }

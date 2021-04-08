@@ -453,7 +453,7 @@ void DetachFromChunkList(
 void ReplaceChunkListChild(TChunkList* chunkList, int childIndex, TChunkTree* newChild)
 {
     auto& children = chunkList->Children();
-    
+
     auto* oldChild = children[childIndex];
     if (IsHunkChunkList(oldChild)) {
         chunkList->ResetHunkRootChild(oldChild->AsChunkList());
@@ -845,7 +845,7 @@ bool IsHunkChunk(const TChunkTree* chunkTree)
     if (!chunkTree) {
         return false;
     }
-    if (chunkTree->GetType() != EObjectType::Chunk) {
+    if (!IsBlobChunkType(chunkTree->GetType())) {
         return false;
     }
     const auto* chunk = chunkTree->AsChunk();

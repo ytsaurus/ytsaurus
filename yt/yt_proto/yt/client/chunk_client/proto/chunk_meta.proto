@@ -105,17 +105,6 @@ message TErasurePlacementExt
     repeated fixed64 block_checksums = 7;
 }
 
-message THunkRefsExt
-{
-    message THunkRef
-    {
-        required NYT.NProto.TGuid chunk_id = 1;
-        required int64 uncompressed_data_size = 2;
-    }
-
-    repeated THunkRef refs = 1;
-}
-
 // TChunkMeta is stored in *.meta files on data nodes
 // and passed around (possibly with a different extension subset).
 message TChunkMeta
@@ -127,6 +116,7 @@ message TChunkMeta
     // ETableChunkFormat for tables.
     // EFileChunkFormat for files.
     // EJournalChunkFormat for journals.
+    // EHunkChunkFormat for hunk chunks.
     required int32 format = 3;
 
     // EChunkFeatures bitmask of the features that are used in this chunk.

@@ -91,6 +91,10 @@ void TCachedVersionedChunkMeta::Init(
         MaxKey_ = WidenKey(FromProto<TLegacyOwningKey>(boundaryKeysExt->max()), GetKeyColumnCount());
     }
 
+    if (auto optionalHunkChunkRefsExt = FindProtoExtension<THunkChunkRefsExt>(chunkMeta.extensions())) {
+        HunkChunkRefsExt_ = std::move(*optionalHunkChunkRefsExt);
+    }
+
     if (memoryTracker) {
         MemoryTrackerGuard_ = TMemoryUsageTrackerGuard::Acquire(
             memoryTracker,

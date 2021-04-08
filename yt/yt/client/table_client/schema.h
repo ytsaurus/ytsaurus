@@ -168,6 +168,7 @@ public:
         bool discardSortOrder = false) const;
 
     bool HasComputedColumns() const;
+    bool HasHunkColumns() const;
     bool IsSorted() const;
     bool IsUniqueKeys() const;
 
@@ -268,6 +269,8 @@ public:
 
 private:
     int KeyColumnCount_ = 0;
+    bool HasComputedColumns_ = false;
+    bool HasHunkColumns_ = false;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TTableSchema& schema, TStringBuf spec);

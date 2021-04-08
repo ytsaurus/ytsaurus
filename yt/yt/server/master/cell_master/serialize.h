@@ -102,7 +102,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveOldCellTracker)                                         (1503))  // gritukan
     ((PerCellPerRoleMasterMemoryLimit)                              (1504))  // aleksandra-zh
     ((InitializeAccountChunkHostMasterMemory)                       (1505))  // aleksandra-zh
-    ((Hunks)                                                        (1506))  // babenko
+    ((Hunks1)                                                       (1506))  // babenko
     ((EnableMasterCacheDiscoveryByDefault)                          (1507))  // aleksandra-zh
     ((CellDescriptorMap)                                            (1508))  // aleksandra-zh
     ((MasterAlerts)                                                 (1509))  // gritukan
@@ -118,6 +118,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveClusterNodeFlavor)                                      (1519))  // gritukan
     ((MaxInlineHunkSizeInSchema)                                    (1520))  // babenko
     ((ChunkConsistentPlacementForDynamicTables)                     (1521))  // babenko
+    ((Hunks2)                                                       (1522))  // babenko
     // 21.2 starts here.
     ((MasterMergeJobs)                                              (1600))  // aleksandra-zh
     ((ChunkCounterInMasterMergeJobsIsNoMore)                        (1601))  // babenko

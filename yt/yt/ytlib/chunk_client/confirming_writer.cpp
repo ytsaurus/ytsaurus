@@ -1,7 +1,6 @@
 #include "confirming_writer.h"
 
 #include "block.h"
-#include "chunk_meta_extensions.h"
 #include "chunk_service_proxy.h"
 #include "config.h"
 #include "deferred_chunk_meta.h"
@@ -15,8 +14,6 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
-
-#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -279,24 +276,6 @@ private:
         auto replicas = UnderlyingWriter_->GetWrittenChunkReplicas();
         YT_VERIFY(!replicas.empty());
 
-        static const THashSet<int> masterMetaTags{
-            TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
-            TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value,
-            TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value
-        };
-
-        // Underlying writer should have called ChunkMeta_->Finalize().
-        YT_VERIFY(ChunkMeta_->IsFinalized());
-
-        NChunkClient::NProto::TChunkMeta masterChunkMeta(*ChunkMeta_);
-        FilterProtoExtensions(
-            masterChunkMeta.mutable_extensions(),
-            ChunkMeta_->extensions(),
-            masterMetaTags);
-
-        // Sanity check.
-        YT_VERIFY(FindProtoExtension<NChunkClient::NProto::TMiscExt>(masterChunkMeta.extensions()));
-
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTag_);
         TChunkServiceProxy proxy(channel);
 
@@ -307,7 +286,8 @@ private:
         auto* req = batchReq->add_confirm_chunk_subrequests();
         ToProto(req->mutable_chunk_id(), SessionId_.ChunkId);
         *req->mutable_chunk_info() = UnderlyingWriter_->GetChunkInfo();
-        req->mutable_chunk_meta()->Swap(&masterChunkMeta);
+        *req->mutable_chunk_meta() = *ChunkMeta_;
+        FilterProtoExtensions(req->mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
         req->set_request_statistics(true);
         ToProto(req->mutable_replicas(), replicas);
 

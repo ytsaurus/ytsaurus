@@ -1,6 +1,7 @@
 package NYT.NTableClient.NProto;
 
 import "yt_proto/yt/client/table_chunk_format/proto/column_meta.proto";
+import "yt_proto/yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -218,6 +219,18 @@ message THeavyColumnStatisticsExt
     repeated fixed32 column_name_hashes = 4;
 
     optional bytes column_data_weights = 5;
+}
+
+message THunkChunkRef
+{
+    required NYT.NProto.TGuid chunk_id = 1;
+    optional int64 hunk_count = 2;
+    optional int64 total_hunk_length = 3;
+}
+
+message THunkChunkRefsExt
+{
+    repeated THunkChunkRef refs = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,4 +1,5 @@
 #include "cache_based_versioned_chunk_reader.h"
+
 #include "cached_versioned_chunk_meta.h"
 #include "chunk_lookup_hash_table.h"
 #include "chunk_meta_extensions.h"
@@ -9,6 +10,7 @@
 #include "schemaless_block_reader.h"
 #include "versioned_block_reader.h"
 #include "versioned_chunk_reader.h"
+#include "hunks.h"
 
 #include <yt/yt/ytlib/chunk_client/block.h>
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
@@ -19,11 +21,13 @@
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/yt/ytlib/chunk_client/block_fetcher.h>
-#include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
 
 #include <yt/yt/ytlib/table_chunk_format/column_reader.h>
 #include <yt/yt/ytlib/table_chunk_format/timestamp_reader.h>
 #include <yt/yt/ytlib/table_chunk_format/null_column_reader.h>
+
+#include <yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
+#include <yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/schema.h>
@@ -40,8 +44,7 @@ using namespace NChunkClient;
 using namespace NTableChunkFormat;
 using namespace NTableChunkFormat::NProto;
 
-using NChunkClient::TLegacyReadLimit;
-using NChunkClient::NProto::TDataStatistics;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,14 +76,15 @@ class TCacheBasedVersionedChunkReaderBase
 {
 public:
     TCacheBasedVersionedChunkReaderBase(
-        const TChunkStatePtr& state,
+        TChunkStatePtr state,
         const TColumnFilter& columnFilter,
         TTimestamp timestamp,
         bool produceAllVersions)
-        : ChunkState_(state)
+        : ChunkState_(std::move(state))
         , Timestamp_(timestamp)
         , ProduceAllVersions_(produceAllVersions)
-        , SchemaIdMapping_(BuildIdMapping(columnFilter, state->ChunkMeta))
+        , SchemaIdMapping_(BuildIdMapping(columnFilter, ChunkState_->ChunkMeta))
+        , HasHunkColumns_(ChunkState_->ChunkMeta->GetSchema()->HasHunkColumns())
         , MemoryPool_(TCacheBasedVersionedChunkReaderPoolTag())
     { }
 
@@ -120,9 +124,9 @@ public:
         return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
     }
 
-    virtual TDataStatistics GetDataStatistics() const override
+    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
-        TDataStatistics dataStatistics;
+        NChunkClient::NProto::TDataStatistics dataStatistics;
         dataStatistics.set_row_count(RowCount_);
         dataStatistics.set_data_weight(DataWeight_);
         return dataStatistics;
@@ -149,6 +153,7 @@ protected:
     const bool ProduceAllVersions_;
 
     const std::vector<TColumnIdMapping> SchemaIdMapping_;
+    const bool HasHunkColumns_;
 
     i64 RowCount_ = 0;
     i64 DataWeight_ = 0;
@@ -196,7 +201,11 @@ protected:
 
     TVersionedRow CaptureRow(TBlockReader* blockReader)
     {
-        return blockReader->GetRow(&MemoryPool_);
+        auto row = blockReader->GetRow(&MemoryPool_);
+        if (row && HasHunkColumns_) {
+            GlobalizeHunkValues(&MemoryPool_, ChunkState_->ChunkMeta, row);
+        }
+        return row;
     }
 
     TBlockReader CreateBlockReader(
@@ -353,17 +362,17 @@ class TCacheBasedSimpleVersionedLookupChunkReader
 {
 public:
     TCacheBasedSimpleVersionedLookupChunkReader(
-        const TChunkStatePtr& chunkState,
-        const TSharedRange<TLegacyKey>& keys,
+        TChunkStatePtr chunkState,
+        TSharedRange<TLegacyKey> keys,
         const TColumnFilter& columnFilter,
         TTimestamp timestamp,
         bool produceAllVersions)
         : TCacheBasedVersionedChunkReaderBase<TBlockReader>(
-            chunkState,
+            std::move(chunkState),
             columnFilter,
             timestamp,
             produceAllVersions)
-        , Keys_(keys)
+        , Keys_(std::move(keys))
     { }
 
 private:
@@ -466,7 +475,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
             chunkState->ChunkMeta->GetChunkId(),
             chunkState->BlockCache);
         return CreateVersionedChunkReader(
-            New<TChunkReaderConfig>(),
+            TChunkReaderConfig::GetDefault(),
             std::move(underlyingReader),
             chunkState,
             chunkState->ChunkMeta,
@@ -483,7 +492,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
 
     switch (chunkState->ChunkMeta->GetChunkFormat()) {
         case ETableChunkFormat::SchemalessHorizontal: {
-            auto chunkTimestamp = static_cast<TTimestamp>(chunkState->ChunkMeta->Misc().min_timestamp());
+            auto chunkTimestamp = chunkState->ChunkMeta->Misc().min_timestamp();
             if (timestamp < chunkTimestamp) {
                 return CreateEmptyVersionedReader(keys.Size());
             }
@@ -522,19 +531,19 @@ class TSimpleCacheBasedVersionedRangeChunkReader
 {
 public:
     TSimpleCacheBasedVersionedRangeChunkReader(
-        const TChunkStatePtr& chunkState,
+        TChunkStatePtr chunkState,
         TSharedRange<TRowRange> ranges,
         const TColumnFilter& columnFilter,
         TTimestamp timestamp,
         bool produceAllVersions,
-        const TSharedRange<TRowRange>& singletonClippingRange)
+        TSharedRange<TRowRange> clippingRange)
         : TCacheBasedVersionedChunkReaderBase<TBlockReader>(
-            chunkState,
+            std::move(chunkState),
             columnFilter,
             timestamp,
             produceAllVersions)
         , Ranges_(std::move(ranges))
-        , ClippingRange_(singletonClippingRange)
+        , ClippingRange_(std::move(clippingRange))
     { }
 
 private:
@@ -668,7 +677,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
             chunkState->ChunkMeta->GetChunkId(),
             chunkState->BlockCache);
         return CreateVersionedChunkReader(
-            New<TChunkReaderConfig>(),
+            TChunkReaderConfig::GetDefault(),
             std::move(underlyingReader),
             chunkState,
             chunkState->ChunkMeta,

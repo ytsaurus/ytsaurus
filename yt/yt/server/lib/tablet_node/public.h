@@ -26,6 +26,8 @@ namespace NProto {
 
 class TAddStoreDescriptor;
 class TRemoveStoreDescriptor;
+class TAddHunkChunkDescriptor;
+class TRemoveHunkChunkDescriptor;
 class TMountHint;
 
 } // namespace NProto
@@ -143,6 +145,12 @@ DEFINE_ENUM(EStoreState,
     ((Removed)             (10)) // removed by rotation but still locked
 );
 
+DEFINE_ENUM(EHunkChunkState,
+    ((Active)          (0))
+    ((RemovePrepared)  (1))
+    ((Removed)         (2))
+);
+
 DEFINE_ENUM(EStoreFlushState,
     (None)
     (Running)
@@ -150,6 +158,12 @@ DEFINE_ENUM(EStoreFlushState,
 );
 
 DEFINE_ENUM(EStoreCompactionState,
+    (None)
+    (Running)
+    (Complete)
+);
+
+DEFINE_ENUM(EHunkChunkSweepState,
     (None)
     (Running)
     (Complete)
@@ -176,7 +190,13 @@ DEFINE_ENUM(EDynamicTableProfilingMode,
     (Tag)
 );
 
+DEFINE_ENUM(EHunkChunkFormat,
+    ((Default)(0))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(IHunkChunkPayloadWriter)
 
 DECLARE_REFCOUNTED_CLASS(TTabletHydraManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTableMountConfig)
@@ -188,6 +208,7 @@ DECLARE_REFCOUNTED_CLASS(TStoreFlusherDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TStoreCompactorConfig)
 DECLARE_REFCOUNTED_CLASS(TStoreCompactorDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TStoreTrimmerDynamicConfig)
+DECLARE_REFCOUNTED_CLASS(THunkChunkSweeperDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TInMemoryManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TPartitionBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TPartitionBalancerDynamicConfig)
@@ -200,12 +221,17 @@ DECLARE_REFCOUNTED_CLASS(TTabletNodeDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletNodeConfig)
 DECLARE_REFCOUNTED_CLASS(TReplicatorHintConfig)
 DECLARE_REFCOUNTED_CLASS(THintManagerConfig)
+DECLARE_REFCOUNTED_CLASS(THunkChunkPayloadWriterConfig)
+DECLARE_REFCOUNTED_CLASS(TTabletHunkWriterConfig)
 
-using TTabletChunkWriterConfig = NTableClient::TTableWriterConfig;
-using TTabletChunkWriterConfigPtr = NTableClient::TTableWriterConfigPtr;
+using TTabletStoreWriterConfig = NTableClient::TTableWriterConfig;
+using TTabletStoreWriterConfigPtr = NTableClient::TTableWriterConfigPtr;
 
-using TTabletWriterOptions = NTableClient::TTableWriterOptions;
-using TTabletWriterOptionsPtr = NTableClient::TTableWriterOptionsPtr;
+using TTabletStoreWriterOptions = NTableClient::TTableWriterOptions;
+using TTabletStoreWriterOptionsPtr = NTableClient::TTableWriterOptionsPtr;
+
+using TTabletHunkWriterOptions = NChunkClient::TMultiChunkWriterOptions;
+using TTabletHunkWriterOptionsPtr = NChunkClient::TMultiChunkWriterOptionsPtr;
 
 //! This is the hard limit.
 //! Moreover, it is quite expensive to be graceful in preventing it from being exceeded.

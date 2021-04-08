@@ -665,6 +665,23 @@ DEFINE_REFCOUNTED_TYPE(TStoreTrimmerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class THunkChunkSweeperDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool Enable;
+
+    THunkChunkSweeperDynamicConfig()
+    {
+        RegisterParameter("enable", Enable)
+            .Default(true);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(THunkChunkSweeperDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TInMemoryManagerConfig
     : public NYTree::TYsonSerializable
 {
@@ -893,6 +910,7 @@ public:
     TStoreCompactorDynamicConfigPtr StoreCompactor;
     TStoreFlusherDynamicConfigPtr StoreFlusher;
     TStoreTrimmerDynamicConfigPtr StoreTrimmer;
+    THunkChunkSweeperDynamicConfigPtr HunkChunkSweeper;
     TPartitionBalancerDynamicConfigPtr PartitionBalancer;
 
     NQueryClient::TColumnEvaluatorCacheDynamicConfigPtr ColumnEvaluatorCache;
@@ -919,6 +937,8 @@ public:
         RegisterParameter("store_flusher", StoreFlusher)
             .DefaultNew();
         RegisterParameter("store_trimmer", StoreTrimmer)
+            .DefaultNew();
+        RegisterParameter("hunk_chunk_sweeper", HunkChunkSweeper)
             .DefaultNew();
         RegisterParameter("partition_balancer", PartitionBalancer)
             .DefaultNew();
@@ -1129,6 +1149,41 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicatorHintConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
+class THunkChunkPayloadWriterConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    //! Writer will be aiming for blocks of approximately this size.
+    i64 DesiredBlockSize;
+
+    //! Each payload whose length exceeds this threshold will be sector-aligned
+    //! for better direct IO performance.
+    i64 PayloadSectorAlignmentLengthThreshold;
+
+    THunkChunkPayloadWriterConfig()
+    {
+        RegisterParameter("desired_block_size", DesiredBlockSize)
+            .GreaterThan(0)
+            .Default(1_MBs);
+        RegisterParameter("payload_sector_alignment_length_threshold", PayloadSectorAlignmentLengthThreshold)
+            .GreaterThan(0)
+            .Default(16_KB);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(THunkChunkPayloadWriterConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TTabletHunkWriterConfig
+    : public NChunkClient::TMultiChunkWriterConfig
+    , public THunkChunkPayloadWriterConfig
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TTabletHunkWriterConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 

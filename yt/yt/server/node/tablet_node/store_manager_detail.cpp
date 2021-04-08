@@ -3,6 +3,7 @@
 #include "tablet.h"
 #include "tablet_slot.h"
 #include "store.h"
+#include "hunk_chunk.h"
 #include "structured_logger.h"
 #include "in_memory_manager.h"
 #include "transaction.h"
@@ -117,6 +118,10 @@ void TStoreManagerBase::StopEpoch()
         }
     }
 
+    for (const auto& [chunkId, hunkChunk] : Tablet_->HunkChunkMap()) {
+        hunkChunk->SetSweepState(EHunkChunkSweepState::None);
+    }
+
     Tablet_->PreloadStoreIds().clear();
 
     Tablet_->ResetRowCache();
@@ -124,9 +129,9 @@ void TStoreManagerBase::StopEpoch()
 
 void TStoreManagerBase::InitializeRotation()
 {
-    const auto& config = Tablet_->GetMountConfig();
-    if (config->DynamicStoreAutoFlushPeriod) {
-        LastRotated_ = TInstant::Now() - RandomDuration(*config->DynamicStoreAutoFlushPeriod);
+    const auto& mountConfig = Tablet_->GetSettings().MountConfig;
+    if (mountConfig->DynamicStoreAutoFlushPeriod) {
+        LastRotated_ = TInstant::Now() - RandomDuration(*mountConfig->DynamicStoreAutoFlushPeriod);
     }
 
     RotationScheduled_ = false;
@@ -322,7 +327,8 @@ bool TStoreManagerBase::TryPreloadStoreFromInterceptedData(
         return false;
     }
 
-    auto mode = Tablet_->GetMountConfig()->InMemoryMode;
+    const auto& mountConfig = Tablet_->GetSettings().MountConfig;
+    auto mode = mountConfig->InMemoryMode;
     if (mode != chunkData->InMemoryMode) {
         YT_LOG_WARNING_IF(
             IsMutationLoggingEnabled(),
@@ -408,27 +414,45 @@ void TStoreManagerBase::BackoffStorePreload(IChunkStorePtr store)
 
 EInMemoryMode TStoreManagerBase::GetInMemoryMode() const
 {
-    return Tablet_->GetMountConfig()->InMemoryMode;
+    return Tablet_->GetSettings().MountConfig->InMemoryMode;
 }
 
 void TStoreManagerBase::Mount(
-    const std::vector<TAddStoreDescriptor>& storeDescriptors,
+    TRange<const NTabletNode::NProto::TAddStoreDescriptor*> storeDescriptors,
+    TRange<const NTabletNode::NProto::TAddHunkChunkDescriptor*> hunkChunkDescriptors,
     bool createDynamicStore,
     const NTabletNode::NProto::TMountHint& /*mountHint*/)
 {
-    for (const auto& descriptor : storeDescriptors) {
-        auto type = EStoreType(descriptor.store_type());
-        auto storeId = FromProto<TChunkId>(descriptor.store_id());
-        YT_VERIFY(descriptor.has_chunk_meta());
-        YT_VERIFY(!descriptor.has_backing_store_id());
+    for (const auto* descriptor : hunkChunkDescriptors) {
+        auto chunkId = FromProto<TChunkId>(descriptor->chunk_id());
+        auto hunkChunk = TabletContext_->CreateHunkChunk(
+            Tablet_,
+            chunkId,
+            descriptor);
+        hunkChunk->Initialize();
+        Tablet_->AddHunkChunk(std::move(hunkChunk));
+    }
+
+    for (const auto* descriptor : storeDescriptors) {
+        auto type = FromProto<EStoreType>(descriptor->store_type());
+        auto storeId = FromProto<TChunkId>(descriptor->store_id());
+        YT_VERIFY(descriptor->has_chunk_meta());
+        YT_VERIFY(!descriptor->has_backing_store_id());
         auto store = TabletContext_->CreateStore(
             Tablet_,
             type,
             storeId,
-            &descriptor);
+            descriptor);
+        store->Initialize();
         AddStore(store->AsChunk(), true);
 
-        const auto& extensions = descriptor.chunk_meta().extensions();
+        if (auto chunkStore = store->AsChunk()) {
+            for (const auto& ref : chunkStore->HunkChunkRefs()) {
+                Tablet_->UpdateHunkChunkRef(ref, +1);
+            }
+        }
+
+        const auto& extensions = descriptor->chunk_meta().extensions();
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(extensions);
         if (miscExt.has_max_timestamp()) {
             Tablet_->UpdateLastCommitTimestamp(miscExt.max_timestamp());
@@ -444,16 +468,9 @@ void TStoreManagerBase::Mount(
     Tablet_->SetState(ETabletState::Mounted);
 }
 
-void TStoreManagerBase::Remount(
-    TTableMountConfigPtr mountConfig,
-    TTabletChunkReaderConfigPtr readerConfig,
-    TTabletChunkWriterConfigPtr writerConfig,
-    TTabletWriterOptionsPtr writerOptions)
+void TStoreManagerBase::Remount(const TTableSettings& settings)
 {
-    Tablet_->SetMountConfig(std::move(mountConfig));
-    Tablet_->SetReaderConfig(std::move(readerConfig));
-    Tablet_->SetWriterConfig(std::move(writerConfig));
-    Tablet_->SetWriterOptions(std::move(writerOptions));
+    Tablet_->SetSettings(settings);
 
     UpdateInMemoryMode();
 
@@ -464,10 +481,10 @@ void TStoreManagerBase::Remount(
 
 void TStoreManagerBase::Rotate(bool createNewStore)
 {
-    const auto& config = Tablet_->GetMountConfig();
+    const auto& mountConfig = Tablet_->GetSettings().MountConfig;
 
     RotationScheduled_ = false;
-    LastRotated_ = TInstant::Now() + RandomDuration(config->DynamicStoreFlushPeriodSplay);
+    LastRotated_ = TInstant::Now() + RandomDuration(mountConfig->DynamicStoreFlushPeriodSplay);
 
     auto* activeStore = GetActiveStore();
 
@@ -522,49 +539,49 @@ bool TStoreManagerBase::IsOverflowRotationNeeded() const
     }
 
     const auto* activeStore = GetActiveStore();
-    const auto& config = Tablet_->GetMountConfig();
-    auto threshold = config->DynamicStoreOverflowThreshold;
+    const auto& mountConfig = Tablet_->GetSettings().MountConfig;
+    auto threshold = mountConfig->DynamicStoreOverflowThreshold;
     return
-        activeStore->GetRowCount() >= threshold * config->MaxDynamicStoreRowCount ||
-        activeStore->GetValueCount() >= threshold * config->MaxDynamicStoreValueCount ||
-        activeStore->GetTimestampCount() >= threshold * config->MaxDynamicStoreTimestampCount ||
-        activeStore->GetPoolSize() >= threshold * config->MaxDynamicStorePoolSize;
+        activeStore->GetRowCount() >= threshold * mountConfig->MaxDynamicStoreRowCount ||
+        activeStore->GetValueCount() >= threshold * mountConfig->MaxDynamicStoreValueCount ||
+        activeStore->GetTimestampCount() >= threshold * mountConfig->MaxDynamicStoreTimestampCount ||
+        activeStore->GetPoolSize() >= threshold * mountConfig->MaxDynamicStorePoolSize;
 }
 
 TError TStoreManagerBase::CheckOverflow() const
 {
-    const auto& config = Tablet_->GetMountConfig();
+    const auto& mountConfig = Tablet_->GetSettings().MountConfig;
     const auto* activeStore = GetActiveStore();
     if (!activeStore) {
         return TError();
     }
 
-    if (activeStore->GetRowCount() >= config->MaxDynamicStoreRowCount) {
+    if (activeStore->GetRowCount() >= mountConfig->MaxDynamicStoreRowCount) {
         return TError("Dynamic store row count limit reached")
             << TErrorAttribute("store_id", activeStore->GetId())
             << TErrorAttribute("row_count", activeStore->GetRowCount())
-            << TErrorAttribute("row_count_limit", config->MaxDynamicStoreRowCount);
+            << TErrorAttribute("row_count_limit", mountConfig->MaxDynamicStoreRowCount);
     }
 
-    if (activeStore->GetValueCount() >= config->MaxDynamicStoreValueCount) {
+    if (activeStore->GetValueCount() >= mountConfig->MaxDynamicStoreValueCount) {
         return TError("Dynamic store value count limit reached")
             << TErrorAttribute("store_id", activeStore->GetId())
             << TErrorAttribute("value_count", activeStore->GetValueCount())
-            << TErrorAttribute("value_count_limit", config->MaxDynamicStoreValueCount);
+            << TErrorAttribute("value_count_limit", mountConfig->MaxDynamicStoreValueCount);
     }
 
-    if (activeStore->GetTimestampCount() >= config->MaxDynamicStoreTimestampCount) {
+    if (activeStore->GetTimestampCount() >= mountConfig->MaxDynamicStoreTimestampCount) {
         return TError("Dynamic store timestamp count limit reached")
             << TErrorAttribute("store_id", activeStore->GetId())
             << TErrorAttribute("timestamp_count", activeStore->GetTimestampCount())
-            << TErrorAttribute("timestamp_count_limit", config->MaxDynamicStoreTimestampCount);
+            << TErrorAttribute("timestamp_count_limit", mountConfig->MaxDynamicStoreTimestampCount);
     }
 
-    if (activeStore->GetPoolSize() >= config->MaxDynamicStorePoolSize) {
+    if (activeStore->GetPoolSize() >= mountConfig->MaxDynamicStorePoolSize) {
         return TError("Dynamic store pool size limit reached")
             << TErrorAttribute("store_id", activeStore->GetId())
             << TErrorAttribute("pool_size", activeStore->GetPoolSize())
-            << TErrorAttribute("pool_size_limit", config->MaxDynamicStorePoolSize);
+            << TErrorAttribute("pool_size_limit", mountConfig->MaxDynamicStorePoolSize);
     }
 
     return TError();
@@ -577,10 +594,10 @@ bool TStoreManagerBase::IsPeriodicRotationNeeded() const
     }
 
     const auto* activeStore = GetActiveStore();
-    const auto& config = Tablet_->GetMountConfig();
+    const auto& mountConfig = Tablet_->GetSettings().MountConfig;
     return
-        config->DynamicStoreAutoFlushPeriod  &&
-        TInstant::Now() > LastRotated_ + *config->DynamicStoreAutoFlushPeriod &&
+        mountConfig->DynamicStoreAutoFlushPeriod  &&
+        TInstant::Now() > LastRotated_ + *mountConfig->DynamicStoreAutoFlushPeriod &&
         activeStore->GetRowCount() > 0;
 }
 
@@ -590,11 +607,12 @@ bool TStoreManagerBase::IsRotationPossible() const
         return false;
     }
 
-    if (Tablet_->GetOverlappingStoreCount() >= Tablet_->GetMountConfig()->MaxOverlappingStoreCount) {
+    const auto& mountConfig = Tablet_->GetSettings().MountConfig;
+    if (Tablet_->GetOverlappingStoreCount() >= mountConfig->MaxOverlappingStoreCount) {
         return false;
     }
 
-    if (!Tablet_->GetMountConfig()->EnableStoreRotation) {
+    if (!mountConfig->EnableStoreRotation) {
         return false;
     }
 
@@ -640,7 +658,7 @@ IOrderedStoreManagerPtr TStoreManagerBase::AsOrdered()
 
 TDynamicStoreId TStoreManagerBase::GenerateDynamicStoreId()
 {
-    if (Tablet_->GetMountConfig()->EnableDynamicStoreRead) {
+    if (Tablet_->GetSettings().MountConfig->EnableDynamicStoreRead) {
         return Tablet_->PopDynamicStoreIdFromPool();
     } else {
         return TabletContext_->GenerateId(Tablet_->IsPhysicallySorted()

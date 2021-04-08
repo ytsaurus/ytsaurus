@@ -14,6 +14,7 @@
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
 #include <yt/yt/ytlib/chunk_client/confirming_writer.h>
+#include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -82,11 +83,16 @@ TOrderedStoreManager::TOrderedStoreManager(
 }
 
 void TOrderedStoreManager::Mount(
-    const std::vector<TAddStoreDescriptor>& storeDescriptors,
+    TRange<const NTabletNode::NProto::TAddStoreDescriptor*> storeDescriptors,
+    TRange<const NTabletNode::NProto::TAddHunkChunkDescriptor*> hunkChunkDescriptors,
     bool createDynamicStore,
     const TMountHint& mountHint)
 {
-    TStoreManagerBase::Mount(storeDescriptors, createDynamicStore, mountHint);
+    TStoreManagerBase::Mount(
+        storeDescriptors,
+        hunkChunkDescriptors,
+        createDynamicStore,
+        mountHint);
     Tablet_->UpdateTotalRowCount();
 }
 
@@ -147,6 +153,7 @@ void TOrderedStoreManager::CreateActiveStore()
     ActiveStore_ = TabletContext_
         ->CreateStore(Tablet_, EStoreType::OrderedDynamic, storeId, nullptr)
         ->AsOrderedDynamic();
+    ActiveStore_->Initialize();
 
     auto startingRowIndex = ComputeStartingRowIndex();
     ActiveStore_->SetStartingRowIndex(startingRowIndex);
@@ -226,14 +233,13 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
 {
     auto orderedDynamicStore = store->AsOrderedDynamic();
     auto reader = orderedDynamicStore->CreateFlushReader();
-
     auto inMemoryMode = isUnmountWorkflow ? EInMemoryMode::None : GetInMemoryMode();
 
     return BIND([=, this_ = MakeStrong(this)] (
-        ITransactionPtr transaction,
-        IThroughputThrottlerPtr throttler,
+        const ITransactionPtr& transaction,
+        const IThroughputThrottlerPtr& throttler,
         TTimestamp currentTimestamp,
-        TWriterProfilerPtr writerProfiler
+        const TWriterProfilerPtr& writerProfiler
     ) {
         ISchemalessChunkWriterPtr tableWriter;
 
@@ -245,11 +251,11 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             ? EMemoryZone::Normal
             : EMemoryZone::Undumpable);
 
-        auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
+        auto writerOptions = CloneYsonSerializable(tabletSnapshot->Settings.StoreWriterOptions);
         writerOptions->ValidateResourceUsageIncrease = false;
         writerOptions->ChunkConsistentPlacementHash = tabletSnapshot->ChunkConsistentPlacementHash;
 
-        auto writerConfig = CloneYsonSerializable(tabletSnapshot->WriterConfig);
+        auto writerConfig = CloneYsonSerializable(tabletSnapshot->Settings.StoreWriterConfig);
         writerConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
         writerConfig->MinUploadReplicationFactor = writerConfig->UploadReplicationFactor;
 
@@ -264,9 +270,10 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         auto blockCache = WaitFor(asyncBlockCache)
             .ValueOrThrow();
 
-        throttler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
-            std::move(throttler),
-            tabletSnapshot->FlushThrottler});
+        auto combinedThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+            throttler,
+            tabletSnapshot->FlushThrottler
+        });
 
         auto chunkWriter = CreateConfirmingWriter(
             writerConfig,
@@ -278,15 +285,15 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             Client_,
             blockCache,
             nullptr,
-            std::move(throttler));
+            std::move(combinedThrottler));
 
         TChunkTimestamps chunkTimestamps;
         chunkTimestamps.MinTimestamp = orderedDynamicStore->GetMinTimestamp();
         chunkTimestamps.MaxTimestamp = orderedDynamicStore->GetMaxTimestamp();
 
         tableWriter = CreateSchemalessChunkWriter(
-            tabletSnapshot->WriterConfig,
-            tabletSnapshot->WriterOptions,
+            tabletSnapshot->Settings.StoreWriterConfig,
+            tabletSnapshot->Settings.StoreWriterOptions,
             tabletSnapshot->PhysicalSchema,
             chunkWriter,
             chunkTimestamps,
@@ -316,7 +323,9 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         }
 
         if (rowCount == 0) {
-            return std::vector<TAddStoreDescriptor>();
+            YT_LOG_DEBUG("Ordered store is empty, nothing to flush (StoreId: %v)",
+                store->GetId());
+            return TStoreFlushResult();
         }
 
         WaitFor(tableWriter->Close())
@@ -325,7 +334,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         std::vector<TChunkInfo> chunkInfos;
         chunkInfos.emplace_back(
             tableWriter->GetChunkId(),
-            tableWriter->GetNodeMeta(),
+            tableWriter->GetMeta(),
             tabletSnapshot->TabletId,
             tabletSnapshot->MountRevision);
 
@@ -334,21 +343,25 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
 
         auto dataStatistics = tableWriter->GetDataStatistics();
         auto diskSpace = CalculateDiskSpaceUsage(
-            tabletSnapshot->WriterOptions->ReplicationFactor,
+            tabletSnapshot->Settings.StoreWriterOptions->ReplicationFactor,
             dataStatistics.regular_disk_space(),
             dataStatistics.erasure_disk_space());
 
-        YT_LOG_DEBUG("Flushed ordered store (StoreId: %v, ChunkId: %v, DiskSpace: %v)",
+        YT_LOG_DEBUG("Ordered store flushed (StoreId: %v, ChunkId: %v, DiskSpace: %v)",
             store->GetId(),
             chunkWriter->GetChunkId(),
             diskSpace);
 
-        TAddStoreDescriptor descriptor;
-        descriptor.set_store_type(static_cast<int>(EStoreType::OrderedChunk));
-        ToProto(descriptor.mutable_store_id(), chunkWriter->GetChunkId());
-        descriptor.mutable_chunk_meta()->CopyFrom(tableWriter->GetMasterMeta());
-        descriptor.set_starting_row_index(orderedDynamicStore->GetStartingRowIndex());
-        return std::vector<TAddStoreDescriptor>{descriptor};
+        TStoreFlushResult result;
+        {
+            auto& descriptor = result.StoresToAdd.emplace_back();
+            descriptor.set_store_type(ToProto<int>(EStoreType::OrderedChunk));
+            ToProto(descriptor.mutable_store_id(), chunkWriter->GetChunkId());
+            *descriptor.mutable_chunk_meta() = *tableWriter->GetMeta();
+            FilterProtoExtensions(descriptor.mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
+            descriptor.set_starting_row_index(orderedDynamicStore->GetStartingRowIndex());
+        }
+        return result;
     });
 }
 

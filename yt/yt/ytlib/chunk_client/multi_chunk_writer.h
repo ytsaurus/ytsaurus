@@ -16,14 +16,11 @@ namespace NYT::NChunkClient {
 struct IMultiChunkWriter
     : public virtual IWriterBase
 {
-    virtual const std::vector<NProto::TChunkSpec>& GetWrittenChunksMasterMeta() const = 0;
-
-    virtual const std::vector<NProto::TChunkSpec>& GetWrittenChunksFullMeta() const = 0;
+    virtual const std::vector<NProto::TChunkSpec>& GetWrittenChunkSpecs() const = 0;
 
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const = 0;
 
     virtual NProto::TDataStatistics GetDataStatistics() const = 0;
-
     virtual TCodecStatistics GetCompressionStatistics() const = 0;
 };
 

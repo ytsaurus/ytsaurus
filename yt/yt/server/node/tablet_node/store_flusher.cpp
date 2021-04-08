@@ -449,10 +449,10 @@ private:
         auto tabletId = tablet->GetId();
         auto writerProfiler = New<TWriterProfiler>();
 
-        NLogging::TLogger Logger(TabletNodeLogger);
-        Logger.AddTag("%v, StoreId: %v",
-            tablet->GetLoggingTag(),
-            store->GetId());
+        auto Logger = TabletNodeLogger
+            .WithTag("%v, StoreId: %v",
+                tablet->GetLoggingTag(),
+                store->GetId());
 
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
         auto tabletSnapshot = snapshotStore->FindTabletSnapshot(tablet->GetId(), tablet->GetMountRevision());
@@ -485,9 +485,10 @@ private:
             auto transaction = WaitFor(asyncTransaction)
                 .ValueOrThrow();
 
+            const auto& mountConfig = tablet->GetSettings().MountConfig;
             auto currentTimestamp = transaction->GetStartTimestamp();
             auto retainedTimestamp = std::min(
-                InstantToTimestamp(TimestampToInstant(currentTimestamp).second - tablet->GetMountConfig()->MinDataTtl).second,
+                InstantToTimestamp(TimestampToInstant(currentTimestamp).second - mountConfig->MinDataTtl).second,
                 currentTimestamp);
 
             YT_LOG_INFO("Store flush transaction created (TransactionId: %v)",
@@ -502,21 +503,21 @@ private:
             auto flushResult = WaitFor(asyncFlushResult)
                 .ValueOrThrow();
 
-            YT_LOG_INFO("Store chunks written (ChunkIds: %v)",
-                MakeFormattableView(flushResult, [] (TStringBuilderBase* builder, const TAddStoreDescriptor& descriptor) {
-                    FormatValue(builder, FromProto<TChunkId>(descriptor.store_id()), TStringBuf());
-                }));
-
             tablet->ThrottleTabletStoresUpdate(slot, Logger);
 
-            NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
-            ToProto(actionRequest.mutable_tablet_id(), tabletId);
-            actionRequest.set_mount_revision(tablet->GetMountRevision());
-            ToProto(actionRequest.mutable_stores_to_add(), flushResult);
-            ToProto(actionRequest.add_stores_to_remove()->mutable_store_id(), store->GetId());
-            actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Flush));
+            NTabletServer::NProto::TReqUpdateTabletStores updateTabletStoresReq;
+            ToProto(updateTabletStoresReq.mutable_tablet_id(), tabletId);
+            updateTabletStoresReq.set_mount_revision(tablet->GetMountRevision());
+            for (auto& descriptor : flushResult.StoresToAdd) {
+                *updateTabletStoresReq.add_stores_to_add() = std::move(descriptor);
+            }
+            for (auto& descriptor : flushResult.HunkChunksToAdd) {
+                *updateTabletStoresReq.add_hunk_chunks_to_add() = std::move(descriptor);
+            }
+            ToProto(updateTabletStoresReq.add_stores_to_remove()->mutable_store_id(), store->GetId());
+            updateTabletStoresReq.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Flush));
 
-            if (tablet->GetMountConfig()->EnableDynamicStoreRead) {
+            if (tabletSnapshot->Settings.MountConfig->EnableDynamicStoreRead) {
                 int potentialDynamicStoreCount = tablet->DynamicStoreIdPool().size() + tablet->ComputeDynamicStoreCount();
 
                 // NB: Race is possible here. Consider a tablet with an active store, two passive
@@ -528,17 +529,17 @@ private:
                 // However, this is safe because dynamic store id will be requested upon rotation
                 // and the tablet will have two dynamic stores as usual.
                 if (potentialDynamicStoreCount <= DynamicStoreIdPoolSize) {
-                    actionRequest.set_request_dynamic_store_id(true);
+                    updateTabletStoresReq.set_request_dynamic_store_id(true);
                     YT_LOG_DEBUG("Dynamic store id requested with flush (PotentialDynamicStoreCount: %v)",
                         potentialDynamicStoreCount);
                 }
             }
 
-            if (tabletSnapshot->MountConfig->MergeRowsOnFlush) {
-                actionRequest.set_retained_timestamp(retainedTimestamp);
+            if (tabletSnapshot->Settings.MountConfig->MergeRowsOnFlush) {
+                updateTabletStoresReq.set_retained_timestamp(retainedTimestamp);
             }
 
-            auto actionData = MakeTransactionActionData(actionRequest);
+            auto actionData = MakeTransactionActionData(updateTabletStoresReq);
             auto masterCellId = Bootstrap_->GetCellId(CellTagFromId(tabletSnapshot->TabletId));
             transaction->AddAction(masterCellId, actionData);
             transaction->AddAction(slot->GetCellId(), actionData);

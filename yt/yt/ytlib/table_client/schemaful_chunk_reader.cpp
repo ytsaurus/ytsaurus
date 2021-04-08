@@ -63,7 +63,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulChunkReader(
                     chunkState,
                     chunkMeta,
                     std::move(config),
-                    New<TChunkReaderOptions>(),
+                    TChunkReaderOptions::GetDefault(),
                     std::move(chunkReader),
                     std::move(nameTable),
                     chunkReadOptions,

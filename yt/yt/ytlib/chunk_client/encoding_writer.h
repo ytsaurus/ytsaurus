@@ -29,7 +29,7 @@ public:
         TEncodingWriterOptionsPtr options,
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache,
-        const NLogging::TLogger& logger);
+        NLogging::TLogger logger);
 
     bool IsReady() const;
     TFuture<void> GetReadyEvent();

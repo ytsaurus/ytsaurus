@@ -31,12 +31,12 @@ TEncodingWriter::TEncodingWriter(
     TEncodingWriterOptionsPtr options,
     IChunkWriterPtr chunkWriter,
     IBlockCachePtr blockCache,
-    const NLogging::TLogger& logger)
+    NLogging::TLogger logger)
     : Config_(std::move(config))
     , Options_(std::move(options))
     , ChunkWriter_(std::move(chunkWriter))
     , BlockCache_(std::move(blockCache))
-    , Logger(logger)
+    , Logger(std::move(logger))
     , Semaphore_(New<TAsyncSemaphore>(Config_->EncodeWindowSize))
     , Codec_(NCompression::GetCodec(Options_->CompressionCodec))
     , CompressionInvoker_(CreateSerializedInvoker(CreateFixedPriorityInvoker(

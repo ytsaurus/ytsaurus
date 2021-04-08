@@ -6,6 +6,7 @@
 #include "ordered_chunk_store.h"
 #include "sorted_dynamic_store.h"
 #include "ordered_dynamic_store.h"
+#include "hunk_chunk.h"
 #include "replicated_store_manager.h"
 #include "in_memory_manager.h"
 #include "partition.h"
@@ -600,6 +601,14 @@ private:
             return Owner_->CreateStore(tablet, type, storeId, descriptor);
         }
 
+        virtual THunkChunkPtr CreateHunkChunk(
+            TTablet* tablet,
+            TChunkId chunkId,
+            const TAddHunkChunkDescriptor* descriptor) override
+        {
+            return Owner_->CreateHunkChunk(tablet, chunkId, descriptor);
+        }
+
         virtual TTransactionManagerPtr GetTransactionManager() override
         {
             return Owner_->Slot_->GetTransactionManager();
@@ -929,13 +938,9 @@ private:
         auto schema = FromProto<TTableSchemaPtr>(request->schema());
         auto pivotKey = request->has_pivot_key() ? FromProto<TLegacyOwningKey>(request->pivot_key()) : TLegacyOwningKey();
         auto nextPivotKey = request->has_next_pivot_key() ? FromProto<TLegacyOwningKey>(request->next_pivot_key()) : TLegacyOwningKey();
-        auto mountConfig = DeserializeTableMountConfig((TYsonString(request->mount_config())), tabletId);
-        auto readerConfig = DeserializeTabletChunkReaderConfig(TYsonString(request->reader_config()), tabletId);
-        auto writerConfig = DeserializeTabletChunkWriterConfig(TYsonString(request->writer_config()), tabletId);
-        auto writerOptions = DeserializeTabletWriterOptions(TYsonString(request->writer_options()), tabletId);
-        auto atomicity = EAtomicity(request->atomicity());
-        auto commitOrdering = ECommitOrdering(request->commit_ordering());
-        auto storeDescriptors = FromProto<std::vector<TAddStoreDescriptor>>(request->stores());
+        auto settings = DeserializeTableSettings(request, tabletId);
+        auto atomicity = FromProto<EAtomicity>(request->atomicity());
+        auto commitOrdering = FromProto<ECommitOrdering>(request->commit_ordering());
         bool freeze = request->freeze();
         auto upstreamReplicaId = FromProto<TTableReplicaId>(request->upstream_replica_id());
         auto replicaDescriptors = FromProto<std::vector<TTableReplicaDescriptor>>(request->replicas());
@@ -945,11 +950,8 @@ private:
         const auto& mountHint = request->mount_hint();
 
         auto tabletHolder = std::make_unique<TTablet>(
-            mountConfig,
-            readerConfig,
-            writerConfig,
-            writerOptions,
             tabletId,
+            settings,
             mountRevision,
             tableId,
             path,
@@ -974,28 +976,27 @@ private:
 
         auto storeManager = CreateStoreManager(tablet);
         tablet->SetStoreManager(storeManager);
-
         PopulateDynamicStoreIdPool(tablet, request);
 
         // COMPAT(ifsmirnov)
-        auto* mutationContext = GetCurrentMutationContext();
+        const auto* mutationContext = GetCurrentMutationContext();
         storeManager->Mount(
-            storeDescriptors,
-            mutationContext->Request().Reign >= ToUnderlying(ETabletReign::DynamicStoreRead)
-                ? !freeze
-                : true,
+            MakeRange(request->stores()),
+            MakeRange(request->hunk_chunks()),
+            mutationContext->Request().Reign >= ToUnderlying(ETabletReign::DynamicStoreRead) ? !freeze : true,
             mountHint);
 
         tablet->SetState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
 
         YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet mounted (%v, MountRevision: %llx, Keys: %v .. %v, "
-            "StoreCount: %v, PartitionCount: %v, TotalRowCount: %v, TrimmedRowCount: %v, Atomicity: %v, "
+            "StoreCount: %v, HunkChunkCount: %v, PartitionCount: %v, TotalRowCount: %v, TrimmedRowCount: %v, Atomicity: %v, "
             "CommitOrdering: %v, Frozen: %v, UpstreamReplicaId: %v, RetainedTimestamp: %v)",
             tablet->GetLoggingTag(),
             mountRevision,
             pivotKey,
             nextPivotKey,
             request->stores_size(),
+            request->hunk_chunks_size(),
             tablet->IsPhysicallySorted() ? std::make_optional(tablet->PartitionList().size()) : std::nullopt,
             tablet->IsPhysicallySorted() ? std::nullopt : std::make_optional(tablet->GetTotalRowCount()),
             tablet->IsPhysicallySorted() ? std::nullopt : std::make_optional(tablet->GetTrimmedRowCount()),
@@ -1093,19 +1094,16 @@ private:
             return;
         }
 
-        auto mountConfig = DeserializeTableMountConfig((TYsonString(request->mount_config())), tabletId);
-        auto readerConfig = DeserializeTabletChunkReaderConfig(TYsonString(request->reader_config()), tabletId);
-        auto writerConfig = DeserializeTabletChunkWriterConfig(TYsonString(request->writer_config()), tabletId);
-        auto writerOptions = DeserializeTabletWriterOptions(TYsonString(request->writer_options()), tabletId);
+        auto settings = DeserializeTableSettings(request, tabletId);
 
         const auto& storeManager = tablet->GetStoreManager();
-        storeManager->Remount(mountConfig, readerConfig, writerConfig, writerOptions);
+        storeManager->Remount(settings);
 
         tablet->ReconfigureThrottlers();
         tablet->ReconfigureDistributedThrottlers(DistributedThrottlerManager_);
         tablet->FillProfilerTags();
         tablet->UpdateReplicaCounters();
-        tablet->GetStructuredLogger()->SetEnabled(mountConfig->EnableStructuredLogger);
+        tablet->GetStructuredLogger()->SetEnabled(settings.MountConfig->EnableStructuredLogger);
         UpdateTabletSnapshot(tablet);
 
         if (!IsRecovery()) {
@@ -1256,11 +1254,12 @@ private:
         std::vector<TStoreId> addedStoreIds;
         std::vector<IStorePtr> storesToAdd;
         for (const auto& descriptor : request->stores_to_add()) {
-            auto storeType = EStoreType(descriptor.store_type());
+            auto storeType = FromProto<EStoreType>(descriptor.store_type());
             auto storeId = FromProto<TChunkId>(descriptor.store_id());
             addedStoreIds.push_back(storeId);
 
             auto store = CreateStore(tablet, storeType, storeId, &descriptor)->AsChunk();
+            store->Initialize();
             storesToAdd.push_back(std::move(store));
         }
 
@@ -1672,7 +1671,7 @@ private:
 
         const auto& storeManager = tablet->GetStoreManager();
 
-        if (tablet->GetMountConfig()->EnableDynamicStoreRead && tablet->DynamicStoreIdPool().empty()) {
+        if (tablet->GetSettings().MountConfig->EnableDynamicStoreRead && tablet->DynamicStoreIdPool().empty()) {
             if (!tablet->GetDynamicStoreIdRequested()) {
                 AllocateDynamicStore(tablet);
             }
@@ -1694,16 +1693,36 @@ private:
         auto* tablet = GetTabletOrThrow(tabletId);
         const auto& structuredLogger = tablet->GetStructuredLogger();
 
+        // Validate.
         auto mountRevision = request->mount_revision();
         tablet->ValidateMountRevision(mountRevision);
 
-        TStoreIdList storeIdsToAdd;
+        THashSet<TChunkId> hunkChunkIdsToAdd;
+        for (const auto& descriptor : request->hunk_chunks_to_add()) {
+            auto chunkId = FromProto<TStoreId>(descriptor.chunk_id());
+            YT_VERIFY(hunkChunkIdsToAdd.insert(chunkId).second);
+        }
+
+        std::vector<TStoreId> storeIdsToAdd;
         for (const auto& descriptor : request->stores_to_add()) {
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
+            if (auto optionalHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(descriptor.chunk_meta().extensions())) {
+                for (const auto& ref : optionalHunkChunkRefsExt->refs()) {
+                    auto chunkId = FromProto<TChunkId>(ref.chunk_id());
+                    if (!hunkChunkIdsToAdd.contains(chunkId)) {
+                        auto hunkChunk = tablet->GetHunkChunkOrThrow(chunkId);
+                        if (hunkChunk->GetState() != EHunkChunkState::Active) {
+                            THROW_ERROR_EXCEPTION("Referenced hunk chunk %v is in %Qlv state",
+                                chunkId,
+                                hunkChunk->GetState());
+                        }
+                    }
+                }
+            }
             storeIdsToAdd.push_back(storeId);
         }
 
-        TStoreIdList storeIdsToRemove;
+        std::vector<TStoreId> storeIdsToRemove;
         for (const auto& descriptor : request->stores_to_remove()) {
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
             storeIdsToRemove.push_back(storeId);
@@ -1714,13 +1733,57 @@ private:
                     storeId,
                     state);
             }
+        }
+
+        std::vector<TChunkId> hunkChunkIdsToRemove;
+        for (const auto& descriptor : request->hunk_chunks_to_remove()) {
+            auto chunkId = FromProto<TStoreId>(descriptor.chunk_id());
+            hunkChunkIdsToRemove.push_back(chunkId);
+            auto hunkChunk = tablet->GetHunkChunkOrThrow(chunkId);
+            auto state = hunkChunk->GetState();
+            if (state != EHunkChunkState::Active) {
+                THROW_ERROR_EXCEPTION("Hunk chunk %v is in %Qlv state",
+                    chunkId,
+                    state);
+            }
+            if (!hunkChunk->IsDangling()) {
+                THROW_ERROR_EXCEPTION("Hunk chunk %v is not dangling",
+                    chunkId)
+                    << TErrorAttribute("store_ref_count", hunkChunk->GetStoreRefCount())
+                    << TErrorAttribute("prepared_store_ref_count", hunkChunk->GetPreparedStoreRefCount());
+            }
+        }
+
+        // Prepare.
+        for (const auto& descriptor : request->stores_to_remove()) {
+            auto storeId = FromProto<TStoreId>(descriptor.store_id());
+            auto store = tablet->GetStore(storeId);
             store->SetStoreState(EStoreState::RemovePrepared);
             structuredLogger->OnStoreStateChanged(store);
         }
 
+        for (const auto& descriptor : request->hunk_chunks_to_remove()) {
+            auto chunkId = FromProto<TStoreId>(descriptor.chunk_id());
+            auto hunkChunk = tablet->GetHunkChunk(chunkId);
+            hunkChunk->SetState(EHunkChunkState::RemovePrepared);
+            structuredLogger->OnHunkChunkStateChanged(hunkChunk);
+        }
+
+        for (const auto& descriptor : request->stores_to_add()) {
+            if (auto optionalHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(descriptor.chunk_meta().extensions())) {
+                for (const auto& ref : optionalHunkChunkRefsExt->refs()) {
+                    auto chunkId = FromProto<TChunkId>(ref.chunk_id());
+                    if (!hunkChunkIdsToAdd.contains(chunkId)) {
+                        auto hunkChunk = tablet->GetHunkChunk(chunkId);
+                        tablet->UpdatePreparedStoreRefCount(hunkChunk, +1);
+                    }
+                }
+            }
+        }
+
         auto updateReason = FromProto<ETabletStoresUpdateReason>(request->update_reason());
 
-        // TODO: log preparation errors as well.
+        // TODO(ifsmirnov): log preparation errors as well.
         structuredLogger->OnTabletStoresUpdatePrepared(
             storeIdsToAdd,
             storeIdsToRemove,
@@ -1728,14 +1791,18 @@ private:
             transaction->GetId());
 
         YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet stores update prepared "
-            "(%v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, UpdateReason: %v)",
+            "(%v, TransactionId: %vm, StoreIdsToAdd: %v, HunkChunkIdsToAdd: %v, StoreIdsToRemove: %v, HunkChunkIdsToRemove: %v, "
+            "UpdateReason: %v)",
             tablet->GetLoggingTag(),
+            transaction->GetId(),
             storeIdsToAdd,
+            hunkChunkIdsToAdd,
             storeIdsToRemove,
+            hunkChunkIdsToRemove,
             updateReason);
     }
 
-    void HydraAbortUpdateTabletStores(TTransaction* /*transaction*/, TReqUpdateTabletStores* request)
+    void HydraAbortUpdateTabletStores(TTransaction* transaction, TReqUpdateTabletStores* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -1748,20 +1815,33 @@ private:
             return;
         }
 
-        TStoreIdList storeIdsToAdd;
-        for (const auto& descriptor : request->stores_to_add()) {
-            auto storeId = FromProto<TStoreId>(descriptor.store_id());
-            storeIdsToAdd.push_back(storeId);
+        const auto& structuredLogger = tablet->GetStructuredLogger();
+
+        THashSet<TChunkId> hunkChunkIdsToAdd;
+        for (const auto& descriptor : request->hunk_chunks_to_add()) {
+            auto chunkId = FromProto<TChunkId>(descriptor.chunk_id());
+            YT_VERIFY(hunkChunkIdsToAdd.insert(chunkId).second);
         }
 
-        TStoreIdList storeIdsToRemove;
-        for (const auto& descriptor : request->stores_to_remove()) {
-            auto storeId = FromProto<TStoreId>(descriptor.store_id());
-            storeIdsToRemove.push_back(storeId);
+        for (const auto& descriptor : request->stores_to_add()) {
+            if (auto optionalHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(descriptor.chunk_meta().extensions())) {
+                for (const auto& ref : optionalHunkChunkRefsExt->refs()) {
+                    auto chunkId = FromProto<TChunkId>(ref.chunk_id());
+                    if (!hunkChunkIdsToAdd.contains(chunkId)) {
+                        auto hunkChunk = tablet->FindHunkChunk(chunkId);
+                        if (!hunkChunk) {
+                            continue;
+                        }
+
+                        tablet->UpdatePreparedStoreRefCount(hunkChunk, -1);
+                    }
+                }
+            }
         }
 
         const auto& storeManager = tablet->GetStoreManager();
-        for (const auto& storeId : storeIdsToRemove) {
+        for (const auto& descriptor : request->stores_to_remove()) {
+            auto storeId = FromProto<TStoreId>(descriptor.store_id());
             auto store = tablet->FindStore(storeId);
             if (!store) {
                 continue;
@@ -1780,27 +1860,36 @@ private:
                     YT_ABORT();
             }
 
+            structuredLogger->OnStoreStateChanged(store);
+
             if (IsLeader()) {
                 storeManager->BackoffStoreRemoval(store);
             }
         }
 
+        for (const auto& descriptor : request->hunk_chunks_to_remove()) {
+            auto chunkId = FromProto<TStoreId>(descriptor.chunk_id());
+            auto hunkChunk = tablet->FindHunkChunk(chunkId);
+            if (!hunkChunk) {
+                continue;
+            }
+
+            hunkChunk->SetState(EHunkChunkState::Active);
+        }
+
         CheckIfTabletFullyFlushed(tablet);
 
-        auto updateReason = FromProto<ETabletStoresUpdateReason>(request->update_reason());
-
         YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet stores update aborted "
-            "(%v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, UpdateReason: %v)",
+            "(%v, TransactionId: %v)",
             tablet->GetLoggingTag(),
-            storeIdsToAdd,
-            storeIdsToRemove,
-            updateReason);
+            transaction->GetId());
     }
 
     bool IsBackingStoreRequired(TTablet* tablet)
     {
-        return tablet->GetAtomicity() == EAtomicity::Full &&
-            tablet->GetMountConfig()->BackingStoreRetentionTime != TDuration::Zero();
+        return
+            tablet->GetAtomicity() == EAtomicity::Full &&
+            tablet->GetSettings().MountConfig->BackingStoreRetentionTime != TDuration::Zero();
     }
 
     void HydraCommitUpdateTabletStores(TTransaction* transaction, TReqUpdateTabletStores* request)
@@ -1820,9 +1909,6 @@ private:
 
         const auto& storeManager = tablet->GetStoreManager();
 
-        auto mountConfig = tablet->GetMountConfig();
-        auto inMemoryManager = Bootstrap_->GetInMemoryManager();
-
         // NB: Must handle store removals before store additions since
         // row index map forbids having multiple stores with the same starting row index.
         // But before proceeding to removals, we must take care of backing stores.
@@ -1841,6 +1927,20 @@ private:
             }
         }
 
+        THashSet<THunkChunkPtr> addedHunkChunks;
+        for (const auto& descriptor : request->hunk_chunks_to_add()) {
+            auto chunkId = FromProto<TChunkId>(descriptor.chunk_id());
+
+            auto hunkChunk = CreateHunkChunk(tablet, chunkId, &descriptor);
+            hunkChunk->Initialize();
+            tablet->AddHunkChunk(hunkChunk);
+            YT_VERIFY(addedHunkChunks.insert(hunkChunk).second);
+
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Hunk chunk added (%v, ChunkId: %v)",
+                tablet->GetLoggingTag(),
+                chunkId);
+        }
+
         std::vector<TStoreId> removedStoreIds;
         for (const auto& descriptor : request->stores_to_remove()) {
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
@@ -1853,18 +1953,46 @@ private:
                 tablet->GetLoggingTag(),
                 storeId,
                 store->GetDynamicMemoryUsage());
+
+            if (store->IsChunk()) {
+                auto chunkStore = store->AsChunk();
+                for (const auto& ref : chunkStore->HunkChunkRefs()) {
+                    tablet->UpdateHunkChunkRef(ref, -1);
+
+                    const auto& hunkChunk = ref.HunkChunk;
+
+                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Hunk chunk unreferenced (%v, StoreId: %v, HunkChunkRef: %v, StoreRefCount: %v)",
+                        tablet->GetLoggingTag(),
+                        storeId,
+                        ref,
+                        hunkChunk->GetStoreRefCount());
+                }
+            }
         }
 
-        std::vector<TStoreId> addedStoreIds;
+        std::vector<TChunkId> removedHunkChunkIds;
+        for (const auto& descriptor : request->hunk_chunks_to_remove()) {
+            auto chunkId = FromProto<TStoreId>(descriptor.chunk_id());
+            removedHunkChunkIds.push_back(chunkId);
+
+            auto hunkChunk = tablet->GetHunkChunk(chunkId);
+            tablet->RemoveHunkChunk(hunkChunk);
+            hunkChunk->SetState(EHunkChunkState::Removed);
+
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Hunk chunk removed (%v, ChunkId: %v)",
+                tablet->GetLoggingTag(),
+                chunkId);
+        }
+
         std::vector<IStorePtr> addedStores;
         for (const auto& descriptor : request->stores_to_add()) {
-            auto storeType = EStoreType(descriptor.store_type());
+            auto storeType = FromProto<EStoreType>(descriptor.store_type());
             auto storeId = FromProto<TChunkId>(descriptor.store_id());
-            addedStoreIds.push_back(storeId);
 
             auto store = CreateStore(tablet, storeType, storeId, &descriptor)->AsChunk();
-            addedStores.push_back(store);
+            store->Initialize();
             storeManager->AddStore(store, false);
+            addedStores.push_back(store);
 
             TStoreId backingStoreId;
             if (!IsRecovery() && descriptor.has_backing_store_id() && IsBackingStoreRequired(tablet)) {
@@ -1872,11 +2000,30 @@ private:
                 const auto& backingStore = GetOrCrash(idToBackingStore, backingStoreId);
                 SetBackingStore(tablet, store, backingStore);
             }
+
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk store added (%v, StoreId: %v, MaxTimestamp: %llx, BackingStoreId: %v)",
                 tablet->GetLoggingTag(),
                 storeId,
                 store->GetMaxTimestamp(),
                 backingStoreId);
+
+            if (store->IsChunk()) {
+                auto chunkStore = store->AsChunk();
+                for (const auto& ref : chunkStore->HunkChunkRefs()) {
+                    tablet->UpdateHunkChunkRef(ref, +1);
+
+                    const auto& hunkChunk = ref.HunkChunk;
+                    if (!addedHunkChunks.contains(hunkChunk)) {
+                        tablet->UpdatePreparedStoreRefCount(hunkChunk, -1);
+                    }
+
+                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Hunk chunk referenced (%v, StoreId: %v, HunkChunkRef: %v, StoreRefCount: %v)",
+                        tablet->GetLoggingTag(),
+                        storeId,
+                        ref,
+                        hunkChunk->GetStoreRefCount());
+                }
+            }
         }
 
         auto retainedTimestamp = std::max(
@@ -1900,16 +2047,22 @@ private:
         }
 
         YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet stores update committed "
-            "(%v, AddedStoreIds: %v, RemovedStoreIds: %v, RetainedTimestamp: %llx, UpdateReason: %v)",
+            "(%v, TransactionId: %v, AddedStoreIds: %v, RemovedStoreIds: %v, AddedHunkChunkIds: %v, RemovedHunkChunkIds: %v, "
+            "RetainedTimestamp: %llx, UpdateReason: %v)",
             tablet->GetLoggingTag(),
-            addedStoreIds,
+            transaction->GetId(),
+            MakeFormattableView(addedStores, TStoreIdFormatter()),
             removedStoreIds,
+            MakeFormattableView(addedHunkChunks, THunkChunkIdFormatter()),
+            removedHunkChunkIds,
             retainedTimestamp,
             updateReason);
 
         tablet->GetStructuredLogger()->OnTabletStoresUpdateCommitted(
             addedStores,
             removedStoreIds,
+            std::vector<THunkChunkPtr>(addedHunkChunks.begin(), addedHunkChunks.end()),
+            removedHunkChunkIds,
             updateReason,
             allocatedDynamicStoreId,
             transaction->GetId());
@@ -3265,7 +3418,7 @@ private:
             // we need the store to be released even if the epoch ends.
             BIND(&TTabletManager::TImpl::ReleaseBackingStoreWeak, MakeWeak(this), MakeWeak(store))
                 .Via(Slot_->GetAutomatonInvoker()),
-            tablet->GetMountConfig()->BackingStoreRetentionTime);
+            tablet->GetSettings().MountConfig->BackingStoreRetentionTime);
     }
 
     void ReleaseBackingStoreWeak(const TWeakPtr<IChunkStore>& storeWeak)
@@ -3290,66 +3443,82 @@ private:
                     .BeginAttributes()
                         .Item("opaque").Value(true)
                     .EndAttributes()
-                    .Value(tablet->GetMountConfig())
-                .Item("writer_config")
+                    .Value(tablet->GetSettings().MountConfig)
+                .Item("store_writer_config")
                     .BeginAttributes()
                         .Item("opaque").Value(true)
                     .EndAttributes()
-                    .Value(tablet->GetWriterConfig())
-                .Item("writer_options")
+                    .Value(tablet->GetSettings().StoreWriterConfig)
+                .Item("store_writer_options")
                     .BeginAttributes()
                         .Item("opaque").Value(true)
                     .EndAttributes()
-                    .Value(tablet->GetWriterOptions())
+                    .Value(tablet->GetSettings().StoreWriterOptions)
+                .Item("hunk_writer_config")
+                    .BeginAttributes()
+                        .Item("opaque").Value(true)
+                    .EndAttributes()
+                    .Value(tablet->GetSettings().HunkWriterConfig)
+                .Item("hunk_writer_options")
+                    .BeginAttributes()
+                        .Item("opaque").Value(true)
+                    .EndAttributes()
+                    .Value(tablet->GetSettings().HunkWriterOptions)
                 .Item("reader_config")
                     .BeginAttributes()
                         .Item("opaque").Value(true)
                     .EndAttributes()
-                    .Value(tablet->GetReaderConfig())
-                .DoIf(tablet->IsPhysicallySorted(), [&] (TFluentMap fluent) {
+                    .Value(tablet->GetSettings().ReaderConfig)
+                .DoIf(tablet->IsPhysicallySorted(), [&] (auto fluent) {
                     fluent
                         .Item("pivot_key").Value(tablet->GetPivotKey())
                         .Item("next_pivot_key").Value(tablet->GetNextPivotKey())
                         .Item("eden").DoMap(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), tablet->GetEden()))
                         .Item("partitions").DoListFor(
-                            tablet->PartitionList(), [&] (TFluentList fluent, const std::unique_ptr<TPartition>& partition) {
+                            tablet->PartitionList(), [&] (auto fluent, const std::unique_ptr<TPartition>& partition) {
                                 fluent
                                     .Item()
                                     .DoMap(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), partition.get()));
                             });
                 })
-                .DoIf(tablet->IsPhysicallyOrdered(), [&] (TFluentMap fluent) {
+                .DoIf(tablet->IsPhysicallyOrdered(), [&] (auto fluent) {
                     fluent
                         .Item("stores").DoMapFor(
                             tablet->StoreIdMap(),
-                            [&] (TFluentMap fluent, const std::pair<const TStoreId, IStorePtr>& pair) {
-                                const auto& store = pair.second;
+                            [&] (auto fluent, const auto& pair) {
+                                const auto& [storeId, store] = pair;
                                 fluent
-                                    .Item(ToString(store->GetId()))
+                                    .Item(ToString(storeId))
                                     .Do(BIND(&TImpl::BuildStoreOrchidYson, Unretained(this), store));
                             })
                         .Item("total_row_count").Value(tablet->GetTotalRowCount())
                         .Item("trimmed_row_count").Value(tablet->GetTrimmedRowCount());
                 })
-                .DoIf(tablet->IsReplicated(), [&] (TFluentMap fluent) {
+                .Item("hunk_chunks").DoMapFor(tablet->HunkChunkMap(), [&] (auto fluent, const auto& pair) {
+                    const auto& [chunkId, hunkChunk] = pair;
+                    fluent
+                        .Item(ToString(chunkId))
+                        .Do(BIND(&TImpl::BuildHunkChunkOrchidYson, Unretained(this), hunkChunk));
+                })
+                .DoIf(tablet->IsReplicated(), [&] (auto fluent) {
                     fluent
                         .Item("replicas").DoMapFor(
                             tablet->Replicas(),
-                            [&] (TFluentMap fluent, const std::pair<const TTableReplicaId, TTableReplicaInfo>& pair) {
-                                const auto& replica = pair.second;
+                            [&] (auto fluent, const auto& pair) {
+                                const auto& [replicaId, replica] = pair;
                                 fluent
-                                    .Item(ToString(replica.GetId()))
+                                    .Item(ToString(replicaId))
                                     .Do(BIND(&TImpl::BuildReplicaOrchidYson, Unretained(this), replica));
                             });
                 })
-                .DoIf(tablet->IsPhysicallySorted(), [&] (TFluentMap fluent) {
+                .DoIf(tablet->IsPhysicallySorted(), [&] (auto fluent) {
                     fluent
                         .Item("dynamic_table_locks").DoMap(
                             BIND(&TLockManager::BuildOrchidYson, tablet->GetLockManager()));
                 })
                 .Item("errors").DoListFor(
                     TEnumTraits<ETabletBackgroundActivity>::GetDomainValues(),
-                    [&] (TFluentList fluent, auto activity) {
+                    [&] (auto fluent, auto activity) {
                         auto error = tablet->RuntimeData()->Errors[activity].Load();
                         if (!error.IsOK()) {
                             fluent
@@ -3358,7 +3527,7 @@ private:
                     })
                 .Item("replication_errors").DoMapFor(
                     tablet->Replicas(),
-                    [&] (TFluentMap fluent, const auto& replica) {
+                    [&] (auto fluent, const auto& replica) {
                         auto replicaId = replica.first;
                         auto error = replica.second.GetError();
                         if (!error.IsOK()) {
@@ -3366,7 +3535,7 @@ private:
                                 .Item(ToString(replicaId)).Value(error);
                         }
                     })
-                .DoIf(tablet->GetMountConfig()->EnableDynamicStoreRead, [&] (TFluentMap fluent) {
+                .DoIf(tablet->GetSettings().MountConfig->EnableDynamicStoreRead, [&] (auto fluent) {
                     fluent
                         .Item("dynamic_store_id_pool")
                             .BeginAttributes()
@@ -3374,7 +3543,7 @@ private:
                             .EndAttributes()
                             .DoListFor(
                                 tablet->DynamicStoreIdPool(),
-                                [&] (TFluentList fluent, auto dynamicStoreId) {
+                                [&] (auto fluent, auto dynamicStoreId) {
                                     fluent
                                         .Item().Value(dynamicStoreId);
                                 });
@@ -3397,16 +3566,16 @@ private:
             .Item("uncompressed_data_size").Value(partition->GetUncompressedDataSize())
             .Item("compressed_data_size").Value(partition->GetCompressedDataSize())
             .Item("unmerged_row_count").Value(partition->GetUnmergedRowCount())
-            .Item("stores").DoMapFor(partition->Stores(), [&] (TFluentMap fluent, const IStorePtr& store) {
+            .Item("stores").DoMapFor(partition->Stores(), [&] (auto fluent, const IStorePtr& store) {
                 fluent
                     .Item(ToString(store->GetId()))
                     .Do(BIND(&TImpl::BuildStoreOrchidYson, Unretained(this), store));
             })
-            .DoIf(partition->IsImmediateSplitRequested(), [&] (TFluentMap fluent) {
+            .DoIf(partition->IsImmediateSplitRequested(), [&] (auto fluent) {
                 fluent
                     .Item("immediate_split_keys").DoListFor(
                         partition->PivotKeysForImmediateSplit(),
-                        [&] (TFluentList fluent, const TLegacyOwningKey& key)
+                        [&] (auto fluent, const TLegacyOwningKey& key)
                     {
                         fluent
                             .Item().Value(key);
@@ -3415,7 +3584,7 @@ private:
             });
     }
 
-    void BuildStoreOrchidYson(IStorePtr store, TFluentAny fluent)
+    void BuildStoreOrchidYson(const IStorePtr& store, TFluentAny fluent)
     {
         fluent
             .BeginAttributes()
@@ -3423,6 +3592,22 @@ private:
             .EndAttributes()
             .BeginMap()
                 .Do(BIND(&IStore::BuildOrchidYson, store))
+            .EndMap();
+    }
+
+    void BuildHunkChunkOrchidYson(const THunkChunkPtr& hunkChunk, TFluentAny fluent)
+    {
+        fluent
+            .BeginAttributes()
+                .Item("opaque").Value(true)
+            .EndAttributes()
+            .BeginMap()
+                .Item("uncompressed_data_size").Value(hunkChunk->GetUncompressedDataSize())
+                .Item("referenced_hunk_count").Value(hunkChunk->GetReferencedHunkCount())
+                .Item("referenced_total_hunk_length").Value(hunkChunk->GetReferencedTotalHunkLength())
+                .Item("store_ref_count").Value(hunkChunk->GetStoreRefCount())
+                .Item("prepared_store_ref_count").Value(hunkChunk->GetPreparedStoreRefCount())
+                .Item("dangling").Value(hunkChunk->IsDangling())
             .EndMap();
     }
 
@@ -3474,8 +3659,9 @@ private:
 
     void ValidateTabletStoreLimit(TTablet* tablet)
     {
+        const auto& mountConfig = tablet->GetSettings().MountConfig;
         auto storeCount = tablet->StoreIdMap().size();
-        auto storeLimit = tablet->GetMountConfig()->MaxStoresPerTablet;
+        auto storeLimit = mountConfig->MaxStoresPerTablet;
         if (storeCount >= storeLimit) {
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::AllWritesDisabled,
@@ -3487,7 +3673,7 @@ private:
         }
 
         auto overlappingStoreCount = tablet->GetOverlappingStoreCount();
-        auto overlappingStoreLimit = tablet->GetMountConfig()->MaxOverlappingStoreCount;
+        auto overlappingStoreLimit = mountConfig->MaxOverlappingStoreCount;
         if (overlappingStoreCount >= overlappingStoreLimit) {
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::AllWritesDisabled,
@@ -3499,7 +3685,7 @@ private:
         }
 
         auto edenStoreCount = tablet->GetEdenStoreCount();
-        auto edenStoreCountLimit = tablet->GetMountConfig()->MaxEdenStoresPerTablet;
+        auto edenStoreCountLimit = mountConfig->MaxEdenStoresPerTablet;
         if (edenStoreCount >= edenStoreCountLimit) {
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::AllWritesDisabled,
@@ -3554,6 +3740,36 @@ private:
     }
 
 
+    template <class TRequest>
+    NTabletNode::TTableSettings DeserializeTableSettings(TRequest* request, TTabletId tabletId)
+    {
+        // COMPAT(babenko)
+        if (request->has_table_settings()) {
+            const auto& tableSettings = request->table_settings();
+            return {
+                .MountConfig = DeserializeTableMountConfig(TYsonString(tableSettings.mount_config()), tabletId),
+                .ReaderConfig = DeserializeTabletChunkReaderConfig(TYsonString(tableSettings.reader_config()), tabletId),
+                .StoreWriterConfig = DeserializeTabletStoreWriterConfig(TYsonString(tableSettings.store_writer_config()), tabletId),
+                .StoreWriterOptions = DeserializeTabletStoreWriterOptions(TYsonString(tableSettings.store_writer_options()), tabletId),
+                .HunkWriterConfig = DeserializeTabletHunkWriterConfig(TYsonString(tableSettings.hunk_writer_config()), tabletId),
+                .HunkWriterOptions = DeserializeTabletHunkWriterOptions(TYsonString(tableSettings.hunk_writer_options()), tabletId)
+            };
+        } else {
+            auto mountConfig = DeserializeTableMountConfig(TYsonString(request->mount_config()), tabletId);
+            auto readerConfig = DeserializeTabletChunkReaderConfig(TYsonString(request->reader_config()), tabletId);
+            auto storeWriterConfig = DeserializeTabletStoreWriterConfig(TYsonString(request->store_writer_config()), tabletId);
+            auto storeWriterOptions = DeserializeTabletStoreWriterOptions(TYsonString(request->store_writer_options()), tabletId);
+            return {
+                .MountConfig = mountConfig,
+                .ReaderConfig = readerConfig,
+                .StoreWriterConfig = storeWriterConfig,
+                .StoreWriterOptions = storeWriterOptions,
+                .HunkWriterConfig = New<TTabletHunkWriterConfig>(),
+                .HunkWriterOptions = TTablet::CreateFallbackHunkWriterOptions(storeWriterOptions)
+            };
+        }
+    }
+
     TTableMountConfigPtr DeserializeTableMountConfig(const TYsonString& str, TTabletId tabletId)
     {
         try {
@@ -3576,27 +3792,50 @@ private:
         }
     }
 
-    TTabletChunkWriterConfigPtr DeserializeTabletChunkWriterConfig(const TYsonString& str, TTabletId tabletId)
+    TTabletStoreWriterConfigPtr DeserializeTabletStoreWriterConfig(const TYsonString& str, TTabletId tabletId)
     {
         try {
-            return ConvertTo<TTabletChunkWriterConfigPtr>(str);
+            return ConvertTo<TTabletStoreWriterConfigPtr>(str);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error deserializing writer config (TabletId: %v)",
+            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error deserializing store writer config (TabletId: %v)",
                  tabletId);
-            return New<TTabletChunkWriterConfig>();
+            return New<TTabletStoreWriterConfig>();
         }
     }
 
-    TTabletWriterOptionsPtr DeserializeTabletWriterOptions(const TYsonString& str, TTabletId tabletId)
+    TTabletStoreWriterOptionsPtr DeserializeTabletStoreWriterOptions(const TYsonString& str, TTabletId tabletId)
     {
         try {
-            return ConvertTo<TTabletWriterOptionsPtr>(str);
+            return ConvertTo<TTabletStoreWriterOptionsPtr>(str);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error deserializing writer options (TabletId: %v)",
+            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error deserializing store writer options (TabletId: %v)",
                  tabletId);
-            return New<TTabletWriterOptions>();
+            return New<TTabletStoreWriterOptions>();
         }
     }
+
+    TTabletHunkWriterConfigPtr DeserializeTabletHunkWriterConfig(const TYsonString& str, const TTabletId tabletId)
+    {
+        try {
+            return ConvertTo<TTabletHunkWriterConfigPtr>(str);
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error deserializing hunk writer config (TabletId: %v)",
+                 tabletId);
+            return New<TTabletHunkWriterConfig>();
+        }
+    }
+
+    TTabletHunkWriterOptionsPtr DeserializeTabletHunkWriterOptions(const TYsonString& str, TTabletId tabletId)
+    {
+        try {
+            return ConvertTo<TTabletHunkWriterOptionsPtr>(str);
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error deserializing hunk writer options (TabletId: %v)",
+                 tabletId);
+            return New<TTabletHunkWriterOptions>();
+        }
+    }
+
 
 
     IStoreManagerPtr CreateStoreManager(TTablet* tablet)
@@ -3646,7 +3885,7 @@ private:
             case EStoreType::SortedChunk: {
                 NChunkClient::TLegacyReadRange readRange;
                 TChunkId chunkId;
-                TTimestamp chunkTimestamp = NullTimestamp;
+                auto chunkTimestamp = NullTimestamp;
 
                 if (descriptor) {
                     if (descriptor->has_chunk_view_descriptor()) {
@@ -3665,7 +3904,7 @@ private:
                     YT_VERIFY(IsRecovery());
                 }
 
-                auto store = New<TSortedChunkStore>(
+                return New<TSortedChunkStore>(
                     Bootstrap_,
                     Config_,
                     storeId,
@@ -3673,14 +3912,13 @@ private:
                     readRange,
                     chunkTimestamp,
                     tablet,
+                    descriptor,
                     Bootstrap_->GetBlockCache(),
                     Bootstrap_->GetChunkRegistry(),
                     Bootstrap_->GetChunkBlockManager(),
                     Bootstrap_->GetVersionedChunkMetaManager(),
                     Bootstrap_->GetMasterClient(),
                     Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor());
-                store->Initialize(descriptor);
-                return store;
             }
 
             case EStoreType::SortedDynamic:
@@ -3694,19 +3932,19 @@ private:
                     YT_VERIFY(descriptor);
                     YT_VERIFY(!descriptor->has_chunk_view_descriptor());
                 }
-                auto store = New<TOrderedChunkStore>(
+
+                return New<TOrderedChunkStore>(
                     Bootstrap_,
                     Config_,
                     storeId,
                     tablet,
+                    descriptor,
                     Bootstrap_->GetBlockCache(),
                     Bootstrap_->GetChunkRegistry(),
                     Bootstrap_->GetChunkBlockManager(),
                     Bootstrap_->GetVersionedChunkMetaManager(),
                     Bootstrap_->GetMasterClient(),
                     Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor());
-                store->Initialize(descriptor);
-                return store;
             }
 
             case EStoreType::OrderedDynamic:
@@ -3718,6 +3956,17 @@ private:
             default:
                 YT_ABORT();
         }
+    }
+
+
+    THunkChunkPtr CreateHunkChunk(
+        TTablet* /*tablet*/,
+        TChunkId chunkId,
+        const TAddHunkChunkDescriptor* descriptor)
+    {
+        return New<THunkChunk>(
+            chunkId,
+            descriptor);
     }
 
 
@@ -3893,9 +4142,9 @@ private:
             return;
         }
 
-        const auto& config = tablet->GetMountConfig();
+        const auto& mountConfig = tablet->GetSettings().MountConfig;
         auto retentionDeadline = transaction
-            ? TimestampToInstant(transaction->GetCommitTimestamp()).first - config->MinReplicationLogTtl
+            ? TimestampToInstant(transaction->GetCommitTimestamp()).first - mountConfig->MinReplicationLogTtl
             : TInstant::Max();
         auto it = storeRowIndexMap.find(tablet->GetTrimmedRowCount());
         while (it != storeRowIndexMap.end()) {

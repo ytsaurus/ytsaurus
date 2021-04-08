@@ -139,8 +139,8 @@ public:
         auto schemalessReader = CreateSchemalessRangeChunkReader(
             chunkState,
             New<TColumnarChunkMeta>(*chunkMeta),
-            New<TChunkReaderConfig>(),
-            New<TChunkReaderOptions>(),
+            TChunkReaderConfig::GetDefault(),
+            TChunkReaderOptions::GetDefault(),
             chunkReader,
             New<TNameTable>(),
             chunkReadOptions,

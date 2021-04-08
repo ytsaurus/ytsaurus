@@ -483,6 +483,12 @@ TTableSchema::TTableSchema(
         if (column.SortOrder()) {
             ++KeyColumnCount_;
         }
+        if (column.Expression()) {
+            HasComputedColumns_ = true;
+        }
+        if (column.MaxInlineHunkSize()) {
+            HasHunkColumns_ = true;
+        }
     }
 }
 
@@ -594,12 +600,12 @@ TTableSchemaPtr TTableSchema::Filter(const std::optional<std::vector<TString>>& 
 
 bool TTableSchema::HasComputedColumns() const
 {
-    for (const auto& column : Columns()) {
-        if (column.Expression()) {
-            return true;
-        }
-    }
-    return false;
+    return HasComputedColumns_;
+}
+
+bool TTableSchema::HasHunkColumns() const
+{
+    return HasHunkColumns_;
 }
 
 bool TTableSchema::IsSorted() const

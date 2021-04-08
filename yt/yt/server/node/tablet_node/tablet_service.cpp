@@ -146,11 +146,17 @@ private:
         }
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
+        const auto& tabletCellBundleName = Slot_->GetTabletCellBundleName();
         securityManager->ValidateResourceLimits(
-            tabletSnapshot->WriterOptions->Account,
-            tabletSnapshot->WriterOptions->MediumName,
-            Slot_->GetTabletCellBundleName(),
-            tabletSnapshot->MountConfig->InMemoryMode);
+            tabletSnapshot->Settings.StoreWriterOptions->Account,
+            tabletSnapshot->Settings.StoreWriterOptions->MediumName,
+            tabletCellBundleName,
+            tabletSnapshot->Settings.MountConfig->InMemoryMode);
+        securityManager->ValidateResourceLimits(
+            tabletSnapshot->Settings.HunkWriterOptions->Account,
+            tabletSnapshot->Settings.HunkWriterOptions->MediumName,
+            tabletCellBundleName,
+            EInMemoryMode::None);
 
         auto slotOptions = Slot_->GetOptions();
         securityManager->ValidateResourceLimits(

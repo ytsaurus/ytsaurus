@@ -42,4 +42,18 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+ETabletReign TSaveContext::GetVersion() const
+{
+    return static_cast<ETabletReign>(NHydra::TSaveContext::GetVersion());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ETabletReign TLoadContext::GetVersion() const
+{
+    return static_cast<ETabletReign>(NHydra::TLoadContext::GetVersion());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTabletNode

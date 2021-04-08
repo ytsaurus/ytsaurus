@@ -309,7 +309,7 @@ public:
     int MaxMisscheduledSealJobsPerHeartbeat;
     //! Controls the maximum number of unsuccessful attempts to schedule a merge job.
     int MaxMisscheduledMergeJobsPerHeartbeat;
-    
+
     //! Minimum difference in fill coefficient (between the most and the least loaded nodes) to start balancing.
     double MinChunkBalancingFillFactorDiff;
     //! Minimum fill coefficient of the most loaded node to start balancing.
@@ -416,9 +416,6 @@ public:
     TDuration ChunkRemovalJobReplicasExpirationTime;
 
     TDynamicDataNodeTrackerConfigPtr DataNodeTracker;
-
-    // COMPAT(babenko)
-    bool EnableHunks;
 
     TDynamicChunkMergerConfigPtr ChunkMerger;
 
@@ -559,9 +556,6 @@ public:
 
         RegisterParameter("data_node_tracker", DataNodeTracker)
             .DefaultNew();
-
-            RegisterParameter("enable_hunks", EnableHunks)
-            .Default(false);
 
         RegisterParameter("chunk_merger", ChunkMerger)
             .DefaultNew();

@@ -99,20 +99,23 @@ struct IPerTabletStructuredLogger
     virtual void OnBackingStoreReleased(const IChunkStorePtr& store) = 0;
 
     virtual void OnTabletStoresUpdatePrepared(
-        const TStoreIdList& addedStoreIds,
-        const TStoreIdList& removedStoreIds,
+        const std::vector<TStoreId>& addedStoreIds,
+        const std::vector<TStoreId>& removedStoreIds,
         NTabletClient::ETabletStoresUpdateReason updateReason,
         TTransactionId transactionId) = 0;
 
     virtual void OnTabletStoresUpdateCommitted(
         const std::vector<IStorePtr>& addedStores,
         const std::vector<TStoreId>& removedStoreIds,
+        const std::vector<THunkChunkPtr>& addedHunkChunkds,
+        const std::vector<NChunkClient::TChunkId>& removedHunkChunkIds,
         NTabletClient::ETabletStoresUpdateReason updateReason,
         TDynamicStoreId allocatedDynamicStoreId,
         TTransactionId transactionId) = 0;
 
     virtual void OnPartitionStateChanged(const TPartition* partition) = 0;
     virtual void OnStoreStateChanged(const IStorePtr& store) = 0;
+    virtual void OnHunkChunkStateChanged(const THunkChunkPtr& hunkChunk) = 0;
     virtual void OnStoreCompactionStateChanged(const IChunkStorePtr& store) = 0;
     virtual void OnStorePreloadStateChanged(const IChunkStorePtr& store) = 0;
     virtual void OnStoreFlushStateChanged(const IDynamicStorePtr& store) = 0;
@@ -131,8 +134,10 @@ DEFINE_REFCOUNTED_TYPE(IPerTabletStructuredLogger)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IStructuredLoggerPtr CreateStructuredLogger(const NClusterNode::TBootstrap* bootstrap);
+IStructuredLoggerPtr CreateStructuredLogger(NClusterNode::TBootstrap* bootstrap);
 
 IPerTabletStructuredLoggerPtr CreateMockPerTabletStructuredLogger(TTablet* tablet);
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode

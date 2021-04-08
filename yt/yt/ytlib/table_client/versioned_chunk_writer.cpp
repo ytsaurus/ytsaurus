@@ -52,7 +52,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const i64 MinRowRangeDataWeight = 64_KB;
+static constexpr i64 MinRowRangeDataWeight = 64_KB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -141,14 +141,9 @@ public:
         return EncodingChunkWriter_->IsCloseDemanded();
     }
 
-    virtual TChunkMeta GetSchedulerMeta() const override
+    virtual TDeferredChunkMetaPtr GetMeta() const override
     {
-        return GetMasterMeta();
-    }
-
-    virtual TChunkMeta GetNodeMeta() const override
-    {
-        return *EncodingChunkWriter_->Meta();
+        return EncodingChunkWriter_->GetMeta();
     }
 
     virtual TChunkId GetChunkId() const override
@@ -222,17 +217,14 @@ protected:
 
     virtual void PrepareChunkMeta()
     {
-        using NYT::ToProto;
-
         ToProto(BoundaryKeysExt_.mutable_max(), LastKey_);
 
-        auto& meta = *EncodingChunkWriter_->Meta();
-        FillCommonMeta(&meta);
-
-        SetProtoExtension(meta.mutable_extensions(), ToProto<TTableSchemaExt>(Schema_));
-        SetProtoExtension(meta.mutable_extensions(), BlockMetaExt_);
-        SetProtoExtension(meta.mutable_extensions(), SamplesExt_);
-        SetProtoExtension(meta.mutable_extensions(), ColumnarStatisticsExt_);
+        auto meta = EncodingChunkWriter_->GetMeta();
+        FillCommonMeta(meta.Get());
+        SetProtoExtension(meta->mutable_extensions(), ToProto<TTableSchemaExt>(Schema_));
+        SetProtoExtension(meta->mutable_extensions(), BlockMetaExt_);
+        SetProtoExtension(meta->mutable_extensions(), SamplesExt_);
+        SetProtoExtension(meta->mutable_extensions(), ColumnarStatisticsExt_);
 
 #if 0
         if (KeyFilter_.IsValid()) {
@@ -305,16 +297,9 @@ public:
 
     virtual i64 GetCompressedDataSize() const override
     {
-        return EncodingChunkWriter_->GetDataStatistics().compressed_data_size() +
-               (BlockWriter_ ? BlockWriter_->GetBlockSize() : 0);
-    }
-
-    virtual TChunkMeta GetMasterMeta() const override
-    {
-        TChunkMeta meta;
-        FillCommonMeta(&meta);
-        SetProtoExtension(meta.mutable_extensions(), EncodingChunkWriter_->MiscExt());
-        return meta;
+        return
+            EncodingChunkWriter_->GetDataStatistics().compressed_data_size() +
+            (BlockWriter_ ? BlockWriter_->GetBlockSize() : 0);
     }
 
 private:
@@ -406,6 +391,15 @@ private:
         MinTimestamp_ = std::min(MinTimestamp_, BlockWriter_->GetMinTimestamp());
     }
 
+    virtual void PrepareChunkMeta() override
+    {
+        TVersionedChunkWriterBase::PrepareChunkMeta();
+
+        auto& miscExt = EncodingChunkWriter_->MiscExt();
+        miscExt.set_min_timestamp(MinTimestamp_);
+        miscExt.set_max_timestamp(MaxTimestamp_);
+    }
+
     virtual void DoClose() override
     {
         if (BlockWriter_->GetRowCount() > 0) {
@@ -413,10 +407,6 @@ private:
         }
 
         PrepareChunkMeta();
-
-        auto& miscExt = EncodingChunkWriter_->MiscExt();
-        miscExt.set_min_timestamp(MinTimestamp_);
-        miscExt.set_max_timestamp(MaxTimestamp_);
 
         EncodingChunkWriter_->Close();
     }
@@ -502,14 +492,6 @@ public:
             result += blockWriter->GetCurrentSize();
         }
         return result;
-    }
-
-    virtual TChunkMeta GetMasterMeta() const override
-    {
-        TChunkMeta meta;
-        FillCommonMeta(&meta);
-        SetProtoExtension(meta.mutable_extensions(), EncodingChunkWriter_->MiscExt());
-        return meta;
     }
 
     virtual i64 GetMetaSize() const override
@@ -626,6 +608,23 @@ private:
         EncodingChunkWriter_->WriteBlock(std::move(block.Data));
     }
 
+    virtual void PrepareChunkMeta() override
+    {
+        TVersionedChunkWriterBase::PrepareChunkMeta();
+
+        auto& miscExt = EncodingChunkWriter_->MiscExt();
+        miscExt.set_min_timestamp(TimestampWriter_->GetMinTimestamp());
+        miscExt.set_max_timestamp(TimestampWriter_->GetMaxTimestamp());
+
+        auto meta = EncodingChunkWriter_->GetMeta();
+        NProto::TColumnMetaExt columnMetaExt;
+        for (const auto& valueColumnWriter : ValueColumnWriters_) {
+            *columnMetaExt.add_columns() = valueColumnWriter->ColumnMeta();
+        }
+        *columnMetaExt.add_columns() = TimestampWriter_->ColumnMeta();
+        SetProtoExtension(meta->mutable_extensions(), columnMetaExt);
+    }
+
     virtual void DoClose() override
     {
         for (int i = 0; i < BlockWriters_.size(); ++i) {
@@ -635,20 +634,6 @@ private:
         }
 
         PrepareChunkMeta();
-
-        auto& miscExt = EncodingChunkWriter_->MiscExt();
-        miscExt.set_min_timestamp(static_cast<i64>(TimestampWriter_->GetMinTimestamp()));
-        miscExt.set_max_timestamp(static_cast<i64>(TimestampWriter_->GetMaxTimestamp()));
-
-        auto& meta = *EncodingChunkWriter_->Meta();
-
-        NProto::TColumnMetaExt columnMetaExt;
-        for (const auto& valueColumnWriter : ValueColumnWriters_) {
-            *columnMetaExt.add_columns() = valueColumnWriter->ColumnMeta();
-        }
-        *columnMetaExt.add_columns() = TimestampWriter_->ColumnMeta();
-
-        SetProtoExtension(meta.mutable_extensions(), columnMetaExt);
 
         EncodingChunkWriter_->Close();
     }
@@ -696,6 +681,38 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
 ////////////////////////////////////////////////////////////////////////////////
 
 IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
+    std::function<IVersionedChunkWriterPtr(IChunkWriterPtr)> chunkWriterFactory,
+    TTableWriterConfigPtr config,
+    TTableWriterOptionsPtr options,
+    NNative::IClientPtr client,
+    TCellTag cellTag,
+    TTransactionId transactionId,
+    TChunkListId parentChunkListId,
+    IThroughputThrottlerPtr throttler,
+    IBlockCachePtr blockCache)
+{
+    using TVersionedMultiChunkWriter = TMultiChunkWriterBase<
+        IVersionedMultiChunkWriter,
+        IVersionedChunkWriter,
+        TRange<TVersionedRow>
+    >;
+
+    auto writer = New<TVersionedMultiChunkWriter>(
+        std::move(config),
+        std::move(options),
+        std::move(client),
+        cellTag,
+        transactionId,
+        parentChunkListId,
+        std::move(chunkWriterFactory),
+        /* trafficMeter */ nullptr,
+        std::move(throttler),
+        std::move(blockCache));
+    writer->Init();
+    return writer;
+}
+
+IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     TTableSchemaPtr schema,
@@ -706,12 +723,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {
-    typedef TMultiChunkWriterBase<
-        IVersionedMultiChunkWriter,
-        IVersionedChunkWriter,
-        TRange<TVersionedRow>> TVersionedMultiChunkWriter;
-
-    auto createChunkWriter = [=] (IChunkWriterPtr underlyingWriter) {
+    auto chunkWriterFactory = [=] (IChunkWriterPtr underlyingWriter) {
         return CreateVersionedChunkWriter(
             config,
             options,
@@ -720,21 +732,16 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
             blockCache);
     };
 
-    auto writer = New<TVersionedMultiChunkWriter>(
-        config,
-        options,
-        client,
+    return CreateVersionedMultiChunkWriter(
+        std::move(chunkWriterFactory),
+        std::move(config),
+        std::move(options),
+        std::move(client),
         cellTag,
         transactionId,
         parentChunkListId,
-        createChunkWriter,
-        /* trafficMeter */ nullptr,
-        throttler,
-        blockCache);
-
-    writer->Init();
-
-    return writer;
+        std::move(throttler),
+        std::move(blockCache));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -137,7 +137,6 @@ public:
     TReaderBase(TRange<EValueType> keyTypes, TRange<TValueSchema> valueSchema);
 
     ui32 GetKeySegmentsRowLimit(ui32 limit = std::numeric_limits<ui32>::max());
-
     ui32 GetValueSegmentsRowLimit(ui32 limit = std::numeric_limits<ui32>::max());
 
     void CollectCounts(ui32* valueCounts, TRange<TReadSpan> spans);
@@ -153,11 +152,12 @@ public:
     template <class T>
     T* Allocate(size_t size);
 
+    TChunkedMemoryPool* GetPool() const;
     void ClearBuffer();
 
     TRange<std::unique_ptr<TKeyColumnBase>> GetKeyColumns() const;
-
     TRange<std::unique_ptr<TVersionedValueColumnBase>> GetValueColumns() const;
+
 protected:
     // Positions in segments are kept separately to minimize write memory footprint.
     // Column readers are immutable during read.

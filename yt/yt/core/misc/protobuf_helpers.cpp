@@ -488,6 +488,23 @@ void FilterProtoExtensions(
     }
 }
 
+void FilterProtoExtensions(
+    NYT::NProto::TExtensionSet* inplace,
+    const THashSet<int>& tags)
+{
+    auto tmp = std::move(*inplace);
+    FilterProtoExtensions(inplace, tmp, tags);
+}
+
+NYT::NProto::TExtensionSet FilterProtoExtensions(
+    const NYT::NProto::TExtensionSet& source,
+    const THashSet<int>& tags)
+{
+    NYT::NProto::TExtensionSet target;
+    FilterProtoExtensions(&target, source, tags);
+    return target;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 google::protobuf::Timestamp GetProtoNow()

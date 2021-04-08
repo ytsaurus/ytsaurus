@@ -6,6 +6,7 @@
 #include "store_manager.h"
 #include "tablet.h"
 #include "tablet_profiling.h"
+#include "hunk_chunk.h"
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
@@ -57,8 +58,6 @@ using NChunkClient::NProto::TChunkMeta;
 using NChunkClient::NProto::TChunkSpec;
 using NChunkClient::NProto::TMiscExt;
 
-using NTabletNode::NProto::TAddStoreDescriptor;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto LocalChunkRecheckPeriod = TDuration::Seconds(15);
@@ -70,7 +69,7 @@ TStoreBase::TStoreBase(
     TStoreId id,
     TTablet* tablet)
     : Config_(std::move(config))
-    , ReaderConfig_(tablet->GetReaderConfig())
+    , ReaderConfig_(tablet->GetSettings().ReaderConfig)
     , StoreId_(id)
     , Tablet_(tablet)
     , PerformanceCounters_(Tablet_->PerformanceCounters())
@@ -95,6 +94,9 @@ TStoreBase::~TStoreBase()
     YT_LOG_DEBUG("Store destroyed");
     UpdateTabletDynamicMemoryUsage(-1);
 }
+
+void TStoreBase::Initialize()
+{ }
 
 void TStoreBase::SetMemoryTracker(NClusterNode::TNodeMemoryTrackerPtr memoryTracker)
 {
@@ -213,8 +215,14 @@ TDynamicStoreBase::TDynamicStoreBase(
     , RowBuffer_(New<TRowBuffer>(
         TDynamicStoreBufferTag(),
         Config_->PoolChunkSize))
+    , HunkColumnFlags_(new bool[Tablet_->GetPhysicalSchema()->Columns().size()])
 {
     SetStoreState(EStoreState::ActiveDynamic);
+
+    const auto& schema = *Tablet_->GetPhysicalSchema();
+    for (int index = 0; index < static_cast<int>(schema.Columns().size()); ++index) {
+        HunkColumnFlags_[index] = schema.Columns()[index].MaxInlineHunkSize().has_value();
+    }
 }
 
 EMemoryCategory TDynamicStoreBase::GetMemoryCategory() const
@@ -423,6 +431,7 @@ TChunkStoreBase::TChunkStoreBase(
     TChunkId chunkId,
     TTimestamp chunkTimestamp,
     TTablet* tablet,
+    const NTabletNode::NProto::TAddStoreDescriptor* addStoreDescriptor,
     IBlockCachePtr blockCache,
     IChunkRegistryPtr chunkRegistry,
     IChunkBlockManagerPtr chunkBlockManager,
@@ -457,18 +466,28 @@ TChunkStoreBase::TChunkStoreBase(
     YT_VERIFY(TypeFromId(StoreId_) == EObjectType::ChunkView || StoreId_ == ChunkId_ || !ChunkId_);
 
     SetStoreState(EStoreState::Persistent);
+
+    if (addStoreDescriptor) {
+        ChunkMeta_->CopyFrom(addStoreDescriptor->chunk_meta());
+        if (auto optionalHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(ChunkMeta_->extensions())) {
+            HunkChunkRefs_.reserve(optionalHunkChunkRefsExt->refs_size());
+            for (const auto& ref : optionalHunkChunkRefsExt->refs()) {
+                HunkChunkRefs_.push_back({
+                    .HunkChunk = Tablet_->GetHunkChunk(FromProto<TChunkId>(ref.chunk_id())),
+                    .HunkCount = ref.hunk_count(),
+                    .TotalHunkLength = ref.total_hunk_length()
+                });
+            }
+        }
+    }
 }
 
-void TChunkStoreBase::Initialize(const TAddStoreDescriptor* descriptor)
+void TChunkStoreBase::Initialize()
 {
-    auto inMemoryMode = Tablet_->GetMountConfig()->InMemoryMode;
+    TStoreBase::Initialize();
 
-    SetInMemoryMode(inMemoryMode);
-
-    if (descriptor) {
-        ChunkMeta_->CopyFrom(descriptor->chunk_meta());
-        PrecacheProperties();
-    }
+    SetInMemoryMode(Tablet_->GetSettings().MountConfig->InMemoryMode);
+    MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_->extensions());
 }
 
 const TChunkMeta& TChunkStoreBase::GetChunkMeta() const
@@ -505,7 +524,6 @@ TCallback<void(TSaveContext&)> TChunkStoreBase::AsyncSave()
 {
     return BIND([chunkMeta = ChunkMeta_] (TSaveContext& context) {
         using NYT::Save;
-
         Save(context, *chunkMeta);
     });
 }
@@ -513,10 +531,7 @@ TCallback<void(TSaveContext&)> TChunkStoreBase::AsyncSave()
 void TChunkStoreBase::AsyncLoad(TLoadContext& context)
 {
     using NYT::Load;
-
     Load(context, *ChunkMeta_);
-
-    PrecacheProperties();
 }
 
 void TChunkStoreBase::BuildOrchidYson(TFluentMap fluent)
@@ -531,14 +546,15 @@ void TChunkStoreBase::BuildOrchidYson(TFluentMap fluent)
         .Item("uncompressed_data_size").Value(GetUncompressedDataSize())
         .Item("row_count").Value(GetRowCount())
         .Item("creation_time").Value(GetCreationTime())
-        .DoIf(backingStore.operator bool(), [&] (TFluentMap fluent) {
+        .DoIf(backingStore.operator bool(), [&] (auto fluent) {
             fluent
-                .Item("backing_store").DoMap([&] (TFluentMap fluent) {
+                .Item("backing_store").DoMap([&] (auto fluent) {
                     fluent
                         .Item(ToString(backingStore->GetId()))
                         .DoMap(BIND(&IStore::BuildOrchidYson, backingStore));
                 });
-        });
+        })
+        .Item("hunk_chunk_refs").Value(HunkChunkRefs_);
 }
 
 IDynamicStorePtr TChunkStoreBase::GetBackingStore()
@@ -744,9 +760,9 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(
     }
 }
 
-void TChunkStoreBase::PrecacheProperties()
+const std::vector<THunkChunkRef>& TChunkStoreBase::HunkChunkRefs() const
 {
-    MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_->extensions());
+    return HunkChunkRefs_;
 }
 
 EMemoryCategory TChunkStoreBase::GetMemoryCategory() const

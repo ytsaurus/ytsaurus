@@ -93,7 +93,7 @@ private:
 
         RequestStoreTrim(slot, tablet);
 
-        auto stores = PickStoresForTrimming(tablet);
+        auto stores = PickStoresForTrim(tablet);
         if (stores.empty()) {
             return;
         }
@@ -119,17 +119,17 @@ private:
             return;
         }
 
-        const auto& config = tablet->GetMountConfig();
+        const auto& mountConfig = tablet->GetSettings().MountConfig;
 
-        if (config->MinDataVersions != 0) {
+        if (mountConfig->MinDataVersions != 0) {
             return;
         }
 
-        auto dataTtl = config->MaxDataVersions == 0
-            ? config->MinDataTtl
-            : std::max(config->MinDataTtl, config->MaxDataTtl);
+        auto dataTtl = mountConfig->MaxDataVersions == 0
+            ? mountConfig->MinDataTtl
+            : std::max(mountConfig->MinDataTtl, mountConfig->MaxDataTtl);
 
-        auto minRowCount = config->RowCountToKeep;
+        auto minRowCount = mountConfig->RowCountToKeep;
 
         auto latestTimestamp = Bootstrap_
             ->GetMasterConnection()
@@ -175,10 +175,9 @@ private:
         const std::vector<TOrderedChunkStorePtr>& stores)
     {
         auto tabletId = tablet->GetId();
-        const auto& storeManager = tablet->GetStoreManager();
 
-        NLogging::TLogger Logger(TabletNodeLogger);
-        Logger.AddTag("%v", tablet->GetLoggingTag());
+        auto Logger = TabletNodeLogger
+            .WithTag("%v", tablet->GetLoggingTag());
 
         try {
             YT_LOG_INFO("Trimming tablet stores (StoreIds: %v)",
@@ -234,13 +233,14 @@ private:
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Error trimming tablet stores");
 
+            const auto& storeManager = tablet->GetStoreManager();
             for (const auto& store : stores) {
                 storeManager->BackoffStoreCompaction(store);
             }
         }
     }
 
-    std::vector<TOrderedChunkStorePtr> PickStoresForTrimming(TTablet* tablet)
+    std::vector<TOrderedChunkStorePtr> PickStoresForTrim(TTablet* tablet)
     {
         i64 trimmedRowCount = tablet->GetTrimmedRowCount();
         std::vector<TOrderedChunkStorePtr> result;

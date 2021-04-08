@@ -5,7 +5,7 @@ import "yt_proto/yt/client/chunk_client/proto/read_limit.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TChunkView
+message TChunkViewDescriptor
 {
     required NYT.NProto.TGuid chunk_view_id = 1;
     required NYT.NProto.TGuid underlying_chunk_id = 2;

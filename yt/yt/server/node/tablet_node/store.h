@@ -10,6 +10,8 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
+#include <yt/yt/ytlib/table_client/hunks.h>
+
 #include <yt/yt/core/actions/signal.h>
 #include <yt/yt/core/actions/future.h>
 
@@ -22,6 +24,22 @@
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NTabletNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct THunkChunkRef
+{
+    THunkChunkPtr HunkChunk;
+    i64 HunkCount = 0;
+    i64 TotalHunkLength = 0;
+
+    NTableClient::THunkChunkRef ToBase() const;
+};
+
+void Serialize(const THunkChunkRef& ref, NYson::IYsonConsumer* consumer);
+
+void FormatValue(TStringBuilderBase* builder, const THunkChunkRef& ref, TStringBuf spec);
+TString ToString(const THunkChunkRef& ref);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,6 +79,20 @@ struct IStore
 
     virtual EStoreState GetStoreState() const = 0;
     virtual void SetStoreState(EStoreState state) = 0;
+
+    //! Initializes the store after construction.
+    /*!
+     *  Two scenarios are possible:
+     *
+     *  1) The store is being instantiated in a mutation.
+     *  The caller must provide store descriptor to the constructor and invoke
+     *  #Initialize right away.
+     *
+     *  2) The store is being loaded from a snapshot.
+     *  The caller must provide null store descriptor to the constructor and
+     *  invoke #Initialize once the store's state is fully loaded (see #AsyncLoad).
+     */
+    virtual void Initialize() = 0;
 
     //! Returns the number of dynamic bytes currently used by the store.
     virtual i64 GetDynamicMemoryUsage() const = 0;
@@ -150,6 +182,8 @@ struct IChunkStore
         NNodeTrackerClient::TNodeId localNodeId) const = 0;
 
     virtual const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const = 0;
+
+    virtual const std::vector<THunkChunkRef>& HunkChunkRefs() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkStore)
@@ -281,11 +315,9 @@ DEFINE_REFCOUNTED_TYPE(IOrderedStore)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStoreIdFormatter
+struct TStoreIdFormatter
 {
-public:
     void operator()(TStringBuilderBase* builder, const IStorePtr& store) const;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

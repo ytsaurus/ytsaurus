@@ -133,6 +133,35 @@ TMutableUnversionedRow TRowBuffer::CaptureAndPermuteRow(
     return capturedRow;
 }
 
+TMutableVersionedRow TRowBuffer::Capture(TVersionedRow row, bool deep)
+{
+    if (!row) {
+        return TMutableVersionedRow();
+    }
+
+    auto capturedRow = TMutableVersionedRow::Allocate(
+        &Pool_,
+        row.GetKeyCount(),
+        row.GetValueCount(),
+        row.GetWriteTimestampCount(),
+        row.GetDeleteTimestampCount());
+    ::memcpy(capturedRow.BeginKeys(), row.BeginKeys(), sizeof(TUnversionedValue) * row.GetKeyCount());
+    ::memcpy(capturedRow.BeginValues(), row.BeginValues(), sizeof(TVersionedValue) * row.GetValueCount());
+    ::memcpy(capturedRow.BeginWriteTimestamps(), row.BeginWriteTimestamps(), sizeof(TTimestamp) * row.GetWriteTimestampCount());
+    ::memcpy(capturedRow.BeginDeleteTimestamps(), row.BeginDeleteTimestamps(), sizeof(TTimestamp) * row.GetDeleteTimestampCount());
+
+    if (deep) {
+        for (int index = 0; index < capturedRow.GetKeyCount(); ++index) {
+            Capture(capturedRow.BeginKeys() + index);
+        }
+        for (int index = 0; index < capturedRow.GetValueCount(); ++index) {
+            Capture(capturedRow.BeginValues() + index);
+        }
+    }
+
+    return capturedRow;
+}
+
 TMutableUnversionedRow TRowBuffer::CaptureAndPermuteRow(
     TUnversionedRow row,
     const TNameTableToSchemaIdMapping& idMapping)
@@ -141,7 +170,6 @@ TMutableUnversionedRow TRowBuffer::CaptureAndPermuteRow(
 
     for (int i = 0; i < row.GetCount(); ++i) {
         const auto& value = row[i];
-
         capturedRow[i] = value;
         capturedRow[i].Id = idMapping[value.Id];
     }

@@ -52,15 +52,11 @@ public:
     void AbortRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef);
 
     virtual void Mount(
-        const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors,
+        TRange<const NTabletNode::NProto::TAddStoreDescriptor*> storeDescriptors,
+        TRange<const NTabletNode::NProto::TAddHunkChunkDescriptor*> hunkChunkDescriptors,
         bool createDynamicStore,
         const NTabletNode::NProto::TMountHint& mountHint) override;
-
-    virtual void Remount(
-        TTableMountConfigPtr mountConfig,
-        TTabletChunkReaderConfigPtr readerConfig,
-        TTabletChunkWriterConfigPtr writerConfig,
-        TTabletWriterOptionsPtr writerOptions) override;
+    virtual void Remount(const TTableSettings& settings) override;
 
     virtual void AddStore(IStorePtr store, bool onMount) override;
     virtual void BulkAddStores(TRange<IStorePtr> stores, bool onMount) override;

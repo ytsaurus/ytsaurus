@@ -9,11 +9,11 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const size_t MaxVarInt64Size = (8 * sizeof(ui64) - 1) / 7 + 1;
-const size_t MaxVarUint64Size = (8 * sizeof(ui64) - 1) / 7 + 1;
+constexpr size_t MaxVarInt64Size = (8 * sizeof(ui64) - 1) / 7 + 1;
+constexpr size_t MaxVarUint64Size = (8 * sizeof(ui64) - 1) / 7 + 1;
 
-const size_t MaxVarInt32Size = (8 * sizeof(ui32) - 1) / 7 + 1;
-const size_t MaxVarUint32Size = (8 * sizeof(ui32) - 1) / 7 + 1;
+constexpr size_t MaxVarInt32Size = (8 * sizeof(ui32) - 1) / 7 + 1;
+constexpr size_t MaxVarUint32Size = (8 * sizeof(ui32) - 1) / 7 + 1;
 
 // Various functions to read/write varints.
 

@@ -48,6 +48,7 @@ using namespace NHydra;
 using namespace NObjectClient;
 using namespace NQueryClient;
 using namespace NTableClient;
+using namespace NChunkClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYTree;
@@ -114,6 +115,14 @@ protected:
         }
     }
 
+    virtual THunkChunkPtr CreateHunkChunk(
+        TTablet* /*tablet*/,
+        TChunkId /*chunkId*/,
+        const NTabletNode::NProto::TAddHunkChunkDescriptor* /*descriptor*/) override
+    {
+        YT_ABORT();
+    }
+
     virtual TTransactionManagerPtr GetTransactionManager() override
     {
         return nullptr;
@@ -154,11 +163,8 @@ protected:
         ChunkReadOptions_.ChunkReaderStatistics = New<NChunkClient::TChunkReaderStatistics>();
 
         Tablet_ = std::make_unique<TTablet>(
-            New<TTableMountConfig>(),
-            New<TTabletChunkReaderConfig>(),
-            New<TTabletChunkWriterConfig>(),
-            New<TTabletWriterOptions>(),
             NullTabletId,
+            TTableSettings::CreateNew(),
             0,
             NullObjectId,
             "ut",
@@ -403,7 +409,7 @@ protected:
     {
         auto storeManager = GetStoreManager();
         storeManager->StartEpoch(nullptr);
-        storeManager->Mount({}, true, NProto::TMountHint{});
+        storeManager->Mount({}, {}, true, NProto::TMountHint{});
     }
 
     void RotateStores()

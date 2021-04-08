@@ -38,6 +38,11 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const THashSet<int>& GetMasterChunkMetaExtensionTagsFilter();
+const THashSet<int>& GetSchedulerChunkMetaExtensionTagsFilter();
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ValidateReplicationFactor(int replicationFactor);
 
 NObjectClient::TCellTag PickChunkHostingCell(

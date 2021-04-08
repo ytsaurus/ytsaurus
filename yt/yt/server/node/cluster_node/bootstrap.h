@@ -240,6 +240,7 @@ private:
     NTabletNode::IStoreCompactorPtr StoreCompactor_;
     NTabletNode::IStoreFlusherPtr StoreFlusher_;
     NTabletNode::IStoreTrimmerPtr StoreTrimmer_;
+    NTabletNode::IHunkChunkSweeperPtr HunkChunkSweeper_;
     NTabletNode::IPartitionBalancerPtr PartitionBalancer_;
     NTabletNode::IBackingStoreCleanerPtr BackingStoreCleaner_;
 

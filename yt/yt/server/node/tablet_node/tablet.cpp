@@ -11,6 +11,7 @@
 #include "tablet_profiling.h"
 #include "transaction_manager.h"
 #include "structured_logger.h"
+#include "hunk_chunk.h"
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
@@ -74,15 +75,15 @@ void ValidateTabletRetainedTimestamp(const TTabletSnapshotPtr& tabletSnapshot, T
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDeleteListFlusher::~TDeleteListFlusher()
-{
-    FlushDeleteList();
-}
-
 TRowCache::TRowCache(size_t elementCount, IMemoryUsageTrackerPtr memoryTracker)
     : Allocator(std::move(memoryTracker))
     , Cache(elementCount)
 { }
+
+TRowCache::~TRowCache()
+{
+    FlushDeleteList();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,6 +97,20 @@ void TRuntimeTableReplicaData::MergeFrom(const TTableReplicaStatistics& statisti
 {
     CurrentReplicationRowIndex = statistics.current_replication_row_index();
     CurrentReplicationTimestamp = statistics.current_replication_timestamp();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTableSettings TTableSettings::CreateNew()
+{
+    return {
+        .MountConfig = New<TTableMountConfig>(),
+        .ReaderConfig = New<TTabletChunkReaderConfig>(),
+        .StoreWriterConfig = New<TTabletStoreWriterConfig>(),
+        .StoreWriterOptions = New<TTabletStoreWriterOptions>(),
+        .HunkWriterConfig = New<TTabletHunkWriterConfig>(),
+        .HunkWriterOptions = New<TTabletHunkWriterOptions>()
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -366,21 +381,22 @@ TTablet::TTablet(
     TTabletId tabletId,
     ITabletContext* context)
     : TObjectBase(tabletId)
-    , MountConfig_(New<TTableMountConfig>())
-    , ReaderConfig_(New<TTabletChunkReaderConfig>())
-    , WriterConfig_(New<TTabletChunkWriterConfig>())
-    , WriterOptions_(New<TTabletWriterOptions>())
     , Context_(context)
     , LockManager_(New<TLockManager>())
     , Logger(TabletNodeLogger.WithTag("TabletId: %v", Id_))
-{ }
+    , Settings_(TTableSettings::CreateNew())
+{
+    Settings_.MountConfig = New<TTableMountConfig>();
+    Settings_.ReaderConfig = New<TTabletChunkReaderConfig>();
+    Settings_.StoreWriterConfig = New<TTabletStoreWriterConfig>();
+    Settings_.StoreWriterOptions = New<TTabletStoreWriterOptions>();
+    Settings_.HunkWriterConfig = New<TTabletHunkWriterConfig>();
+    Settings_.HunkWriterOptions = New<TTabletHunkWriterOptions>();
+}
 
 TTablet::TTablet(
-    TTableMountConfigPtr config,
-    TTabletChunkReaderConfigPtr readerConfig,
-    TTabletChunkWriterConfigPtr writerConfig,
-    TTabletWriterOptionsPtr writerOptions,
     TTabletId tabletId,
+    TTableSettings settings,
     NHydra::TRevision mountRevision,
     TObjectId tableId,
     const TYPath& path,
@@ -403,21 +419,18 @@ TTablet::TTablet(
     , Atomicity_(atomicity)
     , CommitOrdering_(commitOrdering)
     , UpstreamReplicaId_(upstreamReplicaId)
-    , HashTableSize_(config->EnableLookupHashTable ? config->MaxDynamicStoreRowCount : 0)
+    , HashTableSize_(settings.MountConfig->EnableLookupHashTable ? settings.MountConfig->MaxDynamicStoreRowCount : 0)
     , RetainedTimestamp_(retainedTimestamp)
-    , MountConfig_(std::move(config))
-    , ReaderConfig_(std::move(readerConfig))
-    , WriterConfig_(std::move(writerConfig))
-    , WriterOptions_(std::move(writerOptions))
+    , Context_(context)
+    , LockManager_(New<TLockManager>())
+    , Logger(TabletNodeLogger.WithTag("TabletId: %v", Id_))
+    , Settings_(std::move(settings))
     , Eden_(std::make_unique<TPartition>(
         this,
         context->GenerateId(EObjectType::TabletPartition),
         EdenIndex,
         PivotKey_,
         NextPivotKey_))
-    , Context_(context)
-    , LockManager_(New<TLockManager>())
-    , Logger(TabletNodeLogger.WithTag("TabletId: %v", Id_))
 {
     Initialize();
 }
@@ -438,44 +451,14 @@ ETabletState TTablet::GetPersistentState() const
     }
 }
 
-const TTableMountConfigPtr& TTablet::GetMountConfig() const
+const TTableSettings& TTablet::GetSettings() const
 {
-    return MountConfig_;
+    return Settings_;
 }
 
-void TTablet::SetMountConfig(TTableMountConfigPtr config)
+void TTablet::SetSettings(TTableSettings settings)
 {
-    MountConfig_ = std::move(config);
-}
-
-const TTabletChunkReaderConfigPtr& TTablet::GetReaderConfig() const
-{
-    return ReaderConfig_;
-}
-
-void TTablet::SetReaderConfig(TTabletChunkReaderConfigPtr config)
-{
-    ReaderConfig_ = std::move(config);
-}
-
-const TTabletChunkWriterConfigPtr& TTablet::GetWriterConfig() const
-{
-    return WriterConfig_;
-}
-
-void TTablet::SetWriterConfig(TTabletChunkWriterConfigPtr config)
-{
-    WriterConfig_ = std::move(config);
-}
-
-const TTabletWriterOptionsPtr& TTablet::GetWriterOptions() const
-{
-    return WriterOptions_;
-}
-
-void TTablet::SetWriterOptions(TTabletWriterOptionsPtr options)
-{
-    WriterOptions_ = std::move(options);
+    Settings_ = std::move(settings);
 }
 
 const IStoreManagerPtr& TTablet::GetStoreManager() const
@@ -527,8 +510,15 @@ void TTablet::Save(TSaveContext& context) const
     // NB: This is not stable.
     for (const auto& [storeId, store] : StoreIdMap_) {
         Save(context, store->GetType());
-        Save(context, store->GetId());
+        Save(context, storeId);
         store->Save(context);
+    }
+
+    TSizeSerializer::Save(context, HunkChunkMap_.size());
+    // NB: This is not stable.
+    for (const auto& [chunkId, hunkChunk] : HunkChunkMap_) {
+        Save(context, chunkId);
+        hunkChunk->Save(context);
     }
 
     Save(context, ActiveStore_ ? ActiveStore_->GetId() : NullStoreId);
@@ -584,10 +574,26 @@ void TTablet::Load(TLoadContext& context)
             auto storeType = Load<EStoreType>(context);
             auto storeId = Load<TStoreId> (context);
             auto store = Context_->CreateStore(this, storeType, storeId, nullptr);
-            YT_VERIFY(StoreIdMap_.emplace(store->GetId(), store).second);
+            YT_VERIFY(StoreIdMap_.emplace(storeId, store).second);
             store->Load(context);
             if (store->IsChunk()) {
-                YT_VERIFY(store->AsChunk()->GetChunkId() != TChunkId{});
+                YT_VERIFY(store->AsChunk()->GetChunkId());
+            }
+        }
+    }
+
+    // COMPAT(babenko)
+    if (context.GetVersion() >= ETabletReign::Hunks) {
+        int hunkChunkCount = TSizeSerializer::LoadSuspended(context);
+        SERIALIZATION_DUMP_WRITE(context, "hunk_chunks[%v]", hunkChunkCount);
+        SERIALIZATION_DUMP_INDENT(context) {
+            for (int index = 0; index < hunkChunkCount; ++index) {
+                auto chunkId = Load<TChunkId>(context);
+                auto hunkChunk = Context_->CreateHunkChunk(this, chunkId, nullptr);
+                YT_VERIFY(HunkChunkMap_.emplace(chunkId, hunkChunk).second);
+                hunkChunk->Load(context);
+                hunkChunk->Initialize();
+                UpdateDanglingHunkChunks(hunkChunk);
             }
         }
     }
@@ -654,7 +660,7 @@ TCallback<void(TSaveContext&)> TTablet::AsyncSave()
 {
     std::vector<std::pair<TStoreId, TCallback<void(TSaveContext&)>>> capturedStores;
     for (const auto& [storeId, store] : StoreIdMap_) {
-        capturedStores.push_back(std::make_pair(store->GetId(), store->AsyncSave()));
+        capturedStores.emplace_back(storeId, store->AsyncSave());
     }
 
     auto capturedEden = Eden_->AsyncSave();
@@ -673,21 +679,24 @@ TCallback<void(TSaveContext&)> TTablet::AsyncSave()
         ] (TSaveContext& context) {
             using NYT::Save;
 
-            Save(context, *snapshot->MountConfig);
-            Save(context, *snapshot->WriterConfig);
-            Save(context, *snapshot->WriterOptions);
+            Save(context, *snapshot->Settings.MountConfig);
+            Save(context, *snapshot->Settings.StoreWriterConfig);
+            Save(context, *snapshot->Settings.StoreWriterOptions);
+            Save(context, *snapshot->Settings.HunkWriterConfig);
+            Save(context, *snapshot->Settings.HunkWriterOptions);
             Save(context, snapshot->PivotKey);
             Save(context, snapshot->NextPivotKey);
 
             capturedEden.Run(context);
+
             for (const auto& callback : capturedPartitions) {
                 callback.Run(context);
             }
 
             // NB: This is not stable.
-            for (const auto& [storeId, store] : capturedStores) {
+            for (const auto& [storeId, callback] : capturedStores) {
                 Save(context, storeId);
-                store.Run(context);
+                callback(context);
             }
         });
 }
@@ -696,9 +705,16 @@ void TTablet::AsyncLoad(TLoadContext& context)
 {
     using NYT::Load;
 
-    Load(context, *MountConfig_);
-    Load(context, *WriterConfig_);
-    Load(context, *WriterOptions_);
+    Load(context, *Settings_.MountConfig);
+    Load(context, *Settings_.StoreWriterConfig);
+    Load(context, *Settings_.StoreWriterOptions);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= ETabletReign::Hunks) {
+        Load(context, *Settings_.HunkWriterConfig);
+        Load(context, *Settings_.HunkWriterOptions);
+    } else {
+        Settings_.HunkWriterOptions = CreateFallbackHunkWriterOptions(Settings_.StoreWriterOptions);
+    }
     Load(context, PivotKey_);
     Load(context, NextPivotKey_);
 
@@ -725,6 +741,7 @@ void TTablet::AsyncLoad(TLoadContext& context)
             SERIALIZATION_DUMP_INDENT(context) {
                 auto store = GetStore(storeId);
                 store->AsyncLoad(context);
+                store->Initialize();
             }
         }
     }
@@ -775,15 +792,6 @@ TPartition* TTablet::GetPartition(TPartitionId partitionId)
 
 void TTablet::MergePartitions(int firstIndex, int lastIndex)
 {
-    YT_LOG_DEBUG("Merging partitions (PartitionIds: %v, FirstIndex: %v, LastIndex: %v)",
-        MakeFormattableView(
-            MakeRange(
-                PartitionList_.data() + firstIndex,
-                PartitionList_.data() + lastIndex + 1),
-            TPartitionIdFormatter()),
-        firstIndex,
-        lastIndex);
-
     YT_VERIFY(IsPhysicallySorted());
 
     for (int i = lastIndex + 1; i < static_cast<int>(PartitionList_.size()); ++i) {
@@ -857,11 +865,6 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
 void TTablet::SplitPartition(int index, const std::vector<TLegacyOwningKey>& pivotKeys)
 {
     YT_VERIFY(IsPhysicallySorted());
-
-    YT_LOG_DEBUG("Splitting partition (PartitionId: %v, Index: %v, SplitFactor: %v)",
-        PartitionList_[index]->GetId(),
-        index,
-        pivotKeys.size());
 
     auto existingPartition = std::move(PartitionList_[index]);
     YT_VERIFY(existingPartition->GetPivotKey() == pivotKeys[0]);
@@ -1049,6 +1052,65 @@ IStorePtr TTablet::GetStoreOrThrow(TStoreId id)
     return store;
 }
 
+const THashMap<TChunkId, THunkChunkPtr>& TTablet::HunkChunkMap() const
+{
+    return HunkChunkMap_;
+}
+
+void TTablet::AddHunkChunk(THunkChunkPtr hunkChunk)
+{
+    YT_VERIFY(HunkChunkMap_.emplace(hunkChunk->GetId(), hunkChunk).second);
+}
+
+void TTablet::RemoveHunkChunk(THunkChunkPtr hunkChunk)
+{
+    YT_VERIFY(HunkChunkMap_.erase(hunkChunk->GetId()) == 1);
+    // NB: May be missing.
+    DanglingHunkChunks_.erase(hunkChunk);
+}
+
+THunkChunkPtr TTablet::FindHunkChunk(TChunkId id)
+{
+    auto it = HunkChunkMap_.find(id);
+    return it == HunkChunkMap_.end() ? nullptr : it->second;
+}
+
+THunkChunkPtr TTablet::GetHunkChunk(TChunkId id)
+{
+    auto hunkChunk = FindHunkChunk(id);
+    YT_VERIFY(hunkChunk);
+    return hunkChunk;
+}
+
+THunkChunkPtr TTablet::GetHunkChunkOrThrow(TChunkId id)
+{
+    auto hunkChunk = FindHunkChunk(id);
+    if (!hunkChunk) {
+        THROW_ERROR_EXCEPTION("No such hunk chunk %v", id);
+    }
+    return hunkChunk;
+}
+
+void TTablet::UpdatePreparedStoreRefCount(const THunkChunkPtr& hunkChunk, int delta)
+{
+    hunkChunk->SetPreparedStoreRefCount(hunkChunk->GetPreparedStoreRefCount() + delta);
+    UpdateDanglingHunkChunks(hunkChunk);
+}
+
+void TTablet::UpdateHunkChunkRef(const THunkChunkRef& ref, int delta)
+{
+    const auto& hunkChunk = ref.HunkChunk;
+    hunkChunk->SetReferencedHunkCount(hunkChunk->GetReferencedHunkCount() + ref.HunkCount * delta);
+    hunkChunk->SetReferencedTotalHunkLength(hunkChunk->GetReferencedTotalHunkLength() + ref.TotalHunkLength * delta);
+    hunkChunk->SetStoreRefCount(hunkChunk->GetStoreRefCount() + delta);
+    UpdateDanglingHunkChunks(hunkChunk);
+}
+
+const THashSet<THunkChunkPtr>& TTablet::DanglingHunkChunks() const
+{
+    return DanglingHunkChunks_;
+}
+
 TTableReplicaInfo* TTablet::FindReplicaInfo(TTableReplicaId id)
 {
     auto it = Replicas_.find(id);
@@ -1200,9 +1262,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot, std::optional<TLo
     snapshot->MountRevision = MountRevision_;
     snapshot->TablePath = TablePath_;
     snapshot->TableId = TableId_;
-    snapshot->MountConfig = MountConfig_;
-    snapshot->WriterConfig = WriterConfig_;
-    snapshot->WriterOptions = WriterOptions_;
+    snapshot->Settings = Settings_;
     snapshot->PivotKey = PivotKey_;
     snapshot->NextPivotKey = NextPivotKey_;
     snapshot->TableSchema = TableSchema_;
@@ -1281,7 +1341,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot, std::optional<TLo
         }
     }
 
-    if (MountConfig_->EnableDynamicStoreRead) {
+    if (Settings_.MountConfig->EnableDynamicStoreRead) {
         snapshot->PreallocatedDynamicStoreIds = std::vector<TDynamicStoreId>(
             DynamicStoreIdPool_.begin(),
             DynamicStoreIdPool_.end());
@@ -1325,13 +1385,13 @@ void TTablet::Initialize()
     StoresUpdateCommitSemaphore_ = New<NConcurrency::TAsyncSemaphore>(1);
 
     FlushThrottler_ = CreateReconfigurableThroughputThrottler(
-        MountConfig_->FlushThrottler,
+        Settings_.MountConfig->FlushThrottler,
         Logger);
     CompactionThrottler_ = CreateReconfigurableThroughputThrottler(
-        MountConfig_->CompactionThrottler,
+        Settings_.MountConfig->CompactionThrottler,
         Logger);
     PartitioningThrottler_ = CreateReconfigurableThroughputThrottler(
-        MountConfig_->PartitioningThrottler,
+        Settings_.MountConfig->PartitioningThrottler,
         Logger);
 
     LoggingTag_ = Format("TabletId: %v, TableId: %v, TablePath: %v",
@@ -1342,15 +1402,15 @@ void TTablet::Initialize()
 
 void TTablet::ConfigureRowCache()
 {
-    if (MountConfig_->LookupCacheRowsPerTablet > 0) {
+    if (Settings_.MountConfig->LookupCacheRowsPerTablet > 0) {
         if (!RowCache_) {
             RowCache_ = New<TRowCache>(
-                MountConfig_->LookupCacheRowsPerTablet,
+                Settings_.MountConfig->LookupCacheRowsPerTablet,
                 Context_
                     ->GetMemoryUsageTracker()
                     ->WithCategory(NNodeTrackerClient::EMemoryCategory::LookupRowsCache));
         } else {
-            RowCache_->Cache.SetCapacity(MountConfig_->LookupCacheRowsPerTablet);
+            RowCache_->Cache.SetCapacity(Settings_.MountConfig->LookupCacheRowsPerTablet);
         }
     } else if (RowCache_) {
         RowCache_.Reset();
@@ -1365,26 +1425,27 @@ void TTablet::ResetRowCache()
 void TTablet::FillProfilerTags()
 {
     TableProfiler_ = CreateTableProfiler(
-        MountConfig_->ProfilingMode,
+        Settings_.MountConfig->ProfilingMode,
         Context_->GetTabletCellBundleName(),
         TablePath_,
-        MountConfig_->ProfilingTag,
-        WriterOptions_->Account,
-        WriterOptions_->MediumName);
+        Settings_.MountConfig->ProfilingTag,
+        // TODO(babenko): hunks profiling
+        Settings_.StoreWriterOptions->Account,
+        Settings_.StoreWriterOptions->MediumName);
 }
 
 void TTablet::ReconfigureThrottlers()
 {
-    FlushThrottler_->Reconfigure(MountConfig_->FlushThrottler);
-    CompactionThrottler_->Reconfigure(MountConfig_->CompactionThrottler);
-    PartitioningThrottler_->Reconfigure(MountConfig_->PartitioningThrottler);
+    FlushThrottler_->Reconfigure(Settings_.MountConfig->FlushThrottler);
+    CompactionThrottler_->Reconfigure(Settings_.MountConfig->CompactionThrottler);
+    PartitioningThrottler_->Reconfigure(Settings_.MountConfig->PartitioningThrottler);
 }
 
 void TTablet::ReconfigureDistributedThrottlers(const IDistributedThrottlerManagerPtr& throttlerManager)
 {
     auto getThrottlerConfig = [&] (const TString& key) {
-        auto it = MountConfig_->Throttlers.find(key);
-        return it != MountConfig_->Throttlers.end()
+        auto it = Settings_.MountConfig->Throttlers.find(key);
+        return it != Settings_.MountConfig->Throttlers.end()
             ? it->second
             : New<TThroughputThrottlerConfig>();
     };
@@ -1409,7 +1470,7 @@ void TTablet::ReconfigureDistributedThrottlers(const IDistributedThrottlerManage
             LookupThrottlerRpcTimeout,
             /* admitUnlimitedThrottler */ false);
     YT_VERIFY(
-        MountConfig_->Throttlers.contains("lookup") ||
+        Settings_.MountConfig->Throttlers.contains("lookup") ||
         !DistributedThrottlers_[ETabletDistributedThrottlerKind::Lookup]);
 
     DistributedThrottlers_[ETabletDistributedThrottlerKind::Select] =
@@ -1450,7 +1511,7 @@ void TTablet::UpdateReplicaCounters()
 {
     for (auto& [replicaId, replica] : Replicas_) {
         replica.SetCounters(TableProfiler_->GetReplicaCounters(
-            MountConfig_->EnableProfiling,
+            Settings_.MountConfig->EnableProfiling,
             replica.GetClusterName(),
             replica.GetReplicaPath(),
             replicaId));
@@ -1646,7 +1707,7 @@ TMountHint TTablet::GetMountHint() const
 
 TConsistentPlacementHash TTablet::GetChunkConsistentPlacementHash() const
 {
-    if (!MountConfig_->EnableChunkConsistentPlacement) {
+    if (!Settings_.MountConfig->EnableChunkConsistentPlacement) {
         return NullConsistentPlacementHash;
     }
 
@@ -1684,6 +1745,29 @@ void TTablet::ThrottleTabletStoresUpdate(
         slot->GetCellId());
     TableProfiler_->GetTabletCounters()->ThrottlerWaitTimers[ETabletDistributedThrottlerKind::StoresUpdate]
         .Record(elapsedTime);
+}
+
+void TTablet::UpdateDanglingHunkChunks(const THunkChunkPtr& hunkChunk)
+{
+    if (hunkChunk->IsDangling()) {
+        // NB: May already be there.
+        DanglingHunkChunks_.insert(hunkChunk);
+    } else {
+        // NB: May be missing.
+        DanglingHunkChunks_.erase(hunkChunk);
+    }
+}
+
+TTabletHunkWriterOptionsPtr TTablet::CreateFallbackHunkWriterOptions(const TTabletStoreWriterOptionsPtr& storeWriterOptions)
+{
+    auto hunkWriterOptions = New<TTabletHunkWriterOptions>();
+    hunkWriterOptions->ReplicationFactor = storeWriterOptions->ReplicationFactor;
+    hunkWriterOptions->MediumName = storeWriterOptions->MediumName;
+    hunkWriterOptions->Account = storeWriterOptions->Account;
+    hunkWriterOptions->CompressionCodec = storeWriterOptions->CompressionCodec;
+    hunkWriterOptions->ErasureCodec = storeWriterOptions->ErasureCodec;
+    hunkWriterOptions->ChunksVital = storeWriterOptions->ChunksVital;
+    return hunkWriterOptions;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

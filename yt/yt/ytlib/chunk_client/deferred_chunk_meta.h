@@ -19,17 +19,17 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::optional<std::vector<int>>, BlockIndexMapping);
 
 public:
-    //! Push callback which will be invoked during finalization.
-    void PushCallback(std::function<void(TDeferredChunkMeta*)> callback);
+    //! Register #finalizer callback that will be invoked during finalization.
+    void RegisterFinalizer(std::function<void(TDeferredChunkMeta*)> finalizer);
 
-    //! Should be called exactly once; applies all the deferred callbacks to self.
+    //! Should be called exactly once; invokes all the registered finalizers.
     void Finalize();
 
     //! True if #Finalize was called.
     bool IsFinalized() const;
 
 private:
-    std::vector<std::function<void(TDeferredChunkMeta*)>> Callbacks_;
+    std::vector<std::function<void(TDeferredChunkMeta*)>> Finalizers_;
     bool Finalized_ = false;
 };
 
