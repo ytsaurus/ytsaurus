@@ -200,7 +200,7 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     const TMethodDescriptor& descriptor,
     const NProfiling::TProfiler& profiler)
     : Descriptor(descriptor)
-    , Registry(profiler.WithTag("method", descriptor.Method, -1))
+    , Profiler(profiler.WithTag("method", descriptor.Method, -1))
     , LoggingSuppressionFailedRequestThrottler(
         CreateReconfigurableThroughputThrottler(DefaultLoggingSuppressionFailedRequestThrottlerConfig))
     , DefaultRequestQueue("default")
@@ -225,9 +225,11 @@ public:
         , RequestId_(acceptedRequest.RequestId)
         , ReplyBus_(std::move(acceptedRequest.ReplyBus))
         , RuntimeInfo_(acceptedRequest.RuntimeInfo)
-        , PerformanceCounters_(Service_->GetMethodPerformanceCounters(RuntimeInfo_, GetAuthenticationIdentity().UserTag))
         , TraceContext_(std::move(acceptedRequest.TraceContext))
         , RequestQueue_(acceptedRequest.RequestQueue)
+        , PerformanceCounters_(Service_->GetMethodPerformanceCounters(
+            RuntimeInfo_,
+            {GetAuthenticationIdentity().UserTag, RequestQueue_}))
         , ArriveInstant_(GetCpuInstant())
 
     {
@@ -452,9 +454,9 @@ private:
     const TRequestId RequestId_;
     const IBusPtr ReplyBus_;
     TRuntimeMethodInfo* const RuntimeInfo_;
-    TMethodPerformanceCounters* const PerformanceCounters_;
     const TTraceContextPtr TraceContext_;
     TRequestQueue* const RequestQueue_;
+    TMethodPerformanceCounters* const PerformanceCounters_;
 
     EMemoryZone ResponseMemoryZone_;
 
@@ -1249,6 +1251,26 @@ void TServiceBase::TRequestQueue::SubscribeToRequestBytesThrottler()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TServiceBase::TRuntimeMethodInfo::TPerformanceCountersKeyEquals
+{
+    bool operator()(
+        const TNonowningPerformanceCountersKey& lhs,
+        const TNonowningPerformanceCountersKey& rhs) const
+    {
+        return lhs == rhs;
+    }
+
+    bool operator()(
+        const TOwningPerformanceCountersKey& lhs,
+        const TNonowningPerformanceCountersKey& rhs) const
+    {
+        const auto& [lhsUserTag, lhsRequestQueue] = lhs;
+        return TNonowningPerformanceCountersKey{lhsUserTag, lhsRequestQueue} == rhs;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TServiceBase::TServiceBase(
     IInvokerPtr defaultInvoker,
     const TServiceDescriptor& descriptor,
@@ -1260,8 +1282,8 @@ TServiceBase::TServiceBase(
     , Authenticator_(std::move(authenticator))
     , ServiceDescriptor_(descriptor)
     , ServiceId_(descriptor.GetFullServiceName(), realmId)
-    , ProfilingRegistry_(RpcServerProfiler.WithHot().WithTag("yt_service", ServiceId_.ServiceName))
-    , AuthenticationTimer_(ProfilingRegistry_.Timer("/authentication_time"))
+    , Profiler_(RpcServerProfiler.WithHot().WithTag("yt_service", ServiceId_.ServiceName))
+    , AuthenticationTimer_(Profiler_.Timer("/authentication_time"))
 {
     YT_VERIFY(DefaultInvoker_);
 
@@ -1269,7 +1291,7 @@ TServiceBase::TServiceBase(
         .SetInvoker(GetSyncInvoker())
         .SetSystem(true));
 
-    ProfilingRegistry_.AddFuncGauge("/authentication_queue_size", MakeStrong(this), [=] {
+    Profiler_.AddFuncGauge("/authentication_queue_size", MakeStrong(this), [=] {
         return AuthenticationQueueSize_.load(std::memory_order_relaxed);
     });
 }
@@ -1496,11 +1518,14 @@ void TServiceBase::RegisterRequestQueue(
         runtimeInfo->Descriptor.Method,
         requestQueue->GetName());
 
-    auto registry = runtimeInfo->Registry.WithRequiredTag("queue", requestQueue->GetName());
-    registry.AddFuncGauge("/request_queue_size", MakeStrong(this), [=] {
+    auto profiler = runtimeInfo->Profiler;
+    if (runtimeInfo->Descriptor.RequestQueueProvider) {
+        profiler = profiler.WithTag("queue", requestQueue->GetName());
+    }
+    profiler.AddFuncGauge("/request_queue_size", MakeStrong(this), [=] {
         return requestQueue->GetQueueSize();
     });
-    registry.AddFuncGauge("/concurrency", MakeStrong(this), [=] {
+    profiler.AddFuncGauge("/concurrency", MakeStrong(this), [=] {
         return requestQueue->GetConcurrency();
     });
 
@@ -1790,32 +1815,38 @@ void TServiceBase::OnPendingPayloadsLeaseExpired(TRequestId requestId)
 
 TServiceBase::TMethodPerformanceCountersPtr TServiceBase::CreateMethodPerformanceCounters(
     TRuntimeMethodInfo* runtimeInfo,
-    const std::optional<TString>& userTag)
+    const TRuntimeMethodInfo::TNonowningPerformanceCountersKey& key)
 {
-    auto profiler = runtimeInfo->Registry.WithSparse();
-    if (userTag) {
-        profiler = profiler.WithTag("user", *userTag);
-    }
+    const auto& [userTag, requestQueue] = key;
 
+    auto profiler = runtimeInfo->Profiler.WithSparse();
+    if (userTag) {
+        profiler = profiler.WithTag("user", TString(userTag));
+    }
+    if (runtimeInfo->Descriptor.RequestQueueProvider) {
+        profiler = profiler.WithTag("queue", requestQueue->GetName());
+    }
     return New<TMethodPerformanceCounters>(profiler);
 }
 
 TServiceBase::TMethodPerformanceCounters* TServiceBase::GetMethodPerformanceCounters(
     TRuntimeMethodInfo* runtimeInfo,
-    const TString& userTag)
+    const TRuntimeMethodInfo::TNonowningPerformanceCountersKey& key)
 {
-    if (!EnablePerUserProfiling_.load(std::memory_order_relaxed)) {
-        return runtimeInfo->GlobalPerformanceCounters.Get();
-    }
+    auto [userTag, requestQueue] = key;
 
     // Fast path.
-    if (userTag == RootUserName) {
+    if (userTag == RootUserName && requestQueue == &runtimeInfo->DefaultRequestQueue) {
         return runtimeInfo->RootPerformanceCounters.Get();
     }
 
     // Also fast path.
-    return runtimeInfo->UserTagToPerformanceCounters.FindOrInsert(userTag, [&, this] {
-        return CreateMethodPerformanceCounters(runtimeInfo, userTag);
+    if (!EnablePerUserProfiling_.load(std::memory_order_relaxed)) {
+        userTag = {};
+    }
+    auto actualKey = TRuntimeMethodInfo::TNonowningPerformanceCountersKey{userTag, requestQueue};
+    return runtimeInfo->PerformanceCountersMap.FindOrInsert(actualKey, [&] {
+        return CreateMethodPerformanceCounters(runtimeInfo, actualKey);
     }).first->Get();
 }
 
@@ -1858,10 +1889,11 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDe
 {
     ValidateInactive();
 
-    auto runtimeInfo = New<TRuntimeMethodInfo>(descriptor, ProfilingRegistry_);
+    auto runtimeInfo = New<TRuntimeMethodInfo>(descriptor, Profiler_);
 
-    runtimeInfo->GlobalPerformanceCounters = CreateMethodPerformanceCounters(runtimeInfo.Get(), std::nullopt);
-    runtimeInfo->RootPerformanceCounters = CreateMethodPerformanceCounters(runtimeInfo.Get(), RootUserName);
+    runtimeInfo->RootPerformanceCounters = CreateMethodPerformanceCounters(
+        runtimeInfo.Get(),
+        {RootUserName, &runtimeInfo->DefaultRequestQueue});
 
     runtimeInfo->Heavy.store(descriptor.Options.Heavy);
     runtimeInfo->QueueSizeLimit.store(descriptor.QueueSizeLimit);
@@ -1872,11 +1904,11 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDe
     // Failure here means that such method is already registered.
     YT_VERIFY(MethodMap_.emplace(descriptor.Method, runtimeInfo).second);
 
-    auto& registry = runtimeInfo->Registry;
-    registry.AddFuncGauge("/request_queue_size_limit", MakeStrong(this), [=] {
+    auto& profiler = runtimeInfo->Profiler;
+    profiler.AddFuncGauge("/request_queue_size_limit", MakeStrong(this), [=] {
         return runtimeInfo->QueueSizeLimit.load(std::memory_order_relaxed);
     });
-    registry.AddFuncGauge("/concurrency_limit", MakeStrong(this), [=] {
+    profiler.AddFuncGauge("/concurrency_limit", MakeStrong(this), [=] {
         return runtimeInfo->ConcurrencyLimit.load(std::memory_order_relaxed);
     });
 
