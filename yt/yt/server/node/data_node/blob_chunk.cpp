@@ -153,17 +153,6 @@ TRefCountedBlocksExtPtr TBlobChunkBase::FindCachedBlocksExt()
     return blocksExt;
 }
 
-bool TBlobChunkBase::IsFatalError(const TError& error)
-{
-    if (error.FindMatching(NChunkClient::EErrorCode::BlockOutOfRange) ||
-        error.FindMatching(NYT::EErrorCode::Canceled))
-    {
-        return false;
-    }
-
-    return true;
-}
-
 TChunkFileReaderPtr TBlobChunkBase::GetReader()
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -321,7 +310,13 @@ void TBlobChunkBase::DoReadMeta(
             .ValueOrThrow();
     } catch (const std::exception& ex) {
         auto error = TError(ex);
-        if (error.FindMatching(NFS::EErrorCode::IOError)) {
+        if (error.FindMatching(NChunkClient::EErrorCode::IncorrectChunkFileHeaderSignature)) {
+            YT_LOG_WARNING("Chunk meta has checksum mismatch, removing it (ChunkId: %v, LocationId: %v)",
+                Id_,
+                Location_->GetId());
+            const auto& chunkStore = Bootstrap_->GetChunkStore();
+            chunkStore->RemoveChunk(this);
+        } else if (error.FindMatching(NFS::EErrorCode::IOError)) {
             // Location is probably broken.
             Location_->Disable(error);
         }
@@ -574,7 +569,6 @@ void TBlobChunkBase::DoReadBlockSet(
                 .Via(session->Invoker));
     } catch (const std::exception& ex) {
         FailSession(session, ex);
-        return;
     }
 }
 
@@ -595,20 +589,19 @@ void TBlobChunkBase::OnBlocksRead(
             "Error reading blob chunk %v",
             Id_)
             << TError(blocksOrError);
-        if (error.FindMatching(NChunkClient::EErrorCode::IncorrectChunkFileChecksum)) {
+        if (blocksOrError.FindMatching(NChunkClient::EErrorCode::IncorrectChunkFileChecksum)) {
             if (ShouldSyncOnClose()) {
                 Location_->Disable(error);
             } else {
-                YT_LOG_DEBUG("Block in chunk without \"sync_on_close\" has checksum mismatch, removing it (ChunkId: %v, LocationId: %v)",
+                YT_LOG_WARNING("Block in chunk without \"sync_on_close\" has checksum mismatch, removing it (ChunkId: %v, LocationId: %v)",
                     Id_,
                     Location_->GetId());
                 const auto& chunkStore = Bootstrap_->GetChunkStore();
                 chunkStore->RemoveChunk(this);
             }
-        } else if (IsFatalError(blocksOrError)) {
+        } else if (blocksOrError.FindMatching(NFS::EErrorCode::IOError)) {
             Location_->Disable(error);
         }
-
         FailSession(session, error);
         return;
     }
