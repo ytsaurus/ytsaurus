@@ -11,6 +11,7 @@ import (
 )
 
 type testNode struct {
+	Value  interface{} `yson:",value"`
 	Type   yt.NodeType `yson:"type,attr"`
 	MyAttr string      `yson:"my_attr,attr"`
 }
@@ -22,6 +23,18 @@ func TestWalk(t *testing.T) {
 		Attributes: map[string]interface{}{
 			"my_attr": "my_value",
 		},
+		Recursive: true,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, env.YT.SetNode(env.Ctx, ypath.Path("//home/ytwalk/foo/@opaque"), true, nil))
+
+	_, err = env.YT.CreateNode(env.Ctx, ypath.Path("//home/ytwalk/foo/string"), yt.NodeString, &yt.CreateNodeOptions{
+		Recursive: true,
+	})
+	require.NoError(t, err)
+
+	_, err = env.YT.CreateNode(env.Ctx, ypath.Path("//home/ytwalk/foo/bool"), yt.NodeBoolean, &yt.CreateNodeOptions{
 		Recursive: true,
 	})
 	require.NoError(t, err)
@@ -47,6 +60,8 @@ func TestWalk(t *testing.T) {
 		require.Equal(t, walkResult, map[ypath.Path]testNode{
 			"//home/ytwalk":             {Type: yt.NodeMap},
 			"//home/ytwalk/foo":         {Type: yt.NodeMap},
+			"//home/ytwalk/foo/string":  {Type: yt.NodeString, Value: ""},
+			"//home/ytwalk/foo/bool":    {Type: yt.NodeBoolean, Value: false},
 			"//home/ytwalk/foo/tree":    {Type: yt.NodeMap},
 			"//home/ytwalk/foo/bar":     {Type: yt.NodeMap},
 			"//home/ytwalk/foo/bar/zog": {Type: yt.NodeTable, MyAttr: "my_value"},
@@ -69,10 +84,12 @@ func TestWalk(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Equal(t, walkResult, map[ypath.Path]struct{}{
-			"//home/ytwalk":          {},
-			"//home/ytwalk/foo":      {},
-			"//home/ytwalk/foo/tree": {},
-			"//home/ytwalk/foo/bar":  {},
+			"//home/ytwalk":            {},
+			"//home/ytwalk/foo":        {},
+			"//home/ytwalk/foo/string": {},
+			"//home/ytwalk/foo/bool":   {},
+			"//home/ytwalk/foo/tree":   {},
+			"//home/ytwalk/foo/bar":    {},
 		})
 	})
 }

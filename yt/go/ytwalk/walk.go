@@ -29,9 +29,29 @@ type Walk struct {
 	OnNode func(path ypath.Path, node interface{}) error
 }
 
+type treeOrValue struct {
+	Children map[string]tree
+	Value    interface{}
+}
+
+func (s *treeOrValue) UnmarshalYSON(r *yson.Reader) error {
+	e, err := r.Next(false)
+	if err != nil {
+		return err
+	}
+	r.Undo(e)
+
+	d := &yson.Decoder{R: r}
+	if e == yson.EventBeginMap {
+		return d.Decode(&s.Children)
+	} else {
+		return d.Decode(&s.Value)
+	}
+}
+
 type tree struct {
 	Attributes map[string]interface{} `yson:",attrs"`
-	Children   map[string]tree        `yson:",value"`
+	Value      treeOrValue            `yson:",value"`
 }
 
 func Do(ctx context.Context, yc yt.Client, w *Walk) error {
@@ -50,10 +70,16 @@ func Do(ctx context.Context, yc yt.Client, w *Walk) error {
 		if w.Node != nil {
 			node = reflect.New(reflect.TypeOf(w.Node).Elem()).Interface()
 
-			ysonNode, _ := yson.Marshal(yson.ValueWithAttrs{Attrs: t.Attributes})
+			ysonNode, _ := yson.Marshal(yson.ValueWithAttrs{Attrs: t.Attributes, Value: t.Value.Value})
 			if err := yson.Unmarshal(ysonNode, node); err != nil {
 				return fmt.Errorf("walk %q failed: %w", path, err)
 			}
+		}
+
+		if t.Attributes["opaque"] == true && path != w.Root {
+			subwalk := *w
+			subwalk.Root = path
+			return Do(ctx, yc, &subwalk)
 		}
 
 		err := w.OnNode(path, node)
@@ -63,7 +89,7 @@ func Do(ctx context.Context, yc yt.Client, w *Walk) error {
 			return err
 		}
 
-		for name, child := range t.Children {
+		for name, child := range t.Value.Children {
 			if err := walk(path.Child(name), child); err != nil {
 				return err
 			}
