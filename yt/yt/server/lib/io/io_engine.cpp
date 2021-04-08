@@ -971,8 +971,6 @@ private:
         std::array<iovec, MaxUringQueueSize * MaxIovCountPerRequest> Iovs_;
         int UsedIovCount_ = 0;
 
-        int PendingIORequestCount_ = 0;
-
         bool PooledDirectIOReadBufferRegistered_ = false;
         std::vector<TMutableRef> SparePooledDirectIOReadBuffers_;
 
@@ -1100,7 +1098,7 @@ private:
                 Uring_.GetSQSpaceLeft() > 0 &&
                 !SparePooledDirectIOReadBuffers_.empty() &&
                 // +2 is for TNotificationHandle reads.
-                PendingIORequestCount_ < Config_->MaxConcurrentRequestsPerThread + 2;
+                PendingRequestCount_ < Config_->MaxConcurrentRequestsPerThread + 2;
         }
 
         void HandleSubmissions()
@@ -1598,9 +1596,10 @@ private:
 
         static std::tuple<TUringRequest*, int> GetRequestUserData(const io_uring_cqe* cqe)
         {
+            constexpr ui64 requestMask = (1ULL << 48) - 1;
             auto userData = reinterpret_cast<uintptr_t>(io_uring_cqe_get_data(cqe));
             return {
-                reinterpret_cast<TUringRequest*>(userData & ~(1ULL << 48)),
+                reinterpret_cast<TUringRequest*>(userData & requestMask),
                 userData >> 48
             };
         }
