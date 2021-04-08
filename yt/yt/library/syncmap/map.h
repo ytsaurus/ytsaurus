@@ -28,10 +28,11 @@ public:
 
     ~TSyncMap();
 
-    TValue* Find(const TKey& key);
+    template <class TFindKey = TKey>
+    TValue* Find(const TFindKey& key);
 
-    template <class TCtor>
-    std::pair<TValue*, bool> FindOrInsert(const TKey& key, const TCtor& ctor);
+    template <class TCtor, class TFindKey = TKey>
+    std::pair<TValue*, bool> FindOrInsert(const TFindKey& key, const TCtor& ctor);
 
     //! RangeReadOnly iterates over read-only portion of the map.
     template <class TFn>

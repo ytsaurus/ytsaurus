@@ -638,7 +638,7 @@ protected:
             const NProfiling::TProfiler& profiler);
 
         const TMethodDescriptor Descriptor;
-        const NProfiling::TProfiler Registry;
+        const NProfiling::TProfiler Profiler;
 
         std::atomic<bool> Heavy = false;
 
@@ -648,9 +648,18 @@ protected:
         std::atomic<NLogging::ELogLevel> LogLevel = {};
         std::atomic<TDuration> LoggingSuppressionTimeout = {};
 
-        NConcurrency::TSyncMap<TString, TMethodPerformanceCountersPtr> UserTagToPerformanceCounters;
+        using TNonowningPerformanceCountersKey = std::tuple<TStringBuf, TRequestQueue*>;
+        using TOwningPerformanceCountersKey = std::tuple<TString, TRequestQueue*>;
+        using TPerformanceCountersKeyHash = THash<TNonowningPerformanceCountersKey>;
+        struct TPerformanceCountersKeyEquals;
+        using TPerformanceCountersMap = NConcurrency::TSyncMap<
+            TOwningPerformanceCountersKey,
+            TMethodPerformanceCountersPtr,
+            TPerformanceCountersKeyHash,
+            TPerformanceCountersKeyEquals
+        >;
+        TPerformanceCountersMap PerformanceCountersMap;
         TMethodPerformanceCountersPtr RootPerformanceCounters;
-        TMethodPerformanceCountersPtr GlobalPerformanceCounters;
 
         NConcurrency::IReconfigurableThroughputThrottlerPtr LoggingSuppressionFailedRequestThrottler;
 
@@ -743,7 +752,7 @@ private:
     const TServiceDescriptor ServiceDescriptor_;
     const TServiceId ServiceId_;
 
-    const NProfiling::TProfiler ProfilingRegistry_;
+    const NProfiling::TProfiler Profiler_;
 
     TAtomicObject<TServiceConfigPtr> Config_;
 
@@ -845,10 +854,10 @@ private:
 
     TMethodPerformanceCountersPtr CreateMethodPerformanceCounters(
         TRuntimeMethodInfo* runtimeInfo,
-        const std::optional<TString>& userTag);
+        const TRuntimeMethodInfo::TNonowningPerformanceCountersKey& key);
     TMethodPerformanceCounters* GetMethodPerformanceCounters(
         TRuntimeMethodInfo* runtimeInfo,
-        const TString& userTag);
+        const TRuntimeMethodInfo::TNonowningPerformanceCountersKey& key);
 
     void SetActive();
     void ValidateInactive();

@@ -23,7 +23,8 @@ TSyncMap<TKey, TValue, THash, TEqual>::~TSyncMap()
 }
 
 template <class TKey, class TValue, class THash, class TEqual>
-TValue* TSyncMap<TKey, TValue, THash, TEqual>::Find(const TKey& key)
+template <class TFindKey>
+TValue* TSyncMap<TKey, TValue, THash, TEqual>::Find(const TFindKey& key)
 {
     {
         auto snapshot = AcquireSnapshot();
@@ -60,8 +61,8 @@ TValue* TSyncMap<TKey, TValue, THash, TEqual>::Find(const TKey& key)
 }
 
 template <class TKey, class TValue, class THash, class TEqual>
-template <class TCtor>
-std::pair<TValue*, bool> TSyncMap<TKey, TValue, THash, TEqual>::FindOrInsert(const TKey& key, const TCtor& ctor)
+template <class TCtor, class TFindKey>
+std::pair<TValue*, bool> TSyncMap<TKey, TValue, THash, TEqual>::FindOrInsert(const TFindKey& key, const TCtor& ctor)
 {
     {
         auto snapshot = AcquireSnapshot();
