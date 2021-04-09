@@ -2661,6 +2661,12 @@ protected:
         } else {
             i64 partitionSize = Spec->DataWeightPerShuffleJob * Spec->PartitionSizeFactor;
             PartitionCount = DivCeil(dataWeightAfterPartition, partitionSize);
+
+            if (PartitionCount == 1 && TotalEstimatedInputUncompressedDataSize > Spec->DataWeightPerShuffleJob) {
+                // Sometimes data size can be much larger than data weight.
+                // Let's protect from such outliers and prevent simple sort in such case.
+                PartitionCount = DivCeil(TotalEstimatedInputUncompressedDataSize, Spec->DataWeightPerShuffleJob);
+            }
         }
 
         PartitionCount = std::clamp(PartitionCount, 1, Options->MaxNewPartitionCount);

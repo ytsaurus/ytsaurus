@@ -781,6 +781,40 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert len(output_rows) < 250
         assert len(output_rows) >= 10
 
+    @authors("dakovalkov")
+    def test_huge_uncompressed_size(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        def generate_row(row_index):
+            row = {
+                "key": "k%03d" % (row_index)
+            }
+            for column_index in range(100):
+                row["column_%03d" % (column_index)] = False
+
+            return row
+
+        rows = [generate_row(i) for i in xrange(500)]
+        shuffled_rows = rows[::]
+        shuffle(shuffled_rows)
+
+        write_table("//tmp/t_in", shuffled_rows)
+
+        assert get("//tmp/t_in/@data_weight") < get("//tmp/t_in/@uncompressed_data_size")
+
+        op = sort(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            sort_by="key",
+            spec={
+                "data_weight_per_sort_job": get("//tmp/t_in/@data_weight"),
+                "use_new_partitions_heuristic": True,
+            },
+        )
+        op.track()
+        assert op.get_job_count("completed") >= 2
+
     @authors("ignat", "klyachin")
     def test_with_intermediate_account(self):
         v1 = {"key": "aaa"}
