@@ -70,8 +70,18 @@ std::vector<int> GetKeysFromRanges(std::vector<std::pair<int, int>> ranges)
         }
     }
     std::sort(result.begin(), result.end());
-    
+
     return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSlruCacheConfigPtr CreateCacheConfig(i64 cacheSize)
+{
+    auto config = New<TSlruCacheConfig>(cacheSize);
+    config->ShardCount = 1;
+
+    return config;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -79,7 +89,7 @@ std::vector<int> GetKeysFromRanges(std::vector<std::pair<int, int>> ranges)
 TEST(TAsyncSlruCacheTest, Simple)
 {
     const int cacheSize = 10;
-    auto config = New<TSlruCacheConfig>(cacheSize);
+    auto config = CreateCacheConfig(cacheSize);
     auto cache = New<TSimpleSlruCache>(config);
 
     for (int i = 0; i < 2 * cacheSize; ++i) {
@@ -115,7 +125,7 @@ TEST(TAsyncSlruCacheTest, Youngest)
 {
     const int cacheSize = 10;
     const int oldestSize = 5;
-    auto config = New<TSlruCacheConfig>(cacheSize);
+    auto config = CreateCacheConfig(cacheSize);
     config->YoungerSizeFraction = 0.5;
     auto cache = New<TSimpleSlruCache>(config);
 
@@ -139,7 +149,7 @@ TEST(TAsyncSlruCacheTest, Youngest)
 TEST(TAsyncSlruCacheTest, Resurrection)
 {
     const int cacheSize = 10;
-    auto config = New<TSlruCacheConfig>(cacheSize);
+    auto config = CreateCacheConfig(cacheSize);
     auto cache = New<TSimpleSlruCache>(config);
 
     std::vector<TSimpleCachedValuePtr> values;
@@ -168,7 +178,7 @@ TEST(TAsyncSlruCacheTest, Resurrection)
 TEST(TAsyncSlruCacheTest, UpdateWeight)
 {
     const int cacheSize = 10;
-    auto config = New<TSlruCacheConfig>(cacheSize);
+    auto config = CreateCacheConfig(cacheSize);
     auto cache = New<TSimpleSlruCache>(config);
 
     for (int i = 0; i < cacheSize; ++i) {

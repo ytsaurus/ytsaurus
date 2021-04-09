@@ -44,6 +44,16 @@ TFuture<TRefCountedChunkMetaPtr> CreateErrorChunkMetaFuture(TChunkId chunkId, co
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSlruCacheConfigPtr CreateCacheConfig(i64 cacheSize)
+{
+    auto config = New<TSlruCacheConfig>(cacheSize);
+    config->ShardCount = 1;
+
+    return config;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // For easier providing std::nullopt and std::vector as an EXPECT_CALL argument.
 using TTagList = std::optional<std::vector<int>>;
 
@@ -54,7 +64,7 @@ TEST(TCachedChunkMetaTest, Simple)
 
     TChunkMetaFetcherMock fetcherMock;
     auto fetchFunc = BIND(&TChunkMetaFetcherMock::Fetch, &fetcherMock);
-    
+
     ON_CALL(fetcherMock, Fetch(_, _))
         .WillByDefault(Invoke(CreateFakeChunkMetaFuture));
 
@@ -78,7 +88,7 @@ TEST(TCachedChunkMetaTest, Simple)
         WaitFor(cachedChunkMeta->Fetch(std::vector{1, 2, 3}, fetchFunc))
             .ThrowOnError();
     }
-    
+
     for (int index = 0; index < 5; ++index) {
         WaitFor(cachedChunkMeta->Fetch(std::vector{3, 4, 5}, fetchFunc))
             .ThrowOnError();
@@ -89,7 +99,7 @@ TEST(TCachedChunkMetaTest, StuckRequests)
 {
     const auto chunkId = TChunkId(0, 0);
     auto cachedChunkMeta = New<TCachedChunkMeta>(chunkId, CreateFakeChunkMeta(chunkId, std::vector<int>{}));
-    
+
     TChunkMetaFetcherMock fetcherMock;
     auto fetchFunc = BIND(&TChunkMetaFetcherMock::Fetch, &fetcherMock);
 
@@ -136,7 +146,7 @@ TEST(TCachedChunkMetaTest, FailedRequests)
 {
     const auto chunkId = TChunkId(0, 0);
     auto cachedChunkMeta = New<TCachedChunkMeta>(chunkId, CreateFakeChunkMeta(chunkId, std::vector<int>{}));
-    
+
     TChunkMetaFetcherMock fetcherMock;
     auto fetchFunc = BIND(&TChunkMetaFetcherMock::Fetch, &fetcherMock);
 
@@ -171,7 +181,7 @@ TEST(TCachedChunkMetaTest, FailedRequests)
 
 TEST(TClientChunkMetaCacheTest, Simple)
 {
-    auto config = New<TSlruCacheConfig>(10000);
+    auto config = CreateCacheConfig(1000);
     auto cache = New<TClientChunkMetaCache>(config, GetCurrentInvoker());
 
     TChunkMetaFetcherMock fetcherMock;
@@ -199,7 +209,7 @@ TEST(TClientChunkMetaCacheTest, Simple)
 
 TEST(TClientChunkMetaCacheTest, Eviction)
 {
-    auto config = New<TSlruCacheConfig>(1000);
+    auto config = CreateCacheConfig(1000);
     auto cache = New<TClientChunkMetaCache>(config, GetCurrentInvoker());
 
     TChunkMetaFetcherMock fetcherMock;

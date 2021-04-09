@@ -325,10 +325,16 @@ void TJobProxy::RetrieveJobSpec()
             annotations.end());
     }
 
-    ReaderBlockCache_ = CreateClientBlockCache(
-        GetJobSpecHelper()->GetJobIOConfig()->BlockCache,
-        EBlockType::CompressedData | EBlockType::UncompressedData,
-        GetNullMemoryUsageTracker());
+    {
+        const auto& blockCacheConfig = GetJobSpecHelper()->GetJobIOConfig()->BlockCache;
+        blockCacheConfig->CompressedData->ShardCount = 1;
+        blockCacheConfig->UncompressedData->ShardCount = 1;
+
+        ReaderBlockCache_ = CreateClientBlockCache(
+            GetJobSpecHelper()->GetJobIOConfig()->BlockCache,
+            EBlockType::CompressedData | EBlockType::UncompressedData,
+            GetNullMemoryUsageTracker());
+    }
 }
 
 void TJobProxy::Run()
