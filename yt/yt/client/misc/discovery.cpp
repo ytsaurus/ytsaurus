@@ -144,20 +144,23 @@ void TDiscovery::DoEnter(TString name, IAttributeDictionaryPtr attributes)
 
 void TDiscovery::DoLeave()
 {
-    YT_VERIFY(Transaction_);
-
     ++Epoch_;
 
-    Transaction_->UnsubscribeAborted(TransactionRestorer_);
+    // Transaction can be null during "restore" routine.
+    // An epoch increment will stop restore attempts, so no more actions are required in this case.
+    if (Transaction_) {
+        Transaction_->UnsubscribeAborted(TransactionRestorer_);
 
-    auto transactionId = Transaction_->GetId();
-    auto error = WaitFor(Transaction_->Abort());
-    if (!error.IsOK()) {
-        // Transaction may already expire and lock will be dead.
-        YT_LOG_INFO("Error during aborting transaction (Error: %v)", error);
+        auto transactionId = Transaction_->GetId();
+        auto error = WaitFor(Transaction_->Abort());
+        if (!error.IsOK()) {
+            // Transaction may already expire and lock will be dead.
+            YT_LOG_INFO("Error during aborting transaction (Error: %v)", error);
+        }
+        YT_LOG_INFO("Left the group (TransactionId: %v)", transactionId);
+    } else {
+        YT_LOG_INFO("Left the group, transaction is already dead");
     }
-
-    YT_LOG_INFO("Left the group (TransactionId: %v)", transactionId);
 
     {
         auto guard = WriterGuard(Lock_);
@@ -242,6 +245,10 @@ void TDiscovery::DoCreateNode(int epoch)
 
 void TDiscovery::DoLockNode(int epoch)
 {
+    if (Epoch_ != epoch) {
+        return;
+    }
+
     TTransactionStartOptions transactionOptions {
         .Timeout = Config_->TransactionTimeout,
         .PingPeriod = Config_->TransactionPingPeriod,
@@ -256,7 +263,6 @@ void TDiscovery::DoLockNode(int epoch)
         transaction->Abort();
         return;
     }
-
 
     TLockNodeOptions lockOptions;
     lockOptions.ChildKey = "lock";
