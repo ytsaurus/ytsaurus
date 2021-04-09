@@ -92,6 +92,7 @@ bool TChunkOwnerTypeHandler<TChunkOwner>::HasBranchedChangesImpl(TChunkOwner* or
         branchedNode->Replication() != originatingNode->Replication() ||
         branchedNode->GetCompressionCodec() != originatingNode->GetCompressionCodec() ||
         branchedNode->GetErasureCodec() != originatingNode->GetErasureCodec() ||
+        branchedNode->GetEnableSkynetSharing() != originatingNode->GetEnableSkynetSharing() ||
         !branchedNode->DeltaSecurityTags()->IsEmpty() ||
         !TInternedSecurityTags::RefEqual(branchedNode->SnapshotSecurityTags(), originatingNode->SnapshotSecurityTags());
 }
@@ -236,6 +237,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
     // Merge builtin attributes.
     originatingNode->MergeCompressionCodec(branchedNode);
     originatingNode->MergeErasureCodec(branchedNode);
+    originatingNode->MergeEnableSkynetSharing(branchedNode);
 
     bool isExternal = originatingNode->IsExternal();
 
@@ -484,6 +486,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
     clonedTrunkNode->DeltaSecurityTags() = sourceNode->DeltaSecurityTags();
     clonedTrunkNode->SetCompressionCodec(sourceNode->GetCompressionCodec());
     clonedTrunkNode->SetErasureCodec(sourceNode->GetErasureCodec());
+    clonedTrunkNode->SetEnableSkynetSharing(sourceNode->GetEnableSkynetSharing());
 
     if (!sourceNode->IsExternal()) {
         const auto& objectManager = TBase::Bootstrap_->GetObjectManager();
@@ -526,6 +529,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoBeginCopy(
     Save(*context, node->DeltaSecurityTags());
     Save(*context, node->GetCompressionCodec());
     Save(*context, node->GetErasureCodec());
+    Save(*context, node->GetEnableSkynetSharing());
 
     context->RegisterExternalCellTag(node->GetExternalCellTag());
 }
@@ -550,6 +554,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoEndCopy(
     Load(*context, trunkNode->DeltaSecurityTags());
     trunkNode->SetCompressionCodec(Load<NCompression::ECodec>(*context));
     trunkNode->SetErasureCodec(Load<NErasure::ECodec>(*context));
+    trunkNode->SetEnableSkynetSharing(Load<bool>(*context));
 }
 
 template class TChunkOwnerTypeHandler<TFileNode>;
