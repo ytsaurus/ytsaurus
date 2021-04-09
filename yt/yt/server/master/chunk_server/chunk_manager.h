@@ -160,7 +160,7 @@ public:
         bool movable,
         bool vital,
         bool overlayed = false,
-        NChunkClient::TConsistentPlacementHash consistentPlacementHash = NChunkClient::NullConsistentPlacementHash);
+        NChunkClient::TConsistentReplicaPlacementHash consistentReplicaPlacementHash = NChunkClient::NullConsistentReplicaPlacementHash);
 
     TDynamicStore* CreateDynamicStore(TDynamicStoreId storeId, const NTabletServer::TTablet* tablet);
 

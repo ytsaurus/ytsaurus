@@ -250,7 +250,7 @@ TSessionId CreateChunk(
     if (chunkListId) {
         ToProto(req->mutable_chunk_list_id(), chunkListId);
     }
-    req->set_consistent_placement_hash(options->ChunkConsistentPlacementHash);
+    req->set_consistent_replica_placement_hash(options->ConsistentChunkReplicaPlacementHash);
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(

@@ -351,7 +351,7 @@ class TestMultipleErasurePartsPerNode(YTEnvSetup):
 ##################################################################
 
 
-class TestChunkConsistentPlacement(YTEnvSetup):
+class TestConsistentChunkReplicaPlacement(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     USE_DYNAMIC_TABLES = True
@@ -369,7 +369,7 @@ class TestChunkConsistentPlacement(YTEnvSetup):
             "//tmp/t",
             attributes={
                 "dynamic": True,
-                "enable_chunk_consistent_placement": True,
+                "enable_consistent_chunk_replica_placement": True,
                 "schema": schema,
             }
         )

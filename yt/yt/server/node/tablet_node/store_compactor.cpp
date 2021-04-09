@@ -1402,7 +1402,7 @@ private:
 
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->Settings.StoreWriterOptions);
         writerOptions->ValidateResourceUsageIncrease = false;
-        writerOptions->ChunkConsistentPlacementHash = tabletSnapshot->ChunkConsistentPlacementHash;
+        writerOptions->ConsistentChunkReplicaPlacementHash = tabletSnapshot->ConsistentChunkReplicaPlacementHash;
 
         int currentPartitionIndex = 0;
         TLegacyOwningKey currentPivotKey;
@@ -1941,7 +1941,7 @@ private:
         auto writerOptions = CloneYsonSerializable(tabletSnapshot->Settings.StoreWriterOptions);
         writerOptions->ChunksEden = isEden;
         writerOptions->ValidateResourceUsageIncrease = false;
-        writerOptions->ChunkConsistentPlacementHash = tabletSnapshot->ChunkConsistentPlacementHash;
+        writerOptions->ConsistentChunkReplicaPlacementHash = tabletSnapshot->ConsistentChunkReplicaPlacementHash;
 
         auto blockCacheFuture = CreateRemoteInMemoryBlockCache(
             Bootstrap_->GetMasterClient(),

@@ -1360,7 +1360,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot, std::optional<TLo
 
     snapshot->TableProfiler = TableProfiler_;
 
-    snapshot->ChunkConsistentPlacementHash = GetChunkConsistentPlacementHash();
+    snapshot->ConsistentChunkReplicaPlacementHash = GetConsistentChunkReplicaPlacementHash();
 
     return snapshot;
 }
@@ -1705,14 +1705,14 @@ TMountHint TTablet::GetMountHint() const
     return mountHint;
 }
 
-TConsistentPlacementHash TTablet::GetChunkConsistentPlacementHash() const
+TConsistentReplicaPlacementHash TTablet::GetConsistentChunkReplicaPlacementHash() const
 {
-    if (!Settings_.MountConfig->EnableChunkConsistentPlacement) {
-        return NullConsistentPlacementHash;
+    if (!Settings_.MountConfig->EnableConsistentChunkReplicaPlacement) {
+        return NullConsistentReplicaPlacementHash;
     }
 
     auto hash = Id_.Parts64[0] ^ Id_.Parts64[1];
-    if (hash == NullConsistentPlacementHash) {
+    if (hash == NullConsistentReplicaPlacementHash) {
         // Unbelievable.
         hash = 1;
     }

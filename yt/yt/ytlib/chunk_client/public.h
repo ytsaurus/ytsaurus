@@ -69,8 +69,8 @@ using TBlockOffset = i64;
 //! A |(chunkId, blockIndex)| pair.
 struct TBlockId;
 
-using TConsistentPlacementHash = ui64;
-constexpr TConsistentPlacementHash NullConsistentPlacementHash = 0;
+using TConsistentReplicaPlacementHash = ui64;
+constexpr TConsistentReplicaPlacementHash NullConsistentReplicaPlacementHash = 0;
 
 DEFINE_BIT_ENUM(EBlockType,
     ((None)              (0x0000))
