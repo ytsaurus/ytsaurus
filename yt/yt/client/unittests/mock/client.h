@@ -166,7 +166,7 @@ public:
 
     MOCK_METHOD3(SwitchLeader, TFuture<void>(
         NHydra::TCellId cellId,
-        NHydra::TPeerId newLeaderId,
+        const TString& newLeaderAddress,
         const TSwitchLeaderOptions& options));
 
     MOCK_METHOD1(GCCollect, TFuture<void>(

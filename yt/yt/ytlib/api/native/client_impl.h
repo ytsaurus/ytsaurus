@@ -449,9 +449,9 @@ public:
         (options))
     IMPLEMENT_METHOD(void, SwitchLeader, (
         NObjectClient::TCellId cellId,
-        NHydra::TPeerId newLeaderId,
+        const TString& newLeaderAddress,
         const TSwitchLeaderOptions& options),
-        (cellId, newLeaderId, options))
+        (cellId, newLeaderAddress, options))
     IMPLEMENT_METHOD(void, GCCollect, (
         const TGCCollectOptions& options),
         (options))
@@ -1125,7 +1125,7 @@ private:
         const TBuildMasterSnapshotsOptions& options);
     void DoSwitchLeader(
         NObjectClient::TCellId cellId,
-        NHydra::TPeerId newLeaderId,
+        const TString& newLeaderAddress,
         const TSwitchLeaderOptions& options);
     void DoGCCollect(
         const TGCCollectOptions& options);

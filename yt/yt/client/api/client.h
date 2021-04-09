@@ -1637,7 +1637,7 @@ struct IClient
 
     virtual TFuture<void> SwitchLeader(
         NHydra::TCellId cellId,
-        NHydra::TPeerId newLeaderId,
+        const TString& newLeaderAddress,
         const TSwitchLeaderOptions& options = {}) = 0;
 
     virtual TFuture<void> GCCollect(
