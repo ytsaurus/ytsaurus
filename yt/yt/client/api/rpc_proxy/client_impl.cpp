@@ -1238,9 +1238,9 @@ TFuture<TCellIdToSnapshotIdMap> TClient::BuildMasterSnapshots(const TBuildMaster
 }
 
 TFuture<void> TClient::SwitchLeader(
-    NHydra::TCellId /* cellId */,
-    NHydra::TPeerId /* newLeaderId */,
-    const TSwitchLeaderOptions& /* options */)
+    NHydra::TCellId /*cellId*/,
+    const TString& /*newLeaderAddress*/,
+    const TSwitchLeaderOptions& /*options*/)
 {
     ThrowUnimplemented("SwitchLeader");
 }

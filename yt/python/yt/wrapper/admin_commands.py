@@ -34,11 +34,12 @@ def _find_cell_id_and_new_leader_id_by_master_address(specified_address, client)
     else:
         return guessed_cell_id, guessed_leader_id
 
-def switch_leader(cell_id=None, new_leader_id=None, new_master_address=None, client=None):
+def switch_leader(cell_id=None, new_leader_id=None, new_leader_address=None, client=None):
     """Switch leader of given master cell."""
-    if new_master_address is not None:
+    if new_leader_address is not None:
+        # TODO(gritukan): Do not guess leader id when masters and clocks will be new.
         guessed_cell_id, guessed_new_leader_id = _find_cell_id_and_new_leader_id_by_master_address(
-            new_master_address,
+            new_leader_address,
             client=client)
         if cell_id is not None and cell_id != guessed_cell_id:
             raise YtError("Specified cell_id {} does not match guessed cell_id {}".format(cell_id, guessed_cell_id))
@@ -52,6 +53,9 @@ def switch_leader(cell_id=None, new_leader_id=None, new_master_address=None, cli
         "cell_id": cell_id,
         "new_leader_id": new_leader_id,
     }
+    if new_leader_address is not None:
+        params["new_leader_address"] = new_leader_address
+
     return make_request("switch_leader", params=params, client=client)
 
 def add_switch_leader_parser(subparsers):
@@ -59,4 +63,4 @@ def add_switch_leader_parser(subparsers):
     parser.set_defaults(func=switch_leader)
     parser.add_argument("--cell-id")
     parser.add_argument("--new-leader-id", type=int)
-    parser.add_argument("--new-master-address")
+    parser.add_argument("--new-leader-address", type=str)

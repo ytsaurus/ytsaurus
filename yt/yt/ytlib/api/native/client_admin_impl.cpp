@@ -131,7 +131,7 @@ TCellIdToSnapshotIdMap TClient::DoBuildMasterSnapshots(const TBuildMasterSnapsho
 
 void TClient::DoSwitchLeader(
     TCellId cellId,
-    TPeerId newLeaderId,
+    const TString& newLeaderAddress,
     const TSwitchLeaderOptions& options)
 {
     ValidateSuperuserPermissions();
@@ -144,22 +144,46 @@ void TClient::DoSwitchLeader(
     auto addresses = GetCellAddressesOrThrow(cellId);
     auto currentLeaderChannel = GetLeaderCellChannelOrThrow(cellId);
 
-    if (newLeaderId < 0 || newLeaderId >= addresses.size()) {
-        THROW_ERROR_EXCEPTION("New leader peer id is invalid: expected in range [0,%v], got %v",
-            addresses.size() - 1,
-            newLeaderId);
-    }
-
-    const auto& newLeaderAddress = addresses[newLeaderId];
-
     std::vector<IChannelPtr> peerChannels;
-    for (const auto& address : addresses) {
-        peerChannels.push_back(CreateRealmChannel(
+    peerChannels.reserve(addresses.size());
+
+    auto createChannel = [&] (const TString& address) {
+        return CreateRealmChannel(
             Connection_->GetChannelFactory()->CreateChannel(address),
-            cellId));
+            cellId);
+    };
+
+    for (const auto& address : addresses) {
+        peerChannels.push_back(createChannel(address));
     }
 
-    const auto& newLeaderChannel = peerChannels[newLeaderId];
+    auto newLeaderChannel = createChannel(newLeaderAddress);
+
+    {
+        YT_LOG_INFO("Validating new leader");
+
+        THydraServiceProxy proxy(newLeaderChannel);
+        auto req = proxy.GetPeerState();
+        req->SetTimeout(options.Timeout);
+
+        auto rspOrError = WaitFor(req->Invoke());
+        if (rspOrError.IsOK()) {
+            auto state = FromProto<EPeerState>(rspOrError.Value()->peer_state());
+            if (state != EPeerState::Following) {
+                THROW_ERROR_EXCEPTION("Invalid peer state: expected %Qlv, found %Qlv",
+                    EPeerState::Following,
+                    state);
+            }
+        } else {
+            auto error = TError(rspOrError);
+            // COMPAT(gritukan)
+            if (error.FindMatching(NRpc::EErrorCode::NoSuchMethod)) {
+                YT_LOG_INFO("Remote Hydra is too old, leader validation cannot be performed");
+            } else {
+                THROW_ERROR error;
+            }
+        }
+    }
 
     {
         YT_LOG_INFO("Preparing switch at current leader");
@@ -204,8 +228,10 @@ void TClient::DoSwitchLeader(
     {
         YT_LOG_INFO("Restarting all other peers");
 
+        YT_VERIFY(peerChannels.size() == addresses.size());
         for (int peerId = 0; peerId < peerChannels.size(); ++peerId) {
-            if (peerId == newLeaderId) {
+            const auto& peerAddress = addresses[peerId];
+            if (peerAddress == newLeaderAddress) {
                 continue;
             }
 

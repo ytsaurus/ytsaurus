@@ -166,7 +166,7 @@ public:
         }
 
         auto cellId = ExtractArgument(args, kwargs, "cell_id");
-        
+
         ValidateArgumentsEmpty(args, kwargs);
 
         try {

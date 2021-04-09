@@ -65,12 +65,12 @@ void TBuildMasterSnapshotsCommand::DoExecute(ICommandContextPtr context)
 TSwitchLeaderCommand::TSwitchLeaderCommand()
 {
     RegisterParameter("cell_id", CellId_);
-    RegisterParameter("new_leader_id", NewLeaderId_);
+    RegisterParameter("new_leader_address", NewLeaderAddress_);
 }
 
 void TSwitchLeaderCommand::DoExecute(ICommandContextPtr context)
 {
-    WaitFor(context->GetClient()->SwitchLeader(CellId_, NewLeaderId_))
+    WaitFor(context->GetClient()->SwitchLeader(CellId_, NewLeaderAddress_))
         .ThrowOnError();
 
     ProduceEmptyOutput(context);

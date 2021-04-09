@@ -1512,8 +1512,8 @@ def build_master_snapshots(*args, **kwargs):
     return get_driver().build_master_snapshots(*args, **kwargs)
 
 
-def switch_leader(cell_id, new_leader_id):
-    parameters = {"cell_id": cell_id, "new_leader_id": new_leader_id}
+def switch_leader(cell_id, new_leader_address):
+    parameters = {"cell_id": cell_id, "new_leader_address": new_leader_address}
     return execute_command("switch_leader", parameters, parse_yson=True)
 
 def get_version():

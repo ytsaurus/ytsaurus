@@ -38,7 +38,7 @@ public:
 
 private:
     NHydra::TCellId CellId_;
-    NHydra::TPeerId NewLeaderId_;
+    TString NewLeaderAddress_;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };

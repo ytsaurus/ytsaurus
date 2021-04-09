@@ -44,6 +44,8 @@ public:
         .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
     DEFINE_RPC_PROXY_METHOD(NProto, ForceRestart,
         .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
+    DEFINE_RPC_PROXY_METHOD(NProto, GetPeerState,
+        .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
 };
 
 ////////////////////////////////////////////////////////////////////////////////

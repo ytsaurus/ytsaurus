@@ -17,44 +17,54 @@ class TestMasterLeaderSwitch(YTEnvSetup):
         }
     }
 
+    def _is_active_leader(self, rpc_address):
+        try:
+            return get("//sys/primary_masters/{}/orchid/monitoring/hydra/active_leader".format(rpc_address))
+        except:
+            return False
+
+    def _is_active_follower(self, rpc_address):
+        try:
+            return get("//sys/primary_masters/{}/orchid/monitoring/hydra/active_follower".format(rpc_address))
+        except:
+            return False
+
+    def _get_active_leader_address(self):
+        while True:
+            for rpc_address in self.Env.configs["master"][0]["primary_master"]["addresses"]:
+                if self._is_active_leader(rpc_address):
+                    return rpc_address
+
+    def _get_active_follower_address(self):
+        while True:
+            for rpc_address in self.Env.configs["master"][0]["primary_master"]["addresses"]:
+                if self._is_active_follower(rpc_address):
+                    return rpc_address
+
     @authors("babenko")
     def test_invalid_params(self):
         cell_id = get("//sys/@cell_id")
         with pytest.raises(YtError):
-            switch_leader("1-2-3-4", 0)
+            switch_leader("1-2-3-4", self._get_active_follower_address())
         with pytest.raises(YtError):
-            switch_leader(cell_id, -1)
+            switch_leader(cell_id, "foo.bar:9012")
         with pytest.raises(YtError):
-            switch_leader(cell_id, 7)
+            switch_leader(cell_id, self._get_active_leader_address())
 
     @authors("babenko")
     def test_switch(self):
-        def _is_active_leader(rpc_address):
-            try:
-                return get("//sys/primary_masters/{}/orchid/monitoring/hydra/active_leader".format(rpc_address))
-            except:
-                return False
-
         def _get_master_grace_delay_status(rpc_address):
             return get("//sys/primary_masters/{}/orchid/monitoring/hydra/grace_delay_status".format(rpc_address))
 
-        current_leader_id = None
-        current_leader_rpc_address = None
-        while current_leader_id is None:
-            for id, rpc_address in enumerate(self.Env.configs["master"][0]["primary_master"]["addresses"]):
-                if _is_active_leader(rpc_address):
-                    current_leader_id = id
-                    current_leader_rpc_address = rpc_address
-                    break
+        old_leader_rpc_address = self._get_active_leader_address()
+        new_leader_rpc_address = self._get_active_follower_address()
 
-        assert _get_master_grace_delay_status(current_leader_rpc_address) == "grace_delay_executed"
-
-        new_leader_id = (current_leader_id + 1) % 5
-        new_leader_rpc_address = self.Env.configs["master"][0]["primary_master"]["addresses"][new_leader_id]
+        assert _get_master_grace_delay_status(old_leader_rpc_address) == "grace_delay_executed"
 
         cell_id = get("//sys/@cell_id")
-        switch_leader(cell_id, new_leader_id)
+        switch_leader(cell_id, new_leader_rpc_address)
 
-        wait(lambda: _is_active_leader(new_leader_rpc_address))
+        wait(lambda: self._is_active_leader(new_leader_rpc_address))
+        wait(lambda: self._is_active_follower(old_leader_rpc_address))
 
         assert _get_master_grace_delay_status(new_leader_rpc_address) == "previous_lease_abandoned"

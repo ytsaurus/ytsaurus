@@ -255,7 +255,7 @@ public:
 
     virtual TFuture<void> SwitchLeader(
         NHydra::TCellId cellId,
-        NHydra::TPeerId newLeaderId,
+        const TString& newLeaderAddress,
         const TSwitchLeaderOptions& options) override;
 
     virtual TFuture<void> GCCollect(

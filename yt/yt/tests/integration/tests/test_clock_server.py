@@ -33,24 +33,37 @@ class TestClockServer(YTEnvSetup):
         for timestamp_provider in ls("//sys/timestamp_providers"):
             assert "monitoring" in get("//sys/timestamp_providers/{}/orchid".format(timestamp_provider))
 
-    def _wait_for_hydra(self, ts):
-        wait(lambda: exists("//sys/timestamp_providers/{}/orchid/monitoring/hydra".format(ts)))
+    def _wait_for_hydra(self, rpc_address):
+        wait(lambda: exists("//sys/timestamp_providers/{}/orchid/monitoring/hydra".format(rpc_address)))
 
     @authors("aleksandra-zh")
     def test_leader_switch(self):
         timestamp_providers = ls("//sys/timestamp_providers")
-        ordered_timestamp_providers = get("//sys/timestamp_providers/{}/orchid/config/clock_cell/addresses".format(timestamp_providers[0]))
+        timestamp_provider_rpc_addresses = get("//sys/timestamp_providers/{}/orchid/config/clock_cell/addresses".format(timestamp_providers[0]))
         cell_id = get("//sys/timestamp_providers/{}/orchid/config/clock_cell/cell_id".format(timestamp_providers[0]))
 
-        current_leader_id = None
-        for i, ts_provider in enumerate(ordered_timestamp_providers):
-            self._wait_for_hydra(ts_provider)
-            if get("//sys/timestamp_providers/{}/orchid/monitoring/hydra/state".format(ts_provider)) == "leading":
-                current_leader_id = i
-        new_leader_id = (current_leader_id + 1) % 3
-        switch_leader(cell_id, new_leader_id)
+        old_leader_rpc_address = None
+        new_leader_rpc_address = None
 
-        wait(lambda: get("//sys/timestamp_providers/{}/orchid/monitoring/hydra/state".format(ordered_timestamp_providers[new_leader_id])) == "leading")
+        def get_peer_state(rpc_address):
+            try:
+                return get("//sys/timestamp_providers/{}/orchid/monitoring/hydra/state".format(rpc_address))
+            except:
+                return None
+
+        while old_leader_rpc_address is None or new_leader_rpc_address is None:
+            for rpc_address in timestamp_provider_rpc_addresses:
+                self._wait_for_hydra(rpc_address)
+                peer_state = get_peer_state(rpc_address)
+                if peer_state == "leading":
+                    old_leader_rpc_address = rpc_address
+                elif peer_state == "following":
+                    new_leader_rpc_address = rpc_address
+
+        switch_leader(cell_id, new_leader_rpc_address)
+
+        wait(lambda: get_peer_state(new_leader_rpc_address) == "leading")
+        wait(lambda: get_peer_state(old_leader_rpc_address) == "following")
 
     @authors("aleksandra-zh")
     def test_build_snapshot(self):

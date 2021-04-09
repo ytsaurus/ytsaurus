@@ -38,6 +38,8 @@
 
 #include <yt/yt/core/misc/atomic_object.h>
 
+#include <util/generic/cast.h>
+
 #include <atomic>
 
 namespace NYT::NHydra {
@@ -208,6 +210,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PrepareLeaderSwitch)
             .SetInvoker(DecoratedAutomaton_->GetDefaultGuardedUserInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ForceRestart));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetPeerState));
     }
 
     virtual void Initialize() override
@@ -1133,6 +1136,20 @@ private:
                 .ThrowOnError();
         }
 
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, GetPeerState)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        context->SetRequestInfo();
+
+        auto state = GetControlState();
+
+        context->SetResponseInfo("PeerState: %v", state);
+
+        response->set_peer_state(ToUnderlying(state));
         context->Reply();
     }
 
