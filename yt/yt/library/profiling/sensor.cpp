@@ -182,7 +182,7 @@ TProfiler TProfiler::WithPrefix(const TString& prefix) const
         return {};
     }
 
-    return TProfiler(Prefix_ + prefix, Namespace_, Tags_, Impl_);
+    return TProfiler(Prefix_ + prefix, Namespace_, Tags_, Impl_, Options_);
 }
 
 TProfiler TProfiler::WithTag(const TString& name, const TString& value, int parent) const
