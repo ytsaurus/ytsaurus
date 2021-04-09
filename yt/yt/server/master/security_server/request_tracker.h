@@ -64,6 +64,7 @@ private:
 
     NConcurrency::TPeriodicExecutorPtr AlivePeerCountExecutor_;
     int AlivePeerCount_ = 0;
+    bool DistributedThrottlerEnabled_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 

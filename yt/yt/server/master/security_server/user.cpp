@@ -17,6 +17,90 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TUserRequestLimitsOptions::TUserRequestLimitsOptions()
+{
+    RegisterParameter("default", Default)
+        .GreaterThan(0)
+        .Default(100);
+    RegisterParameter("per_cell", PerCell)
+        .Optional();
+
+    RegisterPostprocessor([&] () {
+        for (const auto& [cellTag, value] : PerCell) {
+            if (cellTag < NObjectClient::MinValidCellTag || cellTag > NObjectClient::MaxValidCellTag) {
+                THROW_ERROR_EXCEPTION("Invalid cell tag %v",
+                    cellTag);
+            }
+
+            if (value <= 0) {
+                THROW_ERROR_EXCEPTION("Invalid limit for cell %v: value %v must be greater than zero",
+                    cellTag,
+                    value);
+            }
+        }
+    });
+}
+
+void TUserRequestLimitsOptions::SetValue(NObjectServer::TCellTag cellTag, std::optional<int> value)
+{
+    if (cellTag == NObjectClient::InvalidCellTag) {
+        Default = value;
+    } else {
+        YT_VERIFY(value);
+        PerCell[cellTag] = *value;
+    }
+}
+
+std::optional<int> TUserRequestLimitsOptions::GetValue(NObjectServer::TCellTag cellTag) const
+{
+    if (auto it = PerCell.find(cellTag)) {
+        return it->second;
+    }
+    return Default;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TUserQueueSizeLimitsOptions::TUserQueueSizeLimitsOptions()
+{
+    RegisterParameter("default", Default)
+        .GreaterThan(0)
+        .Default(100);
+    RegisterParameter("per_cell", PerCell)
+        .Optional();
+
+    RegisterPostprocessor([&] () {
+        for (const auto& [cellTag, value] : PerCell) {
+            if (cellTag < NObjectClient::MinValidCellTag || cellTag > NObjectClient::MaxValidCellTag) {
+                THROW_ERROR_EXCEPTION("Invalid cell tag %v",
+                    cellTag);
+            }
+
+            if (value <= 0) {
+                THROW_ERROR_EXCEPTION("Invalid limit for cell %v: value %v must be greater than zero",
+                    cellTag,
+                    value);
+            }
+        }
+    });
+}
+
+void TUserQueueSizeLimitsOptions::SetValue(NObjectServer::TCellTag cellTag, int value)
+{
+    if (cellTag == NObjectClient::InvalidCellTag) {
+        Default = value;
+    } else {
+        PerCell[cellTag] = value;
+    }
+}
+
+int TUserQueueSizeLimitsOptions::GetValue(NObjectServer::TCellTag cellTag) const
+{
+    return PerCell.Value(cellTag, Default);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TUser::TUser(TUserId id)
     : TSubject(id)
     , RequestLimits_(New<TUserRequestLimitsConfig>())
@@ -59,6 +143,11 @@ void TUser::Load(NCellMaster::TLoadContext& context)
     WriteRequestCounter_ = profiler.Counter("/user_write_request_count");
     RequestCounter_ = profiler.Counter("/user_request_count");
     RequestQueueSizeSummary_ = profiler.Summary("/user_request_queue_size");
+}
+
+int TUser::GetRequestQueueSize() const
+{
+    return RequestQueueSize_;
 }
 
 void TUser::SetRequestQueueSize(int size)
@@ -112,7 +201,7 @@ void TUser::SetRequestRateThrottler(
     }
 }
 
-int TUser::GetRequestRateLimit(EUserWorkloadType type, NObjectServer::TCellTag cellTag) const
+std::optional<int> TUser::GetRequestRateLimit(EUserWorkloadType type, NObjectServer::TCellTag cellTag) const
 {
     switch (type) {
         case EUserWorkloadType::Read:
@@ -124,7 +213,7 @@ int TUser::GetRequestRateLimit(EUserWorkloadType type, NObjectServer::TCellTag c
     }
 }
 
-void TUser::SetRequestRateLimit(int limit, EUserWorkloadType type, NObjectServer::TCellTag cellTag)
+void TUser::SetRequestRateLimit(std::optional<int> limit, EUserWorkloadType type, NObjectServer::TCellTag cellTag)
 {
     switch (type) {
         case EUserWorkloadType::Read:

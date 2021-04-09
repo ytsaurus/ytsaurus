@@ -122,6 +122,7 @@ DEFINE_ENUM(EMasterReign,
     // 21.2 starts here.
     ((MasterMergeJobs)                                              (1600))  // aleksandra-zh
     ((ChunkCounterInMasterMergeJobsIsNoMore)                        (1601))  // babenko
+    ((DoNotThrottleRoot)                                            (1602))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////
