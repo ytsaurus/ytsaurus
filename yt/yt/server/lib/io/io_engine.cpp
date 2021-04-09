@@ -181,7 +181,7 @@ public:
     int UringThreadCount;
     int UringQueueSize;
 
-    //! Limits the number of concurrent (outstanding) IO requests per a single uring thread.
+    //! Limits the number of concurrent (outstanding) #IIOEngine requests per a single uring thread.
     int MaxConcurrentRequestsPerThread;
 
     //! A read request may indicate that DirectIO is required to serve it;
@@ -829,12 +829,16 @@ private:
     }
 };
 
+using TUringIovBuffer = std::array<iovec, MaxIovCountPerRequest>;
+
 struct TUringRequest
 {
     using TReadSubrequest = IIOEngine::TReadRequest;
 
     struct TReadSubrequestState
     {
+        iovec Iov;
+
         // Owning for large buffers.
         // Non-owning for pooled buffers.
         TSharedMutableRef DirectIOBuffer;
@@ -868,6 +872,7 @@ struct TUringRequest
     // EUringRequestType::Write
     IIOEngine::TWriteRequest WriteRequest;
     int CurrentWriteSubrequestIndex = 0;
+    TUringIovBuffer* WriteIovBuffer = nullptr;
 
     // EUringRequestType::Read
     // EUringRequestType::Write
@@ -936,6 +941,7 @@ private:
         {
             RegisterDirectIOBuffersWithUring();
             PopulateSpareDirectIOBuffers();
+            InitIovBuffers();
         }
 
         void Start()
@@ -962,20 +968,31 @@ private:
 
         TEvent StartedEvent_;
 
-        int PendingRequestCount_ = 0;
-        bool SubmissionNotificationReadArmed_ = false;
+        int PendingSubmissionsCount_ = 0;
+        bool RequestNotificationReadArmed_ = false;
 
         TNotificationHandle StopNotificationHandle_{true};
         bool Stopping_ = false;
 
-        std::array<iovec, MaxUringQueueSize * MaxIovCountPerRequest> Iovs_;
-        int UsedIovCount_ = 0;
+        std::array<TUringIovBuffer, MaxUringQueueSize> AllIovBuffers_;
+        std::vector<TUringIovBuffer*> FreeIovBuffers_;
 
         bool PooledDirectIOReadBufferRegistered_ = false;
         std::vector<TMutableRef> SparePooledDirectIOReadBuffers_;
 
-        ui64 NotificationReadBuffer_;
+        static constexpr int StopNotificationIndex = 0;
+        static constexpr int RequestNotificationIndex = 1;
 
+        std::array<ui64, 2> NotificationReadBuffer_;
+        std::array<iovec, 2> NotificationIov_;
+
+        void InitIovBuffers()
+        {
+            FreeIovBuffers_.reserve(AllIovBuffers_.size());
+            for (auto& buffer : AllIovBuffers_) {
+                FreeIovBuffers_.push_back(&buffer);
+            }
+        }
 
         void RegisterDirectIOBuffersWithUring()
         {
@@ -1003,7 +1020,6 @@ private:
             }
         }
 
-
         static void* StaticThreadMain(void* opaqueThread)
         {
             auto* thread = static_cast<TUringThread*>(opaqueThread);
@@ -1020,7 +1036,7 @@ private:
             StartedEvent_.NotifyOne();
 
             ArmStopNotificationRead();
-            ArmSubmissionNotificationRead();
+            ArmRequestNotificationRead();
             SubmitSqes();
 
             do {
@@ -1034,14 +1050,12 @@ private:
         {
             return
                 Stopping_ &&
-                PendingRequestCount_ == (SubmissionNotificationReadArmed_ ? 1 : 0);
+                PendingSubmissionsCount_ == (RequestNotificationReadArmed_ ? 1 : 0);
         }
 
         void ThreadMainStep()
         {
             auto* cqe = WaitForCqe();
-
-            ResetIovs();
 
             auto* userData = io_uring_cqe_get_data(cqe);
             if (userData == reinterpret_cast<void*>(StopNotificationUserData)) {
@@ -1049,8 +1063,8 @@ private:
                 HandleStop();
             } else if (userData == reinterpret_cast<void*>(RequestNotificationUserData)) {
                 YT_VERIFY(cqe->res == sizeof(ui64));
-                YT_VERIFY(SubmissionNotificationReadArmed_);
-                SubmissionNotificationReadArmed_ = false;
+                YT_VERIFY(RequestNotificationReadArmed_);
+                RequestNotificationReadArmed_ = false;
             } else {
                 HandleCompletion(cqe);
             }
@@ -1086,7 +1100,7 @@ private:
         void HandleStop()
         {
             YT_LOG_INFO("Stop received by uring thread (PendingRequestCount: %v)",
-                PendingRequestCount_);
+                PendingSubmissionsCount_);
 
             YT_VERIFY(!Stopping_);
             Stopping_ = true;
@@ -1098,7 +1112,7 @@ private:
                 Uring_.GetSQSpaceLeft() > 0 &&
                 !SparePooledDirectIOReadBuffers_.empty() &&
                 // +2 is for TNotificationHandle reads.
-                PendingRequestCount_ < Config_->MaxConcurrentRequestsPerThread + 2;
+                PendingSubmissionsCount_ < Config_->MaxConcurrentRequestsPerThread + 2;
         }
 
         void HandleSubmissions()
@@ -1117,7 +1131,7 @@ private:
                 HandleRequest(request.release());
             }
 
-            ArmSubmissionNotificationRead();
+            ArmRequestNotificationRead();
         }
 
         void HandleRequest(TUringRequest* request)
@@ -1162,7 +1176,7 @@ private:
                 request->PendingReadSubrequestIndexes.pop_back();
 
                 const auto& subrequest = request->ReadSubrequests[subrequestIndex];
-                const auto& subrequestState = request->ReadSubrequestStates[subrequestIndex];
+                auto& subrequestState = request->ReadSubrequestStates[subrequestIndex];
 
                 auto* sqe = AllocateSqe();
 
@@ -1192,16 +1206,19 @@ private:
                     if (PooledDirectIOReadBufferRegistered_ && subrequestState.IsDirectIOBufferPooled()) {
                         io_uring_prep_read_fixed(sqe, subrequest.Handle, subrequestState.DirectIOBuffer.Begin(), readSize, startOffset, /* buf_index */ 0);
                     } else {
-                        auto* iov = AllocateIov();
-                        *iov = {
+                        subrequestState.Iov = {
                             .iov_base = subrequestState.DirectIOBuffer.Begin(),
                             .iov_len = static_cast<size_t>(readSize)
                         };
-                        io_uring_prep_readv(sqe, subrequest.Handle, iov, 1, startOffset);
+                        io_uring_prep_readv(
+                            sqe,
+                            subrequest.Handle,
+                            &subrequestState.Iov,
+                            1,
+                            startOffset);
                     }
                 } else {
-                    auto* iov = AllocateIov();
-                    *iov = {
+                    subrequestState.Iov = {
                         .iov_base = subrequest.Buffer.Begin(),
                         .iov_len = Min(subrequest.Buffer.Size(), static_cast<size_t>(Config_->MaxBytesPerRead))
                     };
@@ -1211,10 +1228,15 @@ private:
                         subrequestIndex,
                         subrequest.Handle,
                         subrequest.Offset,
-                        iov->iov_base,
-                        iov->iov_len);
+                        subrequestState.Iov.iov_base,
+                        subrequestState.Iov.iov_len);
 
-                    io_uring_prep_readv(sqe, subrequest.Handle, iov, 1, subrequest.Offset);
+                    io_uring_prep_readv(
+                        sqe,
+                        subrequest.Handle,
+                        &subrequestState.Iov,
+                        1,
+                        subrequest.Offset);
                 }
 
                 SetRequestUserData(sqe, request, subrequestIndex);
@@ -1231,28 +1253,32 @@ private:
                 totalSubrequestCount);
 
             if (request->CurrentWriteSubrequestIndex == totalSubrequestCount) {
+                ReleaseIovBuffer(request->WriteIovBuffer);
                 TrySetRequestSucceeded(request);
                 DisposeRequest(request);
                 return;
             }
 
-            auto* iovBegin = GetCurrentIov();
+            if (!request->WriteIovBuffer) {
+                request->WriteIovBuffer = AllocateIovBuffer();
+            }
+
             int iovCount = 0;
             i64 toWrite = 0;
             while (request->CurrentWriteSubrequestIndex + iovCount < totalSubrequestCount &&
-                iovCount < MaxIovCountPerRequest &&
+                iovCount < request->WriteIovBuffer->size() &&
                 toWrite < Config_->MaxBytesPerWrite)
             {
                 const auto& buffer = request->WriteRequest.Buffers[request->CurrentWriteSubrequestIndex + iovCount];
-                auto* iov = AllocateIov();
-                *iov = {
+                auto& iov = (*request->WriteIovBuffer)[iovCount];
+                iov = {
                     .iov_base = const_cast<char*>(buffer.Begin()),
                     .iov_len = buffer.Size()
                 };
-                if (toWrite + iov->iov_len > Config_->MaxBytesPerWrite) {
-                    iov->iov_len = Config_->MaxBytesPerWrite - toWrite;
+                if (toWrite + iov.iov_len > Config_->MaxBytesPerWrite) {
+                    iov.iov_len = Config_->MaxBytesPerWrite - toWrite;
                 }
-                toWrite += iov->iov_len;
+                toWrite += iov.iov_len;
                 ++iovCount;
             }
 
@@ -1260,14 +1286,22 @@ private:
                 request,
                 request->WriteRequest.Handle,
                 request->WriteRequest.Offset,
-                MakeFormattableView(xrange(iovBegin, iovBegin + iovCount), [] (auto* builder, const auto* iov) {
-                    builder->AppendFormat("%p@%v",
-                        iov->iov_base,
-                        iov->iov_len);
-                }));
+                MakeFormattableView(
+                    xrange(request->WriteIovBuffer->begin(), request->WriteIovBuffer->begin() + iovCount),
+                    [] (auto* builder, const auto* iov) {
+                        builder->AppendFormat("%p@%v",
+                            iov->iov_base,
+                            iov->iov_len);
+                    }));
 
             auto* sqe = AllocateSqe();
-            io_uring_prep_writev(sqe, request->WriteRequest.Handle, iovBegin, iovCount, request->WriteRequest.Offset);
+            io_uring_prep_writev(
+                sqe,
+                request->WriteRequest.Handle,
+                &request->WriteIovBuffer->front(),
+                iovCount,
+                request->WriteRequest.Offset);
+
             SetRequestUserData(sqe, request);
         }
 
@@ -1470,13 +1504,18 @@ private:
 
 
         void ArmNotificationRead(
+            int notificationIndex,
             const TNotificationHandle& notificationHandle,
             intptr_t notificationUserData)
         {
-            auto* iov = AllocateIov();
+            YT_VERIFY(notificationIndex >= 0);
+            YT_VERIFY(notificationIndex < NotificationIov_.size());
+            YT_VERIFY(notificationIndex < NotificationReadBuffer_.size());
+
+            auto iov = &NotificationIov_[notificationIndex];
             *iov = {
-                .iov_base = &NotificationReadBuffer_,
-                .iov_len = sizeof(NotificationReadBuffer_)
+                .iov_base = &NotificationReadBuffer_[notificationIndex],
+                .iov_len = sizeof(NotificationReadBuffer_[notificationIndex])
             };
 
             auto* sqe = AllocateSqe();
@@ -1487,51 +1526,47 @@ private:
         void ArmStopNotificationRead()
         {
             YT_LOG_TRACE("Arming stop notification read");
-            ArmNotificationRead(StopNotificationHandle_, StopNotificationUserData);
+            ArmNotificationRead(StopNotificationIndex, StopNotificationHandle_, StopNotificationUserData);
         }
 
-        void ArmSubmissionNotificationRead()
+        void ArmRequestNotificationRead()
         {
-            if (!SubmissionNotificationReadArmed_ &&
+            if (!RequestNotificationReadArmed_ &&
                 !Stopping_ &&
                 CanHandleMoreSubmissions())
             {
-                SubmissionNotificationReadArmed_ = true;
-                YT_LOG_TRACE("Arming submission notification read");
-                ArmNotificationRead(ThreadPool_->RequestNotificationHandle_, RequestNotificationUserData);
+                RequestNotificationReadArmed_ = true;
+                YT_LOG_TRACE("Arming request notification read");
+                ArmNotificationRead(RequestNotificationIndex, ThreadPool_->RequestNotificationHandle_, RequestNotificationUserData);
             }
         }
-
 
         TString MakeThreadName()
         {
             return Format("%v:%v", ThreadPool_->ThreadNamePrefix_, Index_);
         }
 
-
-        void ResetIovs()
+        TUringIovBuffer* AllocateIovBuffer()
         {
-            UsedIovCount_ = 0;
+            YT_VERIFY(!FreeIovBuffers_.empty());
+            auto* result = FreeIovBuffers_.back();
+            FreeIovBuffers_.pop_back();
+            return result;
         }
 
-        iovec* GetCurrentIov()
+        void ReleaseIovBuffer(TUringIovBuffer* buffer)
         {
-            return &Iovs_[UsedIovCount_];
+            if (buffer) {
+                FreeIovBuffers_.push_back(buffer);
+            }
         }
-
-        iovec* AllocateIov()
-        {
-            YT_VERIFY(UsedIovCount_ < Iovs_.size());
-            return &Iovs_[UsedIovCount_++];
-        }
-
 
         io_uring_cqe* WaitForCqe()
         {
             auto* cqe = Uring_.WaitCqe();
-            YT_VERIFY(--PendingRequestCount_ >= 0);
+            YT_VERIFY(--PendingSubmissionsCount_ >= 0);
             YT_LOG_TRACE("CQE received (PendingRequestCount: %v)",
-                PendingRequestCount_);
+                PendingSubmissionsCount_);
             return cqe;
         }
 
@@ -1546,11 +1581,11 @@ private:
         {
             int count = Uring_.Submit();
             if (count > 0) {
-                PendingRequestCount_ += count;
+                PendingSubmissionsCount_ += count;
 
                 YT_LOG_TRACE("SQEs submitted (SqeCount: %v, PendingRequestCount: %v)",
                     count,
-                    PendingRequestCount_);
+                    PendingSubmissionsCount_);
             }
         }
 
