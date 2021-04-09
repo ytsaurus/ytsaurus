@@ -294,6 +294,8 @@ public:
         const ISensorProducerPtr& producer) const;
 
 private:
+    friend struct TTesting;
+
     bool Enabled_ = false;
     TString Prefix_;
     TString Namespace_;
