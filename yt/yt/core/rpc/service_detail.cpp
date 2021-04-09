@@ -2020,7 +2020,8 @@ TServiceBase::TRuntimeMethodInfo* TServiceBase::GetMethodInfoOrThrow(const TStri
 {
     auto* runtimeInfo = FindMethodInfo(method);
     if (!runtimeInfo) {
-        THROW_ERROR_EXCEPTION("Method %Qv is not registered");
+        THROW_ERROR_EXCEPTION("Method %Qv is not registered",
+            method);
     }
     return runtimeInfo;
 }
