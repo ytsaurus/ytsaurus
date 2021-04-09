@@ -148,39 +148,49 @@ private:
         bool Younger;
     };
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock_);
+    struct TShard
+    {
+        YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock);
 
-    TIntrusiveListWithAutoDelete<TItem, TDelete> YoungerLruList_;
-    TIntrusiveListWithAutoDelete<TItem, TDelete> OlderLruList_;
+        TIntrusiveListWithAutoDelete<TItem, TDelete> YoungerLruList;
+        TIntrusiveListWithAutoDelete<TItem, TDelete> OlderLruList;
 
-    THashMap<TKey, TValue*, THash> ValueMap_;
+        THashMap<TKey, TValue*, THash> ValueMap;
 
-    THashMap<TKey, TItem*, THash> ItemMap_;
-    std::atomic<int> ItemMapSize_ = 0;
+        THashMap<TKey, TItem*, THash> ItemMap;
 
-    std::vector<TItem*> TouchBuffer_;
-    std::atomic<int> TouchBufferPosition_ = 0;
+        std::vector<TItem*> TouchBuffer;
+        std::atomic<int> TouchBufferPosition = 0;
+
+        size_t YoungerWeightCounter = 0;
+        size_t OlderWeightCounter = 0;
+    };
+
+    std::unique_ptr<TShard[]> Shards_;
+
+    std::atomic<int> Size_ = 0;
 
     NProfiling::TCounter HitWeightCounter_;
     NProfiling::TCounter MissedWeightCounter_;
     std::atomic<i64> YoungerWeightCounter_ = 0;
     std::atomic<i64> OlderWeightCounter_ = 0;
 
+    TShard* GetShardByKey(const TKey& key) const;
 
-    bool Touch(TItem* item);
-    void DrainTouchBuffer();
+    bool Touch(TShard* shard, TItem* item);
+    void DrainTouchBuffer(TShard* shard);
 
     void DoTryRemove(const TKey& key, const TValuePtr& value, bool forbidResurrection);
 
-    void Trim(NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& guard);
+    void Trim(TShard* shard, NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& guard);
 
     void EndInsert(TValuePtr value);
     void CancelInsert(const TKey& key, const TError& error);
     void Unregister(const TKey& key);
-    i64 PushToYounger(TItem* item);
-    void MoveToYounger(TItem* item);
-    void MoveToOlder(TItem* item);
-    void Pop(TItem* item);
+    i64 PushToYounger(TShard* shard, TItem* item);
+    void MoveToYounger(TShard* shard, TItem* item);
+    void MoveToOlder(TShard* shard, TItem* item);
+    void Pop(TShard* shard, TItem* item);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

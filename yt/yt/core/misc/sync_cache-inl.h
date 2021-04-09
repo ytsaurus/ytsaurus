@@ -49,8 +49,10 @@ TSyncSlruCacheBase<TKey, TValue, THash>::TSyncSlruCacheBase(
     });
 
     Shards_.reset(new TShard[Config_->ShardCount]);
+
+    int touchBufferCapacity = Config_->TouchBufferCapacity / Config_->ShardCount;
     for (int index = 0; index < Config_->ShardCount; ++index) {
-        Shards_[index].TouchBuffer.resize(Config_->TouchBufferCapacity);
+        Shards_[index].TouchBuffer.resize(touchBufferCapacity);
     }
 }
 
@@ -71,8 +73,6 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Clear()
         TIntrusiveListWithAutoDelete<TItem, TDelete> olderLruList;
         shard.OlderLruList.Swap(olderLruList);
 
-        guard.Release();
-
         int totalItemCount = 0;
         i64 totalYoungerWeight = 0;
         i64 totalOlderWeight = 0;
@@ -92,6 +92,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Clear()
         Size_ -= totalItemCount;
 
         // NB: Lists must die outside the critical section.
+        guard.Release();
     }
 }
 
