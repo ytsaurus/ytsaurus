@@ -12,6 +12,8 @@ struct TTesting
     static TDuration ReadTimeGauge(const TTimeGauge& gauge);
     static i64 ReadCounter(const TCounter& counter);
     static TDuration ReadTimeCounter(const TTimeCounter& counter);
+
+    static const TSensorOptions& ReadOptions(const TProfiler& profiler);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

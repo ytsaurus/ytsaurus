@@ -32,6 +32,10 @@ TDuration TTesting::ReadTimeCounter(const TTimeCounter& counter)
     return counter.Counter_->GetValue();
 }
 
+const TSensorOptions& TTesting::ReadOptions(const TProfiler& profiler) {
+    return profiler.Options_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NProfiling
