@@ -100,37 +100,6 @@ TPrimitiveTypeConverter<IsNullable, TFunction> CreatePrimitiveTypeConverter(ui32
     return TPrimitiveTypeConverter<IsNullable, TFunction>(columnId, function);
 }
 
-TSkiffToUnversionedValueConverter CreatePrimitiveTypeConverter(EWireType wireType, bool required, int columnId)
-{
-    switch (wireType) {
-#define CASE(x) \
-        case ((x)): \
-            do { \
-                if (required) { \
-                    return TPrimitiveTypeConverter<false, TSimpleSkiffParser<(x)>>(columnId); \
-                } else { \
-                    return TPrimitiveTypeConverter<true, TSimpleSkiffParser<(x)>>(columnId); \
-                } \
-            } while (0)
-        CASE(EWireType::Int8);
-        CASE(EWireType::Int16);
-        CASE(EWireType::Int32);
-        CASE(EWireType::Int64);
-        CASE(EWireType::Uint8);
-        CASE(EWireType::Uint16);
-        CASE(EWireType::Uint32);
-        CASE(EWireType::Uint64);
-        CASE(EWireType::Boolean);
-        CASE(EWireType::Double);
-        CASE(EWireType::String32);
-#undef CASE
-        default:
-            break;
-    }
-    YT_ABORT();
-}
-
-
 template<bool isNullable>
 class TYson32TypeConverterImpl
 {
@@ -170,22 +139,48 @@ private:
     TYsonToUnversionedValueConverter* YsonConverter_ = nullptr;
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-void ThrowBadWireTypeForSimpleColumn(const TFieldDescription& fieldDescription)
+TSkiffToUnversionedValueConverter CreatePrimitiveTypeConverter(
+    EWireType wireType,
+    bool required,
+    int columnId,
+    TYsonToUnversionedValueConverter* ysonConverter)
 {
-    THROW_ERROR_EXCEPTION("Cannot use skiff type %Qv to encode column %Qv",
-        GetShortDebugString(fieldDescription.Schema()),
-        fieldDescription.Name());
+    switch (wireType) {
+#define CASE(x) \
+        case ((x)): \
+            do { \
+                if (required) { \
+                    return TPrimitiveTypeConverter<false, TSimpleSkiffParser<(x)>>(columnId); \
+                } else { \
+                    return TPrimitiveTypeConverter<true, TSimpleSkiffParser<(x)>>(columnId); \
+                } \
+            } while (0)
+        CASE(EWireType::Int8);
+        CASE(EWireType::Int16);
+        CASE(EWireType::Int32);
+        CASE(EWireType::Int64);
+        CASE(EWireType::Uint8);
+        CASE(EWireType::Uint16);
+        CASE(EWireType::Uint32);
+        CASE(EWireType::Uint64);
+        CASE(EWireType::Boolean);
+        CASE(EWireType::Double);
+        CASE(EWireType::String32);
+        CASE(EWireType::Nothing);
+#undef CASE
+        case EWireType::Yson32:
+            if (required) {
+                return TYson32TypeConverterImpl<false>(columnId, ysonConverter);
+            } else {
+                return TYson32TypeConverterImpl<true>(columnId, ysonConverter);
+            }
+        default:
+            break;
+    }
+    YT_ABORT();
 }
 
-void CheckWireTypeCompatibility(const TFieldDescription& fieldDescription, std::initializer_list<EWireType> allowed)
-{
-    auto wireType = fieldDescription.ValidatedSimplify();
-    if (std::find(allowed.begin(), allowed.end(), wireType) == allowed.end()) {
-        ThrowBadWireTypeForSimpleColumn(fieldDescription);
-    }
-};
+////////////////////////////////////////////////////////////////////////////////
 
 TSkiffToUnversionedValueConverter CreateSimpleValueConverter(
     ESimpleLogicalValueType columnType,
@@ -202,10 +197,10 @@ TSkiffToUnversionedValueConverter CreateSimpleValueConverter(
         case ESimpleLogicalValueType::Int64:
 
         case ESimpleLogicalValueType::Timestamp:
-            CheckWireTypeCompatibility(
-                fieldDescription,
-                {EWireType::Int8, EWireType::Int16, EWireType::Int32, EWireType::Int64});
-            return CreatePrimitiveTypeConverter(wireType, required, columnId);
+            CheckWireType(
+                wireType,
+                {EWireType::Int8, EWireType::Int16, EWireType::Int32, EWireType::Int64, EWireType::Yson32});
+            return CreatePrimitiveTypeConverter(wireType, required, columnId, ysonConverter);
 
         case ESimpleLogicalValueType::Uint8:
         case ESimpleLogicalValueType::Uint16:
@@ -215,29 +210,30 @@ TSkiffToUnversionedValueConverter CreateSimpleValueConverter(
         case ESimpleLogicalValueType::Date:
         case ESimpleLogicalValueType::Datetime:
         case ESimpleLogicalValueType::Interval:
-            CheckWireTypeCompatibility(
-                fieldDescription,
-                {EWireType::Uint8, EWireType::Uint16, EWireType::Uint32, EWireType::Uint64});
-            return CreatePrimitiveTypeConverter(wireType, required, columnId);
+            CheckWireType(
+                wireType,
+                {EWireType::Uint8, EWireType::Uint16, EWireType::Uint32, EWireType::Uint64, EWireType::Yson32});
+            return CreatePrimitiveTypeConverter(wireType, required, columnId, ysonConverter);
 
         case ESimpleLogicalValueType::String:
         case ESimpleLogicalValueType::Json:
         case ESimpleLogicalValueType::Utf8:
-            CheckWireTypeCompatibility(fieldDescription, {EWireType::String32});
-            return CreatePrimitiveTypeConverter(wireType, required, columnId);
+            CheckWireType(wireType, {EWireType::String32, EWireType::Yson32});
+            return CreatePrimitiveTypeConverter(wireType, required, columnId, ysonConverter);
 
         case ESimpleLogicalValueType::Float:
         case ESimpleLogicalValueType::Double:
-            CheckWireTypeCompatibility(fieldDescription, {EWireType::Double});
-            return CreatePrimitiveTypeConverter(wireType, required, columnId);
+            CheckWireType(wireType, {EWireType::Double, EWireType::Yson32});
+            return CreatePrimitiveTypeConverter(wireType, required, columnId, ysonConverter);
 
         case ESimpleLogicalValueType::Boolean:
-            CheckWireTypeCompatibility(fieldDescription, {EWireType::Boolean});
-            return CreatePrimitiveTypeConverter(wireType, required, columnId);
+            CheckWireType(wireType, {EWireType::Boolean, EWireType::Yson32});
+            return CreatePrimitiveTypeConverter(wireType, required, columnId, ysonConverter);
 
         case ESimpleLogicalValueType::Any:
-            CheckWireTypeCompatibility(
-                fieldDescription, {
+            CheckWireType(
+                wireType,
+                {
                     EWireType::Int8,
                     EWireType::Int16,
                     EWireType::Int32,
@@ -254,33 +250,22 @@ TSkiffToUnversionedValueConverter CreateSimpleValueConverter(
                     EWireType::Nothing,
                     EWireType::Yson32
                 });
-            if (wireType == EWireType::Yson32) {
-                if (required) {
-                    return TYson32TypeConverterImpl<false>(columnId, ysonConverter);
-                } else {
-                    return TYson32TypeConverterImpl<true>(columnId, ysonConverter);
-                }
-            } else if (wireType == EWireType::Nothing) {
-                if (!required) {
-                    ThrowBadWireTypeForSimpleColumn(fieldDescription);
-                }
-                return TPrimitiveTypeConverter<false, TSimpleSkiffParser<EWireType::Nothing>>(columnId);
-            }
-            return CreatePrimitiveTypeConverter(wireType, required, columnId);
+            return CreatePrimitiveTypeConverter(wireType, required, columnId, ysonConverter);
 
         case ESimpleLogicalValueType::Null:
         case ESimpleLogicalValueType::Void:
-            if (!required) {
-                ThrowBadWireTypeForSimpleColumn(fieldDescription);
-            }
-            return TPrimitiveTypeConverter<false, TSimpleSkiffParser<EWireType::Nothing>>(columnId);
-
+            CheckWireType(wireType, {EWireType::Nothing, EWireType::Yson32});
+            return CreatePrimitiveTypeConverter(wireType, required, columnId, ysonConverter);
         case ESimpleLogicalValueType::Uuid:
-            CheckWireTypeCompatibility(fieldDescription, {EWireType::Uint128});
-            if (fieldDescription.IsNullable()) {
-                return CreatePrimitiveTypeConverter<true>(columnId, TUuidParser());
+            CheckWireType(wireType, {EWireType::Uint128, EWireType::Yson32});
+            if (wireType == EWireType::Uint128) {
+                if (fieldDescription.IsNullable()) {
+                    return CreatePrimitiveTypeConverter<true>(columnId, TUuidParser());
+                } else {
+                    return CreatePrimitiveTypeConverter<false>(columnId, TUuidParser());
+                }
             } else {
-                return CreatePrimitiveTypeConverter<false>(columnId, TUuidParser());
+                return CreatePrimitiveTypeConverter(wireType, required, columnId, ysonConverter);
             }
     }
 }
@@ -288,9 +273,10 @@ TSkiffToUnversionedValueConverter CreateSimpleValueConverter(
 TSkiffToUnversionedValueConverter CreateDecimalValueConverter(
     const TFieldDescription& fieldDescription,
     ui16 columnId,
-    const TDecimalLogicalType& denullifiedType)
+    const TDecimalLogicalType& denullifiedType,
+    TYsonToUnversionedValueConverter* ysonConverter)
 {
-    const auto precision = denullifiedType.GetPrecision();
+const auto precision = denullifiedType.GetPrecision();
     const auto wireType = fieldDescription.ValidatedSimplify();
     switch (wireType) {
 #define CASE(x) \
@@ -306,6 +292,8 @@ TSkiffToUnversionedValueConverter CreateDecimalValueConverter(
         CASE(EWireType::Int64);
         CASE(EWireType::Int128);
 #undef CASE
+        case EWireType::Yson32:
+            return CreatePrimitiveTypeConverter(wireType, fieldDescription.IsRequired(), columnId, ysonConverter);
         default:
             CheckSkiffWireTypeForDecimal(precision, wireType);
             YT_ABORT();
@@ -499,7 +487,8 @@ private:
                     return CreateDecimalValueConverter(
                         skiffField,
                         columnId,
-                        denullifiedLogicalType->AsDecimalTypeRef());
+                        denullifiedLogicalType->AsDecimalTypeRef(),
+                        &YsonToUnversionedValueConverter_);
                 case ELogicalMetatype::Optional:
                 case ELogicalMetatype::List:
                 case ELogicalMetatype::Tuple:
