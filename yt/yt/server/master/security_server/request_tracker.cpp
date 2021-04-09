@@ -130,28 +130,42 @@ TFuture<void> TRequestTracker::ThrottleUserRequest(TUser* user, int requestCount
 
 void TRequestTracker::SetUserRequestRateLimit(TUser* user, int limit, EUserWorkloadType type)
 {
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    auto* rootUser = securityManager->GetRootUser();
+    YT_VERIFY(user != rootUser);
+
     user->SetRequestRateLimit(limit, type);
     ReconfigureUserRequestRateThrottlers(user);
 }
 
 void TRequestTracker::SetUserRequestLimits(TUser* user, TUserRequestLimitsConfigPtr config)
 {
+    YT_VERIFY(config);
+
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    auto* rootUser = securityManager->GetRootUser();
+    YT_VERIFY(user != rootUser);
+
     user->SetRequestLimits(std::move(config));
     ReconfigureUserRequestRateThrottlers(user);
 }
 
 void TRequestTracker::ReconfigureUserRequestRateThrottlers(TUser* user)
 {
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    auto* rootUser = securityManager->GetRootUser();
     auto enableDistributedThrottler = GetDynamicConfig()->EnableDistributedThrottler;
+    auto createUserThrottler = [&] (TUser* user, EUserWorkloadType workloadType) {
+        if (enableDistributedThrottler && workloadType == EUserWorkloadType::Read && user != rootUser) {
+            auto throttlerId = Format("%v:request_count:%v", user->GetName(), workloadType);
+            return ThrottlerFactory_->GetOrCreateThrottler(std::move(throttlerId), New<TThroughputThrottlerConfig>());
+        }
+        return CreateReconfigurableThroughputThrottler(New<TThroughputThrottlerConfig>());
+    };
+
     for (auto workloadType : {EUserWorkloadType::Read, EUserWorkloadType::Write}) {
-        if (!user->GetRequestRateThrottler(workloadType)) {
-            if (enableDistributedThrottler && workloadType == EUserWorkloadType::Read) {
-                auto throttlerId = Format("%v:request_count:%v", user->GetName(), workloadType);
-                auto throttler = ThrottlerFactory_->GetOrCreateThrottler(std::move(throttlerId), New<TThroughputThrottlerConfig>());
-                user->SetRequestRateThrottler(std::move(throttler), workloadType);
-            } else {
-                user->SetRequestRateThrottler(CreateReconfigurableThroughputThrottler(New<TThroughputThrottlerConfig>()), workloadType);
-            }
+        if (DistributedThrottlerEnabled_ != enableDistributedThrottler || !user->GetRequestRateThrottler(workloadType)) {
+            user->SetRequestRateThrottler(createUserThrottler(user, workloadType), workloadType);
         }
 
         auto config = New<TThroughputThrottlerConfig>();
@@ -163,8 +177,8 @@ void TRequestTracker::ReconfigureUserRequestRateThrottlers(TUser* user)
         // followers (because it's they who handle read requests).
         // If there're two peers, there's only one follower - no division necessary.
         // If there's only one peer, its certainly being read from - no division necessary.
-        if (!enableDistributedThrottler && workloadType == EUserWorkloadType::Read && AlivePeerCount_ > 2) {
-            requestRateLimit /= AlivePeerCount_ - 1;
+        if (!enableDistributedThrottler && requestRateLimit && workloadType == EUserWorkloadType::Read && AlivePeerCount_ > 2) {
+            *requestRateLimit /= AlivePeerCount_ - 1;
         }
 
         config->Limit = requestRateLimit;
@@ -207,6 +221,7 @@ const TDynamicSecurityManagerConfigPtr& TRequestTracker::GetDynamicConfig()
 void TRequestTracker::OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr /*oldConfig*/)
 {
     ReconfigureUserThrottlers();
+    DistributedThrottlerEnabled_ = GetDynamicConfig()->EnableDistributedThrottler;
 }
 
 void TRequestTracker::ReconfigureUserThrottlers()

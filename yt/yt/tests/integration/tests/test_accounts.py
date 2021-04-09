@@ -45,6 +45,8 @@ def subtract_recursive(lhs, rhs):
 
 
 class AccountsTestSuiteBase(YTEnvSetup):
+    NUM_TEST_PARTITIONS = 2
+
     NUM_MASTERS = 1
     NUM_NODES = 3
 

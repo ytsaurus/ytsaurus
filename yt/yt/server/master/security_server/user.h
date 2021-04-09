@@ -29,48 +29,33 @@ class TUserRequestLimitsOptions
     : public NYTree::TYsonSerializable
 {
 public:
-    int Default;
+    std::optional<int> Default;
     THashMap<NObjectServer::TCellTag, int> PerCell;
 
-    TUserRequestLimitsOptions()
-    {
-        RegisterParameter("default", Default)
-            .GreaterThan(0)
-            .Default(100);
-        RegisterParameter("per_cell", PerCell)
-            .Optional();
+    TUserRequestLimitsOptions();
 
-        RegisterPostprocessor([&] () {
-            for (const auto& [cellTag, value] : PerCell) {
-                if (cellTag < NObjectClient::MinValidCellTag || cellTag > NObjectClient::MaxValidCellTag) {
-                    THROW_ERROR_EXCEPTION("Invalid cell tag: %v",
-                        cellTag);
-                }
-
-                if (value <= 0) {
-                    THROW_ERROR_EXCEPTION("Value must be greater than zero (CellTag: %v, Value: %v)",
-                        cellTag, value);
-                }
-            }
-        });
-    }
-
-    void SetValue(NObjectServer::TCellTag cellTag, int value)
-    {
-        if (cellTag == NObjectClient::InvalidCellTag) {
-            Default = value;
-        } else {
-            PerCell[cellTag] = value;
-        }
-    }
-
-    int GetValue(NObjectServer::TCellTag cellTag) const
-    {
-        return PerCell.Value(cellTag, Default);
-    }
+    void SetValue(NObjectServer::TCellTag cellTag, std::optional<int> value);
+    std::optional<int> GetValue(NObjectServer::TCellTag cellTag) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TUserRequestLimitsOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUserQueueSizeLimitsOptions
+    : public NYTree::TYsonSerializable
+{
+public:
+    int Default;
+    THashMap<NObjectServer::TCellTag, int> PerCell;
+
+    TUserQueueSizeLimitsOptions();
+
+    void SetValue(NObjectServer::TCellTag cellTag, int value);
+    int GetValue(NObjectServer::TCellTag cellTag) const;
+};
+
+DEFINE_REFCOUNTED_TYPE(TUserQueueSizeLimitsOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,7 +65,7 @@ class TUserRequestLimitsConfig
 public:
     TUserRequestLimitsOptionsPtr ReadRequestRateLimits;
     TUserRequestLimitsOptionsPtr WriteRequestRateLimits;
-    TUserRequestLimitsOptionsPtr RequestQueueSizeLimits;
+    TUserQueueSizeLimitsOptionsPtr RequestQueueSizeLimits;
 
     TUserRequestLimitsConfig()
     {
@@ -117,11 +102,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Banned);
     DEFINE_BYVAL_RW_PROPERTY(TUserRequestLimitsConfigPtr, RequestLimits);
 
-    int GetRequestQueueSize()
-    {
-        return RequestQueueSize_;
-    }
-
+    int GetRequestQueueSize() const;
     void SetRequestQueueSize(int size);
 
     using TStatistics = TEnumIndexedVector<EUserWorkloadType, TUserWorkloadStatistics>;
@@ -139,8 +120,8 @@ public:
     const NConcurrency::IReconfigurableThroughputThrottlerPtr& GetRequestRateThrottler(EUserWorkloadType workloadType);
     void SetRequestRateThrottler(NConcurrency::IReconfigurableThroughputThrottlerPtr throttler, EUserWorkloadType workloadType);
 
-    int GetRequestRateLimit(EUserWorkloadType workloadType, NObjectServer::TCellTag cellTag = NObjectClient::InvalidCellTag) const;
-    void SetRequestRateLimit(int limit, EUserWorkloadType workloadType, NObjectServer::TCellTag cellTag = NObjectClient::InvalidCellTag);
+    std::optional<int> GetRequestRateLimit(EUserWorkloadType workloadType, NObjectServer::TCellTag cellTag = NObjectClient::InvalidCellTag) const;
+    void SetRequestRateLimit(std::optional<int> limit, EUserWorkloadType workloadType, NObjectServer::TCellTag cellTag = NObjectClient::InvalidCellTag);
 
     int GetRequestQueueSizeLimit(NObjectServer::TCellTag cellTag = NObjectClient::InvalidCellTag) const;
     void SetRequestQueueSizeLimit(int limit, NObjectServer::TCellTag cellTag = NObjectClient::InvalidCellTag);
@@ -149,7 +130,7 @@ public:
 
 protected:
     // Transient
-    int RequestQueueSize_{};
+    int RequestQueueSize_ = 0;
 
 private:
     NConcurrency::IReconfigurableThroughputThrottlerPtr ReadRequestRateThrottler_;

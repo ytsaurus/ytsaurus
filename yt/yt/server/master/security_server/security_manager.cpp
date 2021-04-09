@@ -2994,8 +2994,8 @@ private:
 
         // root
         if (EnsureBuiltinUserInitialized(RootUser_, RootUserId_, RootUserName)) {
-            RootUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
-            RootUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
+            RootUser_->SetRequestRateLimit(std::nullopt, EUserWorkloadType::Read);
+            RootUser_->SetRequestRateLimit(std::nullopt, EUserWorkloadType::Write);
             RootUser_->SetRequestQueueSizeLimit(1000000);
         }
 

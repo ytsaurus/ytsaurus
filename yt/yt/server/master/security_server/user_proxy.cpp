@@ -54,13 +54,19 @@ private:
     {
         TBase::ListSystemAttributes(descriptors);
 
+        auto* user = GetThisImpl();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto isRoot = user == securityManager->GetRootUser();
+
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Banned)
             .SetWritable(true)
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReadRequestRateLimit)
+            .SetPresent(!isRoot)
             .SetWritable(true)
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::WriteRequestRateLimit)
+            .SetPresent(!isRoot)
             .SetWritable(true)
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RequestQueueSizeLimit)
@@ -89,12 +95,12 @@ private:
 
             case EInternedAttributeKey::ReadRequestRateLimit:
                 BuildYsonFluently(consumer)
-                    .Value(user->GetRequestRateLimit(EUserWorkloadType::Read, NObjectClient::InvalidCellTag));
+                    .Value(user->GetRequestRateLimit(EUserWorkloadType::Read));
                 return true;
 
             case EInternedAttributeKey::WriteRequestRateLimit:
                 BuildYsonFluently(consumer)
-                    .Value(user->GetRequestRateLimit(EUserWorkloadType::Write, NObjectClient::InvalidCellTag));
+                    .Value(user->GetRequestRateLimit(EUserWorkloadType::Write));
                 return true;
 
             case EInternedAttributeKey::RequestQueueSizeLimit:
@@ -176,6 +182,7 @@ private:
     {
         auto* user = GetThisImpl();
         const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* rootUser = securityManager->GetRootUser();
 
         switch (key) {
             case EInternedAttributeKey::Banned: {
@@ -185,18 +192,26 @@ private:
             }
 
             case EInternedAttributeKey::ReadRequestRateLimit: {
-                auto limit = ConvertTo<double>(value);
+                auto limit = ConvertTo<int>(value);
                 if (limit < 0) {
                     THROW_ERROR_EXCEPTION("\"read_request_rate_limit\" cannot be negative");
+                }
+                if (user == rootUser) {
+                    THROW_ERROR_EXCEPTION("Cannot set \"read_request_rate_limit\" for %Qv",
+                        user->GetName());
                 }
                 securityManager->SetUserRequestRateLimit(user, limit, EUserWorkloadType::Read);
                 return true;
             }
 
             case EInternedAttributeKey::WriteRequestRateLimit: {
-                auto limit = ConvertTo<double>(value);
+                auto limit = ConvertTo<int>(value);
                 if (limit < 0) {
                     THROW_ERROR_EXCEPTION("\"write_request_rate_limit\" cannot be negative");
+                }
+                if (user == rootUser) {
+                    THROW_ERROR_EXCEPTION("Cannot set \"write_request_rate_limit\" for %Qv",
+                        user->GetName());
                 }
                 securityManager->SetUserRequestRateLimit(user, limit, EUserWorkloadType::Write);
                 return true;

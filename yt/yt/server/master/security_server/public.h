@@ -52,6 +52,7 @@ DECLARE_REFCOUNTED_CLASS(TSerializableViolatedClusterResourceLimits)
 DECLARE_REFCOUNTED_CLASS(TSerializableRichClusterResources)
 DECLARE_REFCOUNTED_STRUCT(ISecurityManager)
 DECLARE_REFCOUNTED_CLASS(TUserRequestLimitsOptions)
+DECLARE_REFCOUNTED_CLASS(TUserQueueSizeLimitsOptions)
 DECLARE_REFCOUNTED_CLASS(TUserRequestLimitsConfig)
 
 class TSubject;
