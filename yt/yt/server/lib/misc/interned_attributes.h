@@ -116,6 +116,7 @@
     XX(EnableResourceTreeUsageLockProfiling, enable_resource_tree_usage_lock_profiling) \
     XX(EnableSchedulingTags, enable_scheduling_tags) \
     XX(EnableChunkMerger, enable_chunk_merger) \
+    XX(EnableSkynetSharing, enable_skynet_sharing) \
     XX(EntranceCellTag, entrance_cell_tag) \
     XX(EntranceNodeId, entrance_node_id) \
     XX(EphemeralRefCounter, ephemeral_ref_counter) \

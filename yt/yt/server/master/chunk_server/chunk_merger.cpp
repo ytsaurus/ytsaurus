@@ -753,17 +753,7 @@ bool TChunkMerger::CreateMergeJob(TNode* node, const TMergeJobInfo& jobInfo, TJo
         chunkMergerWriterOptions.set_optimize_for(ToProto<int>(table->GetOptimizeFor()));
     }
     chunkMergerWriterOptions.set_compression_codec(ToProto<int>(chunkOwner->GetCompressionCodec()));
-
-    // TODO(aleksandra-zh): make enable_skynet_sharing builtin to avoid this.
-    try {
-        auto enableSkynetSharing = chunkOwner->FindAttribute("enable_skynet_sharing");
-        if (enableSkynetSharing) {
-            chunkMergerWriterOptions.set_enable_skynet_sharing(ConvertTo<bool>(*enableSkynetSharing));
-        }
-    } catch (const std::exception& ex) {
-        YT_LOG_WARNING(ex, "Attribute 'enable_skynet_sharing' contains invalid value (NodeId: %v)",
-            jobInfo.NodeId);
-    }
+    chunkMergerWriterOptions.set_enable_skynet_sharing(chunkOwner->GetEnableSkynetSharing());
 
     TJob::TChunkVector inputChunks;
     inputChunks.reserve(jobInfo.InputChunkIds.size());

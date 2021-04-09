@@ -595,6 +595,9 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MergeJobCounter)
         .SetExternal(isExternal)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EnableSkynetSharing)
+        .SetWritable(true)
+        .SetReplicated(true));        
 }
 
 bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
@@ -716,6 +719,11 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
                 .Value(node->GetCurrentEpochMergeJobCounter());
             return true;
 
+        case EInternedAttributeKey::EnableSkynetSharing:
+            BuildYsonFluently(consumer)
+                .Value(node->GetEnableSkynetSharing());
+            return true;
+
         default:
             break;
     }
@@ -824,14 +832,15 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
             const auto& uninternedKey = key.Unintern();
-            auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(uninternedKey));
+            auto codec = ConvertTo<NCompression::ECodec>(value);
 
             ValidateCompressionCodec(
                 value,
                 config->DeprecatedCodecIds,
                 config->DeprecatedCodecNameToAlias);
 
-            node->SetCompressionCodec(ConvertTo<NCompression::ECodec>(value));
+            auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(uninternedKey));
+            node->SetCompressionCodec(codec);
 
             return true;
         }
@@ -844,8 +853,9 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
             const auto& uninternedKey = key.Unintern();
+            auto codec = ConvertTo<NErasure::ECodec>(value);
             auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(uninternedKey));
-            node->SetErasureCodec(ConvertTo<NErasure::ECodec>(value));
+            node->SetErasureCodec(codec);
 
             return true;
         }
@@ -892,6 +902,17 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
         case EInternedAttributeKey::EnableChunkMerger: {
             auto enable = ConvertTo<bool>(value);
             SetEnableChunkMerger(enable);
+            return true;
+        }
+
+        case EInternedAttributeKey::EnableSkynetSharing: {
+            ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
+            const auto& uninternedKey = key.Unintern();
+            auto enable = ConvertTo<bool>(value);
+            auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(uninternedKey));
+            node->SetEnableSkynetSharing(enable);
+
             return true;
         }
 

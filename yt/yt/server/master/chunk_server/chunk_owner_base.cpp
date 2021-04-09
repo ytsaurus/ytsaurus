@@ -8,6 +8,8 @@
 #include <yt/yt/server/master/security_server/cluster_resources.h>
 #include <yt/yt/server/master/security_server/security_tags.h>
 
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
 #include <yt/yt/ytlib/chunk_client/helpers.h>
@@ -33,8 +35,9 @@ TChunkOwnerBase::TChunkOwnerBase(const TVersionedNodeId& id)
 {
     Replication_.SetVital(true);
     if (IsTrunk()) {
-        CompressionCodec_.Set(NCompression::ECodec::None);
-        ErasureCodec_.Set(NErasure::ECodec::None);
+        SetCompressionCodec(NCompression::ECodec::None);
+        SetErasureCodec(NErasure::ECodec::None);
+        SetEnableSkynetSharing(false);
     }
 }
 
@@ -54,6 +57,7 @@ void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
     Save(context, SnapshotSecurityTags_);
     Save(context, DeltaSecurityTags_);
     Save(context, EnableChunkMerger_);
+    Save(context, EnableSkynetSharing_);
 }
 
 void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
@@ -75,6 +79,25 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     // COMPAT(aleksandra-zh)
     if (context.GetVersion() >= EMasterReign::MasterMergeJobs) {
         Load(context, EnableChunkMerger_);
+    }
+
+    // COMPAT(aleksandra-zh)
+    if (context.GetVersion() < EMasterReign::BuiltinEnableSkynetSharing) {
+        const auto& enableSkynetSharingAttributeName = EInternedAttributeKey::EnableSkynetSharing.Unintern();
+        if (auto enableSkynetSharing = FindAttribute(enableSkynetSharingAttributeName)) {
+            auto value = std::move(*enableSkynetSharing);
+            YT_VERIFY(Attributes_->Remove(enableSkynetSharingAttributeName));
+            try {
+                SetEnableSkynetSharing(ConvertTo<bool>(value));
+            } catch (const std::exception& ex) {
+                YT_LOG_WARNING(ex, "Cannot parse %Qv attribute (Value: %v, NodeId: %v)",
+                    enableSkynetSharingAttributeName,
+                    value,
+                    GetId());
+            }
+        }
+    } else {
+        Load(context, EnableSkynetSharing_);
     }
 }
 

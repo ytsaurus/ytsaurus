@@ -2929,25 +2929,31 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t1/@optimize_for") == "lookup"
         assert get("//tmp/t1/@compression_codec") == "zlib_6"
         assert get("//tmp/t1/@erasure_codec") == "reed_solomon_6_3"
+        assert not get("//tmp/t1/@enable_skynet_sharing")
 
         tx = start_transaction()
 
         set("//tmp/t1/@optimize_for", "scan", tx=tx)
         set("//tmp/t1/@compression_codec", "lz4", tx=tx)
         set("//tmp/t1/@erasure_codec", "lrc_12_2_2", tx=tx)
+        set("//tmp/t1/@enable_skynet_sharing", True, tx=tx)
 
         assert get("//tmp/t1/@optimize_for") == "lookup"
         assert get("//tmp/t1/@compression_codec") == "zlib_6"
         assert get("//tmp/t1/@erasure_codec") == "reed_solomon_6_3"
+        assert not get("//tmp/t1/@enable_skynet_sharing")
+
         assert get("//tmp/t1/@optimize_for", tx=tx) == "scan"
         assert get("//tmp/t1/@compression_codec", tx=tx) == "lz4"
         assert get("//tmp/t1/@erasure_codec", tx=tx) == "lrc_12_2_2"
+        assert get("//tmp/t1/@enable_skynet_sharing", tx=tx)
 
         commit_transaction(tx)
 
         assert get("//tmp/t1/@optimize_for") == "scan"
         assert get("//tmp/t1/@compression_codec") == "lz4"
         assert get("//tmp/t1/@erasure_codec") == "lrc_12_2_2"
+        assert get("//tmp/t1/@enable_skynet_sharing")
 
     @authors("avmatrosov")
     def test_annotation_attribute(self):
@@ -3302,6 +3308,36 @@ class TestCypressPortal(TestCypressMulticell):
 
         assert get("//tmp/p/d2/@compression_codec") == "snappy"
         assert get("//tmp/p/d2/@tablet_cell_bundle") == "b"
+
+    @authors("aleksandra-zh")
+    def test_cross_shard_copy_builtin_attributes(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 2})
+
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={
+                "optimize_for": "lookup",
+                "compression_codec": "zlib_6",
+                "erasure_codec": "reed_solomon_6_3",
+                "enable_skynet_sharing": True,
+                "external_cell_tag": 3
+            },
+        )
+
+        copy("//tmp/t1", "//tmp/p/t1")
+
+        assert get("//tmp/p/t1/@optimize_for") == "lookup"
+        assert get("//tmp/p/t1/@compression_codec") == "zlib_6"
+        assert get("//tmp/p/t1/@erasure_codec") == "reed_solomon_6_3"
+        assert get("//tmp/p/t1/@enable_skynet_sharing")
+
+        copy("//tmp/p/t1", "//tmp/t2")
+
+        assert get("//tmp/t2/@optimize_for") == "lookup"
+        assert get("//tmp/t2/@compression_codec") == "zlib_6"
+        assert get("//tmp/t2/@erasure_codec") == "reed_solomon_6_3"
+        assert get("//tmp/t2/@enable_skynet_sharing")
 
     @authors("shakurov")
     def test_cross_shard_copy_w_tx(self):

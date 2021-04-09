@@ -2214,10 +2214,11 @@ private:
                 ReconfigureYsonSerializable(writerConfig, chunkWriterConfig);
             }
 
-            YT_LOG_DEBUG("Extended attributes received (Account: %v, CompressionCodec: %v, ErasureCodec: %v)",
+            YT_LOG_DEBUG("Extended attributes received (Account: %v, CompressionCodec: %v, ErasureCodec: %v, EnableSkynetSharing: %v)",
                 Options_->Account,
                 Options_->CompressionCodec,
-                Options_->ErasureCodec);
+                Options_->ErasureCodec,
+                Options_->EnableSkynetSharing);
         }
 
         {
