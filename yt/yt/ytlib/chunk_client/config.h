@@ -144,7 +144,7 @@ public:
     //! cannot be stricter than chunk schema.
     NTableClient::TTableSchemaPtr TableSchema;
 
-    NChunkClient::TConsistentPlacementHash ChunkConsistentPlacementHash;
+    NChunkClient::TConsistentReplicaPlacementHash ConsistentChunkReplicaPlacementHash;
 
     TMultiChunkWriterOptions()
     {
@@ -165,8 +165,8 @@ public:
             .Default(InvalidTableIndex);
         RegisterParameter("table_schema", TableSchema)
             .Default();
-        RegisterParameter("chunk_consistent_placement_hash", ChunkConsistentPlacementHash)
-            .Default(NChunkClient::NullConsistentPlacementHash);
+        RegisterParameter("chunk_consistent_replica_placement_hash", ConsistentChunkReplicaPlacementHash)
+            .Default(NChunkClient::NullConsistentReplicaPlacementHash);
     }
 };
 

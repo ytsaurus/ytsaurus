@@ -209,7 +209,7 @@ struct TTabletSnapshot
     TRowCachePtr RowCache;
     ui32 StoreFlushIndex;
 
-    NChunkClient::TConsistentPlacementHash ChunkConsistentPlacementHash = NChunkClient::NullConsistentPlacementHash;
+    NChunkClient::TConsistentReplicaPlacementHash ConsistentChunkReplicaPlacementHash = NChunkClient::NullConsistentReplicaPlacementHash;
 
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
@@ -536,7 +536,7 @@ public:
 
     NTabletNode::NProto::TMountHint GetMountHint() const;
 
-    NChunkClient::TConsistentPlacementHash GetChunkConsistentPlacementHash() const;
+    NChunkClient::TConsistentReplicaPlacementHash GetConsistentChunkReplicaPlacementHash() const;
 
     void ThrottleTabletStoresUpdate(
         const TTabletSlotPtr& slot,

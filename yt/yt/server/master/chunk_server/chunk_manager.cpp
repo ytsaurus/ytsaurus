@@ -695,7 +695,7 @@ public:
         bool movable,
         bool vital,
         bool overlayed,
-        TConsistentPlacementHash consistentPlacementHash)
+        TConsistentReplicaPlacementHash consistentReplicaPlacementHash)
     {
         YT_VERIFY(HasMutationContext());
 
@@ -708,7 +708,7 @@ public:
         chunk->SetErasureCodec(erasureCodecId);
         chunk->SetMovable(movable);
         chunk->SetOverlayed(overlayed);
-        // TODO(shakurov): handle consistentPlacementHash
+        // TODO(shakurov): handle consistentReplicaPlacementHash
 
         YT_ASSERT(chunk->GetLocalRequisitionIndex() == (isErasure ? MigrationErasureChunkRequisitionIndex : MigrationChunkRequisitionIndex));
 
@@ -754,9 +754,9 @@ public:
                 }
             }),
             MakeFormatterWrapper([&] (auto* builder) {
-                if (consistentPlacementHash != NullConsistentPlacementHash) {
-                    builder->AppendFormat(", ConsistentPlacementHash: %llx",
-                        consistentPlacementHash);
+                if (consistentReplicaPlacementHash != NullConsistentReplicaPlacementHash) {
+                    builder->AppendFormat(", ConsistentReplicaPlacementHash: %llx",
+                        consistentReplicaPlacementHash);
                 }
             }));
 
@@ -2385,7 +2385,7 @@ private:
         auto* account = securityManager->GetAccountByNameOrThrow(subrequest->account(), true /*activeLifeStageOnly*/);
 
         auto overlayed = subrequest->overlayed();
-        auto consistentPlacementHash = subrequest->consistent_placement_hash();
+        auto consistentReplicaPlacementHash = subrequest->consistent_replica_placement_hash();
 
         if (subrequest->validate_resource_usage_increase()) {
             auto resourceUsageIncrease = TClusterResources()
@@ -2419,7 +2419,7 @@ private:
             subrequest->movable(),
             subrequest->vital(),
             overlayed,
-            consistentPlacementHash);
+            consistentReplicaPlacementHash);
 
         if (subresponse) {
             auto sessionId = TSessionId(chunk->GetId(), mediumIndex);
@@ -3950,7 +3950,7 @@ TChunk* TChunkManager::CreateChunk(
     bool movable,
     bool vital,
     bool overlayed,
-    TConsistentPlacementHash consistentPlacementHash)
+    TConsistentReplicaPlacementHash consistentReplicaPlacementHash)
 {
     return Impl_->CreateChunk(
         transaction,
@@ -3965,7 +3965,7 @@ TChunk* TChunkManager::CreateChunk(
         movable,
         vital,
         overlayed,
-        consistentPlacementHash);
+        consistentReplicaPlacementHash);
 }
 
 TChunkView* TChunkManager::CloneChunkView(

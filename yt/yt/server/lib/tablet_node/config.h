@@ -157,7 +157,7 @@ public:
     bool EnableNewScanReaderForLookup;
     bool EnableNewScanReaderForSelect;
 
-    bool EnableChunkConsistentPlacement;
+    bool EnableConsistentChunkReplicaPlacement;
 
     TTableMountConfig()
     {
@@ -369,7 +369,7 @@ public:
         RegisterParameter("enable_new_scan_reader_for_select", EnableNewScanReaderForSelect)
             .Default(false);
 
-        RegisterParameter("enable_chunk_consistent_placement", EnableChunkConsistentPlacement)
+        RegisterParameter("enable_consistent_chunk_replica_placement", EnableConsistentChunkReplicaPlacement)
             .Default(false);
 
         RegisterPostprocessor([&] () {
