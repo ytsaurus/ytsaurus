@@ -105,7 +105,7 @@ public:
     struct TComposite {
         TString Value;
     };
-    using TValue = std::variant<i64, ui64, double, bool, TString, TAny, TComposite, nullptr_t>;
+    using TValue = std::variant<nullptr_t, i64, ui64, double, bool, TString, TAny, TComposite>;
 
 public:
     template <typename T>

@@ -295,7 +295,11 @@ void PrintTo(const TLogicalType& type, std::ostream* os)
 
 void PrintTo(const TLogicalTypePtr& type, std::ostream* os)
 {
-    PrintTo(*type, os);
+    if (type) {
+        PrintTo(*type, os);
+    } else {
+        (*os) << "<nullptr>";
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

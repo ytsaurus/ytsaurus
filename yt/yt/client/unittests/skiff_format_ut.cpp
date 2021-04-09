@@ -1,7 +1,9 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include "row_helpers.h"
 #include "logical_type_shortcuts.h"
+#include "value_examples.h"
+#include "row_helpers.h"
+#include "yson_helpers.h"
 
 #include <yt/yt/client/formats/config.h>
 #include <yt/yt/client/formats/parser.h>
@@ -514,6 +516,88 @@ TEST(TSkiffWriter, TestAllWireTypesNoSchema)
 TEST(TSkiffWriter, TestAllWireTypesWithSchema)
 {
     TestAllWireTypes(true);
+}
+
+class TSkiffYsonWireTypeP
+    : public ::testing::TestWithParam<std::tuple<
+        TLogicalTypePtr,
+        TTableField::TValue,
+        TString
+    >>
+{
+public:
+    static std::vector<ParamType> GetCases()
+    {
+        using namespace NLogicalTypeShortcuts;
+        std::vector<ParamType> result;
+
+        for (const auto& example : GetPrimitiveValueExamples()) {
+            result.emplace_back(example.LogicalType, example.Value, example.PrettyYson);
+            result.emplace_back(nullptr, example.Value, example.PrettyYson);
+        }
+
+        for (const auto type : TEnumTraits<ESimpleLogicalValueType>::GetDomainValues()) {
+            auto logicalType = OptionalLogicalType(SimpleLogicalType(type));
+            if (IsV3Composite(logicalType)) {
+                // Optional<Null> is not v1 type
+                continue;
+            }
+            result.emplace_back(logicalType, nullptr, "#");
+        }
+        return result;
+    }
+
+    static const std::vector<ParamType> Cases;
+};
+
+const std::vector<TSkiffYsonWireTypeP::ParamType> TSkiffYsonWireTypeP::Cases = TSkiffYsonWireTypeP::GetCases();
+
+INSTANTIATE_TEST_SUITE_P(
+    Cases,
+    TSkiffYsonWireTypeP,
+    ::testing::ValuesIn(TSkiffYsonWireTypeP::Cases));
+
+TEST_P(TSkiffYsonWireTypeP, Test)
+{
+    const auto& [logicalType, value, expectedYson] = GetParam();
+    TTableSchemaPtr tableSchema;
+    if (logicalType) {
+        tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+            TColumnSchema("column", logicalType),
+        });
+    } else {
+        tableSchema = New<TTableSchema>();
+    }
+    auto skiffTableSchema = CreateTupleSchema({
+        CreateSimpleTypeSchema(EWireType::Yson32)->SetName("column"),
+    });
+    auto nameTable = New<TNameTable>();
+    TStringStream actualSkiffDataStream;
+    auto writer = CreateSkiffWriter(skiffTableSchema, nameTable, &actualSkiffDataStream, {tableSchema});
+    writer->Write({
+        MakeRow(nameTable, {{"column", value}})
+    });
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto actualSkiffData = actualSkiffDataStream.Str();
+    {
+        TMemoryInput in(actualSkiffData);
+        TCheckedSkiffParser parser(CreateVariant16Schema({skiffTableSchema}), &in);
+        EXPECT_EQ(parser.ParseVariant16Tag(), 0);
+        auto actualYson = parser.ParseYson32();
+        parser.ValidateFinished();
+
+        EXPECT_EQ(CanonizeYson(actualYson), CanonizeYson(expectedYson));
+    }
+
+    TCollectingValueConsumer rowCollector(nameTable);
+    auto parser = CreateParserForSkiff(skiffTableSchema, tableSchema, &rowCollector);
+    parser->Read(actualSkiffDataStream.Str());
+    parser->Finish();
+    auto actualValue = rowCollector.GetRowValue(0, "column");
+    EXPECT_EQ(actualValue, TTableField("column", value).ToUnversionedValue(nameTable));
 }
 
 TEST(TSkiffWriter, TestYsonWireType)
