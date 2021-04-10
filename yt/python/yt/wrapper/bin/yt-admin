@@ -73,14 +73,14 @@ def main():
 
     write_core_dump_parser = subparsers.add_parser(
         "write-core-dump",
-        help="Make remote YT process (node, scheduler or master) write a run-time"
+        help="Make remote YT process (node, scheduler or master) write a run-time "
              "core dump. This (presumably) does not affect the state of the process.")
     write_core_dump_parser.add_argument("address")
     write_core_dump_parser.set_defaults(func=write_core_dump)
 
     write_operation_controller_core_dump_parser = subparsers.add_parser(
         "write-operation-controller-core-dump",
-        help="Make operation controller write a run-time core dump."
+        help="Make operation controller write a run-time core dump. "
              "This (presumably) does not affect the state of the process.")
     write_operation_controller_core_dump_parser.add_argument("operation_id")
     write_operation_controller_core_dump_parser.set_defaults(func=write_operation_controller_core_dump)
