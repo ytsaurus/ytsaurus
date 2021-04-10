@@ -180,6 +180,11 @@ void TConcurrentCache<T>::SetCapacity(size_t capacity)
 {
     YT_VERIFY(capacity > 0);
     Capacity_.store(capacity, std::memory_order_release);
+
+    auto primary = Head_.Acquire();
+    if (primary->Size >= std::min(capacity, primary->Capacity)) {
+        RenewTable(primary, capacity);
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////

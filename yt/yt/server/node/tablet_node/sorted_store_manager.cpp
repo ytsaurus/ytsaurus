@@ -861,7 +861,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                             // Discard its revision.
                             // In lookup use CAS to update revision to Max.
 
-                            YT_LOG_TRACE("Discard row (Row: %v, Revision: %v, StoreFlushIndex: %v)",
+                            YT_LOG_TRACE("Discarding row (Row: %v, Revision: %v, StoreFlushIndex: %v)",
                                 foundItem->GetVersionedRow(),
                                 foundItem->Revision.load(),
                                 storeFlushIndex);
