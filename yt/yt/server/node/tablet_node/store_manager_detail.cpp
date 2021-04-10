@@ -319,14 +319,6 @@ bool TStoreManagerBase::TryPreloadStoreFromInterceptedData(
         return false;
     }
 
-    if(!chunkData->Finalized) {
-        YT_LOG_WARNING_IF(
-            IsMutationLoggingEnabled(),
-            "Intercepted chunk data for in-memory store is not finalized (StoreId: %v)",
-            store->GetId());
-        return false;
-    }
-
     const auto& mountConfig = Tablet_->GetSettings().MountConfig;
     auto mode = mountConfig->InMemoryMode;
     if (mode != chunkData->InMemoryMode) {

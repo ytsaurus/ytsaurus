@@ -105,8 +105,6 @@ void FinalizeChunkData(
             data->MemoryTrackerGuard.IncrementSize(data->LookupHashTable->GetByteSize());
         }
     }
-
-    data->Finalized = true;
 }
 
 } // namespace
@@ -151,13 +149,6 @@ public:
         slotManager->SubscribeScanSlot(BIND(&TInMemoryManager::ScanSlot, MakeWeak(this)));
     }
 
-    virtual IBlockCachePtr CreateInterceptingBlockCache(EInMemoryMode mode) override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return New<TInterceptingBlockCache>(this, mode);
-    }
-
     virtual TInMemoryChunkDataPtr EvictInterceptedChunkData(TChunkId chunkId) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -181,25 +172,23 @@ public:
 
     virtual void FinalizeChunk(
         TChunkId chunkId,
+        TInMemoryChunkDataPtr data,
         const TRefCountedChunkMetaPtr& chunkMeta,
         const TTabletSnapshotPtr& tabletSnapshot) override
     {
-        TInMemoryChunkDataPtr data;
+        FinalizeChunkData(std::move(data), chunkId, chunkMeta, tabletSnapshot);
 
         {
             auto guard = WriterGuard(InterceptedDataSpinLock_);
-            auto it = ChunkIdToData_.find(chunkId);
-            if (it != ChunkIdToData_.end()) {
-                data = it->second;
-            }
+
+            // Replace the old data, if any, by a new one.
+            ChunkIdToData_[chunkId] = data;
         }
 
-        if (!data) {
-            YT_LOG_INFO("Cannot find intercepted chunk data for finalization (ChunkId: %v)", chunkId);
-            return;
-        }
-
-        FinalizeChunkData(data, chunkId, chunkMeta, tabletSnapshot);
+        // Schedule eviction.
+        TDelayedExecutor::Submit(
+            BIND(IgnoreResult(&TInMemoryManager::EvictInterceptedChunkData), MakeStrong(this), chunkId),
+            Config_->InterceptedDataRetentionTime);
     }
 
     const TInMemoryManagerConfigPtr& GetConfig() const
@@ -359,148 +348,6 @@ private:
         }
 
         snapshotStore->RegisterTabletSnapshot(slot, tablet);
-    }
-
-    class TInterceptingBlockCache
-        : public IBlockCache
-    {
-    public:
-        TInterceptingBlockCache(TInMemoryManagerPtr owner, EInMemoryMode mode)
-            : Owner_(owner)
-            , Mode_(mode)
-            , BlockType_(MapInMemoryModeToBlockType(Mode_))
-        { }
-
-        ~TInterceptingBlockCache()
-        {
-            for (auto chunkId : ChunkIds_) {
-                TDelayedExecutor::Submit(
-                    BIND(IgnoreResult(&TInMemoryManager::EvictInterceptedChunkData), Owner_, chunkId),
-                    Owner_->Config_->InterceptedDataRetentionTime);
-            }
-        }
-
-        virtual void PutBlock(
-            const TBlockId& id,
-            EBlockType type,
-            const TBlock& block,
-            const std::optional<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
-        {
-            if (type != BlockType_) {
-                return;
-            }
-
-            auto guard = Guard(SpinLock_);
-
-            if (Owner_->IsMemoryLimitExceeded()) {
-                Dropped_ = true;
-            }
-
-            if (Dropped_) {
-                Owner_->DropChunkData(id.ChunkId);
-                return;
-            }
-
-            auto it = ChunkIds_.find(id.ChunkId);
-            TInMemoryChunkDataPtr data;
-            if (it == ChunkIds_.end()) {
-                data = Owner_->CreateChunkData(id.ChunkId, Mode_);
-                YT_VERIFY(ChunkIds_.insert(id.ChunkId).second);
-            } else {
-                data = Owner_->GetChunkData(id.ChunkId, Mode_);
-            }
-
-            if (data->Blocks.size() <= id.BlockIndex) {
-                size_t blockCapacity = std::max(data->Blocks.capacity(), static_cast<size_t>(1));
-                while (blockCapacity <= id.BlockIndex) {
-                    blockCapacity *= 2;
-                }
-                data->Blocks.reserve(blockCapacity);
-                data->Blocks.resize(id.BlockIndex + 1);
-            }
-
-            YT_VERIFY(!data->Blocks[id.BlockIndex].Data);
-            data->Blocks[id.BlockIndex] = block;
-            if (data->MemoryTrackerGuard) {
-                data->MemoryTrackerGuard.IncrementSize(block.Size());
-            }
-            YT_VERIFY(!data->ChunkMeta);
-        }
-
-        virtual TCachedBlock FindBlock(const TBlockId& /* id */, EBlockType /* type */) override
-        {
-            return TCachedBlock();
-        }
-
-        virtual std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
-            const TBlockId& /* id */,
-            EBlockType /* type */)
-        {
-            return CreateActiveCachedBlockCookie();
-        }
-
-        virtual EBlockType GetSupportedBlockTypes() const override
-        {
-            return BlockType_;
-        }
-
-    private:
-        const TInMemoryManagerPtr Owner_;
-        const EInMemoryMode Mode_;
-        const EBlockType BlockType_;
-
-        YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
-        THashSet<TChunkId> ChunkIds_;
-        bool Dropped_ = false;
-    };
-
-    TInMemoryChunkDataPtr GetChunkData(TChunkId chunkId, EInMemoryMode mode)
-    {
-        auto guard = ReaderGuard(InterceptedDataSpinLock_);
-
-        auto chunkData = GetOrCrash(ChunkIdToData_, chunkId);
-        YT_VERIFY(chunkData->InMemoryMode == mode);
-
-        return chunkData;
-    }
-
-    TInMemoryChunkDataPtr CreateChunkData(TChunkId chunkId, EInMemoryMode mode)
-    {
-        auto guard = WriterGuard(InterceptedDataSpinLock_);
-
-        auto chunkData = New<TInMemoryChunkData>();
-        chunkData->InMemoryMode = mode;
-        chunkData->MemoryTrackerGuard = TMemoryUsageTrackerGuard::Acquire(
-            Bootstrap_
-                ->GetMemoryUsageTracker()
-                ->WithCategory(EMemoryCategory::TabletStatic),
-            0 /*size*/,
-            MemoryUsageGranularity);
-
-        // Replace the old data, if any, by a new one.
-        ChunkIdToData_[chunkId] = chunkData;
-
-        YT_LOG_INFO("Intercepted chunk data created (ChunkId: %v, Mode: %v)",
-            chunkId,
-            mode);
-
-        return chunkData;
-    }
-
-    void DropChunkData(TChunkId chunkId)
-    {
-        auto guard = WriterGuard(InterceptedDataSpinLock_);
-
-        if (ChunkIdToData_.erase(chunkId) == 1) {
-            YT_LOG_WARNING("Intercepted chunk data dropped due to memory pressure (ChunkId: %v)",
-                chunkId);
-        }
-    }
-
-    bool IsMemoryLimitExceeded() const
-    {
-        const auto& memoryTracker = Bootstrap_->GetMemoryUsageTracker();
-        return memoryTracker->IsExceeded(EMemoryCategory::TabletStatic);
     }
 
 };
