@@ -840,7 +840,6 @@ void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
 
     // Otherwise action must be cancelled.
     YT_VERIFY(chunkData->InMemoryMode == InMemoryMode_);
-    YT_VERIFY(chunkData->Finalized);
     YT_VERIFY(chunkData->ChunkMeta);
 
     PreloadedBlockCache_ = New<TPreloadedBlockCache>(

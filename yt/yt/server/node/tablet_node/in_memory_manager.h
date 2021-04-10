@@ -40,7 +40,6 @@ struct TInMemoryChunkData
     NTableClient::TCachedVersionedChunkMetaPtr ChunkMeta;
     NTableClient::IChunkLookupHashTablePtr LookupHashTable;
     TMemoryUsageTrackerGuard MemoryTrackerGuard;
-    std::atomic<bool> Finalized = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(TInMemoryChunkData)
@@ -57,14 +56,12 @@ DEFINE_REFCOUNTED_TYPE(TInMemoryChunkData)
 struct IInMemoryManager
     : public TRefCounted
 {
-    virtual NChunkClient::IBlockCachePtr CreateInterceptingBlockCache(
-        NTabletClient::EInMemoryMode mode) = 0;
-
     virtual TInMemoryChunkDataPtr EvictInterceptedChunkData(
         NChunkClient::TChunkId chunkId) = 0;
 
     virtual void FinalizeChunk(
         NChunkClient::TChunkId chunkId,
+        TInMemoryChunkDataPtr data,
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
         const TTabletSnapshotPtr& tablet) = 0;
 
