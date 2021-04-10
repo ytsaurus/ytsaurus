@@ -170,6 +170,8 @@ public:
             auto error = TError("Default parent pool %Qv in tree %Qv is not registered", Config_->DefaultParentPool, TreeId_);
             StrategyHost_->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
         }
+
+        YT_LOG_INFO("Tree has updated with new config");
     }
 
     virtual void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config) override
