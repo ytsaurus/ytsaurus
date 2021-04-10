@@ -134,8 +134,8 @@ DEFINE_ENUM(EObjectType,
     ((MediumMap)                     (409))
     ((ErasureJournalChunk)           (124)) // erasure journal chunk as a whole
     ((ErasureJournalChunkPart_0)     (125)) // erasure chunk parts, mnemonic names are for debugging convenience only
-    ((ErasureJournalChunkPart_2)     (126))
-    ((ErasureJournalChunkPart_1)     (127))
+    ((ErasureJournalChunkPart_1)     (126))
+    ((ErasureJournalChunkPart_2)     (127))
     ((ErasureJournalChunkPart_3)     (128))
     ((ErasureJournalChunkPart_4)     (129))
     ((ErasureJournalChunkPart_5)     (130))
@@ -145,10 +145,10 @@ DEFINE_ENUM(EObjectType,
     ((ErasureJournalChunkPart_9)     (134))
     ((ErasureJournalChunkPart_10)    (135))
     ((ErasureJournalChunkPart_11)    (136))
-    ((ErasureJournalChunkPart_12)    (138))
-    ((ErasureJournalChunkPart_13)    (139))
-    ((ErasureJournalChunkPart_14)    (140))
-    ((ErasureJournalChunkPart_15)    (141))
+    ((ErasureJournalChunkPart_12)    (137))
+    ((ErasureJournalChunkPart_13)    (138))
+    ((ErasureJournalChunkPart_14)    (139))
+    ((ErasureJournalChunkPart_15)    (140))
 
     // The following represent versioned objects (AKA Cypress nodes).
     // These must be created by calling TCypressYPathProxy::Create.
