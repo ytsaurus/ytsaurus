@@ -271,9 +271,14 @@ public:
             // Collect trees to add and remove.
             THashSet<TString> treeIdsToAdd;
             THashSet<TString> treeIdsToRemove;
-            THashSet<TString> treesWithChangedFilter;
+            THashSet<TString> treeIdsWithChangedFilter;
             THashMap<TString, TSchedulingTagFilter> treeIdToFilter;
-            CollectTreeChanges(poolsMap, &treeIdsToAdd, &treeIdsToRemove, &treesWithChangedFilter, &treeIdToFilter);
+            CollectTreeChanges(poolsMap, &treeIdsToAdd, &treeIdsToRemove, &treeIdsWithChangedFilter, &treeIdToFilter);
+
+            YT_LOG_INFO("Pool trees collected to update (TreeIdsToAdd: %v, TreeIdsToRemove: %v, TreeIdsWithChangedFilter: %v)",
+                treeIdsToAdd,
+                treeIdsToRemove,
+                treeIdsWithChangedFilter);
 
             // Populate trees map. New trees are not added to global map yet.
             auto idToTree = ConstructUpdatedTreeMap(
@@ -295,7 +300,7 @@ public:
 
             // Check that after adding or removing trees each node will belong exactly to one tree.
             // Check is skipped if trees configuration did not change.
-            bool shouldCheckConfiguration = !treeIdsToAdd.empty() || !treeIdsToRemove.empty() || !treesWithChangedFilter.empty();
+            bool shouldCheckConfiguration = !treeIdsToAdd.empty() || !treeIdsToRemove.empty() || !treeIdsWithChangedFilter.empty();
 
             if (shouldCheckConfiguration && !CheckTreesConfiguration(treeIdToFilter, &errors)) {
                 error = TError(EErrorCode::WatcherHandlerFailed, "Error updating pool trees")
@@ -1371,7 +1376,7 @@ private:
         const IMapNodePtr& poolsMap,
         THashSet<TString>* treesToAdd,
         THashSet<TString>* treesToRemove,
-        THashSet<TString>* treesWithChangedFilter,
+        THashSet<TString>* treeIdsWithChangedFilter,
         THashMap<TString, TSchedulingTagFilter>* treeIdToFilter) const
     {
         for (const auto& key : poolsMap->GetKeys()) {
@@ -1399,7 +1404,7 @@ private:
                 treeIdToFilter->emplace(treeId, config->NodesFilter);
 
                 if (config->NodesFilter != tree->GetNodesFilter()) {
-                    treesWithChangedFilter->insert(treeId);
+                    treeIdsWithChangedFilter->insert(treeId);
                 }
             } catch (const std::exception&) {
                 // Do nothing, alert will be set later.
