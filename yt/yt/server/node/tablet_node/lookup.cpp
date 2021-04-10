@@ -470,21 +470,23 @@ private:
                     minDynamicTimestamp = std::min(minDynamicTimestamp, GetMinTimestamp(row));
                 }
 
-                YT_LOG_TRACE("Using row from cache (Row: %v, Revision: %v, MinDynamicTimestamp: %v, ReadTimestamp: %v)",
+                YT_LOG_TRACE("Using row from cache (CacheRow: %v, Revision: %v, MinDynamicTimestamp: %v, ReadTimestamp: %v, DynamicRows: %v)",
                     cachedItem->GetVersionedRow(),
                     cachedItem->Revision.load(),
                     minDynamicTimestamp,
-                    Timestamp_);
+                    Timestamp_,
+                    versionedRows);
 
                 // Consider only versions before versions from dynamic rows.
                 onPartialRow(cachedItem->GetVersionedRow(), minDynamicTimestamp);
 
                 // Reinsert row here.
-                YT_LOG_TRACE("Reinserting row (Row: %v)", cachedItem->GetVersionedRow());
                 auto lookupTable = inserter.GetTable();
                 if (lookupTable == cachedItemRef.Origin) {
+                    YT_LOG_TRACE("Updating row");
                     cachedItemRef.Update(std::move(cachedItem), cachedItemHead.Get());
                 } else {
+                    YT_LOG_TRACE("Reinserting row");
                     lookupTable->Insert(std::move(cachedItem));
                 }
             } else {
@@ -503,7 +505,9 @@ private:
                         auto revision = StoreFlushIndex_;
                         cachedItem->Revision.store(revision, std::memory_order_release);
 
-                        YT_LOG_TRACE("Populating cache (Row: %v, Revision: %v)", cachedItem->GetVersionedRow(), revision);
+                        YT_LOG_TRACE("Populating cache (Row: %v, Revision: %v)",
+                            cachedItem->GetVersionedRow(),
+                            revision);
                         inserter.GetTable()->Insert(cachedItem);
 
                         auto flushIndex = TabletSnapshot_->RowCache->FlushIndex.load(std::memory_order_acquire);
@@ -649,6 +653,9 @@ void LookupRows(
         },
         [&] {
             auto mergedRow = merger.BuildMergedRow();
+
+            YT_LOG_TRACE_IF(useLookupCache, "Merged row built (Result: %v)", mergedRow);
+
             writer->WriteSchemafulRow(mergedRow);
             return std::make_pair(static_cast<bool>(mergedRow), GetDataWeight(mergedRow));
         });

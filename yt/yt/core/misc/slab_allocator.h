@@ -14,40 +14,8 @@ namespace NYT {
 
 /////////////////////////////////////////////////////////////////////////////
 
-class TArenaPool
-    : public TRefTracked<TArenaPool>
-{
-public:
-    struct TFreeListItem
-        : public TFreeListItemBase<TFreeListItem>
-    { };
-
-    using TSimpleFreeList = TFreeList<TFreeListItem>;
-
-    TArenaPool(
-        size_t rank,
-        size_t segmentSize,
-        IMemoryUsageTrackerPtr memoryTracker);
-
-    ~TArenaPool();
-
-    void* Allocate();
-
-    void Free(void* obj);
-
-    size_t Unref();
-
-private:
-    const size_t ChunkSize_;
-    const size_t BatchSize_;
-    const IMemoryUsageTrackerPtr MemoryTracker_;
-
-    TSimpleFreeList FreeList_;
-    TSimpleFreeList Segments_;
-    std::atomic<size_t> RefCount_ = {1};
-
-    bool AllocateMore();
-};
+class TSmallArena;
+class TLargeArena;
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -60,21 +28,25 @@ public:
     static void Free(void* ptr);
 
 private:
-    struct TArenaDeleter
+    struct TSmallArenaDeleter
     {
-        void operator() (TArenaPool* arena)
-        {
-            arena->Unref();
-        }
+        void operator() (TSmallArena* arena);
     };
 
-    using TArenaPoolPtr = std::unique_ptr<TArenaPool, TArenaDeleter>;
+    using TSmallArenaPtr = std::unique_ptr<TSmallArena, TSmallArenaDeleter>;
 
-    TArenaPoolPtr SmallArenas_[NYTAlloc::SmallRankCount];
-    const IMemoryUsageTrackerPtr MemoryTracker_;
-    static constexpr size_t SegmentSize = 128_KB;
+    struct TLargeArenaDeleter
+    {
+        void operator() (TLargeArena* arena);
+    };
+
+    using TLargeArenaPtr = std::unique_ptr<TLargeArena, TLargeArenaDeleter>;
+
+    TSmallArenaPtr SmallArenas_[NYTAlloc::SmallRankCount];
+    TLargeArenaPtr LargeArena_;
 };
 
 /////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+

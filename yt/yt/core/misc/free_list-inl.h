@@ -30,7 +30,29 @@ TFreeList<TItem>::~TFreeList()
 }
 
 template <class TItem>
-Y_NO_SANITIZE("thread") void TFreeList<TItem>::Put(TItem* head, TItem* tail)
+template <class TPredicate>
+Y_NO_SANITIZE("thread")
+bool TFreeList<TItem>::PutIf(TItem* head, TItem* tail, TPredicate predicate)
+{
+    auto* current = Head_.Pointer.load(std::memory_order_relaxed);
+    auto popCount = Head_.PopCount.load(std::memory_order_relaxed);
+
+    while (predicate(current)) {
+        tail->Next.store(current, std::memory_order_release);
+        if (CompareAndSet(&AtomicHead_, current, popCount, head, popCount)) {
+            return true;
+        }
+    }
+
+    tail->Next.store(nullptr, std::memory_order_release);
+
+    return false;
+}
+
+
+template <class TItem>
+Y_NO_SANITIZE("thread")
+void TFreeList<TItem>::Put(TItem* head, TItem* tail)
 {
     auto* current = Head_.Pointer.load(std::memory_order_relaxed);
     auto popCount = Head_.PopCount.load(std::memory_order_relaxed);
@@ -47,7 +69,8 @@ void TFreeList<TItem>::Put(TItem* item)
 }
 
 template <class TItem>
-Y_NO_SANITIZE("thread") TItem* TFreeList<TItem>::Extract()
+Y_NO_SANITIZE("thread")
+TItem* TFreeList<TItem>::Extract()
 {
     auto* current = Head_.Pointer.load(std::memory_order_relaxed);
     auto popCount = Head_.PopCount.load(std::memory_order_relaxed);

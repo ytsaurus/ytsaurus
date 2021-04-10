@@ -75,6 +75,9 @@ public:
 
     ~TFreeList();
 
+    template <class TPredicate>
+    bool PutIf(TItem* head, TItem* tail, TPredicate predicate);
+
     void Put(TItem* head, TItem* tail);
 
     void Put(TItem* item);
