@@ -60,6 +60,7 @@ struct TEpochContext
     TIntrusivePtr<NConcurrency::TAsyncBatcher<void>> LeaderSyncBatcher;
     std::optional<TVersion> LeaderSyncVersion;
     TPromise<void> LeaderSyncPromise;
+    NProfiling::TWallTimer LeaderSyncTimer;
 
     TPeerId LeaderId = InvalidPeerId;
     TEpochId EpochId;

@@ -172,11 +172,10 @@ public:
         , DynamicOptions_(dynamicOptions)
         , ElectionCallbacks_(New<TElectionCallbacks>(this))
         , Profiler_(HydraProfiler.WithTag("cell_id", ToString(cellId)))
+        , LeaderSyncTimer_(Profiler_.Timer("/leader_sync_time"))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
         VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
-
-        LeaderSyncTimer_ = Profiler_.Timer("/leader_sync_time");
 
         DecoratedAutomaton_ = New<TDecoratedAutomaton>(
             Config_,
@@ -554,6 +553,7 @@ private:
     const IElectionCallbacksPtr ElectionCallbacks_;
 
     const NProfiling::TProfiler Profiler_;
+
     THashMap<TString, NProfiling::TCounter> RestartCounter_;
     NProfiling::TEventTimer LeaderSyncTimer_;
 
@@ -2006,7 +2006,7 @@ private:
         auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
         AutomatonEpochContext_->LeaderSyncBatcher->Cancel(error);
         if (AutomatonEpochContext_->LeaderSyncPromise) {
-            AutomatonEpochContext_->LeaderSyncPromise.TrySet(error);
+            TrySetLeaderSyncPromise(AutomatonEpochContext_, error);
         }
 
         AutomatonEpochContext_.Reset();
@@ -2025,43 +2025,17 @@ private:
             return MakeFuture(TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped"));
         }
 
-        NProfiling::TWallTimer timer;
-
         const auto& Logger = this_->Logger;
         YT_LOG_DEBUG("Synchronizing with leader");
 
-        return BIND(&TDistributedHydraManager::DoSyncWithLeaderCore, this_, timer)
+        return BIND(&TDistributedHydraManager::DoSyncWithLeaderCore, this_)
             .AsyncViaGuarded(
                 epochContext->EpochUserAutomatonInvoker,
                 TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped"))
             .Run();
     }
 
-    TFuture<void> DoSyncWithLeaderCore(const NProfiling::TWallTimer& timer)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        // NB: Many subscribers are typically waiting for the leader sync to complete.
-        // Make sure the promise is set in a large thread pool.
-        return StartSyncWithLeader().Apply(
-            BIND(&TDistributedHydraManager::OnLeaderSyncReached, MakeStrong(this), timer)
-                .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
-    }
-
-    void OnLeaderSyncReached(const NProfiling::TWallTimer& timer, const TError& error)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        THROW_ERROR_EXCEPTION_IF_FAILED(
-            error,
-            NRpc::EErrorCode::Unavailable,
-            "Error synchronizing with leader");
-
-        YT_LOG_DEBUG("Leader synchronization complete");
-        LeaderSyncTimer_.Record(timer.GetElapsedTime());
-    }
-
-    TFuture<void> StartSyncWithLeader()
+    TFuture<void> DoSyncWithLeaderCore()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -2075,6 +2049,7 @@ private:
 
         YT_VERIFY(!epochContext->LeaderSyncPromise);
         epochContext->LeaderSyncPromise = NewPromise<void>();
+        epochContext->LeaderSyncTimer.Restart();
 
         auto channel = epochContext->CellManager->GetPeerChannel(epochContext->LeaderId);
         YT_VERIFY(channel);
@@ -2099,11 +2074,7 @@ private:
         auto epochContext = AutomatonEpochContext_;
 
         if (!rspOrError.IsOK()) {
-            epochContext->LeaderSyncPromise.Set(TError(
-                NRpc::EErrorCode::Unavailable,
-                "Failed to synchronize with leader")
-                << rspOrError);
-            epochContext->LeaderSyncPromise.Reset();
+            TrySetLeaderSyncPromise(AutomatonEpochContext_, rspOrError);
             return;
         }
 
@@ -2138,9 +2109,28 @@ private:
             neededCommittedVersion,
             actualCommittedVersion);
 
-        epochContext->LeaderSyncPromise.Set();
-        epochContext->LeaderSyncPromise.Reset();
+        TrySetLeaderSyncPromise(epochContext);
         epochContext->LeaderSyncVersion.reset();
+    }
+
+    void TrySetLeaderSyncPromise(const TEpochContextPtr& epochContext, TError error = {})
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TError wrappedError;
+        if (error.IsOK()) {
+            LeaderSyncTimer_.Record(epochContext->LeaderSyncTimer.GetElapsedTime());
+        } else {
+            wrappedError = TError(NRpc::EErrorCode::Unavailable, "Error synchronizing with leader")
+                << std::move(error);
+        }
+
+        // NB: Many subscribers are typically waiting for the leader sync to complete.
+        // Make sure the promise is set in a suitably large thread pool.
+        NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(
+            BIND([promise = std::move(epochContext->LeaderSyncPromise), wrappedError = std::move(wrappedError)] {
+                promise.TrySet(std::move(wrappedError));
+            }));
     }
 
 
