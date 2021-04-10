@@ -21,10 +21,12 @@
 
 namespace NYT::NSecurityServer {
 
-using namespace NYTree;
-using namespace NTransactionServer;
-using namespace NLogging;
 using namespace NCypressClient;
+using namespace NCypressServer;
+using namespace NObjectClient;
+using namespace NLogging;
+using namespace NTransactionServer;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,6 +86,54 @@ TOneShotFluentLogEvent LogStructuredEventFluently(ELogLevel level)
 void LogAccess(
     NCellMaster::TBootstrap* bootstrap,
     const NRpc::IServiceContextPtr& context,
+    NCypressServer::TNodeId id,
+    const std::optional<TString>& path,
+    const NTransactionServer::TTransaction* transaction,
+    const TAttributeVector& additionalAttributes,
+    const std::optional<TStringBuf> methodOverride)
+{
+    // Seeing as it has come to actually logging something, surely everything
+    // has been actually evaluated by YT_EVALUATE_FOR_ACCESS_LOG, right? (Because
+    // it checks for the same conditions YT_LOG_ACCESS does.) Wrong. Setting the
+    // "enable_access_log" flag changes those conditions in between. Let's skip
+    // logging such a request, it's no great loss.
+    if (Y_UNLIKELY(!path)) {
+        return;
+    }
+
+    LogAccess(
+        bootstrap,
+        context,
+        id,
+        TStringBuf(*path),
+        transaction,
+        additionalAttributes,
+        methodOverride);
+}
+
+void LogAccess(
+    NCellMaster::TBootstrap* bootstrap,
+    const NRpc::IServiceContextPtr& context,
+    NCypressServer::TNodeId id,
+    const TString& path,
+    const NTransactionServer::TTransaction* transaction,
+    const TAttributeVector& additionalAttributes,
+    const std::optional<TStringBuf> methodOverride)
+{
+    LogAccess(
+        bootstrap,
+        context,
+        id,
+        TStringBuf(path),
+        transaction,
+        additionalAttributes,
+        methodOverride);
+}
+
+void LogAccess(
+    NCellMaster::TBootstrap* bootstrap,
+    const NRpc::IServiceContextPtr& context,
+    TNodeId id,
     const TStringBuf path,
     const TTransaction* transaction,
     const TAttributeVector& additionalAttributes,
@@ -117,6 +167,8 @@ void LogAccess(
 
     LogStructuredEventFluently(ELogLevel::Info)
         .Item("method").Value(methodOverride.value_or(context->GetMethod()))
+        .Item("type").Value(TypeFromId(id))
+        .Item("id").Value(id)
         .Item("path").Do([&] (auto fluent) {
             doPath(fluent, path, !targetSuffixIsForDestinationPath);
         })
@@ -161,6 +213,7 @@ void LogAccess(
 
 void LogAccess(
     NCellMaster::TBootstrap* bootstrap,
+    TNodeId id,
     const TStringBuf path,
     const TTransaction* transaction,
     const TStringBuf method)
@@ -171,6 +224,8 @@ void LogAccess(
 
     LogStructuredEventFluently(ELogLevel::Info)
         .Item("method").Value(method)
+        .Item("type").Value(TypeFromId(id))
+        .Item("id").Value(id)
         .Item("path").Value(path)
         .DoIf(transaction, [&] (auto fluent) {
             fluent.Item("transaction_info").DoMap([&] (auto fluent) {
@@ -186,7 +241,8 @@ bool IsAccessLoggedType(const EObjectType type)
         EObjectType::Journal,
         EObjectType::Table,
         EObjectType::Document,
-        EObjectType::MapNode
+        EObjectType::MapNode,
+        EObjectType::Link
     };
     return typesForAccessLog.contains(type);
 }
