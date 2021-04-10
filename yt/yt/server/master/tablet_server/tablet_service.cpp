@@ -197,7 +197,7 @@ private:
         // during two phase mount.
         table->LockCurrentMountTransaction(transaction->GetId());
 
-        YT_LOG_ACCESS(request->path(), transaction, "PrepareMount");
+        YT_LOG_ACCESS(tableId, request->path(), transaction, "PrepareMount");
     }
 
     void HydraCommitMountTable(TTransaction* transaction, NTabletClient::NProto::TReqMount* request)
@@ -245,7 +245,7 @@ private:
             freeze,
             mountTimestamp);
 
-        YT_LOG_ACCESS(request->path(), transaction, "CommitMount");
+        YT_LOG_ACCESS(tableId, request->path(), transaction, "CommitMount");
     }
 
     void HydraAbortMountTable(TTransaction* transaction, NTabletClient::NProto::TReqMount* request)
@@ -279,7 +279,7 @@ private:
 
         table->UnlockCurrentMountTransaction(transaction->GetId());
 
-        YT_LOG_ACCESS(request->path(), transaction, "AbortMount");
+        YT_LOG_ACCESS(tableId, request->path(), transaction, "AbortMount");
     }
 
     void HydraPrepareUnmountTable(TTransaction* transaction, NTabletClient::NProto::TReqUnmount* request, bool persist)
@@ -328,7 +328,7 @@ private:
 
         table->LockCurrentMountTransaction(transaction->GetId());
 
-        YT_LOG_ACCESS(cypressManager->GetNodePath(table, nullptr), transaction, "PrepareUnmount");
+        YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "PrepareUnmount");
     }
 
     void HydraCommitUnmountTable(TTransaction* transaction, NTabletClient::NProto::TReqUnmount* request)
@@ -365,7 +365,7 @@ private:
             firstTabletIndex,
             lastTabletIndex);
 
-        YT_LOG_ACCESS(cypressManager->GetNodePath(table, nullptr), transaction, "CommitUnmount");
+        YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "CommitUnmount");
     }
 
     void HydraAbortUnmountTable(TTransaction* transaction, NTabletClient::NProto::TReqUnmount* request)
@@ -393,7 +393,7 @@ private:
 
         table->UnlockCurrentMountTransaction(transaction->GetId());
 
-        YT_LOG_ACCESS(cypressManager->GetNodePath(table, nullptr), transaction, "AbortUnmount");
+        YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "AbortUnmount");
     }
 
     void HydraPrepareFreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqFreeze* request, bool persist)
@@ -434,7 +434,7 @@ private:
 
         table->LockCurrentMountTransaction(transaction->GetId());
 
-        YT_LOG_ACCESS(cypressManager->GetNodePath(table, nullptr), transaction, "PrepareFreeze");
+        YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "PrepareFreeze");
     }
 
     void HydraCommitFreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqFreeze* request)
@@ -468,7 +468,7 @@ private:
             firstTabletIndex,
             lastTabletIndex);
 
-        YT_LOG_ACCESS(cypressManager->GetNodePath(table, nullptr), transaction, "CommitFreeze");
+        YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "CommitFreeze");
     }
 
     void HydraAbortFreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqFreeze* request)
@@ -494,7 +494,7 @@ private:
 
         table->UnlockCurrentMountTransaction(transaction->GetId());
 
-        YT_LOG_ACCESS(cypressManager->GetNodePath(table, nullptr), transaction, "AbortFreeze");
+        YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "AbortFreeze");
     }
 
     void HydraPrepareUnfreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqUnfreeze* request, bool persist)
@@ -535,7 +535,7 @@ private:
 
         table->LockCurrentMountTransaction(transaction->GetId());
 
-        YT_LOG_ACCESS(cypressManager->GetNodePath(table, nullptr), transaction, "PrepareUnfreeze");
+        YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "PrepareUnfreeze");
     }
 
     void HydraCommitUnfreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqUnfreeze* request)
@@ -570,7 +570,7 @@ private:
             firstTabletIndex,
             lastTabletIndex);
 
-        YT_LOG_ACCESS(cypressManager->GetNodePath(table, nullptr), transaction, "CommitUnfreeze");
+        YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "CommitUnfreeze");
     }
 
     void HydraAbortUnfreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqUnfreeze* request)
@@ -596,7 +596,7 @@ private:
 
         table->UnlockCurrentMountTransaction(transaction->GetId());
 
-        YT_LOG_ACCESS(cypressManager->GetNodePath(table, nullptr), transaction, "AbortUnfreeze");
+        YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "AbortUnfreeze");
     }
 
     void HydraPrepareRemountTable(TTransaction* transaction, NTabletClient::NProto::TReqRemount* request, bool persist)
@@ -637,7 +637,7 @@ private:
 
         table->LockCurrentMountTransaction(transaction->GetId());
 
-        YT_LOG_ACCESS(cypressManager->GetNodePath(table, nullptr), transaction, "PrepareRemount");
+        YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "PrepareRemount");
     }
 
     void HydraCommitRemountTable(TTransaction* transaction, NTabletClient::NProto::TReqRemount* request)
@@ -669,7 +669,7 @@ private:
             firstTabletIndex,
             lastTabletIndex);
 
-        YT_LOG_ACCESS(cypressManager->GetNodePath(table, nullptr), transaction, "CommitRemount");
+        YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "CommitRemount");
     }
 
     void HydraAbortRemountTable(TTransaction* transaction, NTabletClient::NProto::TReqRemount* request)
@@ -695,7 +695,7 @@ private:
 
         table->UnlockCurrentMountTransaction(transaction->GetId());
 
-        YT_LOG_ACCESS(cypressManager->GetNodePath(table, nullptr), transaction, "AbortRemount");
+        YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "AbortRemount");
     }
 
     void HydraPrepareReshardTable(TTransaction* transaction, NTabletClient::NProto::TReqReshard* request, bool persist)
@@ -742,7 +742,7 @@ private:
 
         table->LockCurrentMountTransaction(transaction->GetId());
 
-        YT_LOG_ACCESS(cypressManager->GetNodePath(table, nullptr), transaction, "PrepareReshard");
+        YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "PrepareReshard");
     }
 
     void HydraCommitReshardTable(TTransaction* transaction, NTabletClient::NProto::TReqReshard* request)
@@ -782,7 +782,7 @@ private:
             tabletCount,
             pivotKeys);
 
-        YT_LOG_ACCESS(cypressManager->GetNodePath(table, nullptr), transaction, "CommitReshard");
+        YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "CommitReshard");
     }
 
     void HydraAbortReshardTable(TTransaction* transaction, NTabletClient::NProto::TReqReshard* request)
@@ -812,7 +812,7 @@ private:
 
         table->UnlockCurrentMountTransaction(transaction->GetId());
 
-        YT_LOG_ACCESS(cypressManager->GetNodePath(table, nullptr), transaction, "AbortReshard");
+        YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "AbortReshard");
     }
 };
 

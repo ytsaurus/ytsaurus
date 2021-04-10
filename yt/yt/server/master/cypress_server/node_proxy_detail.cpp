@@ -93,8 +93,7 @@ bool IsAccessLoggedMethod(const TString& method) {
         "Exists",
         "GetBasicAttributes",
         "CheckPermission",
-        "BeginCopy",
-        "EndCopy"
+        "BeginCopy"
     };
     return methodsForAccessLog.contains(method);
 }
@@ -859,28 +858,39 @@ bool TNontemplateCypressNodeProxyBase::DoInvoke(const NRpc::IServiceContextPtr& 
 {
     ValidateAccessTransaction();
 
+    auto doInvoke = [&] (const NRpc::IServiceContextPtr& context) {
+        DISPATCH_YPATH_SERVICE_METHOD(Lock);
+        DISPATCH_YPATH_SERVICE_METHOD(Create);
+        DISPATCH_YPATH_SERVICE_METHOD(Copy);
+        DISPATCH_YPATH_SERVICE_METHOD(BeginCopy);
+        DISPATCH_YPATH_SERVICE_METHOD(EndCopy);
+        DISPATCH_YPATH_SERVICE_METHOD(Unlock);
+
+        if (TNodeBase::DoInvoke(context)) {
+            return true;
+        }
+
+        if (TObjectProxyBase::DoInvoke(context)) {
+            return true;
+        }
+
+        return false;
+    };
+
+    auto path = YT_EVALUATE_FOR_ACCESS_LOG_IF(
+        IsAccessLoggedMethod(context->GetMethod()),
+        GetPath());
+
+    auto result = doInvoke(context);
+
     YT_LOG_ACCESS_IF(
         IsAccessLoggedMethod(context->GetMethod()),
         context,
-        GetPath(),
+        GetId(),
+        path,
         Transaction_);
 
-    DISPATCH_YPATH_SERVICE_METHOD(Lock);
-    DISPATCH_YPATH_SERVICE_METHOD(Create);
-    DISPATCH_YPATH_SERVICE_METHOD(Copy);
-    DISPATCH_YPATH_SERVICE_METHOD(BeginCopy);
-    DISPATCH_YPATH_SERVICE_METHOD(EndCopy);
-    DISPATCH_YPATH_SERVICE_METHOD(Unlock);
-
-    if (TNodeBase::DoInvoke(context)) {
-        return true;
-    }
-
-    if (TObjectProxyBase::DoInvoke(context)) {
-        return true;
-    }
-
-    return false;
+    return result;
 }
 
 void TNontemplateCypressNodeProxyBase::GetSelf(
@@ -1443,13 +1453,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     auto ignoreTypeMismatch = request->ignore_type_mismatch();
     const auto& path = GetRequestTargetYPath(context->RequestHeader());
 
-    YT_LOG_ACCESS_IF(
-        IsAccessLoggedType(type),
-        context,
-        GetPath(),
-        Transaction_,
-        {{"type", FormatEnum(type)}});
-
     context->SetRequestInfo("Type: %v, IgnoreExisting: %v, LockExisting: %v, Recursive: %v, Force: %v, IgnoreTypeMismatch: %v",
         type,
         ignoreExisting,
@@ -1497,6 +1500,15 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         context->SetResponseInfo("ExistingNodeId: %v",
             impl->GetId());
         context->Reply();
+
+        YT_LOG_ACCESS_IF(
+            IsAccessLoggedType(type),
+            context,
+            impl->GetId(),
+            GetPath(),
+            Transaction_,
+            {{"existing", "true"}});
+
         return;
     }
 
@@ -1527,7 +1539,10 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     auto inheritedAttributes = New<TInheritedAttributeDictionary>(Bootstrap_);
     GatherInheritableAttributes(intendedParentNode, &inheritedAttributes->Attributes());
 
+    std::optional<TString> optionalTargetPath;
     if (explicitAttributes) {
+        optionalTargetPath = explicitAttributes->Find<TString>("target_path");
+
         auto optionalAccount = explicitAttributes->FindAndRemove<TString>("account");
         if (optionalAccount) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -1535,18 +1550,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         }
     }
 
-    if (type == EObjectType::Link && explicitAttributes->Contains("target_path")) {
-        auto targetPath = explicitAttributes->Get<TString>("target_path");
-        YT_LOG_ACCESS(
-            context,
-            GetPath(),
-            Transaction_,
-            {{"destination_path", targetPath}},
-            "Link");
-    }
-
     auto factory = CreateCypressFactory(account, TNodeFactoryOptions());
     auto newProxy = factory->CreateNode(type, inheritedAttributes.Get(), explicitAttributes.Get());
+
+    // The path may be invalidated below; save it.
+    auto thisNodePath = YT_EVALUATE_FOR_ACCESS_LOG_IF(IsAccessLoggedType(type), GetPath());
 
     if (replace) {
         parent->ReplaceChild(this, newProxy);
@@ -1561,10 +1569,27 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     factory->Commit();
 
     auto* newNode = newProxy->GetTrunkNode();
-    const auto& newNodeId = newNode->GetId();
+    auto newNodeId = newNode->GetId();
     auto newNodeCellTag = newNode->GetExternalCellTag() == NotReplicatedCellTag
         ? Bootstrap_->GetMulticellManager()->GetCellTag()
         : newNode->GetExternalCellTag();
+
+    if (type == EObjectType::Link && optionalTargetPath) {
+        YT_LOG_ACCESS(
+            context,
+            newNodeId,
+            thisNodePath,
+            Transaction_,
+            {{"destination_path", *optionalTargetPath}},
+            "Link");
+    } else {
+        YT_LOG_ACCESS_IF(
+            IsAccessLoggedType(type),
+            context,
+            newNodeId,
+            thisNodePath,
+            Transaction_);
+    }
 
     ToProto(response->mutable_node_id(), newNode->GetId());
     response->set_cell_tag(newNodeCellTag);
@@ -1583,7 +1608,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
 
     const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
     // COMPAT(babenko)
-    const auto& sourcePath = ypathExt.additional_paths_size() == 1
+    const auto& originalSourcePath = ypathExt.additional_paths_size() == 1
         ? ypathExt.additional_paths(0)
         : request->source_path();
     auto ignoreExisting = request->ignore_existing();
@@ -1599,11 +1624,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     }
 
     context->SetIncrementalRequestInfo("SourcePath: %v, Mode: %v",
-        sourcePath,
+        originalSourcePath,
         mode);
 
     const auto& cypressManager = Bootstrap_->GetCypressManager();
-    auto sourceProxy = cypressManager->ResolvePathToNodeProxy(sourcePath, Transaction_);
+    auto sourceProxy = cypressManager->ResolvePathToNodeProxy(originalSourcePath, Transaction_);
 
     auto* trunkSourceNode = sourceProxy->GetTrunkNode();
 
@@ -1626,23 +1651,32 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         ThrowCannotRemoveNode(sourceProxy);
     }
 
-    YT_LOG_ACCESS(
-        context,
-        sourceProxy->GetPath(),
-        Transaction_,
-        {{"destination_path", GetPath()}},
-        mode == ENodeCloneMode::Move ? "Move" : "Copy");
+    // The path may be invalidated by removal below; save it.
+    auto sourcePath = YT_EVALUATE_FOR_ACCESS_LOG(sourceProxy->GetPath());
 
+    TNodeId clonedTrunkNodeId;
     CopyCore(
         context,
         false,
         [&] (ICypressNodeFactory* factory) {
-            return factory->CloneNode(sourceNode, mode);
+            auto* clonedNode = factory->CloneNode(sourceNode, mode);
+            auto* clonedTrunkNode = clonedNode->GetTrunkNode();
+            clonedTrunkNodeId = clonedTrunkNode->GetId();
+            return clonedNode;
         });
 
     if (mode == ENodeCloneMode::Move) {
         sourceParentProxy->RemoveChild(sourceProxy);
     }
+
+    YT_LOG_ACCESS(
+        context,
+        sourceProxy->GetId(),
+        sourcePath,
+        Transaction_,
+        {{"destination_id", ToString(clonedTrunkNodeId)},
+         {"destination_path", GetPath()}},
+        mode == ENodeCloneMode::Move ? "Move" : "Copy");
 
     context->Reply();
 }
@@ -1727,14 +1761,26 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, EndCopy)
         uncompressedData);
     copyContext.SetVersion(serializedTree.version());
 
+    TNodeId clonedTrunkNodeId;
     CopyCore(
         context,
         inplace,
         [&] (ICypressNodeFactory* factory) {
-            return inplace
+            auto* clonedNode = inplace
                 ? factory->EndCopyNodeInplace(TrunkNode_, &copyContext)
                 : factory->EndCopyNode(&copyContext);
+            auto* clonedTrunkNode = clonedNode->GetTrunkNode();
+            clonedTrunkNodeId = clonedTrunkNode->GetId();
+            return clonedNode;
         });
+
+    auto clonedNodeType = TypeFromId(clonedTrunkNodeId);
+    YT_LOG_ACCESS_IF(
+        IsAccessLoggedType(clonedNodeType),
+        context,
+        clonedTrunkNodeId,
+        GetPath(),
+        Transaction_);
 
     context->Reply();
 }
@@ -2665,6 +2711,7 @@ void TMapNodeProxy::ListSelf(
 
     YT_LOG_ACCESS(
         context,
+        GetId(),
         GetPath(),
         Transaction_);
 

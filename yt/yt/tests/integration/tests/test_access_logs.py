@@ -4,11 +4,10 @@ import os.path
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
-
 ##################################################################
 
 
-@authors("avmatrosov")
+@authors("shakurov", "avmatrosov")
 class TestAccessLog(YTEnvSetup):
     NUM_MASTERS = 2
     NUM_NONVOTING_MASTERS = 1
@@ -80,76 +79,120 @@ class TestAccessLog(YTEnvSetup):
             "accepted_message_format": "structured",
         }
 
+    def test_create(self):
+        log_list = []
+
+        map_node_id = create("map_node", "//tmp/access_log")
+        log_list.append({"path": "//tmp/access_log", "method": "Create", "type": "map_node", "id": map_node_id})
+
+        table_id = create("table", "//tmp/access_log/t1")
+        log_list.append({"path": "//tmp/access_log/t1", "method": "Create", "type": "table", "id": table_id})
+
+        create("table", "//tmp/access_log/t1", ignore_existing=True)
+        log_list.append(
+            {
+                "path": "//tmp/access_log/t1",
+                "method": "Create",
+                "type": "table",
+                "id": table_id,
+                "existing": "true",
+            }
+        )
+
+        table_id2 = create("table", "//tmp/access_log/t1", force=True)
+        assert table_id != table_id2
+        log_list.append({"path": "//tmp/access_log/t1", "method": "Create", "type": "table", "id": table_id2})
+
+        self._validate_entries_against_log(log_list)
+
     def test_logs(self):
         log_list = []
 
-        create("map_node", "//tmp/access_log")
-        log_list.append({"path": "//tmp/access_log", "method": "Create", "type": "map_node"})
+        map_node_id = create("map_node", "//tmp/access_log")
+        log_list.append({"path": "//tmp/access_log", "method": "Create", "type": "map_node", "id": map_node_id})
 
-        create("table", "//tmp/access_log/a")
-        log_list.append({"path": "//tmp/access_log/a", "method": "Create", "type": "table"})
+        a_id = create("table", "//tmp/access_log/a")
+        log_list.append({"path": "//tmp/access_log/a", "method": "Create", "type": "table", "id": a_id})
 
         set("//tmp/access_log/a/@abc", "abc")
-        log_list.append({"path": "//tmp/access_log/a/@abc", "method": "Set"})
+        log_list.append({"path": "//tmp/access_log/a/@abc", "method": "Set", "type": "table", "id": a_id})
 
         get("//tmp/access_log/a/@abc")
-        log_list.append({"path": "//tmp/access_log/a/@abc", "method": "Get"})
+        log_list.append({"path": "//tmp/access_log/a/@abc", "method": "Get", "type": "table", "id": a_id})
 
-        copy("//tmp/access_log/a", "//tmp/access_log/b")
+        b_id = copy("//tmp/access_log/a", "//tmp/access_log/b")
         log_list.append(
             {
-                "path": "//tmp/access_log/a",
                 "method": "Copy",
+                "type": "table",
+                "id": a_id,
+                "path": "//tmp/access_log/a",
+                "destination_id": b_id,
                 "destination_path": "//tmp/access_log/b",
             }
         )
 
         ls("//tmp/access_log")
-        log_list.append({"path": "//tmp/access_log", "method": "List"})
+        log_list.append({"path": "//tmp/access_log", "method": "List", "type": "map_node", "id": map_node_id})
 
         remove("//tmp/access_log/b")
-        log_list.append({"path": "//tmp/access_log/b", "method": "Remove"})
+        log_list.append({"path": "//tmp/access_log/b", "method": "Remove", "type": "table", "id": b_id})
 
-        create("table", "//tmp/access_log/some_table")
-        create("table", "//tmp/access_log/b")
+        some_table_id = create("table", "//tmp/access_log/some_table")
+        b_id = create("table", "//tmp/access_log/b")
 
         exists("//tmp/access_log/b")
-        log_list.append({"path": "//tmp/access_log/b", "method": "Exists"})
+        log_list.append({"path": "//tmp/access_log/b", "method": "Exists", "type": "table", "id": b_id})
 
-        copy("//tmp/access_log/some_table", "//tmp/access_log/other_table")
+        other_table_id = copy("//tmp/access_log/some_table", "//tmp/access_log/other_table")
         log_list.append(
             {
-                "path": "//tmp/access_log/some_table",
                 "method": "Copy",
+                "type": "table",
+                "id": some_table_id,
+                "path": "//tmp/access_log/some_table",
+                "destination_id": other_table_id,
                 "destination_path": "//tmp/access_log/other_table",
             }
         )
 
-        create("map_node", "//tmp/access_log/some_node")
+        some_node_id = create("map_node", "//tmp/access_log/some_node")
 
-        move("//tmp/access_log/other_table", "//tmp/access_log/some_node/b")
+        some_node_b_id = move("//tmp/access_log/other_table", "//tmp/access_log/some_node/b")
         log_list.append(
             {
-                "path": "//tmp/access_log/other_table",
                 "method": "Move",
+                "type": "table",
+                "id": other_table_id,
+                "path": "//tmp/access_log/other_table",
+                "destination_id": some_node_b_id,
                 "destination_path": "//tmp/access_log/some_node/b",
             }
         )
 
-        link("//tmp/access_log/b", "//tmp/access_log/some_node/q")
+        q_id = link("//tmp/access_log/b", "//tmp/access_log/some_node/q")
         log_list.append(
             {
-                "path": "//tmp/access_log/some_node/q",
                 "method": "Link",
+                "type": "link",
+                "id": q_id,
+                "path": "//tmp/access_log/some_node/q",
                 "destination_path": "//tmp/access_log/b",
             }
         )
 
         get("//tmp/access_log/some_node/q")
-        log_list.append({"path": "//tmp/access_log/b", "method": "Get"})
+        log_list.append({"path": "//tmp/access_log/b", "method": "Get", "type": "table", "id": b_id})
 
         remove("//tmp/access_log/some_node", recursive=True)
-        log_list.append({"path": "//tmp/access_log/some_node", "method": "Remove"})
+        log_list.append(
+            {
+                "path": "//tmp/access_log/some_node",
+                "method": "Remove",
+                "type": "map_node",
+                "id": some_node_id
+            }
+        )
 
         self._validate_entries_against_log(log_list)
 
@@ -161,11 +204,13 @@ class TestAccessLog(YTEnvSetup):
 
         create("map_node", "//tmp/access_log")
 
-        create("table", "//tmp/access_log/a", tx=tx1)
+        a_id = create("table", "//tmp/access_log/a", tx=tx1)
         log_list.append(
             {
-                "path": "//tmp/access_log/a",
                 "method": "Create",
+                "type": "table",
+                "id": a_id,
+                "path": "//tmp/access_log/a",
                 "transaction_id": str(tx1),
             }
         )
@@ -173,18 +218,23 @@ class TestAccessLog(YTEnvSetup):
         set("//tmp/access_log/a/@test", "test", tx=tx2)
         log_list.append(
             {
-                "path": "//tmp/access_log/a/@test",
                 "method": "Set",
+                "type": "table",
+                "id": a_id,
+                "path": "//tmp/access_log/a/@test",
                 "transaction_id": str(tx2),
             }
         )
 
-        copy("//tmp/access_log/a", "//tmp/access_log/b", tx=tx2)
+        b_id = copy("//tmp/access_log/a", "//tmp/access_log/b", tx=tx2)
         log_list.append(
             {
-                "path": "//tmp/access_log/a",
-                "destination_path": "//tmp/access_log/b",
                 "method": "Copy",
+                "type": "table",
+                "id": a_id,
+                "path": "//tmp/access_log/a",
+                "destination_id": b_id,
+                "destination_path": "//tmp/access_log/b",
                 "transaction_id": str(tx2),
             }
         )
@@ -192,8 +242,10 @@ class TestAccessLog(YTEnvSetup):
         exists("//tmp/access_log/a", tx=tx2)
         log_list.append(
             {
-                "path": "//tmp/access_log/a",
                 "method": "Exists",
+                "type": "table",
+                "id": a_id,
+                "path": "//tmp/access_log/a",
                 "transaction_id": str(tx2),
             }
         )
@@ -306,12 +358,25 @@ class TestAccessLogPortal(TestAccessLog):
         log_list = []
 
         create("map_node", "//tmp/access_log")
-        create("document", "//tmp/access_log/doc")
+        doc_id = create("document", "//tmp/access_log/doc")
 
         create("portal_entrance", "//tmp/access_log/p1", attributes={"exit_cell_tag": 2})
-        move("//tmp/access_log/doc", "//tmp/access_log/p1/doc")
-        log_list.append({"path": "//tmp/access_log/doc", "method": "BeginCopy"})
-        log_list.append({"path": "//tmp/access_log/p1/doc", "method": "EndCopy"})
+        moved_doc_id = move("//tmp/access_log/doc", "//tmp/access_log/p1/doc")
+        log_list.append(
+            {
+                "method": "BeginCopy",
+                "type": "document",
+                "id": doc_id,
+                "path": "//tmp/access_log/doc",
+            })
+        log_list.append(
+            {
+                "method": "EndCopy",
+                "type": "document",
+                "id": moved_doc_id,
+                "path": "//tmp/access_log/p1/doc",
+            }
+        )
 
         self._validate_entries_against_log(log_list, cell_tag_to_directory={
             1: "//tmp/access_log",

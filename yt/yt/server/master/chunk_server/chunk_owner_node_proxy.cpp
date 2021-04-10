@@ -528,6 +528,7 @@ bool TChunkOwnerNodeProxy::DoInvoke(const NRpc::IServiceContextPtr& context)
     YT_LOG_ACCESS_IF(
         IsAccessLoggedMethod(context->GetMethod()),
         context,
+        GetId(),
         GetPath(),
         Transaction_);
 
