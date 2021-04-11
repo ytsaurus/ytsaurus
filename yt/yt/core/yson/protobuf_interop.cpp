@@ -1505,6 +1505,18 @@ private:
                 break;
             }
 
+            case FieldDescriptor::TYPE_DOUBLE: {
+                auto encodedValue = WireFormatLite::EncodeDouble(static_cast<double>(value));
+                BodyCodedStream_.WriteRaw(&encodedValue, sizeof(encodedValue));
+                break;
+            }
+
+            case FieldDescriptor::TYPE_FLOAT: {
+                auto encodedValue = WireFormatLite::EncodeFloat(static_cast<double>(value));
+                BodyCodedStream_.WriteRaw(&encodedValue, sizeof(encodedValue));
+                break;
+            }
+
             default:
                 THROW_ERROR_EXCEPTION("Field %v cannot be parsed from integer values",
                     YPathStack_.GetHumanReadablePath())
