@@ -434,6 +434,8 @@ TEST(TYsonToProtobufTest, TypeConversions)
             .Item("uint64_field").Value(10000)
             .Item("fixed32_field").Value(10000)
             .Item("fixed64_field").Value(10000)
+            .Item("float_field").Value(0)
+            .Item("double_field").Value(1)
         .EndMap();
 
     TEST_EPILOGUE(TMessage)
@@ -444,6 +446,8 @@ TEST(TYsonToProtobufTest, TypeConversions)
     EXPECT_EQ(10000U, message.uint64_field());
     EXPECT_EQ(10000U, message.fixed32_field());
     EXPECT_EQ(10000U, message.fixed64_field());
+    EXPECT_EQ(0.0, message.float_field());
+    EXPECT_EQ(1.0, message.double_field());
 }
 
 TEST(TYsonToProtobufYsonTest, Entities)
