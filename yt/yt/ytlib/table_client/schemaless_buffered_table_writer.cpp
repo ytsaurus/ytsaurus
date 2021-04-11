@@ -148,7 +148,7 @@ private:
 
         void Write(TRange<TUnversionedRow> rows)
         {
-            auto capturedRows = RowBuffer_->Capture(rows);
+            auto capturedRows = RowBuffer_->CaptureRows(rows);
             Rows_.insert(Rows_.end(), capturedRows.begin(), capturedRows.end());
         }
 

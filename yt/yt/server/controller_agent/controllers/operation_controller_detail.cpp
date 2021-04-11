@@ -4396,7 +4396,7 @@ void TOperationControllerBase::TryScheduleJob(
         // current heartbeat. This check would be performed in scheduler.
         auto minNeededResources = task->GetMinNeededResources();
         if (!Dominates(jobLimits, minNeededResources.ToJobResources()) ||
-            !CanSatisfyDiskQuotaRequests(context->DiskResources(), {minNeededResources.GetDiskQuota()})) 
+            !CanSatisfyDiskQuotaRequests(context->DiskResources(), {minNeededResources.GetDiskQuota()}))
         {
             scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
             continue;
@@ -6017,7 +6017,7 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
                                 fixedRow);
                             row = fixedRow;
                         }
-                        auto capturedRow = RowBuffer->Capture(row);
+                        auto capturedRow = RowBuffer->CaptureRow(row);
                         table->LastKey = TKey::FromRowUnchecked(capturedRow, schema->GetKeyColumnCount());
                         YT_LOG_DEBUG(
                             "Writing to table in sorted append mode (Path: %v, LastKey: %v)",
@@ -6784,7 +6784,7 @@ std::vector<std::deque<TLegacyDataSlicePtr>> TOperationControllerBase::CollectFo
                 for (const auto& chunkSpec : table->Chunks) {
                     auto& chunkSlice = chunkSlices.emplace_back(CreateInputChunkSlice(
                         chunkSpec,
-                        RowBuffer->Capture(chunkSpec->BoundaryKeys()->MinKey.Get()),
+                        RowBuffer->CaptureRow(chunkSpec->BoundaryKeys()->MinKey.Get()),
                         GetKeySuccessor(chunkSpec->BoundaryKeys()->MaxKey.Get(), RowBuffer)));
 
                     chunkSlice->TransformToNew(RowBuffer, table->Comparator.GetLength());

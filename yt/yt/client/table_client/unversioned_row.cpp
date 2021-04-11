@@ -976,7 +976,7 @@ TUnversionedRow DeserializeFromString(const TString& data, const TRowBufferPtr& 
     for (int index = 0; index < valueCount; ++index) {
         auto* value = values + index;
         current += ReadValue(current, value);
-        rowBuffer->Capture(value);
+        rowBuffer->CaptureValue(value);
     }
 
     return row;
@@ -1333,7 +1333,7 @@ TLegacyKey GetKeySuccessorImpl(TLegacyKey key, ui32 prefixLength, EValueType sen
     auto length = std::min(prefixLength, key.GetCount());
     auto result = rowBuffer->AllocateUnversioned(length + 1);
     for (int index = 0; index < length; ++index) {
-        result[index] = rowBuffer->Capture(key[index]);
+        result[index] = rowBuffer->CaptureValue(key[index]);
     }
     result[length] = MakeUnversionedSentinelValue(sentinelType);
     return result;
@@ -1382,9 +1382,9 @@ TLegacyOwningKey GetKeyPrefix(TLegacyKey key, ui32 prefixLength)
 
 TLegacyKey GetKeyPrefix(TLegacyKey key, ui32 prefixLength, const TRowBufferPtr& rowBuffer)
 {
-    return rowBuffer->Capture(
+    return rowBuffer->CaptureRow(MakeRange(
         key.Begin(),
-        std::min(key.GetCount(), prefixLength));
+        std::min(key.GetCount(), prefixLength)));
 }
 
 TLegacyKey GetStrictKey(TLegacyKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType)
@@ -1503,7 +1503,7 @@ void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, const TRo
     auto* values = mutableRow.Begin();
     for (auto* value = values; value < values + valueCount; ++value) {
         current += ReadValue(current, value);
-        rowBuffer->Capture(value);
+        rowBuffer->CaptureValue(value);
     }
 }
 
@@ -1967,7 +1967,7 @@ TLegacyKey WidenKeySuccessor(const TLegacyKey& key, ui32 keyColumnCount, const T
     auto wideKey = rowBuffer->AllocateUnversioned(keyColumnCount + 1);
 
     for (ui32 index = 0; index < key.GetCount(); ++index) {
-        wideKey[index] = rowBuffer->Capture(key[index]);
+        wideKey[index] = rowBuffer->CaptureValue(key[index]);
     }
 
     for (ui32 index = key.GetCount(); index < keyColumnCount; ++index) {
@@ -2004,13 +2004,13 @@ TLegacyKey WidenKeyPrefix(TLegacyKey key, ui32 prefixLength, ui32 keyColumnCount
     YT_VERIFY(prefixLength <= key.GetCount() && prefixLength <= keyColumnCount);
 
     if (key.GetCount() == prefixLength && prefixLength == keyColumnCount) {
-        return rowBuffer->Capture(key);
+        return rowBuffer->CaptureRow(key);
     }
 
     auto wideKey = rowBuffer->AllocateUnversioned(keyColumnCount);
 
     for (ui32 index = 0; index < prefixLength; ++index) {
-        wideKey[index] = rowBuffer->Capture(key[index]);
+        wideKey[index] = rowBuffer->CaptureValue(key[index]);
     }
 
     for (ui32 index = prefixLength; index < keyColumnCount; ++index) {
@@ -2026,8 +2026,8 @@ TSharedRange<TRowRange> MakeSingletonRowRange(TLegacyKey lowerBound, TLegacyKey 
 {
     auto rowBuffer = New<TRowBuffer>();
     SmallVector<TRowRange, 1> ranges(1, TRowRange(
-        rowBuffer->Capture(lowerBound),
-        rowBuffer->Capture(upperBound)));
+        rowBuffer->CaptureRow(lowerBound),
+        rowBuffer->CaptureRow(upperBound)));
     return MakeSharedRange(std::move(ranges), std::move(rowBuffer));
 }
 

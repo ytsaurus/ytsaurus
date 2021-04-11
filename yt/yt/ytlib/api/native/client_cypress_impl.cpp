@@ -1764,7 +1764,7 @@ private:
                 row = WidenKey(row, keyColumnCount);
             }
 
-            return TKey::FromRowUnchecked(RowBuffer_->Capture(row.Begin(), keyColumnCount), keyColumnCount);
+            return TKey::FromRowUnchecked(RowBuffer_->CaptureRow(MakeRange(row.Begin(), keyColumnCount)), keyColumnCount);
         };
 
         return {prepareKey(minKeyRow), prepareKey(maxKeyRow)};

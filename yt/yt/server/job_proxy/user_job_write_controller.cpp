@@ -145,13 +145,13 @@ private:
 
         virtual void OnMyValue(const TUnversionedValue& value) override
         {
-            RowBuilder_.AddValue(RowBuffer_->Capture(value));
+            RowBuilder_.AddValue(RowBuffer_->CaptureValue(value));
         }
 
         virtual void OnEndRow() override
         {
             RowBuilder_.AddValue(TableIndexValue_);
-            auto row = RowBuffer_->Capture(RowBuilder_.GetRow(), /* deep */ false);
+            auto row = RowBuffer_->CaptureRow(RowBuilder_.GetRow(), /*capturevalues*/ false);
             Rows_.push_back(row);
             RowBuilder_.Reset();
 

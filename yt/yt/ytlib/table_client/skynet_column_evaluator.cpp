@@ -161,10 +161,10 @@ void TSkynetColumnEvaluator::ValidateAndComputeHashes(
     auto md5Hash = HashState_->GetMD5();
 
     *sha1 = MakeUnversionedStringValue(TStringBuf(sha1Hash.data(), sha1Hash.size()), Sha1Id_);
-    buffer->Capture(sha1);
+    buffer->CaptureValue(sha1);
 
     *md5 = MakeUnversionedStringValue(TStringBuf(md5Hash.data(), md5Hash.size()), Md5Id_);
-    buffer->Capture(md5);
+    buffer->CaptureValue(md5);
 }
 
 void TSkynetColumnEvaluator::UnpackFields(

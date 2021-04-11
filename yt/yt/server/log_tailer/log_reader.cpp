@@ -97,7 +97,7 @@ TUnversionedRow LogRecordToUnversionedRow(
         builder.AddValue(ToUnversionedValue(value, rowBuffer, nameTable->GetId(key)));
     }
 
-    return rowBuffer->Capture(builder.GetRow());
+    return rowBuffer->CaptureRow(builder.GetRow());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

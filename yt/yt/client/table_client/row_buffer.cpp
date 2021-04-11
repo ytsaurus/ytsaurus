@@ -32,7 +32,7 @@ TMutableVersionedRow TRowBuffer::AllocateVersioned(
         deleteTimestampCount);
 }
 
-void TRowBuffer::Capture(TUnversionedValue* value)
+void TRowBuffer::CaptureValue(TUnversionedValue* value)
 {
     if (IsStringLikeType(value->Type)) {
         char* dst = Pool_.AllocateUnaligned(value->Length);
@@ -41,51 +41,63 @@ void TRowBuffer::Capture(TUnversionedValue* value)
     }
 }
 
-TVersionedValue TRowBuffer::Capture(const TVersionedValue& value)
+TVersionedValue TRowBuffer::CaptureValue(const TVersionedValue& value)
 {
     auto capturedValue = value;
-    Capture(&capturedValue);
+    CaptureValue(&capturedValue);
     return capturedValue;
 }
 
-TUnversionedValue TRowBuffer::Capture(const TUnversionedValue& value)
+TUnversionedValue TRowBuffer::CaptureValue(const TUnversionedValue& value)
 {
     auto capturedValue = value;
-    Capture(&capturedValue);
+    CaptureValue(&capturedValue);
     return capturedValue;
 }
 
-TMutableUnversionedRow TRowBuffer::Capture(TUnversionedRow row, bool deep)
+TMutableUnversionedRow TRowBuffer::CaptureRow(TUnversionedRow row, bool captureValues)
 {
     if (!row) {
         return TMutableUnversionedRow();
     }
 
-    return Capture(row.Begin(), row.GetCount(), deep);
+    return CaptureRow(MakeRange(row.Begin(), row.GetCount()), captureValues);
 }
 
-TMutableUnversionedRow TRowBuffer::Capture(const TUnversionedValue* begin, int count, bool deep)
+void TRowBuffer::CaptureValues(TMutableUnversionedRow row)
 {
+    if (!row) {
+        return;
+    }
+
+    for (int index = 0; index < row.GetCount(); ++index) {
+        CaptureValue(&row[index]);
+    }
+}
+
+TMutableUnversionedRow TRowBuffer::CaptureRow(TRange<TUnversionedValue> values, bool captureValues)
+{
+    int count = static_cast<int>(values.Size());
     auto capturedRow = TMutableUnversionedRow::Allocate(&Pool_, count);
     auto* capturedBegin = capturedRow.Begin();
 
-    ::memcpy(capturedBegin, begin, count * sizeof (TUnversionedValue));
+    ::memcpy(capturedBegin, values.Begin(), count * sizeof (TUnversionedValue));
 
-    if (deep) {
+    if (captureValues) {
         for (int index = 0; index < count; ++index) {
-            Capture(&capturedBegin[index]);
+            CaptureValue(&capturedBegin[index]);
         }
     }
 
     return capturedRow;
 }
 
-std::vector<TMutableUnversionedRow> TRowBuffer::Capture(TRange<TUnversionedRow> rows, bool deep)
+std::vector<TMutableUnversionedRow> TRowBuffer::CaptureRows(TRange<TUnversionedRow> rows, bool captureValues)
 {
     int rowCount = static_cast<int>(rows.Size());
     std::vector<TMutableUnversionedRow> capturedRows(rowCount);
     for (int index = 0; index < rowCount; ++index) {
-        capturedRows[index] = Capture(rows[index], deep);
+        capturedRows[index] = CaptureRow(rows[index], captureValues);
     }
     return capturedRows;
 }
@@ -133,7 +145,7 @@ TMutableUnversionedRow TRowBuffer::CaptureAndPermuteRow(
     return capturedRow;
 }
 
-TMutableVersionedRow TRowBuffer::Capture(TVersionedRow row, bool deep)
+TMutableVersionedRow TRowBuffer::CaptureRow(TVersionedRow row, bool captureValues)
 {
     if (!row) {
         return TMutableVersionedRow();
@@ -150,16 +162,25 @@ TMutableVersionedRow TRowBuffer::Capture(TVersionedRow row, bool deep)
     ::memcpy(capturedRow.BeginWriteTimestamps(), row.BeginWriteTimestamps(), sizeof(TTimestamp) * row.GetWriteTimestampCount());
     ::memcpy(capturedRow.BeginDeleteTimestamps(), row.BeginDeleteTimestamps(), sizeof(TTimestamp) * row.GetDeleteTimestampCount());
 
-    if (deep) {
-        for (int index = 0; index < capturedRow.GetKeyCount(); ++index) {
-            Capture(capturedRow.BeginKeys() + index);
-        }
-        for (int index = 0; index < capturedRow.GetValueCount(); ++index) {
-            Capture(capturedRow.BeginValues() + index);
-        }
+    if (captureValues) {
+        CaptureValues(capturedRow);
     }
 
     return capturedRow;
+}
+
+void TRowBuffer::CaptureValues(TMutableVersionedRow row)
+{
+    if (!row) {
+        return;
+    }
+
+    for (int index = 0; index < row.GetKeyCount(); ++index) {
+        CaptureValue(row.BeginKeys() + index);
+    }
+    for (int index = 0; index < row.GetValueCount(); ++index) {
+        CaptureValue(row.BeginValues() + index);
+    }
 }
 
 TMutableUnversionedRow TRowBuffer::CaptureAndPermuteRow(

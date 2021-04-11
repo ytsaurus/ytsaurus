@@ -843,7 +843,7 @@ private:
         builder.AddValue(MakeUnversionedAnyValue(briefProgress.ToString(), tableDescriptor.Index.BriefProgress));
 
         auto rowBuffer = New<TRowBuffer>();
-        auto row = rowBuffer->Capture(builder.GetRow());
+        auto row = rowBuffer->CaptureRow(builder.GetRow());
         i64 orderedByIdRowsDataWeight = GetDataWeight(row);
 
         transaction->WriteRows(

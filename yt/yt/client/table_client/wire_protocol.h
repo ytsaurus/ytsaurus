@@ -158,7 +158,7 @@ inline void TWireProtocolWriter::WriteRowset<NTableClient::TVersionedRow>(
 /*!
  *  All |ReadXXX| methods obey the following convention.
  *  Rows are captured by the row buffer passed in ctor.
- *  Values are either captured or not depending on |deep| argument.
+ *  Values are either captured or not depending on |captureValues| argument.
  */
 class TWireProtocolReader
 {
@@ -197,21 +197,21 @@ public:
     i64 ReadInt64();
 
     NTableClient::TUnversionedRow ReadUnversionedRow(
-        bool deep,
+        bool captureValues,
         const TIdMapping* idMapping = nullptr);
-    NTableClient::TUnversionedRow ReadSchemafulRow(const TSchemaData& schemaData, bool deep);
+    NTableClient::TUnversionedRow ReadSchemafulRow(const TSchemaData& schemaData, bool captureValues);
     NTableClient::TVersionedRow ReadVersionedRow(
         const TSchemaData& schemaData,
-        bool deep,
+        bool captureValues,
         const TIdMapping* valueIdMapping = nullptr);
 
     TSharedRange<NTableClient::TUnversionedRow> ReadUnversionedRowset(
-        bool deep,
+        bool captureValues,
         const TIdMapping* idMapping = nullptr);
-    TSharedRange<NTableClient::TUnversionedRow> ReadSchemafulRowset(const TSchemaData& schemaData, bool deep);
+    TSharedRange<NTableClient::TUnversionedRow> ReadSchemafulRowset(const TSchemaData& schemaData, bool captureValues);
     TSharedRange<NTableClient::TVersionedRow> ReadVersionedRowset(
         const TSchemaData& schemaData,
-        bool deep,
+        bool captureValues,
         const TIdMapping* valueIdMapping = nullptr);
 
     static TSchemaData GetSchemaData(

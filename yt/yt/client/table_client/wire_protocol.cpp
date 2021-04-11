@@ -644,7 +644,7 @@ public:
         return static_cast<i64>(ReadUint64());
     }
 
-    TUnversionedRow ReadSchemafulRow(const TSchemaData& schemaData, bool deep)
+    TUnversionedRow ReadSchemafulRow(const TSchemaData& schemaData, bool captureValues)
     {
         auto valueCount = ReadUint64();
         if (valueCount == MinusOne) {
@@ -652,11 +652,11 @@ public:
         }
         ValidateRowValueCount(valueCount);
         auto row = RowBuffer_->AllocateUnversioned(valueCount);
-        DoReadSchemafulValueRange(schemaData, deep, row.Begin(), valueCount);
+        DoReadSchemafulValueRange(schemaData, captureValues, row.Begin(), valueCount);
         return row;
     }
 
-    TUnversionedRow ReadUnversionedRow(bool deep, const TIdMapping* idMapping)
+    TUnversionedRow ReadUnversionedRow(bool captureValues, const TIdMapping* idMapping)
     {
         auto valueCount = ReadUint64();
         if (valueCount == MinusOne) {
@@ -664,11 +664,11 @@ public:
         }
         ValidateRowValueCount(valueCount);
         auto row = RowBuffer_->AllocateUnversioned(valueCount);
-        DoReadUnversionedValueRange(deep, row.Begin(), valueCount, idMapping);
+        DoReadUnversionedValueRange(captureValues, row.Begin(), valueCount, idMapping);
         return row;
     }
 
-    TVersionedRow ReadVersionedRow(const TSchemaData& schemaData, bool deep, const TIdMapping* valueIdMapping)
+    TVersionedRow ReadVersionedRow(const TSchemaData& schemaData, bool captureValues, const TIdMapping* valueIdMapping)
     {
         union
         {
@@ -697,47 +697,47 @@ public:
         ReadRaw(row.BeginWriteTimestamps(), sizeof(TTimestamp) * row.GetWriteTimestampCount());
         ReadRaw(row.BeginDeleteTimestamps(), sizeof(TTimestamp) * row.GetDeleteTimestampCount());
 
-        DoReadSchemafulValueRange(schemaData, deep, row.BeginKeys(), header.value.KeyCount);
-        DoReadVersionedValueRange(deep, row.BeginValues(), header.value.ValueCount, valueIdMapping);
+        DoReadSchemafulValueRange(schemaData, captureValues, row.BeginKeys(), header.value.KeyCount);
+        DoReadVersionedValueRange(captureValues, row.BeginValues(), header.value.ValueCount, valueIdMapping);
 
         return row;
     }
 
-    TSharedRange<TUnversionedRow> ReadSchemafulRowset(const TSchemaData& schemaData, bool deep)
+    TSharedRange<TUnversionedRow> ReadSchemafulRowset(const TSchemaData& schemaData, bool captureValues)
     {
         int rowCount = DoReadRowCount();
         auto* rows = RowBuffer_->GetPool()->AllocateUninitialized<TUnversionedRow>(rowCount);
         for (int index = 0; index < rowCount; ++index) {
-            rows[index] = ReadSchemafulRow(schemaData, deep);
+            rows[index] = ReadSchemafulRow(schemaData, captureValues);
         }
 
         auto range = TRange<TUnversionedRow>(rows, rows + rowCount);
-        return deep ? MakeSharedRange(range, RowBuffer_) : MakeSharedRange(range, RowBuffer_, Data_);
+        return captureValues ? MakeSharedRange(range, RowBuffer_) : MakeSharedRange(range, RowBuffer_, Data_);
     }
 
-    TSharedRange<TUnversionedRow> ReadUnversionedRowset(bool deep, const TIdMapping* idMapping)
+    TSharedRange<TUnversionedRow> ReadUnversionedRowset(bool captureValues, const TIdMapping* idMapping)
     {
         int rowCount = DoReadRowCount();
         auto* rows = RowBuffer_->GetPool()->AllocateUninitialized<TUnversionedRow>(rowCount);
         for (int index = 0; index < rowCount; ++index) {
-            rows[index] = ReadUnversionedRow(deep, idMapping);
+            rows[index] = ReadUnversionedRow(captureValues, idMapping);
         }
         auto range = TRange<TUnversionedRow>(rows, rows + rowCount);
-        return deep ? MakeSharedRange(range, RowBuffer_) : MakeSharedRange(range, RowBuffer_, Data_);
+        return captureValues ? MakeSharedRange(range, RowBuffer_) : MakeSharedRange(range, RowBuffer_, Data_);
     }
 
     TSharedRange<TVersionedRow> ReadVersionedRowset(
         const TSchemaData& schemaData,
-        bool deep,
+        bool captureValues,
         const TIdMapping* valueIdMapping)
     {
         int rowCount = DoReadRowCount();
         auto* rows = RowBuffer_->GetPool()->AllocateUninitialized<TVersionedRow>(rowCount);
         for (int index = 0; index < rowCount; ++index) {
-            rows[index] = ReadVersionedRow(schemaData, deep, valueIdMapping);
+            rows[index] = ReadVersionedRow(schemaData, captureValues, valueIdMapping);
         }
         auto range = TRange<TVersionedRow>(rows, rows + rowCount);
-        return deep ? MakeSharedRange(range, RowBuffer_) : MakeSharedRange(range, RowBuffer_, Data_);
+        return captureValues ? MakeSharedRange(range, RowBuffer_) : MakeSharedRange(range, RowBuffer_, Data_);
     }
 
 private:
@@ -807,7 +807,7 @@ private:
         return static_cast<i32>(result);
     }
 
-    void DoReadStringData(EValueType type, ui32 length, const char** result, bool deep)
+    void DoReadStringData(EValueType type, ui32 length, const char** result, bool captureValues)
     {
         ui32 limit = 0;
         if (type == EValueType::String) {
@@ -824,7 +824,7 @@ private:
                 length,
                 limit);
         }
-        if (deep) {
+        if (captureValues) {
             char* tmp = RowBuffer_->GetPool()->AllocateUnaligned(length);
             ReadRaw(tmp, length);
             *result = tmp;
@@ -843,7 +843,7 @@ private:
     void DoReadSchemafulValue(
         ui32 schemaData,
         bool null,
-        bool deep,
+        bool captureValues,
         TUnversionedValue* value)
     {
         ui64* rawValue = reinterpret_cast<ui64*>(value);
@@ -852,29 +852,29 @@ private:
             value->Type = EValueType::Null;
         } else if (IsStringLikeType(value->Type)) {
             value->Length = ReadUint32();
-            DoReadStringData(value->Type, value->Length, &value->Data.String, deep);
+            DoReadStringData(value->Type, value->Length, &value->Data.String, captureValues);
         } else if (IsValueType(value->Type)) {
             value->Data.Uint64 = ReadUint64();
         }
     }
 
-    void DoReadUnversionedValue(bool deep, TUnversionedValue* value)
+    void DoReadUnversionedValue(bool captureValues, TUnversionedValue* value)
     {
         ui64* rawValue = reinterpret_cast<ui64*>(value);
         rawValue[0] = ReadUint64();
         if (IsStringLikeType(value->Type)) {
-            DoReadStringData(value->Type, value->Length, &value->Data.String, deep);
+            DoReadStringData(value->Type, value->Length, &value->Data.String, captureValues);
         } else if (IsValueType(value->Type)) {
             rawValue[1] = ReadUint64();
         }
     }
 
-    void DoReadVersionedValue(bool deep, TVersionedValue* value)
+    void DoReadVersionedValue(bool captureValues, TVersionedValue* value)
     {
         ui64* rawValue = reinterpret_cast<ui64*>(value);
         rawValue[0] = ReadUint64();
         if (IsStringLikeType(value->Type)) {
-            DoReadStringData(value->Type, value->Length, &value->Data.String, deep);
+            DoReadStringData(value->Type, value->Length, &value->Data.String, captureValues);
         } else if (IsValueType(value->Type)) {
             rawValue[1] = ReadUint64();
         }
@@ -883,14 +883,14 @@ private:
 
     void DoReadSchemafulValueRange(
         const TSchemaData& schemaData,
-        bool deep,
+        bool captureValues,
         TUnversionedValue* values,
         ui32 valueCount)
     {
         auto bitmapPtr = PeekRaw(NBitmapDetail::GetByteSize(valueCount));
         TBitmap nullBitmap(bitmapPtr);
         for (size_t index = 0; index < valueCount; ++index) {
-            DoReadSchemafulValue(schemaData[index], nullBitmap[index], deep, &values[index]);
+            DoReadSchemafulValue(schemaData[index], nullBitmap[index], captureValues, &values[index]);
         }
     }
 
@@ -912,13 +912,13 @@ private:
     }
 
     void DoReadUnversionedValueRange(
-        bool deep,
+        bool captureValues,
         TUnversionedValue* values,
         ui32 valueCount,
         const TIdMapping* idMapping)
     {
         for (size_t index = 0; index < valueCount; ++index) {
-            DoReadUnversionedValue(deep, &values[index]);
+            DoReadUnversionedValue(captureValues, &values[index]);
             if (idMapping) {
                 DoApplyIdMapping(&values[index].Id, index, idMapping);
             }
@@ -926,13 +926,13 @@ private:
     }
 
     void DoReadVersionedValueRange(
-        bool deep,
+        bool captureValues,
         TVersionedValue* values,
         ui32 valueCount,
         const TIdMapping* valueIdMapping)
     {
         for (size_t index = 0; index < valueCount; ++index) {
-            DoReadVersionedValue(deep, &values[index]);
+            DoReadVersionedValue(captureValues, &values[index]);
             if (valueIdMapping) {
                 DoApplyIdMapping(&values[index].Id, index, valueIdMapping);
             }
@@ -1010,40 +1010,40 @@ i64 TWireProtocolReader::ReadInt64()
     return Impl_->ReadInt64();
 }
 
-TUnversionedRow TWireProtocolReader::ReadUnversionedRow(bool deep, const TIdMapping* idMapping)
+TUnversionedRow TWireProtocolReader::ReadUnversionedRow(bool captureValues, const TIdMapping* idMapping)
 {
-    return Impl_->ReadUnversionedRow(deep, idMapping);
+    return Impl_->ReadUnversionedRow(captureValues, idMapping);
 }
 
-TUnversionedRow TWireProtocolReader::ReadSchemafulRow(const TSchemaData& schemaData, bool deep)
+TUnversionedRow TWireProtocolReader::ReadSchemafulRow(const TSchemaData& schemaData, bool captureValues)
 {
-    return Impl_->ReadSchemafulRow(schemaData, deep);
+    return Impl_->ReadSchemafulRow(schemaData, captureValues);
 }
 
 TVersionedRow TWireProtocolReader::ReadVersionedRow(
     const TSchemaData& schemaData,
-    bool deep,
+    bool captureValues,
     const TIdMapping* valueIdMapping)
 {
-    return Impl_->ReadVersionedRow(schemaData, deep, valueIdMapping);
+    return Impl_->ReadVersionedRow(schemaData, captureValues, valueIdMapping);
 }
 
-TSharedRange<TUnversionedRow> TWireProtocolReader::ReadUnversionedRowset(bool deep, const TIdMapping* idMapping)
+TSharedRange<TUnversionedRow> TWireProtocolReader::ReadUnversionedRowset(bool captureValues, const TIdMapping* idMapping)
 {
-    return Impl_->ReadUnversionedRowset(deep, idMapping);
+    return Impl_->ReadUnversionedRowset(captureValues, idMapping);
 }
 
-TSharedRange<TUnversionedRow> TWireProtocolReader::ReadSchemafulRowset(const TSchemaData& schemaData, bool deep)
+TSharedRange<TUnversionedRow> TWireProtocolReader::ReadSchemafulRowset(const TSchemaData& schemaData, bool captureValues)
 {
-    return Impl_->ReadSchemafulRowset(schemaData, deep);
+    return Impl_->ReadSchemafulRowset(schemaData, captureValues);
 }
 
 TSharedRange<TVersionedRow> TWireProtocolReader::ReadVersionedRowset(
     const TSchemaData& schemaData,
-    bool deep,
+    bool captureValues,
     const TIdMapping* valueIdMapping)
 {
-    return Impl_->ReadVersionedRowset(schemaData, deep, valueIdMapping);
+    return Impl_->ReadVersionedRowset(schemaData, captureValues, valueIdMapping);
 }
 
 auto TWireProtocolReader::GetSchemaData(

@@ -58,15 +58,17 @@ public:
         int writeTimestampCount,
         int deleteTimestampCount);
 
-    void Capture(TUnversionedValue* value);
-    TVersionedValue Capture(const TVersionedValue& value);
-    TUnversionedValue Capture(const TUnversionedValue& value);
+    void CaptureValue(TUnversionedValue* value);
+    TVersionedValue CaptureValue(const TVersionedValue& value);
+    TUnversionedValue CaptureValue(const TUnversionedValue& value);
 
-    TMutableUnversionedRow Capture(TUnversionedRow row, bool deep = true);
-    TMutableUnversionedRow Capture(const TUnversionedValue* begin, int count, bool deep = true);
-    std::vector<TMutableUnversionedRow> Capture(TRange<TUnversionedRow> rows, bool deep = true);
+    TMutableUnversionedRow CaptureRow(TUnversionedRow row, bool captureValues = true);
+    void CaptureValues(TMutableUnversionedRow row);
+    TMutableUnversionedRow CaptureRow(TRange<TUnversionedValue> values, bool captureValues = true);
+    std::vector<TMutableUnversionedRow> CaptureRows(TRange<TUnversionedRow> rows, bool captureValues = true);
 
-    TMutableVersionedRow Capture(TVersionedRow row, bool deep = true);
+    TMutableVersionedRow CaptureRow(TVersionedRow row, bool captureValues = true);
+    void CaptureValues(TMutableVersionedRow row);
 
     //! Captures the row applying #idMapping to value ids and placing values to the proper positions.
     //! The returned row is schemaful.

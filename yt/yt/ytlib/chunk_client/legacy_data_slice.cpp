@@ -490,10 +490,10 @@ void InferLimitsFromBoundaryKeys(
         }
 
         if (minKey) {
-            dataSlice->LegacyLowerLimit().MergeLowerKey(rowBuffer->Capture(minKey));
+            dataSlice->LegacyLowerLimit().MergeLowerKey(rowBuffer->CaptureRow(minKey));
         }
         if (maxKey) {
-            dataSlice->LegacyUpperLimit().MergeUpperKey(rowBuffer->Capture(GetKeySuccessor(maxKey, rowBuffer)));
+            dataSlice->LegacyUpperLimit().MergeUpperKey(rowBuffer->CaptureRow(GetKeySuccessor(maxKey, rowBuffer)));
         }
     } else {
         YT_VERIFY(comparator);
@@ -510,11 +510,11 @@ void InferLimitsFromBoundaryKeys(
         }
 
         if (comparator.StrongerKeyBound(dataSlice->LowerLimit().KeyBound, lowerBound) == lowerBound) {
-            lowerBound.Prefix = rowBuffer->Capture(lowerBound.Prefix);
+            lowerBound.Prefix = rowBuffer->CaptureRow(lowerBound.Prefix);
             dataSlice->LowerLimit().KeyBound = lowerBound;
         }
         if (comparator.StrongerKeyBound(dataSlice->UpperLimit().KeyBound, upperBound) == upperBound) {
-            upperBound.Prefix = rowBuffer->Capture(upperBound.Prefix);
+            upperBound.Prefix = rowBuffer->CaptureRow(upperBound.Prefix);
             dataSlice->UpperLimit().KeyBound = upperBound;
         }
     }
@@ -530,9 +530,9 @@ void SetLimitsFromShortenedBoundaryKeys(
     auto chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
     if (const auto& boundaryKeys = chunk->BoundaryKeys()) {
         dataSlice->LowerLimit().KeyBound = TKeyBound::FromRow(
-            rowBuffer->Capture(boundaryKeys->MinKey.Begin(), prefixLength), /* isInclusive */ true, /* isUpper */ false);
+            rowBuffer->CaptureRow(MakeRange(boundaryKeys->MinKey.Begin(), prefixLength)), /* isInclusive */ true, /* isUpper */ false);
         dataSlice->UpperLimit().KeyBound = TKeyBound::FromRow(
-            rowBuffer->Capture(boundaryKeys->MaxKey.Begin(), prefixLength), /* isInclusive */ true, /* isUpper */ true);
+            rowBuffer->CaptureRow(MakeRange(boundaryKeys->MaxKey.Begin(), prefixLength)), /* isInclusive */ true, /* isUpper */ true);
     }
 }
 

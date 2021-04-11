@@ -160,7 +160,7 @@ std::pair<TUnversionedValues, std::any> YsonStringBufsToVariadicUnversionedValue
         } else {
             result.emplace_back(MakeUnversionedNullValue());
         }
-        result.back() = rowBuffer->Capture(result.back());
+        result.back() = rowBuffer->CaptureValue(result.back());
     }
     return {result, rowBuffer};
 }
@@ -171,7 +171,7 @@ std::pair<TUnversionedValues, std::any> YsonStringBufsToAnyUnversionedValues(TYs
     TUnversionedValues result;
     for (const auto& yson : ysons) {
         if (yson) {
-            result.emplace_back(rowBuffer->Capture(MakeUnversionedAnyValue(yson.AsStringBuf())));
+            result.emplace_back(rowBuffer->CaptureValue(MakeUnversionedAnyValue(yson.AsStringBuf())));
         } else {
             result.emplace_back(MakeUnversionedNullValue());
         }
@@ -829,7 +829,7 @@ TEST(TTestKeyConversion, TestSentinels)
     auto upperKey = MakeRow({
         MakeUnversionedStringValue("test"),
         MakeUnversionedSentinelValue(EValueType::Max)});
-    
+
     auto chKeys = ToClickHouseKeys(lowerKey, upperKey, 3, dataTypes, false);
     EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({
         "",

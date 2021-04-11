@@ -90,7 +90,7 @@ TUnversionedRow TAnyToCompositeConverter::ConvertAnyToComposite(TUnversionedRow 
         return row;
     }
 
-    auto convertedRow = RowBuffer_->Capture(row, /* deep */ false);
+    auto convertedRow = RowBuffer_->CaptureRow(row, /*captureValues*/ false);
     for (auto i = firstValueToConvertIndex; i < convertedRow.GetCount(); ++i) {
         auto& value = convertedRow[i];
         if (DoesValueNeedConversion(isComposite, value)) {

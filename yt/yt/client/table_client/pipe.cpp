@@ -187,7 +187,7 @@ public:
     virtual bool Write(TRange<TUnversionedRow> rows) override
     {
         // Copy data (no lock).
-        auto capturedRows = Data_->RowBuffer->Capture(rows);
+        auto capturedRows = Data_->RowBuffer->CaptureRows(rows);
 
         // Enqueue rows (with lock).
         TPromise<void> readerReadyEvent;

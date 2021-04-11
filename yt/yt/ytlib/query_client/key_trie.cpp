@@ -458,7 +458,7 @@ void GetRangesFromTrieWithinRangeImpl(
                         builder.AddValue(makeValue(keyRange.first[i], i));
                     }
                 }
-                range.first = rowBuffer->Capture(builder.GetRow());
+                range.first = rowBuffer->CaptureRow(builder.GetRow());
                 builder.Reset();
 
                 for (size_t i = 0; i < offset; ++i) {
@@ -472,7 +472,7 @@ void GetRangesFromTrieWithinRangeImpl(
                 } else {
                     builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
                 }
-                range.second = rowBuffer->Capture(builder.GetRow());
+                range.second = rowBuffer->CaptureRow(builder.GetRow());
                 builder.Reset();
 
                 if (insertUndefined || !IsEmpty(range)) {
@@ -593,7 +593,7 @@ void GetRangesFromTrieWithinRangeImpl(
                 }
             }
 
-            range.first = rowBuffer->Capture(builder.GetRow());
+            range.first = rowBuffer->CaptureRow(builder.GetRow());
             builder.Reset();
 
             for (size_t j = 0; j < offset; ++j) {
@@ -612,7 +612,7 @@ void GetRangesFromTrieWithinRangeImpl(
                 }
             }
 
-            range.second = rowBuffer->Capture(builder.GetRow());
+            range.second = rowBuffer->CaptureRow(builder.GetRow());
             builder.Reset();
             result->push_back(range);
 
@@ -644,7 +644,7 @@ void GetRangesFromTrieWithinRangeImpl(
                 }
             }
 
-            range.first = rowBuffer->Capture(builder.GetRow());
+            range.first = rowBuffer->CaptureRow(builder.GetRow());
             builder.Reset();
 
             for (size_t j = 0; j < offset; ++j) {
@@ -663,7 +663,7 @@ void GetRangesFromTrieWithinRangeImpl(
                 }
             }
 
-            range.second = rowBuffer->Capture(builder.GetRow());
+            range.second = rowBuffer->CaptureRow(builder.GetRow());
             builder.Reset();
             result->push_back(range);
         }

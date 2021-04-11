@@ -62,7 +62,7 @@ std::pair<const TValue*, int> TTopCollector::Capture(const TValue* row)
                     auto& row = Rows_[rowId].first;
 
                     auto savedSize = buffer->GetSize();
-                    row = buffer->Capture(row, RowSize_).Begin();
+                    row = buffer->CaptureRow(MakeRange(row, RowSize_)).Begin();
                     AllocatedMemorySize_ += buffer->GetSize() - savedSize;
                 }
 
@@ -90,7 +90,7 @@ std::pair<const TValue*, int> TTopCollector::Capture(const TValue* row)
     auto savedSize = buffer->GetSize();
     auto savedCapacity = buffer->GetCapacity();
 
-    auto capturedRow = buffer->Capture(row, RowSize_).Begin();
+    auto capturedRow = buffer->CaptureRow(MakeRange(row, RowSize_)).Begin();
 
     AllocatedMemorySize_ += buffer->GetSize() - savedSize;
     TotalMemorySize_ += buffer->GetCapacity() - savedCapacity;
@@ -211,7 +211,7 @@ std::pair<TQueryPtr, TDataSource> GetForeignQuery(
             YT_LOG_DEBUG("Using join via prefix ranges");
             std::vector<TRow> prefixKeys;
             for (auto key : keys) {
-                prefixKeys.push_back(permanentBuffer->Capture(key.Begin(), foreignKeyPrefix, false));
+                prefixKeys.push_back(permanentBuffer->CaptureRow(MakeRange(key.Begin(), foreignKeyPrefix), false));
             }
             prefixKeys.erase(std::unique(prefixKeys.begin(), prefixKeys.end()), prefixKeys.end());
             dataSource.Keys = MakeSharedRange(std::move(prefixKeys), std::move(permanentBuffer));
@@ -229,8 +229,8 @@ std::pair<TQueryPtr, TDataSource> GetForeignQuery(
 
         YT_LOG_DEBUG("Using join via IN clause");
         ranges.emplace_back(
-            permanentBuffer->Capture(NTableClient::MinKey().Get()),
-            permanentBuffer->Capture(NTableClient::MaxKey().Get()));
+            permanentBuffer->CaptureRow(NTableClient::MinKey().Get()),
+            permanentBuffer->CaptureRow(NTableClient::MaxKey().Get()));
 
         auto inClause = New<TInExpression>(foreignEquations, MakeSharedRange(std::move(keys), permanentBuffer));
 

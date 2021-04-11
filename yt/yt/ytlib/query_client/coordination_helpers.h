@@ -15,9 +15,9 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRow WidenKeySuccessor(TRow key, size_t prefix, const TRowBufferPtr& rowBuffer, bool deep);
+TRow WidenKeySuccessor(TRow key, size_t prefix, const TRowBufferPtr& rowBuffer, bool captureValues);
 
-TRow WidenKeySuccessor(TRow key, const TRowBufferPtr& rowBuffer, bool deep);
+TRow WidenKeySuccessor(TRow key, const TRowBufferPtr& rowBuffer, bool captureValues);
 
 size_t GetSignificantWidth(TRow row);
 
@@ -548,8 +548,8 @@ std::vector<TSharedRange<TRowRange>> SplitTablet(
 
         // Do not need to crop. Already cropped in GroupRangesByPartition.
 
-        auto minBound = std::max<TRow>(slice.Front().first, rowBuffer->Capture(GetPivotKey(partition)));
-        auto maxBound = std::min<TRow>(slice.Back().second, rowBuffer->Capture(GetNextPivotKey(partition)));
+        auto minBound = std::max<TRow>(slice.Front().first, rowBuffer->CaptureRow(GetPivotKey(partition)));
+        auto maxBound = std::min<TRow>(slice.Back().second, rowBuffer->CaptureRow(GetNextPivotKey(partition)));
 
         auto samples = GetSampleKeys(partition);
 
@@ -589,7 +589,7 @@ std::vector<TSharedRange<TRowRange>> SplitTablet(
 
                         sampleIt += nextStep - 1;
 
-                        auto nextBound = rowBuffer->Capture(*sampleIt);
+                        auto nextBound = rowBuffer->CaptureRow(*sampleIt);
                         YT_QL_CHECK(currentBound < nextBound);
                         group.emplace_back(currentBound, nextBound);
 

@@ -240,7 +240,7 @@ TOrderedDynamicRow TOrderedDynamicStore::WriteRow(
 
     for (const auto& srcValue : row) {
         auto& dstValue = dynamicRow[srcValue.Id];
-        dstValue = RowBuffer_->Capture(srcValue);
+        dstValue = RowBuffer_->CaptureValue(srcValue);
     }
 
     if (TimestampColumnId_) {
@@ -469,7 +469,7 @@ void TOrderedDynamicStore::CommitRow(TOrderedDynamicRow row)
 
 void TOrderedDynamicStore::LoadRow(TUnversionedRow row)
 {
-    CommitRow(RowBuffer_->Capture(row, true));
+    CommitRow(RowBuffer_->CaptureRow(row, true));
 }
 
 ISchemafulUnversionedReaderPtr TOrderedDynamicStore::DoCreateReader(

@@ -72,8 +72,8 @@ protected:
 
         auto buffer = New<TRowBuffer>();
         TRowRanges foreignSplits{{
-                buffer->Capture(MinKey().Get()),
-                buffer->Capture(MaxKey().Get())
+                buffer->CaptureRow(MinKey().Get()),
+                buffer->CaptureRow(MaxKey().Get())
             }};
 
         auto rowBuffer = New<TRowBuffer>();

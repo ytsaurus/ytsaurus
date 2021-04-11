@@ -121,6 +121,7 @@ DECLARE_REFCOUNTED_CLASS(TBlockCacheDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkScraperConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkTeleporterConfig)
 DECLARE_REFCOUNTED_CLASS(TMediumDirectorySynchronizerConfig)
+DECLARE_REFCOUNTED_CLASS(TChunkFragmentReaderConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IFetcherChunkScraper)
 

@@ -339,7 +339,7 @@ TUnversionedRow BuildOrderedByIdTableRow(
         builder.AddValue(MakeUnversionedAnyValue(request.ExperimentAssignmentNames.AsStringBuf(), index.ExperimentAssignmentNames));
     }
 
-    return rowBuffer->Capture(builder.GetRow());
+    return rowBuffer->CaptureRow(builder.GetRow());
 }
 
 TUnversionedRow BuildOrderedByStartTimeTableRow(
@@ -387,7 +387,7 @@ TUnversionedRow BuildOrderedByStartTimeTableRow(
         builder.AddValue(MakeUnversionedAnyValue(acl.AsStringBuf(), index.Acl));
     }
 
-    return rowBuffer->Capture(builder.GetRow());
+    return rowBuffer->CaptureRow(builder.GetRow());
 }
 
 TUnversionedRow BuildOperationAliasesTableRow(
@@ -404,7 +404,7 @@ TUnversionedRow BuildOperationAliasesTableRow(
     builder.AddValue(MakeUnversionedUint64Value(request.Id.Parts64[0], index.OperationIdHi));
     builder.AddValue(MakeUnversionedUint64Value(request.Id.Parts64[1], index.OperationIdLo));
 
-    return rowBuffer->Capture(builder.GetRow());
+    return rowBuffer->CaptureRow(builder.GetRow());
 }
 
 } // namespace NDetail

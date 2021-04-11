@@ -389,12 +389,12 @@ void TWritingValueConsumer::OnBeginRow()
 
 void TWritingValueConsumer::OnMyValue(const TUnversionedValue& value)
 {
-    Values_.push_back(RowBuffer_->Capture(value));
+    Values_.push_back(RowBuffer_->CaptureValue(value));
 }
 
 void TWritingValueConsumer::OnEndRow()
 {
-    auto row = RowBuffer_->Capture(Values_.data(), Values_.size(), false);
+    auto row = RowBuffer_->CaptureRow(MakeRange(Values_), false);
     Values_.clear();
     Rows_.push_back(row);
 
