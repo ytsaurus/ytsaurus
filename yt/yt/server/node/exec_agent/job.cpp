@@ -944,7 +944,7 @@ private:
             auto error = FromProto<TError>(jobResult.error());
             if (!error.IsOK()) {
                 for (int index = 0; index < 10; ++index) {
-                    error.InnerErrors().push_back(TError("Test error " + ToString(index)));
+                    error.MutableInnerErrors()->push_back(TError("Test error " + ToString(index)));
                 }
                 ToProto(jobResult.mutable_error(), error);
                 YT_LOG_DEBUG(error, "TestJobErrorTruncation");
@@ -1354,13 +1354,13 @@ private:
         if (error.IsOK()) {
             SetJobState(EJobState::Completed);
         } else if (IsFatalError(error)) {
-            error.Attributes().Set("fatal", true);
+            error.MutableAttributes()->Set("fatal", true);
             ToProto(JobResult_->mutable_error(), error);
             SetJobState(EJobState::Failed);
         } else {
             auto abortReason = GetAbortReason(*JobResult_);
             if (abortReason) {
-                error.Attributes().Set("abort_reason", abortReason);
+                error.MutableAttributes()->Set("abort_reason", abortReason);
                 ToProto(JobResult_->mutable_error(), error);
                 SetJobState(EJobState::Aborted);
             } else {
@@ -1404,7 +1404,7 @@ private:
                     DisableSandboxCleanupEnv);
             }
         }
-        
+
         // NB: we should disable slot here to give scheduler information about job failure.
         if (error.FindMatching(EErrorCode::GpuCheckCommandFailed)) {
             Bootstrap_->GetExecSlotManager()->Disable(error);
@@ -1877,7 +1877,7 @@ private:
             auto reason = EJobProxyExitCode(spawnError.Attributes().Get<int>("exit_code"));
             const auto& validReasons = TEnumTraits<EJobProxyExitCode>::GetDomainValues();
             if (std::find(validReasons.begin(), validReasons.end(), reason) != validReasons.end()) {
-                jobProxyError.Attributes().Set("reason", reason);
+                jobProxyError.MutableAttributes()->Set("reason", reason);
             }
         }
 

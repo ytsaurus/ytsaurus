@@ -131,16 +131,16 @@ TError TCheckPermissionResult::ToError(
                     user,
                     permission);
             }
-            error.Attributes().Set("user", user);
-            error.Attributes().Set("permission", permission);
+            error.MutableAttributes()->Set("user", user);
+            error.MutableAttributes()->Set("permission", permission);
             if (ObjectId) {
-                error.Attributes().Set("denied_by", ObjectId);
+                error.MutableAttributes()->Set("denied_by", ObjectId);
             }
             if (SubjectId) {
-                error.Attributes().Set("denied_for", SubjectId);
+                error.MutableAttributes()->Set("denied_for", SubjectId);
             }
             if (column) {
-                error.Attributes().Set("column", *column);
+                error.MutableAttributes()->Set("column", *column);
             }
             return error;
         }
@@ -172,10 +172,10 @@ TError TCheckPermissionByAclResult::ToError(const TString &user, EPermission per
                     user,
                     permission);
             }
-            error.Attributes().Set("user", user);
-            error.Attributes().Set("permission", permission);
+            error.MutableAttributes()->Set("user", user);
+            error.MutableAttributes()->Set("permission", permission);
             if (SubjectId) {
-                error.Attributes().Set("denied_for", SubjectId);
+                error.MutableAttributes()->Set("denied_for", SubjectId);
             }
             return error;
         }

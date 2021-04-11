@@ -860,7 +860,7 @@ TError GetCumulativeError(
     TError cumulativeError("Error communicating with master");
     for (const auto& rspOrError : batchRsp->GetResponses(key)) {
         if (!rspOrError.IsOK()) {
-            cumulativeError.InnerErrors().push_back(rspOrError);
+            cumulativeError.MutableInnerErrors()->push_back(rspOrError);
         }
     }
     return cumulativeError.InnerErrors().empty() ? TError() : cumulativeError;

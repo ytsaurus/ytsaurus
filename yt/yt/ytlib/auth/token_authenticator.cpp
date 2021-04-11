@@ -118,10 +118,10 @@ private:
         // Sanity checks.
         if (!login.IsOK() || !oauthClientId.IsOK() || !oauthClientName.IsOK() || !oauthScope.IsOK()) {
             auto error = TError("Blackbox returned invalid response");
-            if (!login.IsOK()) error.InnerErrors().push_back(login);
-            if (!oauthClientId.IsOK()) error.InnerErrors().push_back(oauthClientId);
-            if (!oauthClientName.IsOK()) error.InnerErrors().push_back(oauthClientName);
-            if (!oauthScope.IsOK()) error.InnerErrors().push_back(oauthScope);
+            if (!login.IsOK()) error.MutableInnerErrors()->push_back(login);
+            if (!oauthClientId.IsOK()) error.MutableInnerErrors()->push_back(oauthClientId);
+            if (!oauthClientName.IsOK()) error.MutableInnerErrors()->push_back(oauthClientName);
+            if (!oauthScope.IsOK()) error.MutableInnerErrors()->push_back(oauthScope);
 
             InvalidBlackboxResponces_.Increment();
             return error;

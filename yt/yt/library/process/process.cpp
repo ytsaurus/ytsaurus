@@ -76,7 +76,7 @@ TErrorOr<TString> ResolveBinaryPath(const TString& binary)
             EProcessErrorCode::CannotResolveBinary,
             "Cannot resolve binary %Qlv",
             binary);
-        error.InnerErrors().swap(accumulatedErrors);
+        error.MutableInnerErrors()->swap(accumulatedErrors);
         return error;
     };
 
@@ -351,17 +351,16 @@ void TSimpleProcess::DoSpawn()
         if (errorOrPath.IsOK()) {
             ResolvedPath_ = errorOrPath.Value();
             break;
-        } else {
-            innerErrors.push_back(errorOrPath);
         }
 
+        innerErrors.push_back(errorOrPath);
+
         if (retryIndex == 0) {
-            auto error = TError("Failed to resolve binary path %v", Path_);
-            error.InnerErrors() = innerErrors;
-            error.ThrowOnError();
-        } else {
-            TDelayedExecutor::WaitForDuration(ResolveRetryTimeout);
+            THROW_ERROR_EXCEPTION("Failed to resolve binary path %v", Path_)
+                << innerErrors;
         }
+
+        TDelayedExecutor::WaitForDuration(ResolveRetryTimeout);
     }
 
     // Make sure no spawn action closes Pipe_.WriteFD

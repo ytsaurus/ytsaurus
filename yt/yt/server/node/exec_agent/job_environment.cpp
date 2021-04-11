@@ -383,10 +383,10 @@ public:
 
                     auto error = TError(ex);
                     if (instanceStderr.size() > MaxStderrSizeInError) {
-                        error.Attributes().Set("stderr_truncated", true);
+                        error.MutableAttributes()->Set("stderr_truncated", true);
                         instanceStderr = instanceStderr.substr(0, MaxStderrSizeInError);
                     }
-                    error.Attributes().Set("stderr", instanceStderr);
+                    error.MutableAttributes()->Set("stderr", instanceStderr);
 
                     THROW_ERROR error;
                 }

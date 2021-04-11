@@ -116,7 +116,7 @@ void TRemoveDirContentAsRootTool::operator()(const TString& path) const
 
         error = NFS::AttachLsofOutput(error, path);
         error = NFS::AttachFindOutput(error, path);
-        error.InnerErrors() = std::move(innerErrors);
+        *error.MutableInnerErrors() = std::move(innerErrors);
 
         attemptErrors.push_back(error);
 
@@ -124,9 +124,8 @@ void TRemoveDirContentAsRootTool::operator()(const TString& path) const
     }
 
     if (!removed) {
-        auto error = TError("Failed to remove directory %v contents", path);
-        error.InnerErrors() = std::move(attemptErrors);
-        THROW_ERROR error;
+        THROW_ERROR_EXCEPTION("Failed to remove directory %v contents", path)
+            << attemptErrors;
     }
 }
 
@@ -197,7 +196,7 @@ void TCopyDirectoryContentTool::operator()(TCopyDirectoryContentConfigPtr config
 TString TReadProcessSmapsTool::operator()(int pid) const
 {
     SafeSetUid(0);
-    return TFileInput{Format("/proc/%v/smaps", pid)}.ReadAll(); 
+    return TFileInput{Format("/proc/%v/smaps", pid)}.ReadAll();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

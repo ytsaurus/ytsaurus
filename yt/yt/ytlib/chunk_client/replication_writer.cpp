@@ -569,7 +569,7 @@ private:
                 "Not enough target nodes to finish upload");
             for (const auto& node : Nodes_) {
                 if (!node->IsAlive()) {
-                    cumulativeError.InnerErrors().push_back(node->Error);
+                    cumulativeError.MutableInnerErrors()->push_back(node->Error);
                 }
             }
             YT_LOG_WARNING(cumulativeError, "Chunk writer failed");

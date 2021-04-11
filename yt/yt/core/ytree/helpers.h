@@ -38,7 +38,9 @@ IAttributeDictionaryPtr FromProto(const NProto::TAttributeDictionary& protoAttri
 struct TAttributeDictionarySerializer
 {
     static void Save(TStreamSaveContext& context, const IAttributeDictionaryPtr& attributes);
+    static void SaveNonNull(TStreamSaveContext& context, const IAttributeDictionaryPtr& attributes);
     static void Load(TStreamLoadContext& context, IAttributeDictionaryPtr& attributes);
+    static void LoadNonNull(TStreamLoadContext& context, const IAttributeDictionaryPtr& attributes);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1855,13 +1855,13 @@ public:
             }
         }
 
-        error.Attributes().Set("permission", permission);
-        error.Attributes().Set("user", user->GetName());
-        error.Attributes().Set("object_id", target.Object->GetId());
+        error.MutableAttributes()->Set("permission", permission);
+        error.MutableAttributes()->Set("user", user->GetName());
+        error.MutableAttributes()->Set("object_id", target.Object->GetId());
         if (target.Column) {
-            error.Attributes().Set("object_column", target.Column);
+            error.MutableAttributes()->Set("object_column", target.Column);
         }
-        error.Attributes().Set("object_type", target.Object->GetType());
+        error.MutableAttributes()->Set("object_type", target.Object->GetType());
         THROW_ERROR(error);
     }
 
