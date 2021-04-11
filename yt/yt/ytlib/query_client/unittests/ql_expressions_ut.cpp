@@ -755,7 +755,7 @@ TSharedRange<TRow> MakeRows(const TString& yson)
                 break;
         }
 
-        rows.push_back(buffer->Capture(keyBuilder.GetRow()));
+        rows.push_back(buffer->CaptureRow(keyBuilder.GetRow()));
     }
 
     return MakeSharedRange(std::move(rows), buffer);

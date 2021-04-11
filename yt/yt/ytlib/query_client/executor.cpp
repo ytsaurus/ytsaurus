@@ -578,7 +578,7 @@ std::vector<std::pair<TDataSource, TString>> InferRanges(
                     std::vector<TRowRange> result;
                     ForEachRange(TRange(rangesIt, rangesItEnd), TRowRange(lower, upper), [&] (auto item) {
                         auto [lower, upper] = item;
-                        result.emplace_back(rowBuffer->Capture(lower), rowBuffer->Capture(upper));
+                        result.emplace_back(rowBuffer->CaptureRow(lower), rowBuffer->CaptureRow(upper));
                     });
 
                     getSubsource(shardIt, keyWidth)->Ranges = MakeSharedRange(

@@ -2960,7 +2960,7 @@ protected:
         partitionKeys.reserve(Spec->PivotKeys.size());
 
         for (const auto& key : Spec->PivotKeys) {
-            auto upperBound = TKeyBound::FromRow(RowBuffer->Capture(key), /* isInclusive */true, /* isUpper */false);
+            auto upperBound = TKeyBound::FromRow(RowBuffer->CaptureRow(key), /* isInclusive */true, /* isUpper */false);
             partitionKeys.emplace_back(upperBound);
         }
 

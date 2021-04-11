@@ -451,7 +451,7 @@ private:
 
                                 auto lowerBound = rowBuffer->AllocateUnversioned(lowerBoundWidth);
                                 for (int column = 0; column < lowerBoundWidth; ++column) {
-                                    lowerBound[column] = rowBuffer->Capture(range.first[column]);
+                                    lowerBound[column] = rowBuffer->CaptureValue(range.first[column]);
                                 }
 
                                 int upperBoundWidth = std::min(
@@ -486,7 +486,7 @@ private:
 
                                 auto prefixKey = rowBuffer->AllocateUnversioned(keyWidth);
                                 for (int column = 0; column < keyWidth; ++column) {
-                                    prefixKey[column] = rowBuffer->Capture(key[column]);
+                                    prefixKey[column] = rowBuffer->CaptureValue(key[column]);
                                 }
                                 prefixKeys.emplace_back(prefixKey);
                             }

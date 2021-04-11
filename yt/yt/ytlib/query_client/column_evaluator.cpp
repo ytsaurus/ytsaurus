@@ -108,7 +108,7 @@ void TColumnEvaluator::EvaluateKeys(
     TMutableVersionedRow fullRow,
     const TRowBufferPtr& buffer) const
 {
-    auto row = buffer->Capture(fullRow.BeginKeys(), fullRow.GetKeyCount(), false);
+    auto row = buffer->CaptureRow(MakeRange(fullRow.BeginKeys(), fullRow.GetKeyCount()), false);
     EvaluateKeys(row, buffer);
 
     for (int index = 0; index < fullRow.GetKeyCount(); ++index) {

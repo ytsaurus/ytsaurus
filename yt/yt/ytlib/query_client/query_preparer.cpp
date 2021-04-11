@@ -322,7 +322,7 @@ TSharedRange<TRow> LiteralTupleListToRows(
 
         BuildRow(&rowBuilder, tuple, argTypes, source);
 
-        rows.push_back(rowBuffer->Capture(rowBuilder.GetRow()));
+        rows.push_back(rowBuffer->CaptureRow(rowBuilder.GetRow()));
         rowBuilder.Reset();
     }
 
@@ -350,11 +350,11 @@ TSharedRange<TRowRange> LiteralRangesListToRows(
         }
 
         BuildRow(&rowBuilder, range.first, argTypes, source);
-        auto lower = rowBuffer->Capture(rowBuilder.GetRow());
+        auto lower = rowBuffer->CaptureRow(rowBuilder.GetRow());
         rowBuilder.Reset();
 
         BuildRow(&rowBuilder, range.second, argTypes, source);
-        auto upper = rowBuffer->Capture(rowBuilder.GetRow());
+        auto upper = rowBuffer->CaptureRow(rowBuilder.GetRow());
         rowBuilder.Reset();
 
         if (CompareRows(lower, upper, std::min(lower.GetCount(), upper.GetCount())) > 0) {
@@ -2104,7 +2104,7 @@ TUntypedExpression TBuilderCtx::OnTransformOp(
         auto value = CastValueWithCheck(GetValue(resultTuple.front()), resultType);
         rowBuilder.AddValue(value);
 
-        rows.push_back(rowBuffer->Capture(rowBuilder.GetRow()));
+        rows.push_back(rowBuffer->CaptureRow(rowBuilder.GetRow()));
         rowBuilder.Reset();
     }
 
@@ -2735,8 +2735,9 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     SmallVector<TRowRange, 1> rowRanges;
     auto buffer = New<TRowBuffer>(TQueryPreparerBufferTag());
     rowRanges.push_back({
-        buffer->Capture(range.first.Get()),
-        buffer->Capture(range.second.Get())});
+        buffer->CaptureRow(range.first.Get()),
+        buffer->CaptureRow(range.second.Get())
+    });
 
     auto fragment = std::make_unique<TPlanFragment>();
     fragment->Query = query;

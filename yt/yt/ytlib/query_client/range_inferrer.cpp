@@ -759,7 +759,7 @@ TRangeInferrer CreateHeavyRangeInferrer(
         options.RangeExpansionLimit);
 
     auto ranges = GetRangesFromTrieWithinRange(
-        TRowRange(buffer->Capture(MinKey()), buffer->Capture(MaxKey())),
+        TRowRange(buffer->CaptureRow(MinKey()), buffer->CaptureRow(MaxKey())),
         keyTrie,
         buffer,
         true,
@@ -810,7 +810,7 @@ TRangeInferrer CreateHeavyRangeInferrer(
 
             ForEachRange(subrange, TRowRange(lower, upper), [&] (auto item) {
                 auto [lower, upper] = item;
-                result.emplace_back(rowBuffer->Capture(lower), rowBuffer->Capture(upper));
+                result.emplace_back(rowBuffer->CaptureRow(lower), rowBuffer->CaptureRow(upper));
             });
         }
 

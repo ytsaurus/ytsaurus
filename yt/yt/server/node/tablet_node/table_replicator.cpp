@@ -739,7 +739,7 @@ private:
             }
 
             int id = index - headerRows;
-            mutableReplicationRow.Begin()[id] = rowBuffer->Capture(logRow[index]);
+            mutableReplicationRow.Begin()[id] = rowBuffer->CaptureValue(logRow[index]);
             mutableReplicationRow.Begin()[id].Id = id;
             columnCount++;
         }
@@ -786,7 +786,7 @@ private:
                     1,  // writeTimestampCount
                     0); // deleteTimestampCount
                 for (int keyIndex = 0; keyIndex < keyColumnCount; ++keyIndex) {
-                    mutableReplicationRow.BeginKeys()[keyIndex] = rowBuffer->Capture(logRow[keyIndex + 4]);
+                    mutableReplicationRow.BeginKeys()[keyIndex] = rowBuffer->CaptureValue(logRow[keyIndex + 4]);
                 }
                 int replicationValueIndex = 0;
                 for (int logValueIndex = 0; logValueIndex < valueColumnCount; ++logValueIndex) {
@@ -795,7 +795,7 @@ private:
                     auto flags = static_cast<EReplicationLogDataFlags>(flagsValue.Data.Uint64);
                     if (None(flags & EReplicationLogDataFlags::Missing)) {
                         TVersionedValue value;
-                        static_cast<TUnversionedValue&>(value) = rowBuffer->Capture(logRow[logValueIndex * 2 + keyColumnCount + 4]);
+                        static_cast<TUnversionedValue&>(value) = rowBuffer->CaptureValue(logRow[logValueIndex * 2 + keyColumnCount + 4]);
                         value.Id = logValueIndex + keyColumnCount;
                         value.Aggregate = Any(flags & EReplicationLogDataFlags::Aggregate);
                         value.Timestamp = timestamp;
@@ -816,7 +816,7 @@ private:
                     0,  // writeTimestampCount
                     1); // deleteTimestampCount
                 for (int index = 0; index < keyColumnCount; ++index) {
-                    mutableReplicationRow.BeginKeys()[index] = rowBuffer->Capture(logRow[index + 4]);
+                    mutableReplicationRow.BeginKeys()[index] = rowBuffer->CaptureValue(logRow[index + 4]);
                 }
                 mutableReplicationRow.BeginDeleteTimestamps()[0] = timestamp;
                 replicationRow = mutableReplicationRow;
@@ -867,7 +867,7 @@ private:
                 auto mutableReplicationRow = rowBuffer->AllocateUnversioned(
                     keyColumnCount + replicationValueCount);
                 for (int keyIndex = 0; keyIndex < keyColumnCount; ++keyIndex) {
-                    mutableReplicationRow.Begin()[keyIndex] = rowBuffer->Capture(logRow[keyIndex + 4]);
+                    mutableReplicationRow.Begin()[keyIndex] = rowBuffer->CaptureValue(logRow[keyIndex + 4]);
                     mutableReplicationRow.Begin()[keyIndex].Id = keyIndex;
                 }
                 int replicationValueIndex = 0;
@@ -877,7 +877,7 @@ private:
                     auto flags = static_cast<EReplicationLogDataFlags>(flagsValue.Data.Uint64);
                     if (None(flags & EReplicationLogDataFlags::Missing)) {
                         TUnversionedValue value;
-                        static_cast<TUnversionedValue&>(value) = rowBuffer->Capture(logRow[logValueIndex * 2 + keyColumnCount + 4]);
+                        static_cast<TUnversionedValue&>(value) = rowBuffer->CaptureValue(logRow[logValueIndex * 2 + keyColumnCount + 4]);
                         value.Id = logValueIndex + keyColumnCount;
                         value.Aggregate = Any(flags & EReplicationLogDataFlags::Aggregate);
                         mutableReplicationRow.Begin()[keyColumnCount + replicationValueIndex++] = value;
@@ -893,7 +893,7 @@ private:
                 auto mutableReplicationRow = rowBuffer->AllocateUnversioned(
                     keyColumnCount);
                 for (int index = 0; index < keyColumnCount; ++index) {
-                    mutableReplicationRow.Begin()[index] = rowBuffer->Capture(logRow[index + 4]);
+                    mutableReplicationRow.Begin()[index] = rowBuffer->CaptureValue(logRow[index + 4]);
                     mutableReplicationRow.Begin()[index].Id = index;
                 }
                 replicationRow = mutableReplicationRow;

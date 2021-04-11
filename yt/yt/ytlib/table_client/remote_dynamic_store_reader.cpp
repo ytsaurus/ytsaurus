@@ -455,7 +455,7 @@ private:
         // Default row buffer.
         TWireProtocolReader reader(data);
         auto schemaData = TWireProtocolReader::GetSchemaData(*Schema_);
-        return reader.ReadVersionedRowset(schemaData, true /*deep*/, &IdMapping_);
+        return reader.ReadVersionedRowset(schemaData, /*captureValues*/ true, &IdMapping_);
     }
 };
 
@@ -603,7 +603,7 @@ private:
             YT_LOG_DEBUG("Received start row index (StartRowIndex: %v)", StartRowIndex_);
         }
 
-        return reader.ReadUnversionedRowset(true /*deep*/, &IdMapping_);
+        return reader.ReadUnversionedRowset(/*captureValues*/ true, &IdMapping_);
     }
 
     virtual TUnversionedRow PostprocessRow(TUnversionedRow row) override

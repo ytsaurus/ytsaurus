@@ -822,10 +822,10 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
         existingPartitionIds.push_back(existingPartition->GetId());
         const auto& existingSampleKeys = existingPartition->GetSampleKeys()->Keys;
         if (index > firstIndex) {
-            mergedSampleKeys.push_back(rowBuffer->Capture(existingPartition->GetPivotKey()));
+            mergedSampleKeys.push_back(rowBuffer->CaptureRow(existingPartition->GetPivotKey()));
         }
         for (auto key : existingSampleKeys) {
-            mergedSampleKeys.push_back(rowBuffer->Capture(key));
+            mergedSampleKeys.push_back(rowBuffer->CaptureRow(key));
         }
 
         for (auto& key : existingPartition->PivotKeysForImmediateSplit()) {
@@ -900,7 +900,7 @@ void TTablet::SplitPartition(int index, const std::vector<TLegacyOwningKey>& piv
         auto rowBuffer = New<TRowBuffer>(TSampleKeyListTag());
 
         while (sampleKeyIndex < existingSampleKeys.Size() && existingSampleKeys[sampleKeyIndex] < nextPivotKey) {
-            sampleKeys.push_back(rowBuffer->Capture(existingSampleKeys[sampleKeyIndex]));
+            sampleKeys.push_back(rowBuffer->CaptureRow(existingSampleKeys[sampleKeyIndex]));
             ++sampleKeyIndex;
         }
 

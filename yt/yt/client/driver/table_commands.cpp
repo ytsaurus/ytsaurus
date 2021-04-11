@@ -718,7 +718,7 @@ void TInsertRowsCommand::DoExecute(ICommandContextPtr context)
 
     auto rows = ParseRows(context, &valueConsumer);
     auto rowBuffer = New<TRowBuffer>(TInsertRowsBufferTag());
-    auto capturedRows = rowBuffer->Capture(rows);
+    auto capturedRows = rowBuffer->CaptureRows(rows);
     auto rowRange = MakeSharedRange(
         std::vector<TUnversionedRow>(capturedRows.begin(), capturedRows.end()),
         std::move(rowBuffer));
@@ -791,7 +791,7 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
         ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
     auto keys = ParseRows(context, &valueConsumer);
     auto rowBuffer = New<TRowBuffer>(TLookupRowsBufferTag());
-    auto capturedKeys = rowBuffer->Capture(keys);
+    auto capturedKeys = rowBuffer->CaptureRows(keys);
     auto mutableKeyRange = MakeSharedRange(std::move(capturedKeys), std::move(rowBuffer));
     auto keyRange = TSharedRange<TUnversionedRow>(
         static_cast<const TUnversionedRow*>(mutableKeyRange.Begin()),
@@ -885,7 +885,7 @@ void TGetInSyncReplicasCommand::DoExecute(ICommandContextPtr context)
             ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
         auto keys = ParseRows(context, &valueConsumer);
         auto rowBuffer = New<TRowBuffer>(TInSyncBufferTag());
-        auto capturedKeys = rowBuffer->Capture(keys);
+        auto capturedKeys = rowBuffer->CaptureRows(keys);
         auto mutableKeyRange = MakeSharedRange(std::move(capturedKeys), std::move(rowBuffer));
         auto keyRange = TSharedRange<TUnversionedRow>(
             static_cast<const TUnversionedRow*>(mutableKeyRange.Begin()),
@@ -901,7 +901,7 @@ void TGetInSyncReplicasCommand::DoExecute(ICommandContextPtr context)
 
     auto replicas = WaitFor(asyncReplicas)
         .ValueOrThrow();
-    
+
     context->ProduceOutputValue(BuildYsonStringFluently()
         .List(replicas));
 }
@@ -943,7 +943,7 @@ void TDeleteRowsCommand::DoExecute(ICommandContextPtr context)
         ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
     auto keys = ParseRows(context, &valueConsumer);
     auto rowBuffer = New<TRowBuffer>(TDeleteRowsBufferTag());
-    auto capturedKeys = rowBuffer->Capture(keys);
+    auto capturedKeys = rowBuffer->CaptureRows(keys);
     auto keyRange = MakeSharedRange(
         std::vector<TLegacyKey>(capturedKeys.begin(), capturedKeys.end()),
         std::move(rowBuffer));
@@ -1003,7 +1003,7 @@ void TLockRowsCommand::DoExecute(ICommandContextPtr context)
         ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
     auto keys = ParseRows(context, &valueConsumer);
     auto rowBuffer = New<TRowBuffer>(TLockRowsBufferTag());
-    auto capturedKeys = rowBuffer->Capture(keys);
+    auto capturedKeys = rowBuffer->CaptureRows(keys);
     auto keyRange = MakeSharedRange(
         std::vector<TLegacyKey>(capturedKeys.begin(), capturedKeys.end()),
         std::move(rowBuffer));

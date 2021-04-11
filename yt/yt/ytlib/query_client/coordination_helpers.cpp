@@ -4,14 +4,14 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRow WidenKeySuccessor(TRow key, size_t prefix, const TRowBufferPtr& rowBuffer, bool deep)
+TRow WidenKeySuccessor(TRow key, size_t prefix, const TRowBufferPtr& rowBuffer, bool captureValues)
 {
     auto wideKey = rowBuffer->AllocateUnversioned(prefix + 1);
 
     for (ui32 index = 0; index < prefix; ++index) {
         wideKey[index] = key[index];
-        if (deep) {
-            wideKey[index] = rowBuffer->Capture(wideKey[index]);
+        if (captureValues) {
+            wideKey[index] = rowBuffer->CaptureValue(wideKey[index]);
         }
     }
 
@@ -20,9 +20,9 @@ TRow WidenKeySuccessor(TRow key, size_t prefix, const TRowBufferPtr& rowBuffer, 
     return wideKey;
 }
 
-TRow WidenKeySuccessor(TRow key, const TRowBufferPtr& rowBuffer, bool deep)
+TRow WidenKeySuccessor(TRow key, const TRowBufferPtr& rowBuffer, bool captureValues)
 {
-    return WidenKeySuccessor(key, key.GetCount(), rowBuffer, deep);
+    return WidenKeySuccessor(key, key.GetCount(), rowBuffer, captureValues);
 }
 
 size_t GetSignificantWidth(TRow row)

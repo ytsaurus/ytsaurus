@@ -10,11 +10,11 @@ namespace NYT::NTableClient {
 TSchemalessRowReorderer::TSchemalessRowReorderer(
     TNameTablePtr nameTable,
     TRowBufferPtr rowBuffer,
-    bool deepCapture,
+    bool captureValues,
     const TKeyColumns& keyColumns)
     : KeyColumns_(keyColumns)
     , RowBuffer_(std::move(rowBuffer))
-    , DeepCapture_(deepCapture)
+    , CaptureValues_(captureValues)
     , NameTable_(nameTable)
 {
     EmptyKey_.resize(KeyColumns_.size(), MakeUnversionedSentinelValue(EValueType::Null));
@@ -39,8 +39,8 @@ TMutableUnversionedRow TSchemalessRowReorderer::ReorderRow(TUnversionedRow row)
     int nextValueIndex = KeyColumns_.size();
     int idMappingSize = static_cast<int>(IdMapping_.size());
     for (auto value : row) {
-        if (DeepCapture_) {
-            RowBuffer_->Capture(&value);
+        if (CaptureValues_) {
+            RowBuffer_->CaptureValue(&value);
         }
         if (value.Id < idMappingSize) {
             int keyIndex = IdMapping_[value.Id];
@@ -67,8 +67,8 @@ TMutableUnversionedRow TSchemalessRowReorderer::ReorderKey(TUnversionedRow row)
 
     int idMappingSize = static_cast<int>(IdMapping_.size());
     for (auto value : row) {
-        if (DeepCapture_) {
-            RowBuffer_->Capture(&value);
+        if (CaptureValues_) {
+            RowBuffer_->CaptureValue(&value);
         }
         if (value.Id < idMappingSize) {
             int keyIndex = IdMapping_[value.Id];

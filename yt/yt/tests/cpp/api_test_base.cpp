@@ -184,7 +184,7 @@ std::tuple<TSharedRange<TUnversionedRow>, TNameTablePtr> TDynamicTablesTestBase:
 
     auto rowBuffer = New<TRowBuffer>();
     auto owningRow = YsonToSchemalessRow(rowString);
-    std::vector<TUnversionedRow> rows{rowBuffer->Capture(owningRow.Get())};
+    std::vector<TUnversionedRow> rows{rowBuffer->CaptureRow(owningRow.Get())};
     return std::make_tuple(MakeSharedRange(rows, std::move(rowBuffer)), std::move(nameTable));
 }
 

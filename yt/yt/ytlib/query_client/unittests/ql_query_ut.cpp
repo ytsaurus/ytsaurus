@@ -827,8 +827,8 @@ protected:
         for (const auto& split : dataSplits) {
             auto range = GetBothBoundsFromDataSplit(split);
             sources.emplace_back(
-                buffer->Capture(range.first.Get()),
-                buffer->Capture(range.second.Get()));
+                buffer->CaptureRow(range.first.Get()),
+                buffer->CaptureRow(range.second.Get()));
         }
 
         auto rowBuffer = New<TRowBuffer>();

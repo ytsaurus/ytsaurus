@@ -267,7 +267,7 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
 
     // NB: Samples fetcher and controller use different row buffers.
     auto cloneKeyBound = [&] (const TKeyBound& keyBound) {
-        auto capturedRow = rowBuffer->Capture(keyBound.Prefix);
+        auto capturedRow = rowBuffer->CaptureRow(keyBound.Prefix);
         return TKeyBound::FromRow(std::move(capturedRow), keyBound.IsInclusive, keyBound.IsUpper);
     };
 

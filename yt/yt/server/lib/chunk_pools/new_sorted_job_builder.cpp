@@ -1194,7 +1194,7 @@ private:
     void AddTeleportChunkEndpoints(const std::vector<TInputChunkPtr>& teleportChunks)
     {
         for (const auto& inputChunk : teleportChunks) {
-            auto minKeyRow = RowBuffer_->Capture(inputChunk->BoundaryKeys()->MinKey.Begin(), PrimaryComparator_.GetLength());
+            auto minKeyRow = RowBuffer_->CaptureRow(MakeRange(inputChunk->BoundaryKeys()->MinKey.Begin(), PrimaryComparator_.GetLength()));
             Endpoints_.emplace_back(TEndpoint{
                 .Type = ENewEndpointType::Barrier,
                 .DataSlice = nullptr,

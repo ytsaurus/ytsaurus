@@ -178,7 +178,7 @@ void TSamplesFetcher::OnResponse(
             requestedChunkIndexes[index]);
 
         for (const auto& protoSample : sampleResponse.samples()) {
-            auto key = RowBuffer_->Capture(keys[protoSample.key_index()]);
+            auto key = RowBuffer_->CaptureRow(keys[protoSample.key_index()]);
 
             TSample sample{
                 key,

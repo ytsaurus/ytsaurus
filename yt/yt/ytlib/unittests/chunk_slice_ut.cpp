@@ -1134,7 +1134,7 @@ TEST(TChunkSliceLimitTest, LegacyNewInterop)
         return builder.FinishRow();
     };
 
-    legacyLimit.Key = rowBuffer->Capture(makeRow({intValue, maxValue, maxValue}));
+    legacyLimit.Key = rowBuffer->CaptureRow(makeRow({intValue, maxValue, maxValue}));
 
     NProto::TReadLimit protoLimit;
     ToProto(&protoLimit, legacyLimit);

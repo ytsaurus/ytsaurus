@@ -16,7 +16,7 @@ public:
     TSchemalessRowReorderer(
         TNameTablePtr nameTable,
         TRowBufferPtr rowBuffer,
-        bool deepCapture,
+        bool captureValues,
         const TKeyColumns& keyColumns);
 
     TMutableUnversionedRow ReorderRow(TUnversionedRow row);
@@ -27,7 +27,7 @@ public:
 private:
     const TKeyColumns KeyColumns_;
     const TRowBufferPtr RowBuffer_;
-    const bool DeepCapture_;
+    const bool CaptureValues_;
     const TNameTablePtr NameTable_;
 
     std::vector<int> IdMapping_;

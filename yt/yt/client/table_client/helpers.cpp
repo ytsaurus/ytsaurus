@@ -286,7 +286,7 @@ void ToUnversionedValue(TUnversionedValue* unversionedValue, TGuid value, const 
 {
     auto strValue = ToString(value);
     *unversionedValue = value
-        ? rowBuffer->Capture(MakeUnversionedStringValue(strValue, id))
+        ? rowBuffer->CaptureValue(MakeUnversionedStringValue(strValue, id))
         : MakeUnversionedSentinelValue(EValueType::Null);
 }
 
@@ -321,7 +321,7 @@ void FromUnversionedValue(TString* value, TUnversionedValue unversionedValue)
 
 void ToUnversionedValue(TUnversionedValue* unversionedValue, TStringBuf value, const TRowBufferPtr& rowBuffer, int id)
 {
-    *unversionedValue = rowBuffer->Capture(MakeUnversionedStringValue(value, id));
+    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedStringValue(value, id));
 }
 
 void FromUnversionedValue(TStringBuf* value, TUnversionedValue unversionedValue)
@@ -353,7 +353,7 @@ void FromUnversionedValue(const char** value, TUnversionedValue unversionedValue
 
 void ToUnversionedValue(TUnversionedValue* unversionedValue, bool value, const TRowBufferPtr& rowBuffer, int id)
 {
-    *unversionedValue = rowBuffer->Capture(MakeUnversionedBooleanValue(value, id));
+    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedBooleanValue(value, id));
 }
 
 void FromUnversionedValue(bool* value, TUnversionedValue unversionedValue)
@@ -374,7 +374,7 @@ void FromUnversionedValue(bool* value, TUnversionedValue unversionedValue)
 void ToUnversionedValue(TUnversionedValue* unversionedValue, const TYsonString& value, const TRowBufferPtr& rowBuffer, int id)
 {
     YT_ASSERT(value.GetType() == EYsonType::Node);
-    *unversionedValue = rowBuffer->Capture(MakeUnversionedAnyValue(value.AsStringBuf(), id));
+    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(value.AsStringBuf(), id));
 }
 
 void FromUnversionedValue(TYsonString* value, TUnversionedValue unversionedValue)
@@ -391,7 +391,7 @@ void FromUnversionedValue(TYsonString* value, TUnversionedValue unversionedValue
 void ToUnversionedValue(TUnversionedValue* unversionedValue, const NYson::TYsonStringBuf& value, const TRowBufferPtr& rowBuffer, int id)
 {
     YT_ASSERT(value.GetType() == EYsonType::Node);
-    *unversionedValue = rowBuffer->Capture(MakeUnversionedAnyValue(value.AsStringBuf(), id));
+    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(value.AsStringBuf(), id));
 }
 
 void FromUnversionedValue(NYson::TYsonStringBuf* value, TUnversionedValue unversionedValue)
@@ -501,7 +501,7 @@ void FromUnversionedValue(TDuration* value, TUnversionedValue unversionedValue)
 
 void ToUnversionedValue(TUnversionedValue* unversionedValue, const IMapNodePtr& value, const TRowBufferPtr& rowBuffer, int id)
 {
-    *unversionedValue = rowBuffer->Capture(MakeUnversionedAnyValue(ConvertToYsonString(value).AsStringBuf(), id));
+    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(ConvertToYsonString(value).AsStringBuf(), id));
 }
 
 void FromUnversionedValue(IMapNodePtr* value, TUnversionedValue unversionedValue)
@@ -550,7 +550,7 @@ void ProtobufToUnversionedValueImpl(
     TStringOutput outputStream(ysonBytes);
     TYsonWriter ysonWriter(&outputStream);
     ParseProtobuf(&ysonWriter, &inputStream, type);
-    *unversionedValue = rowBuffer->Capture(MakeUnversionedAnyValue(ysonBytes, id));
+    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(ysonBytes, id));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -606,7 +606,7 @@ void ListToUnversionedValueImpl(
     }
     writer.OnEndList();
 
-    *unversionedValue = rowBuffer->Capture(MakeUnversionedAnyValue(ysonBytes, id));
+    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(ysonBytes, id));
 }
 
 void UnversionedValueToListImpl(
@@ -913,7 +913,7 @@ void MapToUnversionedValueImpl(
     }
     writer.OnEndMap();
 
-    *unversionedValue = rowBuffer->Capture(MakeUnversionedAnyValue(ysonBytes, id));
+    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(ysonBytes, id));
 }
 
 void UnversionedValueToMapImpl(
@@ -1210,7 +1210,7 @@ void ToAny(TRowBuffer* rowBuffer, TUnversionedValue* result, TUnversionedValue* 
     result->Type = EValueType::Any;
     result->Length = stream.Size();
     result->Data.String = stream.Data();
-    *result = rowBuffer->Capture(*result);
+    *result = rowBuffer->CaptureValue(*result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1233,7 +1233,7 @@ void TUnversionedRowsBuilder::ReserveRows(int rowCount)
 
 void TUnversionedRowsBuilder::AddRow(TUnversionedRow row)
 {
-    Rows_.push_back(RowBuffer_->Capture(row));
+    Rows_.push_back(RowBuffer_->CaptureRow(row));
 }
 
 void TUnversionedRowsBuilder::AddRow(TMutableUnversionedRow row)

@@ -243,7 +243,7 @@ public:
         auto* pool = RowBuffer_->GetPool();
 
         for (auto row : rows) {
-            auto localizedRow = RowBuffer_->Capture(row, false);
+            auto localizedRow = RowBuffer_->CaptureRow(row, false);
             LocalizedRows_.push_back(localizedRow);
 
             for (int index = 0; index < localizedRow.GetValueCount(); ++index) {

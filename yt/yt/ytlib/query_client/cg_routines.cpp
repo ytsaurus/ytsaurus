@@ -117,7 +117,7 @@ bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TValue* valu
 
     YT_ASSERT(batch.size() < batch.capacity());
 
-    batch.push_back(rowBuffer->Capture(values, closure->RowSize));
+    batch.push_back(rowBuffer->CaptureRow(MakeRange(values, closure->RowSize)));
 
     // NB: Aggregate flag is neither set from TCG value nor cleared during row allocation.
     size_t id = 0;
@@ -278,7 +278,7 @@ bool StorePrimaryRow(
     closure->PrimaryRows.emplace_back(*primaryValues);
 
     for (size_t columnIndex = 0; columnIndex < closure->PrimaryRowSize; ++columnIndex) {
-        closure->Buffer->Capture(*primaryValues + columnIndex);
+        closure->Buffer->CaptureValue(*primaryValues + columnIndex);
     }
 
     for (size_t joinId = 0; joinId < closure->Items.size(); ++joinId) {
@@ -298,7 +298,7 @@ bool StorePrimaryRow(
         auto inserted = item.Lookup.insert(key);
         if (inserted.second) {
             for (size_t columnIndex = 0; columnIndex < item.KeySize; ++columnIndex) {
-                closure->Items[joinId].Buffer->Capture(&key[columnIndex]);
+                closure->Items[joinId].Buffer->CaptureValue(&key[columnIndex]);
             }
 
             char* data = AllocateAlignedBytes(
@@ -496,7 +496,7 @@ void MultiJoinOpHelper(
                 }
 
                 for (auto row : foreignRows) {
-                    foreignValues.push_back(closure.Buffer->Capture(row).Begin());
+                    foreignValues.push_back(closure.Buffer->CaptureRow(row).Begin());
                 }
 
                 {
@@ -700,7 +700,7 @@ const TValue* InsertGroupRow(
         YT_VERIFY(closure->GroupedRows.size() <= context->GroupRowLimit);
 
         for (int index = 0; index < closure->KeySize; ++index) {
-            closure->Buffer->Capture(&row[index]);
+            closure->Buffer->CaptureValue(&row[index]);
         }
 
         if (closure->CheckNulls) {
@@ -1577,7 +1577,7 @@ extern "C" void MakeMap(
     }
     writer.OnEndMap();
 
-    *result = context->Capture(MakeUnversionedAnyValue(resultYson));
+    *result = context->CaptureValue(MakeUnversionedAnyValue(resultYson));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1687,7 +1687,7 @@ extern "C" void NumericToString(
             YT_ABORT();
     }
 
-    *result = context->Capture(MakeUnversionedStringValue(resultYson));
+    *result = context->CaptureValue(MakeUnversionedStringValue(resultYson));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -420,7 +420,7 @@ void TVersionedRowBuilder::AddKey(const TUnversionedValue& value)
 void TVersionedRowBuilder::AddValue(const TVersionedValue& value)
 {
     WriteTimestamps_.push_back(value.Timestamp);
-    Values_.push_back(Buffer_->Capture(value));
+    Values_.push_back(Buffer_->CaptureValue(value));
 }
 
 void TVersionedRowBuilder::AddDeleteTimestamp(TTimestamp timestamp)

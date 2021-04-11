@@ -94,7 +94,7 @@ protected:
     TUnversionedRow BuildUnversionedRow(const TString& valueYson)
     {
         auto row = NTableClient::YsonToSchemalessRow(valueYson);
-        return Buffer_->Capture(row);
+        return Buffer_->CaptureRow(row);
     }
 
     static TDuration TimestampToDuration(TTimestamp timestamp)
@@ -1645,7 +1645,7 @@ public:
             }
 
             for (auto row : batch->MaterializeRows()) {
-                result->push_back(Buffer_->Capture(row));
+                result->push_back(Buffer_->CaptureRow(row));
             }
         }
     }

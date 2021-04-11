@@ -433,7 +433,7 @@ TKeyBound KeyBoundFromLegacyRow(TUnversionedRow row, bool isUpper, int keyLength
     YT_VERIFY(prefixLength <= row.GetCount());
     if (prefixLength < row.GetCount()) {
         // Capture a prefix.
-        row = rowBuffer->Capture(row.Begin(), prefixLength);
+        row = rowBuffer->CaptureRow(MakeRange(row.Begin(), prefixLength));
     }
     return TKeyBound::FromRow(
         row,
@@ -472,7 +472,7 @@ TUnversionedRow KeyBoundToLegacyRow(TKeyBound keyBound, const TRowBufferPtr& row
         row[keyBound.Prefix.GetCount()] = MakeUnversionedSentinelValue(EValueType::Max, keyBound.Prefix.GetCount());
     }
     for (auto& value : row) {
-        rowBuffer->Capture(&value);
+        rowBuffer->CaptureValue(&value);
     }
 
     return row;
@@ -492,7 +492,7 @@ TKeyBound ShortenKeyBound(TKeyBound keyBound, int length, const TRowBufferPtr& r
     // If we do perform shortening, resulting key bound is going to be inclusive despite the original inclusiveness.
 
     auto result = TKeyBound::FromRowUnchecked(
-        rowBuffer->Capture(keyBound.Prefix.Begin(), length),
+        rowBuffer->CaptureRow(MakeRange(keyBound.Prefix.Begin(), length)),
         /* isInclusive */ true,
         keyBound.IsUpper);
 

@@ -157,7 +157,7 @@ public:
     virtual bool Write(TRange<TUnversionedRow> rows) override
     {
         for (auto row : rows) {
-            Rows_.push_back(RowBuffer_->Capture(row));
+            Rows_.push_back(RowBuffer_->CaptureRow(row));
         }
         return true;
     }
