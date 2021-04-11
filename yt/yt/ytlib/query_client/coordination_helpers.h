@@ -119,7 +119,7 @@ void SplitByPivots(
         });
 
         // For interval: itemIt->upper <= *shardIt
-        // For points: *itemIt < shardIt is allways true: *shardIt <= *itemIt ~ shardIt > *itemIt
+        // For points: *itemIt < shardIt is always true: *shardIt <= *itemIt ~ shardIt > *itemIt
 
         if (shardIt == shards.end()) {
             onItemsFunctor(itemIt, items.end(), shardIt);
@@ -249,14 +249,14 @@ void GroupItemsByShards(
         items,
         shards,
         pred,
-        [&] (auto rangesIt, auto rangesItEnd, auto shardIt, auto shardItEnd) {
-            YT_VERIFY(rangesIt != rangesItEnd);
+        [&] (auto itemsIt, auto itemsItEnd, auto shardIt, auto shardItEnd) {
+            YT_VERIFY(itemsIt != itemsItEnd);
             // shardItEnd can invalid.
             while (shardIt != shardItEnd) {
-                onItemsFunctor(shardIt++, rangesIt, rangesIt + 1);
+                onItemsFunctor(shardIt++, itemsIt, itemsIt + 1);
             }
 
-            onItemsFunctor(shardIt, rangesIt, rangesItEnd);
+            onItemsFunctor(shardIt, itemsIt, itemsItEnd);
         });
 }
 
