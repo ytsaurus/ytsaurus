@@ -132,12 +132,27 @@ TConcurrentCache<T>::TLookuper::operator bool ()
 }
 
 template <class T>
+const typename TConcurrentCache<T>::TLookupTable* TConcurrentCache<T>::TLookuper::GetPrimary() const
+{
+    return Primary_.Get();
+}
+
+template <class T>
 typename TConcurrentCache<T>::TLookuper TConcurrentCache<T>::GetLookuper()
 {
     auto primary = Head_.Acquire();
     auto secondary = primary ? primary->Next.Acquire() : nullptr;
 
     return TLookuper(this, std::move(primary), std::move(secondary));
+}
+
+template <class T>
+typename TConcurrentCache<T>::TLookuper TConcurrentCache<T>::GetSecondaryLookuper()
+{
+    auto primary = Head_.Acquire();
+    auto secondary = primary ? primary->Next.Acquire() : nullptr;
+
+    return TLookuper(this, secondary, nullptr);
 }
 
 template <class T>

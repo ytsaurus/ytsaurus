@@ -54,6 +54,7 @@ public:
 
         explicit operator bool ();
 
+        const TLookupTable* GetPrimary() const;
     private:
         TConcurrentCache* Parent_ = nullptr;
         TIntrusivePtr<TLookupTable> Primary_;
@@ -61,6 +62,8 @@ public:
     };
 
     TLookuper GetLookuper();
+
+    TLookuper GetSecondaryLookuper();
 
     class TInserter
     {

@@ -835,6 +835,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
             if (rowCache) {
                 auto lookuper = rowCache->Cache.GetLookuper();
+                auto secondaryLookuper = rowCache->Cache.GetSecondaryLookuper();
 
                 for (auto row : rows) {
                     auto foundItemRef = lookuper(row);
@@ -899,6 +900,12 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                         YT_VERIFY(!foundItem->Updated.Exchange(updatedItem));
 
                         foundItemRef.Update(updatedItem);
+
+                        if (secondaryLookuper.GetPrimary() && secondaryLookuper.GetPrimary() != foundItemRef.Origin) {
+                            if (auto foundItemRef = secondaryLookuper(row)) {
+                                foundItemRef.Update(updatedItem);
+                            }
+                        }
                     }
                 }
             }
