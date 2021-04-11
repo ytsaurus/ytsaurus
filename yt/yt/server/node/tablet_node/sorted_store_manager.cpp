@@ -870,14 +870,6 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                             continue;
                         }
 
-                        if (GetMaxTimestamp(foundItem->GetVersionedRow()) >= GetMaxTimestamp(row)) {
-                            // Data in found row is more recent than data in current store.
-                            YT_LOG_TRACE("Skipping row update (RowFromCache: %v, RowFromStore: %v)",
-                                foundItem->GetVersionedRow(),
-                                row);
-                            continue;
-                        }
-
                         compactionRowMerger.AddPartialRow(foundItem->GetVersionedRow());
                         compactionRowMerger.AddPartialRow(row);
                         auto mergedRow = compactionRowMerger.BuildMergedRow();
