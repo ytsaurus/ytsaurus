@@ -638,7 +638,7 @@ std::optional<TError> TryEnrichClientRequestErrorWithFeatureName(
         auto featureName = (*featureIdFormatter)(featureId);
         if (featureName) {
             auto enrichedError = error;
-            enrichedError.Attributes().Set(FeatureNameAttributeKey, featureName);
+            enrichedError.MutableAttributes()->Set(FeatureNameAttributeKey, featureName);
             return enrichedError;
         }
     }

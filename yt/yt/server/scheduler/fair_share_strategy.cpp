@@ -437,7 +437,7 @@ public:
                     hasNonHungTree = true;
                     break;
                 } else {
-                    operationError.InnerErrors().push_back(error);
+                    operationError.MutableInnerErrors()->push_back(error);
                 }
             }
 
@@ -1346,7 +1346,7 @@ private:
         const auto& poolTreeAttributes = poolTreesMap->GetChildOrThrow(treeId);
 
         std::vector<TPoolTreesTemplateConfigInfoView> matchedTemplateConfigs;
-        
+
         for (const auto& [name, value] : Config->TemplatePoolTreeConfigMap) {
             if (value->Filter && NRe2::TRe2::FullMatch(treeId.data(), *value->Filter)) {
                 matchedTemplateConfigs.push_back({name, value.Get()});
@@ -1358,8 +1358,8 @@ private:
         }
 
         std::sort(
-            std::begin(matchedTemplateConfigs), 
-            std::end(matchedTemplateConfigs), 
+            std::begin(matchedTemplateConfigs),
+            std::end(matchedTemplateConfigs),
             [] (const TPoolTreesTemplateConfigInfoView first, const TPoolTreesTemplateConfigInfoView second) {
                 return first.config->Priority < second.config->Priority;
             });

@@ -111,7 +111,9 @@ TError BuildErrorFromPythonException()
         errorBacktrace = errorBacktraceRaw;
     }
 
-    auto restoreGuard = Finally([&] () { PyErr_Restore(errorType.ptr(), errorValue.ptr(), errorBacktrace.ptr()); });
+    auto restoreGuard = Finally([&] {
+        PyErr_Restore(errorType.ptr(), errorValue.ptr(), errorBacktrace.ptr());
+    });
 
     if (errorType.isNone()) {
         return TError();
@@ -124,7 +126,7 @@ TError BuildErrorFromPythonException()
         << TErrorAttribute("exception_type", Str(errorType));
 
     if (!errorBacktrace.isNone()) {
-        error.Attributes().Set("backtrace", Str(errorBacktrace));
+        error.MutableAttributes()->Set("backtrace", Str(errorBacktrace));
     }
 
     return error;

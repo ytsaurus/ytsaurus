@@ -67,21 +67,13 @@ inline bool operator != (TErrorCode lhs, TErrorCode rhs)
 
 template <class... TArgs>
 TError::TErrorOr(const char* format, const TArgs&... args)
-    : Code_(NYT::EErrorCode::Generic)
-    , Message_(Format(format, args...))
-{
-    CaptureOriginAttributes();
-}
+    : TErrorOr(NYT::EErrorCode::Generic, Format(format, args...))
+{ }
 
 template <class... TArgs>
 TError::TErrorOr(TErrorCode code, const char* format, const TArgs&... args)
-    : Code_(code)
-    , Message_(Format(format, args...))
-{
-    if (!IsOK()) {
-        CaptureOriginAttributes();
-    }
-}
+    : TErrorOr(code, Format(format, args...))
+{ }
 
 template <class... TArgs>
 TError TError::Wrap(TArgs&&... args) const

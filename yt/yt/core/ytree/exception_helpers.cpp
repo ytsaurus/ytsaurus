@@ -105,7 +105,7 @@ void ThrowMethodNotSupported(TStringBuf method, const std::optional<TString>& re
         "Method %v is not supported",
         method);
     if (resolveType) {
-        error.Attributes().Set("resolve_type", *resolveType);
+        error.MutableAttributes()->Set("resolve_type", *resolveType);
     }
     THROW_ERROR(error);
 }

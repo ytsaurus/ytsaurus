@@ -980,7 +980,7 @@ private:
                     auto alertError = TError("Too many operations in archivation queue")
                         << TErrorAttribute("pending_count", pendingCount);
                     if (!error.IsOK()) {
-                        alertError.InnerErrors().push_back(error);
+                        alertError.MutableInnerErrors()->push_back(error);
                     }
                     Host_->SetSchedulerAlert(
                         ESchedulerAlertType::OperationsArchivation,

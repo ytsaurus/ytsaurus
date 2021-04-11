@@ -37,6 +37,9 @@ public:
     //! Creates a non-owning TRef for a given string.
     static TRef FromString(const TString& str);
 
+    //! Creates a non-owning TRef for a given stringbuf.
+    static TRef FromStringBuf(TStringBuf strBuf);
+
     //! Creates a non-owning TRef for a given pod structure.
     template <class T>
     static TRef FromPod(const T& data);

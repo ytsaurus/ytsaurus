@@ -508,12 +508,10 @@ private:
                 } else {
                     failedPartSet.set(partIndex);
                     copyErrors.push_back(error);
-
                     // Chunk cannot be repaired, this situation is unrecoverable.
                     if (!erasureCodec->CanRepair(failedPartSet)) {
-                        TError copyError("Cannot repair erasure chunk");
-                        copyError.InnerErrors() = copyErrors;
-                        canStartRepair.TrySet(copyError);
+                        canStartRepair.TrySet(TError("Cannot repair erasure chunk")
+                            << copyErrors);
                     }
                 }
             }));

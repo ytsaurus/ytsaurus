@@ -747,11 +747,11 @@ struct TEnumSerializer
 struct TStringSerializer
 {
     template <class C>
-    static void Save(C& context, const TString& value)
+    static void Save(C& context, TStringBuf value)
     {
         TSizeSerializer::Save(context, value.size());
 
-        TRangeSerializer::Save(context, TRef::FromString(value));
+        TRangeSerializer::Save(context, TRef::FromStringBuf(value));
     }
 
     template <class C>
@@ -1716,6 +1716,14 @@ struct TSerializerTraits<TString, C, void>
     typedef TValueBoundComparer TComparer;
 };
 
+// For save only.
+template <class C>
+struct TSerializerTraits<TStringBuf, C, void>
+{
+    typedef TStringSerializer TSerializer;
+    typedef TValueBoundComparer TComparer;
+};
+
 template <class T, class C>
 struct TSerializerTraits<std::optional<T>, C, void>
 {
@@ -1743,7 +1751,7 @@ struct TSerializerTraits<std::vector<T, A>, C, void>
 template <class T, unsigned size, class C>
 struct TSerializerTraits<SmallVector<T, size>, C, void>
 {
-typedef TVectorSerializer<> TSerializer;
+    typedef TVectorSerializer<> TSerializer;
 };
 
 template <class T, std::size_t size, class C>

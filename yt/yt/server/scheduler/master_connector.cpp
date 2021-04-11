@@ -427,7 +427,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto savedAlert = alert;
-        savedAlert.Attributes().Set("alert_type", alertType);
+        savedAlert.MutableAttributes()->Set("alert_type", alertType);
         Alerts_[alertType] = std::move(savedAlert);
     }
 

@@ -210,8 +210,9 @@ private:
             return subresponses;
         } catch (const std::exception& ex) {
             FailedCallCountCounter_.Increment();
-            auto error = TError(ex).Wrap("Failed to get secrets from Vault");
-            error.Attributes().Set("call_id", callId);
+            auto error = TError("Failed to get secrets from Vault")
+                << ex
+                << TErrorAttribute("call_id", callId);
             YT_LOG_DEBUG(error);
             THROW_ERROR error;
         }
@@ -256,8 +257,9 @@ private:
             return response->GetChildOrThrow("token")->GetValue<TString>();
         } catch (const std::exception& ex) {
             FailedCallCountCounter_.Increment();
-            auto error = TError(ex).Wrap("Failed to get delegation token from Vault");
-            error.Attributes().Set("call_id", callId);
+            auto error = TError("Failed to get delegation token from Vault")
+                << ex
+                << TErrorAttribute("call_id", callId);
             YT_LOG_DEBUG(error);
             THROW_ERROR error;
         }

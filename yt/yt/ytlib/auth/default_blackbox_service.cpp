@@ -204,7 +204,7 @@ private:
         TInstant deadline)
     {
         auto onError = [&] (TError error) {
-            error.Attributes().Set("call_id", callId);
+            error.MutableAttributes()->Set("call_id", callId);
             YT_LOG_DEBUG(error);
             THROW_ERROR(error);
         };

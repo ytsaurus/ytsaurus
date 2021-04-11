@@ -595,7 +595,7 @@ TError GetCumulativeError(const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& 
     auto processSubresponses = [&] (const auto& subresponses) {
         for (const auto& subresponse : subresponses) {
             if (subresponse.has_error()) {
-                cumulativeError.InnerErrors().push_back(FromProto<TError>(subresponse.error()));
+                cumulativeError.MutableInnerErrors()->push_back(FromProto<TError>(subresponse.error()));
             }
         }
     };

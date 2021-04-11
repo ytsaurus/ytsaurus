@@ -33,7 +33,12 @@ Y_FORCE_INLINE TRef TRef::MakeEmpty()
 
 Y_FORCE_INLINE TRef TRef::FromString(const TString& str)
 {
-    return TRef(str.data(), str.length());
+    return FromStringBuf(str);
+}
+
+Y_FORCE_INLINE TRef TRef::FromStringBuf(TStringBuf strBuf)
+{
+    return TRef(strBuf.data(), strBuf.length());
 }
 
 template <class T>

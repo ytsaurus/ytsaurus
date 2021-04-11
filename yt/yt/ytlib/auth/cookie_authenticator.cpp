@@ -118,8 +118,8 @@ private:
         auto result = OnCallResultImpl(data);
         if (!result.IsOK()) {
             YT_LOG_DEBUG(result, "Authentication failed (SessionIdMD5: %v, SslSessionIdMD5: %v)", sessionIdMD5, sslSessionIdMD5);
-            result.Attributes().Set("sessionid_md5", sessionIdMD5);
-            result.Attributes().Set("sslsessionid_md5", sslSessionIdMD5);
+            result.MutableAttributes()->Set("sessionid_md5", sessionIdMD5);
+            result.MutableAttributes()->Set("sslsessionid_md5", sslSessionIdMD5);
         } else {
             YT_LOG_DEBUG(
                 "Authentication successful (SessionIdMD5: %v, SslSessionIdMD5: %v, Login: %v, Realm: %v)",

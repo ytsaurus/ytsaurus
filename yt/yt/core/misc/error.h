@@ -39,7 +39,6 @@ public:
 
 private:
     int Value_;
-
 };
 
 template <class E>
@@ -66,6 +65,7 @@ class [[nodiscard]] TErrorOr<void>
 {
 public:
     TErrorOr();
+    ~TErrorOr();
 
     TErrorOr(const TError& other);
     TErrorOr(TError&& other) noexcept;
@@ -108,10 +108,10 @@ public:
     NTracing::TSpanId GetSpanId() const;
 
     const NYTree::IAttributeDictionary& Attributes() const;
-    NYTree::IAttributeDictionary& Attributes();
+    NYTree::IAttributeDictionary* MutableAttributes();
 
     const std::vector<TError>& InnerErrors() const;
-    std::vector<TError>& InnerErrors();
+    std::vector<TError>* MutableInnerErrors();
 
     TError Sanitize() const;
     TError Sanitize(TInstant datetime) const;
@@ -132,23 +132,15 @@ public:
     void Load(TStreamLoadContext& context);
 
 private:
-    TErrorCode Code_;
-    TString Message_;
-    // Most errors are local; for these Host_ refers to a static buffer and HostHolder_ is not used.
-    // This saves one allocation on TError construction.
-    TStringBuf Host_;
-    TString HostHolder_;
-    TInstant Datetime_;
-    TProcessId Pid_ = 0;
-    NConcurrency::TThreadId Tid_ = NConcurrency::InvalidThreadId;
-    NConcurrency::TFiberId Fid_ = NConcurrency::InvalidFiberId;
-    NTracing::TTraceId TraceId_;
-    NTracing::TSpanId SpanId_;
-    NYTree::IAttributeDictionaryPtr Attributes_;
-    std::vector<TError> InnerErrors_;
+    class TImpl;
+    std::unique_ptr<TImpl> Impl_;
 
-    void CaptureOriginAttributes();
-    void ExtractSystemAttributes();
+    explicit TErrorOr(std::unique_ptr<TImpl> impl);
+
+    void MakeMutable();
+
+    friend bool operator == (const TError& lhs, const TError& rhs);
+    friend bool operator != (const TError& lhs, const TError& rhs);
 
     friend void ToProto(NProto::TError* protoError, const TError& error);
     friend void FromProto(TError* error, const NProto::TError& protoError);
@@ -159,7 +151,6 @@ private:
         const std::function<void(NYson::IYsonConsumer*)>* valueProducer,
         int depth);
     friend void Deserialize(TError& error, const NYTree::INodePtr& node);
-
 };
 
 bool operator == (const TError& lhs, const TError& rhs);
@@ -170,8 +161,11 @@ void FromProto(TError* error, const NProto::TError& protoError);
 
 using TErrorVisitor = std::function<void(const TError&, int depth)>;
 
-//! Traverse the error tree in DFS order.
-void TraverseError(const TError& error, const TErrorVisitor& visitor, int depth = 0);
+//! Traverses the error tree in DFS order.
+void TraverseError(
+    const TError& error,
+    const TErrorVisitor& visitor,
+    int depth = 0);
 
 void Serialize(
     const TError& error,

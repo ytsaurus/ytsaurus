@@ -247,8 +247,14 @@ void TAttributeDictionarySerializer::Save(TStreamSaveContext& context, const IAt
         Save(context, false);
         return;
     }
-    Save(context, true);
 
+    Save(context, true);
+    SaveNonNull(context, attributes);
+}
+
+void TAttributeDictionarySerializer::SaveNonNull(TStreamSaveContext& context, const IAttributeDictionaryPtr& attributes)
+{
+    using NYT::Save;
     auto pairs = attributes->ListPairs();
     std::sort(pairs.begin(), pairs.end(), [] (const auto& lhs, const auto& rhs) {
         return lhs.first < rhs.first;
@@ -273,6 +279,12 @@ void TAttributeDictionarySerializer::Load(TStreamLoadContext& context, IAttribut
         return;
     }
 
+    LoadNonNull(context, attributes);
+}
+
+void TAttributeDictionarySerializer::LoadNonNull(TStreamLoadContext& context, const IAttributeDictionaryPtr& attributes)
+{
+    using NYT::Load;
     attributes->Clear();
     size_t size = TSizeSerializer::Load(context);
     for (size_t index = 0; index < size; ++index) {
