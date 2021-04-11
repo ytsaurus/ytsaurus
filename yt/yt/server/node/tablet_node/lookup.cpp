@@ -464,21 +464,13 @@ private:
                         TabletSnapshot_->TabletId);
                 }
 
-                // Include versions with timestamp equal to Timestamp_.
-                auto minDynamicTimestamp = Timestamp_ + 1;
-                for (auto row : versionedRows) {
-                    minDynamicTimestamp = std::min(minDynamicTimestamp, GetMinTimestamp(row));
-                }
-
-                YT_LOG_TRACE("Using row from cache (CacheRow: %v, Revision: %v, MinDynamicTimestamp: %v, ReadTimestamp: %v, DynamicRows: %v)",
+                YT_LOG_TRACE("Using row from cache (CacheRow: %v, Revision: %v, ReadTimestamp: %v, DynamicRows: %v)",
                     cachedItem->GetVersionedRow(),
                     cachedItem->Revision.load(),
-                    minDynamicTimestamp,
                     Timestamp_,
                     versionedRows);
 
-                // Consider only versions before versions from dynamic rows.
-                onPartialRow(cachedItem->GetVersionedRow(), minDynamicTimestamp);
+                onPartialRow(cachedItem->GetVersionedRow(), Timestamp_ + 1);
 
                 // Reinsert row here.
                 auto lookupTable = inserter.GetTable();
