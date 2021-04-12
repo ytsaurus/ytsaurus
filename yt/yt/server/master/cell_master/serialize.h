@@ -95,7 +95,8 @@ DEFINE_ENUM(EMasterReign,
     ((ValidateNoDuplicateLocationUuidsFromSameNode)                 (1461))  // babenko
     ((DropHealthFromTabletCellStatistics)                           (1462))  // akozhikhov
     ((TabletIdsForFinishedTabletActions)                            (1463))  // ifsmirnov
-    ((ProperRowCountInJournalChunkTree)                             (1464))  // gritukan
+    // Reign 1464 is reserved for ifsmirnov@.
+    ((ProperRowCountInJournalChunkTree)                             (1465))  // gritukan
     // 21.1 starts here.
     ((SlotLocationStatisticsInNodeNode)                             (1500))  // gritukan
     ((EnableDescendingSortOrder)                                    (1501))  // max42
