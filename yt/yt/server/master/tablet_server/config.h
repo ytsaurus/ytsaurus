@@ -561,6 +561,9 @@ public:
 
         RegisterPreprocessor([&] {
             ChunkReader->SuspiciousNodeGracePeriod = TDuration::Minutes(5);
+
+            StoreChunkWriter->BlockSize = 256_KB;
+            StoreChunkWriter->SampleRate = 0.0005;
         });
 
         RegisterPostprocessor([&] {
