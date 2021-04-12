@@ -988,7 +988,6 @@ void TTask::OnStripeRegistrationFailed(
 
 void TTask::OnTaskCompleted()
 {
-    YT_VERIFY(CompetitiveJobManager_.GetProgressCounter()->GetTotal() == 0);
     CompletionTime_ = TInstant::Now();
     YT_LOG_DEBUG("Task completed");
 }
