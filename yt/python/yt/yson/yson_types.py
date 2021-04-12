@@ -87,7 +87,7 @@ def _make_raise_not_unicode_error(name):
     def fun(self, *args, **kwargs):
         raise NotUnicodeError('Method "{}" is not allowed: YSON string "{}" '
                               "could not be decoded to Unicode, "
-                              "see https://yt.yandex-team.ru/docs/api/python/python_wrapper#python-3"
+                              "see https://yt.yandex-team.ru/docs/api/python/userdoc#python3_strings"
                               .format(name, _truncate(self._bytes)))
     return fun
 
