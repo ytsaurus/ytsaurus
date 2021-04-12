@@ -47,7 +47,7 @@ public:
         const DB::Names& /* columnNames */,
         const DB::StorageMetadataPtr& metadata_snapshot,
         DB::SelectQueryInfo& /* queryInfo */,
-        const DB::Context& /* context */,
+        DB::ContextPtr /* context */,
         DB::QueryProcessingStage::Enum /* processedStage */,
         size_t /* maxBlockSize */,
         unsigned /* numStreams */)

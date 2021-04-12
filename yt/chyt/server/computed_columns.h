@@ -13,7 +13,7 @@ namespace NYT::NClickHouseServer {
 DB::ASTPtr PopulatePredicateWithComputedColumns(
     DB::ASTPtr ast,
     const NTableClient::TTableSchemaPtr& schema,
-    const DB::Context& context,
+    DB::ContextPtr context,
     DB::PreparedSets& preparedSets,
     const TQuerySettingsPtr& settings,
     NLogging::TLogger logger);

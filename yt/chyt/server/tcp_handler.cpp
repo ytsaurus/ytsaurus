@@ -48,9 +48,9 @@ Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(const Poco:
             , Host_(host)
         { }
 
-        virtual void customizeContext(DB::Context& context) override
+        virtual void customizeContext(DB::ContextPtr context) override
         {
-            auto& clientInfo = context.getClientInfo();
+            auto& clientInfo = context->getClientInfo();
 
             if (clientInfo.query_kind != DB::ClientInfo::QueryKind::SECONDARY_QUERY) {
                 // TODO(max42): support.
@@ -65,7 +65,7 @@ Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(const Poco:
             TTraceContextPtr traceContext = New<TTraceContext>(header->SpanContext, "TcpHandler");
 
             YT_LOG_DEBUG("Registering new user (UserName: %v)", clientInfo.current_user);
-            RegisterNewUser(context.getAccessControlManager(), TString(clientInfo.current_user));
+            RegisterNewUser(context->getAccessControlManager(), TString(clientInfo.current_user));
             YT_LOG_DEBUG("User registered");
 
             SetupHostContext(

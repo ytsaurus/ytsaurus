@@ -43,30 +43,30 @@ std::vector<NProfiling::TTagId> RegisterQueryTags(size_t queryCount)
     return queryTags;
 }
 
-DB::Context PrepareContextForQuery(
-    DB::Context* databaseContext,
+DB::ContextPtr PrepareContextForQuery(
+    DB::ContextPtr databaseContext,
     const TString& dataBaseUser,
     TDuration timeout,
     THost* host)
 {
-    DB::Context contextForQuery = *databaseContext;
+    auto contextForQuery = DB::Context::createCopy(databaseContext);
 
-    contextForQuery.setUser(dataBaseUser,
+    contextForQuery->setUser(dataBaseUser,
         /*password =*/"",
         Poco::Net::SocketAddress());
 
-    auto settings = contextForQuery.getSettings();
+    auto settings = contextForQuery->getSettings();
     settings.max_execution_time = Poco::Timespan(timeout.Seconds(), timeout.MicroSecondsOfSecond());
-    contextForQuery.setSettings(settings);
+    contextForQuery->setSettings(settings);
 
     auto queryId = TQueryId::Create();
 
-    auto& clientInfo = contextForQuery.getClientInfo();
+    auto& clientInfo = contextForQuery->getClientInfo();
     clientInfo.initial_user = clientInfo.current_user;
     clientInfo.query_kind = DB::ClientInfo::QueryKind::INITIAL_QUERY;
     clientInfo.initial_query_id = ToString(queryId);
 
-    contextForQuery.makeQueryContext();
+    contextForQuery->makeQueryContext();
 
     auto traceContext = NTracing::CreateRootTraceContext("HealthCheckerQuery");
 
@@ -92,7 +92,7 @@ void ValidateQueryResult(DB::BlockIO& blockIO)
 
 void THealthChecker::ExecuteQuery(const TString& query)
 {
-    auto context = NDetail::PrepareContextForQuery(DatabaseContext_, DatabaseUser_, Config_->Timeout, Host_);
+    auto context = NDetail::PrepareContextForQuery(getContext(), DatabaseUser_, Config_->Timeout, Host_);
     auto blockIO = DB::executeQuery(query, context, true /* internal */);
     NDetail::ValidateQueryResult(blockIO);
 }
@@ -100,11 +100,11 @@ void THealthChecker::ExecuteQuery(const TString& query)
 THealthChecker::THealthChecker(
     THealthCheckerConfigPtr config,
     TString dataBaseUser,
-    DB::Context* databaseContext,
+    DB::ContextPtr databaseContext,
     THost* host)
-    : Config_(std::move(config))
+    : DB::WithContext(databaseContext)
+    , Config_(std::move(config))
     , DatabaseUser_(std::move(dataBaseUser))
-    , DatabaseContext_(databaseContext)
     , Host_(host)
     , ActionQueue_(New<TActionQueue>("HealthChecker"))
     , PeriodicExecutor_(New<TPeriodicExecutor>(
@@ -112,7 +112,7 @@ THealthChecker::THealthChecker(
         BIND(&THealthChecker::ExecuteQueries, MakeWeak(this)),
         Config_->Period))
 {
-    RegisterNewUser(DatabaseContext_->getAccessControlManager(), DatabaseUser_);
+    RegisterNewUser(getContext()->getAccessControlManager(), DatabaseUser_);
 
     for (int i = 0; i < Config_->Queries.size(); ++i) {
         QueryIndexToStatus_.push_back(ClickHouseYtProfiler

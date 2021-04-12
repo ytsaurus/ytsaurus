@@ -39,7 +39,7 @@ public:
     TQuerySettingsPtr Settings;
     NLogging::TLogger Logger;
 
-    TStorageContext(int index, const DB::Context& context, TQueryContext* queryContext);
+    TStorageContext(int index, DB::ContextPtr context, TQueryContext* queryContext);
 
     ~TStorageContext();
 };
@@ -73,7 +73,7 @@ public:
     EInterface Interface;
     std::optional<TString> HttpUserAgent;
     std::optional<TString> DataLensRequestId;
-    
+
     // Fields for a statistics reporter.
     std::vector<TString> SelectQueries;
     std::vector<TString> SecondaryQueryIds;
@@ -90,7 +90,7 @@ public:
 
     TQueryContext(
         THost* host,
-        const DB::Context& context,
+        DB::ContextPtr context,
         TQueryId queryId,
         NTracing::TTraceContextPtr traceContext,
         std::optional<TString> dataLensRequestId,
@@ -111,7 +111,7 @@ public:
     TInstant GetFinishTime() const;
 
     TStorageContext* FindStorageContext(const DB::IStorage* storage);
-    TStorageContext* GetOrRegisterStorageContext(const DB::IStorage* storage, const DB::Context& context);
+    TStorageContext* GetOrRegisterStorageContext(const DB::IStorage* storage, DB::ContextPtr context);
 
 private:
     TInstant StartTime_;
@@ -141,15 +141,15 @@ void Serialize(const TQueryContext& queryContext, NYson::IYsonConsumer* consumer
 
 void SetupHostContext(
     THost* host,
-    DB::Context& context,
+    DB::ContextPtr context,
     TQueryId queryId,
     NTracing::TTraceContextPtr traceContext,
     std::optional<TString> dataLensRequestId = std::nullopt,
     const TSubqueryHeaderPtr& subqueryHeader = nullptr);
 
-TQueryContext* GetQueryContext(const DB::Context& context);
+TQueryContext* GetQueryContext(DB::ContextPtr context);
 
-NLogging::TLogger GetLogger(const DB::Context& context);
+NLogging::TLogger GetLogger(DB::ContextPtr context);
 
 ////////////////////////////////////////////////////////////////////////////////
 

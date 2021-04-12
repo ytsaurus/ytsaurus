@@ -32,14 +32,14 @@ TLogger QueryLogger("Query");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStorageContext::TStorageContext(int index, const DB::Context& context, TQueryContext* queryContext)
+TStorageContext::TStorageContext(int index, DB::ContextPtr context, TQueryContext* queryContext)
     : Index(index)
     , QueryContext(queryContext)
     , Logger(queryContext->Logger.WithTag("StorageIndex: %v", Index))
 {
     YT_LOG_INFO("Storage context created");
 
-    Settings = ParseCustomSettings(queryContext->Host->GetConfig()->QuerySettings, context.getSettings().allCustom(), Logger);
+    Settings = ParseCustomSettings(queryContext->Host->GetConfig()->QuerySettings, context->getSettings().allCustom(), Logger);
 }
 
 TStorageContext::~TStorageContext()
@@ -51,16 +51,16 @@ TStorageContext::~TStorageContext()
 
 TQueryContext::TQueryContext(
     THost* host,
-    const DB::Context& context,
+    DB::ContextPtr context,
     TQueryId queryId,
     TTraceContextPtr traceContext,
     std::optional<TString> dataLensRequestId,
     const TSubqueryHeaderPtr& subqueryHeader)
     : Logger(QueryLogger)
-    , User(TString(context.getClientInfo().initial_user))
+    , User(TString(context->getClientInfo().initial_user))
     , TraceContext(std::move(traceContext))
     , QueryId(queryId)
-    , QueryKind(static_cast<EQueryKind>(context.getClientInfo().query_kind))
+    , QueryKind(static_cast<EQueryKind>(context->getClientInfo().query_kind))
     , Host(host)
     , DataLensRequestId(std::move(dataLensRequestId))
     , RowBuffer(New<NTableClient::TRowBuffer>())
@@ -73,7 +73,7 @@ TQueryContext::TQueryContext(
     YT_LOG_INFO("Query context created (User: %v, QueryKind: %v)", User, QueryKind);
     LastPhaseTime_ = StartTime_ = TInstant::Now();
 
-    const auto& clientInfo = context.getClientInfo();
+    const auto& clientInfo = context->getClientInfo();
 
     CurrentUser = clientInfo.current_user;
     CurrentAddress = clientInfo.current_address.toString();
@@ -86,7 +86,7 @@ TQueryContext::TQueryContext(
         YT_VERIFY(subqueryHeader);
         ParentQueryId = subqueryHeader->ParentQueryId;
         SelectQueryIndex = subqueryHeader->StorageIndex;
-        
+
         Logger.AddTag("InitialQueryId: %v", InitialQueryId);
         Logger.AddTag("ParentQueryId: %v", ParentQueryId);
     }
@@ -97,7 +97,7 @@ TQueryContext::TQueryContext(
 
     UserTagId = NProfiling::TProfileManager::Get()->RegisterTag("user", User);
 
-    Settings = ParseCustomSettings(Host->GetConfig()->QuerySettings, context.getSettings().allCustom(), Logger);
+    Settings = ParseCustomSettings(Host->GetConfig()->QuerySettings, context->getSettings().allCustom(), Logger);
 
     YT_LOG_INFO(
         "Query client info (CurrentUser: %v, CurrentAddress: %v, InitialUser: %v, InitialAddress: %v, "
@@ -226,7 +226,7 @@ TStorageContext* TQueryContext::FindStorageContext(const DB::IStorage* storage)
     return nullptr;
 }
 
-TStorageContext* TQueryContext::GetOrRegisterStorageContext(const DB::IStorage* storage, const DB::Context& context)
+TStorageContext* TQueryContext::GetOrRegisterStorageContext(const DB::IStorage* storage, DB::ContextPtr context)
 {
     if (auto* storageContext = FindStorageContext(storage)) {
         return storageContext;
@@ -298,7 +298,7 @@ struct THostContext
 };
 
 void SetupHostContext(THost* host,
-    DB::Context& context,
+    DB::ContextPtr context,
     TQueryId queryId,
     TTraceContextPtr traceContext,
     std::optional<TString> dataLensRequestId,
@@ -322,12 +322,12 @@ void SetupHostContext(THost* host,
         .Run())
         .ThrowOnError();
 
-    context.getHostContext() = std::make_shared<THostContext>(host, std::move(queryContext));
+    context->getHostContext() = std::make_shared<THostContext>(host, std::move(queryContext));
 }
 
-TQueryContext* GetQueryContext(const DB::Context& context)
+TQueryContext* GetQueryContext(DB::ContextPtr context)
 {
-    auto* hostContext = context.getHostContext().get();
+    auto* hostContext = context->getHostContext().get();
     YT_ASSERT(dynamic_cast<THostContext*>(hostContext) != nullptr);
     auto* queryContext = static_cast<THostContext*>(hostContext)->QueryContext.Get();
 

@@ -16,7 +16,7 @@ class TQueryRegistry
     : public TRefCounted
 {
 public:
-    TQueryRegistry(IInvokerPtr invoker, DB::Context* context, TDuration processListSnapshotUpdatePeriod);
+    TQueryRegistry(IInvokerPtr invoker, DB::ContextPtr context, TDuration processListSnapshotUpdatePeriod);
     ~TQueryRegistry();
 
     void Register(TQueryContextPtr queryContext);

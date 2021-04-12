@@ -18,7 +18,7 @@ public:
     TClickHouseIndex(
         DB::IndexDescription description,
         const DB::SelectQueryInfo& selectQuery,
-        const DB::Context& context);
+        DB::ContextPtr context);
 
     DEFINE_BYREF_RO_PROPERTY(DB::IndexDescription, Description);
     DEFINE_BYREF_RO_PROPERTY(DB::MergeTreeIndexPtr, Index);
@@ -33,12 +33,12 @@ DEFINE_REFCOUNTED_TYPE(TClickHouseIndex);
 
 //! A helper for creating indexes.
 //! It stores all nessesary information about the query.
-class TClickHouseIndexBuilder
+class TClickHouseIndexBuilder : DB::WithContext
 {
 public:
     TClickHouseIndexBuilder(
         const DB::SelectQueryInfo* query,
-        const DB::Context* context);
+        DB::ContextPtr context_);
 
     TClickHouseIndexPtr CreateIndex(
         DB::NamesAndTypesList namesAndTypes,
@@ -46,7 +46,6 @@ public:
 
 private:
     const DB::SelectQueryInfo* Query_;
-    const DB::Context* Context_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -24,16 +24,16 @@ using namespace DB;
 //! For example,
 //! select YSONExtractInt('{a = "hello"; b = [-100; 200.0; 300]}', 'b', 1) = -100
 template <typename Name, template<typename> typename Impl>
-class TFunctionYson : public IFunction
+class TFunctionYson : public IFunction, WithContext
 {
 public:
 
-    TFunctionYson(const Context& context_) : context(context_)
+    TFunctionYson(ContextPtr context_) : WithContext(context_)
     { }
 
     static constexpr auto name = Name::name;
 
-    static FunctionPtr create(const Context& context_)
+    static FunctionPtr create(ContextPtr context_)
     {
         return std::make_shared<TFunctionYson>(context_);
     }
@@ -67,9 +67,6 @@ public:
     {
         return FunctionJSONHelpers::Executor<Name, Impl, TYsonParserAdapter>::run(arguments, result_type, input_rows_count);
     }
-
-private:
-    const Context& context;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

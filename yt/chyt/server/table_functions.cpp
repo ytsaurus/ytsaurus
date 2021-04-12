@@ -49,7 +49,7 @@ public:
         return "YT";
     }
 
-    void parseArguments(const ASTPtr & functionAst, const Context & context) override
+    void parseArguments(const ASTPtr & functionAst, ContextPtr context) override
     {
         auto* queryContext = GetQueryContext(context);
         const auto& Logger = queryContext->Logger;
@@ -78,7 +78,7 @@ public:
         subquerySpec = NYT::FromProto<TSubquerySpec>(protoSpec);
     }
 
-    ColumnsDescription getActualTableStructure(const Context & context) const override
+    ColumnsDescription getActualTableStructure(ContextPtr context) const override
     {
         auto* queryContext = GetQueryContext(context);
         return DB::ColumnsDescription(ToNamesAndTypesList(*subquerySpec.ReadSchema, queryContext->Settings->Composite));
@@ -86,7 +86,7 @@ public:
 
     virtual StoragePtr executeImpl(
         const ASTPtr& /* functionAst */,
-        const Context& context,
+        ContextPtr context,
         const std::string& /* tableName */,
         ColumnsDescription /* cached_columns */) const override
     {
@@ -94,7 +94,7 @@ public:
     }
 
 private:
-    StoragePtr Execute(const Context& context, TSubquerySpec subquerySpec) const
+    StoragePtr Execute(ContextPtr context, TSubquerySpec subquerySpec) const
     {
         return CreateStorageSubquery(
             GetQueryContext(context),

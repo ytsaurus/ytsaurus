@@ -48,7 +48,7 @@ public:
     }
 
     void createTable(
-        const DB::Context& /* context */,
+        const DB::ContextPtr /* context */,
         const std::string& /* name */,
         const DB::StoragePtr& /* table */,
         const DB::ASTPtr& /* query */) override
@@ -61,18 +61,18 @@ public:
         // Do nothing.
     }
 
-    virtual bool isTableExist(const String& name, const DB::Context& context) const override
+    virtual bool isTableExist(const String& name, DB::ContextPtr context) const override
     {
         return DoGetTable(context, name) != nullptr;
     }
 
-    virtual DB::StoragePtr tryGetTable(const String& name, const DB::Context& context) const override
+    virtual DB::StoragePtr tryGetTable(const String& name, DB::ContextPtr context) const override
     {
         return DoGetTable(context, name);
     }
 
     virtual DB::DatabaseTablesIteratorPtr getTablesIterator(
-        const DB::Context& context,
+        DB::ContextPtr context,
         const FilterByNameFunction& filterByTableName) override
     {
         class TTableIterator
@@ -138,14 +138,14 @@ public:
         THROW_ERROR_EXCEPTION("Getting CREATE DATABASE query is not supported");
     }
 
-    virtual void dropTable(const DB::Context& context, const String& name, bool /* noDelay */) override
+    virtual void dropTable(DB::ContextPtr context, const String& name, bool /* noDelay */) override
     {
         auto* queryContext = GetQueryContext(context);
         WaitFor(queryContext->Client()->RemoveNode(TYPath(name)))
             .ThrowOnError();
     }
 
-    virtual DB::ASTPtr getCreateTableQueryImpl(const String& name, const DB::Context& context, bool throwOnError) const override
+    virtual DB::ASTPtr getCreateTableQueryImpl(const String& name, DB::ContextPtr context, bool throwOnError) const override
     {
         auto* queryContext = GetQueryContext(context);
         auto path = TRichYPath::Parse(TString(name));
@@ -187,7 +187,7 @@ public:
 
 private:
     DB::StoragePtr DoGetTable(
-        const DB::Context& context,
+        DB::ContextPtr context,
         const std::string& name) const
     {
         auto* queryContext = GetQueryContext(context);

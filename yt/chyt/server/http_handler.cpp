@@ -76,12 +76,12 @@ public:
         }
     }
 
-    virtual void customizeContext(DB::HTTPServerRequest & /* request */, DB::Context& context) override
+    virtual void customizeContext(DB::HTTPServerRequest & /* request */, DB::ContextPtr context) override
     {
         YT_VERIFY(TraceContext_);
 
         // For HTTP queries (which are always initial) query id is same as trace id.
-        context.getClientInfo().current_query_id = context.getClientInfo().initial_query_id = ToString(QueryId_);
+        context->getClientInfo().current_query_id = context->getClientInfo().initial_query_id = ToString(QueryId_);
         SetupHostContext(Host_, context, QueryId_, TraceContext_, DataLensRequestId_);
     }
 
@@ -99,7 +99,7 @@ public:
         const auto& Logger = ClickHouseYtLogger;
 
         YT_LOG_DEBUG("Registering new user (UserName: %v)", userName);
-        RegisterNewUser(Server_.context().getAccessControlManager(), TString(userName));
+        RegisterNewUser(Server_.context()->getAccessControlManager(), TString(userName));
         YT_LOG_DEBUG("User registered");
 
         DB::HTTPHandler::handleRequest(request, response);

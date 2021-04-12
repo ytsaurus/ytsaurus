@@ -9,6 +9,7 @@
 #include <Common/ProfileEvents.h>
 #include <Common/COW.h>
 
+#include <Interpreters/Context_fwd.h>
 #include <Parsers/IAST_fwd.h>
 
 namespace NYT::NClickHouseServer {
@@ -165,7 +166,6 @@ extern const int NO_SUCH_COLUMN_IN_TABLE;
 ////////////////////////////////////////////////////////////////////////////////
 
 class IDatabase;
-class Context;
 class KeyCondition;
 struct SelectQueryInfo;
 class Field;
