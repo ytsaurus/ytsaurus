@@ -278,7 +278,7 @@ public:
             } else {
                 resourceUsageIncrease = TClusterResources()
                     .SetNodeCount(1)
-                    .SetMasterMemory(1);
+                    .SetDetailedMasterMemory(EMasterMemoryType::Nodes, 1);
             }
             securityManager->ValidateResourceUsageIncrease(clonedAccount, resourceUsageIncrease);
         }
@@ -317,7 +317,7 @@ public:
         securityManager->ValidatePermission(account, EPermission::Use);
         auto deltaResources = TClusterResources()
             .SetNodeCount(1)
-            .SetMasterMemory(1);
+            .SetDetailedMasterMemory(EMasterMemoryType::Nodes, 1);
         securityManager->ValidateResourceUsageIncrease(account, deltaResources);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();

@@ -224,6 +224,10 @@ void Deserialize(std::tuple<T...>& value, INodePtr node);
 template <template<typename...> class C, class... T, class K = typename C<T...>::key_type>
 void Deserialize(C<T...>& value, INodePtr node);
 
+// TEnumIndexedVector
+template <class E, class T, E Min, E Max>
+void Deserialize(TEnumIndexedVector<E, T, Min, Max>& vector, INodePtr node);
+
 // Subtypes of google::protobuf::Message
 template <class T>
 void Deserialize(

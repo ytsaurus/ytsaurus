@@ -10,4 +10,4 @@ const NProfiling::TProfiler SecurityProfiler("/security");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NChunkServer
+} // namespace NYT::NSecurityServer

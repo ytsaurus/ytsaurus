@@ -11,6 +11,7 @@
 
 #include <yt/yt/server/master/security_server/acl.h>
 #include <yt/yt/server/master/security_server/cluster_resources.h>
+#include <yt/yt/server/master/security_server/detailed_master_memory.h>
 
 #include <yt/yt/server/master/tablet_server/tablet_resources.h>
 
@@ -180,7 +181,8 @@ public:
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TCypressNode, TDuration, ExpirationTimeout)
 
     //! Master memory usage account was already charged for.
-    DEFINE_BYVAL_RW_PROPERTY(i64, ChargedMasterMemoryUsage);
+    DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TDetailedMasterMemory, ChargedDetailedMasterMemoryUsage);
+
     DEFINE_BYVAL_RW_PROPERTY(i64, AccessCounter);
 
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, AttributeRevision);
@@ -257,7 +259,7 @@ public:
 
     //! Returns master memory occupied.
     //! This method is computationally cheap.
-    virtual i64 GetMasterMemoryUsage() const;
+    virtual NSecurityServer::TDetailedMasterMemory GetDetailedMasterMemoryUsage() const;
 
     //! Returns tablet resources of the node. Makes sense only for trunk nodes.
     virtual NTabletServer::TTabletResources GetTabletResourceUsage() const;

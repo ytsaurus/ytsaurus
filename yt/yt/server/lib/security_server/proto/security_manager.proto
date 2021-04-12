@@ -4,13 +4,23 @@ import "yt_proto/yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TDetailedMasterMemory
+{
+    message TDetailedMasterMemoryEntry
+    {
+        required int32 master_memory_type = 1; // EMasterMemoryType
+        required int64 master_memory_usage = 2;
+    }
+    repeated TDetailedMasterMemoryEntry entries = 1;
+}
+
 message TClusterResources
 {
     required int64 chunk_count = 2;
     required int64 node_count = 3;
     required int32 tablet_count = 5;
     required int64 tablet_static_memory_size = 6;
-    required int64 master_memory = 7;
+    required TDetailedMasterMemory detailed_master_memory = 8;
 
     message TMediumDiskSpace
     {
@@ -19,6 +29,8 @@ message TClusterResources
     }
 
     repeated TMediumDiskSpace disk_space_per_medium = 4;
+
+    reserved 7;
 }
 
 message TAccountStatistics
@@ -70,7 +82,9 @@ message TReqUpdateAccountMasterMemoryUsage
     message TUpdateEntry
     {
         required NYT.NProto.TGuid account_id = 1;
-        required int64 master_memory_usage = 2;
+        required TDetailedMasterMemory detailed_master_memory_usage = 3;
+
+        reserved 2;
     }
     repeated TUpdateEntry entries = 1;
 }

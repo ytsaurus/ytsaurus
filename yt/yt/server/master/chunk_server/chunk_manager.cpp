@@ -2391,7 +2391,7 @@ private:
             auto resourceUsageIncrease = TClusterResources()
                 .SetChunkCount(1)
                 .SetMediumDiskSpace(mediumIndex, 1)
-                .SetMasterMemory(1);
+                .SetDetailedMasterMemory(EMasterMemoryType::Chunks, 1);
             securityManager->ValidateResourceUsageIncrease(account, resourceUsageIncrease);
         }
 

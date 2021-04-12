@@ -91,6 +91,7 @@
     XX(DesiredTabletCount, desired_tablet_count) \
     XX(DesiredTabletSize, desired_tablet_size) \
     XX(DestroyedChunkReplicaCount, destroyed_chunk_replica_count) \
+    XX(DetailedMasterMemoryUsage, detailed_master_memory_usage) \
     XX(DisableSchedulerJobs, disable_scheduler_jobs) \
     XX(DisableTabletBalancer, disable_tablet_balancer) \
     XX(DisableTabletCells, disable_tablet_cells) \

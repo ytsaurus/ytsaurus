@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "detailed_master_memory.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -24,22 +25,9 @@ class TClusterResources
 public:
     TClusterResources();
 
-    //! Sets node count.
-    TClusterResources&& SetNodeCount(i64 nodeCount) &&;
+    TClusterResources&& SetDetailedMasterMemory(const TDetailedMasterMemory&) &&;
+    TClusterResources&& SetDetailedMasterMemory(EMasterMemoryType type, i64 masterMemory) &&;
 
-    //! Sets chunk count.
-    TClusterResources&& SetChunkCount(i64 chunkCount) &&;
-
-    //! Sets tablet count.
-    TClusterResources&& SetTabletCount(int tabletCount) &&;
-
-    //! Sets tablet static memory size.
-    TClusterResources&& SetTabletStaticMemory(i64 tabletStaticMemory) &&;
-
-    //! Sets master memory.
-    TClusterResources&& SetMasterMemory(i64 masterMemory) &&;
-
-    //! Sets medium disk space.
     TClusterResources&& SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &&;
     void SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &;
 
@@ -52,23 +40,28 @@ public:
 
     const NChunkClient::TMediumMap<i64>& DiskSpace() const;
 
-    //! Number of Cypress nodes created at master.
-    /*!
-     *  Branched copies are also counted.
-     */
-    i64 NodeCount;
+    i64 GetTotalMasterMemory() const;
 
-    //! Number of chunks created at master.
-    i64 ChunkCount;
+    DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TClusterResources, i64, NodeCount);
+    DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TClusterResources, i64, ChunkCount);
+    DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TClusterResources, int, TabletCount);
+    DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TClusterResources, i64, TabletStaticMemory);
 
-    //! Number of tablets.
-    int TabletCount;
+    DEFINE_BYREF_RW_PROPERTY(TDetailedMasterMemory, DetailedMasterMemory);
 
-    //! Occupied tablet static memory.
-    i64 TabletStaticMemory;
+public:
+    TClusterResources& operator += (const TClusterResources& other);
+    TClusterResources operator + (const TClusterResources& other) const;
 
-    //! Occupied master memory.
-    i64 MasterMemory;
+    TClusterResources& operator -= (const TClusterResources& rhs);
+    TClusterResources operator - (const TClusterResources& rhs) const;
+
+    TClusterResources& operator *= (i64 rhs); 
+    TClusterResources operator * (i64 rhs) const;
+
+    TClusterResources operator - () const;
+
+    bool operator == (const TClusterResources& rhs) const;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
@@ -119,6 +112,7 @@ private:
     // COMPAT(shakurov)
     i64 DiskSpace_;
     i64 MasterMemory_ = 0;
+    TDetailedMasterMemory DetailedMasterMemory_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSerializableClusterResources)
@@ -165,20 +159,6 @@ DEFINE_REFCOUNTED_TYPE(TSerializableRichClusterResources)
 
 void ToProto(NProto::TClusterResources* protoResources, const TClusterResources& resources);
 void FromProto(TClusterResources* resources, const NProto::TClusterResources& protoResources);
-
-TClusterResources& operator += (TClusterResources& lhs, const TClusterResources& rhs);
-TClusterResources  operator +  (const TClusterResources& lhs, const TClusterResources& rhs);
-
-TClusterResources& operator -= (TClusterResources& lhs, const TClusterResources& rhs);
-TClusterResources  operator -  (const TClusterResources& lhs, const TClusterResources& rhs);
-
-TClusterResources& operator *= (TClusterResources& lhs, i64 rhs);
-TClusterResources  operator *  (const TClusterResources& lhs, i64 rhs);
-
-TClusterResources  operator -  (const TClusterResources& resources);
-
-bool operator == (const TClusterResources& lhs, const TClusterResources& rhs);
-bool operator != (const TClusterResources& lhs, const TClusterResources& rhs);
 
 void FormatValue(TStringBuilderBase* builder, const TClusterResources& resources, TStringBuf /*format*/);
 TString ToString(const TClusterResources& resources);

@@ -4,6 +4,7 @@
 #include "account_proxy.h"
 #include "acl.h"
 #include "config.h"
+#include "detailed_master_memory.h"
 #include "group.h"
 #include "group_proxy.h"
 #include "network_project.h"
@@ -583,26 +584,26 @@ public:
             TViolatedResourceLimits(),
             [&] (const TAccount* account, TViolatedResourceLimits* violatedLimits) {
                 if (account->IsNodeCountLimitViolated()) {
-                    ++violatedLimits->NodeCount;
+                    violatedLimits->SetNodeCount(violatedLimits->GetNodeCount() + 1);
                 }
                 if (account->IsChunkCountLimitViolated()) {
-                    ++violatedLimits->ChunkCount;
+                    violatedLimits->SetChunkCount(violatedLimits->GetChunkCount() + 1);
                 }
 
                 if (dynamicConfig->EnableTabletResourceValidation) {
                     if (account->IsTabletCountLimitViolated()) {
-                        ++violatedLimits->TabletCount;
+                        violatedLimits->SetTabletCount(violatedLimits->GetTabletCount() + 1);
                     }
                     if (account->IsTabletStaticMemoryLimitViolated()) {
-                        ++violatedLimits->TabletStaticMemory;
+                        violatedLimits->SetTabletStaticMemory(violatedLimits->GetTabletStaticMemory() + 1);
                     }
                 }
                 if (account->IsMasterMemoryLimitViolated()) {
-                    ++violatedLimits->MasterMemory;
+                    violatedLimits->SetMasterMemory(violatedLimits->GetMasterMemory() + 1);
                 }
 
                 if (account->IsChunkHostMasterMemoryLimitViolated(multicellManager)) {
-                    ++violatedLimits->ChunkHostMasterMemory;
+                    violatedLimits->SetChunkHostMasterMemory(violatedLimits->GetChunkHostMasterMemory() + 1);
                 }
 
                 for (const auto& [mediumIndex, usage] : account->ClusterStatistics().ResourceUsage.DiskSpace()) {
@@ -646,8 +647,8 @@ public:
 
         const auto& dynamicConfig = GetDynamicConfig();
         if (!dynamicConfig->EnableMasterMemoryUsageAccountOvercommitValidation) {
-            totalChildrenLimits.MasterMemory = 0;
-            totalChildrenLimits.ChunkHostMasterMemory = 0;
+            totalChildrenLimits.SetMasterMemory(0);
+            totalChildrenLimits.SetChunkHostMasterMemory(0);
             for (auto cellTag : multicellManager->GetSecondaryCellTags()) {
                 totalChildrenLimits.SetMasterMemory(cellTag, 0);
             }
@@ -818,7 +819,7 @@ public:
 
         auto doCharge = [] (TClusterResources* usage, int mediumIndex, i64 chunkCount, i64 diskSpace) {
             usage->AddToMediumDiskSpace(mediumIndex, diskSpace);
-            usage->ChunkCount += chunkCount;
+            usage->SetChunkCount(usage->GetChunkCount() + chunkCount);
         };
 
         ComputeChunkResourceDelta(
@@ -826,7 +827,7 @@ public:
             requisition,
             delta,
             [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, i64 masterMemory, bool committed) {
-                account->SetMasterMemoryUsage(account->GetMasterMemoryUsage() + masterMemory);
+                account->DetailedMasterMemoryUsage()[EMasterMemoryType::Chunks] += masterMemory;
                 doCharge(&account->ClusterStatistics().ResourceUsage, mediumIndex, chunkCount, diskSpace);
                 doCharge(&account->LocalStatistics().ResourceUsage, mediumIndex, chunkCount, diskSpace);
                 if (committed) {
@@ -857,7 +858,7 @@ public:
 
             auto* transactionUsage = GetTransactionAccountUsage(stagingTransaction, account);
             transactionUsage->AddToMediumDiskSpace(mediumIndex, diskSpace);
-            transactionUsage->ChunkCount += chunkCount;
+            transactionUsage->SetChunkCount(transactionUsage->GetChunkCount() + chunkCount);
         };
 
         ComputeChunkResourceDelta(chunk, requisition, delta, chargeTransaction);
@@ -865,39 +866,49 @@ public:
 
     void ResetMasterMemoryUsage(TCypressNode* node)
     {
-        ChargeMasterMemoryUsage(node, 0);
+        ChargeMasterMemoryUsage(node, {});
     }
 
     void UpdateMasterMemoryUsage(TCypressNode* node)
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         const auto& typeHandler = cypressManager->GetHandler(node);
-        ChargeMasterMemoryUsage(node, node->GetMasterMemoryUsage() + typeHandler->GetStaticMasterMemoryUsage());
+
+        auto detailedMasterMemoryUsage = node->GetDetailedMasterMemoryUsage();
+        auto staticMasterMemoryUsage = typeHandler->GetStaticMasterMemoryUsage();
+        detailedMasterMemoryUsage[EMasterMemoryType::Nodes] += staticMasterMemoryUsage;
+        
+        ChargeMasterMemoryUsage(
+            node,
+            detailedMasterMemoryUsage);
     }
 
-    void ChargeMasterMemoryUsage(TCypressNode* node, i64 currentMasterMemoryUsage)
+    void ChargeMasterMemoryUsage(
+        TCypressNode* node,
+        const TDetailedMasterMemory& currentDetailedMasterMemoryUsage)
     {
         auto* account = node->GetAccount();
         if (!account) {
             return;
         }
 
-        auto delta = currentMasterMemoryUsage - node->GetChargedMasterMemoryUsage();
+        auto delta = currentDetailedMasterMemoryUsage - node->ChargedDetailedMasterMemoryUsage();
+
         YT_LOG_TRACE("Updating master memory usage (Account: %v, MasterMemoryUsage: %v, Delta: %v)",
             account->GetName(),
-            account->GetMasterMemoryUsage(),
+            account->DetailedMasterMemoryUsage(),
             delta);
         ChargeAccountAncestry(
             account,
             [&] (TAccount* account) {
-                account->SetMasterMemoryUsage(account->GetMasterMemoryUsage() + delta);
+                account->DetailedMasterMemoryUsage() += delta;
             });
-        if (account->GetMasterMemoryUsage() < 0) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Master memory usage is negative (MasterMemoryUsage: %v, Account: %v)",
-                account->GetMasterMemoryUsage(),
-                account->GetName());
+        if (account->DetailedMasterMemoryUsage().IsNegative()) {
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Master memory usage is negative (Account: %v, MasterMemoryUsage: %v)",
+                account->GetName(),
+                account->DetailedMasterMemoryUsage());
         }
-        node->SetChargedMasterMemoryUsage(currentMasterMemoryUsage);
+        node->ChargedDetailedMasterMemoryUsage() = currentDetailedMasterMemoryUsage;
     }
 
     void ResetTransactionAccountResourceUsage(TTransaction* transaction)
@@ -992,7 +1003,7 @@ public:
         }
 
         auto resources = TClusterResources()
-            .SetNodeCount(node->GetDeltaResourceUsage().NodeCount) * delta;
+            .SetNodeCount(node->GetDeltaResourceUsage().GetNodeCount()) * delta;
 
         ChargeAccountAncestry(
             account,
@@ -1037,12 +1048,12 @@ public:
             return;
         }
 
-        YT_ASSERT(resourceUsageDelta.NodeCount == 0);
-        YT_ASSERT(resourceUsageDelta.ChunkCount == 0);
+        YT_ASSERT(resourceUsageDelta.GetNodeCount() == 0);
+        YT_ASSERT(resourceUsageDelta.GetChunkCount() == 0);
         for (auto [mediumIndex, diskUsage] : resourceUsageDelta.DiskSpace()) {
             YT_ASSERT(diskUsage == 0);
         }
-        YT_ASSERT(resourceUsageDelta.MasterMemory == 0);
+        YT_ASSERT(resourceUsageDelta.DetailedMasterMemory().IsZero());
 
         ChargeAccountAncestry(
             account,
@@ -1920,7 +1931,8 @@ public:
         };
 
         auto validateMasterMemoryIncrease = [&] (TAccount* account) {
-            if (!dynamicConfig->EnableMasterMemoryUsageValidation || delta.MasterMemory <= 0) {
+            auto totalMasterMemoryDelta = delta.GetTotalMasterMemory();
+            if (!dynamicConfig->EnableMasterMemoryUsageValidation || totalMasterMemoryDelta <= 0) {
                 return;
             }
             const auto& limits = account->ClusterResourceLimits();
@@ -1930,35 +1942,34 @@ public:
             auto cellLimitsIt = perCellLimit.find(cellTag);
             auto multicellStatisticsIt = multicellStatistics.find(cellTag);
             if (cellLimitsIt != perCellLimit.end() && multicellStatisticsIt != multicellStatistics.end()) {
-                if (multicellStatisticsIt->second.ResourceUsage.MasterMemory + delta.MasterMemory >
-                    cellLimitsIt->second)
-                {
+                auto cellTotalMasterMemory = multicellStatisticsIt->second.ResourceUsage.GetTotalMasterMemory();
+                if (cellTotalMasterMemory + totalMasterMemoryDelta > cellLimitsIt->second) {
                     throwOverdraftError(Format("cell %v master memory", cellTag),
                         account,
-                        multicellStatisticsIt->second.ResourceUsage.MasterMemory,
-                        delta.MasterMemory,
+                        cellTotalMasterMemory,
+                        totalMasterMemoryDelta,
                         cellLimitsIt->second);
                 }
             }
 
             if (isChunkHostCell) {
                 auto chunkHostMasterMemory = account->GetChunkHostMasterMemoryUsage(multicellManager);
-                if (chunkHostMasterMemory + delta.MasterMemory > limits.ChunkHostMasterMemory) {
+                if (chunkHostMasterMemory + totalMasterMemoryDelta > limits.GetChunkHostMasterMemory()) {
                     throwOverdraftError(Format("chunk host master memory"),
                         account,
                         chunkHostMasterMemory,
-                        delta.MasterMemory,
-                        limits.ChunkHostMasterMemory);
+                        totalMasterMemoryDelta,
+                        limits.GetChunkHostMasterMemory());
                 }
             }
 
-            auto masterMemoryUsage = account->ClusterStatistics().ResourceUsage.MasterMemory;
-            if (masterMemoryUsage + delta.MasterMemory > limits.MasterMemory) {
+            auto masterMemoryUsage = account->ClusterStatistics().ResourceUsage.GetTotalMasterMemory();
+            if (masterMemoryUsage + totalMasterMemoryDelta > limits.GetMasterMemory()) {
                 throwOverdraftError("master memory",
                     account,
                     masterMemoryUsage,
-                    delta.MasterMemory,
-                    limits.MasterMemory);
+                    totalMasterMemoryDelta,
+                    limits.GetMasterMemory());
             }
         };
 
@@ -1983,19 +1994,19 @@ public:
             // issue, only committed node count is checked here. All this does is
             // effectively ignores non-trunk nodes, which constitute the majority of
             // problematic nodes.
-            if (delta.NodeCount > 0 && committedUsage.NodeCount + delta.NodeCount > limits.NodeCount) {
-                throwOverdraftError("Cypress node count", account, committedUsage.NodeCount, delta.NodeCount, limits.NodeCount);
+            if (delta.GetNodeCount() > 0 && committedUsage.GetNodeCount() + delta.GetNodeCount() > limits.GetNodeCount()) {
+                throwOverdraftError("Cypress node count", account, committedUsage.GetNodeCount(), delta.GetNodeCount(), limits.GetNodeCount());
             }
-            if (delta.ChunkCount > 0 && usage.ChunkCount + delta.ChunkCount > limits.ChunkCount) {
-                throwOverdraftError("chunk count", account, usage.ChunkCount, delta.ChunkCount, limits.ChunkCount);
+            if (delta.GetChunkCount() > 0 && usage.GetChunkCount() + delta.GetChunkCount() > limits.GetChunkCount()) {
+                throwOverdraftError("chunk count", account, usage.GetChunkCount(), delta.GetChunkCount(), limits.GetChunkCount());
             }
 
             if (dynamicConfig->EnableTabletResourceValidation) {
-                if (delta.TabletCount > 0 && usage.TabletCount + delta.TabletCount > limits.TabletCount) {
-                    throwOverdraftError("tablet count", account, usage.TabletCount, delta.TabletCount, limits.TabletCount);
+                if (delta.GetTabletCount() > 0 && usage.GetTabletCount() + delta.GetTabletCount() > limits.GetTabletCount()) {
+                    throwOverdraftError("tablet count", account, usage.GetTabletCount(), delta.GetTabletCount(), limits.GetTabletCount());
                 }
-                if (delta.TabletStaticMemory > 0 && usage.TabletStaticMemory + delta.TabletStaticMemory > limits.TabletStaticMemory) {
-                    throwOverdraftError("tablet static memory", account, usage.TabletStaticMemory, delta.TabletStaticMemory, limits.TabletStaticMemory);
+                if (delta.GetTabletStaticMemory() > 0 && usage.GetTabletStaticMemory() + delta.GetTabletStaticMemory() > limits.GetTabletStaticMemory()) {
+                    throwOverdraftError("tablet static memory", account, usage.GetTabletStaticMemory(), delta.GetTabletStaticMemory(), limits.GetTabletStaticMemory());
                 }
             }
 
@@ -2678,7 +2689,7 @@ private:
         // Leads to overcommit in hierarchical accounts!
         if (MustInitializeChunkHostMasterMemoryLimits_) {
             auto resourceLimits = RootAccount_->ClusterResourceLimits();
-            resourceLimits.ChunkHostMasterMemory = 100_GB;
+            resourceLimits.SetChunkHostMasterMemory(100_GB);
             TrySetResourceLimits(RootAccount_, resourceLimits);
 
             for (auto [accountId, account] : AccountMap_) {
@@ -2687,7 +2698,7 @@ private:
                 }
 
                 auto resourceLimits = account->ClusterResourceLimits();
-                resourceLimits.ChunkHostMasterMemory = 100_GB;
+                resourceLimits.SetChunkHostMasterMemory(100_GB);
 
                 TrySetResourceLimits(account, resourceLimits);
             }
@@ -2726,7 +2737,7 @@ private:
 
             auto* account = node->GetAccount();
             auto usage = node->GetDeltaResourceUsage();
-            usage.ChunkCount = 0;
+            usage.SetChunkCount(0);
             usage.ClearDiskSpace();
 
             auto& stat = statMap[account];
@@ -2739,10 +2750,10 @@ private:
         auto chargeStatMap = [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, i64 /*masterMemoryUsage*/, bool committed) {
             auto& stat = statMap[account];
             stat.NodeUsage.AddToMediumDiskSpace(mediumIndex, diskSpace);
-            stat.NodeUsage.ChunkCount += chunkCount;
+            stat.NodeUsage.SetChunkCount(stat.NodeUsage.GetChunkCount() + chunkCount);
             if (committed) {
                 stat.NodeCommittedUsage.AddToMediumDiskSpace(mediumIndex, diskSpace);
-                stat.NodeCommittedUsage.ChunkCount += chunkCount;
+                stat.NodeCommittedUsage.SetChunkCount(stat.NodeCommittedUsage.GetChunkCount() + chunkCount);
             }
         };
 
@@ -2779,7 +2790,7 @@ private:
 
             // Root node requires special handling (unless resource usage have previously been recomputed).
             auto accountUsageCopy = accountUsage;
-            ++accountUsageCopy.NodeCount;
+            accountUsageCopy.SetNodeCount(accountUsageCopy.GetNodeCount() + 1);
             return accountUsageCopy == expectedUsage;
         };
 
@@ -2828,7 +2839,7 @@ private:
             if (!IsObjectAlive(account)) {
                 continue;
             }
-            account->SetMasterMemoryUsage(0);
+            account->DetailedMasterMemoryUsage() = {};
         }
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -2845,7 +2856,7 @@ private:
         }
 
         auto chargeAccount = [&] (TAccount* account, int /*mediumIndex*/, i64 /*chunkCount*/, i64 /*diskSpace*/, i64 masterMemoryUsage, bool /*committed*/) {
-            account->SetMasterMemoryUsage(account->GetMasterMemoryUsage() + masterMemoryUsage);
+            account->DetailedMasterMemoryUsage()[EMasterMemoryType::Chunks] += masterMemoryUsage;
         };
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -3084,8 +3095,8 @@ private:
         // sys, 1 TB disk space, 100 000 nodes, 1 000 000 000 chunks, 100 000 tablets, 10TB tablet static memory, 100_GB master memory allowed for: root
         if (EnsureBuiltinAccountInitialized(SysAccount_, SysAccountId_, SysAccountName)) {
             auto resourceLimits = defaultResources;
-            resourceLimits.TabletCount = 100000;
-            resourceLimits.TabletStaticMemory = 10_TB;
+            resourceLimits.SetTabletCount(100000);
+            resourceLimits.SetTabletStaticMemory(10_TB);
             TrySetResourceLimits(SysAccount_, resourceLimits);
 
             SysAccount_->Acd().AddEntry(TAccessControlEntry(
@@ -3252,14 +3263,14 @@ private:
 
             const auto& resources = account->LocalStatistics().ResourceUsage;
 
-            auto newMemoryUsage = account->GetMasterMemoryUsage();
-            if (newMemoryUsage == resources.MasterMemory) {
+            const auto& newMemoryUsage = account->DetailedMasterMemoryUsage();
+            if (newMemoryUsage == resources.DetailedMasterMemory()) {
                 continue;
             }
 
             auto* entry = request.add_entries();
             ToProto(entry->mutable_account_id(), account->GetId());
-            entry->set_master_memory_usage(newMemoryUsage);
+            ToProto(entry->mutable_detailed_master_memory_usage(), newMemoryUsage);
         }
         CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
             ->CommitAndLog(Logger);
@@ -3282,7 +3293,7 @@ private:
         }
 
         account->SetLocalStatisticsPtr(&multicellStatistics[cellTag]);
-        account->SetMasterMemoryUsage(multicellStatistics[cellTag].ResourceUsage.MasterMemory);
+        account->DetailedMasterMemoryUsage() = multicellStatistics[cellTag].ResourceUsage.DetailedMasterMemory();
     }
 
     void OnAccountStatisticsGossip()
@@ -3409,14 +3420,14 @@ private:
                 continue;
             }
 
-            auto masterMemoryUsage = entry.master_memory_usage();
-            auto masterMemoryUsageDelta = masterMemoryUsage - account->LocalStatistics().ResourceUsage.MasterMemory;
+            auto newDetailedMasterMemory = FromProto<TDetailedMasterMemory>(entry.detailed_master_memory_usage());
+            auto masterMemoryUsageDelta = newDetailedMasterMemory - account->LocalStatistics().ResourceUsage.DetailedMasterMemory();
 
-            account->ClusterStatistics().ResourceUsage.MasterMemory += masterMemoryUsageDelta;
-            account->LocalStatistics().ResourceUsage.MasterMemory = masterMemoryUsage;
+            account->ClusterStatistics().ResourceUsage.DetailedMasterMemory() += masterMemoryUsageDelta;
+            account->LocalStatistics().ResourceUsage.DetailedMasterMemory() = newDetailedMasterMemory;
 
-            account->ClusterStatistics().CommittedResourceUsage.MasterMemory += masterMemoryUsageDelta;
-            account->LocalStatistics().CommittedResourceUsage.MasterMemory = masterMemoryUsage;
+            account->ClusterStatistics().CommittedResourceUsage.DetailedMasterMemory() += masterMemoryUsageDelta;
+            account->LocalStatistics().CommittedResourceUsage.DetailedMasterMemory() = newDetailedMasterMemory;
         }
     }
 
