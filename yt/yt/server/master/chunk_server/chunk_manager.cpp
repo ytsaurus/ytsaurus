@@ -3372,6 +3372,28 @@ private:
 
         // Go upwards and apply delta.
         auto statisticsDelta = chunk->GetStatistics();
+
+        // NB: Journal row count is not a sum of chunk row counts since chunks may overlap.
+        if (chunk->IsJournal()) {
+            if (!chunkList->Parents().empty()) {
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Journal has a non-trivial chunk tree structure (ChunkId: %v, ChunkListId: %v, ParentCount: %v)",
+                    chunk->GetId(),
+                    chunkList->GetId(),
+                    chunkList->Parents().size());
+            }
+
+            const auto& miscExt = chunk->MiscExt();
+            i64 oldJournalRowCount = chunkList->Statistics().RowCount;
+            i64 newJournalRowCount = miscExt.has_first_overlayed_row_index()
+                ? miscExt.first_overlayed_row_index() + miscExt.row_count()
+                : oldJournalRowCount + miscExt.row_count();
+
+            // NB: Last chunk can be nested into another.
+            newJournalRowCount = std::max<i64>(newJournalRowCount, oldJournalRowCount);
+
+            statisticsDelta.RowCount = newJournalRowCount - oldJournalRowCount;
+        }
+
         AccumulateUniqueAncestorsStatistics(chunk, statisticsDelta);
 
         if (chunkList->Children().back() == chunk) {
