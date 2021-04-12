@@ -1441,7 +1441,12 @@ class TestAccounts(AccountsTestSuiteBase):
         assert get("//sys/accounts/a/@ref_counter") == 3
 
     def _get_master_memory_usage(self, account):
-        master_memory = get("//sys/accounts/" + account + "/@resource_usage/master_memory")
+        master_memory = get("//sys/accounts/{}/@resource_usage/master_memory".format(account))
+        assert master_memory >= 0
+        return master_memory
+
+    def _get_detailed_master_memory_usage(self, account, memory_type):
+        master_memory = get("//sys/accounts/{}/@resource_usage/detailed_master_memory/{}".format(account, memory_type))
         assert master_memory >= 0
         return master_memory
 
@@ -1455,10 +1460,14 @@ class TestAccounts(AccountsTestSuiteBase):
         wait(lambda: self._get_master_memory_usage("a") > 0)
         prev_usage = self._get_master_memory_usage("a")
 
+        node_usage = self._get_detailed_master_memory_usage("a", "nodes")
+        assert node_usage > 0
+
         set("//tmp/t/@a", "a")
         master_memory_sleep()
 
         wait(lambda: self._get_master_memory_usage("a") > prev_usage)
+        wait(lambda: self._get_master_memory_usage("a") - prev_usage == self._get_detailed_master_memory_usage("a", "attributes"))
         prev_usage = self._get_master_memory_usage("a")
 
         remove("//tmp/t/@a")
@@ -1481,8 +1490,12 @@ class TestAccounts(AccountsTestSuiteBase):
         wait(lambda: self._get_master_memory_usage("tmp") > 0)
         prev_usage = self._get_master_memory_usage("tmp")
 
+        wait(lambda: self._get_detailed_master_memory_usage("a", "chunks") > 0)
+        chunks_usage = self._get_detailed_master_memory_usage("a", "chunks")
+
         copy("//tmp/t", "//tmp/t2")
         wait(lambda: self._get_master_memory_usage("tmp") > prev_usage)
+        wait(lambda: self._get_detailed_master_memory_usage("tmp", "chunks") == chunks_usage)
 
     @authors("aleksandra-zh")
     def test_master_memory_chunks(self):
@@ -1633,6 +1646,10 @@ class TestAccounts(AccountsTestSuiteBase):
         sync_mount_table("//tmp/t")
 
         master_memory_sleep()
+
+        wait(lambda: self._get_detailed_master_memory_usage("a", "tablets") > 0)
+        tablets_usage = self._get_detailed_master_memory_usage("a", "tablets")
+
         wait(lambda: self._get_master_memory_usage("a") > 0)
         prev_usage = self._get_master_memory_usage("a")
 
@@ -1642,6 +1659,7 @@ class TestAccounts(AccountsTestSuiteBase):
         sync_mount_table("//tmp/t")
 
         wait(lambda: self._get_master_memory_usage("a") - prev_usage >= key_length - 100)
+        wait(lambda: self._get_detailed_master_memory_usage("a", "tablets") - tablets_usage >= key_length - 100)
 
     @authors("aleksandra-zh")
     def test_master_memory_violate_limits(self):

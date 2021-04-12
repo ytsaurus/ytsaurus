@@ -141,7 +141,8 @@ public:
     virtual NSecurityServer::TClusterResources GetDeltaResourceUsage() const override;
     virtual NSecurityServer::TClusterResources GetTotalResourceUsage() const override;
 
-    virtual i64 GetMasterMemoryUsage() const override;
+    virtual NSecurityServer::TDetailedMasterMemory GetDetailedMasterMemoryUsage() const override;
+
     virtual NTabletServer::TTabletResources GetTabletResourceUsage() const override;
     void RecomputeTabletMasterMemoryUsage();
 

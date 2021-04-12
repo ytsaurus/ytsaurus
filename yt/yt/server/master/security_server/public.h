@@ -19,6 +19,7 @@ class TClusterResources;
 class TAccountStatistics;
 class TRequestStatisticsUpdate;
 class TUserStatistics;
+class TDetailedMasterMemory;
 
 } // namespace NProto
 
@@ -71,6 +72,8 @@ struct TPermissionCheckResponse;
 class TClusterResourceLimits;
 class TClusterResources;
 
+class TDetailedMasterMemory;
+
 struct TUserWorkload;
 
 constexpr int TypicalAccessLogAttributeCount = 1;
@@ -114,6 +117,13 @@ DEFINE_ENUM(EAccessDeniedReason,
 DEFINE_ENUM(EUserWorkloadType,
     (Read)
     (Write)
+);
+
+DEFINE_ENUM(EMasterMemoryType,
+    ((Nodes)          (0))
+    ((Chunks)         (1))
+    ((Attributes)     (2))
+    ((Tablets)        (3))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

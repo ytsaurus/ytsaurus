@@ -129,23 +129,21 @@ TClusterResources TCypressNode::GetDeltaResourceUsage() const
 {
     YT_VERIFY(!IsExternal());
 
-    NSecurityServer::TClusterResources result;
-    result.NodeCount = 1;
-    return result;
+    return TClusterResources()
+        .SetNodeCount(1);
 }
 
 TClusterResources TCypressNode::GetTotalResourceUsage() const
 {
-    NSecurityServer::TClusterResources result;
-    result.NodeCount = 1;
-    return result;
+    return TClusterResources()
+        .SetNodeCount(1);
 }
 
-i64 TCypressNode::GetMasterMemoryUsage() const
+TDetailedMasterMemory TCypressNode::GetDetailedMasterMemoryUsage() const
 {
-    i64 result = 0;
+    TDetailedMasterMemory result;
     if (Attributes_) {
-        result += Attributes_->GetMasterMemoryUsage();
+        result[EMasterMemoryType::Attributes] += Attributes_->GetMasterMemoryUsage();
     }
     return result;
 }

@@ -51,7 +51,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TString, LegacyName);
 
     //! Transient property.
-    DEFINE_BYVAL_RW_PROPERTY(i64, MasterMemoryUsage);
+    DEFINE_BYREF_RW_PROPERTY(TDetailedMasterMemory, DetailedMasterMemoryUsage);
 
 public:
     explicit TAccount(TAccountId id, bool isRoot = false);

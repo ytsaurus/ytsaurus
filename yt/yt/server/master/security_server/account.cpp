@@ -140,27 +140,27 @@ bool TAccount::IsDiskSpaceLimitViolated(int mediumIndex) const
 bool TAccount::IsNodeCountLimitViolated() const
 {
     // See TSecurityManager::ValidateResourceUsageIncrease for the reason why committed usage is compared here.
-    return ClusterStatistics_.CommittedResourceUsage.NodeCount > ClusterResourceLimits_.NodeCount;
+    return ClusterStatistics_.CommittedResourceUsage.GetNodeCount() > ClusterResourceLimits_.GetNodeCount();
 }
 
 bool TAccount::IsChunkCountLimitViolated() const
 {
-    return ClusterStatistics_.ResourceUsage.ChunkCount > ClusterResourceLimits_.ChunkCount;
+    return ClusterStatistics_.ResourceUsage.GetChunkCount() > ClusterResourceLimits_.GetChunkCount();
 }
 
 bool TAccount::IsTabletCountLimitViolated() const
 {
-    return ClusterStatistics_.ResourceUsage.TabletCount > ClusterResourceLimits_.TabletCount;
+    return ClusterStatistics_.ResourceUsage.GetTabletCount() > ClusterResourceLimits_.GetTabletCount();
 }
 
 bool TAccount::IsTabletStaticMemoryLimitViolated() const
 {
-    return ClusterStatistics_.ResourceUsage.TabletStaticMemory > ClusterResourceLimits_.TabletStaticMemory;
+    return ClusterStatistics_.ResourceUsage.GetTabletStaticMemory() > ClusterResourceLimits_.GetTabletStaticMemory();
 }
 
 bool TAccount::IsMasterMemoryLimitViolated() const
 {
-    return ClusterStatistics_.ResourceUsage.MasterMemory > ClusterResourceLimits_.MasterMemory;
+    return ClusterStatistics_.ResourceUsage.GetTotalMasterMemory() > ClusterResourceLimits_.GetMasterMemory();
 }
 
 bool TAccount::IsMasterMemoryLimitViolated(TCellTag cellTag) const
@@ -176,13 +176,13 @@ bool TAccount::IsMasterMemoryLimitViolated(TCellTag cellTag) const
         return false;
     }
 
-    return usageIt->second.ResourceUsage.MasterMemory > limitIt->second;
+    return usageIt->second.ResourceUsage.GetTotalMasterMemory() > limitIt->second;
 }
 
 bool TAccount::IsChunkHostMasterMemoryLimitViolated(const TMulticellManagerPtr& multicellManager) const
 {
     auto totalRoleMasterMemory = GetChunkHostMasterMemoryUsage(multicellManager);
-    return totalRoleMasterMemory > ClusterResourceLimits_.ChunkHostMasterMemory;
+    return totalRoleMasterMemory > ClusterResourceLimits_.GetChunkHostMasterMemory();
 }
 
 i64 TAccount::GetChunkHostMasterMemoryUsage(const TMulticellManagerPtr& multicellManager) const
@@ -192,7 +192,7 @@ i64 TAccount::GetChunkHostMasterMemoryUsage(const TMulticellManagerPtr& multicel
     for (auto cellTag : cellTags) {
         auto roleMulticellStatisticsIt = MulticellStatistics_.find(cellTag);
         if (roleMulticellStatisticsIt != MulticellStatistics_.end()) {
-            totalRoleMasterMemory += roleMulticellStatisticsIt->second.ResourceUsage.MasterMemory;
+            totalRoleMasterMemory += roleMulticellStatisticsIt->second.ResourceUsage.GetTotalMasterMemory();
         }
     }
 

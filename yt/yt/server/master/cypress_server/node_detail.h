@@ -16,6 +16,7 @@
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
 #include <yt/yt/server/master/security_server/account.h>
+#include <yt/yt/server/master/security_server/detailed_master_memory.h>
 #include <yt/yt/server/master/security_server/security_manager.h>
 
 #include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>
@@ -852,7 +853,8 @@ public:
     virtual void Load(NCellMaster::TLoadContext& context) override;
 
     virtual int GetGCWeight() const override;
-    virtual i64 GetMasterMemoryUsage() const override;
+
+    virtual NSecurityServer::TDetailedMasterMemory GetDetailedMasterMemoryUsage() const override;
 
     void AssignChildren(
         const NObjectServer::TObjectPartCoWPtr<TMapNodeChildren>& children,

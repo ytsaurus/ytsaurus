@@ -1083,9 +1083,11 @@ int TMapNode::GetGCWeight() const
     return TObject::GetGCWeight() + KeyToChild().size();
 }
 
-i64 TMapNode::GetMasterMemoryUsage() const
+TDetailedMasterMemory TMapNode::GetDetailedMasterMemoryUsage() const
 {
-    return TCompositeNodeBase::GetMasterMemoryUsage() + Children_.Get().GetMasterMemoryUsage();
+    auto result = TCompositeNodeBase::GetDetailedMasterMemoryUsage();
+    result[EMasterMemoryType::Nodes] += Children_.Get().GetMasterMemoryUsage();
+    return result;
 }
 
 void TMapNode::AssignChildren(

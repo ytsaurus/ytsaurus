@@ -199,9 +199,11 @@ TTabletResources TTableNode::GetTabletResourceUsage() const
     return resourceUsage + GetExternalTabletResourceUsage();
 }
 
-i64 TTableNode::GetMasterMemoryUsage() const
+TDetailedMasterMemory TTableNode::GetDetailedMasterMemoryUsage() const
 {
-    return TChunkOwnerBase::GetMasterMemoryUsage() + GetTabletMasterMemoryUsage();
+    auto result = TChunkOwnerBase::GetDetailedMasterMemoryUsage();
+    result[EMasterMemoryType::Tablets] += GetTabletMasterMemoryUsage();
+    return result;
 }
 
 void TTableNode::RecomputeTabletMasterMemoryUsage()

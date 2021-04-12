@@ -126,6 +126,7 @@ DEFINE_ENUM(EMasterReign,
     ((BuiltinEnableSkynetSharing)                                   (1603))  // aleksandra-zh
     ((RefactorTError)                                               (1604))  // babenko
     ((ProperStoreWriterDefaults)                                    (1605))  // babenko
+    ((DetailedMasterMemory)                                         (1606))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////

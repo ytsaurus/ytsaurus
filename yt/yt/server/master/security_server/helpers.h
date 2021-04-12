@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/core/misc/public.h>
+#include "public.h"
 
 namespace NYT::NSecurityServer {
 

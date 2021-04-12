@@ -266,7 +266,7 @@ NSecurityServer::TClusterResources TChunkOwnerBase::GetDiskUsage(const TDataStat
                 statistics.regular_disk_space(),
                 statistics.erasure_disk_space()));
     }
-    result.ChunkCount = statistics.chunk_count();
+    result.SetChunkCount(statistics.chunk_count());
     return result;
 }
 
