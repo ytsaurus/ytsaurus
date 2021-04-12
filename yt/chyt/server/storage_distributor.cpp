@@ -103,7 +103,7 @@ DB::ThrottlerPtr CreateNetThrottler(const DB::Settings& settings)
 
 DB::BlockInputStreamPtr CreateLocalStream(
     const DB::ASTPtr& queryAst,
-    const DB::Context& context,
+    DB::ContextPtr context,
     DB::QueryProcessingStage::Enum processedStage)
 {
     DB::InterpreterSelectQuery interpreter(queryAst, context, DB::SelectQueryOptions(processedStage));
@@ -119,7 +119,7 @@ DB::Pipe CreateRemoteSource(
     const IClusterNodePtr& remoteNode,
     const DB::ASTPtr& queryAst,
     TQueryId remoteQueryId,
-    const DB::Context& context,
+    DB::ContextPtr context,
     const DB::ThrottlerPtr& throttler,
     const DB::Tables& externalTables,
     DB::QueryProcessingStage::Enum processedStage,
@@ -151,7 +151,7 @@ DB::Pipe CreateRemoteSource(
         blockHeader,
         context,
         throttler,
-        context.getQueryContext().getScalars(),
+        context->getQueryContext()->getScalars(),
         externalTables,
         processedStage);
     remoteQueryExecutor->setPoolMode(DB::PoolMode::GET_MANY);
@@ -183,7 +183,7 @@ DB::Pipe CreateRemoteSource(
     bool asyncRead = false;
     if (!isInsert && processedStage == DB::QueryProcessingStage::Complete) {
         addTotals = queryAst->as<DB::ASTSelectQuery &>().group_by_with_totals;
-        addExtremes = context.getSettingsRef().extremes;
+        addExtremes = context->getSettingsRef().extremes;
     }
 
     auto pipe = createRemoteSourcePipe(remoteQueryExecutor, addAggregationInfo, addTotals, addExtremes, asyncRead);
@@ -225,14 +225,14 @@ public:
         const std::vector<TString>& realColumnNames,
         const std::vector<TString>& virtualColumnNames,
         DB::SelectQueryInfo& queryInfo,
-        const DB::Context& context,
+        DB::ContextPtr context,
         TQueryContext* queryContext,
         TStorageContext* storageContext,
         DB::QueryProcessingStage::Enum processedStage)
         : RealColumnNames_(realColumnNames)
         , VirtualColumnNames_(virtualColumnNames)
         , QueryInfo_(queryInfo)
-        , Context_(context)
+        , Context_(DB::Context::createCopy(context))
         , QueryContext_(queryContext)
         , StorageContext_(storageContext)
         , ProcessedStage_(processedStage)
@@ -269,7 +269,7 @@ public:
         YT_LOG_INFO("Starting distribution (RealColumnNames_: %v, NodeCount: %v, MaxThreads: %v, SubqueryCount: %v)",
             RealColumnNames_,
             CliqueNodes_.size(),
-            static_cast<ui64>(Context_.getSettings().max_threads),
+            static_cast<ui64>(Context_->getSettings().max_threads),
             Subqueries_.size());
 
         std::sort(Subqueries_.begin(), Subqueries_.end(), [] (const TSubquery& lhs, const TSubquery& rhs) {
@@ -362,10 +362,10 @@ public:
 
     void Fire()
     {
-        const auto& settings = Context_.getSettingsRef();
+        const auto& settings = Context_->getSettingsRef();
 
-        DB::Context newContext(Context_);
-        newContext.setSettings(PrepareLeafJobSettings(settings));
+        auto newContext = DB::Context::createCopy(Context_);
+        newContext->setSettings(PrepareLeafJobSettings(settings));
 
         // TODO(max42): do we need them?
         auto throttler = CreateNetThrottler(settings);
@@ -387,7 +387,7 @@ public:
                 remoteQueryId,
                 newContext,
                 throttler,
-                Context_.getExternalTables(),
+                Context_->getExternalTables(),
                 ProcessedStage_,
                 SelectQueryIndex_,
                 Logger);
@@ -445,7 +445,7 @@ public:
             pipeline->init(std::move(pipe));
         }
         auto result = std::make_unique<DB::QueryPipeline>(
-            DB::QueryPipeline::unitePipelines(std::move(pipelines), {}, DB::ExpressionActionsSettings::fromContext(Context_)));
+            DB::QueryPipeline::unitePipelines(std::move(pipelines), {}));
         result->addTransform(std::make_shared<DB::ResizeProcessor>(DB::Block(), Pipes_.size(), 1));
         result->setSinks(
             [=] (const DB::Block & header, DB::QueryPipeline::StreamType) mutable -> DB::ProcessorPtr {
@@ -459,7 +459,7 @@ private:
     std::vector<TString> RealColumnNames_;
     std::vector<TString> VirtualColumnNames_;
     const DB::SelectQueryInfo& QueryInfo_;
-    DB::Context Context_;
+    DB::ContextPtr Context_;
     TQueryContext* const QueryContext_;
     TStorageContext* const StorageContext_;
     const DB::QueryProcessingStage::Enum ProcessedStage_;
@@ -481,7 +481,7 @@ private:
     void PrepareThreadSubqueries(
         int subqueryCount,
         const DB::SelectQueryInfo& queryInfo,
-        const DB::Context& context)
+        DB::ContextPtr context)
     {
         NTracing::GetCurrentTraceContext()->AddTag("chyt.subquery_count", subqueryCount);
         NTracing::GetCurrentTraceContext()->AddTag(
@@ -501,7 +501,7 @@ private:
             queryAnalysisResult,
             RealColumnNames_,
             VirtualColumnNames_,
-            TClickHouseIndexBuilder(&queryInfo, &context));
+            TClickHouseIndexBuilder(&queryInfo, context));
 
         YT_VERIFY(!SpecTemplate_.DataSourceDirectory);
         SpecTemplate_.DataSourceDirectory = std::move(input.DataSourceDirectory);
@@ -560,7 +560,7 @@ private:
             queryAnalysisResult.KeyColumnCount,
             queryAnalysisResult.PoolKind,
             SpecTemplate_.DataSourceDirectory,
-            std::max<int>(1, subqueryCount * context.getSettings().max_threads),
+            std::max<int>(1, subqueryCount * context->getSettings().max_threads),
             samplingRate,
             StorageContext_,
             QueryContext_->Host->GetConfig()->Subquery);
@@ -601,7 +601,7 @@ public:
     friend class TQueryAnalyzer;
 
     TStorageDistributor(
-        const DB::Context& context,
+        DB::ContextPtr context,
         std::vector<TTablePtr> tables,
         TTableSchemaPtr schema)
         : TYtStorageBase({"YT", "distributor"})
@@ -654,7 +654,7 @@ public:
         return Schema_->IsSorted();
     }
 
-    virtual bool mayBenefitFromIndexForIn(const DB::ASTPtr& /* queryAst */, const DB::Context& /* context */, const DB::StorageMetadataPtr& /* metadata_snapshot */) const override
+    virtual bool mayBenefitFromIndexForIn(const DB::ASTPtr& /* queryAst */, DB::ContextPtr /* context */, const DB::StorageMetadataPtr& /* metadata_snapshot */) const override
     {
         return supportsIndexForIn();
     }
@@ -672,13 +672,13 @@ public:
     }
 
     virtual DB::QueryProcessingStage::Enum getQueryProcessingStage(
-        const DB::Context& context,
+        DB::ContextPtr context,
         DB::QueryProcessingStage::Enum toStage,
         DB::SelectQueryInfo &) const override
     {
         // If we use WithMergeableState while using single node, caller would process aggregation functions incorrectly.
         // See also: need_second_distinct_pass at DB::InterpreterSelectQuery::executeImpl().
-        if (context.getSettings().distributed_group_by_no_merge) {
+        if (context->getSettings().distributed_group_by_no_merge) {
             return DB::QueryProcessingStage::Complete;
         }
 
@@ -697,7 +697,7 @@ public:
         const DB::Names& columnNames,
         const DB::StorageMetadataPtr& metadataSnapshot,
         DB::SelectQueryInfo& queryInfo,
-        const DB::Context& context,
+        DB::ContextPtr context,
         DB::QueryProcessingStage::Enum processedStage,
         size_t /* maxBlockSize */,
         unsigned /* numStreams */) override
@@ -720,7 +720,7 @@ public:
         return true;
     }
 
-    virtual DB::BlockOutputStreamPtr write(const DB::ASTPtr& /* ptr */, const DB::StorageMetadataPtr& /*metadata_snapshot*/, const DB::Context& /* context */) override
+    virtual DB::BlockOutputStreamPtr write(const DB::ASTPtr& /* ptr */, const DB::StorageMetadataPtr& /*metadata_snapshot*/, DB::ContextPtr /* context */) override
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
 
@@ -764,7 +764,7 @@ public:
         }
     }
 
-    virtual DB::QueryPipelinePtr distributedWrite(const DB::ASTInsertQuery & query, const DB::Context& context) override
+    virtual DB::QueryPipelinePtr distributedWrite(const DB::ASTInsertQuery & query, DB::ContextPtr context) override
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
 
@@ -786,7 +786,7 @@ public:
         auto* select = selectWithUnion->list_of_selects->children[0]->as<DB::ASTSelectQuery>();
         YT_VERIFY(select);
 
-        DB::JoinedTables joinedTables(DB::Context(context), *select);
+        DB::JoinedTables joinedTables(DB::Context::createCopy(context), *select);
         auto sourceStorage = std::dynamic_pointer_cast<TStorageDistributor>(joinedTables.getLeftTableStorage());
         if (!sourceStorage) {
             // Source storage is not a distributor; no distributed INSERT for today, sorry.
@@ -803,7 +803,7 @@ public:
         // Then, prepare distributed query; we need to interpret SELECT part in order to obtain some additional information
         // for preparer (like required columns or select query info).
 
-        DB::InterpreterSelectQuery selectInterpreter(select->clone(), DB::Context(context), DB::SelectQueryOptions());
+        DB::InterpreterSelectQuery selectInterpreter(select->clone(), DB::Context::createCopy(context), DB::SelectQueryOptions());
         selectInterpreter.execute();
         auto selectQueryInfo = selectInterpreter.getQueryInfo();
 
@@ -811,7 +811,7 @@ public:
             selectInterpreter.getRequiredColumns(),
             /* metadataSnapshot */ nullptr,
             selectQueryInfo,
-            DB::Context(context),
+            DB::Context::createCopy(context),
             DB::QueryProcessingStage::Complete);
 
         if (overwrite) {
@@ -930,7 +930,7 @@ private:
         const DB::Names& columnNames,
         DB::StorageMetadataPtr metadataSnapshot,
         DB::SelectQueryInfo& queryInfo,
-        const DB::Context& context,
+        DB::ContextPtr context,
         DB::QueryProcessingStage::Enum processedStage)
     {
         if (!metadataSnapshot) {
@@ -958,7 +958,7 @@ private:
     }
 
     //! Erase underlying table (assuming that we have single underlying static table)
-    void EraseTable(const DB::Context& context)
+    void EraseTable(DB::ContextPtr context)
     {
         auto* queryContext = GetQueryContext(context);
 
@@ -976,7 +976,7 @@ private:
 
 DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
 {
-    auto* queryContext = GetQueryContext(args.local_context);
+    auto* queryContext = GetQueryContext(args.getLocalContext());
     const auto& client = queryContext->Client();
     const auto& Logger = queryContext->Logger;
 
@@ -1051,7 +1051,7 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
         queryContext->Logger);
 
     return std::make_shared<TStorageDistributor>(
-        args.local_context,
+        args.getLocalContext(),
         std::vector{table},
         schema);
 }
@@ -1059,7 +1059,7 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
 ////////////////////////////////////////////////////////////////////////////////
 
 DB::StoragePtr CreateStorageDistributor(
-    const DB::Context& context,
+    DB::ContextPtr context,
     std::vector<TTablePtr> tables)
 {
     if (tables.empty()) {

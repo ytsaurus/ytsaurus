@@ -51,7 +51,7 @@ DB::IndexDescription CreateClickHouseIndexDescription(
 TClickHouseIndex::TClickHouseIndex(
     DB::IndexDescription description,
     const DB::SelectQueryInfo& query,
-    const DB::Context& context)
+    DB::ContextPtr context)
     : Description_(std::move(description))
     , Index_(DB::MergeTreeIndexFactory::instance().get(Description_))
     , Condition_(Index_->createIndexCondition(query, context))
@@ -66,9 +66,9 @@ DB::MergeTreeIndexAggregatorPtr TClickHouseIndex::CreateAggregator() const
 
 TClickHouseIndexBuilder::TClickHouseIndexBuilder(
     const DB::SelectQueryInfo* query,
-    const DB::Context* context)
-    : Query_(query)
-    , Context_(context)
+    DB::ContextPtr context_)
+    : DB::WithContext(context_)
+    , Query_(query)
 { }
 
 TClickHouseIndexPtr TClickHouseIndexBuilder::CreateIndex(
@@ -78,7 +78,7 @@ TClickHouseIndexPtr TClickHouseIndexBuilder::CreateIndex(
     return New<TClickHouseIndex>(
         NDetail::CreateClickHouseIndexDescription(namesAndTypes, indexType),
         *Query_,
-        *Context_);
+        getContext());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

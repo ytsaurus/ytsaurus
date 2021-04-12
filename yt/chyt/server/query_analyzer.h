@@ -26,10 +26,10 @@ struct TQueryAnalysisResult
     EPoolKind PoolKind;
 };
 
-class TQueryAnalyzer
+class TQueryAnalyzer : DB::WithContext
 {
 public:
-    TQueryAnalyzer(const DB::Context& context, const TStorageContext* storageContext, const DB::SelectQueryInfo& queryInfo, const NLogging::TLogger& logger);
+    TQueryAnalyzer(DB::ContextPtr context, const TStorageContext* storageContext, const DB::SelectQueryInfo& queryInfo, const NLogging::TLogger& logger);
 
     DB::ASTPtr RewriteQuery(
         const TRange<TSubquery> subqueries,
@@ -41,7 +41,6 @@ public:
     TQueryAnalysisResult Analyze();
 
 private:
-    const DB::Context& Context_;
     const TStorageContext* StorageContext_;
     DB::SelectQueryInfo QueryInfo_;
     NLogging::TLogger Logger;

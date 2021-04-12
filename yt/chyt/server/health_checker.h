@@ -13,13 +13,13 @@ namespace NYT::NClickHouseServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class THealthChecker
-    : public TRefCounted
+    : public TRefCounted, DB::WithContext
 {
 public:
     THealthChecker(
         THealthCheckerConfigPtr config,
         TString dataBaseUser,
-        DB::Context* databaseContext,
+        DB::ContextPtr databaseContext,
         THost* host);
 
     void Start();
@@ -27,7 +27,6 @@ public:
 private:
     const THealthCheckerConfigPtr Config_;
     const TString DatabaseUser_;
-    DB::Context* const DatabaseContext_;
     THost* const Host_;
     NConcurrency::TActionQueuePtr ActionQueue_;
     const NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;

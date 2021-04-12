@@ -107,7 +107,7 @@ static const TString SysClickHouse = "//sys/clickhouse";
 ///////////////////////////////////////////////////////////////////////////////
 
 class THost::TImpl
-    : public TRefCounted
+    : public TRefCounted, protected DB::WithContext
 {
 public:
     TImpl(
@@ -173,14 +173,14 @@ public:
             });
     }
 
-    void SetContext(DB::Context* context)
+    void SetContext(DB::ContextPtr context_)
     {
-        YT_VERIFY(context && !Context_);
-        Context_ = context;
+        YT_VERIFY(context_ && context.expired());
+        context = context_;
 
         QueryRegistry_ = New<TQueryRegistry>(
             ControlInvoker_,
-            Context_,
+            context_,
             Config_->ProcessListSnapshotUpdatePeriod);
         MemoryWatchdog_ = New<TMemoryWatchdog>(
             Config_->MemoryWatchdog,
@@ -189,7 +189,7 @@ public:
         HealthChecker_ = New<THealthChecker>(
             Config_->HealthChecker,
             Config_->User,
-            Context_,
+            context_,
             Owner_);
     }
 
@@ -197,7 +197,7 @@ public:
     {
         VERIFY_INVOKER_AFFINITY(GetControlInvoker());
 
-        YT_VERIFY(Context_);
+        YT_VERIFY(getContext());
 
         QueryRegistry_->Start();
         MemoryWatchdog_->Start();
@@ -322,7 +322,7 @@ public:
         for (const auto& [_, attributes] : nodeList) {
             auto host = attributes->Get<TString>("host");
             auto tcpPort = attributes->Get<i64>("tcp_port");
-            result.push_back(CreateClusterNode(TClusterNodeName{host, tcpPort}, Context_->getSettingsRef()));
+            result.push_back(CreateClusterNode(TClusterNodeName{host, tcpPort}, getContext()->getSettingsRef()));
         }
         return result;
     }
@@ -439,7 +439,6 @@ public:
 
 private:
     THost* Owner_;
-    DB::Context* Context_ = nullptr;
     const IInvokerPtr ControlInvoker_;
     const TYtConfigPtr Config_;
     TPorts Ports_;
@@ -845,7 +844,7 @@ std::shared_ptr<DB::IDatabase> THost::CreateYtDatabase() const
     return Impl_->CreateYtDatabase();
 }
 
-void THost::SetContext(DB::Context* context)
+void THost::SetContext(DB::ContextPtr context)
 {
     Impl_->SetContext(context);
 }

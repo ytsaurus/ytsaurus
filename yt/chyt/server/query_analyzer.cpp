@@ -70,8 +70,8 @@ void FillDataSliceDescriptors(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueryAnalyzer::TQueryAnalyzer(const DB::Context& context, const TStorageContext* storageContext, const DB::SelectQueryInfo& queryInfo, const TLogger& logger)
-    : Context_(context)
+TQueryAnalyzer::TQueryAnalyzer(DB::ContextPtr context_, const TStorageContext* storageContext, const DB::SelectQueryInfo& queryInfo, const TLogger& logger)
+    : DB::WithContext(context_)
     , StorageContext_(storageContext)
     , QueryInfo_(queryInfo)
     , Logger(logger)
@@ -338,14 +338,14 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
                     selectQuery->refWhere() = PopulatePredicateWithComputedColumns(
                         selectQuery->where(),
                         schema,
-                        Context_,
+                        getContext(),
                         queryInfoForKeyCondition.sets,
                         settings,
                         Logger);
                 }
             }
 
-            keyCondition = DB::KeyCondition(queryInfoForKeyCondition, Context_, ToNames(schema->GetKeyColumns()), primaryKeyExpression);
+            keyCondition = DB::KeyCondition(queryInfoForKeyCondition, getContext(), ToNames(schema->GetKeyColumns()), primaryKeyExpression);
         }
         result.KeyConditions.emplace_back(std::move(keyCondition));
         result.TableSchemas.emplace_back(storage->GetSchema());
@@ -478,13 +478,13 @@ std::shared_ptr<IStorageDistributor> TQueryAnalyzer::GetStorage(const DB::ASTTab
     }
     DB::StoragePtr storage;
     if (tableExpression->table_function) {
-        storage = const_cast<DB::Context&>(Context_.getQueryContext()).executeTableFunction(tableExpression->table_function);
+        storage = getContext()->getQueryContext()->executeTableFunction(tableExpression->table_function);
     } else if (tableExpression->database_and_table_name) {
         auto databaseAndTable = DB::DatabaseAndTableWithAlias(tableExpression->database_and_table_name);
         if (databaseAndTable.database.empty()) {
             databaseAndTable.database = "YT";
         }
-        storage = DB::DatabaseCatalog::instance().getTable({databaseAndTable.database, databaseAndTable.table}, Context_);
+        storage = DB::DatabaseCatalog::instance().getTable({databaseAndTable.database, databaseAndTable.table}, getContext());
     }
 
     return std::dynamic_pointer_cast<IStorageDistributor>(storage);

@@ -30,17 +30,17 @@ protected:
         GlobalContext_ = DB::Context::createGlobal(SharedContext.get());
     }
 
-    DB::Context CreateContext() const
+    DB::ContextPtr CreateContext() const
     {
         YT_VERIFY(GlobalContext_);
-        auto context = *GlobalContext_;
-        context.makeQueryContext();
+        auto context = DB::Context::createCopy(GlobalContext_);
+        context->makeQueryContext();
         return context;
     }
 
 private:
     DB::SharedContextHolder SharedContext_;
-    std::optional<DB::Context> GlobalContext_;
+    DB::ContextPtr GlobalContext_;
 };
 
 TEST_P(TComputedColumnPredicatePopulationTest, Test)

@@ -80,14 +80,14 @@ void ValidateNumberOfArguments(const TArguments& arguments, const size_t numArgu
 }
 
 // Arguments should be evaluated in-place
-std::string EvaluateIdentifierArgument(ASTPtr& argument, const Context& context)
+std::string EvaluateIdentifierArgument(ASTPtr& argument, ContextPtr context)
 {
     argument = evaluateConstantExpressionOrIdentifierAsLiteral(argument, context);
     return static_cast<const ASTLiteral &>(*argument).value.safeGet<std::string>();
 }
 
 template <typename T>
-T EvaluateArgument(ASTPtr& argument, const Context& context)
+T EvaluateArgument(ASTPtr& argument, ContextPtr context)
 {
     argument = evaluateConstantExpressionAsLiteral(argument, context);
     return static_cast<const ASTLiteral &>(*argument).value.safeGet<T>();
@@ -124,7 +124,7 @@ public:
         return GetName();
     }
 
-    void parseArguments(const ASTPtr& functionAst, const Context& context) override
+    void parseArguments(const ASTPtr& functionAst, ContextPtr context) override
     {
         auto& functionNode = typeid_cast<ASTFunction &>(*functionAst);
         auto& arguments = GetAllArguments(functionNode);
@@ -134,7 +134,7 @@ public:
         }
     }
 
-    ColumnsDescription getActualTableStructure(const Context& context) const override
+    ColumnsDescription getActualTableStructure(ContextPtr context) const override
     {
         auto table_tmp = Execute(context);
         return table_tmp->getInMemoryMetadataPtr()->getColumns();
@@ -142,7 +142,7 @@ public:
 
     StoragePtr executeImpl(
         const ASTPtr& /* functionAst */,
-        const Context& context,
+        ContextPtr context,
         const std::string& /* tableName */,
         ColumnsDescription /* cached_columns */) const override
     {
@@ -155,7 +155,7 @@ public:
     }
 
 private:
-    StoragePtr Execute(const Context& context) const
+    StoragePtr Execute(ContextPtr context) const
     {
         auto* queryContext = GetQueryContext(context);
 
@@ -186,7 +186,7 @@ public:
     TListFilterAndConcatenateTables()
     { }
 
-    void parseArguments(const ASTPtr& functionAst, const Context& context)
+    void parseArguments(const ASTPtr& functionAst, ContextPtr context)
     {
         auto& functionNode = typeid_cast<ASTFunction &>(*functionAst);
         auto& arguments = GetAllArguments(functionNode);
@@ -194,7 +194,7 @@ public:
         parsePathArguments(arguments, context);
     }
 
-    ColumnsDescription getActualTableStructure(const Context& context) const
+    ColumnsDescription getActualTableStructure(ContextPtr context) const
     {
         auto table_tmp = Execute(context);
         return table_tmp->getInMemoryMetadataPtr()->getColumns();
@@ -202,7 +202,7 @@ public:
 
     StoragePtr executeImpl(
         const ASTPtr& /* functionAst */,
-        const Context& context,
+        ContextPtr context,
         const std::string& /* tableName */,
         ColumnsDescription /* cached_columns */) const override
     {
@@ -215,13 +215,13 @@ public:
     }
 
 protected:
-    virtual void parsePathArguments(TArguments& arguments, const Context& context) = 0;
+    virtual void parsePathArguments(TArguments& arguments, ContextPtr context) = 0;
     virtual bool IsPathAllowed(const TYPath& path) const = 0;
 
 private:
     std::string GetDirectoryRequiredArgument(
         TArguments& arguments,
-        const Context& context) const
+        ContextPtr context) const
     {
         if (arguments.empty()) {
             throw Exception(
@@ -232,7 +232,7 @@ private:
         return EvaluateIdentifierArgument(arguments[0], context);
     }
 
-    StoragePtr Execute(const Context& context) const
+    StoragePtr Execute(ContextPtr context) const
     {
         auto* queryContext = GetQueryContext(context);
         const auto& Logger = queryContext->Logger;
@@ -300,7 +300,7 @@ public:
     }
 
 private:
-    void parsePathArguments(TArguments& arguments, const Context& context) override
+    void parsePathArguments(TArguments& arguments, ContextPtr context) override
     {
         args_count = arguments.size();
         if (args_count == 2) {
@@ -355,7 +355,7 @@ public:
 private:
     mutable std::unique_ptr<OptimizedRegularExpression> Matcher_;
 
-    void parsePathArguments(TArguments& arguments, const Context& context) override
+    void parsePathArguments(TArguments& arguments, ContextPtr context) override
     {
         // 1) directory, 2) regexp
         ValidateNumberOfArguments(arguments, 2);
@@ -392,7 +392,7 @@ public:
 private:
     mutable std::unique_ptr<Poco::Glob> Matcher_;
 
-    void parsePathArguments(TArguments& arguments, const Context& context) override
+    void parsePathArguments(TArguments& arguments, ContextPtr context) override
     {
         // 1) directory 2) pattern
         ValidateNumberOfArguments(arguments, 2);

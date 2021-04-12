@@ -60,7 +60,7 @@ public:
         const DB::Names& columnNames,
         const DB::StorageMetadataPtr& metadataSnapshot,
         DB::SelectQueryInfo& queryInfo,
-        const DB::Context& context,
+        DB::ContextPtr context,
         DB::QueryProcessingStage::Enum /* processedStage */,
         size_t /* maxBlockSize */,
         unsigned maxStreamCount) override
@@ -217,7 +217,7 @@ public:
     }
 
     virtual DB::QueryProcessingStage::Enum getQueryProcessingStage(
-        const DB::Context& /* context */,
+        DB::ContextPtr /* context */,
         DB::QueryProcessingStage::Enum /* toStage */,
         DB::SelectQueryInfo &) const override
     {

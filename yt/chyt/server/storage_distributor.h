@@ -29,7 +29,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 DB::StoragePtr CreateStorageDistributor(
-    const DB::Context& context,
+    DB::ContextPtr context,
     std::vector<TTablePtr> tables);
 
 void RegisterStorageDistributor();

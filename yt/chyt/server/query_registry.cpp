@@ -223,15 +223,15 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryRegistry::TImpl
-    : public NProfiling::ISensorProducer
+    : public NProfiling::ISensorProducer, DB::WithContext
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IYPathServicePtr, OrchidService);
 
-    TImpl(IInvokerPtr invoker, DB::Context* context, TDuration processListSnapshotUpdatePeriod)
-        : OrchidService_(IYPathService::FromProducer(BIND(&TImpl::BuildYson, MakeWeak(this))))
+    TImpl(IInvokerPtr invoker, DB::ContextPtr context, TDuration processListSnapshotUpdatePeriod)
+        : DB::WithContext(context)
+        , OrchidService_(IYPathService::FromProducer(BIND(&TImpl::BuildYson, MakeWeak(this))))
         , Invoker_(std::move(invoker))
-        , Context_(context)
         , QueryRegistryProfiler_(ClickHouseYtProfiler.WithPrefix("/query_registry"))
         , IdlePromise_(MakePromise<void>(TError()))
         , ProcessListSnapshotExecutor_(New<TPeriodicExecutor>(
@@ -410,12 +410,11 @@ public:
     void UpdateProcessListSnapshot()
     {
         auto guard = Guard(ProcessListSnapshotLock_);
-        ProcessListSnapshot_ = TProcessListSnapshot(Context_->getProcessList());
+        ProcessListSnapshot_ = TProcessListSnapshot(getContext()->getProcessList());
     }
 
 private:
     IInvokerPtr Invoker_;
-    DB::Context* Context_;
     THashSet<TQueryContextPtr> QueryContexts_;
 
     NProfiling::TProfiler QueryRegistryProfiler_;
@@ -471,7 +470,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueryRegistry::TQueryRegistry(IInvokerPtr invoker, DB::Context* context, TDuration processListSnapshotUpdatePeriod)
+TQueryRegistry::TQueryRegistry(IInvokerPtr invoker, DB::ContextPtr context, TDuration processListSnapshotUpdatePeriod)
     : Impl_(New<TImpl>(std::move(invoker), context, processListSnapshotUpdatePeriod))
 { }
 

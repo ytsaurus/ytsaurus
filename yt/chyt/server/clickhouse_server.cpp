@@ -67,7 +67,7 @@ public:
         : Host_(std::move(host))
         , Config_(config)
         , SharedContext_(DB::Context::createShared())
-        , ServerContext_(std::make_unique<DB::Context>(DB::Context::createGlobal(SharedContext_.get())))
+        , ServerContext_(DB::Context::createGlobal(SharedContext_.get()))
         , LayeredConfig_(ConvertToLayeredConfig(ConvertToNode(Config_)))
     {
         SetupLogger();
@@ -110,9 +110,9 @@ public:
         }
     }
 
-    DB::Context* GetContext() override
+    DB::ContextPtr GetContext() override
     {
-        return ServerContext_.get();
+        return ServerContext_;
     }
 
     // DB::Server overrides:
@@ -127,9 +127,9 @@ public:
         return *const_cast<Poco::Util::LayeredConfiguration*>(LayeredConfig_.get());
     }
 
-    DB::Context& context() const override
+    DB::ContextPtr context() const override
     {
-        return *ServerContext_;
+        return ServerContext_;
     }
 
     bool isCancelled() const override
@@ -141,7 +141,7 @@ private:
     THost* Host_;
     const TClickHouseConfigPtr Config_;
     DB::SharedContextHolder SharedContext_;
-    std::unique_ptr<DB::Context> ServerContext_;
+    DB::ContextPtr ServerContext_;
 
     // Poco representation of Config_.
     Poco::AutoPtr<Poco::Util::LayeredConfiguration> LayeredConfig_;
@@ -200,7 +200,7 @@ private:
         ServerContext_->setPath(Config_->DataPath);
 
         // This object will periodically calculate asynchronous metrics.
-        AsynchronousMetrics_ = std::make_unique<DB::AsynchronousMetrics>(*ServerContext_, 60);
+        AsynchronousMetrics_ = std::make_unique<DB::AsynchronousMetrics>(ServerContext_, 60);
 
         YT_LOG_DEBUG("Asynchronous metrics set up");
 
@@ -208,7 +208,7 @@ private:
 
         YT_LOG_DEBUG("Setting up databases");
 
-        SystemDatabase_ = std::make_shared<DB::DatabaseMemory>(DB::DatabaseCatalog::SYSTEM_DATABASE, *ServerContext_);
+        SystemDatabase_ = std::make_shared<DB::DatabaseMemory>(DB::DatabaseCatalog::SYSTEM_DATABASE, ServerContext_);
 
         DB::DatabaseCatalog::instance().attachDatabase(DB::DatabaseCatalog::SYSTEM_DATABASE, SystemDatabase_);
 
@@ -223,7 +223,7 @@ private:
         DB::DatabaseCatalog::instance().attachDatabase("YT", Host_->CreateYtDatabase());
         ServerContext_->setCurrentDatabase("YT");
 
-        auto DatabaseForTemporaryAndExternalTables = std::make_shared<DB::DatabaseMemory>(DB::DatabaseCatalog::TEMPORARY_DATABASE, *ServerContext_);
+        auto DatabaseForTemporaryAndExternalTables = std::make_shared<DB::DatabaseMemory>(DB::DatabaseCatalog::TEMPORARY_DATABASE, ServerContext_);
         DB::DatabaseCatalog::instance().attachDatabase(DB::DatabaseCatalog::TEMPORARY_DATABASE, DatabaseForTemporaryAndExternalTables);
 
         YT_LOG_DEBUG("Initializing system logs");
@@ -269,7 +269,7 @@ private:
         // to extract table creation query and apply it to our two
         // buffer tables implementing in-memory query log with rotation.
         auto log = std::make_shared<DB::QueryLog>(
-            *ServerContext_,
+            ServerContext_,
             "system",
             "{table_name}",
             Config_->QueryLog->Engine,
@@ -295,7 +295,7 @@ private:
         createTableQueryNewer = replace(createTableQueryNewer, DatabasePlaceholder, "system");
 
         YT_LOG_DEBUG("Creating newer query log table (Query: %v)", createTableQueryNewer);
-        DB::executeQuery(createTableQueryNewer, *ServerContext_, true);
+        DB::executeQuery(createTableQueryNewer, ServerContext_, true);
 
         auto createTableQueryOlder = createTableQuery;
         createTableQueryOlder = replace(createTableQueryOlder, TableNamePlaceholder, "query_log_older");
@@ -303,7 +303,7 @@ private:
         createTableQueryOlder = replace(createTableQueryOlder, DatabasePlaceholder, "");
 
         YT_LOG_DEBUG("Creating older query log table (Query: %v)", createTableQueryOlder);
-        DB::executeQuery(createTableQueryOlder, *ServerContext_, true);
+        DB::executeQuery(createTableQueryOlder, ServerContext_, true);
     }
 
     void SetupServers()
@@ -384,7 +384,7 @@ private:
         }
 
         for (
-            auto tableIterator = SystemDatabase_->getTablesIterator(*ServerContext_);
+            auto tableIterator = SystemDatabase_->getTablesIterator(ServerContext_);
             tableIterator->isValid();
             tableIterator->next())
         {

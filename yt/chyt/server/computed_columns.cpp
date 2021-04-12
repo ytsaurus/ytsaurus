@@ -126,13 +126,12 @@ std::optional<std::vector<TString>> IdentifierTupleToColumnNames(const DB::IAST&
 
 struct TComputedColumnPopulationMatcher
 {
-    struct Data
+    struct Data : public DB::WithContext
     {
         const std::vector<TComputedColumnEntry>& Entries;
         DB::Block& BlockWithConstants;
         const TTableSchemaPtr& TableSchema;
         DB::PreparedSets& PreparedSets;
-        const DB::Context& Context;
         const TQuerySettingsPtr& Settings;
         TLogger Logger;
     };
@@ -236,12 +235,12 @@ struct TComputedColumnPopulationMatcher
         DB::Block block;
         const auto& functionAst = std::dynamic_pointer_cast<DB::ASTFunction>(literal);
         if (functionAst && (functionAst->name == "tuple" || functionAst->name == "array")) {
-            block = DB::createBlockForSet(std::make_shared<DB::DataTypeTuple>(dataTypes), functionAst, dataTypes, data.Context);
+            block = DB::createBlockForSet(std::make_shared<DB::DataTypeTuple>(dataTypes), functionAst, dataTypes, data.getContext());
         } else {
             YT_ABORT();
         }
 
-        auto set = std::make_shared<DB::Set>(DB::SizeLimits(), true /* fill_set_elements */, data.Context.getSettingsRef().transform_null_in);
+        auto set = std::make_shared<DB::Set>(DB::SizeLimits(), true /* fill_set_elements */, data.getContext()->getSettingsRef().transform_null_in);
         set->setHeader(block.cloneEmpty());
         set->insertFromBlock(block);
         set->finishInsert();
@@ -336,7 +335,7 @@ struct TComputedColumnPopulationMatcher
         return conjunctionAst;
     }
 
-    static bool EvaluateConstant(DB::ASTPtr& ast, DB::Field& field, DB::DataTypePtr& dataType, const DB::Context& context)
+    static bool EvaluateConstant(DB::ASTPtr& ast, DB::Field& field, DB::DataTypePtr& dataType, DB::ContextPtr context)
     {
         try {
             std::tie(field, dataType) = DB::evaluateConstantExpression(ast, context);
@@ -380,7 +379,7 @@ struct TComputedColumnPopulationMatcher
                 DB::Field constField;
                 DB::DataTypePtr constDataType;
 
-                if (!EvaluateConstant(rhs, constField, constDataType, data.Context)) {
+                if (!EvaluateConstant(rhs, constField, constDataType, data.getContext())) {
                     YT_LOG_TRACE("Right-hand is non-constant (Rhs: %v, SwapAttempt: %v)", rhs, swapAttempt);
                     continue;
                 }
@@ -438,7 +437,7 @@ struct TComputedColumnPopulationMatcher
             // Check if expression is constant.
             DB::Field constField;
             DB::DataTypePtr constDataType;
-            if (!EvaluateConstant(rhs, constField, constDataType, data.Context)) {
+            if (!EvaluateConstant(rhs, constField, constDataType, data.getContext())) {
                 YT_LOG_TRACE("Right-hand is non-constant (Rhs: %v, SwapAttempt: %v)", rhs);
                 return nullptr;
             }
@@ -484,7 +483,7 @@ using TComputedColumnPopulationVisitor = DB::InDepthNodeVisitor<TComputedColumnP
 DB::ASTPtr PopulatePredicateWithComputedColumns(
     DB::ASTPtr ast,
     const TTableSchemaPtr& schema,
-    const DB::Context& context,
+    DB::ContextPtr context,
     DB::PreparedSets& preparedSets,
     const TQuerySettingsPtr& settings,
     NLogging::TLogger logger)
@@ -518,11 +517,11 @@ DB::ASTPtr PopulatePredicateWithComputedColumns(
     YT_LOG_TRACE("Block with constants (Block: %v)", blockWithConstants);
 
     TComputedColumnPopulationMatcher::Data data{
+        DB::WithContext(context),
         .Entries = std::move(entries),
         .BlockWithConstants = blockWithConstants,
         .TableSchema = schema,
         .PreparedSets = preparedSets,
-        .Context = context,
         .Settings = settings,
         .Logger = logger
     };

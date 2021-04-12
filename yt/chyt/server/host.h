@@ -72,11 +72,11 @@ public:
     NApi::NNative::IClientPtr CreateClient(const TString& user);
 
     TClusterNodes GetNodes() const;
-    
+
     int GetInstanceCookie() const;
 
     const NChunkClient::IMultiReaderMemoryManagerPtr& GetMultiReaderMemoryManager() const;
-    
+
     const TQueryStatisticsReporterPtr& GetQueryStatisticsReporter() const;
 
     TYtConfigPtr GetConfig() const;
@@ -95,7 +95,7 @@ public:
 
     void PopulateSystemDatabase(DB::IDatabase* systemDatabase) const;
     std::shared_ptr<DB::IDatabase> CreateYtDatabase() const;
-    void SetContext(DB::Context* context);
+    void SetContext(DB::ContextPtr context);
 
     NTableClient::TTableColumnarStatisticsCachePtr GetTableColumnarStatisticsCache() const;
 

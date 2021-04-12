@@ -13,7 +13,7 @@ struct IClickHouseServer
 
     virtual void Stop() = 0;
 
-    virtual DB::Context* GetContext() = 0;
+    virtual DB::ContextPtr GetContext() = 0;
 };
 
 
