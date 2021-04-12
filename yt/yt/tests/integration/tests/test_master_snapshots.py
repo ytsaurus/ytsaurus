@@ -193,7 +193,7 @@ def check_master_memory():
 def check_dynamic_tables():
     sync_create_cells(1)
     create_dynamic_table(
-        "//tmp/t",
+        "//tmp/table_dynamic",
         schema=[
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "value", "type": "string"},
@@ -201,22 +201,22 @@ def check_dynamic_tables():
     )
     rows = [{"key": 0, "value": "0"}]
     keys = [{"key": 0}]
-    sync_mount_table("//tmp/t")
-    insert_rows("//tmp/t", rows)
-    sync_freeze_table("//tmp/t")
+    sync_mount_table("//tmp/table_dynamic")
+    insert_rows("//tmp/table_dynamic", rows)
+    sync_freeze_table("//tmp/table_dynamic")
 
     yield
 
     clear_metadata_caches()
     wait_for_cells()
-    assert lookup_rows("//tmp/t", keys) == rows
+    assert lookup_rows("//tmp/table_dynamic", keys) == rows
 
 
 def check_security_tags():
     for i in xrange(10):
         create(
             "table",
-            "//tmp/t" + str(i),
+            "//tmp/table_with_tags" + str(i),
             attributes={"security_tags": ["atag" + str(i), "btag" + str(i)]},
         )
 
@@ -224,7 +224,7 @@ def check_security_tags():
 
     for i in xrange(10):
         assert_items_equal(
-            get("//tmp/t" + str(i) + "/@security_tags"),
+            get("//tmp/table_with_tags" + str(i) + "/@security_tags"),
             ["atag" + str(i), "btag" + str(i)],
         )
 
@@ -275,6 +275,19 @@ def check_proxy_roles():
     assert get("//sys/rpc_proxy_roles/r/@proxy_kind") == "rpc"
 
 
+def check_attribute_tombstone_yt_14682():
+    create("table", "//tmp/table_with_attr")
+    set("//tmp/table_with_attr/@attr", "value")
+
+    tx = start_transaction()
+    remove("//tmp/table_with_attr/@attr", tx=tx)
+
+    yield
+
+    assert get("//tmp/table_with_attr/@attr") == "value"
+    assert not exists("//tmp/table_with_attr/@attr", tx=tx)
+
+
 class TestMasterSnapshots(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
@@ -292,6 +305,7 @@ class TestMasterSnapshots(YTEnvSetup):
             check_hierarchical_accounts,
             check_duplicate_attributes,
             check_proxy_roles,
+            check_attribute_tombstone_yt_14682,
             check_removed_account,  # keep this item last as it's sensitive to timings
         ]
 
