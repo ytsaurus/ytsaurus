@@ -1480,7 +1480,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         }
 
         const auto* impl = GetThisImpl();
-        if (impl->GetType() != type && !force && !ignoreTypeMismatch) {
+        // Existing Portal instead of MapNode is ok when ignore_existing is set.
+        auto compatibleTypes = type == EObjectType::MapNode && impl->GetType() == EObjectType::PortalExit;
+        if (impl->GetType() != type && !force && !ignoreTypeMismatch && !compatibleTypes) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
                 "%v already exists and has type %Qlv while node of %Qlv type is about to be created",
