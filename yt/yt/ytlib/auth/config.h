@@ -130,11 +130,14 @@ class TBlackboxTokenAuthenticatorConfig
 public:
     TString Scope;
     bool EnableScopeCheck;
+    bool GetUserTicket;
 
     TBlackboxTokenAuthenticatorConfig()
     {
         RegisterParameter("scope", Scope);
         RegisterParameter("enable_scope_check", EnableScopeCheck)
+            .Default(true);
+        RegisterParameter("get_user_ticket", GetUserTicket)
             .Default(true);
     }
 };
@@ -234,6 +237,8 @@ public:
     std::optional<TString> CsrfSecret;
     TDuration CsrfTokenTtl;
 
+    bool GetUserTicket;
+
     TBlackboxCookieAuthenticatorConfig()
     {
         RegisterParameter("domain", Domain)
@@ -243,6 +248,9 @@ public:
             .Default();
         RegisterParameter("csrf_token_ttl", CsrfTokenTtl)
             .Default(DefaultCsrfTokenTtl);
+
+        RegisterParameter("get_user_ticket", GetUserTicket)
+            .Default(true);
     }
 };
 

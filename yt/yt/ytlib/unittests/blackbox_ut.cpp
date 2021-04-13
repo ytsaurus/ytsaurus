@@ -45,11 +45,15 @@ protected:
         return config;
     }
 
-    IBlackboxServicePtr CreateDefaultBlackboxService(TDefaultBlackboxServiceConfigPtr config = {})
+    IBlackboxServicePtr CreateDefaultBlackboxService(
+        TDefaultBlackboxServiceConfigPtr config = {},
+        bool mockTvmService = true)
     {
-        MockTvmService_ = New<NiceMock<TMockTvmService>>();
-        ON_CALL(*MockTvmService_, GetServiceTicket("blackbox"))
-            .WillByDefault(Return(TString("blackbox_ticket")));
+        if (mockTvmService) {
+            MockTvmService_ = New<NiceMock<TMockTvmService>>();
+            ON_CALL(*MockTvmService_, GetServiceTicket("blackbox"))
+                .WillByDefault(Return(TString("blackbox_ticket")));
+        }
 
         return NAuth::CreateDefaultBlackboxService(
             config ? config : CreateDefaultBlackboxServiceConfig(),
@@ -170,6 +174,20 @@ TEST_F(TDefaultBlackboxTest, Success)
     });
     auto service = CreateDefaultBlackboxService();
     auto result = service->Call("hello", {{"foo", "bar"}, {"spam", "ham"}}).Get();
+    ASSERT_TRUE(result.IsOK());
+    EXPECT_TRUE(AreNodesEqual(result.ValueOrThrow(), ConvertTo<INodePtr>(TYsonString(TStringBuf("{status=ok}")))));
+}
+
+TEST_F(TDefaultBlackboxTest, NoTvmService)
+{
+    SetCallback([&] (TClientRequest* request) {
+        EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/blackbox"));
+        auto header = request->Input().Headers().FindHeader("X-Ya-Service-Ticket");
+        EXPECT_EQ(nullptr, header);
+        request->Output() << HttpResponse(200, R"jj({"status": "ok"})jj");
+    });
+    auto service = CreateDefaultBlackboxService(/*config*/ nullptr, /*useTvmService*/ false);
+    auto result = service->Call("hello", {}).Get();
     ASSERT_TRUE(result.IsOK());
     EXPECT_TRUE(AreNodesEqual(result.ValueOrThrow(), ConvertTo<INodePtr>(TYsonString(TStringBuf("{status=ok}")))));
 }

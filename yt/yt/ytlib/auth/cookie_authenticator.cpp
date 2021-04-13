@@ -90,8 +90,11 @@ public:
             {"sessionid", credentials.SessionId},
             {"host", Config_->Domain},
             {"userip", userIP},
-            {"get_user_ticket", "yes"}
         };
+
+        if (Config_->GetUserTicket) {
+            params["get_user_ticket"] = "yes";
+        }
 
         if (credentials.SslSessionId) {
             params["sslsessionid"] = *credentials.SslSessionId;

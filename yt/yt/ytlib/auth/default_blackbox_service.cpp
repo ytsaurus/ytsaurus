@@ -101,8 +101,10 @@ private:
         auto safeUrl = builder.FlushSafeUrl();
 
         auto httpHeaders = New<THeaders>();
-        httpHeaders->Add("X-Ya-Service-Ticket",
-            TvmService_->GetServiceTicket(Config_->BlackboxServiceId));
+        if (TvmService_) {
+            httpHeaders->Add("X-Ya-Service-Ticket",
+                TvmService_->GetServiceTicket(Config_->BlackboxServiceId));
+        }
 
         std::vector<TError> accumulatedErrors;
 
