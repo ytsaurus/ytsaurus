@@ -62,7 +62,6 @@ void TAutoMergeChunkPoolAdapter::Suspend(IChunkPoolInput::TCookie cookie)
     Task_->GetTaskHost()->GetAutoMergeDirector()->AccountMergeInputChunks(-CookieChunkCount_[cookie]);
 
     Task_->CurrentChunkCounts_[PoolIndex_] -= CookieChunkCount_[cookie];
-    YT_VERIFY(Task_->CurrentChunkCounts_[PoolIndex_] >= 0);
 
     TChunkPoolAdapterBase::Suspend(cookie);
 }
@@ -264,7 +263,6 @@ void TAutoMergeTask::OnJobStarted(TJobletPtr joblet)
 
     int poolIndex = *joblet->InputStripeList->PartitionTag;
     CurrentChunkCounts_[poolIndex] -= joblet->InputStripeList->TotalChunkCount;
-    YT_VERIFY(CurrentChunkCounts_[poolIndex] >= 0);
 
     TaskHost_->GetAutoMergeDirector()->OnMergeJobStarted();
 }
@@ -341,7 +339,6 @@ void TAutoMergeTask::OnChunkTeleported(TInputChunkPtr teleportChunk, std::any ta
     TaskHost_->RegisterTeleportChunk(std::move(teleportChunk), /*key*/ 0, GetTableIndex(poolIndex));
 
     --CurrentChunkCounts_[poolIndex];
-    YT_VERIFY(CurrentChunkCounts_[poolIndex] >= 0);
 }
 
 void TAutoMergeTask::SetStreamDescriptors(TJobletPtr joblet) const
