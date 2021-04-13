@@ -57,8 +57,11 @@ public:
         THashMap<TString, TString> params{
             {"oauth_token", token},
             {"userip", userIP},
-            {"get_user_ticket", "yes"}
         };
+
+        if (Config_->GetUserTicket) {
+            params["get_user_ticket"] = "yes";
+        }
 
         return Blackbox_->Call("oauth", params)
             .Apply(BIND(

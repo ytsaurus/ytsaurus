@@ -46,6 +46,11 @@ public:
         }
 
         if (config->BlackboxTokenAuthenticator && blackboxService) {
+            // COMPAT(gritukan): Set proper values in proxy configs and remove this code.
+            if (!TvmService_) {
+                config->BlackboxTokenAuthenticator->GetUserTicket = false;
+            }
+
             tokenAuthenticators.push_back(
                 CreateCachingTokenAuthenticator(
                     config->BlackboxTokenAuthenticator,
@@ -67,6 +72,11 @@ public:
         }
 
         if (config->BlackboxCookieAuthenticator && blackboxService) {
+            // COMPAT(gritukan): Set proper values in proxy configs and remove this code.
+            if (!TvmService_) {
+                config->BlackboxCookieAuthenticator->GetUserTicket = false;
+            }
+
             CookieAuthenticator_ = CreateCachingCookieAuthenticator(
                 config->BlackboxCookieAuthenticator,
                 CreateBlackboxCookieAuthenticator(
