@@ -427,7 +427,7 @@ class TestCypressCommands(object):
             yt.ping_transaction("incorrect")
 
         with pytest.raises(yt.YtError):
-            yt.ping_transaction("1-1-1-1")
+            yt.ping_transaction("4-3-2-1")
 
         with pytest.raises(yt.YtError):
             with yt.Transaction(timeout=2000, ping=False):
