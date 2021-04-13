@@ -535,8 +535,6 @@ public:
     //! Think twice before using!
     bool CrashControllerAgent;
 
-    bool ThrowExceptionDuringOprationAbort;
-
     TTestingOperationOptions();
 };
 
