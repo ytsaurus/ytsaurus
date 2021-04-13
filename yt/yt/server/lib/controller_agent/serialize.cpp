@@ -14,7 +14,7 @@ ESnapshotVersion GetCurrentSnapshotVersion()
 bool ValidateSnapshotVersion(int version)
 {
     // NB: Version can be not valid enum value, so we do not cast version to enum here.
-    return version >= ToUnderlying(ESnapshotVersion::CorrectLoggerSerialization_21_2) &&
+    return version >= ToUnderlying(ESnapshotVersion::Actually21_2StartsHere) &&
         version <= ToUnderlying(GetCurrentSnapshotVersion());
 }
 

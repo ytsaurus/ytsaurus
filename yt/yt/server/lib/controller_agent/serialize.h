@@ -24,6 +24,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((SliceIndex)                           (300509))
     // 21.2 start here
     ((CorrectLoggerSerialization_21_2)      (300602))
+    ((Actually21_2StartsHere)               (300603))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
