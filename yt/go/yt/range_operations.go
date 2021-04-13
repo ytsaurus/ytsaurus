@@ -12,6 +12,10 @@ type RangeOperationsCallback func(op OperationStatus)
 
 // RangeOperations iterates over operations with pagination and calls cb on each operation.
 func RangeOperations(ctx context.Context, yc Client, opts *ListOperationsOptions, cb RangeOperationsCallback) error {
+	if opts == nil {
+		opts = &ListOperationsOptions{}
+	}
+
 	for incomplete := true; incomplete; {
 		rsp, err := yc.ListOperations(ctx, opts)
 		if err != nil {
