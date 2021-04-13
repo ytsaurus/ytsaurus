@@ -1253,6 +1253,14 @@ class TestPortals(YTEnvSetup):
         id = get("//tmp/p/b/@id")
         assert get("#{}/x".format(id)) == {"hello": "worldx"}
 
+    @authors("s-v-m")
+    def test_create_map_node_with_ignore_existing(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("map_node", "//tmp/p", ignore_existing=True)
+        create("table", "//tmp/t")
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/t", ignore_existing=True)
+
 
 ##################################################################
 
