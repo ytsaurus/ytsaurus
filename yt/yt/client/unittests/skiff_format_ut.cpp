@@ -407,7 +407,6 @@ void TestAllWireTypes(bool useSchema)
 
         writer->Write({
             MakeRow({
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
                 MakeUnversionedInt64Value(-1, nameTable->GetIdOrRegisterName("int64")),
                 MakeUnversionedUint64Value(2, nameTable->GetIdOrRegisterName("uint64")),
                 MakeUnversionedDoubleValue(3.0, nameTable->GetIdOrRegisterName("double_1")),
@@ -422,11 +421,11 @@ void TestAllWireTypes(bool useSchema)
                 MakeUnversionedDoubleValue(7.0, nameTable->GetIdOrRegisterName("opt_double_2")),
                 MakeUnversionedBooleanValue(false, nameTable->GetIdOrRegisterName("opt_boolean")),
                 MakeUnversionedStringValue("eight", nameTable->GetIdOrRegisterName("opt_string32")),
+                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
             }).Get(),
         });
         writer->Write({
             MakeRow({
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
                 MakeUnversionedInt64Value(-9, nameTable->GetIdOrRegisterName("int64")),
                 MakeUnversionedUint64Value(10, nameTable->GetIdOrRegisterName("uint64")),
                 MakeUnversionedDoubleValue(11.0, nameTable->GetIdOrRegisterName("double_1")),
@@ -441,6 +440,7 @@ void TestAllWireTypes(bool useSchema)
                 MakeUnversionedSentinelValue(EValueType::Null, nameTable->GetIdOrRegisterName("opt_double_2")),
                 MakeUnversionedSentinelValue(EValueType::Null, nameTable->GetIdOrRegisterName("opt_boolean")),
                 MakeUnversionedSentinelValue(EValueType::Null, nameTable->GetIdOrRegisterName("opt_string32")),
+                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
             }).Get()
         });
 
