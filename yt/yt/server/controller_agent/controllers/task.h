@@ -358,7 +358,10 @@ private:
     //! prevent repeated overdraft.
     THashSet<NChunkPools::IChunkPoolOutput::TCookie> ResourceOverdraftedOutputCookies_;
 
-    NScheduler::TJobResources ApplyMemoryReserve(const NScheduler::TExtendedJobResources& jobResources) const;
+    NScheduler::TJobResources ApplyMemoryReserve(
+        const NScheduler::TExtendedJobResources& jobResources,
+        double jobProxyMemoryReserveFactor,
+        std::optional<double> userJobMemoryReserveFactor) const;
 
     void UpdateMaximumUsedTmpfsSizes(const TStatistics& statistics);
 
@@ -367,7 +370,9 @@ private:
     void OnSpeculativeJobScheduled(const TJobletPtr& joblet);
 
     double GetJobProxyMemoryReserveFactor() const;
-    double GetUserJobMemoryReserveFactor() const;
+
+    //! std::nullopt means that user jobs are not used in task (e.g. unordered merge).
+    std::optional<double> GetUserJobMemoryReserveFactor() const;
 
     int EstimateSplitJobCount(const TCompletedJobSummary& jobSummary, const TJobletPtr& joblet);
 

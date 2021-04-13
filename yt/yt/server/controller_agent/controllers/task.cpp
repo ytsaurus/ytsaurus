@@ -427,8 +427,26 @@ void TTask::ScheduleJob(
 
     joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
 
+    joblet->JobProxyMemoryReserveFactor = GetJobProxyMemoryReserveFactor();
+
+    if (HasUserJob()) {
+        joblet->UserJobMemoryReserveFactor = *GetUserJobMemoryReserveFactor();
+    }
+
+    if (ResourceOverdraftedOutputCookies_.contains(joblet->OutputCookie)) {
+        joblet->JobProxyMemoryReserveFactor = TaskHost_->GetSpec()->JobProxyMemoryDigest->UpperBound;
+        if (HasUserJob()) {
+            // TODO(gritukan): Currently fixed upper bound is used for used job memory digest.
+            // Use TLogDigestConfig in user job spec and get upper bound from it.
+            joblet->UserJobMemoryReserveFactor = 1.0;
+        }
+    }
+
     auto estimatedResourceUsage = GetNeededResources(joblet);
-    TJobResourcesWithQuota neededResources = ApplyMemoryReserve(estimatedResourceUsage);
+    TJobResourcesWithQuota neededResources = ApplyMemoryReserve(
+        estimatedResourceUsage,
+        *joblet->JobProxyMemoryReserveFactor,
+        joblet->UserJobMemoryReserveFactor);
 
     joblet->EstimatedResourceUsage = estimatedResourceUsage;
     joblet->ResourceLimits = neededResources.ToJobResources();
@@ -482,20 +500,6 @@ void TTask::ScheduleJob(
     joblet->Restarted = restarted;
     joblet->JobType = jobType;
     joblet->NodeDescriptor = context->GetNodeDescriptor();
-    joblet->JobProxyMemoryReserveFactor = GetJobProxyMemoryReserveFactor();
-
-    if (userJobSpec) {
-        joblet->UserJobMemoryReserveFactor = GetUserJobMemoryReserveFactor();
-    }
-
-    if (ResourceOverdraftedOutputCookies_.contains(joblet->OutputCookie)) {
-        joblet->JobProxyMemoryReserveFactor = TaskHost_->GetSpec()->JobProxyMemoryDigest->UpperBound;
-        if (userJobSpec) {
-            // TODO(gritukan): Currently fixed upper bound is used for used job memory digest.
-            // Use TLogDigestConfig in user job spec and get upper bound from it.
-            joblet->UserJobMemoryReserveFactor = 1.0;
-        }
-    }
 
     if (userJobSpec && userJobSpec->Monitoring->Enable) {
         joblet->UserJobMonitoringDescriptor = TaskHost_->RegisterJobForMonitoring(joblet->JobId);
@@ -610,7 +614,7 @@ void TTask::BuildTaskYson(TFluentMap fluent) const
         .Item("min_needed_resources").Value(GetMinNeededResources())
         .Item("job_proxy_memory_reserve_factor").Value(GetJobProxyMemoryReserveFactor())
         .DoIf(HasUserJob(), [&] (TFluentMap fluent) {
-            fluent.Item("user_job_memory_reserve_factor").Value(GetUserJobMemoryReserveFactor());
+            fluent.Item("user_job_memory_reserve_factor").Value(*GetUserJobMemoryReserveFactor());
         })
         .DoIf(static_cast<bool>(StartTime_), [&] (TFluentMap fluent) {
             fluent.Item("start_time").Value(*StartTime_);
@@ -1272,16 +1276,20 @@ void TTask::UpdateMemoryDigests(const TJobletPtr& joblet, const TStatistics& sta
     }
 }
 
-TJobResources TTask::ApplyMemoryReserve(const TExtendedJobResources& jobResources) const
+TJobResources TTask::ApplyMemoryReserve(
+    const TExtendedJobResources& jobResources,
+    double jobProxyMemoryReserveFactor,
+    std::optional<double> userJobMemoryReserveFactor) const
 {
     TJobResources result;
     result.SetCpu(jobResources.GetCpu());
     result.SetGpu(jobResources.GetGpu());
     result.SetUserSlots(jobResources.GetUserSlots());
     i64 memory = jobResources.GetFootprintMemory();
-    memory += jobResources.GetJobProxyMemory() * GetJobProxyMemoryReserveFactor();
+    memory += jobResources.GetJobProxyMemory() * jobProxyMemoryReserveFactor;
     if (HasUserJob()) {
-        memory += jobResources.GetUserJobMemory() * GetUserJobMemoryReserveFactor();
+        YT_VERIFY(userJobMemoryReserveFactor);
+        memory += jobResources.GetUserJobMemory() * *userJobMemoryReserveFactor;
     } else {
         YT_VERIFY(jobResources.GetUserJobMemory() == 0);
     }
@@ -1460,7 +1468,10 @@ TJobResourcesWithQuota TTask::GetMinNeededResources() const
         }
         CachedMinNeededResources_ = GetMinNeededResourcesHeavy();
     }
-    auto result = ApplyMemoryReserve(*CachedMinNeededResources_);
+    auto result = ApplyMemoryReserve(
+        *CachedMinNeededResources_,
+        GetJobProxyMemoryReserveFactor(),
+        GetUserJobMemoryReserveFactor());
     if (result.GetUserSlots() > 0 && result.GetMemory() == 0) {
         YT_LOG_WARNING("Found min needed resources of task with non-zero user slots and zero memory");
     }
@@ -1655,9 +1666,11 @@ double TTask::GetJobProxyMemoryReserveFactor() const
     return GetJobProxyMemoryDigest()->GetQuantile(TaskHost_->GetConfig()->JobProxyMemoryReserveQuantile);
 }
 
-double TTask::GetUserJobMemoryReserveFactor() const
+std::optional<double> TTask::GetUserJobMemoryReserveFactor() const
 {
-    YT_VERIFY(HasUserJob());
+    if (!HasUserJob()) {
+        return std::nullopt;
+    }
 
     return GetUserJobMemoryDigest()->GetQuantile(TaskHost_->GetConfig()->UserJobMemoryReserveQuantile);
 }
