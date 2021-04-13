@@ -8,6 +8,7 @@ import (
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/yt/chyt/controller/internal/app"
 	"a.yandex-team.ru/yt/chyt/controller/internal/chyt"
+	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
 	"a.yandex-team.ru/yt/go/yson"
 )
 
@@ -45,7 +46,7 @@ func doRun() error {
 		ForceFlush: flagForceFlush,
 	}
 
-	_ = app.New(l, &config, &options, chyt.NewController)
+	_ = app.New(l, &config, &options, []strawberry.ControllerFactory{chyt.NewController})
 	<-make(chan struct{})
 
 	panic("unreachable")

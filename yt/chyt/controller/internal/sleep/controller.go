@@ -1,12 +1,16 @@
 package sleep
 
-import "a.yandex-team.ru/yt/go/yson"
+import (
+	"a.yandex-team.ru/library/go/core/log"
+	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
+	"a.yandex-team.ru/yt/go/ypath"
+	"a.yandex-team.ru/yt/go/yson"
+	"a.yandex-team.ru/yt/go/yt"
+)
 
-type Controller struct {
-	alias string
-}
+type Controller struct{}
 
-func (*Controller) Prepare(alias string, speclet yson.RawValue) (
+func (c Controller) Prepare(alias string, incarnationIndex int, speclet yson.RawValue) (
 	spec map[string]interface{}, description map[string]interface{}, annotations map[string]interface{}, err error) {
 	err = nil
 	spec = map[string]interface{}{
@@ -25,6 +29,10 @@ func (*Controller) Prepare(alias string, speclet yson.RawValue) (
 	return
 }
 
-func (*Controller) Family() string {
+func (c Controller) Family() string {
 	return "sleep"
+}
+
+func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string) strawberry.Controller {
+	return Controller{}
 }

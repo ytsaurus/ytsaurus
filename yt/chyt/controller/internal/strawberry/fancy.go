@@ -25,26 +25,26 @@ func operationURL(cluster string, opID yt.OperationID) interface{} {
 	return ToYsonURL("https://yt.yandex-team.ru/" + cluster + "/operations/" + opID.String())
 }
 
-func opAnnotations(a *Agent, state *Oplet) map[string]interface{} {
+func opAnnotations(a *Agent, oplet *Oplet) map[string]interface{} {
 	return map[string]interface{}{
-		"strawberry_family": a.controller.Family(),
-		"strawberry_node":   a.root.Child(state.Alias),
+		"strawberry_family": oplet.c.Family(),
+		"strawberry_node":   a.root.Child(oplet.Alias),
 		"strawberry_controller": map[string]interface{}{
 			"address": a.hostname,
 			// TODO(max42): build revision, etc.
 		},
-		"strawberry_incarnation":        state.IncarnationIndex + 1,
-		"strawberry_previous_operation": state.YTOpID,
+		"strawberry_incarnation":        oplet.IncarnationIndex + 1,
+		"strawberry_previous_operation": oplet.YTOpID,
 	}
 }
 
-func opDescription(a *Agent, state *Oplet) map[string]interface{} {
+func opDescription(a *Agent, oplet *Oplet) map[string]interface{} {
 	desc := map[string]interface{}{
-		"strawberry_node":        navigationURL(a.Proxy, a.root.Child(state.Alias)),
-		"strawberry_incarnation": state.IncarnationIndex + 1,
+		"strawberry_node":        navigationURL(a.Proxy, a.root.Child(oplet.Alias)),
+		"strawberry_incarnation": oplet.IncarnationIndex + 1,
 	}
-	if state.YTOpID != yt.OperationID(guid.FromParts(0, 0, 0, 0)) {
-		desc["strawberry_previous_operation_id"] = operationURL(a.Proxy, state.YTOpID)
+	if oplet.YTOpID != yt.OperationID(guid.FromParts(0, 0, 0, 0)) {
+		desc["strawberry_previous_operation_id"] = operationURL(a.Proxy, oplet.YTOpID)
 	}
 	return desc
 }

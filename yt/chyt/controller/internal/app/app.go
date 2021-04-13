@@ -41,7 +41,7 @@ type App struct {
 	agent *strawberry.Agent
 }
 
-func New(l log.Logger, config *Config, options *Options, f strawberry.ControllerFactory) *App {
+func New(l log.Logger, config *Config, options *Options, cfs []strawberry.ControllerFactory) *App {
 	App := &App{
 		l: l,
 	}
@@ -59,9 +59,13 @@ func New(l log.Logger, config *Config, options *Options, f strawberry.Controller
 		l.Fatal("period should be specified")
 	}
 
-	controller := f(l, ytc, config.Root, config.Proxy)
+	controllers := make(map[string]strawberry.Controller, len(cfs))
+	for _, cf := range cfs {
+		controller := cf(l, ytc, config.Root, config.Proxy)
+		controllers[controller.Family()] = controller
+	}
 
-	App.agent = strawberry.NewAgent(config.Proxy, ytc, l, controller, config.Root)
+	App.agent = strawberry.NewAgent(config.Proxy, ytc, l, controllers, config.Root)
 	App.agent.Start(options.ForceFlush, time.Millisecond*time.Duration(config.Period))
 
 	return App
