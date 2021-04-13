@@ -222,8 +222,6 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default(false);
     RegisterParameter("crash_controller_agent", CrashControllerAgent)
         .Default(false);
-    RegisterParameter("throw_exception_during_operation_abort", ThrowExceptionDuringOprationAbort)
-        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

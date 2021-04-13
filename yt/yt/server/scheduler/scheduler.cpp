@@ -3505,9 +3505,10 @@ private:
                 WaitFor(controller->Terminate(finalState))
                     .ThrowOnError();
             } catch (const std::exception& ex) {
-                YT_LOG_INFO(ex, "Failed to abort controller of operation %v, unregistering operation agent",
-                    operation->GetId());
-                OnOperationAgentUnregistered(operation);
+                auto error = TError("Failed to abort controller of operation %v",
+                    operation->GetId())
+                    << ex;
+                MasterConnector_->Disconnect(error);
                 return;
             }
         }
