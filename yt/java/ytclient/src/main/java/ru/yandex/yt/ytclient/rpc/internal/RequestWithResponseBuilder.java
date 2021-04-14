@@ -25,7 +25,7 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 @NonNullApi
 public class RequestWithResponseBuilder<RequestType extends MessageLite.Builder, ResponseType extends MessageLite>
-        implements RpcClientRequestBuilder<RequestType, RpcClientResponse<ResponseType>> {
+        implements RpcClientRequestBuilder<RequestType, ResponseType> {
     private final TRequestHeader.Builder header;
     private final RequestType body;
     private final List<byte[]> attachments = new ArrayList<>();
@@ -35,7 +35,8 @@ public class RequestWithResponseBuilder<RequestType extends MessageLite.Builder,
     public RequestWithResponseBuilder(
             TRequestHeader.Builder header, RequestType body,
             Parser<ResponseType> parser,
-            RpcOptions options) {
+            RpcOptions options
+    ) {
         this.header = header;
         this.body = body;
         this.options = options;

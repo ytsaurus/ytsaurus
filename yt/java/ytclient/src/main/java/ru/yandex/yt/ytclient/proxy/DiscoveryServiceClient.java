@@ -7,7 +7,6 @@ import ru.yandex.yt.TReqDiscoverProxies;
 import ru.yandex.yt.TRspDiscoverProxies;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
-import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
@@ -25,7 +24,7 @@ public class DiscoveryServiceClient {
     }
 
     public CompletableFuture<List<String>> discoverProxies(String role) {
-        RpcClientRequestBuilder<TReqDiscoverProxies.Builder, RpcClientResponse<TRspDiscoverProxies>> builder =
+        RpcClientRequestBuilder<TReqDiscoverProxies.Builder, TRspDiscoverProxies> builder =
                 ApiServiceMethodTable.DISCOVER_PROXIES.createRequestBuilder(options);
 
         if (role != null) {
