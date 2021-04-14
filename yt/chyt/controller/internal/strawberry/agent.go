@@ -199,6 +199,12 @@ func (a *Agent) abortDangling(family string) {
 	l.Info("aborting dangling operations")
 	for _, op := range runningOps {
 		needAbort := false
+
+		if op.BriefSpec == nil {
+			// This may happen on early stages of operation lifetime.
+			continue
+		}
+
 		alias, ok := op.BriefSpec["alias"]
 		if !ok {
 			l.Debug("operation misses alias (how is that possible?), aborting it", log.String("operation_id", op.ID.String()))

@@ -2,6 +2,8 @@ package integration
 
 import (
 	"context"
+	"reflect"
+	"sort"
 	"testing"
 	"time"
 
@@ -33,19 +35,26 @@ func prepare(t *testing.T) (yt.Client, *strawberry.Agent) {
 	}
 
 	agent := strawberry.NewAgent("test", env.YT, l, map[string]strawberry.Controller{
-		"sleep": sleep.NewController(l, env.YT, root, "test", nil),
+		"sleep": sleep.NewController(l.WithName("strawberry"), env.YT, root, "test", nil),
 	}, config)
 
 	return env.YT, agent
 }
 
 func createNode(t *testing.T, ytc yt.Client, alias string) {
+	t.Logf("creating node %v", alias)
 	_, err := ytc.CreateNode(context.TODO(), root.Child(alias), yt.NodeMap, &yt.CreateNodeOptions{
 		Attributes: map[string]interface{}{
 			"strawberry_family":  "sleep",
 			"strawberry_speclet": map[string]interface{}{},
 		},
 	})
+	require.NoError(t, err)
+}
+
+func removeNode(t *testing.T, ytc yt.Client, alias string) {
+	t.Logf("removing node %v", alias)
+	err := ytc.RemoveNode(context.TODO(), root.Child(alias), nil)
 	require.NoError(t, err)
 }
 
@@ -60,6 +69,18 @@ func getOp(t *testing.T, ytc yt.Client, alias string) *yt.OperationStatus {
 	return nil
 }
 
+func waitOp(t *testing.T, ytc yt.Client, alias string) *yt.OperationStatus {
+	for i := 0; i < 30; i++ {
+		op := getOp(t, ytc, alias)
+		if op != nil {
+			return op
+		}
+		time.Sleep(time.Millisecond * 300)
+	}
+	t.FailNow()
+	return nil
+}
+
 func listAliases(t *testing.T, ytc yt.Client) []string {
 	ops, err := yt.ListAllOperations(context.TODO(), ytc, &yt.ListOperationsOptions{State: yt.StateRunning.Ptr()})
 	require.NoError(t, err)
@@ -67,12 +88,28 @@ func listAliases(t *testing.T, ytc yt.Client) []string {
 	aliases := make([]string, 0)
 
 	for _, op := range ops {
-		if alias, ok := op.BriefSpec["alias"]; !ok {
-			aliases = append(aliases, alias.(string))
+		if alias, ok := op.BriefSpec["alias"]; ok {
+			aliases = append(aliases, alias.(string)[1:])
 		}
 	}
 
 	return aliases
+}
+
+func waitAliases(t *testing.T, ytc yt.Client, expected []string) {
+	sort.Strings(expected)
+
+	for i := 0; i < 30; i++ {
+		actual := listAliases(t, ytc)
+		sort.Strings(actual)
+
+		if reflect.DeepEqual(expected, actual) {
+			return
+		}
+
+		time.Sleep(time.Millisecond * 300)
+	}
+	t.FailNow()
 }
 
 func TestOperationBeforeStart(t *testing.T) {
@@ -81,14 +118,7 @@ func TestOperationBeforeStart(t *testing.T) {
 	createNode(t, ytc, "test")
 	agent.Start()
 
-	for i := 0; i < 50; i++ {
-		op := getOp(t, ytc, "test")
-		if op != nil {
-			return
-		}
-		time.Sleep(time.Millisecond * 100)
-	}
-	t.FailNow()
+	_ = waitOp(t, ytc, "test")
 }
 
 func TestOperationAfterStart(t *testing.T) {
@@ -99,12 +129,19 @@ func TestOperationAfterStart(t *testing.T) {
 
 	createNode(t, ytc, "test")
 
-	for i := 0; i < 50; i++ {
-		op := getOp(t, ytc, "test")
-		if op != nil {
-			return
-		}
-		time.Sleep(time.Millisecond * 100)
-	}
-	t.FailNow()
+	_ = waitOp(t, ytc, "test")
+}
+
+func TestAbortDangling(t *testing.T) {
+	ytc, agent := prepare(t)
+
+	agent.Start()
+	createNode(t, ytc, "test1")
+	waitAliases(t, ytc, []string{"test1"})
+	createNode(t, ytc, "test2")
+	waitAliases(t, ytc, []string{"test1", "test2"})
+	removeNode(t, ytc, "test1")
+	waitAliases(t, ytc, []string{"test2"})
+	removeNode(t, ytc, "test2")
+	waitAliases(t, ytc, []string{})
 }
