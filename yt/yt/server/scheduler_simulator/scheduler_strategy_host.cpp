@@ -244,6 +244,7 @@ TFuture<void> TSchedulerStrategyHost::SetOperationAlert(
 void TSchedulerStrategyHost::LogResourceMetering(
     const TMeteringKey& /*key*/,
     const TMeteringStatistics& statistics,
+    const THashMap<TString, TString>& otherTags,
     TInstant lastUpdateTime,
     TInstant now)
 {

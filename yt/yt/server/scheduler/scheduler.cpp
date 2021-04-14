@@ -1423,6 +1423,7 @@ public:
     virtual void LogResourceMetering(
         const TMeteringKey& key,
         const TMeteringStatistics& statistics,
+        const THashMap<TString, TString>& otherTags,
         TInstant lastUpdateTime,
         TInstant now) override
     {
@@ -1458,6 +1459,9 @@ public:
                 .Item("allocated_resources").Value(statistics.AllocatedResources())
                 .Item("cluster").Value(ClusterName_)
                 .Item("gpu_type").Value(GuessGpuType(key.TreeId))
+                .DoFor(otherTags, [] (TFluentMap fluent, const std::pair<TString, TString>& pair) {
+                    fluent.Item(pair.first).Value(pair.second);
+                })
             .EndMap()
             .Item("labels").BeginMap()
                 .Item("pool_tree").Value(key.TreeId)

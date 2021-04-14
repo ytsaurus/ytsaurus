@@ -81,6 +81,7 @@ struct ISchedulerStrategyHost
     virtual void LogResourceMetering(
         const TMeteringKey& key,
         const TMeteringStatistics& statistics,
+        const THashMap<TString, TString>& otherTags,
         TInstant lastUpdateTime,
         TInstant now) = 0;
     virtual int GetDefaultAbcId() const = 0;
