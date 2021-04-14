@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -25,13 +26,13 @@ import static org.junit.Assert.assertThrows;
 public class YsonParserTest {
     final String testType;
 
+    public YsonParserTest(String testType) {
+        this.testType = testType;
+    }
+
     @Parameterized.Parameters(name = "{0}")
     public static Collection<String> testTypes() {
         return List.of("stream", "bytes");
-    }
-
-    public YsonParserTest(String testType) {
-        this.testType = testType;
     }
 
     // Simple function that decodes escape sequences like \xFF
@@ -337,11 +338,20 @@ public class YsonParserTest {
 
     @Test
     public void testBufferBoundaries() {
-        final String textData = "[123;\\x02\\x82\\x06;{\\x01\\x02a=\\x02\\x84\\x34;\\x01\\x06foo=<bar=\"baz \">\\x05};" +
+        final String textData = "[" +
+                "123;" +
+                "\\x02\\x82\\x06;" +
+                "{\\x01\\x02a=\\x02\\x84\\x34;\\x01\\x06foo=<bar=\"baz \">\\x05};" +
                 "\\x06\\x80\\x80\\x84\\x85\\x86\\x87\\x88\\x89\\x02;" +
                 "\\x03\\x00\\x00\\x00\\x00\\x00\\x00\\xc0\\xbf" +
                 "]";
-        final String expectedCanonized = "[123;385;{\"a\"=3330;\"foo\"=<\"bar\"=\"baz \">%true};149217164168069120u;-0.125]";
+        final String expectedCanonized = "[" +
+                "123;" +
+                "385;" +
+                "{\"a\"=3330;\"foo\"=<\"bar\"=\"baz \">%true};" +
+                "149217164168069120u;" +
+                "-0.125" +
+                "]";
         byte[] binaryData = unescapeBytes(textData);
         for (int bufferSize = 1; bufferSize != binaryData.length; ++bufferSize) {
             StringBuilder result = new StringBuilder();
@@ -403,54 +413,62 @@ public class YsonParserTest {
     }
 }
 
-class FragmentYsonTextWriter  implements ClosableYsonConsumer {
-    StringBuilder stringBuilder;
-    ClosableYsonConsumer underlying;
-    int depth = 0;
-    boolean first = true;
+class FragmentYsonTextWriter implements ClosableYsonConsumer {
+    private final StringBuilder stringBuilder;
+    @Nullable private ClosableYsonConsumer underlying;
+    private int depth = 0;
+    private boolean first = true;
 
-    public FragmentYsonTextWriter(StringBuilder sb) {
+    FragmentYsonTextWriter(StringBuilder sb) {
         stringBuilder = sb;
     }
 
     @Override
     public void onEntity() {
+        assert underlying != null;
         underlying.onEntity();
     }
 
     @Override
     public void onInteger(long value) {
+        assert underlying != null;
         underlying.onInteger(value);
     }
 
     @Override
     public void onUnsignedInteger(long value) {
+        assert underlying != null;
         underlying.onUnsignedInteger(value);
     }
 
     @Override
     public void onBoolean(boolean value) {
+        assert underlying != null;
         underlying.onBoolean(value);
     }
 
     @Override
     public void onDouble(double value) {
+        assert underlying != null;
         underlying.onDouble(value);
     }
 
     @Override
     public void onString(@Nonnull byte[] value, int offset, int length) {
+        assert underlying != null;
         underlying.onString(value, offset, length);
     }
 
     @Override
     public void onBeginList() {
+        assert underlying != null;
         depth++;
         underlying.onBeginList();
     }
 
     @Override
     public void onListItem() {
+        assert underlying != null;
         if (depth == 0) {
             onNewItem();
         } else {
@@ -460,36 +478,42 @@ class FragmentYsonTextWriter  implements ClosableYsonConsumer {
 
     @Override
     public void onEndList() {
+        assert underlying != null;
         underlying.onEndList();
         depth--;
     }
 
     @Override
     public void onBeginAttributes() {
+        assert underlying != null;
         depth++;
         underlying.onBeginAttributes();
     }
 
     @Override
     public void onEndAttributes() {
+        assert underlying != null;
         depth--;
         underlying.onEndAttributes();
     }
 
     @Override
     public void onBeginMap() {
+        assert underlying != null;
         depth++;
         underlying.onBeginMap();
     }
 
     @Override
     public void onEndMap() {
+        assert underlying != null;
         underlying.onBeginMap();
         depth--;
     }
 
     @Override
     public void onKeyedItem(@Nonnull byte[] value, int offset, int length) {
+        assert underlying != null;
         if (depth == 0) {
             onNewItem();
         } else {
