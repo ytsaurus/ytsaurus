@@ -23,7 +23,6 @@ struct IMasterConnector
     : public TRefCounted
 {
     using OnHeartbeatRequestedSignature = void(
-        NObjectClient::TCellTag,
         NCellarClient::ECellarType,
         NCellarAgent::ICellarPtr,
         NCellarNodeTrackerClient::NProto::TReqCellarHeartbeat*);
