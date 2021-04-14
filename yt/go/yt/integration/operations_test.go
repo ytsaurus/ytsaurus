@@ -218,6 +218,7 @@ func TestListAllOperations(t *testing.T) {
 	var found []yt.OperationID
 	for _, op := range operations {
 		found = append(found, op.ID)
+		require.Equal(t, op.RuntimeParameters.Annotations["annotation"], opAnnotation)
 	}
 	slices.Reverse(found)
 
