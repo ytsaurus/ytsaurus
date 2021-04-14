@@ -611,16 +611,24 @@ type OperationResult struct {
 	Error *yterrors.Error `yson:"error"`
 }
 
+type OperationRuntimeParameters struct {
+	ACL                          []ACE                  `yson:"acl"`
+	SchedulingOptionsPerPoolTree map[string]interface{} `yson:"scheduling_options_per_pool_tree"`
+	Annotations                  map[string]interface{} `yson:"annotations"`
+	ErasedTrees                  []string               `yson:"erased_trees"`
+}
+
 type OperationStatus struct {
-	ID                OperationID            `yson:"id"`
-	State             OperationState         `yson:"state"`
-	Result            *OperationResult       `yson:"result"`
-	Type              OperationType          `yson:"type"`
-	BriefSpec         map[string]interface{} `yson:"brief_spec"`
-	FullSpec          yson.RawValue          `yson:"full_spec"`
-	StartTime         yson.Time              `yson:"start_time"`
-	Suspend           bool                   `yson:"suspend"`
-	AuthenticatedUsed string                 `yson:"authenticated_used"`
+	ID                OperationID                `yson:"id"`
+	State             OperationState             `yson:"state"`
+	Result            *OperationResult           `yson:"result"`
+	Type              OperationType              `yson:"type"`
+	BriefSpec         map[string]interface{}     `yson:"brief_spec"`
+	FullSpec          yson.RawValue              `yson:"full_spec"`
+	StartTime         yson.Time                  `yson:"start_time"`
+	Suspend           bool                       `yson:"suspend"`
+	AuthenticatedUsed string                     `yson:"authenticated_used"`
+	RuntimeParameters OperationRuntimeParameters `yson:"runtime_parameters"`
 }
 
 type OperationStartClient interface {
