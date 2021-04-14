@@ -282,7 +282,6 @@ public class YtClient extends CompoundClient {
                                     .setDataCenterName(curCluster.getName())
                                     .setBalancerAddress(curCluster.balancerFqdn, curCluster.httpPort)
                                     .setRole(proxyRole)
-                                    .setToken(credentials.getToken())
                                     .setOptions(options)
                                     .setClientFactory(rpcClientFactory)
                                     .setEventLoop(eventLoopGroup)
