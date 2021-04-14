@@ -808,7 +808,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             out="//tmp/t_out",
             sort_by="key",
             spec={
-                "data_weight_per_sort_job": get("//tmp/t_in/@data_weight"),
+                "data_weight_per_sort_job": get("//tmp/t_in/@data_weight") * 2,
                 "use_new_partitions_heuristic": True,
             },
         )

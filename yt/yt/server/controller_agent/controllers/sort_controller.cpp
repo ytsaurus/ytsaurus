@@ -2652,6 +2652,8 @@ protected:
         YT_VERIFY(TotalEstimatedInputDataWeight > 0);
         i64 dataWeightAfterPartition = 1 + static_cast<i64>(TotalEstimatedInputDataWeight * Spec->MapSelectivityFactor);
 
+        i64 partitionFactorLimit = std::min<i64>(Options->MaxPartitionFactor, DivCeil(GetMaxPartitionJobBufferSize(), Options->MinUncompressedBlockSize));
+
         if (forcedPartitionCount) {
             PartitionCount = *forcedPartitionCount;
         } else if (Spec->PartitionCount) {
@@ -2666,6 +2668,12 @@ protected:
                 // Sometimes data size can be much larger than data weight.
                 // Let's protect from such outliers and prevent simple sort in such case.
                 PartitionCount = DivCeil(TotalEstimatedInputUncompressedDataSize, Spec->DataWeightPerShuffleJob);
+            } else if (PartitionCount <= partitionFactorLimit) {
+                // If partition count is small, fallback to old heuristic.
+                PartitionCount = SuggestPartitionCount();
+
+                // Keep partitioning single-phase.
+                PartitionCount = std::min<i64>(PartitionCount, partitionFactorLimit);
             }
         }
 
@@ -2682,8 +2690,6 @@ protected:
 
                 return partitions;
             };
-
-            i64 partitionFactorLimit = std::min<i64>(Options->MaxPartitionFactor, DivCeil(GetMaxPartitionJobBufferSize(), Options->MinUncompressedBlockSize));
 
             i64 depth = 1;
             while (maxPartitionsWithDepth(depth, partitionFactorLimit) < PartitionCount) {
