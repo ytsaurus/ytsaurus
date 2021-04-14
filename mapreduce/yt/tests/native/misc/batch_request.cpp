@@ -40,23 +40,24 @@ private:
 class TLowerRequestLimit
 {
 public:
-    TLowerRequestLimit(IClientPtr client, int value)
+    TLowerRequestLimit(IClientPtr client, TString user, int value)
         : Client_(client)
-        , ReadRequestRateLimit_(Client_->Get("//sys/users/root/@read_request_rate_limit"))
-        , WriteRequestRateLimit_(Client_->Get("//sys/users/root/@write_request_rate_limit"))
-        , RequestQueueSizeLimit_(Client_->Get("//sys/users/root/@request_queue_size_limit"))
+        , Prefix_("//sys/users/" + user)
+        , ReadRequestRateLimit_(Client_->Get(Prefix_ + "/@read_request_rate_limit"))
+        , WriteRequestRateLimit_(Client_->Get(Prefix_ + "/@write_request_rate_limit"))
+        , RequestQueueSizeLimit_(Client_->Get(Prefix_ + "/@request_queue_size_limit"))
     {
-        Client_->Set("//sys/users/root/@read_request_rate_limit", value);
-        Client_->Set("//sys/users/root/@write_request_rate_limit", value);
-        Client_->Set("//sys/users/root/@request_queue_size_limit", value);
+        Client_->Set(Prefix_ + "/@read_request_rate_limit", value);
+        Client_->Set(Prefix_ + "/@write_request_rate_limit", value);
+        Client_->Set(Prefix_ + "/@request_queue_size_limit", value);
     }
 
     ~TLowerRequestLimit()
     {
         try {
-            Client_->Set("//sys/users/root/@read_request_rate_limit", ReadRequestRateLimit_);
-            Client_->Set("//sys/users/root/@write_request_rate_limit", WriteRequestRateLimit_);
-            Client_->Set("//sys/users/root/@request_queue_size_limit", RequestQueueSizeLimit_);
+            Client_->Set(Prefix_ + "/@read_request_rate_limit", ReadRequestRateLimit_);
+            Client_->Set(Prefix_ + "/@write_request_rate_limit", WriteRequestRateLimit_);
+            Client_->Set(Prefix_ + "/@request_queue_size_limit", RequestQueueSizeLimit_);
         } catch (const std::exception& ex) {
             Y_FAIL("%s", ex.what());
         } catch (...) {
@@ -65,7 +66,8 @@ public:
     }
 
 private:
-    IClientPtr Client_;
+    const IClientPtr Client_;
+    const TString Prefix_;
     const TNode ReadRequestRateLimit_;
     const TNode WriteRequestRateLimit_;
     const TNode RequestQueueSizeLimit_;
@@ -778,23 +780,41 @@ Y_UNIT_TEST_SUITE(BatchRequestSuite)
 
     Y_UNIT_TEST(TestBigLoad) {
         TTestFixture fixture;
-        auto client = fixture.GetClient();
+        auto rootClient = fixture.GetClient();
         auto workingDir = fixture.GetWorkingDir();
-        TLowerRequestLimit lrl(client, 100);
         TConfig::Get()->RetryInterval = TDuration();
         TConfig::Get()->RateLimitExceededRetryInterval = TDuration();
         TConfig::Get()->RetryCount = 1000;
 
-        client->Set(workingDir + "/node", 5);
-        auto batchRequest = client->CreateBatchRequest();
-        TVector<NThreading::TFuture<TNode>> results;
-        for (size_t i = 0; i != 500; ++i) {
-            results.push_back(batchRequest->Get(workingDir + "/node"));
-        }
-        batchRequest->ExecuteBatch(TExecuteBatchOptions().Concurrency(500));
+        rootClient->Set(workingDir + "/node", 5);
 
-        for (const auto& r : results) {
-            r.GetValue();
+        auto client = fixture.CreateClientForUser("test-big-load");
+        TLowerRequestLimit lrl(rootClient, "test-big-load", 10);
+
+        auto createBatch = [&client, &workingDir] {
+            auto batchRequest = client->CreateBatchRequest();
+            TVector<NThreading::TFuture<void>> results;
+            for (size_t i = 0; i != 1000; ++i) {
+                results.push_back(batchRequest->Set(workingDir + "/node", 5));
+            }
+            return std::make_tuple(batchRequest, results);
+        };
+
+        {
+            auto [batchRequest, results] = createBatch();
+            batchRequest->ExecuteBatch(TExecuteBatchOptions().Concurrency(1000));
+            for (const auto& r : results) {
+                r.GetValue();
+            }
+        }
+
+        {
+            TConfig::Get()->RetryCount = 1;
+            auto [batchRequest, results] = createBatch();
+            batchRequest->ExecuteBatch(TExecuteBatchOptions().Concurrency(10));
+            for (const auto& r : results) {
+                r.GetValue();
+            }
         }
     }
 

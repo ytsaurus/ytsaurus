@@ -207,6 +207,17 @@ IClientPtr TTestFixture::GetClient() const
     return Client_;
 }
 
+IClientPtr TTestFixture::CreateClientForUser(const TString& user, TCreateClientOptions options)
+{
+    TString token = CreateGuidAsString();
+    if (!Client_->Exists("//sys/users/" + user)) {
+        Client_->Create("", NT_USER,
+            TCreateOptions().Attributes(TNode()("name", user)));
+    }
+    Client_->Set("//sys/tokens/" + token, user);
+    return CreateTestClient("", options.Token(token));
+}
+
 TYPath TTestFixture::GetWorkingDir() const
 {
     return WorkingDir_;

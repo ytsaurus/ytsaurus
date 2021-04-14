@@ -97,6 +97,7 @@ public:
     ~TTestFixture();
 
     IClientPtr GetClient() const;
+    IClientPtr CreateClientForUser(const TString& user, TCreateClientOptions options = {});
     TYPath GetWorkingDir() const;
 
 private:
