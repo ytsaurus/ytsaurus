@@ -16,9 +16,11 @@ import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.tracing.TTracingExt;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
+import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
+import ru.yandex.yt.ytclient.rpc.RpcRequest;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.rpc.internal.LazyResponse;
 import ru.yandex.yt.ytclient.rpc.internal.RequestWithResponseBuilder;
@@ -102,5 +104,13 @@ public class RpcMethodDescriptor<RequestBuilder extends MessageLite.Builder, Res
                 request,
                 responseParser,
                 options);
+    }
+
+    public CompletableFuture<RpcClientResponse<Response>> invoke(RpcClient client, RpcRequest<?> request, RpcOptions options) {
+        CompletableFuture<RpcClientResponse<Response>> result = new CompletableFuture<>();
+        RpcClientResponseHandler handler = createResponseHandler(result);
+        RpcClientRequestControl control = client.send(client, request, handler, options);
+        result.whenComplete((ignoredResult, ignoredException) -> control.cancel());
+        return result;
     }
 }
