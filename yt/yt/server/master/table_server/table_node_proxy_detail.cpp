@@ -22,6 +22,7 @@
 #include <yt/yt/server/master/tablet_server/table_replica.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
+#include <yt/yt/server/master/security_server/access_log.h>
 #include <yt/yt/server/master/security_server/security_manager.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
@@ -1385,6 +1386,12 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         }
     }
 
+    YT_LOG_ACCESS(
+        context,
+        GetId(),
+        GetPath(),
+        Transaction_);
+        
     if (options.Schema || options.SchemaModification) {
         if (options.SchemaModification) {
             schema = *schema.ToModifiedSchema(*options.SchemaModification);

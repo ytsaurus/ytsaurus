@@ -343,6 +343,21 @@ class TestAccessLog(YTEnvSetup):
 
         self._validate_entries_against_log(log_list)
 
+    def test_alter(self):
+        log_list = []
+
+        create("map_node", "//tmp/access_log")
+        create("table", "//tmp/access_log/table")
+        schema1 = make_schema(
+            [{"name": "a", "type": "string", "required": False}],
+            strict=False,
+            unique_keys=False,
+        )
+        alter_table("//tmp/access_log/table", schema=schema1)
+
+        log_list.append({"path": "//tmp/access_log/table", "method": "Alter"})
+
+        self._validate_entries_against_log(log_list)
 
 ##################################################################
 
