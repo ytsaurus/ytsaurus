@@ -46,6 +46,7 @@ import ru.yandex.yt.ytclient.proxy.internal.RpcClientFactory;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientPool;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
+import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcCompression;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
@@ -227,13 +228,13 @@ public class YtClient extends CompoundClient {
     }
 
     @Override
-    protected <RequestType extends MessageLite.Builder, ResponseType> CompletableFuture<ResponseType>
-    invoke(RpcClientRequestBuilder<RequestType, ResponseType> builder) {
+    protected <RequestType extends MessageLite.Builder, ResponseType extends MessageLite>
+    CompletableFuture<RpcClientResponse<ResponseType>> invoke(RpcClientRequestBuilder<RequestType, ResponseType> builder) {
         return builder.invokeVia(executor, poolProvider.getClientPool());
     }
 
     @Override
-    protected <RequestType extends MessageLite.Builder, ResponseType>
+    protected <RequestType extends MessageLite.Builder, ResponseType extends MessageLite>
     CompletableFuture<RpcClientStreamControl> startStream(
             RpcClientRequestBuilder<RequestType, ResponseType> builder,
             RpcStreamConsumer consumer

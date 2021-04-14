@@ -13,9 +13,9 @@ import ru.yandex.yt.rpc.TRequestHeader;
  * Позволяет построить и в дальнейшем сделать запрос
  *
  * @param <RequestType>  Message.Builder
- * @param <ResponseType> Void или RpcClientResponse&lt;Message&gt;
+ * @param <ResponseType> RpcClientResponse&lt;Message&gt;
  */
-public interface RpcClientRequestBuilder<RequestType extends MessageLite.Builder, ResponseType> {
+public interface RpcClientRequestBuilder<RequestType extends MessageLite.Builder, ResponseType extends MessageLite> {
     /**
      * Мутабельное тело запроса
      */
@@ -29,12 +29,12 @@ public interface RpcClientRequestBuilder<RequestType extends MessageLite.Builder
     /**
      * Делает асинхронное выполнение запроса
      */
-    CompletableFuture<ResponseType> invoke(RpcClient client);
+    CompletableFuture<RpcClientResponse<ResponseType>> invoke(RpcClient client);
 
     /**
      * Make asynchronous request. RpcClient is taken from given pool.
      */
-    CompletableFuture<ResponseType> invokeVia(ScheduledExecutorService executor, RpcClientPool clientPool);
+    CompletableFuture<RpcClientResponse<ResponseType>> invokeVia(ScheduledExecutorService executor, RpcClientPool clientPool);
 
     RpcOptions getOptions();
 

@@ -94,7 +94,7 @@ public class RpcMethodDescriptor<RequestBuilder extends MessageLite.Builder, Res
         };
     }
 
-    RpcClientRequestBuilder<RequestBuilder, RpcClientResponse<Response>> createRequestBuilder(RpcOptions options) {
+    RpcClientRequestBuilder<RequestBuilder, Response> createRequestBuilder(RpcOptions options) {
         TRequestHeader.Builder header = createHeader(options);
         RequestBuilder request = requestFactory.get();
 

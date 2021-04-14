@@ -141,7 +141,7 @@ public class ApiServiceClient extends TransactionalClient {
      * @see StartTransaction
      */
     public CompletableFuture<ApiServiceTransaction> startTransaction(StartTransaction startTransaction) {
-        RpcClientRequestBuilder<TReqStartTransaction.Builder, RpcClientResponse<TRspStartTransaction>> builder =
+        RpcClientRequestBuilder<TReqStartTransaction.Builder, TRspStartTransaction> builder =
                 ApiServiceMethodTable.START_TRANSACTION.createRequestBuilder(rpcOptions);
         return RpcUtil.apply(sendRequest(startTransaction, builder), response -> {
             GUID id = RpcUtil.fromProto(response.body().getId());
@@ -774,7 +774,7 @@ public class ApiServiceClient extends TransactionalClient {
 
     public <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req,
                                                            TableAttachmentReader<T> reader) {
-        RpcClientRequestBuilder<TReqReadTable.Builder, RpcClientResponse<TRspReadTable>>
+        RpcClientRequestBuilder<TReqReadTable.Builder, TRspReadTable>
                 builder = ApiServiceMethodTable.READ_TABLE.createRequestBuilder(rpcOptions);
 
         req.writeHeaderTo(builder.header());
@@ -790,7 +790,7 @@ public class ApiServiceClient extends TransactionalClient {
 
     @Override
     public <T> CompletableFuture<TableWriter<T>> writeTable(WriteTable<T> req) {
-        RpcClientRequestBuilder<TReqWriteTable.Builder, RpcClientResponse<TRspWriteTable>>
+        RpcClientRequestBuilder<TReqWriteTable.Builder, TRspWriteTable>
                 builder = ApiServiceMethodTable.WRITE_TABLE.createRequestBuilder(rpcOptions);
 
         req.writeHeaderTo(builder.header());
@@ -809,7 +809,7 @@ public class ApiServiceClient extends TransactionalClient {
 
     @Override
     public CompletableFuture<FileReader> readFile(ReadFile req) {
-        RpcClientRequestBuilder<TReqReadFile.Builder, RpcClientResponse<TRspReadFile>>
+        RpcClientRequestBuilder<TReqReadFile.Builder, TRspReadFile>
                 builder = ApiServiceMethodTable.READ_FILE.createRequestBuilder(rpcOptions);
 
         req.writeHeaderTo(builder.header());
@@ -825,7 +825,7 @@ public class ApiServiceClient extends TransactionalClient {
 
     @Override
     public CompletableFuture<FileWriter> writeFile(WriteFile req) {
-        RpcClientRequestBuilder<TReqWriteFile.Builder, RpcClientResponse<TRspWriteFile>>
+        RpcClientRequestBuilder<TReqWriteFile.Builder, TRspWriteFile>
                 builder = ApiServiceMethodTable.WRITE_FILE.createRequestBuilder(rpcOptions);
 
         req.writeHeaderTo(builder.header());
@@ -847,20 +847,21 @@ public class ApiServiceClient extends TransactionalClient {
         return RpcUtil.applyAsync(future, fn, heavyExecutor);
     }
 
-    protected <RequestType extends MessageLite.Builder, ResponseType> CompletableFuture<ResponseType> invoke(
-            RpcClientRequestBuilder<RequestType, ResponseType> builder) {
+    protected <RequestType extends MessageLite.Builder, ResponseType extends MessageLite>
+    CompletableFuture<RpcClientResponse<ResponseType>> invoke(RpcClientRequestBuilder<RequestType, ResponseType> builder) {
         return builder.invoke(rpcClient);
     }
 
-    protected <RequestType extends MessageLite.Builder, ResponseType> CompletableFuture<RpcClientStreamControl>
+    protected <RequestType extends MessageLite.Builder, ResponseType extends MessageLite>
+    CompletableFuture<RpcClientStreamControl>
     startStream(RpcClientRequestBuilder<RequestType, ResponseType> builder, RpcStreamConsumer consumer) {
         RpcClientStreamControl control = rpcClient.startStream(rpcClient, builder.getRpcRequest(), consumer, builder.getOptions());
         return CompletableFuture.completedFuture(control);
     }
 
-    private <RequestMsgBuilder extends MessageLite.Builder, ResponseMsg,
+    private <RequestMsgBuilder extends MessageLite.Builder, ResponseMsg extends MessageLite,
             RequestType extends HighLevelRequest<RequestMsgBuilder>>
-    CompletableFuture<ResponseMsg>
+    CompletableFuture<RpcClientResponse<ResponseMsg>>
     sendRequest(RequestType req, RpcClientRequestBuilder<RequestMsgBuilder, ResponseMsg> builder) {
         logger.debug("Starting request {}; {}", builder, req.getArgumentsLogString());
         req.writeHeaderTo(builder.header());
