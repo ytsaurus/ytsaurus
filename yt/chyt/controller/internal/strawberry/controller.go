@@ -20,4 +20,4 @@ type Controller interface {
 	Family() string
 }
 
-type ControllerFactory = func(l log.Logger, ytc yt.Client, root ypath.Path, cluster string) Controller
+type ControllerFactory = func(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, config yson.RawValue) Controller

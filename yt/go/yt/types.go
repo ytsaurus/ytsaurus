@@ -79,6 +79,10 @@ func (o OperationState) IsFinished() bool {
 	return false
 }
 
+func (o OperationState) Ptr() *OperationState {
+	return &o
+}
+
 type JobState string
 
 var (
