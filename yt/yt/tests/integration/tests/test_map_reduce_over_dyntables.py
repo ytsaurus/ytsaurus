@@ -171,6 +171,32 @@ class TestMapOnDynamicTables(YTEnvSetup):
 
         assert read_table("//tmp/t_out") == rows + rows1
 
+    @authors("gritukan")
+    def test_do_not_fetch_dynamic_stores_for_user_file(self):
+        sync_create_cells(1)
+        self._create_simple_dynamic_table("//tmp/t", dynamic_store_auto_flush_period=YsonEntity())
+        set("//tmp/t/@enable_dynamic_store_read", True)
+        sync_mount_table("//tmp/t")
+        flushed_rows = [{"key": i, "value": "foo"} for i in range(1, 10, 2)]
+        insert_rows("//tmp/t", flushed_rows)
+        sync_flush_table("//tmp/t")
+        unflushed_rows = [{"key": i, "value": "foo"} for i in range(0, 10, 2)]
+        insert_rows("//tmp/t", unflushed_rows)
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"a": "b"}])
+
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                file=["<format=<format=text>yson>//tmp/t"],
+                command="cat t",
+                spec={"mapper": {"format": yson.loads("<format=text>yson")}},
+            )
+
     @authors("savrus")
     @parametrize_external
     def test_dynamic_table_timestamp(self, external):

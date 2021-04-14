@@ -71,6 +71,8 @@
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/schema.h>
 
+#include <yt/yt/ytlib/tablet_client/helpers.h>
+
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 #include <yt/yt/ytlib/transaction_client/action.h>
 
@@ -6106,6 +6108,18 @@ void TOperationControllerBase::FetchUserFiles()
         chunkSpecFetcher->ChunkSpecs().size());
 
     for (auto& chunkSpec : chunkSpecFetcher->ChunkSpecs()) {
+        auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+        if (IsDynamicTabletStoreType(TypeFromId(chunkId))) {
+            const auto& fileName = userFiles[chunkSpec.table_index()]->Path;
+            THROW_ERROR_EXCEPTION(
+                "Dynamic store read is not supported for user files but it is "
+                "enabled for user file %Qv; consider disabling dynamic store read "
+                "in operation spec by setting \"enable_dynamic_store_read\" option "
+                "to false or disable dynamic store read for table by setting attribute "
+                "\"enable_dynamic_store_read\" to false and remounting table.",
+                fileName);
+        }
+
         // NB(gritukan): all user files chunks should have table_index = 0.
         int tableIndex = chunkSpec.table_index();
         chunkSpec.set_table_index(0);
