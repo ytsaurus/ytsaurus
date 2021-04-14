@@ -75,10 +75,9 @@ public class YtClient extends CompoundClient {
     private final ScheduledExecutorService executor;
     private final ClientPoolProvider poolProvider;
 
-    static public Builder builder() {
-        return new Builder();
-    }
-
+    /**
+     * @deprecated prefer to use {@link #builder()}
+     */
     public YtClient(
             BusConnector connector,
             List<YtCluster> clusters,
@@ -88,6 +87,9 @@ public class YtClient extends CompoundClient {
         this(connector, clusters, localDataCenterName, null, credentials, options);
     }
 
+    /**
+     * @deprecated prefer to use {@link #builder()}
+     */
     public YtClient(
             BusConnector connector,
             List<YtCluster> clusters,
@@ -98,6 +100,9 @@ public class YtClient extends CompoundClient {
         this(connector, clusters, localDataCenterName, proxyRole, credentials, new RpcCompression(), options);
     }
 
+    /**
+     * @deprecated prefer to use {@link #builder()}
+     */
     public YtClient(
             BusConnector connector,
             List<YtCluster> clusters,
@@ -105,8 +110,8 @@ public class YtClient extends CompoundClient {
             String proxyRole,
             RpcCredentials credentials,
             RpcCompression compression,
-            RpcOptions options)
-    {
+            RpcOptions options
+    ) {
         this(
                 new BuilderWithDefaults(
                     builder()
@@ -123,27 +128,58 @@ public class YtClient extends CompoundClient {
         );
     }
 
-    public YtClient(
-            BusConnector connector,
-            YtCluster cluster,
-            RpcCredentials credentials,
-            RpcOptions options) {
+    public YtClient(BusConnector connector, YtCluster cluster, RpcCredentials credentials, RpcOptions options) {
         this(connector, Cf.list(cluster), cluster.getName(), credentials, options);
     }
 
-    public YtClient(
-            BusConnector connector,
-            String clusterName,
-            RpcCredentials credentials,
-            RpcOptions options) {
+    public YtClient(BusConnector connector, String clusterName, RpcCredentials credentials, RpcOptions options) {
         this(connector, new YtCluster(clusterName), credentials, options);
     }
 
-    public YtClient(
-            BusConnector connector,
-            String clusterName,
-            RpcCredentials credentials) {
+    public YtClient(BusConnector connector, String clusterName, RpcCredentials credentials) {
         this(connector, clusterName, credentials, new RpcOptions());
+    }
+
+    private YtClient(BuilderWithDefaults builder) {
+        super(builder.busConnector.executorService(), builder.builder.options);
+
+        builder.builder.validate();
+
+        this.busConnector = builder.busConnector;
+        this.isBusConnectorOwner = builder.builder.isBusConnectorOwner;
+        this.executor = busConnector.executorService();
+
+        final RpcClientFactory rpcClientFactory = new RpcClientFactoryImpl(
+                busConnector,
+                builder.credentials,
+                builder.builder.compression);
+
+        if (builder.builder.options.isNewDiscoveryServiceEnabled()) {
+            poolProvider = new NewClientPoolProvider(
+                    busConnector,
+                    builder.builder.clusters,
+                    builder.builder.preferredClusterName,
+                    builder.builder.proxyRole,
+                    rpcClientFactory,
+                    builder.builder.options);
+        } else {
+            poolProvider = new OldClientPoolProvider(
+                    busConnector,
+                    builder.builder.clusters,
+                    builder.builder.preferredClusterName,
+                    builder.builder.proxyRole,
+                    rpcClientFactory,
+                    builder.credentials,
+                    builder.builder.compression,
+                    builder.builder.options);
+        }
+    }
+
+    /**
+     * Create builder for YtClient.
+     */
+    public static Builder builder() {
+        return new Builder();
     }
 
     public ScheduledExecutorService getExecutor() {
@@ -191,9 +227,8 @@ public class YtClient extends CompoundClient {
     }
 
     @Override
-    protected <RequestType extends MessageLite.Builder, ResponseType> CompletableFuture<ResponseType> invoke(
-            RpcClientRequestBuilder<RequestType, ResponseType> builder)
-    {
+    protected <RequestType extends MessageLite.Builder, ResponseType> CompletableFuture<ResponseType>
+    invoke(RpcClientRequestBuilder<RequestType, ResponseType> builder) {
         return builder.invokeVia(executor, poolProvider.getClientPool());
     }
 
@@ -201,8 +236,8 @@ public class YtClient extends CompoundClient {
     protected <RequestType extends MessageLite.Builder, ResponseType>
     CompletableFuture<RpcClientStreamControl> startStream(
             RpcClientRequestBuilder<RequestType, ResponseType> builder,
-            RpcStreamConsumer consumer)
-    {
+            RpcStreamConsumer consumer
+    ) {
         CompletableFuture<Void> clientReleaseFuture = new CompletableFuture<>();
         RpcStreamConsumer wrappedConsumer = new RpcStreamConsumer() {
             @Override
@@ -244,43 +279,9 @@ public class YtClient extends CompoundClient {
             }
         };
         CompletableFuture<RpcClient> clientFuture = getClientPool().peekClient(clientReleaseFuture);
-        return clientFuture.thenApply(client -> client.startStream(client, builder.getRpcRequest(), wrappedConsumer, builder.getOptions()));
-    }
-
-    private YtClient(BuilderWithDefaults builder) {
-        super(builder.busConnector.executorService(), builder.builder.options);
-
-        builder.builder.validate();
-
-        this.busConnector = builder.busConnector;
-        this.isBusConnectorOwner = builder.builder.isBusConnectorOwner;
-        this.executor = busConnector.executorService();
-
-        final RpcClientFactory rpcClientFactory = new RpcClientFactoryImpl(
-                busConnector,
-                builder.credentials,
-                builder.builder.compression);
-
-        if (builder.builder.options.isNewDiscoveryServiceEnabled()) {
-            poolProvider = new NewClientPoolProvider(
-                    busConnector,
-                    builder.builder.clusters,
-                    builder.builder.preferredClusterName,
-                    builder.builder.proxyRole,
-                    rpcClientFactory,
-                    builder.credentials,
-                    builder.builder.options);
-        } else {
-            poolProvider = new OldClientPoolProvider(
-                    busConnector,
-                    builder.builder.clusters,
-                    builder.builder.preferredClusterName,
-                    builder.builder.proxyRole,
-                    rpcClientFactory,
-                    builder.credentials,
-                    builder.builder.compression,
-                    builder.builder.options);
-        }
+        return clientFuture.thenApply(
+                client -> client.startStream(client, builder.getRpcRequest(), wrappedConsumer, builder.getOptions())
+        );
     }
 
     private interface ClientPoolProvider extends AutoCloseable {
@@ -305,9 +306,8 @@ public class YtClient extends CompoundClient {
             @Nullable String localDataCenterName,
             @Nullable String proxyRole,
             RpcClientFactory rpcClientFactory,
-            RpcCredentials credentials,
-            RpcOptions options)
-        {
+            RpcOptions options
+        ) {
             this.options = options;
             this.localDcName = localDataCenterName;
 
@@ -319,8 +319,8 @@ public class YtClient extends CompoundClient {
                 if (curCluster.balancerFqdn != null && !curCluster.balancerFqdn.isEmpty() && (
                         options.getPreferableDiscoveryMethod() == DiscoveryMethod.HTTP
                                 || curCluster.addresses == null
-                                || curCluster.addresses.isEmpty()))
-                {
+                                || curCluster.addresses.isEmpty())
+                ) {
                     // Use http
                     dataCenterList.add(
                             ClientPoolService.httpBuilder()
@@ -336,8 +336,8 @@ public class YtClient extends CompoundClient {
                 } else if (
                         curCluster.addresses != null && !curCluster.addresses.isEmpty() && (
                         options.getPreferableDiscoveryMethod() == DiscoveryMethod.HTTP
-                        || curCluster.balancerFqdn == null || curCluster.balancerFqdn.isEmpty()))
-                {
+                        || curCluster.balancerFqdn == null || curCluster.balancerFqdn.isEmpty())
+                ) {
                     // use rpc
                     List<HostPort> initialProxyList =
                             curCluster.addresses.stream().map(HostPort::parse).collect(Collectors.toList());
@@ -418,13 +418,13 @@ public class YtClient extends CompoundClient {
 
         @Override
         public List<RpcClient> oldSelectDestinations() {
-            final int RESULT_SIZE = 3;
+            final int resultSize = 3;
             List<RpcClient> result = new ArrayList<>();
 
             Consumer<ClientPoolService> processClientPoolService = (ClientPoolService service) -> {
                 RpcClient[] aliveClients = service.getAliveClients();
                 for (RpcClient c : aliveClients) {
-                    if (result.size() >= RESULT_SIZE) {
+                    if (result.size() >= resultSize) {
                         break;
                     }
                     result.add(c);
@@ -463,7 +463,8 @@ public class YtClient extends CompoundClient {
         private final DataCenter localDataCenter;
         private final RpcOptions options;
         private final Random random = new Random();
-        private final ConcurrentHashMap<PeriodicDiscoveryListener, Boolean> discoveriesFailed = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<PeriodicDiscoveryListener, Boolean> discoveriesFailed
+                = new ConcurrentHashMap<>();
         private final CompletableFuture<Void> waiting = new CompletableFuture<>();
 
         /*
@@ -475,6 +476,7 @@ public class YtClient extends CompoundClient {
          */
         private final @Nullable LoadingCache<Object, List<RpcClient>> clientsCache;
 
+        @SuppressWarnings("checkstyle:ParameterNumber")
         OldClientPoolProvider(
                 BusConnector connector,
                 List<YtCluster> clusters,
@@ -483,14 +485,16 @@ public class YtClient extends CompoundClient {
                 RpcClientFactory rpcClientFactory,
                 RpcCredentials credentials,
                 RpcCompression compression,
-                RpcOptions options)
-        {
+                RpcOptions options
+        ) {
             dataCenters = new DataCenter[clusters.size()];
             discovery = new ArrayList<>();
             this.options = options;
 
             if (options.getUseClientsCache() && options.getClientsCacheSize() > 0
-                    && options.getClientCacheExpiration() != null && options.getClientCacheExpiration().toMillis() > 0) {
+                    && options.getClientCacheExpiration() != null
+                    && options.getClientCacheExpiration().toMillis() > 0
+            ) {
                 this.clientsCache = CacheBuilder.newBuilder()
                         .maximumSize(options.getClientsCacheSize())
                         .expireAfterAccess(options.getClientCacheExpiration().toMillis(), TimeUnit.MILLISECONDS)
@@ -550,8 +554,8 @@ public class YtClient extends CompoundClient {
                                 listener));
             }
 
-            for (PeriodicDiscovery discovery : discovery) {
-                discovery.start();
+            for (PeriodicDiscovery d : discovery) {
+                d.start();
             }
             this.localDataCenter = tmpLocalDataCenter;
         }
@@ -565,7 +569,10 @@ public class YtClient extends CompoundClient {
         public Map<String, List<ApiServiceClient>> getAliveDestinations() {
             final Map<String, List<ApiServiceClient>> result = new HashMap<>();
             for (DataCenter dc : dataCenters) {
-                result.put(dc.getName(), dc.getAliveDestinations(slot -> new ApiServiceClient(slot.getClient(), options)));
+                result.put(
+                        dc.getName(),
+                        dc.getAliveDestinations(slot -> new ApiServiceClient(slot.getClient(), options))
+                );
             }
             return result;
         }
@@ -795,27 +802,26 @@ public class YtClient extends CompoundClient {
             if (clusters.isEmpty()) {
                 throw new IllegalArgumentException("No YT cluster specified");
             }
-            {
-                // Check cluster uniqueness.
-                Set<String> clusterNames = new HashSet<>();
-                boolean foundPreferredCluster = false;
-                for (YtCluster cluster : clusters) {
-                    if (clusterNames.contains(cluster.name)) {
-                        throw new IllegalArgumentException(
-                                String.format("Cluster %s is specified multiple times",
-                                        cluster.name));
-                    }
-                    clusterNames.add(cluster.name);
-                    if (cluster.name.equals(preferredClusterName)) {
-                        foundPreferredCluster = true;
-                    }
-                }
 
-                if (preferredClusterName != null && !foundPreferredCluster) {
+            // Check cluster uniqueness.
+            Set<String> clusterNames = new HashSet<>();
+            boolean foundPreferredCluster = false;
+            for (YtCluster cluster : clusters) {
+                if (clusterNames.contains(cluster.name)) {
                     throw new IllegalArgumentException(
-                            String.format("Preferred cluster %s is not found among specified clusters",
-                                    preferredClusterName));
+                            String.format("Cluster %s is specified multiple times",
+                                    cluster.name));
                 }
+                clusterNames.add(cluster.name);
+                if (cluster.name.equals(preferredClusterName)) {
+                    foundPreferredCluster = true;
+                }
+            }
+
+            if (preferredClusterName != null && !foundPreferredCluster) {
+                throw new IllegalArgumentException(
+                        String.format("Preferred cluster %s is not found among specified clusters",
+                                preferredClusterName));
             }
         }
 
@@ -860,7 +866,7 @@ class RandomList<T> implements List<T> {
     private final Random random;
     private final List<T> data;
 
-    public RandomList(final Random random, final List<T> data) {
+    RandomList(final Random random, final List<T> data) {
         this.random = random;
         this.data = data;
     }

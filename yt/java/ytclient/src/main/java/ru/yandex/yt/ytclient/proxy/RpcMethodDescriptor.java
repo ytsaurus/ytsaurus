@@ -38,9 +38,8 @@ public class RpcMethodDescriptor<RequestBuilder extends MessageLite.Builder, Res
             String serviceName,
             String methodName,
             Supplier<RequestBuilder> requestFactory,
-            Parser<Response> responseParser)
-
-    {
+            Parser<Response> responseParser
+    ) {
         this.protocolVersion = protocolVersion;
         this.serviceName = serviceName;
         this.methodName = methodName;
@@ -106,7 +105,11 @@ public class RpcMethodDescriptor<RequestBuilder extends MessageLite.Builder, Res
                 options);
     }
 
-    public CompletableFuture<RpcClientResponse<Response>> invoke(RpcClient client, RpcRequest<?> request, RpcOptions options) {
+    public CompletableFuture<RpcClientResponse<Response>> invoke(
+            RpcClient client,
+            RpcRequest<?> request,
+            RpcOptions options
+    ) {
         CompletableFuture<RpcClientResponse<Response>> result = new CompletableFuture<>();
         RpcClientResponseHandler handler = createResponseHandler(result);
         RpcClientRequestControl control = client.send(client, request, handler, options);

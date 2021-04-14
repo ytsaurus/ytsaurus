@@ -25,8 +25,7 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 @NonNullApi
 public class RequestWithResponseBuilder<RequestType extends MessageLite.Builder, ResponseType extends MessageLite>
-        implements RpcClientRequestBuilder<RequestType, RpcClientResponse<ResponseType>>
-{
+        implements RpcClientRequestBuilder<RequestType, RpcClientResponse<ResponseType>> {
     private final TRequestHeader.Builder header;
     private final RequestType body;
     private final List<byte[]> attachments = new ArrayList<>();
@@ -88,7 +87,10 @@ public class RequestWithResponseBuilder<RequestType extends MessageLite.Builder,
     }
 
     @Override
-    public CompletableFuture<RpcClientResponse<ResponseType>> invokeVia(ScheduledExecutorService executor, RpcClientPool clientPool) {
+    public CompletableFuture<RpcClientResponse<ResponseType>> invokeVia(
+            ScheduledExecutorService executor,
+            RpcClientPool clientPool
+    ) {
         CompletableFuture<RpcClientResponse<ResponseType>> result = new CompletableFuture<>();
         try {
             RpcClientResponseHandler handler = createHandler(result);
