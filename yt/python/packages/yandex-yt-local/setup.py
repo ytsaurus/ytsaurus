@@ -15,7 +15,7 @@ def main():
             self.test_suite = True
 
         def run_tests(self):
-            #import here, cause outside the eggs aren't loaded
+            # import here, cause outside the eggs aren't loaded
             import pytest
             pytest.main(self.test_args)
 
@@ -30,30 +30,31 @@ def main():
     ])
 
     setup(
-        name = PACKAGE_NAME,
-        version = get_version(),
-        packages = ["yt.local", "yt.environment", "yt.environment.api", "yt.test_helpers"],
-        scripts = scripts,
+        name=PACKAGE_NAME,
+        # To avoid 'post' in version.
+        version=get_version().split("-")[0],
+        packages=["yt.local", "yt.environment", "yt.environment.api", "yt.test_helpers"],
+        scripts=scripts,
 
-        install_requires = requires,
+        install_requires=requires,
 
-        author = "Andrey Saitgalin",
-        author_email = "asaitgalin@yandex-team.ru",
-        description = "Python libraries and CLI to manage local YT instances.",
-        keywords = "yt local mapreduce",
+        author="Andrey Saitgalin",
+        author_email="asaitgalin@yandex-team.ru",
+        description="Python libraries and CLI to manage local YT instances.",
+        keywords="yt local mapreduce",
 
-        long_description = \
-                "This package contains python library which helps to set up " \
-                "fully-functional YT cluster instance locally. It is designed to be " \
-                "flexible and allows to choose desired YT cluster configuration. " \
-                "Also this packages provides yt_local binary (based on python library) " \
-                "which can be used to manage local YT instances manually from command-line.",
+        long_description=\
+            "This package contains python library which helps to set up " \
+            "fully-functional YT cluster instance locally. It is designed to be " \
+            "flexible and allows to choose desired YT cluster configuration. " \
+            "Also this packages provides yt_local binary (based on python library) " \
+            "which can be used to manage local YT instances manually from command-line.",
 
         # Using py.test, because it much more verbose
-        cmdclass = {"test": PyTest},
-        tests_require = ["pytest"],
+        cmdclass={"test": PyTest},
+        tests_require=["pytest"],
 
-        data_files = data_files
+        data_files=data_files
     )
 
 if __name__ == "__main__":
