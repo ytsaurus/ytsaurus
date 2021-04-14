@@ -168,7 +168,6 @@ public class PeriodicDiscovery implements AutoCloseable, Closeable {
                     .setUrl(discoverProxiesUrl)
                     .setHeader("X-YT-Header-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT))
                     .setHeader("X-YT-Output-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT))
-                    .setHeader("Authorization", String.format("OAuth %s", credentials.getToken()))
                     .build());
 
         responseFuture.addListener(() -> {
@@ -282,18 +281,15 @@ class HttpProxyGetter implements ProxyGetter {
     AsyncHttpClient httpClient;
     String balancerHost;
     @Nullable String role;
-    @Nullable String userToken;
 
     public HttpProxyGetter(
             AsyncHttpClient httpClient,
             String balancerHost,
-            @Nullable String role,
-            @Nullable String userToken)
+            @Nullable String role)
     {
         this.httpClient = httpClient;
         this.balancerHost = balancerHost;
         this.role = role;
-        this.userToken = userToken;
     }
 
     @Override
@@ -306,9 +302,6 @@ class HttpProxyGetter implements ProxyGetter {
                         .setUrl(discoverProxiesUrl)
                         .setHeader("X-YT-Header-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT))
                         .setHeader("X-YT-Output-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT));
-        if (userToken != null) {
-            requestBuilder.setHeader("Authorization", String.format("OAuth %s", userToken));
-        }
         CompletableFuture<Response> responseFuture = httpClient.executeRequest(requestBuilder.build()).toCompletableFuture();
 
         CompletableFuture<List<HostPort>> resultFuture = responseFuture.thenApply((response) -> {

@@ -303,8 +303,7 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
         proxyGetter = new HttpProxyGetter(
                 asyncHttpClient,
                 Objects.requireNonNull(httpBuilder.balancerAddress),
-                httpBuilder.role,
-                httpBuilder.token
+                httpBuilder.role
         );
         toClose.add(asyncHttpClient);
 
@@ -388,18 +387,9 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
      */
     static class HttpBuilder extends BaseBuilder<HttpBuilder> {
         @Nullable String balancerAddress;
-        @Nullable String token;
 
         HttpBuilder setBalancerAddress(String host, int port) {
             this.balancerAddress = host + ":" + port;
-            return this;
-        }
-
-        /**
-         * Set token. It might be null but that will work only on local test clusters.
-         */
-        HttpBuilder setToken(@Nullable String token) {
-            this.token = token;
             return this;
         }
 

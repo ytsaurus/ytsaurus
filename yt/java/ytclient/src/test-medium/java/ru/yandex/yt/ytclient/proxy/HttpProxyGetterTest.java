@@ -57,7 +57,6 @@ public class HttpProxyGetterTest {
         HttpProxyGetter getter = new HttpProxyGetter(
                 httpClient,
                 LocalYt.getAddress(),
-                null,
                 null
         );
         final var hostPortComparator = Comparator
