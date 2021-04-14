@@ -28,10 +28,10 @@ func operationURL(cluster string, opID yt.OperationID) interface{} {
 func opAnnotations(a *Agent, oplet *Oplet) map[string]interface{} {
 	return map[string]interface{}{
 		"strawberry_family": oplet.c.Family(),
-		"strawberry_node":   a.root.Child(oplet.Alias),
+		"strawberry_node":   a.config.Root.Child(oplet.Alias),
 		"strawberry_controller": map[string]interface{}{
 			"address": a.hostname,
-			// TODO(max42): build revision, etc.
+			// TODO(max42): build Revision, etc.
 		},
 		"strawberry_incarnation":        oplet.IncarnationIndex + 1,
 		"strawberry_previous_operation": oplet.YTOpID,
@@ -40,7 +40,7 @@ func opAnnotations(a *Agent, oplet *Oplet) map[string]interface{} {
 
 func opDescription(a *Agent, oplet *Oplet) map[string]interface{} {
 	desc := map[string]interface{}{
-		"strawberry_node":        navigationURL(a.Proxy, a.root.Child(oplet.Alias)),
+		"strawberry_node":        navigationURL(a.Proxy, a.config.Root.Child(oplet.Alias)),
 		"strawberry_incarnation": oplet.IncarnationIndex + 1,
 	}
 	if oplet.YTOpID != yt.OperationID(guid.FromParts(0, 0, 0, 0)) {

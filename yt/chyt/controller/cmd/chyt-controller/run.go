@@ -42,11 +42,9 @@ func doRun() error {
 		l.Fatal("error parsing yson config", log.Error(err))
 	}
 
-	options := app.Options{
-		ForceFlush: flagForceFlush,
-	}
+	options := app.Options{}
 
-	_ = app.New(l, &config, &options, []strawberry.ControllerFactory{chyt.NewController})
+	_ = app.New(l, &config, &options, map[string]strawberry.ControllerFactory{"chyt": chyt.NewController})
 	<-make(chan struct{})
 
 	panic("unreachable")

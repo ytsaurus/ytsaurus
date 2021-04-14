@@ -97,7 +97,7 @@ func (c *Controller) Family() string {
 	return "chyt"
 }
 
-func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string) strawberry.Controller {
+func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, config yson.RawValue) strawberry.Controller {
 	c := &Controller{
 		l:       l,
 		ytc:     ytc,

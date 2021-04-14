@@ -8,9 +8,9 @@ import (
 
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/yt/go/guid"
-	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
+	"a.yandex-team.ru/yt/go/yterrors"
 )
 
 type Oplet struct {
@@ -24,9 +24,8 @@ type Oplet struct {
 
 	speclet yson.RawValue
 
-	pendingRestart                bool
-	pendingFlush                  bool
-	pendingControllerNotification bool
+	pendingRestart bool
+	pendingFlush   bool
 
 	acl       yson.RawValue
 	pool      *string
@@ -59,28 +58,35 @@ type Agent struct {
 	ytc         yt.Client
 	l           log.Logger
 	controllers map[string]Controller
-	root        ypath.Path
+	config      *Config
 
-	ops    []Oplet
-	idToOp map[yt.OperationID]*Oplet
+	aliasToOp map[string]*Oplet
 
 	hostname string
 	Proxy    string
+
+	// nodeCh receives events of form "particular node in root has changed Revision"
+	nodeCh <-chan string
+
+	// pendingAliases contains all aliases that should be updated from Cypress attributes.
+	pendingAliases map[string]struct{}
 }
 
-func NewAgent(proxy string, ytc yt.Client, l log.Logger, controllers map[string]Controller, root ypath.Path) *Agent {
+func NewAgent(proxy string, ytc yt.Client, l log.Logger, controllers map[string]Controller, config *Config) *Agent {
 	hostname, err := os.Hostname()
 	if err != nil {
 		l.Fatal("error getting hostname", log.Error(err))
 	}
 
 	return &Agent{
-		ytc:         ytc,
-		l:           l,
-		controllers: controllers,
-		root:        root,
-		hostname:    hostname,
-		Proxy:       proxy,
+		ytc:            ytc,
+		l:              l,
+		controllers:    controllers,
+		config:         config,
+		hostname:       hostname,
+		Proxy:          proxy,
+		aliasToOp:      make(map[string]*Oplet),
+		pendingAliases: make(map[string]struct{}),
 	}
 }
 
@@ -124,17 +130,12 @@ func (a *Agent) restartOp(oplet *Oplet) {
 	oplet.l.Info("operation started", log.String("operation_id", opID.String()),
 		log.Int("incarnation_index", oplet.IncarnationIndex))
 
-	// Delete obsolete operation id from idToOp map.
-	delete(a.idToOp, oplet.YTOpID)
-
 	oplet.setYTOpID(opID)
-	a.idToOp[oplet.YTOpID] = oplet
 
 	oplet.pendingRestart = false
 
 	oplet.IncarnationIndex++
 	oplet.pendingFlush = true
-	oplet.pendingControllerNotification = true
 }
 
 func (a *Agent) flushOp(oplet *Oplet) {
@@ -144,14 +145,14 @@ func (a *Agent) flushOp(oplet *Oplet) {
 
 	err := a.ytc.MultisetAttributes(
 		context.TODO(),
-		a.root.Child(oplet.Alias).Attrs(),
+		a.config.Root.Child(oplet.Alias).Attrs(),
 		map[string]interface{}{
 			"strawberry_error":             oplet.err,
 			"strawberry_operation_id":      oplet.YTOpID,
 			"strawberry_incarnation_index": oplet.IncarnationIndex,
 			"strawberry_controller": map[string]string{
 				"address": a.hostname,
-				// TODO(max42): build revision, etc.
+				// TODO(max42): build Revision, etc.
 			},
 			"strawberry_family": oplet.c.Family(),
 			"annotation":        annotation,
@@ -197,12 +198,20 @@ func (a *Agent) abortDangling(family string) {
 
 	l.Info("aborting dangling operations")
 	for _, op := range runningOps {
-		id := op.ID
-		if _, ok := a.idToOp[id]; !ok {
-			l.Debug("aborting operation", log.String("operation_id", id.String()))
-			err := a.ytc.AbortOperation(context.TODO(), id, nil)
+		needAbort := false
+		alias, ok := op.BriefSpec["alias"]
+		if !ok {
+			l.Debug("operation misses alias (how is that possible?), aborting it", log.String("operation_id", op.ID.String()))
+			needAbort = true
+		} else if _, ok := a.aliasToOp[alias.(string)[1:]]; !ok {
+			l.Debug("operation alias unknown, aborting it", log.String("operation_id", op.ID.String()))
+			needAbort = true
+		}
+
+		if needAbort {
+			err := a.ytc.AbortOperation(context.TODO(), op.ID, nil)
 			if err != nil {
-				l.Error("error aborting operation", log.String("operation_id", id.String()), log.Error(err))
+				l.Error("error aborting operation", log.String("operation_id", op.ID.String()), log.Error(err))
 			}
 		}
 	}
@@ -211,11 +220,22 @@ func (a *Agent) abortDangling(family string) {
 func (a *Agent) pass() {
 	a.l.Info("starting pass")
 
+	// Update pending operations from attributes.
+
+	for alias := range a.pendingAliases {
+		oplet := a.aliasToOp[alias]
+		err := a.updateFromAttrs(oplet, alias)
+		if err != nil {
+			a.l.Error("error updating operation from attributes", log.String("alias", alias), log.Error(err))
+		} else {
+			delete(a.pendingAliases, alias)
+		}
+	}
+
 	// Restart operations which were scheduled for restart.
 
 	a.l.Info("restarting pending operations")
-	for i := range a.ops {
-		op := &a.ops[i]
+	for _, op := range a.aliasToOp {
 		if op.pendingRestart {
 			a.restartOp(op)
 		}
@@ -224,8 +244,7 @@ func (a *Agent) pass() {
 	// Check liveness of registered operations.
 
 	a.l.Info("checking operations' liveness")
-	for i := range a.ops {
-		op := &a.ops[i]
+	for _, op := range a.aliasToOp {
 		opID := op.YTOpID
 
 		if opID == yt.OperationID(guid.FromHalves(0, 0)) {
@@ -255,8 +274,7 @@ func (a *Agent) pass() {
 	// Flush operation states.
 
 	a.l.Info("flushing operations")
-	for i := range a.ops {
-		op := &a.ops[i]
+	for _, op := range a.aliasToOp {
 		if op.pendingFlush {
 			a.flushOp(op)
 		}
@@ -272,18 +290,23 @@ func (a *Agent) pass() {
 	}
 
 	// Sanity check.
-	for id, op := range a.idToOp {
-		if op.YTOpID != id {
-			panic(fmt.Errorf("invariant violation: operation %v points to state for operation %v", id, op.YTOpID))
+	for alias, op := range a.aliasToOp {
+		if op.Alias != alias {
+			panic(fmt.Errorf("invariant violation: alias %v points to oplet for operation with alias %v", alias, op.Alias))
 		}
 	}
 }
 
 func (a *Agent) background(period time.Duration) {
 	a.l.Info("starting background activity", log.Duration("period", period))
+	ticker := time.NewTicker(period)
 	for {
-		a.pass()
-		time.Sleep(period)
+		select {
+		case alias := <-a.nodeCh:
+			a.pendingAliases[alias] = struct{}{}
+		case <-ticker.C:
+			a.pass()
+		}
 	}
 }
 
@@ -308,15 +331,15 @@ func (a *Agent) newOplet(alias string, controller Controller, cState CypressStat
 	opID := cState.OperationID
 
 	opState := Oplet{
-		Alias:                         alias,
-		acl:                           cState.ACL,
-		pool:                          cState.Pool,
-		IncarnationIndex:              cState.IncarnationIndex,
-		YTOpID:                        opID,
-		speclet:                       cState.Speclet,
-		pendingControllerNotification: true,
-		l:                             log.With(a.l, log.String("alias", alias)),
-		c:                             controller,
+		Alias:            alias,
+		acl:              cState.ACL,
+		pool:             cState.Pool,
+		IncarnationIndex: cState.IncarnationIndex,
+		YTOpID:           opID,
+		speclet:          cState.Speclet,
+		pendingFlush:     true,
+		l:                log.With(a.l, log.String("alias", alias)),
+		c:                controller,
 	}
 
 	if opID == yt.OperationID(guid.FromParts(0, 0, 0, 0)) {
@@ -327,15 +350,36 @@ func (a *Agent) newOplet(alias string, controller Controller, cState CypressStat
 	return opState
 }
 
-func (a *Agent) initOperations(forceFlush bool) {
-	var nodes []struct {
-		Alias            string         `yson:",value"`
-		ACL              yson.RawValue  `yson:"strawberry_acl,attr"`
-		OperationID      yt.OperationID `yson:"strawberry_operation_id,attr"`
-		IncarnationIndex int            `yson:"strawberry_incarnation_index,attr"`
-		Speclet          yson.RawValue  `yson:"strawberry_speclet,attr"`
-		Family           string         `yson:"strawberry_family,attr"`
-		Pool             *string        `yson:"strawberry_pool,attr"`
+func (a *Agent) registerOplet(oplet *Oplet) {
+	if _, ok := a.aliasToOp[oplet.Alias]; ok {
+		panic(fmt.Errorf("invariant violation: alias %v is already registered", oplet.Alias))
+	}
+	a.aliasToOp[oplet.Alias] = oplet
+	oplet.l.Info("operation registered")
+}
+
+func (a *Agent) unregisterOplet(oplet *Oplet) {
+	if actual := a.aliasToOp[oplet.Alias]; actual != oplet {
+		panic(fmt.Errorf("invariant violation: alias %v expected to match oplet %v, actual %v",
+			oplet.Alias, oplet, actual))
+	}
+	delete(a.aliasToOp, oplet.Alias)
+	oplet.l.Info("operation unregistered")
+}
+
+func (a *Agent) updateFromAttrs(oplet *Oplet, alias string) error {
+	l := log.With(a.l, log.String("alias", alias))
+	l.Info("updating operations from node attributes")
+
+	// Collect full attributes of the node.
+
+	var node struct {
+		ACL              yson.RawValue  `yson:"strawberry_acl"`
+		OperationID      yt.OperationID `yson:"strawberry_operation_id"`
+		IncarnationIndex int            `yson:"strawberry_incarnation_index"`
+		Speclet          yson.RawValue  `yson:"strawberry_speclet"`
+		Family           string         `yson:"strawberry_family"`
+		Pool             *string        `yson:"strawberry_pool"`
 	}
 
 	// Keep in sync with structure above.
@@ -344,53 +388,68 @@ func (a *Agent) initOperations(forceFlush bool) {
 		"strawberry_speclet", "strawberry_family", "strawberry_pool",
 	}
 
-	err := a.ytc.ListNode(context.TODO(), a.root, &nodes, &yt.ListNodeOptions{Attributes: attributes})
+	err := a.ytc.GetNode(context.TODO(), a.config.Root.Child(alias).Attrs(), &node, &yt.GetNodeOptions{Attributes: attributes})
 
-	if err != nil {
-		a.l.Fatal("error listing root node", log.Error(err))
-		return
+	if yterrors.ContainsResolveError(err) {
+		// Node has gone. Remove this oplet.
+		if oplet != nil {
+			a.unregisterOplet(oplet)
+		}
+		return nil
+	} else if err != nil {
+		a.l.Error("error getting attributes", log.Error(err))
+		return err
 	}
 
-	a.idToOp = make(map[yt.OperationID]*Oplet)
-
-	for _, node := range nodes {
-		l := log.With(a.l, log.String("alias", node.Alias), log.String("operation_id", node.OperationID.String()))
-
-		// Validate operation node.
-		controller, ok := a.controllers[node.Family]
-		if !ok {
-			l.Debug("skipping operation from unknown family",
-				log.String("family", node.Family))
-			continue
-		}
-
-		if node.Speclet == nil {
-			l.Debug("skipping operation due to missing `strawberry_speclet` attribute")
-			continue
-		}
-
-		l.Debug("collected operation")
-
-		a.ops = append(a.ops, a.newOplet(node.Alias, controller, CypressState{
-			ACL:              node.ACL,
-			OperationID:      node.OperationID,
-			IncarnationIndex: node.IncarnationIndex,
-			Speclet:          node.Speclet,
-			Pool:             node.Pool,
-		}))
-		a.idToOp[node.OperationID] = &a.ops[len(a.ops)-1]
+	// Validate operation node.
+	controller, ok := a.controllers[node.Family]
+	if !ok {
+		l.Debug("skipping node from unknown family",
+			log.String("family", node.Family))
+		return nil
 	}
 
-	if forceFlush {
-		for i := range a.ops {
-			op := &a.ops[i]
-			op.pendingFlush = true
-		}
+	if node.Speclet == nil {
+		l.Debug("skipping operation due to missing `strawberry_speclet` attribute")
+		return nil
 	}
+
+	l.Debug("node attributes collected and validated")
+
+	newOplet := a.newOplet(alias, controller, CypressState{
+		ACL:              node.ACL,
+		OperationID:      node.OperationID,
+		IncarnationIndex: node.IncarnationIndex,
+		Speclet:          node.Speclet,
+		Pool:             node.Pool,
+	})
+
+	if oplet != nil {
+		*oplet = newOplet
+	} else {
+		a.registerOplet(&newOplet)
+	}
+
+	l.Info("operation updated from node attributes")
+
+	return nil
 }
 
-func (a *Agent) Start(forceFlush bool, period time.Duration) {
-	a.initOperations(forceFlush)
+func (a *Agent) Start() {
+	a.nodeCh, _ = TrackChildren(a.config.Root, time.Millisecond*1000, a.ytc, a.l)
 
-	go a.background(period)
+	var initialAliases []string
+	err := a.ytc.ListNode(context.TODO(), a.config.Root, &initialAliases, nil)
+	if err != nil {
+		panic(err)
+	}
+
+	for _, alias := range initialAliases {
+		err := a.updateFromAttrs(nil, alias)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	go a.background(time.Duration(a.config.PassPeriod))
 }

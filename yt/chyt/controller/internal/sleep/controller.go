@@ -33,6 +33,6 @@ func (c Controller) Family() string {
 	return "sleep"
 }
 
-func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string) strawberry.Controller {
+func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, config yson.RawValue) strawberry.Controller {
 	return Controller{}
 }
