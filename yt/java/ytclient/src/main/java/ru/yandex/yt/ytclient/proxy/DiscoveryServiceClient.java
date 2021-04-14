@@ -26,7 +26,7 @@ public class DiscoveryServiceClient {
 
     public CompletableFuture<List<String>> discoverProxies(String role) {
         RpcClientRequestBuilder<TReqDiscoverProxies.Builder, RpcClientResponse<TRspDiscoverProxies>> builder =
-                ApiServiceMethodTable.discoverProxies.createRequestBuilder(options);
+                ApiServiceMethodTable.DISCOVER_PROXIES.createRequestBuilder(options);
 
         if (role != null) {
             builder.body().setRole(role);
