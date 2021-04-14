@@ -142,7 +142,7 @@ public class ApiServiceClient extends TransactionalClient {
      */
     public CompletableFuture<ApiServiceTransaction> startTransaction(StartTransaction startTransaction) {
         RpcClientRequestBuilder<TReqStartTransaction.Builder, RpcClientResponse<TRspStartTransaction>> builder =
-                ApiServiceMethodTable.startTransaction.createRequestBuilder(rpcOptions);
+                ApiServiceMethodTable.START_TRANSACTION.createRequestBuilder(rpcOptions);
         return RpcUtil.apply(sendRequest(startTransaction, builder), response -> {
             GUID id = RpcUtil.fromProto(response.body().getId());
             YtTimestamp startTimestamp = YtTimestamp.valueOf(response.body().getStartTimestamp());
@@ -188,7 +188,7 @@ public class ApiServiceClient extends TransactionalClient {
      */
     public CompletableFuture<Void> pingTransaction(PingTransaction req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.pingTransaction.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.PING_TRANSACTION.createRequestBuilder(rpcOptions)),
                 response -> null);
     }
 
@@ -202,7 +202,7 @@ public class ApiServiceClient extends TransactionalClient {
      */
     public CompletableFuture<Void> commitTransaction(CommitTransaction req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.commitTransaction.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.COMMIT_TRANSACTION.createRequestBuilder(rpcOptions)),
                 response -> null);
     }
 
@@ -216,7 +216,7 @@ public class ApiServiceClient extends TransactionalClient {
      */
     public CompletableFuture<Void> abortTransaction(AbortTransaction req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.abortTransaction.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.ABORT_TRANSACTION.createRequestBuilder(rpcOptions)),
                 response -> null);
     }
 
@@ -233,7 +233,7 @@ public class ApiServiceClient extends TransactionalClient {
     @Override
     public CompletableFuture<YTreeNode> getNode(GetNode req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.getNode.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.GET_NODE.createRequestBuilder(rpcOptions)),
                 response -> parseByteString(response.body().getValue()));
     }
 
@@ -244,7 +244,7 @@ public class ApiServiceClient extends TransactionalClient {
     @Override
     public CompletableFuture<YTreeNode> listNode(ListNode req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.listNode.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.LIST_NODE.createRequestBuilder(rpcOptions)),
                 response -> parseByteString(response.body().getValue()));
     }
 
@@ -255,7 +255,7 @@ public class ApiServiceClient extends TransactionalClient {
     @Override
     public CompletableFuture<Void> setNode(SetNode req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.setNode.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.SET_NODE.createRequestBuilder(rpcOptions)),
                 response -> null);
     }
 
@@ -266,7 +266,7 @@ public class ApiServiceClient extends TransactionalClient {
     @Override
     public CompletableFuture<Boolean> existsNode(ExistsNode req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.existsNode.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.EXISTS_NODE.createRequestBuilder(rpcOptions)),
                 response -> response.body().getExists());
     }
 
@@ -276,7 +276,7 @@ public class ApiServiceClient extends TransactionalClient {
      */
     public CompletableFuture<List<YTreeNode>> getTablePivotKeys(GetTablePivotKeys req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.getTablePivotKeys.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.GET_TABLE_PIVOT_KEYS.createRequestBuilder(rpcOptions)),
                 response -> YTreeBinarySerializer.deserialize(
                         new ByteArrayInputStream(response.body().getValue().toByteArray())
                 ).asList());
@@ -288,7 +288,7 @@ public class ApiServiceClient extends TransactionalClient {
      */
     public CompletableFuture<GUID> createObject(CreateObject req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.createObject.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.CREATE_OBJECT.createRequestBuilder(rpcOptions)),
                 response -> RpcUtil.fromProto(response.body().getObjectId()));
     }
 
@@ -299,7 +299,7 @@ public class ApiServiceClient extends TransactionalClient {
     @Override
     public CompletableFuture<GUID> createNode(CreateNode req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.createNode.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.CREATE_NODE.createRequestBuilder(rpcOptions)),
                 response -> RpcUtil.fromProto(response.body().getNodeId()));
     }
 
@@ -310,7 +310,7 @@ public class ApiServiceClient extends TransactionalClient {
     @Override
     public CompletableFuture<Void> removeNode(RemoveNode req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.removeNode.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.REMOVE_NODE.createRequestBuilder(rpcOptions)),
                 response -> null);
     }
 
@@ -321,7 +321,7 @@ public class ApiServiceClient extends TransactionalClient {
     @Override
     public CompletableFuture<LockNodeResult> lockNode(LockNode req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.lockNode.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.LOCK_NODE.createRequestBuilder(rpcOptions)),
                 response -> new LockNodeResult(
                         RpcUtil.fromProto(response.body().getNodeId()),
                         RpcUtil.fromProto(response.body().getLockId())));
@@ -334,7 +334,7 @@ public class ApiServiceClient extends TransactionalClient {
     @Override
     public CompletableFuture<GUID> copyNode(CopyNode req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.copyNode.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.COPY_NODE.createRequestBuilder(rpcOptions)),
                 response -> RpcUtil.fromProto(response.body().getNodeId()));
     }
 
@@ -345,7 +345,7 @@ public class ApiServiceClient extends TransactionalClient {
     @Override
     public CompletableFuture<GUID> moveNode(MoveNode req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.moveNode.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.MOVE_NODE.createRequestBuilder(rpcOptions)),
                 response -> RpcUtil.fromProto(response.body().getNodeId()));
     }
 
@@ -356,7 +356,7 @@ public class ApiServiceClient extends TransactionalClient {
     @Override
     public CompletableFuture<GUID> linkNode(LinkNode req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.linkNode.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.LINK_NODE.createRequestBuilder(rpcOptions)),
                 response -> RpcUtil.fromProto(response.body().getNodeId()));
     }
 
@@ -367,7 +367,7 @@ public class ApiServiceClient extends TransactionalClient {
     @Override
     public CompletableFuture<Void> concatenateNodes(ConcatenateNodes req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.concatenateNodes.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.CONCATENATE_NODES.createRequestBuilder(rpcOptions)),
                 response -> null);
     }
 
@@ -414,7 +414,7 @@ public class ApiServiceClient extends TransactionalClient {
         return handleHeavyResponse(
                 sendRequest(
                         request.asLookupRowsWritable(),
-                        ApiServiceMethodTable.lookupRows.createRequestBuilder(rpcOptions)
+                        ApiServiceMethodTable.LOOKUP_ROWS.createRequestBuilder(rpcOptions)
                 ),
                 response -> {
                     logger.trace("LookupRows incoming rowset descriptor: {}", response.body().getRowsetDescriptor());
@@ -463,7 +463,7 @@ public class ApiServiceClient extends TransactionalClient {
         return handleHeavyResponse(
                 sendRequest(
                         request.asVersionedLookupRowsWritable(),
-                        ApiServiceMethodTable.versionedLookupRows.createRequestBuilder(rpcOptions)
+                        ApiServiceMethodTable.VERSIONED_LOOKUP_ROWS.createRequestBuilder(rpcOptions)
                 ),
                 response -> {
                     logger.trace("VersionedLookupRows incoming rowset descriptor: {}",
@@ -514,7 +514,7 @@ public class ApiServiceClient extends TransactionalClient {
     private <T> CompletableFuture<T> selectRowsImpl(SelectRowsRequest request,
                                                     Function<RpcClientResponse<TRspSelectRows>, T> responseReader) {
         return handleHeavyResponse(
-                sendRequest(request, ApiServiceMethodTable.selectRows.createRequestBuilder(rpcOptions)),
+                sendRequest(request, ApiServiceMethodTable.SELECT_ROWS.createRequestBuilder(rpcOptions)),
                 response -> {
                     logger.trace("SelectRows incoming rowset descriptor: {}", response.body().getRowsetDescriptor());
                     return responseReader.apply(response);
@@ -525,7 +525,7 @@ public class ApiServiceClient extends TransactionalClient {
         return RpcUtil.apply(
                 sendRequest(
                         new ModifyRowsWrapper(transactionId, request),
-                        ApiServiceMethodTable.modifyRows.createRequestBuilder(rpcOptions)
+                        ApiServiceMethodTable.MODIFY_ROWS.createRequestBuilder(rpcOptions)
                 ),
                 response -> null);
     }
@@ -534,13 +534,13 @@ public class ApiServiceClient extends TransactionalClient {
 
     public CompletableFuture<Long> buildSnapshot(BuildSnapshot req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.buildSnapshot.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.BUILD_SNAPSHOT.createRequestBuilder(rpcOptions)),
                 response -> response.body().getSnapshotId());
     }
 
     public CompletableFuture<Void> gcCollect(GcCollect req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.gcCollect.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.GC_COLLECT.createRequestBuilder(rpcOptions)),
                 response -> null);
     }
 
@@ -550,7 +550,7 @@ public class ApiServiceClient extends TransactionalClient {
 
     public CompletableFuture<Void> mountTable(MountTable req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.mountTable.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.MOUNT_TABLE.createRequestBuilder(rpcOptions)),
                 response -> null);
     }
 
@@ -564,7 +564,7 @@ public class ApiServiceClient extends TransactionalClient {
      */
     public CompletableFuture<Void> unmountTable(UnmountTable req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.unmountTable.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.UNMOUNT_TABLE.createRequestBuilder(rpcOptions)),
                 response -> null);
     }
 
@@ -574,7 +574,7 @@ public class ApiServiceClient extends TransactionalClient {
 
     public CompletableFuture<Void> remountTable(RemountTable req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.remountTable.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.REMOUNT_TABLE.createRequestBuilder(rpcOptions)),
                 response -> null);
     }
 
@@ -588,7 +588,7 @@ public class ApiServiceClient extends TransactionalClient {
 
     public CompletableFuture<Void> freezeTable(FreezeTable req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.freezeTable.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.FREEZE_TABLE.createRequestBuilder(rpcOptions)),
                 response -> null);
     }
 
@@ -610,7 +610,7 @@ public class ApiServiceClient extends TransactionalClient {
 
     public CompletableFuture<Void> unfreezeTable(UnfreezeTable req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.unfreezeTable.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.UNFREEZE_TABLE.createRequestBuilder(rpcOptions)),
                 response -> null);
     }
 
@@ -618,7 +618,7 @@ public class ApiServiceClient extends TransactionalClient {
         return RpcUtil.apply(
                 sendRequest(
                         new GetInSyncReplicasWrapper(timestamp, request),
-                        ApiServiceMethodTable.getInSyncReplicas.createRequestBuilder(rpcOptions)
+                        ApiServiceMethodTable.GET_IN_SYNC_REPLICAS.createRequestBuilder(rpcOptions)
                 ),
                 response -> response.body().getReplicaIdsList()
                         .stream().map(RpcUtil::fromProto).collect(Collectors.toList()));
@@ -636,7 +636,7 @@ public class ApiServiceClient extends TransactionalClient {
 
     public CompletableFuture<List<TabletInfo>> getTabletInfos(GetTabletInfos req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.getTabletInfos.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.GET_TABLET_INFOS.createRequestBuilder(rpcOptions)),
                 response ->
                         response.body().getTabletsList()
                                 .stream()
@@ -659,7 +659,7 @@ public class ApiServiceClient extends TransactionalClient {
 
     public CompletableFuture<YtTimestamp> generateTimestamps(GenerateTimestamps req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.generateTimestamps.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.GENERATE_TIMESTAMPS.createRequestBuilder(rpcOptions)),
                 response -> YtTimestamp.valueOf(response.body().getTimestamp()));
     }
 
@@ -675,7 +675,7 @@ public class ApiServiceClient extends TransactionalClient {
     /* tables */
     public CompletableFuture<Void> reshardTable(ReshardTable req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.reshardTable.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.RESHARD_TABLE.createRequestBuilder(rpcOptions)),
                 response -> null
         );
     }
@@ -687,13 +687,13 @@ public class ApiServiceClient extends TransactionalClient {
 
     public CompletableFuture<Void> trimTable(TrimTable req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.trimTable.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.TRIM_TABLE.createRequestBuilder(rpcOptions)),
                 response -> null);
     }
 
     public CompletableFuture<Void> alterTable(AlterTable req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.alterTable.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.ALTER_TABLE.createRequestBuilder(rpcOptions)),
                 response -> null);
     }
 
@@ -738,20 +738,20 @@ public class ApiServiceClient extends TransactionalClient {
 
     public CompletableFuture<Void> alterTableReplica(AlterTableReplica req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.alterTableReplica.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.ALTER_TABLE_REPLICA.createRequestBuilder(rpcOptions)),
                 response -> null);
     }
 
     @Override
     public CompletableFuture<GUID> startOperation(StartOperation req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.startOperation.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.START_OPERATION.createRequestBuilder(rpcOptions)),
                 response -> RpcUtil.fromProto(response.body().getOperationId()));
     }
 
     public CompletableFuture<YTreeNode> getOperation(GetOperation req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.getOperation.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.GET_OPERATION.createRequestBuilder(rpcOptions)),
                 response -> parseByteString(response.body().getMeta())
         );
     }
@@ -759,7 +759,7 @@ public class ApiServiceClient extends TransactionalClient {
     @Override
     public CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req) {
         return RpcUtil.apply(
-                sendRequest(req, ApiServiceMethodTable.checkPermission.createRequestBuilder(rpcOptions)),
+                sendRequest(req, ApiServiceMethodTable.CHECK_PERMISSION.createRequestBuilder(rpcOptions)),
                 response -> response.body().getResult());
     }
 
@@ -775,7 +775,7 @@ public class ApiServiceClient extends TransactionalClient {
     public <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req,
                                                            TableAttachmentReader<T> reader) {
         RpcClientRequestBuilder<TReqReadTable.Builder, RpcClientResponse<TRspReadTable>>
-                builder = ApiServiceMethodTable.readTable.createRequestBuilder(rpcOptions);
+                builder = ApiServiceMethodTable.READ_TABLE.createRequestBuilder(rpcOptions);
 
         req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
@@ -791,7 +791,7 @@ public class ApiServiceClient extends TransactionalClient {
     @Override
     public <T> CompletableFuture<TableWriter<T>> writeTable(WriteTable<T> req) {
         RpcClientRequestBuilder<TReqWriteTable.Builder, RpcClientResponse<TRspWriteTable>>
-                builder = ApiServiceMethodTable.writeTable.createRequestBuilder(rpcOptions);
+                builder = ApiServiceMethodTable.WRITE_TABLE.createRequestBuilder(rpcOptions);
 
         req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
@@ -810,7 +810,7 @@ public class ApiServiceClient extends TransactionalClient {
     @Override
     public CompletableFuture<FileReader> readFile(ReadFile req) {
         RpcClientRequestBuilder<TReqReadFile.Builder, RpcClientResponse<TRspReadFile>>
-                builder = ApiServiceMethodTable.readFile.createRequestBuilder(rpcOptions);
+                builder = ApiServiceMethodTable.READ_FILE.createRequestBuilder(rpcOptions);
 
         req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
@@ -826,7 +826,7 @@ public class ApiServiceClient extends TransactionalClient {
     @Override
     public CompletableFuture<FileWriter> writeFile(WriteFile req) {
         RpcClientRequestBuilder<TReqWriteFile.Builder, RpcClientResponse<TRspWriteFile>>
-                builder = ApiServiceMethodTable.writeFile.createRequestBuilder(rpcOptions);
+                builder = ApiServiceMethodTable.WRITE_FILE.createRequestBuilder(rpcOptions);
 
         req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
