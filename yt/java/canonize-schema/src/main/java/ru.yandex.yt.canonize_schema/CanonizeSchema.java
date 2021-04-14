@@ -9,7 +9,6 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 
 public class CanonizeSchema {
-
     static Set<String> knownAttributes = Set.of(
             "name",
             "type_v3",
@@ -19,7 +18,10 @@ public class CanonizeSchema {
             "lock",
             "group");
 
-    static public YTreeMapNode canonizeColumnSchema(YTreeMapNode columnSchema) {
+    private CanonizeSchema() {
+    }
+
+    public static YTreeMapNode canonizeColumnSchema(YTreeMapNode columnSchema) {
         YTreeBuilder result = new YTreeBuilder();
 
         result.beginMap();
@@ -32,7 +34,7 @@ public class CanonizeSchema {
         return result.buildMap();
     }
 
-    static public YTreeListNode canonizeSchema(YTreeListNode schema) {
+    public static YTreeListNode canonizeSchema(YTreeListNode schema) {
         YTreeBuilder result = new YTreeBuilder();
         if (schema.containsAttributes()) {
             result.beginAttributes();
