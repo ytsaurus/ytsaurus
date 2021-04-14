@@ -143,38 +143,35 @@ public class YsonTextWriterTest {
                     consumer.onBeginList();
 
                     consumer.onListItem();
-                    {
-                        consumer.onBeginList();
 
-                        consumer.onListItem();
-                        consumer.onInteger(1);
-
-                        consumer.onListItem();
-                        consumer.onInteger(2);
-
-                        consumer.onListItem();
-                        consumer.onInteger(3);
-
-                        consumer.onEndList();
-                    }
+                    consumer.onBeginList();
 
                     consumer.onListItem();
-                    {
-                        consumer.onBeginList();
+                    consumer.onInteger(1);
 
-                        consumer.onListItem();
-                        consumer.onInteger(4);
+                    consumer.onListItem();
+                    consumer.onInteger(2);
 
-                        consumer.onListItem();
-                        {
-                            consumer.onBeginList();
-                            consumer.onListItem();
-                            consumer.onInteger(5);
-                            consumer.onEndList();
-                        }
+                    consumer.onListItem();
+                    consumer.onInteger(3);
 
-                        consumer.onEndList();
-                    }
+                    consumer.onEndList();
+
+                    consumer.onListItem();
+
+                    consumer.onBeginList();
+
+                    consumer.onListItem();
+                    consumer.onInteger(4);
+
+                    consumer.onListItem();
+
+                    consumer.onBeginList();
+                    consumer.onListItem();
+                    consumer.onInteger(5);
+                    consumer.onEndList();
+
+                    consumer.onEndList();
 
                     consumer.onEndList();
 
@@ -187,16 +184,15 @@ public class YsonTextWriterTest {
                 buildTextYson((YsonConsumer consumer) -> {
                     consumer.onBeginList();
                     consumer.onListItem();
-                    {
-                        consumer.onBeginList();
-                        consumer.onEndList();
-                    }
+
+                    consumer.onBeginList();
+                    consumer.onEndList();
 
                     consumer.onListItem();
-                    {
-                        consumer.onBeginList();
-                        consumer.onEndList();
-                    }
+
+                    consumer.onBeginList();
+                    consumer.onEndList();
+
                     consumer.onEndList();
                     return null;
                 }),
@@ -231,21 +227,19 @@ public class YsonTextWriterTest {
                     consumer.onInteger(42);
 
                     consumer.onKeyedItem("62");
-                    {
-                        consumer.onBeginMap();
-                        consumer.onKeyedItem("6");
-                        consumer.onInteger(6);
 
-                        consumer.onKeyedItem("2");
-                        consumer.onInteger(2);
-                        consumer.onEndMap();
-                    }
+                    consumer.onBeginMap();
+                    consumer.onKeyedItem("6");
+                    consumer.onInteger(6);
+
+                    consumer.onKeyedItem("2");
+                    consumer.onInteger(2);
+                    consumer.onEndMap();
 
                     consumer.onKeyedItem("");
-                    {
-                        consumer.onBeginMap();
-                        consumer.onEndMap();
-                    }
+
+                    consumer.onBeginMap();
+                    consumer.onEndMap();
 
                     consumer.onEndMap();
                     return null;
