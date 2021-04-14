@@ -2299,6 +2299,45 @@ class TestResourceMetering(YTEnvSetup):
         super(TestResourceMetering, cls).setup_class()
         set("//sys/@cluster_name", "my_cluster")
 
+    def _extract_metering_records_from_log(self):
+        """ Returns dict from metering key to last record with this key. """
+        scheduler_log_file = os.path.join(self.path_to_run, "logs/scheduler-0.json.log")
+
+        events = None
+        with open(scheduler_log_file) as f:
+            items = [json.loads(line) for line in f]
+            events = list(filter(lambda e: "event_type" not in e, items))
+
+        last_reports = {}
+        for entry in events:
+            if "abc_id" not in entry:
+                continue
+
+            key = (
+                entry["abc_id"],
+                entry["labels"]["pool_tree"],
+                entry["labels"]["pool"],
+            )
+            last_reports[key] = entry["tags"]
+
+        return last_reports
+
+    def _validate_metering_records(self, root_key, desired_metering_data, event_key_to_last_record):
+        if root_key not in event_key_to_last_record:
+            print_debug("Root key is missing")
+            return False
+        for key, desired_data in desired_metering_data.items():
+            for resource_key, desired_value in desired_data.items():
+                observed_value = get_by_composite_key(event_key_to_last_record.get(key, {}), resource_key.split("/"), default=0)
+                if isinstance(desired_value, int):
+                    observed_value = int(observed_value)
+                if observed_value != desired_value:
+                    print_debug(
+                        "Value mismatch (abc_key: {}, resource_key: {}, observed: {}, desired: {})"
+                        .format(key, resource_key, observed_value, desired_value))
+                    return False
+        return True
+
     @authors("mrkastep")
     def test_resource_metering_log(self):
         create("table", "//tmp/t1")
@@ -2407,42 +2446,47 @@ class TestResourceMetering(YTEnvSetup):
         }
 
         def check_structured():
-            def extract_metering_log(filename):
-                with open(filename) as f:
-                    items = [json.loads(line) for line in f]
-                    events = list(filter(lambda e: "event_type" not in e, items))
-                    return events
+            event_key_to_last_record = self._extract_metering_records_from_log()
+            return self._validate_metering_records(root_key, desired_metering_data, event_key_to_last_record)
 
-            scheduler_log_file = os.path.join(self.path_to_run, "logs/scheduler-0.json.log")
+        wait(check_structured)
 
-            structured_log = extract_metering_log(scheduler_log_file)
+    @authors("mrkastep")
+    def test_metering_tags(self):
+        set("//sys/pool_trees/default/@config/metering_tags", {"my_tag": "my_value"})
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/config/metering_tags"))
 
-            last_reports = {}
+        create_pool(
+            "my_pool",
+            pool_tree="default",
+            attributes={
+                "strong_guarantee_resources": {"cpu": 4},
+                "abc": {"id": 1, "slug": "my", "name": "MyService"},
+            },
+            wait_for_orchid=False,
+        )
 
-            for entry in structured_log:
-                if "abc_id" not in entry:
-                    continue
+        root_key = (42, "default", "<Root>")
 
-                key = (
-                    entry["abc_id"],
-                    entry["labels"]["pool_tree"],
-                    entry["labels"]["pool"],
-                )
-                last_reports[key] = entry["tags"]
+        desired_metering_data = {
+            root_key: {
+                "strong_guarantee_resources/cpu": 0,
+                "resource_flow/cpu": 0,
+                "burst_guarantee_resources/cpu": 0,
+                "allocated_resources/cpu": 0,
+                "my_tag": "my_value",
+            },
+            (1, "default", "my_pool"): {
+                "strong_guarantee_resources/cpu": 4,
+                "resource_flow/cpu": 0,
+                "burst_guarantee_resources/cpu": 0,
+                "allocated_resources/cpu": 0,
+                "my_tag": "my_value"
+            },
+        }
 
-            if root_key not in last_reports:
-                print_debug("Root key is missing")
-                return False
-
-            for key, desired_data in desired_metering_data.items():
-                for resource_key, desired_value in desired_data.items():
-                    observed_value = get_by_composite_key(last_reports.get(key, {}), resource_key.split("/"), default=0)
-                    if int(observed_value) != desired_value:
-                        print_debug(
-                            "Value mismatch (abc_key: {}, resource_key: {}, observed: {}, desired: {})"
-                            .format(key, resource_key, int(observed_value), desired_value))
-                        return False
-
-            return True
+        def check_structured():
+            event_key_to_last_record = self._extract_metering_records_from_log()
+            return self._validate_metering_records(root_key, desired_metering_data, event_key_to_last_record)
 
         wait(check_structured)

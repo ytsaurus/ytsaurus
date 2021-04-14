@@ -1628,24 +1628,38 @@ private:
     virtual void DoBuildResourceMeteringAt(TInstant now)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
-
+            
         TMeteringMap newStatistics;
+
         auto snapshots = TreeIdToSnapshot_.Load();
         for (const auto& [_, snapshot] : snapshots) {
-            snapshot->BuildResourceMetering(&newStatistics);
-        }
+            TMeteringMap newStatisticsPerTree;
+            snapshot->BuildResourceMetering(&newStatisticsPerTree);
 
-        for (const auto& [key, value] : newStatistics) {
-            auto it = MeteringStatistics_.find(key);
-            if (it != MeteringStatistics_.end()) {
-                TMeteringStatistics delta(
-                    value.StrongGuaranteeResources(),
-                    value.ResourceFlow(),
-                    value.BurstGuaranteeResources(),
-                    value.AllocatedResources());
-                Host->LogResourceMetering(key, delta, LastMeteringStatisticsUpdateTime_, now);
-            } else {
-                Host->LogResourceMetering(key, value, LastMeteringStatisticsUpdateTime_, now);
+            for (auto& [key, value] : newStatisticsPerTree) {
+                auto it = MeteringStatistics_.find(key);
+                // NB: we are going to have some accumulated values for metering.
+                if (it != MeteringStatistics_.end()) {
+                    TMeteringStatistics delta(
+                        value.StrongGuaranteeResources(),
+                        value.ResourceFlow(),
+                        value.BurstGuaranteeResources(),
+                        value.AllocatedResources());
+                    Host->LogResourceMetering(
+                        key,
+                        delta,
+                        snapshot->GetConfig()->MeteringTags,
+                        LastMeteringStatisticsUpdateTime_,
+                        now);
+                } else {
+                    Host->LogResourceMetering(
+                        key,
+                        value,
+                        snapshot->GetConfig()->MeteringTags,
+                        LastMeteringStatisticsUpdateTime_,
+                        now);
+                }
+                newStatistics.emplace(std::move(key), std::move(value));
             }
         }
 

@@ -209,6 +209,7 @@
     XX(Locks, locks) \
     XX(LowerLimit, lower_limit) \
     XX(MainResource, main_resource) \
+    XX(MeteringTags, metering_tags) \
     XX(MasterAlerts, master_alerts) \
     XX(MasterCacheNodes, master_cache_nodes) \
     XX(MasterMetaSize, master_meta_size) \

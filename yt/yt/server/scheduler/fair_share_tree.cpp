@@ -1003,6 +1003,11 @@ private:
         {
             Tree_->GetProfiler()->ApplyJobMetricsDelta(TreeSnapshotImpl_, jobMetricsPerOperation);
         }
+        
+        virtual const TFairShareStrategyTreeConfigPtr& GetConfig() const override
+        {
+            return TreeSnapshotImpl_->TreeConfig();
+        }
 
         virtual const TSchedulingTagFilter& GetNodesFilter() const override
         {

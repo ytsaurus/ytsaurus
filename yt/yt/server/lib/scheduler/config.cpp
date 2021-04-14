@@ -281,9 +281,12 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
 
     RegisterParameter("min_child_heap_size", MinChildHeapSize)
         .Default(16);
-    
+
     RegisterParameter("main_resource", MainResource)
         .Default(EJobResourceType::Cpu);
+
+    RegisterParameter("metering_tags", MeteringTags)
+        .Default();
 
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
@@ -299,9 +302,9 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
 TPoolTreesTemplateConfig::TPoolTreesTemplateConfig()
 {
     RegisterParameter("priority", Priority);
-    
+
     RegisterParameter("filter", Filter);
-    
+
     RegisterParameter("config", Config);
 }
 
@@ -366,10 +369,10 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
 
     RegisterParameter("strategy_testing_options", StrategyTestingOptions)
         .DefaultNew();
-    
+
     RegisterParameter("template_pool_tree_config_map", TemplatePoolTreeConfigMap)
         .Default();
-    
+
     RegisterPostprocessor([&] {
         THashMap<int, TStringBuf> priorityToName;
         priorityToName.reserve(std::size(TemplatePoolTreeConfigMap));
@@ -516,13 +519,13 @@ TControllerAgentTrackerConfig::TControllerAgentTrackerConfig()
 
     RegisterParameter("memory_balanced_pick_strategy_score_power", MemoryBalancedPickStrategyScorePower)
         .Default(1.0);
-    
-    RegisterParameter("min_agent_count", MinAgentCount)	
+
+    RegisterParameter("min_agent_count", MinAgentCount)
         .Default(1);
-    
+
     RegisterParameter("tag_to_alive_controller_agent_thresholds", TagToAliveControllerAgentThresholds)
         .Default();
-    
+
     RegisterPostprocessor([&] {
         if (!TagToAliveControllerAgentThresholds.contains(DefaultOperationTag)) {
             TagToAliveControllerAgentThresholds[DefaultOperationTag] = {static_cast<i64>(MinAgentCount), 0.0};

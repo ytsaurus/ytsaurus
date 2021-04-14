@@ -277,6 +277,8 @@ public:
 
     EJobResourceType MainResource;
 
+    THashMap<TString, TString> MeteringTags;
+
     TFairShareStrategyTreeConfig();
 };
 
