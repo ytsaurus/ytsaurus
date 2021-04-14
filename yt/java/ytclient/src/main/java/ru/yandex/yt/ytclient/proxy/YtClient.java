@@ -12,6 +12,7 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
@@ -32,6 +33,9 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import ru.yandex.bolts.collection.Cf;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
+import ru.yandex.yt.rpc.TResponseHeader;
+import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
+import ru.yandex.yt.rpc.TStreamingPayloadHeader;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
 import ru.yandex.yt.ytclient.proxy.internal.DataCenter;
@@ -199,7 +203,48 @@ public class YtClient extends CompoundClient {
             RpcClientRequestBuilder<RequestType, ResponseType> builder,
             RpcStreamConsumer consumer)
     {
-        return builder.startStream(executor, poolProvider.getClientPool(), consumer);
+        CompletableFuture<Void> clientReleaseFuture = new CompletableFuture<>();
+        RpcStreamConsumer wrappedConsumer = new RpcStreamConsumer() {
+            @Override
+            public void onStartStream(RpcClientStreamControl control) {
+                consumer.onStartStream(control);
+            }
+
+            @Override
+            public void onFeedback(RpcClient sender, TStreamingFeedbackHeader header, List<byte[]> attachments) {
+                consumer.onFeedback(sender, header, attachments);
+            }
+
+            @Override
+            public void onPayload(RpcClient sender, TStreamingPayloadHeader header, List<byte[]> attachments) {
+                consumer.onPayload(sender, header, attachments);
+            }
+
+            @Override
+            public void onResponse(RpcClient sender, TResponseHeader header, List<byte[]> attachments) {
+                consumer.onResponse(sender, header, attachments);
+                clientReleaseFuture.complete(null);
+            }
+
+            @Override
+            public void onError(Throwable cause) {
+                consumer.onError(cause);
+                clientReleaseFuture.complete(null);
+            }
+
+            @Override
+            public void onCancel(CancellationException cancel) {
+                consumer.onCancel(cancel);
+                clientReleaseFuture.complete(null);
+            }
+
+            @Override
+            public void onWakeup() {
+                consumer.onWakeup();
+            }
+        };
+        CompletableFuture<RpcClient> clientFuture = getClientPool().peekClient(clientReleaseFuture);
+        return clientFuture.thenApply(client -> client.startStream(client, builder.getRpcRequest(), wrappedConsumer, builder.getOptions()));
     }
 
     private YtClient(BuilderWithDefaults builder) {

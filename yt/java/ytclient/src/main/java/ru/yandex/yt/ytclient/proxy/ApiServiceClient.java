@@ -854,7 +854,8 @@ public class ApiServiceClient extends TransactionalClient {
 
     protected <RequestType extends MessageLite.Builder, ResponseType> CompletableFuture<RpcClientStreamControl>
     startStream(RpcClientRequestBuilder<RequestType, ResponseType> builder, RpcStreamConsumer consumer) {
-        return CompletableFuture.completedFuture(builder.startStream(rpcClient, consumer));
+        RpcClientStreamControl control = rpcClient.startStream(rpcClient, builder.getRpcRequest(), consumer, builder.getOptions());
+        return CompletableFuture.completedFuture(control);
     }
 
     private <RequestMsgBuilder extends MessageLite.Builder, ResponseMsg,
