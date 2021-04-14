@@ -103,7 +103,7 @@ public:
                     cellarInfo);
 
                 // Populate slot info with tablet preload statistics.
-                HeartbeatRequested_.Fire(cellTag, cellarType, cellar, cellarInfo);
+                HeartbeatRequested_.Fire(cellarType, cellar, cellarInfo);
             }
         }
 

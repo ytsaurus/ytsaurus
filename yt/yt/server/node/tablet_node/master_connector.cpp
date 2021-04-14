@@ -272,7 +272,6 @@ private:
     }
 
     void OnCellarNodeHeartbeatRequested(
-        TCellTag cellTag,
         ECellarType cellarType,
         const ICellarPtr& tabletCellar,
         NCellarNodeTrackerClient::NProto::TReqCellarHeartbeat* heartbeatRequest)
@@ -284,7 +283,7 @@ private:
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
         auto tabletSnapshots = snapshotStore->GetTabletSnapshots();
         for (const auto& tabletSnapshot : tabletSnapshots) {
-            if (tabletSnapshot->CellId && CellTagFromId(tabletSnapshot->TabletId) == cellTag) {
+            if (tabletSnapshot->CellId) {
                 if (const auto& occupant = tabletCellar->FindOccupant(tabletSnapshot->CellId)) {
                     auto* protoSlotInfo = heartbeatRequest->mutable_cell_slots(occupant->GetIndex());
                     protoSlotInfo->set_preload_pending_store_count(protoSlotInfo->preload_pending_store_count() +
