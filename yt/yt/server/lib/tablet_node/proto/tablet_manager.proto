@@ -60,11 +60,12 @@ message TMountHint
 message TTableSettings
 {
     required bytes mount_config = 1; // YSON-serialized
-    required bytes reader_config = 2; // YSON-serialized
-    required bytes store_writer_config = 3; // YSON-serialized
-    required bytes store_writer_options = 4; // YSON-serialized
-    required bytes hunk_writer_config = 5; // YSON-serialized
-    required bytes hunk_writer_options = 6; // YSON-serialized
+    required bytes store_reader_config = 2; // YSON-serialized
+    required bytes hunk_reader_config = 3; // YSON-serialized
+    required bytes store_writer_config = 4; // YSON-serialized
+    required bytes store_writer_options = 5; // YSON-serialized
+    required bytes hunk_writer_config = 6; // YSON-serialized
+    required bytes hunk_writer_options = 7; // YSON-serialized
 }
 
 message TReqMountTablet
@@ -79,7 +80,7 @@ message TReqMountTablet
     // COMPAT(babenko)
     required bytes mount_config = 7; // YSON-serialized
     // COMPAT(babenko)
-    required bytes reader_config = 16; // YSON-serialized
+    required bytes store_reader_config = 16; // YSON-serialized
     // COMPAT(babenko)
     required bytes store_writer_config = 17; // YSON-serialized
     // COMPAT(babenko)
@@ -111,7 +112,7 @@ message TReqRemountTablet
     // COMPAT(babenko)
     required bytes mount_config = 7; // YSON-serialized
     // COMPAT(babenko)
-    required bytes reader_config = 9; // YSON-serialized
+    required bytes store_reader_config = 9; // YSON-serialized
     // COMPAT(babenko)
     required bytes store_writer_config = 10; // YSON-serialized
     // COMPAT(babenko)

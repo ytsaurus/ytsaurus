@@ -80,7 +80,7 @@ private:
         IChunkStorePtr Store;
         TInstant CreationTime;
         i64 BackingStoreSize = 0;
-        TTabletSlotPtr Slot;
+        ITabletSlotPtr Slot;
     };
 
     struct TTabletCellBundleData
@@ -92,7 +92,7 @@ private:
 
     THashMap<TString, TTabletCellBundleData> NameToBundleData_;
 
-    void EnsureBundleDataCreated(const TTabletSlotPtr& slot)
+    void EnsureBundleDataCreated(const ITabletSlotPtr& slot)
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
@@ -125,7 +125,7 @@ private:
         NameToBundleData_.clear();
     }
 
-    void OnScanSlot(const TTabletSlotPtr& slot)
+    void OnScanSlot(const ITabletSlotPtr& slot)
     {
         {
             auto guard = Guard(SpinLock_);
@@ -138,7 +138,7 @@ private:
         }
     }
 
-    void ScanTablet(const TTabletSlotPtr& slot, TTablet* tablet)
+    void ScanTablet(const ITabletSlotPtr& slot, TTablet* tablet)
     {
         std::vector<TStoreData> stores;
         i64 memoryUsage = 0;
@@ -170,7 +170,7 @@ private:
 
     void OnEndSlotScan()
     {
-        THashMap<TTabletSlotPtr, std::vector<IChunkStorePtr>> slotToStoresToRelease;
+        THashMap<ITabletSlotPtr, std::vector<IChunkStorePtr>> slotToStoresToRelease;
 
         auto now = TInstant::Now();
 

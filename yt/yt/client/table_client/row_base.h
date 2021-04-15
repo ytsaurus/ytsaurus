@@ -280,10 +280,12 @@ public:
     int GetPosition(int columnIndex) const;
     std::optional<int> FindPosition(int columnIndex) const;
     const TIndexes& GetIndexes() const;
+
+    static const TColumnFilter& MakeUniversal();
     bool IsUniversal() const;
 
 private:
-    bool IsUniversal_;
+    bool Universal_;
     TIndexes Indexes_;
 };
 

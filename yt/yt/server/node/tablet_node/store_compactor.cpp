@@ -180,7 +180,7 @@ private:
 
     struct TTask
     {
-        TTabletSlotPtr Slot;
+        ITabletSlotPtr Slot;
         IInvokerPtr Invoker;
 
         TTabletId TabletId;
@@ -217,7 +217,7 @@ private:
         TTask& operator=(TTask&&) = delete;
 
         TTask(
-            TTabletSlot* slot,
+            ITabletSlot* slot,
             const TTablet* tablet,
             const TPartition* partition,
             std::vector<TStoreId> stores)
@@ -443,7 +443,7 @@ private:
         CompactionCandidates_.clear(); // Though must be clear already.
     }
 
-    void OnScanSlot(const TTabletSlotPtr& slot)
+    void OnScanSlot(const ITabletSlotPtr& slot)
     {
         TEventTimerGuard timerGuard(ScanTimer_);
 
@@ -479,7 +479,7 @@ private:
         }
     }
 
-    void ScanTablet(TTabletSlot* slot, TTablet* tablet)
+    void ScanTablet(ITabletSlot* slot, TTablet* tablet)
     {
         if (tablet->GetState() != ETabletState::Mounted) {
             return;
@@ -502,7 +502,7 @@ private:
         }
     }
 
-    bool ScanEdenForPartitioning(TTabletSlot* slot, TPartition* eden)
+    bool ScanEdenForPartitioning(ITabletSlot* slot, TPartition* eden)
     {
         if (!ScanForPartitioning_ || eden->GetState() != EPartitionState::Normal) {
             return false;
@@ -536,7 +536,7 @@ private:
         return true;
     }
 
-    bool TryDiscardExpiredPartition(TTabletSlot* slot, TPartition* partition)
+    bool TryDiscardExpiredPartition(ITabletSlot* slot, TPartition* partition)
     {
         if (partition->IsEden()) {
             return false;
@@ -609,7 +609,7 @@ private:
         return true;
     }
 
-    bool ScanPartitionForCompaction(TTabletSlot* slot, TPartition* partition)
+    bool ScanPartitionForCompaction(ITabletSlot* slot, TPartition* partition)
     {
         if (!ScanForCompactions_ ||
             partition->GetState() != EPartitionState::Normal ||
@@ -1090,7 +1090,7 @@ private:
 
     void FinishTabletStoresUpdateTransaction(
         TTablet* tablet,
-        const TTabletSlotPtr& slot,
+        const ITabletSlotPtr& slot,
         NTabletServer::NProto::TReqUpdateTabletStores actionRequest,
         NNative::ITransactionPtr transaction,
         const NLogging::TLogger& Logger)
@@ -1589,7 +1589,7 @@ private:
     void DiscardPartitionStores(
         TPartition* partition,
         const TTabletSnapshotPtr& tabletSnapshot,
-        const TTabletSlotPtr& slot,
+        const ITabletSlotPtr& slot,
         const std::vector<TSortedChunkStorePtr>& stores,
         NLogging::TLogger Logger)
     {

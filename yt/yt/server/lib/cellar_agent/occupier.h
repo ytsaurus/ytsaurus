@@ -17,7 +17,7 @@ namespace NYT::NCellarAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ICellarOccupier
-    : public TRefCounted
+    : public virtual TRefCounted
 {
     virtual void SetOccupant(ICellarOccupantPtr occupant) = 0;
 
@@ -25,7 +25,7 @@ struct ICellarOccupier
 
     virtual void Configure(NHydra::IDistributedHydraManagerPtr hydraManager) = 0;
 
-    virtual const NHiveServer::ITransactionManagerPtr GetOccupierTransactionManager() = 0;
+    virtual NHiveServer::ITransactionManagerPtr GetOccupierTransactionManager() = 0;
 
     virtual void Initialize() = 0;
     virtual void RegisterRpcServices() = 0;

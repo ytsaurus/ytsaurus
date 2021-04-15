@@ -87,7 +87,7 @@ public:
                 continue;
             }
 
-            if (auto occupier = occupant->GetTypedOccupier<TTabletSlot>()) {
+            if (auto occupier = occupant->GetTypedOccupier<ITabletSlot>()) {
                 result += occupier->GetUsedCpu(cpuPerTabletSlot);
             }
         }
@@ -95,12 +95,12 @@ public:
         return result;
     }
 
-    virtual TTabletSlotPtr FindSlot(NHydra::TCellId id)
+    virtual ITabletSlotPtr FindSlot(NHydra::TCellId id)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         if (auto occupant = Bootstrap_->GetCellarManager()->GetCellar(ECellarType::Tablet)->FindOccupant(id)) {
-            return occupant->GetTypedOccupier<TTabletSlot>();
+            return occupant->GetTypedOccupier<ITabletSlot>();
         }
         return nullptr;
     }
@@ -111,7 +111,7 @@ public:
     }
 
     DEFINE_SIGNAL(void(), BeginSlotScan);
-    DEFINE_SIGNAL(void(TTabletSlotPtr), ScanSlot);
+    DEFINE_SIGNAL(void(ITabletSlotPtr), ScanSlot);
     DEFINE_SIGNAL(void(), EndSlotScan);
 
 private:
@@ -194,7 +194,7 @@ private:
                 continue;
             }
 
-            auto occupier = occupant->GetTypedOccupier<TTabletSlot>();
+            auto occupier = occupant->GetTypedOccupier<ITabletSlot>();
             if (!occupier) {
                 continue;
             }

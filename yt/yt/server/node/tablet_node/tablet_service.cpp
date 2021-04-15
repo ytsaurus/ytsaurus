@@ -13,7 +13,7 @@
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 
-#include <yt/yt/server/lib/hydra/hydra_manager.h>
+#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra/hydra_service.h>
 #include <yt/yt/server/lib/hydra/mutation.h>
 
@@ -51,7 +51,7 @@ class TTabletService
 {
 public:
     TTabletService(
-        TTabletSlotPtr slot,
+        ITabletSlotPtr slot,
         NClusterNode::TBootstrap* bootstrap)
         : THydraServiceBase(
             slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Write),
@@ -70,7 +70,7 @@ public:
     }
 
 private:
-    const TTabletSlotPtr Slot_;
+    const ITabletSlotPtr Slot_;
     NClusterNode::TBootstrap* const Bootstrap_;
 
 
@@ -273,7 +273,7 @@ private:
     }
 };
 
-IServicePtr CreateTabletService(TTabletSlotPtr slot, NClusterNode::TBootstrap* bootstrap)
+IServicePtr CreateTabletService(ITabletSlotPtr slot, NClusterNode::TBootstrap* bootstrap)
 {
     return New<TTabletService>(slot, bootstrap);
 }

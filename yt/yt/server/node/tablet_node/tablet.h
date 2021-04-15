@@ -133,7 +133,8 @@ DEFINE_REFCOUNTED_TYPE(TRuntimeTabletData)
 struct TTableSettings
 {
     TTableMountConfigPtr MountConfig;
-    TTabletChunkReaderConfigPtr ReaderConfig;
+    TTabletStoreReaderConfigPtr StoreReaderConfig;
+    TTabletHunkReaderConfigPtr HunkReaderConfig;
     TTabletStoreWriterConfigPtr StoreWriterConfig;
     TTabletStoreWriterOptionsPtr StoreWriterOptions;
     TTabletHunkWriterConfigPtr HunkWriterConfig;
@@ -210,6 +211,8 @@ struct TTabletSnapshot
     ui32 StoreFlushIndex;
 
     NChunkClient::TConsistentReplicaPlacementHash ConsistentChunkReplicaPlacementHash = NChunkClient::NullConsistentReplicaPlacementHash;
+
+    NChunkClient::IChunkFragmentReaderPtr ChunkFragmentReader;
 
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
@@ -397,6 +400,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastFullStructuredHeartbeatTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastIncrementalStructuredHeartbeatTime);
 
+    DEFINE_BYVAL_RO_PROPERTY(NChunkClient::IChunkFragmentReaderPtr, ChunkFragmentReader);
+
 public:
     TTablet(
         TTabletId tabletId,
@@ -495,12 +500,13 @@ public:
 
     TTimestamp GetUnflushedTimestamp() const;
 
-    void StartEpoch(TTabletSlotPtr slot);
+    void StartEpoch(const ITabletSlotPtr& slot);
     void StopEpoch();
+
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
 
     TTabletSnapshotPtr BuildSnapshot(
-        TTabletSlotPtr slot,
+        const ITabletSlotPtr& slot,
         std::optional<TLockManagerEpoch> epoch = std::nullopt) const;
 
     const TSortedDynamicRowKeyComparer& GetRowKeyComparer() const;
@@ -539,7 +545,7 @@ public:
     NChunkClient::TConsistentReplicaPlacementHash GetConsistentChunkReplicaPlacementHash() const;
 
     void ThrottleTabletStoresUpdate(
-        const TTabletSlotPtr& slot,
+        const ITabletSlotPtr& slot,
         const NLogging::TLogger& Logger) const;
 
     // COMPAT(babenko)

@@ -1215,7 +1215,7 @@ void TSortedStoreManager::DoMergePartitions(int firstPartitionIndex, int lastPar
     }
 }
 
-void TSortedStoreManager::StartEpoch(TTabletSlotPtr slot)
+void TSortedStoreManager::StartEpoch(ITabletSlotPtr slot)
 {
     TStoreManagerBase::StartEpoch(std::move(slot));
 

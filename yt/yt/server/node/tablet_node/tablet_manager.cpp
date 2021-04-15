@@ -35,6 +35,7 @@
 #include <yt/yt/server/lib/hive/transaction_supervisor.h>
 #include <yt/yt/server/lib/hive/helpers.h>
 
+#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra/mutation.h>
 #include <yt/yt/server/lib/hydra/mutation_context.h>
 
@@ -130,7 +131,7 @@ class TTabletManager::TImpl
 public:
     explicit TImpl(
         TTabletManagerConfigPtr config,
-        TTabletSlotPtr slot,
+        ITabletSlotPtr slot,
         TBootstrap* bootstrap)
         : TTabletAutomatonPart(
             slot,
@@ -3464,11 +3465,16 @@ private:
                         .Item("opaque").Value(true)
                     .EndAttributes()
                     .Value(tablet->GetSettings().HunkWriterOptions)
-                .Item("reader_config")
+                .Item("store_reader_config")
                     .BeginAttributes()
                         .Item("opaque").Value(true)
                     .EndAttributes()
-                    .Value(tablet->GetSettings().ReaderConfig)
+                    .Value(tablet->GetSettings().StoreReaderConfig)
+                .Item("hunk_reader_config")
+                    .BeginAttributes()
+                        .Item("opaque").Value(true)
+                    .EndAttributes()
+                    .Value(tablet->GetSettings().HunkReaderConfig)
                 .DoIf(tablet->IsPhysicallySorted(), [&] (auto fluent) {
                     fluent
                         .Item("pivot_key").Value(tablet->GetPivotKey())
@@ -3748,7 +3754,8 @@ private:
             const auto& tableSettings = request->table_settings();
             return {
                 .MountConfig = DeserializeTableMountConfig(TYsonString(tableSettings.mount_config()), tabletId),
-                .ReaderConfig = DeserializeTabletChunkReaderConfig(TYsonString(tableSettings.reader_config()), tabletId),
+                .StoreReaderConfig = DeserializeTabletStoreReaderConfig(TYsonString(tableSettings.store_reader_config()), tabletId),
+                .HunkReaderConfig = DeserializeTabletHunkReaderConfig(TYsonString(tableSettings.hunk_reader_config()), tabletId),
                 .StoreWriterConfig = DeserializeTabletStoreWriterConfig(TYsonString(tableSettings.store_writer_config()), tabletId),
                 .StoreWriterOptions = DeserializeTabletStoreWriterOptions(TYsonString(tableSettings.store_writer_options()), tabletId),
                 .HunkWriterConfig = DeserializeTabletHunkWriterConfig(TYsonString(tableSettings.hunk_writer_config()), tabletId),
@@ -3756,12 +3763,13 @@ private:
             };
         } else {
             auto mountConfig = DeserializeTableMountConfig(TYsonString(request->mount_config()), tabletId);
-            auto readerConfig = DeserializeTabletChunkReaderConfig(TYsonString(request->reader_config()), tabletId);
+            auto storeReaderConfig = DeserializeTabletStoreReaderConfig(TYsonString(request->store_reader_config()), tabletId);
             auto storeWriterConfig = DeserializeTabletStoreWriterConfig(TYsonString(request->store_writer_config()), tabletId);
             auto storeWriterOptions = DeserializeTabletStoreWriterOptions(TYsonString(request->store_writer_options()), tabletId);
             return {
                 .MountConfig = mountConfig,
-                .ReaderConfig = readerConfig,
+                .StoreReaderConfig = storeReaderConfig,
+                .HunkReaderConfig = New<TTabletHunkReaderConfig>(),
                 .StoreWriterConfig = storeWriterConfig,
                 .StoreWriterOptions = storeWriterOptions,
                 .HunkWriterConfig = New<TTabletHunkWriterConfig>(),
@@ -3781,14 +3789,25 @@ private:
         }
     }
 
-    TTabletChunkReaderConfigPtr DeserializeTabletChunkReaderConfig(const TYsonString& str, TTabletId tabletId)
+    TTabletStoreReaderConfigPtr DeserializeTabletStoreReaderConfig(const TYsonString& str, TTabletId tabletId)
     {
         try {
-            return ConvertTo<TTabletChunkReaderConfigPtr>(str);
+            return ConvertTo<TTabletStoreReaderConfigPtr>(str);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error deserializing reader config (TabletId: %v)",
+            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error deserializing store reader config (TabletId: %v)",
                  tabletId);
-            return New<TTabletChunkReaderConfig>();
+            return New<TTabletStoreReaderConfig>();
+        }
+    }
+
+    TTabletHunkReaderConfigPtr DeserializeTabletHunkReaderConfig(const TYsonString& str, TTabletId tabletId)
+    {
+        try {
+            return ConvertTo<TTabletHunkReaderConfigPtr>(str);
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error deserializing hunk reader config (TabletId: %v)",
+                 tabletId);
+            return New<TTabletHunkReaderConfig>();
         }
     }
 
@@ -4209,7 +4228,7 @@ DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TabletMap_)
 
 TTabletManager::TTabletManager(
     TTabletManagerConfigPtr config,
-    TTabletSlotPtr slot,
+    ITabletSlotPtr slot,
     TBootstrap* bootstrap)
     : Impl_(New<TImpl>(
         config,

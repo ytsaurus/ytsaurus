@@ -57,7 +57,7 @@ public:
 
 protected:
     const TTabletManagerConfigPtr Config_;
-    const TTabletChunkReaderConfigPtr ReaderConfig_;
+    const TTabletStoreReaderConfigPtr ReaderConfig_;
     const TStoreId StoreId_;
     TTablet* const Tablet_;
 

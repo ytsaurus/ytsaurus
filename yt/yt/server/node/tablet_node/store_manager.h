@@ -48,7 +48,7 @@ struct IStoreManager
     //! Returns |true| if there are some dynamic memory stores that are not flushed yet.
     virtual bool HasUnflushedStores() const = 0;
 
-    virtual void StartEpoch(TTabletSlotPtr slot) = 0;
+    virtual void StartEpoch(ITabletSlotPtr slot) = 0;
     virtual void StopEpoch() = 0;
 
     virtual bool ExecuteWrites(

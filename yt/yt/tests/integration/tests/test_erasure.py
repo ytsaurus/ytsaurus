@@ -461,7 +461,7 @@ class TestDynamicTablesErasure(TestErasureBase):
 
     @authors("akozhikhov")
     def test_erasure_reader_failures(self):
-        set("//sys/@config/tablet_manager/chunk_reader", {
+        set("//sys/@config/tablet_manager/store_chunk_reader", {
             "pass_count": 1,
             "retry_count": 1,
             "slow_reader_expiration_timeout": 1000,

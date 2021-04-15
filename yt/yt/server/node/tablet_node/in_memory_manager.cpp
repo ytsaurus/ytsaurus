@@ -209,7 +209,7 @@ private:
 
     IThroughputThrottlerPtr BandwidthThrottler_;
 
-    void ScanSlot(const TTabletSlotPtr& slot)
+    void ScanSlot(const ITabletSlotPtr& slot)
     {
         const auto& tabletManager = slot->GetTabletManager();
         for (auto [tabletId, tablet] : tabletManager->Tablets()) {
@@ -217,7 +217,7 @@ private:
         }
     }
 
-    void ScanTablet(const TTabletSlotPtr& slot, TTablet* tablet)
+    void ScanTablet(const ITabletSlotPtr& slot, TTablet* tablet)
     {
         auto state = tablet->GetState();
         if (IsInUnmountWorkflow(state)) {
@@ -253,7 +253,7 @@ private:
 
     void PreloadStore(
         TAsyncSemaphoreGuard /*guard*/,
-        const TTabletSlotPtr& slot,
+        const ITabletSlotPtr& slot,
         TTablet* tablet,
         const IChunkStorePtr& store,
         const IStoreManagerPtr& storeManager)

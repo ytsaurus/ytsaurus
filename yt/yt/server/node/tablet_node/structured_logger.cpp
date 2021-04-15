@@ -137,7 +137,7 @@ private:
         Config_ = newConfig->TabletNode;
     }
 
-    void OnScanSlot(const TTabletSlotPtr& slot)
+    void OnScanSlot(const ITabletSlotPtr& slot)
     {
         if (!Enabled_) {
             return;

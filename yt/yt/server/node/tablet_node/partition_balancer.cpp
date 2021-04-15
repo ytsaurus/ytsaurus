@@ -14,7 +14,7 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
-#include <yt/yt/server/lib/hydra/hydra_manager.h>
+#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra/mutation.h>
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
@@ -95,7 +95,7 @@ private:
     TCounter ScheduledMergesCounter_ = Profiler_.Counter("/scheduled_merges");
     TEventTimer ScanTime_ = Profiler_.Timer("/scan_time");
 
-    void OnScanSlot(TTabletSlotPtr slot)
+    void OnScanSlot(ITabletSlotPtr slot)
     {
         TEventTimerGuard guard(ScanTime_);
 
@@ -115,7 +115,7 @@ private:
         }
     }
 
-    void ScanTablet(TTabletSlotPtr slot, TTablet* tablet)
+    void ScanTablet(ITabletSlotPtr slot, TTablet* tablet)
     {
         if (tablet->GetState() != ETabletState::Mounted) {
             return;
@@ -178,7 +178,7 @@ private:
     }
 
     void ScanPartitionToSplit(
-        TTabletSlotPtr slot,
+        ITabletSlotPtr slot,
         TPartition* partition,
         int* estimatedMaxOverlappingStoreCount,
         int secondLargestPartitionStoreCount)
@@ -261,7 +261,7 @@ private:
         }
     }
 
-    void ScanPartitionToMerge(TTabletSlotPtr slot, TPartition* partition, int maxAllowedOverlappingStoreCount)
+    void ScanPartitionToMerge(ITabletSlotPtr slot, TPartition* partition, int maxAllowedOverlappingStoreCount)
     {
         auto* tablet = partition->GetTablet();
         const auto& mountConfig = tablet->GetSettings().MountConfig;
@@ -311,7 +311,7 @@ private:
         }
     }
 
-    void ScanPartitionToSample(TTabletSlotPtr slot, TPartition* partition)
+    void ScanPartitionToSample(ITabletSlotPtr slot, TPartition* partition)
     {
         if (partition->GetSamplingRequestTime() > partition->GetSamplingTime() &&
             partition->GetSamplingTime() < TInstant::Now() - Config_->ResamplingPeriod) {
@@ -319,7 +319,7 @@ private:
         }
     }
 
-    bool ValidateSplit(TTabletSlotPtr slot, TPartition* partition, bool immediateSplit) const
+    bool ValidateSplit(ITabletSlotPtr slot, TPartition* partition, bool immediateSplit) const
     {
         const auto* tablet = partition->GetTablet();
 
@@ -397,7 +397,7 @@ private:
     }
 
     void DoRunSplit(
-        TTabletSlotPtr slot,
+        ITabletSlotPtr slot,
         TPartition* partition,
         int splitFactor,
         TTablet* tablet,
@@ -472,7 +472,7 @@ private:
     }
 
     void DoRunImmediateSplit(
-        TTabletSlotPtr slot,
+        ITabletSlotPtr slot,
         TPartition* partition,
         NLogging::TLogger Logger)
     {
@@ -501,7 +501,7 @@ private:
     }
 
     bool RunMerge(
-        TTabletSlotPtr slot,
+        ITabletSlotPtr slot,
         TPartition* partition,
         int firstPartitionIndex,
         int lastPartitionIndex)
@@ -559,7 +559,7 @@ private:
     }
 
 
-    bool RunSample(TTabletSlotPtr slot, TPartition* partition)
+    bool RunSample(ITabletSlotPtr slot, TPartition* partition)
     {
         if (partition->GetState() != EPartitionState::Normal) {
             return false;
@@ -590,7 +590,7 @@ private:
 
     void DoRunSample(
         TAsyncSemaphoreGuard /*guard*/,
-        TTabletSlotPtr slot,
+        ITabletSlotPtr slot,
         TPartition* partition,
         TTablet* tablet,
         TPartitionId partitionId,
@@ -645,7 +645,7 @@ private:
 
     std::vector<TLegacyKey> GetPartitionSamples(
         const TRowBufferPtr& rowBuffer,
-        TTabletSlotPtr slot,
+        ITabletSlotPtr slot,
         TPartition* partition,
         int maxSampleCount)
     {
@@ -781,7 +781,7 @@ private:
 
 
     static NLogging::TLogger BuildLogger(
-        const TTabletSlotPtr& slot,
+        const ITabletSlotPtr& slot,
         TPartition* partition)
     {
         return TabletNodeLogger.WithTag("%v, CellId: %v, PartitionId: %v",

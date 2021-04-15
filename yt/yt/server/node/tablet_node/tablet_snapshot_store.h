@@ -58,18 +58,18 @@ struct ITabletSnapshotStore
     //! Informs the manager that some slot now serves #tablet.
     //! It is fine to update an already registered snapshot.
     virtual void RegisterTabletSnapshot(
-        const TTabletSlotPtr& slot,
+        const ITabletSlotPtr& slot,
         TTablet* tablet,
         std::optional<TLockManagerEpoch> epoch = std::nullopt) = 0;
 
     //! Informs the manager that #tablet is no longer served.
     //! It is fine to attempt to unregister a snapshot that had never been registered.
     virtual void UnregisterTabletSnapshot(
-        const TTabletSlotPtr& slot,
+        const ITabletSlotPtr& slot,
         TTablet* tablet) = 0;
 
     //! Informs the manager that #slot no longer serves any tablet.
-    virtual void UnregisterTabletSnapshots(const TTabletSlotPtr& slot) = 0;
+    virtual void UnregisterTabletSnapshots(const ITabletSlotPtr& slot) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITabletSnapshotStore)

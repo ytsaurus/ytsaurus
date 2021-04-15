@@ -21,7 +21,7 @@ public:
         TTablet* tablet,
         TTableReplicaInfo* replicaInfo,
         NApi::NNative::IConnectionPtr localConnection,
-        TTabletSlotPtr slot,
+        ITabletSlotPtr slot,
         ITabletSnapshotStorePtr tabletSnapshotStore,
         IHintManagerPtr hintManager,
         IInvokerPtr workerInvoker,

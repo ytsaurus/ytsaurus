@@ -2,6 +2,10 @@
 
 #include "chunk_reader_statistics.h"
 
+#include <yt/yt/ytlib/api/native/public.h>
+
+#include <yt/yt/ytlib/node_tracker_client/public.h>
+
 #include <yt/yt/client/misc/workload.h>
 
 #include <yt/yt/core/actions/future.h>
@@ -28,6 +32,11 @@ struct IChunkFragmentReader
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkFragmentReader)
+
+IChunkFragmentReaderPtr CreateChunkFragmentReader(
+    TChunkFragmentReaderConfigPtr config,
+    NApi::NNative::IClientPtr client,
+    NNodeTrackerClient::INodeStatusDirectoryPtr nodeStatusDirectory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -7,6 +7,7 @@
 #include "tablet_profiling.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/hunks.h>
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
@@ -24,6 +25,7 @@
 #include <yt/yt/client/table_client/versioned_reader.h>
 
 #include <yt/yt/client/table_client/wire_protocol.h>
+
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
@@ -55,14 +57,12 @@ using namespace NTabletClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletNodeLogger;
-static const size_t RowBufferCapacity = 1000;
+static const i64 RowBufferCapacity = 1000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TLookupSessionBufferTag
 { };
-
-static const TColumnFilter UniversalColumnFilter;
 
 class TLookupSession
 {
@@ -73,7 +73,7 @@ public:
         bool produceAllVersions,
         bool useLookupCache,
         const TColumnFilter& columnFilter,
-        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         TSharedRange<TUnversionedRow> lookupKeys)
         : TabletSnapshot_(std::move(tabletSnapshot))
         , Timestamp_(timestamp)
@@ -84,9 +84,13 @@ public:
         , LookupKeys_(std::move(lookupKeys))
     { }
 
+    template <
+        class TAddPartialRow,
+        class TFinishRow
+    >
     void Run(
-        const std::function<void(TVersionedRow, TTimestamp)>& onPartialRow,
-        const std::function<std::pair<bool, size_t>()>& onRow)
+        const TAddPartialRow& addPartialRow,
+        const TFinishRow& finishRow)
     {
         YT_LOG_DEBUG("Tablet lookup started (TabletId: %v, CellId: %v, KeyCount: %v, ReadSessionId: %v)",
             TabletSnapshot_->TabletId,
@@ -155,17 +159,22 @@ public:
         // due to lower cpu and memory usage on tablet nodes.
         const auto& mountConfig = TabletSnapshot_->Settings.MountConfig;
         if (mountConfig->MaxParallelPartitionLookups && mountConfig->EnableDataNodeLookup) {
-            auto asyncReadSessions = CreateReadSessions(
+            auto readSessionFutures = CreateReadSessions(
                 &DynamicEdenSessions_,
                 dynamicEdenStores,
                 LookupKeys_);
-            auto otherAsyncReadSessions = CreateReadSessions(
+            auto otherReadSessionFutures = CreateReadSessions(
                 &ChunkEdenSessions_,
                 chunkEdenStores,
                 ChunkLookupKeys_);
-            asyncReadSessions.insert(asyncReadSessions.end(), otherAsyncReadSessions.begin(), otherAsyncReadSessions.end());
-
-            ParallelLookupInPartitions(std::move(asyncReadSessions), onPartialRow, onRow);
+            readSessionFutures.insert(
+                readSessionFutures.end(),
+                otherReadSessionFutures.begin(),
+                otherReadSessionFutures.end());
+            ParallelLookupInPartitions(
+                std::move(readSessionFutures),
+                addPartialRow,
+                finishRow);
         } else {
             auto dynamicEdenReadSessions = CreateReadSessions(
                 &DynamicEdenSessions_,
@@ -190,8 +199,8 @@ public:
             while (currentIt != LookupKeys_.End()) {
                 auto sessionInfo = CreatePartitionSession(&currentIt, &startChunkKeyIndex, 0);
 
-                if (!sessionInfo.AsyncReadSessions.empty()) {
-                    WaitFor(AllSucceeded(sessionInfo.AsyncReadSessions))
+                if (!sessionInfo.ReadSessionFutures.empty()) {
+                    WaitFor(AllSucceeded(sessionInfo.ReadSessionFutures))
                         .ThrowOnError();
                 }
 
@@ -200,8 +209,8 @@ public:
                     sessionInfo.StartKeyIndex,
                     sessionInfo.EndKeyIndex,
                     &PartitionSessions_[0],
-                    onPartialRow,
-                    onRow);
+                    addPartialRow,
+                    finishRow);
             }
         }
 
@@ -252,7 +261,7 @@ private:
         const TPartitionSnapshotPtr& PartitionSnapshot;
         int StartKeyIndex;
         int EndKeyIndex;
-        std::vector<TFuture<void>> AsyncReadSessions;
+        std::vector<TFuture<void>> ReadSessionFutures;
     };
 
     class TReadSession
@@ -308,9 +317,7 @@ private:
         const IVersionedReaderPtr Reader_;
 
         IVersionedRowBatchPtr RowBatch_;
-
         int RowIndex_ = -1;
-
     };
 
     const TTabletSnapshotPtr TabletSnapshot_;
@@ -338,9 +345,9 @@ private:
     int CacheOutdated_ = 0;
     int CacheInserts_ = 0;
     int FoundRowCount_ = 0;
-    size_t FoundDataWeight_ = 0;
+    i64 FoundDataWeight_ = 0;
     int UnmergedRowCount_ = 0;
-    size_t UnmergedDataWeight_ = 0;
+    i64 UnmergedDataWeight_ = 0;
     TDuration DecompressionCpuTime_;
 
     std::vector<TFuture<void>> CreateReadSessions(
@@ -358,7 +365,7 @@ private:
             : Timestamp_;
 
         // NB: Will remain empty for in-memory tables.
-        std::vector<TFuture<void>> asyncFutures;
+        std::vector<TFuture<void>> futures;
         for (const auto& store : stores) {
             YT_LOG_DEBUG("Creating reader (Store: %v, KeysCount: %v, ReadSessionId: %v)",
                 store->GetId(),
@@ -370,18 +377,18 @@ private:
                 keys,
                 readTimestamp,
                 UseLookupCache_ || ProduceAllVersions_,
-                UseLookupCache_ ? UniversalColumnFilter : ColumnFilter_,
+                UseLookupCache_ ? TColumnFilter::MakeUniversal() : ColumnFilter_,
                 ChunkReadOptions_);
             auto future = reader->Open();
             if (auto optionalError = future.TryGet()) {
                 optionalError->ThrowOnError();
             } else {
-                asyncFutures.emplace_back(std::move(future));
+                futures.emplace_back(std::move(future));
             }
             sessions->emplace_back(std::move(reader));
         }
 
-        return asyncFutures;
+        return futures;
     }
 
     TPartitionSessionInfo CreatePartitionSession(
@@ -409,7 +416,7 @@ private:
             endChunkKeyIndex += !RowsFromCache_[index];
         }
 
-        auto asyncReadSessions = CreateReadSessions(
+        auto readSessionFutures = CreateReadSessions(
             &PartitionSessions_[sessionIndex],
             partitionSnapshot->Stores,
             ChunkLookupKeys_.Slice(*startChunkKeyIndex, endChunkKeyIndex));
@@ -417,23 +424,32 @@ private:
         *startChunkKeyIndex = endChunkKeyIndex;
         *currentIt = nextIt;
 
-        return {partitionSnapshot, startKeyIndex, endKeyIndex, std::move(asyncReadSessions)};
+        return {
+            partitionSnapshot,
+            startKeyIndex,
+            endKeyIndex,
+            std::move(readSessionFutures)
+        };
     }
 
+    template <
+        class TAddPartialRow,
+        class TFinishRow
+    >
     void LookupInPartition(
         const TPartitionSnapshotPtr& partitionSnapshot,
         int startKeyIndex,
         int endKeyIndex,
         TReadSessionList* partitionSessions,
-        const std::function<void(TVersionedRow, TTimestamp)>& onPartialRow,
-        const std::function<std::pair<bool, size_t>()>& onRow)
+        const TAddPartialRow& addPartialRow,
+        const TFinishRow& finishRow)
     {
         std::vector<TVersionedRow> versionedRows;
 
         auto processSessions = [&] (TReadSessionList& sessions) {
             for (auto& session : sessions) {
                 auto row = session.FetchRow();
-                onPartialRow(row, Timestamp_ + 1);
+                addPartialRow(row, Timestamp_ + 1);
                 if (UseLookupCache_) {
                     versionedRows.push_back(row);
                 }
@@ -470,7 +486,7 @@ private:
                     Timestamp_,
                     versionedRows);
 
-                onPartialRow(cachedItem->GetVersionedRow(), Timestamp_ + 1);
+                addPartialRow(cachedItem->GetVersionedRow(), Timestamp_ + 1);
 
                 // Reinsert row here.
                 auto lookupTable = inserter.GetTable();
@@ -516,9 +532,9 @@ private:
 
             versionedRows.clear();
 
-            auto statistics = onRow();
-            FoundRowCount_ += statistics.first;
-            FoundDataWeight_ += statistics.second;
+            auto [found, dataWeight] = finishRow();
+            FoundRowCount_ += found ? 1 : 0;
+            FoundDataWeight_ += dataWeight;
         }
 
         UpdateUnmergedStatistics(*partitionSessions);
@@ -534,10 +550,14 @@ private:
         }
     }
 
+    template <
+        class TAddPartialRow,
+        class TFinishRow
+    >
     void ParallelLookupInPartitions(
-        std::vector<TFuture<void>> asyncReadSessions,
-        const std::function<void(TVersionedRow, TTimestamp)>& onPartialRow,
-        const std::function<std::pair<bool, size_t>()>& onRow)
+        std::vector<TFuture<void>> readSessionFutures,
+        const TAddPartialRow& addPartialRow,
+        const TFinishRow& finishRow)
     {
         const auto& mountConfig = TabletSnapshot_->Settings.MountConfig;
 
@@ -554,10 +574,10 @@ private:
             {
                 auto sessionInfo = CreatePartitionSession(&currentIt, &startChunkKeyIndex, partitionSessionInfos.size());
 
-                for (auto& readSession : sessionInfo.AsyncReadSessions) {
-                    asyncReadSessions.push_back(std::move(readSession));
+                for (auto& readSession : sessionInfo.ReadSessionFutures) {
+                    readSessionFutures.push_back(std::move(readSession));
                 }
-                sessionInfo.AsyncReadSessions.clear();
+                sessionInfo.ReadSessionFutures.clear();
 
                 partitionSessionInfos.push_back(std::move(sessionInfo));
             }
@@ -573,9 +593,8 @@ private:
                         partitionInfo.EndKeyIndex - partitionInfo.StartKeyIndex);
                 }));
 
-            WaitFor(AllSucceeded(asyncReadSessions))
+            WaitFor(AllSucceeded(std::move(readSessionFutures)))
                 .ThrowOnError();
-            asyncReadSessions.clear();
 
             // NB: Processing of partitions is sequential.
             for (int index = 0; index < partitionSessionInfos.size(); ++index) {
@@ -584,34 +603,113 @@ private:
                     partitionSessionInfos[index].StartKeyIndex,
                     partitionSessionInfos[index].EndKeyIndex,
                     &PartitionSessions_[index],
-                    onPartialRow,
-                    onRow);
+                    addPartialRow,
+                    finishRow);
             }
         }
     }
 };
 
-static NTableClient::TColumnFilter DecodeColumnFilter(
+namespace {
+
+NTableClient::TColumnFilter DecodeColumnFilter(
     std::unique_ptr<NTableClient::NProto::TColumnFilter> protoColumnFilter,
     int columnCount)
 {
-    auto columnFilter = !protoColumnFilter
-        ? TColumnFilter()
-        : TColumnFilter(FromProto<TColumnFilter::TIndexes>(protoColumnFilter->indexes()));
+    auto columnFilter = protoColumnFilter
+        ? TColumnFilter(FromProto<TColumnFilter::TIndexes>(protoColumnFilter->indexes()))
+        : TColumnFilter();
     ValidateColumnFilter(columnFilter, columnCount);
     return columnFilter;
 }
 
-void LookupRows(
-    TTabletSnapshotPtr tabletSnapshot,
+template <
+    class TRowMerger,
+    class TRowWriter
+>
+void DoLookupRows(
+    const TTabletSnapshotPtr& tabletSnapshot,
     TTimestamp timestamp,
+    bool produceAllVersions,
     bool useLookupCache,
-    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-    TWireProtocolReader* reader,
-    TWireProtocolWriter* writer)
+    const TColumnFilter& columnFilter,
+    const TClientChunkReadOptions& chunkReadOptions,
+    TSharedRange<TUnversionedRow> lookupKeys,
+    const TRowBufferPtr& rowBuffer,
+    TRowMerger& rowMerger,
+    const TRowWriter& rowWriter)
 {
     tabletSnapshot->WaitOnLocks(timestamp);
 
+    THazardPtrFlushGuard flushGuard;
+
+    TLookupSession session(
+        tabletSnapshot,
+        timestamp,
+        produceAllVersions,
+        useLookupCache,
+        columnFilter,
+        chunkReadOptions,
+        std::move(lookupKeys));
+
+    auto addPartialRow = [&] (TVersionedRow partialRow, TTimestamp timestamp) {
+        rowMerger.AddPartialRow(partialRow, timestamp);
+    };
+
+    using TRow = decltype(rowMerger.BuildMergedRow());
+    auto getMergedRowStatistics = [] (TRow mergedRow) {
+        return std::make_pair(static_cast<bool>(mergedRow), GetDataWeight(mergedRow));
+    };
+
+    const auto& schema = tabletSnapshot->PhysicalSchema;
+    if (schema->HasHunkColumns()) {
+        std::vector<TRow> rows;
+        rows.reserve(lookupKeys.Size());
+
+        session.Run(
+            addPartialRow,
+            [&] {
+                auto mergedRow = rowMerger.BuildMergedRow();
+                rowBuffer->CaptureValues(mergedRow);
+                rows.push_back(mergedRow);
+                return getMergedRowStatistics(mergedRow);
+            });
+
+        auto sharedRows = MakeSharedRange(std::move(rows), std::move(rowBuffer));
+
+        THunkPayloadReader hunkReader(
+            tabletSnapshot->ChunkFragmentReader,
+            schema);
+
+        if (auto hunkReaderFuture = hunkReader.Read(sharedRows, chunkReadOptions)) {
+            sharedRows = WaitFor(std::move(hunkReaderFuture))
+                .ValueOrThrow();
+        }
+
+        for (auto row : sharedRows) {
+            rowWriter(row);
+        }
+    } else {
+        session.Run(
+            addPartialRow,
+            [&] {
+                auto mergedRow = rowMerger.BuildMergedRow();
+                rowWriter(mergedRow);
+                return getMergedRowStatistics(mergedRow);
+            });
+    }
+}
+
+} // namespace
+
+void LookupRows(
+    const TTabletSnapshotPtr& tabletSnapshot,
+    TTimestamp timestamp,
+    bool useLookupCache,
+    const TClientChunkReadOptions& chunkReadOptions,
+    TWireProtocolReader* reader,
+    TWireProtocolWriter* writer)
+{
     NTableClient::NProto::TReqLookupRows req;
     reader->ReadMessage(&req);
 
@@ -621,49 +719,39 @@ void LookupRows(
     auto schemaData = TWireProtocolReader::GetSchemaData(*tabletSnapshot->PhysicalSchema->ToKeys());
     auto lookupKeys = reader->ReadSchemafulRowset(schemaData, false);
 
-    TSchemafulRowMerger merger(
-        New<TRowBuffer>(TLookupSessionBufferTag()),
+    auto rowBuffer = New<TRowBuffer>(TLookupSessionBufferTag());
+
+    TSchemafulRowMerger rowMerger(
+        rowBuffer,
         tabletSnapshot->PhysicalSchema->Columns().size(),
         tabletSnapshot->PhysicalSchema->GetKeyColumnCount(),
         columnFilter,
         tabletSnapshot->ColumnEvaluator);
 
-    THazardPtrFlushGuard flushGuard;
-
-    TLookupSession session(
-        std::move(tabletSnapshot),
+    DoLookupRows(
+        tabletSnapshot,
         timestamp,
-        false,
+        /*produceAllVersions*/ false,
         useLookupCache,
         columnFilter,
         chunkReadOptions,
-        std::move(lookupKeys));
-
-    session.Run(
-        [&] (TVersionedRow partialRow, TTimestamp timestamp) {
-            merger.AddPartialRow(partialRow, timestamp);
-        },
-        [&] {
-            auto mergedRow = merger.BuildMergedRow();
-
-            YT_LOG_TRACE_IF(useLookupCache, "Merged row built (Result: %v)", mergedRow);
-
-            writer->WriteSchemafulRow(mergedRow);
-            return std::make_pair(static_cast<bool>(mergedRow), GetDataWeight(mergedRow));
+        std::move(lookupKeys),
+        rowBuffer,
+        rowMerger,
+        [&] (TUnversionedRow row) {
+            writer->WriteSchemafulRow(row);
         });
 }
 
 void VersionedLookupRows(
-    TTabletSnapshotPtr tabletSnapshot,
+    const TTabletSnapshotPtr& tabletSnapshot,
     TTimestamp timestamp,
     bool useLookupCache,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-    TRetentionConfigPtr retentionConfig,
+    const TRetentionConfigPtr& retentionConfig,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
 {
-    tabletSnapshot->WaitOnLocks(timestamp);
-
     NTableClient::NProto::TReqVersionedLookupRows req;
     reader->ReadMessage(&req);
 
@@ -673,39 +761,32 @@ void VersionedLookupRows(
     auto schemaData = TWireProtocolReader::GetSchemaData(*tabletSnapshot->PhysicalSchema->ToKeys());
     auto lookupKeys = reader->ReadSchemafulRowset(schemaData, false);
 
-    TVersionedRowMerger merger(
-        New<TRowBuffer>(TLookupSessionBufferTag()),
+    auto rowBuffer = New<TRowBuffer>(TLookupSessionBufferTag());
+
+    TVersionedRowMerger rowMerger(
+        rowBuffer,
         tabletSnapshot->PhysicalSchema->GetColumnCount(),
         tabletSnapshot->PhysicalSchema->GetKeyColumnCount(),
         columnFilter,
-        std::move(retentionConfig),
+        retentionConfig,
         timestamp,
         MinTimestamp,
         tabletSnapshot->ColumnEvaluator,
-        true,
-        false);
+        /*mergeRowsOnFlush*/ true,
+        /*mergeDeletionsOnFlush*/ false);
 
-    THazardPtrFlushGuard flushGuard;
-
-    // NB: TLookupSession captures TColumnFilter by const ref.
-    static const TColumnFilter UniversalColumnFilter;
-    TLookupSession session(
-        std::move(tabletSnapshot),
+    DoLookupRows(
+        tabletSnapshot,
         timestamp,
-        true,
+        /*produceAllVersions*/ true,
         useLookupCache,
-        UniversalColumnFilter,
+        TColumnFilter::MakeUniversal(),
         chunkReadOptions,
-        std::move(lookupKeys));
-
-    session.Run(
-        [&] (TVersionedRow partialRow, TTimestamp timestamp) {
-            merger.AddPartialRow(partialRow, timestamp);
-        },
-        [&] {
-            auto mergedRow = merger.BuildMergedRow();
-            writer->WriteVersionedRow(mergedRow);
-            return std::make_pair(static_cast<bool>(mergedRow), GetDataWeight(mergedRow));
+        std::move(lookupKeys),
+        rowBuffer,
+        rowMerger,
+        [&] (TVersionedRow row) {
+            writer->WriteVersionedRow(row);
         });
 }
 
@@ -714,7 +795,7 @@ void ExecuteSingleRead(
     TTimestamp timestamp,
     bool useLookupCache,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-    TRetentionConfigPtr retentionConfig,
+    const TRetentionConfigPtr& retentionConfig,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
 {
@@ -722,7 +803,7 @@ void ExecuteSingleRead(
     switch (command) {
         case EWireProtocolCommand::LookupRows:
             LookupRows(
-                std::move(tabletSnapshot),
+                tabletSnapshot,
                 timestamp,
                 useLookupCache,
                 chunkReadOptions,
@@ -732,7 +813,7 @@ void ExecuteSingleRead(
 
         case EWireProtocolCommand::VersionedLookupRows:
             VersionedLookupRows(
-                std::move(tabletSnapshot),
+                tabletSnapshot,
                 timestamp,
                 useLookupCache,
                 chunkReadOptions,
@@ -748,11 +829,11 @@ void ExecuteSingleRead(
 }
 
 void LookupRead(
-    TTabletSnapshotPtr tabletSnapshot,
+    const TTabletSnapshotPtr& tabletSnapshot,
     TTimestamp timestamp,
     bool useLookupCache,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-    TRetentionConfigPtr retentionConfig,
+    const TRetentionConfigPtr& retentionConfig,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
 {

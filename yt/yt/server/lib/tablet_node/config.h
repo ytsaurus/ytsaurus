@@ -426,21 +426,29 @@ DEFINE_REFCOUNTED_TYPE(TTransactionManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletChunkReaderConfig
+class TTabletStoreReaderConfig
     : public NTableClient::TChunkReaderConfig
     , public NChunkClient::TErasureReaderConfig
 {
 public:
     bool PreferLocalReplicas;
 
-    TTabletChunkReaderConfig()
+    TTabletStoreReaderConfig()
     {
         RegisterParameter("prefer_local_replicas", PreferLocalReplicas)
             .Default(true);
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TTabletChunkReaderConfig)
+DEFINE_REFCOUNTED_TYPE(TTabletStoreReaderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTabletHunkReaderConfig
+    : public NChunkClient::TChunkFragmentReaderConfig
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TTabletHunkReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

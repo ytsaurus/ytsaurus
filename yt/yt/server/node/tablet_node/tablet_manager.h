@@ -32,7 +32,7 @@ class TTabletManager
 public:
     TTabletManager(
         TTabletManagerConfigPtr config,
-        TTabletSlotPtr slot,
+        ITabletSlotPtr slot,
         NClusterNode::TBootstrap* bootstrap);
     ~TTabletManager();
 

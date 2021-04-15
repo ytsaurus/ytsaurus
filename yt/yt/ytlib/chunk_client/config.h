@@ -288,4 +288,12 @@ DEFINE_REFCOUNTED_TYPE(TMediumDirectorySynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkFragmentReaderConfig
+    : public NYTree::TYsonSerializable
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TChunkFragmentReaderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkClient

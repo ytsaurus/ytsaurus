@@ -118,7 +118,7 @@ public:
 public:
     TImpl(
         TTransactionManagerConfigPtr config,
-        TTabletSlotPtr slot,
+        ITabletSlotPtr slot,
         NClusterNode::TBootstrap* bootstrap)
         : TTabletAutomatonPart(
             slot,
@@ -1093,7 +1093,7 @@ private:
 
 TTransactionManager::TTransactionManager(
     TTransactionManagerConfigPtr config,
-    TTabletSlotPtr slot,
+    ITabletSlotPtr slot,
     TBootstrap* bootstrap)
     : Impl_(New<TImpl>(
         config,

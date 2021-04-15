@@ -805,7 +805,7 @@ class TestLookupFromSuspiciousNodes(TestSortedDynamicTablesBase):
 
     @authors("akozhikhov")
     def test_lookup_from_suspicious_node(self):
-        set("//sys/@config/tablet_manager/chunk_reader", {"probe_peer_count": self.NUM_NODES - 1})
+        set("//sys/@config/tablet_manager/store_chunk_reader", {"probe_peer_count": self.NUM_NODES - 1})
 
         self._separate_tablet_and_data_nodes()
         sync_create_cells(1)

@@ -79,7 +79,7 @@ bool TStoreManagerBase::HasUnflushedStores() const
     return false;
 }
 
-void TStoreManagerBase::StartEpoch(TTabletSlotPtr slot)
+void TStoreManagerBase::StartEpoch(ITabletSlotPtr slot)
 {
     Tablet_->StartEpoch(slot);
 

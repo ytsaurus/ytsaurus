@@ -1124,7 +1124,14 @@ void TTableNodeProxy::ValidateCustomAttributeUpdate(
             if (!newValue) {
                 break;
             }
-            ConvertTo<NTabletNode::TTabletChunkReaderConfigPtr>(newValue);
+            ConvertTo<NTabletNode::TTabletStoreReaderConfigPtr>(newValue);
+            return;
+
+        case EInternedAttributeKey::HunkChunkReader:
+            if (!newValue) {
+                break;
+            }
+            ConvertTo<NTabletNode::TTabletHunkReaderConfigPtr>(newValue);
             return;
 
         default:

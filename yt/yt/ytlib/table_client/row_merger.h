@@ -30,7 +30,7 @@ public:
 
     void AddPartialRow(TVersionedRow row);
     void AddPartialRow(TVersionedRow row, TTimestamp upperTimestampLimit);
-    TUnversionedRow BuildMergedRow();
+    TMutableUnversionedRow BuildMergedRow();
     void Reset();
 
 private:
@@ -71,8 +71,8 @@ public:
     void AddPartialRow(TUnversionedRow row);
     void DeletePartialRow(TUnversionedRow row);
     void InitPartialRow(TUnversionedRow row);
-    TUnversionedRow BuildDeleteRow();
-    TUnversionedRow BuildMergedRow();
+    TMutableUnversionedRow BuildDeleteRow();
+    TMutableUnversionedRow BuildMergedRow();
 
 private:
     const TRowBufferPtr RowBuffer_;
@@ -105,7 +105,7 @@ public:
         bool mergeDeletionsOnFlush = false);
 
     void AddPartialRow(TVersionedRow row, TTimestamp upperTimestampLimit = MaxTimestamp);
-    TVersionedRow BuildMergedRow();
+    TMutableVersionedRow BuildMergedRow();
     void Reset();
 
 private:
@@ -145,7 +145,7 @@ public:
         TRowBufferPtr rowBuffer,
         TTableSchemaPtr schema);
 
-    TUnversionedRow MergeRow(TVersionedRow row);
+    TMutableUnversionedRow MergeRow(TVersionedRow row);
     void Reset();
 
 private:

@@ -8,6 +8,8 @@
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/range.h>
 
 #include <yt/yt/core/yson/public.h>
 
@@ -177,6 +179,7 @@ public:
     int GetKeyColumnCount() const;
     int GetValueColumnCount() const;
     std::vector<TString> GetColumnNames() const;
+    TRange<int> GetHunkColumnIds() const;
 
     TSortColumns GetSortColumns() const;
 
@@ -270,7 +273,7 @@ public:
 private:
     int KeyColumnCount_ = 0;
     bool HasComputedColumns_ = false;
-    bool HasHunkColumns_ = false;
+    SmallVector<int, 4> HunkColumnsIds_;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TTableSchema& schema, TStringBuf spec);

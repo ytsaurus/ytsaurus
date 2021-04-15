@@ -21,7 +21,7 @@ class TTabletAutomaton
 {
 public:
     TTabletAutomaton(
-        TTabletSlotPtr slot,
+        ITabletSlotPtr slot,
         IInvokerPtr snapshotInvoker);
 
 private:
@@ -43,12 +43,12 @@ class TTabletAutomatonPart
     , public virtual NLogging::TLoggerOwner
 {
 protected:
-    const TTabletSlotPtr Slot_;
+    const ITabletSlotPtr Slot_;
     NClusterNode::TBootstrap* const Bootstrap_;
 
 
     TTabletAutomatonPart(
-        TTabletSlotPtr slot,
+        ITabletSlotPtr slot,
         NClusterNode::TBootstrap* bootstrap);
 
     virtual bool ValidateSnapshotVersion(int version) override;

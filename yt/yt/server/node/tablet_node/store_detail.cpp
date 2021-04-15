@@ -69,7 +69,7 @@ TStoreBase::TStoreBase(
     TStoreId id,
     TTablet* tablet)
     : Config_(std::move(config))
-    , ReaderConfig_(tablet->GetSettings().ReaderConfig)
+    , ReaderConfig_(tablet->GetSettings().StoreReaderConfig)
     , StoreId_(id)
     , Tablet_(tablet)
     , PerformanceCounters_(Tablet_->PerformanceCounters())

@@ -54,7 +54,7 @@ private:
     NClusterNode::TBootstrap* const Bootstrap_;
 
 
-    void OnScanSlot(const TTabletSlotPtr& slot)
+    void OnScanSlot(const ITabletSlotPtr& slot)
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         auto dynamicConfig = dynamicConfigManager->GetConfig()->TabletNode->HunkChunkSweeper;
@@ -72,7 +72,7 @@ private:
         }
     }
 
-    void ScanTablet(const TTabletSlotPtr& slot, TTablet* tablet)
+    void ScanTablet(const ITabletSlotPtr& slot, TTablet* tablet)
     {
         if (tablet->GetState() != ETabletState::Mounted) {
             return;
@@ -123,7 +123,7 @@ private:
     }
 
     void SweepHunkChunks(
-        const TTabletSlotPtr& slot,
+        const ITabletSlotPtr& slot,
         TTablet* tablet,
         const std::vector<THunkChunkPtr>& hunkChunks)
     {
