@@ -182,6 +182,8 @@ public:
     //! Default medium used to run jobs without disk requests.
     TString DefaultMediumName;
 
+    bool DisableJobsOnGpuCheckFailure;
+
     TSlotManagerConfig()
     {
         RegisterParameter("locations", Locations);
@@ -210,6 +212,9 @@ public:
 
         RegisterParameter("default_medium_name", DefaultMediumName)
             .Default(NChunkClient::DefaultSlotsMediumName);
+
+        RegisterParameter("disable_jobs_on_gpu_check_failure", DisableJobsOnGpuCheckFailure)
+            .Default(true);
     }
 };
 

@@ -1190,7 +1190,7 @@ private:
                 Config_->JobController->SetupCommandUser));
 
             if (!testFileError.IsOK()) {
-                THROW_ERROR_EXCEPTION(EErrorCode::GpuCheckCommandFailed, "Path to GPU check binary is not a file")
+                THROW_ERROR_EXCEPTION(EErrorCode::GpuCheckCommandIncorrect, "Path to GPU check binary is not a file")
                     << TErrorAttribute("path", gpuCheckBinaryPath)
                     << testFileError;
             }
@@ -1424,7 +1424,7 @@ private:
         }
 
         // NB: we should disable slot here to give scheduler information about job failure.
-        if (error.FindMatching(EErrorCode::GpuCheckCommandFailed)) {
+        if (Config_->SlotManager->DisableJobsOnGpuCheckFailure && error.FindMatching(EErrorCode::GpuCheckCommandFailed)) {
             Bootstrap_->GetExecSlotManager()->Disable(error);
         }
 
@@ -2023,6 +2023,7 @@ private:
             error.FindMatching(EErrorCode::SetupCommandFailed) ||
             error.FindMatching(EErrorCode::GpuJobWithoutLayers) ||
             error.FindMatching(EErrorCode::GpuCheckCommandFailed) ||
+            error.FindMatching(EErrorCode::GpuCheckCommandIncorrect) ||
             error.FindMatching(EErrorCode::TmpfsOverflow);
     }
 
