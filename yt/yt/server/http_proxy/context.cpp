@@ -587,7 +587,7 @@ void TContext::LogStructuredRequest()
                 .Item("authenticated_from").Value(Auth_->Result.Login)
                 .Item("token_hash").Value(Auth_->TokenHash);
         })
-        .Item("parameters").Value(Parameters_)
+        .Item("parameters").Value(TYsonString{Parameters_})
         .Item("correlation_id").Value(correlationId)
         .DoIf(traceContext, [&] (auto fluent) {
             fluent
