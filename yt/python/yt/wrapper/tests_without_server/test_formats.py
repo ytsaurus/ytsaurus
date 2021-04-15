@@ -1,3 +1,5 @@
+# -- coding: utf-8 -- 
+
 from yt.testlib import authors
 
 import yt.yson as yson
@@ -403,3 +405,19 @@ if PY3:
               fail_exc=KeyError)
         check(yt.JsonFormat(encoding=None), {b"x": b"y"}, {"x": "y"}, b'{"x": "y"}\n',
               fail_exc=None)
+
+@authors("levysotsky")
+def test_default_encoding():
+    rows = [{u"x": u"Ы"}]
+
+    yf = yt.YsonFormat(format="text")
+    expected = b'{"x"="\\xD0\\xAB";};\n'
+    assert expected == yf.dumps_rows(rows)
+    
+    jf = yt.JsonFormat(encode_utf8=False)
+    expected = b'{"x": "\\u042b"}\n'
+    assert expected == jf.dumps_rows(rows)
+
+    jf = yt.JsonFormat(encode_utf8=True)
+    expected = b'{"x": "\\u00d0\\u00ab"}\n'
+    assert expected == jf.dumps_rows(rows)

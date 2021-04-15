@@ -615,6 +615,10 @@ class YsonFormat(Format):
         all_attributes = Format._make_attributes(get_value(attributes, {}), defaults, options)
         super(YsonFormat, self).__init__("yson", all_attributes, raw, encoding)
 
+        self._dump_encoding = self._encoding
+        if encoding is _ENCODING_SENTINEL or not PY3:
+            self._dump_encoding = "utf-8"
+
         if control_attributes_mode is None:
             control_attributes_mode = "iterator"
 
@@ -695,8 +699,7 @@ class YsonFormat(Format):
         kwargs = {}
         if yson.TYPE == "BINARY":
             kwargs = {"ignore_inner_attributes": self.attributes["ignore_inner_attributes"]}
-        if PY3:
-            kwargs["encoding"] = self._encoding
+        kwargs["encoding"] = self._dump_encoding
 
         if not isinstance(stream_or_streams, list):
             yson.dump(rows, stream_or_streams,
@@ -1007,6 +1010,10 @@ class JsonFormat(Format):
         all_attributes = Format._make_attributes(attributes, defaults, options)
         super(JsonFormat, self).__init__("json", all_attributes, raw, encoding)
 
+        self._dump_encoding = self._encoding
+        if not self._is_encoding_specified:
+            self._dump_encoding = "utf-8"
+
         if control_attributes_mode is None:
             control_attributes_mode = "iterator"
 
@@ -1032,10 +1039,9 @@ class JsonFormat(Format):
             else:
                 return string
 
-        is_encode_utf8_false = self.encode_utf8 is not None and not self.encode_utf8
-        if is_encode_utf8_false and self._encoding == "utf-8":
+        if self.encode_utf8 is False and self._encoding == "utf-8":
             return string
-        if not is_encode_utf8_false:
+        if not self.encode_utf8 is False:
             byte_string = string.encode("latin1")
         else:
             byte_string = string.encode("utf-8")
@@ -1047,8 +1053,7 @@ class JsonFormat(Format):
             return obj
 
         # Do not traverse object if decoding is not necessary.
-        is_encode_utf8_false = self.encode_utf8 is not None and not self.encode_utf8
-        if is_encode_utf8_false and self._encoding == "utf-8":
+        if self.encode_utf8 is False and self._encoding == "utf-8":
             return obj
 
         if isinstance(obj, dict):
@@ -1061,24 +1066,23 @@ class JsonFormat(Format):
             return obj
 
     def _dump_python_string(self, string):
-        is_encode_utf8_false = self.encode_utf8 is not None and not self.encode_utf8
         if isinstance(string, text_type):
-            if self._encoding == "utf-8" and is_encode_utf8_false:
+            if self._dump_encoding == "utf-8" and self.encode_utf8 is False:
                 # In this case we can do nothing, unicode string would be correctly written
                 # without any additional encoding.
                 return string
             else:
-                if is_encode_utf8_false:
-                    raise YtFormatError("Cannot interpret unicode string by non-utf-8 "
-                                        "encoding when 'encode_utf8' disabled")
-                if self._encoding is None:
+                if self.encode_utf8 is False:
+                    raise YtFormatError("Cannot dump unicode string with encoding != utf-8 "
+                                        "and encode_utf8 == False")
+                if self._dump_encoding is None:
                     # Just check that string consists only of ascii symbols.
                     string.encode("ascii")
                     return string
                 else:
-                    return string.encode(self._encoding).decode("latin1")
+                    return string.encode(self._dump_encoding).decode("latin1")
         elif isinstance(string, binary_type):
-            if is_encode_utf8_false:
+            if self.encode_utf8 is False:
                 try:
                     return string.decode("ascii")
                 except:
