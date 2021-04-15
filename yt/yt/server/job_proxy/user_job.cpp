@@ -1171,6 +1171,9 @@ private:
                 "/user_job/pipes/input/bytes",
                 TablePipeWriters_[0]->GetWriteByteCount());
 
+            TDuration totalOutputIdleDuration;
+            TDuration totalOutputBusyDuration;
+            i64 totalOutputBytes = 0;
             for (int i = 0; i < TablePipeReaders_.size(); ++i) {
                 const auto& tablePipeReader = TablePipeReaders_[i];
                 auto outputStatistics = tablePipeReader->GetReadStatistics();
@@ -1178,13 +1181,22 @@ private:
                 statistics.AddSample(
                     Format("/user_job/pipes/output/%v/idle_time", NYPath::ToYPathLiteral(i)),
                     outputStatistics.IdleDuration);
+                totalOutputIdleDuration += outputStatistics.IdleDuration;
+
                 statistics.AddSample(
                     Format("/user_job/pipes/output/%v/busy_time", NYPath::ToYPathLiteral(i)),
                     outputStatistics.BusyDuration);
+                totalOutputBusyDuration += outputStatistics.BusyDuration;
+
                 statistics.AddSample(
                     Format("/user_job/pipes/output/%v/bytes", NYPath::ToYPathLiteral(i)),
                     tablePipeReader->GetReadByteCount());
+                totalOutputBytes += tablePipeReader->GetReadByteCount();
             }
+
+            statistics.AddSample("/user_job/pipes/output/total/idle_time", totalOutputIdleDuration);
+            statistics.AddSample("/user_job/pipes/output/total/busy_time", totalOutputBusyDuration);
+            statistics.AddSample("/user_job/pipes/output/total/bytes", totalOutputBytes);
         }
 
         return statistics;
