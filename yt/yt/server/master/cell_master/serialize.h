@@ -130,6 +130,7 @@ DEFINE_ENUM(EMasterReign,
     ((ProperStoreWriterDefaults)                                    (1605))  // babenko
     ((DetailedMasterMemory)                                         (1606))  // aleksandra-zh
     ((IgnoreExistingForPortalExit)                                  (1607))  // s-v-m
+    ((ProfilingModePathLetters)                                     (1608))  // prime
 );
 
 ////////////////////////////////////////////////////////////////////////////////

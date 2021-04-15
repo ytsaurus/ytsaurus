@@ -32,6 +32,19 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TString HideDigits(const TString& path)
+{
+    TString pathCopy = path;
+    for (auto& c : pathCopy) {
+        if (std::isdigit(c)) {
+            c = '_';
+        }
+    }
+    return pathCopy;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TWriterProfiler::Profile(
     const TTabletSnapshotPtr& tabletSnapshot,
     EChunkWriteProfilingMethod method,
@@ -131,10 +144,6 @@ public:
 
         TProfilerKey key;
         switch (profilingMode) {
-            case EDynamicTableProfilingMode::Disabled:
-                key = {profilingMode, bundle, "", account, medium};
-                break;
-
             case EDynamicTableProfilingMode::Path:
                 key = {profilingMode, bundle, tablePath, account, medium};
                 AllTables_.insert(tablePath);
@@ -145,8 +154,16 @@ public:
                 key = {profilingMode, bundle, tableTag, account, medium};
                 break;
 
+            case EDynamicTableProfilingMode::PathLetters:
+                key = {profilingMode, bundle, HideDigits(tablePath), account, medium};
+                AllTables_.insert(HideDigits(tablePath));
+                ConsumedTableTags_.Update(AllTables_.size());
+                break;
+
+            case EDynamicTableProfilingMode::Disabled:
             default:
-                YT_VERIFY(false);
+                key = {profilingMode, bundle, "", account, medium};
+                break;
         }
 
         auto& profiler = Tables_[key];
@@ -162,11 +179,6 @@ public:
         TTagSet diskTagSet = tableTagSet;
 
         switch (profilingMode) {
-            case EDynamicTableProfilingMode::Disabled:
-                diskTagSet.AddTag({"account", account});
-                diskTagSet.AddTag({"medium", medium});
-                break;
-
             case EDynamicTableProfilingMode::Path:
                 tableTagSet.AddTag({"table_path", tablePath}, -1);
 
@@ -183,8 +195,19 @@ public:
                 diskTagSet.AddTagWithChild({"medium", medium}, -2);
                 break;
 
+            case EDynamicTableProfilingMode::PathLetters:
+                tableTagSet.AddTag({"table_path", HideDigits(tablePath)}, -1);
+
+                diskTagSet = tableTagSet;
+                diskTagSet.AddTagWithChild({"account", account}, -1);
+                diskTagSet.AddTagWithChild({"medium", medium}, -2);
+                break;
+
+            case EDynamicTableProfilingMode::Disabled:
             default:
-                YT_VERIFY(false);
+                diskTagSet.AddTag({"account", account});
+                diskTagSet.AddTag({"medium", medium});
+                break;
         }
 
         auto tableProfiler = TabletNodeProfiler

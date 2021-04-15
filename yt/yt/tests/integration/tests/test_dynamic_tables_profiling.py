@@ -3,6 +3,7 @@ import pytest
 from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
 from yt_env_setup import wait
+from yt_helpers import Profiler
 from yt_commands import *
 from yt.yson import YsonEntity
 
@@ -188,3 +189,23 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
 
         for cell_id in bundle_cells:
             wait(lambda: get_solomon_tags(cell_id) == {"tablet_cell_bundle": "tag1"})
+
+    @authors("prime")
+    def test_profiling_path_letters(self):
+        sync_create_cells(1)
+
+        create("map_node", "//tmp/path_letters")
+        set("//tmp/path_letters/@profiling_mode", "path_letters")
+
+        self._create_simple_table("//tmp/path_letters/t0")
+        self._create_simple_table("//tmp/path_letters/t1")
+        sync_mount_table("//tmp/path_letters/t0")
+        sync_mount_table("//tmp/path_letters/t1")
+
+        insert_rows("//tmp/path_letters/t0", [{"key": 0, "value": "hello"}])
+        time.sleep(2)
+
+        profiler = Profiler.at_tablet_node("//tmp/path_letters/t0")
+
+        counter = profiler.get("write/row_count", {"table_path": "//tmp/path_letters/t_"})
+        assert counter == 1
