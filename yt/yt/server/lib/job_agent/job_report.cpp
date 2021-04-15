@@ -30,6 +30,7 @@ void TTimeStatistics::Persist(const TStreamPersistenceContext& context)
     Persist(context, ArtifactsDownloadDuration);
     Persist(context, PrepareRootFSDuration);
     Persist(context, ExecDuration);
+    Persist(context, GpuCheckDuration);
 }
 
 void TTimeStatistics::AddSamplesTo(TStatistics* statistics) const
@@ -45,6 +46,9 @@ void TTimeStatistics::AddSamplesTo(TStatistics* statistics) const
     }
     if (ExecDuration) {
         statistics->AddSample("/time/exec", ExecDuration->MilliSeconds());
+    }
+    if (GpuCheckDuration) {
+        statistics->AddSample("/time/gpu_check", GpuCheckDuration->MilliSeconds());
     }
 }
 
@@ -64,6 +68,9 @@ void ToProto(
     if (timeStatistics.ExecDuration) {
         timeStatisticsProto->set_exec_duration(ToProto<i64>(*timeStatistics.ExecDuration));
     }
+    if (timeStatistics.GpuCheckDuration) {
+        timeStatisticsProto->set_gpu_check_duration(ToProto<i64>(*timeStatistics.GpuCheckDuration));
+    }
 }
 
 void FromProto(
@@ -82,6 +89,9 @@ void FromProto(
     if (timeStatisticsProto.has_exec_duration()) {
         timeStatistics->ExecDuration = FromProto<TDuration>(timeStatisticsProto.exec_duration());
     }
+    if (timeStatisticsProto.has_gpu_check_duration()) {
+        timeStatistics->GpuCheckDuration = FromProto<TDuration>(timeStatisticsProto.gpu_check_duration());
+    }
 }
 
 void Serialize(const TTimeStatistics& timeStatistics, NYson::IYsonConsumer* consumer)
@@ -99,6 +109,9 @@ void Serialize(const TTimeStatistics& timeStatistics, NYson::IYsonConsumer* cons
             })
             .DoIf(static_cast<bool>(timeStatistics.ExecDuration), [&] (auto fluent) {
                 fluent.Item("exec").Value(*timeStatistics.ExecDuration);
+            })
+            .DoIf(static_cast<bool>(timeStatistics.GpuCheckDuration), [&] (auto fluent) {
+                fluent.Item("gpu_check").Value(*timeStatistics.GpuCheckDuration);
             })
         .EndMap();
 }

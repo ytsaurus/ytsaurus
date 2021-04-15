@@ -29,6 +29,7 @@ struct TTimeStatistics
     std::optional<TDuration> ArtifactsDownloadDuration;
     std::optional<TDuration> PrepareRootFSDuration;
     std::optional<TDuration> ExecDuration;
+    std::optional<TDuration> GpuCheckDuration;
 
     void Persist(const TStreamPersistenceContext& context);
 

@@ -407,12 +407,22 @@ public:
                 return *FinishTime_ - *ExecTime_;
             }
         };
+        auto getGpuCheckDuration = [&] () -> std::optional<TDuration> {
+            if (!GpuCheckStartTime_) {
+                return std::nullopt;
+            } else if (!GpuCheckFinishTime_) {
+                return TInstant::Now() - *GpuCheckStartTime_;
+            } else {
+                return *GpuCheckFinishTime_ - *GpuCheckStartTime_;
+            }
+        };
 
         return NJobAgent::TTimeStatistics{
             .PrepareDuration = getPrepareDuration(),
             .ArtifactsDownloadDuration = getArtifactsDownloadDuration(),
             .PrepareRootFSDuration = getPrepareRootFSDuration(),
-            .ExecDuration = getExecDuration()};
+            .ExecDuration = getExecDuration(),
+            .GpuCheckDuration = getGpuCheckDuration()};
     }
 
     virtual EJobPhase GetPhase() const override
@@ -801,6 +811,9 @@ private:
     std::optional<TInstant> ExecTime_;
     std::optional<TInstant> FinishTime_;
 
+    std::optional<TInstant> GpuCheckStartTime_;
+    std::optional<TInstant> GpuCheckFinishTime_;
+
     std::vector<TGpuManager::TGpuSlotPtr> GpuSlots_;
     std::vector<TGpuStatistics> GpuStatistics_;
 
@@ -1163,6 +1176,8 @@ private:
 
         YT_LOG_INFO("Running GPU check commands");
 
+        GpuCheckStartTime_ = TInstant::Now();
+
         {
             auto testFileCommand = New<TShellCommandConfig>();
             testFileCommand->Path = "/usr/bin/test";
@@ -1173,6 +1188,7 @@ private:
                 {testFileCommand},
                 MakeWritableRootFS(),
                 Config_->JobController->SetupCommandUser));
+
             if (!testFileError.IsOK()) {
                 THROW_ERROR_EXCEPTION(EErrorCode::GpuCheckCommandFailed, "Path to GPU check binary is not a file")
                     << TErrorAttribute("path", gpuCheckBinaryPath)
@@ -1193,6 +1209,8 @@ private:
     void OnGpuCheckCommandFinished(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
+
+        GpuCheckFinishTime_ = TInstant::Now();
 
         GuardedAction([&] {
             ValidateJobPhase(EJobPhase::RunningGpuCheckCommand);
