@@ -13,6 +13,7 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import org.asynchttpclient.AsyncHttpClient;
 import org.asynchttpclient.DefaultAsyncHttpClientConfig;
+import org.asynchttpclient.Request;
 import org.asynchttpclient.RequestBuilder;
 import org.asynchttpclient.Response;
 import org.junit.After;
@@ -81,20 +82,19 @@ public class HttpProxyGetterTest {
 
     public static List<String> httpListRpcProxies(AsyncHttpClient httpClient, String address) {
         try {
-            RequestBuilder requestBuilder = new RequestBuilder()
+            Request request = new RequestBuilder()
                     .setUrl(String.format("http://%s/api/v4/list?path=//sys/rpc_proxies", address))
                     .setHeader("X-YT-Header-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT))
-                    .setHeader("X-YT-Output-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT));
-            CompletableFuture<Response> responseFuture = httpClient.executeRequest(requestBuilder.build()).toCompletableFuture();
+                    .setHeader("X-YT-Output-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT))
+                    .build();
+            CompletableFuture<Response> responseFuture = httpClient.executeRequest(request).toCompletableFuture();
             var response = responseFuture.get(2, TimeUnit.SECONDS);
 
             assertThat(response.getStatusCode(), is(200));
             YTreeNode node = YTreeTextSerializer.deserialize(response.getResponseBodyAsStream());
-            return node
-                    .asMap()
+            return node.mapNode()
                     .getOrThrow("value")
-                    .asList()
-                    .stream()
+                    .asList().stream()
                     .map(YTreeNode::stringValue).collect(Collectors.toList());
         } catch (Throwable error) {
             throw new RuntimeException("Unexpected error", error);
