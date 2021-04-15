@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
+#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
@@ -77,7 +79,7 @@ public:
         TTablet* tablet,
         TTableReplicaInfo* replicaInfo,
         NNative::IConnectionPtr localConnection,
-        TTabletSlotPtr slot,
+        ITabletSlotPtr slot,
         ITabletSnapshotStorePtr tabletSnapshotStore,
         IHintManagerPtr hintManager,
         IInvokerPtr workerInvoker,
@@ -131,7 +133,7 @@ public:
 private:
     const TTabletManagerConfigPtr Config_;
     const NNative::IConnectionPtr LocalConnection_;
-    const TTabletSlotPtr Slot_;
+    const ITabletSlotPtr Slot_;
     const ITabletSnapshotStorePtr TabletSnapshotStore_;
     const IHintManagerPtr HintManager_;
     const IInvokerPtr WorkerInvoker_;
@@ -924,7 +926,7 @@ TTableReplicator::TTableReplicator(
     TTablet* tablet,
     TTableReplicaInfo* replicaInfo,
     NNative::IConnectionPtr localConnection,
-    TTabletSlotPtr slot,
+    ITabletSlotPtr slot,
     ITabletSnapshotStorePtr tabletSnapshotStore,
     IHintManagerPtr hintManager,
     IInvokerPtr workerInvoker,

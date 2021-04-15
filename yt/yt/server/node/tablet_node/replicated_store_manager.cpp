@@ -53,7 +53,7 @@ bool TReplicatedStoreManager::HasUnflushedStores() const
     return LogStoreManager_->HasUnflushedStores();
 }
 
-void TReplicatedStoreManager::StartEpoch(TTabletSlotPtr slot)
+void TReplicatedStoreManager::StartEpoch(ITabletSlotPtr slot)
 {
     LogStoreManager_->StartEpoch(std::move(slot));
 }

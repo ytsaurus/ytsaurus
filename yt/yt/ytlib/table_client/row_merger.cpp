@@ -72,15 +72,15 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
         const auto* keyBegin = row.BeginKeys();
         for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
             int id = ColumnIds_[index];
-            auto* mergedValue = &MergedRow_[index];
+            auto& mergedValue = MergedRow_[index];
             if (id < KeyColumnCount_) {
                 MergedTimestamps_[index] = MaxTimestamp;
-                *mergedValue = keyBegin[id];
+                mergedValue = keyBegin[id];
             } else {
                 MergedTimestamps_[index] = NullTimestamp;
-                mergedValue->Id = id;
-                mergedValue->Type = EValueType::Null;
-                mergedValue->Aggregate = false;
+                mergedValue.Id = id;
+                mergedValue.Type = EValueType::Null;
+                mergedValue.Aggregate = false;
              }
         }
 
@@ -191,15 +191,15 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row, TTimestamp upperTimes
     }
 }
 
-TUnversionedRow TSchemafulRowMerger::BuildMergedRow()
+TMutableUnversionedRow TSchemafulRowMerger::BuildMergedRow()
 {
     if (!Started_) {
-        return TUnversionedRow();
+        return {};
     }
 
     if (LatestWrite_ == NullTimestamp || LatestWrite_ < LatestDelete_) {
         Cleanup();
-        return TUnversionedRow();
+        return {};
     }
 
     AggregateValues_.erase(
@@ -273,12 +273,12 @@ void TSchemafulRowMerger::Reset()
 {
     YT_ASSERT(!Started_);
     RowBuffer_->Clear();
-    MergedRow_ = TMutableUnversionedRow();
+    MergedRow_ = {};
 }
 
 void TSchemafulRowMerger::Cleanup()
 {
-    MergedRow_ = TMutableUnversionedRow();
+    MergedRow_ = {};
     AggregateValues_.clear();
     LatestWrite_ = NullTimestamp;
     LatestDelete_ = NullTimestamp;
@@ -292,14 +292,13 @@ TUnversionedRowMerger::TUnversionedRowMerger(
     int columnCount,
     int keyColumnCount,
     TColumnEvaluatorPtr columnEvaluator)
-    : RowBuffer_(rowBuffer)
+    : RowBuffer_(std::move(rowBuffer))
     , ColumnCount_(columnCount)
     , KeyColumnCount_(keyColumnCount)
     , ColumnEvaluator_(std::move(columnEvaluator))
     , ValidValues_(size_t(ColumnCount_) - KeyColumnCount_, false)
 {
     YT_VERIFY(KeyColumnCount_ <= ColumnCount_);
-    MergedRow_ = TMutableUnversionedRow();
 }
 
 void TUnversionedRowMerger::InitPartialRow(TUnversionedRow row)
@@ -311,9 +310,10 @@ void TUnversionedRowMerger::InitPartialRow(TUnversionedRow row)
     std::copy(row.begin(), row.begin() + KeyColumnCount_, MergedRow_.begin());
 
     for (int index = KeyColumnCount_; index < ColumnCount_; ++index) {
-        MergedRow_[index].Id = index;
-        MergedRow_[index].Type = EValueType::Null;
-        MergedRow_[index].Aggregate = ColumnEvaluator_->IsAggregate(index);
+        auto& value = MergedRow_[index];
+        value.Id = index;
+        value.Type = EValueType::Null;
+        value.Aggregate = ColumnEvaluator_->IsAggregate(index);
     }
 }
 
@@ -326,15 +326,14 @@ void TUnversionedRowMerger::AddPartialRow(TUnversionedRow row)
         int id = partialValue.Id;
         YT_VERIFY(id >= KeyColumnCount_);
         ValidValues_[id - KeyColumnCount_] = true;
-
+        auto& mergedValue = MergedRow_[id];
         if (partialValue.Aggregate) {
             YT_VERIFY(ColumnEvaluator_->IsAggregate(id));
-
-            bool isAggregate = MergedRow_[id].Aggregate;
-            ColumnEvaluator_->MergeAggregate(id, &MergedRow_[id], partialValue, RowBuffer_);
-            MergedRow_[id].Aggregate = isAggregate;
+            bool isAggregate = mergedValue.Aggregate;
+            ColumnEvaluator_->MergeAggregate(id, &mergedValue, partialValue, RowBuffer_);
+            mergedValue.Aggregate = isAggregate;
         } else {
-            MergedRow_[id] = partialValue;
+            mergedValue = partialValue;
         }
     }
 }
@@ -345,20 +344,21 @@ void TUnversionedRowMerger::DeletePartialRow(TUnversionedRow row)
 
     for (int index = KeyColumnCount_; index < ColumnCount_; ++index) {
         ValidValues_[index - KeyColumnCount_] = true;
-        MergedRow_[index].Type = EValueType::Null;
-        MergedRow_[index].Aggregate = false;
+        auto& mergedValue = MergedRow_[index];
+        mergedValue.Type = EValueType::Null;
+        mergedValue.Aggregate = false;
     }
 }
 
-TUnversionedRow TUnversionedRowMerger::BuildDeleteRow()
+TMutableUnversionedRow TUnversionedRowMerger::BuildDeleteRow()
 {
     auto mergedRow = MergedRow_;
     mergedRow.SetCount(KeyColumnCount_);
-    MergedRow_ = TMutableUnversionedRow();
+    MergedRow_ = {};
     return mergedRow;
 }
 
-TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
+TMutableUnversionedRow TUnversionedRowMerger::BuildMergedRow()
 {
     bool fullRow = true;
     for (bool validValue : ValidValues_) {
@@ -481,10 +481,10 @@ void TVersionedRowMerger::AddPartialRow(TVersionedRow row, TTimestamp upperTimes
     }
 }
 
-TVersionedRow TVersionedRowMerger::BuildMergedRow()
+TMutableVersionedRow TVersionedRowMerger::BuildMergedRow()
 {
     if (!Started_) {
-        return TVersionedRow();
+        return {};
     }
 
     // Sort delete timestamps in ascending order and remove duplicates.
@@ -710,7 +710,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
 
     if (!Lookup_ && MergedValues_.empty() && WriteTimestamps_.empty() && DeleteTimestamps_.empty()) {
         Cleanup();
-        return TVersionedRow();
+        return {};
     }
 
     // Construct output row.
@@ -771,7 +771,7 @@ TSamplingRowMerger::TSamplingRowMerger(
     }
 }
 
-TUnversionedRow TSamplingRowMerger::MergeRow(TVersionedRow row)
+TMutableUnversionedRow TSamplingRowMerger::MergeRow(TVersionedRow row)
 {
     auto mergedRow = RowBuffer_->AllocateUnversioned(SampledColumnCount_);
 

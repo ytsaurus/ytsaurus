@@ -165,6 +165,7 @@
     XX(HeartbeatTreeSchedulingInfoLogPeriod, heartbeat_tree_scheduling_info_log_period) \
     XX(HistoricUsageConfig, historic_usage_config) \
     XX(HunkChunkRefs, hunk_chunk_refs) \
+    XX(HunkChunkReader, hunk_chunk_reader) \
     XX(HunkChunkWriter, hunk_chunk_writer) \
     XX(HydraReadOnly, hydra_read_only) \
     XX(Id, id) \

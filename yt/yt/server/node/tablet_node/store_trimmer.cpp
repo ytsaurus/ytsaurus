@@ -14,6 +14,8 @@
 
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
+#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
+
 #include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -63,7 +65,7 @@ private:
     NClusterNode::TBootstrap* const Bootstrap_;
 
 
-    void OnScanSlot(const TTabletSlotPtr& slot)
+    void OnScanSlot(const ITabletSlotPtr& slot)
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         auto dynamicConfig = dynamicConfigManager->GetConfig()->TabletNode->StoreTrimmer;
@@ -81,7 +83,7 @@ private:
         }
     }
 
-    void ScanTablet(const TTabletSlotPtr& slot, TTablet* tablet)
+    void ScanTablet(const ITabletSlotPtr& slot, TTablet* tablet)
     {
         if (tablet->GetState() != ETabletState::Mounted) {
             return;
@@ -112,7 +114,7 @@ private:
     }
 
     void RequestStoreTrim(
-        const TTabletSlotPtr& slot,
+        const ITabletSlotPtr& slot,
         TTablet* tablet)
     {
         if (tablet->IsReplicated()) {
@@ -170,7 +172,7 @@ private:
     }
 
     void TrimStores(
-        const TTabletSlotPtr& slot,
+        const ITabletSlotPtr& slot,
         TTablet* tablet,
         const std::vector<TOrderedChunkStorePtr>& stores)
     {

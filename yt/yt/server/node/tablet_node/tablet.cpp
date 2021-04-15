@@ -17,20 +17,27 @@
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
+#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
+
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
+
 #include <yt/yt/client/table_client/schema.h>
 
-#include <yt/yt/ytlib/tablet_client/config.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
+
+#include <yt/yt/client/object_client/helpers.h>
+
+#include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
+
+#include <yt/yt/ytlib/tablet_client/config.h>
+
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/yt/ytlib/query_client/column_evaluator.h>
 
 #include <yt/yt/ytlib/table_client/helpers.h>
-
-#include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/profiling/profile_manager.h>
 
@@ -105,7 +112,8 @@ TTableSettings TTableSettings::CreateNew()
 {
     return {
         .MountConfig = New<TTableMountConfig>(),
-        .ReaderConfig = New<TTabletChunkReaderConfig>(),
+        .StoreReaderConfig = New<TTabletStoreReaderConfig>(),
+        .HunkReaderConfig = New<TTabletHunkReaderConfig>(),
         .StoreWriterConfig = New<TTabletStoreWriterConfig>(),
         .StoreWriterOptions = New<TTabletStoreWriterOptions>(),
         .HunkWriterConfig = New<TTabletHunkWriterConfig>(),
@@ -387,7 +395,8 @@ TTablet::TTablet(
     , Settings_(TTableSettings::CreateNew())
 {
     Settings_.MountConfig = New<TTableMountConfig>();
-    Settings_.ReaderConfig = New<TTabletChunkReaderConfig>();
+    Settings_.StoreReaderConfig = New<TTabletStoreReaderConfig>();
+    Settings_.HunkReaderConfig = New<TTabletHunkReaderConfig>();
     Settings_.StoreWriterConfig = New<TTabletStoreWriterConfig>();
     Settings_.StoreWriterOptions = New<TTabletStoreWriterOptions>();
     Settings_.HunkWriterConfig = New<TTabletHunkWriterConfig>();
@@ -583,7 +592,7 @@ void TTablet::Load(TLoadContext& context)
     }
 
     // COMPAT(babenko)
-    if (context.GetVersion() >= ETabletReign::Hunks) {
+    if (context.GetVersion() >= ETabletReign::Hunks1) {
         int hunkChunkCount = TSizeSerializer::LoadSuspended(context);
         SERIALIZATION_DUMP_WRITE(context, "hunk_chunks[%v]", hunkChunkCount);
         SERIALIZATION_DUMP_INDENT(context) {
@@ -680,6 +689,8 @@ TCallback<void(TSaveContext&)> TTablet::AsyncSave()
             using NYT::Save;
 
             Save(context, *snapshot->Settings.MountConfig);
+            Save(context, *snapshot->Settings.StoreReaderConfig);
+            Save(context, *snapshot->Settings.HunkReaderConfig);
             Save(context, *snapshot->Settings.StoreWriterConfig);
             Save(context, *snapshot->Settings.StoreWriterOptions);
             Save(context, *snapshot->Settings.HunkWriterConfig);
@@ -706,10 +717,15 @@ void TTablet::AsyncLoad(TLoadContext& context)
     using NYT::Load;
 
     Load(context, *Settings_.MountConfig);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= ETabletReign::Hunks2) {
+        Load(context, *Settings_.StoreReaderConfig);
+        Load(context, *Settings_.HunkReaderConfig);
+    }
     Load(context, *Settings_.StoreWriterConfig);
     Load(context, *Settings_.StoreWriterOptions);
     // COMPAT(babenko)
-    if (context.GetVersion() >= ETabletReign::Hunks) {
+    if (context.GetVersion() >= ETabletReign::Hunks1) {
         Load(context, *Settings_.HunkWriterConfig);
         Load(context, *Settings_.HunkWriterOptions);
     } else {
@@ -1207,7 +1223,7 @@ TTimestamp TTablet::GetUnflushedTimestamp() const
     return RuntimeData_->UnflushedTimestamp;
 }
 
-void TTablet::StartEpoch(TTabletSlotPtr slot)
+void TTablet::StartEpoch(const ITabletSlotPtr& slot)
 {
     CancelableContext_ = New<TCancelableContext>();
 
@@ -1222,6 +1238,10 @@ void TTablet::StartEpoch(TTabletSlotPtr slot)
     Eden_->StartEpoch();
     for (const auto& partition : PartitionList_) {
         partition->StartEpoch();
+    }
+
+    if (slot) {
+        ChunkFragmentReader_ = slot->CreateChunkFragmentReader(this);
     }
 }
 
@@ -1240,6 +1260,8 @@ void TTablet::StopEpoch()
     for (const auto& partition : PartitionList_) {
         partition->StopEpoch();
     }
+
+    ChunkFragmentReader_.Reset();
 }
 
 IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const
@@ -1247,7 +1269,9 @@ IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const
     return EpochAutomatonInvokers_[queue];
 }
 
-TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot, std::optional<TLockManagerEpoch> epoch) const
+TTabletSnapshotPtr TTablet::BuildSnapshot(
+    const ITabletSlotPtr& slot,
+    std::optional<TLockManagerEpoch> epoch) const
 {
     auto snapshot = New<TTabletSnapshot>();
 
@@ -1361,6 +1385,8 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot, std::optional<TLo
     snapshot->TableProfiler = TableProfiler_;
 
     snapshot->ConsistentChunkReplicaPlacementHash = GetConsistentChunkReplicaPlacementHash();
+
+    snapshot->ChunkFragmentReader = GetChunkFragmentReader();
 
     return snapshot;
 }
@@ -1720,7 +1746,7 @@ TConsistentReplicaPlacementHash TTablet::GetConsistentChunkReplicaPlacementHash(
 }
 
 void TTablet::ThrottleTabletStoresUpdate(
-    const TTabletSlotPtr& slot,
+    const ITabletSlotPtr& slot,
     const NLogging::TLogger& Logger) const
 {
     const auto& throttler = DistributedThrottlers()[ETabletDistributedThrottlerKind::StoresUpdate];

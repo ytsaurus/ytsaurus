@@ -46,7 +46,7 @@ public:
 public:
     TTransactionManager(
         TTransactionManagerConfigPtr config,
-        TTabletSlotPtr slot,
+        ITabletSlotPtr slot,
         NClusterNode::TBootstrap* bootstrap);
     ~TTransactionManager();
 

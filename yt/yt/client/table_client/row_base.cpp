@@ -9,26 +9,26 @@ namespace NYT::NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 TColumnFilter::TColumnFilter()
-    : IsUniversal_(true)
+    : Universal_(true)
 { }
 
 TColumnFilter::TColumnFilter(const std::initializer_list<int>& indexes)
-    : IsUniversal_(false)
+    : Universal_(false)
     , Indexes_(indexes.begin(), indexes.end())
 { }
 
 TColumnFilter::TColumnFilter(TIndexes&& indexes)
-    : IsUniversal_(false)
+    : Universal_(false)
     , Indexes_(std::move(indexes))
 { }
 
 TColumnFilter::TColumnFilter(const std::vector<int>& indexes)
-    : IsUniversal_(false)
+    : Universal_(false)
     , Indexes_(indexes.begin(), indexes.end())
 { }
 
 TColumnFilter::TColumnFilter(int schemaColumnCount)
-    : IsUniversal_(false)
+    : Universal_(false)
 {
     for (int i = 0; i < schemaColumnCount; ++i) {
         Indexes_.push_back(i);
@@ -37,7 +37,7 @@ TColumnFilter::TColumnFilter(int schemaColumnCount)
 
 std::optional<int> TColumnFilter::FindPosition(int columnIndex) const
 {
-    if (IsUniversal_) {
+    if (Universal_) {
         THROW_ERROR_EXCEPTION("Unable to search index in column filter with IsUniversal flag");
     }
     auto it = std::find(Indexes_.begin(), Indexes_.end(), columnIndex);
@@ -58,7 +58,7 @@ int TColumnFilter::GetPosition(int columnIndex) const
 
 bool TColumnFilter::ContainsIndex(int columnIndex) const
 {
-    if (IsUniversal_) {
+    if (Universal_) {
         return true;
     }
 
@@ -67,13 +67,19 @@ bool TColumnFilter::ContainsIndex(int columnIndex) const
 
 const TColumnFilter::TIndexes& TColumnFilter::GetIndexes() const
 {
-    YT_VERIFY(!IsUniversal_);
+    YT_VERIFY(!Universal_);
     return Indexes_;
 }
 
 bool TColumnFilter::IsUniversal() const
 {
-    return IsUniversal_;
+    return Universal_;
+}
+
+const TColumnFilter& TColumnFilter::MakeUniversal()
+{
+    static const TColumnFilter Result;
+    return Result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

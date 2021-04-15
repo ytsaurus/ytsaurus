@@ -26,7 +26,8 @@ DEFINE_ENUM(ETabletReign,
     ((MountHint)                          (100102)) // ifsmirnov
     ((ReplicationBarrier_YT_14346)        (100103)) // babenko
     ((RowBufferEmptyRowDeserialization)   (100200)) // max42
-    ((Hunks)                              (100201)) // babenko
+    ((Hunks1)                             (100201)) // babenko
+    ((Hunks2)                             (100202)) // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

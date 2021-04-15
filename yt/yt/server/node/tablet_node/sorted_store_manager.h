@@ -42,7 +42,7 @@ public:
         TVersionedRow row,
         TWriteContext* context);
 
-    virtual void StartEpoch(TTabletSlotPtr slot) override;
+    virtual void StartEpoch(ITabletSlotPtr slot) override;
     virtual void StopEpoch() override;
 
     void LockRow(TTransaction* transaction, bool prelock, const TSortedDynamicRowRef& rowRef);

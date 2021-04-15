@@ -1,13 +1,16 @@
+#include "tablet_slot.h"
+
 #include "automaton.h"
 #include "private.h"
 #include "security_manager.h"
 #include "serialize.h"
 #include "slot_manager.h"
+#include "tablet.h"
 #include "tablet_manager.h"
 #include "tablet_service.h"
-#include "tablet_slot.h"
 #include "transaction_manager.h"
 #include "tablet_snapshot_store.h"
+#include "hint_manager.h"
 
 #include <yt/yt/server/node/data_node/config.h>
 
@@ -22,6 +25,7 @@
 
 #include <yt/yt/server/lib/hydra/remote_changelog_store.h>
 #include <yt/yt/server/lib/hydra/remote_snapshot_store.h>
+#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 
 #include <yt/yt/server/lib/hive/transaction_participant_provider.h>
 
@@ -38,6 +42,8 @@
 
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/client.h>
+
+#include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>
@@ -80,6 +86,7 @@ using namespace NObjectClient;
 using namespace NRpc;
 using namespace NTabletClient::NProto;
 using namespace NTabletClient;
+using namespace NChunkClient;
 using namespace NYTree;
 using namespace NYson;
 
@@ -87,20 +94,19 @@ using NHydra::EPeerState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletSlot::TImpl
-    : public TRefCounted
-    , public TAutomatonInvokerHood<EAutomatonThreadQueue>
+class TTabletSlot
+    : public TAutomatonInvokerHood<EAutomatonThreadQueue>
+    , public ITabletSlot
 {
+private:
     using THood = TAutomatonInvokerHood<EAutomatonThreadQueue>;
 
 public:
-    TImpl(
-        TTabletSlot* owner,
+    TTabletSlot(
         int slotIndex,
         TTabletNodeConfigPtr config,
         NClusterNode::TBootstrap* bootstrap)
         : THood(Format("TabletSlot:%v", slotIndex))
-        , Owner_(owner)
         , Config_(config)
         , Bootstrap_(bootstrap)
         , SnapshotQueue_(New<TActionQueue>(
@@ -113,7 +119,7 @@ public:
         ResetGuardedInvokers();
     }
 
-    void SetOccupant(ICellarOccupantPtr occupant)
+    virtual void SetOccupant(ICellarOccupantPtr occupant) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(!Occupant_);
@@ -122,14 +128,49 @@ public:
         Logger = GetLogger();
     }
 
-    TCellId GetCellId() const
+    virtual IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return THood::GetAutomatonInvoker(queue);
+    }
+
+    virtual IInvokerPtr GetOccupierAutomatonInvoker() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return GetAutomatonInvoker(EAutomatonThreadQueue::Default);
+    }
+
+    virtual IInvokerPtr GetMutationAutomatonInvoker() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return GetAutomatonInvoker(EAutomatonThreadQueue::Mutation);
+    }
+
+    virtual IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return THood::GetEpochAutomatonInvoker(queue);
+    }
+
+    virtual IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return THood::GetGuardedAutomatonInvoker(queue);
+    }
+
+    virtual TCellId GetCellId() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetCellId();
     }
 
-    EPeerState GetAutomatonState() const
+    virtual EPeerState GetAutomatonState() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -137,75 +178,80 @@ public:
         return hydraManager ? hydraManager->GetAutomatonState() : EPeerState::None;
     }
 
-    const TString& GetTabletCellBundleName() const
+    virtual const TString& GetTabletCellBundleName() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetCellBundleName();
     }
 
-    IDistributedHydraManagerPtr GetHydraManager() const
+    virtual IDistributedHydraManagerPtr GetHydraManager() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetHydraManager();
     }
 
-    const TCompositeAutomatonPtr& GetAutomaton() const
+    virtual const TCompositeAutomatonPtr& GetAutomaton() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return Occupant_->GetAutomaton();
     }
 
-    const THiveManagerPtr& GetHiveManager() const
+    virtual const THiveManagerPtr& GetHiveManager() override
     {
         return Occupant_->GetHiveManager();
     }
 
-    TMailbox* GetMasterMailbox()
+    virtual TMailbox* GetMasterMailbox() override
     {
         return Occupant_->GetMasterMailbox();
     }
 
-    const TTransactionManagerPtr& GetTransactionManager() const
+    virtual const TTransactionManagerPtr& GetTransactionManager() override
     {
         return TransactionManager_;
     }
 
-    const ITransactionSupervisorPtr& GetTransactionSupervisor() const
+    virtual ITransactionManagerPtr GetOccupierTransactionManager() override
+    {
+        return GetTransactionManager();
+    }
+
+    virtual const ITransactionSupervisorPtr& GetTransactionSupervisor() override
     {
         return Occupant_->GetTransactionSupervisor();
     }
 
-    const TTabletManagerPtr& GetTabletManager() const
+    virtual const TTabletManagerPtr& GetTabletManager() override
     {
         return TabletManager_;
     }
 
-    TObjectId GenerateId(EObjectType type)
+    virtual TObjectId GenerateId(EObjectType type) override
     {
         return Occupant_->GenerateId(type);
     }
 
-    TCompositeAutomatonPtr CreateAutomaton()
+    virtual TCompositeAutomatonPtr CreateAutomaton() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return New<TTabletAutomaton>(
-            Owner_,
+            this,
             SnapshotQueue_->GetInvoker());
     }
 
-    void Configure(IDistributedHydraManagerPtr hydraManager)
+    virtual void Configure(IDistributedHydraManagerPtr hydraManager) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        hydraManager->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
-        hydraManager->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
+        hydraManager->SubscribeStartLeading(BIND(&TTabletSlot::OnStartEpoch, MakeWeak(this)));
+        hydraManager->SubscribeStartFollowing(BIND(&TTabletSlot::OnStartEpoch, MakeWeak(this)));
 
-        hydraManager->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
-        hydraManager->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
+        hydraManager->SubscribeStopLeading(BIND(&TTabletSlot::OnStopEpoch, MakeWeak(this)));
+        hydraManager->SubscribeStopFollowing(BIND(&TTabletSlot::OnStopEpoch, MakeWeak(this)));
 
         InitGuardedInvokers(hydraManager);
 
@@ -213,44 +259,44 @@ public:
         // will be writing and deleting rows during snapshot loading.
         TabletManager_ = New<TTabletManager>(
             Config_->TabletManager,
-            Owner_,
+            this,
             Bootstrap_);
 
         TransactionManager_ = New<TTransactionManager>(
             Config_->TransactionManager,
-            Owner_,
+            this,
             Bootstrap_);
 
         Logger = GetLogger();
     }
 
-    void Initialize()
+    virtual void Initialize() override
     {
         TabletService_ = CreateTabletService(
-            Owner_,
+            this,
             Bootstrap_);
 
         TabletManager_->Initialize();
     }
 
-    void RegisterRpcServices()
+    virtual void RegisterRpcServices() override
     {
         const auto& rpcServer = Bootstrap_->GetRpcServer();
         rpcServer->RegisterService(TabletService_);
     }
 
-    void Stop()
+    virtual void Stop() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
-        snapshotStore->UnregisterTabletSnapshots(Owner_);
+        snapshotStore->UnregisterTabletSnapshots(this);
 
         ResetEpochInvokers();
         ResetGuardedInvokers();
     }
 
-    void Finalize()
+    virtual void Finalize() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -261,11 +307,16 @@ public:
         if (TabletService_) {
             const auto& rpcServer = Bootstrap_->GetRpcServer();
             rpcServer->UnregisterService(TabletService_);
+            TabletService_.Reset();
         }
-        TabletService_.Reset();
     }
 
-    TCompositeMapServicePtr PopulateOrchidService(TCompositeMapServicePtr orchid)
+    virtual ECellarType GetCellarType() override
+    {
+        return CellarType;
+    }
+
+    virtual TCompositeMapServicePtr PopulateOrchidService(TCompositeMapServicePtr orchid) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -278,42 +329,48 @@ public:
             ->AddChild("tablets", TabletManager_->GetOrchidService());
     }
 
-    const TRuntimeTabletCellDataPtr& GetRuntimeData() const
+    virtual const TRuntimeTabletCellDataPtr& GetRuntimeData() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return RuntimeData_;
     }
 
-    double GetUsedCpu(double cpuPerTabletSlot) const
+    virtual double GetUsedCpu(double cpuPerTabletSlot) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return GetDynamicOptions()->CpuPerTabletSlot.value_or(cpuPerTabletSlot);
     }
 
-    TDynamicTabletCellOptionsPtr GetDynamicOptions() const
+    virtual TDynamicTabletCellOptionsPtr GetDynamicOptions() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetDynamicOptions();
     }
 
-    const TTabletCellOptionsPtr& GetOptions() const
+    virtual TTabletCellOptionsPtr GetOptions() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetOptions();
     }
 
-
-    NProfiling::TProfiler GetProfiler() const
+    virtual NProfiling::TProfiler GetProfiler() override
     {
         return TabletNodeProfiler;
     }
 
+    virtual IChunkFragmentReaderPtr CreateChunkFragmentReader(TTablet* tablet) override
+    {
+        return NChunkClient::CreateChunkFragmentReader(
+            tablet->GetSettings().HunkReaderConfig,
+            Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetTabletNodeHintManager());
+    }
+
 private:
-    TTabletSlot* const Owner_;
     const TTabletNodeConfigPtr Config_;
     NClusterNode::TBootstrap* const Bootstrap_;
 
@@ -385,175 +442,17 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-TTabletSlot::TTabletSlot(
+ITabletSlotPtr CreateTabletSlot(
     int slotIndex,
     TTabletNodeConfigPtr config,
     NClusterNode::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(
-        this,
+{
+    return New<TTabletSlot>(
         slotIndex,
         std::move(config),
-        bootstrap))
-{ }
-
-TTabletSlot::~TTabletSlot() = default;
-
-void TTabletSlot::SetOccupant(ICellarOccupantPtr occupant)
-{
-    Impl_->SetOccupant(std::move(occupant));
+        bootstrap);
 }
 
-TCompositeAutomatonPtr TTabletSlot::CreateAutomaton()
-{
-    return Impl_->CreateAutomaton();
-}
-
-void TTabletSlot::Configure(IDistributedHydraManagerPtr hydraManager)
-{
-    Impl_->Configure(std::move(hydraManager));
-}
-
-const ITransactionManagerPtr TTabletSlot::GetOccupierTransactionManager()
-{
-    return Impl_->GetTransactionManager();
-}
-
-void TTabletSlot::Initialize()
-{
-    Impl_->Initialize();
-}
-
-void TTabletSlot::RegisterRpcServices()
-{
-    Impl_->RegisterRpcServices();
-}
-
-IInvokerPtr TTabletSlot::GetOccupierAutomatonInvoker()
-{
-    return Impl_->GetAutomatonInvoker(EAutomatonThreadQueue::Default);
-}
-
-const TString& TTabletSlot::GetTabletCellBundleName() const
-{
-    return Impl_->GetTabletCellBundleName();
-}
-
-IInvokerPtr TTabletSlot::GetMutationAutomatonInvoker()
-{
-    return Impl_->GetAutomatonInvoker(EAutomatonThreadQueue::Mutation);
-}
-
-TCompositeMapServicePtr TTabletSlot::PopulateOrchidService(TCompositeMapServicePtr orchid)
-{
-    return Impl_->PopulateOrchidService(orchid);
-}
-
-void TTabletSlot::Stop()
-{
-    return Impl_->Stop();
-}
-
-void TTabletSlot::Finalize()
-{
-    return Impl_->Finalize();
-}
-
-ECellarType TTabletSlot::GetCellarType()
-{
-    return CellarType;
-}
-
-TCellId TTabletSlot::GetCellId() const
-{
-    return Impl_->GetCellId();
-}
-
-EPeerState TTabletSlot::GetAutomatonState() const
-{
-    return Impl_->GetAutomatonState();
-}
-
-IDistributedHydraManagerPtr TTabletSlot::GetHydraManager() const
-{
-    return Impl_->GetHydraManager();
-}
-
-const TCompositeAutomatonPtr& TTabletSlot::GetAutomaton() const
-{
-    return Impl_->GetAutomaton();
-}
-
-IInvokerPtr TTabletSlot::GetAutomatonInvoker(EAutomatonThreadQueue queue) const
-{
-    return Impl_->GetAutomatonInvoker(queue);
-}
-
-IInvokerPtr TTabletSlot::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const
-{
-    return Impl_->GetEpochAutomatonInvoker(queue);
-}
-
-IInvokerPtr TTabletSlot::GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) const
-{
-    return Impl_->GetGuardedAutomatonInvoker(queue);
-}
-
-const THiveManagerPtr& TTabletSlot::GetHiveManager() const
-{
-    return Impl_->GetHiveManager();
-}
-
-TMailbox* TTabletSlot::GetMasterMailbox()
-{
-    return Impl_->GetMasterMailbox();
-}
-
-const TTransactionManagerPtr& TTabletSlot::GetTransactionManager() const
-{
-    return Impl_->GetTransactionManager();
-}
-
-const ITransactionSupervisorPtr& TTabletSlot::GetTransactionSupervisor() const
-{
-    return Impl_->GetTransactionSupervisor();
-}
-
-const TTabletManagerPtr& TTabletSlot::GetTabletManager() const
-{
-    return Impl_->GetTabletManager();
-}
-
-TObjectId TTabletSlot::GenerateId(EObjectType type)
-{
-    return Impl_->GenerateId(type);
-}
-
-const TRuntimeTabletCellDataPtr& TTabletSlot::GetRuntimeData() const
-{
-    return Impl_->GetRuntimeData();
-}
-
-double TTabletSlot::GetUsedCpu(double cpuPerTabletSlot) const
-{
-    return Impl_->GetUsedCpu(cpuPerTabletSlot);
-}
-
-TDynamicTabletCellOptionsPtr TTabletSlot::GetDynamicOptions() const
-{
-    return Impl_->GetDynamicOptions();
-}
-
-TTabletCellOptionsPtr TTabletSlot::GetOptions() const
-{
-    return Impl_->GetOptions();
-}
-
-NProfiling::TProfiler TTabletSlot::GetProfiler()
-{
-    return Impl_->GetProfiler();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

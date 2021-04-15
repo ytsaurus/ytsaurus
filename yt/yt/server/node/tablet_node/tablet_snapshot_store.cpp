@@ -9,6 +9,8 @@
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
+#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/concurrency/spinlock.h>
@@ -107,7 +109,7 @@ public:
     }
 
     virtual void RegisterTabletSnapshot(
-        const TTabletSlotPtr& slot,
+        const ITabletSlotPtr& slot,
         TTablet* tablet,
         std::optional<TLockManagerEpoch> epoch) override
     {
@@ -140,7 +142,7 @@ public:
             slot->GetCellId());
     }
 
-    virtual void UnregisterTabletSnapshot(const TTabletSlotPtr& slot, TTablet* tablet) override
+    virtual void UnregisterTabletSnapshot(const ITabletSlotPtr& slot, TTablet* tablet) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -166,7 +168,7 @@ public:
         // NB: It's fine not to find anything.
     }
 
-    virtual void UnregisterTabletSnapshots(const TTabletSlotPtr& slot) override
+    virtual void UnregisterTabletSnapshots(const ITabletSlotPtr& slot) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

@@ -205,9 +205,8 @@ TFuture<std::vector<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue>::Get(
         if (!keysToPopulate.empty()) {
             YT_LOG_DEBUG("Populating cache entries (Keys: %v)",
                 keysToPopulate);
+            InvokeGetMany(entriesToPopulate, keysToPopulate, /* isPeriodicUpdate */ false);
         }
-
-        InvokeGetMany(entriesToPopulate, keysToPopulate, /* isPeriodicUpdate */ false);
     }
 
     return AllSet(results);

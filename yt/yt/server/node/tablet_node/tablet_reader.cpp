@@ -6,6 +6,7 @@
 #include "tablet_slot.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/hunks.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
@@ -58,7 +59,7 @@ struct TStoreRangeFormatter
 void ThrottleUponOverdraft(
     ETabletDistributedThrottlerKind tabletThrottlerKind,
     const TTabletSnapshotPtr& tabletSnapshot,
-    const NChunkClient::TClientChunkReadOptions& chunkReadOptions)
+    const TClientChunkReadOptions& chunkReadOptions)
 {
     const auto& tabletThrottler = tabletSnapshot->DistributedThrottlers[tabletThrottlerKind];
     if (!tabletThrottler || !tabletThrottler->IsOverdraft()) {
@@ -86,6 +87,8 @@ void ThrottleUponOverdraft(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace {
 
 template <class IReader, class TRow>
 class TThrottlerAwareReaderBase
@@ -189,14 +192,36 @@ IReaderPtr MaybeWrapWithThrottlerAwareReader(
     }
 }
 
+ISchemafulUnversionedReaderPtr WrapSchemafulTabletReader(
+    std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
+    const TTabletSnapshotPtr& tabletSnapshot,
+    const TClientChunkReadOptions& chunkReadOptions,
+    ISchemafulUnversionedReaderPtr reader)
+{
+    reader = MaybeWrapWithThrottlerAwareReader<TThrottlerAwareSchemafulUnversionedReader>(
+        tabletThrottlerKind,
+        tabletSnapshot,
+        std::move(reader));
+
+    reader = CreateHunkResolvingSchemafulReader(
+        std::move(reader),
+        tabletSnapshot->ChunkFragmentReader,
+        tabletSnapshot->PhysicalSchema,
+        chunkReadOptions);
+
+    return reader;
+}
+
+} // namespace
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
-    TTabletSnapshotPtr tabletSnapshot,
+    const TTabletSnapshotPtr& tabletSnapshot,
     const TColumnFilter& columnFilter,
     const TSharedRange<TRowRange>& bounds,
     TTimestamp timestamp,
-    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     IThroughputThrottlerPtr bandwidthThrottler)
 {
@@ -311,19 +336,20 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
             return keyComparer(lhsBegin, lhsEnd, rhsBegin, rhsEnd);
         });
 
-    return MaybeWrapWithThrottlerAwareReader<TThrottlerAwareSchemafulUnversionedReader>(
+    return WrapSchemafulTabletReader(
         tabletThrottlerKind,
         tabletSnapshot,
+        chunkReadOptions,
         std::move(reader));
 }
 
 ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
-    TTabletSnapshotPtr tabletSnapshot,
+    const TTabletSnapshotPtr& tabletSnapshot,
     const TColumnFilter& columnFilter,
     TLegacyOwningKey lowerBound,
     TLegacyOwningKey upperBound,
     TTimestamp /*timestamp*/,
-    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     IThroughputThrottlerPtr bandwidthThrottler)
 {
@@ -428,7 +454,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
     std::vector<std::function<ISchemafulUnversionedReaderPtr()>> readers;
     for (auto storeIndex : storeIndices) {
         auto store = allStores[storeIndex];
-        readers.emplace_back([=, store = std::move(store)] () {
+        readers.push_back([=, store = std::move(store)] {
             return store->CreateReader(
                 tabletSnapshot,
                 tabletIndex,
@@ -442,25 +468,26 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
 
     auto reader = CreateSchemafulConcatenatingReader(std::move(readers));
 
-    return MaybeWrapWithThrottlerAwareReader<TThrottlerAwareSchemafulUnversionedReader>(
+    return WrapSchemafulTabletReader(
         tabletThrottlerKind,
         tabletSnapshot,
+        chunkReadOptions,
         std::move(reader));
 }
 
 ISchemafulUnversionedReaderPtr CreateSchemafulRangeTabletReader(
-    TTabletSnapshotPtr tabletSnapshot,
+    const TTabletSnapshotPtr& tabletSnapshot,
     const TColumnFilter& columnFilter,
     TLegacyOwningKey lowerBound,
     TLegacyOwningKey upperBound,
     TTimestamp timestamp,
-    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     IThroughputThrottlerPtr bandwidthThrottler)
 {
     if (tabletSnapshot->PhysicalSchema->IsSorted()) {
         return CreateSchemafulSortedTabletReader(
-            std::move(tabletSnapshot),
+            tabletSnapshot,
             columnFilter,
             MakeSingletonRowRange(lowerBound, upperBound),
             timestamp,
@@ -469,7 +496,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulRangeTabletReader(
             std::move(bandwidthThrottler));
     } else {
         return CreateSchemafulOrderedTabletReader(
-            std::move(tabletSnapshot),
+            tabletSnapshot,
             columnFilter,
             std::move(lowerBound),
             std::move(upperBound),
@@ -485,12 +512,12 @@ ISchemafulUnversionedReaderPtr CreateSchemafulRangeTabletReader(
 namespace {
 
 ISchemafulUnversionedReaderPtr CreateSchemafulPartitionReader(
-    TTabletSnapshotPtr tabletSnapshot,
+    const TTabletSnapshotPtr& tabletSnapshot,
     const TColumnFilter& columnFilter,
     const TPartitionSnapshotPtr& partitionSnapshot,
     const TSharedRange<TLegacyKey>& keys,
     TTimestamp timestamp,
-    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     TRowBufferPtr rowBuffer,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     IThroughputThrottlerPtr bandwidthThrottler)
@@ -533,7 +560,6 @@ ISchemafulUnversionedReaderPtr CreateSchemafulPartitionReader(
         [
             =,
             stores = std::move(stores),
-            tabletSnapshot = std::move(tabletSnapshot),
             bandwidthThrottler = std::move(bandwidthThrottler),
             index = 0
         ] () mutable -> IVersionedReaderPtr {
@@ -555,11 +581,11 @@ ISchemafulUnversionedReaderPtr CreateSchemafulPartitionReader(
 } // namespace
 
 ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
-    TTabletSnapshotPtr tabletSnapshot,
+    const TTabletSnapshotPtr& tabletSnapshot,
     const TColumnFilter& columnFilter,
     const TSharedRange<TLegacyKey>& keys,
     TTimestamp timestamp,
-    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     IThroughputThrottlerPtr bandwidthThrottler)
 {
@@ -627,22 +653,23 @@ ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
 
     auto reader = CreatePrefetchingOrderedSchemafulReader(std::move(readerFactory));
 
-    return MaybeWrapWithThrottlerAwareReader<TThrottlerAwareSchemafulUnversionedReader>(
+    return WrapSchemafulTabletReader(
         tabletThrottlerKind,
         tabletSnapshot,
+        chunkReadOptions,
         std::move(reader));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IVersionedReaderPtr CreateVersionedTabletReader(
-    TTabletSnapshotPtr tabletSnapshot,
+    const TTabletSnapshotPtr& tabletSnapshot,
     std::vector<ISortedStorePtr> stores,
     TLegacyOwningKey lowerBound,
     TLegacyOwningKey upperBound,
     TTimestamp currentTimestamp,
     TTimestamp majorTimestamp,
-    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+    const TClientChunkReadOptions& chunkReadOptions,
     int minConcurrency,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     IThroughputThrottlerPtr bandwidthThrottler)

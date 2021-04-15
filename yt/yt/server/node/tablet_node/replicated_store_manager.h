@@ -32,7 +32,7 @@ public:
 
     virtual bool HasUnflushedStores() const override;
 
-    virtual void StartEpoch(TTabletSlotPtr slot) override;
+    virtual void StartEpoch(ITabletSlotPtr slot) override;
     virtual void StopEpoch() override;
 
     virtual bool ExecuteWrites(

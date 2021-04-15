@@ -791,7 +791,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOverlappingRangeReader(
 
 class TVersionedOverlappingRangeReader
     : public IVersionedReader
-    , TSchemafulOverlappingRangeReaderBase<TVersionedRowMerger>
+    , public TSchemafulOverlappingRangeReaderBase<TVersionedRowMerger>
 {
 public:
     TVersionedOverlappingRangeReader(

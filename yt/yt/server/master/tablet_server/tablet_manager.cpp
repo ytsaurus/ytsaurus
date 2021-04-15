@@ -3077,7 +3077,8 @@ private:
     struct TTableSettings
     {
         TTableMountConfigPtr MountConfig;
-        NTabletNode::TTabletChunkReaderConfigPtr ReaderConfig;
+        NTabletNode::TTabletStoreReaderConfigPtr StoreReaderConfig;
+        NTabletNode::TTabletHunkReaderConfigPtr HunkReaderConfig;
         NTabletNode::TTabletStoreWriterConfigPtr StoreWriterConfig;
         NTabletNode::TTabletStoreWriterOptionsPtr StoreWriterOptions;
         NTabletNode::TTabletHunkWriterConfigPtr HunkWriterConfig;
@@ -3105,13 +3106,24 @@ private:
                 << ex;
         }
 
-        // Parse and prepare table reader config.
+        // Parse and prepare store reader config.
         try {
-            result.ReaderConfig = UpdateYsonSerializable(
-                GetDynamicConfig()->ChunkReader,
+            result.StoreReaderConfig = UpdateYsonSerializable(
+                GetDynamicConfig()->StoreChunkReader,
+                // TODO(babenko): rename to store_chunk_reader
                 tableAttributes.FindYson(EInternedAttributeKey::ChunkReader.Unintern()));
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing chunk reader config")
+            THROW_ERROR_EXCEPTION("Error parsing store reader config")
+                << ex;
+        }
+
+        // Parse and prepare hunk reader config.
+        try {
+            result.HunkReaderConfig = UpdateYsonSerializable(
+                GetDynamicConfig()->HunkChunkReader,
+                tableAttributes.FindYson(EInternedAttributeKey::HunkChunkReader.Unintern()));
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing hunk reader config")
                 << ex;
         }
 
@@ -3179,7 +3191,8 @@ private:
     struct TSerializedTableSettings
     {
         TYsonString MountConfig;
-        TYsonString ReaderConfig;
+        TYsonString StoreReaderConfig;
+        TYsonString HunkReaderConfig;
         TYsonString StoreWriterConfig;
         TYsonString StoreWriterOptions;
         TYsonString HunkWriterConfig;
@@ -3190,7 +3203,8 @@ private:
     {
         return {
             .MountConfig = ConvertToYsonString(tableSettings.MountConfig),
-            .ReaderConfig = ConvertToYsonString(tableSettings.ReaderConfig),
+            .StoreReaderConfig = ConvertToYsonString(tableSettings.StoreReaderConfig),
+            .HunkReaderConfig = ConvertToYsonString(tableSettings.HunkReaderConfig),
             .StoreWriterConfig = ConvertToYsonString(tableSettings.StoreWriterConfig),
             .StoreWriterOptions = ConvertToYsonString(tableSettings.StoreWriterOptions),
             .HunkWriterConfig = ConvertToYsonString(tableSettings.HunkWriterConfig),
@@ -3203,14 +3217,15 @@ private:
     {
         auto* tableSettings = request->mutable_table_settings();
         tableSettings->set_mount_config(serializedTableSettings.MountConfig.ToString());
-        tableSettings->set_reader_config(serializedTableSettings.ReaderConfig.ToString());
+        tableSettings->set_store_reader_config(serializedTableSettings.StoreReaderConfig.ToString());
+        tableSettings->set_hunk_reader_config(serializedTableSettings.HunkReaderConfig.ToString());
         tableSettings->set_store_writer_config(serializedTableSettings.StoreWriterConfig.ToString());
         tableSettings->set_store_writer_options(serializedTableSettings.StoreWriterOptions.ToString());
         tableSettings->set_hunk_writer_config(serializedTableSettings.HunkWriterConfig.ToString());
         tableSettings->set_hunk_writer_options(serializedTableSettings.HunkWriterOptions.ToString());
         // COMPAT
         request->set_mount_config(serializedTableSettings.MountConfig.ToString());
-        request->set_reader_config(serializedTableSettings.ReaderConfig.ToString());
+        request->set_store_reader_config(serializedTableSettings.StoreReaderConfig.ToString());
         request->set_store_writer_config(serializedTableSettings.StoreWriterConfig.ToString());
         request->set_store_writer_options(serializedTableSettings.StoreWriterOptions.ToString());
     }

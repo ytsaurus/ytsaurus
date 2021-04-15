@@ -27,7 +27,7 @@ public:
     virtual bool HasActiveLocks() const override;
     virtual bool HasUnflushedStores() const override;
 
-    virtual void StartEpoch(TTabletSlotPtr slot) override;
+    virtual void StartEpoch(ITabletSlotPtr slot) override;
     virtual void StopEpoch() override;
 
     virtual void InitializeRotation() override;

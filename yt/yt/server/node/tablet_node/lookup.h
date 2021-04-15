@@ -13,7 +13,7 @@ namespace NYT::NTabletNode {
 //! Executes a bunch of row lookup requests. Request parameters are parsed via #reader,
 //! response is written into #writer.
 void LookupRows(
-    TTabletSnapshotPtr tabletSnapshot,
+    const TTabletSnapshotPtr& tabletSnapshot,
     TTimestamp timestamp,
     bool useLookupCache,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
@@ -21,20 +21,20 @@ void LookupRows(
     NTableClient::TWireProtocolWriter* writer);
 
 void VersionedLookupRows(
-    TTabletSnapshotPtr tabletSnapshot,
+    const TTabletSnapshotPtr& tabletSnapshot,
     TTimestamp timestamp,
     bool useLookupCache,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-    NTableClient::TRetentionConfigPtr retentionConfig,
+    const NTableClient::TRetentionConfigPtr& retentionConfig,
     NTableClient::TWireProtocolReader* reader,
     NTableClient::TWireProtocolWriter* writer);
 
 void LookupRead(
-    TTabletSnapshotPtr tabletSnapshot,
+    const TTabletSnapshotPtr& tabletSnapshot,
     TTimestamp timestamp,
     bool useLookupCache,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-    NTableClient::TRetentionConfigPtr retentionConfig,
+    const NTableClient::TRetentionConfigPtr& retentionConfig,
     NTableClient::TWireProtocolReader* reader,
     NTableClient::TWireProtocolWriter* writer);
 

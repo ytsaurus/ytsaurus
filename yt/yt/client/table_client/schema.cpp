@@ -479,7 +479,8 @@ TTableSchema::TTableSchema(
     , UniqueKeys_(uniqueKeys)
     , SchemaModification_(schemaModification)
 {
-    for (const auto& column : Columns_) {
+    for (int index = 0; index < static_cast<int>(Columns_.size()); ++index) {
+        const auto& column = Columns_[index];
         if (column.SortOrder()) {
             ++KeyColumnCount_;
         }
@@ -487,7 +488,7 @@ TTableSchema::TTableSchema(
             HasComputedColumns_ = true;
         }
         if (column.MaxInlineHunkSize()) {
-            HasHunkColumns_ = true;
+            HunkColumnsIds_.push_back(index);
         }
     }
 }
@@ -605,7 +606,7 @@ bool TTableSchema::HasComputedColumns() const
 
 bool TTableSchema::HasHunkColumns() const
 {
-    return HasHunkColumns_;
+    return !HunkColumnsIds_.empty();
 }
 
 bool TTableSchema::IsSorted() const
@@ -642,6 +643,11 @@ std::vector<TString> TTableSchema::GetColumnNames() const
         result.push_back(column.Name());
     }
     return result;
+}
+
+TRange<int> TTableSchema::GetHunkColumnIds() const
+{
+    return MakeRange(HunkColumnsIds_);
 }
 
 int TTableSchema::GetKeyColumnCount() const

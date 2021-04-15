@@ -157,7 +157,8 @@ THunkValue ReadHunkValue(TRef input)
         }
 
         default:
-            THROW_ERROR_EXCEPTION("Invalid hunk value tag %v", tag);
+            THROW_ERROR_EXCEPTION("Invalid hunk value tag %v",
+                static_cast<ui8>(tag));
     }
 }
 

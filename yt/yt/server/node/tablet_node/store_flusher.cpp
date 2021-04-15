@@ -113,7 +113,7 @@ private:
         TTabletId TabletId;
         TRevision MountRevision;
         TString TabletLoggingTag;
-        TTabletSlotPtr Slot;
+        ITabletSlotPtr Slot;
     };
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
@@ -153,7 +153,7 @@ private:
         TabletCellBundleData_.clear();
     }
 
-    void OnScanSlot(const TTabletSlotPtr& slot)
+    void OnScanSlot(const ITabletSlotPtr& slot)
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         auto dynamicConfig = dynamicConfigManager->GetConfig()->TabletNode->StoreFlusher;
@@ -299,14 +299,14 @@ private:
         }
     }
 
-    void ScanTablet(const TTabletSlotPtr& slot, TTablet* tablet)
+    void ScanTablet(const ITabletSlotPtr& slot, TTablet* tablet)
     {
         ScanTabletForRotation(slot, tablet);
         ScanTabletForFlush(slot, tablet);
         ScanTabletForMemoryUsage(slot, tablet);
     }
 
-    void ScanTabletForRotation(const TTabletSlotPtr& slot, TTablet* tablet)
+    void ScanTabletForRotation(const ITabletSlotPtr& slot, TTablet* tablet)
     {
         const auto& tabletManager = slot->GetTabletManager();
         const auto& storeManager = tablet->GetStoreManager();
@@ -351,7 +351,7 @@ private:
         }
     }
 
-    void ScanTabletForFlush(const TTabletSlotPtr& slot, TTablet* tablet)
+    void ScanTabletForFlush(const ITabletSlotPtr& slot, TTablet* tablet)
     {
         tablet->UpdateUnflushedTimestamp();
 
@@ -360,7 +360,7 @@ private:
         }
     }
 
-    void ScanTabletForMemoryUsage(const TTabletSlotPtr& slot, TTablet* tablet)
+    void ScanTabletForMemoryUsage(const ITabletSlotPtr& slot, TTablet* tablet)
     {
         const auto& bundleName = slot->GetTabletCellBundleName();
 
@@ -399,7 +399,7 @@ private:
 
     }
 
-    void ScanStoreForFlush(const TTabletSlotPtr& slot, TTablet* tablet, const IStorePtr& store)
+    void ScanStoreForFlush(const ITabletSlotPtr& slot, TTablet* tablet, const IStorePtr& store)
     {
         if (!store->IsDynamic()) {
             return;
@@ -440,7 +440,7 @@ private:
 
     void FlushStore(
         TAsyncSemaphoreGuard /*guard*/,
-        const TTabletSlotPtr& slot,
+        const ITabletSlotPtr& slot,
         TTablet* tablet,
         IDynamicStorePtr store,
         TStoreFlushCallback flushCallback)

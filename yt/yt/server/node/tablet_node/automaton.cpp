@@ -5,7 +5,7 @@
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 
-#include <yt/yt/server/lib/hydra/hydra_manager.h>
+#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
@@ -20,7 +20,7 @@ using namespace NClusterNode;
 ////////////////////////////////////////////////////////////////////////////////
 
 TTabletAutomaton::TTabletAutomaton(
-    TTabletSlotPtr slot,
+    ITabletSlotPtr slot,
     IInvokerPtr snapshotInvoker)
     : TCompositeAutomaton(
         snapshotInvoker,
@@ -57,7 +57,7 @@ EFinalRecoveryAction TTabletAutomaton::GetActionToRecoverFromReign(TReign reign)
 ////////////////////////////////////////////////////////////////////////////////
 
 TTabletAutomatonPart::TTabletAutomatonPart(
-    TTabletSlotPtr slot,
+    ITabletSlotPtr slot,
     TBootstrap* bootstrap)
     : TCompositeAutomatonPart(
         slot->GetHydraManager(),

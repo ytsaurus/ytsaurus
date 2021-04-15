@@ -25,8 +25,11 @@ void ThrottleUponOverdraft(
 
 //! Creates a range reader that merges data from the relevant stores and
 //! returns a single version of each value.
+/*!
+ *  Resolves hunks.
+ */
 NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
-    TTabletSnapshotPtr tabletSnapshot,
+    const TTabletSnapshotPtr& tabletSnapshot,
     const TColumnFilter& columnFilter,
     const TSharedRange<NTableClient::TRowRange>& bounds,
     TTimestamp timestamp,
@@ -34,8 +37,12 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler());
 
+//! Creates a range reader that handles ordered stores.
+/*!
+ *  Resolves hunks.
+ */
 NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
-    TTabletSnapshotPtr tabletSnapshot,
+    const TTabletSnapshotPtr& tabletSnapshot,
     const TColumnFilter& columnFilter,
     TLegacyOwningKey lowerBound,
     TLegacyOwningKey upperBound,
@@ -44,11 +51,13 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler());
 
+//! Creates a range reader that handles both sorted and ordered tables.
 /*!
- *  Can handle both sorted and ordered tables.
+ *
+ *  Resolves hunks.
  */
 NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulRangeTabletReader(
-    TTabletSnapshotPtr tabletSnapshot,
+    const TTabletSnapshotPtr& tabletSnapshot,
     const TColumnFilter& columnFilter,
     TLegacyOwningKey lowerBound,
     TLegacyOwningKey upperBound,
@@ -61,9 +70,10 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulRangeTabletReader(
 //! returns a single version of each value.
 /*!
  *  Can only handle sorted tables.
+ *  Resolves hunks.
  */
 NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
-    TTabletSnapshotPtr tabletSnapshot,
+    const TTabletSnapshotPtr& tabletSnapshot,
     const TColumnFilter& columnFilter,
     const TSharedRange<TLegacyKey>& keys,
     TTimestamp timestamp,
@@ -75,9 +85,10 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
 //! returns all versions of each value.
 /*!
  *  Can only handle sorted tables.
+ *  Does not resolve hunks, intentionally.
  */
 NTableClient::IVersionedReaderPtr CreateVersionedTabletReader(
-    TTabletSnapshotPtr tabletSnapshot,
+    const TTabletSnapshotPtr& tabletSnapshot,
     std::vector<ISortedStorePtr> stores,
     TLegacyOwningKey lowerBound,
     TLegacyOwningKey upperBound,

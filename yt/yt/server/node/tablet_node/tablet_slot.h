@@ -4,28 +4,17 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
-
 #include <yt/yt/server/lib/cellar_agent/occupier.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
-#include <yt/yt/ytlib/hive/public.h>
 
 #include <yt/yt/ytlib/hydra/public.h>
 
 #include <yt/yt/ytlib/tablet_client/proto/heartbeat.pb.h>
 
+#include <yt/yt/ytlib/chunk_client/public.h>
+
 #include <yt/yt/ytlib/object_client/public.h>
-
-#include <yt/yt/ytlib/transaction_client/public.h>
-
-#include <yt/yt/core/actions/public.h>
-
-#include <yt/yt/core/rpc/public.h>
-
-#include <yt/yt/core/profiling/public.h>
-
-#include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NTabletNode {
 
@@ -44,72 +33,52 @@ DEFINE_REFCOUNTED_TYPE(TRuntimeTabletCellData)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! An instance of Hydra managing a number of tablets.
-class TTabletSlot
+struct ITabletSlot
     : public NCellarAgent::ICellarOccupier
 {
-public:
-    static constexpr NCellarClient::ECellarType CellarType = NCellarClient::ECellarType::Tablet;
+    static constexpr auto CellarType = NCellarClient::ECellarType::Tablet;
 
-public:
-    TTabletSlot(
-        int slotIndex,
-        TTabletNodeConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap);
-    ~TTabletSlot();
+    virtual NHydra::TCellId GetCellId() = 0;
+    virtual NHydra::EPeerState GetAutomatonState() = 0;
 
-    virtual void SetOccupant(NCellarAgent::ICellarOccupantPtr occupant) override;
-    virtual NHydra::TCompositeAutomatonPtr CreateAutomaton() override;
-    virtual void Configure(NHydra::IDistributedHydraManagerPtr hydraManager) override;
-    virtual const NHiveServer::ITransactionManagerPtr GetOccupierTransactionManager() override;
-    virtual void Initialize() override;
-    virtual void RegisterRpcServices() override;
-    virtual IInvokerPtr GetOccupierAutomatonInvoker() override;
-    virtual IInvokerPtr GetMutationAutomatonInvoker() override;
-    virtual NYTree::TCompositeMapServicePtr PopulateOrchidService(
-        NYTree::TCompositeMapServicePtr orchidService) override;
-    virtual void Stop() override;
-    virtual void Finalize() override;
-    virtual NCellarClient::ECellarType GetCellarType() override;
-    virtual NProfiling::TProfiler GetProfiler() override;
-    
-    NHydra::TCellId GetCellId() const;
-    NHydra::EPeerState GetAutomatonState() const;
+    virtual const TString& GetTabletCellBundleName() = 0;
 
-    const TString& GetTabletCellBundleName() const;
+    virtual NHydra::IDistributedHydraManagerPtr GetHydraManager() = 0;
 
-    NHydra::IDistributedHydraManagerPtr GetHydraManager() const;
-    
-    const NHydra::TCompositeAutomatonPtr& GetAutomaton() const;
-    const TTransactionManagerPtr& GetTransactionManager() const;
+    virtual const NHydra::TCompositeAutomatonPtr& GetAutomaton() = 0;
+    virtual const TTransactionManagerPtr& GetTransactionManager() = 0;
 
     // These methods are thread-safe.
     // They may return null invoker (see #GetNullInvoker) if the invoker of the requested type is not available.
-    IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
-    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
-    IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
+    virtual IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) = 0;
+    virtual IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) = 0;
+    virtual IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) = 0;
 
-    const NHiveServer::THiveManagerPtr& GetHiveManager() const;
-    NHiveServer::TMailbox* GetMasterMailbox();
+    virtual const NHiveServer::THiveManagerPtr& GetHiveManager() = 0;
+    virtual NHiveServer::TMailbox* GetMasterMailbox() = 0;
 
-    const NHiveServer::ITransactionSupervisorPtr& GetTransactionSupervisor() const;
+    virtual const NHiveServer::ITransactionSupervisorPtr& GetTransactionSupervisor() = 0;
 
-    const TTabletManagerPtr& GetTabletManager() const;
+    virtual const TTabletManagerPtr& GetTabletManager() = 0;
 
-    NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type);
+    virtual NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type) = 0;
 
-    const TRuntimeTabletCellDataPtr& GetRuntimeData() const;
+    virtual const TRuntimeTabletCellDataPtr& GetRuntimeData() = 0;
 
-    double GetUsedCpu(double cpuPerTabletSlot) const;
+    virtual double GetUsedCpu(double cpuPerTabletSlot) = 0;
 
-    NTabletClient::TDynamicTabletCellOptionsPtr GetDynamicOptions() const;
-    NTabletClient::TTabletCellOptionsPtr GetOptions() const;
+    virtual NTabletClient::TDynamicTabletCellOptionsPtr GetDynamicOptions() = 0;
+    virtual NTabletClient::TTabletCellOptionsPtr GetOptions() = 0;
 
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    virtual NChunkClient::IChunkFragmentReaderPtr CreateChunkFragmentReader(TTablet* tablet) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TTabletSlot)
+DEFINE_REFCOUNTED_TYPE(ITabletSlot)
+
+ITabletSlotPtr CreateTabletSlot(
+    int slotIndex,
+    TTabletNodeConfigPtr config,
+    NClusterNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

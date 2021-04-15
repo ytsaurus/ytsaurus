@@ -411,8 +411,11 @@ public:
     //! for balancing purposes.
     i64 TabletDataSizeFootprint;
 
-    //! Chunk reader config for all dynamic tables.
-    NTabletNode::TTabletChunkReaderConfigPtr ChunkReader;
+    //! Store chunk reader config for all dynamic tables.
+    NTabletNode::TTabletStoreReaderConfigPtr StoreChunkReader;
+
+    //! Hunk chunk reader config for all dynamic tables.
+    NTabletNode::TTabletHunkReaderConfigPtr HunkChunkReader;
 
     //! Store chunk writer config for all dynamic tables.
     NTabletNode::TTabletStoreWriterConfigPtr StoreChunkWriter;
@@ -502,7 +505,10 @@ public:
         RegisterParameter("tablet_data_size_footprint", TabletDataSizeFootprint)
             .GreaterThanOrEqual(0)
             .Default(64_MB);
-        RegisterParameter("chunk_reader", ChunkReader)
+        RegisterParameter("store_chunk_reader", StoreChunkReader)
+            .Alias("chunk_reader")
+            .DefaultNew();
+        RegisterParameter("hunk_chunk_reader", HunkChunkReader)
             .DefaultNew();
         RegisterParameter("store_chunk_writer", StoreChunkWriter)
             .Alias("chunk_writer")
@@ -560,7 +566,7 @@ public:
             .Default(false);
 
         RegisterPreprocessor([&] {
-            ChunkReader->SuspiciousNodeGracePeriod = TDuration::Minutes(5);
+            StoreChunkReader->SuspiciousNodeGracePeriod = TDuration::Minutes(5);
 
             StoreChunkWriter->BlockSize = 256_KB;
             StoreChunkWriter->SampleRate = 0.0005;
