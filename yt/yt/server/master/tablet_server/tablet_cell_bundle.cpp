@@ -60,11 +60,6 @@ void TTabletCellBundle::ValidateResourceUsageIncrease(const TTabletResources& de
     const auto& usage = ResourceUsage_.Cluster();
     const auto& limits = ResourceLimits_;
 
-    YT_LOG_DEBUG("QWFP Validate resource usage increase (Usage: %v, Limits: %v, Delta: %v)",
-        usage,
-        limits,
-        delta);
-
     auto validate = [&] (TStringBuf resourceName, auto TTabletResources::* resource) {
         if (delta.*resource > 0 &&
             usage.*resource + delta.*resource > limits.*resource)
@@ -85,7 +80,6 @@ void TTabletCellBundle::ValidateResourceUsageIncrease(const TTabletResources& de
 
 void TTabletCellBundle::UpdateResourceUsage(TTabletResources delta)
 {
-    YT_LOG_DEBUG("QWFP Updated resource usage (Delta: %v)", delta);
     ResourceUsage_.Local() += delta;
     if (ResourceUsage_.GetLocalPtr() != &ResourceUsage_.Cluster()) {
         ResourceUsage_.Cluster() += delta;

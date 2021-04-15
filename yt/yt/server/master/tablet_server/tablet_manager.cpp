@@ -4088,6 +4088,7 @@ private:
 
             auto* bundle = bundleBase->As<TTabletCellBundle>();
             bundle->ResourceUsage() = {};
+            bundle->ResourceUsage().Initialize(Bootstrap_);
         }
 
         THashSet<TTableNode*> accountedTables;
@@ -4122,10 +4123,6 @@ private:
         }
 
         InitBuiltins();
-
-        if (RecomputeBundleResourceUsage_) {
-            RecomputeBundleResourceUsage();
-        }
     }
 
     void OnAfterCellManagerSnapshotLoaded()
@@ -4150,6 +4147,11 @@ private:
 
             auto* bundle = bundleBase->As<TTabletCellBundle>();
             bundle->ResourceUsage().Initialize(Bootstrap_);
+        }
+
+        // COMPAT(ifsmirnov)
+        if (RecomputeBundleResourceUsage_) {
+            RecomputeBundleResourceUsage();
         }
 
         for (auto [actionId, action] : TabletActionMap_) {
