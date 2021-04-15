@@ -1907,6 +1907,30 @@ protected:
 
     std::atomic<bool> Stopped = {false};
 
+    TSortedDynamicRow WriteVersioned(const TUnversionedOwningRow& row)
+    {
+        TWriteContext context;
+
+        auto rowBuffer = New<TRowBuffer>();
+        TVersionedRowBuilder rowBuilder(rowBuffer);
+
+        int keyColumnCount = Tablet_->GetPhysicalSchema()->GetKeyColumnCount();
+
+        for (int index = 0; index < keyColumnCount; ++index) {
+            rowBuilder.AddKey(row[index]);
+        }
+
+        for (int index = keyColumnCount; index < row.GetCount(); ++index) {
+            TVersionedValue value;
+            static_cast<TUnversionedValue&>(value) = row[index];
+            value.Timestamp = GenerateTimestamp();
+
+            rowBuilder.AddValue(value);
+        }
+
+        return Store_->ModifyRow(rowBuilder.FinishRow(), &context);
+    }
+
     void WriteRows()
     {
         auto tx1 = StartTransaction();
@@ -1947,6 +1971,35 @@ protected:
         CommitRow(tx3.get(), row3);
         CommitRow(tx2.get(), row2);
         CommitRow(tx1.get(), row1);
+    }
+
+    TVersionedOwningRow VersionedLookupRow(const TLegacyOwningKey& key)
+    {
+        std::vector<TLegacyKey> lookupKeys(1, key.Get());
+        auto sharedLookupKeys = MakeSharedRange(std::move(lookupKeys), key);
+        auto lookupReader = Store_->CreateReader(
+            Tablet_->BuildSnapshot(nullptr),
+            sharedLookupKeys,
+            AllCommittedTimestamp,
+            true,
+            TColumnFilter(),
+            ChunkReadOptions_);
+
+        lookupReader->Open()
+            .Get()
+            .ThrowOnError();
+
+        std::vector<TVersionedRow> rows;
+        rows.reserve(1);
+
+        TRowBatchReadOptions options{
+            .MaxRowsPerRead = 1
+        };
+
+        auto batch = lookupReader->Read(options);
+        EXPECT_TRUE(batch);
+        EXPECT_EQ(1, batch->GetRowCount());
+        return TVersionedOwningRow(batch->MaterializeRows().Front());
     }
 
     void ReadRowAndCheck()
@@ -1999,6 +2052,22 @@ TEST_F(TAtomicSortedDynamicStoreTest, ReadAtomicity)
 
     thread1.Join();
     thread2.Join();
+}
+
+TEST_F(TAtomicSortedDynamicStoreTest, ReadAllCommitedWriteVersioned)
+{
+    auto row = BuildRow("key=1;a=1;b=2;c=3;d=4;e=5;f=6;g=7;", false);
+    WriteVersioned(row);
+
+    auto key = BuildKey("1");
+    auto result = VersionedLookupRow(key);
+
+    EXPECT_TRUE(result);
+
+    EXPECT_EQ(result.BeginKeys()[0], row[0]);
+    for (int i = 1; i < 8; ++i) {
+        EXPECT_EQ(static_cast<const TUnversionedValue&>(result.BeginValues()[i - 1]), row[i]);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
