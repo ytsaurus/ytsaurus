@@ -2418,11 +2418,11 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
         def get_orchid_pool_count():
             return get_from_tree_orchid("default", "fair_share_info/pool_count")
 
-        pool_count_last = Metric.at_scheduler("scheduler/pools/pool_count", with_tags={"tree": "default"}, aggr_method="last")
+        pool_count_sensor = Profiler.at_scheduler(fixed_tags={"tree": "default"}).gauge("scheduler/pools/pool_count")
 
         def check_pool_count(expected_pool_count):
             wait(lambda: get_orchid_pool_count() == expected_pool_count)
-            wait(lambda: pool_count_last.update().get(verbose=True) == expected_pool_count)
+            wait(lambda: pool_count_sensor.get() == expected_pool_count)
 
         check_pool_count(0)
 
@@ -3236,19 +3236,17 @@ class TestSchedulingSegments(YTEnvSetup):
         )
         wait(lambda: are_almost_equal(self._get_fair_share_ratio(op.id), 0.1))
 
-        op_slot_index_path = (
-            scheduler_orchid_path() + "/scheduler/operations/{}/slot_index_per_pool_tree/default".format(op.id)
-        )
+        op_slot_index_path = scheduler_orchid_path() + "/scheduler/operations/{}/slot_index_per_pool_tree/default".format(op.id)
         wait(lambda: exists(op_slot_index_path))
         op_slot_index = get(op_slot_index_path)
-        op_usage_ratio_max = Metric.at_scheduler(
-            "scheduler/operations_by_slot/usage_ratio_x100000",
-            with_tags={"pool": "large_gpu", "slot_index": str(op_slot_index)},
-            aggr_method="max",
-        )
 
-        time.sleep(3.0)
-        wait(lambda: op_usage_ratio_max.update().get(verbose=True) == 0)
+        op_usage_ratio_sensor = Profiler\
+            .at_scheduler(fixed_tags={"tree": "default", "pool": "large_gpu", "slot_index": str(op_slot_index)})\
+            .gauge("scheduler/operations_by_slot/usage_ratio_x100000")
+
+        for _ in range(30):
+            time.sleep(0.1)
+            assert op_usage_ratio_sensor.get(default=0, verbose=False) == 0
 
     @authors("eshcherbin")
     def test_rebalancing_timeout_changed(self):
@@ -3269,19 +3267,17 @@ class TestSchedulingSegments(YTEnvSetup):
         )
         wait(lambda: are_almost_equal(self._get_fair_share_ratio(op.id), 0.1))
 
-        op_slot_index_path = (
-            scheduler_orchid_path() + "/scheduler/operations/{}/slot_index_per_pool_tree/default".format(op.id)
-        )
+        op_slot_index_path = scheduler_orchid_path() + "/scheduler/operations/{}/slot_index_per_pool_tree/default".format(op.id)
         wait(lambda: exists(op_slot_index_path))
         op_slot_index = get(op_slot_index_path)
-        op_usage_ratio_max = Metric.at_scheduler(
-            "scheduler/operations_by_slot/usage_ratio_x100000",
-            with_tags={"pool": "large_gpu", "slot_index": str(op_slot_index)},
-            aggr_method="max",
-        )
 
-        time.sleep(3.0)
-        wait(lambda: op_usage_ratio_max.update().get(verbose=True) == 0)
+        op_usage_ratio_sensor = Profiler \
+            .at_scheduler(fixed_tags={"tree": "default", "pool": "large_gpu", "slot_index": str(op_slot_index)}) \
+            .gauge("scheduler/operations_by_slot/usage_ratio_x100000")
+
+        for _ in range(30):
+            time.sleep(0.1)
+            assert op_usage_ratio_sensor.get(default=0, verbose=False) == 0
 
         set("//sys/pool_trees/default/@config" + timeout_attribute_path, 1000)
         wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
@@ -3354,21 +3350,16 @@ class TestSchedulingSegments(YTEnvSetup):
         set("//sys/pool_trees/default/@config/scheduling_segments/unsatisfied_segments_rebalancing_timeout", 1000000000)
         wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/unsatisfied_segments_rebalancing_timeout") == 1000000000)
 
-        fair_resource_amount_last = Metric.at_scheduler(
-            "scheduler/segments/fair_resource_amount",
-            grouped_by_tags=["segment"],
-            aggr_method="last",
-        )
-        current_resource_amount_last = Metric.at_scheduler(
-            "scheduler/segments/current_resource_amount",
-            grouped_by_tags=["segment"],
-            aggr_method="last",
-        )
+        profiler = Profiler.at_scheduler()
+        fair_resource_amount_default_sensor = profiler.gauge("scheduler/segments/fair_resource_amount", fixed_tags={"segment": "default"})
+        current_resource_amount_default_sensor = profiler.gauge("scheduler/segments/current_resource_amount", fixed_tags={"segment": "default"})
+        fair_resource_amount_large_sensor = profiler.gauge("scheduler/segments/fair_resource_amount", fixed_tags={"segment": "large_gpu"})
+        current_resource_amount_large_sensor = profiler.gauge("scheduler/segments/current_resource_amount", fixed_tags={"segment": "large_gpu"})
 
-        wait(lambda: fair_resource_amount_last.update().get("default", verbose=True) == 0)
-        wait(lambda: fair_resource_amount_last.update().get("large_gpu", verbose=True) == 0)
-        wait(lambda: current_resource_amount_last.update().get("default", verbose=True) == 80)
-        wait(lambda: current_resource_amount_last.update().get("large_gpu", verbose=True) == 0)
+        wait(lambda: fair_resource_amount_default_sensor.get() == 0)
+        wait(lambda: fair_resource_amount_large_sensor.get() == 0)
+        wait(lambda: current_resource_amount_default_sensor.get() == 80)
+        wait(lambda: current_resource_amount_large_sensor.get() == 0)
 
         blocking_op = run_sleeping_vanilla(
             job_count=80,
@@ -3377,10 +3368,10 @@ class TestSchedulingSegments(YTEnvSetup):
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
 
-        wait(lambda: fair_resource_amount_last.update().get("default", verbose=True) == 80)
-        wait(lambda: fair_resource_amount_last.update().get("large_gpu", verbose=True) == 0)
-        wait(lambda: current_resource_amount_last.update().get("default", verbose=True) == 80)
-        wait(lambda: current_resource_amount_last.update().get("large_gpu", verbose=True) == 0)
+        wait(lambda: fair_resource_amount_default_sensor.get() == 80)
+        wait(lambda: fair_resource_amount_large_sensor.get() == 0)
+        wait(lambda: current_resource_amount_default_sensor.get() == 80)
+        wait(lambda: current_resource_amount_large_sensor.get() == 0)
 
         op = run_sleeping_vanilla(
             spec={"pool": "large_gpu"},
@@ -3390,24 +3381,24 @@ class TestSchedulingSegments(YTEnvSetup):
 
         time.sleep(3.0)
 
-        wait(lambda: fair_resource_amount_last.update().get("default", verbose=True) == 72)
-        wait(lambda: fair_resource_amount_last.update().get("large_gpu", verbose=True) == 8)
-        wait(lambda: current_resource_amount_last.update().get("default", verbose=True) == 80)
-        wait(lambda: current_resource_amount_last.update().get("large_gpu", verbose=True) == 0)
+        wait(lambda: fair_resource_amount_default_sensor.get() == 72)
+        wait(lambda: fair_resource_amount_large_sensor.get() == 8)
+        wait(lambda: current_resource_amount_default_sensor.get() == 80)
+        wait(lambda: current_resource_amount_large_sensor.get() == 0)
 
         set("//sys/pool_trees/default/@config/scheduling_segments/unsatisfied_segments_rebalancing_timeout", 1000)
 
-        wait(lambda: fair_resource_amount_last.update().get("default", verbose=True) == 72)
-        wait(lambda: fair_resource_amount_last.update().get("large_gpu", verbose=True) == 8)
-        wait(lambda: current_resource_amount_last.update().get("default", verbose=True) == 72)
-        wait(lambda: current_resource_amount_last.update().get("large_gpu", verbose=True) == 8)
+        wait(lambda: fair_resource_amount_default_sensor.get() == 72)
+        wait(lambda: fair_resource_amount_large_sensor.get() == 8)
+        wait(lambda: current_resource_amount_default_sensor.get() == 72)
+        wait(lambda: current_resource_amount_large_sensor.get() == 8)
 
         op.abort()
 
-        wait(lambda: fair_resource_amount_last.update().get("default", verbose=True) == 80)
-        wait(lambda: fair_resource_amount_last.update().get("large_gpu", verbose=True) == 0)
-        wait(lambda: current_resource_amount_last.update().get("default", verbose=True) == 80)
-        wait(lambda: current_resource_amount_last.update().get("large_gpu", verbose=True) == 0)
+        wait(lambda: fair_resource_amount_default_sensor.get() == 80)
+        wait(lambda: fair_resource_amount_large_sensor.get() == 0)
+        wait(lambda: current_resource_amount_default_sensor.get() == 80)
+        wait(lambda: current_resource_amount_large_sensor.get() == 0)
 
     @authors("eshcherbin")
     def test_revive_operation_segments_from_scratch(self):
@@ -3653,9 +3644,6 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
             "operations_update_period": 100,
             "operation_hangup_check_period": 100,
         },
-        "solomon_exporter": {
-            "grid_step": 100,
-        }
     }
 
     DELTA_NODE_CONFIG = {
@@ -3938,11 +3926,11 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
         fair_resource_amount_large_sensor = profiler.gauge("scheduler/segments/fair_resource_amount", fixed_tags={"segment": "large_gpu"})
         current_resource_amount_large_sensor = profiler.gauge("scheduler/segments/current_resource_amount", fixed_tags={"segment": "large_gpu"})
 
-        wait(lambda: fair_resource_amount_default_sensor.get(verbose=True) == 0)
-        wait(lambda: current_resource_amount_default_sensor.get(verbose=True) == 80)
+        wait(lambda: fair_resource_amount_default_sensor.get() == 0)
+        wait(lambda: current_resource_amount_default_sensor.get() == 80)
         for dc in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS:
-            wait(lambda: fair_resource_amount_large_sensor.get(tags={"data_center": dc}, verbose=True) == 0)
-            wait(lambda: current_resource_amount_large_sensor.get(tags={"data_center": dc}, verbose=True) == 0)
+            wait(lambda: fair_resource_amount_large_sensor.get(tags={"data_center": dc}) == 0)
+            wait(lambda: current_resource_amount_large_sensor.get(tags={"data_center": dc}) == 0)
 
         blocking_op = run_sleeping_vanilla(
             job_count=20,
@@ -3951,11 +3939,11 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
 
-        wait(lambda: fair_resource_amount_default_sensor.get(verbose=True) == 80)
-        wait(lambda: current_resource_amount_default_sensor.get(verbose=True) == 80)
+        wait(lambda: fair_resource_amount_default_sensor.get() == 80)
+        wait(lambda: current_resource_amount_default_sensor.get() == 80)
         for dc in TestSchedulingSegmentsMultiDataCenter.DATA_CENTERS:
-            wait(lambda: fair_resource_amount_large_sensor.get(tags={"data_center": dc}, verbose=True) == 0)
-            wait(lambda: current_resource_amount_large_sensor.get(tags={"data_center": dc}, verbose=True) == 0)
+            wait(lambda: fair_resource_amount_large_sensor.get(tags={"data_center": dc}) == 0)
+            wait(lambda: current_resource_amount_large_sensor.get(tags={"data_center": dc}) == 0)
 
         op1 = run_sleeping_vanilla(
             spec={"pool": "large_gpu"},
@@ -3968,17 +3956,17 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
 
         time.sleep(3.0)
 
-        wait(lambda: fair_resource_amount_default_sensor.get(verbose=True) == 72)
-        wait(lambda: current_resource_amount_default_sensor.get(verbose=True) == 80)
-        wait(lambda: fair_resource_amount_large_sensor.get(tags={"data_center": op1_dc}, verbose=True) == 8)
-        wait(lambda: current_resource_amount_large_sensor.get(tags={"data_center": op1_dc}, verbose=True) == 0)
+        wait(lambda: fair_resource_amount_default_sensor.get() == 72)
+        wait(lambda: current_resource_amount_default_sensor.get() == 80)
+        wait(lambda: fair_resource_amount_large_sensor.get(tags={"data_center": op1_dc}) == 8)
+        wait(lambda: current_resource_amount_large_sensor.get(tags={"data_center": op1_dc}) == 0)
 
         set("//sys/pool_trees/default/@config/scheduling_segments/unsatisfied_segments_rebalancing_timeout", 1000)
 
-        wait(lambda: fair_resource_amount_default_sensor.get(verbose=True) == 72)
-        wait(lambda: current_resource_amount_default_sensor.get(verbose=True) == 72)
-        wait(lambda: fair_resource_amount_large_sensor.get(tags={"data_center": op1_dc}, verbose=True) == 8)
-        wait(lambda: current_resource_amount_large_sensor.get(tags={"data_center": op1_dc}, verbose=True) == 8)
+        wait(lambda: fair_resource_amount_default_sensor.get() == 72)
+        wait(lambda: current_resource_amount_default_sensor.get() == 72)
+        wait(lambda: fair_resource_amount_large_sensor.get(tags={"data_center": op1_dc}) == 8)
+        wait(lambda: current_resource_amount_large_sensor.get(tags={"data_center": op1_dc}) == 8)
 
         op2 = run_sleeping_vanilla(
             job_count=2,
@@ -3991,12 +3979,12 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
         op2_dc = get(scheduler_orchid_operation_path(op2.id) + "/scheduling_segment_data_center")
         assert op1_dc != op2_dc
 
-        wait(lambda: fair_resource_amount_default_sensor.get(verbose=True) == 56)
-        wait(lambda: current_resource_amount_default_sensor.get(verbose=True) == 56)
-        wait(lambda: fair_resource_amount_large_sensor.get(tags={"data_center": op1_dc}, verbose=True) == 8)
-        wait(lambda: current_resource_amount_large_sensor.get(tags={"data_center": op1_dc}, verbose=True) == 8)
-        wait(lambda: fair_resource_amount_large_sensor.get(tags={"data_center": op2_dc}, verbose=True) == 16)
-        wait(lambda: current_resource_amount_large_sensor.get(tags={"data_center": op2_dc}, verbose=True) == 16)
+        wait(lambda: fair_resource_amount_default_sensor.get() == 56)
+        wait(lambda: current_resource_amount_default_sensor.get() == 56)
+        wait(lambda: fair_resource_amount_large_sensor.get(tags={"data_center": op1_dc}) == 8)
+        wait(lambda: current_resource_amount_large_sensor.get(tags={"data_center": op1_dc}) == 8)
+        wait(lambda: fair_resource_amount_large_sensor.get(tags={"data_center": op2_dc}) == 16)
+        wait(lambda: current_resource_amount_large_sensor.get(tags={"data_center": op2_dc}) == 16)
 
     @authors("eshcherbin")
     def test_fail_large_gpu_operation_started_in_several_trees(self):
@@ -4118,27 +4106,6 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
         except YtError:
             return 0.0
 
-    def _get_pool_profiling(self, sensor_name, start_time, reduce="none"):
-        assert reduce in ("none", "last", "max")
-        result = {}
-        for entry in get(
-            "//sys/scheduler/orchid/profiling/scheduler/pools/" + sensor_name,
-            from_time=int(start_time * 1000000),
-            verbose=False,
-        ):
-            pool = entry["tags"]["pool"]
-            if pool in result:
-                result[pool].append(entry["value"])
-            else:
-                result[pool] = [entry["value"]]
-        for pool in result:
-            if reduce == "last":
-                result[pool] = result[pool][-1]
-            elif reduce == "max":
-                result[pool] = max(result[pool])
-        print_debug("Pool profiling (reduce='{}'):".format(reduce), result)
-        return result
-
     def _test_more_fair_share_for_new_operation_base(self, num_jobs_op1, num_jobs_op2):
         self._init_children()
 
@@ -4157,18 +4124,16 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
 
         op2_tasks_spec = {"task": {"job_count": num_jobs_op2, "command": "sleep 100;"}}
 
-        fair_share_ratio_max = Metric.at_scheduler(
-            "scheduler/pools/fair_share_ratio_x100000",
-            with_tags={"pool": "child2"},
-            aggr_method="max",
-        )
+        fair_share_ratio_sensor = Profiler\
+            .at_scheduler(fixed_tags={"tree": "default", "pool": "child2"})\
+            .gauge("scheduler/pools/fair_share_ratio_x100000")
 
         op2 = vanilla(spec={"pool": "child2", "tasks": op2_tasks_spec}, track=False)
 
         # it's hard to estimate historic usage for all children, because run time can vary and jobs
         # can spuriously abort and restart; so we don't set the threshold any greater than 0.5
-        wait(lambda: fair_share_ratio_max.update().get(verbose=True) is not None)
-        wait(lambda: fair_share_ratio_max.update().get(verbose=True) > 0.5 * 100000)
+        wait(lambda: fair_share_ratio_sensor.get() is not None, iter=300, sleep_backoff=0.1)
+        wait(lambda: fair_share_ratio_sensor.get() > 0.5 * 100000, iter=300, sleep_backoff=0.1)
 
         op1.complete()
         op2.complete()
@@ -4215,16 +4180,14 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
 
         op2_tasks_spec = {"task": {"job_count": self.NUM_SLOTS_PER_NODE, "command": "sleep 100;"}}
 
-        fair_share_ratio_max = Metric.at_scheduler(
-            "scheduler/pools/fair_share_ratio_x100000",
-            with_tags={"pool": "child2"},
-            aggr_method="max",
-        )
+        fair_share_ratio_sensor = Profiler \
+            .at_scheduler(fixed_tags={"tree": "default", "pool": "child2"}) \
+            .gauge("scheduler/pools/fair_share_ratio_x100000")
 
         op2 = vanilla(spec={"pool": "child2", "tasks": op2_tasks_spec}, track=False)
 
-        wait(lambda: fair_share_ratio_max.update().get(verbose=True) is not None)
-        wait(lambda: fair_share_ratio_max.update().get(verbose=True) in (49999, 50000, 50001))
+        wait(lambda: fair_share_ratio_sensor.get() is not None, iter=300, sleep_backoff=0.1)
+        wait(lambda: fair_share_ratio_sensor.get() in (49999, 50000, 50001), iter=300, sleep_backoff=0.1)
 
         op1.complete()
         op2.complete()

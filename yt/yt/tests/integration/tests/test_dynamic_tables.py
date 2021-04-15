@@ -13,6 +13,8 @@ from yt_helpers import *
 
 from yt.environment.helpers import assert_items_equal
 
+from copy import deepcopy
+
 from flaky import flaky
 
 from time import sleep
@@ -129,34 +131,33 @@ class DynamicTablesBase(YTEnvSetup):
         return addresses
 
     def _get_table_profiling(self, table, user=None):
-        tablets = get(table + "/@tablets")
-        assert len(tablets) == 1
-        tablet = tablets[0]
-        address = get("#%s/@peers/0/address" % tablet["cell_id"])
+        driver_config = deepcopy(self.Env.configs["driver"])
+        driver_config["api_version"] = 4
 
         class Profiling:
-            def get_counter(self, counter_name):
-                try:
-                    counters = get("//sys/cluster_nodes/%s/orchid/profiling/tablet_node/%s" % (address, counter_name))
-                    for counter in counters[::-1]:
-                        tags = counter["tags"]
-                        if user is not None and tags.get("user", None) != user:
-                            continue
-                        if tags.get("table_path", None) == table:
-                            return counter["value"]
-                except YtResponseError as error:
-                    if not error.is_resolve_error():
-                        raise
-                return 0
+            def __init__(self):
+                self.profiler = Profiler.at_tablet_node(table)
+                self.tags = {
+                    "table_path": table,
+                }
+                if user is not None:
+                    self.tags["user"] = user
 
-            def get_latest_tags(self, counter_name):
-                try:
-                    counters = get("//sys/cluster_nodes/%s/orchid/profiling/tablet_node/%s" % (address, counter_name))
-                    return counters[-1]["tags"]
-                except YtResponseError as error:
-                    if not error.is_resolve_error():
-                        raise
-                return []
+                # NB(eshcherbin): This is done to bypass RPC driver which currently doesn't support options for get queries.
+                self.driver = Driver(config=driver_config)
+
+            def get_counter(self, counter_name, tags={}):
+                return self.profiler.get(
+                    counter_name,
+                    dict(self.tags, **tags),
+                    postprocessor=float,
+                    verbose=False,
+                    default=0,
+                    driver=self.driver
+                )
+
+            def has_projections_with_tags(self, counter_name, required_tags):
+                return len(self.profiler.get_all(counter_name, required_tags, verbose=False, driver=self.driver)) > 0
 
         return Profiling()
 
@@ -213,21 +214,29 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
             assert lookup_rows("//tmp/t", keys) == rows
 
     def _check_cell_stable(self, cell_id):
+        # NB(eshcherbin): This is done to bypass RPC driver which currently doesn't support options for get queries.
+        driver_config = deepcopy(self.Env.configs["driver"])
+        driver_config["api_version"] = 4
+        driver = Driver(config=driver_config)
+
         addresses = [peer["address"] for peer in get("#" + cell_id + "/@peers")]
-        metrics = [
-            Metric.at_node(address, "hydra/restart_count", with_tags={"cell_id": cell_id}, aggr_method="max") for address in addresses
+
+        # NB(eshcherbin): Should use Profiler.counter() and counter.get_delta(). However, as long as
+        # we have to use the custom driver here we cannot use the counter helper.
+        sensors = [
+            Profiler.at_node(address).gauge("hydra/restart_count", fixed_tags={"cell_id": cell_id}) for address in addresses
         ]
 
         sleep(10.0)
 
         counts = []
-        for metric in metrics:
-            counts.append(metric.update().get(verbose=True))
+        for sensor in sensors:
+            counts.append(sensor.get(driver=driver))
 
         sleep(10.0)
 
-        for i, metric in enumerate(metrics):
-            assert metric.update().get(verbose=True) == counts[i]
+        for i, sensor in enumerate(sensors):
+            assert sensor.get(driver=driver) == counts[i]
 
     @authors("ifsmirnov")
     @pytest.mark.parametrize("decommission_through_extra_peers", [False, True])
@@ -623,20 +632,23 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
     @authors("akozhikhov")
     def test_override_profiling_mode_attribute(self):
+        # NB(eshcherbin): This is done to bypass RPC driver which currently doesn't support options for get queries.
+        driver_config = deepcopy(self.Env.configs["driver"])
+        driver_config["api_version"] = 4
+        driver = Driver(config=driver_config)
+
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
         table_profiling = self._get_table_profiling("//tmp/t")
 
-        def _check(expected_tag, expected_value, missing_tag=None):
+        def _check(expected_tag, expected_value, missing_tag=None, missing_value=None):
             insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
-            latest_tags = table_profiling.get_latest_tags("commit/row_count")
-            if expected_tag not in latest_tags:
+            if not table_profiling.has_projections_with_tags("commit/row_count", {expected_tag: expected_value}):
                 return False
-            if latest_tags[expected_tag] != expected_value:
-                return False
-            if missing_tag is not None and missing_tag in latest_tags:
+            if missing_tag is not None and \
+                    table_profiling.has_projections_with_tags("commit/row_count", {missing_tag: missing_value}):
                 return False
             return True
 
@@ -645,11 +657,11 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         set("//sys/@config/tablet_manager/dynamic_table_profiling_mode", "tag")
         set("//tmp/t/@profiling_tag", "custom_tag")
         remount_table("//tmp/t")
-        wait(lambda: _check("table_tag", "custom_tag", "table_path"), sleep_backoff=0.1)
+        wait(lambda: _check("table_tag", "custom_tag", "table_path", "//tmp/t"), sleep_backoff=0.1)
 
         set("//tmp/t/@profiling_mode", "path")
         remount_table("//tmp/t")
-        wait(lambda: _check("table_path", "//tmp/t", "table_tag"), sleep_backoff=0.1)
+        wait(lambda: _check("table_path", "//tmp/t", "table_tag", "custom_tag"), sleep_backoff=0.1)
 
     @authors("akozhikhov")
     def test_simple_profiling_mode_inheritance(self):
@@ -687,7 +699,6 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         assert not exists("//tmp/t1/@profiling_tag")
 
     @authors("akozhikhov")
-    @flaky(max_runs=5)
     def test_profiling_mode_inheritance(self):
         sync_create_cells(1)
         set("//tmp/@profiling_mode", "tag")
@@ -706,12 +717,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         sync_mount_table("//tmp/d/t1")
 
         def _check(table_profiling, expected_tag, expected_value):
-            latest_tags = table_profiling.get_latest_tags("commit/row_count")
-            if expected_tag not in latest_tags:
-                return False
-            if latest_tags[expected_tag] != expected_value:
-                return False
-            return True
+            return table_profiling.has_projections_with_tags("commit/row_count", {expected_tag: expected_value})
 
         table_profiling0 = self._get_table_profiling("//tmp/d/t0")
         time.sleep(5)

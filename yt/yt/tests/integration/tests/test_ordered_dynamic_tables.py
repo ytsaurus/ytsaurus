@@ -9,7 +9,6 @@ from yt.environment.helpers import assert_items_equal
 from yt.yson import YsonEntity
 
 from time import sleep
-from flaky import flaky
 
 ##################################################################
 
@@ -120,7 +119,6 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
             insert_rows("//tmp/t", rows)
 
     @authors("gridem")
-    @flaky(max_runs=5)
     def test_ordered_tablet_node_profiling(self):
         sync_create_cells(1)
 

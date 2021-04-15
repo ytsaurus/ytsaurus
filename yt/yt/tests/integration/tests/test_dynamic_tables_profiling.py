@@ -1,7 +1,5 @@
 import pytest
 
-from flaky import flaky
-
 from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
 from yt_env_setup import wait
@@ -16,7 +14,6 @@ from yt.environment.helpers import assert_items_equal
 class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
     DELTA_NODE_CONFIG = {"cluster_connection": {"timestamp_provider": {"update_period": 100}}}
 
-    @flaky(max_runs=5)
     @authors("gridem")
     def test_sorted_tablet_node_profiling(self):
         sync_create_cells(1)
@@ -77,7 +74,6 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
             and tablet_profiling.get_counter("select/cpu_time") > 0
         )
 
-    @flaky(max_runs=5)
     @authors("gridem")
     def test_sorted_default_enabled_tablet_node_profiling(self):
         sync_create_cells(1)
@@ -118,7 +114,6 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
             and table_profiling.get_counter("lookup/cpu_time") > 0
         )
 
-    @flaky(max_runs=5)
     @authors("iskhakovt")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @pytest.mark.parametrize("in_memory_mode", ["none", "compressed"])

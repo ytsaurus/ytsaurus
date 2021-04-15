@@ -34,7 +34,7 @@ struct TShardConfig
     {
         RegisterParameter("filter", Filter)
             .Default();
-        
+
         RegisterParameter("grid_step", GridStep)
             .Default();
     }
@@ -140,7 +140,7 @@ struct TSolomonExporterConfig
                 THROW_ERROR_EXCEPTION("\"linger_timeout\" must be multiple of \"grid_step\"");
             }
         });
-    
+
         RegisterPostprocessor([this] {
             for (const auto& [name, shard] : Shards) {
                 if (!shard->GridStep) {
@@ -191,14 +191,14 @@ public:
     void Start();
     void Stop();
 
-    NYTree::IYPathServicePtr GetService();
+    NYTree::IYPathServicePtr GetSensorService();
 
 private:
     const TSolomonExporterConfigPtr Config_;
     const IInvokerPtr Invoker_;
     const TSolomonRegistryPtr Registry_;
     const NConcurrency::TPeriodicExecutorPtr CoreProfilingPusher_;
-    
+
     NConcurrency::TThreadPoolPtr ThreadPool_;
     TFuture<void> Collector_;
 

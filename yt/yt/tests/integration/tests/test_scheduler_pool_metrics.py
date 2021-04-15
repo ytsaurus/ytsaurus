@@ -124,24 +124,27 @@ class TestPoolMetrics(YTEnvSetup):
         metric_name = "user_job_bytes_written"
         statistics_name = "user_job.block_io.bytes_written"
 
-        usual_metric_delta = Metric.at_scheduler("scheduler/pools/metrics/" + metric_name, grouped_by_tags=["pool"])
-        custom_metric_delta = Metric.at_scheduler("scheduler/pools/metrics/my_metric", grouped_by_tags=["pool"])
-        custom_metric_completed_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/my_metric_completed", grouped_by_tags=["pool"]
-        )
-        custom_metric_failed_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/my_metric_failed", grouped_by_tags=["pool"]
-        )
-        custom_metric_max_last = Metric.at_scheduler(
-            "scheduler/pools/metrics/my_custom_metric_max",
-            with_tags={"pool": "child2"},
-            aggr_method="last",
-        )
-        custom_metric_sum_last = Metric.at_scheduler(
-            "scheduler/pools/metrics/my_custom_metric_sum",
-            with_tags={"pool": "child2"},
-            aggr_method="last",
-        )
+        profiler = Profiler.at_scheduler(fixed_tags={"tree": "default"})
+
+        pools = ["parent", "child1", "child2"]
+        usual_metric_counter = {
+            pool: profiler.counter("scheduler/pools/metrics/" + metric_name, tags={"pool": pool})
+            for pool in pools
+        }
+        custom_metric_counter = {
+            pool: profiler.counter("scheduler/pools/metrics/my_metric", tags={"pool": pool})
+            for pool in pools
+        }
+        custom_metric_completed_counter = {
+            pool: profiler.counter("scheduler/pools/metrics/my_metric_completed", tags={"pool": pool})
+            for pool in pools
+        }
+        custom_metric_failed_counter = {
+            pool: profiler.counter("scheduler/pools/metrics/my_metric_failed", tags={"pool": pool})
+            for pool in pools
+        }
+        custom_metric_max_sensor = profiler.gauge("scheduler/pools/metrics/my_custom_metric_max", tags={"pool": "child2"})
+        custom_metric_sum_sensor = profiler.gauge("scheduler/pools/metrics/my_custom_metric_sum", tags={"pool": "child2"})
 
         op11 = map(
             in_="//t_input",
@@ -163,27 +166,27 @@ class TestPoolMetrics(YTEnvSetup):
             spec={"job_count": 2, "pool": "child2"},
         )
 
-        for metric_delta in (
-            usual_metric_delta,
-            custom_metric_delta,
-            custom_metric_completed_delta,
+        for counter in (
+            usual_metric_counter,
+            custom_metric_counter,
+            custom_metric_completed_counter,
         ):
-            wait(lambda: metric_delta.update().get("parent", verbose=True) > 0)
+            wait(lambda: counter["parent"].get_delta() > 0)
 
             op11_writes = get_cypress_metrics(op11.id, statistics_name)
             op12_writes = get_cypress_metrics(op12.id, statistics_name)
             op2_writes = get_cypress_metrics(op2.id, statistics_name)
 
-            wait(lambda: metric_delta.update().get("child1", verbose=True) == op11_writes + op12_writes > 0)
-            wait(lambda: metric_delta.update().get("child2", verbose=True) == op2_writes > 0)
+            wait(lambda: counter["child1"].get_delta() == op11_writes + op12_writes > 0)
+            wait(lambda: counter["child2"].get_delta() == op2_writes > 0)
             wait(
-                lambda: metric_delta.update().get("parent", verbose=True) == op11_writes + op12_writes + op2_writes > 0
+                lambda: counter["parent"].get_delta() == op11_writes + op12_writes + op2_writes > 0
             )
 
-        assert custom_metric_failed_delta.update().get("child2", verbose=True) == 0
+        assert custom_metric_failed_counter["child2"].get_delta() == 0
 
-        wait(lambda: custom_metric_max_last.update().get(verbose=True) == 20)
-        wait(lambda: custom_metric_sum_last.update().get(verbose=True) == 110)
+        wait(lambda: custom_metric_max_sensor.get() == 20)
+        wait(lambda: custom_metric_sum_sensor.get() == 110)
 
         jobs_11 = ls(op11.get_path() + "/jobs")
         assert len(jobs_11) >= 2
@@ -198,12 +201,11 @@ class TestPoolMetrics(YTEnvSetup):
 
         write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
 
-        total_time_completed_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_completed", grouped_by_tags=["pool"]
-        )
-        total_time_aborted_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_aborted", grouped_by_tags=["pool"]
-        )
+        profiler = Profiler.at_scheduler(fixed_tags={"tree": "default"})
+        total_time_completed_parent_counter = profiler.counter("scheduler/pools/metrics/total_time_completed", {"pool": "parent"})
+        total_time_completed_child_counter = profiler.counter("scheduler/pools/metrics/total_time_completed", {"pool": "child"})
+        total_time_aborted_parent_counter = profiler.counter("scheduler/pools/metrics/total_time_aborted", {"pool": "parent"})
+        total_time_aborted_child_counter = profiler.counter("scheduler/pools/metrics/total_time_aborted", {"pool": "child"})
 
         op = map(
             command=with_breakpoint("cat; BREAKPOINT"),
@@ -225,16 +227,14 @@ class TestPoolMetrics(YTEnvSetup):
         assert len(running_jobs) == 1
         abort_job(running_jobs[0])
 
-        def check_metrics(metric_delta):
-            metric_delta.update()
-            for p in ("parent", "child"):
-                if metric_delta[p] == 0:
-                    return False
-            return metric_delta.get("parent", verbose=True) == metric_delta.get("child", verbose=True)
+        def check_metrics(parent_counter, child_counter):
+            parent_delta = parent_counter.get_delta()
+            child_delta = child_counter.get_delta()
+            return parent_delta != 0 and child_delta != 0 and parent_delta == child_delta
 
         # NB: profiling is built asynchronously in separate thread and can contain non-consistent information.
-        wait(lambda: check_metrics(total_time_completed_delta))
-        wait(lambda: check_metrics(total_time_aborted_delta))
+        wait(lambda: check_metrics(total_time_completed_parent_counter, total_time_completed_child_counter))
+        wait(lambda: check_metrics(total_time_aborted_parent_counter, total_time_aborted_child_counter))
 
     # Temporarily flaky due to YT-12207.
     @flaky(max_runs=3)
@@ -250,19 +250,25 @@ class TestPoolMetrics(YTEnvSetup):
 
         write_table("//tmp/t_input", {"foo": "bar"})
 
-        total_time_delta = Metric.at_scheduler("scheduler/pools/metrics/total_time", grouped_by_tags=["pool"])
-        total_time_operation_completed_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_operation_completed",
-            grouped_by_tags=["pool"],
-        )
-        total_time_operation_failed_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_operation_failed",
-            grouped_by_tags=["pool"],
-        )
-        total_time_operation_aborted_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_operation_aborted",
-            grouped_by_tags=["pool"],
-        )
+        profiler = Profiler.at_scheduler(fixed_tags={"tree": "default"})
+
+        pools = ["parent", "child1", "child2", "child3"]
+        total_time_counter = {
+            pool: profiler.counter("scheduler/pools/metrics/total_time", tags={"pool": pool})
+            for pool in pools
+        }
+        total_time_operation_completed_counter = {
+            pool: profiler.counter("scheduler/pools/metrics/total_time_operation_completed", tags={"pool": pool})
+            for pool in pools
+        }
+        total_time_operation_failed_counter = {
+            pool: profiler.counter("scheduler/pools/metrics/total_time_operation_failed", tags={"pool": pool})
+            for pool in pools
+        }
+        total_time_operation_aborted_counter = {
+            pool: profiler.counter("scheduler/pools/metrics/total_time_operation_aborted", tags={"pool": pool})
+            for pool in pools
+        }
 
         op1 = map(
             command=("sleep 5; cat"),
@@ -287,33 +293,31 @@ class TestPoolMetrics(YTEnvSetup):
         )
 
         # Wait until at least some metrics are reported for op3
-        wait(lambda: total_time_delta.update().get("child3", verbose=True) > 0)
+        wait(lambda: total_time_counter["child3"].get_delta() > 0)
         op3.abort(wait_until_completed=True)
 
         op1.track()
         op2.track(raise_on_failed=False)
 
-        def check_metrics(metric_delta, child):
-            metric_delta.update()
-            for p in ("parent", child):
-                if metric_delta[p] == 0:
-                    return False
-            return metric_delta.get("parent", verbose=True) == metric_delta.get(child, verbose=True)
+        def check_metrics(parent_counter, child_counter):
+            parent_delta = parent_counter.get_delta()
+            child_delta = child_counter.get_delta()
+            return parent_delta != 0 and child_delta != 0 and parent_delta == child_delta
 
         # TODO(eshcherbin): This is used for flap diagnostics. Remove when the test is fixed.
         time.sleep(2)
-        for pool in ["parent", "child1", "child2", "child3"]:
-            total_time_delta.update().get(pool, verbose=True)
+        for pool in pools:
+            total_time_counter[pool].get()
 
         # NB: profiling is built asynchronously in separate thread and can contain non-consistent information.
-        wait(lambda: check_metrics(total_time_operation_completed_delta, "child1"))
-        wait(lambda: check_metrics(total_time_operation_failed_delta, "child2"))
-        wait(lambda: check_metrics(total_time_operation_aborted_delta, "child3"))
+        wait(lambda: check_metrics(total_time_operation_completed_counter["parent"], total_time_operation_completed_counter["child1"]))
+        wait(lambda: check_metrics(total_time_operation_failed_counter["parent"], total_time_operation_failed_counter["child2"]))
+        wait(lambda: check_metrics(total_time_operation_aborted_counter["parent"], total_time_operation_aborted_counter["child3"]))
         wait(
-            lambda: total_time_delta.update().get("parent", verbose=True)
-            == total_time_operation_completed_delta.update().get("parent", verbose=True)
-            + total_time_operation_failed_delta.update().get("parent", verbose=True)
-            + total_time_operation_aborted_delta.update().get("parent", verbose=True)
+            lambda: total_time_counter["parent"].get()
+            == total_time_operation_completed_counter["parent"].get()
+            + total_time_operation_failed_counter["parent"].get()
+            + total_time_operation_aborted_counter["parent"].get()
             > 0
         )
 
@@ -328,26 +332,12 @@ class TestPoolMetrics(YTEnvSetup):
 
         write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
 
-        total_time_completed_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_completed",
-            with_tags={"pool": "unique_pool"},
-        )
-        total_time_aborted_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_aborted",
-            with_tags={"pool": "unique_pool"},
-        )
-        total_time_operation_completed_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_operation_completed",
-            with_tags={"pool": "unique_pool"},
-        )
-        total_time_operation_failed_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_operation_failed",
-            with_tags={"pool": "unique_pool"},
-        )
-        total_time_operation_aborted_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_operation_aborted",
-            with_tags={"pool": "unique_pool"},
-        )
+        profiler = Profiler.at_scheduler(fixed_tags={"tree": "default", "pool": "unique_pool"})
+        total_time_completed_counter = profiler.counter("scheduler/pools/metrics/total_time_completed")
+        total_time_aborted_counter = profiler.counter("scheduler/pools/metrics/total_time_aborted")
+        total_time_operation_completed_counter = profiler.counter("scheduler/pools/metrics/total_time_operation_completed")
+        total_time_operation_failed_counter = profiler.counter("scheduler/pools/metrics/total_time_operation_failed")
+        total_time_operation_aborted_counter = profiler.counter("scheduler/pools/metrics/total_time_operation_aborted")
 
         op = map(
             command=with_breakpoint("cat; BREAKPOINT; sleep 3"),
@@ -384,13 +374,13 @@ class TestPoolMetrics(YTEnvSetup):
         op.track()
 
         wait(
-            lambda: total_time_operation_completed_delta.update().get(verbose=True)
-            == total_time_completed_delta.update().get(verbose=True)
-            + total_time_aborted_delta.update().get(verbose=True)
+            lambda: total_time_operation_completed_counter.get_delta()
+            == total_time_completed_counter.get_delta()
+            + total_time_aborted_counter.get_delta()
             > 0
         )
-        assert total_time_operation_failed_delta.update().get(verbose=True) == 0
-        assert total_time_operation_aborted_delta.update().get(verbose=True) == 0
+        assert total_time_operation_failed_counter.get_delta() == 0
+        assert total_time_operation_aborted_counter.get_delta() == 0
 
     # Temporarily flaky due to YT-12207.
     @flaky(max_runs=3)
@@ -409,19 +399,11 @@ class TestPoolMetrics(YTEnvSetup):
 
         map_cmd = """python -c 'import sys; import time; import json; row=json.loads(raw_input()); time.sleep(row["sleep"]); sys.exit(row["exit"])'"""
 
-        total_time_delta = Metric.at_scheduler("scheduler/pools/metrics/total_time", with_tags={"pool": "unique_pool"})
-        total_time_operation_completed_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_operation_completed",
-            with_tags={"pool": "unique_pool"},
-        )
-        total_time_operation_failed_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_operation_failed",
-            with_tags={"pool": "unique_pool"},
-        )
-        total_time_operation_aborted_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_operation_aborted",
-            with_tags={"pool": "unique_pool"},
-        )
+        profiler = Profiler.at_scheduler(fixed_tags={"tree": "default", "pool": "unique_pool"})
+        total_time_counter = profiler.counter("scheduler/pools/metrics/total_time")
+        total_time_operation_completed_counter = profiler.counter("scheduler/pools/metrics/total_time_operation_completed")
+        total_time_operation_failed_counter = profiler.counter("scheduler/pools/metrics/total_time_operation_failed")
+        total_time_operation_aborted_counter = profiler.counter("scheduler/pools/metrics/total_time_operation_aborted")
 
         op = map(
             command=map_cmd,
@@ -437,13 +419,9 @@ class TestPoolMetrics(YTEnvSetup):
         )
         op.track(raise_on_failed=False)
 
-        wait(
-            lambda: total_time_delta.update().get(verbose=True)
-            == total_time_operation_failed_delta.update().get(verbose=True)
-            > 0
-        )
-        assert total_time_operation_completed_delta.update().get(verbose=True) == 0
-        assert total_time_operation_aborted_delta.update().get(verbose=True) == 0
+        wait(lambda: total_time_counter.get_delta() == total_time_operation_failed_counter.get_delta() > 0)
+        assert total_time_operation_completed_counter.get_delta() == 0
+        assert total_time_operation_aborted_counter.get_delta() == 0
 
     # Temporarily flaky due to YT-12207.
     @flaky(max_runs=3)
@@ -462,16 +440,11 @@ class TestPoolMetrics(YTEnvSetup):
 
         time.sleep(1.0)
 
-        total_time_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time",
-            with_tags={"pool": "<Root>"},
-            grouped_by_tags=["tree"],
-        )
-        total_time_operation_completed_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_operation_completed",
-            with_tags={"pool": "<Root>"},
-            grouped_by_tags=["tree"],
-        )
+        profiler = Profiler.at_scheduler(fixed_tags={"pool": "<Root>"})
+        total_time_default_counter = profiler.counter("scheduler/pools/metrics/total_time", tags={"tree": "default"})
+        total_time_other_counter = profiler.counter("scheduler/pools/metrics/total_time", tags={"tree": "other"})
+        total_time_operation_completed_default_counter = profiler.counter("scheduler/pools/metrics/total_time_operation_completed", tags={"tree": "default"})
+        total_time_operation_completed_other_counter = profiler.counter("scheduler/pools/metrics/total_time_operation_completed", tags={"tree": "other"})
 
         map(
             command="cat",
@@ -480,16 +453,8 @@ class TestPoolMetrics(YTEnvSetup):
             spec={"data_size_per_job": 1, "pool_trees": ["default", "other"]},
         )
 
-        wait(
-            lambda: total_time_delta.update().get("default", verbose=True)
-            == total_time_operation_completed_delta.update().get("default", verbose=True)
-            > 0
-        )
-        wait(
-            lambda: total_time_delta.update().get("other", verbose=True)
-            == total_time_operation_completed_delta.update().get("other", verbose=True)
-            > 0
-        )
+        wait(lambda: total_time_default_counter.get_delta() == total_time_operation_completed_default_counter.get_delta() > 0)
+        wait(lambda: total_time_other_counter.get_delta() == total_time_operation_completed_other_counter.get_delta() > 0)
 
     @authors("eshcherbin")
     def test_revive(self):
@@ -502,11 +467,9 @@ class TestPoolMetrics(YTEnvSetup):
         before_breakpoint = """for i in $(seq 10) ; do python -c "import os; os.write(5, '{value=$i};')" ; sleep 0.5 ; done ; sleep 5 ; """
         after_breakpoint = """for i in $(seq 11 15) ; do python -c "import os; os.write(5, '{value=$i};')" ; sleep 0.5 ; done ; cat ; sleep 5 ; echo done > /dev/stderr ; """
 
-        total_time_delta = Metric.at_scheduler("scheduler/pools/metrics/total_time", with_tags={"pool": "unique_pool"})
-        custom_metric_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/my_custom_metric_sum",
-            with_tags={"pool": "unique_pool"},
-        )
+        profiler = Profiler.at_scheduler(fixed_tags={"tree": "default", "pool": "unique_pool"})
+        total_time_counter = profiler.counter("scheduler/pools/metrics/total_time")
+        custom_counter = profiler.counter("scheduler/pools/metrics/my_custom_metric_sum")
 
         op = map(
             command=with_breakpoint(before_breakpoint + "BREAKPOINT ; " + after_breakpoint),
@@ -519,8 +482,8 @@ class TestPoolMetrics(YTEnvSetup):
         jobs = wait_breakpoint()
         assert len(jobs) == 1
 
-        total_time_before_restart = total_time_delta.update().get(verbose=True)
-        wait(lambda: custom_metric_delta.update().get(verbose=True) == 55)
+        total_time_before_restart = total_time_counter.get_delta()
+        wait(lambda: custom_counter.get_delta() == 55)
 
         # We need to have the job in the snapshot, so that it is not restarted after operation revival.
         op.wait_for_fresh_snapshot()
@@ -535,8 +498,8 @@ class TestPoolMetrics(YTEnvSetup):
 
         op.track()
 
-        wait(lambda: total_time_delta.update().get(verbose=True) > total_time_before_restart)
-        wait(lambda: custom_metric_delta.update().get(verbose=True) == 120)
+        wait(lambda: total_time_counter.get_delta() > total_time_before_restart)
+        wait(lambda: custom_counter.get_delta() == 120)
 
 
 ##################################################################

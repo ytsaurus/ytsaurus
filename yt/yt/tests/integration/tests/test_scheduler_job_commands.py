@@ -1,8 +1,11 @@
+from copy import deepcopy
+
 from yt_env_setup import (
     YTEnvSetup,
     wait,
 )
 from yt_commands import *
+from yt_helpers import get_job_count_profiling
 
 import pytest
 import time
@@ -296,8 +299,13 @@ class TestJobProber(YTEnvSetup):
 
     @authors("ignat")
     def test_abort_job(self):
+        # NB(eshcherbin): This is done to bypass RPC driver which currently doesn't support options for get queries.
+        driver_config = deepcopy(self.Env.configs["driver"])
+        driver_config["api_version"] = 4
+        driver = Driver(config=driver_config)
+
         time.sleep(2)
-        start_profiling = get_job_count_profiling()
+        start_profiling = get_job_count_profiling(driver=driver)
 
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -326,7 +334,7 @@ class TestJobProber(YTEnvSetup):
         assert get(op.get_path() + "/@progress/jobs/failed") == 0
 
         def check():
-            end_profiling = get_job_count_profiling()
+            end_profiling = get_job_count_profiling(driver=driver)
 
             for state in end_profiling["state"]:
                 print_debug(

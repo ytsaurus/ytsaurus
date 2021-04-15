@@ -112,7 +112,7 @@ public:
         const TReadOptions& options,
         ::NMonitoring::IMetricConsumer* consumer) const;
 
-    void ReadRecentSensorValue(
+    void ReadRecentSensorValues(
         const TString& name,
         const TTagList& tags,
         const TReadOptions& options,

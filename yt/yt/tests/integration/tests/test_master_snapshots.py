@@ -2,6 +2,7 @@ from time import sleep
 
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
 from yt_commands import *
+from yt_helpers import Profiler
 from yt.environment.helpers import assert_items_equal
 
 import pytest
@@ -324,12 +325,11 @@ class TestMasterSnapshots(YTEnvSetup):
 
     @authors("gritukan")
     def test_master_snapshots_free_space_profiling(self):
-        primary_master = ls("//sys/primary_masters")[0]
-        profiling = get("//sys/primary_masters/{0}/orchid/profiling".format(primary_master))
-        assert "free_space" in profiling["snapshots"]
-        assert "available_space" in profiling["snapshots"]
-        assert "free_space" in profiling["changelogs"]
-        assert "available_space" in profiling["changelogs"]
+        sensors = Profiler.at_master(master_index=0).list()
+        assert "yt/snapshots/free_space" in sensors
+        assert "yt/snapshots/available_space" in sensors
+        assert "yt/snapshots/free_space" in sensors
+        assert "yt/snapshots/available_space" in sensors
 
 
 class TestAllMastersSnapshots(YTEnvSetup):

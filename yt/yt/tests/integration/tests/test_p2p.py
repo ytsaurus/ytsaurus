@@ -70,20 +70,20 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
     @authors("max42")
     @clear_everything_after_test
     def test_no_distribution(self):
-        metric_delta = Metric.at_node(self.seed, "data_node/p2p/distributed_bytes")
+        counter = Profiler.at_node(self.seed).counter("data_node/p2p/distributed_bytes")
 
         # Keep number of tries in sync with min_request_count.
         self._access()
         self._access()
         time.sleep(2)
 
-        wait(lambda: metric_delta.update().get(verbose=True) == 0)
+        wait(lambda: counter.get_delta() == 0)
 
     @authors("max42", "psushin")
     @flaky(max_runs=5)
     @clear_everything_after_test
     def test_simple_distribution(self):
-        metric_delta = Metric.at_node(self.seed, "data_node/p2p/distributed_bytes")
+        counter = Profiler.at_node(self.seed).counter("data_node/p2p/distributed_bytes")
 
         # Must be greater than min_request_count in config.
         self._access()
@@ -93,7 +93,7 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
         self._access()
         time.sleep(2)
 
-        wait(lambda: metric_delta.update().get(verbose=True) > 0)
+        wait(lambda: counter.get_delta() > 0)
 
     @authors("max42")
     @clear_everything_after_test
@@ -103,14 +103,14 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
         # Wait for node directory to become updated.
         time.sleep(2)
 
-        metric_delta = Metric.at_node(self.seed, "data_node/p2p/distributed_bytes")
+        counter = Profiler.at_node(self.seed).counter("data_node/p2p/distributed_bytes")
 
         self._access()
         self._access()
         self._access()
         time.sleep(2)
 
-        wait(lambda: metric_delta.update().get(verbose=True) == 0)
+        wait(lambda: counter.get_delta() == 0)
 
 
 class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSynthetic):
@@ -146,10 +146,10 @@ class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSyn
     @authors("max42", "prime")
     @clear_everything_after_test
     def test_wow_such_flappy_test_so_many_failures(self):
-        metric_s_delta = Metric.at_node(self.seed, "data_node/block_cache/compressed_data/hit")
-        metric_ns0_delta = Metric.at_node(self.non_seeds[0], "data_node/block_cache/compressed_data/hit")
-        metric_ns1_delta = Metric.at_node(self.non_seeds[1], "data_node/block_cache/compressed_data/hit")
-        metric_ns2_delta = Metric.at_node(self.non_seeds[2], "data_node/block_cache/compressed_data/hit")
+        metric_s_delta = Profiler.at_node(self.seed).counter("data_node/block_cache/compressed_data/hit")
+        metric_ns0_delta = Profiler.at_node(self.non_seeds[0]).counter("data_node/block_cache/compressed_data/hit")
+        metric_ns1_delta = Profiler.at_node(self.non_seeds[1]).counter("data_node/block_cache/compressed_data/hit")
+        metric_ns2_delta = Profiler.at_node(self.non_seeds[2]).counter("data_node/block_cache/compressed_data/hit")
 
         def read_table():
             for i in range(10):
@@ -164,7 +164,7 @@ class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSyn
         for reader in readers:
             reader.join()
 
-        wait(lambda: metric_s_delta.update().get(verbose=True) > 0)
-        wait(lambda: metric_ns0_delta.update().get(verbose=True) > 0)
-        wait(lambda: metric_ns1_delta.update().get(verbose=True) > 0)
-        wait(lambda: metric_ns2_delta.update().get(verbose=True) > 0)
+        wait(lambda: metric_s_delta.get_delta() > 0)
+        wait(lambda: metric_ns0_delta.get_delta() > 0)
+        wait(lambda: metric_ns1_delta.get_delta() > 0)
+        wait(lambda: metric_ns2_delta.get_delta() > 0)

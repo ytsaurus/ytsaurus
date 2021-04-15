@@ -358,7 +358,7 @@ void TSolomonRegistry::ReadSensors(
     }
 }
 
-void TSolomonRegistry::ReadRecentSensorValue(
+void TSolomonRegistry::ReadRecentSensorValues(
     const TString& name,
     const TTagList& tags,
     const TReadOptions& options,
@@ -368,33 +368,64 @@ void TSolomonRegistry::ReadRecentSensorValue(
         THROW_ERROR_EXCEPTION("No sensors have been collected so far");
     }
 
-    int valuesRead = 0;
-    if (auto tagIds = Tags_.TryEncode(tags)) {
-        if (auto it = Sensors_.find(name);
-            it != Sensors_.end())
-        {
-            const auto& set = it->second;
+    auto it = Sensors_.find(name);
+    if (it == Sensors_.end()) {
+        THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError,
+            "No such sensor")
+                << TErrorAttribute("name", name);
+    }
 
-            auto index = IndexOf((Iteration_ - 1) / set.GetGridFactor());
+    const auto& sensorSet = it->second;
+    auto index = IndexOf((Iteration_ - 1) / sensorSet.GetGridFactor());
 
-            std::sort(tagIds->begin(), tagIds->end());
-            valuesRead += set.ReadSensorValues(*tagIds, index, options, fluent);
+    auto readOptions = options;
+    {
+        auto guard = Guard(DynamicTagsLock_);
+        readOptions.InstanceTags.insert(
+            readOptions.InstanceTags.end(),
+            DynamicTags_.begin(),
+            DynamicTags_.end());
+    }
+
+    auto encodedTagIds = Tags_.TryEncode(tags);
+    std::optional<TTagIdList> tagIds = TTagIdList{};
+    for (int i = 0; i < std::ssize(encodedTagIds); ++i) {
+        if (encodedTagIds[i]) {
+            tagIds->push_back(*encodedTagIds[i]);
+            continue;
+        }
+
+        auto tagIt = std::find(
+            readOptions.InstanceTags.begin(),
+            readOptions.InstanceTags.end(),
+            tags[i]);
+        if (tagIt == readOptions.InstanceTags.end()) {
+            tagIds.reset();
+            break;
         }
     }
 
-    if (valuesRead == 0) {
-        THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError,
-            "No such sensor or projection")
-                << TErrorAttribute("name", name)
-                << TErrorAttribute("tags", tags);
+    int valuesRead = 0;
+    if (tagIds) {
+        std::sort(tagIds->begin(), tagIds->end());
+        valuesRead = sensorSet.ReadSensorValues(*tagIds, index, readOptions, Tags_, fluent);
     }
 
-    if (valuesRead > 1) {
-        THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError,
-            "More than one projection found for sensor")
-                << TErrorAttribute("name", name)
-                << TErrorAttribute("tags", tags)
-                << TErrorAttribute("values_read", valuesRead);
+    if (!readOptions.ReadAllProjections) {
+        if (valuesRead == 0) {
+            THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError,
+                "Projection not found for sensor")
+                    << TErrorAttribute("name", name)
+                    << TErrorAttribute("tags", tags);
+        } else if (valuesRead > 1) {
+            THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError,
+                "More than one projection found for sensor")
+                    << TErrorAttribute("name", name)
+                    << TErrorAttribute("tags", tags)
+                    << TErrorAttribute("values_read", valuesRead);
+        }
+    } else if (valuesRead == 0) {
+        fluent.BeginList().EndList();
     }
 }
 

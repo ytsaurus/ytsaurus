@@ -70,11 +70,17 @@ class TestReplicatedDynamicTablesProfiling(TestReplicatedDynamicTablesBase):
 
         tablet_profiling = self._get_table_profiling(replicated_table_path)
 
+        replica_tags = {
+            "replica_cluster": self.REPLICA_CLUSTER_NAME,
+            "replica_path": replica_table_path,
+            "replica_id": str(replica_id),
+        }
+
         def get_lag_row_count():
-            return tablet_profiling.get_counter("replica/lag_row_count")
+            return tablet_profiling.get_counter("replica/lag_row_count", tags=replica_tags)
 
         def get_lag_time():
-            return tablet_profiling.get_counter("replica/lag_time")
+            return tablet_profiling.get_counter("replica/lag_time", tags=replica_tags)
 
         sync_enable_table_replica(replica_id)
         sleep(2)
