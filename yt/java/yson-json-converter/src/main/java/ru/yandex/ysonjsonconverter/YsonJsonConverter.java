@@ -13,7 +13,6 @@ import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 
-import ru.yandex.bolts.collection.MapF;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
@@ -82,8 +81,8 @@ public class YsonJsonConverter {
 
     public static JsonNode yson2json(JsonNodeFactory factory, YTreeNode node) {
         final ObjectNode result = new ObjectNode(factory);
-        final MapF<String, YTreeNode> attrs = node.getAttributes();
-        if (attrs.isNotEmpty()) {
+        final Map<String, YTreeNode> attrs = node.getAttributes();
+        if (!attrs.isEmpty()) {
             final ObjectNode attrsNode = new ObjectNode(factory);
             for (Map.Entry<String, YTreeNode> entry : attrs.entrySet()) {
                 attrsNode.set(entry.getKey(), yson2json(factory, entry.getValue()));
