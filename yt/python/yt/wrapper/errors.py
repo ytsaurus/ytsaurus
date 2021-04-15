@@ -6,6 +6,8 @@ import yt.common
 
 from yt.common import YtError, PrettyPrintableDict, get_value
 
+from yt.yson import yson_to_json
+
 from yt.packages.six import iteritems
 
 from copy import deepcopy
@@ -91,7 +93,7 @@ class YtHttpResponseError(YtResponseError):
         self.attributes.update({
             "url": url,
             "headers": PrettyPrintableDict(get_value(self.headers, {})),
-            "params": PrettyPrintableDict(get_value(self.params, {})),
+            "params": PrettyPrintableDict(yson_to_json(get_value(self.params, {}))),
             "transparent": True})
 
     def __reduce__(self):
