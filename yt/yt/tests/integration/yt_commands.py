@@ -2460,6 +2460,8 @@ def create_dynamic_table(path, schema=None, **attributes):
 
     if "enable_dynamic_store_read" not in attributes:
         attributes.update({"enable_dynamic_store_read": True})
+    elif attributes["enable_dynamic_store_read"] is None:
+        del attributes["enable_dynamic_store_read"]
 
     attributes.update({"schema": schema})
 

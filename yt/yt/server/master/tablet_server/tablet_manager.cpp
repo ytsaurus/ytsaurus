@@ -985,8 +985,6 @@ public:
                 std::move(tabletsToMount));
         }
 
-        table->SetMountedWithEnabledDynamicStoreRead(IsDynamicStoreReadEnabled(table));
-
         DoMountTablets(
             table,
             assignment,
@@ -3261,6 +3259,8 @@ private:
         const TSerializedTableSettings& serializedTableSettings,
         TTimestamp mountTimestamp = NullTimestamp)
     {
+        table->SetMountedWithEnabledDynamicStoreRead(IsDynamicStoreReadEnabled(table));
+
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto resourceUsageBefore = table->GetTabletResourceUsage();

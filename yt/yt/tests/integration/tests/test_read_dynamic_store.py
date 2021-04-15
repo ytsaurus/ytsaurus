@@ -662,7 +662,7 @@ class TestReadGenericDynamicTables(DynamicTablesBase):
 
     @pytest.mark.parametrize("sorted", [True, False])
     def test_locate_flushed_to_no_chunk(self, sorted):
-        sync_create_cells(1)[0]
+        sync_create_cells(1)
         if sorted:
             self._create_sorted_table("//tmp/t")
         else:
@@ -690,3 +690,36 @@ class TestReadGenericDynamicTables(DynamicTablesBase):
 
         op.track()
         assert_items_equal(read_table("//tmp/out"), rows)
+
+    # YT-14639
+    @pytest.mark.parametrize("sorted", [True, False])
+    def test_enableness_preserved_by_actions_consistently(self, sorted):
+        set("//sys/@config/tablet_manager/enable_dynamic_store_read_by_default", False)
+        cells = sync_create_cells(2)
+        if sorted:
+            self._create_sorted_table("//tmp/t", enable_dynamic_store_read=None)
+        else:
+            self._create_ordered_table("//tmp/t", enable_dynamic_store_read=None)
+        sync_mount_table("//tmp/t", target_cell_ids=[cells[0]])
+
+        chunk_list_id = get("//tmp/t/@chunk_list_id")
+
+        set("//sys/@config/tablet_manager/enable_dynamic_store_read_by_default", True)
+        print_debug("Original cell: {}".format(get("//tmp/t/@tablets/0/cell_id")))
+        get("#{}/@tree".format(chunk_list_id))
+
+        action_id = create(
+            "tablet_action",
+            "",
+            attributes={
+                "kind": "move",
+                "tablet_ids": [get("//tmp/t/@tablets/0/tablet_id")],
+                "cell_ids": [cells[1]],
+                "keep_finished": True,
+            })
+        wait(lambda: get("#{}/@state".format(action_id)) == "completed")
+        print_debug("Cell after move: {}".format(get("//tmp/t/@tablets/0/cell_id")))
+        get("#{}/@tree".format(chunk_list_id))
+
+        # Flush should not fail.
+        sync_freeze_table("//tmp/t")
