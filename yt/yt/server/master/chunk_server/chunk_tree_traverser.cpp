@@ -1109,11 +1109,13 @@ protected:
                         *lowerRowIndex,
                         statistics.LogicalRowCount);
 
-                    while (chunkIndex > 0 &&
-                        chunkList->Children()[chunkIndex - 1]->GetType() ==
-                            EObjectType::OrderedDynamicTabletStore)
-                    {
-                        --chunkIndex;
+                    while (chunkIndex > 0) {
+                        auto* child = chunkList->Children()[chunkIndex - 1];
+                        if (child && child->GetType() == EObjectType::OrderedDynamicTabletStore) {
+                            --chunkIndex;
+                        } else {
+                            break;
+                        }
                     }
                 }
             }

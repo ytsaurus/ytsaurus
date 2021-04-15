@@ -847,6 +847,41 @@ class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
 
             _validate(start_tablet_index, start_row_index, end_tablet_index, end_row_index)
 
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("enable_dynamic_store_read", [True, False])
+    def test_read_fully_trimmed_table(self, enable_dynamic_store_read):
+        sync_create_cells(1)
+        create_dynamic_table(
+            "//tmp/t",
+            schema=[{"name": "key", "type": "int64"}],
+            enable_dynamic_store_read=enable_dynamic_store_read,
+            dynamic_store_auto_flush_period=YsonEntity())
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 1}])
+        sync_flush_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 2}])
+        trim_rows("//tmp/t", 0, 2)
+
+        path_with_ranges = (
+            "<ranges=["
+            "{lower_limit={tablet_index=0; row_index=5};"
+            "upper_limit={tablet_index=0; row_index=10}}]>//tmp/t"
+        )
+
+        # We don't care about result since read_table does not always respect
+        # trimmed rows.
+        read_table("//tmp/t")
+        read_table(path_with_ranges)
+
+        # Now trim those chunks for sure.
+        sync_freeze_table("//tmp/t")
+        sync_unfreeze_table("//tmp/t")
+        wait(lambda: get("//tmp/t/@chunk_ids") == [])
+        sync_freeze_table("//tmp/t")
+
+        assert read_table("//tmp/t") == []
+        assert read_table(path_with_ranges) == []
+
 
 ##################################################################
 
