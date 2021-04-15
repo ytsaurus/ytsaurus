@@ -2,15 +2,13 @@ import pytest
 
 from yt_env_setup import YTEnvSetup, wait, Restarter, SCHEDULERS_SERVICE
 from yt_commands import *
-from yt_helpers import Metric, skip_if_no_descending
+from yt_helpers import Profiler, skip_if_no_descending
 
 from yt.yson import to_yson_type
 
 import datetime
 
 from collections import Counter
-
-from flaky import flaky
 
 ##################################################################
 
@@ -532,14 +530,13 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         assert op.get_job_count("failed", from_orchid=False) == 0
 
     @authors("gritukan")
-    @flaky(max_runs=5)
     def test_set_final_job_state_metrics(self):
         nodes = ls("//sys/cluster_nodes")
 
-        metrics = [Metric.at_node(node, "job_controller/job_final_state") for node in nodes]
+        counters = [Profiler.at_node(node).counter("job_controller/job_final_state") for node in nodes]
         op = run_test_vanilla("sleep 1")
 
-        wait(lambda: any(metric.update().get(verbose=True) > 0 for metric in metrics))
+        wait(lambda: any(counter.get_delta() > 0 for counter in counters))
 
         op.track()
 

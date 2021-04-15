@@ -45,6 +45,9 @@ struct TReadOptions
     bool DisableDefault = false;
 
     int LingerWindowSize = 0;
+
+    // Used only in ReadRecentSensorValue.
+    bool ReadAllProjections = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -94,6 +97,7 @@ public:
         const TTagIdList& tagIds,
         int index,
         const TReadOptions& options,
+        const TTagRegistry& tagRegistry,
         NYTree::TFluentAny fluent) const;
 
 private:

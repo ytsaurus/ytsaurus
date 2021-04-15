@@ -2,7 +2,7 @@ from proxy_format_config import _TestProxyFormatConfigBase
 
 from yt_env_setup import YTEnvSetup, wait, Restarter, MASTERS_SERVICE, NODES_SERVICE
 from yt_commands import *
-from yt_helpers import Metric
+from yt_helpers import Profiler
 
 from yt.common import YtResponseError
 
@@ -98,19 +98,15 @@ class TestHttpProxy(HttpProxyTestBase):
         assert [proxy] == get_yson(self._get_proxy_address() + "/hosts?role=data")
         assert [] == get_yson(self._get_proxy_address() + "/hosts?role=control")
 
-        def make_request_and_check_metric(metric):
-            url = self._get_proxy_address() + "/api/v3/get?path=//sys/@config"
+        def make_failing_request_and_check_counter(counter):
+            url = self._get_proxy_address() + "/api/v3/find_meaning_of_life"
             requests.get(url)
-            return metric.update().get(verbose=True) > 0
+            return counter.get_delta() > 0
 
-        data_metric = Metric.at_proxy(
-            proxy,
-            "http_proxy/http_code_count",
-            with_tags={"http_code": "200", "proxy_role": "data"},
-            aggr_method="last",
-        )
+        profiler = Profiler.at_proxy(proxy, fixed_tags={"http_code": "404"})
+        data_http_code_counter = profiler.counter("http_proxy/http_code_count", tags={"proxy_role": "data"})
 
-        wait(lambda: make_request_and_check_metric(data_metric))
+        wait(lambda: make_failing_request_and_check_counter(data_http_code_counter))
 
         set("//sys/proxies/" + proxy + "/@role", "control")
 
@@ -119,14 +115,9 @@ class TestHttpProxy(HttpProxyTestBase):
         assert [] == get_yson(self._get_proxy_address() + "/hosts?role=data")
         assert [proxy] == get_yson(self._get_proxy_address() + "/hosts?role=control")
 
-        control_metric = Metric.at_proxy(
-            proxy,
-            "http_proxy/http_code_count",
-            with_tags={"http_code": "200", "proxy_role": "control"},
-            aggr_method="last",
-        )
+        control_http_code_counter = profiler.counter("http_proxy/http_code_count", tags={"proxy_role": "control"})
 
-        wait(lambda: make_request_and_check_metric(control_metric))
+        wait(lambda: make_failing_request_and_check_counter(control_http_code_counter))
 
         hosts = requests.get(self._get_proxy_address() + "/hosts/all").json()
         assert len(hosts) == 1

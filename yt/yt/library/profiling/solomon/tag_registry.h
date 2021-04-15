@@ -17,8 +17,8 @@ public:
     TTagIdList Encode(const TTagSet& tags);
     TTagIdList Encode(const TTagList& tags);
 
-    //! TryEncode returns null if tags contains an unknown tag.
-    std::optional<TTagIdList> TryEncode(const TTagList& tags) const;
+    //! TryEncode returns null for an unknown tag.
+    SmallVector<std::optional<TTagId>, TypicalTagCount> TryEncode(const TTagList& tags) const;
 
     const TTag& Decode(TTagId tagId) const;
     int GetSize() const;

@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
-from yt_helpers import Metric
+from yt_helpers import Profiler
 
 from flaky import flaky
 
@@ -33,18 +33,12 @@ class Base:
             )
 
     def wait_for_requests(self, expected_node_ids, metric_tags, make_request):
-        metrics = [
-            Metric.at_node(
-                node,
-                "rpc/server/request_count",
-                with_tags=metric_tags,
-                aggr_method="last",
-            )
-            for node in sorted(ls("//sys/cluster_nodes"))
-        ]
-
         def check():
-            metrics_before = [metric.update().get(verbose=True) or 0 for metric in metrics]
+            counters = [
+                Profiler.at_node(node).counter("rpc/server/request_count", tags=metric_tags)
+                for node in sorted(ls("//sys/cluster_nodes"))
+            ]
+
             while True:
                 time.sleep(0.5)
                 try:
@@ -53,11 +47,10 @@ class Base:
                 except:
                     continue
                 time.sleep(0.5)
-                metrics_after = [metric.update().get(verbose=True) or 0 for metric in metrics]
 
                 ok = True
-                for node_id in xrange(len(metrics)):
-                    actual = metrics_after[node_id] > metrics_before[node_id]
+                for node_id in xrange(len(counters)):
+                    actual = counters[node_id].get_delta() > 0
                     expected = node_id in expected_node_ids
                     if actual != expected:
                         if not expected:
@@ -145,7 +138,7 @@ class Base:
 
 
 class TestMasterCache(Base, YTEnvSetup):
-    NUM_TEST_PARTITIONS = 2
+    NUM_TEST_PARTITIONS = 3
     NUM_MASTERS = 1
     NUM_NODES = 3
 

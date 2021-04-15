@@ -478,70 +478,107 @@ int TCube<T>::ReadSensorValues(
     const TTagIdList& tagIds,
     int index,
     const TReadOptions& options,
+    const TTagRegistry& tagRegistry,
     TFluentAny fluent) const
 {
-    auto it = Projections_.find(tagIds);
-    if (it == Projections_.end()) {
-        return 0;
-    }
-
-    const auto& projection = it->second;
-    const auto& value = projection.Values[index];
-
     int valuesRead = 0;
-    if constexpr (std::is_same_v<T, i64>) {
-        // NB(eshcherbin): Not much sense in returning rate here.
-        fluent.Value(Rollup(projection, index));
-        ++valuesRead;
-    } else if constexpr (std::is_same_v<T, double>) {
-        fluent.Value(value);
-        ++valuesRead;
-    } else if constexpr (std::is_same_v<T, TSummarySnapshot<double>>) {
-        if (options.ExportSummaryAsMax) {
-            fluent.Value(value.Max());
-        } else {
-            fluent
-                .BeginMap()
-                    .Item("sum").Value(value.Sum())
-                    .Item("min").Value(value.Min())
-                    .Item("max").Value(value.Max())
-                    .Item("last").Value(value.Last())
-                    .Item("count").Value(static_cast<ui64>(value.Count()))
-                .EndMap();
-        }
-        ++valuesRead;
-    } else if constexpr (std::is_same_v<T, TSummarySnapshot<TDuration>>) {
-        if (options.ExportSummaryAsMax) {
-            fluent.Value(value.Max().SecondsFloat());
-        } else {
-            fluent
-                .BeginMap()
-                    .Item("sum").Value(value.Sum().SecondsFloat())
-                    .Item("min").Value(value.Min().SecondsFloat())
-                    .Item("max").Value(value.Max().SecondsFloat())
-                    .Item("last").Value(value.Last().SecondsFloat())
-                    .Item("count").Value(static_cast<ui64>(value.Count()))
-                .EndMap();
-        }
-        ++valuesRead;
-    } else if constexpr (std::is_same_v<T, THistogramSnapshot>) {
-        std::vector<std::pair<double, int>> hist;
-        size_t n = value.Times.size();
-        hist.reserve(n + 1);
-        for (size_t i = 0; i != n; ++i) {
-            int bucketValue = i < value.Values.size() ? value.Values[i] : 0;
-            hist.emplace_back(value.Times[i].SecondsFloat(), bucketValue);
-        }
-        hist.emplace_back(Max<double>(), n < value.Values.size() ? value.Values[n] : 0u);
+    auto doReadValueForProjection = [&] (TFluentAny fluent, const TProjection& projection, const T& value) {
+        if constexpr (std::is_same_v<T, i64> || std::is_same_v<T, TDuration>) {
+            // NB(eshcherbin): Not much sense in returning rate here.
+            if constexpr (std::is_same_v<T, i64>) {
+                fluent.Value(Rollup(projection, index));
+            } else {
+                fluent.Value(Rollup(projection, index).SecondsFloat());
+            }
+            ++valuesRead;
+        } else if constexpr (std::is_same_v<T, double>) {
+            fluent.Value(value);
+            ++valuesRead;
+        } else if constexpr (std::is_same_v<T, TSummarySnapshot<double>>) {
+            if (options.ExportSummaryAsMax) {
+                fluent.Value(value.Max());
+            } else {
+                fluent
+                    .BeginMap()
+                        .Item("sum").Value(value.Sum())
+                        .Item("min").Value(value.Min())
+                        .Item("max").Value(value.Max())
+                        .Item("last").Value(value.Last())
+                        .Item("count").Value(static_cast<ui64>(value.Count()))
+                    .EndMap();
+            }
+            ++valuesRead;
+        } else if constexpr (std::is_same_v<T, TSummarySnapshot<TDuration>>) {
+            if (options.ExportSummaryAsMax) {
+                fluent.Value(value.Max().SecondsFloat());
+            } else {
+                fluent
+                    .BeginMap()
+                        .Item("sum").Value(value.Sum().SecondsFloat())
+                        .Item("min").Value(value.Min().SecondsFloat())
+                        .Item("max").Value(value.Max().SecondsFloat())
+                        .Item("last").Value(value.Last().SecondsFloat())
+                        .Item("count").Value(static_cast<ui64>(value.Count()))
+                    .EndMap();
+            }
+            ++valuesRead;
+        } else if constexpr (std::is_same_v<T, THistogramSnapshot>) {
+            std::vector<std::pair<double, int>> hist;
+            size_t n = value.Times.size();
+            hist.reserve(n + 1);
+            for (size_t i = 0; i != n; ++i) {
+                int bucketValue = i < value.Values.size() ? value.Values[i] : 0;
+                hist.emplace_back(value.Times[i].SecondsFloat(), bucketValue);
+            }
+            hist.emplace_back(Max<double>(), n < value.Values.size() ? value.Values[n] : 0u);
 
-        fluent.DoMapFor(hist, [] (TFluentMap fluent, const auto& bar) {
-            fluent
-                .Item("bound").Value(bar.first)
-                .Item("count").Value(bar.second);
-        });
-        ++valuesRead;
-    } else {
-        THROW_ERROR_EXCEPTION("Unexpected cube type");
+            fluent.DoListFor(hist, [] (TFluentList fluent, const auto& bar) {
+                fluent
+                    .Item().BeginMap()
+                        .Item("bound").Value(bar.first)
+                        .Item("count").Value(bar.second)
+                    .EndMap();
+            });
+            ++valuesRead;
+        } else {
+            THROW_ERROR_EXCEPTION("Unexpected cube type");
+        }
+    };
+
+    // NB(eshcherbin): ReadAllProjections is intended only for debugging purposes.
+    if (options.ReadAllProjections) {
+        std::vector<TTagIdList> filteredProjectionTagIds;
+        for (const auto& [projectionTagIds, _] : Projections_) {
+            // NB(eshcherbin): All tagIds vector are guaranteed to be sorted.
+            if (std::includes(projectionTagIds.begin(), projectionTagIds.end(), tagIds.begin(), tagIds.end())) {
+                filteredProjectionTagIds.push_back(projectionTagIds);
+            }
+        }
+
+        if (!filteredProjectionTagIds.empty()) {
+            fluent.DoListFor(filteredProjectionTagIds, [&] (TFluentList fluent, const auto& projectionTagIds) {
+                const auto& projection = GetOrCrash(Projections_, projectionTagIds);
+
+                fluent
+                    .Item().BeginMap()
+                        .Item("tags").DoMapFor(projectionTagIds, [&] (TFluentMap fluent, auto tagId) {
+                            const auto& [key, value] = tagRegistry.Decode(tagId);
+                            fluent.Item(key).Value(value);
+                        })
+                        .Item("value").Do([&] (TFluentAny fluent) {
+                            doReadValueForProjection(fluent, projection, projection.Values[index]);
+                        })
+                    .EndMap();
+            });
+        }
+    } else  {
+        auto it = Projections_.find(tagIds);
+        if (it == Projections_.end()) {
+            return valuesRead;
+        }
+
+        const auto& projection = it->second;
+        doReadValueForProjection(fluent, projection, projection.Values[index]);
     }
 
     return valuesRead;

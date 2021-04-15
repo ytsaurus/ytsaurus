@@ -52,24 +52,16 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
 
     @authors("renadeen")
     def test_sleeping(self):
-        smoothed_cpu_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/aggregated_smoothed_cpu_usage_x100",
-            with_tags={"pool": "root"},
-        )
-        max_cpu_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/aggregated_max_cpu_usage_x100",
-            with_tags={"pool": "root"},
-        )
-        preemptable_cpu_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/aggregated_preemptable_cpu_x100",
-            with_tags={"pool": "root"},
-        )
+        profiler = Profiler.at_scheduler(fixed_tags={"tree": "default", "pool": "root"})
+        smoothed_cpu_counter = profiler.counter("scheduler/pools/metrics/aggregated_smoothed_cpu_usage_x100")
+        max_cpu_counter = profiler.counter("scheduler/pools/metrics/aggregated_max_cpu_usage_x100")
+        preemptable_cpu_counter = profiler.counter("scheduler/pools/metrics/aggregated_preemptable_cpu_x100")
 
         run_sleeping_vanilla(spec=SPEC_WITH_CPU_MONITOR)
 
-        wait(lambda: preemptable_cpu_delta.update().get(verbose=True) > 0)
-        wait(lambda: smoothed_cpu_delta.update().get(verbose=True) > 0)
-        wait(lambda: smoothed_cpu_delta.update().get(verbose=True) < max_cpu_delta.update().get(verbose=True))
+        wait(lambda: preemptable_cpu_counter.get_delta() > 0)
+        wait(lambda: smoothed_cpu_counter.get_delta() > 0)
+        wait(lambda: smoothed_cpu_counter.get_delta() < max_cpu_counter.get_delta())
 
     @authors("renadeen")
     @pytest.mark.skip(reason="Works fine locally but fails at tc. Need to observe it a bit.")
@@ -77,18 +69,10 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
         spec = copy.deepcopy(SPEC_WITH_CPU_MONITOR)
         spec["job_cpu_monitor"]["min_cpu_limit"] = 1
 
-        smoothed_cpu_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/aggregated_smoothed_cpu_usage_x100",
-            with_tags={"pool": "root"},
-        )
-        max_cpu_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/aggregated_max_cpu_usage_x100",
-            with_tags={"pool": "root"},
-        )
-        preemptable_cpu_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/aggregated_preemptable_cpu_x100",
-            with_tags={"pool": "root"},
-        )
+        profiler = Profiler.at_scheduler(fixed_tags={"tree": "default", "pool": "root"})
+        smoothed_cpu_counter = profiler.counter("scheduler/pools/metrics/aggregated_smoothed_cpu_usage_x100")
+        max_cpu_counter = profiler.counter("scheduler/pools/metrics/aggregated_max_cpu_usage_x100")
+        preemptable_cpu_counter = profiler.counter("scheduler/pools/metrics/aggregated_preemptable_cpu_x100")
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT; while true; do : ; done"), spec)
         wait_breakpoint()
@@ -96,9 +80,9 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
         time.sleep(0.2)
         op.abort()
 
-        wait(lambda: smoothed_cpu_delta.update().get(verbose=True) > 0)
-        wait(lambda: smoothed_cpu_delta.update().get(verbose=True) < max_cpu_delta.update().get(verbose=True))
-        wait(lambda: preemptable_cpu_delta.update().get(verbose=True) == 0)
+        wait(lambda: smoothed_cpu_counter.get_delta() > 0)
+        wait(lambda: smoothed_cpu_counter.get_delta() < max_cpu_counter.get_delta())
+        wait(lambda: preemptable_cpu_counter.get_delta() == 0)
 
 
 class TestDynamicCpuReclaim(YTEnvSetup):

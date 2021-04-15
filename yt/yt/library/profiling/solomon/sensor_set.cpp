@@ -243,6 +243,7 @@ int TSensorSet::ReadSensorValues(
     const TTagIdList& tagIds,
     int index,
     const TReadOptions& options,
+    const TTagRegistry& tagRegistry,
     TFluentAny fluent) const
 {
     if (!Error_.IsOK()) {
@@ -251,12 +252,12 @@ int TSensorSet::ReadSensorValues(
     }
 
     int valuesRead = 0;
-    valuesRead += CountersCube_.ReadSensorValues(tagIds, index, options, fluent);
-    valuesRead += TimeCountersCube_.ReadSensorValues(tagIds, index, options, fluent);
-    valuesRead += GaugesCube_.ReadSensorValues(tagIds, index, options, fluent);
-    valuesRead += SummariesCube_.ReadSensorValues(tagIds, index, options, fluent);
-    valuesRead += TimersCube_.ReadSensorValues(tagIds, index, options, fluent);
-    valuesRead += HistogramsCube_.ReadSensorValues(tagIds, index, options, fluent);
+    valuesRead += CountersCube_.ReadSensorValues(tagIds, index, options, tagRegistry, fluent);
+    valuesRead += TimeCountersCube_.ReadSensorValues(tagIds, index, options, tagRegistry, fluent);
+    valuesRead += GaugesCube_.ReadSensorValues(tagIds, index, options, tagRegistry, fluent);
+    valuesRead += SummariesCube_.ReadSensorValues(tagIds, index, options, tagRegistry, fluent);
+    valuesRead += TimersCube_.ReadSensorValues(tagIds, index, options, tagRegistry, fluent);
+    valuesRead += HistogramsCube_.ReadSensorValues(tagIds, index, options, tagRegistry, fluent);
 
     return valuesRead;
 }

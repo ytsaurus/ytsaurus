@@ -197,6 +197,7 @@ public:
         const TTagIdList& tagIds,
         int index,
         const TReadOptions& options,
+        const TTagRegistry& tagRegistry,
         NYTree::TFluentAny fluent) const;
 
     void LegacyReadSensors(const TString& name, TTagRegistry* tagRegistry);

@@ -51,6 +51,7 @@ MAX_DECIMAL_PRECISION = 35
 # > op2 = map(...)
 # > print_debug(metric.get())  # Doesn't include op2's changes.
 # > print_debug(metric.update().get()) # Updated, now includes op2's changes.
+# NB(eshcherbin): This helper is deprecated. Use Profiler below instead.
 class Metric(object):
     AGGREGATION_METHOD_TO_DEFAULT_FACTORY = {
         "none": list,  # No aggregation, just collects all samples as a list of (time, value) tuples sorted by time.
@@ -262,6 +263,30 @@ class Metric(object):
         return data
 
 
+# This class provides an interface for the Solomon exporter component which manages all the profiling data
+# of our server components. For every sensor and for every possible set of tags Solomon exporter keeps
+# an aggregated value in the same manner as it would be seen in Solomon. A set of tags and the corresponding
+# aggregated value is called a projection. Note that only the most recent projections are stored, so
+# it is impossible to get any historical data.
+#
+# How to start:
+# (1) Create a Profiler object for the needed component via one of the static Profiler.at_xxx() methods.
+# (2) Read the most recent value of a sensor using profiler.get(name, tags).
+#
+# Use gauge(), counter(), summary() and histogram() methods to create a convenient wrapper for
+# the corresponding type of sensor.
+#
+# Example:
+# > profiler = Profiler.at_scheduler(fixed_tags={"tree": "default"})
+# > total_time_completed_parent_counter = profiler.counter("scheduler/pools/metrics/total_time_completed", {"pool": "parent"})
+# > ...
+# > wait(lambda: total_time_completed_parent_counter.get_delta() > 0)
+#
+# Troubleshooting and debugging:
+# (*) You can list all the sensors via the profiler.list() method.
+# (*) Be sure to specify the _exact_ set of tags for the wanted projection. If a projection could not be found,
+#     check for any required tags you might be missing. It is super useful to call sensor.get_all() method to list
+#     all the available projections for the sensor.
 class Profiler(object):
     def __init__(self, path, fixed_tags={}, namespace="yt"):
         self.path = path
@@ -269,45 +294,62 @@ class Profiler(object):
         self.fixed_tags = fixed_tags
 
     @staticmethod
-    def at_scheduler(*args, **kwargs):
-        return Profiler("//sys/scheduler/orchid/sensors", *args, **kwargs)
+    def at_scheduler(**kwargs):
+        return Profiler("//sys/scheduler/orchid/sensors", **kwargs)
 
     @staticmethod
     def at_node(node, *args, **kwargs):
         return Profiler("//sys/cluster_nodes/{0}/orchid/sensors".format(node), *args, **kwargs)
 
     @staticmethod
-    def at_tablet_node(node, *args, **kwargs):
-        tablets = get(node + "/@tablets")
+    def at_tablet_node(table, tablet_cell_bundle="default", fixed_tags={}):
+        fixed_tags["tablet_cell_bundle"] = tablet_cell_bundle
+
+        tablets = get(table + "/@tablets")
+        assert len(tablets) == 1
         address = get("#{0}/@peers/0/address".format(tablets[0]["cell_id"]))
-        return Profiler("//sys/cluster_nodes/{0}/orchid/sensors".format(address), *args, **kwargs)
+        return Profiler(
+            "//sys/cluster_nodes/{0}/orchid/sensors".format(address),
+            namespace="yt/tablet_node",
+            fixed_tags=fixed_tags)
 
     @staticmethod
-    def at_master(master_index=0, *args, **kwargs):
+    def at_master(master_index=0, **kwargs):
         primary_masters = [key for key in get("//sys/primary_masters")]
         return Profiler(
             "//sys/primary_masters/{0}/orchid/sensors".format(primary_masters[master_index]),
-            *args,
             **kwargs
         )
 
     @staticmethod
-    def at_proxy(proxy, *args, **kwargs):
-        return Profiler("//sys/proxies/{0}/orchid/sensors".format(proxy), *args, **kwargs)
+    def at_proxy(proxy, **kwargs):
+        return Profiler("//sys/proxies/{0}/orchid/sensors".format(proxy), **kwargs)
+
+    @staticmethod
+    def at_rpc_proxy(proxy, *args, **kwargs):
+        return Profiler("//sys/rpc_proxies/{0}/orchid/sensors".format(proxy), *args, **kwargs)
 
     def with_tags(self, tags):
         return Profiler(self.path, fixed_tags=dict(self.fixed_tags, **tags), namespace=self.namespace)
 
     def list(self, **kwargs):
-        ls(self.path, **kwargs)
+        return ls(self.path, **kwargs)
 
-    def get(self, name, tags, verbose=False, verbose_value_name="value", postprocessor=lambda value: value, **kwargs):
-        value = get(self.path, name="{}/{}".format(self.namespace, name), tags=tags, **kwargs)
+    def get(self, name, tags, verbose=True, verbose_value_name="value", postprocessor=lambda value: value, **kwargs):
+        if "default" not in kwargs:
+            kwargs["default"] = None
+
+        tags = dict(self.fixed_tags, **tags)
+        value = get(self.path, name="{}/{}".format(self.namespace, name), tags=tags, verbose=True, **kwargs)
         if value is not None:
             value = postprocessor(value)
         if verbose:
             print_debug("{} of sensor \"{}\" with tags {}: {}".format(verbose_value_name.capitalize(), name, tags, value))
+
         return value
+
+    def get_all(self, name, tags, **kwargs):
+        return self.get(name, tags, verbose_value_name="projections", read_all_projections=True, default=[], **kwargs)
 
     class _Sensor(object):
         def __init__(self, profiler, name, fixed_tags):
@@ -316,21 +358,26 @@ class Profiler(object):
             self.fixed_tags = fixed_tags
 
         def get(self, tags={}, **kwargs):
-            return self.profiler.get(self.name, dict(self.fixed_tags, **tags), default=None, **kwargs)
+            return self.profiler.get(self.name, dict(self.fixed_tags, **tags), **kwargs)
+
+        # NB(eshcherbin): This method is used mostly for debugging purposes.
+        def get_all(self, tags={}, **kwargs):
+            return self.profiler.get_all(self.name, dict(self.fixed_tags, **tags), **kwargs)
 
     class Gauge(_Sensor):
         def get(self, *args, **kwargs):
             return super(Profiler.Gauge, self).get(*args, postprocessor=float, **kwargs)
 
     class Counter(_Sensor):
-        def __init__(self, profiler, name, tags):
+        def __init__(self, profiler, name, tags, driver=None):
             super(Profiler.Counter, self).__init__(profiler, name, fixed_tags=tags)
-            self.start_value = self.get(default=0)
+            self.start_value = self.get(default=0, driver=driver)
 
         def get_delta(self, **kwargs):
             return self.get(
                 verbose_value_name="delta",
                 postprocessor=lambda value: int(value) - self.start_value,
+                default=0,
                 **kwargs
             )
 
@@ -369,14 +416,58 @@ class Profiler(object):
         def get_count(self, *args, **kwargs):
             return self._get_summary_part("count", *args, **kwargs)
 
+    class Histogram(_Sensor):
+        def get_bins(self, *args, **kwargs):
+            return self.get(
+                verbose_value_name="bins",
+                default=[],
+                *args,
+                **kwargs
+            )
+
     def gauge(self, name, fixed_tags={}):
         return Profiler.Gauge(self, name, fixed_tags)
 
-    def counter(self, name, tags):
-        return Profiler.Counter(self, name, tags)
+    # FIXME(eshcherbin): This is very ad-hoc but RPC proxy tests with counters just can't live without it.
+    def counter(self, name, tags={}, driver=None):
+        return Profiler.Counter(self, name, tags, driver=driver)
 
     def summary(self, name, fixed_tags={}):
         return Profiler.Summary(self, name, fixed_tags)
+
+    def histogram(self, name, fixed_tags={}):
+        return Profiler.Histogram(self, name, fixed_tags)
+
+
+# NB(eshcherbin): Custom driver is used in tests where default driver uses RPC. Options are not supported in RPC yet.
+def get_job_count_profiling(tree="default", driver=None):
+    job_count = {"state": defaultdict(int), "abort_reason": defaultdict(int)}
+    profiler = Profiler.at_scheduler(fixed_tags={"tree": tree})
+
+    start_time = datetime.now()
+
+    # Enable verbose for debugging.
+    for projection in profiler.get_all("scheduler/jobs/running_job_count", {}, verbose=False, driver=driver):
+        if ("state" not in projection["tags"]) or ("job_type" in projection["tags"]):
+            continue
+        job_count["state"][projection["tags"]["state"]] = int(projection["value"])
+
+    job_count["state"]["completed"] = int(profiler.get("scheduler/jobs/completed_job_count", tags={}, default=0, verbose=False, driver=driver))
+
+    for projection in profiler.get_all("scheduler/jobs/aborted_job_count", tags={}, verbose=False, driver=driver):
+        if "job_type" in projection["tags"]:
+            continue
+        if "abort_reason" in projection["tags"]:
+            job_count["abort_reason"][projection["tags"]["abort_reason"]] = int(projection["value"])
+        else:
+            job_count["state"]["aborted"] = int(projection["value"])
+
+    duration = (datetime.now() - start_time).total_seconds()
+
+    # Enable it for debugging.
+    print_debug("job_counters (took {} seconds to calculate): {}".format(duration, job_count))
+
+    return job_count
 
 
 def parse_yt_time(time):

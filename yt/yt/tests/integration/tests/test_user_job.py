@@ -1,5 +1,6 @@
 from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE
 from yt_commands import *
+from yt_helpers import Profiler
 
 import yt.environment.init_operation_archive as init_operation_archive
 from yt.yson import *
@@ -12,7 +13,6 @@ import pytest
 import time
 import datetime
 import os
-import re
 
 ##################################################################
 
@@ -1787,17 +1787,12 @@ class TestUserJobMonitoring(YTEnvSetup):
         expected_time = 10 * 1000  # 10 seconds.
         job_info = get_job(op.id, job_id)
         node = job_info["address"]
+        descriptor = job_info["monitoring_descriptor"]
 
-        def get_sensors(name):
-            return retry(lambda: get("//sys/cluster_nodes/{}/orchid/profiling/user_job/{}".format(node, name)))
+        profiler = Profiler.at_node(node)
 
-        @wait_assert
-        def long_enough():
-            cpu_user = get_sensors("cpu/user")
-            assert max(sample["value"] for sample in cpu_user) >= expected_time
-
-        cpu_user = get_sensors("cpu/user")
-        assert max(sample["value"] for sample in cpu_user) >= expected_time
+        cpu_user_counter = profiler.counter("user_job/cpu/user", tags={"job_descriptor": descriptor})
+        wait(lambda: cpu_user_counter.get_delta() >= expected_time)
 
         controller_agent_address = get(op.get_path() + "/@controller_agent_address")
         controller_agent_orchid = "//sys/controller_agents/instances/{}/orchid/controller_agent".format(
@@ -1805,16 +1800,14 @@ class TestUserJobMonitoring(YTEnvSetup):
         )
         incarnation_id = get("{}/incarnation_id".format(controller_agent_orchid))
         expected_job_descriptor = "{}/0".format(incarnation_id)
-        for sample in cpu_user:
-            job_descriptor = sample["tags"].get("job_descriptor")
-            assert re.match(r"^{}/\d+$".format(incarnation_id), job_descriptor) is not None
+        assert descriptor == expected_job_descriptor
 
-        gpu_power = retry(lambda: get_sensors("gpu/utilization_power"))
-        assert len(gpu_power) >= expected_time / self.PROFILING_PERIOD
-        assert all(sample["value"] == 0 for sample in gpu_power)
-        for sample in gpu_power:
-            assert sample["tags"].get("job_descriptor") == expected_job_descriptor
-            assert sample["tags"].get("gpu_slot") == "0"
+        for _ in range(10):
+            time.sleep(0.5)
+            assert profiler.get(
+                "user_job/gpu/utilization_power",
+                {"job_descriptor": expected_job_descriptor, "gpu_slot": "0"},
+                postprocessor=float) == 0
 
     @authors("levysotsky")
     def test_limits(self):

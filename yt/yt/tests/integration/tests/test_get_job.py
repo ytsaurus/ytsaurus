@@ -1,5 +1,6 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
+from yt_helpers import Profiler
 
 import yt.environment.init_operation_archive as init_operation_archive
 
@@ -399,12 +400,7 @@ class TestGetJobMonitoring(_TestGetJobBase):
         assert "monitoring_descriptor" in job
         descriptor = job["monitoring_descriptor"]
 
-        def get_sensors():
-            path = "//sys/cluster_nodes/{}/orchid/profiling/user_job/cpu/user"
-            return retry(lambda: get(path.format(job["address"])))
-
-        wait(lambda: len(get_sensors()) > 0)
-        assert any(sample["tags"].get("job_descriptor") == descriptor for sample in get_sensors())
+        wait(lambda: Profiler.at_node(job["address"]).get("user_job/cpu/user", {"job_descriptor": descriptor}) is not None)
 
 
 ##################################################################

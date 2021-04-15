@@ -176,6 +176,7 @@ void TSolomonExporter::DoCollect()
     auto waitUntil = [] (auto deadline) {
         auto now = TInstant::Now();
         if (now >= deadline) {
+            Yield();
             return;
         }
         TDelayedExecutor::WaitForDuration(deadline - now);
@@ -531,7 +532,7 @@ void TSolomonExporter::DoHandleShard(
                 rsp->SetStatus(EStatusCode::OK);
                 WaitFor(rsp->WriteBody(WaitFor(cachedResponse).ValueOrThrow()))
                     .ThrowOnError();
- 
+
                 return;
             }
 
@@ -715,7 +716,7 @@ void TSolomonExporter::DoPushCoreProfiling()
     }
 }
 
-IYPathServicePtr TSolomonExporter::GetService()
+IYPathServicePtr TSolomonExporter::GetSensorService()
 {
     return New<TSensorService>(Registry_, MakeStrong(this));
 }
@@ -832,8 +833,14 @@ void TSolomonExporter::TSensorService::GetSelf(TReqGet* request, TRspGet* respon
     auto options = FromProto(request->options());
     auto name = options->Find<TString>("name");
     auto tagMap = options->Find<TTagMap>("tags").value_or(TTagMap{});
+    auto readAllProjections = options->Find<bool>("read_all_projections").value_or(false);
     auto exportSummaryAsMax = options->Find<bool>("export_summary_as_max").value_or(true);
-    context->SetRequestInfo("Name: %v, Tags: %v, ExportSummaryAsMax: %v", name, tagMap, exportSummaryAsMax);
+    YT_LOG_DEBUG("Received sensor value request (RequestId: %v, Name: %v, Tags: %v, ReadAllProjections: %v, ExportSummaryAsMax: %v)",
+        context->GetRequestId(),
+        name,
+        tagMap,
+        readAllProjections,
+        exportSummaryAsMax);
 
     if (!name) {
         response->set_value(BuildYsonStringFluently().Entity().ToString());
@@ -845,10 +852,12 @@ void TSolomonExporter::TSensorService::GetSelf(TReqGet* request, TRspGet* respon
         .ValueOrThrow();
 
     TTagList tags(tagMap.begin(), tagMap.end());
-    TReadOptions readOptions{.ExportSummaryAsMax = exportSummaryAsMax};
+    TReadOptions readOptions{
+        .ExportSummaryAsMax = exportSummaryAsMax,
+        .ReadAllProjections = readAllProjections};
     response->set_value(BuildYsonStringFluently()
-        .Do([&](TFluentAny fluent) {
-            Registry_->ReadRecentSensorValue(*name, tags, readOptions, fluent);
+        .Do([&] (TFluentAny fluent) {
+            Registry_->ReadRecentSensorValues(*name, tags, readOptions, fluent);
         }).ToString());
     context->Reply();
 }
@@ -870,16 +879,21 @@ void TSolomonExporter::TSensorService::ListSelf(TReqList* request, TRspList* res
             }
 
             fluent
-                .Item()
-                .BeginAttributes()
-                    .DoIf(attributeKeys.contains("cube_size"), [&] (TFluentMap fluent) {
-                        fluent.Item("cube_size").Value(sensorInfo.CubeSize);
-                    })
-                    .DoIf(attributeKeys.contains("object_count"), [&] (TFluentMap fluent) {
-                        fluent.Item("object_count").Value(sensorInfo.CubeSize);
-                    })
-                .EndAttributes()
-                .Value(sensorInfo.Name);
+                .Item().Do([&] (TFluentAny fluent) {
+                    if (!attributeKeys.empty()) {
+                        fluent
+                            .BeginAttributes()
+                            .DoIf(attributeKeys.contains("cube_size"), [&] (TFluentMap fluent) {
+                                fluent.Item("cube_size").Value(sensorInfo.CubeSize);
+                            })
+                            .DoIf(attributeKeys.contains("object_count"), [&] (TFluentMap fluent) {
+                                fluent.Item("object_count").Value(sensorInfo.CubeSize);
+                            })
+                            .EndAttributes();
+                    }
+
+                    fluent.Value(sensorInfo.Name);
+                });
         }).ToString());
 
     context->Reply();

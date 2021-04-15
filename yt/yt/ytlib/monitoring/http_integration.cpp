@@ -80,7 +80,7 @@ void Initialize(
         SetNodeByYPath(
             *orchidRoot,
             "/sensors",
-            CreateVirtualNode(exporter->GetService()));
+            CreateVirtualNode(exporter->GetSensorService()));
 
         monitoringServer->AddHandler(
             "/orchid/",
