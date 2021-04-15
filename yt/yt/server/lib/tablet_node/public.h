@@ -188,6 +188,7 @@ DEFINE_ENUM(EDynamicTableProfilingMode,
     (Disabled)
     (Path)
     (Tag)
+    (PathLetters)
 );
 
 DEFINE_ENUM(EHunkChunkFormat,
