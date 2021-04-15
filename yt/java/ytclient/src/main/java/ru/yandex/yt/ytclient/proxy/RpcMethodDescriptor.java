@@ -53,6 +53,9 @@ public class RpcMethodDescriptor<RequestBuilder extends MessageLite.Builder, Res
         builder.setService(serviceName);
         builder.setMethod(methodName);
         builder.setProtocolVersionMajor(protocolVersion);
+        if (options.getGlobalTimeout() != null) {
+            builder.setTimeout(RpcUtil.durationToMicros(options.getGlobalTimeout()));
+        }
         if (options.getTrace()) {
             TTracingExt.Builder tracing = TTracingExt.newBuilder();
             tracing.setSampled(options.getTraceSampled());

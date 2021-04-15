@@ -21,7 +21,6 @@ import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.rpc.RpcRequest;
-import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 @NonNullApi
 public class RequestWithResponseBuilder<RequestType extends MessageLite.Builder, ResponseType extends MessageLite>
@@ -40,11 +39,6 @@ public class RequestWithResponseBuilder<RequestType extends MessageLite.Builder,
         this.header = header;
         this.body = body;
         this.options = options;
-        if (options.getGlobalTimeout() == null) {
-            header().clearTimeout();
-        } else {
-            header().setTimeout(RpcUtil.durationToMicros(options.getGlobalTimeout()));
-        }
         this.parser = parser;
     }
 
