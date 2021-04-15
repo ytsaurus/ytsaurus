@@ -47,7 +47,7 @@ TCommitterBase::TCommitterBase(
     , EpochContext_(epochContext)
     , Logger(std::move(logger))
     , CellManager_(EpochContext_->CellManager)
-    , LoggingSuspensionProfilingTimer_(profiler.Timer("/mutation_logging_suspention_time"))
+    , LoggingSuspensionProfilingTimer_(profiler.Timer("/mutation_logging_suspension_time"))
 {
     YT_VERIFY(Config_);
     YT_VERIFY(DecoratedAutomaton_);

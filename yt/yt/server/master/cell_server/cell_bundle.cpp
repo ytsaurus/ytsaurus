@@ -107,12 +107,12 @@ void TCellBundle::InitializeProfilingCounters()
     ProfilingCounters_.Profiler = profiler;
     ProfilingCounters_.TabletCellCount = profiler.WithSparse().Gauge("/tablet_cell_count");
     ProfilingCounters_.ReplicaSwitch = profiler.Counter("/switch_tablet_replica_mode");
-    ProfilingCounters_.InMemoryMoves = profiler.Counter("/in_memory_moves");
-    ProfilingCounters_.ExtMemoryMoves = profiler.Counter("/ext_memory_moves");
-    ProfilingCounters_.TabletMerges = profiler.Counter("/tablet_merges");
-    ProfilingCounters_.TabletCellMoves = profiler.Counter("/tablet_cell_moves");
+    ProfilingCounters_.InMemoryMoves = profiler.Counter("/tablet_balancer/in_memory_moves");
+    ProfilingCounters_.ExtMemoryMoves = profiler.Counter("/tablet_balancer/ext_memory_moves");
+    ProfilingCounters_.TabletMerges = profiler.Counter("/tablet_balancer/tablet_merges");
+    ProfilingCounters_.TabletCellMoves = profiler.Counter("/tablet_tracker/tablet_cell_moves");
 
-    ProfilingCounters_.PeerAssignment = profiler.Counter("/peer_assignment");
+    ProfilingCounters_.PeerAssignment = profiler.Counter("/tablet_tracker/peer_assignment");
 }
 
 TCounter& TCellBundleProfilingCounters::GetLeaderReassignment(const TString& reason)
@@ -121,7 +121,7 @@ TCounter& TCellBundleProfilingCounters::GetLeaderReassignment(const TString& rea
     if (it == LeaderReassignment.end()) {
         it = LeaderReassignment.emplace(
             reason,
-            Profiler.WithTag("reason", reason).Counter("/leader_reassignment")).first;
+            Profiler.WithTag("reason", reason).Counter("/tablet_tracker/leader_reassignment")).first;
     }
     return it->second;
 }
@@ -132,7 +132,7 @@ TCounter& TCellBundleProfilingCounters::GetPeerRevocation(const TString& reason)
     if (it == PeerRevocation.end()) {
         it = PeerRevocation.emplace(
             reason,
-            Profiler.WithTag("reason", reason).Counter("/peer_revocation")).first;
+            Profiler.WithTag("reason", reason).Counter("/tablet_tracker/peer_revocation")).first;
     }
     return it->second;
 }
