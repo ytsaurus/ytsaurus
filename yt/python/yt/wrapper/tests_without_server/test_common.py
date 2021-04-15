@@ -138,6 +138,15 @@ def test_error_str():
     error = yt.YtError(u"моя ошибка", code=100, attributes={"аттрибут": 10, "другой атрибут": "со странным значением"})
     assert "10" in str(error)
 
+    # Check for YsonEntity in params.
+    error = YtHttpResponseError(
+        {"code": 10, "message": "error"},
+        url="http://a.b",
+        headers={},
+        params={"x": yt.yson.YsonEntity()},
+    )
+    assert "null" in str(error)
+
 @authors("ostyakov")
 def test_chunk_iter_list():
     assert list(chunk_iter_list([1, 2, 3], chunk_size=1)) == [[1], [2], [3]]
