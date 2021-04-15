@@ -464,7 +464,8 @@ public:
         if (store->HasBackingStore()) {
             store->SetBackingStore(nullptr);
             YT_LOG_DEBUG("Backing store released (StoreId: %v)", store->GetId());
-            store->GetTablet()->GetStructuredLogger()->OnBackingStoreReleased(store);
+            // XXX(ifsmirnov): uncomment when tablet id is stored in TStoreBase.
+            // store->GetTablet()->GetStructuredLogger()->OnBackingStoreReleased(store);
         }
     }
 
