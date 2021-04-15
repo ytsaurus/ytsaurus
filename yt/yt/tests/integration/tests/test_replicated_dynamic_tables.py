@@ -32,6 +32,12 @@ PERTURBED_SCHEMA = [
     {"name": "value1", "type": "string"},
 ]
 
+MULTILOCK_SCHEMA_SORTED = [
+    {"name": "key", "type": "int64", "sort_order": "ascending"},
+    {"name": "value1", "type": "string", "lock": "a"},
+    {"name": "value2", "type": "int64", "lock": "b"},
+]
+
 AGGREGATE_SCHEMA = [
     {"name": "key", "type": "int64", "sort_order": "ascending"},
     {"name": "value1", "type": "string"},
@@ -422,11 +428,12 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                == sorted([replica_id1, replica_id2])
 
     @authors("babenko")
-    def test_async_replication_sorted(self):
+    @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA_SORTED, MULTILOCK_SCHEMA_SORTED])
+    def test_async_replication_sorted(self, schema):
         self._create_cells()
-        self._create_replicated_table("//tmp/t")
+        self._create_replicated_table("//tmp/t", schema=schema)
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
-        self._create_replica_table("//tmp/r", replica_id)
+        self._create_replica_table("//tmp/r", replica_id, schema=schema)
 
         sync_enable_table_replica(replica_id)
 
@@ -450,6 +457,11 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver)
             == [{"key": 1, "value1": "new_test", "value2": 123}]
         )
+
+        sync_flush_table("//tmp/r", driver=self.replica_driver)
+
+        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) \
+            == [{"key": 1, "value1": "new_test", "value2": 123}]
 
         insert_rows(
             "//tmp/t",

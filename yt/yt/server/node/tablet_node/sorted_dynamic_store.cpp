@@ -228,24 +228,18 @@ protected:
             auto timestamp = revisionPtr
                 ? Store_->TimestampFromRevision(*revisionPtr)
                 : NullTimestamp;
+
             latestWriteTimestampPerLock[index] = timestamp;
             maxTimestamp = std::max(maxTimestamp, timestamp);
         }
-        return maxTimestamp;
-    }
 
-    TTimestamp GetLatestWriteTimestamp(TSortedDynamicRow dynamicRow)
-    {
-        auto* lock = dynamicRow.BeginLocks(KeyColumnCount_);
-        auto maxTimestamp = NullTimestamp;
-        for (int index = 0; index < ColumnLockCount_; ++index, ++lock) {
-            auto list = TSortedDynamicRow::GetWriteRevisionList(*lock);
-            const auto* revisionPtr = SearchByTimestamp(list, Timestamp_);
-            if (revisionPtr) {
-                auto timestamp = Store_->TimestampFromRevision(*revisionPtr);
-                maxTimestamp = std::max(maxTimestamp, timestamp);
+        auto primaryLockTimestamp = latestWriteTimestampPerLock[PrimaryLockIndex];
+        for (int index = PrimaryLockIndex + 1; index < ColumnLockCount_; ++index) {
+            if (latestWriteTimestampPerLock[index] < primaryLockTimestamp) {
+                latestWriteTimestampPerLock[index] = primaryLockTimestamp;
             }
         }
+
         return maxTimestamp;
     }
 
@@ -257,7 +251,6 @@ protected:
             ? Store_->TimestampFromRevision(*revisionPtr)
             : NullTimestamp;
     }
-
 
     TVersionedRow ProduceSingleRowVersion(TSortedDynamicRow dynamicRow)
     {
