@@ -10,7 +10,6 @@ import org.junit.rules.TestName;
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.yt.testlib.LocalYt;
-import ru.yandex.yt.ytclient.proxy.internal.HostPort;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
@@ -19,12 +18,10 @@ import ru.yandex.yt.ytclient.rpc.RpcOptions;
 
 public class YtClientTestBase {
     static class YtFixture {
-        final HostPort address;
         final YtClient yt;
         final YPath testDirectory;
 
-        YtFixture(HostPort address, YtClient yt, YPath testDirectory) {
-            this.address = address;
+        YtFixture(YtClient yt, YPath testDirectory) {
             this.yt = yt;
             this.testDirectory = testDirectory;
         }
@@ -35,16 +32,15 @@ public class YtClientTestBase {
     private final GUID runId = GUID.create();
     List<YtFixture> ytFixtures = new ArrayList<>();
 
-    public final YtFixture createYtFixture() {
+    final public YtFixture createYtFixture() {
         RpcOptions rpcOptions = new RpcOptions();
         return createYtFixture(rpcOptions);
     }
 
-    public final YtFixture createYtFixture(RpcOptions rpcOptions) {
+    final public YtFixture createYtFixture(RpcOptions rpcOptions) {
         rpcOptions.setNewDiscoveryServiceEnabled(true);
-        var address = LocalYt.getAddress();
         var yt = YtClient.builder()
-                .setCluster(address)
+                .setCluster(LocalYt.getAddress())
                 .setRpcOptions(rpcOptions)
                 .setRpcCredentials(new RpcCredentials("root", ""))
                 .build();
@@ -57,13 +53,13 @@ public class YtClientTestBase {
                         .setForce(true)
         ).join();
 
-        YtFixture result = new YtFixture(HostPort.parse(address), yt, testDirectory);
+        YtFixture result = new YtFixture(yt, testDirectory);
         ytFixtures.add(result);
         return result;
     }
 
     @After
-    public final void tearDown() throws Throwable {
+    final public void tearDown() throws Throwable {
         Throwable error = null;
         for (var fixture : ytFixtures) {
             try (var yt = fixture.yt) {
