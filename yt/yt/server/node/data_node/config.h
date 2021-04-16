@@ -1184,7 +1184,7 @@ public:
             .DefaultNew();
 
         RegisterParameter("terminate_on_location_disabled", TerminateOnLocationDisabled)
-            .Default(false);
+            .Default(true);
     }
 };
 
