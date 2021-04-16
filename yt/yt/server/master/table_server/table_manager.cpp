@@ -68,8 +68,9 @@ public:
             "TableManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
 
-        RegisterMethod(BIND(&TImpl::HydraSendTableStatisticsUpdates, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraUpdateTableStatistics, Unretained(this)));
+        // COMPAT(shakurov, gritukan)
+        RegisterMethod(BIND(&TImpl::HydraSendTableStatisticsUpdates, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqSendTableStatisticsUpdates"});
+        RegisterMethod(BIND(&TImpl::HydraUpdateTableStatistics, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqUpdateTableStatistics"});
         RegisterMethod(BIND(&TImpl::HydraNotifyContentRevisionCasFailed, Unretained(this)));
     }
 

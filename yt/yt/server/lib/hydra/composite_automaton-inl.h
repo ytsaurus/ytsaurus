@@ -62,47 +62,57 @@ void TCompositeAutomatonPart::RegisterLoader(
 
 template <class TRequest>
 void TCompositeAutomatonPart::RegisterMethod(
-    TCallback<void(TRequest*)> callback)
+    TCallback<void(TRequest*)> callback,
+    const std::vector<TString>& aliases)
 {
-    RegisterMethod(
-        TRequest::default_instance().GetTypeName(),
-        BIND([=] (TMutationContext* context) {
-            auto request = ObjectPool<TRequest>().Allocate();
-            DeserializeProtoWithEnvelope(request.get(), context->Request().Data);
+    auto mutationHandler = BIND([=] (TMutationContext* context) {
+        auto request = ObjectPool<TRequest>().Allocate();
+        DeserializeProtoWithEnvelope(request.get(), context->Request().Data);
 
-            try {
-                callback.Run(request.get());
-                static auto cachedResponseMessage = NRpc::CreateResponseMessage(NProto::TVoidMutationResponse());
-                context->SetResponseData(cachedResponseMessage);
-            } catch (const std::exception& ex) {
-                auto error = TError(ex);
-                LogHandlerError(error);
-                context->SetResponseData(NRpc::CreateErrorResponseMessage(error));
-            }
-        }));
+        try {
+            callback.Run(request.get());
+            static auto cachedResponseMessage = NRpc::CreateResponseMessage(NProto::TVoidMutationResponse());
+            context->SetResponseData(cachedResponseMessage);
+        } catch (const std::exception& ex) {
+            auto error = TError(ex);
+            LogHandlerError(error);
+            context->SetResponseData(NRpc::CreateErrorResponseMessage(error));
+        }
+    });
+
+    auto mutationName = TRequest::default_instance().GetTypeName();
+    RegisterMethod(mutationName, mutationHandler);
+    for (const auto& alias : aliases) {
+        RegisterMethod(alias, mutationHandler);
+    }
 }
 
 template <class TRpcRequest, class TRpcResponse, class THandlerRequest, class THandlerResponse>
 void TCompositeAutomatonPart::RegisterMethod(
-    TCallback<void(const TIntrusivePtr<NRpc::TTypedServiceContext<TRpcRequest, TRpcResponse>>&, THandlerRequest*, THandlerResponse*)> callback)
+    TCallback<void(const TIntrusivePtr<NRpc::TTypedServiceContext<TRpcRequest, TRpcResponse>>&, THandlerRequest*, THandlerResponse*)> callback,
+    const std::vector<TString>& aliases)
 {
-    RegisterMethod(
-        THandlerRequest::default_instance().GetTypeName(),
-        BIND([=] (TMutationContext* context) {
-            auto request = ObjectPool<THandlerRequest>().Allocate();
-            auto response = ObjectPool<THandlerResponse>().Allocate();
+    auto mutationHandler = BIND([=] (TMutationContext* context) {
+        auto request = ObjectPool<THandlerRequest>().Allocate();
+        auto response = ObjectPool<THandlerResponse>().Allocate();
 
-            DeserializeProtoWithEnvelope(request.get(), context->Request().Data);
+        DeserializeProtoWithEnvelope(request.get(), context->Request().Data);
 
-            try {
-                callback.Run(nullptr, request.get(), response.get());
-                context->SetResponseData(NRpc::CreateResponseMessage(*response));
-            } catch (const std::exception& ex) {
-                auto error = TError(ex);
-                LogHandlerError(error);
-                context->SetResponseData(NRpc::CreateErrorResponseMessage(error));
-            }
-        }));
+        try {
+            callback.Run(nullptr, request.get(), response.get());
+            context->SetResponseData(NRpc::CreateResponseMessage(*response));
+        } catch (const std::exception& ex) {
+            auto error = TError(ex);
+            LogHandlerError(error);
+            context->SetResponseData(NRpc::CreateErrorResponseMessage(error));
+        }
+    });
+
+    auto mutationName = THandlerRequest::default_instance().GetTypeName();
+    RegisterMethod(mutationName, mutationHandler);
+    for (const auto& alias : aliases) {
+        RegisterMethod(alias, mutationHandler);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
