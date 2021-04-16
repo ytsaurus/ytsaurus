@@ -684,6 +684,7 @@ void TError::Load(TStreamLoadContext& context)
 
     IAttributeDictionaryPtr attributes;
     if (Load<bool>(context)) {
+        attributes = CreateEphemeralAttributes();
         TAttributeDictionarySerializer::LoadNonNull(context, attributes);
     }
 

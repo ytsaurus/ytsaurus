@@ -289,6 +289,18 @@ def check_attribute_tombstone_yt_14682():
     assert not exists("//tmp/table_with_attr/@attr", tx=tx)
 
 
+def check_error_attribute():
+    cell_id = sync_create_cells(1)[0]
+    node = get("#{}/@peers/0/address".format(cell_id))
+    tx_id = get("#{}/@prerequisite_transaction_id".format(cell_id))
+    commit_transaction(tx_id)
+    wait(lambda: exists("#{}/@peers/0/last_revocation_reason".format(cell_id)))
+
+    yield
+
+    assert exists("#{}/@peers/0/last_revocation_reason".format(cell_id))
+
+
 class TestMasterSnapshots(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
@@ -307,6 +319,7 @@ class TestMasterSnapshots(YTEnvSetup):
             check_duplicate_attributes,
             check_proxy_roles,
             check_attribute_tombstone_yt_14682,
+            check_error_attribute,
             check_removed_account,  # keep this item last as it's sensitive to timings
         ]
 
