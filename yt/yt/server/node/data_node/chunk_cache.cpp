@@ -286,11 +286,11 @@ public:
             BIND(&TChunkCache::TImpl::OnDynamicConfigChanged, MakeWeak(this)));
 
         std::vector<TFuture<void>> futures;
-        for (int i = 0; i < Config_->CacheLocations.size(); ++i) {
-            auto locationConfig = Config_->CacheLocations[i];
+        for (int index = 0; index < std::ssize(Config_->CacheLocations); ++index) {
+            auto locationConfig = Config_->CacheLocations[index];
 
             auto location = New<TCacheLocation>(
-                "cache" + ToString(i),
+                "cache" + ToString(index),
                 locationConfig,
                 Bootstrap_);
 
@@ -300,6 +300,9 @@ public:
                     .Run(location));
 
             Locations_.push_back(location);
+
+            location->SubscribeDisabled(
+                BIND(&TChunkCache::TImpl::OnLocationDisabled, MakeWeak(this), index));
         }
 
         WaitFor(AllSucceeded(futures))
@@ -1240,7 +1243,7 @@ private:
         std::unique_ptr<TFile> tempMetaFile;
         i64 chunkSize;
 
-        location->DisableOnError(BIND([&] () {
+        location->DisableOnError(BIND([&] {
             tempDataFile = std::make_unique<TFile>(
                 tempDataFileName,
                 CreateAlways | WrOnly | Seq | CloseOnExec);
@@ -1262,7 +1265,7 @@ private:
             throw;
         }
 
-        location->DisableOnError(BIND([&] () {
+        location->DisableOnError(BIND([&] {
             chunkSize = tempDataFile->GetLength();
             tempDataFile->Flush();
             tempDataFile->Close();
@@ -1296,7 +1299,7 @@ private:
 
         TSharedMutableRef metaBlob;
 
-        location->DisableOnError(BIND([&] () {
+        location->DisableOnError(BIND([&] {
             TFile metaFile(
                 metaFileName,
                 OpenExisting | RdOnly | Seq | CloseOnExec);
@@ -1362,6 +1365,40 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         ArtifactCacheReaderConfig_.Store(newNodeConfig->DataNode->ArtifactCacheReader);
+    }
+
+    void OnLocationDisabled(int locationIndex)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        WaitFor(BIND([=, this_ = MakeStrong(this)] {
+            YT_LOG_INFO("Location is disabled; unregistering all the chunks in it (LocationIndex: %v)",
+                locationIndex);
+
+            const auto& location = Locations_[locationIndex];
+
+            auto chunks = GetAll();
+            for (const auto& chunk : chunks) {
+                if (chunk->GetLocation() == location) {
+                    TryRemove(chunk, /*forbidResurrection*/ true);
+                }
+            }
+
+            {
+                auto guard = Guard(RegisteredChunkMapLock_);
+                THashMap<TArtifactKey, TRegisteredChunkDescriptor> newRegisteredChunkMap;
+                for (const auto& [artifactKey, chunkDescriptor] : RegisteredChunkMap_) {
+                    if (chunkDescriptor.Location != location) {
+                        newRegisteredChunkMap.emplace(artifactKey, chunkDescriptor);
+                    }
+                }
+
+                RegisteredChunkMap_ = std::move(newRegisteredChunkMap);
+            }
+        })
+        .AsyncVia(Bootstrap_->GetControlInvoker())
+        .Run())
+        .ThrowOnError();
     }
 };
 

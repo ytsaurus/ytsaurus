@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 from yt_commands import *
 
 from yt.yson import to_yson_type
@@ -13,6 +13,14 @@ from time import sleep
 class TestChunkServer(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 21
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "disk_health_checker": {
+                "check_period": 1000,
+            },
+        },
+    }
 
     @authors("babenko", "ignat")
     def test_owning_nodes1(self):
@@ -272,6 +280,28 @@ class TestChunkServer(YTEnvSetup):
         write_journal("//tmp/j", [{"data": "payload" + str(i)} for i in xrange(0, 10)])
 
         self._wait_for_replicas_removal("//tmp/j")
+
+    @authors("gritukan")
+    def test_disable_store_location(self):
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a": "b"})
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        wait(lambda: len(get("#{0}/@stored_replicas".format(chunk_id))) == 3)
+
+        node_id = get("#{0}/@stored_replicas".format(chunk_id))[0]
+        location_path = get("//sys/cluster_nodes/{}/orchid/stored_chunks/{}/location".format(node_id, chunk_id))
+
+        with open("{}/disabled".format(location_path), "w") as f:
+            f.write("{foo=bar}")
+
+        wait(lambda: node_id not in get("#{0}/@stored_replicas".format(chunk_id)))
+        assert not exists("//sys/cluster_nodes/{}/orchid/stored_chunks/{}".format(node_id, chunk_id))
+
+        # Repair node for future tests.
+        os.remove("{}/disabled".format(location_path))
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
 
 
 ##################################################################

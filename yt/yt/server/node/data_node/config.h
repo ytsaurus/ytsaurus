@@ -1139,6 +1139,9 @@ public:
     //! Reader configuration used to download chunks into cache.
     TArtifactCacheReaderConfigPtr ArtifactCacheReader;
 
+    //! If |true|, node will be terminated when location becomes disabled.
+    bool TerminateOnLocationDisabled;
+
     TDataNodeDynamicConfig()
     {
         RegisterParameter("storage_heavy_thread_count", StorageHeavyThreadCount)
@@ -1179,6 +1182,9 @@ public:
 
         RegisterParameter("artifact_cache_reader", ArtifactCacheReader)
             .DefaultNew();
+
+        RegisterParameter("terminate_on_location_disabled", TerminateOnLocationDisabled)
+            .Default(false);
     }
 };
 

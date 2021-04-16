@@ -731,6 +731,7 @@ void TBootstrap::DoInitialize()
     TabletSlotManager_->Initialize();
     ChunkStore_->Initialize();
     ChunkCache_->Initialize();
+    SessionManager_->Initialize();
     ExecSlotManager_->Initialize();
     JobController_->Initialize();
 

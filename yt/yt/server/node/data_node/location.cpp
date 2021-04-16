@@ -2,16 +2,18 @@
 #include "private.h"
 #include "blob_chunk.h"
 #include "blob_reader_cache.h"
+#include "chunk_store.h"
 #include "config.h"
 #include "journal_chunk.h"
 #include "journal_dispatcher.h"
 #include "journal_manager.h"
 #include "legacy_master_connector.h"
+#include "master_connector.h"
 #include "medium_updater.h"
-#include "chunk_store.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/lib/hydra/changelog.h>
@@ -270,7 +272,7 @@ std::vector<TChunkDescriptor> TLocation::Scan()
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Location disabled");
         MarkAsDisabled(ex);
-        return std::vector<TChunkDescriptor>();
+        return {};
     }
 
     // Be optimistic and assume everything will be OK.
@@ -281,6 +283,7 @@ std::vector<TChunkDescriptor> TLocation::Scan()
         return DoScan();
     } catch (const std::exception& ex) {
         Disable(TError("Location scan failed") << ex);
+        return {};
     }
 }
 
@@ -302,11 +305,11 @@ void TLocation::Disable(const TError& reason)
     VERIFY_THREAD_AFFINITY_ANY();
 
     if (!Enabled_.exchange(false)) {
-        // Save only once.
-        Sleep(TDuration::Max());
+        YT_LOG_ERROR(reason, "Attempted to disable location, but it is already disabled");
+        return;
     }
 
-    YT_LOG_ERROR(reason);
+    YT_LOG_ERROR(reason, "Disabling location");
 
     // Save the reason in a file and exit.
     // Location will be disabled during the scan in the restart process.
@@ -316,13 +319,32 @@ void TLocation::Disable(const TError& reason)
         TUnbufferedFileOutput fileOutput(file);
         fileOutput << ConvertToYsonString(reason, NYson::EYsonFormat::Pretty).AsStringBuf();
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Error creating location lock file");
-        // Exit anyway.
+        YT_LOG_ERROR(ex, "Error creating location lock file; terminating");
+        NLogging::TLogManager::Get()->Shutdown();
+        _exit(1);
     }
 
-    YT_LOG_ERROR("Location is disabled; terminating");
-    NLogging::TLogManager::Get()->Shutdown();
-    _exit(1);
+    const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+    const auto& dynamicConfig = dynamicConfigManager->GetConfig()->DataNode;
+    bool terminate = dynamicConfig->TerminateOnLocationDisabled;
+
+    if (terminate) {
+        YT_LOG_ERROR("Location is disabled; terminating");
+        NLogging::TLogManager::Get()->Shutdown();
+        _exit(1);
+    } else {
+        Disabled_.Fire();
+
+        // Notify masters about disaster as soon as possible via out-of-order heartbeat.
+        // NB: Heartbeat should be reported after all the signal subscribers completed.
+        if (Bootstrap_->GetClusterNodeMasterConnector()->UseNewHeartbeats()) {
+            const auto& masterConnector = Bootstrap_->GetDataNodeMasterConnector();
+            masterConnector->ScheduleHeartbeat(/*immediately*/ true);
+        } else {
+            const auto& masterConnector = Bootstrap_->GetLegacyMasterConnector();
+            masterConnector->ScheduleNodeHeartbeat(/*immediately*/ true);
+        }
+    }
 }
 
 void TLocation::UpdateUsedSpace(i64 size)

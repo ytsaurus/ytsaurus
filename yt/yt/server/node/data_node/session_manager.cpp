@@ -50,9 +50,21 @@ TSessionManager::TSessionManager(
     YT_VERIFY(Bootstrap_);
 }
 
+void TSessionManager::Initialize()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    const auto& chunkStore = Bootstrap_->GetChunkStore();
+    for (const auto& location : chunkStore->Locations()) {
+        location->SubscribeDisabled(
+            BIND(&TSessionManager::OnLocationDisabled, MakeWeak(this), location));
+    }
+}
+
 ISessionPtr TSessionManager::FindSession(TSessionId sessionId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
     YT_VERIFY(sessionId.MediumIndex != AllMediaIndex);
 
     auto guard = ReaderGuard(SessionMapLock_);
@@ -233,6 +245,23 @@ void TSessionManager::UnregisterSession(const ISessionPtr& session)
 
     YT_VERIFY(SessionMap_.erase(session->GetId()) == 1);
     session->GetStoreLocation()->UpdateSessionCount(session->GetType(), -1);
+}
+
+void TSessionManager::OnLocationDisabled(const TLocationPtr& location)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    THashMap<TSessionId, ISessionPtr> sessionMap;
+    {
+        auto guard = ReaderGuard(SessionMapLock_);
+        sessionMap = SessionMap_;
+    }
+
+    for (const auto& [sessionId, session] : sessionMap) {
+        if (location == session->GetStoreLocation()) {
+            session->Cancel(TError("Target location is disabled"));
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

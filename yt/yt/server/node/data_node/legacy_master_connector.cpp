@@ -151,6 +151,16 @@ void TLegacyMasterConnector::ScheduleNodeHeartbeat(TCellTag cellTag, bool immeda
         .Run();
 }
 
+void TLegacyMasterConnector::ScheduleNodeHeartbeat(bool immedately)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto cellTags = Bootstrap_->GetClusterNodeMasterConnector()->GetMasterCellTags();
+    for (auto cellTag : cellTags) {
+        ScheduleNodeHeartbeat(cellTag, immedately);
+    }
+}
+
 void TLegacyMasterConnector::DoScheduleNodeHeartbeat(TCellTag cellTag, bool immedately)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
