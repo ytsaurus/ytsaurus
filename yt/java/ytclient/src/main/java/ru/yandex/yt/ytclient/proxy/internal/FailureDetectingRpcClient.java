@@ -22,15 +22,23 @@ import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 public class FailureDetectingRpcClient extends RpcClientWrapper {
     private static final Logger logger = LoggerFactory.getLogger(FailureDetectingRpcClient.class);
 
-    private final Function<Throwable, Boolean> isError;
-    private final Consumer<Throwable> errorHandler;
+    private Function<Throwable, Boolean> isError;
+    private Consumer<Throwable> errorHandler;
 
     public FailureDetectingRpcClient(
             RpcClient innerClient,
             Function<Throwable, Boolean> isError,
-            Consumer<Throwable> errorHandler)
-    {
+            Consumer<Throwable> errorHandler
+    ) {
         super(innerClient);
+        setHandlers(isError, errorHandler);
+    }
+
+    protected FailureDetectingRpcClient(RpcClient innerClient) {
+        super(innerClient);
+    }
+
+    protected void setHandlers(Function<Throwable, Boolean> isError, Consumer<Throwable> errorHandler) {
         this.isError = isError;
         this.errorHandler = errorHandler;
     }
