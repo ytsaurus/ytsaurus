@@ -1288,7 +1288,7 @@ TServiceBase::TServiceBase(
     YT_VERIFY(DefaultInvoker_);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Discover)
-        .SetInvoker(GetSyncInvoker())
+        .SetInvoker(TDispatcher::Get()->GetHeavyInvoker())
         .SetSystem(true));
 
     Profiler_.AddFuncGauge("/authentication_queue_size", MakeStrong(this), [=] {
