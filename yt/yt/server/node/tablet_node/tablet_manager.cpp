@@ -2693,6 +2693,12 @@ private:
     {
         PrepareLockedRows(transaction);
 
+        // The rest only makes sense for persistent prepare.
+        // In particular, all writes to replicated tables currently involve 2PC.
+        if (!persistent) {
+            return;
+        }
+
         TSmallFlatMap<TTableReplicaInfo*, int, 8> replicaToRowCount;
         TSmallFlatMap<TTablet*, int, 8> tabletToRowCount;
         for (const auto& writeRecord : transaction->DelayedLocklessWriteLog()) {
@@ -2700,10 +2706,6 @@ private:
 
             if (!tablet->IsReplicated()) {
                 continue;
-            }
-
-            if (!persistent) {
-                THROW_ERROR_EXCEPTION("Writing into replicated table requires 2PC");
             }
 
             // TODO(ifsmirnov): No bulk insert into replicated tables. Remove this check?
