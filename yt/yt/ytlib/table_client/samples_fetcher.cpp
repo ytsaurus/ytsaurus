@@ -87,6 +87,11 @@ const std::vector<TSample>& TSamplesFetcher::GetSamples() const
     return Samples_;
 }
 
+void TSamplesFetcher::ProcessDynamicStore(int /*chunkIndex*/)
+{
+    // Dynamic stores do not have samples so nothing to do here.
+}
+
 TFuture<void> TSamplesFetcher::FetchFromNode(TNodeId nodeId, std::vector<int> chunkIndexes)
 {
     return BIND(&TSamplesFetcher::DoFetchFromNode, MakeStrong(this), nodeId, Passed(std::move(chunkIndexes)))

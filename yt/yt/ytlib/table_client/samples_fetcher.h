@@ -73,6 +73,8 @@ private:
     //! All samples fetched so far.
     std::vector<TSample> Samples_;
 
+    virtual void ProcessDynamicStore(int chunkIndex) override;
+
     virtual TFuture<void> FetchFromNode(
         NNodeTrackerClient::TNodeId nodeId,
         std::vector<int> chunkIndexes) override;

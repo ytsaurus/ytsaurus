@@ -210,7 +210,6 @@ TFetcherBase::TFetcherBase(
 
 void TFetcherBase::AddChunk(TInputChunkPtr chunk)
 {
-    YT_VERIFY(UnfetchedChunkIndexes_.insert(static_cast<int>(Chunks_.size())).second);
     Chunks_.push_back(chunk);
 }
 
@@ -222,6 +221,16 @@ int TFetcherBase::GetChunkCount() const
 TFuture<void> TFetcherBase::Fetch()
 {
     OnFetchingStarted();
+
+    for (int chunkIndex = 0; chunkIndex < std::ssize(Chunks_); ++chunkIndex) {
+        const auto& chunk = Chunks_[chunkIndex];
+        if (chunk->IsDynamicStore()) {
+            ProcessDynamicStore(chunkIndex);
+        } else {
+            UnfetchedChunkIndexes_.insert(chunkIndex);
+        }
+    }
+
     Invoker_->Invoke(
         BIND(&TFetcherBase::StartFetchingRound, MakeWeak(this)));
     auto future = Promise_.ToFuture();

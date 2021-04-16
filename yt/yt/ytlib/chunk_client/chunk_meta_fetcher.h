@@ -32,6 +32,8 @@ private:
 
     std::function<void(NChunkClient::NProto::TReqGetChunkMeta&)> InitializeRequest_;
 
+    virtual void ProcessDynamicStore(int chunkIndex) override;
+
     virtual TFuture<void> FetchFromNode(NNodeTrackerClient::TNodeId nodeId, std::vector<int> chunkIndexes) override;
 
     virtual void OnFetchingStarted() override;

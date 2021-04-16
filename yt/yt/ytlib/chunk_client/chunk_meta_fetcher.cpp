@@ -41,6 +41,11 @@ TChunkMetaFetcher::TChunkMetaFetcher(
     , InitializeRequest_(std::move(initializeRequest))
 { }
 
+void TChunkMetaFetcher::ProcessDynamicStore(int /*chunkIndex*/)
+{
+    YT_ABORT();
+}
+
 TFuture<void> TChunkMetaFetcher::FetchFromNode(TNodeId nodeId, std::vector<int> chunkIndexes)
 {
     YT_LOG_DEBUG("Fetching chunk metas from node (NodeId: %v, ChunkIndexes: %v)",

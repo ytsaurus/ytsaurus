@@ -83,6 +83,8 @@ protected:
     //! All chunks for which info is to be fetched.
     std::vector<TInputChunkPtr> Chunks_;
 
+    virtual void ProcessDynamicStore(int chunkIndex) = 0;
+
     virtual TFuture<void> FetchFromNode(
         NNodeTrackerClient::TNodeId nodeId,
         std::vector<int> chunkIndexes) = 0;
