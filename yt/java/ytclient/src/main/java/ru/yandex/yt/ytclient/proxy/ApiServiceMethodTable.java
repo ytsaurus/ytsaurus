@@ -7,6 +7,8 @@ import com.google.protobuf.Parser;
 
 import ru.yandex.yt.TReqDiscoverProxies;
 import ru.yandex.yt.TRspDiscoverProxies;
+import ru.yandex.yt.rpc.TReqDiscover;
+import ru.yandex.yt.rpc.TRspDiscover;
 import ru.yandex.yt.rpcproxy.TReqAbortTransaction;
 import ru.yandex.yt.rpcproxy.TReqAlterTable;
 import ru.yandex.yt.rpcproxy.TReqAlterTableReplica;
@@ -224,6 +226,9 @@ public class ApiServiceMethodTable {
 
     public static final RpcMethodDescriptor<TReqWriteFile.Builder, TRspWriteFile> WRITE_FILE =
             apiServiceMethod("WriteFile", TReqWriteFile::newBuilder, TRspWriteFile.parser());
+
+    public static final RpcMethodDescriptor<TReqDiscover.Builder, TRspDiscover> DISCOVER =
+            apiServiceMethod("Discover", TReqDiscover::newBuilder, TRspDiscover.parser());
 
     public static final RpcMethodDescriptor<TReqDiscoverProxies.Builder, TRspDiscoverProxies> DISCOVER_PROXIES =
             discoveryServiceMethod("DiscoverProxies", TReqDiscoverProxies::newBuilder, TRspDiscoverProxies.parser());

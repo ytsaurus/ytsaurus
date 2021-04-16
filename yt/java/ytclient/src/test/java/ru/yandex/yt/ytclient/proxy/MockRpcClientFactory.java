@@ -2,6 +2,7 @@ package ru.yandex.yt.ytclient.proxy;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -15,7 +16,7 @@ import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.rpc.RpcRequest;
 import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 
-class MockRpcClientFactory implements RpcClientFactory {
+class MockRpcClientFactory implements RpcClientFactory, SelfCheckingClientFactory {
     Set<HostPort> openedConnections = new HashSet<>();
 
     boolean isConnectionOpened(String hostPort) {
@@ -79,5 +80,10 @@ class MockRpcClientFactory implements RpcClientFactory {
                 return null;
             }
         };
+    }
+
+    @Override
+    public RpcClient create(HostPort hostPort, String name, CompletableFuture<Void> statusFuture) {
+        return create(hostPort, name);
     }
 }

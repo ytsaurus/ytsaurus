@@ -1,27 +1,28 @@
 package ru.yandex.yt.ytclient.proxy.internal;
 
+import java.net.InetSocketAddress;
 import java.util.Objects;
 
 import com.google.common.base.Strings;
 
-public class HostPort
-{
+public class HostPort {
     final String host;
     final int port;
 
-    private HostPort(String host, int port)
-    {
+    private HostPort(String host, int port) {
         this.host = Objects.requireNonNull(host);
         this.port = port;
     }
 
-    public String getHost()
-    {
+    public InetSocketAddress toInetSocketAddress() {
+        return new InetSocketAddress(host, port);
+    }
+
+    public String getHost() {
         return host;
     }
 
-    public int getPort()
-    {
+    public int getPort() {
         return port;
     }
 
@@ -62,15 +63,13 @@ public class HostPort
     }
 
     private static String[] getHostAndPortFromBracketedHost(String hostPortString) {
-        int colonIndex = 0;
-        int closeBracketIndex = 0;
         checkArgument(
                 hostPortString.charAt(0) == '[',
                 "Bracketed host-port string must start with a bracket: %s",
                 hostPortString
         );
-        colonIndex = hostPortString.indexOf(':');
-        closeBracketIndex = hostPortString.lastIndexOf(']');
+        int colonIndex = hostPortString.indexOf(':');
+        int closeBracketIndex = hostPortString.lastIndexOf(']');
         checkArgument(
                 colonIndex > -1 && closeBracketIndex > colonIndex,
                 "Invalid bracketed host/port: %s",
@@ -112,8 +111,12 @@ public class HostPort
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         HostPort hostPort = (HostPort) o;
 
