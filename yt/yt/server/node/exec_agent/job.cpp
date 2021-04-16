@@ -223,6 +223,12 @@ public:
                 if (UserJobSpec_ && UserJobSpec_->has_cuda_toolkit_version() && !Config_->JobController->GpuManager->TestResource) {
                     Bootstrap_->GetGpuManager()->VerifyToolkitDriverVersion(UserJobSpec_->cuda_toolkit_version());
                 }
+
+                std::vector<int> deviceNumbers;
+                for (const auto& slot : GpuSlots_) {
+                    deviceNumbers.push_back(slot->GetDeviceNumber());
+                }
+                YT_LOG_DEBUG("GPU slots acquired (DeviceNumbers: %v)", deviceNumbers);
             }
 
             YT_LOG_INFO("Acquiring slot (DiskRequest: %v)", diskRequest);
