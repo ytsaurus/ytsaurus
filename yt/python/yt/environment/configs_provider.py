@@ -240,7 +240,7 @@ def _build_master_configs(yt_config,
                                            for tag in connection_configs["secondary_cell_tags"]]
 
             config["enable_timestamp_manager"] = (yt_config.clock_count == 0)
-            
+
             if yt_config.discovery_server_count > 0:
                 discovery_server_config = {}
                 discovery_server_config["addresses"] = discovery_configs[0]["discovery_server"]["server_addresses"]
@@ -990,7 +990,7 @@ def set_at(config, path, value, merge=False):
 def init_singletons(config, fqdn, name, process_tags={}):
     set_at(config, "address_resolver/localhost_fqdn", fqdn)
     set_at(config, "solomon_exporter/enable_core_profiling_compatibility", True)
-    set_at(config, "solomon_exporter/grid_step", 300)
+    set_at(config, "solomon_exporter/grid_step", 1000)
 
     if "JAEGER_COLLECTOR" in os.environ:
         set_at(config, "jaeger", {
