@@ -397,6 +397,33 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         )
         assert read_table("//tmp/p") == self.simple_rows[::2]
 
+    def test_dynamic_store_unavailable(self):
+        sync_create_cells(1)
+        cell_id = ls("//sys/tablet_cells")[0]
+
+        self._prepare_simple_table("//tmp/t_in", dynamic_store_auto_flush_period=YsonEntity())
+        create("table", "//tmp/t_out")
+
+        rows = [{"key": i, "value": "foo{}".format(i)} for i in range(10)]
+        insert_rows("//tmp/t_in", rows)
+
+        for node in ls("//sys/cluster_nodes"):
+            set("//sys/cluster_nodes/{}/@disable_tablet_cells".format(node), True)
+
+        wait(lambda: get("#{}/@health".format(cell_id)) == "failed")
+
+        op = merge(in_="//tmp/t_in", out="//tmp/t_out", mode="ordered", track=False)
+        wait(lambda: len(op.get_running_jobs()) > 0)
+
+        for node in ls("//sys/cluster_nodes"):
+            set("//sys/cluster_nodes/{}/@disable_tablet_cells".format(node), False)
+
+        wait(lambda: get("#{}/@health".format(cell_id)) == "good")
+
+        op.track()
+
+        assert read_table("//tmp/t_out") == rows
+
 
 class TestReadSortedDynamicTablesMulticell(TestReadSortedDynamicTables):
     NUM_SECONDARY_MASTER_CELLS = 2

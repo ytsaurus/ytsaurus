@@ -154,6 +154,11 @@ private:
         SlicesByChunkIndex_.resize(Chunks_.size());
     }
 
+    virtual void ProcessDynamicStore(int chunkIndex) override
+    {
+        AddTrivialSlice(chunkIndex);
+    }
+
     virtual TFuture<void> FetchFromNode(
         NNodeTrackerClient::TNodeId nodeId,
         std::vector<int> chunkIndexes) override
@@ -212,19 +217,11 @@ private:
             auto maxKey = chunk->BoundaryKeys()->MaxKey;
             auto chunkSliceDataWeight = sliceRequest.ChunkSliceDataWeight;
             auto sliceByKeys = sliceRequest.SliceByKeys;
-            auto chunkType = TypeFromId(chunk->GetChunkId());
 
             // TODO(gritukan): Comparing rows using == here is ok, but quite ugly.
-            if (chunkDataSize < chunkSliceDataWeight ||
-                IsDynamicTabletStoreType(chunkType) ||
-                (sliceByKeys && minKey == maxKey))
+            if (chunkDataSize < chunkSliceDataWeight || (sliceByKeys && minKey == maxKey))
             {
-                YT_VERIFY(chunkIndex < SlicesByChunkIndex_.size());
-                auto chunkSlice = sliceRequest.DataSlice->ChunkSlices[0];
-
-                SlicesByChunkIndex_[chunkIndex].push_back(chunkSlice);
-                // NB: we cannot infer limits from boundary keys here since chunk may actually be a dynamic store.
-                SliceCount_++;
+                AddTrivialSlice(chunkIndex);
             } else {
                 requestedChunkIndexes.push_back(chunkIndex);
                 auto chunkId = EncodeChunkId(chunk, nodeId);
@@ -350,6 +347,18 @@ private:
                 /* isInclusive */ true,
                 /* isUpper */ true);
         }
+    }
+
+    void AddTrivialSlice(int chunkIndex)
+    {
+        YT_VERIFY(chunkIndex < SlicesByChunkIndex_.size());
+        const auto& chunk = Chunks_[chunkIndex];
+        const auto& sliceRequest = GetOrCrash(ChunkToChunkSliceRequest_, chunk);
+        auto chunkSlice = sliceRequest.DataSlice->ChunkSlices[0];
+
+        SlicesByChunkIndex_[chunkIndex].push_back(chunkSlice);
+        // NB: we cannot infer limits from boundary keys here since chunk may actually be a dynamic store.
+        SliceCount_++;
     }
 };
 

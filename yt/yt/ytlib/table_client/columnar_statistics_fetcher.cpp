@@ -35,6 +35,16 @@ TColumnarStatisticsFetcher::TColumnarStatisticsFetcher(
     , ColumnFilterDictionary_(/*sortColumns=*/false)
 { }
 
+void TColumnarStatisticsFetcher::ProcessDynamicStore(int chunkIndex)
+{
+    auto statistics = TColumnarStatistics::MakeEmpty(GetColumnNames(chunkIndex).size());
+    if (Options_.StoreChunkStatistics) {
+        ChunkStatistics_[chunkIndex] = std::move(statistics);
+    } else {
+        LightweightChunkStatistics_[chunkIndex] = statistics.MakeLightweightStatistics();
+    }
+}
+
 TFuture<void> TColumnarStatisticsFetcher::FetchFromNode(
     TNodeId nodeId,
     std::vector<int> chunkIndexes)
@@ -175,22 +185,21 @@ void TColumnarStatisticsFetcher::ApplyColumnSelectivityFactors() const
 
 TFuture<void> TColumnarStatisticsFetcher::Fetch()
 {
-    if (Options_.StoreChunkStatistics) {
-        ChunkStatistics_.resize(Chunks_.size());
-        for (int chunkIndex = 0; chunkIndex < Chunks_.size(); ++chunkIndex ) {
-            if (Chunks_[chunkIndex]->IsDynamicStore()) {
-                ChunkStatistics_[chunkIndex] = TColumnarStatistics::MakeEmpty(GetColumnNames(chunkIndex).size());
-            }
-        }
-    } else {
-        LightweightChunkStatistics_.resize(Chunks_.size());
-    }
-
     if (Options_.Mode == EColumnarStatisticsFetcherMode::FromMaster) {
+        OnFetchingStarted();
         return VoidFuture;
     }
 
     return TFetcherBase::Fetch();
+}
+
+void TColumnarStatisticsFetcher::OnFetchingStarted()
+{
+    if (Options_.StoreChunkStatistics) {
+        ChunkStatistics_.resize(Chunks_.size());
+    } else {
+        LightweightChunkStatistics_.resize(Chunks_.size());
+    }
 }
 
 void TColumnarStatisticsFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TString> columnNames)
@@ -206,7 +215,7 @@ void TColumnarStatisticsFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TStr
         }
     }
 
-    if (columnNames.empty() || chunk->IsDynamicStore()) {
+    if (columnNames.empty()) {
         // Do not fetch anything. The less rpc requests, the better.
         Chunks_.emplace_back(std::move(chunk));
     } else {
