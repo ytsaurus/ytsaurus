@@ -85,6 +85,12 @@ class TestCypressCommands(object):
         assert json.loads(yt.get(TEST_DIR, format=yt.format.JsonFormat())) == {"some_node": {}}
         assert json.loads(yt.get(TEST_DIR, format="json")) == {"some_node": {}}
 
+        yt.set_attribute(TEST_DIR + "/some_node", "attribut_na_russkom", u"Привет")
+        if PY3:
+            assert yt.get(TEST_DIR + "/some_node/@attribut_na_russkom") == u"Привет"
+        else:
+            assert yt.get(TEST_DIR + "/some_node/@attribut_na_russkom") == u"Привет".encode("utf-8")
+
         yt.set(TEST_DIR, b'{"other_node": {}}', format="json")
         assert yt.get(TEST_DIR) == {"other_node": {}}
         assert json.loads(yt.get(TEST_DIR, format="json")) == {"other_node": {}}
@@ -750,8 +756,7 @@ class TestCypressCommands(object):
             yt.set(TEST_DIR + "/some_node", value)
             assert yt.get(TEST_DIR + "/some_node") == value
         else:
-            with pytest.raises(yson.YsonError):
-                yt.set(TEST_DIR + "/some_node", value)
+            yt.set(TEST_DIR + "/some_node", value)
             with set_config_option("structured_data_format", yt.YsonFormat(encoding="utf-8")):
                 yt.set(TEST_DIR + "/some_node", value)
             assert yt.get(TEST_DIR + "/some_node") == value_bytes

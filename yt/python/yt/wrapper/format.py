@@ -267,7 +267,7 @@ class Format(object):
     @abstractmethod
     def load_rows(self, stream, raw=None):
         """Reads bytes from the stream, parses, processes input table switcher and yields all rows.
-        
+
         :param bool raw: if `True`, don't perform parsing, iterate unparsed rows instead.
         """
         pass
@@ -754,7 +754,7 @@ class YsonFormat(Format):
 
     def dumps_node(self, object):
         """Dumps python object."""
-        return yson.dumps(object, yson_format=self.attributes["format"], encoding=self._encoding)
+        return yson.dumps(object, yson_format=self.attributes["format"], encoding=self._dump_encoding)
 
 class YamrFormat(Format):
     """YAMR legacy data format.

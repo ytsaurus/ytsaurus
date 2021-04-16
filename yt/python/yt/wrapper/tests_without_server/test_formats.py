@@ -1,4 +1,4 @@
-# -- coding: utf-8 -- 
+# -- coding: utf-8 --
 
 from yt.testlib import authors
 
@@ -413,7 +413,7 @@ def test_default_encoding():
     yf = yt.YsonFormat(format="text")
     expected = b'{"x"="\\xD0\\xAB";};\n'
     assert expected == yf.dumps_rows(rows)
-    
+
     jf = yt.JsonFormat(encode_utf8=False)
     expected = b'{"x": "\\u042b"}\n'
     assert expected == jf.dumps_rows(rows)
