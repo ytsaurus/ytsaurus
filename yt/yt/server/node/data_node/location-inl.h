@@ -12,11 +12,12 @@ namespace NYT::NDataNode {
 template <class T>
 TCallback<T()> TLocation::DisableOnError(const TCallback<T()> callback)
 {
-    return BIND([=, this_ = MakeStrong(this)] () {
+    return BIND([=, this_ = MakeStrong(this)] {
         try {
             return callback.Run();
         } catch (const std::exception& ex) {
             Disable(ex);
+            throw;
         }
     });
 }

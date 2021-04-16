@@ -188,6 +188,8 @@ private:
 
     void OnProfiling();
 
+    void OnLocationDisabled(int locationIndex);
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 };

@@ -76,7 +76,8 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         for (auto cellTag : Bootstrap_->GetClusterNodeMasterConnector()->GetMasterCellTags()) {
-            YT_VERIFY(ChunksDeltaMap_.emplace(cellTag, std::make_unique<TChunksDelta>()).second);
+            auto cellTagData = std::make_unique<TPerCellTagData>();
+            YT_VERIFY(PerCellTagData_.emplace(cellTag, std::move(cellTagData)).second);
         }
 
         const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeMasterConnector();
@@ -318,8 +319,9 @@ public:
             return true;
         }
 
-        for (const auto& [cellTag, delta] : ChunksDeltaMap_) {
-            if (cellTag != connection->GetPrimaryMasterCellTag() && delta->State != EMasterConnectorState::Online) {
+        for (const auto& [cellTag, cellTagData] : PerCellTagData_) {
+            const auto& chunksDelta = cellTagData->ChunksDelta;
+            if (cellTag != connection->GetPrimaryMasterCellTag() && chunksDelta->State != EMasterConnectorState::Online) {
                 return false;
             }
         }
@@ -331,6 +333,18 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return GetChunksDelta(cellTag)->NextHeartbeatBarrier.Load();
+    }
+
+    virtual void ScheduleHeartbeat(bool immediately) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        const auto& controlInvoker = Bootstrap_->GetControlInvoker();
+        const auto& masterCellTags = Bootstrap_->GetClusterNodeMasterConnector()->GetMasterCellTags();
+        for (auto cellTag : masterCellTags) {
+            controlInvoker->Invoke(
+                BIND(&TMasterConnector::DoScheduleHeartbeat, MakeWeak(this), cellTag, immediately));
+        }
     }
 
 private:
@@ -364,7 +378,14 @@ private:
         TPromise<void> CurrentHeartbeatBarrier;
     };
 
-    THashMap<TCellTag, std::unique_ptr<TChunksDelta>> ChunksDeltaMap_;
+    struct TPerCellTagData
+    {
+        std::unique_ptr<TChunksDelta> ChunksDelta = std::make_unique<TChunksDelta>();
+
+        TAsyncReaderWriterLock DataNodeHeartbeatLock;
+        int ScheduledDataNodeHeartbeatCount = 0;
+    };
+    THashMap<TCellTag, std::unique_ptr<TPerCellTagData>> PerCellTagData_;
 
     TBootstrap* const Bootstrap_;
 
@@ -398,6 +419,9 @@ private:
             delta->ReportedRemoved.clear();
             delta->AddedSinceLastSuccess.clear();
             delta->RemovedSinceLastSuccess.clear();
+
+            auto* cellTagData = GetCellTagData(cellTag);
+            cellTagData->ScheduledDataNodeHeartbeatCount = 0;
         }
 
         JobHeartbeatCellIndex_ = 0;
@@ -448,13 +472,16 @@ private:
 
         const auto& masterCellTags = Bootstrap_->GetClusterNodeMasterConnector()->GetMasterCellTags();
         for (auto cellTag : masterCellTags) {
-            ScheduleHeartbeat(cellTag, /* immediately */ true);
+            DoScheduleHeartbeat(cellTag, /* immediately */ true);
         }
     }
 
-    void ScheduleHeartbeat(TCellTag cellTag, bool immediately)
+    void DoScheduleHeartbeat(TCellTag cellTag, bool immediately)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto* cellTagData = GetCellTagData(cellTag);
+        ++cellTagData->ScheduledDataNodeHeartbeatCount;
 
         auto delay = immediately ? TDuration::Zero() : IncrementalHeartbeatPeriod_ + RandomDuration(IncrementalHeartbeatPeriodSplay_);
         TDelayedExecutor::Submit(
@@ -529,6 +556,13 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto* cellTagData = GetCellTagData(cellTag);
+
+        auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&cellTagData->DataNodeHeartbeatLock))
+            .ValueOrThrow();
+
+        --cellTagData->ScheduledDataNodeHeartbeatCount;
+
         auto state = GetMasterConnectorState(cellTag);
         switch (state) {
             case EMasterConnectorState::Registered: {
@@ -536,7 +570,7 @@ private:
                     ReportFullHeartbeat(cellTag);
                 } else {
                     // Try later.
-                    ScheduleHeartbeat(cellTag, /* immediately */ false);
+                    DoScheduleHeartbeat(cellTag, /*immediately*/ false);
                 }
                 break;
             }
@@ -575,12 +609,12 @@ private:
                 cellTag);
 
             // Schedule next heartbeat.
-            ScheduleHeartbeat(cellTag, /* immediately */ false);
+            DoScheduleHeartbeat(cellTag, /*immediately*/ false);
         } else {
             YT_LOG_WARNING(rspOrError, "Error reporting full data node heartbeat to master (CellTag: %v)",
                 cellTag);
             if (IsRetriableError(rspOrError)) {
-                ScheduleHeartbeat(cellTag, /* immediately*/ false);
+                DoScheduleHeartbeat(cellTag, /* immediately*/ false);
             } else {
                 Bootstrap_->GetClusterNodeMasterConnector()->ResetAndRegisterAtMaster();
             }
@@ -610,13 +644,16 @@ private:
             YT_LOG_INFO("Successfully reported incremental data node heartbeat to master (CellTag: %v)",
                 cellTag);
 
-            // Schedule next heartbeat.
-            ScheduleHeartbeat(cellTag, /* immediately */ false);
+            // Schedule next heartbeat if no more heartbeats are scheduled.
+            auto* cellTagData = GetCellTagData(cellTag);
+            if (cellTagData->ScheduledDataNodeHeartbeatCount == 0) {
+                DoScheduleHeartbeat(cellTag, /*immediately*/ false);
+            }
         } else {
             YT_LOG_WARNING(rspOrError, "Error reporting incremental data node heartbeat to master (CellTag: %v)",
                 cellTag);
             if (IsRetriableError(rspOrError)) {
-                ScheduleHeartbeat(cellTag, /* immediately*/ false);
+                DoScheduleHeartbeat(cellTag, /*immediately*/ false);
             } else {
                 Bootstrap_->GetClusterNodeMasterConnector()->ResetAndRegisterAtMaster();
             }
@@ -747,11 +784,19 @@ private:
         return chunkRemoveInfo;
     }
 
+    TPerCellTagData* GetCellTagData(TCellTag cellTag)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return GetOrCrash(PerCellTagData_, cellTag).get();
+    }
+
     TChunksDelta* GetChunksDelta(TCellTag cellTag)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return GetOrCrash(ChunksDeltaMap_, cellTag).get();
+        auto* cellTagData = GetCellTagData(cellTag);
+        return cellTagData->ChunksDelta.get();
     }
 
     TChunksDelta* GetChunksDelta(TObjectId id)

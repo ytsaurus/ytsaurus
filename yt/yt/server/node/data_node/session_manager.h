@@ -26,6 +26,8 @@ public:
         TDataNodeConfigPtr config,
         NClusterNode::TBootstrap* bootstrap);
 
+    void Initialize();
+
     //! Starts a new chunk upload session.
     /*!
      *  Chunk files are opened asynchronously, however the call returns immediately.
@@ -65,6 +67,8 @@ private:
 
     void RegisterSession(const ISessionPtr& session);
     void UnregisterSession(const ISessionPtr& session);
+
+    void OnLocationDisabled(const TLocationPtr& location);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSessionManager)

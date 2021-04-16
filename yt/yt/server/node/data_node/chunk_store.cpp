@@ -67,6 +67,9 @@ void TChunkStore::Initialize()
                 .Run(location));
 
         Locations_.push_back(location);
+
+        location->SubscribeDisabled(
+            BIND(&TChunkStore::OnLocationDisabled, MakeWeak(this), index));
     }
 
     WaitFor(AllSucceeded(futures))
@@ -659,6 +662,37 @@ void TChunkStore::OnProfiling()
         performanceCounters.UsedSpace.Update(location->GetUsedSpace());
         performanceCounters.Full.Update(location->IsFull() ? 1 : 0);
     }
+}
+
+void TChunkStore::OnLocationDisabled(int locationIndex)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    WaitFor(BIND([=, this_ = MakeStrong(this)] {
+        auto guard = WriterGuard(ChunkMapLock_);
+
+        YT_LOG_INFO("Location is disabled; unregistering all the chunks in it (LocationIndex: %v)",
+            locationIndex);
+
+        const auto& location = Locations_[locationIndex];
+
+        YT_VERIFY(!location->IsEnabled());
+
+        THashMultiMap<TChunkId, TChunkEntry> newChunkMap;
+        for (const auto& [chunkId, chunkEntry] : ChunkMap_) {
+            const auto& chunk = chunkEntry.Chunk;
+            if (chunk->GetLocation() == location) {
+                ChunkRemoved_.Fire(chunk);
+            } else {
+                newChunkMap.emplace(chunkId, chunkEntry);
+            }
+        }
+
+        ChunkMap_ = std::move(newChunkMap);
+    })
+    .AsyncVia(Bootstrap_->GetControlInvoker())
+    .Run())
+    .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

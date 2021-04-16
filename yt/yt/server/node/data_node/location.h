@@ -108,6 +108,11 @@ class TLocation
     : public TDiskLocation
 {
 public:
+    //! Raised when location becomes disabled.
+    // NB: This signal can be raised in different threads.
+    DEFINE_SIGNAL(void(), Disabled);
+
+public:
     TLocation(
         ELocationType type,
         const TString& id,
@@ -168,8 +173,9 @@ public:
      */
     void Start();
 
-    //! Marks the location as disabled by attempting to create a lock file and terminates the process.
-    [[noreturn]] void Disable(const TError& reason);
+    //! Marks the location as disabled by attempting to create a lock file and marking assinged chunks
+    //! as unavailable.
+    void Disable(const TError& reason);
 
     //! Wraps a given #callback with try/catch block that intercepts all exceptions
     //! and calls #Disable when one happens.

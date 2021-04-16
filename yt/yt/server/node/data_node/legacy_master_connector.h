@@ -50,6 +50,8 @@ public:
     //! Schedules a new node heartbeat via TDelayedExecutor.
     void ScheduleNodeHeartbeat(NObjectClient::TCellTag cellTag, bool immediately = false);
 
+    void ScheduleNodeHeartbeat(bool immediately = false);
+
     void OnMasterConnected();
 
     //! Resets connection state.
