@@ -201,6 +201,8 @@ protected:
 
     i64 TotalOutputRowCount;
 
+    TTableSchemaPtr IntermediateChunkSchema_;
+
     // Forward declarations.
     class TPartitionTask;
     typedef TIntrusivePtr<TPartitionTask> TPartitionTaskPtr;
@@ -2832,6 +2834,8 @@ protected:
         PartitionJobIOConfig->TableReader->SamplingRate = std::nullopt;
     }
 
+    virtual void InitIntermediateSchemas() = 0;
+
     virtual void CustomMaterialize() override
     {
         TOperationControllerBase::CustomMaterialize();
@@ -2849,6 +2853,8 @@ protected:
                 }
             }
         }
+
+        InitIntermediateSchemas();
     }
 
     virtual const std::vector<TStreamDescriptor>& GetFinalStreamDescriptors() const
@@ -2858,17 +2864,12 @@ protected:
 
     virtual std::vector<TStreamDescriptor> GetSortedMergeStreamDescriptors() const
     {
-        // TODO(gritukan): Here should be intermediate stream descriptor, but it breaks complex types.
-        auto streamDescriptor = GetFinalStreamDescriptors()[0];
+        auto streamDescriptor = GetIntermediateStreamDescriptorTemplate();
 
         streamDescriptor.DestinationPool = SortedMergeTask->GetChunkPoolInput();
         streamDescriptor.ChunkMapping = SortedMergeTask->GetChunkMapping();
-        streamDescriptor.TableWriterOptions = GetIntermediateTableWriterOptions();
-        if (streamDescriptor.TableUploadOptions.TableSchema->GetSortColumns() != Spec->SortBy) {
-            streamDescriptor.TableUploadOptions.TableSchema = TTableSchema::FromSortColumns(Spec->SortBy);
-        }
+        streamDescriptor.TableUploadOptions.TableSchema = IntermediateChunkSchema_;
         streamDescriptor.RequiresRecoveryInfo = true;
-        streamDescriptor.IsFinalOutput = false;
         streamDescriptor.TargetDescriptor = SortedMergeTask->GetVertexDescriptor();
 
         return {streamDescriptor};
@@ -3130,6 +3131,11 @@ private:
             default:
                 YT_ABORT();
         }
+    }
+
+    virtual void InitIntermediateSchemas() override
+    {
+        IntermediateChunkSchema_ = OutputTables_[0]->TableUploadOptions.TableSchema->ToSorted(Spec->SortBy);
     }
 
     virtual void CustomMaterialize() override
@@ -3848,7 +3854,6 @@ private:
 
 
     std::vector<TTableSchemaPtr> IntermediateStreamSchemas_;
-    TTableSchemaPtr IntermediateChunkSchema_;
 
     // Custom bits of preparation pipeline.
 
@@ -3933,7 +3938,7 @@ private:
         return true;
     }
 
-    void InitIntermediateSchemas()
+    virtual void InitIntermediateSchemas() override
     {
         if (!Spec->HasSchemafulIntermediateStreams()) {
             IntermediateStreamSchemas_ = {New<TTableSchema>()};
@@ -4004,15 +4009,15 @@ private:
             }
         }
 
-        chunkSchemaColumns.emplace_back(TableIndexColumnName, ESimpleLogicalValueType::Int64);
+        if (IntermediateStreamSchemas_.size() > 1) {
+            chunkSchemaColumns.emplace_back(TableIndexColumnName, ESimpleLogicalValueType::Int64);
+        }
         IntermediateChunkSchema_ = New<TTableSchema>(std::move(chunkSchemaColumns), /* strict */ false);
     }
 
     virtual void CustomMaterialize() override
     {
         TSortControllerBase::CustomMaterialize();
-
-        InitIntermediateSchemas();
 
         if (TotalEstimatedInputDataWeight == 0)
             return;

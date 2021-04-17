@@ -1416,6 +1416,55 @@ for l in sys.stdin:
         assert sorted(expected_rows) == sorted(result_rows)
 
     @authors("levysotsky")
+    def test_single_intermediate_schema_trivial_mapper(self):
+        input_schema = output_schema = [
+            {"name": "a", "type_v3": "int64"},
+            {
+                "name": "struct",
+                "type_v3": struct_type(
+                    [
+                        ("a", "int64"),
+                        ("b", "string"),
+                    ]
+                ),
+            },
+        ]
+
+        create("table", "//tmp/in", attributes={"schema": input_schema})
+        create("table", "//tmp/out", attributes={"schema": output_schema})
+
+        row_count = 5
+        rows = [{"a": i, "struct": {"a": i ** 2, "b": str(i) * 3}} for i in range(row_count)]
+        write_table("//tmp/in", rows)
+
+        create("file", "//tmp/reducer.py")
+        write_file("//tmp/reducer.py", self.DROP_TABLE_INDEX_REDUCER)
+
+        map_reduce(
+            in_=["//tmp/in"],
+            out="//tmp/out",
+            reducer_file=["//tmp/reducer.py"],
+            reducer_command="python reducer.py",
+            sort_by=[{"name": "a", "sort_order": "ascending"}],
+            spec={
+                "partition_count": 1,
+                "data_size_per_map_job": 1,
+                "data_size_per_sort_job": 1,
+                "resource_limits": {"user_slots": 1},
+                "partition_job_io": {"control_attributes": {"enable_table_index": True}},
+                "reducer": {
+                    "format": "json",
+                    "enable_input_table_index": True,
+                },
+                "max_failed_job_count": 1,
+            },
+        )
+
+        result_rows = read_table("//tmp/out")
+        expected_rows = rows
+        assert sorted(result_rows) == sorted(expected_rows)
+
+    @authors("levysotsky")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_several_intermediate_schemas_trivial_mapper(self, sort_order):
         if sort_order == "descending":
