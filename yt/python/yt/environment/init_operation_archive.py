@@ -976,6 +976,7 @@ def transform_archive(client, transform_begin, transform_end, force, archive_pat
         if version in TRANSFORMS:
             for conversion in TRANSFORMS[version]:
                 table = conversion.table
+                table_exists = client.exists(ypath_join(archive_path, table))
                 tmp_path = "{0}/{1}.tmp.{2}".format(archive_path, table, version)
                 if force and client.exists(tmp_path):
                     client.remove(tmp_path)
@@ -983,7 +984,7 @@ def transform_archive(client, transform_begin, transform_end, force, archive_pat
                     client=client,
                     table_info=table_infos.get(table),
                     target_table=tmp_path,
-                    source_table=table if table in table_infos else None,
+                    source_table=table if (table in table_infos and table_exists) else None,
                     archive_path=archive_path,
                     **kwargs)
                 if not in_place:
