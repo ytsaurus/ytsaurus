@@ -787,6 +787,9 @@ TUserJobSpec::TUserJobSpec()
     RegisterParameter("monitoring", Monitoring)
         .DefaultNew();
 
+    RegisterParameter("system_layer_path", SystemLayerPath)
+        .Default();
+
     RegisterPostprocessor([&] () {
         if ((TmpfsSize || TmpfsPath) && !TmpfsVolumes.empty()) {
             THROW_ERROR_EXCEPTION(

@@ -943,7 +943,7 @@ public:
     bool EnableGpuLayers;
 
     std::optional<TString> CudaToolkitVersion;
-    
+
     // Name of layer with GPU check.
     std::optional<TString> GpuCheckLayerName;
 
@@ -975,6 +975,8 @@ public:
 
     //! Describes user job monitoring settings.
     TUserJobMonitoringConfigPtr Monitoring;
+
+    std::optional<TString> SystemLayerPath;
 
     TUserJobSpec();
 
