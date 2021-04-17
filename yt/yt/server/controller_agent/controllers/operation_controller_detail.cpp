@@ -9196,9 +9196,14 @@ std::vector<NYPath::TRichYPath> TOperationControllerBase::GetLayerPaths(
         auto path = *Config->GpuCheckLayerDirectoryPath + "/" + *userJobSpec->GpuCheckLayerName;
         layerPaths.insert(layerPaths.begin(), path);
     }
-    if (Config->SystemLayerPath && !layerPaths.empty()) {
-        // This must be the top layer, so insert in the beginning.
-        layerPaths.insert(layerPaths.begin(), *Config->SystemLayerPath);
+    if (!layerPaths.empty()) {
+        auto systemLayerPath = userJobSpec->SystemLayerPath
+            ? userJobSpec->SystemLayerPath
+            : Config->SystemLayerPath;
+        if (systemLayerPath) {
+            // This must be the top layer, so insert in the beginning.
+            layerPaths.insert(layerPaths.begin(), *systemLayerPath);
+        }
     }
     return layerPaths;
 }
