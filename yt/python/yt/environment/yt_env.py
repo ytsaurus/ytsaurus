@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from __future__ import print_function
 
 from .configs_provider import _init_logging, build_configs
@@ -22,7 +24,7 @@ from yt.test_helpers import wait
 import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
 
-from yt.packages.six import itervalues, iteritems, reraise
+from yt.packages.six import itervalues, iteritems
 from yt.packages.six.moves import xrange, map as imap
 import yt.packages.requests as requests
 
@@ -49,12 +51,15 @@ BinaryVersion = namedtuple("BinaryVersion", ["abi", "literal"])
 
 _environment_driver_logging_config = None
 
+
 def set_environment_driver_logging_config(config):
     global _environment_driver_logging_config
     _environment_driver_logging_config = config
 
+
 class YtEnvRetriableError(YtError):
     pass
+
 
 def _parse_version(s):
     if "version:" in s:
@@ -68,11 +73,13 @@ def _parse_version(s):
     abi = tuple(parts[:2])
     return BinaryVersion(abi, literal)
 
+
 def _get_yt_binary_path(binary, custom_paths):
     paths = which(binary, custom_paths=custom_paths)
     if paths:
         return paths[0]
     return None
+
 
 def _get_yt_versions(custom_paths):
     result = OrderedDict()
@@ -223,82 +230,39 @@ class YTInstance(object):
 
         for cell_index in xrange(self.yt_config.secondary_cell_count + 1):
             name = self._get_master_name("master", cell_index)
-            master_dirs.append([os.path.join(self.runtime_data_path, name, str(i)) for i in xrange(self.yt_config.master_count)])
+            master_dirs.append([os.path.join(self.runtime_data_path, name, str(i))
+                                for i in xrange(self.yt_config.master_count)])
             for dir_ in master_dirs[cell_index]:
                 makedirp(dir_)
 
             if self._tmpfs_path is not None:
-                master_tmpfs_dirs.append([os.path.join(self._tmpfs_path, name, str(i)) for i in xrange(self.yt_config.master_count)])
+                master_tmpfs_dirs.append([os.path.join(self._tmpfs_path, name, str(i))
+                                          for i in xrange(self.yt_config.master_count)])
 
                 for dir_ in master_tmpfs_dirs[cell_index]:
                     makedirp(dir_)
 
-        clock_dirs = [os.path.join(self.runtime_data_path, "clock", str(i)) for i in xrange(self.yt_config.clock_count)]
-        for dir_ in clock_dirs:
-            makedirp(dir_)
-
-        clock_tmpfs_dirs = None
-        if self._tmpfs_path is not None:
-            clock_tmpfs_dirs = [os.path.join(self._tmpfs_path, name, str(i)) for i in xrange(self.yt_config.clock_count)]
-            for dir_ in clock_tmpfs_dirs:
-                makedirp(dir_)
-
-        timestamp_provider_dirs = [os.path.join(self.runtime_data_path, "timestamp_provider", str(i)) for i in xrange(self.yt_config.timestamp_provider_count)]
-        for dir_ in timestamp_provider_dirs:
-            makedirp(dir_)
-
-        discovery_server_dirs = [os.path.join(self.runtime_data_path, "discovery", str(i)) for i in xrange(self.yt_config.discovery_server_count)]
-        for dir_ in discovery_server_dirs:
-            makedirp(dir_)
-
-        scheduler_dirs = [os.path.join(self.runtime_data_path, "scheduler", str(i)) for i in xrange(self.yt_config.scheduler_count)]
-        for dir_ in scheduler_dirs:
-            makedirp(dir_)
-
-        controller_agent_dirs = [os.path.join(self.runtime_data_path, "controller_agent", str(i)) for i in xrange(self.yt_config.controller_agent_count)]
-        for dir_ in controller_agent_dirs:
-            makedirp(dir_)
-
-        node_dirs = [os.path.join(self.runtime_data_path, "node", str(i)) for i in xrange(self.yt_config.node_count)]
-        for dir_ in node_dirs:
-            makedirp(dir_)
-
-        node_tmpfs_dirs = None
-        if self._tmpfs_path is not None:
-            node_tmpfs_dirs = [os.path.join(self._tmpfs_path, "node", str(i)) for i in xrange(self.yt_config.node_count)]
-            for dir_ in node_tmpfs_dirs:
-                makedirp(dir_)
-
-        master_cache_dirs = [os.path.join(self.runtime_data_path, "master_cache", str(i)) for i in xrange(self.yt_config.master_cache_count)]
-        for dir_ in master_cache_dirs:
-            makedirp(dir_)
-
-        http_proxy_dirs = [os.path.join(self.runtime_data_path, "http_proxy", str(i)) for i in xrange(self.yt_config.http_proxy_count)]
-        for dir_ in http_proxy_dirs:
-            makedirp(dir_)
-
-        rpc_proxy_dirs = [os.path.join(self.runtime_data_path, "rpc_proxy", str(i)) for i in xrange(self.yt_config.rpc_proxy_count)]
-        for dir_ in rpc_proxy_dirs:
-            makedirp(dir_)
-
         return {"master": master_dirs,
                 "master_tmpfs": master_tmpfs_dirs,
-                "clock": clock_dirs,
-                "clock_tmpfs": clock_tmpfs_dirs,
-                "timestamp_provider": timestamp_provider_dirs,
-                "scheduler": scheduler_dirs,
-                "controller_agent": controller_agent_dirs,
-                "node": node_dirs,
-                "node_tmpfs": node_tmpfs_dirs,
-                "master_cache_dirs": master_cache_dirs,
-                "http_proxy": http_proxy_dirs,
-                "rpc_proxy": rpc_proxy_dirs}
+                "clock": self._make_service_dirs("clock", self.yt_config.clock_count),
+                "clock_tmpfs": self._make_service_dirs("clock", self.yt_config.clock_count, in_tmpfs=True),
+                "discovery": self._make_service_dirs("discovery", self.yt_config.discovery_server_count),
+                "timestamp_provider": self._make_service_dirs("timestamp_provider",
+                                                              self.yt_config.timestamp_provider_count),
+                "scheduler": self._make_service_dirs("scheduler", self.yt_config.scheduler_count),
+                "controller_agent": self._make_service_dirs("controller_agent", self.yt_config.controller_agent_count),
+                "node": self._make_service_dirs("node", self.yt_config.node_count),
+                "node_tmpfs": self._make_service_dirs("node", self.yt_config.node_count, in_tmpfs=True),
+                "master_cache_dirs": self._make_service_dirs("master_cache", self.yt_config.master_cache_count),
+                "http_proxy": self._make_service_dirs("http_proxy", self.yt_config.http_proxy_count),
+                "rpc_proxy": self._make_service_dirs("rpc_proxy", self.yt_config.rpc_proxy_count)}
 
     def _prepare_environment(self, ports_generator, modify_configs_func):
         logger.info("Preparing cluster instance as follows:")
         logger.info("  clocks                %d", self.yt_config.clock_count)
         logger.info("  discovery servers     %d", self.yt_config.discovery_server_count)
-        logger.info("  masters               %d (%d nonvoting)", self.yt_config.master_count, self.yt_config.nonvoting_master_count)
+        logger.info("  masters               %d (%d nonvoting)",
+                    self.yt_config.master_count, self.yt_config.nonvoting_master_count)
         logger.info("  timestamp providers   %d", self.yt_config.timestamp_provider_count)
         logger.info("  nodes                 %d", self.yt_config.node_count)
         logger.info("  master caches         %d", self.yt_config.master_cache_count)
@@ -353,6 +317,20 @@ class YTInstance(object):
             cluster_configuration["rpc_driver"],
             cluster_configuration["master"],
             cluster_configuration["clock"])
+
+    def _make_service_dirs(self, service_name, count, in_tmpfs=False):
+        if in_tmpfs:
+            if self._tmpfs_path is None:
+                return None
+            else:
+                path = self._tmpfs_path
+        else:
+            path = self.runtime_data_path
+
+        service_dirs = [os.path.join(path, service_name, str(i)) for i in xrange(count)]
+        for dir_ in service_dirs:
+            makedirp(dir_)
+        return service_dirs
 
     def _wait_or_skip(self, function, sync):
         if sync:
@@ -520,7 +498,8 @@ class YTInstance(object):
     def get_http_proxy_addresses(self):
         if self.yt_config.http_proxy_count == 0:
             raise YtError("Http proxies are not started")
-        return ["{0}:{1}".format(self.yt_config.fqdn, get_value_from_config(config, "port", "http_proxy")) for config in self.configs["http_proxy"]]
+        return ["{0}:{1}".format(self.yt_config.fqdn, get_value_from_config(config, "port", "http_proxy"))
+                for config in self.configs["http_proxy"]]
 
     def get_grpc_proxy_address(self):
         if self.yt_config.rpc_proxy_count == 0:
@@ -531,12 +510,19 @@ class YTInstance(object):
     def get_timestamp_provider_monitoring_addresses(self):
         if self.yt_config.timestamp_provider_count == 0:
             raise YtError("Timestamp providers are not started")
-        return ["{0}:{1}".format(self.yt_config.fqdn, get_value_from_config(config, "monitoring_port", "timestamp_provider")) for config in self.configs["timestamp_provider"]]
+        return ["{0}:{1}"
+                .format(
+                    self.yt_config.fqdn,
+                    get_value_from_config(config, "monitoring_port", "timestamp_provider"))
+                for config in self.configs["timestamp_provider"]]
 
     def get_master_cache_monitoring_addresses(self):
         if self.yt_config.master_cache_count == 0:
             raise YtError("Master caches are not started")
-        return ["{0}:{1}".format(self.yt_config.fqdn, get_value_from_config(config, "monitoring_port", "master_cache")) for config in self.configs["master_cacje"]]
+        return ["{0}:{1}"
+                .format(self.yt_config.fqdn,
+                        get_value_from_config(config, "monitoring_port", "master_cache"))
+                for config in self.configs["master_cache"]]
 
     def kill_schedulers(self, indexes=None):
         self.kill_service("scheduler", indexes=indexes)
@@ -560,7 +546,8 @@ class YTInstance(object):
                 client.abort_transaction(node.attributes["lease_transaction_id"])
 
         if wait_offline:
-            wait(lambda:
+            wait(
+                lambda:
                 all([
                     node.attributes["state"] == "offline"
                     for node in client.list("//sys/cluster_nodes", attributes=["state"])
@@ -699,7 +686,8 @@ class YTInstance(object):
                     for name in ["status", "sched", "wchan"]:
                         try:
                             with open(os.path.join(tasks_path, task_id, name), "r") as fin:
-                                logger.error("Process %s task %s %s: %s", pid, task_id, name, fin.read().replace("\n", "\\n"))
+                                logger.error("Process %s task %s %s: %s",
+                                             pid, task_id, name, fin.read().replace("\n", "\\n"))
                         except Exception as e:
                             logger.warning("Failed to print process %s task %s %s: %s", pid, task_id, name, e)
             except Exception as e:
@@ -1022,7 +1010,9 @@ class YTInstance(object):
 
             return True
 
-        self._wait_or_skip(lambda: self._wait_for(timestamp_providers_ready, "timestamp_provider", max_wait_time=20), sync)
+        self._wait_or_skip(
+            lambda: self._wait_for(timestamp_providers_ready, "timestamp_provider", max_wait_time=20),
+            sync)
 
     def _prepare_nodes(self, node_configs, force_overwrite=False):
         if force_overwrite:
@@ -1055,10 +1045,13 @@ class YTInstance(object):
             self._validate_processes_are_running("node")
 
             nodes = client.list("//sys/cluster_nodes", attributes=["state"])
-            return len(nodes) == self.yt_config.node_count and all(node.attributes["state"] == "online" for node in nodes)
+            return len(nodes) == self.yt_config.node_count and \
+                all(node.attributes["state"] == "online" for node in nodes)
 
-        wait_function = lambda: self._wait_for(nodes_ready, "node", max_wait_time=max(self.yt_config.node_count * 6.0, 60))
-        self._wait_or_skip(wait_function, sync)
+        self._wait_or_skip(
+            lambda:
+                self._wait_for(nodes_ready, "node", max_wait_time=max(self.yt_config.node_count * 6.0, 60)),
+            sync)
 
     def _prepare_master_caches(self, master_cache_configs):
         for master_cache_index in xrange(self.yt_config.master_cache_count):
@@ -1149,7 +1142,7 @@ class YTInstance(object):
         if client.get("//sys/pool_trees/@type") == "map_node":
             if is_pool_tree_config_present:
                 client.create("map_node", "//sys/pool_trees/default", attributes={"config": {}},
-                    ignore_existing=True, recursive=True)
+                              ignore_existing=True, recursive=True)
             else:
                 client.create("map_node", "//sys/pool_trees/default", ignore_existing=True, recursive=True)
         else:
@@ -1195,9 +1188,11 @@ class YTInstance(object):
 
                 try:
                     master_cell_id = client.get("//sys/@cell_id")
-                    scheduler_cell_id = client.get(active_scheduler_orchid_path + "/config/cluster_connection/primary_master/cell_id")
+                    scheduler_cell_id = client.get(active_scheduler_orchid_path
+                                                   + "/config/cluster_connection/primary_master/cell_id")
                     if master_cell_id != scheduler_cell_id:
-                        return False, "Incorrect scheduler connected, its cell_id {0} does not match master cell {1}".format(scheduler_cell_id, master_cell_id)
+                        return False, "Incorrect scheduler connected, its cell_id {0} does not match master cell {1}"\
+                                      .format(scheduler_cell_id, master_cell_id)
                 except YtResponseError as error:
                     if error.is_resolve_error():
                         return False, "Failed to request primary master cell id from master and scheduler" + str(error)
@@ -1205,6 +1200,7 @@ class YTInstance(object):
                         raise
 
                 nodes = client.list("//sys/cluster_nodes", attributes=["flavors"])
+
                 def check_node(node):
                     # COMPAT(gritukan)
                     if "flavors" not in node.attributes:
@@ -1513,7 +1509,9 @@ class YTInstance(object):
 
             for service, configs in list(iteritems(self.configs)):
                 for config in flatten(configs):
-                    if service.startswith("driver") or service.startswith("rpc_driver") or service.startswith("clock_driver"):
+                    if service.startswith("driver") \
+                            or service.startswith("rpc_driver") \
+                            or service.startswith("clock_driver"):
                         continue
 
                     extract_debug_log_paths(service, config, log_paths)

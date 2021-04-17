@@ -2,19 +2,18 @@ from . import default_config
 from .helpers import canonize_uuid
 
 from yt.wrapper.common import MB, GB
-from yt.wrapper.mappings import VerifiedDict
-from yt.common import YtError, get_value, update, update_inplace
+from yt.common import update, update_inplace
 
 from yt.yson import to_yson_type
 
-from yt.packages.six import iteritems, add_metaclass
 from yt.packages.six.moves import xrange
 
 import random
-import socket
-import abc
 import os
 from copy import deepcopy
+
+
+DEFAULT_TRANSACTION_PING_PERIOD = 500
 
 
 def _get_timestamp_provider_addresses(yt_config,
@@ -36,6 +35,7 @@ def _get_master_cache_addresses(yt_config,
         return master_cache_addresses
     else:
         return node_addresses
+
 
 def build_configs(yt_config, ports_generator, dirs, logs_dir):
     clock_configs, clock_connection_configs = _build_clock_configs(
@@ -177,6 +177,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
 
     return cluster_configuration
 
+
 def _build_master_configs(yt_config,
                           master_dirs,
                           master_tmpfs_dirs,
@@ -254,16 +255,16 @@ def _build_master_configs(yt_config,
 
             if master_tmpfs_dirs is None:
                 set_at(config, "changelogs/path",
-                        os.path.join(master_dirs[cell_index][master_index], "changelogs"))
+                       os.path.join(master_dirs[cell_index][master_index], "changelogs"))
             else:
                 set_at(config, "changelogs/path",
-                        os.path.join(master_tmpfs_dirs[cell_index][master_index], "changelogs"))
+                       os.path.join(master_tmpfs_dirs[cell_index][master_index], "changelogs"))
 
             config["logging"] = _init_logging(logs_dir,
-                                             "master-{0}-{1}".format(cell_index, master_index),
-                                             yt_config,
-                                             log_errors_to_stderr=True,
-                                             has_structured_logs=True)
+                                              "master-{0}-{1}".format(cell_index, master_index),
+                                              yt_config,
+                                              log_errors_to_stderr=True,
+                                              has_structured_logs=True)
 
             cell_configs.append(config)
 
@@ -273,6 +274,7 @@ def _build_master_configs(yt_config,
     configs["secondary_cell_tags"] = cell_tags[1:]
 
     return configs, connection_configs
+
 
 def _build_clock_configs(yt_config, clock_dirs, clock_tmpfs_dirs, ports_generator, logs_dir):
     cell_tag = 1000
@@ -313,19 +315,19 @@ def _build_clock_configs(yt_config, clock_dirs, clock_tmpfs_dirs, ports_generato
 
         set_at(config, "timestamp_provider/addresses", connection_config["addresses"])
         set_at(config, "snapshots/path",
-                os.path.join(clock_dirs[clock_index], "snapshots"))
+               os.path.join(clock_dirs[clock_index], "snapshots"))
 
         if clock_tmpfs_dirs is None:
             set_at(config, "changelogs/path",
-                    os.path.join(clock_dirs[clock_index], "changelogs"))
+                   os.path.join(clock_dirs[clock_index], "changelogs"))
         else:
             set_at(config, "changelogs/path",
-                    os.path.join(clock_tmpfs_dirs[clock_index], "changelogs"))
+                   os.path.join(clock_tmpfs_dirs[clock_index], "changelogs"))
 
         config["logging"] = _init_logging(logs_dir,
-                                         "clock-{0}".format(clock_index),
-                                         yt_config,
-                                         log_errors_to_stderr=True)
+                                          "clock-{0}".format(clock_index),
+                                          yt_config,
+                                          log_errors_to_stderr=True)
 
         instance_configs.append(config)
 
@@ -335,6 +337,7 @@ def _build_clock_configs(yt_config, clock_dirs, clock_tmpfs_dirs, ports_generato
     connection_configs["cell_tag"] = cell_tag
 
     return configs, connection_configs
+
 
 def _build_discovery_server_configs(yt_config, ports_generator, logs_dir):
     server_addresses = []
@@ -354,14 +357,15 @@ def _build_discovery_server_configs(yt_config, ports_generator, logs_dir):
         config = {}
         config["discovery_server"] = discovery_server_config
         config["logging"] = _init_logging(logs_dir,
-                                        "discovery-" + str(i),
-                                        yt_config,
-                                        log_errors_to_stderr=True)
+                                          "discovery-" + str(i),
+                                          yt_config,
+                                          log_errors_to_stderr=True)
 
         config["rpc_port"], config["monitoring_port"] = ports[i]
         configs.append(config)
 
     return configs
+
 
 def _build_timestamp_provider_configs(yt_config,
                                       master_connection_configs,
@@ -376,7 +380,8 @@ def _build_timestamp_provider_configs(yt_config,
 
         init_singletons(config, yt_config.fqdn, "timestamp_provider", {"timestamp_provider_index": str(index)})
 
-        set_at(config, "timestamp_provider/addresses", _get_timestamp_provider_addresses(yt_config, master_connection_configs, clock_connection_configs, None))
+        set_at(config, "timestamp_provider/addresses",
+               _get_timestamp_provider_addresses(yt_config, master_connection_configs, clock_connection_configs, None))
 
         config["rpc_port"] = next(ports_generator)
         config["monitoring_port"] = next(ports_generator)
@@ -389,6 +394,7 @@ def _build_timestamp_provider_configs(yt_config,
         addresses.append("localhost:{}".format(config["rpc_port"]))
 
     return configs, addresses
+
 
 def _build_master_cache_configs(yt_config,
                                 master_connection_configs,
@@ -409,20 +415,21 @@ def _build_master_cache_configs(yt_config,
                 master_connection_configs,
                 clock_connection_configs,
                 timestamp_provider_addresses,
-                [], # master cache addresses
+                [],  # master cache addresses
                 config_template=config["cluster_connection"])
 
         config["rpc_port"] = next(ports_generator)
         config["monitoring_port"] = next(ports_generator)
         config["logging"] = _init_logging(logs_dir,
-                                         "master-cache-" + str(index),
-                                         yt_config,
-                                         has_structured_logs=True)
+                                          "master-cache-" + str(index),
+                                          yt_config,
+                                          has_structured_logs=True)
 
         configs.append(config)
         addresses.append("localhost:{}".format(config["rpc_port"]))
 
     return configs, addresses
+
 
 def _build_scheduler_configs(scheduler_dirs,
                              master_connection_configs,
@@ -450,13 +457,14 @@ def _build_scheduler_configs(scheduler_dirs,
         config["rpc_port"] = next(ports_generator)
         config["monitoring_port"] = next(ports_generator)
         config["logging"] = _init_logging(logs_dir,
-                                         "scheduler-" + str(index),
-                                         yt_config,
-                                         has_structured_logs=True)
+                                          "scheduler-" + str(index),
+                                          yt_config,
+                                          has_structured_logs=True)
 
         configs.append(config)
 
     return configs
+
 
 def _build_controller_agent_configs(controller_agent_dirs,
                                     master_connection_configs,
@@ -484,13 +492,14 @@ def _build_controller_agent_configs(controller_agent_dirs,
         config["rpc_port"] = next(ports_generator)
         config["monitoring_port"] = next(ports_generator)
         config["logging"] = _init_logging(logs_dir,
-                                         "controller-agent-" + str(index),
-                                         yt_config,
-                                         has_structured_logs=True)
+                                          "controller-agent-" + str(index),
+                                          yt_config,
+                                          has_structured_logs=True)
 
         configs.append(config)
 
     return configs
+
 
 def _build_node_configs(node_dirs,
                         node_tmpfs_dirs,
@@ -628,6 +637,7 @@ def _build_node_configs(node_dirs,
 
     return configs, addresses
 
+
 def _build_http_proxy_config(proxy_dir,
                              master_connection_configs,
                              clock_connection_configs,
@@ -648,7 +658,8 @@ def _build_http_proxy_config(proxy_dir,
 
     for index in xrange(yt_config.http_proxy_count):
         proxy_config = default_config.get_proxy_config()
-        proxy_config["port"] = yt_config.http_proxy_ports[index] if yt_config.http_proxy_ports else next(ports_generator)
+        proxy_config["port"] = \
+            yt_config.http_proxy_ports[index] if yt_config.http_proxy_ports else next(ports_generator)
         proxy_config["monitoring_port"] = next(ports_generator)
         proxy_config["rpc_port"] = next(ports_generator)
 
@@ -657,13 +668,14 @@ def _build_http_proxy_config(proxy_dir,
         init_singletons(proxy_config, yt_config.fqdn, "http_proxy", {"http_proxy_index": str(index)})
 
         proxy_config["logging"] = _init_logging(logs_dir, "http-proxy-{}".format(index), yt_config,
-                                               has_structured_logs=True)
+                                                has_structured_logs=True)
 
         proxy_config["driver"] = driver_config
 
         proxy_configs.append(proxy_config)
 
     return proxy_configs
+
 
 def _build_native_driver_configs(master_connection_configs,
                                  clock_connection_configs,
@@ -717,6 +729,7 @@ def _build_native_driver_configs(master_connection_configs,
 
     return configs
 
+
 def _build_rpc_driver_config(master_connection_configs,
                              clock_connection_configs,
                              master_cache_nodes,
@@ -732,6 +745,7 @@ def _build_rpc_driver_config(master_connection_configs,
         config["addresses"] = rpc_proxy_addresses
 
     return config
+
 
 def _build_rpc_proxy_configs(logs_dir,
                              master_connection_configs,
@@ -785,11 +799,13 @@ def _build_rpc_proxy_configs(logs_dir,
             master_cache_addresses)
         config["logging"] = _init_logging(logs_dir, "rpc-proxy-{}".format(rpc_proxy_index), yt_config)
 
-        config["rpc_port"] = yt_config.rpc_proxy_ports[rpc_proxy_index] if yt_config.rpc_proxy_ports else next(ports_generator)
+        config["rpc_port"] = \
+            yt_config.rpc_proxy_ports[rpc_proxy_index] if yt_config.rpc_proxy_ports else next(ports_generator)
 
         configs.append(config)
 
     return configs
+
 
 def _build_cluster_connection_config(yt_config,
                                      master_connection_configs,
@@ -881,6 +897,7 @@ def _build_cluster_connection_config(yt_config,
 
     return cluster_connection
 
+
 def _init_logging(path, name, yt_config, log_errors_to_stderr=False, has_structured_logs=False):
     return init_logging(
         path,
@@ -890,6 +907,7 @@ def _init_logging(path, name, yt_config, log_errors_to_stderr=False, has_structu
         log_compression_method=yt_config.log_compression_method,
         enable_structured_logging=yt_config.enable_structured_logging and has_structured_logs,
         log_errors_to_stderr=log_errors_to_stderr)
+
 
 def init_logging(path, name,
                  enable_debug_logging=False,
@@ -973,7 +991,6 @@ def init_logging(path, name,
 
     return config
 
-DEFAULT_TRANSACTION_PING_PERIOD = 500
 
 def set_at(config, path, value, merge=False):
     """Sets value in config by path creating intermediate dict nodes."""
@@ -986,6 +1003,17 @@ def set_at(config, path, value, merge=False):
                 config[part] = update(config.get(part, {}), value)
             else:
                 config[part] = value
+
+
+def get_at(config, path, default_value=None):
+    for part in path.split("/"):
+        if not isinstance(config, dict):
+            raise ValueError("Path should not contain non-dict intermediate values")
+        if part not in config:
+            return default_value
+        config = config[part]
+    return config
+
 
 def init_singletons(config, fqdn, name, process_tags={}):
     set_at(config, "address_resolver/localhost_fqdn", fqdn)
@@ -1001,14 +1029,6 @@ def init_singletons(config, fqdn, name, process_tags={}):
             "process_tags": process_tags,
         })
 
-def get_at(config, path, default_value=None):
-    for part in path.split("/"):
-        if not isinstance(config, dict):
-            raise ValueError("Path should not contain non-dict intermediate values")
-        if part not in config:
-            return default_value
-        config = config[part]
-    return config
 
 def _get_hydra_manager_config():
     return {
@@ -1022,11 +1042,13 @@ def _get_hydra_manager_config():
         }
     }
 
+
 def _get_balancing_channel_config():
     return {
         "soft_backoff_time": 100,
         "hard_backoff_time": 100
     }
+
 
 def _get_retrying_channel_config():
     return {
@@ -1034,10 +1056,12 @@ def _get_retrying_channel_config():
         "retry_attempts": 100
     }
 
+
 def _get_rpc_config():
     return {
         "rpc_timeout": 25000
     }
+
 
 def _get_node_resource_limits_config(yt_config):
     FOOTPRINT_MEMORY = 1 * GB

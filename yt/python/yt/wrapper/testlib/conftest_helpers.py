@@ -1,7 +1,6 @@
 from .helpers import (get_tests_location, get_tests_sandbox, get_test_file_path,
                       wait, sync_create_cell, create_job_events, TEST_DIR)
 
-from yt.environment import arcadia_interop
 from yt.common import which, makedirp
 import yt.environment.init_operation_archive as init_operation_archive
 import yt.subprocess_wrapper as subprocess
@@ -20,6 +19,7 @@ import os
 import imp
 import sys
 from copy import deepcopy
+
 
 def pytest_ignore_collect(path, config):
     path = str(path)
@@ -67,17 +67,21 @@ def init_environment_for_test_session(request, mode, **kwargs):
     request.addfinalizer(lambda: environment.cleanup())
     return environment
 
+
 def test_function_setup():
     yt.mkdir(TEST_DIR, recursive=True)
+
 
 def register_test_function_finalizer(request, remove_operations_archive=True):
     request.addfinalizer(lambda: yt.remove(TEST_DIR, recursive=True, force=True))
     request.addfinalizer(lambda: test_method_teardown(remove_operations_archive=remove_operations_archive))
 
+
 @pytest.fixture(scope="class", params=["v3", "v4", "native_v3", "native_v4"])
 def test_environment(request):
     environment = init_environment_for_test_session(request, request.param)
     return environment
+
 
 @pytest.fixture(scope="class", params=["v3", "v4"])
 def test_environment_with_framing(request):
@@ -118,22 +122,27 @@ def test_environment_with_framing(request):
 
     return environment
 
+
 @pytest.fixture(scope="class", params=["v3", "v4", "native_v3", "native_v4", "rpc"])
 def test_environment_with_rpc(request):
     environment = init_environment_for_test_session(request, request.param)
     return environment
+
 
 @pytest.fixture(scope="class")
 def test_environment_for_yamr(request):
     environment = init_environment_for_test_session(request, "yamr")
     return environment
 
+
 @pytest.fixture(scope="class")
 def test_environment_multicell(request):
-    environment = init_environment_for_test_session(request,
+    environment = init_environment_for_test_session(
+        request,
         "native_multicell",
         env_options={"secondary_cell_count": 2})
     return environment
+
 
 @pytest.fixture(scope="class")
 def test_environment_job_archive(request):
@@ -170,6 +179,7 @@ def test_environment_job_archive(request):
     init_operation_archive.create_tables_latest_version(yt, override_tablet_cell_bundle="default")
     return environment
 
+
 @pytest.fixture(scope="class", params=["v3", "v4", "native_v3", "native_v4", "rpc"])
 def test_environment_with_porto(request):
     environment = init_environment_for_test_session(
@@ -192,15 +202,17 @@ def test_environment_with_porto(request):
 
     return environment
 
+
 @pytest.fixture(scope="class", params=["v4", "rpc"])
 def test_environment_with_increased_memory(request):
     environment = init_environment_for_test_session(
         request,
         request.param,
-        env_options=dict(jobs_memory_limit=8 * GB),
+        env_options=dict(jobs_resource_limits={"memory": 8 * GB}),
     )
 
     return environment
+
 
 def _yt_env(request, test_environment):
     """ YT cluster fixture.
@@ -213,17 +225,21 @@ def _yt_env(request, test_environment):
     register_test_function_finalizer(request)
     return test_environment
 
+
 @pytest.fixture(scope="function")
 def yt_env(request, test_environment):
     return _yt_env(request, test_environment)
+
 
 @pytest.fixture(scope="function")
 def yt_env_with_framing(request, test_environment_with_framing):
     return _yt_env(request, test_environment_with_framing)
 
+
 @pytest.fixture(scope="function")
 def yt_env_with_rpc(request, test_environment_with_rpc):
     return _yt_env(request, test_environment_with_rpc)
+
 
 @pytest.fixture(scope="function")
 def test_dynamic_library(request, yt_env_with_increased_memory):
@@ -252,12 +268,14 @@ def test_dynamic_library(request, yt_env_with_increased_memory):
     request.addfinalizer(finalizer)
     return libs_dir, "libgetnumber.so"
 
+
 @pytest.fixture(scope="function")
 def config(yt_env):
     """ Test environment startup config fixture
         Used in tests to restore config after changes.
     """
     return deepcopy(yt_env.config)
+
 
 @pytest.fixture(scope="function")
 def yt_env_for_yamr(request, test_environment_for_yamr):
@@ -282,6 +300,7 @@ def yt_env_for_yamr(request, test_environment_for_yamr):
     register_test_function_finalizer(request)
     return test_environment_for_yamr
 
+
 @pytest.fixture(scope="function")
 def yt_env_multicell(request, test_environment_multicell):
     """ YT cluster fixture for tests with multiple cells.
@@ -291,6 +310,7 @@ def yt_env_multicell(request, test_environment_multicell):
     test_function_setup()
     register_test_function_finalizer(request)
     return test_environment_multicell
+
 
 @pytest.fixture(scope="function")
 def yt_env_job_archive(request, test_environment_job_archive):
@@ -302,6 +322,7 @@ def yt_env_job_archive(request, test_environment_job_archive):
     register_test_function_finalizer(request, remove_operations_archive=False)
     return test_environment_job_archive
 
+
 @pytest.fixture(scope="function")
 def yt_env_with_porto(request, test_environment_with_porto):
     """ YT cluster fixture for tests that require "porto" instead of "cgroups"
@@ -312,6 +333,7 @@ def yt_env_with_porto(request, test_environment_with_porto):
     register_test_function_finalizer(request)
     return test_environment_with_porto
 
+
 @pytest.fixture(scope="function")
 def yt_env_with_increased_memory(request, test_environment_with_increased_memory):
     test_environment_with_increased_memory.check_liveness()
@@ -319,6 +341,7 @@ def yt_env_with_increased_memory(request, test_environment_with_increased_memory
     test_function_setup()
     register_test_function_finalizer(request)
     return test_environment_with_increased_memory
+
 
 @pytest.fixture(scope="function")
 def job_events(request):
