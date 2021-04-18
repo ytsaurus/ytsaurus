@@ -346,11 +346,11 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define DEFINE_RPC_SERVICE_METHOD_THUNK(ns, method) \
-    using TCtx##method = ::NYT::NRpc::TTypedServiceContext<ns::TReq##method, ns::TRsp##method>; \
+#define DEFINE_RPC_SERVICE_METHOD_THUNK_VIA_MESSAGES(requestMessage, responseMessage, method) \
+    using TCtx##method = ::NYT::NRpc::TTypedServiceContext<requestMessage, responseMessage>; \
     using TCtx##method##Ptr = ::NYT::TIntrusivePtr<TCtx##method>; \
-    using TReq##method = TCtx##method::TTypedRequest; \
-    using TRsp##method = TCtx##method::TTypedResponse; \
+    using TReq##method = typename TCtx##method::TTypedRequest; \
+    using TRsp##method = typename TCtx##method::TTypedResponse; \
     \
     void method##LiteThunk( \
         const ::NYT::NRpc::IServiceContextPtr& context, \
@@ -384,13 +384,19 @@ protected:
             }); \
     }
 
-#define DECLARE_RPC_SERVICE_METHOD(ns, method) \
-    DEFINE_RPC_SERVICE_METHOD_THUNK(ns, method) \
+#define DEFINE_RPC_SERVICE_METHOD_THUNK(ns, method) \
+    DEFINE_RPC_SERVICE_METHOD_THUNK_VIA_MESSAGES(ns::TReq##method, ns::TRsp##method, method)
+
+#define DECLARE_RPC_SERVICE_METHOD_VIA_MESSAGES(requestMessage, responseMessage, method) \
+    DEFINE_RPC_SERVICE_METHOD_THUNK_VIA_MESSAGES(requestMessage, responseMessage, method) \
     \
     void method( \
         TReq##method* request, \
         TRsp##method* response, \
         const TCtx##method##Ptr& context)
+
+#define DECLARE_RPC_SERVICE_METHOD(ns, method) \
+    DECLARE_RPC_SERVICE_METHOD_VIA_MESSAGES(ns::TReq##method, ns::TRsp##method, method)
 
 #define DEFINE_RPC_SERVICE_METHOD(type, method) \
     void type::method( \
