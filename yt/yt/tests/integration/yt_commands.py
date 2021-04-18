@@ -29,7 +29,6 @@ import sys
 import tempfile
 import time
 import traceback
-from collections import defaultdict
 from datetime import datetime, timedelta
 from cStringIO import StringIO, OutputType
 
@@ -255,6 +254,7 @@ def flat(dict, key):
     if key in dict:
         dict[key] = flatten(dict[key])
 
+
 def get_at(obj, path, default):
     parts = path.lstrip("/").split("/")
     for part in parts[:-1]:
@@ -311,7 +311,7 @@ def retry(
     while now < deadline:
         try:
             return func()
-        except:
+        except:  # noqa
             time.sleep(retry_interval.total_seconds())
             now = datetime.now()
     return func()
@@ -768,7 +768,7 @@ def tx_write_table(*args, **kwargs):
 
     try:
         write_table(*args, tx=tx, **kwargs)
-    except:
+    except YtError:
         try:
             abort_transaction(tx)
         except Exception as e:
@@ -1516,6 +1516,7 @@ def switch_leader(cell_id, new_leader_address):
     parameters = {"cell_id": cell_id, "new_leader_address": new_leader_address}
     return execute_command("switch_leader", parameters, parse_yson=True)
 
+
 def get_version():
     return execute_command("get_version", {}, parse_yson=True)
 
@@ -1572,7 +1573,7 @@ def create_account(name, parent_name=None, empty=False, **kwargs):
                 100000,
                 driver=driver,
             )
-        except:
+        except YtError:
             set(
                 "//sys/accounts/{0}/@resource_limits/master_memory".format(name),
                 100000,
@@ -1625,6 +1626,8 @@ def create_pool(name, pool_tree="default", parent_name=None, wait_for_orchid=Tru
     execute_command("create", kwargs, parse_yson=True)
     if wait_for_orchid:
         wait(lambda: exists(scheduler_orchid_pool_path(name, pool_tree)))
+        expected_parent_name = parent_name if parent_name else "<Root>"
+        wait(lambda: get(scheduler_orchid_pool_path(name, pool_tree))["parent"] == expected_parent_name)
 
 
 def create_user(name, **kwargs):
@@ -1917,13 +1920,11 @@ def set_account_disk_space_limit(account, limit, medium="default"):
 
 # NB: does not check master_memory yet!
 def cluster_resources_equal(a, b):
-    if (
-        a.get("disk_space", 0) != b.get("disk_space", 0)
-        or a.get("chunk_count", 0) != b.get("chunk_count", 0)
-        or a.get("node_count", 0) != b.get("node_count", 0)
-        or a.get("tablet_count", 0) != b.get("tablet_count", 0)
-        or a.get("tablet_static_memory", 0) != b.get("tablet_static_memory", 0)
-    ):
+    if (a.get("disk_space", 0) != b.get("disk_space", 0)
+            or a.get("chunk_count", 0) != b.get("chunk_count", 0)
+            or a.get("node_count", 0) != b.get("node_count", 0)
+            or a.get("tablet_count", 0) != b.get("tablet_count", 0)
+            or a.get("tablet_static_memory", 0) != b.get("tablet_static_memory", 0)):
         return False
 
     media = __builtin__.set(a.get("disk_space_per_medium", {}).keys())
@@ -2265,7 +2266,7 @@ def wait_for_cells(cell_ids=None, decommissioned_addresses=[], driver=None):
                     )
                     if not active:
                         return False
-                except:
+                except YtError:
                     return False
         return True
 
@@ -2304,7 +2305,7 @@ def truncate_journal(path, row_count, **kwargs):
 def wait_for_tablet_state(path, state, **kwargs):
     print_debug("Waiting for tablets to become %s..." % (state))
     driver = kwargs.pop("driver", None)
-    if kwargs.get("first_tablet_index", None) == None and kwargs.get("last_tablet_index", None) == None:
+    if kwargs.get("first_tablet_index", None) is None and kwargs.get("last_tablet_index", None) is None:
         wait(lambda: get(path + "/@tablet_state", driver=driver) == state)
     else:
         tablet_count = get(path + "/@tablet_count", driver=driver)
@@ -2313,7 +2314,7 @@ def wait_for_tablet_state(path, state, **kwargs):
         wait(
             lambda: all(
                 x["state"] == state
-                for x in get(path + "/@tablets", driver=driver)[first_tablet_index : last_tablet_index + 1]
+                for x in get(path + "/@tablets", driver=driver)[first_tablet_index:last_tablet_index + 1]
             )
         )
         wait(lambda: get(path + "/@tablet_state") != "transient")
@@ -2341,7 +2342,7 @@ def sync_unfreeze_table(path, **kwargs):
 
 def sync_reshard_table(path, *args, **kwargs):
     reshard_table(path, *args, **kwargs)
-    driver=kwargs.get("driver", None)
+    driver = kwargs.get("driver", None)
     wait(lambda: get(path + "/@tablet_state", driver=driver) != "transient")
 
 
@@ -2476,8 +2477,7 @@ def sync_control_chunk_replicator(enabled):
             get(
                 "//sys/@chunk_replicator_enabled",
                 driver=drivers_by_cell_tag[default_api_version],
-            )
-            == enabled
+            ) == enabled
             for drivers_by_cell_tag in clusters_drivers["primary"]
         )
     )
@@ -2564,8 +2564,10 @@ def get_nodes_with_flavor(flavor):
 def get_data_nodes():
     return get_nodes_with_flavor("data")
 
+
 def get_exec_nodes():
     return get_nodes_with_flavor("exec")
+
 
 def get_tablet_nodes():
     return get_nodes_with_flavor("tablet")

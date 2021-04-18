@@ -394,6 +394,10 @@ class TestSchedulerGpu(YTEnvSetup):
                 "test_gpu_count": 4,
             }
 
+    def setup_method(self, method):
+        super(TestSchedulerGpu, self).setup_method(method)
+        set("//sys/pool_trees/default/@config/main_resource", "gpu")
+
     @authors("renadeen")
     def test_job_count(self):
         gpu_nodes = [
@@ -429,7 +433,6 @@ class TestSchedulerGpu(YTEnvSetup):
 
     @authors("ignat")
     def test_min_share_resources(self):
-        set("//sys/pool_trees/default/@config/main_resource", "gpu")
         create_pool("gpu_pool", attributes={"min_share_resources": {"gpu": 1}})
         wait(lambda: get(scheduler_orchid_pool_path("gpu_pool") + "/min_share_resources/gpu") == 1)
         wait(lambda: get(scheduler_orchid_pool_path("gpu_pool") + "/min_share_ratio") == 0.25)

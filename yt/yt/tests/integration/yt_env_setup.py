@@ -7,7 +7,6 @@ from yt_helpers import get_current_time, parse_yt_time
 from yt.environment import YTInstance, arcadia_interop
 from yt.environment.api import LocalYtConfig
 from yt.environment.helpers import emergency_exit_within_tests
-from yt.environment.porto_helpers import remove_all_volumes
 from yt.environment.default_config import (
     get_dynamic_master_config,
     get_dynamic_node_config,
@@ -22,7 +21,7 @@ from yt.environment.helpers import (  # noqa
 
 from yt.test_helpers import wait, WaitFailed
 import yt.test_helpers.cleanup as test_cleanup
-from yt.common import makedirp, YtError, YtResponseError, format_error, update_inplace
+from yt.common import YtResponseError, format_error, update_inplace
 import yt.logger
 
 import pytest
@@ -31,10 +30,8 @@ import gc
 import os
 import sys
 import logging
-import shutil
 import decorator
 import functools
-import subprocess
 
 from time import sleep, time
 from threading import Thread
@@ -151,7 +148,7 @@ def parametrize_external(func):
     index = spec.args.index("external")
 
     def wrapper(func, self, *args, **kwargs):
-        if self.NUM_SECONDARY_MASTER_CELLS == 0 and args[index - 1] == True:
+        if self.NUM_SECONDARY_MASTER_CELLS == 0 and args[index - 1] is True:
             pytest.skip("No secondary cells")
         return func(self, *args, **kwargs)
 
@@ -296,7 +293,7 @@ class YTEnvSetup(object):
     def create_yt_cluster_instance(cls, index, path):
         modify_configs_func = functools.partial(cls.apply_config_patches, cluster_index=index)
 
-        yt_config=LocalYtConfig(
+        yt_config = LocalYtConfig(
             use_porto_for_servers=cls.USE_PORTO,
             use_native_client=True,
             master_count=cls.get_param("NUM_MASTERS", index),
@@ -311,7 +308,10 @@ class YTEnvSetup(object):
             master_cache_count=cls.get_param("NUM_MASTER_CACHES", index),
             scheduler_count=cls.get_param("NUM_SCHEDULERS", index),
             defer_scheduler_start=cls.get_param("DEFER_SCHEDULER_START", index),
-            controller_agent_count=cls.get_param("NUM_CONTROLLER_AGENTS", index) if cls.get_param("NUM_CONTROLLER_AGENTS", index) is not None else cls.get_param("NUM_SCHEDULERS", index),
+            controller_agent_count=(
+                cls.get_param("NUM_CONTROLLER_AGENTS", index)
+                if cls.get_param("NUM_CONTROLLER_AGENTS", index) is not None
+                else cls.get_param("NUM_SCHEDULERS", index)),
             defer_controller_agent_start=cls.get_param("DEFER_CONTROLLER_AGENT_START", index),
             http_proxy_count=cls.get_param("NUM_HTTP_PROXIES", index) if cls.get_param("ENABLE_HTTP_PROXY", index) else 0,
             rpc_proxy_count=cls.get_param("NUM_RPC_PROXIES", index) if cls.get_param("ENABLE_RPC_PROXY", index) else 0,
@@ -546,9 +546,10 @@ class YTEnvSetup(object):
         class_limit = (10 * 60) if is_asan_build() else (5 * 60)
 
         if class_duration > class_limit:
-            pytest.fail("Test class execution took more that {} seconds ({} seconds).\n".format(class_limit, class_duration) +
-                "Check test stdout for detailed duration report.\n" +
-                "You can split class into smaller chunks, using NUM_TEST_PARTITIONS option.")
+            pytest.fail(
+                "Test class execution took more that {} seconds ({} seconds).\n".format(class_limit, class_duration)
+                + "Check test stdout for detailed duration report.\n"
+                + "You can split class into smaller chunks, using NUM_TEST_PARTITIONS option.")
 
     def setup_method(self, method):
         for cluster_index in xrange(self.NUM_REMOTE_CLUSTERS + 1):
@@ -803,7 +804,7 @@ class YTEnvSetup(object):
                 objects = []
                 try:
                     objects = yt_commands.get_batch_output(response)
-                except:
+                except YtResponseError:
                     pass
                 object_lists.append(objects)
             return object_lists
@@ -902,39 +903,19 @@ class YTEnvSetup(object):
             assert not yt_commands.get_batch_error(response)
 
         restore_pool_trees_requests = []
+        should_set_default_config = False
         if yt_commands.exists(scheduler_pool_trees_root + "/default", driver=driver):
-
-            # COMPAT(max42): drop this when 20.2 is deprecated.
-            is_pool_tree_config_present = self.Env.get_component_version("ytserver-master").abi >= (20, 3)
-
             restore_pool_trees_requests.append(
                 yt_commands.make_batch_request("remove", path=scheduler_pool_trees_root + "/default/*"))
-
-            # TODO(eshcherbin): Clear default tree's config when it is moved to a separate attribute.
-            if is_pool_tree_config_present:
-                restore_pool_trees_requests.append(
-                    yt_commands.make_batch_request("set", path=scheduler_pool_trees_root + "/default/@config/nodes_filter", input=""))
-            else:
-                restore_pool_trees_requests.append(
-                    yt_commands.make_batch_request("set", path=scheduler_pool_trees_root + "/default/@nodes_filter", input=""))
+            should_set_default_config = True
         else:
-            # XXX(eshcherbin, renadeen): Remove when map_node pool trees are not a thing.
-            if yt_commands.get(scheduler_pool_trees_root + "/@type") == "map_node":
-                restore_pool_trees_requests.append(
-                    yt_commands.make_batch_request(
-                        "create",
-                        type="map_node",
-                        path=scheduler_pool_trees_root + "/default",
-                    )
+            restore_pool_trees_requests.append(
+                yt_commands.make_batch_request(
+                    "create",
+                    type="scheduler_pool_tree",
+                    attributes={"name": "default", "config": {"main_resource": "cpu"}},
                 )
-            else:
-                restore_pool_trees_requests.append(
-                    yt_commands.make_batch_request(
-                        "create",
-                        type="scheduler_pool_tree",
-                        attributes={"name": "default"},
-                    )
-                )
+            )
         for pool_tree in yt_commands.ls(scheduler_pool_trees_root, driver=driver):
             if pool_tree != "default":
                 restore_pool_trees_requests.append(
@@ -945,6 +926,11 @@ class YTEnvSetup(object):
 
         # Could not add this to the batch request because of possible races at scheduler.
         yt_commands.set(scheduler_pool_trees_root + "/@default_tree", "default", driver=driver)
+
+        if should_set_default_config:
+            yt_commands.set(
+                scheduler_pool_trees_root + "/default/@config",
+                {"nodes_filter": "", "main_resource": "cpu"})
 
         if scheduler_count > 0:
             self._wait_for_scheduler_state_restored(driver=driver)

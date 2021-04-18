@@ -403,8 +403,7 @@ class TestStrategyWithSlowController(YTEnvSetup, PrepareTables):
         assert abs(op1.get_job_count("running") - op2.get_job_count("running")) <= self.CONCURRENT_HEARTBEAT_LIMIT
 
 
-# TODO(ignat): Rename this suite as its current name is too generic.
-class TestStrategies(YTEnvSetup):
+class TestUnavailableChunkStrategies(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 2
     NUM_SCHEDULERS = 1
@@ -584,6 +583,9 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         super(TestSchedulerOperationLimits, self).setup_method(method)
         set("//sys/pool_trees/default/@config/max_running_operation_count_per_pool", 1)
         set("//sys/pool_trees/default/@config/default_parent_pool", "default_pool")
+        default_tree_config_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/config"
+        wait(lambda: get(default_tree_config_path)["default_parent_pool"] == "default_pool")
+        wait(lambda: get(default_tree_config_path)["max_running_operation_count_per_pool"] == 1)
 
     def _run_operations(self):
         create("table", "//tmp/in")
@@ -746,10 +748,8 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         )
         wait_breakpoint()
 
-        # TODO(ignat): Stabilize this part.
         remove("//sys/pools/test_pool_1")
-        create_pool("test_pool_1", parent_name="test_pool_2", wait_for_orchid=False)
-        time.sleep(0.5)
+        create_pool("test_pool_1", parent_name="test_pool_2", wait_for_orchid=True)
 
         op2 = map(
             track=False,
@@ -2141,9 +2141,8 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
             out="//tmp/t_out",
             spec={"pool": "test_pool_1", "testing": testing_options},
         )
-        time.sleep(1)
+        wait(lambda: op.get_state() == "running")
 
-        # TODO(ignat): Make this more stable.
         remove("//sys/pools/test_pool_1")
         create_pool("test_pool_1", parent_name="test_pool_2", wait_for_orchid=False)
 
