@@ -65,6 +65,7 @@ func TrackChildren(root ypath.Path, period time.Duration, ytc yt.Client, l log.L
 
 	stop = func() {
 		stopCh <- struct{}{}
+		l.Debug("tracking stopped")
 	}
 	ch = eventCh
 	return

@@ -4,14 +4,19 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"reflect"
+	"regexp"
 	"time"
 
 	"a.yandex-team.ru/library/go/core/log"
+	"a.yandex-team.ru/library/go/core/xerrors"
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yterrors"
 )
+
+var aliasAlreadyUsedRE, _ = regexp.Compile("alias is already used by an operation")
 
 type Oplet struct {
 	// Fields below are public since they are accessed via reflection in fancy functions.
@@ -27,7 +32,7 @@ type Oplet struct {
 	pendingRestart bool
 	pendingFlush   bool
 
-	acl       yson.RawValue
+	acl       []yt.ACE
 	pool      *string
 	ytOpState yt.OperationState
 	err       error
@@ -70,6 +75,10 @@ type Agent struct {
 
 	// pendingAliases contains all aliases that should be updated from Cypress attributes.
 	pendingAliases map[string]struct{}
+
+	started          bool
+	stopBackgroundCh chan struct{}
+	stopTracking     func()
 }
 
 func NewAgent(proxy string, ytc yt.Client, l log.Logger, controllers map[string]Controller, config *Config) *Agent {
@@ -79,14 +88,12 @@ func NewAgent(proxy string, ytc yt.Client, l log.Logger, controllers map[string]
 	}
 
 	return &Agent{
-		ytc:            ytc,
-		l:              l,
-		controllers:    controllers,
-		config:         config,
-		hostname:       hostname,
-		Proxy:          proxy,
-		aliasToOp:      make(map[string]*Oplet),
-		pendingAliases: make(map[string]struct{}),
+		ytc:         ytc,
+		l:           l,
+		controllers: controllers,
+		config:      config,
+		hostname:    hostname,
+		Proxy:       proxy,
 	}
 }
 
@@ -121,6 +128,28 @@ func (a *Agent) restartOp(oplet *Oplet) {
 	}
 
 	opID, err := a.ytc.StartOperation(context.TODO(), yt.OperationVanilla, spec, nil)
+
+	if yterrors.ContainsMessageRE(err, aliasAlreadyUsedRE) {
+		oplet.l.Debug("alias is already used, aborting previous operation")
+		// Try to abort already existing operation with that alias.
+		var ytErr *yterrors.Error
+		if ok := xerrors.As(err, &ytErr); !ok {
+			panic(fmt.Errorf("cannot convert error to YT error: %v", err))
+		}
+		// TODO(max42): there must be a way better to do this...
+		ytErr = ytErr.InnerErrors[0].InnerErrors[0]
+		oldOpID, parseErr := guid.ParseString(ytErr.Attributes["operation_id"].(string))
+		if parseErr != nil {
+			panic(fmt.Errorf("malformed YT operation ID in error attributes: %v", parseErr))
+		}
+		oplet.l.Debug("aborting operation", log.String("operation_id", oldOpID.String()))
+		abortErr := a.ytc.AbortOperation(context.TODO(), yt.OperationID(oldOpID), &yt.AbortOperationOptions{})
+		if abortErr != nil {
+			oplet.setError(abortErr)
+			return
+		}
+		opID, err = a.ytc.StartOperation(context.TODO(), yt.OperationVanilla, spec, nil)
+	}
 
 	if err != nil {
 		oplet.setError(err)
@@ -306,18 +335,22 @@ func (a *Agent) pass() {
 func (a *Agent) background(period time.Duration) {
 	a.l.Info("starting background activity", log.Duration("period", period))
 	ticker := time.NewTicker(period)
+out:
 	for {
 		select {
+		case <-a.stopBackgroundCh:
+			break out
 		case alias := <-a.nodeCh:
 			a.pendingAliases[alias] = struct{}{}
 		case <-ticker.C:
 			a.pass()
 		}
 	}
+	a.l.Info("stopping background activity")
 }
 
 type CypressState struct {
-	ACL              yson.RawValue
+	ACL              []yt.ACE
 	Pool             *string
 	OperationID      yt.OperationID
 	IncarnationIndex int
@@ -380,7 +413,7 @@ func (a *Agent) updateFromAttrs(oplet *Oplet, alias string) error {
 	// Collect full attributes of the node.
 
 	var node struct {
-		ACL              yson.RawValue  `yson:"strawberry_acl"`
+		ACL              []yt.ACE       `yson:"strawberry_acl"`
 		OperationID      yt.OperationID `yson:"strawberry_operation_id"`
 		IncarnationIndex int            `yson:"strawberry_incarnation_index"`
 		Speclet          yson.RawValue  `yson:"strawberry_speclet"`
@@ -422,17 +455,33 @@ func (a *Agent) updateFromAttrs(oplet *Oplet, alias string) error {
 
 	l.Debug("node attributes collected and validated")
 
-	newOplet := a.newOplet(alias, controller, CypressState{
-		ACL:              node.ACL,
-		OperationID:      node.OperationID,
-		IncarnationIndex: node.IncarnationIndex,
-		Speclet:          node.Speclet,
-		Pool:             node.Pool,
-	})
-
 	if oplet != nil {
-		*oplet = newOplet
+		if !reflect.DeepEqual(oplet.acl, node.ACL) {
+			oplet.acl = node.ACL
+			oplet.setPendingRestart("ACL change")
+		}
+		if !reflect.DeepEqual(oplet.pool, node.Pool) {
+			oplet.pool = node.Pool
+			oplet.setPendingRestart("Pool change")
+		}
+		if !reflect.DeepEqual(oplet.speclet, node.Speclet) {
+			oplet.speclet = node.Speclet
+			oplet.setPendingRestart("Speclet change")
+		}
 	} else {
+		// TODO(max42): current implementation does not restart operation in following case:
+		// - ACL changes
+		// - agent1 dies before noticing that
+		// - agent2 starts and registers new oplet for the operation
+		// Correct way to handle that is to compare ACL, pool and speclet from operation runtime information
+		// with the intended values.
+		newOplet := a.newOplet(alias, controller, CypressState{
+			ACL:              node.ACL,
+			OperationID:      node.OperationID,
+			IncarnationIndex: node.IncarnationIndex,
+			Speclet:          node.Speclet,
+			Pool:             node.Pool,
+		})
 		a.registerOplet(&newOplet)
 	}
 
@@ -442,7 +491,15 @@ func (a *Agent) updateFromAttrs(oplet *Oplet, alias string) error {
 }
 
 func (a *Agent) Start() {
-	a.nodeCh, _ = TrackChildren(a.config.Root, time.Millisecond*1000, a.ytc, a.l)
+	if a.started {
+		return
+	}
+	a.started = true
+
+	a.aliasToOp = make(map[string]*Oplet)
+	a.pendingAliases = make(map[string]struct{})
+
+	a.nodeCh, a.stopTracking = TrackChildren(a.config.Root, time.Millisecond*1000, a.ytc, a.l)
 
 	var initialAliases []string
 	err := a.ytc.ListNode(context.TODO(), a.config.Root, &initialAliases, nil)
@@ -457,5 +514,21 @@ func (a *Agent) Start() {
 		}
 	}
 
+	a.stopBackgroundCh = make(chan struct{})
+
 	go a.background(time.Duration(a.config.PassPeriod))
+}
+
+func (a *Agent) Stop() {
+	if !a.started {
+		return
+	}
+	a.started = false
+	a.stopTracking()
+	a.stopBackgroundCh <- struct{}{}
+	a.aliasToOp = nil
+	a.pendingAliases = nil
+	a.nodeCh = nil
+	a.stopTracking = nil
+	a.stopBackgroundCh = nil
 }
