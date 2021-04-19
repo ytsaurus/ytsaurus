@@ -293,7 +293,8 @@ private:
         if (hydraManager && !hydraManager->IsActive()) {
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::NoSuchCell,
-                "Cell %v is not active")
+                "Cell %v is not active",
+                cellId)
                 << TErrorAttribute("tablet_id", tabletId)
                 << TErrorAttribute("cell_id", cellId);
         } else {
