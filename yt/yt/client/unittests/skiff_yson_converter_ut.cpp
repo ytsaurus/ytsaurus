@@ -477,6 +477,41 @@ TEST(TYsonSkiffConverterTest, TestTuple)
         "02000000" "00000000" "01" "2a000000" "00000000");
 }
 
+TEST(TYsonSkiffConverterTest, TestTupleSkippedFields)
+{
+    TString skiffString;
+    skiffString = ConvertYsonHex(
+        Tuple(String(), Int64(), Bool()),
+        CreateTupleSchema({
+            CreateSimpleTypeSchema(EWireType::String32),
+            CreateSimpleTypeSchema(EWireType::Nothing),
+            CreateSimpleTypeSchema(EWireType::Boolean),
+        }),
+        " [ true ; 1; %true ] ");
+    EXPECT_EQ(skiffString, AsStringBuf("04000000" "74727565" "01"));
+
+    skiffString = ConvertYsonHex(
+        Tuple(String(), Int64(), Bool()),
+        CreateTupleSchema({
+            CreateSimpleTypeSchema(EWireType::Nothing),
+            CreateSimpleTypeSchema(EWireType::Int64),
+            CreateSimpleTypeSchema(EWireType::Nothing),
+        }),
+        " [ true ; 1; %true ] ");
+    EXPECT_EQ(skiffString, AsStringBuf("01000000" "00000000"));
+
+    skiffString = ConvertYsonHex(
+        Tuple(Optional(String()), Int64(), Optional(Bool())),
+        CreateTupleSchema({
+            CreateSimpleTypeSchema(EWireType::Nothing),
+            CreateSimpleTypeSchema(EWireType::Int64),
+            CreateSimpleTypeSchema(EWireType::Nothing)
+        }),
+        "[#;15;#;]"
+    );
+    EXPECT_EQ(skiffString, AsStringBuf("0f000000" "00000000"));
+}
+
 TEST(TYsonSkiffConverterTest, TestDict)
 {
     const auto logicalType = Dict(String(), Int64());
