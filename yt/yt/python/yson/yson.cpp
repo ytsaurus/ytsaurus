@@ -1,4 +1,3 @@
-#include "object_builder.h"
 #include "serialize.h"
 #include "lazy_parser.h"
 #include "lazy_yson_consumer.h"
@@ -9,6 +8,7 @@
 #include "error.h"
 #include "helpers.h"
 #include "limited_yson_writer.h"
+#include "pull_object_builder.h"
 
 #include "skiff/schema.h"
 #include "skiff/record.h"
@@ -19,11 +19,13 @@
 
 #include <yt/yt/python/common/shutdown.h>
 #include <yt/yt/python/common/helpers.h>
+#include <yt/yt/python/common/stream.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/yson/protobuf_interop.h>
 #include <yt/yt/core/yson/null_consumer.h>
+#include <yt/yt/core/yson/pull_parser.h>
 
 #include <yt/yt/core/misc/crash_handler.h>
 #include <yt/yt/core/misc/signal_registry.h>
@@ -41,48 +43,79 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYsonIterator
-    : public TRowsIteratorBase<TYsonIterator, NYTree::TPythonObjectBuilder, NYson::TYsonParser>
+    : public Py::PythonClass<TYsonIterator>
 {
 public:
     TYsonIterator(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
-        : TBase::TRowsIteratorBase(self, args, kwargs, FormatName)
+        : TBase::PythonClass(self, args, kwargs)
     { }
 
     void Init(
-        IInputStream* inputStream,
-        std::unique_ptr<IInputStream> inputStreamHolder,
+        IZeroCopyInput* inputStream,
+        std::unique_ptr<IZeroCopyInput> inputStreamHolder,
         bool alwaysCreateAttributes,
         const std::optional<TString>& encoding)
     {
         YT_VERIFY(!inputStreamHolder || inputStreamHolder.get() == inputStream);
 
-        InputStream_ = inputStream;
         InputStreamHolder_ = std::move(inputStreamHolder);
-        Consumer_.reset(new TPythonObjectBuilder(alwaysCreateAttributes, encoding));
-        Parser_.reset(new TYsonParser(Consumer_.get(), EYsonType::ListFragment));
+        Parser_.reset(new TYsonPullParser(inputStream, EYsonType::ListFragment));
+        ObjectBuilder_.reset(new TPullObjectBuilder(Parser_.get(), alwaysCreateAttributes, encoding));
     }
 
     static void InitType()
     {
-        TBase::InitType(FormatName);
+        Name_ = TString(FormatName) + "Iterator";
+        Doc_ = "Iterates over stream with " + TString(FormatName) + " rows";
+        TypeName_ = "yson_lib." + Name_;
+        TBase::behaviors().name(TypeName_.c_str());
+        TBase::behaviors().doc(Doc_.c_str());
+        TBase::behaviors().supportGetattro();
+        TBase::behaviors().supportSetattro();
+        TBase::behaviors().supportIter();
+
+        TBase::behaviors().readyType();
     }
 
-    using TBase = TRowsIteratorBase<TYsonIterator, NYTree::TPythonObjectBuilder, NYson::TYsonParser>;
+    Py::Object iter()
+    {
+        return TBase::self();
+    }
+
+    PyObject* iternext() 
+    {
+        YT_VERIFY(InputStreamHolder_);
+        YT_VERIFY(Parser_);
+        YT_VERIFY(ObjectBuilder_);
+
+        try {
+            auto result = ObjectBuilder_->ParseObject();
+            return result.release();
+        } CATCH_AND_CREATE_YSON_ERROR(TString(FormatName) + " load failed");
+    }
+
+    using TBase = Py::PythonClass<TYsonIterator>;
+
+protected:
+    static void InitType(const TString& formatName);
+
+    static TString Name_;
+    static TString Doc_;
+    static TString TypeName_;
 
 private:
     static constexpr const char FormatName[] = "Yson";
 
-    std::unique_ptr<IInputStream> InputStreamHolder_;
+    std::unique_ptr<IZeroCopyInput> InputStreamHolder_;
+    std::unique_ptr<NYson::TYsonPullParser> Parser_;
+    std::unique_ptr<NPython::TPullObjectBuilder> ObjectBuilder_;
 };
 
 constexpr const char TYsonIterator::FormatName[];
 
-template<>
-TString TYsonIterator::TBase::Name_ = TString();
-template<>
-TString TYsonIterator::TBase::Doc_ = TString();
-template<>
-TString TYsonIterator::TBase::TypeName_ = TString();
+TString TYsonIterator::Name_ = TString();
+TString TYsonIterator::Doc_ = TString();
+TString TYsonIterator::TypeName_ = TString();
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -417,9 +450,9 @@ private:
     Py::Object LoadImpl(
         Py::Tuple& args,
         Py::Dict& kwargs,
-        std::unique_ptr<IInputStream> inputStreamHolder)
+        std::unique_ptr<IZeroCopyInput> inputStreamHolder)
     {
-        IInputStream* inputStream = inputStreamHolder.get();
+        IZeroCopyInput* inputStream = inputStreamHolder.get();
 
         auto ysonType = NYson::EYsonType::Node;
         if (HasArgument(args, kwargs, "yson_type")) {
@@ -493,19 +526,14 @@ private:
             if (raw) {
                 throw CreateYsonError("Raw mode is only supported for list fragments");
             }
-            NYTree::TPythonObjectBuilder consumer(alwaysCreateAttributes, encoding);
-
-            auto parse = [&] {ParseYson(TYsonInput(inputStream, ysonType), &consumer);};
-
+            
+            TYsonPullParser parser(inputStreamHolder.get(), ysonType);
+            TPullObjectBuilder builder(&parser, alwaysCreateAttributes, encoding);
             if (ysonType == NYson::EYsonType::MapFragment) {
-                consumer.OnBeginMap();
-                parse();
-                consumer.OnEndMap();
+                return Py::Object(builder.ParseMap(NYson::EYsonItemType::EndOfStream, alwaysCreateAttributes).release(), true);
             } else {
-                parse();
+                return Py::Object(builder.ParseObject(alwaysCreateAttributes).release(), true);
             }
-
-            return consumer.ExtractObject();
         }
     }
 

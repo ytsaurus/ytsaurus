@@ -99,8 +99,9 @@ class TestTableCommands(object):
         yt.create("file", file)
         with pytest.raises(yt.YtError):
             yt.read_table(file)
-
-        yt.write_table(table, [{"x": i} for i in xrange(10)])
+        
+        # Pull parser reads 1MB on creation, so table should be >1MB. Otherwise parser reads the whole table and no error occurs.
+        yt.write_table(table, [{"x": "a" * (2 * 10**5)}] * 10)
         client = yt.YtClient(config=deepcopy(yt.config.config))
         with set_config_option("read_parallel/max_thread_count", 2), \
                 set_config_option("proxy/request_timeout", 1000), \

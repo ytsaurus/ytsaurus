@@ -6,6 +6,7 @@
 
 #include <util/stream/buffered.h>
 #include <util/stream/file.h>
+#include <util/stream/zerocopy.h>
 
 #include <Objects.hxx> // pycxx
 
@@ -17,26 +18,26 @@ namespace NYT::NPython {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TInputStreamForwarder
-    : public IInputStream
+    : public IZeroCopyInput
 {
 public:
     explicit TInputStreamForwarder(const Py::Object& inputStream, bool wrapPythonExceptions)
         : InputStream_(inputStream)
         , ReadFunction_(InputStream_.getAttr("read"))
+        , LastReadResult_()
         , WrapPythonExceptions_(wrapPythonExceptions)
     { }
 
     virtual ~TInputStreamForwarder() noexcept = default;
 
-    size_t DoRead(void* buf, size_t len)
+    size_t DoNext(const void** ptr, size_t len) override
     {
         TGilGuard guard;
-
-        auto args = Py::TupleN(Py::Long(static_cast<long>(len)));
-        Py::Object result;
+        
+        auto args = Py::TupleN(Py::Long(static_cast<long>(std::min(BufferSize, len))));
 
         try {
-             result = ReadFunction_.apply(args);
+            LastReadResult_ = ReadFunction_.apply(args);
         } catch (const std::exception& ex) { \
             if (WrapPythonExceptions_) {
                 THROW_ERROR Py::BuildErrorFromPythonException();
@@ -57,28 +58,30 @@ public:
 #if PY_MAJOR_VERSION < 3
         // COMPAT: Due to implicit promotion to unicode it is sane to work with
         // unicode objects too.
-        if (!PyBytes_Check(result.ptr()) && !PyUnicode_Check(result.ptr())) {
+        if (!PyBytes_Check(LastReadResult_.ptr()) && !PyUnicode_Check(LastReadResult_.ptr())) {
             throw Py::TypeError("Read returns non-string object");
         }
 #else
-        if (!PyBytes_Check(result.ptr())) {
+        if (!PyBytes_Check(LastReadResult_.ptr())) {
             throw Py::TypeError("Input stream should be binary");
         }
 #endif
-        auto data = PyBytes_AsString(*result);
-        auto length = PyBytes_Size(*result);
-        std::copy(data, data + length, (char*)buf);
-        return length;
+        *ptr = PyBytes_AsString(*LastReadResult_);
+        auto res = PyBytes_Size(*LastReadResult_);
+        return res;
     }
 
 private:
     Py::Object InputStream_;
     Py::Callable ReadFunction_;
+    Py::Object LastReadResult_;
+
+    static constexpr size_t BufferSize = 64_KB;
 
     const bool WrapPythonExceptions_;
 };
 
-std::unique_ptr<IInputStream> CreateInputStreamWrapper(const Py::Object& pythonInputStream, bool wrapPythonExceptions)
+std::unique_ptr<IZeroCopyInput> CreateInputStreamWrapper(const Py::Object& pythonInputStream, bool wrapPythonExceptions)
 {
 #if PY_MAJOR_VERSION < 3
     if (PyFile_Check(pythonInputStream.ptr())) {
@@ -185,7 +188,7 @@ std::unique_ptr<IZeroCopyOutput> CreateZeroCopyOutputStreamWrapper(const Py::Obj
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOwningStringInput
-    : public IInputStream
+    : public IZeroCopyInput
 {
 public:
     explicit TOwningStringInput(TString string)
@@ -194,18 +197,18 @@ public:
     { }
 
 private:
-    virtual size_t DoRead(void* buf, size_t len) override
+    size_t DoNext(const void** ptr, size_t len) override
     {
-        return Stream_.Read(buf, len);
+        return Stream_.Next(ptr, len);
     }
 
     TString String_;
     TStringInput Stream_;
 };
 
-std::unique_ptr<IInputStream> CreateOwningStringInput(TString string)
+std::unique_ptr<IZeroCopyInput> CreateOwningStringInput(TString string)
 {
-    return std::unique_ptr<IInputStream>(new TOwningStringInput(string));
+    return std::unique_ptr<IZeroCopyInput>(new TOwningStringInput(string));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
