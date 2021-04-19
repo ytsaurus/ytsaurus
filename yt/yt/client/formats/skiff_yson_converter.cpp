@@ -1073,11 +1073,21 @@ TYsonToSkiffConverter CreateTupleYsonToSkiffConverter(
     const TConverterCreationContext& context,
     const TYsonToSkiffConverterConfig& config)
 {
+    TYsonToSkiffConverter skipYsonValue = [](TYsonPullParserCursor* cursor, TCheckedInDebugSkiffWriter* /*writer*/) {
+        cursor->SkipComplexValue();
+    };
+
     auto tupleMatch = MatchTupleTypes(descriptor, skiffSchema);
+    const auto& children = skiffSchema->GetChildren();
     std::vector<TYsonToSkiffConverter> converterList;
-    for (const auto&[descriptor, skiffSchema] : tupleMatch) {
-        auto converter = CreateYsonToSkiffConverterImpl(descriptor, skiffSchema, context, config);
-        converterList.emplace_back(converter);
+    for (int i = 0; i < tupleMatch.size(); ++i) {
+        if (children[i]->GetWireType() == EWireType::Nothing) {
+            converterList.emplace_back(skipYsonValue);
+        } else {
+            const auto&[descriptor, skiffSchema] = tupleMatch[i];
+            auto converter = CreateYsonToSkiffConverterImpl(descriptor, skiffSchema, context, config);
+            converterList.emplace_back(converter);
+        }
     }
 
     return [converterList = std::move(converterList), descriptor = std::move(descriptor)]
