@@ -119,6 +119,9 @@ TEST(THazardPtrTest, DelayedDeallocation)
 
     EXPECT_STREQ("AC!D", output.Str().c_str());
 
+    EXPECT_TRUE(hazardPtr);
+    EXPECT_FALSE(MakeStrong(hazardPtr));
+
     ScanDeleteList();
 
     EXPECT_STREQ("AC!D", output.Str().c_str());
