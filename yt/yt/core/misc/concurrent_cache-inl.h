@@ -132,9 +132,15 @@ TConcurrentCache<T>::TLookuper::operator bool ()
 }
 
 template <class T>
-const typename TConcurrentCache<T>::TLookupTable* TConcurrentCache<T>::TLookuper::GetPrimary() const
+typename TConcurrentCache<T>::TLookupTable* TConcurrentCache<T>::TLookuper::GetPrimary()
 {
     return Primary_.Get();
+}
+
+template <class T>
+typename TConcurrentCache<T>::TLookupTable* TConcurrentCache<T>::TLookuper::GetSecondary()
+{
+    return Secondary_.Get();
 }
 
 template <class T>

@@ -16,6 +16,9 @@ public:
     using TEntry = ui64;
     using TValuePtr = TIntrusivePtr<T>;
 
+    template <class TCallback>
+    void ForEach(TCallback callback);
+
     class TItemRef
     {
     public:

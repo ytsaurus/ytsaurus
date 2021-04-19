@@ -160,6 +160,11 @@ public:
         return {head, current};
     }
 
+    bool IsReallocationNeeded() const
+    {
+        return RefCount_.load(std::memory_order_relaxed) * 2 < Arena_->ObjectCount_;
+    }
+
 private:
     TSmallArena* const Arena_;
 
@@ -306,7 +311,7 @@ public:
     }
 
     void ReleaseMemory(size_t size)
-    {   
+    {
         if (!MemoryTracker_) {
             return;
         }
@@ -327,7 +332,7 @@ private:
     const IMemoryUsageTrackerPtr MemoryTracker_;
     // One ref from allocator plus refs from allocated objects.
     std::atomic<size_t> RefCount_ = 1;
-    std::atomic<size_t> OverheadMemory_ = 0; 
+    std::atomic<size_t> OverheadMemory_ = 0;
 };
 
 /////////////////////////////////////////////////////////////////////////////
@@ -378,6 +383,16 @@ uintptr_t MakeTagFromSegment(TSegment* segment)
     return result & ~1ULL;
 }
 
+const uintptr_t* GetHeaderFromPtr(const void* ptr)
+{
+    return static_cast<const uintptr_t*>(ptr) - 1;
+}
+
+uintptr_t* GetHeaderFromPtr(void* ptr)
+{
+    return static_cast<uintptr_t*>(ptr) - 1;
+}
+
 } // namespace
 
 void TSlabAllocator::TLargeArenaDeleter::operator() (TLargeArena* arena)
@@ -418,7 +433,7 @@ void* TSlabAllocator::Allocate(size_t size)
 void TSlabAllocator::Free(void* ptr)
 {
     YT_ASSERT(ptr);
-    auto* header = static_cast<uintptr_t*>(ptr) - 1;
+    auto* header = GetHeaderFromPtr(ptr);
     auto tag = *header;
 
     if (auto* largeArena = TryGetLargeArenaFromTag(tag)) {
@@ -426,6 +441,12 @@ void TSlabAllocator::Free(void* ptr)
     } else {
         GetSegmentFromTag(tag)->Free(header);
     }
+}
+
+bool IsReallocationNeeded(const void* ptr)
+{
+    auto tag = *GetHeaderFromPtr(ptr);
+    return !TryGetLargeArenaFromTag(tag) && GetSegmentFromTag(tag)->IsReallocationNeeded();
 }
 
 /////////////////////////////////////////////////////////////////////////////

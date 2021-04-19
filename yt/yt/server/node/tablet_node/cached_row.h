@@ -74,6 +74,8 @@ inline TCachedRowPtr GetLatestRow(TCachedRowPtr cachedItem)
     return cachedItem;
 }
 
+char* CaptureStringLikeValues(NTableClient::TMutableVersionedRow versionedRow);
+
 template <class TAlloc>
 TCachedRowPtr BuildCachedRow(TAlloc* allocator, TRange<NTableClient::TVersionedRow> rows, NTableClient::TTimestamp retainedTimestamp)
 {
@@ -144,23 +146,7 @@ TCachedRowPtr BuildCachedRow(TAlloc* allocator, TRange<NTableClient::TVersionedR
         valuesDest = std::copy(row.BeginValues(), row.EndValues(), valuesDest);
     }
 
-    char* blobDataDest = const_cast<char*>(versionedRow.GetMemoryEnd());
-    for (auto it = versionedRow.BeginKeys(); it != versionedRow.EndKeys(); ++it) {
-        if (IsStringLikeType(it->Type)) {
-            memcpy(blobDataDest, it->Data.String, it->Length);
-            it->Data.String = blobDataDest;
-            blobDataDest += it->Length;
-        }
-    }
-
-    for (auto it = versionedRow.BeginValues(); it != versionedRow.EndValues(); ++it) {
-        if (IsStringLikeType(it->Type)) {
-            memcpy(blobDataDest, it->Data.String, it->Length);
-            it->Data.String = blobDataDest;
-            blobDataDest += it->Length;
-        }
-    }
-
+    char* blobDataDest = CaptureStringLikeValues(versionedRow);
     YT_VERIFY(blobDataDest == cachedRow->Data + rowSize + blobDataSize);
 
     std::sort(versionedRow.BeginWriteTimestamps(), versionedRow.EndWriteTimestamps(), std::greater<NTableClient::TTimestamp>());
@@ -183,6 +169,25 @@ template <class TAlloc>
 TCachedRowPtr CachedRowFromVersionedRow(TAlloc* allocator, NTableClient::TVersionedRow row, NTableClient::TTimestamp retainedTimestamp)
 {
     return BuildCachedRow(allocator, MakeRange(&row, 1), retainedTimestamp);
+}
+
+template <class TAlloc>
+TCachedRowPtr CopyCachedRow(TAlloc* allocator, const TCachedRow* source)
+{
+    auto cachedRow = NewWithExtraSpace<TCachedRow>(allocator, source->Space, source->Space);
+    if (!cachedRow) {
+        return nullptr;
+    }
+
+    memcpy(cachedRow->Data, source->Data, source->Space);
+
+    auto versionedRow = cachedRow->GetVersionedRow();
+    CaptureStringLikeValues(versionedRow);
+
+    cachedRow->Hash = source->Hash;
+    cachedRow->RetainedTimestamp = source->RetainedTimestamp;
+
+    return cachedRow;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
