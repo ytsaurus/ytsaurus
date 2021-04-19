@@ -489,6 +489,8 @@ void WaitUntilSet(TFuture<void> future, IInvokerPtr invoker)
         return;
     }
 
+    YT_VERIFY(invoker != GetSyncInvoker());
+
     // Ensure canceler created.
     GetCurrentFiberCanceler();
 
