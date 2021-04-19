@@ -1,17 +1,14 @@
 package ru.yandex.spark.example;
 
 import org.apache.spark.SparkConf;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SaveMode;
-import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.functions;
+import org.apache.spark.sql.*;
 
 import ru.yandex.spark.yt.SparkAppJava;
-import ru.yandex.yt.ytclient.proxy.YtClient;
+import ru.yandex.yt.ytclient.proxy.CompoundClient;
 
 public class GroupingExample extends SparkAppJava {
-    public void doRun(String[] args, SparkSession spark, YtClient yt) {
+    @Override
+    protected void doRun(String[] args, SparkSession spark, CompoundClient yt) {
         Dataset<Row> df = spark.read().format("yt").load("/sys/spark/examples/example_1");
         Dataset<Row> dictDf = spark.read().format("yt").load("/sys/spark/examples/example_dict");
 
