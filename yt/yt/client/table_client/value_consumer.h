@@ -87,6 +87,7 @@ public:
    TBuildingValueConsumer(
         TTableSchemaPtr schema,
         NLogging::TLogger logger,
+        bool convertNullToEntity,
         TTypeConversionConfigPtr typeConversionConfig = New<TTypeConversionConfig>());
 
     std::vector<TUnversionedRow> GetRows() const;
@@ -97,21 +98,6 @@ public:
     void SetTreatMissingAsNull(bool value);
 
 private:
-    const NLogging::TLogger Logger;
-    TUnversionedOwningRowBuilder Builder_;
-    std::vector<TUnversionedOwningRow> Rows_;
-
-    const TNameTablePtr NameTable_;
-
-    bool Aggregate_ = false;
-
-    std::vector<bool> WrittenFlags_;
-    bool TreatMissingAsNull_ = false;
-
-    TBlobOutput ValueBuffer_;
-
-    bool LogNullToEntity_ = true;
-
     virtual bool GetAllowUnknownColumns() const override;
 
     virtual void OnBeginRow() override;
@@ -119,6 +105,20 @@ private:
     virtual void OnEndRow() override;
 
     TUnversionedValue MakeAnyFromScalar(const TUnversionedValue& value);
+
+private:
+    const NLogging::TLogger Logger;
+    const TNameTablePtr NameTable_;
+    const bool ConvertNullToEntity_;
+
+    TUnversionedOwningRowBuilder Builder_;
+    std::vector<TUnversionedOwningRow> Rows_;
+    std::vector<bool> WrittenFlags_;
+    TBlobOutput ValueBuffer_;
+
+    bool Aggregate_ = false;
+    bool TreatMissingAsNull_ = false;
+    bool LogNullToEntity_ = true;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
