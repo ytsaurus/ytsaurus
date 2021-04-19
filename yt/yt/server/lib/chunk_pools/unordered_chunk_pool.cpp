@@ -85,8 +85,7 @@ public:
             JobSizeAdjuster_ = CreateJobSizeAdjuster(
                 JobSizeConstraints_->GetDataWeightPerJob(),
                 options.JobSizeAdjusterConfig);
-            // ToDo(psushin): add logging here.
-            // ToDo(max42): Hi psushin, which logging do you want here?
+            YT_LOG_DEBUG("Job size adjuster created");
         }
 
         if (auto samplingRate = JobSizeConstraints_->GetSamplingRate()) {

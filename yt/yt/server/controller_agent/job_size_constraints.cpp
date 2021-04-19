@@ -314,7 +314,14 @@ public:
 
     virtual bool CanAdjustDataWeightPerJob() const override
     {
-        return !Spec_->DataWeightPerJob && !Spec_->JobCount;
+        if (Spec_->JobCount) {
+            return false;
+        }
+        if (Spec_->DataWeightPerJob) {
+            return Spec_->ForceJobSizeAdjuster;
+        }
+
+        return true;
     }
 
     virtual bool IsExplicitJobCount() const override
@@ -467,7 +474,14 @@ public:
 
     virtual bool CanAdjustDataWeightPerJob() const override
     {
-        return !Spec_->DataWeightPerJob && !Spec_->JobCount;
+        if (Spec_->JobCount) {
+            return false;
+        }
+        if (Spec_->DataWeightPerJob) {
+            return Spec_->ForceJobSizeAdjuster;
+        }
+
+        return true;
     }
 
     virtual bool IsExplicitJobCount() const override

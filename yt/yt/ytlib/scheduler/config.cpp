@@ -1004,6 +1004,8 @@ TSimpleOperationSpecBase::TSimpleOperationSpecBase()
     RegisterParameter("max_job_count", MaxJobCount)
         .Default()
         .GreaterThan(0);
+    RegisterParameter("force_job_size_adjuster", ForceJobSizeAdjuster)
+        .Default(false);
     RegisterParameter("locality_timeout", LocalityTimeout)
         .Default(TDuration::Seconds(5));
     RegisterParameter("job_io", JobIO)

@@ -1077,6 +1077,8 @@ public:
     std::optional<int> JobCount;
     std::optional<int> MaxJobCount;
 
+    bool ForceJobSizeAdjuster;
+
     TDuration LocalityTimeout;
     TJobIOConfigPtr JobIO;
 
