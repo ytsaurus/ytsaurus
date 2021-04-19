@@ -31,6 +31,19 @@ TLockFreeHashTable<T>::~TLockFreeHashTable()
 }
 
 template <class T>
+template <class TCallback>
+void TLockFreeHashTable<T>::ForEach(TCallback callback)
+{
+    for (size_t index = 0; index < Size_; ++index) {
+        auto tableEntry = HashTable_[index].load(std::memory_order_relaxed);
+        auto stamp = StampFromEntry(tableEntry);
+        if (stamp != 0) {
+            callback(TItemRef(&HashTable_[index]));
+        }
+    }
+}
+
+template <class T>
 size_t TLockFreeHashTable<T>::GetByteSize() const
 {
     return sizeof(std::atomic<TEntry>) * Size_;

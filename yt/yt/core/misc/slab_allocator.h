@@ -46,6 +46,8 @@ private:
     TLargeArenaPtr LargeArena_;
 };
 
+bool IsReallocationNeeded(const void* ptr);
+
 /////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

@@ -489,6 +489,7 @@ private:
                 addPartialRow(cachedItem->GetVersionedRow(), Timestamp_ + 1);
 
                 // Reinsert row here.
+                // TODO(lukyan): Move into function UpdateRow(cachedItemRef, inserter, cachedItem)
                 auto lookupTable = inserter.GetTable();
                 if (lookupTable == cachedItemRef.Origin) {
                     YT_LOG_TRACE("Updating row");

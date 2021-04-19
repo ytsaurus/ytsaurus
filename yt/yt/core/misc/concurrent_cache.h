@@ -54,7 +54,9 @@ public:
 
         explicit operator bool ();
 
-        const TLookupTable* GetPrimary() const;
+        TLookupTable* GetPrimary();
+        TLookupTable* GetSecondary();
+
     private:
         TConcurrentCache* Parent_ = nullptr;
         TIntrusivePtr<TLookupTable> Primary_;

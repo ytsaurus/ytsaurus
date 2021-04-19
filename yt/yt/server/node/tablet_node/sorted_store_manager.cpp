@@ -932,6 +932,41 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             }
         }
 
+        if (rowCache) {
+            YT_LOG_DEBUG("Lookup cache reallocation started");
+
+            int reallocatedRows = 0;
+            auto onItem = [&] (auto itemRef) {
+                auto head = itemRef.Get();
+                auto item = GetLatestRow(head);
+                auto memoryBegin = GetRefCounter(item.Get());
+
+                if(IsReallocationNeeded(memoryBegin)) {
+                    ++reallocatedRows;
+                    if (auto newItem = CopyCachedRow(&rowCache->Allocator, item.Get())) {
+                        newItem->Revision.store(std::numeric_limits<ui32>::max(), std::memory_order_release);
+                        YT_VERIFY(!item->Updated.Exchange(newItem));
+                        itemRef.Update(newItem);
+                    }
+                } else {
+                    itemRef.Update(std::move(item), head.Get());
+                }
+            };
+
+            auto lookuper = rowCache->Cache.GetLookuper();
+
+            // Reallocate secondary hash table at first beacuse 
+            // rows can be concurrently moved into primary during lookup.
+            if (auto secondaryHashTable = lookuper.GetSecondary()) {
+                secondaryHashTable->ForEach(onItem);
+            }
+
+            auto hashTable = lookuper.GetPrimary();
+            hashTable->ForEach(onItem);
+
+            YT_LOG_DEBUG("Lookup cache reallocation finished (ReallocatedRows: %v)", reallocatedRows);
+        }
+
         if (tableWriter->GetRowCount() == 0) {
             YT_LOG_DEBUG("Sorted store is empty, nothing to flush (StoreId: %v)",
                 store->GetId());
