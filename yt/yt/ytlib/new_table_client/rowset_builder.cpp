@@ -177,7 +177,7 @@ public:
     }
 
     virtual ui32 ReadValues(
-        TRowValuesCursor* values,
+        TValueProducerInfo* values,
         TRange<TReadSpan> spans,
         ui32 position,
         bool produceAll,
@@ -269,7 +269,7 @@ private:
     }
 
     ui32 DoReadValues(
-        TRowValuesCursor* values,
+        TValueProducerInfo* values,
         ui32 rowIndex,
         ui32 rowLimit,
         ui32 position,
@@ -297,6 +297,8 @@ private:
             auto [lowerId, upperId] = values->IdRange;
             // Adjust valueIdx and valueIdxEnd according to tsIds.
             valueIdx = Version_.AdjustLowerIndex(valueIdx, valueIdxEnd, lowerId);
+
+            // TODO(lukyan): No need co call AdjustIndex when produceAll is true. upperId is max.
             valueIdxEnd = Version_.AdjustIndex(valueIdx, valueIdxEnd, upperId);
 
             YT_ASSERT((valueIdx == valueIdxEnd) || (lowerId != upperId));
@@ -304,7 +306,10 @@ private:
             auto* valuePtr = values->Ptr;
             auto* timestamps = values->Timestamps;
 
+            // FIXME(lukyan): Consider produceAll and Aggregate.
             statistics->AddFixedPart<Type>(valueIdxEnd - valueIdx);
+
+            // TODO(lukyan): Use condition instead of loop if produceAll is false and not aggregate column.
             while (valueIdx != valueIdxEnd) {
                 valuePtr->Id = Id_;
                 Value_.Extract(valuePtr, valueIdx);
@@ -502,19 +507,17 @@ public:
             batchSize += upper - lower;
         }
 
-        // TODO(lukyan): Build TValueDestInfo array during row allocation.
-        auto tsIdRanges = Allocate<TIdRange>(batchSize);
-
+        auto values = Allocate<TValueProducerInfo>(batchSize);
         {
             auto valueCounts = Allocate<ui32>(batchSize);
             memset(valueCounts, 0, sizeof(ui32) * batchSize);
             CollectCounts(valueCounts, spans);
 
-            AllocateRows(rows, GetKeyColumnCount(), valueCounts, tsIdRanges, spans);
+            AllocateRows(rows, values, GetKeyColumnCount(), valueCounts, spans);
         }
 
         ReadKeys(rows, spans, batchSize, statistics);
-        ReadValues(rows, tsIdRanges, spans, batchSize, ProduceAll_, statistics);
+        ReadValues(rows, values, spans, batchSize, ProduceAll_, statistics);
     }
 
 private:
@@ -523,9 +526,9 @@ private:
 
     void DoAllocateRows(
         TMutableVersionedRow* rows,
+        TValueProducerInfo* values,
         ui32 keySize,
         const ui32* valueCounts,
-        TIdRange* tsIdRanges,
         ui32 rowIndex,
         ui32 rowLimit)
     {
@@ -544,7 +547,7 @@ private:
             // COMPAT(lukyan): Produce really all versions or all versions after last delete.
             if (ProduceAll_) {
                 // Produces all versions and all delete timestamps.
-                tsIdRanges[index] = std::make_pair(lowerWriteIdx - writeTimestampsBegin, writeTimestampsEnd - writeTimestampsBegin);
+                auto tsIdRange = std::make_pair(lowerWriteIdx - writeTimestampsBegin, writeTimestampsEnd - writeTimestampsBegin);
 
                 auto row = Buffer_->AllocateVersioned(
                     keySize,
@@ -556,12 +559,13 @@ private:
                 std::copy(DeleteTimestamps_ + lowerDeleteIdx, DeleteTimestamps_ + deleteTimestampsEnd, row.BeginDeleteTimestamps());
 
                 rows[index] = row;
+                values[index] = {row.BeginValues(), WriteTimestamps_ + writeTimestampsBegin, tsIdRange};
             } else {
                 // In case of all versions produce only versions after latest (before read timestamp) delete.
                 auto deleteTimestamp = lowerDeleteIdx != deleteTimestampsEnd ? DeleteTimestamps_[lowerDeleteIdx] : NullTimestamp;
                 auto upperWriteIdx = GetUpperWriteIndex(lowerWriteIdx, writeTimestampsEnd, deleteTimestamp);
 
-                tsIdRanges[index] = std::make_pair(lowerWriteIdx - writeTimestampsBegin, upperWriteIdx - writeTimestampsBegin);
+                auto tsIdRange = std::make_pair(lowerWriteIdx - writeTimestampsBegin, upperWriteIdx - writeTimestampsBegin);
 
                 auto row = Buffer_->AllocateVersioned(
                     keySize,
@@ -578,25 +582,26 @@ private:
                 }
 
                 rows[index] = row;
+                values[index] = {row.BeginValues(), WriteTimestamps_ + writeTimestampsBegin, tsIdRange};
             }
         }
     }
 
     void AllocateRows(
         TMutableVersionedRow* rows,
+        TValueProducerInfo* values,
         ui32 keySize,
         const ui32* valueCounts,
-        TIdRange* tsIdRanges,
         TRange<TReadSpan> spans)
     {
         for (auto [lower, upper] : spans) {
             auto batchSize = upper - lower;
             YT_VERIFY(batchSize);
 
-            DoAllocateRows(rows, keySize, valueCounts, tsIdRanges, lower, upper);
+            DoAllocateRows(rows, values, keySize, valueCounts, lower, upper);
             rows += batchSize;
             valueCounts += batchSize;
-            tsIdRanges += batchSize;
+            values += batchSize;
         }
     }
 
@@ -646,20 +651,12 @@ private:
 
     void ReadValues(
         TMutableVersionedRow* rows,
-        const TIdRange* tsIdRanges,
+        TValueProducerInfo* values,
         TRange<TReadSpan> spans,
         ui32 batchSize,
         bool produceAll,
         TDataWeightStatistics* statistics)
     {
-        auto values = Allocate<TRowValuesCursor>(batchSize);
-        for (ui32 index = 0; index < batchSize; ++index) {
-            values[index] = {
-                rows[index].BeginValues(),
-                rows[index].BeginWriteTimestamps() - tsIdRanges[index].first,
-                tsIdRanges[index]};
-        }
-
         ui16 id = GetKeyColumnCount();
         for (const auto& column : GetValueColumns()) {
             Positions_[id] = column->ReadValues(
@@ -695,6 +692,7 @@ std::unique_ptr<TVersionedRowsetBuilder> CreateVersionedRowsetBuilder(
     bool produceAll)
 {
     if (timestamp == NTransactionClient::AllCommittedTimestamp) {
+        // A bit more simple and efficient version of (MaxTimestamp and produceAll is true).
         return std::make_unique<TCompactionRowsetBuilder>(keyTypes, valueSchema);
     } else {
         return std::make_unique<TTransactionRowsetBuilder>(keyTypes, valueSchema, timestamp, produceAll);

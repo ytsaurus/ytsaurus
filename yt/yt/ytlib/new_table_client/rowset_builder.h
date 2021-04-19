@@ -19,7 +19,7 @@ struct TDataBufferTag { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRowValuesCursor
+struct TValueProducerInfo
 {
     TVersionedValue* Ptr;
     const TTimestamp* Timestamps;
@@ -107,7 +107,7 @@ public:
 
     // Transactional read.
     virtual ui32 ReadValues(
-        TRowValuesCursor* values,
+        TValueProducerInfo* values,
         TRange<TReadSpan> spans,
         ui32 position,
         bool produceAll,
