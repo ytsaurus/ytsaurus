@@ -7,6 +7,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Overload for TIntrusivePtr<T> MakeStrong(T* p).
 template <class T>
 TIntrusivePtr<T> MakeStrong(const THazardPtr<T>& ptr);
 

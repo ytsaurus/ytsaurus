@@ -38,8 +38,14 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDeleteListFlusher	
+{	
+    ~TDeleteListFlusher();	
+};
+
 struct TRowCache
     : public TRefCounted
+    , public TDeleteListFlusher
 {
     TSlabAllocator Allocator;
     TConcurrentCache<TCachedRow> Cache;
@@ -48,7 +54,6 @@ struct TRowCache
     std::atomic<ui32> FlushIndex = 0;
 
     TRowCache(size_t elementCount, IMemoryUsageTrackerPtr memoryTracker);
-    ~TRowCache();
 };
 
 DEFINE_REFCOUNTED_TYPE(TRowCache)

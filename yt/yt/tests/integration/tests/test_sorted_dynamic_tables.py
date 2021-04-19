@@ -370,6 +370,10 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         wait(lambda: get(path) > 51)
         assert get(path) == 53
 
+        node = get_tablet_leader_address(get("//tmp/t/@tablets/0/tablet_id"))
+        sync_unmount_table("//tmp/t")
+        wait(lambda: get("//sys/cluster_nodes/{}/@statistics/memory/lookup_rows_cache/used".format(node)) == 0)
+
     @authors("lukyan")
     def test_lookup_cache_flush(self):
         sync_create_cells(1)

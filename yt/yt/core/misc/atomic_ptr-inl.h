@@ -10,10 +10,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-
 template <class T>
-TIntrusivePtr<T> MakeStrongFromHazard(const THazardPtr<T>& ptr)
+TIntrusivePtr<T> MakeStrong(const THazardPtr<T>& ptr)
 {
     if (ptr) {
         if (GetRefCounter(ptr.Get())->TryRef()) {
@@ -27,8 +25,6 @@ TIntrusivePtr<T> MakeStrongFromHazard(const THazardPtr<T>& ptr)
 
     return nullptr;
 }
-
-} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,7 +79,7 @@ TIntrusivePtr<T> TAtomicPtr<T>::AcquireWeak() const
     auto hazardPtr = THazardPtr<T>::Acquire([&] {
         return Ptr_.load(std::memory_order_acquire);
     });
-    return NDetail::MakeStrongFromHazard(hazardPtr);
+    return MakeStrong(hazardPtr);
 }
 
 template <class T>
@@ -92,7 +88,7 @@ TIntrusivePtr<T> TAtomicPtr<T>::Acquire() const
     while (auto hazardPtr = THazardPtr<T>::Acquire([&] {
         return Ptr_.load(std::memory_order_acquire);
     })) {
-        if (auto ptr = NDetail::MakeStrongFromHazard(hazardPtr)) {
+        if (auto ptr = MakeStrong(hazardPtr)) {
             return ptr;
         }
     }
