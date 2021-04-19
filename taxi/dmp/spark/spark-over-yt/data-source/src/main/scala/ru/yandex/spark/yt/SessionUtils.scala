@@ -17,7 +17,9 @@ object SessionUtils {
     "spark.hadoop.yt.byop.enabled" -> "true",
     "spark.hadoop.yt.read.arrow.enabled" -> "true",
     "spark.hadoop.yt.profiling.enabled" -> "false",
-    "spark.yt.enablers" -> "spark.hadoop.yt.byop.enabled,spark.hadoop.yt.read.arrow.enabled,spark.hadoop.yt.profiling.enabled"
+    "spark.hadoop.yt.mtn.enabled" -> "false",
+    "spark.yt.enablers" -> Seq("byop", "read.arrow", "profiling", "mtn")
+      .map(s => s"spark.hadoop.yt.$s.enabled").mkString(",")
   )
 
   private def parseRemoteConfig(path: String, yt: CompoundClient): Map[String, String] = {
