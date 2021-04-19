@@ -13,7 +13,7 @@ namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IInputStream> CreateInputStreamWrapper(const Py::Object& pythonInputStream, bool wrapPythonExceptions = false);
+std::unique_ptr<IZeroCopyInput> CreateInputStreamWrapper(const Py::Object& pythonInputStream, bool wrapPythonExceptions = false);
 
 std::unique_ptr<IOutputStream> CreateOutputStreamWrapper(const Py::Object& pythonOutputStream, bool addBuffering);
 
@@ -21,7 +21,7 @@ std::unique_ptr<IZeroCopyOutput> CreateZeroCopyOutputStreamWrapper(const Py::Obj
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IInputStream> CreateOwningStringInput(TString string);
+std::unique_ptr<IZeroCopyInput> CreateOwningStringInput(TString string);
 
 ////////////////////////////////////////////////////////////////////////////////
 

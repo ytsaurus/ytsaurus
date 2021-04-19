@@ -6,6 +6,8 @@ from io import BytesIO, StringIO
 
 import yt.yson
 from yt.yson.yson_types import (YsonEntity, YsonMap, YsonList, YsonInt64,
+                                YsonUint64, YsonBoolean,
+                                YsonDouble,
                                 YsonString, YsonUnicode,
                                 YsonStringProxy, NotUnicodeError,
                                 get_bytes, is_unicode)
@@ -300,8 +302,14 @@ if yt_yson_bindings:
                 self.loads(b"{a=b};{c=d}")
 
         def test_context(self):
-            def check_context(error, context, context_pos):
-                error_attrs = error.inner_errors[0]["attributes"]
+            def check(string, context, context_pos, yson_type=None):
+                with pytest.raises(YsonError) as exc_info:
+                    if yson_type is None:
+                        yt_yson_bindings.loads(string)
+                    else:
+                        yt_yson_bindings.loads(string, yson_type=yson_type)
+
+                error_attrs = exc_info.value.inner_errors[0]["attributes"]
                 if "context_pos" in error_attrs:
                     assert context == error_attrs["context"]
                     assert context_pos == error_attrs["context_pos"]
@@ -309,35 +317,29 @@ if yt_yson_bindings:
                     assert context[context_pos:] == error_attrs["context"]
 
             STREAM_BLOCK_SIZE = 1024 * 1024
-            try:
-                yt_yson_bindings.loads(b"abacaba{")
-            except YsonError as error:
-                check_context(error, b"abacaba{", 0)
+            
+            check(b"abacaba{", b"abacaba{", 7)
+            check(b"{a=b;c=d;e=f;[}", b"=b;c=d;e=f;[}", 10)
+            check(b"[0;1;2;3;4;5;{1=2}]", b";2;3;4;5;{1=2}]", 10)
+            check(b"[1;5;{1=2}]", b"[1;5;{1=2}]", 6)
+            check(b"[" + b"ab" * (STREAM_BLOCK_SIZE // 2) + b";{1=2}]", b"abababab;{1=2}]", 10)
+            check(b"[" + b"a" * STREAM_BLOCK_SIZE + b";{1=2}]", b"aaaaaaaa;{1=2}]", 10)
+            check(b"[1;2;3", b"[1;2;3", 6)
+            check(b"a=1;1=2", b"a=1;1=2", 3, "map_fragment")
 
-            try:
-                yt_yson_bindings.loads(b"{a=b;c=d;e=f;[}")
-            except YsonError as error:
-                check_context(error, b"b;c=d;e=f;[}", 10)
 
-            try:
-                yt_yson_bindings.loads(b"[0;1;2;3;4;5;{1=2}]")
-            except YsonError as error:
-                check_context(error, b";2;3;4;5;{1=2}]", 10)
+        def test_uint64(self):
+            result = list(yt_yson_bindings.loads(b"123u; 0; %false; 3.14;", always_create_attributes=True, yson_type="list_fragment"))
+            assert isinstance(result[0], YsonUint64)
+            assert isinstance(result[1], YsonInt64)
+            assert isinstance(result[2], YsonBoolean)
+            assert isinstance(result[3], YsonDouble)
 
-            try:
-                yt_yson_bindings.loads(b"[1;5;{1=2}]")
-            except YsonError as error:
-                check_context(error, b"[1;5;{1=2}]", 6)
-
-            try:
-                yt_yson_bindings.loads(b"[" + b"ab" * (STREAM_BLOCK_SIZE // 2) + b";{1=2}]")
-            except YsonError as error:
-                check_context(error, b"abababab;{1=2}]", 10)
-
-            try:
-                yt_yson_bindings.loads(b"[" + b"a" * STREAM_BLOCK_SIZE + b";{1=2}]")
-            except YsonError as error:
-                check_context(error, b"aaaaaaaa;{1=2}]", 10)
+            result = list(yt_yson_bindings.loads(b"123u; 0; %false; 3.14;", always_create_attributes=False, yson_type="list_fragment"))
+            assert isinstance(result[0], YsonUint64)
+            assert not isinstance(result[1], YsonInt64)
+            assert not isinstance(result[2], YsonBoolean)
+            assert not isinstance(result[3], YsonDouble)
 
     class TestLazyDict(object):
         def test_class(self):
