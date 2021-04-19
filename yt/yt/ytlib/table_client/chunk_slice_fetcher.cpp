@@ -219,8 +219,7 @@ private:
             auto sliceByKeys = sliceRequest.SliceByKeys;
 
             // TODO(gritukan): Comparing rows using == here is ok, but quite ugly.
-            if (chunkDataSize < chunkSliceDataWeight || (sliceByKeys && minKey == maxKey))
-            {
+            if (chunkDataSize < chunkSliceDataWeight || (sliceByKeys && minKey == maxKey)) {
                 AddTrivialSlice(chunkIndex);
             } else {
                 requestedChunkIndexes.push_back(chunkIndex);
