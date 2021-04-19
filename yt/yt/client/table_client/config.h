@@ -258,6 +258,22 @@ DEFINE_REFCOUNTED_TYPE(TTypeConversionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TInsertRowsFormatConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    bool EnableNullToYsonEntityConversion;
+
+    TInsertRowsFormatConfig() {
+        RegisterParameter("enable_null_to_yson_entity_conversion", EnableNullToYsonEntityConversion)
+            .Default(true);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TInsertRowsFormatConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkReaderOptions
     : public virtual NYTree::TYsonSerializable
 {

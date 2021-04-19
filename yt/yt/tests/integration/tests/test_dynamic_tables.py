@@ -2576,6 +2576,27 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         with pytest.raises(YtError):
             set("//tmp/t/@tablet_cell_bundle", "b")
 
+    @authors("ermolovd")
+    def test_convert_null_to_yson_entity(self):
+        # NB. For historical reasons nulls that are inserted in `any` columns are converted to yson entity objects.
+        # Check YT-13469.
+        sync_create_cells(1)
+        schema = make_schema([
+            {"name": "key", "type": "string", "sort_order": "ascending"},
+            {"name": "value", "type": "any"}
+        ], unique_keys=True)
+        self._create_sorted_table("//tmp/t", schema=schema)
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": "foo", "value": None}])
+        rows = select_rows("* from [//tmp/t] where is_null(value)")
+        assert len(rows) == 0
+
+        format = yson.YsonString("yson")
+        format.attributes["enable_null_to_yson_entity_conversion"] = False
+        insert_rows("//tmp/t", [{"key": "bar", "value": None}], input_format=format)
+        rows = select_rows("* from [//tmp/t] where is_null(value)")
+        assert rows == [{"key": "bar", "value": None}]
+
 
 class TestDynamicTablesPortal(TestDynamicTablesMulticell):
     ENABLE_TMP_PORTAL = True

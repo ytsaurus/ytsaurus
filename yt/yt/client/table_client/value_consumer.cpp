@@ -211,10 +211,12 @@ void TValueConsumerBase::ThrowConversionException(const TUnversionedValue& value
 TBuildingValueConsumer::TBuildingValueConsumer(
     TTableSchemaPtr schema,
     NLogging::TLogger logger,
+    bool convertNullToEntity,
     TTypeConversionConfigPtr typeConversionConfig)
     : TValueConsumerBase(std::move(schema), std::move(typeConversionConfig))
     , Logger(std::move(logger))
     , NameTable_(TNameTable::FromSchema(*Schema_))
+    , ConvertNullToEntity_(convertNullToEntity)
     , WrittenFlags_(NameTable_->GetSize(), false)
 {
     InitializeIdToTypeMapping();
@@ -300,7 +302,10 @@ void TBuildingValueConsumer::OnMyValue(const TUnversionedValue& value)
     if (columnSchema.Aggregate()) {
         valueCopy.Aggregate = Aggregate_;
     }
-    if (columnSchema.GetPhysicalType() == EValueType::Any && valueCopy.Type != EValueType::Any) {
+    if (columnSchema.GetPhysicalType() == EValueType::Any
+        && valueCopy.Type != EValueType::Any &&
+        (valueCopy.Type != EValueType::Null || ConvertNullToEntity_))
+    {
         if (valueCopy.Type == EValueType::Null && LogNullToEntity_) {
             YT_LOG_DEBUG("Detected conversion null to yson entity");
             LogNullToEntity_ = false;

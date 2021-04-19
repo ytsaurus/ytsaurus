@@ -657,9 +657,7 @@ void TExplainQueryCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-std::vector<TUnversionedRow> ParseRows(
+static std::vector<TUnversionedRow> ParseRows(
     ICommandContextPtr context,
     TBuildingValueConsumer* valueConsumer)
 {
@@ -671,8 +669,6 @@ std::vector<TUnversionedRow> ParseRows(
     PipeInputToOutput(input.get(), &output, 64_KB);
     return valueConsumer->GetRows();
 }
-
-} // namespace
 
 TInsertRowsCommand::TInsertRowsCommand()
 {
@@ -708,11 +704,14 @@ void TInsertRowsCommand::DoExecute(ICommandContextPtr context)
     struct TInsertRowsBufferTag
     { };
 
+    auto insertRowsFormatConfig = ConvertTo<TInsertRowsFormatConfigPtr>(context->GetInputFormat().Attributes());
+    auto typeConversionConfig = ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes());
     // Parse input data.
     TBuildingValueConsumer valueConsumer(
         tableInfo->Schemas[ETableSchemaKind::Write],
         WithCommandTag(Logger, context),
-        ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
+        insertRowsFormatConfig->EnableNullToYsonEntityConversion,
+        typeConversionConfig);
     valueConsumer.SetAggregate(Aggregate);
     valueConsumer.SetTreatMissingAsNull(!Update);
 
@@ -788,6 +787,7 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
     TBuildingValueConsumer valueConsumer(
         tableInfo->Schemas[ETableSchemaKind::Lookup],
         WithCommandTag(Logger, context),
+        /*convertNullToEntity*/ false,
         ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
     auto keys = ParseRows(context, &valueConsumer);
     auto rowBuffer = New<TRowBuffer>(TLookupRowsBufferTag());
@@ -882,6 +882,7 @@ void TGetInSyncReplicasCommand::DoExecute(ICommandContextPtr context)
         TBuildingValueConsumer valueConsumer(
             tableInfo->Schemas[ETableSchemaKind::Lookup],
             WithCommandTag(Logger, context),
+            /*convertNullToEntity*/ false,
             ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
         auto keys = ParseRows(context, &valueConsumer);
         auto rowBuffer = New<TRowBuffer>(TInSyncBufferTag());
@@ -940,6 +941,7 @@ void TDeleteRowsCommand::DoExecute(ICommandContextPtr context)
     TBuildingValueConsumer valueConsumer(
         tableInfo->Schemas[ETableSchemaKind::Delete],
         WithCommandTag(Logger, context),
+        /*convertNullToEntity*/ false,
         ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
     auto keys = ParseRows(context, &valueConsumer);
     auto rowBuffer = New<TRowBuffer>(TDeleteRowsBufferTag());
@@ -1000,6 +1002,7 @@ void TLockRowsCommand::DoExecute(ICommandContextPtr context)
     TBuildingValueConsumer valueConsumer(
         tableInfo->Schemas[ETableSchemaKind::Write],
         WithCommandTag(Logger, context),
+        /*convertNullToEntity*/ false,
         ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()));
     auto keys = ParseRows(context, &valueConsumer);
     auto rowBuffer = New<TRowBuffer>(TLockRowsBufferTag());
