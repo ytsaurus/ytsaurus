@@ -1216,6 +1216,9 @@ void BuildUserJobFluently1(
         .DoIf(userJobSpec.JobTimeLimit_.Defined(), [&] (TFluentMap fluentMap) {
             fluentMap.Item("job_time_limit").Value(userJobSpec.JobTimeLimit_->MilliSeconds());
         })
+        .DoIf(userJobSpec.NetworkProject_.Defined(), [&] (TFluentMap fluentMap) {
+            fluentMap.Item("network_project").Value(*userJobSpec.NetworkProject_);
+        })
         .DoIf(preparer.ShouldMountSandbox(), [&] (TFluentMap fluentMap) {
             fluentMap.Item("tmpfs_path").Value(".");
             fluentMap.Item("tmpfs_size").Value(tmpfsSize);
