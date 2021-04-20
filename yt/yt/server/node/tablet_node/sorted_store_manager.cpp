@@ -933,6 +933,10 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         }
 
         if (rowCache) {
+            rowCache->Allocator.ReallocateArenasIfNeeded();
+        }
+
+        if (rowCache) {
             YT_LOG_DEBUG("Lookup cache reallocation started");
 
             int reallocatedRows = 0;

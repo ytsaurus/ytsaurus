@@ -1,5 +1,11 @@
 #include "slab_allocator.h"
 
+#include <yt/yt/core/misc/atomic_ptr.h>
+
+#include <yt/yt/library/profiling/sensor.h>
+
+#include <library/cpp/ytalloc/api/ytalloc.h>
+
 namespace NYT {
 
 /////////////////////////////////////////////////////////////////////////////
@@ -10,244 +16,193 @@ static_assert(SegmentSize >= NYTAlloc::LargeAllocationSizeThreshold, "Segment si
 constexpr size_t AcquireMemoryGranularity = 500_KB;
 static_assert(AcquireMemoryGranularity % 2 == 0, "Must be divisible by 2");
 
-class TSegment;
-
-struct TFreeListItem
-    : public TFreeListItemBase<TFreeListItem>
+struct TArenaCounters
 {
-    TSegment* Segment;
+    TArenaCounters() = default;
+
+    explicit TArenaCounters(const NProfiling::TProfiler& profiler)
+        : AllocatedItems(profiler.Counter("/lookup/allocated_items"))
+        , FreedItems(profiler.Counter("/lookup/freed_items"))
+        , AliveItems(profiler.Gauge("/lookup/alive_items"))
+        , AliveSegments(profiler.Gauge("/lookup/alive_segments"))
+    { }
+
+    NProfiling::TCounter AllocatedItems;
+    NProfiling::TCounter FreedItems;
+    NProfiling::TGauge AliveItems;
+    NProfiling::TGauge AliveSegments;
 };
 
-class TSmallArena
+class TSmallArena final
     : public TRefTracked<TSmallArena>
+    , public TArenaCounters
 {
 public:
+    static constexpr bool EnableHazard = true;
+
+    struct TFreeListItem
+        : public TFreeListItemBase<TFreeListItem>
+    { };
+
+    using TSimpleFreeList = TFreeList<TFreeListItem>;
+
     TSmallArena(
         size_t rank,
         size_t segmentSize,
-        IMemoryUsageTrackerPtr memoryTracker)
-        : ObjectSize_(NYTAlloc::SmallRankToSize[rank])
+        IMemoryUsageTrackerPtr memoryTracker,
+        const NProfiling::TProfiler& profiler)
+        : TArenaCounters(profiler.WithTag("rank", ToString(rank)))
+        , ObjectSize_(NYTAlloc::SmallRankToSize[rank])
         , ObjectCount_(segmentSize / ObjectSize_)
         , MemoryTracker_(std::move(memoryTracker))
     {
         YT_VERIFY(ObjectCount_ > 0);
     }
 
-    TFreeListItem* Allocate();
-
-    void ClearFreeList();
-
-    size_t Unref();
-
-private:
-    const size_t ObjectSize_;
-    const size_t ObjectCount_;
-    const IMemoryUsageTrackerPtr MemoryTracker_;
-
-    TFreeList<TFreeListItem> FreeList_;
-    // One ref from allocator plus refs from segments.
-    std::atomic<size_t> RefCount_ = 1;
-
-    TFreeListItem* AllocateSlow();
-
-    friend TSegment;
-};
-
-class TSegment
-    : public TRefTracked<TSegment>
-{
-public:
-    explicit TSegment(TSmallArena* arena)
-        : Arena_(arena)
-        , RefCount_(arena->ObjectCount_)
+    void* Allocate()
     {
-        size_t totalSize = sizeof(TSegment) + Arena_->ObjectSize_ * Arena_->ObjectCount_;
-
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-        TRefCountedTrackerFacade::AllocateSpace(GetRefCountedTypeCookie<TSmallArena>(), totalSize);
-#endif
-    }
-
-    ~TSegment()
-    {
-        size_t totalSize = sizeof(TSegment) + Arena_->ObjectSize_ * Arena_->ObjectCount_;
-
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-        TRefCountedTrackerFacade::FreeSpace(GetRefCountedTypeCookie<TSmallArena>(), totalSize);
-#endif
-
-        if (Arena_->MemoryTracker_) {
-            Arena_->MemoryTracker_->Release(totalSize);
+        auto* obj = FreeList_.Extract();
+        if (Y_LIKELY(obj)) {
+            AllocatedItems.Increment();
+            // Fast path.
+            return obj;
         }
-    }
 
-    void Ref()
-    {
-        ++RefCount_;
-    }
-
-    void Unref(size_t count = 1)
-    {
-        auto refCount = RefCount_.fetch_sub(count);
-        YT_ASSERT(refCount >= count);
-
-        if (refCount == count) {
-            Destroy();
-        }
-    }
-
-    bool Contains(void* obj) const
-    {
-        uintptr_t begin = reinterpret_cast<uintptr_t>(this + 1);
-        uintptr_t address = reinterpret_cast<uintptr_t>(obj);
-        return address >= begin && address < begin + Arena_->ObjectCount_ * Arena_->ObjectSize_;
-    }
-
-    void Destroy(bool unrefArena = true)
-    {
-        this->~TSegment();
-        if (unrefArena) {
-            Arena_->Unref();
-        }
-        NYTAlloc::Free(this);
+        return AllocateSlow();
     }
 
     void Free(void* obj)
     {
-        YT_ASSERT(Contains(obj));
-
-        auto item = static_cast<TFreeListItem*>(obj);
-        item->Segment = this;
-
-        if (!Arena_->FreeList_.PutIf(item, item, [&] (void* nextObj) {
-            return Contains(nextObj);
-        })) {
-            // Segment is not active.
-            Unref();
-        }
+        FreedItems.Increment();
+        FreeList_.Put(static_cast<TFreeListItem*>(obj));
+        Unref(this);
     }
 
-    std::pair<TFreeListItem*, TFreeListItem*> BuildFreeList()
+    ~TSmallArena()
     {
-        auto ptr = reinterpret_cast<char*>(this + 1);
+        static const auto& Logger = LockFreePtrLogger;
+
+        FreeList_.ExtractAll();
+
+        size_t segmentCount = 0;
+        auto* segment = Segments_.ExtractAll();
+        while (segment) {
+            auto* next = segment->Next.load(std::memory_order_acquire);
+            NYTAlloc::Free(segment);
+            segment = next;
+            ++segmentCount;
+        }
+
+        YT_VERIFY(segmentCount == SegmentCount_.load());
+
+        size_t totalSize = segmentCount * (sizeof(TFreeListItem) + ObjectSize_ * ObjectCount_);
+
+        YT_LOG_TRACE("Destroying arena (ObjectSize: %v, TotalSize: %v)",
+            ObjectSize_,
+            totalSize);
+
+        if (MemoryTracker_) {
+            MemoryTracker_->Release(totalSize);
+        }
+
+    #ifdef YT_ENABLE_REF_COUNTED_TRACKING
+        TRefCountedTrackerFacade::FreeSpace(GetRefCountedTypeCookie<TSmallArena>(), totalSize);
+    #endif
+    }
+
+    bool IsReallocationNeeded() const
+    {
+        auto refCount = GetRefCounter(this)->GetRefCount();
+        auto segmentCount = SegmentCount_.load();
+        return segmentCount > 0 && refCount * 2 < segmentCount * ObjectCount_;
+    }
+
+    IMemoryUsageTrackerPtr GetMemoryTracker() const
+    {
+        return MemoryTracker_;
+    }
+
+private:
+    const size_t ObjectSize_;
+    const size_t ObjectCount_;
+
+    TSimpleFreeList FreeList_;
+    TSimpleFreeList Segments_;
+    std::atomic<int> SegmentCount_ = 0;
+    const IMemoryUsageTrackerPtr MemoryTracker_;
+
+    std::pair<TFreeListItem*, TFreeListItem*> BuildFreeList(char* ptr)
+    {
         auto head = reinterpret_cast<TFreeListItem*>(ptr);
 
         // Build chain of chunks.
-        auto chunkCount = Arena_->ObjectCount_;
-        auto objectSize = Arena_->ObjectSize_;
+        auto objectCount = ObjectCount_;
+        auto objectSize = ObjectSize_;
 
-        YT_VERIFY(chunkCount > 0);
+        YT_VERIFY(objectCount > 0);
         YT_VERIFY(objectSize > 0);
-        auto lastPtr = ptr + objectSize * (chunkCount - 1);
-        YT_VERIFY(Contains(lastPtr));
+        auto lastPtr = ptr + objectSize * (objectCount - 1);
 
-        while (chunkCount-- > 1) {
-            YT_VERIFY(Contains(ptr));
-
+        while (objectCount-- > 1) {
             auto* current = reinterpret_cast<TFreeListItem*>(ptr);
             ptr += objectSize;
 
             current->Next.store(reinterpret_cast<TFreeListItem*>(ptr), std::memory_order_release);
-            current->Segment = this;
         }
 
         YT_VERIFY(ptr == lastPtr);
 
         auto* current = reinterpret_cast<TFreeListItem*>(ptr);
         current->Next.store(nullptr, std::memory_order_release);
-        current->Segment = this;
 
         return {head, current};
     }
 
-    bool IsReallocationNeeded() const
+    void* AllocateSlow()
     {
-        return RefCount_.load(std::memory_order_relaxed) * 2 < Arena_->ObjectCount_;
+        // For large chunks it is better to allocate SegmentSize + sizeof(TFreeListItem) space
+        // than allocate SegmentSize and use ObjectCount_ - 1.
+        auto totalSize = sizeof(TFreeListItem) + ObjectSize_ * ObjectCount_;
+
+        if (MemoryTracker_ && !MemoryTracker_->TryAcquire(totalSize).IsOK()) {
+            return nullptr;
+        }
+
+        auto segmentCount = SegmentCount_.load();
+        auto refCount = GetRefCounter(this)->GetRefCount();
+        static const auto& Logger = LockFreePtrLogger;
+
+        YT_LOG_TRACE("Allocating segment (ObjectSize: %v, RefCount: %v, SegmentCount: %v, TotalObjectCapacity: %v, TotalSize: %v)",
+            ObjectSize_,
+            refCount,
+            segmentCount,
+            segmentCount * ObjectCount_,
+            segmentCount * totalSize);
+
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+        TRefCountedTrackerFacade::AllocateSpace(GetRefCountedTypeCookie<TSmallArena>(), totalSize);
+#endif
+
+        auto* ptr = NYTAlloc::Allocate(totalSize);
+
+        // Save segments in list to free them in destructor.
+        Segments_.Put(static_cast<TFreeListItem*>(ptr));
+
+        ++SegmentCount_;
+
+        AllocatedItems.Increment();
+        AliveSegments.Update(SegmentCount_.load());
+
+        auto [head, tail] = BuildFreeList(static_cast<char*>(ptr) + sizeof(TFreeListItem));
+
+        // Extract one element.
+        auto* next = head->Next.load();
+        FreeList_.Put(next, tail);
+        return head;
     }
-
-private:
-    TSmallArena* const Arena_;
-
-    // Segment has ref if object is allocated or in free list.
-    std::atomic<size_t> RefCount_;
 };
 
-TFreeListItem* TSmallArena::Allocate()
-{
-    auto* obj = FreeList_.Extract();
-    if (Y_LIKELY(obj)) {
-        // Fast path.
-        return obj;
-    }
-
-    return AllocateSlow();
-}
-
-TFreeListItem* TSmallArena::AllocateSlow()
-{
-    // For large chunks it is better to allocate SegmentSize + sizeof(TFreeListItem) space
-    // than allocate SegmentSize and use BatchSize_ - 1.
-    auto totalSize = sizeof(TSegment) + ObjectSize_ * ObjectCount_;
-
-    if (MemoryTracker_ && !MemoryTracker_->TryAcquire(totalSize).IsOK()) {
-        return nullptr;
-    }
-
-    auto segment = new(NYTAlloc::Allocate(totalSize)) TSegment(this);
-
-    auto [head, tail] = segment->BuildFreeList();
-    auto* next = head->Next.load();
-
-    while (true) {
-        if (FreeList_.PutIf(next, tail, [] (void* nextObj) {
-            // No elements in free list.
-            return nextObj == nullptr;
-        })) {
-            ++RefCount_;
-            return head;
-        } else if (auto* object = FreeList_.Extract()) {
-            // Remove allocated segment.
-            segment->Destroy(false);
-            return object;
-        }
-    }
-}
-
-
-/////////////////////////////////////////////////////////////////////////////
-
-void TSmallArena::ClearFreeList()
-{
-    auto* object = FreeList_.ExtractAll();
-
-    TSegment* segment = nullptr;
-    size_t count = 0;
-
-    while (object) {
-        if (segment) {
-            YT_VERIFY(segment == object->Segment);
-        } else {
-            segment = object->Segment;
-        }
-
-        object = object->Next.load(std::memory_order_acquire);
-        ++count;
-    }
-
-    if (segment) {
-        segment->Unref(count);
-    }
-}
-
-size_t TSmallArena::Unref()
-{
-    auto count = --RefCount_;
-    if (count == 0) {
-        delete this;
-
-    }
-    return count;
-}
+DEFINE_REFCOUNTED_TYPE(TSmallArena)
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -337,13 +292,10 @@ private:
 
 /////////////////////////////////////////////////////////////////////////////
 
-void TSlabAllocator::TSmallArenaDeleter::operator() (TSmallArena* arena)
-{
-    arena->ClearFreeList();
-    arena->Unref();
-}
-
-TSlabAllocator::TSlabAllocator(IMemoryUsageTrackerPtr memoryTracker)
+TSlabAllocator::TSlabAllocator(
+    const NProfiling::TProfiler& profiler,
+    IMemoryUsageTrackerPtr memoryTracker)
+    : Profiler_(profiler)
 {
     for (size_t rank = 2; rank < NYTAlloc::SmallRankCount; ++rank) {
         // Rank is not used.
@@ -351,7 +303,7 @@ TSlabAllocator::TSlabAllocator(IMemoryUsageTrackerPtr memoryTracker)
             continue;
         }
         // There is no std::make_unique overload with custom deleter.
-        SmallArenas_[rank].reset(new TSmallArena(rank, SegmentSize, memoryTracker));
+        SmallArenas_[rank].Exchange(New<TSmallArena>(rank, SegmentSize, memoryTracker, Profiler_));
     }
 
     LargeArena_.reset(new TLargeArena(memoryTracker));
@@ -364,19 +316,19 @@ TLargeArena* TryGetLargeArenaFromTag(uintptr_t tag)
     return tag & 1ULL ? reinterpret_cast<TLargeArena*>(tag & ~1ULL) : nullptr;
 }
 
-TSegment* GetSegmentFromTag(uintptr_t tag)
+TSmallArena* GetSmallArenaFromTag(uintptr_t tag)
 {
-    return reinterpret_cast<TSegment*>(tag);
+    return reinterpret_cast<TSmallArena*>(tag);
 }
 
-uintptr_t MakeTagFromLargeArena(TLargeArena* arena)
+uintptr_t MakeTagFromArena(TLargeArena* arena)
 {
     auto result = reinterpret_cast<uintptr_t>(arena);
     YT_ASSERT((result & 1ULL) == 0);
     return result | 1ULL;
 }
 
-uintptr_t MakeTagFromSegment(TSegment* segment)
+uintptr_t MakeTagFromArena(TSmallArena* segment)
 {
     auto result = reinterpret_cast<uintptr_t>(segment);
     YT_ASSERT((result & 1ULL) == 0);
@@ -408,15 +360,19 @@ void* TSlabAllocator::Allocate(size_t size)
     void* ptr = nullptr;
     if (size < NYTAlloc::LargeAllocationSizeThreshold) {
         auto rank = NYTAlloc::SizeToSmallRank(size);
-        auto* object = SmallArenas_[rank]->Allocate();
 
-        if (object) {
-            tag = MakeTagFromSegment(object->Segment);
+        auto arena = SmallArenas_[rank].Acquire();
+        YT_VERIFY(arena);
+        ptr = arena->Allocate();
+        if (ptr) {
+            auto* arenaPtr = arena.Release();
+            arenaPtr->AliveItems.Update(GetRefCounter(arenaPtr)->GetRefCount());
+
+            tag = MakeTagFromArena(arenaPtr);
         }
-        ptr = object;
     } else {
         ptr = LargeArena_->Allocate(size);
-        tag = MakeTagFromLargeArena(LargeArena_.get());
+        tag = MakeTagFromArena(LargeArena_.get());
     }
 
     if (!ptr) {
@@ -430,6 +386,23 @@ void* TSlabAllocator::Allocate(size_t size)
     return header + 1;
 }
 
+void TSlabAllocator::ReallocateArenasIfNeeded()
+{
+    for (size_t rank = 2; rank < NYTAlloc::SmallRankCount; ++rank) {
+        // Rank is not used.
+        if (rank == 3) {
+            continue;
+        }
+
+        auto arena = SmallArenas_[rank].Acquire();
+        if (arena->IsReallocationNeeded()) {
+            SmallArenas_[rank].SwapIfCompare(
+                arena,
+                New<TSmallArena>(rank, SegmentSize, arena->GetMemoryTracker(), Profiler_));
+        }
+    }
+}
+
 void TSlabAllocator::Free(void* ptr)
 {
     YT_ASSERT(ptr);
@@ -439,14 +412,16 @@ void TSlabAllocator::Free(void* ptr)
     if (auto* largeArena = TryGetLargeArenaFromTag(tag)) {
         largeArena->Free(header);
     } else {
-        GetSegmentFromTag(tag)->Free(header);
+        auto* arenaPtr = GetSmallArenaFromTag(tag);
+        arenaPtr->Free(header);
+        arenaPtr->AliveItems.Update(GetRefCounter(arenaPtr)->GetRefCount());
     }
 }
 
 bool IsReallocationNeeded(const void* ptr)
 {
     auto tag = *GetHeaderFromPtr(ptr);
-    return !TryGetLargeArenaFromTag(tag) && GetSegmentFromTag(tag)->IsReallocationNeeded();
+    return !TryGetLargeArenaFromTag(tag) && GetSmallArenaFromTag(tag)->IsReallocationNeeded();
 }
 
 /////////////////////////////////////////////////////////////////////////////

@@ -6,7 +6,11 @@
 #include "error.h"
 #include "memory_usage_tracker.h"
 
-#include <library/cpp/ytalloc/api/ytalloc.h>
+#include <yt/yt/core/misc/atomic_ptr.h>
+
+#include <yt/yt/library/profiling/sensor.h>
+
+#include <yt/yt/core/profiling/profiler.h>
 
 #include <array>
 
@@ -14,7 +18,8 @@ namespace NYT {
 
 /////////////////////////////////////////////////////////////////////////////
 
-class TSmallArena;
+DECLARE_REFCOUNTED_CLASS(TSmallArena)
+
 class TLargeArena;
 
 /////////////////////////////////////////////////////////////////////////////
@@ -22,18 +27,17 @@ class TLargeArena;
 class TSlabAllocator
 {
 public:
-    explicit TSlabAllocator(IMemoryUsageTrackerPtr memoryTracker = nullptr);
+    explicit TSlabAllocator(
+        const NProfiling::TProfiler& profiler = {},
+        IMemoryUsageTrackerPtr memoryTracker = nullptr);
 
     void* Allocate(size_t size);
     static void Free(void* ptr);
 
-private:
-    struct TSmallArenaDeleter
-    {
-        void operator() (TSmallArena* arena);
-    };
+    void ReallocateArenasIfNeeded();
 
-    using TSmallArenaPtr = std::unique_ptr<TSmallArena, TSmallArenaDeleter>;
+private:
+    const NProfiling::TProfiler Profiler_;
 
     struct TLargeArenaDeleter
     {
@@ -42,7 +46,7 @@ private:
 
     using TLargeArenaPtr = std::unique_ptr<TLargeArena, TLargeArenaDeleter>;
 
-    TSmallArenaPtr SmallArenas_[NYTAlloc::SmallRankCount];
+    TAtomicPtr<TSmallArena> SmallArenas_[NYTAlloc::SmallRankCount];
     TLargeArenaPtr LargeArena_;
 };
 
