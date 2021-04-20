@@ -51,7 +51,7 @@ class YtConfig(object):
     def __init__(self,
                  fqdn=None,
                  yt_id=None,
-                 yt_path=None,
+                 yt_binaries_dir=None,
                  yt_work_dir=None,
                  proxy_port=None,
                  master_config=None,
@@ -85,7 +85,7 @@ class YtConfig(object):
         self.proxy_config = proxy_config
         self.controller_agent_config = controller_agent_config
 
-        self.yt_path = yt_path
+        self.yt_binaries_dir = yt_binaries_dir
 
         self.save_runtime_data = save_runtime_data
         self.yt_work_dir = yt_work_dir
@@ -196,21 +196,19 @@ class YtStuff(object):
             tarfile.open(tgz).extractall(path=where)
 
     def _prepare_files(self):
-        # build_path = yatest.common.runtime.build_path()
         work_path = yatest.common.runtime.work_path()
 
         # YT directory.
-        self.yt_path = get_value(
-            self.config.yt_path,
-            tempfile.mkdtemp(dir=work_path, prefix="yt_"))
+        self.binaries_yt_path = get_value(
+            self.config.yt_binaries_dir,
+            os.path.join(tempfile.mkdtemp(dir=work_path, prefix="yt_"), "bin"))
 
         # YT binaries.
-        self.yt_bins_path = os.path.join(self.yt_path, "bin")
-        os.makedirs(self.yt_bins_path)
+        os.makedirs(self.binaries_yt_path)
 
         source_prefix = ""
-        prepare_yt_binaries(self.yt_bins_path, source_prefix, use_from_package=True)
-        copy_misc_binaries(self.yt_bins_path)
+        prepare_yt_binaries(self.binaries_yt_path, source_prefix, use_from_package=True)
+        copy_misc_binaries(self.binaries_yt_path)
 
         self.yt_local_exec = [search_binary_path("yt_local")]
 
@@ -248,7 +246,7 @@ class YtStuff(object):
     def _prepare_env(self):
         self.env = {}
         self.env["PATH"] = ":".join([
-            self.yt_bins_path,
+            self.binaries_yt_path,
         ])
         self.env["YT_ENABLE_VERBOSE_LOGGING"] = "1"
         self.env["YT_LOG_LEVEL"] = "DEBUG"
@@ -492,7 +490,7 @@ class YtStuff(object):
         collect_cores(
             self._get_pids(),
             self.yt_work_dir,
-            [os.path.join(self.yt_bins_path, binary) for binary in os.listdir(self.yt_bins_path)],
+            [os.path.join(self.binaries_yt_path, binary) for binary in os.listdir(self.binaries_yt_path)],
             logger=self.logger)
 
     def _get_pids(self):
