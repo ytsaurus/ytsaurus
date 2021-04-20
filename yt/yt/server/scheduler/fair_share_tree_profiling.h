@@ -48,7 +48,6 @@ private:
     };
     THashMap<TString, TUnregisterOperationCounters> PoolToUnregisterOperationCounters_;
 
-
     struct TOperationUserProfilingTag
     {
         TString PoolId;
@@ -87,6 +86,8 @@ private:
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, PoolNameToProfilingEntryLock_);
     THashMap<TString, TPoolProfilingEntry> PoolNameToProfilingEntry_;
 
+    NProfiling::TBufferedProducerPtr DistributedResourcesBufferedProducer_;
+
     void RegisterPoolProfiler(const TString& poolName);
 
     void PrepareOperationProfilingEntries(const TFairShareTreeSnapshotImplPtr& treeSnapshot);
@@ -107,6 +108,8 @@ private:
         const TSchedulerElement* element,
         const TFairShareStrategyTreeConfigPtr& treeConfig,
         bool profilingCompatibilityEnabled);
+
+    void ProfileDistributedResources(const TFairShareTreeSnapshotImplPtr& treeSnapshot);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareTreeProfiler)

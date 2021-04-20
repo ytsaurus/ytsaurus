@@ -31,8 +31,11 @@ TFairShareTreeProfiler::TFairShareTreeProfiler(
             .WithRequiredTag("tree", treeId))
     , ProfilingInvoker_(profilingInvoker)
     , PoolCountGauge_(Registry_.Gauge("/pools/pool_count"))
+    , DistributedResourcesBufferedProducer_(New<TBufferedProducer>())
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
+
+    Registry_.AddProducer("", DistributedResourcesBufferedProducer_);
 }
 
 NProfiling::TProfiler TFairShareTreeProfiler::GetRegistry() const
@@ -79,6 +82,8 @@ void TFairShareTreeProfiler::ProfileElements(const TFairShareTreeSnapshotImplPtr
     VERIFY_INVOKER_AFFINITY(ProfilingInvoker_);
 
     PoolCountGauge_.Update(treeSnapshot->PoolMap().size());
+
+    ProfileDistributedResources(treeSnapshot);
 
     // NB: We keep pool profiling entries in consistent with the main tree.
     PrepareOperationProfilingEntries(treeSnapshot);
@@ -462,6 +467,22 @@ void TFairShareTreeProfiler::ProfilePools(const TFairShareTreeSnapshotImplPtr& t
         treeSnapshot->TreeConfig(),
         treeSnapshot->GetCoreProfilingCompatibilityEnabled(),
         findPoolBufferedProducer(RootPoolName));
+}
+
+void TFairShareTreeProfiler::ProfileDistributedResources(const TFairShareTreeSnapshotImplPtr& treeSnapshot)
+{
+    TSensorBuffer buffer;
+
+    auto info = treeSnapshot->RootElement()->GetResourceDistributionInfo();
+    ProfileResources(&buffer, info.DistributedStrongGuaranteeResources, "/distributed_strong_guarantee_resources");
+    ProfileResources(&buffer, info.DistributedResourceFlow, "/distributed_resource_flow");
+    ProfileResources(&buffer, info.DistributedBurstGuaranteeResources, "/distributed_burst_guarantee_resources");
+    ProfileResources(&buffer, info.DistributedResources, "/distributed_resources");
+    ProfileResources(&buffer, info.UndistributedResources, "/undistributed_resources");
+    ProfileResources(&buffer, info.UndistributedResourceFlow, "/undistributed_resource_flow");
+    ProfileResources(&buffer, info.UndistributedBurstGuaranteeResources, "/undistributed_burst_guarantee_resources");
+
+    DistributedResourcesBufferedProducer_->Update(std::move(buffer));
 }
 
 void TFairShareTreeProfiler::ApplyJobMetricsDelta(

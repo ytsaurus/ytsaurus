@@ -109,6 +109,19 @@ struct TFairSharePostUpdateContext
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TResourceDistributionInfo
+{
+    TJobResources DistributedStrongGuaranteeResources;
+    TJobResources DistributedResourceFlow;
+    TJobResources DistributedBurstGuaranteeResources;
+    TJobResources DistributedResources;
+    TJobResources UndistributedResources;
+    TJobResources UndistributedResourceFlow;
+    TJobResources UndistributedBurstGuaranteeResources;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TScheduleJobsProfilingCounters
 {
     TScheduleJobsProfilingCounters(const NProfiling::TProfiler& profiler);
@@ -1284,6 +1297,7 @@ public:
 
     virtual void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* meteringMap) const override;
 
+    TResourceDistributionInfo GetResourceDistributionInfo() const;
     void BuildResourceDistributionInfo(NYTree::TFluentMap fluent) const;
 
 private:

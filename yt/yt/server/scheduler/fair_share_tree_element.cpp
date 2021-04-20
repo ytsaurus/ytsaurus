@@ -3697,24 +3697,37 @@ bool TSchedulerRootElement::IsDefaultConfigured() const
     return false;
 }
 
-void TSchedulerRootElement::BuildResourceDistributionInfo(TFluentMap fluent) const
+TResourceDistributionInfo TSchedulerRootElement::GetResourceDistributionInfo() const
 {
-    double distributedStrongGuaranteeDominantShare = 0.0;
-    for (const auto& child : EnabledChildren_) {
-        // TODO(renadeen): Fix when strong guarantee share becomes disproportional.
-        distributedStrongGuaranteeDominantShare += GetMaxResourceRatio(child->GetSpecifiedStrongGuaranteeResources(), TotalResourceLimits_);
-    }
     double maxDistributedIntegralRatio = std::max(Attributes_.TotalBurstRatio, Attributes_.TotalResourceFlowRatio);
     double undistributedResourceFlowRatio = std::max(Attributes_.TotalBurstRatio - Attributes_.TotalResourceFlowRatio, 0.0);
     double undistributedBurstGuaranteeRatio = std::max(Attributes_.TotalResourceFlowRatio - Attributes_.TotalBurstRatio, 0.0);
 
+    TResourceDistributionInfo info;
+    for (const auto& child : EnabledChildren_) {
+        info.DistributedStrongGuaranteeResources += child->GetSpecifiedStrongGuaranteeResources();
+    }
+    info.DistributedResourceFlow = TotalResourceLimits_ * Attributes_.TotalResourceFlowRatio;
+    info.DistributedBurstGuaranteeResources = TotalResourceLimits_ * Attributes_.TotalBurstRatio;
+    info.DistributedResources = info.DistributedStrongGuaranteeResources + TotalResourceLimits_ * maxDistributedIntegralRatio;
+    info.UndistributedResources = TotalResourceLimits_ - info.DistributedResources;
+    info.UndistributedResourceFlow = TotalResourceLimits_ * undistributedResourceFlowRatio;
+    info.UndistributedBurstGuaranteeResources = TotalResourceLimits_ * undistributedBurstGuaranteeRatio;
+
+    return info;
+}
+
+void TSchedulerRootElement::BuildResourceDistributionInfo(TFluentMap fluent) const
+{
+    auto info = GetResourceDistributionInfo();
     fluent
-        .Item("distributed_strong_guarantee_resources").Value(TotalResourceLimits_ * distributedStrongGuaranteeDominantShare)
-        .Item("distributed_resource_flow").Value(TotalResourceLimits_ * Attributes_.TotalResourceFlowRatio)
-        .Item("distributed_burst_guarantee_resources").Value(TotalResourceLimits_ * Attributes_.TotalBurstRatio)
-        .Item("undistributed_resources").Value(TotalResourceLimits_ * (1.0 - distributedStrongGuaranteeDominantShare - maxDistributedIntegralRatio))
-        .Item("undistributed_resource_flow").Value(TotalResourceLimits_ * undistributedResourceFlowRatio)
-        .Item("undistributed_burst_guarantee_resources").Value(TotalResourceLimits_ * undistributedBurstGuaranteeRatio);
+        .Item("distributed_strong_guarantee_resources").Value(info.DistributedStrongGuaranteeResources)
+        .Item("distributed_resource_flow").Value(info.DistributedResourceFlow)
+        .Item("distributed_burst_guarantee_resources").Value(info.DistributedBurstGuaranteeResources)
+        .Item("distributed_resources").Value(info.DistributedResources)
+        .Item("undistributed_resources").Value(info.UndistributedResources)
+        .Item("undistributed_resource_flow").Value(info.UndistributedResourceFlow)
+        .Item("undistributed_burst_guarantee_resources").Value(info.UndistributedBurstGuaranteeResources);
 }
 
 void TSchedulerRootElement::ManageSchedulingSegments(TManageTreeSchedulingSegmentsContext* manageSegmentsContext)
