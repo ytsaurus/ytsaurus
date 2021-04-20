@@ -1848,6 +1848,7 @@ TJobResources TSchedulerOperationElementSharedState::Disable()
         resourceUsage += properties.ResourceUsage;
     }
 
+    TotalResourceUsage_ = {};
     NonpreemptableResourceUsage_ = {};
     AggressivelyPreemptableResourceUsage_ = {};
     RunningJobCount_ = 0;
@@ -2000,9 +2001,11 @@ void TSchedulerOperationElementSharedState::UpdatePreemptableJobsList(
     // to move job from preemptable list to non-preemptable list through aggressively preemptable list.
     for (int iteration = 0; iteration < 2; ++iteration) {
         YT_LOG_DEBUG_IF(enableLogging,
-            "Preemptable lists usage bounds before update (NonpreemptableResourceUsage: %v, AggressivelyPreemptableResourceUsage: %v, Iteration: %v)",
+            "Preemptable lists usage bounds before update "
+            "(NonpreemptableResourceUsage: %v, AggressivelyPreemptableResourceUsage: %v, PreemtableResourceUsage: %v, Iteration: %v)",
             FormatResources(NonpreemptableResourceUsage_),
             FormatResources(AggressivelyPreemptableResourceUsage_),
+            FormatResources(TotalResourceUsage_ - NonpreemptableResourceUsage_ - AggressivelyPreemptableResourceUsage_),
             iteration);
 
         auto startNonPreemptableAndAggressivelyPreemptableResourceUsage_ = NonpreemptableResourceUsage_ + AggressivelyPreemptableResourceUsage_;
@@ -2027,9 +2030,11 @@ void TSchedulerOperationElementSharedState::UpdatePreemptableJobsList(
     }
 
     YT_LOG_DEBUG_IF(enableLogging,
-        "Preemptable lists usage bounds after update (NonpreemptableResourceUsage: %v, AggressivelyPreemptableResourceUsage: %v)",
+        "Preemptable lists usage bounds after update "
+        "(NonpreemptableResourceUsage: %v, AggressivelyPreemptableResourceUsage: %v, PreemtableResourceUsage: %v)",
         FormatResources(NonpreemptableResourceUsage_),
-        FormatResources(AggressivelyPreemptableResourceUsage_));
+        FormatResources(AggressivelyPreemptableResourceUsage_),
+        FormatResources(TotalResourceUsage_ - NonpreemptableResourceUsage_ - AggressivelyPreemptableResourceUsage_));
 }
 
 void TSchedulerOperationElementSharedState::SetPreemptable(bool value)
@@ -2356,6 +2361,7 @@ TJobResources TSchedulerOperationElementSharedState::SetJobResourceUsage(
 {
     auto delta = resources - properties->ResourceUsage;
     properties->ResourceUsage = resources;
+    TotalResourceUsage_ += delta;
     if (!properties->Preemptable) {
         if (properties->AggressivelyPreemptable) {
             AggressivelyPreemptableResourceUsage_ += delta;
@@ -2363,6 +2369,7 @@ TJobResources TSchedulerOperationElementSharedState::SetJobResourceUsage(
             NonpreemptableResourceUsage_ += delta;
         }
     }
+
     return delta;
 }
 

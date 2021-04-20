@@ -935,9 +935,9 @@ private:
     std::atomic<bool> Preemptable_ = {true};
 
     std::atomic<int> RunningJobCount_ = {0};
+    TJobResources TotalResourceUsage_;
     TJobResources NonpreemptableResourceUsage_;
     TJobResources AggressivelyPreemptableResourceUsage_;
-    TJobResources PreemptableResourceUsage_;
 
     std::atomic<int> UpdatePreemptableJobsListCount_ = {0};
     const int UpdatePreemptableJobsListLoggingPeriod_;
@@ -955,10 +955,10 @@ private:
             , ResourceUsage(resourceUsage)
         { }
 
-        //! Determines whether job belongs to list of preemptable or aggressively preemptable jobs of operation.
+        //! Determines whether job belongs to the list of preemptable or aggressively preemptable jobs of operation.
         bool Preemptable;
 
-        //! Determines whether job belongs to list of preemptable (but not aggressively preemptable) jobs of operation.
+        //! Determines whether job belongs to the list of aggressively preemptable (but not all preemptable) jobs of operation.
         bool AggressivelyPreemptable;
 
         //! Iterator in the per-operation list pointing to this particular job.
