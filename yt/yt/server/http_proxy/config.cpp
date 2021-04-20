@@ -119,9 +119,6 @@ TAccessCheckerConfig::TAccessCheckerConfig()
     RegisterParameter("path_prefix", PathPrefix)
         .Default("//sys/http_proxy_roles");
 
-    RegisterParameter("allow_access_if_node_does_not_exist", AllowAccessIfNodeDoesNotExist)
-        .Default(true);
-
     RegisterParameter("cache", Cache)
         .DefaultNew();
 }
