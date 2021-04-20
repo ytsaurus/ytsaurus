@@ -801,14 +801,6 @@ void TSlotLocation::UpdateSlotLocationStatistics()
             auto locationStatistics = NFS::GetDiskSpaceStatistics(Config_->Path);
             slotLocationStatistics.set_available_space(locationStatistics.AvailableSpace);
             slotLocationStatistics.set_used_space(locationStatistics.TotalSpace - locationStatistics.AvailableSpace);
-
-            for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
-                auto slotPath = GetSlotPath(slotIndex);
-                auto slotSpaceUsage = Bootstrap_->IsSimpleEnvironment()
-                    ? NFS::GetDirectorySize(slotPath)
-                    : RunTool<TGetDirectorySizeAsRootTool>(slotPath);
-                slotLocationStatistics.add_slot_space_usages(slotSpaceUsage);
-            }
         } catch (const std::exception& ex) {
             auto error = TError("Failed to get slot location statisitcs")
                 << ex;
