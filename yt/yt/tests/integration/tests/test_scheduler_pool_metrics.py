@@ -501,5 +501,26 @@ class TestPoolMetrics(YTEnvSetup):
         wait(lambda: total_time_counter.get_delta() > total_time_before_restart)
         wait(lambda: custom_counter.get_delta() == 120)
 
+    @authors("eshcherbin")
+    def test_distributed_resources_profiling(self):
+        create_pool("strong", attributes={"strong_guarantee_resources": {"cpu": 1}})
+        create_pool("integral", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "burst",
+                "resource_flow": {"cpu": 1},
+                "burst_guarantee_resources": {"cpu": 1},
+            },
+        })
+
+        profiler = Profiler.at_scheduler(fixed_tags={"tree": "default"})
+        wait(lambda: profiler.gauge("scheduler/distributed_resources/cpu").get() == 2)
+        wait(lambda: profiler.gauge("scheduler/distributed_strong_guarantee_resources/cpu").get() == 1)
+        wait(lambda: profiler.gauge("scheduler/distributed_resource_flow/cpu").get() == 1)
+        wait(lambda: profiler.gauge("scheduler/distributed_resource_flow/cpu").get() == 1)
+        wait(lambda: profiler.gauge("scheduler/distributed_burst_guarantee_resources/cpu").get() == 1)
+        wait(lambda: profiler.gauge("scheduler/undistributed_resources/cpu").get() == 1)
+        wait(lambda: profiler.gauge("scheduler/undistributed_resource_flow/cpu").get() == 0)
+        wait(lambda: profiler.gauge("scheduler/undistributed_burst_guarantee_resources/cpu").get() == 0)
+
 
 ##################################################################
