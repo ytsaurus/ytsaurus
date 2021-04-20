@@ -115,6 +115,13 @@ private:
     const TAsyncSemaphorePtr FullHeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
     const TAsyncSemaphorePtr IncrementalHeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
 
+    virtual void OnRecoveryComplete() override
+    {
+        TMasterAutomatonPart::OnRecoveryComplete();
+
+        OnDynamicConfigChanged();
+    }
+
     void HydraIncrementalDataNodeHeartbeat(
         const TCtxIncrementalHeartbeatPtr& /*context*/,
         TReqIncrementalHeartbeat* request,
