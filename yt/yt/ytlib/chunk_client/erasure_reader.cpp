@@ -111,7 +111,6 @@ public:
         , PlacementExt_(placementExt)
         , BlockIndexes_(blockIndexes)
         , EstimatedSize_(estimatedSize)
-        , DataBlocksPlacementInParts_(BuildDataBlocksPlacementInParts(BlockIndexes_, PlacementExt_))
     {
         if (Config_->EnableAutoRepair) {
             YT_VERIFY(Readers_.size() == Codec_->GetTotalPartCount());
@@ -137,7 +136,6 @@ private:
     const TErasurePlacementExt PlacementExt_;
     const std::vector<int> BlockIndexes_;
     const std::optional<i64> EstimatedSize_;
-    const TDataBlocksPlacementInParts DataBlocksPlacementInParts_;
 
     const IInvokerPtr ReaderInvoker_ = CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker());
 

@@ -11,10 +11,13 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/misc/assert.h>
 #include <yt/yt/core/misc/checksum.h>
+#include <yt/yt/core/misc/numeric_helpers.h>
 
 #include <util/random/random.h>
+
+#include <algorithm>
 
 namespace NYT::NChunkClient::NErasureHelpers {
 
@@ -32,6 +35,25 @@ TPartIndexList GetParityPartIndices(const ICodec* codec)
         result.push_back(index);
     }
     return result;
+}
+
+static int GetStripeBlockCount(const TErasurePlacementExt& placementExt, int partIndex, int stripeIndex)
+{
+    const auto& partInfo = placementExt.part_infos(partIndex);
+    const auto& nextPartInfo = placementExt.part_infos((partIndex + 1) % placementExt.part_infos_size());
+    int nextPartStripeIndex = stripeIndex + (partIndex + 1) / placementExt.part_infos_size();
+
+    if (nextPartStripeIndex < nextPartInfo.first_block_index_per_stripe_size()) {
+        return nextPartInfo.first_block_index_per_stripe(nextPartStripeIndex) -
+            partInfo.first_block_index_per_stripe(stripeIndex);
+    }
+
+    // There is no next part for last part of the last stripe, use total block count instead.
+    int totalBlockCount = 0;
+    for (int index = 0; index < placementExt.part_infos_size(); ++index) {
+        totalBlockCount += placementExt.part_infos(index).block_sizes_size();
+    }
+    return totalBlockCount - partInfo.first_block_index_per_stripe(stripeIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -100,41 +122,134 @@ std::vector<TPartRange> Union(const std::vector<TPartRange>& ranges_)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TParityPartSplitInfo::TParityPartSplitInfo(int parityBlockCount, i64 parityBlockSize, i64 lastBlockSize)
-    : BlockCount(parityBlockCount)
-    , BlockSize(parityBlockSize)
-    , LastBlockSize(lastBlockSize)
+TParityPartSplitInfo::TParityPartSplitInfo(
+    i64 parityBlockSize,
+    const std::vector<int>& stripeBlockCounts,
+    const std::vector<i64>& stripeLastBlockSizes)
+    : BlockSize_(parityBlockSize)
+    , StripeBlockCounts_(stripeBlockCounts)
+    , StripeLastBlockSizes_(stripeLastBlockSizes)
 {
-    YT_VERIFY(BlockCount > 0);
-    YT_VERIFY(BlockSize > 0);
+    YT_VERIFY(StripeBlockCounts_.size() > 0);
+    YT_VERIFY(StripeLastBlockSizes_.size() == StripeBlockCounts_.size());
+    YT_VERIFY(BlockSize_ > 0);
 }
 
-TParityPartSplitInfo TParityPartSplitInfo::Build(i64 parityBlockSize, i64 parityPartSize)
+i64 TParityPartSplitInfo::GetStripeOffset(int stripeIndex) const
 {
-    int parityBlockCount = DivCeil(parityPartSize, parityBlockSize);
-    i64 lastBlockSize = parityPartSize - (parityBlockSize * (parityBlockCount - 1));
-    return TParityPartSplitInfo(parityBlockCount, parityBlockSize, lastBlockSize);
+    YT_VERIFY(stripeIndex >= 0 && stripeIndex <= StripeBlockCounts_.size());
+
+    i64 result = 0;
+    for (int index = 0; index < stripeIndex; ++index) {
+        YT_VERIFY(StripeBlockCounts_[index] > 0);
+        result += StripeLastBlockSizes_[index] + (StripeBlockCounts_[index] - 1) * BlockSize_;
+    }
+    return result;
 }
 
 i64 TParityPartSplitInfo::GetPartSize() const
 {
-    return BlockSize * (BlockCount - 1) + LastBlockSize;
+    return GetStripeOffset(StripeBlockCounts_.size());
 }
 
-std::vector<TPartRange> TParityPartSplitInfo::GetRanges() const
+std::vector<TPartRange> TParityPartSplitInfo::SplitRangesByStripesAndAlignToParityBlocks(
+    const std::vector<TPartRange>& ranges) const
 {
+    YT_VERIFY(std::is_sorted(
+        ranges.begin(),
+        ranges.end(),
+        [] (TPartRange left, TPartRange right) {
+            return left.End <= right.Begin;
+        }
+    ));
+
     std::vector<TPartRange> result;
-    for (int index = 0; index + 1 < BlockCount; ++index) {
-        result.push_back(TPartRange({index * BlockSize, (index + 1) * BlockSize}));
+
+    auto rangeIt = ranges.begin();
+    TPartRange stripe = {};
+    for (int stripeIndex = 0; stripeIndex < StripeBlockCounts_.size(); ++stripeIndex) {
+        stripe.Begin = stripe.End;
+        if (StripeBlockCounts_[stripeIndex] > 0) {
+            stripe.End += (StripeBlockCounts_[stripeIndex] - 1) * BlockSize_ + StripeLastBlockSizes_[stripeIndex];
+        }
+
+        while (rangeIt != ranges.end() && rangeIt->Begin < stripe.End) {
+            TPartRange output;
+
+            // Get block-aligned intersection with current stripe.
+            output.Begin = stripe.Begin + Max(0L, RoundDown(rangeIt->Begin - stripe.Begin, BlockSize_));
+            output.End = stripe.Begin + Min(stripe.Size(), RoundUp(rangeIt->End - stripe.Begin, BlockSize_));
+
+            if (output.Begin >= output.End) {
+                YT_VERIFY(rangeIt->End <= stripe.Begin);
+                ++rangeIt;
+                continue;
+            }
+
+            if (!result.empty() && result.back().End != stripe.Begin && output.Begin <= result.back().End) {
+                // Combine adjacent ranges within a single stripe.
+                result.back().End = output.End;
+            } else {
+                result.push_back(output);
+            }
+
+            if (rangeIt->End > stripe.End) {
+                // Continue processing range using next stripe.
+                break;
+            }
+            ++rangeIt;
+        }
     }
-    result.push_back(TPartRange({(BlockCount - 1) * BlockSize, (BlockCount - 1) * BlockSize + LastBlockSize}));
     return result;
 }
 
-std::vector<i64> TParityPartSplitInfo::GetSizes() const
+std::vector<TPartRange> TParityPartSplitInfo::GetParityBlockRanges() const
 {
-    std::vector<i64> result(BlockCount, BlockSize);
-    result.back() = LastBlockSize;
+    i64 offset = 0;
+    std::vector<TPartRange> result;
+
+    for (int stripeIndex = 0; stripeIndex < StripeLastBlockSizes_.size(); ++stripeIndex) {
+        YT_VERIFY(StripeBlockCounts_[stripeIndex] > 0);
+
+        for (int index = 0; index < StripeBlockCounts_[stripeIndex] - 1; ++index) {
+            result.push_back({.Begin = offset, .End = offset + BlockSize_});
+            offset += BlockSize_;
+        }
+
+        result.push_back({.Begin = offset, .End = offset + StripeLastBlockSizes_[stripeIndex]});
+        offset += StripeLastBlockSizes_[stripeIndex];
+    }
+    return result;
+}
+
+std::vector<TPartRange> TParityPartSplitInfo::GetBlockRanges(int partIndex, const TErasurePlacementExt& placementExt) const
+{
+    int dataPartCount = placementExt.part_infos_size();
+    if (partIndex >= dataPartCount) {
+        return GetParityBlockRanges();
+    }
+
+    const auto& partInfo = placementExt.part_infos(partIndex);
+
+    i64 offset = 0;
+    int blockIndexInPart = 0;
+    int indexInPart = 0;
+    std::vector<TPartRange> result;
+
+    for (int stripeIndex = 0; stripeIndex < StripeLastBlockSizes_.size(); ++stripeIndex) {
+        int blockCount = GetStripeBlockCount(placementExt, partIndex, stripeIndex);
+
+        i64 offsetInStripe = 0;
+        for (int indexInStripe = 0; indexInStripe < blockCount; ++indexInStripe) {
+            i64 blockSize = partInfo.block_sizes(indexInPart);
+            result.push_back({.Begin = offset + offsetInStripe, .End = offset + offsetInStripe + blockSize});
+            offsetInStripe += blockSize;
+            ++indexInPart;
+        }
+
+        blockIndexInPart += blockCount;
+        offset += BlockSize_ * (StripeBlockCounts_[stripeIndex] - 1) + StripeLastBlockSizes_[stripeIndex];
+    }
     return result;
 }
 
@@ -144,9 +259,9 @@ class TPartWriter::TImpl
     : public TRefCounted
 {
 public:
-    TImpl(IChunkWriterPtr writer, const std::vector<i64>& blockSizes, bool computeChecksum)
+    TImpl(IChunkWriterPtr writer, const std::vector<TPartRange>& blockRanges, bool computeChecksum)
         : Writer_(writer)
-        , BlockSizes_(blockSizes)
+        , BlockRanges_(blockRanges)
         , ComputeChecksum_(computeChecksum)
     { }
 
@@ -156,7 +271,6 @@ public:
         YT_VERIFY(range.Begin == Cursor_);
         Cursor_ = range.End;
 
-        i64 blockPosition = 0;
         std::vector<TBlock> blocksToWrite;
 
         // Fill current block if it is started.
@@ -164,7 +278,6 @@ public:
             i64 copySize = std::min(block.Size(), CurrentBlock_.Size() - PositionInCurrentBlock_);
             memcpy(CurrentBlock_.Begin() + PositionInCurrentBlock_, block.Begin(), copySize);
             PositionInCurrentBlock_ += copySize;
-            blockPosition += copySize;
 
             if (PositionInCurrentBlock_ == CurrentBlock_.Size()) {
                 blocksToWrite.push_back(TBlock(CurrentBlock_));
@@ -175,18 +288,21 @@ public:
         }
 
         // Processing part blocks that fit inside given block.
-        while (CurrentBlockIndex_ < BlockSizes_.size() &&
-            blockPosition + BlockSizes_[CurrentBlockIndex_] <= block.Size())
-        {
-            auto size = BlockSizes_[CurrentBlockIndex_];
+        while (CurrentBlockIndex_ < BlockRanges_.size() && BlockRanges_[CurrentBlockIndex_].End <= range.End) {
+            int blockPosition = BlockRanges_[CurrentBlockIndex_].Begin - range.Begin;
+            YT_VERIFY(blockPosition >= 0);
+
+            auto size = BlockRanges_[CurrentBlockIndex_].Size();
             blocksToWrite.push_back(TBlock(block.Slice(blockPosition, blockPosition + size)));
-            blockPosition += size;
             ++CurrentBlockIndex_;
         }
 
         // Process part block that just overlap with given block.
-        if (CurrentBlockIndex_ < BlockSizes_.size() && blockPosition < block.Size()) {
-            CurrentBlock_ = TSharedMutableRef::Allocate(BlockSizes_[CurrentBlockIndex_]);
+        if (CurrentBlockIndex_ < BlockRanges_.size() && BlockRanges_[CurrentBlockIndex_].Begin < range.End) {
+            int blockPosition = BlockRanges_[CurrentBlockIndex_].Begin - range.Begin;
+            YT_VERIFY(blockPosition >= 0);
+
+            CurrentBlock_ = TSharedMutableRef::Allocate(BlockRanges_[CurrentBlockIndex_].Size());
             i64 copySize = block.Size() - blockPosition;
             memcpy(CurrentBlock_.Begin(), block.Begin() + blockPosition, copySize);
             PositionInCurrentBlock_ = copySize;
@@ -212,7 +328,7 @@ public:
 
 private:
     const IChunkWriterPtr Writer_;
-    const std::vector<i64> BlockSizes_;
+    const std::vector<TPartRange> BlockRanges_;
     const bool ComputeChecksum_;
 
     TSharedMutableRef CurrentBlock_;
@@ -223,8 +339,8 @@ private:
     std::vector<TChecksum> BlockChecksums_;
 };
 
-TPartWriter::TPartWriter(IChunkWriterPtr writer, const std::vector<i64>& blockSizes, bool computeChecksum)
-    : Impl_(New<TImpl>(writer, blockSizes, computeChecksum))
+TPartWriter::TPartWriter(IChunkWriterPtr writer, const std::vector<TPartRange>& blockRanges, bool computeChecksum)
+    : Impl_(New<TImpl>(writer, blockRanges, computeChecksum))
 { }
 
 TPartWriter::~TPartWriter()
@@ -249,9 +365,9 @@ class TPartReader::TImpl
 public:
     TImpl(
         IBlocksReaderPtr reader,
-        const std::vector<i64>& blockSizes)
+        const std::vector<TPartRange>& blockRanges)
         : Reader_(reader)
-        , BlockRanges_(SizesToConsecutiveRanges(blockSizes))
+        , BlockRanges_(blockRanges)
     { }
 
     virtual TFuture<TSharedRef> Produce(const TPartRange& range)
@@ -332,36 +448,29 @@ private:
             }
         };
 
-        i64 pos = 0;
-        i64 currentStart = 0;
-
-        for (int index = 0; index < BlockRanges_.size(); ++index) {
-            i64 innerStart = std::max(static_cast<i64>(0), range.Begin - currentStart);
-            i64 innerEnd = std::min(static_cast<i64>(BlockRanges_[index].Size()), range.End - currentStart);
-
-            if (innerStart < innerEnd) {
-                auto block = RequestedBlocks_[index];
-                if (range.Size() == innerEnd - innerStart) {
-                    LastResult_ = block.Slice(innerStart, innerEnd);
-                    return LastResult_;
-                }
-
-                initialize();
-                std::copy(block.Begin() + innerStart, block.Begin() + innerEnd, result.Begin() + pos);
-
-                pos += (innerEnd - innerStart);
-
-                // Cleanup blocks that we would not use anymore.
-                if (range.End >= BlockRanges_[index].End) {
-                    RequestedBlocks_.erase(index);
-                }
-            }
-            currentStart += BlockRanges_[index].Size();
-
-            if (pos == range.Size() || currentStart >= range.End) {
-                break;
+        for (int index = 0; index < BlockRanges_.size() && BlockRanges_[index].Begin < range.End; ++index) {
+            if (BlockRanges_[index].End <= range.Begin) {
+                RequestedBlocks_.erase(index);
+                continue;
             }
 
+            i64 innerStart = Max<i64>(0, range.Begin - BlockRanges_[index].Begin);
+            i64 innerEnd = Min(BlockRanges_[index].Size(), range.End - BlockRanges_[index].Begin);
+
+            auto block = RequestedBlocks_[index];
+            if (range.Size() == innerEnd - innerStart) {
+                LastResult_ = block.Slice(innerStart, innerEnd);
+                return LastResult_;
+            }
+
+            initialize();
+            i64 pos = BlockRanges_[index].Begin + innerStart - range.Begin;
+            std::copy(block.Begin() + innerStart, block.Begin() + innerEnd, result.Begin() + pos);
+
+            // Cleanup blocks that we would not use anymore.
+            if (range.End >= BlockRanges_[index].End) {
+                RequestedBlocks_.erase(index);
+            }
         }
 
         initialize();
@@ -369,27 +478,14 @@ private:
         LastResult_ = result;
         return LastResult_;
     }
-
-    std::vector<TPartRange> SizesToConsecutiveRanges(const std::vector<i64>& sizes)
-    {
-        std::vector<TPartRange> ranges;
-        i64 pos = 0;
-        for (const auto& size : sizes) {
-            i64 start = pos;
-            i64 end = pos + size;
-            ranges.push_back(TPartRange({start, end}));
-            pos += size;
-        }
-        return ranges;
-    }
 };
 
 TPartReader::TPartReader(
     IBlocksReaderPtr reader,
-    const std::vector<i64>& blockSizes)
+    const std::vector<TPartRange>& blockRanges)
     : Impl_(New<TImpl>(
         reader,
-        blockSizes))
+        blockRanges))
 { }
 
 TPartReader::~TPartReader()
@@ -421,20 +517,6 @@ public:
         , Consumers_(consumers)
     { }
 
-    std::vector<TPartRange> GetWindowAlignedRanges(const TPartRange& range)
-    {
-        std::vector<TPartRange> ranges;
-        i64 pos = range.Begin;
-        while (pos < range.End) {
-            TPartRange currentRange;
-            currentRange.Begin = (pos / ParityPartSplitInfo_.BlockSize) * ParityPartSplitInfo_.BlockSize;
-            currentRange.End = std::min(currentRange.Begin + ParityPartSplitInfo_.BlockSize, ParityPartSplitInfo_.GetPartSize());
-            ranges.push_back(currentRange);
-            pos = currentRange.End;
-        }
-        return ranges;
-    }
-
     TFuture<std::vector<TSharedRef>> ProduceBlocks(const TPartRange& range)
     {
         std::vector<TFuture<TSharedRef>> asyncBlocks;
@@ -457,13 +539,7 @@ public:
 
     void Run()
     {
-        std::vector<TPartRange> windowAlignedRanges;
-        for (const auto& range : EncodeRanges_) {
-            for (const auto& splitRange : GetWindowAlignedRanges(range)) {
-                windowAlignedRanges.push_back(splitRange);
-            }
-        }
-        windowAlignedRanges = Union(windowAlignedRanges);
+        auto windowAlignedRanges = ParityPartSplitInfo_.SplitRangesByStripesAndAlignToParityBlocks(EncodeRanges_);
 
         for (const auto& range : windowAlignedRanges) {
             auto blocks = WaitFor(ProduceBlocks(range))
@@ -535,77 +611,78 @@ TFuture<NProto::TErasurePlacementExt> GetPlacementMeta(
 TParityPartSplitInfo GetParityPartSplitInfo(const TErasurePlacementExt& placementExt)
 {
     return TParityPartSplitInfo(
-        placementExt.parity_block_count(),
         placementExt.parity_block_size(),
-        placementExt.parity_last_block_size());
-}
-
-std::vector<i64> GetBlockSizes(int partIndex, const TErasurePlacementExt& placementExt)
-{
-    auto splitInfo = GetParityPartSplitInfo(placementExt);
-    int dataPartCount = placementExt.part_infos().size();
-    if (partIndex < dataPartCount) {
-        const auto& blockSizesProto = placementExt.part_infos().Get(partIndex).block_sizes();
-        return std::vector<i64>(blockSizesProto.begin(), blockSizesProto.end());
-    } else {
-        return splitInfo.GetSizes();
-    }
+        NYT::FromProto<std::vector<int>>(placementExt.parity_block_count_per_stripe()),
+        NYT::FromProto<std::vector<i64>>(placementExt.parity_last_block_size_per_stripe()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TDataBlocksPlacementInParts BuildDataBlocksPlacementInParts(
     const std::vector<int>& blockIndexes,
-    const TErasurePlacementExt& placementExt)
+    const TErasurePlacementExt& placementExt,
+    const TParityPartSplitInfo& paritySplitInfo)
 {
-    struct TPartComparer
-    {
-        bool operator()(int position, const TPartInfo& info) const
-        {
-            return position < info.first_block_index();
-        }
-    };
-
-    auto partInfos = NYT::FromProto<std::vector<TPartInfo>>(placementExt.part_infos());
-    YT_VERIFY(partInfos.front().first_block_index() == 0);
-    for (int i = 0; i + 1 < partInfos.size(); ++i) {
-        YT_VERIFY(partInfos[i].first_block_index() + partInfos[i].block_sizes().size() ==
-            partInfos[i + 1].first_block_index());
-    }
+    const auto& partInfos = placementExt.part_infos();
+    YT_VERIFY(!partInfos.empty());
+    YT_VERIFY(partInfos[0].first_block_index_per_stripe(0) == 0);
 
     auto result = TDataBlocksPlacementInParts(partInfos.size());
 
-    int indexInRequest = 0;
-    for (int blockIndex : blockIndexes) {
+    for (int indexInRequest = 0; indexInRequest < blockIndexes.size(); ++indexInRequest) {
+        int blockIndex = blockIndexes[indexInRequest];
         YT_VERIFY(blockIndex >= 0);
 
-        // Binary search of part containing given block.
-        auto it = std::upper_bound(partInfos.begin(), partInfos.end(), blockIndex, TPartComparer());
-        YT_VERIFY(it != partInfos.begin());
-        do {
-            --it;
-        } while (it != partInfos.begin() && (it->first_block_index() > blockIndex || it->block_sizes().size() == 0));
-        YT_VERIFY(blockIndex >= it->first_block_index());
-        YT_VERIFY(it != partInfos.end());
+        int stripeIndex;
+        {
+            auto it = std::upper_bound(
+                partInfos[0].first_block_index_per_stripe().begin(),
+                partInfos[0].first_block_index_per_stripe().end(),
+                blockIndex
+            );
 
-        int partIndex = it - partInfos.begin();
-        result[partIndex].IndexesInRequest.push_back(indexInRequest);
-
-        // Calculate index in the part.
-        int indexInPart = blockIndex - it->first_block_index();
-        YT_VERIFY(indexInPart < it->block_sizes().size());
-        result[partIndex].IndexesInPart.push_back(indexInPart);
-
-        // Calculate range of block inside part.
-        i64 start = 0;
-        int index = 0;
-        for (; index < indexInPart; ++index) {
-            start += it->block_sizes().Get(index);
+            stripeIndex = (it - partInfos[0].first_block_index_per_stripe().begin()) - 1;
+            YT_VERIFY(stripeIndex >= 0);
         }
-        auto range = TPartRange({start, start + it->block_sizes().Get(index)});
-        result[partIndex].Ranges.push_back(range);
 
-        ++indexInRequest;
+        int partIndex;
+        {
+            auto it = std::partition_point(
+                partInfos.begin(),
+                partInfos.end(),
+                [&] (const TPartInfo& partInfo) {
+                    return partInfo.first_block_index_per_stripe(stripeIndex) <= blockIndex;
+                }
+            );
+
+            partIndex = (it - partInfos.begin() - 1);
+            while (partIndex > 0 && GetStripeBlockCount(placementExt, partIndex, stripeIndex) == 0) {
+                --partIndex;
+            }
+            YT_VERIFY(partIndex >= 0);
+        }
+
+        int indexInStripe = blockIndex - partInfos[partIndex].first_block_index_per_stripe(stripeIndex);
+
+        int indexInPart = 0;
+        for (int index = 0; index < stripeIndex; ++index) {
+            indexInPart += GetStripeBlockCount(placementExt, partIndex, index);
+        }
+        indexInPart += indexInStripe;
+
+        i64 size = partInfos[partIndex].block_sizes(indexInPart);
+
+        i64 offset = paritySplitInfo.GetStripeOffset(stripeIndex);
+        for (int index = indexInPart - indexInStripe; index < indexInPart; ++index) {
+            offset += partInfos[partIndex].block_sizes(index);
+        }
+
+        result[partIndex].IndexesInRequest.push_back(indexInRequest);
+        result[partIndex].IndexesInPart.push_back(indexInPart);
+        result[partIndex].Ranges.push_back({
+            .Begin = offset,
+            .End = offset + size
+        });
     }
 
     return result;

@@ -16,6 +16,9 @@ T DivRound(const T& numerator, const T& denominator);
 template <class T>
 T RoundUp(const T& numerator, const T& denominator);
 
+template <class T>
+T RoundDown(const T& numerator, const T& denominator);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

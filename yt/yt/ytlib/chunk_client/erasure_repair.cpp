@@ -176,8 +176,8 @@ private:
 
     TParityPartSplitInfo ParityPartSplitInfo_;
 
-    std::vector<std::vector<i64>> ErasedPartBlockSizes_;
-    std::vector<std::vector<i64>> RepairPartBlockSizes_;
+    std::vector<std::vector<TPartRange>> ErasedPartBlockRanges_;
+    std::vector<std::vector<TPartRange>> RepairPartBlockRanges_;
 
     i64 ErasedDataSize_ = 0;
     int ErasedBlockCount_ = 0;
@@ -209,7 +209,7 @@ private:
                 ChunkReadOptions_);
             blockProducers.push_back(New<TPartReader>(
                 monotonicReader,
-                RepairPartBlockSizes_[index]));
+                RepairPartBlockRanges_[index]));
         }
 
         // Prepare erasure part writers.
@@ -218,7 +218,7 @@ private:
         for (int index = 0; index < Writers_.size(); ++index) {
             writerConsumers.push_back(New<TPartWriter>(
                 Writers_[index],
-                ErasedPartBlockSizes_[index],
+                ErasedPartBlockRanges_[index],
                 /* computeChecksums */ true));
             blockConsumers.push_back(writerConsumers.back());
         }
@@ -268,9 +268,9 @@ private:
     void ProcessPlacementExt(const TErasurePlacementExt& placementExt)
     {
         ParityPartSplitInfo_ = TParityPartSplitInfo(
-            placementExt.parity_block_count(),
             placementExt.parity_block_size(),
-            placementExt.parity_last_block_size());
+            NYT::FromProto<std::vector<int>>(placementExt.parity_block_count_per_stripe()),
+            NYT::FromProto<std::vector<i64>>(placementExt.parity_last_block_size_per_stripe()));
 
         auto repairIndices = Codec_->GetRepairIndices(ErasedIndices_);
         YT_VERIFY(repairIndices);
@@ -278,24 +278,17 @@ private:
 
         for (int i = 0; i < Readers_.size(); ++i) {
             int repairIndex = (*repairIndices)[i];
-            RepairPartBlockSizes_.push_back(GetBlockSizes(repairIndex, placementExt));
+            auto blockRanges = ParityPartSplitInfo_.GetBlockRanges(repairIndex, placementExt);
+            RepairPartBlockRanges_.push_back(blockRanges);
         }
 
         for (int erasedIndex : ErasedIndices_) {
-            auto blockSizes = GetBlockSizes(erasedIndex, placementExt);
-            ErasedPartBlockSizes_.push_back(blockSizes);
-            ErasedBlockCount_ += blockSizes.size();
-            ErasedDataSize_ += std::accumulate(blockSizes.begin(), blockSizes.end(), 0LL);
-        }
-    }
-
-    std::vector<i64> GetBlockSizes(int partIndex, const TErasurePlacementExt& placementExt)
-    {
-        if (partIndex < Codec_->GetDataPartCount()) {
-            const auto& blockSizesProto = placementExt.part_infos().Get(partIndex).block_sizes();
-            return std::vector<i64>(blockSizesProto.begin(), blockSizesProto.end());
-        } else {
-            return ParityPartSplitInfo_.GetSizes();
+            auto blockRanges = ParityPartSplitInfo_.GetBlockRanges(erasedIndex, placementExt);
+            ErasedPartBlockRanges_.push_back(blockRanges);
+            ErasedBlockCount_ += blockRanges.size();
+            for (auto range : blockRanges) {
+                ErasedDataSize_ += range.Size();
+            }
         }
     }
 };
@@ -414,7 +407,7 @@ public:
         , ChunkReadOptions_(options)
         , Logger(logger)
         , ParityPartSplitInfo_(GetParityPartSplitInfo(PlacementExt_))
-        , DataBlocksPlacementInParts_(BuildDataBlocksPlacementInParts(BlockIndexes_, PlacementExt_))
+        , DataBlocksPlacementInParts_(BuildDataBlocksPlacementInParts(BlockIndexes_, PlacementExt_, ParityPartSplitInfo_))
         , ReaderInvoker_(readerInvoker)
     {
         auto repairIndices = *Codec_->GetRepairIndices(ErasedIndices_);
@@ -422,10 +415,12 @@ public:
         YT_VERIFY(std::is_sorted(repairIndices.begin(), repairIndices.end()));
 
         for (int partIndex : repairIndices) {
-            RepairPartBlockSizes_.push_back(GetBlockSizes(partIndex, PlacementExt_));
+            RepairPartBlockRanges_.push_back(
+                ParityPartSplitInfo_.GetBlockRanges(partIndex, PlacementExt_));
         }
         for (int erasedIndex : ErasedIndices_) {
-            ErasedPartBlockSizes_.push_back(GetBlockSizes(erasedIndex, PlacementExt_));
+            ErasedPartBlockRanges_.push_back(
+                ParityPartSplitInfo_.GetBlockRanges(erasedIndex, PlacementExt_));
         }
 
         auto dataPartCount = Codec_->GetDataPartCount();
@@ -469,7 +464,7 @@ public:
         for (int index = 0; index < repairIndices.size(); ++index) {
             BlockProducers_.push_back(New<TPartReader>(
                 RepairPartReaders_[index],
-                RepairPartBlockSizes_[index]));
+                RepairPartBlockRanges_[index]));
         }
 
         // Build part block consumers.
@@ -505,8 +500,8 @@ private:
 
     TParityPartSplitInfo ParityPartSplitInfo_;
     TDataBlocksPlacementInParts DataBlocksPlacementInParts_;
-    std::vector<std::vector<i64>> ErasedPartBlockSizes_;
-    std::vector<std::vector<i64>> RepairPartBlockSizes_;
+    std::vector<std::vector<TPartRange>> ErasedPartBlockRanges_;
+    std::vector<std::vector<TPartRange>> RepairPartBlockRanges_;
 
     std::vector<TSequentialCachingBlocksReaderPtr> AllPartReaders_;
     std::vector<TSequentialCachingBlocksReaderPtr> RepairPartReaders_;

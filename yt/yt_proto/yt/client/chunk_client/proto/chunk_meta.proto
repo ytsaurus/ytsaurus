@@ -83,10 +83,10 @@ message TMiscExt
 
 message TPartInfo
 {
-    // Index of the first block in the whole chunk.
-    required int32 first_block_index = 1;
+    // Chunk-wide indexes of starting blocks of the stripes of a part.
+    repeated int32 first_block_index_per_stripe = 1;
 
-    // Block sizes. Used to estimate memory consumption of repair.
+    // Block sizes.
     repeated int64 block_sizes = 2;
 }
 
@@ -94,9 +94,13 @@ message TErasurePlacementExt
 {
     repeated TPartInfo part_infos = 1;
     required int32 parity_part_count = 2;
-    required int32 parity_block_count = 3;
     required int64 parity_block_size = 4;
-    required int64 parity_last_block_size = 5;
+
+    // Parity block count for each stripe of a part.
+    repeated int32 parity_block_count_per_stripe = 3;
+
+    // Last parity block size for each stripe of a part.
+    repeated int64 parity_last_block_size_per_stripe = 5;
 
     // We cannot store checksums in TPartInfo,
     // since part infos are present only for non-empty data parts.

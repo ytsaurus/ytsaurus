@@ -34,6 +34,12 @@ T RoundUp(const T& numerator, const T& denominator)
     return DivCeil(numerator, denominator) * denominator;
 }
 
+template <class T>
+T RoundDown(const T& numerator, const T& denominator)
+{
+    return (numerator / denominator) * denominator;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

@@ -13,6 +13,8 @@ namespace NYT::NChunkClient::NErasureHelpers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! TPartRange identifies a byte range across all erasure parts. For a given part this includes padding zero
+//! bytes of a stripe that are not explicitly stored.
 struct TPartRange
 {
     i64 Begin;
@@ -32,21 +34,26 @@ std::vector<TPartRange> Union(const std::vector<TPartRange>& ranges);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TParityPartSplitInfo
+class TParityPartSplitInfo
 {
+public:
     TParityPartSplitInfo() = default;
-    TParityPartSplitInfo(int parityBlockCount, i64 parityBlockSize, i64 lastBlockSize);
+    TParityPartSplitInfo(
+        i64 parityBlockSize,
+        const std::vector<int>& stripeBlockCounts,
+        const std::vector<i64>& stripeLastBlockSizes);
 
-    static TParityPartSplitInfo Build(i64 parityBlockSize, i64 parityPartSize);
-
+    i64 GetStripeOffset(int stripeIndex) const;
     i64 GetPartSize() const;
 
-    std::vector<TPartRange> GetRanges() const;
-    std::vector<i64> GetSizes() const;
+    std::vector<TPartRange> GetParityBlockRanges() const;
+    std::vector<TPartRange> GetBlockRanges(int partIndex, const NProto::TErasurePlacementExt& placementExt) const;
+    std::vector<TPartRange> SplitRangesByStripesAndAlignToParityBlocks(const std::vector<TPartRange>& ranges) const;
 
-    int BlockCount = 0;
-    i64 BlockSize = 0;
-    i64 LastBlockSize = 0;
+private:
+    i64 BlockSize_ = 0;
+    std::vector<int> StripeBlockCounts_;
+    std::vector<i64> StripeLastBlockSizes_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,7 +96,7 @@ class TPartWriter
     : public IPartBlockConsumer
 {
 public:
-    TPartWriter(IChunkWriterPtr writer, const std::vector<i64>& blockSizes, bool computeChecksum);
+    TPartWriter(IChunkWriterPtr writer, const std::vector<TPartRange>& blockRanges, bool computeChecksum);
 
     ~TPartWriter();
 
@@ -111,7 +118,7 @@ class TPartReader
     : public IPartBlockProducer
 {
 public:
-    TPartReader(IBlocksReaderPtr reader, const std::vector<i64>& blockSizes);
+    TPartReader(IBlocksReaderPtr reader, const std::vector<TPartRange>& blockRanges);
 
     ~TPartReader();
 
@@ -177,7 +184,8 @@ typedef std::vector<TDataBlocksPlacementInPart> TDataBlocksPlacementInParts;
 
 TDataBlocksPlacementInParts BuildDataBlocksPlacementInParts(
     const std::vector<int>& blockIndexes,
-    const NProto::TErasurePlacementExt& placementExt);
+    const NProto::TErasurePlacementExt& placementExt,
+    const TParityPartSplitInfo& paritySplitInfo);
 
 ////////////////////////////////////////////////////////////////////////////////
 
