@@ -338,7 +338,13 @@ TString ToString(const TUnversionedValue& value)
             builder.AppendFormat("@%v", value.Type);
             break;
     }
-    return builder.Flush();
+    auto result = builder.Flush();
+    constexpr ui16 cutoff = 128;
+    if (result.size() <= 2 * cutoff + 3) {
+        return result;
+    } else {
+        return result.substr(0, cutoff) + "..." + result.substr(result.size() - cutoff, cutoff);
+    }
 }
 
 static inline void ValidateDoubleValueIsComparable(double value)
