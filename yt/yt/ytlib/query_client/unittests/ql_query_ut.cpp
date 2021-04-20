@@ -29,6 +29,7 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/range_formatters.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
@@ -4279,6 +4280,130 @@ TEST_F(TQueryEvaluateTest, JoinMany)
         OrderedResultMatcher(result, {"x"}));
 
     SUCCEED();
+}
+
+// Tests common subexpressions in join equations.
+TEST_F(TQueryEvaluateTest, TwoLeftJoinOneToMany)
+{
+    std::map<TString, TDataSplit> splits;
+
+    {
+        TDataSplit dataSplit;
+
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+
+        auto schema = New<TTableSchema>(std::vector{
+            TColumnSchema("cid", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("pid", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("value", EValueType::Int64),
+        });
+
+        SetTableSchema(&dataSplit, *schema);
+
+        splits["//phrases"] = dataSplit;
+    }
+
+    std::vector<TString> phrases = {
+        "cid=49353617;pid=4098243503"
+    };
+
+    {
+        TDataSplit dataSplit;
+
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, 1, 0xdeadbabe));
+
+        auto schema = New<TTableSchema>(std::vector{
+            TColumnSchema("__hash__", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(TString("int64(farm_hash(pid) % 64)")),
+            TColumnSchema("pid", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("tag_id", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("value", EValueType::Int64),
+        });
+
+        SetTableSchema(&dataSplit, *schema);
+
+        splits["//tag_group"] = dataSplit;
+    }
+
+    std::vector<TString> tag_group = {
+        "__hash__=13;pid=4098243503;tag_id=39139420",
+        "__hash__=13;pid=4098243503;tag_id=39139421"
+    };
+
+    {
+        TDataSplit dataSplit;
+
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, 2, 0xdeadbabe));
+
+        auto schema = New<TTableSchema>(std::vector{
+            TColumnSchema("YTHash", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(TString("int64(farm_hash(ExportID))")),
+            TColumnSchema("ExportID", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("GroupExportID", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("UpdateTime", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("value", EValueType::Int64),
+        });
+
+        SetTableSchema(&dataSplit, *schema);
+
+        splits["//DirectPhraseStatV2"] = dataSplit;
+    }
+
+    std::vector<TString> DirectPhraseStatV2 = {
+        "YTHash=-9217565170028083870;ExportID=49353617;GroupExportID=4098243503;UpdateTime=1579813200",
+        "YTHash=-9217565170028083870;ExportID=49353617;GroupExportID=4098243503;UpdateTime=1580072400",
+        "YTHash=-9217565170028083870;ExportID=49353617;GroupExportID=4098243503;UpdateTime=1580158800"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"tag_id", EValueType::Int64},
+        {"UpdateTime", EValueType::Int64}
+    });
+
+    {
+        auto result = YsonToRows({
+            "tag_id=39139420;UpdateTime=1579813200",
+            "tag_id=39139421;UpdateTime=1579813200",
+            "tag_id=39139420;UpdateTime=1580072400",
+            "tag_id=39139421;UpdateTime=1580072400",
+            "tag_id=39139420;UpdateTime=1580158800",
+            "tag_id=39139421;UpdateTime=1580158800",
+        }, resultSplit);
+
+        Evaluate(R"(
+            TG.tag_id as tag_id, S.UpdateTime as UpdateTime
+            FROM [//phrases] AS P
+            LEFT JOIN [//tag_group] AS TG ON P.pid = TG.pid
+            LEFT JOIN [//DirectPhraseStatV2] AS S ON (P.cid, P.pid) = (S.ExportID, S.GroupExportID)
+        )", splits, {phrases, tag_group, DirectPhraseStatV2}, ResultMatcher(result));
+    }
+
+    {
+        auto result = YsonToRows({
+            "tag_id=39139420;UpdateTime=1579813200",
+            "tag_id=39139420;UpdateTime=1580072400",
+            "tag_id=39139420;UpdateTime=1580158800",
+            "tag_id=39139421;UpdateTime=1579813200",
+            "tag_id=39139421;UpdateTime=1580072400",
+            "tag_id=39139421;UpdateTime=1580158800"
+        }, resultSplit);
+
+        Evaluate(R"(
+            TG.tag_id, S.UpdateTime
+            FROM [//phrases] AS P
+            LEFT JOIN [//DirectPhraseStatV2] AS S ON (P.cid, P.pid) = (S.ExportID, S.GroupExportID)
+            LEFT JOIN [//tag_group] AS TG ON P.pid = TG.pid
+        )", splits, {phrases, DirectPhraseStatV2, tag_group}, ResultMatcher(result));
+    }
 }
 
 TEST_F(TQueryEvaluateTest, OrderBy)
