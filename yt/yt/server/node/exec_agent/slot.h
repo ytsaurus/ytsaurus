@@ -85,7 +85,8 @@ struct ISlot
         TJobId jobId,
         const std::vector<NJobAgent::TShellCommandConfigPtr>& commands,
         const NContainers::TRootFS& rootFS,
-        const TString& user) = 0;
+        const TString& user,
+        const std::optional<std::vector<NContainers::TDevice>>& devices) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISlot)

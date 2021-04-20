@@ -150,7 +150,8 @@ public:
         TJobId /*jobId*/,
         const std::vector<NJobAgent::TShellCommandConfigPtr>& /*commands*/,
         const TRootFS& /*rootFS*/,
-        const TString& /*user*/) override
+        const TString& /*user*/,
+        const std::optional<std::vector<TDevice>>& /*devices*/) override
     {
         THROW_ERROR_EXCEPTION("Setup scripts are not yet supported by %Qlv environment",
             BasicConfig_->Type);
@@ -361,9 +362,10 @@ public:
         TJobId jobId,
         const std::vector<NJobAgent::TShellCommandConfigPtr>& commands,
         const TRootFS& rootFS,
-        const TString& user) override
+        const TString& user,
+        const std::optional<std::vector<TDevice>>& devices) override
     {
-        return BIND([this_ = MakeStrong(this), slotIndex, jobId, commands, rootFS, user] {
+        return BIND([this_ = MakeStrong(this), slotIndex, jobId, commands, rootFS, user, devices] {
             for (int index = 0; index < commands.size(); ++index) {
                 const auto& command = commands[index];
                 YT_LOG_DEBUG("Running setup command (JobId: %v, Path: %v, Args: %v)",
@@ -371,6 +373,9 @@ public:
                     command->Path,
                     command->Args);
                 auto instance = this_->CreateSetupInstance(slotIndex, jobId, rootFS, user, index);
+                if (devices) {
+                    instance->SetDevices(*devices);
+                }
                 try {
                     auto process = CreateSetupProcess(instance, command);
                     WaitFor(process->Spawn())
