@@ -87,8 +87,11 @@ TDeleteListFlusher::~TDeleteListFlusher()
     FlushDeleteList();	
 }
 
-TRowCache::TRowCache(size_t elementCount, IMemoryUsageTrackerPtr memoryTracker)
-    : Allocator(std::move(memoryTracker))
+TRowCache::TRowCache(
+    size_t elementCount,
+    const NProfiling::TProfiler& profiler,
+    IMemoryUsageTrackerPtr memoryTracker)
+    : Allocator(profiler, std::move(memoryTracker))
     , Cache(elementCount)
 { }
 
@@ -1432,6 +1435,7 @@ void TTablet::ConfigureRowCache()
         if (!RowCache_) {
             RowCache_ = New<TRowCache>(
                 Settings_.MountConfig->LookupCacheRowsPerTablet,
+                TabletNodeProfiler.WithTag("table", TablePath_),
                 Context_
                     ->GetMemoryUsageTracker()
                     ->WithCategory(NNodeTrackerClient::EMemoryCategory::LookupRowsCache));

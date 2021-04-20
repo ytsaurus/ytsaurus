@@ -53,7 +53,10 @@ struct TRowCache
     // Rows with revision less than FlushIndex are considered outdated.
     std::atomic<ui32> FlushIndex = 0;
 
-    TRowCache(size_t elementCount, IMemoryUsageTrackerPtr memoryTracker);
+    TRowCache(
+        size_t elementCount,
+        const NProfiling::TProfiler& profiler,
+        IMemoryUsageTrackerPtr memoryTracker);
 };
 
 DEFINE_REFCOUNTED_TYPE(TRowCache)
