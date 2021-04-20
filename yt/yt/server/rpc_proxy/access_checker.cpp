@@ -18,6 +18,10 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const NLogging::TLogger Logger("AccessChecker");
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TAccessChecker
     : public IAccessChecker
 {
@@ -61,12 +65,16 @@ public:
             return TError();
         }
 
-        if (Config_->AllowAccessIfNodeDoesNotExist && error.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            return TError();
+        if (error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError)) {
+            return TError("User %Qv is not allowed to use RPC proxies with role %Qv", user, proxyRole)
+                << error;
         }
 
-        return TError("User %Qv is not allowed to use RPC proxies with role %Qv", user, proxyRole)
-            << error;
+        YT_LOG_INFO(error, "Failed to check if user is allowed to use RPC proxy (User: %v, Role: %v)",
+            user,
+            proxyRole);
+
+        return TError();
     }
 
 private:

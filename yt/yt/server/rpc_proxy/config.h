@@ -146,10 +146,6 @@ public:
     //! PathPrefix/ProxyRole path.
     TString PathPrefix;
 
-    //! Whether user should be allowed to use proxy
-    //! if PathPrefix/ProxyRole does not exist.
-    bool AllowAccessIfNodeDoesNotExist;
-
     //! Parameters of the permission cache.
     NSecurityClient::TPermissionCacheConfigPtr Cache;
 
@@ -160,9 +156,6 @@ public:
 
         RegisterParameter("path_prefix", PathPrefix)
             .Default("//sys/rpc_proxy_roles");
-
-        RegisterParameter("allow_access_if_node_does_not_exist", AllowAccessIfNodeDoesNotExist)
-            .Default(true);
 
         RegisterParameter("cache", Cache)
             .DefaultNew();

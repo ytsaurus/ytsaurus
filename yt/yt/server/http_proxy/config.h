@@ -139,10 +139,6 @@ public:
     //! PathPrefix/ProxyRole path.
     TString PathPrefix;
 
-    //! Whether user should be allowed to use proxy
-    //! if PathPrefix/ProxyRole does not exist.
-    bool AllowAccessIfNodeDoesNotExist;
-
     //! Parameters of the permission cache.
     NSecurityClient::TPermissionCacheConfigPtr Cache;
 
