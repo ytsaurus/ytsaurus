@@ -31,6 +31,8 @@
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/https/config.h>
 
+#include <library/cpp/testing/common/network.h>
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT::NHttp {
@@ -592,13 +594,13 @@ protected:
     IServerPtr Server;
     IClientPtr Client;
 
-    int TestPort = -1;
+    NTesting::TPortHolder TestPort;
     TString TestUrl;
 
 private:
     void SetupServer(const NHttp::TServerConfigPtr& config)
     {
-        config->Port = 0;
+        config->Port = TestPort;
     }
 
     void SetupClient(const NHttp::TClientConfigPtr& /*config*/)
@@ -606,6 +608,8 @@ private:
 
     virtual void SetUp() override
     {
+        TestPort = NTesting::GetFreePort();
+        TestUrl = Format("http://localhost:%v", TestPort);
         Poller = CreateThreadPoolPoller(4, "HttpTest");
         if (!GetParam()) {
             ServerConfig = New<NHttp::TServerConfig>();
@@ -635,9 +639,6 @@ private:
             SetupClient(clientConfig);
             Client = NHttps::CreateClient(clientConfig, Poller);
         }
-
-        TestPort = Server->GetAddress().GetPort();
-        TestUrl = Format("http://localhost:%v", TestPort);
     }
 
     virtual void TearDown() override
@@ -646,6 +647,7 @@ private:
         Server.Reset();
         Poller->Shutdown();
         Poller.Reset();
+        TestPort.Reset();
     }
 };
 
@@ -1160,6 +1162,21 @@ TEST_P(THttpServerTest, ConnectionKeepAlive)
 
 INSTANTIATE_TEST_SUITE_P(WithoutTls, THttpServerTest, ::testing::Values(false));
 INSTANTIATE_TEST_SUITE_P(WithTls, THttpServerTest, ::testing::Values(true));
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(THttpServerTest, TestOwnPoller)
+{
+    auto port = NTesting::GetFreePort();
+    auto url = Format("http://localhost:%v", port);
+
+    auto config = New<NHttp::TServerConfig>();
+    config->Port = port;
+    auto server = NHttp::CreateServer(config);
+    server->Start();
+    server->Stop();
+    // this test will cause memory leak w/o calling shutdown for IPoller in server
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

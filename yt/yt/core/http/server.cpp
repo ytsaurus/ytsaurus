@@ -45,6 +45,8 @@ void IServer::AddHandler(
     AddHandler(pattern, New<TCallbackHandler>(handler));
 }
 
+namespace {
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TServer
@@ -55,11 +57,13 @@ public:
         const TServerConfigPtr& config,
         const IListenerPtr& listener,
         const IPollerPtr& poller,
-        const IPollerPtr& acceptor)
+        const IPollerPtr& acceptor,
+        bool ownPoller = false)
         : Config_(config)
         , Listener_(listener)
         , Poller_(poller)
         , Acceptor_(acceptor)
+        , OwnPoller_(ownPoller)
     { }
 
     virtual void AddHandler(const TString& path, const IHttpHandlerPtr& handler) override
@@ -87,6 +91,10 @@ public:
     {
         Stopped_.store(true);
 
+        if (OwnPoller_) {
+            Poller_->Shutdown();
+        }
+
         YT_LOG_INFO("Server stopped");
     }
 
@@ -95,6 +103,7 @@ private:
     const IListenerPtr Listener_;
     const IPollerPtr Poller_;
     const IPollerPtr Acceptor_;
+    bool OwnPoller_ = false;
 
     bool Started_ = false;
     std::atomic<bool> Stopped_ = {false};
@@ -343,27 +352,24 @@ private:
 IServerPtr CreateServer(
     const TServerConfigPtr& config,
     const IListenerPtr& listener,
-    const IPollerPtr& poller)
+    const IPollerPtr& poller,
+    const IPollerPtr& acceptor,
+    bool ownPoller)
 {
-    return New<TServer>(config, listener, poller, poller);
+    return New<TServer>(config, listener, poller, acceptor, ownPoller);
 }
 
 IServerPtr CreateServer(
     const TServerConfigPtr& config,
-    const IListenerPtr& listener,
     const IPollerPtr& poller,
-    const IPollerPtr& acceptor)
-{
-    return New<TServer>(config, listener, poller, acceptor);
-}
-
-IServerPtr CreateServer(const TServerConfigPtr& config, const IPollerPtr& poller, const IPollerPtr& acceptor)
+    const IPollerPtr& acceptor,
+    bool ownPoller)
 {
     auto address = TNetworkAddress::CreateIPv6Any(config->Port);
     for (int i = 0;; ++i) {
         try {
             auto listener = CreateListener(address, poller, acceptor, config->MaxBacklogSize);
-            return New<TServer>(config, listener, poller, acceptor);
+            return CreateServer(config, listener, poller, acceptor, ownPoller);
         } catch (const std::exception& ex) {
             if (i + 1 == config->BindRetryCount) {
                 throw;
@@ -373,6 +379,32 @@ IServerPtr CreateServer(const TServerConfigPtr& config, const IPollerPtr& poller
             }
         }
     }
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+IServerPtr CreateServer(
+    const TServerConfigPtr& config,
+    const IListenerPtr& listener,
+    const IPollerPtr& poller)
+{
+    return CreateServer(config, listener, poller, poller, false);
+}
+
+IServerPtr CreateServer(
+    const TServerConfigPtr& config,
+    const IListenerPtr& listener,
+    const IPollerPtr& poller,
+    const IPollerPtr& acceptor)
+{
+    return CreateServer(config, listener, poller, acceptor, false);
+}
+
+IServerPtr CreateServer(const TServerConfigPtr& config, const IPollerPtr& poller, const IPollerPtr& acceptor)
+{
+    return CreateServer(config, poller, acceptor, false);
 }
 
 IServerPtr CreateServer(const TServerConfigPtr& config, const IPollerPtr& poller)
@@ -387,13 +419,13 @@ IServerPtr CreateServer(int port, const IPollerPtr& poller)
     return CreateServer(config, poller);
 }
 
-IServerPtr CreateServer(const TServerConfigPtr& config)
+IServerPtr CreateServer(const TServerConfigPtr& config, int threads)
 {
     auto threadName = config->ServerName
         ? "Http:" + config->ServerName
         : "Http";
-    auto poller = CreateThreadPoolPoller(1, threadName);
-    return CreateServer(config, poller);
+    auto poller = CreateThreadPoolPoller(threads, threadName);
+    return CreateServer(config, poller, poller, true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
