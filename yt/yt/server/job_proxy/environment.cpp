@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/lib/core_dump/public.h>
 
+#include <yt/yt/server/lib/containers/public.h>
+
 #include <yt/yt/server/lib/exec_agent/config.h>
 
 #include <yt/yt/server/lib/job_agent/gpu_helpers.h>
@@ -455,7 +457,9 @@ public:
         for (const auto& descriptor : ListGpuDevices()) {
             const auto& deviceName = descriptor.DeviceName;
             if (std::find(GpuDevices_.begin(), GpuDevices_.end(), deviceName) == GpuDevices_.end()) {
-                devices.emplace_back(TDevice{deviceName, false});
+                devices.emplace_back(TDevice{
+                    .DeviceName = deviceName,
+                    .Enabled = false});
             }
         }
 

@@ -85,6 +85,7 @@ using namespace NApi;
 using namespace NCoreDump;
 using namespace NNet;
 using namespace NProfiling;
+using namespace NContainers;
 
 using NNodeTrackerClient::TNodeDirectory;
 using NChunkClient::TDataSliceDescriptor;
@@ -1193,7 +1194,8 @@ private:
                 Id_,
                 {testFileCommand},
                 MakeWritableRootFS(),
-                Config_->JobController->SetupCommandUser));
+                Config_->JobController->SetupCommandUser,
+                /* devices */ std::nullopt));
 
             if (!testFileError.IsOK()) {
                 THROW_ERROR_EXCEPTION(EErrorCode::GpuCheckCommandIncorrect, "Path to GPU check binary is not a file")
@@ -1204,12 +1206,33 @@ private:
 
         auto checkCommand = New<TShellCommandConfig>();
         checkCommand->Path = gpuCheckBinaryPath;
+        
+        std::vector<TDevice> devices;
+        for (const auto& descriptor : ListGpuDevices()) {
+            const auto& deviceName = descriptor.DeviceName;
+
+            bool deviceFound = false;
+            for (const auto& slot : GpuSlots_) {
+                if (slot->GetDeviceName() == deviceName) {
+                    deviceFound = true;
+                    break;
+                }
+            }
+
+            if (!deviceFound) {
+                // Exclude device explicitly.
+                devices.emplace_back(TDevice{
+                    .DeviceName = deviceName,
+                    .Enabled = false});
+            }
+        }
 
         return Slot_->RunSetupCommands(
             Id_,
             {checkCommand},
             MakeWritableRootFS(),
-            Config_->JobController->SetupCommandUser);
+            Config_->JobController->SetupCommandUser,
+            devices);
     }
 
     void OnGpuCheckCommandFinished(const TError& error)
@@ -1883,7 +1906,7 @@ private:
 
         YT_LOG_INFO("Running setup commands");
 
-        return Slot_->RunSetupCommands(Id_, commands, MakeWritableRootFS(), Config_->JobController->SetupCommandUser);
+        return Slot_->RunSetupCommands(Id_, commands, MakeWritableRootFS(), Config_->JobController->SetupCommandUser, /* devices */ std::nullopt);
     }
 
     // Analyse results.

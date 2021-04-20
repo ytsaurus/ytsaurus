@@ -25,6 +25,7 @@ static NLogging::TLogger Logger("SlotLogger");
 
 using namespace NBus;
 using namespace NConcurrency;
+using namespace NContainers;
 using namespace NDataNode;
 using namespace NTools;
 using namespace NYTree;
@@ -211,10 +212,11 @@ public:
         TJobId jobId,
         const std::vector<NJobAgent::TShellCommandConfigPtr>& commands,
         const NContainers::TRootFS& rootFS,
-        const TString& user)
+        const TString& user,
+        const std::optional<std::vector<TDevice>>& devices)
     {
         return RunPrepareAction<void>([&] {
-                return JobEnvironment_->RunSetupCommands(SlotIndex_, jobId, commands, rootFS, user);
+                return JobEnvironment_->RunSetupCommands(SlotIndex_, jobId, commands, rootFS, user, devices);
             },
             // Setup commands are uncancelable since they are run in separate processes.
             true);
