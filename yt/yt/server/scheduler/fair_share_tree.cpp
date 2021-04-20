@@ -1610,7 +1610,8 @@ private:
             }
 
             if (jobStartedUsingPreemption) {
-                job->SetPreemptionReason(Format("Preempted to start job %v of operation %v",
+                job->SetPreemptionReason(Format("%v to start job %v of operation %v",
+                    isAggressive ? "Aggressively preempted" : "Preempted",
                     jobStartedUsingPreemption->GetId(),
                     jobStartedUsingPreemption->GetOperationId()));
 
