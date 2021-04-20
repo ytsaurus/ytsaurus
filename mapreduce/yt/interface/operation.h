@@ -661,6 +661,11 @@ struct TUserJobSpec
     FLUENT_FIELD_OPTION(ui16, PortCount);
 
     ///
+    /// @brief Network project used to isolate job network.
+    FLUENT_FIELD_OPTION(TString, NetworkProject);
+
+
+    ///
     /// @brief Limit on job execution time.
     ///
     /// Jobs that exceed this limit will be considered failed.
