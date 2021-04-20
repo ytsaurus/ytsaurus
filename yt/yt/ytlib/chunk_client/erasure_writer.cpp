@@ -11,13 +11,11 @@
 #include "erasure_helpers.h"
 #include "block.h"
 #include "private.h"
-#include "yt/yt/core/misc/public.h"
-
-#include <yt/yt/client/api/client.h>
 
 #include <yt/yt/ytlib/chunk_client/proto/chunk_info.pb.h>
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 
+#include <yt/yt/client/api/client.h>
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
@@ -31,6 +29,7 @@
 #include <yt/yt/library/erasure/impl/codec.h>
 
 #include <yt/yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
 
@@ -77,39 +76,150 @@ std::vector<std::vector<TBlock>> SplitBlocks(
     return groups;
 }
 
-std::vector<i64> BlocksToSizes(const std::vector<TBlock>& blocks)
-{
-    std::vector<i64> sizes;
-    for (const auto& block : blocks) {
-        sizes.push_back(block.Size());
-    }
-    return sizes;
-}
-
-class TInMemoryBlocksReader
-    : public IBlocksReader
+class TBlockGroupReader
+    : public TNonCopyable
 {
 public:
-    TInMemoryBlocksReader(const std::vector<TBlock>& blocks)
-        : Blocks_(blocks)
-    { }
-
-    virtual TFuture<std::vector<TBlock>> ReadBlocks(const std::vector<int>& blockIndexes) override
+    TBlockGroupReader(std::vector<std::vector<TBlock>> groups)
     {
-        std::vector<TBlock> blocks;
-        for (int index = 0; index < blockIndexes.size(); ++index) {
-            int blockIndex = blockIndexes[index];
-            YT_VERIFY(0 <= blockIndex && blockIndex < Blocks_.size());
-            blocks.push_back(Blocks_[blockIndex]);
+        for (auto blocks : groups) {
+            Readers_.emplace_back(blocks);
         }
-        return MakeFuture(blocks);
+    }
+
+    std::vector<TSharedRef> Read(i64 size, i64* maxDataSize)
+    {
+        YT_VERIFY(maxDataSize);
+        *maxDataSize = 0;
+
+        std::vector<TSharedRef> result(Readers_.size());
+        for (int index = 0; index < Readers_.size(); ++index) {
+            i64 dataSize;
+            result[index] = Readers_[index].Read(size, &dataSize);
+            *maxDataSize = Max(*maxDataSize, dataSize);
+        }
+
+        return result;
+    }
+
+    bool Empty() const
+    {
+        bool result = true;
+        for (const auto& r : Readers_) {
+            result = result && r.Empty();
+        }
+        return result;
     }
 
 private:
-    const std::vector<TBlock>& Blocks_;
+    class TSingleGroupReader
+        : public TMoveOnly
+    {
+    public:
+        TSingleGroupReader(const std::vector<TBlock>& blocks)
+            : Blocks_(TBlock::Unwrap(blocks))
+        { }
+
+        TSharedRef Read(i64 size, i64* dataSize)
+        {
+            YT_VERIFY(dataSize);
+
+            if (Buffer_.Size() < size) {
+                struct TErasureWriterSliceTag { };
+                Buffer_ = TSharedMutableRef::Allocate<TErasureWriterSliceTag>(size);
+            }
+
+            *dataSize = 0;
+            while (CurrentBlock_ < Blocks_.size() && *dataSize < size) {
+                const auto& block = Blocks_[CurrentBlock_];
+
+                i64 toWrite = Min<i64>(block.Size(), size - *dataSize);
+                std::copy(block.begin(), block.begin() + toWrite, Buffer_.begin() + *dataSize);
+
+                if (toWrite < block.Size()) {
+                    Blocks_[CurrentBlock_] = block.Slice(toWrite, block.Size());
+                } else {
+                    ++CurrentBlock_;
+                }
+
+                *dataSize += toWrite;
+            }
+
+            std::fill(Buffer_.begin() + *dataSize, Buffer_.begin() + size, 0);
+            return Buffer_;
+        }
+
+        bool Empty() const
+        {
+            return CurrentBlock_ >= Blocks_.size();
+        }
+
+    private:
+        TSharedMutableRef Buffer_;
+        std::vector<TSharedRef> Blocks_;
+        int CurrentBlock_ = 0;
+    };
+
+    std::vector<TSingleGroupReader> Readers_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TInMemoryBlocksReader)
+class TErasurePartWriterWrapper
+    : public TRefCounted
+{
+public:
+    TErasurePartWriterWrapper(IChunkWriterPtr output)
+        : Output_(output)
+    { }
+
+    void WriteStripe(int startBlockIndex, std::vector<TBlock> blocks)
+    {
+        StripeStartBlockIndices_.push_back(startBlockIndex);
+        StripeBlockCounts_.push_back(blocks.size());
+
+        for (const auto& block : blocks) {
+            TBlock blockWithChecksum(block);
+            blockWithChecksum.Checksum = block.GetOrComputeChecksum();
+            HashCombine(Checksum_, blockWithChecksum.Checksum);
+
+            BlockSizes_.push_back(blockWithChecksum.Size());
+
+            if (!Output_->WriteBlock(blockWithChecksum)) {
+                WaitFor(Output_->GetReadyEvent())
+                    .ThrowOnError();
+            }
+        }
+    }
+
+    NProto::TPartInfo GetPartInfo()
+    {
+        NProto::TPartInfo info;
+        NYT::ToProto(info.mutable_first_block_index_per_stripe(), StripeStartBlockIndices_);
+        NYT::ToProto(info.mutable_block_sizes(), BlockSizes_);
+        return info;
+    }
+
+    std::vector<int> GetStripeBlockCounts()
+    {
+        return StripeBlockCounts_;
+    }
+
+    TChecksum GetPartChecksum()
+    {
+        return Checksum_;
+    }
+
+private:
+    IChunkWriterPtr Output_;
+
+    std::vector<i64> BlockSizes_;
+    std::vector<int> StripeStartBlockIndices_;
+    std::vector<int> StripeBlockCounts_;
+    TChecksum Checksum_ = NullChecksum;
+};
+
+DEFINE_REFCOUNTED_TYPE(TErasurePartWriterWrapper);
+
+typedef TIntrusivePtr<TErasurePartWriterWrapper> TErasurePartWriterWrapperPtr;
 
 } // namespace
 
@@ -131,6 +241,8 @@ public:
         , CodecId_(codecId)
         , Codec_(codec)
         , WorkloadDescriptor_(workloadDescriptor)
+        , ErasureWindowSize_(RoundUp<i64>(config->ErasureWindowSize, codec->GetWordSize()))
+        , ReadyEvent_(VoidFuture)
         , Writers_(writers)
         , BlockReorderer_(config)
     {
@@ -138,6 +250,9 @@ public:
         VERIFY_INVOKER_THREAD_AFFINITY(TDispatcher::Get()->GetWriterInvoker(), WriterThread);
 
         ChunkInfo_.set_disk_space(0);
+        for (const auto& writer : writers) {
+            WriterWrappers_.push_back(New<TErasurePartWriterWrapper>(writer));
+        }
     }
 
     virtual TFuture<void> Open() override
@@ -147,23 +262,19 @@ public:
             .Run();
     }
 
-    virtual bool WriteBlock(const TBlock& block) override
-    {
-        Blocks_.push_back(block);
-        return true;
-    }
+    virtual bool WriteBlock(const TBlock& block) override;
 
     virtual bool WriteBlocks(const std::vector<TBlock>& blocks) override
     {
         for (const auto& block : blocks) {
             WriteBlock(block);
         }
-        return true;
+        return ReadyEvent_.IsSet() && ReadyEvent_.Get().IsOK();
     }
 
     virtual TFuture<void> GetReadyEvent() override
     {
-        return MakeFuture(TError());
+        return ReadyEvent_;
     }
 
     virtual const NProto::TChunkInfo& GetChunkInfo() const override
@@ -220,97 +331,39 @@ private:
     ICodec* const Codec_;
     const TWorkloadDescriptor WorkloadDescriptor_;
 
+    const i64 ErasureWindowSize_;
+
     bool IsOpen_ = false;
+    TFuture<void> ReadyEvent_;
 
     std::vector<IChunkWriterPtr> Writers_;
-    std::vector<TBlock> Blocks_;
+    std::vector<TErasurePartWriterWrapperPtr> WriterWrappers_;
 
-    // Information about blocks, necessary to write blocks
-    // and encode parity parts
-    std::vector<std::vector<TBlock>> Groups_;
-    TParityPartSplitInfo ParityPartSplitInfo_;
+    std::vector<TBlock> Blocks_;
+    i64 AccumulatedSize_ = 0;
+    int LastFlushedBlockIndex_ = 0;
 
     std::vector<TChecksum> BlockChecksums_;
 
-    // Chunk meta with information about block placement
-    TDeferredChunkMetaPtr ChunkMeta_ = New<TDeferredChunkMeta>();
-    NProto::TErasurePlacementExt PlacementExt_;
     NProto::TChunkInfo ChunkInfo_;
 
     TBlockReorderer BlockReorderer_;
 
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
 
-    void PrepareBlocks();
-
-    void PrepareChunkMeta(const TDeferredChunkMetaPtr& chunkMeta);
-
     void DoOpen();
 
-    TFuture<void> WriteDataBlocks();
+    TFuture<void> Flush(std::vector<TBlock> blocks);
 
-    void WriteDataPart(int partIndex, IChunkWriterPtr writer, const std::vector<TBlock>& blocks);
+    TFuture<void> WriteDataBlocks(const std::vector<std::vector<TBlock>>& groups);
+    TFuture<void> EncodeAndWriteParityBlocks(const std::vector<std::vector<TBlock>>& groups);
 
-    TFuture<void> EncodeAndWriteParityBlocks();
+    void FillChunkMeta(const TDeferredChunkMetaPtr& chunkMeta);
 
-    void OnWritten();
+    void DoClose(TDeferredChunkMetaPtr chunkMeta);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-void TErasureWriter::PrepareBlocks()
-{
-    if (Config_->ErasureStoreOriginalBlockChecksums) {
-        for (auto& block : Blocks_) {
-            block.Checksum = block.GetOrComputeChecksum();
-            BlockChecksums_.push_back(block.Checksum);
-        }
-    }
-
-    BlockReorderer_.ReorderBlocks(Blocks_);
-
-    Groups_ = SplitBlocks(Blocks_, Codec_->GetDataPartCount());
-
-    i64 partSize = 0;
-    for (const auto& group : Groups_) {
-        i64 size = 0;
-        for (const auto& block : group) {
-            size += block.Size();
-        }
-        partSize = std::max(partSize, size);
-    }
-    partSize = RoundUp(partSize, static_cast<i64>(Codec_->GetWordSize()));
-
-    ParityPartSplitInfo_ = TParityPartSplitInfo::Build(Config_->ErasureWindowSize, partSize);
-}
-
-void TErasureWriter::PrepareChunkMeta(const TDeferredChunkMetaPtr& chunkMeta)
-{
-    int start = 0;
-    for (const auto& group : Groups_) {
-        auto* info = PlacementExt_.add_part_infos();
-        // NB: these block indexes are calculated after the reordering,
-        // so we will set them here and not in the deferred callback.
-        info->set_first_block_index(start);
-        for (const auto& block : group) {
-            info->add_block_sizes(block.Size());
-        }
-        start += group.size();
-    }
-    PlacementExt_.set_parity_part_count(Codec_->GetParityPartCount());
-    PlacementExt_.set_parity_block_count(ParityPartSplitInfo_.BlockCount);
-    PlacementExt_.set_parity_block_size(Config_->ErasureWindowSize);
-    PlacementExt_.set_parity_last_block_size(ParityPartSplitInfo_.LastBlockSize);
-    PlacementExt_.mutable_part_checksums()->Resize(Codec_->GetTotalPartCount(), NullChecksum);
-
-    if (Config_->ErasureStoreOriginalBlockChecksums) {
-        NYT::ToProto(PlacementExt_.mutable_block_checksums(), BlockChecksums_);
-    }
-
-    ChunkMeta_ = chunkMeta;
-    ChunkMeta_->BlockIndexMapping() = BlockReorderer_.BlockIndexMapping();
-    ChunkMeta_->Finalize();
-}
 
 void TErasureWriter::DoOpen()
 {
@@ -326,135 +379,171 @@ void TErasureWriter::DoOpen()
     IsOpen_ = true;
 }
 
-TFuture<void> TErasureWriter::WriteDataBlocks()
+bool TErasureWriter::WriteBlock(const TBlock& block)
+{
+    Blocks_.push_back(block);
+    AccumulatedSize_ += block.Size();
+
+    if (Config_->ErasureStripeSize &&
+        AccumulatedSize_ >= *Config_->ErasureStripeSize * Codec_->GetDataPartCount())
+    {
+        ReadyEvent_ = ReadyEvent_.Apply(
+            BIND(&TErasureWriter::Flush, MakeStrong(this), Passed(std::move(Blocks_)))
+            .AsyncVia(TDispatcher::Get()->GetWriterInvoker()));
+
+        AccumulatedSize_ = 0;
+        Blocks_.clear();
+    }
+
+    return ReadyEvent_.IsSet() && ReadyEvent_.Get().IsOK();
+}
+
+TFuture<void> TErasureWriter::WriteDataBlocks(const std::vector<std::vector<TBlock>>& groups)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
-    YT_VERIFY(Groups_.size() <= Writers_.size());
+    YT_VERIFY(groups.size() <= Writers_.size());
+
+    int blockIndex = LastFlushedBlockIndex_;
 
     std::vector<TFuture<void>> asyncResults;
-    for (int index = 0; index < Groups_.size(); ++index) {
+    for (int index = 0; index < groups.size(); ++index) {
         asyncResults.push_back(
             BIND(
-                &TErasureWriter::WriteDataPart,
-                MakeStrong(this),
-                index,
-                Writers_[index],
-                Groups_[index])
+                &TErasurePartWriterWrapper::WriteStripe,
+                WriterWrappers_[index],
+                blockIndex,
+                groups[index])
+            .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
+            .Run());
+
+        blockIndex += groups[index].size();
+    }
+
+    LastFlushedBlockIndex_ = blockIndex;
+    return AllSucceeded(asyncResults);
+}
+
+TFuture<void> TErasureWriter::EncodeAndWriteParityBlocks(const std::vector<std::vector<TBlock>>& groups)
+{
+    VERIFY_INVOKER_AFFINITY(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker());
+
+    std::vector<std::vector<TBlock>> parityBlocks(Codec_->GetParityPartCount());
+
+    TBlockGroupReader reader(groups);
+    while (!reader.Empty()) {
+        i64 blockSize;
+        auto codecInput = reader.Read(ErasureWindowSize_, &blockSize);
+        blockSize = RoundUp<i64>(blockSize, Codec_->GetWordSize());
+
+        for (int index = 0; index < codecInput.size(); ++index) {
+            codecInput[index] = codecInput[index].Slice(0, blockSize);
+        }
+
+        auto codecOutput = Codec_->Encode(codecInput);
+        for (int index = 0; index < codecOutput.size(); ++index) {
+            TBlock block(codecOutput[index]);
+            block.Checksum = block.GetOrComputeChecksum();
+            parityBlocks[index].push_back(block);
+        }
+    }
+
+    std::vector<TFuture<void>> asyncResults;
+    for (int index = 0; index < parityBlocks.size(); ++index) {
+        int partIndex = index + Codec_->GetDataPartCount();
+        asyncResults.push_back(
+            BIND(
+                &TErasurePartWriterWrapper::WriteStripe,
+                WriterWrappers_[partIndex],
+                /* blockIndex */ 0,
+                parityBlocks[index])
             .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
             .Run());
     }
     return AllSucceeded(asyncResults);
 }
 
-void TErasureWriter::WriteDataPart(int partIndex, IChunkWriterPtr writer, const std::vector<TBlock>& blocks)
+TFuture<void> TErasureWriter::Flush(std::vector<TBlock> blocks)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    std::vector<TChecksum> blockChecksums;
-    for (const auto& block : blocks) {
-        TBlock blockWithChecksum{block};
-        blockWithChecksum.Checksum = block.GetOrComputeChecksum();
-        blockChecksums.push_back(blockWithChecksum.Checksum);
-
-        if (!writer->WriteBlock(blockWithChecksum)) {
-            WaitFor(writer->GetReadyEvent())
-                .ThrowOnError();
-        }
+    if (blocks.empty()) {
+        return VoidFuture;
     }
 
-    auto checksum = CombineChecksums(blockChecksums);
-    YT_VERIFY(checksum != NullChecksum || blockChecksums.empty() ||
-        std::all_of(blockChecksums.begin(), blockChecksums.end(), [] (TChecksum value) {
-            return value == NullChecksum;
-        }));
-
-    PlacementExt_.mutable_part_checksums()->Set(partIndex, checksum);
-}
-
-TFuture<void> TErasureWriter::EncodeAndWriteParityBlocks()
-{
-    VERIFY_INVOKER_AFFINITY(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker());
-
-    TPartIndexList parityIndices;
-    for (int index = Codec_->GetDataPartCount(); index < Codec_->GetTotalPartCount(); ++index) {
-        parityIndices.push_back(index);
-    }
-
-    std::vector<IPartBlockProducerPtr> blockProducers;
-    for (const auto& group : Groups_) {
-        auto blocksReader = New<TInMemoryBlocksReader>(group);
-        blockProducers.push_back(New<TPartReader>(blocksReader, BlocksToSizes(group)));
-    }
-
-    std::vector<TPartWriterPtr> writerConsumers;
-    std::vector<IPartBlockConsumerPtr> blockConsumers;
-    for (auto index : parityIndices) {
-        writerConsumers.push_back(New<TPartWriter>(
-            Writers_[index],
-            ParityPartSplitInfo_.GetSizes(),
-            /* computeChecksums */ true));
-        blockConsumers.push_back(writerConsumers.back());
-    }
-
-    std::vector<TPartRange> ranges(1, TPartRange{0, ParityPartSplitInfo_.GetPartSize()});
-    auto encoder = New<TPartEncoder>(
-        Codec_,
-        parityIndices,
-        ParityPartSplitInfo_,
-        ranges,
-        blockProducers,
-        blockConsumers);
-    encoder->Run();
-
-    std::vector<std::pair<int, TChecksum>> partChecksums;
-    for (int index = 0; index < parityIndices.size(); ++index) {
-        partChecksums.push_back(std::make_pair(parityIndices[index], writerConsumers[index]->GetPartChecksum()));
-    }
-
-    return BIND([=, this_ = MakeStrong(this)] () {
-        // Access to PlacementExt_ must be from WriterInvoker only.
-        for (auto [index, checksum] : partChecksums) {
-            PlacementExt_.mutable_part_checksums()->Set(index, checksum);
-        }
-    })
-    .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
-    .Run();
-}
-
-TFuture<void> TErasureWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
-{
-    YT_VERIFY(IsOpen_);
-
-    PrepareBlocks();
-    PrepareChunkMeta(chunkMeta);
+    BlockReorderer_.ReorderBlocks(blocks);
+    auto groups = SplitBlocks(blocks, Codec_->GetDataPartCount());
 
     auto compressionInvoker = CreateFixedPriorityInvoker(
         NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
         WorkloadDescriptor_.GetPriority());
 
     std::vector<TFuture<void>> asyncResults {
-        BIND(&TErasureWriter::WriteDataBlocks, MakeStrong(this))
-            .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
-            .Run(),
-        BIND(&TErasureWriter::EncodeAndWriteParityBlocks, MakeStrong(this))
+        WriteDataBlocks(groups),
+        BIND(&TErasureWriter::EncodeAndWriteParityBlocks, MakeStrong(this), groups)
             .AsyncVia(compressionInvoker)
             .Run()
     };
 
-    return AllSucceeded(asyncResults).Apply(
-        BIND(&TErasureWriter::OnWritten, MakeStrong(this))
-            .AsyncVia(TDispatcher::Get()->GetWriterInvoker()));
+    return AllSucceeded(asyncResults);
 }
 
-
-void TErasureWriter::OnWritten()
+TFuture<void> TErasureWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
 {
+    YT_VERIFY(IsOpen_);
+
+    return BIND(&TErasureWriter::DoClose, MakeStrong(this), chunkMeta)
+            .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
+            .Run();
+}
+
+void TErasureWriter::FillChunkMeta(const TDeferredChunkMetaPtr& chunkMeta)
+{
+    VERIFY_THREAD_AFFINITY(WriterThread);
+
+    NProto::TErasurePlacementExt placementExt;
+    for (int index = 0; index < Codec_->GetDataPartCount(); ++index) {
+        auto* info = placementExt.add_part_infos();
+        *info = WriterWrappers_[index]->GetPartInfo();
+    }
+
+    for (int index = 0; index < Codec_->GetTotalPartCount(); ++index) {
+        placementExt.add_part_checksums(WriterWrappers_[index]->GetPartChecksum());
+    }
+
+    auto parityPartInfo = WriterWrappers_[Codec_->GetDataPartCount()]->GetPartInfo();
+    auto parityPartStripeBlockCounts = WriterWrappers_[Codec_->GetDataPartCount()]->GetStripeBlockCounts();
+
+    int stripeEndIndex = 0;
+    for (int blockCount : parityPartStripeBlockCounts) {
+        stripeEndIndex += blockCount;
+
+        placementExt.add_parity_block_count_per_stripe(blockCount);
+        placementExt.add_parity_last_block_size_per_stripe(parityPartInfo.block_sizes(stripeEndIndex - 1));
+    }
+
+    placementExt.set_parity_block_size(ErasureWindowSize_);
+    placementExt.set_parity_part_count(Codec_->GetParityPartCount());
+
+    chunkMeta->BlockIndexMapping() = BlockReorderer_.BlockIndexMapping();
+    SetProtoExtension(chunkMeta->mutable_extensions(), placementExt);
+    chunkMeta->Finalize();
+}
+
+void TErasureWriter::DoClose(TDeferredChunkMetaPtr chunkMeta)
+{
+    VERIFY_THREAD_AFFINITY(WriterThread);
+
+    WaitFor(
+        ReadyEvent_.Apply(
+            BIND(&TErasureWriter::Flush, MakeStrong(this), std::move(Blocks_))
+            .AsyncVia(TDispatcher::Get()->GetWriterInvoker())))
+        .ThrowOnError();
+
+    FillChunkMeta(chunkMeta);
+
     std::vector<TFuture<void>> asyncResults;
-
-    SetProtoExtension(ChunkMeta_->mutable_extensions(), PlacementExt_);
-
     for (const auto& writer : Writers_) {
-        asyncResults.push_back(writer->Close(ChunkMeta_));
+        asyncResults.push_back(writer->Close(chunkMeta));
     }
 
     WaitFor(AllSucceeded(asyncResults))
@@ -465,9 +554,6 @@ void TErasureWriter::OnWritten()
         diskSpace += writer->GetChunkInfo().disk_space();
     }
     ChunkInfo_.set_disk_space(diskSpace);
-
-    Groups_.clear();
-    Blocks_.clear();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

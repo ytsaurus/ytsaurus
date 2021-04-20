@@ -232,11 +232,13 @@ public:
         ICodec* codec,
         std::vector<TSharedRef> data,
         int erasureWindowSize = 64,
-        bool storeBlockChecksums = false)
+        bool storeBlockChecksums = false,
+        std::optional<i64> erasureStripeSize = std::nullopt)
     {
         auto config = New<TErasureWriterConfig>();
         config->ErasureWindowSize = erasureWindowSize;
         config->ErasureStoreOriginalBlockChecksums = storeBlockChecksums;
+        config->ErasureStripeSize = erasureStripeSize;
 
         std::vector<IChunkWriterPtr> writers;
         auto ioEngine = CreateIOEngine(EIOEngineType::ThreadPool, INodePtr());
@@ -479,6 +481,48 @@ TEST_P(TErasuseMixtureTest, Writer)
     Cleanup(codec);
 }
 
+TEST_P(TErasuseMixtureTest, WriterStriped)
+{
+    auto codecId = GetParam();
+    auto codec = GetCodec(codecId);
+
+    // Prepare data
+    std::vector<TString> dataStrings = {
+        // Stripe 0
+        "0123",
+        "a",
+        "b"
+        "",
+        "012345678",
+        // Stripe 1
+        "x12",
+        "x34"};
+    auto dataRefs = ToSharedRefs(dataStrings);
+
+    WriteErasureChunk(codecId, codec, dataRefs, 64, false, 1);
+
+    // Manually check that data in files is correct
+    for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
+        auto filename = "part" + ToString(i + 1);
+        auto data = TUnbufferedFileInput(filename).ReadAll();
+        if (i == 0) {
+            EXPECT_EQ(TString("0123x12"), data);
+        } else if (i == 3) {
+            EXPECT_EQ(TString("a"), data);
+        } else if (i == 4) {
+            EXPECT_EQ(TString("b012345678"), data);
+        } else if (i == 6) {
+            EXPECT_EQ(TString("x34"), data);
+        } else if (i < 12) {
+            EXPECT_EQ("", data);
+        } else {
+            EXPECT_EQ(128, data.Size());
+        }
+    }
+
+    Cleanup(codec);
+}
+
 TEST_P(TErasuseMixtureTest, Reader)
 {
     auto codecId = GetParam();
@@ -524,6 +568,63 @@ TEST_P(TErasuseMixtureTest, Reader)
         auto resultRef = TBlock::Unwrap(result.ValueOrThrow());
         EXPECT_EQ(ToString(dataRefs[1]), ToString(resultRef[0]));
         EXPECT_EQ(ToString(dataRefs[3]), ToString(resultRef[1]));
+    }
+
+    Cleanup(codec);
+}
+
+TEST_P(TErasuseMixtureTest, ReaderStriped)
+{
+    auto codecId = GetParam();
+    auto codec = GetCodec(codecId);
+
+    // Prepare data
+    std::vector<TString> dataStrings = {
+        // Stripe 0
+        "0123",
+        "a",
+        "b"
+        "",
+        "012345678",
+        // Stripe 1
+        "x12",
+        "x34"};
+    auto dataRefs = ToSharedRefs(dataStrings);
+
+    WriteErasureChunk(codecId, codec, dataRefs, 64, false, 1);
+
+    auto erasureReader = CreateErasureReader(codec);
+
+    {
+        // Check blocks separately
+        int index = 0;
+        for (const auto& ref : dataRefs) {
+            auto result = erasureReader->ReadBlocks(
+                /* chunkReadOptions */ {},
+                std::vector<int>(1, index++))
+                .Get();
+            EXPECT_TRUE(result.IsOK());
+            auto resultRef = TBlock::Unwrap(result.ValueOrThrow()).front();
+
+            EXPECT_EQ(ToString(ref), ToString(resultRef));
+        }
+    }
+
+    {
+        // Check some non-trivial read request
+        std::vector<int> indices;
+        indices.push_back(1);
+        indices.push_back(3);
+        indices.push_back(5);
+        auto result = erasureReader->ReadBlocks(
+            /* chunkReadOptions */ {},
+            indices)
+            .Get();
+        EXPECT_TRUE(result.IsOK());
+        auto resultRef = TBlock::Unwrap(result.ValueOrThrow());
+        EXPECT_EQ(ToString(dataRefs[1]), ToString(resultRef[0]));
+        EXPECT_EQ(ToString(dataRefs[3]), ToString(resultRef[1]));
+        EXPECT_EQ(ToString(dataRefs[5]), ToString(resultRef[2]));
     }
 
     Cleanup(codec);
@@ -783,6 +884,88 @@ TEST_P(TErasuseMixtureTest, RepairingReaderChecksums)
 
     auto reparingReader = CreateRepairingErasureReader(NullChunkId, codec, erasedIndices, allReaders);
     CheckRepairReader(reparingReader, dataRefs, 20);
+
+    Cleanup(codec);
+}
+
+TEST_P(TErasuseMixtureTest, RepairStriped1)
+{
+    auto codecId = GetParam();
+    auto codec = GetCodec(codecId);
+
+    // Prepare data
+    std::vector<TString> dataStrings = {
+        // Stripe 0
+        "0123",
+        "a",
+        "b"
+        "",
+        "012345678",
+        // Stripe 1
+        "x12",
+        "x34"};
+    auto dataRefs = ToSharedRefs(dataStrings);
+
+    WriteErasureChunk(codecId, codec, dataRefs, 64, true, 1);
+
+    TPartIndexList erasedIndices;
+    erasedIndices.push_back(0);
+    erasedIndices.push_back(13);
+
+    RemoveErasedParts(erasedIndices);
+
+    std::vector<IChunkReaderAllowingRepairPtr> allReaders;
+    std::vector<IChunkReaderAllowingRepairPtr> readers;
+    std::vector<IChunkWriterPtr> writers;
+    PrepareReadersAndWriters(codec, erasedIndices, &allReaders, &readers, &writers);
+
+    auto reparingReader = CreateRepairingErasureReader(NullChunkId, codec, erasedIndices, allReaders);
+    CheckRepairReader(reparingReader, dataRefs, std::nullopt);
+
+    auto repairResult = RepairErasedParts(codec, erasedIndices, readers, writers, /* chunkReadOptions */ {}).Get();
+    ASSERT_TRUE(repairResult.IsOK());
+
+    auto erasureReader = CreateErasureReader(codec);
+    CheckRepairResult(erasureReader, dataRefs);
+
+    Cleanup(codec);
+}
+
+TEST_P(TErasuseMixtureTest, RepairStriped2)
+{
+    auto codecId = GetParam();
+    auto codec = GetCodec(codecId);
+    auto dataRefs = GetRandomTextBlocks(2000, 20, 120);
+
+    WriteErasureChunk(codecId, codec, dataRefs, 256, true, 2048);
+
+    {
+        auto erasureReader = CreateErasureReader(codec);
+        CheckRepairResult(erasureReader, dataRefs);
+    }
+
+    TPartIndexList erasedIndices;
+    erasedIndices.push_back(1);
+    erasedIndices.push_back(8);
+    erasedIndices.push_back(13);
+    erasedIndices.push_back(15);
+
+    RemoveErasedParts(erasedIndices);
+
+    std::vector<IChunkReaderAllowingRepairPtr> allReaders;
+    std::vector<IChunkReaderAllowingRepairPtr> readers;
+    std::vector<IChunkWriterPtr> writers;
+    PrepareReadersAndWriters(codec, erasedIndices, &allReaders, &readers, &writers);
+
+    auto reparingReader = CreateRepairingErasureReader(NullChunkId, codec, erasedIndices, allReaders);
+    CheckRepairReader(reparingReader, dataRefs, 40);
+
+    RepairErasedParts(codec, erasedIndices, readers, writers, /* chunkReadOptions */ {}).Get();
+
+    {
+        auto erasureReader = CreateErasureReader(codec);
+        CheckRepairResult(erasureReader, dataRefs);
+    }
 
     Cleanup(codec);
 }

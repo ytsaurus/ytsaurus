@@ -546,6 +546,7 @@ class TErasureWriterConfig
 {
 public:
     i64 ErasureWindowSize;
+    std::optional<i64> ErasureStripeSize;
 
     bool EnableErasureTargetNodeReallocation;
     bool ErasureStoreOriginalBlockChecksums;
@@ -561,6 +562,10 @@ public:
 
         RegisterParameter("erasure_store_original_block_checksums", ErasureStoreOriginalBlockChecksums)
             .Default(false);
+
+        RegisterParameter("erasure_stripe_size", ErasureStripeSize)
+            .Default()
+            .GreaterThan(0);
     }
 };
 

@@ -354,10 +354,14 @@ private:
 
         auto erasurePlacementExt = GetProtoExtension<TErasurePlacementExt>(chunkMeta->extensions());
 
+        int parityPartBlockCount = 0;
+        for (int count : erasurePlacementExt.parity_block_count_per_stripe()) {
+            parityPartBlockCount += count;
+        }
+
         // Compute an upper bound for total size.
-        i64 totalChunkSize =
-            GetProtoExtension<TMiscExt>(chunkMeta->extensions()).compressed_data_size() +
-            erasurePlacementExt.parity_block_count() * erasurePlacementExt.parity_block_size() * erasurePlacementExt.parity_part_count();
+        i64 totalChunkSize = GetProtoExtension<TMiscExt>(chunkMeta->extensions()).compressed_data_size() +
+            parityPartBlockCount * erasurePlacementExt.parity_block_size() * erasurePlacementExt.parity_part_count();
 
         TotalSize_ += totalChunkSize;
 
@@ -365,17 +369,20 @@ private:
         copyFutures.reserve(readers.size());
         for (int index = 0; index < static_cast<int>(readers.size()); ++index) {
             std::vector<i64> blockSizes;
-            int blockCount;
             if (index < erasureCodec->GetDataPartCount()) {
-                blockCount = erasurePlacementExt.part_infos(index).block_sizes_size();
+                int blockCount = erasurePlacementExt.part_infos(index).block_sizes_size();
                 for (int blockIndex = 0; blockIndex < blockCount; ++blockIndex) {
                     blockSizes.push_back(
                         erasurePlacementExt.part_infos(index).block_sizes(blockIndex));
                 }
             } else {
-                blockCount = erasurePlacementExt.parity_block_count();
-                blockSizes.resize(blockCount, erasurePlacementExt.parity_block_size());
-                blockSizes.back() = erasurePlacementExt.parity_last_block_size();
+                for (int stripeIndex = 0; stripeIndex < erasurePlacementExt.parity_block_count_per_stripe_size(); stripeIndex++) {
+                    blockSizes.insert(
+                        blockSizes.end(),
+                        erasurePlacementExt.parity_block_count_per_stripe(stripeIndex),
+                        erasurePlacementExt.parity_block_size());
+                    blockSizes.back() = erasurePlacementExt.parity_last_block_size_per_stripe(stripeIndex);
+                }
             }
 
             auto copyFuture = BIND(&TRemoteCopyJob::DoCopy, MakeStrong(this))
