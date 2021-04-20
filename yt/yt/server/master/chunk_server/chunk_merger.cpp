@@ -301,6 +301,15 @@ TChunkMerger::TChunkMerger(TBootstrap* bootstrap)
 {
     YT_VERIFY(Bootstrap_);
 
+    RegisterLoader(
+        "ChunkMerger",
+        BIND(&TChunkMerger::Load, Unretained(this)));
+
+    RegisterSaver(
+        ESyncSerializationPriority::Values,
+        "ChunkMerger",
+        BIND(&TChunkMerger::Save, Unretained(this)));
+
     RegisterMethod(BIND(&TChunkMerger::HydraStartMergeTransaction, Unretained(this)));
     RegisterMethod(BIND(&TChunkMerger::HydraCreateChunks, Unretained(this)));
     RegisterMethod(BIND(&TChunkMerger::HydraReplaceChunks, Unretained(this)));
