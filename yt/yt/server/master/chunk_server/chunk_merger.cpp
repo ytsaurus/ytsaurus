@@ -100,33 +100,45 @@ private:
 
 namespace {
 
+void IncrementMergeJobCounter(TBootstrap* bootstrap, TChunkOwnerBase* node)
+{
+    if (!IsObjectAlive(node)) {
+        return;
+    }
+
+    const auto& objectManager = bootstrap->GetObjectManager();
+    auto epoch = objectManager->GetCurrentEpoch();
+    node->IncrementMergeJobCounter(epoch, +1);
+    YT_LOG_DEBUG("Incrementing merge job counter (NodeId: %v, MergeJobCounter: %v)",
+        node->GetId(),
+        node->GetMergeJobCounter(epoch));
+}
+
+void DecrementMergeJobCounter(TBootstrap* bootstrap, TChunkOwnerBase* node)
+{
+    if (!IsObjectAlive(node)) {
+        return;
+    }
+
+    const auto& objectManager = bootstrap->GetObjectManager();
+    auto epoch = objectManager->GetCurrentEpoch();
+    node->IncrementMergeJobCounter(epoch, -1);
+    YT_LOG_DEBUG("Decrementing merge job counter (NodeId: %v, MergeJobCounter: %v)",
+        node->GetId(),
+        node->GetMergeJobCounter(epoch));
+}
+
 void LockNode(TBootstrap* bootstrap, TChunkOwnerBase* node)
 {
     const auto& objectManager = bootstrap->GetObjectManager();
-
     objectManager->EphemeralRefObject(node);
-
-    if (IsObjectAlive(node)) {
-        auto epoch = objectManager->GetCurrentEpoch();
-        node->IncrementMergeJobCounter(epoch, +1);
-        YT_LOG_DEBUG("Incrementing merge job counter (NodeId: %v, MergeJobCounter: %v)",
-            node->GetId(),
-            node->GetMergeJobCounter(epoch));
-    }
+    IncrementMergeJobCounter(bootstrap, node);
 }
 
 void UnlockNode(TBootstrap* bootstrap, TChunkOwnerBase* node)
 {
     const auto& objectManager = bootstrap->GetObjectManager();
-
-    if (IsObjectAlive(node)) {
-        auto epoch = objectManager->GetCurrentEpoch();
-        node->IncrementMergeJobCounter(epoch, -1);
-        YT_LOG_DEBUG("Decrementing merge job counter (NodeId: %v, MergeJobCounter: %v)",
-            node->GetId(),
-            node->GetMergeJobCounter(epoch));
-    }
-
+    DecrementMergeJobCounter(bootstrap, node);
     objectManager->EphemeralUnrefObject(node);
 }
 
@@ -271,6 +283,8 @@ private:
             return;
         }
 
+        IncrementMergeJobCounter(Bootstrap_, Node_);
+
         auto jobId = JobTracker_->GenerateJobId();
         JobsAwaitingChunkCreation_->push({
             .JobId = jobId,
@@ -375,6 +389,9 @@ void TChunkMerger::ScheduleJobs(
 
         TJobPtr job;
         if (!CreateMergeJob(node, jobInfo, &job)) {
+            if (auto* trunkNode = FindChunkOwner(jobInfo.NodeId)) {
+                DecrementMergeJobCounter(Bootstrap_, trunkNode);
+            }
             ScheduleMerge(jobInfo.NodeId);
             continue;
         }
@@ -411,6 +428,10 @@ void TChunkMerger::ProcessJobs(const std::vector<TJobPtr>& jobs)
         }
 
         const auto& jobInfo = it->second;
+        if (auto* trunkNode = FindChunkOwner(jobInfo.NodeId)) {
+            DecrementMergeJobCounter(Bootstrap_, trunkNode);
+        }
+
         switch (job->GetState()) {
             case EJobState::Completed:
                 ScheduleReplaceChunks(jobInfo);
@@ -958,7 +979,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
             nodeId,
             newChunkId);
         if (IsLeader()) {
-            DoScheduleMerge(chunkOwner);
+            ScheduleMerge(chunkOwner);
         }
         return;
     }
@@ -976,7 +997,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cannot replace chunks after merge: root has changed (NodeId: %v)",
             nodeId);
         if (IsLeader()) {
-            DoScheduleMerge(chunkOwner);
+            ScheduleMerge(chunkOwner);
         }
         return;
     }
