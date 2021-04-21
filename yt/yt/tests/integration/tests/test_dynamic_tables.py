@@ -2598,6 +2598,30 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         assert rows == [{"key": "bar", "value": None}]
 
 
+class TestDynamicTablesDecommissionStall(DynamicTablesBase):
+    NUM_SECONDARY_MASTER_CELLS = 2
+    DELTA_NODE_CONFIG={
+        "logging": {
+            "abort_on_alert": False,
+        },
+    }
+
+    @authors("savrus")
+    def test_decommission_stall(self):
+        cells = sync_create_cells(1)
+        set("//sys/@config/tablet_manager/multicell_gossip/tablet_cell_statistics_gossip_period", 30*1000)
+
+        self._create_sorted_table("//tmp/t", external=True, external_cell_tag=2)
+        sync_mount_table("//tmp/t")
+
+        driver = get_driver(2)
+        set("//sys/@config/tablet_manager/tablet_cell_decommissioner/decommission_check_period", 5*1000, driver=driver)
+        cell_path = "#{0}".format(cells[0])
+        remove(cell_path)
+
+        wait(lambda : not exists(cell_path))
+
+
 class TestDynamicTablesPortal(TestDynamicTablesMulticell):
     ENABLE_TMP_PORTAL = True
 
