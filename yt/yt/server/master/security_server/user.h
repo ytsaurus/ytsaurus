@@ -67,30 +67,72 @@ public:
     TUserRequestLimitsOptionsPtr WriteRequestRateLimits;
     TUserQueueSizeLimitsOptionsPtr RequestQueueSizeLimits;
 
-    TUserRequestLimitsConfig()
-    {
-        RegisterParameter("read_request_rate", ReadRequestRateLimits)
-            .DefaultNew();
-        RegisterParameter("write_request_rate", WriteRequestRateLimits)
-            .DefaultNew();
-        RegisterParameter("request_queue_size", RequestQueueSizeLimits)
-            .DefaultNew();
-
-        RegisterPostprocessor([&] () {
-            if (!ReadRequestRateLimits) {
-                THROW_ERROR_EXCEPTION("\"read_request_rate\" must be set");
-            }
-            if (!WriteRequestRateLimits) {
-                THROW_ERROR_EXCEPTION("\"write_request_rate\" must be set");
-            }
-            if (!RequestQueueSizeLimits) {
-                THROW_ERROR_EXCEPTION("\"request_queue_size\" must be set");
-            }
-        });
-    }
+    TUserRequestLimitsConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TUserRequestLimitsConfig)
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSerializableUserRequestLimitsOptions
+    : public NYTree::TYsonSerializable
+{
+public:
+    TSerializableUserRequestLimitsOptions();
+    TSerializableUserRequestLimitsOptions(
+        const TUserRequestLimitsOptionsPtr& options,
+        const NCellMaster::TMulticellManagerPtr& multicellManager);
+
+    TUserRequestLimitsOptionsPtr ToLimitsOrThrow(const NCellMaster::TMulticellManagerPtr& multicellManager) const;
+
+private:
+    std::optional<int> Default_;
+    THashMap<TString, int> PerCell_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TSerializableUserRequestLimitsOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSerializableUserQueueSizeLimitsOptions
+    : public NYTree::TYsonSerializable
+{
+public:
+    TSerializableUserQueueSizeLimitsOptions();
+    TSerializableUserQueueSizeLimitsOptions(
+        const TUserQueueSizeLimitsOptionsPtr& options,
+        const NCellMaster::TMulticellManagerPtr& multicellManager);
+
+    TUserQueueSizeLimitsOptionsPtr ToLimitsOrThrow(const NCellMaster::TMulticellManagerPtr& multicellManager) const;
+
+private:
+    int Default_;
+    THashMap<TString, int> PerCell_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TSerializableUserQueueSizeLimitsOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSerializableUserRequestLimitsConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TSerializableUserRequestLimitsConfig();
+    TSerializableUserRequestLimitsConfig(
+        const TUserRequestLimitsConfigPtr& config, 
+        const NCellMaster::TMulticellManagerPtr& multicellManager);
+
+    TUserRequestLimitsConfigPtr ToConfigOrThrow(const NCellMaster::TMulticellManagerPtr& multicellManager) const;
+
+private:
+    TSerializableUserRequestLimitsOptionsPtr ReadRequestRateLimits_;
+    TSerializableUserRequestLimitsOptionsPtr WriteRequestRateLimits_;
+    TSerializableUserQueueSizeLimitsOptionsPtr RequestQueueSizeLimits_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TSerializableUserRequestLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

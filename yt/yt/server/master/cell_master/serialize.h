@@ -132,6 +132,7 @@ DEFINE_ENUM(EMasterReign,
     ((IgnoreExistingForPortalExit)                                  (1607))  // s-v-m
     ((ProfilingModePathLetters)                                     (1608))  // prime
     ((FixChunkMergerPersistence)                                    (1609))  // gritukan
+    ((CellNamesInUserLimits)                                        (1610))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////

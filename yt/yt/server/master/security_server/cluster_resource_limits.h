@@ -26,8 +26,9 @@ public:
     static TClusterResourceLimits Infinite();
     static TClusterResourceLimits Zero(const NCellMaster::TMulticellManagerPtr& multicellManager);
 
-    void SetMasterMemory(NObjectServer::TCellTag cellTag, i64 masterMemory);
+    TClusterResourceLimits&& SetMasterMemory(THashMap<NObjectServer::TCellTag, i64> masterMemory) &&;
 
+    void SetMasterMemory(NObjectServer::TCellTag cellTag, i64 masterMemory);
     void AddMasterMemory(NObjectServer::TCellTag cellTag, i64 masterMemory);
     void RemoveCellMasterMemoryEntry(NObjectServer::TCellTag cellTag);
 

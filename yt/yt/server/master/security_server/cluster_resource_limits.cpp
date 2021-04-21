@@ -32,6 +32,12 @@ TClusterResourceLimits::TClusterResourceLimits()
     , CellMasterMemoryLimits_{}
 { }
 
+TClusterResourceLimits&& TClusterResourceLimits::SetMasterMemory(THashMap<NObjectServer::TCellTag, i64> masterMemory) &&
+{
+    CellMasterMemoryLimits_ = std::move(masterMemory);
+    return std::move(*this);
+}
+
 void TClusterResourceLimits::SetMasterMemory(NObjectServer::TCellTag cellTag, i64 masterMemory)
 {
     CellMasterMemoryLimits_[cellTag] = masterMemory;
@@ -488,10 +494,7 @@ TSerializableClusterResourceLimits::TSerializableClusterResourceLimits(
             DiskSpace_ += mediumDiskSpace;
         }
     }
-    for (auto [cellTag, masterMemory] : clusterResourceLimits.CellMasterMemoryLimits()) {
-        auto cellName = multicellManager->GetMasterCellName(cellTag);
-        YT_VERIFY(MasterMemory_->PerCell.emplace(cellName, masterMemory).second);
-    }
+    MasterMemory_->PerCell = CellTagMapToCellNameMap(clusterResourceLimits.CellMasterMemoryLimits(), multicellManager);
 }
 
 TClusterResourceLimits TSerializableClusterResourceLimits::ToClusterResourceLimits(
@@ -504,17 +507,14 @@ TClusterResourceLimits TSerializableClusterResourceLimits::ToClusterResourceLimi
         .SetTabletCount(TabletCount_)
         .SetTabletStaticMemory(TabletStaticMemory_)
         .SetMasterMemory(MasterMemory_->Total)
-        .SetChunkHostMasterMemory(MasterMemory_->ChunkHost);
+        .SetChunkHostMasterMemory(MasterMemory_->ChunkHost)
+        .SetMasterMemory(CellNameMapToCellTagMapOrThrow(MasterMemory_->PerCell, multicellManager));
+
     for (auto [mediumName, mediumDiskSpace] : DiskSpacePerMedium_) {
         auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
         result.SetMediumDiskSpace(medium->GetIndex(), mediumDiskSpace);
     }
-    for (const auto& [cellName, masterMemory] : MasterMemory_->PerCell) {
-        auto optionalCellTag = multicellManager->FindMasterCellTagByName(cellName);
-        if (optionalCellTag) {
-            result.SetMasterMemory(*optionalCellTag, masterMemory);
-        }
-    }
+
     return result;
 }
 

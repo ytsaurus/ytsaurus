@@ -55,7 +55,9 @@ DECLARE_REFCOUNTED_STRUCT(ISecurityManager)
 DECLARE_REFCOUNTED_CLASS(TUserRequestLimitsOptions)
 DECLARE_REFCOUNTED_CLASS(TUserQueueSizeLimitsOptions)
 DECLARE_REFCOUNTED_CLASS(TUserRequestLimitsConfig)
-
+DECLARE_REFCOUNTED_CLASS(TSerializableUserRequestLimitsOptions)
+DECLARE_REFCOUNTED_CLASS(TSerializableUserQueueSizeLimitsOptions)
+DECLARE_REFCOUNTED_CLASS(TSerializableUserRequestLimitsConfig)
 class TSubject;
 
 struct TAccessControlEntry;
