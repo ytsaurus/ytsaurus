@@ -28,6 +28,8 @@ using TDenseVersionedSegmentMeta = NTableChunkFormat::NProto::TDenseVersionedSeg
 
 } // namespace NProto
 
+using TSegmentMetas = TRange<const NProto::TSegmentMeta*>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
@@ -39,7 +41,7 @@ T ConvertInt(ui64 value);
 struct TColumnSlice
 {
     TSharedRef Block;
-    TSharedRange<NProto::TSegmentMeta> SegmentsMeta;
+    TSegmentMetas SegmentsMeta;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
