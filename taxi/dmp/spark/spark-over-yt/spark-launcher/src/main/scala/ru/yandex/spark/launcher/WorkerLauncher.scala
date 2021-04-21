@@ -2,10 +2,10 @@ package ru.yandex.spark.launcher
 
 import com.twitter.scalding.Args
 import org.slf4j.LoggerFactory
-import ru.yandex.spark.discovery.DiscoveryService
 import ru.yandex.spark.launcher.ByopLauncher.ByopConfig
-import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 import ru.yandex.spark.yt.wrapper.Utils.parseDuration
+import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
+import ru.yandex.spark.yt.wrapper.discovery.DiscoveryService
 
 import scala.concurrent.duration._
 import scala.language.postfixOps

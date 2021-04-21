@@ -5,10 +5,10 @@ import java.io.File
 import io.circe.generic.auto._
 import io.circe.parser._
 import org.slf4j.{Logger, LoggerFactory}
-import ru.yandex.spark.discovery.{Address, CypressDiscoveryService, DiscoveryService}
 import ru.yandex.spark.launcher.Service.{BasicService, MasterService, WorkerService}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
+import ru.yandex.spark.yt.wrapper.discovery.{Address, CypressDiscoveryService, DiscoveryService}
 
 import scala.annotation.tailrec
 import scala.concurrent.duration._

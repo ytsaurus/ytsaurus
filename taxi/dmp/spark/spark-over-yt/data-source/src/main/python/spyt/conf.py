@@ -80,7 +80,8 @@ def check_cluster_version_exists(cluster_version, client=None):
 
 
 def read_global_conf(client=None):
-    return get(GLOBAL_CONF_PATH, client=client)
+    return client.get(GLOBAL_CONF_PATH)
+
 
 def read_remote_conf(global_conf, cluster_version, client=None):
     version_conf_path = _get_version_conf_path(cluster_version)

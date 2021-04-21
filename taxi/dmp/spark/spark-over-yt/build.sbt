@@ -31,6 +31,15 @@ lazy val `spark-launcher` = (project in file("spark-launcher"))
     assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = true)
   )
 
+lazy val `spark-submit` = (project in file("spark-submit"))
+  .dependsOn(`yt-wrapper`)
+  .settings(
+    libraryDependencies ++= scaldingArgs,
+    libraryDependencies ++= py4j,
+    libraryDependencies ++= commonDependencies,
+    assemblyJarName in assembly := s"spark-yt-submit.jar"
+  )
+
 lazy val commonDependencies = yandexIceberg ++ spark ++ circe ++ logging.map(_ % Provided)
 
 lazy val `data-source` = (project in file("data-source"))
@@ -92,7 +101,8 @@ lazy val `client` = (project in file("client"))
   .enablePlugins(SparkPackagePlugin, DebianPackagePlugin, PythonPlugin)
   .settings(
     sparkAdditionalJars := Seq(
-      (assembly in `file-system`).value
+      (assembly in `file-system`).value,
+      (assembly in `spark-submit`).value
     ),
     sparkAdditionalPython := Seq(
       (sourceDirectory in `data-source`).value / "main" / "python"

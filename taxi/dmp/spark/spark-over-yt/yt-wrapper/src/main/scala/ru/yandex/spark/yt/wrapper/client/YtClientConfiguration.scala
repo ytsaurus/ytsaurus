@@ -61,10 +61,16 @@ object YtClientConfiguration {
     )
   }
 
-  def default(proxy: String): YtClientConfiguration = YtClientConfiguration(
+  def default(proxy: String): YtClientConfiguration = default(
     proxy = proxy,
     user = DefaultRpcCredentials.user,
-    token = DefaultRpcCredentials.token,
+    token = DefaultRpcCredentials.token
+  )
+
+  def default(proxy: String, user: String, token: String): YtClientConfiguration = YtClientConfiguration(
+    proxy = proxy,
+    user = user,
+    token = token,
     timeout = 5 minutes,
     proxyRole = None,
     byop = ByopConfiguration.DISABLED,
