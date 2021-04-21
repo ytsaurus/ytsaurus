@@ -82,9 +82,9 @@ void ValidateTabletRetainedTimestamp(const TTabletSnapshotPtr& tabletSnapshot, T
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDeleteListFlusher::~TDeleteListFlusher()	
-{	
-    FlushDeleteList();	
+TDeleteListFlusher::~TDeleteListFlusher()
+{
+    FlushDeleteList();
 }
 
 TRowCache::TRowCache(
@@ -1344,6 +1344,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
 
     snapshot->Eden = Eden_->BuildSnapshot();
     addPartitionStatistics(snapshot->Eden);
+    snapshot->ActiveStore = ActiveStore_;
 
     snapshot->PartitionList.reserve(PartitionList_.size());
     for (const auto& partition : PartitionList_) {

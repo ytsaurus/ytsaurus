@@ -948,7 +948,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                 if(IsReallocationNeeded(memoryBegin)) {
                     ++reallocatedRows;
                     if (auto newItem = CopyCachedRow(&rowCache->Allocator, item.Get())) {
-                        newItem->Revision.store(std::numeric_limits<ui32>::max(), std::memory_order_release);
+                        newItem->Revision.store(item->Revision.load(std::memory_order_acquire), std::memory_order_release);
                         YT_VERIFY(!item->Updated.Exchange(newItem));
                         itemRef.Update(newItem);
                     }

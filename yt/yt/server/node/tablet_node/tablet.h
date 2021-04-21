@@ -38,9 +38,9 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDeleteListFlusher	
-{	
-    ~TDeleteListFlusher();	
+struct TDeleteListFlusher
+{
+    ~TDeleteListFlusher();
 };
 
 struct TRowCache
@@ -177,6 +177,7 @@ struct TTabletSnapshot
     NTransactionClient::TTimestamp RetainedTimestamp = NTransactionClient::MinTimestamp;
 
     TPartitionSnapshotPtr Eden;
+    IStorePtr ActiveStore;
 
     using TPartitionList = std::vector<TPartitionSnapshotPtr>;
     using TPartitionListIterator = TPartitionList::iterator;
