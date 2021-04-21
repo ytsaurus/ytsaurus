@@ -212,6 +212,7 @@ void TJaegerTracer::DequeueAll()
 
         if (QueueMemory_ > Config_->MaxMemory) {
             TracesDropped_.Increment(batch.spans_size());
+            batch.Clear();
             return;
         }
 
