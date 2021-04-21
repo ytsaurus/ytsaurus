@@ -186,7 +186,6 @@ public:
 
             NScheduler::NProto::TDiskRequest diskRequest;
             diskRequest.set_disk_space(Config_->MinRequiredDiskSpace);
-            diskRequest.set_medium_index(NChunkClient::DefaultSlotsMediumIndex);
 
             if (UserJobSpec_) {
                 // COMPAT(ignat).
