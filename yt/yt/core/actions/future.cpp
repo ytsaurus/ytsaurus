@@ -232,7 +232,7 @@ void TFutureState<void>::OnLastPromiseRefLost()
     // Another fast path: no subscribers.
     {
         auto guard = Guard(SpinLock_);
-        if (!HasHandlers_) {
+        if (!HasHandlers_ && !Canceled_) {
             YT_ASSERT(!AbandonedUnset_);
             AbandonedUnset_ = true;
             // Cannot access this after UnrefFuture; in particular, cannot touch SpinLock_ in guard's dtor.
