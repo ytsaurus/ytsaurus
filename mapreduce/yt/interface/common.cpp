@@ -133,6 +133,7 @@ static std::pair<EValueType, bool> Simplify(const NTi::TTypePtr& type)
         case ETypeName::Json:
             return {VT_JSON, true};
         case ETypeName::Decimal:
+            return {VT_STRING, true};
         case ETypeName::Uuid:
             break;
         case ETypeName::Yson:
@@ -430,36 +431,57 @@ namespace NDetail {
 TString ToString(EValueType type)
 {
     switch (type) {
-        case VT_INT8:    return "int8";
-        case VT_INT16:   return "int16";
-        case VT_INT32:   return "int32";
-        case VT_INT64:   return "int64";
+        case VT_INT8:
+            return "int8";
+        case VT_INT16:
+            return "int16";
+        case VT_INT32:
+            return "int32";
+        case VT_INT64:
+            return "int64";
 
-        case VT_UINT8:   return "uint8";
-        case VT_UINT16:  return "uint16";
-        case VT_UINT32:  return "uint32";
-        case VT_UINT64:  return "uint64";
+        case VT_UINT8:
+            return "uint8";
+        case VT_UINT16:
+            return "uint16";
+        case VT_UINT32:
+            return "uint32";
+        case VT_UINT64:
+            return "uint64";
 
-        case VT_DOUBLE:  return "double";
+        case VT_DOUBLE:
+            return "double";
 
-        case VT_BOOLEAN: return "boolean";
+        case VT_BOOLEAN:
+            return "boolean";
 
-        case VT_STRING:  return "string";
-        case VT_UTF8:    return "utf8";
+        case VT_STRING:
+            return "string";
+        case VT_UTF8:
+            return "utf8";
 
-        case VT_ANY:     return "any";
+        case VT_ANY:
+            return "any";
 
-        case VT_NULL:    return "null";
-        case VT_VOID:    return "void";
+        case VT_NULL:
+            return "null";
+        case VT_VOID:
+            return "void";
 
-        case VT_DATE:    return "date";
-        case VT_DATETIME:  return "datetime";
-        case VT_TIMESTAMP: return "timestamp";
-        case VT_INTERVAL:  return "interval";
+        case VT_DATE:
+            return "date";
+        case VT_DATETIME:
+            return "datetime";
+        case VT_TIMESTAMP:
+            return "timestamp";
+        case VT_INTERVAL:
+            return "interval";
 
-        case VT_FLOAT: return "float";
+        case VT_FLOAT:
+            return "float";
 
-        case VT_JSON: return "json";
+        case VT_JSON:
+            return "json";
     }
     ythrow yexception() << "Invalid value type " << static_cast<int>(type);
 }

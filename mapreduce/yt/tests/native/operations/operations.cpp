@@ -39,6 +39,7 @@
 #include <util/folder/path.h>
 
 #include <util/string/split.h>
+#include <util/string/hex.h>
 
 #include <util/system/env.h>
 #include <util/system/fs.h>
@@ -2143,6 +2144,92 @@ Y_UNIT_TEST_SUITE(Operations)
         TVector<TNode> actual = ReadTable(client, outTablePath);
         UNIT_ASSERT_VALUES_EQUAL(expected, actual);
     }
+
+    Y_UNIT_TEST(TestSkiffAllTypes)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        {
+            auto row = TNode()
+                ("int8", 1)
+                ("int16", 300)
+                ("int32", 1000000)
+                ("int64", -5000000000000ll)
+
+                ("uint8", 1ull)
+                ("uint16", 300ull)
+                ("uint32", 1000000ull)
+                ("uint64", 5000000000000ull)
+
+                ("float", 2.71)
+                ("double", 3.14)
+
+                ("bool", true)
+
+                ("string", "foo")
+                ("utf8", "bar")
+                ("json", "[]")
+
+                ("date", 3)
+                ("datetime", 85)
+                ("timestamp", 100400)
+                ("interval", -28)
+
+                ("null", TNode::CreateEntity())
+                ("void", TNode::CreateEntity())
+
+                ("decimal", HexDecode("8000013a"));
+
+            auto writer = client->CreateTableWriter<TNode>(
+                TRichYPath(workingDir + "/input")
+                .Schema(TTableSchema()
+                    .Strict(true)
+                    .AddColumn(TColumnSchema().Name("int8").Type(NTi::Int8()))
+                    .AddColumn(TColumnSchema().Name("int16").Type(NTi::Int16()))
+                    .AddColumn(TColumnSchema().Name("int32").Type(NTi::Int32()))
+                    .AddColumn(TColumnSchema().Name("int64").Type(NTi::Int64()))
+
+                    .AddColumn(TColumnSchema().Name("uint8").Type(NTi::Uint8()))
+                    .AddColumn(TColumnSchema().Name("uint16").Type(NTi::Uint16()))
+                    .AddColumn(TColumnSchema().Name("uint32").Type(NTi::Uint32()))
+                    .AddColumn(TColumnSchema().Name("uint64").Type(NTi::Uint64()))
+
+                    .AddColumn(TColumnSchema().Name("float").Type(NTi::Float()))
+                    .AddColumn(TColumnSchema().Name("double").Type(NTi::Double()))
+
+                    .AddColumn(TColumnSchema().Name("bool").Type(NTi::Bool()))
+
+                    .AddColumn(TColumnSchema().Name("string").Type(NTi::String()))
+                    .AddColumn(TColumnSchema().Name("utf8").Type(NTi::Utf8()))
+                    .AddColumn(TColumnSchema().Name("json").Type(NTi::Json()))
+
+                    .AddColumn(TColumnSchema().Name("date").Type(NTi::Date()))
+                    .AddColumn(TColumnSchema().Name("datetime").Type(NTi::Datetime()))
+                    .AddColumn(TColumnSchema().Name("timestamp").Type(NTi::Timestamp()))
+                    .AddColumn(TColumnSchema().Name("interval").Type(NTi::Interval()))
+
+                    .AddColumn(TColumnSchema().Name("null").Type(NTi::Null()))
+                    .AddColumn(TColumnSchema().Name("void").Type(NTi::Void()))
+
+                    .AddColumn(TColumnSchema().Name("decimal").Type(NTi::Decimal(3, 2)))
+                )
+            );
+
+            writer->AddRow(row);
+            writer->Finish();
+
+            client->Map(
+                TMapOperationSpec()
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(workingDir + "/output"),
+                new TIdMapper());
+
+        }
+        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Skiff;
+    }
+
 
     Y_UNIT_TEST(TestSkiffOperationHint)
     {
