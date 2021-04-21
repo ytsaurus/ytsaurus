@@ -27,7 +27,7 @@ class TRleIterator
     : protected TRleBase
 {
 public:
-    void SetBlock(TSharedRef block, TSharedRange<NProto::TSegmentMeta> segmentsMeta)
+    void SetBlock(TSharedRef block, TSegmentMetas segmentsMeta)
     {
         if (Block_.Begin() == block.Begin() && Block_.End() == block.End()) {
             return;
@@ -46,7 +46,7 @@ public:
                 SegmentsMeta_.begin() + SegmentIndex_,
                 SegmentsMeta_.end(),
                 [=] (auto segmentMetaIt) {
-                    return segmentMetaIt->chunk_row_count() <= rowIndex;
+                    return (*segmentMetaIt)->chunk_row_count() <= rowIndex;
                 });
 
             YT_VERIFY(segmentIt != SegmentsMeta_.end());
@@ -102,7 +102,7 @@ public:
 
 protected:
     TSharedRef Block_;
-    TSharedRange<NProto::TSegmentMeta> SegmentsMeta_;
+    TSegmentMetas SegmentsMeta_;
 
     ui32 SegmentIndex_ = 0;
     ui32 Position_ = 0;
@@ -126,7 +126,7 @@ public:
 
     void UpdateSegment()
     {
-        const auto& segmentMeta = TBase::SegmentsMeta_[TBase::SegmentIndex_];
+        const auto& segmentMeta = *TBase::SegmentsMeta_[TBase::SegmentIndex_];
         DoReadSegment(&Value_, this, segmentMeta, TBase::Block_.Begin() + segmentMeta.offset(), &LocalBuffers_);
     }
 

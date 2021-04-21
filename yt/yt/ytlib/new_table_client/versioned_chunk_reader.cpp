@@ -407,18 +407,18 @@ std::unique_ptr<IRefiner> MakeRefiner(TSharedRange<TLegacyKey> keys, TRange<EVal
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<ui32> BuildColumnBlockSequence(const TColumnMeta& meta)
+std::vector<ui32> BuildColumnBlockSequence(TSegmentMetas segmentMetas)
 {
     std::vector<ui32> blockSequence;
     ui32 segmentIndex = 0;
 
-    while (segmentIndex < meta.segments_size()) {
-        auto blockIndex = meta.segments(segmentIndex).block_index();
+    while (segmentIndex < segmentMetas.size()) {
+        auto blockIndex = segmentMetas[segmentIndex]->block_index();
         blockSequence.push_back(blockIndex);
         do {
             ++segmentIndex;
-        } while (segmentIndex < meta.segments_size() &&
-             meta.segments(segmentIndex).block_index() == blockIndex);
+        } while (segmentIndex < segmentMetas.size() &&
+             segmentMetas[segmentIndex]->block_index() == blockIndex);
     }
     return blockSequence;
 }
@@ -468,9 +468,9 @@ public:
     TColumnBlockHolder(const TColumnBlockHolder&) = delete;
     TColumnBlockHolder(TColumnBlockHolder&&) = default;
 
-    explicit TColumnBlockHolder(const TColumnMeta& meta)
-        : Meta(meta)
-        , BlockIds(BuildColumnBlockSequence(meta))
+    explicit TColumnBlockHolder(TSegmentMetas segmentMetas)
+        : SegmentMetas_(segmentMetas)
+        , BlockIds_(BuildColumnBlockSequence(segmentMetas))
     { }
 
     // TODO(lukyan): Return segmentIt. Get data = Block.Begin() + segmentIt->offset() outside.
@@ -482,63 +482,57 @@ public:
         }
 
         auto segmentIt = BinarySearch(
-            Meta.segments().begin() + SegmentStart_,
-            Meta.segments().begin() + SegmentEnd_,
+            SegmentMetas_.begin() + SegmentStart_,
+            SegmentMetas_.begin() + SegmentEnd_,
             [&] (auto segmentMetaIt) {
-                return segmentMetaIt->chunk_row_count() <= rowIndex;
+                return (*segmentMetaIt)->chunk_row_count() <= rowIndex;
             });
 
-        if (segmentIt != Meta.segments().begin() + SegmentEnd_) {
+        if (segmentIt != SegmentMetas_.begin() + SegmentEnd_) {
             YT_VERIFY(Block_);
-            column->SetSegmentData(*segmentIt, Block_.Begin() + segmentIt->offset(), tmpBuffers);
-            SegmentRowLimit_ = segmentIt->chunk_row_count();
+            column->SetSegmentData(**segmentIt, Block_.Begin() + (*segmentIt)->offset(), tmpBuffers);
+            SegmentRowLimit_ = (*segmentIt)->chunk_row_count();
         }
     }
 
     TColumnSlice GetColumnSlice()
     {
-        // TODO(lukyan): Use TRange instead of vector but it is incompatible with protobuf.
-        std::vector<NProto::TSegmentMeta> segmentMetas;
-        for (size_t index = SegmentStart_; index != SegmentEnd_; ++index) {
-            segmentMetas.push_back(Meta.segments(index));
-        }
-
-        return TColumnSlice{Block_, MakeSharedRange(segmentMetas)};
+        return TColumnSlice{Block_, SegmentMetas_.Slice(SegmentStart_, SegmentEnd_)};
     }
 
     bool NeedUpdateBlock(ui32 rowIndex) const
     {
-        return rowIndex >= BlockRowLimit_ && BlockIdIndex_ < BlockIds.size();
+        return rowIndex >= BlockRowLimit_ && BlockIdIndex_ < BlockIds_.size();
     }
 
     void SetBlock(TSharedRef data, const TRefCountedBlockMetaPtr& blockMeta)
     {
-        YT_VERIFY(BlockIdIndex_ < BlockIds.size());
-        auto blockId = BlockIds[BlockIdIndex_];
+        YT_VERIFY(BlockIdIndex_ < BlockIds_.size());
+        auto blockId = BlockIds_[BlockIdIndex_];
 
         Block_ = data;
 
         auto segmentIt = BinarySearch(
-            Meta.segments().begin(),
-            Meta.segments().end(),
+            SegmentMetas_.begin(),
+            SegmentMetas_.end(),
             [&] (auto segmentMetaIt) {
-                return segmentMetaIt->block_index() < blockId;
+                return (*segmentMetaIt)->block_index() < blockId;
             });
 
         auto segmentItEnd = BinarySearch(
             segmentIt,
-            Meta.segments().end(),
+            SegmentMetas_.end(),
             [&] (auto segmentMetaIt) {
-                return segmentMetaIt->block_index() <= blockId;
+                return (*segmentMetaIt)->block_index() <= blockId;
             });
 
-        SegmentStart_ = segmentIt - Meta.segments().begin();
-        SegmentEnd_ = segmentItEnd - Meta.segments().begin();
+        SegmentStart_ = segmentIt - SegmentMetas_.begin();
+        SegmentEnd_ = segmentItEnd - SegmentMetas_.begin();
 
         BlockRowLimit_ = blockMeta->blocks(blockId).chunk_row_count();
         YT_VERIFY(segmentIt != segmentItEnd);
 
-        auto limitBySegment = (segmentItEnd - 1)->chunk_row_count();
+        auto limitBySegment = segmentItEnd[-1]->chunk_row_count();
         YT_VERIFY(limitBySegment == BlockRowLimit_);
     }
 
@@ -551,29 +545,29 @@ public:
         }
 
         // Need to find block with rowIndex.
-        while (BlockIdIndex_ < BlockIds.size() &&
-            blockMeta->blocks(BlockIds[BlockIdIndex_]).chunk_row_count() <= rowIndex)
+        while (BlockIdIndex_ < BlockIds_.size() &&
+            blockMeta->blocks(BlockIds_[BlockIdIndex_]).chunk_row_count() <= rowIndex)
         {
             ++BlockIdIndex_;
         }
 
         // It is used for generating sentinel rows in lookup (for keys after end of chunk).
-        if (BlockIdIndex_ == BlockIds.size()) {
+        if (BlockIdIndex_ == BlockIds_.size()) {
             return std::nullopt;
         }
 
-        YT_VERIFY(BlockIdIndex_ < BlockIds.size());
-        return BlockIds[BlockIdIndex_];
+        YT_VERIFY(BlockIdIndex_ < BlockIds_.size());
+        return BlockIds_[BlockIdIndex_];
     }
 
     TRange<ui32> GetBlockIds() const
     {
-        return BlockIds;
+        return BlockIds_;
     }
 
 private:
-    const TColumnMeta Meta;
-    const std::vector<ui32> BlockIds;
+    const TSegmentMetas SegmentMetas_;
+    const std::vector<ui32> BlockIds_;
 
     // Blob value data is stored in blocks without capturing in TRowBuffer.
     // Therefore block must not change during from the current call of ReadRows till the next one.
@@ -599,18 +593,18 @@ std::vector<TColumnBlockHolder> CreateColumnBlockHolders(
     // Init columns.
     {
         int timestampReaderIndex = chunkMeta->ColumnMeta()->columns().size() - 1;
-        auto columnMeta = columnMetas->columns(timestampReaderIndex);
-        columns.emplace_back(columnMeta);
+        const auto& columnMeta = columnMetas->columns(timestampReaderIndex);
+        columns.emplace_back(MakeRange(columnMeta.segments()));
     }
 
     for (size_t index = 0; index < chunkMeta->GetChunkKeyColumnCount(); ++index) {
-        auto columnMeta = columnMetas->columns(index);
-        columns.emplace_back(columnMeta);
+        const auto& columnMeta = columnMetas->columns(index);
+        columns.emplace_back(MakeRange(columnMeta.segments()));
     }
 
     for (size_t index = 0; index < valueIdMapping.size(); ++index) {
-        auto columnMeta = columnMetas->columns(valueIdMapping[index].ChunkSchemaIndex);
-        columns.emplace_back(columnMeta);
+        const auto& columnMeta = columnMetas->columns(valueIdMapping[index].ChunkSchemaIndex);
+        columns.emplace_back(MakeRange(columnMeta.segments()));
     }
 
     return columns;
