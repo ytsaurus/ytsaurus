@@ -35,6 +35,7 @@
 #include <yt/yt/server/master/object_server/object_detail.h>
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
+#include <yt/yt/server/master/security_server/access_log.h>
 #include <yt/yt/server/master/security_server/account.h>
 #include <yt/yt/server/master/security_server/group.h>
 #include <yt/yt/server/master/security_server/security_manager.h>
@@ -3602,17 +3603,24 @@ private:
             }
 
             const auto& cypressManager = Bootstrap_->GetCypressManager();
+            auto path = cypressManager->GetNodePath(trunkNode, nullptr);
             try {
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Removing expired node (NodeId: %v, Path: %v)",
                     nodeId,
-                    cypressManager->GetNodePath(trunkNode, nullptr));
+                    path);
                 auto nodeProxy = GetNodeProxy(trunkNode, nullptr);
                 auto parentProxy = nodeProxy->GetParent();
                 parentProxy->RemoveChild(nodeProxy);
+
+                YT_LOG_ACCESS(
+                    nodeId,
+                    path,
+                    nullptr,
+                    "TtlRemove");
             } catch (const std::exception& ex) {
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Cannot remove an expired node; backing off and retrying (NodeId: %v, Path: %v)",
                     nodeId,
-                    cypressManager->GetNodePath(trunkNode, nullptr));
+                    path);
                 ExpirationTracker_->OnNodeRemovalFailed(trunkNode);
             }
         }
