@@ -5,8 +5,11 @@
 #include <yt/yt/core/actions/invoker_util.h>
 
 #include <yt/yt/core/misc/ref_counted_tracker.h>
+#include <yt/yt/core/misc/lock_free.h>
 
 #include <util/system/thread.h>
+
+#include <thread>
 
 namespace NYT {
 namespace {
@@ -1486,6 +1489,34 @@ TEST_F(TFutureTest, CancelableDoesNotProhibitDestruction)
     promise.Reset();
     auto after = S::DestroyedCounter;
     EXPECT_EQ(1, after - before);
+}
+
+TEST_F(TFutureTest, AbandonCancel)
+{
+    TMultipleProducerSingleConsumerLockFreeStack<TFuture<void>> queue;
+    std::thread producer([&] {
+        for (int i = 0; i < 10000; i++) {
+            auto p = NewPromise<void>();
+            queue.Enqueue(p.ToFuture());
+            Sleep(TDuration::MicroSeconds(1));
+        }
+
+        queue.Enqueue(TFuture<void>());
+    });
+
+    bool stop = false;
+    while (!stop) {
+        for (auto future : queue.DequeueAll(true)) {
+            if (!future) {
+                stop = true;
+                break;
+            }
+
+            future.Cancel(TError("Cancel"));
+        }
+    }
+
+    producer.join();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
