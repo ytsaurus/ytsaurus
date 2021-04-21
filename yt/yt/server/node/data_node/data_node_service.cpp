@@ -546,7 +546,7 @@ private:
 
         bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
         response->set_disk_throttling(diskThrottling);
-        if (diskThrottling) {
+        if (diskThrottling && chunk) {
             const auto& location = chunk->GetLocation();
             location->GetPerformanceCounters().ThrottleRead();
         }
@@ -675,7 +675,7 @@ private:
 
         bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
         response->set_disk_throttling(diskThrottling);
-        if (diskThrottling) {
+        if (diskThrottling && chunk) {
             const auto& location = chunk->GetLocation();
             location->GetPerformanceCounters().ThrottleRead();
         }
