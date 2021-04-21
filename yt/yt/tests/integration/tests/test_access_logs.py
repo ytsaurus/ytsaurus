@@ -3,6 +3,7 @@ import os.path
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
+from yt_helpers import get_current_time
 
 ##################################################################
 
@@ -356,7 +357,21 @@ class TestAccessLog(YTEnvSetup):
         alter_table("//tmp/access_log/table", schema=schema1)
 
         log_list.append({"path": "//tmp/access_log/table", "method": "Alter"})
+        self._validate_entries_against_log(log_list)
 
+    def test_expiration_time(self):
+        log_list = []
+
+        create("map_node", "//tmp/access_log")
+        create(
+            "table",
+            "//tmp/access_log/table",
+            attributes={"expiration_time": str(get_current_time())}
+        )
+
+        wait(lambda : not exists("//tmp/access_log/table"))
+
+        log_list.append({"path": "//tmp/access_log/table", "method": "Remove"})
         self._validate_entries_against_log(log_list)
 
 ##################################################################

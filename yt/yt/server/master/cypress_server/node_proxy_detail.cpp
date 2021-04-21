@@ -1049,6 +1049,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
 void TNontemplateCypressNodeProxyBase::DoRemoveSelf()
 {
     auto* node = GetThisImpl();
+
     if (node->GetType() == EObjectType::PortalExit) {
         // XXX(babenko)
         if (Transaction_) {
