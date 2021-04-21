@@ -673,8 +673,6 @@ class TestDefaultDiskMediumWithUnspecifiedMediumPorto(YTEnvSetup, DiskMediumTest
 
     @authors("ignat")
     def test_default_medium_on_node(self):
-        assert hasattr(TestDefaultDiskMediumWithUnspecifiedMediumPorto, "DELTA_MASTER_CONFIG")
-
         create("table", "//tmp/in")
         write_table("//tmp/in", [{"foo": "bar"}])
         create("table", "//tmp/out")
@@ -702,6 +700,17 @@ class TestDefaultDiskMediumWithUnspecifiedMediumPorto(YTEnvSetup, DiskMediumTest
 
         # Node has disk with SSD.
         start_op("ssd", track=True)
+
+    @authors("ignat")
+    def test_unspecified_disk_request(self):
+        create("table", "//tmp/in")
+        write_table("//tmp/in", [{"foo": "bar"}])
+        create("table", "//tmp/out")
+
+        map(command="cat",
+            in_="//tmp/in",
+            out="//tmp/out",
+            spec={"max_failed_job_count": 1})
 
 
 class TestDefaultDiskMediumWithUnspecifiedMediumAndMultipleSlotsPorto(YTEnvSetup, DiskMediumTestConfiguration):
