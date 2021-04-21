@@ -24,7 +24,11 @@ public:
 
     TDuration FlushPeriod;
 
+    TDuration QueueStallTimeout;
+
     i64 MaxRequestSize;
+
+    i64 MaxBatchSize;
 
     i64 MaxMemory;
 
@@ -65,6 +69,8 @@ private:
     TMultipleProducerSingleConsumerLockFreeStack<TTraceContextPtr> TraceQueue_;
 
     TSharedRef ProcessInfo_;
+
+    TInstant LastSuccessfullFlushTime_ = TInstant::Now();
 
     std::deque<std::pair<int, TSharedRef>> BatchQueue_;
     i64 QueueMemory_ = 0;

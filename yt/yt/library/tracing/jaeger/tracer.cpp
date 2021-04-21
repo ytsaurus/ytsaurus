@@ -37,8 +37,12 @@ TJaegerTracerConfig::TJaegerTracerConfig()
     // 10K nodes x 128 KB / 15s == 85mb/s
     RegisterParameter("flush_period", FlushPeriod)
         .Default(TDuration::Seconds(15));
+    RegisterParameter("queue_stall_timeout", QueueStallTimeout)
+        .Default(TDuration::Minutes(15));
     RegisterParameter("max_request_size", MaxRequestSize)
         .Default(128_KB);
+    RegisterParameter("max_batch_size", MaxBatchSize)
+        .Default(128);
     RegisterParameter("max_memory", MaxMemory)
         .Default(1_GB);
 
@@ -201,16 +205,35 @@ void TJaegerTracer::DequeueAll()
     }
 
     NProto::Batch batch;
+    auto flushBatch = [&] {
+        if (batch.spans_size() == 0) {
+            return;
+        }
+
+        if (QueueMemory_ > Config_->MaxMemory) {
+            TracesDropped_.Increment(batch.spans_size());
+            return;
+        }
+
+        BatchQueue_.emplace_back(batch.spans_size(), SerializeProtoToRef(batch));
+
+        QueueMemory_ += BatchQueue_.back().second.size();
+        MemoryUsage_.Update(QueueMemory_);
+        QueueSize_ += batch.spans_size();
+        TraceQueueSize_.Update(QueueSize_);
+
+        batch.Clear();
+    };
+
     for (const auto& trace : traces) {
         ToProto(batch.add_spans(), trace);
+
+        if (batch.spans_size() > Config_->MaxBatchSize) {
+            flushBatch();
+        }
     }
 
-    BatchQueue_.emplace_back(traces.size(), SerializeProtoToRef(batch));
-
-    QueueMemory_ += BatchQueue_.back().second.size();
-    MemoryUsage_.Update(QueueMemory_);
-    QueueSize_ += traces.size();
-    TraceQueueSize_.Update(QueueSize_);
+    flushBatch();
 }
 
 std::pair<std::vector<TSharedRef>, int> TJaegerTracer::PeekQueue()
@@ -251,6 +274,18 @@ void TJaegerTracer::Flush()
 
         DequeueAll();
 
+        if (TInstant::Now() - LastSuccessfullFlushTime_ > Config_->QueueStallTimeout) {
+            while (true) {
+                auto [batch, i] = PeekQueue();
+                TracesDropped_.Increment(i);
+                DropQueue(i);
+
+                if (i == 0) {
+                    break;
+                }
+            }
+        }
+
         if (!CollectorChannel_) {
             CollectorChannel_ = NGrpc::CreateGrpcChannel(Config_->CollectorChannelConfig);
         }
@@ -270,6 +305,7 @@ void TJaegerTracer::Flush()
             DropQueue(i);
         }
 
+        LastSuccessfullFlushTime_ = TInstant::Now();
         NotifyEmptyQueue();
 
         YT_LOG_DEBUG("Finished span flush");
