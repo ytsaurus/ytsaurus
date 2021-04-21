@@ -25,6 +25,7 @@ DEFINE_ENUM(ETabletReign,
     ((AuthenticationIdentity)             (100101)) // babenko
     ((MountHint)                          (100102)) // ifsmirnov
     ((ReplicationBarrier_YT_14346)        (100103)) // babenko
+    ((AllowFlushWhenDecommissioned)       (100104)) // savrus
     ((RowBufferEmptyRowDeserialization)   (100200)) // max42
     ((Hunks1)                             (100201)) // babenko
     ((Hunks2)                             (100202)) // babenko

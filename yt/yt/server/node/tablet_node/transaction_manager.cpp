@@ -45,6 +45,8 @@
 #include <yt/yt/core/misc/heap.h>
 #include <yt/yt/core/misc/ring_queue.h>
 
+#include <util/generic/cast.h>
+
 #include <set>
 
 namespace NYT::NTabletNode {
@@ -59,6 +61,7 @@ using namespace NHydra;
 using namespace NHiveServer;
 using namespace NClusterNode;
 using namespace NTabletClient::NProto;
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -227,8 +230,6 @@ public:
                 transactionId);
         }
 
-        ValidateNotDecommissioned();
-
         if (fresh) {
             *fresh = true;
         }
@@ -240,6 +241,8 @@ public:
         transactionHolder->SetState(ETransactionState::Active);
         transactionHolder->SetTransient(transient);
         transactionHolder->AuthenticationIdentity() = NRpc::GetCurrentAuthenticationIdentity();
+
+        ValidateNotDecommissioned(transactionHolder.get());
 
         auto& map = transient ? TransientTransactionMap_ : PersistentTransactionMap_;
         auto* transaction = map.Insert(transactionId, std::move(transactionHolder));
@@ -262,7 +265,7 @@ public:
     TTransaction* MakeTransactionPersistent(TTransactionId transactionId)
     {
         if (auto* transaction = TransientTransactionMap_.Find(transactionId)) {
-            ValidateNotDecommissioned();
+            ValidateNotDecommissioned(transaction);
 
             transaction->SetTransient(false);
             if (IsLeader()) {
@@ -1072,11 +1075,28 @@ private:
         MinCommitTimestamp_ = std::min(timestamp, MinCommitTimestamp_.value_or(timestamp));
     }
 
-    void ValidateNotDecommissioned()
+    void ValidateNotDecommissioned(TTransaction* transaction)
     {
-        if (Decommissioned_) {
-            THROW_ERROR_EXCEPTION("Tablet cell is decommissioned");
+        if (!Decommissioned_) {
+            return;
         }
+
+        const auto* mutationContext = GetCurrentMutationContext();
+        if (!mutationContext ||
+            mutationContext->Request().Reign >= ToUnderlying(ETabletReign::AllowFlushWhenDecommissioned))
+        {
+            if (TypeFromId(transaction->GetId()) == EObjectType::Transaction &&
+                transaction->AuthenticationIdentity() == GetRootAuthenticationIdentity())
+            {
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Allow transaction in decommissioned state to proceed "
+                    "(TransactionId: %v, AuthenticationIdentity: %v)",
+                    transaction->GetId(),
+                    transaction->AuthenticationIdentity());
+                return;
+            }
+        }
+
+        THROW_ERROR_EXCEPTION("Tablet cell is decommissioned");
     }
 
     static bool SerializingTransactionHeapComparer(
