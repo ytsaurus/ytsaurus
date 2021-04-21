@@ -1501,19 +1501,6 @@ private:
         return result;
     }
 
-    bool HasUnfetchedBlocks(const TString& address, const std::vector<int>& indexesToFetch) const
-    {
-        const auto& peerBlockIndexes = GetOrCrash(PeerBlocksMap_, address);
-
-        for (int blockIndex : indexesToFetch) {
-            if (peerBlockIndexes.find(blockIndex) != peerBlockIndexes.end()) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     void RequestBlocks()
     {
         SessionInvoker_->Invoke(
@@ -1610,7 +1597,17 @@ private:
 
         bool requestMoreBlocks = true;
         if (!uncachedBlocks.empty()) {
-            requestMoreBlocks = FetchBlocksFromNodes(reader, uncachedBlocks);
+            auto candidates = FindCandidates(reader, uncachedBlocks);
+            if (candidates.empty()) {
+                OnPassCompleted();
+                for (const auto& block : uncachedBlocks) {
+                    if (const auto& cookie = block.Cookie) {
+                        cookie->SetBlock(TError("No peer candidates were found"));
+                    }
+                }
+                return;
+            }
+            requestMoreBlocks = FetchBlocksFromNodes(reader, uncachedBlocks, candidates);
         }
 
         FetchBlocksFromCache(reader, cachedBlocks);
@@ -1620,18 +1617,54 @@ private:
         }
     }
 
+    TPeerList FindCandidates(
+        const TReplicationReaderPtr& reader,
+        const std::vector<TBlockWithCookie>& blocksToFetch)
+    {
+        TPeerList candidates;
+
+        int desiredPeerCount = GetDesiredPeerCount();
+        while (candidates.size() < desiredPeerCount) {
+            auto hasUnfetchedBlocks = [&] (const TString& address) {
+                const auto& peerBlockIndexes = GetOrCrash(PeerBlocksMap_, address);
+
+                for (const auto& block : blocksToFetch) {
+                    int blockIndex = block.BlockIndex;
+                    if (peerBlockIndexes.contains(blockIndex)) {
+                        return true;
+                    }
+                }
+
+                return false;
+            };
+
+            auto moreCandidates = PickPeerCandidates(
+                reader,
+                ReaderConfig_->ProbePeerCount,
+                /* enableEarlyExit */ !ReaderConfig_->BlockRpcHedgingDelay,
+                hasUnfetchedBlocks);
+
+            if (moreCandidates.empty()) {
+                break;
+            }
+            candidates.insert(candidates.end(), moreCandidates.begin(), moreCandidates.end());
+        }
+
+        return candidates;
+    }
+
     //! Fetches blocks from nodes and adds them to block cache via cookies.
     //! Returns |True| if more blocks can be requested and |False| otherwise.
     bool FetchBlocksFromNodes(
         const TReplicationReaderPtr& reader,
-        const std::vector<TBlockWithCookie>& blocks)
+        const std::vector<TBlockWithCookie>& blocks,
+        const TPeerList& candidates)
     {
         auto cancelAll = [&] (const TError& error) {
             for (const auto& block : blocks) {
                 // NB: Setting cookie twice is OK. Only the first value
                 // will be used.
-                const auto& cookie = block.Cookie;
-                if (cookie) {
+                if (const auto& cookie = block.Cookie) {
                     cookie->SetBlock(error);
                 }
             }
@@ -1643,26 +1676,7 @@ private:
             blockIndexes.push_back(block.BlockIndex);
         }
 
-        TPeerList candidates;
         NProfiling::TWallTimer pickPeerTimer;
-        int desiredPeerCount = ReaderConfig_->BlockRpcHedgingDelay ? 2 : 1;
-        while (candidates.size() < desiredPeerCount) {
-            auto moreCandidates = PickPeerCandidates(
-                reader,
-                ReaderConfig_->ProbePeerCount,
-                /* enableEarlyExit */ !ReaderConfig_->BlockRpcHedgingDelay,
-                [&] (const TString& address) { return HasUnfetchedBlocks(address, blockIndexes); });
-            if (moreCandidates.empty()) {
-                break;
-            }
-            candidates.insert(candidates.end(), moreCandidates.begin(), moreCandidates.end());
-        }
-
-        if (candidates.empty()) {
-            OnPassCompleted();
-            cancelAll(TError("No peer candidates were found"));
-            return false;
-        }
 
         // One extra request for actually getting blocks.
         // Hedging requests are disregarded.
@@ -1673,7 +1687,7 @@ private:
 
         auto peers = ProbeAndSelectBestPeers(
             candidates,
-            desiredPeerCount,
+            GetDesiredPeerCount(),
             blockIndexes,
             reader);
 
@@ -1894,6 +1908,11 @@ private:
         }
 
         Promise_.TrySet(error);
+    }
+
+    int GetDesiredPeerCount() const
+    {
+        return ReaderConfig_->BlockRpcHedgingDelay ? 2 : 1;
     }
 };
 
