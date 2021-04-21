@@ -8827,6 +8827,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, CompletedRowCount_);
     Persist(context, AutoMergeEnabled_);
     Persist(context, InputHasOrderedDynamicStores_);
+    Persist(context, StandardStreamDescriptors_);
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already initialized.
