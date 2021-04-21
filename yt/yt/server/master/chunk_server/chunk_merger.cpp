@@ -331,11 +331,6 @@ void TChunkMerger::ScheduleMerge(TChunkOwnerBase* trunkNode)
     YT_VERIFY(IsLeader());
     YT_VERIFY(trunkNode->IsTrunk());
 
-    if (!Enabled_) {
-        YT_LOG_DEBUG("Cannot schedule merge: chunk merger is disabled");
-        return;
-    }
-
     if (trunkNode->GetType() != EObjectType::Table) {
         YT_LOG_DEBUG("Chunk merging is supported only for table types (NodeId: %v)",
             trunkNode->GetId());
@@ -612,6 +607,11 @@ void TChunkMerger::DoScheduleMerge(TChunkOwnerBase* chunkOwner)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(IsLeader());
+
+    if (!Enabled_) {
+        YT_LOG_DEBUG("Cannot schedule merge: chunk merger is disabled");
+        return;
+    }
 
     auto* account = chunkOwner->GetAccount();
 
