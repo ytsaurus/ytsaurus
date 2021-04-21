@@ -4,6 +4,7 @@
 #include "security_manager.h"
 #include "subject_proxy_detail.h"
 #include "user.h"
+#include "helpers.h"
 
 #include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
 #include <yt/yt/server/master/cell_server/cell_bundle.h>
@@ -108,10 +109,15 @@ private:
                     .Value(user->GetRequestQueueSizeLimit(NObjectClient::InvalidCellTag));
                 return true;
 
-            case EInternedAttributeKey::RequestLimits:
+            case EInternedAttributeKey::RequestLimits: {
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+                auto userLimitsSerializer = New<TSerializableUserRequestLimitsConfig>(user->GetRequestLimits(), multicellManager);
                 BuildYsonFluently(consumer)
-                    .Value(user->GetRequestLimits());
+                    .Value(userLimitsSerializer);
+
                 return true;
+            }
 
             case EInternedAttributeKey::UsableAccounts: {
                 const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -227,7 +233,9 @@ private:
             }
 
             case EInternedAttributeKey::RequestLimits: {
-                auto config = ConvertTo<TUserRequestLimitsConfigPtr>(value);
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+                auto config = ConvertTo<TSerializableUserRequestLimitsConfigPtr>(value)->ToConfigOrThrow(multicellManager);
                 securityManager->SetUserRequestLimits(user, config);
                 return true;
             }
