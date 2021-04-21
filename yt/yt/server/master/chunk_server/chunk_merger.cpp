@@ -569,6 +569,7 @@ bool TChunkMerger::CanScheduleMerge(TChunkOwnerBase* chunkOwner) const
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     return
+        Enabled_ &&
         IsMergeTransactionAlive() &&
         IsObjectAlive(chunkOwner) &&
         IsObjectAlive(chunkOwner->GetChunkList());
