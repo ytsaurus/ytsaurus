@@ -140,24 +140,50 @@ public:
 
         ChunkLookupKeys_ = MakeSharedRange(chunkLookupKeys, LookupKeys_);
 
+        RetainedTimestamp_ = TabletSnapshot_->RetainedTimestamp;
+        StoreFlushIndex_ = TabletSnapshot_->StoreFlushIndex;
+
         auto edenStores = TabletSnapshot_->GetEdenStores();
         std::vector<ISortedStorePtr> dynamicEdenStores;
         std::vector<ISortedStorePtr> chunkEdenStores;
 
         for (const auto& store : edenStores) {
             if (store->IsDynamic()) {
+                // Can not check store state via GetStoreState.
+                if (TabletSnapshot_->ActiveStore == store) {
+                    YT_VERIFY(ActiveStoreIndex_ == -1);
+                    ActiveStoreIndex_ = dynamicEdenStores.size();
+                }
+
                 dynamicEdenStores.push_back(store);
             } else {
                 chunkEdenStores.push_back(store);
             }
         }
 
-        RetainedTimestamp_ = TabletSnapshot_->RetainedTimestamp;
-        StoreFlushIndex_ = TabletSnapshot_->StoreFlushIndex;
+        const auto& mountConfig = TabletSnapshot_->Settings.MountConfig;
+
+        if (UseLookupCache_) {
+            auto compactionTimestamp = NTransactionClient::InstantToTimestamp(
+                NTransactionClient::TimestampToInstant(RetainedTimestamp_).first + mountConfig->MinDataTtl).first;
+
+            YT_LOG_DEBUG("Creating cache row merger (CompactionTimestamp: %llx)", compactionTimestamp);
+
+            CacheRowMerger_ = std::make_unique<TVersionedRowMerger>(
+                New<TRowBuffer>(TLookupSessionBufferTag()),
+                TabletSnapshot_->PhysicalSchema->GetColumnCount(),
+                TabletSnapshot_->PhysicalSchema->GetKeyColumnCount(),
+                TColumnFilter::MakeUniversal(),
+                mountConfig,
+                compactionTimestamp,
+                MaxTimestamp, // Do not consider major timestamp.
+                TabletSnapshot_->ColumnEvaluator,
+                /*lookup*/ true, // Do not produce sentinel rows.
+                /*mergeRowsOnFlush*/ true); // Always merge rows on flush.
+        }
 
         // NB: We allow more parallelization in case of data node lookup
         // due to lower cpu and memory usage on tablet nodes.
-        const auto& mountConfig = TabletSnapshot_->Settings.MountConfig;
         if (mountConfig->MaxParallelPartitionLookups && mountConfig->EnableDataNodeLookup) {
             auto readSessionFutures = CreateReadSessions(
                 &DynamicEdenSessions_,
@@ -333,6 +359,8 @@ private:
     std::vector<TConcurrentCache<TCachedRow>::TCachedItemRef> RowsFromCache_;
     ui32 StoreFlushIndex_;
     TTimestamp RetainedTimestamp_;
+    int ActiveStoreIndex_ = -1;
+    std::unique_ptr<TVersionedRowMerger> CacheRowMerger_;
 
     static const int TypicalSessionCount = 16;
     using TReadSessionList = SmallVector<TReadSession, TypicalSessionCount>;
@@ -446,13 +474,22 @@ private:
     {
         std::vector<TVersionedRow> versionedRows;
 
-        auto processSessions = [&] (TReadSessionList& sessions) {
+        auto processSessions = [&] (TReadSessionList& sessions, int excludedStoreIndex) {
+            int sessionIndex = 0;
             for (auto& session : sessions) {
                 auto row = session.FetchRow();
                 addPartialRow(row, Timestamp_ + 1);
                 if (UseLookupCache_) {
+                    
                     versionedRows.push_back(row);
+
+                    // Do not add values from active dynamic store.
+                    auto upperTimestampLimit = excludedStoreIndex == sessionIndex
+                        ? MinTimestamp
+                        : MaxTimestamp;
+                    CacheRowMerger_->AddPartialRow(row, upperTimestampLimit);
                 }
+                ++sessionIndex;
             }
         };
 
@@ -466,7 +503,7 @@ private:
             // Need to insert rows into cache even from active dynamic store.
             // Otherwise cache misses will occur.
             // Process dynamic store rows firstly.
-            processSessions(DynamicEdenSessions_);
+            processSessions(DynamicEdenSessions_, ActiveStoreIndex_);
 
             auto cachedItemRef = std::move(RowsFromCache_[index]);
 
@@ -498,14 +535,19 @@ private:
                     YT_LOG_TRACE("Reinserting row");
                     lookupTable->Insert(std::move(cachedItem));
                 }
+
+                // Cleanup row merger.
+                CacheRowMerger_->BuildMergedRow();
             } else {
-                processSessions(*partitionSessions);
-                processSessions(ChunkEdenSessions_);
+                processSessions(*partitionSessions, -1);
+                processSessions(ChunkEdenSessions_, -1);
 
                 if (UseLookupCache_) {
-                    auto cachedItem = BuildCachedRow(
+                    auto mergedRow = CacheRowMerger_->BuildMergedRow();
+
+                    auto cachedItem = CachedRowFromVersionedRow(
                         &TabletSnapshot_->RowCache->Allocator,
-                        versionedRows,
+                        mergedRow,
                         RetainedTimestamp_);
 
                     if (cachedItem) {
