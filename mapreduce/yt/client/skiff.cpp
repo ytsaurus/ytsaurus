@@ -52,22 +52,46 @@ NSkiff::EWireType ValueTypeToSkiffType(EValueType valueType)
 {
     using NSkiff::EWireType;
     switch (valueType) {
-        case VT_INT64:   return EWireType::Int64;
-        case VT_INT32:   return EWireType::Int64;
-        case VT_INT16:   return EWireType::Int64;
-        case VT_INT8:    return EWireType::Int64;
-        case VT_UINT64:  return EWireType::Uint64;
-        case VT_UINT32:  return EWireType::Uint64;
-        case VT_UINT16:  return EWireType::Uint64;
-        case VT_UINT8:   return EWireType::Uint64;
-        case VT_DOUBLE:  return EWireType::Double;
-        case VT_BOOLEAN: return EWireType::Boolean;
-        case VT_STRING:  return EWireType::String32;
-        case VT_UTF8:    return EWireType::String32;
-        case VT_ANY:     return EWireType::Yson32;
-        default:
-            ythrow yexception() << "Cannot convert EValueType '" << valueType << "' to NSkiff::EWireType";
+        case VT_INT64:
+        case VT_INT32:
+        case VT_INT16:
+        case VT_INT8:
+            return EWireType::Int64;
+
+        case VT_UINT64:
+        case VT_UINT32:
+        case VT_UINT16:
+        case VT_UINT8:
+            return EWireType::Uint64;
+
+        case VT_DOUBLE:
+        case VT_FLOAT:
+            return EWireType::Double;
+
+        case VT_BOOLEAN:
+            return EWireType::Boolean;
+
+        case VT_STRING:
+        case VT_UTF8:
+        case VT_JSON:
+            return EWireType::String32;
+
+        case VT_ANY:
+            return EWireType::Yson32;
+
+        case VT_NULL:
+        case VT_VOID:
+            return EWireType::Nothing;
+
+        case VT_DATE:
+        case VT_DATETIME:
+        case VT_TIMESTAMP:
+            return EWireType::Uint64;
+
+        case VT_INTERVAL:
+            return EWireType::Int64;
     };
+    ythrow yexception() << "Cannot convert EValueType '" << valueType << "' to NSkiff::EWireType";
 }
 
 NSkiff::TSkiffSchemaPtr CreateSkiffSchema(
@@ -84,7 +108,7 @@ NSkiff::TSkiffSchemaPtr CreateSkiffSchema(
             // We ignore all complex types until YT-12717 is done.
             return nullptr;
         }
-        if (column.Required()) {
+        if (column.Required() || NTi::IsSingular(column.TypeV3()->GetTypeName())) {
             skiffColumn = CreateSimpleTypeSchema(ValueTypeToSkiffType(column.Type()));
         } else {
             skiffColumn = CreateVariant8Schema({
