@@ -155,6 +155,8 @@ private:
         auto userTicket = GetByYPath<TString>(data, "/user_ticket");
         if (userTicket.IsOK()) {
             result.UserTicket = userTicket.Value();
+        } else if (Config_->GetUserTicket) {
+            return TError("Failed to retrieve user ticket");
         }
         return result;
     }

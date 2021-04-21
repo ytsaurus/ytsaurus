@@ -305,7 +305,13 @@ TEST_F(TTokenAuthenticatorTest, FailOnRejection)
 TEST_F(TTokenAuthenticatorTest, FailOnInvalidScope)
 {
     Config_->Scope = "yt:api";
-    MockCall(R"yy({status={id=0};oauth={scope="i-am-hacker";client_id="i-am-hacker";client_name="yes-i-am"};login=hacker})yy");
+    MockCall(R"yy(
+        {
+            status={id=0};
+            oauth={scope="i-am-hacker";client_id="i-am-hacker";client_name="yes-i-am"};
+            login=hacker;
+            user_ticket=good_ticket_maybe
+        })yy");
     auto result = Invoke("mytoken", "127.0.0.1").Get();
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("does not provide a valid scope"));
@@ -319,7 +325,8 @@ TEST_F(TTokenAuthenticatorTest, Success)
             status={id=0};
             oauth={scope="x:1 yt:api x:2";client_id="cid";client_name="nm"};
             login=sandello;
-            user_ticket=good_ticket})yy");
+            user_ticket=good_ticket
+        })yy");
     auto result = Invoke("mytoken", "127.0.0.1").Get();
     ASSERT_TRUE(result.IsOK());
     EXPECT_EQ("sandello", result.Value().Login);
@@ -330,6 +337,7 @@ TEST_F(TTokenAuthenticatorTest, Success)
 TEST_F(TTokenAuthenticatorTest, SuccessWithoutTicket)
 {
     Config_->Scope = "yt:api";
+    Config_->GetUserTicket = false;
     MockCall(R"yy(
         {
             status={id=0};
@@ -361,8 +369,20 @@ public:
             config,
             Authenticator_);
 
-        GoodResult = MakeFuture<INodePtr>(ConvertTo<INodePtr>(TYsonString(TStringBuf(R"yy({status={id=0};oauth={scope="x:1 yt:api x:2";client_id="cid";client_name="nm"};login=sandello})yy"))));
-        RejectResult = MakeFuture<INodePtr>(ConvertTo<INodePtr>(TYsonString(TStringBuf(R"yy({status={id=5};oauth={scope="x:1 yt:api x:2";client_id="cid";client_name="nm"};login=sandello})yy"))));
+        GoodResult = MakeFuture<INodePtr>(ConvertTo<INodePtr>(TYsonString(TStringBuf(R"yy(
+            {
+                status={id=0};
+                oauth={scope="x:1 yt:api x:2";client_id="cid";client_name="nm"};
+                login=sandello;
+                user_ticket=good_ticket
+            })yy"))));
+        RejectResult = MakeFuture<INodePtr>(ConvertTo<INodePtr>(TYsonString(TStringBuf(R"yy(
+            {
+                status={id=5};
+                oauth={scope="x:1 yt:api x:2";client_id="cid";client_name="nm"};
+                login=sandello;
+                user_ticket=good_ticket
+            })yy"))));
         ErrorResult = MakeFuture<INodePtr>(TError("Internal Server Error"));
     }
 
@@ -556,6 +576,7 @@ TEST_F(TCookieAuthenticatorTest, Success)
 
 TEST_F(TCookieAuthenticatorTest, SuccessWithoutTicket)
 {
+    Config_->GetUserTicket = false;
     MockCall("{status={id=0};login=sandello}");
     auto result = Authenticate("mysessionid", "mysslsessionid", "127.0.0.1").Get();
     ASSERT_TRUE(result.IsOK());
