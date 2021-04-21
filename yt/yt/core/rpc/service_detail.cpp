@@ -1458,10 +1458,11 @@ void TServiceBase::OnRequestAuthenticated(
             }
         }
         requestHeader.set_user(std::move(authResult.User));
-        if (!authResult.UserTicket.empty()) {
-            auto* ext = acceptedRequest.Header->MutableExtension(
-                NRpc::NProto::TCredentialsExt::credentials_ext);
-            ext->set_user_ticket(authResult.UserTicket);
+
+        auto* credentialsExt = requestHeader.MutableExtension(
+            NRpc::NProto::TCredentialsExt::credentials_ext);
+        if (credentialsExt->user_ticket().empty()) {
+            credentialsExt->set_user_ticket(std::move(authResult.UserTicket));
         }
         HandleAuthenticatedRequest(std::move(acceptedRequest));
     } else {
