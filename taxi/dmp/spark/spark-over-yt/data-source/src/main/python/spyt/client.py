@@ -116,8 +116,8 @@ def create_yt_client(yt_proxy, conf):
 
 
 def create_yt_client_spark_conf(yt_proxy, spark_conf):
-    yt_proxy = yt_proxy or spark_conf.get("spark.hadoop.yt.proxy") or os.getenv("SPARK_YT_PROXY")
-    yt_token = spark_conf.get("spark.hadoop.yt.token") or os.getenv("SPARK_YT_TOKEN")
+    yt_proxy = yt_proxy or spark_conf.get("spark.hadoop.yt.proxy") or os.getenv("SPARK_YT_PROXY") or os.getenv("SPARK_HADOOP_YT_PROXY")
+    yt_token = spark_conf.get("spark.hadoop.yt.token") or os.getenv("SPARK_YT_TOKEN") or os.getenv("SPARK_HADOOP_YT_TOKEN")
     return YtClient(proxy=yt_proxy, token=yt_token)
 
 

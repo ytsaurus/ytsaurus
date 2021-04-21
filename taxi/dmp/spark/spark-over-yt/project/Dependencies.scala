@@ -69,6 +69,10 @@ object Dependencies {
     "com.twitter" %% "scalding-args" % "0.17.4"
   )
 
+  lazy val py4j = Seq(
+    "net.sf.py4j" % "py4j" % "0.10.9"
+  )
+
   lazy val logging = Seq(
     "org.slf4j" % "slf4j-log4j12",
     "org.slf4j" % "slf4j-api",

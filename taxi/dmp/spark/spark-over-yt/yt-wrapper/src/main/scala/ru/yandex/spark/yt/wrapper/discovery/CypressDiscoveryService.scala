@@ -1,4 +1,4 @@
-package ru.yandex.spark.discovery
+package ru.yandex.spark.yt.wrapper.discovery
 
 import com.google.common.net.HostAndPort
 import org.slf4j.LoggerFactory
@@ -27,6 +27,8 @@ class CypressDiscoveryService(discoveryPath: String)(implicit yt: CompoundClient
   private def confPath: String = s"$discoveryPath/conf"
 
   private def masterWrapperPath: String = s"$discoveryPath/master_wrapper"
+
+  def eventLogPath: String = s"$discoveryPath/event_log"
 
   override def register(operationId: String,
                         address: Address,
@@ -92,6 +94,10 @@ class CypressDiscoveryService(discoveryPath: String)(implicit yt: CompoundClient
       webUiHostAndPort <- cypressHostAndPort(webUiPath)
       restHostAndPort <- cypressHostAndPort(restPath)
     } yield Address(hostAndPort, webUiHostAndPort, restHostAndPort)
+  }
+
+  def clusterVersion: Option[String] = {
+    getPath(clusterVersionPath)
   }
 
 

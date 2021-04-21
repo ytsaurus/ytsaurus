@@ -2,9 +2,9 @@ package ru.yandex.spark.launcher
 
 import com.twitter.scalding.Args
 import org.slf4j.LoggerFactory
-import ru.yandex.spark.discovery.SparkConfYsonable
 import ru.yandex.spark.launcher.rest.MasterWrapperLauncher
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
+import ru.yandex.spark.yt.wrapper.discovery.SparkConfYsonable
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
