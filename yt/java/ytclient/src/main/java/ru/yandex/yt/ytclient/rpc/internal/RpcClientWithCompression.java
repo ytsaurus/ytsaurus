@@ -20,10 +20,12 @@ public class RpcClientWithCompression extends RpcClientWrapper {
     }
 
     private void patchHeader(TRequestHeader.Builder header) {
+        // N.B. some versions of YT improperly handle case where we set request codec and doesn't set response codec.
         if (!header.hasRequestCodec()) {
-            header
-                    .setRequestCodec(compression.getRequestCodecId().getValue())
-                    .setResponseCodec(compression.getResponseCodecId().getValue());
+            header.setRequestCodec(compression.getRequestCodecId().orElse(Compression.None).getValue());
+        }
+        if (!header.hasResponseCodec()) {
+            header.setResponseCodec(compression.getResponseCodecId().orElse(Compression.None).getValue());
         }
     }
 
@@ -43,8 +45,8 @@ public class RpcClientWithCompression extends RpcClientWrapper {
 
     @Override
     public String toString() {
-        final Compression in = compression.getRequestCodecId();
-        final Compression out = compression.getResponseCodecId();
+        final Compression in = compression.getRequestCodecId().orElse(null);
+        final Compression out = compression.getResponseCodecId().orElse(null);
         if (in == out) {
             if (in == Compression.None) {
                 return super.toString();
