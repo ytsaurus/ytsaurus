@@ -1238,7 +1238,7 @@ void BuildCommonOperationPart(const TOperationSpecBase<T>& baseSpec, const TOper
             .Item("hostname").Value(properties->FqdnHostName)
             .Item("pid").Value(properties->Pid)
             .Item("user").Value(properties->UserName)
-            .Item("command").List(properties->CommandLine)
+            .Item("command").List(properties->CensoredCommandLine)
             .Item("wrapper_version").Value(properties->ClientVersion)
         .EndMap()
         .DoIf(!pool.empty(), [&] (TFluentMap fluentMap) {

@@ -152,6 +152,9 @@ struct TProcessState
     TString FqdnHostName;
     TString UserName;
     TVector<TString> CommandLine;
+
+    // Command line with everything that looks like tokens censored.
+    TVector<TString> CensoredCommandLine;
     int Pid;
     TString ClientVersion;
 
