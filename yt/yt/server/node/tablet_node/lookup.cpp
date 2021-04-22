@@ -480,7 +480,7 @@ private:
                 auto row = session.FetchRow();
                 addPartialRow(row, Timestamp_ + 1);
                 if (UseLookupCache_) {
-                    
+
                     versionedRows.push_back(row);
 
                     // Do not add values from active dynamic store.
@@ -815,8 +815,8 @@ void VersionedLookupRows(
         timestamp,
         MinTimestamp,
         tabletSnapshot->ColumnEvaluator,
-        /*mergeRowsOnFlush*/ true,
-        /*mergeDeletionsOnFlush*/ false);
+        /*lookup*/ true,
+        /*mergeRowsOnFlush*/ false);
 
     DoLookupRows(
         tabletSnapshot,
