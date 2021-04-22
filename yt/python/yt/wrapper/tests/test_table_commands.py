@@ -542,6 +542,14 @@ class TestTableCommands(object):
 
         check_rows_equality(rows, yt.read_table(table_path))
 
+    @authors("ignat")
+    def test_read_with_columns_with_slashes(self):
+        table_path = TEST_DIR + "/table"
+        yt.create("table", table_path)
+
+        yt.write_table(table_path, [{"a/b": 1}])
+        check_rows_equality([{"a/b": 1}], yt.read_table(yt.TablePath(table_path, columns=["a/b"])))
+
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestTableCommandsControlAttributes(object):

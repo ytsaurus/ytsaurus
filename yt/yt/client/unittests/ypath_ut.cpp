@@ -715,7 +715,6 @@ TEST_P(TRichYPathToStringTest, TestRichYPathToString)
 {
     auto path = NYPath::TRichYPath::Parse(GetParam());
     auto newPathString = ToString(path);
-    EXPECT_FALSE(newPathString.Contains("columns"));
     auto parsedPath = NYPath::TRichYPath::Parse(newPathString);
     EXPECT_EQ(path.GetPath(), parsedPath.GetPath());
     EXPECT_TRUE(path.Attributes() == parsedPath.Attributes());
