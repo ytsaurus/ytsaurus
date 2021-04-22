@@ -571,33 +571,9 @@ std::optional<TSortColumns> TRichYPath::GetChunkSortColumns() const
 
 TString ConvertToString(const TRichYPath& path, EYsonFormat ysonFormat)
 {
-    const IAttributeDictionary* attributes = nullptr;
-    IAttributeDictionaryPtr attrHolder;
-    auto columns = path.GetColumns();
-
-    if (columns) {
-        attrHolder = path.Attributes().Clone();
-        attrHolder->Remove("columns");
-        attributes = attrHolder.Get();
-    } else {
-        attributes = &path.Attributes();
-    }
-
     TStringBuilder builder;
-
-    AppendAttributes(&builder, *attributes, ysonFormat);
+    AppendAttributes(&builder, path.Attributes(), ysonFormat);
     builder.AppendString(path.GetPath());
-    if (columns) {
-        builder.AppendChar('{');
-        JoinToString(
-            &builder,
-            columns->begin(),
-            columns->end(),
-            TDefaultFormatter(),
-            ",");
-        builder.AppendChar('}');
-    }
-
     return builder.Flush();
 }
 
