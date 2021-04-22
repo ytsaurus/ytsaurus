@@ -40,6 +40,7 @@ using namespace NTableClient::NProto;
 using namespace NSecurityClient;
 using namespace NQueryClient;
 using namespace NScheduler;
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -713,7 +714,8 @@ void TClient::DoListOperationsFromCypress(
     TInstant deadline,
     TListOperationsCountingFilter& countingFilter,
     const TListOperationsOptions& options,
-    THashMap<NScheduler::TOperationId, TOperation>* idToOperation)
+    THashMap<NScheduler::TOperationId, TOperation>* idToOperation,
+    const TLogger& Logger)
 {
     // These attributes will be requested for every operation in Cypress.
     // All the other attributes are considered heavy and if they are present in
@@ -753,6 +755,8 @@ void TClient::DoListOperationsFromCypress(
     };
 
     const THashSet<TString> IgnoredAttributes = {};
+
+    YT_LOG_DEBUG("Fetching operations from cypress");
 
     auto requestedAttributes = DeduceActualAttributes(options.Attributes, RequiredAttributes, DefaultAttributes, IgnoredAttributes);
 
@@ -801,6 +805,8 @@ void TClient::DoListOperationsFromCypress(
             operationsYson.emplace_back(std::move(*rsp->mutable_value()));
         }
     }
+
+    YT_LOG_DEBUG("Operations fetched from cypress");
 
     TListOperationsFilter filter(operationsYson, countingFilter, options);
 
@@ -877,7 +883,12 @@ void TClient::DoListOperationsFromCypress(
         });
     }
 
+    YT_LOG_DEBUG("Parsing cypress response");
+
     auto operations = filter.BuildOperations(requestedAttributes);
+
+    YT_LOG_DEBUG("Cypress response parsed (OperationCount: %v)", operations.size());
+
     idToOperation->reserve(idToOperation->size() + operations.size());
     for (auto& operation : operations) {
         (*idToOperation)[*operation.Id] = std::move(operation);
@@ -887,7 +898,8 @@ void TClient::DoListOperationsFromCypress(
 THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
     const std::vector<TOperationId>& ids,
     const std::optional<THashSet<TString>>& attributes,
-    std::optional<TDuration> timeout)
+    std::optional<TDuration> timeout,
+    const TLogger& Logger)
 {
     const THashSet<TString> RequiredAttributes = {"id", "start_time"};
     const THashSet<TString> DefaultAttributes = {
@@ -904,6 +916,8 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
     };
     const THashSet<TString> IgnoredAttributes = {"suspended", "memory_usage"};
 
+    YT_LOG_DEBUG("Fetching operations from archive (OperationCount: %v)", ids.size());
+
     auto attributesToRequest = DeduceActualAttributes(
         attributes,
         RequiredAttributes,
@@ -916,7 +930,10 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
         columns.push_back(tableDescriptor.NameTable->GetIdOrThrow(columnName));
     }
     auto columnFilter = NTableClient::TColumnFilter(columns);
-    auto rowset = LookupOperationsInArchive(this, ids, columnFilter, timeout).ValueOrThrow();
+    auto rowset = LookupOperationsInArchive(this, ids, columnFilter, timeout)
+        .ValueOrThrow();
+
+    YT_LOG_DEBUG("Operations fetch from archive finished");
 
     auto getYson = [&] (TUnversionedValue value) {
         // TODO(babenko): consider replacing with FromUnversionedValue as a whole.
@@ -955,6 +972,8 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
     auto slotIndexPerPoolTreeIndex = columnFilter.FindPosition(tableIndex.SlotIndexPerPoolTree);
     auto alertsIndex = columnFilter.FindPosition(tableIndex.Alerts);
     auto taskNamesIndex = columnFilter.FindPosition(tableIndex.TaskNames);
+
+    YT_LOG_DEBUG("Parsing operations from archive (OperationCount: %v)", ids.size());
 
     for (auto row : rowset->GetRows()) {
         if (!row) {
@@ -1046,6 +1065,8 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
         idToOperation.emplace(*operation.Id, std::move(operation));
     }
 
+    YT_LOG_DEBUG("Operations from archive parsed");
+
     return idToOperation;
 }
 
@@ -1054,7 +1075,8 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
 THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
     TInstant deadline,
     TListOperationsCountingFilter& countingFilter,
-    const TListOperationsOptions& options)
+    const TListOperationsOptions& options,
+    const TLogger& Logger)
 {
     if (!options.FromTime) {
         THROW_ERROR_EXCEPTION("Missing required parameter \"from_time\"");
@@ -1090,6 +1112,8 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
     };
 
     if (options.IncludeCounters) {
+        YT_LOG_DEBUG("Performing select from archive to calculate counters");
+
         NQueryClient::TQueryBuilder builder;
         builder.SetSource(GetOperationsArchiveOrderedByStartTimePath());
 
@@ -1144,6 +1168,8 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
             }
             countingFilter.FilterByFailedJobs(hasFailedJobs, count);
         }
+
+        YT_LOG_DEBUG("Counters calculated");
     }
 
     NQueryClient::TQueryBuilder builder;
@@ -1203,6 +1229,8 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
         }
     }
 
+    YT_LOG_DEBUG("Select operation ids from archive");
+
     // Retain more operations than limit to track (in)completeness of the response.
     builder.SetLimit(1 + options.Limit);
 
@@ -1214,18 +1242,22 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
         .ValueOrThrow();
     auto rows = rowsItemsId.Rowset->GetRows();
 
+    YT_LOG_DEBUG("Operation ids selected from archive");
+
     std::vector<TOperationId> ids;
     ids.reserve(rows.Size());
     for (auto row : rows) {
         ids.emplace_back(FromUnversionedValue<ui64>(row[idHiIndex]), FromUnversionedValue<ui64>(row[idLoIndex]));
     }
-    return LookupOperationsInArchiveTyped(ids, options.Attributes, deadline - Now());
+    return LookupOperationsInArchiveTyped(ids, options.Attributes, deadline - Now(), Logger);
 }
 
 // XXX(levysotsky): The counters may be incorrect if |options.IncludeArchive| is |true|
 // and an operation is in both Cypress and archive.
 TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& oldOptions)
 {
+    auto Logger = this->Logger.WithTag("Command: ListOperations");
+
     auto options = oldOptions;
 
     auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultListOperationsTimeout);
@@ -1273,14 +1305,16 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
         idToOperation = DoListOperationsFromArchive(
             deadline,
             countingFilter,
-            options);
+            options,
+            Logger);
     }
 
     DoListOperationsFromCypress(
         deadline,
         countingFilter,
         options,
-        &idToOperation);
+        &idToOperation,
+        Logger);
 
     std::vector<TOperation> operations;
     operations.reserve(idToOperation.size());
