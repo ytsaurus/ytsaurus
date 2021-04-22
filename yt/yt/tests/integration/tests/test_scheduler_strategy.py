@@ -4239,7 +4239,6 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
 ##################################################################
 
 
-# TODO(ignat): move most of this tests to unittests.
 @authors("renadeen")
 class TestIntegralGuarantees(YTEnvSetup):
     NUM_MASTERS = 1
@@ -4656,6 +4655,35 @@ class TestIntegralGuarantees(YTEnvSetup):
         self.wait_pool_fair_share("relaxed_pool", strong=0.0, integral=0.5, weight_proportional=0.0)
         self.wait_pool_fair_share("limited_parent", strong=0.0, integral=1.0, weight_proportional=0.0)
         self.wait_pool_fair_share("<Root>", strong=0.0, integral=1.0, weight_proportional=0.0)
+
+    def test_burst_and_flow_ratio_orchid(self):
+        create_pool(
+            "parent",
+            attributes={
+                "integral_guarantees": {
+                    "resource_flow": {"cpu": 8},
+                    "burst_guarantee_resources": {"cpu": 8}
+                }
+            })
+        create_pool(
+            "child",
+            parent_name="parent",
+            attributes={
+                "integral_guarantees": {
+                    "guarantee_type": "burst",
+                    "resource_flow": {"cpu": 3},
+                    "burst_guarantee_resources": {"cpu": 5},
+                },
+            },
+        )
+
+        orchid_prefix = scheduler_orchid_default_pool_tree_path() + "/pools/"
+        wait(lambda: exists(orchid_prefix + "child"))
+
+        wait(lambda: get(orchid_prefix + "parent/total_burst_ratio") == 0.5)
+        wait(lambda: get(orchid_prefix + "parent/total_resource_flow_ratio") == 0.3)
+        wait(lambda: get(orchid_prefix + "child/total_burst_ratio") == 0.5)
+        wait(lambda: get(orchid_prefix + "child/total_resource_flow_ratio") == 0.3)
 
 
 ##################################################################

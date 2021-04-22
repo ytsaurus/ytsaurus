@@ -1794,11 +1794,17 @@ void TSchedulerPoolElement::BuildElementMapping(TFairSharePostUpdateContext* con
 
 double TSchedulerPoolElement::GetSpecifiedBurstRatio() const
 {
+    if (Config_->IntegralGuarantees->GuaranteeType == EIntegralGuaranteeType::None) {
+        return 0;
+    }
     return GetMaxResourceRatio(ToJobResources(Config_->IntegralGuarantees->BurstGuaranteeResources, {}), TotalResourceLimits_);
 }
 
 double TSchedulerPoolElement::GetSpecifiedResourceFlowRatio() const
 {
+    if (Config_->IntegralGuarantees->GuaranteeType == EIntegralGuaranteeType::None) {
+        return 0;
+    }
     return GetMaxResourceRatio(ToJobResources(Config_->IntegralGuarantees->ResourceFlow, {}), TotalResourceLimits_);
 }
 
