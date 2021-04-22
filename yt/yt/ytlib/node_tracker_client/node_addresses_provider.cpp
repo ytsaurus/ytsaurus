@@ -61,6 +61,7 @@ class TNodeAddressesProvider
 public:
     TNodeAddressesProvider(
         TDuration syncPeriod,
+        TDuration syncPeriodSplay,
         TWeakPtr<TCellDirectory> cellDirectory,
         ENodeRole nodeRole,
         TCallback<IChannelPtr(const std::vector<TString>&)> channelBuilder)
@@ -70,7 +71,8 @@ public:
         , SyncExecutor_(New<TPeriodicExecutor>(
             NRpc::TDispatcher::Get()->GetLightInvoker(),
             BIND(&TNodeAddressesProvider::OnSync, MakeWeak(this)),
-            syncPeriod))
+            syncPeriod,
+            syncPeriodSplay))
         , Logger(NodeTrackerClientLogger.WithTag("NodeRole: %v", NodeRole_))
         , NullChannel_(ChannelBuilder_({}))
     { }
@@ -250,12 +252,14 @@ private:
 
 IChannelPtr CreateNodeAddressesChannel(
     TDuration syncPeriod,
+    TDuration syncPeriodSplay,
     TWeakPtr<TCellDirectory> cellDirectory,
     ENodeRole nodeRole,
     TCallback<IChannelPtr(const std::vector<TString>&)> channelBuilder)
 {
     return CreateRoamingChannel(New<TNodeAddressesProvider>(
         syncPeriod,
+        syncPeriodSplay,
         std::move(cellDirectory),
         nodeRole,
         std::move(channelBuilder)));
