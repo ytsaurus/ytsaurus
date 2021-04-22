@@ -1,5 +1,7 @@
 package ru.yandex.yt.ytclient.rpc;
 
+import java.util.Optional;
+
 import ru.yandex.yt.ytclient.rpc.internal.Compression;
 
 public class RpcCompression {
@@ -20,12 +22,12 @@ public class RpcCompression {
         this.responseCodecId = responseCodecId;
     }
 
-    public Compression getRequestCodecId() {
-        return requestCodecId;
+    public Optional<Compression> getRequestCodecId() {
+        return Optional.ofNullable(requestCodecId);
     }
 
-    public Compression getResponseCodecId() {
-        return responseCodecId;
+    public Optional<Compression> getResponseCodecId() {
+        return Optional.ofNullable(responseCodecId);
     }
 
     public RpcCompression setRequestCodecId(Compression codecId) {
@@ -40,7 +42,7 @@ public class RpcCompression {
 
     public boolean isEmpty() {
         return requestCodecId == null
-                || responseCodecId == null;
+                && responseCodecId == null;
     }
 
     @Override
