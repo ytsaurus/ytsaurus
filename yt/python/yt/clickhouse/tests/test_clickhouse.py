@@ -182,6 +182,43 @@ class TestClickhouseFromHost(ClickhouseTestBase):
 
         assert proc.returncode == 0
 
+    @authors("dakovalkov")
+    def test_format(self):
+        def get_content(column):
+            return [{column: str(i)} for i in range(4)]
+
+        yt.create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
+        yt.write_table("//tmp/t", get_content("a"))
+
+        chyt.start_clique(1, alias="*format")
+
+        format_error = r"Do not specify FORMAT"
+
+        with pytest.raises(yt.YtError, match=format_error):
+            check_rows_equality(chyt.execute('SELECT * FROM "//tmp/t" FORMAT JSON', "*format"), get_content("a"))
+        with pytest.raises(yt.YtError, match=format_error):
+            check_rows_equality(chyt.execute('SELECT * FROM "//tmp/t" FoRmAt Protobuf', "*format"), get_content("a"))
+        with pytest.raises(yt.YtError, match=format_error):
+            check_rows_equality(chyt.execute('SELECT * FROM "//tmp/t"     fOrMaT   Regexp   ', "*format"), get_content("a"))
+        with pytest.raises(yt.YtError, match=format_error):
+            check_rows_equality(chyt.execute('SELECT * FROM "//tmp/t"  format Pretty; ;; ; ;; ', "*format"), get_content("a"))
+
+        # TODO(dakovalkov): Tricky cases which are difficult to handle:
+        # chyt.execute('SELECT * FROM "//tmp/t" FORMAT "JSON"')
+        # chyt.execute('SELECT * FROM "//tmp/t" FORMAT `JSON`')
+
+        check_rows_equality(chyt.execute('SELECT * FROM "//tmp/t";;;', "*format"), get_content("a"))
+        check_rows_equality(chyt.execute('SELECT a AS format FROM "//tmp/t"', "*format"), get_content("format"))
+        check_rows_equality(chyt.execute('SELECT * FROM "//tmp/t" WHERE a != \'FORMAT JSON\'', "*format"), get_content("a"))
+        # 'JSON' is an alias for the column 'format'.
+        check_rows_equality(chyt.execute('SELECT format JSON FROM (SELECT a AS format FROM "//tmp/t")', "*format"), get_content("JSON"))
+        check_rows_equality(chyt.execute('SELECT a AS xformat FROM "//tmp/t" ORDER BY xformat ASC', "*format"), get_content("xformat"))
+
+        # TODO(dakovalkov): Tricky cases which are difficult to handle (YQL failes on them as well):
+        # chyt.execute('SELECT a AS format FROM "//tmp/t" ORDER BY format DESC', "*format")
+        # Here 'JSON' is an alias for the subquery 'format'
+        # chyt.execute('WITH format AS (SELECT * FROM "//tmp/t") SELECT * FROM format JSON', "*format")
+
 
 @pytest.mark.usefixtures("yt_env")
 class TestNonTrivialClient(ClickhouseTestBase):
