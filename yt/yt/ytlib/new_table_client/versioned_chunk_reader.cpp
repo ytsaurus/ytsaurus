@@ -462,15 +462,17 @@ std::vector<TBlockFetcher::TBlockInfo> BuildBlockInfos(
     return blockInfos;
 }
 
+using TSharedSegmentMetas = TSharedRange<const NProto::TSegmentMeta*>;
+
 class TColumnBlockHolder
 {
 public:
     TColumnBlockHolder(const TColumnBlockHolder&) = delete;
     TColumnBlockHolder(TColumnBlockHolder&&) = default;
 
-    explicit TColumnBlockHolder(TSegmentMetas segmentMetas)
-        : SegmentMetas_(segmentMetas)
-        , BlockIds_(BuildColumnBlockSequence(segmentMetas))
+    explicit TColumnBlockHolder(TSharedSegmentMetas segmentMetas)
+        : SegmentMetas_(std::move(segmentMetas))
+        , BlockIds_(BuildColumnBlockSequence(SegmentMetas_))
     { }
 
     // TODO(lukyan): Return segmentIt. Get data = Block.Begin() + segmentIt->offset() outside.
@@ -566,7 +568,7 @@ public:
     }
 
 private:
-    const TSegmentMetas SegmentMetas_;
+    const TSharedSegmentMetas SegmentMetas_;
     const std::vector<ui32> BlockIds_;
 
     // Blob value data is stored in blocks without capturing in TRowBuffer.
@@ -594,17 +596,17 @@ std::vector<TColumnBlockHolder> CreateColumnBlockHolders(
     {
         int timestampReaderIndex = chunkMeta->ColumnMeta()->columns().size() - 1;
         const auto& columnMeta = columnMetas->columns(timestampReaderIndex);
-        columns.emplace_back(MakeRange(columnMeta.segments()));
+        columns.emplace_back(TSharedSegmentMetas(MakeRange(columnMeta.segments()), columnMetas));
     }
 
     for (size_t index = 0; index < chunkMeta->GetChunkKeyColumnCount(); ++index) {
         const auto& columnMeta = columnMetas->columns(index);
-        columns.emplace_back(MakeRange(columnMeta.segments()));
+        columns.emplace_back(TSharedSegmentMetas(MakeRange(columnMeta.segments()), columnMetas));
     }
 
     for (size_t index = 0; index < valueIdMapping.size(); ++index) {
         const auto& columnMeta = columnMetas->columns(valueIdMapping[index].ChunkSchemaIndex);
-        columns.emplace_back(MakeRange(columnMeta.segments()));
+        columns.emplace_back(TSharedSegmentMetas(MakeRange(columnMeta.segments()), columnMetas));
     }
 
     return columns;
