@@ -3,6 +3,7 @@ package httpclient
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 
 	"a.yandex-team.ru/library/go/blockcodecs"
 	_ "a.yandex-team.ru/library/go/blockcodecs/all"
+	"a.yandex-team.ru/library/go/certifi"
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/library/go/core/log/ctxlog"
 	"a.yandex-team.ru/yt/go/yson"
@@ -58,13 +60,21 @@ type httpClient struct {
 	proxySet *internal.ProxySet
 }
 
+func (c *httpClient) schema() string {
+	schema := "http"
+	if c.config.UseTLS {
+		schema = "https"
+	}
+	return schema
+}
+
 func (c *httpClient) listHeavyProxies() ([]string, error) {
 	if !c.stop.TryAdd() {
 		return nil, fmt.Errorf("client is stopped")
 	}
 	defer c.stop.Done()
 
-	req, err := http.NewRequest("GET", "http://"+c.clusterURL.Address+"/hosts", nil)
+	req, err := http.NewRequest("GET", c.schema()+"://"+c.clusterURL.Address+"/hosts", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +163,7 @@ func (c *httpClient) newHTTPRequest(ctx context.Context, call *internal.Call, bo
 	}
 
 	verb := call.Params.HTTPVerb()
-	req, err = http.NewRequest(verb.HTTPMethod(), "http://"+address+"/api/v4/"+verb.String(), body)
+	req, err = http.NewRequest(verb.HTTPMethod(), c.schema()+"://"+address+"/api/v4/"+verb.String(), body)
 	if err != nil {
 		return
 	}
@@ -517,6 +527,11 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 		return nil, err
 	}
 
+	certPool, err := certifi.NewCertPool()
+	if err != nil {
+		return nil, err
+	}
+
 	client.config = c
 	client.clusterURL = yt.NormalizeProxyURL(proxy)
 	client.netDialer = &net.Dialer{
@@ -530,6 +545,9 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 			MaxIdleConns:        100,
 			IdleConnTimeout:     90 * time.Second,
 			TLSHandshakeTimeout: 10 * time.Second,
+			TLSClientConfig: &tls.Config{
+				RootCAs: certPool,
+			},
 
 			DisableCompression: c.GetClientCompressionCodec() != yt.ClientCodecGZIP,
 		},
