@@ -1008,21 +1008,32 @@ public:
         using namespace NLogicalTypeShortcuts;
 
         auto nameTable = New<TNameTable>();
-        const auto uuidValue = TStringBuf("\xee\x1f\x37\x70" "\xb9\x93\x64\xb5" "\xe4\xdf\xe9\x03" "\x67\x5c\x30\x62");
-        const auto skiffUuidValue = TStringBuf("\x62\x30\x5c\x67" "\x03\xe9\xdf\xe4" "\xb5\x64\x93\xb9" "\x70\x37\x1f\xee");
+        const auto stringUuidValue = TStringBuf("\xee\x1f\x37\x70" "\xb9\x93\x64\xb5" "\xe4\xdf\xe9\x03" "\x67\x5c\x30\x62");
+        const auto uint128UuidValue = TStringBuf("\x62\x30\x5c\x67" "\x03\xe9\xdf\xe4" "\xb5\x64\x93\xb9" "\x70\x37\x1f\xee");
 
-        auto requiredTableSchema = New<TTableSchema>(std::vector<TColumnSchema>{TColumnSchema("uuid", Uuid())});
-        auto optionalTableSchema = New<TTableSchema>(std::vector<TColumnSchema>{TColumnSchema("uuid", Optional(Uuid()))});
+        const auto requiredTableSchema = New<TTableSchema>(std::vector<TColumnSchema>{TColumnSchema("uuid", Uuid())});
+        const auto optionalTableSchema = New<TTableSchema>(std::vector<TColumnSchema>{TColumnSchema("uuid", Optional(Uuid()))});
 
-        auto optionalSkiffSchema = CreateTupleSchema({
+        const auto optionalUint128SkiffSchema = CreateTupleSchema({
             CreateVariant8Schema({
                 CreateSimpleTypeSchema(EWireType::Nothing),
                 CreateSimpleTypeSchema(EWireType::Uint128),
             })->SetName("uuid"),
         });
 
-        auto requiredSkiffSchema = CreateTupleSchema({
+        const auto requiredUint128SkiffSchema = CreateTupleSchema({
             CreateSimpleTypeSchema(EWireType::Uint128)->SetName("uuid"),
+        });
+
+        const auto optionalStringSkiffSchema = CreateTupleSchema({
+            CreateVariant8Schema({
+                CreateSimpleTypeSchema(EWireType::Nothing),
+                CreateSimpleTypeSchema(EWireType::String32),
+            })->SetName("uuid"),
+        });
+
+        const auto requiredStringSkiffSchema = CreateTupleSchema({
+            CreateSimpleTypeSchema(EWireType::String32)->SetName("uuid"),
         });
 
         std::vector<ParamType> result;
@@ -1030,38 +1041,76 @@ public:
         result.emplace_back(
             nameTable,
             requiredTableSchema,
-            requiredSkiffSchema,
+            requiredUint128SkiffSchema,
             std::vector<TUnversionedOwningRow>{
-                MakeRow(nameTable, {{"uuid", uuidValue}}),
+                MakeRow(nameTable, {{"uuid", stringUuidValue}}),
             },
-            TString(2, '\0') + skiffUuidValue);
+            TString(2, '\0') + uint128UuidValue);
 
         result.emplace_back(
             nameTable,
             optionalTableSchema,
-            requiredSkiffSchema,
+            requiredUint128SkiffSchema,
             std::vector<TUnversionedOwningRow>{
-                MakeRow(nameTable, {{"uuid", uuidValue}}),
+                MakeRow(nameTable, {{"uuid", stringUuidValue}}),
             },
-            TString(2, '\0') + skiffUuidValue);
+            TString(2, '\0') + uint128UuidValue);
 
         result.emplace_back(
             nameTable,
             requiredTableSchema,
-            optionalSkiffSchema,
+            optionalUint128SkiffSchema,
             std::vector<TUnversionedOwningRow>{
-                MakeRow(nameTable, {{"uuid", uuidValue}}),
+                MakeRow(nameTable, {{"uuid", stringUuidValue}}),
             },
-            TString(2, '\0') + "\1" + skiffUuidValue);
+            TString(2, '\0') + "\1" + uint128UuidValue);
 
         result.emplace_back(
             nameTable,
             optionalTableSchema,
-            optionalSkiffSchema,
+            optionalUint128SkiffSchema,
             std::vector<TUnversionedOwningRow>{
-                MakeRow(nameTable, {{"uuid", uuidValue}}),
+                MakeRow(nameTable, {{"uuid", stringUuidValue}}),
             },
-            TString(2, '\0') + "\1" + skiffUuidValue);
+            TString(2, '\0') + "\1" + uint128UuidValue);
+
+        const TString uuidLen = TString(AsStringBuf("\x10\x00\x00\x00"));
+
+        result.emplace_back(
+            nameTable,
+            requiredTableSchema,
+            requiredStringSkiffSchema,
+            std::vector<TUnversionedOwningRow>{
+                MakeRow(nameTable, {{"uuid", stringUuidValue}}),
+            },
+            TString(2, '\0') + uuidLen + stringUuidValue);
+
+        result.emplace_back(
+            nameTable,
+            optionalTableSchema,
+            requiredStringSkiffSchema,
+            std::vector<TUnversionedOwningRow>{
+                MakeRow(nameTable, {{"uuid", stringUuidValue}}),
+            },
+            TString(2, '\0') + uuidLen + stringUuidValue);
+
+        result.emplace_back(
+            nameTable,
+            requiredTableSchema,
+            optionalStringSkiffSchema,
+            std::vector<TUnversionedOwningRow>{
+                MakeRow(nameTable, {{"uuid", stringUuidValue}}),
+            },
+            TString(2, '\0') + "\1" + uuidLen + stringUuidValue);
+
+        result.emplace_back(
+            nameTable,
+            optionalTableSchema,
+            optionalStringSkiffSchema,
+            std::vector<TUnversionedOwningRow>{
+                MakeRow(nameTable, {{"uuid", stringUuidValue}}),
+            },
+            TString(2, '\0') + "\1" + uuidLen + stringUuidValue);
 
         return result;
     }

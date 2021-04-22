@@ -441,7 +441,7 @@ TUnversionedValueToSkiffConverter CreateSimpleValueConverter(
             return CreatePrimitiveValueConverter(wireType, required);
 
         case ESimpleLogicalValueType::Uuid:
-            CheckWireType(wireType, {EWireType::Uint128, EWireType::Yson32});
+            CheckWireType(wireType, {EWireType::Uint128, EWireType::String32, EWireType::Yson32});
             if (wireType == EWireType::Uint128) {
                 return CreatePrimitiveValueConverter<EValueType::String>(required, TUuidWriter());
             } else {

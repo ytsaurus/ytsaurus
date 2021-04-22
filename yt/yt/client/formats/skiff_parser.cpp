@@ -257,7 +257,7 @@ TSkiffToUnversionedValueConverter CreateSimpleValueConverter(
             CheckWireType(wireType, {EWireType::Nothing, EWireType::Yson32});
             return CreatePrimitiveTypeConverter(wireType, required, columnId, ysonConverter);
         case ESimpleLogicalValueType::Uuid:
-            CheckWireType(wireType, {EWireType::Uint128, EWireType::Yson32});
+            CheckWireType(wireType, {EWireType::Uint128, EWireType::String32, EWireType::Yson32});
             if (wireType == EWireType::Uint128) {
                 if (fieldDescription.IsNullable()) {
                     return CreatePrimitiveTypeConverter<true>(columnId, TUuidParser());
