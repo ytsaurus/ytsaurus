@@ -36,8 +36,14 @@ func NewEnv(t testing.TB, opts ...Option) (env *Env, cancel func()) {
 	var stopLogger func()
 	config.Logger, stopLogger = NewLogger(t)
 
-	for _, o := range opts {
+	for i, o := range opts {
 		switch v := o.(type) {
+		case configOption:
+			if i != 0 {
+				t.Fatalf("yttest.WithConfig must be the first option")
+			}
+
+			config = v.c
 		case loggerOption:
 			config.Logger = v.l
 		}

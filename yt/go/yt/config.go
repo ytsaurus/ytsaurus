@@ -27,6 +27,15 @@ type Config struct {
 	// In that case, provided host is used for all requests and proxy discovery is disabled.
 	Proxy string
 
+	// UseTLS enables TLS for all connections to cluster.
+	//
+	// This option is supported only in HTTP client.
+	//
+	// By default, client will not use TLS.
+	//
+	// TLS is not supported in local mode.
+	UseTLS bool
+
 	// Token configures OAuth token used by the client.
 	//
 	// If Token is not set, value of YT_TOKEN environment variable is used instead.
