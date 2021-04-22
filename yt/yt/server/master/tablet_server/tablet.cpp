@@ -334,7 +334,9 @@ void ToProto(NProto::TTabletCellStatistics* protoStatistics, const TTabletCellSt
     const auto oldMaxMediumCount = 7;
     i64 oldDiskSpacePerMedium[oldMaxMediumCount] = {};
     for (const auto& [mediumIndex, diskSpace] : statistics.DiskSpacePerMedium) {
-        oldDiskSpacePerMedium[mediumIndex] = diskSpace;
+        if (mediumIndex < oldMaxMediumCount) {
+            oldDiskSpacePerMedium[mediumIndex] = diskSpace;
+        }
 
         auto* item = protoStatistics->add_disk_space_per_medium();
         item->set_medium_index(mediumIndex);
