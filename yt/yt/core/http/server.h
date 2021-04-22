@@ -91,7 +91,11 @@ IServerPtr CreateServer(
     int port,
     const NConcurrency::IPollerPtr& poller);
 IServerPtr CreateServer(
-    const TServerConfigPtr& config, int threads = 1);
+    const TServerConfigPtr& config, int pollerThreads = 1);
+
+IServerPtr CreateServer(const TServerConfigPtr& config,
+                        const NConcurrency::IPollerPtr& poller,
+                        const IInvokerPtr& invoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
