@@ -931,19 +931,22 @@ private:
         TInstant deadline,
         TListOperationsCountingFilter& countingFilter,
         const TListOperationsOptions& options,
-        THashMap<NScheduler::TOperationId, TOperation>* idToOperation);
+        THashMap<NScheduler::TOperationId, TOperation>* idToOperation,
+        const NLogging::TLogger& Logger);
 
     THashMap<NScheduler::TOperationId, TOperation> LookupOperationsInArchiveTyped(
         const std::vector<NScheduler::TOperationId>& ids,
         const std::optional<THashSet<TString>>& attributes,
-        std::optional<TDuration> timeout);
+        std::optional<TDuration> timeout,
+        const NLogging::TLogger& Logger);
 
     // Searches in archive for operations satisfying given filters.
     // Returns operations with requested fields plus necessarily "start_time" and "id".
     THashMap<NScheduler::TOperationId, TOperation> DoListOperationsFromArchive(
         TInstant deadline,
         TListOperationsCountingFilter& countingFilter,
-        const TListOperationsOptions& options);
+        const TListOperationsOptions& options,
+        const NLogging::TLogger& Logger);
 
     // XXX(levysotsky): The counters may be incorrect if |options.IncludeArchive| is |true|
     // and an operation is in both Cypress and archive.
