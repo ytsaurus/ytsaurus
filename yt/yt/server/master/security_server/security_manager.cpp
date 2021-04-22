@@ -2688,19 +2688,25 @@ private:
 
         // Leads to overcommit in hierarchical accounts!
         if (MustInitializeChunkHostMasterMemoryLimits_) {
-            auto resourceLimits = RootAccount_->ClusterResourceLimits();
-            resourceLimits.SetChunkHostMasterMemory(100_GB);
-            TrySetResourceLimits(RootAccount_, resourceLimits);
-
             for (auto [accountId, account] : AccountMap_) {
                 if (!IsObjectAlive(account)) {
                     continue;
                 }
 
-                auto resourceLimits = account->ClusterResourceLimits();
-                resourceLimits.SetChunkHostMasterMemory(100_GB);
+                std::stack<TAccount*> accounts;
+                while (account) {
+                    accounts.push(account);
+                    account = account->GetParent();
+                }
 
-                TrySetResourceLimits(account, resourceLimits);
+                while (!accounts.empty()) {
+                    account = accounts.top();
+                    auto resourceLimits = account->ClusterResourceLimits();
+                    resourceLimits.SetChunkHostMasterMemory(100_GB);
+
+                    TrySetResourceLimits(account, resourceLimits);
+                    accounts.pop();
+                }
             }
         }
 
