@@ -27,6 +27,7 @@ public:
 
     bool EnableTimestampProviderDiscovery;
     TDuration TimestampProviderDiscoveryPeriod;
+    TDuration TimestampProviderDiscoveryPeriodSplay;
 
     TRemoteTimestampProviderConfig()
     {
@@ -44,6 +45,8 @@ public:
             .Default(false);
         RegisterParameter("timestamp_provider_discovery_period", TimestampProviderDiscoveryPeriod)
             .Default(TDuration::Minutes(1));
+        RegisterParameter("timestamp_provider_discovery_period_splay", TimestampProviderDiscoveryPeriodSplay)
+            .Default(TDuration::Seconds(10));
 
         RegisterPreprocessor([&] {
             RetryAttempts = 100;

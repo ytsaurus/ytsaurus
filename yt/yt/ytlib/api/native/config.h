@@ -48,6 +48,7 @@ public:
 
     bool EnableMasterCacheDiscovery;
     TDuration MasterCacheDiscoveryPeriod;
+    TDuration MasterCacheDiscoveryPeriodSplay;
 
     TMasterConnectionConfig();
 };

@@ -32,6 +32,8 @@ TMasterConnectionConfig::TMasterConnectionConfig()
         .Default(true);
     RegisterParameter("master_cache_discovery_period", MasterCacheDiscoveryPeriod)
         .Default(TDuration::Minutes(1));
+    RegisterParameter("master_cache_discovery_period_splay", MasterCacheDiscoveryPeriodSplay)
+        .Default(TDuration::Seconds(10));
 
     RegisterPreprocessor([&] {
         RetryAttempts = 100;

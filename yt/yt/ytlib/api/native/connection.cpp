@@ -547,6 +547,7 @@ private:
         TimestampProviderChannel_ = timestampProviderConfig->EnableTimestampProviderDiscovery ?
             CreateNodeAddressesChannel(
                 timestampProviderConfig->TimestampProviderDiscoveryPeriod,
+                timestampProviderConfig->TimestampProviderDiscoveryPeriodSplay,
                 MakeWeak(MasterCellDirectory_),
                 ENodeRole::TimestampProvider,
                 BIND(&CreateTimestampProviderChannelFromAddresses, timestampProviderConfig, ChannelFactory_)) :
