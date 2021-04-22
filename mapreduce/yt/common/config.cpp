@@ -256,10 +256,21 @@ TProcessState::TProcessState()
     }
 }
 
+static TString CensorString(TString input)
+{
+    static const TString prefix = "AQAD-";
+    if (input.find(prefix) == TString::npos) {
+        return input;
+    } else {
+        return TString(input.size(), '*');
+    }
+}
+
 void TProcessState::SetCommandLine(int argc, const char* argv[])
 {
     for (int i = 0; i < argc; ++i) {
         CommandLine.push_back(argv[i]);
+        CensoredCommandLine.push_back(CensorString(CommandLine.back()));
     }
 }
 
