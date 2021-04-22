@@ -701,10 +701,14 @@ TYsonToSkiffConverter CreateSimpleYsonToSkiffConverter(
                 return CreatePrimitiveTypeYsonToSkiffConverter(std::move(descriptor), wireType);
 
             case ESimpleLogicalValueType::Uuid:
-                CheckWireType(wireType, {EWireType::Uint128});
-                return CreatePrimitiveTypeYsonToSkiffConverter<EYsonItemType::StringValue>(
-                    std::move(descriptor),
-                    TUuidWriter());
+                CheckWireType(wireType, {EWireType::Uint128, EWireType::String32});
+                if (wireType == EWireType::Uint128) {
+                    return CreatePrimitiveTypeYsonToSkiffConverter<EYsonItemType::StringValue>(
+                        std::move(descriptor),
+                        TUuidWriter());
+                } else {
+                    return CreatePrimitiveTypeYsonToSkiffConverter(std::move(descriptor), wireType);
+                }
         }
     } catch (const std::exception& ex) {
         RethrowCannotMatchField(descriptor, skiffSchema, ex);
@@ -1392,8 +1396,12 @@ TSkiffToYsonConverter CreateSimpleSkiffToYsonConverter(
                 return CreatePrimitiveTypeSkiffToYsonConverter(wireType);
 
             case ESimpleLogicalValueType::Uuid:
-                CheckWireType(wireType, {EWireType::Uint128});
-                return TPrimitiveTypeSkiffToYsonConverter(TUuidParser());
+                CheckWireType(wireType, {EWireType::Uint128, EWireType::String32});
+                if (wireType == EWireType::Uint128) {
+                    return TPrimitiveTypeSkiffToYsonConverter(TUuidParser());
+                } else {
+                    return CreatePrimitiveTypeSkiffToYsonConverter(wireType);
+                }
         }
         YT_ABORT();
     } catch (const std::exception& ex) {

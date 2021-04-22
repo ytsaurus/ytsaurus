@@ -165,6 +165,12 @@ TEST(TYsonSkiffConverterTest, TestSimpleTypes)
         CreateSimpleTypeSchema(EWireType::Uint128),
         "\"\\xF0\\xF1\\xF2\\xF3\\xF4\\xF5\\xF6\\xF7\\xF8\\xF9\\xFA\\xFB\\xFC\\xFD\\xFE\\xFF\"",
         "fffefdfcfbfaf9f8f7f6f5f4f3f2f1f0");
+
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        Uuid(),
+        CreateSimpleTypeSchema(EWireType::String32),
+        "\"\\xF0\\xF1\\xF2\\xF3\\xF4\\xF5\\xF6\\xF7\\xF8\\xF9\\xFA\\xFB\\xFC\\xFD\\xFE\\xFF\"",
+        "10000000f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff");
 }
 
 TEST(TYsonSkiffConverterTest, TestYson32)
