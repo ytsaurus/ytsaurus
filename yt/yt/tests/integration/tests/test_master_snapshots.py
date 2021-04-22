@@ -338,11 +338,13 @@ class TestMasterSnapshots(YTEnvSetup):
 
     @authors("gritukan")
     def test_master_snapshots_free_space_profiling(self):
-        sensors = Profiler.at_master(master_index=0).list()
-        assert "yt/snapshots/free_space" in sensors
-        assert "yt/snapshots/available_space" in sensors
-        assert "yt/snapshots/free_space" in sensors
-        assert "yt/snapshots/available_space" in sensors
+        def check_sensor(path):
+            sensors = Profiler.at_master(master_index=0).list()
+            return path in sensors
+        wait(lambda: check_sensor("yt/snapshots/free_space"))
+        wait(lambda: check_sensor("yt/snapshots/available_space"))
+        wait(lambda: check_sensor("yt/changelogs/free_space"))
+        wait(lambda: check_sensor("yt/changelogs/available_space"))
 
 
 class TestAllMastersSnapshots(YTEnvSetup):
