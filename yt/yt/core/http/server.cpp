@@ -58,11 +58,13 @@ public:
         const IListenerPtr& listener,
         const IPollerPtr& poller,
         const IPollerPtr& acceptor,
+        const IInvokerPtr& invoker,
         bool ownPoller = false)
         : Config_(config)
         , Listener_(listener)
         , Poller_(poller)
         , Acceptor_(acceptor)
+        , Invoker_(invoker)
         , OwnPoller_(ownPoller)
     { }
 
@@ -103,6 +105,7 @@ private:
     const IListenerPtr Listener_;
     const IPollerPtr Poller_;
     const IPollerPtr Acceptor_;
+    const IInvokerPtr Invoker_;
     bool OwnPoller_ = false;
 
     bool Started_ = false;
@@ -160,7 +163,7 @@ private:
             connection->RemoteAddress(),
             connection->LocalAddress());
 
-        Poller_->GetInvoker()->Invoke(
+        Invoker_->Invoke(
             BIND(&TServer::HandleConnection, MakeStrong(this), std::move(connection), connectionId));
     }
 
@@ -354,22 +357,24 @@ IServerPtr CreateServer(
     const IListenerPtr& listener,
     const IPollerPtr& poller,
     const IPollerPtr& acceptor,
+    const IInvokerPtr& invoker,
     bool ownPoller)
 {
-    return New<TServer>(config, listener, poller, acceptor, ownPoller);
+    return New<TServer>(config, listener, poller, acceptor, invoker, ownPoller);
 }
 
 IServerPtr CreateServer(
     const TServerConfigPtr& config,
     const IPollerPtr& poller,
     const IPollerPtr& acceptor,
+    const IInvokerPtr& invoker,
     bool ownPoller)
 {
     auto address = TNetworkAddress::CreateIPv6Any(config->Port);
     for (int i = 0;; ++i) {
         try {
             auto listener = CreateListener(address, poller, acceptor, config->MaxBacklogSize);
-            return CreateServer(config, listener, poller, acceptor, ownPoller);
+            return CreateServer(config, listener, poller, acceptor, invoker, ownPoller);
         } catch (const std::exception& ex) {
             if (i + 1 == config->BindRetryCount) {
                 throw;
@@ -390,7 +395,7 @@ IServerPtr CreateServer(
     const IListenerPtr& listener,
     const IPollerPtr& poller)
 {
-    return CreateServer(config, listener, poller, poller, false);
+    return CreateServer(config, listener, poller, poller, poller->GetInvoker(), false);
 }
 
 IServerPtr CreateServer(
@@ -399,12 +404,12 @@ IServerPtr CreateServer(
     const IPollerPtr& poller,
     const IPollerPtr& acceptor)
 {
-    return CreateServer(config, listener, poller, acceptor, false);
+    return CreateServer(config, listener, poller, acceptor, poller->GetInvoker(), false);
 }
 
 IServerPtr CreateServer(const TServerConfigPtr& config, const IPollerPtr& poller, const IPollerPtr& acceptor)
 {
-    return CreateServer(config, poller, acceptor, false);
+    return CreateServer(config, poller, acceptor, poller->GetInvoker(), false);
 }
 
 IServerPtr CreateServer(const TServerConfigPtr& config, const IPollerPtr& poller)
@@ -425,7 +430,14 @@ IServerPtr CreateServer(const TServerConfigPtr& config, int threads)
         ? "Http:" + config->ServerName
         : "Http";
     auto poller = CreateThreadPoolPoller(threads, threadName);
-    return CreateServer(config, poller, poller, true);
+    return CreateServer(config, poller, poller, poller->GetInvoker(), true);
+}
+
+IServerPtr CreateServer(const TServerConfigPtr& config,
+                        const NConcurrency::IPollerPtr& poller,
+                        const IInvokerPtr& invoker)
+{
+    return CreateServer(config, poller, poller, invoker, false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
