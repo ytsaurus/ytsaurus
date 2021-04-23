@@ -21,6 +21,7 @@ python3.7 -m pip install -i https://pypi.yandex-team.ru/simple pyarrow==0.17.1
 python3.7 -m pip install -i https://pypi.yandex-team.ru/simple pandas==0.24.2
 python3.7 -m pip install -i https://pypi.yandex-team.ru/simple cyson
 python3.7 -m pip install -i https://pypi.yandex-team.ru/simple scipy
+python3.7 -m pip install -i https://pypi.yandex-team.ru/simple numpy==1.19.5
 
 mkdir -p /opt/python3.7/bin
 ln -s /usr/bin/python3.7 /opt/python3.7/bin/python
