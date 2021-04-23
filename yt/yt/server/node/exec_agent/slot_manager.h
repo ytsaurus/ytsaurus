@@ -22,6 +22,12 @@ namespace NYT::NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ESlotManagerAlertType,
+    ((GpuCheckFailed) (0))
+)
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Controls acquisition and release of slots.
 /*!
  *  \note
@@ -37,6 +43,10 @@ public:
 
     //! Initializes slots etc.
     void Initialize();
+
+    void OnDynamicConfigChanged(
+        const NClusterNode::TClusterNodeDynamicConfigPtr& oldNodeConfig,
+        const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig);
 
     //! Acquires a free slot, thows on error.
     ISlotPtr AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest);
@@ -66,6 +76,12 @@ public:
      *  \note
      *  Thread affinity: any
      */
+    void OnGpuCheckCommandFailed(const TError& error);
+
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
     void BuildOrchidYson(NYTree::TFluentMap fluent) const;
 
     /*!
@@ -80,6 +96,8 @@ private:
     const int SlotCount_;
     const TString NodeTag_;
 
+    TAtomicObject<TSlotManagerDynamicConfigPtr> DynamicConfig_;
+
     NDataNode::IVolumeManagerPtr RootVolumeManager_;
 
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, LocationsLock_);
@@ -93,6 +111,7 @@ private:
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     std::optional<TError> PersistentAlert_;
     std::optional<TError> TransientAlert_;
+    THashMap<ESlotManagerAlertType, TError> NonFatalAlerts_;
     //! If we observe too many consecutive aborts, we disable user slots on
     //! the node until restart and fire alert.
     int ConsecutiveAbortedJobCount_ = 0;

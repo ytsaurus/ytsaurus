@@ -823,6 +823,8 @@ private:
     std::vector<TGpuManager::TGpuSlotPtr> GpuSlots_;
     std::vector<TGpuStatistics> GpuStatistics_;
 
+    int SetupCommandsCount_ = 0;
+
     std::optional<ui32> NetworkProjectId_;
 
     ISlotPtr Slot_;
@@ -1194,7 +1196,8 @@ private:
                 {testFileCommand},
                 MakeWritableRootFS(),
                 Config_->JobController->SetupCommandUser,
-                /* devices */ std::nullopt));
+                /*devices*/ std::nullopt,
+                /*startIndex*/ SetupCommandsCount_));
 
             if (!testFileError.IsOK()) {
                 THROW_ERROR_EXCEPTION(EErrorCode::GpuCheckCommandIncorrect, "Path to GPU check binary is not a file")
@@ -1231,7 +1234,8 @@ private:
             {checkCommand},
             MakeWritableRootFS(),
             Config_->JobController->SetupCommandUser,
-            devices);
+            devices,
+            /*startIndex*/ SetupCommandsCount_ + 1);
     }
 
     void OnGpuCheckCommandFinished(const TError& error)
@@ -1452,8 +1456,8 @@ private:
         }
 
         // NB: we should disable slot here to give scheduler information about job failure.
-        if (Config_->SlotManager->DisableJobsOnGpuCheckFailure && error.FindMatching(EErrorCode::GpuCheckCommandFailed)) {
-            Bootstrap_->GetExecSlotManager()->Disable(error);
+        if (error.FindMatching(EErrorCode::GpuCheckCommandFailed)) {
+            Bootstrap_->GetExecSlotManager()->OnGpuCheckCommandFailed(error);
         }
 
         ResourcesUpdated_.Fire(-oneUserSlotResources);
@@ -1899,13 +1903,20 @@ private:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         auto commands = GetSetupCommands();
+        SetupCommandsCount_ = commands.size();
         if (commands.empty()) {
             return VoidFuture;
         }
 
         YT_LOG_INFO("Running setup commands");
 
-        return Slot_->RunSetupCommands(Id_, commands, MakeWritableRootFS(), Config_->JobController->SetupCommandUser, /* devices */ std::nullopt);
+        return Slot_->RunSetupCommands(
+            Id_,
+            commands,
+            MakeWritableRootFS(),
+            Config_->JobController->SetupCommandUser,
+            /*devices*/ std::nullopt,
+            /*startIndex*/ 0);
     }
 
     // Analyse results.

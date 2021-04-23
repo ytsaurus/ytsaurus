@@ -7,6 +7,7 @@
 #include <yt/yt/server/lib/exec_agent/config.h>
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/node_resource_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -55,6 +56,9 @@ void TSlotManager::Initialize()
         BIND(&TSlotManager::PopulateAlerts, MakeStrong(this)));
     Bootstrap_->GetJobController()->SubscribeJobFinished(
         BIND(&TSlotManager::OnJobFinished, MakeStrong(this)));
+
+    const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+    dynamicConfigManager->SubscribeConfigChanged(BIND(&TSlotManager::OnDynamicConfigChanged, MakeWeak(this)));
 
     YT_LOG_INFO("Initializing exec slots (Count: %v)", SlotCount_);
 
@@ -123,6 +127,13 @@ void TSlotManager::Initialize()
             .Via(Bootstrap_->GetJobInvoker()));
 
     YT_LOG_INFO("Exec slots initialized");
+}
+
+void TSlotManager::OnDynamicConfigChanged(
+    const TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
+    const TClusterNodeDynamicConfigPtr& newNodeConfig)
+{
+    DynamicConfig_.Store(newNodeConfig->ExecAgent->SlotManager);
 }
 
 void TSlotManager::UpdateAliveLocations()
@@ -255,6 +266,20 @@ void TSlotManager::Disable(const TError& error)
     PersistentAlert_ = errorWrapper;
 }
 
+void TSlotManager::OnGpuCheckCommandFailed(const TError& error)
+{
+    auto dynamicConfig = DynamicConfig_.Load();
+
+    bool disableJobsOnGpuCheckFailure = dynamicConfig
+        ? dynamicConfig->DisableJobsOnGpuCheckFailure.value_or(Config_->DisableJobsOnGpuCheckFailure)
+        : Config_->DisableJobsOnGpuCheckFailure;
+    if (disableJobsOnGpuCheckFailure) {
+        Disable(error);
+    } else {
+        NonFatalAlerts_[ESlotManagerAlertType::GpuCheckFailed] = error;
+    }
+}
+
 void TSlotManager::OnJobFinished(const IJobPtr& job)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -297,6 +322,9 @@ void TSlotManager::PopulateAlerts(std::vector<TError>* alerts)
     }
     if (PersistentAlert_) {
         alerts->push_back(*PersistentAlert_);
+    }
+    for (const auto& [alertType, alert] : NonFatalAlerts_) {
+        alerts->push_back(alert);
     }
 }
 
@@ -350,10 +378,11 @@ void TSlotManager::InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDire
     }
 
     {
-        auto descriptor = mediumDirectory->FindByName(Config_->DefaultMediumName);
+        auto defaultMediumName = Config_->DefaultMediumName;
+        auto descriptor = mediumDirectory->FindByName(defaultMediumName);
         if (!descriptor) {
             THROW_ERROR_EXCEPTION("Default medium is unknown (MediumName: %v)",
-                Config_->DefaultMediumName);
+                defaultMediumName);
         }
         DefaultMediumIndex_ = descriptor->Index;
     }

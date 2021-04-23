@@ -1031,7 +1031,7 @@ class TestGpuCheck(YTEnvSetup):
         }
     }
 
-    def setup_files(self):
+    def setup_gpu_layer_and_reset_nodes(self):
         create("map_node", "//tmp/gpu_check")
 
         create("file", "//tmp/gpu_check/0", attributes={"replication_factor": 1})
@@ -1056,9 +1056,7 @@ class TestGpuCheck(YTEnvSetup):
 
         wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes").values()[0]["resource_limits"]["user_slots"] > 0)
 
-    def test_gpu_check_success(self):
-        self.setup_files()
-
+    def setup_tables(self):
         create(
             "table",
             "//tmp/t_in",
@@ -1069,6 +1067,12 @@ class TestGpuCheck(YTEnvSetup):
             "//tmp/t_out",
             attributes={"replication_factor": 1},
         )
+
+
+    def test_gpu_check_success(self):
+        self.setup_gpu_layer_and_reset_nodes()
+
+        self.setup_tables()
 
         write_table("//tmp/t_in", [{"k": 0}])
         op = map(
@@ -1095,18 +1099,87 @@ class TestGpuCheck(YTEnvSetup):
         assert res == "AAA\n"
 
     def test_gpu_check_fail(self):
-        self.setup_files()
+        self.setup_gpu_layer_and_reset_nodes()
 
-        create(
-            "table",
-            "//tmp/t_in",
-            attributes={"replication_factor": 1},
+        self.setup_tables()
+
+        node = ls("//sys/cluster_nodes")[0]
+
+        write_table("//tmp/t_in", [{"k": 0}])
+        op = map(
+            track=False,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="echo AAA >&2",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "job_count": 1,
+                    "layer_paths": ["//tmp/base_layer"],
+                    "enable_gpu_layers": True,
+                    "gpu_check_layer_name": "0",
+                    "gpu_check_binary_path": "/gpu_check/gpu_check_fail",
+                },
+            },
         )
-        create(
-            "table",
-            "//tmp/t_out",
-            attributes={"replication_factor": 1},
+
+        alerts_path = "//sys/cluster_nodes/{}/@alerts".format(node)
+        wait(lambda: get(alerts_path))
+
+        alerts = get(alerts_path)
+        assert len(alerts) == 1
+        assert "GPU check command failed" in str(alerts[0])
+
+        resource_limits_path = "//sys/cluster_nodes/{}/@resource_limits".format(node)
+        wait(lambda: get(resource_limits_path)["user_slots"] == 0)
+
+        wait(lambda: op.get_state() == "failed")
+
+    def test_gpu_check_missing(self):
+        self.setup_gpu_layer_and_reset_nodes()
+
+        self.setup_tables()
+
+        node = ls("//sys/cluster_nodes")[0]
+
+        write_table("//tmp/t_in", [{"k": 0}])
+        op = map(
+            track=False,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="echo AAA >&2",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "job_count": 1,
+                    "layer_paths": ["//tmp/base_layer"],
+                    "enable_gpu_layers": True,
+                    "gpu_check_layer_name": "0",
+                    "gpu_check_binary_path": "/gpu_check/gpu_check_missing",
+                },
+            },
         )
+
+        wait(lambda: op.get_state() == "failed")
+
+        alerts_path = "//sys/cluster_nodes/{}/@alerts".format(node)
+        assert len(get(alerts_path)) == 0
+
+    def test_disable_jobs_on_gpu_check_failure(self):
+        self.setup_gpu_layer_and_reset_nodes()
+
+        self.setup_tables()
+
+        config = {
+            "%true": {
+                "exec_agent": {
+                    "slot_manager": {
+                        "disable_jobs_on_gpu_check_failure": False
+                    }
+                }
+            }
+        }
+        set("//sys/cluster_nodes/@config", config)
 
         node = ls("//sys/cluster_nodes")[0]
 
@@ -1137,41 +1210,6 @@ class TestGpuCheck(YTEnvSetup):
 
         wait(lambda: op.get_state() == "failed")
 
-    def test_gpu_check_missing(self):
-        self.setup_files()
+        resource_limits_path = "//sys/cluster_nodes/{}/@resource_limits".format(node)
+        assert get(resource_limits_path)["user_slots"] > 0
 
-        create(
-            "table",
-            "//tmp/t_in",
-            attributes={"replication_factor": 1},
-        )
-        create(
-            "table",
-            "//tmp/t_out",
-            attributes={"replication_factor": 1},
-        )
-
-        node = ls("//sys/cluster_nodes")[0]
-
-        write_table("//tmp/t_in", [{"k": 0}])
-        op = map(
-            track=False,
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            command="echo AAA >&2",
-            spec={
-                "max_failed_job_count": 1,
-                "mapper": {
-                    "job_count": 1,
-                    "layer_paths": ["//tmp/base_layer"],
-                    "enable_gpu_layers": True,
-                    "gpu_check_layer_name": "0",
-                    "gpu_check_binary_path": "/gpu_check/gpu_check_missing",
-                },
-            },
-        )
-
-        wait(lambda: op.get_state() == "failed")
-
-        alerts_path = "//sys/cluster_nodes/{}/@alerts".format(node)
-        assert len(get(alerts_path)) == 0

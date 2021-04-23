@@ -48,7 +48,8 @@ struct IJobEnvironment
         const std::vector<NJobAgent::TShellCommandConfigPtr>& commands,
         const NContainers::TRootFS& rootFS,
         const TString& user,
-        const std::optional<std::vector<NContainers::TDevice>>& devices) = 0;
+        const std::optional<std::vector<NContainers::TDevice>>& devices,
+        int startIndex) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobEnvironment)
