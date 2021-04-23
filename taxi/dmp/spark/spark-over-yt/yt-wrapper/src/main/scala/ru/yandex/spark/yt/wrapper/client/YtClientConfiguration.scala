@@ -9,6 +9,7 @@ import ru.yandex.yt.ytclient.rpc.RpcCredentials
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
+@SerialVersionUID(-7486028686763336923L)
 case class YtClientConfiguration(proxy: String,
                                  user: String,
                                  token: String,
