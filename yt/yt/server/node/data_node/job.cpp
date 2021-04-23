@@ -1206,24 +1206,27 @@ private:
             while (auto batch = WaitForRowBatch(reader)) {
                 auto rows = batch->MaterializeRows();
 
-                if (rows.empty()) {
-                    continue;
+                const auto& readerNameTable = reader->GetNameTable();
+                auto readerTableSize = readerNameTable->GetSize();
+                TNameTableToSchemaIdMapping idMapping(readerTableSize);
+                const auto& names = readerNameTable->GetNames();
+                for (auto i = 0; i < readerTableSize; ++i) {
+                    idMapping[i] = writeNameTable->GetIdOrRegisterName(names[i]);
                 }
 
-                const auto& readNameTable = reader->GetNameTable();
-                auto readTableSize = readNameTable->GetSize();
-                TNameTableToSchemaIdMapping idMapping(readTableSize);
-                const auto& names = readNameTable->GetNames();
-
-                for (auto i = 0; i < readTableSize; ++i) {
-                    const auto& name = names[i];
-                    idMapping[i] = writeNameTable->GetIdOrRegisterName(name);
-                }
-
+                std::vector<TUnversionedRow> permutedRows;
+                permutedRows.reserve(rows.size());
                 for (auto row : rows) {
-                    auto capturedRow = rowBuffer->CaptureAndPermuteRow(row, idMapping);
-                    writer->Write({capturedRow});
+                    auto permutedRow = rowBuffer->CaptureAndPermuteRow(
+                        row,
+                        *schema,
+                        schema->GetColumnCount(),
+                        idMapping,
+                        nullptr);
+                    permutedRows.push_back(permutedRow);
                 }
+
+                writer->Write(MakeRange(permutedRows));
             }
         }
 

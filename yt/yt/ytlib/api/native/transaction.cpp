@@ -732,6 +732,7 @@ private:
                         auto capturedRow = rowBuffer->CaptureAndPermuteRow(
                             TUnversionedRow(modification.Row),
                             *modificationSchema,
+                            modificationSchema->GetKeyColumnCount(),
                             modificationIdMapping,
                             modification.Type == ERowModificationType::Write ? &columnPresenceBuffer : nullptr);
                         TTabletInfoPtr tabletInfo;

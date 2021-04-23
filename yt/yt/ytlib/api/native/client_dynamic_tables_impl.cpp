@@ -529,7 +529,12 @@ TRowset TClient::DoLookupRowsOnce(
 
     for (int index = 0; index < keys.Size(); ++index) {
         ValidateClientKey(keys[index], *schema, idMapping, nameTable);
-        auto capturedKey = inputRowBuffer->CaptureAndPermuteRow(keys[index], *schema, idMapping, nullptr);
+        auto capturedKey = inputRowBuffer->CaptureAndPermuteRow(
+            keys[index],
+            *schema,
+            schema->GetKeyColumnCount(),
+            idMapping,
+            nullptr);
 
         if (evaluator) {
             evaluator->EvaluateKeys(capturedKey, inputRowBuffer);

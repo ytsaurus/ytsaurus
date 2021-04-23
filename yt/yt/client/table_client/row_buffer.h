@@ -71,26 +71,26 @@ public:
     void CaptureValues(TMutableVersionedRow row);
 
     //! Captures the row applying #idMapping to value ids and placing values to the proper positions.
-    //! The returned row is schemaful.
-    //! Skips values that map to negative ids with via #idMapping.
+    //! Skips values that map to negative ids via #idMapping.
+    //! The resulting row consists of a schemaful prefix consisting of values whose ids
+    //! (after remapping) are less than #schemafulColumnCount
+    //! and an arbitrarily-ordered suffix of values whose ids
+    //! (after remapping) are greater than or equal to #schemafulColumnCount.
     TMutableUnversionedRow CaptureAndPermuteRow(
         TUnversionedRow row,
         const TTableSchema& tableSchema,
+        int schemafulColumnCount,
         const TNameTableToSchemaIdMapping& idMapping,
         std::vector<bool>* columnPresenceBuffer);
 
     //! Captures the row applying #idMapping to value ids.
-    //! Skips values that map to negative ids with via #idMapping.
+    //! #idMapping must be identity for key columns.
+    //! Skips values that map to negative ids via #idMapping.
     TMutableVersionedRow CaptureAndPermuteRow(
         TVersionedRow row,
         const TTableSchema& tableSchema,
         const TNameTableToSchemaIdMapping& idMapping,
         std::vector<bool>* columnPresenceBuffer);
-
-    //! Captures the row applying #idMapping to value ids.
-    TMutableUnversionedRow CaptureAndPermuteRow(
-        TUnversionedRow row,
-        const TNameTableToSchemaIdMapping& idMapping);
 
     i64 GetSize() const;
     i64 GetCapacity() const;

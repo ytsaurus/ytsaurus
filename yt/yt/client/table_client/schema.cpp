@@ -784,7 +784,6 @@ TTableSchemaPtr TTableSchema::WithTabletIndex() const
     } else {
         auto columns = Columns_;
         columns.push_back(TColumnSchema(TabletIndexColumnName, ESimpleLogicalValueType::Int64));
-
         return New<TTableSchema>(std::move(columns), Strict_, UniqueKeys_);
     }
 }
