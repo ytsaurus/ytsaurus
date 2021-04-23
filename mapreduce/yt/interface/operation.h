@@ -163,6 +163,66 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/// @brief Auto merge mode.
+///
+/// @see https://yt.yandex-team.ru/docs/description/mr/automerge
+enum class EAutoMergeMode
+{
+    /// Auto merge is disabled.
+    Disabled   /* "disabled" */,
+
+    /// Mode that tries to achieve good chunk sizes and doesn't limit usage of chunk quota for intermediate chunks.
+    Relaxed    /* "relaxed" */,
+
+    /// Mode that tries to optimize usage of chunk quota for intermediate chunks, operation might run slower.
+    Economy    /* "economy" */,
+
+    /// @breif Manual configuration of automerge parameters.
+    ///
+    /// @ref TAutoMergeSpec
+    Manual     /* "manual" */,
+};
+
+/// @brief Options for auto merge operation stage.
+///
+/// @see https://yt.yandex-team.ru/docs/description/mr/automerge
+class TAutoMergeSpec
+{
+public:
+    using TSelf = TAutoMergeSpec;
+
+    /// Mode of the auto merge.
+    FLUENT_FIELD_OPTION(EAutoMergeMode, Mode);
+
+    /// @brief Upper limit for number of intermediate chunks.
+    ///
+    /// Works only for Manual mode.
+    FLUENT_FIELD_OPTION(i64, MaxIntermediateChunkCount);
+
+    /// @brief Number of chunks limit to merge in one job.
+    ///
+    /// Works only for Manual mode.
+    FLUENT_FIELD_OPTION(i64, ChunkCountPerMergeJob);
+
+    /// @brief Automerge will not merge chunks that are larger than `DesiredChunkSize * (ChunkSizeThreshold / 100.)`
+    ///
+    /// Works only for Manual mode.
+    FLUENT_FIELD_OPTION(i64, ChunkSizeThreshold);
+};
+
+/// Base for operations with auto merge options.
+template <class TDerived>
+class TWithAutoMergeSpec
+{
+public:
+    using TSelf = TDerived;
+
+    /// @brief Options for auto merge operation stage.
+    ///
+    /// @see https://yt.yandex-team.ru/docs/description/mr/automerge
+    FLUENT_FIELD_OPTION(TAutoMergeSpec, AutoMerge);
+};
+
 /// Base for input format hints of a user job.
 template <class TDerived>
 class TUserJobInputFormatHintsBase
@@ -689,6 +749,7 @@ private:
 template <typename TDerived>
 struct TMapOperationSpecBase
     : public TUserOperationSpecBase<TDerived>
+    , public TWithAutoMergeSpec<TDerived>
 {
     using TSelf = TDerived;
 
@@ -748,6 +809,7 @@ struct TRawMapOperationSpec
 template <typename TDerived>
 struct TReduceOperationSpecBase
     : public TUserOperationSpecBase<TDerived>
+    , public TWithAutoMergeSpec<TDerived>
 {
     using TSelf = TDerived;
 

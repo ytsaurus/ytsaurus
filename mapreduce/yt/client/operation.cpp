@@ -45,11 +45,6 @@
 #include <mapreduce/yt/raw_client/raw_batch_request.h>
 #include <mapreduce/yt/raw_client/raw_requests.h>
 
-#include <mapreduce/yt/util/batch.h>
-
-#include <library/cpp/yson/writer.h>
-#include <library/cpp/yson/json_writer.h>
-
 #include <library/cpp/yson/node/serialize.h>
 
 #include <util/folder/path.h>
@@ -62,7 +57,6 @@
 
 #include <util/string/builder.h>
 #include <util/string/cast.h>
-#include <util/string/printf.h>
 
 #include <util/system/execpath.h>
 #include <util/system/mutex.h>
@@ -1157,7 +1151,25 @@ void WaitForOperation(
 
 namespace {
 
-void BuildUserJobFluently1(
+TNode BuildAutoMergeSpec(const TAutoMergeSpec& options)
+{
+    TNode result;
+    if (options.Mode_) {
+        result["mode"] = ::ToString(*options.Mode_);
+    }
+    if (options.MaxIntermediateChunkCount_) {
+        result["max_intermediate_chunk_count"] = *options.MaxIntermediateChunkCount_;
+    }
+    if (options.ChunkCountPerMergeJob_) {
+        result["chunk_count_per_merge_job"] = *options.ChunkCountPerMergeJob_;
+    }
+    if (options.ChunkSizeThreshold_) {
+        result["chunk_size_threshold"] = *options.ChunkSizeThreshold_;
+    }
+    return result;
+}
+
+void BuildUserJobFluently(
     const TJobPreparer& preparer,
     const TMaybe<TFormat>& inputFormat,
     const TMaybe<TFormat>& outputFormat,
@@ -1476,12 +1488,16 @@ TOperationId DoExecuteMap(
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
-        .Item("mapper").DoMap(std::bind(
-            BuildUserJobFluently1,
-            std::cref(map),
-            operationIo.InputFormat,
-            operationIo.OutputFormat,
-            std::placeholders::_1))
+        .Item("mapper").DoMap([&] (TFluentMap fluent) {
+            BuildUserJobFluently(
+                map,
+                operationIo.InputFormat,
+                operationIo.OutputFormat,
+                fluent);
+        })
+        .DoIf(spec.AutoMerge_.Defined(), [&] (TFluentMap fluent) {
+            fluent.Item("auto_merge").Value(BuildAutoMergeSpec(*spec.AutoMerge_));
+        })
         .Item("input_table_paths").List(operationIo.Inputs)
         .Item("output_table_paths").List(operationIo.Outputs)
         .DoIf(spec.Ordered_.Defined(), [&] (TFluentMap fluent) {
@@ -1572,12 +1588,13 @@ TOperationId DoExecuteReduce(
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
-        .Item("reducer").DoMap(std::bind(
-            BuildUserJobFluently1,
-            std::cref(reduce),
-            operationIo.InputFormat,
-            operationIo.OutputFormat,
-            std::placeholders::_1))
+        .Item("reducer").DoMap([&] (TFluentMap fluent) {
+            BuildUserJobFluently(
+                reduce,
+                operationIo.InputFormat,
+                operationIo.OutputFormat,
+                fluent);
+        })
         .Item("sort_by").Value(spec.SortBy_)
         .Item("reduce_by").Value(spec.ReduceBy_)
         .DoIf(spec.JoinBy_.Defined(), [&] (TFluentMap fluent) {
@@ -1598,6 +1615,9 @@ TOperationId DoExecuteReduce(
                 fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);
             })
         .EndMap()
+        .DoIf(spec.AutoMerge_.Defined(), [&] (TFluentMap fluent) {
+            fluent.Item("auto_merge").Value(BuildAutoMergeSpec(*spec.AutoMerge_));
+        })
         .Do(std::bind(BuildCommonOperationPart<T>, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
 
@@ -1677,12 +1697,13 @@ TOperationId DoExecuteJoinReduce(
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
-        .Item("reducer").DoMap(std::bind(
-            BuildUserJobFluently1,
-            std::cref(reduce),
-            operationIo.InputFormat,
-            operationIo.OutputFormat,
-            std::placeholders::_1))
+        .Item("reducer").DoMap([&] (TFluentMap fluent) {
+            BuildUserJobFluently(
+                reduce,
+                operationIo.InputFormat,
+                operationIo.OutputFormat,
+                fluent);
+        })
         .Item("join_by").Value(spec.JoinBy_)
         .Item("input_table_paths").List(operationIo.Inputs)
         .Item("output_table_paths").List(operationIo.Outputs)
@@ -1801,12 +1822,13 @@ TOperationId DoExecuteMapReduce(
                 1 + operationIo.MapOutputs.size(),
                 operationIo.MapperJobFiles,
                 options);
-            fluent.Item("mapper").DoMap(std::bind(
-                BuildUserJobFluently1,
-                std::cref(map),
-                *operationIo.MapperInputFormat,
-                *operationIo.MapperOutputFormat,
-                std::placeholders::_1));
+            fluent.Item("mapper").DoMap([&] (TFluentMap fluent) {
+                BuildUserJobFluently(
+                    std::cref(map),
+                    *operationIo.MapperInputFormat,
+                    *operationIo.MapperOutputFormat,
+                    fluent);
+            });
 
             title = "mapper:" + map.GetClassName() + " ";
         })
@@ -1818,20 +1840,22 @@ TOperationId DoExecuteMapReduce(
                 size_t(1),
                 operationIo.ReduceCombinerJobFiles,
                 options);
-            fluent.Item("reduce_combiner").DoMap(std::bind(
-                BuildUserJobFluently1,
-                std::cref(combine),
-                *operationIo.ReduceCombinerInputFormat,
-                *operationIo.ReduceCombinerOutputFormat,
-                std::placeholders::_1));
+            fluent.Item("reduce_combiner").DoMap([&] (TFluentMap fluent) {
+                BuildUserJobFluently(
+                    combine,
+                    *operationIo.ReduceCombinerInputFormat,
+                    *operationIo.ReduceCombinerOutputFormat,
+                    fluent);
+            });
             title += "combiner:" + combine.GetClassName() + " ";
         })
-        .Item("reducer").DoMap(std::bind(
-            BuildUserJobFluently1,
-            std::cref(reduce),
-            operationIo.ReducerInputFormat,
-            operationIo.ReducerOutputFormat,
-            std::placeholders::_1))
+        .Item("reducer").DoMap([&] (TFluentMap fluent) {
+            BuildUserJobFluently(
+                reduce,
+                operationIo.ReducerInputFormat,
+                operationIo.ReducerOutputFormat,
+                fluent);
+        })
         .Item("sort_by").Value(sortBy)
         .Item("reduce_by").Value(reduceBy)
         .Item("input_table_paths").List(operationIo.Inputs)
@@ -2389,12 +2413,13 @@ TOperationId ExecuteVanilla(
             fluent
                 .Item(task.Name_).BeginMap()
                     .Item("job_count").Value(task.JobCount_)
-                    .Do(std::bind(
-                        BuildUserJobFluently1,
-                        std::cref(jobPreparer),
-                        /* inputFormat */ Nothing(),
-                        /* outputFormat */ Nothing(),
-                        std::placeholders::_1))
+                    .Do([&] (TFluentMap fluent) {
+                        BuildUserJobFluently(
+                            std::cref(jobPreparer),
+                            /* inputFormat */ Nothing(),
+                            /* outputFormat */ Nothing(),
+                            fluent);
+                    })
                 .EndMap();
         } else {
             auto operationIo = CreateSimpleOperationIo(
@@ -2418,12 +2443,13 @@ TOperationId ExecuteVanilla(
             fluent
                 .Item(task.Name_).BeginMap()
                     .Item("job_count").Value(task.JobCount_)
-                    .Do(std::bind(
-                        BuildUserJobFluently1,
-                        std::cref(jobPreparer),
-                        /* inputFormat */ Nothing(),
-                        operationIo.OutputFormat,
-                        std::placeholders::_1))
+                    .Do([&] (TFluentMap fluent) {
+                        BuildUserJobFluently(
+                            std::cref(jobPreparer),
+                            /* inputFormat */ Nothing(),
+                            operationIo.OutputFormat,
+                            fluent);
+                    })
                     .Item("output_table_paths").List(operationIo.Outputs)
                     .Item("job_io").BeginMap()
                         .DoIf(!TConfig::Get()->TableWriter.Empty(), [&](TFluentMap fluent) {
