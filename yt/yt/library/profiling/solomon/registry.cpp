@@ -365,7 +365,8 @@ void TSolomonRegistry::ReadRecentSensorValues(
     TFluentAny fluent) const
 {
     if (Iteration_ == 0) {
-        THROW_ERROR_EXCEPTION("No sensors have been collected so far");
+        THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError,
+            "No sensors have been collected so far");
     }
 
     auto it = Sensors_.find(name);
