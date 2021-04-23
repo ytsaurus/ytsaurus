@@ -74,6 +74,8 @@ DEFINE_ENUM(ETableSchemaKind,
     (VersionedWrite)
     // Schema used for looking up rows.
     (Lookup)
+    // For sorted schemas, coincides with primary.
+    // For ordered, contains an additional tablet index columns.
     (PrimaryWithTabletIndex)
 );
 

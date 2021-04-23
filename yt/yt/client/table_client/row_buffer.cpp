@@ -105,11 +105,11 @@ std::vector<TMutableUnversionedRow> TRowBuffer::CaptureRows(TRange<TUnversionedR
 TMutableUnversionedRow TRowBuffer::CaptureAndPermuteRow(
     TUnversionedRow row,
     const TTableSchema& tableSchema,
+    int schemafulColumnCount,
     const TNameTableToSchemaIdMapping& idMapping,
     std::vector<bool>* columnPresenceBuffer)
 {
-    int keyColumnCount = tableSchema.GetKeyColumnCount();
-    int columnCount = keyColumnCount;
+    int valueCount = schemafulColumnCount;
 
     if (columnPresenceBuffer) {
         ValidateDuplicateAndRequiredValueColumns(row, tableSchema, idMapping, columnPresenceBuffer);
@@ -122,14 +122,17 @@ TMutableUnversionedRow TRowBuffer::CaptureAndPermuteRow(
         if (mappedId < 0) {
             continue;
         }
-        YT_VERIFY(mappedId < tableSchema.Columns().size());
-        if (mappedId >= keyColumnCount) {
-            ++columnCount;
+        if (mappedId >= schemafulColumnCount) {
+            ++valueCount;
         }
     }
 
-    auto capturedRow = TMutableUnversionedRow::Allocate(&Pool_, columnCount);
-    columnCount = keyColumnCount;
+    auto capturedRow = TMutableUnversionedRow::Allocate(&Pool_, valueCount);
+    for (int pos = 0; pos < schemafulColumnCount; ++pos) {
+        capturedRow[pos] = MakeUnversionedNullValue(pos);
+    }
+
+    valueCount = schemafulColumnCount;
 
     for (const auto& value : row) {
         ui16 originalId = value.Id;
@@ -137,7 +140,7 @@ TMutableUnversionedRow TRowBuffer::CaptureAndPermuteRow(
         if (mappedId < 0) {
             continue;
         }
-        int pos = mappedId < keyColumnCount ? mappedId : columnCount++;
+        int pos = mappedId < schemafulColumnCount ? mappedId : valueCount++;
         capturedRow[pos] = value;
         capturedRow[pos].Id = mappedId;
     }
@@ -181,21 +184,6 @@ void TRowBuffer::CaptureValues(TMutableVersionedRow row)
     for (int index = 0; index < row.GetValueCount(); ++index) {
         CaptureValue(row.BeginValues() + index);
     }
-}
-
-TMutableUnversionedRow TRowBuffer::CaptureAndPermuteRow(
-    TUnversionedRow row,
-    const TNameTableToSchemaIdMapping& idMapping)
-{
-    auto capturedRow = TMutableUnversionedRow::Allocate(&Pool_, row.GetCount());
-
-    for (int i = 0; i < row.GetCount(); ++i) {
-        const auto& value = row[i];
-        capturedRow[i] = value;
-        capturedRow[i].Id = idMapping[value.Id];
-    }
-
-    return capturedRow;
 }
 
 TMutableVersionedRow TRowBuffer::CaptureAndPermuteRow(

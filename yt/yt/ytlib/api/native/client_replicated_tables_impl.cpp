@@ -105,7 +105,7 @@ std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
                 cellToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
             }
         };
-        
+
         if (allKeys) {
             for (const auto& tabletInfo : tableInfo->Tablets) {
                 registerTablet(tabletInfo);
@@ -120,15 +120,20 @@ std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
 
             auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
             auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(schema) : nullptr;
-            
+
             for (auto key : keys) {
                 ValidateClientKey(key, *schema, idMapping, nameTable);
-                auto capturedKey = rowBuffer->CaptureAndPermuteRow(key, *schema, idMapping, nullptr);
+                auto capturedKey = rowBuffer->CaptureAndPermuteRow(
+                    key,
+                    *schema,
+                    schema->GetKeyColumnCount(),
+                    idMapping,
+                    nullptr);
 
                 if (evaluator) {
                     evaluator->EvaluateKeys(capturedKey, rowBuffer);
                 }
-                
+
                 registerTablet(tableInfo->GetTabletForRow(capturedKey));
             }
         }
@@ -148,7 +153,7 @@ std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
 
             futures.push_back(req->Invoke());
         }
-        
+
         auto responsesResult = WaitFor(AllSucceeded(futures));
         auto responses = responsesResult.ValueOrThrow();
 
