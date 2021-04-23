@@ -371,7 +371,7 @@ class TestAccessLog(YTEnvSetup):
 
         wait(lambda : not exists("//tmp/access_log/table"))
 
-        log_list.append({"path": "//tmp/access_log/table", "method": "Remove"})
+        log_list.append({"path": "//tmp/access_log/table", "method": "TtlRemove"})
         self._validate_entries_against_log(log_list)
 
 ##################################################################
