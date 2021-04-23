@@ -213,10 +213,11 @@ public:
         const std::vector<NJobAgent::TShellCommandConfigPtr>& commands,
         const NContainers::TRootFS& rootFS,
         const TString& user,
-        const std::optional<std::vector<TDevice>>& devices)
+        const std::optional<std::vector<TDevice>>& devices,
+        int startIndex)
     {
         return RunPrepareAction<void>([&] {
-                return JobEnvironment_->RunSetupCommands(SlotIndex_, jobId, commands, rootFS, user, devices);
+                return JobEnvironment_->RunSetupCommands(SlotIndex_, jobId, commands, rootFS, user, devices, startIndex);
             },
             // Setup commands are uncancelable since they are run in separate processes.
             true);

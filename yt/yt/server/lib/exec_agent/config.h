@@ -165,9 +165,6 @@ public:
     //! Polymorphic job environment configuration.
     NYTree::INodePtr JobEnvironment;
 
-    //! Fail node if some error occurred during slot cleanup.
-    bool SlotInitializationFailureIsFatal;
-
     //! Chunk size used for copying chunks if #copy_chunks is set to %true in operation spec.
     i64 FileCopyChunkSize;
 
@@ -193,8 +190,6 @@ public:
             .Default(true);
         RegisterParameter("job_environment", JobEnvironment)
             .Default(ConvertToNode(New<TSimpleJobEnvironmentConfig>()));
-        RegisterParameter("slot_initialization_failure_is_fatal", SlotInitializationFailureIsFatal)
-            .Default(false);
         RegisterParameter("file_copy_chunk_size", FileCopyChunkSize)
             .GreaterThanOrEqual(1_KB)
             .Default(10_MB);
@@ -502,15 +497,37 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSlotManagerDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    std::optional<bool> DisableJobsOnGpuCheckFailure;
+
+    TSlotManagerDynamicConfig()
+    {
+        RegisterParameter("disable_jobs_on_gpu_check_failure", DisableJobsOnGpuCheckFailure)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TSlotManagerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TExecAgentDynamicConfig
     : public NYTree::TYsonSerializable
 {
 public:
     TMasterConnectorDynamicConfigPtr MasterConnector;
 
+    TSlotManagerDynamicConfigPtr SlotManager;
+
     TExecAgentDynamicConfig()
     {
         RegisterParameter("master_connector", MasterConnector)
+            .DefaultNew();
+        
+        RegisterParameter("slot_manager", SlotManager)
             .DefaultNew();
     }
 };
