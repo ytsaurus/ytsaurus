@@ -133,6 +133,7 @@ DEFINE_ENUM(EMasterReign,
     ((ProfilingModePathLetters)                                     (1608))  // prime
     ((FixChunkMergerPersistence)                                    (1609))  // gritukan
     ((CellNamesInUserLimits)                                        (1610))  // aleksandra-zh
+    ((WaitUnmountBeforeTabletCellDecommission)                      (1611))  // savrus
 );
 
 ////////////////////////////////////////////////////////////////////////////////

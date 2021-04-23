@@ -2438,6 +2438,18 @@ private:
             UnbindTabletActionFromCells(action);
             OnTabletActionDisturbed(action, TError("Tablet cell %v has been decommissioned", cell->GetId()));
         }
+
+        CheckIfFullyUnmounted(cell);
+    }
+
+    void CheckIfFullyUnmounted(TTabletCell* tabletCell)
+    {
+        if (!tabletCell->IsDecommissionStarted()) {
+            return;
+        }
+        if (tabletCell->GossipStatistics().Local().TabletCount == 0) {
+            tabletCell->GossipStatus().Local().Decommissioned = true;
+        }
     }
 
     TTabletCellBundle* DoFindTabletCellBundleByName(const TString& name)
@@ -4935,6 +4947,7 @@ private:
         auto tabletStatistics = GetTabletStatistics(tablet);
         cell->GossipStatistics().Local() -= tabletStatistics;
         table->DiscountTabletStatistics(tabletStatistics);
+        CheckIfFullyUnmounted(cell);
 
         auto resourceUsageBefore = table->GetTabletResourceUsage();
 

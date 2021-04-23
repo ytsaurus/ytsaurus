@@ -657,7 +657,6 @@ public:
         }
 
         cell->SetCellLifeStage(ECellLifeStage::DecommissioningOnMaster);
-        cell->GossipStatus().Local().Decommissioned = true;
 
         CellDecommissionStarted_.Fire(cell);
     }
