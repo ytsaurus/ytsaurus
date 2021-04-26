@@ -149,7 +149,7 @@ class TestLowCpuUsageSchedulerAlertAbsence(LowCpuUsageSchedulerAlertBase):
             "operation_alerts": {
                 "low_cpu_usage_alert_min_execution_time": 1,
                 "low_cpu_usage_alert_min_average_job_time": 1,
-                "low_cpu_usage_alert_cpu_usage_threshold": 0.4,
+                "low_cpu_usage_alert_cpu_usage_threshold": 0.35,
             },
         }
     }
