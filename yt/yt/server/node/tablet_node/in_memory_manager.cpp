@@ -297,7 +297,7 @@ private:
             return;
         }
 
-        bool failed = true;
+        bool failed = false;
         auto readerProfiler = New<TReaderProfiler>();
         auto profileGuard = Finally([&] () {
             readerProfiler->Profile(tabletSnapshot, EChunkReadProfilingMethod::Preload, failed);
@@ -337,7 +337,7 @@ private:
                 << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
                 << TErrorAttribute("background_activity", ETabletBackgroundActivity::Preload);
 
-            failed = false;
+            failed = true;
             tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Preload].Store(error);
         } catch (const TFiberCanceledException&) {
             YT_LOG_DEBUG("Preload cancelled");
