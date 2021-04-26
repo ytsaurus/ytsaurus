@@ -127,6 +127,9 @@ class InfraClient(object):
     def delete_event(self, event_id):
         self._request("delete", "events/{0}".format(event_id))
 
+    def get_event(self, event_id):
+        return self._request("get", "events/{0}".format(event_id))
+
     def get_events(self, filter=None):
         return self._request("get", "events", params=filter).json()
 
