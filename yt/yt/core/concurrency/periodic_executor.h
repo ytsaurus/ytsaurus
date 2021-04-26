@@ -45,9 +45,7 @@ public:
     TPeriodicExecutor(
         IInvokerPtr invoker,
         TClosure callback,
-        std::optional<TDuration> period = std::nullopt)
-        : TPeriodicExecutor(invoker, callback, period, TDuration::Zero())
-    { }
+        std::optional<TDuration> period = std::nullopt);
 
     TPeriodicExecutor(
         IInvokerPtr invoker,

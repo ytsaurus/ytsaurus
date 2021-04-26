@@ -43,6 +43,13 @@ TPeriodicExecutor::TPeriodicExecutor(
 TPeriodicExecutor::TPeriodicExecutor(
     IInvokerPtr invoker,
     TClosure callback,
+    std::optional<TDuration> period)
+    : TPeriodicExecutor(invoker, callback, period, TDuration::Zero())
+{ }
+
+TPeriodicExecutor::TPeriodicExecutor(
+    IInvokerPtr invoker,
+    TClosure callback,
     TPeriodicExecutorOptions options)
     : Invoker_(std::move(invoker))
     , Callback_(std::move(callback))
