@@ -389,9 +389,6 @@ class TestControllerAgentReconnection(YTEnvSetup):
         "scheduler": {
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
-            "controller_agent_tracker": {
-                "heartbeat_timeout": 2000,
-            },
             "testing_options": {
                 "finish_operation_transition_delay": 2000,
             },
