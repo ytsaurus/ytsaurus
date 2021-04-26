@@ -353,6 +353,9 @@ void WriteCustomStatistics(TStringBuf path, i64 value)
     WriteCustomStatisticsAny(path, value);
 }
 
+void FlushCustomStatisticsStream() {
+    GetStatisticsStream()->Flush();
+}
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

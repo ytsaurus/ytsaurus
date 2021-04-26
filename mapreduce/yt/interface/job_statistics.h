@@ -259,6 +259,10 @@ void WriteCustomStatistics(TStringBuf path, i64 value);
 /// @note The call is equivalent to calling @ref NYT::WriteCustomStatistics(TStringBuf, i64) for every path in the given map.
 void WriteCustomStatistics(const TNode& statistics);
 
+///
+/// @brief Flush [custom statistics stream](https://yt.yandex-team.ru/docs/description/mr/jobs#user_stats)
+///
+void FlushCustomStatisticsStream();
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
