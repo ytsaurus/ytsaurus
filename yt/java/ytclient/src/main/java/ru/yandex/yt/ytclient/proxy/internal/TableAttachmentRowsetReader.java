@@ -38,9 +38,7 @@ public abstract class TableAttachmentRowsetReader<T> implements TableAttachmentR
             builder.addAllNameTableEntries(rowsetDescriptor.getNameTableEntriesList());
             currentRowsetDescriptor = builder.build();
             currentReadSchema = ApiServiceUtil.deserializeRowsetSchema(currentRowsetDescriptor);
-        } else {
-            // schema is not changed
-        }
+        } // else schema is not changed
 
         bb.position(endPosition);
     }

@@ -8,15 +8,29 @@ import java.util.Random;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 
 public class Manifold {
-    public static List<RpcClient> selectDestinations(DataCenter [] dataCenters, int maxSelect, boolean hasLocal, Random rnd) {
+    private Manifold() {
+    }
+
+    public static List<RpcClient> selectDestinations(
+            DataCenter[] dataCenters,
+            int maxSelect,
+            boolean hasLocal,
+            Random rnd
+    ) {
         return selectDestinations(dataCenters, maxSelect, hasLocal, rnd, false);
     }
 
-    public static List<RpcClient> selectDestinations(DataCenter [] dataCenters, int maxSelect, boolean hasLocal, Random rnd, boolean sortDcByPing) {
+    public static List<RpcClient> selectDestinations(
+            DataCenter[] dataCenters,
+            int maxSelect,
+            boolean hasLocal,
+            Random rnd,
+            boolean sortDcByPing
+    ) {
         List<RpcClient> r = new ArrayList<>();
 
         int n = dataCenters.length;
-        DataCenter [] selectedDc = Arrays.copyOf(dataCenters, n);
+        DataCenter[] selectedDc = Arrays.copyOf(dataCenters, n);
 
         int from = 0;
         if (hasLocal) {
@@ -24,8 +38,11 @@ public class Manifold {
         }
 
         if (sortDcByPing) {
-            Arrays.sort(selectedDc, from, n, (a, b) ->
-                    (int)(1000*(a.weight() - b.weight()))
+            Arrays.sort(
+                    selectedDc,
+                    from,
+                    n,
+                    (a, b) -> (int) (1000 * (a.weight() - b.weight()))
             );
         } else {
             // shuffle

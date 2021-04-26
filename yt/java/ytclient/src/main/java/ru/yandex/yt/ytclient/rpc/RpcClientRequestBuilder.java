@@ -34,7 +34,10 @@ public interface RpcClientRequestBuilder<RequestType extends MessageLite.Builder
     /**
      * Make asynchronous request. RpcClient is taken from given pool.
      */
-    CompletableFuture<RpcClientResponse<ResponseType>> invokeVia(ScheduledExecutorService executor, RpcClientPool clientPool);
+    CompletableFuture<RpcClientResponse<ResponseType>> invokeVia(
+            ScheduledExecutorService executor,
+            RpcClientPool clientPool
+    );
 
     RpcOptions getOptions();
 

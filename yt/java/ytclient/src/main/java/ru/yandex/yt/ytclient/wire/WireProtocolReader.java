@@ -174,6 +174,8 @@ public class WireProtocolReader {
             case ANY:
                 limit = WireProtocol.MAX_ANY_VALUE_LENGTH;
                 break;
+            default:
+                break;
         }
         if (length < 0 || length > limit) {
             throw new IllegalStateException("Unsupported " + type + " data length " + length);
@@ -198,7 +200,11 @@ public class WireProtocolReader {
         }
     }
 
-    private void readSchemafulValues(WireValueDeserializer<?> consumer, List<WireColumnSchema> schemaData, int valueCount) {
+    private void readSchemafulValues(
+            WireValueDeserializer<?> consumer,
+            List<WireColumnSchema> schemaData,
+            int valueCount
+    ) {
         final Bitmap nullBitmap = readNullBitmap(valueCount);
         for (int index = 0; index < valueCount; index++) {
             final WireColumnSchema column = schemaData.get(index);

@@ -70,12 +70,22 @@ public class FailureDetectingRpcClient extends RpcClientWrapper {
     }
 
     @Override
-    public RpcClientRequestControl send(RpcClient sender, RpcRequest<?> request, RpcClientResponseHandler handler, RpcOptions options) {
+    public RpcClientRequestControl send(
+            RpcClient sender,
+            RpcRequest<?> request,
+            RpcClientResponseHandler handler,
+            RpcOptions options
+    ) {
         return super.send(sender, request, wrapHandler(handler), options);
     }
 
     @Override
-    public RpcClientStreamControl startStream(RpcClient sender, RpcRequest<?> request, RpcStreamConsumer consumer, RpcOptions options) {
+    public RpcClientStreamControl startStream(
+            RpcClient sender,
+            RpcRequest<?> request,
+            RpcStreamConsumer consumer,
+            RpcOptions options
+    ) {
         return super.startStream(sender, request, consumer, options);
     }
 }

@@ -37,8 +37,8 @@ public class LazyResponse<ResponseType extends MessageLite> implements RpcClient
             byte[] body,
             List<byte[]> attachments,
             RpcClient sender,
-            @Nullable TResponseHeader responseHeader)
-    {
+            @Nullable TResponseHeader responseHeader
+    ) {
         this.parser = parser;
         this.bodyData = body;
         this.sender = Objects.requireNonNull(sender);

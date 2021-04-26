@@ -15,7 +15,9 @@ import ru.yandex.yt.ytclient.proxy.request.RequestBase;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 @NonNullApi
-public class SelectRowsRequest extends RequestBase<SelectRowsRequest> implements HighLevelRequest<TReqSelectRows.Builder> {
+public class SelectRowsRequest
+        extends RequestBase<SelectRowsRequest>
+        implements HighLevelRequest<TReqSelectRows.Builder> {
     private final String query;
     @Nullable private YtTimestamp timestamp;
     @Nullable private Long inputRowsLimit;

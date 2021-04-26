@@ -22,7 +22,6 @@ public class WireProtocolWriter {
     private final ChunkedWriter writer;
     private ByteBuffer current;
     private int currentStart;
-    private long flushed;
 
     public WireProtocolWriter() {
         this(new ArrayList<>());
@@ -95,7 +94,6 @@ public class WireProtocolWriter {
     private void flushCurrent() {
         if (current != null) {
             writer.advance(current.position() - currentStart);
-            flushed += current.position() - currentStart;
             current = null;
         }
     }
@@ -160,6 +158,8 @@ public class WireProtocolWriter {
                 writeLong(data.length);
                 writeBytes(data);
                 break;
+            default:
+                break;
         }
     }
 
@@ -195,6 +195,8 @@ public class WireProtocolWriter {
             case STRING:
             case ANY:
                 writeBytes(value.bytesValue());
+                break;
+            default:
                 break;
         }
     }
@@ -234,7 +236,7 @@ public class WireProtocolWriter {
     }
 
     public <T> void writeUnversionedRow(T row, WireRowSerializer<T> serializer) {
-        writeUnversionedRow(row, serializer, (int[])null);
+        writeUnversionedRow(row, serializer, (int[]) null);
     }
 
     public <T> void writeUnversionedRow(T row, WireRowSerializer<T> serializer, int[] idMapping) {
@@ -242,10 +244,15 @@ public class WireProtocolWriter {
     }
 
     public <T> void writeUnversionedRow(T row, WireRowSerializer<T> serializer, boolean keyFieldsOnly) {
-        writeUnversionedRow(row, serializer, keyFieldsOnly, (int[])null);
+        writeUnversionedRow(row, serializer, keyFieldsOnly, (int[]) null);
     }
 
-    public <T> void writeUnversionedRow(T row, WireRowSerializer<T> serializer, boolean keyFieldsOnly, int[] idMapping) {
+    public <T> void writeUnversionedRow(
+            T row,
+            WireRowSerializer<T> serializer,
+            boolean keyFieldsOnly,
+            int[] idMapping
+    ) {
         if (row != null) {
             serializer.serializeRow(row, this.writeable, keyFieldsOnly, idMapping);
         } else {
@@ -298,7 +305,7 @@ public class WireProtocolWriter {
     }
 
     public <T> void writeUnversionedRowset(List<T> rows, WireRowSerializer<T> serializer) {
-        writeUnversionedRowset(rows, serializer, (int[])null);
+        writeUnversionedRowset(rows, serializer, (int[]) null);
     }
 
     public <T> void writeUnversionedRowset(List<T> rows, WireRowSerializer<T> serializer, int[] idMapping) {
@@ -309,10 +316,15 @@ public class WireProtocolWriter {
     }
 
     public <T> void writeUnversionedRowset(List<T> rows, WireRowSerializer<T> serializer, KeyFieldsOnlyFunction func) {
-        writeUnversionedRowset(rows, serializer, func, (int[])null);
+        writeUnversionedRowset(rows, serializer, func, (int[]) null);
     }
 
-    public <T> void writeUnversionedRowset(List<T> rows, WireRowSerializer<T> serializer, KeyFieldsOnlyFunction func, int[] idMapping) {
+    public <T> void writeUnversionedRowset(
+            List<T> rows,
+            WireRowSerializer<T> serializer,
+            KeyFieldsOnlyFunction func,
+            int[] idMapping
+    ) {
         final int rowCount = rows.size();
         writeRowCount(rowCount);
         for (int i = 0; i < rowCount; i++) {

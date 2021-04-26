@@ -14,7 +14,9 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
  *     abort_tx documentation
  *     </a>
  */
-public class AbortTransaction extends RequestBase<AbortTransaction> implements HighLevelRequest<TReqAbortTransaction.Builder> {
+public class AbortTransaction
+        extends RequestBase<AbortTransaction>
+        implements HighLevelRequest<TReqAbortTransaction.Builder> {
     final GUID transactionId;
 
     public AbortTransaction(GUID transactionId) {

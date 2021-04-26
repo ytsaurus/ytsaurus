@@ -16,9 +16,12 @@ public class VersionedRow {
     private final List<UnversionedValue> keys;
     private final List<VersionedValue> values;
 
-    public VersionedRow(List<Long> writeTimestamps, List<Long> deleteTimestamps,
-            List<UnversionedValue> keys, List<VersionedValue> values)
-    {
+    public VersionedRow(
+            List<Long> writeTimestamps,
+            List<Long> deleteTimestamps,
+            List<UnversionedValue> keys,
+            List<VersionedValue> values
+    ) {
         this.writeTimestamps = Objects.requireNonNull(writeTimestamps);
         this.deleteTimestamps = Objects.requireNonNull(deleteTimestamps);
         this.keys = Objects.requireNonNull(keys);

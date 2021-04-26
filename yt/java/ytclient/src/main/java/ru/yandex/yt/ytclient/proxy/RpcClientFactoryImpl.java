@@ -13,9 +13,10 @@ class RpcClientFactoryImpl implements RpcClientFactory {
     private final RpcCredentials credentials;
     private final RpcCompression compression;
 
-    RpcClientFactoryImpl(BusConnector connector,
-                                RpcCredentials credentials,
-                                RpcCompression compression
+    RpcClientFactoryImpl(
+            BusConnector connector,
+            RpcCredentials credentials,
+            RpcCompression compression
     ) {
         this.connector = connector;
         this.credentials = credentials;

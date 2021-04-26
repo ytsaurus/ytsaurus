@@ -40,13 +40,18 @@ public class RpcClientWrapper implements RpcClient {
             RpcClient sender,
             RpcRequest<?> request,
             RpcClientResponseHandler handler,
-            RpcOptions options)
-    {
+            RpcOptions options
+    ) {
         return innerClient.send(sender, request, handler, options);
     }
 
     @Override
-    public RpcClientStreamControl startStream(RpcClient sender, RpcRequest<?> request, RpcStreamConsumer consumer, RpcOptions options) {
+    public RpcClientStreamControl startStream(
+            RpcClient sender,
+            RpcRequest<?> request,
+            RpcStreamConsumer consumer,
+            RpcOptions options
+    ) {
         return innerClient.startStream(sender, request, consumer, options);
     }
 
@@ -64,11 +69,6 @@ public class RpcClientWrapper implements RpcClient {
     @Override
     public String getAddressString() {
         return innerClient.getAddressString();
-    }
-
-    @Override
-    public int hashCode() {
-        return super.hashCode();
     }
 
     @Override

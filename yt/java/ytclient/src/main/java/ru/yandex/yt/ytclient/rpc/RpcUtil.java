@@ -41,6 +41,9 @@ public class RpcUtil {
     public static final long MICROS_PER_SECOND = 1_000_000L;
     public static final long NANOS_PER_MICROSECOND = 1_000L;
 
+    private RpcUtil() {
+    }
+
     public static byte[] createMessageHeader(RpcMessageType type, MessageLite header) {
         int size = header.getSerializedSize();
         byte[] data = new byte[4 + size];
@@ -98,8 +101,8 @@ public class RpcUtil {
     public static <T> T parseMessageBodyWithCompression(
             byte[] data,
             Parser<T> parser,
-            Compression compression)
-    {
+            Compression compression
+    ) {
         try {
             Codec codec = Codec.codecFor(compression);
             byte[] decompressed = codec.decompress(data);
@@ -111,8 +114,8 @@ public class RpcUtil {
 
     public static <T> T parseMessageBodyWithEnvelope(
             byte[] data,
-            Parser<T> parser)
-    {
+            Parser<T> parser
+    ) {
         if (data == null || data.length < 8) {
             throw new IllegalStateException("Missing fixed envelope header");
         }
@@ -144,9 +147,7 @@ public class RpcUtil {
         }
     }
 
-    public static List<byte[]> createRequestMessage(TRequestHeader header, MessageLite body,
-            List<byte[]> attachments)
-    {
+    public static List<byte[]> createRequestMessage(TRequestHeader header, MessageLite body, List<byte[]> attachments) {
         Compression attachmentsCodec = header.hasRequestCodec() ?
                 Compression.fromValue(header.getRequestCodec()) :
                 Compression.fromValue(0);
@@ -201,9 +202,12 @@ public class RpcUtil {
     /**
      * Транслирует результат применения fn.apply(value) в результат для f
      */
-    public static <T, U> void relayApply(CompletableFuture<U> f, T value, Throwable exception,
-            Function<? super T, ? extends U> fn)
-    {
+    public static <T, U> void relayApply(
+            CompletableFuture<U> f,
+            T value,
+            Throwable exception,
+            Function<? super T, ? extends U> fn
+    ) {
         if (!f.isDone()) {
             if (exception != null) {
                 f.completeExceptionally(exception);
@@ -243,9 +247,11 @@ public class RpcUtil {
      * <p>
      * - Автоматически вызывается cancel(false) на f
      */
-    public static <T, U> CompletableFuture<U> applyAsync(CompletableFuture<T> f, Function<? super T, ? extends U> fn,
-            Executor executor)
-    {
+    public static <T, U> CompletableFuture<U> applyAsync(
+            CompletableFuture<T> f,
+            Function<? super T, ? extends U> fn,
+            Executor executor
+    ) {
         CompletableFuture<U> result = new CompletableFuture<>();
         f.whenCompleteAsync((r, e) -> relayApply(result, r, e, fn), executor);
         relayCancel(result, f);
@@ -262,8 +268,8 @@ public class RpcUtil {
             @Nonnull String errorMessage,
             long delay,
             @Nonnull TimeUnit timeUnit,
-            @Nonnull ScheduledExecutorService scheduledExecutorService)
-    {
+            @Nonnull ScheduledExecutorService scheduledExecutorService
+    ) {
         if (!f.isDone()) {
             ScheduledFuture<?> cancelFuture = scheduledExecutorService.schedule(
                     () -> f.completeExceptionally(new TimeoutException(errorMessage)),

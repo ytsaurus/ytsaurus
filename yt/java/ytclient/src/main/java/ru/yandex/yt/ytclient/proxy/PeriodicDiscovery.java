@@ -65,6 +65,7 @@ public class PeriodicDiscovery implements AutoCloseable, Closeable {
 
     private volatile boolean running = true;
 
+    @SuppressWarnings("checkstyle:ParameterNumber")
     public PeriodicDiscovery(
             String datacenterName,
             List<String> initialAddresses,
@@ -74,7 +75,8 @@ public class PeriodicDiscovery implements AutoCloseable, Closeable {
             RpcOptions options,
             RpcCredentials credentials,
             RpcCompression compression,
-            @Nullable PeriodicDiscoveryListener listener) {
+            @Nullable PeriodicDiscoveryListener listener
+    ) {
         this.connector = Objects.requireNonNull(connector);
         this.datacenterName = Objects.requireNonNull(datacenterName);
         this.updatePeriod = options.getProxyUpdateTimeout();
@@ -198,14 +200,14 @@ public class PeriodicDiscovery implements AutoCloseable, Closeable {
                 }
 
                 YTreeNode node = YTreeTextSerializer.deserialize(response.getResponseBodyAsStream());
-                List<HostPort> proxies = node
+                List<HostPort> curProxies = node
                         .asMap()
                         .getOrThrow("proxies")
                         .asList()
                         .map(YTreeNode::stringValue)
                         .map(HostPort::parse);
 
-                processProxies(new HashSet<>(proxies));
+                processProxies(new HashSet<>(curProxies));
             } catch (Throwable e) {
                 if (listener != null) {
                     listener.onError(e);
@@ -282,11 +284,7 @@ class HttpProxyGetter implements ProxyGetter {
     String balancerHost;
     @Nullable String role;
 
-    public HttpProxyGetter(
-            AsyncHttpClient httpClient,
-            String balancerHost,
-            @Nullable String role)
-    {
+    HttpProxyGetter(AsyncHttpClient httpClient, String balancerHost, @Nullable String role) {
         this.httpClient = httpClient;
         this.balancerHost = balancerHost;
         this.role = role;
@@ -302,7 +300,8 @@ class HttpProxyGetter implements ProxyGetter {
                         .setUrl(discoverProxiesUrl)
                         .setHeader("X-YT-Header-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT))
                         .setHeader("X-YT-Output-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT));
-        CompletableFuture<Response> responseFuture = httpClient.executeRequest(requestBuilder.build()).toCompletableFuture();
+        CompletableFuture<Response> responseFuture =
+                httpClient.executeRequest(requestBuilder.build()).toCompletableFuture();
 
         CompletableFuture<List<HostPort>> resultFuture = responseFuture.thenApply((response) -> {
             // TODO: this should use common library of raw requests.
@@ -358,8 +357,8 @@ class RpcProxyGetter implements ProxyGetter {
             String dataCenterName,
             RpcClientFactory clientFactory,
             RpcOptions options,
-            Random random)
-    {
+            Random random
+    ) {
         this.initialProxyList = Collections.unmodifiableList(initialProxyList);
         this.clientPool = clientPool;
         this.role = role;

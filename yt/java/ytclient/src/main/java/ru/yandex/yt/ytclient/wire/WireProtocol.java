@@ -8,6 +8,9 @@ public class WireProtocol {
     public static final int MAX_ANY_VALUE_LENGTH = 16 * 1024 * 1024;
     public static final int SERIALIZATION_ALIGNMENT = 8;
 
+    private WireProtocol() {
+    }
+
     public static int alignTail(int size) {
         return -size & (SERIALIZATION_ALIGNMENT - 1);
     }

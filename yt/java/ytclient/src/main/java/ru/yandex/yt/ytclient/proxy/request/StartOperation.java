@@ -13,7 +13,9 @@ import ru.yandex.yt.rpcproxy.TReqStartOperation;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
-public class StartOperation extends RequestBase<StartOperation> implements HighLevelRequest<TReqStartOperation.Builder> {
+public class StartOperation
+        extends RequestBase<StartOperation>
+        implements HighLevelRequest<TReqStartOperation.Builder> {
     private final EOperationType type;
     private final YTreeNode spec;
 

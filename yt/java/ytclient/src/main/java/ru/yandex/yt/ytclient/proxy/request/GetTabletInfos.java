@@ -12,7 +12,9 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 @NonNullFields
 @NonNullApi
-public class GetTabletInfos extends RequestBase<GetTabletInfos> implements HighLevelRequest<TReqGetTabletInfos.Builder> {
+public class GetTabletInfos
+        extends RequestBase<GetTabletInfos>
+        implements HighLevelRequest<TReqGetTabletInfos.Builder> {
     private final String path;
     private final List<Integer> tabletIndexes = new ArrayList<>();
 

@@ -12,7 +12,7 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
 @NonNullFields
 @NonNullApi
 public class GcCollect extends RequestBase<GcCollect> implements HighLevelRequest<TReqGCCollect.Builder> {
-    final private GUID cellId;
+    private final GUID cellId;
 
     public GcCollect(GUID cellId) {
         this.cellId = cellId;

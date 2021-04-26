@@ -10,8 +10,9 @@ import ru.yandex.yt.ytclient.wire.VersionedRow;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
 import ru.yandex.yt.ytclient.wire.WireProtocolReader;
 
-public class VersionedRowsetDeserializer extends VersionedRowDeserializer implements WireVersionedRowsetDeserializer<VersionedRow> {
-
+public class VersionedRowsetDeserializer
+        extends VersionedRowDeserializer
+        implements WireVersionedRowsetDeserializer<VersionedRow> {
     private final TableSchema schema;
     private List<VersionedRow> rows = Collections.emptyList();
 

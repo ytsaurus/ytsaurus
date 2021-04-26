@@ -11,17 +11,19 @@ import ru.yandex.yt.rpcproxy.TReqConcatenateNodes;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
-public class ConcatenateNodes extends MutateNode<ConcatenateNodes> implements HighLevelRequest<TReqConcatenateNodes.Builder> {
-    private final String [] srcPaths;
+public class ConcatenateNodes
+        extends MutateNode<ConcatenateNodes>
+        implements HighLevelRequest<TReqConcatenateNodes.Builder> {
+    private final String[] srcPaths;
     private final String dstPath;
 
-    public ConcatenateNodes(String [] from, String to) {
+    public ConcatenateNodes(String[] from, String to) {
         this.srcPaths = from;
         this.dstPath = to;
     }
 
     public ConcatenateNodes(List<YPath> source, YPath dest) {
-        this((String[])source.stream().map(YPath::toString).toArray(), dest.toString());
+        this((String[]) source.stream().map(YPath::toString).toArray(), dest.toString());
     }
 
     @Override

@@ -59,15 +59,11 @@ class MultiDcClientPool implements RpcClientPool {
     @Nullable final DataCenterRpcClientPool localDcPool;
     final DataCenterMetricsHolder dcMetricHolder;
 
-    static Builder builder() {
-        return new Builder();
-    }
-
     private MultiDcClientPool(Builder builder) {
         clientPools = builder.clientPools.toArray(new DataCenterRpcClientPool[0]);
         if (builder.localDc != null) {
             localDcPool = builder.clientPools.stream()
-                    .filter((clientPool) -> builder.localDc.equals(YtCluster.normalizeName(clientPool.getDataCenterName())))
+                    .filter((pool) -> builder.localDc.equals(YtCluster.normalizeName(pool.getDataCenterName())))
                     .findFirst().orElse(null);
             if (localDcPool == null) {
                 // N.B. actually we should throw exception
@@ -83,6 +79,10 @@ class MultiDcClientPool implements RpcClientPool {
             localDcPool = null;
         }
         dcMetricHolder = Objects.requireNonNull(builder.dcMetricHolder);
+    }
+
+    static Builder builder() {
+        return new Builder();
     }
 
     @Override
@@ -157,7 +157,7 @@ class MultiDcClientPool implements RpcClientPool {
     }
 
     @Nullable
-    static private RpcClient getImmediateResult(CompletableFuture<RpcClient> future) {
+    private static RpcClient getImmediateResult(CompletableFuture<RpcClient> future) {
         try {
             return future.getNow(null);
         } catch (Throwable error) {
@@ -215,73 +215,6 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
     State state = State.NOT_STARTED;
     Future<?> nextUpdate = new CompletableFuture<>();
 
-    static HttpBuilder httpBuilder() {
-        return new HttpBuilder();
-    }
-
-    static RpcBuilder rpcBuilder() {
-        return new RpcBuilder();
-    }
-
-    void start() {
-        synchronized (this) {
-            if (state == State.NOT_STARTED) {
-                state = State.RUNNING;
-                setOnAllBannedCallback(()->doUpdate(false));
-                nextUpdate = executorService.submit(() -> doUpdate(true));
-            } else {
-                throw new IllegalArgumentException("ClientPoolService is in invalid state: " + state);
-            }
-        }
-    }
-
-    @Override
-    public void close() {
-        synchronized (this) {
-            state = State.STOPPED;
-            nextUpdate.cancel(true);
-        }
-
-        Throwable error = null;
-        for (AutoCloseable closable : toClose) {
-            try {
-                closable.close();
-            } catch (Throwable t) {
-                logger.error("Error while closing client pool service", t);
-                error = t;
-            }
-        }
-        if (error != null) {
-            throw new RuntimeException(error);
-        }
-    }
-
-    private void doUpdate(boolean scheduleNextUpdate) {
-        CompletableFuture<List<HostPort>> proxiesFuture = proxyGetter.getProxies();
-        proxiesFuture.whenCompleteAsync((result, error) -> {
-            if (error == null) {
-                logger.debug("Successfully discovered {} rpc proxies DataCenter: {}", result.size(), getDataCenterName());
-                updateClients(result);
-            } else {
-                logger.warn("Failed to discover rpc proxies DataCenter: {} Error: ", getDataCenterName(), error);
-                updateWithError(error);
-            }
-
-            if (scheduleNextUpdate) {
-                synchronized (this) {
-                    if (state == State.RUNNING) {
-                        nextUpdate = executorService.schedule(
-                                () -> doUpdate(true),
-                                updatePeriodMs,
-                                TimeUnit.MILLISECONDS);
-                    } else if (state != State.STOPPED) {
-                        throw new IllegalArgumentException("ClientPoolService is in unexpected state: " + state);
-                    }
-                }
-            }
-        }, executorService);
-    }
-
     private ClientPoolService(HttpBuilder httpBuilder) {
         super(
                 Objects.requireNonNull(httpBuilder.dataCenterName),
@@ -338,7 +271,82 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
         updateClients(rpcBuilder.initialProxyList);
     }
 
-    static abstract class BaseBuilder<T extends BaseBuilder<T>> {
+    static HttpBuilder httpBuilder() {
+        return new HttpBuilder();
+    }
+
+    static RpcBuilder rpcBuilder() {
+        return new RpcBuilder();
+    }
+
+    void start() {
+        synchronized (this) {
+            if (state == State.NOT_STARTED) {
+                state = State.RUNNING;
+                setOnAllBannedCallback(() -> doUpdate(false));
+                nextUpdate = executorService.submit(() -> doUpdate(true));
+            } else {
+                throw new IllegalArgumentException("ClientPoolService is in invalid state: " + state);
+            }
+        }
+    }
+
+    @Override
+    public void close() {
+        synchronized (this) {
+            state = State.STOPPED;
+            nextUpdate.cancel(true);
+        }
+
+        Throwable error = null;
+        for (AutoCloseable closable : toClose) {
+            try {
+                closable.close();
+            } catch (Throwable t) {
+                logger.error("Error while closing client pool service", t);
+                error = t;
+            }
+        }
+        if (error != null) {
+            throw new RuntimeException(error);
+        }
+    }
+
+    private void doUpdate(boolean scheduleNextUpdate) {
+        CompletableFuture<List<HostPort>> proxiesFuture = proxyGetter.getProxies();
+        proxiesFuture.whenCompleteAsync((result, error) -> {
+            if (error == null) {
+                logger.debug(
+                        "Successfully discovered {} rpc proxies DataCenter: {}",
+                        result.size(),
+                        getDataCenterName()
+                );
+                updateClients(result);
+            } else {
+                logger.warn(
+                        "Failed to discover rpc proxies DataCenter: {} Error: ",
+                        getDataCenterName(),
+                        error
+                );
+                updateWithError(error);
+            }
+
+            if (scheduleNextUpdate) {
+                synchronized (this) {
+                    if (state == State.RUNNING) {
+                        nextUpdate = executorService.schedule(
+                                () -> doUpdate(true),
+                                updatePeriodMs,
+                                TimeUnit.MILLISECONDS);
+                    } else if (state != State.STOPPED) {
+                        throw new IllegalArgumentException("ClientPoolService is in unexpected state: " + state);
+                    }
+                }
+            }
+        }, executorService);
+    }
+
+    abstract static class BaseBuilder<T extends BaseBuilder<T>> {
         @Nullable String role;
         @Nullable String dataCenterName;
         @Nullable RpcOptions options;
@@ -349,37 +357,37 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
         T setDataCenterName(String dataCenterName) {
             this.dataCenterName = dataCenterName;
             //noinspection unchecked
-            return (T)this;
+            return (T) this;
         }
 
         T setOptions(RpcOptions options) {
             this.options = options;
             //noinspection unchecked
-            return (T)this;
+            return (T) this;
         }
 
         T setClientFactory(RpcClientFactory clientFactory) {
             this.clientFactory = clientFactory;
             //noinspection unchecked
-            return (T)this;
+            return (T) this;
         }
 
         T setEventLoop(EventLoopGroup eventLoop) {
             this.eventLoop = eventLoop;
             //noinspection unchecked
-            return (T)this;
+            return (T) this;
         }
 
         T setRandom(Random random) {
             this.random = random;
             //noinspection unchecked
-            return (T)this;
+            return (T) this;
         }
 
         T setRole(@Nullable String role) {
             this.role = role;
             //noinspection unchecked
-            return (T)this;
+            return (T) this;
         }
     }
 
@@ -427,7 +435,7 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
 @NonNullApi
 @NonNullFields
 class ClientPool implements DataCenterRpcClientPool {
-    static private final Logger logger = LoggerFactory.getLogger(ClientPool.class);
+    private static final Logger logger = LoggerFactory.getLogger(ClientPool.class);
 
     private final String dataCenterName;
     private final int maxSize;
@@ -450,8 +458,8 @@ class ClientPool implements DataCenterRpcClientPool {
             int maxSize,
             SelfCheckingClientFactory clientFactory,
             ExecutorService executorService,
-            Random random)
-    {
+            Random random
+    ) {
         this.dataCenterName = dataCenterName;
         this.unsafeExecutorService = executorService;
         this.safeExecutorService = new SerializedExecutorService(executorService);
@@ -465,7 +473,7 @@ class ClientPool implements DataCenterRpcClientPool {
         PooledRpcClient[] goodClientsRef = clientCache;
         CompletableFuture<RpcClient> result = new CompletableFuture<>();
         if (!peekClientImpl(goodClientsRef, result, release)) {
-            safeExecutorService.submit(()-> peekClientUnsafe(result, release));
+            safeExecutorService.submit(() -> peekClientUnsafe(result, release));
         }
         return result;
     }
@@ -514,8 +522,8 @@ class ClientPool implements DataCenterRpcClientPool {
     private boolean peekClientImpl(
             PooledRpcClient[] clients,
             CompletableFuture<RpcClient> result,
-            CompletableFuture<?> release)
-    {
+            CompletableFuture<?> release
+    ) {
         if (clients.length > 0) {
             PooledRpcClient pooledClient = clients[random.nextInt(clients.length)];
             if (!pooledClient.banned && pooledClient.ref()) {
@@ -557,19 +565,17 @@ class ClientPool implements DataCenterRpcClientPool {
     }
 
     private void updateClientsUnsafe(Set<HostPort> proxies) {
-        {
-            ArrayList<PooledRpcClient> toBan = new ArrayList<>();
-            for (PooledRpcClient client : activeClients.values()) {
-                if (proxies.contains(client.hostPort)) {
-                    proxies.remove(client.hostPort);
-                } else {
-                    toBan.add(client);
-                }
+        ArrayList<PooledRpcClient> toBan = new ArrayList<>();
+        for (PooledRpcClient client : activeClients.values()) {
+            if (proxies.contains(client.hostPort)) {
+                proxies.remove(client.hostPort);
+            } else {
+                toBan.add(client);
             }
-            for (PooledRpcClient client : toBan) {
-                logger.debug("Banning unknown rpc-proxy connection {}", client);
-                banClientUnsafe(client, false);
-            }
+        }
+        for (PooledRpcClient client : toBan) {
+            logger.debug("Banning unknown rpc-proxy connection {}", client);
+            banClientUnsafe(client, false);
         }
 
         ArrayList<HostPort> remainingProxies = new ArrayList<>(proxies);

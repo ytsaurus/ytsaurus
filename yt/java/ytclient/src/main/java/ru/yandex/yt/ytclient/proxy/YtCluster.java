@@ -7,13 +7,22 @@ import java.util.Optional;
 import javax.annotation.Nullable;
 
 public class YtCluster {
+    // This option is set to true only in tests.
+    static boolean normalizationLowersHostName = false;
+
     final String balancerFqdn;
     int httpPort;
     final String name;
     final List<String> addresses;
     final Optional<String> proxyRole;
 
-    public YtCluster(String name, String balancerFqdn, int httpPort, List<String> addresses, Optional<String> proxyRole) {
+    public YtCluster(
+            String name,
+            String balancerFqdn,
+            int httpPort,
+            List<String> addresses,
+            Optional<String> proxyRole
+    ) {
         this.name = name;
         this.balancerFqdn = balancerFqdn;
         this.httpPort = httpPort;
@@ -38,7 +47,7 @@ public class YtCluster {
     }
 
     static String getFqdn(String name) {
-        if(name.startsWith("[")) {
+        if (name.startsWith("[")) {
             return getFqdnFromBracketed(name);
         } else {
             return getFqdnFromUnbracketed(name);
@@ -68,7 +77,7 @@ public class YtCluster {
         if (index < 0) {
             return 80;
         } else {
-            return Integer.parseInt(name.substring(index+1));
+            return Integer.parseInt(name.substring(index + 1));
         }
     }
 
@@ -108,7 +117,4 @@ public class YtCluster {
         builder.append(':').append(httpPort);
         return builder.toString();
     }
-
-    // This option is set to true only in tests.
-    static boolean normalizationLowersHostName = false;
 }

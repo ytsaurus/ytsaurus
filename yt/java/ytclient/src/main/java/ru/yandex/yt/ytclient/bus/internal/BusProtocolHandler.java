@@ -27,7 +27,7 @@ public class BusProtocolHandler extends ChannelDuplexHandler {
         private final GUID packetId;
         private final ChannelPromise promise;
 
-        public DeliveryEntry(GUID packetId, ChannelPromise promise) {
+        DeliveryEntry(GUID packetId, ChannelPromise promise) {
             this.packetId = packetId;
             this.promise = promise;
         }
@@ -175,6 +175,8 @@ public class BusProtocolHandler extends ChannelDuplexHandler {
                     writePromise = ctx.newPromise();
                     flags |= BusPacketFlags.REQUEST_ACK;
                     deliveryQueue.add(new DeliveryEntry(packetId, promise));
+                    break;
+                default:
                     break;
             }
             // Формируем пакет с сообщением и пишем его в контекст

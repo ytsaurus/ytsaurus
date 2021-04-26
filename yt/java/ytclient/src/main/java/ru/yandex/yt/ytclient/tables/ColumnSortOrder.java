@@ -9,6 +9,8 @@ import java.util.Map;
 public enum ColumnSortOrder {
     ASCENDING("ascending");
 
+    private static final Map<String, ColumnSortOrder> MAP_FROM_NAME = new HashMap<>();
+
     private final String name;
 
     ColumnSortOrder(String name) {
@@ -20,18 +22,16 @@ public enum ColumnSortOrder {
     }
 
     public static ColumnSortOrder fromName(String name) {
-        ColumnSortOrder sortOrder = mapFromName.get(name);
+        ColumnSortOrder sortOrder = MAP_FROM_NAME.get(name);
         if (sortOrder == null) {
             throw new IllegalArgumentException("Unsupport sort order " + name);
         }
         return sortOrder;
     }
 
-    private static final Map<String, ColumnSortOrder> mapFromName = new HashMap<>();
-
     static {
         for (ColumnSortOrder sortOrder : values()) {
-            mapFromName.put(sortOrder.getName(), sortOrder);
+            MAP_FROM_NAME.put(sortOrder.getName(), sortOrder);
         }
     }
 }

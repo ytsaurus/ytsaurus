@@ -17,7 +17,7 @@ import ru.yandex.yt.ytree.TAttributeDictionary;
 @NonNullApi
 @NonNullFields
 public class CreateObject extends RequestBase<CreateObject> implements HighLevelRequest<TReqCreateObject.Builder> {
-    final private ObjectType type;
+    private final ObjectType type;
     private final Map<String, YTreeNode> attributes = new HashMap<>();
     private boolean ignoreExisting = TReqCreateObject.getDefaultInstance().getIgnoreExisting();
 
@@ -46,13 +46,12 @@ public class CreateObject extends RequestBase<CreateObject> implements HighLevel
     public void writeTo(RpcClientRequestBuilder<TReqCreateObject.Builder, ?> builder) {
         builder.body().setType(type.value());
         builder.body().setIgnoreExisting(ignoreExisting);
-        {
-            final TAttributeDictionary.Builder aBuilder = builder.body().getAttributesBuilder();
-            for (Map.Entry<String, YTreeNode> me : attributes.entrySet()) {
-                aBuilder.addAttributesBuilder()
-                        .setKey(me.getKey())
-                        .setValue(ByteString.copyFrom(me.getValue().toBinary()));
-            }
+
+        final TAttributeDictionary.Builder aBuilder = builder.body().getAttributesBuilder();
+        for (Map.Entry<String, YTreeNode> me : attributes.entrySet()) {
+            aBuilder.addAttributesBuilder()
+                    .setKey(me.getKey())
+                    .setValue(ByteString.copyFrom(me.getValue().toBinary()));
         }
     }
 

@@ -186,6 +186,8 @@ public class ApiServiceTransactionOptions {
                 case A_NONE:
                     startTransaction.setAtomicity(Atomicity.None);
                     break;
+                default:
+                    break;
             }
         }
         if (durability != null) {
@@ -195,6 +197,8 @@ public class ApiServiceTransactionOptions {
                     break;
                 case D_ASYNC:
                     startTransaction.setDurability(Durability.Async);
+                    break;
+                default:
                     break;
             }
         }

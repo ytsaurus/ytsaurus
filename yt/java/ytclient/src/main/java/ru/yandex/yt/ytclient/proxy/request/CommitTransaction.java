@@ -18,7 +18,9 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
  */
 @NonNullFields
 @NonNullApi
-public class CommitTransaction extends RequestBase<CommitTransaction> implements HighLevelRequest<TReqCommitTransaction.Builder> {
+public class CommitTransaction
+        extends RequestBase<CommitTransaction>
+        implements HighLevelRequest<TReqCommitTransaction.Builder> {
     final GUID transactionId;
 
     public CommitTransaction(GUID transactionId) {

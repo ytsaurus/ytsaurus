@@ -11,8 +11,7 @@ import ru.yandex.yt.rpcproxy.EDurability;
  */
 public enum Durability {
     Sync(EDurability.D_SYNC, "sync"),
-    Async(EDurability.D_ASYNC, "async"),
-    ;
+    Async(EDurability.D_ASYNC, "async");
 
     private final EDurability protoValue;
     private final String stringValue;

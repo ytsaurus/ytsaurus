@@ -21,7 +21,7 @@ public enum RpcErrorCode {
     StreamingNotSupported(112),
     TableMountInfoNotReady(1707);
 
-    @SuppressWarnings("CheckStyle")
+    @SuppressWarnings("checkstyle:VisibilityModifier")
     public final int code;
 
     RpcErrorCode(int code) {

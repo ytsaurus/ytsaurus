@@ -11,6 +11,8 @@ public enum RpcMessageType {
     STREAMING_PAYLOAD(0x70637072),
     STREAMING_FEEDBACK(0x66637072);
 
+    private static final Map<Integer, RpcMessageType> TYPES = new HashMap<>();
+
     private final int value;
 
     RpcMessageType(int value) {
@@ -22,7 +24,7 @@ public enum RpcMessageType {
     }
 
     public static RpcMessageType fromValue(int value) {
-        RpcMessageType type = types.get(value);
+        RpcMessageType type = TYPES.get(value);
         if (type == null) {
             throw new IllegalArgumentException(
                     "Unsupported rpc message type: 0x" + Integer.toUnsignedString(value, 16));
@@ -30,11 +32,9 @@ public enum RpcMessageType {
         return type;
     }
 
-    private static final Map<Integer, RpcMessageType> types = new HashMap<>();
-
     static {
         for (RpcMessageType type : values()) {
-            types.put(type.getValue(), type);
+            TYPES.put(type.getValue(), type);
         }
     }
 }

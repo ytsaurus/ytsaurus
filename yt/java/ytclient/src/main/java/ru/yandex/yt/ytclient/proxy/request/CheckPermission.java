@@ -11,7 +11,9 @@ import ru.yandex.yt.rpcproxy.TReqCheckPermission;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
-public class CheckPermission extends MutateNode<CheckPermission> implements HighLevelRequest<TReqCheckPermission.Builder> {
+public class CheckPermission
+        extends MutateNode<CheckPermission>
+        implements HighLevelRequest<TReqCheckPermission.Builder> {
     private final String user;
     private final String path;
     private final int permissions;

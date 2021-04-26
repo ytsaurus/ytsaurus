@@ -27,7 +27,9 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
  */
 @NonNullApi
 @NonNullFields
-public class StartTransaction extends RequestBase<StartTransaction> implements HighLevelRequest<TReqStartTransaction.Builder> {
+public class StartTransaction
+        extends RequestBase<StartTransaction>
+        implements HighLevelRequest<TReqStartTransaction.Builder> {
     final TransactionType type;
     final boolean sticky;
 
@@ -47,12 +49,17 @@ public class StartTransaction extends RequestBase<StartTransaction> implements H
         this(type, type == TransactionType.Tablet);
     }
 
+    private StartTransaction(TransactionType type, boolean sticky) {
+        this.type = type;
+        this.sticky = sticky;
+    }
+
     /**
      * Create request for starting master transaction.
      *
      * Master transactions are for working with static tables and cypress objects.
      */
-    static public StartTransaction master() {
+    public static StartTransaction master() {
         return new StartTransaction(TransactionType.Master);
     }
 
@@ -61,7 +68,7 @@ public class StartTransaction extends RequestBase<StartTransaction> implements H
      *
      * Tablet transactions are for working with dynamic tables.
      */
-    static public StartTransaction tablet() {
+    public static StartTransaction tablet() {
         return new StartTransaction(TransactionType.Tablet);
     }
 
@@ -73,7 +80,7 @@ public class StartTransaction extends RequestBase<StartTransaction> implements H
      * Compared to tablet transactions they create additional load on masters and have other special effects that you
      * might not want to have.
      */
-    static public StartTransaction stickyMaster() {
+    public static StartTransaction stickyMaster() {
         return new StartTransaction(TransactionType.Master, true);
     }
 
@@ -292,10 +299,5 @@ public class StartTransaction extends RequestBase<StartTransaction> implements H
             sb.append("; Durability: ").append(durability);
         }
         sb.append(";");
-    }
-
-    private StartTransaction(TransactionType type, boolean sticky) {
-        this.type = type;
-        this.sticky = sticky;
     }
 }

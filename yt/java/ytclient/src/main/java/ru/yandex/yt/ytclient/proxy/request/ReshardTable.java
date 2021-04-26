@@ -10,8 +10,7 @@ import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class ReshardTable
         extends TableReq<ReshardTable>
-        implements HighLevelRequest<TReqReshardTable.Builder>
-{
+        implements HighLevelRequest<TReqReshardTable.Builder> {
     private @Nullable Integer tabletCount;
     private @Nullable TableSchema schema;
 

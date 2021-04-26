@@ -11,8 +11,7 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 @NonNullApi
 public class GenerateTimestamps
         extends RequestBase<GenerateTimestamps>
-        implements HighLevelRequest<TReqGenerateTimestamps.Builder>
-{
+        implements HighLevelRequest<TReqGenerateTimestamps.Builder> {
     private final int count;
 
     public GenerateTimestamps(int count) {

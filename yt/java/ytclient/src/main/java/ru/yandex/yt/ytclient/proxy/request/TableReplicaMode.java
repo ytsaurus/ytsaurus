@@ -4,8 +4,7 @@ import ru.yandex.yt.rpcproxy.ETableReplicaMode;
 
 public enum TableReplicaMode {
     Sync(ETableReplicaMode.TRM_SYNC, "sync"),
-    Async(ETableReplicaMode.TRM_ASYNC, "async"),
-    ;
+    Async(ETableReplicaMode.TRM_ASYNC, "async");
 
     private final ETableReplicaMode protoValue;
     private final String stringValue;

@@ -19,6 +19,8 @@ public enum Compression {
     Zlib_8(25),
     Zlib_9(3);
 
+    private static final Map<Integer, Compression> INDEX = new HashMap<>();
+
     private final int value;
 
     Compression(int value) {
@@ -26,7 +28,7 @@ public enum Compression {
     }
 
     public static Compression fromValue(int value) {
-        Compression compression = index.get(value);
+        Compression compression = INDEX.get(value);
         if (compression == null) {
             throw new IllegalArgumentException("Unsupported compression " + value);
         }
@@ -37,12 +39,9 @@ public enum Compression {
         return value;
     }
 
-    private static final Map<Integer, Compression> index = new HashMap<>();
-
     static {
         for (Compression entity : Compression.values()) {
-            index.put(entity.getValue(), entity);
+            INDEX.put(entity.getValue(), entity);
         }
     }
-
 }

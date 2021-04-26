@@ -28,6 +28,9 @@ import ru.yandex.yt.ytclient.wire.WireProtocolReader;
 public class ApiServiceUtil {
     public static final long MICROS_PER_SECOND = 1_000_000L;
 
+    private ApiServiceUtil() {
+    }
+
     /**
      * Конвертирует исходные сырые значения в значения колонок по указанной схеме
      */
@@ -43,9 +46,13 @@ public class ApiServiceUtil {
         }
     }
 
-    public static void convertValueColumns(List<UnversionedValue> row, TableSchema schema, List<?> values,
-            boolean skipMissingValues, boolean aggregate)
-    {
+    public static void convertValueColumns(
+            List<UnversionedValue> row,
+            TableSchema schema,
+            List<?> values,
+            boolean skipMissingValues,
+            boolean aggregate
+    ) {
         for (int id = schema.getKeyColumnsCount(); id < schema.getColumns().size() && id < values.size(); ++id) {
             ColumnSchema column = schema.getColumns().get(id);
             Object inputValue = values.get(id);
@@ -94,23 +101,24 @@ public class ApiServiceUtil {
         return builder.build();
     }
 
-    public static <T> void deserializeUnversionedRowset(TRowsetDescriptor descriptor,
+    public static <T> void deserializeUnversionedRowset(
+            TRowsetDescriptor descriptor,
             List<byte[]> attachments,
             YTreeObjectSerializer<T> serializer,
-            ConsumerSource<T> consumer)
-    {
+            ConsumerSource<T> consumer
+    ) {
         deserializeUnversionedRowset(descriptor, attachments,
                 schema -> MappedRowsetDeserializer.forClass(schema, serializer, consumer));
     }
 
-    public static UnversionedRowset deserializeUnversionedRowset(TRowsetDescriptor descriptor,
-            List<byte[]> attachments)
-    {
+    public static UnversionedRowset deserializeUnversionedRowset(
+            TRowsetDescriptor descriptor,
+            List<byte[]> attachments
+    ) {
         return deserializeUnversionedRowset(descriptor, attachments, UnversionedRowsetDeserializer::new).getRowset();
     }
 
-    public static void validateRowsetDescriptor(TRowsetDescriptor descriptor)
-    {
+    public static void validateRowsetDescriptor(TRowsetDescriptor descriptor) {
         if (descriptor.getWireFormatVersion() != WireProtocol.WIRE_FORMAT_VERSION) {
             throw new IllegalStateException("Cannot deserialize wire format" + descriptor.getWireFormatVersion() + ": "
                     + WireProtocol.WIRE_FORMAT_VERSION + " is required");
@@ -121,9 +129,11 @@ public class ApiServiceUtil {
         }
     }
 
-    private static <B extends WireRowsetDeserializer<T>, T> B deserializeUnversionedRowset(TRowsetDescriptor descriptor,
-            List<byte[]> attachments, Function<TableSchema, B> deserializerFunction)
-    {
+    private static <B extends WireRowsetDeserializer<T>, T> B deserializeUnversionedRowset(
+            TRowsetDescriptor descriptor,
+            List<byte[]> attachments,
+            Function<TableSchema, B> deserializerFunction
+    ) {
         validateRowsetDescriptor(descriptor);
         final B deserializer = deserializerFunction.apply(deserializeRowsetSchema(descriptor));
         return new WireProtocolReader(attachments).readUnversionedRowset(deserializer);
@@ -132,8 +142,8 @@ public class ApiServiceUtil {
     public static <T> void deserializeVersionedRowset(TRowsetDescriptor descriptor,
             List<byte[]> attachments,
             YTreeObjectSerializer<T> serializer,
-            ConsumerSource<T> consumer)
-    {
+            ConsumerSource<T> consumer
+    ) {
         deserializeVersionedRowset(descriptor, attachments,
                 schema -> MappedRowsetDeserializer.forClass(schema, serializer, consumer));
     }
@@ -143,8 +153,10 @@ public class ApiServiceUtil {
     }
 
     private static <B extends WireVersionedRowsetDeserializer<T>, T> B deserializeVersionedRowset(
-            TRowsetDescriptor descriptor, List<byte[]> attachments, Function<TableSchema, B> deserializerFunction)
-    {
+            TRowsetDescriptor descriptor,
+            List<byte[]> attachments,
+            Function<TableSchema, B> deserializerFunction
+    ) {
         if (descriptor.getWireFormatVersion() != WireProtocol.WIRE_FORMAT_VERSION) {
             throw new IllegalStateException("Cannot deserialize wire format" + descriptor.getWireFormatVersion() + ": "
                     + WireProtocol.WIRE_FORMAT_VERSION + " is required");
@@ -176,6 +188,6 @@ public class ApiServiceUtil {
     }
 
     public static long instantToYtMicros(Instant instant) {
-        return Math.multiplyExact(instant.toEpochMilli(), 1000);
+        return Math.multiplyExact(instant.toEpochMilli(), 1000L);
     }
 }

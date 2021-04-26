@@ -67,7 +67,9 @@ public class UnversionedValue implements YTreeConvertible {
     }
 
     private static IllegalArgumentException illegalValue(ColumnValueType type, Object value) {
-        return new IllegalArgumentException("Illegal value " + value + "(" + value.getClass() + ")" + " for type " + type);
+        return new IllegalArgumentException(
+                "Illegal value " + value + "(" + value.getClass() + ")" + " for type " + type
+        );
     }
 
     /**

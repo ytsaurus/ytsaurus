@@ -10,8 +10,9 @@ import ru.yandex.yt.ytclient.wire.VersionedRow;
 import ru.yandex.yt.ytclient.wire.VersionedValue;
 import ru.yandex.yt.ytclient.wire.WireColumnSchema;
 
-public class VersionedRowDeserializer extends VersionedValueDeserializer implements WireVersionedRowDeserializer<VersionedRow> {
-
+public class VersionedRowDeserializer
+        extends VersionedValueDeserializer
+        implements WireVersionedRowDeserializer<VersionedRow> {
     private final List<WireColumnSchema> keyColumnSchema;
     private List<Long> writeTimestamps = Collections.emptyList();
 

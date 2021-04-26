@@ -79,6 +79,7 @@ public class YtClient extends CompoundClient {
     /**
      * @deprecated prefer to use {@link #builder()}
      */
+    @Deprecated
     public YtClient(
             BusConnector connector,
             List<YtCluster> clusters,
@@ -91,6 +92,7 @@ public class YtClient extends CompoundClient {
     /**
      * @deprecated prefer to use {@link #builder()}
      */
+    @Deprecated
     public YtClient(
             BusConnector connector,
             List<YtCluster> clusters,
@@ -104,6 +106,7 @@ public class YtClient extends CompoundClient {
     /**
      * @deprecated prefer to use {@link #builder()}
      */
+    @Deprecated
     public YtClient(
             BusConnector connector,
             List<YtCluster> clusters,
@@ -229,7 +232,9 @@ public class YtClient extends CompoundClient {
 
     @Override
     protected <RequestType extends MessageLite.Builder, ResponseType extends MessageLite>
-    CompletableFuture<RpcClientResponse<ResponseType>> invoke(RpcClientRequestBuilder<RequestType, ResponseType> builder) {
+    CompletableFuture<RpcClientResponse<ResponseType>> invoke(
+            RpcClientRequestBuilder<RequestType, ResponseType> builder
+    ) {
         return builder.invokeVia(executor, poolProvider.getClientPool());
     }
 
@@ -368,7 +373,7 @@ public class YtClient extends CompoundClient {
             multiDcClientPool = MultiDcClientPool.builder()
                     .setLocalDc(localDataCenterName)
                     .addClientPools(dataCenterList)
-                    .setDcMetricHolder(DataCenterMetricsHolderImpl.instance)
+                    .setDcMetricHolder(DataCenterMetricsHolderImpl.INSTANCE)
                     .build();
         }
 

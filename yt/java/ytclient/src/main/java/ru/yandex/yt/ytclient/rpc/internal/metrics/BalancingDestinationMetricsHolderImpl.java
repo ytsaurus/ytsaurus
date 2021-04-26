@@ -10,9 +10,8 @@ import ru.yandex.yt.ytclient.rpc.DefaultRpcBusClient;
  * @author dkondra
  */
 public class BalancingDestinationMetricsHolderImpl implements BalancingDestinationMetricsHolder {
-    public static final BalancingDestinationMetricsHolderImpl instance = new BalancingDestinationMetricsHolderImpl();
-
-    private static final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("ytclient");
+    public static final BalancingDestinationMetricsHolderImpl INSTANCE = new BalancingDestinationMetricsHolderImpl();
+    private static final MetricRegistry METRICS = SharedMetricRegistries.getOrCreate("ytclient");
 
     @Override
     public double getLocal99thPercentile(String destinationName) {
@@ -30,10 +29,10 @@ public class BalancingDestinationMetricsHolderImpl implements BalancingDestinati
     }
 
     private static Histogram getForLocal(String destinationName) {
-        return metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "ping", destinationName));
+        return METRICS.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "ping", destinationName));
     }
 
     private static Histogram getForDc(String dc) {
-        return metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "ping", dc));
+        return METRICS.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "ping", dc));
     }
 }

@@ -8,8 +8,8 @@ import io.netty.buffer.ByteBuf;
 import ru.yandex.yt.ytclient.misc.YtCrc64;
 
 public class BusPacketVariableHeader {
-    private final int sizes[];
-    private final long checksums[];
+    private final int[] sizes;
+    private final long[] checksums;
 
     public BusPacketVariableHeader(int[] sizes, long[] checksums) {
         if (sizes.length != checksums.length) {
@@ -43,11 +43,11 @@ public class BusPacketVariableHeader {
     public static BusPacketVariableHeader readFrom(BusPacketFixedHeader header, ByteBuf in, boolean verifyChecksums) {
         in = in.order(ByteOrder.LITTLE_ENDIAN);
         int start = in.readerIndex();
-        int sizes[] = new int[header.getPartCount()];
+        int[] sizes = new int[header.getPartCount()];
         for (int i = 0; i < header.getPartCount(); i++) {
             sizes[i] = in.readInt();
         }
-        long checksums[] = new long[header.getPartCount()];
+        long[] checksums = new long[header.getPartCount()];
         for (int i = 0; i < header.getPartCount(); i++) {
             checksums[i] = in.readLong();
         }

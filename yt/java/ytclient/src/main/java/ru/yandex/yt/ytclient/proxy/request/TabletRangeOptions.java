@@ -12,7 +12,8 @@ public class TabletRangeOptions {
     private @Nullable Integer firstTabletIndex = null;
     private @Nullable Integer lastTabletIndex = null;
 
-    public TabletRangeOptions() {}
+    public TabletRangeOptions() {
+    }
 
     public TabletRangeOptions(int firstTabletIndex, int lastTabletIndex) {
         this.firstTabletIndex = firstTabletIndex;

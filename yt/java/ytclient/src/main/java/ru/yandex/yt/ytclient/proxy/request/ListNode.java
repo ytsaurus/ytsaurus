@@ -41,7 +41,9 @@ public class ListNode extends GetLikeReq<ListNode> implements HighLevelRequest<T
             builder.body().setMasterReadOptions(masterReadOptions.writeTo(TMasterReadOptions.newBuilder()));
         }
         if (suppressableAccessTrackingOptions != null) {
-            builder.body().setSuppressableAccessTrackingOptions(suppressableAccessTrackingOptions.writeTo(TSuppressableAccessTrackingOptions.newBuilder()));
+            builder.body().setSuppressableAccessTrackingOptions(
+                    suppressableAccessTrackingOptions.writeTo(TSuppressableAccessTrackingOptions.newBuilder())
+            );
         }
         if (additionalData != null) {
             builder.body().mergeFrom(additionalData);
