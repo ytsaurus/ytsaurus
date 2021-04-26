@@ -150,6 +150,11 @@ private:
             Started_ = true;
         }
         SyncExecutor_->Start();
+        // YTADMINREQ-24943
+        // Executor is configured with a splay; this can cause the very first sync
+        // to be delayed for a long period of time and cause timeout on first access
+        // to the channel.
+        SyncExecutor_->ScheduleOutOfBand();
     }
 
     IChannelPtr GetChannel() const
