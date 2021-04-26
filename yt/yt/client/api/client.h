@@ -502,8 +502,14 @@ struct TSelectRowsOptionsBase
     : public TTabletReadOptions
     , public TSuppressableAccessTrackingOptions
 {
+    //! Limits range expanding.
+    ui64 RangeExpansionLimit = 200000;
+    //! Limits maximum parallel subqueries.
+    int MaxSubqueries = std::numeric_limits<int>::max();
     //! Path in Cypress with UDFs.
     std::optional<TString> UdfRegistryPath;
+    //! If |true| then logging is more verbose.
+    bool VerboseLogging = false;
 };
 
 struct TSelectRowsOptions
@@ -513,10 +519,6 @@ struct TSelectRowsOptions
     std::optional<i64> InputRowLimit;
     //! If null then connection defaults are used.
     std::optional<i64> OutputRowLimit;
-    //! Limits range expanding.
-    ui64 RangeExpansionLimit = 200000;
-    //! Limits maximum parallel subqueries.
-    int MaxSubqueries = std::numeric_limits<int>::max();
     //! Combine independent joins in one.
     bool UseMultijoin = true;
     //! Allow queries without any condition on key columns.
@@ -527,8 +529,6 @@ struct TSelectRowsOptions
     std::optional<TString> ExecutionPool;
     //! If |true| then incomplete result would lead to a failure.
     bool FailOnIncompleteResult = true;
-    //! If |true| then logging is more verbose.
-    bool VerboseLogging = false;
     //! Enables generated code caching.
     bool EnableCodeCache = true;
     //! Used to prioritize requests.

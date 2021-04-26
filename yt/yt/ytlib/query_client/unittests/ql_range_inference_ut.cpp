@@ -722,12 +722,15 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
 TMutableRowRanges GetRangesFromTrieWithinRange(
     const TKeyRange& keyRange,
     TKeyTriePtr trie,
-    TRowBufferPtr rowBuffer)
+    TRowBufferPtr rowBuffer,
+    ui64 rangeCountLimit = std::numeric_limits<ui64>::max())
 {
     return GetRangesFromTrieWithinRange(
         TRowRange(keyRange.first, keyRange.second),
         trie,
-        rowBuffer);
+        rowBuffer,
+        false,
+        rangeCountLimit);
 }
 
 TEST_F(TRefineKeyRangeTest, EmptyKeyTrie)
@@ -1028,6 +1031,42 @@ TEST_F(TRefineKeyRangeTest, SecondDimensionRange)
 
     EXPECT_EQ(YsonToKey("1;2"), result[0].first);
     EXPECT_EQ(YsonToKey("1;4;"), result[0].second);
+}
+
+TEST_F(TRefineKeyRangeTest, RangeExpansionLimit)
+{
+    auto expr = PrepareExpression(
+        "k in (10, 20, 30, 40, 50) and l in (1, 3, 5, 7)",
+        *GetSampleTableSchema());
+
+    auto rowBuffer = New<TRowBuffer>();
+    auto keyTrie = ExtractMultipleConstraints(
+        expr,
+        GetSampleKeyColumns(),
+        rowBuffer);
+
+    auto result = GetRangesFromTrieWithinRange(
+        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
+        keyTrie,
+        rowBuffer,
+        7);
+
+    EXPECT_EQ(5, result.size());
+
+    EXPECT_EQ(YsonToKey("10;1"), result[0].first);
+    EXPECT_EQ(YsonToKey("10;7;" _MAX_), result[0].second);
+
+    EXPECT_EQ(YsonToKey("20;1"), result[1].first);
+    EXPECT_EQ(YsonToKey("20;7;" _MAX_), result[1].second);
+
+    EXPECT_EQ(YsonToKey("30;1"), result[2].first);
+    EXPECT_EQ(YsonToKey("30;7;" _MAX_), result[2].second);
+
+    EXPECT_EQ(YsonToKey("40;1"), result[3].first);
+    EXPECT_EQ(YsonToKey("40;7;" _MAX_), result[3].second);
+
+    EXPECT_EQ(YsonToKey("50;1"), result[4].first);
+    EXPECT_EQ(YsonToKey("50;7;" _MAX_), result[4].second);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

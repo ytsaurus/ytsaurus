@@ -720,9 +720,7 @@ ui64 GetRangeCountLimit(
         }
     }
 
-    return moduloExpansion == 1
-        ? std::numeric_limits<ui64>::max()
-        : rangeExpansionLimit / moduloExpansion;
+    return rangeExpansionLimit / moduloExpansion;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -839,9 +837,10 @@ TRangeInferrer CreateLightRangeInferrer(
 
     return [
         keyTrieBuffer = std::move(keyTrieBuffer),
-        keyTrie = std::move(keyTrie)
+        keyTrie = std::move(keyTrie),
+        rangeExpansionLimit = options.RangeExpansionLimit
     ] (const TRowRange& keyRange, const TRowBufferPtr& rowBuffer) {
-        return GetRangesFromTrieWithinRange(keyRange, keyTrie, rowBuffer);
+        return GetRangesFromTrieWithinRange(keyRange, keyTrie, rowBuffer, false, rangeExpansionLimit);
     };
 }
 
