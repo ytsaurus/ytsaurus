@@ -848,14 +848,20 @@ public class ApiServiceClient extends TransactionalClient {
     }
 
     protected <RequestType extends MessageLite.Builder, ResponseType extends MessageLite>
-    CompletableFuture<RpcClientResponse<ResponseType>> invoke(RpcClientRequestBuilder<RequestType, ResponseType> builder) {
+    CompletableFuture<RpcClientResponse<ResponseType>>
+    invoke(RpcClientRequestBuilder<RequestType, ResponseType> builder) {
         return builder.invoke(rpcClient);
     }
 
     protected <RequestType extends MessageLite.Builder, ResponseType extends MessageLite>
     CompletableFuture<RpcClientStreamControl>
     startStream(RpcClientRequestBuilder<RequestType, ResponseType> builder, RpcStreamConsumer consumer) {
-        RpcClientStreamControl control = rpcClient.startStream(rpcClient, builder.getRpcRequest(), consumer, builder.getOptions());
+        RpcClientStreamControl control = rpcClient.startStream(
+                rpcClient,
+                builder.getRpcRequest(),
+                consumer,
+                builder.getOptions()
+        );
         return CompletableFuture.completedFuture(control);
     }
 

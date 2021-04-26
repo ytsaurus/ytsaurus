@@ -12,6 +12,8 @@ public enum BusPacketType {
 
     private final short value;
 
+    private static final Map<Short, BusPacketType> INDEX = new HashMap<>();
+
     BusPacketType(int value) {
         this.value = (short) value;
     }
@@ -21,18 +23,16 @@ public enum BusPacketType {
     }
 
     public static BusPacketType fromValue(short value) {
-        BusPacketType busPacketType = index.get(value);
+        BusPacketType busPacketType = INDEX.get(value);
         if (busPacketType == null) {
             throw new IllegalArgumentException("Unsupported bus packet type " + value);
         }
         return busPacketType;
     }
 
-    private static final Map<Short, BusPacketType> index = new HashMap<>();
-
     static {
         for (BusPacketType busPacketType : BusPacketType.values()) {
-            index.put(busPacketType.getValue(), busPacketType);
+            INDEX.put(busPacketType.getValue(), busPacketType);
         }
     }
 }

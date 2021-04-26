@@ -84,6 +84,30 @@ public class DefaultRpcBusClient implements RpcClient {
 
     private final Statistics stats;
 
+    public DefaultRpcBusClient(BusConnector busFactory, InetSocketAddress address) {
+        this(busFactory, address, address.getHostName(), new DefaultRpcBusClientMetricsHolderImpl());
+    }
+
+    public DefaultRpcBusClient(BusConnector busFactory, InetSocketAddress address, String destinationName) {
+        this(busFactory, address, destinationName, new DefaultRpcBusClientMetricsHolderImpl());
+    }
+
+    public DefaultRpcBusClient(
+            BusConnector busConnector,
+            InetSocketAddress address,
+            String destinationName,
+            DefaultRpcBusClientMetricsHolder metricsHolder
+    ) {
+        this.busConnector = Objects.requireNonNull(busConnector);
+        this.address = Objects.requireNonNull(address);
+        this.addressString = address.getHostString() + ":" + address.getPort();
+        this.destinationName = destinationName;
+        this.name = String.format("%s@%d", destinationName, System.identityHashCode(this));
+        this.stats = new Statistics(destinationName());
+        this.metricsHolder = metricsHolder;
+    }
+
+
     /**
      * Предотвращает дальнейшее использование session
      */
@@ -104,9 +128,13 @@ public class DefaultRpcBusClient implements RpcClient {
     private class Session implements BusListener {
         private final Bus bus;
         private final ConcurrentHashMap<GUID, RequestBase> activeRequests = new ConcurrentHashMap<>();
-        private final String sessionName = String.format("Session(%s@%s)", addressString, Integer.toHexString(hashCode()));
+        private final String sessionName = String.format(
+                "Session(%s@%s)",
+                addressString,
+                Integer.toHexString(hashCode())
+        );
 
-        public Session() {
+        Session() {
             bus = busConnector.connect(address, this);
         }
 
@@ -267,8 +295,7 @@ public class DefaultRpcBusClient implements RpcClient {
         INITIALIZING(0),
         SENDING(1),
         ACKED(2),
-        FINISHED(3),
-        ;
+        FINISHED(3);
 
         int step;
 
@@ -277,7 +304,7 @@ public class DefaultRpcBusClient implements RpcClient {
         }
     }
 
-    private static abstract class RequestBase implements RpcClientRequestControl {
+    private abstract static class RequestBase implements RpcClientRequestControl {
         protected final Lock lock = new ReentrantLock();
         protected RequestState state = RequestState.INITIALIZING;
         protected final RpcClient sender;
@@ -307,7 +334,12 @@ public class DefaultRpcBusClient implements RpcClient {
             this.requestId = RpcUtil.fromProto(rpcRequest.header.getRequestId());
             this.stat = stat;
             this.options = Objects.requireNonNull(options);
-            this.description = String.format("%s/%s/%s", requestHeader.getService(), requestHeader.getMethod(), requestId);
+            this.description = String.format(
+                    "%s/%s/%s",
+                    requestHeader.getService(),
+                    requestHeader.getMethod(),
+                    requestId
+            );
         }
 
         @Override
@@ -422,8 +454,8 @@ public class DefaultRpcBusClient implements RpcClient {
 
                     if (acknowledgementTimeout != null
                             && options.getDefaultRequestAck()
-                            && state.step < RequestState.ACKED.step)
-                    {
+                            && state.step < RequestState.ACKED.step
+                    ) {
                         ackTimeoutFuture = session.eventLoop().schedule(
                                 this::onAcknowledgementTimeout,
                                 acknowledgementTimeout.toNanos(), TimeUnit.NANOSECONDS);
@@ -568,14 +600,14 @@ public class DefaultRpcBusClient implements RpcClient {
     private static class Request extends RequestBase {
         protected final RpcClientResponseHandler handler;
 
-        public Request(
+        Request(
                 RpcClient sender,
                 Session session,
                 RpcRequest<?> request,
                 RpcClientResponseHandler handler,
                 RpcOptions options,
-                Statistics stat)
-        {
+                Statistics stat
+        ) {
             super(sender, session, request, options, stat);
 
             this.handler = Objects.requireNonNull(handler);
@@ -623,8 +655,8 @@ public class DefaultRpcBusClient implements RpcClient {
                 RpcRequest<?> request,
                 RpcStreamConsumer consumer,
                 RpcOptions options,
-                Statistics stat)
-        {
+                Statistics stat
+        ) {
             super(sender, session, request, options, stat);
             this.consumer = consumer;
             this.readTimeout = options.getStreamingReadTimeout();
@@ -820,7 +852,12 @@ public class DefaultRpcBusClient implements RpcClient {
                 builder.setRealmId(requestHeader.getRealmId());
             }
             builder.setReadPosition(offset);
-            return session.bus.send(Collections.singletonList(RpcUtil.createMessageHeader(RpcMessageType.STREAMING_FEEDBACK, builder.build())), BusDeliveryTracking.NONE);
+            return session.bus.send(
+                    Collections.singletonList(
+                            RpcUtil.createMessageHeader(RpcMessageType.STREAMING_FEEDBACK, builder.build())
+                    ),
+                    BusDeliveryTracking.NONE
+            );
         }
 
         @Override
@@ -833,14 +870,15 @@ public class DefaultRpcBusClient implements RpcClient {
             if (requestHeader.hasRealmId()) {
                 builder.setRealmId(requestHeader.getRealmId());
             }
-            return session.bus.send(RpcUtil.createEofMessage(builder.build()), BusDeliveryTracking.NONE).thenAccept((unused) -> {
-                lock.lock();
-                try {
-                    clearReadTimeout();
-                } finally {
-                    lock.unlock();
-                }
-            });
+            return session.bus.send(RpcUtil.createEofMessage(builder.build()), BusDeliveryTracking.NONE)
+                    .thenAccept((unused) -> {
+                        lock.lock();
+                        try {
+                            clearReadTimeout();
+                        } finally {
+                            lock.unlock();
+                        }
+                    });
         }
 
         private byte[] preparePayloadHeader() {
@@ -858,9 +896,8 @@ public class DefaultRpcBusClient implements RpcClient {
         }
 
         @Override
-        public CompletableFuture<Void> sendPayload(List<byte[]> attachments)
-        {
-            List<byte[]> message = new ArrayList<>(1+attachments.size());
+        public CompletableFuture<Void> sendPayload(List<byte[]> attachments) {
+            List<byte[]> message = new ArrayList<>(1 + attachments.size());
             message.add(preparePayloadHeader());
             message.addAll(attachments);
 
@@ -891,24 +928,6 @@ public class DefaultRpcBusClient implements RpcClient {
         public String getRpcProxyAddress() {
             return sender.getAddressString();
         }
-    }
-
-    public DefaultRpcBusClient(BusConnector busFactory, InetSocketAddress address) {
-        this(busFactory, address, address.getHostName(), new DefaultRpcBusClientMetricsHolderImpl());
-    }
-
-    public DefaultRpcBusClient(BusConnector busFactory, InetSocketAddress address, String destinationName) {
-        this(busFactory, address, destinationName, new DefaultRpcBusClientMetricsHolderImpl());
-    }
-
-    public DefaultRpcBusClient(BusConnector busConnector, InetSocketAddress address, String destinationName, DefaultRpcBusClientMetricsHolder metricsHolder) {
-        this.busConnector = Objects.requireNonNull(busConnector);
-        this.address = Objects.requireNonNull(address);
-        this.addressString = address.getHostString() + ":" + address.getPort();
-        this.destinationName = destinationName;
-        this.name = String.format("%s@%d", destinationName, System.identityHashCode(this));
-        this.stats = new Statistics(destinationName());
-        this.metricsHolder = metricsHolder;
     }
 
     public String destinationName() {
@@ -983,15 +1002,20 @@ public class DefaultRpcBusClient implements RpcClient {
             RpcClient sender,
             RpcRequest<?> request,
             RpcClientResponseHandler handler,
-            RpcOptions options)
-    {
+            RpcOptions options
+    ) {
         RequestBase pendingRequest = new Request(sender, getSession(), request, handler, options, stats);
         pendingRequest.start();
         return pendingRequest;
     }
 
     @Override
-    public RpcClientStreamControl startStream(RpcClient sender, RpcRequest<?> request, RpcStreamConsumer consumer, RpcOptions options) {
+    public RpcClientStreamControl startStream(
+            RpcClient sender,
+            RpcRequest<?> request,
+            RpcStreamConsumer consumer,
+            RpcOptions options
+    ) {
         StreamingRequest pendingRequest = new StreamingRequest(sender, getSession(), request, consumer, options, stats);
         pendingRequest.start();
         return pendingRequest;

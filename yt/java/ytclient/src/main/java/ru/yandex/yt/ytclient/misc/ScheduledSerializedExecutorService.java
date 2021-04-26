@@ -66,14 +66,24 @@ public class ScheduledSerializedExecutorService extends SerializedExecutorServic
 
     @Nonnull
     @Override
-    public ScheduledFuture<?> scheduleAtFixedRate(@Nonnull Runnable runnable, long l, long l1, @Nonnull TimeUnit timeUnit) {
+    public ScheduledFuture<?> scheduleAtFixedRate(
+            @Nonnull Runnable runnable,
+            long l,
+            long l1,
+            @Nonnull TimeUnit timeUnit
+    ) {
         return underlying.scheduleAtFixedRate(() -> execute(runnable), l, l1, timeUnit);
     }
 
     @Nonnull
     @Override
-    public ScheduledFuture<?> scheduleWithFixedDelay(@Nonnull Runnable runnable, long l, long l1, @Nonnull TimeUnit timeUnit) {
-        return underlying.scheduleWithFixedDelay(()-> execute(runnable), l, l1, timeUnit);
+    public ScheduledFuture<?> scheduleWithFixedDelay(
+            @Nonnull Runnable runnable,
+            long l,
+            long l1,
+            @Nonnull TimeUnit timeUnit
+    ) {
+        return underlying.scheduleWithFixedDelay(() -> execute(runnable), l, l1, timeUnit);
     }
 
     private <V> ScheduledFuture<V> toScheduledFuture(ScheduledFuture<?> scheduled, CompletableFuture<V> completable) {
@@ -110,7 +120,10 @@ public class ScheduledSerializedExecutorService extends SerializedExecutorServic
             }
 
             @Override
-            public V get(long l, @Nonnull TimeUnit timeUnit) throws InterruptedException, ExecutionException, TimeoutException {
+            public V get(
+                    long l,
+                    @Nonnull TimeUnit timeUnit
+            ) throws InterruptedException, ExecutionException, TimeoutException {
                 return completable.get(l, timeUnit);
             }
         };

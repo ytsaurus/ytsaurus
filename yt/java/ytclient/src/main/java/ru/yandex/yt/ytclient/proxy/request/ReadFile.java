@@ -71,7 +71,9 @@ public class ReadFile extends RequestBase<ReadFile> {
             builder.setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
         }
         if (suppressableAccessTrackingOptions != null) {
-            builder.setSuppressableAccessTrackingOptions(suppressableAccessTrackingOptions.writeTo(TSuppressableAccessTrackingOptions.newBuilder()));
+            builder.setSuppressableAccessTrackingOptions(
+                    suppressableAccessTrackingOptions.writeTo(TSuppressableAccessTrackingOptions.newBuilder())
+            );
         }
         if (additionalData != null) {
             builder.mergeFrom(additionalData);

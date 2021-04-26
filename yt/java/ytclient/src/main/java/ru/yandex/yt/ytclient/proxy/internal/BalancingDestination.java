@@ -42,7 +42,12 @@ public class BalancingDestination {
         this(dc, client, metricsHolder, new RpcOptions());
     }
 
-    public BalancingDestination(String dc, RpcClient client, BalancingDestinationMetricsHolder metricsHolder, RpcOptions options) {
+    public BalancingDestination(
+            String dc,
+            RpcClient client,
+            BalancingDestinationMetricsHolder metricsHolder,
+            RpcOptions options
+    ) {
         this.dc = dc;
         this.client = Objects.requireNonNull(client);
         this.id = String.format("%s/%s", dc, client.toString());
@@ -71,13 +76,18 @@ public class BalancingDestination {
             @Override
             public RpcClientRequestControl send(
                     RpcClient sender, RpcRequest<?> request,
-                    RpcClientResponseHandler handler, RpcOptions options)
-            {
+                    RpcClientResponseHandler handler, RpcOptions options
+            ) {
                 return null;
             }
 
             @Override
-            public RpcClientStreamControl startStream(RpcClient sender, RpcRequest<?> request, RpcStreamConsumer consumer, RpcOptions options) {
+            public RpcClientStreamControl startStream(
+                    RpcClient sender,
+                    RpcRequest<?> request,
+                    RpcStreamConsumer consumer,
+                    RpcOptions options
+            ) {
                 return null;
             }
 

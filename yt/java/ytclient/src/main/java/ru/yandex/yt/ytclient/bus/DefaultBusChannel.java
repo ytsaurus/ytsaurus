@@ -179,6 +179,6 @@ public class DefaultBusChannel implements Bus, BusLifecycle {
     }
 
     public static DefaultBusChannel getOrCreateInstance(Channel channel) {
-        return getOrCreateInstance(channel, DefaultBusChannelMetricsHolderImpl.instance);
+        return getOrCreateInstance(channel, DefaultBusChannelMetricsHolderImpl.INSTANCE);
     }
 }

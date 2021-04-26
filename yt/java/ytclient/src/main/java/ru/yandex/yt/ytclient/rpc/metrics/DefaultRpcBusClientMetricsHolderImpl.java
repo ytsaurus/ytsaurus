@@ -11,27 +11,37 @@ import ru.yandex.yt.ytclient.rpc.DefaultRpcBusClient;
  * @author dkondra
  */
 public class DefaultRpcBusClientMetricsHolderImpl implements DefaultRpcBusClientMetricsHolder {
-    private static final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("ytclient");
-    private static final Histogram requestsAckHistogram = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "requests", "ack", "total"));
-    private static final Histogram requestsResponseHistogram = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "requests", "response", "total"));
-    private static final Counter errorCounter = metrics.counter(MetricRegistry.name(DefaultRpcBusClient.class, "error"));
+    private static final MetricRegistry METRICS = SharedMetricRegistries.getOrCreate("ytclient");
+    private static final Histogram REQUESTS_ACK_HISTOGRAM = METRICS.histogram(
+            MetricRegistry.name(DefaultRpcBusClient.class, "requests", "ack", "total")
+    );
+    private static final Histogram REQUESTS_RESPONSE_HISTOGRAM = METRICS.histogram(
+            MetricRegistry.name(DefaultRpcBusClient.class, "requests", "response", "total")
+    );
+    private static final Counter ERROR_COUNTER = METRICS.counter(
+            MetricRegistry.name(DefaultRpcBusClient.class, "error")
+    );
 
     @Override
     public void updateAck(String name, long millis) {
-        Histogram requestsAckHistogramLocal = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "requests", "ack", name));
+        Histogram requestsAckHistogramLocal = METRICS.histogram(
+                MetricRegistry.name(DefaultRpcBusClient.class, "requests", "ack", name)
+        );
         requestsAckHistogramLocal.update(millis);
-        requestsAckHistogram.update(millis);
+        REQUESTS_ACK_HISTOGRAM.update(millis);
     }
 
     @Override
     public void updateResponse(String name, long millis) {
-        Histogram requestsResponseHistogramLocal = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "requests", "response", name));
+        Histogram requestsResponseHistogramLocal = METRICS.histogram(
+                MetricRegistry.name(DefaultRpcBusClient.class, "requests", "response", name)
+        );
         requestsResponseHistogramLocal.update(millis);
-        requestsResponseHistogram.update(millis);
+        REQUESTS_RESPONSE_HISTOGRAM.update(millis);
     }
 
     @Override
     public void incError() {
-        errorCounter.inc();
+        ERROR_COUNTER.inc();
     }
 }

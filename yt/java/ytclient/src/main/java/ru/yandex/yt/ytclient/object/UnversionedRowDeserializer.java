@@ -9,7 +9,9 @@ import javax.annotation.Nonnull;
 import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedValue;
 
-public class UnversionedRowDeserializer extends UnversionedValueDeserializer implements WireRowDeserializer<UnversionedRow> {
+public class UnversionedRowDeserializer
+        extends UnversionedValueDeserializer
+        implements WireRowDeserializer<UnversionedRow> {
     private List<UnversionedValue> values = Collections.emptyList();
 
     @Override

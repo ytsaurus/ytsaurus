@@ -24,7 +24,7 @@ public class WriteFile extends RequestBase<WriteFile> {
     private PrerequisiteOptions prerequisiteOptions = null;
 
     private long windowSize = 16000000L;
-    private long packetSize = windowSize/2;
+    private long packetSize = windowSize / 2;
 
 
     public WriteFile(String path) {

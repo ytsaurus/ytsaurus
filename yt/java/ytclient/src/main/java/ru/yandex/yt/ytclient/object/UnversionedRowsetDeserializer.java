@@ -11,8 +11,9 @@ import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 
-public class UnversionedRowsetDeserializer extends UnversionedRowDeserializer implements WireRowsetDeserializer<UnversionedRow> {
-
+public class UnversionedRowsetDeserializer
+        extends UnversionedRowDeserializer
+        implements WireRowsetDeserializer<UnversionedRow> {
     private final TableSchema schema;
     private List<UnversionedRow> rows = Collections.emptyList();
 

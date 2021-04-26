@@ -48,7 +48,7 @@ public class RpcOptions {
     private RpcFailoverPolicy failoverPolicy = new DefaultRpcFailoverPolicy();
     private BalancingResponseHandlerMetricsHolder responseMetricsHolder =
             new BalancingResponseHandlerMetricsHolderImpl();
-    private DataCenterMetricsHolder dataCenterMetricsHolder = DataCenterMetricsHolderImpl.instance;
+    private DataCenterMetricsHolder dataCenterMetricsHolder = DataCenterMetricsHolderImpl.INSTANCE;
     private BalancingDestinationMetricsHolder destinationMetricsHolder = new BalancingDestinationMetricsHolderImpl();
 
     private boolean traceEnabled = false;

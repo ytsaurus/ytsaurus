@@ -10,13 +10,12 @@ import ru.yandex.yt.ytclient.rpc.DefaultRpcBusClient;
  * @author dkondra
  */
 public class DataCenterMetricsHolderImpl implements DataCenterMetricsHolder {
-    public static final DataCenterMetricsHolderImpl instance = new DataCenterMetricsHolderImpl();
-
-    private static final MetricRegistry metrics = SharedMetricRegistries.getOrCreate("ytclient");
+    public static final DataCenterMetricsHolderImpl INSTANCE = new DataCenterMetricsHolderImpl();
+    private static final MetricRegistry METRICS = SharedMetricRegistries.getOrCreate("ytclient");
 
     @Override
     public double getDc99thPercentile(String dc) {
-        Histogram pingHistogramDc = metrics.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "ping", dc));
+        Histogram pingHistogramDc = METRICS.histogram(MetricRegistry.name(DefaultRpcBusClient.class, "ping", dc));
         return pingHistogramDc.getSnapshot().get99thPercentile();
     }
 }

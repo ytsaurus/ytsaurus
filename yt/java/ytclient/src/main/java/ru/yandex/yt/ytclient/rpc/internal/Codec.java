@@ -5,6 +5,9 @@ import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.function.Supplier;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
@@ -14,8 +17,6 @@ import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4FastDecompressor;
 
-import ru.yandex.bolts.collection.Cf;
-import ru.yandex.bolts.collection.MapF;
 import ru.yandex.misc.ExceptionUtils;
 import ru.yandex.misc.io.IoUtils;
 
@@ -254,13 +255,13 @@ class ZlibCodec extends Codec {
 }
 
 public abstract class Codec {
-    abstract public byte[] compress(byte[] src);
+    private static final Map<Compression, Supplier<Codec>> CODEC_BY_COMPRESSION = getAllCodecs();
 
-    abstract public byte[] decompress(byte[] src);
+    public abstract byte[] compress(byte[] src);
+    public abstract byte[] decompress(byte[] src);
 
-    private static MapF<Compression, Supplier<Codec>> getAllCodecs() {
-
-        MapF<Compression, Supplier<Codec>> ret = Cf.hashMap();
+    private static Map<Compression, Supplier<Codec>> getAllCodecs() {
+        Map<Compression, Supplier<Codec>> ret = new HashMap<>();
         ret.put(Compression.Zlib_1, () -> new ZlibCodec(1));
         ret.put(Compression.Zlib_2, () -> new ZlibCodec(2));
         ret.put(Compression.Zlib_3, () -> new ZlibCodec(3));
@@ -279,9 +280,11 @@ public abstract class Codec {
         return ret;
     }
 
-    private static final MapF<Compression, Supplier<Codec>> CODEC_BY_COMPRESSION = getAllCodecs();
-
     public static Codec codecFor(Compression compression) {
-        return CODEC_BY_COMPRESSION.getOrThrow(compression, String.format("cannot find codec for %s", compression)).get();
+        Supplier<Codec> codecSupplier = CODEC_BY_COMPRESSION.get(compression);
+        if (codecSupplier == null) {
+            throw new NoSuchElementException(String.format("cannot find codec for %s", compression));
+        }
+        return codecSupplier.get();
     }
 }

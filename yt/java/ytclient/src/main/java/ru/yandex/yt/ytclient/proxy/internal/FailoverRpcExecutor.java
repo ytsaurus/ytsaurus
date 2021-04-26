@@ -35,7 +35,7 @@ public class FailoverRpcExecutor {
     private final long failoverTimeout;
     private final long globalDeadline;
 
-    private final RpcRequest request;
+    private final RpcRequest<?> request;
     private final GUID requestId;
     private final RpcClientResponseHandler baseHandler;
     private final RpcOptions options;
@@ -45,32 +45,14 @@ public class FailoverRpcExecutor {
 
     private final MutableState mutableState;
 
-    static public RpcClientRequestControl execute(
-            ScheduledExecutorService executorService,
-            RpcClientPool clientPool,
-            RpcRequest request,
-            RpcClientResponseHandler handler,
-            RpcOptions options,
-            int attemptCount)
-    {
-        return new FailoverRpcExecutor(
-                executorService,
-                clientPool,
-                request,
-                handler,
-                options,
-                attemptCount)
-                .execute();
-    }
-
     private FailoverRpcExecutor(
             ScheduledExecutorService executorService,
             RpcClientPool clientPool,
             RpcRequest<?> request,
             RpcClientResponseHandler handler,
             RpcOptions options,
-            int attemptCount)
-    {
+            int attemptCount
+    ) {
         this.serializedExecutorService = new ScheduledSerializedExecutorService(executorService);
         this.clientPool = clientPool;
         this.metricsHolder = options.getResponseMetricsHolder();
@@ -101,6 +83,24 @@ public class FailoverRpcExecutor {
         return () -> result.cancel(true);
     }
 
+    public static RpcClientRequestControl execute(
+            ScheduledExecutorService executorService,
+            RpcClientPool clientPool,
+            RpcRequest<?> request,
+            RpcClientResponseHandler handler,
+            RpcOptions options,
+            int attemptCount
+    ) {
+        return new FailoverRpcExecutor(
+                executorService,
+                clientPool,
+                request,
+                handler,
+                options,
+                attemptCount)
+                .execute();
+    }
+
     private void send(RpcClientResponseHandler handler) {
         logger.trace("Peeking connection from pool; RequestId: {}", requestId);
         clientPool.peekClient(result).whenCompleteAsync((RpcClient client, Throwable error) -> {
@@ -128,7 +128,7 @@ public class FailoverRpcExecutor {
         );
     }
 
-    static private class Result {
+    private static class Result {
         final RpcClient client;
         final TResponseHeader header;
         final List<byte[]> data;
@@ -211,18 +211,19 @@ public class FailoverRpcExecutor {
             metricsHolder.inflightInc();
             metricsHolder.totalInc();
 
-            {
-                TRequestHeader.Builder requestHeader = request.header.toBuilder();
-                requestHeader.setTimeout((globalDeadline - now) * 1000); // in microseconds
-                RpcRequest<?> copy = new RpcRequest(requestHeader.build(), request.body, request.attachments);
-                cancellation.add(client.send(client, copy, handler, options));
-            }
+            TRequestHeader.Builder requestHeader = request.header.toBuilder();
+            requestHeader.setTimeout((globalDeadline - now) * 1000); // in microseconds
+            RpcRequest<?> copy = new RpcRequest(requestHeader.build(), request.body, request.attachments);
+            cancellation.add(client.send(client, copy, handler, options));
 
             // schedule next step
             ScheduledFuture<?> scheduled = serializedExecutorService.schedule(
                     () -> {
                         if (!result.isDone()) {
-                            boolean isTimeoutRetriable = !stopped && requestsSent < attemptCount && failoverPolicy.onTimeout();
+                            boolean isTimeoutRetriable =
+                                    !stopped &&
+                                            requestsSent < attemptCount &&
+                                            failoverPolicy.onTimeout();
                             if (isTimeoutRetriable) {
                                 send(handler);
                             }

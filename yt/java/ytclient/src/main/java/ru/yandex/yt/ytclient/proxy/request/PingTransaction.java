@@ -18,7 +18,9 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
  */
 @NonNullApi
 @NonNullFields
-public class PingTransaction extends RequestBase<PingTransaction> implements HighLevelRequest<TReqPingTransaction.Builder> {
+public class PingTransaction
+        extends RequestBase<PingTransaction>
+        implements HighLevelRequest<TReqPingTransaction.Builder> {
     final GUID transactionId;
     boolean pingAncestors = TReqPingTransaction.getDefaultInstance().getPingAncestors();
 

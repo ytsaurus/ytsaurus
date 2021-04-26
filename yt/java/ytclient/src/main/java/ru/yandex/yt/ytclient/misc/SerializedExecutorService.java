@@ -21,8 +21,7 @@ public class SerializedExecutorService implements ExecutorService {
     private final AtomicBoolean lock = new AtomicBoolean();
     private final ConcurrentLinkedQueue<Runnable> taskQueue = new ConcurrentLinkedQueue<>();
 
-    public SerializedExecutorService(@Nonnull ExecutorService underlying)
-    {
+    public SerializedExecutorService(@Nonnull ExecutorService underlying) {
         this.underlying = underlying;
     }
 
@@ -73,7 +72,7 @@ public class SerializedExecutorService implements ExecutorService {
     @Nonnull
     @Override
     public <T> CompletableFuture<T> submit(@Nonnull Runnable runnable, T t) {
-        return submit(()->{
+        return submit(() -> {
             runnable.run();
             return t;
         });
@@ -82,7 +81,7 @@ public class SerializedExecutorService implements ExecutorService {
     @Nonnull
     @Override
     public CompletableFuture<Void> submit(@Nonnull Runnable runnable) {
-        return submit(()->{
+        return submit(() -> {
             runnable.run();
             return null;
         });
@@ -99,8 +98,8 @@ public class SerializedExecutorService implements ExecutorService {
     public <T> List<Future<T>> invokeAll(
             @Nonnull Collection<? extends Callable<T>> collection,
             long l,
-            @Nonnull TimeUnit timeUnit)
-    {
+            @Nonnull TimeUnit timeUnit
+    ) {
         throw new RuntimeException("Not implemented yet");
     }
 

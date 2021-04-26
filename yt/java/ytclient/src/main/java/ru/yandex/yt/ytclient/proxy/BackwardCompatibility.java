@@ -15,12 +15,13 @@ import ru.yandex.yt.ytclient.rpc.RpcClient;
 @NonNullFields
 @NonNullApi
 public class BackwardCompatibility {
-    private BackwardCompatibility() {}
+    private BackwardCompatibility() {
+    }
 
     /**
      * Get list of rpcclients that can be used to send messages to YtClient.
      */
-    static public List<RpcClient> selectDestinations(YtClient client) {
+    public static List<RpcClient> selectDestinations(YtClient client) {
         return client.selectDestinations();
     }
 }

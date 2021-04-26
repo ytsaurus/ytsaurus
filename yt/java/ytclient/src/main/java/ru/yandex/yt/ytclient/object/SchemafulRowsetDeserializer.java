@@ -8,8 +8,9 @@ import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.WireColumnSchema;
 import ru.yandex.yt.ytclient.wire.WireProtocolReader;
 
-public class SchemafulRowsetDeserializer extends UnversionedRowsetDeserializer implements WireSchemafulRowsetDeserializer<UnversionedRow> {
-
+public class SchemafulRowsetDeserializer
+        extends UnversionedRowsetDeserializer
+        implements WireSchemafulRowsetDeserializer<UnversionedRow> {
     private final List<WireColumnSchema> columnSchema;
 
     public SchemafulRowsetDeserializer(TableSchema tableSchema) {

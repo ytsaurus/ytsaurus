@@ -12,23 +12,6 @@ import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public interface TableAttachmentReader<T> {
-
-    List<T> parse(byte[] attachments) throws Exception;
-
-    List<T> parse(byte[] attachments, int offset, int length) throws Exception;
-
-    long getTotalRowCount();
-
-    @Nullable
-    TDataStatistics getDataStatistics();
-
-    @Nullable
-    TableSchema getCurrentReadSchema();
-
-    @Nullable
-    TRowsetDescriptor getRowsetDescriptor();
-
-
     TableAttachmentReader<byte[]> BYPASS = new TableAttachmentReader<byte[]>() {
         @Override
         public List<byte[]> parse(byte[] attachments) {
@@ -74,4 +57,19 @@ public interface TableAttachmentReader<T> {
             return null;
         }
     };
+
+    List<T> parse(byte[] attachments) throws Exception;
+
+    List<T> parse(byte[] attachments, int offset, int length) throws Exception;
+
+    long getTotalRowCount();
+
+    @Nullable
+    TDataStatistics getDataStatistics();
+
+    @Nullable
+    TableSchema getCurrentReadSchema();
+
+    @Nullable
+    TRowsetDescriptor getRowsetDescriptor();
 }

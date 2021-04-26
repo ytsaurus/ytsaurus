@@ -36,17 +36,6 @@ public class MappedRowsetDeserializer<T> implements WireRowsetDeserializer<T>, W
     // Уменьшаем размер буфера - ожидаем, что объекты не очень большие
     private static final int BUFFER_SIZE = 512;
 
-    public static <T> MappedRowsetDeserializer<T> forClass(YTreeObjectSerializer<T> serializer) {
-        final TableSchema schema = MappedRowSerializer.asTableSchema(serializer.getFieldMap());
-        return MappedRowsetDeserializer.forClass(schema, serializer, (unused) -> { });
-    }
-
-    public static <T> MappedRowsetDeserializer<T> forClass(TableSchema schema,
-                                                           YTreeObjectSerializer<T> objectSerializer,
-                                                           ConsumerSource<T> consumer) {
-        return new MappedRowsetDeserializer<>(schema, new SerializerConfiguration<>(objectSerializer), consumer);
-    }
-
     private final MapF<String, YTreeNode> attributes = Cf.map();
     private final YTreeBooleanNodeImpl booleanNode = new YTreeBooleanNodeImpl(false, attributes);
     private final YTreeDoubleNodeImpl doubleNode = new YTreeDoubleNodeImpl(0, attributes);
@@ -88,6 +77,17 @@ public class MappedRowsetDeserializer<T> implements WireRowsetDeserializer<T>, W
         this.consumer = Objects.requireNonNull(consumer);
 
         this.flattenStackSize = configuration.flattenWrappers.size();
+    }
+
+    public static <T> MappedRowsetDeserializer<T> forClass(YTreeObjectSerializer<T> serializer) {
+        final TableSchema schema = MappedRowSerializer.asTableSchema(serializer.getFieldMap());
+        return MappedRowsetDeserializer.forClass(schema, serializer, (unused) -> { });
+    }
+
+    public static <T> MappedRowsetDeserializer<T> forClass(TableSchema schema,
+                                                           YTreeObjectSerializer<T> objectSerializer,
+                                                           ConsumerSource<T> consumer) {
+        return new MappedRowsetDeserializer<>(schema, new SerializerConfiguration<>(objectSerializer), consumer);
     }
 
     private void parseSchema(TableSchema schema) {

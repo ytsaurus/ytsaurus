@@ -47,17 +47,37 @@ public class TokenAuthentication extends RpcClientWrapper {
     }
 
     @Override
-    public RpcClientRequestControl send(RpcClient sender, RpcRequest<?> request, RpcClientResponseHandler handler, RpcOptions options) {
+    public RpcClientRequestControl send(
+            RpcClient sender,
+            RpcRequest<?> request,
+            RpcClientResponseHandler handler,
+            RpcOptions options
+    ) {
         TRequestHeader.Builder header = request.header.toBuilder();
         patchHeader(header);
-        return super.send(sender, new RpcRequest<>(header.build(), request.body, request.attachments), handler, options);
+        return super.send(
+                sender,
+                new RpcRequest<>(header.build(), request.body, request.attachments),
+                handler,
+                options
+        );
     }
 
     @Override
-    public RpcClientStreamControl startStream(RpcClient sender, RpcRequest<?> request, RpcStreamConsumer consumer, RpcOptions options) {
+    public RpcClientStreamControl startStream(
+            RpcClient sender,
+            RpcRequest<?> request,
+            RpcStreamConsumer consumer,
+            RpcOptions options
+    ) {
         TRequestHeader.Builder header = request.header.toBuilder();
         patchHeader(header);
-        return super.startStream(sender, new RpcRequest<>(header.build(), request.body, request.attachments), consumer, options);
+        return super.startStream(
+                sender,
+                new RpcRequest<>(header.build(), request.body, request.attachments),
+                consumer,
+                options
+        );
     }
 
     @Override

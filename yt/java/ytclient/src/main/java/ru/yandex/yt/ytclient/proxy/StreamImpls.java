@@ -59,7 +59,7 @@ abstract class StreamBase<RspType extends Message> implements RpcStreamConsumer 
 
     private final CompletableFuture<RpcClientStreamControl> controlFuture = new CompletableFuture<>();
 
-    volatile protected RpcClientStreamControl control;
+    protected volatile RpcClientStreamControl control;
 
     protected Compression compression;
     protected Codec codec = null;
@@ -147,8 +147,7 @@ abstract class StreamBase<RspType extends Message> implements RpcStreamConsumer 
 // Writer stuff
 //
 
-interface DataSupplier
-{
+interface DataSupplier {
     byte[] get();
 
     default int put(byte[] data) {
@@ -217,9 +216,9 @@ class WrappedSupplier implements DataSupplier {
 }
 
 abstract class StreamWriterImpl<T extends Message> extends StreamBase<T> implements RpcStreamConsumer, StreamWriter {
-    private final static CompletableFuture<Void> completedFuture = CompletableFuture.completedFuture(null);
+    private static final CompletableFuture<Void> COMPLETED_FUTURE = CompletableFuture.completedFuture(null);
 
-    final protected CompletableFuture<List<byte[]>> startUpload = new CompletableFuture<>();
+    protected final CompletableFuture<List<byte[]>> startUpload = new CompletableFuture<>();
 
     private final Object lock = new Object();
     private volatile DataSupplier supplier;
@@ -247,7 +246,10 @@ abstract class StreamWriterImpl<T extends Message> extends StreamBase<T> impleme
 
     @Override
     public void onStartStream(RpcClientStreamControl control) {
-        this.supplier = new WrappedSupplier(new MessagesSupplier(), Codec.codecFor(control.getExpectedPayloadCompression()));
+        this.supplier = new WrappedSupplier(
+                new MessagesSupplier(),
+                Codec.codecFor(control.getExpectedPayloadCompression())
+        );
         super.onStartStream(control);
     }
 
@@ -394,7 +396,7 @@ abstract class StreamWriterImpl<T extends Message> extends StreamBase<T> impleme
     public CompletableFuture<Void> readyEvent() {
         synchronized (lock) {
             if (writePosition - readPosition < windowSize) {
-                return completedFuture;
+                return COMPLETED_FUTURE;
             } else {
                 return this.readyEvent;
             }
@@ -415,7 +417,7 @@ class TableWriterImpl<T> extends StreamWriterImpl<TRspWriteTable> implements Tab
     private final WireRowSerializer<T> serializer;
     private final Map<String, Integer> column2id = new HashMap<>();
 
-    public TableWriterImpl(long windowSize, long packetSize, WireRowSerializer<T> serializer) {
+    TableWriterImpl(long windowSize, long packetSize, WireRowSerializer<T> serializer) {
         super(windowSize, packetSize);
 
         this.serializer = Objects.requireNonNull(serializer);
@@ -442,7 +444,11 @@ class TableWriterImpl<T> extends StreamWriterImpl<TRspWriteTable> implements Tab
                 throw new IllegalArgumentException("protocol error");
             }
 
-            TWriteTableMeta metadata = RpcUtil.parseMessageBodyWithCompression(head, TWriteTableMeta.parser(), Compression.None);
+            TWriteTableMeta metadata = RpcUtil.parseMessageBodyWithCompression(
+                    head,
+                    TWriteTableMeta.parser(),
+                    Compression.None
+            );
             self.schema = ApiServiceUtil.deserializeTableSchema(metadata.getSchema());
 
             logger.debug("schema -> {}", schema.toYTree().toString());
@@ -465,12 +471,17 @@ class TableWriterImpl<T> extends StreamWriterImpl<TRspWriteTable> implements Tab
         serializer.updateSchema(descriptor);
         writer.writeUnversionedRowset(rows, serializer, idMapping);
 
-        for (byte [] bytes : writer.finish()) {
+        for (byte[] bytes : writer.finish()) {
             buf.writeBytes(bytes);
         }
     }
 
-    private void writeRowsData(ByteBuf buf, TRowsetDescriptor descriptor, List<T> rows, int[] idMapping) throws IOException {
+    private void writeRowsData(
+            ByteBuf buf,
+            TRowsetDescriptor descriptor,
+            List<T> rows,
+            int[] idMapping
+    ) throws IOException {
         // parts
         buf.writeIntLE(2);
 
@@ -521,9 +532,12 @@ class TableWriterImpl<T> extends StreamWriterImpl<TRspWriteTable> implements Tab
             : null;
 
         if (isUnversionedRows) {
-            for (UnversionedRow row : (List<UnversionedRow>)rows) {
+            for (UnversionedRow row : (List<UnversionedRow>) rows) {
                 List<UnversionedValue> values = row.getValues();
-                for (int columnNumber = 0; columnNumber < schema.getColumns().size() && columnNumber < values.size(); ++columnNumber) {
+                for (int columnNumber = 0;
+                     columnNumber < schema.getColumns().size() && columnNumber < values.size();
+                     ++columnNumber
+                ) {
                     String columnName = schema.getColumnName(columnNumber);
                     UnversionedValue value = values.get(columnNumber);
                     int columnId = column2id.get(columnName);
@@ -563,7 +577,7 @@ class TableWriterImpl<T> extends StreamWriterImpl<TRspWriteTable> implements Tab
 }
 
 class FileWriterImpl extends StreamWriterImpl<TRspWriteFile> implements FileWriter, RpcStreamConsumer {
-    public FileWriterImpl(long windowSize, long packetSize) {
+    FileWriterImpl(long windowSize, long packetSize) {
         super(windowSize, packetSize);
     }
 
@@ -579,7 +593,7 @@ class FileWriterImpl extends StreamWriterImpl<TRspWriteFile> implements FileWrit
     @Override
     public boolean write(byte[] data, int offset, int len) {
         if (data != null) {
-            byte[] newData = new byte [len - offset];
+            byte[] newData = new byte[len - offset];
             System.arraycopy(data, offset, newData, 0, len);
             data = newData;
         }
@@ -662,7 +676,7 @@ class Attachment {
     private final long compressedSize;
     private final byte[] decompressedBytes;
 
-    public Attachment(long compressedSize, byte[] decompressedBytes) {
+    Attachment(long compressedSize, byte[] decompressedBytes) {
         this.compressedSize = compressedSize;
         this.decompressedBytes = decompressedBytes;
     }
@@ -680,7 +694,7 @@ class Payload {
     private final List<Attachment> attachments;
     private final RpcClient sender;
 
-    public Payload(List<Attachment> attachments, RpcClient sender) {
+    Payload(List<Attachment> attachments, RpcClient sender) {
         this.attachments = attachments;
         this.sender = sender;
     }
@@ -723,8 +737,7 @@ abstract class StreamReaderImpl<RspType extends Message> extends StreamBase<RspT
     }
 
     @Override
-    public void onFeedback(RpcClient sender, TStreamingFeedbackHeader header, List<byte[]> attachments)
-    {
+    public void onFeedback(RpcClient sender, TStreamingFeedbackHeader header, List<byte[]> attachments) {
     }
 
     @Override
@@ -756,7 +769,7 @@ abstract class StreamReaderImpl<RspType extends Message> extends StreamBase<RspT
     }
 
     boolean doCanRead() {
-        return ! stash.isEof();
+        return !stash.isEof();
     }
 
     byte[] doRead() throws Exception {
@@ -769,7 +782,8 @@ abstract class StreamReaderImpl<RspType extends Message> extends StreamBase<RspT
     }
 
     CompletableFuture<Void> getReadyEvent() {
-        return CompletableFuture.anyOf(stash.readyEvent(), result).thenAccept((unused) -> {});
+        return CompletableFuture.anyOf(stash.readyEvent(), result).thenAccept((unused) -> {
+        });
     }
 
     CompletableFuture<Void> doClose() {
@@ -783,12 +797,12 @@ abstract class StreamReaderImpl<RspType extends Message> extends StreamBase<RspT
 }
 
 class TableReaderImpl<T> extends StreamReaderImpl<TRspReadTable> implements TableReader<T> {
-    private static final Parser<TRspReadTableMeta> metaParser = TRspReadTableMeta.parser();
+    private static final Parser<TRspReadTableMeta> META_PARSER = TRspReadTableMeta.parser();
 
     private final TableAttachmentReader<T> reader;
     private TRspReadTableMeta metadata = null;
 
-    public TableReaderImpl(TableAttachmentReader<T> reader) {
+    TableReaderImpl(TableAttachmentReader<T> reader) {
         this.reader = reader;
     }
 
@@ -836,7 +850,7 @@ class TableReaderImpl<T> extends StreamReaderImpl<TRspReadTable> implements Tabl
     public CompletableFuture<TableReader<T>> waitMetadata() {
         TableReaderImpl<T> self = this;
         return readHead().thenApply((data) -> {
-            self.metadata = RpcUtil.parseMessageBodyWithCompression(data, metaParser, Compression.None);
+            self.metadata = RpcUtil.parseMessageBodyWithCompression(data, META_PARSER, Compression.None);
             return self;
         });
     }
@@ -865,7 +879,7 @@ class TableReaderImpl<T> extends StreamReaderImpl<TRspReadTable> implements Tabl
 class FileReaderImpl extends StreamReaderImpl<TRspReadFile> implements FileReader {
     private long revision = -1;
 
-    public FileReaderImpl() {
+    FileReaderImpl() {
     }
 
     @Override
@@ -881,7 +895,11 @@ class FileReaderImpl extends StreamReaderImpl<TRspReadFile> implements FileReade
     public CompletableFuture<FileReader> waitMetadata() {
         FileReaderImpl self = this;
         return readHead().thenApply((data) -> {
-            TReadFileMeta meta = RpcUtil.parseMessageBodyWithCompression(data, TReadFileMeta.parser(), Compression.None);
+            TReadFileMeta meta = RpcUtil.parseMessageBodyWithCompression(
+                    data,
+                    TReadFileMeta.parser(),
+                    Compression.None
+            );
             self.revision = meta.getRevision();
             return self;
         });

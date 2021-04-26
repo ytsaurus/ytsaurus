@@ -32,11 +32,21 @@ public class UnversionedRowSerializer implements WireRowSerializer<UnversionedRo
     }
 
     @Override
-    public void serializeRow(UnversionedRow row, WireProtocolWriteable writeable, boolean keyFieldsOnly, int[] idMapping) {
+    public void serializeRow(
+            UnversionedRow row,
+            WireProtocolWriteable writeable,
+            boolean keyFieldsOnly,
+            int[] idMapping
+    ) {
         // keyFieldsOnly is not supported for unversioned rows
         writeable.writeValueCount(row.getValues().size());
         for (UnversionedValue value : row.getValues()) {
-            writeable.writeValueHeader(getValueId(value, idMapping), value.getType(), value.isAggregate(), value.getLength());
+            writeable.writeValueHeader(
+                    getValueId(value, idMapping),
+                    value.getType(),
+                    value.isAggregate(),
+                    value.getLength()
+            );
             final Object v = value.getValue();
             switch (value.getType()) {
                 case INT64:
@@ -53,8 +63,9 @@ public class UnversionedRowSerializer implements WireRowSerializer<UnversionedRo
                 case ANY:
                     writeable.onBytes(value.bytesValue());
                     break;
+                default:
+                    break;
             }
-
         }
     }
 }

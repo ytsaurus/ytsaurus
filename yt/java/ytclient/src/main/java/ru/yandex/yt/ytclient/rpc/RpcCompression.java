@@ -14,10 +14,7 @@ public class RpcCompression {
         this(codecId, codecId);
     }
 
-    public RpcCompression(
-            Compression requestCodecId,
-            Compression responseCodecId)
-    {
+    public RpcCompression(Compression requestCodecId, Compression responseCodecId) {
         this.requestCodecId = requestCodecId;
         this.responseCodecId = responseCodecId;
     }

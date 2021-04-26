@@ -32,7 +32,9 @@ public class ExistsNode extends GetLikeReq<ExistsNode> implements HighLevelReque
             builder.body().setMasterReadOptions(masterReadOptions.writeTo(TMasterReadOptions.newBuilder()));
         }
         if (suppressableAccessTrackingOptions != null) {
-            builder.body().setSuppressableAccessTrackingOptions(suppressableAccessTrackingOptions.writeTo(TSuppressableAccessTrackingOptions.newBuilder()));
+            builder.body().setSuppressableAccessTrackingOptions(
+                    suppressableAccessTrackingOptions.writeTo(TSuppressableAccessTrackingOptions.newBuilder())
+            );
         }
         if (additionalData != null) {
             builder.body().mergeFrom(additionalData);

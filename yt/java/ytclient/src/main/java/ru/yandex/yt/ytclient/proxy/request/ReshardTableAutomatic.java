@@ -8,7 +8,8 @@ public class ReshardTableAutomatic extends TableReq<ReshardTableAutomatic> {
     private boolean keepActions = false;
 
     public ReshardTableAutomatic(String path, boolean keepActions) {
-        super(path); this.keepActions = keepActions;
+        super(path);
+        this.keepActions = keepActions;
     }
 
     public ReshardTableAutomatic setKeepActions(boolean keepActions) {

@@ -29,7 +29,7 @@ public class DefaultBusInitializer extends ChannelInitializer<Channel> {
     private final DefaultBusChannelMetricsHolder metricsHolder;
 
     public DefaultBusInitializer(BusListener listener) {
-        this(listener, DefaultBusChannelMetricsHolderImpl.instance);
+        this(listener, DefaultBusChannelMetricsHolderImpl.INSTANCE);
     }
 
     public DefaultBusInitializer(BusListener listener, DefaultBusChannelMetricsHolder metricsHolder) {

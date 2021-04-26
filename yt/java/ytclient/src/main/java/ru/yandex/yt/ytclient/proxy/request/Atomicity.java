@@ -11,8 +11,7 @@ import ru.yandex.yt.rpcproxy.EAtomicity;
  */
 public enum Atomicity {
     Full(EAtomicity.A_FULL, "full"),
-    None(EAtomicity.A_NONE, "none"),
-    ;
+    None(EAtomicity.A_NONE, "none");
 
     private final EAtomicity protoValue;
     private final String stringValue;

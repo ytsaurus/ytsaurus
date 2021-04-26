@@ -11,8 +11,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.proxy.internal.DataCenter;
@@ -31,21 +29,19 @@ import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolderImpl;
  */
 @Deprecated
 public class BalancingRpcClient implements RpcClient {
-    private static final Logger logger = LoggerFactory.getLogger(BalancingRpcClient.class);
-
-    final private String dataCenterName;
-    final private DataCenter[] dataCenters;
+    private final DataCenter[] dataCenters;
+    private final Random rnd = new Random();
+    private final ScheduledExecutorService executorService;
+    private final RpcFailoverPolicy failoverPolicy;
     private DataCenter localDataCenter;
-    final private Random rnd = new Random();
-    final private ScheduledExecutorService executorService;
-    final private RpcFailoverPolicy failoverPolicy;
 
     public BalancingRpcClient(
         Duration failoverTimeout,
         Duration globalTimeout,
         Duration pingTimeout,
         BusConnector connector,
-        RpcClient ... destinations) {
+        RpcClient... destinations
+    ) {
 
         this(failoverTimeout, globalTimeout, pingTimeout, connector, new DefaultRpcFailoverPolicy(), destinations);
     }
@@ -56,8 +52,8 @@ public class BalancingRpcClient implements RpcClient {
         Duration pingTimeout,
         BusConnector connector,
         RpcFailoverPolicy failoverPolicy,
-        RpcClient ... destinations) {
-
+        RpcClient... destinations
+    ) {
         this(
             failoverTimeout,
             globalTimeout,
@@ -85,12 +81,13 @@ public class BalancingRpcClient implements RpcClient {
                 failoverPolicy,
                 dataCenter,
                 dataCenters,
-                BalancingDestinationMetricsHolderImpl.instance,
-                BalancingResponseHandlerMetricsHolderImpl.instance,
-                DataCenterMetricsHolderImpl.instance
+                BalancingDestinationMetricsHolderImpl.INSTANCE,
+                BalancingResponseHandlerMetricsHolderImpl.INSTANCE,
+                DataCenterMetricsHolderImpl.INSTANCE
         );
     }
 
+    @SuppressWarnings("checkstyle:ParameterNumber")
     public BalancingRpcClient(
         Duration failoverTimeout,
         Duration globalTimeout,
@@ -101,11 +98,10 @@ public class BalancingRpcClient implements RpcClient {
         Map<String, List<RpcClient>> dataCenters,
         BalancingDestinationMetricsHolder balancingDestinationMetricsHolder,
         BalancingResponseHandlerMetricsHolder balancingResponseHandlerMetricsHolder,
-        DataCenterMetricsHolder dataCenterMetricsHolder)
-    {
+        DataCenterMetricsHolder dataCenterMetricsHolder
+    ) {
         assert failoverTimeout.compareTo(globalTimeout) <= 0;
 
-        this.dataCenterName = dataCenter;
         this.failoverPolicy = failoverPolicy;
         this.executorService = connector.eventLoopGroup();
         this.dataCenters = new DataCenter[dataCenters.size()];
@@ -121,10 +117,11 @@ public class BalancingRpcClient implements RpcClient {
                     clients,
                     -1.0,
                     dataCenterMetricsHolder,
-                    new RpcOptions());
+                    new RpcOptions()
+            );
 
             this.dataCenters[i] = dc;
-            if (dcName.equals(dataCenterName)) {
+            if (dcName.equals(dataCenter)) {
                 this.localDataCenter = dc;
                 this.dataCenters[i] = this.dataCenters[0];
                 this.dataCenters[0] = this.localDataCenter;
@@ -157,7 +154,13 @@ public class BalancingRpcClient implements RpcClient {
     }
 
     public RpcClient getAliveClient() {
-        List<RpcClient> r = Manifold.selectDestinations(dataCenters, 1, localDataCenter != null, rnd, !failoverPolicy.randomizeDcs());
+        List<RpcClient> r = Manifold.selectDestinations(
+                dataCenters,
+                1,
+                localDataCenter != null,
+                rnd,
+                !failoverPolicy.randomizeDcs()
+        );
         if (r.isEmpty()) {
             return null;
         } else {
@@ -166,7 +169,12 @@ public class BalancingRpcClient implements RpcClient {
     }
 
     @Override
-    public RpcClientStreamControl startStream(RpcClient unused, RpcRequest<?> request, RpcStreamConsumer consumer, RpcOptions options) {
+    public RpcClientStreamControl startStream(
+            RpcClient unused,
+            RpcRequest<?> request,
+            RpcStreamConsumer consumer,
+            RpcOptions options
+    ) {
         throw new IllegalArgumentException();
     }
 
@@ -175,9 +183,15 @@ public class BalancingRpcClient implements RpcClient {
             RpcClient sender,
             RpcRequest<?> request,
             RpcClientResponseHandler handler,
-            RpcOptions options)
-    {
-        List<RpcClient> destinations = Manifold.selectDestinations(dataCenters, 3, localDataCenter != null, rnd, !failoverPolicy.randomizeDcs());
+            RpcOptions options
+    ) {
+        List<RpcClient> destinations = Manifold.selectDestinations(
+                dataCenters,
+                3,
+                localDataCenter != null,
+                rnd,
+                !failoverPolicy.randomizeDcs()
+        );
         return FailoverRpcExecutor.execute(
                 executorService,
                 RpcClientPool.collectionPool(destinations),
@@ -186,7 +200,6 @@ public class BalancingRpcClient implements RpcClient {
                 options,
                 destinations.size());
     }
-
 
     public String destinationName() {
         return "multidestination";

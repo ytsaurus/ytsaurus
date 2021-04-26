@@ -26,7 +26,7 @@ public class WriteTable<T> extends RequestBase<WriteTable<T>> {
     private TransactionalOptions transactionalOptions = null;
 
     private long windowSize = 16000000L;
-    private long packetSize = windowSize/2;
+    private long packetSize = windowSize / 2;
 
     public WriteTable(String path, WireRowSerializer<T> serializer) {
         this.path = path;

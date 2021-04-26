@@ -4,8 +4,7 @@ import ru.yandex.yt.rpcproxy.ETransactionType;
 
 public enum TransactionType {
     Master(ETransactionType.TT_MASTER, "master"),
-    Tablet(ETransactionType.TT_TABLET, "tablet"),
-    ;
+    Tablet(ETransactionType.TT_TABLET, "tablet");
 
     private final ETransactionType protoValue;
     private final String stringValue;

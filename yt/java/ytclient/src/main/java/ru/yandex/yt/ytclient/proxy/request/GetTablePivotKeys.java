@@ -9,8 +9,10 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 @NonNullFields
 @NonNullApi
-public class GetTablePivotKeys extends RequestBase<GetTablePivotKeys> implements HighLevelRequest<TReqGetTablePivotKeys.Builder> {
-    final private String path;
+public class GetTablePivotKeys
+        extends RequestBase<GetTablePivotKeys>
+        implements HighLevelRequest<TReqGetTablePivotKeys.Builder> {
+    private final String path;
 
     public GetTablePivotKeys(String path) {
         this.path = path;

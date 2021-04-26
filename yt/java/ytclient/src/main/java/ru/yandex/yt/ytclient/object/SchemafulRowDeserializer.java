@@ -6,8 +6,9 @@ import java.util.Objects;
 import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.WireColumnSchema;
 
-public class SchemafulRowDeserializer extends UnversionedRowDeserializer implements WireSchemafulRowDeserializer<UnversionedRow> {
-
+public class SchemafulRowDeserializer
+        extends UnversionedRowDeserializer
+        implements WireSchemafulRowDeserializer<UnversionedRow> {
     private final List<WireColumnSchema> columnSchema;
 
     public SchemafulRowDeserializer(List<WireColumnSchema> columnSchema) {

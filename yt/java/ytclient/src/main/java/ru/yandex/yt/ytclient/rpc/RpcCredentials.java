@@ -56,7 +56,7 @@ public class RpcCredentials {
      *
      * @throws RuntimeException if user name or user token cannot be obtained.
      */
-    static public RpcCredentials loadFromEnvironment() {
+    public static RpcCredentials loadFromEnvironment() {
         String userName = System.getenv("YT_USER");
         if (userName == null) {
             userName = System.getProperty("user.name");

@@ -46,15 +46,24 @@ import ru.yandex.yt.ytclient.wire.VersionedRowset;
 public abstract class TransactionalClient {
     public abstract CompletableFuture<UnversionedRowset> lookupRows(AbstractLookupRowsRequest<?> request);
 
-    public abstract <T> CompletableFuture<List<T>> lookupRows(AbstractLookupRowsRequest<?> request, YTreeObjectSerializer<T> serializer);
+    public abstract <T> CompletableFuture<List<T>> lookupRows(
+            AbstractLookupRowsRequest<?> request,
+            YTreeObjectSerializer<T> serializer
+    );
 
     public abstract CompletableFuture<VersionedRowset> versionedLookupRows(AbstractLookupRowsRequest<?> request);
 
-    public abstract <T> CompletableFuture<List<T>> versionedLookupRows(AbstractLookupRowsRequest<?> request, YTreeObjectSerializer<T> serializer);
+    public abstract <T> CompletableFuture<List<T>> versionedLookupRows(
+            AbstractLookupRowsRequest<?> request,
+            YTreeObjectSerializer<T> serializer
+    );
 
     public abstract CompletableFuture<UnversionedRowset> selectRows(SelectRowsRequest request);
 
-    public abstract <T> CompletableFuture<List<T>> selectRows(SelectRowsRequest request, YTreeObjectSerializer<T> serializer);
+    public abstract <T> CompletableFuture<List<T>> selectRows(
+            SelectRowsRequest request,
+            YTreeObjectSerializer<T> serializer
+    );
 
     public abstract CompletableFuture<GUID> createNode(CreateNode req);
 
@@ -152,8 +161,8 @@ public abstract class TransactionalClient {
             String path,
             ObjectType type,
             Map<String, YTreeNode> attributes,
-            @Nullable Duration requestTimeout)
-    {
+            @Nullable Duration requestTimeout
+    ) {
         return createNode(new CreateNode(path, type, attributes).setTimeout(requestTimeout));
     }
 
