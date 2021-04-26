@@ -28,7 +28,7 @@ public:
     TMasterConnectorConfig()
     {
         RegisterParameter("heartbeat_period", HeartbeatPeriod)
-            .Default(TDuration::Seconds(30));
+            .Default(TDuration::Seconds(5));
         RegisterParameter("heartbeat_period_splay", HeartbeatPeriodSplay)
             .Default(TDuration::Seconds(1));
         RegisterParameter("heartbeat_timeout", HeartbeatTimeout)
