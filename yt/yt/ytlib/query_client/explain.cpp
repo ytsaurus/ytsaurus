@@ -90,6 +90,10 @@ void GetQueryInfo(
 
             if (options.VerboseOutput && !isSubquery) {
                 TQueryOptions queryOptions;
+                queryOptions.RangeExpansionLimit = options.RangeExpansionLimit;
+                queryOptions.VerboseLogging = options.VerboseLogging;
+                queryOptions.MaxSubqueries = options.MaxSubqueries;
+
                 auto Logger = MakeQueryLogger(query);
                 auto rowBuffer = New<TRowBuffer>(TQueryExecutorRowBufferTag{});
 

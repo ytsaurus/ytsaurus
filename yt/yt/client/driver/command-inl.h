@@ -249,8 +249,15 @@ TSelectRowsCommandBase<
     typename std::enable_if_t<std::is_convertible_v<TOptions&, NApi::TSelectRowsOptionsBase&>>
 >::TSelectRowsCommandBase()
 {
+    this->RegisterParameter("range_expansion_limit", this->Options.RangeExpansionLimit)
+        .Optional();
+    this->RegisterParameter("max_subqueries", this->Options.MaxSubqueries)
+        .GreaterThan(0)
+        .Optional();
     this->RegisterParameter("udf_registry_path", this->Options.UdfRegistryPath)
         .Default();
+    this->RegisterParameter("verbose_logging", this->Options.VerboseLogging)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -580,11 +580,6 @@ TSelectRowsCommand::TSelectRowsCommand()
         .Optional();
     RegisterParameter("output_row_limit", Options.OutputRowLimit)
         .Optional();
-    RegisterParameter("range_expansion_limit", Options.RangeExpansionLimit)
-        .Optional();
-    RegisterParameter("max_subqueries", Options.MaxSubqueries)
-        .GreaterThan(0)
-        .Optional();
     RegisterParameter("use_multijoin", Options.UseMultijoin)
         .Optional();
     RegisterParameter("allow_full_scan", Options.AllowFullScan)
@@ -594,8 +589,6 @@ TSelectRowsCommand::TSelectRowsCommand()
     RegisterParameter("execution_pool", Options.ExecutionPool)
         .Optional();
     RegisterParameter("fail_on_incomplete_result", Options.FailOnIncompleteResult)
-        .Optional();
-    RegisterParameter("verbose_logging", Options.VerboseLogging)
         .Optional();
     RegisterParameter("enable_code_cache", Options.EnableCodeCache)
         .Optional();

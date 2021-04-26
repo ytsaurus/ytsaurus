@@ -805,6 +805,80 @@ TEST_F(TComputedColumnTest, FarDivide1)
     EXPECT_EQ(YsonToKey("2;" _MAX_), result[1].second);
 }
 
+TEST_F(TComputedColumnTest, RangeExpansionLimit)
+{
+    TTableSchema tableSchema({
+        TColumnSchema("h", EValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending)
+            .SetExpression(TString("k + 1")),
+        TColumnSchema("k", EValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("l", EValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("m", EValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("a", EValueType::Int64)
+    });
+
+    SetSchema(tableSchema);
+
+    auto query = TString("a from [//t] where k in (10, 20, 30, 40, 50) and l in (1, 3, 5, 7)");
+    auto result = Coordinate(query, 6);
+
+
+    EXPECT_EQ(5, result.size());
+
+    EXPECT_EQ(YsonToKey("11;10;1"), result[0].first);
+    EXPECT_EQ(YsonToKey("11;10;7;" _MAX_), result[0].second);
+
+    EXPECT_EQ(YsonToKey("21;20;1"), result[1].first);
+    EXPECT_EQ(YsonToKey("21;20;7;" _MAX_), result[1].second);
+
+    EXPECT_EQ(YsonToKey("31;30;1"), result[2].first);
+    EXPECT_EQ(YsonToKey("31;30;7;" _MAX_), result[2].second);
+
+    EXPECT_EQ(YsonToKey("41;40;1"), result[3].first);
+    EXPECT_EQ(YsonToKey("41;40;7;" _MAX_), result[3].second);
+
+    EXPECT_EQ(YsonToKey("51;50;1"), result[4].first);
+    EXPECT_EQ(YsonToKey("51;50;7;" _MAX_), result[4].second);
+}
+
+TEST_F(TComputedColumnTest, RangeExpansionLimitSimple)
+{
+    TTableSchema tableSchema({
+        TColumnSchema("k", EValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("l", EValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("m", EValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("a", EValueType::Int64)
+    });
+
+    SetSchema(tableSchema);
+
+    auto query = TString("a from [//t] where k in (10, 20, 30, 40, 50) and l in (1, 3, 5, 7)");
+    auto result = Coordinate(query, 6);
+
+    EXPECT_EQ(5, result.size());
+
+    EXPECT_EQ(YsonToKey("10;1"), result[0].first);
+    EXPECT_EQ(YsonToKey("10;7;" _MAX_), result[0].second);
+
+    EXPECT_EQ(YsonToKey("20;1"), result[1].first);
+    EXPECT_EQ(YsonToKey("20;7;" _MAX_), result[1].second);
+
+    EXPECT_EQ(YsonToKey("30;1"), result[2].first);
+    EXPECT_EQ(YsonToKey("30;7;" _MAX_), result[2].second);
+
+    EXPECT_EQ(YsonToKey("40;1"), result[3].first);
+    EXPECT_EQ(YsonToKey("40;7;" _MAX_), result[3].second);
+
+    EXPECT_EQ(YsonToKey("50;1"), result[4].first);
+    EXPECT_EQ(YsonToKey("50;7;" _MAX_), result[4].second);
+}
+
 TEST_P(TComputedColumnTest, Join)
 {
     const auto& args = GetParam();
