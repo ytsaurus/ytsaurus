@@ -30,13 +30,10 @@ import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.misc.SerializedExecutorService;
-import ru.yandex.yt.ytclient.proxy.internal.FailureDetectingRpcClient;
 import ru.yandex.yt.ytclient.proxy.internal.HostPort;
 import ru.yandex.yt.ytclient.proxy.internal.RpcClientFactory;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientPool;
-import ru.yandex.yt.ytclient.rpc.RpcError;
-import ru.yandex.yt.ytclient.rpc.RpcErrorCode;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolder;
 
@@ -289,7 +286,10 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
         super(
                 Objects.requireNonNull(httpBuilder.dataCenterName),
                 Objects.requireNonNull(httpBuilder.options).getChannelPoolSize(),
-                Objects.requireNonNull(httpBuilder.clientFactory),
+                new SelfCheckingClientFactoryImpl(
+                        Objects.requireNonNull(httpBuilder.clientFactory),
+                        httpBuilder.options
+                ),
                 Objects.requireNonNull(httpBuilder.eventLoop),
                 Objects.requireNonNull(httpBuilder.random)
         );
@@ -315,7 +315,9 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
         super(
                 Objects.requireNonNull(rpcBuilder.dataCenterName),
                 Objects.requireNonNull(rpcBuilder.options).getChannelPoolSize(),
-                Objects.requireNonNull(rpcBuilder.clientFactory),
+                new SelfCheckingClientFactoryImpl(
+                        Objects.requireNonNull(rpcBuilder.clientFactory),
+                        rpcBuilder.options),
                 Objects.requireNonNull(rpcBuilder.eventLoop),
                 Objects.requireNonNull(rpcBuilder.random)
         );
@@ -429,7 +431,7 @@ class ClientPool implements DataCenterRpcClientPool {
 
     private final String dataCenterName;
     private final int maxSize;
-    private final RpcClientFactory clientFactory;
+    private final SelfCheckingClientFactory clientFactory;
     private final ExecutorService unsafeExecutorService;
     private final SerializedExecutorService safeExecutorService;
     private final Random random;
@@ -446,7 +448,7 @@ class ClientPool implements DataCenterRpcClientPool {
     ClientPool(
             String dataCenterName,
             int maxSize,
-            RpcClientFactory clientFactory,
+            SelfCheckingClientFactory clientFactory,
             ExecutorService executorService,
             Random random)
     {
@@ -578,9 +580,16 @@ class ClientPool implements DataCenterRpcClientPool {
                 break;
             }
 
-            RpcClient rpcClient = clientFactory.create(hostPort, dataCenterName);
+            CompletableFuture<Void> clientStatusFuture = new CompletableFuture<>();
+            RpcClient rpcClient = clientFactory.create(hostPort, dataCenterName, clientStatusFuture);
             GUID clientGuid = GUID.create();
-            PooledRpcClient pooledClient = new PooledRpcClient(hostPort, rpcClient, clientGuid);
+            PooledRpcClient pooledClient = new PooledRpcClient(hostPort, rpcClient, clientGuid, clientStatusFuture);
+            clientStatusFuture.whenComplete((result, error) -> {
+                if (error != null) {
+                    logger.debug("Banning {} because of error: ", pooledClient, error);
+                    banErrorClient(pooledClient);
+                }
+            });
             logger.debug("Opened new rpc-proxy connection: {}", pooledClient);
             activeClients.put(clientGuid, pooledClient);
         }
@@ -624,32 +633,21 @@ class ClientPool implements DataCenterRpcClientPool {
 
     @NonNullFields
     @NonNullApi
-    class PooledRpcClient {
+    static class PooledRpcClient {
         final HostPort hostPort;
         final RpcClient publicClient;
         final GUID guid;
+        final CompletableFuture<Void> statusFuture;
 
         volatile boolean banned = false;
 
         private final AtomicInteger referenceCounter = new AtomicInteger(1);
 
-        PooledRpcClient(HostPort hostPort, RpcClient client, GUID guid) {
+        PooledRpcClient(HostPort hostPort, RpcClient client, GUID guid, CompletableFuture<Void> clientStatusFuture) {
             this.hostPort = hostPort;
-            this.publicClient = new FailureDetectingRpcClient(
-                    client,
-                    e -> {
-                        if (e instanceof RpcError && ((RpcError)e).matches(RpcErrorCode.TableMountInfoNotReady.code)) {
-                            // Workaround: we want to treat such errors as recoverable.
-                            return false;
-                        }
-                        return RpcError.isUnrecoverable(e);
-                    },
-                    e -> {
-                        logger.debug("Banning rpc-proxy connection {} due to error:", this, e);
-                        banErrorClient(this);
-                    }
-            );
+            this.publicClient = client;
             this.guid = guid;
+            this.statusFuture = clientStatusFuture;
         }
 
         boolean ref() {
@@ -662,6 +660,7 @@ class ClientPool implements DataCenterRpcClientPool {
             if (ref == 0) {
                 logger.debug("Releasing rpc-proxy connection {}", this);
                 publicClient.unref();
+                statusFuture.complete(null);
             }
         }
 
