@@ -482,7 +482,9 @@ func (c *httpClient) doRead(ctx context.Context, call *internal.Call) (r io.Read
 			return
 		}
 
-		br.body = blockcodecs.NewDecoder(br.body)
+		d := blockcodecs.NewDecoder(br.body)
+		d.SetCheckUnderlyingEOF(true)
+		br.body = d
 	}
 
 	return
@@ -540,10 +542,12 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 	}
 	client.httpClient = &http.Client{
 		Transport: &http.Transport{
-			DialContext:         client.dialContext,
-			ForceAttemptHTTP2:   true,
-			MaxIdleConns:        100,
-			IdleConnTimeout:     90 * time.Second,
+			DialContext: client.dialContext,
+
+			MaxIdleConns:        0,
+			MaxIdleConnsPerHost: 100,
+			IdleConnTimeout:     30 * time.Second,
+
 			TLSHandshakeTimeout: 10 * time.Second,
 			TLSClientConfig: &tls.Config{
 				RootCAs: certPool,
