@@ -140,7 +140,7 @@ void TKeyBoundImpl<TRow, TKeyBound>::FormatValue(TStringBuilderBase* builder) co
         if (IsInclusive) {
             builder->AppendChar('=');
         }
-        builder->AppendFormat("%v", Prefix);
+        builder->AppendString(ToString(Prefix, /*valuesOnly*/ true));
     }
 }
 
