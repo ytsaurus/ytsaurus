@@ -290,13 +290,15 @@ size_t WriteYson(char* buffer, const TUnversionedValue& unversionedValue)
     return output.Buf() - buffer;
 }
 
-TString ToString(const TUnversionedValue& value)
+TString ToString(const TUnversionedValue& value, bool valueOnly)
 {
     TStringBuilder builder;
-    if (value.Aggregate) {
-        builder.AppendChar('%');
+    if (!valueOnly) {
+        if (value.Aggregate) {
+            builder.AppendChar('%');
+        }
+        builder.AppendFormat("%v#", value.Id);
     }
-    builder.AppendFormat("%v#", value.Id);
     switch (value.Type) {
         case EValueType::Null:
         case EValueType::Min:
@@ -1523,10 +1525,14 @@ void FromBytes(TUnversionedOwningRow* row, TStringBuf bytes)
     *row = DeserializeFromString(TString(bytes));
 }
 
-TString ToString(TUnversionedRow row)
+TString ToString(TUnversionedRow row, bool valuesOnly)
 {
     return row
-        ? "[" + JoinToString(row.Begin(), row.End()) + "]"
+        ? "[" + JoinToString(
+            row,
+            [&] (TStringBuilderBase* builder, const TUnversionedValue& value) {
+                builder->AppendString(ToString(value, valuesOnly));
+            }) + "]"
         : "<null>";
 }
 
@@ -1535,9 +1541,9 @@ TString ToString(TMutableUnversionedRow row)
     return ToString(TUnversionedRow(row));
 }
 
-TString ToString(const TUnversionedOwningRow& row)
+TString ToString(const TUnversionedOwningRow& row, bool valuesOnly)
 {
-    return ToString(row.Get());
+    return ToString(row.Get(), valuesOnly);
 }
 
 void PrintTo(const TUnversionedOwningRow& key, ::std::ostream* os)

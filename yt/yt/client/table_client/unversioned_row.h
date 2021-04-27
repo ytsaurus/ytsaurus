@@ -213,7 +213,7 @@ size_t ReadValue(const char* input, TUnversionedValue* value);
 void Save(TStreamSaveContext& context, const TUnversionedValue& value);
 void Load(TStreamLoadContext& context, TUnversionedValue& value, TChunkedMemoryPool* pool);
 
-TString ToString(const TUnversionedValue& value);
+TString ToString(const TUnversionedValue& value, bool valueOnly = false);
 
 //! Ternary comparison predicate for TUnversionedValue-s.
 //! Returns zero, positive or negative value depending on the outcome.
@@ -545,9 +545,9 @@ void Deserialize(TLegacyOwningKey& key, NYTree::INodePtr node);
 size_t GetYsonSize(const TUnversionedValue& value);
 size_t WriteYson(char* buffer, const TUnversionedValue& unversionedValue);
 
-TString ToString(TUnversionedRow row);
+TString ToString(TUnversionedRow row, bool valuesOnly = false);
 TString ToString(TMutableUnversionedRow row);
-TString ToString(const TUnversionedOwningRow& row);
+TString ToString(const TUnversionedOwningRow& row, bool valuesOnly = false);
 
 //! Debug printers for Gtest unittests.
 void PrintTo(const TUnversionedOwningRow& key, ::std::ostream* os);
