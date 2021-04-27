@@ -1167,8 +1167,11 @@ private:
                 TrySetRequestSucceeded(request);
                 DisposeRequest(request);
                 return;
+            } else if (request->PendingReadSubrequestIndexes.empty()) {
+                return;
             }
 
+            YT_VERIFY(CanHandleMoreSubmissions());
             while (!request->PendingReadSubrequestIndexes.empty() &&
                    CanHandleMoreSubmissions())
             {
@@ -1574,6 +1577,7 @@ private:
         {
             auto* sqe = Uring_.TryGetSqe();
             YT_VERIFY(sqe);
+            PendingSubmissionsCount_++;
             return sqe;
         }
 
@@ -1581,8 +1585,6 @@ private:
         {
             int count = Uring_.Submit();
             if (count > 0) {
-                PendingSubmissionsCount_ += count;
-
                 YT_LOG_TRACE("SQEs submitted (SqeCount: %v, PendingRequestCount: %v)",
                     count,
                     PendingSubmissionsCount_);
