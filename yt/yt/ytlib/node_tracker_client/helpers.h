@@ -8,8 +8,6 @@
 
 #include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-
 #include <yt/yt/library/profiling/producer.h>
 
 #include <yt/yt/core/yson/public.h>
@@ -80,7 +78,6 @@ TString ToString(
 void FormatValue(TStringBuilderBase* builder, const NProto::TDiskResources& diskResources, TStringBuf spec);
 TString ToString(const NProto::TDiskResources& diskResources);
 
-void ProfileResources(NProfiling::TLegacyProfiler& profiler, const NProto::TNodeResources& resources);
 void ProfileResources(NProfiling::ISensorWriter* writer, const NProto::TNodeResources& resources);
 
 const NProto::TNodeResources& ZeroNodeResources();
