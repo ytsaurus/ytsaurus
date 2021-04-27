@@ -11,7 +11,22 @@ import ru.yandex.yt.ytclient.rpc.internal.TokenAuthentication;
  * Клиент через который можно делать запросы и получать на них ответы
  */
 public interface RpcClient extends AutoCloseable {
+    /**
+     * Reference counting to use with ClientPool.
+     *
+     * <p><b>Not to be used by library clients.</b>
+     * </p>
+     *
+     * <p>RpcClient must be created with reference counter set to 1.
+     * Once reference counter reaches 0, {@link #close()} is called.
+     *
+     * @see #unref()
+     */
     void ref();
+
+    /**
+     * @see #ref()
+     */
     void unref();
 
     /**
