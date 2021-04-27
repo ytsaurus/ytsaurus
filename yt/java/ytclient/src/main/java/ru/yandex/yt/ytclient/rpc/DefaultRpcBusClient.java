@@ -59,7 +59,7 @@ public class DefaultRpcBusClient implements RpcClient {
     // TODO: we should remove destinationName and name and use only addressString
     private final String destinationName; // for debug
     private final String name; // output in user log
-    private final DefaultRpcBusClientMetricsHolder metricsHolder;
+    private final DefaultRpcBusClientMetricsHolder metricsHolder = new DefaultRpcBusClientMetricsHolderImpl();
     private final AtomicInteger referenceCounter = new AtomicInteger(1);
 
     private final class Statistics {
@@ -84,29 +84,18 @@ public class DefaultRpcBusClient implements RpcClient {
 
     private final Statistics stats;
 
-    public DefaultRpcBusClient(BusConnector busFactory, InetSocketAddress address) {
-        this(busFactory, address, address.getHostName(), new DefaultRpcBusClientMetricsHolderImpl());
+    public DefaultRpcBusClient(BusConnector busConnector, InetSocketAddress address) {
+        this(busConnector, address, address.getHostName());
     }
 
-    public DefaultRpcBusClient(BusConnector busFactory, InetSocketAddress address, String destinationName) {
-        this(busFactory, address, destinationName, new DefaultRpcBusClientMetricsHolderImpl());
-    }
-
-    public DefaultRpcBusClient(
-            BusConnector busConnector,
-            InetSocketAddress address,
-            String destinationName,
-            DefaultRpcBusClientMetricsHolder metricsHolder
-    ) {
+    public DefaultRpcBusClient(BusConnector busConnector, InetSocketAddress address, String destinationName) {
         this.busConnector = Objects.requireNonNull(busConnector);
         this.address = Objects.requireNonNull(address);
         this.addressString = address.getHostString() + ":" + address.getPort();
         this.destinationName = destinationName;
         this.name = String.format("%s@%d", destinationName, System.identityHashCode(this));
         this.stats = new Statistics(destinationName());
-        this.metricsHolder = metricsHolder;
     }
-
 
     /**
      * Предотвращает дальнейшее использование session
