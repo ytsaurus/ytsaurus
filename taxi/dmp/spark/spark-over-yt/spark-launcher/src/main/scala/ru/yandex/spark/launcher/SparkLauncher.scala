@@ -120,11 +120,13 @@ trait SparkLauncher {
     log.info(s"Run command: $command")
 
     val javaHome = env("JAVA_HOME", "/opt/jdk11")
+    val sparkLocalDirs = env("SPARK_LOCAL_DIRS", "./tmpfs")
     Process(
       command,
       new File("."),
       "JAVA_HOME" -> javaHome,
       "SPARK_HOME" -> sparkHome,
+      "SPARK_LOCAL_DIRS" -> sparkLocalDirs,
       // when using MTN, Spark should use ip address and not hostname, because hostname is not in DNS
       "SPARK_LOCAL_HOSTNAME" -> Utils.ytHostnameOrIpAddress
     ).run(ProcessLogger(log.info(_)))

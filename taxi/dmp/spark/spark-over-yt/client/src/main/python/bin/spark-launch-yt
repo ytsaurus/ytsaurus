@@ -31,6 +31,7 @@ def main():
     parser.add_argument("--worker-timeout", required=False, default="5m")
     parser.add_argument("--pool", required=False)
     parser.add_argument("--tmpfs-limit", required=False, default="150G")
+    parser.add_argument("--ssd-limit", required=False, default=None)
     parser.add_argument("--master-memory-limit", required=False, default="2G")
     parser.add_argument("--history-server-memory-limit", required=False, default="8G")
     parser.add_argument("--operation-alias", required=False)
@@ -69,6 +70,7 @@ def main():
                         discovery_path=args.discovery_path,
                         pool=args.pool or get_user_name(client=yt_client),
                         tmpfs_limit=args.tmpfs_limit,
+                        ssd_limit=args.ssd_limit,
                         master_memory_limit=args.master_memory_limit,
                         history_server_memory_limit=args.history_server_memory_limit,
                         network_project=args.network_project,

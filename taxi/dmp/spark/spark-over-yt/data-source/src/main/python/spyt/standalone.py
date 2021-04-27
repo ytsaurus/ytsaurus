@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 class SparkDefaultArguments(object):
     SPARK_WORKER_TMPFS_LIMIT = "150G"
+    SPARK_WORKER_SSD_LIMIT = None
     SPARK_MASTER_MEMORY_LIMIT = "4G"
     SPARK_HISTORY_SERVER_MEMORY_LIMIT = "8G"
     DYNAMIC_CONFIG_PATH = "//sys/spark/bin/releases/spark-launch-conf"
@@ -200,7 +201,9 @@ def get_spark_conf(config, enablers):
 
 def build_spark_operation_spec(operation_alias, spark_discovery, config,
                                worker_cores, worker_memory, worker_num, worker_cores_overhead, worker_timeout,
-                               tmpfs_limit, master_memory_limit, network_project, tvm_id, tvm_secret, history_server_memory_limit,
+                               tmpfs_limit, ssd_limit,
+                               master_memory_limit, history_server_memory_limit,
+                               network_project, tvm_id, tvm_secret,
                                pool, enablers, client):
     def _launcher_command(component):
         unpack_tar = "tar --warning=no-unknown-keyword -xf spark.tgz -C ./tmpfs"
@@ -242,6 +245,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     environment["SPARK_HOME"] = "$HOME/tmpfs/spark"
     environment["SPARK_CLUSTER_VERSION"] = config["cluster_version"]
     environment["SPARK_YT_BYOP_PORT"] = "27002"
+    environment["SPARK_LOCAL_DIRS"] = "./tmpfs"
 
     ytserver_proxy_path = config.get("ytserver_proxy_path")
     ytserver_binary_name = ytserver_proxy_path.split("/")[-1] if ytserver_proxy_path else "ytserver-proxy"
@@ -252,6 +256,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
         "SPARK_YT_BYOP_HOST": "localhost",
         "SPARK_YT_BYOP_TVM_ENABLED": str(enablers.enable_mtn)
     }
+    worker_environment = update(environment, worker_environment)
 
     if enablers.enable_byop:
         worker_cores_overhead = worker_cores_overhead or SparkDefaultArguments.SPARK_WORKER_CORES_BYOP_OVERHEAD
@@ -282,6 +287,15 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
         secure_vault["SPARK_TVM_ID"] = tvm_id
         secure_vault["SPARK_TVM_SECRET"] = tvm_secret
 
+    worker_task_spec = copy.deepcopy(common_task_spec)
+    worker_task_spec["environment"] = worker_environment
+    if ssd_limit:
+        worker_task_spec["disk_request"] = {
+            "disk_space": _parse_memory(ssd_limit),
+            "medium_name": "ssd_blobs"
+        }
+        worker_environment["SPARK_LOCAL_DIRS"] = "."
+
     return VanillaSpecBuilder() \
         .begin_task("master") \
             .job_count(1) \
@@ -302,8 +316,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
             .command(worker_command) \
             .memory_limit(_parse_memory(worker_memory) + _parse_memory(tmpfs_limit)) \
             .cpu_limit(worker_cores + worker_cores_overhead) \
-            .spec(common_task_spec) \
-            .environment(update(environment, worker_environment)) \
+            .spec(worker_task_spec) \
             .file_paths(worker_file_paths) \
         .end_task() \
         .secure_vault(secure_vault) \
@@ -315,9 +328,11 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
                         worker_timeout=SparkDefaultArguments.SPARK_WORKER_TIMEOUT,
                         operation_alias=None, discovery_path=None, pool=None,
                         tmpfs_limit=SparkDefaultArguments.SPARK_WORKER_TMPFS_LIMIT,
+                        ssd_limit=SparkDefaultArguments.SPARK_WORKER_TMPFS_LIMIT,
                         master_memory_limit=SparkDefaultArguments.SPARK_MASTER_MEMORY_LIMIT,
                         history_server_memory_limit=SparkDefaultArguments.SPARK_HISTORY_SERVER_MEMORY_LIMIT,
-                        params=None, spark_cluster_version=None, network_project=None, tvm_id=None, tvm_secret=None,
+                        network_project=None, tvm_id=None, tvm_secret=None,
+                        params=None, spark_cluster_version=None,
                         enablers=None,
                         client=None):
     """Start Spark cluster
@@ -330,6 +345,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     :param worker_cores_overhead: additional worker cores
     :param worker_timeout: timeout to fail master waiting
     :param tmpfs_limit: limit of tmpfs usage, default 150G
+    :param ssd_limit: limit of ssd usage, default None, ssd disabled
     :param master_memory_limit: memory limit for master, default 2G
     :param history_server_memory_limit: memory limit for history server, default 8G
     :param spark_cluster_version: Spark cluster version
@@ -369,11 +385,12 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
                                               worker_cores_overhead=worker_cores_overhead,
                                               worker_timeout=worker_timeout,
                                               tmpfs_limit=tmpfs_limit,
+                                              ssd_limit=ssd_limit,
                                               master_memory_limit=master_memory_limit,
+                                              history_server_memory_limit=history_server_memory_limit,
                                               network_project=network_project,
                                               tvm_id=tvm_id,
                                               tvm_secret=tvm_secret,
-                                              history_server_memory_limit=history_server_memory_limit,
                                               pool=pool,
                                               enablers=enablers,
                                               client=client)
