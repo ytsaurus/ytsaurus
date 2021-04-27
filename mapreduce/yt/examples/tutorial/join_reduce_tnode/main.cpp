@@ -42,14 +42,15 @@ int main(int argc, const char** argv) {
 
     const TString outputTable = "//tmp/" + GetUsername() + "-tutorial-join-reduce";
 
-    client->JoinReduce(
-        TJoinReduceOperationSpec()
+    client->Reduce(
+        TReduceOperationSpec()
         .JoinBy({"host"})
         .AddInput<TNode>(
             TRichYPath("//home/ermolovd/yt-tutorial/host_video_regexp")
             .Foreign(true)) // важно отметить хостовую таблицу как foreign
         .AddInput<TNode>("//home/ermolovd/yt-tutorial/doc_title")
-        .AddOutput<TNode>(outputTable),
+        .AddOutput<TNode>(outputTable)
+        .EnableKeyGuarantee(false),
         new TFilterVideoRegexp);
 
     Cout << "Output table: https://yt.yandex-team.ru/freud/#page=navigation&offsetMode=row&path=" << outputTable << Endl;
