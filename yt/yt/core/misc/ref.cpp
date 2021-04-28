@@ -116,12 +116,12 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAllocationHolder
-    : public TAllocationHolderBase<TAllocationHolder>
-    , public TWithExtraSpace<TAllocationHolder>
+class TDefaultAllocationHolder
+    : public TAllocationHolderBase<TDefaultAllocationHolder>
+    , public TWithExtraSpace<TDefaultAllocationHolder>
 {
 public:
-    TAllocationHolder(size_t size, bool initializeStorage, TRefCountedTypeCookie cookie)
+    TDefaultAllocationHolder(size_t size, bool initializeStorage, TRefCountedTypeCookie cookie)
         : TAllocationHolderBase(size, cookie)
     {
         Initialize(initializeStorage);
@@ -235,7 +235,7 @@ std::vector<TSharedRef> TSharedRef::Split(size_t partSize) const
 
 TSharedMutableRef TSharedMutableRef::Allocate(size_t size, bool initializeStorage, TRefCountedTypeCookie tagCookie)
 {
-    auto holder = NewWithExtraSpace<TAllocationHolder>(size, size, initializeStorage, tagCookie);
+    auto holder = NewWithExtraSpace<TDefaultAllocationHolder>(size, size, initializeStorage, tagCookie);
     auto ref = holder->GetRef();
     return TSharedMutableRef(ref, std::move(holder));
 }
