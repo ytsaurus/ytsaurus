@@ -80,6 +80,7 @@ class TestTableCommands(object):
         yt.write_table(table, BytesIO(b'{"y": 1}\n'), raw=True, format=yt.JsonFormat())
         check_rows_equality([{"y": 1}], yt.read_table(table))
 
+        yt.write_table(table, [{"y": 1}])
         response_parameters = {}
         list(yt.read_table(table, response_parameters=response_parameters))
         assert response_parameters["start_row_index"] == 0
@@ -99,7 +100,7 @@ class TestTableCommands(object):
         yt.create("file", file)
         with pytest.raises(yt.YtError):
             yt.read_table(file)
-        
+
         # Pull parser reads 1MB on creation, so table should be >1MB. Otherwise parser reads the whole table and no error occurs.
         yt.write_table(table, [{"x": "a" * (2 * 10**5)}] * 10)
         client = yt.YtClient(config=deepcopy(yt.config.config))
@@ -200,6 +201,16 @@ class TestTableCommands(object):
     def test_read_write_with_retries(self):
         with set_config_option("write_retries/enable", True):
             self._test_read_write()
+
+            with set_config_option("read_buffer_size", 4 * 1024):
+                # This test does not work in parallel settings.
+                # Move it to _test_read_write after YT-14767.
+                table = TEST_DIR + "/table"
+                yt.write_table(yt.TablePath(table), [{"x": i} for i in xrange(1000000)])
+                iterator = yt.read_table(table)
+                row = next(iterator)
+                assert row == {"x": 0}
+                del iterator
 
     @authors("asaitgalin", "ignat")
     def test_read_write_without_retries(self):
