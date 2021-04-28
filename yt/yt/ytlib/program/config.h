@@ -60,6 +60,7 @@ public:
     NRpc::TDispatcherDynamicConfigPtr RpcDispatcher;
     NChunkClient::TDispatcherDynamicConfigPtr ChunkClientDispatcher;
     NLogging::TLogManagerDynamicConfigPtr Logging;
+    NTracing::TJaegerTracerDynamicConfigPtr Jaeger;
 
     TSingletonsDynamicConfig();
 };

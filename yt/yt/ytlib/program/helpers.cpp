@@ -1,6 +1,5 @@
 #include "helpers.h"
 #include "config.h"
-#include "yt/yt/core/tracing/trace_context.h"
 
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 
@@ -95,6 +94,11 @@ void ReconfigureSingletons(const TSingletonsConfigPtr& config, const TSingletons
 
     if (!NLogging::TLogManager::Get()->IsConfiguredFromEnv()) {
         NLogging::TLogManager::Get()->Configure(config->Logging->ApplyDynamic(dynamicConfig->Logging));
+    }
+
+    auto tracer = NTracing::GetGlobalTracer();
+    if (auto jaeger = DynamicPointerCast<NTracing::TJaegerTracer>(tracer); jaeger) {
+        jaeger->Configure(config->Jaeger->ApplyDynamic(dynamicConfig->Jaeger));
     }
 
     NRpc::TDispatcher::Get()->Configure(config->RpcDispatcher->ApplyDynamic(dynamicConfig->RpcDispatcher));

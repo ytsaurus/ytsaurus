@@ -29,6 +29,18 @@ static NProfiling::TProfiler Profiler{"/tracing"};
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TJaegerTracerDynamicConfig::TJaegerTracerDynamicConfig()
+{
+    RegisterParameter("collector_channel_config", CollectorChannelConfig)
+        .Optional();
+    RegisterParameter("max_request_size", MaxRequestSize)
+        .Default();
+    RegisterParameter("max_memory", MaxMemory)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TJaegerTracerConfig::TJaegerTracerConfig()
 {
     RegisterParameter("collector_channel_config", CollectorChannelConfig)
@@ -52,12 +64,33 @@ TJaegerTracerConfig::TJaegerTracerConfig()
         .Default();
     RegisterParameter("enable_pid_tag", EnablePidTag)
         .Default(false);
+}
 
-    RegisterPostprocessor([this] {
-        if (ServiceName && !CollectorChannelConfig) {
-            THROW_ERROR_EXCEPTION("\"collector_channel_config\" is required");
-        }
-    });
+TJaegerTracerConfigPtr TJaegerTracerConfig::ApplyDynamic(const TJaegerTracerDynamicConfigPtr& dynamicConfig)
+{
+    auto config = New<TJaegerTracerConfig>();
+    config->CollectorChannelConfig = CollectorChannelConfig;
+    if (dynamicConfig->CollectorChannelConfig) {
+        config->CollectorChannelConfig = dynamicConfig->CollectorChannelConfig;
+    }
+
+    config->FlushPeriod = FlushPeriod;
+    config->QueueStallTimeout = QueueStallTimeout;
+    config->MaxRequestSize = dynamicConfig->MaxRequestSize.value_or(MaxRequestSize);
+    config->MaxBatchSize = MaxBatchSize;
+    config->MaxMemory = dynamicConfig->MaxMemory.value_or(MaxMemory);
+
+    config->ServiceName = ServiceName;
+    config->ProcessTags = ProcessTags;
+    config->EnablePidTag = EnablePidTag;
+
+    config->Postprocess();
+    return config;
+}
+
+bool TJaegerTracerConfig::IsEnabled() const
+{
+    return ServiceName && CollectorChannelConfig;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -121,12 +154,12 @@ void ToProto(NProto::Span* proto, const TTraceContextPtr& traceContext)
 
 TJaegerTracer::TJaegerTracer(
     const TJaegerTracerConfigPtr& config)
-    : Config_(config)
-    , ActionQueue_(New<TActionQueue>("Jaeger"))
+    : ActionQueue_(New<TActionQueue>("Jaeger"))
     , Flusher_(New<TPeriodicExecutor>(
         ActionQueue_->GetInvoker(),
         BIND(&TJaegerTracer::Flush, MakeStrong(this)),
-        Config_->FlushPeriod))
+        config->FlushPeriod))
+    , Config_(config)
     , TracesDequeued_(Profiler.Counter("/traces_dequeued"))
     , TracesDropped_(Profiler.Counter("/traces_dropped"))
     , PushErrors_(Profiler.Counter("/push_errors"))
@@ -134,28 +167,9 @@ TJaegerTracer::TJaegerTracer(
     , TraceQueueSize_(Profiler.Gauge("/queue_size"))
     , PushDuration_(Profiler.Timer("/push_duration"))
 {
-    if (!Config_->ServiceName) {
-        Flusher_.Reset();
-        return;
-    }
-
-    NProto::Batch batch;
-    auto* process = batch.mutable_process();
-    process->set_service_name(*Config_->ServiceName);
-
-    for (const auto& [key, value] : Config_->ProcessTags) {
-        auto* tag = process->add_tags();
-        tag->set_key(key);
-        tag->set_v_str(value);
-    }
-
-    if (Config_->EnablePidTag) {
-        auto* tag = process->add_tags();
-        tag->set_key("pid");
-        tag->set_v_str(::ToString(GetPID()));
-    }
-
-    ProcessInfo_ = SerializeProtoToRef(batch);
+    Profiler.AddFuncGauge("/enabled", MakeStrong(this), [this] {
+        return Config_.Load()->IsEnabled();
+    });
 
     Flusher_->Start();
 }
@@ -185,11 +199,14 @@ void TJaegerTracer::NotifyEmptyQueue()
 
 void TJaegerTracer::Stop()
 {
-    if (Flusher_) {
-        Flusher_->Stop();
-        Flusher_.Reset();
-    }
+    Flusher_->Stop();
+    Flusher_.Reset();
     ActionQueue_->Shutdown();
+}
+
+void TJaegerTracer::Configure(const TJaegerTracerConfigPtr& config)
+{
+    Config_.Store(config);
 }
 
 void TJaegerTracer::Enqueue(TTraceContextPtr trace)
@@ -197,7 +214,7 @@ void TJaegerTracer::Enqueue(TTraceContextPtr trace)
     TraceQueue_.Enqueue(std::move(trace));
 }
 
-void TJaegerTracer::DequeueAll()
+void TJaegerTracer::DequeueAll(const TJaegerTracerConfigPtr& config)
 {
     auto traces = TraceQueue_.DequeueAll();
     if (traces.empty()) {
@@ -210,7 +227,7 @@ void TJaegerTracer::DequeueAll()
             return;
         }
 
-        if (QueueMemory_ > Config_->MaxMemory) {
+        if (QueueMemory_ > config->MaxMemory) {
             TracesDropped_.Increment(batch.spans_size());
             batch.Clear();
             return;
@@ -229,7 +246,7 @@ void TJaegerTracer::DequeueAll()
     for (const auto& trace : traces) {
         ToProto(batch.add_spans(), trace);
 
-        if (batch.spans_size() > Config_->MaxBatchSize) {
+        if (batch.spans_size() > config->MaxBatchSize) {
             flushBatch();
         }
     }
@@ -237,15 +254,18 @@ void TJaegerTracer::DequeueAll()
     flushBatch();
 }
 
-std::pair<std::vector<TSharedRef>, int> TJaegerTracer::PeekQueue()
+std::pair<std::vector<TSharedRef>, int> TJaegerTracer::PeekQueue(const TJaegerTracerConfigPtr& config)
 {
-    std::vector<TSharedRef> batches{ProcessInfo_};
+    std::vector<TSharedRef> batches;
+    if (config->IsEnabled()) {
+        batches.push_back(GetProcessInfo(config));
+    }
 
     int size = 0;
 
     int i = 0;
     for (; i < static_cast<int>(BatchQueue_.size()); i++) {
-        if (size > Config_->MaxRequestSize) {
+        if (size > config->MaxRequestSize) {
             break;
         }
 
@@ -273,11 +293,13 @@ void TJaegerTracer::Flush()
     try {
         YT_LOG_DEBUG("Started span flush");
 
-        DequeueAll();
+        auto config = Config_.Load();
 
-        if (TInstant::Now() - LastSuccessfullFlushTime_ > Config_->QueueStallTimeout) {
+        DequeueAll(config);
+
+        auto dropFullQueue = [&] {
             while (true) {
-                auto [batch, i] = PeekQueue();
+                auto [batch, i] = PeekQueue(config);
                 TracesDropped_.Increment(i);
                 DropQueue(i);
 
@@ -285,16 +307,28 @@ void TJaegerTracer::Flush()
                     break;
                 }
             }
+        };
+
+        if (TInstant::Now() - LastSuccessfullFlushTime_ > config->QueueStallTimeout) {
+            dropFullQueue();
         }
 
-        if (!CollectorChannel_) {
-            CollectorChannel_ = NGrpc::CreateGrpcChannel(Config_->CollectorChannelConfig);
+        if (!config->IsEnabled()) {
+            dropFullQueue();
+            return;
+        }
+
+        if (!CollectorChannel_ || OpenChannelConfig_ != config->CollectorChannelConfig) {
+            OpenChannelConfig_.Reset();
+
+            CollectorChannel_ = NGrpc::CreateGrpcChannel(config->CollectorChannelConfig);
+            OpenChannelConfig_ = config->CollectorChannelConfig;
         }
 
         TJaegerCollectorProxy proxy(CollectorChannel_);
         auto req = proxy.PostSpans();
 
-        auto [batch, i] = PeekQueue();
+        auto [batch, i] = PeekQueue(config);
         if (i > 0) {
             req->SetEnableLegacyRpcCodecs(false);
             req->set_batch(MergeRefsToString(batch));
@@ -314,6 +348,27 @@ void TJaegerTracer::Flush()
         YT_LOG_ERROR(ex, "Failed to send spans");
         PushErrors_.Increment();
     }
+}
+
+TSharedRef TJaegerTracer::GetProcessInfo(const TJaegerTracerConfigPtr& config)
+{
+    NProto::Batch batch;
+    auto* process = batch.mutable_process();
+    process->set_service_name(*config->ServiceName);
+
+    for (const auto& [key, value] : config->ProcessTags) {
+        auto* tag = process->add_tags();
+        tag->set_key(key);
+        tag->set_v_str(value);
+    }
+
+    if (config->EnablePidTag) {
+        auto* tag = process->add_tags();
+        tag->set_key("pid");
+        tag->set_v_str(::ToString(GetPID()));
+    }
+
+    return SerializeProtoToRef(batch);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
