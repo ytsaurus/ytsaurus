@@ -16,7 +16,6 @@ class TUserJobExecutorConfig
     : public NYTree::TYsonSerializable
 {
 public:
-
     //! Command to execute.
     TString Command;
 

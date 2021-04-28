@@ -87,7 +87,7 @@ struct IPortoExecutor
         const std::vector<TString>& properties) = 0;
     virtual TFuture<THashMap<TString, i64>> GetContainerMetrics(
         const std::vector<TString>& containers,
-        const TString& metric) = 0; 
+        const TString& metric) = 0;
     virtual TFuture<void> DestroyContainer(const TString& container) = 0;
     virtual TFuture<void> StopContainer(const TString& container) = 0;
     virtual TFuture<void> StartContainer(const TString& container) = 0;

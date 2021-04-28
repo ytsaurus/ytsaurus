@@ -106,7 +106,9 @@ const THashMap<EStatField, TPortoStatRule> PortoStatRules = {
     { EStatField::MaxMemoryUsage,   { "memory.max_usage_in_bytes",
         BIND([] (const TString& in) { return std::stol(in);                     } ) } },
     { EStatField::MajorFaults,      { "major_faults",
-        BIND([] (const TString& in) { return std::stol(in);                     } ) } }
+        BIND([] (const TString& in) { return std::stol(in);                     } ) } },
+    { EStatField::ThreadCount,      { "thread_count",
+        BIND([] (const TString& in) { return std::stol(in);                     } ) } },
 };
 
 std::optional<TString> GetParentName(const TString& absoluteName)
@@ -252,7 +254,7 @@ public:
     {
         HasRoot_ = true;
         SetProperty("root", rootFS.RootPath);
-        SetProperty("root_readonly", TString(FormatBool(rootFS.IsRootReadOnly)));
+        SetProperty("root_readonly", ToString(FormatBool(rootFS.IsRootReadOnly)));
 
         TStringBuilder builder;
         for (const auto& bind : rootFS.Binds) {
@@ -493,7 +495,7 @@ public:
 
     virtual void SetCpuWeight(double weight) override
     {
-        SetProperty("cpu_weight", ToString(weight));
+        SetProperty("cpu_weight", weight);
     }
 
     virtual void SetEnablePorto(EEnablePorto enablePorto) override
@@ -513,18 +515,23 @@ public:
 
     virtual void SetMemoryGuarantee(i64 memoryGuarantee) override
     {
-        SetProperty("memory_guarantee", ToString(memoryGuarantee));
+        SetProperty("memory_guarantee", memoryGuarantee);
         RequireMemoryController_ = true;
+    }
+
+    virtual void SetThreadLimit(i64 threadLimit) override
+    {
+        SetProperty("thread_limit", threadLimit);
     }
 
     virtual void SetIOWeight(double weight) override
     {
-        SetProperty("io_weight", ToString(weight));
+        SetProperty("io_weight", weight);
     }
 
     virtual void SetIOThrottle(i64 operations) override
     {
-        SetProperty("io_ops_limit", ToString(operations));
+        SetProperty("io_ops_limit", operations);
     }
 
     virtual void SetUser(const TString& user) override
@@ -618,7 +625,7 @@ public:
         }
 
         if (GroupId_) {
-            SetProperty("group", ToString(*GroupId_));
+            SetProperty("group", i64(*GroupId_));
         }
 
         // Enable core dumps for all container instances.
@@ -719,6 +726,16 @@ private:
     void SetProperty(const TString& key, const TString& value)
     {
         Actions_.push_back(Executor_->SetContainerProperty(Name_, key, value));
+    }
+
+    void SetProperty(const TString& key, i64 value)
+    {
+        SetProperty(key, ToString(value));
+    }
+
+    void SetProperty(const TString& key, double value)
+    {
+        SetProperty(key, ToString(value));
     }
 
     TError WaitForActions()

@@ -224,6 +224,21 @@ DEFINE_REFCOUNTED_TYPE(TDataBalancerOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TUserJobOptions
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Thread limit for the user job is ceil(#InitialThreadLimit + #ThreadLimitMultiplier * JobCpuLimit);
+    i64 ThreadLimitMultiplier;
+    i64 InitialThreadLimit;
+
+    TUserJobOptions();
+};
+
+DEFINE_REFCOUNTED_TYPE(TUserJobOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOperationOptions
     : public NYTree::TYsonSerializable
     , public virtual NPhoenix::TDynamicTag
@@ -266,6 +281,8 @@ public:
     std::optional<int> ControllerBuildingJobSpecCountLimit;
     //! Total slice count of currently building job specs after which controller starts throttling.
     std::optional<i64> ControllerTotalBuildingJobSpecSliceCountLimit;
+
+    TUserJobOptionsPtr UserJobOptions;
 
     TOperationOptions();
 };

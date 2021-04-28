@@ -487,6 +487,7 @@ TCpuAccounting::TStatistics& operator-=(TCpuAccounting::TStatistics& lhs, const 
     XX(WaitTime)
     XX(ThrottledTime)
     XX(ContextSwitches)
+    XX(PeakThreadCount)
     #undef XX
     return lhs;
 }
@@ -552,6 +553,7 @@ void Serialize(const TCpuAccounting::TStatistics& statistics, NYson::IYsonConsum
             .Item("wait").Value(statistics.WaitTime)
             .Item("throttled").Value(statistics.ThrottledTime)
             .Item("context_switches").Value(statistics.ContextSwitches)
+            .Item("peak_thread_count").Value(statistics.PeakThreadCount)
         .EndMap();
 }
 

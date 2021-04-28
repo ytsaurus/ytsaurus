@@ -212,6 +212,14 @@ TDataBalancerOptions::TDataBalancerOptions()
         .Default(2.0);
 }
 
+TUserJobOptions::TUserJobOptions()
+{
+    RegisterParameter("thread_limit_multiplier", ThreadLimitMultiplier)
+        .Default(10'000);
+    RegisterParameter("initial_thread_limit", InitialThreadLimit)
+        .Default(10'000);
+}
+
 TOperationOptions::TOperationOptions()
 {
     RegisterParameter("spec_template", SpecTemplate)
@@ -275,11 +283,14 @@ TOperationOptions::TOperationOptions()
     RegisterParameter("controller_total_building_job_spec_slice_count_limit", ControllerTotalBuildingJobSpecSliceCountLimit)
         .Default();
 
-    RegisterPostprocessor([&] () {
+    RegisterParameter("user_job_options", UserJobOptions)
+        .DefaultNew();
+
+    RegisterPostprocessor([&] {
         if (MaxSliceDataWeight < MinSliceDataWeight) {
             THROW_ERROR_EXCEPTION("Minimum slice data weight must be less than or equal to maximum slice data size")
-                    << TErrorAttribute("min_slice_data_weight", MinSliceDataWeight)
-                    << TErrorAttribute("max_slice_data_weight", MaxSliceDataWeight);
+                << TErrorAttribute("min_slice_data_weight", MinSliceDataWeight)
+                << TErrorAttribute("max_slice_data_weight", MaxSliceDataWeight);
         }
     });
 }

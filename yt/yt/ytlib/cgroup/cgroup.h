@@ -123,6 +123,7 @@ public:
         TDuration WaitTime;
         TDuration ThrottledTime;
         ui64 ContextSwitches = 0;
+        ui64 PeakThreadCount = 0;
     };
 
     explicit TCpuAccounting(const TString& name);
