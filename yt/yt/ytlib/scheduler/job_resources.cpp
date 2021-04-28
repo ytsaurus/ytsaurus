@@ -195,13 +195,6 @@ TString FormatResources(
     const TJobResourcesWithQuota& resources,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
 {
-    TStringBuilder stringBuilder;
-    for (auto [mediumIndex, diskSpace] : resources.GetDiskQuota().DiskSpacePerMedium) {
-        stringBuilder.AppendFormat("{DiskSpace: %v, MediumName: %v}",
-            diskSpace,
-            mediumDirectory->FindByIndex(mediumIndex)->Name);
-    }
-
     return Format(
         "{UserSlots: %v, Cpu: %v, Gpu: %v, Memory: %vMB, Network: %v, DiskQuota: %v}",
         resources.GetUserSlots(),
@@ -209,7 +202,7 @@ TString FormatResources(
         resources.GetGpu(),
         resources.GetMemory() / 1_MB,
         resources.GetNetwork(),
-        stringBuilder.Flush()
+        resources.GetDiskQuota()
     );
 }
 
