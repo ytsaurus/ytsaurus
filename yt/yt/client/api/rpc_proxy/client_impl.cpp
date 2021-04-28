@@ -776,7 +776,7 @@ TFuture<void> TClient::UpdateOperationParameters(
     return req->Invoke().As<void>();
 }
 
-TFuture<TYsonString> TClient::GetOperation(
+TFuture<TOperation> TClient::GetOperation(
     const TOperationIdOrAlias& operationIdOrAlias,
     const TGetOperationOptions& options)
 {
@@ -795,7 +795,10 @@ TFuture<TYsonString> TClient::GetOperation(
     req->set_maximum_cypress_progress_age(ToProto<i64>(options.MaximumCypressProgressAge));
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetOperationPtr& rsp) {
-        return TYsonString(rsp->meta());
+        auto attributes = ConvertToAttributes(TYsonStringBuf(rsp->meta()));
+        TOperation operation;
+        Deserialize(operation, std::move(attributes), /* clone */ false);
+        return operation;
     }));
 }
 

@@ -15,6 +15,8 @@ namespace NYT::NApi::NRpcProxy {
 
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -632,6 +634,14 @@ void ToProto(NProto::TOperation* protoOperation, const NApi::TOperation& operati
     if (operation.TaskNames) {
         protoOperation->set_task_names(operation.TaskNames.ToString());
     }
+
+    if (operation.Alerts) {
+        protoOperation->set_alerts(operation.Alerts.ToString());
+    }
+
+    if (operation.OtherAttributes) {
+        protoOperation->set_other_attributes(ConvertToYsonString(operation.OtherAttributes).ToString());
+    }
 }
 
 void FromProto(NApi::TOperation* operation, const NProto::TOperation& protoOperation)
@@ -670,52 +680,52 @@ void FromProto(NApi::TOperation* operation, const NProto::TOperation& protoOpera
     }
 
     if (protoOperation.has_brief_spec()) {
-        operation->BriefSpec = NYson::TYsonString(protoOperation.brief_spec());
+        operation->BriefSpec = TYsonString(protoOperation.brief_spec());
     } else {
-        operation->BriefSpec = NYson::TYsonString();
+        operation->BriefSpec = TYsonString();
     }
     if (protoOperation.has_spec()) {
-        operation->Spec = NYson::TYsonString(protoOperation.spec());
+        operation->Spec = TYsonString(protoOperation.spec());
     } else {
-        operation->Spec = NYson::TYsonString();
+        operation->Spec = TYsonString();
     }
     if (protoOperation.has_full_spec()) {
-        operation->FullSpec = NYson::TYsonString(protoOperation.full_spec());
+        operation->FullSpec = TYsonString(protoOperation.full_spec());
     } else {
-        operation->FullSpec = NYson::TYsonString();
+        operation->FullSpec = TYsonString();
     }
     if (protoOperation.has_unrecognized_spec()) {
-        operation->UnrecognizedSpec = NYson::TYsonString(protoOperation.unrecognized_spec());
+        operation->UnrecognizedSpec = TYsonString(protoOperation.unrecognized_spec());
     } else {
-        operation->UnrecognizedSpec = NYson::TYsonString();
+        operation->UnrecognizedSpec = TYsonString();
     }
 
     if (protoOperation.has_experiment_assignments()) {
-        operation->ExperimentAssignments = NYson::TYsonString(protoOperation.experiment_assignments());
+        operation->ExperimentAssignments = TYsonString(protoOperation.experiment_assignments());
     } else {
-        operation->ExperimentAssignments = NYson::TYsonString();
+        operation->ExperimentAssignments = TYsonString();
     }
     if (protoOperation.has_experiment_assignment_names()) {
-        operation->ExperimentAssignmentNames = NYson::TYsonString(protoOperation.experiment_assignment_names());
+        operation->ExperimentAssignmentNames = TYsonString(protoOperation.experiment_assignment_names());
     } else {
-        operation->ExperimentAssignmentNames = NYson::TYsonString();
+        operation->ExperimentAssignmentNames = TYsonString();
     }
 
     if (protoOperation.has_brief_progress()) {
-        operation->BriefProgress = NYson::TYsonString(protoOperation.brief_progress());
+        operation->BriefProgress = TYsonString(protoOperation.brief_progress());
     } else {
-        operation->BriefProgress = NYson::TYsonString();
+        operation->BriefProgress = TYsonString();
     }
     if (protoOperation.has_progress()) {
-        operation->Progress = NYson::TYsonString(protoOperation.progress());
+        operation->Progress = TYsonString(protoOperation.progress());
     } else {
-        operation->Progress = NYson::TYsonString();
+        operation->Progress = TYsonString();
     }
 
     if (protoOperation.has_runtime_parameters()) {
-        operation->RuntimeParameters = NYson::TYsonString(protoOperation.runtime_parameters());
+        operation->RuntimeParameters = TYsonString(protoOperation.runtime_parameters());
     } else {
-        operation->RuntimeParameters = NYson::TYsonString();
+        operation->RuntimeParameters = TYsonString();
     }
 
     if (protoOperation.has_suspended()) {
@@ -725,26 +735,38 @@ void FromProto(NApi::TOperation* operation, const NProto::TOperation& protoOpera
     }
 
     if (protoOperation.has_events()) {
-        operation->Events = NYson::TYsonString(protoOperation.events());
+        operation->Events = TYsonString(protoOperation.events());
     } else {
-        operation->Events = NYson::TYsonString();
+        operation->Events = TYsonString();
     }
     if (protoOperation.has_result()) {
-        operation->Result = NYson::TYsonString(protoOperation.result());
+        operation->Result = TYsonString(protoOperation.result());
     } else {
-        operation->Result = NYson::TYsonString();
+        operation->Result = TYsonString();
     }
 
     if (protoOperation.has_slot_index_per_pool_tree()) {
-        operation->SlotIndexPerPoolTree = NYson::TYsonString(protoOperation.slot_index_per_pool_tree());
+        operation->SlotIndexPerPoolTree = TYsonString(protoOperation.slot_index_per_pool_tree());
     } else {
-        operation->SlotIndexPerPoolTree = NYson::TYsonString();
+        operation->SlotIndexPerPoolTree = TYsonString();
     }
 
     if (protoOperation.has_task_names()) {
-        operation->TaskNames = NYson::TYsonString(protoOperation.task_names());
+        operation->TaskNames = TYsonString(protoOperation.task_names());
     } else {
-        operation->TaskNames = NYson::TYsonString();
+        operation->TaskNames = TYsonString();
+    }
+
+    if (protoOperation.has_alerts()) {
+        operation->Alerts = TYsonString(protoOperation.alerts());
+    } else {
+        operation->Alerts = TYsonString();
+    }
+
+    if (protoOperation.has_other_attributes()) {
+        operation->OtherAttributes = ConvertToAttributes(TYsonStringBuf(protoOperation.other_attributes()));
+    } else {
+        operation->OtherAttributes = {};
     }
 }
 
@@ -892,24 +914,24 @@ void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
         job->HasSpec = false;
     }
     if (protoJob.has_error()) {
-        job->Error = NYson::TYsonString(protoJob.error());
+        job->Error = TYsonString(protoJob.error());
     } else {
-        job->Error = NYson::TYsonString();
+        job->Error = TYsonString();
     }
     if (protoJob.has_brief_statistics()) {
-        job->BriefStatistics = NYson::TYsonString(protoJob.brief_statistics());
+        job->BriefStatistics = TYsonString(protoJob.brief_statistics());
     } else {
-        job->BriefStatistics = NYson::TYsonString();
+        job->BriefStatistics = TYsonString();
     }
     if (protoJob.has_input_paths()) {
-        job->InputPaths = NYson::TYsonString(protoJob.input_paths());
+        job->InputPaths = TYsonString(protoJob.input_paths());
     } else {
-        job->InputPaths = NYson::TYsonString();
+        job->InputPaths = TYsonString();
     }
     if (protoJob.has_core_infos()) {
-        job->CoreInfos = NYson::TYsonString(protoJob.core_infos());
+        job->CoreInfos = TYsonString(protoJob.core_infos());
     } else {
-        job->CoreInfos = NYson::TYsonString();
+        job->CoreInfos = TYsonString();
     }
     if (protoJob.has_job_competition_id()) {
         FromProto(&job->JobCompetitionId, protoJob.job_competition_id());
@@ -927,9 +949,9 @@ void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
         job->IsStale.reset();
     }
     if (protoJob.has_exec_attributes()) {
-        job->ExecAttributes = NYson::TYsonString(protoJob.exec_attributes());
+        job->ExecAttributes = TYsonString(protoJob.exec_attributes());
     } else {
-        job->ExecAttributes = NYson::TYsonString();
+        job->ExecAttributes = TYsonString();
     }
     if (protoJob.has_task_name()) {
         job->TaskName = protoJob.task_name();

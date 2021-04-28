@@ -2052,9 +2052,9 @@ private:
             client,
             context,
             client->GetOperation(operationIdOrAlias, options),
-            [] (const auto& context, const auto& result) {
+            [] (const auto& context, const auto& operation) {
                 auto* response = &context->Response();
-                response->set_meta(result.ToString());
+                response->set_meta(ConvertToYsonString(operation).ToString());
             });
     }
 

@@ -169,7 +169,7 @@ public:
         const NYson::TYsonString& parameters,
         const NApi::TUpdateOperationParametersOptions& options) override;
 
-    virtual TFuture<NYson::TYsonString> GetOperation(
+    virtual TFuture<TOperation> GetOperation(
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const NApi::TGetOperationOptions& options) override;
 

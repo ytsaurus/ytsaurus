@@ -376,7 +376,7 @@ public:
         const NYson::TYsonString& parameters,
         const TUpdateOperationParametersOptions& options),
         (operationIdOrAlias, parameters, options))
-    IMPLEMENT_METHOD(NYson::TYsonString, GetOperation, (
+    IMPLEMENT_METHOD(TOperation, GetOperation, (
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const TGetOperationOptions& options),
         (operationIdOrAlias, options))
@@ -899,7 +899,7 @@ private:
 
     struct TGetOperationFromCypressResult
     {
-        NYson::TYsonString Operation;
+        std::optional<TOperation> Operation;
         TInstant NodeModificationTime;
     };
 
@@ -907,15 +907,15 @@ private:
         NScheduler::TOperationId operationId,
         TInstant deadline,
         const TGetOperationOptions& options);
-    NYson::TYsonString DoGetOperationFromArchive(
+    std::optional<TOperation> DoGetOperationFromArchive(
         NScheduler::TOperationId operationId,
         TInstant deadline,
         const TGetOperationOptions& options);
-    NYson::TYsonString DoGetOperationImpl(
+    TOperation DoGetOperationImpl(
         NScheduler::TOperationId operationId,
         TInstant deadline,
         const TGetOperationOptions& options);
-    NYson::TYsonString DoGetOperation(
+    TOperation DoGetOperation(
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const TGetOperationOptions& options);
 
@@ -936,7 +936,7 @@ private:
 
     THashMap<NScheduler::TOperationId, TOperation> LookupOperationsInArchiveTyped(
         const std::vector<NScheduler::TOperationId>& ids,
-        const std::optional<THashSet<TString>>& attributes,
+        const THashSet<TString>& attributes,
         std::optional<TDuration> timeout,
         const NLogging::TLogger& Logger);
 

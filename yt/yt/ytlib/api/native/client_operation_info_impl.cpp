@@ -152,6 +152,8 @@ static std::vector<TString> CreateArchiveOperationAttributes(const THashSet<TStr
             result.emplace_back("operation_type");
         } else if (attribute == "annotations") {
             // COMPAT(gritukan): This field is deprecated.
+        } else if (attribute == "operation_type" && attributes.contains("type")) {
+            // Avoid duplicate column name.
         } else {
             result.push_back(attribute);
         }
@@ -190,78 +192,67 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
         .ValueOrThrow();
     auto cypressNodeRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_operation");
 
-    INodePtr cypressNode;
-    if (cypressNodeRspOrError.IsOK()) {
-        const auto& cypressNodeRsp = cypressNodeRspOrError.Value();
-        cypressNode = ConvertToNode(TYsonString(cypressNodeRsp->value()));
-    } else {
+    if (!cypressNodeRspOrError.IsOK()) {
         if (!cypressNodeRspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
             THROW_ERROR cypressNodeRspOrError;
         }
-    }
-
-    if (!cypressNode) {
         return {};
     }
 
-    auto attrNode = cypressNode->AsMap();
-
+    const auto& cypressNodeRsp = cypressNodeRspOrError.Value();
+    auto attributeDictionary = ConvertToAttributes(TYsonStringBuf(cypressNodeRsp->value()));
+    
     // XXX(ignat): remove opaque from node. Make option to ignore it in conversion methods.
-    if (auto fullSpecNode = attrNode->FindChild("full_spec")) {
+    if (auto fullSpecYson = attributeDictionary->FindYson("full_spec")) {
+        auto fullSpecNode = ConvertToNode(fullSpecYson);
         fullSpecNode->MutableAttributes()->Remove("opaque");
+        attributeDictionary->SetYson("full_spec", fullSpecYson);
     }
 
-    if (auto child = attrNode->FindChild("operation_type")) {
+    if (auto type = attributeDictionary->Find<EOperationType>("operation_type")) {
         // COMPAT(levysotsky): When "operation_type" is disallowed, this code
         // will be simplified to unconditionally removing the child
         // (and also child will not have to be cloned).
         if (options.Attributes && !options.Attributes->contains("operation_type")) {
-            attrNode->RemoveChild("operation_type");
+            attributeDictionary->Remove("operation_type");
         }
 
-        attrNode->RemoveChild("type");
-        YT_VERIFY(attrNode->AddChild("type", CloneNode(child)));
+        attributeDictionary->Set("type", type);
     }
 
-    if (auto child = attrNode->FindChild("key")) {
-        attrNode->RemoveChild("key");
-        attrNode->RemoveChild("id");
-        YT_VERIFY(attrNode->AddChild("id", child));
+    if (auto key = attributeDictionary->FindAndRemove<TString>("key")) {
+        attributeDictionary->Set("id", key);
     }
 
     if (options.Attributes && !options.Attributes->contains("state")) {
-        attrNode->RemoveChild("state");
+        attributeDictionary->Remove("state");
     }
 
-    auto modificationTimeNode = attrNode->FindChild("modification_time");
-    YT_VERIFY(modificationTimeNode);
-    auto modificationTime = ConvertTo<TInstant>(modificationTimeNode);
-    attrNode->RemoveChild(modificationTimeNode);
+    auto modificationTime = attributeDictionary->GetAndRemove<TInstant>("modification_time");
 
     if (!options.Attributes) {
-        auto keysToKeep = ConvertTo<THashSet<TString>>(attrNode->GetChildOrThrow("user_attribute_keys"));
+        auto keysToKeep = attributeDictionary->Get<THashSet<TString>>("user_attribute_keys");
         keysToKeep.insert("id");
         keysToKeep.insert("type");
-        for (const auto& key : attrNode->GetKeys()) {
+        for (const auto& key : attributeDictionary->ListKeys()) {
             if (!keysToKeep.contains(key)) {
-                attrNode->RemoveChild(key);
+                attributeDictionary->Remove(key);
             }
         }
     }
 
-    std::optional<TString> controllerAgentAddress;
-    if (auto child = attrNode->FindChild("controller_agent_address")) {
-        controllerAgentAddress = child->AsString()->GetValue();
+    auto controllerAgentAddress = attributeDictionary->Find<TString>("controller_agent_address");
+    if (controllerAgentAddress) {
         if (options.Attributes && !options.Attributes->contains("controller_agent_address")) {
-            attrNode->RemoveChild(child);
+            attributeDictionary->Remove("controller_agent_address");
         }
     }
 
-    std::vector<std::pair<TString, bool>> runtimeAttributes ={
+    static const std::vector<std::pair<TString, bool>> RuntimeAttributes ={
         /* {Name, ShouldRequestFromScheduler} */
         {"progress", true},
         {"brief_progress", false},
-        {"memory_usage", false}
+        {"memory_usage", false},
     };
 
     if (options.IncludeRuntime) {
@@ -279,9 +270,9 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
             }
         };
 
-        for (const auto& attribute : runtimeAttributes) {
-            if (!options.Attributes || options.Attributes->contains(attribute.first)) {
-                addProgressAttributeRequest(attribute.first, attribute.second);
+        for (const auto& [name, shouldRequestFromScheduler] : RuntimeAttributes) {
+            if (!options.Attributes || options.Attributes->contains(name)) {
+                addProgressAttributeRequest(name, shouldRequestFromScheduler);
             }
         }
 
@@ -308,107 +299,64 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
                     }
 
                     if (progressAttributeNode) {
-                        attrNode->RemoveChild(attribute);
-                        YT_VERIFY(attrNode->AddChild(attribute, progressAttributeNode));
+                        attributeDictionary->Set(attribute, progressAttributeNode);
                     }
                 }
             };
 
-            for (const auto& attribute : runtimeAttributes) {
-                if (!options.Attributes || options.Attributes->contains(attribute.first)) {
-                    handleProgressAttributeRequest(attribute.first);
+            for (const auto& [name, shouldRequestFromScheduler] : RuntimeAttributes) {
+                if (!options.Attributes || options.Attributes->contains(name)) {
+                    handleProgressAttributeRequest(name);
                 }
             }
         }
     }
 
-    return TGetOperationFromCypressResult{
-        .Operation = ConvertToYsonString(attrNode),
-        .NodeModificationTime = modificationTime,
-    };
+    TGetOperationFromCypressResult result;
+    result.NodeModificationTime = modificationTime;
+    Deserialize(result.Operation.emplace(), attributeDictionary, /* clone */ false);
+    return result;
 }
 
-TYsonString TClient::DoGetOperationFromArchive(
+static THashSet<TString> DeduceActualAttributes(
+    const std::optional<THashSet<TString>>& originalAttributes,
+    const THashSet<TString>& requiredAttributes,
+    const THashSet<TString>& defaultAttributes,
+    const THashSet<TString>& ignoredAttributes)
+{
+    auto attributes = originalAttributes.value_or(defaultAttributes);
+    attributes.insert(requiredAttributes.begin(), requiredAttributes.end());
+    for (const auto& attribute : ignoredAttributes) {
+        attributes.erase(attribute);
+    }
+    return attributes;
+}
+
+std::optional<TOperation> TClient::DoGetOperationFromArchive(
     NScheduler::TOperationId operationId,
     TInstant deadline,
     const TGetOperationOptions& options)
 {
-    auto attributes = options.Attributes.value_or(SupportedOperationAttributes);
-    // Ignoring memory_usage and suspended in archive.
-    attributes.erase("memory_usage");
-    attributes.erase("suspended");
+    const THashSet<TString> IgnoredAttributes = {"suspended", "memory_usage"};
 
-    auto fieldsVector = CreateArchiveOperationAttributes(attributes);
-    THashSet<TString> fields(fieldsVector.begin(), fieldsVector.end());
+    auto attributes = DeduceActualAttributes(
+        options.Attributes,
+        /* requiredAttributes */ {},
+        /* defaultAttributes */ SupportedOperationAttributes,
+        IgnoredAttributes);
 
-    TOrderedByIdTableDescriptor tableDescriptor;
-    std::vector<int> columnIndices;
-    for (const auto& field : fields) {
-        columnIndices.push_back(tableDescriptor.NameTable->GetIdOrThrow(field));
-    }
-    const auto columnFilter = NTableClient::TColumnFilter(columnIndices);
-    auto rowset = LookupOperationsInArchive(
-        this,
+    auto operations = LookupOperationsInArchiveTyped(
         {operationId},
-        columnFilter,
-        deadline - Now())
-        .ValueOrThrow();
-    auto rows = rowset->GetRows();
-    YT_VERIFY(!rows.Empty());
-    auto row = rows[0];
-    if (!row) {
+        attributes,
+        deadline - Now(),
+        Logger);
+
+    if (operations.empty()) {
         return {};
     }
 
-#define SET_ITEM_STRING_VALUE_WITH_FIELD(itemKey, fieldName) \
-    SET_ITEM_VALUE_WITH_FIELD(itemKey, fieldName, FromUnversionedValue<TString>(row[index]))
-#define SET_ITEM_STRING_VALUE(itemKey) SET_ITEM_STRING_VALUE_WITH_FIELD(itemKey, itemKey)
-#define SET_ITEM_YSON_STRING_VALUE(itemKey) \
-    SET_ITEM_VALUE(itemKey, FromUnversionedValue<TYsonString>(row[index]))
-#define SET_ITEM_INSTANT_VALUE(itemKey) \
-    SET_ITEM_VALUE(itemKey, FromUnversionedValue<TInstant>(row[index]))
-#define SET_ITEM_VALUE_WITH_FIELD(itemKey, fieldName, operation) \
-    .DoIf(fields.find(fieldName) != fields.end() && row[GET_INDEX(fieldName)].Type != EValueType::Null, \
-        [&] (TFluentMap fluent) { \
-            auto index = GET_INDEX(fieldName); \
-            fluent.Item(itemKey).Value(operation); \
-        })
-#define SET_ITEM_VALUE(itemKey, operation) SET_ITEM_VALUE_WITH_FIELD(itemKey, itemKey, operation)
-#define GET_INDEX(itemKey) columnFilter.GetPosition(tableDescriptor.NameTable->GetIdOrThrow(itemKey))
-
-    return BuildYsonStringFluently()
-        .BeginMap()
-            .DoIf(fields.contains("id_lo"), [&] (TFluentMap fluent) {
-                fluent.Item("id").Value(operationId);
-            })
-            SET_ITEM_STRING_VALUE("state")
-            SET_ITEM_STRING_VALUE("authenticated_user")
-            SET_ITEM_STRING_VALUE_WITH_FIELD("type", "operation_type")
-            // COMPAT(levysotsky): Add this field under old name for
-            // backward compatibility. Should be removed when all the clients migrate.
-            SET_ITEM_STRING_VALUE("operation_type")
-            SET_ITEM_YSON_STRING_VALUE("progress")
-            SET_ITEM_YSON_STRING_VALUE("spec")
-            SET_ITEM_YSON_STRING_VALUE("experiment_assignments")
-            SET_ITEM_YSON_STRING_VALUE("experiment_assignment_names")
-            SET_ITEM_YSON_STRING_VALUE("full_spec")
-            SET_ITEM_YSON_STRING_VALUE("unrecognized_spec")
-            SET_ITEM_YSON_STRING_VALUE("brief_progress")
-            SET_ITEM_YSON_STRING_VALUE("brief_spec")
-            SET_ITEM_YSON_STRING_VALUE("runtime_parameters")
-            SET_ITEM_INSTANT_VALUE("start_time")
-            SET_ITEM_INSTANT_VALUE("finish_time")
-            SET_ITEM_YSON_STRING_VALUE("result")
-            SET_ITEM_YSON_STRING_VALUE("events")
-            SET_ITEM_YSON_STRING_VALUE("slot_index_per_pool_tree")
-            SET_ITEM_YSON_STRING_VALUE("alerts")
-            SET_ITEM_YSON_STRING_VALUE("task_names")
-        .EndMap();
-#undef SET_ITEM_STRING_VALUE
-#undef SET_ITEM_YSON_STRING_VALUE
-#undef SET_ITEM_INSTANT_VALUE
-#undef SET_ITEM_VALUE
-#undef GET_INDEX
+    YT_VERIFY(operations.size() == 1);
+    return operations.begin()->second;
 }
 
 TOperationId TClient::ResolveOperationAlias(
@@ -478,7 +426,7 @@ static TYsonString GetLatestProgress(const TYsonString& cypressProgress, const T
         : archiveProgress;
 }
 
-TYsonString TClient::DoGetOperationImpl(
+TOperation TClient::DoGetOperationImpl(
     TOperationId operationId,
     TInstant deadline,
     const TGetOperationOptions& options)
@@ -497,7 +445,7 @@ TYsonString TClient::DoGetOperationImpl(
         archiveOptions.Attributes->insert("state");
     }
 
-    auto archiveFuture = MakeFuture(TYsonString());
+    auto archiveFuture = MakeFuture(std::optional<TOperation>());
     if (DoesOperationsArchiveExist()) {
         archiveFuture = BIND(&TClient::DoGetOperationFromArchive,
             MakeStrong(this),
@@ -517,7 +465,7 @@ TYsonString TClient::DoGetOperationImpl(
         .ValueOrThrow();
 
     auto archiveResultOrError = archiveFuture.Get();
-    TYsonString archiveResult;
+    std::optional<TOperation> archiveResult;
     if (archiveResultOrError.IsOK()) {
         archiveResult = archiveResultOrError.Value();
     } else {
@@ -526,63 +474,40 @@ TYsonString TClient::DoGetOperationImpl(
             archiveResultOrError);
     }
 
-    static const std::vector<TString> ProgressFieldNames = {"brief_progress", "progress"};
-
-    auto mergeResults = [] (const TYsonString& cypressResult, const TYsonString& archiveResult) {
+    auto mergeResults = [] (const std::optional<TOperation>& archiveResult, std::optional<TOperation>* cypressResult) {
         if (!archiveResult) {
-            return cypressResult;
+            return;
         }
 
-        auto cypressResultNode = ConvertToNode(cypressResult);
-        YT_VERIFY(cypressResultNode->GetType() == ENodeType::Map);
-        const auto& cypressResultMap = cypressResultNode->AsMap();
-
-        for (const auto& fieldName : ProgressFieldNames) {
-            auto cypressFieldNode = cypressResultMap->FindChild(fieldName);
-            cypressResultMap->RemoveChild(fieldName);
-
-            auto archiveFieldString = TryGetAny(archiveResult.AsStringBuf(), "/" + fieldName);
-
-            TYsonString archiveFieldYsonString;
-            if (archiveFieldString) {
-                archiveFieldYsonString = TYsonString(*archiveFieldString);
-            }
-
-            TYsonString cypressFieldYsonString;
-            if (cypressFieldNode) {
-                cypressFieldYsonString = ConvertToYsonString(cypressFieldNode);
-            }
-
-            if (auto result = GetLatestProgress(cypressFieldYsonString, archiveFieldYsonString)) {
-                cypressResultMap->AddChild(fieldName, ConvertToNode(result));
-            }
+        if (auto progress = GetLatestProgress((*cypressResult)->Progress, archiveResult->Progress)) {
+            (*cypressResult)->Progress = std::move(progress);
         }
-        return ConvertToYsonString(cypressResultMap);
+
+        if (auto briefProgress = GetLatestProgress((*cypressResult)->BriefProgress, archiveResult->BriefProgress)) {
+            (*cypressResult)->BriefProgress = std::move(briefProgress);
+        }
     };
 
     if (cypressResult && archiveResultOrError.IsOK()) {
-        return mergeResults(cypressResult, archiveResult);
+        mergeResults(archiveResult, &cypressResult);
+        return *cypressResult;
     }
 
-    auto getOldestBuildTime = [&] (const TYsonString& result) {
+    auto getOldestBuildTime = [&] (const TOperation& operation) {
         auto oldestBuildTime = TInstant::Max();
-        for (const auto& fieldName : ProgressFieldNames) {
-            if (options.Attributes && !options.Attributes->contains(fieldName)) {
-                continue;
-            }
-            TInstant buildTime;
-            if (auto maybeProgressYson = TryGetAny(result.AsStringBuf(), "/" + fieldName)) {
-                buildTime = GetProgressBuildTime(TYsonString(*maybeProgressYson));
-            }
-            oldestBuildTime = Min(oldestBuildTime, buildTime);
+        if (!options.Attributes || options.Attributes->contains("progress")) {
+            oldestBuildTime = Min(oldestBuildTime, GetProgressBuildTime(operation.Progress));
+        }
+        if (!options.Attributes || options.Attributes->contains("brief_progress")) {
+            oldestBuildTime = Min(oldestBuildTime, GetProgressBuildTime(operation.BriefProgress));
         }
         return oldestBuildTime;
     };
 
     if (cypressResult) {
-        auto cypressProgressAge = operationNodeModificationTime - getOldestBuildTime(cypressResult);
+        auto cypressProgressAge = operationNodeModificationTime - getOldestBuildTime(*cypressResult);
         if (cypressProgressAge <= options.MaximumCypressProgressAge) {
-            return cypressResult;
+            return *cypressResult;
         }
 
         YT_LOG_DEBUG(archiveResultOrError,
@@ -591,6 +516,9 @@ TYsonString TClient::DoGetOperationImpl(
             operationId,
             cypressProgressAge,
             options.MaximumCypressProgressAge);
+
+        // Archive request timeouted but the cypress result is outdated.
+        // We need to repeat the archive request without timeout.
         if (archiveResultOrError.FindMatching(NYT::EErrorCode::Timeout)) {
             try {
                 archiveResultOrError = DoGetOperationFromArchive(operationId, deadline, archiveOptions);
@@ -598,19 +526,21 @@ TYsonString TClient::DoGetOperationImpl(
                 archiveResultOrError = error;
             }
         }
+
         if (!archiveResultOrError.IsOK()) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::OperationProgressOutdated,
                 "Operation progress in Cypress is outdated while archive request failed")
                 << archiveResultOrError;
         }
-        return mergeResults(cypressResult, archiveResultOrError.Value());
+        mergeResults(archiveResultOrError.Value(), &cypressResult);
+        return *cypressResult;
     }
 
     // Check whether archive row was written by controller agent or operation cleaner.
     // Here we assume that controller agent does not write "state" field to the archive.
-    auto isCompleteArchiveResult = [] (const TYsonString& archiveResult) {
-        return TryGetString(archiveResult.AsStringBuf(), "/state").has_value();
+    auto isCompleteArchiveResult = [] (const TOperation& archiveResult) {
+        return archiveResult.State.has_value();
     };
 
     if (archiveResult) {
@@ -622,7 +552,7 @@ TYsonString TClient::DoGetOperationImpl(
         // ---------------------------------------------------> time
         //         |               |             |
         //    archive rsp.   archivation   cypress rsp.
-        if (!isCompleteArchiveResult(archiveResult)) {
+        if (!isCompleteArchiveResult(*archiveResult)) {
             YT_LOG_DEBUG("Got empty response from Cypress and incomplete response from archive, "
                 "retrying (OperationId: %v)",
                 operationId);
@@ -638,24 +568,21 @@ TYsonString TClient::DoGetOperationImpl(
         archiveResult = DoGetOperationFromArchive(operationId, deadline, archiveOptions);
     }
 
-    if (!archiveResult || !isCompleteArchiveResult(archiveResult)) {
+    if (!archiveResult || !isCompleteArchiveResult(*archiveResult)) {
         THROW_ERROR_EXCEPTION(
             NApi::EErrorCode::NoSuchOperation,
             "No such operation %v",
             operationId);
     }
 
-    if (!options.Attributes || options.Attributes->contains("state")) {
-        return archiveResult;
+    if (options.Attributes && !options.Attributes->contains("state")) {
+        // Remove "state" field if it was not requested.
+        archiveResult->State.reset();
     }
-    // Remove "state" field if it was not requested.
-    auto archiveResultNode = ConvertToNode(archiveResult);
-    YT_VERIFY(archiveResultNode->GetType() == ENodeType::Map);
-    archiveResultNode->AsMap()->RemoveChild("state");
-    return ConvertToYsonString(archiveResultNode);
+    return *archiveResult;
 }
 
-TYsonString TClient::DoGetOperation(
+TOperation TClient::DoGetOperation(
     const TOperationIdOrAlias& operationIdOrAlias,
     const TGetOperationOptions& options)
 {
@@ -676,6 +603,7 @@ TYsonString TClient::DoGetOperation(
             operationId = ResolveOperationAlias(alias, options, deadline);
         });
 
+    const auto retryInterval = Connection_->GetConfig()->DefaultGetOperationRetryInterval;
     while (true) {
         try {
             return DoGetOperationImpl(operationId, deadline, options);
@@ -685,26 +613,12 @@ TYsonString TClient::DoGetOperation(
             if (!error.Error().FindMatching(EErrorCode::OperationProgressOutdated)) {
                 throw;
             }
-            if (TInstant::Now() > deadline) {
+            if (TInstant::Now() + retryInterval > deadline) {
                 throw;
             }
-            TDelayedExecutor::WaitForDuration(Connection_->GetConfig()->DefaultGetOperationRetryInterval);
+            TDelayedExecutor::WaitForDuration(retryInterval);
         }
     }
-}
-
-static THashSet<TString> DeduceActualAttributes(
-    const std::optional<THashSet<TString>>& originalAttributes,
-    const THashSet<TString>& requiredAttributes,
-    const THashSet<TString>& defaultAttributes,
-    const THashSet<TString>& ignoredAttributes)
-{
-    auto attributes = originalAttributes.value_or(defaultAttributes);
-    attributes.insert(requiredAttributes.begin(), requiredAttributes.end());
-    for (const auto& attribute : ignoredAttributes) {
-        attributes.erase(attribute);
-    }
-    return attributes;
 }
 
 // Searches in Cypress for operations satisfying given filters.
@@ -895,58 +809,57 @@ void TClient::DoListOperationsFromCypress(
     }
 }
 
+template <typename T>
+void TryFromUnversionedValue(T& result, TUnversionedRow row, std::optional<int> index)
+{
+    if (index) {
+        result = FromUnversionedValue<T>(row[*index]);
+    }
+}
+
+template <>
+void TryFromUnversionedValue(TYsonString& result, TUnversionedRow row, std::optional<int> index)
+{
+    if (index && row[*index].Type != EValueType::Null) {
+        result = FromUnversionedValue<TYsonString>(row[*index]);
+    }
+}
+
+template <typename T>
+std::optional<T> TryFromUnversionedValue(TUnversionedRow row, std::optional<int> index)
+{
+    if (index) {
+        return FromUnversionedValue<std::optional<T>>(row[*index]);
+    }
+    return std::nullopt;
+}
+
 THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
     const std::vector<TOperationId>& ids,
-    const std::optional<THashSet<TString>>& attributes,
+    const THashSet<TString>& attributes,
     std::optional<TDuration> timeout,
     const TLogger& Logger)
 {
-    const THashSet<TString> RequiredAttributes = {"id", "start_time"};
-    const THashSet<TString> DefaultAttributes = {
-        "authenticated_user",
-        "brief_progress",
-        "brief_spec",
-        "finish_time",
-        "experiment_assignment_names",
-        "id",
-        "runtime_parameters",
-        "start_time",
-        "state",
-        "type",
-    };
-    const THashSet<TString> IgnoredAttributes = {"suspended", "memory_usage"};
-
     YT_LOG_DEBUG("Fetching operations from archive (OperationCount: %v)", ids.size());
-
-    auto attributesToRequest = DeduceActualAttributes(
-        attributes,
-        RequiredAttributes,
-        DefaultAttributes,
-        IgnoredAttributes);
 
     TOrderedByIdTableDescriptor tableDescriptor;
     std::vector<int> columns;
-    for (const auto& columnName : CreateArchiveOperationAttributes(attributesToRequest)) {
+    for (const auto& columnName : CreateArchiveOperationAttributes(attributes)) {
         columns.push_back(tableDescriptor.NameTable->GetIdOrThrow(columnName));
     }
+    
+    bool needIdInOutput = attributes.contains("id");
+    if (!needIdInOutput) {
+        // We however need id to create the output hash map.
+        columns.push_back(tableDescriptor.NameTable->GetIdOrThrow("id_hi"));
+        columns.push_back(tableDescriptor.NameTable->GetIdOrThrow("id_lo"));
+    }
+
     auto columnFilter = NTableClient::TColumnFilter(columns);
     auto rowset = LookupOperationsInArchive(this, ids, columnFilter, timeout)
         .ValueOrThrow();
 
     YT_LOG_DEBUG("Operations fetch from archive finished");
-
-    auto getYson = [&] (TUnversionedValue value) {
-        // TODO(babenko): consider replacing with FromUnversionedValue as a whole.
-        return value.Type == EValueType::Null
-            ? TYsonString()
-            : FromUnversionedValue<TYsonString>(value);
-    };
-    auto getString = [&] (TUnversionedValue value, TStringBuf name) {
-        if (value.Type == EValueType::Null) {
-            THROW_ERROR_EXCEPTION("Unexpected null value in column %Qv in job archive", name);
-        }
-        return FromUnversionedValue<TStringBuf>(value);
-    };
 
     THashMap<TOperationId, TOperation> idToOperation;
 
@@ -982,87 +895,42 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
 
         TOperation operation;
 
-        operation.Id = TOperationId(
+        auto operationId = TOperationId(
             FromUnversionedValue<ui64>(row[idHiIndex]),
             FromUnversionedValue<ui64>(row[idLoIndex]));
 
-        if (typeIndex) {
-            operation.Type = ParseEnum<EOperationType>(getString(row[*typeIndex], "operation_type"));
+        if (needIdInOutput) {
+            operation.Id = operationId;
         }
 
-        if (stateIndex) {
-            operation.State = ParseEnum<EOperationState>(getString(row[*stateIndex], "state"));
-        }
+        TryFromUnversionedValue(operation.Type, row, typeIndex);
+        TryFromUnversionedValue(operation.State, row, stateIndex);
+        TryFromUnversionedValue(operation.AuthenticatedUser, row, authenticatedUserIndex);
 
-        if (authenticatedUserIndex) {
-            operation.AuthenticatedUser = TString(getString(row[*authenticatedUserIndex], "authenticated_user"));
+        if (auto startTimeMcs = TryFromUnversionedValue<i64>(row, startTimeIndex)) {
+            operation.StartTime = TInstant::MicroSeconds(*startTimeMcs);
         }
+        
+        if (auto finishTimeMcs = TryFromUnversionedValue<i64>(row, finishTimeIndex)) {
+            operation.FinishTime = TInstant::MicroSeconds(*finishTimeMcs);
+        }
+        
+        TryFromUnversionedValue(operation.BriefSpec, row, briefSpecIndex);
+        TryFromUnversionedValue(operation.FullSpec, row, fullSpecIndex);
+        TryFromUnversionedValue(operation.Spec, row, specIndex);
+        TryFromUnversionedValue(operation.UnrecognizedSpec, row, unrecognizedSpecIndex);
+        TryFromUnversionedValue(operation.BriefProgress, row, briefProgressIndex);
+        TryFromUnversionedValue(operation.Progress, row, progressIndex);
+        TryFromUnversionedValue(operation.RuntimeParameters, row, runtimeParametersIndex);
+        TryFromUnversionedValue(operation.Events, row, eventsIndex);
+        TryFromUnversionedValue(operation.Result, row, resultIndex);
+        TryFromUnversionedValue(operation.SlotIndexPerPoolTree, row, slotIndexPerPoolTreeIndex);
+        TryFromUnversionedValue(operation.Alerts, row, alertsIndex);
+        TryFromUnversionedValue(operation.TaskNames, row, taskNamesIndex);
+        TryFromUnversionedValue(operation.ExperimentAssignments, row, experimentAssignments);
+        TryFromUnversionedValue(operation.ExperimentAssignmentNames, row, experimentAssignmentNames);
 
-        if (startTimeIndex) {
-            auto value = row[*startTimeIndex];
-            if (value.Type == EValueType::Null) {
-                THROW_ERROR_EXCEPTION("Unexpected null value in column start_time in operations archive");
-            }
-            operation.StartTime = TInstant::MicroSeconds(FromUnversionedValue<i64>(value));
-        }
-
-        if (finishTimeIndex) {
-            if (row[*finishTimeIndex].Type != EValueType::Null) {
-                operation.FinishTime = TInstant::MicroSeconds(FromUnversionedValue<i64>(row[*finishTimeIndex]));
-            }
-        }
-
-        if (briefSpecIndex) {
-            operation.BriefSpec = getYson(row[*briefSpecIndex]);
-        }
-        if (fullSpecIndex) {
-            operation.FullSpec = getYson(row[*fullSpecIndex]);
-        }
-        if (specIndex) {
-            operation.Spec = getYson(row[*specIndex]);
-        }
-        if (unrecognizedSpecIndex) {
-            operation.UnrecognizedSpec = getYson(row[*unrecognizedSpecIndex]);
-        }
-
-        if (briefProgressIndex) {
-            operation.BriefProgress = getYson(row[*briefProgressIndex]);
-        }
-        if (progressIndex) {
-            operation.Progress = getYson(row[*progressIndex]);
-        }
-
-        if (runtimeParametersIndex) {
-            operation.RuntimeParameters = getYson(row[*runtimeParametersIndex]);
-        }
-
-        if (eventsIndex) {
-            operation.Events = getYson(row[*eventsIndex]);
-        }
-        if (resultIndex) {
-            operation.Result = getYson(row[*resultIndex]);
-        }
-
-        if (slotIndexPerPoolTreeIndex) {
-            operation.SlotIndexPerPoolTree = getYson(row[*slotIndexPerPoolTreeIndex]);
-        }
-
-        if (alertsIndex) {
-            operation.Alerts = getYson(row[*alertsIndex]);
-        }
-
-        if (taskNamesIndex) {
-            operation.TaskNames = getYson(row[*taskNamesIndex]);
-        }
-
-        if (experimentAssignments) {
-            operation.ExperimentAssignments = getYson(row[*experimentAssignments]);
-        }
-        if (experimentAssignmentNames) {
-            operation.ExperimentAssignmentNames = getYson(row[*experimentAssignmentNames]);
-        }
-
-        idToOperation.emplace(*operation.Id, std::move(operation));
+        idToOperation.emplace(operationId, std::move(operation));
     }
 
     YT_LOG_DEBUG("Operations from archive parsed");
@@ -1249,7 +1117,29 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
     for (auto row : rows) {
         ids.emplace_back(FromUnversionedValue<ui64>(row[idHiIndex]), FromUnversionedValue<ui64>(row[idLoIndex]));
     }
-    return LookupOperationsInArchiveTyped(ids, options.Attributes, deadline - Now(), Logger);
+
+    const THashSet<TString> RequiredAttributes = {"id", "start_time"};
+    const THashSet<TString> DefaultAttributes = {
+        "authenticated_user",
+        "brief_progress",
+        "brief_spec",
+        "finish_time",
+        "experiment_assignment_names",
+        "id",
+        "runtime_parameters",
+        "start_time",
+        "state",
+        "type",
+    };
+    const THashSet<TString> IgnoredAttributes = {"suspended", "memory_usage"};
+
+    auto attributes = DeduceActualAttributes(
+        options.Attributes,
+        RequiredAttributes,
+        DefaultAttributes,
+        IgnoredAttributes);
+
+    return LookupOperationsInArchiveTyped(ids, attributes, deadline - Now(), Logger);
 }
 
 // XXX(levysotsky): The counters may be incorrect if |options.IncludeArchive| is |true|

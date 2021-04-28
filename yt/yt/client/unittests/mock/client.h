@@ -351,7 +351,7 @@ public:
         const NYson::TYsonString& parameters,
         const TUpdateOperationParametersOptions& options));
 
-    MOCK_METHOD2(GetOperation, TFuture<NYson::TYsonString>(
+    MOCK_METHOD2(GetOperation, TFuture<TOperation>(
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const TGetOperationOptions& options));
 
