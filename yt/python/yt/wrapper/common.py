@@ -161,6 +161,7 @@ def merge_blobs_by_size(blobs, chunk_size):
     """Unite blobs into larger chunks."""
     chunks = []
     total_size = 0
+    closed = False
     try:
         for blob in blobs:
             chunks.append(blob)
@@ -169,8 +170,10 @@ def merge_blobs_by_size(blobs, chunk_size):
                 yield b"".join(chunks)
                 chunks = []
                 total_size = 0
+    except GeneratorExit:
+        closed = True
     finally:
-        if len(chunks) > 0:
+        if not closed and len(chunks) > 0:
             yield b"".join(chunks)
             chunks = []
             total_size = 0
