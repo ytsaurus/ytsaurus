@@ -21,10 +21,10 @@ TPeerConnectionConfig::TPeerConnectionConfig()
     });
 
     RegisterPostprocessor([&] () {
-       if (!CellId) {
-           THROW_ERROR_EXCEPTION("\"cell_id\" cannot be equal to %v",
-               NullCellId);
-       }
+        if (!CellId) {
+            THROW_ERROR_EXCEPTION("\"cell_id\" cannot be equal to %v",
+                NullCellId);
+        }
     });
 }
 

@@ -102,7 +102,7 @@ public:
             .Optional();
 
         RegisterPreprocessor([&] () {
-           ChangelogReaderCache->Capacity = 4;
+            ChangelogReaderCache->Capacity = 4;
         });
     }
 };
