@@ -167,41 +167,9 @@ TListOperationsCommand::TListOperationsCommand()
 
 void TListOperationsCommand::BuildOperations(const TListOperationsResult& result, TFluentMap fluent)
 {
+    bool needType = !Options.Attributes || Options.Attributes->contains("type");
     // COMPAT(levysotsky): "operation_type" is a deprecated synonim for "type".
     bool needOperationType = !Options.Attributes || Options.Attributes->contains("operation_type");
-    bool needType = !Options.Attributes || Options.Attributes->contains("type");
-
-    auto fillOperationAttributes = [needOperationType, needType] (const TOperation& operation, TFluentMap fluent) {
-        fluent
-            .OptionalItem("id", operation.Id)
-            .OptionalItem("state", operation.State)
-            .DoIf(operation.Type.operator bool(), [&] (TFluentMap fluent) {
-                if (needType) {
-                    fluent.Item("type").Value(operation.Type);
-                }
-                if (needOperationType) {
-                    fluent.Item("operation_type").Value(operation.Type);
-                }
-            })
-            .OptionalItem("authenticated_user", operation.AuthenticatedUser)
-            .OptionalItem("start_time", operation.StartTime)
-            .OptionalItem("finish_time", operation.FinishTime)
-            .OptionalItem("brief_progress", operation.BriefProgress)
-            .OptionalItem("progress", operation.Progress)
-            .OptionalItem("brief_spec", operation.BriefSpec)
-            .OptionalItem("full_spec", operation.FullSpec)
-            .OptionalItem("spec", operation.Spec)
-            .OptionalItem("experiment_assignments", operation.ExperimentAssignments)
-            .OptionalItem("experiment_assignment_names", operation.ExperimentAssignmentNames)
-            .OptionalItem("unrecognized_spec", operation.UnrecognizedSpec)
-            .OptionalItem("runtime_parameters", operation.RuntimeParameters)
-            .OptionalItem("suspended", operation.Suspended)
-            .OptionalItem("result", operation.Result)
-            .OptionalItem("events", operation.Events)
-            .OptionalItem("slot_index_per_pool_tree", operation.SlotIndexPerPoolTree)
-            .OptionalItem("alerts", operation.Alerts)
-            .OptionalItem("task_names", operation.TaskNames);
-    };
 
     if (EnableUIMode) {
         fluent
@@ -210,20 +178,17 @@ void TListOperationsCommand::BuildOperations(const TListOperationsResult& result
                     .Item("incomplete").Value(result.Incomplete)
                 .EndAttributes()
                 .DoListFor(result.Operations, [&] (TFluentList fluent, const TOperation& operation) {
-                    fluent.Item()
-                        .BeginAttributes()
-                            .Do(BIND(fillOperationAttributes, operation))
-                        .EndAttributes()
-                        .Value(*operation.Id);
+                    fluent.Item().Do([&] (TFluentAny fluent) {
+                        Serialize(operation, fluent.GetConsumer(), needType, needOperationType, /* idWithAttributes */ true);
+                    });
                 });
     } else {
         fluent
             .Item("operations")
                 .DoListFor(result.Operations, [&] (TFluentList fluent, const TOperation& operation) {
-                    fluent.Item()
-                        .BeginMap()
-                            .Do(BIND(fillOperationAttributes, operation))
-                        .EndMap();
+                    fluent.Item().Do([&] (TFluentAny fluent) {
+                        Serialize(operation, fluent.GetConsumer(), needType, needOperationType);
+                    });
                 })
             .Item("incomplete").Value(result.Incomplete);
     }
@@ -602,7 +567,7 @@ void TGetOperationCommand::DoExecute(ICommandContextPtr context)
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 
-    context->ProduceOutputValue(result);
+    context->ProduceOutputValue(ConvertToYsonString(result));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -30,7 +30,9 @@ TFuture<TYsonString> TOperationCache::DoGet(const TOperationIdOrAlias& key, bool
         .IncludeRuntime = true
     };
 
-    return Client_->GetOperation(key, options);
+    return Client_->GetOperation(key, options).Apply(BIND([] (const TOperation& operation) {
+        return NYTree::ConvertToYsonString(operation);
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

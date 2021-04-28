@@ -2039,6 +2039,10 @@ message TOperation
 
     optional bytes experiment_assignments = 22; // YSON
     optional bytes experiment_assignment_names = 23; // YSON
+
+    optional bytes alerts = 24; // YSON
+
+    optional bytes other_attributes = 50; // YSON
 }
 
 message TListOperationsResult

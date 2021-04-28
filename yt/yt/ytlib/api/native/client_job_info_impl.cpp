@@ -411,8 +411,8 @@ void TClient::ValidateOperationAccess(
 
     TSerializableAccessControlList acl;
     if (operationOrError.IsOK()) {
-        auto operationYson = std::move(operationOrError).Value();
-        auto aclYson = TryGetAny(operationYson.AsStringBuf(), "/runtime_parameters/acl");
+        auto operation = std::move(operationOrError).Value();
+        auto aclYson = TryGetAny(operation.RuntimeParameters.AsStringBuf(), "/acl");
         if (aclYson) {
             acl = ConvertTo<TSerializableAccessControlList>(TYsonStringBuf(*aclYson));
         } else {
@@ -1870,15 +1870,15 @@ static TError TryFillJobPools(
     TGetOperationOptions getOperationOptions;
     getOperationOptions.Attributes = {TString("runtime_parameters")};
 
-    auto operationYsonOrError = WaitFor(client->GetOperation(operationId, getOperationOptions));
-    if (!operationYsonOrError.IsOK()) {
-        YT_LOG_DEBUG(operationYsonOrError, "Failed to fetch operation to extract pools (OperationId: %v)",
+    auto operationOrError = WaitFor(client->GetOperation(operationId, getOperationOptions));
+    if (!operationOrError.IsOK()) {
+        YT_LOG_DEBUG(operationOrError, "Failed to fetch operation to extract pools (OperationId: %v)",
             operationId);
-        return operationYsonOrError;
+        return operationOrError;
     }
 
-    auto path = "/runtime_parameters/scheduling_options_per_pool_tree";
-    auto schedulingOptionsPerPoolTreeYson = TryGetAny(operationYsonOrError.Value().AsStringBuf(), path);
+    auto path = "/scheduling_options_per_pool_tree";
+    auto schedulingOptionsPerPoolTreeYson = TryGetAny(operationOrError.Value().RuntimeParameters.AsStringBuf(), path);
     if (!schedulingOptionsPerPoolTreeYson) {
         YT_LOG_DEBUG("Operation runtime_parameters miss scheduling_options_per_pool_tree (OperationId: %v)",
             operationId);

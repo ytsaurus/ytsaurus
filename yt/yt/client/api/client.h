@@ -1078,7 +1078,6 @@ struct TOperation
     std::optional<TInstant> FinishTime;
 
     std::optional<TString> AuthenticatedUser;
-    NYTree::INodePtr Acl;
 
     NYson::TYsonString BriefSpec;
     NYson::TYsonString Spec;
@@ -1101,7 +1100,18 @@ struct TOperation
     NYson::TYsonString Alerts;
 
     NYson::TYsonString TaskNames;
+
+    NYTree::IAttributeDictionaryPtr OtherAttributes;
 };
+
+void Serialize(
+    const TOperation& operation,
+    NYson::IYsonConsumer* consumer,
+    bool needType = true,
+    bool needOperationType = false,
+    bool idWithAttributes = false);
+
+void Deserialize(TOperation& operation, NYTree::IAttributeDictionaryPtr attriubutes, bool clone = true);
 
 struct TListOperationsResult
 {
@@ -1564,7 +1574,7 @@ struct IClient
         const NYson::TYsonString& parameters,
         const TUpdateOperationParametersOptions& options = {}) = 0;
 
-    virtual TFuture<NYson::TYsonString> GetOperation(
+    virtual TFuture<TOperation> GetOperation(
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const TGetOperationOptions& options = {}) = 0;
 
