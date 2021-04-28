@@ -56,6 +56,8 @@ struct IUserJobEnvironment
         bool EnableCudaGpuCoreDump = false;
         std::optional<TString> HostName;
         std::vector<TUserJobNetworkAddressPtr> NetworkAddresses;
+
+        i64 ThreadLimit;
     };
 
     virtual TProcessBasePtr CreateUserJobProcess(

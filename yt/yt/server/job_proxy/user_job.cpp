@@ -230,6 +230,7 @@ public:
             options.EnableCudaGpuCoreDump = UserJobSpec_.enable_cuda_gpu_core_dump();
             options.HostName = Config_->HostName;
             options.NetworkAddresses = Config_->NetworkAddresses;
+            options.ThreadLimit = UserJobSpec_.thread_limit();
 
             Process_ = UserJobEnvironment_->CreateUserJobProcess(
                 ExecProgramName,

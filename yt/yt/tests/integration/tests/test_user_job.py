@@ -994,7 +994,7 @@ class TestArtifactCacheBypass(YTEnvSetup):
 ##################################################################
 
 
-class TestNetworkIsolation(YTEnvSetup):
+class TestUserJobIsolation(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1009,17 +1009,19 @@ class TestNetworkIsolation(YTEnvSetup):
         }
     }
 
-    USE_DYNAMIC_TABLES = True
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "vanilla_operation_options": {
+                # NB: ytserver-exec requires many threads on start.
+                "user_job_options": {
+                    "thread_limit_multiplier": 5,
+                    "initial_thread_limit": 40,
+                },
+            },
+        },
+    }
+
     USE_PORTO = True
-
-    def setup(self):
-        sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(
-            self.Env.create_native_client(), override_tablet_cell_bundle="default"
-        )
-
-    def teardown(self):
-        remove("//sys/operations_archive")
 
     @authors("gritukan")
     def test_create_network_project_map(self):
@@ -1072,6 +1074,27 @@ class TestNetworkIsolation(YTEnvSetup):
         release_breakpoint()
         op.track()
 
+    @authors("gritukan")
+    def test_thread_limit(self):
+        def run_fork_bomb(thread_count):
+            cmd = "for i in $(seq 1 {}); do nohup sleep 10 & done; wait".format(thread_count)
+            op = run_test_vanilla(cmd, spec={"max_failed_job_count": 1})
+            op.track()
+
+        run_fork_bomb(35)
+        with pytest.raises(YtError):
+            run_fork_bomb(100)
+
+    @authors("gritukan")
+    def test_thread_count_statistics(self):
+        cmd = "for i in $(seq 1 32); do nohup sleep 5 & done; wait"
+        op = run_test_vanilla(cmd, spec={"max_failed_job_count": 1})
+        op.track()
+
+        statistics = get(op.get_path() + "/@progress/job_statistics")
+        thread_count = get_statistics(statistics, "user_job.cpu.peak_thread_count.$.completed.task.max")
+
+        assert 32 <= thread_count <= 42
 
 ##################################################################
 

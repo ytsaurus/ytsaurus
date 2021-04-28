@@ -198,6 +198,9 @@ message TUserJobSpec
     optional TUserJobMonitoringConfig monitoring_config = 58;
 
     optional string gpu_check_binary_path = 59;
+
+    // Limit for the number of threads in user job container.
+    optional int64 thread_limit = 60 [default = 1000000];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

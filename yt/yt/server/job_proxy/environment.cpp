@@ -67,12 +67,16 @@ public:
             CachedCpuStatistics_,
             "CPU",
             [&] {
+                // NB: Job proxy uses last sample of CPU statistics but we are interested in peak thread count value.
+                PeakThreadCount_ = std::max<ui64>(PeakThreadCount_, GetFieldOrThrow(ResourceUsage_, EStatField::ThreadCount));
+
                 return TCpuStatistics{
                     .UserTime = TDuration::MicroSeconds(GetFieldOrThrow(ResourceUsage_, EStatField::CpuUsageUser) / 1000),
                     .SystemTime = TDuration::MicroSeconds(GetFieldOrThrow(ResourceUsage_, EStatField::CpuUsageSystem) / 1000),
                     .WaitTime = TDuration::MicroSeconds(GetFieldOrThrow(ResourceUsage_, EStatField::CpuWait) / 1000),
                     .ThrottledTime = TDuration::MicroSeconds(GetFieldOrThrow(ResourceUsage_, EStatField::CpuThrottled) / 1000),
-                    .ContextSwitches = GetFieldOrThrow(ResourceUsage_, EStatField::ContextSwitches)
+                    .ContextSwitches = GetFieldOrThrow(ResourceUsage_, EStatField::ContextSwitches),
+                    .PeakThreadCount = PeakThreadCount_,
                 };
             });
     }
@@ -116,6 +120,8 @@ private:
     mutable std::optional<TCpuStatistics> CachedCpuStatistics_;
     mutable std::optional<TMemoryStatistics> CachedMemoryStatistics_;
     mutable std::optional<TBlockIOStatistics> CachedBlockIOStatistics_;
+
+    mutable ui64 PeakThreadCount_ = 0;
 
     static ui64 GetFieldOrThrow(const TResourceUsage& usage, EStatField field)
     {
@@ -182,7 +188,8 @@ private:
             EStatField::IOOperations,
             EStatField::Rss,
             EStatField::MappedFiles,
-            EStatField::MajorFaults
+            EStatField::MajorFaults,
+            EStatField::ThreadCount,
         });
 
         {
@@ -329,6 +336,8 @@ public:
             // Future happiness here https://st.yandex-team.ru/KERNEL-141.
             Instance_->EnableMemoryTracking();
         }
+
+        Instance_->SetThreadLimit(options.ThreadLimit);
 
         auto adjustedPath = Instance_->HasRoot()
             ? RootFSBinaryDirectory + path

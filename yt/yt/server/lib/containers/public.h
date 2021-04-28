@@ -25,6 +25,7 @@ DEFINE_ENUM(EStatField,
     (IOReadByte)
     (IOWriteByte)
     (IOOperations)
+    (ThreadCount)
 );
 
 DEFINE_ENUM(EEnablePorto,

@@ -8242,6 +8242,8 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     const std::vector<TUserFile>& files,
     const TString& fileAccount)
 {
+    const auto& userJobOptions = Options->UserJobOptions;
+
     jobSpec->set_shell_command(config->Command);
     if (config->JobTimeLimit) {
         jobSpec->set_job_time_limit(ToProto<i64>(*config->JobTimeLimit));
@@ -8262,6 +8264,10 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     if (Options->SetContainerCpuLimit) {
         jobSpec->set_container_cpu_limit(Options->CpuLimitOvercommitMultiplier * config->CpuLimit + Options->InitialCpuLimitOvercommit);
     }
+
+    // This is common policy for all operations of given type.
+    i64 threadLimit = ceil(userJobOptions->InitialThreadLimit + userJobOptions->ThreadLimitMultiplier * config->CpuLimit);
+    jobSpec->set_thread_limit(threadLimit);
 
     // Option in task spec overrides value in operation options.
     if (config->SetContainerCpuLimit) {
