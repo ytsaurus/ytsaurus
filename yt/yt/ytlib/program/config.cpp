@@ -54,6 +54,8 @@ TSingletonsDynamicConfig::TSingletonsDynamicConfig()
         .DefaultNew();
     RegisterParameter("logging", Logging)
         .DefaultNew();
+    RegisterParameter("jaeger", Jaeger)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

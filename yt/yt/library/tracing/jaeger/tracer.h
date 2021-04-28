@@ -5,12 +5,32 @@
 #include <yt/yt/library/profiling/sensor.h>
 
 #include <yt/yt/core/misc/lock_free.h>
+#include <yt/yt/core/misc/atomic_object.h>
 
 #include <yt/yt/core/rpc/grpc/config.h>
 
 #include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NTracing {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TJaegerTracerDynamicConfig)
+
+class TJaegerTracerDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    NRpc::NGrpc::TChannelConfigPtr CollectorChannelConfig;
+
+    std::optional<i64> MaxRequestSize;
+
+    std::optional<i64> MaxMemory;
+
+    TJaegerTracerDynamicConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TJaegerTracerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,6 +60,10 @@ public:
     bool EnablePidTag;
 
     TJaegerTracerConfig();
+
+    TJaegerTracerConfigPtr ApplyDynamic(const TJaegerTracerDynamicConfigPtr& dynamicConfig);
+
+    bool IsEnabled() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJaegerTracerConfig)
@@ -57,18 +81,19 @@ public:
 
     TFuture<void> WaitFlush();
 
+    void Configure(const TJaegerTracerConfigPtr& config);
+
     virtual void Stop() override;
 
     virtual void Enqueue(TTraceContextPtr trace) override;
 
 private:
-    const TJaegerTracerConfigPtr Config_;
     const NConcurrency::TActionQueuePtr ActionQueue_;
     NConcurrency::TPeriodicExecutorPtr Flusher_;
 
-    TMultipleProducerSingleConsumerLockFreeStack<TTraceContextPtr> TraceQueue_;
+    TAtomicObject<TJaegerTracerConfigPtr> Config_;
 
-    TSharedRef ProcessInfo_;
+    TMultipleProducerSingleConsumerLockFreeStack<TTraceContextPtr> TraceQueue_;
 
     TInstant LastSuccessfullFlushTime_ = TInstant::Now();
 
@@ -80,12 +105,13 @@ private:
     TPromise<void> QueueEmpty_ = NewPromise<void>();
 
     NRpc::IChannelPtr CollectorChannel_;
+    NRpc::NGrpc::TChannelConfigPtr OpenChannelConfig_;
 
     void Flush();
-    void DequeueAll();
+    void DequeueAll(const TJaegerTracerConfigPtr& config);
     void NotifyEmptyQueue();
 
-    std::pair<std::vector<TSharedRef>, int> PeekQueue();
+    std::pair<std::vector<TSharedRef>, int> PeekQueue(const TJaegerTracerConfigPtr& config);
     void DropQueue(int i);
 
     NProfiling::TCounter TracesDequeued_;
@@ -94,6 +120,8 @@ private:
     NProfiling::TGauge MemoryUsage_;
     NProfiling::TGauge TraceQueueSize_;
     NProfiling::TEventTimer PushDuration_;
+
+    TSharedRef GetProcessInfo(const TJaegerTracerConfigPtr& config);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJaegerTracer)
