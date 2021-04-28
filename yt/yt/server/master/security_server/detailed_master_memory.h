@@ -44,7 +44,7 @@ public:
     friend void Serialize(const TDetailedMasterMemory& detailedMasterMemory, NYson::IYsonConsumer* consumer);
     friend void Deserialize(TDetailedMasterMemory& detailedMasterMemory, NYTree::INodePtr node);
 
-    friend void FormatValue(TStringBuilderBase* builder, const TDetailedMasterMemory& detailedMasterMemory);
+    friend void FormatValue(TStringBuilderBase* builder, const TDetailedMasterMemory& detailedMasterMemory, TStringBuf spec);
 
 private:
     TEnumIndexedVector<EMasterMemoryType, i64> DetailedMasterMemory_;
@@ -59,6 +59,10 @@ void FromProto(
     TDetailedMasterMemory* detailedMasterMemory,
     const NProto::TDetailedMasterMemory& protoDetailedMasterMemory);
 
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TDetailedMasterMemory& detailedMasterMemory,
+    TStringBuf spec);
 TString ToString(const TDetailedMasterMemory& detailedMasterMemory);
 
 ////////////////////////////////////////////////////////////////////////////////

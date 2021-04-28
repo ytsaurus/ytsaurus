@@ -174,7 +174,7 @@ void Deserialize(TDetailedMasterMemory& detailedMasterMemory, NYTree::INodePtr n
     NYTree::Deserialize(detailedMasterMemory.DetailedMasterMemory_, node);
 }
 
-void FormatValue(TStringBuilderBase* builder, const TDetailedMasterMemory& detailedMasterMemory)
+void FormatValue(TStringBuilderBase* builder, const TDetailedMasterMemory& detailedMasterMemory, TStringBuf /*spec*/)
 {
     builder->AppendFormat("%v", detailedMasterMemory.DetailedMasterMemory_);
 }
