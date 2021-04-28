@@ -433,9 +433,10 @@ IServerPtr CreateServer(const TServerConfigPtr& config, int threads)
     return CreateServer(config, poller, poller, poller->GetInvoker(), true);
 }
 
-IServerPtr CreateServer(const TServerConfigPtr& config,
-                        const NConcurrency::IPollerPtr& poller,
-                        const IInvokerPtr& invoker)
+IServerPtr CreateServer(
+    const TServerConfigPtr& config,
+    const NConcurrency::IPollerPtr& poller,
+    const IInvokerPtr& invoker)
 {
     return CreateServer(config, poller, poller, invoker, false);
 }
