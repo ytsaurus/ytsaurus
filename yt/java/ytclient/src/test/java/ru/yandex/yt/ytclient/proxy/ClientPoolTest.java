@@ -19,6 +19,7 @@ import ru.yandex.yt.ytclient.proxy.internal.HostPort;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.oneOf;
 import static ru.yandex.yt.testlib.FutureUtils.getError;
 import static ru.yandex.yt.testlib.FutureUtils.waitFuture;
 import static ru.yandex.yt.testlib.FutureUtils.waitOkResult;
@@ -30,21 +31,7 @@ class CustomException extends Exception {
     }
 }
 
-public class ClientPoolTest {
-    ExecutorService executorService;
-    MockRpcClientFactory mockRpcClientFactory;
-
-    @Before
-    public void before() {
-        executorService = Executors.newFixedThreadPool(1);
-        mockRpcClientFactory = new MockRpcClientFactory();
-    }
-
-    @After
-    public void after() {
-        executorService.shutdownNow();
-    }
-
+public class ClientPoolTest extends ClientPoolTestBase {
     @Test
     public void testSimple() {
         ClientPool clientPool = newClientPool();
@@ -214,9 +201,9 @@ public class ClientPoolTest {
         assertThat(mockRpcClientFactory.isConnectionOpened("localhost:4"), is(true));
     }
 
-    private static boolean tryWaitFuture(CompletableFuture<?> f, int timeoutMs) {
+    private static boolean tryWaitFuture(CompletableFuture<?> f) {
         try {
-            f.get(timeoutMs, TimeUnit.MILLISECONDS);
+            f.get(100, TimeUnit.MILLISECONDS);
         } catch (ExecutionException ignored) {
         } catch (TimeoutException ignored) {
             return false;
@@ -253,23 +240,21 @@ public class ClientPoolTest {
                         )),
                 100);
 
-        {
-            var f = onAllBannedCallback.called;
-            assertThat(onAllBannedCallback.counter.get(), is(0));
+        var f = onAllBannedCallback.called;
+        assertThat(onAllBannedCallback.counter.get(), is(0));
 
-            clientPool.banClient("localhost:1");
-            assertThat(tryWaitFuture(f, 100), is(false));
-            assertThat(onAllBannedCallback.counter.get(), is(0));
+        clientPool.banClient("localhost:1");
+        assertThat(tryWaitFuture(f), is(false));
+        assertThat(onAllBannedCallback.counter.get(), is(0));
 
-            clientPool.banClient("localhost:2");
-            assertThat(tryWaitFuture(f, 100), is(false));
-            assertThat(onAllBannedCallback.counter.get(), is(0));
+        clientPool.banClient("localhost:2");
+        assertThat(tryWaitFuture(f), is(false));
+        assertThat(onAllBannedCallback.counter.get(), is(0));
 
-            clientPool.banClient("localhost:3");
-            // assert no exception
-            f.get(1000, TimeUnit.MILLISECONDS);
-            assertThat(onAllBannedCallback.counter.get(), is(1));
-        }
+        clientPool.banClient("localhost:3");
+        // assert no exception
+        f.get(1000, TimeUnit.MILLISECONDS);
+        assertThat(onAllBannedCallback.counter.get(), is(1));
 
         waitOkResult(
                 clientPool.updateClients(
@@ -279,23 +264,98 @@ public class ClientPoolTest {
                         )),
                 100);
 
-        {
-            var f = onAllBannedCallback.called;
-            assertThat(onAllBannedCallback.counter.get(), is(1));
+        f = onAllBannedCallback.called;
+        assertThat(onAllBannedCallback.counter.get(), is(1));
 
-            clientPool.banClient("localhost:1");
-            assertThat(tryWaitFuture(f, 100), is(false));
-            assertThat(onAllBannedCallback.counter.get(), is(1));
+        clientPool.banClient("localhost:1");
+        assertThat(tryWaitFuture(f), is(false));
+        assertThat(onAllBannedCallback.counter.get(), is(1));
 
-            clientPool.banClient("localhost:4");
-            assertThat(tryWaitFuture(f, 100), is(false));
-            assertThat(onAllBannedCallback.counter.get(), is(1));
+        clientPool.banClient("localhost:4");
+        assertThat(tryWaitFuture(f), is(false));
+        assertThat(onAllBannedCallback.counter.get(), is(1));
 
-            clientPool.banClient("localhost:5");
-            // assert no exception
-            f.get(1000, TimeUnit.MILLISECONDS);
-            assertThat(onAllBannedCallback.counter.get(), is(2));
-        }
+        clientPool.banClient("localhost:5");
+        // assert no exception
+        f.get(1000, TimeUnit.MILLISECONDS);
+        assertThat(onAllBannedCallback.counter.get(), is(2));
+    }
+
+    @Test
+    public void testFilter() {
+        ClientPool clientPool = newClientPool();
+
+        waitOkResult(
+                clientPool.updateClients(
+                        List.of(
+                                HostPort.parse("localhost:1"),
+                                HostPort.parse("localhost:2"),
+                                HostPort.parse("localhost:3")
+                        )),
+                100
+        );
+
+        CompletableFuture<Void> releaseFuture = new CompletableFuture<>();
+        var client1 = clientPool.peekClient(
+                releaseFuture,
+                c -> !List.of("localhost:1", "localhost:3").contains(c.getAddressString())
+        );
+        assertThat(client1.isDone(), is(true));
+        assertThat(client1.join().getAddressString(), is("localhost:2"));
+
+        var client2 = clientPool.peekClient(
+                releaseFuture,
+                c -> !List.of("localhost:1", "localhost:2", "localhost:3")
+                        .contains(c.getAddressString())
+        );
+        assertThat(client2.isDone(), is(true));
+        assertThat(client2.join().getAddressString(), is(oneOf("localhost:1", "localhost:2", "localhost:3")));
+    }
+
+    @Test
+    public void testWaitWhenAllBanned() {
+        ClientPool clientPool = newClientPool();
+
+        waitOkResult(
+                clientPool.updateClients(
+                        List.of(
+                                HostPort.parse("localhost:2"),
+                                HostPort.parse("localhost:3"),
+                                HostPort.parse("localhost:4")
+                        )),
+                100
+        );
+        assertThat(clientPool.banClient("localhost:2").join(), is(1));
+        assertThat(clientPool.banClient("localhost:3").join(), is(1));
+        assertThat(clientPool.banClient("localhost:4").join(), is(1));
+
+        CompletableFuture<Void> releaseFuture = new CompletableFuture<>();
+        var client1 = clientPool.peekClient(releaseFuture);
+        tryWaitFuture(client1);
+        assertThat(client1.isDone(), is(false));
+        waitOkResult(
+                clientPool.updateClients(List.of(HostPort.parse("localhost:2"))),
+                100
+        );
+        tryWaitFuture(client1);
+        assertThat(client1.isDone(), is(true));
+        assertThat(client1.join().getAddressString(), is("localhost:2"));
+    }
+}
+
+class ClientPoolTestBase {
+    ExecutorService executorService;
+    MockRpcClientFactory mockRpcClientFactory;
+
+    @Before
+    public void before() {
+        executorService = Executors.newFixedThreadPool(1);
+        mockRpcClientFactory = new MockRpcClientFactory();
+    }
+
+    @After
+    public void after() {
+        executorService.shutdownNow();
     }
 
     ClientPool newClientPool() {

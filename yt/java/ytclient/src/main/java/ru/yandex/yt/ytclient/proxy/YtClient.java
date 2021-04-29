@@ -453,7 +453,7 @@ public class YtClient extends CompoundClient {
 
         @Override
         public RpcClientPool getClientPool() {
-            return multiDcClientPool;
+            return new NonRepeatingClientPool(multiDcClientPool);
         }
 
         @Override
