@@ -110,14 +110,21 @@ class TestClickHouseCommon(ClickHouseTestBase):
             with raises_yt_error(QueryFailedError):
                 clique.make_query('select a, b from "//tmp/t"')
 
-    @authors("evgenstf")
+    @authors("evgenstf", "dakovalkov")
     def test_extract_array_raw(self):
+        def convert_yson(s, format='binary'):
+            return yson.dumps(yson.loads(s), yson_format=format)
+
         with Clique(1) as clique:
-            assert clique.make_query('select YSONExtractArrayRaw(\'["a";"0";""]\')') == [
-                {'YSONExtractArrayRaw(\'["a";"0";""]\')': ['"a"', '"0"', '""']}
-            ]
-            assert clique.make_query('select JSONExtractArrayRaw(\'["a","0",""]\')') == [
-                {'JSONExtractArrayRaw(\'["a","0",""]\')': ['"a"', '"0"', '""']}
+            assert clique.make_query('select YSONExtractArrayRaw(\'["a";0;[1;2;3];{a=10}]\') as a') == [
+                {
+                    "a": [
+                        convert_yson('"a"'),
+                        convert_yson('0'),
+                        convert_yson('[1;2;3]'),
+                        convert_yson('{a=10}'),
+                    ],
+                },
             ]
 
     @authors("evgenstf")
