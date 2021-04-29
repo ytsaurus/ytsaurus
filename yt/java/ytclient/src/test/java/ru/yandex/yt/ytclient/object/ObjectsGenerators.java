@@ -1,14 +1,13 @@
 package ru.yandex.yt.ytclient.object;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.Random;
-
-import org.joda.time.Instant;
-import org.joda.time.format.DateTimeFormatter;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
@@ -315,10 +314,9 @@ public class ObjectsGenerators {
             return beginTime.plus(toAdd, ChronoUnit.SECONDS);
         }
 
-        static Instant nextJodaInstant(Random random) {
+        static Instant nextInstant(Random random) {
             LocalDateTime value = nextLocalDateTime(random);
-            long millis = value.atZone(ZoneId.of("Europe/Moscow")).toInstant().toEpochMilli();
-            return Instant.ofEpochMilli(millis);
+            return value.atZone(ZoneId.of("Europe/Moscow")).toInstant();
         }
     }
 
@@ -345,7 +343,7 @@ public class ObjectsGenerators {
 
         @Override
         public void generateNext(YTreeBuilder builder, Random random) {
-            builder.onString(formatter.print(RandomTimeUtils.nextJodaInstant(random)));
+            builder.onString(formatter.format(RandomTimeUtils.nextInstant(random)));
         }
     }
 }
