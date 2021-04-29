@@ -12,12 +12,37 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! TGuid is 16-byte value that might be interpreted as 4 little-endian 32-bit integers or 2 64-bit little-endian integers.
+/*!
+ *    *-------------------------*-------------------------*
+ *    |       Parts64[0]        |       Parts64[1]        |
+ *    *------------*------------*------------*------------*
+ *    | Parts32[0] | Parts32[1] | Parts32[2] | Parts32[3] |
+ *    *------------*------------*------------*------------*
+ *    | 0..............................................15 |
+ *    *---------------------------------------------------*
+ *
+ *  Canonical text representation of guid consists of four base-16 numbers.
+ *  In text form, Parts32[3] comes first, and Parts32[0] comes last.
+ *
+ *  For example:
+ *
+ *    xxyyzzaa-0-1234-ff
+ *
+ *      xx is byte [15]
+ *      yy is byte [14]
+ *      zz is byte [13]
+ *      12 is byte [9]
+ *      34 is byte [8]
+ *      ff is byte [0]
+ */
 struct TGuid
 {
     union
     {
         ui32 Parts32[4];
         ui64 Parts64[2];
+        ui8 Parts8[16];
     };
 
     //! Constructs a null (zero) guid.
