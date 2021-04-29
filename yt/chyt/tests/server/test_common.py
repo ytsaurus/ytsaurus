@@ -111,12 +111,12 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 clique.make_query('select a, b from "//tmp/t"')
 
     @authors("evgenstf", "dakovalkov")
-    def test_extract_array_raw(self):
+    def test_yson_extract_raw_functions(self):
         def convert_yson(s, format='binary'):
             return yson.dumps(yson.loads(s), yson_format=format)
 
         with Clique(1) as clique:
-            assert clique.make_query('select YSONExtractArrayRaw(\'["a";0;[1;2;3];{a=10}]\') as a') == [
+            assert clique.make_query('select YSONExtractArrayRaw(\'["a";0;[1;2;3];{a=10}]\') as a, toTypeName(a) as t') == [
                 {
                     "a": [
                         convert_yson('"a"'),
@@ -124,6 +124,17 @@ class TestClickHouseCommon(ClickHouseTestBase):
                         convert_yson('[1;2;3]'),
                         convert_yson('{a=10}'),
                     ],
+                    "t": "Array(String)"
+                },
+            ]
+            assert clique.make_query('select YSONExtractKeysAndValuesRaw(\'{a={b=3};b=[1;2;[20]];c=test}\') as a, toTypeName(a) as t') == [
+                {
+                    "a": [
+                        ["a", convert_yson("{b=3}")],
+                        ["b", convert_yson("[1;2;[20]]")],
+                        ["c", convert_yson("test")],
+                    ],
+                    "t": "Array(Tuple(String, String))",
                 },
             ]
 
