@@ -11,11 +11,13 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
@@ -39,9 +41,51 @@ import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolder;
 
 import static org.asynchttpclient.Dsl.asyncHttpClient;
 
-interface DataCenterRpcClientPool extends RpcClientPool {
+@NonNullApi
+interface FilteringRpcClientPool extends RpcClientPool {
+    /**
+     * Peek client with filter.
+     *
+     * @param filter pool will try to return future that satisfies given filter;
+     *              if none of the clients satisfies filter some client will be returned nevertheless.
+     *
+     * @see #peekClient(CompletableFuture)
+     */
+    CompletableFuture<RpcClient> peekClient(CompletableFuture<?> releaseFuture, Predicate<RpcClient> filter);
+
+    @Override
+    default CompletableFuture<RpcClient> peekClient(CompletableFuture<?> releaseFuture) {
+        return peekClient(releaseFuture, x -> true);
+    }
+}
+
+@NonNullApi
+interface DataCenterRpcClientPool extends FilteringRpcClientPool {
     String getDataCenterName();
     CompletableFuture<Integer> banClient(String address);
+}
+
+/**
+ * Client pool that tracks returned clients and tries not to return them again.
+ */
+@NonNullApi
+class NonRepeatingClientPool implements RpcClientPool {
+    private final FilteringRpcClientPool underlying;
+    private final ConcurrentSkipListSet<String> usedClients = new ConcurrentSkipListSet<>();
+
+    NonRepeatingClientPool(FilteringRpcClientPool underlying) {
+        this.underlying = underlying;
+    }
+
+    @Override
+    public CompletableFuture<RpcClient> peekClient(CompletableFuture<?> releaseFuture) {
+        return underlying.peekClient(releaseFuture, c -> !usedClients.contains(c.getAddressString()))
+                .whenComplete((c, e) -> {
+                    if (c != null) {
+                        usedClients.add(c.getAddressString());
+                    }
+                });
+    }
 }
 
 /**
@@ -52,7 +96,7 @@ interface DataCenterRpcClientPool extends RpcClientPool {
  */
 @NonNullFields
 @NonNullApi
-class MultiDcClientPool implements RpcClientPool {
+class MultiDcClientPool implements FilteringRpcClientPool {
     static final Logger logger = LoggerFactory.getLogger(MultiDcClientPool.class);
 
     final DataCenterRpcClientPool[] clientPools;
@@ -86,10 +130,10 @@ class MultiDcClientPool implements RpcClientPool {
     }
 
     @Override
-    public CompletableFuture<RpcClient> peekClient(CompletableFuture<?> releaseFuture) {
+    public CompletableFuture<RpcClient> peekClient(CompletableFuture<?> releaseFuture, Predicate<RpcClient> filter) {
         // If local dc has immediate candidates return them.
         if (localDcPool != null) {
-            CompletableFuture<RpcClient> localClientFuture = localDcPool.peekClient(releaseFuture);
+            CompletableFuture<RpcClient> localClientFuture = localDcPool.peekClient(releaseFuture, filter);
             RpcClient localClient = getImmediateResult(localClientFuture);
             if (localClient != null) {
                 return localClientFuture;
@@ -103,7 +147,7 @@ class MultiDcClientPool implements RpcClientPool {
         RpcClient resultClient = null;
         double resultPing = Double.MAX_VALUE;
         for (DataCenterRpcClientPool dc : clientPools) {
-            CompletableFuture<RpcClient> f = dc.peekClient(releaseFuture);
+            CompletableFuture<RpcClient> f = dc.peekClient(releaseFuture, filter);
             RpcClient client = getImmediateResult(f);
             if (client != null) {
                 double currentPing = dcMetricHolder.getDc99thPercentile(dc.getDataCenterName());
@@ -469,11 +513,11 @@ class ClientPool implements DataCenterRpcClientPool {
     }
 
     @Override
-    public CompletableFuture<RpcClient> peekClient(CompletableFuture<?> release) {
+    public CompletableFuture<RpcClient> peekClient(CompletableFuture<?> release, Predicate<RpcClient> filter) {
         PooledRpcClient[] goodClientsRef = clientCache;
         CompletableFuture<RpcClient> result = new CompletableFuture<>();
-        if (!peekClientImpl(goodClientsRef, result, release)) {
-            safeExecutorService.submit(() -> peekClientUnsafe(result, release));
+        if (!peekClientImpl(goodClientsRef, result, release, filter)) {
+            safeExecutorService.submit(() -> peekClientUnsafe(result, release, filter));
         }
         return result;
     }
@@ -503,12 +547,16 @@ class ClientPool implements DataCenterRpcClientPool {
         return result;
     }
 
-    private void peekClientUnsafe(CompletableFuture<RpcClient> result, CompletableFuture<?> release) {
-        if (peekClientImpl(clientCache, result, release)) {
+    private void peekClientUnsafe(
+            CompletableFuture<RpcClient> result,
+            CompletableFuture<?> release,
+            Predicate<RpcClient> filter
+    ) {
+        if (peekClientImpl(clientCache, result, release, filter)) {
             return;
         }
         nextUpdate.whenComplete((Void v, Throwable t) -> {
-            if (peekClientImpl(clientCache, result, release)) {
+            if (peekClientImpl(clientCache, result, release, filter)) {
                 return;
             }
             RuntimeException error = new RuntimeException("Cannot get rpc proxies; DataCenter: " + dataCenterName);
@@ -522,18 +570,43 @@ class ClientPool implements DataCenterRpcClientPool {
     private boolean peekClientImpl(
             PooledRpcClient[] clients,
             CompletableFuture<RpcClient> result,
-            CompletableFuture<?> release
+            CompletableFuture<?> release,
+            Predicate<RpcClient> filter
     ) {
         if (clients.length > 0) {
-            PooledRpcClient pooledClient = clients[random.nextInt(clients.length)];
-            if (!pooledClient.banned && pooledClient.ref()) {
+            int offset = random.nextInt(clients.length);
+            PooledRpcClient pooledClient = null;
+
+            // First we try to find client that satisfies filter.
+            for (int i = 0; i < clients.length; ++i) {
+                PooledRpcClient curClient = clients[(i + offset) % clients.length];
+                if (!curClient.banned
+                        && filter.test(curClient.publicClient)
+                        && curClient.ref()
+                ) {
+                    pooledClient = curClient;
+                    break;
+                }
+            }
+            // If we didn't succeed we try to peek any good client.
+            if (pooledClient == null) {
+                for (int i = 0; i < clients.length; ++i) {
+                    PooledRpcClient curClient = clients[(i + offset) % clients.length];
+                    if (!curClient.banned && curClient.ref()) {
+                        pooledClient = curClient;
+                        break;
+                    }
+                }
+            }
+            if (pooledClient != null) {
                 if (result.complete(pooledClient.publicClient)) {
-                    release.whenComplete((o, throwable) -> pooledClient.unref());
+                    PooledRpcClient pooledClientClosure = pooledClient;
+                    release.whenComplete((o, throwable) -> pooledClientClosure.unref());
                 } else {
                     pooledClient.unref();
                 }
+                return true;
             }
-            return true;
         }
         return false;
     }

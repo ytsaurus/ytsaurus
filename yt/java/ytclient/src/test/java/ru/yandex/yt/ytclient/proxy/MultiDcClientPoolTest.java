@@ -7,6 +7,7 @@ import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Predicate;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -19,7 +20,7 @@ import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolder;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertThat;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static ru.yandex.yt.testlib.FutureUtils.getError;
 import static ru.yandex.yt.testlib.FutureUtils.waitFuture;
 
@@ -55,7 +56,7 @@ public class MultiDcClientPoolTest {
         try {
             var clientFuture = clientPool.peekClient(done);
             assertThat(clientFuture.isDone(), is(true));
-            assertThat(clientFuture.join().destinationName(), is("local:1"));
+            assertThat(clientFuture.join().getAddressString(), is("local:1"));
         } finally {
             done.complete(null);
         }
@@ -80,7 +81,7 @@ public class MultiDcClientPoolTest {
         try {
             var clientFuture = clientPool.peekClient(done);
             assertThat(clientFuture.isDone(), is(true));
-            assertThat(clientFuture.join().destinationName(), is("remote:1"));
+            assertThat(clientFuture.join().getAddressString(), is("remote:1"));
         } finally {
             done.complete(null);
         }
@@ -116,7 +117,7 @@ public class MultiDcClientPoolTest {
         try {
             var clientFuture = clientPool.peekClient(done);
             assertThat(clientFuture.isDone(), is(true));
-            assertThat(clientFuture.join().destinationName(), is("remote2:1"));
+            assertThat(clientFuture.join().getAddressString(), is("remote2:1"));
         } finally {
             done.complete(null);
         }
@@ -148,7 +149,7 @@ public class MultiDcClientPoolTest {
             waitFuture(updateFuture, 100);
 
             assertThat(clientFuture.isDone(), is(true));
-            assertThat(clientFuture.join().destinationName(), is("remote3:1"));
+            assertThat(clientFuture.join().getAddressString(), is("remote3:1"));
         } finally {
             done.complete(null);
         }
@@ -175,7 +176,7 @@ public class MultiDcClientPoolTest {
         try {
             var clientFuture = clientPool.peekClient(done);
             assertThat(clientFuture.isDone(), is(true));
-            assertThat(clientFuture.join().destinationName(), is("remote:1"));
+            assertThat(clientFuture.join().getAddressString(), is("remote:1"));
         } finally {
             done.complete(null);
         }
@@ -202,7 +203,7 @@ public class MultiDcClientPoolTest {
         try {
             var clientFuture = clientPool.peekClient(done);
             assertThat(clientFuture.isDone(), is(true));
-            assertThat(clientFuture.join().destinationName(), is("remote2:1"));
+            assertThat(clientFuture.join().getAddressString(), is("remote2:1"));
         } finally {
             done.complete(null);
         }
@@ -295,6 +296,10 @@ public class MultiDcClientPoolTest {
         final String dataCenterName;
         final CompletableFuture<RpcClient> future = new CompletableFuture<>();
 
+        ErroneousClientPool(String dataCenterName) {
+            this.dataCenterName = dataCenterName;
+        }
+
         static ErroneousClientPool immediateErrors(String dataCenterName) {
             return new ErroneousClientPool(dataCenterName).completeExceptionally();
         }
@@ -303,17 +308,16 @@ public class MultiDcClientPoolTest {
             return new ErroneousClientPool(dataCenterName);
         }
 
-        ErroneousClientPool(String dataCenterName) {
-            this.dataCenterName = dataCenterName;
-        }
-
         public ErroneousClientPool completeExceptionally() {
             future.completeExceptionally(new Exception("no clients today"));
             return this;
         }
 
         @Override
-        public CompletableFuture<RpcClient> peekClient(CompletableFuture<?> releaseFuture) {
+        public CompletableFuture<RpcClient> peekClient(
+                CompletableFuture<?> releaseFuture,
+                Predicate<RpcClient> filter
+        ) {
             // We don't return future here, because client can cancel it
             // and we don't want our source future to be prematurely canceled.
             return future.thenApply(client -> client);
@@ -328,5 +332,6 @@ public class MultiDcClientPoolTest {
         public CompletableFuture<Integer> banClient(String address) {
             throw new RuntimeException("not implemented");
         }
+
     }
 }
