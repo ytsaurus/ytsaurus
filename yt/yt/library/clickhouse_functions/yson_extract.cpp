@@ -138,6 +138,49 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename Parser>
+class TYsonExtractKeysAndValuesRawImpl
+{
+public:
+    using Element = typename Parser::Element;
+
+    static DataTypePtr getReturnType(const char*, const ColumnsWithTypeAndName&)
+    {
+        DataTypePtr stringType = std::make_unique<DataTypeString>();
+        DataTypePtr tupleType = std::make_unique<DataTypeTuple>(DataTypes{stringType, stringType});
+        return std::make_unique<DataTypeArray>(tupleType);
+    }
+
+    static size_t getNumberOfIndexArguments(const ColumnsWithTypeAndName& arguments)
+    {
+        return arguments.size() - 1;
+    }
+
+    bool insertResultToColumn(IColumn& dest, const Element& element, const std::string_view&)
+    {
+        if (!element.isObject()) {
+            return false;
+        }
+
+        auto object = element.getObject();
+
+        auto& colArr = assert_cast<ColumnArray&>(dest);
+        auto& colTuple = assert_cast<ColumnTuple&>(colArr.getData());
+        auto& colKey = assert_cast<ColumnString&>(colTuple.getColumn(0));
+        auto& colValue = assert_cast<ColumnString&>(colTuple.getColumn(1));
+
+        for (auto [key, value] : object) {
+            colKey.insertData(key.data(), key.size());
+            TYsonExtractRawImpl<Parser>::insertResultToColumn(colValue, value, {});
+        }
+
+        colArr.getOffsets().push_back(colArr.getOffsets().back() + object.size());
+        return true;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TNameYsonHas { static constexpr auto name{"YSONHas"}; };
 struct TNameYsonLength { static constexpr auto name{"YSONLength"}; };
 struct TNameYsonKey { static constexpr auto name{"YSONKey"}; };
@@ -151,6 +194,7 @@ struct TNameYsonExtract { static constexpr auto name{"YSONExtract"}; };
 struct TNameYsonExtractKeysAndValues { static constexpr auto name{"YSONExtractKeysAndValues"}; };
 struct TNameYsonExtractRaw { static constexpr auto name{"YSONExtractRaw"}; };
 struct TNameYsonExtractArrayRaw { static constexpr auto name{"YSONExtractArrayRaw"}; };
+struct TNameYsonExtractKeysAndValuesRaw { static constexpr auto name{"YSONExtractKeysAndValuesRaw"}; };
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -172,11 +216,13 @@ void RegisterYsonExtractFunctions()
     factory.registerFunction<TFunctionYson<TNameYsonExtract, JSONExtractImpl>>();
     factory.registerFunction<TFunctionYson<TNameYsonExtractKeysAndValues, JSONExtractKeysAndValuesImpl>>();
     // These are wrong. They serialize unpacked data to json,
-    // so we use our own implementation for YSONExtractRaw and YSONExtractArrayRaw.
+    // so we use our own implementation for YSON*Raw functions.
     // factory.registerFunction<TFunctionYson<TNameYsonExtractArrayRaw, JSONExtractArrayRawImpl>>();
     // factory.registerFunction<TFunctionYson<TNameYsonExtractRaw, JSONExtractRawImpl>>();
+    // factory.registerFunction<TFunctionYson<TNameYsonExtractArrayRaw, JSONExtractKeysAndValuesRawImpl>>();
     factory.registerFunction<TFunctionYson<TNameYsonExtractRaw, TYsonExtractRawImpl>>();
     factory.registerFunction<TFunctionYson<TNameYsonExtractArrayRaw, TYsonExtractArrayRawImpl>>();
+    factory.registerFunction<TFunctionYson<TNameYsonExtractKeysAndValuesRaw, TYsonExtractKeysAndValuesRawImpl>>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
