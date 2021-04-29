@@ -75,6 +75,11 @@ class TestYsonFunctions(ClickHouseTestBase):
                     "v": None,
                     "key": "/unknown",
                 },
+                {
+                    "i": 6,
+                    "v": {"x": 10},
+                    "key": "/x/y/z"
+                },
             ],
         )
 
@@ -185,7 +190,7 @@ class TestYsonFunctions(ClickHouseTestBase):
             for i, item in enumerate(result):
                 if i == 0:
                     assert item.popitem()[1] == -1
-                elif i == 1:
+                elif i == 1 or i == 6:
                     assert item.popitem()[1] == 0
                 else:
                     assert item.popitem()[1] is None

@@ -77,22 +77,61 @@ class TYsonExtractRawImpl
 public:
     using Element = typename Parser::Element;
 
-    static DataTypePtr getReturnType(const char *, const ColumnsWithTypeAndName &)
+    static DataTypePtr getReturnType(const char*, const ColumnsWithTypeAndName&)
     {
         return std::make_shared<DataTypeString>();
     }
 
-    static size_t getNumberOfIndexArguments(const ColumnsWithTypeAndName & arguments) { return arguments.size() - 1; }
-
-    static bool insertResultToColumn(IColumn & dest, const Element & element, const std::string_view &)
+    static size_t getNumberOfIndexArguments(const ColumnsWithTypeAndName& arguments)
     {
-        ColumnString & col_str = static_cast<ColumnString &>(dest);
+        return arguments.size() - 1;
+    }
+
+    static bool insertResultToColumn(IColumn& dest, const Element& element, const std::string_view&)
+    {
+        ColumnString& col_str = static_cast<ColumnString&>(dest);
         auto& chars = col_str.getChars();
         auto ysonString = ConvertToYsonString(element.GetNode());
         // Add +1 to save zero at the end of the string.
         auto ysonStringBuf = ysonString.AsStringBuf();
         chars.insert(ysonStringBuf.data(), ysonStringBuf.data() + ysonStringBuf.size() + 1);
         col_str.getOffsets().push_back(chars.size());
+        return true;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename Parser>
+class TYsonExtractArrayRawImpl
+{
+public:
+    using Element = typename Parser::Element;
+
+    static DataTypePtr getReturnType(const char*, const ColumnsWithTypeAndName&)
+    {
+        return std::make_shared<DataTypeArray>(std::make_shared<DataTypeString>());
+    }
+
+    static size_t getNumberOfIndexArguments(const ColumnsWithTypeAndName& arguments)
+    {
+        return arguments.size() - 1;
+    }
+
+    static bool insertResultToColumn(IColumn& dest, const Element& element, const std::string_view&)
+    {
+        if (!element.isArray()) {
+            return false;
+        }
+
+        auto array = element.getArray();
+        ColumnArray& col_res = assert_cast<ColumnArray&>(dest);
+
+        for (auto value : array) {
+            TYsonExtractRawImpl<Parser>::insertResultToColumn(col_res.getData(), value, {});
+        }
+
+        col_res.getOffsets().push_back(col_res.getOffsets().back() + array.size());
         return true;
     }
 };
@@ -132,10 +171,12 @@ void RegisterYsonExtractFunctions()
     factory.registerFunction<TFunctionYson<TNameYsonExtractString, JSONExtractStringImpl>>();
     factory.registerFunction<TFunctionYson<TNameYsonExtract, JSONExtractImpl>>();
     factory.registerFunction<TFunctionYson<TNameYsonExtractKeysAndValues, JSONExtractKeysAndValuesImpl>>();
-    factory.registerFunction<TFunctionYson<TNameYsonExtractArrayRaw, JSONExtractArrayRawImpl>>();
-    // This is wrong. It converts unpacked data to json, so we use our own implementation for YSONExtractRaw.
+    // These are wrong. They serialize unpacked data to json,
+    // so we use our own implementation for YSONExtractRaw and YSONExtractArrayRaw.
+    // factory.registerFunction<TFunctionYson<TNameYsonExtractArrayRaw, JSONExtractArrayRawImpl>>();
     // factory.registerFunction<TFunctionYson<TNameYsonExtractRaw, JSONExtractRawImpl>>();
     factory.registerFunction<TFunctionYson<TNameYsonExtractRaw, TYsonExtractRawImpl>>();
+    factory.registerFunction<TFunctionYson<TNameYsonExtractArrayRaw, TYsonExtractArrayRawImpl>>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

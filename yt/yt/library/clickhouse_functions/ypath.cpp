@@ -139,47 +139,42 @@ public:
             const auto& path = columnPath->getDataAt(i);
             auto node = ConvertToNode(TYsonStringBuf(TStringBuf(yson.data, yson.size)));
 
-            INodePtr subNode = nullptr;
-            if constexpr (Strict) {
-                subNode = GetNodeByYPath(node, TString(path.data, path.size));
-            } else {
-                subNode = FindNodeByYPath(node, TString(path.data, path.size));
-            }
+            TYTOutputType value{};
 
-            if constexpr (std::is_fundamental_v<TYTOutputType> || std::is_same_v<TYTOutputType, TString>) {
-                // For primitive types we simply call GetValue<TYTOutputType>().
-                TYTOutputType value = TYTOutputType();
-                if constexpr (Strict) {
+            constexpr bool isFundumental = std::is_fundamental_v<TYTOutputType> || std::is_same_v<TYTOutputType, TString>;
+
+            try {
+                auto subNode = GetNodeByYPath(node, TString(path.data, path.size));
+
+                if constexpr (isFundumental) {
                     value = subNode->GetValue<TYTOutputType>();
                 } else {
-                    if (subNode &&
-                        NYTree::NDetail::TScalarTypeTraits<TYTOutputType>::GetValueSupportedTypes
-                            .contains(subNode->GetType()))
-                    {
-                        try {
-                            value = subNode->GetValue<TYTOutputType>();
-                        } catch (const std::exception& /* ex */) {
-                            // Just ignore the exception.
-                            value = TYTOutputType();
-                        }
-                    }
+                    value = ConvertTo<TYTOutputType>(subNode);
                 }
+            } catch (const TErrorException& ex) {
+                if (Strict) {
+                    // Rethrow the error with additional context.
+                    THROW_ERROR_EXCEPTION("Failed to extract value from yson")
+                        << TErrorAttribute("yson", TStringBuf(yson.data, yson.size))
+                        << TErrorAttribute("path", TStringBuf(path.data, path.size))
+                        << ex;
+                } else {
+                    // Just ignore the error.
+                    
+                    // TODO(dakovalkov): insertDefault() inserts Null for Nullable columns.
+                    // For backward compatibility we always insert default type value.
+                    // If we want to make it more consistent, we need to make an announcement for users first.
+
+                    // columnTo->insertDefault();
+                    // continue;
+                }
+            }
+
+            if constexpr (isFundumental) {
                 columnTo->insert(toField(value));
             } else {
-                // For array types we use ConvertTo<std::vector<TOutputValue>>(...).
-                TYTOutputType value;
-                if constexpr (Strict) {
-                    value = ConvertTo<TYTOutputType>(subNode);
-                } else {
-                    try {
-                        if (subNode) {
-                            value = ConvertTo<TYTOutputType>(subNode);
-                        }
-                    } catch (const std::exception& /* ex */) {
-                        // Just ignore the exception.
-                        value = TYTOutputType();
-                    }
-                }
+                // TODO(dakovalkov): This looks wierd.
+                // NB: Arrays are only not fundumental types which can be passed as TYTOutputType here.
                 columnTo->insertData(reinterpret_cast<char*>(value.data()), value.size() * sizeof(value[0]));
             }
         }
@@ -201,7 +196,7 @@ public:
         this->OutputDataType_ = std::make_shared<TCHOutputDataType>();
     }
 
-    static FunctionPtr create(ContextPtr /* context */)
+    static FunctionPtr create(ContextPtr /*context*/)
     {
         return std::make_shared<TScalarYPathFunction>();
     }
@@ -297,7 +292,7 @@ public:
         return 0;
     }
 
-    static FunctionPtr create(ContextPtr /* context */)
+    static FunctionPtr create(ContextPtr /*context*/)
     {
         return std::make_shared<TFunctionYPathRawImpl>();
     }
@@ -394,14 +389,25 @@ public:
 
             const auto& yson = columnYson->getDataAt(i);
             const auto& path = columnPath->getDataAt(i);
-            // TODO(dakovalkov): Remove string copy after YT-11723.
             auto node = ConvertToNode(TYsonStringBuf(TStringBuf(yson.data, yson.size)));
 
             INodePtr subNode;
             if constexpr (Strict) {
-                subNode = GetNodeByYPath(node, TString(path.data, path.size));
+                try {
+                    subNode = GetNodeByYPath(node, TString(path.data, path.size));
+                } catch (const TErrorException& ex) {
+                    // Rethrow the error with additional context.
+                    THROW_ERROR_EXCEPTION("Failed to extract value from yson")
+                        << TErrorAttribute("yson", TStringBuf(yson.data, yson.size))
+                        << TErrorAttribute("path", TStringBuf(path.data, path.size))
+                        << ex;
+                }
             } else {
-                subNode = FindNodeByYPath(node, TString(path.data, path.size));
+                TNodeWalkOptions options = FindNodeByYPathOptions;
+                options.NodeCannotHaveChildrenHandler = [] (const INodePtr& /*node*/) {
+                    return nullptr;
+                };
+                subNode = WalkNodeByYPath(node, TString(path.data, path.size), options);
             }
 
             if (subNode) {
@@ -417,7 +423,8 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(dakovalkov): Support Strict version of the function.
+// TODO(dakovalkov): Strict version is a fake. It does not detect all possible errors.
+// Support the real strict version when users expose us.
 template <bool Strict, class TName>
 class TFunctionYPathExtractImpl : public IFunction
 {
@@ -505,13 +512,32 @@ public:
 
             INodePtr subNode;
             if constexpr (Strict) {
-                subNode = GetNodeByYPath(node, TString(path.data, path.size));
+                try {
+                    subNode = GetNodeByYPath(node, TString(path.data, path.size));
+                } catch (const TErrorException& ex) {
+                    // Rethrow the error with additional context.
+                    THROW_ERROR_EXCEPTION("Failed to extract value from yson")
+                        << TErrorAttribute("yson", TStringBuf(yson.data, yson.size))
+                        << TErrorAttribute("path", TStringBuf(path.data, path.size))
+                        << ex;
+                }
             } else {
-                subNode = FindNodeByYPath(node, TString(path.data, path.size));
+                TNodeWalkOptions options = FindNodeByYPathOptions;
+                options.NodeCannotHaveChildrenHandler = [] (const INodePtr& /*node*/) {
+                    return nullptr;
+                };
+                subNode = WalkNodeByYPath(node, TString(path.data, path.size), options);
             }
 
             if (!subNode || !extractTree->insertResultToColumn(*columnTo, subNode)) {
-                columnTo->insertDefault();
+                if constexpr (Strict) {
+                    THROW_ERROR_EXCEPTION("Error converting extracted value")
+                        << TErrorAttribute("yson", TStringBuf(yson.data, yson.size))
+                        << TErrorAttribute("path", TStringBuf(path.data, path.size));
+                } else {
+                    // Just ignore errors.
+                    columnTo->insertDefault();
+                }
             }
         }
 
@@ -530,8 +556,7 @@ struct TNameYPathExtract { static constexpr auto Name = "YPathExtract"; };
 ////////////////////////////////////////////////////////////////////////////////
 
 using TFunctionYPathRawStrict = TFunctionYPathRawImpl<true, TNameYPathRawStrict>;
-// Not supported yet.
-// using TFunctionYPathExtractStrict = TFunctionYPathExtractImpl<true, TNameYPathExtractStrict>;
+using TFunctionYPathExtractStrict = TFunctionYPathExtractImpl<true, TNameYPathExtractStrict>;
 
 using TFunctionYPathRaw = TFunctionYPathRawImpl<false, TNameYPathRaw>;
 using TFunctionYPathExtract = TFunctionYPathExtractImpl<false, TNameYPathExtract>;
@@ -565,7 +590,7 @@ void RegisterYPathFunctions()
     factory.registerFunction<TFunctionYPathArrayBoolean>();
 
     factory.registerFunction<TFunctionYPathRawStrict>();
-    // factory.registerFunction<TFunctionYPathExtractStrict>();
+    factory.registerFunction<TFunctionYPathExtractStrict>();
 
     factory.registerFunction<TFunctionYPathRaw>();
     factory.registerFunction<TFunctionYPathExtract>();
