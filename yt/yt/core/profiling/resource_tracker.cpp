@@ -259,6 +259,7 @@ void TResourceTracker::CollectSensorsAggregatedTimings(
         writer->PushTag(std::pair<TString, TString>("thread", profilingKey));
         writer->AddGauge("/user_cpu", userCpuTime);
         writer->AddGauge("/system_cpu", systemCpuTime);
+        writer->AddGauge("/total_cpu", userCpuTime + systemCpuTime);
         writer->AddGauge("/cpu_wait", waitTime);
         writer->PopTag();
 
