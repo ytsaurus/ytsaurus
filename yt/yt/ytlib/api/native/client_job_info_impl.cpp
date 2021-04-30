@@ -771,7 +771,11 @@ TYsonString TClient::DoGetJobSpec(
     TString jobSpecYsonBytes;
     TStringOutput jobSpecYsonBytesOutput(jobSpecYsonBytes);
     TYsonWriter jobSpecYsonWriter(&jobSpecYsonBytesOutput);
-    WriteProtobufMessage(&jobSpecYsonWriter, jobSpec);
+
+    TProtobufParserOptions parserOptions{
+        .SkipUnknownFields = true,
+    };
+    WriteProtobufMessage(&jobSpecYsonWriter, jobSpec, parserOptions);
 
     auto jobSpecNode = ConvertToNode(TYsonString(jobSpecYsonBytes));
 
