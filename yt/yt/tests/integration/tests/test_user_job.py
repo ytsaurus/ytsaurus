@@ -852,6 +852,30 @@ class TestFilesInSandbox(YTEnvSetup):
             and are_almost_equal(get("//sys/scheduler/orchid/scheduler/cell/resource_usage/cpu"), 0)
         )
 
+    @authors("gritukan")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_rename_columns_artifact_table(self, optimize_for):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "x", "type": "int64"}],
+            "optimize_for": optimize_for,
+        })
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t", [{"x": 42}])
+        write_table("//tmp/t_in", [{"a": "b"}])
+
+        map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            file=["<format=<format=text>yson;rename_columns={x=y}>//tmp/t"],
+            command="cat t",
+            spec={"mapper": {"format": yson.loads("<format=text>yson")}},
+        )
+
+        assert read_table("//tmp/t_out") == [{"y": 42}]
+
 
 ##################################################################
 
