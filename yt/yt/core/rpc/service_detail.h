@@ -616,6 +616,7 @@ protected:
 
         const NConcurrency::IReconfigurableThroughputThrottlerPtr RequestBytesThrottler_;
         std::atomic<bool> RequestBytesThrottlerSpecified_ = false;
+        std::atomic<bool> RequestBytesThrottlerThrottled_ = false;
 
         std::atomic<int> QueueSize_ = 0;
         moodycamel::ConcurrentQueue<TServiceContextPtr> RequestQueue_;

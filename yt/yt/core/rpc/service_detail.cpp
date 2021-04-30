@@ -1240,9 +1240,13 @@ void TServiceBase::TRequestQueue::AcquireRequestBytesThrottler(const TServiceCon
 
 void TServiceBase::TRequestQueue::SubscribeToRequestBytesThrottler()
 {
+    if (RequestBytesThrottlerThrottled_.exchange(true)) {
+        return;
+    }
     RequestBytesThrottler_->Throttle(1)
         .Subscribe(BIND([=, weakService = MakeWeak(Service_)] (const TError&) {
             if (auto service = weakService.Lock()) {
+                RequestBytesThrottlerThrottled_.store(false);
                 ScheduleRequestsFromQueue();
             }
         }));
