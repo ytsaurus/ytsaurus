@@ -56,6 +56,7 @@ struct TSolomonExporterConfig
     std::optional<int> ThreadPoolSize;
 
     bool ConvertCountersToRate;
+    bool RenameConvertedCounters;
 
     bool ExportSummary;
     bool ExportSummaryAsMax;
@@ -96,6 +97,8 @@ struct TSolomonExporterConfig
             .Default();
 
         RegisterParameter("convert_counters_to_rate", ConvertCountersToRate)
+            .Default(true);
+        RegisterParameter("rename_converted_counters", RenameConvertedCounters)
             .Default(true);
 
         RegisterParameter("export_summary", ExportSummary)

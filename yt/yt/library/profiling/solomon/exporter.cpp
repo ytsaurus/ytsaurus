@@ -589,6 +589,7 @@ void TSolomonExporter::DoHandleShard(
 
         if (Config_->ConvertCountersToRate) {
             options.ConvertCountersToRateGauge = true;
+            options.RenameConvertedCounters = Config_->RenameConvertedCounters;
 
             options.RateDenominator = gridStep.SecondsFloat();
             if (readGridStep) {
