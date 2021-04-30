@@ -24,6 +24,7 @@ struct TReadOptions
     std::function<bool(const TString&)> SensorFilter;
 
     bool ConvertCountersToRateGauge = false;
+    bool RenameConvertedCounters = true;
     double RateDenominator = 1.0;
 
     bool EnableSolomonAggregationWorkaround = false;

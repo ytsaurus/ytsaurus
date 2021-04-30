@@ -384,7 +384,7 @@ int TCube<T>::ReadSensors(
                 consumer->OnMetricBegin(NMonitoring::EMetricType::RATE);
             }
 
-            writeLabels(tagIds, options.ConvertCountersToRateGauge ? rateNameLabel : nameLabel, true);
+            writeLabels(tagIds, (options.ConvertCountersToRateGauge && options.RenameConvertedCounters) ? rateNameLabel : nameLabel, true);
 
             rangeValues([&, window=&window] (auto value, auto time, const auto& indices) {
                 sensorCount += 1;
