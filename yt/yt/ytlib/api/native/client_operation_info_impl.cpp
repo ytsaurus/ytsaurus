@@ -201,7 +201,7 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
 
     const auto& cypressNodeRsp = cypressNodeRspOrError.Value();
     auto attributeDictionary = ConvertToAttributes(TYsonStringBuf(cypressNodeRsp->value()));
-    
+
     // XXX(ignat): remove opaque from node. Make option to ignore it in conversion methods.
     if (auto fullSpecYson = attributeDictionary->FindYson("full_spec")) {
         auto fullSpecNode = ConvertToNode(fullSpecYson);
@@ -719,17 +719,23 @@ void TClient::DoListOperationsFromCypress(
             operationsYson.emplace_back(std::move(*rsp->mutable_value()));
         }
     }
-
+    
     YT_LOG_DEBUG("Operations fetched from cypress");
 
-    TListOperationsFilter filter(operationsYson, countingFilter, options);
-
+    // NB: this class performs parsing in constructor.
+    auto filter = New<TListOperationsFilter>(
+        std::move(operationsYson),
+        &countingFilter,
+        options,
+        Connection_->GetInvoker(),
+        Logger);
+    
     // Lookup all operations with currently filtered ids, add their brief progress.
     if (DoesOperationsArchiveExist()) {
         TOrderedByIdTableDescriptor tableDescriptor;
         std::vector<TOperationId> ids;
-        ids.reserve(filter.GetCount());
-        filter.ForEachOperationImmutable([&] (int index, const TListOperationsFilter::TLightOperation& lightOperation) {
+        ids.reserve(filter->GetCount());
+        filter->ForEachOperationImmutable([&] (int index, const TListOperationsFilter::TLightOperation& lightOperation) {
             ids.push_back(lightOperation.GetId());
         });
 
@@ -744,10 +750,10 @@ void TClient::DoListOperationsFromCypress(
             YT_LOG_DEBUG(rowsetOrError, "Failed to get information about operations' brief_progress from Archive");
         } else {
             auto rows = rowsetOrError.ValueOrThrow()->GetRows();
-            YT_VERIFY(rows.Size() == filter.GetCount());
+            YT_VERIFY(rows.Size() == filter->GetCount());
 
             auto position = columnFilter.FindPosition(tableDescriptor.Index.BriefProgress);
-            filter.ForEachOperationMutable([&] (int index, TListOperationsFilter::TLightOperation& lightOperation) {
+            filter->ForEachOperationMutable([&] (int index, TListOperationsFilter::TLightOperation& lightOperation) {
                 auto row = rows[index];
                 if (!row) {
                     return;
@@ -765,7 +771,7 @@ void TClient::DoListOperationsFromCypress(
         }
     }
 
-    filter.OnBriefProgressFinished();
+    filter->OnBriefProgressFinished();
 
     auto areAllRequestedAttributesLight = std::all_of(
         requestedAttributes.begin(),
@@ -778,7 +784,7 @@ void TClient::DoListOperationsFromCypress(
         SetBalancingHeader(getBatchReq, options);
 
         const auto cypressRequestedAttributes = CreateCypressOperationAttributes(requestedAttributes);
-        filter.ForEachOperationImmutable([&] (int index, const TListOperationsFilter::TLightOperation& lightOperation) {
+        filter->ForEachOperationImmutable([&] (int index, const TListOperationsFilter::TLightOperation& lightOperation) {
             auto req = TYPathProxy::Get(GetOperationPath(lightOperation.GetId()));
             SetCachingHeader(req, options);
             ToProto(req->mutable_attributes()->mutable_keys(), cypressRequestedAttributes);
@@ -788,7 +794,7 @@ void TClient::DoListOperationsFromCypress(
         auto getBatchRsp = WaitFor(getBatchReq->Invoke())
             .ValueOrThrow();
         auto responses = getBatchRsp->GetResponses<TYPathProxy::TRspGet>();
-        filter.ForEachOperationMutable([&] (int index, TListOperationsFilter::TLightOperation& lightOperation) {
+        filter->ForEachOperationMutable([&] (int index, TListOperationsFilter::TLightOperation& lightOperation) {
             const auto& rspOrError = responses[index];
             if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 return;
@@ -796,12 +802,8 @@ void TClient::DoListOperationsFromCypress(
             lightOperation.SetYson(rspOrError.ValueOrThrow()->value());
         });
     }
-
-    YT_LOG_DEBUG("Parsing cypress response");
-
-    auto operations = filter.BuildOperations(requestedAttributes);
-
-    YT_LOG_DEBUG("Cypress response parsed (OperationCount: %v)", operations.size());
+    
+    auto operations = filter->BuildOperations(requestedAttributes);
 
     idToOperation->reserve(idToOperation->size() + operations.size());
     for (auto& operation : operations) {
@@ -847,7 +849,7 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
     for (const auto& columnName : CreateArchiveOperationAttributes(attributes)) {
         columns.push_back(tableDescriptor.NameTable->GetIdOrThrow(columnName));
     }
-    
+
     bool needIdInOutput = attributes.contains("id");
     if (!needIdInOutput) {
         // We however need id to create the output hash map.
@@ -910,11 +912,11 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
         if (auto startTimeMcs = TryFromUnversionedValue<i64>(row, startTimeIndex)) {
             operation.StartTime = TInstant::MicroSeconds(*startTimeMcs);
         }
-        
+
         if (auto finishTimeMcs = TryFromUnversionedValue<i64>(row, finishTimeIndex)) {
             operation.FinishTime = TInstant::MicroSeconds(*finishTimeMcs);
         }
-        
+
         TryFromUnversionedValue(operation.BriefSpec, row, briefSpecIndex);
         TryFromUnversionedValue(operation.FullSpec, row, fullSpecIndex);
         TryFromUnversionedValue(operation.Spec, row, specIndex);

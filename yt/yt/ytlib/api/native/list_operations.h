@@ -11,9 +11,15 @@ namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TListOperationsFilter)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TListOperationsCountingFilter
 {
 public:
+    TListOperationsCountingFilter() = default;
+
     explicit TListOperationsCountingFilter(const TListOperationsOptions& options);
 
     bool Filter(
@@ -24,6 +30,8 @@ public:
         i64 count);
     bool FilterByFailedJobs(bool hasFailedJobs, i64 count);
 
+    void MergeFrom(const TListOperationsCountingFilter& otherFilter);
+
 public:
     THashMap<TString, i64> PoolCounts;
     THashMap<TString, i64> UserCounts;
@@ -32,10 +40,13 @@ public:
     i64 FailedJobsCount = 0;
 
 private:
-     const TListOperationsOptions& Options_;
+    // NB: we have to use pointer instead of reference since
+    // default constructor is needed in this class.
+    const TListOperationsOptions* Options_ = nullptr;
 };
 
 class TListOperationsFilter
+    : public TRefCounted
 {
 public:
     struct TBriefProgress
@@ -67,9 +78,11 @@ public:
     // YSON lists containing operations in format "id with attributes"
     // (as returned from Cypress "list" command).
     TListOperationsFilter(
-        const std::vector<NYson::TYsonString>& operations,
-        TListOperationsCountingFilter& countingFilter,
-        const TListOperationsOptions& options);
+        std::vector<NYson::TYsonString> operationsResponses,
+        TListOperationsCountingFilter* countingFilter,
+        const TListOperationsOptions& options,
+        const IInvokerPtr& invoker,
+        const NLogging::TLogger& logger);
 
     template <typename TFunction>
     void ForEachOperationImmutable(TFunction function) const;
@@ -85,10 +98,24 @@ public:
     void OnBriefProgressFinished();
 
 private:
-    TListOperationsCountingFilter& CountingFilter_;
+    TListOperationsCountingFilter* CountingFilter_;
     const TListOperationsOptions& Options_;
+    const IInvokerPtr Invoker_;
+    const NLogging::TLogger Logger;
     std::vector<TLightOperation> LightOperations_;
+
+    struct TParseResult
+    {
+        std::vector<TLightOperation> Operations;
+        TListOperationsCountingFilter CountingFilter;
+    };
+
+    void ParseResponses(std::vector<NYson::TYsonString> operationsResponses);
+
+    TParseResult ParseOperationsYson(NYson::TYsonString operationsYson) const;
 };
+
+DEFINE_REFCOUNTED_TYPE(TListOperationsFilter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
