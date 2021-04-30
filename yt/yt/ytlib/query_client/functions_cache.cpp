@@ -551,9 +551,10 @@ public:
             New<NApi::TFileReaderConfig>(),
             New<NChunkClient::TMultiChunkReaderOptions>(),
             client,
-            /* localDescriptor */ {},
-            /* partitionTag */ std::nullopt,
+            /*localDescriptor*/ {},
+            /*partitionTag*/ std::nullopt,
             client->GetNativeConnection()->GetBlockCache(),
+            client->GetNativeConnection()->GetChunkMetaCache(),
             std::move(nodeDirectory),
             chunkReadOptions,
             std::move(chunks));

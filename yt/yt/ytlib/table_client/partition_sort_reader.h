@@ -21,6 +21,7 @@ ISchemalessMultiChunkReaderPtr CreatePartitionSortReader(
     NChunkClient::TMultiChunkReaderConfigPtr config,
     NApi::NNative::IClientPtr client,
     NChunkClient::IBlockCachePtr blockCache,
+    NChunkClient::IClientChunkMetaCachePtr chunkMetaCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     TComparator comparator,
     TNameTablePtr nameTable,

@@ -192,6 +192,7 @@ public:
             SandboxDirectoryNames[ESandboxKind::Udf],
             ChunkReadOptions_,
             Host_->GetReaderBlockCache(),
+            /*chunkMetaCache*/ nullptr,
             Host_->GetTrafficMeter(),
             Host_->GetInBandwidthThrottler(),
             Host_->GetOutRpsThrottler());

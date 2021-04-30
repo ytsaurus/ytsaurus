@@ -670,7 +670,7 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(
                 chunk,
                 ChunkBlockManager_,
                 DoGetBlockCache(),
-                nullptr /* blockMetaCache */));
+                /*blockkMetaCache*/ nullptr));
         YT_LOG_DEBUG("Local chunk reader created and cached");
     };
 
@@ -694,7 +694,8 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(
                 LocalDescriptor_,
                 std::nullopt,
                 DoGetBlockCache(),
-                /* trafficMeter */ nullptr,
+                /*chunkMetaCache*/ nullptr,
+                /*trafficMeter*/ nullptr,
                 std::move(nodeStatusDirectory),
                 bandwidthThrottler,
                 rpsThrottler));

@@ -214,7 +214,8 @@ private:
                     chunkId,
                     codecId,
                     replicas,
-                    Client_->GetNativeConnection()->GetBlockCache());
+                    Client_->GetNativeConnection()->GetBlockCache(),
+                    Client_->GetNativeConnection()->GetChunkMetaCache());
 
                 // NB: Lower/upper limits are mandatory for journal chunks.
                 if (!chunkSpec.has_lower_limit()) {

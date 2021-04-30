@@ -8,6 +8,7 @@
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
+#include <yt/yt/ytlib/chunk_client/chunk_meta_cache.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
@@ -183,6 +184,16 @@ public:
                 Profiler_.WithPrefix("/block_cache"));
         }
 
+        if (Options_.ChunkMetaCache) {
+            ChunkMetaCache_ = Options_.ChunkMetaCache;
+        } else if (Config_->ChunkMetaCache) {
+            ChunkMetaCache_ = CreateClientChunkMetaCache(
+                Config_->ChunkMetaCache,
+                Profiler_.WithPrefix("/chunk_meta_cache"));
+        } else {
+            ChunkMetaCache_ = nullptr;
+        }
+
         TableMountCache_ = CreateNativeTableMountCache(
             Config_->TableMountCache,
             this,
@@ -316,6 +327,11 @@ public:
     virtual const IBlockCachePtr& GetBlockCache() override
     {
         return BlockCache_;
+    }
+
+    virtual const IClientChunkMetaCachePtr& GetChunkMetaCache() override
+    {
+        return ChunkMetaCache_;
     }
 
     virtual const IEvaluatorPtr& GetQueryEvaluator() override
@@ -481,6 +497,7 @@ private:
 
     IChannelPtr SchedulerChannel_;
     IBlockCachePtr BlockCache_;
+    IClientChunkMetaCachePtr ChunkMetaCache_;
     ITableMountCachePtr TableMountCache_;
     IChannelPtr TimestampProviderChannel_;
     ITimestampProviderPtr TimestampProvider_;

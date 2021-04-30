@@ -45,6 +45,7 @@ std::vector<IChunkReaderPtr> CreateErasurePartReaders(
     const ICodec* codec,
     const TPartIndexList& partIndexList,
     IBlockCachePtr blockCache,
+    IClientChunkMetaCachePtr chunkMetaCache,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler)
@@ -94,6 +95,7 @@ std::vector<IChunkReaderPtr> CreateErasurePartReaders(
                     partChunkId,
                     partReplicas,
                     blockCache,
+                    chunkMetaCache,
                     trafficMeter,
                     /* nodeStatusDirectory */ nullptr,
                     bandwidthThrottler,
@@ -118,6 +120,7 @@ std::vector<IChunkReaderPtr> CreateAllErasurePartReaders(
     const TChunkReplicaList& seedReplicas,
     const ICodec* codec,
     IBlockCachePtr blockCache,
+    IClientChunkMetaCachePtr chunkMetaCache,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler)
@@ -136,6 +139,7 @@ std::vector<IChunkReaderPtr> CreateAllErasurePartReaders(
         codec,
         partIndexList,
         blockCache,
+        chunkMetaCache,
         std::move(trafficMeter),
         std::move(bandwidthThrottler),
         std::move(rpsThrottler));

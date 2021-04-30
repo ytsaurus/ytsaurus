@@ -797,8 +797,9 @@ private:
             partChunkId,
             partReplicas,
             Bootstrap_->GetBlockCache(),
-            /* trafficMeter */ nullptr,
-            /* nodeStatusDirectory */ nullptr,
+            /*chunkMetaCache*/ nullptr,
+            /*trafficMeter*/ nullptr,
+            /*nodeStatusDirectory*/ nullptr,
             Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::RepairIn));
 
         return reader;
@@ -1014,7 +1015,8 @@ private:
                 codecId,
                 sourceReplicas,
                 Bootstrap_->GetBlockCache(),
-                /* trafficMeter */ nullptr,
+                /*chunkMetaCache*/ nullptr,
+                /*trafficMeter*/ nullptr,
                 Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ReplicationIn));
 
             // TODO(savrus): profile chunk reader statistics.
@@ -1171,6 +1173,7 @@ private:
                 inputChunkId,
                 inputChunkReplicas,
                 Bootstrap_->GetBlockCache(),
+                /*chunkMetaCache*/ nullptr,
                 /*trafficMeter*/ nullptr ,
                 /*nodeStatusDirectory*/ nullptr ,
                 Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::MergeIn));

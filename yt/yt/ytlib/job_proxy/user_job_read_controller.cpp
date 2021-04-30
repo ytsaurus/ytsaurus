@@ -325,6 +325,7 @@ IUserJobReadControllerPtr CreateUserJobReadController(
     std::optional<TString> udfDirectory,
     const TClientChunkReadOptions& chunkReadOptions,
     IBlockCachePtr blockCache,
+    IClientChunkMetaCachePtr chunkMetaCache,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler)
@@ -340,6 +341,7 @@ IUserJobReadControllerPtr CreateUserJobReadController(
                 jobSpecHelper,
                 chunkReadOptions,
                 std::move(blockCache),
+                std::move(chunkMetaCache),
                 trafficMeter,
                 std::move(bandwidthThrottler),
                 nullptr,

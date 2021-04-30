@@ -565,13 +565,14 @@ IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
         MakeStrong(this),
         GetConnection()->GetInvoker(),
         TNodeDescriptor(),
-        /* onNetworkRelease */ BIND([] { }),
-        /* udfDirectory */ {},
-        /* chunkReadOptions */ {},
+        /*onNetworkRelease*/ BIND([] { }),
+        /*udfDirectory*/ {},
+        /*chunkReadOptions*/ {},
         GetNullBlockCache(),
-        nullptr /* trafficMeter */,
-        /* bandwidthThrottler */ NConcurrency::GetUnlimitedThrottler(),
-        /* rpsThrottler */ NConcurrency::GetUnlimitedThrottler());
+        /*chunkMetaCache*/ nullptr,
+        /*trafficMeter*/ nullptr,
+        /*bandwidthThrottler*/ NConcurrency::GetUnlimitedThrottler(),
+        /*rpsThrottler*/ NConcurrency::GetUnlimitedThrottler());
 
     auto jobInputReader = New<TJobInputReader>(std::move(userJobReadController), GetConnection()->GetInvoker());
     jobInputReader->Open();

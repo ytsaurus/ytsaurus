@@ -407,6 +407,13 @@ TClickHouseServerBootstrapConfig::TClickHouseServerBootstrapConfig()
             if (Memory->UncompressedBlockCache) {
                 ClusterConnection->BlockCache->UncompressedData->Capacity = *Memory->UncompressedBlockCache;
             }
+            if (Memory->ChunkMetaCache) {
+                if (ClusterConnection->ChunkMetaCache) {
+                    ClusterConnection->ChunkMetaCache->Capacity = *Memory->ChunkMetaCache;
+                } else {
+                    ClusterConnection->ChunkMetaCache = New<NChunkClient::TClientChunkMetaCacheConfig>(*Memory->ChunkMetaCache);
+                }
+            }
             if (Memory->MaxServerMemoryUsage) {
                 ClickHouse->MaxServerMemoryUsage = *Memory->MaxServerMemoryUsage;
             }

@@ -242,6 +242,10 @@ public:
     //! that are called for discarding seeds that are suspicious.
     TDuration ProlongedDiscardSeedsDelay;
 
+    //! If |true| GetMeta() will be performed via provided ChunkMetaCache.
+    //! If ChunkMetaCache is nullptr or partition tag is specified, this option has no effect.
+    bool EnableChunkMetaCache;
+
     TReplicationReaderConfig()
     {
         RegisterParameter("block_rpc_timeout", BlockRpcTimeout)
@@ -319,6 +323,8 @@ public:
             .Default();
         RegisterParameter("prolonged_discard_seeds_delay", ProlongedDiscardSeedsDelay)
             .Default(TDuration::Minutes(1));
+        RegisterParameter("enable_chunk_meta_cache", EnableChunkMetaCache)
+            .Default(true);
 
         RegisterPostprocessor([&] {
             // Seems unreasonable to make backoff greater than half of total session timeout.
