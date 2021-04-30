@@ -40,6 +40,13 @@ lazy val `spark-submit` = (project in file("spark-submit"))
     assemblyJarName in assembly := s"spark-yt-submit.jar"
   )
 
+lazy val `submit-client` = (project in file("submit-client"))
+  .dependsOn(`spark-submit`, `file-system`)
+  .settings(
+    libraryDependencies ++= sparkFork,
+    libraryDependencies ++= logging
+  )
+
 lazy val commonDependencies = yandexIceberg ++ spark ++ circe ++ logging.map(_ % Provided)
 
 lazy val `data-source` = (project in file("data-source"))

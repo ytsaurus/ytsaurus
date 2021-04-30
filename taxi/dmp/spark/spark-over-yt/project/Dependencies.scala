@@ -5,6 +5,7 @@ object Dependencies {
   lazy val circeYamlVersion = "0.12.0"
   lazy val scalatestVersion = "3.0.8"
   lazy val sparkVersion = "3.0.1"
+  lazy val sparkForkVersion = "3.0.1-fork-1.5.0"
   lazy val yandexIcebergVersion = "7948876"
   lazy val slf4jVersion = "1.7.28"
   lazy val scalatraVersion = "2.7.0"
@@ -42,6 +43,10 @@ object Dependencies {
     "org.apache.spark" %% "spark-core",
     "org.apache.spark" %% "spark-sql"
   ).map(_ % sparkVersion % Provided)
+
+  lazy val sparkFork = Seq(
+    "org.apache.spark" %% "spark-core"
+  ).map(_ % sparkForkVersion)
 
   lazy val yandexIceberg = Seq(
     "ru.yandex" % "iceberg-inside-yt" % yandexIcebergVersion excludeAll (
