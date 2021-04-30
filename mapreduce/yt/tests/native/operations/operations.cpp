@@ -2622,26 +2622,47 @@ Y_UNIT_TEST_SUITE(Operations)
                 .UpperLimit(TReadLimit().TabletIndex(1))
             )
             .AddRange(TReadRange()
+                .LowerLimit(TReadLimit().TabletIndex(0).RowIndex(0))
+                .UpperLimit(TReadLimit().TabletIndex(1).RowIndex(1))
+            )
+            .AddRange(TReadRange()
                 .LowerLimit(TReadLimit().TabletIndex(1))
                 .UpperLimit(TReadLimit().TabletIndex(1).RowIndex(1))
             );
         UNIT_ASSERT_NO_EXCEPTION(runOperation());
 
-        TVector<TNode> expected = {
-            // Empty range
-
-            TNode()("key", 1)("value", 2)("row_index", 0u)("tablet_index", 0)("range_index", 1u),
-
-            TNode()("key", 3)("value", 4)("row_index", 0u)("tablet_index", 1)("range_index", 2u),
-            TNode()("key", 5)("value", 6)("row_index", 1u)("tablet_index", 1)("range_index", 2u),
-
-            TNode()("key", 1)("value", 2)("row_index", 0u)("tablet_index", 0)("range_index", 3u),
-            TNode()("key", 3)("value", 4)("row_index", 0u)("tablet_index", 1)("range_index", 3u),
-            TNode()("key", 5)("value", 6)("row_index", 1u)("tablet_index", 1)("range_index", 3u),
-
-            TNode()("key", 3)("value", 4)("row_index", 0u)("tablet_index", 1)("range_index", 4u),
+        auto sorted = [] (TVector<TNode>&& nodes) {
+            auto result = std::move(nodes);
+            std::sort(nodes.begin(), nodes.end(), [] (const TNode& lhs, const TNode& rhs) {
+                auto getKey = [](const TNode& value) {
+                    return std::make_tuple(
+                        value["range_index"].IntCast<i64>(),
+                        value["tablet_index"].IntCast<i64>(),
+                        value["row_index"].IntCast<i64>())
+                    ;
+                };
+                return getKey(lhs) < getKey(rhs);
+            });
+            return result;
         };
-        auto actual = ReadTable(client, outputPath);
+
+        const TVector<TNode> expected = sorted({
+            // Range 0 is empty
+
+            // Range 1 is empty
+
+            TNode()("range_index", 2u)("tablet_index", 1)("row_index", 0u)("key", 3)("value", 4),
+            TNode()("range_index", 2u)("tablet_index", 1)("row_index", 1u)("key", 5)("value", 6),
+
+            TNode()("range_index", 3u)("tablet_index", 0)("row_index", 0u)("key", 1)("value", 2),
+
+            TNode()("range_index", 4u)("tablet_index", 0)("row_index", 0u)("key", 1)("value", 2),
+            TNode()("range_index", 4u)("tablet_index", 1)("row_index", 0u)("key", 3)("value", 4),
+
+            TNode()("range_index", 5u)("tablet_index", 1)("row_index", 0u)("key", 3)("value", 4),
+        });
+        const auto actual = sorted(ReadTable(client, outputPath));
+
         UNIT_ASSERT_VALUES_EQUAL(expected, actual);
     }
 
@@ -2700,6 +2721,7 @@ Y_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT_NO_EXCEPTION(
             client->Map(
                 TMapOperationSpec()
+                    .Ordered(true)
                     .AddInput<TNode>(inputPath)
                     .AddOutput<TNode>(outputPath),
                 new TIdMapper));
