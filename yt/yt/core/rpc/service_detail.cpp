@@ -1177,7 +1177,6 @@ void TServiceBase::TRequestQueue::ScheduleRequestsFromQueue()
 
         DecrementQueueSize();
         IncrementConcurrency();
-        AcquireRequestBytesThrottler(context);
         RunRequest(std::move(context));
     }
 }
