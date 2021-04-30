@@ -205,8 +205,13 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
                                master_memory_limit, history_server_memory_limit,
                                network_project, tvm_id, tvm_secret,
                                pool, enablers, client):
+    if ssd_limit:
+        spark_home = "."
+    else:
+        spark_home = "./tmpfs"
+
     def _launcher_command(component):
-        unpack_tar = "tar --warning=no-unknown-keyword -xf spark.tgz -C ./tmpfs"
+        unpack_tar = "tar --warning=no-unknown-keyword -xf spark.tgz -C {}".format(spark_home)
         move_java = "cp -r /opt/jdk11 ./tmpfs/jdk11"
         run_launcher = "./tmpfs/jdk11/bin/java -Xmx512m -cp spark-yt-launcher.jar"
         spark_conf = get_spark_conf(config=config, enablers=enablers)
@@ -242,7 +247,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     environment["YT_OPERATION_ALIAS"] = operation_spec["title"]
     environment["SPARK_DISCOVERY_PATH"] = str(spark_discovery.discovery())
     environment["JAVA_HOME"] = "$HOME/tmpfs/jdk11"
-    environment["SPARK_HOME"] = "$HOME/tmpfs/spark"
+    environment["SPARK_HOME"] = "$HOME/{}/spark".format(spark_home)
     environment["SPARK_CLUSTER_VERSION"] = config["cluster_version"]
     environment["SPARK_YT_BYOP_PORT"] = "27002"
     environment["SPARK_LOCAL_DIRS"] = "./tmpfs"
