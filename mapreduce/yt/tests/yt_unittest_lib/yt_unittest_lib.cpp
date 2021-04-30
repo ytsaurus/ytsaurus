@@ -19,7 +19,7 @@
 template<>
 void Out<NYT::TNode>(IOutputStream& s, const NYT::TNode& node)
 {
-    s << "TNode:" << NodeToYsonString(node);
+    s << "TNode:" << NodeToCanonicalYsonString(node);
 }
 
 template<>
