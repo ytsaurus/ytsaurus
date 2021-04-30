@@ -45,6 +45,7 @@ public:
         , MergePrimaryInputTableCount_(mergePrimaryInputTableCount)
         , Logger(logger)
         , InitialInputDataWeight_(inputDataWeight)
+        , InitialPrimaryInputDataWeight_(primaryInputDataWeight)
         , Options_(std::move(options))
         , Spec_(std::move(spec))
         , SamplingConfig_(std::move(samplingConfig))
@@ -167,6 +168,7 @@ public:
         Persist(context, PrimaryInputDataWeight_);
         Persist(context, ForeignInputDataWeight_);
         Persist(context, InitialInputDataWeight_);
+        Persist(context, InitialPrimaryInputDataWeight_);
         Persist(context, InputChunkCount_);
         Persist(context, JobCount_);
         Persist(context, InputRowCount_);
@@ -196,6 +198,7 @@ protected:
 
 private:
     i64 InitialInputDataWeight_ = -1;
+    i64 InitialPrimaryInputDataWeight_ = -1;
     TOperationOptionsPtr Options_;
     TOperationSpecBasePtr Spec_;
     std::optional<i64> SamplingDataWeightPerJob_;
@@ -216,8 +219,9 @@ private:
         i64 maxJobCountForSliceCountFit =
             std::max<i64>(1, 1 + (*SamplingConfig_->MaxTotalSliceCount - InputChunkCount_) / MergeInputTableCount_);
         i64 minSamplingJobDataWeightForSliceCountFit = InitialInputDataWeight_ / maxJobCountForSliceCountFit;
+        i64 minSamplingJobPrimaryDataWeightForSliceCountFit = InitialPrimaryInputDataWeight_ / maxJobCountForSliceCountFit;
         SamplingDataWeightPerJob_ = std::max<i64>({1, minSamplingJobDataWeightForIOEfficiency, minSamplingJobDataWeightForSliceCountFit});
-        SamplingPrimaryDataWeightPerJob_ = std::max<i64>(1, minSamplingJobPrimaryDataWeightForIOEfficiency);
+        SamplingPrimaryDataWeightPerJob_ = std::max<i64>({1, minSamplingJobPrimaryDataWeightForIOEfficiency, minSamplingJobPrimaryDataWeightForSliceCountFit});
         YT_LOG_INFO(
             "Sampling parameters calculated (InitialInputDataWeight: %v, SamplingRate: %v, InputDataWeight: %v, "
             "PrimaryInputDataWeight: %v, MinSamplingJobDataWeightForIOEfficiency: %v, "

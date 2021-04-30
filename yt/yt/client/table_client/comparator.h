@@ -60,6 +60,9 @@ public:
     //! Check if the range defined by two key bounds is empty.
     bool IsRangeEmpty(const TKeyBound& lowerBound, const TKeyBound& upperBound) const;
 
+    //! Check if the range defined by two key bounds has empty interior, i.e. is empty or is a singleton key.
+    bool IsInteriorEmpty(const TKeyBound& lowerBound, const TKeyBound& upperBound) const;
+
     //! Return length of the primary key to which this comparator corresponds.
     //! In particular, any key bound length passed as an argument must not exceed GetLength()
     //! and any key length should be equal to GetLength().

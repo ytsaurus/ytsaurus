@@ -32,9 +32,15 @@ DECLARE_REFCOUNTED_CLASS(TLegacyJobManager)
 
 DECLARE_REFCOUNTED_CLASS(TOutputOrder)
 
+DECLARE_REFCOUNTED_STRUCT(IJobSizeTracker)
+
+DECLARE_REFCOUNTED_STRUCT(ISortedStagingArea)
+
 struct IShuffleChunkPool;
 
 class TInputStreamDirectory;
+
+class TNewJobStub;
 
 ////////////////////////////////////////////////////////////////////////////////
 

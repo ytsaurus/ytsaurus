@@ -2423,7 +2423,7 @@ done
             out=["//tmp/out"],
             command="echo {key=1}",
             reduce_by=["key"],
-            spec={"validate_key_column_types": False, "job_count": 2},
+            spec={"validate_key_column_types": False, "data_weight_per_job": 1},
         )
 
         assert read_table("//tmp/out") == [{"key": 1}, {"key": 1}]
