@@ -1145,35 +1145,19 @@ private:
         std::vector<TDataSliceDescriptor> dataSliceDescriptors;
         auto dataSourceDirectory = New<NChunkClient::TDataSourceDirectory>();
 
-        auto schema = key.data_source().has_table_schema()
-            ? FromProto<TTableSchemaPtr>(key.data_source().table_schema())
-            : nullptr;
+        NChunkClient::TDataSource dataSource;
+        FromProto(&dataSource, key.data_source());
+        dataSource.SetPath(CachedSourcePath);
+        dataSourceDirectory->DataSources().push_back(dataSource);
 
-        auto columnFilter = key.data_source().has_column_filter()
-            ? std::make_optional(FromProto<std::vector<TString>>(key.data_source().column_filter().admitted_names()))
-            : std::nullopt;
-
-        switch (EDataSourceType(key.data_source().type())) {
+        switch (dataSource.GetType()) {
             case EDataSourceType::UnversionedTable:
-                dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
-                    CachedSourcePath,
-                    schema,
-                    columnFilter,
-                    /*omittedInaccessibleColumns*/ {}));
                 for (const auto& chunkSpec : key.chunk_specs()) {
                     dataSliceDescriptors.push_back(TDataSliceDescriptor(chunkSpec));
                 }
                 break;
 
             case EDataSourceType::VersionedTable:
-                YT_VERIFY(schema);
-                dataSourceDirectory->DataSources().push_back(MakeVersionedDataSource(
-                    CachedSourcePath,
-                    schema,
-                    columnFilter,
-                    /*omittedInaccessibleColumns*/ {},
-                    key.data_source().timestamp(),
-                    key.data_source().retention_timestamp()));
                 dataSliceDescriptors.push_back(TDataSliceDescriptor(FromProto<std::vector<TChunkSpec>>(key.chunk_specs())));
                 break;
 
@@ -1201,6 +1185,7 @@ private:
             Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ArtifactCacheIn),
             Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ReadRpsOut));
 
+        auto schema = dataSource.Schema();
         auto format = ConvertTo<NFormats::TFormat>(TYsonString(key.format()));
 
         return [=] (IOutputStream* output) {
