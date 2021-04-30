@@ -61,7 +61,7 @@ object DiscoveryService {
   def isAlive(hostPort: HostAndPort, retry: Int): Boolean = {
     val socket = new Socket()
     val res = Try(
-      socket.connect(new InetSocketAddress(hostPort.getHost, hostPort.getPort), (5 seconds).toMillis.toInt)
+      socket.connect(new InetSocketAddress(hostPort.getHostText, hostPort.getPort), (5 seconds).toMillis.toInt)
     )
     socket.close()
     res match {

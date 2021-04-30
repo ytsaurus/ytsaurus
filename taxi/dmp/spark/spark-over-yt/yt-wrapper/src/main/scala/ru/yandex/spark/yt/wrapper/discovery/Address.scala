@@ -12,6 +12,6 @@ case class Address(host: String, port: Int, webUiPort: Option[Int], restPort: Op
 
 object Address {
   def apply(hostAndPort: HostAndPort, webUiHostAndPort: HostAndPort, restHostAndPort: HostAndPort): Address = {
-    Address(hostAndPort.getHost, hostAndPort.getPort, Some(webUiHostAndPort.getPort), Some(restHostAndPort.getPort))
+    Address(hostAndPort.getHostText, hostAndPort.getPort, Some(webUiHostAndPort.getPort), Some(restHostAndPort.getPort))
   }
 }

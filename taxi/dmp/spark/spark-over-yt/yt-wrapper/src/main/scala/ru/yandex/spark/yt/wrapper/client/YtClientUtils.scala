@@ -165,7 +165,7 @@ trait YtClientUtils {
                                             byopDiscoveryEndpoint: HostAndPort): YtClient = {
     val cluster = new YtCluster(
       s"${config.shortProxy}-byop",
-      byopDiscoveryEndpoint.getHost,
+      byopDiscoveryEndpoint.getHostText,
       byopDiscoveryEndpoint.getPort
     )
 
