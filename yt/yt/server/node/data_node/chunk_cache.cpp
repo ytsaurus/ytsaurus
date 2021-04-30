@@ -921,8 +921,9 @@ private:
                 chunkId,
                 seedReplicas,
                 Bootstrap_->GetBlockCache(),
+                /*chunkMetaCache*/ nullptr,
                 trafficMeter,
-                /* nodeStatusDirectory */ nullptr,
+                /*nodeStatusDirectory*/ nullptr,
                 Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ArtifactCacheIn),
                 Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ReadRpsOut));
 
@@ -931,7 +932,7 @@ private:
                 location->GetIOEngine(),
                 chunkId,
                 fileName,
-                /* syncOnClose */ false);
+                /*syncOnClose*/ false);
 
             auto checkedChunkWriter = New<TErrorInterceptingChunkWriter>(location, chunkWriter);
 
@@ -1070,6 +1071,7 @@ private:
             Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor(),
             Bootstrap_->GetClusterNodeMasterConnector()->GetNodeId(),
             Bootstrap_->GetBlockCache(),
+            /*chunkMetaCache*/ nullptr,
             nodeDirectory,
             chunkReadOptions,
             chunkSpecs,
@@ -1093,7 +1095,7 @@ private:
     }
 
     void DownloadTable(
-        TSessionCounterGuard /* sessionCounterGuard */,
+        TSessionCounterGuard /*sessionCounterGuard*/,
         const TArtifactKey& key,
         const TCacheLocationPtr& location,
         TChunkId chunkId,
@@ -1157,7 +1159,7 @@ private:
                     CachedSourcePath,
                     schema,
                     columnFilter,
-                    /* omittedInaccessibleColumns */ {}));
+                    /*omittedInaccessibleColumns*/ {}));
                 for (const auto& chunkSpec : key.chunk_specs()) {
                     dataSliceDescriptors.push_back(TDataSliceDescriptor(chunkSpec));
                 }
@@ -1169,7 +1171,7 @@ private:
                     CachedSourcePath,
                     schema,
                     columnFilter,
-                    /* omittedInaccessibleColumns */ {},
+                    /*omittedInaccessibleColumns*/ {},
                     key.data_source().timestamp(),
                     key.data_source().retention_timestamp()));
                 dataSliceDescriptors.push_back(TDataSliceDescriptor(FromProto<std::vector<TChunkSpec>>(key.chunk_specs())));
@@ -1186,14 +1188,15 @@ private:
             Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor(),
             Bootstrap_->GetClusterNodeMasterConnector()->GetNodeId(),
             Bootstrap_->GetBlockCache(),
+            /*chunkMetaCache*/ nullptr,
             nodeDirectory,
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
             nameTable,
             chunkReadOptions,
-            /* columnFilter */ {},
-            /* sortColumns */ {},
-            /* partitionTag */ std::nullopt,
+            /*columnFilter*/ {},
+            /*sortColumns*/ {},
+            /*partitionTag*/ std::nullopt,
             trafficMeter,
             Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ArtifactCacheIn),
             Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ReadRpsOut));
@@ -1206,7 +1209,7 @@ private:
                 nameTable,
                 {schema ? schema : New<TTableSchema>()},
                 CreateAsyncAdapter(output),
-                false, /* enableContextSaving */
+                false, /*enableContextSaving*/
                 New<TControlAttributesConfig>(),
                 0);
             TPipeReaderToWriterOptions options;

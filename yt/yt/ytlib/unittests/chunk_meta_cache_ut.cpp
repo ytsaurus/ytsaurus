@@ -1,6 +1,9 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_cache.h>
+#include <yt/yt/ytlib/chunk_client/config.h>
+
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 namespace NYT::NChunkClient {
 namespace {
@@ -14,10 +17,10 @@ using namespace testing;
 class TChunkMetaFetcherMock
 {
 public:
-    MOCK_METHOD2(Fetch, TFuture<TRefCountedChunkMetaPtr>(TChunkId, const std::optional<std::vector<int>>&));
+    MOCK_METHOD1(Fetch, TFuture<TRefCountedChunkMetaPtr>(const std::optional<std::vector<int>>&));
 };
 
-TRefCountedChunkMetaPtr CreateFakeChunkMeta(TChunkId /* chunkId */, const std::optional<std::vector<int>>& extensionTags)
+TRefCountedChunkMetaPtr CreateFakeChunkMeta(const std::optional<std::vector<int>>& extensionTags)
 {
     auto chunkMeta = New<TRefCountedChunkMeta>();
 
@@ -32,21 +35,22 @@ TRefCountedChunkMetaPtr CreateFakeChunkMeta(TChunkId /* chunkId */, const std::o
     return chunkMeta;
 }
 
-TFuture<TRefCountedChunkMetaPtr> CreateFakeChunkMetaFuture(TChunkId chunkId, const std::optional<std::vector<int>>& extensionTags)
+TFuture<TRefCountedChunkMetaPtr> CreateFakeChunkMetaFuture(const std::optional<std::vector<int>>& extensionTags)
 {
-    return MakeFuture(CreateFakeChunkMeta(chunkId, extensionTags));
+    return MakeFuture(CreateFakeChunkMeta(extensionTags));
 }
 
-TFuture<TRefCountedChunkMetaPtr> CreateErrorChunkMetaFuture(TChunkId chunkId, const std::optional<std::vector<int>>& extensionTags)
+TFuture<TRefCountedChunkMetaPtr> CreateErrorChunkMetaFuture(const std::optional<std::vector<int>>& extensionTags)
 {
     return MakeFuture<TRefCountedChunkMetaPtr>(TError("Test request failure"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSlruCacheConfigPtr CreateCacheConfig(i64 cacheSize)
+TClientChunkMetaCacheConfigPtr CreateCacheConfig(i64 cacheSize)
 {
-    auto config = New<TSlruCacheConfig>(cacheSize);
+    auto config = New<TClientChunkMetaCacheConfig>(cacheSize);
+    // Eviction model is complicated with multiple shards.
     config->ShardCount = 1;
 
     return config;
@@ -60,21 +64,21 @@ using TTagList = std::optional<std::vector<int>>;
 TEST(TCachedChunkMetaTest, Simple)
 {
     const auto chunkId = TChunkId(0, 0);
-    auto cachedChunkMeta = New<TCachedChunkMeta>(chunkId, CreateFakeChunkMeta(chunkId, std::vector<int>{}));
+    auto cachedChunkMeta = CreateCachedChunkMeta(chunkId, CreateFakeChunkMeta(std::vector<int>{}));
 
     TChunkMetaFetcherMock fetcherMock;
     auto fetchFunc = BIND(&TChunkMetaFetcherMock::Fetch, &fetcherMock);
-
-    ON_CALL(fetcherMock, Fetch(_, _))
+    
+    ON_CALL(fetcherMock, Fetch(_))
         .WillByDefault(Invoke(CreateFakeChunkMetaFuture));
 
     {
         InSequence sequence;
-        EXPECT_CALL(fetcherMock, Fetch(chunkId, TTagList(std::nullopt)))
+        EXPECT_CALL(fetcherMock, Fetch(TTagList(std::nullopt)))
             .Times(5);
-        EXPECT_CALL(fetcherMock, Fetch(chunkId, TTagList(std::vector{1, 2, 3})))
+        EXPECT_CALL(fetcherMock, Fetch(TTagList(std::vector{1, 2, 3})))
             .Times(1);
-        EXPECT_CALL(fetcherMock, Fetch(chunkId, TTagList(std::vector{4, 5})))
+        EXPECT_CALL(fetcherMock, Fetch(TTagList(std::vector{4, 5})))
             .Times(1);
     }
 
@@ -98,8 +102,8 @@ TEST(TCachedChunkMetaTest, Simple)
 TEST(TCachedChunkMetaTest, StuckRequests)
 {
     const auto chunkId = TChunkId(0, 0);
-    auto cachedChunkMeta = New<TCachedChunkMeta>(chunkId, CreateFakeChunkMeta(chunkId, std::vector<int>{}));
-
+    auto cachedChunkMeta = CreateCachedChunkMeta(chunkId, CreateFakeChunkMeta(std::vector<int>{}));
+    
     TChunkMetaFetcherMock fetcherMock;
     auto fetchFunc = BIND(&TChunkMetaFetcherMock::Fetch, &fetcherMock);
 
@@ -107,9 +111,9 @@ TEST(TCachedChunkMetaTest, StuckRequests)
 
     {
         InSequence sequence;
-        EXPECT_CALL(fetcherMock, Fetch(chunkId, TTagList(std::vector{1, 2, 3})))
+        EXPECT_CALL(fetcherMock, Fetch(TTagList(std::vector{1, 2, 3})))
             .WillOnce(Return(stuckMeta.ToFuture()));
-        EXPECT_CALL(fetcherMock, Fetch(chunkId, TTagList(std::vector{4, 5, 6})))
+        EXPECT_CALL(fetcherMock, Fetch(TTagList(std::vector{4, 5, 6})))
             .WillOnce(Invoke(CreateFakeChunkMetaFuture));
     }
 
@@ -134,7 +138,7 @@ TEST(TCachedChunkMetaTest, StuckRequests)
         EXPECT_TRUE(!future.IsSet());
     }
 
-    stuckMeta.Set(CreateFakeChunkMeta(chunkId, std::vector{1, 2, 3}));
+    stuckMeta.Set(CreateFakeChunkMeta(std::vector{1, 2, 3}));
 
     for (const auto& future : stuckRequests) {
         WaitFor(future)
@@ -145,17 +149,17 @@ TEST(TCachedChunkMetaTest, StuckRequests)
 TEST(TCachedChunkMetaTest, FailedRequests)
 {
     const auto chunkId = TChunkId(0, 0);
-    auto cachedChunkMeta = New<TCachedChunkMeta>(chunkId, CreateFakeChunkMeta(chunkId, std::vector<int>{}));
+    auto cachedChunkMeta = CreateCachedChunkMeta(chunkId, CreateFakeChunkMeta(std::vector<int>{}));
 
     TChunkMetaFetcherMock fetcherMock;
     auto fetchFunc = BIND(&TChunkMetaFetcherMock::Fetch, &fetcherMock);
 
     {
         InSequence sequence;
-        EXPECT_CALL(fetcherMock, Fetch(chunkId, TTagList(std::vector{1, 2, 3})))
+        EXPECT_CALL(fetcherMock, Fetch(TTagList(std::vector{1, 2, 3})))
             .Times(5)
             .WillRepeatedly(Invoke(CreateErrorChunkMetaFuture));
-        EXPECT_CALL(fetcherMock, Fetch(chunkId, TTagList(std::vector{1, 2, 3})))
+        EXPECT_CALL(fetcherMock, Fetch(TTagList(std::vector{1, 2, 3})))
             .Times(1)
             .WillRepeatedly(Invoke(CreateFakeChunkMetaFuture));
     }
@@ -181,8 +185,8 @@ TEST(TCachedChunkMetaTest, FailedRequests)
 
 TEST(TClientChunkMetaCacheTest, Simple)
 {
-    auto config = CreateCacheConfig(1000);
-    auto cache = New<TClientChunkMetaCache>(config, GetCurrentInvoker());
+    auto config = CreateCacheConfig(10000);
+    auto cache = CreateClientChunkMetaCache(config);
 
     TChunkMetaFetcherMock fetcherMock;
     auto fetchFunc = BIND(&TChunkMetaFetcherMock::Fetch, &fetcherMock);
@@ -190,10 +194,9 @@ TEST(TClientChunkMetaCacheTest, Simple)
     {
         InSequence sequence;
 
-        for (int index = 0; index < 5; ++index) {
-            EXPECT_CALL(fetcherMock, Fetch(TChunkId(index, index), TTagList(std::vector<int>{})))
-                .WillOnce(Invoke(CreateFakeChunkMetaFuture));
-        }
+        EXPECT_CALL(fetcherMock, Fetch(TTagList(std::vector<int>{})))
+            .Times(5)
+            .WillRepeatedly(Invoke(CreateFakeChunkMetaFuture));
     }
 
     for (int index = 0; index < 5; ++index) {
@@ -210,12 +213,12 @@ TEST(TClientChunkMetaCacheTest, Simple)
 TEST(TClientChunkMetaCacheTest, Eviction)
 {
     auto config = CreateCacheConfig(1000);
-    auto cache = New<TClientChunkMetaCache>(config, GetCurrentInvoker());
+    auto cache = CreateClientChunkMetaCache(config);
 
     TChunkMetaFetcherMock fetcherMock;
     auto fetchFunc = BIND(&TChunkMetaFetcherMock::Fetch, &fetcherMock);
 
-    ON_CALL(fetcherMock, Fetch(_, _))
+    ON_CALL(fetcherMock, Fetch(_))
         .WillByDefault(Invoke(CreateFakeChunkMetaFuture));
 
     std::vector<int> hugeTagList(100);
@@ -225,20 +228,15 @@ TEST(TClientChunkMetaCacheTest, Eviction)
     {
         InSequence sequence;
 
-        for (int index = 0; index < 100; ++index) {
-            EXPECT_CALL(fetcherMock, Fetch(TChunkId(index, index), TTagList(std::vector{1,})))
-                .Times(1);
-        }
-        // 100 items is more than enought to overflow cache capacity, so second pass is not cached.
-        for (int index = 0; index < 100; ++index) {
-            EXPECT_CALL(fetcherMock, Fetch(TChunkId(index, index), TTagList(std::vector{1,})))
-                .Times(1);
-        }
+        EXPECT_CALL(fetcherMock, Fetch(TTagList(std::vector{1,})))
+            .Times(100);
 
-        for (int index = 0; index < 5; ++index) {
-            EXPECT_CALL(fetcherMock, Fetch(TChunkId(0, 0), TTagList(hugeTagList)))
-                .Times(1);
-        }
+        // 100 items is more than enought to overflow cache capacity, so second pass is not cached.
+        EXPECT_CALL(fetcherMock, Fetch(TTagList(std::vector{1,})))
+            .Times(100);
+
+        EXPECT_CALL(fetcherMock, Fetch(TTagList(hugeTagList)))
+            .Times(5);
     }
 
     for (int index = 0; index < 100; ++index) {

@@ -211,6 +211,19 @@ DEFINE_REFCOUNTED_TYPE(TBlockCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TClientChunkMetaCacheConfig
+    : public TSlruCacheConfig
+{
+public:
+    TClientChunkMetaCacheConfig(i64 capacity = 0)
+        : TSlruCacheConfig(capacity)
+    { }
+};
+
+DEFINE_REFCOUNTED_TYPE(TClientChunkMetaCacheConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBlockCacheDynamicConfig
     : public virtual NYTree::TYsonSerializable
 {

@@ -355,6 +355,7 @@ class TMemoryConfig
 public:
     std::optional<i64> Reader;
     std::optional<i64> UncompressedBlockCache;
+    std::optional<i64> ChunkMetaCache;
     std::optional<i64> MemoryLimit;
     std::optional<i64> MaxServerMemoryUsage;
     std::optional<i64> WatchdogOomWatermark;

@@ -71,6 +71,8 @@ TConnectionConfig::TConnectionConfig()
         .DefaultNew();
     RegisterParameter("block_cache", BlockCache)
         .DefaultNew();
+    RegisterParameter("chunk_meta_cache", ChunkMetaCache)
+        .DefaultNew();
     RegisterParameter("cluster_directory_synchronizer", ClusterDirectorySynchronizer)
         .DefaultNew();
     RegisterParameter("medium_directory_synchronizer", MediumDirectorySynchronizer)

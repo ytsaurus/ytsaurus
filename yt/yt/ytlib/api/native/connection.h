@@ -40,6 +40,7 @@ struct IConnection
     virtual const NQueryClient::IEvaluatorPtr& GetQueryEvaluator() = 0;
     virtual const NQueryClient::IColumnEvaluatorCachePtr& GetColumnEvaluatorCache() = 0;
     virtual const NChunkClient::IBlockCachePtr& GetBlockCache() = 0;
+    virtual const NChunkClient::IClientChunkMetaCachePtr& GetChunkMetaCache() = 0;
 
     virtual const NCellMasterClient::TCellDirectoryPtr& GetMasterCellDirectory() = 0;
     virtual const NCellMasterClient::TCellDirectorySynchronizerPtr& GetMasterCellDirectorySynchronizer() = 0;
@@ -127,6 +128,9 @@ struct TConnectionOptions
 
     //! If non-null, provides an externally-controlled block cache.
     NChunkClient::IBlockCachePtr BlockCache;
+
+    //! If non-null, provides an externally-controlled chunk meta cache.
+    NChunkClient::IClientChunkMetaCachePtr ChunkMetaCache;
 };
 
 //! Native connection talks directly to the cluster via internal

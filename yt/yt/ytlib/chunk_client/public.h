@@ -118,6 +118,7 @@ DECLARE_REFCOUNTED_CLASS(TMultiChunkReaderOptions)
 DECLARE_REFCOUNTED_CLASS(TRemoteWriterOptions)
 DECLARE_REFCOUNTED_CLASS(TBlockCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TBlockCacheDynamicConfig)
+DECLARE_REFCOUNTED_CLASS(TClientChunkMetaCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkScraperConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkTeleporterConfig)
 DECLARE_REFCOUNTED_CLASS(TMediumDirectorySynchronizerConfig)
@@ -214,8 +215,8 @@ DECLARE_REFCOUNTED_STRUCT(TMemoryUsageGuard)
 DECLARE_REFCOUNTED_STRUCT(IMultiReaderMemoryManager)
 DECLARE_REFCOUNTED_STRUCT(IReaderMemoryManagerHost)
 
-DECLARE_REFCOUNTED_CLASS(TCachedChunkMeta)
-DECLARE_REFCOUNTED_CLASS(TClientChunkMetaCache)
+DECLARE_REFCOUNTED_CLASS(ICachedChunkMeta)
+DECLARE_REFCOUNTED_CLASS(IClientChunkMetaCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 

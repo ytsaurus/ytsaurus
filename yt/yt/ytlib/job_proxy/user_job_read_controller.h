@@ -50,6 +50,7 @@ IUserJobReadControllerPtr CreateUserJobReadController(
     std::optional<TString> udfDirectory,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     NChunkClient::IBlockCachePtr blockCache,
+    NChunkClient::IClientChunkMetaCachePtr chunkMetaCache,
     NChunkClient::TTrafficMeterPtr trafficMeter,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
     NConcurrency::IThroughputThrottlerPtr rpsThrottler);

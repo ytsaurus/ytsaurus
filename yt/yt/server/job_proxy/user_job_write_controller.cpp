@@ -197,6 +197,7 @@ void TUserJobWriteController::Init()
         Host_->GetJobSpecHelper(),
         TClientChunkReadOptions(),
         Host_->GetWriterBlockCache(),
+        /*chunkMetaCache*/ nullptr,
         Host_->GetTrafficMeter(),
         Host_->GetInBandwidthThrottler(),
         Host_->GetOutBandwidthThrottler(),

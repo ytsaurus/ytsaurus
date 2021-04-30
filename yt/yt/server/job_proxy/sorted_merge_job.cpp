@@ -79,14 +79,15 @@ public:
                     Host_->LocalDescriptor(),
                     std::nullopt,
                     Host_->GetReaderBlockCache(),
+                    /*chunkMetaCache*/ nullptr,
                     Host_->GetInputNodeDirectory(),
                     dataSourceDirectory,
                     std::move(dataSliceDescriptors),
                     nameTable,
                     ChunkReadOptions_,
-                    /* columnFilter */ {},
+                    /*columnFilter*/ {},
                     sortColumns,
-                    /* partitionTag */ std::nullopt,
+                    /*partitionTag*/ std::nullopt,
                     Host_->GetTrafficMeter(),
                     Host_->GetInBandwidthThrottler(),
                     Host_->GetOutRpsThrottler(),
@@ -101,7 +102,7 @@ public:
                 readers,
                 sortComparator,
                 sortComparator,
-                /*interruptAtKeyEdge=*/false);
+                /*interruptAtKeyEdge*/ false);
         };
 
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());

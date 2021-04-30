@@ -415,39 +415,41 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
             std::move(tableReaderConfig),
             New<NTableClient::TTableReaderOptions>(),
             queryContext->Client(),
-            /* localDescriptor */ {},
-            /* partitionTag */ std::nullopt,
+            /*localDescriptor*/ {},
+            /*partitionTag*/ std::nullopt,
             queryContext->Client()->GetNativeConnection()->GetBlockCache(),
+            queryContext->Client()->GetNativeConnection()->GetChunkMetaCache(),
             queryContext->Client()->GetNativeConnection()->GetNodeDirectory(),
             subquerySpec.DataSourceDirectory,
             dataSliceDescriptor,
             TNameTable::FromSchema(*readSchemaWithVirtualColumns),
             chunkReadOptions,
             TColumnFilter(readSchemaWithVirtualColumns->GetColumnCount()),
-            /* trafficMeter */ nullptr,
+            /*trafficMeter*/ nullptr,
             GetUnlimitedThrottler(),
             GetUnlimitedThrottler(),
-            /* multiReaderMemoryManager = */readerMemoryManager);
+            /*multiReaderMemoryManager*/readerMemoryManager);
     } else {
         reader = CreateSchemalessParallelMultiReader(
             std::move(tableReaderConfig),
             New<NTableClient::TTableReaderOptions>(),
             queryContext->Client(),
-            /* localDescriptor =*/{},
+            /*localDescriptor*/ {},
             std::nullopt,
             queryContext->Client()->GetNativeConnection()->GetBlockCache(),
+            queryContext->Client()->GetNativeConnection()->GetChunkMetaCache(),
             queryContext->Client()->GetNativeConnection()->GetNodeDirectory(),
             subquerySpec.DataSourceDirectory,
             dataSliceDescriptors,
             TNameTable::FromSchema(*readSchemaWithVirtualColumns),
             chunkReadOptions,
             TColumnFilter(readSchemaWithVirtualColumns->GetColumnCount()),
-            /* keyColumns =*/{},
-            /* partitionTag =*/std::nullopt,
-            /* trafficMeter =*/nullptr,
-            /* bandwidthThrottler =*/GetUnlimitedThrottler(),
-            /* rpsThrottler =*/GetUnlimitedThrottler(),
-            /* multiReaderMemoryManager =*/readerMemoryManager);
+            /*keyColumns*/ {},
+            /*partitionTag*/ std::nullopt,
+            /*trafficMeter*/ nullptr,
+            /*bandwidthThrottler*/ GetUnlimitedThrottler(),
+            /*rpsThrottler*/ GetUnlimitedThrottler(),
+            /*multiReaderMemoryManager*/ readerMemoryManager);
     }
 
     return CreateBlockInputStream(

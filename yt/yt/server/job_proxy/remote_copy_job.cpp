@@ -332,6 +332,7 @@ private:
             inputReplicas,
             erasureCodec,
             Host_->GetReaderBlockCache(),
+            /*chunkMetaCache*/ nullptr,
             Host_->GetTrafficMeter(),
             Host_->GetInBandwidthThrottler(),
             Host_->GetOutRpsThrottler());
@@ -566,6 +567,7 @@ private:
             erasureCodec,
             repairPartIndicies,
             Host_->GetReaderBlockCache(),
+            /*chunkMetaCache*/ nullptr,
             Host_->GetTrafficMeter(),
             Host_->GetInBandwidthThrottler(),
             Host_->GetOutRpsThrottler());
@@ -640,8 +642,9 @@ private:
             inputChunkId,
             inputReplicas,
             Host_->GetReaderBlockCache(),
+            /*chunkMetaCache*/ nullptr,
             Host_->GetTrafficMeter(),
-            /* nodeStatusDirectory */ nullptr,
+            /*nodeStatusDirectory*/ nullptr,
             Host_->GetInBandwidthThrottler(),
             Host_->GetOutRpsThrottler());
 

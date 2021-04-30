@@ -49,6 +49,7 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
     const IJobSpecHelperPtr& jobSpecHelper,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     NChunkClient::IBlockCachePtr blockCache,
+    NChunkClient::IClientChunkMetaCachePtr chunkMetaCache,
     NChunkClient::TTrafficMeterPtr trafficMeter,
     NConcurrency::IThroughputThrottlerPtr inBandwidthThrottler,
     NConcurrency::IThroughputThrottlerPtr outBandwidthThrottler,

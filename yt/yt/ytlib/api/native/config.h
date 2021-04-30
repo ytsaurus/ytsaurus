@@ -90,6 +90,7 @@ public:
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NChunkClient::TBlockCacheConfigPtr BlockCache;
+    NChunkClient::TClientChunkMetaCacheConfigPtr ChunkMetaCache;
     NHiveClient::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizer;
     NChunkClient::TMediumDirectorySynchronizerConfigPtr MediumDirectorySynchronizer;
     NNodeTrackerClient::TNodeDirectorySynchronizerConfigPtr NodeDirectorySynchronizer;

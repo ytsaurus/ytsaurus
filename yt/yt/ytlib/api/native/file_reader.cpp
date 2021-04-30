@@ -238,9 +238,10 @@ private:
             Config_,
             New<TMultiChunkReaderOptions>(),
             Client_,
-            /* localDescriptor */ {},
-            /* partitionTag */ std::nullopt,
+            /*localDescriptor*/ {},
+            /*partitionTag*/ std::nullopt,
             Client_->GetNativeConnection()->GetBlockCache(),
+            Client_->GetNativeConnection()->GetChunkMetaCache(),
             nodeDirectory,
             ChunkReadOptions_,
             std::move(chunkSpecs));

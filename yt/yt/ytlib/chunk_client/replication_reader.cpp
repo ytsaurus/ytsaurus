@@ -17,6 +17,7 @@
 
 #include <yt/yt/client/api/config.h>
 
+#include <yt/yt/ytlib/chunk_client/chunk_meta_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
@@ -157,6 +158,7 @@ public:
         TChunkId chunkId,
         const TChunkReplicaList& seedReplicas,
         IBlockCachePtr blockCache,
+        IClientChunkMetaCachePtr chunkMetaCache,
         TTrafficMeterPtr trafficMeter,
         INodeStatusDirectoryPtr nodeStatusDirectory,
         IThroughputThrottlerPtr bandwidthThrottler,
@@ -168,6 +170,7 @@ public:
         , LocalDescriptor_(localDescriptor)
         , ChunkId_(chunkId)
         , BlockCache_(std::move(blockCache))
+        , ChunkMetaCache_(std::move(chunkMetaCache))
         , TrafficMeter_(std::move(trafficMeter))
         , NodeStatusDirectory_(std::move(nodeStatusDirectory))
         , BandwidthThrottler_(std::move(bandwidthThrottler))
@@ -281,6 +284,7 @@ private:
     const std::optional<TNodeId> LocalNodeId_;
     const TChunkId ChunkId_;
     const IBlockCachePtr BlockCache_;
+    const IClientChunkMetaCachePtr ChunkMetaCache_;
     const TTrafficMeterPtr TrafficMeter_;
     const INodeStatusDirectoryPtr NodeStatusDirectory_;
     const IThroughputThrottlerPtr BandwidthThrottler_;
@@ -387,6 +391,12 @@ private:
             TrafficMeter_->IncrementInboundByteCount(srcDescriptor.GetDataCenter(), transferredByteCount);
         }
     }
+
+    //! Fallback for GetMeta when the chunk meta is missing in ChunkMetaCache or the cache is disabled.
+    TFuture<TRefCountedChunkMetaPtr> FetchMeta(
+        const TClientChunkReadOptions& options,
+        std::optional<int> partitionTag,
+        const std::optional<std::vector<int>>& extensionsTags);
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicationReader)
@@ -2344,7 +2354,7 @@ private:
     }
 };
 
-TFuture<TRefCountedChunkMetaPtr> TReplicationReader::GetMeta(
+TFuture<TRefCountedChunkMetaPtr> TReplicationReader::FetchMeta(
     const TClientChunkReadOptions& options,
     std::optional<int> partitionTag,
     const std::optional<std::vector<int>>& extensionTags)
@@ -2353,6 +2363,23 @@ TFuture<TRefCountedChunkMetaPtr> TReplicationReader::GetMeta(
 
     auto session = New<TGetMetaSession>(this, options, partitionTag, extensionTags);
     return session->Run();
+}
+
+TFuture<TRefCountedChunkMetaPtr> TReplicationReader::GetMeta(
+    const TClientChunkReadOptions& options,
+    std::optional<int> partitionTag,
+    const std::optional<std::vector<int>>& extensionTags)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    if (!partitionTag && ChunkMetaCache_ && Config_->EnableChunkMetaCache) {
+        return ChunkMetaCache_->Fetch(
+            GetChunkId(),
+            extensionTags,
+            BIND(&TReplicationReader::FetchMeta, MakeStrong(this), options, std::nullopt));
+    } else {
+        return FetchMeta(options, partitionTag, extensionTags);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2880,6 +2907,7 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TChunkId chunkId,
     const TChunkReplicaList& seedReplicas,
     IBlockCachePtr blockCache,
+    IClientChunkMetaCachePtr chunkMetaCache,
     TTrafficMeterPtr trafficMeter,
     INodeStatusDirectoryPtr nodeStatusDirectory,
     IThroughputThrottlerPtr bandwidthThrottler,
@@ -2900,6 +2928,7 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
         chunkId,
         seedReplicas,
         std::move(blockCache),
+        std::move(chunkMetaCache),
         std::move(trafficMeter),
         std::move(nodeStatusDirectory),
         std::move(bandwidthThrottler),
