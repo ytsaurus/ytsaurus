@@ -26,6 +26,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((CorrectLoggerSerialization_21_2)      (300602))
     ((Actually21_2StartsHere)               (300603))
     ((PersistStandardStreamDescriptors)     (300604))
+    ((JSCInitialPrimaryDataWeight)          (300605))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3079,6 +3079,73 @@ public:
 
 static constexpr int NumberOfRepeats = 100;
 
+TEST_P(TSortedChunkPoolTestRandomized, JobDataWeightDistribution)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = true;
+    const int TableCount = 10;
+    InitTables(
+        std::vector<bool>(TableCount, false) /* isForeign */,
+        std::vector<bool>(TableCount, false) /* isTeleportable */,
+        std::vector<bool>(TableCount, false) /* isVersioned */
+    );
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
+    Options_.MinTeleportChunkSize = Inf32;
+
+    const int ChunkCount = 50;
+    const int MaxEndpoint = 50000;
+
+    i64 totalDataWeight = 0;
+
+    std::vector<TInputChunkPtr> chunks;
+
+    auto initTable = [&, this] (int tableIndex) {
+        std::vector<int> endpoints;
+        for (int i = 0; i < 2 * ChunkCount; ++i) {
+            endpoints.push_back(std::uniform_int_distribution<>(0, MaxEndpoint - 2 * ChunkCount + 1)(Gen_));
+        }
+        std::sort(endpoints.begin(), endpoints.end());
+        for (int i = 0; i < 2 * ChunkCount; ++i) {
+            endpoints[i] += i;
+        }
+        for (int i = 0; i < ChunkCount; ++i) {
+            int minKey = endpoints[2 * i];
+            int maxKey = endpoints[2 * i + 1];
+            int dataWeight = (maxKey - minKey) * 1_KB;
+            totalDataWeight += dataWeight;
+            auto chunk = CreateChunk(BuildRow({minKey}), BuildRow({maxKey}), tableIndex, dataWeight);
+            chunks.emplace_back(std::move(chunk));
+        }
+    };
+
+    for (int tableIndex = 0; tableIndex < TableCount; ++tableIndex) {
+        initTable(tableIndex);
+    }
+
+    const int JobCount = 100;
+
+    DataSizePerJob_ = totalDataWeight / JobCount;
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    for (auto& chunk : chunks) {
+        AddChunk(std::move(chunk));
+    }
+
+    ChunkPool_->Finish();
+
+    Cerr << "Pool created " << ChunkPool_->GetJobCounter()->GetPending() << " jobs" << Endl;
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+
+    Cerr << "Job data weights: [";
+    for (const auto& stripeList : stripeLists) {
+        Cerr << stripeList->TotalDataWeight << ", ";
+    }
+    Cerr << "]" << Endl;
+}
+
 TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
@@ -3428,7 +3495,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
     ASSERT_EQ(suspendedChunks.size(), suspendedCookies.size());
 }
 
-INSTANTIATE_TEST_SUITE_P(VariousOperationsWithPoolInstantiation,
+INSTANTIATE_TEST_SUITE_P(Instantation200,
     TSortedChunkPoolTestRandomized,
     ::testing::Combine(::testing::Range(0, NumberOfRepeats), ::testing::Bool()));
 

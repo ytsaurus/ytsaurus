@@ -140,6 +140,13 @@ bool TComparator::IsRangeEmpty(const TKeyBound& lowerBound, const TKeyBound& upp
     return CompareKeyBounds(lowerBound, upperBound, /* lowerVsUpper */ 1) >= 0;
 }
 
+bool TComparator::IsInteriorEmpty(const TKeyBound& lowerBound, const TKeyBound& upperBound) const
+{
+    YT_VERIFY(!lowerBound.IsUpper);
+    YT_VERIFY(upperBound.IsUpper);
+    return IsRangeEmpty(lowerBound, upperBound) || TryAsSingletonKey(lowerBound, upperBound);
+}
+
 bool TComparator::TestKey(const TKey& key, const TKeyBound& keyBound) const
 {
     ValidateKey(key);
