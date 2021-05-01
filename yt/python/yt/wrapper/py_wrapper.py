@@ -548,7 +548,7 @@ def build_main_file_arguments(function, create_temp_file, file_argument_builder)
     return [file_argument_builder(main_filename), module_import_path, main_module_type]
 
 def do_wrap(function, tempfiles_manager, local_mode, file_manager, params, client):
-    assert params.job_type in ["mapper", "reducer", "reduce_combiner"]
+    assert params.job_type in ["mapper", "reducer", "reduce_combiner", "vanilla"]
 
     def create_temp_file(prefix="", suffix=""):
         return tempfiles_manager.create_tempfile(

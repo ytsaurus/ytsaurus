@@ -290,7 +290,7 @@ class MapJobIOSpecBuilder(JobIOSpecBuilder):
 class UserJobSpecBuilder(object):
     """Base builder for user_job sections in operation spec.
     """
-    def __init__(self, spec_builder=None, job_type=None, spec=None):
+    def __init__(self, spec_builder=None, job_type=None, job_name=None, spec=None):
         self._spec = {}
         if spec:
             self._spec = spec
@@ -301,6 +301,7 @@ class UserJobSpecBuilder(object):
 
         self._spec_builder = spec_builder
         self._job_type = job_type
+        self._job_name = get_value(job_name, job_type)
 
     @spec_option("The string that will be completed by bash-c call")
     def command(self, binary_or_python_obj):
@@ -440,7 +441,7 @@ class UserJobSpecBuilder(object):
         assert self._spec_builder is not None
         spec_builder = self._spec_builder
         self._spec_builder = None
-        builder_func = getattr(spec_builder, self._job_type)
+        builder_func = getattr(spec_builder, self._job_name)
         builder_func(self)
         return spec_builder
 
@@ -655,7 +656,7 @@ class TaskSpecBuilder(UserJobSpecBuilder):
     """Builder for task section in vanilla operation spec.
     """
     def __init__(self, name=None, spec_builder=None):
-        super(TaskSpecBuilder, self).__init__(spec_builder, job_type=name)
+        super(TaskSpecBuilder, self).__init__(spec_builder, job_type="vanilla", job_name=name)
 
     @spec_option("The approximate count of jobs")
     def job_count(self, job_count):
@@ -669,7 +670,7 @@ class TaskSpecBuilder(UserJobSpecBuilder):
     def _end_script(self):
         spec_builder = self._spec_builder
         self._spec_builder = None
-        spec_builder._spec["tasks"][self._job_type] = self
+        spec_builder._spec["tasks"][self._job_name] = self
         return spec_builder
 
 class MapperSpecBuilder(UserJobSpecBuilder):

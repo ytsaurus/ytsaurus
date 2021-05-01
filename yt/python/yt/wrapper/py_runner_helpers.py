@@ -239,7 +239,7 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
         sys.stderr.write("Python version on cluster differs from local python version")
         sys.exit(1)
 
-    if params.attributes.get("is_raw_io", False):
+    if params.attributes.get("is_raw_io", False) or params.job_type == "vanilla":
         operation()
         return
 
