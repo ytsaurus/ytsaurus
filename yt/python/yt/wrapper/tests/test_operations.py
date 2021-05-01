@@ -308,6 +308,23 @@ class TestOperations(object):
         check(op)
 
     @authors("ignat")
+    def test_vanilla_operation_with_python_func(self):
+        def foo():
+            sys.stderr.write("FOO")
+
+        vanilla_spec = VanillaSpecBuilder()\
+            .begin_task("foo")\
+                .command(foo)\
+                .job_count(1)\
+            .end_task()
+
+        op = yt.run_operation(vanilla_spec)
+
+        job_infos = op.get_jobs_with_error_or_stderr()
+        assert len(job_infos) == 1
+        assert job_infos[0]["stderr"] == "FOO"
+
+    @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_many_output_tables(self):
         table = TEST_DIR + "/table"
