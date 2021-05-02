@@ -429,28 +429,33 @@ class TestControllerAgentReconnection(YTEnvSetup):
         assert get_current_time() - get_connection_time() < timedelta(seconds=3)
 
     @authors("ignat")
-    def test_abort_operation_without_controller_agent(self):
+    @pytest.mark.parametrize("wait_transition_state", [False, True])
+    def test_abort_operation_without_controller_agent(self, wait_transition_state):
+        def get_agent_states():
+            return [agent_info["state"] for agent_info in get("//sys/scheduler/orchid/scheduler/controller_agents").values()]
+
         self._create_table("//tmp/t_in")
         self._create_table("//tmp/t_out")
         write_table("//tmp/t_in", {"foo": "bar"})
 
-        for wait_transition_state in (False, True):
-            for iter in xrange(2):
-                op = map(
-                    command="sleep 1000",
-                    in_=["//tmp/t_in"],
-                    out="//tmp/t_out",
-                    track=False,
-                )
+        for iter in xrange(2):
+            op = map(
+                command="sleep 1000",
+                in_=["//tmp/t_in"],
+                out="//tmp/t_out",
+                track=False,
+            )
 
-                self._wait_for_state(op, "running")
+            self._wait_for_state(op, "running")
 
-                with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
-                    if wait_transition_state:
-                        self._wait_for_state(op, "waiting_for_agent")
-                    op.abort()
+            with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+                wait(lambda: all(state == "unregistered" for state in get_agent_states()),
+                     iter=30, sleep_backoff=1.0)
+                if wait_transition_state:
+                    self._wait_for_state(op, "waiting_for_agent")
+                op.abort()
 
-                self._wait_for_state(op, "aborted")
+            self._wait_for_state(op, "aborted")
 
     @authors("ignat")
     def test_complete_operation_without_controller_agent(self):
