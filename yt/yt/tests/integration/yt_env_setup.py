@@ -392,6 +392,9 @@ class YTEnvSetup(object):
         cls.default_disk_path = os.path.join(disk_path, cls.run_name, "disk_default")
         cls.ssd_disk_path = os.path.join(disk_path, cls.run_name, "disk_ssd")
 
+        cls.fake_default_disk_path = os.path.join(arcadia_interop.yatest_common.output_path(), cls.run_name, "disk_default")
+        cls.fake_ssd_disk_path = os.path.join(arcadia_interop.yatest_common.output_path(), cls.run_name, "disk_ssd")
+
         cls.primary_cluster_path = cls.path_to_run
         if cls.NUM_REMOTE_CLUSTERS > 0:
             cls.primary_cluster_path = os.path.join(cls.path_to_run, "primary")
