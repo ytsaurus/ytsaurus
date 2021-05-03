@@ -27,6 +27,11 @@ class TestDiskUsagePorto(YTEnvSetup):
                 "resource_limits": {"user_slots": 3, "cpu": 3.0},
             },
             "min_required_disk_space": 0,
+        },
+        "data_node": {
+            "volume_manager": {
+                "test_disk_quota": True,
+            }
         }
     }
 
@@ -44,8 +49,8 @@ class TestDiskUsagePorto(YTEnvSetup):
 
     @classmethod
     def modify_node_config(cls, config):
-        os.makedirs(cls.default_disk_path)
-        config["exec_agent"]["slot_manager"]["locations"][0]["path"] = cls.default_disk_path
+        os.makedirs(cls.fake_default_disk_path)
+        config["exec_agent"]["slot_manager"]["locations"][0]["path"] = cls.fake_default_disk_path
 
     def _init_tables(self):
         tables = ["//tmp/t1", "//tmp/t2", "//tmp/t3"]
@@ -233,6 +238,11 @@ class TestDiskMediumsPorto(YTEnvSetup, DiskMediumTestConfiguration):
                 "resource_limits": {"user_slots": 3, "cpu": 3.0},
             },
             "min_required_disk_space": 0,
+        },
+        "data_node": {
+            "volume_manager": {
+                "test_disk_quota": True,
+            }
         }
     }
 
@@ -240,19 +250,19 @@ class TestDiskMediumsPorto(YTEnvSetup, DiskMediumTestConfiguration):
 
     @classmethod
     def modify_node_config(cls, config):
-        for disk in (cls.default_disk_path, cls.ssd_disk_path):
+        for disk in (cls.fake_default_disk_path, cls.fake_ssd_disk_path):
             if os.path.exists(disk):
                 shutil.rmtree(disk)
             os.makedirs(disk)
 
         config["exec_agent"]["slot_manager"]["locations"] = [
             {
-                "path": cls.default_disk_path,
+                "path": cls.fake_default_disk_path,
                 "disk_quota": 10 * 1024 * 1024,
                 "disk_usage_watermark": 0,
             },
             {
-                "path": cls.ssd_disk_path,
+                "path": cls.fake_ssd_disk_path,
                 "disk_quota": 2 * 1024 * 1024,
                 "disk_usage_watermark": 0,
                 "medium_name": "ssd",
@@ -288,7 +298,7 @@ class TestDiskMediumsPorto(YTEnvSetup, DiskMediumTestConfiguration):
 
         jobs = ls(op.get_path() + "/jobs")
         assert len(jobs) == 1
-        assert op.read_stderr(jobs[0]).startswith(self.ssd_disk_path)
+        assert op.read_stderr(jobs[0]).startswith(self.fake_ssd_disk_path)
 
     @authors("ignat")
     def test_unfeasible_ssd_request(self):
@@ -455,6 +465,11 @@ class TestDiskMediumRenamePorto(YTEnvSetup, DiskMediumTestConfiguration):
                 "resource_limits": {"user_slots": 3, "cpu": 3.0},
             },
             "min_required_disk_space": 0,
+        },
+        "data_node": {
+            "volume_manager": {
+                "test_disk_quota": True,
+            }
         }
     }
 
@@ -462,19 +477,19 @@ class TestDiskMediumRenamePorto(YTEnvSetup, DiskMediumTestConfiguration):
 
     @classmethod
     def modify_node_config(cls, config):
-        for disk in (cls.default_disk_path, cls.ssd_disk_path):
+        for disk in (cls.fake_default_disk_path, cls.fake_ssd_disk_path):
             if os.path.exists(disk):
                 shutil.rmtree(disk)
             os.makedirs(disk)
 
         config["exec_agent"]["slot_manager"]["locations"] = [
             {
-                "path": cls.default_disk_path,
+                "path": cls.fake_default_disk_path,
                 "disk_quota": 10 * 1024 * 1024,
                 "disk_usage_watermark": 0,
             },
             {
-                "path": cls.ssd_disk_path,
+                "path": cls.fake_ssd_disk_path,
                 "disk_quota": 2 * 1024 * 1024,
                 "disk_usage_watermark": 0,
                 "medium_name": "ssd",
@@ -556,6 +571,11 @@ class TestDefaultDiskMediumPorto(YTEnvSetup, DiskMediumTestConfiguration):
             },
             "job_controller": {"resource_limits": {"user_slots": 1, "cpu": 1.0}},
             "min_required_disk_space": 0,
+        },
+        "data_node": {
+            "volume_manager": {
+                "test_disk_quota": True,
+            }
         }
     }
 
@@ -563,14 +583,14 @@ class TestDefaultDiskMediumPorto(YTEnvSetup, DiskMediumTestConfiguration):
 
     @classmethod
     def modify_node_config(cls, config):
-        for disk in (cls.default_disk_path, cls.ssd_disk_path):
+        for disk in (cls.fake_default_disk_path, cls.fake_ssd_disk_path):
             if os.path.exists(disk):
                 shutil.rmtree(disk)
             os.makedirs(disk)
 
         config["exec_agent"]["slot_manager"]["locations"] = [
             {
-                "path": cls.ssd_disk_path,
+                "path": cls.fake_ssd_disk_path,
                 "disk_quota": 2 * 1024 * 1024,
                 "disk_usage_watermark": 0,
                 "medium_name": "ssd",
@@ -644,6 +664,11 @@ class TestDefaultDiskMediumWithUnspecifiedMediumPorto(YTEnvSetup, DiskMediumTest
             },
             "job_controller": {"resource_limits": {"user_slots": 1, "cpu": 1.0}},
             "min_required_disk_space": 0,
+        },
+        "data_node": {
+            "volume_manager": {
+                "test_disk_quota": True,
+            }
         }
     }
 
@@ -651,14 +676,14 @@ class TestDefaultDiskMediumWithUnspecifiedMediumPorto(YTEnvSetup, DiskMediumTest
 
     @classmethod
     def modify_node_config(cls, config):
-        for disk in (cls.default_disk_path, cls.ssd_disk_path):
+        for disk in (cls.fake_default_disk_path, cls.fake_ssd_disk_path):
             if os.path.exists(disk):
                 shutil.rmtree(disk)
             os.makedirs(disk)
 
         config["exec_agent"]["slot_manager"]["locations"] = [
             {
-                "path": cls.ssd_disk_path,
+                "path": cls.fake_ssd_disk_path,
                 "disk_quota": 2 * 1024 * 1024,
                 "disk_usage_watermark": 0,
                 "medium_name": "ssd",
@@ -728,6 +753,11 @@ class TestDefaultDiskMediumWithUnspecifiedMediumAndMultipleSlotsPorto(YTEnvSetup
             },
             "job_controller": {"resource_limits": {"user_slots": 1, "cpu": 1.0}},
             "min_required_disk_space": 0,
+        },
+        "data_node": {
+            "volume_manager": {
+                "test_disk_quota": True,
+            }
         }
     }
 
@@ -735,20 +765,20 @@ class TestDefaultDiskMediumWithUnspecifiedMediumAndMultipleSlotsPorto(YTEnvSetup
 
     @classmethod
     def modify_node_config(cls, config):
-        for disk in (cls.default_disk_path, cls.ssd_disk_path):
+        for disk in (cls.fake_default_disk_path, cls.fake_ssd_disk_path):
             if os.path.exists(disk):
                 shutil.rmtree(disk)
             os.makedirs(disk)
 
         config["exec_agent"]["slot_manager"]["locations"] = [
             {
-                "path": cls.default_disk_path,
+                "path": cls.fake_default_disk_path,
                 "disk_quota": 2 * 1024 * 1024,
                 "disk_usage_watermark": 0,
                 "medium_name": "hdd",
             },
             {
-                "path": cls.ssd_disk_path,
+                "path": cls.fake_ssd_disk_path,
                 "disk_quota": 2 * 1024 * 1024,
                 "disk_usage_watermark": 0,
                 "medium_name": "ssd",

@@ -507,6 +507,8 @@ public:
     double CacheCapacityFraction;
     int LayerImportConcurrency;
 
+    bool TestDiskQuota;
+
     TTmpfsLayerCacheConfigPtr TmpfsLayerCache;
 
     TVolumeManagerConfig()
@@ -525,6 +527,9 @@ public:
             .Default(2)
             .GreaterThan(0)
             .LessThanOrEqual(10);
+
+        RegisterParameter("test_disk_quota", TestDiskQuota)
+            .Default(false);
 
         RegisterParameter("tmpfs_layer_cache", TmpfsLayerCache)
             .DefaultNew();

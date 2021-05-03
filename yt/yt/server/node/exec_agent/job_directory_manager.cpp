@@ -48,6 +48,7 @@ public:
             config->PortoExecutor,
             Format("jobdir%v", locationIndex),
             ExecAgentProfiler.WithPrefix("/job_directory/porto")))
+        , TestDiskQuota_(config->TestDiskQuota)
     {
         // Collect and drop all existing volumes.
         auto volumePaths = WaitFor(Executor_->ListVolumePaths())
@@ -68,6 +69,9 @@ public:
 
     virtual TFuture<void> ApplyQuota(const TString& path, const TJobDirectoryProperties& properties) override
     {
+        if (TestDiskQuota_) {
+            return VoidFuture;
+        }
         return DoCreateVolume(path, properties, false);
     }
 
@@ -113,6 +117,7 @@ public:
 private:
     const TString Path_;
     const IPortoExecutorPtr Executor_;
+    const bool TestDiskQuota_ = false;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     std::set<TString> ManagedVolumes_;
