@@ -29,6 +29,8 @@ public:
     {
         NLastGetopt::TOptsParseResult result(&Opts_, argc, argv);
 
+        HandleVersionAndBuild();
+
         return 0;
     }
 

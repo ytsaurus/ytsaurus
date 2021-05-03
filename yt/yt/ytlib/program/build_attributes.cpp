@@ -8,8 +8,21 @@
 namespace NYT {
 
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void BuildBuildAttributes(IYsonConsumer* consumer, const char* serviceName)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .OptionalItem("name", serviceName)
+            .Item("version").Value(GetVersion())
+            .Item("build_host").Value(GetBuildHost())
+            .Item("build_time").Value(GetBuildTime())
+            .Item("start_time").Value(TInstant::Now())
+        .EndMap();
+}
 
 void SetBuildAttributes(IYPathServicePtr orchidRoot, const char* serviceName)
 {
@@ -20,13 +33,9 @@ void SetBuildAttributes(IYPathServicePtr orchidRoot, const char* serviceName)
             .BeginAttributes()
                 .Item("opaque").Value(true)
             .EndAttributes()
-            .BeginMap()
-                .Item("name").Value(serviceName)
-                .Item("version").Value(GetVersion())
-                .Item("build_host").Value(GetBuildHost())
-                .Item("build_time").Value(GetBuildTime())
-                .Item("start_time").Value(TInstant::Now())
-            .EndMap());
+            .Do(BIND([=] (TFluentAnyWithoutAttributes fluent) {
+                BuildBuildAttributes(fluent.GetConsumer(), serviceName);
+            })));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

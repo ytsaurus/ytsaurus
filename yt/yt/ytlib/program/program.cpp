@@ -1,5 +1,7 @@
 #include "program.h"
 
+#include "build_attributes.h"
+
 #include <yt/yt/build/build.h>
 
 #include <yt/yt/core/misc/crash_handler.h>
@@ -7,6 +9,8 @@
 #include <yt/yt/core/misc/fs.h>
 
 #include <yt/yt/core/logging/log_manager.h>
+
+#include <yt/yt/core/yson/writer.h>
 
 #include <util/system/thread.h>
 #include <util/system/sigset.h>
@@ -23,6 +27,8 @@
 #endif
 
 namespace NYT {
+
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,16 +58,19 @@ TProgram::TProgram(bool suppressVersion)
     Opts_.AddHelpOption();
     Opts_.AddLongOption("yt-version", "print version and exit")
         .NoArgument()
-        .Handler0(std::bind(&TProgram::PrintVersionAndExit, this));
+        .StoreValue(&PrintVersion_, true);
     // Some components like clickhouse-server have their own meaning of --version.
     if (!suppressVersion) {
         Opts_.AddLongOption("version", "print version and exit")
             .NoArgument()
-            .Handler0(std::bind(&TProgram::PrintVersionAndExit, this));
+            .StoreValue(&PrintVersion_, true);
     }
+    Opts_.AddLongOption("yson", "print build information in YSON")
+        .NoArgument()
+        .StoreValue(&UseYson_, true);
     Opts_.AddLongOption("build", "print build information and exit")
         .NoArgument()
-        .Handler0(std::bind(&TProgram::PrintBuildAndExit, this));
+        .StoreValue(&PrintBuild_, true);
     Opts_.SetFreeArgsNum(0);
 }
 
@@ -72,6 +81,16 @@ void TProgram::SetCrashOnError()
 
 TProgram::~TProgram() = default;
 
+void TProgram::HandleVersionAndBuild() const
+{
+    if (PrintVersion_) {
+        PrintVersionAndExit();
+    }
+    if (PrintBuild_) {
+        PrintBuildAndExit();
+    }
+}
+
 int TProgram::Run(int argc, const char** argv)
 {
     TThread::SetCurrentThreadName("ProgramMain");
@@ -81,6 +100,8 @@ int TProgram::Run(int argc, const char** argv)
     auto run = [&] {
         Argv0_ = TString(argv[0]);
         TOptsParseResult result(this, argc, argv);
+
+        HandleVersionAndBuild();
 
         DoRun(result);
     };
@@ -124,16 +145,25 @@ void TProgram::OnError(const TString& message) const noexcept
     }
 }
 
-void TProgram::PrintVersionAndExit()
+void TProgram::PrintVersionAndExit() const
 {
+    if (UseYson_) {
+        THROW_ERROR_EXCEPTION("--yson is not supported when printing version");
+    }
     Cout << GetVersion() << Endl;
     _exit(0);
 }
 
-void TProgram::PrintBuildAndExit()
+void TProgram::PrintBuildAndExit() const
 {
-    Cout << "Build Time: " << GetBuildTime() << Endl;
-    Cout << "Build Host: " << GetBuildHost() << Endl;
+    if (UseYson_) {
+        TYsonWriter writer(&Cout, EYsonFormat::Pretty);
+        BuildBuildAttributes(&writer);
+        Cout << Endl;
+    } else {
+        Cout << "Build Time: " << GetBuildTime() << Endl;
+        Cout << "Build Host: " << GetBuildHost() << Endl;
+    }
     _exit(0);
 }
 

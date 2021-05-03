@@ -25,9 +25,15 @@ public:
 
     int Run(int argc, const char** argv);
 
+    //! Handle --version/--yt-version/--build [--yson] if they are present.
+    void HandleVersionAndBuild() const;
+
 protected:
     NLastGetopt::TOpts Opts_;
     TString Argv0_;
+    bool PrintVersion_ = false;
+    bool PrintBuild_ = false;
+    bool UseYson_ = false;
 
     [[noreturn]] int Exit(EProgramExitCode code) const noexcept;
     [[noreturn]] int Exit(int code) const noexcept;
@@ -44,8 +50,8 @@ private:
     // Custom handler for option parsing errors.
     class TOptsParseResult;
 
-    void PrintVersionAndExit();
-    void PrintBuildAndExit();
+    void PrintVersionAndExit() const;
+    void PrintBuildAndExit() const;
 };
 
 //! The simplest exception possible.
