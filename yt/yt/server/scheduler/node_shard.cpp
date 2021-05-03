@@ -1831,20 +1831,17 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         switch (state) {
             case EJobState::Completed:
                 YT_LOG_DEBUG("Unknown job has completed, removal scheduled");
-                // COMPAT: make ArchiveJobSpec optional and remove.
-                ToProto(response->add_jobs_to_remove(), {jobId, false /* ArchiveJobSpec */});
+                ToProto(response->add_jobs_to_remove(), {jobId});
                 break;
 
             case EJobState::Failed:
                 YT_LOG_DEBUG("Unknown job has failed, removal scheduled");
-                // COMPAT: make ArchiveJobSpec optional and remove.
-                ToProto(response->add_jobs_to_remove(), {jobId, false /* ArchiveJobSpec */});
+                ToProto(response->add_jobs_to_remove(), {jobId});
                 break;
 
             case EJobState::Aborted:
                 YT_LOG_DEBUG(FromProto<TError>(jobStatus->result().error()), "Job aborted, removal scheduled");
-                // COMPAT: make ArchiveJobSpec optional and remove.
-                ToProto(response->add_jobs_to_remove(), {jobId, false /* ArchiveJobSpec */});
+                ToProto(response->add_jobs_to_remove(), {jobId});
                 break;
 
             case EJobState::Running:
@@ -1879,7 +1876,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         if (state == EJobState::Aborting) {
             // Do nothing, job is already terminating.
         } else if (state == EJobState::Completed || state == EJobState::Failed || state == EJobState::Aborted) {
-            ToProto(response->add_jobs_to_remove(), {jobId, false /* ArchiveJobSpec */});
+            ToProto(response->add_jobs_to_remove(), {jobId});
             YT_LOG_WARNING("Job status report was expected from %v, removal scheduled",
                 expectedAddress);
         } else {

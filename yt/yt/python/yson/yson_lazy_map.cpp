@@ -253,18 +253,18 @@ PyMethodDef LazyYsonMapBaseMethods[] = {
     {"setdefault", (PyCFunction)LazyYsonMapBaseSetDefault, METH_VARARGS | METH_KEYWORDS, ""},
     {"__copy__", (PyCFunction)LazyYsonMapBaseCopy, METH_NOARGS, ""},
     {"__deepcopy__", (PyCFunction)LazyYsonMapBaseDeepCopy, METH_VARARGS | METH_KEYWORDS, ""},
-    {nullptr}
+    {nullptr, nullptr, 0, nullptr}
 };
 
 PyMethodDef LazyYsonMapMethods[] = {
     {"__copy__", (PyCFunction)LazyYsonMapCopy, METH_NOARGS, ""},
     {"__deepcopy__", (PyCFunction)LazyYsonMapDeepCopy, METH_VARARGS | METH_KEYWORDS, ""},
-    {nullptr}
+    {nullptr, nullptr, 0, nullptr}
 };
 
 PyMemberDef LazyYsonMapMembers[] = {
     {"attributes", T_OBJECT_EX, offsetof(TLazyYsonMap, Attributes), 0, ""},
-    {nullptr}
+    {nullptr, 0, 0, 0, nullptr}
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -347,7 +347,7 @@ PySequenceMethods TLazyYsonMapBaseSequenceMethods = {
 
 PyTypeObject TLazyYsonMapOwnedType = {
     PyVarObject_HEAD_INIT(nullptr, 0)
-    "yson_lib.YsonLazyMap", // tp_name
+    "yson_lib.YsonLazyMap",         // tp_name
     sizeof(TLazyYsonMap),           // tp_basicsize
     0,                              // tp_itemsize
     (destructor)LazyYsonMapDealloc, // tp_dealloc
@@ -377,7 +377,7 @@ PyTypeObject TLazyYsonMapOwnedType = {
     LazyYsonMapMethods,             // tp_methods
     LazyYsonMapMembers,             // tp_members
     0,                              // tp_getset
-    TLazyYsonMapBaseType,          // tp_base
+    TLazyYsonMapBaseType,           // tp_base
     0,                              // tp_dict
     0,                              // tp_descr_get
     0,                              // tp_descr_set
@@ -385,11 +385,20 @@ PyTypeObject TLazyYsonMapOwnedType = {
     (initproc)LazyYsonMapInit,      // tp_init
     0,                              // tp_alloc
     LazyYsonMapNew,                 // tp_new
+    0,                              // tp_free
+    0,                              // tp_is_gc
+    0,                              // tp_bases
+    0,                              // tp_mro
+    0,                              // tp_cache
+    0,                              // tp_subclasses
+    0,                              // tp_weaklist
+    0,                              // tp_del
+    0,                              // tp_version_tag
 };
 
 PyTypeObject TLazyYsonMapBaseOwnedType = {
     PyVarObject_HEAD_INIT(nullptr, 0)
-    "yson_lib.YsonLazyMapBase", // tp_name
+    "yson_lib.YsonLazyMapBase",         // tp_name
     sizeof(TLazyYsonMapBase),           // tp_basicsize
     0,                                  // tp_itemsize
     (destructor)LazyYsonMapBaseDealloc, // tp_dealloc
@@ -427,6 +436,15 @@ PyTypeObject TLazyYsonMapBaseOwnedType = {
     (initproc)LazyYsonMapBaseInit,      // tp_init
     0,                                  // tp_alloc
     LazyYsonMapBaseNew,                 // tp_new
+    0,                                  // tp_free
+    0,                                  // tp_is_gc
+    0,                                  // tp_bases
+    0,                                  // tp_mro
+    0,                                  // tp_cache
+    0,                                  // tp_subclasses
+    0,                                  // tp_weaklist
+    0,                                  // tp_del
+    0,                                  // tp_version_tag
 };
 
 PyTypeObject* TLazyYsonMapType = &TLazyYsonMapOwnedType;

@@ -14,6 +14,11 @@ namespace NYT::NControllerAgent {
 
 struct TAgentToSchedulerOperationEvent
 {
+    TAgentToSchedulerOperationEvent(
+        NScheduler::EAgentToSchedulerOperationEventType eventType,
+        TOperationId operationId,
+        TError error = TError());
+
     static TAgentToSchedulerOperationEvent CreateCompletedEvent(TOperationId operationId);
     static TAgentToSchedulerOperationEvent CreateSuspendedEvent(TOperationId operationId, TError error);
     static TAgentToSchedulerOperationEvent CreateFailedEvent(TOperationId operationId, TError error);

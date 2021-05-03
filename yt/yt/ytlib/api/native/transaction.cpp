@@ -1070,7 +1070,7 @@ private:
                     mergedRow = merger.BuildMergedRow();
                 }
 
-                unversionedMergedRows.push_back({resultCommand, mergedRow, lockMask});
+                unversionedMergedRows.push_back({resultCommand, mergedRow, lockMask, /*sequentialId*/ 0});
             }
 
             for (const auto& submittedRow : unversionedMergedRows) {

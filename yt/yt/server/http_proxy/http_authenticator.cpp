@@ -88,7 +88,8 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
         if (auto userNameHeader = request->GetHeaders()->Find("X-YT-Testing-User-Name")) {
             user = *userNameHeader;
         }
-        return TAuthenticationResultAndToken{TAuthenticationResult{user, "YT"}, TString()};
+        static const auto UserTicket = TString();
+        return TAuthenticationResultAndToken{TAuthenticationResult{user, "YT", UserTicket}, TString()};
     }
 
     auto userIP = request->GetRemoteAddress();

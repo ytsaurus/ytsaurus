@@ -3,10 +3,6 @@ SET(YT_ARCADIA_CXXFLAGS
     -Wno-unused-function
     -Wno-unused-parameter
     -Wno-unused-value
-    -Wno-uninitialized
-    -Wno-type-limits
-    -Wno-missing-braces
-    -Wno-missing-field-initializers
     -Wunused-result
 )
 

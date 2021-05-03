@@ -50,7 +50,7 @@ struct IIOEngine
     struct TCloseRequest
     {
         std::shared_ptr<TFileHandle> Handle;
-        std::optional<i64> Size;
+        std::optional<i64> Size = {};
         bool Flush = false;
     };
 
