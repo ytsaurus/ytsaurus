@@ -4043,7 +4043,7 @@ private:
             SuggestPartitionCountAndMaxPartitionFactor(forcedPartitionCount);
         } else {
             PartitionCount = SuggestPartitionCount();
-            YT_LOG_INFO("Suggested partition count %v (PartitionCount: %v)", PartitionCount);
+            YT_LOG_INFO("Suggested partition count (PartitionCount: %v)", PartitionCount);
         }
 
         Spec->Sampling->MaxTotalSliceCount = Spec->Sampling->MaxTotalSliceCount.value_or(Config->MaxTotalSliceCount);
