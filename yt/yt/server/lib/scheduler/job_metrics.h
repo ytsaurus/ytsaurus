@@ -56,7 +56,7 @@ struct TCustomJobMetricDescription
     TString StatisticsPath;
     TString ProfilingName;
     EAggregateType AggregateType = EAggregateType::Sum;
-    std::optional<NJobTrackerClient::EJobState> JobStateFilter;
+    std::optional<NJobTrackerClient::EJobState> JobStateFilter = {};
 
     void Persist(const TStreamPersistenceContext& context);
 };

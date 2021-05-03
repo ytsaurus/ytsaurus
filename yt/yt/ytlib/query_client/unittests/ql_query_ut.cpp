@@ -6294,12 +6294,8 @@ void TQueryEvaluateComplexTest::DoTest(
         auto groupValue = lookup[groupKey];
 
         resultData.push_back(TResultRow{
-            groupKey.x,
-            groupKey.y,
-            groupKey.z,
-            groupValue.count,
-            groupValue.sumv,
-            groupValue.sumw});
+            {groupKey.x, groupKey.y, groupKey.z},
+            {groupValue.count, groupValue.sumv, groupValue.sumw}});
 
         totals += groupValue;
     }
@@ -6388,14 +6384,14 @@ TEST_P(TQueryEvaluateComplexTest, All)
             if (rand() % 7 == 0) {
                 continue;
             }
-            primaryTable.push_back({i / (M * M), i % (M * M) / M, i % M, i});
+            primaryTable.push_back({{i / (M * M), i % (M * M) / M, i % M}, {i}});
         }
 
         for (int i = 0; i < M * M; ++i) {
             if (rand() % 7 == 0) {
                 continue;
             }
-            secondaryTable.push_back({i / M, i % M, i});
+            secondaryTable.push_back({{i / M, i % M}, {i}});
         }
 
         auto shareSize = primaryTable.size() / 3;

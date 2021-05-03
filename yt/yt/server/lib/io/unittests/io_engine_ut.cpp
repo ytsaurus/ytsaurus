@@ -77,7 +77,7 @@ TEST_P(TIOEngineTest, ReadWrite)
     };
 
     auto flush = [&] {
-        engine->FlushFile({*file})
+        engine->FlushFile({*file, EFlushFileMode::Data})
             .Get()
             .ThrowOnError();
     };

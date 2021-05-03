@@ -48,9 +48,11 @@ public:
         const TAuthenticationContext& context) override
     {
         static const auto Realm = TString("noop");
+        static const auto UserTicket = TString();
         TAuthenticationResult result{
             context.Header->has_user() ? context.Header->user() : RootUserName,
-            Realm
+            Realm,
+            UserTicket
         };
         return MakeFuture<TAuthenticationResult>(result);
     }

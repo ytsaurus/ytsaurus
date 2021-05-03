@@ -450,7 +450,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        CustomWatcherRecords_[type] = TCustomWatcherRecord{std::move(requester), std::move(handler), alertType, type, period};
+        CustomWatcherRecords_[type] = TCustomWatcherRecord{{std::move(requester), std::move(handler), alertType}, type, period};
     }
 
     void UpdateConfig(const TSchedulerConfigPtr& config)

@@ -506,7 +506,9 @@ void TOperationControllerImpl::OnNonscheduledJobAborted(
         std::move(status),
         abortReason,
         {},
-        {}
+        {},
+        {},
+        {},
     };
     auto result = EnqueueJobEvent(std::move(event));
     YT_LOG_DEBUG("Nonscheduled job abort notification %v (JobId: %v)",
@@ -757,7 +759,9 @@ TSchedulerToAgentJobEvent TOperationControllerImpl::BuildEvent(
         std::move(statusHolder),
         {},
         {},
-        {}
+        {},
+        {},
+        {},
     };
 }
 

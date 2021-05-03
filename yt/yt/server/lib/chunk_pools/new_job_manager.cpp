@@ -258,6 +258,8 @@ void TNewJobManager::TJob::UpdateSelf()
         newProgressCategory = EProgressCategory::Running;
     } else if (State_ == EJobState::Completed) {
         newProgressCategory = EProgressCategory::Completed;
+    } else {
+        YT_ABORT();
     }
 
     bool inPoolDesired = (newProgressCategory == EProgressCategory::Pending);

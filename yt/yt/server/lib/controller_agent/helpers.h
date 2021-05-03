@@ -26,7 +26,7 @@ struct TReleaseJobFlags
 struct TJobToRelease
 {
     TJobId JobId;
-    TReleaseJobFlags ReleaseFlags;
+    TReleaseJobFlags ReleaseFlags = {};
 };
 
 TString ToString(const TReleaseJobFlags& releaseFlags);

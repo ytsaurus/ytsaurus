@@ -23,39 +23,48 @@ static const auto& Logger = ControllerAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TAgentToSchedulerOperationEvent::TAgentToSchedulerOperationEvent(
+    EAgentToSchedulerOperationEventType eventType,
+    TOperationId operationId,
+    TError error)
+    : EventType(eventType)
+    , OperationId(operationId)
+    , Error(error)
+{ }
+
 TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateCompletedEvent(TOperationId operationId)
 {
-    return TAgentToSchedulerOperationEvent{
+    return TAgentToSchedulerOperationEvent(
         EAgentToSchedulerOperationEventType::Completed,
         operationId
-    };
+    );
 }
 
 TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateSuspendedEvent(TOperationId operationId, TError error)
 {
-    return TAgentToSchedulerOperationEvent{
+    return TAgentToSchedulerOperationEvent(
         EAgentToSchedulerOperationEventType::Suspended,
         operationId,
         std::move(error)
-    };
+    );
 }
 
 TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateFailedEvent(TOperationId operationId, TError error)
 {
-    return TAgentToSchedulerOperationEvent{
+    return TAgentToSchedulerOperationEvent(
         EAgentToSchedulerOperationEventType::Failed,
         operationId,
         std::move(error)
-    };
+    );
 }
 
 TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateAbortedEvent(TOperationId operationId, TError error)
 {
-    return TAgentToSchedulerOperationEvent{
+    return TAgentToSchedulerOperationEvent(
         EAgentToSchedulerOperationEventType::Aborted,
         operationId,
         std::move(error)
-    };
+    );
 }
 
 TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateBannedInTentativeTreeEvent(
@@ -63,10 +72,10 @@ TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateBannedInT
     TString treeId,
     std::vector<TJobId> jobIds)
 {
-    TAgentToSchedulerOperationEvent event{
+    TAgentToSchedulerOperationEvent event(
         EAgentToSchedulerOperationEventType::BannedInTentativeTree,
-        operationId,
-    };
+        operationId
+    );
     event.TentativeTreeId = std::move(treeId);
     event.TentativeTreeJobIds = std::move(jobIds);
     return event;
@@ -77,11 +86,11 @@ TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateHeavyCont
     TError error,
     std::optional<TOperationControllerInitializeResult> maybeResult)
 {
-    TAgentToSchedulerOperationEvent event{
+    TAgentToSchedulerOperationEvent event(
         EAgentToSchedulerOperationEventType::InitializationFinished,
         operationId,
         std::move(error)
-    };
+    );
     event.InitializeResult = maybeResult;
     return event;
 }
@@ -92,11 +101,11 @@ TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateHeavyCont
     TError error,
     std::optional<TOperationControllerPrepareResult> maybeResult)
 {
-    TAgentToSchedulerOperationEvent event{
+    TAgentToSchedulerOperationEvent event(
         EAgentToSchedulerOperationEventType::PreparationFinished,
         operationId,
         std::move(error)
-    };
+    );
     event.PrepareResult = maybeResult;
     return event;
 }
@@ -106,11 +115,11 @@ TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateHeavyCont
     TError error,
     std::optional<TOperationControllerMaterializeResult> maybeResult)
 {
-    TAgentToSchedulerOperationEvent event{
+    TAgentToSchedulerOperationEvent event(
         EAgentToSchedulerOperationEventType::MaterializationFinished,
         operationId,
         std::move(error)
-    };
+    );
     event.MaterializeResult = maybeResult;
     return event;
 }
@@ -120,11 +129,11 @@ TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateHeavyCont
     TError error,
     std::optional<TOperationControllerReviveResult> maybeResult)
 {
-    TAgentToSchedulerOperationEvent event{
+    TAgentToSchedulerOperationEvent event(
         EAgentToSchedulerOperationEventType::RevivalFinished,
         operationId,
         std::move(error)
-    };
+    );
     event.ReviveResult = maybeResult;
     return event;
 }
@@ -134,11 +143,11 @@ TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateHeavyCont
     TError error,
     std::optional<TOperationControllerCommitResult> maybeResult)
 {
-    TAgentToSchedulerOperationEvent event{
+    TAgentToSchedulerOperationEvent event(
         EAgentToSchedulerOperationEventType::CommitFinished,
         operationId,
         std::move(error)
-    };
+    );
     event.CommitResult = maybeResult;
     return event;
 }

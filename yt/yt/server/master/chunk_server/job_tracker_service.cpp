@@ -108,22 +108,19 @@ private:
                     case EJobState::Completed:
                         YT_LOG_DEBUG("Unknown job has completed, removal scheduled (JobId: %v)",
                             jobId);
-                        // COMPAT: make ArchiveJobSpec optional and remove.
-                        ToProto(response->add_jobs_to_remove(), {jobId, false /* ArchiveJobSpec */});
+                        ToProto(response->add_jobs_to_remove(), {jobId});
                         break;
 
                     case EJobState::Failed:
                         YT_LOG_DEBUG("Unknown job has failed, removal scheduled (JobId: %v)",
                             jobId);
-                        // COMPAT: make ArchiveJobSpec optional and remove.
-                        ToProto(response->add_jobs_to_remove(), {jobId, false /* ArchiveJobSpec */});
+                        ToProto(response->add_jobs_to_remove(), {jobId});
                         break;
 
                     case EJobState::Aborted:
                         YT_LOG_DEBUG("Job aborted, removal scheduled (JobId: %v)",
                             jobId);
-                        // COMPAT: make ArchiveJobSpec optional and remove.
-                        ToProto(response->add_jobs_to_remove(), {jobId, false /* ArchiveJobSpec */});
+                        ToProto(response->add_jobs_to_remove(), {jobId});
                         break;
 
                     case EJobState::Running:
@@ -282,7 +279,7 @@ private:
         }
 
         for (const auto& job : jobsToRemove) {
-            ToProto(response->add_jobs_to_remove(), {job->GetJobId(), false /* ArchiveJobSpec */});
+            ToProto(response->add_jobs_to_remove(), {job->GetJobId()});
         }
 
         if (node->ResourceUsage() != resourceUsage || node->ResourceLimits() != resourceLimits) {
