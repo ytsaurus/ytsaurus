@@ -225,7 +225,14 @@ bool TSlotManager::IsEnabled() const
         JobEnvironment_->IsEnabled();
 
     auto guard = Guard(SpinLock_);
-    return enabled && !PersistentAlert_ && !TransientAlert_;
+    return enabled && !HasSlotDisablingAlert();
+}
+
+bool TSlotManager::HasSlotDisablingAlert() const
+{
+    return
+        !Alerts_[ESlotManagerAlertType::GenericPersistentError].IsOK() ||
+        !Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions].IsOK();
 }
 
 void TSlotManager::OnJobsCpuLimitUpdated()
@@ -253,17 +260,19 @@ void TSlotManager::Disable(const TError& error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    YT_VERIFY(!error.IsOK());
+
     auto guard = Guard(SpinLock_);
 
-    if (PersistentAlert_) {
+    if (!Alerts_[ESlotManagerAlertType::GenericPersistentError].IsOK()) {
         return;
     }
 
     auto errorWrapper = TError("Scheduler jobs disabled")
         << error;
 
-    YT_LOG_WARNING(errorWrapper);
-    PersistentAlert_ = errorWrapper;
+    YT_LOG_WARNING(errorWrapper, "Disabling slot manager");
+    Alerts_[ESlotManagerAlertType::GenericPersistentError] = errorWrapper;
 }
 
 void TSlotManager::OnGpuCheckCommandFailed(const TError& error)
@@ -276,7 +285,7 @@ void TSlotManager::OnGpuCheckCommandFailed(const TError& error)
     if (disableJobsOnGpuCheckFailure) {
         Disable(error);
     } else {
-        NonFatalAlerts_[ESlotManagerAlertType::GpuCheckFailed] = error;
+        Alerts_[ESlotManagerAlertType::GpuCheckFailed] = error;
     }
 }
 
@@ -293,22 +302,23 @@ void TSlotManager::OnJobFinished(const IJobPtr& job)
     }
 
     if (ConsecutiveAbortedJobCount_ > Config_->MaxConsecutiveAborts) {
-        if (!TransientAlert_) {
+        if (Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions].IsOK()) {
             auto delay = Config_->DisableJobsTimeout + RandomDuration(Config_->DisableJobsTimeout);
-            TransientAlert_ = TError("Too many consecutive job abortions; scheduler jobs disabled until %v",
+            Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions] = TError(
+                "Too many consecutive job abortions; scheduler jobs disabled until %v",
                 TInstant::Now() + delay)
                 << TErrorAttribute("max_consecutive_aborts", Config_->MaxConsecutiveAborts);
-            TDelayedExecutor::Submit(BIND(&TSlotManager::ResetTransientAlert, MakeStrong(this)), delay);
+            TDelayedExecutor::Submit(BIND(&TSlotManager::ResetConsecutiveAbortedJobCount, MakeStrong(this)), delay);
         }
     }
 }
 
-void TSlotManager::ResetTransientAlert()
+void TSlotManager::ResetConsecutiveAbortedJobCount()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(SpinLock_);
-    TransientAlert_ = std::nullopt;
+    Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions] = TError();
     ConsecutiveAbortedJobCount_ = 0;
 }
 
@@ -317,14 +327,10 @@ void TSlotManager::PopulateAlerts(std::vector<TError>* alerts)
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(SpinLock_);
-    if (TransientAlert_) {
-        alerts->push_back(*TransientAlert_);
-    }
-    if (PersistentAlert_) {
-        alerts->push_back(*PersistentAlert_);
-    }
-    for (const auto& [alertType, alert] : NonFatalAlerts_) {
-        alerts->push_back(alert);
+    for (const auto& alert : Alerts_) {
+        if (!alert.IsOK()) {
+            alerts->push_back(alert);
+        }
     }
 }
 
@@ -337,12 +343,16 @@ void TSlotManager::BuildOrchidYson(TFluentMap fluent) const
         fluent
             .Item("slot_count").Value(SlotCount_)
             .Item("free_slot_count").Value(FreeSlots_.size())
-            .DoIf(static_cast<bool>(TransientAlert_), [&] (auto fluent) {
-                fluent.Item("transient_alert").Value(*TransientAlert_);
-            })
-            .DoIf(static_cast<bool>(PersistentAlert_), [&] (auto fluent) {
-                fluent.Item("persistent_alert").Value(*PersistentAlert_);
-            });
+            .Item("alerts").DoMapFor(
+                TEnumTraits<ESlotManagerAlertType>::GetDomainValues(),
+                [&] (TFluentMap fluent, ESlotManagerAlertType alertType)
+                {
+                    const auto& error = Alerts_[alertType];
+                    if (!error.IsOK()) {
+                        fluent
+                            .Item(FormatEnum(alertType)).Value(error);
+                    }
+                });
     }
 
     fluent

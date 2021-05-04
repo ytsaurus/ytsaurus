@@ -23,7 +23,9 @@ namespace NYT::NExecAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ESlotManagerAlertType,
-    ((GpuCheckFailed) (0))
+    ((GenericPersistentError)         (0))
+    ((GpuCheckFailed)                 (1))
+    ((TooManyConsecutiveJobAbortions) (2))
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,6 +59,7 @@ public:
     int GetUsedSlotCount() const;
 
     bool IsEnabled() const;
+    bool HasSlotDisablingAlert() const;
 
     NNodeTrackerClient::NProto::TDiskResources GetDiskResources();
 
@@ -109,9 +112,7 @@ private:
     THashSet<int> FreeSlots_;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
-    std::optional<TError> PersistentAlert_;
-    std::optional<TError> TransientAlert_;
-    THashMap<ESlotManagerAlertType, TError> NonFatalAlerts_;
+    TEnumIndexedVector<ESlotManagerAlertType, TError> Alerts_;
     //! If we observe too many consecutive aborts, we disable user slots on
     //! the node until restart and fire alert.
     int ConsecutiveAbortedJobCount_ = 0;
@@ -123,7 +124,7 @@ private:
     void OnJobFinished(const NJobAgent::IJobPtr& job);
     void OnJobsCpuLimitUpdated();
     void UpdateAliveLocations();
-    void ResetTransientAlert();
+    void ResetConsecutiveAbortedJobCount();
     void PopulateAlerts(std::vector<TError>* alerts);
 };
 
