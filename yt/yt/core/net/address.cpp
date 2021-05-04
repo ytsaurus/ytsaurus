@@ -328,6 +328,7 @@ TNetworkAddress TNetworkAddress::CreateUnixDomainSocketAddress(const TString& so
         sizeof (sockAddr.sun_family) +
         socketPath.length());
 #else
+    Y_UNUSED(socketPath);
     YT_ABORT();
 #endif
 }
@@ -662,7 +663,7 @@ bool TIP6Address::FromString(TStringBuf str, TIP6Address* address)
     return true;
 }
 
-void FormatValue(TStringBuilderBase* builder, const TIP6Address& address, TStringBuf spec)
+void FormatValue(TStringBuilderBase* builder, const TIP6Address& address, TStringBuf /*spec*/)
 {
     const auto* parts = reinterpret_cast<const ui16*>(address.GetRawBytes());
     std::pair<int, int> maxRun = {-1, -1};
@@ -840,7 +841,7 @@ bool TIP6Network::FromString(TStringBuf str, TIP6Network* network)
     return true;
 }
 
-void FormatValue(TStringBuilderBase* builder, const TIP6Network& network, TStringBuf spec)
+void FormatValue(TStringBuilderBase* builder, const TIP6Network& network, TStringBuf /*spec*/)
 {
     builder->AppendFormat("%v/%v",
         network.GetAddress(),

@@ -49,7 +49,7 @@ public:
     }
 
     virtual TObject* CreateObject(
-        TObjectId hintId,
+        TObjectId /*hintId*/,
         IAttributeDictionary* attributes) override
     {
         auto tablePath = attributes->GetAndRemove<TString>("table_path");

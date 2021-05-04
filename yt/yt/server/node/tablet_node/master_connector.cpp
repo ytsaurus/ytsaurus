@@ -88,7 +88,7 @@ public:
         return heartbeatRequest;
     }
 
-    virtual void OnHeartbeatResponse(const TRspHeartbeat& response) override
+    virtual void OnHeartbeatResponse(const TRspHeartbeat& /*response*/) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
     }

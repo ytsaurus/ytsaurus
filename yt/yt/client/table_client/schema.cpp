@@ -290,7 +290,7 @@ private:
     std::optional<TTypeV3LogicalTypeWrapper> LogicalTypeV3_;
 };
 
-void FormatValue(TStringBuilderBase* builder, const TColumnSchema& schema, TStringBuf spec)
+void FormatValue(TStringBuilderBase* builder, const TColumnSchema& schema, TStringBuf /*spec*/)
 {
     builder->AppendChar('{');
 

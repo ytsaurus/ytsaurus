@@ -32,7 +32,6 @@ public:
         if (config->TvmService && poller) {
             TvmService_ = CreateDefaultTvmService(
                 config->TvmService,
-                poller,
                 profiler.WithPrefix("/tvm/remote"));
         }
 

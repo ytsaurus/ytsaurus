@@ -66,13 +66,13 @@ public:
     }
 
     virtual TCodegenExpression Profile(
-        TCGVariables* variables,
+        TCGVariables* /*variables*/,
         std::vector<size_t> argIds,
-        std::unique_ptr<bool[]> literalArgs,
-        std::vector<EValueType> argumentTypes,
+        std::unique_ptr<bool[]> /*literalArgs*/,
+        std::vector<EValueType> /*argumentTypes*/,
         EValueType type,
         const TString& name,
-        llvm::FoldingSetNodeID* id) const override
+        llvm::FoldingSetNodeID* /*id*/) const override
     {
         return [
             =,
@@ -143,13 +143,13 @@ class TIsNullCodegen
 {
 public:
     virtual TCodegenExpression Profile(
-        TCGVariables* variables,
+        TCGVariables* /*variables*/,
         std::vector<size_t> argIds,
-        std::unique_ptr<bool[]> literalArgs,
-        std::vector<EValueType> argumentTypes,
+        std::unique_ptr<bool[]> /*literalArgs*/,
+        std::vector<EValueType> /*argumentTypes*/,
         EValueType type,
-        const TString& name,
-        llvm::FoldingSetNodeID* id) const override
+        const TString& /*name*/,
+        llvm::FoldingSetNodeID* /*id*/) const override
     {
         YT_VERIFY(argIds.size() == 1);
 
@@ -176,7 +176,7 @@ public:
         };
     }
 
-    virtual bool IsNullable(const std::vector<bool>& nullableArgs) const override
+    virtual bool IsNullable(const std::vector<bool>& /*nullableArgs*/) const override
     {
         return false;
     }
@@ -188,13 +188,13 @@ class TIfNullCodegen
 {
 public:
     virtual TCodegenExpression Profile(
-        TCGVariables* variables,
+        TCGVariables* /*variables*/,
         std::vector<size_t> argIds,
-        std::unique_ptr<bool[]> literalArgs,
-        std::vector<EValueType> argumentTypes,
+        std::unique_ptr<bool[]> /*literalArgs*/,
+        std::vector<EValueType> /*argumentTypes*/,
         EValueType type,
-        const TString& name,
-        llvm::FoldingSetNodeID* id) const override
+        const TString& /*name*/,
+        llvm::FoldingSetNodeID* /*id*/) const override
     {
         YT_VERIFY(argIds.size() == 2);
 
@@ -245,13 +245,13 @@ class TIsNaNCodegen
 {
 public:
     virtual TCodegenExpression Profile(
-        TCGVariables* variables,
+        TCGVariables* /*variables*/,
         std::vector<size_t> argIds,
-        std::unique_ptr<bool[]> literalArgs,
-        std::vector<EValueType> argumentTypes,
+        std::unique_ptr<bool[]> /*literalArgs*/,
+        std::vector<EValueType> /*argumentTypes*/,
         EValueType type,
-        const TString& name,
-        llvm::FoldingSetNodeID* id) const override
+        const TString& /*name*/,
+        llvm::FoldingSetNodeID* /*id*/) const override
     {
         YT_VERIFY(argIds.size() == 1);
 
@@ -281,7 +281,7 @@ public:
         };
     }
 
-    virtual bool IsNullable(const std::vector<bool>& nullableArgs) const override
+    virtual bool IsNullable(const std::vector<bool>& /*nullableArgs*/) const override
     {
         return false;
     }
@@ -297,13 +297,13 @@ public:
     { }
 
     virtual TCodegenExpression Profile(
-        TCGVariables* variables,
+        TCGVariables* /*variables*/,
         std::vector<size_t> argIds,
-        std::unique_ptr<bool[]> literalArgs,
+        std::unique_ptr<bool[]> /*literalArgs*/,
         std::vector<EValueType> argumentTypes,
         EValueType type,
-        const TString& name,
-        llvm::FoldingSetNodeID* id) const override
+        const TString& /*name*/,
+        llvm::FoldingSetNodeID* /*id*/) const override
     {
         YT_VERIFY(argIds.size() == 1);
 
@@ -392,7 +392,7 @@ public:
     virtual TCodegenAggregate Profile(
         EValueType argumentType,
         EValueType stateType,
-        EValueType resultType,
+        EValueType /*resultType*/,
         const TString& name,
         llvm::FoldingSetNodeID* id) const override
     {
@@ -506,7 +506,7 @@ public:
                                                     valueLength);
                                                 return permanentData;
                                             },
-                                            [&] (TCGBaseContext& builder) {
+                                            [&] (TCGBaseContext& /*builder*/) {
                                                 return newData;
                                             });
                                         break;
@@ -567,7 +567,7 @@ public:
                                                     valueLength);
                                                 return permanentData;
                                             },
-                                            [&] (TCGBaseContext& builder) {
+                                            [&] (TCGBaseContext& /*builder*/) {
                                                 return newData;
                                             });
                                         break;
@@ -599,7 +599,7 @@ public:
                                 stateType);
                         });
                 },
-                [&] (TCGBaseContext& builder) {
+                [&] (TCGBaseContext& /*builder*/) {
                     return aggregateValue;
                 });
         };
@@ -609,7 +609,7 @@ public:
             this_ = MakeStrong(this),
             stateType,
             name
-        ] (TCGBaseContext& builder, Value* buffer) {
+        ] (TCGBaseContext& builder, Value* /*buffer*/) {
             return TCGValue::CreateNull(builder, stateType);
         };
 
@@ -619,7 +619,7 @@ public:
         codegenAggregate.Finalize = [
             this_ = MakeStrong(this),
             name
-        ] (TCGBaseContext& builder, Value* buffer, TCGValue aggState) {
+        ] (TCGBaseContext& /*builder*/, Value* /*buffer*/, TCGValue aggState) {
             return aggState;
         };
 

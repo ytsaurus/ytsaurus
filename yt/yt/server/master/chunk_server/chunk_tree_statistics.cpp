@@ -118,7 +118,7 @@ TString ToString(const TChunkTreeStatistics& statistics)
     return ConvertToYsonString(statistics, EYsonFormat::Text).ToString();
 }
 
-void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* consumer, const TChunkManagerPtr& chunkManager)
+void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
     NYTree::BuildYsonFluently(consumer)
         .BeginMap()

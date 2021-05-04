@@ -282,7 +282,7 @@ void TJsonWriter::OnEndAttributes()
     THROW_ERROR_EXCEPTION("TJsonWriter does not support attributes");
 }
 
-void TJsonWriter::OnRaw(TStringBuf yson, NYT::NYson::EYsonType type)
+void TJsonWriter::OnRaw(TStringBuf /*yson*/, NYT::NYson::EYsonType /*type*/)
 {
     THROW_ERROR_EXCEPTION("TJsonWriter does not support OnRaw()");
 }

@@ -367,7 +367,7 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
+    virtual std::vector<TString> GetKeys(i64 /*sizeLimit*/) const override
     {
         std::vector<TString> keys;
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -423,7 +423,7 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
+    virtual std::vector<TString> GetKeys(i64 /*sizeLimit*/) const override
     {
         std::vector<TString> keys;
         auto nodeTracker = Bootstrap_->GetNodeTracker();

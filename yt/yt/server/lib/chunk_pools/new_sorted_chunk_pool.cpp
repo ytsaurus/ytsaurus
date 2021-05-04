@@ -651,8 +651,7 @@ private:
         if (JobSizeConstraints_->GetSamplingRate()) {
             JobManager_->Enlarge(
                 JobSizeConstraints_->GetDataWeightPerJob(),
-                JobSizeConstraints_->GetPrimaryDataWeightPerJob(),
-                SortedJobOptions_.PrimaryComparator);
+                JobSizeConstraints_->GetPrimaryDataWeightPerJob());
         }
 
         auto oldDataSliceCount = GetDataSliceCounter()->GetTotal();

@@ -93,11 +93,6 @@ TProtobufFormatConfigPtr ParseFormatConfigFromNode(const INodePtr& configNode)
     return config;
 };
 
-TProtobufFormatConfigPtr ParseFormatConfigFromString(TStringBuf configStr)
-{
-    return ParseFormatConfigFromNode(ParseYson(configStr));
-}
-
 TUnversionedOwningRow MakeRow(const std::initializer_list<TUnversionedValue>& rows)
 {
     TUnversionedOwningRowBuilder builder;

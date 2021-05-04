@@ -22,7 +22,7 @@ public:
         return FactoryCallback_();
     }
 
-    virtual void Persist(const TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& /*context*/) override
     {
         // This implementation is not persistable.
         Y_UNREACHABLE();

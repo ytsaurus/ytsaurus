@@ -14,25 +14,25 @@ class TMultiReaderMemoryManagerMock
 {
 public:
     virtual TChunkReaderMemoryManagerPtr CreateChunkReaderMemoryManager(
-        std::optional<i64> reservedMemorySize,
-        NProfiling::TTagIdList profilingTagList) override
+        std::optional<i64> /*reservedMemorySize*/,
+        NProfiling::TTagIdList /*profilingTagList*/) override
     {
         YT_UNIMPLEMENTED();
     }
 
     virtual IMultiReaderMemoryManagerPtr CreateMultiReaderMemoryManager(
-        std::optional<i64> requiredMemorySize,
-        NProfiling::TTagIdList profilingTagList) override
+        std::optional<i64> /*requiredMemorySize*/,
+        NProfiling::TTagIdList /*profilingTagList*/) override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual void Unregister(IReaderMemoryManagerPtr readerMemoryManager) override
+    virtual void Unregister(IReaderMemoryManagerPtr /*readerMemoryManager*/) override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual void UpdateMemoryRequirements(IReaderMemoryManagerPtr readerMemoryManager) override
+    virtual void UpdateMemoryRequirements(IReaderMemoryManagerPtr /*readerMemoryManager*/) override
     {
         YT_UNIMPLEMENTED();
     }
@@ -52,7 +52,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    virtual void SetReservedMemorySize(i64 size) override
+    virtual void SetReservedMemorySize(i64 /*size*/) override
     {
         YT_UNIMPLEMENTED();
     }
@@ -70,10 +70,10 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    virtual void AddChunkReaderInfo(TGuid chunkReaderId) override
+    virtual void AddChunkReaderInfo(TGuid /*chunkReaderId*/) override
     { }
 
-    virtual void AddReadSessionInfo(TGuid readSessionId) override
+    virtual void AddReadSessionInfo(TGuid /*readSessionId*/) override
     {
         YT_UNIMPLEMENTED();
     }

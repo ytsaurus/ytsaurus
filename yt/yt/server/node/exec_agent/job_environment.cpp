@@ -50,17 +50,6 @@ static const auto& Logger = ExecAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-TString GetSlotProcessGroup(int slotIndex)
-{
-    return Format("slots/%v", slotIndex);
-}
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TProcessJobEnvironmentBase
     : public IJobEnvironment
 {
@@ -229,7 +218,7 @@ protected:
         Bootstrap_->GetClusterNodeMasterConnector()->RegisterStaticAlert(alert);
     }
 
-    virtual void AddArguments(TProcessBasePtr process, int slotIndex)
+    virtual void AddArguments(TProcessBasePtr /*process*/, int /*slotIndex*/)
     { }
 
 private:

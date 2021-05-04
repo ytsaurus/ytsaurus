@@ -42,7 +42,7 @@ bool operator != (const TProtocolVersion& lhs, const TProtocolVersion& rhs)
     return !(lhs == rhs);
 }
 
-void FormatValue(TStringBuilderBase* builder, TProtocolVersion version, TStringBuf spec)
+void FormatValue(TStringBuilderBase* builder, TProtocolVersion version, TStringBuf /*spec*/)
 {
    builder->AppendFormat("%v.%v", version.Major, version.Minor);
 }

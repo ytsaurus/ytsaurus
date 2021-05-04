@@ -45,6 +45,7 @@ TString GetParentFor(const TString& type)
     auto result = ParseProcessCGroups(rawData);
     return result[type];
 #else
+    Y_UNUSED(type);
     return "_parent_";
 #endif
 }
@@ -176,6 +177,8 @@ TString TNonOwningCGroup::Get(const TString& name) const
 #ifdef _linux_
     const auto path = GetPath(name);
     result = TFileInput(path).ReadLine();
+#else
+    Y_UNUSED(name);
 #endif
     return result;
 }
@@ -187,6 +190,9 @@ void TNonOwningCGroup::Set(const TString& name, const TString& value) const
     auto path = GetPath(name);
     TUnbufferedFileOutput output(TFile(path, EOpenModeFlag::WrOnly));
     output << value;
+#else
+    Y_UNUSED(name);
+    Y_UNUSED(value);
 #endif
 }
 
@@ -197,6 +203,9 @@ void TNonOwningCGroup::Append(const TString& name, const TString& value) const
     auto path = GetPath(name);
     TUnbufferedFileOutput output(TFile(path, EOpenModeFlag::ForAppend));
     output << value;
+#else
+    Y_UNUSED(name);
+    Y_UNUSED(value);
 #endif
 }
 
@@ -288,13 +297,13 @@ void TNonOwningCGroup::Lock() const
 {
     Traverse(
         BIND([] (const TNonOwningCGroup& group) { group.DoLock(); }),
-        BIND([] (const TNonOwningCGroup& group) {}));
+        BIND([] (const TNonOwningCGroup& /*group*/) {}));
 }
 
 void TNonOwningCGroup::Unlock() const
 {
     Traverse(
-        BIND([] (const TNonOwningCGroup& group) {}),
+        BIND([] (const TNonOwningCGroup& /*group*/) {}),
         BIND([] (const TNonOwningCGroup& group) { group.DoUnlock(); }));
 }
 
@@ -304,7 +313,7 @@ void TNonOwningCGroup::Kill() const
 
     Traverse(
         BIND([] (const TNonOwningCGroup& group) { group.DoKill(); }),
-        BIND([] (const TNonOwningCGroup& group) {}));
+        BIND([] (const TNonOwningCGroup& /*group*/) {}));
 }
 
 void TNonOwningCGroup::RemoveAllSubcgroups() const
@@ -657,6 +666,8 @@ std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetDetailedStatistics(const cha
             "Failed to retreive block IO statistics from cgroup (Cgroup: %v)",
             GetFullPath());
     }
+#else
+    Y_UNUSED(filename);
 #endif
     return result;
 }

@@ -697,7 +697,7 @@ protected:
     }
 
     //! Check the correctness of joined data (in quadratic time).
-    void CheckCorrectnessOfJoin(const std::vector<TChunkStripeListPtr>& stripeLists)
+    void CheckCorrectnessOfJoin(const std::vector<TChunkStripeListPtr>& /*stripeLists*/)
     {
         // TODO(max42): implement a naive procedure here.
     }

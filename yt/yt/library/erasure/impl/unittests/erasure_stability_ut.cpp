@@ -15,7 +15,7 @@ class TErasureStabilityTest
         std::tuple<ECodec, std::vector<unsigned char>>>
 {
 public:
-    TBlob GenerateDataBuffer(int iter, int wordSize)
+    TBlob GenerateDataBuffer(int wordSize)
     {
         std::vector<unsigned char> data(wordSize);
         for (int i = 0; i < wordSize; ++i) {
@@ -35,7 +35,7 @@ TEST_P(TErasureStabilityTest, TErasureStabilityTest)
 
     std::vector<TSharedRef> dataParts;
     for (int i = 0; i < codec->GetDataPartCount(); ++i) {
-        dataParts.push_back(TSharedRef::FromBlob(GenerateDataBuffer(i, codec->GetWordSize())));
+        dataParts.push_back(TSharedRef::FromBlob(GenerateDataBuffer(codec->GetWordSize())));
     }
 
     auto parities = codec->Encode(dataParts);

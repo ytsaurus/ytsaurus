@@ -720,10 +720,10 @@ TFuture<void> TServerBase::DoStop(bool graceful)
     }));
 }
 
-void TServerBase::DoRegisterService(const IServicePtr& service)
+void TServerBase::DoRegisterService(const IServicePtr& /*service*/)
 { }
 
-void TServerBase::DoUnregisterService(const IServicePtr& service)
+void TServerBase::DoUnregisterService(const IServicePtr& /*service*/)
 { }
 
 std::vector<IServicePtr> TServerBase::DoFindServices(const TString& serviceName)

@@ -241,7 +241,7 @@ TSchedulerPoolFactory::TSchedulerPoolFactory(NCellMaster::TBootstrap* bootstrap)
     : TNonversionedMapObjectFactoryBase<TSchedulerPool>(bootstrap)
 { }
 
-TSchedulerPool* TSchedulerPoolFactory::DoCreateObject(IAttributeDictionary* attributes)
+TSchedulerPool* TSchedulerPoolFactory::DoCreateObject(IAttributeDictionary* /*attributes*/)
 {
     return Bootstrap_->GetSchedulerPoolManager()->CreateSchedulerPool();
 }

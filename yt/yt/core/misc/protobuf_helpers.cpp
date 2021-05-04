@@ -34,7 +34,7 @@ namespace {
 
 void SerializeProtoToRefImpl(
     const google::protobuf::MessageLite& message,
-    bool partial,
+    [[maybe_unused]] bool partial,
     const TMutableRef& ref)
 {
 #ifdef YT_VALIDATE_REQUIRED_PROTO_FIELDS

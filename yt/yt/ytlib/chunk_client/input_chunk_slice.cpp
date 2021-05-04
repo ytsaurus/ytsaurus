@@ -851,7 +851,7 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlic
     // from the nodes when needed, so we remove it here, to optimize traffic from the scheduler and
     // proto serialization time.
 
-    ToProto(chunkSpec, inputSlice->GetInputChunk(), dataSourceType);
+    ToProto(chunkSpec, inputSlice->GetInputChunk());
 
     if (inputSlice->IsLegacy) {
         if (!IsTrivial(inputSlice->LegacyLowerLimit())) {

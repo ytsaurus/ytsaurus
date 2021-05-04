@@ -76,7 +76,7 @@ public:
     }
 
 private:
-    virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
+    virtual void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
     {
         TThread::SetCurrentThreadName("Main");
 

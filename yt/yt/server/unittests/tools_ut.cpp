@@ -39,7 +39,7 @@ TEST(TTools, MultiplyByTwo)
 
 struct TStringToVoid
 {
-    void operator()(const TString& arg) const
+    void operator()(const TString& /*arg*/) const
     { }
 };
 
@@ -52,7 +52,7 @@ TEST(TTools, ToVoid)
 
 struct TFaulty
 {
-    int operator()(int arg) const
+    int operator()(int /*arg*/) const
     {
         THROW_ERROR_EXCEPTION("Fail");
     }

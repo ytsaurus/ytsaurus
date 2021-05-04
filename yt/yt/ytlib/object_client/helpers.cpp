@@ -30,7 +30,7 @@ void AddCellTagToSyncWith(const IClientRequestPtr& request, TObjectId objectId)
     }
 }
 
-bool IsRetriableObjectServiceError(int attempt, const TError& error)
+bool IsRetriableObjectServiceError(int /*attempt*/, const TError& error)
 {
     return
         error.FindMatching(NTabletClient::EErrorCode::InvalidTabletState) ||

@@ -12,8 +12,8 @@
 
 #include <util/system/compiler.h>
 
-// These tests do not work under MSAN.
-#if !defined(_msan_enabled_)
+// These tests do not work under MSAN and ASAN.
+#if !defined(_msan_enabled_) and !defined(_asan_enabled_)
 
 namespace NYT {
 
@@ -221,8 +221,6 @@ void TestControllersInThreadPool()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef _asan_enabled_
-
 TEST_P(TMemoryTagTest, Test)
 {
     // We wrap anything with an outer action queue to make
@@ -239,8 +237,6 @@ INSTANTIATE_TEST_SUITE_P(MemoryTagTest, TMemoryTagTest, Values(
     &TestSwitchingFibers,
     &TestMemoryTaggingInvoker,
     &TestControllersInThreadPool));
-
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

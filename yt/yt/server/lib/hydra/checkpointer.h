@@ -27,8 +27,6 @@ public:
         TDistributedHydraManagerConfigPtr config,
         const TDistributedHydraManagerOptions& options,
         TDecoratedAutomatonPtr decoratedAutomaton,
-        TLeaderCommitterPtr leaderCommitter,
-        ISnapshotStorePtr snapshotStore,
         TEpochContext* epochContext,
         NLogging::TLogger logger);
 

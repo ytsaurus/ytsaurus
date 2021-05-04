@@ -228,7 +228,7 @@ i64 TJsonLogFormatter::WriteFormatted(IOutputStream* stream, const TLogEvent& ev
     return countingStream.Counter();
 }
 
-void TJsonLogFormatter::WriteLogReopenSeparator(IOutputStream* outputStream) const
+void TJsonLogFormatter::WriteLogReopenSeparator(IOutputStream* /*outputStream*/) const
 { }
 
 void TJsonLogFormatter::WriteLogStartEvent(IOutputStream* outputStream) const

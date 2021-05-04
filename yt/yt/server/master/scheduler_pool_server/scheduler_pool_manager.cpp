@@ -297,7 +297,7 @@ private:
     void RecomputePoolAncestryIntegralResources(TSchedulerPool* schedulerPool, const std::function<TJobResourcesConfig*(TSchedulerPool*)>& resourcesGetter)
     {
         New<TJobResourcesConfig>()->ForEachResource(
-            [&] (auto TJobResourcesConfig::* resourceDataMember, EJobResourceType resourceType) {
+            [&] (auto TJobResourcesConfig::* resourceDataMember, EJobResourceType /*resourceType*/) {
                 using TResource = typename std::remove_reference_t<decltype(std::declval<TJobResourcesConfig>().*resourceDataMember)>::value_type;
                 TResource value = (resourcesGetter(schedulerPool)->*resourceDataMember).value_or(0);
                 if (value > 0) {
@@ -372,7 +372,7 @@ public:
         return EObjectType::SchedulerPool;
     }
 
-    virtual TObject* CreateObject(TObjectId hintId, IAttributeDictionary* attributes) override
+    virtual TObject* CreateObject(TObjectId /*hintId*/, IAttributeDictionary* attributes) override
     {
         const auto name = attributes->GetAndRemove<TString>("name");
         const auto poolTree = attributes->GetAndRemove<TString>("pool_tree");
@@ -467,7 +467,7 @@ public:
         return EObjectType::SchedulerPoolTree;
     }
 
-    virtual TObject* CreateObject(TObjectId hintId, IAttributeDictionary* attributes) override
+    virtual TObject* CreateObject(TObjectId /*hintId*/, IAttributeDictionary* attributes) override
     {
         const auto name = attributes->GetAndRemove<TString>("name");
         ValidatePoolTreeCreationPermission();
@@ -482,12 +482,12 @@ protected:
             ETypeFlags::Removable;
     }
 
-    virtual IObjectProxyPtr DoGetProxy(TSchedulerPoolTree* object, NTransactionServer::TTransaction* transaction) override
+    virtual IObjectProxyPtr DoGetProxy(TSchedulerPoolTree* object, NTransactionServer::TTransaction* /*transaction*/) override
     {
         return New<TSchedulerPoolProxy>(Owner_->Bootstrap_, &Metadata_, object->GetRootPool());
     }
 
-    virtual NObjectServer::TObject* DoGetParent(TSchedulerPoolTree* object) override
+    virtual NObjectServer::TObject* DoGetParent(TSchedulerPoolTree* /*object*/) override
     {
         return Bootstrap_->GetCypressManager()->ResolvePathToTrunkNode(PoolTreesRootCypressPath);
     }

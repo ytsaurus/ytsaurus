@@ -29,7 +29,8 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPortoProcessTest : public ::testing::Test
+class TPortoProcessTest
+    : public ::testing::Test
 {
     virtual void SetUp() override
     {
@@ -283,7 +284,7 @@ TEST_F(TPortoProcessTest, PollDuration)
     auto portoInstance = CreatePortoInstance(
         GetUniqueName(),
         CreatePortoExecutor());
-    auto p = New<TPortoProcess>("/bin/sleep", portoInstance, true, TDuration::MilliSeconds(1));
+    auto p = New<TPortoProcess>("/bin/sleep", portoInstance, true);
     p->AddArgument("1");
 
     auto error = WaitFor(p->Spawn());

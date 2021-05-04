@@ -344,7 +344,6 @@ protected:
     TConstExpressionPtr Eliminate(
         const std::vector<TKeyRange>& keyRanges,
         TConstExpressionPtr expr,
-        const TTableSchema& tableSchema,
         const TKeyColumns& keyColumns)
     {
         TRowRanges rowRanges;
@@ -381,7 +380,7 @@ TEST_P(TEliminatePredicateTest, Simple)
         owningRanges.emplace_back(YsonToKey(keyStrings[2 * i]), YsonToKey(keyStrings[2 * i + 1]));
     }
 
-    auto refined = Eliminate(owningRanges, predicate, tableSchema, keyColumns);
+    auto refined = Eliminate(owningRanges, predicate, keyColumns);
 
     EXPECT_TRUE(Equal(refined, expected))
         << "schema: " << schemaString << std::endl

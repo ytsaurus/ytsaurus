@@ -1,9 +1,5 @@
 SET(YT_ARCADIA_CXXFLAGS
     -Wno-sign-compare
-    -Wno-unused-function
-    -Wno-unused-parameter
-    -Wno-unused-value
-    -Wunused-result
 )
 
 IF(GCC)

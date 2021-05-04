@@ -278,7 +278,7 @@ void TClient::DoKillProcess(const TString& address, const TKillProcessOptions& o
         .ThrowOnError();
 }
 
-TString TClient::DoWriteCoreDump(const TString& address, const TWriteCoreDumpOptions& options)
+TString TClient::DoWriteCoreDump(const TString& address, const TWriteCoreDumpOptions& /*options*/)
 {
     ValidateSuperuserPermissions();
 

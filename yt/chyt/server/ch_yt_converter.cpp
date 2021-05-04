@@ -295,7 +295,7 @@ public:
         UnderlyingConverter_->InitColumn(&columnArray->getData());
     }
 
-    virtual void FillValueRange(TMutableRange<TUnversionedValue> values) override
+    virtual void FillValueRange(TMutableRange<TUnversionedValue> /*values*/) override
     {
         // We should not get here.
         YT_ABORT();
@@ -360,7 +360,7 @@ public:
         }
     }
 
-    virtual void FillValueRange(TMutableRange<TUnversionedValue> values) override
+    virtual void FillValueRange(TMutableRange<TUnversionedValue> /*values*/) override
     {
         // We should not get here.
         YT_ABORT();

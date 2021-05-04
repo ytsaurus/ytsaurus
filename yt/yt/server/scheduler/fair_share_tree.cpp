@@ -142,7 +142,7 @@ public:
         , FairShareFluentLogTimer_(TreeProfiler_->GetRegistry().Timer("/fair_share_fluent_log_time"))
         , FairShareTextLogTimer_(TreeProfiler_->GetRegistry().Timer("/fair_share_text_log_time"))
     {
-        RootElement_ = New<TSchedulerRootElement>(StrategyHost_, this, Config_, GetPoolProfilingTag(RootPoolName), TreeId_, Logger);
+        RootElement_ = New<TSchedulerRootElement>(StrategyHost_, this, Config_, TreeId_, Logger);
 
         TreeProfiler_->RegisterPool(RootElement_);
 
@@ -602,7 +602,6 @@ public:
                         updatePoolAction.PoolConfig,
                         /* defaultConfigured */ false,
                         Config_,
-                        GetPoolProfilingTag(updatePoolAction.Name),
                         TreeId_,
                         Logger);
                     const auto& parent = updatePoolAction.ParentName == RootPoolName
@@ -660,7 +659,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        ValidateOperationCountLimit(operation, poolName);
+        ValidateOperationCountLimit(poolName);
         ValidateEphemeralPoolLimit(operation, poolName);
     }
 
@@ -1785,7 +1784,6 @@ private:
             poolConfig,
             /* defaultConfigured */ true,
             Config_,
-            GetPoolProfilingTag(poolName.GetPool()),
             TreeId_,
             Logger);
 
@@ -2172,7 +2170,7 @@ private:
         return poolsToValidate;
     }
 
-    void ValidateOperationCountLimit(const IOperationStrategyHost* operation, const TPoolName& poolName) const
+    void ValidateOperationCountLimit(const TPoolName& poolName) const
     {
         auto poolWithViolatedLimit = FindPoolWithViolatedOperationCountLimit(GetPoolOrParent(poolName));
         if (poolWithViolatedLimit) {
@@ -2524,7 +2522,7 @@ private:
             const auto& [operationId, element] = pair;
             fluent
                 .Item(ToString(operationId)).BeginMap()
-                    .Do(BIND(&TFairShareTree::DoBuildEssentialOperationProgress, Unretained(this), Unretained(element), treeSnapshotImpl))
+                    .Do(BIND(&TFairShareTree::DoBuildEssentialOperationProgress, Unretained(this), Unretained(element)))
                 .EndMap();
         };
 
@@ -2545,18 +2543,18 @@ private:
                 const auto& [poolName, pool] = pair;
                 fluent
                     .Item(poolName).BeginMap()
-                        .Do(BIND(&TFairShareTree::DoBuildEssentialElementYson, Unretained(this), Unretained(pool), treeSnapshotImpl))
+                        .Do(BIND(&TFairShareTree::DoBuildEssentialElementYson, Unretained(this), Unretained(pool)))
                     .EndMap();
             });
     }
 
-    void DoBuildEssentialOperationProgress(const TSchedulerOperationElement* element, const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, TFluentMap fluent) const
+    void DoBuildEssentialOperationProgress(const TSchedulerOperationElement* element, TFluentMap fluent) const
     {
         fluent
-            .Do(BIND(&TFairShareTree::DoBuildEssentialElementYson, Unretained(this), Unretained(element), treeSnapshotImpl));
+            .Do(BIND(&TFairShareTree::DoBuildEssentialElementYson, Unretained(this), Unretained(element)));
     }
 
-    void DoBuildEssentialElementYson(const TSchedulerElement* element, const TFairShareTreeSnapshotImplPtr& treeSnapshotImpl, TFluentMap fluent) const
+    void DoBuildEssentialElementYson(const TSchedulerElement* element, TFluentMap fluent) const
     {
         const auto& attributes = element->Attributes();
 

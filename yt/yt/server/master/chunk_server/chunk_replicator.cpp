@@ -376,7 +376,6 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 
         ComputeErasureChunkStatisticsForMedium(
             result.PerMediumStatistics[mediumIndex],
-            chunk,
             codec,
             replicationPolicy,
             decommissionedReplicas[mediumIndex],
@@ -401,7 +400,6 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 
 void TChunkReplicator::ComputeErasureChunkStatisticsForMedium(
     TPerMediumChunkStatistics& result,
-    const TChunk* chunk,
     NErasure::ICodec* codec,
     TReplicationPolicy replicationPolicy,
     std::array<TNodePtrWithIndexesList, ChunkReplicaIndexBound>& decommissionedReplicas,

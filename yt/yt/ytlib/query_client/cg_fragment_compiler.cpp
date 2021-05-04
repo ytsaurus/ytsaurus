@@ -256,16 +256,6 @@ TValueTypeLabels CodegenHasherBody(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void DefaultOnEqual(TCGBaseContext& builder)
-{
-    builder->CreateRet(builder->getInt8(false));
-}
-
-void DefaultOnNotEqual(TCGBaseContext& builder, Value* result, Value* index)
-{
-    builder->CreateRet(builder->CreateZExt(result, builder->getInt8Ty()));
-}
-
 TValueTypeLabels CodegenLessComparerBody(
     TCGBaseContext& builder,
     Value* labelsArray,
@@ -1618,7 +1608,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
             ? CodegenIf<TCGBaseContext, Value*>(
                 builder,
                 builder->CreateOr(lhsIsNull, rhsIsNull),
-                [&] (TCGBaseContext& builder) {
+                [&] (TCGBaseContext& /*builder*/) {
                     return compareNulls();
                 },
                 compare,
@@ -1961,7 +1951,7 @@ TCodegenExpression MakeCodegenTransformExpr(
 // Operators
 //
 
-void CodegenEmptyOp(TCGOperatorContext& builder)
+void CodegenEmptyOp(TCGOperatorContext& /*builder*/)
 { }
 
 TLlvmClosure MakeConsumer(TCGOperatorContext& builder, llvm::Twine name, size_t consumerSlot)
@@ -2117,7 +2107,7 @@ size_t MakeCodegenMultiJoinOp(
         auto collectRows = MakeClosure<void(TMultiJoinClosure*, TExpressionContext*)>(builder, "CollectRows", [&] (
             TCGOperatorContext& builder,
             Value* joinClosure,
-            Value* buffer
+            Value* /*buffer*/
         ) {
             Value* keyPtrs = builder->CreateAlloca(
                 TTypeBuilder<TValue*>::Get(builder->getContext()),

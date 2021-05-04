@@ -207,7 +207,6 @@ ELegacyLivePreviewMode ToLegacyLivePreviewMode(std::optional<bool> enableLegacyL
 std::vector<TPartitionKey> BuildPartitionKeysBySamples(
     const std::vector<TSample>& samples,
     int partitionCount,
-    const IJobSizeConstraintsPtr& partitionJobSizeConstraints,
     const NTableClient::TComparator& comparator,
     const TRowBufferPtr& rowBuffer)
 {

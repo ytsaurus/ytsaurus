@@ -637,7 +637,7 @@ protected:
     virtual TError GetAutoMergeError() const;
 
     //! If auto-merge is needed, init auto-merge tasks and auto-merge director and return true, otherwise return false.
-    bool TryInitAutoMerge(int outputChunkCountEstimate, double dataWeightRatio);
+    bool TryInitAutoMerge(int outputChunkCountEstimate);
 
     //! Return stream descriptors adjusted accroding to existing auto-merge tasks.
     std::vector<TStreamDescriptor> GetAutoMergeStreamDescriptors();

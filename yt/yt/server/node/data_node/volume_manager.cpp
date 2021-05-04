@@ -7,8 +7,8 @@
 namespace NYT::NDataNode {
 
 IVolumeManagerPtr CreatePortoVolumeManager(
-    TVolumeManagerConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap)
+    TVolumeManagerConfigPtr /*config*/,
+    NClusterNode::TBootstrap* /*bootstrap*/)
 {
     THROW_ERROR_EXCEPTION("Volume manager is not supported");
 }

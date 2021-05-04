@@ -388,7 +388,7 @@ private:
 
             auto copyFuture = BIND(&TRemoteCopyJob::DoCopy, MakeStrong(this))
                 .AsyncVia(cancelableInvoker)
-                .Run(readers[index], writers[index], blockSizes, chunkMeta);
+                .Run(readers[index], writers[index], blockSizes);
 
             copyFutures.push_back(copyFuture);
         }
@@ -478,7 +478,7 @@ private:
 
         ChunkFinalizationResults_.push_back(BIND(&TRemoteCopyJob::FinalizeErasureChunk, MakeStrong(this))
             .AsyncVia(GetRemoteCopyInvoker())
-            .Run(writers, erasedPartIndicies, chunkMeta, outputSessionId));
+            .Run(writers, chunkMeta, outputSessionId));
 
         TotalSize_ -= totalChunkSize;
         CopiedChunkCount_ += 1;
@@ -577,7 +577,6 @@ private:
             WriterConfig_,
             New<TRemoteWriterOptions>(),
             outputSessionId,
-            erasureCodec,
             New<TNodeDirectory>(),
             Host_->GetClient(),
             erasedPartIndicies,
@@ -600,7 +599,6 @@ private:
 
     void FinalizeErasureChunk(
         const std::vector<IChunkWriterPtr>& writers,
-        const TPartIndexList& erasedPartIndicies,
         const TDeferredChunkMetaPtr& chunkMeta,
         NChunkClient::TSessionId outputSessionId)
     {
@@ -672,7 +670,7 @@ private:
 
         auto result = BIND(&TRemoteCopyJob::DoCopy, MakeStrong(this))
             .AsyncVia(GetRemoteCopyInvoker())
-            .Run(reader, writer, blockSizes, chunkMeta);
+            .Run(reader, writer, blockSizes);
 
         YT_LOG_INFO("Waiting for chunk data to be copied");
 
@@ -751,10 +749,9 @@ private:
     void DoCopy(
         IChunkReaderPtr reader,
         IChunkWriterPtr writer,
-        const std::vector<i64>& blockSizes,
-        const TRefCountedChunkMetaPtr& meta)
+        const std::vector<i64>& blockSizes)
     {
-        auto acquireSemaphoreGuard = [&] () {
+        auto acquireSemaphoreGuard = [&] {
             while (true) {
                 auto guard = TAsyncSemaphoreGuard::TryAcquire(CopySemaphore_);
                 if (guard) {

@@ -17,7 +17,7 @@ NYPath::TYPath GetClusterNodesPath()
 
 namespace NProto {
 
-void FormatValue(TStringBuilderBase* builder, const TDiskLocationResources& locationResources, TStringBuf spec)
+void FormatValue(TStringBuilderBase* builder, const TDiskLocationResources& locationResources, TStringBuf /*spec*/)
 {
     builder->AppendFormat(
         "{usage: %v, limit: %v, medium_index: %v}",
@@ -31,7 +31,7 @@ TString ToString(const TDiskLocationResources& locationResources)
     return ToStringViaBuilder(locationResources);
 }
 
-void FormatValue(TStringBuilderBase* builder, const TDiskResources& diskResources, TStringBuf spec)
+void FormatValue(TStringBuilderBase* /*builder*/, const TDiskResources& diskResources, TStringBuf /*spec*/)
 {
     MakeFormattableView(diskResources.disk_location_resources(), [] (TStringBuilderBase* builder, const NProto::TDiskLocationResources& diskLocationResources) {
         FormatValue(builder, diskLocationResources, "%v");

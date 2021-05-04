@@ -163,7 +163,6 @@ static std::vector<TString> CreateArchiveOperationAttributes(const THashSet<TStr
 
 TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
     NScheduler::TOperationId operationId,
-    TInstant deadline,
     const TGetOperationOptions& options)
 {
     std::optional<std::vector<TString>> cypressAttributes;
@@ -433,7 +432,7 @@ TOperation TClient::DoGetOperationImpl(
 {
     std::vector<TFuture<void>> getOperationFutures;
 
-    auto cypressFuture = BIND(&TClient::DoGetOperationFromCypress, MakeStrong(this), operationId, deadline, options)
+    auto cypressFuture = BIND(&TClient::DoGetOperationFromCypress, MakeStrong(this), operationId, options)
         .AsyncVia(Connection_->GetInvoker())
         .Run();
     getOperationFutures.push_back(cypressFuture.As<void>());
@@ -625,7 +624,6 @@ TOperation TClient::DoGetOperation(
 // Adds found operations to |idToOperation| map.
 // The operations are returned with requested fields plus necessarily "start_time" and "id".
 void TClient::DoListOperationsFromCypress(
-    TInstant deadline,
     TListOperationsCountingFilter& countingFilter,
     const TListOperationsOptions& options,
     THashMap<NScheduler::TOperationId, TOperation>* idToOperation,
@@ -719,7 +717,7 @@ void TClient::DoListOperationsFromCypress(
             operationsYson.emplace_back(std::move(*rsp->mutable_value()));
         }
     }
-    
+
     YT_LOG_DEBUG("Operations fetched from cypress");
 
     // NB: this class performs parsing in constructor.
@@ -729,13 +727,13 @@ void TClient::DoListOperationsFromCypress(
         options,
         Connection_->GetInvoker(),
         Logger);
-    
+
     // Lookup all operations with currently filtered ids, add their brief progress.
     if (DoesOperationsArchiveExist()) {
         TOrderedByIdTableDescriptor tableDescriptor;
         std::vector<TOperationId> ids;
         ids.reserve(filter->GetCount());
-        filter->ForEachOperationImmutable([&] (int index, const TListOperationsFilter::TLightOperation& lightOperation) {
+        filter->ForEachOperationImmutable([&] (int /*index*/, const TListOperationsFilter::TLightOperation& lightOperation) {
             ids.push_back(lightOperation.GetId());
         });
 
@@ -784,7 +782,7 @@ void TClient::DoListOperationsFromCypress(
         SetBalancingHeader(getBatchReq, options);
 
         const auto cypressRequestedAttributes = CreateCypressOperationAttributes(requestedAttributes);
-        filter->ForEachOperationImmutable([&] (int index, const TListOperationsFilter::TLightOperation& lightOperation) {
+        filter->ForEachOperationImmutable([&] (int /*index*/, const TListOperationsFilter::TLightOperation& lightOperation) {
             auto req = TYPathProxy::Get(GetOperationPath(lightOperation.GetId()));
             SetCachingHeader(req, options);
             ToProto(req->mutable_attributes()->mutable_keys(), cypressRequestedAttributes);
@@ -802,7 +800,7 @@ void TClient::DoListOperationsFromCypress(
             lightOperation.SetYson(rspOrError.ValueOrThrow()->value());
         });
     }
-    
+
     auto operations = filter->BuildOperations(requestedAttributes);
 
     idToOperation->reserve(idToOperation->size() + operations.size());
@@ -1202,7 +1200,6 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
     }
 
     DoListOperationsFromCypress(
-        deadline,
         countingFilter,
         options,
         &idToOperation,

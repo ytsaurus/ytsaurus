@@ -708,8 +708,7 @@ IListenerPtr TSslContext::CreateListener(
 
 IListenerPtr TSslContext::CreateListener(
     const IListenerPtr& underlying,
-    const IPollerPtr& poller,
-    const IPollerPtr& acceptor)
+    const IPollerPtr& poller)
 {
     return New<TTlsListener>(Impl_, underlying, poller);
 }

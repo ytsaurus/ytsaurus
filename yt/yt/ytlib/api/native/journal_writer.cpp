@@ -286,8 +286,7 @@ private:
                 TNodeDescriptor descriptor,
                 IChannelPtr lightChannel,
                 IChannelPtr heavyChannel,
-                TDuration rpcTimeout,
-                TTagIdList tagIds)
+                TDuration rpcTimeout)
                 : Index(index)
                 , Descriptor(std::move(descriptor))
                 , LightProxy(std::move(lightChannel))
@@ -708,8 +707,7 @@ private:
                     descriptor,
                     std::move(lightChannel),
                     std::move(heavyChannel),
-                    Config_->NodeRpcTimeout,
-                    TTagIdList{TProfileManager::Get()->RegisterTag("replica_address", descriptor.GetDefaultAddress())});
+                    Config_->NodeRpcTimeout);
                 session->Nodes.push_back(node);
             }
 

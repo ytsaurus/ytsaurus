@@ -31,7 +31,7 @@ TYsonString TClient::DoPollJobShell(
     TJobId jobId,
     const std::optional<TString>& shellName,
     const TYsonString& parameters,
-    const TPollJobShellOptions& options)
+    const TPollJobShellOptions& /*options*/)
 {
     YT_LOG_DEBUG("Polling job shell (JobId: %v, ShellName: %v)",
         jobId,

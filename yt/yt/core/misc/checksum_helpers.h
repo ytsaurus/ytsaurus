@@ -102,28 +102,6 @@ static ui64 BarretReduction(__m128i chunk, ui64 poly, ui64 mu)
 
 #endif
 
-static ui64 DivXPow_64(size_t pow, ui64 p) // (x ^ pow) div p(x), where pow >= 64
-{
-    ui64 result = 0;
-    ui64 rem = p;
-    while (pow-- > 64)
-    {
-        result = result << 1 | rem >> 63 & 1;
-        rem = (rem << 1) ^ (rem >> 63 & 1) * p;
-    }
-    return result;
-}
-
-static ui64 ModXPow_64(size_t pow, ui64 p) // (x ^ pow) mod p(x), where pow >= 64
-{
-    ui64 rem = p;
-    while (pow-- > 64)
-    {
-        rem = (rem << 1) ^ (rem >> 63 & 1) * p;
-    }
-    return rem;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCrc

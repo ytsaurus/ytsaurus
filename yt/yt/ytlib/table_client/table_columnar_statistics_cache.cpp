@@ -194,7 +194,7 @@ public:
 
     virtual TFuture<std::vector<TErrorOr<TColumnarStatisticsEntry>>> DoGetMany(
         const std::vector<TTableKey>& keys,
-        bool isPeriodicUpdate) noexcept override
+        bool /*isPeriodicUpdate*/) noexcept override
     {
         auto chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
             Client_,

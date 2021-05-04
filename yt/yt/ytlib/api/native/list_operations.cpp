@@ -461,7 +461,7 @@ public:
         CurrentOperation_.StartTime_ = startTime;
     }
 
-    void OnFinishTime(TInstant finishTime)
+    void OnFinishTime(TInstant /*finishTime*/)
     { }
 
     void OnAuthenticatedUser(TStringBuf authenticatedUser)
@@ -572,7 +572,7 @@ public:
         });
     }
 
-    void OnSuspended(bool suspended)
+    void OnSuspended(bool /*suspended*/)
     { }
 
     void OnEvents(TYsonPullParserCursor* cursor)

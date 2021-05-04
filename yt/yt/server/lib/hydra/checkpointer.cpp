@@ -25,8 +25,7 @@ public:
     TSession(
         TCheckpointer* owner,
         bool buildSnapshot,
-        bool setReadOnly,
-        TDuration buildSnapshotDelay = TDuration::Zero())
+        bool setReadOnly)
         : Owner_(owner)
         , BuildSnapshot_(buildSnapshot)
         , SetReadOnly_(setReadOnly)
@@ -341,8 +340,6 @@ TCheckpointer::TCheckpointer(
     TDistributedHydraManagerConfigPtr config,
     const TDistributedHydraManagerOptions& options,
     TDecoratedAutomatonPtr decoratedAutomaton,
-    TLeaderCommitterPtr leaderCommitter,
-    ISnapshotStorePtr snapshotStore,
     TEpochContext* epochContext,
     NLogging::TLogger logger)
     : Config_(config)
@@ -374,7 +371,7 @@ TCheckpointer::TBuildSnapshotResult TCheckpointer::BuildSnapshot(bool setReadOnl
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(CanBuildSnapshot());
 
-    auto session = New<TSession>(this, true, setReadOnly, Config_->BuildSnapshotDelay);
+    auto session = New<TSession>(this, true, setReadOnly);
     session->Run();
 
     return TBuildSnapshotResult{session->GetChangelogResult(), session->GetSnapshotResult(), session->GetSnapshotId()};

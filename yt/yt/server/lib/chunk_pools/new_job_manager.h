@@ -126,8 +126,7 @@ public:
     //! adjacent jobs that are still smaller than `dataWeightPerJob` in total.
     void Enlarge(
         i64 dataWeightPerJob,
-        i64 primaryDataWeightPerJob,
-        NTableClient::TComparator comparator = NTableClient::TComparator());
+        i64 primaryDataWeightPerJob);
 
     std::pair<NTableClient::TKeyBound, NTableClient::TKeyBound>
         GetBounds(IChunkPoolOutput::TCookie cookie) const;

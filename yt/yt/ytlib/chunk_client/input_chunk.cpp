@@ -302,7 +302,7 @@ i64 TInputChunk::ApplySelectivityFactors(i64 dataSize) const
 ////////////////////////////////////////////////////////////////////////////////
 
 //! ToProto is used to pass chunk specs to job proxy as part of TTableInputSpec.
-void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk, EDataSourceType dataSourceType)
+void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk)
 {
     SetObjectId(chunkSpec, inputChunk->GetChunkId());
 

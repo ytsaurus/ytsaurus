@@ -31,7 +31,7 @@ public:
         Reset();
     }
 
-    virtual void WriteValues(TRange<TVersionedRow> rows) override
+    virtual void WriteValues(TRange<TVersionedRow> /*rows*/) override
     {
         YT_ABORT();
     }

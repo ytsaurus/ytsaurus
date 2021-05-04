@@ -378,7 +378,7 @@ public:
         Load(context, StatisticsUpdateRequests_);
     }
 
-    void LoadKeys(NCellMaster::TLoadContext& context)
+    void LoadKeys(NCellMaster::TLoadContext& /*context*/)
     { }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -388,7 +388,7 @@ public:
         } // Otherwise loading is initiated from tablet manager.
     }
 
-    void SaveKeys(NCellMaster::TSaveContext& context) const
+    void SaveKeys(NCellMaster::TSaveContext& /*context*/) const
     { }
 
     void SaveValues(NCellMaster::TSaveContext& context) const
@@ -404,7 +404,7 @@ private:
         return configManager->GetConfig()->TabletManager->MulticellGossip;
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig = nullptr)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
     {
         const auto& gossipConfig = GetGossipConfig();
         StatisticsGossipThrottler_->Reconfigure(gossipConfig->TableStatisticsGossipThrottler);

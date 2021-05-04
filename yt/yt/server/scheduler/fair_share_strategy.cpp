@@ -705,7 +705,7 @@ public:
         }
     }
 
-    virtual void OnFairShareProfilingAt(TInstant now) override
+    virtual void OnFairShareProfilingAt(TInstant /*now*/) override
     {
         VERIFY_INVOKER_AFFINITY(Host->GetFairShareProfilingInvoker());
 

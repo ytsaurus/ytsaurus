@@ -812,7 +812,6 @@ IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
 IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
     const TSortOperationSpecBasePtr& spec,
     const TSortOperationOptionsBasePtr& options,
-    TLogger logger,
     int outputTableCount)
 {
     // NB(psushin): I don't know real partition size at this point,

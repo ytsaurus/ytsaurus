@@ -322,7 +322,6 @@ DB::Block TBlockInputStream::ConvertRowBatchToBlock(const IUnversionedRowBatchPt
         batch,
         *ReadSchemaWithVirtualColumns_,
         IdToColumnIndex_,
-        RowBuffer_,
         InputHeaderBlock_,
         Settings_->Composite);
 

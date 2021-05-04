@@ -533,7 +533,7 @@ void TTask::ScheduleJob(
         FormatResources(estimatedResourceUsage),
         joblet->JobProxyMemoryReserveFactor,
         joblet->UserJobMemoryReserveFactor,
-        FormatResources(neededResources, TaskHost_->GetMediumDirectory()),
+        FormatResources(neededResources),
         joblet->Speculative,
         joblet->JobSpeculationTimeout);
 
@@ -996,7 +996,7 @@ void TTask::OnTaskCompleted()
     YT_LOG_DEBUG("Task completed");
 }
 
-std::optional<EScheduleJobFailReason> TTask::GetScheduleFailReason(ISchedulingContext* context)
+std::optional<EScheduleJobFailReason> TTask::GetScheduleFailReason(ISchedulingContext* /*context*/)
 {
     return std::nullopt;
 }

@@ -82,7 +82,7 @@ public:
 private:
     using TBase = TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IEntityNode, TDocumentNode>;
 
-    virtual TResolveResult ResolveRecursive(const TYPath& path, const NRpc::IServiceContextPtr& context) override
+    virtual TResolveResult ResolveRecursive(const TYPath& path, const NRpc::IServiceContextPtr& /*context*/) override
     {
         return TResolveResultHere{"/" + path};
     }
@@ -94,7 +94,7 @@ private:
         DelegateInvocation(impl->GetValue(), request, response, context);
     }
 
-    virtual void GetRecursive(const TYPath& path, TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override
+    virtual void GetRecursive(const TYPath& /*path*/, TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override
     {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
         const auto* impl = GetThisImpl();
@@ -102,14 +102,14 @@ private:
     }
 
 
-    virtual void SetSelf(TReqSet* request, TRspSet* response, const TCtxSetPtr& context) override
+    virtual void SetSelf(TReqSet* request, TRspSet* /*response*/, const TCtxSetPtr& context) override
     {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
         SetImplValue(TYsonString(request->value()));
         context->Reply();
     }
 
-    virtual void SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, const TCtxSetPtr& context) override
+    virtual void SetRecursive(const TYPath& /*path*/, TReqSet* request, TRspSet* response, const TCtxSetPtr& context) override
     {
         context->SetRequestInfo();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
@@ -127,7 +127,7 @@ private:
         DelegateInvocation(impl->GetValue(), request, response, context);
     }
 
-    virtual void ListRecursive(const TYPath& path, TReqList* request, TRspList* response, const TCtxListPtr& context) override
+    virtual void ListRecursive(const TYPath& /*path*/, TReqList* request, TRspList* response, const TCtxListPtr& context) override
     {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
         const auto* impl = GetThisImpl();
@@ -135,7 +135,7 @@ private:
     }
 
 
-    virtual void RemoveRecursive(const TYPath& path, TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override
+    virtual void RemoveRecursive(const TYPath& /*path*/, TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override
     {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
         auto* impl = LockThisImpl();
@@ -145,7 +145,7 @@ private:
     }
 
 
-    virtual void ExistsRecursive(const TYPath& path, TReqExists* request, TRspExists* response, const TCtxExistsPtr& context) override
+    virtual void ExistsRecursive(const TYPath& /*path*/, TReqExists* request, TRspExists* response, const TCtxExistsPtr& context) override
     {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
         const auto* impl = GetThisImpl();

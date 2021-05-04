@@ -35,7 +35,7 @@ public:
         }
     }
 
-    void OnKeyedItem(TStringBuf key)
+    void OnKeyedItem(TStringBuf /*key*/)
     { }
 
     void OnBeginAttributes()
@@ -48,7 +48,7 @@ public:
         Balance_--;
     }
 
-    void OnRaw(TStringBuf yson, NYson::EYsonType type)
+    void OnRaw(TStringBuf /*yson*/, NYson::EYsonType /*type*/)
     {
         YT_ABORT();
     }

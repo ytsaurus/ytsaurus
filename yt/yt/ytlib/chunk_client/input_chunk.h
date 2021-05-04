@@ -131,7 +131,7 @@ public:
     i64 GetUncompressedDataSize() const;
     i64 GetCompressedDataSize() const;
 
-    friend void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk, EDataSourceType dataSourceType);
+    friend void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk);
 
 private:
     i64 ApplySelectivityFactors(i64 dataSize) const;
@@ -141,7 +141,7 @@ DEFINE_REFCOUNTED_TYPE(TInputChunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk, EDataSourceType dataSourceType);
+void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk);
 TString ToString(const TInputChunkPtr& inputChunk);
 
 ////////////////////////////////////////////////////////////////////////////////

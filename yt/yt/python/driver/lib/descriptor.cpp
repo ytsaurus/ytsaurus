@@ -15,22 +15,22 @@ void TCommandDescriptor::SetDescriptor(const NDriver::TCommandDescriptor& descri
     Descriptor_ = descriptor;
 }
 
-Py::Object TCommandDescriptor::InputType(Py::Tuple& args, Py::Dict& kwargs)
+Py::Object TCommandDescriptor::InputType(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
 {
     return Py::Bytes(ToString(Descriptor_.InputType));
 }
 
-Py::Object TCommandDescriptor::OutputType(Py::Tuple& args, Py::Dict& kwargs)
+Py::Object TCommandDescriptor::OutputType(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
 {
     return Py::Bytes(ToString(Descriptor_.OutputType));
 }
 
-Py::Object TCommandDescriptor::IsVolatile(Py::Tuple& args, Py::Dict& kwargs)
+Py::Object TCommandDescriptor::IsVolatile(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
 {
     return Py::Boolean(Descriptor_.Volatile);
 }
 
-Py::Object TCommandDescriptor::IsHeavy(Py::Tuple& args, Py::Dict& kwargs)
+Py::Object TCommandDescriptor::IsHeavy(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
 {
     return Py::Boolean(Descriptor_.Heavy);
 }

@@ -211,7 +211,7 @@ public:
         return nullptr;
     }
 
-    virtual i64 GetLocality(TNodeId nodeId) const override
+    virtual i64 GetLocality(TNodeId /*nodeId*/) const override
     {
         return 0;
     }

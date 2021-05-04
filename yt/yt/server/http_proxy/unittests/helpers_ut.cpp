@@ -73,7 +73,7 @@ struct TTestOutputStream
         return MakeFuture(Error);
     }
 
-    virtual TFuture<void> Write(const TSharedRef& buffer) override
+    virtual TFuture<void> Write(const TSharedRef& /*buffer*/) override
     {
         return Return();
     }

@@ -41,7 +41,7 @@ TTypeSet operator & (const TTypeSet& lhs, const TTypeSet& rhs)
     return TTypeSet(lhs.Value_ & rhs.Value_);
 }
 
-void FormatValue(TStringBuilderBase* builder, const TTypeSet& typeSet, TStringBuf spec)
+void FormatValue(TStringBuilderBase* builder, const TTypeSet& typeSet, TStringBuf /*spec*/)
 {
     if (typeSet.GetSize() == 1) {
         builder->AppendFormat("%lv", typeSet.GetFront());

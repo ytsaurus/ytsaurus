@@ -219,7 +219,7 @@ INodeTypeHandlerPtr CreateTabletCellBundleMapTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::TabletCellBundleMap,
-        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+        BIND([=] (INodePtr /*owningNode*/) -> IYPathServicePtr {
             return New<TVirtualTabletCellBundleMap>(bootstrap);
         }),
         EVirtualNodeOptions::RedirectSelf);

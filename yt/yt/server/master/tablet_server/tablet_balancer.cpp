@@ -392,7 +392,6 @@ private:
             bundle,
             std::nullopt, // movableTables,
             false, // ignoreTableWiseConfig
-            &Context_,
             Bootstrap_->GetTabletManager());
 
         if (!descriptors.empty()) {

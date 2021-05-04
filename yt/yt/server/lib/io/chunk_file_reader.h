@@ -65,8 +65,7 @@ public:
 
     TFuture<NChunkClient::TRefCountedChunkMetaPtr> GetMeta(
         const NChunkClient::TClientChunkReadOptions& options,
-        std::optional<int> partitionTag = std::nullopt,
-        const std::optional<std::vector<int>>& extensionTags = std::nullopt);
+        std::optional<int> partitionTag = std::nullopt);
 
     //! Returns null if already prepared.
     TFuture<void> PrepareToReadChunkFragments();
@@ -104,8 +103,7 @@ private:
         const TSharedMutableRef& buffer);
     TFuture<NChunkClient::TRefCountedChunkMetaPtr> DoReadMeta(
         const NChunkClient::TClientChunkReadOptions& options,
-        std::optional<int> partitionTag,
-        const std::optional<std::vector<int>>& extensionTags);
+        std::optional<int> partitionTag);
     NChunkClient::TRefCountedChunkMetaPtr OnMetaRead(
         const TString& metaFileName,
         NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics,

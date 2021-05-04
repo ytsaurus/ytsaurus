@@ -45,15 +45,15 @@ namespace NYT::NYTree {
     } \
     \
     void method( \
-        TReq##method* request, \
-        TRsp##method* response, \
-        const TCtx##method##Ptr& context)
+        [[maybe_unused]] TReq##method* request, \
+        [[maybe_unused]] TRsp##method* response, \
+        [[maybe_unused]] const TCtx##method##Ptr& context)
 
 #define DEFINE_YPATH_SERVICE_METHOD(type, method) \
     void type::method( \
-        TReq##method* request, \
-        TRsp##method* response, \
-        const TCtx##method##Ptr& context)
+        [[maybe_unused]] TReq##method* request, \
+        [[maybe_unused]] TRsp##method* response, \
+        [[maybe_unused]] const TCtx##method##Ptr& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 

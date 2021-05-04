@@ -863,8 +863,8 @@ public:
     }
 
     virtual std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
-        const TBlockId& id,
-        EBlockType type) override
+        const TBlockId& /*id*/,
+        EBlockType /*type*/) override
     {
         return CreateActiveCachedBlockCookie();
     }

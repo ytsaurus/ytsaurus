@@ -144,7 +144,7 @@ TEST(TFenwickTreeTest, TCustomStructureTest)
 
         TItem(int x, int y)
             : X(x)
-            , Y()
+            , Y(y)
         { }
 
         TItem operator+(const TItem& other) const

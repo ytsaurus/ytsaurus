@@ -169,8 +169,7 @@ private:
                 return true;
 
             case EInternedAttributeKey::Statistics: {
-                const auto& chunkManager = Bootstrap_->GetChunkManager();
-                Serialize(chunkList->Statistics(), consumer, chunkManager);
+                Serialize(chunkList->Statistics(), consumer);
                 return true;
             }
             case EInternedAttributeKey::CumulativeStatistics: {

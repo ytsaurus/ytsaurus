@@ -110,13 +110,11 @@ public:
         Underlying_->GenerateTimestamps(count).Subscribe(BIND(
             &TBatchingTimestampProvider::OnGenerateResponse,
             MakeStrong(this),
-            Passed(std::move(requests)),
-            count));
+            Passed(std::move(requests))));
     }
 
     void OnGenerateResponse(
         std::vector<TRequest> requests,
-        int count,
         const TErrorOr<TTimestamp>& firstTimestampOrError)
     {
         VERIFY_THREAD_AFFINITY_ANY();

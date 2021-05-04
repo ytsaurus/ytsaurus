@@ -115,7 +115,7 @@ void TSharedOperationStatistics::OnJobFinished(TOperationId operationId, TDurati
     }
 }
 
-void TSharedOperationStatistics::OnOperationStarted(TOperationId operationId)
+void TSharedOperationStatistics::OnOperationStarted(TOperationId /*operationId*/)
 {
     // Nothing to do.
 }

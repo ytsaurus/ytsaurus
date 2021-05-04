@@ -354,7 +354,7 @@ public:
         , ForwardedCellTag_(forwardedCellTag)
     { }
 
-    virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& context) override
+    virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& /*context*/) override
     {
         return TResolveResultHere{path};
     }
@@ -613,7 +613,7 @@ private:
             [&] (const TPathResolver::TRemoteObjectPayload& payload) -> IYPathServicePtr  {
                 return objectManager->CreateRemoteProxy(payload.ObjectId);
             },
-            [&] (const TPathResolver::TMissingObjectPayload& payload) -> IYPathServicePtr {
+            [&] (const TPathResolver::TMissingObjectPayload& /*payload*/) -> IYPathServicePtr {
                 return TNonexistingService::Get();
             });
 

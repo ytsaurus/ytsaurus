@@ -626,7 +626,7 @@ public:
 
     virtual TResolveResult Resolve(
         const TYPath& path,
-        const IServiceContextPtr& context) override
+        const IServiceContextPtr& /*context*/) override
     {
         return TResolveResultHere{path};
     }

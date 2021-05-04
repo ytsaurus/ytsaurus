@@ -519,7 +519,6 @@ ISchemafulUnversionedReaderPtr CreateSchemafulPartitionReader(
     TTimestamp timestamp,
     const TClientChunkReadOptions& chunkReadOptions,
     TRowBufferPtr rowBuffer,
-    std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     IThroughputThrottlerPtr bandwidthThrottler)
 {
     auto minKey = *keys.Begin();
@@ -642,7 +641,6 @@ ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
                 timestamp,
                 chunkReadOptions,
                 rowBuffer,
-                tabletThrottlerKind,
                 bandwidthThrottler);
             ++index;
             return reader;

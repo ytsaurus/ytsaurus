@@ -554,7 +554,7 @@ public:
 
     // It's quite likely that this value can be bounded by `WireFormatLite::UInt64Size(10 * ysonLength)`,
     // but currently we return just maximum size of a varint representation of a 32-bit number.
-    static Y_FORCE_INLINE int GetMaxVarIntSizeOfProtobufSizeOfComplexType(ui64 ysonLength)
+    static Y_FORCE_INLINE int GetMaxVarIntSizeOfProtobufSizeOfComplexType()
     {
         return MaxVarUint32Size;
     }
@@ -591,7 +591,7 @@ public:
             ValidateUnversionedValueType(value, EValueType::Composite);
             TMemoryInput input(value.Data.String, value.Length);
             TYsonPullParser parser(&input, EYsonType::Node);
-            auto maxVarIntSize = GetMaxVarIntSizeOfProtobufSizeOfComplexType(value.Length);
+            auto maxVarIntSize = GetMaxVarIntSizeOfProtobufSizeOfComplexType();
             Traverse(fieldDescription, &parser, maxVarIntSize);
         } else {
             WriteVarUint32(Writer_, fieldDescription.WireTag);

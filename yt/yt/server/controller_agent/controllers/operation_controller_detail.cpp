@@ -1540,7 +1540,7 @@ void TOperationControllerBase::InitIntermediateChunkScraper()
         Logger);
 }
 
-bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, double dataWeightRatio)
+bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate)
 {
     InitAutoMergeJobSpecTemplates();
 
@@ -4622,7 +4622,7 @@ void TOperationControllerBase::SafeUpdateMinNeededJobResources()
         result.push_back(resources);
         YT_LOG_DEBUG("Aggregated minimum needed resources for jobs (JobType: %v, MinNeededResources: %v)",
             jobType,
-            FormatResources(resources, GetMediumDirectory()));
+            FormatResources(resources));
     }
 
     CachedMinNeededJobResources.Exchange(result);

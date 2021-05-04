@@ -41,7 +41,7 @@ TTransactionId GetTransactionIdFromToken(TPathResolver::TTransactionToken token)
 std::optional<TTransaction*> GetTransactionFromToken(TPathResolver::TTransactionToken token)
 {
    return Visit(token,
-       [] (TTransactionId id) -> std::optional<TTransaction*> {
+       [] (TTransactionId /*id*/) -> std::optional<TTransaction*> {
            return std::nullopt;
        },
        [] (TTransaction* transaction) -> std::optional<TTransaction*> {

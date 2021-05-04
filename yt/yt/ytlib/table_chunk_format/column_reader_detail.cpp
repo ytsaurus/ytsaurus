@@ -118,7 +118,7 @@ const char* TDenseVersionedValueExtractorBase::InitDenseReader(const char* ptr)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSparseVersionedValueExtractorBase::TSparseVersionedValueExtractorBase(const TSegmentMeta& meta, bool aggregate)
+TSparseVersionedValueExtractorBase::TSparseVersionedValueExtractorBase(bool aggregate)
     : TVersionedValueExtractorBase(aggregate)
 { }
 

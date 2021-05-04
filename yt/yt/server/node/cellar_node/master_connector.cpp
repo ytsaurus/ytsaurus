@@ -80,7 +80,7 @@ public:
             BIND(&TMasterConnector::DoScheduleHeartbeat, MakeWeak(this), cellTag, immediately));
     }
 
-    virtual TReqHeartbeat GetHeartbeatRequest(TCellTag cellTag) const override
+    virtual TReqHeartbeat GetHeartbeatRequest(TCellTag /*cellTag*/) const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 

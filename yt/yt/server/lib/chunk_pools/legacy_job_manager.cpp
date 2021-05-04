@@ -726,7 +726,7 @@ void TLegacyJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJo
     AddJobs(std::move(newJobs));
 }
 
-std::pair<TKeyBound, TKeyBound> TLegacyJobManager::GetBounds(IChunkPoolOutput::TCookie cookie) const
+std::pair<TKeyBound, TKeyBound> TLegacyJobManager::GetBounds(IChunkPoolOutput::TCookie /*cookie*/) const
 {
     // We drop support for this method in legacy pool as it is used only in CHYT which already uses new job manager.
     YT_UNIMPLEMENTED();

@@ -483,9 +483,7 @@ public:
     TFairShareThreadPool(
         int threadCount,
         const TString& threadNamePrefix)
-        : TThreadPoolBase(
-            threadCount,
-            threadNamePrefix)
+        : TThreadPoolBase(threadNamePrefix)
         , Queue_(New<TFairShareQueue>(
             CallbackEventCount_,
             GetThreadTags(ThreadNamePrefix_)))

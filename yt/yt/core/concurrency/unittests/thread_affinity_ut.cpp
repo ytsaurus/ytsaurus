@@ -74,7 +74,7 @@ void UntangledThreadAccessToSharedSlot(TMyObject* object)
     BIND(&TMyObject::C, object).AsyncVia(invoker1).Run().Get();
 }
 
-void TangledThreadAccess1(TMyObject* object)
+[[maybe_unused]] void TangledThreadAccess1(TMyObject* object)
 {
     PROLOGUE();
 
@@ -85,7 +85,7 @@ void TangledThreadAccess1(TMyObject* object)
     BIND(&TMyObject::B, object).AsyncVia(invoker1).Run().Get();
 }
 
-void TangledThreadAccess2(TMyObject* object)
+[[maybe_unused]] void TangledThreadAccess2(TMyObject* object)
 {
     PROLOGUE();
 

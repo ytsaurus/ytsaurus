@@ -1223,7 +1223,7 @@ public:
         return std::unique_ptr<IColumnReaderBase>(TimestampReader_);
     }
 
-    TMutableVersionedRow ReadRow(i64 rowIndex)
+    TMutableVersionedRow ReadRow()
     {
         auto deleteTimestamp = TimestampReader_->GetDeleteTimestamp();
         auto timestampIndexRange = TimestampReader_->GetTimestampIndexRange();
@@ -1330,7 +1330,7 @@ public:
         return std::unique_ptr<IColumnReaderBase>(TimestampReader_);
     }
 
-    TMutableVersionedRow ReadRow(i64 rowIndex)
+    TMutableVersionedRow ReadRow()
     {
         int writeTimestampCount = TimestampReader_->GetWriteTimestampCount();
         int deleteTimestampCount = TimestampReader_->GetDeleteTimestampCount();
@@ -1535,7 +1535,7 @@ private:
         for (const auto& column : Columns_) {
             column.ColumnReader->SkipToRowIndex(rowIndex);
         }
-        auto row = RowBuilder_.ReadRow(rowIndex);
+        auto row = RowBuilder_.ReadRow();
         if (HasHunkColumns_) {
             GlobalizeHunkValues(RowBuilder_.GetMemoryPool(), ChunkMeta_, row);
         }

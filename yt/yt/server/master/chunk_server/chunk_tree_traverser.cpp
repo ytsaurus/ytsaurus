@@ -1598,7 +1598,7 @@ public:
         : Chunks_(chunks)
     { }
 
-    virtual bool OnChunkView(TChunkView* chunkView) override
+    virtual bool OnChunkView(TChunkView* /*chunkView*/) override
     {
         return false;
     }

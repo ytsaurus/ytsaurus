@@ -207,7 +207,7 @@ class TDirectSparseVersionedStringValueExtractor
 {
 public:
     TDirectSparseVersionedStringValueExtractor(TRef data, const TSegmentMeta& meta, bool aggregate)
-        : TSparseVersionedValueExtractorBase(meta, aggregate)
+        : TSparseVersionedValueExtractorBase(aggregate)
         , TDirectStringValueExtractorBase<ValueType, true, false>(meta)
     {
         const char* ptr = data.Begin();
@@ -226,7 +226,7 @@ class TDictionarySparseVersionedStringValueExtractor
 {
 public:
     TDictionarySparseVersionedStringValueExtractor(TRef data, const TSegmentMeta& meta, bool aggregate)
-        : TSparseVersionedValueExtractorBase(meta, aggregate)
+        : TSparseVersionedValueExtractorBase(aggregate)
         , TDictionaryStringValueExtractorBase<ValueType, true, false>(meta)
     {
         const char* ptr = data.Begin();

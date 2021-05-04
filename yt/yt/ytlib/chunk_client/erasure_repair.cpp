@@ -375,7 +375,7 @@ class TEmptyPartBlockConsumer
     : public IPartBlockConsumer
 {
 public:
-    virtual TFuture<void> Consume(const TPartRange& range, const TSharedRef& block) override
+    virtual TFuture<void> Consume(const TPartRange& /*range*/, const TSharedRef& /*block*/) override
     {
         return MakeFuture(TError());
     }
@@ -622,10 +622,10 @@ public:
     }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& options,
-        int firstBlockIndex,
-        int blockCount,
-        std::optional<i64> /* estimatedSize */) override
+        const TClientChunkReadOptions& /*options*/,
+        int /*firstBlockIndex*/,
+        int /*blockCount*/,
+        std::optional<i64> /*estimatedSize*/) override
     {
         // Implement when first needed.
         YT_UNIMPLEMENTED();

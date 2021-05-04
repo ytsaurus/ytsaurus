@@ -168,7 +168,7 @@ private:
             return LoggingTag_;
         }
 
-        virtual void OnEvent(EPollControl control) override
+        virtual void OnEvent(EPollControl /*control*/) override
         {
             if (auto owner = Owner_.Lock()) {
                 owner->OnConnected(this);

@@ -99,7 +99,7 @@ private:
             return Format("ticket:%v", serviceId);
         }
 
-        virtual TParsedTicket ParseUserTicket(const TString& ticket) override
+        virtual TParsedTicket ParseUserTicket(const TString& /*ticket*/) override
         {
             THROW_ERROR_EXCEPTION("Not implemented");
         }

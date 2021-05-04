@@ -391,18 +391,18 @@ protected:
     DEFINE_RPC_SERVICE_METHOD_THUNK_VIA_MESSAGES(requestMessage, responseMessage, method) \
     \
     void method( \
-        TReq##method* request, \
-        TRsp##method* response, \
-        const TCtx##method##Ptr& context)
+        [[maybe_unused]] TReq##method* request, \
+        [[maybe_unused]] TRsp##method* response, \
+        [[maybe_unused]] const TCtx##method##Ptr& context)
 
 #define DECLARE_RPC_SERVICE_METHOD(ns, method) \
     DECLARE_RPC_SERVICE_METHOD_VIA_MESSAGES(ns::TReq##method, ns::TRsp##method, method)
 
 #define DEFINE_RPC_SERVICE_METHOD(type, method) \
     void type::method( \
-        TReq##method* request, \
-        TRsp##method* response, \
-        const TCtx##method##Ptr& context)
+        [[maybe_unused]] TReq##method* request, \
+        [[maybe_unused]] TRsp##method* response, \
+        [[maybe_unused]] const TCtx##method##Ptr& context)
 
 #define RPC_SERVICE_METHOD_DESC(method) \
     ::NYT::NRpc::TServiceBase::TMethodDescriptor( \

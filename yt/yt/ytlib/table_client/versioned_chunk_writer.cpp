@@ -360,7 +360,7 @@ private:
 
         UpdateColumnarStatistics(ColumnarStatisticsExt_, row);
 
-        BlockWriter_->WriteRow(row, beginPreviousKey, endPreviousKey);
+        BlockWriter_->WriteRow(row);
     }
 
     void FinishBlockIfLarge(TVersionedRow row)

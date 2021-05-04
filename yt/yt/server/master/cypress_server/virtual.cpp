@@ -649,7 +649,7 @@ private:
         }
     }
 
-    virtual TResolveResult ResolveRecursive(const TYPath& path, const IServiceContextPtr& context) override
+    virtual TResolveResult ResolveRecursive(const TYPath& path, const IServiceContextPtr& /*context*/) override
     {
         auto service = GetService();
         NYPath::TTokenizer tokenizer(path);

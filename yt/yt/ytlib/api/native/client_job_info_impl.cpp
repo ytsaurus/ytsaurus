@@ -2063,8 +2063,7 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
     TOperationId operationId,
     TJobId jobId,
     TInstant deadline,
-    const THashSet<TString>& attributes,
-    const TGetJobOptions& options)
+    const THashSet<TString>& attributes)
 {
     TJobTableDescriptor table;
     auto rowBuffer = New<TRowBuffer>();
@@ -2111,8 +2110,7 @@ std::optional<TJob> TClient::DoGetJobFromControllerAgent(
     TOperationId operationId,
     TJobId jobId,
     TInstant deadline,
-    const THashSet<TString>& attributes,
-    const TGetJobOptions& options)
+    const THashSet<TString>& attributes)
 {
     auto controllerAgentAddress = FindControllerAgentAddressFromCypress(
         operationId,
@@ -2181,8 +2179,8 @@ TYsonString TClient::DoGetJob(
 
     const auto& attributes = options.Attributes.value_or(DefaultGetJobAttributes);
 
-    auto controllerAgentJob = DoGetJobFromControllerAgent(operationId, jobId, deadline, attributes, options);
-    auto archiveJob = DoGetJobFromArchive(operationId, jobId, deadline, attributes, options);
+    auto controllerAgentJob = DoGetJobFromControllerAgent(operationId, jobId, deadline, attributes);
+    auto archiveJob = DoGetJobFromArchive(operationId, jobId, deadline, attributes);
 
     TJob job;
     if (archiveJob && controllerAgentJob) {

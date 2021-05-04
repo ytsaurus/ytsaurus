@@ -309,7 +309,7 @@ protected:
 
     virtual i64 GetMinTeleportChunkSize() = 0;
 
-    virtual void ValidateInputDataSlice(const TLegacyDataSlicePtr& dataSlice)
+    virtual void ValidateInputDataSlice(const TLegacyDataSlicePtr& /*dataSlice*/)
     { }
 
     virtual TCpuResource GetCpuLimit() const
@@ -621,7 +621,7 @@ private:
         }
     }
 
-    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
     {
         return TStringBuf("data_weight_per_job");
     }
@@ -818,7 +818,7 @@ private:
         return ToLegacyLivePreviewMode(Spec_->EnableLegacyLivePreview);
     }
 
-    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
     {
         return TStringBuf("data_weight_per_job");
     }
@@ -892,7 +892,7 @@ private:
 
     TEraseOperationSpecPtr Spec_;
 
-    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
     {
         YT_ABORT();
     }
@@ -1100,7 +1100,7 @@ private:
 
     IAttributeDictionaryPtr InputTableAttributes_;
 
-    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
     {
         YT_ABORT();
     }

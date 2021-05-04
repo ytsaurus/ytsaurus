@@ -65,8 +65,8 @@ class TCountingBusHandler
 {
 public:
     virtual void HandleMessage(
-        TSharedRefArray message,
-        IBusPtr replyBus) noexcept override
+        TSharedRefArray /*message*/,
+        IBusPtr /*replyBus*/) noexcept override
     {
         Count++;
     }

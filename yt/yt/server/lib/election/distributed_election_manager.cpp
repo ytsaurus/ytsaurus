@@ -208,13 +208,13 @@ private:
         }
 
         if (rspOrError.IsOK()) {
-            OnPingResponseSuccess(id, rspOrError.Value());
+            OnPingResponseSuccess(id);
         } else {
             OnPingResponseFailure(id, rspOrError);
         }
     }
 
-    void OnPingResponseSuccess(TPeerId id, TElectionServiceProxy::TRspPingFollowerPtr rsp)
+    void OnPingResponseSuccess(TPeerId id)
     {
         YT_LOG_DEBUG("Ping reply from follower (PeerId: %v)", id);
 

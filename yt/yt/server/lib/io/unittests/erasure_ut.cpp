@@ -52,9 +52,9 @@ public:
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientChunkReadOptions& options,
         std::optional<int> partitionTag,
-        const std::optional<std::vector<int>>& extensionTags) override
+        const std::optional<std::vector<int>>& /*extensionTags*/) override
     {
-        return Underlying_->GetMeta(options, partitionTag, extensionTags);
+        return Underlying_->GetMeta(options, partitionTag);
     }
 
     virtual TChunkId GetChunkId() const override

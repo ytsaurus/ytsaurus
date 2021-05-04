@@ -1171,7 +1171,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ReadBlockedTimeout)
     PrepareRow(transaction.get(), row);
 
     bool blocked = false;
-    Store_->SetRowBlockedHandler(BIND([&] (TSortedDynamicRow blockedRow, int lockIndex) {
+    Store_->SetRowBlockedHandler(BIND([&] (TSortedDynamicRow /*blockedRow*/, int /*lockIndex*/) {
         blocked = true;
         Sleep(TDuration::MilliSeconds(10));
     }));

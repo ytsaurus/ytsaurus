@@ -135,7 +135,7 @@ void TStreamLogWriterBase::Flush()
 void TStreamLogWriterBase::Reload()
 { }
 
-void TStreamLogWriterBase::CheckSpace(i64 minSpace)
+void TStreamLogWriterBase::CheckSpace(i64 /*minSpace*/)
 { }
 
 void TStreamLogWriterBase::OnException(const std::exception& ex)

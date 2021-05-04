@@ -253,8 +253,6 @@ private:
                     partition,
                     splitFactor,
                     partition->GetTablet(),
-                    partition->GetId(),
-                    tablet->GetId(),
                     Logger));
                 *estimatedMaxOverlappingStoreCount = maxOverlappingStoreCountAfterSplit;
             }
@@ -401,8 +399,6 @@ private:
         TPartition* partition,
         int splitFactor,
         TTablet* tablet,
-        TPartitionId partitionId,
-        TTabletId tabletId,
         NLogging::TLogger Logger)
     {
         YT_LOG_DEBUG("Splitting partition");
@@ -582,8 +578,6 @@ private:
                 slot,
                 partition,
                 partition->GetTablet(),
-                partition->GetId(),
-                partition->GetTablet()->GetId(),
                 Logger);
         return true;
     }
@@ -593,8 +587,6 @@ private:
         ITabletSlotPtr slot,
         TPartition* partition,
         TTablet* tablet,
-        TPartitionId partitionId,
-        TTabletId tabletId,
         NLogging::TLogger Logger)
     {
         YT_LOG_DEBUG("Sampling partition");

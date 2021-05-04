@@ -196,7 +196,6 @@ DB::Block ToBlock(
     const IUnversionedRowBatchPtr& batch,
     const TTableSchema& readSchema,
     const std::vector<int>& idToColumnIndex,
-    const TRowBufferPtr& rowBuffer,
     const DB::Block& headerBlock,
     const TCompositeSettingsPtr& compositeSettings)
 {

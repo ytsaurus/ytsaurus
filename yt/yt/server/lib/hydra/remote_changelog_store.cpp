@@ -162,7 +162,6 @@ private:
                 id);
 
             return CreateRemoteChangelog(
-                id,
                 path,
                 writer,
                 0,
@@ -205,7 +204,6 @@ private:
                 id);
 
             return CreateRemoteChangelog(
-                id,
                 path,
                 nullptr,
                 recordCount,
@@ -218,7 +216,6 @@ private:
     }
 
     IChangelogPtr CreateRemoteChangelog(
-        int id,
         const TYPath& path,
         IJournalWriterPtr writer,
         int recordCount,
@@ -297,7 +294,7 @@ private:
             return Writer_ ? Writer_->Close() : VoidFuture;
         }
 
-        virtual TFuture<void> Preallocate(size_t size) override
+        virtual TFuture<void> Preallocate(size_t /*size*/) override
         {
             YT_ABORT();
         }

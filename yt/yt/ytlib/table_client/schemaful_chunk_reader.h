@@ -22,8 +22,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulChunkReader(
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const TTableSchemaPtr& resultSchema,
     const TSortColumns& sortColumns,
-    const NChunkClient::TReadRange& readRange,
-    TTimestamp timestamp = NullTimestamp);
+    const NChunkClient::TReadRange& readRange);
 
 ////////////////////////////////////////////////////////////////////////////////
 

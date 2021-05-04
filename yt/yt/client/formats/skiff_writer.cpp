@@ -244,7 +244,7 @@ class TRowAndRangeIndexWriter
 {
 public:
     template <ERowRangeIndexMode Mode>
-    void WriteRowIndex(const TUnversionedValue& value, TCheckedInDebugSkiffWriter* writer, TWriteContext* context)
+    void WriteRowIndex(const TUnversionedValue& value, TCheckedInDebugSkiffWriter* writer, TWriteContext* /*context*/)
     {
         if (value.Type == EValueType::Int64) {
             const auto currentRowIndex = value.Data.Int64;
@@ -267,7 +267,7 @@ public:
     }
 
     template <ERowRangeIndexMode Mode>
-    void WriteRangeIndex(const TUnversionedValue& value, TCheckedInDebugSkiffWriter* writer, TWriteContext* context)
+    void WriteRangeIndex(const TUnversionedValue& value, TCheckedInDebugSkiffWriter* writer, TWriteContext* /*context*/)
     {
         if (value.Type == EValueType::Int64) {
             const auto currentRangeIndex = value.Data.Int64;
@@ -458,7 +458,7 @@ TUnversionedValueToSkiffConverter CreateComplexValueConverter(
     TYsonToSkiffConverterConfig config;
     config.AllowOmitTopLevelOptional = isSparse;
     auto ysonToSkiff = CreateYsonToSkiffConverter(descriptor, skiffSchema, config);
-    return [ysonToSkiff=ysonToSkiff] (const TUnversionedValue& value, TCheckedInDebugSkiffWriter* skiffWriter, TWriteContext* context) {
+    return [ysonToSkiff=ysonToSkiff] (const TUnversionedValue& value, TCheckedInDebugSkiffWriter* skiffWriter, TWriteContext* /*context*/) {
         TMemoryInput input;
         if (value.Type == EValueType::Any || value.Type == EValueType::Composite) {
             // NB. value.Type might be EValueType::Any if user has used override_intermediate_table_schema

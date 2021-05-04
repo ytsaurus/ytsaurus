@@ -273,7 +273,7 @@ class TVanillaUserJobReadController
     : public IUserJobReadController
 {
 public:
-    TCallback<TFuture<void>()> PrepareJobInputTransfer(const IAsyncOutputStreamPtr& asyncOutput) override
+    TCallback<TFuture<void>()> PrepareJobInputTransfer(const IAsyncOutputStreamPtr& /*asyncOutput*/) override
     {
         return BIND([] { return VoidFuture; });
     }

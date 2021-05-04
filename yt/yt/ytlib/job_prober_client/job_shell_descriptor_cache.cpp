@@ -58,7 +58,7 @@ TString ToString(const TJobShellDescriptorKey& key)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, const TJobShellDescriptor& descriptor, TStringBuf format)
+void FormatValue(TStringBuilderBase* builder, const TJobShellDescriptor& descriptor, TStringBuf /*format*/)
 {
     builder->AppendFormat("{NodeDescriptor: %v, Subcontainer: %v}",
         descriptor.NodeDescriptor,

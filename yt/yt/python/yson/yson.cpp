@@ -189,7 +189,6 @@ public:
     void Init(
         IInputStream* inputStream,
         std::unique_ptr<IInputStream> inputStreamHolder,
-        Py::Tuple& loadsParams,
         const std::optional<TString>& encoding,
         bool alwaysCreateAttributes)
     {
@@ -493,13 +492,12 @@ private:
             } else {
                 encodingParam = Py::None();
             }
-            Py::TupleN params(encodingParam, Py::Boolean(alwaysCreateAttributes));
             if (ysonType == NYson::EYsonType::ListFragment) {
                 Py::Callable classType(TLazyYsonIterator::type());
                 Py::PythonClassObject<TLazyYsonIterator> pythonIter(classType.apply(Py::Tuple(), Py::Dict()));
 
                 auto* iter = pythonIter.getCxxObject();
-                iter->Init(inputStream, std::move(inputStreamHolder), params, encoding, alwaysCreateAttributes);
+                iter->Init(inputStream, std::move(inputStreamHolder), encoding, alwaysCreateAttributes);
                 return pythonIter;
             } else {
                 return ParseLazyYson(inputStream, encoding, alwaysCreateAttributes, ysonType);
@@ -526,7 +524,7 @@ private:
             if (raw) {
                 throw CreateYsonError("Raw mode is only supported for list fragments");
             }
-            
+
             TYsonPullParser parser(inputStreamHolder.get(), ysonType);
             TPullObjectBuilder builder(&parser, alwaysCreateAttributes, encoding);
             if (ysonType == NYson::EYsonType::MapFragment) {

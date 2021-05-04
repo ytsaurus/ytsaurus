@@ -30,7 +30,7 @@ public:
         }
     }
 
-    virtual std::optional<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context) override
+    virtual std::optional<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* /*context*/) override
     {
         return CanScheduleJob_ ? std::nullopt : std::make_optional(EScheduleJobFailReason::TaskRefusal);
     }

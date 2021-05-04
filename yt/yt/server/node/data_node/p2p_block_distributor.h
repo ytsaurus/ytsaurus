@@ -114,7 +114,6 @@ private:
     //! as long as the node responds to the `PopulateCache` request.
     void OnBlockDistributed(
         const TString& address,
-        const NNodeTrackerClient::TNodeDescriptor& nodeDescriptor,
         const NNodeTrackerClient::TNodeId nodeId,
         const TBlockId& blockIds,
         i64 size,

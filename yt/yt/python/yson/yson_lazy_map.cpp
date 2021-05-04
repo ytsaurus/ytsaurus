@@ -121,7 +121,7 @@ PyObject* LazyYsonMapBaseCopy(TLazyYsonMapBase* self)
     return result;
 }
 
-PyObject* LazyYsonMapBaseDeepCopy(TLazyYsonMapBase* self, PyObject* args, PyObject* kwargs)
+PyObject* LazyYsonMapBaseDeepCopy(TLazyYsonMapBase* self, PyObject* /*args*/, PyObject* /*kwargs*/)
 {
     auto result = LazyYsonMapBaseNew(TLazyYsonMapBaseType, Py_None, Py_None);
     auto params = self->Dict->GetConsumerParams();
@@ -231,7 +231,7 @@ PyObject* LazyYsonMapCopy(TLazyYsonMap* self)
     return reinterpret_cast<PyObject*>(result);
 }
 
-PyObject* LazyYsonMapDeepCopy(TLazyYsonMap* self, PyObject* args, PyObject* kwargs)
+PyObject* LazyYsonMapDeepCopy(TLazyYsonMap* self, PyObject* /*args*/, PyObject* /*kwargs*/)
 {
     auto result = reinterpret_cast<TLazyYsonMap*>(LazyYsonMapNew(TLazyYsonMapType, Py_None, Py_None));
     auto params = self->super.Dict->GetConsumerParams();

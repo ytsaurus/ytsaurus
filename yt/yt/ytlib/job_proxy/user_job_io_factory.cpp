@@ -54,7 +54,6 @@ using namespace NConcurrency;
 namespace {
 
 ISchemalessMultiChunkWriterPtr CreateTableWriter(
-    const IJobSpecHelperPtr& jobSpecHelper,
     NNative::IClientPtr client,
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
@@ -224,7 +223,6 @@ struct TUserJobIOFactoryBase
         const TChunkTimestamps& chunkTimestamps) override
     {
         return CreateTableWriter(
-            JobSpecHelper_,
             std::move(client),
             std::move(config),
             std::move(options),
@@ -283,7 +281,7 @@ public:
     virtual ISchemalessMultiChunkReaderPtr CreateReader(
         NNative::IClientPtr client,
         const TNodeDescriptor& nodeDescriptor,
-        TClosure onNetworkReleased,
+        TClosure /*onNetworkReleased*/,
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter) override
     {
@@ -346,7 +344,7 @@ public:
     virtual ISchemalessMultiChunkReaderPtr CreateReader(
         NNative::IClientPtr client,
         const TNodeDescriptor& nodeDescriptor,
-        TClosure onNetworkReleased,
+        TClosure /*onNetworkReleased*/,
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter) override
     {
@@ -494,7 +492,7 @@ public:
     virtual ISchemalessMultiChunkReaderPtr CreateReader(
         NNative::IClientPtr client,
         const TNodeDescriptor& nodeDescriptor,
-        TClosure onNetworkReleased,
+        TClosure /*onNetworkReleased*/,
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter) override
     {
@@ -571,7 +569,6 @@ public:
         } else {
             // This writer is used for mapper output tables.
             return CreateTableWriter(
-                JobSpecHelper_,
                 std::move(client),
                 std::move(config),
                 std::move(options),
@@ -621,7 +618,7 @@ public:
 
     virtual ISchemalessMultiChunkReaderPtr CreateReader(
         NNative::IClientPtr client,
-        const TNodeDescriptor& nodeDescriptor,
+        const TNodeDescriptor& /*nodeDescriptor*/,
         TClosure onNetworkReleased,
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter) override

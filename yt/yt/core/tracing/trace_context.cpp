@@ -142,7 +142,7 @@ TDuration TTraceContext::GetElapsedTime() const
 
 void TTraceContext::SetSampled(bool value)
 {
-    Sampled_.store(true);
+    Sampled_.store(value);
 }
 
 TInstant TTraceContext::GetStartTime() const

@@ -3,7 +3,7 @@
 #include <util/digest/multi.h>
 
 extern "C" uint64_t bigb_hash(
-    TExpressionContext* context,
+    TExpressionContext* /*context*/,
     char* s,
     int len)
 {

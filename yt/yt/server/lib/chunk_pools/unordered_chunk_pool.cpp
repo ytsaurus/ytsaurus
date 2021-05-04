@@ -254,7 +254,6 @@ public:
                         jobStub.get(),
                         entry.StripeIndexes.begin(),
                         entry.StripeIndexes.end(),
-                        nodeId,
                         idealDataWeightPerJob);
                 }
             }
@@ -264,7 +263,6 @@ public:
                 jobStub.get(),
                 FreeStripes_.begin(),
                 FreeStripes_.end(),
-                nodeId,
                 idealDataWeightPerJob);
 
             jobStub->Finalize();
@@ -746,7 +744,6 @@ private:
         TNewJobStub* jobStub,
         const TIterator& begin,
         const TIterator& end,
-        TNodeId nodeId,
         i64 idealDataWeightPerJob)
     {
         const auto& jobCounter = GetJobCounter();

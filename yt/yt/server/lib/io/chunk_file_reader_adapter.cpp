@@ -39,7 +39,8 @@ public:
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags) override
     {
-        return Underlying_->GetMeta(options, partitionTag, extensionTags);
+        Y_UNUSED(extensionTags);
+        return Underlying_->GetMeta(options, partitionTag);
     }
 
     virtual TChunkId GetChunkId() const override

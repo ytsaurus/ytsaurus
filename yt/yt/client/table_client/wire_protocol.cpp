@@ -438,7 +438,7 @@ private:
 
     size_t EstimateSchemafulRowByteSize(TUnversionedRow row)
     {
-        size_t bytes = (8, SerializationAlignment); // -1 or value count
+        size_t bytes = AlignUp<size_t>(8, SerializationAlignment); // -1 or value count
         if (row) {
             bytes += EstimateSchemafulValueRangeByteSize(
                 TRange<TUnversionedValue>(row.Begin(), row.GetCount()));

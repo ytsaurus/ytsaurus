@@ -1728,11 +1728,7 @@ public:
 
     virtual TString FormatResources(const TJobResourcesWithQuota& resources) const override
     {
-        auto mediumDirectory = Bootstrap_
-            ->GetMasterClient()
-            ->GetNativeConnection()
-            ->GetMediumDirectory();
-        return NScheduler::FormatResources(resources, mediumDirectory);
+        return NScheduler::FormatResources(resources);
     }
 
     virtual TString FormatResourceUsage(
@@ -1746,7 +1742,7 @@ public:
             ->GetMediumDirectory();
         return NScheduler::FormatResourceUsage(usage, limits, diskResources, mediumDirectory);
     }
-    
+
     virtual void SerializeResources(const TJobResourcesWithQuota& resources, IYsonConsumer* consumer) const override
     {
         auto mediumDirectory = Bootstrap_
@@ -4302,16 +4298,16 @@ private:
         { }
 
         virtual void GetSelf(
-            TReqGet* request,
-            TRspGet* response,
+            TReqGet* /*request*/,
+            TRspGet* /*response*/,
             const TCtxGetPtr& context) override
         {
             ThrowMethodNotSupported(context->GetMethod());
         }
 
         virtual void ListSelf(
-            TReqList* request,
-            TRspList* response,
+            TReqList* /*request*/,
+            TRspList* /*response*/,
             const TCtxListPtr& context) override
         {
             ThrowMethodNotSupported(context->GetMethod());
@@ -4322,7 +4318,7 @@ private:
             YT_ABORT();
         }
 
-        virtual std::vector<TString> GetKeys(i64 limit) const override
+        virtual std::vector<TString> GetKeys(i64 /*limit*/) const override
         {
             YT_ABORT();
         }

@@ -248,7 +248,7 @@ struct TSlot
 };
 
 TValue* AllocateJoinKeys(
-    TExecutionContext* context,
+    TExecutionContext* /*context*/,
     TMultiJoinClosure* closure,
     TValue** keyPtrs)
 {
@@ -826,7 +826,7 @@ void GroupOpHelper(
 }
 
 void GroupTotalsOpHelper(
-    TExecutionContext* context,
+    TExecutionContext* /*context*/,
     void** collectRowsClosure,
     void (*collectRows)(
         void** closure,
@@ -836,7 +836,11 @@ void GroupTotalsOpHelper(
     collectRows(collectRowsClosure, buffer.Get());
 }
 
-void AllocatePermanentRow(TExecutionContext* context, TExpressionContext* buffer, int valueCount, TValue** row)
+void AllocatePermanentRow(
+    TExecutionContext* /*context*/,
+    TExpressionContext* buffer,
+    int valueCount,
+    TValue** row)
 {
     CHECK_STACK();
 
@@ -1256,7 +1260,7 @@ void RegexEscape(
 
 #define DEFINE_YPATH_GET_IMPL2(PREFIX, TYPE, STATEMENT_OK, STATEMENT_FAIL) \
     void PREFIX ## Get ## TYPE( \
-        TExpressionContext* context, \
+        [[maybe_unused]] TExpressionContext* context, \
         TUnversionedValue* result, \
         TUnversionedValue* anyValue, \
         TUnversionedValue* ypath) \
@@ -1301,7 +1305,7 @@ DEFINE_YPATH_GET_ANY
 ////////////////////////////////////////////////////////////////////////////////
 
 #define DEFINE_CONVERT_ANY(TYPE, STATEMENT_OK) \
-    void AnyTo ## TYPE(TExpressionContext* context, TUnversionedValue* result, TUnversionedValue* anyValue) \
+    void AnyTo ## TYPE([[maybe_unused]] TExpressionContext* context, TUnversionedValue* result, TUnversionedValue* anyValue) \
     { \
         if (anyValue->Type == EValueType::Null) { \
             result->Type = EValueType::Null; \
@@ -1320,7 +1324,7 @@ DEFINE_YPATH_GET_ANY
     }
 
 #define DEFINE_CONVERT_ANY_NUMERIC_IMPL(TYPE) \
-    void AnyTo ## TYPE(TExpressionContext* context, TUnversionedValue* result, TUnversionedValue* anyValue) \
+    void AnyTo ## TYPE(TExpressionContext* /*context*/, TUnversionedValue* result, TUnversionedValue* anyValue) \
     { \
         if (anyValue->Type == EValueType::Null) { \
             result->Type = EValueType::Null; \
@@ -1595,7 +1599,7 @@ bool ListContainsImpl(const NYTree::INodePtr& node, const TValue& value)
 }
 
 void ListContains(
-    TExpressionContext* context,
+    TExpressionContext* /*context*/,
     TUnversionedValue* result,
     TUnversionedValue* ysonList,
     TUnversionedValue* what)
@@ -1693,7 +1697,7 @@ extern "C" void NumericToString(
 ////////////////////////////////////////////////////////////////////////////////
 
 #define DEFINE_CONVERT_STRING(TYPE) \
-    extern "C" void StringTo ## TYPE(TExpressionContext* context, TUnversionedValue* result, TUnversionedValue* value) \
+    extern "C" void StringTo ## TYPE(TExpressionContext* /*context*/, TUnversionedValue* result, TUnversionedValue* value) \
     { \
         if (value->Type == EValueType::Null) { \
             result->Type = EValueType::Null; \
@@ -1751,7 +1755,7 @@ ui64 HyperLogLogEstimateCardinality(void* hll)
 ////////////////////////////////////////////////////////////////////////////////
 
 void HasPermissions(
-    TExpressionContext* context,
+    TExpressionContext* /*context*/,
     TUnversionedValue* result,
     TUnversionedValue* ysonAcl,
     TUnversionedValue* ysonSubjectClosureList,

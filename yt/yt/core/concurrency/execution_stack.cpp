@@ -211,6 +211,8 @@ struct TPooledObjectTraits<NConcurrency::TPooledExecutionStack<Kind, Size>, void
         if (stack->GetStack()) {
             NSan::Poison(stack->GetStack(), stack->GetSize());
         }
+#else
+        Y_UNUSED(stack);
 #endif
     }
 

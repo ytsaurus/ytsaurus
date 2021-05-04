@@ -52,7 +52,6 @@ private:
     virtual NTableClient::TKeyComparer GetKeyComparer() override;
 
     NTableClient::ISchemafulUnversionedReaderPtr TryCreateCacheBasedReader(
-        const TColumnFilter& columnFilter,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         const NChunkClient::TReadRange& readRange,
         const NTableClient::TTableSchemaPtr& readSchema,

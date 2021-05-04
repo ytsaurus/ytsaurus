@@ -261,7 +261,6 @@ void TP2PBlockDistributor::DistributeBlocks()
                 &TP2PBlockDistributor::OnBlockDistributed,
                 MakeWeak(this),
                 destinationAddress,
-                *nodeDescriptor,
                 nodeId,
                 blockId,
                 block.Size()));
@@ -457,7 +456,6 @@ void TP2PBlockDistributor::UpdateTransmittedBytes()
 
 void TP2PBlockDistributor::OnBlockDistributed(
     const TString& address,
-    const TNodeDescriptor& descriptor,
     const TNodeId nodeId,
     const TBlockId& blockId,
     i64 size,

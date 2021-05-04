@@ -534,7 +534,7 @@ private:
 
                         return [
                             reader = pipe->GetReader()
-                        ] (std::vector<TRow> keys, TRowBufferPtr permanentBuffer) {
+                        ] (std::vector<TRow> /*keys*/, TRowBufferPtr /*permanentBuffer*/) {
                             return reader;
                         };
                     } else {

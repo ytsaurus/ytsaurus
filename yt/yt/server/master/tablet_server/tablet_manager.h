@@ -49,8 +49,7 @@ public:
         int lastTabletIndex,
         TTabletCellId hintCellId,
         const std::vector<TTabletCellId>& targetCellIds,
-        bool freeze,
-        NTransactionClient::TTimestamp mountTimestamp);
+        bool freeze);
     void PrepareUnmountTable(
         NTableServer::TTableNode* table,
         bool force,

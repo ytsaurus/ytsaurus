@@ -180,7 +180,7 @@ public:
         TRef data,
         const TSegmentMeta& meta,
         bool aggregate)
-        : TSparseVersionedValueExtractorBase(meta, aggregate)
+        : TSparseVersionedValueExtractorBase(aggregate)
         , TDirectIntegerValueExtractorBase<ValueType, true>(meta)
     {
         const char* ptr = data.Begin();
@@ -202,7 +202,7 @@ public:
         TRef data,
         const TSegmentMeta& meta,
         bool aggregate)
-        : TSparseVersionedValueExtractorBase(meta, aggregate)
+        : TSparseVersionedValueExtractorBase(aggregate)
         , TDictionaryIntegerValueExtractorBase<ValueType, true>(meta)
     {
         const char* ptr = data.Begin();

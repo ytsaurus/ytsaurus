@@ -174,25 +174,25 @@ struct TExpressionFragmentPrinter
         }
     }
 
-    void OnOperand(const TUnaryOpExpression* unaryExpr, size_t id)
+    void OnOperand(const TUnaryOpExpression* /*unaryExpr*/, size_t id)
     {
         auto operandId = DebugExpressions[id].Args[0];
         InferNameArg(operandId);
     }
 
-    void OnLhs(const TBinaryOpExpression* binaryExpr, size_t id)
+    void OnLhs(const TBinaryOpExpression* /*binaryExpr*/, size_t id)
     {
         auto lhsId = DebugExpressions[id].Args[0];
         InferNameArg(lhsId);
     }
 
-    void OnRhs(const TBinaryOpExpression* binaryExpr, size_t id)
+    void OnRhs(const TBinaryOpExpression* /*binaryExpr*/, size_t id)
     {
         auto rhsId = DebugExpressions[id].Args[1];
         InferNameArg(rhsId);
     }
 
-    void OnDefaultExpression(const TTransformExpression* transformExpr, size_t id)
+    void OnDefaultExpression(const TTransformExpression* /*transformExpr*/, size_t id)
     {
         const auto& defaultExpr = DebugExpressions[id].ExtraArg;
         if (defaultExpr) {
@@ -202,7 +202,7 @@ struct TExpressionFragmentPrinter
     }
 
     template <class T>
-    void OnArguments(const T* expr, size_t id)
+    void OnArguments(const T* /*expr*/, size_t id)
     {
         bool needComma = false;
         for (const auto& argument : DebugExpressions[id].Args) {
@@ -214,12 +214,12 @@ struct TExpressionFragmentPrinter
         }
     }
 
-    void OnReference(const TReferenceExpression* referenceExpr, size_t id)
+    void OnReference(const TReferenceExpression* referenceExpr, size_t /*id*/)
     {
         auto columnName = referenceExpr->ColumnName;
         if (columnName.size() > 40) {
             columnName.resize(40);
-            columnName.Transform([] (size_t index, char c) {
+            columnName.Transform([] (size_t /*index*/, char c) {
                 if (c == '(' || c == ')') {
                     return '_';
                 }
@@ -405,7 +405,7 @@ protected:
 
 size_t TExpressionProfiler::Profile(
     const TLiteralExpression* literalExpr,
-    const TTableSchemaPtr& schema,
+    const TTableSchemaPtr& /*schema*/,
     TExpressionFragments* fragments,
     bool isIsolated)
 {

@@ -115,7 +115,6 @@ struct TPartitionKey
 std::vector<TPartitionKey> BuildPartitionKeysBySamples(
     const std::vector<NTableClient::TSample>& samples,
     int partitionCount,
-    const IJobSizeConstraintsPtr& partitionJobSizeConstraints,
     const NTableClient::TComparator& comparator,
     const NQueryClient::TRowBufferPtr& rowBuffer);
 

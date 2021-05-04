@@ -30,7 +30,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(NYT::TStringBuilderBase* builder, struct hostent* hostent, TStringBuf spec)
+void FormatValue(NYT::TStringBuilderBase* builder, struct hostent* hostent, TStringBuf /*spec*/)
 {
     bool empty = true;
 
@@ -428,6 +428,7 @@ int TDnsResolver::TImpl::OnSocketCreated(
         result = -1;
     }
 #else
+    Y_UNUSED(opaque);
     if (socket >= FD_SETSIZE) {
         YT_LOG_WARNING("File descriptor is out of valid range (FD: %v, Limit: %v)",
             socket,
@@ -460,6 +461,7 @@ void TDnsResolver::TImpl::OnSocketStateChanged(
     }
     YT_VERIFY(epoll_ctl(this_->EpollFD_, op, socket, &event) == 0);
 #else
+    Y_UNUSED(opaque, readable, writable);
     YT_VERIFY(socket < FD_SETSIZE);
 #endif
 }

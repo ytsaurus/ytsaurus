@@ -209,7 +209,7 @@ public:
         }
     }
 
-    virtual std::pair<TKeyBound, TKeyBound> GetBounds(IChunkPoolOutput::TCookie cookie) const override
+    virtual std::pair<TKeyBound, TKeyBound> GetBounds(IChunkPoolOutput::TCookie /*cookie*/) const override
     {
         // We drop support for this method in legacy pool as it is used only in CHYT which already uses new pool.
         YT_UNIMPLEMENTED();

@@ -61,6 +61,8 @@ void* GetPC(void* uc)
         const auto* context = reinterpret_cast<ucontext_t*>(uc);
         return reinterpret_cast<void*>(context->PC_FROM_UCONTEXT);
     }
+#else
+    Y_UNUSED(uc);
 #endif
     return nullptr;
 }
@@ -313,7 +315,7 @@ void FormatErrorCodeName(TBaseFormatter* formatter, int codeno)
 }
 
 //! Dumps information about the signal.
-void DumpSignalInfo(int signal, siginfo_t* si)
+void DumpSignalInfo(siginfo_t* si)
 {
     TRawFormatter<256> formatter;
 
@@ -429,10 +431,12 @@ void DumpSigcontext(void* uc)
     formatter.AppendString("\n*** End Context ***\n");
 
     WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
+#else
+    Y_UNUSED(uc);
 #endif
 }
 
-void CrashTimeoutHandler(int signal)
+void CrashTimeoutHandler(int /*signal*/)
 {
     TRawFormatter<256> formatter;
     formatter.AppendString("*** Process hung during crash ***\n");
@@ -442,7 +446,7 @@ void CrashTimeoutHandler(int signal)
 }
 
 // Dumps signal, stack frame information and codicils.
-void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
+void CrashSignalHandler(int /*signal*/, siginfo_t* si, void* uc)
 {
     // All code here _MUST_ be async signal safe unless specified otherwise.
 
@@ -463,7 +467,7 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
         WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
     }
 
-    DumpSignalInfo(signal, si);
+    DumpSignalInfo(si);
 
     DumpSigcontext(uc);
 

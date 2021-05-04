@@ -1966,7 +1966,7 @@ TUntypedExpression TBuilderCtx::OnInOp(
     auto result = New<TInExpression>(std::move(typedArguments), std::move(capturedRows));
 
     TTypeSet resultTypes({EValueType::Boolean});
-    TExpressionGenerator generator = [result] (EValueType type) mutable {
+    TExpressionGenerator generator = [result] (EValueType /*type*/) mutable {
         return result;
     };
     return TUntypedExpression{resultTypes, std::move(generator), false};
@@ -1991,7 +1991,7 @@ TUntypedExpression TBuilderCtx::OnBetweenOp(
     auto result = New<TBetweenExpression>(std::move(typedArguments), std::move(capturedRows));
 
     TTypeSet resultTypes({EValueType::Boolean});
-    TExpressionGenerator generator = [result] (EValueType type) mutable {
+    TExpressionGenerator generator = [result] (EValueType /*type*/) mutable {
         return result;
     };
     return TUntypedExpression{resultTypes, std::move(generator), false};
@@ -2119,7 +2119,7 @@ TUntypedExpression TBuilderCtx::OnTransformOp(
         std::move(capturedRows),
         std::move(defaultTypedExpr));
 
-    TExpressionGenerator generator = [result] (EValueType type) mutable {
+    TExpressionGenerator generator = [result] (EValueType /*type*/) mutable {
         return result;
     };
     return TUntypedExpression{TTypeSet({resultType}), std::move(generator), false};
@@ -2377,7 +2377,7 @@ NAst::TAstHead MakeAstHead(EParseMode mode)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void DefaultFetchFunctions(const std::vector<TString>& names, const TTypeInferrerMapPtr& typeInferrers)
+void DefaultFetchFunctions(const std::vector<TString>& /*names*/, const TTypeInferrerMapPtr& typeInferrers)
 {
     MergeFrom(typeInferrers.Get(), *BuiltinTypeInferrersMap);
 }

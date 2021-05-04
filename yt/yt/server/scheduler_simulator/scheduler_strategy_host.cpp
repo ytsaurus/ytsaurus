@@ -37,7 +37,7 @@ TSchedulerStrategyHost::TSchedulerStrategyHost(
     }
 }
 
-IInvokerPtr TSchedulerStrategyHost::GetControlInvoker(NYT::NScheduler::EControlQueue queue) const
+IInvokerPtr TSchedulerStrategyHost::GetControlInvoker(NYT::NScheduler::EControlQueue /*queue*/) const
 {
     return GetCurrentInvoker();
 }
@@ -86,12 +86,12 @@ TJobResources TSchedulerStrategyHost::GetResourceLimits(const TSchedulingTagFilt
     return result;
 }
 
-TJobResources TSchedulerStrategyHost::GetResourceUsage(const TSchedulingTagFilter& filter) const
+TJobResources TSchedulerStrategyHost::GetResourceUsage(const TSchedulingTagFilter& /*filter*/) const
 {
     YT_VERIFY(false);
 }
 
-void TSchedulerStrategyHost::Disconnect(const TError& error)
+void TSchedulerStrategyHost::Disconnect(const TError& /*error*/)
 {
     YT_VERIFY(false);
 }
@@ -160,14 +160,14 @@ TRefCountedExecNodeDescriptorMapPtr TSchedulerStrategyHost::CalculateExecNodeDes
 }
 
 void TSchedulerStrategyHost::UpdateNodesOnChangedTrees(
-    const THashMap<TString, NScheduler::TSchedulingTagFilter>& treeIdToFilter)
+    const THashMap<TString, NScheduler::TSchedulingTagFilter>& /*treeIdToFilter*/)
 {
     // Nothing to do.
 }
 
 TString TSchedulerStrategyHost::FormatResources(const TJobResourcesWithQuota& resources) const
 {
-    return NScheduler::FormatResources(resources, MediumDirectory_);
+    return NScheduler::FormatResources(resources);
 }
 
 TString TSchedulerStrategyHost::FormatResourceUsage(
@@ -177,34 +177,34 @@ TString TSchedulerStrategyHost::FormatResourceUsage(
 {
     return NScheduler::FormatResourceUsage(usage, limits, diskResources, MediumDirectory_);
 }
-    
+
 void TSchedulerStrategyHost::SerializeResources(const TJobResourcesWithQuota& resources, NYson::IYsonConsumer* consumer) const
 {
     return NScheduler::SerializeJobResourcesWithQuota(resources, MediumDirectory_, consumer);
 }
 
 void TSchedulerStrategyHost::ValidatePoolPermission(
-    const NYPath::TYPath& path,
-    const TString& user,
-    NYTree::EPermission permission) const
+    const NYPath::TYPath& /*path*/,
+    const TString& /*user*/,
+    NYTree::EPermission /*permission*/) const
 { }
 
-void TSchedulerStrategyHost::MarkOperationAsRunningInStrategy(TOperationId operationId)
+void TSchedulerStrategyHost::MarkOperationAsRunningInStrategy(TOperationId /*operationId*/)
 {
     // Nothing to do.
 }
 
-void TSchedulerStrategyHost::AbortOperation(TOperationId operationId, const TError& error)
+void TSchedulerStrategyHost::AbortOperation(TOperationId /*operationId*/, const TError& /*error*/)
 {
     YT_ABORT();
 }
 
-void TSchedulerStrategyHost::FlushOperationNode(TOperationId operationId)
+void TSchedulerStrategyHost::FlushOperationNode(TOperationId /*operationId*/)
 {
     YT_ABORT();
 }
 
-void TSchedulerStrategyHost::PreemptJob(const TJobPtr& job, TDuration interruptTimeout)
+void TSchedulerStrategyHost::PreemptJob(const TJobPtr& job, TDuration /*interruptTimeout*/)
 {
     YT_VERIFY(job->GetNode()->Jobs().erase(job) == 1);
     job->SetState(NJobTrackerClient::EJobState::Aborted);
@@ -233,20 +233,20 @@ void TSchedulerStrategyHost::SetSchedulerAlert(ESchedulerAlertType alertType, co
 }
 
 TFuture<void> TSchedulerStrategyHost::SetOperationAlert(
-    TOperationId operationId,
-    EOperationAlertType alertType,
-    const TError& alert,
-    std::optional<TDuration> timeout)
+    TOperationId /*operationId*/,
+    EOperationAlertType /*alertType*/,
+    const TError& /*alert*/,
+    std::optional<TDuration> /*timeout*/)
 {
     return VoidFuture;
 }
 
 void TSchedulerStrategyHost::LogResourceMetering(
     const TMeteringKey& /*key*/,
-    const TMeteringStatistics& statistics,
-    const THashMap<TString, TString>& otherTags,
-    TInstant lastUpdateTime,
-    TInstant now)
+    const TMeteringStatistics& /*statistics*/,
+    const THashMap<TString, TString>& /*otherTags*/,
+    TInstant /*lastUpdateTime*/,
+    TInstant /*now*/)
 {
     // Skip!
 }

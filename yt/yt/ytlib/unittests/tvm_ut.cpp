@@ -83,8 +83,7 @@ protected:
             PopulateCache();
         }
         return NAuth::CreateDefaultTvmService(
-            config ? config : CreateDefaultTvmServiceConfig(),
-            CreateThreadPoolPoller(1, "HttpPoller"));
+            config ? config : CreateDefaultTvmServiceConfig());
     }
 };
 

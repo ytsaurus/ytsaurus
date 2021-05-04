@@ -527,7 +527,6 @@ public:
         ISchedulerStrategyHost* host,
         IFairShareTreeHost* treeHost,
         TFairShareStrategyTreeConfigPtr treeConfig,
-        NProfiling::TTagId profilingTag,
         const TString& treeId,
         const TString& id,
         EResourceTreeElementKind elementKind,
@@ -707,7 +706,6 @@ public:
         TPoolConfigPtr config,
         bool defaultConfigured,
         TFairShareStrategyTreeConfigPtr treeConfig,
-        NProfiling::TTagId profilingTag,
         const TString& treeId,
         const NLogging::TLogger& logger);
     TSchedulerPoolElement(
@@ -1242,7 +1240,6 @@ public:
         ISchedulerStrategyHost* host,
         IFairShareTreeHost* treeHost,
         TFairShareStrategyTreeConfigPtr treeConfig,
-        NProfiling::TTagId profilingTag,
         const TString& treeId,
         const NLogging::TLogger& logger);
     TSchedulerRootElement(const TSchedulerRootElement& other);
@@ -1303,7 +1300,7 @@ public:
 private:
     // Pre fair share update methods.
     virtual std::optional<double> GetSpecifiedWeight() const override;
-    
+
     virtual TJobResources GetSpecifiedResourceLimits() const override;
 
     virtual bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const override;

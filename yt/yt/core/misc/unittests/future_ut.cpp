@@ -377,7 +377,7 @@ TEST_F(TFutureTest, CascadedApply)
 
     auto leftPrime =
         kicker.ToFuture()
-        .Apply(BIND([=, &thread] (bool f) -> TFuture<int> {
+        .Apply(BIND([=, &thread] (bool /*f*/) -> TFuture<int> {
             thread.Start();
             return left.ToFuture();
         }))
@@ -1455,7 +1455,7 @@ TEST_F(TFutureTest, OnCanceledResult)
     }
 }
 
-TString OnCallResult(const TErrorOr<int>& callResult)
+TString OnCallResult(const TErrorOr<int>& /*callResult*/)
 {
     THROW_ERROR_EXCEPTION("Call failed");
 }

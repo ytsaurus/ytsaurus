@@ -86,7 +86,7 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, Fetch)
             auto chunkLowerLimit = std::max<i64>(lowerLimitRowIndex - lowerTableRowIndex, 0);
             auto chunkUpperLimit = std::min<i64>(upperLimitRowIndex - lowerTableRowIndex, chunk->GetRowCount());
             auto* chunkSpec = response->add_chunks();
-            ToProto(chunkSpec, chunk, EDataSourceType::UnversionedTable);
+            ToProto(chunkSpec, chunk);
             // NB: chunk we got may have non-zero table index, override it with zero.
             chunkSpec->set_table_index(0);
             nodeDirectoryBuilder.Add(chunk->GetReplicaList());

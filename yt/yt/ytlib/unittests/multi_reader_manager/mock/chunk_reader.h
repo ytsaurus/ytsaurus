@@ -83,7 +83,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    virtual TInterruptDescriptor GetInterruptDescriptor(TRange<NTableClient::TUnversionedRow> unreadRows) const override
+    virtual TInterruptDescriptor GetInterruptDescriptor(TRange<NTableClient::TUnversionedRow> /*unreadRows*/) const override
     {
         YT_UNIMPLEMENTED();
     }

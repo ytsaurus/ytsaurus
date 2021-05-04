@@ -20,7 +20,7 @@ public:
 
     template <class TTag>
     explicit TChunkedOutputStream(
-        TTag tag = TTag(),
+        TTag /*tag*/ = TTag(),
         size_t initialReserveSize = 4 * 1024,
         size_t maxReserveSize = 64 * 1024)
         : TChunkedOutputStream(GetRefCountedTypeCookie<TTag>(), initialReserveSize, maxReserveSize)

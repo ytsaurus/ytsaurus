@@ -36,7 +36,7 @@ protected:
         return std::get<0>(GetParam());
     }
 
-    TChunkFileWriterPtr CreateWriter(const TChunkFileWriterTestParams& params)
+    TChunkFileWriterPtr CreateWriter(const TChunkFileWriterTestParams& /*params*/)
     {
         auto type = GetIOEngineType();
         auto config = NYTree::ConvertTo<NYTree::INodePtr>(

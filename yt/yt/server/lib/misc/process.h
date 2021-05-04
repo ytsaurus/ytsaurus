@@ -21,8 +21,7 @@ public:
     TPortoProcess(
         const TString& path,
         NContainers::IInstancePtr containerInstance,
-        bool copyEnv = true,
-        TDuration pollPeriod = TDuration::MilliSeconds(100));
+        bool copyEnv = true);
     virtual void Kill(int signal) override;
     virtual NNet::IConnectionWriterPtr GetStdInWriter() override;
     virtual NNet::IConnectionReaderPtr GetStdOutReader() override;

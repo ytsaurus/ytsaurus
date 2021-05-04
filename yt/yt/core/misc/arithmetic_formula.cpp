@@ -153,34 +153,9 @@ struct TFormulaToken
     i64 Number = 0;
 };
 
-TString ToString(const TFormulaToken& token)
-{
-    if (token.Type == EFormulaTokenType::Number) {
-        return ToString(token.Number);
-    } else if (token.Type == EFormulaTokenType::Variable) {
-        return "[" + token.Name + "]";
-    } else if (token.Type == EFormulaTokenType::BooleanLiteral) {
-        switch (token.Number) {
-            case 0:
-                return "%false";
-            case 1:
-                return "%true";
-            default:
-                YT_ABORT();
-        }
-    } else {
-        return ToString(token.Type);
-    }
-}
-
 bool operator==(const TFormulaToken& lhs, const TFormulaToken& rhs)
 {
     return lhs.Type == rhs.Type && lhs.Name == rhs.Name && lhs.Number == rhs.Number;
-}
-
-bool operator!=(const TFormulaToken& lhs, const TFormulaToken& rhs)
-{
-    return !(lhs == rhs);
 }
 
 } // namespace

@@ -1478,7 +1478,7 @@ private:
                 auto* writeLog = immediate
                     ? (lockless ? &transaction->ImmediateLocklessWriteLog() : &transaction->ImmediateLockedWriteLog())
                     : &transaction->DelayedLocklessWriteLog();
-                EnqueueTransactionWriteRecord(tablet, transaction, writeLog, writeRecord, signature);
+                EnqueueTransactionWriteRecord(transaction, writeLog, writeRecord, signature);
 
                 YT_LOG_DEBUG_UNLESS(writeLog == &transaction->ImmediateLockedWriteLog(),
                     "Rows batched (TabletId: %v, TransactionId: %v, WriteRecordSize: %v, Immediate: %v, Lockless: %v)",
@@ -1576,7 +1576,7 @@ private:
                 auto* writeLog = immediate
                     ? (lockless ? &transaction->ImmediateLocklessWriteLog() : &transaction->ImmediateLockedWriteLog())
                     : &transaction->DelayedLocklessWriteLog();
-                EnqueueTransactionWriteRecord(tablet, transaction, writeLog, writeRecord, signature);
+                EnqueueTransactionWriteRecord(transaction, writeLog, writeRecord, signature);
 
                 if (immediate && !lockless) {
                     TWriteContext context;
@@ -2486,7 +2486,7 @@ private:
             request->new_replication_timestamp());
     }
 
-    void HydraDecommissionTabletCell(TReqDecommissionTabletCellOnNode* request)
+    void HydraDecommissionTabletCell(TReqDecommissionTabletCellOnNode* /*request*/)
     {
         YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet cell is decommissioning");
 
@@ -3073,7 +3073,6 @@ private:
     }
 
     void EnqueueTransactionWriteRecord(
-        TTablet* tablet,
         TTransaction* transaction,
         TTransactionWriteLog* writeLog,
         const TTransactionWriteRecord& record,

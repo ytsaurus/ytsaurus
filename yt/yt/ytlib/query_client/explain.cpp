@@ -145,7 +145,6 @@ void GetFrontQueryInfo(
 
 NYson::TYsonString BuildExplainQueryYson(
     NApi::NNative::IConnectionPtr connection,
-    const TString& queryString,
     const std::unique_ptr<TPlanFragment>& fragment,
     TStringBuf udfRegistryPath,
     const NApi::TExplainQueryOptions& options)
@@ -161,7 +160,7 @@ NYson::TYsonString BuildExplainQueryYson(
             GetQueryInfo(connection, query, dataSource, fluent, false, options);
         })
         .Do([&] (TFluentMap fluent) {
-            auto refiner = [] (TConstExpressionPtr expr, const TKeyColumns& keyColumns) {
+            auto refiner = [] (TConstExpressionPtr expr, const TKeyColumns& /*keyColumns*/) {
                 return expr;
             };
 
