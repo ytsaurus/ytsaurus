@@ -2,13 +2,6 @@ SET(YT_ARCADIA_CXXFLAGS
     -Wno-sign-compare
 )
 
-IF(GCC)
-    SET(YT_ARCADIA_CXXFLAGS
-        ${YT_ARCADIA_CXXFLAGS}
-        -Wno-maybe-uninitialized
-    )
-ENDIF()
-
 IF(YT_ENABLE_SPINLOCK_PROFILING)
     SET(YT_ARCADIA_CXXFLAGS
         ${YT_ARCADIA_CXXFLAGS}
