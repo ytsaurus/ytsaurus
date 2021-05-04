@@ -560,16 +560,21 @@ public:
         }
 
         if (validatePools) {
-            ValidateMaxRunningOperationsCountOnPoolChange(operation, runtimeParameters);
-
-            auto poolLimitViolations = GetPoolLimitViolations(operation, runtimeParameters);
-            if (!poolLimitViolations.empty()) {
-                THROW_ERROR poolLimitViolations.begin()->second;
-            }
-
             return ValidateOperationPoolsCanBeUsed(operation, runtimeParameters);
         } else {
             return VoidFuture;
+        }
+    }
+
+    virtual void ValidatePoolLimits(
+        IOperationStrategyHost* operation,
+        const TOperationRuntimeParametersPtr& runtimeParameters) override
+    {
+        ValidateMaxRunningOperationsCountOnPoolChange(operation, runtimeParameters);
+
+        auto poolLimitViolations = GetPoolLimitViolations(operation, runtimeParameters);
+        if (!poolLimitViolations.empty()) {
+            THROW_ERROR poolLimitViolations.begin()->second;
         }
     }
 

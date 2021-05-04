@@ -165,9 +165,11 @@ class TestRuntimeParameters(YTEnvSetup):
 
     @authors("renadeen")
     def test_change_pool_during_prepare_phase_bug(self):
-        op = run_test_vanilla(":", spec={"testing": {"delay_inside_prepare": 3000}})
+        create_pool("source")
+        create_pool("target")
+        op = run_test_vanilla(":", spec={"pool": "source", "testing": {"delay_inside_prepare": 3000}})
         wait(lambda: op.get_state() == "preparing", sleep_backoff=0.1)
-        update_op_parameters(op.id, parameters={"pool": "another_pool"})
+        update_op_parameters(op.id, parameters={"pool": "target"})
         assert op.get_state() == "preparing"
         # YT-11311: core was in MaterializeOperation.
         op.track()
@@ -213,8 +215,15 @@ class TestRuntimeParameters(YTEnvSetup):
         op.track()
 
     @authors("eshcherbin")
-    @pytest.skip("Crashes due to the bug from YT-14547")
     def test_change_pool_max_operation_count_exceeded(self):
+        # YT-14547:
+        # 1. Operation is running in pool.
+        # 2. Change operation pool to pool with available running operation count.
+        # 3. At the same time change max_running_operation_count in target pool to 0.
+        # 4. Due to WaitFor`s after validation we can attach operation to pool with 0 limit.
+        # 5. Later in the TFairShareTree::ChangeOperationPool we crash as operation is supposed to run after change pool
+        # but cannot due to limit violation.
+
         create_pool("free")
         create_pool("busy", attributes={"max_running_operation_count": 1})
 

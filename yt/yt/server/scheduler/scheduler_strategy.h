@@ -223,6 +223,10 @@ struct ISchedulerStrategy
         const TOperationRuntimeParametersPtr& runtimeParameters,
         bool validatePools) = 0;
 
+    virtual void ValidatePoolLimits(
+        IOperationStrategyHost* operation,
+        const TOperationRuntimeParametersPtr& runtimeParameters) = 0;
+
     virtual void InitOperationRuntimeParameters(
         const TOperationRuntimeParametersPtr& runtimeParameters,
         const TOperationSpecBasePtr& spec,
