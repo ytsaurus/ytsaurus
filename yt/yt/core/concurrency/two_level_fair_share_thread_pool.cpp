@@ -604,9 +604,7 @@ public:
     TTwoLevelFairShareThreadPool(
         int threadCount,
         const TString& threadNamePrefix)
-        : TThreadPoolBase(
-            threadCount,
-            threadNamePrefix)
+        : TThreadPoolBase(threadNamePrefix)
         , Queue_(New<TTwoLevelFairShareQueue>(
             CallbackEventCount_,
             ThreadNamePrefix_))

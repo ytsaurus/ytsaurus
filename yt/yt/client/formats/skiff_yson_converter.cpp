@@ -1343,8 +1343,8 @@ TSkiffToYsonConverter CreatePrimitiveTypeSkiffToYsonConverter(EWireType wireType
 TSkiffToYsonConverter CreateSimpleSkiffToYsonConverter(
     const TComplexTypeFieldDescriptor& descriptor,
     const std::shared_ptr<TSkiffSchema>& skiffSchema,
-    const TConverterCreationContext& context,
-    const TSkiffToYsonConverterConfig& config)
+    const TConverterCreationContext& /*context*/,
+    const TSkiffToYsonConverterConfig& /*config*/)
 {
     try {
         const auto& logicalType = descriptor.GetType()->AsSimpleTypeRef();

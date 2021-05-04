@@ -78,8 +78,8 @@ public:
     virtual void AddError(
         const TString& fileName,
         const TString& elementName,
-        const Message* descriptor,
-        DescriptorPool::ErrorCollector::ErrorLocation location,
+        const Message* /*descriptor*/,
+        DescriptorPool::ErrorCollector::ErrorLocation /*location*/,
         const TString& message) override
     {
         THROW_ERROR_EXCEPTION("Error while building protobuf descriptors: %v", message)
@@ -491,7 +491,7 @@ void TProtobufFormatDescriptionBase::InitFromFileDescriptors(const TProtobufForm
 
                 auto it = EnumerationDescriptionMap_.find(enumName);
                 if (it == EnumerationDescriptionMap_.end()) {
-                    EnumerationDescriptionMap_.emplace(enumName, ConvertToEnumMap(*enumDescriptor)).first;
+                    YT_VERIFY(EnumerationDescriptionMap_.emplace(enumName, ConvertToEnumMap(*enumDescriptor)).second);
                 }
 
                 columnConfig->EnumerationName = enumName;
@@ -869,9 +869,9 @@ void TProtobufWriterFormatDescription::AddTable()
 }
 
 void TProtobufWriterFormatDescription::IgnoreField(
-    int tableIndex,
-    TProtobufFieldDescriptionBase* parent,
-    const TProtobufColumnConfigPtr& columnConfig)
+    int /*tableIndex*/,
+    TProtobufFieldDescriptionBase* /*parent*/,
+    const TProtobufColumnConfigPtr& /*columnConfig*/)
 { }
 
 TProtobufFieldDescriptionBase* TProtobufWriterFormatDescription::AddField(

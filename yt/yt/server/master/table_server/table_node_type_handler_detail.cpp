@@ -440,8 +440,8 @@ EObjectType TReplicatedTableNodeTypeHandler::GetObjectType() const
 }
 
 bool TReplicatedTableNodeTypeHandler::HasBranchedChangesImpl(
-    TReplicatedTableNode* originatingNode,
-    TReplicatedTableNode* branchedNode)
+    TReplicatedTableNode* /*originatingNode*/,
+    TReplicatedTableNode* /*branchedNode*/)
 {
     // Forbid explicitly unlocking replicated tables.
     return true;
@@ -459,17 +459,17 @@ ICypressNodeProxyPtr TReplicatedTableNodeTypeHandler::DoGetProxy(
 }
 
 void TReplicatedTableNodeTypeHandler::DoBeginCopy(
-    TReplicatedTableNode* node,
-    TBeginCopyContext* context)
+    TReplicatedTableNode* /*node*/,
+    TBeginCopyContext* /*context*/)
 {
     // TODO(babenko): support cross-cell copy for replicated tables
     THROW_ERROR_EXCEPTION("Replicated tables do not support cross-cell copying");
 }
 
 void TReplicatedTableNodeTypeHandler::DoEndCopy(
-    TReplicatedTableNode* node,
-    TEndCopyContext* context,
-    ICypressNodeFactory* factory)
+    TReplicatedTableNode* /*node*/,
+    TEndCopyContext* /*context*/,
+    ICypressNodeFactory* /*factory*/)
 {
     // TODO(babenko): support cross-cell copy for replicated tables
     THROW_ERROR_EXCEPTION("Replicated tables do not support cross-cell copying");

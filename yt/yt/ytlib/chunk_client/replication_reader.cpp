@@ -430,9 +430,7 @@ protected:
         };
     }
 
-    virtual bool UpdatePeerBlockMap(
-        const TPeerProbeResult& /*probeResult*/,
-        const TReplicationReaderPtr& /*reader*/)
+    virtual bool UpdatePeerBlockMap(const TPeerProbeResult& /*probeResult*/)
     {
         // P2P is not supported by default.
         return false;
@@ -973,8 +971,7 @@ protected:
     TPeerList ProbeAndSelectBestPeers(
         const TPeerList& candidates,
         int count,
-        const std::vector<int>& blockIndexes,
-        const TReplicationReaderPtr& reader)
+        const std::vector<int>& blockIndexes)
     {
         if (count <= 0) {
             return {};
@@ -983,16 +980,15 @@ protected:
             return {candidates.begin(), candidates.end()};
         }
 
-        auto peerAndProbeResultsOrError = WaitFor(DoProbeAndSelectBestPeers(candidates, count, blockIndexes, reader));
+        auto peerAndProbeResultsOrError = WaitFor(DoProbeAndSelectBestPeers(candidates, blockIndexes));
         YT_VERIFY(peerAndProbeResultsOrError.IsOK());
-        return OnPeersProbed(std::move(peerAndProbeResultsOrError.Value()), count, reader);
+        return OnPeersProbed(std::move(peerAndProbeResultsOrError.Value()), count);
     }
 
     TFuture<TPeerList> AsyncProbeAndSelectBestPeers(
         const TPeerList& candidates,
         int count,
-        const std::vector<int>& blockIndexes,
-        TReplicationReaderPtr reader)
+        const std::vector<int>& blockIndexes)
     {
         if (count <= 0) {
             return {};
@@ -1001,13 +997,13 @@ protected:
             return MakeFuture<TPeerList>({candidates.begin(), candidates.end()});
         }
 
-        return DoProbeAndSelectBestPeers(candidates, count, blockIndexes, reader)
+        return DoProbeAndSelectBestPeers(candidates, blockIndexes)
             .Apply(BIND(
-                [=, this_ = MakeWeak(this), reader = std::move(reader)]
+                [=, this_ = MakeWeak(this)]
                 (const TErrorOr<std::vector<std::pair<TPeer, TErrorOrPeerProbeResult>>>& peerAndProbeResultsOrError)
             {
                 YT_VERIFY(peerAndProbeResultsOrError.IsOK());
-                return OnPeersProbed(std::move(peerAndProbeResultsOrError.Value()), count, reader);
+                return OnPeersProbed(std::move(peerAndProbeResultsOrError.Value()), count);
             }).AsyncVia(SessionInvoker_));
     }
 
@@ -1222,8 +1218,7 @@ private:
     TFuture<std::pair<TPeer, TErrorOrPeerProbeResult>> ProbePeer(
         const IChannelPtr& channel,
         const TPeer& peer,
-        const std::vector<int>& blockIndexes,
-        const TReplicationReaderPtr& reader)
+        const std::vector<int>& blockIndexes)
     {
         TDataNodeServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(ReaderConfig_->ProbeRpcTimeout);
@@ -1257,9 +1252,7 @@ private:
 
     TFuture<std::vector<std::pair<TPeer, TErrorOrPeerProbeResult>>> DoProbeAndSelectBestPeers(
         const TPeerList& candidates,
-        int count,
-        const std::vector<int>& blockIndexes,
-        const TReplicationReaderPtr& reader)
+        const std::vector<int>& blockIndexes)
     {
         // Multiple candidates - send probing requests.
         std::vector<TFuture<std::pair<TPeer, TErrorOrPeerProbeResult>>> asyncResults;
@@ -1275,14 +1268,12 @@ private:
                 asyncSuspiciousResults.push_back(ProbePeer(
                     channel,
                     peer,
-                    blockIndexes,
-                    reader));
+                    blockIndexes));
             } else {
                 asyncResults.push_back(ProbePeer(
                     channel,
                     peer,
-                    blockIndexes,
-                    reader));
+                    blockIndexes));
             }
         }
 
@@ -1338,8 +1329,7 @@ private:
 
     TPeerList OnPeersProbed(
         std::vector<std::pair<TPeer, TErrorOrPeerProbeResult>> peerAndProbeResults,
-        int count,
-        const TReplicationReaderPtr& reader)
+        int count)
     {
         std::vector<std::pair<TPeer, TPeerProbeResult>> peerAndSuccessfulProbeResults;
         bool receivedNewPeers = false;
@@ -1354,7 +1344,7 @@ private:
 
             auto& probeResult = probeResultOrError.Value();
 
-            if (UpdatePeerBlockMap(probeResult, reader)) {
+            if (UpdatePeerBlockMap(probeResult)) {
                 receivedNewPeers = true;
             }
 
@@ -1517,9 +1507,7 @@ private:
             BIND(&TReadBlockSetSession::DoRequestBlocks, MakeStrong(this)));
     }
 
-    bool UpdatePeerBlockMap(
-        const TPeerProbeResult& probeResult,
-        const TReplicationReaderPtr& reader) override
+    bool UpdatePeerBlockMap(const TPeerProbeResult& probeResult) override
     {
         if (!ReaderConfig_->FetchFromPeers && !probeResult.PeerDescriptors.empty()) {
             YT_LOG_DEBUG("Peer suggestions received but ignored");
@@ -1620,7 +1608,7 @@ private:
             requestMoreBlocks = FetchBlocksFromNodes(reader, uncachedBlocks, candidates);
         }
 
-        FetchBlocksFromCache(reader, cachedBlocks);
+        FetchBlocksFromCache(cachedBlocks);
 
         if (requestMoreBlocks) {
             RequestBlocks();
@@ -1698,8 +1686,7 @@ private:
         auto peers = ProbeAndSelectBestPeers(
             candidates,
             GetDesiredPeerCount(),
-            blockIndexes,
-            reader);
+            blockIndexes);
 
         SessionOptions_.ChunkReaderStatistics->PickPeerWaitTime += pickPeerTimer.GetElapsedValue();
 
@@ -1770,7 +1757,7 @@ private:
 
         auto probeResult = ParseProbeResponse(rsp);
 
-        UpdatePeerBlockMap(probeResult, reader);
+        UpdatePeerBlockMap(probeResult);
 
         if (probeResult.NetThrottling || probeResult.DiskThrottling) {
             YT_LOG_DEBUG("Peer is throttling (Address: %v, NetThrottling: %v, DiskThrottling: %v)",
@@ -1860,9 +1847,7 @@ private:
         return true;
     }
 
-    void FetchBlocksFromCache(
-        const TReplicationReaderPtr& reader,
-        const std::vector<TBlockWithCookie>& blocks)
+    void FetchBlocksFromCache(const std::vector<TBlockWithCookie>& blocks)
     {
         std::vector<TFuture<TCachedBlock>> cachedBlockFutures;
         cachedBlockFutures.reserve(blocks.size());
@@ -2556,7 +2541,7 @@ private:
             }
 
             if (EnablePeerProbing_) {
-                AsyncProbeAndSelectBestPeers(SinglePassCandidates_, SinglePassCandidates_.size(), {}, std::move(reader))
+                AsyncProbeAndSelectBestPeers(SinglePassCandidates_, SinglePassCandidates_.size(), {})
                     .Subscribe(BIND(
                         [
                             =,

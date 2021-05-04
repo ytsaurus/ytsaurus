@@ -19,15 +19,6 @@ std::vector<T> SortedAndUnique(std::array<T, N> array)
     return result;
 }
 
-std::vector<TSharedRef> ConvertToSharedRefs(const std::vector<TString>& data)
-{
-    std::vector<TSharedRef> refs;
-    for (const auto& str : data) {
-        refs.push_back(TSharedRef::FromString(str));
-    }
-    return refs;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCodecTest

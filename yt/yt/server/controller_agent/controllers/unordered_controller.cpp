@@ -399,7 +399,7 @@ protected:
 
         InitJobSizeConstraints();
 
-        auto autoMergeEnabled = TryInitAutoMerge(JobSizeConstraints_->GetJobCount(), DataWeightRatio);
+        auto autoMergeEnabled = TryInitAutoMerge(JobSizeConstraints_->GetJobCount());
 
         if (autoMergeEnabled) {
             UnorderedTask_ = New<TAutoMergeableUnorderedTask>(this, GetAutoMergeStreamDescriptors());
@@ -540,7 +540,7 @@ public:
     }
 
 protected:
-    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
     {
         return TStringBuf("data_weight_per_job");
     }
@@ -707,7 +707,7 @@ public:
     { }
 
 protected:
-    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
     {
         return TStringBuf("data_weight_per_job");
     }

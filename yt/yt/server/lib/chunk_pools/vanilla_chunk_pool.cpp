@@ -67,7 +67,7 @@ public:
         }
     }
 
-    virtual TChunkStripeListPtr GetStripeList(IChunkPoolOutput::TCookie cookie) override
+    virtual TChunkStripeListPtr GetStripeList(IChunkPoolOutput::TCookie /*cookie*/) override
     {
         return NullStripeList;
     }

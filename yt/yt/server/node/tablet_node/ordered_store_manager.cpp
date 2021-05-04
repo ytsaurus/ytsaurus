@@ -238,7 +238,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
     return BIND([=, this_ = MakeStrong(this)] (
         const ITransactionPtr& transaction,
         const IThroughputThrottlerPtr& throttler,
-        TTimestamp currentTimestamp,
+        TTimestamp /*currentTimestamp*/,
         const TWriterProfilerPtr& writerProfiler
     ) {
         ISchemalessChunkWriterPtr tableWriter;

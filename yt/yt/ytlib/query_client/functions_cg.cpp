@@ -86,7 +86,6 @@ Value* GetTypedFunctionContext(
 ////////////////////////////////////////////////////////////////////////////////
 
 void CheckCallee(
-    TCGBaseContext& builder,
     const TString& functionName,
     llvm::Function* callee,
     llvm::FunctionType* functionType)
@@ -185,7 +184,7 @@ TCGValue TSimpleCallingConvention::MakeCodegenFunctionCall(
     std::vector<TCodegenValue> codegenArguments,
     std::function<Value*(TCGBaseContext&, std::vector<Value*>)> codegenBody,
     EValueType type,
-    bool aggregate,
+    bool /*aggregate*/,
     const TString& name) const
 {
     std::reverse(codegenArguments.begin(), codegenArguments.end());
@@ -248,7 +247,7 @@ llvm::FunctionType* TSimpleCallingConvention::GetCalleeType(
     TCGBaseContext& builder,
     std::vector<EValueType> argumentTypes,
     EValueType resultType,
-    bool useFunctionContext) const
+    bool /*useFunctionContext*/) const
 {
     llvm::Type* calleeResultType;
     auto calleeArgumentTypes = std::vector<llvm::Type*>();
@@ -296,7 +295,7 @@ TCGValue TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
     std::function<Value*(TCGBaseContext&, std::vector<Value*>)> codegenBody,
     EValueType type,
     bool aggregate,
-    const TString& name) const
+    const TString& /*name*/) const
 {
     auto argumentValues = std::vector<Value*>();
 
@@ -364,7 +363,7 @@ TCGValue TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
 llvm::FunctionType* TUnversionedValueCallingConvention::GetCalleeType(
     TCGBaseContext& builder,
     std::vector<EValueType> argumentTypes,
-    EValueType resultType,
+    EValueType /*resultType*/,
     bool useFunctionContext) const
 {
     llvm::Type* calleeResultType = builder->getVoidTy();
@@ -585,7 +584,6 @@ void LoadLlvmFunctions(
     for (const auto& function : functions) {
         auto callee = module->getFunction(ToStringRef(function.first));
         CheckCallee(
-            builder,
             function.first,
             callee,
             function.second);
@@ -790,10 +788,10 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         makeCodegenBody
     ] (TCGBaseContext& builder, Value* buffer, TCGValue aggState, TCGValue newValue) {
         auto codegenArgs = std::vector<TCodegenValue>();
-        codegenArgs.push_back([=] (TCGBaseContext& builder) {
+        codegenArgs.push_back([=] (TCGBaseContext& /*builder*/) {
             return aggState;
         });
-        codegenArgs.push_back([=] (TCGBaseContext& builder) {
+        codegenArgs.push_back([=] (TCGBaseContext& /*builder*/) {
             return newValue;
         });
 
@@ -814,10 +812,10 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         makeCodegenBody
     ] (TCGBaseContext& builder, Value* buffer, TCGValue dstAggState, TCGValue aggState) {
         auto codegenArgs = std::vector<TCodegenValue>();
-        codegenArgs.push_back([=] (TCGBaseContext& builder) {
+        codegenArgs.push_back([=] (TCGBaseContext& /*builder*/) {
             return dstAggState;
         });
-        codegenArgs.push_back([=] (TCGBaseContext& builder) {
+        codegenArgs.push_back([=] (TCGBaseContext& /*builder*/) {
             return aggState;
         });
 
@@ -838,7 +836,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         makeCodegenBody
     ] (TCGBaseContext& builder, Value* buffer, TCGValue aggState) {
         auto codegenArgs = std::vector<TCodegenValue>();
-        codegenArgs.push_back([=] (TCGBaseContext& builder) {
+        codegenArgs.push_back([=] (TCGBaseContext& /*builder*/) {
             return aggState;
         });
 

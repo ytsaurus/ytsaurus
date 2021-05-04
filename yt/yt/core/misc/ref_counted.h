@@ -150,9 +150,9 @@ using TRefCountedPtr = TIntrusivePtr<TRefCounted>;
 #define DECLARE_REFCOUNTED_TYPE(type) \
     typedef ::NYT::TIntrusivePtr<type> type ## Ptr; \
     \
-    const ::NYT::TRefCounter* GetRefCounter(const type* obj) ATTRIBUTE_USED; \
-    void DestroyRefCounted(const type* obj) ATTRIBUTE_USED; \
-    void DeallocateRefCounted(const type* obj) ATTRIBUTE_USED;
+    [[maybe_unused]] const ::NYT::TRefCounter* GetRefCounter(const type* obj) ATTRIBUTE_USED; \
+    [[maybe_unused]] void DestroyRefCounted(const type* obj) ATTRIBUTE_USED; \
+    [[maybe_unused]] void DeallocateRefCounted(const type* obj) ATTRIBUTE_USED;
 
 //! Forward-declares a class type, defines an intrusive pointer for it, and finally
 //! declares Ref/Unref overloads. Use this macro in |public.h|-like files.
@@ -169,15 +169,15 @@ using TRefCountedPtr = TIntrusivePtr<TRefCounted>;
 //! Provides implementations for Ref/Unref overloads. Use this macro right
 //! after the type's full definition.
 #define DEFINE_REFCOUNTED_TYPE(type) \
-    Y_FORCE_INLINE const ::NYT::TRefCounter* GetRefCounter(const type* obj) \
+    [[maybe_unused]] Y_FORCE_INLINE const ::NYT::TRefCounter* GetRefCounter(const type* obj) \
     { \
         return ::NYT::TRefCountedHelper<type>::GetRefCounter(obj); \
     } \
-    Y_FORCE_INLINE void DestroyRefCounted(const type* obj) \
+    [[maybe_unused]] Y_FORCE_INLINE void DestroyRefCounted(const type* obj) \
     { \
         ::NYT::TRefCountedHelper<type>::Destroy(obj); \
     } \
-    Y_FORCE_INLINE void DeallocateRefCounted(const type* obj) \
+    [[maybe_unused]] Y_FORCE_INLINE void DeallocateRefCounted(const type* obj) \
     { \
         ::NYT::TRefCountedHelper<type>::Deallocate(obj); \
     }

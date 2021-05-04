@@ -255,7 +255,7 @@ struct TFakeConnection
     virtual void SetWriteDeadline(std::optional<TInstant> /*deadline*/) override
     { }
 
-    virtual void SubscribePeerDisconnect(TCallback<void()> cb) override
+    virtual void SubscribePeerDisconnect(TCallback<void()> /*cb*/) override
     { }
 };
 
@@ -655,7 +655,7 @@ class TOKHttpHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& rsp) override
     {
         rsp->SetStatus(EStatusCode::OK);
         WaitFor(rsp->Close()).ThrowOnError();
@@ -728,7 +728,7 @@ class TTestStatusCodeHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& rsp) override
     {
         rsp->SetStatus(Code);
         WaitFor(rsp->Close()).ThrowOnError();
@@ -811,7 +811,7 @@ class TTestTrailersHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& rsp) override
     {
         WaitFor(rsp->Write(TSharedRef::FromString("test"))).ThrowOnError();
 
@@ -839,7 +839,7 @@ class THangingHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& /*rsp*/) override
     { }
 };
 
@@ -847,7 +847,7 @@ class TImpatientHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& rsp) override
     {
         WaitFor(rsp->Write(TSharedRef::FromString("body"))).ThrowOnError();
         WaitFor(rsp->Close()).ThrowOnError();
@@ -858,7 +858,7 @@ class TForgetfulHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& rsp) override
     {
         rsp->SetStatus(EStatusCode::OK);
     }
@@ -899,7 +899,7 @@ class TThrowingHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& /*rsp*/) override
     {
         THROW_ERROR_EXCEPTION("Your request is bad");
     }
@@ -953,7 +953,7 @@ class TStreamingHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& rsp) override
     {
         rsp->SetStatus(EStatusCode::OK);
         auto data = TSharedRef::FromString(TString(1024, 'f'));
@@ -987,7 +987,7 @@ class TCancelingHandler
 public:
     TPromise<void> Canceled = NewPromise<void>();
 
-    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& /*rsp*/) override
     {
         auto finally = Finally([this] {
             YT_LOG_DEBUG("Running finally block");
@@ -1037,7 +1037,7 @@ class TValidateErrorHandler
     : public IHttpHandler
 {
 public:
-    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
+    virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& /*rsp*/) override
     {
         ASSERT_THROW(ReadAll(req), TErrorException);
         Ok = true;

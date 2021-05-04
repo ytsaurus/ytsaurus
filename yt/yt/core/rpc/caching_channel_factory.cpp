@@ -256,7 +256,7 @@ DEFINE_REFCOUNTED_TYPE(TCachingChannelFactory)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCachedChannel::OnTerminated(const TError& error)
+void TCachedChannel::OnTerminated(const TError& /*error*/)
 {
     if (auto factory = Factory_.Lock()) {
         factory->EvictChannel(Address_, this);

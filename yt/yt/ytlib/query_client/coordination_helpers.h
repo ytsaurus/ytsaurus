@@ -484,7 +484,7 @@ std::vector<TSharedRange<TRowRange>> SplitTablet(
             MakeRange(beginIt, endIt),
             GetSampleKeys(*partitionIt),
             TPredicate{},
-            [&] (TRangeIt rangesIt, TRangeIt rangesItEnd, TSampleIt sampleIt, TSampleIt sampleItEnd) {
+            [&] (TRangeIt /*rangesIt*/, TRangeIt /*rangesItEnd*/, TSampleIt sampleIt, TSampleIt sampleItEnd) {
                 allShardCount += 1 + std::distance(sampleIt, sampleItEnd);
             });
     }

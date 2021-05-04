@@ -609,9 +609,9 @@ void EnrichKeyRange(
         // upper bound
         finalizeRow = [&] (
             TUnversionedRow src,
-            size_t size,
+            size_t /*size*/,
             const std::optional<TUnversionedValue>& finalizeSentinel,
-            const std::optional<TUnversionedValue>& sentinel)
+            const std::optional<TUnversionedValue>& /*sentinel*/)
         {
             return CaptureRowWithSentinel(buffer, src, shrinkSize, finalizeSentinel);
         };
@@ -619,7 +619,7 @@ void EnrichKeyRange(
         finalizeRow = [&] (
             TUnversionedRow src,
             size_t size,
-            const std::optional<TUnversionedValue>& finalizeSentinel,
+            const std::optional<TUnversionedValue>& /*finalizeSentinel*/,
             const std::optional<TUnversionedValue>& sentinel)
         {
             return CaptureRowWithSentinel(buffer, src, size, sentinel);

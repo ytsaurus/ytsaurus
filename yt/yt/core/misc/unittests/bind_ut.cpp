@@ -66,19 +66,9 @@ private:
     TObjectWithRC& operator=(TObjectWithRC&&);
 };
 
-void Ref(const TObjectWithRC* obj)
-{
-    obj->Ref();
-}
-
 void Ref(TObjectWithRC* obj)
 {
     obj->Ref();
-}
-
-void Unref(const TObjectWithRC* obj)
-{
-    obj->Unref();
 }
 
 void Unref(TObjectWithRC* obj)
@@ -249,7 +239,7 @@ void SetIntViaPtr(int* n)
 }
 
 template <class T>
-int FunctionWithWeakParam(TWeakPtr<T> ptr, int n)
+int FunctionWithWeakParam(TWeakPtr<T> /*ptr*/, int n)
 {
     return n;
 }

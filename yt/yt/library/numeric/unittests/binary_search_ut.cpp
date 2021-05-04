@@ -151,7 +151,7 @@ TEST_F(TBinarySearchTest, TestFloatingPointLowerBound)
             /* name */ "predicate_always_true",
             /* lo */ -17,
             /* hi */ 1000,
-            /* predicate */ [] (double x) { return true; },
+            /* predicate */ [] (double /*x*/) { return true; },
             /* expectedResult */ -17
         },
         {
@@ -278,7 +278,7 @@ TEST_F(TBinarySearchTest, TestFloatingPointInverseLowerBound)
             /* name */ "predicate_always_true",
             /* lo */ -17,
             /* hi */ 1000,
-            /* predicate */ [] (double x) { return true; },
+            /* predicate */ [] (double /*x*/) { return true; },
             /* expectedResult */ 1000
         },
         {

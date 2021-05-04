@@ -1479,8 +1479,6 @@ private:
             Config_,
             Options_,
             DecoratedAutomaton_,
-            epochContext->LeaderCommitter,
-            SnapshotStore_,
             epochContext.Get(),
             Logger);
 

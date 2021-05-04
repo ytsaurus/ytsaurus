@@ -21,7 +21,7 @@ extern "C" void cardinality_init(
 }
 
 extern "C" void cardinality_update(
-    TExpressionContext* context,
+    TExpressionContext* /*context*/,
     TUnversionedValue* result,
     TUnversionedValue* state,
     TUnversionedValue* newValue)
@@ -34,7 +34,7 @@ extern "C" void cardinality_update(
 }
 
 extern "C" void cardinality_merge(
-    TExpressionContext* context,
+    TExpressionContext* /*context*/,
     TUnversionedValue* result,
     TUnversionedValue* state1,
     TUnversionedValue* state2)
@@ -47,7 +47,7 @@ extern "C" void cardinality_merge(
 }
 
 extern "C" void cardinality_finalize(
-    TExpressionContext* context,
+    TExpressionContext* /*context*/,
     TUnversionedValue* result,
     TUnversionedValue* state)
 {

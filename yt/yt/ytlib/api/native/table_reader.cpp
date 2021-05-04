@@ -63,7 +63,6 @@ public:
         const TRichYPath& richPath,
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter,
-        bool unordered,
         IThroughputThrottlerPtr bandwidthThrottler,
         IThroughputThrottlerPtr rpsThrottler)
         : Config_(std::move(config))
@@ -259,7 +258,6 @@ TFuture<ITableReaderPtr> CreateTableReader(
         path,
         nameTable,
         columnFilter,
-        options.Unordered,
         bandwidthThrottler,
         rpsThrottler);
 

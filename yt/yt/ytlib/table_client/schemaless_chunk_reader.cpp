@@ -264,8 +264,6 @@ protected:
         const TChunkSpec& chunkSpec,
         const TReadLimit& lowerLimit,
         const TReadLimit& upperLimit,
-        const TComparator& chunkComparator,
-        const TComparator& comparator,
         i64 rowIndex,
         int interruptDescriptorKeyLength) const
     {
@@ -820,8 +818,6 @@ TInterruptDescriptor THorizontalSchemalessRangeChunkReader::GetInterruptDescript
         ChunkSpec_,
         ReadRange_.LowerLimit(),
         ReadRange_.UpperLimit(),
-        ChunkComparator_,
-        Comparator_,
         RowIndex_,
         InterruptDescriptorKeyLength_);
 }
@@ -1159,8 +1155,6 @@ public:
             ChunkSpec_,
             LowerLimit_,
             UpperLimit_,
-            ChunkComparator_,
-            Comparator_,
             RowIndex_,
             InterruptDescriptorKeyLength_);
     }

@@ -305,7 +305,7 @@ template <> THorizontalSchemalessVersionedBlockReader
 TCacheBasedVersionedChunkReaderBase<THorizontalSchemalessVersionedBlockReader>::CreateBlockReader(
     const TSharedRef& block,
     const NProto::TBlockMeta& meta,
-    bool initialize)
+    bool /*initialize*/)
 {
     return THorizontalSchemalessVersionedBlockReader(
         block,
@@ -342,7 +342,7 @@ THorizontalSchemalessVersionedBlockReader*
 TCacheBasedVersionedChunkReaderBase<THorizontalSchemalessVersionedBlockReader>::CreateBlockReaderPtr(
     const TSharedRef& block,
     const NProto::TBlockMeta& meta,
-    bool initialize)
+    bool /*initialize*/)
 {
     return new THorizontalSchemalessVersionedBlockReader(
         block,

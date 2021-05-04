@@ -303,7 +303,7 @@ void QuickLzDecompress(StreamSource* source, TBlob* sink)
     GenericBlockDecompress<TQuickLzCompressedTag>(
         source,
         sink,
-        [] (const char* input, size_t inputSize, char* output, size_t outputSize) {
+        [] (const char* input, size_t /*inputSize*/, char* output, size_t outputSize) {
             qlz_state_decompress state;
             auto rv = qlz_decompress(input, output, &state);
             YT_VERIFY(rv > 0 && rv == outputSize);

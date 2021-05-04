@@ -13,7 +13,7 @@ namespace NYT::NObjectClient {
 void AddCellTagToSyncWith(const NRpc::IClientRequestPtr& request, NObjectClient::TCellTag cellTag);
 void AddCellTagToSyncWith(const NRpc::IClientRequestPtr& request, NObjectClient::TObjectId objectId);
 
-bool IsRetriableObjectServiceError(int attempt, const TError& error);
+bool IsRetriableObjectServiceError(int /*attempt*/, const TError& error);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -390,7 +390,7 @@ class TNoopTokenAuthenticator
     : public ITokenAuthenticator
 {
 public:
-    virtual TFuture<TAuthenticationResult> Authenticate(const TTokenCredentials& credentials) override
+    virtual TFuture<TAuthenticationResult> Authenticate(const TTokenCredentials& /*credentials*/) override
     {
         static const auto Realm = TString("noop");
         static const auto UserTicket = TString("");

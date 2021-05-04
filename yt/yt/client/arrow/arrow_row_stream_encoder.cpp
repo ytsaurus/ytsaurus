@@ -35,22 +35,6 @@ using TBodyWriter = std::function<void(TMutableRef)>;
 
 constexpr i64 ArrowAlignment = 8;
 
-i64 GetBytesPerValue(const TBatchColumn& column)
-{
-    const auto& values = *column.Values;
-    if (values.BitWidth == 1) {
-        return 1;
-    } else {
-        YT_VERIFY(values.BitWidth >= 8 && IsPowerOf2(values.BitWidth));
-        return values.BitWidth / 8;
-    }
-}
-
-i64 GetTotalValuesSize(const TBatchColumn& column, int count)
-{
-    return AlignUp<i64>(GetBytesPerValue(column) * count, ArrowAlignment);
-}
-
 flatbuffers::Offset<flatbuffers::String> SerializeString(
     flatbuffers::FlatBufferBuilder* flatbufBuilder,
     const TString& str)

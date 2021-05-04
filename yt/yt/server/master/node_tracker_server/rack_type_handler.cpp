@@ -61,7 +61,7 @@ private:
         return AllSecondaryCellTags();
     }
 
-    virtual IObjectProxyPtr DoGetProxy(TRack* rack, TTransaction* transaction) override
+    virtual IObjectProxyPtr DoGetProxy(TRack* rack, TTransaction* /*transaction*/) override
     {
         return CreateRackProxy(Bootstrap_, &Metadata_, rack);
     }

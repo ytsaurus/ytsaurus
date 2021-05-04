@@ -320,7 +320,7 @@ int TDecimalLogicalType::GetTypeComplexity() const
     return 1;
 }
 
-void TDecimalLogicalType::ValidateNode(const TWalkContext& context) const
+void TDecimalLogicalType::ValidateNode(const TWalkContext& /*context*/) const
 {
     if (Precision_ < MinPrecision || Precision_ > MaxPrecision) {
         THROW_ERROR_EXCEPTION("Decimal precision %Qv is not in range [%v, %v]",
@@ -439,7 +439,7 @@ int TListLogicalType::GetTypeComplexity() const
     return 1 + Element_->GetTypeComplexity();
 }
 
-void TListLogicalType::ValidateNode(const TWalkContext& context) const
+void TListLogicalType::ValidateNode(const TWalkContext& /*context*/) const
 { }
 
 bool TListLogicalType::IsNullable() const
@@ -687,7 +687,7 @@ int TStructLogicalTypeBase::GetTypeComplexity() const
     return result;
 }
 
-void TStructLogicalTypeBase::ValidateNode(const TWalkContext& context) const
+void TStructLogicalTypeBase::ValidateNode(const TWalkContext& /*context*/) const
 {
     THashSet<TStringBuf> usedNames;
     for (size_t i = 0; i < Fields_.size(); ++i) {
@@ -745,7 +745,7 @@ int TTupleLogicalTypeBase::GetTypeComplexity() const
     return result;
 }
 
-void TTupleLogicalTypeBase::ValidateNode(const TWalkContext& context) const
+void TTupleLogicalTypeBase::ValidateNode(const TWalkContext& /*context*/) const
 { }
 
 bool TTupleLogicalTypeBase::IsNullable() const

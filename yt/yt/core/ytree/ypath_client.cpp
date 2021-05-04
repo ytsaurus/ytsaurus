@@ -111,7 +111,7 @@ void TYPathRequest::SetUserTag(const TString& /*tag*/)
     YT_ABORT();
 }
 
-void TYPathRequest::SetUserAgent(const TString& userAgent)
+void TYPathRequest::SetUserAgent(const TString& /*userAgent*/)
 {
     YT_ABORT();
 }

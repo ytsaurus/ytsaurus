@@ -607,7 +607,7 @@ protected:
 
         bool autoMergeNeeded = false;
         if (GetOperationType() != EOperationType::Merge) {
-            autoMergeNeeded = TryInitAutoMerge(JobSizeConstraints_->GetJobCount(), DataWeightRatio);
+            autoMergeNeeded = TryInitAutoMerge(JobSizeConstraints_->GetJobCount());
         }
 
         if (autoMergeNeeded) {
@@ -907,7 +907,7 @@ public:
     }
 
 protected:
-    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
     {
         return TStringBuf("data_weight_per_job");
     }
@@ -1286,7 +1286,7 @@ private:
 
     std::optional<int> OutputTeleportTableIndex_;
 
-    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
     {
         return TStringBuf("data_weight_per_job");
     }

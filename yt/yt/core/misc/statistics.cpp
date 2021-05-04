@@ -342,17 +342,17 @@ public:
         ++FilledSummaryFields_;
     }
 
-    virtual void OnUint64Scalar(ui64 value) override
+    virtual void OnUint64Scalar(ui64 /*value*/) override
     {
         THROW_ERROR_EXCEPTION("Uint64 scalars are not allowed for statistics");
     }
 
-    virtual void OnDoubleScalar(double value) override
+    virtual void OnDoubleScalar(double /*value*/) override
     {
         THROW_ERROR_EXCEPTION("Double scalars are not allowed for statistics");
     }
 
-    virtual void OnBooleanScalar(bool value) override
+    virtual void OnBooleanScalar(bool /*value*/) override
     {
         THROW_ERROR_EXCEPTION("Boolean scalars are not allowed for statistics");
     }

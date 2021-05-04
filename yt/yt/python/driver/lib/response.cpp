@@ -169,7 +169,7 @@ TIntrusivePtr<TDriverResponseHolder> TDriverResponse::GetHolder() const
     return Holder_;
 }
 
-Py::Object TDriverResponse::ResponseParameters(Py::Tuple& args, Py::Dict& kwargs)
+Py::Object TDriverResponse::ResponseParameters(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
 {
     if (Holder_->IsResponseParametersReady()) {
         return NYTree::ConvertTo<Py::Object>(Holder_->GetResponseParametersYsonString());
@@ -178,7 +178,7 @@ Py::Object TDriverResponse::ResponseParameters(Py::Tuple& args, Py::Dict& kwargs
     }
 }
 
-Py::Object TDriverResponse::Wait(Py::Tuple& args, Py::Dict& kwargs)
+Py::Object TDriverResponse::Wait(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
 {
     {
         TReleaseAcquireGilGuard guard;
@@ -195,12 +195,12 @@ Py::Object TDriverResponse::Wait(Py::Tuple& args, Py::Dict& kwargs)
     return Py::None();
 }
 
-Py::Object TDriverResponse::IsSet(Py::Tuple& args, Py::Dict& kwargs)
+Py::Object TDriverResponse::IsSet(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
 {
     return Py::Boolean(ResponseFuture_.IsSet());
 }
 
-Py::Object TDriverResponse::IsOk(Py::Tuple& args, Py::Dict& kwargs)
+Py::Object TDriverResponse::IsOk(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
 {
     if (!ResponseFuture_.IsSet()) {
         throw CreateYtError("Response is not set");
@@ -208,7 +208,7 @@ Py::Object TDriverResponse::IsOk(Py::Tuple& args, Py::Dict& kwargs)
     return Py::Boolean(ResponseFuture_.Get().IsOK());
 }
 
-Py::Object TDriverResponse::Error(Py::Tuple& args, Py::Dict& kwargs)
+Py::Object TDriverResponse::Error(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
 {
     if (!ResponseFuture_.IsSet()) {
         throw CreateYtError("Response is not set");

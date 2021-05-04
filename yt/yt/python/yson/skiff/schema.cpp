@@ -188,7 +188,7 @@ Py::Object TSkiffSchemaPython::CopySchema()
     return result;
 }
 
-Py::Object TSkiffSchemaPython::DeepCopySchema(const Py::Tuple& args)
+Py::Object TSkiffSchemaPython::DeepCopySchema(const Py::Tuple& /*args*/)
 {
     return CopySchema();
 }

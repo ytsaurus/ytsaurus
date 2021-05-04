@@ -231,7 +231,6 @@ public:
                 }
 
                 LookupInPartition(
-                    sessionInfo.PartitionSnapshot,
                     sessionInfo.StartKeyIndex,
                     sessionInfo.EndKeyIndex,
                     &PartitionSessions_[0],
@@ -465,7 +464,6 @@ private:
         class TFinishRow
     >
     void LookupInPartition(
-        const TPartitionSnapshotPtr& partitionSnapshot,
         int startKeyIndex,
         int endKeyIndex,
         TReadSessionList* partitionSessions,
@@ -642,7 +640,6 @@ private:
             // NB: Processing of partitions is sequential.
             for (int index = 0; index < partitionSessionInfos.size(); ++index) {
                 LookupInPartition(
-                    partitionSessionInfos[index].PartitionSnapshot,
                     partitionSessionInfos[index].StartKeyIndex,
                     partitionSessionInfos[index].EndKeyIndex,
                     &PartitionSessions_[index],

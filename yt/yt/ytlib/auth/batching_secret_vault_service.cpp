@@ -74,7 +74,7 @@ private:
 
     NProfiling::TEventTimer BatchingLatencyTimer_;
 
-    TFuture<TSecretSubresponse> DoGetSecret(const TSecretSubrequest& subrequest, TSpinlockGuard<TAdaptiveLock>& guard)
+    TFuture<TSecretSubresponse> DoGetSecret(const TSecretSubrequest& subrequest, TSpinlockGuard<TAdaptiveLock>& /*guard*/)
     {
         auto promise = NewPromise<TSecretSubresponse>();
         SubrequestQueue_.push(TQueueItem{

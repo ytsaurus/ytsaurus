@@ -552,7 +552,7 @@ void TNewJobManager::InvalidateAllJobs()
     }
 }
 
-void TNewJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJob, TComparator comparator)
+void TNewJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJob)
 {
     // TODO(max42): keep the order of jobs in a singly linked list that allows us to use this
     // procedure not only during the initial creation of jobs or right after the whole pool invalidation,

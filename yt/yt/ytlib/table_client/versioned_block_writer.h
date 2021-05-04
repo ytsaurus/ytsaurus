@@ -25,10 +25,7 @@ public:
 public:
     explicit TSimpleVersionedBlockWriter(TTableSchemaPtr schema);
 
-    void WriteRow(
-        TVersionedRow row,
-        const TUnversionedValue* beginPrevKey,
-        const TUnversionedValue* endPrevKey);
+    void WriteRow(TVersionedRow row);
 
     virtual TBlock FlushBlock() override;
 

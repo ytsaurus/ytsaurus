@@ -56,12 +56,12 @@ public:
     }
 
 private:
-    virtual TCellTagList DoGetReplicationCellTags(const TNode* node) override
+    virtual TCellTagList DoGetReplicationCellTags(const TNode* /*node*/) override
     {
         return AllSecondaryCellTags();
     }
 
-    virtual IObjectProxyPtr DoGetProxy(TNode* node, TTransaction* transaction) override
+    virtual IObjectProxyPtr DoGetProxy(TNode* node, TTransaction* /*transaction*/) override
     {
         return CreateClusterNodeProxy(Bootstrap_, &Metadata_, node);
     }

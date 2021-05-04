@@ -63,7 +63,7 @@ public:
         YT_LOG_DEBUG("Starting scraper task (ChunkCount: %v)",
             ChunkIds_.size());
 
-        LocateFuture_.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
+        LocateFuture_.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& /*error*/) {
             if (!Started_) {
                 Started_ = true;
                 NextChunkIndex_ = 0;

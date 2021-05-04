@@ -240,7 +240,6 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
 
     // Fast lane: check for in-memory reads.
     if (auto reader = TryCreateCacheBasedReader(
-        columnFilter,
         chunkReadOptions,
         readRange,
         readSchema,
@@ -303,7 +302,6 @@ TKeyComparer TOrderedChunkStore::GetKeyComparer()
 }
 
 ISchemafulUnversionedReaderPtr TOrderedChunkStore::TryCreateCacheBasedReader(
-    const TColumnFilter& columnFilter,
     const TClientChunkReadOptions& chunkReadOptions,
     const TReadRange& readRange,
     const TTableSchemaPtr& readSchema,

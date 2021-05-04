@@ -630,9 +630,7 @@ class TSparseVersionedValueExtractorBase
     : public TVersionedValueExtractorBase
 {
 public:
-    TSparseVersionedValueExtractorBase(
-        const NProto::TSegmentMeta& meta,
-        bool aggregate);
+    TSparseVersionedValueExtractorBase(bool aggregate);
 
     i64 GetLowerValueIndex(i64 segmentRowIndex, int valueIndex) const;
 

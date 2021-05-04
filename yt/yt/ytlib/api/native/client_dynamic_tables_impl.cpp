@@ -982,7 +982,7 @@ NYson::TYsonString TClient::DoExplainQuery(
         fetchFunctions,
         options.Timestamp);
 
-    return BuildExplainQueryYson(GetNativeConnection(), queryString, fragment, udfRegistryPath, options);
+    return BuildExplainQueryYson(GetNativeConnection(), fragment, udfRegistryPath, options);
 }
 
 IAttributeDictionaryPtr TClient::ResolveExternalTable(
@@ -1405,7 +1405,7 @@ void TClient::DoTrimTable(
     const TYPath& path,
     int tabletIndex,
     i64 trimmedRowCount,
-    const TTrimTableOptions& options)
+    const TTrimTableOptions& /*options*/)
 {
     const auto& tableMountCache = Connection_->GetTableMountCache();
     auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
@@ -1467,7 +1467,7 @@ void TClient::DoAlterTableReplica(
 
 TYsonString TClient::DoGetTablePivotKeys(
     const NYPath::TYPath& path,
-    const TGetTablePivotKeysOptions& options)
+    const TGetTablePivotKeysOptions& /*options*/)
 {
     const auto& tableMountCache = Connection_->GetTableMountCache();
     auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))

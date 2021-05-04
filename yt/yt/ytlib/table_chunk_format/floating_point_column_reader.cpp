@@ -73,8 +73,8 @@ class TDirectSparseVersionedFloatingPointValueExtractor
     , public TFloatingPointValueExtractorBase<T>
 {
 public:
-    TDirectSparseVersionedFloatingPointValueExtractor(TRef data, const NProto::TSegmentMeta& meta, bool aggregate)
-        : TSparseVersionedValueExtractorBase(meta, aggregate)
+    TDirectSparseVersionedFloatingPointValueExtractor(TRef data, const NProto::TSegmentMeta& /*meta*/, bool aggregate)
+        : TSparseVersionedValueExtractorBase(aggregate)
     {
         const char* ptr = data.Begin();
         ptr = InitSparseReader(ptr);
@@ -132,7 +132,7 @@ class TUnversionedFloatingPointValueExtractor
     : public TFloatingPointValueExtractorBase<T>
 {
 public:
-    TUnversionedFloatingPointValueExtractor(TRef data, const TSegmentMeta& meta)
+    TUnversionedFloatingPointValueExtractor(TRef data, const TSegmentMeta& /*meta*/)
     {
         const char* ptr = data.Begin();
         ptr = this->InitValueReader(data.Begin());

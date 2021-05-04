@@ -55,7 +55,6 @@ std::vector<TTabletMoveDescriptor> ReassignInMemoryTablets(
     const TTabletCellBundle* bundle,
     const std::optional<THashSet<const NTableServer::TTableNode*>>& movableTables,
     bool ignoreTableWiseConfig,
-    TTabletBalancerContext* context,
     const TTabletManagerPtr& tabletManager);
 
 ////////////////////////////////////////////////////////////////////////////////

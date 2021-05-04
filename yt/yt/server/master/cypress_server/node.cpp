@@ -21,16 +21,16 @@ using NTabletServer::TTabletResources;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TNullVersionedBuiltinAttribute::Persist(const NCellMaster::TPersistenceContext& context)
+void TNullVersionedBuiltinAttribute::Persist(const NCellMaster::TPersistenceContext& /*context*/)
 { }
 
-void TNullVersionedBuiltinAttribute::Persist(const NCypressServer::TCopyPersistenceContext& context)
+void TNullVersionedBuiltinAttribute::Persist(const NCypressServer::TCopyPersistenceContext& /*context*/)
 { }
 
-void TTombstonedVersionedBuiltinAttribute::Persist(const NCellMaster::TPersistenceContext& context)
+void TTombstonedVersionedBuiltinAttribute::Persist(const NCellMaster::TPersistenceContext& /*context*/)
 { }
 
-void TTombstonedVersionedBuiltinAttribute::Persist(const NCypressServer::TCopyPersistenceContext& context)
+void TTombstonedVersionedBuiltinAttribute::Persist(const NCypressServer::TCopyPersistenceContext& /*context*/)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

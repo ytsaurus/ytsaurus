@@ -83,7 +83,7 @@ public:
         return Spec_;
     }
 
-    virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
+    virtual TExtendedJobResources GetNeededResources(const TJobletPtr& /*joblet*/) const override
     {
         return GetMinNeededResourcesHeavy();
     }
@@ -315,7 +315,7 @@ public:
         return Spec_->EnableCudaGpuCoreDump;
     }
 
-    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const
+    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const
     {
         return TStringBuf();
     }

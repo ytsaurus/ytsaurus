@@ -154,7 +154,7 @@ void TBoomerangTracker::OnCheck()
         ->CommitAndLog(Logger);
 }
 
-void TBoomerangTracker::RemoveStuckBoomerangWaves(NProto::TReqRemoveStuckBoomerangWaves* request)
+void TBoomerangTracker::RemoveStuckBoomerangWaves(NProto::TReqRemoveStuckBoomerangWaves* /*request*/)
 {
     const auto* mutationContext = GetCurrentMutationContext();
     auto deadline = mutationContext->GetTimestamp() + GetDynamicConfig()->StuckBoomerangWaveExpirationTime;

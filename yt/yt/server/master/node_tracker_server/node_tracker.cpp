@@ -1209,7 +1209,7 @@ private:
     }
 
     void HydraIncrementalHeartbeat(
-        const TCtxIncrementalHeartbeatPtr& context,
+        const TCtxIncrementalHeartbeatPtr& /*context*/,
         TReqIncrementalHeartbeat* request,
         TRspIncrementalHeartbeat* response)
     {

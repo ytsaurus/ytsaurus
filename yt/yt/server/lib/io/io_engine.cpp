@@ -356,6 +356,8 @@ protected:
         if (HandleEintr(::fallocate, request.Handle, FALLOC_FL_CONVERT_UNWRITTEN, 0, request.Size) != 0) {
             YT_LOG_WARNING(TError::FromSystem(), "fallocate call failed");
         }
+#else
+        Y_UNUSED(request);
 #endif
     }
 

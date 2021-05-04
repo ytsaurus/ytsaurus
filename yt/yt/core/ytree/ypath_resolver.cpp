@@ -191,7 +191,7 @@ public:
         OnDecDepth();
     }
 
-    virtual void OnMyRaw(TStringBuf yson, EYsonType type) override
+    virtual void OnMyRaw(TStringBuf /*yson*/, EYsonType /*type*/) override
     { }
 
     void Parse(TStringBuf input)

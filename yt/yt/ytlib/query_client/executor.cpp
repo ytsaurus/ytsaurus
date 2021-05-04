@@ -229,7 +229,7 @@ private:
 
         std::vector<TRefiner> refiners(subrangesCount, [] (
             TConstExpressionPtr expr,
-            const TKeyColumns& keyColumns) {
+            const TKeyColumns& /*keyColumns*/) {
                 return expr;
             });
 

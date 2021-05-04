@@ -28,7 +28,7 @@ using namespace NHiveClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 void AddCellarInfoToHeartbeatRequest(
-    ECellarType cellarType,
+    ECellarType /*cellarType*/,
     const ICellarPtr& cellar,
     bool readOnly,
     TReqCellarHeartbeat* request)

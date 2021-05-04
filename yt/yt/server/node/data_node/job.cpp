@@ -280,22 +280,22 @@ public:
         JobStderrSize_ = value;
     }
 
-    virtual void SetStderr(const TString& value) override
+    virtual void SetStderr(const TString& /*value*/) override
     {
         YT_ABORT();
     }
 
-    virtual void SetFailContext(const TString& value) override
+    virtual void SetFailContext(const TString& /*value*/) override
     {
         YT_ABORT();
     }
 
-    virtual void SetProfile(const TJobProfile& value) override
+    virtual void SetProfile(const TJobProfile& /*value*/) override
     {
         YT_ABORT();
     }
 
-    virtual void SetCoreInfos(TCoreInfos value) override
+    virtual void SetCoreInfos(TCoreInfos /*value*/) override
     {
         YT_ABORT();
     }
@@ -310,7 +310,7 @@ public:
         YT_ABORT();
     }
 
-    virtual void BuildOrchid(NYTree::TFluentMap fluent) const override
+    virtual void BuildOrchid(NYTree::TFluentMap /*fluent*/) const override
     { }
 
     virtual TInstant GetStartTime() const override

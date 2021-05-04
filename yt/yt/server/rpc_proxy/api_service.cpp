@@ -254,25 +254,6 @@ void SetMutatingOptions(
     }
 }
 
-TString ExtractIP(TString address)
-{
-    YT_VERIFY(address.StartsWith("tcp://"));
-
-    address = address.substr(6);
-    {
-        auto index = address.rfind(':');
-        if (index != TString::npos) {
-            address = address.substr(0, index);
-        }
-    }
-
-    if (address.StartsWith("[") && address.EndsWith("]")) {
-        address = address.substr(1, address.length() - 2);
-    }
-
-    return address;
-}
-
 TServiceDescriptor GetServiceDescriptor()
 {
     return TServiceDescriptor(NApi::NRpcProxy::ApiServiceName)
@@ -2484,7 +2465,7 @@ private:
 
     template <class TContext, class TRequest>
     static void LookupRowsPrologue(
-        const TIntrusivePtr<TContext>& context,
+        const TIntrusivePtr<TContext>& /*context*/,
         const TRequest* request,
         TNameTablePtr* nameTable,
         TSharedRange<TUnversionedRow>* keys,

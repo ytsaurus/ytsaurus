@@ -33,7 +33,7 @@ public:
 private:
     struct TEmptyDeleter
     {
-        void operator () (TApi* api)
+        void operator () (TApi* /*api*/)
         { }
     };
 

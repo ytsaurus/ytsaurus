@@ -806,8 +806,7 @@ public:
         int lastTabletIndex,
         TTabletCellId hintCellId,
         const std::vector<TTabletCellId>& targetCellIds,
-        bool freeze,
-        TTimestamp mountTimestamp)
+        bool freeze)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
@@ -1743,7 +1742,6 @@ public:
             bundle,
             tablesSet,
             true, // ignoreConfig
-            &context,
             Bootstrap_->GetTabletManager());
 
         for (auto descriptor : descriptors) {
@@ -1845,7 +1843,7 @@ public:
         }
     }
 
-    void ValidateEndCopyTable(TAccount* account)
+    void ValidateEndCopyTable(TAccount* /*account*/)
     { }
 
     void CloneTable(
@@ -4315,7 +4313,7 @@ private:
     void OnTabletNodeHeartbeat(
         TNode* node,
         NTabletNodeTrackerClient::NProto::TReqHeartbeat* request,
-        NTabletNodeTrackerClient::NProto::TRspHeartbeat* response)
+        NTabletNodeTrackerClient::NProto::TRspHeartbeat* /*response*/)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -6540,8 +6538,7 @@ void TTabletManager::PrepareMountTable(
     int lastTabletIndex,
     TTabletCellId hintCellId,
     const std::vector<TTabletCellId>& targetCellIds,
-    bool freeze,
-    TTimestamp mountTimestamp)
+    bool freeze)
 {
     Impl_->PrepareMountTable(
         table,
@@ -6549,8 +6546,7 @@ void TTabletManager::PrepareMountTable(
         lastTabletIndex,
         hintCellId,
         targetCellIds,
-        freeze,
-        mountTimestamp);
+        freeze);
 }
 
 void TTabletManager::PrepareUnmountTable(

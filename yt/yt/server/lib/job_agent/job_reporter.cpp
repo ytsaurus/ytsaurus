@@ -196,7 +196,7 @@ public:
         return Statistics_.EstimateSize();
     }
 
-    virtual TUnversionedOwningRow ToRow(int archiveVersion) const override
+    virtual TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
     {
         const auto& index = TOperationIdTableDescriptor::Get().Index;
 
@@ -228,7 +228,7 @@ public:
         return Statistics_.EstimateSize();
     }
 
-    virtual TUnversionedOwningRow ToRow(int archiveVersion) const override
+    virtual TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
     {
         const auto& index = TJobSpecTableDescriptor::Get().Index;
 
@@ -267,7 +267,7 @@ public:
         return Statistics_.EstimateSize();
     }
 
-    virtual TUnversionedOwningRow ToRow(int archiveVersion) const override
+    virtual TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
     {
         const auto& index = TJobStderrTableDescriptor::Get().Index;
 
@@ -281,7 +281,7 @@ public:
         builder.AddValue(MakeUnversionedUint64Value(Statistics_.JobId().Parts64[0], index.JobIdHi));
         builder.AddValue(MakeUnversionedUint64Value(Statistics_.JobId().Parts64[1], index.JobIdLo));
         builder.AddValue(MakeUnversionedStringValue(*Statistics_.Stderr(), index.Stderr));
-        
+
         return builder.FinishRow();
     }
 

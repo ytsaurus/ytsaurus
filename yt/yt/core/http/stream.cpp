@@ -160,7 +160,7 @@ void THttpParser::MaybeFlushHeader(bool trailer)
     }
 }
 
-int THttpParser::OnUrl(http_parser* parser, const char *at, size_t length)
+int THttpParser::OnUrl(http_parser* parser, const char* at, size_t length)
 {
     auto that = reinterpret_cast<THttpParser*>(parser->data);
     that->FirstLine_.AppendString(TStringBuf(at, length));
@@ -168,12 +168,12 @@ int THttpParser::OnUrl(http_parser* parser, const char *at, size_t length)
     return 0;
 }
 
-int THttpParser::OnStatus(http_parser* parser, const char *at, size_t length)
+int THttpParser::OnStatus(http_parser* /*parser*/, const char* /*at*/, size_t /*length*/)
 {
     return 0;
 }
 
-int THttpParser::OnHeaderField(http_parser* parser, const char *at, size_t length)
+int THttpParser::OnHeaderField(http_parser* parser, const char* at, size_t length)
 {
     auto that = reinterpret_cast<THttpParser*>(parser->data);
     that->MaybeFlushHeader(that->State_ == EParserState::HeadersFinished);
@@ -182,7 +182,7 @@ int THttpParser::OnHeaderField(http_parser* parser, const char *at, size_t lengt
     return 0;
 }
 
-int THttpParser::OnHeaderValue(http_parser* parser, const char *at, size_t length)
+int THttpParser::OnHeaderValue(http_parser* parser, const char* at, size_t length)
 {
     auto that = reinterpret_cast<THttpParser*>(parser->data);
     that->NextValue_.AppendString(TStringBuf(at, length));
@@ -201,7 +201,7 @@ int THttpParser::OnHeadersComplete(http_parser* parser)
     return 0;
 }
 
-int THttpParser::OnBody(http_parser* parser, const char *at, size_t length)
+int THttpParser::OnBody(http_parser* parser, const char* at, size_t length)
 {
     auto that = reinterpret_cast<THttpParser*>(parser->data);
     that->LastBodyChunk_ = that->InputBuffer_->Slice(at, at + length);

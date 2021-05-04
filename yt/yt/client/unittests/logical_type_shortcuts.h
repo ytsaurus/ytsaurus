@@ -82,7 +82,7 @@ inline TLogicalTypePtr Tuple(const T&... args)
 }
 
 namespace NPrivate {
-inline void StructFieldList(std::vector<TStructField>* fields)
+inline void StructFieldList(std::vector<TStructField>* /*fields*/)
 { }
 
 template <typename... T>

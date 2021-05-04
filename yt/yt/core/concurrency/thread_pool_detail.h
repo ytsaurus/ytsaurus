@@ -14,9 +14,7 @@ class TThreadPoolBase
 public:
     static constexpr int MaxThreadCount = 64;
 
-    TThreadPoolBase(
-        int threadCount,
-        const TString& threadNamePrefix);
+    TThreadPoolBase(TString threadNamePrefix);
 
     void Configure(int threadCount);
     void Shutdown();

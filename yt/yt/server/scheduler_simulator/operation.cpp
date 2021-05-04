@@ -113,13 +113,13 @@ void TOperation::SetState(NScheduler::EOperationState state)
 {
     State_ = state;
 }
-    
-bool TOperation::IsTreeErased(const TString& treeId) const
+
+bool TOperation::IsTreeErased(const TString& /*treeId*/) const
 {
     YT_UNIMPLEMENTED();
 }
 
-void TOperation::EraseTrees(const std::vector<TString>& treeIds)
+void TOperation::EraseTrees(const std::vector<TString>& /*treeIds*/)
 {
     YT_UNIMPLEMENTED();
 }

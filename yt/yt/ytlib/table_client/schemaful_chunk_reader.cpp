@@ -52,8 +52,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulChunkReader(
     const TClientChunkReadOptions& chunkReadOptions,
     const TTableSchemaPtr& resultSchema,
     const TSortColumns& sortColumns,
-    const NChunkClient::TReadRange& readRange,
-    TTimestamp timestamp)
+    const NChunkClient::TReadRange& readRange)
 {
     switch (chunkMeta->GetChunkFormat()) {
         case ETableChunkFormat::UnversionedColumnar:

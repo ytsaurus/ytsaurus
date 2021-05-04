@@ -383,7 +383,7 @@ private:
         }
     }
 
-    virtual void InitClientSocket(SOCKET clientSocket) override
+    virtual void InitClientSocket(SOCKET /*clientSocket*/) override
     { }
 };
 
@@ -475,7 +475,6 @@ public:
 
 private:
     const std::vector<IBusServerPtr> Servers_;
-
 };
 
 IBusServerPtr CreateTcpBusServer(TTcpBusServerConfigPtr config)

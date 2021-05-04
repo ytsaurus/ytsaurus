@@ -209,7 +209,7 @@ public:
         TTransactionId id,
         const TTransactionAttachOptions& options)
     {
-        ValidateAttachOptions(id, options);
+        ValidateAttachOptions(id);
 
         Type_ = ETransactionType::Master;
         CoordinatorMasterCellTag_ = CellTagFromId(id);
@@ -610,9 +610,7 @@ private:
         }
     }
 
-    static void ValidateAttachOptions(
-        TTransactionId id,
-        const TTransactionAttachOptions& options)
+    static void ValidateAttachOptions(TTransactionId id)
     {
         ValidateMasterTransactionId(id);
     }
@@ -1031,7 +1029,7 @@ private:
     }
 
 
-    TFuture<void> SendPing(const TTransactionPingOptions& options = {})
+    TFuture<void> SendPing(const TTransactionPingOptions& /*options*/ = {})
     {
         std::vector<TFuture<void>> asyncResults;
         for (auto cellId : GetRegisteredParticipantIds()) {
@@ -1115,7 +1113,7 @@ private:
             return;
         }
 
-        SendPing().Subscribe(BIND([=, this_ = MakeStrong(this), startTime = TInstant::Now()] (const TError& error) {
+        SendPing().Subscribe(BIND([=, this_ = MakeStrong(this), startTime = TInstant::Now()] (const TError& /*error*/) {
             if (!IsPingableState()) {
                 YT_LOG_DEBUG("Transaction is not in pingable state (TransactionId: %v, State: %v)",
                     Id_,

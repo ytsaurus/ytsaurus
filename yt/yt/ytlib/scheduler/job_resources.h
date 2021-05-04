@@ -137,11 +137,7 @@ TString FormatResourceUsage(
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 TString FormatResources(const TJobResources& resources);
 
-[[deprecated("Did you forget to pass medium directory parameter?")]]
 TString FormatResources(const TJobResourcesWithQuota& resources);
-TString FormatResources(
-    const TJobResourcesWithQuota& resources,
-    const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 TString FormatResources(const TExtendedJobResources& resources);
 
 void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TStringBuf /* format */);

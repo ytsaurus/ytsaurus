@@ -53,7 +53,7 @@ static void regex_apply(
 }
 
 extern "C" void regex_full_match(
-    TExpressionContext* expressionContext,
+    TExpressionContext* /*expressionContext*/,
     NYT::NQueryClient::TFunctionContext* functionContext,
     TUnversionedValue* result,
     TUnversionedValue* pattern,
@@ -74,7 +74,7 @@ extern "C" void regex_full_match(
 }
 
 extern "C" void regex_partial_match(
-    TExpressionContext* expressionContext,
+    TExpressionContext* /*expressionContext*/,
     NYT::NQueryClient::TFunctionContext* functionContext,
     TUnversionedValue* result,
     TUnversionedValue* pattern,
@@ -156,7 +156,7 @@ extern "C" void regex_extract(
 
 extern "C" void regex_escape(
     TExpressionContext* expressionContext,
-    NYT::NQueryClient::TFunctionContext* functionContext,
+    NYT::NQueryClient::TFunctionContext* /*functionContext*/,
     TUnversionedValue* result,
     TUnversionedValue* input)
 {

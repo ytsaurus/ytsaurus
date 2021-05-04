@@ -1040,7 +1040,7 @@ TResultMatcher ResultMatcher(std::vector<TOwningRow> expectedResult)
 {
     return [
             expectedResult = std::move(expectedResult)
-        ] (TRange<TRow> result, const TTableSchema& tableSchema) {
+        ] (TRange<TRow> result, const TTableSchema& /*tableSchema*/) {
             EXPECT_EQ(expectedResult.size(), result.Size());
             if (expectedResult.size() != result.Size()) {
                 return;
@@ -2131,7 +2131,7 @@ TEST_F(TQueryEvaluateTest, GroupByAny)
 
     EXPECT_THROW_THAT(
         Evaluate("x, sum(b) as t FROM [//t] group by to_any(a) as x",
-            split, source,  [] (TRange<TRow> result, const TTableSchema& tableSchema) { }),
+            split, source,  [] (TRange<TRow> /*result*/, const TTableSchema& /*tableSchema*/) { }),
         HasSubstr("Type mismatch in expression"));
 
     SUCCEED();
@@ -2267,7 +2267,7 @@ TEST_F(TQueryEvaluateTest, GroupWithTotalsNulls)
 
     EXPECT_THROW_THAT(
         Evaluate("x, sum(b) as t FROM [//t] group by a % 2 as x with totals", split,
-            source, [] (TRange<TRow> result, const TTableSchema& tableSchema) { }),
+            source, [] (TRange<TRow> /*result*/, const TTableSchema& /*tableSchema*/) { }),
         HasSubstr("Null values are forbidden in group key"));
 
     SUCCEED();
@@ -6021,7 +6021,7 @@ bool operator==(const TIntValue& l, const TIntValue& r)
     return static_cast<const std::optional<int>&>(l) == static_cast<const std::optional<int>&>(r);
 }
 
-void FormatValue(TStringBuilderBase* builder, const TIntValue& value, TStringBuf spec)
+void FormatValue(TStringBuilderBase* builder, const TIntValue& value, TStringBuf /*spec*/)
 {
     if (value) {
         builder->AppendFormat("%v", *value);
@@ -6324,7 +6324,7 @@ void TQueryEvaluateComplexTest::DoTest(
         result.push_back(YsonToRow(rowString, resultSplit, true));
     }
 
-    auto resultMatcher = [&] (TRange<TRow> actualResult, const TTableSchema& tableSchema) {
+    auto resultMatcher = [&] (TRange<TRow> actualResult, const TTableSchema& /*tableSchema*/) {
         EXPECT_EQ(result.size(), actualResult.Size());
 
         bool print = false;

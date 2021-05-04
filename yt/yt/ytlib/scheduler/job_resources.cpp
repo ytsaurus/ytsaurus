@@ -191,9 +191,7 @@ void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TS
         resources.GetNetwork());
 }
 
-TString FormatResources(
-    const TJobResourcesWithQuota& resources,
-    const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
+TString FormatResources(const TJobResourcesWithQuota& resources)
 {
     return Format(
         "{UserSlots: %v, Cpu: %v, Gpu: %v, Memory: %vMB, Network: %v, DiskQuota: %v}",
@@ -281,7 +279,7 @@ double GetDominantResourceUsage(
     const TJobResources& limits)
 {
     double maxRatio = 0.0;
-    auto update = [&] (auto a, auto b, EJobResourceType type) {
+    auto update = [&] (auto a, auto b) {
         if (static_cast<double>(b) > 0.0) {
             double ratio = static_cast<double>(a) / static_cast<double>(b);
             if (ratio > maxRatio) {
@@ -289,7 +287,7 @@ double GetDominantResourceUsage(
             }
         }
     };
-    #define XX(name, Name) update(usage.Get##Name(), limits.Get##Name(), EJobResourceType::Name);
+    #define XX(name, Name) update(usage.Get##Name(), limits.Get##Name());
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
     return maxRatio;

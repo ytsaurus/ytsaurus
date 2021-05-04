@@ -16,7 +16,6 @@ namespace NYT::NQueryClient {
 
 NYson::TYsonString BuildExplainQueryYson(
     NApi::NNative::IConnectionPtr connection,
-    const TString& queryString,
     const std::unique_ptr<TPlanFragment>& fragment,
     TStringBuf udfRegistryPath,
     const NApi::TExplainQueryOptions& options);

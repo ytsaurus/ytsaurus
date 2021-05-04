@@ -401,7 +401,7 @@ public:
 class TRpcOverUnixDomainImpl
 {
 public:
-    static IBusServerPtr MakeBusServer(ui16 port)
+    static IBusServerPtr MakeBusServer(ui16 /*port*/)
     {
         auto busConfig = TTcpBusServerConfig::CreateUnixDomain("./socket");
         return CreateTcpBusServer(busConfig);
@@ -1604,7 +1604,7 @@ TEST(TCachingChannelFactoryTest, IdleChannels)
         : public IChannelFactory
     {
     public:
-        virtual IChannelPtr CreateChannel(const TString& address) override
+        virtual IChannelPtr CreateChannel(const TString& /*address*/) override
         {
             return CreateLocalChannel(Server_);
         }

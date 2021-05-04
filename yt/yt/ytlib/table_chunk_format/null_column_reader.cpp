@@ -22,7 +22,7 @@ public:
     TNullValueExtractor(TRef /*data*/, const TSegmentMeta& /*meta*/)
     { }
 
-    void ExtractValue(TUnversionedValue* value, i64 valueIndex, int id, bool aggregate) const
+    void ExtractValue(TUnversionedValue* value, i64 /*valueIndex*/, int id, bool aggregate) const
     {
         *value = MakeUnversionedNullValue(id, aggregate);
     }
@@ -93,7 +93,7 @@ public:
         , SortOrder_(sortOrder)
     { }
 
-    virtual void SetCurrentBlock(TSharedRef block, int blockIndex) override
+    virtual void SetCurrentBlock(TSharedRef /*block*/, int /*blockIndex*/) override
     {
         YT_ABORT();
     }

@@ -25,8 +25,7 @@ static const pid_t InvalidProcessId = -1;
 TPortoProcess::TPortoProcess(
     const TString& path,
     IInstancePtr containerInstance,
-    bool copyEnv,
-    TDuration pollPeriod)
+    bool copyEnv)
     : TProcessBase(path)
     , ContainerInstance_(containerInstance)
 {

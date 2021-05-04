@@ -63,7 +63,7 @@ struct TChunkTreeStatistics
 
 TString ToString(const TChunkTreeStatistics& statistics);
 
-void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* consumer, const TChunkManagerPtr& chunkManager = nullptr);
+void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

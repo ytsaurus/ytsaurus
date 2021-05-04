@@ -8,10 +8,8 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TThreadPoolBase::TThreadPoolBase(
-    int threadCount,
-    const TString& threadNamePrefix)
-    : ThreadNamePrefix_(threadNamePrefix)
+TThreadPoolBase::TThreadPoolBase(TString threadNamePrefix)
+    : ThreadNamePrefix_(std::move(threadNamePrefix))
     , FinalizerInvoker_(GetFinalizerInvoker())
 { }
 

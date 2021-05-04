@@ -65,7 +65,7 @@ TChunk* TChunkGeneratorBase::CreateChunk(
     return ptr;
 }
 
-TChunk* TChunkGeneratorBase::CreateUnconfirmedChunk(EChunkType chunkType)
+TChunk* TChunkGeneratorBase::CreateUnconfirmedChunk()
 {
     auto chunk = std::make_unique<TChunk>(GenerateId(EObjectType::Chunk));
     chunk->RefObject();

@@ -704,6 +704,8 @@ private:
                     fileName.c_str(),
                     BIND(&ILogWriter::Reload, writer)));
         }
+#else
+        Y_UNUSED(writer, fileName);
 #endif
         return nullptr;
     }

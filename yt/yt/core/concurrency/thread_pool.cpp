@@ -24,9 +24,7 @@ public:
     TImpl(
         int threadCount,
         const TString& threadNamePrefix)
-        : TThreadPoolBase(
-            threadCount,
-            threadNamePrefix)
+        : TThreadPoolBase(threadNamePrefix)
         , Queue_(New<TMpmcInvokerQueue>(
             CallbackEventCount_,
             GetThreadTags(ThreadNamePrefix_)))

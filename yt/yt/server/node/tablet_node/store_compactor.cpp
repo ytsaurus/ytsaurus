@@ -1836,8 +1836,7 @@ private:
                     reader,
                     tabletSnapshot,
                     transaction,
-                    partition->IsEden(),
-                    Logger)
+                    partition->IsEden())
                 .AsyncVia(ThreadPool_->GetInvoker())
                 .Run();
 
@@ -1929,8 +1928,7 @@ private:
         const IVersionedReaderPtr& reader,
         const TTabletSnapshotPtr& tabletSnapshot,
         const ITransactionPtr& transaction,
-        bool isEden,
-        NLogging::TLogger Logger)
+        bool isEden)
     {
         const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
 

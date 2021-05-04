@@ -83,7 +83,7 @@ private:
     }
 
     void HydraExecNodeHeartbeat(
-        const TCtxHeartbeatPtr& context,
+        const TCtxHeartbeatPtr& /*context*/,
         TReqHeartbeat* request,
         TRspHeartbeat* response)
     {

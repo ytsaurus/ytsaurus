@@ -101,7 +101,7 @@ private:
         return "//sys/estimated_creation_time";
     }
 
-    virtual std::vector<TString> GetKeys(i64 limit) const
+    virtual std::vector<TString> GetKeys(i64 /*limit*/) const
     {
         return {};
     }

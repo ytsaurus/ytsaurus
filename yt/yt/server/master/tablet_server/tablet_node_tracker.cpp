@@ -92,7 +92,7 @@ private:
     }
 
     void HydraTabletNodeHeartbeat(
-        const TCtxHeartbeatPtr& context,
+        const TCtxHeartbeatPtr& /*context*/,
         TReqHeartbeat* request,
         TRspHeartbeat* response)
     {

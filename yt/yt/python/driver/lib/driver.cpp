@@ -157,7 +157,7 @@ Py::Object TDriverBase::Execute(Py::Tuple& args, Py::Dict& kwargs)
         response->SetResponse(driverResponse);
         if (bufferedOutputStream) {
             auto outputStream = bufferedOutputStream->GetStream();
-            driverResponse.Subscribe(BIND([=] (TError error) {
+            driverResponse.Subscribe(BIND([=] (TError /*error*/) {
                 outputStream->Finish();
             }));
         }
@@ -253,7 +253,7 @@ Py::Object TDriverBase::GetConfig(const Py::Tuple& args, const Py::Dict& kwargs)
     return object;
 }
 
-Py::Object TDriverBase::DeepCopy(const Py::Tuple& args)
+Py::Object TDriverBase::DeepCopy(const Py::Tuple& /*args*/)
 {
     Py::Callable classType(GetDriverType());
     auto configDict = GetConfig(Py::Tuple(), Py::Dict());
@@ -347,7 +347,7 @@ Py::Object TDriverModuleBase::ConfigureAddressResolver(const Py::Tuple& args_, c
     return Py::None();
 }
 
-Py::Object TDriverModuleBase::ReopenLogs(const Py::Tuple& args_, const Py::Dict& kwargs_)
+Py::Object TDriverModuleBase::ReopenLogs(const Py::Tuple& /*args_*/, const Py::Dict& /*kwargs_*/)
 {
     NLogging::TLogManager::Get()->Reopen();
 

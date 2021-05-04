@@ -44,7 +44,7 @@ static const NLogging::TLogger Logger("FS");
 
 namespace {
 
-void ThrowNotSupported()
+[[maybe_unused]] void ThrowNotSupported()
 {
     THROW_ERROR_EXCEPTION("Unsupported platform");
 }
@@ -551,6 +551,8 @@ void SetPermissions(const TString& path, int permissions)
             << TErrorAttribute("permissions", permissions)
             << TError::FromSystem();
     }
+#else
+    Y_UNUSED(path, permissions);
 #endif
 }
 
@@ -658,6 +660,7 @@ std::vector<TMountPoint> GetMountPoints(const TString& mountsFile)
 
     return mountPoints;
 #else
+    Y_UNUSED(mountsFile);
     ThrowNotSupported();
     YT_ABORT();
 #endif
@@ -675,7 +678,9 @@ void MountTmpfs(const TString& path, int userId, i64 size)
             << TError::FromSystem();
     }
 #else
+    Y_UNUSED(path, userId, size);
     ThrowNotSupported();
+    YT_ABORT();
 #endif
 }
 
@@ -700,6 +705,7 @@ void Umount(const TString& path, bool detach)
     }
 
 #else
+    Y_UNUSED(path, detach);
     ThrowNotSupported();
 #endif
 }
@@ -777,6 +783,7 @@ void SetQuota(
             << TError::FromSystem();
     }
 #else
+    Y_UNUSED(userId, path, diskSpaceLimit, inodeLimit);
     ThrowNotSupported();
 #endif
 }
@@ -792,14 +799,14 @@ void ExpectIOErrors(std::function<void()> func)
                 fprintf(stderr, "Out-of-memory condition detected during I/O operation; terminating\n");
                 _exit(9);
                 break;
-            
+
             case EIO:
             case ENOSPC:
             case EROFS:
                 THROW_ERROR_EXCEPTION(NFS::EErrorCode::IOError, "I/O error")
                     << TErrorAttribute("status", status)
                     << TError(ex);
-            
+
             default: {
                 TError error(ex);
                 YT_LOG_FATAL(error, "Unexpected exception thrown during I/O operation");
@@ -822,6 +829,7 @@ void Chmod(const TString& path, int mode)
             << TError::FromSystem();
     }
 #else
+    Y_UNUSED(path, mode);
     ThrowNotSupported();
 #endif
 }
@@ -872,6 +880,7 @@ void ChunkedCopy(
             << ex;
     }
 #else
+    Y_UNUSED(existingPath, newPath, chunkSize);
     ThrowNotSupported();
 #endif
 }
@@ -901,6 +910,7 @@ int GetDeviceId(const TString& path)
 #ifdef _linux_
     return Stat(path).st_dev;
 #else
+    Y_UNUSED(path);
     YT_UNIMPLEMENTED();
 #endif
 }

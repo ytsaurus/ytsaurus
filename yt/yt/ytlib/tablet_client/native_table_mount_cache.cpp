@@ -81,7 +81,7 @@ public:
 private:
     virtual TFuture<TTableMountInfoPtr> DoGet(
         const TTableMountCacheKey& key,
-        bool isPeriodicUpdate) noexcept override
+        bool /*isPeriodicUpdate*/) noexcept override
     {
         auto session = New<TGetSession>(this, Connection_, key, Logger);
         return BIND(&TGetSession::Run, std::move(session))

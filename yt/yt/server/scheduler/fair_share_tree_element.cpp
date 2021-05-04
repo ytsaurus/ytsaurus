@@ -768,7 +768,6 @@ TSchedulerCompositeElement::TSchedulerCompositeElement(
     ISchedulerStrategyHost* host,
     IFairShareTreeHost* treeHost,
     TFairShareStrategyTreeConfigPtr treeConfig,
-    NProfiling::TTagId profilingTag,
     const TString& treeId,
     const TString& id,
     EResourceTreeElementKind elementKind,
@@ -1459,14 +1458,12 @@ TSchedulerPoolElement::TSchedulerPoolElement(
     TPoolConfigPtr config,
     bool defaultConfigured,
     TFairShareStrategyTreeConfigPtr treeConfig,
-    NProfiling::TTagId profilingTag,
     const TString& treeId,
     const NLogging::TLogger& logger)
     : TSchedulerCompositeElement(
         host,
         treeHost,
         std::move(treeConfig),
-        profilingTag,
         treeId,
         id,
         EResourceTreeElementKind::Pool,
@@ -3507,14 +3504,12 @@ TSchedulerRootElement::TSchedulerRootElement(
     ISchedulerStrategyHost* host,
     IFairShareTreeHost* treeHost,
     TFairShareStrategyTreeConfigPtr treeConfig,
-    NProfiling::TTagId profilingTag,
     const TString& treeId,
     const NLogging::TLogger& logger)
     : TSchedulerCompositeElement(
         host,
         treeHost,
         treeConfig,
-        profilingTag,
         treeId,
         RootPoolName,
         EResourceTreeElementKind::Root,
@@ -3628,7 +3623,7 @@ bool TSchedulerRootElement::IsAggressiveStarvationEnabled() const
     return TreeConfig_->EnableAggressiveStarvation;
 }
 
-void TSchedulerRootElement::CheckForStarvation(TInstant now)
+void TSchedulerRootElement::CheckForStarvation(TInstant /*now*/)
 {
     YT_ABORT();
 }
@@ -3673,7 +3668,9 @@ THistoricUsageAggregationParameters TSchedulerRootElement::GetHistoricUsageAggre
     return THistoricUsageAggregationParameters(EHistoricUsageAggregationMode::None);
 }
 
-void TSchedulerRootElement::BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* meteringMap) const
+void TSchedulerRootElement::BuildResourceMetering(
+    const std::optional<TMeteringKey>& /*parentKey*/,
+    TMeteringMap* meteringMap) const
 {
     auto key = TMeteringKey{
         .AbcId = Host_->GetDefaultAbcId(),

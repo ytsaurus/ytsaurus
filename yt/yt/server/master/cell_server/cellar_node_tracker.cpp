@@ -109,7 +109,7 @@ private:
     }
 
     void HydraCellarNodeHeartbeat(
-        const TCtxHeartbeatPtr& context,
+        const TCtxHeartbeatPtr& /*context*/,
         TReqHeartbeat* request,
         TRspHeartbeat* response)
     {

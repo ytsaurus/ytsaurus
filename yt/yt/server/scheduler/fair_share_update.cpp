@@ -899,7 +899,7 @@ void TOperationElement::PrepareFairShareByFitFactor(TFairShareUpdateContext* con
     FairShareByFitFactor_ = builder.Finish();
 }
 
-TResourceVector TOperationElement::DoUpdateFairShare(double suggestion, TFairShareUpdateContext* context)
+TResourceVector TOperationElement::DoUpdateFairShare(double suggestion, TFairShareUpdateContext* /*context*/)
 {
     TResourceVector usedFairShare = FairShareBySuggestion_->ValueAt(suggestion);
     Attributes().SetFairShare(usedFairShare);

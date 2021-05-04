@@ -397,8 +397,7 @@ protected:
             readSchema,
             lowerKey,
             upperKey,
-            timestamp,
-            produceAllVersions);
+            timestamp);
 
         auto memoryWriter = New<TMemoryWriter>();
 
@@ -550,8 +549,7 @@ protected:
         TTableSchemaPtr readSchema,
         TLegacyOwningKey lowerKey,
         TLegacyOwningKey upperKey,
-        TTimestamp timestamp,
-        bool produceAllVersions)
+        TTimestamp timestamp)
     {
         std::vector<TVersionedRow> expected;
 

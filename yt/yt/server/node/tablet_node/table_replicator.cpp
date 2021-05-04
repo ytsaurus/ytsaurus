@@ -315,7 +315,6 @@ private:
                 if (!readReplicationBatch()) {
                     checkPrevReplicationRowIndex = false;
                     startRowIndex = ComputeStartRowIndex(
-                        MountConfig_,
                         tabletSnapshot,
                         replicaSnapshot,
                         chunkReadOptions);
@@ -390,7 +389,6 @@ private:
     }
 
     TTimestamp ReadLogRowTimestamp(
-        const TTableMountConfigPtr& mountConfig,
         const TTabletSnapshotPtr& tabletSnapshot,
         const TClientChunkReadOptions& chunkReadOptions,
         i64 rowIndex)
@@ -447,7 +445,6 @@ private:
     }
 
     i64 ComputeStartRowIndex(
-        const TTableMountConfigPtr& mountConfig,
         const TTabletSnapshotPtr& tabletSnapshot,
         const TTableReplicaSnapshotPtr& replicaSnapshot,
         const TClientChunkReadOptions& chunkReadOptions)
@@ -471,7 +468,7 @@ private:
 
         while (rowIndexLo < rowIndexHi - 1) {
             auto rowIndexMid = rowIndexLo + (rowIndexHi - rowIndexLo) / 2;
-            auto timestampMid = ReadLogRowTimestamp(mountConfig, tabletSnapshot, chunkReadOptions, rowIndexMid);
+            auto timestampMid = ReadLogRowTimestamp(tabletSnapshot, chunkReadOptions, rowIndexMid);
             if (timestampMid <= startReplicationTimestamp) {
                 rowIndexLo = rowIndexMid;
             } else {
@@ -482,7 +479,7 @@ private:
         auto startRowIndex = rowIndexLo;
         auto startTimestamp = NullTimestamp;
         while (startRowIndex < totalRowCount) {
-            startTimestamp = ReadLogRowTimestamp(mountConfig, tabletSnapshot, chunkReadOptions, startRowIndex);
+            startTimestamp = ReadLogRowTimestamp(tabletSnapshot, chunkReadOptions, startRowIndex);
             if (startTimestamp > startReplicationTimestamp) {
                 break;
             }
@@ -707,14 +704,11 @@ private:
                     mountConfig,
                     logRow,
                     rowBuffer,
-                    *timestamp,
                     replicationRow,
                     modificationType);
             }
         } else {
             ParseOrderedLogRow(
-                tabletSnapshot,
-                mountConfig,
                 logRow,
                 rowBuffer,
                 replicationRow,
@@ -723,8 +717,6 @@ private:
     }
 
     void ParseOrderedLogRow(
-        const TTabletSnapshotPtr& tabletSnapshot,
-        const TTableMountConfigPtr& mountConfig,
         TUnversionedRow logRow,
         const TRowBufferPtr& rowBuffer,
         TTypeErasedRow* replicationRow,
@@ -839,7 +831,6 @@ private:
         const TTableMountConfigPtr& mountConfig,
         TUnversionedRow logRow,
         const TRowBufferPtr& rowBuffer,
-        TTimestamp timestamp,
         TTypeErasedRow* result,
         ERowModificationType* modificationType)
     {

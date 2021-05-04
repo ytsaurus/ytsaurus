@@ -905,7 +905,6 @@ private:
 
     TGetOperationFromCypressResult DoGetOperationFromCypress(
         NScheduler::TOperationId operationId,
-        TInstant deadline,
         const TGetOperationOptions& options);
     std::optional<TOperation> DoGetOperationFromArchive(
         NScheduler::TOperationId operationId,
@@ -928,7 +927,6 @@ private:
     // Adds found operations to |idToOperation| map.
     // The operations are returned with requested fields plus necessarily "start_time" and "id".
     void DoListOperationsFromCypress(
-        TInstant deadline,
         TListOperationsCountingFilter& countingFilter,
         const TListOperationsOptions& options,
         THashMap<NScheduler::TOperationId, TOperation>* idToOperation,
@@ -1100,14 +1098,12 @@ private:
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId,
         TInstant deadline,
-        const THashSet<TString>& attributes,
-        const TGetJobOptions& options);
+        const THashSet<TString>& attributes);
     std::optional<TJob> DoGetJobFromControllerAgent(
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId,
         TInstant deadline,
-        const THashSet<TString>& attributes,
-        const TGetJobOptions& options);
+        const THashSet<TString>& attributes);
     NYson::TYsonString DoGetJob(
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         NScheduler::TJobId jobId,

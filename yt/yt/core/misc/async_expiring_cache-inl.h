@@ -500,7 +500,7 @@ void TAsyncExpiringCache<TKey, TValue>::OnHit(const TKey& /*key*/) noexcept
 { }
 
 template <class TKey, class TValue>
-bool TAsyncExpiringCache<TKey, TValue>::CanCacheError(const TError& error) noexcept
+bool TAsyncExpiringCache<TKey, TValue>::CanCacheError(const TError& /*error*/) noexcept
 {
     return true;
 }

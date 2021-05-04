@@ -3,7 +3,7 @@
 extern "C" uint64_t GetFarmFingerprint(const TUnversionedValue* begin, const TUnversionedValue* end);
 
 extern "C" void farm_hash(
-    TExpressionContext* context,
+    TExpressionContext* /*context*/,
     TUnversionedValue* result,
     TUnversionedValue* args,
     int args_len)

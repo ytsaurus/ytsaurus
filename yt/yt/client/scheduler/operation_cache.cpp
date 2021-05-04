@@ -23,7 +23,7 @@ TOperationCache::TOperationCache(
     , Client_(std::move(client))
 { }
 
-TFuture<TYsonString> TOperationCache::DoGet(const TOperationIdOrAlias& key, bool isPeriodicUpdate) noexcept
+TFuture<TYsonString> TOperationCache::DoGet(const TOperationIdOrAlias& key, bool /*isPeriodicUpdate*/) noexcept
 {
     auto options = TGetOperationOptions {
         .Attributes = Attributes_,

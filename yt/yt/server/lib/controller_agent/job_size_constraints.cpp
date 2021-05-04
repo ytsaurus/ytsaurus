@@ -39,6 +39,7 @@ public:
         , MaxPrimaryDataWeightPerJob_(maxPrimaryDataWeightPerJob)
         , InputSliceDataWeight_(inputSliceDataWeight)
         , InputSliceRowCount_(inputSliceRowCount)
+        , ForeignSliceDataWeight_(foreignSliceDataWeight)
         , SamplingRate_(samplingRate)
         , SamplingDataWeightPerJob_(samplingDataWeightPerJob)
         , SamplingPrimaryDataWeightPerJob_(samplingPrimaryDataWeightPerJob)
@@ -134,12 +135,12 @@ public:
         return MaxBuildRetryCount_;
     }
 
-    virtual void UpdateInputDataWeight(i64 inputDataWeight) override
+    virtual void UpdateInputDataWeight(i64 /*inputDataWeight*/) override
     {
         // Do nothing. Explicit job size constraints do not care about input data weight.
     }
 
-    virtual void UpdatePrimaryInputDataWeight(i64 inputDataWeight) override
+    virtual void UpdatePrimaryInputDataWeight(i64 /*inputDataWeight*/) override
     {
         // Do nothing. Explicit job size constraints do not care about primary input data weight.
     }

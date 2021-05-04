@@ -25,7 +25,7 @@ TMasterCacheProgram::TMasterCacheProgram()
     , TProgramConfigMixin(Opts_)
 { }
 
-void TMasterCacheProgram::DoRun(const NLastGetopt::TOptsParseResult& parseResult)
+void TMasterCacheProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/)
 {
     TThread::SetCurrentThreadName("MasterCacheMain");
 

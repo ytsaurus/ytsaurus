@@ -81,7 +81,7 @@ protected:
 
         row.BeginDeleteTimestamps()[0] = 9;
 
-        blockWriter.WriteRow(row, nullptr, nullptr);
+        blockWriter.WriteRow(row);
 
         auto block = blockWriter.FlushBlock();
         auto* codec = GetCodec(ECodec::None);

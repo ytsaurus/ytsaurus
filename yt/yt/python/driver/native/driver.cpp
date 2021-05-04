@@ -78,7 +78,7 @@ public:
         behaviors().readyType();
     }
 
-    Py::Object GCCollect(Py::Tuple& args, Py::Dict& kwargs)
+    Py::Object GCCollect(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
     {
         try {
             auto client = CreateClient();

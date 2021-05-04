@@ -126,17 +126,17 @@ public:
         return throttlingSession->Throttle(count, ThrottlerType_, Descriptor_, JobId_);
     }
 
-    virtual bool TryAcquire(i64 count) override
+    virtual bool TryAcquire(i64 /*count*/) override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual i64 TryAcquireAvailable(i64 count) override
+    virtual i64 TryAcquireAvailable(i64 /*count*/) override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual void Acquire(i64 count) override
+    virtual void Acquire(i64 /*count*/) override
     {
         YT_UNIMPLEMENTED();
     }

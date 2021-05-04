@@ -25,7 +25,7 @@ TClusterDiscoveryServerProgram::TClusterDiscoveryServerProgram()
     , TProgramConfigMixin(Opts_)
 { }
 
-void TClusterDiscoveryServerProgram::DoRun(const NLastGetopt::TOptsParseResult& parseResult)
+void TClusterDiscoveryServerProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/)
 {
     TThread::SetCurrentThreadName("DiscoveryMain");
 

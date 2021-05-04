@@ -1447,7 +1447,7 @@ TEST(TestHelpers, SplitByPivots)
             MakeRange(ranges),
             MakeRange(pivots),
             TPredicate{},
-            [&] (auto itemsIt, auto itemsItEnd, auto shardIt) {
+            [&] (auto itemsIt, auto itemsItEnd, auto /*shardIt*/) {
                 mergedRanges.insert(mergedRanges.end(), itemsIt, itemsItEnd);
             },
             [&] (auto shardIt, auto shardItEnd, auto itemsIt) {

@@ -918,7 +918,7 @@ public:
         return false;
     }
 
-    virtual bool Write(TRange<TUnversionedRow> rows) override
+    virtual bool Write(TRange<TUnversionedRow> /*rows*/) override
     {
         // This method is never called for partition chunks.
         // Blocks are formed in the multi chunk writer.

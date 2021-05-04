@@ -38,10 +38,7 @@ TSimpleVersionedBlockWriter::TSimpleVersionedBlockWriter(TTableSchemaPtr schema)
     }
 }
 
-void TSimpleVersionedBlockWriter::WriteRow(
-    TVersionedRow row,
-    const TUnversionedValue* beginPrevKey,
-    const TUnversionedValue* endPrevKey)
+void TSimpleVersionedBlockWriter::WriteRow(TVersionedRow row)
 {
     ++RowCount_;
 

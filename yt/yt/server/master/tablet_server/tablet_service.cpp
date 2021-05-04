@@ -127,7 +127,7 @@ private:
     }
 
 
-    void HydraPrepareMountTable(TTransaction* transaction, NTabletClient::NProto::TReqMount* request, bool persist)
+    void HydraPrepareMountTable(TTransaction* transaction, NTabletClient::NProto::TReqMount* request, bool /*persist*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -180,8 +180,7 @@ private:
             lastTabletIndex,
             hintCellId,
             targetCellIds,
-            freeze,
-            mountTimestamp);
+            freeze);
 
         // CurrentMountTransactionId is used to prevent primary master to copy/move node when
         // secondary master has already committed mount (this causes an unexpected error in CloneTable).
@@ -282,7 +281,7 @@ private:
         YT_LOG_ACCESS(tableId, request->path(), transaction, "AbortMount");
     }
 
-    void HydraPrepareUnmountTable(TTransaction* transaction, NTabletClient::NProto::TReqUnmount* request, bool persist)
+    void HydraPrepareUnmountTable(TTransaction* transaction, NTabletClient::NProto::TReqUnmount* request, bool /*persist*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -396,7 +395,7 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "AbortUnmount");
     }
 
-    void HydraPrepareFreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqFreeze* request, bool persist)
+    void HydraPrepareFreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqFreeze* request, bool /*persist*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -497,7 +496,7 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "AbortFreeze");
     }
 
-    void HydraPrepareUnfreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqUnfreeze* request, bool persist)
+    void HydraPrepareUnfreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqUnfreeze* request, bool /*persist*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -599,7 +598,7 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "AbortUnfreeze");
     }
 
-    void HydraPrepareRemountTable(TTransaction* transaction, NTabletClient::NProto::TReqRemount* request, bool persist)
+    void HydraPrepareRemountTable(TTransaction* transaction, NTabletClient::NProto::TReqRemount* request, bool /*persist*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -698,7 +697,7 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "AbortRemount");
     }
 
-    void HydraPrepareReshardTable(TTransaction* transaction, NTabletClient::NProto::TReqReshard* request, bool persist)
+    void HydraPrepareReshardTable(TTransaction* transaction, NTabletClient::NProto::TReqReshard* request, bool /*persist*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();

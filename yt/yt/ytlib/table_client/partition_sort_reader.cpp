@@ -221,7 +221,7 @@ public:
     }
 
     virtual TInterruptDescriptor GetInterruptDescriptor(
-        TRange<TUnversionedRow> unreadRows) const override
+        TRange<TUnversionedRow> /*unreadRows*/) const override
     {
         YT_ABORT();
     }

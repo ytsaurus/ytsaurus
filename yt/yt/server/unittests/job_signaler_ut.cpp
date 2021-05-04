@@ -17,7 +17,7 @@ namespace {
 
 static int PipeDescriptors[2];
 
-static void SignalHandler(int signum)
+static void SignalHandler(int /*signum*/)
 {
     Y_UNUSED(::write(PipeDescriptors[1], "got signal\n", 11));
 }

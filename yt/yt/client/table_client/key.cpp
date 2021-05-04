@@ -136,7 +136,7 @@ bool operator!=(const TKey& lhs, const TKey& rhs)
     return !(lhs == rhs);
 }
 
-void FormatValue(TStringBuilderBase* builder, const TKey& key, TStringBuf format)
+void FormatValue(TStringBuilderBase* builder, const TKey& key, TStringBuf /*format*/)
 {
     builder->AppendString(ToString(key));
 }

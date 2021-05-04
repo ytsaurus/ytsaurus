@@ -198,10 +198,10 @@ private:
 
     virtual bool OnChunk(
         TChunk* chunk,
-        std::optional<i64> rowIndex,
-        std::optional<int> tabletIndex,
-        const NChunkClient::TReadLimit& lowerLimit,
-        const NChunkClient::TReadLimit& upperLimit,
+        std::optional<i64> /*rowIndex*/,
+        std::optional<int> /*tabletIndex*/,
+        const NChunkClient::TReadLimit& /*lowerLimit*/,
+        const NChunkClient::TReadLimit& /*upperLimit*/,
         TTransactionId /*timestampTransactionId*/) override
     {
         if (chunk->IsErasure()) {
@@ -1036,7 +1036,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
     }
 }
 
-void TChunkMerger::HydraStartMergeTransaction(NProto::TReqStartMergeTransaction* request)
+void TChunkMerger::HydraStartMergeTransaction(NProto::TReqStartMergeTransaction* /*request*/)
 {
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
 

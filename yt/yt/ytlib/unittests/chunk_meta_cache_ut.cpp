@@ -40,7 +40,7 @@ TFuture<TRefCountedChunkMetaPtr> CreateFakeChunkMetaFuture(const std::optional<s
     return MakeFuture(CreateFakeChunkMeta(extensionTags));
 }
 
-TFuture<TRefCountedChunkMetaPtr> CreateErrorChunkMetaFuture(const std::optional<std::vector<int>>& extensionTags)
+TFuture<TRefCountedChunkMetaPtr> CreateErrorChunkMetaFuture(const std::optional<std::vector<int>>& /*extensionTags*/)
 {
     return MakeFuture<TRefCountedChunkMetaPtr>(TError("Test request failure"));
 }

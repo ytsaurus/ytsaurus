@@ -33,7 +33,7 @@ TString ToString(TChunkReplicaWithMedium replica)
     return ToStringViaBuilder(replica);
 }
 
-void FormatValue(TStringBuilderBase* builder, TChunkReplica replica, TStringBuf spec)
+void FormatValue(TStringBuilderBase* builder, TChunkReplica replica, TStringBuf /*spec*/)
 {
     builder->AppendFormat("%v", replica.GetNodeId());
     if (replica.GetReplicaIndex() != GenericChunkReplicaIndex) {
@@ -46,7 +46,7 @@ TString ToString(TChunkReplica replica)
     return ToStringViaBuilder(replica);
 }
 
-void FormatValue(TStringBuilderBase* builder, const TChunkIdWithIndex& id, TStringBuf spec)
+void FormatValue(TStringBuilderBase* builder, const TChunkIdWithIndex& id, TStringBuf /*spec*/)
 {
     builder->AppendFormat("%v", id.Id);
     if (id.ReplicaIndex != GenericChunkReplicaIndex) {
@@ -59,7 +59,7 @@ TString ToString(const TChunkIdWithIndex& id)
     return ToStringViaBuilder(id);
 }
 
-void FormatValue(TStringBuilderBase* builder, const TChunkIdWithIndexes& id, TStringBuf spec)
+void FormatValue(TStringBuilderBase* builder, const TChunkIdWithIndexes& id, TStringBuf /*spec*/)
 {
     builder->AppendFormat("%v", id.Id);
     if (id.ReplicaIndex != GenericChunkReplicaIndex) {

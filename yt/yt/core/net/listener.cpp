@@ -37,7 +37,7 @@ public:
         return Name_;
     }
 
-    virtual void OnEvent(EPollControl control) override
+    virtual void OnEvent(EPollControl /*control*/) override
     {
         try {
             while (true) {

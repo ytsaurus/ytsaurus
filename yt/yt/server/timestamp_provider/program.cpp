@@ -25,7 +25,7 @@ TTimestampProviderProgram::TTimestampProviderProgram()
     , TProgramConfigMixin(Opts_)
 { }
 
-void TTimestampProviderProgram::DoRun(const NLastGetopt::TOptsParseResult& parseResult)
+void TTimestampProviderProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/)
 {
     TThread::SetCurrentThreadName("TsProviderMain");
 

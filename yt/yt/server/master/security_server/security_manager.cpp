@@ -468,7 +468,7 @@ public:
         return DoCreateAccount(id);
     }
 
-    void DestroyAccount(TAccount* account)
+    void DestroyAccount(TAccount* /*account*/)
     { }
 
     TAccount* GetAccountOrThrow(TAccountId id)
@@ -1033,16 +1033,16 @@ public:
 
         auto resources = ConvertToClusterResources(node->GetTabletResourceUsage());
 
-        UpdateTabletResourceUsage(node, oldAccount, -resources, oldCommitted);
-        UpdateTabletResourceUsage(node, newAccount, resources, newCommitted);
+        UpdateTabletResourceUsage(oldAccount, -resources, oldCommitted);
+        UpdateTabletResourceUsage(newAccount, resources, newCommitted);
     }
 
     void UpdateTabletResourceUsage(TCypressNode* node, const TClusterResources& resourceUsageDelta)
     {
-        UpdateTabletResourceUsage(node, node->GetAccount(), resourceUsageDelta, node->IsTrunk());
+        UpdateTabletResourceUsage(node->GetAccount(), resourceUsageDelta, node->IsTrunk());
     }
 
-    void UpdateTabletResourceUsage(TCypressNode* node, TAccount* account, const TClusterResources& resourceUsageDelta, bool committed)
+    void UpdateTabletResourceUsage(TAccount* account, const TClusterResources& resourceUsageDelta, bool committed)
     {
         if (!account) {
             return;
@@ -2544,7 +2544,7 @@ private:
     }
 
 
-    void ValidateMembershipUpdate(TGroup* group, TSubject* member)
+    void ValidateMembershipUpdate(TGroup* group, TSubject* /*member*/)
     {
         if (group == EveryoneGroup_ || group == UsersGroup_) {
             THROW_ERROR_EXCEPTION("Cannot modify group");

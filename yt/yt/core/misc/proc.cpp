@@ -171,6 +171,7 @@ std::vector<int> GetPidsUnderParent(int targetPid)
     return result;
 
 #else
+    Y_UNUSED(targetPid);
     return {};
 #endif
 }
@@ -213,6 +214,7 @@ std::vector<int> GetPidsByUid(int uid)
     YT_VERIFY(::closedir(dirStream) == 0);
     return result;
 #else
+    Y_UNUSED(uid);
     return std::vector<int>();
 #endif
 }
@@ -306,6 +308,7 @@ TMemoryUsage GetProcessMemoryUsage(int pid)
         FromString<ui64>(memoryStatFields[2]) * NSystemInfo::GetPageSize(),
     };
 #else
+    Y_UNUSED(pid);
     return TMemoryUsage{0, 0};
 #endif
 }
@@ -344,6 +347,7 @@ ui64 GetProcessCumulativeMajorPageFaults(int pid)
     auto statFields = SplitString(statFile.ReadLine(), " ");
     return FromString<ui64>(statFields[11]) + FromString<ui64>(statFields[12]);
 #else
+    Y_UNUSED(pid);
     return 0;
 #endif
 }
@@ -354,6 +358,7 @@ TString GetProcessName(int pid)
     TString path = Format("/proc/%v/comm", pid);
     return Trim(TUnbufferedFileInput(path).ReadAll(), "\n");
 #else
+    Y_UNUSED(pid);
     return "";
 #endif
 }
@@ -378,6 +383,7 @@ std::vector<TString> GetProcessCommandLine(int pid)
 
     return result;
 #else
+    Y_UNUSED(pid);
     return std::vector<TString>();
 #endif
 }
@@ -631,6 +637,7 @@ void SafeOpenPty(int* masterFD, int* slaveFD, int height, int width)
     }
     SafeSetCloexec(*masterFD);
 #else
+    Y_UNUSED(masterFD, slaveFD, height, width);
     THROW_ERROR_EXCEPTION("Unsupported");
 #endif
 }
@@ -644,6 +651,7 @@ void SafeLoginTty(int slaveFD)
             << TError::FromSystem();
     }
 #else
+    Y_UNUSED(slaveFD);
     THROW_ERROR_EXCEPTION("Unsupported");
 #endif
 }
@@ -853,6 +861,8 @@ void CloseAllDescriptors(const std::vector<int>& exceptFor)
     for (int fd : fds) {
         YT_VERIFY(TryClose(fd, ignoreBadFD));
     }
+#else
+    Y_UNUSED(exceptFor);
 #endif
 }
 
@@ -1195,6 +1205,7 @@ std::vector<TMemoryMapping> GetProcessMemoryMappings(int pid)
     auto rawSMaps = TFileInput{Format("/proc/%v/smaps", pid)}.ReadAll();
     return ParseMemoryMappings(rawSMaps);
 #else
+    Y_UNUSED(pid);
     return {};
 #endif
 }

@@ -131,11 +131,6 @@ public:
   friend bool operator==(const Constructable & c0, const Constructable & c1) {
     return c0.getValue() == c1.getValue();
   }
-
-  friend bool YT_LLVM_ATTRIBUTE_UNUSED
-  operator!=(const Constructable & c0, const Constructable & c1) {
-    return c0.getValue() != c1.getValue();
-  }
 };
 
 int Constructable::numConstructorCalls;
@@ -155,7 +150,7 @@ private:
   NonCopyable &operator=(const NonCopyable &) = delete;
 };
 
-YT_LLVM_ATTRIBUTE_USED void CompileTest() {
+[[maybe_unused]] void CompileTest() {
   SmallVector<NonCopyable, 0> V;
   V.resize(42);
 }

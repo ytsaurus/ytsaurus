@@ -262,7 +262,6 @@ private:
     TChunkStatistics ComputeErasureChunkStatistics(const TChunk* chunk);
     void ComputeErasureChunkStatisticsForMedium(
         TPerMediumChunkStatistics& result,
-        const TChunk* chunk,
         NErasure::ICodec* codec,
         TReplicationPolicy replicationPolicy,
         std::array<TNodePtrWithIndexesList, NChunkClient::ChunkReplicaIndexBound>& decommissionedReplicas,

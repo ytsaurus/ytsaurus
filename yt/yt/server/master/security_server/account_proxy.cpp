@@ -216,7 +216,7 @@ private:
                 if (IsRootAccount()) {
                     break;
                 }
-                SerializeClusterResourceLimits(account->ClusterResourceLimits(), account, true, consumer);
+                SerializeClusterResourceLimits(account->ClusterResourceLimits(), true, consumer);
                 return true;
 
             case EInternedAttributeKey::ViolatedResourceLimits: {
@@ -261,13 +261,13 @@ private:
                 const auto& securityManager = Bootstrap_->GetSecurityManager();
 
                 auto violatedLimits = securityManager->GetAccountRecursiveViolatedResourceLimits(account);
-                SerializeClusterResourceLimits(violatedLimits, nullptr, false, consumer);
+                SerializeClusterResourceLimits(violatedLimits, false, consumer);
                 return true;
             }
 
             case EInternedAttributeKey::TotalChildrenResourceLimits: {
                 auto resourceLimits = account->ComputeTotalChildrenLimits();
-                SerializeClusterResourceLimits(resourceLimits, account, true, consumer);
+                SerializeClusterResourceLimits(resourceLimits, true, consumer);
                 return true;
             }
 
@@ -359,7 +359,6 @@ private:
 
     void SerializeClusterResourceLimits(
         const TClusterResourceLimits& clusterResourceLimits,
-        const TAccount* account,
         bool serializeDiskSpace,
         NYson::IYsonConsumer* consumer)
     {
@@ -373,7 +372,7 @@ private:
         BuildYsonFluently(consumer)
             .Value(resourceSerializer);
     }
-    
+
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(TransferAccountResources);

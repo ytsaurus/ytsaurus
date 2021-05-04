@@ -164,7 +164,7 @@ protected:
             objectManager->UnrefObject(chunkList);
         }
 
-        HandleTransactionFinished(originatingNode, branchedNode);
+        HandleTransactionFinished(branchedNode);
     }
 
     virtual void DoLogMerge(
@@ -187,7 +187,7 @@ protected:
 
         YT_VERIFY(originatingNode->GetChunkList() == branchedNode->GetChunkList());
 
-        HandleTransactionFinished(originatingNode, branchedNode);
+        HandleTransactionFinished(branchedNode);
     }
 
     virtual void DoLogUnbranch(
@@ -245,7 +245,7 @@ protected:
         THROW_ERROR_EXCEPTION("Cross-cell copying of journal is not supported");
     }
 
-    void HandleTransactionFinished(TJournalNode* originatingNode, TJournalNode* branchedNode)
+    void HandleTransactionFinished(TJournalNode* branchedNode)
     {
         if (branchedNode->GetUpdateMode() != EUpdateMode::Append) {
             return;

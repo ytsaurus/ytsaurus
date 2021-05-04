@@ -134,11 +134,10 @@ TFuture<std::vector<TBlock>> TChunkFileReader::ReadBlocks(
 
 TFuture<TRefCountedChunkMetaPtr> TChunkFileReader::GetMeta(
     const TClientChunkReadOptions& options,
-    std::optional<int> partitionTag,
-    const std::optional<std::vector<int>>& extensionTags)
+    std::optional<int> partitionTag)
 {
     try {
-        return DoReadMeta(options, partitionTag, extensionTags);
+        return DoReadMeta(options, partitionTag);
     } catch (const std::exception& ex) {
         return MakeFuture<TRefCountedChunkMetaPtr>(ex);
     }
@@ -227,7 +226,7 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
     }
 
     if (!blocksExt) {
-        return DoReadMeta(options, std::nullopt, std::nullopt)
+        return DoReadMeta(options, std::nullopt)
             .Apply(BIND([=, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
                 auto loadedBlocksExt = New<TRefCountedBlocksExt>(GetProtoExtension<TBlocksExt>(meta->extensions()));
                 if (BlocksExtCache_) {
@@ -285,8 +284,7 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
 
 TFuture<TRefCountedChunkMetaPtr> TChunkFileReader::DoReadMeta(
     const TClientChunkReadOptions& options,
-    std::optional<int> partitionTag,
-    const std::optional<std::vector<int>>& extensionTags)
+    std::optional<int> partitionTag)
 {
     // Partition tag filtering not implemented here
     // because there is no practical need.

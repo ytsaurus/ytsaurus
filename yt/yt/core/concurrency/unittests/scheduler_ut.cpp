@@ -317,8 +317,10 @@ TEST_W(TSchedulerTest, InvokerAffinity2)
 
 TEST_F(TSchedulerTest, CurrentInvokerSync)
 {
-    EXPECT_EQ(GetSyncInvoker(), GetCurrentInvoker())
-        << "Current invoker: " << typeid(*GetCurrentInvoker()).name();
+    auto currentInvokerPtr = GetCurrentInvoker();
+    const auto& currentInvoker = *currentInvokerPtr;
+    EXPECT_EQ(GetSyncInvoker(), currentInvokerPtr)
+        << "Current invoker: " << typeid(currentInvoker).name();
 }
 
 TEST_F(TSchedulerTest, CurrentInvokerInActionQueue)
@@ -540,7 +542,7 @@ TEST_F(TSchedulerTest, FiberUnwindOrder)
 {
     auto p1 = NewPromise<void>();
     // Add empty callback
-    p1.OnCanceled(BIND([] (const TError& error) { }));
+    p1.OnCanceled(BIND([] (const TError& /*error*/) { }));
     auto f1 = p1.ToFuture();
 
     auto f2 = BIND([=] () mutable {

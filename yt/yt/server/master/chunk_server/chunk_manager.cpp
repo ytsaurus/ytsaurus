@@ -2010,7 +2010,7 @@ private:
         }
     }
 
-    void OnDataCenterRenamed(TDataCenter* dataCenter)
+    void OnDataCenterRenamed(TDataCenter* /*dataCenter*/)
     { }
 
     void OnDataCenterDestroyed(TDataCenter* dataCenter)
@@ -2449,7 +2449,7 @@ private:
 
     void ExecuteSealChunkSubrequest(
         TReqExecuteBatch::TSealChunkSubrequest* subrequest,
-        TRspExecuteBatch::TSealChunkSubresponse* subresponse)
+        TRspExecuteBatch::TSealChunkSubresponse* /*subresponse*/)
     {
         auto chunkId = FromProto<TChunkId>(subrequest->chunk_id());
         auto* chunk = GetChunkOrThrow(chunkId);
@@ -2494,7 +2494,7 @@ private:
 
     void ExecuteUnstageChunkTreeSubrequest(
         TReqExecuteBatch::TUnstageChunkTreeSubrequest* subrequest,
-        TRspExecuteBatch::TUnstageChunkTreeSubresponse* subresponse)
+        TRspExecuteBatch::TUnstageChunkTreeSubresponse* /*subresponse*/)
     {
         auto chunkTreeId = FromProto<TTransactionId>(subrequest->chunk_tree_id());
         auto recursive = subrequest->recursive();

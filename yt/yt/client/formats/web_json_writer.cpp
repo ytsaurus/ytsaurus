@@ -55,9 +55,9 @@ public:
     bool Accept(ui16 columnId, TStringBuf columnName)
     {
         if (Names_) {
-            return AcceptByNames(columnId, columnName);
+            return AcceptByNames(columnName);
         }
-        return AcceptByMaxCount(columnId, columnName);
+        return AcceptByMaxCount(columnId);
     }
 
 private:
@@ -66,12 +66,12 @@ private:
 
     THashSet<ui16> AcceptedColumnIds_;
 
-    bool AcceptByNames(ui16 columnId, TStringBuf columnName)
+    bool AcceptByNames(TStringBuf columnName)
     {
         return Names_->contains(columnName);
     }
 
-    bool AcceptByMaxCount(ui16 columnId, TStringBuf columnName)
+    bool AcceptByMaxCount(ui16 columnId)
     {
         if (AcceptedColumnIds_.size() < MaxSelectedColumnCount_) {
             AcceptedColumnIds_.insert(columnId);
@@ -267,7 +267,7 @@ class TYqlValueWriter
 public:
     TYqlValueWriter(
         const TWebJsonFormatConfigPtr& config,
-        const TNameTablePtr& nameTable,
+        const TNameTablePtr& /*nameTable*/,
         const std::vector<TTableSchemaPtr>& schemas,
         IJsonWriter* consumer)
         : Consumer_(consumer)
@@ -404,7 +404,7 @@ public:
         }
     }
 
-    void WriteValue(int tableIndex, TStringBuf columnName, TUnversionedValue value)
+    void WriteValue(int tableIndex, TStringBuf /*columnName*/, TUnversionedValue value)
     {
         switch (value.Type) {
             case EValueType::Any:

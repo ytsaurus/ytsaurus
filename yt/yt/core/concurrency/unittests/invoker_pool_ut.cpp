@@ -153,7 +153,7 @@ TEST_F(TTransformInvokerPoolTest, OutputPoolOutlivesInputPool)
     // Check that output invoker pool still works correctly.
     CallPerInvoker(
         outputInvokerPool,
-        /* getCallbackCount */ [] (int invokerIndex) {
+        /*getCallbackCount*/ [] (int /*invokerIndex*/) {
             return 1;
         });
 }

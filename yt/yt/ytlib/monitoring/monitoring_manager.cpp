@@ -87,7 +87,7 @@ private:
             : Owner_(std::move(owner))
         { }
 
-        virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& context) override
+        virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& /*context*/) override
         {
             return TResolveResultThere{Owner_->GetRoot(), path};
         }

@@ -79,9 +79,9 @@ class TSparseVersionedBooleanValueExtractor
 public:
     TSparseVersionedBooleanValueExtractor(
         TRef data,
-        const TSegmentMeta& meta,
+        const TSegmentMeta& /*meta*/,
         bool aggregate)
-        : TSparseVersionedValueExtractorBase(meta, aggregate)
+        : TSparseVersionedValueExtractorBase(aggregate)
     {
         const char* ptr = data.Begin();
         ptr = InitSparseReader(ptr);
@@ -136,7 +136,7 @@ class TUnversionedBooleanValueExtractor
     : public TBooleanValueExtractorBase
 {
 public:
-    TUnversionedBooleanValueExtractor(TRef data, const TSegmentMeta& meta)
+    TUnversionedBooleanValueExtractor(TRef data, const TSegmentMeta& /*meta*/)
     {
         const char* ptr = data.Begin();
         ptr = InitValueReader(ptr);

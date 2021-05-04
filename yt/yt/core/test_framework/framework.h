@@ -167,9 +167,9 @@ template <class T>
 
 #define HANLDE_RPC_CALL(mockType, method, capture, body) \
     ::testing::Invoke(capture ( \
-        mockType::TReq##method* request, \
-        mockType::TRsp##method* response, \
-        mockType::TCtx##method##Ptr context) \
+        [[maybe_unused]] mockType::TReq##method* request, \
+        [[maybe_unused]] mockType::TRsp##method* response, \
+        [[maybe_unused]] mockType::TCtx##method##Ptr context) \
     body)
 
 ////////////////////////////////////////////////////////////////////////////////

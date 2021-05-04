@@ -38,7 +38,7 @@ public:
     { }
 
 protected:
-    virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
+    virtual void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
     {
         auto config = GetConfig();
 
@@ -60,7 +60,7 @@ protected:
         if (config->Uid > 0) {
             SetUid(config->Uid);
         }
-            
+
         TError executorError;
 
         try {

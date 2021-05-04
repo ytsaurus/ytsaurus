@@ -2893,7 +2893,6 @@ protected:
         chunkPoolOptions.JobSizeConstraints = CreatePartitionBoundSortedJobSizeConstraints(
             Spec,
             Options,
-            Logger,
             GetOutputTablePaths().size());
         chunkPoolOptions.Logger = Logger.WithTag("Name: %v", name);
 
@@ -3192,7 +3191,6 @@ private:
                     partitionKeys = BuildPartitionKeysBySamples(
                         samples,
                         PartitionCount,
-                        partitionJobSizeConstraints,
                         comparator,
                         RowBuffer);
                 }
@@ -4428,7 +4426,7 @@ private:
         return result;
     }
 
-    virtual TExtendedJobResources GetSimpleSortResources(const TChunkStripeStatistics& stat) const override
+    virtual TExtendedJobResources GetSimpleSortResources(const TChunkStripeStatistics& /*stat*/) const override
     {
         YT_ABORT();
     }
@@ -4494,7 +4492,7 @@ private:
     }
 
     virtual TExtendedJobResources GetUnorderedMergeResources(
-        const TChunkStripeStatisticsVector& statistics) const override
+        const TChunkStripeStatisticsVector& /*statistics*/) const override
     {
         YT_ABORT();
     }

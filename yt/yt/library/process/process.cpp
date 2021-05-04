@@ -171,21 +171,6 @@ bool TryWaitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
     return false;
 }
 
-void WaitidOrDie(idtype_t idtype, id_t id, siginfo_t *infop, int options)
-{
-    YT_VERIFY(infop != nullptr);
-
-    memset(infop, 0, sizeof(siginfo_t));
-
-    bool isOK = TryWaitid(idtype, id, infop, options);
-
-    if (!isOK) {
-        YT_LOG_FATAL(TError::FromSystem(), "Waitid failed with options: %v", options);
-    }
-
-    YT_VERIFY(infop->si_pid == id);
-}
-
 void Wait4OrDie(pid_t id, int* status, int options, rusage* rusage)
 {
     auto res = HandleEintr(::wait4, id, status, options, rusage);

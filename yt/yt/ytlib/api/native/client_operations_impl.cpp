@@ -78,7 +78,7 @@ void TClient::DoCompleteOperation(
 void TClient::DoUpdateOperationParameters(
     const TOperationIdOrAlias& operationIdOrAlias,
     const TYsonString& parameters,
-    const TUpdateOperationParametersOptions& options)
+    const TUpdateOperationParametersOptions& /*options*/)
 {
     auto req = SchedulerProxy_->UpdateOperationParameters();
     ToProto(req, operationIdOrAlias);

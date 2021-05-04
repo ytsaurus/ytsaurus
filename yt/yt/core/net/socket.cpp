@@ -442,6 +442,8 @@ bool TrySetSocketKeepAlive(SOCKET socket)
     if (setsockopt(socket, SOL_SOCKET, SO_KEEPALIVE, (const char*) &value, sizeof(value)) != 0) {
         return false;
     }
+#else
+    Y_UNUSED(socket);
 #endif
     return true;
 }
@@ -453,6 +455,8 @@ bool TrySetSocketEnableQuickAck(SOCKET socket)
     if (setsockopt(socket, IPPROTO_TCP, TCP_QUICKACK, (const char*) &value, sizeof(value)) != 0) {
         return false;
     }
+#else
+    Y_UNUSED(socket);
 #endif
     return true;
 }

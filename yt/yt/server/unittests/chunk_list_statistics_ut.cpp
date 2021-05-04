@@ -21,13 +21,6 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::ostream& operator<<(std::ostream& out, const TCumulativeStatisticsEntry& entry)
-{
-    return out << ToString(entry);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void CheckCumulativeStatistics(TChunkList* chunkList)
 {
     TCumulativeStatisticsEntry current;

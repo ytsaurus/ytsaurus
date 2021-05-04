@@ -88,7 +88,7 @@ TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectPr
 }
 
 template <class TObject>
-void TNonversionedMapObjectProxyBase<TObject>::SetParent(const ICompositeNodePtr& parent)
+void TNonversionedMapObjectProxyBase<TObject>::SetParent(const ICompositeNodePtr& /*parent*/)
 {
     Y_UNREACHABLE();
 }
@@ -144,9 +144,9 @@ void TNonversionedMapObjectProxyBase<TObject>::SetSelf(
 template <class TObject>
 void TNonversionedMapObjectProxyBase<TObject>::SetRecursive(
     const TYPath& path,
-    TReqSet* request,
-    TRspSet* response,
-    const TCtxSetPtr& context)
+    TReqSet* /*request*/,
+    TRspSet* /*response*/,
+    const TCtxSetPtr& /*context*/)
 {
     NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();
@@ -201,8 +201,8 @@ std::optional<TString> TNonversionedMapObjectProxyBase<TObject>::FindChildKey(
 
 template <class TObject>
 bool TNonversionedMapObjectProxyBase<TObject>::AddChild(
-    const TString& key,
-    const INodePtr& child)
+    const TString& /*key*/,
+    const INodePtr& /*child*/)
 {
     THROW_ERROR_EXCEPTION("Use TNonversionedMapObjectFactoryBase::AttachChild() instead");
 }

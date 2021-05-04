@@ -44,8 +44,7 @@ public:
 
     NNet::IListenerPtr CreateListener(
         const NNet::IListenerPtr& underlying,
-        const NConcurrency::IPollerPtr& poller,
-        const NConcurrency::IPollerPtr& acceptor);
+        const NConcurrency::IPollerPtr& poller);
 
 private:
     const TIntrusivePtr<TSslContextImpl> Impl_;

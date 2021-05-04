@@ -67,7 +67,7 @@ public:
         , RowBuffer_(std::move(rowBuffer))
     { }
 
-    virtual void AddChunk(TInputChunkPtr chunk) override
+    virtual void AddChunk(TInputChunkPtr /*chunk*/) override
     {
         YT_UNIMPLEMENTED();
     }

@@ -182,7 +182,7 @@ TStringBuf FindMapNodeChildKey(
 }
 
 TCypressNode* FindListNodeChild(
-    const TCypressManagerPtr& cypressManager,
+    const TCypressManagerPtr& /*cypressManager*/,
     TListNode* trunkNode,
     TTransaction* /*transaction*/,
     TStringBuf key)

@@ -1265,21 +1265,6 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! These converters are used only for THeavyColumnStatisticsExt column_data_weights field proto<->yson conversion.
-void FromBytes(std::vector<int>* vector, TStringBuf bytes)
-{
-    for (auto value : bytes) {
-        vector->push_back(static_cast<int>(value));
-    }
-}
-
-void ToBytes(TString* bytes, const std::vector<int>& vector)
-{
-    for (auto value : vector) {
-        bytes->push_back(static_cast<unsigned char>(value));
-    }
-}
-
 REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(NProto::THeavyColumnStatisticsExt, /*column_data_weights*/5, TUnversionedOwningRow)
 
 ////////////////////////////////////////////////////////////////////////////////

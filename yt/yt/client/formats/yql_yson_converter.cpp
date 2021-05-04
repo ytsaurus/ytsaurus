@@ -386,7 +386,7 @@ public:
         , Scale_(scale)
     { }
 
-    void operator () (TYsonPullParserCursor* cursor, TYqlJsonWriter* consumer, i64 totalLimit) const
+    void operator () (TYsonPullParserCursor* cursor, TYqlJsonWriter* consumer, i64 /*totalLimit*/) const
     {
         const auto& item = cursor->GetCurrent();
         EnsureYsonItemTypeEqual(item, EYsonItemType::StringValue);
@@ -694,7 +694,7 @@ public:
         , IsNullable_(isNullable)
     { }
 
-    void operator () (TUnversionedValue value, TYqlJsonWriter* consumer, i64 totalLimit) const
+    void operator () (TUnversionedValue value, TYqlJsonWriter* consumer, i64 /*totalLimit*/) const
     {
         if (IsNullable_) {
             if (value.Type == EValueType::Null) {
@@ -759,8 +759,7 @@ private:
 
 static TWeightLimitedUnversionedValueToYqlConverter CreateSimpleUnversionedValueToYqlConverter(
     EValueType type,
-    bool isRequired,
-    TYqlConverterConfigPtr config)
+    bool isRequired)
 {
     switch (type) {
 #define CASE(type) \
@@ -798,7 +797,7 @@ static TWeightLimitedUnversionedValueToYqlConverter CreateWeightLimitedUnversion
         case ELogicalMetatype::Simple: {
             auto[simpleType, isRequired] = CastToV1Type(logicalType);
             auto physicalType = GetPhysicalType(simpleType);
-            return CreateSimpleUnversionedValueToYqlConverter(physicalType, isRequired, std::move(config));
+            return CreateSimpleUnversionedValueToYqlConverter(physicalType, isRequired);
         }
         case ELogicalMetatype::Decimal: {
             const int precision = denullifiedLogicalType->AsDecimalTypeRef().GetPrecision();
