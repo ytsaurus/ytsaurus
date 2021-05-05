@@ -356,7 +356,8 @@ bool TryParseTraceParent(const TString& traceParent, NTracing::TSpanContext& spa
 
     // Now we have exactly three parts: traceId-spanId-options.
 
-    // Parse trace context.
+    // Parse trace context. Hex string 11111111222222223333333344444444
+    // is interpreted as YT GUID 11111111-22222222-33333333-44444444.
     if (!TGuid::FromStringHex32(parts[0], &spanContext.TraceId)) {
         return false;
     }

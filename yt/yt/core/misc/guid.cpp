@@ -92,28 +92,29 @@ bool TGuid::FromStringHex32(TStringBuf str, TGuid* result)
         return false;
     }
 
-    bool ok = true;
-    int i = 0;
-    auto parseChar = [&] {
-        const char c = str[i++];
-        ui32 digit = 0;
-        if ('0' <= c && c <= '9') {
-            digit = c - '0';
-        } else if ('a' <= c && c <= 'f') {
-            digit = c - 'a' + 10;
-        } else if ('A' <= c && c <= 'F') {
-            digit = c - 'A' + 10;
-        } else {
-            ok = false;
-        }
-        return digit;
-    };
+    size_t partId = 3;
 
-    for (size_t j = 0; j < 16; ++j) {
-        result->Parts8[j] = parseChar() * 16 + parseChar();
+    for (size_t i = 0; i != 4; ++i) {
+        result->Parts32[partId] = 0;
+        for (size_t j = 0; j != 8; ++j) {
+            const char c = str[i * 8 + j];
+            ui32 digit = 0;
+            if ('0' <= c && c <= '9') {
+                digit = c - '0';
+            } else if ('a' <= c && c <= 'f') {
+                digit = c - 'a' + 10;
+            } else if ('A' <= c && c <= 'F') {
+                digit = c - 'A' + 10;
+            } else {
+                return false; // non-hex character
+            }
+
+            result->Parts32[partId] = result->Parts32[partId] * 16 + digit;
+        }
+        --partId;
     }
 
-    return ok;
+    return true;
 }
 
 void FormatValue(TStringBuilderBase* builder, TGuid value, TStringBuf /*format*/)
