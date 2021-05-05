@@ -239,7 +239,6 @@ void TJaegerTracer::DequeueAll(const TJaegerTracerConfigPtr& config)
         MemoryUsage_.Update(QueueMemory_);
         QueueSize_ += batch.spans_size();
         TraceQueueSize_.Update(QueueSize_);
-        TracesDequeued_.Increment(batch.spans_size());
 
         batch.Clear();
     };
