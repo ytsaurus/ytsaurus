@@ -68,6 +68,7 @@ DEFINE_ENUM(EReplicationWriterState,
     (Open)
     (Closing)
     (Closed)
+    (Canceled)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -204,7 +205,6 @@ public:
             return;
         }
 
-        YT_LOG_INFO("Writer destroyed");
         StateError_.TrySet(TError("Writer destroyed"));
 
         CancelWriter();
@@ -460,14 +460,14 @@ private:
 
         if (!Options_->AllowAllocatingNewTargetNodes) {
             THROW_ERROR_EXCEPTION(
-                EErrorCode::MasterCommunicationFailed,
+                NChunkClient::EErrorCode::MasterCommunicationFailed,
                 "Allocating new target nodes is disabled");
         }
 
         ++AllocateWriteTargetsRetryIndex_;
         if (AllocateWriteTargetsRetryIndex_ > Config_->AllocateWriteTargetsRetryCount) {
             THROW_ERROR_EXCEPTION(
-                EErrorCode::MasterCommunicationFailed,
+                NChunkClient::EErrorCode::MasterCommunicationFailed,
                 "Failed to allocate write targets, retry count limit exceeded")
                 << TErrorAttribute("retry_count", Config_->AllocateWriteTargetsRetryCount);
         }
@@ -885,6 +885,8 @@ private:
             ToProto(req->mutable_session_id(), SessionId_);
             req->Invoke();
         }
+
+        State_.store(EReplicationWriterState::Canceled);
     }
 
     void AddBlocks(const std::vector<TBlock>& blocks)
@@ -1033,7 +1035,7 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer)
     }
 
     YT_VERIFY(selectedIndex);
-    auto node = writer->Nodes_[*selectedIndex];
+    const auto& node = writer->Nodes_[*selectedIndex];
 
     TDataNodeServiceProxy proxy(node->Channel);
     auto req = proxy.PutBlocks();
@@ -1097,7 +1099,7 @@ void TGroup::SendGroup(const TReplicationWriterPtr& writer, const TNodePtr& srcN
 
     TNodePtr dstNode;
     for (int index = 0; index < SentTo_.size(); ++index) {
-        auto node = writer->Nodes_[index];
+        const auto& node = writer->Nodes_[index];
         if (node->IsAlive() && !SentTo_[index]) {
             dstNode = node;
         }
@@ -1135,7 +1137,7 @@ void TGroup::SendGroup(const TReplicationWriterPtr& writer, const TNodePtr& srcN
                 srcNode->Descriptor.GetDefaultAddress(),
                 dstNode->Descriptor.GetDefaultAddress());
         } else {
-            auto failedNode = (rspOrError.GetCode() == EErrorCode::SendBlocksFailed) ? dstNode : srcNode;
+            auto failedNode = (rspOrError.GetCode() == NChunkClient::EErrorCode::SendBlocksFailed) ? dstNode : srcNode;
             writer->OnNodeFailed(failedNode, rspOrError);
         }
     }
@@ -1177,13 +1179,22 @@ void TGroup::ScheduleProcess()
 void TGroup::Process()
 {
     auto writer = Writer_.Lock();
-    if (!writer || writer->StateError_.IsSet()) {
+    if (!writer) {
         return;
     }
 
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
-    YT_VERIFY(writer->State_.load() == EReplicationWriterState::Open ||
-        writer->State_.load() == EReplicationWriterState::Closing);
+
+    if (writer->StateError_.IsSet()) {
+        return;
+    }
+
+    auto state = writer->State_.load();
+    if (state != EReplicationWriterState::Open &&
+        state != EReplicationWriterState::Closing)
+    {
+        return;
+    }
 
     YT_LOG_DEBUG("Processing blocks (Blocks: %v-%v)",
         FirstBlockIndex_,
@@ -1192,7 +1203,7 @@ void TGroup::Process()
     TNodePtr nodeWithBlocks;
     bool emptyNodeFound = false;
     for (int nodeIndex = 0; nodeIndex < SentTo_.size(); ++nodeIndex) {
-        auto node = writer->Nodes_[nodeIndex];
+        const auto& node = writer->Nodes_[nodeIndex];
         if (node->IsAlive()) {
             if (SentTo_[nodeIndex]) {
                 nodeWithBlocks = node;
