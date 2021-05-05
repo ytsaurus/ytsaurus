@@ -806,6 +806,7 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
         serialized->set_execution_pool(*original.ExecutionPool);
     }
     serialized->set_suppress_access_tracking(original.SuppressAccessTracking);
+    serialized->set_range_expansion_limit(original.RangeExpansionLimit);
 }
 
 void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
@@ -837,6 +838,10 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
 
     if (serialized.has_suppress_access_tracking()) {
         original->SuppressAccessTracking = serialized.suppress_access_tracking();
+    }
+
+    if (serialized.has_range_expansion_limit()) {
+        original->RangeExpansionLimit = serialized.range_expansion_limit();
     }
 }
 

@@ -496,6 +496,66 @@ class TestQuery(YTEnvSetup):
             )
 
     @authors("lukyan")
+    def test_join_via_in(self):
+        sync_create_cells(1)
+        self._create_table(
+            "//tmp/jl",
+            [
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "int64"},
+            ],
+            [
+                {"a": 1, "b": 1},
+                {"a": 2, "b": 3},
+                {"a": 3, "b": 6},
+                {"a": 4, "b": 1},
+                {"a": 5, "b": 3},
+                {"a": 6, "b": 6}
+            ],
+            "scan",
+        )
+
+        self._create_table(
+            "//tmp/jr",
+            [
+                {"name": "c", "type": "int64", "sort_order": "ascending"},
+                {"name": "d", "type": "int64", "sort_order": "ascending"},
+                {"name": "e", "type": "string"}
+            ],
+            [
+                {"c": 1, "d": 2, "e": "a"},
+                {"c": 2, "d": 1, "e": "b"},
+                {"c": 2, "d": 2, "e": "c"},
+                {"c": 2, "d": 3, "e": "d"},
+                {"c": 2, "d": 4, "e": "e"},
+                {"c": 2, "d": 5, "e": "f"},
+                {"c": 2, "d": 6, "e": "g"},
+                {"c": 3, "d": 1, "e": "h"},
+            ],
+            "scan",
+        )
+
+        expected = [
+            {"a": 1, "b": 1, "c": 2, "d": 1, "e": "b"},
+            {"a": 2, "b": 3, "c": 2, "d": 3, "e": "d"},
+            {"a": 3, "b": 6, "c": 2, "d": 6, "e": "g"},
+            {"a": 4, "b": 1, "c": 2, "d": 1, "e": "b"},
+            {"a": 5, "b": 3, "c": 2, "d": 3, "e": "d"},
+            {"a": 6, "b": 6, "c": 2, "d": 6, "e": "g"},
+        ]
+
+        actual = select_rows(
+            "* from [//tmp/jl] join [//tmp/jr] on b = d and c = 2",
+            allow_join_without_index=True,
+        )
+
+        assert sorted(expected) == sorted(actual)
+
+        read_count_path = "//tmp/jr/@tablets/0/performance_counters/dynamic_row_lookup_count"
+        wait(lambda: get(read_count_path) > 0)
+        assert get(read_count_path) == 3
+
+    @authors("lukyan")
     def test_join(self):
         sync_create_cells(1)
 
