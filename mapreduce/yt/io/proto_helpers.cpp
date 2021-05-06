@@ -83,7 +83,7 @@ void ValidateProtoDescriptor(
     }
 }
 
-void ParseFromStream(IInputStream* stream, Message& row, ui32 length)
+void ParseFromArcadiaStream(IInputStream* stream, Message& row, ui32 length)
 {
     TLengthLimitedInput input(stream, length);
     TCopyingInputStreamAdaptor adaptor(&input);

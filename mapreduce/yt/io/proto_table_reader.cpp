@@ -214,7 +214,7 @@ void TLenvalProtoTableReader::ReadRow(Message* row)
 
     while (true) {
         try {
-            ParseFromStream(&Input_, *row, Length_);
+            ParseFromArcadiaStream(&Input_, *row, Length_);
             RowTaken_ = true;
 
             // We successfully parsed one more row from the stream,
