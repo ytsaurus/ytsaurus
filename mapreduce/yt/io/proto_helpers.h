@@ -26,7 +26,7 @@ void ValidateProtoDescriptor(
     const TVector<const ::google::protobuf::Descriptor*>& descriptors,
     bool isRead);
 
-void ParseFromStream(
+void ParseFromArcadiaStream(
     IInputStream* stream,
     ::google::protobuf::Message& row,
     ui32 size);

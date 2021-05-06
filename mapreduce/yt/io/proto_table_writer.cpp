@@ -161,7 +161,7 @@ void TLenvalProtoTableWriter::AddRow(const Message& row, size_t tableIndex)
     auto* stream = Output_->GetStream(tableIndex);
     i32 size = row.ByteSize();
     stream->Write(&size, sizeof(size));
-    bool serializedOk = row.SerializeToStream(stream);
+    bool serializedOk = row.SerializeToArcadiaStream(stream);
     Y_ENSURE(serializedOk, "Failed to serialize protobuf message");
     Output_->OnRowFinished(tableIndex);
 }

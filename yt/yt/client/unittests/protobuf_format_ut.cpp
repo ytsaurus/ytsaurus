@@ -108,7 +108,7 @@ TString LenvalBytes(const ::google::protobuf::Message& message)
     TStringStream out;
     ui32 messageSize = static_cast<ui32>(message.ByteSizeLong());
     out.Write(&messageSize, sizeof(messageSize));
-    if (!message.SerializeToStream(&out)) {
+    if (!message.SerializeToArcadiaStream(&out)) {
         THROW_ERROR_EXCEPTION("Can not serialize message");
     }
     return out.Str();
@@ -141,7 +141,7 @@ TCollectingValueConsumer ParseRows(
     auto messageSize = static_cast<ui32>(message.ByteSize());
     for (int i = 0; i < count; ++i) {
         out.Write(&messageSize, sizeof(messageSize));
-        if (!message.SerializeToStream(&out)) {
+        if (!message.SerializeToArcadiaStream(&out)) {
             THROW_ERROR_EXCEPTION("Failed to serialize message");
         }
     }
@@ -2774,7 +2774,7 @@ TEST(TProtobufFormat, ParseSeveralTables)
             TStringOutput out(lenvalBytes);
             auto messageSize = static_cast<ui32>(message.ByteSizeLong());
             out.Write(&messageSize, sizeof(messageSize));
-            ASSERT_TRUE(message.SerializeToStream(&out));
+            ASSERT_TRUE(message.SerializeToArcadiaStream(&out));
         }
         parser->Read(lenvalBytes);
         parser->Finish();
