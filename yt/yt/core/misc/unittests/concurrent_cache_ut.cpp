@@ -78,8 +78,8 @@ TEST_P(TConcurrentCacheTest, Stress)
 
     YT_VERIFY(keyColumnCount <= columnCount);
 
+    THazardPtrFlushGuard flushGuard;
     TSlabAllocator allocator;
-
     TConcurrentCache<TElement> concurrentCache(tableSize);
 
     auto threadPool = New<TThreadPool>(threadCount, "Workers");
@@ -87,6 +87,7 @@ TEST_P(TConcurrentCacheTest, Stress)
 
     for (size_t threadId = 0; threadId < threadCount; ++threadId) {
         asyncResults.push_back(BIND([&, threadId] () -> size_t {
+            THazardPtrFlushGuard flushGuard;
             TRandomCharGenerator randomChar(threadId);
 
             size_t insertCount = 0;
