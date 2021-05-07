@@ -68,7 +68,6 @@ DEFINE_ENUM(EReplicationWriterState,
     (Open)
     (Closing)
     (Closed)
-    (Canceled)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -885,8 +884,6 @@ private:
             ToProto(req->mutable_session_id(), SessionId_);
             req->Invoke();
         }
-
-        State_.store(EReplicationWriterState::Canceled);
     }
 
     void AddBlocks(const std::vector<TBlock>& blocks)
