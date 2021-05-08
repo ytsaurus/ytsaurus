@@ -123,7 +123,7 @@ T TYsonItem::UncheckedAs() const
     } else if constexpr (std::is_same_v<T, bool>) {
         return UncheckedAsBoolean();
     } else {
-        static_assert(TDependentFalse<T>::value);
+        static_assert(TDependentFalse<T>);
     }
 }
 
@@ -346,7 +346,7 @@ TValue TYsonPullParser::ParseTypedValue()
             SyntaxChecker_.OnString();
             return lexer.ReadBinaryString();
         } else {
-            static_assert(TDependentFalse<TNonOptionalValue>::value);
+            static_assert(TDependentFalse<TNonOptionalValue>);
         }
     };
 

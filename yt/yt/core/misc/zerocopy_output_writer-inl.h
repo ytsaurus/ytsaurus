@@ -61,7 +61,7 @@ Y_FORCE_INLINE int WriteVarInt(char* output, T value)
     } else if constexpr (std::is_same_v<T, ui64>) {
         return WriteVarUint64(output, value);
     } else {
-        static_assert(TDependentFalse<T>::value);
+        static_assert(TDependentFalse<T>);
     }
 }
 
@@ -76,7 +76,7 @@ constexpr auto MaxVarIntSize = [] {
     } else if constexpr (std::is_same_v<T, ui64>) {
         return MaxVarUint64Size;
     } else {
-        static_assert(TDependentFalse<T>::value);
+        static_assert(TDependentFalse<T>);
     }
 }();
 

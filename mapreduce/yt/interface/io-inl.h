@@ -561,7 +561,7 @@ inline TTableReaderPtr<T> IIOClient::CreateTableReader(
     } else if constexpr (NYdl::TIsYdlGenerated<T>::value) {
         return new TTableReader<T>(CreateYdlReader(path, options, NYdl::TYdlTraits<T>::Reflect()));
     } else {
-        static_assert(TDependentFalse<T>::value, "Unsupported type for table reader");
+        static_assert(TDependentFalse<T>, "Unsupported type for table reader");
     }
 }
 
@@ -861,7 +861,7 @@ inline TTableWriterPtr<T> IIOClient::CreateTableWriter(
     } else if constexpr (NYdl::TIsYdlGenerated<T>::value) {
         return new TTableWriter<T>(CreateYdlWriter(path, options, NYdl::TYdlTraits<T>::Reflect()));
     } else {
-        static_assert(TDependentFalse<T>::value, "Unsupported type for table writer");
+        static_assert(TDependentFalse<T>, "Unsupported type for table writer");
     }
 }
 
