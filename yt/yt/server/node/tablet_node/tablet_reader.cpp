@@ -223,7 +223,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
     TTimestamp timestamp,
     const TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
-    IThroughputThrottlerPtr bandwidthThrottler)
+    std::optional<EWorkloadCategory> workloadCategory)
 {
     ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
     YT_VERIFY(bounds.Size() > 0);
@@ -314,8 +314,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
         [
             =,
             stores = std::move(stores),
-            boundsPerStore = std::move(boundsPerStore),
-            bandwidthThrottler = std::move(bandwidthThrottler)
+            boundsPerStore = std::move(boundsPerStore)
         ] (int index) {
             YT_ASSERT(index < stores.size());
 
@@ -326,7 +325,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
                 false,
                 columnFilter,
                 chunkReadOptions,
-                bandwidthThrottler);
+                workloadCategory);
         },
         [keyComparer = tabletSnapshot->RowKeyComparer] (
             const TUnversionedValue* lhsBegin,
@@ -351,7 +350,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
     TTimestamp /*timestamp*/,
     const TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
-    IThroughputThrottlerPtr bandwidthThrottler)
+    std::optional<EWorkloadCategory> workloadCategory)
 {
     // Deduce tablet index and row range from lower and upper bound.
     YT_VERIFY(lowerBound.GetCount() >= 1);
@@ -462,7 +461,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
                 upperRowIndex,
                 columnFilter,
                 chunkReadOptions,
-                bandwidthThrottler);
+                workloadCategory);
         });
     }
 
@@ -483,7 +482,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulRangeTabletReader(
     TTimestamp timestamp,
     const TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
-    IThroughputThrottlerPtr bandwidthThrottler)
+    std::optional<EWorkloadCategory> workloadCategory)
 {
     if (tabletSnapshot->PhysicalSchema->IsSorted()) {
         return CreateSchemafulSortedTabletReader(
@@ -493,7 +492,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulRangeTabletReader(
             timestamp,
             chunkReadOptions,
             tabletThrottlerKind,
-            std::move(bandwidthThrottler));
+            workloadCategory);
     } else {
         return CreateSchemafulOrderedTabletReader(
             tabletSnapshot,
@@ -503,7 +502,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulRangeTabletReader(
             timestamp,
             chunkReadOptions,
             tabletThrottlerKind,
-            std::move(bandwidthThrottler));
+            workloadCategory);
     }
 }
 
@@ -519,7 +518,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulPartitionReader(
     TTimestamp timestamp,
     const TClientChunkReadOptions& chunkReadOptions,
     TRowBufferPtr rowBuffer,
-    IThroughputThrottlerPtr bandwidthThrottler)
+    std::optional<EWorkloadCategory> workloadCategory)
 {
     auto minKey = *keys.Begin();
     auto maxKey = *(keys.End() - 1);
@@ -559,7 +558,6 @@ ISchemafulUnversionedReaderPtr CreateSchemafulPartitionReader(
         [
             =,
             stores = std::move(stores),
-            bandwidthThrottler = std::move(bandwidthThrottler),
             index = 0
         ] () mutable -> IVersionedReaderPtr {
             if (index < stores.size()) {
@@ -570,7 +568,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulPartitionReader(
                     false,
                     columnFilter,
                     chunkReadOptions,
-                    bandwidthThrottler);
+                    workloadCategory);
             } else {
                 return nullptr;
             }
@@ -586,7 +584,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
     TTimestamp timestamp,
     const TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
-    IThroughputThrottlerPtr bandwidthThrottler)
+    std::optional<EWorkloadCategory> workloadCategory)
 {
     ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
 
@@ -629,8 +627,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
         partitions = std::move(partitions),
         partitionedKeys = std::move(partitionedKeys),
         rowBuffer = std::move(rowBuffer),
-        index = 0,
-        bandwidthThrottler = std::move(bandwidthThrottler)
+        index = 0
     ] () mutable -> ISchemafulUnversionedReaderPtr {
         if (index < partitionedKeys.size()) {
             auto reader = CreateSchemafulPartitionReader(
@@ -641,7 +638,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
                 timestamp,
                 chunkReadOptions,
                 rowBuffer,
-                bandwidthThrottler);
+                workloadCategory);
             ++index;
             return reader;
         } else {
@@ -670,7 +667,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
     const TClientChunkReadOptions& chunkReadOptions,
     int minConcurrency,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
-    IThroughputThrottlerPtr bandwidthThrottler)
+    std::optional<EWorkloadCategory> workloadCategory)
 {
     if (!tabletSnapshot->PhysicalSchema->IsSorted()) {
         THROW_ERROR_EXCEPTION("Table %v is not sorted",
@@ -722,8 +719,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
             =,
             stores = std::move(stores),
             lowerBound = std::move(lowerBound),
-            upperBound = std::move(upperBound),
-            bandwidthThrottler = std::move(bandwidthThrottler)
+            upperBound = std::move(upperBound)
         ] (int index) {
             YT_VERIFY(index < stores.size());
             const auto& store = stores[index];
@@ -734,7 +730,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
                 true,
                 TColumnFilter(),
                 chunkReadOptions,
-                bandwidthThrottler);
+                workloadCategory);
         },
         [keyComparer = tabletSnapshot->RowKeyComparer] (
             const TUnversionedValue* lhsBegin,

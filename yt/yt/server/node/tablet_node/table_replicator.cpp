@@ -83,7 +83,7 @@ public:
         ITabletSnapshotStorePtr tabletSnapshotStore,
         IHintManagerPtr hintManager,
         IInvokerPtr workerInvoker,
-        IThroughputThrottlerPtr nodeInThrottler,
+        EWorkloadCategory workloadCategory,
         IThroughputThrottlerPtr nodeOutThrottler)
         : Config_(std::move(config))
         , LocalConnection_(std::move(localConnection))
@@ -104,7 +104,7 @@ public:
         , Logger(TabletNodeLogger.WithTag("%v, ReplicaId: %v",
             tablet->GetLoggingTag(),
             ReplicaId_))
-        , NodeInThrottler_(std::move(nodeInThrottler))
+        , WorkloadCategory_(workloadCategory)
         , Throttler_(CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
             std::move(nodeOutThrottler),
             CreateReconfigurableThroughputThrottler(MountConfig_->ReplicationThrottler, Logger)}))
@@ -151,7 +151,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    const IThroughputThrottlerPtr NodeInThrottler_;
+    const EWorkloadCategory WorkloadCategory_;
     const IThroughputThrottlerPtr Throttler_;
 
     TFuture<void> FiberFuture_;
@@ -401,7 +401,7 @@ private:
             NullTimestamp,
             chunkReadOptions,
             /* tabletThrottlerKind */ std::nullopt,
-            NodeInThrottler_);
+            WorkloadCategory_);
 
         TRowBatchReadOptions readOptions{
             .MaxRowsPerRead = 1
@@ -520,7 +520,7 @@ private:
             NullTimestamp,
             chunkReadOptions,
             /* tabletThrottlerKind */ std::nullopt,
-            NodeInThrottler_);
+            WorkloadCategory_);
 
         int timestampCount = 0;
         int rowCount = 0;
@@ -921,7 +921,7 @@ TTableReplicator::TTableReplicator(
     ITabletSnapshotStorePtr tabletSnapshotStore,
     IHintManagerPtr hintManager,
     IInvokerPtr workerInvoker,
-    IThroughputThrottlerPtr nodeInThrottler,
+    EWorkloadCategory workloadCategory,
     IThroughputThrottlerPtr nodeOutThrottler)
     : Impl_(New<TImpl>(
         std::move(config),
@@ -932,7 +932,7 @@ TTableReplicator::TTableReplicator(
         std::move(tabletSnapshotStore),
         std::move(hintManager),
         std::move(workerInvoker),
-        std::move(nodeInThrottler),
+        workloadCategory,
         std::move(nodeOutThrottler)))
 { }
 

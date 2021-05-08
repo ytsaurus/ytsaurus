@@ -35,7 +35,7 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
     TTimestamp timestamp,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
-    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler());
+    std::optional<EWorkloadCategory> workloadCategory);
 
 //! Creates a range reader that handles ordered stores.
 /*!
@@ -49,7 +49,7 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
     TTimestamp timestamp,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
-    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler());
+    std::optional<EWorkloadCategory> workloadCategory);
 
 //! Creates a range reader that handles both sorted and ordered tables.
 /*!
@@ -64,7 +64,7 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulRangeTabletReader(
     TTimestamp timestamp,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
-    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler());
+    std::optional<EWorkloadCategory> workloadCategory);
 
 //! Creates a lookup reader that merges data from the relevant stores and
 //! returns a single version of each value.
@@ -79,7 +79,7 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
     TTimestamp timestamp,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
-    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler());
+    std::optional<EWorkloadCategory> workloadCategory);
 
 //! Creates a range reader that merges data from all given #stores and
 //! returns all versions of each value.
@@ -97,7 +97,7 @@ NTableClient::IVersionedReaderPtr CreateVersionedTabletReader(
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     int minConcurrency,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
-    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler);
+    std::optional<EWorkloadCategory> workloadCategory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

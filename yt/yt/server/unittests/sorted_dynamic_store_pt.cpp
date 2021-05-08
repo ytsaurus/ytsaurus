@@ -42,7 +42,8 @@ public:
                 SyncLastCommittedTimestamp,
                 false,
                 TColumnFilter(),
-                ChunkReadOptions_);
+                ChunkReadOptions_,
+                /*workloadCategory*/ std::nullopt);
 
             reader->Open().Get();
             reader->Read(options);

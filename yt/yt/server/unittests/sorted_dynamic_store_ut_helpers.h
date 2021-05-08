@@ -42,7 +42,8 @@ protected:
             timestamp,
             timestamp == AllCommittedTimestamp,
             TColumnFilter(),
-            ChunkReadOptions_);
+            ChunkReadOptions_,
+            /*workloadCategory*/ std::nullopt);
 
         lookupReader->Open()
             .Get()

@@ -405,7 +405,8 @@ private:
                 readTimestamp,
                 UseLookupCache_ || ProduceAllVersions_,
                 UseLookupCache_ ? TColumnFilter::MakeUniversal() : ColumnFilter_,
-                ChunkReadOptions_);
+                ChunkReadOptions_,
+                /*workloadCategory*/ std::nullopt);
             auto future = reader->Open();
             if (auto optionalError = future.TryGet()) {
                 optionalError->ThrowOnError();

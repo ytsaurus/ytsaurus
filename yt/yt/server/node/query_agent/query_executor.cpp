@@ -994,7 +994,8 @@ private:
                     TLegacyOwningKey(range.second),
                     QueryOptions_.Timestamp,
                     ChunkReadOptions_,
-                    ETabletDistributedThrottlerKind::Select);
+                    ETabletDistributedThrottlerKind::Select,
+                    /*workloadCategory*/ std::nullopt);
             };
 
             reader = CreateUnorderedSchemafulReader(std::move(bottomSplitReaderGenerator), 1);
@@ -1005,7 +1006,8 @@ private:
                 bounds,
                 QueryOptions_.Timestamp,
                 ChunkReadOptions_,
-                ETabletDistributedThrottlerKind::Select);
+                ETabletDistributedThrottlerKind::Select,
+                /*workloadCategory*/ std::nullopt);
         }
 
         return New<TProfilingReaderWrapper>(reader, *tableProfiler->GetSelectReadCounters(userTag));
@@ -1026,7 +1028,8 @@ private:
             keys,
             QueryOptions_.Timestamp,
             ChunkReadOptions_,
-            ETabletDistributedThrottlerKind::Select);
+            ETabletDistributedThrottlerKind::Select,
+            /*workloadCategory*/ std::nullopt);
 
         return New<TProfilingReaderWrapper>(reader, *tableProfiler->GetSelectReadCounters(userTag));
     }

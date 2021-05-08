@@ -428,7 +428,7 @@ ISchemafulUnversionedReaderPtr TOrderedDynamicStore::CreateReader(
     i64 upperRowIndex,
     const TColumnFilter& columnFilter,
     const NChunkClient::TClientChunkReadOptions& /*chunkReadOptions*/,
-    IThroughputThrottlerPtr /*bandwidthThrottler*/)
+    std::optional<EWorkloadCategory> /*workloadCategory*/)
 {
     return DoCreateReader(
         tabletIndex,

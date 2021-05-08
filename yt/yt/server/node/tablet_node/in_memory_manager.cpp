@@ -143,7 +143,6 @@ public:
             NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
             Config_->WorkloadDescriptor.GetPriority()))
         , PreloadSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentPreloads))
-        , BandwidthThrottler_(Bootstrap_->GetTabletNodeInThrottler(EWorkloadCategory::SystemTabletPreload))
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->SubscribeScanSlot(BIND(&TInMemoryManager::ScanSlot, MakeWeak(this)));
@@ -207,7 +206,6 @@ private:
     YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, InterceptedDataSpinLock_);
     THashMap<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
 
-    IThroughputThrottlerPtr BandwidthThrottler_;
 
     void ScanSlot(const ITabletSlotPtr& slot)
     {
@@ -311,7 +309,6 @@ private:
                 readSessionId,
                 Bootstrap_->GetMemoryUsageTracker(),
                 CompressionInvoker_,
-                BandwidthThrottler_,
                 readerProfiler);
 
             VERIFY_INVOKERS_AFFINITY(std::vector{
@@ -369,7 +366,6 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     TReadSessionId readSessionId,
     const NClusterNode::TNodeMemoryTrackerPtr& memoryTracker,
     const IInvokerPtr& compressionInvoker,
-    const NConcurrency::IThroughputThrottlerPtr& bandwidthThrottler,
     const TReaderProfilerPtr& readerProfiler)
 {
     const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
@@ -391,9 +387,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     readerProfiler->SetChunkReaderStatistics(chunkReadOptions.ChunkReaderStatistics);
 
-    auto reader = store->GetReaders(
-        bandwidthThrottler,
-        /* rpsThrottler */ GetUnlimitedThrottler()).ChunkReader;
+    auto reader = store->GetReaders(EWorkloadCategory::SystemTabletPreload).ChunkReader;
     auto meta = WaitFor(reader->GetMeta(chunkReadOptions))
         .ValueOrThrow();
 

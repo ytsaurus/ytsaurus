@@ -1881,7 +1881,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
     const NChunkClient::TClientChunkReadOptions& /*chunkReadOptions*/,
-    IThroughputThrottlerPtr /*bandwidthThrottler*/)
+    std::optional<EWorkloadCategory> /*workloadCategory*/)
 {
     return New<TRangeReader>(
         this,
@@ -1900,7 +1900,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
     const NChunkClient::TClientChunkReadOptions&,
-    IThroughputThrottlerPtr /*bandwidthThrottler*/)
+    std::optional<EWorkloadCategory> /*workloadCategory*/)
 {
     return New<TLookupReader>(
         this,

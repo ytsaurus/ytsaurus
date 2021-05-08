@@ -3386,7 +3386,7 @@ private:
                 Bootstrap_->GetTabletSnapshotStore(),
                 Bootstrap_->GetTabletNodeHintManager(),
                 CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker()),
-                Bootstrap_->GetTabletNodeInThrottler(EWorkloadCategory::SystemTabletReplication),
+                EWorkloadCategory::SystemTabletReplication,
                 Bootstrap_->GetTabletNodeOutThrottler(EWorkloadCategory::SystemTabletReplication));
             replicaInfo->SetReplicator(replicator);
 

@@ -159,9 +159,7 @@ struct IChunkStore
         NTableClient::ILookupReaderPtr LookupReader;
     };
 
-    virtual TReaders GetReaders(
-        const NConcurrency::IThroughputThrottlerPtr& bandwidthThrottler,
-        const NConcurrency::IThroughputThrottlerPtr& rpsThrottler) = 0;
+    virtual TReaders GetReaders(std::optional<EWorkloadCategory> workloadCategory) = 0;
 
     virtual NTabletClient::EInMemoryMode GetInMemoryMode() const = 0;
     virtual void SetInMemoryMode(NTabletClient::EInMemoryMode mode) = 0;
@@ -234,7 +232,7 @@ struct ISortedStore
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-        NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler()) = 0;
+        std::optional<EWorkloadCategory> workloadCategory) = 0;
 
     //! Creates a reader for the set of |keys|.
     /*!
@@ -257,7 +255,7 @@ struct ISortedStore
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-        NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler()) = 0;
+        std::optional<EWorkloadCategory> workloadCategory) = 0;
 
     //! Checks that the transaction attempting to take locks indicated by #lockMask for #row
     //! has no conflicts within the store.
@@ -308,7 +306,7 @@ struct IOrderedStore
         i64 upperRowIndex,
         const NTableClient::TColumnFilter& columnFilter,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-        NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler()) = 0;
+        std::optional<EWorkloadCategory> workloadCategory) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOrderedStore)
