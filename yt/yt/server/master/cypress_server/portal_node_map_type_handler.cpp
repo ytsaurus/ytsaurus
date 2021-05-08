@@ -72,7 +72,7 @@ private:
         } else if constexpr(std::is_same_v<TNode, TPortalExitNode>) {
             return "//sys/portal_exits";
         } else {
-            static_assert(TDependentFalse<TNode>::value, "Unexpected portal node type");
+            static_assert(TDependentFalse<TNode>, "Unexpected portal node type");
         }
     }
 };

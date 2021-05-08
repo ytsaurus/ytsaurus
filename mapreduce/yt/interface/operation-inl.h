@@ -57,7 +57,7 @@ TStructuredRowStreamDescription GetStructuredRowStreamDescription()
             return TYdlStructuredRowStream{nullptr};
         }
     } else {
-        static_assert(TDependentFalse<TRow>::value, "Unknown row type");
+        static_assert(TDependentFalse<TRow>, "Unknown row type");
     }
 }
 
@@ -82,14 +82,14 @@ TTableStructure StructuredTableDescription()
         return TUnspecifiedTableStructure{};
     } else if constexpr (std::is_base_of_v<::google::protobuf::Message, TRow>) {
         if constexpr (std::is_same_v<::google::protobuf::Message, TRow>) {
-            static_assert(TDependentFalse<TRow>::value, "Cannot use ::google::protobuf::Message as table descriptor");
+            static_assert(TDependentFalse<TRow>, "Cannot use ::google::protobuf::Message as table descriptor");
         } else {
             return TProtobufTableStructure{TRow::descriptor()};
         }
     } else if constexpr (NYdl::TIsYdlGenerated<TRow>::value) {
         return TYdlTableStructure{NYdl::TYdlTraits<TRow>::Reflect()};
     } else {
-        static_assert(TDependentFalse<TRow>::value, "Unknown row type");
+        static_assert(TDependentFalse<TRow>, "Unknown row type");
     }
 }
 
@@ -199,7 +199,7 @@ inline ::TIntrusivePtr<typename TRowTraits<T>::IReaderImpl> CreateJobReaderImpl(
     } else if constexpr (NDetail::TIsYdlOneOf<T>::value) {
         return CreateJobYdlReader();
     } else {
-        static_assert(TDependentFalse<T>::value, "Unknown row type");
+        static_assert(TDependentFalse<T>, "Unknown row type");
     }
 }
 
@@ -254,7 +254,7 @@ inline TTableWriterPtr<T> CreateJobWriter(size_t outputTableCount)
     } else if constexpr (std::is_same<T, NDetail::TYdlGenericRowType>::value) {
         return new TTableWriter<T>(CreateJobYdlWriter(outputTableCount));
     } else {
-        static_assert(TDependentFalse<T>::value, "Unknown row type");
+        static_assert(TDependentFalse<T>, "Unknown row type");
     }
 }
 

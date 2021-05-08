@@ -522,7 +522,7 @@ void CheckYqlValue(
             << "actualValueNode is " << ConvertToYsonString(valueNode, EYsonFormat::Pretty).AsStringBuf()
             << "\nexpectedValue is " << ConvertToYsonString(expectedValue, EYsonFormat::Pretty).AsStringBuf();
     } else {
-        static_assert(TDependentFalse<TDecayedValue>::value, "Type not allowed");
+        static_assert(TDependentFalse<TDecayedValue>, "Type not allowed");
     }
 }
 
@@ -547,7 +547,7 @@ void CheckYqlType(
         } else if constexpr (std::is_same_v<TDecayedType, INodePtr>) {
             return expectedType;
         } else {
-            static_assert(TDependentFalse<TDecayedType>::value, "Type not allowed");
+            static_assert(TDependentFalse<TDecayedType>, "Type not allowed");
         }
     }();
     EXPECT_TRUE(AreNodesEqual(yqlType, expectedTypeNode))

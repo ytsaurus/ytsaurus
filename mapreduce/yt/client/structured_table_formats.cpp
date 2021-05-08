@@ -100,7 +100,7 @@ struct TGetTableStructureDescriptionStringImpl {
             }
             return name + " YDL type";
         } else {
-            static_assert(TDependentFalse<T>::value, "Unknown type");
+            static_assert(TDependentFalse<T>, "Unknown type");
         }
     }
 };
@@ -239,7 +239,7 @@ struct TFormatBuilder::TFormatSwitcher
         } else if constexpr (std::is_same_v<T, TVoidStructuredRowStream>) {
             return &TFormatBuilder::CreateVoidFormat;
         } else {
-            static_assert(TDependentFalse<T>::value, "unknown stream description");
+            static_assert(TDependentFalse<T>, "unknown stream description");
         }
     }
 };
@@ -548,7 +548,7 @@ struct TGetTableSchemaImpl
         } else if constexpr (std::is_same_v<T, TYdlTableStructure>) {
             return CreateTableSchema(description.Type);
         } else {
-            static_assert(TDependentFalse<T>::value, "unknown type");
+            static_assert(TDependentFalse<T>, "unknown type");
         }
     }
 };
