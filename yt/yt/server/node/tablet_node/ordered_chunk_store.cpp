@@ -203,7 +203,7 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
     i64 upperRowIndex,
     const TColumnFilter& columnFilter,
     const TClientChunkReadOptions& chunkReadOptions,
-    IThroughputThrottlerPtr bandwidthThrottler)
+    std::optional<EWorkloadCategory> workloadCategory)
 {
     TReadLimit lowerLimit;
     lowerRowIndex = std::min(std::max(lowerRowIndex, StartingRowIndex_), StartingRowIndex_ + GetRowCount());
@@ -252,9 +252,7 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
         return reader;
     }
 
-    auto chunkReader = GetReaders(
-        bandwidthThrottler,
-        /* rpsThrottler */ GetUnlimitedThrottler()).ChunkReader;
+    auto chunkReader = GetReaders(workloadCategory).ChunkReader;
     auto asyncChunkMeta = ChunkMetaManager_->GetMeta(
         chunkReader,
         Schema_,

@@ -791,9 +791,10 @@ private:
                 tabletSnapshot,
                 MakeSingletonRowRange(lowerBound, upperBound),
                 timestamp,
-                /* produceAllVersions */ false,
+                /*produceAllVersions*/ false,
                 columnFilter,
-                /* chunkReadOptions */ {});
+                /*chunkReadOptions*/ {},
+                /*workloadCategory*/ std::nullopt);
             WaitFor(reader->Open())
                 .ThrowOnError();
 
@@ -868,7 +869,8 @@ private:
                 startRowIndex,
                 endRowIndex,
                 columnFilter,
-                /* chunkReadOptions */ {});
+                /*chunkReadOptions*/ {},
+                /*workloadCategory*/ std::nullopt);
 
             YT_LOG_DEBUG("Started serving remote dynamic store read request "
                 "(TabletId: %v, StoreId: %v, ReadSessionId: %v, "

@@ -44,7 +44,8 @@ protected:
             lowerRowIndex,
             upperRowIndex,
             columnFilter,
-            ChunkReadOptions_);
+            ChunkReadOptions_,
+            /*workloadCategory*/ std::nullopt);
 
         std::vector<TUnversionedOwningRow> allRows;
         TRowBatchReadOptions options{

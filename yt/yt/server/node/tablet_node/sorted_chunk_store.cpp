@@ -266,7 +266,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
     const TClientChunkReadOptions& chunkReadOptions,
-    IThroughputThrottlerPtr bandwidthThrottler)
+    std::optional<EWorkloadCategory> workloadCategory)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -298,12 +298,11 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             timestamp,
             produceAllVersions,
             columnFilter,
-            chunkReadOptions);
+            chunkReadOptions,
+            /*workloadCategory*/ std::nullopt);
     }
 
-    auto chunkReader = GetReaders(
-        bandwidthThrottler,
-        /* rpsThrottler */ GetUnlimitedThrottler()).ChunkReader;
+    auto chunkReader = GetReaders(workloadCategory).ChunkReader;
     auto chunkState = PrepareChunkState(chunkReader, chunkReadOptions);
 
     ValidateBlockSize(tabletSnapshot, chunkState, chunkReadOptions.WorkloadDescriptor);
@@ -378,7 +377,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
     const TClientChunkReadOptions& chunkReadOptions,
-    IThroughputThrottlerPtr bandwidthThrottler)
+    std::optional<EWorkloadCategory> workloadCategory)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -417,12 +416,11 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             timestamp,
             produceAllVersions,
             columnFilter,
-            chunkReadOptions);
+            chunkReadOptions,
+            /*workloadCategory*/ std::nullopt);
     }
 
-    auto readers = GetReaders(
-        bandwidthThrottler,
-        /* rpsThrottler */ GetUnlimitedThrottler());
+    auto readers = GetReaders(workloadCategory);
 
     const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
     if (mountConfig->EnableDataNodeLookup && readers.LookupReader) {

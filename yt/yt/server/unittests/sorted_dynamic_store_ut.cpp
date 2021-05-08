@@ -1238,7 +1238,8 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ArbitraryKeyLength)
         AsyncLastCommittedTimestamp,
         false,
         TColumnFilter(),
-        ChunkReadOptions_);
+        ChunkReadOptions_,
+        /*workloadCategory*/ std::nullopt);
 
     EXPECT_TRUE(reader->Open().Get().IsOK());
 
@@ -1983,7 +1984,8 @@ protected:
             AllCommittedTimestamp,
             true,
             TColumnFilter(),
-            ChunkReadOptions_);
+            ChunkReadOptions_,
+            /*workloadCategory*/ std::nullopt);
 
         lookupReader->Open()
             .Get()

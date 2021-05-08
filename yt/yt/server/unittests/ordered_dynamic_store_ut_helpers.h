@@ -42,7 +42,8 @@ protected:
             store->GetStartingRowIndex() + index,
             store->GetStartingRowIndex() + index + 1,
             columnFilter,
-            ChunkReadOptions_);
+            ChunkReadOptions_,
+            /*workloadCategory*/ std::nullopt);
 
         NTableClient::TRowBatchReadOptions options{
             .MaxRowsPerRead = 1

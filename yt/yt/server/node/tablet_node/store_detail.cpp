@@ -622,9 +622,7 @@ IChunkStorePtr TChunkStoreBase::AsChunk()
     return this;
 }
 
-IChunkStore::TReaders TChunkStoreBase::GetReaders(
-    const IThroughputThrottlerPtr& bandwidthThrottler,
-    const IThroughputThrottlerPtr& rpsThrottler)
+IChunkStore::TReaders TChunkStoreBase::GetReaders(std::optional<EWorkloadCategory> workloadCategory)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -683,6 +681,11 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(
         auto nodeStatusDirectory = Bootstrap_
             ? Bootstrap_->GetTabletNodeHintManager()
             : nullptr;
+
+        auto bandwidthThrottler = workloadCategory
+            ? Bootstrap_->GetTabletNodeInThrottler(*workloadCategory)
+            : GetUnlimitedThrottler();
+
         setCachedReaders(
             false,
             CreateRemoteReader(
@@ -698,7 +701,7 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(
                 /*trafficMeter*/ nullptr,
                 std::move(nodeStatusDirectory),
                 bandwidthThrottler,
-                rpsThrottler));
+                /*rpsThrottler*/ GetUnlimitedThrottler()));
         YT_LOG_DEBUG("Remote chunk reader created and cached");
     };
 

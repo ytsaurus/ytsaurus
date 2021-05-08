@@ -39,7 +39,7 @@ public:
         i64 upperRowIndex,
         const TColumnFilter& columnFilter,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-        NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler()) override;
+        std::optional<EWorkloadCategory> workloadCategory) override;
 
     virtual void Save(TSaveContext& context) const override;
     virtual void Load(TLoadContext& context) override;

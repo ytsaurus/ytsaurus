@@ -25,7 +25,7 @@ public:
         ITabletSnapshotStorePtr tabletSnapshotStore,
         IHintManagerPtr hintManager,
         IInvokerPtr workerInvoker,
-        NConcurrency::IThroughputThrottlerPtr nodeInThrottler,
+        EWorkloadCategory workloadCategory,
         NConcurrency::IThroughputThrottlerPtr nodeOutThrottler);
     ~TTableReplicator();
 

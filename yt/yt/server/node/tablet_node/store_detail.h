@@ -225,9 +225,7 @@ public:
     virtual bool IsChunk() const override;
     virtual IChunkStorePtr AsChunk() override;
 
-    virtual TReaders GetReaders(
-        const NConcurrency::IThroughputThrottlerPtr& bandwidthThrottler,
-        const NConcurrency::IThroughputThrottlerPtr& rpsThrottler) override;
+    virtual TReaders GetReaders(std::optional<EWorkloadCategory> workloadCategory) override;
 
     virtual NTabletClient::EInMemoryMode GetInMemoryMode() const override;
     virtual void SetInMemoryMode(NTabletClient::EInMemoryMode mode) override;
