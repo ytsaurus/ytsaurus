@@ -12,7 +12,7 @@
 
 #include <yt/yt/core/bus/public.h>
 
-#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/public.h>
 
 #include <yt/yt/core/http/public.h>
 
@@ -34,6 +34,7 @@ public:
     NNodeTrackerClient::TAddressMap GetLocalAddresses() const;
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const;
     IInvokerPtr GetControlInvoker() const;
+    const IInvokerPtr& GetConnectionInvoker() const;
     const NControllerAgent::TControllerAgentPtr& GetControllerAgent() const;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
     const ICoreDumperPtr& GetCoreDumper() const;
@@ -47,6 +48,7 @@ private:
     NControllerAgent::TAgentId AgentId_;
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     NConcurrency::TActionQueuePtr ControlQueue_;
+    NConcurrency::TThreadPoolPtr ConnectionThreadPool_;
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;

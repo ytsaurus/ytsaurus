@@ -20,8 +20,13 @@ namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TAdminOptions
-{ };
+struct TConnectionOptions
+{
+    //! If non-null, suppresses creation of a per-connection thread pool.
+    IInvokerPtr ConnectionInvoker;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TClientOptions
 {

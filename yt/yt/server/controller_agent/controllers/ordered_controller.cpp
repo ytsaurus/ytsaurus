@@ -1310,7 +1310,11 @@ private:
     NNative::IConnectionPtr GetRemoteConnection() const
     {
         if (Spec_->ClusterConnection) {
-            return NApi::NNative::CreateConnection(*Spec_->ClusterConnection);
+            NNative::TConnectionOptions connectionOptions;
+            connectionOptions.ConnectionInvoker = Host->GetConnectionInvoker();
+            return NApi::NNative::CreateConnection(
+                *Spec_->ClusterConnection,
+                std::move(connectionOptions));
         } else if (Spec_->ClusterName) {
             auto connection = Host
                 ->GetClient()

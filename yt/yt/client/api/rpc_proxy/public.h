@@ -6,6 +6,8 @@ namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TConnectionOptions;
+
 DECLARE_REFCOUNTED_STRUCT(IRowStreamEncoder)
 DECLARE_REFCOUNTED_STRUCT(IRowStreamDecoder)
 

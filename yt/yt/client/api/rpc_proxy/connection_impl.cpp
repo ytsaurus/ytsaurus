@@ -168,13 +168,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TConnection::TConnection(TConnectionConfigPtr config)
+TConnection::TConnection(TConnectionConfigPtr config, TConnectionOptions options)
     : Config_(std::move(config))
     , ConnectionId_(TGuid::Create())
     , LoggingTag_(MakeConnectionLoggingTag(Config_, ConnectionId_))
     , ClusterId_(MakeConnectionClusterId(Config_))
     , Logger(RpcProxyClientLogger.WithRawTag(LoggingTag_))
-    , ActionQueue_(New<TActionQueue>("RpcProxyConn"))
     , ChannelFactory_(CreateCachingChannelFactory(
         NRpc::NBus::CreateBusChannelFactory(Config_->BusClient),
         Config_->IdleChannelTtl))
@@ -185,11 +184,19 @@ TConnection::TConnection(TConnectionConfigPtr config)
         MakeEndpointAttributes(Config_, ConnectionId_),
         TApiServiceProxy::GetDescriptor().ServiceName,
         TDiscoverRequestHook()))
-    , UpdateProxyListExecutor_(New<TPeriodicExecutor>(
-        ActionQueue_->GetInvoker(),
-        BIND(&TConnection::OnProxyListUpdate, MakeWeak(this)),
-        Config_->ProxyListUpdatePeriod))
 {
+    if (options.ConnectionInvoker) {
+        ConnectionInvoker_ = options.ConnectionInvoker;
+    } else {
+        ActionQueue_ = New<TActionQueue>("RpcProxyConn");
+        ConnectionInvoker_ = ActionQueue_->GetInvoker();
+    }
+
+    UpdateProxyListExecutor_ = New<TPeriodicExecutor>(
+        GetInvoker(),
+        BIND(&TConnection::OnProxyListUpdate, MakeWeak(this)),
+        Config_->ProxyListUpdatePeriod);
+
     Config_->Postprocess();
 
     if (Config_->ProxyEndpoints) {
@@ -244,7 +251,7 @@ const TString& TConnection::GetClusterId()
 
 IInvokerPtr TConnection::GetInvoker()
 {
-    return ActionQueue_->GetInvoker();
+    return ConnectionInvoker_;
 }
 
 NApi::IClientPtr TConnection::CreateClient(const TClientOptions& options)

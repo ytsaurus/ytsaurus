@@ -119,12 +119,9 @@ DEFINE_REFCOUNTED_TYPE(TStickyGroupSizeCache)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TConnectionOptions
+    : public NApi::TConnectionOptions
 {
     bool RetryRequestQueueSizeLimitExceeded = false;
-
-    //! If non-null, overrides TConnectionConfig::ThreadPoolSize and
-    //! suppresses creation of a per-connection thread pool.
-    IInvokerPtr ThreadPoolInvoker;
 
     //! If non-null, provides an externally-controlled block cache.
     NChunkClient::IBlockCachePtr BlockCache;
@@ -152,4 +149,3 @@ IConnectionPtr GetRemoteConnectionOrThrow(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative
-

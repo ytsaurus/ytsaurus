@@ -246,6 +246,8 @@ public:
     TImpl(TReplicatedTableTrackerConfigPtr config, TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::ReplicatedTableTracker)
         , Config_(std::move(config))
+        , ConnectionThread_(New<TActionQueue>("RTTConnection"))
+        , ClusterDirectory_(New<TClusterDirectory>(NApi::TConnectionOptions{ConnectionThread_->GetInvoker()}))
         , BundleHealthCache_(New<TBundleHealthCache>(BundleHealthCacheConfig_))
         , ClusterStateCache_(New<TClusterStateCache>(ClusterStateCacheConfig_))
         , ReplicatorHintConfig_(New<NTabletNode::TReplicatorHintConfig>())
@@ -265,6 +267,9 @@ private:
     const TReplicatedTableTrackerConfigPtr Config_;
     const TAsyncExpiringCacheConfigPtr BundleHealthCacheConfig_ = New<TAsyncExpiringCacheConfig>();
     const TAsyncExpiringCacheConfigPtr ClusterStateCacheConfig_ = New<TAsyncExpiringCacheConfig>();
+
+    const TActionQueuePtr ConnectionThread_;
+    const TClusterDirectoryPtr ClusterDirectory_;
 
     std::atomic<bool> Enabled_ = false;
 
@@ -744,8 +749,8 @@ private:
     TThreadPoolPtr CheckerThreadPool_;
     TPeriodicExecutorPtr CheckerExecutor_;
 
-    const TClusterDirectoryPtr ClusterDirectory_ = New<TClusterDirectory>();
-    const NHiveServer::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizerConfig_ = New<NHiveServer::TClusterDirectorySynchronizerConfig>();
+    const NHiveServer::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizerConfig_ =
+        New<NHiveServer::TClusterDirectorySynchronizerConfig>();
     NHiveServer::TClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);

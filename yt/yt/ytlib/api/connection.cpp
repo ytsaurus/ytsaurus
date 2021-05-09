@@ -14,10 +14,9 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
-////////////////////////////////////////////////////////////////////////////////
-
-IConnectionPtr CreateConnection(INodePtr config)
+IConnectionPtr CreateConnection(
+    INodePtr config,
+    TConnectionOptions options)
 {
     if (config->GetType() != ENodeType::Map) {
         THROW_ERROR_EXCEPTION("Cluster configuration must be a map node");
@@ -27,12 +26,22 @@ IConnectionPtr CreateConnection(INodePtr config)
     switch (genericConfig->ConnectionType) {
         case EConnectionType::Native: {
             auto typedConfig = ConvertTo<NNative::TConnectionConfigPtr>(config);
-            return NNative::CreateConnection(typedConfig);
+            NNative::TConnectionOptions typedOptions;
+            typedOptions.ConnectionInvoker = std::move(options.ConnectionInvoker);
+            return NNative::CreateConnection(
+                std::move(typedConfig),
+                std::move(typedOptions));
         }
+
         case EConnectionType::Rpc: {
             auto typedConfig = ConvertTo<NRpcProxy::TConnectionConfigPtr>(config);
-            return NRpcProxy::CreateConnection(typedConfig);
+            NRpcProxy::TConnectionOptions typedOptions;
+            typedOptions.ConnectionInvoker = std::move(options.ConnectionInvoker);
+            return NRpcProxy::CreateConnection(
+                std::move(typedConfig),
+                std::move(typedOptions));
         }
+
         default:
             YT_ABORT();
     }
@@ -41,4 +50,3 @@ IConnectionPtr CreateConnection(INodePtr config)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi
-
