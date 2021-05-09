@@ -1172,7 +1172,7 @@ class Operation(object):
             iter=(1 + int(timeout / self._poll_frequency)),
         )
 
-    def get_job_count(self, state, from_orchid=True):
+    def get_job_count(self, state, from_orchid=True, verbose=False):
         if from_orchid:
             base_path = self.get_path() + "/controller_orchid/progress/jobs/"
         else:
@@ -1182,7 +1182,7 @@ class Operation(object):
             path = base_path + str(state)
             if state == "aborted" or state == "completed":
                 path += "/total"
-            return get(path, verbose=False)
+            return get(path, verbose=verbose)
         except YtError as err:
             if not err.is_resolve_error():
                 raise

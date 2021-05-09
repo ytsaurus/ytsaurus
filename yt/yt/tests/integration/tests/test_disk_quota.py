@@ -662,7 +662,7 @@ class TestDefaultDiskMediumWithUnspecifiedMediumPorto(YTEnvSetup, DiskMediumTest
             "slot_manager": {
                 "disk_resources_update_period": 100,
             },
-            "job_controller": {"resource_limits": {"user_slots": 1, "cpu": 1.0}},
+            "job_controller": {"resource_limits": {"user_slots": 3, "cpu": 3.0}},
             "min_required_disk_space": 0,
         },
         "data_node": {
@@ -736,6 +736,42 @@ class TestDefaultDiskMediumWithUnspecifiedMediumPorto(YTEnvSetup, DiskMediumTest
             in_="//tmp/in",
             out="//tmp/out",
             spec={"max_failed_job_count": 1})
+
+    @authors("ignat")
+    def test_multiple_operations(self):
+        create("table", "//tmp/in")
+        write_table("//tmp/in", [{"foo": "bar"}])
+        create("table", "//tmp/out1")
+        create("table", "//tmp/out2")
+        create("table", "//tmp/out3")
+
+        def start_op(medium_type, index, track):
+            disk_request = {"disk_space": 768 * 1024}
+            if medium_type is not None:
+                disk_request["medium_name"] = medium_type
+
+            return map(
+                command="sleep 1000; echo $(pwd) >&2",
+                in_="//tmp/in",
+                out="//tmp/out" + str(index),
+                spec={
+                    "mapper": {
+                        "disk_request": disk_request
+                    },
+                    "max_failed_job_count": 1,
+                },
+                track=track,
+            )
+
+        op1 = start_op(None, 1, track=False)
+        op2 = start_op(None, 2, track=False)
+        op3 = start_op(None, 3, track=False)
+
+        wait(lambda: sum([op.get_job_count("running", verbose=True) for op in (op1, op2, op3)]) == 2)
+
+        assert op1.get_job_count("aborted") == 0
+        assert op2.get_job_count("aborted") == 0
+        assert op3.get_job_count("aborted") == 0
 
 
 class TestDefaultDiskMediumWithUnspecifiedMediumAndMultipleSlotsPorto(YTEnvSetup, DiskMediumTestConfiguration):

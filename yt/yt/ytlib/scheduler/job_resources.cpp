@@ -73,6 +73,11 @@ void TJobResources::Persist(const TStreamPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TDiskQuota::operator bool() const
+{
+    return !DiskSpacePerMedium.empty() || DiskSpaceWithoutMedium;
+}
+
 void TDiskQuota::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
@@ -573,7 +578,7 @@ bool CanSatisfyDiskQuotaRequest(
         }
     }
 
-    if (diskQuotaRequest.DiskSpacePerMedium.empty() && !HasLocationWithDefaultMedium(diskResources)) {
+    if (!diskQuotaRequest && !HasLocationWithDefaultMedium(diskResources)) {
         return false;
     }
 
@@ -599,7 +604,7 @@ bool CanSatisfyDiskQuotaRequests(
         if (diskQuotaRequest.DiskSpaceWithoutMedium) {
             diskSpaceRequestsPerMedium[diskResources.default_medium_index()].push_back(*diskQuotaRequest.DiskSpaceWithoutMedium);
         }
-        if (diskQuotaRequest.DiskSpacePerMedium.empty() && !diskQuotaRequest.DiskSpaceWithoutMedium) {
+        if (!diskQuotaRequest && !diskQuotaRequest.DiskSpaceWithoutMedium) {
             hasEmptyDiskRequest = true;
         }
     }

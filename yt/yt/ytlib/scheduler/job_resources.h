@@ -97,6 +97,8 @@ struct TDiskQuota
 
     std::optional<i64> DiskSpaceWithoutMedium;
 
+    operator bool() const;
+
     void Persist(const TStreamPersistenceContext& context);
 };
 
