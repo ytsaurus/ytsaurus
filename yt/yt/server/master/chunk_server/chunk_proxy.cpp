@@ -176,7 +176,7 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkChunkRefs)
             .SetPresent(chunk->IsConfirmed())
             .SetOpaque(true));
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::IsSharedToSkynet)
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SharedToSkynet)
             .SetPresent(chunk->IsConfirmed() && miscExt.has_shared_to_skynet()));
     }
 
@@ -750,7 +750,7 @@ private:
                 return true;
             }
 
-            case EInternedAttributeKey::IsSharedToSkynet: {
+            case EInternedAttributeKey::SharedToSkynet: {
                 if (!isConfirmed || !miscExt.has_shared_to_skynet()) {
                     break;
                 }
