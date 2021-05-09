@@ -54,7 +54,7 @@ public:
     TImpl(
         TCellDirectoryConfigPtr config,
         const TWeakPtr<TCellDirectory>& owner,
-        const TConnectionOptions& options,
+        const NNative::TConnectionOptions& options,
         IChannelFactoryPtr channelFactory,
         NLogging::TLogger logger)
         : Config_(std::move(config))
@@ -319,7 +319,7 @@ private:
     void InitMasterChannels(
         const TMasterConnectionConfigPtr& config,
         const TWeakPtr<TCellDirectory>& owner,
-        const TConnectionOptions& options)
+        const NNative::TConnectionOptions& options)
     {
         auto cellTag = CellTagFromId(config->CellId);
 
@@ -356,7 +356,7 @@ private:
         EMasterChannelKind channelKind,
         const TMasterConnectionConfigPtr& config,
         EPeerKind peerKind,
-        const TConnectionOptions& options)
+        const NNative::TConnectionOptions& options)
     {
         auto cellTag = CellTagFromId(config->CellId);
         auto peerChannel = CreatePeerChannel(ChannelFactory_, config, peerKind, options);
@@ -368,7 +368,7 @@ private:
         IChannelFactoryPtr channelFactory,
         const TMasterConnectionConfigPtr& config,
         EPeerKind peerKind,
-        const TConnectionOptions& options,
+        const NNative::TConnectionOptions& options,
         const std::vector<TString>& discoveredAddresses)
     {
         auto peerChannelConfig = CloneYsonSerializable(config);
@@ -383,7 +383,7 @@ private:
         IChannelFactoryPtr channelFactory,
         const TMasterConnectionConfigPtr& config,
         EPeerKind kind,
-        const TConnectionOptions& options)
+        const NNative::TConnectionOptions& options)
     {
         auto isRetriableError = BIND([options] (const TError& error) {
             const auto* effectiveError = &error;

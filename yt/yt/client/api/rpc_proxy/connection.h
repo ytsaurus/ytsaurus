@@ -2,14 +2,21 @@
 
 #include "public.h"
 
-#include <yt/yt/client/api/public.h>
+#include <yt/yt/client/api/connection.h>
 
 namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TConnectionOptions
+    : public NApi::TConnectionOptions
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
 NApi::IConnectionPtr CreateConnection(
-    TConnectionConfigPtr config);
+    TConnectionConfigPtr config,
+    TConnectionOptions options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

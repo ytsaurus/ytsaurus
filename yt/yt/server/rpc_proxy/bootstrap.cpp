@@ -119,11 +119,12 @@ void TBootstrap::DoRun()
         GetValues(LocalAddresses_),
         Config_->ClusterConnection->PrimaryMaster->Addresses);
 
-    NNative::TConnectionOptions connectionOptions{
-        .RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded,
-        .ThreadPoolInvoker = GetWorkerInvoker()
-    };
-    NativeConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, connectionOptions);
+    NApi::NNative::TConnectionOptions connectionOptions;
+    connectionOptions.ConnectionInvoker = GetWorkerInvoker();
+    connectionOptions.RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded;
+    NativeConnection_ = NApi::NNative::CreateConnection(
+        Config_->ClusterConnection,
+        std::move(connectionOptions));
 
     auto clientOptions = TClientOptions::FromUser(NSecurityClient::RootUserName);
     NativeClient_ = NativeConnection_->CreateNativeClient(clientOptions);

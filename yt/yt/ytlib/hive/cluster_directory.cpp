@@ -29,6 +29,10 @@ static const auto& Logger = HiveClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TClusterDirectory::TClusterDirectory(NApi::TConnectionOptions connectionOptions)
+    : ConnectionOptions_(std::move(connectionOptions))
+{ }
+
 IConnectionPtr TClusterDirectory::FindConnection(TCellTag cellTag) const
 {
     auto guard = Guard(Lock_);
@@ -147,7 +151,7 @@ TClusterDirectory::TCluster TClusterDirectory::CreateCluster(const TString& name
     TCluster cluster;
     cluster.Config = config;
     try {
-        cluster.Connection = CreateConnection(config);
+        cluster.Connection = CreateConnection(config, ConnectionOptions_);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error creating connection to cluster %Qv",
             name)
@@ -164,4 +168,3 @@ TCellTag TClusterDirectory::GetCellTag(const TClusterDirectory::TCluster& cluste
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NHiveClient
-

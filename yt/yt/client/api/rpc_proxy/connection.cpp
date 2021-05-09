@@ -5,9 +5,11 @@ namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NApi::IConnectionPtr CreateConnection(TConnectionConfigPtr config)
+NApi::IConnectionPtr CreateConnection(
+    TConnectionConfigPtr config,
+    TConnectionOptions options)
 {
-    return New<TConnection>(std::move(config));
+    return New<TConnection>(std::move(config), std::move(options));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

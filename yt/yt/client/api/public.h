@@ -69,7 +69,8 @@ DECLARE_REFCOUNTED_TYPE(IVersionedRowset)
 DECLARE_REFCOUNTED_STRUCT(IPersistentQueueRowset)
 DECLARE_REFCOUNTED_STRUCT(TSkynetSharePartsLocations);
 
-struct TAdminOptions;
+struct TConnectionOptions;
+
 struct TClientOptions;
 struct TTransactionParticipantOptions;
 

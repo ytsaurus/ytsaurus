@@ -38,6 +38,7 @@
 #include <yt/yt/core/http/server.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/local_address.h>
@@ -100,6 +101,9 @@ TBootstrap::~TBootstrap() = default;
 void TBootstrap::Run()
 {
     ControlQueue_ = New<TActionQueue>("Control");
+    ConnectionThreadPool_ = New<TThreadPool>(
+        Config_->ClusterConnection->ThreadPoolSize,
+        "Connection");
 
     BIND(&TBootstrap::DoRun, this)
         .AsyncVia(GetControlInvoker())
@@ -117,8 +121,11 @@ void TBootstrap::DoRun()
     YT_LOG_INFO("Starting controller agent");
 
     NNative::TConnectionOptions connectionOptions;
+    connectionOptions.ConnectionInvoker = GetConnectionInvoker();
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
-    Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, connectionOptions);
+    Connection_ = NApi::NNative::CreateConnection(
+        Config_->ClusterConnection,
+        std::move(connectionOptions));
 
     // Force start node directory synchronizer.
     Connection_->GetNodeDirectorySynchronizer()->Start();
@@ -212,6 +219,11 @@ TNetworkPreferenceList TBootstrap::GetLocalNetworks() const
 IInvokerPtr TBootstrap::GetControlInvoker() const
 {
     return ControlQueue_->GetInvoker();
+}
+
+const IInvokerPtr& TBootstrap::GetConnectionInvoker() const
+{
+    return ConnectionThreadPool_->GetInvoker();
 }
 
 const TControllerAgentPtr& TBootstrap::GetControllerAgent() const

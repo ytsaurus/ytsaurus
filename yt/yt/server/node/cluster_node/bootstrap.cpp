@@ -362,6 +362,9 @@ void TBootstrap::DoInitialize()
     StorageLookupThreadPool_ = CreateFairShareThreadPool(
         Config_->DataNode->StorageLookupThreadCount,
         "StorageLookup");
+    ConnectionThreadPool_ = New<TThreadPool>(
+        Config_->ClusterConnection->ThreadPoolSize,
+        "Connection");
 
     BlockCache_ = ClientBlockCache_ = CreateClientBlockCache(
         Config_->DataNode->BlockCache,
@@ -369,12 +372,13 @@ void TBootstrap::DoInitialize()
         MemoryUsageTracker_->WithCategory(EMemoryCategory::BlockCache),
         DataNodeProfiler.WithPrefix("/block_cache"));
 
+    NApi::NNative::TConnectionOptions connectionOptions;
+    connectionOptions.ConnectionInvoker = GetConnectionInvoker();
+    connectionOptions.BlockCache = GetBlockCache();
     MasterConnection_ = NApi::NNative::CreateConnection(
         Config_->ClusterConnection,
-        NApi::NNative::TConnectionOptions{
-            .ThreadPoolInvoker = GetStorageHeavyInvoker(),
-            .BlockCache = GetBlockCache()
-        });
+        std::move(connectionOptions));
+
     MasterClient_ = MasterConnection_->CreateNativeClient(
         TClientOptions::FromUser(NSecurityClient::RootUserName));
 
@@ -997,6 +1001,11 @@ const IPrioritizedInvokerPtr& TBootstrap::GetStorageHeavyInvoker() const
 const IInvokerPtr& TBootstrap::GetStorageLightInvoker() const
 {
     return StorageLightThreadPool_->GetInvoker();
+}
+
+const IInvokerPtr& TBootstrap::GetConnectionInvoker() const
+{
+    return ConnectionThreadPool_->GetInvoker();
 }
 
 // NB: Despite other getters we need to return pointer, not a reference to pointer.

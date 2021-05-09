@@ -1,8 +1,7 @@
 #pragma once
 
 #include "public.h"
-
-#include <yt/yt/client/api/connection.h>
+#include "connection.h"
 
 #include <yt/yt/client/api/sticky_transaction_pool.h>
 
@@ -25,7 +24,7 @@ class TConnection
     : public NApi::IConnection
 {
 public:
-    explicit TConnection(TConnectionConfigPtr config);
+    TConnection(TConnectionConfigPtr config, TConnectionOptions options);
     ~TConnection();
 
     NRpc::IChannelPtr CreateChannel(bool sticky);
@@ -59,10 +58,13 @@ private:
     const TString LoggingTag_;
     const TString ClusterId_;
     const NLogging::TLogger Logger;
-    const NConcurrency::TActionQueuePtr ActionQueue_;
     const NRpc::IChannelFactoryPtr ChannelFactory_;
     const NRpc::TDynamicChannelPoolPtr ChannelPool_;
-    const NConcurrency::TPeriodicExecutorPtr UpdateProxyListExecutor_;
+
+    NConcurrency::TActionQueuePtr ActionQueue_;
+    IInvokerPtr ConnectionInvoker_;
+
+    NConcurrency::TPeriodicExecutorPtr UpdateProxyListExecutor_;
 
     NRpc::IChannelPtr DiscoveryChannel_;
 

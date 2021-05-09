@@ -324,6 +324,11 @@ const IInvokerPtr& TOperationControllerHost::GetJobSpecBuildPoolInvoker()
     return Bootstrap_->GetControllerAgent()->GetJobSpecBuildPoolInvoker();
 }
 
+const IInvokerPtr& TOperationControllerHost::GetConnectionInvoker()
+{
+    return Bootstrap_->GetConnectionInvoker();
+}
+
 const NEventLog::IEventLogWriterPtr& TOperationControllerHost::GetEventLogWriter()
 {
     return Bootstrap_->GetControllerAgent()->GetEventLogWriter();

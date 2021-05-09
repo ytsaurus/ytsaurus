@@ -111,11 +111,11 @@ public:
 
     void Initialize()
     {
-        if (Options_.ThreadPoolInvoker) {
-            ThreadPoolInvoker_ = Options_.ThreadPoolInvoker;
+        if (Options_.ConnectionInvoker) {
+            ConnectionInvoker_ = Options_.ConnectionInvoker;
         } else {
-            ThreadPool_ = New<TThreadPool>(Config_->ThreadPoolSize, "Connection");
-            ThreadPoolInvoker_ = ThreadPool_->GetInvoker();
+            ConnectionThreadPool_ = New<TThreadPool>(Config_->ThreadPoolSize, "Connection");
+            ConnectionInvoker_ = ConnectionThreadPool_->GetInvoker();
         }
 
         MasterCellDirectory_ = New<NCellMasterClient::TCellDirectory>(
@@ -146,7 +146,7 @@ public:
             Config_->JobShellDescriptorCache,
             SchedulerChannel_);
 
-        ClusterDirectory_ = New<TClusterDirectory>();
+        ClusterDirectory_ = New<TClusterDirectory>(NApi::TConnectionOptions{GetInvoker()});
         ClusterDirectorySynchronizer_ = New<TClusterDirectorySynchronizer>(
             Config_->ClusterDirectorySynchronizer,
             this,
@@ -254,7 +254,7 @@ public:
 
     virtual IInvokerPtr GetInvoker() override
     {
-        return ThreadPoolInvoker_;
+        return ConnectionInvoker_;
     }
 
     virtual NApi::IClientPtr CreateClient(const TClientOptions& options) override
@@ -491,7 +491,7 @@ private:
     const NRpc::IChannelFactoryPtr ChannelFactory_;
     const TStickyGroupSizeCachePtr StickyGroupSizeCache_;
 
-    // NB: there're also CellDirectory_ and CellDirectorySynchronizer_, which are completely different from these.
+    // NB: There're also CellDirectory_ and CellDirectorySynchronizer_, which are completely different from these.
     NCellMasterClient::TCellDirectoryPtr MasterCellDirectory_;
     NCellMasterClient::TCellDirectorySynchronizerPtr MasterCellDirectorySynchronizer_;
 
@@ -519,12 +519,12 @@ private:
     TNodeDirectoryPtr NodeDirectory_;
     TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;
 
-    TThreadPoolPtr ThreadPool_;
-    IInvokerPtr ThreadPoolInvoker_;
+    TThreadPoolPtr ConnectionThreadPool_;
+    IInvokerPtr ConnectionInvoker_;
 
     TProfiler Profiler_;
 
-    std::atomic<bool> Terminated_ = {false};
+    std::atomic<bool> Terminated_ = false;
 
     void BuildOrchid(IYsonConsumer* consumer)
     {

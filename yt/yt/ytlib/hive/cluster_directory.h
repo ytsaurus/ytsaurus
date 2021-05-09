@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/client/api/public.h>
+#include <yt/yt/client/api/connection.h>
 
 #include <yt/yt/client/hive/public.h>
 
@@ -24,6 +24,8 @@ class TClusterDirectory
     : public virtual TRefCounted
 {
 public:
+    explicit TClusterDirectory(NApi::TConnectionOptions connectionOptions);
+
     //! Returns the connection to cluster with a given #cellTag.
     //! Only applies to native connections. Returns |nullptr| if no connection is found.
     NApi::IConnectionPtr FindConnection(NObjectClient::TCellTag cellTag) const;
@@ -59,6 +61,8 @@ private:
         NYTree::INodePtr Config;
         NApi::IConnectionPtr Connection;
     };
+
+    const NApi::TConnectionOptions ConnectionOptions_;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
     THashMap<NObjectClient::TCellTag, TCluster> CellTagToCluster_;
