@@ -57,6 +57,28 @@ func TestTimeFormat(t *testing.T) {
 	assert.Equal(t, 13, t1.Hour())
 	assert.Equal(t, 27, t1.Minute())
 	assert.Equal(t, 04, t1.Second())
+	assert.Equal(t, 84029000, t1.Nanosecond())
+
+	after, err := MarshalTime(t0)
+	require.NoError(t, err)
+	assert.Equal(t, before, after)
+}
+
+func TestTimeFormatIntegerSeconds(t *testing.T) {
+	before := "2019-03-09T13:27:04.000000Z"
+
+	t0, err := UnmarshalTime(before)
+	require.NoError(t, err)
+
+	t1 := time.Time(t0)
+
+	assert.Equal(t, 2019, t1.Year())
+	assert.Equal(t, time.March, t1.Month())
+	assert.Equal(t, 9, t1.Day())
+	assert.Equal(t, 13, t1.Hour())
+	assert.Equal(t, 27, t1.Minute())
+	assert.Equal(t, 04, t1.Second())
+	assert.Equal(t, 0, t1.Nanosecond())
 
 	after, err := MarshalTime(t0)
 	require.NoError(t, err)
