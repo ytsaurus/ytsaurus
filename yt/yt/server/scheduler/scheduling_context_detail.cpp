@@ -95,7 +95,7 @@ void TSchedulingContextBase::StartJob(
     EPreemptionMode preemptionMode)
 {
     ResourceUsage_ += startDescriptor.ResourceLimits.ToJobResources();
-    if (!startDescriptor.ResourceLimits.GetDiskQuota().DiskSpacePerMedium.empty()) {
+    if (startDescriptor.ResourceLimits.GetDiskQuota()) {
         DiskRequests_.push_back(startDescriptor.ResourceLimits.GetDiskQuota());
     }
     auto startTime = NProfiling::CpuInstantToInstant(GetNow());
