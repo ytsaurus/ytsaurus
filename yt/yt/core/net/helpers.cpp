@@ -50,12 +50,12 @@ std::vector<int> AllocateFreePorts(
 
         allocatedPorts.push_back(port);
 
-        if (allocatedPorts.size() >= portCount) {
+        if (std::ssize(allocatedPorts) >= portCount) {
             break;
         }
     }
 
-    YT_VERIFY(allocatedPorts.size() <= portCount);
+    YT_VERIFY(std::ssize(allocatedPorts) <= portCount);
 
     return allocatedPorts;
 }

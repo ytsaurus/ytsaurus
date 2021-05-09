@@ -80,14 +80,14 @@ int TNameTable::GetId(TStringBuf name) const
 TStringBuf TNameTable::GetName(int id) const
 {
     auto guard = Guard(SpinLock_);
-    YT_VERIFY(id >= 0 && id < IdToName_.size());
+    YT_VERIFY(id >= 0 && id < std::ssize(IdToName_));
     return IdToName_[id];
 }
 
 TStringBuf TNameTable::GetNameOrThrow(int id) const
 {
     auto guard = Guard(SpinLock_);
-    if (id < 0 || id >= IdToName_.size()) {
+    if (id < 0 || id >= std::ssize(IdToName_)) {
         THROW_ERROR_EXCEPTION("Invalid column requested from name table: expected in range [0, %v), got %v",
             IdToName_.size(),
             id);
@@ -174,10 +174,10 @@ TStringBuf TNameTableReader::FindName(int id) const
         return {};
     }
 
-    if (id >= IdToNameCache_.size()) {
+    if (id >= std::ssize(IdToNameCache_)) {
         Fill();
 
-        if (id >= IdToNameCache_.size()) {
+        if (id >= std::ssize(IdToNameCache_)) {
             return {};
         }
     }
@@ -188,11 +188,11 @@ TStringBuf TNameTableReader::FindName(int id) const
 TStringBuf TNameTableReader::GetName(int id) const
 {
     YT_ASSERT(id >= 0);
-    if (id >= IdToNameCache_.size()) {
+    if (id >= std::ssize(IdToNameCache_)) {
         Fill();
     }
 
-    YT_ASSERT(id < IdToNameCache_.size());
+    YT_ASSERT(id < std::ssize(IdToNameCache_));
     return IdToNameCache_[id];
 }
 

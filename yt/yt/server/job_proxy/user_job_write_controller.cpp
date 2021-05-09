@@ -296,7 +296,7 @@ std::vector<IValueConsumer*> TUserJobWriteController::CreateValueConsumers(
 
     std::vector<IValueConsumer*> consumers;
     consumers.reserve(schedulerJobSpecExt.output_table_specs_size());
-    YT_VERIFY(Writers_.size() == schedulerJobSpecExt.output_table_specs_size());
+    YT_VERIFY(std::ssize(Writers_) == schedulerJobSpecExt.output_table_specs_size());
     for (int outputIndex = 0; outputIndex < schedulerJobSpecExt.output_table_specs_size(); ++outputIndex) {
         const auto& outputSpec = schedulerJobSpecExt.output_table_specs(outputIndex);
         const auto& writer = Writers_[outputIndex];
@@ -337,7 +337,7 @@ void TUserJobWriteController::PopulateResult(TSchedulerJobResultExt* schedulerJo
 {
     std::vector<NChunkClient::NProto::TChunkSpec> writtenChunkSpecs;
     const auto& outputTableSpecs = Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt().output_table_specs();
-    for (int index = 0; index < Writers_.size(); ++index) {
+    for (int index = 0; index < std::ssize(Writers_); ++index) {
         const auto& writer = Writers_[index];
         const auto& outputTableSpec = outputTableSpecs.Get(index);
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputTableSpec.table_writer_options()));

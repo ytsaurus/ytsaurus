@@ -417,7 +417,7 @@ std::vector<NProto::TChunkSpec> FetchTabletStores(
     const auto& connection = client->GetNativeConnection();
     const auto& cellDirectory = connection->GetCellDirectory();
 
-    for (int tabletIndex = 0; tabletIndex < tableInfo->Tablets.size(); ++tabletIndex) {
+    for (int tabletIndex = 0; tabletIndex < std::ssize(tableInfo->Tablets); ++tabletIndex) {
         const auto& tabletInfo = tableInfo->Tablets[tabletIndex];
 
         if (tabletInfo->State != ETabletState::Mounted && tabletInfo->State != ETabletState::Frozen) {
@@ -433,7 +433,7 @@ std::vector<NProto::TChunkSpec> FetchTabletStores(
         ToProto(subrequest.mutable_cell_id(), tabletInfo->CellId);
         subrequest.set_table_index(0);
         subrequest.set_mount_revision(tabletInfo->MountRevision);
-        for (int rangeIndex = 0; rangeIndex < ranges.size(); ++rangeIndex) {
+        for (int rangeIndex = 0; rangeIndex < std::ssize(ranges); ++rangeIndex) {
             const auto& range = ranges[rangeIndex];
             // We don't do any pruning for now.
             ToProto(subrequest.add_ranges(), range);
@@ -479,7 +479,7 @@ std::vector<NProto::TChunkSpec> FetchTabletStores(
     for (const auto& rsp : rspsOrErrors) {
         const auto& subrequests = requestIt++->second;
 
-        if (subrequests.size() != rsp->subresponses_size()) {
+        if (std::ssize(subrequests) != rsp->subresponses_size()) {
             THROW_ERROR_EXCEPTION("Invalid number of subresponses: expected %v, actual %v",
                 subrequests.size(),
                 rsp->subresponses_size());
@@ -775,7 +775,7 @@ void LocateChunks(
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
         TChunkServiceProxy proxy(channel);
 
-        for (int beginIndex = 0; beginIndex < chunkSpecs.size(); beginIndex += maxChunksPerLocateRequest) {
+        for (int beginIndex = 0; beginIndex < std::ssize(chunkSpecs); beginIndex += maxChunksPerLocateRequest) {
             int endIndex = std::min(
                 beginIndex + maxChunksPerLocateRequest,
                 static_cast<int>(chunkSpecs.size()));

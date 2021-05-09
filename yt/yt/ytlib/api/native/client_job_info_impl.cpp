@@ -666,7 +666,7 @@ TYsonString TClient::DoGetJobInputPaths(
     };
 
     std::vector<std::vector<std::pair<TDataSliceDescriptor, TDataSliceDescriptor>>> rangesByTable(dataSourceDirectory->DataSources().size());
-    for (int tableIndex = 0; tableIndex < dataSourceDirectory->DataSources().size(); ++tableIndex) {
+    for (int tableIndex = 0; tableIndex < std::ssize(dataSourceDirectory->DataSources()); ++tableIndex) {
         bool versioned = dataSourceDirectory->DataSources()[tableIndex].GetType() == EDataSourceType::VersionedTable;
         auto& tableSlices = slicesByTable[tableIndex];
         std::sort(

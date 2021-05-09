@@ -367,7 +367,7 @@ public:
         auto genericTableDescriptions = CreateTableDescriptionList(
             SkiffSchemaList_, RangeIndexColumnName, RowIndexColumnName);
 
-        for (int tableIndex = 0; tableIndex < genericTableDescriptions.size(); ++tableIndex) {
+        for (int tableIndex = 0; tableIndex < std::ssize(genericTableDescriptions); ++tableIndex) {
             const auto& genericTableDescription = genericTableDescriptions[tableIndex];
             auto& parserTableDescription = TableDescriptions_.emplace_back();
             parserTableDescription.HasOtherColumns = genericTableDescription.HasOtherColumns;

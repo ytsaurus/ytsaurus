@@ -50,11 +50,11 @@ TEST(TComplexColumnTest, Simple)
     auto reader = CreateUnversionedComplexColumnReader(columnMeta, 0, 0, std::nullopt);
     reader->SetCurrentBlock(columnData, 0);
     reader->Rearm();
-    EXPECT_EQ(rows.size(), reader->GetReadyUpperRowIndex());
+    EXPECT_EQ(std::ssize(rows), reader->GetReadyUpperRowIndex());
 
     TChunkedMemoryPool pool;
     std::vector<TMutableUnversionedRow> actual;
-    for (int i = 0; i < rows.size(); ++i) {
+    for (int i = 0; i < std::ssize(rows); ++i) {
         actual.push_back(TMutableUnversionedRow::Allocate(&pool, 1));
     }
 
@@ -106,11 +106,11 @@ void TestCompatibility()
     }
     reader->SetCurrentBlock(columnData, 0);
     reader->Rearm();
-    EXPECT_EQ(rows.size(), reader->GetReadyUpperRowIndex());
+    EXPECT_EQ(std::ssize(rows), reader->GetReadyUpperRowIndex());
 
     TChunkedMemoryPool pool;
     std::vector<TMutableUnversionedRow> actual;
-    for (int i = 0; i < rows.size(); ++i) {
+    for (int i = 0; i < std::ssize(rows); ++i) {
         actual.push_back(TMutableUnversionedRow::Allocate(&pool, 1));
     }
 

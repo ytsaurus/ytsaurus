@@ -155,7 +155,7 @@ static void GenericBlockCompress(
             // COMPAT(sandello): Since block header may be interpreted as global header we have to make sure
             // that we never produce forward-incompatible signature (which aliases to compressed size).
             // Currently we treat all values <= 2^30 as proper sizes and all other values as signatures.
-            YT_VERIFY(compressedSize <= MaxLzBlockSize);
+            YT_VERIFY(compressedSize <= static_cast<int>(MaxLzBlockSize));
 
             TBlockHeader header;
             header.CompressedSize = static_cast<ui32>(compressedSize);
@@ -278,7 +278,7 @@ void Lz4Decompress(StreamSource* source, TBlob* sink)
         sink,
         [] (const char* input, size_t inputSize, char* output, size_t outputSize) {
             int rv = LZ4_decompress_fast(input, output, static_cast<int>(outputSize));
-            YT_VERIFY(rv > 0 && rv == inputSize);
+            YT_VERIFY(rv > 0 && rv == static_cast<int>(inputSize));
         }
     );
 }

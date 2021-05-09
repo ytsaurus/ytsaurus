@@ -74,7 +74,7 @@ void ReadRecord(IChangelog* asyncChangeLog, i32 recordIndex)
     auto result = asyncChangeLog->Read(recordIndex, 1, std::numeric_limits<i64>::max())
         .Get()
         .ValueOrThrow();
-    EXPECT_EQ(1, result.size());
+    EXPECT_EQ(1u, result.size());
     CheckRecord(recordIndex, result[0]);
 }
 

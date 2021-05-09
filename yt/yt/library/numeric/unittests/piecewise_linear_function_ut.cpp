@@ -83,7 +83,7 @@ TEST_F(TPiecewiseLinearFunctionTest, TestInterpolationProperties)
     }
 
     // Test that interpolation is monotonic and is exact at bounds on different segments.
-    for (int segmentIdx = 0; segmentIdx < segments.size(); segmentIdx++) {
+    for (int segmentIdx = 0; segmentIdx < std::ssize(segments); segmentIdx++) {
         const auto& segment = segments[segmentIdx];
         auto msg = Format(
             "For segment #%v equal to {{%v, %v}, {%v, %v}}",
@@ -295,7 +295,7 @@ TEST_F(TPiecewiseLinearFunctionTest, TestSortOrMergeImpl)
         NDetail::TPivotsVector pivotsBuffer;
 
         EXPECT_TRUE(NDetail::FindMergePivots(&vec, &mergePivots)) << testCaseMsg;
-        EXPECT_EQ(testCase.ExpectedNumberOfPivots, mergePivots.size()) << testCaseMsg;
+        EXPECT_EQ(testCase.ExpectedNumberOfPivots, std::ssize(mergePivots)) << testCaseMsg;
         NDetail::SortOrMergeImpl(&vec, &buffer, &mergePivots, &pivotsBuffer);
 
         EXPECT_TRUE(std::is_sorted(begin(vec), end(vec))) << testCaseMsg;

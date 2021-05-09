@@ -289,7 +289,7 @@ TString GetRelativePath(const TString& from, const TString& to)
     StringSplitter(GetRealPath(to)).Split(LOCSLASH_C).Collect(&tokensTo);
 
     int commonPrefixLength = 0;
-    while (commonPrefixLength < std::min(tokensFrom.size(), tokensTo.size()) &&
+    while (commonPrefixLength < std::min(std::ssize(tokensFrom), std::ssize(tokensTo)) &&
         tokensFrom[commonPrefixLength] == tokensTo[commonPrefixLength])
     {
         ++commonPrefixLength;
@@ -297,10 +297,10 @@ TString GetRelativePath(const TString& from, const TString& to)
 
     std::vector<TString> relativePathTokens;
     relativePathTokens.reserve(tokensFrom.size() + tokensTo.size() - 2 * commonPrefixLength);
-    for (int index = 0; index < tokensFrom.size() - commonPrefixLength; ++index) {
+    for (int index = 0; index < std::ssize(tokensFrom) - commonPrefixLength; ++index) {
         relativePathTokens.push_back("..");
     }
-    for (int index = commonPrefixLength; index < tokensTo.size(); ++index) {
+    for (int index = commonPrefixLength; index < std::ssize(tokensTo); ++index) {
         relativePathTokens.push_back(tokensTo[index]);
     }
 
@@ -521,7 +521,7 @@ TString CombinePaths(const std::vector<TString>& paths)
         return paths[0];
     }
     auto result = CombinePaths(paths[0], paths[1]);
-    for (int index = 2; index < paths.size(); ++ index) {
+    for (int index = 2; index < std::ssize(paths); ++index) {
         result = CombinePaths(result, paths[index]);
     }
     return result;
@@ -531,7 +531,7 @@ TString NormalizePathSeparators(const TString& path)
 {
     TString result;
     result.reserve(path.length());
-    for (int i = 0; i < path.length(); ++i) {
+    for (int i = 0; i < std::ssize(path); ++i) {
         if (path[i] == '\\') {
             result.append('/');
         } else {

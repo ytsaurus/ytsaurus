@@ -90,7 +90,7 @@ public:
         TWallTimer timer;
 
         for (int iteration = 0; iteration < iterationCount; ++iteration) {
-            if (RandomNumber<unsigned>(100) < writePercentage) {
+            if (RandomNumber<unsigned>(100) < static_cast<unsigned>(writePercentage)) {
                 executeWrite();
             } else {
                 executeRead();

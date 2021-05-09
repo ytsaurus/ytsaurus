@@ -74,7 +74,7 @@ TEST(TFormatTest, Strings)
     EXPECT_EQ("abc", Format("%-2s", TString("abc")));
     EXPECT_EQ("abc", Format("%0s", TString("abc")));
     EXPECT_EQ("abc", Format("%-0s", TString("abc")));
-    EXPECT_EQ(100, Format("%100v", "abc").size());
+    EXPECT_EQ(100, std::ssize(Format("%100v", "abc")));
 }
 
 TEST(TFormatTest, Integers)

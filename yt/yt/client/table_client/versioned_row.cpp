@@ -285,7 +285,7 @@ void ValidateClientDataRow(
         const auto& value = *current;
         int mappedId = ApplyIdMapping(value, &idMapping);
 
-        if (mappedId < 0 || mappedId >= schema.Columns().size()) {
+        if (mappedId < 0 || mappedId >= std::ssize(schema.Columns())) {
             int size = nameTable->GetSize();
             if (value.Id < 0 || value.Id >= size) {
                 THROW_ERROR_EXCEPTION("Expected value id in range [0:%v] but got %v",
@@ -339,7 +339,7 @@ void ValidateDuplicateAndRequiredValueColumns(
     }
 
     auto& columnSeen = *columnPresenceBuffer;
-    YT_VERIFY(columnSeen.size() >= schema.GetColumnCount());
+    YT_VERIFY(std::ssize(columnSeen) >= schema.GetColumnCount());
     std::fill(columnSeen.begin(), columnSeen.end(), 0);
 
     for (const auto *valueGroupBeginIt = row.BeginValues(), *valueGroupEndIt = valueGroupBeginIt;

@@ -490,7 +490,7 @@ bool TAttachmentsOutputStream::CanPullMore(bool first) const
         return false;
     }
 
-    if (SentPosition_ - ReadPosition_ + GetStreamingAttachmentSize(DataQueue_.front()) <= WindowSize_) {
+    if (SentPosition_ - ReadPosition_ + static_cast<ssize_t>(GetStreamingAttachmentSize(DataQueue_.front())) <= WindowSize_) {
         return true;
     }
 

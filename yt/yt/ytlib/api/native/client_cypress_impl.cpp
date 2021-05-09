@@ -1368,7 +1368,7 @@ private:
             },
             Logger);
 
-        for (int srcObjectIndex = 0; srcObjectIndex < SrcObjects_.size(); ++srcObjectIndex) {
+        for (int srcObjectIndex = 0; srcObjectIndex < std::ssize(SrcObjects_); ++srcObjectIndex) {
             const auto& srcObject = SrcObjects_[srcObjectIndex];
 
             chunkSpecFetcher->Add(
@@ -1441,7 +1441,7 @@ private:
 
         YT_LOG_DEBUG("Validating chunks schemas");
 
-        for (int chunkIndex = 0; chunkIndex < ChunkSpecs_.size(); ++chunkIndex) {
+        for (int chunkIndex = 0; chunkIndex < std::ssize(ChunkSpecs_); ++chunkIndex) {
             const auto& chunkMeta = chunkMetas[chunkIndex];
             const auto& chunkSpec = ChunkSpecs_[chunkIndex];
             auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
@@ -1502,7 +1502,7 @@ private:
         YT_LOG_DEBUG("Validating chunk ranges");
 
         auto comparator = OutputTableSchema_->ToComparator();
-        for (int chunkIndex = 0; chunkIndex + 1 < ChunkSpecs_.size(); ++chunkIndex) {
+        for (int chunkIndex = 0; chunkIndex + 1 < std::ssize(ChunkSpecs_); ++chunkIndex) {
             const auto& currentChunkSpec = ChunkSpecs_[chunkIndex];
             const auto& nextChunkSpec = ChunkSpecs_[chunkIndex + 1];
 

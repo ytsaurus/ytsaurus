@@ -274,7 +274,7 @@ DB::Block ToBlock(
 
     for (const auto& [columnIndex, converter] : Enumerate(converters)) {
         auto column = converter.FlushColumn();
-        YT_VERIFY(column->size() == batch->GetRowCount());
+        YT_VERIFY(std::ssize(*column) == batch->GetRowCount());
         block.getByPosition(columnIndex).column = std::move(column);
     }
 
@@ -290,7 +290,7 @@ TSharedRange<TUnversionedRow> ToRowRange(
     int columnCount = columnIndexToId.size();
     i64 rowCount = block.rows();
     const auto& columns = block.getColumns();
-    YT_VERIFY(columns.size() == columnCount);
+    YT_VERIFY(std::ssize(columns) == columnCount);
 
     std::vector<TCHYTConverter> converters;
     converters.reserve(columnCount);
@@ -309,7 +309,7 @@ TSharedRange<TUnversionedRow> ToRowRange(
         auto& converter = converters[columnIndex];
         auto valueRange = converter.ConvertColumnToUnversionedValues(columns[columnIndex]);
         int id = columnIndexToId[columnIndex];
-        YT_VERIFY(valueRange.size() == rowCount);
+        YT_VERIFY(std::ssize(valueRange) == rowCount);
         for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
             auto& value = mutableRows[rowIndex][columnIndex];
             value = valueRange[rowIndex];
@@ -337,7 +337,7 @@ TClickHouseKeys ToClickHouseKeys(
     const DB::DataTypes& dataTypes,
     bool makeUpperBoundInclusive)
 {
-    YT_VERIFY(usedKeyColumnCount <= dataTypes.size());
+    YT_VERIFY(usedKeyColumnCount <= std::ssize(dataTypes));
 
     // XXX(dakovalkov): CH does not support nullable key columns, so we use several dirty tricks to represent them as not nullable.
     DB::DataTypes notNullableDataTypes(usedKeyColumnCount);
@@ -346,8 +346,8 @@ TClickHouseKeys ToClickHouseKeys(
     }
 
     int commonPrefixSize = 0;
-    while (commonPrefixSize < lowerKey.GetCount()
-        && commonPrefixSize < upperKey.GetCount()
+    while (commonPrefixSize < static_cast<int>(lowerKey.GetCount())
+        && commonPrefixSize < static_cast<int>(upperKey.GetCount())
         && lowerKey[commonPrefixSize] == upperKey[commonPrefixSize])
     {
         ++commonPrefixSize;
@@ -364,7 +364,7 @@ TClickHouseKeys ToClickHouseKeys(
 
         for (int index = 0; index < usedKeyColumnCount; ++index) {
             if (!sentinel) {
-                if (index >= ytKey.GetCount() || ytKey[index].Type == EValueType::Min) {
+                if (index >= static_cast<int>(ytKey.GetCount()) || ytKey[index].Type == EValueType::Min) {
                     sentinel = EValueType::Min;
                 } else if (ytKey[index].Type == EValueType::Max) {
                     sentinel = EValueType::Max;
@@ -420,7 +420,7 @@ TClickHouseKeys ToClickHouseKeys(
             if (sentinel) {
                 isExclusive = (*sentinel == EValueType::Min);
             } else {
-                isExclusive = (ytKey.GetCount() == usedKeyColumnCount);
+                isExclusive = (static_cast<int>(ytKey.GetCount()) == usedKeyColumnCount);
             }
 
             if (isExclusive && lastNonSentinelIndex >= 0) {

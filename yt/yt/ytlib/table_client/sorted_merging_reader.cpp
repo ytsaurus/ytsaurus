@@ -76,7 +76,7 @@ protected:
 
         bool Exhausted() const
         {
-            return CurrentRowIndex == Rows.size();
+            return CurrentRowIndex == std::ssize(Rows);
         }
 
         i64 GetTableRowIndex() const
@@ -401,7 +401,7 @@ IUnversionedRowBatchPtr TSortedMergingReader::Read(const TRowBatchReadOptions& o
     rows.reserve(options.MaxRowsPerRead);
     i64 dataWeight = 0;
     bool interrupting = Interrupting_;
-    while (rows.size() < options.MaxRowsPerRead &&
+    while (std::ssize(rows) < options.MaxRowsPerRead &&
         dataWeight < options.MaxDataWeightPerRead)
     {
         auto key = session->GetCurrentKey(ReduceComparator_.GetLength());
@@ -437,7 +437,7 @@ IUnversionedRowBatchPtr TSortedMergingReader::Read(const TRowBatchReadOptions& o
         ++TableRowIndex_;
         ++RowIndex_;
 
-        if (session->CurrentRowIndex == session->Rows.size()) {
+        if (session->CurrentRowIndex == std::ssize(session->Rows)) {
             // Out of prefetched rows in this session.
             break;
         }
@@ -471,7 +471,7 @@ TInterruptDescriptor TSortedMergingReader::GetInterruptDescriptor(
     std::vector<i64> unreadRowCounts(SessionHolder_.size(), 0);
 
     YT_VERIFY(unreadRows.size() <= LastReadRowSessionIndexes_.size());
-    for (int index = LastReadRowSessionIndexes_.size() - unreadRows.size(); index < LastReadRowSessionIndexes_.size(); ++index) {
+    for (int index = LastReadRowSessionIndexes_.size() - unreadRows.size(); index < std::ssize(LastReadRowSessionIndexes_); ++index) {
         ++unreadRowCounts[LastReadRowSessionIndexes_[index]];
     }
 
@@ -598,7 +598,7 @@ IUnversionedRowBatchPtr TSortedJoiningReader::Read(const TRowBatchReadOptions& o
     rows.reserve(options.MaxRowsPerRead);
     i64 dataWeight = 0;
 
-    while (rows.size() < options.MaxRowsPerRead &&
+    while (std::ssize(rows) < options.MaxRowsPerRead &&
         dataWeight < options.MaxDataWeightPerRead)
     {
         auto row = session->Rows[session->CurrentRowIndex];

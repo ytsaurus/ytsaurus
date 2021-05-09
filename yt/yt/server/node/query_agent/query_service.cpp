@@ -573,7 +573,7 @@ private:
                 subrequestCount,
                 request->mount_revisions_size());
         }
-        if (subrequestCount != request->Attachments().size()) {
+        if (subrequestCount != std::ssize(request->Attachments())) {
             THROW_ERROR_EXCEPTION("Wrong number of attachments: expected %v, got %v",
                 subrequestCount,
                 request->mount_revisions_size());

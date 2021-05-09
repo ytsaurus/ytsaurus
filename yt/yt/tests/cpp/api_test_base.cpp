@@ -217,7 +217,7 @@ void TDynamicTablesTestBase::WriteRows(
         .ValueOrThrow();
 
     const auto& timestamps = commitResult.CommitTimestamps.Timestamps;
-    ASSERT_EQ(1, timestamps.size());
+    ASSERT_EQ(1u, timestamps.size());
 }
 
 std::tuple<TSharedRange<TVersionedRow>, TNameTablePtr> TDynamicTablesTestBase::PrepareVersionedRow(

@@ -201,7 +201,7 @@ TResourceTracker::TThreadMap TResourceTracker::ProcessThreads()
 
     TThreadMap tidToStats;
 
-    for (int index = 0; index < dirsList.Size(); ++index) {
+    for (int index = 0; index < static_cast<int>(dirsList.Size()); ++index) {
         auto tid = TString(dirsList.Next());
         TThreadInfo info;
         if (ProcessThread(tid, &info)) {

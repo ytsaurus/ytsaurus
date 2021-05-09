@@ -355,7 +355,7 @@ private:
     {
         // TODO(lukyan): Allocate space and write directly.
         auto nullBitmap = TBitmapOutput(values.Size());
-        for (int index = 0; index < values.Size(); ++index) {
+        for (int index = 0; index < std::ssize(values); ++index) {
             nullBitmap.Append(values[index].Type == EValueType::Null);
         }
         UnsafeWriteRaw(nullBitmap.GetData(), nullBitmap.GetByteSize());
@@ -1106,7 +1106,7 @@ public:
             return nullptr;
         }
 
-        if (BlockIndex_ >= CompressedBlocks_.size()) {
+        if (BlockIndex_ >= std::ssize(CompressedBlocks_)) {
             Finished_ = true;
             YT_LOG_DEBUG("Wire protocol rowset reader finished");
             return nullptr;

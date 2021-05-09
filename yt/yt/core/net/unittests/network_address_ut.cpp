@@ -287,7 +287,7 @@ TEST(TIP6AddressTest, ToStringFromStringRandom)
 {
     for (int i = 0; i < 100; ++i) {
         ui8 bytes[TIP6Address::ByteSize];
-        for (int j = 0; j < TIP6Address::ByteSize; ++j) {
+        for (int j = 0; j < static_cast<ssize_t>(TIP6Address::ByteSize); ++j) {
             bytes[j] = RandomNumber<ui8>();
         }
 
@@ -299,10 +299,10 @@ TEST(TIP6AddressTest, ToStringFromStringRandom)
 TEST(TMtnAddressTest, SimpleTest)
 {
     TMtnAddress address(TIP6Address::FromString("1361:24ad:4326:bda1:8432:a3fe:3f6c:4b38"));
-    EXPECT_EQ(address.GetPrefix(), 0x136124ad43);
-    EXPECT_EQ(address.GetGeo(), 0x26bda1);
-    EXPECT_EQ(address.GetProjectId(), 0x8432a3fe);
-    EXPECT_EQ(address.GetHost(), 0x3f6c4b38);
+    EXPECT_EQ(address.GetPrefix(), 0x136124ad43u);
+    EXPECT_EQ(address.GetGeo(), 0x26bda1u);
+    EXPECT_EQ(address.GetProjectId(), 0x8432a3feu);
+    EXPECT_EQ(address.GetHost(), 0x3f6c4b38u);
 
     address.SetPrefix(0x123456789a);
     EXPECT_EQ(ToString(address.ToIP6Address()), "1234:5678:9a26:bda1:8432:a3fe:3f6c:4b38");

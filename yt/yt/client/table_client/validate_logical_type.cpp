@@ -360,7 +360,7 @@ private:
                     GetDescription(fieldId),
                     alternativeIndex);
             }
-            if (alternativeIndex >= elements.size()) {
+            if (alternativeIndex >= std::ssize(elements)) {
                 THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
                     "Cannot parse %Qv; variant alternative index %Qv exceeds number of variant elements %Qv",
                     GetDescription(fieldId),
@@ -377,7 +377,7 @@ private:
                     GetDescription(fieldId),
                     alternativeIndex);
             }
-            if (alternativeIndex >= fields.size()) {
+            if (alternativeIndex >= std::ssize(fields)) {
                 THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
                     "Cannot parse %Qv; variant alternative index %Qv exceeds number of variant elements %Qv",
                     GetDescription(fieldId),

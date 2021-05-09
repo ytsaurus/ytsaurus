@@ -29,7 +29,7 @@ void Validate(const std::vector<T>& data, const TReader& reader)
 {
     EXPECT_EQ(data.size(), reader.GetSize());
 
-    for (int i = 0; i < data.size(); ++i) {
+    for (int i = 0; i < std::ssize(data); ++i) {
         EXPECT_EQ(data[i], reader[i]);
     }
 }

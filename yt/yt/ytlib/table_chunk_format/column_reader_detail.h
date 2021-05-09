@@ -211,10 +211,10 @@ private:
         i64 rangeRowIndex = 0;
         i64 segmentRowIndex = SegmentRowIndex_;
 
-        while (rangeRowIndex < rows.Size() && segmentRowIndex < Meta_.row_count()) {
+        while (rangeRowIndex < std::ssize(rows) && segmentRowIndex < Meta_.row_count()) {
             auto row = rows[rangeRowIndex];
             if (row) {
-                YT_VERIFY(GetUnversionedValueCount(row) > ColumnIndex_);
+                YT_VERIFY(static_cast<int>(GetUnversionedValueCount(row)) > ColumnIndex_);
                 SetValue(&GetUnversionedValue(row, ColumnIndex_), segmentRowIndex);
             }
 
@@ -386,7 +386,7 @@ private:
     i64 DoReadValues(TMutableRange<TRow> rows)
     {
         i64 rangeRowIndex = 0;
-        while (rangeRowIndex < rows.Size() && SegmentRowIndex_ < Meta_.row_count()) {
+        while (rangeRowIndex < std::ssize(rows) && SegmentRowIndex_ < Meta_.row_count()) {
             i64 valueRowCount = ValueIndex_ + 1 == ValueExtractor_.GetValueCount()
                 ? Meta_.row_count()
                 : ValueExtractor_.GetRowIndex(ValueIndex_ + 1);
@@ -395,7 +395,7 @@ private:
             NTableClient::TUnversionedValue value;
             SetValue(&value);
 
-            while (segmentRowIndex < valueRowCount && rangeRowIndex < rows.Size()) {
+            while (segmentRowIndex < valueRowCount && rangeRowIndex < std::ssize(rows)) {
                 auto row = rows[rangeRowIndex];
                 if (row) {
                     GetUnversionedValue(row, ColumnIndex_) = value;
@@ -517,7 +517,7 @@ protected:
     void DoReadValues(TMutableRange<TRow> rows)
     {
         i64 readRowCount = 0;
-        while (readRowCount < rows.Size()) {
+        while (readRowCount < std::ssize(rows)) {
             RearmSegmentReader();
             i64 count = SegmentReader_->ReadValues(rows.Slice(rows.Begin() + readRowCount, rows.End()));
             readRowCount += count;
@@ -759,7 +759,7 @@ public:
         YT_VERIFY(rows.Size() == timestampIndexRanges.Size());
 
         i64 rangeRowIndex = 0;
-        while (rangeRowIndex < rows.Size() && SegmentRowIndex_ < Meta_.row_count()) {
+        while (rangeRowIndex < std::ssize(rows) && SegmentRowIndex_ < Meta_.row_count()) {
             auto row = rows[rangeRowIndex];
             if (row) {
                 SetValues(row, timestampIndexRanges[rangeRowIndex], produceAllVersions);
@@ -774,7 +774,7 @@ public:
     virtual i64 ReadAllValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override
     {
         i64 rangeRowIndex = 0;
-        while (rangeRowIndex < rows.Size() && SegmentRowIndex_ < Meta_.row_count()) {
+        while (rangeRowIndex < std::ssize(rows) && SegmentRowIndex_ < Meta_.row_count()) {
             auto row = rows[rangeRowIndex];
             YT_VERIFY(row);
             SetAllValues(row);
@@ -787,9 +787,9 @@ public:
 
     void ReadValueCounts(TMutableRange<ui32> valueCounts) const
     {
-        YT_VERIFY(SegmentRowIndex_ + valueCounts.Size() <= Meta_.row_count());
+        YT_VERIFY(SegmentRowIndex_ + std::ssize(valueCounts) <= Meta_.row_count());
 
-        for (i64 rangeRowIndex = 0; rangeRowIndex < valueCounts.Size(); ++rangeRowIndex) {
+        for (i64 rangeRowIndex = 0; rangeRowIndex < std::ssize(valueCounts); ++rangeRowIndex) {
             valueCounts[rangeRowIndex] = ValueExtractor_.GetValueCount(SegmentRowIndex_ + rangeRowIndex);
         }
     }
@@ -856,7 +856,7 @@ public:
         YT_VERIFY(rows.Size() == timestampIndexRanges.Size());
 
         i64 rangeRowIndex = 0;
-        while (rangeRowIndex < rows.Size() && SegmentRowIndex_ < Meta_.row_count()) {
+        while (rangeRowIndex < std::ssize(rows) && SegmentRowIndex_ < Meta_.row_count()) {
             if (ValueIndex_ == ValueExtractor_.GetValueCount()) {
                 // We reached the last value in the segment, left rows are empty.
                 i64 rowsToSkip = std::min(
@@ -897,7 +897,7 @@ public:
     virtual i64 ReadAllValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override
     {
         i64 rangeRowIndex = 0;
-        while (rangeRowIndex < rows.Size() && SegmentRowIndex_ < Meta_.row_count()) {
+        while (rangeRowIndex < std::ssize(rows) && SegmentRowIndex_ < Meta_.row_count()) {
             if (ValueIndex_ == ValueExtractor_.GetValueCount()) {
                 // We reached the last value in the segment, left rows are empty.
                 i64 rowsToSkip = std::min(
@@ -935,15 +935,15 @@ public:
 
     virtual void ReadValueCounts(TMutableRange<ui32> valueCounts) const override
     {
-        YT_VERIFY(SegmentRowIndex_ + valueCounts.Size() <= Meta_.row_count());
+        YT_VERIFY(SegmentRowIndex_ + std::ssize(valueCounts) <= Meta_.row_count());
 
         i64 rangeRowIndex = 0;
         i64 currentValueIndex = ValueIndex_;
         i64 currentRowIndex = SegmentRowIndex_;
-        while (rangeRowIndex < valueCounts.Size()) {
+        while (rangeRowIndex < std::ssize(valueCounts)) {
             if (currentValueIndex == ValueExtractor_.GetValueCount()) {
                 // We reached the last value in the segment, left rows are empty.
-                for (; rangeRowIndex < valueCounts.Size(); ++rangeRowIndex) {
+                for (; rangeRowIndex < std::ssize(valueCounts); ++rangeRowIndex) {
                     valueCounts[rangeRowIndex] = 0;
                 }
                 break;
@@ -953,7 +953,7 @@ public:
                 // Skip rows up to index of current value.
                 for (;
                     currentRowIndex < ValueExtractor_.GetRowIndex(currentValueIndex) &&
-                    rangeRowIndex < valueCounts.Size();
+                    rangeRowIndex < std::ssize(valueCounts);
                     ++rangeRowIndex, ++currentRowIndex)
                 {
                     valueCounts[rangeRowIndex] = 0;

@@ -53,7 +53,7 @@ void TChunkStore::Initialize()
     YT_LOG_INFO("Initializing chunk store");
 
     std::vector<TFuture<void>> futures;
-    for (int index = 0; index < Config_->StoreLocations.size(); ++index) {
+    for (int index = 0; index < std::ssize(Config_->StoreLocations); ++index) {
         auto locationConfig = Config_->StoreLocations[index];
 
         auto location = New<TStoreLocation>(
@@ -526,7 +526,7 @@ TStoreLocationPtr TChunkStore::GetNewChunkLocation(
         auto& currentIndex = placementInfo->CurrentLocationIndex;
         do {
             ++currentIndex;
-            if (currentIndex >= Locations_.size()) {
+            if (currentIndex >= std::ssize(Locations_)) {
                 currentIndex = 0;
             }
         } while (std::find(candidates.begin(), candidates.end(), currentIndex) == candidates.end());

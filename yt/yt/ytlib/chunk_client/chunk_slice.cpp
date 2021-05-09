@@ -183,7 +183,7 @@ public:
         TOwningKeyBound lastBlockUpperBound;
         i64 lastBlockEndRowIndex = -1;
 
-        for (int blockIndex = 0; blockIndex < BlockDescriptors_.size(); ++blockIndex) {
+        for (int blockIndex = 0; blockIndex < std::ssize(BlockDescriptors_); ++blockIndex) {
             const auto& block = BlockDescriptors_[blockIndex];
 
             auto blockLowerBound = blockIndex == 0
@@ -243,7 +243,7 @@ public:
             if (sliceByKeys) {
                 bool canSliceHere = true;
                 i64 currentSliceRowCount = endRowIndex - currentSliceStartRowIndex;
-                if (blockIndex + 1 < BlockDescriptors_.size()) {
+                if (blockIndex + 1 < std::ssize(BlockDescriptors_)) {
                     const auto& nextBlock = BlockDescriptors_[blockIndex + 1];
                     // We are inside maniac key, so can't slice chunk here.
                     if (upperBound == nextBlock.UpperBound) {

@@ -153,7 +153,7 @@ TCoreResult TCoreWatcher::Finalize(std::optional<TDuration> finalizationTimeout)
     auto guard = Guard(CoreInfosLock_);
 
     auto& coreInfos = CoreResult_.CoreInfos;
-    if (expectedCoreCount > coreInfos.size()) {
+    if (expectedCoreCount > std::ssize(coreInfos)) {
         coreInfos.resize(expectedCoreCount);
     }
 
@@ -403,7 +403,7 @@ void TCoreWatcher::DoAddCoreInfo(const TCoreInfo& coreInfo)
     auto guard = Guard(CoreInfosLock_);
 
     auto coreIndex = coreInfo.core_index();
-    if (coreIndex >= CoreResult_.CoreInfos.size()) {
+    if (coreIndex >= std::ssize(CoreResult_.CoreInfos)) {
         CoreResult_.CoreInfos.resize(coreIndex + 1);
     }
     CoreResult_.CoreInfos[coreIndex] = coreInfo;

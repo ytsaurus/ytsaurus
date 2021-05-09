@@ -41,12 +41,12 @@ TEST(TProcTest, TestParseMemoryMappings)
 
     auto smaps = ParseMemoryMappings(rawSMaps);
 
-    EXPECT_EQ(smaps.size(), 2);
+    EXPECT_EQ(std::ssize(smaps), 2);
 
-    EXPECT_EQ(smaps[0].Start, 0x7fbb7b24d000);
-    EXPECT_EQ(smaps[0].End, 0x7fbb7b251000);
+    EXPECT_EQ(smaps[0].Start, 0x7fbb7b24d000u);
+    EXPECT_EQ(smaps[0].End, 0x7fbb7b251000u);
     EXPECT_EQ(smaps[0].Permissions, EMemoryMappingPermission::Read | EMemoryMappingPermission::Write | EMemoryMappingPermission::Shared);
-    EXPECT_EQ(smaps[0].Offset, 0);
+    EXPECT_EQ(smaps[0].Offset, 0u);
     EXPECT_EQ(static_cast<bool>(smaps[0].DeviceId), false);
     EXPECT_EQ(static_cast<bool>(smaps[0].INode), false);
     EXPECT_EQ(static_cast<bool>(smaps[0].Path), false);
@@ -69,21 +69,21 @@ TEST(TProcTest, TestParseMemoryMappings)
     EXPECT_EQ(smaps[0].Statistics.Swap, 17_KB);
     EXPECT_EQ(smaps[0].Statistics.SwapPss, 18_KB);
     EXPECT_EQ(smaps[0].Statistics.Locked, 19_KB);
-    EXPECT_EQ(smaps[0].ProtectionKey, 20);
+    EXPECT_EQ(smaps[0].ProtectionKey, 20u);
     EXPECT_EQ(smaps[0].VMFlags, EVMFlag::RD | EVMFlag::WR | EVMFlag::MG);
 
-    EXPECT_EQ(smaps[1].Start, 0x7fbb7b251000);
-    EXPECT_EQ(smaps[1].End, 0x7fbb7b278000);
+    EXPECT_EQ(smaps[1].Start, 0x7fbb7b251000u);
+    EXPECT_EQ(smaps[1].End, 0x7fbb7b278000u);
     EXPECT_EQ(smaps[1].Permissions, EMemoryMappingPermission::Read | EMemoryMappingPermission::Execute | EMemoryMappingPermission::Private);
-    EXPECT_EQ(smaps[1].Offset, 0xff);
+    EXPECT_EQ(smaps[1].Offset, 0xffu);
     EXPECT_EQ(smaps[1].DeviceId, 1048637);
-    EXPECT_EQ(*smaps[1].INode, 406536);
+    EXPECT_EQ(*smaps[1].INode, 406536u);
     EXPECT_EQ(*smaps[1].Path, "/lib/x86_64-linux-gnu/ld-2.28.so");
     EXPECT_EQ(smaps[1].Statistics.Size, 156_KB);
     EXPECT_EQ(smaps[1].Statistics.KernelPageSize, 4_KB);
     EXPECT_EQ(smaps[1].Statistics.MMUPageSize, 4_KB);
     EXPECT_EQ(smaps[1].Statistics.Rss, 0_KB);
-    EXPECT_EQ(smaps[1].ProtectionKey, 0);
+    EXPECT_EQ(smaps[1].ProtectionKey, 0u);
     EXPECT_EQ(smaps[1].VMFlags, EVMFlag::None);
 }
 

@@ -264,8 +264,8 @@ private:
         if (CurrentRowCount_ < config->MaxRowCount &&
             CurrentDataWeight_ < config->MaxDataWeight &&
             CurrentUncompressedDataSize_ < config->MaxUncompressedDataSize &&
-            ChunkIds_.size() < config->MaxChunkCount &&
-            (ChunkIds_.empty() || CurrentUncompressedDataSize_ / ChunkIds_.size() < config->MaxAverageChunkSize))
+            std::ssize(ChunkIds_) < config->MaxChunkCount &&
+            (ChunkIds_.empty() || CurrentUncompressedDataSize_ / std::ssize(ChunkIds_) < config->MaxAverageChunkSize))
         {
             CurrentRowCount_ += chunk->MiscExt().row_count();
             CurrentDataWeight_ += chunk->MiscExt().data_weight();
@@ -279,7 +279,7 @@ private:
     void MaybePlanJob()
     {
         const auto& config = GetDynamicConfig();
-        if (ChunkIds_.size() < config->MinChunkCount) {
+        if (std::ssize(ChunkIds_) < config->MinChunkCount) {
             return;
         }
 

@@ -55,7 +55,7 @@ public:
         // Precondition check.
         {
             std::sort(extensionTags->begin(), extensionTags->end());
-            for (int index = 1; index < extensionTags->size(); ++index) {
+            for (int index = 1; index < std::ssize(*extensionTags); ++index) {
                 if (extensionTags.value()[index - 1] == extensionTags.value()[index]) {
                     return MakeFuture<TRefCountedChunkMetaPtr>(
                         TError("Extension tags are not unique (Tags: %v)", *extensionTags));
@@ -70,7 +70,7 @@ public:
             bool containsMissingExtensions = false;
 
             auto guard = ReaderGuard(Lock_);
-            
+
             for (int tag : *extensionTags) {
                 auto it = Extensions_.find(tag);
                 if (it != Extensions_.end() && (!it->second.IsSet() || it->second.Get().IsOK())) {

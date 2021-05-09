@@ -286,7 +286,7 @@ void BuildRow(
     const std::vector<EValueType>& argTypes,
     TStringBuf source)
 {
-    for (int i = 0; i < tuple.size(); ++i) {
+    for (int i = 0; i < std::ssize(tuple); ++i) {
         auto valueType = GetType(tuple[i]);
         auto value = GetValue(tuple[i]);
 
@@ -885,13 +885,13 @@ std::vector<EValueType> RefineFunctionTypes(
     auto argIndex = 0;
     auto formalArg = formalArguments.begin();
     for (;
-        formalArg != formalArguments.end() && argIndex < argumentCount;
+        formalArg != formalArguments.end() && argIndex < static_cast<ssize_t>(argumentCount);
         ++formalArg, ++argIndex)
     {
         effectiveTypes.push_back(genericAssignmentsMin[*formalArg]);
     }
 
-    for (; argIndex < argumentCount; ++argIndex) {
+    for (; argIndex < static_cast<ssize_t>(argumentCount); ++argIndex) {
         size_t constraintIndex = repeatedType->first;
         if (repeatedType->second) {
             constraintIndex = genericAssignments->size() - (argumentCount - argIndex);
@@ -2079,7 +2079,7 @@ TUntypedExpression TBuilderCtx::OnTransformOp(
             THROW_ERROR_EXCEPTION("Arguments size mismatch in tuple")
                 << TErrorAttribute("source", source);
         }
-        for (int i = 0; i < sourceTuple.size(); ++i) {
+        for (int i = 0; i < std::ssize(sourceTuple); ++i) {
             auto valueType = GetType(sourceTuple[i]);
             auto value = GetValue(sourceTuple[i]);
 
@@ -2298,8 +2298,8 @@ void PrepareQuery(
             }
         }
 
-        size_t keyPrefix = 0;
-        while (keyPrefix < orderClause->OrderItems.size()) {
+        ssize_t keyPrefix = 0;
+        while (keyPrefix < std::ssize(orderClause->OrderItems)) {
             const auto& item = orderClause->OrderItems[keyPrefix];
 
             if (item.second) {
@@ -2320,7 +2320,7 @@ void PrepareQuery(
             ++keyPrefix;
         }
 
-        if (keyPrefix < orderClause->OrderItems.size()) {
+        if (keyPrefix < std::ssize(orderClause->OrderItems)) {
             query->OrderClause = std::move(orderClause);
         }
 
@@ -2571,7 +2571,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
                 YT_VERIFY(keySelfEquations[keyPrefix].first);
 
                 if (const auto* referenceExpr = keySelfEquations[keyPrefix].first->As<TReferenceExpression>()) {
-                    if (ColumnNameToKeyPartIndex(query->GetKeyColumns(), referenceExpr->ColumnName) != keyPrefix) {
+                    if (ColumnNameToKeyPartIndex(query->GetKeyColumns(), referenceExpr->ColumnName) != static_cast<ssize_t>(keyPrefix)) {
                         commonKeyPrefix = std::min(commonKeyPrefix, keyPrefix);
                     }
                 } else {

@@ -37,7 +37,7 @@ private:
         names.reserve(sizeLimit);
         for (const auto& [_, poolTree] : GetPoolTrees()) {
             names.push_back(poolTree->GetTreeName());
-            if (names.size() == sizeLimit) {
+            if (std::ssize(names) == sizeLimit) {
                 break;
             }
         }

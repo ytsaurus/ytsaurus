@@ -711,7 +711,7 @@ private:
         std::vector<TChunkId> result;
 
         auto transactionId = FromProto<TTransactionId>(UserJobSpec_.debug_output_transaction_id());
-        for (int index = 0; index < contexts.size(); ++index) {
+        for (int index = 0; index < std::ssize(contexts); ++index) {
             TFileChunkOutput contextOutput(
                 JobIOConfig_->ErrorFileWriter,
                 CreateFileOptions(),
@@ -1056,7 +1056,7 @@ private:
             Environment_.push_back(Format("YT_ROOT_FS=%v", *Host_->GetConfig()->RootPath));
         }
 
-        for (int index = 0; index < Ports_.size(); ++index) {
+        for (int index = 0; index < std::ssize(Ports_); ++index) {
             Environment_.push_back(Format("YT_PORT_%v=%v", index, Ports_[index]));
         }
 
@@ -1071,7 +1071,7 @@ private:
         auto guard = Guard(StatisticsLock_);
         CustomStatistics_.AddSample("/custom", sample);
 
-        size_t customStatisticsCount = 0;
+        int customStatisticsCount = 0;
         for (const auto& [path, summary] : CustomStatistics_.Data()) {
             if (HasPrefix(path, "/custom")) {
                 if (path.size() > MaxCustomStatisticsPathLength) {
@@ -1176,7 +1176,7 @@ private:
             TDuration totalOutputIdleDuration;
             TDuration totalOutputBusyDuration;
             i64 totalOutputBytes = 0;
-            for (int i = 0; i < TablePipeReaders_.size(); ++i) {
+            for (int i = 0; i < std::ssize(TablePipeReaders_); ++i) {
                 const auto& tablePipeReader = TablePipeReaders_[i];
                 auto outputStatistics = tablePipeReader->GetReadStatistics();
 
@@ -1440,7 +1440,7 @@ private:
         }
 
         if (UserJobSpec_.has_iops_threshold() &&
-            blockIOStats.IOTotal > UserJobSpec_.iops_threshold() &&
+            blockIOStats.IOTotal > static_cast<ui64>(UserJobSpec_.iops_threshold()) &&
             !Woodpecker_)
         {
             YT_LOG_DEBUG("Woodpecker detected (IORead: %v, IOTotal: %v, Threshold: %v)",

@@ -860,7 +860,7 @@ private:
 
             YT_VERIFY(cell->GetCellBundle()->Cells().insert(cell).second);
 
-            for (int peerId = 0; peerId < cell->Peers().size(); ++peerId) {
+            for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
                 const auto& peer = cell->Peers()[peerId];
                 if (!peer.Descriptor.IsNull()) {
                     AddToAddressToCellMap(peer.Descriptor, cell, peerId);
@@ -1044,7 +1044,7 @@ private:
 
     void UpdateNodeTabletSlotCount(TNode* node, int newSlotCount)
     {
-        if (node->TabletSlots().size() == newSlotCount) {
+        if (std::ssize(node->TabletSlots()) == newSlotCount) {
             return;
         }
 
@@ -1053,8 +1053,8 @@ private:
             node->TabletSlots().size(),
             newSlotCount);
 
-        if (newSlotCount < node->TabletSlots().size()) {
-            for (int slotIndex = newSlotCount; slotIndex < node->TabletSlots().size(); ++slotIndex) {
+        if (newSlotCount < std::ssize(node->TabletSlots())) {
+            for (int slotIndex = newSlotCount; slotIndex < std::ssize(node->TabletSlots()); ++slotIndex) {
                 const auto& slot = node->TabletSlots()[slotIndex];
                 auto* cell = slot.Cell;
                 if (cell) {
@@ -1777,7 +1777,7 @@ private:
 
         auto revocationReason = TError("Tablet cell prerequisite transaction %v finished",
             transaction->GetId());
-        for (auto peerId = 0; peerId < cell->Peers().size(); ++peerId) {
+        for (auto peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
             DoRevokePeer(cell, peerId, revocationReason);
         }
     }

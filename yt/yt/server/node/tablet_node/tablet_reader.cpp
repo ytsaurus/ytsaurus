@@ -275,7 +275,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
         takePartition((*it)->Stores);
     }
 
-    if (stores.size() > tabletSnapshot->Settings.MountConfig->MaxReadFanIn) {
+    if (std::ssize(stores) > tabletSnapshot->Settings.MountConfig->MaxReadFanIn) {
         THROW_ERROR_EXCEPTION("Read fan-in limit exceeded; please wait until your data is merged")
             << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
             << TErrorAttribute("fan_in", stores.size())
@@ -316,7 +316,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
             stores = std::move(stores),
             boundsPerStore = std::move(boundsPerStore)
         ] (int index) {
-            YT_ASSERT(index < stores.size());
+            YT_ASSERT(index < std::ssize(stores));
 
             return stores[index]->CreateReader(
                 tabletSnapshot,
@@ -560,7 +560,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulPartitionReader(
             stores = std::move(stores),
             index = 0
         ] () mutable -> IVersionedReaderPtr {
-            if (index < stores.size()) {
+            if (index < std::ssize(stores)) {
                 return stores[index++]->CreateReader(
                     tabletSnapshot,
                     keys,
@@ -629,7 +629,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
         rowBuffer = std::move(rowBuffer),
         index = 0
     ] () mutable -> ISchemafulUnversionedReaderPtr {
-        if (index < partitionedKeys.size()) {
+        if (index < std::ssize(partitionedKeys)) {
             auto reader = CreateSchemafulPartitionReader(
                 tabletSnapshot,
                 columnFilter,
@@ -721,7 +721,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
             lowerBound = std::move(lowerBound),
             upperBound = std::move(upperBound)
         ] (int index) {
-            YT_VERIFY(index < stores.size());
+            YT_VERIFY(index < std::ssize(stores));
             const auto& store = stores[index];
             return store->CreateReader(
                 tabletSnapshot,

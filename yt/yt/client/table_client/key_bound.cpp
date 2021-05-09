@@ -370,7 +370,7 @@ std::pair<int, bool> KeyBoundFromLegacyRowImpl(TUnversionedRow row, bool isUpper
 
     // Length of the longest prefix of row which is free of sentinels. Prefix length is limited by #keyLength.
     int prefixLength = 0;
-    for (int index = 0; index < row.GetCount() && index <= keyLength; ++index) {
+    for (int index = 0; index < static_cast<int>(row.GetCount()) && index <= keyLength; ++index) {
         if (index == keyLength) {
             isLongRow = true;
             break;
@@ -430,8 +430,8 @@ TKeyBound KeyBoundFromLegacyRow(TUnversionedRow row, bool isUpper, int keyLength
     }
 
     auto [prefixLength, isInclusive] = KeyBoundFromLegacyRowImpl(row, isUpper, keyLength);
-    YT_VERIFY(prefixLength <= row.GetCount());
-    if (prefixLength < row.GetCount()) {
+    YT_VERIFY(prefixLength <= static_cast<int>(row.GetCount()));
+    if (prefixLength < static_cast<int>(row.GetCount())) {
         // Capture a prefix.
         row = rowBuffer->CaptureRow(MakeRange(row.Begin(), prefixLength));
     }
@@ -484,7 +484,7 @@ TKeyBound ShortenKeyBound(TKeyBound keyBound, int length, const TRowBufferPtr& r
         return TKeyBound();
     }
 
-    if (keyBound.Prefix.GetCount() <= length) {
+    if (static_cast<int>(keyBound.Prefix.GetCount()) <= length) {
         // No need to change anything.
         return keyBound;
     }

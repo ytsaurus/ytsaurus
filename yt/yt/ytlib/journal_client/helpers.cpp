@@ -240,7 +240,7 @@ std::vector<TSharedRef> DecodeErasureJournalRows(
 {
     int dataPartCount = codec->GetDataPartCount();
 
-    YT_VERIFY(dataPartCount == encodedRowLists.size());
+    YT_VERIFY(dataPartCount == std::ssize(encodedRowLists));
 
     i64 rowCount = Max<i64>();
     for (const auto& encodedRows : encodedRowLists) {
@@ -291,7 +291,7 @@ std::vector<std::vector<TSharedRef>> RepairErasureJournalRows(
 {
     i64 rowCount = repairRowLists[0].size();
     for (const auto& repairRows : repairRowLists) {
-        YT_VERIFY(repairRows.size() == rowCount);
+        YT_VERIFY(std::ssize(repairRows) == rowCount);
     }
 
     i64 bufferSize = 0;
@@ -430,7 +430,7 @@ private:
             Replicas_,
             Quorum_);
 
-        if (Replicas_.size() < Quorum_) {
+        if (std::ssize(Replicas_) < Quorum_) {
             auto error = TError("Unable to abort sessions quorum for journal chunk %v: too few replicas known, %v given, %v needed",
                 ChunkId_,
                 Replicas_.size(),
@@ -481,7 +481,7 @@ private:
             if (Promise_.TrySet(AbortedReplicas_)) {
                 YT_LOG_DEBUG("Journal chunk session quorum aborted successfully");
             }
-        } else if (ResponseCounter_ == Replicas_.size()) {
+        } else if (ResponseCounter_ == std::ssize(Replicas_)) {
             auto combinedError = TError("Unable to abort sessions quorum for journal chunk %v",
                 ChunkId_)
                 << InnerErrors_;
@@ -492,7 +492,7 @@ private:
     bool IsSuccess()
     {
         return IsErasureChunkId(ChunkId_)
-            ? SuccessPartIndexes_.count() >= Quorum_
+            ? static_cast<ssize_t>(SuccessPartIndexes_.count()) >= Quorum_
             : SuccessCounter_ >= Quorum_;
     }
 };
@@ -568,7 +568,7 @@ private:
 
     void DoRun()
     {
-        if (Replicas_.size() < Quorum_) {
+        if (std::ssize(Replicas_) < Quorum_) {
             auto error = TError("Unable to compute quorum info for journal chunk %v: too few replicas known, %v given, %v needed",
                 ChunkId_,
                 Replicas_.size(),
@@ -713,7 +713,7 @@ private:
             }
         }
 
-        if (ChunkMetaResults_.size() < Quorum_) {
+        if (std::ssize(ChunkMetaResults_) < Quorum_) {
             Promise_.Set(TError("Unable to compute quorum info for journal chunk %v: too few replicas alive, %v found, %v needed",
                 ChunkId_,
                 ChunkMetaResults_.size(),

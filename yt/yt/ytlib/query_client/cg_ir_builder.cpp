@@ -69,7 +69,7 @@ Value* TCGIRBuilder::ViaClosure(Value* value, Twine name)
     if (it != Mapping_.end()) {
         return it->second.first;
     } else {
-        int indexInClosure = Mapping_.size();
+        auto indexInClosure = Mapping_.size();
         YT_VERIFY(indexInClosure < MaxClosureSize);
 
         InsertPoint currentIP = saveIP();

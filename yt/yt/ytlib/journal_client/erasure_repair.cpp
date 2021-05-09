@@ -73,7 +73,7 @@ void DoRepairErasedParts(
 
         i64 readRowCount = static_cast<i64>(rowLists[0].size());
         for (const auto& rowList : rowLists) {
-            YT_VERIFY(rowList.size() == readRowCount);
+            YT_VERIFY(std::ssize(rowList) == readRowCount);
         }
 
         YT_LOG_DEBUG("Rows received (Rows: %v-%v)",

@@ -32,7 +32,7 @@ protected:
     {
         // NB: Ordered reader accepts extended schema.
         TColumnFilter::TIndexes columnFilterIndexes;
-        for (int id = 0; id < GetSchema()->Columns().size(); ++id) {
+        for (int id = 0; id < std::ssize(GetSchema()->Columns()); ++id) {
             columnFilterIndexes.push_back(id + 2);
         }
         auto columnFilter = TColumnFilter(std::move(columnFilterIndexes));
@@ -52,12 +52,12 @@ protected:
         EXPECT_TRUE(batch.operator bool());
 
         auto rows = batch->MaterializeRows();
-        EXPECT_EQ(1, rows.size());
+        EXPECT_EQ(1, std::ssize(rows));
         auto row = rows[0];
 
         // NB: Ordered reader returns rows w.r.t. extended schema.
         TUnversionedOwningRowBuilder builder;
-        for (int index = 0; index < row.GetCount(); ++index) {
+        for (int index = 0; index < static_cast<int>(row.GetCount()); ++index) {
             auto value = row[index];
             value.Id -= 2;
             builder.AddValue(value);

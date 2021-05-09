@@ -324,7 +324,7 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
 
     std::vector<std::vector<TString>> allColumns;
     allColumns.reserve(Paths.size());
-    for (int index = 0; index < Paths.size(); ++index) {
+    for (int index = 0; index < std::ssize(Paths); ++index) {
         allColumns.push_back(*Paths[index].GetColumns());
     }
 
@@ -374,21 +374,21 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
     auto allStatistics = allStatisticsOrError.ValueOrThrow();
 
     YT_VERIFY(allStatistics.size() == Paths.size());
-    for (int index = 0; index < allStatistics.size(); ++index) {
+    for (int index = 0; index < std::ssize(allStatistics); ++index) {
         YT_VERIFY(allColumns[index].size() == allStatistics[index].ColumnDataWeights.size());
     }
 
     ProduceOutput(context, [&] (IYsonConsumer* consumer) {
         BuildYsonFluently(consumer)
             .DoList([&] (TFluentList fluent) {
-                for (int index = 0; index < Paths.size(); ++index) {
+                for (int index = 0; index < std::ssize(Paths); ++index) {
                     const auto& columns = allColumns[index];
                     const auto& statistics = allStatistics[index];
                     fluent
                         .Item()
                         .BeginMap()
                             .Item("column_data_weights").DoMap([&] (TFluentMap fluent) {
-                                for (int index = 0; index < columns.size(); ++index) {
+                                for (int index = 0; index < std::ssize(columns); ++index) {
                                     fluent
                                         .Item(columns[index]).Value(statistics.ColumnDataWeights[index]);
                                 }

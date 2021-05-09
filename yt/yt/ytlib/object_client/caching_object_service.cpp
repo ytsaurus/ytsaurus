@@ -159,7 +159,7 @@ private:
                 Context_->GetRequestId());
 
             const auto& rsp = rspOrError.Value();
-            YT_VERIFY(rsp->part_counts_size() == Promises_.size());
+            YT_VERIFY(rsp->part_counts_size() == std::ssize(Promises_));
 
             int attachmentIndex = 0;
             const auto& attachments = rsp->Attachments();

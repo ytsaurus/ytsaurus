@@ -137,7 +137,7 @@ TParityPartSplitInfo::TParityPartSplitInfo(
 
 i64 TParityPartSplitInfo::GetStripeOffset(int stripeIndex) const
 {
-    YT_VERIFY(stripeIndex >= 0 && stripeIndex <= StripeBlockCounts_.size());
+    YT_VERIFY(stripeIndex >= 0 && stripeIndex <= std::ssize(StripeBlockCounts_));
 
     i64 result = 0;
     for (int index = 0; index < stripeIndex; ++index) {
@@ -167,7 +167,7 @@ std::vector<TPartRange> TParityPartSplitInfo::SplitRangesByStripesAndAlignToPari
 
     auto rangeIt = ranges.begin();
     TPartRange stripe = {};
-    for (int stripeIndex = 0; stripeIndex < StripeBlockCounts_.size(); ++stripeIndex) {
+    for (int stripeIndex = 0; stripeIndex < std::ssize(StripeBlockCounts_); ++stripeIndex) {
         stripe.Begin = stripe.End;
         if (StripeBlockCounts_[stripeIndex] > 0) {
             stripe.End += (StripeBlockCounts_[stripeIndex] - 1) * BlockSize_ + StripeLastBlockSizes_[stripeIndex];
@@ -208,7 +208,7 @@ std::vector<TPartRange> TParityPartSplitInfo::GetParityBlockRanges() const
     i64 offset = 0;
     std::vector<TPartRange> result;
 
-    for (int stripeIndex = 0; stripeIndex < StripeLastBlockSizes_.size(); ++stripeIndex) {
+    for (int stripeIndex = 0; stripeIndex < std::ssize(StripeLastBlockSizes_); ++stripeIndex) {
         YT_VERIFY(StripeBlockCounts_[stripeIndex] > 0);
 
         for (int index = 0; index < StripeBlockCounts_[stripeIndex] - 1; ++index) {
@@ -236,7 +236,7 @@ std::vector<TPartRange> TParityPartSplitInfo::GetBlockRanges(int partIndex, cons
     int indexInPart = 0;
     std::vector<TPartRange> result;
 
-    for (int stripeIndex = 0; stripeIndex < StripeLastBlockSizes_.size(); ++stripeIndex) {
+    for (int stripeIndex = 0; stripeIndex < std::ssize(StripeLastBlockSizes_); ++stripeIndex) {
         int blockCount = GetStripeBlockCount(placementExt, partIndex, stripeIndex);
 
         i64 offsetInStripe = 0;
@@ -288,7 +288,7 @@ public:
         }
 
         // Processing part blocks that fit inside given block.
-        while (CurrentBlockIndex_ < BlockRanges_.size() && BlockRanges_[CurrentBlockIndex_].End <= range.End) {
+        while (CurrentBlockIndex_ < std::ssize(BlockRanges_) && BlockRanges_[CurrentBlockIndex_].End <= range.End) {
             int blockPosition = BlockRanges_[CurrentBlockIndex_].Begin - range.Begin;
             YT_VERIFY(blockPosition >= 0);
 
@@ -298,7 +298,7 @@ public:
         }
 
         // Process part block that just overlap with given block.
-        if (CurrentBlockIndex_ < BlockRanges_.size() && BlockRanges_[CurrentBlockIndex_].Begin < range.End) {
+        if (CurrentBlockIndex_ < std::ssize(BlockRanges_) && BlockRanges_[CurrentBlockIndex_].Begin < range.End) {
             int blockPosition = BlockRanges_[CurrentBlockIndex_].Begin - range.Begin;
             YT_VERIFY(blockPosition >= 0);
 
@@ -384,7 +384,7 @@ public:
 
         // XXX(ignat): This may be optimized using monotonicity.
         std::vector<int> blockIndexes;
-        for (int index = 0; index < BlockRanges_.size(); ++index) {
+        for (int index = 0; index < std::ssize(BlockRanges_); ++index) {
             if (Intersection(BlockRanges_[index], range)) {
                 blockIndexes.push_back(index);
             }
@@ -431,7 +431,7 @@ private:
     void OnBlocksRead(const std::vector<int>& indicesToRequest, const std::vector<TSharedRef>& blocks)
     {
         YT_VERIFY(indicesToRequest.size() == blocks.size());
-        for (int index = 0; index < indicesToRequest.size(); ++index) {
+        for (int index = 0; index < std::ssize(indicesToRequest); ++index) {
             RequestedBlocks_[indicesToRequest[index]] = blocks[index];
         }
     }
@@ -448,7 +448,7 @@ private:
             }
         };
 
-        for (int index = 0; index < BlockRanges_.size() && BlockRanges_[index].Begin < range.End; ++index) {
+        for (int index = 0; index < std::ssize(BlockRanges_) && BlockRanges_[index].Begin < range.End; ++index) {
             if (BlockRanges_[index].End <= range.Begin) {
                 RequestedBlocks_.erase(index);
                 continue;
@@ -531,7 +531,7 @@ public:
         YT_VERIFY(blocks.size() == Consumers_.size());
 
         std::vector<TFuture<void>> asyncResults;
-        for (int index = 0; index < blocks.size(); ++index) {
+        for (int index = 0; index < std::ssize(blocks); ++index) {
             asyncResults.push_back(Consumers_[index]->Consume(range, blocks[index]));
         }
         return AllSucceeded(asyncResults);
@@ -547,7 +547,7 @@ public:
 
             std::vector<TSharedRef> decodedBlocks;
             if (GetParityPartIndices(Codec_) == MissingPartIndices_) {
-                YT_VERIFY(blocks.size() == Codec_->GetDataPartCount());
+                YT_VERIFY(std::ssize(blocks) == Codec_->GetDataPartCount());
                 decodedBlocks = Codec_->Encode(blocks);
             } else {
                 decodedBlocks = Codec_->Decode(blocks, MissingPartIndices_);
@@ -629,7 +629,7 @@ TDataBlocksPlacementInParts BuildDataBlocksPlacementInParts(
 
     auto result = TDataBlocksPlacementInParts(partInfos.size());
 
-    for (int indexInRequest = 0; indexInRequest < blockIndexes.size(); ++indexInRequest) {
+    for (int indexInRequest = 0; indexInRequest < std::ssize(blockIndexes); ++indexInRequest) {
         int blockIndex = blockIndexes[indexInRequest];
         YT_VERIFY(blockIndex >= 0);
 

@@ -140,7 +140,7 @@ protected:
             .ValueOrThrow();
 
         const auto& timestamps = commitResult.CommitTimestamps.Timestamps;
-        ASSERT_EQ(1, timestamps.size());
+        ASSERT_EQ(1u, timestamps.size());
         CommitTimestamps_[timestampTag] = timestamps[0].second;
     }
 
@@ -170,7 +170,7 @@ protected:
             .ValueOrThrow();
 
         const auto& timestamps = commitResult.CommitTimestamps.Timestamps;
-        ASSERT_EQ(1, timestamps.size());
+        ASSERT_EQ(1u, timestamps.size());
         CommitTimestamps_[timestampTag] = timestamps[0].second;
     }
 
@@ -290,7 +290,7 @@ TEST_P(TLookupFilterTest, TestLookupFilter)
         options))
         .ValueOrThrow();
 
-    ASSERT_EQ(1, res->GetRows().Size());
+    ASSERT_EQ(1u, res->GetRows().Size());
 
     auto actual = ToString(res->GetRows()[0]);
     auto expected = ToString(YsonToSchemalessRow(rowString));
@@ -343,7 +343,7 @@ TEST_P(TLookupFilterTest, TestVersionedLookupFilter)
         options))
         .ValueOrThrow();
 
-    ASSERT_EQ(1, res->GetRows().Size());
+    ASSERT_EQ(1u, res->GetRows().Size());
 
     auto actual = ToString(res->GetRows()[0]);
     auto expected = ToString(BuildVersionedRow(
@@ -451,7 +451,7 @@ TEST_F(TLookupFilterTest, TestRetentionConfig)
         std::get<0>(preparedKey)))
         .ValueOrThrow();
 
-    ASSERT_EQ(1, res->GetRows().Size());
+    ASSERT_EQ(1u, res->GetRows().Size());
 
     auto actual = ToString(res->GetRows()[0]);
     auto expected = ToString(BuildVersionedRow(
@@ -474,7 +474,7 @@ TEST_F(TLookupFilterTest, TestRetentionConfig)
         options))
         .ValueOrThrow();
 
-    ASSERT_EQ(1, res->GetRows().Size());
+    ASSERT_EQ(1u, res->GetRows().Size());
 
     actual = ToString(res->GetRows()[0]);
     expected = ToString(BuildVersionedRow(
@@ -491,7 +491,7 @@ TEST_F(TLookupFilterTest, TestRetentionConfig)
         options))
         .ValueOrThrow();
 
-    ASSERT_EQ(1, res->GetRows().Size());
+    ASSERT_EQ(1u, res->GetRows().Size());
 
     actual = ToString(res->GetRows()[0]);
     expected = ToString(BuildVersionedRow(
@@ -512,7 +512,7 @@ TEST_F(TLookupFilterTest, TestRetentionConfig)
         options))
         .ValueOrThrow();
 
-    ASSERT_EQ(1, res->GetRows().Size());
+    ASSERT_EQ(1u, res->GetRows().Size());
 
     actual = ToString(res->GetRows()[0]);
     expected = ToString(BuildVersionedRow(
@@ -542,7 +542,7 @@ TEST_F(TLookupFilterTest, TestFilteredOutTimestamps)
             std::get<1>(preparedKey),
             std::get<0>(preparedKey),
             options)).ValueOrThrow();
-        EXPECT_EQ(1, res->GetRows().Size());
+        EXPECT_EQ(1u, res->GetRows().Size());
         return ToString(res->GetRows()[0]);
     };
 
@@ -668,7 +668,7 @@ TEST_F(TLookupFilterTest, YT_10159)
                 std::get<1>(preparedKey),
                 std::get<0>(preparedKey),
                 options)).ValueOrThrow();
-            EXPECT_EQ(0, res->GetRows().Size());
+            EXPECT_EQ(0u, res->GetRows().Size());
         }
 
         {
@@ -678,7 +678,7 @@ TEST_F(TLookupFilterTest, YT_10159)
                 std::get<1>(preparedKey),
                 std::get<0>(preparedKey),
                 options)).ValueOrThrow();
-            EXPECT_EQ(1, res->GetRows().Size());
+            EXPECT_EQ(1u, res->GetRows().Size());
         }
 
         if (iter == 0) {
@@ -728,7 +728,7 @@ TEST_F(TOrderedDynamicTablesTest, TestOrderedTableWrite)
     auto res = WaitFor(Client_->SelectRows(Format("* from [%v]", Table_))).ValueOrThrow();
     auto rows = res.Rowset->GetRows();
 
-    ASSERT_EQ(4, rows.Size());
+    ASSERT_EQ(4u, rows.Size());
 
     auto actual = ToString(rows[0]);
     auto expected = ToString(YsonToSchemalessRow(

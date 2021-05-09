@@ -145,7 +145,7 @@ public:
     template <class TPredicate>
     constexpr static bool All(const TDerived& vec1, const TDerived& vec2, TPredicate&& predicate)
     {
-        for (int i = 0; i < Size; i++) {
+        for (size_t i = 0; i < Size; i++) {
             if (!predicate(vec1[i], vec2[i])) {
                 return false;
             }
@@ -156,7 +156,7 @@ public:
     template <class TPredicate>
     constexpr static bool All(const TDerived& vec1, const TDerived& vec2, const TDerived& vec3, TPredicate&& predicate)
     {
-        for (int i = 0; i < Size; i++) {
+        for (size_t i = 0; i < Size; i++) {
             if (!predicate(vec1[i], vec2[i], vec3[i])) {
                 return false;
             }
@@ -173,7 +173,7 @@ public:
     template <class TPredicate>
     constexpr static bool Any(const TDerived& vec1, const TDerived& vec2, TPredicate&& predicate)
     {
-        for (int i = 0; i < Size; i++) {
+        for (size_t i = 0; i < Size; i++) {
             if (predicate(vec1[i], vec2[i])) {
                 return true;
             }
@@ -184,7 +184,7 @@ public:
     template <class TPredicate>
     constexpr static bool Any(const TDerived& vec1, const TDerived& vec2, const TDerived& vec3, TPredicate&& predicate)
     {
-        for (int i = 0; i < Size; i++) {
+        for (size_t i = 0; i < Size; i++) {
             if (predicate(vec1[i], vec2[i], vec3[i])) {
                 return true;
             }
@@ -204,7 +204,7 @@ public:
     constexpr static TDerived Apply(const TDerived& vec1, const TDerived& vec2, TOperation&& op)
     {
         TDerived res = {};
-        for (int i = 0; i < Size; i++) {
+        for (size_t i = 0; i < Size; i++) {
             res[i] = op(vec1[i], vec2[i]);
         }
         return res;
@@ -214,7 +214,7 @@ public:
     constexpr static TDerived Apply(const TDerived& vec1, const TDerived& vec2, const TDerived& vec3, TOperation&& op)
     {
         TDerived res = {};
-        for (int i = 0; i < Size; i++) {
+        for (size_t i = 0; i < Size; i++) {
             res[i] = op(vec1[i], vec2[i], vec3[i]);
         }
         return res;
@@ -229,7 +229,7 @@ public:
     template <class TFunction>
     constexpr static void ForEach(const TDerived& vec1, const TDerived& vec2, TFunction&& fn)
     {
-        for (int i = 0; i < Size; i++) {
+        for (size_t i = 0; i < Size; i++) {
             fn(vec1[i], vec2[i]);
         }
     }
@@ -237,7 +237,7 @@ public:
     template <class TFunction>
     constexpr static void ForEach(const TDerived& vec1, const TDerived& vec2, const TDerived& vec3, TFunction&& fn)
     {
-        for (int i = 0; i < Size; i++) {
+        for (size_t i = 0; i < Size; i++) {
             fn(vec1[i], vec2[i], vec3[i]);
         }
     }
@@ -292,7 +292,7 @@ template <class TDerived, class = std::enable_if_t<IsDoubleArray<TDerived>>>
 constexpr double MaxComponent(const TDerived& vec)
 {
     double result = std::numeric_limits<double>::lowest();
-    for (int i = 0; i < TDerived::Size; i++) {
+    for (size_t i = 0; i < TDerived::Size; i++) {
         result = std::max(result, vec[i]);
     }
     return result;
@@ -302,7 +302,7 @@ template <class TDerived, class = std::enable_if_t<IsDoubleArray<TDerived>>>
 constexpr double MinComponent(const TDerived& vec)
 {
     double result = std::numeric_limits<double>::max();
-    for (int i = 0; i < TDerived::Size; i++) {
+    for (size_t i = 0; i < TDerived::Size; i++) {
         result = std::min(result, vec[i]);
     }
     return result;
@@ -341,7 +341,7 @@ constexpr TDerived operator-(const TDerived& lhs)
 template <class TDerived, class = std::enable_if_t<IsDoubleArray<TDerived>>>
 constexpr void operator+=(TDerived& lhs, const TDerived& rhs)
 {
-    for (int i = 0; i < TDerived::Size; i++) {
+    for (size_t i = 0; i < TDerived::Size; i++) {
         lhs[i] += rhs[i];
     }
 }
@@ -349,7 +349,7 @@ constexpr void operator+=(TDerived& lhs, const TDerived& rhs)
 template <class TDerived, class = std::enable_if_t<IsDoubleArray<TDerived>>>
 constexpr void operator-=(TDerived& lhs, const TDerived& rhs)
 {
-    for (int i = 0; i < TDerived::Size; i++) {
+    for (size_t i = 0; i < TDerived::Size; i++) {
         lhs[i] -= rhs[i];
     }
 }
@@ -393,7 +393,7 @@ struct TValueFormatter<TDerived, std::enable_if_t<IsDoubleArray<TDerived>>>
     {
         builder->AppendChar('[');
         FormatValue(builder, vec[0], format);
-        for (int i = 1; i < TDerived::Size; i++) {
+        for (size_t i = 1; i < TDerived::Size; i++) {
             builder->AppendChar(' ');
             FormatValue(builder, vec[i], format);
         }

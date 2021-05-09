@@ -87,7 +87,7 @@ public:
 
     virtual void Finish() override
     {
-        for (int poolIndex = 0; poolIndex < UnderlyingPools_.size(); ++poolIndex) {
+        for (int poolIndex = 0; poolIndex < std::ssize(UnderlyingPools_); ++poolIndex) {
             FinishPool(poolIndex);
         }
         IsFinished_ = true;
@@ -120,7 +120,7 @@ protected:
     TCookieDescriptor Cookie(TExternalCookie externalCookie) const
     {
         YT_VERIFY(externalCookie >= 0);
-        YT_VERIFY(externalCookie < Cookies_.size());
+        YT_VERIFY(externalCookie < std::ssize(Cookies_));
 
         return Cookies_[externalCookie];
     }
@@ -136,14 +136,14 @@ protected:
     IChunkPoolInput* Pool(int poolIndex)
     {
         YT_VERIFY(poolIndex >= 0);
-        YT_VERIFY(poolIndex < UnderlyingPools_.size());
+        YT_VERIFY(poolIndex < std::ssize(UnderlyingPools_));
 
         return UnderlyingPools_[poolIndex].Get();
     }
 
     void AddPoolInput(IChunkPoolInputPtr pool, int poolIndex)
     {
-        if (poolIndex >= UnderlyingPools_.size()) {
+        if (poolIndex >= std::ssize(UnderlyingPools_)) {
             UnderlyingPools_.resize(poolIndex + 1);
         }
 
@@ -178,7 +178,7 @@ public:
         UnderlyingPools_.reserve(underlyingPools.size());
         PendingPoolIterators_.reserve(underlyingPools.size());
 
-        for (int poolIndex = 0; poolIndex < underlyingPools.size(); ++poolIndex) {
+        for (int poolIndex = 0; poolIndex < std::ssize(underlyingPools); ++poolIndex) {
             const auto& pool = underlyingPools[poolIndex];
             AddPoolOutput(std::move(pool), poolIndex);
         }
@@ -263,7 +263,7 @@ public:
     {
         // NB(gritukan): SortedMerge task can try to extract cookie from partition
         // that was not registered in its pool yet. Do not crash in this case.
-        if (underlyingPoolIndexHint >= UnderlyingPools_.size()) {
+        if (underlyingPoolIndexHint >= std::ssize(UnderlyingPools_)) {
             return Extract(nodeId);
         }
 
@@ -338,7 +338,7 @@ public:
         YT_VERIFY(pool);
         YT_VERIFY(!pool->GetOutputOrder());
 
-        if (poolIndex >= UnderlyingPools_.size()) {
+        if (poolIndex >= std::ssize(UnderlyingPools_)) {
             UnderlyingPools_.resize(poolIndex + 1);
             PendingPoolIterators_.resize(poolIndex + 1, PendingPools_.end());
         }
@@ -438,7 +438,7 @@ protected:
     const IChunkPoolOutput* Pool(int poolIndex) const
     {
         YT_VERIFY(poolIndex >= 0);
-        YT_VERIFY(poolIndex < UnderlyingPools_.size());
+        YT_VERIFY(poolIndex < std::ssize(UnderlyingPools_));
 
         return UnderlyingPools_[poolIndex].Get();
     }
@@ -446,7 +446,7 @@ protected:
     IChunkPoolOutput* Pool(int poolIndex)
     {
         YT_VERIFY(poolIndex >= 0);
-        YT_VERIFY(poolIndex < UnderlyingPools_.size());
+        YT_VERIFY(poolIndex < std::ssize(UnderlyingPools_));
 
         return UnderlyingPools_[poolIndex].Get();
     }

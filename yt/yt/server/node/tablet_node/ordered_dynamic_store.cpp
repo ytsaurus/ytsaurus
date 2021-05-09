@@ -93,7 +93,7 @@ public:
         rows.reserve(options.MaxRowsPerRead);
         i64 dataWeight = 0;
         while (CurrentRowIndex_ < UpperRowIndex_ &&
-               rows.size() < options.MaxRowsPerRead &&
+               std::ssize(rows) < options.MaxRowsPerRead &&
                dataWeight < options.MaxDataWeightPerRead)
         {
             auto row = CaptureRow(Store_->GetRow(CurrentRowIndex_));
@@ -161,7 +161,7 @@ private:
             return dynamicRow;
         }
 
-        ui32 columnCount = static_cast<ui32>(MaybeColumnFilter_->GetIndexes().size());
+        auto columnCount = std::ssize(MaybeColumnFilter_->GetIndexes());
         auto row = TMutableUnversionedRow::Allocate(Pool_.get(), columnCount);
         for (int index = 0; index < columnCount; ++index) {
             ui16 id = static_cast<ui16>(MaybeColumnFilter_->GetIndexes()[index]);
@@ -266,7 +266,7 @@ TOrderedDynamicRow TOrderedDynamicStore::GetRow(i64 rowIndex)
     YT_ASSERT(rowIndex >= 0 && rowIndex < StoreRowCount_);
     int segmentIndex;
     i64 segmentRowIndex;
-    if (rowIndex < (1ULL << InitialOrderedDynamicSegmentIndex)) {
+    if (rowIndex < (1LL << InitialOrderedDynamicSegmentIndex)) {
         segmentIndex = InitialOrderedDynamicSegmentIndex;
         segmentRowIndex = rowIndex;
     } else {

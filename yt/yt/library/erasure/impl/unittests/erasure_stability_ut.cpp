@@ -42,7 +42,7 @@ TEST_P(TErasureStabilityTest, TErasureStabilityTest)
     auto expected = std::get<1>(params);
 
     EXPECT_EQ(expected.size(), parities.size());
-    for (int i = 0; i < expected.size(); ++i) {
+    for (int i = 0; i < std::ssize(expected); ++i) {
         // Check only the first element.
         EXPECT_EQ(static_cast<char>(expected[i]), *parities[i].Begin());
     }

@@ -21,22 +21,22 @@ TEST(TZeroCopyOutputStreamWriter, TestBasic)
     {
         TZeroCopyOutputStreamWriter writer(&stream);
 
-        EXPECT_EQ(writer.RemainingBytes(), GrowthSize);
-        EXPECT_EQ(writer.GetTotalWrittenSize(), 0);
+        EXPECT_EQ(static_cast<ssize_t>(writer.RemainingBytes()), GrowthSize);
+        EXPECT_EQ(writer.GetTotalWrittenSize(), 0u);
 
-        ASSERT_LE(buffer1.length(), GrowthSize);
+        ASSERT_LE(std::ssize(buffer1), GrowthSize);
         memcpy(writer.Current(), buffer1.data(), buffer1.length());
         writer.Advance(buffer1.length());
         EXPECT_EQ(writer.RemainingBytes(), GrowthSize - buffer1.length());
         EXPECT_EQ(writer.GetTotalWrittenSize(), buffer1.length());
 
         writer.UndoRemaining();
-        EXPECT_EQ(writer.RemainingBytes(), 0);
+        EXPECT_EQ(writer.RemainingBytes(), 0u);
         EXPECT_EQ(writer.GetTotalWrittenSize(), buffer1.length());
 
         writer.Write(buffer2.data(), buffer2.length());
         EXPECT_EQ(writer.GetTotalWrittenSize(), buffer1.length() + buffer2.length());
-        EXPECT_EQ(writer.RemainingBytes(), GrowthSize);
+        EXPECT_EQ(static_cast<ssize_t>(writer.RemainingBytes()), GrowthSize);
     }
 
     stream.Finish();
@@ -63,7 +63,7 @@ TEST(TZeroCopyOutputStreamWriter, TestStress)
             writer.Write(string.data() + writtenBytes, toWrite);
             writtenBytes += toWrite;
 
-            if (writtenBytes == string.size()) {
+            if (writtenBytes == std::ssize(string)) {
                 break;
             }
 
@@ -87,40 +87,40 @@ TEST(TZeroCopyOutputStreamWriter, TestVarInt)
     TZeroCopyOutputStreamWriter writer(&stream);
 
     EXPECT_EQ(1, WriteVarInt(&writer, static_cast<i32>(-17)));
-    EXPECT_EQ(3, writer.RemainingBytes());
+    EXPECT_EQ(3u, writer.RemainingBytes());
     EXPECT_EQ(1, WriteVarInt32(&writer, static_cast<i32>(-18)));
-    EXPECT_EQ(2, writer.RemainingBytes());
+    EXPECT_EQ(2u, writer.RemainingBytes());
     EXPECT_EQ(5, WriteVarInt(&writer, std::numeric_limits<i32>::min()));
-    EXPECT_EQ(4, writer.RemainingBytes());
+    EXPECT_EQ(4u, writer.RemainingBytes());
     EXPECT_EQ(5, WriteVarInt32(&writer, std::numeric_limits<i32>::min()));
-    EXPECT_EQ(4, writer.RemainingBytes());
+    EXPECT_EQ(4u, writer.RemainingBytes());
 
     EXPECT_EQ(1, WriteVarInt(&writer, static_cast<ui32>(10)));
-    EXPECT_EQ(3, writer.RemainingBytes());
+    EXPECT_EQ(3u, writer.RemainingBytes());
     EXPECT_EQ(1, WriteVarUint32(&writer, static_cast<ui32>(11)));
-    EXPECT_EQ(2, writer.RemainingBytes());
+    EXPECT_EQ(2u, writer.RemainingBytes());
     EXPECT_EQ(5, WriteVarInt(&writer, std::numeric_limits<ui32>::max()));
-    EXPECT_EQ(4, writer.RemainingBytes());
+    EXPECT_EQ(4u, writer.RemainingBytes());
     EXPECT_EQ(5, WriteVarUint32(&writer, std::numeric_limits<ui32>::max()));
-    EXPECT_EQ(4, writer.RemainingBytes());
+    EXPECT_EQ(4u, writer.RemainingBytes());
 
     EXPECT_EQ(1, WriteVarInt(&writer, static_cast<i64>(-23)));
-    EXPECT_EQ(3, writer.RemainingBytes());
+    EXPECT_EQ(3u, writer.RemainingBytes());
     EXPECT_EQ(1, WriteVarInt64(&writer, static_cast<i64>(-22)));
-    EXPECT_EQ(2, writer.RemainingBytes());
+    EXPECT_EQ(2u, writer.RemainingBytes());
     EXPECT_EQ(10, WriteVarInt(&writer, std::numeric_limits<i64>::min()));
-    EXPECT_EQ(4, writer.RemainingBytes());
+    EXPECT_EQ(4u, writer.RemainingBytes());
     EXPECT_EQ(10, WriteVarInt64(&writer, std::numeric_limits<i64>::min()));
-    EXPECT_EQ(4, writer.RemainingBytes());
+    EXPECT_EQ(4u, writer.RemainingBytes());
 
     EXPECT_EQ(2, WriteVarInt(&writer, static_cast<ui64>(200)));
-    EXPECT_EQ(2, writer.RemainingBytes());
+    EXPECT_EQ(2u, writer.RemainingBytes());
     EXPECT_EQ(2, WriteVarUint64(&writer, static_cast<ui64>(211)));
-    EXPECT_EQ(0, writer.RemainingBytes());
+    EXPECT_EQ(0u, writer.RemainingBytes());
     EXPECT_EQ(10, WriteVarInt(&writer, std::numeric_limits<ui64>::max()));
-    EXPECT_EQ(4, writer.RemainingBytes());
+    EXPECT_EQ(4u, writer.RemainingBytes());
     EXPECT_EQ(10, WriteVarUint64(&writer, std::numeric_limits<ui64>::max()));
-    EXPECT_EQ(4, writer.RemainingBytes());
+    EXPECT_EQ(4u, writer.RemainingBytes());
 
     writer.UndoRemaining();
     stream.Finish();

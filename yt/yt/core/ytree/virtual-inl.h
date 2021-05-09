@@ -98,7 +98,7 @@ public:
     virtual IYPathServicePtr FindItemService(int index) const override
     {
         if (auto collection = Collection_.lock()) {
-            YT_VERIFY(0 <= index && index < collection->size());
+            YT_VERIFY(0 <= index && index < std::ssize(*collection));
             return (*collection)[index] ? (*collection)[index]->GetService() : nullptr;
         }
         return nullptr;

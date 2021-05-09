@@ -46,13 +46,13 @@ TEST(TYTreeTest, TestMultisetAttributes)
 
     SyncYPathMultisetAttributes(node, "/@", attributes1);
 
-    EXPECT_EQ(node->Attributes().ListKeys().size(), 3);
+    EXPECT_EQ(node->Attributes().ListKeys().size(), 3u);
     for (const auto& [attribute, value] : attributes1) {
         EXPECT_EQ(node->Attributes().GetYson(attribute).ToString(), value.ToString());
     }
 
     SyncYPathMultisetAttributes(node, "/@", attributes2);
-    EXPECT_EQ(node->Attributes().ListKeys().size(), 4);
+    EXPECT_EQ(node->Attributes().ListKeys().size(), 4u);
     for (const auto& [attribute, value] : attributes2) {
         EXPECT_EQ(node->Attributes().GetYson(attribute).ToString(), value.ToString());
     }

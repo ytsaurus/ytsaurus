@@ -127,7 +127,7 @@ void TCellBase::Load(TLoadContext& context)
 
 TPeerId TCellBase::FindPeerId(const TString& address) const
 {
-    for (auto peerId = 0; peerId < Peers_.size(); ++peerId) {
+    for (auto peerId = 0; peerId < std::ssize(Peers_); ++peerId) {
         const auto& peer = Peers_[peerId];
         if (peer.Descriptor.GetDefaultAddress() == address) {
             return peerId;
@@ -145,7 +145,7 @@ TPeerId TCellBase::GetPeerId(const TString& address) const
 
 TPeerId TCellBase::FindPeerId(TNode* node) const
 {
-    for (TPeerId peerId = 0; peerId < Peers_.size(); ++peerId) {
+    for (TPeerId peerId = 0; peerId < std::ssize(Peers_); ++peerId) {
         if (Peers_[peerId].Node == node) {
             return peerId;
         }

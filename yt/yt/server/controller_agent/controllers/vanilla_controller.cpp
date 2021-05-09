@@ -231,7 +231,7 @@ public:
         for (const auto& [taskName, taskSpec] : Spec_->Tasks) {
             std::vector<TStreamDescriptor> streamDescriptors;
             int taskIndex = Tasks.size();
-            for (int index = 0; index < TaskOutputTables_[taskIndex].size(); ++index) {
+            for (int index = 0; index < std::ssize(TaskOutputTables_[taskIndex]); ++index) {
                 streamDescriptors.emplace_back(TaskOutputTables_[taskIndex][index]->GetStreamDescriptorTemplate(index));
                 streamDescriptors.back().DestinationPool = GetSink();
                 streamDescriptors.back().TargetDescriptor = TDataFlowGraph::SinkDescriptor;
@@ -393,7 +393,7 @@ private:
 
     void ValidateOperationLimits()
     {
-        if (Spec_->Tasks.size() > Options_->MaxTaskCount) {
+        if (std::ssize(Spec_->Tasks) > Options_->MaxTaskCount) {
             THROW_ERROR_EXCEPTION("Maximum number of tasks exceeded: %v > %v", Spec_->Tasks.size(), Options_->MaxTaskCount);
         }
 

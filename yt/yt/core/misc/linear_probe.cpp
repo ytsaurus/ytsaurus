@@ -67,7 +67,7 @@ bool TLinearProbeHashTable::Insert(ui64 index, TStamp stamp, TValue value)
 
     ui64 wrappedIndex = index % HashTable_.size();
     auto entry = MakeEntry(stamp, value);
-    for (int currentIndex = 0; currentIndex < HashTable_.size(); ++currentIndex) {
+    for (int currentIndex = 0; currentIndex < std::ssize(HashTable_); ++currentIndex) {
         auto tableEntry = HashTable_[wrappedIndex].load(std::memory_order_relaxed);
         auto tableStamp = StampFromEntry(tableEntry);
 
@@ -96,7 +96,7 @@ void TLinearProbeHashTable::Find(ui64 index, TStamp stamp, SmallVectorImpl<TValu
     YT_ASSERT(stamp != 0);
 
     ui64 wrappedIndex = index % HashTable_.size();
-    for (int currentIndex = 0; currentIndex < HashTable_.size(); ++currentIndex) {
+    for (int currentIndex = 0; currentIndex < std::ssize(HashTable_); ++currentIndex) {
         auto tableEntry = HashTable_[wrappedIndex].load(std::memory_order_relaxed);
         auto tableStamp = StampFromEntry(tableEntry);
 

@@ -108,7 +108,7 @@ NTableClient::TTimingStatistics TMultiReaderManagerBase::GetTimingStatistics() c
 
 bool TMultiReaderManagerBase::IsFetchingCompleted() const
 {
-    if (OpenedReaderCount_ == ReaderFactories_.size()) {
+    if (OpenedReaderCount_ == std::ssize(ReaderFactories_)) {
         auto guard = Guard(ActiveReadersLock_);
         for (const auto& reader : ActiveReaders_) {
             if (!reader->IsFetchingCompleted()) {
@@ -129,7 +129,7 @@ void TMultiReaderManagerBase::OpenNextReaders()
 {
     auto guard = Guard(PrefetchLock_);
 
-    if (PrefetchIndex_ >= ReaderFactories_.size()) {
+    if (PrefetchIndex_ >= std::ssize(ReaderFactories_)) {
         return;
     }
 

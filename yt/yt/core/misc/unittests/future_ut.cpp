@@ -877,7 +877,7 @@ TEST_F(TFutureTest, AllCombiner)
     auto resultOrError = f.Get();
     EXPECT_TRUE(resultOrError.IsOK());
     const auto& result = resultOrError.Value();
-    EXPECT_EQ(2, result.size());
+    EXPECT_EQ(2, std::ssize(result));
     EXPECT_EQ(2, result[0]);
     EXPECT_EQ(10, result[1]);
 }
@@ -984,7 +984,7 @@ TEST_F(TFutureTest, AllCombinerRetainError)
     auto resultOrError = f.Get();
     EXPECT_TRUE(resultOrError.IsOK());
     const auto& result = resultOrError.Value();
-    EXPECT_EQ(2, result.size());
+    EXPECT_EQ(2, std::ssize(result));
     EXPECT_TRUE(result[0].IsOK());
     EXPECT_EQ(2, result[0].Value());
     EXPECT_FALSE(result[1].IsOK());
@@ -1146,7 +1146,7 @@ TEST_F(TFutureTest, AnyNCombiner)
     EXPECT_TRUE(resultOrError.IsOK());
     auto result = resultOrError.Value();
     std::sort(result.begin(), result.end());
-    EXPECT_EQ(2, result.size());
+    EXPECT_EQ(2, std::ssize(result));
     EXPECT_EQ(1, result[0]);
     EXPECT_EQ(2, result[1]);
     EXPECT_TRUE(p1.IsCanceled());
@@ -1219,7 +1219,7 @@ TEST_F(TFutureTest, AnyNCombinerRetainError)
     auto resultOrError = f.Get();
     EXPECT_TRUE(resultOrError.IsOK());
     const auto& result = resultOrError.Value();
-    EXPECT_EQ(2, result.size());
+    EXPECT_EQ(2, std::ssize(result));
     EXPECT_TRUE(result[0].IsOK());
     EXPECT_EQ(2, result[0].Value());
     EXPECT_FALSE(result[1].IsOK());

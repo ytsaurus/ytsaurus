@@ -113,9 +113,9 @@ public:
         , EstimatedSize_(estimatedSize)
     {
         if (Config_->EnableAutoRepair) {
-            YT_VERIFY(Readers_.size() == Codec_->GetTotalPartCount());
+            YT_VERIFY(std::ssize(Readers_) == Codec_->GetTotalPartCount());
         } else {
-            YT_VERIFY(Readers_.size() == Codec_->GetDataPartCount());
+            YT_VERIFY(std::ssize(Readers_) == Codec_->GetDataPartCount());
         }
     }
 

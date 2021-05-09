@@ -41,7 +41,7 @@ public:
 protected:
     virtual const TInvokerPtr& DoGetInvoker(int index) const override
     {
-        YT_VERIFY(0 <= index && index < Invokers_.size());
+        YT_VERIFY(0 <= index && index < std::ssize(Invokers_));
         return Invokers_[index];
     }
 

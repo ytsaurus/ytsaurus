@@ -551,13 +551,13 @@ TTableSchemaPtr TTableSchema::Filter(const TColumnFilter& columnFilter, bool dis
     } else {
         bool inKeyColumns = !discardSortOrder;
         for (int id : columnFilter.GetIndexes()) {
-            if (id < 0 || id >= Columns_.size()) {
+            if (id < 0 || id >= std::ssize(Columns_)) {
                 THROW_ERROR_EXCEPTION("Invalid column during schema filtering: excepted in range [0, %v), got %v",
                     Columns_.size(),
                     id);
             }
 
-            if (id != columns.size() || !Columns_[id].SortOrder()) {
+            if (id != std::ssize(columns) || !Columns_[id].SortOrder()) {
                 inKeyColumns = false;
             }
 
@@ -874,7 +874,7 @@ TTableSchemaPtr TTableSchema::ToSorted(const TSortColumns& sortColumns) const
 {
     int oldKeyColumnCount = 0;
     auto columns = Columns();
-    for (int index = 0; index < sortColumns.size(); ++index) {
+    for (int index = 0; index < std::ssize(sortColumns); ++index) {
         auto it = std::find_if(
             columns.begin() + index,
             columns.end(),
@@ -1202,7 +1202,7 @@ void FromProto(
             columnSchema.SetSortOrder(ESortOrder::Ascending);
         }
     }
-    for (int columnIndex = protoKeyColumns.names_size(); columnIndex < columns.size(); ++columnIndex) {
+    for (int columnIndex = protoKeyColumns.names_size(); columnIndex < std::ssize(columns); ++columnIndex) {
         auto& columnSchema = columns[columnIndex];
         YT_VERIFY(!columnSchema.SortOrder());
     }
@@ -1474,7 +1474,7 @@ void ValidateDynamicTableConstraints(const TTableSchema& schema)
         THROW_ERROR_EXCEPTION("\"unique_keys\" cannot be \"false\" for a sorted dynamic table");
     }
 
-    if (schema.GetKeyColumnCount() == schema.Columns().size()) {
+    if (schema.GetKeyColumnCount() == std::ssize(schema.Columns())) {
        THROW_ERROR_EXCEPTION("There must be at least one non-key column");
     }
 
@@ -1638,7 +1638,7 @@ THashMap<TString, int> GetLocksMapping(
     THashMap<TString, int> groupToIndex;
     if (fullAtomicity) {
         // Assign lock indexes to data components.
-        for (int index = schema.GetKeyColumnCount(); index < schema.Columns().size(); ++index) {
+        for (int index = schema.GetKeyColumnCount(); index < std::ssize(schema.Columns()); ++index) {
             const auto& columnSchema = schema.Columns()[index];
             int lockIndex = PrimaryLockIndex;
 
@@ -1657,7 +1657,7 @@ THashMap<TString, int> GetLocksMapping(
     } else if (columnIndexToLockIndex) {
         // No locking supported for non-atomic tablets, however we still need the primary
         // lock descriptor to maintain last commit timestamps.
-        for (int index = schema.GetKeyColumnCount(); index < schema.Columns().size(); ++index) {
+        for (int index = schema.GetKeyColumnCount(); index < std::ssize(schema.Columns()); ++index) {
             (*columnIndexToLockIndex)[index] = PrimaryLockIndex;
         }
     }

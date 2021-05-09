@@ -597,7 +597,7 @@ std::vector<TLegacyDataSlicePtr> CombineVersionedChunkSlices(const std::vector<T
 
     std::vector<std::tuple<TKeyBound, int>> boundaries;
     boundaries.reserve(chunkSlices.size() * 2);
-    for (int index = 0; index < chunkSlices.size(); ++index) {
+    for (int index = 0; index < std::ssize(chunkSlices); ++index) {
         if (!comparator.IsRangeEmpty(chunkSlices[index]->LowerLimit().KeyBound, chunkSlices[index]->UpperLimit().KeyBound)) {
             boundaries.emplace_back(chunkSlices[index]->LowerLimit().KeyBound, index);
             boundaries.emplace_back(chunkSlices[index]->UpperLimit().KeyBound, index);
@@ -615,12 +615,12 @@ std::vector<TLegacyDataSlicePtr> CombineVersionedChunkSlices(const std::vector<T
     THashSet<int> currentChunks;
 
     int index = 0;
-    while (index < boundaries.size()) {
+    while (index < std::ssize(boundaries)) {
         const auto& boundary = boundaries[index];
         auto currentKeyBound = std::get<0>(boundary);
         auto currentKeyBoundToLower = currentKeyBound.LowerCounterpart();
 
-        while (index < boundaries.size()) {
+        while (index < std::ssize(boundaries)) {
             const auto& boundary = boundaries[index];
             auto keyBound = std::get<0>(boundary);
             int chunkIndex = std::get<1>(boundary);
@@ -644,7 +644,7 @@ std::vector<TLegacyDataSlicePtr> CombineVersionedChunkSlices(const std::vector<T
                 chunks.push_back(chunkSlices[chunkIndex]);
             }
 
-            auto upper = index == boundaries.size() ? TKeyBound::MakeUniversal(/* isUpper */ true) : std::get<0>(boundaries[index]);
+            auto upper = index == std::ssize(boundaries) ? TKeyBound::MakeUniversal(/* isUpper */ true) : std::get<0>(boundaries[index]);
             upper = upper.UpperCounterpart();
 
             auto slice = CreateInputDataSlice(

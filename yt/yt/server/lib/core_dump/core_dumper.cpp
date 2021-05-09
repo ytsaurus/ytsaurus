@@ -113,7 +113,7 @@ public:
 
             // Replace all occurrences of variables with their values.
             for (const auto& [variable, value] : variables) {
-                for (int position = 0; (position = corePath.find(variable, position)) != TString::npos; ) {
+                for (size_t position = 0; (position = corePath.find(variable, position)) != TString::npos; ) {
                     corePath.replace(position, variable.length(), value);
                 }
             }

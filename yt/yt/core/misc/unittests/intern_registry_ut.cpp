@@ -19,7 +19,7 @@ TEST(TInternRegistry, TestEmptyRegistry)
 TEST(TInternRegistry, TestEmptyInstance)
 {
     TInternedString s;
-    EXPECT_EQ(0, s->length());
+    EXPECT_EQ(0u, s->length());
 }
 
 TEST(TInternRegistry, Simple)

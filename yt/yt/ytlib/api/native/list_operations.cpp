@@ -730,7 +730,7 @@ void TListOperationsFilter::OnBriefProgressFinished()
     }
 
     auto operationsToRetain = static_cast<i64>(Options_.Limit) + 1;
-    if (filtered.size() > operationsToRetain) {
+    if (std::ssize(filtered) > operationsToRetain) {
         // Leave only |operationsToRetain| operations:
         // either oldest (|cursor_direction == "future"|) or newest (|cursor_direction == "past"|).
         std::nth_element(

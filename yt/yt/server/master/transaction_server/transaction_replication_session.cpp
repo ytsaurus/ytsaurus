@@ -341,7 +341,7 @@ TFuture<THashMap<TTransactionId, TFuture<void>>> TTransactionReplicationSessionW
 
                 THashMap<TTransactionId, TFuture<void>> result;
 
-                for (auto i = 0; i < responsesOrErrors.size(); ++i) {
+                for (auto i = 0; i < std::ssize(responsesOrErrors); ++i) {
                     const auto& rspOrError = responsesOrErrors[i];
                     const auto cellTag = ReplicationRequestCellTags_[i];
 
@@ -498,12 +498,12 @@ TFuture<TMutationResponse> TTransactionReplicationSessionWithBoomerangs::InvokeR
     auto asyncResults = DoInvokeReplicationRequests();
     YT_VERIFY(!asyncResults.empty());
     // NB: this loop is just for logging.
-    for (auto requestIndex = 0; requestIndex < asyncResults.size(); ++requestIndex) {
+    for (auto requestIndex = 0; requestIndex < std::ssize(asyncResults); ++requestIndex) {
         auto& future = asyncResults[requestIndex];
         future.Subscribe(BIND([requestIndex, this, this_ = MakeStrong(this)] (const TErrorOr<TRspReplicateTransactionsPtr>& rspOrError)
         {
             if (!rspOrError.IsOK()) {
-                YT_VERIFY(requestIndex < ReplicationRequestCellTags_.size());
+                YT_VERIFY(requestIndex < std::ssize(ReplicationRequestCellTags_));
                 auto cellTag = ReplicationRequestCellTags_[requestIndex];
 
                 for (auto transactionId : RemoteTransactionIds_) {

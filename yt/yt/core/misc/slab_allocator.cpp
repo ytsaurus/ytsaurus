@@ -93,7 +93,7 @@ public:
             ++segmentCount;
         }
 
-        YT_VERIFY(segmentCount == SegmentCount_.load());
+        YT_VERIFY(static_cast<ssize_t>(segmentCount) == SegmentCount_.load());
 
         size_t totalSize = segmentCount * (sizeof(TFreeListItem) + ObjectSize_ * ObjectCount_);
 
@@ -114,7 +114,7 @@ public:
     {
         auto refCount = GetRefCounter(this)->GetRefCount();
         auto segmentCount = SegmentCount_.load();
-        return segmentCount > 0 && refCount * 2 < segmentCount * ObjectCount_;
+        return segmentCount > 0 && refCount * 2 < static_cast<ssize_t>(segmentCount * ObjectCount_);
     }
 
     IMemoryUsageTrackerPtr GetMemoryTracker() const

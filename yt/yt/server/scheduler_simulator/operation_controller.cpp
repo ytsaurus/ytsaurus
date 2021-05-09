@@ -336,7 +336,7 @@ void TSimulatorOperationController::OnBucketActivated(TJobBucket* activatedBucke
 // Lock_ must be acquired.
 void TSimulatorOperationController::OnBucketCompleted(TJobBucket* deactivatedBucket)
 {
-    for (int i = 0; i < ActiveBuckets_.size(); ++i) {
+    for (int i = 0; i < std::ssize(ActiveBuckets_); ++i) {
         if (ActiveBuckets_[i] == deactivatedBucket) {
             std::swap(ActiveBuckets_[i], ActiveBuckets_.back());
             ActiveBuckets_.pop_back();

@@ -61,7 +61,7 @@ private:
         names.reserve(std::min<size_t>(securityManager->Accounts().size(), sizeLimit));
 
         for (auto [accountId, account] : securityManager->Accounts()) {
-            if (names.size() >= sizeLimit) {
+            if (std::ssize(names) >= sizeLimit) {
                 break;
             }
             if (!account->GetParent() && account != securityManager->GetRootAccount() && IsObjectAlive(account)) {

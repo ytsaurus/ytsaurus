@@ -144,7 +144,7 @@ void TNodeDiscoveryManager::UpdateNodeList()
         }
     }
 
-    while (selectedNodeSet.size() > Config_->PeerCount) {
+    while (std::ssize(selectedNodeSet) > Config_->PeerCount) {
         auto it = selectedNodeSet.begin();
         --nodeCountPerRack[(*it)->GetRack()];
         selectedNodeSet.erase(it);

@@ -110,14 +110,14 @@ void TChunkMetaFetcher::OnResponse(
 
     std::vector<int> throttledChunkIndexes;
 
-    for (int index = 0; index < requestedChunkIndexes.size(); ++index) {
+    for (int index = 0; index < std::ssize(requestedChunkIndexes); ++index) {
         int chunkIndex = requestedChunkIndexes[index];
         auto& rsp = responses[index];
         if (rsp->net_throttling()) {
             throttledChunkIndexes.push_back(chunkIndex);
             continue;
         }
-        YT_VERIFY(chunkIndex < ChunkMetas_.size());
+        YT_VERIFY(chunkIndex < std::ssize(ChunkMetas_));
         ChunkMetas_[chunkIndex] = New<TRefCountedChunkMeta>(std::move(rsp->chunk_meta()));
     }
 

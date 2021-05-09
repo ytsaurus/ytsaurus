@@ -149,7 +149,7 @@ TEST_F(TWriterForWebJson, Simple)
             "]"
         "}";
 
-    EXPECT_EQ(expectedOutput.length(), Writer_->GetWrittenSize());
+    EXPECT_EQ(std::ssize(expectedOutput), Writer_->GetWrittenSize());
     EXPECT_EQ(expectedOutput, OutputStream_.Str());
 }
 
@@ -207,7 +207,7 @@ TEST_F(TWriterForWebJson, SliceColumnsByMaxCount)
             "]"
         "}";
 
-    EXPECT_EQ(expectedOutput.length(), Writer_->GetWrittenSize());
+    EXPECT_EQ(std::ssize(expectedOutput), Writer_->GetWrittenSize());
     EXPECT_EQ(expectedOutput, OutputStream_.Str());
 }
 
@@ -279,7 +279,7 @@ TEST_F(TWriterForWebJson, SliceStrings)
             "]"
         "}";
 
-    EXPECT_EQ(expectedOutput.length(), Writer_->GetWrittenSize());
+    EXPECT_EQ(std::ssize(expectedOutput), Writer_->GetWrittenSize());
     EXPECT_EQ(expectedOutput, OutputStream_.Str());
 }
 
@@ -352,7 +352,7 @@ TEST_F(TWriterForWebJson, ReplaceAnyWithNull)
             "]"
         "}";
 
-    EXPECT_EQ(expectedOutput.length(), Writer_->GetWrittenSize());
+    EXPECT_EQ(std::ssize(expectedOutput), Writer_->GetWrittenSize());
     EXPECT_EQ(expectedOutput, OutputStream_.Str());
 }
 
@@ -399,7 +399,7 @@ TEST_F(TWriterForWebJson, SkipSystemColumns)
             "]"
         "}";
 
-    EXPECT_EQ(expectedOutput.length(), Writer_->GetWrittenSize());
+    EXPECT_EQ(std::ssize(expectedOutput), Writer_->GetWrittenSize());
     EXPECT_EQ(expectedOutput, OutputStream_.Str());
 }
 
@@ -442,7 +442,7 @@ TEST_F(TWriterForWebJson, SkipUnregisteredColumns)
             "]"
         "}";
 
-    EXPECT_EQ(expectedOutput.length(), Writer_->GetWrittenSize());
+    EXPECT_EQ(std::ssize(expectedOutput), Writer_->GetWrittenSize());
     EXPECT_EQ(expectedOutput, OutputStream_.Str());
 }
 
@@ -498,7 +498,7 @@ TEST_F(TWriterForWebJson, SliceColumnsByName)
             "]"
         "}";
 
-    EXPECT_EQ(expectedOutput.length(), Writer_->GetWrittenSize());
+    EXPECT_EQ(std::ssize(expectedOutput), Writer_->GetWrittenSize());
     EXPECT_EQ(expectedOutput, OutputStream_.Str());
 }
 

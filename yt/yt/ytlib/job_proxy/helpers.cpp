@@ -97,14 +97,14 @@ IPartitionerPtr CreatePartitioner(const TPartitionJobSpecExt& partitionJobSpecEx
     if (partitionJobSpecExt.has_wire_partition_lower_bound_prefixes()) {
         TKeySetReader keySetReader(TSharedRef::FromString(partitionJobSpecExt.wire_partition_lower_bound_prefixes()));
         auto keys = keySetReader.GetKeys();
-        YT_VERIFY(keys.size() == partitionJobSpecExt.partition_lower_bound_inclusivenesses_size());
+        YT_VERIFY(std::ssize(keys) == partitionJobSpecExt.partition_lower_bound_inclusivenesses_size());
 
         std::vector<TOwningKeyBound> partitionLowerBounds;
         partitionLowerBounds.reserve(keys.size() + 1);
 
         partitionLowerBounds.push_back(TOwningKeyBound::MakeUniversal(/* isUpper */ false));
 
-        for (int index = 0; index < keys.size(); ++index) {
+        for (int index = 0; index < std::ssize(keys); ++index) {
             TUnversionedOwningRow owningKey(keys[index]);
             bool isInclusive = partitionJobSpecExt.partition_lower_bound_inclusivenesses(index);
             partitionLowerBounds.push_back(TOwningKeyBound::FromRow(owningKey, /* isInclusive */ isInclusive, /* isUpper */ false));

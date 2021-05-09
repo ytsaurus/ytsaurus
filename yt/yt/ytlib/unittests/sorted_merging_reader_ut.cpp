@@ -198,12 +198,12 @@ public:
     virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         Rows_.clear();
-        if (Interrupted_ || RowIndex_ >= TableRows_.size()) {
+        if (Interrupted_ || RowIndex_ >= std::ssize(TableRows_)) {
             return nullptr;
         }
         std::vector<TUnversionedRow> rows;
         rows.reserve(options.MaxRowsPerRead);
-        while (rows.size() < options.MaxRowsPerRead && RowIndex_ < TableRows_.size()) {
+        while (std::ssize(rows) < options.MaxRowsPerRead && RowIndex_ < std::ssize(TableRows_)) {
             auto row = TableRows_[RowIndex_];
             Rows_.push_back(row);
             rows.push_back(row);
@@ -225,7 +225,7 @@ public:
     virtual TInterruptDescriptor GetInterruptDescriptor(TRange<TUnversionedRow> unreadRows) const override
     {
         std::vector<TUnversionedRow> rows(unreadRows.begin(), unreadRows.end());
-        for (int rowIndex = RowIndex_; rowIndex < TableRows_.size(); ++rowIndex) {
+        for (int rowIndex = RowIndex_; rowIndex < std::ssize(TableRows_); ++rowIndex) {
             rows.push_back(TableRows_[rowIndex]);
         }
         ResultStorage_->OnUnreadRows(rows);
@@ -616,7 +616,7 @@ TEST_F(TSortedMergingReaderTest, SortedMergingReaderStressTest)
         int expectedReadRowCount = interruptIndex;
 
         if (interruptAtKeyEdge) {
-            while (expectedReadRowCount < expected.size() &&
+            while (expectedReadRowCount < std::ssize(expected) &&
                 reduceComparator.CompareKeys(
                     TKey::FromRow(expected[expectedReadRowCount], ReduceColumnCount),
                     interruptKey) == 0)
@@ -626,7 +626,7 @@ TEST_F(TSortedMergingReaderTest, SortedMergingReaderStressTest)
         }
 
         std::vector<TUnversionedOwningRow> rowsRead;
-        while (rowsRead.size() < interruptIndex) {
+        while (std::ssize(rowsRead) < interruptIndex) {
             int rowsLeft = interruptIndex - rowsRead.size();
             int maxRowsPerRead = rng() % std::min(rowsLeft + 1, MaxRowsPerRead + 1);
             TRowBatchReadOptions options{
@@ -647,7 +647,7 @@ TEST_F(TSortedMergingReaderTest, SortedMergingReaderStressTest)
             }
         }
 
-        EXPECT_EQ(rowsRead.size(), interruptIndex);
+        EXPECT_EQ(std::ssize(rowsRead), interruptIndex);
         reader->Interrupt();
 
         while (true) {
@@ -680,7 +680,7 @@ TEST_F(TSortedMergingReaderTest, SortedMergingReaderStressTest)
         reader->GetInterruptDescriptor(NYT::TRange<TUnversionedRow>());
 
         std::vector<std::vector<TUnversionedOwningRow>> expectedUnreadRows(TableCount);
-        for (int rowIndex = expectedReadRowCount; rowIndex < expected.size(); ++rowIndex) {
+        for (int rowIndex = expectedReadRowCount; rowIndex < std::ssize(expected); ++rowIndex) {
             const auto& row = expected[rowIndex];
             int tableIndex;
             FromUnversionedValue(&tableIndex, row[row.GetCount() - 1]);
@@ -1710,7 +1710,7 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderStressTest)
         };
 
         THashSet<TKey> readPrimaryJoinKeys;
-        for (int rowIndex = 0; rowIndex < allRows.size(); ++rowIndex) {
+        for (int rowIndex = 0; rowIndex < std::ssize(allRows); ++rowIndex) {
             const auto& row = allRows[rowIndex];
             if (isPrimaryRow(row) && readPrimaryRow(rowIndex)) {
                 auto joinKey = TKey::FromRow(row, joinComparator.GetLength());
@@ -1719,7 +1719,7 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderStressTest)
         }
 
         std::vector<TUnversionedOwningRow> expectedReadRows;
-        for (int rowIndex = 0; rowIndex < allRows.size(); ++rowIndex) {
+        for (int rowIndex = 0; rowIndex < std::ssize(allRows); ++rowIndex) {
             const auto& row = allRows[rowIndex];
             if (isPrimaryRow(row)) {
                 if (readPrimaryRow(rowIndex)) {
@@ -1737,7 +1737,7 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderStressTest)
         }
 
         std::vector<TUnversionedOwningRow> rowsRead;
-        while (rowsRead.size() < interruptIndex) {
+        while (std::ssize(rowsRead) < interruptIndex) {
             int rowsLeft = interruptIndex - rowsRead.size();
             int maxRowsPerRead = rng() % std::min(rowsLeft + 1, MaxRowsPerRead + 1);
             TRowBatchReadOptions options{
@@ -1758,7 +1758,7 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderStressTest)
             }
         }
 
-        EXPECT_EQ(rowsRead.size(), interruptIndex);
+        EXPECT_EQ(std::ssize(rowsRead), interruptIndex);
         reader->Interrupt();
 
         while (true) {
@@ -1789,7 +1789,7 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderStressTest)
         reader->GetInterruptDescriptor(NYT::TRange<TUnversionedRow>());
 
         std::vector<std::vector<TUnversionedOwningRow>> expectedUnreadRows(TableCount);
-        for (int rowIndex = 0; rowIndex < allRows.size(); ++rowIndex) {
+        for (int rowIndex = 0; rowIndex < std::ssize(allRows); ++rowIndex) {
             const auto& row = allRows[rowIndex];
             if (isPrimaryRow(row) && !readPrimaryRow(rowIndex)) {
                 expectedUnreadRows[getTableIndex(row)].push_back(row);

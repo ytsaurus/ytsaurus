@@ -83,9 +83,9 @@ typedef TIntrusivePtr<TTestConfig> TTestConfigPtr;
 void TestCompleteSubconfig(TTestSubconfig* subconfig)
 {
     EXPECT_EQ(99, subconfig->MyInt);
-    EXPECT_EQ(101, subconfig->MyUint);
+    EXPECT_EQ(101u, subconfig->MyUint);
     EXPECT_TRUE(subconfig->MyBool);
-    EXPECT_EQ(3, subconfig->MyStringList.size());
+    EXPECT_EQ(3u, subconfig->MyStringList.size());
     EXPECT_EQ("ListItem0", subconfig->MyStringList[0]);
     EXPECT_EQ("ListItem1", subconfig->MyStringList[1]);
     EXPECT_EQ("ListItem2", subconfig->MyStringList[2]);
@@ -163,10 +163,10 @@ TEST(TYsonSerializableTest, Complete)
 
     EXPECT_EQ("TestString", config->MyString);
     TestCompleteSubconfig(config->Subconfig.Get());
-    EXPECT_EQ(2, config->SubconfigList.size());
+    EXPECT_EQ(2u, config->SubconfigList.size());
     TestCompleteSubconfig(config->SubconfigList[0].Get());
     TestCompleteSubconfig(config->SubconfigList[1].Get());
-    EXPECT_EQ(2, config->SubconfigMap.size());
+    EXPECT_EQ(2u, config->SubconfigMap.size());
     auto it1 = config->SubconfigMap.find("sub1");
     EXPECT_FALSE(it1 == config->SubconfigMap.end());
     TestCompleteSubconfig(it1->second.Get());
@@ -191,10 +191,10 @@ TEST(TYsonSerializableTest, MissingParameter)
     EXPECT_EQ("TestString", config->MyString);
     EXPECT_EQ(200, config->Subconfig->MyInt);
     EXPECT_TRUE(config->Subconfig->MyBool);
-    EXPECT_EQ(0, config->Subconfig->MyStringList.size());
+    EXPECT_EQ(0u, config->Subconfig->MyStringList.size());
     EXPECT_EQ(ETestEnum::Value1, config->Subconfig->MyEnum);
-    EXPECT_EQ(0, config->SubconfigList.size());
-    EXPECT_EQ(0, config->SubconfigMap.size());
+    EXPECT_EQ(0u, config->SubconfigList.size());
+    EXPECT_EQ(0u, config->SubconfigMap.size());
 }
 
 TEST(TYsonSerializableTest, MissingSubconfig)
@@ -210,10 +210,10 @@ TEST(TYsonSerializableTest, MissingSubconfig)
     EXPECT_EQ("TestString", config->MyString);
     EXPECT_EQ(200, config->Subconfig->MyInt);
     EXPECT_FALSE(config->Subconfig->MyBool);
-    EXPECT_EQ(0, config->Subconfig->MyStringList.size());
+    EXPECT_EQ(0u, config->Subconfig->MyStringList.size());
     EXPECT_EQ(ETestEnum::Value1, config->Subconfig->MyEnum);
-    EXPECT_EQ(0, config->SubconfigList.size());
-    EXPECT_EQ(0, config->SubconfigMap.size());
+    EXPECT_EQ(0u, config->SubconfigList.size());
+    EXPECT_EQ(0u, config->SubconfigMap.size());
 }
 
 TEST(TYsonSerializableTest, UnrecognizedSimple)
@@ -450,7 +450,7 @@ TEST(TYsonSerializableTest, ResetSingleParameter)
 
     config->ResetParameter("my_int");
     EXPECT_EQ(100, config->MyInt);  // Default value.
-    EXPECT_EQ(10, config->MyUint);
+    EXPECT_EQ(10u, config->MyUint);
 }
 
 TEST(TYsonSerializableTest, Save)

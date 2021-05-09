@@ -196,7 +196,7 @@ private:
             }
 
             if (!CurrentChunkReader_) {
-                if (++CurrentChunkIndex_ >= ChunkSpecs_.size()) {
+                if (++CurrentChunkIndex_ >= std::ssize(ChunkSpecs_)) {
                     Finished_ = true;
                     return std::vector<TSharedRef>();
                 }

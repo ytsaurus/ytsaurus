@@ -286,7 +286,7 @@ private:
             keyBoundPrefixes = keyBoundsReader->GetKeys();
         }
 
-        for (int i = 0; i < requestedChunkIndexes.size(); ++i) {
+        for (int i = 0; i < std::ssize(requestedChunkIndexes); ++i) {
             int index = requestedChunkIndexes[i];
             const auto& chunk = Chunks_[index];
             const auto& sliceRequest = ChunkToChunkSliceRequest_[chunk];
@@ -308,7 +308,7 @@ private:
                 sliceResponse.chunk_slices_size(),
                 index);
 
-            YT_VERIFY(index < SlicesByChunkIndex_.size());
+            YT_VERIFY(index < std::ssize(SlicesByChunkIndex_));
 
             const auto& originalChunkSlice = sliceRequest.DataSlice->ChunkSlices[0];
 
@@ -350,7 +350,7 @@ private:
 
     void AddTrivialSlice(int chunkIndex)
     {
-        YT_VERIFY(chunkIndex < SlicesByChunkIndex_.size());
+        YT_VERIFY(chunkIndex < std::ssize(SlicesByChunkIndex_));
         const auto& chunk = Chunks_[chunkIndex];
         const auto& sliceRequest = GetOrCrash(ChunkToChunkSliceRequest_, chunk);
         auto chunkSlice = sliceRequest.DataSlice->ChunkSlices[0];

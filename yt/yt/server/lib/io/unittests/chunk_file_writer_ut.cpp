@@ -69,7 +69,7 @@ protected:
         return std::make_unique<TFile>(writer->GetFileName() + NFS::TempFileSuffix, RdOnly);
     }
 
-    TBlock MakeRandomBlock(size_t size)
+    TBlock MakeRandomBlock(ssize_t size)
     {
         auto data = TSharedMutableRef::Allocate(size, false);
         for (int i = 0; i < size; ++i) {
@@ -200,7 +200,7 @@ TEST_P(TChunkFileWriterTest, Specific)
         WriteBlock(writer, block);
 
         tmpFile->Seek(0, sSet);
-        for (int j = 0; j < blocks.size(); ++j) {
+        for (int j = 0; j < std::ssize(blocks); ++j) {
             CheckBlock(*tmpFile, blocks[j]);
         }
     }
@@ -227,7 +227,7 @@ TEST_P(TChunkFileWriterTest, Random)
         WriteBlock(writer, block);
 
         tmpFile->Seek(0, sSet);
-        for (int j = 0; j < blocks.size(); ++j) {
+        for (int j = 0; j < std::ssize(blocks); ++j) {
             CheckBlock(*tmpFile, blocks[j]);
         }
     }

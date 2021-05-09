@@ -48,7 +48,7 @@ bool TConjunctiveClause::IsSatisfiedByImpl(const TContainer& value) const
             ++includeCount;
         }
     }
-    return includeCount == Include_.size();
+    return includeCount == std::ssize(Include_);
 }
 
 bool TConjunctiveClause::IsSatisfiedBy(const std::vector<TString>& value) const

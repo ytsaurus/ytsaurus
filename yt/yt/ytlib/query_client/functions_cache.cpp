@@ -186,7 +186,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
     auto basicAttributesRspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_basic_attributes");
 
     THashMap<NObjectClient::TCellTag, std::vector<std::pair<NObjectClient::TObjectId, size_t>>> externalCellTagToInfo;
-    for (int index = 0; index < functionNames.size(); ++index) {
+    for (int index = 0; index < std::ssize(functionNames); ++index) {
         const auto& function = functionNames[index];
         auto path = GetUdfDescriptorPath(function.first, function.second);
 
@@ -483,7 +483,7 @@ bool TFunctionImplKey::operator == (const TFunctionImplKey& other) const
     if (ChunkSpecs.size() != other.ChunkSpecs.size())
         return false;
 
-    for (int index = 0; index < ChunkSpecs.size(); ++index) {
+    for (int index = 0; index < std::ssize(ChunkSpecs); ++index) {
         const auto& lhs = ChunkSpecs[index];
         const auto& rhs = other.ChunkSpecs[index];
 

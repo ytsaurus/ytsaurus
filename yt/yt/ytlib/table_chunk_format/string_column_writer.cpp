@@ -157,7 +157,7 @@ protected:
                 ui32 id = GetOrCrash(Dictionary_, value);
                 ids.push_back(id);
 
-                if (id > dictionarySize) {
+                if (static_cast<int>(id) > dictionarySize) {
                     std::memcpy(
                         dictionaryData.Begin() + dictionaryOffset,
                         value.data(),

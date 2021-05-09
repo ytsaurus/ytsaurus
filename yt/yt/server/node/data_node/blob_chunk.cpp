@@ -609,7 +609,7 @@ void TBlobChunkBase::OnBlocksRead(
     auto readTime = session->ReadTimer->GetElapsedTime();
 
     const auto& blocks = blocksOrError.Value();
-    YT_VERIFY(blocks.size() == blocksToRead);
+    YT_VERIFY(std::ssize(blocks) == blocksToRead);
 
     i64 bytesRead = 0;
     for (const auto& block : blocks) {

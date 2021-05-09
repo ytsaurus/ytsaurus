@@ -155,7 +155,7 @@ public:
         i64 dataWeight = 0;
 
         while (ReadRowCount_ < sortedRowCount &&
-            rows.size() < options.MaxRowsPerRead &&
+            std::ssize(rows) < options.MaxRowsPerRead &&
             dataWeight < options.MaxDataWeightPerRead)
         {
             auto sortedIndex = SortedIndexes_[ReadRowCount_];

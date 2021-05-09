@@ -47,7 +47,7 @@ void TComparator::ValidateKey(const TKey& key) const
 void TComparator::ValidateKeyBound(const TKeyBound& keyBound) const
 {
     YT_LOG_FATAL_IF(
-        keyBound.Prefix.GetCount() > GetLength(),
+        static_cast<int>(keyBound.Prefix.GetCount()) > GetLength(),
         "Comparator is used with longer key bound (KeyBound: %v, Comparator: %v)",
         keyBound,
         *this);
@@ -154,7 +154,7 @@ bool TComparator::TestKey(const TKey& key, const TKeyBound& keyBound) const
 
     int comparisonResult = 0;
 
-    for (int index = 0; index < keyBound.Prefix.GetCount(); ++index) {
+    for (int index = 0; index < static_cast<int>(keyBound.Prefix.GetCount()); ++index) {
         const auto& keyValue = key[index];
         const auto& keyBoundValue = keyBound.Prefix[index];
         comparisonResult = CompareValues(index, keyValue, keyBoundValue);
@@ -186,7 +186,9 @@ int TComparator::CompareKeyBounds(const TKeyBound& lhs, const TKeyBound& rhs, in
     const TKeyBound* shorter = nullptr;
 
     for (int index = 0; ; ++index) {
-        if (index >= lhs.Prefix.GetCount() && index >= rhs.Prefix.GetCount()) {
+        if (index >= static_cast<int>(lhs.Prefix.GetCount()) &&
+            index >= static_cast<int>(rhs.Prefix.GetCount()))
+        {
             // Prefixes coincide. Check if key bounds are indeed at the same point.
             {
                 auto lhsInclusivenessAsUpper = (lhs.IsUpper && lhs.IsInclusive) || (!lhs.IsUpper && !lhs.IsInclusive);
@@ -209,10 +211,10 @@ int TComparator::CompareKeyBounds(const TKeyBound& lhs, const TKeyBound& rhs, in
                 comparisonResult = -comparisonResult;
             }
             return comparisonResult;
-        } else if (index >= lhs.Prefix.GetCount()) {
+        } else if (index >= static_cast<int>(lhs.Prefix.GetCount())) {
             shorter = &lhs;
             break;
-        } else if (index >= rhs.Prefix.GetCount()) {
+        } else if (index >= static_cast<int>(rhs.Prefix.GetCount())) {
             shorter = &rhs;
             break;
         } else {
@@ -264,7 +266,9 @@ std::optional<TKey> TComparator::TryAsSingletonKey(const TKeyBound& lowerBound, 
     YT_VERIFY(!lowerBound.IsUpper);
     YT_VERIFY(upperBound.IsUpper);
 
-    if (lowerBound.Prefix.GetCount() != GetLength() || upperBound.Prefix.GetCount() != GetLength()) {
+    if (static_cast<int>(lowerBound.Prefix.GetCount()) != GetLength() ||
+        static_cast<int>(upperBound.Prefix.GetCount()) != GetLength())
+    {
         return std::nullopt;
     }
 
@@ -272,7 +276,7 @@ std::optional<TKey> TComparator::TryAsSingletonKey(const TKeyBound& lowerBound, 
         return std::nullopt;
     }
 
-    for (int index = 0; index < lowerBound.Prefix.GetCount(); ++index) {
+    for (int index = 0; index < static_cast<int>(lowerBound.Prefix.GetCount()); ++index) {
         if (CompareValues(index, lowerBound.Prefix[index], upperBound.Prefix[index]) != 0) {
             return std::nullopt;
         }
@@ -283,7 +287,7 @@ std::optional<TKey> TComparator::TryAsSingletonKey(const TKeyBound& lowerBound, 
 
 TComparator TComparator::Trim(int keyColumnCount) const
 {
-    YT_VERIFY(keyColumnCount <= SortOrders_.size());
+    YT_VERIFY(keyColumnCount <= std::ssize(SortOrders_));
 
     auto sortOrders = SortOrders_;
     sortOrders.resize(keyColumnCount);

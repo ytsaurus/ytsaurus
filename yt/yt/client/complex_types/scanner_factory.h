@@ -173,7 +173,7 @@ public:
                     descriptor.GetDescription(),
                     tag);
             }
-            if (tag >= alternatives.size()) {
+            if (tag >= std::ssize(alternatives)) {
                 THROW_ERROR_EXCEPTION(
                     "Error while parsing %Qv: variant tag (%v) exceeds variant alternative count (%v)",
                     descriptor.GetDescription(),

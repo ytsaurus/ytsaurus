@@ -64,18 +64,18 @@ public:
         std::vector<TBlock> resultBlocks;
 
         int index = 0;
-        while (index < blockIndexes.size() && index < CachedBlocks_.size()) {
+        while (index < std::ssize(blockIndexes) && index < std::ssize(CachedBlocks_)) {
             resultBlocks.push_back(CachedBlocks_[index].second);
             ++index;
         }
 
-        YT_VERIFY(index == CachedBlocks_.size());
+        YT_VERIFY(index == std::ssize(CachedBlocks_));
 
-        if (index < blockIndexes.size()) {
+        if (index < std::ssize(blockIndexes)) {
             auto blockIndexesToRequest = std::vector<int>(blockIndexes.begin() + index, blockIndexes.end());
             auto blocksFuture = UnderlyingReader_->ReadBlocks(ChunkReadOptions_, blockIndexesToRequest);
             return blocksFuture.Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<TBlock>& blocks) mutable {
-                for (int index = 0; index < blockIndexesToRequest.size(); ++index) {
+                for (int index = 0; index < std::ssize(blockIndexesToRequest); ++index) {
                     auto blockIndex = blockIndexesToRequest[index];
                     auto block = blocks[index];
                     auto it = BlockIndexToBlocksToSaveIndex_.find(blockIndex);
@@ -97,7 +97,7 @@ public:
         std::vector<int> indexesToRead;
         THashMap<int, int> blockIndexToSavedBlocksIndex;
         int counter = 0;
-        for (int index = 0; index < BlocksToSave_.size(); ++index) {
+        for (int index = 0; index < std::ssize(BlocksToSave_); ++index) {
             if (!SavedBlocks_[index]) {
                 indexesToRead.push_back(BlocksToSave_[index]);
                 blockIndexToSavedBlocksIndex[counter++] = index;
@@ -105,7 +105,7 @@ public:
         }
         auto blocksFuture = UnderlyingReader_->ReadBlocks(ChunkReadOptions_, indexesToRead);
         return blocksFuture.Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<TBlock>& blocks) mutable {
-            for (int index = 0; index < blocks.size(); ++index) {
+            for (int index = 0; index < std::ssize(blocks); ++index) {
                 int savedBlocksIndex = GetOrCrash(blockIndexToSavedBlocksIndex, index);
                 SavedBlocks_[savedBlocksIndex] = blocks[index];
             }
@@ -203,7 +203,7 @@ private:
 
         // Prepare erasure part readers.
         std::vector<IPartBlockProducerPtr> blockProducers;
-        for (int index = 0; index < Readers_.size(); ++index) {
+        for (int index = 0; index < std::ssize(Readers_); ++index) {
             auto monotonicReader = New<TSequentialCachingBlocksReader>(
                 Readers_[index],
                 ChunkReadOptions_);
@@ -215,7 +215,7 @@ private:
         // Prepare erasure part writers.
         std::vector<TPartWriterPtr> writerConsumers;
         std::vector<IPartBlockConsumerPtr> blockConsumers;
-        for (int index = 0; index < Writers_.size(); ++index) {
+        for (int index = 0; index < std::ssize(Writers_); ++index) {
             writerConsumers.push_back(New<TPartWriter>(
                 Writers_[index],
                 ErasedPartBlockRanges_[index],
@@ -246,7 +246,7 @@ private:
         if (placementExt.part_checksums_size() != 0) {
             YT_VERIFY(placementExt.part_checksums_size() == Codec_->GetTotalPartCount());
 
-            for (int index = 0; index < Writers_.size(); ++index) {
+            for (int index = 0; index < std::ssize(Writers_); ++index) {
                 TChecksum repairedPartChecksum = writerConsumers[index]->GetPartChecksum();
                 TChecksum expectedPartChecksum = placementExt.part_checksums(ErasedIndices_[index]);
 
@@ -276,7 +276,7 @@ private:
         YT_VERIFY(repairIndices);
         YT_VERIFY(repairIndices->size() == Readers_.size());
 
-        for (int i = 0; i < Readers_.size(); ++i) {
+        for (int i = 0; i < std::ssize(Readers_); ++i) {
             int repairIndex = (*repairIndices)[i];
             auto blockRanges = ParityPartSplitInfo_.GetBlockRanges(repairIndex, placementExt);
             RepairPartBlockRanges_.push_back(blockRanges);
@@ -319,7 +319,7 @@ public:
         : Ranges_(ranges)
         , Blocks_(ranges.size())
     {
-        for (int index = 0; index < Ranges_.size(); ++index) {
+        for (int index = 0; index < std::ssize(Ranges_); ++index) {
             auto size = Ranges_[index].Size();
             Blocks_[index] = TSharedMutableRef::Allocate(size);
             TotalBytes_ += size;
@@ -335,7 +335,7 @@ public:
         YT_VERIFY(!LastRange_ || LastRange_->End <= range.Begin);
         LastRange_ = range;
 
-        for (int index = 0; index < Ranges_.size(); ++index) {
+        for (int index = 0; index < std::ssize(Ranges_); ++index) {
             auto blockRange = Ranges_[index];
             auto intersection = Intersection(blockRange, range);
             if (!intersection) {
@@ -461,7 +461,7 @@ public:
         }
 
         // Build part block producers.
-        for (int index = 0; index < repairIndices.size(); ++index) {
+        for (int index = 0; index < std::ssize(repairIndices); ++index) {
             BlockProducers_.push_back(New<TPartReader>(
                 RepairPartReaders_[index],
                 RepairPartBlockRanges_[index]));
@@ -552,7 +552,7 @@ private:
                 blocks = AllPartReaders_[partReaderIndex++]->GetSavedBlocks();
             }
 
-            for (int index = 0; index < blocksPlacementInPart.IndexesInRequest.size(); ++index) {
+            for (int index = 0; index < std::ssize(blocksPlacementInPart.IndexesInRequest); ++index) {
                 int indexInRequest = blocksPlacementInPart.IndexesInRequest[index];
 
                 if (isRepairedPart && PlacementExt_.block_checksums_size() != 0) {

@@ -337,7 +337,7 @@ public:
 
     virtual INodePtr FindChild(int index) const override
     {
-        return index >= 0 && index < IndexToChild_.size() ? IndexToChild_[index] : nullptr;
+        return index >= 0 && index < std::ssize(IndexToChild_) ? IndexToChild_[index] : nullptr;
     }
 
     virtual void AddChild(const INodePtr& child, int beforeIndex = -1) override
@@ -348,7 +348,7 @@ public:
             YT_VERIFY(ChildToIndex_.emplace(child, static_cast<int>(IndexToChild_.size())).second);
             IndexToChild_.push_back(child);
         } else {
-            YT_VERIFY(beforeIndex <= IndexToChild_.size());
+            YT_VERIFY(beforeIndex <= std::ssize(IndexToChild_));
             for (auto it = IndexToChild_.begin() + beforeIndex; it != IndexToChild_.end(); ++it) {
                 ++ChildToIndex_[*it];
             }
@@ -361,7 +361,7 @@ public:
 
     virtual bool RemoveChild(int index) override
     {
-        if (index < 0 || index >= IndexToChild_.size())
+        if (index < 0 || index >= std::ssize(IndexToChild_))
             return false;
 
         auto child = IndexToChild_[index];

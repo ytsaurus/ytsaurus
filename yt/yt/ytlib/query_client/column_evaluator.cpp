@@ -75,8 +75,8 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
 
 void TColumnEvaluator::EvaluateKey(TMutableRow fullRow, const TRowBufferPtr& buffer, int index) const
 {
-    YT_VERIFY(index < fullRow.GetCount());
-    YT_VERIFY(index < Columns_.size());
+    YT_VERIFY(index < static_cast<int>(fullRow.GetCount()));
+    YT_VERIFY(index < std::ssize(Columns_));
 
     const auto& column = Columns_[index];
     const auto& evaluator = column.Evaluator;
@@ -97,7 +97,7 @@ void TColumnEvaluator::EvaluateKey(TMutableRow fullRow, const TRowBufferPtr& buf
 
 void TColumnEvaluator::EvaluateKeys(TMutableRow fullRow, const TRowBufferPtr& buffer) const
 {
-    for (int index = 0; index < Columns_.size(); ++index) {
+    for (int index = 0; index < std::ssize(Columns_); ++index) {
         if (Columns_[index].Evaluator) {
             EvaluateKey(fullRow, buffer, index);
         }

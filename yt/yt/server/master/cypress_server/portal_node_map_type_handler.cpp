@@ -44,7 +44,7 @@ private:
         result.reserve(std::min<i64>(sizeLimit, Nodes_->size()));
 
         for (auto [id, node] : *Nodes_) {
-            if (result.size() >= sizeLimit) {
+            if (std::ssize(result) >= sizeLimit) {
                 break;
             }
             if (!IsObjectAlive(node)) {

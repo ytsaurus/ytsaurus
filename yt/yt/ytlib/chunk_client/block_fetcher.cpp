@@ -86,9 +86,9 @@ TBlockFetcher::TBlockFetcher(
     // equal to BlockInfos[leftIndex].
     // We also explicitly unique the elements of BlockInfos_.
     std::vector<int> blockIndexes;
-    for (int leftIndex = 0, rightIndex = 0; leftIndex != BlockInfos_.size(); leftIndex = rightIndex) {
+    for (int leftIndex = 0, rightIndex = 0; leftIndex != std::ssize(BlockInfos_); leftIndex = rightIndex) {
         const auto& currentBlock = BlockInfos_[leftIndex];
-        while (rightIndex != BlockInfos_.size() && BlockInfos_[rightIndex].Index == currentBlock.Index) {
+        while (rightIndex != std::ssize(BlockInfos_) && BlockInfos_[rightIndex].Index == currentBlock.Index) {
             ++rightIndex;
         }
 
@@ -215,7 +215,7 @@ void TBlockFetcher::DecompressBlocks(
                 TWallTimer timer;
                 uncompressedBlock = Codec_->Decompress(compressedBlock.Data);
                 DecompressionTime_ += timer.GetElapsedValue();
-                YT_VERIFY(uncompressedBlock.Size() == blockInfo.UncompressedDataSize);
+                YT_VERIFY(std::ssize(uncompressedBlock) == blockInfo.UncompressedDataSize);
             }
 
             YT_LOG_DEBUG("Finished decompressing block (BlockIndex: %v, WindowIndex: %v, CompressedSize: %v, UncompressedSize: %v, Codec: %v)",
@@ -255,7 +255,7 @@ void TBlockFetcher::FetchNextGroup(TErrorOr<TMemoryUsageGuardPtr> memoryUsageGua
     std::vector<int> blockIndexes;
     i64 uncompressedSize = 0;
     i64 availableSlots = memoryUsageGuard->Guard.GetSlots();
-    while (FirstUnfetchedWindowIndex_ < BlockInfos_.size()) {
+    while (FirstUnfetchedWindowIndex_ < std::ssize(BlockInfos_)) {
         const auto& blockInfo = BlockInfos_[FirstUnfetchedWindowIndex_];
         int blockIndex = blockInfo.Index;
         if (windowIndexes.empty() || uncompressedSize + blockInfo.UncompressedDataSize < availableSlots) {
@@ -446,13 +446,13 @@ TSequentialBlockFetcher::TSequentialBlockFetcher(
 
 TFuture<TBlock> TSequentialBlockFetcher::FetchNextBlock()
 {
-    YT_VERIFY(CurrentIndex_ < OriginalOrderBlockInfos_.size());
+    YT_VERIFY(CurrentIndex_ < std::ssize(OriginalOrderBlockInfos_));
     return FetchBlock(OriginalOrderBlockInfos_[CurrentIndex_++].Index);
 }
 
 i64 TSequentialBlockFetcher::GetNextBlockSize() const
 {
-    YT_VERIFY(CurrentIndex_ < OriginalOrderBlockInfos_.size());
+    YT_VERIFY(CurrentIndex_ < std::ssize(OriginalOrderBlockInfos_));
     return OriginalOrderBlockInfos_[CurrentIndex_].UncompressedDataSize;
 }
 

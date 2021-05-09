@@ -760,7 +760,7 @@ void TObjectProxyBase::GuardedValidateCustomAttributeUpdate(
 
 void TObjectProxyBase::ValidateCustomAttributeLength(const TYsonString& value)
 {
-    auto size = value.AsStringBuf().length();
+    auto size = std::ssize(value.AsStringBuf());
     auto limit = GetDynamicCypressManagerConfig()->MaxAttributeSize;
     if (size > limit) {
         THROW_ERROR_EXCEPTION(

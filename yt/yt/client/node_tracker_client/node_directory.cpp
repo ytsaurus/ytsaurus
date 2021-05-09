@@ -313,7 +313,7 @@ bool operator != (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs)
 
 bool operator == (const TNodeDescriptor& lhs, const NProto::TNodeDescriptor& rhs)
 {
-    if (lhs.Addresses().size() != rhs.addresses().entries_size()) {
+    if (std::ssize(lhs.Addresses()) != rhs.addresses().entries_size()) {
         return false;
     }
 

@@ -65,7 +65,7 @@ TString CamelCaseToUnderscoreCase(TStringBuf str)
 
 TString TrimLeadingWhitespaces(const TString& str)
 {
-    for (int i = 0; i < str.size(); ++i) {
+    for (int i = 0; i < std::ssize(str); ++i) {
         if (str[i] != ' ') {
             return str.substr(i);
         }

@@ -17,7 +17,7 @@ void PrepareDiffFromExpected(std::vector<ui32>* values, ui32* expected, ui32* ma
 
     *maxDiff = 0;
     i64 expectedValue = 0;
-    for (int i = 0; i < values->size(); ++i) {
+    for (int i = 0; i < std::ssize(*values); ++i) {
         expectedValue += *expected;
         i32 diff = values->at(i) - expectedValue;
         (*values)[i] = ZigZagEncode32(diff);

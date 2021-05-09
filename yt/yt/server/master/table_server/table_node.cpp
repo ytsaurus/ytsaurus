@@ -256,7 +256,7 @@ ETabletState TTableNode::ComputeActualTabletState() const
     }
     for (auto state : TEnumTraits<ETabletState>::GetDomainValues()) {
         if (trunkNode->TabletCountByState().IsDomainValue(state)) {
-            if (trunkNode->Tablets().size() == trunkNode->TabletCountByState()[state]) {
+            if (std::ssize(trunkNode->Tablets()) == trunkNode->TabletCountByState()[state]) {
                 return state;
             }
         }

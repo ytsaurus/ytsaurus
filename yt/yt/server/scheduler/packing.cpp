@@ -62,7 +62,7 @@ void TPackingStatistics::RecordHeartbeat(
     auto guard = Guard(Lock_);
 
     WindowOfHeartbeats_.push_front(heartbeatSnapshot);
-    if (WindowOfHeartbeats_.size() > config->MaxHearbeatWindowSize) {
+    if (std::ssize(WindowOfHeartbeats_) > config->MaxHearbeatWindowSize) {
         WindowOfHeartbeats_.pop_back();
     }
 }
@@ -107,7 +107,7 @@ bool TPackingStatistics::CheckPacking(
         }
     }
 
-    bool decision = WindowOfHeartbeats_.size() >= config->MinWindowSizeForSchedule
+    bool decision = std::ssize(WindowOfHeartbeats_) >= config->MinWindowSizeForSchedule
         && betterPastSnapshots < config->MaxBetterPastSnapshots;
 
     YT_ELEMENT_LOG_DETAILED(operationElement,

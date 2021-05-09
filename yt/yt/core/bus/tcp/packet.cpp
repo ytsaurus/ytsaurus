@@ -137,7 +137,7 @@ bool TPacketDecoder::EndVariableHeaderPhase()
         }
     }
 
-    for (int index = 0; index < FixedHeader_.PartCount; ++index) {
+    for (int index = 0; index < static_cast<int>(FixedHeader_.PartCount); ++index) {
         ui32 partSize = PartSizes_[index];
         if (partSize != NullPacketPartSize && partSize > MaxMessagePartSize) {
             YT_LOG_ERROR("Invalid size %v of part %v",
@@ -172,7 +172,7 @@ void TPacketDecoder::NextMessagePartPhase()
 {
     while (true) {
         ++PartIndex_;
-        if (PartIndex_ == FixedHeader_.PartCount) {
+        if (PartIndex_ == static_cast<int>(FixedHeader_.PartCount)) {
             Message_ = TSharedRefArray(std::move(Parts_), TSharedRefArray::TMoveParts{});
             SetFinished();
             break;
@@ -246,7 +246,7 @@ bool TPacketEncoder::Start(
     AllocateVariableHeader();
 
     if (type == EPacketType::Message) {
-        for (int index = 0; index < Message_.Size(); ++index) {
+        for (int index = 0; index < static_cast<int>(Message_.Size()); ++index) {
             const auto& part = Message_[index];
             if (part) {
                 PartSizes_[index] = part.Size();
@@ -309,7 +309,7 @@ void TPacketEncoder::NextMessagePartPhase()
 {
     while (true) {
         ++PartIndex_;
-        if (PartIndex_ == FixedHeader_.PartCount) {
+        if (PartIndex_ == static_cast<int>(FixedHeader_.PartCount)) {
             break;
         }
 

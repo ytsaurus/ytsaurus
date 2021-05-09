@@ -199,7 +199,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Trim(TShard* shard, NConcurrency::
 
     // Move from older to younger.
     while (!shard->OlderLruList.Empty() &&
-           Config_->ShardCount * shard->OlderWeightCounter > capacity * (1 - youngerSizeFraction))
+        Config_->ShardCount * shard->OlderWeightCounter > capacity * (1 - youngerSizeFraction))
     {
         auto* item = &*(--shard->OlderLruList.End());
         MoveToYounger(shard, item);
@@ -208,7 +208,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Trim(TShard* shard, NConcurrency::
     // Evict from younger.
     std::vector<TValuePtr> evictedValues;
     while (!shard->YoungerLruList.Empty() &&
-           Config_->ShardCount * (shard->YoungerWeightCounter + shard->OlderWeightCounter) > capacity)
+        static_cast<i64>(Config_->ShardCount * (shard->YoungerWeightCounter + shard->OlderWeightCounter)) > capacity)
     {
         auto* item = &*(--shard->YoungerLruList.End());
         auto value = item->Value;

@@ -53,7 +53,7 @@ protected:
     TLegacyKey BuildRow(std::vector<i64> values)
     {
         auto row = RowBuffer_->AllocateUnversioned(values.size());
-        for (int index = 0; index < values.size(); ++index) {
+        for (int index = 0; index < std::ssize(values); ++index) {
             row[index] = MakeUnversionedInt64Value(values[index], index);
         }
         return row;

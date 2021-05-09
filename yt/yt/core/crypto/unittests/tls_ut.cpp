@@ -88,17 +88,17 @@ TEST_F(TTlsTest, SimplePingPong)
     auto outputBuffer = TSharedMutableRef::Allocate(4);
 
     auto result = firstSide->Write(buffer).Get();
-    ASSERT_EQ(secondSide->Read(outputBuffer).Get().ValueOrThrow(), 4);
+    ASSERT_EQ(secondSide->Read(outputBuffer).Get().ValueOrThrow(), 4u);
     result.ThrowOnError();
     ASSERT_EQ(ToString(outputBuffer), ToString(buffer));
 
     secondSide->Write(buffer).Get().ThrowOnError();
-    ASSERT_EQ(firstSide->Read(outputBuffer).Get().ValueOrThrow(), 4);
+    ASSERT_EQ(firstSide->Read(outputBuffer).Get().ValueOrThrow(), 4u);
     ASSERT_EQ(ToString(outputBuffer), ToString(buffer));
 
     WaitFor(firstSide->Close())
         .ThrowOnError();
-    ASSERT_EQ(secondSide->Read(outputBuffer).Get().ValueOrThrow(), 0);
+    ASSERT_EQ(secondSide->Read(outputBuffer).Get().ValueOrThrow(), 0u);
 }
 
 TEST(TTlsTestWithoutFixture, LoadCertificateChain)

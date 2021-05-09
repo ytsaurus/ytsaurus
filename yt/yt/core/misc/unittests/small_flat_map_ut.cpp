@@ -35,17 +35,17 @@ TEST(SmallFlatMapTest, Reserve) {
 TEST(SmallFlatMapTest, Size) {
     auto m = CreateMap();
 
-    EXPECT_EQ(m.size(), 4);
+    EXPECT_EQ(m.size(), 4u);
     EXPECT_EQ(m.ssize(), 4);
 
     m.insert({"Who", "said"});
 
-    EXPECT_EQ(m.size(), 5);
+    EXPECT_EQ(m.size(), 5u);
     EXPECT_EQ(m.ssize(), 5);
 
     m.erase("antique");
 
-    EXPECT_EQ(m.size(), 4);
+    EXPECT_EQ(m.size(), 4u);
     EXPECT_EQ(m.ssize(), 4);
 }
 
@@ -103,20 +103,20 @@ TEST(SmallFlatMapTest, Insert) {
 
     auto [it, inserted] = m.insert({"Who", "said"});
     EXPECT_TRUE(inserted);
-    EXPECT_EQ(m.size(), 5);
+    EXPECT_EQ(m.ssize(), 5);
     EXPECT_NE(it, m.end());
     EXPECT_EQ(it, m.find("Who"));
     EXPECT_EQ(it->second, "said");
 
     auto [it2, inserted2] = m.insert({"Who", "told"});
     EXPECT_FALSE(inserted2);
-    EXPECT_EQ(m.size(), 5);
+    EXPECT_EQ(m.ssize(), 5);
     EXPECT_EQ(it2, it);
     EXPECT_EQ(it->second, "said");
 
     std::vector<std::pair<std::string, std::string>> data = {{"Two", "vast"}, {"and", "trunkless"}, {"legs", "of"}, {"stone", "Stand"}, {"in", "the"}, {"desert", "..."}};
     m.insert(data.begin(), data.end());
-    EXPECT_EQ(m.size(), 11);
+    EXPECT_EQ(m.ssize(), 11);
     EXPECT_NE(m.find("and"), m.end());
     EXPECT_EQ(m.find("and")->second, "trunkless");
 }
@@ -125,20 +125,20 @@ TEST(SmallFlatMapTest, Subscript) {
     auto m = CreateMap();
 
     EXPECT_EQ(m["antique"], "land");
-    EXPECT_EQ(m.size(), 4);
+    EXPECT_EQ(m.ssize(), 4);
 
     EXPECT_EQ(m["Who"], "");
-    EXPECT_EQ(m.size(), 5);
+    EXPECT_EQ(m.ssize(), 5);
 }
 
 TEST(SmallFlatMapTest, Erase) {
     auto m = CreateMap();
 
     m.erase("antique");
-    EXPECT_EQ(m.size(), 3);
+    EXPECT_EQ(m.ssize(), 3);
 
     m.erase("Who");
-    EXPECT_EQ(m.size(), 3);
+    EXPECT_EQ(m.ssize(), 3);
 
     m.erase(m.begin(), m.end());
     EXPECT_TRUE(m.empty());
@@ -158,7 +158,7 @@ TEST(SmallFlatMapTest, GrowShrink) {
     m.erase("in");
     m.erase("desert");
 
-    EXPECT_EQ(m.size(), 2);
+    EXPECT_EQ(m.ssize(), 2);
 
     // Must not crash or trigger asan.
 }
@@ -177,14 +177,14 @@ TEST(SmallFlatMapTest, GrowShrinkGrow) {
     m.erase("in");
     m.erase("desert");
 
-    EXPECT_EQ(m.size(), 2);
+    EXPECT_EQ(m.ssize(), 2);
 
     m.insert({"I", "met"});
     m.insert({"a", "traveller"});
     m.insert({"from", "an"});
     m.insert({"antique", "land"});
 
-    EXPECT_EQ(m.size(), 6);
+    EXPECT_EQ(m.ssize(), 6);
 
     // Must not crash or trigger asan.
 }

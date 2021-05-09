@@ -313,15 +313,15 @@ TLegacyKey TChunkReaderBase::WidenKey(
     TChunkedMemoryPool* pool) const
 {
     auto keyColumnCount = nullableKeyColumnCount.value_or(key.GetCount());
-    YT_VERIFY(keyColumnCount >= key.GetCount());
+    YT_VERIFY(keyColumnCount >= static_cast<int>(key.GetCount()));
 
-    if (keyColumnCount == key.GetCount()) {
+    if (keyColumnCount == static_cast<int>(key.GetCount())) {
         return key;
     }
 
     auto wideKey = TMutableUnversionedRow::Allocate(pool, keyColumnCount);
 
-    for (int index = 0; index < key.GetCount(); ++index) {
+    for (int index = 0; index < static_cast<int>(key.GetCount()); ++index) {
         wideKey[index] = key[index];
     }
 

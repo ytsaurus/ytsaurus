@@ -61,7 +61,7 @@ public:
         }
         return {
             Instants_[index - 1],
-            index < Instants_.size() ? Instants_[index] : TInstant::Max()
+            index < std::ssize(Instants_) ? Instants_[index] : TInstant::Max()
         };
     }
 

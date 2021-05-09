@@ -91,8 +91,8 @@ TEST_F(TSpscQueueTest, TwoThreads)
 
     std::sort(elements.begin(), elements.end());
 
-    EXPECT_EQ(elements.size(), N);
-    for (size_t i = 1; i <= N; ++i) {
+    EXPECT_EQ(std::ssize(elements), N);
+    for (ssize_t i = 1; i <= N; ++i) {
         EXPECT_EQ(elements[i - 1], i);
     }
 

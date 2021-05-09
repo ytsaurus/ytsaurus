@@ -90,7 +90,7 @@ public:
                RowsWithStatisticsFuture_.IsSet() &&
                RowsWithStatisticsFuture_.Get().IsOK() &&
                !Finished_ &&
-               rows.size() < options.MaxRowsPerRead &&
+               std::ssize(rows) < options.MaxRowsPerRead &&
                dataWeight < options.MaxDataWeightPerRead)
         {
             const auto& currentRows = RowsWithStatisticsFuture_.Get().Value().Rows;
@@ -103,8 +103,8 @@ public:
                 continue;
             }
 
-            while (CurrentRowsOffset_ < currentRows.Size() &&
-                   rows.size() < options.MaxRowsPerRead &&
+            while (CurrentRowsOffset_ < std::ssize(currentRows) &&
+                   std::ssize(rows) < options.MaxRowsPerRead &&
                    dataWeight < options.MaxDataWeightPerRead)
             {
                 auto row = currentRows[CurrentRowsOffset_++];
@@ -115,7 +115,7 @@ public:
             StoredRows_.push_back(currentRows);
             ApplyReaderStatistics(currentStatistics);
 
-            if (CurrentRowsOffset_ == currentRows.size()) {
+            if (CurrentRowsOffset_ == std::ssize(currentRows)) {
                 RowsWithStatisticsFuture_ = GetRowsWithStatistics();
                 CurrentRowsOffset_ = 0;
             }

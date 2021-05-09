@@ -132,7 +132,7 @@ TKeyTriePtr ExtractMultipleConstraints(
         }
 
         std::vector<TKeyTriePtr> keyTries;
-        for (int rowIndex = 0; rowIndex < inExpr->Values.Size(); ++rowIndex) {
+        for (int rowIndex = 0; rowIndex < std::ssize(inExpr->Values); ++rowIndex) {
             auto literalTuple = inExpr->Values[rowIndex];
 
             auto rowConstraint = TKeyTrie::Universal();
@@ -164,7 +164,7 @@ TKeyTriePtr ExtractMultipleConstraints(
         }
 
         std::vector<TKeyTriePtr> keyTries;
-        for (int rowIndex = 0; rowIndex < betweenExpr->Ranges.Size(); ++rowIndex) {
+        for (int rowIndex = 0; rowIndex < std::ssize(betweenExpr->Ranges); ++rowIndex) {
             auto literalRange = betweenExpr->Ranges[rowIndex];
 
             auto lower = literalRange.first;
@@ -179,13 +179,13 @@ TKeyTriePtr ExtractMultipleConstraints(
             auto rowConstraint = TKeyTrie::Universal();
             for (int keyIndex = keyMapping.size() - 1; keyIndex >= 0; --keyIndex) {
                 auto index = keyMapping[keyIndex];
-                if (index >= 0 && index < prefix) {
+                if (index >= 0 && index < static_cast<int>(prefix)) {
                     auto valueConstraint = New<TKeyTrie>(keyIndex);
                     valueConstraint->Next.emplace_back(lower[index], std::move(rowConstraint));
                     rowConstraint = std::move(valueConstraint);
                 }
 
-                if (index == prefix) {
+                if (index == static_cast<int>(prefix)) {
                     rangeColumnIndex = keyIndex;
                 }
             }
@@ -341,20 +341,20 @@ TConstExpressionPtr EliminateInExpression(
         int keyIndex = referenceExpr
             ? ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName)
             : -1;
-        if (keyIndex == -1 || keyIndex >= keyPrefixSize) {
+        if (keyIndex == -1 || keyIndex >= static_cast<int>(keyPrefixSize)) {
             allArgsAreKey = false;
         } else {
             valueMapping.push_back(argumentIndex);
             keyMapping.push_back(keyIndex);
         }
 
-        if (bounds && keyIndex == keyPrefixSize) {
+        if (bounds && keyIndex == static_cast<int>(keyPrefixSize)) {
             rangeArgIndex = argumentIndex;
         }
     }
 
     auto compareKeyAndValue = [&] (TRow lhs, TRow rhs) {
-        for (int index = 0; index < valueMapping.size(); ++index) {
+        for (int index = 0; index < std::ssize(valueMapping); ++index) {
             int result = CompareRowValues(lhs.Begin()[keyMapping[index]], rhs.Begin()[valueMapping[index]]);
 
             if (result != 0) {
@@ -455,8 +455,8 @@ TConstExpressionPtr EliminatePredicate(
     int minCommonPrefixSize = std::numeric_limits<int>::max();
     for (const auto& keyRange : keyRanges) {
         int commonPrefixSize = 0;
-        while (commonPrefixSize < keyRange.first.GetCount()
-            && commonPrefixSize + 1 < keyRange.second.GetCount()
+        while (commonPrefixSize < static_cast<int>(keyRange.first.GetCount())
+            && commonPrefixSize + 1 < static_cast<int>(keyRange.second.GetCount())
             && keyRange.first[commonPrefixSize] == keyRange.second[commonPrefixSize])
         {
             commonPrefixSize++;
@@ -477,7 +477,7 @@ TConstExpressionPtr EliminatePredicate(
 
     // Is it a good idea? Heavy, not always useful calculation.
     std::vector<std::vector<TBound>> unitedBoundsByColumn(minCommonPrefixSize + 1);
-    for (size_t keyPartIndex = 0; keyPartIndex <= minCommonPrefixSize; ++keyPartIndex) {
+    for (int keyPartIndex = 0; keyPartIndex <= minCommonPrefixSize; ++keyPartIndex) {
         std::vector<std::vector<TBound>> allBounds;
         for (const auto& keyRange : keyRanges) {
             auto bounds = getBounds(keyRange, keyPartIndex);

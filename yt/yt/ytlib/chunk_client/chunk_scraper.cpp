@@ -133,7 +133,7 @@ private:
             return;
         }
 
-        if (NextChunkIndex_ >= ChunkIds_.size()) {
+        if (NextChunkIndex_ >= std::ssize(ChunkIds_)) {
             NextChunkIndex_ = 0;
         }
 
@@ -149,7 +149,7 @@ private:
                 sampleChunkIds.push_back(ChunkIds_[NextChunkIndex_]);
             }
             ++NextChunkIndex_;
-            if (NextChunkIndex_ >= ChunkIds_.size()) {
+            if (NextChunkIndex_ >= std::ssize(ChunkIds_)) {
                 NextChunkIndex_ = 0;
             }
             if (NextChunkIndex_ == startIndex) {

@@ -331,7 +331,7 @@ TUnversionedRow TReplicatedStoreManager::BuildOrderedLogRow(
 {
     YT_VERIFY(changeType == ERowModificationType::Write);
 
-    for (int index = 0; index < row.GetCount(); ++index) {
+    for (int index = 0; index < static_cast<int>(row.GetCount()); ++index) {
         auto value = row[index];
         value.Id += 1;
         LogRowBuilder_.AddValue(value);
@@ -348,7 +348,7 @@ TUnversionedRow TReplicatedStoreManager::BuildSortedLogRow(
     int keyColumnCount = Tablet_->GetTableSchema()->GetKeyColumnCount();
     int valueColumnCount = Tablet_->GetTableSchema()->GetValueColumnCount();
 
-    YT_VERIFY(row.GetCount() >= keyColumnCount);
+    YT_VERIFY(static_cast<int>(row.GetCount()) >= keyColumnCount);
     for (int index = 0; index < keyColumnCount; ++index) {
         auto value = row[index];
         value.Id += 2;
@@ -365,7 +365,7 @@ TUnversionedRow TReplicatedStoreManager::BuildSortedLogRow(
                 index * 2 + keyColumnCount + 3));
         }
         auto logRow = LogRowBuilder_.GetRow();
-        for (int index = keyColumnCount; index < row.GetCount(); ++index) {
+        for (int index = keyColumnCount; index < static_cast<int>(row.GetCount()); ++index) {
             auto value = row[index];
             value.Id = (value.Id - keyColumnCount) * 2 + keyColumnCount + 2;
             logRow[value.Id] = value;

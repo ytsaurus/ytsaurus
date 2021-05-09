@@ -107,7 +107,7 @@ public:
             Zero(header);
             NFS::ExpectIOErrors([&] {
                 dataFile->Seek(0, sSet);
-                if (dataFile->Load(&header, FileHeaderSize_) != FileHeaderSize_) {
+                if (static_cast<ssize_t>(dataFile->Load(&header, FileHeaderSize_)) != FileHeaderSize_) {
                     THROW_ERROR_EXCEPTION(
                         NHydra::EErrorCode::ChangelogIOError,
                         "Changelog header cannot be read");
@@ -334,13 +334,13 @@ public:
         YT_LOG_DEBUG("Finished truncating changelog");
     }
 
-    void Preallocate(size_t size)
+    void Preallocate(ssize_t size)
     {
         YT_VERIFY(CurrentFilePosition_ <= size);
 
         YT_LOG_DEBUG("Started preallocating changelog");
 
-        WaitFor(IOEngine_->Allocate({*DataFile_, static_cast<i64>(size)}))
+        WaitFor(IOEngine_->Allocate({*DataFile_, size}))
             .ThrowOnError();
 
         YT_LOG_DEBUG("Finished preallocating changelog");
@@ -494,7 +494,7 @@ private:
                 WriteRef(tempFile, TRef());
                 WriteZeroes(tempFile, header.PaddingSize);
 
-                YT_VERIFY(tempFile.GetPosition() == header.FirstRecordOffset);
+                YT_VERIFY(static_cast<ssize_t>(tempFile.GetPosition()) == header.FirstRecordOffset);
 
                 if (Config_->EnableSync) {
                     tempFile.FlushData();
@@ -585,7 +585,7 @@ private:
         WaitFor(IOEngine_->Read({{*DataFile_, result.GetStartPosition(), result.Blob}}))
             .ThrowOnError();
 
-        YT_VERIFY(result.Blob.Size() == result.GetLength());
+        YT_VERIFY(std::ssize(result.Blob) == result.GetLength());
 
         return result;
     }
@@ -740,7 +740,7 @@ private:
 
         struct TSyncChangelogRecordTag { };
         auto data = TSharedMutableRef::Allocate<TSyncChangelogRecordTag>(header.DataSize, false);
-        if (input.Avail() < header.DataSize) {
+        if (static_cast<ssize_t>(input.Avail()) < header.DataSize) {
             return TError("Not enough bytes available in data file to read record data: expected %v, got %v",
                 header.DataSize,
                 input.Avail());
@@ -752,7 +752,7 @@ private:
         });
 
         if (header.PaddingSize > 0) {
-            if (input.Avail() < header.PaddingSize) {
+            if (static_cast<ssize_t>(input.Avail()) < header.PaddingSize) {
                 return TError("Not enough bytes available in data file to read record data: expected %v, got %v",
                     header.PaddingSize,
                     input.Avail());
@@ -810,7 +810,7 @@ private:
         // Validate index records.
         int result = 0;
         const auto& records = IndexFile_.Records();
-        for (int i = 0; i < records.size(); ++i) {
+        for (int i = 0; i < std::ssize(records); ++i) {
             const auto& record = records[i];
             bool valid;
             if (i == 0) {
@@ -861,14 +861,14 @@ private:
             AppendOutput_.Clear();
 
             // Combine records into a single memory blob.
-            for (int index = 0; index < records.size(); ++index) {
+            for (int index = 0; index < std::ssize(records); ++index) {
                 const auto& record = records[index];
                 YT_VERIFY(!record.Empty());
 
                 int totalSize = 0;
                 i64 paddingSize = 0;
 
-                if (index == records.size() - 1) {
+                if (index == std::ssize(records) - 1) {
                     i64 blockSize =
                         AppendOutput_.Size() +
                         AlignUp(sizeof(TRecordHeader)) +
@@ -896,7 +896,7 @@ private:
             }
 
             YT_VERIFY(AlignUp<i64>(CurrentFilePosition_.load(), ChangelogAlignment) == CurrentFilePosition_);
-            YT_VERIFY(AlignUp<i64>(AppendOutput_.Size(), ChangelogAlignment) == AppendOutput_.Size());
+            YT_VERIFY(AlignUp<i64>(AppendOutput_.Size(), ChangelogAlignment) == std::ssize(AppendOutput_));
 
             TSharedRef data(AppendOutput_.Blob().Begin(), AppendOutput_.Size(), MakeStrong(this));
 
@@ -909,7 +909,7 @@ private:
             RecordCount_ += records.size();
             bytesWritten = data.Size();
 
-            for (int index = 0; index < records.size(); ++index) {
+            for (int index = 0; index < std::ssize(records); ++index) {
                 CurrentFilePosition_ += AppendSizes_[index];
             }
         } catch (const std::exception& ex) {

@@ -102,8 +102,8 @@ public:
             // all limit inference from chunk boundary keys should be done in task.
             YT_VERIFY(dataSlice->LowerLimit().KeyBound);
             YT_VERIFY(dataSlice->UpperLimit().KeyBound);
-            YT_VERIFY(dataSlice->LowerLimit().KeyBound.Prefix.GetCount() <= prefixLength);
-            YT_VERIFY(dataSlice->UpperLimit().KeyBound.Prefix.GetCount() <= prefixLength);
+            YT_VERIFY(static_cast<int>(dataSlice->LowerLimit().KeyBound.Prefix.GetCount()) <= prefixLength);
+            YT_VERIFY(static_cast<int>(dataSlice->UpperLimit().KeyBound.Prefix.GetCount()) <= prefixLength);
 
             if (!inputStreamDescriptor.IsVersioned()) {
                 YT_VERIFY(!dataSlice->LowerLimit().KeyBound.IsUniversal());
@@ -156,7 +156,7 @@ public:
 
     virtual void Reset(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe, TInputChunkMappingPtr mapping) override
     {
-        for (int index = 0; index < Stripes_.size(); ++index) {
+        for (int index = 0; index < std::ssize(Stripes_); ++index) {
             auto newStripe = (index == cookie) ? stripe : mapping->GetMappedStripe(Stripes_[index].GetStripe());
             Stripes_[index].Reset(newStripe);
         }
@@ -324,7 +324,7 @@ private:
         // TODO(max42): logic here is schizophrenic :( introduce IdentityChunkSliceFetcher and
         // stop converting chunk slices to data slices and forth.
 
-        for (int inputCookie = 0; inputCookie < Stripes_.size(); ++inputCookie) {
+        for (int inputCookie = 0; inputCookie < std::ssize(Stripes_); ++inputCookie) {
             const auto& suspendableStripe = Stripes_[inputCookie];
             const auto& stripe = suspendableStripe.GetStripe();
 
@@ -440,7 +440,7 @@ private:
 
         std::vector<TTeleportCandidate> teleportCandidates;
 
-        for (int inputCookie = 0; inputCookie < Stripes_.size(); ++inputCookie) {
+        for (int inputCookie = 0; inputCookie < std::ssize(Stripes_); ++inputCookie) {
             const auto& stripe = Stripes_[inputCookie].GetStripe();
             auto inputStreamIndex = stripe->GetInputStreamIndex();
             auto isPrimary = InputStreamDirectory_.GetDescriptor(inputStreamIndex).IsPrimary();
@@ -566,7 +566,7 @@ private:
 
     void SetupSuspendedStripes()
     {
-        for (int inputCookie = 0; inputCookie < Stripes_.size(); ++inputCookie) {
+        for (int inputCookie = 0; inputCookie < std::ssize(Stripes_); ++inputCookie) {
             const auto& stripe = Stripes_[inputCookie];
             if (stripe.IsSuspended()) {
                 JobManager_->Suspend(inputCookie);
@@ -670,8 +670,8 @@ private:
                 YT_VERIFY(!dataSlice->IsLegacy);
                 YT_VERIFY(dataSlice->LowerLimit().KeyBound);
                 YT_VERIFY(dataSlice->UpperLimit().KeyBound);
-                YT_VERIFY(dataSlice->LowerLimit().KeyBound.Prefix.GetCount() <= prefixLength);
-                YT_VERIFY(dataSlice->UpperLimit().KeyBound.Prefix.GetCount() <= prefixLength);
+                YT_VERIFY(static_cast<int>(dataSlice->LowerLimit().KeyBound.Prefix.GetCount()) <= prefixLength);
+                YT_VERIFY(static_cast<int>(dataSlice->UpperLimit().KeyBound.Prefix.GetCount()) <= prefixLength);
             }
         };
 
@@ -686,7 +686,7 @@ private:
         std::vector<TLegacyDataSlicePtr> inputStreamIndexToLastDataSlice;
         for (const auto& dataSlice : unreadInputDataSlices) {
             auto inputStreamIndex = dataSlice->InputStreamIndex;
-            if (inputStreamIndex >= inputStreamIndexToLastDataSlice.size()) {
+            if (inputStreamIndex >= std::ssize(inputStreamIndexToLastDataSlice)) {
                 inputStreamIndexToLastDataSlice.resize(inputStreamIndex + 1);
             }
             auto& lastDataSlice = inputStreamIndexToLastDataSlice[inputStreamIndex];

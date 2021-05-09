@@ -492,7 +492,7 @@ void TBootstrap::TryLoadSnapshot(
 
 TPeerId TBootstrap::ComputePeerId(TCellConfigPtr config, const TString& localAddress)
 {
-    for (TPeerId id = 0; id < config->Peers.size(); ++id) {
+    for (TPeerId id = 0; id < std::ssize(config->Peers); ++id) {
         const auto& peerAddress = config->Peers[id].Address;
         if (peerAddress && to_lower(*peerAddress) == to_lower(localAddress)) {
             return id;

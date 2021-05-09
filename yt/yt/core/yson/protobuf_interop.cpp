@@ -778,7 +778,7 @@ protected:
 
     void ValidateNoFieldDuplicates(const TProtobufMessageType* type, const TFieldNumberList& numbers)
     {
-        for (auto index = 0; index + 1 < numbers.size(); ++index) {
+        for (auto index = 0; index + 1 < std::ssize(numbers); ++index) {
             if (numbers[index] == numbers[index + 1]) {
                 const auto* field = type->GetFieldByNumber(numbers[index]);
                 YPathStack_.Push(field);

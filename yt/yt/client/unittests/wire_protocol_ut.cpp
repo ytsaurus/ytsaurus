@@ -244,7 +244,7 @@ TEST_F(TWireProtocolTest, Regression1)
     auto row = reader.ReadSchemafulRow(blobSchemaData, false);
     EXPECT_TRUE(reader.GetCurrent() == reader.GetEnd());
 
-    ASSERT_EQ(row.GetCount(), 4);
+    ASSERT_EQ(static_cast<int>(row.GetCount()), 4);
 
     EXPECT_EQ(row[0].Id, 0);
     EXPECT_EQ(row[0].Type, EValueType::Int64);
@@ -259,7 +259,7 @@ TEST_F(TWireProtocolTest, Regression1)
     EXPECT_EQ(row[2].Id, 2);
     EXPECT_EQ(row[2].Type, EValueType::String);
     EXPECT_EQ(row[2].Aggregate, false);
-    EXPECT_EQ(row[2].Length, 1);
+    EXPECT_EQ(static_cast<int>(row[2].Length), 1);
     EXPECT_EQ(row[2].Data.String[0], '2');
 
     EXPECT_EQ(row[3].Id, 3);
@@ -282,7 +282,7 @@ TEST_F(TWireProtocolTest, Regression2)
     auto row = reader.ReadUnversionedRow(true);
     EXPECT_TRUE(reader.GetCurrent() == reader.GetEnd());
 
-    ASSERT_EQ(row.GetCount(), 3);
+    ASSERT_EQ(static_cast<int>(row.GetCount()), 3);
 
     EXPECT_EQ(row[0].Id, 0);
     EXPECT_EQ(row[0].Type, EValueType::Null);

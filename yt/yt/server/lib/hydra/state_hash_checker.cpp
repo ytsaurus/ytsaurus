@@ -19,7 +19,7 @@ void TStateHashChecker::Report(i64 sequenceNumber, ui64 stateHash)
     if (it == SequenceNumberToStateHash_.end()) {
         YT_VERIFY(SequenceNumberToStateHash_.emplace(sequenceNumber, stateHash).second);
 
-        if (SequenceNumberToStateHash_.size() > Limit_) {
+        if (std::ssize(SequenceNumberToStateHash_) > Limit_) {
             SequenceNumberToStateHash_.erase(SequenceNumberToStateHash_.begin());
         }
     } else if (it->second != stateHash) {
@@ -35,7 +35,7 @@ std::optional<ui64> TStateHashChecker::GetStateHash(i64 sequenceNumber)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto it = SequenceNumberToStateHash_.find(sequenceNumber);
-    
+
     return it == SequenceNumberToStateHash_.end() ? std::nullopt : std::make_optional(it->second);
 }
 

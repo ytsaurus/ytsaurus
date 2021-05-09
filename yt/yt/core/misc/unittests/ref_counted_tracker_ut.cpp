@@ -132,8 +132,8 @@ TYPED_TEST(TRefCountedTrackerTest, SinglethreadedRefCounted)
     std::vector<TIntrusivePtr<TypeParam>> container;
     container.reserve(2000);
 
-    EXPECT_EQ(0, GetAliveCount<TypeParam>());
-    EXPECT_EQ(0, GetAliveBytes<TypeParam>());
+    EXPECT_EQ(0u, GetAliveCount<TypeParam>());
+    EXPECT_EQ(0u, GetAliveBytes<TypeParam>());
     EXPECT_EQ(countBase, GetAllocatedCount<TypeParam>());
     EXPECT_EQ(bytesBase, GetAllocatedBytes<TypeParam>());
 
@@ -141,33 +141,33 @@ TYPED_TEST(TRefCountedTrackerTest, SinglethreadedRefCounted)
         container.push_back(create());
     }
 
-    EXPECT_EQ(1000, GetAliveCount<TypeParam>());
-    EXPECT_EQ(1000 * instanceSize, GetAliveBytes<TypeParam>());
-    EXPECT_EQ(countBase + 1000, GetAllocatedCount<TypeParam>());
-    EXPECT_EQ(bytesBase + 1000 * instanceSize, GetAllocatedBytes<TypeParam>());
+    EXPECT_EQ(1000u, GetAliveCount<TypeParam>());
+    EXPECT_EQ(1000u * instanceSize, GetAliveBytes<TypeParam>());
+    EXPECT_EQ(countBase + 1000u, GetAllocatedCount<TypeParam>());
+    EXPECT_EQ(bytesBase + 1000u * instanceSize, GetAllocatedBytes<TypeParam>());
 
     for (size_t i = 0; i < 1000; ++i) {
         container.push_back(create());
     }
 
-    EXPECT_EQ(2000, GetAliveCount<TypeParam>());
-    EXPECT_EQ(countBase + 2000, GetAllocatedCount<TypeParam>());
-    EXPECT_EQ(2000 * instanceSize, GetAliveBytes<TypeParam>());
-    EXPECT_EQ(bytesBase + 2000 * instanceSize, GetAllocatedBytes<TypeParam>());
+    EXPECT_EQ(2000u, GetAliveCount<TypeParam>());
+    EXPECT_EQ(countBase + 2000u, GetAllocatedCount<TypeParam>());
+    EXPECT_EQ(2000u * instanceSize, GetAliveBytes<TypeParam>());
+    EXPECT_EQ(bytesBase + 2000u * instanceSize, GetAllocatedBytes<TypeParam>());
 
     container.resize(1000);
 
-    EXPECT_EQ(1000, GetAliveCount<TypeParam>());
-    EXPECT_EQ(countBase + 2000, GetAllocatedCount<TypeParam>());
-    EXPECT_EQ(1000 * instanceSize, GetAliveBytes<TypeParam>());
-    EXPECT_EQ(bytesBase + 2000 * instanceSize, GetAllocatedBytes<TypeParam>());
+    EXPECT_EQ(1000u, GetAliveCount<TypeParam>());
+    EXPECT_EQ(countBase + 2000u, GetAllocatedCount<TypeParam>());
+    EXPECT_EQ(1000u * instanceSize, GetAliveBytes<TypeParam>());
+    EXPECT_EQ(bytesBase + 2000u * instanceSize, GetAllocatedBytes<TypeParam>());
 
     container.resize(0);
 
-    EXPECT_EQ(0, GetAliveCount<TypeParam>());
-    EXPECT_EQ(countBase + 2000, GetAllocatedCount<TypeParam>());
-    EXPECT_EQ(0, GetAliveBytes<TypeParam>());
-    EXPECT_EQ(bytesBase + 2000 * instanceSize, GetAllocatedBytes<TypeParam>());
+    EXPECT_EQ(0u, GetAliveCount<TypeParam>());
+    EXPECT_EQ(countBase + 2000u, GetAllocatedCount<TypeParam>());
+    EXPECT_EQ(0u, GetAliveBytes<TypeParam>());
+    EXPECT_EQ(bytesBase + 2000u * instanceSize, GetAllocatedBytes<TypeParam>());
 }
 
 TYPED_TEST(TRefCountedTrackerTest, MultithreadedRefCounted)
@@ -185,17 +185,17 @@ TYPED_TEST(TRefCountedTrackerTest, MultithreadedRefCounted)
     auto queue = New<TActionQueue>();
     BIND([&] () {
         auto obj2 = create();
-        EXPECT_EQ(countBase + 2, GetAllocatedCount<TypeParam>());
-        EXPECT_EQ(2, GetAliveCount<TypeParam>());
+        EXPECT_EQ(countBase + 2u, GetAllocatedCount<TypeParam>());
+        EXPECT_EQ(2u, GetAliveCount<TypeParam>());
     })
         .AsyncVia(queue->GetInvoker())
         .Run()
         .Get();
     queue->Shutdown();
 
-    EXPECT_EQ(countBase + 2, GetAllocatedCount<TypeParam>());
-    EXPECT_EQ(1, GetAliveCount<TypeParam>());
-    EXPECT_EQ(bytesBase + 2 * instanceSize, GetAllocatedBytes<TypeParam>());
+    EXPECT_EQ(countBase + 2u, GetAllocatedCount<TypeParam>());
+    EXPECT_EQ(1u, GetAliveCount<TypeParam>());
+    EXPECT_EQ(bytesBase + 2u * instanceSize, GetAllocatedBytes<TypeParam>());
     EXPECT_EQ(instanceSize, GetAliveBytes<TypeParam>());
 }
 
@@ -209,8 +209,8 @@ TEST(TRefCountedTrackerTest, TBlobAllocatedMemoryTracker)
     auto allocatedBytesBase = GetAllocatedBytes<TBlobTag>();
     auto allocatedObjectsBase = GetAllocatedCount<TBlobTag>();
 
-    EXPECT_EQ(0, GetAliveBytes<TBlobTag>());
-    EXPECT_EQ(0, GetAliveCount<TBlobTag>());
+    EXPECT_EQ(0u, GetAliveBytes<TBlobTag>());
+    EXPECT_EQ(0u, GetAliveCount<TBlobTag>());
     EXPECT_EQ(allocatedBytesBase, GetAllocatedBytes<TBlobTag>());
     EXPECT_EQ(allocatedObjectsBase, GetAllocatedCount<TBlobTag>());
 
@@ -218,7 +218,7 @@ TEST(TRefCountedTrackerTest, TBlobAllocatedMemoryTracker)
     auto blobCapacity1 = blob.Capacity();
 
     EXPECT_EQ(blobCapacity1, GetAliveBytes<TBlobTag>());
-    EXPECT_EQ(1, GetAliveCount<TBlobTag>());
+    EXPECT_EQ(1u, GetAliveCount<TBlobTag>());
     EXPECT_EQ(allocatedBytesBase + blobCapacity1, GetAllocatedBytes<TBlobTag>());
     EXPECT_EQ(allocatedObjectsBase + 1, GetAllocatedCount<TBlobTag>());
 
@@ -226,14 +226,14 @@ TEST(TRefCountedTrackerTest, TBlobAllocatedMemoryTracker)
     auto blobCapacity2 = blob.Capacity();
 
     EXPECT_EQ(blobCapacity2, GetAliveBytes<TBlobTag>());
-    EXPECT_EQ(1, GetAliveCount<TBlobTag>());
+    EXPECT_EQ(1u, GetAliveCount<TBlobTag>());
     EXPECT_EQ(allocatedBytesBase + blobCapacity1 + blobCapacity2, GetAllocatedBytes<TBlobTag>());
     EXPECT_EQ(allocatedObjectsBase + 1, GetAllocatedCount<TBlobTag>());
 
     blob = TBlob(TBlobTag());
 
-    EXPECT_EQ(0, GetAliveBytes<TBlobTag>());
-    EXPECT_EQ(0, GetAliveCount<TBlobTag>());
+    EXPECT_EQ(0u, GetAliveBytes<TBlobTag>());
+    EXPECT_EQ(0u, GetAliveCount<TBlobTag>());
     EXPECT_EQ(allocatedBytesBase + blobCapacity1 + blobCapacity2, GetAllocatedBytes<TBlobTag>());
     EXPECT_EQ(allocatedObjectsBase + 1, GetAllocatedCount<TBlobTag>());
 }
@@ -283,14 +283,14 @@ TEST(TRefCountedTrackerTest, RefTracked)
         TSimpleRefTrackedObject obj;
         EXPECT_EQ(countBase + 1, GetAllocatedCount<TSimpleRefTrackedObject>());
         EXPECT_EQ(bytesBase + sizeof(TSimpleRefTrackedObject), GetAllocatedBytes<TSimpleRefTrackedObject>());
-        EXPECT_EQ(1, GetAliveCount<TSimpleRefTrackedObject>());
+        EXPECT_EQ(1u, GetAliveCount<TSimpleRefTrackedObject>());
         EXPECT_EQ(sizeof(TSimpleRefTrackedObject), GetAliveBytes<TSimpleRefTrackedObject>());
     }
 
     EXPECT_EQ(countBase + 1, GetAllocatedCount<TSimpleRefTrackedObject>());
     EXPECT_EQ(bytesBase + sizeof(TSimpleRefTrackedObject), GetAllocatedBytes<TSimpleRefTrackedObject>());
-    EXPECT_EQ(0, GetAliveCount<TSimpleRefTrackedObject>());
-    EXPECT_EQ(0, GetAliveBytes<TSimpleRefTrackedObject>());
+    EXPECT_EQ(0u, GetAliveCount<TSimpleRefTrackedObject>());
+    EXPECT_EQ(0u, GetAliveBytes<TSimpleRefTrackedObject>());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1126,7 +1126,7 @@ private:
             if (lastBatch->RowCount >= Config_->MaxRowsPerWriteRequest) {
                 return true;
             }
-            if (lastBatch->DataWeight >= Config_->MaxDataWeightPerWriteRequest) {
+            if (static_cast<ssize_t>(lastBatch->DataWeight) >= Config_->MaxDataWeightPerWriteRequest) {
                 return true;
             }
 
@@ -1154,7 +1154,7 @@ private:
 
         void InvokeNextBatch()
         {
-            if (InvokeBatchIndex_ >= Batches_.size()) {
+            if (InvokeBatchIndex_ >= std::ssize(Batches_)) {
                 InvokePromise_.Set(TError());
                 return;
             }

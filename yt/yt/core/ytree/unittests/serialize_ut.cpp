@@ -230,7 +230,7 @@ TEST(TSerializationTest, PackRefs)
     auto packed = PackRefs(refs);
     auto unpacked = UnpackRefs(packed);
 
-    EXPECT_EQ(unpacked.size(), 2);
+    EXPECT_EQ(unpacked.size(), 2u);
     EXPECT_EQ(ToString(unpacked[0]), "abc");
     EXPECT_EQ(ToString(unpacked[1]), "12");
 }

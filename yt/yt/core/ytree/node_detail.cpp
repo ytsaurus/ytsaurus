@@ -320,7 +320,7 @@ void TMapNodeMixin::ListSelf(
     TAsyncYsonWriter writer;
 
     auto children = GetChildren();
-    if (limit && children.size() > *limit) {
+    if (limit && std::ssize(children) > *limit) {
         writer.OnBeginAttributes();
         writer.OnKeyedItem("incomplete");
         writer.OnBooleanScalar(true);
@@ -379,7 +379,7 @@ std::pair<TString, INodePtr> TMapNodeMixin::PrepareSetChild(
             auto key = tokenizer.GetLiteralValue();
 
             int maxKeyLength = GetMaxKeyLength();
-            if (key.length() > maxKeyLength) {
+            if (std::ssize(key) > maxKeyLength) {
                 ThrowMaxKeyLengthViolated();
             }
 

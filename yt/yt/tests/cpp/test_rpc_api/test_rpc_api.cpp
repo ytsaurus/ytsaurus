@@ -155,10 +155,10 @@ TEST_F(TMultiLookupTest, TestMultiLookup)
         TMultiLookupOptions()))
         .ValueOrThrow();
 
-    ASSERT_EQ(2, rowsets.size());
+    ASSERT_EQ(2u, rowsets.size());
 
-    ASSERT_EQ(1, rowsets[0]->GetRows().Size());
-    ASSERT_EQ(1, rowsets[1]->GetRows().Size());
+    ASSERT_EQ(1u, rowsets[0]->GetRows().Size());
+    ASSERT_EQ(1u, rowsets[1]->GetRows().Size());
 
     auto expected = ToString(YsonToSchemalessRow("<id=0> 0; <id=1> 0;"));
     auto actual = ToString(rowsets[0]->GetRows()[0]);

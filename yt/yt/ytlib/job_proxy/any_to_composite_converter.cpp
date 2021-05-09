@@ -76,11 +76,11 @@ TUnversionedRow TAnyToCompositeConverter::ConvertAnyToComposite(TUnversionedRow 
             break;
         }
     }
-    YT_VERIFY(0 <= tableIndex && tableIndex < TableIndexToIsComposite_.size());
+    YT_VERIFY(0 <= tableIndex && tableIndex < std::ssize(TableIndexToIsComposite_));
     const auto& isComposite = TableIndexToIsComposite_[tableIndex];
 
     auto firstValueToConvertIndex = -1;
-    for (auto i = 0; i < row.GetCount(); ++i) {
+    for (auto i = 0; i < static_cast<int>(row.GetCount()); ++i) {
         if (DoesValueNeedConversion(isComposite, row[i])) {
             firstValueToConvertIndex = i;
             break;
@@ -91,7 +91,7 @@ TUnversionedRow TAnyToCompositeConverter::ConvertAnyToComposite(TUnversionedRow 
     }
 
     auto convertedRow = RowBuffer_->CaptureRow(row, /*captureValues*/ false);
-    for (auto i = firstValueToConvertIndex; i < convertedRow.GetCount(); ++i) {
+    for (auto i = firstValueToConvertIndex; i < static_cast<int>(convertedRow.GetCount()); ++i) {
         auto& value = convertedRow[i];
         if (DoesValueNeedConversion(isComposite, value)) {
             value.Type = EValueType::Composite;

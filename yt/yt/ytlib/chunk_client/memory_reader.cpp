@@ -31,7 +31,7 @@ public:
     {
         std::vector<TBlock> blocks;
         for (auto index : blockIndexes) {
-            YT_VERIFY(index < Blocks_.size());
+            YT_VERIFY(index < std::ssize(Blocks_));
             blocks.push_back(Blocks_[index]);
         }
 
@@ -49,7 +49,7 @@ public:
         int blockCount,
         std::optional<i64> /* estimatedSize */) override
     {
-        if (firstBlockIndex >= Blocks_.size()) {
+        if (firstBlockIndex >= std::ssize(Blocks_)) {
             return MakeFuture(std::vector<TBlock>());
         }
 

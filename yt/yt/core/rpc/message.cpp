@@ -260,7 +260,7 @@ TSharedRefArray AdjustMessageMemoryZone(
     NYTAlloc::EMemoryZone memoryZone)
 {
     bool copyNeeded = false;
-    for (int index = 2; index < message.Size(); ++index) {
+    for (int index = 2; index < std::ssize(message); ++index) {
         const auto& part = message[index];
         if (part.Size() > 0 && NYTAlloc::GetAllocationMemoryZone(part.Begin()) != memoryZone) {
             copyNeeded = true;
@@ -278,7 +278,7 @@ TSharedRefArray AdjustMessageMemoryZone(
         builder.Add(message[index]);
     }
 
-    for (int index = 2; index < message.Size(); ++index) {
+    for (int index = 2; index < std::ssize(message); ++index) {
         const auto& part = message[index];
         if (part.Size() > 0 && NYTAlloc::GetAllocationMemoryZone(part.Begin()) != memoryZone) {
             NYTAlloc::TMemoryZoneGuard guard(memoryZone);
@@ -462,7 +462,7 @@ int GetMessageAttachmentCount(const TSharedRefArray& message)
 i64 GetTotalMessageAttachmentSize(const TSharedRefArray& message)
 {
     i64 result = 0;
-    for (int index = 2; index < message.Size(); ++index) {
+    for (int index = 2; index < std::ssize(message); ++index) {
         result += message[index].Size();
     }
     return result;

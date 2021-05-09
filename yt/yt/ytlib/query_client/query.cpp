@@ -29,7 +29,7 @@ using NYT::FromProto;
 //! Computes key index for a given column name.
 int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const TString& columnName)
 {
-    for (int index = 0; index < keyColumns.size(); ++index) {
+    for (int index = 0; index < std::ssize(keyColumns); ++index) {
         if (keyColumns[index] == columnName) {
             return index;
         }
@@ -170,7 +170,7 @@ bool Compare(
         auto lhsIndex = lhsSchema.GetColumnIndexOrThrow(referenceLhs->ColumnName);
         auto rhsIndex = rhsSchema.GetColumnIndexOrThrow(referenceRhs->ColumnName);
         CHECK(lhsIndex == rhsIndex)
-        CHECK(lhsIndex < maxIndex)
+        CHECK(static_cast<size_t>(lhsIndex) < maxIndex)
     } else if (auto functionLhs = lhs->As<TFunctionExpression>()) {
         auto functionRhs = rhs->As<TFunctionExpression>();
         CHECK(functionRhs)

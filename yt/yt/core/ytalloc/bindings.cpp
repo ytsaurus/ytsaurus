@@ -152,8 +152,8 @@ private:
         PushAllocationCounterStatistics(writer, "/large_arena", counters);
         writer->PopTag();
 
-        auto bytesFreed = counters[ELargeArenaCounter::BytesFreed];
-        auto bytesReleased = counters[ELargeArenaCounter::PagesReleased] * PageSize;
+        ssize_t bytesFreed = counters[ELargeArenaCounter::BytesFreed];
+        ssize_t bytesReleased = counters[ELargeArenaCounter::PagesReleased] * PageSize;
         int poolHitRatio;
         if (bytesFreed == 0) {
             poolHitRatio = 100;

@@ -170,7 +170,7 @@ Py::Object DumpSkiff(Py::Tuple& args, Py::Dict& kwargs)
 
     std::vector<TIntrusivePtr<TSkiffSchema>> schemaObjects;
     std::vector<std::unique_ptr<NSkiff::TCheckedInDebugSkiffWriter>> skiffWriters;
-    for (size_t index = 0; index < streams.size(); ++index) {
+    for (ssize_t index = 0; index < streams.size(); ++index) {
         auto schema = schemas[index];
         Py::PythonClassObject<TSkiffSchemaPython> schemaPythonObject(schema);
         auto cxxObject = schemaPythonObject.getCxxObject();

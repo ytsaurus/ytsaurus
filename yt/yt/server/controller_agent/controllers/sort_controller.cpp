@@ -535,7 +535,7 @@ protected:
                 std::vector<bool> partitionLowerBoundInclusivenesses;
 
                 int keysWritten = 0;
-                for (int childPartitionIndex = 1; childPartitionIndex < inputPartition->Children.size(); ++childPartitionIndex) {
+                for (int childPartitionIndex = 1; childPartitionIndex < std::ssize(inputPartition->Children); ++childPartitionIndex) {
                     const auto& childPartition = inputPartition->Children[childPartitionIndex];
                     auto lowerBound = childPartition->LowerBound;
                     if (lowerBound && !lowerBound.IsUniversal()) {
@@ -545,7 +545,7 @@ protected:
                         ++keysWritten;
                     }
                 }
-                YT_VERIFY(keysWritten == 0 || keysWritten + 1 == inputPartition->Children.size());
+                YT_VERIFY(keysWritten == 0 || keysWritten + 1 == std::ssize(inputPartition->Children));
                 if (keysWritten == 0) {
                     WirePartitionKeys_.push_back(std::nullopt);
                     WirePartitionLowerBoundPrefixes_.push_back(std::nullopt);
@@ -975,7 +975,7 @@ protected:
 
             config->EnableJobSplitting &=
                 (IsJobInterruptible() &&
-                Controller_->InputTables_.size() <= Controller_->Options->JobSplitter->MaxInputTableCount);
+                std::ssize(Controller_->InputTables_) <= Controller_->Options->JobSplitter->MaxInputTableCount);
 
             return config;
         }
@@ -1643,7 +1643,7 @@ protected:
 
             Partitions_.push_back(std::move(partition));
 
-            if (partitionIndex >= ActiveJoblets_.size()) {
+            if (partitionIndex >= std::ssize(ActiveJoblets_)) {
                 ActiveJoblets_.resize(partitionIndex + 1);
                 InvalidatedJoblets_.resize(partitionIndex + 1);
                 JobOutputs_.resize(partitionIndex + 1);
@@ -1988,7 +1988,7 @@ protected:
             return emptyVector;
         }
 
-        YT_VERIFY(PartitionsByLevels.size() == PartitionTreeDepth + 1);
+        YT_VERIFY(std::ssize(PartitionsByLevels) == PartitionTreeDepth + 1);
         return PartitionsByLevels.back();
     }
 
@@ -1999,7 +1999,7 @@ protected:
 
     const TPartitionPtr& GetFinalPartition(int partitionIndex) const
     {
-        YT_VERIFY(PartitionsByLevels.size() == PartitionTreeDepth + 1);
+        YT_VERIFY(std::ssize(PartitionsByLevels) == PartitionTreeDepth + 1);
         return PartitionsByLevels.back()[partitionIndex];
     }
 
@@ -2248,7 +2248,7 @@ protected:
                 }
                 partition->ShuffleChunkPool = shuffleChunkPool;
                 partition->ShuffleChunkPoolInput = CreateIntermediateLivePreviewAdapter(shuffleChunkPool->GetInput(), this);
-                for (int childIndex = 0; childIndex < partition->Children.size(); ++childIndex) {
+                for (int childIndex = 0; childIndex < std::ssize(partition->Children); ++childIndex) {
                     auto& child = partition->Children[childIndex];
                     child->ChunkPoolOutput = shuffleChunkPool->GetOutput(childIndex);
                 }
@@ -2276,7 +2276,7 @@ protected:
 
     virtual bool IsCompleted() const override
     {
-        return CompletedPartitionCount == GetFinalPartitions().size();
+        return CompletedPartitionCount == std::ssize(GetFinalPartitions());
     }
 
     bool IsSamplingEnabled() const
@@ -2316,7 +2316,7 @@ protected:
                 YT_VERIFY(totalInputRowCount == TotalOutputRowCount);
             }
 
-            YT_VERIFY(CompletedPartitionCount == GetFinalPartitions().size());
+            YT_VERIFY(CompletedPartitionCount == std::ssize(GetFinalPartitions()));
         } else {
             if (RowCountLimitTableIndex && CompletedRowCount_ >= RowCountLimit) {
                 // We have to save all output in SortedMergeTask.
@@ -2722,7 +2722,7 @@ protected:
 
     static std::vector<i64> AggregateValues(const std::vector<i64>& values, int maxBuckets)
     {
-        if (values.size() < maxBuckets) {
+        if (std::ssize(values) < maxBuckets) {
             return values;
         }
 
@@ -2747,19 +2747,19 @@ protected:
 
         const auto& finalPartitions = GetFinalPartitions();
         {
-            for (int i = 0; i < finalPartitions.size(); ++i) {
+            for (int i = 0; i < std::ssize(finalPartitions); ++i) {
                 sizes[i] = GetFinalPartitions()[i]->ChunkPoolOutput->GetDataWeightCounter()->GetTotal();
             }
             result.Total = AggregateValues(sizes, MaxProgressBuckets);
         }
         {
-            for (int i = 0; i < finalPartitions.size(); ++i) {
+            for (int i = 0; i < std::ssize(finalPartitions); ++i) {
                 sizes[i] = GetFinalPartitions()[i]->ChunkPoolOutput->GetDataWeightCounter()->GetRunning();
             }
             result.Runnning = AggregateValues(sizes, MaxProgressBuckets);
         }
         {
-            for (int i = 0; i < finalPartitions.size(); ++i) {
+            for (int i = 0; i < std::ssize(finalPartitions); ++i) {
                 sizes[i] = GetFinalPartitions()[i]->ChunkPoolOutput->GetDataWeightCounter()->GetCompletedTotal();
             }
             result.Completed = AggregateValues(sizes, MaxProgressBuckets);
@@ -2947,7 +2947,7 @@ protected:
             auto levelPartitionIndex = PartitionsByLevels[level].size();
             auto partition = New<TPartition>(this, level, levelPartitionIndex);
             PartitionsByLevels[level].push_back(partition);
-            for (int childIndex = 0; childIndex < partitionTreeSkeleton->Children.size(); ++childIndex) {
+            for (int childIndex = 0; childIndex < std::ssize(partitionTreeSkeleton->Children); ++childIndex) {
                 auto* child = partitionTreeSkeleton->Children[childIndex].get();
                 auto treeChild = buildPartitionTree(child, level + 1, buildPartitionTree);
                 partition->Children.push_back(treeChild);
@@ -2978,7 +2978,7 @@ protected:
         const auto& finalPartitions = GetFinalPartitions();
         YT_VERIFY(finalPartitions.size() == partitionKeys.size() + 1);
         finalPartitions[0]->LowerBound = TKeyBound::MakeUniversal(/* isUpper */false);
-        for (int finalPartitionIndex = 1; finalPartitionIndex < finalPartitions.size(); ++finalPartitionIndex) {
+        for (int finalPartitionIndex = 1; finalPartitionIndex < std::ssize(finalPartitions); ++finalPartitionIndex) {
             const auto& partition = finalPartitions[finalPartitionIndex];
             const auto& partitionKey = partitionKeys[finalPartitionIndex - 1];
             YT_LOG_DEBUG("Assigned lower key bound to final partition (FinalPartitionIndex: %v, KeyBound: %v)",
@@ -3268,7 +3268,7 @@ private:
             RegisterTask(PartitionTasks[partitionTaskLevel]);
         }
 
-        for (int partitionTaskLevel = 1; partitionTaskLevel < PartitionTasks.size(); ++partitionTaskLevel) {
+        for (int partitionTaskLevel = 1; partitionTaskLevel < std::ssize(PartitionTasks); ++partitionTaskLevel) {
             const auto& partitionTask = PartitionTasks[partitionTaskLevel];
             partitionTask->SetInputVertex(PartitionTasks[partitionTaskLevel - 1]->GetVertexDescriptor());
             partitionTask->RegisterInGraph();
@@ -3796,14 +3796,14 @@ public:
         MapperSinkEdges_ = std::vector<TStreamDescriptor>(
             streamDescriptors.begin(),
             streamDescriptors.begin() + Spec->MapperOutputTableCount);
-        for (int index = 0; index < MapperSinkEdges_.size(); ++index) {
+        for (int index = 0; index < std::ssize(MapperSinkEdges_); ++index) {
             MapperSinkEdges_[index].TableWriterOptions->TableIndex = index + 1;
         }
 
         ReducerSinkEdges_ = std::vector<TStreamDescriptor>(
             streamDescriptors.begin() + Spec->MapperOutputTableCount,
             streamDescriptors.end());
-        for (int index = 0; index < ReducerSinkEdges_.size(); ++index) {
+        for (int index = 0; index < std::ssize(ReducerSinkEdges_); ++index) {
             ReducerSinkEdges_[index].TableWriterOptions->TableIndex = index;
         }
     }
@@ -3982,8 +3982,8 @@ private:
 
         std::vector<TColumnSchema> chunkSchemaColumns;
         if (Spec->HasNontrivialMapper()) {
-            YT_VERIFY(Spec->Mapper->OutputStreams.size() > Spec->MapperOutputTableCount);
-            auto intermediateStreamCount = Spec->Mapper->OutputStreams.size() - Spec->MapperOutputTableCount;
+            YT_VERIFY(std::ssize(Spec->Mapper->OutputStreams) > Spec->MapperOutputTableCount);
+            int intermediateStreamCount = Spec->Mapper->OutputStreams.size() - Spec->MapperOutputTableCount;
             for (int i = 0; i < intermediateStreamCount; ++i) {
                 IntermediateStreamSchemas_.push_back(Spec->Mapper->OutputStreams[i]->Schema);
             }
@@ -4144,7 +4144,7 @@ private:
             RegisterTask(PartitionTasks[partitionTaskLevel]);
         }
 
-        for (int partitionTaskLevel = 1; partitionTaskLevel < PartitionTasks.size(); ++partitionTaskLevel) {
+        for (int partitionTaskLevel = 1; partitionTaskLevel < std::ssize(PartitionTasks); ++partitionTaskLevel) {
             const auto& partitionTask = PartitionTasks[partitionTaskLevel];
             partitionTask->SetInputVertex(PartitionTasks[partitionTaskLevel - 1]->GetVertexDescriptor());
             partitionTask->RegisterInGraph();

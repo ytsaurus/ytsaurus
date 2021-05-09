@@ -335,7 +335,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     };
 
     auto hasEnoughTargets = [&] {
-        return collector.GetAddedNodes().size() == desiredCount;
+        return std::ssize(collector.GetAddedNodes()) == desiredCount;
     };
 
     auto tryAddAll = [&] (bool enableRackAwareness) {
@@ -378,7 +378,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     }
 
     const auto& nodes = collector.GetAddedNodes();
-    return nodes.size() < minCount ? TNodeList() : nodes;
+    return std::ssize(nodes) < minCount ? TNodeList() : nodes;
 }
 
 TNodeList TChunkPlacement::AllocateWriteTargets(

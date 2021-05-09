@@ -345,7 +345,7 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
                 // NB: Can yield in async part.
                 ESyncStreamAdapterStrategy::WaitFor,
                 [&] (TSaveContext& context) {
-                    for (int index = 0; index < asyncSavers.size(); ++index) {
+                    for (int index = 0; index < std::ssize(asyncSavers); ++index) {
                         WritePartHeader(context, asyncSavers[index]);
                         asyncCallbacks[index].Run(context);
                     }

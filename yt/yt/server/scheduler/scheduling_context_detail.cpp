@@ -69,7 +69,7 @@ bool TSchedulingContextBase::CanStartMoreJobs() const
     }
 
     auto limit = Config_->MaxStartedJobsPerHeartbeat;
-    return !limit || StartedJobs_.size() < *limit;
+    return !limit || std::ssize(StartedJobs_) < *limit;
 }
 
 bool TSchedulingContextBase::CanSchedule(const TSchedulingTagFilter& filter) const

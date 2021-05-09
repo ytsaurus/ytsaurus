@@ -965,7 +965,7 @@ private:
 
             startResponseIndex.reserve(OperationIds_.size());
             {
-                for (size_t index = 0; index < operationsCount; ++index) {
+                for (int index = 0; index < operationsCount; ++index) {
                     const auto& operationId = OperationIds_[index];
                     startResponseIndex[operationId] = index;
 

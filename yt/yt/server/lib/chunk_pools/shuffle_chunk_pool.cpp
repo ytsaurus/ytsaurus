@@ -87,10 +87,10 @@ public:
 
             const auto* partitionsExt = chunkSpec->PartitionsExt().get();
             YT_VERIFY(partitionsExt);
-            YT_VERIFY(partitionsExt->row_counts_size() == Outputs_.size());
-            YT_VERIFY(partitionsExt->uncompressed_data_sizes_size() == Outputs_.size());
+            YT_VERIFY(partitionsExt->row_counts_size() == std::ssize(Outputs_));
+            YT_VERIFY(partitionsExt->uncompressed_data_sizes_size() == std::ssize(Outputs_));
 
-            for (int index = 0; index < Outputs_.size(); ++index) {
+            for (int index = 0; index < std::ssize(Outputs_); ++index) {
                 YT_VERIFY(partitionsExt->row_counts(index) <= RowCountThreshold_);
                 Outputs_[index]->AddStripe(
                     elementaryIndex,
@@ -413,7 +413,7 @@ private:
 
         void CheckCompleted()
         {
-            bool completed = Owner_->Finished && (JobCounter->GetCompletedTotal() == Runs_.size());
+            bool completed = Owner_->Finished && (JobCounter->GetCompletedTotal() == std::ssize(Runs_));
             if (!IsCompleted_ && completed) {
                 Completed_.Fire();
             } else if (IsCompleted_ && !completed) {

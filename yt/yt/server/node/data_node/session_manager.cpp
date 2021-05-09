@@ -94,7 +94,7 @@ ISessionPtr TSessionManager::StartSession(
 
     auto guard = WriterGuard(SessionMapLock_);
 
-    if (SessionMap_.size() >= Config_->MaxWriteSessions) {
+    if (std::ssize(SessionMap_) >= Config_->MaxWriteSessions) {
         THROW_ERROR_EXCEPTION("Maximum concurrent write session limit %v has been reached",
             Config_->MaxWriteSessions);
     }

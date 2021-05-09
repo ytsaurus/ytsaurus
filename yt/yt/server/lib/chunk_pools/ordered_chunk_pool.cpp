@@ -235,7 +235,7 @@ private:
 
     void SetupSuspendedStripes()
     {
-        for (int inputCookie = 0; inputCookie < Stripes_.size(); ++inputCookie) {
+        for (int inputCookie = 0; inputCookie < std::ssize(Stripes_); ++inputCookie) {
             const auto& stripe = Stripes_[inputCookie];
             if (stripe.IsSuspended()) {
                 JobManager_->Suspend(inputCookie);
@@ -267,7 +267,7 @@ private:
         int chunksTeleported = 0;
 
         auto yielder = CreatePeriodicYielder();
-        for (int inputCookie = 0; inputCookie < Stripes_.size(); ++inputCookie) {
+        for (int inputCookie = 0; inputCookie < std::ssize(Stripes_); ++inputCookie) {
             const auto& stripe = Stripes_[inputCookie].GetStripe();
             for (const auto& dataSlice : stripe->DataSlices) {
                 yielder.TryYield();

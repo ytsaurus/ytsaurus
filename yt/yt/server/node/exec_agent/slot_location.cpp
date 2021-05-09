@@ -238,8 +238,8 @@ TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(int slotI
             }
         }
 
-        for (int i = 0; i < result.size(); ++i) {
-            for (int j = 0; j < result.size(); ++j) {
+        for (int i = 0; i < std::ssize(result); ++i) {
+            for (int j = 0; j < std::ssize(result); ++j) {
                 if (i == j) {
                     continue;
                 }

@@ -46,7 +46,7 @@ const TCellPeerDescriptor& GetPrimaryTabletPeerDescriptor(
     }
 
     int leadingPeerIndex = -1;
-    for (int index = 0; index < peers.size(); ++index) {
+    for (int index = 0; index < std::ssize(peers); ++index) {
         if (peers[index]->GetVoting()) {
             leadingPeerIndex = index;
             break;
@@ -94,14 +94,14 @@ const TCellPeerDescriptor& GetBackupTabletPeerDescriptor(
     YT_ASSERT(peers.size() > 1);
 
     int primaryPeerIndex = -1;
-    for (int index = 0; index < peers.size(); ++index) {
+    for (int index = 0; index < std::ssize(peers); ++index) {
         if (peers[index] == &primaryPeerDescriptor) {
             primaryPeerIndex = index;
             break;
         }
     }
 
-    YT_ASSERT(primaryPeerIndex >= 0 && primaryPeerIndex < peers.size());
+    YT_ASSERT(primaryPeerIndex >= 0 && primaryPeerIndex < std::ssize(peers));
 
     int randomIndex = RandomNumber(peers.size() - 1);
     if (randomIndex >= primaryPeerIndex) {
@@ -252,7 +252,7 @@ TTabletInfoPtr GetOrderedTabletForRow(
                 THROW_ERROR_EXCEPTION("Error parsing tablet index from row")
                     << ex;
             }
-            if (tabletIndex < 0 || tabletIndex >= tableInfo->Tablets.size()) {
+            if (tabletIndex < 0 || tabletIndex >= std::ssize(tableInfo->Tablets)) {
                 THROW_ERROR_EXCEPTION("Invalid tablet index: actual %v, expected in range [0, %v]",
                     tabletIndex,
                     tableInfo->Tablets.size() - 1);

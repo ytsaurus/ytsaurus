@@ -52,7 +52,7 @@ public:
         serverConfig->AttributesUpdatePeriod = TDuration::MilliSeconds(300);
         serverConfig->GossipPeriod = TDuration::MilliSeconds(200);
 
-        for (int i = 0; i < Addresses_.size(); ++i) {
+        for (int i = 0; i < std::ssize(Addresses_); ++i) {
             DiscoveryServers_.push_back(CreateDiscoveryServer(serverConfig, i));
             DiscoveryServers_.back()->Initialize();
         }
@@ -60,7 +60,7 @@ public:
 
     virtual void TearDown() override
     {
-        for (int i = 0; i < Addresses_.size(); ++i) {
+        for (int i = 0; i < std::ssize(Addresses_); ++i) {
             DiscoveryServers_[i]->Finalize();
             RpcServers_[i]->Stop();
         }
@@ -189,7 +189,7 @@ TEST_F(TDistributedThrottlerTest, TestLimitUniform)
     }
     WaitFor(AllSet(futures)).ThrowOnError();
 
-    auto duration = timer.GetElapsedTime().MilliSeconds();
+    i64 duration = timer.GetElapsedTime().MilliSeconds();
     EXPECT_GE(duration, 3000);
     EXPECT_LE(duration, 7000);
 
@@ -278,8 +278,8 @@ TEST_F(TDistributedThrottlerTest, TestLimitAdaptive)
     WaitFor(AllSet(futures)).ThrowOnError();
 
     auto duration = timer.GetElapsedTime().MilliSeconds();
-    EXPECT_GE(duration, 8000);
-    EXPECT_LE(duration, 15000);
+    EXPECT_GE(duration, 8000u);
+    EXPECT_LE(duration, 15000u);
 
     for (const auto& factory : factories) {
         factory->Stop();

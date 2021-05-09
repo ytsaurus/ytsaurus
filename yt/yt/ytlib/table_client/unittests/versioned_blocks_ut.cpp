@@ -27,7 +27,7 @@ protected:
     {
         int i = 0;
         do {
-            EXPECT_LT(i, rows.size());
+            EXPECT_LT(i, std::ssize(rows));
             auto row = reader.GetRow(&MemoryPool);
             ExpectSchemafulRowsEqual(rows[i], row);
         } while (reader.NextRow());

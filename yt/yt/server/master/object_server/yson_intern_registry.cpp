@@ -156,7 +156,7 @@ TYsonString TYsonInternRegistry::Intern(TYsonString value)
         return value;
     }
 
-    if (data.length() < GetYsonStringInternLengthThreshold()) {
+    if (std::ssize(data) < GetYsonStringInternLengthThreshold()) {
         return value;
     }
 

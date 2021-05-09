@@ -408,12 +408,12 @@ protected:
 
         auto rows = CreateRows(expected);
 
-        for (int rowIndex = startRowIndex; 
-            rowIndex < expected.size() && rowIndex + rowCount < expected.size(); 
-            rowIndex += step) 
-        { 
+        for (int rowIndex = startRowIndex;
+            rowIndex < std::ssize(expected) && rowIndex + rowCount < std::ssize(expected);
+            rowIndex += step)
+        {
             ValidateRows(rows, rowIndex, rowCount);
-            ValidateColumn(expected, rowIndex, rowCount);    
+            ValidateColumn(expected, rowIndex, rowCount);
         }
     }
 

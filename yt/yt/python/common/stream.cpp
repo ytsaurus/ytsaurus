@@ -33,7 +33,7 @@ public:
     size_t DoNext(const void** ptr, size_t len) override
     {
         TGilGuard guard;
-        
+
         auto args = Py::TupleN(Py::Long(static_cast<long>(std::min(BufferSize, len))));
 
         try {
@@ -257,7 +257,7 @@ void TStreamReader::RefreshBlock()
     CurrentPtr_ = BeginPtr_;
     EndPtr_ = NextBlock_.Begin() + NextBlockSize_;
 
-    if (NextBlockSize_ < BlockSize_) {
+    if (NextBlockSize_ < static_cast<ssize_t>(BlockSize_)) {
         Finished_ = true;
     } else {
         ReadNextBlock();
@@ -308,7 +308,7 @@ TSharedRef TStreamReader::ExtractPrefix(const char* endPtr)
         return TSharedRef();
     }
 
-    for (int i = 0; i < Blocks_.size(); ++i) {
+    for (int i = 0; i < std::ssize(Blocks_); ++i) {
         if (endPtr >= Blocks_[i].Begin() && endPtr <= Blocks_[i].End()) {
             return ExtractPrefix(i, endPtr);
         }
@@ -329,7 +329,7 @@ TSharedRef TStreamReader::ExtractPrefix(size_t length)
     }
 
     auto firstBlockSuffixLength = Blocks_[0].End() - PrefixStart_;
-    if (length <= firstBlockSuffixLength) {
+    if (static_cast<ssize_t>(length) <= firstBlockSuffixLength) {
         return ExtractPrefix(0, PrefixStart_ + length);
     }
 
@@ -343,7 +343,7 @@ TSharedRef TStreamReader::ExtractPrefix(size_t length)
         lastBlockIndex = length / BlockSize_ + 1;
     }
 
-    YT_VERIFY(lastBlockIndex < Blocks_.size());
+    YT_VERIFY(lastBlockIndex < std::ssize(Blocks_));
     return ExtractPrefix(lastBlockIndex, Blocks_[lastBlockIndex].Begin() + positionInLastBlock);
 }
 

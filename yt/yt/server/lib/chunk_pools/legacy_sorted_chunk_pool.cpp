@@ -139,7 +139,7 @@ public:
 
     virtual void Reset(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe, TInputChunkMappingPtr mapping) override
     {
-        for (int index = 0; index < Stripes_.size(); ++index) {
+        for (int index = 0; index < std::ssize(Stripes_); ++index) {
             auto newStripe = (index == cookie) ? stripe : mapping->GetMappedStripe(Stripes_[index].GetStripe());
             Stripes_[index].Reset(newStripe);
         }
@@ -227,11 +227,11 @@ public:
             return JobManager_->GetStripeList(cookie);
         }
 
-        if (CachedNewStripeLists_.size() > cookie && CachedNewStripeLists_[cookie]) {
+        if (std::ssize(CachedNewStripeLists_) > cookie && CachedNewStripeLists_[cookie]) {
             return CachedNewStripeLists_[cookie];
         }
 
-        if (CachedNewStripeLists_.size() <= cookie) {
+        if (std::ssize(CachedNewStripeLists_) <= cookie) {
             CachedNewStripeLists_.resize(cookie + 1);
         }
 
@@ -336,7 +336,7 @@ private:
             }
         };
 
-        for (int inputCookie = 0; inputCookie < Stripes_.size(); ++inputCookie) {
+        for (int inputCookie = 0; inputCookie < std::ssize(Stripes_); ++inputCookie) {
             const auto& suspendableStripe = Stripes_[inputCookie];
             const auto& stripe = suspendableStripe.GetStripe();
 
@@ -467,7 +467,7 @@ private:
         THashMap<TLegacyKey, int> singleKeySliceNumber;
         std::vector<std::pair<TInputChunkPtr, IChunkPoolInput::TCookie>> teleportCandidates;
 
-        for (int inputCookie = 0; inputCookie < Stripes_.size(); ++inputCookie) {
+        for (int inputCookie = 0; inputCookie < std::ssize(Stripes_); ++inputCookie) {
             const auto& stripe = Stripes_[inputCookie].GetStripe();
             auto primary = InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex()).IsPrimary();
             for (const auto& dataSlice : stripe->DataSlices) {
@@ -481,7 +481,7 @@ private:
                 }
 
                 lowerLimits.emplace_back(GetKeyPrefix(dataSlice->LegacyLowerLimit().Key, PrimaryPrefixLength_, RowBuffer_));
-                if (dataSlice->LegacyUpperLimit().Key.GetCount() > PrimaryPrefixLength_) {
+                if (static_cast<int>(dataSlice->LegacyUpperLimit().Key.GetCount()) > PrimaryPrefixLength_) {
                     upperLimits.emplace_back(GetKeySuccessor(GetKeyPrefix(dataSlice->LegacyUpperLimit().Key, PrimaryPrefixLength_, RowBuffer_), RowBuffer_));
                 } else {
                     upperLimits.emplace_back(dataSlice->LegacyUpperLimit().Key);
@@ -573,7 +573,7 @@ private:
 
     void SetupSuspendedStripes()
     {
-        for (int inputCookie = 0; inputCookie < Stripes_.size(); ++inputCookie) {
+        for (int inputCookie = 0; inputCookie < std::ssize(Stripes_); ++inputCookie) {
             const auto& stripe = Stripes_[inputCookie];
             if (stripe.IsSuspended()) {
                 JobManager_->Suspend(inputCookie);

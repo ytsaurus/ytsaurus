@@ -536,7 +536,7 @@ std::vector<std::unique_ptr<IParser>> CreateParsersForFormat(
 {
     std::vector<std::unique_ptr<IParser>> parsers;
 
-    auto parserCount = valueConsumers.size();
+    auto parserCount = std::ssize(valueConsumers);
     parsers.reserve(parserCount);
 
     switch (format.GetType()) {

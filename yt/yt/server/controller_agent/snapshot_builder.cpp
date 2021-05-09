@@ -129,7 +129,7 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
         YT_VERIFY(resultsOrError.IsOK() && "AllSet failed");
         const auto& results = resultsOrError.Value();
         YT_VERIFY(results.size() == Jobs_.size());
-        for (int index = 0; index < Jobs_.size(); ++index) {
+        for (int index = 0; index < std::ssize(Jobs_); ++index) {
             const auto& coookieOrError = results[index];
             if (!coookieOrError.IsOK()) {
                 YT_LOG_WARNING(coookieOrError, "Failed to get snapshot index from controller (OperationId: %v)",
@@ -273,7 +273,7 @@ void TSnapshotBuilder::RunChild()
     {
         const int jobsPerBuilder = Jobs_.size() / Config_->ParallelSnapshotBuilderCount + 1;
         std::vector<TBuildSnapshotJob> jobs;
-        for (int jobIndex = 0; jobIndex < Jobs_.size(); ++jobIndex) {
+        for (int jobIndex = 0; jobIndex < std::ssize(Jobs_); ++jobIndex) {
             auto& job = Jobs_[jobIndex];
             auto controller = job->WeakController.Lock();
             if (!job->Suspended || !controller || !controller->IsRunning()) {
@@ -287,7 +287,7 @@ void TSnapshotBuilder::RunChild()
             snapshotJob.OutputFile = std::move(job->OutputFile);
             jobs.push_back(std::move(snapshotJob));
 
-            if (jobs.size() >= jobsPerBuilder) {
+            if (std::ssize(jobs) >= jobsPerBuilder) {
                 builderThreads.emplace_back(
                     DoSnapshotJobs, std::move(jobs));
                 jobs.clear();

@@ -611,7 +611,7 @@ private:
         while (currentIt != LookupKeys_.End()) {
             std::vector<TPartitionSessionInfo> partitionSessionInfos;
 
-            while (partitionSessionInfos.size() < *mountConfig->MaxParallelPartitionLookups &&
+            while (std::ssize(partitionSessionInfos) < *mountConfig->MaxParallelPartitionLookups &&
                 currentIt != LookupKeys_.End())
             {
                 auto sessionInfo = CreatePartitionSession(&currentIt, &startChunkKeyIndex, partitionSessionInfos.size());
@@ -639,7 +639,7 @@ private:
                 .ThrowOnError();
 
             // NB: Processing of partitions is sequential.
-            for (int index = 0; index < partitionSessionInfos.size(); ++index) {
+            for (int index = 0; index < std::ssize(partitionSessionInfos); ++index) {
                 LookupInPartition(
                     partitionSessionInfos[index].StartKeyIndex,
                     partitionSessionInfos[index].EndKeyIndex,

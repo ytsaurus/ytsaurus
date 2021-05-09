@@ -608,7 +608,7 @@ private:
                     int iovCount = 0;
                     i64 toWrite = 0;
                     while (bufferIndex + iovCount < static_cast<int>(request.Buffers.size()) &&
-                           iovCount < iov.size() &&
+                           iovCount < std::ssize(iov) &&
                            toWrite < Config_->MaxBytesPerWrite)
                     {
                         const auto& buffer = request.Buffers[bufferIndex + iovCount];
@@ -621,7 +621,7 @@ private:
                             iovPart.iov_base = static_cast<char*>(iovPart.iov_base) + bufferOffset;
                             iovPart.iov_len -= bufferOffset;
                         }
-                        if (toWrite + iovPart.iov_len > Config_->MaxBytesPerWrite) {
+                        if (toWrite + static_cast<i64>(iovPart.iov_len) > Config_->MaxBytesPerWrite) {
                             iovPart.iov_len = Config_->MaxBytesPerWrite - toWrite;
                         }
                         toWrite += iovPart.iov_len;
@@ -650,7 +650,7 @@ private:
                         bufferOffset += toAdvance;
                         reallyWritten -= toAdvance;
                         toWriteRemaining -= toAdvance;
-                        if (bufferOffset == buffer.Size()) {
+                        if (bufferOffset == std::ssize(buffer)) {
                             ++bufferIndex;
                             bufferOffset = 0;
                         }
@@ -678,7 +678,7 @@ private:
                     fileOffset += reallyWritten;
                     bufferOffset += reallyWritten;
                     toWriteRemaining -= reallyWritten;
-                    if (bufferOffset == buffer.Size()) {
+                    if (bufferOffset == std::ssize(buffer)) {
                         ++bufferIndex;
                         bufferOffset = 0;
                     }
@@ -1192,7 +1192,7 @@ private:
                     auto endOffset = AlignUp(subrequest.Offset + static_cast<i64>(subrequest.Buffer.Size()), PageSize);
 
                     i64 readSize;
-                    if (subrequest.Buffer.Size() >= Config_->LargeUnalignedDirectIOReadSize) {
+                    if (std::ssize(subrequest.Buffer) >= Config_->LargeUnalignedDirectIOReadSize) {
                         readSize = Min(endOffset - startOffset, AlignUp(Config_->MaxBytesPerRead, PageSize));
                         AllocateLargeDirectIOReadBuffer(request, subrequestIndex, readSize);
                     } else {
@@ -1271,7 +1271,7 @@ private:
             int iovCount = 0;
             i64 toWrite = 0;
             while (request->CurrentWriteSubrequestIndex + iovCount < totalSubrequestCount &&
-                iovCount < request->WriteIovBuffer->size() &&
+                iovCount < std::ssize(*request->WriteIovBuffer) &&
                 toWrite < Config_->MaxBytesPerWrite)
             {
                 const auto& buffer = request->WriteRequest.Buffers[request->CurrentWriteSubrequestIndex + iovCount];
@@ -1280,7 +1280,7 @@ private:
                     .iov_base = const_cast<char*>(buffer.Begin()),
                     .iov_len = buffer.Size()
                 };
-                if (toWrite + iov.iov_len > Config_->MaxBytesPerWrite) {
+                if (toWrite + static_cast<i64>(iov.iov_len) > Config_->MaxBytesPerWrite) {
                     iov.iov_len = Config_->MaxBytesPerWrite - toWrite;
                 }
                 toWrite += iov.iov_len;
@@ -1514,8 +1514,8 @@ private:
             intptr_t notificationUserData)
         {
             YT_VERIFY(notificationIndex >= 0);
-            YT_VERIFY(notificationIndex < NotificationIov_.size());
-            YT_VERIFY(notificationIndex < NotificationReadBuffer_.size());
+            YT_VERIFY(notificationIndex < std::ssize(NotificationIov_));
+            YT_VERIFY(notificationIndex < std::ssize(NotificationReadBuffer_));
 
             auto iov = &NotificationIov_[notificationIndex];
             *iov = {

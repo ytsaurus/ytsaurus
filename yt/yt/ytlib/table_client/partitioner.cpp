@@ -81,7 +81,7 @@ private:
 
     void ValidateKeyBounds()
     {
-        for (int index = 0; index + 1 < PartitionLowerBounds_.size(); ++index) {
+        for (int index = 0; index + 1 < std::ssize(PartitionLowerBounds_); ++index) {
             const auto& partition = PartitionLowerBounds_[index];
             const auto& nextPartition = PartitionLowerBounds_[index + 1];
             // TODO(gritukan): Check if pivots are not equal.

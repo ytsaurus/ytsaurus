@@ -147,7 +147,7 @@ std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
 
             auto req = proxy.GetTabletInfo();
             ToProto(req->mutable_tablet_ids(), perCellTabletIds);
-            for (int index = 0; index < perCellTabletIds.size(); ++index) {
+            for (int index = 0; index < std::ssize(perCellTabletIds); ++index) {
                 ToProto(req->add_cell_ids(), cellId);
             }
 
@@ -169,7 +169,7 @@ std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
         }
 
         for (auto [replicaId, count] : replicaIdToCount) {
-            if (count == tabletIds.size()) {
+            if (count == std::ssize(tabletIds)) {
                 replicaIds.push_back(replicaId);
             }
         }
@@ -257,7 +257,7 @@ TFuture<TTableReplicaInfoPtrList> TClient::PickInSyncReplicas(
 
         auto req = proxy.GetTabletInfo();
         ToProto(req->mutable_tablet_ids(), tabletIds);
-        for (int index = 0; index < tabletIds.size(); ++index) {
+        for (int index = 0; index < std::ssize(tabletIds); ++index) {
             ToProto(req->add_cell_ids(), cellId);
         }
 
@@ -280,7 +280,7 @@ TFuture<TTableReplicaInfoPtrList> TClient::PickInSyncReplicas(
         TTableReplicaInfoPtrList inSyncReplicaInfos;
         for (const auto& replicaInfo : tableInfo->Replicas) {
             auto it = replicaIdToCount.find(replicaInfo->ReplicaId);
-            if (it != replicaIdToCount.end() && it->second == tabletCount) {
+            if (it != replicaIdToCount.end() && it->second == static_cast<ssize_t>(tabletCount)) {
                 YT_LOG_DEBUG("In-sync replica found (Path: %v, ReplicaId: %v, ClusterName: %v)",
                     tableInfo->Path,
                     replicaInfo->ReplicaId,
@@ -357,7 +357,7 @@ std::optional<TString> TClient::PickInSyncClusterAndPatchQuery(
 
     std::vector<TString> inSyncClusterNames;
     for (const auto& [name, count] : clusterNameToCount) {
-        if (count == paths.size()) {
+        if (count == std::ssize(paths)) {
             inSyncClusterNames.push_back(name);
         }
     }

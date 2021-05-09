@@ -35,7 +35,7 @@ bool TTableMountInfo::IsReplicated() const
 
 TTabletInfoPtr TTableMountInfo::GetTabletByIndexOrThrow(int tabletIndex) const
 {
-    if (tabletIndex < 0 || tabletIndex >= Tablets.size()) {
+    if (tabletIndex < 0 || tabletIndex >= std::ssize(Tablets)) {
         THROW_ERROR_EXCEPTION("Invalid tablet index: expected in range [0,%v], got %v",
             Tablets.size() - 1,
             tabletIndex);
@@ -46,7 +46,7 @@ TTabletInfoPtr TTableMountInfo::GetTabletByIndexOrThrow(int tabletIndex) const
 TTabletInfoPtr TTableMountInfo::GetTabletForRow(TRange<TUnversionedValue> row) const
 {
     int keyColumnCount = Schemas[ETableSchemaKind::Primary]->GetKeyColumnCount();
-    YT_VERIFY(row.Size() >= keyColumnCount);
+    YT_VERIFY(std::ssize(row) >= keyColumnCount);
     ValidateDynamic();
     auto it = std::upper_bound(
         Tablets.begin(),
@@ -66,7 +66,7 @@ TTabletInfoPtr TTableMountInfo::GetTabletForRow(TRange<TUnversionedValue> row) c
 TTabletInfoPtr TTableMountInfo::GetTabletForRow(TUnversionedRow row) const
 {
     int keyColumnCount = Schemas[ETableSchemaKind::Primary]->GetKeyColumnCount();
-    YT_VERIFY(row.GetCount() >= keyColumnCount);
+    YT_VERIFY(static_cast<int>(row.GetCount()) >= keyColumnCount);
     return GetTabletForRow(MakeRange(row.Begin(), row.Begin() + keyColumnCount));
 }
 

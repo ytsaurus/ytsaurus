@@ -169,7 +169,7 @@ THistogramQuartiles ComputeHistogramQuartiles(const THistogramView& histogramVie
     i64 bucketSize = (histogramView.Max - histogramView.Min) / histogramView.Count.size();
 
     auto computeNextQuartile = [&] (double quartile) {
-        while (currentBucketIndex < histogramView.Count.size() && partialBucketSum < quartile * totalSum) {
+        while (currentBucketIndex < std::ssize(histogramView.Count) && partialBucketSum < quartile * totalSum) {
             partialBucketSum += histogramView.Count[currentBucketIndex];
             ++currentBucketIndex;
         }

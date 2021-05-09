@@ -57,7 +57,7 @@ TSequentialMultiReaderManager::TSequentialMultiReaderManager(
 {
     YT_LOG_DEBUG("Multi chunk reader is sequential");
     NextReaders_.reserve(ReaderFactories_.size());
-    for (int i = 0; i < ReaderFactories_.size(); ++i) {
+    for (int i = 0; i < std::ssize(ReaderFactories_); ++i) {
         NextReaders_.push_back(NewPromise<IReaderBasePtr>());
     }
 
@@ -103,7 +103,7 @@ void TSequentialMultiReaderManager::OnReaderFinished()
     TMultiReaderManagerBase::OnReaderFinished();
 
     ++FinishedReaderCount_;
-    if (FinishedReaderCount_ == ReaderFactories_.size()) {
+    if (FinishedReaderCount_ == std::ssize(ReaderFactories_)) {
         CompletionError_.TrySet(TError());
         return;
     }
@@ -115,7 +115,7 @@ void TSequentialMultiReaderManager::OnReaderFinished()
 
 TFuture<void> TSequentialMultiReaderManager::WaitForNextReader()
 {
-    if (NextReaderIndex_ == ReaderFactories_.size()) {
+    if (NextReaderIndex_ == std::ssize(ReaderFactories_)) {
         return VoidFuture;
     }
 

@@ -19,9 +19,9 @@ void SortOrMergeImpl(
     while (mergePivots->size() > 2) {
         newPivots->clear();
 
-        for (int startPivot = 0; startPivot < mergePivots->size() - 1; startPivot += 2) {
+        for (int startPivot = 0; startPivot < std::ssize(*mergePivots) - 1; startPivot += 2) {
             newPivots->push_back((*mergePivots)[startPivot]);
-            if (startPivot + 2 < mergePivots->size()) {
+            if (startPivot + 2 < std::ssize(*mergePivots)) {
                 std::merge(
                     /* first1 */ begin(*buffer1) + (*mergePivots)[startPivot],
                     /* last1 */ begin(*buffer1) + (*mergePivots)[startPivot + 1],
@@ -53,7 +53,7 @@ bool FindMergePivots(const std::vector<double>* vec, TPivotsVector* pivots) noex
     pivots->clear();
     pivots->push_back(0);
 
-    for (int i = 1; i < vec->size(); i++) {
+    for (int i = 1; i < std::ssize(*vec); i++) {
         if ((*vec)[i] < (*vec)[i - 1]) {
             if (pivots->size() < MergeArity) {
                 pivots->push_back(i);

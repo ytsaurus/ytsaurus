@@ -50,7 +50,7 @@ void TRandomAccessGZipFile::Repair()
 
     while (OutputPosition_ != fileSize) {
         TGZipExtendedHeader header;
-        if (fileSize - OutputPosition_ < sizeof(header)) {
+        if (fileSize - OutputPosition_ < static_cast<int>(sizeof(header))) {
             File_->Resize(OutputPosition_);
             return;
         }

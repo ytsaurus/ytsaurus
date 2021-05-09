@@ -128,8 +128,8 @@ protected:
     {
         auto records = changelog->Read(firstRecordId, recordCount, std::numeric_limits<i64>::max());
         int expectedRecordCount = firstRecordId >= logRecordCount ? 0 : Min(recordCount, logRecordCount - firstRecordId);
-        EXPECT_EQ(records.size(), expectedRecordCount);
-        for (int i = 0; i < records.size(); ++i) {
+        EXPECT_EQ(std::ssize(records), expectedRecordCount);
+        for (int i = 0; i < std::ssize(records); ++i) {
             CheckRecord<T>(static_cast<T>(firstRecordId + i), records[i]);
         }
     }
@@ -274,16 +274,16 @@ TEST_P(TSyncFileChangelogTest, Padding)
             changelog->Flush();
 
             auto records = changelog->Read(0, std::numeric_limits<int>::max(), std::numeric_limits<i64>::max());
-            EXPECT_EQ(records.size(), 1);
+            EXPECT_EQ(std::ssize(records), 1);
 
-            auto paddingSize = Alignment - AlignUp(record.Size()) - AlignUp(GetRecordHeaderSize());
+            i64 paddingSize = Alignment - AlignUp(record.Size()) - AlignUp(GetRecordHeaderSize());
 
             TChangelogRecordHeader_4 header;
             file.Seek(-Alignment, sEnd);
             EXPECT_EQ(sizeof(header), file.Load(&header, sizeof(header)));
 
             EXPECT_EQ(header.RecordId, 0);
-            EXPECT_EQ(header.DataSize, record.Size());
+            EXPECT_EQ(header.DataSize, std::ssize(record));
             EXPECT_EQ(header.PaddingSize, paddingSize);
         }
 
@@ -292,14 +292,14 @@ TEST_P(TSyncFileChangelogTest, Padding)
             changelog->Append(1, {record});
             changelog->Flush();
 
-            auto paddingSize = Alignment - AlignUp(record.Size()) - AlignUp(GetRecordHeaderSize());
+            i64 paddingSize = Alignment - AlignUp(record.Size()) - AlignUp(GetRecordHeaderSize());
 
             TChangelogRecordHeader_4 header;
             file.Seek(-Alignment, sEnd);
             EXPECT_EQ(file.Load(&header, sizeof(header)), sizeof(header));
 
             EXPECT_EQ(header.RecordId, 1);
-            EXPECT_EQ(header.DataSize, record.Size());
+            EXPECT_EQ(header.DataSize, std::ssize(record));
             EXPECT_EQ(header.PaddingSize, paddingSize);
 
             changelog->Append(2, {record});
@@ -308,14 +308,14 @@ TEST_P(TSyncFileChangelogTest, Padding)
 
         {
             auto records = changelog->Read(0, std::numeric_limits<int>::max(), std::numeric_limits<i64>::max());
-            EXPECT_EQ(records.size(), 3);
+            EXPECT_EQ(std::ssize(records), 3);
         }
     }
 
     {
         auto changelog = OpenChangelog();
         auto records = changelog->Read(0, std::numeric_limits<int>::max(), std::numeric_limits<i64>::max());
-        EXPECT_EQ(records.size(), 3);
+        EXPECT_EQ(std::ssize(records), 3);
     }
 }
 

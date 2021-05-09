@@ -554,9 +554,9 @@ protected:
         std::vector<TVersionedRow> expected;
 
         std::vector<int> idMapping(writeSchema->Columns().size(), -1);
-        for (int i = 0; i < writeSchema->Columns().size(); ++i) {
+        for (int i = 0; i < std::ssize(writeSchema->Columns()); ++i) {
             auto writeColumnSchema = writeSchema->Columns()[i];
-            for (int j = 0; j < readSchema->Columns().size(); ++j) {
+            for (int j = 0; j < std::ssize(readSchema->Columns()); ++j) {
                 auto readColumnSchema = readSchema->Columns()[j];
                 if (writeColumnSchema.Name() == readColumnSchema.Name()) {
                     idMapping[i] = j;

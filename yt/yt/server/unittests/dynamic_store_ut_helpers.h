@@ -285,7 +285,7 @@ protected:
         auto expectedRowParts = ConvertTo<THashMap<TString, INodePtr>>(
             TYsonString(TString(yson), EYsonType::MapFragment));
 
-        for (int index = 0; index < row.GetCount(); ++index) {
+        for (int index = 0; index < static_cast<int>(row.GetCount()); ++index) {
             const auto& value = row[index];
             const auto& name = nameTable->GetName(value.Id);
             auto it = expectedRowParts.find(name);

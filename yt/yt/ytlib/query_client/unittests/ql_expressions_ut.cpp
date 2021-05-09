@@ -59,7 +59,7 @@ protected:
                 || functionLhs->Arguments.size() != functionRhs->Arguments.size()) {
                 return false;
             }
-            for (int index = 0; index < functionLhs->Arguments.size(); ++index) {
+            for (int index = 0; index < std::ssize(functionLhs->Arguments); ++index) {
                 if (!Equal(functionLhs->Arguments[index], functionRhs->Arguments[index])) {
                     return false;
                 }
@@ -86,12 +86,12 @@ protected:
                 || inLhs->Arguments.size() != inRhs->Arguments.size()) {
                 return false;
             }
-            for (int index = 0; index < inLhs->Values.Size(); ++index) {
+            for (int index = 0; index < std::ssize(inLhs->Values); ++index) {
                 if (inLhs->Values[index] != inRhs->Values[index]) {
                     return false;
                 }
             }
-            for (int index = 0; index < inLhs->Arguments.size(); ++index) {
+            for (int index = 0; index < std::ssize(inLhs->Arguments); ++index) {
                 if (!Equal(inLhs->Arguments[index], inRhs->Arguments[index])) {
                     return false;
                 }
@@ -717,7 +717,7 @@ TSharedRange<TRow> MakeRows(const TString& yson)
     auto buffer = New<TRowBuffer>();
     std::vector<TRow> rows;
 
-    for (int id = 0; id < keyParts.size(); ++id) {
+    for (int id = 0; id < std::ssize(keyParts); ++id) {
         keyBuilder.Reset();
 
         const auto& keyPart = keyParts[id];

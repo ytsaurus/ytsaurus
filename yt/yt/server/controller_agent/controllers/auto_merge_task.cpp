@@ -44,7 +44,7 @@ IChunkPoolInput::TCookie TAutoMergeChunkPoolAdapter::AddWithKey(TChunkStripePtr 
     Task_->CurrentChunkCounts_[PoolIndex_] += stripe->GetChunkCount();
 
     auto cookie = TChunkPoolInputAdapterBase::AddWithKey(stripe, key);
-    if (CookieChunkCount_.size() <= cookie) {
+    if (std::ssize(CookieChunkCount_) <= cookie) {
         CookieChunkCount_.resize(cookie + 1);
     }
     CookieChunkCount_[cookie] = stripe->GetChunkCount();
@@ -141,7 +141,7 @@ TAutoMergeTask::TAutoMergeTask(
 {
     ChunkPools_.reserve(StreamDescriptors_.size());
     CurrentChunkCounts_.resize(StreamDescriptors_.size(), 0);
-    for (int poolIndex = 0; poolIndex < StreamDescriptors_.size(); ++poolIndex) {
+    for (int poolIndex = 0; poolIndex < std::ssize(StreamDescriptors_); ++poolIndex) {
         auto autoMergeJobSizeConstraints = CreateExplicitJobSizeConstraints(
             false /* canAdjustDataSizePerJob */,
             false /* isExplicitJobCount */,
@@ -243,7 +243,7 @@ void TAutoMergeTask::UpdateSelf()
 {
     std::vector<bool> shouldScheduleJobs;
     shouldScheduleJobs.reserve(ChunkPools_.size());
-    for (int poolIndex = 0; poolIndex < ChunkPools_.size(); ++poolIndex) {
+    for (int poolIndex = 0; poolIndex < std::ssize(ChunkPools_); ++poolIndex) {
         const auto& chunkPool = ChunkPools_[poolIndex];
         int currentChunkCount = CurrentChunkCounts_[poolIndex];
 

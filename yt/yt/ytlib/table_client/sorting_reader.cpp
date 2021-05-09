@@ -43,7 +43,7 @@ public:
         , RowBuffer_(New<TRowBuffer>(TSchemalessSortingReaderTag()))
         , RowReorderer_(std::move(nameTable), RowBuffer_, /* deepCapture */ true, KeyColumns_)
     {
-        YT_VERIFY(KeyColumns_.size() == Comparator_.GetLength());
+        YT_VERIFY(std::ssize(KeyColumns_) == Comparator_.GetLength());
 
         SetReadyEvent(BIND(&TSortingReader::DoOpen, MakeWeak(this))
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
@@ -59,7 +59,7 @@ public:
         i64 startRowCount = ReadRowCount_;
         i64 endRowCount = startRowCount;
         i64 dataWeight = 0;
-        while (endRowCount < Rows_.size() && endRowCount - startRowCount < options.MaxRowsPerRead && dataWeight < options.MaxDataWeightPerRead) {
+        while (endRowCount < std::ssize(Rows_) && endRowCount - startRowCount < options.MaxRowsPerRead && dataWeight < options.MaxDataWeightPerRead) {
             dataWeight += GetDataWeight(Rows_[endRowCount++]);
         }
 

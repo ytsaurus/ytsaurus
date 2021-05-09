@@ -232,8 +232,8 @@ TCompatibilityPair CheckElementsCompatibility(
     const TComplexTypeFieldDescriptor& newDescriptor,
     bool allowNewElements)
 {
-    const auto oldSize = oldDescriptor.GetType()->GetElements().size();
-    const auto newSize = newDescriptor.GetType()->GetElements().size();
+    const auto oldSize = std::ssize(oldDescriptor.GetType()->GetElements());
+    const auto newSize = std::ssize(newDescriptor.GetType()->GetElements());
     if (oldSize > newSize) {
         return {
             ESchemaCompatibility::Incompatible,
@@ -275,7 +275,7 @@ TCompatibilityPair CheckFieldsCompatibility(
     int fieldIndex = 0;
     //
     auto result = std::pair(ESchemaCompatibility::FullyCompatible, TError());
-    for (; fieldIndex < oldFields.size() && result.first != ESchemaCompatibility::Incompatible; ++fieldIndex) {
+    for (; fieldIndex < std::ssize(oldFields) && result.first != ESchemaCompatibility::Incompatible; ++fieldIndex) {
         const auto& oldName = oldFields[fieldIndex].Name;
         const auto& newName = newFields[fieldIndex].Name;
         if (oldName != newName) {
@@ -297,7 +297,7 @@ TCompatibilityPair CheckFieldsCompatibility(
 
     // All added fields must be nullable
     if (checkNewFieldsNullability) {
-        for (; fieldIndex < newFields.size() && result.first != ESchemaCompatibility::Incompatible; ++fieldIndex) {
+        for (; fieldIndex < std::ssize(newFields) && result.first != ESchemaCompatibility::Incompatible; ++fieldIndex) {
             const auto& newFieldDescriptor = newDescriptor.Field(fieldIndex);
             if (!newFieldDescriptor.GetType()->IsNullable()) {
                 result = {

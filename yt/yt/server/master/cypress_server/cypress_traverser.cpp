@@ -154,7 +154,7 @@ private:
                             Visitor_->OnNode(entry.TrunkNode, Transaction_);
                         }
                         ++currentNodeCount;
-                    } else if (childIndex < entry.TrunkChildren.size()) {
+                    } else if (childIndex < std::ssize(entry.TrunkChildren)) {
                         auto* child = entry.TrunkChildren[childIndex];
                         if (IsObjectAlive(child)) {
                             PushEntry(child);

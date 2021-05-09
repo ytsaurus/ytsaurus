@@ -45,7 +45,7 @@ void ExpectSchemafulRowsEqual(TUnversionedRow expected, TUnversionedRow actual)
     }
     ASSERT_EQ(expected.GetCount(), actual.GetCount());
 
-    for (int valueIndex = 0; valueIndex < expected.GetCount(); ++valueIndex) {
+    for (int valueIndex = 0; valueIndex < static_cast<int>(expected.GetCount()); ++valueIndex) {
         SCOPED_TRACE(Format("Value index %v", valueIndex));
         CheckEqual(expected[valueIndex], actual[valueIndex]);
     }
@@ -66,12 +66,12 @@ void ExpectSchemalessRowsEqual(TUnversionedRow expected, TUnversionedRow actual,
         CheckEqual(expected[valueIndex], actual[valueIndex]);
     }
 
-    for (int valueIndex = keyColumnCount; valueIndex < expected.GetCount(); ++valueIndex) {
+    for (int valueIndex = keyColumnCount; valueIndex < static_cast<int>(expected.GetCount()); ++valueIndex) {
         SCOPED_TRACE(Format("Value index %v", valueIndex));
 
         // Find value with the same id. Since this in schemaless read, value positions can be different.
         bool found = false;
-        for (int index = keyColumnCount; index < expected.GetCount(); ++index) {
+        for (int index = keyColumnCount; index < static_cast<int>(expected.GetCount()); ++index) {
             if (expected[valueIndex].Id == actual[index].Id) {
                 CheckEqual(expected[valueIndex], actual[index]);
                 found = true;
@@ -172,14 +172,14 @@ std::vector<std::pair<ui32, ui32>> GetTimestampIndexRanges(
             }
         }
 
-        ui32 lowerTimestampIndex = 0;
+        int lowerTimestampIndex = 0;
         while (lowerTimestampIndex < row.GetWriteTimestampCount() &&
                row.BeginWriteTimestamps()[lowerTimestampIndex] > timestamp)
         {
             ++lowerTimestampIndex;
         }
 
-        ui32 upperTimestampIndex = lowerTimestampIndex;
+        int upperTimestampIndex = lowerTimestampIndex;
         while (upperTimestampIndex < row.GetWriteTimestampCount() &&
                row.BeginWriteTimestamps()[upperTimestampIndex] > deleteTimestamp)
         {

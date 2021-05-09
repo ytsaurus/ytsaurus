@@ -136,7 +136,7 @@ private:
                     Header_.SnapshotId);
             }
 
-            if (Header_.CompressedLength != File_->GetLength()) {
+            if (static_cast<i64>(Header_.CompressedLength) != File_->GetLength()) {
                 THROW_ERROR_EXCEPTION(
                     "Invalid compressed length in header of %v: expected %v, got %v",
                     FileName_,

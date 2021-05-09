@@ -85,9 +85,9 @@ void TVirtualMapBase::GetSelf(
 
     // NB: we do not want empty attributes (<>) to appear in the result in order to comply
     // with current behaviour for some paths (like //sys/scheduler/orchid/scheduler/operations).
-    if (keys.size() != size || OwningNode_) {
+    if (std::ssize(keys) != size || OwningNode_) {
         writer.OnBeginAttributes();
-        if (keys.size() != size) {
+        if (std::ssize(keys) != size) {
             writer.OnKeyedItem("incomplete");
             writer.OnBooleanScalar(true);
         }
@@ -162,7 +162,7 @@ void TVirtualMapBase::ListSelf(
 
     TAsyncYsonWriter writer;
 
-    if (keys.size() != size) {
+    if (std::ssize(keys) != size) {
         writer.OnBeginAttributes();
         writer.OnKeyedItem("incomplete");
         writer.OnBooleanScalar(true);

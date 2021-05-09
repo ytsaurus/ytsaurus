@@ -13,7 +13,7 @@ TMockChunkSliceFetcherFactory::TMockChunkSliceFetcherFactory(std::vector<TStrict
 
 IChunkSliceFetcherPtr TMockChunkSliceFetcherFactory::CreateChunkSliceFetcher()
 {
-    YT_VERIFY(CurrentIndex_ < Fetchers_->size());
+    YT_VERIFY(CurrentIndex_ < std::ssize(*Fetchers_));
     return Fetchers_->at(CurrentIndex_++);
 }
 

@@ -86,7 +86,7 @@ TChunkReplicaList TInputChunkBase::GetReplicaList() const
 void TInputChunkBase::SetReplicaList(const TChunkReplicaList& replicas)
 {
     Replicas_.fill(TChunkReplica());
-    for (int index = 0; index < replicas.size(); ++index) {
+    for (int index = 0; index < std::ssize(replicas); ++index) {
         auto replica = replicas[index];
         if (ErasureCodec_ == NErasure::ECodec::None) {
             if (index < MaxInputChunkReplicaCount) {
@@ -400,7 +400,7 @@ TChunkId EncodeChunkId(const TInputChunkPtr& inputChunk, TNodeId nodeId)
         inputChunk->Replicas().begin(),
         inputChunk->Replicas().end(),
         [=] (TChunkReplica replica) {
-            return replica.GetNodeId() == nodeId;
+            return static_cast<TNodeId>(replica.GetNodeId()) == nodeId;
         });
     YT_VERIFY(replicaIt != inputChunk->Replicas().end());
 

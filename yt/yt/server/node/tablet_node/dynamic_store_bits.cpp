@@ -7,7 +7,7 @@ namespace NYT::NTabletNode {
 TUnversionedValue GetUnversionedKeyValue(TSortedDynamicRow row, int index, EValueType type)
 {
     auto nullKeyMask = row.GetNullKeyMask();
-    YT_ASSERT(index < sizeof(nullKeyMask) * 8);
+    YT_ASSERT(index < static_cast<int>(sizeof(nullKeyMask) * 8));
 
     auto source = row.BeginKeys()[index];
 

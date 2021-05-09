@@ -754,7 +754,7 @@ void TTablet::AsyncLoad(TLoadContext& context)
 
     SERIALIZATION_DUMP_WRITE(context, "stores[%v]", StoreIdMap_.size());
     SERIALIZATION_DUMP_INDENT(context) {
-        for (int index = 0; index < StoreIdMap_.size(); ++index) {
+        for (int index = 0; index < std::ssize(StoreIdMap_); ++index) {
             auto storeId = Load<TStoreId>(context);
             SERIALIZATION_DUMP_WRITE(context, "%v =>", storeId);
             SERIALIZATION_DUMP_INDENT(context) {
@@ -888,7 +888,7 @@ void TTablet::SplitPartition(int index, const std::vector<TLegacyOwningKey>& piv
     auto existingPartition = std::move(PartitionList_[index]);
     YT_VERIFY(existingPartition->GetPivotKey() == pivotKeys[0]);
 
-    for (int partitionIndex = index + 1; partitionIndex < PartitionList_.size(); ++partitionIndex) {
+    for (int partitionIndex = index + 1; partitionIndex < std::ssize(PartitionList_); ++partitionIndex) {
         PartitionList_[partitionIndex]->SetIndex(partitionIndex + pivotKeys.size() - 1);
     }
 
@@ -897,9 +897,9 @@ void TTablet::SplitPartition(int index, const std::vector<TLegacyOwningKey>& piv
     auto& existingImmediateSplitKeys = existingPartition->PivotKeysForImmediateSplit();
     int sampleKeyIndex = 0;
     int immediateSplitKeyIndex = 0;
-    for (int pivotKeyIndex = 0; pivotKeyIndex < pivotKeys.size(); ++pivotKeyIndex) {
+    for (int pivotKeyIndex = 0; pivotKeyIndex < std::ssize(pivotKeys); ++pivotKeyIndex) {
         auto thisPivotKey = pivotKeys[pivotKeyIndex];
-        auto nextPivotKey = (pivotKeyIndex == pivotKeys.size() - 1)
+        auto nextPivotKey = (pivotKeyIndex == std::ssize(pivotKeys) - 1)
             ? existingPartition->GetNextPivotKey()
             : pivotKeys[pivotKeyIndex + 1];
         auto partition = std::make_unique<TPartition>(
@@ -909,29 +909,29 @@ void TTablet::SplitPartition(int index, const std::vector<TLegacyOwningKey>& piv
             thisPivotKey,
             nextPivotKey);
 
-        if (sampleKeyIndex < existingSampleKeys.Size() && existingSampleKeys[sampleKeyIndex] == thisPivotKey) {
+        if (sampleKeyIndex < std::ssize(existingSampleKeys) && existingSampleKeys[sampleKeyIndex] == thisPivotKey) {
             ++sampleKeyIndex;
         }
 
-        YT_VERIFY(sampleKeyIndex >= existingSampleKeys.Size() || existingSampleKeys[sampleKeyIndex] > thisPivotKey);
+        YT_VERIFY(sampleKeyIndex >= std::ssize(existingSampleKeys) || existingSampleKeys[sampleKeyIndex] > thisPivotKey);
 
         std::vector<TLegacyKey> sampleKeys;
         auto rowBuffer = New<TRowBuffer>(TSampleKeyListTag());
 
-        while (sampleKeyIndex < existingSampleKeys.Size() && existingSampleKeys[sampleKeyIndex] < nextPivotKey) {
+        while (sampleKeyIndex < std::ssize(existingSampleKeys) && existingSampleKeys[sampleKeyIndex] < nextPivotKey) {
             sampleKeys.push_back(rowBuffer->CaptureRow(existingSampleKeys[sampleKeyIndex]));
             ++sampleKeyIndex;
         }
 
         partition->GetSampleKeys()->Keys = MakeSharedRange(std::move(sampleKeys), std::move(rowBuffer));
 
-        if (existingPartition->IsImmediateSplitRequested() && immediateSplitKeyIndex != existingImmediateSplitKeys.size()) {
+        if (existingPartition->IsImmediateSplitRequested() && immediateSplitKeyIndex != std::ssize(existingImmediateSplitKeys)) {
             if (existingImmediateSplitKeys[immediateSplitKeyIndex] == thisPivotKey) {
                 ++immediateSplitKeyIndex;
             }
 
             int lastKeyIndex = immediateSplitKeyIndex;
-            while (lastKeyIndex < existingImmediateSplitKeys.size() && existingImmediateSplitKeys[lastKeyIndex] < nextPivotKey) {
+            while (lastKeyIndex < std::ssize(existingImmediateSplitKeys) && existingImmediateSplitKeys[lastKeyIndex] < nextPivotKey) {
                 ++lastKeyIndex;
             }
 

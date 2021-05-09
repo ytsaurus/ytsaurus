@@ -118,7 +118,7 @@ TDynamicAttributes& TScheduleJobsContext::DynamicAttributesFor(const TSchedulerE
     YT_VERIFY(Initialized_);
 
     int index = element->GetTreeIndex();
-    YT_VERIFY(index != UnassignedTreeIndex && index < DynamicAttributesList_.size());
+    YT_VERIFY(index != UnassignedTreeIndex && index < std::ssize(DynamicAttributesList_));
     return DynamicAttributesList_[index];
 }
 
@@ -127,7 +127,7 @@ const TDynamicAttributes& TScheduleJobsContext::DynamicAttributesFor(const TSche
     YT_VERIFY(Initialized_);
 
     int index = element->GetTreeIndex();
-    YT_VERIFY(index != UnassignedTreeIndex && index < DynamicAttributesList_.size());
+    YT_VERIFY(index != UnassignedTreeIndex && index < std::ssize(DynamicAttributesList_));
     return DynamicAttributesList_[index];
 }
 
@@ -651,7 +651,7 @@ bool TSchedulerElement::IsStrictlyDominatesNonBlocked(const TResourceVector& lhs
         return TResourceVector::Any(lhs, rhs, [] (double x, double y) { return x > y; });
     }
 
-    for (int i = 0; i < TResourceVector::Size; i++) {
+    for (size_t i = 0; i < TResourceVector::Size; i++) {
         if (!IsResourceBlocked(TResourceVector::GetResourceTypeById(i)) && lhs[i] <= rhs[i]) {
             return false;
         }
@@ -1394,7 +1394,7 @@ TResourceVolume TSchedulerCompositeElement::GetIntegralPoolCapacity() const
 
 void TSchedulerCompositeElement::InitializeChildHeap(TScheduleJobsContext* context)
 {
-    if (SchedulableChildren_.size() < TreeConfig_->MinChildHeapSize) {
+    if (std::ssize(SchedulableChildren_) < TreeConfig_->MinChildHeapSize) {
         return;
     }
 

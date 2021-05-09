@@ -109,7 +109,7 @@ private:
         size_t cumulativeSize = 0;
 
         for (auto row : rows) {
-            for (int index = SchemaColumnCount_; index < row.GetCount(); ++index) {
+            for (int index = SchemaColumnCount_; index < static_cast<int>(row.GetCount()); ++index) {
                 cumulativeSize += GetByteSize(row[index]);
             }
         }
@@ -128,7 +128,7 @@ private:
             } else {
                 MaxValueCount_ = std::max(MaxValueCount_, static_cast<ui32>(valueCount));
                 ValueCounts_.push_back(valueCount);
-                for (int index = SchemaColumnCount_; index < row.GetCount(); ++index) {
+                for (int index = SchemaColumnCount_; index < static_cast<int>(row.GetCount()); ++index) {
                     current += WriteValue(current, row[index]);
                 }
             }

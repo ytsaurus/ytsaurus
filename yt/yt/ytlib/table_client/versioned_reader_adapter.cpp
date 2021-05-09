@@ -108,7 +108,7 @@ private:
         ::memcpy(versionedRow.BeginKeys(), row.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
 
         TVersionedValue* currentValue = versionedRow.BeginValues();
-        for (int index = KeyColumnCount_; index < row.GetCount(); ++index) {
+        for (int index = KeyColumnCount_; index < static_cast<int>(row.GetCount()); ++index) {
             YT_VERIFY(row[index].Id >= KeyColumnCount_);
             *currentValue = MakeVersionedValue(row[index], Timestamp_);
             ++currentValue;

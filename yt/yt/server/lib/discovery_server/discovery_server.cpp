@@ -179,7 +179,7 @@ private:
         std::vector<TGossipMemberInfo> membersBatch;
         for (const auto& protoMember : request->members()) {
             membersBatch.push_back(FromProto<TGossipMemberInfo>(protoMember));
-            if (membersBatch.size() >= GossipBatchSize_) {
+            if (std::ssize(membersBatch) >= GossipBatchSize_) {
                 GroupManager_->ProcessGossip(membersBatch);
                 membersBatch.clear();
             }

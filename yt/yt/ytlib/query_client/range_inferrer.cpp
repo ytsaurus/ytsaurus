@@ -316,7 +316,7 @@ static std::optional<TUnversionedValue> TrimSentinel(TMutableRow row)
 void Copy(TRow source, TMutableRow dest, ui32 count)
 {
     count = std::min(count, source.GetCount());
-    for (int index = 0; index < count; ++index) {
+    for (int index = 0; index < static_cast<int>(count); ++index) {
         dest[index] = source[index];
     }
 }
@@ -474,7 +474,7 @@ void EnrichKeyRange(
         const auto& references = evaluator.GetReferenceIds(shrinkSize);
         auto canEvaluate = true;
         for (int referenceIndex : references) {
-            if (referenceIndex >= (canEnumerate ? prefixSize + 1 : prefixSize)) {
+            if (referenceIndex >= static_cast<int>(canEnumerate ? prefixSize + 1 : prefixSize)) {
                 canEvaluate = false;
                 break;
             } else if (
@@ -697,7 +697,7 @@ ui64 GetRangeCountLimit(
     ui64 rangeExpansionLimit)
 {
     ui64 moduloExpansion = 1;
-    for (int index = 0; index < keySize; ++index) {
+    for (int index = 0; index < static_cast<int>(keySize); ++index) {
         if (columns[index].Expression()) {
             auto expr = evaluator.GetExpression(index)->As<TBinaryOpExpression>();
             if (expr && expr->Opcode == EBinaryOp::Modulo) {

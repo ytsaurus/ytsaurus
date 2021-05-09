@@ -432,7 +432,7 @@ void TChunkReplicator::ComputeErasureChunkStatisticsForMedium(
                 result.BalancingRemovalIndexes.push_back(index);
             }
 
-            if (replicaCount == 0 && decommissionedReplicaCount > 0 && !removalAdvised && decommissionedReplicas.size() > index) {
+            if (replicaCount == 0 && decommissionedReplicaCount > 0 && !removalAdvised && std::ssize(decommissionedReplicas) > index) {
                 const auto& replicas = decommissionedReplicas[index];
                 // A replica may be "decommissioned" either because it's node is
                 // decommissioned or that node holds another part of the chunk (and that's
@@ -483,7 +483,7 @@ void TChunkReplicator::ComputeErasureChunkStatisticsCrossMedia(
     const NErasure::TPartIndexSet& replicaIndexes,
     bool totallySealed)
 {
-    if (!chunk->IsSealed() && replicaIndexes.count() < chunk->GetReadQuorum()) {
+    if (!chunk->IsSealed() && static_cast<ssize_t>(replicaIndexes.count()) < chunk->GetReadQuorum()) {
         result.Status |= ECrossMediumChunkStatus::QuorumMissing;
     }
 
@@ -971,7 +971,7 @@ bool TChunkReplicator::CreateReplicationJob(
         chunkWithIndexes,
         MakeFormattableView(targetNodes, TNodePtrAddressFormatter()));
 
-    return targetNodes.size() == replicasNeeded;
+    return std::ssize(targetNodes) == replicasNeeded;
 }
 
 bool TChunkReplicator::CreateBalancingJob(
@@ -1145,7 +1145,7 @@ bool TChunkReplicator::CreateRepairJob(
         return false;
     }
 
-    YT_VERIFY(targetNodes.size() == erasedPartCount);
+    YT_VERIFY(std::ssize(targetNodes) == erasedPartCount);
 
     TNodePtrWithIndexesList targetReplicas;
     int targetIndex = 0;
@@ -1225,7 +1225,7 @@ void TChunkReplicator::ScheduleJobs(
             auto jt = it++;
             auto chunkWithIndexes = jt->first;
             auto& mediumIndexSet = jt->second;
-            for (int mediumIndex = 0; mediumIndex < mediumIndexSet.size(); ++mediumIndex) {
+            for (int mediumIndex = 0; mediumIndex < std::ssize(mediumIndexSet); ++mediumIndex) {
                 if (mediumIndexSet.test(mediumIndex)) {
                     TJobPtr job;
                     auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
@@ -1306,7 +1306,7 @@ void TChunkReplicator::ScheduleJobs(
             auto jt = it++;
             auto chunkIdWithIndex = jt->first;
             auto& mediumIndexSet = jt->second;
-            for (int mediumIndex = 0; mediumIndex < mediumIndexSet.size(); ++mediumIndex) {
+            for (int mediumIndex = 0; mediumIndex < std::ssize(mediumIndexSet); ++mediumIndex) {
                 if (mediumIndexSet.test(mediumIndex)) {
                     TChunkIdWithIndexes chunkIdWithIndexes(
                         chunkIdWithIndex.Id,
@@ -1586,7 +1586,7 @@ void TChunkReplicator::MaybeRememberPartMissingChunk(TChunk* chunk)
     // A chunk from an earlier epoch couldn't have made it to OldestPartMissingChunks_.
     YT_VERIFY(OldestPartMissingChunks_.empty() || (*OldestPartMissingChunks_.begin())->GetPartLossTime(epoch));
 
-    if (OldestPartMissingChunks_.size() >= GetDynamicConfig()->MaxOldestPartMissingChunks) {
+    if (std::ssize(OldestPartMissingChunks_) >= GetDynamicConfig()->MaxOldestPartMissingChunks) {
         return;
     }
 

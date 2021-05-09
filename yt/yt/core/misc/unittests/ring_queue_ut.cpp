@@ -11,7 +11,7 @@ namespace {
 TEST(TRingQueueTest, PodRandomOperations)
 {
     TRingQueue<int> queue;
-    EXPECT_EQ(0, queue.size());
+    EXPECT_EQ(0, std::ssize(queue));
     EXPECT_TRUE(queue.empty());
     EXPECT_EQ(queue.begin(), queue.end());
 
@@ -31,7 +31,7 @@ TEST(TRingQueueTest, PodRandomOperations)
         if (r == 0) {
             queue.clear();
             deque.clear();
-            EXPECT_EQ(0, queue.size());
+            EXPECT_EQ(0, std::ssize(queue));
             EXPECT_TRUE(queue.empty());
             EXPECT_EQ(queue.begin(), queue.end());
         } else if (r < 10) {
@@ -86,7 +86,7 @@ TEST(TRingQueueTest, TestLifetimeWithRefCount)
 
         for (int i = 0; i < N; ++i) {
             queue.push(New<TFoo>(counter));
-            EXPECT_EQ(counter, queue.size());
+            EXPECT_EQ(counter, std::ssize(queue));
         }
         queue.clear();
         EXPECT_EQ(counter, 0);
@@ -97,9 +97,9 @@ TEST(TRingQueueTest, TestLifetimeWithRefCount)
 
         for (int i = 0; i < N; ++i) {
             queue.push(New<TFoo>(counter));
-            EXPECT_EQ(counter, queue.size());
+            EXPECT_EQ(counter, std::ssize(queue));
             queue.pop();
-            EXPECT_EQ(counter, queue.size());
+            EXPECT_EQ(counter, std::ssize(queue));
         }
         queue.clear();
         EXPECT_EQ(counter, 0);
@@ -114,7 +114,7 @@ TEST(TRingQueueTest, TestLifetimeWithRefCount)
             } else {
                 queue.push(New<TFoo>(counter));
             }
-            EXPECT_EQ(counter, queue.size());
+            EXPECT_EQ(counter, std::ssize(queue));
         }
         queue.clear();
         EXPECT_EQ(counter, 0);

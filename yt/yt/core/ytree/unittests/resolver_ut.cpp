@@ -38,11 +38,11 @@ TEST(TYPathResolver, GetInt64)
 
 TEST(TYPathResolver, GetUint64)
 {
-    EXPECT_VALUE(2, TryGetUint64("{key3=2u;key4=5}", "/key3"));
+    EXPECT_VALUE(2u, TryGetUint64("{key3=2u;key4=5}", "/key3"));
     EXPECT_NULL(TryGetUint64("{key3=2;key4=5}", "/key3"));
-    EXPECT_VALUE(5, TryGetUint64("{key3=2;key4=5u}", "/key4"));
+    EXPECT_VALUE(5u, TryGetUint64("{key3=2;key4=5u}", "/key4"));
     EXPECT_NULL(TryGetUint64("{key3=2;key4=5}", "/key6"));
-    EXPECT_VALUE(7, TryGetUint64("<attr=4>{key3=2;k={k2=<b=7>3;k3=10};lst=<a=[1;{a=3};{b=7u}]>[0;1;<a={b=4}>2]}", "/lst/@a/2/b"));
+    EXPECT_VALUE(7u, TryGetUint64("<attr=4>{key3=2;k={k2=<b=7>3;k3=10};lst=<a=[1;{a=3};{b=7u}]>[0;1;<a={b=4}>2]}", "/lst/@a/2/b"));
     EXPECT_NULL(TryGetUint64("<attr=4>{key3=\"2\";k={k2=<b=7>3;k3=10};lst=<a=[1;{a=3};{b=7}]>[0;1;<a={b=4}>2]}", "/key3"));
 }
 

@@ -75,7 +75,7 @@ void TCachedPeerList::DoSweep(F&& func)
     Entries_.erase(destIt, Entries_.end());
 
     // x2 is for proper amortization.
-    if (Entries_.size() > 2 * EntryCountLimit_) {
+    if (std::ssize(Entries_) > 2 * EntryCountLimit_) {
         SortUniqueBy(
             Entries_,
             [] (const auto& entry) { return entry.NodeId; });
@@ -83,7 +83,7 @@ void TCachedPeerList::DoSweep(F&& func)
             Entries_,
             [] (const auto& lhs, const auto& rhs) { return lhs.ExpirationDeadline > rhs.ExpirationDeadline; });
         // NB: SortUniqueBy could have already pruned the vector.
-        if (Entries_.size() > EntryCountLimit_) {
+        if (std::ssize(Entries_) > EntryCountLimit_) {
             Entries_.erase(Entries_.begin() + EntryCountLimit_, Entries_.end());
         }
     }

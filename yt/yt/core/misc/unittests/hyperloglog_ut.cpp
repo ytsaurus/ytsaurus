@@ -25,7 +25,7 @@ std::pair<THyperLogLog<8>, int> GenerateHyperLogLog(
     ui64 n = 0;
     hll.Add(FarmFingerprint(n));
     for (int i = 0; i < size; i++) {
-        if ((rng.Generate<ui64>() % size) < targetCardinality) {
+        if (static_cast<int>(rng.Generate<ui64>() % size) < targetCardinality) {
             cardinality++;
             n += 1 + (rng.Generate<ui32>() % 100);
         }

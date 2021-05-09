@@ -721,13 +721,13 @@ TString ToString(TKeyTriePtr node) {
                 str += NYT::ToString(node->Offset);
                 str += ", { ";
 
-                for (int i = 0; i < node->Bounds.size(); i += 2) {
+                for (int i = 0; i < std::ssize(node->Bounds); i += 2) {
                     str += node->Bounds[i].Included ? "[" : "(";
                     str += ToString(node->Bounds[i].Value);
                     str += ":";
                     str += ToString(node->Bounds[i+1].Value);
                     str += node->Bounds[i+1].Included ? "]" : ")";
-                    if (i + 2 < node->Bounds.size()) {
+                    if (i + 2 < std::ssize(node->Bounds)) {
                         str += ", ";
                     }
                 }

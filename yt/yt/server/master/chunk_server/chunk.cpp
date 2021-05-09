@@ -389,7 +389,7 @@ bool TChunk::IsAvailable() const
         }
 
         case EObjectType::JournalChunk: {
-            if (storedReplicas.size() >= GetReadQuorum()) {
+            if (std::ssize(storedReplicas) >= GetReadQuorum()) {
                 return true;
             }
             for (auto replica : storedReplicas) {

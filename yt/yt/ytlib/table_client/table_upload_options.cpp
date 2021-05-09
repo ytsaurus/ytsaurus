@@ -69,7 +69,7 @@ static void ValidateAppendKeyColumns(const TSortColumns& sortColumns, const TTab
     if (tableSortColumns.size() < sortColumns.size()) {
         areKeyColumnsCompatible = false;
     } else {
-        for (int i = 0; i < sortColumns.size(); ++i) {
+        for (int i = 0; i < std::ssize(sortColumns); ++i) {
             if (tableSortColumns[i] != sortColumns[i]) {
                 areKeyColumnsCompatible = false;
                 break;

@@ -819,7 +819,7 @@ private:
         YT_VERIFY(StreamEncoder_->ArrowDictionaryIds().size() == TypedColumns_.size());
 
         bool result = StreamEncoder_->IsFirstBatch();
-        for (int index = 0; index < TypedColumns_.size(); ++index) {
+        for (int index = 0; index < std::ssize(TypedColumns_); ++index) {
             bool currentDictionary = IsDictionaryEncodedColumn(*TypedColumns_[index].Column);
             bool previousDictionary = StreamEncoder_->ArrowDictionaryIds()[index] != IUnversionedColumnarRowBatch::NullDictionaryId;
             if (currentDictionary != previousDictionary) {
@@ -916,7 +916,7 @@ private:
             }
         };
 
-        for (int columnIndex = 0; columnIndex < TypedColumns_.size(); ++columnIndex) {
+        for (int columnIndex = 0; columnIndex < std::ssize(TypedColumns_); ++columnIndex) {
             const auto& typedColumn = TypedColumns_[columnIndex];
             if (typedColumn.Column->Dictionary) {
                 YT_LOG_DEBUG("Adding dictionary batch for dictionary-encoded column (ColumnId: %v)",

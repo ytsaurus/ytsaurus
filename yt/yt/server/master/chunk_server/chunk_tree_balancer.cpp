@@ -25,7 +25,7 @@ bool TChunkTreeBalancer::IsRebalanceNeeded(TChunkList* root)
         return false;
     }
 
-    if (root->Children().size() > Settings_.MaxChunkListSize) {
+    if (std::ssize(root->Children()) > Settings_.MaxChunkListSize) {
         return true;
     }
 
@@ -150,9 +150,9 @@ void TChunkTreeBalancer::AppendChild(
     bool merge = false;
     if (!children->empty()) {
         auto* lastChild = children->back()->AsChunkList();
-        if (lastChild->Children().size() < Settings_.MinChunkListSize) {
+        if (std::ssize(lastChild->Children()) < Settings_.MinChunkListSize) {
             YT_ASSERT(lastChild->Statistics().Rank <= 1);
-            YT_ASSERT(lastChild->Children().size() <= Settings_.MaxChunkListSize);
+            YT_ASSERT(std::ssize(lastChild->Children()) <= Settings_.MaxChunkListSize);
             if (Callbacks_->GetObjectRefCounter(lastChild) > 0) {
                 // We want to merge to this chunk list but it is shared.
                 // Copy on write.
@@ -169,7 +169,7 @@ void TChunkTreeBalancer::AppendChild(
     if (!merge) {
         if (child->GetType() == EObjectType::ChunkList) {
             auto* chunkList = child->AsChunkList();
-            if (chunkList->Children().size() <= Settings_.MaxChunkListSize) {
+            if (std::ssize(chunkList->Children()) <= Settings_.MaxChunkListSize) {
                 YT_ASSERT(Callbacks_->GetObjectRefCounter(chunkList) > 0);
                 children->push_back(child);
                 return;
@@ -194,7 +194,7 @@ void TChunkTreeBalancer::MergeChunkTrees(
 
     YT_ASSERT(Callbacks_->GetObjectRefCounter(lastChunkList) == 0);
     YT_ASSERT(lastChunkList->Statistics().Rank <= 1);
-    YT_ASSERT(lastChunkList->Children().size() < Settings_.MinChunkListSize);
+    YT_ASSERT(std::ssize(lastChunkList->Children()) < Settings_.MinChunkListSize);
 
     switch (child->GetType()) {
         case EObjectType::Chunk:
@@ -206,16 +206,16 @@ void TChunkTreeBalancer::MergeChunkTrees(
 
         case EObjectType::ChunkList: {
             auto* chunkList = child->AsChunkList();
-            if (lastChunkList->Children().size() + chunkList->Children().size() <= Settings_.MaxChunkListSize) {
+            if (std::ssize(lastChunkList->Children()) + std::ssize(chunkList->Children()) <= Settings_.MaxChunkListSize) {
                 // Just appending the chunk list to the last chunk list.
                 Callbacks_->AttachToChunkList(lastChunkList, chunkList->Children());
             } else {
                 // The chunk list is too large. We have to copy chunks by blocks.
                 int mergedCount = 0;
-                while (mergedCount < chunkList->Children().size()) {
-                    if (lastChunkList->Children().size() >= Settings_.MinChunkListSize) {
+                while (mergedCount < std::ssize(chunkList->Children())) {
+                    if (std::ssize(lastChunkList->Children()) >= Settings_.MinChunkListSize) {
                         // The last chunk list is too large. Creating a new one.
-                        YT_ASSERT(lastChunkList->Children().size() == Settings_.MinChunkListSize);
+                        YT_ASSERT(std::ssize(lastChunkList->Children()) == Settings_.MinChunkListSize);
                         lastChunkList = Callbacks_->CreateChunkList();
                         children->push_back(lastChunkList);
                     }

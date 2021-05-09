@@ -75,7 +75,7 @@ std::tuple<TTableSchemaPtr, TColumnFilter, TIdMapping> CreateSortedReadParameter
     TIdMapping idMapping(static_cast<size_t>(schema->GetColumnCount()), -1);
 
     if (columnFilter.IsUniversal()) {
-        for (int index = 0; index < idMapping.size(); ++index) {
+        for (int index = 0; index < std::ssize(idMapping); ++index) {
              idMapping[index] = index;
         }
         return {
@@ -281,7 +281,7 @@ protected:
                 DataWeight_ += GetDataWeight(rows.back());
             }
 
-            if (RowIndex_ == loadedRows.size()) {
+            if (RowIndex_ == std::ssize(loadedRows)) {
                 RequestRows();
             }
         }

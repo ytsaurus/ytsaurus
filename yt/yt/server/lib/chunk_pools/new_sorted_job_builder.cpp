@@ -144,7 +144,7 @@ public:
         // This does not seem to affect any logic in sorted job builder but it would rather simplify
         // reading logs...
 
-        if (InputStreamIndexToLastDataSlice_.size() <= inputStreamIndex) {
+        if (std::ssize(InputStreamIndexToLastDataSlice_) <= inputStreamIndex) {
             InputStreamIndexToLastDataSlice_.resize(inputStreamIndex + 1);
         }
 
@@ -277,7 +277,7 @@ public:
             };
 
             for (const auto& stripe : job->GetStripeList()->Stripes) {
-                for (int index = 0; index + 1 < stripe->DataSlices.size(); ++index) {
+                for (int index = 0; index + 1 < std::ssize(stripe->DataSlices); ++index) {
                     validatePair(
                         index,
                         InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex()).IsPrimary()
@@ -461,7 +461,7 @@ private:
         if (!Logger.IsLevelEnabled(ELogLevel::Trace)) {
             return;
         }
-        for (int index = 0; index < endpoints.size(); ++index) {
+        for (int index = 0; index < std::ssize(endpoints); ++index) {
             const auto& endpoint = endpoints[index];
             YT_LOG_TRACE("Endpoint (Index: %v, KeyBound: %v, Type: %v, DataSlice: %v)",
                 index,
@@ -739,7 +739,7 @@ private:
         // Iterate over groups of coinciding endpoints.
         // Recall that coinciding endpoints are ordered by their type as follows:
         // Barrier < Foreign < Primary.
-        for (int startIndex = 0, endIndex = 0; startIndex < endpoints.size(); startIndex = endIndex) {
+        for (int startIndex = 0, endIndex = 0; startIndex < std::ssize(endpoints); startIndex = endIndex) {
             PeriodicYielder_.TryYield();
 
             YT_LOG_TRACE("Moving to next endpoint (Endpoint: %v)", endpoints[startIndex].KeyBound);
@@ -749,7 +749,7 @@ private:
 
             // Extract contiguous group of barrier & foreign endpoints.
             while (
-                primaryIndex != endpoints.size() &&
+                primaryIndex != std::ssize(endpoints) &&
                 PrimaryComparator_.CompareKeyBounds(endpoints[startIndex].KeyBound, endpoints[primaryIndex].KeyBound) == 0 &&
                 endpoints[primaryIndex].Type != EPrimaryEndpointType::Primary)
             {
@@ -767,7 +767,7 @@ private:
             endIndex = primaryIndex;
 
             while (
-                endIndex != endpoints.size() &&
+                endIndex != std::ssize(endpoints) &&
                 PrimaryComparator_.CompareKeyBounds(endpoints[startIndex].KeyBound, endpoints[endIndex].KeyBound) == 0)
             {
                 ++endIndex;
@@ -780,10 +780,10 @@ private:
             }
 
             int nextPrimaryIndex = endIndex;
-            while (nextPrimaryIndex != endpoints.size() && endpoints[nextPrimaryIndex].Type != EPrimaryEndpointType::Primary) {
+            while (nextPrimaryIndex != std::ssize(endpoints) && endpoints[nextPrimaryIndex].Type != EPrimaryEndpointType::Primary) {
                 ++nextPrimaryIndex;
             }
-            TKeyBound nextPrimaryLowerBound = (nextPrimaryIndex == endpoints.size())
+            TKeyBound nextPrimaryLowerBound = (nextPrimaryIndex == std::ssize(endpoints))
                 ? TKeyBound()
                 : endpoints[nextPrimaryIndex].KeyBound;
 

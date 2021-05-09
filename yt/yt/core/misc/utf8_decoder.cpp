@@ -19,7 +19,7 @@ TStringBuf TUtf8Transcoder::Encode(TStringBuf str)
     Buffer_.clear();
 
     bool isAscii = true;
-    for (int i = 0; i < str.size(); ++i) {
+    for (int i = 0; i < std::ssize(str); ++i) {
         if (ui8(str[i]) < 128) {
             if (!isAscii) {
                 Buffer_.push_back(str[i]);
@@ -51,12 +51,12 @@ TStringBuf TUtf8Transcoder::Decode(TStringBuf str)
     Buffer_.clear();
 
     bool isAscii = true;
-    for (int i = 0; i < str.size(); ++i) {
+    for (int i = 0; i < std::ssize(str); ++i) {
         if (ui8(str[i]) < 128) {
             if (!isAscii) {
                 Buffer_.push_back(str[i]);
             }
-        } else if ((str[i] & '\xFC') == '\xC0' && i + 1 < str.size()) {
+        } else if ((str[i] & '\xFC') == '\xC0' && i + 1 < std::ssize(str)) {
             if (isAscii) {
                 Buffer_.resize(i);
                 std::copy(str.data(), str.data() + i, Buffer_.data());

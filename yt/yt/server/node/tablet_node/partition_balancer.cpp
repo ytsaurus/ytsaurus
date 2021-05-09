@@ -225,7 +225,7 @@ private:
         // If the partition is the largest one, the estimate is incorrect since its stores will move to eden
         // and the partition will no longer contribute to the first summand in (max_partition_size + eden_size).
         // Instead, the second largest partition will.
-        if (partition->Stores().size() > secondLargestPartitionStoreCount) {
+        if (std::ssize(partition->Stores()) > secondLargestPartitionStoreCount) {
             maxOverlappingStoreCountAfterSplit -= partition->Stores().size() - secondLargestPartitionStoreCount;
         }
 
@@ -361,7 +361,7 @@ private:
                 return false;
             }
 
-            for (int index = 1; index < pivotKeys.size(); ++index) {
+            for (int index = 1; index < std::ssize(pivotKeys); ++index) {
                 if (pivotKeys[index] <= pivotKeys[index - 1]) {
                     YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
                         "Will not perform immediate partition split: proposed pivots are not sorted");

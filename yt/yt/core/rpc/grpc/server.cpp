@@ -837,7 +837,7 @@ private:
 
                 TMessageWithAttachments messageWithAttachments;
                 messageWithAttachments.Message = ExtractMessageFromEnvelopedMessage(ResponseMessage_[1]);
-                for (int index = 2; index < ResponseMessage_.Size(); ++index) {
+                for (int index = 2; index < std::ssize(ResponseMessage_); ++index) {
                     messageWithAttachments.Attachments.push_back(ResponseMessage_[index]);
                 }
 

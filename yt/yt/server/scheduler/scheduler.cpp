@@ -927,7 +927,7 @@ public:
             auto shardId = GetNodeShardId(NodeIdFromJobId(jobId));
             jobIdsByShardId[shardId].emplace_back(jobId);
         }
-        for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
+        for (int shardId = 0; shardId < std::ssize(NodeShards_); ++shardId) {
             if (jobIdsByShardId[shardId].empty()) {
                 continue;
             }
@@ -2389,7 +2389,7 @@ private:
             }
 
             std::vector<TFuture<void>> removeFutures;
-            for (int i = 0 ; i < NodeShards_.size(); ++i) {
+            for (int i = 0 ; i < std::ssize(NodeShards_); ++i) {
                 auto& nodeShard = NodeShards_[i];
                 removeFutures.push_back(
                     BIND(&TNodeShard::RemoveMissingNodes, nodeShard)
@@ -2400,7 +2400,7 @@ private:
                 .ThrowOnError();
 
             std::vector<TFuture<std::vector<TError>>> handleFutures;
-            for (int i = 0 ; i < NodeShards_.size(); ++i) {
+            for (int i = 0 ; i < std::ssize(NodeShards_); ++i) {
                 auto& nodeShard = NodeShards_[i];
                 handleFutures.push_back(
                     BIND(&TNodeShard::HandleNodesAttributes, nodeShard)
@@ -2974,7 +2974,7 @@ private:
     TFuture<void> ResetOperationRevival(const TOperationPtr& operation)
     {
         std::vector<TFuture<void>> asyncResults;
-        for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
+        for (int shardId = 0; shardId < std::ssize(NodeShards_); ++shardId) {
             auto asyncResult = BIND(&TNodeShard::ResetOperationRevival, NodeShards_[shardId])
                 .AsyncVia(NodeShards_[shardId]->GetInvoker())
                 .Run(operation->GetId());
@@ -3005,7 +3005,7 @@ private:
         }
 
         std::vector<TFuture<void>> asyncResults;
-        for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
+        for (int shardId = 0; shardId < std::ssize(NodeShards_); ++shardId) {
             auto asyncResult = BIND(&TNodeShard::FinishOperationRevival, NodeShards_[shardId])
                 .AsyncVia(NodeShards_[shardId]->GetInvoker())
                 .Run(operation->GetId(), std::move(jobsByShardId[shardId]));
@@ -4194,7 +4194,7 @@ private:
                 totalMovedNodeCount);
 
             std::vector<TFuture<void>> futures;
-            for (int nodeShardId = 0; nodeShardId < NodeShards_.size(); ++nodeShardId) {
+            for (int nodeShardId = 0; nodeShardId < std::ssize(NodeShards_); ++nodeShardId) {
                 const auto& nodeShard = NodeShards_[nodeShardId];
                 const auto& movedNodesWithSegments = context.MovedNodesPerNodeShard[nodeShardId];
 

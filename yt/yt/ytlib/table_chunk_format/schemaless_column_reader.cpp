@@ -47,12 +47,12 @@ public:
 
     i64 ReadValues(TMutableRange<TMutableUnversionedRow> rows)
     {
-        YT_VERIFY(SegmentRowIndex_ + rows.Size() <= Meta_.row_count());
-        for (i64 rowIndex = 0; rowIndex < rows.Size(); ++rowIndex) {
+        YT_VERIFY(SegmentRowIndex_ + std::ssize(rows) <= Meta_.row_count());
+        for (i64 rowIndex = 0; rowIndex < std::ssize(rows); ++rowIndex) {
             ui32 offset = GetOffset(SegmentRowIndex_ + rowIndex);
             const char* ptr = Data_ + offset;
 
-            for (int index = 0; index < ValueCountReader_[SegmentRowIndex_ + rowIndex]; ++index) {
+            for (int index = 0; index < static_cast<int>(ValueCountReader_[SegmentRowIndex_ + rowIndex]); ++index) {
                 TUnversionedValue value;
                 ptr += ReadValue(ptr, &value);
 
@@ -77,8 +77,8 @@ public:
 
     void ReadValueCounts(TMutableRange<ui32> valueCounts)
     {
-        YT_VERIFY(SegmentRowIndex_ + valueCounts.Size() <= Meta_.row_count());
-        for (i64 rowIndex = 0; rowIndex < valueCounts.Size(); ++rowIndex) {
+        YT_VERIFY(SegmentRowIndex_ + std::ssize(valueCounts) <= Meta_.row_count());
+        for (i64 rowIndex = 0; rowIndex < std::ssize(valueCounts); ++rowIndex) {
             valueCounts[rowIndex] = ValueCountReader_[SegmentRowIndex_ + rowIndex];
         }
     }

@@ -313,7 +313,7 @@ private:
     {
         auto* parent = GetUniqueParent(tabletChunkList);
         int index = parent->ChildToIndex()[tabletChunkList];
-        return index + 1 == parent->Children().size()
+        return index + 1 == std::ssize(parent->Children())
             ? MaxKey()
             : parent->Children()[index + 1]->AsChunkList()->GetPivotKey();;
     }
@@ -336,7 +336,7 @@ private:
             if (chunkList->GetKind() == EChunkListKind::OrderedDynamicRoot) {
                 ++*TabletIndex_;
                 // Is actually used only for trimmed chunks in ordered tables.
-                RowCount_ = *TabletIndex_ < TabletStartRowCount_.size() ? TabletStartRowCount_[*TabletIndex_] : 0;
+                RowCount_ = *TabletIndex_ < std::ssize(TabletStartRowCount_) ? TabletStartRowCount_[*TabletIndex_] : 0;
             }
         };
 

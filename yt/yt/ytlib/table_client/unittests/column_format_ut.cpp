@@ -134,7 +134,7 @@ void TVersionedColumnTestBase::Validate(
 
 
     ASSERT_EQ(expected.size(), actual.size());
-    for (int rowIndex = 0; rowIndex < expected.size(); ++rowIndex) {
+    for (int rowIndex = 0; rowIndex < std::ssize(expected); ++rowIndex) {
         auto expectedRow = expected[rowIndex];
         auto actualRow = actual[rowIndex];
 
@@ -158,7 +158,7 @@ void TVersionedColumnTestBase::ValidateValues(const TVersionedValue& expected, c
 std::vector<TMutableVersionedRow> TVersionedColumnTestBase::AllocateRows(int count)
 {
     std::vector<TMutableVersionedRow> rows;
-    while (rows.size() < count) {
+    while (std::ssize(rows) < count) {
         rows.push_back(TMutableVersionedRow::Allocate(&Pool_, 0, MaxValueCount, 0, 0));
         rows.back().SetValueCount(0);
     }
@@ -202,7 +202,7 @@ std::vector<TVersionedRow> TVersionedColumnTestBase::GetExpectedRows(
 
         // Replace timestamps with indexes.
         for (const auto* valueIt = expectedRow.BeginValues(); valueIt != expectedRow.EndValues(); ++valueIt) {
-            for (ui32 timestampIndex = 0; timestampIndex < row.GetWriteTimestampCount(); ++timestampIndex) {
+            for (int timestampIndex = 0; timestampIndex < row.GetWriteTimestampCount(); ++timestampIndex) {
                 if (valueIt->Timestamp == row.BeginWriteTimestamps()[timestampIndex]) {
                     const_cast<TVersionedValue*>(valueIt)->Timestamp = timestampIndex;
                 }

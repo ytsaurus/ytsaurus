@@ -32,7 +32,7 @@ void TSlidingWindow<TPacket>::AddPacket(
             << TErrorAttribute("sequence_number", sequenceNumber);
     }
 
-    if (Window_.size() >= MaxSize_) {
+    if (std::ssize(Window_) >= MaxSize_) {
         THROW_ERROR_EXCEPTION("Packet window overflow")
             << TErrorAttribute("max_size", MaxSize_);
     }

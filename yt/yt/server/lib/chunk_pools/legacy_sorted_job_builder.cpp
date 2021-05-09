@@ -59,7 +59,7 @@ public:
 
         DataSliceToInputCookie_[dataSlice] = cookie;
 
-        if (dataSlice->InputStreamIndex >= ForeignDataSlices_.size()) {
+        if (dataSlice->InputStreamIndex >= std::ssize(ForeignDataSlices_)) {
             ForeignDataSlices_.resize(dataSlice->InputStreamIndex + 1);
         }
         ForeignDataSlices_[dataSlice->InputStreamIndex].emplace_back(dataSlice);
@@ -310,7 +310,7 @@ private:
             return;
         }
 
-        for (int index = 0; index < Endpoints_.size(); ++index) {
+        for (int index = 0; index < std::ssize(Endpoints_); ++index) {
             const auto& endpoint = Endpoints_[index];
             YT_LOG_TRACE("Endpoint (Index: %v, Key: %v, RowIndex: %v, GlobalRowIndex: %v, Type: %v, DataSlice: %v)",
                 index,
@@ -450,17 +450,17 @@ private:
             Jobs_.emplace_back(std::make_unique<TLegacyJobStub>());
         };
 
-        for (int index = 0, nextKeyIndex = 0; index < Endpoints_.size(); ++index) {
+        for (int index = 0, nextKeyIndex = 0; index < std::ssize(Endpoints_); ++index) {
             yielder.TryYield();
             auto key = Endpoints_[index].Key;
-            while (nextKeyIndex != Endpoints_.size() && Endpoints_[nextKeyIndex].Key == key) {
+            while (nextKeyIndex != std::ssize(Endpoints_) && Endpoints_[nextKeyIndex].Key == key) {
                 ++nextKeyIndex;
             }
 
-            auto nextKey = (nextKeyIndex == Endpoints_.size()) ? TLegacyKey() : Endpoints_[nextKeyIndex].Key;
-            bool nextKeyIsLeft = (nextKeyIndex == Endpoints_.size()) ? false : Endpoints_[nextKeyIndex].Type == EEndpointType::Left;
+            auto nextKey = (nextKeyIndex == std::ssize(Endpoints_)) ? TLegacyKey() : Endpoints_[nextKeyIndex].Key;
+            bool nextKeyIsLeft = (nextKeyIndex == std::ssize(Endpoints_)) ? false : Endpoints_[nextKeyIndex].Type == EEndpointType::Left;
 
-            while (nextTeleportChunk < TeleportChunks_.size() &&
+            while (nextTeleportChunk < std::ssize(TeleportChunks_) &&
                 CompareRows(TeleportChunks_[nextTeleportChunk]->BoundaryKeys()->MinKey, key, Options_.PrimaryPrefixLength) < 0)
             {
                 ++nextTeleportChunk;
@@ -493,14 +493,14 @@ private:
             if (Options_.PivotKeys.empty()) {
                 double retryFactor = std::pow(JobSizeConstraints_->GetDataWeightPerJobRetryFactor(), RetryIndex_);
                 bool jobIsLargeEnough =
-                    Jobs_.back()->GetPreliminarySliceCount() + openedSlicesLowerLimits.size() > JobSizeConstraints_->GetMaxDataSlicesPerJob() ||
+                    Jobs_.back()->GetPreliminarySliceCount() + std::ssize(openedSlicesLowerLimits) > JobSizeConstraints_->GetMaxDataSlicesPerJob() ||
                     Jobs_.back()->GetPreliminaryDataWeight() >= GetDataWeightPerJob() * retryFactor ||
                     Jobs_.back()->GetPrimaryDataWeight() >= GetPrimaryDataWeightPerJob() * retryFactor;
 
                 // If next teleport chunk is closer than next data slice then we are obligated to close the job here.
                 bool beforeTeleportChunk = nextKeyIndex == index + 1 &&
                     nextKeyIsLeft &&
-                    (nextTeleportChunk != TeleportChunks_.size() &&
+                    (nextTeleportChunk != std::ssize(TeleportChunks_) &&
                     CompareRows(TeleportChunks_[nextTeleportChunk]->BoundaryKeys()->MinKey, nextKey, Options_.PrimaryPrefixLength) <= 0);
 
                 // If key guarantee is enabled, we can not end here if next data slice may contain the same reduce key.
@@ -553,7 +553,7 @@ private:
 
             for (const auto& foreignDataSlice : ForeignDataSlice) {
                 // Skip jobs that are entirely to the left of foreign data slice.
-                while (startJobIndex < Jobs_.size()) {
+                while (startJobIndex < std::ssize(Jobs_)) {
                     const auto& job = Jobs_[startJobIndex];
                     if (job->GetIsBarrier()) {
                         // Job is a barrier, ignore it.
@@ -566,12 +566,12 @@ private:
                     }
                 }
 
-                if (startJobIndex == Jobs_.size()) {
+                if (startJobIndex == std::ssize(Jobs_)) {
                     break;
                 }
 
                 int jobIndex = startJobIndex;
-                while (jobIndex < Jobs_.size()) {
+                while (jobIndex < std::ssize(Jobs_)) {
                     yielder.TryYield();
 
                     const auto& job = Jobs_[jobIndex];

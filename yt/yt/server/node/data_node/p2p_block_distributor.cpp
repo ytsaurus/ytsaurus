@@ -410,7 +410,7 @@ std::vector<std::pair<TNodeId, const TNodeDescriptor*>> TP2PBlockDistributor::Ch
         }
 
         destinationNodes[nodeId] = &(it->second);
-        return destinationNodes.size() >= Config_->DestinationNodeCount;
+        return std::ssize(destinationNodes) >= Config_->DestinationNodeCount;
     };
 
     bool done = false;

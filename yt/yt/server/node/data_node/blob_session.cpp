@@ -364,7 +364,7 @@ TFuture<TChunkInfo> TBlobSession::DoFinish(
             *blockCount));
     }
 
-    for (int blockIndex = WindowStartBlockIndex_; blockIndex < Window_.size(); ++blockIndex) {
+    for (int blockIndex = WindowStartBlockIndex_; blockIndex < std::ssize(Window_); ++blockIndex) {
         const auto& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Empty) {
             return MakeFuture<TChunkInfo>(TError(
@@ -513,7 +513,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
     i64 blocksToWriteSize = 0;
 
     auto flushBlocksToPipeline = [&] {
-        YT_VERIFY(blocksToWrite.size() == WindowIndex_ - firstBlockIndex);
+        YT_VERIFY(std::ssize(blocksToWrite) == WindowIndex_ - firstBlockIndex);
         if (firstBlockIndex == WindowIndex_) {
             return;
         }
@@ -529,7 +529,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
     };
 
     while (true) {
-        if (WindowIndex_ >= Window_.size()) {
+        if (WindowIndex_ >= std::ssize(Window_)) {
             flushBlocksToPipeline();
             break;
         }
@@ -759,7 +759,7 @@ TBlobSession::TSlot& TBlobSession::GetSlot(int blockIndex)
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
     YT_VERIFY(IsInWindow(blockIndex));
 
-    while (Window_.size() <= blockIndex) {
+    while (std::ssize(Window_) <= blockIndex) {
         Window_.emplace_back();
         auto& slot = Window_.back();
         slot.WrittenPromise.OnCanceled(

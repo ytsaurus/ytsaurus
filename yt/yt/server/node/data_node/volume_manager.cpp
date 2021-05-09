@@ -501,7 +501,7 @@ private:
                 metaFileName,
                 OpenExisting | RdOnly | Seq | CloseOnExec);
 
-            if (metaFile.GetLength() < sizeof (TLayerMetaHeader)) {
+            if (metaFile.GetLength() < static_cast<ssize_t>(sizeof(TLayerMetaHeader))) {
                 THROW_ERROR_EXCEPTION(
                     NChunkClient::EErrorCode::IncorrectLayerFileSize,
                     "Layer meta file %v is too short: at least %v bytes expected",
@@ -1592,7 +1592,7 @@ public:
         TBootstrap* bootstrap)
     {
         // Create locations.
-        for (int index = 0; index < config->LayerLocations.size(); ++index) {
+        for (int index = 0; index < std::ssize(config->LayerLocations); ++index) {
             const auto& locationConfig = config->LayerLocations[index];
             auto id = Format("layer%v", index);
 

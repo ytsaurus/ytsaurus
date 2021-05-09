@@ -70,7 +70,7 @@ void TRowBuffer::CaptureValues(TMutableUnversionedRow row)
         return;
     }
 
-    for (int index = 0; index < row.GetCount(); ++index) {
+    for (ui32 index = 0; index < row.GetCount(); ++index) {
         CaptureValue(&row[index]);
     }
 }
@@ -194,7 +194,7 @@ TMutableVersionedRow TRowBuffer::CaptureAndPermuteRow(
 {
     int keyColumnCount = tableSchema.GetKeyColumnCount();
     YT_VERIFY(keyColumnCount == row.GetKeyCount());
-    YT_VERIFY(keyColumnCount <= idMapping.size());
+    YT_VERIFY(keyColumnCount <= std::ssize(idMapping));
 
     int valueCount = 0;
     int deleteTimestampCount = row.GetDeleteTimestampCount();
@@ -207,7 +207,7 @@ TMutableVersionedRow TRowBuffer::CaptureAndPermuteRow(
         if (mappedId < 0) {
             continue;
         }
-        YT_VERIFY(mappedId < tableSchema.Columns().size());
+        YT_VERIFY(mappedId < std::ssize(tableSchema.Columns()));
         ++valueCount;
         writeTimestamps.push_back(value->Timestamp);
     }

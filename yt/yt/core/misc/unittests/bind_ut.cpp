@@ -1142,14 +1142,14 @@ TEST_F(TBindTest, MoveOnlyLambdaSupport)
     };
 
     TMoveOnly outer(5);
-    EXPECT_EQ(5, outer.Value());
+    EXPECT_EQ(5u, outer.Value());
 
     auto f = BIND([inner = std::move(outer)] () { return inner.Value(); });
-    EXPECT_EQ(0, outer.Value());
+    EXPECT_EQ(0u, outer.Value());
 
     // Call twice just in case
-    EXPECT_EQ(5, f.Run());
-    EXPECT_EQ(5, f.Run());
+    EXPECT_EQ(5u, f.Run());
+    EXPECT_EQ(5u, f.Run());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

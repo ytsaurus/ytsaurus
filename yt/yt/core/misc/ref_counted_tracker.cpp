@@ -187,7 +187,7 @@ TRefCountedTracker::TNamedStatistics TRefCountedTracker::GetSnapshot() const
     }
 
     auto accumulateResult = [&] (const auto& slots) {
-        for (auto index = 0; index < result.size() && index < slots.size(); ++index) {
+        for (auto index = 0; index < std::ssize(result) && index < std::ssize(slots); ++index) {
             result[index] += slots[index];
         }
     };
@@ -338,7 +338,7 @@ TRefCountedTracker::TNamedSlot TRefCountedTracker::GetSlot(TRefCountedTypeKey ty
 
     TNamedSlot result(key, GetObjectSize(typeKey));
     auto accumulateResult = [&] (const auto& slots, TRefCountedTypeCookie cookie) {
-        if (cookie < slots.size()) {
+        if (cookie < std::ssize(slots)) {
             result += slots[cookie];
         }
     };
@@ -410,7 +410,7 @@ TRefCountedTracker::TLocalSlot* TRefCountedTracker::GetLocalSlot(TRefCountedType
                 this_->GlobalSlots_.resize(std::max(LocalSlots_->size(), this_->GlobalSlots_.size()));
             }
 
-            for (auto index = 0; index < LocalSlots_->size(); ++index) {
+            for (auto index = 0; index < std::ssize(*LocalSlots_); ++index) {
                 this_->GlobalSlots_[index] += (*LocalSlots_)[index];
             }
 
@@ -434,7 +434,7 @@ TRefCountedTracker::TLocalSlot* TRefCountedTracker::GetLocalSlot(TRefCountedType
         YT_VERIFY(AllLocalSlots_.insert(LocalSlots_).second);
     }
 
-    if (cookie >= LocalSlots_->size()) {
+    if (cookie >= std::ssize(*LocalSlots_)) {
         LocalSlots_->resize(static_cast<size_t>(cookie) + 1);
     }
 

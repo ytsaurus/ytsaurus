@@ -60,25 +60,25 @@ std::vector<char> MakeAllocation(size_t size)
 void TestStackingGuards()
 {
     TMemoryTagGuard guard1(1);
-    EXPECT_EQ(GetMemoryUsageForTag(1), 0);
+    EXPECT_EQ(GetMemoryUsageForTag(1), 0u);
     auto allocation1 = MakeAllocation(1 << 5);
-    EXPECT_EQ(GetMemoryUsageForTag(1), 1 << 5);
+    EXPECT_EQ(GetMemoryUsageForTag(1), 1u << 5);
     {
         TMemoryTagGuard guard2(2);
         auto allocation2 = MakeAllocation(1 << 6);
-        EXPECT_EQ(GetMemoryUsageForTag(1), 1 << 5);
-        EXPECT_EQ(GetMemoryUsageForTag(2), 1 << 6);
+        EXPECT_EQ(GetMemoryUsageForTag(1), 1u << 5);
+        EXPECT_EQ(GetMemoryUsageForTag(2), 1u << 6);
     }
-    EXPECT_EQ(GetMemoryUsageForTag(1), 1 << 5);
-    EXPECT_EQ(GetMemoryUsageForTag(2), 0);
+    EXPECT_EQ(GetMemoryUsageForTag(1), 1u << 5);
+    EXPECT_EQ(GetMemoryUsageForTag(2), 0u);
     {
         TMemoryTagGuard guard2(std::move(guard1));
         auto allocation2 = MakeAllocation(1 << 7);
-        EXPECT_EQ(GetMemoryUsageForTag(1), (1 << 5) + (1 << 7));
-        EXPECT_EQ(GetMemoryUsageForTag(2), 0);
+        EXPECT_EQ(GetMemoryUsageForTag(1), (1u << 5) + (1u << 7));
+        EXPECT_EQ(GetMemoryUsageForTag(2), 0u);
     }
-    EXPECT_EQ(GetMemoryUsageForTag(1), (1 << 5));
-    EXPECT_EQ(GetMemoryUsageForTag(2), 0);
+    EXPECT_EQ(GetMemoryUsageForTag(1), (1u << 5));
+    EXPECT_EQ(GetMemoryUsageForTag(2), 0u);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -88,13 +88,13 @@ void Action1()
     TMemoryTagGuard guard(1);
     Yield();
     auto allocation1 = MakeAllocation(1 << 5);
-    EXPECT_EQ(GetMemoryUsageForTag(1), 1 << 5);
+    EXPECT_EQ(GetMemoryUsageForTag(1), 1u << 5);
     Yield();
     auto allocation2 = MakeAllocation(1 << 7);
-    EXPECT_EQ(GetMemoryUsageForTag(1), (1 << 5) + (1 << 7));
+    EXPECT_EQ(GetMemoryUsageForTag(1), (1u << 5) + (1u << 7));
     Yield();
     auto allocation3 = MakeAllocation(1 << 9);
-    EXPECT_EQ(GetMemoryUsageForTag(1), (1 << 5) + (1 << 7) + (1 << 9));
+    EXPECT_EQ(GetMemoryUsageForTag(1), (1u << 5) + (1u << 7) + (1u << 9));
 }
 
 void Action2()
@@ -102,13 +102,13 @@ void Action2()
     TMemoryTagGuard guard(2);
     Yield();
     auto allocation1 = MakeAllocation(1 << 6);
-    EXPECT_EQ(GetMemoryUsageForTag(2), 1 << 6);
+    EXPECT_EQ(GetMemoryUsageForTag(2), 1u << 6);
     Yield();
     auto allocation2 = MakeAllocation(1 << 8);
-    EXPECT_EQ(GetMemoryUsageForTag(2), (1 << 6) + (1 << 8));
+    EXPECT_EQ(GetMemoryUsageForTag(2), (1u << 6) + (1u << 8));
     Yield();
     auto allocation3 = MakeAllocation(1 << 10);
-    EXPECT_EQ(GetMemoryUsageForTag(2), (1 << 6) + (1 << 8) + (1 << 10));
+    EXPECT_EQ(GetMemoryUsageForTag(2), (1u << 6) + (1u << 8) + (1u << 10));
 }
 
 void TestSwitchingFibers()
@@ -121,8 +121,8 @@ void TestSwitchingFibers()
         .Run();
     WaitFor(AllSucceeded(std::vector<TFuture<void>>{future1, future2}))
         .ThrowOnError();
-    EXPECT_EQ(GetMemoryUsageForTag(1), 0);
-    EXPECT_EQ(GetMemoryUsageForTag(2), 0);
+    EXPECT_EQ(GetMemoryUsageForTag(1), 0u);
+    EXPECT_EQ(GetMemoryUsageForTag(2), 0u);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -215,7 +215,7 @@ void TestControllersInThreadPool()
     controllers.clear();
     for (int index = 0; index < controllerCount; ++index) {
         EXPECT_NEAR(GetMemoryUsageForTag(index + 1), 0, 10_KB);
-        EXPECT_GE(GetMemoryUsageForTag(index + 1), 0);
+        EXPECT_GE(GetMemoryUsageForTag(index + 1), 0u);
     }
 }
 

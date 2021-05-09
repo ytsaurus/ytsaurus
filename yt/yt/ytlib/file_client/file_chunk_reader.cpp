@@ -269,7 +269,7 @@ private:
 
         YT_VERIFY(EndOffset_ > 0);
 
-        if (EndOffset_ < block.Size()) {
+        if (EndOffset_ < std::ssize(block.Data)) {
             end = block.Data.Begin() + EndOffset_;
         }
 

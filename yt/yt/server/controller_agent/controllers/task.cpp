@@ -644,7 +644,7 @@ void TTask::PropagatePartitions(
     std::vector<TChunkStripePtr>* outputStripes)
 {
     YT_VERIFY(outputStripes->size() == streamDescriptors.size());
-    for (int stripeIndex = 0; stripeIndex < outputStripes->size(); ++stripeIndex) {
+    for (int stripeIndex = 0; stripeIndex < std::ssize(*outputStripes); ++stripeIndex) {
         (*outputStripes)[stripeIndex]->PartitionTag = streamDescriptors[stripeIndex].PartitionTag;
     }
 }
@@ -823,7 +823,7 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
             TaskHost_->GetDataFlowGraph()->UpdateEdgeTeleportDataStatistics(InputVertex_, vertex, inputStatistics);
         }
 
-        for (int index = 0; index < StreamDescriptors_.size(); ++index) {
+        for (int index = 0; index < std::ssize(StreamDescriptors_); ++index) {
             const auto& targetVertex = StreamDescriptors_[index].TargetDescriptor;
             // If target vertex is unknown it is derived class' responsibility to update statistics.
             if (!targetVertex.empty()) {
@@ -1211,7 +1211,7 @@ void TTask::AddOutputTableSpecs(
     const auto& streamDescriptors = joblet->StreamDescriptors;
     YT_VERIFY(joblet->ChunkListIds.size() == streamDescriptors.size());
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    for (int index = 0; index < streamDescriptors.size(); ++index) {
+    for (int index = 0; index < std::ssize(streamDescriptors); ++index) {
         const auto& streamDescriptor = streamDescriptors[index];
         auto* outputSpec = schedulerJobSpecExt->add_output_table_specs();
         outputSpec->set_table_writer_options(ConvertToYsonString(streamDescriptor.TableWriterOptions).ToString());
@@ -1309,7 +1309,7 @@ void TTask::UpdateMaximumUsedTmpfsSizes(const TStatistics& statistics)
         return;
     }
 
-    for (int index = 0; index < userJobSpec->TmpfsVolumes.size(); ++index) {
+    for (int index = 0; index < std::ssize(userJobSpec->TmpfsVolumes); ++index) {
         auto maxUsedTmpfsSize = FindNumericValue(
             statistics,
             Format("/user_job/tmpfs_volumes/%v/max_size", index));
@@ -1439,7 +1439,7 @@ void TTask::RegisterOutput(
         &outputStripes);
 
     const auto& streamDescriptors = joblet->StreamDescriptors;
-    for (int tableIndex = 0; tableIndex < streamDescriptors.size(); ++tableIndex) {
+    for (int tableIndex = 0; tableIndex < std::ssize(streamDescriptors); ++tableIndex) {
         if (outputStripes[tableIndex]) {
             const auto& streamDescriptor = streamDescriptors[tableIndex];
             for (const auto& dataSlice : outputStripes[tableIndex]->DataSlices) {
@@ -1619,7 +1619,7 @@ std::vector<TChunkStripePtr> TTask::BuildOutputChunkStripes(
     // Some stream descriptors do not require boundary keys to be returned,
     // so they are skipped in `boundaryKeysPerTable`.
     int boundaryKeysIndex = 0;
-    for (int tableIndex = 0; tableIndex < chunkTreeIds.size(); ++tableIndex) {
+    for (int tableIndex = 0; tableIndex < std::ssize(chunkTreeIds); ++tableIndex) {
         stripes[tableIndex]->ChunkListId = chunkTreeIds[tableIndex];
         if (StreamDescriptors_[tableIndex].TableWriterOptions->ReturnBoundaryKeys) {
             // TODO(max42): do not send empty or unsorted boundary keys, this is meaningless.

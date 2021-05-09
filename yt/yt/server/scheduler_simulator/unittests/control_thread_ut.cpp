@@ -128,7 +128,7 @@ public:
     void ExpectCorrect(const TOperationDescription& operationDescription) const
     {
         auto& stats = StatsByOperationId_.Get(operationDescription.Id);
-        EXPECT_EQ(operationDescription.JobDescriptions.size(), stats.JobCount);
+        EXPECT_EQ(std::ssize(operationDescription.JobDescriptions), stats.JobCount);
 
         TDuration expectedTotalDuration = TDuration::Zero();
         TDuration expectedMaxDuration = TDuration::Zero();
@@ -148,7 +148,7 @@ public:
     {
         auto& stats = StatsByOperationId_.Get(operationDescription.Id);
         EXPECT_EQ(stats.PreemptedJobCount, 0);
-        EXPECT_EQ(stats.PreemptedJobsTotalDuration.NanoSeconds(), 0);
+        EXPECT_EQ(stats.PreemptedJobsTotalDuration.NanoSeconds(), 0u);
     }
 
 private:
@@ -352,8 +352,8 @@ TEST_F(TControlThreadTest, TestNormalPreemption)
     auto operation0Stats = statisticsOutput.GetStatistics(operations[0].Id);
     EXPECT_GE(operation0Stats.PreemptedJobCount, 20);
     EXPECT_LE(operation0Stats.PreemptedJobCount, 22);
-    EXPECT_GE(operation0Stats.PreemptedJobsTotalDuration.Seconds(), 50 * 20 - 1);
-    EXPECT_LE(operation0Stats.PreemptedJobsTotalDuration.Seconds(), 120 * 20 + 1);
+    EXPECT_GE(static_cast<ssize_t>(operation0Stats.PreemptedJobsTotalDuration.Seconds()), 50 * 20 - 1);
+    EXPECT_LE(static_cast<ssize_t>(operation0Stats.PreemptedJobsTotalDuration.Seconds()), 120 * 20 + 1);
 
     statisticsOutput.ExpectNoPreemption(operations[1]);
 }

@@ -90,7 +90,7 @@ TEST(TSubprocessTest, PipeBigError)
     }).AsyncVia(queue->GetInvoker()).Run().Get().Value();
 
     EXPECT_TRUE(result.Status.IsOK());
-    EXPECT_EQ(6*100000, result.Error.Size());
+    EXPECT_EQ(6*100000, std::ssize(result.Error));
 }
 
 #endif

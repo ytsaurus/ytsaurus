@@ -98,7 +98,7 @@ TCellConfig::TCellConfig()
 
 void TCellConfig::ValidateAllPeersPresent()
 {
-    for (int index = 0; index < Peers.size(); ++index) {
+    for (int index = 0; index < std::ssize(Peers); ++index) {
         if (!Peers[index].Address) {
             THROW_ERROR_EXCEPTION("Peer %v is missing in configuration of cell %v",
                 index,

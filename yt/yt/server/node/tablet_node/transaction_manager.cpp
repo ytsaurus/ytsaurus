@@ -84,7 +84,7 @@ public:
             IdQueue_.push(id);
         }
 
-        if (IdQueue_.size() > MaxSize_) {
+        if (std::ssize(IdQueue_) > MaxSize_) {
             auto idToExpire = IdQueue_.front();
             IdQueue_.pop();
             YT_VERIFY(IdSet_.erase(idToExpire) == 1);
@@ -841,7 +841,7 @@ private:
 
         SERIALIZATION_DUMP_WRITE(context, "transactions[%v]", PersistentTransactionMap_.size());
         SERIALIZATION_DUMP_INDENT(context) {
-            for (int index = 0; index < PersistentTransactionMap_.size(); ++index) {
+            for (int index = 0; index < std::ssize(PersistentTransactionMap_); ++index) {
                 auto transactionId = Load<TTransactionId>(context);
                 SERIALIZATION_DUMP_WRITE(context, "%v =>", transactionId);
                 SERIALIZATION_DUMP_INDENT(context) {

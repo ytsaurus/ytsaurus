@@ -46,7 +46,7 @@ THorizontalBlockReader::THorizontalBlockReader(
 
     const auto& schemaColumns = schema->Columns();
     IsCompositeColumn_.assign(schemaColumns.size(), false);
-    for (int i = 0; i < schemaColumns.size(); ++i) {
+    for (int i = 0; i < std::ssize(schemaColumns); ++i) {
         IsCompositeColumn_[i] = IsV3Composite(schemaColumns[i].LogicalType());
     }
 
@@ -107,7 +107,7 @@ TMutableUnversionedRow THorizontalBlockReader::GetRow(TChunkedMemoryPool* memory
     auto row = TMutableUnversionedRow::Allocate(memoryPool, ValueCount_ + ExtraColumnCount_);
     int valueCount = 0;
 
-    for (int i = 0; i < ValueCount_; ++i) {
+    for (int i = 0; i < static_cast<int>(ValueCount_); ++i) {
         TUnversionedValue value;
         CurrentPointer_ += ReadValue(CurrentPointer_, &value);
 
@@ -137,7 +137,7 @@ TMutableVersionedRow THorizontalBlockReader::GetVersionedRow(
 {
     int valueCount = 0;
     auto currentPointer = CurrentPointer_;
-    for (int i = 0; i < ValueCount_; ++i) {
+    for (int i = 0; i < static_cast<int>(ValueCount_); ++i) {
         TUnversionedValue value;
         currentPointer += ReadValue(currentPointer, &value);
 
@@ -158,7 +158,7 @@ TMutableVersionedRow THorizontalBlockReader::GetVersionedRow(
     }
 
     TVersionedValue* currentValue = versionedRow.BeginValues();
-    for (int i = 0; i < ValueCount_; ++i) {
+    for (int i = 0; i < static_cast<int>(ValueCount_); ++i) {
         TUnversionedValue value;
         CurrentPointer_ += ReadValue(CurrentPointer_, &value);
 
@@ -204,7 +204,7 @@ bool THorizontalBlockReader::JumpToRowIndex(i64 rowIndex)
     CurrentPointer_ = Data_.Begin() + offset;
 
     CurrentPointer_ += ReadVarUint32(CurrentPointer_, &ValueCount_);
-    YT_VERIFY(ValueCount_ >= ChunkComparator_.GetLength());
+    YT_VERIFY(static_cast<int>(ValueCount_) >= ChunkComparator_.GetLength());
 
     const char* ptr = CurrentPointer_;
     for (int i = 0; i < ChunkComparator_.GetLength(); ++i) {

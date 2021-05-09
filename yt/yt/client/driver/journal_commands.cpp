@@ -107,7 +107,7 @@ void TReadJournalCommand::DoExecute(ICommandContextPtr context)
                 .EndMap();
         }
 
-        if (buffer.Size() > context->GetConfig()->ReadBufferSize) {
+        if (std::ssize(buffer) > context->GetConfig()->ReadBufferSize) {
             flushBuffer();
         }
     }

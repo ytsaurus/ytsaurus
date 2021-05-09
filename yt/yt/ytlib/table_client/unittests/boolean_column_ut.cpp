@@ -49,7 +49,7 @@ protected:
     {
         YT_VERIFY(column->StartIndex >= 0);
         index += column->StartIndex;
-        
+
         ResolveRleEncoding(column, index);
 
         if (IsColumnValueNull(column, index)) {

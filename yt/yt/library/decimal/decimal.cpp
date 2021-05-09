@@ -172,7 +172,7 @@ static void DecimalIntegerToBinaryUnchecked(T decodedValue, void* buf)
 static void CheckDecimalValueSize(TStringBuf value, int precision, int scale)
 {
     int expectedSize = TDecimal::GetValueBinarySize(precision);
-    if (value.Size() != expectedSize) {
+    if (std::ssize(value) != expectedSize) {
         THROW_ERROR_EXCEPTION(
             "Decimal<%v,%v> binary value representation contains %Qv bytes, expected: %Qv",
             precision,
@@ -397,7 +397,7 @@ TStringBuf TDecimal::TextToBinary(TStringBuf textValue, int precision, int scale
 {
     ValidatePrecisionAndScale(precision, scale);
 
-    YT_VERIFY(bufferSize >= TDecimal::GetValueBinarySize(precision));
+    YT_VERIFY(bufferSize >= static_cast<size_t>(TDecimal::GetValueBinarySize(precision)));
 
     int byteSize = TDecimal::GetValueBinarySize(precision);
     switch (byteSize) {

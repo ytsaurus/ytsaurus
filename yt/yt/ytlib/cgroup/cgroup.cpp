@@ -639,7 +639,7 @@ std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetDetailedStatistics(const cha
         auto values = ReadAllValues(path);
 
         int lineNumber = 0;
-        while (3 * lineNumber + 2 < values.size()) {
+        while (3 * lineNumber + 2 < std::ssize(values)) {
             TStatisticsItem item;
             item.DeviceId = values[3 * lineNumber];
             item.Type = values[3 * lineNumber + 1];
@@ -709,7 +709,7 @@ TMemory::TStatistics TMemory::GetStatistics() const
      try {
         auto values = ReadAllValues(GetPath("memory.stat"));
         int lineNumber = 0;
-        while (2 * lineNumber + 1 < values.size()) {
+        while (2 * lineNumber + 1 < std::ssize(values)) {
             const auto& type = values[2 * lineNumber];
             const auto& unparsedValue = values[2 * lineNumber + 1];
             if (type == "rss") {

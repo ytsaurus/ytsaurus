@@ -64,14 +64,14 @@ std::vector<std::vector<TBlock>> SplitBlocks(
         groups.back().push_back(block);
         currentSize += block.Size();
         // Current group is fulfilled if currentSize / currentGroupCount >= totalSize / groupCount
-        while (currentSize * groupCount >= totalSize * groups.size() &&
-               groups.size() < groupCount)
+        while (currentSize * groupCount >= totalSize * std::ssize(groups) &&
+               std::ssize(groups) < groupCount)
         {
             groups.push_back(std::vector<TBlock>());
         }
     }
 
-    YT_VERIFY(groups.size() == groupCount);
+    YT_VERIFY(std::ssize(groups) == groupCount);
 
     return groups;
 }
@@ -93,7 +93,7 @@ public:
         *maxDataSize = 0;
 
         std::vector<TSharedRef> result(Readers_.size());
-        for (int index = 0; index < Readers_.size(); ++index) {
+        for (int index = 0; index < std::ssize(Readers_); ++index) {
             i64 dataSize;
             result[index] = Readers_[index].Read(size, &dataSize);
             *maxDataSize = Max(*maxDataSize, dataSize);
@@ -124,19 +124,19 @@ private:
         {
             YT_VERIFY(dataSize);
 
-            if (Buffer_.Size() < size) {
+            if (std::ssize(Buffer_) < size) {
                 struct TErasureWriterSliceTag { };
                 Buffer_ = TSharedMutableRef::Allocate<TErasureWriterSliceTag>(size);
             }
 
             *dataSize = 0;
-            while (CurrentBlock_ < Blocks_.size() && *dataSize < size) {
+            while (CurrentBlock_ < std::ssize(Blocks_) && *dataSize < size) {
                 const auto& block = Blocks_[CurrentBlock_];
 
                 i64 toWrite = Min<i64>(block.Size(), size - *dataSize);
                 std::copy(block.begin(), block.begin() + toWrite, Buffer_.begin() + *dataSize);
 
-                if (toWrite < block.Size()) {
+                if (toWrite < std::ssize(block)) {
                     Blocks_[CurrentBlock_] = block.Slice(toWrite, block.Size());
                 } else {
                     ++CurrentBlock_;
@@ -151,7 +151,7 @@ private:
 
         bool Empty() const
         {
-            return CurrentBlock_ >= Blocks_.size();
+            return CurrentBlock_ >= std::ssize(Blocks_);
         }
 
     private:
@@ -246,7 +246,7 @@ public:
         , Writers_(writers)
         , BlockReorderer_(config)
     {
-        YT_VERIFY(writers.size() == codec->GetTotalPartCount());
+        YT_VERIFY(std::ssize(writers) == codec->GetTotalPartCount());
         VERIFY_INVOKER_THREAD_AFFINITY(TDispatcher::Get()->GetWriterInvoker(), WriterThread);
 
         ChunkInfo_.set_disk_space(0);
@@ -295,7 +295,7 @@ public:
     virtual TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override
     {
         TChunkReplicaWithMediumList result;
-        for (int i = 0; i < Writers_.size(); ++i) {
+        for (int i = 0; i < std::ssize(Writers_); ++i) {
             auto replicas = Writers_[i]->GetWrittenChunkReplicas();
             YT_VERIFY(replicas.size() == 1);
             auto replica = TChunkReplicaWithMedium(
@@ -406,7 +406,7 @@ TFuture<void> TErasureWriter::WriteDataBlocks(const std::vector<std::vector<TBlo
     int blockIndex = LastFlushedBlockIndex_;
 
     std::vector<TFuture<void>> asyncResults;
-    for (int index = 0; index < groups.size(); ++index) {
+    for (int index = 0; index < std::ssize(groups); ++index) {
         asyncResults.push_back(
             BIND(
                 &TErasurePartWriterWrapper::WriteStripe,
@@ -435,12 +435,12 @@ TFuture<void> TErasureWriter::EncodeAndWriteParityBlocks(const std::vector<std::
         auto codecInput = reader.Read(ErasureWindowSize_, &blockSize);
         blockSize = RoundUp<i64>(blockSize, Codec_->GetWordSize());
 
-        for (int index = 0; index < codecInput.size(); ++index) {
+        for (int index = 0; index < std::ssize(codecInput); ++index) {
             codecInput[index] = codecInput[index].Slice(0, blockSize);
         }
 
         auto codecOutput = Codec_->Encode(codecInput);
-        for (int index = 0; index < codecOutput.size(); ++index) {
+        for (int index = 0; index < std::ssize(codecOutput); ++index) {
             TBlock block(codecOutput[index]);
             block.Checksum = block.GetOrComputeChecksum();
             parityBlocks[index].push_back(block);
@@ -448,7 +448,7 @@ TFuture<void> TErasureWriter::EncodeAndWriteParityBlocks(const std::vector<std::
     }
 
     std::vector<TFuture<void>> asyncResults;
-    for (int index = 0; index < parityBlocks.size(); ++index) {
+    for (int index = 0; index < std::ssize(parityBlocks); ++index) {
         int partIndex = index + Codec_->GetDataPartCount();
         asyncResults.push_back(
             BIND(

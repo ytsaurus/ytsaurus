@@ -79,10 +79,10 @@ void TRequestSession<TResponse>::TryMakeNextRequest(bool forceProbation)
 
     {
         TGuard addressesGuard(AddressesLock_);
-        if (CurrentUpAddressIndex_ < UpAddresses_.size() && !forceProbation) {
+        if (CurrentUpAddressIndex_ < std::ssize(UpAddresses_) && !forceProbation) {
             address = UpAddresses_[CurrentUpAddressIndex_++];
             YT_LOG_DEBUG("Sending request to up address (Address: %v)", address);
-        } else if (CurrentProbationAddressIndex_ < ProbationAddresses_.size()) {
+        } else if (CurrentProbationAddressIndex_ < std::ssize(ProbationAddresses_)) {
             address = ProbationAddresses_[CurrentProbationAddressIndex_++];
             YT_LOG_DEBUG("Sending request to probation address (Address: %v)", address);
         } else if (HasExtraProbationRequest_) {

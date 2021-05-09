@@ -264,7 +264,7 @@ protected:
 
             config->EnableJobSplitting &=
                 (IsJobInterruptible() &&
-                Controller_->InputTables_.size() <= Controller_->Options_->JobSplitter->MaxInputTableCount);
+                std::ssize(Controller_->InputTables_) <= Controller_->Options_->JobSplitter->MaxInputTableCount);
 
             return config;
         }
@@ -284,7 +284,7 @@ protected:
             auto totalJobCount = Controller_->GetDataFlowGraph()->GetTotalJobCounter()->GetTotal();
             return
                 !Controller_->IsExplicitJobCount_ &&
-                2 * Controller_->Options_->MaxOutputTablesTimesJobsCount > totalJobCount * Controller_->GetOutputTablePaths().size() &&
+                2 * Controller_->Options_->MaxOutputTablesTimesJobsCount > totalJobCount * std::ssize(Controller_->GetOutputTablePaths()) &&
                 2 * Controller_->Options_->MaxJobCount > totalJobCount;
         }
     };
@@ -416,7 +416,7 @@ protected:
     void InitTeleportableInputTables()
     {
         if (IsTeleportationSupported()) {
-            for (int index = 0; index < InputTables_.size(); ++index) {
+            for (int index = 0; index < std::ssize(InputTables_); ++index) {
                 if (!InputTables_[index]->Dynamic &&
                     !InputTables_[index]->Path.GetColumns() &&
                     InputTables_[index]->ColumnRenameDescriptors.empty() &&

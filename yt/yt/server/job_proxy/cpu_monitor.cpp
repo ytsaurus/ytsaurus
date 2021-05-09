@@ -120,7 +120,7 @@ void TCpuMonitor::UpdateVotes()
 std::optional<double> TCpuMonitor::TryMakeDecision()
 {
     std::optional<double> result;
-    if (Votes_.size() >= Config_->VoteWindowSize) {
+    if (std::ssize(Votes_) >= Config_->VoteWindowSize) {
         auto voteSum = 0;
         for (const auto vote : Votes_) {
             if (vote == ECpuMonitorVote::Increase) {

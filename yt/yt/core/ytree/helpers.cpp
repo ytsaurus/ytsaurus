@@ -26,13 +26,13 @@ bool operator == (const IAttributeDictionary& lhs, const IAttributeDictionary& r
         return lhs.first < rhs.first;
     });
 
-    for (auto index = 0; index < lhsPairs.size(); ++index) {
+    for (auto index = 0; index < std::ssize(lhsPairs); ++index) {
         if (lhsPairs[index].first != rhsPairs[index].first) {
             return false;
         }
     }
 
-    for (auto index = 0; index < lhsPairs.size(); ++index) {
+    for (auto index = 0; index < std::ssize(lhsPairs); ++index) {
         auto lhsNode = ConvertToNode(lhsPairs[index].second);
         auto rhsNode = ConvertToNode(rhsPairs[index].second);
         if (!AreNodesEqual(lhsNode, rhsNode)) {

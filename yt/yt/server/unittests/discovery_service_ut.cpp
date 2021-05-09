@@ -49,7 +49,7 @@ public:
         serverConfig->ServerAddresses = Addresses_;
         serverConfig->AttributesUpdatePeriod = TDuration::Seconds(2);
 
-        for (int i = 0; i < Addresses_.size(); ++i) {
+        for (int i = 0; i < std::ssize(Addresses_); ++i) {
             DiscoveryServers_.push_back(CreateDiscoveryServer(serverConfig, i));
             DiscoveryServers_.back()->Initialize();
         }
@@ -93,7 +93,7 @@ public:
 
     virtual void TearDown() override
     {
-        for (int i = 0; i < Addresses_.size(); ++i) {
+        for (int i = 0; i < std::ssize(Addresses_); ++i) {
             KillDiscoveryServer(i);
             RpcServers_[i]->Stop();
         }
@@ -181,7 +181,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestSimple)
     {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
         const auto& members = membersFuture.Get().ValueOrThrow();
-        ASSERT_EQ(2, members.size());
+        ASSERT_EQ(2u, members.size());
         ASSERT_EQ(memberId1, members[0].Id);
         ASSERT_EQ(memberId2, members[1].Id);
     }
@@ -304,15 +304,15 @@ TEST_F(TDiscoveryServiceTestSuite, TestPriority)
             return false;
         }
         const auto& members = membersOrError.ValueOrThrow();
-        
-        return members.size() == membersNum;
+
+        return std::ssize(members) == membersNum;
     };
     WaitForPredicate(checkListMembers);
 
     {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
         const auto& members = membersFuture.Get().ValueOrThrow();
-        ASSERT_EQ(membersNum, members.size());
+        ASSERT_EQ(membersNum, std::ssize(members));
         for (int i = 0; i < membersNum; ++i) {
             ASSERT_EQ(i, members[i].Priority);
         }
@@ -328,14 +328,14 @@ TEST_F(TDiscoveryServiceTestSuite, TestPriority)
             return false;
         }
         const auto& members = membersOrError.ValueOrThrow();
-        return members.size() == options.Limit;
+        return std::ssize(members) == options.Limit;
     };
     WaitForPredicate(checkListMembersSize);
-    
+
     {
         auto membersFuture = discoveryClient->ListMembers(groupId, options);
         const auto& members = membersFuture.Get().ValueOrThrow();
-        ASSERT_EQ(options.Limit, members.size());
+        ASSERT_EQ(options.Limit, std::ssize(members));
         for (int i = 0; i < options.Limit; ++i) {
             ASSERT_EQ(i, members[i].Priority);
         }
@@ -446,7 +446,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestNestedGroups)
     };
     WaitForPredicate(checkGroupDeleted);
 
-    for (int index = 0; index < testMembers.size(); ++index) {
+    for (int index = 0; index < std::ssize(testMembers); ++index) {
         const auto& [groupId, memberId] = testMembers[index];
         auto groupMetaFuture = discoveryClient->GetGroupMeta(groupId);
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
@@ -458,7 +458,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestNestedGroups)
             ASSERT_EQ(1, groupMeta.MemberCount);
 
             auto members = membersFuture.Get().ValueOrThrow();
-            ASSERT_EQ(1, members.size());
+            ASSERT_EQ(1u, members.size());
             ASSERT_EQ(memberId, members[0].Id);
         }
     }

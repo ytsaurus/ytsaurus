@@ -808,7 +808,7 @@ TEST_W(TSchedulerTest, CancelDelayedFuture)
     EXPECT_TRUE(future.IsSet());
     auto error = future.Get();
     EXPECT_EQ(NYT::EErrorCode::Canceled, error.GetCode());
-    EXPECT_EQ(1, error.InnerErrors().size());
+    EXPECT_EQ(1, std::ssize(error.InnerErrors()));
     EXPECT_EQ(NYT::EErrorCode::Generic, error.InnerErrors()[0].GetCode());
 }
 
@@ -895,9 +895,9 @@ TEST_W(TSchedulerTest, MemoryTagAndResumer)
     auto invoker2 = New<TVerifyingMemoryTaggingInvoker>(actionQueue->GetInvoker(), 2);
 
     auto asyncResult = BIND([=] {
-        EXPECT_EQ(NYTAlloc::GetCurrentMemoryTag(), 1);
+        EXPECT_EQ(NYTAlloc::GetCurrentMemoryTag(), 1u);
         SwitchTo(invoker2);
-        EXPECT_EQ(NYTAlloc::GetCurrentMemoryTag(), 1);
+        EXPECT_EQ(NYTAlloc::GetCurrentMemoryTag(), 1u);
     })
         .AsyncVia(invoker1)
         .Run();

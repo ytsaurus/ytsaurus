@@ -433,7 +433,7 @@ public:
         const char* ptr = data.Begin();
         ptr = TBase::InitDirectReader(ptr, data.End());
         YT_VERIFY(ptr == data.End());
-        YT_VERIFY(meta.row_count() == OffsetReader_.GetSize());
+        YT_VERIFY(meta.row_count() == static_cast<i64>(OffsetReader_.GetSize()));
     }
 
     int GetBatchColumnCount()

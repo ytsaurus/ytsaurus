@@ -29,7 +29,7 @@ protected:
     {
         const auto& ordering = IncrementalOrdering_.GetOrdering();
         THashMap<int, int> positionInOrdering;
-        for (int index = 0; index < ordering.size(); ++index) {
+        for (int index = 0; index < std::ssize(ordering); ++index) {
             positionInOrdering[ordering[index]] = index;
         }
         for (const auto& edge : CurrentEdges_) {
@@ -82,7 +82,7 @@ TEST_F(TTopologicalOrderingTest, RandomizedTest)
         int vertexCount = std::uniform_int_distribution<>(2, maxVertexCount)(gen);
         // Generate the vertex values.
         THashSet<int> vertices;
-        while (vertices.size() < vertexCount) {
+        while (std::ssize(vertices) < vertexCount) {
             vertices.insert(std::uniform_int_distribution<>(0, maxVertexValue)(gen));
         }
 

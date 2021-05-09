@@ -151,10 +151,10 @@ TEST_F(TDefaultSecretVaultTest, WarningResponseStatus)
 
     auto subresponses = WaitFor(service->GetSecrets(subrequests))
         .ValueOrThrow();
-    ASSERT_EQ(1, subresponses.size());
+    ASSERT_EQ(1u, subresponses.size());
 
     const auto& secrets = subresponses[0].ValueOrThrow().Values;
-    ASSERT_EQ(1, secrets.size());
+    ASSERT_EQ(1u, secrets.size());
     ASSERT_EQ(SecretKey, secrets[0].Key);
     ASSERT_EQ(SecretValue, secrets[0].Value);
     ASSERT_EQ(SecretEncoding, secrets[0].Encoding);
@@ -199,10 +199,10 @@ TEST_F(TDefaultSecretVaultTest, NoEncoding)
 
     auto subresponses = WaitFor(service->GetSecrets(subrequests))
         .ValueOrThrow();
-    ASSERT_EQ(1, subresponses.size());
+    ASSERT_EQ(1u, subresponses.size());
 
     const auto& secrets = subresponses[0].ValueOrThrow().Values;
-    ASSERT_EQ(1, secrets.size());
+    ASSERT_EQ(1u, secrets.size());
     ASSERT_EQ(SecretKey, secrets[0].Key);
     ASSERT_EQ(SecretValue, secrets[0].Value);
     ASSERT_TRUE(secrets[0].Encoding.empty());

@@ -1632,7 +1632,7 @@ private:
         }
 
         const auto& rsps = rspsOrError.Value();
-        for (int peerId = 0; peerId < rsps.size(); ++peerId) {
+        for (int peerId = 0; peerId < std::ssize(rsps); ++peerId) {
             const auto& rspOrError = rsps[peerId];
             if (!rspOrError.IsOK()) {
                 YT_LOG_INFO(rspOrError, "Failed to abandon peer leader lease (PeerId: %v)",

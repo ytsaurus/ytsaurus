@@ -61,7 +61,7 @@ void THyperLogLog<Precision>::Add(TFingerprint fingerprint)
 template <int Precision>
 void THyperLogLog<Precision>::Merge(const THyperLogLog<Precision>& that)
 {
-    for (int i = 0; i < RegisterCount; i++) {
+    for (size_t i = 0; i < RegisterCount; i++) {
         auto thatCount = that.ZeroCounts_[i];
         if (ZeroCounts_[i] < thatCount) {
             ZeroCounts_[i] = thatCount;

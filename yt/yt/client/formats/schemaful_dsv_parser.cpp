@@ -104,9 +104,9 @@ const char* TSchemafulDsvParser::Consume(const char* begin, const char* end)
         }
     }
 
-    if (FieldIndex_ == Columns_.size()) {
+    if (FieldIndex_ == std::ssize(Columns_)) {
         THROW_ERROR_EXCEPTION("Too many fields in row: expected %v but found more",
-            Columns_.size());
+            std::ssize(Columns_));
     }
 
     Consumer_->OnKeyedItem(Columns_[FieldIndex_++]);
@@ -122,10 +122,10 @@ const char* TSchemafulDsvParser::Consume(const char* begin, const char* end)
     CurrentToken_.clear();
 
     if (*next == Config_->RecordSeparator) {
-        if (FieldIndex_ != Columns_.size()) {
+        if (FieldIndex_ != std::ssize(Columns_)) {
             THROW_ERROR_EXCEPTION("Row %v is incomplete: expected %v fields but found %v",
                 RowIndex_,
-                Columns_.size(),
+                std::ssize(Columns_),
                 FieldIndex_);
         }
         Consumer_->OnEndMap();

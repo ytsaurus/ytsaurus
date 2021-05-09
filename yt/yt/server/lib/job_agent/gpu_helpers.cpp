@@ -291,7 +291,7 @@ std::vector<TGpuDeviceDescriptor> ListGpuDevices()
         result.push_back({deviceName, *deviceNumber});
     }
 
-    if (foundMetaDeviceCount < MetaGpuDevices.size()) {
+    if (foundMetaDeviceCount < std::ssize(MetaGpuDevices)) {
         YT_LOG_INFO("Too few Nvidia meta GPU devices found; assuming no device is present (Found: %v, Needed: %v)",
             foundMetaDeviceCount,
             MetaGpuDevices.size());

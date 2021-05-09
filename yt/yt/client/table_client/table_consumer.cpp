@@ -54,7 +54,7 @@ TYsonToUnversionedValueConverter::TYsonToUnversionedValueConverter(
 IValueConsumer* TYsonToUnversionedValueConverter::SwitchToTable(int tableIndex)
 {
     TableIndex_ = tableIndex;
-    YT_VERIFY(0 <= tableIndex && tableIndex < ValueConsumers_.size());
+    YT_VERIFY(0 <= tableIndex && tableIndex < std::ssize(ValueConsumers_));
     CurrentValueConsumer_ = ValueConsumers_[tableIndex];
     YT_VERIFY(CurrentValueConsumer_ != nullptr);
     return CurrentValueConsumer_;

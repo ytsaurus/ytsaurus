@@ -412,7 +412,7 @@ void DetachFromChunkList(
 
                 // To remove child from the middle we swap it with the last one and update
                 // cumulative statistics accordingly.
-                if (index != children.size() - 1) {
+                if (index != std::ssize(children) - 1) {
                     auto delta = TCumulativeStatisticsEntry(GetChunkTreeStatistics(children.back())) -
                         TCumulativeStatisticsEntry(GetChunkTreeStatistics(children[index]));
                     chunkList->CumulativeStatistics().Update(index, delta);
@@ -645,7 +645,7 @@ std::vector<TChunkOwnerBase*> GetOwningNodes(TChunkTree* chunkTree)
 
     visit(chunkTree);
 
-    for (int index = 0; index < queue.size(); ++index) {
+    for (int index = 0; index < std::ssize(queue); ++index) {
         chunkTree = queue[index];
 
         switch (chunkTree->GetType()) {
@@ -783,7 +783,7 @@ TYsonString DoGetMulticellOwningNodes(
         TBufferedBinaryYsonWriter writer(&stream);
         writer.OnBeginList();
 
-        for (int index = 0; index < rsps.size(); ++index) {
+        for (int index = 0; index < std::ssize(rsps); ++index) {
             const auto& rspOrError = rsps[index];
             const auto& versionedId = nodeIds[index];
             auto code = rspOrError.GetCode();

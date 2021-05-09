@@ -1597,7 +1597,7 @@ private:
         };
 
         int currentJobIndex = 0;
-        for (; currentJobIndex < preemptableJobs.size(); ++currentJobIndex) {
+        for (; currentJobIndex < std::ssize(preemptableJobs); ++currentJobIndex) {
             if (Dominates(context->SchedulingContext()->ResourceLimits(), context->SchedulingContext()->ResourceUsage())) {
                 break;
             }
@@ -1624,7 +1624,7 @@ private:
             PreemptJob(job, operationElement, treeSnapshotImpl, context->SchedulingContext());
         }
 
-        for (; currentJobIndex < preemptableJobs.size(); ++currentJobIndex) {
+        for (; currentJobIndex < std::ssize(preemptableJobs); ++currentJobIndex) {
             const auto& job = preemptableJobs[currentJobIndex];
 
             auto operationElement = findOperationElementForJob(job);
@@ -2198,7 +2198,7 @@ private:
                 return;
             }
 
-            if (it->second.size() + 1 > Config_->MaxEphemeralPoolsPerUser) {
+            if (std::ssize(it->second) + 1 > Config_->MaxEphemeralPoolsPerUser) {
                 THROW_ERROR_EXCEPTION("Limit for number of ephemeral pools %v for user %Qv in tree %Qv has been reached",
                     Config_->MaxEphemeralPoolsPerUser,
                     userName,

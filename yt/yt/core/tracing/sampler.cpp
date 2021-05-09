@@ -59,7 +59,7 @@ bool TSampler::IsTraceSampled(const TString& user)
             }
         }
 
-        if (state->SampleCount.fetch_add(1) < config->MinUserTraceCount) {
+        if (state->SampleCount.fetch_add(1) < static_cast<ui64>(config->MinUserTraceCount)) {
             return true;
         }
     }

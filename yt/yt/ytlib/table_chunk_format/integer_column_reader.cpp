@@ -294,7 +294,7 @@ public:
         const char* ptr = data.Begin();
         ptr = InitDirectReader(ptr);
         YT_VERIFY(ptr == data.End());
-        YT_VERIFY(ValueReader_.GetSize() == meta.row_count());
+        YT_VERIFY(static_cast<i64>(ValueReader_.GetSize()) == meta.row_count());
     }
 
     int GetBatchColumnCount() const

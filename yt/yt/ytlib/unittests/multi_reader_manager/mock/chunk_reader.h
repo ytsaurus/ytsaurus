@@ -24,7 +24,7 @@ public:
 
     virtual NTableClient::IUnversionedRowBatchPtr Read(const NTableClient::TRowBatchReadOptions& /*options*/) override
     {
-        if (CurrentDataIndex_ >= Data_.size()) {
+        if (CurrentDataIndex_ >= std::ssize(Data_)) {
             return nullptr;
         }
         std::vector<NTableClient::TUnversionedRow> rows;
@@ -65,7 +65,7 @@ public:
 
     virtual bool IsFetchingCompleted() const override
     {
-        return CurrentDataIndex_ == Data_.size();
+        return CurrentDataIndex_ == std::ssize(Data_);
     }
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
