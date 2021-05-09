@@ -449,7 +449,7 @@ class TestSkynetIntegration(YTEnvSetup):
         info = read_table("//tmp/table")
 
         chunk_ids = get("//tmp/table/@chunk_ids")
-        assert get("#{0}/@is_shared_to_skynet".format(chunk_ids[0]))
+        assert get("#{0}/@shared_to_skynet".format(chunk_ids[0]))
 
         set("//tmp/table/@enable_chunk_merger", True)
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
@@ -458,4 +458,4 @@ class TestSkynetIntegration(YTEnvSetup):
         assert read_table("//tmp/table") == info
 
         chunk_ids = get("//tmp/table/@chunk_ids")
-        assert get("#{0}/@is_shared_to_skynet".format(chunk_ids[0]))
+        assert get("#{0}/@shared_to_skynet".format(chunk_ids[0]))

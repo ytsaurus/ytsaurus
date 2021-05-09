@@ -345,7 +345,7 @@
     XX(SchemaDuplicateCount, schema_duplicate_count) \
     XX(SchemaMode, schema_mode) \
     XX(Sealed, sealed) \
-    XX(IsSharedToSkynet, is_shared_to_skynet) \
+    XX(SharedToSkynet, shared_to_skynet) \
     XX(ReplicatedToCellTags, replicated_to_cell_tags) \
     XX(ResolveCached, resolve_cached) \
     XX(SecurityTags, security_tags) \
