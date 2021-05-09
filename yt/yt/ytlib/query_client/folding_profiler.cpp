@@ -109,7 +109,7 @@ void TSchemaProfiler::Profile(const TTableSchemaPtr& tableSchema)
 {
     const auto& columns = tableSchema->Columns();
     Fold(static_cast<int>(EFoldingObjectType::TableSchema));
-    for (int index = 0; index < columns.size(); ++index) {
+    for (int index = 0; index < std::ssize(columns); ++index) {
         const auto& column = columns[index];
         Fold(static_cast<ui16>(column.GetPhysicalType()));
         Fold(column.Name().c_str());
@@ -1216,7 +1216,7 @@ void TQueryProfiler::Profile(
 
         size_t joinBatchSize = MaxJoinBatchSize;
 
-        if (query->IsOrdered() && query->Offset + query->Limit < joinBatchSize) {
+        if (query->IsOrdered() && query->Offset + query->Limit < static_cast<ssize_t>(joinBatchSize)) {
             joinBatchSize = query->Offset + query->Limit;
         }
 

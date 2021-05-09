@@ -224,7 +224,7 @@ private:
             if (!count) {
                 return std::make_pair(RemovedCount_, TSampleRange(Samples_.begin(), Samples_.end()));
             }
-            if (*count > Samples_.size() + RemovedCount_) {
+            if (*count > std::ssize(Samples_) + RemovedCount_) {
                 return std::make_pair(*count, TSampleRange(Samples_.end(), Samples_.end()));
             } else {
                 auto startIndex = std::max(*count - RemovedCount_, i64(0));

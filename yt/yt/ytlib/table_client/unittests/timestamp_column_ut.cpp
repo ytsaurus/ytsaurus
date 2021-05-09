@@ -115,7 +115,7 @@ protected:
 
             // Validate delete timestamps.
             auto expectedDeleteTimestamps = GetExpectedDeleteTimestamps(timestamp);
-            for (int i = 0; i < actualRanges.Size(); ++i) {
+            for (int i = 0; i < std::ssize(actualRanges); ++i) {
                 EXPECT_EQ(
                     reader.GetDeleteTimestamp(lowerRowIndex + i),
                     expectedDeleteTimestamps[lowerRowIndex + i]) << Format("Row index - %v", lowerRowIndex + i);
@@ -123,7 +123,7 @@ protected:
 
             auto originalRows = CreateOriginalRows();
             // Validate write timestamps.
-            for (int i = 0; i < actualRanges.Size(); ++i) {
+            for (int i = 0; i < std::ssize(actualRanges); ++i) {
                 auto expectedRange = expectedRanges[lowerRowIndex + i];
                 TTimestamp expectedWriteTimestamp = expectedRange.first == expectedRange.second
                     ? NullTimestamp
@@ -151,7 +151,7 @@ protected:
     {
         EXPECT_EQ(expected.Size(), actual.Size());
 
-        for (int i = 0; i < expected.Size(); ++i) {
+        for (int i = 0; i < std::ssize(expected); ++i) {
             EXPECT_EQ(expected[i], actual[i]);
         }
     }
@@ -162,18 +162,18 @@ protected:
 
         std::vector<std::pair<ui32, ui32>> expected;
         auto deleteTimestamps = GetExpectedDeleteTimestamps(timestamp);
-        for (int i = 0; i < rows.size(); ++i) {
+        for (int i = 0; i < std::ssize(rows); ++i) {
             auto row = rows[i];
             auto deleteTimestamp = deleteTimestamps[i];
 
-            ui32 lowerTimestampIndex = 0;
+            int lowerTimestampIndex = 0;
             while (lowerTimestampIndex < row.GetWriteTimestampCount() &&
                    row.BeginWriteTimestamps()[lowerTimestampIndex] > timestamp)
             {
                 ++lowerTimestampIndex;
             }
 
-            ui32 upperTimestampIndex = lowerTimestampIndex;
+            int upperTimestampIndex = lowerTimestampIndex;
             while (upperTimestampIndex < row.GetWriteTimestampCount() &&
                    row.BeginWriteTimestamps()[upperTimestampIndex] > deleteTimestamp)
             {

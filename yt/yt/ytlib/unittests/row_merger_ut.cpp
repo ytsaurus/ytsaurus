@@ -116,7 +116,7 @@ protected:
     static TTableSchemaPtr GetKeyedSchema(const TTableSchema& schema, int keyCount = 0)
     {
         std::vector<TColumnSchema> keyedSchemaColumns;
-        for (int index = 0; index < schema.Columns().size(); ++index) {
+        for (int index = 0; index < std::ssize(schema.Columns()); ++index) {
             auto column = schema.Columns()[index];
             if (index < keyCount) {
                 column.SetSortOrder(ESortOrder::Ascending);
@@ -1587,11 +1587,11 @@ public:
         std::vector<TVersionedRow> rows;
         rows.reserve(options.MaxRowsPerRead);
 
-        if (Position_ == Rows_.size()) {
+        if (Position_ == std::ssize(Rows_)) {
             return nullptr;
         }
 
-        while (Position_ < Rows_.size() && rows.size() < rows.capacity()) {
+        while (Position_ < std::ssize(Rows_) && rows.size() < rows.capacity()) {
             rows.push_back(Rows_[Position_]);
             ++Position_;
         }
@@ -1686,7 +1686,7 @@ TEST_F(TSchemafulMergingReaderTest, Merge1)
     std::vector<TUnversionedRow> result;
     ReadAll(reader, &result);
 
-    EXPECT_EQ(1, result.size());
+    EXPECT_EQ(1u, result.size());
     EXPECT_EQ(BuildUnversionedRow("<id=0> 0; <id=1> 2; <id=2> #; <id=3> #"), result[0]);
 }
 
@@ -1731,7 +1731,7 @@ TEST_F(TSchemafulMergingReaderTest, Merge2)
     std::vector<TUnversionedRow> result;
     ReadAll(reader, &result);
 
-    EXPECT_EQ(4, result.size());
+    EXPECT_EQ(4u, result.size());
     EXPECT_EQ(BuildUnversionedRow("<id=0> 0; <id=1> 0; <id=2> #; <id=3> #"), result[0]);
     EXPECT_EQ(BuildUnversionedRow("<id=0> 1; <id=1> 4; <id=2> #; <id=3> #"), result[1]);
     EXPECT_EQ(BuildUnversionedRow("<id=0> 2; <id=1> 5; <id=2> #; <id=3> #"), result[2]);
@@ -1760,7 +1760,7 @@ TEST_F(TSchemafulMergingReaderTest, Lookup)
     auto reader = CreateSchemafulOverlappingLookupReader(
         std::move(merger),
         [readers, index = 0] () mutable -> IVersionedReaderPtr {
-            if (index < readers.size()) {
+            if (index < std::ssize(readers)) {
                 return readers[index++];
             } else {
                 return nullptr;
@@ -1770,7 +1770,7 @@ TEST_F(TSchemafulMergingReaderTest, Lookup)
     std::vector<TUnversionedRow> result;
     ReadAll(reader, &result);
 
-    EXPECT_EQ(2, result.size());
+    EXPECT_EQ(2u, result.size());
     EXPECT_EQ(BuildUnversionedRow("<id=0> 0; <id=1> 2; <id=2> #; <id=3> #"), result[0]);
     EXPECT_EQ(BuildUnversionedRow("<id=0> 1; <id=1> 5; <id=2> #; <id=3> #"), result[1]);
 }
@@ -1845,7 +1845,7 @@ TEST_F(TVersionedMergingReaderTest, Merge1)
     std::vector<TVersionedRow> result;
     ReadAll(reader, &result);
 
-    EXPECT_EQ(1, result.size());
+    EXPECT_EQ(1u, result.size());
     EXPECT_EQ(
         TIdentityComparableVersionedRow{BuildVersionedRow(
             "<id=0> 0", "<id=1;ts=600000000000> 3; <id=1;ts=900000000000> 2")},

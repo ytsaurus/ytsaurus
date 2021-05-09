@@ -427,7 +427,7 @@ private:
                 // It is not missing.
                 return true;
             }
-            if (childIndex + 1 == description.Children.size()) {
+            if (childIndex + 1 == std::ssize(description.Children)) {
                 return false;
             }
             const auto& nextChildDescription = *description.Children[childIndex + 1];
@@ -636,7 +636,7 @@ std::unique_ptr<IParser> CreateParserForProtobuf(
     if (newFormat) {
         // Retain only one table config, as we have only one schema here.
         config = NYTree::CloneYsonSerializable(config);
-        if (tableIndex >= config->Tables.size()) {
+        if (tableIndex >= std::ssize(config->Tables)) {
             THROW_ERROR_EXCEPTION("Protobuf format does not have table with index %v",
                 tableIndex);
         }

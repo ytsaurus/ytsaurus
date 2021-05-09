@@ -142,7 +142,7 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockSet(
 
     int firstBlockIndex = blockIndexes.front();
     int blockCount = 1;
-    while (blockCount < blockIndexes.size() && blockIndexes[blockCount] == blockIndexes[blockCount - 1] + 1) {
+    while (blockCount < std::ssize(blockIndexes) && blockIndexes[blockCount] == blockIndexes[blockCount - 1] + 1) {
         ++blockCount;
     }
 

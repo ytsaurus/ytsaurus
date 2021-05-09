@@ -187,7 +187,7 @@ private:
 
     void Postprocess()
     {
-        if (Result_.size() >= Limit_) {
+        if (std::ssize(Result_) >= Limit_) {
             LimitReached_ = true;
         }
         ExpectValue_ = false;

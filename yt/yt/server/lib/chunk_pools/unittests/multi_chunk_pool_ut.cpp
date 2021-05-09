@@ -287,12 +287,12 @@ TEST_F(TMultiChunkPoolInputTest, TestPartitionTag)
     const std::vector<int> partitions = {0, 1, 3, 2, 1, 0, 2};
 
     InSequence sequence;
-    for (int index = 0; index < partitions.size(); ++index) {
+    for (int index = 0; index < std::ssize(partitions); ++index) {
         EXPECT_CALL(*Mocks_[partitions[index]], Add(Stripes_[index]))
             .WillOnce(Return(42));
     }
 
-    for (int index = 0; index < partitions.size(); ++index) {
+    for (int index = 0; index < std::ssize(partitions); ++index) {
         Stripes_[index]->PartitionTag = partitions[index];
         EXPECT_EQ(Pool_->Add(Stripes_[index]), index);
     }
@@ -314,7 +314,7 @@ TEST_F(TMultiChunkPoolInputTest, TestCookieMapping)
         {2, 2}
     };
 
-    for (int i = 0; i < cookies.size(); i++) {
+    for (int i = 0; i < std::ssize(cookies); i++) {
         auto [pool, cookie] = cookies[i];
         EXPECT_CALL(*Mocks_[pool], Add(Stripes_[i]))
             .WillOnce(Return(cookie));
@@ -322,7 +322,7 @@ TEST_F(TMultiChunkPoolInputTest, TestCookieMapping)
             .Times(cookies.size() - i);
     }
 
-    for (int i = 0; i < cookies.size(); i++) {
+    for (int i = 0; i < std::ssize(cookies); i++) {
         auto [pool, cookie] = cookies[i];
         Stripes_[i]->PartitionTag = pool;
         EXPECT_EQ(Pool_->Add(Stripes_[i]), i);
@@ -350,14 +350,14 @@ protected:
         std::optional<int> poolsToAdd = std::nullopt)
     {
         Mocks_.reserve(stripeCounts.size());
-        for (int poolIndex = 0; poolIndex < stripeCounts.size(); ++poolIndex) {
+        for (int poolIndex = 0; poolIndex < std::ssize(stripeCounts); ++poolIndex) {
             Mocks_.push_back(New<TChunkPoolOutputMock>());
             Mocks_.back()->JobCounter->AddPending(stripeCounts[poolIndex]);
         }
 
         StripeCounts_ = stripeCounts;
 
-        for (int index = 0; index < Mocks_.size(); ++index) {
+        for (int index = 0; index < std::ssize(Mocks_); ++index) {
             if (stripeCounts[index]) {
                 EXPECT_CALL(*Mocks_[index], Extract(0))
                     .Times(stripeCounts[index])
@@ -374,7 +374,7 @@ protected:
             }
         }
 
-        for (int index = 0; index < Mocks_.size(); ++index) {
+        for (int index = 0; index < std::ssize(Mocks_); ++index) {
             EXPECT_CALL(*Mocks_[index], IsCompleted())
                 .WillRepeatedly(InvokeWithoutArgs([this, index] {
                     return Mocks_[index]->JobCounter->GetPending() == 0;
@@ -481,7 +481,7 @@ TEST_F(TMultiChunkPoolOutputTest, TestTeleportChunks)
     Mocks_[0]->TeleportChunk(chunk2);
     Mocks_[1]->TeleportChunk(chunk3);
 
-    EXPECT_EQ(teleportChunks.size(), 3);
+    EXPECT_EQ(std::ssize(teleportChunks), 3);
     EXPECT_EQ(teleportChunks[0], std::make_pair(chunk1, 1));
     EXPECT_EQ(teleportChunks[1], std::make_pair(chunk2, 0));
     EXPECT_EQ(teleportChunks[2], std::make_pair(chunk3, 1));
@@ -653,7 +653,7 @@ TEST_F(TMultiChunkPoolOutputTest, TestCookieMapping)
         }
     }
 
-    for (int i = 0; i < cookies.size(); ++i) {
+    for (int i = 0; i < std::ssize(cookies); ++i) {
         EXPECT_EQ(Pool_->Extract(), i);
     }
 

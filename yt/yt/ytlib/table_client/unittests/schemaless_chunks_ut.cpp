@@ -226,7 +226,7 @@ protected:
 
     static void InitNameTable(TNameTablePtr nameTable, int idShift = 0)
     {
-        for (int id = 0; id < ColumnNames.size(); ++id) {
+        for (int id = 0; id < std::ssize(ColumnNames); ++id) {
             EXPECT_EQ(id, nameTable->GetIdOrRegisterName(ColumnNames[(id + idShift) % ColumnNames.size()]));
         }
     }
@@ -499,7 +499,7 @@ TEST_F(TColumnarReadTest, ReadJustC1)
         auto columnarBatch = batch->TryAsColumnar();
         ASSERT_TRUE(columnarBatch.operator bool());
         auto columns = columnarBatch->MaterializeColumns();
-        EXPECT_EQ(1, columns.size());
+        EXPECT_EQ(1u, columns.size());
         EXPECT_EQ(0, columns[0]->Id);
     }
     auto statistics = reader->GetDataStatistics();
@@ -519,7 +519,7 @@ TEST_F(TColumnarReadTest, ReadAll)
         ASSERT_TRUE(columnarBatch.operator bool());
         auto columns = columnarBatch->MaterializeColumns();
         EXPECT_EQ(Schema_->Columns().size(), columns.size());
-        for (int index = 0; index < columns.size(); ++index) {
+        for (int index = 0; index < std::ssize(columns); ++index) {
             EXPECT_EQ(index, columns[index]->Id);
         }
     }
@@ -617,7 +617,7 @@ protected:
     TUnversionedRow CreateRow(int rowIndex, TTableSchemaPtr schema, TNameTablePtr nameTable)
     {
         auto row = TMutableUnversionedRow::Allocate(&Pool_, schema->Columns().size());
-        for (int index = 0; index < schema->Columns().size(); ++index) {
+        for (int index = 0; index < std::ssize(schema->Columns()); ++index) {
             const auto& column = schema->Columns()[index];
             row[index] = CreateValue(rowIndex, nameTable->GetIdOrRegisterName(column.Name()), column);
         }
@@ -733,7 +733,7 @@ TEST_P(TSchemalessChunksLookupTest, Simple)
     std::vector<TUnversionedRow> expected;
     std::vector<TUnversionedRow> keys;
 
-    for (int index = 0; index < Rows_.size(); ++index) {
+    for (int index = 0; index < std::ssize(Rows_); ++index) {
         if (index % 10 != 0) {
             continue;
         }
@@ -761,7 +761,7 @@ TEST_P(TSchemalessChunksLookupTest, WiderKeyColumns)
     sortColumns.push_back({"w1", ESortOrder::Ascending});
     sortColumns.push_back({"w2", ESortOrder::Ascending});
 
-    for (int index = 0; index < Rows_.size(); ++index) {
+    for (int index = 0; index < std::ssize(Rows_); ++index) {
         if (index % 10 != 0) {
             continue;
         }
@@ -773,7 +773,7 @@ TEST_P(TSchemalessChunksLookupTest, WiderKeyColumns)
         for (int valueIndex = 0; valueIndex < Schema_->GetKeyColumnCount(); ++valueIndex) {
             key[valueIndex] = row[valueIndex];
         }
-        for (int valueIndex = Schema_->GetKeyColumnCount(); valueIndex < key.GetCount(); ++valueIndex) {
+        for (int valueIndex = Schema_->GetKeyColumnCount(); valueIndex < static_cast<int>(key.GetCount()); ++valueIndex) {
             key[valueIndex] = MakeUnversionedSentinelValue(EValueType::Null, valueIndex);
         }
         keys.push_back(key);

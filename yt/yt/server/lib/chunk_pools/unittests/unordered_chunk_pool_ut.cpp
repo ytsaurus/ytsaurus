@@ -100,7 +100,7 @@ protected:
     void InitTables(std::vector<bool> isTeleportable, std::vector<bool> isVersioned)
     {
         YT_VERIFY(isTeleportable.size() == isVersioned.size() && isVersioned.size() > 0);
-        for (int index = 0; index < isVersioned.size(); ++index) {
+        for (int index = 0; index < std::ssize(isVersioned); ++index) {
             InputTables_.emplace_back(isTeleportable[index], true /* isPrimary */, isVersioned[index]);
         }
         UnversionedTableRowCounts_.resize(InputTables_.size(), 0);
@@ -323,7 +323,7 @@ protected:
                 int tableIndex = stripe->DataSlices.front()->GetTableIndex();
                 if (!InputTables_[tableIndex].IsForeign()) {
                     const auto& comparator = (InputTables_[tableIndex].IsVersioned()) ? versionedDataSliceComparator : unversionedDataSliceComparator;
-                    for (int index = 0; index + 1 < stripe->DataSlices.size(); ++index) {
+                    for (int index = 0; index + 1 < std::ssize(stripe->DataSlices); ++index) {
                         const auto& lhs = stripe->DataSlices[index];
                         const auto& rhs = stripe->DataSlices[index + 1];
                         EXPECT_TRUE(comparator(lhs, rhs));
@@ -445,8 +445,8 @@ TEST_F(TUnorderedChunkPoolTest, UnorderedMergeSimple)
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
 
-    EXPECT_EQ(TeleportChunks_.size(), 1);
-    EXPECT_EQ(2, stripeLists.size());
+    EXPECT_EQ(TeleportChunks_.size(), 1u);
+    EXPECT_EQ(2u, stripeLists.size());
 
     CheckEverything(stripeLists);
 }
@@ -477,8 +477,8 @@ TEST_F(TUnorderedChunkPoolTest, InputChunksAreSliced)
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
 
-    EXPECT_EQ(TeleportChunks_.size(), 0);
-    EXPECT_EQ(5, stripeLists.size());
+    EXPECT_EQ(TeleportChunks_.size(), 0u);
+    EXPECT_EQ(5u, stripeLists.size());
 
     CheckEverything(stripeLists);
 
@@ -511,7 +511,7 @@ TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks1)
     EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
     EXPECT_EQ(0, ChunkPool_->Extract(TNodeId()));
     auto stripeList = ChunkPool_->GetStripeList(0);
-    EXPECT_EQ(1, stripeList->Stripes.size());
+    EXPECT_EQ(1u, stripeList->Stripes.size());
     EXPECT_TRUE(TeleportChunks_.empty());
 
     ChunkPool_->Suspend(0);
@@ -554,7 +554,7 @@ TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks2)
     EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
     EXPECT_EQ(0, ChunkPool_->Extract(TNodeId()));
     auto stripeList = ChunkPool_->GetStripeList(0);
-    EXPECT_EQ(1, stripeList->Stripes.size());
+    EXPECT_EQ(1u, stripeList->Stripes.size());
     EXPECT_TRUE(TeleportChunks_.empty());
 
     ChunkPool_->Suspend(0);
@@ -566,7 +566,7 @@ TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks2)
     EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
     EXPECT_EQ(1, ChunkPool_->Extract(TNodeId()));
     stripeList = ChunkPool_->GetStripeList(1);
-    EXPECT_EQ(1, stripeList->Stripes.size());
+    EXPECT_EQ(1u, stripeList->Stripes.size());
 }
 
 TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks3)
@@ -788,11 +788,11 @@ TEST_P(TUnorderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
     }
     ASSERT_TRUE(ChunkPool_->IsCompleted());
     ASSERT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 0);
-    ASSERT_EQ(completedChunks.size(), chunkCount);
-    ASSERT_EQ(pendingChunks.size(), 0);
-    ASSERT_EQ(startedChunks.size(), 0);
-    ASSERT_EQ(lostChunks.size(), 0);
-    ASSERT_EQ(resumedChunks.size() + suspendedChunks.size(), chunkCount);
+    ASSERT_EQ(std::ssize(completedChunks), chunkCount);
+    ASSERT_EQ(std::ssize(pendingChunks), 0);
+    ASSERT_EQ(std::ssize(startedChunks), 0);
+    ASSERT_EQ(std::ssize(lostChunks), 0);
+    ASSERT_EQ(std::ssize(resumedChunks) + std::ssize(suspendedChunks), chunkCount);
 }
 
 INSTANTIATE_TEST_SUITE_P(VariousOperationsWithPoolInstantiation,

@@ -114,7 +114,7 @@ THealthChecker::THealthChecker(
 {
     RegisterNewUser(getContext()->getAccessControlManager(), DatabaseUser_);
 
-    for (int i = 0; i < Config_->Queries.size(); ++i) {
+    for (int i = 0; i < std::ssize(Config_->Queries); ++i) {
         QueryIndexToStatus_.push_back(ClickHouseYtProfiler
             .WithTag("query_index", ToString(i))
             .Gauge("/health_checker/success"));

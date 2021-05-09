@@ -488,7 +488,7 @@ void TComparerBuilder::BuildMainLoop(
 {
     LastBB_ = CreateBB("epilogue");
     NextBB_ = CreateBB("iteration");
-    for (int index = 0; index < KeyColumnTypes_.size(); ++index) {
+    for (int index = 0; index < std::ssize(KeyColumnTypes_); ++index) {
         BuildIterationLimitCheck(iterationsLimit, index);
 
         auto* lhsType = lhsBuilder.GetType(index);

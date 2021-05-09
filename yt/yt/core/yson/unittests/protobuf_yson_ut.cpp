@@ -364,8 +364,8 @@ TEST(TYsonToProtobufYsonTest, Success)
         .GetExtension(NYT::NYson::NProto::TMessageExtensionExtension::extension_extension)
         .extension_extension_field());
 
-    EXPECT_EQ(0xabacaba, message.guid().first());
-    EXPECT_EQ(0xdeadbeef, message.guid().second());
+    EXPECT_EQ(0xabacabau, message.guid().first());
+    EXPECT_EQ(0xdeadbeefu, message.guid().second());
 
     EXPECT_EQ("42", message.bytes_with_custom_converter());
 

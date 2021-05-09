@@ -51,29 +51,29 @@ TEST(TChunkRequisitionTest, Aggregate)
 
     TChunkRequisition requisition1;
     ASSERT_FALSE(requisition1.GetVital());
-    ASSERT_EQ(requisition1.GetEntryCount(), 0);
+    ASSERT_EQ(requisition1.GetEntryCount(), 0u);
     TChunkRequisition requisition2(account1.get(), 0, TReplicationPolicy(3, false), true);
     requisition2.SetVital(true);
     requisition1 |= requisition2;
     ASSERT_TRUE(requisition1.GetVital());
-    ASSERT_EQ(requisition1.GetEntryCount(), 1);
+    ASSERT_EQ(requisition1.GetEntryCount(), 1u);
     ASSERT_EQ(*requisition1.begin(), TRequisitionEntry(account1.get(), 0, TReplicationPolicy(3, false), true));
 
     requisition1 |= TChunkRequisition(account2.get(), 1, TReplicationPolicy(2, true), false);
     // These two entries should merge into one.
     requisition1 |= TChunkRequisition(account1.get(), 2, TReplicationPolicy(3, true), true);
     requisition1 |= TChunkRequisition(account1.get(), 2, TReplicationPolicy(3, false), true);
-    ASSERT_EQ(requisition1.GetEntryCount(), 3);
+    ASSERT_EQ(requisition1.GetEntryCount(), 3u);
 
     requisition2 |= TChunkRequisition(account3.get(), 5, TReplicationPolicy(4, false), false);
     requisition2 |= TChunkRequisition(account3.get(), 5, TReplicationPolicy(4, false), true);
     requisition2 |= TChunkRequisition(account3.get(), 4, TReplicationPolicy(2, false), false);
     requisition2 |= TChunkRequisition(account4.get(), 3, TReplicationPolicy(1, true), true);
-    ASSERT_EQ(requisition2.GetEntryCount(), 5);
+    ASSERT_EQ(requisition2.GetEntryCount(), 5u);
 
     requisition1 |= requisition2;
     ASSERT_TRUE(requisition1.GetVital());
-    ASSERT_EQ(requisition1.GetEntryCount(), 7);
+    ASSERT_EQ(requisition1.GetEntryCount(), 7u);
 
     auto it = requisition1.begin();
     ASSERT_EQ(*it, TRequisitionEntry(account1.get(), 0, TReplicationPolicy(3, false), true));
@@ -116,7 +116,7 @@ TEST(TChunkRequisitionTest, AggregateWithEmpty)
     auto requisitionCopy = requisition;
 
     TChunkRequisition emptyRequisition;
-    ASSERT_EQ(emptyRequisition.GetEntryCount(), 0);
+    ASSERT_EQ(emptyRequisition.GetEntryCount(), 0u);
 
     requisition |= emptyRequisition;
     ASSERT_EQ(requisition, requisitionCopy);
@@ -137,7 +137,7 @@ TEST(TChunkRequisitionTest, AggregateWithReplication)
     requisition.AggregateWith(replication, account2.get(), true);
 
     ASSERT_FALSE(requisition.GetVital());
-    ASSERT_EQ(requisition.GetEntryCount(), 4);
+    ASSERT_EQ(requisition.GetEntryCount(), 4u);
     auto it = requisition.begin();
     ASSERT_EQ(*it, TRequisitionEntry(account1.get(), 5, TReplicationPolicy(4, false), false));
     ++it;

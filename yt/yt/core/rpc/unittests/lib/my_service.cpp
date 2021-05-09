@@ -95,7 +95,7 @@ public:
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, NullAndEmptyAttachments)
     {
         const auto& attachments = request->Attachments();
-        EXPECT_EQ(2, attachments.size());
+        EXPECT_EQ(2u, attachments.size());
         EXPECT_FALSE(attachments[0]);
         EXPECT_TRUE(attachments[1]);
         EXPECT_TRUE(attachments[1].Empty());
@@ -114,7 +114,7 @@ public:
         const auto& compressedAttachments = context->RequestAttachments();
         EXPECT_TRUE(attachments.size() == compressedAttachments.size());
         auto* requestCodec = NCompression::GetCodec(requestCodecId);
-        for (int i = 0; i < attachments.size(); ++i) {
+        for (int i = 0; i < std::ssize(attachments); ++i) {
             auto compressedAttachment = requestCodec->Compress(attachments[i]);
             EXPECT_TRUE(TRef::AreBitwiseEqual(compressedAttachments[i], compressedAttachment));
         }

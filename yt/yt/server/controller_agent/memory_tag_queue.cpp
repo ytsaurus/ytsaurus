@@ -34,8 +34,8 @@ TMemoryTagQueue::TMemoryTagQueue(
 {
     MemoryTagQueueProfiler.WithSparse().AddProducer("", MakeStrong(this));
 
-    for (TMemoryTag tag = 1; tag < AllocatedTagCount_; ++tag) {
-        AvailableTags_.push(tag);
+    for (int tag = 1; tag < AllocatedTagCount_; ++tag) {
+        AvailableTags_.push(static_cast<TMemoryTag>(tag));
     }
 }
 
@@ -97,8 +97,8 @@ void TMemoryTagQueue::AllocateNewTags()
 {
     YT_LOG_INFO("Allocating new memory tags (AllocatedTagCount: %v, NewAllocatedTagCount: %v)", AllocatedTagCount_, 2 * AllocatedTagCount_);
     TagToLastOperationId_.resize(2 * AllocatedTagCount_);
-    for (TMemoryTag tag = AllocatedTagCount_; tag < 2 * AllocatedTagCount_; ++tag) {
-        AvailableTags_.push(tag);
+    for (int tag = AllocatedTagCount_; tag < 2 * AllocatedTagCount_; ++tag) {
+        AvailableTags_.push(static_cast<TMemoryTag>(tag));
     }
     AllocatedTagCount_ *= 2;
 }
@@ -134,7 +134,7 @@ void TMemoryTagQueue::UpdateStatistics()
     {
         auto guard = WriterGuard(Lock_);
         CachedTotalUsage_ = 0;
-        for (int index = 0; index < tags.size(); ++index) {
+        for (int index = 0; index < std::ssize(tags); ++index) {
             auto tag = tags[index];
             auto usage = usages[index];
             auto operationId = TagToLastOperationId_[tag] ? std::make_optional(TagToLastOperationId_[tag]) : std::nullopt;

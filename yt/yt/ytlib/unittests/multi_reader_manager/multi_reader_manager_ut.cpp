@@ -110,13 +110,13 @@ TEST_P(TMultiReaderManagerTest, DataWithEmptyRows)
 
     while (auto batch = WaitForRowBatch(multiReader)) {
         auto rows = batch->MaterializeRows();
-        EXPECT_EQ(1, rows.size());
-        
+        EXPECT_EQ(1u, rows.size());
+
         auto [value] = FromUnversionedRow<i64>(rows[0]);
         EXPECT_TRUE(values.erase(value) == 1);
     }
 
-    EXPECT_EQ(0, values.size());
+    EXPECT_EQ(0u, values.size());
 }
 
 TEST_P(TMultiReaderManagerTest, ReaderWithError)
@@ -134,15 +134,15 @@ TEST_P(TMultiReaderManagerTest, ReaderWithError)
             }
             auto error = WaitFor(multiReader->GetReadyEvent());
             if (error.IsOK()) {
-                EXPECT_EQ(multiReader->GetFailedChunkIds().size(), 0);
+                EXPECT_EQ(multiReader->GetFailedChunkIds().size(), 0u);
             } else {
-                EXPECT_EQ(multiReader->GetFailedChunkIds().size(), 1);
+                EXPECT_EQ(multiReader->GetFailedChunkIds().size(), 1u);
                 break;
             }
         }
     }
 
-    EXPECT_EQ(multiReader->GetFailedChunkIds().size(), 1);
+    EXPECT_EQ(multiReader->GetFailedChunkIds().size(), 1u);
     EXPECT_FALSE(WaitFor(multiReader->GetReadyEvent()).IsOK());
 }
 
@@ -163,7 +163,7 @@ TEST_P(TMultiReaderManagerTest, Interrupt)
         EXPECT_EQ(1, batch->GetRowCount());
         ++remainingRowCount;
     }
-    
+
     EXPECT_EQ(5, remainingRowCount);
 }
 

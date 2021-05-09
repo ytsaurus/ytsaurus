@@ -176,7 +176,7 @@ void TCumulativeStatistics::Update(int index, const TCumulativeStatisticsEntry& 
 
         case TrimmableAlternativeIndex: {
             auto& statistics = AsTrimmable();
-            YT_VERIFY(index == statistics.size() - 2);
+            YT_VERIFY(index == std::ssize(statistics) - 2);
             statistics[index + 1] = statistics[index + 1] + delta;
             break;
         }

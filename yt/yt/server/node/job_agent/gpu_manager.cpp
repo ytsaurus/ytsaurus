@@ -334,7 +334,7 @@ std::vector<TGpuManager::TGpuSlotPtr> TGpuManager::AcquireGpuSlots(int slotCount
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(SpinLock_);
-    YT_VERIFY(FreeSlots_.size() >= slotCount);
+    YT_VERIFY(std::ssize(FreeSlots_) >= slotCount);
 
     // TODO(ignat): use actual topology of GPU-s.
     // nvidia-smi topo -p2p r
@@ -353,7 +353,7 @@ std::vector<TGpuManager::TGpuSlotPtr> TGpuManager::AcquireGpuSlots(int slotCount
     bool found = false;
     for (int levelIndex = 0; levelIndex < levelCount && !found; ++levelIndex) {
         for (const auto& [_, slots] : freeDeviceNumberPerLevelPerGroup[levelIndex]) {
-            if (slots.size() >= slotCount) {
+            if (std::ssize(slots) >= slotCount) {
                 found = true;
                 for (int index = 0; index < slotCount; ++index) {
                     resultDeviceNumbers.insert(slots[index]);
@@ -364,7 +364,7 @@ std::vector<TGpuManager::TGpuSlotPtr> TGpuManager::AcquireGpuSlots(int slotCount
     }
 
     YT_VERIFY(found);
-    YT_VERIFY(resultDeviceNumbers.size() == slotCount);
+    YT_VERIFY(std::ssize(resultDeviceNumbers) == slotCount);
 
     YT_LOG_DEBUG("Acquired GPU slots (DeviceNumbers: %v)",
         resultDeviceNumbers);

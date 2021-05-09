@@ -456,7 +456,7 @@ void ExpectBodyPart(THttpInput* in, TStringBuf chunk)
 
 void ExpectBodyEnd(THttpInput* in)
 {
-    ASSERT_EQ(0, WaitFor(in->Read()).ValueOrThrow().Size());
+    ASSERT_EQ(0u, WaitFor(in->Read()).ValueOrThrow().Size());
 }
 
 TEST(THttpInputTest, Simple)
@@ -973,7 +973,7 @@ TEST_P(THttpServerTest, ResponseStreaming)
     Server->Start();
 
     auto rsp = WaitFor(Client->Get(TestUrl + "/streaming")).ValueOrThrow();
-    ASSERT_EQ(16 * 1024 * 1024, ReadAll(rsp).Size());
+    ASSERT_EQ(16 * 1024 * 1024, std::ssize(ReadAll(rsp)));
 
     Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
@@ -1066,7 +1066,7 @@ TEST_P(THttpServerTest, RequestHangUp)
         .ThrowOnError();
     auto bytesRead = WaitFor(connection->Read(TSharedMutableRef::Allocate(1)))
         .ValueOrThrow();
-    ASSERT_EQ(0, bytesRead);
+    ASSERT_EQ(0u, bytesRead);
 
     Server->Stop();
     Sleep(TDuration::MilliSeconds(10));

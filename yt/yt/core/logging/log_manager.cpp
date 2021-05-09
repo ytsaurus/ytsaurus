@@ -113,7 +113,7 @@ public:
                     FD_);
             }
         } else if (rv > 0) {
-            YT_ASSERT(rv >= sizeof(struct inotify_event));
+            YT_ASSERT(rv >= static_cast<ssize_t>(sizeof(struct inotify_event)));
             struct inotify_event* event = (struct inotify_event*)buffer;
 
             if (event->mask & IN_ATTRIB) {
@@ -1207,8 +1207,8 @@ private:
 
     // These are just copies from _Config.
     // The values are being read from arbitrary threads but stale values are fine.
-    int HighBacklogWatermark_ = -1;
-    int LowBacklogWatermark_ = -1;
+    ui64 HighBacklogWatermark_ = Max<ui64>();
+    ui64 LowBacklogWatermark_ = Max<ui64>();
 
     std::atomic<bool> Suspended_ = false;
     std::atomic<bool> Starting_ = false;

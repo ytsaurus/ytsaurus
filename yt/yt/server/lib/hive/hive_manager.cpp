@@ -520,7 +520,7 @@ private:
         }
 
         auto& outcomingMessages = mailbox->OutcomingMessages();
-        if (acknowledgeCount > outcomingMessages.size()) {
+        if (acknowledgeCount > std::ssize(outcomingMessages)) {
             YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Requested to acknowledge too many messages (SrcCellId: %v, DstCellId: %v, "
                 "NextPersistentIncomingMessageId: %v, FirstOutcomingMessageId: %v, OutcomingMessageCount: %v)",
                 SelfCellId_,
@@ -1114,12 +1114,12 @@ private:
         const auto& outcomingMessages = mailbox->OutcomingMessages();
 
         YT_VERIFY(firstInFlightOutcomingMessageId >= firstOutcomingMessageId);
-        YT_VERIFY(firstInFlightOutcomingMessageId <= firstOutcomingMessageId + outcomingMessages.size());
+        YT_VERIFY(firstInFlightOutcomingMessageId <= firstOutcomingMessageId + std::ssize(outcomingMessages));
 
         auto dstCellId = mailbox->GetCellId();
 
         TDelayedExecutor::CancelAndClear(mailbox->IdlePostCookie());
-        if (!allowIdle && firstInFlightOutcomingMessageId == mailbox->GetFirstOutcomingMessageId() + outcomingMessages.size()) {
+        if (!allowIdle && firstInFlightOutcomingMessageId == mailbox->GetFirstOutcomingMessageId() + std::ssize(outcomingMessages)) {
             mailbox->IdlePostCookie() = TDelayedExecutor::Submit(
                 BIND(&TImpl::OnIdlePostOutcomingMessages, MakeWeak(this), dstCellId)
                     .Via(EpochAutomatonInvoker_),
@@ -1137,7 +1137,7 @@ private:
         std::vector<TMailbox::TOutcomingMessage> messagesToPost;
         messagesToPost.reserve(Config_->MaxMessagesPerPost);
         int currentMessageIndex = firstInFlightOutcomingMessageId - firstOutcomingMessageId;
-        while (currentMessageIndex < outcomingMessages.size() &&
+        while (currentMessageIndex < std::ssize(outcomingMessages) &&
                messageCountToPost < Config_->MaxMessagesPerPost &&
                messageBytesToPost < Config_->MaxBytesPerPost)
         {
@@ -1340,7 +1340,7 @@ private:
             return false;
         }
 
-        if (requestedMessageId > mailbox->GetFirstOutcomingMessageId() + mailbox->OutcomingMessages().size()) {
+        if (requestedMessageId > mailbox->GetFirstOutcomingMessageId() + std::ssize(mailbox->OutcomingMessages())) {
             YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Destination is out of sync: requested to receive nonexisting messages (SrcCellId: %v, DstCellId: %v, "
                 "RequestedMessageId: %v, FirstOutcomingMessageId: %v, OutcomingMessageCount: %v)",
                 SelfCellId_,

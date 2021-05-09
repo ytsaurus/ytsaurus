@@ -223,7 +223,7 @@ private:
                 messageWithAttachments.Message = RequestBody_[1];
             }
 
-            for (int index = 2; index < RequestBody_.Size(); ++index) {
+            for (int index = 2; index < std::ssize(RequestBody_); ++index) {
                 messageWithAttachments.Attachments.push_back(RequestBody_[index]);
             }
 

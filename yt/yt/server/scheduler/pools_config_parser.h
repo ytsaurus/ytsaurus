@@ -161,7 +161,7 @@ private:
                 }
             }
         }
-        YT_VERIFY(eraseActionCount == erasingPoolToParent.size());
+        YT_VERIFY(eraseActionCount == std::ssize(erasingPoolToParent));
     }
 };
 

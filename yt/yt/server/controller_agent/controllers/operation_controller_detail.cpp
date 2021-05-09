@@ -435,7 +435,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
         // NB: Async transaction is not checked.
         if (IsTransactionNeeded(ETransactionType::Input)) {
             checkTransaction(inputTransaction, ETransactionType::Input, transactions.InputId);
-            for (int index = 0; index < nestedInputTransactions.size(); ++index) {
+            for (int index = 0; index < std::ssize(nestedInputTransactions); ++index) {
                 checkTransaction(nestedInputTransactions[index], ETransactionType::Input, transactions.NestedInputIds[index]);
             }
         }
@@ -704,7 +704,7 @@ void TOperationControllerBase::InitializeStructures()
     }
 
     auto maxInputTableCount = std::min(Config->MaxInputTableCount, Options->MaxInputTableCount);
-    if (InputTables_.size() > maxInputTableCount) {
+    if (std::ssize(InputTables_) > maxInputTableCount) {
         THROW_ERROR_EXCEPTION(
             "Too many input tables: maximum allowed %v, actual %v",
             maxInputTableCount,
@@ -937,7 +937,7 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
 
         std::vector<TTableSchemaPtr> outputTableSchemas;
         outputTableSchemas.resize(OutputTables_.size());
-        for (int outputTableIndex = 0; outputTableIndex < OutputTables_.size(); ++outputTableIndex) {
+        for (int outputTableIndex = 0; outputTableIndex < std::ssize(OutputTables_); ++outputTableIndex) {
             const auto& table = OutputTables_[outputTableIndex];
             if (table->Dynamic) {
                 outputTableSchemas[outputTableIndex] = table->TableUploadOptions.GetUploadSchema();
@@ -946,7 +946,7 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
 
         PrepareOutputTables();
 
-        for (int outputTableIndex = 0; outputTableIndex < OutputTables_.size(); ++outputTableIndex) {
+        for (int outputTableIndex = 0; outputTableIndex < std::ssize(OutputTables_); ++outputTableIndex) {
             const auto& table = OutputTables_[outputTableIndex];
             if (table->Dynamic && *outputTableSchemas[outputTableIndex] != *table->TableUploadOptions.GetUploadSchema()) {
                 THROW_ERROR_EXCEPTION(
@@ -1583,7 +1583,7 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate)
     // NB: if row count limit is set on any output table, we do not
     // enable auto merge as it prematurely stops the operation
     // because wrong statistics are currently used when checking row count.
-    for (int index = 0; index < OutputTables_.size(); ++index) {
+    for (int index = 0; index < std::ssize(OutputTables_); ++index) {
         if (OutputTables_[index]->Path.GetRowCountLimit()) {
             YT_LOG_INFO("Output table has row count limit, force disabling auto merge (TableIndex: %v)", index);
             auto error = TError("Output table has row count limit, force disabling auto merge")
@@ -1617,7 +1617,7 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate)
     std::vector<TStreamDescriptor> streamDescriptors;
     streamDescriptors.reserve(OutputTables_.size());
     AutoMergeEnabled_.resize(OutputTables_.size(), false);
-    for (int index = 0; index < OutputTables_.size(); ++index) {
+    for (int index = 0; index < std::ssize(OutputTables_); ++index) {
         const auto& outputTable = OutputTables_[index];
         if (outputTable->Path.GetAutoMerge()) {
             if (outputTable->TableUploadOptions.TableSchema->IsSorted()) {
@@ -1671,7 +1671,7 @@ std::vector<TStreamDescriptor> TOperationControllerBase::GetAutoMergeStreamDescr
     }
 
     int autoMergeTaskTableIndex = 0;
-    for (int index = 0; index < streamDescriptors.size(); ++index) {
+    for (int index = 0; index < std::ssize(streamDescriptors); ++index) {
         if (AutoMergeEnabled_[index]) {
             streamDescriptors[index].DestinationPool = AutoMergeTask_->GetChunkPoolInput();
             streamDescriptors[index].ChunkMapping = AutoMergeTask_->GetChunkMapping();
@@ -2357,12 +2357,12 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                         ++end;
                     }
 
-                    for (int index = start; index < end; ++index) {
+                    for (auto index = start; index < end; ++index) {
                         tabletChunks[index].push_back(chunkId);
                     }
                 }
 
-                for (int index = 0; index < tabletChunks.size(); ++index) {
+                for (int index = 0; index < std::ssize(tabletChunks); ++index) {
                     table->OutputChunkListId = table->TabletChunkListIds[index];
                     for (auto& chunkTree : tabletChunks[index]) {
                         addChunkTree(chunkTree);
@@ -3670,7 +3670,7 @@ void TOperationControllerBase::AnalyzeMemoryAndTmpfsUsage()
 
         YT_VERIFY(memoryInfo.MaxTmpfsUsage.size() == maxUsedTmpfsSizes.size());
 
-        for (int index = 0; index < maxUsedTmpfsSizes.size(); ++index) {
+        for (int index = 0; index < std::ssize(maxUsedTmpfsSizes); ++index) {
             auto tmpfsSize = maxUsedTmpfsSizes[index];
             if (tmpfsSize) {
                 if (!memoryInfo.MaxTmpfsUsage[index]) {
@@ -3694,7 +3694,7 @@ void TOperationControllerBase::AnalyzeMemoryAndTmpfsUsage()
         if (memoryInfo.MaxMemoryUsage) {
             i64 memoryUsage = *memoryInfo.MaxMemoryUsage;
 
-            for (int index = 0; index < tmpfsVolumes.size(); ++index) {
+            for (int index = 0; index < std::ssize(tmpfsVolumes); ++index) {
                 auto maxTmpfsUsage = memoryInfo.MaxTmpfsUsage[index];
                 if (maxTmpfsUsage) {
                     memoryUsage += *maxTmpfsUsage;
@@ -3726,7 +3726,7 @@ void TOperationControllerBase::AnalyzeMemoryAndTmpfsUsage()
             continue;
         }
 
-        for (int index = 0; index < tmpfsVolumes.size(); ++index) {
+        for (int index = 0; index < std::ssize(tmpfsVolumes); ++index) {
             auto maxTmpfsUsage = memoryInfo.MaxTmpfsUsage[index];
             if (!maxTmpfsUsage) {
                 continue;
@@ -4783,7 +4783,7 @@ const std::vector<TStreamDescriptor>& TOperationControllerBase::GetStandardStrea
 void TOperationControllerBase::InitializeStandardStreamDescriptors()
 {
     StandardStreamDescriptors_.resize(OutputTables_.size());
-    for (int index = 0; index < OutputTables_.size(); ++index) {
+    for (int index = 0; index < std::ssize(OutputTables_); ++index) {
         StandardStreamDescriptors_[index] = OutputTables_[index]->GetStreamDescriptorTemplate(index);
         StandardStreamDescriptors_[index].DestinationPool = GetSink();
         StandardStreamDescriptors_[index].IsFinalOutput = true;
@@ -5089,7 +5089,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
     if (IsOutputLivePreviewSupported()) {
         YT_LOG_INFO("Creating live preview for output tables");
 
-        for (int index = 0; index < OutputTables_.size(); ++index) {
+        for (int index = 0; index < std::ssize(OutputTables_); ++index) {
             auto& table = OutputTables_[index];
             auto path = GetOperationPath(OperationId) + "/output_" + ToString(index);
             addRequest(
@@ -5156,7 +5156,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         auto rspsOrError = batchRsp->GetResponses<TCypressYPathProxy::TRspCreate>("create_output");
         YT_VERIFY(rspsOrError.size() == OutputTables_.size());
 
-        for (int index = 0; index < OutputTables_.size(); ++index) {
+        for (int index = 0; index < std::ssize(OutputTables_); ++index) {
             handleResponse(*OutputTables_[index], rspsOrError[index].Value());
         }
 
@@ -5274,7 +5274,7 @@ void TOperationControllerBase::FetchInputTables()
             ranges = std::move(inferredRanges);
         }
 
-        if (ranges.size() > Config->MaxRangesOnTable) {
+        if (std::ssize(ranges) > Config->MaxRangesOnTable) {
             THROW_ERROR_EXCEPTION(
                 "Too many ranges on table: maximum allowed %v, actual %v",
                 Config->MaxRangesOnTable,
@@ -6174,7 +6174,7 @@ void TOperationControllerBase::ValidateUserFileSizes()
                 file.Type,
                 file.Path.GetColumns().operator bool());
             auto chunkCount = file.Type == NObjectClient::EObjectType::File ? file.ChunkCount : file.Chunks.size();
-            if (chunkCount > Config->MaxUserFileChunkCount) {
+            if (static_cast<i64>(chunkCount) > Config->MaxUserFileChunkCount) {
                 THROW_ERROR_EXCEPTION(
                     "User file %v exceeds chunk count limit: %v > %v",
                     file.Path,
@@ -6524,7 +6524,7 @@ void TOperationControllerBase::ParseInputQuery(
             }
         }
 
-        return columns.size() == tableSchema.GetColumnCount()
+        return std::ssize(columns) == tableSchema.GetColumnCount()
             ? std::optional<std::vector<TString>>()
             : std::make_optional(std::move(columns));
     };
@@ -8562,7 +8562,7 @@ NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateTableReader
 
 void TOperationControllerBase::ValidateUserFileCount(TUserJobSpecPtr spec, const TString& operation)
 {
-    if (spec->FilePaths.size() > Config->MaxUserFileCount) {
+    if (std::ssize(spec->FilePaths) > Config->MaxUserFileCount) {
         THROW_ERROR_EXCEPTION("Too many user files in %v: maximum allowed %v, actual %v",
             operation,
             Config->MaxUserFileCount,
@@ -8852,7 +8852,7 @@ void TOperationControllerBase::InitAutoMergeJobSpecTemplates()
     // We can possibly move it to TAutoMergeTask itself.
 
     AutoMergeJobSpecTemplates_.resize(OutputTables_.size());
-    for (int tableIndex = 0; tableIndex < OutputTables_.size(); ++tableIndex) {
+    for (int tableIndex = 0; tableIndex < std::ssize(OutputTables_); ++tableIndex) {
         AutoMergeJobSpecTemplates_[tableIndex].set_type(static_cast<int>(EJobType::UnorderedMerge));
         auto* schedulerJobSpecExt = AutoMergeJobSpecTemplates_[tableIndex]
             .MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
@@ -9331,7 +9331,7 @@ std::vector<TTaskPtr> TOperationControllerBase::GetTopologicallyOrderedTasks() c
 
     THashMap<TDataFlowGraph::TVertexDescriptor, int> vertexDescriptorToIndex;
     auto topologicalOrdering = DataFlowGraph_->GetTopologicalOrdering();
-    for (int index = 0; index < topologicalOrdering.size(); ++index) {
+    for (int index = 0; index < std::ssize(topologicalOrdering); ++index) {
         YT_VERIFY(vertexDescriptorToIndex.emplace(topologicalOrdering[index], index).second);
     }
 

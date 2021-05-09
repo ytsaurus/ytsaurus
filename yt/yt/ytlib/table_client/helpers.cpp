@@ -198,7 +198,7 @@ void ValidateSortColumns(
 {
     ValidateKeyColumnCount(tableSortColumns.size(), chunkSortColumns.size(), requireUniqueKeys);
 
-    for (int i = 0; i < std::min(tableSortColumns.size(), chunkSortColumns.size()); ++i) {
+    for (int i = 0; i < std::min(std::ssize(tableSortColumns), std::ssize(chunkSortColumns)); ++i) {
         if (chunkSortColumns[i] != tableSortColumns[i]) {
             THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns,
                 "Incompatible sort columns: chunk sort columns %v, table sort columns %v",
@@ -614,7 +614,7 @@ void TReaderVirtualValues::FillColumns(
     ui64 startIndex,
     ui64 valueCount) const
 {
-    YT_VERIFY(columnRange.size() == GetBatchColumnCount(virtualColumnIndex));
+    YT_VERIFY(std::ssize(columnRange) == GetBatchColumnCount(virtualColumnIndex));
     FillRleColumn(&columnRange[1], virtualColumnIndex);
     FillMainColumn(&columnRange[0], &columnRange[1], virtualColumnIndex, startIndex, valueCount);
 }

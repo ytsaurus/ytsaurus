@@ -299,7 +299,7 @@ private:
 
         auto aggregator = index->CreateAggregator();
 
-        for (int tableIndex = 0; tableIndex < InputTables_.size(); ++tableIndex) {
+        for (int tableIndex = 0; tableIndex < std::ssize(InputTables_); ++tableIndex) {
             const auto& table = InputTables_[tableIndex];
             auto operandIndex = table->OperandIndex;
 

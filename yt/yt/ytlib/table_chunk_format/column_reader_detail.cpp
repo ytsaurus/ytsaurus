@@ -128,7 +128,7 @@ i64 TSparseVersionedValueExtractorBase::GetLowerValueIndex(i64 segmentRowIndex, 
         valueIndex,
         RowIndexReader_.GetSize(),
         [&] (i64 currentValueIndex) {
-            return RowIndexReader_[currentValueIndex] < segmentRowIndex;
+            return static_cast<i64>(RowIndexReader_[currentValueIndex]) < segmentRowIndex;
         });
 }
 
@@ -406,7 +406,7 @@ void TVersionedColumnReaderBase::ReadValues(
     bool produceAllVersions)
 {
     i64 readRowCount = 0;
-    while (readRowCount < rows.Size()) {
+    while (readRowCount < std::ssize(rows)) {
         RearmSegmentReader();
         i64 count = SegmentReader_->ReadValues(
             rows.Slice(rows.Begin() + readRowCount, rows.End()),
@@ -421,7 +421,7 @@ void TVersionedColumnReaderBase::ReadValues(
 void TVersionedColumnReaderBase::ReadAllValues(TMutableRange<TMutableVersionedRow> rows)
 {
     i64 readRowCount = 0;
-    while (readRowCount < rows.Size()) {
+    while (readRowCount < std::ssize(rows)) {
         RearmSegmentReader();
         i64 count = SegmentReader_->ReadAllValues(
             rows.Slice(rows.Begin() + readRowCount, rows.End()));

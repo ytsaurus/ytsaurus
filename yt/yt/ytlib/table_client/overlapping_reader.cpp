@@ -185,7 +185,7 @@ IUnversionedRowBatchPtr TSchemafulOverlappingLookupReader::Read(const TRowBatchR
 
     while (AwaitingSessions_.empty() &&
            !Exhausted_ &&
-           rows.size() < options.MaxRowsPerRead &&
+           std::ssize(rows) < options.MaxRowsPerRead &&
            dataWeight < options.MaxDataWeightPerRead)
     {
         readRow();
@@ -386,7 +386,7 @@ TSchemafulOverlappingRangeReaderBase<TRowMerger>::TSchemafulOverlappingRangeRead
     , MinConcurrency_(minConcurrency)
 {
     Sessions_.reserve(boundaries.size());
-    for (int index = 0; index < boundaries.size(); ++index) {
+    for (int index = 0; index < std::ssize(boundaries); ++index) {
         Sessions_.emplace_back(boundaries[index], index);
     }
     std::sort(Sessions_.begin(), Sessions_.end(), [&] (const TSession& lhs, const TSession& rhs) {
@@ -444,7 +444,7 @@ TCodecStatistics TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoGetDecompre
 template <class TRowMerger>
 bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoIsFetchingCompleted() const
 {
-    if (NextSession_ < Sessions_.size() || AwaitingSessions_.empty()) {
+    if (NextSession_ < std::ssize(Sessions_) || AwaitingSessions_.empty()) {
         return false;
     }
 
@@ -477,7 +477,7 @@ std::vector<TChunkId> TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoGetFai
 template <class TRowMerger>
 TFuture<void> TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoOpen()
 {
-    while (NextSession_ < Sessions_.size() && NextSession_ < MinConcurrency_) {
+    while (NextSession_ < std::ssize(Sessions_) && NextSession_ < MinConcurrency_) {
         OpenSession(NextSession_);
         ++NextSession_;
     }
@@ -523,7 +523,7 @@ bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoRead(
 
                 int index = NextSession_;
 
-                while (index < Sessions_.size() &&
+                while (index < std::ssize(Sessions_) &&
                     KeyComparer_(
                         partialRow.BeginKeys(),
                         partialRow.EndKeys(),
@@ -564,7 +564,7 @@ bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoRead(
     while (
         AwaitingSessions_.empty() &&
         !ActiveSessions_.empty() &&
-        rows->size() < options.MaxRowsPerRead &&
+        std::ssize(*rows) < options.MaxRowsPerRead &&
         dataWeight < options.MaxDataWeightPerRead)
     {
         readRow();
@@ -669,8 +669,8 @@ void TSchemafulOverlappingRangeReaderBase<TRowMerger>::RefillSessions(const TRow
 
     AwaitingSessions_ = std::move(awaitingSessions);
 
-    while (AwaitingSessions_.size() + ActiveSessions_.size() < MinConcurrency_ &&
-        NextSession_ < Sessions_.size())
+    while (std::ssize(AwaitingSessions_) + std::ssize(ActiveSessions_) < MinConcurrency_ &&
+        NextSession_ < std::ssize(Sessions_))
     {
         OpenSession(NextSession_);
         ++NextSession_;

@@ -49,7 +49,7 @@ void FlsDestruct(int index, uintptr_t value)
 
 uintptr_t& TFsdHolder::FsdAt(int index)
 {
-    if (Y_UNLIKELY(index >= Fsd_.size())) {
+    if (Y_UNLIKELY(index >= std::ssize(Fsd_))) {
         FsdResize();
     }
     return Fsd_[index];
@@ -71,7 +71,7 @@ void TFsdHolder::FsdResize()
 
 TFsdHolder::~TFsdHolder()
 {
-    for (int index = 0; index < Fsd_.size(); ++index) {
+    for (int index = 0; index < std::ssize(Fsd_); ++index) {
         const auto& slot = Fsd_[index];
         if (slot) {
            FlsDestruct(index, slot);

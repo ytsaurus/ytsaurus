@@ -36,7 +36,7 @@ std::vector<TUserObject*> MakeUserObjectList(std::vector<TIntrusivePtr<T>>& vect
 template <class TRpcPtr>
 std::vector<TBlock> GetRpcAttachedBlocks(const TRpcPtr& rpc, bool validateChecksums)
 {
-    if (rpc->block_checksums_size() != 0 && rpc->Attachments().size() != rpc->block_checksums_size()) {
+    if (rpc->block_checksums_size() != 0 && std::ssize(rpc->Attachments()) != rpc->block_checksums_size()) {
         THROW_ERROR_EXCEPTION("Number of RPC attachments does not match the number of checksums")
             << TErrorAttribute("attachment_count", rpc->block_checksums_size())
             << TErrorAttribute("checksum_count", rpc->Attachments().size());
@@ -44,7 +44,7 @@ std::vector<TBlock> GetRpcAttachedBlocks(const TRpcPtr& rpc, bool validateChecks
 
     std::vector<TBlock> blocks;
     blocks.reserve(rpc->Attachments().size());
-    for (int i = 0; i < rpc->Attachments().size(); ++i) {
+    for (int i = 0; i < std::ssize(rpc->Attachments()); ++i) {
         auto checksum = NullChecksum;
         if (rpc->block_checksums_size() != 0) {
             checksum = rpc->block_checksums(i);

@@ -31,13 +31,13 @@ TEST(TErrorTest, SerializationDepthLimit)
         ASSERT_EQ(errorNode->GetChildOrThrow("message")->GetValue<TString>(), "error");
         ASSERT_FALSE(errorNode->GetChildOrThrow("attributes")->AsMap()->FindChild("original_error_depth"));
         auto innerErrors = errorNode->GetChildOrThrow("inner_errors")->AsList()->GetChildren();
-        ASSERT_EQ(innerErrors.size(), 1);
+        ASSERT_EQ(innerErrors.size(), 1u);
         errorNode = innerErrors[0]->AsMap();
     }
     auto innerErrors = errorNode->GetChildOrThrow("inner_errors")->AsList();
     const auto& children = innerErrors->GetChildren();
-    ASSERT_EQ(children.size(), Depth - ErrorSerializationDepthLimit + 1);
-    for (int i = 0; i < children.size(); ++i) {
+    ASSERT_EQ(std::ssize(children), Depth - ErrorSerializationDepthLimit + 1);
+    for (int i = 0; i < std::ssize(children); ++i) {
         auto child = children[i]->AsMap();
         ASSERT_EQ(child->GetChildOrThrow("code")->GetValue<i64>(), i + ErrorSerializationDepthLimit);
         ASSERT_EQ(child->GetChildOrThrow("message")->GetValue<TString>(), "error");

@@ -116,14 +116,14 @@ void TInputChunkMapping::OnStripeRegenerated(
                 << TErrorAttribute("new_data_slice_count", newStripe->DataSlices.size());
         }
 
-        for (int index = 0; index < oldStripe->DataSlices.size(); ++index) {
+        for (int index = 0; index < std::ssize(oldStripe->DataSlices); ++index) {
             const auto& oldChunk = oldStripe->DataSlices[index]->GetSingleUnversionedChunkOrThrow();
             const auto& newChunk = newStripe->DataSlices[index]->GetSingleUnversionedChunkOrThrow();
             ValidateSortedChunkConsistency(oldChunk, newChunk);
         }
     }
 
-    for (int index = 0; index < oldStripe->DataSlices.size(); ++index) {
+    for (int index = 0; index < std::ssize(oldStripe->DataSlices); ++index) {
         const auto& oldSlice = oldStripe->DataSlices[index];
         // Versioned slices may not be lost and regenerated.
         YT_VERIFY(oldSlice->Type == EDataSourceType::UnversionedTable);

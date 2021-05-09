@@ -230,14 +230,14 @@ TErrorOr<TNetworkAddress> TNetworkAddress::TryParse(TStringBuf address)
     TString ipAddress(address);
     std::optional<int> port;
 
-    int closingBracketIndex = address.find(']');
+    auto closingBracketIndex = address.find(']');
     if (closingBracketIndex != TString::npos) {
         if (closingBracketIndex == TString::npos || address.empty() || address[0] != '[') {
             return TError("Address %Qv is malformed, expected [<addr>]:<port> or [<addr>] format",
                 address);
         }
 
-        int colonIndex = address.find(':', closingBracketIndex + 1);
+        auto colonIndex = address.find(':', closingBracketIndex + 1);
         if (colonIndex != TString::npos) {
             try {
                 port = FromString<int>(address.substr(colonIndex + 1));
@@ -250,7 +250,7 @@ TErrorOr<TNetworkAddress> TNetworkAddress::TryParse(TStringBuf address)
         ipAddress = TString(address.substr(1, closingBracketIndex - 1));
     } else {
         if (address.find('.') != TString::npos) {
-            int colonIndex = address.find(':', closingBracketIndex + 1);
+            auto colonIndex = address.find(':', closingBracketIndex + 1);
             if (colonIndex != TString::npos) {
                 try {
                     port = FromString<int>(address.substr(colonIndex + 1));
@@ -454,7 +454,7 @@ bool ParseProjectId(TStringBuf* str, std::optional<ui32>* projectId)
     }
 
     ui32 value = 0;
-    for (int i = 0; i < pos; ++i) {
+    for (int i = 0; i < static_cast<int>(pos); ++i) {
         int digit = Char2DigitTable[static_cast<unsigned char>((*str)[i])];
         if (digit == '\xff') {
             return false;
@@ -582,7 +582,7 @@ bool ParseMask(TStringBuf buf, int* maskSize)
 
     *maskSize = 0;
     for (int i = 1; i < 4; ++i) {
-        if (i == buf.size()) {
+        if (i == std::ssize(buf)) {
             return true;
         }
 
@@ -825,8 +825,8 @@ bool TIP6Network::FromString(TStringBuf str, TIP6Network* network)
 
     network->Mask_ = TIP6Address();
     auto bytes = network->Mask_.GetRawBytes();
-    for (int i = 0; i < TIP6Address::ByteSize * 8; ++i) {
-        if (i >= (TIP6Address::ByteSize * 8) - maskSize) {
+    for (int i = 0; i < static_cast<int>(TIP6Address::ByteSize * 8); ++i) {
+        if (i >= static_cast<int>(TIP6Address::ByteSize * 8) - maskSize) {
             *(bytes + i / 8) |= (1 << (i % 8));
         } else {
             *(bytes + i / 8) &= ~(1 << (i % 8));

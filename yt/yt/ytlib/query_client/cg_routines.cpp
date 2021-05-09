@@ -208,7 +208,7 @@ void ScanOpHelper(
             continue;
         }
 
-        if (statistics->RowsRead + rows.size() >= context->InputRowLimit) {
+        if (statistics->RowsRead + std::ssize(rows) >= context->InputRowLimit) {
             YT_VERIFY(statistics->RowsRead <= context->InputRowLimit);
             rows.resize(context->InputRowLimit - statistics->RowsRead);
             statistics->IncompleteInput = true;
@@ -271,7 +271,7 @@ bool StorePrimaryRow(
     TValue** primaryValues,
     TValue** keysPtr)
 {
-    if (closure->PrimaryRows.size() >= context->JoinRowLimit) {
+    if (std::ssize(closure->PrimaryRows) >= context->JoinRowLimit) {
         throw TInterruptedIncompleteException();
     }
 
@@ -665,18 +665,18 @@ const TValue* InsertGroupRow(
     }
 
     // Any prefix but ordered scan.
-    if (context->Ordered && closure->GroupedRowCount >= context->Offset + context->Limit) {
+    if (context->Ordered && static_cast<i64>(closure->GroupedRowCount) >= context->Offset + context->Limit) {
         if (allAggregatesFirst) {
             return nullptr;
         }
 
-        YT_VERIFY(closure->GroupedRowCount == context->Offset + context->Limit);
+        YT_VERIFY(static_cast<i64>(closure->GroupedRowCount) == context->Offset + context->Limit);
         auto found = closure->Lookup.find(row);
         return found != closure->Lookup.end() ? *found : nullptr;
     }
 
     // FIXME: Incorrect in case of grouping by prefix.
-    bool limitReached = closure->GroupedRows.size() == context->GroupRowLimit;
+    bool limitReached = std::ssize(closure->GroupedRows) == context->GroupRowLimit;
 
     if (limitReached) {
         auto found = closure->Lookup.find(row);
@@ -697,7 +697,7 @@ const TValue* InsertGroupRow(
 
         closure->GroupedRows.push_back(row);
         ++closure->GroupedRowCount;
-        YT_VERIFY(closure->GroupedRows.size() <= context->GroupRowLimit);
+        YT_VERIFY(std::ssize(closure->GroupedRows) <= context->GroupRowLimit);
 
         for (int index = 0; index < closure->KeySize; ++index) {
             closure->Buffer->CaptureValue(&row[index]);
@@ -1507,7 +1507,7 @@ void ToLowerUTF8(TExpressionContext* context, char** result, int* resultLength, 
 {
     auto lowered = ToLowerUTF8(TStringBuf(source, sourceLength));
     *result = AllocateBytes(context, lowered.size());
-    for (int i = 0; i < lowered.size(); i++) {
+    for (int i = 0; i < std::ssize(lowered); i++) {
         (*result)[i] = lowered[i];
     }
     *resultLength = lowered.size();

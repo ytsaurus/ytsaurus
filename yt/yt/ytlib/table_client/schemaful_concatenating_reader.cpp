@@ -87,7 +87,7 @@ private:
     void SwitchCurrentReader()
     {
         ++CurrentReaderIndex_;
-        if (CurrentReaderIndex_ < UnderlyingReaderFactories_.size()) {
+        if (CurrentReaderIndex_ < std::ssize(UnderlyingReaderFactories_)) {
             CurrentReader_ = UnderlyingReaderFactories_[CurrentReaderIndex_]();
             Readers_.push_back(CurrentReader_);
         } else {

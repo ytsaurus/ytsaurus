@@ -305,7 +305,7 @@ protected:
 
             config->EnableJobSplitting &=
                 (IsJobInterruptible() &&
-                Controller_->InputTables_.size() <= Controller_->Options_->JobSplitter->MaxInputTableCount);
+                std::ssize(Controller_->InputTables_) <= Controller_->Options_->JobSplitter->MaxInputTableCount);
 
             return config;
         }
@@ -320,7 +320,7 @@ protected:
             return
                 !(Controller_->AutoMergeTask_ && CanLoseJobs()) &&
                 !Controller_->HasStaticJobDistribution() &&
-                2 * Controller_->Options_->MaxOutputTablesTimesJobsCount > totalJobCount * Controller_->GetOutputTablePaths().size() &&
+                2 * Controller_->Options_->MaxOutputTablesTimesJobsCount > totalJobCount * std::ssize(Controller_->GetOutputTablePaths()) &&
                 2 * Controller_->Options_->MaxJobCount > totalJobCount;
         }
     };
@@ -1087,7 +1087,7 @@ public:
             }
         }
 
-        if (foreignInputCount == InputTables_.size()) {
+        if (foreignInputCount == std::ssize(InputTables_)) {
             THROW_ERROR_EXCEPTION("At least one non-foreign input table is required");
         }
 
@@ -1244,7 +1244,7 @@ public:
             auto comparator = GetComparator(SortColumns_);
             TKeyBound previousUpperBound;
             for (const auto& key : Spec_->PivotKeys) {
-                if (key.GetCount() > Spec_->ReduceBy.size()) {
+                if (key.GetCount() > std::ssize(Spec_->ReduceBy)) {
                     THROW_ERROR_EXCEPTION("Pivot key cannot be longer than reduce key column count")
                         << TErrorAttribute("key", key)
                         << TErrorAttribute("reduce_by", Spec_->ReduceBy);

@@ -38,12 +38,12 @@ bool TChunkReplacer::Replace(
     };
 
     auto processChunk = [&] (TChunk* chunk) {
-        if (oldChunkIndex < oldChunkIds.size() && oldChunkIds[oldChunkIndex] == chunk->GetId()) {
+        if (oldChunkIndex < std::ssize(oldChunkIds) && oldChunkIds[oldChunkIndex] == chunk->GetId()) {
             ++oldChunkIndex;
             return EProcessChunkResult::Advance;
         }
 
-        if (oldChunkIndex == oldChunkIds.size() || oldChunkIndex == 0) {
+        if (oldChunkIndex == std::ssize(oldChunkIds) || oldChunkIndex == 0) {
             return EProcessChunkResult::Skip;
         }
 
@@ -52,18 +52,18 @@ bool TChunkReplacer::Replace(
 
     auto isDynamicTableChunkTree = [&] (TChunkTree* chunkTree) {
         if (chunkTree->GetType() == EObjectType::ChunkView ||
-            chunkTree->GetType() == EObjectType::SortedDynamicTabletStore || 
+            chunkTree->GetType() == EObjectType::SortedDynamicTabletStore ||
             chunkTree->GetType() == EObjectType::OrderedDynamicTabletStore)
         {
             YT_LOG_ALERT_IF(ChunkReplacerCallbacks_->IsMutationLoggingEnabled(), "Unexpected chunk tree type (Type: %v, Id: %v)",
                 chunkTree->GetType(),
                 chunkTree->GetId());
-            YT_VERIFY(oldChunkIndex == oldChunkIds.size() || oldChunkIndex == 0);
+            YT_VERIFY(oldChunkIndex == std::ssize(oldChunkIds) || oldChunkIndex == 0);
             return true;
         }
         return false;
     };
-    
+
     while (!stack.empty()) {
         auto& entry = stack.top();
         auto* chunkTree = entry.ChunkTree;
@@ -72,7 +72,7 @@ bool TChunkReplacer::Replace(
             auto* chunkList = chunkTree->AsChunkList();
 
             // Chunks are already replaced, just skip.
-            if (oldChunkIndex == oldChunkIds.size() && entry.Index == 0) {
+            if (oldChunkIndex == std::ssize(oldChunkIds) && entry.Index == 0) {
                 ChunkReplacerCallbacks_->AttachToChunkList(newChunkList, chunkList);
                 stack.pop();
                 continue;
@@ -85,7 +85,7 @@ bool TChunkReplacer::Replace(
                     continue;
                 }
             } else {
-                YT_VERIFY(entry.Index == 0 && oldChunkIndex < oldChunkIds.size());
+                YT_VERIFY(entry.Index == 0 && oldChunkIndex < std::ssize(oldChunkIds));
 
                 auto firstChunkToReplace = -1;
                 auto lastChunkToReplace = -1;
@@ -97,7 +97,7 @@ bool TChunkReplacer::Replace(
 
                     YT_VERIFY(child->GetType() == EObjectType::Chunk);
                     auto childChunk = child->AsChunk();
-                    
+
                     auto result = processChunk(childChunk);
                     if (result == EProcessChunkResult::Advance) {
                         if (firstChunkToReplace == -1) {
@@ -124,7 +124,7 @@ bool TChunkReplacer::Replace(
                         chunkList->Children().begin() + firstChunkToReplace);
 
                     // ...[...]
-                    if (oldChunkIndex == oldChunkIds.size()) {
+                    if (oldChunkIndex == std::ssize(oldChunkIds)) {
                         ChunkReplacerCallbacks_->AttachToChunkList(newChunkList, newChunk);
                     }
                     if (lastChunkToReplace + 1 < static_cast<int>(chunkList->Children().size())) {
@@ -144,10 +144,10 @@ bool TChunkReplacer::Replace(
 
             YT_VERIFY(chunkTree->GetType() == EObjectType::Chunk);
             auto chunk = chunkTree->AsChunk();
-            
+
             auto result = processChunk(chunk);
             if (result == EProcessChunkResult::Advance) {
-                if (oldChunkIndex == oldChunkIds.size()) {
+                if (oldChunkIndex == std::ssize(oldChunkIds)) {
                     ChunkReplacerCallbacks_->AttachToChunkList(newChunkList, newChunk);
                 }
             } else if (result == EProcessChunkResult::Unknown) {
@@ -163,7 +163,7 @@ bool TChunkReplacer::Replace(
         }
     }
 
-    return oldChunkIndex == oldChunkIds.size();
+    return oldChunkIndex == std::ssize(oldChunkIds);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

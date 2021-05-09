@@ -21,7 +21,7 @@ int ComputeJanitorThresholdId(
     });
 
     int thresholdIdByCount = 0;
-    if (maxCountToKeep && files.size() > *maxCountToKeep) {
+    if (maxCountToKeep && std::ssize(files) > *maxCountToKeep) {
         auto index = files.size() - std::max(1, *maxCountToKeep);
         thresholdIdByCount = files[index].Id;
     }

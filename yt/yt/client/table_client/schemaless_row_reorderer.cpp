@@ -18,10 +18,10 @@ TSchemalessRowReorderer::TSchemalessRowReorderer(
     , NameTable_(nameTable)
 {
     EmptyKey_.resize(KeyColumns_.size(), MakeUnversionedSentinelValue(EValueType::Null));
-    for (int i = 0; i < KeyColumns_.size(); ++i) {
+    for (int i = 0; i < std::ssize(KeyColumns_); ++i) {
         auto id = NameTable_->GetIdOrRegisterName(KeyColumns_[i]);
         EmptyKey_[i].Id = id;
-        if (id >= IdMapping_.size()) {
+        if (id >= std::ssize(IdMapping_)) {
             IdMapping_.resize(id + 1, -1);
         }
         IdMapping_[id] = i;

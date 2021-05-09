@@ -437,7 +437,7 @@ BEGIN_DEFINE_SCALAR_TYPE(String, TString)
     protected:
         virtual void ValidateValue(const TString& value) override
         {
-            auto length = value.length();
+            auto length = std::ssize(value);
             auto limit = GetDynamicCypressManagerConfig()->MaxStringNodeLength;
             if (length > limit) {
                 THROW_ERROR_EXCEPTION(

@@ -464,7 +464,7 @@ IChunkPoolOutput::TCookie TLegacyJobManager::AddJob(std::unique_ptr<TLegacyJobSt
     //! have to remember newly created job in order to be able to suspend/resume it
     //! when some input cookie changes its state.
     for (auto inputCookie : jobStub->InputCookies_) {
-        if (InputCookieToAffectedOutputCookies_.size() <= inputCookie) {
+        if (std::ssize(InputCookieToAffectedOutputCookies_) <= inputCookie) {
             InputCookieToAffectedOutputCookies_.resize(inputCookie + 1);
         }
         InputCookieToAffectedOutputCookies_[inputCookie].emplace_back(outputCookie);
@@ -532,7 +532,7 @@ void TLegacyJobManager::Suspend(IChunkPoolInput::TCookie inputCookie)
 {
     YT_VERIFY(SuspendedInputCookies_.insert(inputCookie).second);
 
-    if (InputCookieToAffectedOutputCookies_.size() <= inputCookie) {
+    if (std::ssize(InputCookieToAffectedOutputCookies_) <= inputCookie) {
         // This may happen if jobs that use this input were not added yet
         // (note that suspend may happen in Finish() before DoFinish()).
         return;
@@ -548,7 +548,7 @@ void TLegacyJobManager::Resume(IChunkPoolInput::TCookie inputCookie)
 {
     YT_VERIFY(SuspendedInputCookies_.erase(inputCookie) == 1);
 
-    if (InputCookieToAffectedOutputCookies_.size() <= inputCookie) {
+    if (std::ssize(InputCookieToAffectedOutputCookies_) <= inputCookie) {
         // This may happen if jobs that use this input were not added yet
         // (note that suspend may happen in Finish() before DoFinish()).
         return;
@@ -562,14 +562,14 @@ void TLegacyJobManager::Resume(IChunkPoolInput::TCookie inputCookie)
 
 void TLegacyJobManager::Invalidate(IChunkPoolInput::TCookie inputCookie)
 {
-    YT_VERIFY(0 <= inputCookie && inputCookie < Jobs_.size());
+    YT_VERIFY(0 <= inputCookie && inputCookie < std::ssize(Jobs_));
     auto& job = Jobs_[inputCookie];
     job.Invalidate();
 }
 
 std::vector<TLegacyDataSlicePtr> TLegacyJobManager::ReleaseForeignSlices(IChunkPoolInput::TCookie inputCookie)
 {
-    YT_VERIFY(0 <= inputCookie && inputCookie < Jobs_.size());
+    YT_VERIFY(0 <= inputCookie && inputCookie < std::ssize(Jobs_));
     std::vector<TLegacyDataSlicePtr> foreignSlices;
     for (const auto& stripe : Jobs_[inputCookie].StripeList()->Stripes) {
         if (stripe->Foreign) {
@@ -610,14 +610,14 @@ TChunkStripeStatisticsVector TLegacyJobManager::GetApproximateStripeStatistics()
 
 const TChunkStripeListPtr& TLegacyJobManager::GetStripeList(IChunkPoolOutput::TCookie cookie)
 {
-    YT_VERIFY(cookie < Jobs_.size());
+    YT_VERIFY(cookie < std::ssize(Jobs_));
     const auto& job = Jobs_[cookie];
     return job.StripeList();
 }
 
 void TLegacyJobManager::InvalidateAllJobs()
 {
-    while (FirstValidJobIndex_ < Jobs_.size()) {
+    while (FirstValidJobIndex_ < std::ssize(Jobs_)) {
         auto& job = Jobs_[FirstValidJobIndex_];
         if (!job.IsInvalidated()) {
             job.Invalidate();
@@ -673,7 +673,7 @@ void TLegacyJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJo
     };
 
     std::vector<std::unique_ptr<TLegacyJobStub>> newJobs;
-    for (int startIndex = FirstValidJobIndex_, finishIndex = FirstValidJobIndex_; startIndex < Jobs_.size(); startIndex = finishIndex) {
+    for (int startIndex = FirstValidJobIndex_, finishIndex = FirstValidJobIndex_; startIndex < std::ssize(Jobs_); startIndex = finishIndex) {
         if (Jobs_[startIndex].GetIsBarrier()) {
             // NB: One may think that we should carefully bring this barrier between newly formed jobs but we
             // currently never enlarge jobs after building them from scratch, so barriers have no use after enlarging.
@@ -684,7 +684,7 @@ void TLegacyJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJo
 
         currentJobStub = std::make_unique<TLegacyJobStub>();
         while (true) {
-            if (finishIndex == Jobs_.size()) {
+            if (finishIndex == std::ssize(Jobs_)) {
                 YT_LOG_DEBUG("Stopping enlargement due to end of job list (StartIndex: %v, FinishIndex: %v)", startIndex, finishIndex);
                 break;
             }

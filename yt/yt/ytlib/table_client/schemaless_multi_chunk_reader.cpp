@@ -737,7 +737,7 @@ public:
                 auto schemalessRow = TMutableUnversionedRow::Allocate(&MemoryPool_, SchemaColumnCount_ + SystemColumnCount_);
 
                 int schemalessValueIndex = 0;
-                for (int valueIndex = 0; valueIndex < schemafulRow.GetCount(); ++valueIndex) {
+                for (int valueIndex = 0; valueIndex < static_cast<int>(schemafulRow.GetCount()); ++valueIndex) {
                     const auto& value = schemafulRow[valueIndex];
                     auto id = IdMapping_[value.Id];
 
@@ -1035,7 +1035,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     std::vector<int> idMapping(versionedReadSchema->GetColumnCount());
 
     try {
-        for (int columnIndex = 0; columnIndex < versionedReadSchema->Columns().size(); ++columnIndex) {
+        for (int columnIndex = 0; columnIndex < std::ssize(versionedReadSchema->Columns()); ++columnIndex) {
             const auto& column = versionedReadSchema->Columns()[columnIndex];
             if (versionedColumnFilter.ContainsIndex(columnIndex)) {
                 idMapping[columnIndex] = nameTable->GetIdOrRegisterName(column.Name());

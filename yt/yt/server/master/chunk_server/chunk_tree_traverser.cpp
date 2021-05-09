@@ -171,7 +171,7 @@ protected:
                     chunkList->GetId());
             }
 
-            if (entry.ChildIndex == chunkList->Children().size()) {
+            if (entry.ChildIndex == std::ssize(chunkList->Children())) {
                 PopStack();
                 continue;
             }
@@ -533,7 +533,7 @@ protected:
 
             if (isSorted) {
                 pivotKeyLowerBound = chunkList->Children()[entry->ChildIndex]->AsChunkList()->GetPivotKeyBound().ToOwning();
-                nextPivotKeyUpperBound = entry->ChildIndex + 1 < chunkList->Children().size()
+                nextPivotKeyUpperBound = entry->ChildIndex + 1 < std::ssize(chunkList->Children())
                     ? chunkList->Children()[entry->ChildIndex + 1]->AsChunkList()->GetPivotKeyBound().Invert().ToOwning()
                     : TOwningKeyBound::MakeUniversal(/* isUpper */ true);
             }

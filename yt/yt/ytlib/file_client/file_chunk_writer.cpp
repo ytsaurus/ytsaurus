@@ -113,7 +113,7 @@ bool TFileChunkWriter::Write(TRef data)
         dataSize -= bytesToCopy;
 
         // Flush the block if full.
-        if (Buffer_.Size() == Config_->BlockSize) {
+        if (std::ssize(Buffer_) == Config_->BlockSize) {
             FlushBlock();
         }
     }

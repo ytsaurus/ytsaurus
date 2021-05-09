@@ -386,7 +386,7 @@ private:
         i64 rowCount = 0;
         i64 dataWeight = 0;
 
-        while (KeyIndex_ < Keys_.Size() && rows->size() < rows->capacity()) {
+        while (KeyIndex_ < std::ssize(Keys_) && rows->size() < rows->capacity()) {
             rows->push_back(Lookup(Keys_[KeyIndex_++]));
 
             ++rowCount;
@@ -398,7 +398,7 @@ private:
         this->ChunkState_->PerformanceCounters->StaticChunkRowLookupCount += rowCount;
         this->ChunkState_->PerformanceCounters->StaticChunkRowLookupDataWeightCount += dataWeight;
 
-        return KeyIndex_ < Keys_.Size();
+        return KeyIndex_ < std::ssize(Keys_);
     }
 
     TVersionedRow Lookup(TLegacyKey key)

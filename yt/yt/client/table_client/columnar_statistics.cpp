@@ -28,7 +28,7 @@ TColumnarStatistics& TColumnarStatistics::operator +=(const TColumnarStatistics&
         ColumnDataWeights = other.ColumnDataWeights;
     } else if (!other.ColumnDataWeights.empty()) {
         YT_VERIFY(ColumnDataWeights.size() == other.ColumnDataWeights.size());
-        for (int index = 0; index < ColumnDataWeights.size(); ++index) {
+        for (int index = 0; index < std::ssize(ColumnDataWeights); ++index) {
             ColumnDataWeights[index] += other.ColumnDataWeights[index];
         }
     }

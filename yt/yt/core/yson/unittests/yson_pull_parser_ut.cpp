@@ -524,14 +524,14 @@ TEST(TYsonPullParserTest, TypedParsingBasicCases)
     EXPECT_EQ(ParseOptionalZigZagVarint(parser), std::optional<i64>(-100500));
     EXPECT_EQ(ParseOptionalZigZagVarint(parser), std::optional<i64>{});
 
-    EXPECT_EQ(parser.ParseUint64(), 100500);
-    EXPECT_EQ(parser.ParseUint64(), 100500);
+    EXPECT_EQ(parser.ParseUint64(), 100500u);
+    EXPECT_EQ(parser.ParseUint64(), 100500u);
     EXPECT_EQ(parser.ParseOptionalUint64(), std::optional<ui64>(100500));
     EXPECT_EQ(parser.ParseOptionalUint64(), std::optional<ui64>(100500));
     EXPECT_EQ(parser.ParseOptionalUint64(), std::optional<ui64>{});
 
-    EXPECT_EQ(ParseVarint(parser), 100500);
-    EXPECT_EQ(ParseVarint(parser), 100500);
+    EXPECT_EQ(ParseVarint(parser), 100500u);
+    EXPECT_EQ(ParseVarint(parser), 100500u);
     EXPECT_EQ(ParseOptionalVarint(parser), std::optional<ui64>(100500));
     EXPECT_EQ(ParseOptionalVarint(parser), std::optional<ui64>(100500));
     EXPECT_EQ(ParseOptionalVarint(parser), std::optional<ui64>{});

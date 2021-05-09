@@ -27,7 +27,7 @@ public:
     bool CheckElements(size_t minValue, size_t expectedSize)
     {
         if (ReceivedElements_.size() != expectedSize ||
-            Window_->GetNextSequenceNumber() != expectedSize)
+            Window_->GetNextSequenceNumber() != static_cast<ssize_t>(expectedSize))
         {
             return false;
         }

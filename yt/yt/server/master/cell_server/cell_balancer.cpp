@@ -83,7 +83,7 @@ const TCellSet& TNodeHolder::GetSlots() const
 
 std::pair<const TCellBase*, int> TNodeHolder::ExtractCell(int cellIndex)
 {
-    YT_ASSERT(cellIndex < Slots_.size());
+    YT_ASSERT(cellIndex < std::ssize(Slots_));
 
     auto pair = Slots_[cellIndex];
     Slots_[cellIndex] = Slots_.back();
@@ -100,7 +100,7 @@ void TNodeHolder::InsertCell(std::pair<const TCellBase*, int> pair)
 
 std::optional<int> TNodeHolder::FindCell(const TCellBase* cell)
 {
-    for (int cellIndex = 0; cellIndex < Slots_.size(); ++cellIndex) {
+    for (int cellIndex = 0; cellIndex < std::ssize(Slots_); ++cellIndex) {
         if (Slots_[cellIndex].first == cell) {
             return cellIndex;
         }
@@ -264,7 +264,7 @@ private:
             YT_ASSERT(!IsPeer(cell, peer));
 
             auto& peers = Peers_[cell];
-            if (peers.size() <= peerId) {
+            if (std::ssize(peers) <= peerId) {
                 peers.resize(peerId + 1, nullptr);
             }
 
@@ -276,7 +276,7 @@ private:
         {
             if (auto it = Peers_.find(cell)) {
                 const auto& peers = it->second;
-                if (peerId < peers.size()) {
+                if (peerId < std::ssize(peers)) {
                     return peers[peerId];
                 }
             }
@@ -298,7 +298,7 @@ private:
             YT_ASSERT(IsPeer(cell, src));
 
             auto& peers = Peers_[cell];
-            for (int peerId = 0; peerId < peers.size(); ++peerId) {
+            for (int peerId = 0; peerId < std::ssize(peers); ++peerId) {
                 if (peers[peerId] == src) {
                     peers[peerId] = dst;
                     return peerId;
@@ -369,7 +369,7 @@ private:
 
         Nodes_ = Provider_->GetNodes();
 
-        for (int nodeIndex = 0; nodeIndex < Nodes_.size(); ++nodeIndex) {
+        for (int nodeIndex = 0; nodeIndex < std::ssize(Nodes_); ++nodeIndex) {
             const auto& node = Nodes_[nodeIndex];
             NodeToIndex_[node.GetNode()] = nodeIndex;
 
@@ -378,7 +378,7 @@ private:
                     continue;
                 }
                 if (Provider_->IsPossibleHost(node.GetNode(), bundle)) {
-                    if (node.GetTotalSlots() > node.GetSlots().size()) {
+                    if (node.GetTotalSlots() > std::ssize(node.GetSlots())) {
                         FreeNodes_[bundle].push_back(nodeIndex);
                     } else {
                         FilledNodes_[bundle].insert(nodeIndex);
@@ -397,7 +397,7 @@ private:
         std::stable_sort(MoveDescriptors_.begin(), MoveDescriptors_.end());
 
         int last = -1;
-        for (int index = 0; index < MoveDescriptors_.size() ; ++index) {
+        for (int index = 0; index < std::ssize(MoveDescriptors_); ++index) {
             if (last < 0 || MoveDescriptors_[last] != MoveDescriptors_[index]) {
                 if (last >= 0 && MoveDescriptors_[last].Source == MoveDescriptors_[last].Target && MoveDescriptors_[last].Target) {
                     --last;
@@ -427,11 +427,11 @@ private:
         std::optional<int> peerNodeIndex;
         auto& queue = it->second;
 
-        for (int index = 0; index < queue.size(); ++index) {
+        for (int index = 0; index < std::ssize(queue); ++index) {
             auto nodeIndex = queue[index];
-            YT_VERIFY(nodeIndex < Nodes_.size());
+            YT_VERIFY(nodeIndex < std::ssize(Nodes_));
             auto* node = &Nodes_[nodeIndex];
-            if (node->GetTotalSlots() == node->GetSlots().size()) {
+            if (node->GetTotalSlots() == std::ssize(node->GetSlots())) {
                 std::swap(queue[index], queue.back());
                 queue.pop_back();
                 YT_ASSERT(!FilledNodes_[bundle].contains(nodeIndex));
@@ -461,7 +461,7 @@ private:
         }
 
         for (auto nodeIndex : it->second) {
-            YT_VERIFY(nodeIndex < Nodes_.size());
+            YT_VERIFY(nodeIndex < std::ssize(Nodes_));
             YT_VERIFY(nodeIndex != peerNodeIndex);
             auto* node = &Nodes_[nodeIndex];
             if (NodeInPeers(cell, node)) {
@@ -565,7 +565,7 @@ private:
          * There is no need to update nodes from free to filled, because it is done lazily upon peer assigning.
          */
 
-        if (node->GetTotalSlots() != node->GetSlots().size()) {
+        if (node->GetTotalSlots() != std::ssize(node->GetSlots())) {
             return;
         }
 
@@ -598,7 +598,7 @@ private:
 
         int srcIndex = 0;
         int dstIndex = 0;
-        while (srcIndex < srcNode->GetSlots().size() &&
+        while (srcIndex < std::ssize(srcNode->GetSlots()) &&
             dstIndex < dstNode->GetTotalSlots() &&
             srcNode->GetCellCount(bundle) != limit &&
             dstNode->GetCellCount(bundle) != limit)
@@ -611,7 +611,7 @@ private:
                 continue;
             }
 
-            if (dstNode->GetTotalSlots() > dstNode->GetSlots().size()) {
+            if (dstNode->GetTotalSlots() > std::ssize(dstNode->GetSlots())) {
                 MoveCell(srcNode, srcIndex, dstNode);
                 continue;
             }
@@ -651,7 +651,7 @@ private:
                 }
 
                 int candidateIndex = 0;
-                while (candidateIndex < candidates.size()) {
+                while (candidateIndex < std::ssize(candidates)) {
                     if (srcNode->GetCellCount(bundle) == limit) {
                         break;
                     }
@@ -667,9 +667,9 @@ private:
             }
         };
 
-        auto slotCount = bundle->Cells().size() * bundle->GetOptions()->PeerCount;
-        auto ceil = DivCeil<i64>(slotCount, nodes.size());
-        auto floor = slotCount / nodes.size();
+        auto slotCount = std::ssize(bundle->Cells()) * bundle->GetOptions()->PeerCount;
+        auto ceil = DivCeil<i64>(slotCount, std::ssize(nodes));
+        auto floor = slotCount / std::ssize(nodes);
 
         auto aboveCeil = std::count_if(nodes.begin(), nodes.end(), [&] (const auto* node) {
             return node->GetCellCount(bundle) > ceil;

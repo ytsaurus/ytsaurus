@@ -377,7 +377,7 @@ void TCellTrackerImpl::SchedulePeerRevocation(
         return;
     }
 
-    for (TPeerId peerId = 0; peerId < cell->Peers().size(); ++peerId) {
+    for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
         const auto& peer = cell->Peers()[peerId];
         if (peer.Descriptor.IsNull()) {
             continue;

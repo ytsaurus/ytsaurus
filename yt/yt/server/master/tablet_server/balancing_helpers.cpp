@@ -150,7 +150,7 @@ std::vector<TReshardDescriptor> MergeSplitTablet(
         size += GetTabletBalancingSize(table->Tablets()[startIndex], tabletManager);
     }
     while (!sizeGood() &&
-        endIndex < table->Tablets().size() - 1 &&
+        endIndex < std::ssize(table->Tablets()) - 1 &&
         context->IsTabletUntouched(table->Tablets()[endIndex + 1]) &&
         table->Tablets()[endIndex + 1]->GetState() == tablet->GetState())
     {

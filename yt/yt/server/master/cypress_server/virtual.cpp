@@ -395,7 +395,7 @@ TFuture<TVirtualMulticellMapBase::TFetchItemsSessionPtr> TVirtualMulticellMapBas
 TFuture<void> TVirtualMulticellMapBase::FetchItemsFromLocal(const TFetchItemsSessionPtr& session)
 {
     auto keys = GetKeys(session->Limit);
-    session->Incomplete |= (keys.size() == session->Limit);
+    session->Incomplete |= (std::ssize(keys) == session->Limit);
 
     const auto& objectManager = Bootstrap_->GetObjectManager();
 
@@ -422,7 +422,7 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromLocal(const TFetchItemsSes
         .Apply(BIND([=, aliveKeys = std::move(aliveKeys), this_ = MakeStrong(this)] (const std::vector<TYsonString>& attributes) {
             YT_VERIFY(aliveKeys.size() == attributes.size());
             for (int index = 0; index < static_cast<int>(aliveKeys.size()); ++index) {
-                if (session->Items.size() >= session->Limit) {
+                if (std::ssize(session->Items) >= session->Limit) {
                     break;
                 }
                 session->Items.push_back(TFetchItem{ToString(aliveKeys[index]), attributes[index]});
@@ -474,7 +474,7 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(const TFetchItemsSe
 
             session->Incomplete |= rsp->incomplete();
             for (const auto& protoItem : rsp->items()) {
-                if (session->Items.size() >= session->Limit) {
+                if (std::ssize(session->Items) >= session->Limit) {
                     break;
                 }
                 TFetchItem item;
@@ -538,7 +538,7 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
             }
 
             const auto& values = valuesOrError.Value();
-            YT_VERIFY(response->items_size() == values.size());
+            YT_VERIFY(response->items_size() == std::ssize(values));
             for (int index = 0; index < response->items_size(); ++index) {
                 const auto& value = values[index];
                 if (!value.AsStringBuf().empty()) {

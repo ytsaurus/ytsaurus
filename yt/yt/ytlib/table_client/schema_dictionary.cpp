@@ -44,13 +44,13 @@ int TSchemaDictionary::GetIdOrRegisterColumn(const TColumnSchema& column)
 
 const TTableSchemaPtr& TSchemaDictionary::GetTable(int id) const
 {
-    YT_VERIFY(id >= 0 && id < IdToTable_.size());
+    YT_VERIFY(id >= 0 && id < std::ssize(IdToTable_));
     return IdToTable_[id];
 }
 
 const TColumnSchema& TSchemaDictionary::GetColumn(int id) const
 {
-    YT_VERIFY(id >= 0 && id < IdToColumn_.size());
+    YT_VERIFY(id >= 0 && id < std::ssize(IdToColumn_));
     return IdToColumn_[id];
 }
 
@@ -93,7 +93,7 @@ void FromProto(TSchemaDictionary* dictionary, const NProto::TSchemaDictionary& p
     using NYT::FromProto;
 
     FromProto(&dictionary->IdToColumn_, protoDictionary.columns());
-    for (int index = 0; index < dictionary->IdToColumn_.size(); ++index) {
+    for (int index = 0; index < std::ssize(dictionary->IdToColumn_); ++index) {
         YT_VERIFY(dictionary->ColumnToId_.insert({dictionary->IdToColumn_[index], index}).second);
     }
     for (int index = 0; index < protoDictionary.tables().size(); ++index) {

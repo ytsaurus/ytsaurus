@@ -65,7 +65,7 @@ private:
 
     bool IsValidBucketIndex(int bucketIndex) const
     {
-        return 0 <= bucketIndex && bucketIndex < TotalCpuTime_.size();
+        return 0 <= bucketIndex && bucketIndex < std::ssize(TotalCpuTime_);
     }
 };
 
@@ -91,7 +91,7 @@ protected:
 
     virtual void TearDown() override
     {
-        for (int i = 0; i < Queues_.size(); ++i) {
+        for (int i = 0; i < std::ssize(Queues_); ++i) {
             if (Queues_[i]) {
                 Queues_[i]->Shutdown();
             }
@@ -161,7 +161,7 @@ protected:
     {
         // Push dummy callback to the scheduler queue and synchronously wait for it
         // to ensure that all possible CPU time accounters were destroyed during fiber stack unwinding.
-        for (int i = 0; i < Queues_.size(); ++i) {
+        for (int i = 0; i < std::ssize(Queues_); ++i) {
             if (Queues_[i]) {
                 auto invoker = Queues_[i]->GetInvoker();
                 BIND([] { }).AsyncVia(invoker).Run().Get().ThrowOnError();
@@ -289,7 +289,7 @@ protected:
 
     void DoTestGetAverageWaitTime(int invokerCount, std::vector<int> waitingActionCounts)
     {
-        YT_VERIFY(waitingActionCounts.size() == invokerCount);
+        YT_VERIFY(std::ssize(waitingActionCounts) == invokerCount);
 
         auto invokerPool = CreateInvokerPool(Queues_[0]->GetInvoker(), invokerCount);
 

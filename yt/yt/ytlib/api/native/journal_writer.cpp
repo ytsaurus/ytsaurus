@@ -685,14 +685,14 @@ private:
                 return nullptr;
             }
 
-            YT_VERIFY(replicas.size() == replicaCount);
+            YT_VERIFY(std::ssize(replicas) == replicaCount);
             if (ErasureCodec_ != NErasure::ECodec::None) {
                 for (int index = 0; index < replicaCount; ++index) {
                     replicas[index] = TChunkReplicaWithMedium(replicas[index].GetNodeId(), index, replicas[index].GetMediumIndex());
                 }
             }
 
-            for (int index = 0; index < replicas.size(); ++index) {
+            for (int index = 0; index < std::ssize(replicas); ++index) {
                 auto replica = replicas[index];
                 const auto& descriptor = NodeDirectory_->GetDescriptor(replica);
                 auto lightChannel = Client_->GetChannelFactory()->CreateChannel(descriptor);
@@ -1599,7 +1599,7 @@ private:
             node->LagTime = lagTime;
 
             std::vector<std::pair<NProfiling::TCpuDuration, int>> replicas;
-            for (int index = 0; index < session->Nodes.size(); ++index) {
+            for (int index = 0; index < std::ssize(session->Nodes); ++index) {
                 replicas.emplace_back(session->Nodes[index]->LagTime, index);
             }
 

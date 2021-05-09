@@ -61,7 +61,7 @@ public:
                 }
 
                 auto schemafulRow = RowReorderer_.ReorderKey(schemalessRow);
-                for (int valueIndex = 0; valueIndex < ReaderSchema_->Columns().size(); ++valueIndex) {
+                for (int valueIndex = 0; valueIndex < std::ssize(ReaderSchema_->Columns()); ++valueIndex) {
                     const auto& value = schemafulRow[valueIndex];
                     ValidateDataValue(value);
                     // The underlying schemaless reader may unpack typed scalar values even

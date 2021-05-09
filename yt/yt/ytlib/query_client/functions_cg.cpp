@@ -381,7 +381,7 @@ llvm::FunctionType* TUnversionedValueCallingConvention::GetCalleeType(
     calleeArgumentTypes.push_back(PointerType::getUnqual(
         GetOpaqueType(builder, UnversionedValueStructName)));
 
-    auto positionalArgumentCount = RepeatedArgIndex_ == -1 ? argumentTypes.size() : RepeatedArgIndex_;
+    auto positionalArgumentCount = RepeatedArgIndex_ == -1 ? std::ssize(argumentTypes) : RepeatedArgIndex_;
     for (auto index = 0; index < positionalArgumentCount; index++) {
         calleeArgumentTypes.push_back(PointerType::getUnqual(
             GetOpaqueType(builder, UnversionedValueStructName)));

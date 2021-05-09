@@ -1045,7 +1045,7 @@ private:
                 auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_lock_count");
                 YT_VERIFY(rsps.size() == operationIds.size());
 
-                for (int index = 0; index < rsps.size(); ++index) {
+                for (int index = 0; index < std::ssize(rsps); ++index) {
                     bool isLocked = false;
                     const auto rsp = rsps[index];
                     if (rsp.IsOK()) {
@@ -1112,7 +1112,7 @@ private:
                 if (batchRspOrError.IsOK()) {
                     const auto& batchRsp = batchRspOrError.Value();
                     auto rsps = batchRsp->GetResponses<TYPathProxy::TRspRemove>("remove_operation");
-                    YT_VERIFY(rsps.size() == endIndex - startIndex);
+                    YT_VERIFY(std::ssize(rsps) == endIndex - startIndex);
 
                     for (int index = startIndex; index < endIndex; ++index) {
                         auto operationId = operationIdsToRemove[index];

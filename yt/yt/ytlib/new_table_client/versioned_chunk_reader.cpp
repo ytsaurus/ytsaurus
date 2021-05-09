@@ -510,7 +510,7 @@ public:
     void SetBlock(TSharedRef data, const TRefCountedBlockMetaPtr& blockMeta)
     {
         YT_VERIFY(BlockIdIndex_ < BlockIds_.size());
-        auto blockId = BlockIds_[BlockIdIndex_];
+        int blockId = BlockIds_[BlockIdIndex_];
 
         Block_ = data;
 
@@ -599,7 +599,7 @@ std::vector<TColumnBlockHolder> CreateColumnBlockHolders(
         columns.emplace_back(TSharedSegmentMetas(MakeRange(columnMeta.segments()), columnMetas));
     }
 
-    for (size_t index = 0; index < chunkMeta->GetChunkKeyColumnCount(); ++index) {
+    for (int index = 0; index < chunkMeta->GetChunkKeyColumnCount(); ++index) {
         const auto& columnMeta = columnMetas->columns(index);
         columns.emplace_back(TSharedSegmentMetas(MakeRange(columnMeta.segments()), columnMetas));
     }

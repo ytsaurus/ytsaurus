@@ -407,7 +407,7 @@ private:
         try {
             StartSessions(InitialTargets_);
 
-            while (Nodes_.size() < UploadReplicationFactor_) {
+            while (std::ssize(Nodes_) < UploadReplicationFactor_) {
                 StartSessions(AllocateTargets());
             }
 
@@ -1000,7 +1000,7 @@ bool TGroup::IsWritten() const
 
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
-    for (int nodeIndex = 0; nodeIndex < SentTo_.size(); ++nodeIndex) {
+    for (int nodeIndex = 0; nodeIndex < std::ssize(SentTo_); ++nodeIndex) {
         if (writer->Nodes_[nodeIndex]->IsAlive() && !SentTo_[nodeIndex]) {
             return false;
         }
@@ -1013,7 +1013,7 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer)
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
     std::optional<int> selectedIndex;
-    for (int index = 0; index < writer->Nodes_.size(); ++index) {
+    for (int index = 0; index < std::ssize(writer->Nodes_); ++index) {
         const auto& node = writer->Nodes_[index];
 
         if (!node->IsAlive()) {
@@ -1095,7 +1095,7 @@ void TGroup::SendGroup(const TReplicationWriterPtr& writer, const TNodePtr& srcN
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
     TNodePtr dstNode;
-    for (int index = 0; index < SentTo_.size(); ++index) {
+    for (int index = 0; index < std::ssize(SentTo_); ++index) {
         const auto& node = writer->Nodes_[index];
         if (node->IsAlive() && !SentTo_[index]) {
             dstNode = node;
@@ -1199,7 +1199,7 @@ void TGroup::Process()
 
     TNodePtr nodeWithBlocks;
     bool emptyNodeFound = false;
-    for (int nodeIndex = 0; nodeIndex < SentTo_.size(); ++nodeIndex) {
+    for (int nodeIndex = 0; nodeIndex < std::ssize(SentTo_); ++nodeIndex) {
         const auto& node = writer->Nodes_[nodeIndex];
         if (node->IsAlive()) {
             if (SentTo_[nodeIndex]) {

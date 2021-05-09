@@ -2742,7 +2742,7 @@ void TMapNodeProxy::ListSelf(
         Transaction_,
         &keyToChildMapStorage);
 
-    if (limit && keyToChildMap.size() > *limit) {
+    if (limit && std::ssize(keyToChildMap) > *limit) {
         writer.OnBeginAttributes();
         writer.OnKeyedItem("incomplete");
         writer.OnBooleanScalar(true);
@@ -2836,7 +2836,7 @@ INodePtr TListNodeProxy::FindChild(int index) const
 {
     const auto* impl = GetThisImpl();
     const auto& indexToChild = impl->IndexToChild();
-    return index >= 0 && index < indexToChild.size() ? GetProxy(indexToChild[index]) : nullptr;
+    return index >= 0 && index < std::ssize(indexToChild) ? GetProxy(indexToChild[index]) : nullptr;
 }
 
 void TListNodeProxy::AddChild(const INodePtr& child, int beforeIndex /*= -1*/)
@@ -2873,7 +2873,7 @@ bool TListNodeProxy::RemoveChild(int index)
     auto* impl = LockThisImpl();
     auto& list = impl->IndexToChild();
 
-    if (index < 0 || index >= list.size()) {
+    if (index < 0 || index >= std::ssize(list)) {
         return false;
     }
 

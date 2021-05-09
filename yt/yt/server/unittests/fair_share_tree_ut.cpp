@@ -1027,7 +1027,7 @@ TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
     nodeResources.SetDiskQuota(CreateDiskQuota(100));
 
     std::vector<TExecNodePtr> execNodes(3);
-    for (int i = 0; i < execNodes.size(); ++i) {
+    for (int i = 0; i < std::ssize(execNodes); ++i) {
         execNodes[i] = CreateTestExecNode(static_cast<NNodeTrackerClient::TNodeId>(i), nodeResources);
     }
 

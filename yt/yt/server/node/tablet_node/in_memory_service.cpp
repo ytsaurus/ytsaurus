@@ -96,8 +96,8 @@ public:
             YT_VERIFY(data->InMemoryMode == Mode_);
         }
 
-        if (data->Blocks.size() <= id.BlockIndex) {
-            size_t blockCapacity = std::max(data->Blocks.capacity(), static_cast<size_t>(1));
+        if (std::ssize(data->Blocks) <= id.BlockIndex) {
+            ssize_t blockCapacity = std::max(data->Blocks.capacity(), static_cast<size_t>(1));
             while (blockCapacity <= id.BlockIndex) {
                 blockCapacity *= 2;
             }

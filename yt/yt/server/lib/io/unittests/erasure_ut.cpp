@@ -192,18 +192,18 @@ TEST(TErasureCodingTest, RandomText)
 
             auto repairIndices = codec->GetRepairIndices(erasedIndices);
             ASSERT_EQ(static_cast<bool>(repairIndices), codec->CanRepair(erasedIndices));
-            if (erasedIndices.size() <= guaranteedRepairCount[codecId]) {
+            if (std::ssize(erasedIndices) <= guaranteedRepairCount[codecId]) {
                 EXPECT_TRUE(repairIndices);
             }
 
             if (repairIndices) {
                 std::vector<TSharedRef> aliveBlocks;
-                for (int i = 0; i < repairIndices->size(); ++i) {
+                for (int i = 0; i < std::ssize(*repairIndices); ++i) {
                     aliveBlocks.push_back(allBlocks[(*repairIndices)[i]]);
                 }
                 std::vector<TSharedRef> recoveredBlocks = codec->Decode(aliveBlocks, erasedIndices);
                 EXPECT_TRUE(recoveredBlocks.size() == erasedIndices.size());
-                for (int i = 0; i < erasedIndices.size(); ++i) {
+                for (int i = 0; i < std::ssize(erasedIndices); ++i) {
                     EXPECT_EQ(
                         ToString(allBlocks[erasedIndices[i]]),
                         ToString(recoveredBlocks[i]));
@@ -271,7 +271,7 @@ public:
 
     static void RemoveErasedParts(const TPartIndexList& erasedIndices)
     {
-        for (int i = 0; i < erasedIndices.size(); ++i) {
+        for (int i = 0; i < std::ssize(erasedIndices); ++i) {
             auto filename = "part" + ToString(erasedIndices[i] + 1);
             NFs::Remove(filename);
             NFs::Remove(filename + ".meta");
@@ -350,7 +350,7 @@ public:
             auto result = WaitFor(reparingReader->ReadBlocks(/* chunkReadOptions */ {}, indexes))
                 .ValueOrThrow();
             EXPECT_EQ(result.size(), indexes.size());
-            for (int i = 0; i < indexes.size(); ++i) {
+            for (int i = 0; i < std::ssize(indexes); ++i) {
                 auto resultRef = result[i];
                 auto dataRef = dataRefs[indexes[i]];
                 EXPECT_EQ(dataRef.Size(), resultRef.Size());
@@ -370,7 +370,7 @@ public:
                 int mask = useRandom ? (rand() % (1 << dataRefs.size())) : iter;
 
                 std::vector<int> indexes;
-                for (int i = 0; i < dataRefs.size(); ++i) {
+                for (int i = 0; i < std::ssize(dataRefs); ++i) {
                     if (((1 << i) & mask) != 0) {
                         indexes.push_back(i);
                     }
@@ -382,7 +382,7 @@ public:
             YT_VERIFY(maskCount);
             for (int iter = 0; iter < *maskCount; ++iter) {
                 std::vector<int> indexes;
-                for (int i = 0; i < dataRefs.size(); ++i) {
+                for (int i = 0; i < std::ssize(dataRefs); ++i) {
                     indexes.push_back(i);
                 }
                 Shuffle(indexes.begin(), indexes.end());
@@ -426,7 +426,7 @@ public:
         const std::vector<int>& failingTimes)
     {
         int partCount = codec->GetTotalPartCount();
-        YT_VERIFY(failingTimes.size() == partCount);
+        YT_VERIFY(std::ssize(failingTimes) == partCount);
 
         WriteErasureChunk(codecId, codec, dataRefs);
 
@@ -474,7 +474,7 @@ TEST_P(TErasuseMixtureTest, Writer)
         } else if (i < 12) {
             EXPECT_EQ("", TUnbufferedFileInput("part" + ToString(i + 1)).ReadAll());
         } else {
-            EXPECT_EQ(64, TUnbufferedFileInput("part" + ToString(i + 1)).ReadAll().Size());
+            EXPECT_EQ(64u, TUnbufferedFileInput("part" + ToString(i + 1)).ReadAll().Size());
         }
     }
 
@@ -516,7 +516,7 @@ TEST_P(TErasuseMixtureTest, WriterStriped)
         } else if (i < 12) {
             EXPECT_EQ("", data);
         } else {
-            EXPECT_EQ(128, data.Size());
+            EXPECT_EQ(128u, data.Size());
         }
     }
 

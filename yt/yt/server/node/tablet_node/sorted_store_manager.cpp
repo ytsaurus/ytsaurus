@@ -181,7 +181,7 @@ TSortedDynamicRowRef TSortedStoreManager::ModifyRow(
             }
             const auto& columnIndexToLockIndex = Tablet_->ColumnIndexToLockIndex();
 
-            for (int index = KeyColumnCount_; index < row.GetCount(); ++index) {
+            for (int index = KeyColumnCount_; index < static_cast<int>(row.GetCount()); ++index) {
                 const auto& value = row[index];
                 int lockIndex = columnIndexToLockIndex[value.Id];
                 lockMask.Set(lockIndex, ELockType::Exclusive);
@@ -1103,7 +1103,7 @@ bool TSortedStoreManager::SplitPartition(
     partition->SetAllowedSplitTime(TInstant::Now());
 
     const auto& mountConfig = Tablet_->GetSettings().MountConfig;
-    if (Tablet_->PartitionList().size() >= mountConfig->MaxPartitionCount) {
+    if (std::ssize(Tablet_->PartitionList()) >= mountConfig->MaxPartitionCount) {
         StructuredLogger_->LogEvent("abort_partition_split")
             .Item("partition_id").Value(partition->GetId())
             .Item("reason").Value("partition_count_limit_exceeded");
@@ -1200,7 +1200,7 @@ void TSortedStoreManager::TrySplitPartitionByAddedStores(
     int cumulativeStoreCount = 0;
     TLegacyOwningKey lastKey = MinKey();
 
-    for (int storeIndex = 0; storeIndex < addedStores.size(); ++storeIndex) {
+    for (int storeIndex = 0; storeIndex < std::ssize(addedStores); ++storeIndex) {
         const auto& store = addedStores[storeIndex];
 
         if (store->GetMinKey() < lastKey) {
@@ -1240,7 +1240,7 @@ void TSortedStoreManager::DoSplitPartition(int partitionIndex, const std::vector
 {
     Tablet_->SplitPartition(partitionIndex, pivotKeys);
     if (!IsRecovery()) {
-        for (int currentIndex = partitionIndex; currentIndex < partitionIndex + pivotKeys.size(); ++currentIndex) {
+        for (int currentIndex = partitionIndex; currentIndex < partitionIndex + std::ssize(pivotKeys); ++currentIndex) {
             Tablet_->PartitionList()[currentIndex]->StartEpoch();
         }
     }

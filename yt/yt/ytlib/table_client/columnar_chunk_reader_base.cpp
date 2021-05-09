@@ -109,7 +109,7 @@ std::vector<TChunkId> TColumnarChunkReaderBase::GetFailedChunkIds() const
 
 void TColumnarChunkReaderBase::FeedBlocksToReaders()
 {
-    for (int i = 0; i < PendingBlocks_.size(); ++i) {
+    for (int i = 0; i < std::ssize(PendingBlocks_); ++i) {
         const auto& blockFuture = PendingBlocks_[i];
         const auto& column = Columns_[i];
         const auto& columnReader = column.ColumnReader;
@@ -319,7 +319,7 @@ void TColumnarRangeChunkReaderBase::InitBlockFetcher()
     if (Config_->SamplingMode == ESamplingMode::Block) {
         // Select column to sample.
         int maxColumnSegmentCount = -1;
-        for (int columnIndex = 0; columnIndex < Columns_.size(); ++columnIndex) {
+        for (int columnIndex = 0; columnIndex < std::ssize(Columns_); ++columnIndex) {
             const auto& column = Columns_[columnIndex];
             auto columnMetaIndex = column.ColumnMetaIndex;
             if (columnMetaIndex < 0) {
@@ -391,12 +391,12 @@ void TColumnarRangeChunkReaderBase::InitBlockFetcher()
             int lastRowIndex = segment.chunk_row_count() - 1;
             if (SampledColumnIndex_) {
                 while (
-                    sampledRangeIndex < SampledRanges_.size() &&
+                    sampledRangeIndex < std::ssize(SampledRanges_) &&
                     *SampledRanges_[sampledRangeIndex].UpperLimit().GetRowIndex() <= firstRowIndex)
                 {
                     ++sampledRangeIndex;
                 }
-                if (sampledRangeIndex == SampledRanges_.size()) {
+                if (sampledRangeIndex == std::ssize(SampledRanges_)) {
                     break;
                 }
                 if (*SampledRanges_[sampledRangeIndex].LowerLimit().GetRowIndex() > lastRowIndex) {
@@ -466,7 +466,7 @@ bool TColumnarRangeChunkReaderBase::TryFetchNextRow()
         if (sampledColumnReader->GetCurrentRowIndex() == SampledRanges_[SampledRangeIndex_].UpperLimit().GetRowIndex()) {
             ++SampledRangeIndex_;
             SampledRangeIndexChanged_ = true;
-            if (SampledRangeIndex_ == SampledRanges_.size()) {
+            if (SampledRangeIndex_ == std::ssize(SampledRanges_)) {
                 IsSamplingCompleted_ = true;
                 return false;
             }
@@ -478,7 +478,7 @@ bool TColumnarRangeChunkReaderBase::TryFetchNextRow()
         }
     }
 
-    for (int columnIndex = 0; columnIndex < Columns_.size(); ++columnIndex) {
+    for (int columnIndex = 0; columnIndex < std::ssize(Columns_); ++columnIndex) {
         auto& column = Columns_[columnIndex];
         const auto& columnReader = column.ColumnReader;
         auto currentRowIndex = columnReader->GetCurrentRowIndex();
@@ -487,7 +487,7 @@ bool TColumnarRangeChunkReaderBase::TryFetchNextRow()
         }
 
         if (currentRowIndex >= columnReader->GetBlockUpperRowIndex()) {
-            while (PendingBlocks_.size() < columnIndex) {
+            while (std::ssize(PendingBlocks_) < columnIndex) {
                 PendingBlocks_.emplace_back();
             }
 
@@ -592,7 +592,7 @@ TFuture<void> TColumnarLookupChunkReaderBase::RequestFirstBlocks()
 
     std::vector<TFuture<void>> blockFetchResult;
     PendingBlocks_.clear();
-    for (int i = 0; i < Columns_.size(); ++i) {
+    for (int i = 0; i < std::ssize(Columns_); ++i) {
         auto& column = Columns_[i];
 
         if (column.ColumnMetaIndex < 0) {
@@ -601,7 +601,7 @@ TFuture<void> TColumnarLookupChunkReaderBase::RequestFirstBlocks()
         }
 
         if (column.ColumnReader->GetCurrentBlockIndex() != column.BlockIndexSequence[NextKeyIndex_]) {
-            while (PendingBlocks_.size() < i) {
+            while (std::ssize(PendingBlocks_) < i) {
                 PendingBlocks_.emplace_back();
             }
 

@@ -55,7 +55,7 @@ IAttributeDictionaryPtr IAttributeDictionary::FromMap(const IMapNodePtr& node)
 {
     auto attributes = CreateEphemeralAttributes();
     auto children = node->GetChildren();
-    for (int index = 0; index < children.size(); ++index) {
+    for (int index = 0; index < std::ssize(children); ++index) {
         attributes->SetYson(children[index].first, ConvertToYsonString(children[index].second));
     }
     return attributes;

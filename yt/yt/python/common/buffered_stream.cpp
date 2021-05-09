@@ -110,7 +110,7 @@ TFuture<void> TBufferedStream::Write(const TSharedRef& data)
         if (Data_.End() < Begin_ + Size_ + data.Size()) {
             if (Size_ + data.Size() > Data_.Size()) {
                 Reallocate(std::max(Size_ + data.Size(), Data_.Size() * 2));
-            } else if (Size_ <= Begin_ - Data_.Begin()) {
+            } else if (static_cast<ssize_t>(Size_) <= Begin_ - Data_.Begin()) {
                 Move(Data_.Begin());
             } else {
                 Reallocate(Data_.Size());

@@ -91,7 +91,7 @@ TEST_F(TDefaultTvmTest, FetchesSelfId)
 {
     auto service = CreateDefaultTvmService();
     auto result = service->GetSelfTvmId();
-    EXPECT_EQ(100500, result);
+    EXPECT_EQ(100500u, result);
 }
 
 TEST_F(TDefaultTvmTest, FetchesServiceTicket)
@@ -115,7 +115,7 @@ TEST_F(TDefaultTvmTest, ParsesUserTicket)
 {
     auto service = CreateDefaultTvmService();
     auto result = service->ParseUserTicket(USER_TICKET);
-    EXPECT_EQ(123, result.DefaultUid);
+    EXPECT_EQ(123u, result.DefaultUid);
     EXPECT_EQ(THashSet<TString>{"foo:bar"}, result.Scopes);
     EXPECT_THROW(service->ParseUserTicket("BadTicket"), TErrorException);
 }

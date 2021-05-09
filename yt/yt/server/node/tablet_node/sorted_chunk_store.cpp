@@ -115,7 +115,7 @@ public:
 
     virtual TFuture<void> GetReadyEvent() const override
     {
-        if (CurrentReaderIndex_ == Readers_.size()) {
+        if (CurrentReaderIndex_ == std::ssize(Readers_)) {
             return VoidFuture;
         }
         return Readers_[CurrentReaderIndex_]->GetReadyEvent();
@@ -133,7 +133,7 @@ public:
 
     virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        if (CurrentReaderIndex_ == Readers_.size()) {
+        if (CurrentReaderIndex_ == std::ssize(Readers_)) {
             return nullptr;
         }
 

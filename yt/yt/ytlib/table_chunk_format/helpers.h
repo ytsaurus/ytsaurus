@@ -28,7 +28,7 @@ GetValue(const NTableClient::TUnversionedValue& value)
 
 inline const NTableClient::TUnversionedValue& GetUnversionedValue(NTableClient::TUnversionedRow row, int valueIndex)
 {
-    YT_ASSERT(valueIndex < row.GetCount());
+    YT_ASSERT(valueIndex < static_cast<int>(row.GetCount()));
     return row[valueIndex];
 }
 
@@ -40,7 +40,7 @@ inline const NTableClient::TUnversionedValue& GetUnversionedValue(NTableClient::
 
 inline NTableClient::TUnversionedValue& GetUnversionedValue(NTableClient::TMutableUnversionedRow row, int valueIndex)
 {
-    YT_ASSERT(valueIndex < row.GetCount());
+    YT_ASSERT(valueIndex < static_cast<int>(row.GetCount()));
     return row[valueIndex];
 }
 

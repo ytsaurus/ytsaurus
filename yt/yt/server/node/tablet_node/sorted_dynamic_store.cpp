@@ -768,7 +768,7 @@ public:
         i64 dataWeight = 0;
 
         while (rows.size() < rows.capacity()) {
-            if (RowCount_ == Keys_.Size())
+            if (RowCount_ == std::ssize(Keys_))
                 break;
 
             TVersionedRow row;
@@ -971,7 +971,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(
         : RegisterRevision(commitTimestamp);
 
     auto addValues = [&] (TSortedDynamicRow dynamicRow) {
-        for (int index = KeyColumnCount_; index < row.GetCount(); ++index) {
+        for (int index = KeyColumnCount_; index < static_cast<int>(row.GetCount()); ++index) {
             const auto& value = row[index];
             auto list = PrepareFixedValue(dynamicRow, value.Id);
             auto& uncommittedValue = list.GetUncommitted();
@@ -1675,7 +1675,7 @@ void TSortedDynamicStore::CommitValue(TSortedDynamicRow row, TValueList list, in
     row.GetDataWeight() += GetDataWeight(Schema_->Columns()[index].GetPhysicalType(), list.GetUncommitted());
     list.Commit();
 
-    if (row.GetDataWeight() > MaxDataWeight_) {
+    if (static_cast<ssize_t>(row.GetDataWeight()) > MaxDataWeight_) {
         MaxDataWeight_ = row.GetDataWeight();
         MaxDataWeightWitness_ = row;
     }

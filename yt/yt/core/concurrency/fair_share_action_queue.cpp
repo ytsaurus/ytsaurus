@@ -33,7 +33,7 @@ public:
         for (const auto& [bucketName, bucketQueues] : queueToBucket) {
             auto& bucketDescription = bucketDescriptions.emplace_back();
             bucketDescription.BucketTagSet = GetBucketTags(threadName, bucketName);
-            for (int queueIndex = 0; queueIndex < bucketQueues.size(); ++queueIndex) {
+            for (int queueIndex = 0; queueIndex < std::ssize(bucketQueues); ++queueIndex) {
                 const auto& queueName = bucketQueues[queueIndex];
                 YT_VERIFY(createdQueues.insert(queueName).second);
                 QueueIndexToBucketIndex_.push_back(nextBucketIndex);

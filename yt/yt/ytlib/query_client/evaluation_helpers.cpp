@@ -14,8 +14,8 @@ static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t BufferLimit = 512_KB;
-static const size_t MaxTopCollectorLimit = 2_MB;
+static const ssize_t BufferLimit = 512_KB;
+static const ssize_t MaxTopCollectorLimit = 2_MB;
 
 struct TTopCollectorBufferTag
 { };
@@ -105,7 +105,7 @@ std::pair<const TValue*, int> TTopCollector::Capture(const TValue* row)
 void TTopCollector::AccountGarbage(const TValue* row)
 {
     GarbageMemorySize_ += GetUnversionedRowByteSize(RowSize_);
-    for (int index = 0; index < RowSize_; ++index) {
+    for (int index = 0; index < static_cast<int>(RowSize_); ++index) {
         const auto& value = row[index];
 
         if (IsStringLikeType(EValueType(value.Type))) {

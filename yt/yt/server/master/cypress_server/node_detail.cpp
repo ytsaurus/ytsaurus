@@ -1350,7 +1350,7 @@ void TListNode::Load(NCellMaster::TLoadContext& context)
     >::Load(context, IndexToChild_);
 
     // Reconstruct ChildToIndex.
-    for (int index = 0; index < IndexToChild_.size(); ++index) {
+    for (int index = 0; index < std::ssize(IndexToChild_); ++index) {
         YT_VERIFY(ChildToIndex_.emplace(IndexToChild_[index], index).second);
     }
 }

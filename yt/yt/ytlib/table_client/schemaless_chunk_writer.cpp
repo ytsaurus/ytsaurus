@@ -322,12 +322,12 @@ protected:
             // of block indexes (which is quite natural assumption).
             NProto::TBlockMetaExt reorderedBlockMetaExt;
             reorderedBlockMetaExt.mutable_blocks()->Reserve(blockMetaExt.blocks().size());
-            for (size_t index = 0; index < blockMetaExt.blocks_size(); ++index) {
+            for (ssize_t index = 0; index < blockMetaExt.blocks_size(); ++index) {
                 reorderedBlockMetaExt.add_blocks();
             }
             for (auto& block : *blockMetaExt.mutable_blocks()) {
                 auto index = block.block_index();
-                YT_VERIFY(index < mapping.size());
+                YT_VERIFY(index < std::ssize(mapping));
                 auto mappedIndex = mapping[index];
                 reorderedBlockMetaExt.mutable_blocks(mappedIndex)->Swap(&block);
                 reorderedBlockMetaExt.mutable_blocks(mappedIndex)->set_block_index(mappedIndex);
@@ -376,7 +376,7 @@ protected:
         }
         ValidateKeyWeight(weight, Config_, Options_);
 
-        for (int index = keyColumnCount; index < row.GetCount(); ++index) {
+        for (int index = keyColumnCount; index < static_cast<int>(row.GetCount()); ++index) {
             weight += NTableClient::GetDataWeight(row[index]);
         }
         ValidateRowWeight(weight, Config_, Options_);
@@ -674,7 +674,7 @@ public:
             }
         };
 
-        for (int columnIndex = 0; columnIndex < Schema_->Columns().size(); ++columnIndex) {
+        for (int columnIndex = 0; columnIndex < std::ssize(Schema_->Columns()); ++columnIndex) {
             const auto& column = Schema_->Columns()[columnIndex];
             ValueColumnWriters_.emplace_back(CreateUnversionedColumnWriter(
                 column,
@@ -698,10 +698,10 @@ public:
     virtual bool Write(TRange<TUnversionedRow> rows) override
     {
         int startRowIndex = 0;
-        while (startRowIndex < rows.Size()) {
+        while (startRowIndex < std::ssize(rows)) {
             i64 weight = 0;
             int rowIndex = startRowIndex;
-            for (; rowIndex < rows.Size() && weight < DataToBlockFlush_; ++rowIndex) {
+            for (; rowIndex < std::ssize(rows) && weight < DataToBlockFlush_; ++rowIndex) {
                 weight += UpdateDataWeight(rows[rowIndex]);
             }
 
@@ -764,7 +764,7 @@ private:
             i64 maxWriterSize = -1;
             int maxWriterIndex = -1;
 
-            for (int i = 0; i < BlockWriters_.size(); ++i) {
+            for (int i = 0; i < std::ssize(BlockWriters_); ++i) {
                 auto size = BlockWriters_[i]->GetCurrentSize();
                 totalSize += size;
                 if (size > maxWriterSize) {
@@ -799,7 +799,7 @@ private:
 
     virtual void DoClose() override
     {
-        for (int i = 0; i < BlockWriters_.size(); ++i) {
+        for (int i = 0; i < std::ssize(BlockWriters_); ++i) {
             if (BlockWriters_[i]->GetCurrentSize() > 0) {
                 FinishBlock(i, LastKey_.Get());
             }
@@ -824,7 +824,7 @@ private:
             for (auto& column : *columnMetaExt.mutable_columns()) {
                 for (auto& segment : *column.mutable_segments()) {
                     auto blockIndex = segment.block_index();
-                    YT_VERIFY(blockIndex < mapping.size());
+                    YT_VERIFY(blockIndex < std::ssize(mapping));
                     segment.set_block_index(mapping[blockIndex]);
                 }
             }
@@ -1088,7 +1088,7 @@ protected:
             auto mutableRow = TMutableUnversionedRow::Allocate(RowBuffer_->GetPool(), maxColumnCount);
             int columnCount = Schema_->Columns().size();
 
-            for (int i = 0; i < Schema_->Columns().size(); ++i) {
+            for (int i = 0; i < std::ssize(Schema_->Columns()); ++i) {
                 // Id for schema columns in chunk name table always coincide with column index in schema.
                 mutableRow[i] = MakeUnversionedSentinelValue(EValueType::Null, i);
             }
@@ -1103,7 +1103,7 @@ protected:
                 }
 
                 int id = IdMapping_[valueIt->Id];
-                if (id < Schema_->Columns().size()) {
+                if (id < std::ssize(Schema_->Columns())) {
                     // Validate schema column types.
                     mutableRow[id] = *valueIt;
                     mutableRow[id].Id = id;
@@ -1123,7 +1123,7 @@ protected:
             }
 
             if (Options_->CastAnyToComposite) {
-                for (int i = 0; i < Schema_->Columns().size(); ++i) {
+                for (int i = 0; i < std::ssize(Schema_->Columns()); ++i) {
                     const auto& column = Schema_->Columns()[i];
                     if (IsV3Composite(column.LogicalType()) && mutableRow[i].Type == EValueType::Any) {
                         mutableRow[i].Type = EValueType::Composite;
@@ -1133,7 +1133,7 @@ protected:
 
             // Now mutableRow contains all values that schema knows about.
             // And we can check types and check that all required fields are set.
-            for (int i = 0; i < Schema_->Columns().size(); ++i) {
+            for (int i = 0; i < std::ssize(Schema_->Columns()); ++i) {
                 const auto& column = Schema_->Columns()[i];
                 ValidateValueType(mutableRow[i], column, /*typeAnyAcceptsAllValues*/ true);
             }
@@ -1255,7 +1255,7 @@ private:
         }
 
         if (Schema_->IsSorted()) {
-            for (int rowIndex = 0; rowIndex + 1 < rows.size(); ++rowIndex) {
+            for (int rowIndex = 0; rowIndex + 1 < std::ssize(rows); ++rowIndex) {
                 auto currentKey = TKey::FromRow(rows[rowIndex], Schema_->GetKeyColumnCount());
                 auto nextKey = TKey::FromRow(rows[rowIndex + 1], Schema_->GetKeyColumnCount());
                 ValidateSortOrderAndUniqueness(
@@ -1497,7 +1497,7 @@ private:
         while (CurrentBufferCapacity_ > Config_->MaxBufferSize) {
             i64 largestPartitonSize = -1;
             int largestPartitionIndex = -1;
-            for (int partitionIndex = 0; partitionIndex < BlockWriters_.size(); ++partitionIndex) {
+            for (int partitionIndex = 0; partitionIndex < std::ssize(BlockWriters_); ++partitionIndex) {
                 auto& blockWriter = BlockWriters_[partitionIndex];
                 if (blockWriter->GetBlockSize() > largestPartitonSize) {
                     largestPartitonSize = blockWriter->GetBlockSize();
@@ -1764,7 +1764,7 @@ private:
     void ValidateValueColumns(TUnversionedRow row, int keyColumnCount, bool isKey) const
     {
         if (isKey) {
-            for (int index = keyColumnCount + 1; index < row.GetCount(); ++index) {
+            for (int index = keyColumnCount + 1; index < static_cast<int>(row.GetCount()); ++index) {
                 if (row[index].Type != EValueType::Null) {
                     THROW_ERROR_EXCEPTION(
                         EErrorCode::SchemaViolation,
@@ -1774,11 +1774,11 @@ private:
                 }
             }
         } else {
-            for (int index = keyColumnCount + 1; index < row.GetCount(); index += 2) {
+            for (int index = keyColumnCount + 1; index < static_cast<int>(row.GetCount()); index += 2) {
                 // NB. All validation is done in ReorderAndValidateRows so here we safely
                 // assume these conditions to be true.
                 YT_ASSERT(row[index].Id == index);
-                YT_ASSERT(index + 1 < row.GetCount());
+                YT_ASSERT(index + 1 < static_cast<int>(row.GetCount()));
                 YT_ASSERT(row[index + 1].Id == row[index].Id + 1);
 
                 const auto& value = row[index];
@@ -1832,7 +1832,7 @@ private:
             case ERowModificationType::Write: {
                 int valueColumnCount = 0;
 
-                for (int index = keyColumnCount + 1; index < row.GetCount(); index += 2) {
+                for (int index = keyColumnCount + 1; index < static_cast<int>(row.GetCount()); index += 2) {
                     auto flags = FlagsFromValue(row[index + 1]);
                     if (None(flags & EUnversionedUpdateDataFlags::Missing)) {
                         ++valueColumnCount;
@@ -1849,7 +1849,7 @@ private:
                 ::memcpy(versionedRow.BeginKeys(), row.Begin(), sizeof(TUnversionedValue) * keyColumnCount);
 
                 TVersionedValue* currentValue = versionedRow.BeginValues();
-                for (int index = keyColumnCount + 1; index < row.GetCount(); index += 2) {
+                for (int index = keyColumnCount + 1; index < static_cast<int>(row.GetCount()); index += 2) {
                     auto flags = FlagsFromValue(row[index + 1]);
 
                     if (Any(flags & EUnversionedUpdateDataFlags::Missing)) {
@@ -2096,7 +2096,7 @@ private:
                     "Chunk sort columns cannot be set when table is sorted with unique keys");
             }
 
-            for (int columnIndex = 0; columnIndex < tableSchemaSortColumns.size(); ++columnIndex) {
+            for (int columnIndex = 0; columnIndex < std::ssize(tableSchemaSortColumns); ++columnIndex) {
                 if ((*chunkSortColumns)[columnIndex] != tableSchemaSortColumns[columnIndex]) {
                     THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns,
                         "Incompatible sort columns: chunk sort columns %v, table sort columns %v",

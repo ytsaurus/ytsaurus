@@ -76,7 +76,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     YT_VERIFY(replicas.size() == partIndexList.size());
 
     std::vector<IChunkWriterPtr> writers;
-    for (int index = 0; index < partIndexList.size(); ++index) {
+    for (int index = 0; index < std::ssize(partIndexList); ++index) {
         auto partIndex = partIndexList[index];
         auto partSessionId = TSessionId(
             ErasurePartIdFromChunkId(sessionId.ChunkId, partIndex),

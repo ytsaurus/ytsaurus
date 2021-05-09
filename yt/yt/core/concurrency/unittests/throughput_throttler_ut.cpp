@@ -23,7 +23,7 @@ TEST(TReconfigurableThroughputThrottlerTest, TestNoLimit)
         throttler->Throttle(1).Get().ThrowOnError();
     }
 
-    EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 100);
+    EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 100u);
 }
 
 TEST(TReconfigurableThroughputThrottlerTest, TestLimit)
@@ -34,14 +34,14 @@ TEST(TReconfigurableThroughputThrottlerTest, TestLimit)
     NProfiling::TWallTimer timer;
     throttler->Throttle(1).Get().ThrowOnError();
 
-    EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 50);
+    EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 50u);
 
     throttler->Throttle(1).Get().ThrowOnError();
     throttler->Throttle(1).Get().ThrowOnError();
 
     auto duration = timer.GetElapsedTime().MilliSeconds();
-    EXPECT_GE(duration, 1000);
-    EXPECT_LE(duration, 3000);
+    EXPECT_GE(duration, 1000u);
+    EXPECT_LE(duration, 3000u);
 }
 
 TEST(TReconfigurableThroughputThrottlerTest, TestScheduleUpdate)
@@ -58,8 +58,8 @@ TEST(TReconfigurableThroughputThrottlerTest, TestScheduleUpdate)
     throttler->Throttle(1).Get().ThrowOnError();
 
     auto duration = timer.GetElapsedTime().MilliSeconds();
-    EXPECT_GE(duration, 3000);
-    EXPECT_LE(duration, 6000);
+    EXPECT_GE(duration, 3000u);
+    EXPECT_LE(duration, 6000u);
 }
 
 TEST(TReconfigurableThroughputThrottlerTest, TestUpdate)
@@ -73,7 +73,7 @@ TEST(TReconfigurableThroughputThrottlerTest, TestUpdate)
     Sleep(TDuration::Seconds(1));
     throttler->Throttle(1).Get().ThrowOnError();
 
-    EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 2000);
+    EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 2000u);
 }
 
 TEST(TReconfigurableThroughputThrottlerTest, TestCancel)
@@ -90,7 +90,7 @@ TEST(TReconfigurableThroughputThrottlerTest, TestCancel)
 
     EXPECT_FALSE(result.IsOK());
     EXPECT_TRUE(result.GetCode() == NYT::EErrorCode::Canceled);
-    EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 100);
+    EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 100u);
 }
 
 TEST(TReconfigurableThroughputThrottlerTest, TestReconfigureSchedulesUpdatesProperly)
@@ -111,7 +111,7 @@ TEST(TReconfigurableThroughputThrottlerTest, TestReconfigureSchedulesUpdatesProp
         future.Get().ThrowOnError();
     }
 
-    EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 5000);
+    EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 5000u);
 }
 
 TEST(TReconfigurableThroughputThrottlerTest, TestSetLimit)
@@ -132,7 +132,7 @@ TEST(TReconfigurableThroughputThrottlerTest, TestSetLimit)
         future.Get().ThrowOnError();
     }
 
-    EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 5000);
+    EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 5000u);
 }
 
 TEST(TReconfigurableThroughputThrottlerTest, TestReconfigureMustRescheduleUpdate)
@@ -152,7 +152,7 @@ TEST(TReconfigurableThroughputThrottlerTest, TestReconfigureMustRescheduleUpdate
     EXPECT_FALSE(scheduled2.IsSet()); // must remain waiting in the queue after Reconfigure
 
     scheduled2.Get().ThrowOnError();
-    EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 3000); // Reconfigure must have rescheduled the update
+    EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 3000u); // Reconfigure must have rescheduled the update
 }
 
 TEST(TReconfigurableThroughputThrottlerTest, TestOverdraft)
@@ -192,7 +192,7 @@ TEST(TReconfigurableThroughputThrottlerTest, StressTest)
         thread.join();
     }
 
-    EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 3000);
+    EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 3000u);
 }
 
 #endif
@@ -207,8 +207,8 @@ TEST(TReconfigurableThroughputThrottlerTest, TestFractionalLimit)
         throttler->Throttle(1).Get().ThrowOnError();
     }
     auto duration = timer.GetElapsedTime().MilliSeconds();
-    EXPECT_GE(duration, 1500);
-    EXPECT_LE(duration, 4000);
+    EXPECT_GE(duration, 1500u);
+    EXPECT_LE(duration, 4000u);
 }
 
 TEST(TReconfigurableThroughputThrottlerTest, TestZeroLimit)
@@ -229,7 +229,7 @@ TEST(TReconfigurableThroughputThrottlerTest, TestZeroLimit)
         future.Get().ThrowOnError();
     }
 
-    EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 1000);
+    EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 1000u);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

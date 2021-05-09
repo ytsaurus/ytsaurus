@@ -33,14 +33,14 @@ TEST(TBuildValidityBitmapFromDictionaryIndexesWithZeroNullTest, LessThanByte)
 TEST(TBuildValidityBitmapFromDictionaryIndexesWithZeroNullTest, TenBytes)
 {
     std::array<ui32, 80> indexes;
-    for (int i = 0; i < indexes.size(); ++i) {
+    for (int i = 0; i < std::ssize(indexes); ++i) {
         indexes[i] = i % 2;
     }
     std::array<ui8, indexes.size() / 8> result;
     BuildValidityBitmapFromDictionaryIndexesWithZeroNull(
         MakeRange(indexes),
         TMutableRef(&result, result.size()));
-    for (int i = 0; i < result.size(); ++i) {
+    for (int i = 0; i < std::ssize(result); ++i) {
         EXPECT_EQ(0xaa, result[i]);
     }
 }
@@ -48,14 +48,14 @@ TEST(TBuildValidityBitmapFromDictionaryIndexesWithZeroNullTest, TenBytes)
 TEST(TBuildValidityBitmapFromDictionaryIndexesWithZeroNullTest, ManyBits)
 {
     std::array<ui32, 8001> indexes;
-    for (int i = 0; i < indexes.size(); ++i) {
+    for (int i = 0; i < std::ssize(indexes); ++i) {
         indexes[i] = i % 2;
     }
     std::array<ui8, indexes.size() / 8 + 1> result;
     BuildValidityBitmapFromDictionaryIndexesWithZeroNull(
         MakeRange(indexes),
         TMutableRef(&result, result.size()));
-    for (int i = 0; i < result.size() - 1; ++i) {
+    for (int i = 0; i < std::ssize(result) - 1; ++i) {
         EXPECT_EQ(0xaa, result[i]);
     }
     EXPECT_EQ(0, result[result.size() - 1]);
@@ -77,7 +77,7 @@ TEST(TBuildDictionaryIndexesFromDictionaryIndexesWithZeroNullTest, NonEmpty)
     BuildDictionaryIndexesFromDictionaryIndexesWithZeroNull(
         MakeRange(indexes),
         MakeMutableRange(result));
-    for (int i = 1; i < result.size(); ++i) {
+    for (int i = 1; i < std::ssize(result); ++i) {
         EXPECT_EQ(indexes[i] - 1, result[i]);
     }
 }
@@ -161,22 +161,22 @@ class TCopyBitmapRangeToBitmapTest
 TEST_P(TCopyBitmapRangeToBitmapTest, CheckAll)
 {
     auto [startIndex, endIndex] = GetParam();
-    
+
     std::array<ui64, 3> qwords = {0x1234567812345678ULL, 0x1234567812345678ULL, 0xabcdabcdabcdabcdULL};
     auto bitmap = TRef(qwords.data(), 8 * qwords.size());
-    
-    constexpr size_t ResultByteSize = 24;
+
+    constexpr ssize_t ResultByteSize = 24;
     auto byteCount = GetBitmapByteSize(endIndex - startIndex);
     EXPECT_LE(byteCount, ResultByteSize);
-    
+
     std::array<ui8, ResultByteSize> guard;
     for (int i = 0; i < ResultByteSize; ++i) {
         guard[i] = i;
     }
-    
+
     auto result = guard;
     auto resultNegated = guard;
-    
+
     CopyBitmapRangeToBitmap(bitmap, startIndex, endIndex, TMutableRef(result.data(), byteCount));
     CopyBitmapRangeToBitmapNegated(bitmap, startIndex, endIndex, TMutableRef(resultNegated.data(), byteCount));
 
@@ -217,10 +217,10 @@ INSTANTIATE_TEST_SUITE_P(
 TEST(TTranslateRleIndexTest, CheckAll)
 {
     std::array<ui64, 8> rleIndexes{0, 1, 3, 10, 11, 15, 20, 21};
-    for (i64 i = 0; i < rleIndexes[rleIndexes.size() - 1] + 10; ++i) {
+    for (ui64 i = 0; i < rleIndexes[rleIndexes.size() - 1] + 10; ++i) {
         auto j = TranslateRleIndex(MakeRange(rleIndexes), i);
         EXPECT_LE(rleIndexes[j], i);
-        if (j < rleIndexes.size() - 1) {
+        if (j < std::ssize(rleIndexes) - 1) {
             EXPECT_LT(i, rleIndexes[j + 1]);
         }
     }
@@ -291,23 +291,23 @@ protected:
 TEST_F(TDecodeStringsTest, Single)
 {
     std::vector<ui32> result;
-    for (int index = 0; index <= Offsets.size(); ++index) {
+    for (int index = 0; index <= std::ssize(Offsets); ++index) {
         result.push_back(DecodeStringOffset(MakeRange(Offsets), AvgLength, index));
     }
-    EXPECT_EQ(Expected, result); 
+    EXPECT_EQ(Expected, result);
 }
 
 TEST_F(TDecodeStringsTest, Multiple)
 {
-    for (int i = 0; i <= Offsets.size(); ++i) {
-        for (int j = i; j <= Offsets.size(); ++j) {
+    for (int i = 0; i <= std::ssize(Offsets); ++i) {
+        for (int j = i; j <= std::ssize(Offsets); ++j) {
             std::vector<ui32> result(j - i + 1);
             DecodeStringOffsets(MakeRange(Offsets), AvgLength, i, j, MakeMutableRange(result));
             std::vector<ui32> expected;
             for (int k = i; k <= j; ++k) {
                 expected.push_back(Expected[k] - DecodeStringOffset(MakeRange(Offsets), AvgLength, i));
             }
-            EXPECT_EQ(expected, result); 
+            EXPECT_EQ(expected, result);
         }
     }
 }
@@ -323,9 +323,9 @@ TEST_F(TDecodeStringsTest, PointersAndLengths)
         TRef(chars.data(), chars.size()),
         MakeMutableRange(strings),
         MakeMutableRange(lengths));
-    for (int i = 0; i < Offsets.size(); ++i) {
+    for (int i = 0; i < std::ssize(Offsets); ++i) {
         EXPECT_EQ(Expected[i], strings[i] - chars.data());
-        EXPECT_EQ(Expected[i + 1] - Expected[i], lengths[i]);
+        EXPECT_EQ(static_cast<ssize_t>(Expected[i + 1] - Expected[i]), lengths[i]);
     }
 }
 
@@ -598,7 +598,7 @@ protected:
         std::fill(Expected.begin() + 200, Expected.begin() + 800, true);
 
         Bitmap.resize(GetBitmapByteSize(Expected.size()));
-        for (int i = 0; i < Expected.size(); ++i) {
+        for (int i = 0; i < std::ssize(Expected); ++i) {
             SetBit(TMutableRef(Bitmap.data(), Bitmap.size()), i, Expected[i]);
         }
     }
@@ -648,7 +648,7 @@ protected:
     {
         int j = -1;
         for (int i = 0; i < 40; ++i) {
-            if (j + 1 < RleIndexes.size() && i == RleIndexes[j + 1]) {
+            if (j + 1 < std::ssize(RleIndexes) && i == static_cast<ssize_t>(RleIndexes[j + 1])) {
                 ++j;
             }
             auto dictionaryIndex = DictionaryIndexes[j];
@@ -659,8 +659,8 @@ protected:
                 DecodedOffsets.push_back(DecodedOffsets.empty() ? 0 : DecodedOffsets.back());
             }
         }
-        
-        for (int i = 0; i < Offsets.size(); ++i) {
+
+        for (int i = 0; i < std::ssize(Offsets); ++i) {
             auto [startOffset, endOffset] = DecodeStringRange(
                 MakeRange(Offsets),
                 AvgLength,
@@ -680,7 +680,7 @@ protected:
 TEST_P(TCountTotalStringLengthInRleDictionaryIndexesWithZeroNullTest, CheckAll)
 {
     auto [startIndex, endIndex] = GetParam();
-    
+
     auto actual = CountTotalStringLengthInRleDictionaryIndexesWithZeroNull(
         MakeRange(DictionaryIndexes),
         MakeRange(RleIndexes),

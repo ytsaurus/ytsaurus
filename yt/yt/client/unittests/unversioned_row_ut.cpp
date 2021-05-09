@@ -188,7 +188,7 @@ TEST(TUnversionedRowsBuilder, Empty)
 {
     TUnversionedRowsBuilder builder;
     auto rows = builder.Build();
-    EXPECT_EQ(0, rows.size());
+    EXPECT_EQ(0, std::ssize(rows));
 }
 
 TEST(TUnversionedRowsBuilder, SomeValues)
@@ -197,7 +197,7 @@ TEST(TUnversionedRowsBuilder, SomeValues)
     builder.AddRow(1, "hello");
     builder.AddRow(2, "world");
     auto rows = builder.Build();
-    EXPECT_EQ(2, rows.size());
+    EXPECT_EQ(2, std::ssize(rows));
     {
         auto [i, s] = FromUnversionedRow<int, TString>(rows[0]);
         EXPECT_EQ(1, i);
@@ -220,7 +220,7 @@ TEST(TUnversionedRowsBuilder, ExplicitIds)
     builder.AddRow(TValueWithId{1, 10}, TValueWithId{"hello", 20});
     builder.AddRow(TValueWithId{2, 30}, TValueWithId{"world", 40});
     auto rows = builder.Build();
-    EXPECT_EQ(2, rows.size());
+    EXPECT_EQ(2, std::ssize(rows));
     {
         auto [i, s] = FromUnversionedRow<int, TString>(rows[0]);
         EXPECT_EQ(1, i);

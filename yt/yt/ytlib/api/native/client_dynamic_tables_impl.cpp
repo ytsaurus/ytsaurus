@@ -90,7 +90,7 @@ TColumnFilter RemapColumnFilter(
     }
     auto remappedFilterIndexes = columnFilter.GetIndexes();
     for (auto& index : remappedFilterIndexes) {
-        if (index < 0 || index >= idMapping.size()) {
+        if (index < 0 || index >= std::ssize(idMapping)) {
             THROW_ERROR_EXCEPTION(
                 "Column filter contains invalid index: actual %v, expected in range [0, %v]",
                 index,
@@ -155,7 +155,7 @@ void RemapValueIds(
         if (!row) {
             continue;
         }
-        for (int index = 0; index < row.GetCount(); ++index) {
+        for (int index = 0; index < static_cast<int>(row.GetCount()); ++index) {
             auto id = row[index].Id;
             YT_VERIFY(id < mapping.size() && mapping[id] != -1);
             row[index].Id = mapping[id];
@@ -166,9 +166,9 @@ void RemapValueIds(
 std::vector<int> BuildResponseIdMapping(const TColumnFilter& remappedColumnFilter)
 {
     std::vector<int> mapping;
-    for (int index = 0; index < remappedColumnFilter.GetIndexes().size(); ++index) {
+    for (int index = 0; index < std::ssize(remappedColumnFilter.GetIndexes()); ++index) {
         int id = remappedColumnFilter.GetIndexes()[index];
-        if (id >= mapping.size()) {
+        if (id >= std::ssize(mapping)) {
             mapping.resize(id + 1, -1);
         }
         mapping[id] = index;
@@ -290,7 +290,7 @@ std::vector<TTabletInfo> TClient::DoGetTabletInfos(
     for (size_t subrequestIndex = 0; subrequestIndex < rspsOrErrors.size(); ++subrequestIndex) {
         const auto& subrequest = *subrequests[subrequestIndex];
         const auto& rsp = rspsOrErrors[subrequestIndex];
-        YT_VERIFY(rsp->tablets_size() == subrequest.ResultIndexes.size());
+        YT_VERIFY(rsp->tablets_size() == std::ssize(subrequest.ResultIndexes));
         for (size_t resultIndexIndex = 0; resultIndexIndex < subrequest.ResultIndexes.size(); ++resultIndexIndex) {
             auto& result = results[subrequest.ResultIndexes[resultIndexIndex]];
             const auto& tabletInfo = rsp->tablets(static_cast<int>(resultIndexIndex));
@@ -527,7 +527,7 @@ TRowset TClient::DoLookupRowsOnce(
     auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
     auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(schema) : nullptr;
 
-    for (int index = 0; index < keys.Size(); ++index) {
+    for (int index = 0; index < std::ssize(keys); ++index) {
         ValidateClientKey(keys[index], *schema, idMapping, nameTable);
         auto capturedKey = inputRowBuffer->CaptureAndPermuteRow(
             keys[index],
@@ -758,7 +758,7 @@ TRowset TClient::DoLookupRowsOnce(
     std::vector<TTypeErasedRow> resultRows;
     resultRows.resize(keys.Size());
 
-    for (int index = 0; index < keys.Size(); ++index) {
+    for (int index = 0; index < std::ssize(keys); ++index) {
         resultRows[index] = uniqueResultRows[keyIndexToResultIndex[index]];
     }
 

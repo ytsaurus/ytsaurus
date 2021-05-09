@@ -531,7 +531,7 @@ TError TError::Truncate(int maxInnerErrorCount, i64 stringLimit) const
     }
 
     auto truncateString = [stringLimit] (TString string) {
-        if (string.length() > stringLimit) {
+        if (std::ssize(string) > stringLimit) {
             return Format("%v...<message truncated>", string.substr(0, stringLimit));
         }
         return string;
@@ -540,7 +540,7 @@ TError TError::Truncate(int maxInnerErrorCount, i64 stringLimit) const
     auto truncateAttributes = [stringLimit] (const IAttributeDictionary& attributes) {
         auto clonedAttributes = attributes.Clone();
         for (const auto& key : clonedAttributes->ListKeys()) {
-            if (clonedAttributes->FindYson(key).AsStringBuf().Size() > stringLimit) {
+            if (std::ssize(clonedAttributes->FindYson(key).AsStringBuf()) > stringLimit) {
                 clonedAttributes->SetYson(
                     key,
                     BuildYsonStringFluently()
@@ -556,7 +556,7 @@ TError TError::Truncate(int maxInnerErrorCount, i64 stringLimit) const
     if (Impl_->HasAttributes()) {
         result->SetAttributes(truncateAttributes(Attributes()));
     }
-    if (InnerErrors().size() <= maxInnerErrorCount) {
+    if (std::ssize(InnerErrors()) <= maxInnerErrorCount) {
         for (const auto& innerError : InnerErrors()) {
             result->MutableInnerErrors()->push_back(innerError.Truncate());
         }

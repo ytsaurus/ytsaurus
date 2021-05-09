@@ -411,7 +411,7 @@ public:
             startReplicationTimestamp);
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        for (int tabletIndex = 0; tabletIndex < table->Tablets().size(); ++tabletIndex) {
+        for (int tabletIndex = 0; tabletIndex < std::ssize(table->Tablets()); ++tabletIndex) {
             auto* tablet = table->Tablets()[tabletIndex];
             auto pair = tablet->Replicas().emplace(replica, TTableReplicaInfo());
             YT_VERIFY(pair.second);
@@ -706,7 +706,7 @@ public:
                 if (pivotKeys.size() == 0 && (!tabletCount || *tabletCount < 1)) {
                     THROW_ERROR_EXCEPTION("Invalid number of new tablets: expected pivot keys or tablet count greater than 1");
                 }
-                for (int index = 1; index < tablets.size(); ++index) {
+                for (int index = 1; index < std::ssize(tablets); ++index) {
                     const auto& cur = tablets[index];
                     const auto& prev = tablets[index - 1];
                     if (cur->GetIndex() != prev->GetIndex() + 1) {
@@ -846,7 +846,7 @@ public:
                 validateCellBundle(hintCell);
             } else {
                 int tabletCount = lastTabletIndex - firstTabletIndex + 1;
-                if (!targetCellIds.empty() && targetCellIds.size() != tabletCount) {
+                if (!targetCellIds.empty() && std::ssize(targetCellIds) != tabletCount) {
                     THROW_ERROR_EXCEPTION("\"target_cell_ids\" must either be empty or contain exactly "
                         "\"last_tablet_index\" - \"first_tablet_index\" + 1 entries (%v != %v - %v + 1)",
                         targetCellIds.size(),
@@ -1326,7 +1326,7 @@ public:
             // NB: We allow reshard without pivot keys.
             // Pivot keys will be calculated when ReshardTable is called so we don't need to check them.
             if (!pivotKeys.empty()) {
-                if (pivotKeys.size() != newTabletCount) {
+                if (std::ssize(pivotKeys) != newTabletCount) {
                     THROW_ERROR_EXCEPTION("Wrong pivot key count: %v instead of %v",
                         pivotKeys.size(),
                         newTabletCount);
@@ -1396,7 +1396,7 @@ public:
                         "in the resharded range");
                 }
 
-                if (lastTabletIndex != tablets.size() - 1) {
+                if (lastTabletIndex != std::ssize(tablets) - 1) {
                     if (pivotKeys.back() >= tablets[lastTabletIndex + 1]->GetPivotKey()) {
                         THROW_ERROR_EXCEPTION(
                             "Last pivot key must be strictly less than that of the tablet "
@@ -1534,7 +1534,7 @@ public:
         i64 totalMemorySizeDelta = 0;
 
         // Deaccumulate old tablet statistics.
-        for (int index = 0; index < branchedChunkList->Children().size(); ++index) {
+        for (int index = 0; index < std::ssize(branchedChunkList->Children()); ++index) {
             auto* tablet = originatingNode->Tablets()[index];
 
             auto tabletStatistics = GetTabletStatistics(tablet);
@@ -1556,7 +1556,7 @@ public:
         }
 
         // Merge tablet chunk lists and accumulate new tablet statistics.
-        for (int index = 0; index < branchedChunkList->Children().size(); ++index) {
+        for (int index = 0; index < std::ssize(branchedChunkList->Children()); ++index) {
             auto* appendChunkList = branchedChunkList->Children()[index]->AsChunkList();
             auto* tabletChunkList = originatingChunkList->Children()[index]->AsChunkList();
             auto* tablet = originatingNode->Tablets()[index];
@@ -2220,7 +2220,7 @@ public:
             return nullptr;
         }
 
-        YT_VERIFY(leadingPeerId < cell->Peers().size());
+        YT_VERIFY(leadingPeerId < std::ssize(cell->Peers()));
 
         return cell->Peers()[leadingPeerId].Node;
     }
@@ -2729,7 +2729,7 @@ private:
         int lastTabletIndex,
         const TString& request)
     {
-        YT_VERIFY(firstTabletIndex >= 0 && firstTabletIndex <= lastTabletIndex && lastTabletIndex < table->Tablets().size());
+        YT_VERIFY(firstTabletIndex >= 0 && firstTabletIndex <= lastTabletIndex && lastTabletIndex < std::ssize(table->Tablets()));
 
         auto error = TError("User request %Qv interfered with the action", request);
         THashSet<TTablet*> touchedTablets;
@@ -2975,7 +2975,7 @@ private:
                         nullptr,
                         action->Tablets());
                 } else {
-                    for (int index = 0; index < action->Tablets().size(); ++index) {
+                    for (int index = 0; index < std::ssize(action->Tablets()); ++index) {
                         assignment.emplace_back(
                             action->Tablets()[index],
                             action->TabletCells()[index]);
@@ -3004,7 +3004,7 @@ private:
                     }
                 }
 
-                if (mountedCount == action->Tablets().size()) {
+                if (mountedCount == std::ssize(action->Tablets())) {
                     ChangeTabletActionState(action, ETabletActionState::Mounted);
                 }
                 break;
@@ -3330,7 +3330,7 @@ private:
                 ToProto(req.mutable_schema(), table->GetTableSchema());
                 if (table->IsPhysicallySorted()) {
                     ToProto(req.mutable_pivot_key(), tablet->GetPivotKey());
-                    ToProto(req.mutable_next_pivot_key(), tablet->GetIndex() + 1 == allTablets.size()
+                    ToProto(req.mutable_next_pivot_key(), tablet->GetIndex() + 1 == std::ssize(allTablets)
                         ? MaxKey()
                         : allTablets[tabletIndex + 1]->GetPivotKey());
                 } else {
@@ -3722,7 +3722,7 @@ private:
         }
 
         if (table->IsPhysicallySorted()) {
-            if (lastTabletIndex + 1 < tablets.size()) {
+            if (lastTabletIndex + 1 < std::ssize(tablets)) {
                 oldPivotKeys.push_back(tablets[lastTabletIndex + 1]->GetPivotKey());
             } else {
                 oldPivotKeys.push_back(MaxKey());
@@ -3840,7 +3840,7 @@ private:
                 for (auto it = tabletsRange.first; it != tabletsRange.second; ++it) {
                     auto* tablet = *it;
                     const auto& lowerPivot = tablet->GetPivotKey();
-                    const auto& upperPivot = tablet->GetIndex() == tablets.size() - 1
+                    const auto& upperPivot = tablet->GetIndex() == std::ssize(tablets) - 1
                         ? MaxKey()
                         : tablets[tablet->GetIndex() + 1]->GetPivotKey();
                     int relativeIndex = it - newTablets.begin();
@@ -3883,10 +3883,10 @@ private:
                 }
             }
 
-            for (int relativeIndex = 0; relativeIndex < newTablets.size(); ++relativeIndex) {
+            for (int relativeIndex = 0; relativeIndex < std::ssize(newTablets); ++relativeIndex) {
                 auto* tablet = newTablets[relativeIndex];
                 const auto& lowerPivot = tablet->GetPivotKey();
-                const auto& upperPivot = tablet->GetIndex() == tablets.size() - 1
+                const auto& upperPivot = tablet->GetIndex() == std::ssize(tablets) - 1
                     ? MaxKey()
                     : tablets[tablet->GetIndex() + 1]->GetPivotKey();
 
@@ -3932,7 +3932,7 @@ private:
                 }
             }
 
-            for (int relativeIndex = 0; relativeIndex < newTablets.size(); ++relativeIndex) {
+            for (int relativeIndex = 0; relativeIndex < std::ssize(newTablets); ++relativeIndex) {
                 SetTabletEdenStoreIds(newTablets[relativeIndex], newEdenStoreIds[relativeIndex]);
             }
         } else {
@@ -3958,7 +3958,7 @@ private:
                     newTabletChunkTrees.push_back(chunkManager->CreateChunkList(EChunkListKind::OrderedDynamicTablet));
                 }
             }
-            YT_ASSERT(newTabletChunkTrees.size() == newTabletCount);
+            YT_ASSERT(std::ssize(newTabletChunkTrees) == newTabletCount);
         }
 
         // Update tablet chunk lists.
@@ -4331,7 +4331,7 @@ private:
             auto* tablet = FindTablet(tabletId);
             if (!IsObjectAlive(tablet) ||
                 tablet->GetState() == ETabletState::Unmounted ||
-                mountRevision != tablet->GetMountRevision())
+                static_cast<ui64>(mountRevision) != tablet->GetMountRevision())
             {
                 continue;
             }
@@ -4544,7 +4544,7 @@ private:
                 table->TabletCountByExpectedState()[ETabletState::Mounted] +
                 table->TabletCountByExpectedState()[ETabletState::Unmounted] +
                 table->TabletCountByExpectedState()[ETabletState::Frozen];
-            YT_VERIFY(tabletCount == table->Tablets().size());
+            YT_VERIFY(tabletCount == std::ssize(table->Tablets()));
         }
 
         auto actualState = table->ComputeActualTabletState();
@@ -4747,7 +4747,7 @@ private:
         }
 
         auto mountRevision = request->mount_revision();
-        if (tablet->GetMountRevision() != mountRevision) {
+        if (tablet->GetMountRevision() != static_cast<ui64>(mountRevision)) {
             return;
         }
 
@@ -4777,7 +4777,7 @@ private:
         }
 
         auto mountRevision = response->mount_revision();
-        if (tablet->GetMountRevision() != mountRevision) {
+        if (tablet->GetMountRevision() != static_cast<ui64>(mountRevision)) {
             return;
         }
 
@@ -4810,7 +4810,7 @@ private:
         }
 
         auto mountRevision = response->mount_revision();
-        if (tablet->GetMountRevision() != mountRevision) {
+        if (tablet->GetMountRevision() != static_cast<ui64>(mountRevision)) {
             return;
         }
 
@@ -5282,7 +5282,7 @@ private:
                         continue;
                     }
 
-                    if (childIndex >= children.size()) {
+                    if (childIndex >= std::ssize(children)) {
                         THROW_ERROR_EXCEPTION("Attempted to trim store %v which is not part of tablet %v",
                             storeId,
                             tabletId);
@@ -5389,7 +5389,7 @@ private:
         tablet->SetStoresUpdatePreparedTransaction(nullptr);
 
         auto mountRevision = request->mount_revision();
-        if (tablet->GetMountRevision() != mountRevision) {
+        if (tablet->GetMountRevision() != static_cast<ui64>(mountRevision)) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Invalid mount revision on tablet stores update commit; ignored "
                 "(TabletId: %v, TransactionId: %v, ExpectedMountRevision: %llx, ActualMountRevision: %llx)",
                 tabletId,
@@ -5656,7 +5656,7 @@ private:
         }
 
         auto mountRevision = request->mount_revision();
-        if (tablet->GetMountRevision() != mountRevision) {
+        if (tablet->GetMountRevision() != static_cast<ui64>(mountRevision)) {
             return;
         }
 
@@ -5683,7 +5683,7 @@ private:
         }
 
         auto mountRevision = request->mount_revision();
-        if (tablet->GetMountRevision() != mountRevision) {
+        if (tablet->GetMountRevision() != static_cast<ui64>(mountRevision)) {
             return;
         }
 
@@ -5709,7 +5709,7 @@ private:
         }
 
         auto mountRevision = request->mount_revision();
-        if (tablet->GetMountRevision() != mountRevision) {
+        if (tablet->GetMountRevision() != static_cast<ui64>(mountRevision)) {
             return;
         }
 
@@ -6179,7 +6179,7 @@ private:
         std::vector<std::pair<TTablet*, TTabletCell*>> assignment;
         for (auto* tablet : tabletsToMount) {
             assignment.emplace_back(tablet, cellKeys[cellIndex].Cell);
-            if (++cellIndex == cellKeys.size()) {
+            if (++cellIndex == std::ssize(cellKeys)) {
                 cellIndex = 0;
             }
         }
@@ -6314,13 +6314,13 @@ private:
             *first = 0;
             *last = static_cast<int>(tablets.size() - 1);
         } else {
-            if (*first < 0 || *first >= tablets.size()) {
+            if (*first < 0 || *first >= std::ssize(tablets)) {
                 return TError("First tablet index %v is out of range [%v, %v]",
                     *first,
                     0,
                     tablets.size() - 1);
             }
-            if (*last < 0 || *last >= tablets.size()) {
+            if (*last < 0 || *last >= std::ssize(tablets)) {
                 return TError("Last tablet index %v is out of range [%v, %v]",
                     *last,
                     0,

@@ -41,7 +41,7 @@ private:
         keys.reserve(chunks.size());
         for (auto chunk : chunks) {
             keys.push_back(ToString(chunk->GetId()));
-            if (keys.size() == sizeLimit)
+            if (std::ssize(keys) == sizeLimit)
                 break;
         }
         return keys;

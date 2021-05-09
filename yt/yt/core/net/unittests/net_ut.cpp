@@ -55,7 +55,7 @@ TEST_F(TNetTest, TransferFourBytes)
     a->Write(TSharedRef::FromString("ping")).Get();
 
     auto buffer = TSharedMutableRef::Allocate(10);
-    ASSERT_EQ(4, b->Read(buffer).Get().ValueOrThrow());
+    ASSERT_EQ(4u, b->Read(buffer).Get().ValueOrThrow());
     ASSERT_EQ(ToString(buffer.Slice(0, 4)), TString("ping"));
 }
 
@@ -72,7 +72,7 @@ TEST_F(TNetTest, TransferFourBytesUsingWriteV)
     }, TSharedRefArray::TMoveParts{})).Get().ThrowOnError();
 
     auto buffer = TSharedMutableRef::Allocate(10);
-    ASSERT_EQ(4, b->Read(buffer).Get().ValueOrThrow());
+    ASSERT_EQ(4u, b->Read(buffer).Get().ValueOrThrow());
     ASSERT_EQ(ToString(buffer.Slice(0, 4)), TString("ping"));
 }
 
@@ -96,7 +96,7 @@ TEST_F(TNetTest, BigTransfer)
 
     auto receiver = BIND([=] {
         auto buffer = TSharedMutableRef::Allocate(3 * K);
-        size_t received = 0;
+        ssize_t received = 0;
         while (true) {
             int res = WaitFor(b->Read(buffer)).ValueOrThrow();
             if (res == 0) break;
@@ -135,7 +135,7 @@ TEST_F(TNetTest, BidirectionalTransfer)
     auto startReceiver = [&] (IConnectionPtr conn) {
         return BIND([=] {
             auto buffer = TSharedMutableRef::Allocate(K * 4);
-            size_t received = 0;
+            ssize_t received = 0;
             while (true) {
                 int res = WaitFor(conn->Read(buffer)).ValueOrThrow();
                 if (res == 0) break;

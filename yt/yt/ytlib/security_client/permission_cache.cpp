@@ -132,8 +132,8 @@ TFuture<std::vector<TError>> TPermissionCache::DoGetMany(
         .Apply(BIND([=] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) {
             std::vector<TError> results;
             results.reserve(keys.size());
-            YT_ASSERT(keys.size() == batchRsp->GetResponseCount());
-            for (int index = 0; index < keys.size(); ++index) {
+            YT_ASSERT(std::ssize(keys) == batchRsp->GetResponseCount());
+            for (int index = 0; index < std::ssize(keys); ++index) {
                 const auto& key = keys[index];
                 if (key.Object) {
                     const auto& rspOrError = batchRsp->GetResponse<TObjectYPathProxy::TRspCheckPermission>(index);

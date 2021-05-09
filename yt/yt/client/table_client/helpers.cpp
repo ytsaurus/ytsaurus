@@ -126,7 +126,7 @@ TUnversionedOwningRow YsonToSchemafulRow(
     // Variable values
     for (const auto& [name, value] : rowParts) {
         int id = nameTable->GetIdOrRegisterName(name);
-        if (id >= tableSchema.Columns().size()) {
+        if (id >= std::ssize(tableSchema.Columns())) {
             YTreeNodeToUnversionedValue(&rowBuilder, value, id, false);
         }
     }
@@ -229,7 +229,7 @@ TUnversionedOwningRow YsonToKey(const TString& yson)
     auto keyParts = ConvertTo<std::vector<INodePtr>>(
         TYsonString(yson, EYsonType::ListFragment));
 
-    for (int id = 0; id < keyParts.size(); ++id) {
+    for (int id = 0; id < std::ssize(keyParts); ++id) {
         const auto& keyPart = keyParts[id];
         switch (keyPart->GetType()) {
             case ENodeType::Int64:

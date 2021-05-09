@@ -495,7 +495,7 @@ private:
         size_t bytes = std::min(buffer.Size(), remaining);
         ::memcpy(buffer.Begin(), CurrentBlock_.Begin() + CurrentOffset_, bytes);
         CurrentOffset_ += bytes;
-        if (CurrentOffset_ == CurrentBlock_.Size()) {
+        if (CurrentOffset_ == std::ssize(CurrentBlock_)) {
             CurrentBlock_.Reset();
             CurrentOffset_ = 0;
         }

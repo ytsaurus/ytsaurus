@@ -75,11 +75,11 @@ TEST(TAnyColumnTest, Simple)
     reader->SetCurrentBlock(columnData, 0);
     reader->Rearm();
 
-    EXPECT_EQ(expected.size(), reader->GetReadyUpperRowIndex());
+    EXPECT_EQ(std::ssize(expected), reader->GetReadyUpperRowIndex());
 
     TChunkedMemoryPool pool;
     std::vector<TMutableUnversionedRow> actual;
-    for (int i = 0; i < expected.size(); ++i) {
+    for (int i = 0; i < std::ssize(expected); ++i) {
         actual.push_back(TMutableUnversionedRow::Allocate(&pool, 1));
     }
 

@@ -16,16 +16,16 @@ TEST(TCoreDumpTest, WriteSparseFile)
     TTempFile tmp(filename);
 
     TStringStream ss;
-    for (int i = 0; i < 16_KB; ++i) {
+    for (size_t i = 0; i < 16_KB; ++i) {
         ss.Write('f');
     }
-    for (int i = 0; i < 16_KB; ++i) {
+    for (size_t i = 0; i < 16_KB; ++i) {
         ss.Write(0);
     }
-    for (int i = 0; i < 16_KB; ++i) {
+    for (size_t i = 0; i < 16_KB; ++i) {
         ss.Write('f');
     }
-    for (int i = 0; i < 16_KB; ++i) {
+    for (size_t i = 0; i < 16_KB; ++i) {
         ss.Write(0);
     }
 
@@ -33,7 +33,7 @@ TEST(TCoreDumpTest, WriteSparseFile)
     auto dump = ss.Str();
     TStringInput si(dump);
 
-    EXPECT_EQ(64_KB, WriteSparseCoreDump(&si, &coreFile));
+    EXPECT_EQ(64_KB, static_cast<size_t>(WriteSparseCoreDump(&si, &coreFile)));
 
     TFileInput input(filename);
     EXPECT_TRUE(input.ReadAll() == dump);

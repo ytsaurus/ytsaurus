@@ -506,7 +506,7 @@ void TSimpleProcess::ValidateSpawnResult()
     int actionIndex = data[0];
     int errorCode = data[1];
 
-    YT_VERIFY(0 <= actionIndex && actionIndex < SpawnActions_.size());
+    YT_VERIFY(0 <= actionIndex && actionIndex < std::ssize(SpawnActions_));
     const auto& action = SpawnActions_[actionIndex];
     THROW_ERROR_EXCEPTION("%v", action.ErrorMessage)
         << TError::FromSystem(errorCode);
@@ -649,7 +649,7 @@ const char* TProcessBase::Capture(TStringBuf arg)
 void TSimpleProcess::Child()
 {
 #ifdef _unix_
-    for (int actionIndex = 0; actionIndex < SpawnActions_.size(); ++actionIndex) {
+    for (int actionIndex = 0; actionIndex < std::ssize(SpawnActions_); ++actionIndex) {
         auto& action = SpawnActions_[actionIndex];
         if (!action.Callback()) {
             // Report error through the pipe.

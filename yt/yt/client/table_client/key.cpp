@@ -29,7 +29,7 @@ TKey TKey::FromRow(const TUnversionedRow& row, std::optional<int> length)
     }
 
     int keyLength = length.value_or(row.GetCount());
-    YT_VERIFY(keyLength <= row.GetCount());
+    YT_VERIFY(keyLength <= static_cast<int>(row.GetCount()));
 
     ValidateValueTypes(row.Begin(), row.Begin() + keyLength);
 
@@ -43,7 +43,7 @@ TKey TKey::FromRowUnchecked(const TUnversionedRow& row, std::optional<int> lengt
     }
 
     int keyLength = length.value_or(row.GetCount());
-    YT_VERIFY(keyLength <= row.GetCount());
+    YT_VERIFY(keyLength <= static_cast<int>(row.GetCount()));
 
 #ifndef NDEBUG
     try {
@@ -176,7 +176,7 @@ TUnversionedOwningRow LegacyKeyToKeyFriendlyOwningRow(TUnversionedRow row, int k
     TUnversionedOwningRowBuilder builder;
     for (int index = 0; index < keyLength; ++index) {
         TUnversionedValue value;
-        if (index < row.GetCount()) {
+        if (index < static_cast<int>(row.GetCount())) {
             value = row[index];
             if (value.Type == EValueType::Min || value.Type == EValueType::Max) {
                 value.Type = EValueType::Null;

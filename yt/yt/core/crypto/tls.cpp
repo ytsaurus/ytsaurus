@@ -361,7 +361,8 @@ private:
                     if (result.IsOK()) {
                         if (result.Value() > 0) {
                             int count = BIO_write(InputBIO_, InputBuffer_.Begin(), result.Value());
-                            YT_VERIFY(count == result.Value());
+                            YT_VERIFY(count >= 0);
+                            YT_VERIFY(static_cast<size_t>(count) == result.Value());
                         } else {
                             BIO_set_mem_eof_return(InputBIO_, 0);
                         }
@@ -441,7 +442,7 @@ private:
                     return;
                 }
 
-                YT_VERIFY(count == ref.Size());
+                YT_VERIFY(count == std::ssize(ref));
             }
 
             MaybeStartUnderlyingIO(false);

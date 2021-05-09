@@ -69,7 +69,7 @@ void TOutputOrder::Push(TOutputOrder::TEntry entry)
         CurrentPosition_ = newPosition;
     }
     if (Pool_.back().IsCookie()) {
-        if (CookieToPosition_.size() <= Pool_.back().GetCookie()) {
+        if (std::ssize(CookieToPosition_) <= Pool_.back().GetCookie()) {
             CookieToPosition_.resize(Pool_.back().GetCookie() + 1);
         }
         CookieToPosition_[Pool_.back().GetCookie()] = CurrentPosition_;
@@ -80,7 +80,7 @@ void TOutputOrder::Push(TOutputOrder::TEntry entry)
 
 void TOutputOrder::SeekCookie(TCookie cookie)
 {
-    YT_ASSERT(0 <= cookie && cookie < CookieToPosition_.size());
+    YT_ASSERT(0 <= cookie && cookie < std::ssize(CookieToPosition_));
     CurrentPosition_ = CookieToPosition_[cookie];
 }
 
@@ -102,7 +102,7 @@ std::vector<TChunkTreeId> TOutputOrder::ArrangeOutputChunkTrees(
     for (const auto& [entry, chunkTreeId] : chunkTrees) {
         int position = -1;
         if (entry.IsCookie()) {
-            YT_ASSERT(0 <= entry.GetCookie() && entry.GetCookie() < CookieToPosition_.size());
+            YT_ASSERT(0 <= entry.GetCookie() && entry.GetCookie() < std::ssize(CookieToPosition_));
             position = CookieToPosition_[entry.GetCookie()];
         } else {
             auto iterator = TeleportChunkToPosition_.find(entry.GetTeleportChunk());

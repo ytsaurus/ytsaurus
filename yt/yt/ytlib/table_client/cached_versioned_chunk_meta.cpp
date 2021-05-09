@@ -159,7 +159,7 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
         }
     }
 
-    for (int readerIndex = readerSchema.GetKeyColumnCount(); readerIndex < readerSchema.Columns().size(); ++readerIndex) {
+    for (int readerIndex = readerSchema.GetKeyColumnCount(); readerIndex < std::ssize(readerSchema.Columns()); ++readerIndex) {
         auto& column = readerSchema.Columns()[readerIndex];
         auto* chunkColumn = ChunkSchema_->FindColumn(column.Name());
         if (!chunkColumn) {

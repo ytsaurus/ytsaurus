@@ -184,7 +184,7 @@ private:
         int successCount = 0;
         bool checksumMismatch = false;
         std::optional<TChecksum> canonicalChecksum;
-        for (TPeerId id = 0; id < SnapshotChecksums_.size(); ++id) {
+        for (TPeerId id = 0; id < std::ssize(SnapshotChecksums_); ++id) {
             auto checksum = SnapshotChecksums_[id];
             if (checksum) {
                 ++successCount;
@@ -200,7 +200,7 @@ private:
             successCount);
 
         if (checksumMismatch) {
-            for (TPeerId id = 0; id < SnapshotChecksums_.size(); ++id) {
+            for (TPeerId id = 0; id < std::ssize(SnapshotChecksums_); ++id) {
                 auto checksum = SnapshotChecksums_[id];
                 if (checksum) {
                     YT_LOG_ERROR("Snapshot checksum mismatch (SnapshotId: %v, PeerId: %v, Checksum: %llx)",

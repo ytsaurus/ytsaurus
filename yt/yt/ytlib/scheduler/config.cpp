@@ -825,8 +825,8 @@ TUserJobSpec::TUserJobSpec()
                 << TErrorAttribute("memory_limit", MemoryLimit);
         }
 
-        for (int i = 0; i < TmpfsVolumes.size(); ++i) {
-            for (int j = 0; j < TmpfsVolumes.size(); ++j) {
+        for (int i = 0; i < std::ssize(TmpfsVolumes); ++i) {
+            for (int j = 0; j < std::ssize(TmpfsVolumes); ++j) {
                 if (i == j) {
                     continue;
                 }
@@ -1255,7 +1255,7 @@ TSortOperationSpecBase::TSortOperationSpecBase()
                 THROW_ERROR_EXCEPTION(TError("Pivot keys are invalid") << ex);
             }
 
-            if (pivotKey.GetCount() > SortBy.size()) {
+            if (pivotKey.GetCount() > std::ssize(SortBy)) {
                 THROW_ERROR_EXCEPTION("Pivot key cannot be longer than sort_by")
                     << TErrorAttribute("key", pivotKey)
                     << TErrorAttribute("sort_by", SortBy);
@@ -1263,7 +1263,7 @@ TSortOperationSpecBase::TSortOperationSpecBase()
         }
 
         auto sortComparator = GetComparator(SortBy);
-        for (int index = 0; index + 1 < PivotKeys.size(); ++index) {
+        for (int index = 0; index + 1 < std::ssize(PivotKeys); ++index) {
             const auto& upperBound = TKeyBound::FromRow() < PivotKeys[index];
             const auto& nextUpperBound = TKeyBound::FromRow() < PivotKeys[index + 1];
             if (sortComparator.CompareKeyBounds(upperBound, nextUpperBound) >= 0) {
@@ -1533,8 +1533,8 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
             MapSelectivityFactor *= *Sampling->SamplingRate;
         }
 
-        if (MapperOutputTableCount >= OutputTablePaths.size() ||
-            (HasNontrivialMapper() && !Mapper->OutputStreams.empty() && MapperOutputTableCount >= Mapper->OutputStreams.size()))
+        if (MapperOutputTableCount >= std::ssize(OutputTablePaths) ||
+            (HasNontrivialMapper() && !Mapper->OutputStreams.empty() && MapperOutputTableCount >= std::ssize(Mapper->OutputStreams)))
         {
             THROW_ERROR_EXCEPTION(
                 "There should be at least one non-mapper output table; maybe you need Map operation instead?")

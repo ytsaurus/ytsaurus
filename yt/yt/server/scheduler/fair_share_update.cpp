@@ -660,7 +660,7 @@ TResourceVector TCompositeElement::DoUpdateFairShare(double suggestion, TFairSha
         YT_VERIFY(childSuggestions.size() == children.size());
 
         TResourceVector childrenSuggestedFairShare;
-        for (int i = 0; i < children.size(); ++i) {
+        for (int i = 0; i < std::ssize(children); ++i) {
             const auto& child = children[i];
             auto childSuggestion = childSuggestions[i];
 
@@ -694,7 +694,7 @@ TResourceVector TCompositeElement::DoUpdateFairShare(double suggestion, TFairSha
     YT_VERIFY(childSuggestions.size() == children.size());
 
     TResourceVector usedFairShare;
-    for (int i = 0; i < children.size(); ++i) {
+    for (int i = 0; i < std::ssize(children); ++i) {
         const auto& child = children[i];
         auto childSuggestion = childSuggestions[i];
 
@@ -1109,7 +1109,7 @@ void TFairShareUpdateExecutor::UpdateRelaxedPoolIntegralShares()
 
     auto checkFitFactor = [&] (double fitFactor) {
         TResourceVector fairShareResult;
-        for (int index = 0; index < relaxedPools.size(); ++index) {
+        for (int index = 0; index < std::ssize(relaxedPools); ++index) {
             auto suggestion = std::min(1.0, fitFactor * weights[index]);
             auto fairShare = relaxedPools[index]->FairShareBySuggestion_->ValueAt(suggestion);
             fairShareResult += TResourceVector::Max(fairShare - relaxedPools[index]->Attributes().StrongGuaranteeShare, TResourceVector::Zero());
@@ -1123,7 +1123,7 @@ void TFairShareUpdateExecutor::UpdateRelaxedPoolIntegralShares()
         /* hi */ 1.0,
         /* predicate */ checkFitFactor);
 
-    for (int index = 0; index < relaxedPools.size(); ++index) {
+    for (int index = 0; index < std::ssize(relaxedPools); ++index) {
         auto weight = weights[index];
         const auto& relaxedPool = relaxedPools[index];
         auto suggestion = std::min(1.0, fitFactor * weight);

@@ -696,7 +696,7 @@ void TJobController::TImpl::StartWaitingJobs()
                 continue;
             }
 
-            if (ports.size() < portCount) {
+            if (std::ssize(ports) < portCount) {
                 YT_LOG_DEBUG("Not enough bindable free ports to start job (PortCount: %v, FreePortCount: %v)",
                     portCount,
                     ports.size());
@@ -1341,8 +1341,8 @@ void TJobController::TImpl::DoProcessHeartbeatResponse(
                     addressWithNetwork);
 
                 const auto& rsp = rspOrError.Value();
-                YT_VERIFY(rsp->responses_size() == startInfos.size());
-                for (size_t  index = 0; index < startInfos.size(); ++index) {
+                YT_VERIFY(rsp->responses_size() == std::ssize(startInfos));
+                for (size_t index = 0; index < startInfos.size(); ++index) {
                     const auto& startInfo = startInfos[index];
                     auto operationId = FromProto<TJobId>(startInfo.operation_id());
                     auto jobId = FromProto<TJobId>(startInfo.job_id());

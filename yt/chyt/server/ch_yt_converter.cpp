@@ -150,7 +150,7 @@ public:
 
     virtual void ExtractNextValueYson(TCheckedInDebugYsonTokenWriter* writer) override
     {
-        YT_ASSERT(CurrentValueIndex_ < Column_->size());
+        YT_ASSERT(CurrentValueIndex_ < std::ssize(*Column_));
 
         if (!writer) {
             ++CurrentValueIndex_;

@@ -741,7 +741,7 @@ TEST_F(TRefineKeyRangeTest, EmptyKeyTrie)
         TKeyTrie::Empty(),
         rowBuffer);
 
-    EXPECT_EQ(0, result.size());
+    EXPECT_EQ(0u, result.size());
 }
 
 TEST_F(TRefineKeyRangeTest, MultipleDisjuncts)
@@ -761,7 +761,7 @@ TEST_F(TRefineKeyRangeTest, MultipleDisjuncts)
         keyTrie,
         rowBuffer);
 
-    EXPECT_EQ(2, result.size());
+    EXPECT_EQ(2u, result.size());
 
     EXPECT_EQ(YsonToKey("50"), result[0].first);
     EXPECT_EQ(YsonToKey("50;" _MAX_), result[0].second);
@@ -787,7 +787,7 @@ TEST_F(TRefineKeyRangeTest, NotEqualToMultipleRanges)
         keyTrie,
         rowBuffer);
 
-    EXPECT_EQ(2, result.size());
+    EXPECT_EQ(2u, result.size());
 
     EXPECT_EQ(YsonToKey("50;40;" _MAX_), result[0].first);
     EXPECT_EQ(YsonToKey("50;50"), result[0].second);
@@ -813,7 +813,7 @@ TEST_F(TRefineKeyRangeTest, RangesProduct)
         keyTrie,
         rowBuffer);
 
-    EXPECT_EQ(9, result.size());
+    EXPECT_EQ(9u, result.size());
 
     EXPECT_EQ(YsonToKey("40;40"), result[0].first);
     EXPECT_EQ(YsonToKey("40;40;" _MAX_), result[0].second);
@@ -860,7 +860,7 @@ TEST_F(TRefineKeyRangeTest, RangesProductWithOverlappingKeyPositions)
         keyTrie,
         rowBuffer);
 
-    EXPECT_EQ(4, result.size());
+    EXPECT_EQ(4u, result.size());
 
     EXPECT_EQ(YsonToKey("2;2;3"), result[0].first);
     EXPECT_EQ(YsonToKey("2;2;3;" _MAX_), result[0].second);
@@ -899,7 +899,7 @@ TEST_F(TRefineKeyRangeTest, BetweenRanges)
         keyTrie,
         rowBuffer);
 
-    EXPECT_EQ(4, result.size());
+    EXPECT_EQ(4u, result.size());
 
     EXPECT_EQ(YsonToKey("1;" _MIN_), result[0].first);
     EXPECT_EQ(YsonToKey("1;20;" _MAX_), result[0].second);
@@ -1000,7 +1000,7 @@ TEST_F(TRefineKeyRangeTest, MultipleRangeDisjuncts)
         keyTrie,
         rowBuffer);
 
-    EXPECT_EQ(2, result.size());
+    EXPECT_EQ(2u, result.size());
 
     EXPECT_EQ(YsonToKey("21"), result[0].first);
     EXPECT_EQ(YsonToKey("32;" _MAX_), result[0].second);
@@ -1027,7 +1027,7 @@ TEST_F(TRefineKeyRangeTest, SecondDimensionRange)
         keyTrie,
         rowBuffer);
 
-    EXPECT_EQ(1, result.size());
+    EXPECT_EQ(1u, result.size());
 
     EXPECT_EQ(YsonToKey("1;2"), result[0].first);
     EXPECT_EQ(YsonToKey("1;4;"), result[0].second);
@@ -1051,7 +1051,7 @@ TEST_F(TRefineKeyRangeTest, RangeExpansionLimit)
         rowBuffer,
         7);
 
-    EXPECT_EQ(5, result.size());
+    EXPECT_EQ(5u, result.size());
 
     EXPECT_EQ(YsonToKey("10;1"), result[0].first);
     EXPECT_EQ(YsonToKey("10;7;" _MAX_), result[0].second);
@@ -1093,7 +1093,7 @@ void FillRandomUniqueSequence(TFastRng64& rng, TIter begin, TIter end, size_t mi
 {
     // TODO: Use linear congruential generator without materialization of sequence.
 
-    YT_VERIFY(end - begin <= max - min);
+    YT_VERIFY(end - begin <= static_cast<ssize_t>(max - min));
 
     if (begin == end) {
         return;
@@ -1162,7 +1162,7 @@ bool CheckRangesAreEquivalent(TRange<std::pair<T, T>> a, TRange<std::pair<T, T>>
 
 TEST(TestHelpers, Step)
 {
-    auto step = [&] (size_t c, size_t s, size_t t) {
+    auto step = [&] (size_t c, size_t s, size_t t) -> ssize_t {
         auto s1 = ((c * t / s + 1) * s + t - 1) / t - c;
         auto s2 = (s + t - 1 - c * t % s) / t;
         auto s3 = Step(c, s, t);

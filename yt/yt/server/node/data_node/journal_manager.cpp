@@ -785,7 +785,7 @@ private:
                 ids.push_back(id);
             }
 
-            if (ids.size() <= Config_->MaxCleanChangelogsToKeep)
+            if (std::ssize(ids) <= Config_->MaxCleanChangelogsToKeep)
                 return;
 
             std::sort(ids.begin(), ids.end());

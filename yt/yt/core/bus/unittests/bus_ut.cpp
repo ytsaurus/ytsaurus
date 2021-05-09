@@ -86,7 +86,7 @@ public:
         TSharedRefArray message,
         IBusPtr replyBus) noexcept override
     {
-        EXPECT_EQ(NumPartsExpecting, message.Size());
+        EXPECT_EQ(NumPartsExpecting, std::ssize(message));
         auto replyMessage = Serialize("42");
         replyBus->Send(replyMessage, NBus::TSendOptions(EDeliveryTrackingLevel::None));
     }

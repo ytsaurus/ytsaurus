@@ -28,15 +28,15 @@ TEST(TCheckpointableStreamTest, Simple)
     std::array<char, 10> buffer;
 
     EXPECT_EQ(0, input->GetOffset());
-    EXPECT_EQ(2, input->Read(buffer.data(), 2));
+    EXPECT_EQ(2u, input->Read(buffer.data(), 2));
     EXPECT_EQ(2, input->GetOffset());
     EXPECT_EQ("ab", TStringBuf(buffer.data(), 2));
 
-    EXPECT_EQ(2, input->Read(buffer.data(), 2));
+    EXPECT_EQ(2u, input->Read(buffer.data(), 2));
     EXPECT_EQ(4, input->GetOffset());
     EXPECT_EQ("c1", TStringBuf(buffer.data(), 2));
 
-    EXPECT_EQ(7, input->Read(buffer.data(), 10));
+    EXPECT_EQ(7u, input->Read(buffer.data(), 10));
     EXPECT_EQ(11, input->GetOffset());
     EXPECT_EQ("11ololo", TStringBuf(buffer.data(), 7));
 }
@@ -59,32 +59,32 @@ TEST(TCheckpointableStreamTest, Checkpoints)
     std::array<char, 10> buffer;
 
     EXPECT_EQ(0, input->GetOffset());
-    EXPECT_EQ(2, input->Read(buffer.data(), 2));
+    EXPECT_EQ(2u, input->Read(buffer.data(), 2));
     EXPECT_EQ(2, input->GetOffset());
     EXPECT_EQ("ab", TStringBuf(buffer.data(), 2));
 
     input->SkipToCheckpoint();
 
     EXPECT_EQ(6, input->GetOffset());
-    EXPECT_EQ(1, input->Read(buffer.data(), 1));
+    EXPECT_EQ(1u, input->Read(buffer.data(), 1));
     EXPECT_EQ(7, input->GetOffset());
     EXPECT_EQ("u", TStringBuf(buffer.data(), 1));
 
     input->SkipToCheckpoint();
 
     EXPECT_EQ(7, input->GetOffset());
-    EXPECT_EQ(2, input->Read(buffer.data(), 2));
+    EXPECT_EQ(2u, input->Read(buffer.data(), 2));
     EXPECT_EQ(9, input->GetOffset());
     EXPECT_EQ("ol", TStringBuf(buffer.data(), 2));
 
-    EXPECT_EQ(2, input->Read(buffer.data(), 2));
+    EXPECT_EQ(2u, input->Read(buffer.data(), 2));
     EXPECT_EQ(11, input->GetOffset());
     EXPECT_EQ("ol", TStringBuf(buffer.data(), 2));
 
     input->SkipToCheckpoint();
 
     EXPECT_EQ(12, input->GetOffset());
-    EXPECT_EQ(0, input->Read(buffer.data(), 10));
+    EXPECT_EQ(0u, input->Read(buffer.data(), 10));
 }
 
 TEST(TCheckpointableStreamTest, Buffered)

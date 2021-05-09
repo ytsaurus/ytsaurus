@@ -101,12 +101,6 @@ TGrpcChannelArgs::TGrpcChannelArgs(const THashMap<TString, NYTree::INodePtr>& ar
 
         auto setIntegerValue = [&] (auto value) {
             item.type = GRPC_ARG_INTEGER;
-            if (value < std::numeric_limits<int>::min() || value > std::numeric_limits<int>::max()) {
-                THROW_ERROR_EXCEPTION("Value %v of GRPC argument %Qv is out of range",
-                    value,
-                    node->GetType(),
-                    key);
-            }
             item.value.integer = static_cast<int>(value);
         };
 
@@ -116,12 +110,26 @@ TGrpcChannelArgs::TGrpcChannelArgs(const THashMap<TString, NYTree::INodePtr>& ar
         };
 
         switch (node->GetType()) {
-            case ENodeType::Int64:
-                setIntegerValue(node->GetValue<i64>());
+            case ENodeType::Int64: {
+                auto value = node->GetValue<i64>();
+                if (value < std::numeric_limits<int>::min() || value > std::numeric_limits<int>::max()) {
+                    THROW_ERROR_EXCEPTION("Value %v of GRPC argument %Qv is out of range",
+                        value,
+                        key);
+                }
+                setIntegerValue(value);
                 break;
-            case ENodeType::Uint64:
-                setIntegerValue(node->GetValue<ui64>());
+            }
+            case ENodeType::Uint64: {
+                auto value = node->GetValue<ui64>();
+                if (value > static_cast<ui64>(std::numeric_limits<int>::max())) {
+                    THROW_ERROR_EXCEPTION("Value %v of GRPC argument %Qv is out of range",
+                        value,
+                        key);
+                }
+                setIntegerValue(value);
                 break;
+            }
             case ENodeType::String:
                 setStringValue(node->GetValue<TString>());
                 break;

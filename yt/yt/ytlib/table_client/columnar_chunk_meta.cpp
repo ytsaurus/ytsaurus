@@ -68,7 +68,7 @@ void TColumnarChunkMeta::InitExtensions(const TChunkMeta& chunkMeta)
 void TColumnarChunkMeta::InitBlockLastKeys(const TKeyColumns& keyColumns)
 {
     int prefixLength = 0;
-    while (prefixLength < keyColumns.size() && prefixLength < ChunkSchema_->GetKeyColumnCount()) {
+    while (prefixLength < std::ssize(keyColumns) && prefixLength < ChunkSchema_->GetKeyColumnCount()) {
         if (keyColumns[prefixLength] != ChunkSchema_->Columns()[prefixLength].Name()) {
             break;
         }
@@ -125,7 +125,7 @@ void TColumnarChunkMeta::RenameColumns(const TColumnRenameDescriptors& renameDes
             if (ChunkNameTable_) {
                 std::vector<TString> names;
                 names.resize(ChunkNameTable_->GetSize());
-                for (int id = 0; id < names.size(); ++id) {
+                for (int id = 0; id < std::ssize(names); ++id) {
                     names[id] = ChunkNameTable_->GetName(id);
                     auto it = nameMapping.find(names[id]);
                     if (it != nameMapping.end()) {

@@ -16,7 +16,7 @@ TEST(SharedTableSchema, Simple)
 {
     auto registry = New<NTableServer::TSharedTableSchemaRegistry>();
 
-    ASSERT_EQ(registry->GetSize(), 0);
+    ASSERT_EQ(registry->GetSize(), 0u);
     ASSERT_EQ(registry->GetRefCount(), 1);
 
     TTableSchema tableSchema1;
@@ -40,7 +40,7 @@ TEST(SharedTableSchema, Simple)
     ASSERT_EQ(schema21.Get(), schema22.Get());
     ASSERT_EQ(schema21->GetTableSchema(), tableSchema2);
     ASSERT_EQ(schema21->GetRefCount(), 2);
-    ASSERT_EQ(registry->GetSize(), 1);
+    ASSERT_EQ(registry->GetSize(), 1ULL);
     ASSERT_EQ(registry->GetRefCount(), 2);
 
     TTableSchema tableSchema3(
@@ -55,18 +55,18 @@ TEST(SharedTableSchema, Simple)
     ASSERT_NE(schema3.Get(), schema21.Get());
     ASSERT_EQ(schema3->GetRefCount(), 1);
 
-    ASSERT_EQ(registry->GetSize(), 2);
+    ASSERT_EQ(registry->GetSize(), 2u);
 
     schema11.Reset();
     schema12.Reset();
-    ASSERT_EQ(registry->GetSize(), 2);
+    ASSERT_EQ(registry->GetSize(), 2u);
 
     schema22.Reset();
     schema21.Reset();
-    ASSERT_EQ(registry->GetSize(), 1);
+    ASSERT_EQ(registry->GetSize(), 1u);
 
     schema3.Reset();
-    ASSERT_EQ(registry->GetSize(), 0);
+    ASSERT_EQ(registry->GetSize(), 0u);
     ASSERT_EQ(registry->GetRefCount(), 1);
 }
 

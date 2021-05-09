@@ -99,7 +99,7 @@ std::vector<TColumnIdMapping> BuildSchemalessHorizontalSchemaIdMapping(
 
     if (columnFilter.IsUniversal()) {
         for (const auto& mapping : chunkMeta->SchemaIdMapping()) {
-            YT_VERIFY(mapping.ChunkSchemaIndex < idMapping.size());
+            YT_VERIFY(mapping.ChunkSchemaIndex < std::ssize(idMapping));
             YT_VERIFY(mapping.ChunkSchemaIndex >= keyColumnCount);
             idMapping[mapping.ChunkSchemaIndex].ReaderSchemaIndex = mapping.ReaderSchemaIndex;
         }
@@ -107,7 +107,7 @@ std::vector<TColumnIdMapping> BuildSchemalessHorizontalSchemaIdMapping(
         for (auto index : columnFilter.GetIndexes()) {
             for (const auto& mapping : chunkMeta->SchemaIdMapping()) {
                 if (mapping.ReaderSchemaIndex == index) {
-                    YT_VERIFY(mapping.ChunkSchemaIndex < idMapping.size());
+                    YT_VERIFY(mapping.ChunkSchemaIndex < std::ssize(idMapping));
                     YT_VERIFY(mapping.ChunkSchemaIndex >= keyColumnCount);
                     idMapping[mapping.ChunkSchemaIndex].ReaderSchemaIndex = mapping.ReaderSchemaIndex;
                     break;
@@ -354,7 +354,7 @@ private:
 
     const TLegacyKey& GetRangeUpperKey(int rangeIndex) const
     {
-        if (rangeIndex + 1 == Ranges_.Size() && ClippingRange_) {
+        if (rangeIndex + 1 == std::ssize(Ranges_) && ClippingRange_) {
             if (const auto& clippingUpperBound = ClippingRange_.Front().second) {
                 return std::min(clippingUpperBound, Ranges_[rangeIndex].second);
             }
@@ -372,7 +372,7 @@ private:
         int rangeIndex = 0;
         auto blocksIt = blockIndexKeys.begin();
 
-        while (rangeIndex != Ranges_.size()) {
+        while (rangeIndex != std::ssize(Ranges_)) {
             blocksIt = std::lower_bound(
                 blocksIt,
                 blockIndexKeys.end(),
@@ -505,11 +505,11 @@ public:
 
         if (!BlockReader_) {
             // Nothing to read from chunk.
-            if (RowCount_ == Keys_.Size()) {
+            if (RowCount_ == std::ssize(Keys_)) {
                 return nullptr;
             }
 
-            while (rows.size() < rows.capacity() && RowCount_ < Keys_.Size()) {
+            while (rows.size() < rows.capacity() && RowCount_ < std::ssize(Keys_)) {
                 rows.push_back(TVersionedRow());
                 ++RowCount_;
             }
@@ -529,7 +529,7 @@ public:
         auto hasHunkColumns = ChunkMeta_->GetSchema()->HasHunkColumns();
 
         while (rows.size() < rows.capacity()) {
-            if (RowCount_ == Keys_.Size()) {
+            if (RowCount_ == std::ssize(Keys_)) {
                 BlockEnded_ = true;
                 break;
             }
@@ -699,7 +699,7 @@ public:
 
         // Null readers for wider keys.
         for (int keyColumnIndex = ChunkMeta_->GetChunkKeyColumnCount();
-             keyColumnIndex < KeyColumnReaders_.size();
+             keyColumnIndex < std::ssize(KeyColumnReaders_);
              ++keyColumnIndex)
         {
             auto columnReader = CreateBlocklessUnversionedNullColumnReader(
@@ -809,7 +809,7 @@ public:
 
         std::vector<ui32> valueCountPerRow(rowLimit, 0);
         std::vector<ui32> columnValueCount(rowLimit, 0);
-        for (int valueColumnIndex = 0; valueColumnIndex < SchemaIdMapping_.size(); ++valueColumnIndex) {
+        for (int valueColumnIndex = 0; valueColumnIndex < std::ssize(SchemaIdMapping_); ++valueColumnIndex) {
             const auto& idMapping = SchemaIdMapping_[valueColumnIndex];
             const auto& columnSchema = ChunkMeta_->GetChunkSchema()->Columns()[idMapping.ChunkSchemaIndex];
             if (columnSchema.Aggregate()) {
@@ -885,7 +885,7 @@ public:
         }
 
         // Read timestamps.
-        for (i64 index = 0; index < range.Size(); ++index) {
+        for (i64 index = 0; index < std::ssize(range); ++index) {
             if (!range[index]) {
                 continue;
             }
@@ -1003,7 +1003,7 @@ public:
         }
 
         // Read timestamps.
-        for (i64 index = 0; index < range.Size(); ++index) {
+        for (i64 index = 0; index < std::ssize(range); ++index) {
             if (!range[index]) {
                 continue;
             }
@@ -1236,7 +1236,7 @@ public:
         }
 
         i64 valueCount = 0;
-        for (int valueColumnIndex = 0; valueColumnIndex < SchemaIdMapping_.size(); ++valueColumnIndex) {
+        for (int valueColumnIndex = 0; valueColumnIndex < std::ssize(SchemaIdMapping_); ++valueColumnIndex) {
             const auto& idMapping = SchemaIdMapping_[valueColumnIndex];
             const auto& columnSchema = ChunkMeta_->GetChunkSchema()->Columns()[idMapping.ChunkSchemaIndex];
             ui32 columnValueCount = 1;
@@ -1332,15 +1332,15 @@ public:
 
     TMutableVersionedRow ReadRow()
     {
-        int writeTimestampCount = TimestampReader_->GetWriteTimestampCount();
-        int deleteTimestampCount = TimestampReader_->GetDeleteTimestampCount();
+        ui32 writeTimestampCount = TimestampReader_->GetWriteTimestampCount();
+        ui32 deleteTimestampCount = TimestampReader_->GetDeleteTimestampCount();
 
         if (writeTimestampCount == 0 && deleteTimestampCount == 0) {
             return {};
         }
 
         size_t valueCount = 0;
-        for (int valueColumnIndex = 0; valueColumnIndex < SchemaIdMapping_.size(); ++valueColumnIndex) {
+        for (int valueColumnIndex = 0; valueColumnIndex < std::ssize(SchemaIdMapping_); ++valueColumnIndex) {
             ui32 columnValueCount;
             ValueColumnReaders_[valueColumnIndex]->ReadValueCounts(TMutableRange<ui32>(&columnValueCount, 1));
             valueCount += columnValueCount;
@@ -1471,7 +1471,7 @@ public:
             return CreateEmptyVersionedRowBatch();
         }
 
-        if (NextKeyIndex_ == Keys_.Size()) {
+        if (NextKeyIndex_ == std::ssize(Keys_)) {
             return nullptr;
         }
 
@@ -1481,7 +1481,7 @@ public:
             bool found = false;
             if (RowIndexes_[NextKeyIndex_] < ChunkMeta_->Misc().row_count()) {
                 auto key = Keys_[NextKeyIndex_];
-                YT_VERIFY(key.GetCount() == ChunkMeta_->GetKeyColumnCount());
+                YT_VERIFY(static_cast<int>(key.GetCount()) == ChunkMeta_->GetKeyColumnCount());
 
                 // Reading row.
                 i64 lowerRowIndex = KeyColumnReaders_[0]->GetCurrentRowIndex();
@@ -1506,7 +1506,7 @@ public:
                 rows.push_back({});
             }
 
-            if (++NextKeyIndex_ == Keys_.Size() || !TryFetchNextRow()) {
+            if (++NextKeyIndex_ == std::ssize(Keys_) || !TryFetchNextRow()) {
                 break;
             }
         }
@@ -1628,7 +1628,7 @@ public:
                         });
                     auto newNextBoundIndex = std::distance(Ranges_.begin(), nextBoundIt);
 
-                    YT_VERIFY(newNextBoundIndex > RangeIndex_);
+                    YT_VERIFY(newNextBoundIndex > static_cast<ssize_t>(RangeIndex_));
 
                     RangeIndex_ = std::distance(Ranges_.begin(), nextBoundIt);
                     continue;

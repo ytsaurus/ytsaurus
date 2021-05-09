@@ -148,7 +148,7 @@ public:
             if (Controller_->GetOperationType() == EOperationType::Map) {
                 config->EnableJobSplitting &=
                     (IsJobInterruptible() &&
-                    Controller_->InputTables_.size() <= Controller_->Options->JobSplitter->MaxInputTableCount);
+                    std::ssize(Controller_->InputTables_) <= Controller_->Options->JobSplitter->MaxInputTableCount);
             } else {
                 YT_VERIFY(Controller_->GetOperationType() == EOperationType::Merge);
                 // TODO(gritukan): YT-13646.
@@ -175,7 +175,7 @@ public:
             return
                 !(Controller_->AutoMergeTask_ && CanLoseJobs()) &&
                 !Controller_->JobSizeConstraints_->IsExplicitJobCount() &&
-                2 * Controller_->Options->MaxOutputTablesTimesJobsCount > totalJobCount * Controller_->GetOutputTablePaths().size() &&
+                2 * Controller_->Options->MaxOutputTablesTimesJobsCount > totalJobCount * std::ssize(Controller_->GetOutputTablePaths()) &&
                 2 * Controller_->Options->MaxJobCount > totalJobCount;
         }
 
@@ -279,7 +279,7 @@ protected:
     void InitTeleportableInputTables()
     {
         if (GetJobType() == EJobType::UnorderedMerge && !Spec->InputQuery) {
-            for (int index = 0; index < InputTables_.size(); ++index) {
+            for (int index = 0; index < std::ssize(InputTables_); ++index) {
                 if (!InputTables_[index]->Dynamic &&
                     !InputTables_[index]->Path.GetColumns() &&
                     InputTables_[index]->ColumnRenameDescriptors.empty() &&

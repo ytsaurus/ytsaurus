@@ -357,7 +357,7 @@ public:
         int startIndex) override
     {
         return BIND([this_ = MakeStrong(this), slotIndex, jobId, commands, rootFS, user, devices, startIndex] {
-            for (int index = 0; index < commands.size(); ++index) {
+            for (int index = 0; index < std::ssize(commands); ++index) {
                 const auto& command = commands[index];
                 YT_LOG_DEBUG("Running setup command (JobId: %v, Path: %v, Args: %v)",
                     jobId,

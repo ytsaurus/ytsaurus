@@ -116,7 +116,7 @@ const ui64* TIntegerExtractor<T>::Init(const NProto::TSegmentMeta& meta, const u
         }
 
         {
-            for (int x = 0; x < tailCount; ++x) {
+            for (int x = 0; x < static_cast<int>(tailCount); ++x) {
                 *itemsPtr = ConvertInt<T>(baseValue + *itemsPtr);
                 ++itemsPtr;
             }
@@ -163,7 +163,7 @@ const ui64* TIntegerExtractor<T>::Init(const NProto::TSegmentMeta& meta, const u
         {
             ui32 id;
             ui8 word = 0;
-            for (int x = 0; x < tailCount; ++x) {
+            for (int x = 0; x < static_cast<int>(tailCount); ++x) {
                 id = *idsPtr++;
                 word |= ui8(!id) << x;
                 *itemsPtr++ = ConvertInt<T>(baseValue + values[id]);

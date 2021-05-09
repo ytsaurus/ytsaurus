@@ -206,12 +206,12 @@ TEST(TSkiffSchemaDescription, TestDescriptionDerivation)
     });
 
     auto tableDescriptionList = CreateTableDescriptionList({schema}, RangeIndexColumnName, RowIndexColumnName);
-    EXPECT_EQ(tableDescriptionList.size(), 1);
+    EXPECT_EQ(std::ssize(tableDescriptionList), 1);
     EXPECT_EQ(tableDescriptionList[0].HasOtherColumns, false);
     EXPECT_EQ(tableDescriptionList[0].SparseFieldDescriptionList.empty(), true);
 
     auto denseFieldDescriptionList = tableDescriptionList[0].DenseFieldDescriptionList;
-    EXPECT_EQ(denseFieldDescriptionList.size(), 2);
+    EXPECT_EQ(std::ssize(denseFieldDescriptionList), 2);
 
     EXPECT_EQ(denseFieldDescriptionList[0].Name(), "Foo");
     EXPECT_EQ(denseFieldDescriptionList[0].ValidatedSimplify(), EWireType::Uint64);
@@ -226,7 +226,7 @@ TEST(TSkiffSchemaDescription, TestKeySwitchColumn)
         });
 
         auto tableDescriptionList = CreateTableDescriptionList({schema}, RangeIndexColumnName, RowIndexColumnName);
-        EXPECT_EQ(tableDescriptionList.size(), 1);
+        EXPECT_EQ(std::ssize(tableDescriptionList), 1);
         EXPECT_EQ(tableDescriptionList[0].KeySwitchFieldIndex, std::optional<size_t>(1));
     }
     {
@@ -282,7 +282,7 @@ TEST(TSkiffSchemaDescription, TestOtherColumnsOk)
     });
 
     auto tableDescriptionList = CreateTableDescriptionList({schema}, RangeIndexColumnName, RowIndexColumnName);
-    ASSERT_EQ(tableDescriptionList.size(), 1);
+    ASSERT_EQ(std::ssize(tableDescriptionList), 1);
     ASSERT_EQ(tableDescriptionList[0].HasOtherColumns, true);
 }
 
@@ -455,7 +455,7 @@ void TestAllWireTypes(bool useSchema)
     // row 0
     ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
     ASSERT_EQ(checkedSkiffParser.ParseInt64(), -1);
-    ASSERT_EQ(checkedSkiffParser.ParseUint64(), 2);
+    ASSERT_EQ(checkedSkiffParser.ParseUint64(), 2u);
     // double_1
     ASSERT_EQ(checkedSkiffParser.ParseDouble(), 3.0);
     // double_2
@@ -467,7 +467,7 @@ void TestAllWireTypes(bool useSchema)
     ASSERT_EQ(checkedSkiffParser.ParseInt64(), -5);
 
     ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 1);
-    ASSERT_EQ(checkedSkiffParser.ParseUint64(), 6);
+    ASSERT_EQ(checkedSkiffParser.ParseUint64(), 6u);
 
     // double_1
     ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 1);
@@ -486,7 +486,7 @@ void TestAllWireTypes(bool useSchema)
     // row 1
     ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
     ASSERT_EQ(checkedSkiffParser.ParseInt64(), -9);
-    ASSERT_EQ(checkedSkiffParser.ParseUint64(), 10);
+    ASSERT_EQ(checkedSkiffParser.ParseUint64(), 10u);
     // double_1
     ASSERT_EQ(checkedSkiffParser.ParseDouble(), 11.0);
     // double_2
@@ -721,10 +721,10 @@ TEST(TSkiffWriter, TestYsonWireType)
 
     // Row 2 (Uint64)
     ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
-    ASSERT_EQ(parseYson(&checkedSkiffParser)->AsUint64()->GetValue(), 42);
+    ASSERT_EQ(parseYson(&checkedSkiffParser)->AsUint64()->GetValue(), 42u);
 
     ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 1);
-    ASSERT_EQ(parseYson(&checkedSkiffParser)->AsUint64()->GetValue(), 43);
+    ASSERT_EQ(parseYson(&checkedSkiffParser)->AsUint64()->GetValue(), 43u);
 
     // Row 3 (Double)
     ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
@@ -1423,7 +1423,7 @@ TEST(TSkiffWriter, TestSparse)
     // row 2
     ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
     ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 1);
-    ASSERT_EQ(checkedSkiffParser.ParseUint64(), 42);
+    ASSERT_EQ(checkedSkiffParser.ParseUint64(), 42u);
     ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), EndOfSequenceTag<ui16>());
 
     // row 3
@@ -2237,10 +2237,10 @@ TEST(TSkiffParser, Simple)
     parser->Read(dataStream.Str());
     parser->Finish();
 
-    ASSERT_EQ(collectedRows.Size(), 1);
+    ASSERT_EQ(static_cast<int>(collectedRows.Size()), 1);
 
     ASSERT_EQ(GetInt64(collectedRows.GetRowValue(0, "int64")), -1);
-    ASSERT_EQ(GetUint64(collectedRows.GetRowValue(0, "uint64")), 2);
+    ASSERT_EQ(GetUint64(collectedRows.GetRowValue(0, "uint64")), 2u);
     ASSERT_EQ(GetDouble(collectedRows.GetRowValue(0, "double")), 3.0);
     ASSERT_EQ(GetBoolean(collectedRows.GetRowValue(0, "boolean")), true);
     ASSERT_EQ(GetString(collectedRows.GetRowValue(0, "string32")), "foo");
@@ -2291,7 +2291,7 @@ TEST(TSkiffParser, TestOptionalNull)
     parser->Read(dataStream.Str());
     parser->Finish();
 
-    ASSERT_EQ(collectedRows.Size(), 2);
+    ASSERT_EQ(static_cast<int>(collectedRows.Size()), 2);
 
     ASSERT_EQ(collectedRows.GetRowValue(0, "opt_null").Type, EValueType::Null);
 }
@@ -2333,10 +2333,10 @@ TEST(TSkiffParser, TestSparse)
     parser->Read(dataStream.Str());
     parser->Finish();
 
-    ASSERT_EQ(collectedRows.Size(), 2);
+    ASSERT_EQ(static_cast<int>(collectedRows.Size()), 2);
 
     ASSERT_EQ(GetInt64(collectedRows.GetRowValue(0, "int64")), -42);
-    ASSERT_EQ(GetUint64(collectedRows.GetRowValue(0, "uint64")), 54);
+    ASSERT_EQ(GetUint64(collectedRows.GetRowValue(0, "uint64")), 54u);
     ASSERT_FALSE(collectedRows.FindRowValue(0, "string32"));
 
     ASSERT_FALSE(collectedRows.FindRowValue(1, "int64"));
@@ -2385,9 +2385,9 @@ TEST(TSkiffParser, TestYsonWireType)
     parser->Read(dataStream.Str());
     parser->Finish();
 
-    ASSERT_EQ(collectedRows.Size(), 6);
+    ASSERT_EQ(static_cast<int>(collectedRows.Size()), 6);
     ASSERT_EQ(GetInt64(collectedRows.GetRowValue(0, "yson")), -42);
-    ASSERT_EQ(GetUint64(collectedRows.GetRowValue(1, "yson")), 42);
+    ASSERT_EQ(GetUint64(collectedRows.GetRowValue(1, "yson")), 42u);
     ASSERT_EQ(GetString(collectedRows.GetRowValue(2, "yson")), "foobar");
     ASSERT_EQ(GetBoolean(collectedRows.GetRowValue(3, "yson")), true);
     ASSERT_EQ(GetAny(collectedRows.GetRowValue(4, "yson"))->AsMap()->GetChildOrThrow("foo")->AsString()->GetValue(), "bar");
@@ -2486,7 +2486,7 @@ TEST(TSkiffParser, TestOtherColumns)
     parser->Read(dataStream.Str());
     parser->Finish();
 
-    ASSERT_EQ(collectedRows.Size(), 2);
+    ASSERT_EQ(static_cast<int>(collectedRows.Size()), 2);
     ASSERT_EQ(GetString(collectedRows.GetRowValue(0, "name")), "row_0");
     ASSERT_EQ(GetInt64(collectedRows.GetRowValue(0, "foo")), -42);
 
@@ -2526,7 +2526,7 @@ TEST(TSkiffParser, TestComplexColumn)
     parser->Read(dataStream.Str());
     parser->Finish();
 
-    ASSERT_EQ(collectedRows.Size(), 1);
+    ASSERT_EQ(static_cast<int>(collectedRows.Size()), 1);
     ASSERT_EQ(ConvertToYsonTextStringStable(GetComposite(collectedRows.GetRowValue(0, "column"))), "[\"row_0\";42;]");
 }
 
@@ -2543,20 +2543,20 @@ TEST(TSkiffParser, TestEmptyInput)
     {
         auto parser = CreateParserForSkiff(skiffSchema, &collectedRows);
         parser->Finish();
-        ASSERT_EQ(collectedRows.Size(), 0);
+        ASSERT_EQ(static_cast<int>(collectedRows.Size()), 0);
     }
     {
         auto parser = CreateParserForSkiff(skiffSchema, &collectedRows);
         parser->Read("");
         parser->Finish();
-        ASSERT_EQ(collectedRows.Size(), 0);
+        ASSERT_EQ(static_cast<int>(collectedRows.Size()), 0);
     }
     {
         auto parser = CreateParserForSkiff(skiffSchema, &collectedRows);
         parser->Read("");
         parser->Read("");
         parser->Finish();
-        ASSERT_EQ(collectedRows.Size(), 0);
+        ASSERT_EQ(static_cast<int>(collectedRows.Size()), 0);
     }
 }
 
@@ -2585,10 +2585,10 @@ TEST(TSkiffParser, ColumnIds)
     parser->Read(dataStream.Str());
     parser->Finish();
 
-    ASSERT_EQ(collectedRows.Size(), 1);
+    ASSERT_EQ(static_cast<int>(collectedRows.Size()), 1);
 
     ASSERT_EQ(GetInt64(collectedRows.GetRowValue(0, "field_a")), -1);
-    ASSERT_EQ(GetUint64(collectedRows.GetRowValue(0, "field_b")), 2);
+    ASSERT_EQ(GetUint64(collectedRows.GetRowValue(0, "field_b")), 2u);
 }
 
 TEST(TSkiffParser, TestSparseComplexType)
@@ -2632,7 +2632,7 @@ TEST(TSkiffParser, TestSparseComplexType)
     parser->Read(dataStream.Str());
     parser->Finish();
 
-    ASSERT_EQ(collectedRows.Size(), 2);
+    ASSERT_EQ(static_cast<int>(collectedRows.Size()), 2);
     EXPECT_EQ(ConvertToYsonTextStringStable(GetComposite(collectedRows.GetRowValue(0, "value"))), "[\"row_0\";10;]");
     EXPECT_FALSE(collectedRows.FindRowValue(1, "value"));
 }
@@ -2682,7 +2682,7 @@ TEST(TSkiffParser, TestSparseComplexTypeWithExtraOptional)
     parser->Read(dataStream.Str());
     parser->Finish();
 
-    ASSERT_EQ(collectedRows.Size(), 2);
+    ASSERT_EQ(static_cast<int>(collectedRows.Size()), 2);
     ASSERT_EQ(ConvertToYsonTextStringStable(GetComposite(collectedRows.GetRowValue(0, "column"))), "[\"row_0\";42;]");
     ASSERT_FALSE(collectedRows.FindRowValue(1, "column"));
 }
@@ -2715,7 +2715,7 @@ TEST(TSkiffParser, TestEmptyColumns)
     parser->Read(AsStringBuf("\x00\x00\x00\x00"));
     parser->Finish();
 
-    ASSERT_EQ(collectedRows.Size(), 2);
+    ASSERT_EQ(static_cast<int>(collectedRows.Size()), 2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

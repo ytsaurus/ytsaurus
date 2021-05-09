@@ -723,11 +723,11 @@ private:
         ERowModificationType* modificationType)
     {
         int headerRows = 3;
-        YT_VERIFY(logRow.GetCount() >= headerRows);
+        YT_VERIFY(static_cast<int>(logRow.GetCount()) >= headerRows);
 
         auto mutableReplicationRow = rowBuffer->AllocateUnversioned(logRow.GetCount() - headerRows);
         int columnCount = 0;
-        for (int index = headerRows; index < logRow.GetCount(); ++index) {
+        for (int index = headerRows; index < static_cast<int>(logRow.GetCount()); ++index) {
             if (logRow[index].Id == TabletIndexColumnId_ && !PreserveTabletIndex_) {
                 continue;
             }
@@ -761,11 +761,11 @@ private:
         int keyColumnCount = tabletSnapshot->TableSchema->GetKeyColumnCount();
         int valueColumnCount = tabletSnapshot->TableSchema->GetValueColumnCount();
 
-        YT_ASSERT(logRow.GetCount() == keyColumnCount + valueColumnCount * 2 + 4);
+        YT_ASSERT(static_cast<int>(logRow.GetCount()) == keyColumnCount + valueColumnCount * 2 + 4);
 
         switch (changeType) {
             case ERowModificationType::Write: {
-                YT_ASSERT(logRow.GetCount() >= keyColumnCount + 4);
+                YT_ASSERT(static_cast<int>(logRow.GetCount()) >= keyColumnCount + 4);
                 int replicationValueCount = 0;
                 for (int logValueIndex = 0; logValueIndex < valueColumnCount; ++logValueIndex) {
                     const auto& value = logRow[logValueIndex * 2 + keyColumnCount + 5];
@@ -842,13 +842,13 @@ private:
         int keyColumnCount = tabletSnapshot->TableSchema->GetKeyColumnCount();
         int valueColumnCount = tabletSnapshot->TableSchema->GetValueColumnCount();
 
-        YT_ASSERT(logRow.GetCount() == keyColumnCount + valueColumnCount * 2 + 4);
+        YT_ASSERT(static_cast<int>(logRow.GetCount()) == keyColumnCount + valueColumnCount * 2 + 4);
 
         *modificationType = ERowModificationType::Write;
 
         switch (changeType) {
             case ERowModificationType::Write: {
-                YT_ASSERT(logRow.GetCount() >= keyColumnCount + 4);
+                YT_ASSERT(static_cast<int>(logRow.GetCount()) >= keyColumnCount + 4);
                 int replicationValueCount = 0;
                 for (int logValueIndex = 0; logValueIndex < valueColumnCount; ++logValueIndex) {
                     const auto& value = logRow[logValueIndex * 2 + keyColumnCount + 5];

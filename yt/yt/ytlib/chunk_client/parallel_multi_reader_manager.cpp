@@ -90,7 +90,7 @@ void TParallelMultiReaderManager::OnReaderFinished()
     TMultiReaderManagerBase::OnReaderFinished();
 
     ++FinishedReaderCount_;
-    if (FinishedReaderCount_ == ReaderFactories_.size()) {
+    if (FinishedReaderCount_ == std::ssize(ReaderFactories_)) {
         ReadySessions_.Enqueue(TError(NYT::EErrorCode::Canceled, "Multi reader finished"));
         CompletionError_.TrySet();
     } else {

@@ -75,7 +75,7 @@ TLegacyReadLimit MakeReadLimit(
 
 void ValidateCovering(const std::vector<TChunkSlice>& slices, bool sliceByRows)
 {
-    for (int index = 0; index + 1 < slices.size(); ++index) {
+    for (int index = 0; index + 1 < std::ssize(slices); ++index) {
         const auto& slice = slices[index];
         const auto& nextSlice = slices[index + 1];
 
@@ -190,7 +190,7 @@ TEST(TChunkSlicerTest, SliceByRowsOneBlock)
     req.set_slice_by_keys(false);
     auto slices = SliceChunk(req, chunkMeta);
     ValidateCovering(slices, /* sliceByRows */true);
-    ASSERT_EQ(slices.size(), 3);
+    ASSERT_EQ(slices.size(), 3u);
 
     EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
     EXPECT_EQ(slices[0].LowerLimit.GetRowIndex(), 0);
@@ -242,7 +242,7 @@ TEST(TChunkSlicerTest, SliceByRowsThreeBlocks)
 
     auto slices = SliceChunk(req, chunkMeta);
     ValidateCovering(slices, /* sliceByRows */true);
-    ASSERT_EQ(slices.size(), 3);
+    ASSERT_EQ(slices.size(), 3u);
 
     EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
     EXPECT_EQ(slices[0].LowerLimit.GetRowIndex(), 0);
@@ -307,7 +307,7 @@ TEST(TChunkSlicerTest, SliceByRowsWithRowIndexLimits1)
 
         auto slices = SliceChunk(req, chunkMeta);
         ValidateCovering(slices, /* sliceByRows */true);
-        ASSERT_EQ(slices.size(), 2);
+        ASSERT_EQ(slices.size(), 2u);
 
         EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({2}));
         EXPECT_EQ(slices[0].LowerLimit.GetRowIndex(), 150);
@@ -333,7 +333,7 @@ TEST(TChunkSlicerTest, SliceByRowsWithRowIndexLimits1)
 
         auto slices = SliceChunk(req, chunkMeta);
         ValidateCovering(slices, /* sliceByRows */true);
-        ASSERT_EQ(slices.size(), 1);
+        ASSERT_EQ(slices.size(), 1u);
 
         EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({2}));
         EXPECT_EQ(slices[0].LowerLimit.GetRowIndex(), 150);
@@ -364,7 +364,7 @@ TEST(TChunkSlicerTest, SliceByRowsWithRowIndexLimits2)
 
     auto slices = SliceChunk(req, chunkMeta);
     ValidateCovering(slices, /* sliceByRows */true);
-    ASSERT_EQ(slices.size(), 1);
+    ASSERT_EQ(slices.size(), 1u);
 
     EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
     EXPECT_EQ(slices[0].LowerLimit.GetRowIndex(), 23);
@@ -404,7 +404,7 @@ TEST(TChunkSlicerTest, SliceByRowsWithRowIndexLimits3)
 
     auto slices = SliceChunk(req, chunkMeta);
     ValidateCovering(slices, /* sliceByRows */true);
-    ASSERT_EQ(slices.size(), 2);
+    ASSERT_EQ(slices.size(), 2u);
 
     EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({2}));
     EXPECT_EQ(slices[0].LowerLimit.GetRowIndex(), 100);
@@ -462,7 +462,7 @@ TEST(TChunkSlicerTest, SliceByRowsWithKeyLimits1)
 
         auto slices = SliceChunk(req, chunkMeta);
         ValidateCovering(slices, /* sliceByRows */true);
-        ASSERT_EQ(slices.size(), 4);
+        ASSERT_EQ(slices.size(), 4u);
 
         EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({6}));
         EXPECT_EQ(slices[0].LowerLimit.GetRowIndex(), 100);
@@ -503,7 +503,7 @@ TEST(TChunkSlicerTest, SliceByRowsWithKeyLimits1)
 
         auto slices = SliceChunk(req, chunkMeta);
         ValidateCovering(slices, /* sliceByRows */true);
-        ASSERT_EQ(slices.size(), 1);
+        ASSERT_EQ(slices.size(), 1u);
 
         EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({6}));
         EXPECT_EQ(slices[0].LowerLimit.GetRowIndex(), 100);
@@ -535,7 +535,7 @@ TEST(TChunkSlicerTest, SliceByRowsWithKeyLimits2)
 
         auto slices = SliceChunk(req, chunkMeta);
         ValidateCovering(slices, /* sliceByRows */true);
-        ASSERT_EQ(slices.size(), 2);
+        ASSERT_EQ(slices.size(), 2u);
 
         EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({2}));
         EXPECT_EQ(slices[0].LowerLimit.GetRowIndex(), 0);
@@ -561,7 +561,7 @@ TEST(TChunkSlicerTest, SliceByRowsWithKeyLimits2)
 
         auto slices = SliceChunk(req, chunkMeta);
         ValidateCovering(slices, /* sliceByRows */true);
-        ASSERT_EQ(slices.size(), 2);
+        ASSERT_EQ(slices.size(), 2u);
 
         EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
         EXPECT_EQ(slices[0].LowerLimit.GetRowIndex(), 0);
@@ -620,7 +620,7 @@ TEST(TChunkSlicerTest, SliceByRowsWithRowIndexAndKeyLimits)
 
         auto slices = SliceChunk(req, chunkMeta);
         ValidateCovering(slices, /* sliceByRows */true);
-        ASSERT_EQ(slices.size(), 2);
+        ASSERT_EQ(slices.size(), 2u);
 
         EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({6}));
         EXPECT_EQ(slices[0].LowerLimit.GetRowIndex(), 100);
@@ -655,7 +655,7 @@ TEST(TChunkSlicerTest, SliceByKeysOneBlock)
     req.set_slice_by_keys(true);
     auto slices = SliceChunk(req, chunkMeta);
     ValidateCovering(slices, /* sliceByRows */false);
-    ASSERT_EQ(slices.size(), 1);
+    ASSERT_EQ(slices.size(), 1u);
 
     EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({2}));
@@ -685,7 +685,7 @@ TEST(TChunkSlicerTest, SliceByKeysTwoBlocks)
     req.set_slice_by_keys(true);
     auto slices = SliceChunk(req, chunkMeta);
     ValidateCovering(slices, /* sliceByRows */false);
-    ASSERT_EQ(slices.size(), 2);
+    ASSERT_EQ(slices.size(), 2u);
 
     EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({2}));
@@ -722,7 +722,7 @@ TEST(TChunkSlicerTest, SliceByKeysWiderRequest)
     req.set_slice_by_keys(true);
     auto slices = SliceChunk(req, chunkMeta);
     ValidateCovering(slices, /* sliceByRows */false);
-    ASSERT_EQ(slices.size(), 2);
+    ASSERT_EQ(slices.size(), 2u);
 
     EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({2}));
@@ -759,7 +759,7 @@ TEST(TChunkSlicerTest, SliceByKeysManiac1)
     req.set_slice_by_keys(true);
     auto slices = SliceChunk(req, chunkMeta);
     ValidateCovering(slices, /* sliceByRows */false);
-    ASSERT_EQ(slices.size(), 1);
+    ASSERT_EQ(slices.size(), 1u);
 
     EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({1}));
@@ -799,7 +799,7 @@ TEST(TChunkSlicerTest, SliceByKeysManiac2)
     req.set_slice_by_keys(true);
     auto slices = SliceChunk(req, chunkMeta);
     ValidateCovering(slices, /* sliceByRows */false);
-    ASSERT_EQ(slices.size(), 2);
+    ASSERT_EQ(slices.size(), 2u);
 
     EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({2}));
@@ -837,7 +837,7 @@ TEST(TChunkSlicerTest, SliceByKeysManiac3)
 
     auto slices = SliceChunk(req, chunkMeta);
     ValidateCovering(slices, /* sliceByRows */false);
-    ASSERT_EQ(slices.size(), 1);
+    ASSERT_EQ(slices.size(), 1u);
 
     // We can take first block only since there is no key 2 in second block.
     EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
@@ -869,7 +869,7 @@ TEST(TChunkSlicerTest, SliceByKeysManiac4)
 
     auto slices = SliceChunk(req, chunkMeta);
     ValidateCovering(slices, /* sliceByRows */false);
-    ASSERT_EQ(slices.size(), 1);
+    ASSERT_EQ(slices.size(), 1u);
 
     EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({1}));
@@ -907,7 +907,7 @@ TEST(TChunkSlicerTest, SliceByKeysWithRowIndexLimits1)
 
     auto slices = SliceChunk(req, chunkMeta);
     ValidateCovering(slices, /* sliceByRows */false);
-    ASSERT_EQ(slices.size(), 2);
+    ASSERT_EQ(slices.size(), 2u);
 
     EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({4}));
@@ -950,7 +950,7 @@ TEST(TChunkSlicerTest, SliceByKeysWithRowIndexLimits2)
 
     auto slices = SliceChunk(req, chunkMeta);
     ValidateCovering(slices, /* sliceByRows */false);
-    ASSERT_EQ(slices.size(), 1);
+    ASSERT_EQ(slices.size(), 1u);
     EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({1}));
     EXPECT_EQ(slices[0].DataWeight, 1);
@@ -997,7 +997,7 @@ TEST(TChunkSlicerTest, SliceByKeysWithKeyLimits1)
 
     auto slices = SliceChunk(req, chunkMeta);
     ValidateCovering(slices, /* sliceByRows */false);
-    ASSERT_EQ(slices.size(), 1);
+    ASSERT_EQ(slices.size(), 1u);
     EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({6}));
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() < MakeRow({12}));
     EXPECT_EQ(slices[0].DataWeight, 300);
@@ -1034,7 +1034,7 @@ TEST(TChunkSlicerTest, SliceByKeysWithKeyLimits2)
 
     auto slices = SliceChunk(req, chunkMeta);
     ValidateCovering(slices, /* sliceByRows */false);
-    ASSERT_EQ(slices.size(), 1);
+    ASSERT_EQ(slices.size(), 1u);
     EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({6}));
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() < MakeRow({6}));
     EXPECT_EQ(slices[0].DataWeight, 100);

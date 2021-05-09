@@ -696,7 +696,7 @@ private:
                 finalists.push_back(candidate->GetId());
             }
 
-            if (finalists.size() >= mountConfig->MaxPartitioningStoreCount) {
+            if (std::ssize(finalists) >= mountConfig->MaxPartitioningStoreCount) {
                 break;
             }
         }
@@ -716,7 +716,7 @@ private:
 
         i64 dataSizeSum = 0;
         int bestStoreCount = -1;
-        for (int i = 0; i < candidates.size(); ++i) {
+        for (int i = 0; i < std::ssize(candidates); ++i) {
             dataSizeSum += candidates[i]->GetCompressedDataSize();
             int storeCount = i + 1;
             if (storeCount >= mountConfig->MinPartitioningStoreCount &&
@@ -792,7 +792,7 @@ private:
                 }
             }
 
-            if (finalists.size() >= mountConfig->MaxCompactionStoreCount) {
+            if (std::ssize(finalists) >= mountConfig->MaxCompactionStoreCount) {
                 break;
             }
         }
@@ -824,10 +824,10 @@ private:
                 "Partition is critical, picking as many stores as possible");
         }
 
-        for (int i = 0; i < candidates.size(); ++i) {
+        for (int i = 0; i < std::ssize(candidates); ++i) {
             i64 dataSizeSum = 0;
             int j = i;
-            while (j < candidates.size()) {
+            while (j < std::ssize(candidates)) {
                 int storeCount = j - i;
                 if (storeCount > mountConfig->MaxCompactionStoreCount) {
                    break;

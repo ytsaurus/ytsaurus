@@ -292,7 +292,7 @@ void CheckedFromProtoArrayImpl(
 {
     FromProtoArrayImpl(originalArray, serializedArray);
 
-    if (originalArray->size() != serializedArray.size()) {
+    if (std::ssize(*originalArray) != serializedArray.size()) {
         THROW_ERROR_EXCEPTION("Duplicate elements in a serialized hash set")
             << TErrorAttribute("unique_element_count", originalArray->size())
             << TErrorAttribute("total_element_count", serializedArray.size());
@@ -306,7 +306,7 @@ void FromProtoArrayImpl(
 {
     std::fill(originalArray->begin(), originalArray->end(), TOriginal());
     // NB: Only takes items with known indexes. Be careful when protocol is changed.
-    for (int i = 0; i < serializedArray.size() && i < originalArray->Size(); ++i) {
+    for (int i = 0; i < std::ssize(serializedArray) && i < std::ssize(*originalArray); ++i) {
         FromProto(&(*originalArray)[i], serializedArray.Get(i));
     }
 }

@@ -95,7 +95,7 @@ public:
         HunkChunkRef_.HunkCount += 1;
         HunkChunkRef_.TotalHunkLength += payload.Size();
 
-        if (payload.Size() >= Config_->PayloadSectorAlignmentLengthThreshold) {
+        if (std::ssize(payload) >= Config_->PayloadSectorAlignmentLengthThreshold) {
             AppendPaddingToBuffer(static_cast<i64>(GetSectorPadding(Buffer_.Size())));
         }
 

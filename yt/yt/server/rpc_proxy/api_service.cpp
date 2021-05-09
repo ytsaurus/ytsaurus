@@ -2620,7 +2620,7 @@ private:
             subrequest.Path = protoSubrequest.path();
 
             int endAttachmentIndex = beginAttachmentIndex + protoSubrequest.attachment_count();
-            if (endAttachmentIndex > request->Attachments().size()) {
+            if (endAttachmentIndex > std::ssize(request->Attachments())) {
                 THROW_ERROR_EXCEPTION(
                     NRpc::EErrorCode::ProtocolError,
                     "Subrequest %v refers to non-existing attachment %v (out of %v)",
@@ -2642,7 +2642,7 @@ private:
 
             beginAttachmentIndex = endAttachmentIndex;
         }
-        if (beginAttachmentIndex != request->Attachments().size()) {
+        if (beginAttachmentIndex != std::ssize(request->Attachments())) {
             THROW_ERROR_EXCEPTION(
                 NRpc::EErrorCode::ProtocolError,
                 "Total number of attachments is too large: expected %v, actual %v",
@@ -2669,7 +2669,7 @@ private:
             [=] (const auto& context, const auto& rowsets) {
                 auto* response = &context->Response();
 
-                YT_VERIFY(subrequestCount == rowsets.size());
+                YT_VERIFY(subrequestCount == std::ssize(rowsets));
 
                 std::vector<int> rowCounts;
                 rowCounts.reserve(subrequestCount);
@@ -2895,7 +2895,7 @@ private:
             MergeRefsToRef<TApiServiceBufferTag>(attachments));
 
         auto rowsetRows = rowset->GetRows();
-        auto rowsetSize = rowset->GetRows().Size();
+        auto rowsetSize = std::ssize(rowset->GetRows());
 
         if (rowsetSize != request.row_modification_types_size()) {
             THROW_ERROR_EXCEPTION("Row count mismatch")
@@ -2905,7 +2905,7 @@ private:
 
         std::vector<TRowModification> modifications;
         modifications.reserve(rowsetSize);
-        for (size_t index = 0; index < rowsetSize; ++index) {
+        for (ssize_t index = 0; index < rowsetSize; ++index) {
             TLockMask lockMask;
             if (index < request.row_read_locks_size()) {
                 TLockBitmap readLockMask = request.row_read_locks(index);

@@ -203,7 +203,7 @@ private:
                 memoryOvercommit);
 
             int storeIndex = 0;
-            for (; storeIndex < stores.size(); ++storeIndex) {
+            for (; storeIndex < std::ssize(stores); ++storeIndex) {
                 const auto& storeData = stores[storeIndex];
                 slotToStoresToRelease[storeData.Slot].push_back(storeData.Store);
                 memoryOvercommit -= storeData.BackingStoreSize;

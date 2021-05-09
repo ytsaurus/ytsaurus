@@ -64,8 +64,8 @@ void CopyBitmapRangeToBitmapImpl(
     TMutableRef dst)
 {
     YT_VERIFY(startIndex >= 0 && startIndex <= endIndex);
-    YT_VERIFY(endIndex <= bitmap.Size() * 8);
-    YT_VERIFY(endIndex - startIndex <= dst.Size() * 8);
+    YT_VERIFY(endIndex <= std::ssize(bitmap) * 8);
+    YT_VERIFY(endIndex - startIndex <= std::ssize(dst) * 8);
 
     auto bitCount = endIndex - startIndex;
     auto byteCount = GetBitmapByteSize(bitCount);
@@ -153,7 +153,7 @@ void BuildBitmapFromRleImpl(
     TMutableRef dst)
 {
     YT_VERIFY(startIndex >= 0 && startIndex <= endIndex);
-    YT_VERIFY(dst.Size() * 8 >= endIndex - startIndex);
+    YT_VERIFY(std::ssize(dst) * 8 >= endIndex - startIndex);
     YT_VERIFY(rleIndexes[0] == 0);
 
     auto startRleIndex = TranslateRleStartIndex(rleIndexes, startIndex);
@@ -189,7 +189,7 @@ void BuildBitmapFromRleImpl(
              }
 
         ++currentRleIndex;
-        thresholdIndex = currentRleIndex < rleIndexes.Size()
+        thresholdIndex = currentRleIndex < std::ssize(rleIndexes)
             ? std::min(static_cast<i64>(rleIndexes[currentRleIndex]), endIndex)
             : endIndex;
         if (valueFetcher(currentInputIndex++)) {
@@ -212,7 +212,7 @@ void BuildBytemapFromRleImpl(
     TMutableRange<TByte> dst)
 {
     YT_VERIFY(startIndex >= 0 && startIndex <= endIndex);
-    YT_VERIFY(dst.Size() == endIndex - startIndex);
+    YT_VERIFY(std::ssize(dst) == endIndex - startIndex);
     YT_VERIFY(rleIndexes[0] == 0);
 
     auto startRleIndex = TranslateRleStartIndex(rleIndexes, startIndex);
@@ -230,7 +230,7 @@ void BuildBytemapFromRleImpl(
             ++currentRleIndex;
             thresholdIndex = std::min(
                 endIndex,
-                currentRleIndex < rleIndexes.Size() ? static_cast<i64>(rleIndexes[currentRleIndex]) : Max<i64>());
+                currentRleIndex < std::ssize(rleIndexes) ? static_cast<i64>(rleIndexes[currentRleIndex]) : Max<i64>());
             currentBoolValue = valueFetcher(currentInputIndex++);
         }
         if ((currentOutputIndex & 7) == 0 && currentIndex + 8 <= thresholdIndex) {
@@ -297,7 +297,7 @@ void BuildValidityBitmapFromDictionaryIndexesWithZeroNull(
     TRange<ui32> dictionaryIndexes,
     TMutableRef dst)
 {
-    YT_VERIFY(dst.Size() >= GetBitmapByteSize(dictionaryIndexes.Size()));
+    YT_VERIFY(std::ssize(dst) >= GetBitmapByteSize(std::ssize(dictionaryIndexes)));
 
     const auto* beginInput = dictionaryIndexes.Begin();
     const auto* endInput = dictionaryIndexes.End();
@@ -436,7 +436,7 @@ void BuildIotaDictionaryIndexesFromRleIndexes(
     TMutableRange<ui32> dst)
 {
     YT_VERIFY(startIndex >= 0 && startIndex <= endIndex);
-    YT_VERIFY(endIndex - startIndex == dst.Size());
+    YT_VERIFY(endIndex - startIndex == std::ssize(dst));
     YT_VERIFY(rleIndexes[0] == 0);
 
     auto startRleIndex = TranslateRleStartIndex(rleIndexes, startIndex);
@@ -491,7 +491,7 @@ i64 CountNullsInRleDictionaryIndexesWithZeroNull(
     i64 result = 0;
     while (currentIndex < endIndex) {
         ++currentRleIndex;
-        auto thresholdIndex = currentRleIndex < rleIndexes.Size() ? static_cast<i64>(rleIndexes[currentRleIndex]) : Max<i64>();
+        auto thresholdIndex = currentRleIndex < std::ssize(rleIndexes) ? static_cast<i64>(rleIndexes[currentRleIndex]) : Max<i64>();
         auto currentValue = *currentInput++;
         auto newIndex = std::min(endIndex, thresholdIndex);
         if (currentValue == 0) {
@@ -505,7 +505,7 @@ i64 CountNullsInRleDictionaryIndexesWithZeroNull(
 i64 CountOnesInBitmap(TRef bitmap, i64 startIndex, i64 endIndex)
 {
     YT_VERIFY(startIndex >= 0 && startIndex <= endIndex);
-    YT_VERIFY(endIndex <= bitmap.Size() * 8);
+    YT_VERIFY(endIndex <= std::ssize(bitmap) * 8);
 
     if (startIndex == endIndex) {
         return 0;
@@ -573,7 +573,7 @@ i64 CountOnesInRleBitmap(
     i64 result = 0;
     while (currentIndex < endIndex) {
         ++currentRleIndex;
-        auto thresholdIndex = currentRleIndex < rleIndexes.Size() ? static_cast<i64>(rleIndexes[currentRleIndex]) : Max<i64>();
+        auto thresholdIndex = currentRleIndex < std::ssize(rleIndexes) ? static_cast<i64>(rleIndexes[currentRleIndex]) : Max<i64>();
         auto currentValue = GetBit(bitmap, currentInputIndex++);
         auto newIndex = std::min(endIndex, thresholdIndex);
         if (currentValue) {
@@ -618,7 +618,7 @@ void DecodeBytemapFromBitmap(
     TMutableRange<TByte> dst)
 {
     YT_VERIFY(startIndex >= 0 && startIndex <= endIndex);
-    YT_VERIFY(endIndex - startIndex == dst.Size());
+    YT_VERIFY(endIndex - startIndex == std::ssize(dst));
 
 #ifdef __clang__
     if (NX86::CachedHaveBMI2()) {
@@ -669,7 +669,7 @@ void DecodeStringOffsets(
     TMutableRange<ui32> dst)
 {
     YT_VERIFY(startIndex <= endIndex);
-    YT_VERIFY(dst.Size() == endIndex - startIndex + 1);
+    YT_VERIFY(std::ssize(dst) == endIndex - startIndex + 1);
 
     auto* currentOutput = reinterpret_cast<ui32*>(dst.Begin());
 
@@ -755,7 +755,7 @@ i64 TranslateRleIndex(
         static_cast<i64>(0),
         static_cast<i64>(rleIndexes.size()),
         [&] (i64 k) {
-            return rleIndexes[k] <= index;
+            return static_cast<i64>(rleIndexes[k]) <= index;
         }) - 1;
 }
 

@@ -159,7 +159,7 @@ void TVersionedColumnWriterBase::DumpVersionedData(TSegmentInfo* segmentInfo)
         std::vector<ui64> rowIndexes;
         rowIndexes.reserve(NullBitmap_.GetBitSize());
 
-        for (int rowIndex = 0; rowIndex < ValuesPerRow_.size(); ++rowIndex) {
+        for (int rowIndex = 0; rowIndex < std::ssize(ValuesPerRow_); ++rowIndex) {
             ui32 upperValueIndex = expectedValuesPerRow * (rowIndex + 1) + ZigZagDecode32(ValuesPerRow_[rowIndex]);
             while (rowIndexes.size() < upperValueIndex) {
                 rowIndexes.push_back(rowIndex);

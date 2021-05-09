@@ -288,7 +288,7 @@ TObjectServiceProxy::TReqExecuteSubbatchPtr TObjectServiceProxy::TReqExecuteBatc
 
         innerRequestDescriptors.push_back(descriptor);
 
-        if (innerRequestDescriptors.size() == SubbatchSize_) {
+        if (std::ssize(innerRequestDescriptors) == SubbatchSize_) {
             break;
         }
     }
@@ -501,7 +501,7 @@ void TObjectServiceProxy::TReqExecuteBatchWithRetries::OnBatchResponse(const TEr
     }
 
     const auto batchRsp = batchRspOrErr.Value();
-    YT_VERIFY(batchRsp->GetResponseCount() == PendingIndexes_.size());
+    YT_VERIFY(batchRsp->GetResponseCount() == std::ssize(PendingIndexes_));
     YT_VERIFY(batchRsp->GetResponseCount() == batchRsp->GetSize());
 
     int retryCount = 0;
@@ -600,7 +600,7 @@ bool TObjectServiceProxy::TRspExecuteBatch::TryDeserializeBody(
     }
 
     if (body.subresponses_size() != 0) { // new format
-        YT_VERIFY(InnerResponseDescriptors_.size() >= body.subresponses_size());
+        YT_VERIFY(std::ssize(InnerResponseDescriptors_) >= body.subresponses_size());
 
         auto partIndex = 0;
         for (const auto& subresponse : body.subresponses()) {
@@ -623,7 +623,7 @@ bool TObjectServiceProxy::TRspExecuteBatch::TryDeserializeBody(
     } else { // old format
         // COMPAT(shakurov)
 
-        YT_VERIFY(InnerResponseDescriptors_.size() >= body.part_counts_size());
+        YT_VERIFY(std::ssize(InnerResponseDescriptors_) >= body.part_counts_size());
         YT_VERIFY(body.revisions_size() == body.part_counts_size() || body.revisions_size() == 0);
         YT_VERIFY(body.advised_sticky_group_size_size() == body.part_counts_size() || body.advised_sticky_group_size_size() == 0);
 
@@ -655,7 +655,7 @@ void TObjectServiceProxy::TRspExecuteBatch::SetResponseReceived(
     NHydra::TRevision revision,
     TAttachmentRange attachments)
 {
-    YT_VERIFY(0 <= index && index <= InnerResponseDescriptors_.size());
+    YT_VERIFY(0 <= index && index <= std::ssize(InnerResponseDescriptors_));
 
     auto& descriptor = InnerResponseDescriptors_[index];
     YT_VERIFY(!descriptor.Meta);
@@ -670,7 +670,7 @@ void TObjectServiceProxy::TRspExecuteBatch::SetResponseReceived(
     Attachments_.insert(Attachments_.end(), attachments.Begin, attachments.End);
 
     if (index == FirstUnreceivedResponseIndex_) {
-        for (; FirstUnreceivedResponseIndex_ < InnerRequestDescriptors_.size(); ++FirstUnreceivedResponseIndex_) {
+        for (; FirstUnreceivedResponseIndex_ < std::ssize(InnerRequestDescriptors_); ++FirstUnreceivedResponseIndex_) {
             if (!IsResponseReceived(FirstUnreceivedResponseIndex_)) {
                 break;
             }
@@ -680,7 +680,7 @@ void TObjectServiceProxy::TRspExecuteBatch::SetResponseReceived(
 
 void TObjectServiceProxy::TRspExecuteBatch::SetResponseUncertain(int index)
 {
-    YT_VERIFY(0 <= index && index <= InnerResponseDescriptors_.size());
+    YT_VERIFY(0 <= index && index <= std::ssize(InnerResponseDescriptors_));
     YT_VERIFY(!InnerResponseDescriptors_[index].Meta);
     InnerResponseDescriptors_[index].Uncertain = true;
 }
@@ -700,7 +700,7 @@ std::vector<int> TObjectServiceProxy::TRspExecuteBatch::GetUncertainRequestIndex
     std::vector<int> result;
     result.reserve(InnerResponseDescriptors_.size());
 
-    for (auto i = 0; i < InnerResponseDescriptors_.size(); ++i) {
+    for (auto i = 0; i < std::ssize(InnerResponseDescriptors_); ++i) {
         if (IsResponseUncertain(i)) {
             result.push_back(i);
         }
@@ -736,7 +736,7 @@ std::vector<TErrorOr<TYPathResponsePtr>> TObjectServiceProxy::TRspExecuteBatch::
 
 TSharedRefArray TObjectServiceProxy::TRspExecuteBatch::GetResponseMessage(int index) const
 {
-    YT_VERIFY(index >= 0 && index < InnerRequestDescriptors_.size());
+    YT_VERIFY(index >= 0 && index < std::ssize(InnerRequestDescriptors_));
 
     const auto& responseMeta = InnerResponseDescriptors_[index].Meta;
 
@@ -758,13 +758,13 @@ TSharedRefArray TObjectServiceProxy::TRspExecuteBatch::GetResponseMessage(int in
 
 bool TObjectServiceProxy::TRspExecuteBatch::IsResponseReceived(int index) const
 {
-    YT_VERIFY(index >= 0 && index < InnerRequestDescriptors_.size());
+    YT_VERIFY(index >= 0 && index < std::ssize(InnerRequestDescriptors_));
     return InnerResponseDescriptors_[index].Meta.has_value();
 }
 
 bool TObjectServiceProxy::TRspExecuteBatch::IsResponseUncertain(int index) const
 {
-    YT_VERIFY(index >= 0 && index < InnerRequestDescriptors_.size());
+    YT_VERIFY(index >= 0 && index < std::ssize(InnerRequestDescriptors_));
     return InnerResponseDescriptors_[index].Uncertain;
 }
 
@@ -789,7 +789,7 @@ NHydra::TRevision TObjectServiceProxy::TRspExecuteBatch::GetRevision(int index) 
         return NHydra::NullRevision;
     }
 
-    YT_VERIFY(index >= 0 && index <= InnerRequestDescriptors_.size());
+    YT_VERIFY(index >= 0 && index <= std::ssize(InnerRequestDescriptors_));
 
     const auto& meta = InnerResponseDescriptors_[index].Meta;
     YT_VERIFY(meta);

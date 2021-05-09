@@ -199,7 +199,7 @@ std::vector<int> GetPidsByUid(int uid)
         int res = ::stat(path.data(), &buf);
 
         if (res == 0) {
-            if (buf.st_uid == uid || uid == -1) {
+            if (static_cast<int>(buf.st_uid) == uid || uid == -1) {
                 result.push_back(pid);
             }
         } else {
@@ -370,7 +370,7 @@ std::vector<TString> GetProcessCommandLine(int pid)
     auto raw = TUnbufferedFileInput(path).ReadAll();
     std::vector<TString> result;
     auto begin = 0;
-    while (begin < raw.length()) {
+    while (begin < std::ssize(raw)) {
         auto end = raw.find('\0', begin);
         if (end == TString::npos) {
             result.push_back(raw.substr(begin));

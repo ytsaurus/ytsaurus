@@ -102,7 +102,7 @@ std::vector<TTestCase> Coroutine2TestCases = {
 
 void Coroutine2(TCoroutine<int(int, int)>& self, int lhs, int rhs)
 {
-    for (int i = 0; i < Coroutine2TestCases.size(); ++i) {
+    for (int i = 0; i < std::ssize(Coroutine2TestCases); ++i) {
         EXPECT_EQ(Coroutine2TestCases[i].lhs, lhs) << "Iteration #" << i;
         EXPECT_EQ(Coroutine2TestCases[i].rhs, rhs) << "Iteration #" << i;
         std::tie(lhs, rhs) = self.Yield(lhs + rhs);
@@ -119,15 +119,15 @@ TEST_F(TCoroutineTest, Binary)
     for (
         i = 0;
         (actual = coro.Run(
-            i < Coroutine2TestCases.size() ? Coroutine2TestCases[i].lhs : 0,
-            i < Coroutine2TestCases.size() ? Coroutine2TestCases[i].rhs : 0));
+            i < std::ssize(Coroutine2TestCases) ? Coroutine2TestCases[i].lhs : 0,
+            i < std::ssize(Coroutine2TestCases) ? Coroutine2TestCases[i].rhs : 0));
         ++i
     ) {
         EXPECT_EQ(Coroutine2TestCases[i].sum, *actual);
     }
 
     EXPECT_FALSE(actual);
-    EXPECT_EQ(i, Coroutine2TestCases.size());
+    EXPECT_EQ(i, std::ssize(Coroutine2TestCases));
 
     EXPECT_TRUE(coro.IsCompleted());
 }

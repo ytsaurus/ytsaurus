@@ -114,7 +114,7 @@ public:
         // TODO(max42): this may be done without full column materialization.
 
         auto stringColumn = ConvertStringLikeYTColumnToCHColumn(column);
-        for (int index = 0; index < stringColumn->size(); ++index) {
+        for (int index = 0; index < std::ssize(*stringColumn); ++index) {
             auto data = static_cast<std::string_view>(stringColumn->getDataAt(index));
             if (data.size() == 0) {
                 ConsumeNulls(1);
@@ -839,7 +839,7 @@ private:
         YT_VERIFY(cursor->GetCurrent().GetType() == EYsonItemType::EndMap);
         cursor->Next();
 
-        for (int index = 0; index < seenPositions.size(); ++index) {
+        for (int index = 0; index < std::ssize(seenPositions); ++index) {
             if (!seenPositions[index]) {
                 FieldConverters_[index]->ConsumeNulls(1);
             }
@@ -850,7 +850,7 @@ private:
     {
         YT_VERIFY(cursor->GetCurrent().GetType() == EYsonItemType::BeginList);
         cursor->Next();
-        for (int index = 0; index < FieldConverters_.size(); ++index) {
+        for (int index = 0; index < std::ssize(FieldConverters_); ++index) {
             if (cursor->GetCurrent().GetType() == EYsonItemType::EndList) {
                 FieldConverters_[index]->ConsumeNulls(1);
             } else {
@@ -1015,7 +1015,7 @@ private:
 
     IConverterPtr CreateTupleConverter(const TComplexTypeFieldDescriptor& descriptor)
     {
-        auto tupleLength = descriptor.GetType()->AsTupleTypeRef().GetElements().size();
+        auto tupleLength = std::ssize(descriptor.GetType()->AsTupleTypeRef().GetElements());
         std::vector<IConverterPtr> itemConverters;
         for (int index = 0; index < tupleLength; ++index) {
             itemConverters.emplace_back(CreateConverter(descriptor.TupleElement(index)));
@@ -1026,7 +1026,7 @@ private:
 
     IConverterPtr CreateStructConverter(const TComplexTypeFieldDescriptor& descriptor)
     {
-        auto structLength = descriptor.GetType()->AsStructTypeRef().GetFields().size();
+        auto structLength = std::ssize(descriptor.GetType()->AsStructTypeRef().GetFields());
         std::vector<IConverterPtr> fieldConverters;
         std::vector<TString> fieldNames;
         for (const auto& structField : descriptor.GetType()->AsStructTypeRef().GetFields()) {

@@ -901,7 +901,7 @@ private:
         for (const auto& [tag, thresholds] : Config_->TagToAliveControllerAgentThresholds) {
             std::vector<TStringBuf> aliveAgentWithCurrentTag;
             aliveAgentWithCurrentTag.reserve(32);
-            
+
             for (const auto& [agentId, agent] : IdToAgent_) {
                 if (agent->GetTags().contains(tag)) {
                     aliveAgentWithCurrentTag.push_back(agentId);
@@ -909,12 +909,12 @@ private:
             }
 
             const auto agentsWithTag = std::move(tagToAgentIds[tag]);
-            const auto agentWithTagCount = std::size(agentsWithTag);
-            const auto aliveAgentWithTagCount = std::size(aliveAgentWithCurrentTag);
+            const auto agentWithTagCount = std::ssize(agentsWithTag);
+            const auto aliveAgentWithTagCount = std::ssize(aliveAgentWithCurrentTag);
             if (aliveAgentWithTagCount < thresholds.Absolute ||
-                (agentWithTagCount && 
+                (agentWithTagCount &&
                     1.0 * aliveAgentWithTagCount / agentWithTagCount < thresholds.Relative)) {
-                
+
                 tagsWithTooFewAgents.insert(tag);
                 errors.push_back(
                     TError{"Too few agents matching tag"}

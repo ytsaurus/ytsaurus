@@ -468,7 +468,7 @@ public:
         // Non-key columns.
         for (
             int valueColumnIndex = Schema_->GetKeyColumnCount();
-            valueColumnIndex < Schema_->Columns().size();
+            valueColumnIndex < std::ssize(Schema_->Columns());
             ++valueColumnIndex)
         {
             const auto& column = Schema_->Columns()[valueColumnIndex];
@@ -515,10 +515,10 @@ private:
     virtual void DoWriteRows(TRange<TVersionedRow> rows) override
     {
         int startRowIndex = 0;
-        while (startRowIndex < rows.Size()) {
+        while (startRowIndex < std::ssize(rows)) {
             i64 weight = 0;
             int rowIndex = startRowIndex;
-            for (; rowIndex < rows.Size() && weight < DataToBlockFlush_; ++rowIndex) {
+            for (; rowIndex < std::ssize(rows) && weight < DataToBlockFlush_; ++rowIndex) {
                 auto row = rows[rowIndex];
                 auto rowWeight = NTableClient::GetDataWeight(row);
                 if (rowIndex == 0) {
@@ -572,7 +572,7 @@ private:
             i64 maxWriterSize = -1;
             int maxWriterIndex = -1;
 
-            for (int i = 0; i < BlockWriters_.size(); ++i) {
+            for (int i = 0; i < std::ssize(BlockWriters_); ++i) {
                 auto size = BlockWriters_[i]->GetCurrentSize();
                 totalSize += size;
                 if (size > maxWriterSize) {
@@ -627,7 +627,7 @@ private:
 
     virtual void DoClose() override
     {
-        for (int i = 0; i < BlockWriters_.size(); ++i) {
+        for (int i = 0; i < std::ssize(BlockWriters_); ++i) {
             if (BlockWriters_[i]->GetCurrentSize() > 0) {
                 FinishBlock(i, LastKey_.Begin(), LastKey_.End());
             }

@@ -63,7 +63,7 @@ public:
                 bandDescriptor.NetworkIdToTosLevel.resize(NetworkNames_.size(), bandDescriptor.DefaultTosLevel);
 
                 // Possible overwrite values for default network, filled in ctor.
-                for (int networkId = 0; networkId < NetworkNames_.size(); ++networkId) {
+                for (int networkId = 0; networkId < std::ssize(NetworkNames_); ++networkId) {
                     bandDescriptor.NetworkIdToTosLevel[networkId] = bandDescriptor.DefaultTosLevel;
                 }
 

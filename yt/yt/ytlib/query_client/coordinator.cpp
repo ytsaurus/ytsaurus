@@ -190,7 +190,7 @@ TQueryStatistics CoordinateAndExecute(
     std::vector<TFutureHolder<TQueryStatistics>> subqueryHolders;
 
     auto subqueryReaderCreator = [&, index = 0] () mutable -> ISchemafulUnversionedReaderPtr {
-        if (index >= subqueries.size()) {
+        if (index >= std::ssize(subqueries)) {
             return nullptr;
         }
 
@@ -216,7 +216,7 @@ TQueryStatistics CoordinateAndExecute(
 
     auto queryStatistics = evaluateTop(topQuery, std::move(topReader), std::move(writer));
 
-    for (int index = 0; index < subqueryHolders.size(); ++index) {
+    for (int index = 0; index < std::ssize(subqueryHolders); ++index) {
         auto subqueryStatisticsOrError = WaitFor(subqueryHolders[index].Get());
         if (subqueryStatisticsOrError.IsOK()) {
             const auto& subqueryStatistics = subqueryStatisticsOrError.ValueOrThrow();

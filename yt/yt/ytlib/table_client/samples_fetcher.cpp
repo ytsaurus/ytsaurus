@@ -169,7 +169,7 @@ void TSamplesFetcher::OnResponse(
     TKeySetReader keysReader(rsp->Attachments()[0]);
     auto keys = keysReader.GetKeys();
 
-    for (int index = 0; index < requestedChunkIndexes.size(); ++index) {
+    for (int index = 0; index < std::ssize(requestedChunkIndexes); ++index) {
         const auto& sampleResponse = rsp->sample_responses(index);
 
         if (sampleResponse.has_error()) {

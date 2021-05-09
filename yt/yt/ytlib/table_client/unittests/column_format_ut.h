@@ -180,7 +180,7 @@ protected:
     {
         EXPECT_EQ(expected.Size(), actual.size());
 
-        for (int i = 0; i < expected.Size(); ++i) {
+        for (int i = 0; i < std::ssize(expected); ++i) {
             TVersionedRow row = actual[i];
             const auto& actualValue = *row.BeginKeys();
             const auto& expectedValue = *expected[i].BeginKeys();

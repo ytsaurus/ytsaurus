@@ -13,12 +13,12 @@ using TSnapshot = TPersistentQueueSnapshot<int, 10>;
 TEST(TPersistentQueue, Empty)
 {
     TQueueType queue;
-    EXPECT_EQ(0, queue.Size());
+    EXPECT_EQ(0u, queue.Size());
     EXPECT_TRUE(queue.Empty());
     EXPECT_EQ(queue.Begin(), queue.End());
 
     auto snapshot = queue.MakeSnapshot();
-    EXPECT_EQ(0, snapshot.Size());
+    EXPECT_EQ(0u, snapshot.Size());
     EXPECT_TRUE(snapshot.Empty());
     EXPECT_EQ(snapshot.Begin(), snapshot.End());
 }
@@ -30,12 +30,12 @@ TEST(TPersistentQueue, EnqueueDequeue)
     const int N = 100;
 
     for (int i = 0; i < N; ++i) {
-        EXPECT_EQ(i, queue.Size());
+        EXPECT_EQ(i, static_cast<ssize_t>(queue.Size()));
         queue.Enqueue(i);
     }
 
     for (int i = 0; i < N; ++i) {
-        EXPECT_EQ(N - i, queue.Size());
+        EXPECT_EQ(N - i, static_cast<ssize_t>(queue.Size()));
         EXPECT_EQ(i, queue.Dequeue());
     }
 }
@@ -75,7 +75,7 @@ TEST(TPersistentQueue, Snapshot1)
 
     for (int i = 0; i < N; ++i) {
         const auto& snapshot = snapshots[i];
-        EXPECT_EQ(i, snapshot.Size());
+        EXPECT_EQ(i, static_cast<ssize_t>(snapshot.Size()));
         int expected = 0;
         for (int x : snapshot) {
             EXPECT_EQ(expected, x);
@@ -102,7 +102,7 @@ TEST(TPersistentQueue, Snapshot2)
 
     for (int i = 0; i < N; ++i) {
         const auto& snapshot = snapshots[i];
-        EXPECT_EQ(i, N - snapshot.Size());
+        EXPECT_EQ(i, static_cast<ssize_t>(N - snapshot.Size()));
         int expected = i;
         for (int x : snapshot) {
             EXPECT_EQ(expected, x);
@@ -117,11 +117,11 @@ TEST(TPersistentQueue, Clear)
 
     queue.Enqueue(1);
 
-    EXPECT_EQ(1, queue.Size());
+    EXPECT_EQ(1u, queue.Size());
 
     queue.Clear();
 
-    EXPECT_EQ(0, queue.Size());
+    EXPECT_EQ(0u, queue.Size());
 
     auto snapshot = queue.MakeSnapshot();
     EXPECT_EQ(snapshot.Begin(), snapshot.End());

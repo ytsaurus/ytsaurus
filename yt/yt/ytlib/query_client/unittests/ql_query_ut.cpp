@@ -369,7 +369,7 @@ TEST_F(TQueryPrepareTest, SelectColumns)
 
         auto schema = query->GetReadSchema();
 
-        EXPECT_EQ(schema->Columns().size(), 5);
+        EXPECT_EQ(schema->Columns().size(), 5u);
         EXPECT_EQ(schema->Columns()[0].Name(), "h");
         EXPECT_EQ(schema->Columns()[1].Name(), "a");
         EXPECT_EQ(schema->Columns()[2].Name(), "b");
@@ -384,7 +384,7 @@ TEST_F(TQueryPrepareTest, SelectColumns)
 
         auto schema = query->GetReadSchema();
 
-        EXPECT_EQ(schema->Columns().size(), 3);
+        EXPECT_EQ(schema->Columns().size(), 3u);
         EXPECT_EQ(schema->Columns()[0].Name(), "a");
         EXPECT_EQ(schema->Columns()[1].Name(), "c");
         EXPECT_EQ(schema->Columns()[2].Name(), "d");
@@ -497,17 +497,17 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
 
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
-        EXPECT_EQ(query->JoinClauses.size(), 3);
+        EXPECT_EQ(query->JoinClauses.size(), 3u);
         const auto& joinClauses = query->JoinClauses;
 
-        EXPECT_EQ(joinClauses[0]->ForeignKeyPrefix, 2);
-        EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 2);
+        EXPECT_EQ(joinClauses[0]->ForeignKeyPrefix, 2u);
+        EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 2u);
 
-        EXPECT_EQ(joinClauses[1]->ForeignKeyPrefix, 4);
-        EXPECT_EQ(joinClauses[1]->CommonKeyPrefix, 2);
+        EXPECT_EQ(joinClauses[1]->ForeignKeyPrefix, 4u);
+        EXPECT_EQ(joinClauses[1]->CommonKeyPrefix, 2u);
 
-        EXPECT_EQ(joinClauses[2]->ForeignKeyPrefix, 3);
-        EXPECT_EQ(joinClauses[2]->CommonKeyPrefix, 0);
+        EXPECT_EQ(joinClauses[2]->ForeignKeyPrefix, 3u);
+        EXPECT_EQ(joinClauses[2]->CommonKeyPrefix, 0u);
     }
 
     {
@@ -518,17 +518,17 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
 
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
-        EXPECT_EQ(query->JoinClauses.size(), 3);
+        EXPECT_EQ(query->JoinClauses.size(), 3u);
         const auto& joinClauses = query->JoinClauses;
 
-        EXPECT_EQ(joinClauses[0]->ForeignKeyPrefix, 3);
-        EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 2);
+        EXPECT_EQ(joinClauses[0]->ForeignKeyPrefix, 3u);
+        EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 2u);
 
-        EXPECT_EQ(joinClauses[1]->ForeignKeyPrefix, 4);
-        EXPECT_EQ(joinClauses[1]->CommonKeyPrefix, 2);
+        EXPECT_EQ(joinClauses[1]->ForeignKeyPrefix, 4u);
+        EXPECT_EQ(joinClauses[1]->CommonKeyPrefix, 2u);
 
-        EXPECT_EQ(joinClauses[2]->ForeignKeyPrefix, 3);
-        EXPECT_EQ(joinClauses[2]->CommonKeyPrefix, 0);
+        EXPECT_EQ(joinClauses[2]->ForeignKeyPrefix, 3u);
+        EXPECT_EQ(joinClauses[2]->CommonKeyPrefix, 0u);
     }
 
     {
@@ -539,17 +539,17 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
 
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
-        EXPECT_EQ(query->JoinClauses.size(), 3);
+        EXPECT_EQ(query->JoinClauses.size(), 3u);
         const auto& joinClauses = query->JoinClauses;
 
-        EXPECT_EQ(joinClauses[0]->ForeignKeyPrefix, 4);
-        EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 3);
+        EXPECT_EQ(joinClauses[0]->ForeignKeyPrefix, 4u);
+        EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 3u);
 
-        EXPECT_EQ(joinClauses[1]->ForeignKeyPrefix, 3);
-        EXPECT_EQ(joinClauses[1]->CommonKeyPrefix, 2);
+        EXPECT_EQ(joinClauses[1]->ForeignKeyPrefix, 3u);
+        EXPECT_EQ(joinClauses[1]->CommonKeyPrefix, 2u);
 
-        EXPECT_EQ(joinClauses[2]->ForeignKeyPrefix, 3);
-        EXPECT_EQ(joinClauses[2]->CommonKeyPrefix, 0);
+        EXPECT_EQ(joinClauses[2]->ForeignKeyPrefix, 3u);
+        EXPECT_EQ(joinClauses[2]->CommonKeyPrefix, 0u);
     }
 }
 
@@ -592,7 +592,7 @@ TEST_F(TQueryPrepareTest, GroupByPrimaryKey)
     {
         TString queryString = "* from [//t] group by a, v";
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
-        EXPECT_EQ(query->GroupClause->CommonPrefixWithPrimaryKey, 1);
+        EXPECT_EQ(query->GroupClause->CommonPrefixWithPrimaryKey, 1u);
         EXPECT_FALSE(query->UseDisjointGroupBy);
     }
 }
@@ -967,7 +967,7 @@ TQueryStatistics DoExecuteQuery(
     // Use small batch size for tests.
     const size_t maxBatchSize = 5;
 
-    size_t batchSize = maxBatchSize;
+    ssize_t batchSize = maxBatchSize;
 
     if (query->IsOrdered() && query->Offset + query->Limit < batchSize) {
         batchSize = query->Offset + query->Limit;
@@ -977,7 +977,7 @@ TQueryStatistics DoExecuteQuery(
     auto readRows = [&] (const TRowBatchReadOptions& options) {
         // Free memory to test correct capturing of data.
         auto readCount = std::distance(sourceRows.begin(), rowsBegin);
-        for (size_t index = 0; index < readCount; ++index) {
+        for (ssize_t index = 0; index < readCount; ++index) {
             sourceRows[index] = TRow();
             owningSourceRows[index] = TOwningRow();
         }
@@ -1046,11 +1046,11 @@ TResultMatcher ResultMatcher(std::vector<TOwningRow> expectedResult)
                 return;
             }
 
-            for (int i = 0; i < expectedResult.size(); ++i) {
+            for (int i = 0; i < std::ssize(expectedResult); ++i) {
                 auto expectedRow = expectedResult[i];
                 auto row = result[i];
-                EXPECT_EQ(expectedRow.GetCount(), row.GetCount());
-                if (expectedRow.GetCount() != row.GetCount()) {
+                EXPECT_EQ(expectedRow.GetCount(), static_cast<int>(row.GetCount()));
+                if (expectedRow.GetCount() != static_cast<int>(row.GetCount())) {
                     continue;
                 }
                 for (int j = 0; j < expectedRow.GetCount(); ++j) {
@@ -1088,7 +1088,7 @@ TResultMatcher OrderedResultMatcher(
 
             auto sortedResult = OrderRowsBy(result, columns, tableSchema);
 
-            for (int i = 0; i < expectedResult.size(); ++i) {
+            for (int i = 0; i < std::ssize(expectedResult); ++i) {
                 EXPECT_EQ(sortedResult[i], expectedResult[i]);
             }
         };
@@ -3841,11 +3841,11 @@ TEST_F(TQueryEvaluateTest, SortMergeJoin)
 
     auto query = Evaluate("a, b, d FROM [//left] join [//right] on a = c", splits, sources, ResultMatcher(result));
 
-    EXPECT_EQ(query->JoinClauses.size(), 1);
+    EXPECT_EQ(query->JoinClauses.size(), 1u);
     const auto& joinClauses = query->JoinClauses;
 
-    EXPECT_EQ(joinClauses[0]->ForeignKeyPrefix, 1);
-    EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 1);
+    EXPECT_EQ(joinClauses[0]->ForeignKeyPrefix, 1u);
+    EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 1u);
 
     SUCCEED();
 }
@@ -3936,11 +3936,11 @@ TEST_F(TQueryEvaluateTest, PartialSortMergeJoin)
             sources,
             OrderedResultMatcher(result, {"c"}));
 
-        EXPECT_EQ(query->JoinClauses.size(), 1);
+        EXPECT_EQ(query->JoinClauses.size(), 1u);
         const auto& joinClauses = query->JoinClauses;
 
-        EXPECT_EQ(joinClauses[0]->ForeignKeyPrefix, 2);
-        EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 1);
+        EXPECT_EQ(joinClauses[0]->ForeignKeyPrefix, 2u);
+        EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 1u);
     }
 
     {
@@ -3972,11 +3972,11 @@ TEST_F(TQueryEvaluateTest, PartialSortMergeJoin)
             sources,
             OrderedResultMatcher(result, {"c"}));
 
-        EXPECT_EQ(query->JoinClauses.size(), 1);
+        EXPECT_EQ(query->JoinClauses.size(), 1u);
         const auto& joinClauses = query->JoinClauses;
 
-        EXPECT_EQ(joinClauses[0]->ForeignKeyPrefix, 1);
-        EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 1);
+        EXPECT_EQ(joinClauses[0]->ForeignKeyPrefix, 1u);
+        EXPECT_EQ(joinClauses[0]->CommonKeyPrefix, 1u);
     }
 
     SUCCEED();
@@ -6329,18 +6329,18 @@ void TQueryEvaluateComplexTest::DoTest(
 
         bool print = false;
 
-        for (int i = 0; i < result.size(); ++i) {
+        for (int i = 0; i < std::ssize(result); ++i) {
             print |= actualResult[i] != result[i];
             EXPECT_EQ(actualResult[i], result[i]);
         }
         if (print) {
             Cout << "expectedResult:" << Endl;
-            for (int i = 0; i < result.size(); ++i) {
+            for (int i = 0; i < std::ssize(result); ++i) {
                 Cout << ToString(result[i]) << Endl;
             }
 
             Cout << "actualResult:" << Endl;
-            for (int i = 0; i < actualResult.size(); ++i) {
+            for (int i = 0; i < std::ssize(actualResult); ++i) {
                 Cout << ToString(actualResult[i]) << Endl;
             }
 

@@ -441,7 +441,7 @@ private:
 
                         std::vector<EValueType> schema;
                         for (const auto& split : dataSplits) {
-                            for (int index = 0; index < split.Ranges.Size(); ++index) {
+                            for (int index = 0; index < std::ssize(split.Ranges); ++index) {
                                 isRanges = true;
                                 YT_VERIFY(!isKeys);
                                 const auto& range = split.Ranges[index];
@@ -475,7 +475,7 @@ private:
 
                             schema = split.Schema;
 
-                            for (int index = 0; index < split.Keys.Size(); ++index) {
+                            for (int index = 0; index < std::ssize(split.Keys); ++index) {
                                 isKeys = true;
                                 YT_VERIFY(!isRanges);
                                 const auto& key = split.Keys[index];
@@ -670,7 +670,7 @@ private:
         auto keySize = Query_->Schema.Original->GetKeyColumnCount();
 
         std::vector<EValueType> keySchema;
-        for (size_t index = 0; index < keySize; ++index) {
+        for (ssize_t index = 0; index < keySize; ++index) {
             keySchema.push_back(Query_->Schema.Original->Columns()[index].GetPhysicalType());
         }
 
@@ -681,8 +681,8 @@ private:
                 auto upperBound = range.second;
 
                 if (source.LookupSupported &&
-                    keySize == lowerBound.GetCount() &&
-                    keySize + 1 == upperBound.GetCount() &&
+                    keySize == static_cast<int>(lowerBound.GetCount()) &&
+                    keySize + 1 == static_cast<int>(upperBound.GetCount()) &&
                     upperBound[keySize].Type == EValueType::Max &&
                     CompareRows(lowerBound.Begin(), lowerBound.End(), upperBound.Begin(), upperBound.Begin() + keySize) == 0)
                 {
@@ -731,8 +731,8 @@ private:
 
                 if (source.LookupSupported &&
                     !hasRanges &&
-                    keySize == lowerBound.GetCount() &&
-                    keySize + 1 == upperBound.GetCount() &&
+                    keySize == static_cast<int>(lowerBound.GetCount()) &&
+                    keySize + 1 == static_cast<int>(upperBound.GetCount()) &&
                     upperBound[keySize].Type == EValueType::Max &&
                     CompareRows(lowerBound.Begin(), lowerBound.End(), upperBound.Begin(), upperBound.Begin() + keySize) == 0)
                 {
@@ -748,7 +748,7 @@ private:
                 auto rowSize = key.GetCount();
                 if (source.LookupSupported &&
                     !hasRanges &&
-                    keySize == key.GetCount())
+                    keySize == static_cast<int>(key.GetCount()))
                 {
                     pushRanges();
                     keys.push_back(key);
@@ -813,7 +813,7 @@ private:
                     groupedSplit = std::move(groupedSplit),
                     index = 0
                 ] () mutable -> ISchemafulUnversionedReaderPtr {
-                    if (index == groupedSplit.size()) {
+                    if (index == std::ssize(groupedSplit)) {
                         return nullptr;
                     }
 
@@ -832,8 +832,8 @@ private:
                 processSplitsRanges(beginIndex, endIndex);
                 return;
             }
-            size_t lastOffset = beginIndex;
-            for (size_t index = beginIndex; index < endIndex; ++index) {
+            ssize_t lastOffset = beginIndex;
+            for (ssize_t index = beginIndex; index < endIndex; ++index) {
                 if (index > lastOffset && splits[index].ObjectId != splits[lastOffset].ObjectId) {
                     processSplitsRanges(lastOffset, index);
                     lastOffset = index;
@@ -868,7 +868,7 @@ private:
         int splitOffset = 0;
         int queryIndex = 1;
         int nextSplitOffset = queryIndex * splitCount / maxSubqueries;
-        for (size_t splitIndex = 0; splitIndex < splitCount;) {
+        for (ssize_t splitIndex = 0; splitIndex < splitCount;) {
             if (splits[splitIndex].Keys) {
                 regroupAndProcessSplitsRanges(splitOffset, splitIndex);
                 processSplitKeys(splitIndex);
@@ -981,7 +981,7 @@ private:
                 bounds = std::move(bounds),
                 index = 0
             ] () mutable -> ISchemafulUnversionedReaderPtr {
-                if (index == bounds.Size()) {
+                if (index == std::ssize(bounds)) {
                     return nullptr;
                 }
 

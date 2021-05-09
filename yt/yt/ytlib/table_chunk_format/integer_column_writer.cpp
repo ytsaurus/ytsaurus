@@ -59,7 +59,7 @@ protected:
 
     void DumpDirectValues(TSegmentInfo* segmentInfo, TBitmapOutput& nullBitmap)
     {
-        for (i64 index = 0; index < Values_.size(); ++index) {
+        for (i64 index = 0; index < std::ssize(Values_); ++index) {
             if (!nullBitmap[index]) {
                 Values_[index] -= MinValue_;
             }
@@ -77,14 +77,14 @@ protected:
         std::vector<ui64> dictionary;
         dictionary.reserve(DistinctValues_.size());
 
-        for (i64 index = 0; index < Values_.size(); ++index) {
+        for (i64 index = 0; index < std::ssize(Values_); ++index) {
             if (nullBitmap[index]) {
                 YT_ASSERT(Values_[index] == 0);
             } else {
                 auto dictionaryIndex = DistinctValues_[Values_[index]];
-                YT_ASSERT(dictionaryIndex <= dictionary.size() + 1);
+                YT_ASSERT(dictionaryIndex <= std::ssize(dictionary) + 1);
 
-                if (dictionaryIndex > dictionary.size()) {
+                if (dictionaryIndex > std::ssize(dictionary)) {
                     dictionary.push_back(Values_[index] - MinValue_);
                 }
 
@@ -353,7 +353,7 @@ private:
             runBegin = runEnd;
         }
 
-        YT_VERIFY(runIndex == RunCount_);
+        YT_VERIFY(static_cast<i64>(runIndex) == RunCount_);
         Values_.resize(RunCount_);
 
         // 1. Compressed vector of values.
@@ -389,9 +389,9 @@ private:
                 Values_[runIndex] = 0;
             } else {
                 auto dictionaryIndex = DistinctValues_[Values_[runBegin]];
-                YT_ASSERT(dictionaryIndex <= dictionary.size() + 1);
+                YT_ASSERT(dictionaryIndex <= std::ssize(dictionary) + 1);
 
-                if (dictionaryIndex > dictionary.size()) {
+                if (dictionaryIndex > std::ssize(dictionary)) {
                     dictionary.push_back(Values_[runBegin] - MinValue_);
                 }
 
@@ -404,7 +404,7 @@ private:
             runBegin = runEnd;
         }
 
-        YT_VERIFY(runIndex == RunCount_);
+        YT_VERIFY(static_cast<i64>(runIndex) == RunCount_);
         Values_.resize(RunCount_);
 
         // 1. Dictionary - compressed vector of values.

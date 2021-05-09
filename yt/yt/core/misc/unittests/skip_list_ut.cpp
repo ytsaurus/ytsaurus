@@ -127,7 +127,7 @@ TEST_F(TSkipListTest, Random100000)
         int value = rand() % 1000;
         EXPECT_EQ(List.Insert(value), set.insert(value).second);
     }
-    EXPECT_EQ(List.GetSize(), set.size());
+    EXPECT_EQ(List.GetSize(), std::ssize(set));
 
     for (int value : set) {
         EXPECT_TRUE(List.FindEqualTo(value).IsValid());

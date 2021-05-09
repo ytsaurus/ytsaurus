@@ -612,7 +612,7 @@ bool AreRowsIdentical(TUnversionedRow lhs, TUnversionedRow rhs)
         return false;
     }
 
-    for (int index = 0; index < lhs.GetCount(); ++index) {
+    for (int index = 0; index < static_cast<int>(lhs.GetCount()); ++index) {
         if (!AreRowValuesIdentical(lhs[index], rhs[index])) {
             return false;
         }
@@ -830,7 +830,7 @@ void ValidateClientRow(
 
     for (const auto& value : row) {
         int mappedId = ApplyIdMapping(value, &idMapping);
-        if (mappedId < 0 || mappedId >= schema.Columns().size()) {
+        if (mappedId < 0 || mappedId >= std::ssize(schema.Columns())) {
             int size = nameTable->GetSize();
             if (value.Id < 0 || value.Id >= size) {
                 THROW_ERROR_EXCEPTION("Expected value id in range [0:%v] but got %v",
@@ -871,7 +871,7 @@ void ValidateClientRow(
     }
 
     if (tabletIndexColumnId) {
-        YT_VERIFY(idMapping.size() > *tabletIndexColumnId);
+        YT_VERIFY(std::ssize(idMapping) > *tabletIndexColumnId);
         auto mappedId = idMapping[*tabletIndexColumnId];
         YT_VERIFY(mappedId >= 0);
         keyColumnSeen[mappedId] = true;
@@ -952,11 +952,11 @@ TUnversionedOwningRow DeserializeFromString(const TString& data, std::optional<i
     header->Capacity = static_cast<i32>(valueCount + nullCount);
 
     auto* values = reinterpret_cast<TUnversionedValue*>(header + 1);
-    for (int index = 0; index < valueCount; ++index) {
+    for (int index = 0; index < static_cast<int>(valueCount); ++index) {
         auto* value = values + index;
         current += ReadValue(current, value);
     }
-    for (int index = valueCount; index < valueCount + nullCount; ++index) {
+    for (int index = valueCount; index < static_cast<int>(valueCount + nullCount); ++index) {
         values[index] = MakeUnversionedNullValue(index);
     }
 
@@ -981,7 +981,7 @@ TUnversionedRow DeserializeFromString(const TString& data, const TRowBufferPtr& 
     auto row = rowBuffer->AllocateUnversioned(valueCount);
 
     auto* values = row.begin();
-    for (int index = 0; index < valueCount; ++index) {
+    for (int index = 0; index < static_cast<int>(valueCount); ++index) {
         auto* value = values + index;
         current += ReadValue(current, value);
         rowBuffer->CaptureValue(value);
@@ -1240,7 +1240,7 @@ void ValidateDuplicateAndRequiredValueColumns(
     std::vector<bool>* columnPresenceBuffer)
 {
     auto& columnSeen = *columnPresenceBuffer;
-    YT_VERIFY(columnSeen.size() >= schema.GetColumnCount());
+    YT_VERIFY(std::ssize(columnSeen) >= schema.GetColumnCount());
     std::fill(columnSeen.begin(), columnSeen.end(), 0);
 
     for (const auto& value : row) {
@@ -1329,7 +1329,7 @@ TLegacyOwningKey GetKeySuccessorImpl(TLegacyKey key, ui32 prefixLength, EValueTy
 {
     auto length = std::min(prefixLength, key.GetCount());
     TUnversionedOwningRowBuilder builder(length + 1);
-    for (int index = 0; index < length; ++index) {
+    for (int index = 0; index < static_cast<int>(length); ++index) {
         builder.AddValue(key[index]);
     }
     builder.AddValue(MakeUnversionedSentinelValue(sentinelType));
@@ -1340,7 +1340,7 @@ TLegacyKey GetKeySuccessorImpl(TLegacyKey key, ui32 prefixLength, EValueType sen
 {
     auto length = std::min(prefixLength, key.GetCount());
     auto result = rowBuffer->AllocateUnversioned(length + 1);
-    for (int index = 0; index < length; ++index) {
+    for (int index = 0; index < static_cast<int>(length); ++index) {
         result[index] = rowBuffer->CaptureValue(key[index]);
     }
     result[length] = MakeUnversionedSentinelValue(sentinelType);
@@ -1852,7 +1852,7 @@ int TUnversionedOwningRowBuilder::AddValue(const TUnversionedValue& value)
                 StringData_.capacity() * 2,
                 StringData_.length() + value.Length));
             char* newStringData = const_cast<char*>(StringData_.begin());
-            for (int index = 0; index < header->Count; ++index) {
+            for (int index = 0; index < static_cast<int>(header->Count); ++index) {
                 auto* existingValue = GetValue(index);
                 if (IsStringLikeType(existingValue->Type)) {
                     existingValue->Data.String = newStringData + (existingValue->Data.String - oldStringData);
@@ -1956,10 +1956,10 @@ TLegacyKey WidenKey(const TLegacyKey& key, ui32 keyColumnCount, const TRowBuffer
 
 TLegacyOwningKey WidenKeySuccessor(const TLegacyOwningKey& key, ui32 keyColumnCount, EValueType sentinelType)
 {
-    YT_VERIFY(keyColumnCount >= key.GetCount());
+    YT_VERIFY(static_cast<int>(keyColumnCount) >= key.GetCount());
 
     TUnversionedOwningRowBuilder builder;
-    for (ui32 index = 0; index < key.GetCount(); ++index) {
+    for (int index = 0; index < key.GetCount(); ++index) {
         builder.AddValue(key[index]);
     }
 
@@ -1993,9 +1993,9 @@ TLegacyKey WidenKeySuccessor(const TLegacyKey& key, ui32 keyColumnCount, const T
 
 TLegacyOwningKey WidenKeyPrefix(const TLegacyOwningKey& key, ui32 prefixLength, ui32 keyColumnCount, EValueType sentinelType)
 {
-    YT_VERIFY(prefixLength <= key.GetCount() && prefixLength <= keyColumnCount);
+    YT_VERIFY(static_cast<int>(prefixLength) <= key.GetCount() && prefixLength <= keyColumnCount);
 
-    if (key.GetCount() == prefixLength && prefixLength == keyColumnCount) {
+    if (key.GetCount() == static_cast<int>(prefixLength) && prefixLength == keyColumnCount) {
         return key;
     }
 

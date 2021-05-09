@@ -241,7 +241,7 @@ struct TTupleHelper
     static void DeserializeItem(T& value, IListNodePtr list)
     {
         TTupleHelper<T, Size - 1U>::DeserializeItem(value, list);
-        if (list->GetChildCount() >= Size) {
+        if (list->GetChildCount() >= static_cast<int>(Size)) {
             Deserialize(std::get<Size - 1U>(value), list->GetChildOrThrow(Size - 1U));
         }
     }

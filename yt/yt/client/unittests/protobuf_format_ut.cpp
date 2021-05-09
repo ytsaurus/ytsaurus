@@ -150,7 +150,7 @@ TCollectingValueConsumer ParseRows(
     auto parser = CreateParserForProtobuf(&rowCollector, config, 0);
     parser->Read(lenvalBytes);
     parser->Finish();
-    if (rowCollector.Size() != count) {
+    if (static_cast<ssize_t>(rowCollector.Size()) != count) {
         THROW_ERROR_EXCEPTION("rowCollector has wrong size: expected %v, actual %v",
             count,
             rowCollector.Size());
@@ -970,9 +970,9 @@ TEST(TProtobufFormat, TestParseZeroColumns)
 
     parser->Finish();
 
-    ASSERT_EQ(rowCollector.Size(), 2);
-    EXPECT_EQ(rowCollector.GetRow(0).GetCount(), 0);
-    EXPECT_EQ(rowCollector.GetRow(1).GetCount(), 0);
+    ASSERT_EQ(static_cast<ssize_t>(rowCollector.Size()), 2);
+    EXPECT_EQ(static_cast<int>(rowCollector.GetRow(0).GetCount()), 0);
+    EXPECT_EQ(static_cast<int>(rowCollector.GetRow(1).GetCount()), 0);
 }
 
 TEST(TProtobufFormat, TestWriteEnumerationString)
@@ -1251,7 +1251,7 @@ TEST(TProtobufFormat, TestTabletIndex)
     {
         auto row = parser.Next();
         ASSERT_TRUE(row);
-        ASSERT_EQ(row->TabletIndex, 1LL << 50);
+        ASSERT_EQ(row->TabletIndex, 1ULL << 50);
         NYT::TMessage message;
         ASSERT_TRUE(message.ParseFromString(row->RowData));
         ASSERT_EQ(message.int64_field(), -2345);
@@ -1259,7 +1259,7 @@ TEST(TProtobufFormat, TestTabletIndex)
     {
         auto row = parser.Next();
         ASSERT_TRUE(row);
-        ASSERT_EQ(row->TabletIndex, 12);
+        ASSERT_EQ(static_cast<int>(row->TabletIndex), 12);
         NYT::TMessage message;
         ASSERT_TRUE(message.ParseFromString(row->RowData));
         ASSERT_EQ(message.int64_field(), 2345);
@@ -2095,11 +2095,11 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
         EXPECT_FALSE(first.has_optional_oneof_string_field());
         EXPECT_FALSE(first.has_optional_oneof_message_field());
 
-        EXPECT_EQ(first.map_field().size(), 2);
-        ASSERT_EQ(first.map_field().count(13), 1);
+        EXPECT_EQ(std::ssize(first.map_field()), 2);
+        ASSERT_EQ(static_cast<int>(first.map_field().count(13)), 1);
         EXPECT_EQ(first.map_field().at(13).key(), "bac");
         EXPECT_EQ(first.map_field().at(13).value(), "cab");
-        ASSERT_EQ(first.map_field().count(15), 1);
+        ASSERT_EQ(static_cast<int>(first.map_field().count(15)), 1);
         EXPECT_EQ(first.map_field().at(15).key(), "ya");
         EXPECT_EQ(first.map_field().at(15).value(), "make");
 
@@ -2128,9 +2128,9 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
 
         // Note the reversal of 32 <-> 64.
         EXPECT_EQ(message.int32_field(), -64);
-        EXPECT_EQ(message.uint32_field(), 64);
+        EXPECT_EQ(message.uint32_field(), 64u);
         EXPECT_EQ(message.int64_field(), -32);
-        EXPECT_EQ(message.uint64_field(), 32);
+        EXPECT_EQ(message.uint64_field(), 32u);
 
         EXPECT_EQ(message.enum_int_field(), EEnum::minus_forty_two);
         EXPECT_EQ(message.enum_string_string_field(), EEnum::three);
@@ -2185,11 +2185,11 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
         EXPECT_FALSE(message.has_optional_oneof_string_field());
         EXPECT_FALSE(message.has_optional_oneof_message_field());
 
-        EXPECT_EQ(message.map_field().size(), 2);
-        ASSERT_EQ(message.map_field().count(2), 1);
+        EXPECT_EQ(std::ssize(message.map_field()), 2);
+        ASSERT_EQ(static_cast<int>(message.map_field().count(2)), 1);
         EXPECT_EQ(message.map_field().at(2).key(), "x");
         EXPECT_EQ(message.map_field().at(2).value(), "y");
-        ASSERT_EQ(message.map_field().count(5), 1);
+        ASSERT_EQ(static_cast<int>(message.map_field().count(5)), 1);
         EXPECT_EQ(message.map_field().at(5).key(), "z");
         EXPECT_EQ(message.map_field().at(5).value(), "w");
     }
@@ -2476,9 +2476,9 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
         EXPECT_EQ(anyValue.Data.Int64, 4321);
 
         EXPECT_EQ(GetInt64(rowCollector.GetRowValue(rowIndex, "int64_field")), -64);
-        EXPECT_EQ(GetUint64(rowCollector.GetRowValue(rowIndex, "uint64_field")), 64);
+        EXPECT_EQ(GetUint64(rowCollector.GetRowValue(rowIndex, "uint64_field")), 64u);
         EXPECT_EQ(GetInt64(rowCollector.GetRowValue(rowIndex, "int32_field")), -32);
-        EXPECT_EQ(GetUint64(rowCollector.GetRowValue(rowIndex, "uint32_field")), 32);
+        EXPECT_EQ(GetUint64(rowCollector.GetRowValue(rowIndex, "uint32_field")), 32u);
 
         EXPECT_EQ(GetInt64(rowCollector.GetRowValue(rowIndex, "enum_int_field")), -42);
         EXPECT_EQ(GetString(rowCollector.GetRowValue(rowIndex, "enum_string_string_field")), "Three");
@@ -2786,7 +2786,7 @@ TEST(TProtobufFormat, ParseSeveralTables)
 
     {
         const auto& rowCollector = rowCollectors[0];
-        ASSERT_EQ(rowCollector.Size(), 1);
+        ASSERT_EQ(static_cast<int>(rowCollector.Size()), 1);
 
         auto embeddedNode = GetComposite(rowCollector.GetRowValue(0, "embedded"));
         ASSERT_EQ(ConvertToTextYson(embeddedNode), "[\"Two\";44;]");
@@ -2800,7 +2800,7 @@ TEST(TProtobufFormat, ParseSeveralTables)
 
     {
         const auto& rowCollector = rowCollectors[1];
-        ASSERT_EQ(rowCollector.Size(), 1);
+        ASSERT_EQ(static_cast<int>(rowCollector.Size()), 1);
 
         EXPECT_EQ(GetString(rowCollector.GetRowValue(0, "enum_field")), "Two");
         EXPECT_EQ(GetInt64(rowCollector.GetRowValue(0, "int64_field")), 44);
@@ -2808,7 +2808,7 @@ TEST(TProtobufFormat, ParseSeveralTables)
 
     {
         const auto& rowCollector = rowCollectors[2];
-        ASSERT_EQ(rowCollector.Size(), 1);
+        ASSERT_EQ(static_cast<int>(rowCollector.Size()), 1);
 
         EXPECT_EQ(GetString(rowCollector.GetRowValue(0, "string_field")), "blah");
     }
@@ -3367,15 +3367,15 @@ TEST_P(TProtobufFormatAllFields, Writer)
         EXPECT_DOUBLE_EQ(message.double_field(), 3.14159);
         EXPECT_FLOAT_EQ(message.float_field(), 2.71828);
         EXPECT_EQ(message.int64_field(), -1);
-        EXPECT_EQ(message.uint64_field(), 2);
+        EXPECT_EQ(message.uint64_field(), 2u);
         EXPECT_EQ(message.sint64_field(), -3);
-        EXPECT_EQ(message.fixed64_field(), 4);
+        EXPECT_EQ(message.fixed64_field(), 4u);
         EXPECT_EQ(message.sfixed64_field(), -5);
 
         EXPECT_EQ(message.int32_field(), -6);
-        EXPECT_EQ(message.uint32_field(), 7);
+        EXPECT_EQ(message.uint32_field(), 7u);
         EXPECT_EQ(message.sint32_field(), -8);
-        EXPECT_EQ(message.fixed32_field(), 9);
+        EXPECT_EQ(message.fixed32_field(), 9u);
         EXPECT_EQ(message.sfixed32_field(), -10);
 
         EXPECT_EQ(message.bool_field(), true);
@@ -3484,21 +3484,21 @@ TEST_P(TProtobufFormatAllFields, Parser)
 
     for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
         int expectedSize = IsNewFormat() ? 26 : 17;
-        ASSERT_EQ(rowCollector.GetRow(rowIndex).GetCount(), expectedSize);
+        ASSERT_EQ(static_cast<int>(rowCollector.GetRow(rowIndex).GetCount()), expectedSize);
 
         ASSERT_DOUBLE_EQ(GetDouble(rowCollector.GetRowValue(rowIndex, "Double")), 3.14159);
         ASSERT_NEAR(GetDouble(rowCollector.GetRowValue(rowIndex, "Float")), 2.71828, 1e-5);
 
         ASSERT_EQ(GetInt64(rowCollector.GetRowValue(rowIndex, "Int64")), -1);
-        ASSERT_EQ(GetUint64(rowCollector.GetRowValue(rowIndex, "UInt64")), 2);
+        ASSERT_EQ(GetUint64(rowCollector.GetRowValue(rowIndex, "UInt64")), 2u);
         ASSERT_EQ(GetInt64(rowCollector.GetRowValue(rowIndex, "SInt64")), -3);
-        ASSERT_EQ(GetUint64(rowCollector.GetRowValue(rowIndex, "Fixed64")), 4);
+        ASSERT_EQ(GetUint64(rowCollector.GetRowValue(rowIndex, "Fixed64")), 4u);
         ASSERT_EQ(GetInt64(rowCollector.GetRowValue(rowIndex, "SFixed64")), -5);
 
         ASSERT_EQ(GetInt64(rowCollector.GetRowValue(rowIndex, "Int32")), -6);
-        ASSERT_EQ(GetUint64(rowCollector.GetRowValue(rowIndex, "UInt32")), 7);
+        ASSERT_EQ(GetUint64(rowCollector.GetRowValue(rowIndex, "UInt32")), 7u);
         ASSERT_EQ(GetInt64(rowCollector.GetRowValue(rowIndex, "SInt32")), -8);
-        ASSERT_EQ(GetUint64(rowCollector.GetRowValue(rowIndex, "Fixed32")), 9);
+        ASSERT_EQ(GetUint64(rowCollector.GetRowValue(rowIndex, "Fixed32")), 9u);
         ASSERT_EQ(GetInt64(rowCollector.GetRowValue(rowIndex, "SFixed32")), -10);
 
         ASSERT_EQ(GetBoolean(rowCollector.GetRowValue(rowIndex, "Bool")), true);

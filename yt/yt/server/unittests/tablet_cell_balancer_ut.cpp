@@ -496,8 +496,8 @@ TEST_P(TCellBaseBalancerStressTest, TestBalancerGeneratedDistribution1)
                     distribution.emplace_back(Cells_[bundleIdx][cellIdx]);
                 }
             }
-            YT_ASSERT(distribution.size() <= TabletSlotCount_);
-            YT_ASSERT(distribution.size() == takenBundles * CellsNum_);
+            YT_ASSERT(std::ssize(distribution) <= TabletSlotCount_);
+            YT_ASSERT(std::ssize(distribution) == takenBundles * CellsNum_);
         }
         initialNodeIdx += PeersNum_;
         initialBundleIdx += takenBundles;
@@ -519,7 +519,7 @@ TEST_P(TCellBaseBalancerStressTest, TestBalancerGeneratedDistribution2)
             ++allEmplaces[cell];
 
             ++cell;
-            if (cell == CellsFlattened_.size()) {
+            if (cell == std::ssize(CellsFlattened_)) {
                 cell = 0;
                 ++replicaCount;
                 if (replicaCount == PeersNum_) {
@@ -536,7 +536,7 @@ TEST_P(TCellBaseBalancerStressTest, TestBalancerRandomDistribution)
 {
     std::vector<THashSet<int>> filledNodes(NodesNum_);
     auto checkEmplace = [&] (int cell, int nodeIdx) -> bool {
-        if (CellDistribution_[Nodes_[nodeIdx]].size() == TabletSlotCount_) {
+        if (std::ssize(CellDistribution_[Nodes_[nodeIdx]]) == TabletSlotCount_) {
             return false;
         }
 

@@ -168,7 +168,7 @@ TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
             /* columns */ std::nullopt,
             /* omittedInaccessibleColumns */ {}));
     } else {
-        for (int i = 0; i < schemas.size(); ++i) {
+        for (int i = 0; i < std::ssize(schemas); ++i) {
             dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
                 GetIntermediatePath(i),
                 schemas[i],
@@ -258,7 +258,7 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
         if (processedWeight / weightPerPartition > selectedSamples.size() + 1) {
             selectedSamples.push_back(&sample);
         }
-        if (selectedSamples.size() == partitionCount - 1) {
+        if (std::ssize(selectedSamples) == partitionCount - 1) {
             // We need exactly partitionCount - 1 partition keys.
             break;
         }
@@ -272,7 +272,7 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
 
 
     int sampleIndex = 0;
-    while (sampleIndex < selectedSamples.size()) {
+    while (sampleIndex < std::ssize(selectedSamples)) {
         auto lastLowerBound = TKeyBound::MakeUniversal(/* isUpper */ false);
         if (!partitionKeys.empty()) {
             lastLowerBound = partitionKeys.back().LowerBound;
@@ -283,10 +283,10 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
         if (comparator.CompareKeyBounds(sample->KeyBound, lastLowerBound) != 0) {
             partitionKeys.emplace_back(cloneKeyBound(sample->KeyBound));
             ++sampleIndex;
-        } else if (sampleIndex < selectedSamples.size()) {
+        } else if (sampleIndex < std::ssize(selectedSamples)) {
             // Skip same keys.
             int skippedCount = 0;
-            while (sampleIndex < selectedSamples.size() &&
+            while (sampleIndex < std::ssize(selectedSamples) &&
                 comparator.CompareKeyBounds(selectedSamples[sampleIndex]->KeyBound, lastLowerBound) == 0)
             {
                 ++sampleIndex;

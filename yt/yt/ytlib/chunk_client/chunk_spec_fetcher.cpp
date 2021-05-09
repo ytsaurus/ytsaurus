@@ -137,7 +137,7 @@ std::vector<NProto::TChunkSpec> TMasterChunkSpecFetcher::GetChunkSpecsOrderedNat
     std::vector<std::vector<NProto::TChunkSpec>> chunkSpecsPerTable(TableCount_);
     for (const auto& chunkSpec : ChunkSpecs_) {
         auto tableIndex = chunkSpec.table_index();
-        YT_VERIFY(tableIndex < chunkSpecsPerTable.size());
+        YT_VERIFY(tableIndex < std::ssize(chunkSpecsPerTable));
         chunkSpecsPerTable[tableIndex].push_back(chunkSpec);
     }
 
@@ -478,7 +478,7 @@ void TTabletChunkSpecFetcher::DoFetchFromNode(const TAddressWithNetwork& address
     auto channel = connection->GetChannelFactory()->CreateChannel(address);
 
     TQueryServiceProxy proxy(std::move(channel));
-    
+
     auto req = proxy.FetchTabletStores();
     ToProto(req->mutable_subrequests(), state.Subrequests);
     Options_.InitializeFetchRequest(req.Get());
@@ -487,7 +487,7 @@ void TTabletChunkSpecFetcher::DoFetchFromNode(const TAddressWithNetwork& address
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
 
-    YT_VERIFY(rsp->subresponses().size() == state.Subrequests.size());
+    YT_VERIFY(std::ssize(rsp->subresponses()) == std::ssize(state.Subrequests));
 
     // TODO(max42): introduce proper retrying policy.
     for (const auto& [index, subresponse] : Enumerate(*rsp->mutable_subresponses())) {

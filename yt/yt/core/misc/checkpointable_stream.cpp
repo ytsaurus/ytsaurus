@@ -59,7 +59,7 @@ private:
             }
             auto size = std::min(BlockLength_ - BlockOffset_, len - pos);
             auto loadedSize = UnderlyingStream_->Load(buf + pos, size);
-            if (loadedSize != size) {
+            if (static_cast<i64>(loadedSize) != size) {
                 THROW_ERROR_EXCEPTION("Broken checkpointable stream: expected %v bytes, got %v",
                     size,
                     loadedSize);

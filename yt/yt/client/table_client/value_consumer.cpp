@@ -320,7 +320,7 @@ void TBuildingValueConsumer::OnMyValue(const TUnversionedValue& value)
 
 void TBuildingValueConsumer::OnEndRow()
 {
-    for (int id = 0; id < WrittenFlags_.size(); ++id) {
+    for (int id = 0; id < std::ssize(WrittenFlags_); ++id) {
         if (WrittenFlags_[id]) {
             WrittenFlags_[id] = false;
         } else if ((TreatMissingAsNull_ || id < Schema_->GetKeyColumnCount()) && !Schema_->Columns()[id].Expression()) {

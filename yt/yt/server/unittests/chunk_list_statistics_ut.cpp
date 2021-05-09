@@ -198,7 +198,7 @@ TEST_F(TChunkListCumulativeStatisticsTest, OrderedTabletPhysicalTrim)
     }
 
     // Children are erased from the chunk list in portions of at least 17 chunks.
-    EXPECT_LT(root->Children().size(), 18);
+    EXPECT_LT(root->Children().size(), 18u);
     EXPECT_EQ(root->CumulativeStatistics().Back(), TCumulativeStatisticsEntry(18, 18, 18));
 }
 
@@ -214,7 +214,7 @@ TEST_F(TChunkListCumulativeStatisticsTest, UnconfirmedChunk)
         AttachToChunkList(chunkList, {chunk});
 
         const auto& stats = chunkList->CumulativeStatistics();
-        EXPECT_EQ(stats.Size(), i);
+        EXPECT_EQ(static_cast<ssize_t>(stats.Size()), i);
         EXPECT_EQ(stats.Back().ChunkCount, i - 1);
         EXPECT_EQ(stats.Back().RowCount, sum);
 

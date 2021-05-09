@@ -191,7 +191,7 @@ void TLazyYsonConsumer::OnItemConsumed()
 
         // The prefix contains KeyValueSeparatorSymbol and an arbitrary amount of spaces before it
         int separatorPos = -1;
-        for (int index = 0; index < value.Size(); ++index) {
+        for (int index = 0; index < std::ssize(value); ++index) {
             if (value[index] == KeyValueSeparatorSymbol) {
                 separatorPos = index;
                 break;

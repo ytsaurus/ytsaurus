@@ -137,7 +137,7 @@ static int Precedence(EFormulaTokenType type) {
         FOR_EACH_TOKEN(EXTRACT_PRECEDENCE)
     };
     int index = static_cast<int>(type);
-    YT_VERIFY(0 <= index && index < sizeof(precedence) / sizeof(*precedence));
+    YT_VERIFY(0 <= index && index < static_cast<int>(sizeof(precedence) / sizeof(*precedence)));
     return precedence[index];
 }
 

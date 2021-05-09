@@ -229,7 +229,7 @@ void TClient::DoSwitchLeader(
         YT_LOG_INFO("Restarting all other peers");
 
         YT_VERIFY(peerChannels.size() == addresses.size());
-        for (int peerId = 0; peerId < peerChannels.size(); ++peerId) {
+        for (int peerId = 0; peerId < std::ssize(peerChannels); ++peerId) {
             const auto& peerAddress = addresses[peerId];
             if (peerAddress == newLeaderAddress) {
                 continue;

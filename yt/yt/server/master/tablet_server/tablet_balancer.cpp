@@ -482,7 +482,7 @@ private:
         if (slackTablets) {
             for (auto [cellid, cell] : cells) {
                 auto& tablets = cellToTablets[cell];
-                if (tablets.size() > minCellSize) {
+                if (std::ssize(tablets) > minCellSize) {
                     slackTablets->at(cell).push_back(cellToTablets[cell].back());
                 } else {
                     break;
@@ -490,7 +490,7 @@ private:
             }
         }
 
-        for (int cellIndex = 0; cellIndex < cells.size(); ++cellIndex) {
+        for (int cellIndex = 0; cellIndex < std::ssize(cells); ++cellIndex) {
             YT_ASSERT(cells[cellIndex].first == getExpectedTabletCount(cellIndex));
         }
     }
@@ -559,7 +559,7 @@ private:
             }
         }
 
-        for (int cellIndex = 0; cellIndex < cellTablets.size(); ++cellIndex) {
+        for (int cellIndex = 0; cellIndex < std::ssize(cellTablets); ++cellIndex) {
             YT_ASSERT(tabletCount[cellIndex] == getExpectedTabletCount(cellIndex));
         }
     }

@@ -150,7 +150,7 @@ private:
         try {
             std::vector<int> localIndexes;
             std::vector<int> blockIndexes;
-            for (int index = 0; index < session->Blocks.size(); ++index) {
+            for (int index = 0; index < std::ssize(session->Blocks); ++index) {
                 if (!session->Blocks[index]) {
                     localIndexes.push_back(index);
                     blockIndexes.push_back(session->BlockIndexes[index]);
@@ -185,7 +185,7 @@ private:
             }
 
             const auto& blocks = blocksOrError.Value();
-            for (int responseIndex = 0; responseIndex < blocks.size(); ++responseIndex) {
+            for (int responseIndex = 0; responseIndex < std::ssize(blocks); ++responseIndex) {
                 const auto& block = blocks[responseIndex];
                 int localIndex = localIndexes[responseIndex];
                 int blockIndex =  session->BlockIndexes[localIndex];

@@ -707,7 +707,7 @@ protected:
         std::function<bool(const TString&)> filter = {})
     {
         TPeerList candidates;
-        while (!PeerQueue_.empty() && candidates.size() < count) {
+        while (!PeerQueue_.empty() && std::ssize(candidates) < count) {
             const auto& top = PeerQueue_.top();
             if (top.BanCount != reader->GetBanCount(top.Peer.AddressWithNetwork.Address)) {
                 auto queueEntry = top;
@@ -882,7 +882,7 @@ protected:
         auto nodeSuspicionMarkTimes = NodeStatusDirectory_
             ? NodeStatusDirectory_->RetrieveSuspicionMarkTimes(peerAddresses)
             : std::vector<std::optional<TInstant>>();
-        for (int i = 0; i < peerDescriptors.size(); ++i) {
+        for (int i = 0; i < std::ssize(peerDescriptors); ++i) {
             auto suspicionMarkTime = NodeStatusDirectory_
                 ? nodeSuspicionMarkTimes[i]
                 : std::nullopt;
@@ -1622,7 +1622,7 @@ private:
         TPeerList candidates;
 
         int desiredPeerCount = GetDesiredPeerCount();
-        while (candidates.size() < desiredPeerCount) {
+        while (std::ssize(candidates) < desiredPeerCount) {
             auto hasUnfetchedBlocks = [&] (const TString& address) {
                 const auto& peerBlockIndexes = GetOrCrash(PeerBlocksMap_, address);
 
@@ -1775,7 +1775,7 @@ private:
         std::vector<int> receivedBlockIndexes;
 
         auto response = GetRpcAttachedBlocks(rsp, /* validateChecksums */ false);
-        for (int index = 0; index < response.size(); ++index) {
+        for (int index = 0; index < std::ssize(response); ++index) {
             const auto& block = response[index];
             if (!block) {
                 continue;
@@ -1858,7 +1858,7 @@ private:
             .ValueOrThrow();
         YT_VERIFY(cachedBlocks.size() == blocks.size());
 
-        for (int index = 0; index < blocks.size(); ++index) {
+        for (int index = 0; index < std::ssize(blocks); ++index) {
             int blockIndex = blocks[index].BlockIndex;
             const auto& blockOrError = cachedBlocks[index];
             if (blockOrError.IsOK()) {
@@ -2573,7 +2573,7 @@ private:
         }
 
         std::optional<TPeer> chosenPeer;
-        while (CandidateIndex_ < SinglePassCandidates_.size()) {
+        while (CandidateIndex_ < std::ssize(SinglePassCandidates_)) {
             chosenPeer = SinglePassCandidates_[CandidateIndex_];
             if (!IsPeerBanned(chosenPeer->AddressWithNetwork.Address)) {
                 break;
@@ -2582,7 +2582,7 @@ private:
             SinglePassCandidates_.erase(SinglePassCandidates_.begin() + CandidateIndex_);
         }
 
-        if (CandidateIndex_ == SinglePassCandidates_.size()) {
+        if (CandidateIndex_ == std::ssize(SinglePassCandidates_)) {
             YT_LOG_DEBUG("Lookup replication reader is out of peers for lookup, will sleep for a while "
                 "(CandidateCount: %v, SinglePassIterationCount: %v)",
                 SinglePassCandidates_.size(),

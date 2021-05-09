@@ -95,7 +95,7 @@ std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
 
     ui64 statisticsIndex = 0;
 
-    for (int pathIndex = 0; pathIndex < paths.size(); ++pathIndex) {
+    for (int pathIndex = 0; pathIndex < std::ssize(paths); ++pathIndex) {
         allStatistics.push_back(TColumnarStatistics::MakeEmpty(paths[pathIndex].GetColumns()->size()));
         for (ui64 chunkIndex = 0; chunkIndex < chunkCount[pathIndex]; ++statisticsIndex, ++chunkIndex) {
             allStatistics[pathIndex] += chunkStatistics[statisticsIndex];

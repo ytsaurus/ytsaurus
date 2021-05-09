@@ -25,7 +25,7 @@ TStringBuf ExtractListIndex(TStringBuf token)
     if (token[0] >= '0' && token[0] <= '9') {
         return token;
     } else {
-        int colonIndex = token.find(':');
+        auto colonIndex = token.find(':');
         if (colonIndex == TStringBuf::npos) {
             return token;
         } else {

@@ -439,7 +439,7 @@ private:
                 .ThrowOnError();
 
             std::vector<TFuture<void>> closeReplicaWriterResults;
-            for (int partIndex = 0; partIndex < copyFutures.size(); ++partIndex) {
+            for (int partIndex = 0; partIndex < std::ssize(copyFutures); ++partIndex) {
                 auto copyResult = copyResults[partIndex];
                 if (!copyResult.IsOK()) {
                     erasedPartIndicies.push_back(partIndex);
@@ -503,7 +503,7 @@ private:
         std::vector<TFutureCallbackCookie> callbackCookies;
         callbackCookies.reserve(copyFutures->size());
 
-        for (int partIndex = 0; partIndex < copyFutures->size(); ++partIndex) {
+        for (int partIndex = 0; partIndex < std::ssize(*copyFutures); ++partIndex) {
             erasedPartSet.set(partIndex);
 
             auto& copyFuture = (*copyFutures)[partIndex];
@@ -529,7 +529,7 @@ private:
         WaitFor(canStartRepair.ToFuture())
             .ThrowOnError();
 
-        for (int partIndex = 0; partIndex < copyFutures->size(); ++partIndex) {
+        for (int partIndex = 0; partIndex < std::ssize(*copyFutures); ++partIndex) {
             auto& copyFuture = (*copyFutures)[partIndex];
             auto callbackCookie = callbackCookies[partIndex];
             copyFuture.Unsubscribe(callbackCookie);
@@ -592,7 +592,7 @@ private:
             TClientChunkReadOptions()))
             .ThrowOnError();
 
-        for (int index = 0; index < erasedPartIndicies.size(); ++index) {
+        for (int index = 0; index < std::ssize(erasedPartIndicies); ++index) {
             (*partWriters)[erasedPartIndicies[index]] = erasedPartWriters[index];
         }
     }

@@ -157,7 +157,7 @@ TEST_F(TOrderedDynamicStoreTest, Reader1)
     WriteRow(BuildRow("a=3;b=2.7"));
 
     auto rows = ReadRows(5, 0, 3, TColumnFilter());
-    EXPECT_EQ(3, rows.size());
+    EXPECT_EQ(3u, rows.size());
     EXPECT_TRUE(AreQueryRowsEqual(rows[0], "\"$tablet_index\"=5;\"$row_index\"=0;a=1;b=3.14"));
     EXPECT_TRUE(AreQueryRowsEqual(rows[1], "\"$tablet_index\"=5;\"$row_index\"=1;a=2;c=text"));
     EXPECT_TRUE(AreQueryRowsEqual(rows[2], "\"$tablet_index\"=5;\"$row_index\"=2;a=3;b=2.7"));
@@ -168,7 +168,7 @@ TEST_F(TOrderedDynamicStoreTest, Reader2)
     WriteRow(BuildRow("a=1;b=3.14"));
 
     auto rows = ReadRows(5, 1, 2, TColumnFilter());
-    EXPECT_EQ(0, rows.size());
+    EXPECT_EQ(0u, rows.size());
 }
 
 TEST_F(TOrderedDynamicStoreTest, Reader3)
@@ -178,7 +178,7 @@ TEST_F(TOrderedDynamicStoreTest, Reader3)
     WriteRow(BuildRow("a=3;b=2.7"));
 
     auto rows = ReadRows(5, 0, 3, TColumnFilter({1,2}));
-    EXPECT_EQ(3, rows.size());
+    EXPECT_EQ(3u, rows.size());
     EXPECT_TRUE(AreQueryRowsEqual(rows[0], "\"$row_index\"=0;a=1"));
     EXPECT_TRUE(AreQueryRowsEqual(rows[1], "\"$row_index\"=1;a=2"));
     EXPECT_TRUE(AreQueryRowsEqual(rows[2], "\"$row_index\"=2;a=3"));
@@ -192,7 +192,7 @@ TEST_F(TOrderedDynamicStoreTest, Reader4)
 
     Store_->SetStartingRowIndex(10);
     auto rows = ReadRows(5, 10, 13, TColumnFilter());
-    EXPECT_EQ(3, rows.size());
+    EXPECT_EQ(3u, rows.size());
     EXPECT_TRUE(AreQueryRowsEqual(rows[0], "\"$tablet_index\"=5;\"$row_index\"=10;a=1;b=3.14"));
     EXPECT_TRUE(AreQueryRowsEqual(rows[1], "\"$tablet_index\"=5;\"$row_index\"=11;a=2;c=text"));
     EXPECT_TRUE(AreQueryRowsEqual(rows[2], "\"$tablet_index\"=5;\"$row_index\"=12;a=3;b=2.7"));
@@ -205,7 +205,7 @@ TEST_F(TOrderedDynamicStoreTest, Reader5)
     WriteRow(BuildRow("a=3;b=2.7"));
 
     auto rows = ReadRows(5, 1, 3, TColumnFilter({1}));
-    EXPECT_EQ(2, rows.size());
+    EXPECT_EQ(2u, rows.size());
     EXPECT_TRUE(AreQueryRowsEqual(rows[0], "\"$row_index\"=1"));
     EXPECT_TRUE(AreQueryRowsEqual(rows[1], "\"$row_index\"=2"));
 }
@@ -230,7 +230,7 @@ TEST_P(TOrderedDynamicStoreReadTest, Read)
     int adjustedUpperIndex = std::max(std::min(upperIndex, count), 0);
     auto rows = ReadRows(0, lowerIndex, upperIndex, TColumnFilter({2}));
     EXPECT_EQ(adjustedUpperIndex - adjustedLowerIndex, static_cast<int>(rows.size()));
-    for (int index = 0; index < rows.size(); ++index) {
+    for (int index = 0; index < std::ssize(rows); ++index) {
         EXPECT_TRUE(AreQueryRowsEqual(rows[index], Format("a=%v", index + adjustedLowerIndex)));
     }
 }
@@ -268,7 +268,7 @@ TEST_P(TOrderedDynamicStoreWriteTest, Write)
     }
 
     auto rows = Store_->GetAllRows();
-    EXPECT_EQ(count, rows.size());
+    EXPECT_EQ(count, std::ssize(rows));
     for (int i = 0; i < count; ++i) {
         EXPECT_TRUE(AreRowsEqual(rows[i], Format("a=%v", i)));
     }
@@ -306,7 +306,7 @@ TEST_F(TOrderedDynamicStoreTimestampColumnTest, Write)
     auto ts3 = WriteRow(BuildRow("a=3"));
 
     auto rows = Store_->GetAllRows();
-    EXPECT_EQ(3, rows.size());
+    EXPECT_EQ(3u, rows.size());
 
     EXPECT_TRUE(AreRowsEqual(rows[0], Format("a=1;\"$timestamp\"=%vu", ts1)));
     EXPECT_TRUE(AreRowsEqual(rows[1], Format("a=2;\"$timestamp\"=%vu", ts2)));

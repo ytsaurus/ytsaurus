@@ -298,7 +298,7 @@ ISchemafulUnversionedReaderPtr CreateFullPrefetchingOrderedSchemafulReader(
         index = 0,
         readers = std::move(readers)
     ] () mutable -> ISchemafulUnversionedReaderPtr {
-        if (index == readers.size()) {
+        if (index == std::ssize(readers)) {
             return nullptr;
         }
         return readers[index++];

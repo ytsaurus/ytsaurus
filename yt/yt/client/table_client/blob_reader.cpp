@@ -109,7 +109,7 @@ private:
         auto holder = MakeCompositeHolder(Reader_);
         auto result = TSharedRef(value.Data.String, value.Length, std::move(holder));
         if (Offset_ > 0) {
-            if (Offset_ > result.Size()) {
+            if (Offset_ > std::ssize(result)) {
                 THROW_ERROR_EXCEPTION("Offset is out of bounds")
                     << TErrorAttribute("offset", Offset_)
                     << TErrorAttribute("part_size", result.Size())

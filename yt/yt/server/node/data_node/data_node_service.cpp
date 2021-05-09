@@ -383,7 +383,7 @@ private:
 
         auto blocks = GetRpcAttachedBlocks(request, true /* validateChecksums */);
 
-        if (blocks.size() != request->blocks_size()) {
+        if (std::ssize(blocks) != request->blocks_size()) {
             THROW_ERROR_EXCEPTION("Number of attached blocks is different from blocks field length")
                 << TErrorAttribute("attached_block_count", blocks.size())
                 << TErrorAttribute("blocks_length", request->blocks_size());
@@ -594,7 +594,7 @@ private:
 
             auto blocks = WaitFor(asyncBlocks)
                 .ValueOrThrow();
-            for (int index = 0; index < blocks.size() && index < blockIndexes.size(); ++index) {
+            for (int index = 0; index < std::ssize(blocks) && index < std::ssize(blockIndexes); ++index) {
                 if (const auto& block = blocks[index]) {
                     Bootstrap_->GetP2PBlockDistributor()->OnBlockRequested(
                         TBlockId(chunkId, blockIndexes[index]),
@@ -1199,7 +1199,7 @@ private:
                 }
 
                 const auto& results = resultsError.Value();
-                YT_VERIFY(results.size() == requestCount);
+                YT_VERIFY(std::ssize(results) == requestCount);
 
                 auto keysWriter = New<TKeySetWriter>();
                 auto keyBoundsWriter = New<TKeySetWriter>();
@@ -1288,7 +1288,7 @@ private:
                 }
 
                 const auto& results = resultsError.Value();
-                YT_VERIFY(results.size() == requestCount);
+                YT_VERIFY(std::ssize(results) == requestCount);
 
                 auto keySetWriter = New<TKeySetWriter>();
 
@@ -1359,10 +1359,10 @@ private:
         i64 weight,
         const TKeySetWriterPtr& keySetWriter)
     {
-        size_t size = 0;
+        ssize_t size = 0;
         bool incomplete = false;
         for (auto& value : values) {
-            auto valueSize = GetByteSize(value);
+            ssize_t valueSize = GetByteSize(value);
             if (incomplete || size >= maxSampleSize) {
                 incomplete = true;
                 value = MakeUnversionedSentinelValue(EValueType::Null);
@@ -1486,7 +1486,7 @@ private:
         }
 
         std::vector<int> idToKeyIndex(nameTable->GetSize(), -1);
-        for (int i = 0; i < keyIds.size(); ++i) {
+        for (int i = 0; i < std::ssize(keyIds); ++i) {
             idToKeyIndex[keyIds[i]] = i;
         }
 
@@ -1588,7 +1588,7 @@ private:
             combinedResult.Cancel(TError("RPC request canceled"));
         }));
         context->ReplyFrom(combinedResult.Apply(BIND([subresponses = std::move(subresponses), response] () mutable {
-            for (int index = 0; index < subresponses.size(); ++index) {
+            for (int index = 0; index < std::ssize(subresponses); ++index) {
                 response->add_subresponses()->Swap(subresponses[index].Get());
             }
         })));

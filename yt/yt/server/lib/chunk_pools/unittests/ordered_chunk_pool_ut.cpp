@@ -103,7 +103,7 @@ protected:
     void InitTables(std::vector<bool> isTeleportable, std::vector<bool> isVersioned)
     {
         YT_VERIFY(isTeleportable.size() == isVersioned.size() && isVersioned.size() > 0);
-        for (int index = 0; index < isVersioned.size(); ++index) {
+        for (int index = 0; index < std::ssize(isVersioned); ++index) {
             InputTables_.emplace_back(isTeleportable[index], true /* isPrimary */, isVersioned[index]);
         }
         UnversionedTableRowCounts_.resize(InputTables_.size(), 0);
@@ -246,12 +246,12 @@ protected:
                         continue;
                     }
                     while (
-                        chunkIndex < OriginalChunks_.size() &&
+                        chunkIndex < std::ssize(OriginalChunks_) &&
                         dataSlice->GetSingleUnversionedChunkOrThrow()->GetChunkId() != OriginalChunks_[chunkIndex])
                     {
                         ++chunkIndex;
                     }
-                    EXPECT_NE(chunkIndex, OriginalChunks_.size());
+                    EXPECT_NE(chunkIndex, std::ssize(OriginalChunks_));
                 }
             }
         }
@@ -298,9 +298,9 @@ protected:
     {
         EXPECT_TRUE(entry.IsCookie());
         auto stripeList = ChunkPool_->GetStripeList(entry.GetCookie());
-        EXPECT_EQ(stripeList->Stripes.size(), 1);
+        EXPECT_EQ(stripeList->Stripes.size(), 1u);
         EXPECT_EQ(stripeList->Stripes[0]->DataSlices.size(), chunks.size());
-        for (int index = 0; index < stripeList->Stripes[0]->DataSlices.size(); ++index) {
+        for (int index = 0; index < std::ssize(stripeList->Stripes[0]->DataSlices); ++index) {
             EXPECT_EQ(stripeList->Stripes[0]->DataSlices[index]->GetSingleUnversionedChunkOrThrow()->GetChunkId(), chunks[index]->GetChunkId());
         }
     }
@@ -374,7 +374,7 @@ TEST_F(TOrderedChunkPoolTest, OrderedMergeSimple)
     auto stripeLists = GetAllStripeLists();
 
     EXPECT_THAT(TeleportChunks_, IsEmpty());
-    EXPECT_EQ(2, stripeLists.size());
+    EXPECT_EQ(2u, stripeLists.size());
 
     CheckEverything(stripeLists);
 }
@@ -423,7 +423,7 @@ TEST_F(TOrderedChunkPoolTest, OrderedMergeOrderedOutput)
     ASSERT_TRUE(order);
 
     auto entries = order->ToEntryVector();
-    ASSERT_EQ(entries.size(), 8);
+    ASSERT_EQ(entries.size(), 8u);
     ExpectEntryIsCookie(entries[0], {chunks[0]});
     ExpectEntryIsTeleportChunk(entries[1], chunks[1]);
     ExpectEntryIsTeleportChunk(entries[2], chunks[2]);
@@ -437,15 +437,15 @@ TEST_F(TOrderedChunkPoolTest, OrderedMergeOrderedOutput)
 
     SplitJob(originalEntries[4].GetCookie(), 10);
     entries = order->ToEntryVector();
-    ASSERT_EQ(entries.size(), 10);
+    ASSERT_EQ(entries.size(), 10u);
 
     SplitJob(originalEntries[0].GetCookie(), 10);
     entries = order->ToEntryVector();
-    ASSERT_EQ(entries.size(), 11);
+    ASSERT_EQ(entries.size(), 11u);
 
     SplitJob(originalEntries[7].GetCookie(), 10);
     entries = order->ToEntryVector();
-    ASSERT_EQ(entries.size(), 12);
+    ASSERT_EQ(entries.size(), 12u);
 
     ExtractOutputCookiesWhilePossible();
 
@@ -490,8 +490,8 @@ TEST_F(TOrderedChunkPoolTest, OrderedMergeSliceLargeChunks)
     auto stripeLists = GetAllStripeLists();
 
     EXPECT_THAT(TeleportChunks_, IsEmpty());
-    EXPECT_LE(9, stripeLists.size());
-    EXPECT_LE(stripeLists.size(), 11);
+    EXPECT_LE(9u, stripeLists.size());
+    EXPECT_LE(stripeLists.size(), 11u);
 
     CheckEverything(stripeLists);
 }
@@ -529,7 +529,7 @@ TEST_F(TOrderedChunkPoolTest, ExplicitSingleJob)
     auto stripeLists = GetAllStripeLists();
 
     EXPECT_THAT(TeleportChunks_, IsEmpty());
-    EXPECT_EQ(stripeLists.size(), 1);
+    EXPECT_EQ(stripeLists.size(), 1u);
 
     CheckEverything(stripeLists);
 }
@@ -719,11 +719,11 @@ TEST_P(TOrderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
     }
     ASSERT_TRUE(ChunkPool_->IsCompleted());
     ASSERT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 0);
-    ASSERT_EQ(completedChunks.size(), chunkCount);
-    ASSERT_EQ(pendingChunks.size(), 0);
-    ASSERT_EQ(startedChunks.size(), 0);
-    ASSERT_EQ(lostChunks.size(), 0);
-    ASSERT_EQ(resumedChunks.size() + suspendedChunks.size(), chunkCount);
+    ASSERT_EQ(std::ssize(completedChunks), chunkCount);
+    ASSERT_EQ(std::ssize(pendingChunks), 0);
+    ASSERT_EQ(std::ssize(startedChunks), 0);
+    ASSERT_EQ(std::ssize(lostChunks), 0);
+    ASSERT_EQ(std::ssize(resumedChunks) + std::ssize(suspendedChunks), chunkCount);
 }
 
 INSTANTIATE_TEST_SUITE_P(VariousOperationsWithPoolInstantiation,

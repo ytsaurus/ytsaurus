@@ -477,7 +477,7 @@ TEST_F(TVersionedWriteTest, TestWriteRemapping)
         std::get<0>(preparedKey)))
         .ValueOrThrow();
 
-    ASSERT_EQ(1, res->GetRows().Size());
+    ASSERT_EQ(1u, res->GetRows().Size());
 
     auto actual = ToString(res->GetRows()[0]);
     auto expected = ToString(BuildVersionedRow(

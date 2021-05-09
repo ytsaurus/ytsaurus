@@ -321,7 +321,7 @@ void TUnversionedRowMerger::AddPartialRow(TUnversionedRow row)
 {
     YT_VERIFY(row);
 
-    for (int partialIndex = KeyColumnCount_; partialIndex < row.GetCount(); ++partialIndex) {
+    for (int partialIndex = KeyColumnCount_; partialIndex < static_cast<int>(row.GetCount()); ++partialIndex) {
         const auto& partialValue = row[partialIndex];
         int id = partialValue.Id;
         YT_VERIFY(id >= KeyColumnCount_);
@@ -378,7 +378,7 @@ TMutableUnversionedRow TUnversionedRowMerger::BuildMergedRow()
         TUnversionedValue* it = MergedRow_.begin() + KeyColumnCount_;
         auto jt = std::copy(MergedRow_.begin(), it, mergedRow.begin());
 
-        YT_VERIFY(MergedRow_.GetCount() == ColumnCount_);
+        YT_VERIFY(static_cast<int>(MergedRow_.GetCount()) == ColumnCount_);
         for (bool isValid : ValidValues_) {
             if (isValid) {
                 *jt++ = *it;
@@ -418,7 +418,7 @@ TVersionedRowMerger::TVersionedRowMerger(
     , MergeRowsOnFlush_(mergeRowsOnFlush)
     , MergeDeletionsOnFlush_(mergeDeletionsOnFlush)
 {
-    size_t mergedKeyColumnCount = 0;
+    int mergedKeyColumnCount = 0;
     if (columnFilter.IsUniversal()) {
         for (int id = 0; id < columnCount; ++id) {
             if (id < keyColumnCount) {
@@ -459,10 +459,10 @@ void TVersionedRowMerger::AddPartialRow(TVersionedRow row, TTimestamp upperTimes
     if (!Started_) {
         Started_ = true;
         YT_ASSERT(row.GetKeyCount() == KeyColumnCount_);
-        for (int index = 0; index < ColumnIds_.size(); ++index) {
+        for (int index = 0; index < std::ssize(ColumnIds_); ++index) {
             int id = ColumnIds_[index];
             if (id < KeyColumnCount_) {
-                YT_ASSERT(index < Keys_.size());
+                YT_ASSERT(index < std::ssize(Keys_));
                 Keys_.data()[index] = row.BeginKeys()[id];
             }
         }

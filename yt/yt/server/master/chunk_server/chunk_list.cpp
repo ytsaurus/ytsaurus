@@ -148,7 +148,7 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
     Load(context, TrimmedChildCount_);
     Load(context, PivotKey_);
 
-    for (int index = 0; index < Children_.size(); ++index) {
+    for (int index = 0; index < std::ssize(Children_); ++index) {
         auto* child = Children_[index];
         if (HasChildToIndexMapping()) {
             YT_VERIFY(ChildToIndex_.emplace(child, index).second);

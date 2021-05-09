@@ -705,7 +705,7 @@ void TClient::DoListOperationsFromCypress(
     std::vector<TYsonString> operationsYson;
     operationsYson.reserve(HashCount);
     for (int hashBegin = 0, responseIndex = 0; hashBegin < HashCount; hashBegin += BatchSize, ++responseIndex) {
-        YT_VERIFY(responseIndex < responses.size());
+        YT_VERIFY(responseIndex < std::ssize(responses));
         const auto& batchRsp = responses[responseIndex];
 
         for (int hash = hashBegin; hash < hashBegin + BatchSize; ++hash) {
@@ -748,7 +748,7 @@ void TClient::DoListOperationsFromCypress(
             YT_LOG_DEBUG(rowsetOrError, "Failed to get information about operations' brief_progress from Archive");
         } else {
             auto rows = rowsetOrError.ValueOrThrow()->GetRows();
-            YT_VERIFY(rows.Size() == filter->GetCount());
+            YT_VERIFY(std::ssize(rows) == filter->GetCount());
 
             auto position = columnFilter.FindPosition(tableDescriptor.Index.BriefProgress);
             filter->ForEachOperationMutable([&] (int index, TListOperationsFilter::TLightOperation& lightOperation) {

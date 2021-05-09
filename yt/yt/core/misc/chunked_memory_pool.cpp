@@ -117,7 +117,7 @@ char* TChunkedMemoryPool::AllocateSlowCore(size_t size)
         return ref.Begin();
     }
 
-    YT_VERIFY(NextChunkIndex_ <= Chunks_.size());
+    YT_VERIFY(NextChunkIndex_ <= std::ssize(Chunks_));
 
     if (NextSmallSize_ < RegularChunkSize) {
         auto block = ChunkProvider_->Allocate(std::max(NextSmallSize_, size), TagCookie_);
@@ -125,7 +125,7 @@ char* TChunkedMemoryPool::AllocateSlowCore(size_t size)
         Capacity_ += ref.Size();
         OtherBlocks_.push_back(std::move(block));
         NextSmallSize_ = 2 * ref.Size();
-    } else if (NextChunkIndex_ == Chunks_.size()) {
+    } else if (NextChunkIndex_ == std::ssize(Chunks_)) {
         auto chunk = ChunkProvider_->Allocate(RegularChunkSize, TagCookie_);
         ref = chunk->GetRef();
         Capacity_ += ref.Size();

@@ -211,7 +211,7 @@ private:
 
     static bool HasEnoughReplicas(TChunk* chunk)
     {
-        return chunk->StoredReplicas().size() >= chunk->GetReadQuorum();
+        return std::ssize(chunk->StoredReplicas()) >= chunk->GetReadQuorum();
     }
 
     static bool IsFirstUnsealedInChunkList(TChunk* chunk)
@@ -444,7 +444,7 @@ private:
 
         // NB: Seal jobs can be started even if chunk refresh is scheduled.
 
-        if (chunk->StoredReplicas().size() < chunk->GetReadQuorum()) {
+        if (std::ssize(chunk->StoredReplicas()) < chunk->GetReadQuorum()) {
             return true;
         }
 

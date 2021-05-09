@@ -1,5 +1,5 @@
 SET(YT_ARCADIA_CXXFLAGS
-    -Wno-sign-compare
+    -DYT
 )
 
 IF(YT_ENABLE_SPINLOCK_PROFILING)

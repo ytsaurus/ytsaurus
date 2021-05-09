@@ -135,9 +135,9 @@ TEST(TDecimal, TestPrecisionScaleLimits)
     auto maxBinaryDecimal = HexDecode("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFD");
     auto minBinaryDecimal1 = HexDecode("00000000000000000000000000000000");
     auto minBinaryDecimal2 = HexDecode("00000000000000000000000000000003");
-    EXPECT_EQ(TDecimal::MaxBinarySize, maxBinaryDecimal.size());   // If max TDecimal::MaxBinarySize ever increases
-    EXPECT_EQ(TDecimal::MaxBinarySize, minBinaryDecimal1.size());  // please update this test
-    EXPECT_EQ(TDecimal::MaxBinarySize, minBinaryDecimal2.size());  // with better values.
+    EXPECT_EQ(TDecimal::MaxBinarySize, std::ssize(maxBinaryDecimal));   // If max TDecimal::MaxBinarySize ever increases
+    EXPECT_EQ(TDecimal::MaxBinarySize, std::ssize(minBinaryDecimal1));  // please update this test
+    EXPECT_EQ(TDecimal::MaxBinarySize, std::ssize(minBinaryDecimal2));  // with better values.
     EXPECT_EQ("1701411834604692317316873037158841057.25", TDecimal::BinaryToText(maxBinaryDecimal, TDecimal::MaxPrecision, 2));
     EXPECT_EQ("-1701411834604692317316873037158841057.28", TDecimal::BinaryToText(minBinaryDecimal1, TDecimal::MaxPrecision, 2));
     EXPECT_EQ("-1701411834604692317316873037158841057.25", TDecimal::BinaryToText(minBinaryDecimal2, TDecimal::MaxPrecision, 2));

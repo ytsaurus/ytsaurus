@@ -66,7 +66,7 @@ TEST(TAlgorithmHelpersTest, BinarySearch)
             EXPECT_EQ(it, data.begin());
         }
         {
-            auto it = NYT::LowerBound(data.rbegin(), data.rend(), 1);
+            auto it = NYT::LowerBound(data.rbegin(), data.rend(), 1u);
             EXPECT_EQ(it, data.rbegin() + 1);
         }
     }

@@ -83,7 +83,7 @@ TIndexBucket::TIndexBucket(size_t capacity, i64 offset)
     , Offset_(offset)
     , Data_(TSharedMutableRef::AllocatePageAligned<TIndexBucketDataTag>(capacity * sizeof(TChangelogIndexRecord), true))
 {
-    auto maxCurrentIndexRecords = ChangelogAlignment / sizeof(TChangelogIndexRecord);
+    auto maxCurrentIndexRecords = static_cast<int>(ChangelogAlignment / sizeof(TChangelogIndexRecord));
     Index_ = reinterpret_cast<TChangelogIndexRecord*>(Data_.Begin());
 
     for (int i = 0; i < maxCurrentIndexRecords; ++i) {
@@ -134,7 +134,7 @@ int TIndexBucket::GetCurrentIndexId() const
 
 bool TIndexBucket::HasSpace() const
 {
-    return CurrentIndexId_ < Capacity_;
+    return static_cast<size_t>(CurrentIndexId_) < Capacity_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -185,7 +185,7 @@ void TAsyncFileChangelogIndex::Read(std::optional<int> truncatedRecordCount)
 
     // Create index if it is missing.
     if (!NFS::Exists(IndexFileName_) ||
-        TFile(IndexFileName_, RdOnly).GetLength() < sizeof(TChangelogIndexHeader))
+        TFile(IndexFileName_, RdOnly).GetLength() < static_cast<int>(sizeof(TChangelogIndexHeader)))
     {
         Create();
     }
@@ -224,9 +224,9 @@ void TAsyncFileChangelogIndex::Read(std::optional<int> truncatedRecordCount)
 
 void TAsyncFileChangelogIndex::TruncateInvalidRecords(i64 validPrefixSize)
 {
-    YT_VERIFY(validPrefixSize <= Index_.size());
+    YT_VERIFY(validPrefixSize <= std::ssize(Index_));
     YT_LOG_WARNING_IF(
-        validPrefixSize < Index_.size(),
+        validPrefixSize < std::ssize(Index_),
         "Changelog index contains invalid records, truncated (ValidPrefixSize: %v, IndexSize: %v)",
         validPrefixSize,
         Index_.size());
@@ -234,7 +234,7 @@ void TAsyncFileChangelogIndex::TruncateInvalidRecords(i64 validPrefixSize)
 
     FirstIndexBucket_->UpdateRecordCount(Index_.size());
 
-    auto totalRecordCount = Index_.size();
+    auto totalRecordCount = std::ssize(Index_);
     // first bucket contains header
     auto firstRecordId = FirstIndexBucket_->GetCurrentIndexId();
     auto firstBlockRecordCount = std::min<int>((MaxIndexRecordsPerBucket_ - firstRecordId), totalRecordCount);

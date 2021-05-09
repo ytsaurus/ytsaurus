@@ -73,7 +73,7 @@ private:
 
     bool AcceptByMaxCount(ui16 columnId)
     {
-        if (AcceptedColumnIds_.size() < MaxSelectedColumnCount_) {
+        if (std::ssize(AcceptedColumnIds_) < MaxSelectedColumnCount_) {
             AcceptedColumnIds_.insert(columnId);
             return true;
         }
@@ -391,7 +391,7 @@ public:
         jsonFormatConfig->AnnotateWithTypes = true;
         Consumer_ = CreateJsonConsumer(writer, EYsonType::Node, std::move(jsonFormatConfig));
 
-        for (int tableIndex = 0; tableIndex != schemas.size(); ++tableIndex) {
+        for (int tableIndex = 0; tableIndex != std::ssize(schemas); ++tableIndex) {
             for (const auto& column : schemas[tableIndex]->Columns()) {
                 if (!IsV3Composite(column.LogicalType())) {
                     continue;
@@ -595,7 +595,7 @@ bool TWriterForWebJson<TValueWriter>::TryRegisterColumn(ui16 columnId, TStringBu
         return false;
     }
 
-    if (AllColumnIdToName_.size() < Config_->MaxAllColumnNamesCount) {
+    if (std::ssize(AllColumnIdToName_) < Config_->MaxAllColumnNamesCount) {
         AllColumnIdToName_[columnId] = columnName;
     } else if (!AllColumnIdToName_.contains(columnId)) {
         IncompleteAllColumnNames_ = true;

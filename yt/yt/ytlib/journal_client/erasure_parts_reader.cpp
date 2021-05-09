@@ -289,7 +289,7 @@ private:
 
                 std::vector<std::vector<TSharedRef>> repairRowLists;
                 repairRowLists.reserve(repairIndices.size());
-                for (int index = 0; index < repairIndices.size(); ++index) {
+                for (int index = 0; index < std::ssize(repairIndices); ++index) {
                     YT_VERIFY(repairIndices[index] == fetchIndices[index]);
                     repairRowLists.push_back(fetchedRowLists[index]);
                 }
@@ -308,7 +308,7 @@ private:
                         }
 
                         const auto& rowList = rows[std::distance(indices.begin(), it)];
-                        YT_VERIFY(rowList.size() == rowCount);
+                        YT_VERIFY(std::ssize(rowList) == rowCount);
                         requestedRowLists.push_back(rowList);
 
                         return true;

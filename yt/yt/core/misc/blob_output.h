@@ -22,6 +22,7 @@ public:
 
     const char* Begin() const;
     size_t Size() const;
+    size_t size() const;
     size_t Capacity() const;
 
     void Reserve(size_t capacity);

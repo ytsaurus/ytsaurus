@@ -362,7 +362,7 @@ bool TLogFileReader::TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iter
 void TLogFileReader::DoWriteRows()
 {
     int recordsBufferPtr = 0;
-    while (recordsBufferPtr < RecordsBuffer_.size()) {
+    while (recordsBufferPtr < std::ssize(RecordsBuffer_)) {
         i64 rowsToWrite = std::min<i64>(RecordsBuffer_.size() - recordsBufferPtr, Bootstrap_->GetConfig()->MaxRecordsPerTransaction);
         YT_ASSERT(rowsToWrite > 0);
 

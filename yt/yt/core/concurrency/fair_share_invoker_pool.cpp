@@ -80,7 +80,7 @@ private:
     {
         auto minExcessTime = std::numeric_limits<TCpuDuration>::max();
         std::optional<int> minBucketIndex;
-        for (int index = 0; index < Buckets_.size(); ++index) {
+        for (int index = 0; index < std::ssize(Buckets_); ++index) {
             if (Buckets_[index].empty()) {
                 continue;
             }
@@ -94,7 +94,7 @@ private:
 
     void TruncateExcessTimes(TCpuDuration delta)
     {
-        for (int index = 0; index < Buckets_.size(); ++index) {
+        for (int index = 0; index < std::ssize(Buckets_); ++index) {
             if (ExcessTimes_[index] >= delta) {
                 ExcessTimes_[index] -= delta;
             } else {
@@ -105,7 +105,7 @@ private:
 
     bool IsValidBucketIndex(int index) const
     {
-        return 0 <= index && index < Buckets_.size();
+        return 0 <= index && index < std::ssize(Buckets_);
     }
 };
 
@@ -267,7 +267,7 @@ private:
 
     bool IsValidInvokerIndex(int index) const
     {
-        return 0 <= index && index < Invokers_.size();
+        return 0 <= index && index < std::ssize(Invokers_);
     }
 
     void Run()

@@ -218,7 +218,7 @@ protected:
                 YT_VERIFY(virtualRowIndex < virtualValueDirectory->Rows.size());
                 const auto& row = virtualValueDirectory->Rows[*DataSliceDescriptor_.VirtualRowIndex];
                 // Copy all values from rows properly mapping virtual ids into actual ids according to #NameTable_.
-                for (int virtualColumnIndex = 0; virtualColumnIndex < row.GetCount(); ++virtualColumnIndex) {
+                for (int virtualColumnIndex = 0; virtualColumnIndex < static_cast<int>(row.GetCount()); ++virtualColumnIndex) {
                     auto value = row[virtualColumnIndex];
                     auto virtualId = value.Id;
                     const auto& columnName = virtualValueDirectory->NameTable->GetName(virtualId);
@@ -316,7 +316,7 @@ protected:
 
         // Sometimes scheduler sends us empty slices (when both, row index and key limits are present).
         // Such slices should be considered as read, though actual read row count is equal to zero.
-        if (RowCount_ > unreadRows.Size() || rowIndex >= upperRowIndex) {
+        if (RowCount_ > std::ssize(unreadRows) || rowIndex >= upperRowIndex) {
             readDescriptors.emplace_back(chunkSpec);
             auto& chunk = readDescriptors[0].ChunkSpecs[0];
             chunk.mutable_upper_limit()->set_row_index(rowIndex);
@@ -717,7 +717,7 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
     RowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count();
 
     TKey blockLastKey;
-    if (blockIndex < ChunkMeta_->BlockLastKeys().size()) {
+    if (blockIndex < std::ssize(ChunkMeta_->BlockLastKeys())) {
         blockLastKey = ChunkMeta_->BlockLastKeys()[blockIndex];
     }
     CheckBlockUpperLimits(
@@ -773,7 +773,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessRangeChunkReader::Read(const TRowBa
     i64 dataWeight = 0;
 
     while (!BlockEnded_ &&
-           rows.size() < options.MaxRowsPerRead &&
+           std::ssize(rows) < options.MaxRowsPerRead &&
            dataWeight < options.MaxDataWeightPerRead)
     {
         if (CheckRowLimit_ && RowIndex_ >= ReadRange_.UpperLimit().GetRowIndex()) {
@@ -968,11 +968,11 @@ IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowB
 
         if (!BlockReader_) {
             // Nothing to read from chunk.
-            if (RowCount_ == Keys_.Size()) {
+            if (RowCount_ == std::ssize(Keys_)) {
                 return false;
             }
 
-            while (rows.size() < options.MaxRowsPerRead && RowCount_ < Keys_.Size()) {
+            while (std::ssize(rows) < options.MaxRowsPerRead && RowCount_ < std::ssize(Keys_)) {
                 rows.push_back(TUnversionedRow());
                 ++RowCount_;
             }
@@ -986,10 +986,10 @@ IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowB
             return true;
         }
 
-        while (rows.size() < options.MaxRowsPerRead &&
+        while (std::ssize(rows) < options.MaxRowsPerRead &&
                dataWeight < options.MaxDataWeightPerRead)
         {
-            if (RowCount_ == Keys_.Size()) {
+            if (RowCount_ == std::ssize(Keys_)) {
                 BlockEnded_ = true;
                 return true;
             }
@@ -1311,7 +1311,7 @@ private:
     {
         if (TSchemalessChunkReaderBase::Config_->SamplingRate) {
             i64 insertIndex = 0;
-            for (i64 rowIndex = 0; rowIndex < rows->size(); ++rowIndex) {
+            for (i64 rowIndex = 0; rowIndex < std::ssize(*rows); ++rowIndex) {
                 i64 tableRowIndex = ChunkSpec_.table_row_index() + RowIndex_ - rows->size() + rowIndex;
                 if (SampleRow(tableRowIndex)) {
                     (*rows)[insertIndex] = (*rows)[rowIndex];
@@ -1385,7 +1385,7 @@ private:
         }
 
         int batchColumnCount = 0;
-        for (int index = 0; index < RowColumnReaders_.size(); ++index) {
+        for (int index = 0; index < std::ssize(RowColumnReaders_); ++index) {
             const auto& reader = RowColumnReaders_[index];
             batchColumnCount += reader->GetBatchColumnCount();
         }
@@ -1393,7 +1393,7 @@ private:
         allBatchColumns->resize(batchColumnCount + VirtualValues_.GetTotalColumnCount());
         rootBatchColumns->reserve(RowColumnReaders_.size() + VirtualValues_.Values().size());
         int currentBatchColumnIndex = 0;
-        for (int index = 0; index < RowColumnReaders_.size(); ++index) {
+        for (int index = 0; index < std::ssize(RowColumnReaders_); ++index) {
             const auto& reader = RowColumnReaders_[index];
             const auto& column = Columns_[index];
             int columnCount = reader->GetBatchColumnCount();
@@ -1408,7 +1408,7 @@ private:
             currentBatchColumnIndex += columnCount;
         }
 
-        for (int index = 0; index < VirtualValues_.Values().size(); ++index) {
+        for (int index = 0; index < std::ssize(VirtualValues_.Values()); ++index) {
             int columnCount = VirtualValues_.GetBatchColumnCount(index);
             auto columnRange = TMutableRange<IUnversionedColumnarRowBatch::TColumn>(
                 allBatchColumns->data() + currentBatchColumnIndex,
@@ -1437,12 +1437,12 @@ private:
         rows.reserve(options.MaxRowsPerRead);
 
         i64 rowsDataWeight = 0;
-        while (rows.size() < options.MaxRowsPerRead &&
+        while (std::ssize(rows) < options.MaxRowsPerRead &&
             rowsDataWeight < options.MaxDataWeightPerRead)
         {
             i64 rowCount = ReadPrologue(rows.capacity() - rows.size());
             ReadRows(rowCount, &rows);
-            for (i64 rowIndex = rows.size() - rowCount; rowIndex < rows.size(); ++rowIndex) {
+            for (i64 rowIndex = std::ssize(rows) - rowCount; rowIndex < std::ssize(rows); ++rowIndex) {
                 rowsDataWeight += GetDataWeight(rows[rowIndex]);
             }
             if (Completed_ || !TryFetchNextRow()) {
@@ -1505,7 +1505,7 @@ private:
         std::vector<int> schemaColumnIndexes;
         bool readSchemalessColumns = false;
         if (ColumnFilter_.IsUniversal()) {
-            for (int index = 0; index < chunkSchema.Columns().size(); ++index) {
+            for (int index = 0; index < std::ssize(chunkSchema.Columns()); ++index) {
                 const auto& columnSchema = chunkSchema.Columns()[index];
                 if (OmittedInaccessibleColumnSet_.contains(columnSchema.Name())) {
                     continue;
@@ -1530,7 +1530,7 @@ private:
                 }
                 auto nameTableIndex = NameTable_->GetIdOrRegisterName(name);
                 if (filterIndexes.contains(nameTableIndex)) {
-                    if (chunkColumnId < chunkSchema.Columns().size()) {
+                    if (chunkColumnId < std::ssize(chunkSchema.Columns())) {
                         schemaColumnIndexes.push_back(chunkColumnId);
                     } else {
                         readSchemalessColumns = true;
@@ -1541,7 +1541,7 @@ private:
         }
 
         // Create column readers.
-        for (int valueIndex = 0; valueIndex < schemaColumnIndexes.size(); ++valueIndex) {
+        for (int valueIndex = 0; valueIndex < std::ssize(schemaColumnIndexes); ++valueIndex) {
             auto columnIndex = schemaColumnIndexes[valueIndex];
             auto columnId = NameTable_->GetIdOrRegisterName(chunkSchema.Columns()[columnIndex].Name());
             auto columnReader = CreateUnversionedColumnReader(
@@ -1573,7 +1573,7 @@ private:
             Columns_.emplace_back(std::move(columnReader), keyIndex);
         }
 
-        for (int keyIndex = minKeyColumnCount; keyIndex < SortColumns_.size(); ++keyIndex) {
+        for (int keyIndex = minKeyColumnCount; keyIndex < std::ssize(SortColumns_); ++keyIndex) {
             auto columnReader = CreateBlocklessUnversionedNullColumnReader(
                 keyIndex,
                 keyIndex,
@@ -1582,7 +1582,7 @@ private:
             Columns_.emplace_back(std::move(columnReader), -1);
         }
 
-        YT_VERIFY(KeyColumnReaders_.size() == Comparator_.GetLength());
+        YT_VERIFY(std::ssize(KeyColumnReaders_) == Comparator_.GetLength());
 
         InitLowerRowIndex();
         InitUpperRowIndex();
@@ -1757,7 +1757,7 @@ public:
             return CreateEmptyUnversionedRowBatch();
         }
 
-        if (NextKeyIndex_ == Keys_.Size()) {
+        if (NextKeyIndex_ == std::ssize(Keys_)) {
             return nullptr;
         }
 
@@ -1765,7 +1765,7 @@ public:
         rows.reserve(options.MaxRowsPerRead);
         i64 dataWeight = 0;
 
-        while (rows.size() < options.MaxRowsPerRead &&
+        while (std::ssize(rows) < options.MaxRowsPerRead &&
                dataWeight < options.MaxDataWeightPerRead)
         {
             FeedBlocksToReaders();
@@ -1777,7 +1777,7 @@ public:
                 // Reading row.
                 i64 lowerRowIndex = KeyColumnReaders_[0]->GetCurrentRowIndex();
                 i64 upperRowIndex = KeyColumnReaders_[0]->GetBlockUpperRowIndex();
-                for (int i = 0; i < KeyColumnReaders_.size(); ++i) {
+                for (int i = 0; i < std::ssize(KeyColumnReaders_); ++i) {
                     std::tie(lowerRowIndex, upperRowIndex) = KeyColumnReaders_[i]->GetEqualRange(
                         key[i],
                         lowerRowIndex,
@@ -1800,7 +1800,7 @@ public:
 
             dataWeight += GetDataWeight(rows.back());
 
-            if (++NextKeyIndex_ == Keys_.Size() || !TryFetchNextRow()) {
+            if (++NextKeyIndex_ == std::ssize(Keys_) || !TryFetchNextRow()) {
                 break;
             }
         }
@@ -1901,7 +1901,7 @@ private:
             KeyColumnReaders_[keyColumnIndex] = columnReader.get();
             Columns_.emplace_back(std::move(columnReader), keyColumnIndex);
         }
-        for (int keyColumnIndex = chunkSchema.GetKeyColumnCount(); keyColumnIndex < SortColumns_.size(); ++keyColumnIndex) {
+        for (int keyColumnIndex = chunkSchema.GetKeyColumnCount(); keyColumnIndex < std::ssize(SortColumns_); ++keyColumnIndex) {
             auto columnReader = CreateBlocklessUnversionedNullColumnReader(
                 keyColumnIndex,
                 keyColumnIndex,
@@ -1918,7 +1918,7 @@ private:
         std::vector<int> schemaColumnIndexes;
         bool readSchemalessColumns = false;
         if (ColumnFilter_.IsUniversal()) {
-            for (int index = 0; index < chunkSchema.Columns().size(); ++index) {
+            for (int index = 0; index < std::ssize(chunkSchema.Columns()); ++index) {
                 const auto& columnSchema = chunkSchema.Columns()[index];
                 if (OmittedInaccessibleColumnSet_.contains(columnSchema.Name())) {
                     continue;
@@ -1944,7 +1944,7 @@ private:
                 }
                 auto nameTableIndex = NameTable_->GetIdOrRegisterName(name);
                 if (filterIndexes.contains(nameTableIndex)) {
-                    if (chunkColumnId < chunkSchema.Columns().size()) {
+                    if (chunkColumnId < std::ssize(chunkSchema.Columns())) {
                         schemaColumnIndexes.push_back(chunkColumnId);
                     } else {
                         readSchemalessColumns = true;
@@ -1955,7 +1955,7 @@ private:
         }
 
         // Create column readers.
-        for (int valueIndex = 0; valueIndex < schemaColumnIndexes.size(); ++valueIndex) {
+        for (int valueIndex = 0; valueIndex < std::ssize(schemaColumnIndexes); ++valueIndex) {
             auto columnIndex = schemaColumnIndexes[valueIndex];
             if (columnIndex < chunkSchema.GetKeyColumnCount()) {
                 RowColumnReaders_.push_back(KeyColumnReaders_[columnIndex]);

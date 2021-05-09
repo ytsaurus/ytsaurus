@@ -628,12 +628,12 @@ private:
             }
         }
 
-        if (ActiveAddresses_.size() + BannedAddresses_.size() + newAddresses.size() > Config_->MaxPeerCount) {
+        if (std::ssize(ActiveAddresses_) + std::ssize(BannedAddresses_) + std::ssize(newAddresses) > Config_->MaxPeerCount) {
             MaybeEvictRandomPeer(guard);
         }
 
         for (const auto& address : newAddresses) {
-            if (ActiveAddresses_.size() + BannedAddresses_.size() >= Config_->MaxPeerCount) {
+            if (std::ssize(ActiveAddresses_) + std::ssize(BannedAddresses_) >= Config_->MaxPeerCount) {
                 break;
             }
 
@@ -682,7 +682,7 @@ private:
     {
         auto guard = ReaderGuard(SpinLock_);
 
-        if (requestingAddresses->size() >= Config_->MaxConcurrentDiscoverRequests) {
+        if (std::ssize(*requestingAddresses) >= Config_->MaxConcurrentDiscoverRequests) {
             return TTooManyConcurrentRequests();
         }
 

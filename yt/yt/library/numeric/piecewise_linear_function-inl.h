@@ -895,7 +895,7 @@ TPiecewiseLinearFunction<TValue> TPiecewiseLinearFunction<TValue>::Sum(
         TValue leftLimit = {};
         TValue rightLimit = {};
 
-        for (int i = 0; i < funcs.size(); i++) {
+        for (int i = 0; i < std::ssize(funcs); i++) {
             auto [childLeftLimit, childRightLimit] = traversers[i].LeftRightLimitAt(x);
             leftLimit += childLeftLimit;
             rightLimit += childRightLimit;
@@ -955,7 +955,7 @@ TPiecewiseLinearFunction<TValue> TPiecewiseLinearFunction<TValue>::Compose(const
     // Finally, build the resulting function.
     TBuilder builder;
 
-    for (int i = 0; i < criticalPoints.size(); i++) {
+    for (int i = 0; i < std::ssize(criticalPoints); i++) {
         const auto &[criticalPoint, rhsValue] = criticalPoints[i];
 
         // If this condition is not satisfied, the left-hand limit at this point was already calculated.
@@ -971,9 +971,9 @@ TPiecewiseLinearFunction<TValue> TPiecewiseLinearFunction<TValue>::Compose(const
         }
 
         // If this condition is not satisfied, the right-hand limit at this point will be calculated later.
-        if (i + 1 == criticalPoints.size() || criticalPoints[i + 1].first != criticalPoint) {
+        if (i + 1 == std::ssize(criticalPoints) || criticalPoints[i + 1].first != criticalPoint) {
             TValue resultRightLimit;
-            if (i + 1 < criticalPoints.size() && criticalPoints[i + 1].second > rhsValue) {
+            if (i + 1 < std::ssize(criticalPoints) && criticalPoints[i + 1].second > rhsValue) {
                 resultRightLimit = RightLimitAt(rhsValue);
             } else {
                 resultRightLimit = ValueAt(rhsValue);
@@ -1039,7 +1039,7 @@ TPiecewiseLinearFunction<TValue>::TLeftToRightTraverser::TLeftToRightTraverser(
     , Cur_(Function_->Segments().begin() + segmentIndex)
     , End_(Function_->Segments().end())
 {
-    YT_ASSERT(segmentIndex < Function_->Segments().size());
+    YT_ASSERT(segmentIndex < std::ssize(Function_->Segments()));
 }
 
 template <class TValue>

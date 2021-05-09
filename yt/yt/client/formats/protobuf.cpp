@@ -904,7 +904,7 @@ TProtobufFieldDescriptionBase* TProtobufWriterFormatDescription::AddField(
 const TProtobufWriterFormatDescription::TTableDescription&
 TProtobufWriterFormatDescription::GetTableDescription(int tableIndex) const
 {
-    if (Y_UNLIKELY(tableIndex >= Tables_.size())) {
+    if (Y_UNLIKELY(tableIndex >= std::ssize(Tables_))) {
         THROW_ERROR_EXCEPTION("Table with index %v is missing in format description",
             tableIndex);
     }
@@ -978,7 +978,7 @@ void TProtobufParserFieldDescription::SetChildIndex(int fieldNumber, int childIn
 std::optional<int> TProtobufParserFieldDescription::FieldNumberToChildIndex(int fieldNumber) const
 {
     int index;
-    if (fieldNumber < FieldNumberToChildIndexVector_.size()) {
+    if (fieldNumber < std::ssize(FieldNumberToChildIndexVector_)) {
         index = FieldNumberToChildIndexVector_[fieldNumber];
         if (Y_UNLIKELY(index == InvalidChildIndex)) {
             THROW_ERROR_EXCEPTION("Unexpected field number %v while parsing %Qv",

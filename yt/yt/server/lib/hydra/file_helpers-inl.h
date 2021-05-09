@@ -58,7 +58,7 @@ bool TCheckedReader<T>::Check(size_t length)
         return false;
     }
 
-    if (CurrentOffset_ + length > FileLength_) {
+    if (static_cast<ssize_t>(CurrentOffset_ + length) > FileLength_) {
         Success_ = false;
         return false;
     }

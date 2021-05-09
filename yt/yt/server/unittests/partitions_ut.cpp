@@ -16,7 +16,7 @@ void ListPartitions(TPartitionTreeSkeleton* tree, TPartitions* partitions, std::
     if (tree->Children.empty()) {
         partitions->push_back(*currentPath);
     } else {
-        for (int childIndex = 0; childIndex < tree->Children.size(); ++childIndex) {
+        for (int childIndex = 0; childIndex < std::ssize(tree->Children); ++childIndex) {
             auto* child = tree->Children[childIndex].get();
             currentPath->push_back(childIndex);
             ListPartitions(child, partitions, currentPath);
@@ -63,7 +63,7 @@ TEST(TPartitionsTest, TestPartitionTreeSkeleton)
         auto partitions = BuildTreeAndListPartitions(partitionCount, 2);
         for (int partitionIndex = 0; partitionIndex < partitionCount; ++partitionIndex) {
             const auto& partition = partitions[partitionIndex];
-            EXPECT_EQ(partition.size(), 16);
+            EXPECT_EQ(partition.size(), 16u);
             for (int layerIndex = 0; layerIndex < 16; ++layerIndex) {
                 EXPECT_EQ(partition[layerIndex], std::min(1, partitionIndex & (1 << (15 - layerIndex))));
             }
@@ -84,7 +84,7 @@ TEST(TPartitionsTest, TestPartitionTreeSkeleton)
         auto partitions = BuildTreeAndListPartitions(partitionCount, 45);
         for (int partitionIndex = 0; partitionIndex < partitionCount; ++partitionIndex) {
             const auto& partition = partitions[partitionIndex];
-            EXPECT_EQ(partition.size(), 2);
+            EXPECT_EQ(partition.size(), 2u);
         }
     }
 }

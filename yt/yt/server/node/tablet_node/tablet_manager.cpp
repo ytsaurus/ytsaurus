@@ -514,7 +514,7 @@ private:
             std::vector<TString> keys;
             if (auto owner = Owner_.Lock()) {
                 for (const auto& tablet : owner->Tablets()) {
-                    if (keys.size() >= limit) {
+                    if (std::ssize(keys) >= limit) {
                         break;
                     }
                     keys.push_back(ToString(tablet.first));
@@ -1245,7 +1245,7 @@ private:
         // COMPAT(ifsmirnov)
         if (request->has_mount_revision() && request->mount_revision() != 0) {
             auto mountRevision = request->mount_revision();
-            if (mountRevision != tablet->GetMountRevision()) {
+            if (static_cast<ui64>(mountRevision) != tablet->GetMountRevision()) {
                 return;
             }
         }
@@ -1312,7 +1312,7 @@ private:
         }
 
         auto mountRevision = request->mount_revision();
-        if (mountRevision != tablet->GetMountRevision()) {
+        if (static_cast<ui64>(mountRevision) != tablet->GetMountRevision()) {
             return;
         }
 
@@ -1546,7 +1546,7 @@ private:
         }
 
         auto mountRevision = request->mount_revision();
-        if (mountRevision != tablet->GetMountRevision()) {
+        if (static_cast<ui64>(mountRevision) != tablet->GetMountRevision()) {
             // Same as above.
             return;
         }
@@ -1643,7 +1643,7 @@ private:
         }
 
         auto mountRevision = request->mount_revision();
-        if (mountRevision != tablet->GetMountRevision()) {
+        if (static_cast<ui64>(mountRevision) != tablet->GetMountRevision()) {
             return;
         }
 
@@ -1667,7 +1667,7 @@ private:
         }
 
         auto mountRevision = request->mount_revision();
-        if (mountRevision != tablet->GetMountRevision()) {
+        if (static_cast<ui64>(mountRevision) != tablet->GetMountRevision()) {
             return;
         }
 
@@ -1813,7 +1813,7 @@ private:
         }
 
         auto mountRevision = request->mount_revision();
-        if (tablet->GetMountRevision() != mountRevision) {
+        if (tablet->GetMountRevision() != static_cast<ui64>(mountRevision)) {
             return;
         }
 
@@ -1903,7 +1903,7 @@ private:
         }
 
         auto mountRevision = request->mount_revision();
-        if (mountRevision != tablet->GetMountRevision()) {
+        if (static_cast<ui64>(mountRevision) != tablet->GetMountRevision()) {
             return;
         }
 
@@ -2085,7 +2085,7 @@ private:
         YT_VERIFY(tablet->IsPhysicallySorted());
 
         auto mountRevision = request->mount_revision();
-        if (mountRevision != tablet->GetMountRevision()) {
+        if (static_cast<ui64>(mountRevision) != tablet->GetMountRevision()) {
             return;
         }
 
@@ -2133,7 +2133,7 @@ private:
         YT_VERIFY(tablet->IsPhysicallySorted());
 
         auto mountRevision = request->mount_revision();
-        if (mountRevision != tablet->GetMountRevision()) {
+        if (static_cast<ui64>(mountRevision) != tablet->GetMountRevision()) {
             return;
         }
 
@@ -2182,7 +2182,7 @@ private:
         YT_VERIFY(tablet->IsPhysicallySorted());
 
         auto mountRevision = request->mount_revision();
-        if (mountRevision != tablet->GetMountRevision()) {
+        if (static_cast<ui64>(mountRevision) != tablet->GetMountRevision()) {
             return;
         }
 
@@ -3668,7 +3668,7 @@ private:
     void ValidateTabletStoreLimit(TTablet* tablet)
     {
         const auto& mountConfig = tablet->GetSettings().MountConfig;
-        auto storeCount = tablet->StoreIdMap().size();
+        auto storeCount = std::ssize(tablet->StoreIdMap());
         auto storeLimit = mountConfig->MaxStoresPerTablet;
         if (storeCount >= storeLimit) {
             THROW_ERROR_EXCEPTION(

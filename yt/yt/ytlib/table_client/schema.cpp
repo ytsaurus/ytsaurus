@@ -83,7 +83,7 @@ void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSch
 void ValidateColumnsNotRemoved(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
     YT_VERIFY(newSchema.GetStrict());
-    for (int oldColumnIndex = 0; oldColumnIndex < oldSchema.Columns().size(); ++oldColumnIndex) {
+    for (int oldColumnIndex = 0; oldColumnIndex < std::ssize(oldSchema.Columns()); ++oldColumnIndex) {
         const auto& oldColumn = oldSchema.Columns()[oldColumnIndex];
         if (!newSchema.FindColumn(oldColumn.Name())) {
             THROW_ERROR_EXCEPTION("Cannot remove column %Qv from a strict schema",
@@ -96,7 +96,7 @@ void ValidateColumnsNotRemoved(const TTableSchema& oldSchema, const TTableSchema
 void ValidateColumnsNotInserted(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
     YT_VERIFY(!oldSchema.GetStrict());
-    for (int newColumnIndex = 0; newColumnIndex < newSchema.Columns().size(); ++newColumnIndex) {
+    for (int newColumnIndex = 0; newColumnIndex < std::ssize(newSchema.Columns()); ++newColumnIndex) {
         const auto& newColumn = newSchema.Columns()[newColumnIndex];
         if (!oldSchema.FindColumn(newColumn.Name())) {
             THROW_ERROR_EXCEPTION("Cannot insert a new column %Qv into non-strict schema",
@@ -110,7 +110,7 @@ void ValidateColumnsNotInserted(const TTableSchema& oldSchema, const TTableSchem
 void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
     int commonKeyColumnPrefix = 0;
-    for (int oldColumnIndex = 0; oldColumnIndex < oldSchema.Columns().size(); ++oldColumnIndex) {
+    for (int oldColumnIndex = 0; oldColumnIndex < std::ssize(oldSchema.Columns()); ++oldColumnIndex) {
         const auto& oldColumn = oldSchema.Columns()[oldColumnIndex];
         const auto* newColumnPtr = newSchema.FindColumn(oldColumn.Name());
         if (!newColumnPtr) {
@@ -149,7 +149,7 @@ void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSchema& new
 
 void ValidateNoRequiredColumnsAdded(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
-    for (int newColumnIndex = 0; newColumnIndex < newSchema.Columns().size(); ++newColumnIndex) {
+    for (int newColumnIndex = 0; newColumnIndex < std::ssize(newSchema.Columns()); ++newColumnIndex) {
         const auto& newColumn = newSchema.Columns()[newColumnIndex];
         if (newColumn.Required()) {
             const auto* oldColumn = oldSchema.FindColumn(newColumn.Name());
@@ -175,7 +175,7 @@ static bool IsPhysicalType(ESimpleLogicalValueType logicalType)
  */
 void ValidateAggregatedColumns(const TTableSchema& schema)
 {
-    for (int index = 0; index < schema.Columns().size(); ++index) {
+    for (int index = 0; index < std::ssize(schema.Columns()); ++index) {
         const auto& columnSchema = schema.Columns()[index];
         if (columnSchema.Aggregate()) {
             if (index < schema.GetKeyColumnCount()) {
@@ -231,7 +231,7 @@ void ValidateComputedColumns(const TTableSchema& schema, bool isTableDynamic)
     // TODO(max42): Passing *this before the object is finally constructed
     // doesn't look like a good idea (although it works :) ). Get rid of this.
 
-    for (int index = 0; index < schema.Columns().size(); ++index) {
+    for (int index = 0; index < std::ssize(schema.Columns()); ++index) {
         const auto& columnSchema = schema.Columns()[index];
         if (columnSchema.Expression()) {
             if (index >= schema.GetKeyColumnCount() && isTableDynamic) {
@@ -332,13 +332,13 @@ void ValidateTableSchemaUpdate(
 
 void ValidatePivotKey(const TUnversionedRow& pivotKey, const TTableSchema& schema, const TStringBuf& keyType, bool validateRequired)
 {
-    if (pivotKey.GetCount() > schema.GetKeyColumnCount()) {
+    if (static_cast<int>(pivotKey.GetCount()) > schema.GetKeyColumnCount()) {
         auto titleKeyType = TString(keyType);
         titleKeyType.to_title();
         THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SchemaViolation, "%v key must form a prefix of key", titleKeyType);
     }
 
-    for (int index = 0; index < pivotKey.GetCount(); ++index) {
+    for (int index = 0; index < static_cast<int>(pivotKey.GetCount()); ++index) {
         if (pivotKey[index].Type != EValueType::Null && pivotKey[index].Type != schema.Columns()[index].GetPhysicalType()) {
             THROW_ERROR_EXCEPTION(
                 NTableClient::EErrorCode::SchemaViolation,
@@ -398,7 +398,7 @@ TTableSchemaPtr InferInputSchema(const std::vector<TTableSchemaPtr>& schemas, bo
     std::vector<TString> columnNames;
 
     for (const auto& schema : schemas) {
-        for (int columnIndex = 0; columnIndex < schema->Columns().size(); ++columnIndex) {
+        for (int columnIndex = 0; columnIndex < std::ssize(schema->Columns()); ++columnIndex) {
             auto column = schema->Columns()[columnIndex];
             if (columnIndex >= commonKeyColumnPrefix) {
                 column = column.SetSortOrder(std::nullopt);
@@ -575,7 +575,7 @@ std::pair<ESchemaCompatibility, TError> CheckTableSchemaCompatibilityImpl(
     auto inputKeySchema = inputSchema.ToKeys();
     auto outputKeySchema = outputSchema.ToKeys();
 
-    for (int index = 0; index < outputKeySchema->Columns().size(); ++index) {
+    for (int index = 0; index < std::ssize(outputKeySchema->Columns()); ++index) {
         const auto& inputColumn = inputKeySchema->Columns()[index];
         const auto& outputColumn = outputKeySchema->Columns()[index];
         if (inputColumn.Name() != outputColumn.Name()) {

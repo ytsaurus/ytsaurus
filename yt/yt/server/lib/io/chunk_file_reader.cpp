@@ -74,7 +74,7 @@ TFuture<std::vector<TBlock>> TChunkFileReader::ReadBlocks(
     std::optional<i64> /* estimatedSize */)
 {
     std::vector<TFuture<std::vector<TBlock>>> futures;
-    auto count = blockIndexes.size();
+    auto count = std::ssize(blockIndexes);
 
     try {
         // Extract maximum contiguous ranges of blocks.
@@ -164,7 +164,7 @@ IIOEngine::TReadRequest TChunkFileReader::MakeChunkFragmentReadRequest(
     TSharedMutableRef data)
 {
     YT_ASSERT(DataFileOpened_.load());
-    YT_ASSERT(fragmentDescriptor.Length == data.Size());
+    YT_ASSERT(fragmentDescriptor.Length == std::ssize(data));
 
     return IIOEngine::TReadRequest{
         *DataFile_,

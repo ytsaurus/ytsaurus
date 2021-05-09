@@ -15,7 +15,7 @@ namespace NYT::NHRTimer {
 ////////////////////////////////////////////////////////////////////////////////
 
 static const ui64 NumberOfNsInS = 1000000000UL;
-static const ui64 NumberOfSamples = 1000UL;
+static const i64 NumberOfSamples = 1000UL;
 
 void GetHRInstant(THRInstant* instant)
 {
@@ -62,7 +62,7 @@ THRDuration GetHRDuration(const THRInstant& begin, const THRInstant& end)
     YT_ASSERT(
         end.Seconds > begin.Seconds &&
         end.Seconds - begin.Seconds <
-            std::numeric_limits<THRDuration>::max() / NumberOfNsInS);
+            static_cast<i64>(std::numeric_limits<THRDuration>::max() / NumberOfNsInS));
     return
         ( end.Seconds - begin.Seconds ) * NumberOfNsInS
         + end.Nanoseconds - begin.Nanoseconds;

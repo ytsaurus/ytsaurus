@@ -94,8 +94,8 @@ public:
             if (!Data_->Failed) {
                 auto& rowQueue = Data_->RowQueue;
                 while (!rowQueue.empty() &&
-                       rows.size() < options.MaxRowsPerRead &&
-                       dataWeight < options.MaxDataWeightPerRead)
+                    std::ssize(rows) < options.MaxRowsPerRead &&
+                    dataWeight < options.MaxDataWeightPerRead)
                 {
                     auto row = rowQueue.front();
                     rowQueue.pop();

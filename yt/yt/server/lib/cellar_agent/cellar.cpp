@@ -209,7 +209,7 @@ private:
             std::vector<TString> keys;
             if (auto owner = Owner_.Lock()) {
                 for (const auto& occupant : owner->Occupants()) {
-                    if (keys.size() >= limit) {
+                    if (std::ssize(keys) >= limit) {
                         break;
                     }
                     if (occupant) {
@@ -268,7 +268,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        for (int index = 0; index < Occupants_.size(); ++index) {
+        for (int index = 0; index < std::ssize(Occupants_); ++index) {
             if (!Occupants_[index]) {
                 return index;
             }
@@ -292,7 +292,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (Occupants_.size() == cellarSize) {
+        if (std::ssize(Occupants_) == cellarSize) {
             return;
         }
 
@@ -301,9 +301,9 @@ private:
             Occupants_.size(),
             cellarSize);
 
-        if (cellarSize < Occupants_.size()) {
+        if (cellarSize < std::ssize(Occupants_)) {
             std::vector<TFuture<void>> futures;
-            for (int index = cellarSize; index < Occupants_.size(); ++index) {
+            for (int index = cellarSize; index < std::ssize(Occupants_); ++index) {
                 if (const auto& occupant = Occupants_[index]) {
                     futures.push_back(RemoveOccupant(occupant));
                 }
@@ -313,7 +313,7 @@ private:
             YT_LOG_ALERT_UNLESS(error.IsOK(), error, "Failed to finalize occpant during cellar reconfiguration");
         }
 
-        while (Occupants_.size() > cellarSize) {
+        while (std::ssize(Occupants_) > cellarSize) {
             if (const auto& occupant = Occupants_.back()) {
                 THROW_ERROR_EXCEPTION("Slot %v with cell %d did not finalize properly, total slot count update failed",
                     occupant->GetIndex(),

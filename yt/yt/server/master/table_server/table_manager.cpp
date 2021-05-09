@@ -331,7 +331,7 @@ public:
         }
 
         if (!nodeIdsToRetry.empty()) {
-            YT_VERIFY(nodeIdsToRetry.size() == retryRequest.entries_size());
+            YT_VERIFY(std::ssize(nodeIdsToRetry) == retryRequest.entries_size());
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMaster(retryRequest, externalCellTag);

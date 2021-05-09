@@ -90,7 +90,7 @@ void ExpectFields(const DB::IColumn& column, std::vector<DB::Field> expectedFiel
 {
     ASSERT_EQ(expectedFields.size(), column.size());
 
-    for (int index = 0; index < column.size(); ++index) {
+    for (int index = 0; index < std::ssize(column); ++index) {
         EXPECT_EQ(expectedFields[index], column[index]) << "Mismatch at position " << index;
         if (!(expectedFields[index] == column[index])) {
             YT_ABORT();

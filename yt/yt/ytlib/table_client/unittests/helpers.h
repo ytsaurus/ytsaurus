@@ -26,7 +26,7 @@ template <class TExpectedRow, class TActualRow>
 void CheckSchemafulResult(const std::vector<TExpectedRow>& expected, const std::vector<TActualRow>& actual)
 {
     ASSERT_EQ(expected.size(), actual.size());
-    for (int i = 0; i < expected.size(); ++i) {
+    for (int i = 0; i < std::ssize(expected); ++i) {
         ExpectSchemafulRowsEqual(expected[i], actual[i]);
     }
 }
@@ -38,7 +38,7 @@ void CheckSchemalessResult(
     int keyColumnCount)
 {
     ASSERT_EQ(expected.size(), actual.size());
-    for (int i = 0; i < expected.size(); ++i) {
+    for (int i = 0; i < std::ssize(expected); ++i) {
         ExpectSchemalessRowsEqual(expected[i], actual[i], keyColumnCount);
     }
 }

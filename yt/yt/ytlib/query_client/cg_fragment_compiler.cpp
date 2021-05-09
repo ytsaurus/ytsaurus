@@ -1823,7 +1823,7 @@ TCodegenExpression MakeCodegenInExpr(
         argIds = std::move(argIds),
         comparerManager = std::move(comparerManager)
     ] (TCGExprContext& builder) {
-        size_t keySize = argIds.size();
+        auto keySize = std::ssize(argIds);
 
         Value* newValues = CodegenAllocateValues(builder, keySize);
 
@@ -1864,7 +1864,7 @@ TCodegenExpression MakeCodegenBetweenExpr(
         argIds = std::move(argIds),
         comparerManager = std::move(comparerManager)
     ] (TCGExprContext& builder) {
-        size_t keySize = argIds.size();
+        auto keySize = std::ssize(argIds);
 
         Value* newValues = CodegenAllocateValues(builder, keySize);
 
@@ -1905,7 +1905,7 @@ TCodegenExpression MakeCodegenTransformExpr(
         argIds = std::move(argIds),
         comparerManager = std::move(comparerManager)
     ] (TCGExprContext& builder) {
-        size_t keySize = argIds.size();
+        auto keySize = std::ssize(argIds);
 
         Value* newValues = CodegenAllocateValues(builder, keySize);
 
@@ -2353,7 +2353,7 @@ size_t MakeCodegenFilterFinalizedOp(
                 llvm::Align(8),
                 keySize * sizeof(TValue));
 
-            for (int index = 0; index < codegenAggregates.size(); index++) {
+            for (int index = 0; index < std::ssize(codegenAggregates); index++) {
                 auto value = TCGValue::LoadFromRowValues(
                     builder,
                     values,
@@ -2648,14 +2648,14 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
 
                 Value* dstValues = newValuesRef;
 
-                for (int index = 0; index < groupExprsIds.size(); index++) {
+                for (int index = 0; index < std::ssize(groupExprsIds); index++) {
                     CodegenFragment(innerBuilder, groupExprsIds[index])
                         .StoreToValues(builder, dstValues, index);
                 }
 
                 YT_VERIFY(commonPrefixWithPrimaryKey <= keySize);
 
-                for (int index = groupExprsIds.size(); index < keySize; ++index) {
+                for (int index = std::ssize(groupExprsIds); index < static_cast<ssize_t>(keySize); ++index) {
                     TCGValue::CreateNull(builder, keyTypes[index])
                         .StoreToValues(builder, dstValues, index);
                 }
@@ -2676,7 +2676,7 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
                     newValuesRef);
 
                 CodegenIf<TCGContext>(builder, inserted, [&] (TCGContext& builder) {
-                    for (int index = 0; index < codegenAggregates.size(); index++) {
+                    for (int index = 0; index < std::ssize(codegenAggregates); index++) {
                         codegenAggregates[index].Initialize(builder, bufferRef)
                             .StoreToValues(builder, groupValues, keySize + index);
                     }
@@ -2697,7 +2697,7 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
                 auto notSkip = builder->CreateIsNotNull(groupValues);
 
                 CodegenIf<TCGContext>(builder, notSkip, [&] (TCGContext& builder) {
-                    for (int index = 0; index < codegenAggregates.size(); index++) {
+                    for (int index = 0; index < std::ssize(codegenAggregates); index++) {
                         auto aggState = TCGValue::LoadFromRowValues(
                             builder,
                             groupValues,
@@ -2785,8 +2785,8 @@ size_t MakeCodegenGroupTotalsOp(
         ) {
             Value* newValuesPtr = builder->CreateAlloca(TTypeBuilder<TValue*>::Get(builder->getContext()));
 
-            size_t keySize = keyTypes.size();
-            size_t groupRowSize = keySize + stateTypes.size();
+            auto keySize = std::ssize(keyTypes);
+            auto groupRowSize = keySize + std::ssize(stateTypes);
 
             builder->CreateCall(
                 builder.Module->GetRoutine("AllocatePermanentRow"),
@@ -2804,7 +2804,7 @@ size_t MakeCodegenGroupTotalsOp(
                     .StoreToValues(builder, groupValues, index);
             }
 
-            for (int index = 0; index < codegenAggregates.size(); index++) {
+            for (int index = 0; index < std::ssize(codegenAggregates); index++) {
                 codegenAggregates[index].Initialize(builder, buffer)
                     .StoreToValues(builder, groupValues, keySize + index);
             }
@@ -2818,7 +2818,7 @@ size_t MakeCodegenGroupTotalsOp(
 
                 builder->CreateStore(builder->getTrue(), builder->ViaClosure(hasRows));
 
-                for (int index = 0; index < codegenAggregates.size(); index++) {
+                for (int index = 0; index < std::ssize(codegenAggregates); index++) {
                     auto aggState = TCGValue::LoadFromRowValues(
                         builder,
                         groupValuesRef,
@@ -2882,7 +2882,7 @@ size_t MakeCodegenFinalizeOp(
         stateTypes = std::move(stateTypes)
     ] (TCGOperatorContext& builder) {
         builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
-            for (int index = 0; index < codegenAggregates.size(); index++) {
+            for (int index = 0; index < std::ssize(codegenAggregates); index++) {
                 auto value = TCGValue::LoadFromRowValues(
                     builder,
                     values,

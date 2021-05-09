@@ -75,7 +75,7 @@ void TSimpleVersionedBlockWriter::WriteRow(TVersionedRow row)
 
     int lastId = KeyColumnCount_;
     ui32 valueCount = 0;
-    while (valueCount < row.GetValueCount()) {
+    while (static_cast<int>(valueCount) < row.GetValueCount()) {
         const auto& value = row.BeginValues()[valueCount];
         YT_ASSERT(value.Type == EValueType::Null || value.Type == Schema_->Columns()[value.Id].GetPhysicalType());
         YT_ASSERT(lastId <= value.Id);
@@ -94,7 +94,7 @@ void TSimpleVersionedBlockWriter::WriteRow(TVersionedRow row)
         ++lastId;
     }
 
-    YT_ASSERT(KeyStream_.GetSize() - keyOffset == GetKeySize(KeyColumnCount_, SchemaColumnCount_));
+    YT_ASSERT(static_cast<int>(KeyStream_.GetSize() - keyOffset) == GetKeySize(KeyColumnCount_, SchemaColumnCount_));
     WritePadding(KeyStream_, GetKeySize(KeyColumnCount_, SchemaColumnCount_));
 }
 

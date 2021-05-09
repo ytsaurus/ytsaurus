@@ -747,7 +747,7 @@ void TDistributedElectionManager::OnLeaderPingLeaseExpired()
 
 bool TDistributedElectionManager::CheckQuorum()
 {
-    if (AliveFollowerIds_.size() >= CellManager_->GetQuorumPeerCount()) {
+    if (std::ssize(AliveFollowerIds_) >= CellManager_->GetQuorumPeerCount()) {
         return true;
     }
 

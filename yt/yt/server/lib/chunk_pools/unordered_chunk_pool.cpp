@@ -747,7 +747,7 @@ private:
         i64 idealDataWeightPerJob)
     {
         const auto& jobCounter = GetJobCounter();
-        auto pendingStripesCount = FreeStripes_.size();
+        auto pendingStripesCount = std::ssize(FreeStripes_);
         std::vector<int> addedStripeIndexes;
         for (auto it = begin; it != end; ++it) {
             if (jobStub->GetDataWeight() >= idealDataWeightPerJob) {

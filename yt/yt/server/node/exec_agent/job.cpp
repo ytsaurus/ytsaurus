@@ -2078,7 +2078,7 @@ private:
         i64 totalUtilizationClocksSm = 0;
 
         auto gpuInfoMap = Bootstrap_->GetGpuManager()->GetGpuInfoMap();
-        for (int index = 0; index < GpuSlots_.size(); ++index) {
+        for (int index = 0; index < std::ssize(GpuSlots_); ++index) {
             const auto& slot = GpuSlots_[index];
             auto& slotStatistics = GpuStatistics_[index];
 
@@ -2341,7 +2341,7 @@ private:
         static const TString UtilizationClocksSmName = "gpu/utilization_clocks_sm";
 
         auto gpuInfoMap = Bootstrap_->GetGpuManager()->GetGpuInfoMap();
-        for (int index = 0; index < GpuSlots_.size(); ++index) {
+        for (int index = 0; index < std::ssize(GpuSlots_); ++index) {
             const auto& slot = GpuSlots_[index];
 
             auto it = gpuInfoMap.find(slot->GetDeviceNumber());

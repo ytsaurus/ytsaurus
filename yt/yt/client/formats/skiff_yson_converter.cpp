@@ -347,7 +347,7 @@ std::vector<std::optional<TTypePair>> MatchStructTypes(
 
         };
 
-        size_t nextSkiffFieldIndex = 0;
+        ssize_t nextSkiffFieldIndex = 0;
         const auto& fields = descriptor.GetType()->AsStructTypeRef().GetFields();
         for (size_t i = 0; i < fields.size(); ++i) {
             auto logicalField = fields[i];
@@ -372,7 +372,7 @@ std::vector<std::optional<TTypePair>> MatchStructTypes(
             result.emplace_back(TTypePair{descriptor.StructField(i), skiffFieldSchema});
         }
 
-        for (; nextSkiffFieldIndex < skiffFields.size(); ++nextSkiffFieldIndex) {
+        for (; nextSkiffFieldIndex < std::ssize(skiffFields); ++nextSkiffFieldIndex) {
             addEmptyResult(nextSkiffFieldIndex);
         }
 
@@ -1084,7 +1084,7 @@ TYsonToSkiffConverter CreateTupleYsonToSkiffConverter(
     auto tupleMatch = MatchTupleTypes(descriptor, skiffSchema);
     const auto& children = skiffSchema->GetChildren();
     std::vector<TYsonToSkiffConverter> converterList;
-    for (int i = 0; i < tupleMatch.size(); ++i) {
+    for (int i = 0; i < std::ssize(tupleMatch); ++i) {
         if (children[i]->GetWireType() == EWireType::Nothing) {
             converterList.emplace_back(skipYsonValue);
         } else {
@@ -1131,7 +1131,7 @@ public:
         }
         auto tag = cursor->GetCurrent().UncheckedAsInt64();
         cursor->Next();
-        if (tag >= ConverterList_.size()) {
+        if (tag >= std::ssize(ConverterList_)) {
             ThrowYsonToSkiffConversionError(Descriptor_, "variant tag (%v) exceeds %v children count (%v)",
                 tag,
                 wireType,
@@ -1690,7 +1690,7 @@ public:
             tag = parser->ParseVariant16Tag();
         }
 
-        if (tag >= ConverterList_.size()) {
+        if (tag >= std::ssize(ConverterList_)) {
             ThrowSkiffToYsonConversionError(Descriptor_, "Variant tag (%v) exceeds %v children count (%v)",
                 tag,
                 wireType,

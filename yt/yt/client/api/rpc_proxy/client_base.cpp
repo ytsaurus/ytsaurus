@@ -827,7 +827,7 @@ TFuture<std::vector<IUnversionedRowsetPtr>> TClientBase::MultiLookup(
     req->set_multiplexing_band(static_cast<NProto::EMultiplexingBand>(options.MultiplexingBand));
     ToProto(req->mutable_tablet_read_options(), options);
 
-    return req->Invoke().Apply(BIND([subrequestCount = subrequests.size()] (const TApiServiceProxy::TRspMultiLookupPtr& rsp) {
+    return req->Invoke().Apply(BIND([subrequestCount = std::ssize(subrequests)] (const TApiServiceProxy::TRspMultiLookupPtr& rsp) {
         YT_VERIFY(subrequestCount == rsp->subresponses_size());
 
         std::vector<IUnversionedRowsetPtr> result;
@@ -836,7 +836,7 @@ TFuture<std::vector<IUnversionedRowsetPtr>> TClientBase::MultiLookup(
         int beginAttachmentIndex = 0;
         for (const auto& subresponse : rsp->subresponses()) {
             int endAttachmentIndex = beginAttachmentIndex + subresponse.attachment_count();
-            YT_VERIFY(endAttachmentIndex <= rsp->Attachments().size());
+            YT_VERIFY(endAttachmentIndex <= std::ssize(rsp->Attachments()));
 
             std::vector<TSharedRef> subresponseAttachments{
                 rsp->Attachments().begin() + beginAttachmentIndex,
@@ -847,7 +847,7 @@ TFuture<std::vector<IUnversionedRowsetPtr>> TClientBase::MultiLookup(
 
             beginAttachmentIndex = endAttachmentIndex;
         }
-        YT_VERIFY(beginAttachmentIndex == rsp->Attachments().size());
+        YT_VERIFY(beginAttachmentIndex == std::ssize(rsp->Attachments()));
 
         return result;
     }));

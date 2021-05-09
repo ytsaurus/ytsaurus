@@ -496,7 +496,7 @@ private:
         }
 
         ++CurrentRangeIndex_;
-        if (CurrentRangeIndex_ == FetchContext_.Ranges.size()) {
+        if (CurrentRangeIndex_ == std::ssize(FetchContext_.Ranges)) {
             ReplySuccess();
         } else {
             TraverseCurrentRange();
@@ -1232,7 +1232,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                         lockedNode->SetChunkList(newChunkList);
                         objectManager->RefObject(newChunkList);
 
-                        for (int index = 0; index < snapshotChunkList->Children().size(); ++index) {
+                        for (int index = 0; index < std::ssize(snapshotChunkList->Children()); ++index) {
                             auto* appendChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicSubtablet);
                             chunkManager->AttachToChunkList(newChunkList, appendChunkList);
                         }
@@ -1269,7 +1269,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                         objectManager->RefObject(newChunkList);
 
                         if (oldChunkList->GetKind() == EChunkListKind::SortedDynamicRoot) {
-                            for (int index = 0; index < oldChunkList->Children().size(); ++index) {
+                            for (int index = 0; index < std::ssize(oldChunkList->Children()); ++index) {
                                 auto* appendChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicTablet);
                                 chunkManager->AttachToChunkList(newChunkList, appendChunkList);
                             }

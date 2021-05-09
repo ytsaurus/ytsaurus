@@ -14,7 +14,7 @@ using namespace NConcurrency;
 void WaitForLatch(const TCountDownLatch& latch)
 {
     latch.Wait();
-    EXPECT_EQ(0, latch.GetCount());
+    EXPECT_EQ(0u, latch.GetCount());
 }
 
 TEST(TCountDownLatch, TwoThreads)
@@ -24,11 +24,11 @@ TEST(TCountDownLatch, TwoThreads)
     std::thread t1(std::bind(&WaitForLatch, std::cref(latch)));
     std::thread t2(std::bind(&WaitForLatch, std::cref(latch)));
 
-    EXPECT_EQ(2, latch.GetCount());
+    EXPECT_EQ(2u, latch.GetCount());
     latch.CountDown();
-    EXPECT_EQ(1, latch.GetCount());
+    EXPECT_EQ(1u, latch.GetCount());
     latch.CountDown();
-    EXPECT_EQ(0, latch.GetCount());
+    EXPECT_EQ(0u, latch.GetCount());
 
     t1.join();
     t2.join();
@@ -38,11 +38,11 @@ TEST(TCountDownLatch, TwoThreadsPredecremented)
 {
     TCountDownLatch latch(2);
 
-    EXPECT_EQ(2, latch.GetCount());
+    EXPECT_EQ(2u, latch.GetCount());
     latch.CountDown();
-    EXPECT_EQ(1, latch.GetCount());
+    EXPECT_EQ(1u, latch.GetCount());
     latch.CountDown();
-    EXPECT_EQ(0, latch.GetCount());
+    EXPECT_EQ(0u, latch.GetCount());
 
     std::thread t1(std::bind(&WaitForLatch, std::cref(latch)));
     std::thread t2(std::bind(&WaitForLatch, std::cref(latch)));
@@ -59,15 +59,15 @@ TEST(TCountDownLatch, TwoThreadsTwoLatches)
     std::thread t1([&] () {
         first.Wait();
         second.CountDown();
-        EXPECT_EQ(0, first.GetCount());
-        EXPECT_EQ(0, second.GetCount());
+        EXPECT_EQ(0u, first.GetCount());
+        EXPECT_EQ(0u, second.GetCount());
     });
 
     std::thread t2([&] () {
         first.CountDown();
         second.Wait();
-        EXPECT_EQ(0, first.GetCount());
-        EXPECT_EQ(0, second.GetCount());
+        EXPECT_EQ(0u, first.GetCount());
+        EXPECT_EQ(0u, second.GetCount());
     });
 
     t1.join();

@@ -73,7 +73,7 @@ public:
             return CreateEmptyVersionedRowBatch();
         }
 
-        if (RowCount_ == LookupKeys_.size()) {
+        if (RowCount_ == std::ssize(LookupKeys_)) {
             return nullptr;
         }
 
@@ -212,7 +212,7 @@ private:
         TWireProtocolReader reader(uncompressedFetchedRowset, RowBuffer_);
 
         FetchedRows_.reserve(LookupKeys_.Size());
-        for (int i = 0; i < LookupKeys_.Size(); ++i) {
+        for (int i = 0; i < std::ssize(LookupKeys_); ++i) {
             FetchedRows_.push_back(reader.ReadVersionedRow(schemaData, true));
         }
     }

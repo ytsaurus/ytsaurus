@@ -390,7 +390,7 @@ private:
 
         int operator()(TSortedDynamicRow lhs, TUnversionedRowWrapper rhs) const
         {
-            YT_ASSERT(rhs.Row.GetCount() >= KeyColumnCount_);
+            YT_ASSERT(static_cast<int>(rhs.Row.GetCount()) >= KeyColumnCount_);
             return Compare(lhs, rhs.Row.Begin(), KeyColumnCount_);
         }
 
@@ -720,7 +720,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, PrelockWriteAndCommit)
     ASSERT_TRUE(transaction->LockedRows().empty());
 
     ConfirmRow(transaction.get(), row);
-    ASSERT_EQ(1, transaction->LockedRows().size());
+    ASSERT_EQ(1u, transaction->LockedRows().size());
     ASSERT_TRUE(transaction->LockedRows()[0].Row == row);
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), nullptr));
@@ -759,7 +759,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, PrelockDeleteAndCommit)
     ASSERT_TRUE(transaction->LockedRows().empty());
 
     ConfirmRow(transaction.get(), row);
-    ASSERT_EQ(1, transaction->LockedRows().size());
+    ASSERT_EQ(1u, transaction->LockedRows().size());
     ASSERT_TRUE(transaction->LockedRows()[0].Row == row);
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), rowString));
@@ -2090,7 +2090,7 @@ TEST_F(TNonAtomicSortedDynamicStoreTest, Write1)
 
     auto row = WriteRowNonAtomic(BuildRow("key=1;a=1", false), 100);
 
-    EXPECT_EQ(100, GetLastCommitTimestamp(row));
+    EXPECT_EQ(100u, GetLastCommitTimestamp(row));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, 99), nullptr));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, 100), "key=1;a=1"));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, SyncLastCommittedTimestamp), "key=1;a=1"));
@@ -2104,10 +2104,10 @@ TEST_F(TNonAtomicSortedDynamicStoreTest, Write2)
     auto rowStr2 = "key=1;b=3.14";
 
     auto row1 = WriteRowNonAtomic(BuildRow(rowStr1, false), 100);
-    EXPECT_EQ(100, GetLastCommitTimestamp(row1));
+    EXPECT_EQ(100u, GetLastCommitTimestamp(row1));
 
     auto row2 = WriteRowNonAtomic(BuildRow(rowStr2, false), 200);
-    EXPECT_EQ(200, GetLastCommitTimestamp(row2));
+    EXPECT_EQ(200u, GetLastCommitTimestamp(row2));
 
     EXPECT_EQ(row1, row2);
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, 99), nullptr));
@@ -2148,7 +2148,7 @@ TEST_F(TNonAtomicSortedDynamicStoreTest, Delete1)
     auto key = BuildKey("1");
     auto row = DeleteRowNonAtomic(key, 100);
 
-    EXPECT_EQ(100, GetLastCommitTimestamp(row));
+    EXPECT_EQ(100u, GetLastCommitTimestamp(row));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, 99), nullptr));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, 100), nullptr));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, SyncLastCommittedTimestamp), nullptr));
@@ -2159,10 +2159,10 @@ TEST_F(TNonAtomicSortedDynamicStoreTest, Delete2)
     auto key = BuildKey("1");
 
     auto row1 = DeleteRowNonAtomic(key, 100);
-    EXPECT_EQ(100, GetLastCommitTimestamp(row1));
+    EXPECT_EQ(100u, GetLastCommitTimestamp(row1));
 
     auto row2 = DeleteRowNonAtomic(key, 200);
-    EXPECT_EQ(200, GetLastCommitTimestamp(row2));
+    EXPECT_EQ(200u, GetLastCommitTimestamp(row2));
 
     EXPECT_EQ(row1, row2);
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, 99), nullptr));
@@ -2175,10 +2175,10 @@ TEST_F(TNonAtomicSortedDynamicStoreTest, WriteDelete1)
     auto key = BuildKey("1");
 
     auto row1 = WriteRowNonAtomic(BuildRow("key=1;a=1", false), 100);
-    EXPECT_EQ(100, GetLastCommitTimestamp(row1));
+    EXPECT_EQ(100u, GetLastCommitTimestamp(row1));
 
     auto row2 = DeleteRowNonAtomic(key, 200);
-    EXPECT_EQ(200, GetLastCommitTimestamp(row2));
+    EXPECT_EQ(200u, GetLastCommitTimestamp(row2));
 
     EXPECT_EQ(row1, row2);
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, 99), nullptr));
@@ -2192,10 +2192,10 @@ TEST_F(TNonAtomicSortedDynamicStoreTest, WriteDelete2)
     auto key = BuildKey("1");
 
     auto row1 = DeleteRowNonAtomic(key, 100);
-    EXPECT_EQ(100, GetLastCommitTimestamp(row1));
+    EXPECT_EQ(100u, GetLastCommitTimestamp(row1));
 
     auto row2 = WriteRowNonAtomic(BuildRow("key=1;a=1", false), 200);
-    EXPECT_EQ(200, GetLastCommitTimestamp(row2));
+    EXPECT_EQ(200u, GetLastCommitTimestamp(row2));
 
     EXPECT_EQ(row1, row2);
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, 99), nullptr));

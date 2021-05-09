@@ -517,7 +517,7 @@ TYPED_TEST(TNotGrpcTest, StreamingEcho)
     proxy.SetDefaultEnableLegacyRpcCodecs(false);
 
     const int AttachmentCount = 30;
-    const size_t AttachmentSize = 2_MB;
+    const ssize_t AttachmentSize = 2_MB;
 
     std::mt19937 randomGenerator;
     std::uniform_int_distribution<char> distribution(std::numeric_limits<char>::min(), std::numeric_limits<char>::max());
@@ -819,7 +819,7 @@ TYPED_TEST(TRpcTest, RegularAttachments)
     const auto& rsp = rspOrError.Value();
 
     const auto& attachments = rsp->Attachments();
-    EXPECT_EQ(3, attachments.size());
+    EXPECT_EQ(3u, attachments.size());
     EXPECT_EQ("Hello_",     StringFromSharedRef(attachments[0]));
     EXPECT_EQ("from_",      StringFromSharedRef(attachments[1]));
     EXPECT_EQ("TMyProxy_",  StringFromSharedRef(attachments[2]));
@@ -838,7 +838,7 @@ TYPED_TEST(TRpcTest, NullAndEmptyAttachments)
     auto rsp = rspOrError.Value();
 
     const auto& attachments = rsp->Attachments();
-    EXPECT_EQ(2, attachments.size());
+    EXPECT_EQ(2u, attachments.size());
     EXPECT_FALSE(attachments[0]);
     EXPECT_TRUE(attachments[1]);
     EXPECT_TRUE(attachments[1].Empty());
@@ -883,7 +883,7 @@ TYPED_TEST(TNotGrpcTest, Compression)
     EXPECT_TRUE(attachments.size() == attachmentStrings.size());
     EXPECT_TRUE(rsp->GetResponseMessage().Size() == attachments.size() + 2);
     auto* responseCodec = NCompression::GetCodec(responseCodecId);
-    for (int i = 0; i < attachments.size(); ++i) {
+    for (int i = 0; i < std::ssize(attachments); ++i) {
         EXPECT_TRUE(StringFromSharedRef(attachments[i]) == attachmentStrings[i]);
         auto compressedAttachment = responseCodec->Compress(attachments[i]);
         EXPECT_TRUE(TRef::AreBitwiseEqual(rsp->GetResponseMessage()[i + 2], compressedAttachment));
@@ -914,7 +914,7 @@ TYPED_TEST(TRpcTest, ResponseMemoryTag)
         }
     }
 
-    EXPECT_GE(GetMemoryUsageForTag(TestMemoryTag) - initialMemoryUsage, 100'000);
+    EXPECT_GE(GetMemoryUsageForTag(TestMemoryTag) - initialMemoryUsage, 100'000u);
 }
 
 #endif
@@ -1311,7 +1311,7 @@ TEST_F(TAttachmentsInputStreamTest, EmptyAttachmentReadPosition)
     EXPECT_EQ(0, stream->GetFeedback().ReadPosition);
     auto future = stream->Read();
     EXPECT_TRUE(future.IsSet());
-    EXPECT_EQ(0, future.Get().ValueOrThrow().size());
+    EXPECT_EQ(0u, future.Get().ValueOrThrow().size());
     EXPECT_EQ(1, stream->GetFeedback().ReadPosition);
 }
 
@@ -1377,7 +1377,7 @@ TEST_F(TAttachmentsOutputStreamTest, SinglePull)
     auto result = stream->TryPull();
     EXPECT_TRUE(result);
     EXPECT_EQ(0, result->SequenceNumber);
-    EXPECT_EQ(1, result->Attachments.size());
+    EXPECT_EQ(1u, result->Attachments.size());
     EXPECT_TRUE(TRef::AreBitwiseEqual(payload, result->Attachments[0]));
 }
 
@@ -1386,7 +1386,7 @@ TEST_F(TAttachmentsOutputStreamTest, MultiplePull)
     auto stream = CreateStream(100);
 
     std::vector<TSharedRef> payloads;
-    for (size_t i = 0; i < 10; ++i) {
+    for (int i = 0; i < 10; ++i) {
         auto payload = TSharedRef::FromString("payload" + ToString(i));
         payloads.push_back(payload);
         auto future = stream->Write(payload);
@@ -1398,7 +1398,7 @@ TEST_F(TAttachmentsOutputStreamTest, MultiplePull)
     auto result = stream->TryPull();
     EXPECT_TRUE(result);
     EXPECT_EQ(0, result->SequenceNumber);
-    EXPECT_EQ(10, result->Attachments.size());
+    EXPECT_EQ(10u, result->Attachments.size());
     for (size_t i = 0; i < 10; ++i) {
         EXPECT_TRUE(TRef::AreBitwiseEqual(payloads[i], result->Attachments[i]));
     }
@@ -1422,7 +1422,7 @@ TEST_F(TAttachmentsOutputStreamTest, Backpressure)
     auto result1 = stream->TryPull();
     EXPECT_TRUE(result1);
     EXPECT_EQ(0, result1->SequenceNumber);
-    EXPECT_EQ(1, result1->Attachments.size());
+    EXPECT_EQ(1u, result1->Attachments.size());
     EXPECT_TRUE(TRef::AreBitwiseEqual(payload1, result1->Attachments[0]));
 
     EXPECT_FALSE(future2.IsSet());
@@ -1445,7 +1445,7 @@ TEST_F(TAttachmentsOutputStreamTest, Backpressure)
 
     auto result2 = stream->TryPull();
     EXPECT_TRUE(result2);
-    EXPECT_EQ(2, result2->Attachments.size());
+    EXPECT_EQ(2u, result2->Attachments.size());
     EXPECT_TRUE(TRef::AreBitwiseEqual(payload2, result2->Attachments[0]));
     EXPECT_TRUE(TRef::AreBitwiseEqual(payload3, result2->Attachments[1]));
 }
@@ -1499,7 +1499,7 @@ TEST_F(TAttachmentsOutputStreamTest, Close1)
     auto result = stream->TryPull();
     EXPECT_TRUE(result);
     EXPECT_EQ(0, result->SequenceNumber);
-    EXPECT_EQ(1, result->Attachments.size());
+    EXPECT_EQ(1u, result->Attachments.size());
     EXPECT_FALSE(result->Attachments[0]);
 
     stream->HandleFeedback({1});
@@ -1525,7 +1525,7 @@ TEST_F(TAttachmentsOutputStreamTest, Close2)
     auto result = stream->TryPull();
     EXPECT_TRUE(result);
     EXPECT_EQ(0, result->SequenceNumber);
-    EXPECT_EQ(2, result->Attachments.size());
+    EXPECT_EQ(2u, result->Attachments.size());
     EXPECT_TRUE(TRef::AreBitwiseEqual(payload, result->Attachments[0]));
     EXPECT_FALSE(result->Attachments[1]);
 

@@ -270,7 +270,7 @@ public:
 
     void RegisterLivePreviewChunk(int index, TInputChunkPtr chunk)
     {
-        if (index >= LivePreviews_->size()) {
+        if (index >= std::ssize(*LivePreviews_)) {
             LivePreviews_->resize(index + 1);
         }
         if (!(*LivePreviews_)[index]) {
@@ -282,7 +282,7 @@ public:
 
     void UnregisterLivePreviewChunk(int index, TInputChunkPtr chunk)
     {
-        YT_VERIFY(0 <= index && index < LivePreviews_->size());
+        YT_VERIFY(0 <= index && index < std::ssize(*LivePreviews_));
         YT_VERIFY((*LivePreviews_)[index]);
 
         YT_VERIFY((*LivePreviews_)[index]->Chunks().erase(std::move(chunk)));

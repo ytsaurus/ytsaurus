@@ -139,8 +139,8 @@ protected:
 
         {
             auto lines = ReadFile(logFile.Name(), true, method);
-            EXPECT_EQ(5, lines.size());
-            EXPECT_TRUE(lines[0].find("Logging started") != -1);
+            EXPECT_EQ(5, std::ssize(lines));
+            EXPECT_TRUE(lines[0].find("Logging started") != TString::npos);
             EXPECT_EQ("\tD\tcategory\tmessage\tba\t\t\n", lines[1].substr(DateLength, lines[1].size()));
         }
     }
@@ -210,8 +210,8 @@ TEST_F(TLoggingTest, FileWriter)
 
     {
         auto lines = ReadFile(logFile.Name());
-        EXPECT_EQ(2, lines.size());
-        EXPECT_TRUE(lines[0].find("Logging started") != -1);
+        EXPECT_EQ(2, std::ssize(lines));
+        EXPECT_TRUE(lines[0].find("Logging started") != TString::npos);
         EXPECT_EQ("\tD\tcategory\tmessage\tba\t\t\n", lines[1].substr(DateLength, lines[1].size()));
     }
 
@@ -220,11 +220,11 @@ TEST_F(TLoggingTest, FileWriter)
 
     {
         auto lines = ReadFile(logFile.Name());
-        EXPECT_EQ(5, lines.size());
-        EXPECT_TRUE(lines[0].find("Logging started") != -1);
+        EXPECT_EQ(5, std::ssize(lines));
+        EXPECT_TRUE(lines[0].find("Logging started") != TString::npos);
         EXPECT_EQ("\tD\tcategory\tmessage\tba\t\t\n", lines[1].substr(DateLength));
         EXPECT_EQ("\n", lines[2]);
-        EXPECT_TRUE(lines[3].find("Logging started") != -1);
+        EXPECT_TRUE(lines[3].find("Logging started") != TString::npos);
         EXPECT_EQ("\tD\tcategory\tmessage\tba\t\t\n", lines[4].substr(DateLength));
     }
 }
@@ -326,8 +326,8 @@ TEST_F(TLoggingTest, LogManager)
     auto infoLog = ReadFile(infoFile.Name());
     auto errorLog = ReadFile(errorFile.Name());
 
-    EXPECT_EQ(3, infoLog.size());
-    EXPECT_EQ(2, errorLog.size());
+    EXPECT_EQ(3, std::ssize(infoLog));
+    EXPECT_EQ(2, std::ssize(errorLog));
 }
 
 TEST_F(TLoggingTest, StructuredJsonLogging)
@@ -541,9 +541,9 @@ TEST_F(TLoggingTest, RequestSuppression)
 
     auto lines = ReadFile(logFile.Name());
 
-    EXPECT_EQ(2, lines.size());
-    EXPECT_TRUE(lines[0].find("Logging started") != -1);
-    EXPECT_TRUE(lines[1].find("Info message") != -1);
+    EXPECT_EQ(2, std::ssize(lines));
+    EXPECT_TRUE(lines[0].find("Logging started") != TString::npos);
+    EXPECT_TRUE(lines[1].find("Info message") != TString::npos);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -644,7 +644,7 @@ protected:
         TLogManager::Get()->Synchronize();
 
         auto infoLog = ReadFile(fileName);
-        EXPECT_EQ(N + 1, infoLog.size());
+        EXPECT_EQ(N + 1, std::ssize(infoLog));
         for (int i = 0; i < N; ++i) {
             auto expected = Format("%v", MakeRange(Chunks_.data(), Chunks_.data() + i));
             auto actual = infoLog[i + 1];

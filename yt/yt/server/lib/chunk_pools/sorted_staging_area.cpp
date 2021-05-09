@@ -380,10 +380,10 @@ private:
 
         explicit TForeignDomain(const TComparator& foreignComparator)
             : Comparator([&foreignComparator, this] (int lhsIndex, int rhsIndex) {
-                YT_VERIFY(lhsIndex < StreamIndexToDataSlices.size());
+                YT_VERIFY(lhsIndex < std::ssize(StreamIndexToDataSlices));
                 YT_VERIFY(!StreamIndexToDataSlices[lhsIndex].empty());
                 const auto& lhsDataSlice = StreamIndexToDataSlices[lhsIndex].front();
-                YT_VERIFY(rhsIndex < StreamIndexToDataSlices.size());
+                YT_VERIFY(rhsIndex < std::ssize(StreamIndexToDataSlices));
                 YT_VERIFY(!StreamIndexToDataSlices[rhsIndex].empty());
                 const auto& rhsDataSlice = StreamIndexToDataSlices[rhsIndex].front();
 
@@ -394,7 +394,7 @@ private:
         void AddDataSlice(TLegacyDataSlicePtr dataSlice)
         {
             auto streamIndex = dataSlice->InputStreamIndex;
-            if (streamIndex >= StreamIndexToDataSlices.size()) {
+            if (streamIndex >= std::ssize(StreamIndexToDataSlices)) {
                 StreamIndexToDataSlices.resize(streamIndex + 1);
             }
 

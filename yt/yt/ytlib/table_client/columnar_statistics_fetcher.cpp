@@ -98,7 +98,7 @@ void TColumnarStatisticsFetcher::OnResponse(
 
     const auto& rsp = rspOrError.Value();
 
-    for (int index = 0; index < chunkIndexes.size(); ++index) {
+    for (int index = 0; index < std::ssize(chunkIndexes); ++index) {
         int chunkIndex = chunkIndexes[index];
         const auto& subresponse = rsp->subresponses(index);
         TColumnarStatistics statistics;
@@ -125,7 +125,7 @@ void TColumnarStatisticsFetcher::OnResponse(
         }
         if (Options_.AggregatePerTableStatistics) {
             auto tableIndex = Chunks_[chunkIndex]->GetTableIndex();
-            YT_VERIFY(tableIndex < TableStatistics_.size());
+            YT_VERIFY(tableIndex < std::ssize(TableStatistics_));
             TableStatistics_[tableIndex] += statistics;
         }
     }
@@ -147,7 +147,7 @@ const std::vector<TColumnarStatistics>& TColumnarStatisticsFetcher::GetTableStat
 
 void TColumnarStatisticsFetcher::ApplyColumnSelectivityFactors() const
 {
-    for (int index = 0; index < Chunks_.size(); ++index) {
+    for (int index = 0; index < std::ssize(Chunks_); ++index) {
         const auto& chunk = Chunks_[index];
         TLightweightColumnarStatistics statistics;
         if (Options_.StoreChunkStatistics) {
@@ -210,7 +210,7 @@ void TColumnarStatisticsFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TStr
     }
 
     if (Options_.AggregatePerTableStatistics) {
-        if (chunk->GetTableIndex() >= TableStatistics_.size()) {
+        if (chunk->GetTableIndex() >= std::ssize(TableStatistics_)) {
             TableStatistics_.resize(chunk->GetTableIndex() + 1);
         }
     }
@@ -243,7 +243,7 @@ void TColumnarStatisticsFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TStr
                 LightweightChunkStatistics_.back() = columnarStatistics.MakeLightweightStatistics();
             }
             if (Options_.AggregatePerTableStatistics) {
-                YT_VERIFY(chunk->GetTableIndex() < TableStatistics_.size());
+                YT_VERIFY(chunk->GetTableIndex() < std::ssize(TableStatistics_));
                 TableStatistics_[chunk->GetTableIndex()] += columnarStatistics;
             }
         } else {

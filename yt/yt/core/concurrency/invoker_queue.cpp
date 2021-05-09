@@ -104,7 +104,7 @@ TInvokerQueue<TQueueImpl>::TInvokerQueue(
     CumulativeCounters_ = CreateCounters(cumulativeCounterTagSet);
 
     ProfilingTagSettingInvokers_.reserve(Counters_.size());
-    for (int index = 0; index < Counters_.size(); ++index) {
+    for (int index = 0; index < std::ssize(Counters_); ++index) {
         ProfilingTagSettingInvokers_.push_back(
             New<TProfilingTagSettingInvoker<TQueueImpl>>(MakeWeak(this), index));
     }
@@ -127,7 +127,7 @@ template <class TQueueImpl>
 void TInvokerQueue<TQueueImpl>::Invoke(TClosure callback, int profilingTag)
 {
     YT_ASSERT(callback);
-    YT_ASSERT(profilingTag >= 0 && profilingTag < Counters_.size());
+    YT_ASSERT(profilingTag >= 0 && profilingTag < std::ssize(Counters_));
 
     if (!Running_.load(std::memory_order_relaxed)) {
         YT_LOG_TRACE(
@@ -281,7 +281,7 @@ IInvokerPtr TInvokerQueue<TQueueImpl>::GetProfilingTagSettingInvoker(int profili
         YT_ASSERT(profilingTag == 0);
         return this;
     } else {
-        YT_ASSERT(0 <= profilingTag && profilingTag < Counters_.size());
+        YT_ASSERT(0 <= profilingTag && profilingTag < std::ssize(Counters_));
         return ProfilingTagSettingInvokers_[profilingTag];
     }
 }

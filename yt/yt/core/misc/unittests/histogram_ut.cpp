@@ -20,7 +20,7 @@ TEST(THistogramTest, Simple)
     auto v = h->GetHistogramView();
     EXPECT_EQ(1, v.Min);
     EXPECT_EQ(101, v.Max);
-    EXPECT_EQ(100, v.Count.size());
+    EXPECT_EQ(100, std::ssize(v.Count));
     EXPECT_EQ(4, std::accumulate(v.Count.begin(), v.Count.end(), 0));
     EXPECT_EQ(1, v.Count.front());
     EXPECT_EQ(2, v.Count.back());
@@ -31,7 +31,7 @@ TEST(THistogramTest, Simple)
     v = h->GetHistogramView();
     EXPECT_EQ(1, v.Min);
     EXPECT_EQ(151, v.Max);
-    EXPECT_EQ(150, v.Count.size());
+    EXPECT_EQ(150, std::ssize(v.Count));
     EXPECT_EQ(8, std::accumulate(v.Count.begin(), v.Count.end(), 0));
     EXPECT_EQ(1, v.Count.front());
     EXPECT_EQ(1, v.Count.back());
@@ -42,7 +42,7 @@ TEST(THistogramTest, Simple)
     v = h->GetHistogramView();
     EXPECT_EQ(0, v.Min);
     EXPECT_EQ(152, v.Max);
-    EXPECT_EQ(76, v.Count.size());
+    EXPECT_EQ(76, std::ssize(v.Count));
     EXPECT_EQ(10, std::accumulate(v.Count.begin(), v.Count.end(), 0));
     EXPECT_EQ(1, v.Count.front());
     EXPECT_EQ(3, v.Count.back());

@@ -147,7 +147,7 @@ private:
         auto connection = connectionOrError.ValueOrThrow();
 
         auto count = ActiveConnections_.fetch_add(1) + 1;
-        if (count >= Config_->MaxSimultaneousConnections) {
+        if (count >= static_cast<ui64>(Config_->MaxSimultaneousConnections)) {
             ConnectionsDropped_.Increment();
             ActiveConnections_--;
             YT_LOG_WARNING("Server is over max active connection limit (RemoteAddress: %v)",

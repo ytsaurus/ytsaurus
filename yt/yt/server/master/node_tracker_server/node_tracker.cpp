@@ -1914,7 +1914,7 @@ private:
 
     int AllocateRackIndex()
     {
-        for (int index = 0; index < UsedRackIndexes_.size(); ++index) {
+        for (int index = 0; index < std::ssize(UsedRackIndexes_); ++index) {
             if (index == NullRackIndex) {
                 continue;
             }
