@@ -1225,13 +1225,15 @@ protected:
             auto physicalStartRowIndex = *startLimit->GetRowIndex();
             auto physicalEndRowIndex = *endLimit->GetRowIndex();
 
-            YT_LOG_DEBUG("Journal chunk fetched (ChunkId: %v, Overlayed: %v, LogicalRowIndexes: %v-%v, PhysicalRowIndexes: %v-%v)",
+            YT_LOG_DEBUG("Journal chunk fetched (ChunkId: %v, Overlayed: %v, LogicalRowIndexes: %v-%v, PhysicalRowIndexes: %v-%v, JournalRowIndexes: %v-%v)",
                 chunk->GetId(),
                 chunk->GetOverlayed(),
                 logicalStartRowIndex,
                 logicalEndRowIndex - 1,
                 physicalStartRowIndex,
-                physicalEndRowIndex - 1);
+                physicalEndRowIndex - 1,
+                startRowIndex + logicalStartRowIndex,
+                startRowIndex + logicalEndRowIndex - 1);
         }
 
         // NB: Tablet index is not needed here, because only chunks inside correct tablets

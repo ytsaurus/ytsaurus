@@ -828,4 +828,3 @@ i64 GetPhysicalChunkRowCount(i64 logicalRowCount, bool overlayed)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJournalClient
-

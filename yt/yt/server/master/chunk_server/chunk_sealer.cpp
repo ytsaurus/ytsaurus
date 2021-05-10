@@ -328,20 +328,6 @@ private:
         }
     }
 
-    static i64 ComputeSealedRowCount(TChunkId chunkId, i64 startRowIndex, const TChunkQuorumInfo& quorumInfo)
-    {
-        if (!quorumInfo.FirstOverlayedRowIndex) {
-            return quorumInfo.RowCount;
-        }
-        if (startRowIndex < *quorumInfo.FirstOverlayedRowIndex) {
-            THROW_ERROR_EXCEPTION("Sealing chunk %v would produce row gap",
-                chunkId)
-                << TErrorAttribute("start_row_index", startRowIndex)
-                << TErrorAttribute("first_overlayed_row_index", *quorumInfo.FirstOverlayedRowIndex);
-        }
-        return std::max(quorumInfo.RowCount - (startRowIndex - *quorumInfo.FirstOverlayedRowIndex), static_cast<i64>(0));
-    }
-
     void GuardedSealChunk(TChunk* chunk)
     {
         // NB: Copy all the needed properties into locals. The subsequent code involves yields
@@ -390,11 +376,12 @@ private:
                 .ValueOrThrow();
         }
 
-        if (quorumInfo.FirstOverlayedRowIndex && *quorumInfo.FirstOverlayedRowIndex < startRowIndex) {
-            YT_LOG_DEBUG("Journal chunk has a non-trivial overlap with the previous one (ChunkId: %v, StartRowIndex: %v, FirstOverlayedRowIndex: %v)",
-                chunkId,
-                startRowIndex,
-                *quorumInfo.FirstOverlayedRowIndex);
+        auto firstOverlayedRowIndex = quorumInfo.FirstOverlayedRowIndex;
+        if (firstOverlayedRowIndex && *firstOverlayedRowIndex > startRowIndex) {
+            THROW_ERROR_EXCEPTION("Sealing chunk %v would produce row gap",
+                chunkId)
+                << TErrorAttribute("start_row_index", startRowIndex)
+                << TErrorAttribute("first_overlayed_row_index", *quorumInfo.FirstOverlayedRowIndex);
         }
 
         {
@@ -406,15 +393,12 @@ private:
 
             auto* req = batchReq->add_seal_chunk_subrequests();
             ToProto(req->mutable_chunk_id(), chunkId);
-            if (quorumInfo.FirstOverlayedRowIndex) {
-                req->mutable_info()->set_first_overlayed_row_index(*quorumInfo.FirstOverlayedRowIndex);
+            if (firstOverlayedRowIndex) {
+                req->mutable_info()->set_first_overlayed_row_index(*firstOverlayedRowIndex);
             }
-            req->mutable_info()->set_row_count(ComputeSealedRowCount(chunkId, startRowIndex, quorumInfo));
+            req->mutable_info()->set_row_count(quorumInfo.RowCount);
             req->mutable_info()->set_uncompressed_data_size(quorumInfo.UncompressedDataSize);
             req->mutable_info()->set_compressed_data_size(quorumInfo.CompressedDataSize);
-
-            // NB: Rows belonging both to the previous and current chunks are not accounted into logical row count
-            // but accounted into physical row count. This is important for proper chunk seal and repair.
             req->mutable_info()->set_physical_row_count(GetPhysicalChunkRowCount(quorumInfo.RowCount, overlayed));
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());

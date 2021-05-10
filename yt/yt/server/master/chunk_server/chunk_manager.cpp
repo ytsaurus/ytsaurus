@@ -3383,15 +3383,44 @@ private:
             }
 
             const auto& miscExt = chunk->MiscExt();
-            i64 oldJournalRowCount = chunkList->Statistics().RowCount;
-            i64 newJournalRowCount = miscExt.has_first_overlayed_row_index()
-                ? miscExt.first_overlayed_row_index() + miscExt.row_count()
+            auto firstOverlayedRowIndex = miscExt.has_first_overlayed_row_index()
+                ? std::make_optional(miscExt.first_overlayed_row_index())
+                : std::nullopt;
+
+            const auto& statistics = chunkList->Statistics();
+            YT_VERIFY(statistics.RowCount == statistics.LogicalRowCount);
+            i64 oldJournalRowCount = statistics.RowCount;
+            i64 newJournalRowCount = firstOverlayedRowIndex
+                ? *firstOverlayedRowIndex + miscExt.row_count()
                 : oldJournalRowCount + miscExt.row_count();
 
             // NB: Last chunk can be nested into another.
             newJournalRowCount = std::max<i64>(newJournalRowCount, oldJournalRowCount);
 
-            statisticsDelta.RowCount = newJournalRowCount - oldJournalRowCount;
+            i64 rowCountDelta = newJournalRowCount - oldJournalRowCount;
+            statisticsDelta.RowCount = statisticsDelta.LogicalRowCount = rowCountDelta;
+
+            if (firstOverlayedRowIndex) {
+                if (*firstOverlayedRowIndex > oldJournalRowCount) {
+                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                        "Chunk seal produced row gap in journal (ChunkId: %v, StartRowIndex: %v, FirstOverlayedRowIndex: %v)",
+                        chunk->GetId(),
+                        oldJournalRowCount,
+                        *firstOverlayedRowIndex);
+                } else if (*firstOverlayedRowIndex < oldJournalRowCount) {
+                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                        "Journal chunk has a non-trivial overlap with the previous one (ChunkId: %v, StartRowIndex: %v, FirstOverlayedRowIndex: %v)",
+                        chunk->GetId(),
+                        oldJournalRowCount,
+                        *firstOverlayedRowIndex);
+                }
+            }
+
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                "Updating journal statistics after chunk seal (ChunkId: %v, OldJournalRowCount: %v, NewJournalRowCount: %v)",
+                chunk->GetId(),
+                oldJournalRowCount,
+                newJournalRowCount);
         }
 
         AccumulateUniqueAncestorsStatistics(chunk, statisticsDelta);
