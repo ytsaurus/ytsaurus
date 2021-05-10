@@ -767,11 +767,24 @@ class TestDefaultDiskMediumWithUnspecifiedMediumPorto(YTEnvSetup, DiskMediumTest
         op2 = start_op(None, 2, track=False)
         op3 = start_op(None, 3, track=False)
 
-        wait(lambda: sum([op.get_job_count("running", verbose=True) for op in (op1, op2, op3)]) == 2)
+        wait(lambda: sum([op.get_job_count("running") for op in (op1, op2, op3)]) == 2)
 
-        assert op1.get_job_count("aborted") == 0
-        assert op2.get_job_count("aborted") == 0
-        assert op3.get_job_count("aborted") == 0
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) == 1
+        node_orchid_jobs_path = "//sys/cluster_nodes/{}/orchid/job_controller/active_jobs/scheduler".format(nodes[0])
+
+        wait(lambda: len(ls(node_orchid_jobs_path)) == 2)
+
+        aborted1 = op1.get_job_count("aborted")
+        aborted2 = op2.get_job_count("aborted")
+        aborted3 = op3.get_job_count("aborted")
+
+        time.sleep(2)
+
+        # Check that no new aborted jobs after 2 seconds.
+        assert aborted1 == op1.get_job_count("aborted")
+        assert aborted2 == op2.get_job_count("aborted")
+        assert aborted3 == op3.get_job_count("aborted")
 
 
 class TestDefaultDiskMediumWithUnspecifiedMediumAndMultipleSlotsPorto(YTEnvSetup, DiskMediumTestConfiguration):
