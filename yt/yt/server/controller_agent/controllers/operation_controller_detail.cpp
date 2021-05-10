@@ -3414,6 +3414,10 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
 
     YT_LOG_INFO("Terminating operation controller");
 
+    if (Spec_->TestingOperationOptions->ThrowExceptionDuringOprationAbort) {
+        THROW_ERROR_EXCEPTION("Test exception");
+    }
+
     // NB: Errors ignored since we cannot do anything with it.
     Y_UNUSED(WaitFor(Host->FlushOperationNode()));
 
