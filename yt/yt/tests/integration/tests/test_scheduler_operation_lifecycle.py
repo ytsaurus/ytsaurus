@@ -663,6 +663,28 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         error = yt.common.YtResponseError(op_response.error())
         assert error.contains_text("Master disconnected")
 
+    @authors("gritukan")
+    def test_operation_abort_failed(self):
+        self._prepare_tables()
+
+        connection_time = parse_yt_time(get("//sys/scheduler/@connection_time"))
+
+        op = map(
+            track=False,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="echo '{foo=bar}'; sleep 10000000",
+            spec={"testing": {"throw_exception_during_operation_abort": True}},
+        )
+        wait(lambda: op.get_job_count("running") == 1)
+
+        op.abort()
+        wait(lambda: op.get_state() == "aborted")
+
+        # Scheduler should not reconnect.
+        new_connection_time = parse_yt_time(get("//sys/scheduler/@connection_time"))
+        assert new_connection_time == connection_time
+
 
 class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
     NUM_MASTERS = 1
