@@ -378,14 +378,15 @@ class TestJournals(YTEnvSetup):
             journal_writer={
                 "dont_close": seal_mode=="client-side",
                 "dont_seal": seal_mode=="master-side",
-                "max_batch_row_count": 10,
-                "max_flush_row_count": 10,
-                "max_chunk_row_count": 50,
+                "max_batch_row_count": 9,
+                "max_flush_row_count": 9,
+                "max_chunk_row_count": 49,
                 "replica_failure_probability": 0.1,
                 "open_session_backoff_time": 100,
             },
         )
 
+        assert get("//tmp/j/@quorum_row_count") == len(rows)
         assert read_journal("//tmp/j") == rows
 
         # If master-side chunk seal is disabled, some chunks can remain unsealed after write finish.

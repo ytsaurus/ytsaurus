@@ -97,6 +97,7 @@ DEFINE_ENUM(EMasterReign,
     ((TabletIdsForFinishedTabletActions)                            (1463))  // ifsmirnov
     ((UpdateMountedWithEnabledDsrAttributeByTabletActions)          (1464))  // ifsmirnov
     ((ProperRowCountInJournalChunkTree)                             (1465))  // gritukan
+    ((EvenBetterRowCountInJournalChunkTree)                         (1466))  // gritukan
     // 21.1 starts here.
     ((SlotLocationStatisticsInNodeNode)                             (1500))  // gritukan
     ((EnableDescendingSortOrder)                                    (1501))  // max42
