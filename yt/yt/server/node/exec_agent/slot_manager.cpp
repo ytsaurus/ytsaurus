@@ -230,9 +230,19 @@ bool TSlotManager::IsEnabled() const
 
 bool TSlotManager::HasSlotDisablingAlert() const
 {
+    auto dynamicConfig = DynamicConfig_.Load();
+    bool disableJobsOnGpuCheckFailure = dynamicConfig
+        ? dynamicConfig->DisableJobsOnGpuCheckFailure.value_or(Config_->DisableJobsOnGpuCheckFailure)
+        : Config_->DisableJobsOnGpuCheckFailure;
     return
-        !Alerts_[ESlotManagerAlertType::GenericPersistentError].IsOK() ||
+        HasFatalAlert() ||
+        (disableJobsOnGpuCheckFailure && !Alerts_[ESlotManagerAlertType::GpuCheckFailed].IsOK()) ||
         !Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions].IsOK();
+}
+
+bool TSlotManager::HasFatalAlert() const
+{
+    return !Alerts_[ESlotManagerAlertType::GenericPersistentError].IsOK();
 }
 
 void TSlotManager::OnJobsCpuLimitUpdated()
@@ -277,16 +287,10 @@ void TSlotManager::Disable(const TError& error)
 
 void TSlotManager::OnGpuCheckCommandFailed(const TError& error)
 {
-    auto dynamicConfig = DynamicConfig_.Load();
-
-    bool disableJobsOnGpuCheckFailure = dynamicConfig
-        ? dynamicConfig->DisableJobsOnGpuCheckFailure.value_or(Config_->DisableJobsOnGpuCheckFailure)
-        : Config_->DisableJobsOnGpuCheckFailure;
-    if (disableJobsOnGpuCheckFailure) {
-        Disable(error);
-    } else {
-        Alerts_[ESlotManagerAlertType::GpuCheckFailed] = error;
-    }
+    YT_LOG_WARNING(
+        error,
+        "Gpu check failed alert set, jobs may be disabled if \"disable_jobs_on_gpu_check_failure\" specified");
+    Alerts_[ESlotManagerAlertType::GpuCheckFailed] = error;
 }
 
 void TSlotManager::OnJobFinished(const IJobPtr& job)
@@ -304,10 +308,12 @@ void TSlotManager::OnJobFinished(const IJobPtr& job)
     if (ConsecutiveAbortedJobCount_ > Config_->MaxConsecutiveAborts) {
         if (Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions].IsOK()) {
             auto delay = Config_->DisableJobsTimeout + RandomDuration(Config_->DisableJobsTimeout);
-            Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions] = TError(
-                "Too many consecutive job abortions; scheduler jobs disabled until %v",
-                TInstant::Now() + delay)
+
+            auto error = TError("Too many consecutive job abortions")
                 << TErrorAttribute("max_consecutive_aborts", Config_->MaxConsecutiveAborts);
+            YT_LOG_WARNING(error, "Scheduler jobs disabled until %v", TInstant::Now() + delay);
+            Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions] = error;
+
             TDelayedExecutor::Submit(BIND(&TSlotManager::ResetConsecutiveAbortedJobCount, MakeStrong(this)), delay);
         }
     }

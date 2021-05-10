@@ -60,6 +60,7 @@ public:
 
     int GetTotalGpuCount() const;
     int GetFreeGpuCount() const;
+    int GetUsedGpuCount() const;
     const std::vector<TString>& ListGpuDevices() const;
     THashMap<int, TGpuInfo> GetGpuInfoMap() const;
 

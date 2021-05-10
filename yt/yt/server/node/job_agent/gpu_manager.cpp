@@ -278,6 +278,14 @@ int TGpuManager::GetFreeGpuCount() const
     return !Enabled_ || IsDriverLayerMissing() ? 0 : FreeSlots_.size();
 }
 
+int TGpuManager::GetUsedGpuCount() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto guard = Guard(SpinLock_);
+    return !Enabled_ || IsDriverLayerMissing() ? 0 : (HealthyGpuInfoMap_.size() - FreeSlots_.size());
+}
+
 THashMap<int, TGpuInfo> TGpuManager::GetGpuInfoMap() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
