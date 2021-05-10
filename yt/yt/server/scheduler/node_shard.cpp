@@ -131,7 +131,7 @@ TNodeShard::TNodeShard(
     TotalCompletedJobTime_ = SchedulerProfiler.TimeCounter("/jobs/total_completed_wall_time");
     TotalFailedJobTime_ = SchedulerProfiler.TimeCounter("/jobs/total_failed_wall_time");
     TotalAbortedJobTime_ = SchedulerProfiler.TimeCounter("/jobs/total_aborted_wall_time");
-    
+
     SoftConcurrentHeartbeatLimitReachedCounter_ = SchedulerProfiler
         .WithTag("limit_type", "soft")
         .Counter("/node_heartbeat/concurrent_limit_reached_count");
@@ -256,6 +256,7 @@ void TNodeShard::DoCleanup()
 
 void TNodeShard::RegisterOperation(
     TOperationId operationId,
+    TControllerEpoch controllerEpoch,
     const IOperationControllerPtr& controller,
     bool jobsReady)
 {
@@ -264,7 +265,7 @@ void TNodeShard::RegisterOperation(
 
     YT_VERIFY(IdToOpertionState_.emplace(
         operationId,
-        TOperationState(controller, jobsReady, CurrentEpoch_++)
+        TOperationState(controller, jobsReady, CurrentEpoch_++, controllerEpoch)
     ).second);
 
     YT_LOG_DEBUG("Operation registered at node shard (OperationId: %v, JobsReady: %v)",
@@ -272,7 +273,7 @@ void TNodeShard::RegisterOperation(
         jobsReady);
 }
 
-void TNodeShard::StartOperationRevival(TOperationId operationId)
+void TNodeShard::StartOperationRevival(TOperationId operationId, TControllerEpoch newControllerEpoch)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
     YT_VERIFY(Connected_);
@@ -281,10 +282,12 @@ void TNodeShard::StartOperationRevival(TOperationId operationId)
     operationState.JobsReady = false;
     operationState.ForbidNewJobs = false;
     operationState.OperationUnreadyLoggedJobIds = THashSet<TJobId>();
+    operationState.ControllerEpoch = newControllerEpoch;
 
-    YT_LOG_DEBUG("Operation revival started at node shard (OperationId: %v, JobCount: %v)",
+    YT_LOG_DEBUG("Operation revival started at node shard (OperationId: %v, JobCount: %v, NewControllerEpoch: %v)",
         operationId,
-        operationState.Jobs.size());
+        operationState.Jobs.size(),
+        newControllerEpoch);
 
     auto jobs = operationState.Jobs;
     for (const auto& [jobId, job] : jobs) {
@@ -338,7 +341,7 @@ void TNodeShard::FinishOperationRevival(TOperationId operationId, const std::vec
 
     // Give some time for nodes to confirm the jobs.
     TDelayedExecutor::Submit(
-        BIND(&TNodeShard::AbortUnconfirmedJobs, MakeWeak(this), operationId, operationState.Epoch, jobs)
+        BIND(&TNodeShard::AbortUnconfirmedJobs, MakeWeak(this), operationId, operationState.ShardEpoch, jobs)
             .Via(GetInvoker()),
         Config_->JobRevivalAbortTimeout);
 }
@@ -1361,6 +1364,28 @@ void TNodeShard::SetSchedulingSegmentsForNodes(const TSetNodeSchedulingSegmentOp
         missingNodeIdsWithSegments);
 }
 
+TControllerEpoch TNodeShard::GetOperationControllerEpoch(TOperationId operationId)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    if (auto* operationState = FindOperationState(operationId)) {
+        return operationState->ControllerEpoch;
+    } else {
+        return InvalidControllerEpoch;
+    }
+}
+
+TControllerEpoch TNodeShard::GetJobControllerEpoch(TJobId jobId)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    if (auto job = FindJob(jobId)) {
+        return job->GetControllerEpoch();
+    } else {
+        return InvalidControllerEpoch;
+    }
+}
+
 void TNodeShard::SetNodeSchedulingSegment(const TExecNodePtr& node, ESchedulingSegment segment)
 {
     YT_VERIFY(!node->GetSchedulingSegmentFrozen());
@@ -1556,11 +1581,11 @@ void TNodeShard::AbortAllJobsAtNode(const TExecNodePtr& node, EAbortReason reaso
 
 void TNodeShard::AbortUnconfirmedJobs(
     TOperationId operationId,
-    TEpoch epoch,
+    TShardEpoch shardEpoch,
     const std::vector<TJobPtr>& jobs)
 {
     const auto* operationState = FindOperationState(operationId);
-    if (!operationState || operationState->Epoch != epoch) {
+    if (!operationState || operationState->ShardEpoch != shardEpoch) {
         return;
     }
 

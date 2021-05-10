@@ -105,6 +105,7 @@ struct TOperationControllerReviveResult
     std::vector<TRevivedJob> RevivedJobs;
     THashSet<TString> RevivedBannedTreeIds;
     TJobResources NeededResources;
+    NScheduler::TControllerEpoch ControllerEpoch;
 };
 
 void ToProto(NProto::TReviveOperationResult* resultProto, const TOperationControllerReviveResult& result);

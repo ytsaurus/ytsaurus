@@ -174,8 +174,11 @@ DECLARE_REFCOUNTED_STRUCT(TControllerScheduleJobResult)
 struct TJobStartDescriptor;
 struct TOperationControllerInitializeAttributes;
 
+using TControllerEpoch = int;
 using TIncarnationId = TGuid;
 using TAgentId = TString;
+
+static constexpr TControllerEpoch InvalidControllerEpoch = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 

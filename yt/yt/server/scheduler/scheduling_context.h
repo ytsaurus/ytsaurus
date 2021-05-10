@@ -79,6 +79,7 @@ struct ISchedulingContext
         const TString& treeId,
         TOperationId operationId,
         TIncarnationId incarnationId,
+        TControllerEpoch controllerEpoch,
         const TJobStartDescriptor& startDescriptor,
         EPreemptionMode preemptionMode) = 0;
 

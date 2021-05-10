@@ -225,6 +225,7 @@ TOperationControllerBase::TOperationControllerBase(
         }())
     , CoreNotes_({Format("OperationId: %v", OperationId)})
     , Acl(operation->GetAcl())
+    , ControllerEpoch(operation->GetControllerEpoch())
     , CancelableContext(New<TCancelableContext>())
     , DiagnosableInvokerPool(CreateFairShareInvokerPool(
         CreateCodicilGuardedInvoker(
@@ -1107,6 +1108,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     if (CleanStart) {
         TOperationControllerReviveResult result;
         result.RevivedFromSnapshot = false;
+        result.ControllerEpoch = ControllerEpoch;
         static_cast<TOperationControllerPrepareResult&>(result) = Prepare();
         return result;
     }
@@ -1122,6 +1124,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
 
     TOperationControllerReviveResult result;
     result.RevivedFromSnapshot = true;
+    result.ControllerEpoch = ControllerEpoch;
     result.RevivedBannedTreeIds = BannedTreeIds_;
     FillPrepareResult(&result);
 
@@ -4163,6 +4166,7 @@ TControllerScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
         AvailableExecNodesObserved_ = true;
     }
     scheduleJobResult->Duration = timer.GetElapsedTime();
+    scheduleJobResult->ControllerEpoch = ControllerEpoch;
 
     ScheduleJobStatistics_->RecordJobResult(*scheduleJobResult);
 

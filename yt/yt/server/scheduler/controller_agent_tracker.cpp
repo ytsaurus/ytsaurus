@@ -104,9 +104,9 @@ public:
         masterConnector->SubscribeMasterDisconnected(BIND(
             &TImpl::OnMasterDisconnected,
             Unretained(this)));
-        
+
         masterConnector->AddCommonWatcher(
-            BIND(&TImpl::RequestControllerAgentInstances, Unretained(this)), 
+            BIND(&TImpl::RequestControllerAgentInstances, Unretained(this)),
             BIND(&TImpl::HandleControllerAgentInstances, Unretained(this)));
     }
 
@@ -135,7 +135,7 @@ public:
 
         auto controllerAgentTag = operation->Spec()->ControllerAgentTag;
 
-        if (!AgentTagsFetched_ || TagsWithTooFewAgents_.contains(controllerAgentTag)) {            
+        if (!AgentTagsFetched_ || TagsWithTooFewAgents_.contains(controllerAgentTag)) {
             YT_LOG_DEBUG(
                 "Failed to pick agent for operation (OperationId: %v, ControllerAgentTag: %v",
                 operation->GetId(),
@@ -565,11 +565,22 @@ public:
             [&] (auto* protoEvent) {
                 auto eventType = static_cast<EAgentToSchedulerOperationEventType>(protoEvent->event_type());
                 auto operationId = FromProto<TOperationId>(protoEvent->operation_id());
+                auto controllerEpoch = protoEvent->controller_epoch();
                 auto error = FromProto<TError>(protoEvent->error());
                 auto operation = scheduler->FindOperation(operationId);
                 if (!operation) {
                     return;
                 }
+
+                if (operation->ControllerEpoch() != controllerEpoch) {
+                    YT_LOG_DEBUG("Received operation event with unexpected controller epoch; ignored "
+                        "(OperationId: %v, ControllerEpoch: %v, EventType: %v)",
+                        operationId,
+                        controllerEpoch,
+                        eventType);
+                    return;
+                }
+
                 switch (eventType) {
                     case EAgentToSchedulerOperationEventType::Completed:
                         scheduler->OnOperationCompleted(operation);
@@ -698,8 +709,26 @@ public:
                     for (const auto* protoEvent : protoEvents) {
                         auto eventType = static_cast<EAgentToSchedulerJobEventType>(protoEvent->event_type());
                         auto jobId = FromProto<TJobId>(protoEvent->job_id());
+                        auto controllerEpoch = protoEvent->controller_epoch();
                         auto error = FromProto<TError>(protoEvent->error());
                         auto interruptReason = static_cast<EInterruptReason>(protoEvent->interrupt_reason());
+
+                        auto expectedControllerEpoch = nodeShard->GetJobControllerEpoch(jobId);
+
+                        // NB(gritukan, ignat): If job is released, either it is stored into operation snapshot
+                        // or operation is completed. In both cases controller epoch actually is not important.
+                        bool shouldValidateEpoch = eventType != EAgentToSchedulerJobEventType::Released;
+
+                        if (shouldValidateEpoch && (controllerEpoch != expectedControllerEpoch)) {
+                            YT_LOG_DEBUG("Received job event with unexpected controller epoch; ignored "
+                                "(JobId: %v, EventType: %v, ControllerEpoch: %v, ExpectedControllerEpoch: %v)",
+                                jobId,
+                                eventType,
+                                controllerEpoch,
+                                expectedControllerEpoch);
+                            continue;
+                        }
+
                         switch (eventType) {
                             case EAgentToSchedulerJobEventType::Interrupted:
                                 nodeShard->InterruptJob(jobId, interruptReason);
@@ -719,6 +748,18 @@ public:
                     }
 
                     for (const auto* protoResponse : protoResponses) {
+                        auto operationId = FromProto<TOperationId>(protoResponse->operation_id());
+                        auto controllerEpoch = protoResponse->controller_epoch();
+                        auto expectedControllerEpoch = nodeShard->GetOperationControllerEpoch(operationId);
+                        if (controllerEpoch != expectedControllerEpoch) {
+                            YT_LOG_DEBUG("Received job schedule result with unexpected controller epoch; ignored "
+                                "(OperationId: %v, JobId: %v, ControllerEpoch: %v, ExpectedControllerEpoch: %v)",
+                                operationId,
+                                FromProto<TJobId>(protoResponse->job_id()),
+                                controllerEpoch,
+                                expectedControllerEpoch);
+                            continue;
+                        }
                         nodeShard->EndScheduleJob(*protoResponse);
                     }
                 }));

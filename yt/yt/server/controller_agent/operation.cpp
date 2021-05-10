@@ -29,6 +29,7 @@ TOperation::TOperation(const NProto::TOperationDescriptor& descriptor)
     , Acl_(ConvertTo<TSerializableAccessControlList>(TYsonString(descriptor.acl())))
     , UserTransactionId_(FromProto<NTransactionClient::TTransactionId>(descriptor.user_transaction_id()))
     , PoolTreeControllerSettingsMap_(FromProto<TPoolTreeControllerSettingsMap>(descriptor.pool_tree_controller_settings_map()))
+    , ControllerEpoch_(descriptor.controller_epoch())
 { }
 
 const IOperationControllerPtr& TOperation::GetControllerOrThrow() const

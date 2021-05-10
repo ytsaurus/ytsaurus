@@ -413,6 +413,9 @@ protected:
 
     NSecurityClient::TSerializableAccessControlList Acl;
 
+    // Intentionally transient.
+    NScheduler::TControllerEpoch ControllerEpoch;
+
     // Usually these clients are all the same (and connected to the current cluster).
     // But `remote copy' operation connects InputClient to remote cluster.
     // OutputClient is created for the sake of symmetry with Input;

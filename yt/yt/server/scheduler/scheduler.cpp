@@ -905,12 +905,14 @@ public:
 
         operation->Restart(TError("Agent unregistered"));
         operation->SetStateAndEnqueueEvent(EOperationState::Orphaned);
+        ++operation->ControllerEpoch();
 
         for (const auto& nodeShard : NodeShards_) {
             nodeShard->GetInvoker()->Invoke(BIND(
                 &TNodeShard::StartOperationRevival,
                 nodeShard,
-                operation->GetId()));
+                operation->GetId(),
+                operation->ControllerEpoch()));
         }
 
         AddOperationToTransientQueue(operation);
@@ -3094,6 +3096,7 @@ private:
                 &TNodeShard::RegisterOperation,
                 nodeShard,
                 operation->GetId(),
+                operation->ControllerEpoch(),
                 operation->GetController(),
                 jobsReady));
         }

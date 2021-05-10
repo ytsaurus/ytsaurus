@@ -45,6 +45,7 @@ message TAgentToSchedulerOperationEvent
 {
     required NYT.NProto.TGuid operation_id = 1;
     required int32 event_type = 2; // EAgentToSchedulerOperationEventType
+    required int32 controller_epoch = 11 [default = -1];
 
     // for Suspended, Aborted, Failed
     optional NYT.NProto.TError error = 3;
@@ -75,6 +76,7 @@ message TAgentToSchedulerJobEvent
 {
     required NYT.NProto.TGuid job_id = 1;
     required int32 event_type = 2; // EAgentToSchedulerJobEventType
+    required int32 controller_epoch = 10 [default = -1];
 
     // for Aborted
     optional NYT.NProto.TError error = 3;
@@ -155,6 +157,7 @@ message TScheduleJobResponse
     repeated TFailedCounter failed = 5;
     required uint64 duration = 6;
     required NYT.NProto.TGuid operation_id = 7;
+    required int32 controller_epoch = 8 [default = -1];
 }
 
 message TEventQueueInbox
