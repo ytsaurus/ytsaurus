@@ -262,9 +262,12 @@ public:
 
     //! List of assigned experiments.
     DEFINE_BYREF_RO_PROPERTY(std::vector<TExperimentAssignmentPtr>, ExperimentAssignments);
-    
+
     //! Index of operation to fix order of registration at master connector.
     DEFINE_BYREF_RO_PROPERTY(int, RegistrationIndex, 0);
+
+    //! Index that is incremented after each operation revival.
+    DEFINE_BYREF_RW_PROPERTY(TControllerEpoch, ControllerEpoch, 0);
 
 public:
     //! Returns operation id.

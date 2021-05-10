@@ -616,7 +616,10 @@ public:
     }
 
     template <class TResult>
-    void OnHeavyControllerActionFinished(TOperationId operationId, const TErrorOr<TResult>& resultOrError)
+    void OnHeavyControllerActionFinished(
+        TOperationId operationId,
+        TControllerEpoch controllerEpoch,
+        const TErrorOr<TResult>& resultOrError)
     {
         std::optional<TResult> maybeResult;
         if (resultOrError.IsOK()) {
@@ -625,6 +628,7 @@ public:
 
         OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent::CreateHeavyControllerActionFinishedEvent(
             operationId,
+            controllerEpoch,
             resultOrError,
             maybeResult));
     }
@@ -671,7 +675,8 @@ public:
             /* onFinishedAfterTimeout */ BIND(
                 &TImpl::OnHeavyControllerActionFinished<TOperationControllerInitializeResult>,
                 MakeWeak(this),
-                operation->GetId())
+                operation->GetId(),
+                operation->GetControllerEpoch())
                 .Via(CancelableControlInvoker_));
     }
 
@@ -691,7 +696,8 @@ public:
             /* onFinishedAfterTimeout */ BIND(
                 &TImpl::OnHeavyControllerActionFinished<TOperationControllerPrepareResult>,
                 MakeWeak(this),
-                operation->GetId())
+                operation->GetId(),
+                operation->GetControllerEpoch())
                 .Via(CancelableControlInvoker_));
     }
 
@@ -711,7 +717,8 @@ public:
             /* onFinishedAfterTimeout */ BIND(
                 &TImpl::OnHeavyControllerActionFinished<TOperationControllerMaterializeResult>,
                 MakeWeak(this),
-                operation->GetId())
+                operation->GetId(),
+                operation->GetControllerEpoch())
                 .Via(CancelableControlInvoker_));
     }
 
@@ -731,7 +738,8 @@ public:
             /* onFinishedAfterTimeout */ BIND(
                 &TImpl::OnHeavyControllerActionFinished<TOperationControllerReviveResult>,
                 MakeWeak(this),
-                operation->GetId())
+                operation->GetId(),
+                operation->GetControllerEpoch())
                 .Via(CancelableControlInvoker_));
     }
 
@@ -768,7 +776,8 @@ public:
             /* onFinishedAfterTimeout */ BIND(
                 &TImpl::OnHeavyControllerActionFinished<TOperationControllerCommitResult>,
                 MakeWeak(this),
-                operation->GetId())
+                operation->GetId(),
+                operation->GetControllerEpoch())
                 .Via(CancelableControlInvoker_));
     }
 
@@ -1279,6 +1288,7 @@ private:
             [&flushJobMetricsOperationIds, &finishedOperationIds] (auto* protoEvent, const auto& event) {
                 protoEvent->set_event_type(static_cast<int>(event.EventType));
                 ToProto(protoEvent->mutable_operation_id(), event.OperationId);
+                protoEvent->set_controller_epoch(event.ControllerEpoch);
                 switch (event.EventType) {
                     case EAgentToSchedulerOperationEventType::Completed:
                         break;
@@ -1351,6 +1361,7 @@ private:
             [] (auto* protoEvent, const auto& event) {
                 protoEvent->set_event_type(static_cast<int>(event.EventType));
                 ToProto(protoEvent->mutable_job_id(), event.JobId);
+                protoEvent->set_controller_epoch(event.ControllerEpoch);
                 if (event.InterruptReason) {
                     protoEvent->set_interrupt_reason(static_cast<int>(*event.InterruptReason));
                 }
@@ -1368,6 +1379,7 @@ private:
                 const auto& scheduleJobResult = *response.Result;
                 ToProto(protoResponse->mutable_job_id(), response.JobId);
                 ToProto(protoResponse->mutable_operation_id(), response.OperationId);
+                protoResponse->set_controller_epoch(scheduleJobResult.ControllerEpoch);
                 if (scheduleJobResult.StartDescriptor) {
                     const auto& startDescriptor = *scheduleJobResult.StartDescriptor;
                     YT_ASSERT(response.JobId == startDescriptor.Id);

@@ -17,40 +17,58 @@ struct TAgentToSchedulerOperationEvent
     TAgentToSchedulerOperationEvent(
         NScheduler::EAgentToSchedulerOperationEventType eventType,
         TOperationId operationId,
+        NScheduler::TControllerEpoch controllerEpoch,
         TError error = TError());
 
-    static TAgentToSchedulerOperationEvent CreateCompletedEvent(TOperationId operationId);
-    static TAgentToSchedulerOperationEvent CreateSuspendedEvent(TOperationId operationId, TError error);
-    static TAgentToSchedulerOperationEvent CreateFailedEvent(TOperationId operationId, TError error);
-    static TAgentToSchedulerOperationEvent CreateAbortedEvent(TOperationId operationId, TError error);
+    static TAgentToSchedulerOperationEvent CreateCompletedEvent(
+        TOperationId operationId,
+        NScheduler::TControllerEpoch controllerEpoch);
+    static TAgentToSchedulerOperationEvent CreateSuspendedEvent(
+        TOperationId operationId,
+        NScheduler::TControllerEpoch controllerEpoch,
+        TError error);
+    static TAgentToSchedulerOperationEvent CreateFailedEvent(
+        TOperationId operationId,
+        NScheduler::TControllerEpoch controllerEpoch,
+        TError error);
+    static TAgentToSchedulerOperationEvent CreateAbortedEvent(
+        TOperationId operationId,
+        NScheduler::TControllerEpoch controllerEpoch,
+        TError error);
     static TAgentToSchedulerOperationEvent CreateBannedInTentativeTreeEvent(
         TOperationId operationId,
+        NScheduler::TControllerEpoch controllerEpoch,
         TString treeId,
         std::vector<TJobId> jobIds);
-
     static TAgentToSchedulerOperationEvent CreateHeavyControllerActionFinishedEvent(
         TOperationId operationId,
+        NScheduler::TControllerEpoch controllerEpoch,
         TError error,
         std::optional<TOperationControllerInitializeResult> maybeResult);
     static TAgentToSchedulerOperationEvent CreateHeavyControllerActionFinishedEvent(
         TOperationId operationId,
+        NScheduler::TControllerEpoch controllerEpoch,
         TError error,
         std::optional<TOperationControllerPrepareResult> maybeResult);
     static TAgentToSchedulerOperationEvent CreateHeavyControllerActionFinishedEvent(
         TOperationId operationId,
+        NScheduler::TControllerEpoch controllerEpoch,
         TError error,
         std::optional<TOperationControllerMaterializeResult> maybeResult);
     static TAgentToSchedulerOperationEvent CreateHeavyControllerActionFinishedEvent(
         TOperationId operationId,
+        NScheduler::TControllerEpoch controllerEpoch,
         TError error,
         std::optional<TOperationControllerReviveResult> maybeResult);
     static TAgentToSchedulerOperationEvent CreateHeavyControllerActionFinishedEvent(
         TOperationId operationId,
+        NScheduler::TControllerEpoch controllerEpoch,
         TError error,
         std::optional<TOperationControllerCommitResult> maybeResult);
 
     NScheduler::EAgentToSchedulerOperationEventType EventType;
     TOperationId OperationId;
+    NScheduler::TControllerEpoch ControllerEpoch;
     TError Error;
     TString TentativeTreeId;
     std::vector<TJobId> TentativeTreeJobIds;
@@ -66,6 +84,7 @@ struct TAgentToSchedulerJobEvent
 {
     NScheduler::EAgentToSchedulerJobEventType EventType;
     TJobId JobId;
+    NScheduler::TControllerEpoch ControllerEpoch;
     TError Error;
     std::optional<EInterruptReason> InterruptReason;
     std::optional<NJobTrackerClient::TReleaseJobFlags> ReleaseFlags;
@@ -144,6 +163,7 @@ private:
     const TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>> JobEventsOutbox_;
     TBootstrap* const Bootstrap_;
     const TIncarnationId IncarnationId_;
+    const NScheduler::TControllerEpoch ControllerEpoch_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationControllerHost)

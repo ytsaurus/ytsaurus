@@ -45,6 +45,7 @@ struct TControllerScheduleJobResult
     TEnumIndexedVector<NControllerAgent::EScheduleJobFailReason, int> Failed;
     TDuration Duration;
     TIncarnationId IncarnationId;
+    TControllerEpoch ControllerEpoch;
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerScheduleJobResult)

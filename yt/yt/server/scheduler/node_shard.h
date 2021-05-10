@@ -139,9 +139,10 @@ public:
 
     void RegisterOperation(
         TOperationId operationId,
+        TControllerEpoch controllerEpoch,
         const IOperationControllerPtr& controller,
         bool jobsReady);
-    void StartOperationRevival(TOperationId operationId);
+    void StartOperationRevival(TOperationId operationId, TControllerEpoch newControllerEpoch);
     void FinishOperationRevival(TOperationId operationId, const std::vector<TJobPtr>& jobs);
     void ResetOperationRevival(TOperationId operationId);
     void UnregisterOperation(TOperationId operationId);
@@ -195,6 +196,9 @@ public:
     int GetJobReporterQueueIsTooLargeNodeCount();
 
     void SetSchedulingSegmentsForNodes(const TSetNodeSchedulingSegmentOptionsList& nodesWithNewSegments);
+
+    TControllerEpoch GetOperationControllerEpoch(TOperationId operationId);
+    TControllerEpoch GetJobControllerEpoch(TJobId jobId);
 
 private:
     const int Id_;
@@ -272,14 +276,19 @@ private:
 
     NConcurrency::TPeriodicExecutorPtr SubmitJobsToStrategyExecutor_;
 
-    using TEpoch = ui64;
+    using TShardEpoch = ui64;
 
     struct TOperationState
     {
-        TOperationState(IOperationControllerPtr controller, bool jobsReady, TEpoch epoch)
+        TOperationState(
+            IOperationControllerPtr controller,
+            bool jobsReady,
+            TShardEpoch shardEpoch,
+            TControllerEpoch controllerEpoch)
             : Controller(std::move(controller))
             , JobsReady(jobsReady)
-            , Epoch(epoch)
+            , ShardEpoch(shardEpoch)
+            , ControllerEpoch(controllerEpoch)
         { }
 
         THashMap<TJobId, TJobPtr> Jobs;
@@ -295,11 +304,12 @@ private:
         //! and it is OK to abort unknown jobs that claim to be a part of this operation.
         bool JobsReady = false;
         //! Prevents leaking #AbortUnconfirmedJobs between different incarnations of the same operation.
-        TEpoch Epoch;
+        TShardEpoch ShardEpoch;
+        TControllerEpoch ControllerEpoch;
     };
 
     THashMap<TOperationId, TOperationState> IdToOpertionState_;
-    TEpoch CurrentEpoch_ = 0;
+    TShardEpoch CurrentEpoch_ = 0;
 
     TPersistentSchedulingSegmentsStatePtr InitialSchedulingSegmentsState_;
     TInstant SchedulingSegmentInitializationDeadline_;
@@ -338,7 +348,7 @@ private:
     void AbortAllJobsAtNode(const TExecNodePtr& node, EAbortReason reason);
     void AbortUnconfirmedJobs(
         TOperationId operationId,
-        TEpoch epoch,
+        TShardEpoch shardEpoch,
         const std::vector<TJobPtr>& jobs);
 
     void ProcessHeartbeatJobs(

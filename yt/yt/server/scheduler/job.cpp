@@ -15,6 +15,7 @@ TJob::TJob(
     EJobType type,
     TOperationId operationId,
     TIncarnationId incarnationId,
+    TControllerEpoch controllerEpoch,
     TExecNodePtr node,
     TInstant startTime,
     const TJobResources& resourceLimits,
@@ -27,6 +28,7 @@ TJob::TJob(
     , Type_(type)
     , OperationId_(operationId)
     , IncarnationId_(incarnationId)
+    , ControllerEpoch_(controllerEpoch)
     , Node_(std::move(node))
     , RevivalNodeId_(revivalNodeId)
     , RevivalNodeAddress_(std::move(revivalNodeAddress))

@@ -107,6 +107,7 @@ void ToProto(NProto::TReviveOperationResult* resultProto, const TOperationContro
     }
     ToProto(resultProto->mutable_revived_banned_tree_ids(), result.RevivedBannedTreeIds);
     ToProto(resultProto->mutable_needed_resources(), result.NeededResources);
+    resultProto->set_controller_epoch(result.ControllerEpoch);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

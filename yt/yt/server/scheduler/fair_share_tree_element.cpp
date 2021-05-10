@@ -2878,6 +2878,7 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
         GetTreeId(),
         OperationId_,
         scheduleJobResult->IncarnationId,
+        scheduleJobResult->ControllerEpoch,
         startDescriptor,
         Spec_->PreemptionMode);
 

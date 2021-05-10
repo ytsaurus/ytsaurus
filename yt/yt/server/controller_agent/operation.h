@@ -34,6 +34,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NSecurityClient::TSerializableAccessControlList, Acl);
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionId, UserTransactionId);
     DEFINE_BYREF_RO_PROPERTY(NScheduler::TPoolTreeControllerSettingsMap, PoolTreeControllerSettingsMap);
+    DEFINE_BYVAL_RO_PROPERTY(NScheduler::TControllerEpoch, ControllerEpoch);
     DEFINE_BYVAL_RW_PROPERTY(NYTAlloc::TMemoryTag, MemoryTag);
     DEFINE_BYVAL_RW_PROPERTY(std::vector<NTransactionClient::TTransactionId>, WatchTransactionIds);
     DEFINE_BYVAL_RW_PROPERTY(IOperationControllerPtr, Controller);

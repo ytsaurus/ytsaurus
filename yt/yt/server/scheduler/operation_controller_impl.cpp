@@ -391,6 +391,7 @@ TFuture<void> TOperationControllerImpl::Register(const TOperationPtr& operation)
     descriptor->set_acl(ConvertToYsonString(operation->GetRuntimeParameters()->Acl).ToString());
     ToProto(descriptor->mutable_pool_tree_controller_settings_map(), operation->PoolTreeControllerSettingsMap());
     ToProto(descriptor->mutable_user_transaction_id(), operation->GetUserTransactionId());
+    descriptor->set_controller_epoch(operation->ControllerEpoch());
 
     return InvokeAgent<TControllerAgentServiceProxy::TRspRegisterOperation>(req).As<void>();
 }

@@ -91,6 +91,7 @@ void TSchedulingContextBase::StartJob(
     const TString& treeId,
     TOperationId operationId,
     TIncarnationId incarnationId,
+    TControllerEpoch controllerEpoch,
     const TJobStartDescriptor& startDescriptor,
     EPreemptionMode preemptionMode)
 {
@@ -104,6 +105,7 @@ void TSchedulingContextBase::StartJob(
         startDescriptor.Type,
         operationId,
         incarnationId,
+        controllerEpoch,
         Node_,
         startTime,
         startDescriptor.ResourceLimits.ToJobResources(),

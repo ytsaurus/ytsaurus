@@ -80,6 +80,7 @@ void FromProto(
             static_cast<EJobType>(jobProto.job_type()),
             operationId,
             incarnationId,
+            resultProto.controller_epoch(),
             nullptr /* execNode */,
             FromProto<TInstant>(jobProto.start_time()),
             FromProto<TJobResources>(jobProto.resource_limits()),
