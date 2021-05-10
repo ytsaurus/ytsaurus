@@ -230,18 +230,21 @@ bool TSlotManager::IsEnabled() const
 
 bool TSlotManager::HasSlotDisablingAlert() const
 {
+    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+
     auto dynamicConfig = DynamicConfig_.Load();
     bool disableJobsOnGpuCheckFailure = dynamicConfig
         ? dynamicConfig->DisableJobsOnGpuCheckFailure.value_or(Config_->DisableJobsOnGpuCheckFailure)
         : Config_->DisableJobsOnGpuCheckFailure;
     return
-        HasFatalAlert() ||
-        (disableJobsOnGpuCheckFailure && !Alerts_[ESlotManagerAlertType::GpuCheckFailed].IsOK()) ||
-        !Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions].IsOK();
+        !Alerts_[ESlotManagerAlertType::GenericPersistentError].IsOK() ||
+        !Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions].IsOK() ||
+        (disableJobsOnGpuCheckFailure && !Alerts_[ESlotManagerAlertType::GpuCheckFailed].IsOK());
 }
 
 bool TSlotManager::HasFatalAlert() const
 {
+    auto guard = Guard(SpinLock_);
     return !Alerts_[ESlotManagerAlertType::GenericPersistentError].IsOK();
 }
 
@@ -290,6 +293,8 @@ void TSlotManager::OnGpuCheckCommandFailed(const TError& error)
     YT_LOG_WARNING(
         error,
         "Gpu check failed alert set, jobs may be disabled if \"disable_jobs_on_gpu_check_failure\" specified");
+
+    auto guard = Guard(SpinLock_);
     Alerts_[ESlotManagerAlertType::GpuCheckFailed] = error;
 }
 

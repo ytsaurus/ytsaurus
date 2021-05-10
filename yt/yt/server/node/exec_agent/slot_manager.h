@@ -59,7 +59,6 @@ public:
     int GetUsedSlotCount() const;
 
     bool IsEnabled() const;
-    bool HasSlotDisablingAlert() const;
     bool HasFatalAlert() const;
 
     NNodeTrackerClient::NProto::TDiskResources GetDiskResources();
@@ -121,6 +120,8 @@ private:
     int DefaultMediumIndex_ = NChunkClient::DefaultSlotsMediumIndex;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
+
+    bool HasSlotDisablingAlert() const;
 
     void OnJobFinished(const NJobAgent::IJobPtr& job);
     void OnJobsCpuLimitUpdated();
