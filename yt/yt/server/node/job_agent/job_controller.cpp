@@ -443,6 +443,8 @@ TNodeResources TJobController::TImpl::GetResourceUsage(bool includeWaiting) cons
     }
 
     result.set_user_slots(Bootstrap_->GetExecSlotManager()->GetUsedSlotCount());
+    result.set_gpu(Bootstrap_->GetGpuManager()->GetUsedGpuCount());
+
     return result;
 }
 
@@ -1045,15 +1047,25 @@ void TJobController::TImpl::DoPrepareHeartbeatRequest(
         }
     }
 
-    if (jobObjectType == EObjectType::SchedulerJob && !Bootstrap_->GetExecSlotManager()->IsEnabled()) {
-        // NB(psushin): if slot manager is disabled we might have experienced an unrecoverable failure (e.g. hanging Porto)
+    if (jobObjectType == EObjectType::SchedulerJob && Bootstrap_->GetExecSlotManager()->HasFatalAlert()) {
+        // NB(psushin): if slot manager is disabled with fatal alert we might have experienced an unrecoverable failure (e.g. hanging Porto)
         // and to avoid inconsistent state with scheduler we decide not to report to it any jobs at all.
         // We also drop all scheduler jobs from |JobMap_|.
-        EraseNodesIf(JobMap_, [] (const auto& item) {
-            const auto& [jobId, job] = item;
-            return TypeFromId(jobId) == EObjectType::SchedulerJob;
-        });
+        std::vector<TJobId> jobIdsToRemove;
+        for (const auto& [jobId, job] : JobMap_) {
+            if (TypeFromId(jobId) == EObjectType::SchedulerJob) {
+                YT_LOG_INFO("Removing job %v due to fatal alert");
+                job->Abort(TError("Job aborted due to fatal alert"));
+                jobIdsToRemove.push_back(jobId);
+            }
+        }
+
+        for (auto jobId : jobIdsToRemove) {
+            YT_VERIFY(JobMap_.erase(jobId) == 1);
+        }
+
         request->set_confirmed_job_count(0);
+
         return;
     }
 

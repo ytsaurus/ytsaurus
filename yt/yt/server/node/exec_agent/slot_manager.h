@@ -60,6 +60,7 @@ public:
 
     bool IsEnabled() const;
     bool HasSlotDisablingAlert() const;
+    bool HasFatalAlert() const;
 
     NNodeTrackerClient::NProto::TDiskResources GetDiskResources();
 
