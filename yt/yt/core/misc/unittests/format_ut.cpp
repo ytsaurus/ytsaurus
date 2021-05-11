@@ -82,6 +82,9 @@ TEST(TFormatTest, Integers)
     EXPECT_EQ("123", Format("%d", 123));
     EXPECT_EQ("123", Format("%v", 123));
 
+    EXPECT_EQ("042", Format("%03d", 42));
+    EXPECT_EQ("42", Format("%01d", 42));
+
     EXPECT_EQ("2147483647", Format("%d", std::numeric_limits<i32>::max()));
     EXPECT_EQ("-2147483648", Format("%d", std::numeric_limits<i32>::min()));
 

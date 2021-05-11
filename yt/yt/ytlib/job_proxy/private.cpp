@@ -13,7 +13,7 @@ TString GetDefaultJobsMetaContainerName()
 
 TString GetSlotMetaContainerName(int slotIndex)
 {
-    return Format("s_%v", slotIndex);
+    return Format("s_%03d", slotIndex);
 }
 
 TString GetFullSlotMetaContainerName(const TString& jobsMetaName, int slotIndex)
