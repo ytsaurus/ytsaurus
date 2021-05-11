@@ -164,6 +164,8 @@ private:
             .SetPresent(chunk->IsJournal()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::WriteQuorum)
             .SetPresent(chunk->IsJournal()));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicaLagLimit)
+            .SetPresent(chunk->IsJournal()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Eden)
             .SetPresent(chunk->IsConfirmed()));
         descriptors->push_back(EInternedAttributeKey::ScanFlags);
@@ -627,6 +629,14 @@ private:
                 }
                 BuildYsonFluently(consumer)
                     .Value(chunk->GetWriteQuorum());
+                return true;
+
+            case EInternedAttributeKey::ReplicaLagLimit:
+                if (!chunk->IsJournal()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(chunk->GetReplicaLagLimit());
                 return true;
 
             case EInternedAttributeKey::Eden:

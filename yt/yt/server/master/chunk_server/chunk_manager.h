@@ -160,7 +160,8 @@ public:
         bool movable,
         bool vital,
         bool overlayed = false,
-        NChunkClient::TConsistentReplicaPlacementHash consistentReplicaPlacementHash = NChunkClient::NullConsistentReplicaPlacementHash);
+        NChunkClient::TConsistentReplicaPlacementHash consistentReplicaPlacementHash = NChunkClient::NullConsistentReplicaPlacementHash,
+        i64 replicaLagLimit = 0);
 
     TDynamicStore* CreateDynamicStore(TDynamicStoreId storeId, const NTabletServer::TTablet* tablet);
 
@@ -222,6 +223,7 @@ public:
         bool overlayed,
         NErasure::ECodec codecId,
         int readQuorum,
+        i64 replicaLagLimit,
         const std::vector<NJournalClient::TChunkReplicaDescriptor>& replicaDescriptors);
 
     //! Returns the medium with a given id (throws if none).

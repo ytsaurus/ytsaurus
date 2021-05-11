@@ -72,6 +72,7 @@ public:
                     .ChunkId = chunk->GetId(),
                     .CodecId = chunk->GetErasureCodec(),
                     .ReadQuorum = chunk->GetReadQuorum(),
+                    .ReplicaLagLimit = chunk->GetReplicaLagLimit(),
                     .ReplicaDescriptors = GetChunkReplicaDescriptors(chunk)
                 });
             }
@@ -105,6 +106,7 @@ private:
         TChunkId ChunkId;
         NErasure::ECodec CodecId;
         int ReadQuorum;
+        i64 ReplicaLagLimit;
         std::vector<TChunkReplicaDescriptor> ReplicaDescriptors;
     };
 
@@ -126,6 +128,7 @@ private:
             true,
             chunkDescriptor.CodecId,
             chunkDescriptor.ReadQuorum,
+            chunkDescriptor.ReplicaLagLimit,
             chunkDescriptor.ReplicaDescriptors)
             .Apply(
                 BIND(&TJournalQuorumRowCountSession::OnChunkInfoReceived, MakeStrong(this))

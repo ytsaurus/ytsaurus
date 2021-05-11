@@ -20,6 +20,8 @@
 
 #include <yt/yt/ytlib/journal_client/helpers.h>
 
+#include <yt/yt/library/erasure/impl/codec.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -337,8 +339,23 @@ private:
         auto codecId = chunk->GetErasureCodec();
         auto startRowIndex = GetJournalChunkStartRowIndex(chunk);
         auto readQuorum = chunk->GetReadQuorum();
+        auto replicaLagLimit = chunk->GetReplicaLagLimit();
         auto replicas = GetChunkReplicaDescriptors(chunk);
         auto dynamicConfig = GetDynamicConfig();
+
+        int physicalReplicationFactor = 0;
+        if (chunk->IsErasure()) {
+            auto* codec = NErasure::GetCodec(codecId);
+            physicalReplicationFactor = codec->GetTotalPartCount();
+        } else {
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
+            const auto& replication = chunk->GetAggregatedReplication(requisitionRegistry);
+
+            for (const auto& replicationEntry : replication) {
+                physicalReplicationFactor += replicationEntry.Policy().GetReplicationFactor();
+            }
+        }
 
         if (replicas.empty()) {
             THROW_ERROR_EXCEPTION("No replicas of chunk %v are known",
@@ -356,6 +373,7 @@ private:
                 chunkId,
                 replicas,
                 dynamicConfig->JournalRpcTimeout,
+                dynamicConfig->QuorumSessionDelay,
                 readQuorum,
                 Bootstrap_->GetNodeChannelFactory());
             abortedReplicas = WaitFor(future)
@@ -369,6 +387,7 @@ private:
                 overlayed,
                 codecId,
                 readQuorum,
+                replicaLagLimit,
                 abortedReplicas,
                 dynamicConfig->JournalRpcTimeout,
                 Bootstrap_->GetNodeChannelFactory());
@@ -384,6 +403,22 @@ private:
                 << TErrorAttribute("first_overlayed_row_index", *quorumInfo.FirstOverlayedRowIndex);
         }
 
+        i64 sealedRowCount = quorumInfo.RowCount;
+        if (quorumInfo.ResponseCount == physicalReplicationFactor) {
+            // Fast path: sealed row count can be reliably evaluated.
+            YT_LOG_DEBUG("Sealed row count evaluated (ChunkId: %v, SealedRowCount: %v)",
+                chunkId,
+                sealedRowCount);
+        } else {
+            // TODO(gritukan, shakurov): YT-14556, sealed row count cannot be reliably evaluated
+            // but we will hope for the best.
+            YT_LOG_DEBUG("Sealed row count computed unreliably (ChunkId: %v, SealedRowCount: %v, ResponseCount: %v, PhysicalReplicationFactor: %v)",
+                chunkId,
+                sealedRowCount,
+                quorumInfo.ResponseCount,
+                physicalReplicationFactor);
+        }
+
         {
             TChunkServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
 
@@ -396,10 +431,10 @@ private:
             if (firstOverlayedRowIndex) {
                 req->mutable_info()->set_first_overlayed_row_index(*firstOverlayedRowIndex);
             }
-            req->mutable_info()->set_row_count(quorumInfo.RowCount);
+            req->mutable_info()->set_row_count(sealedRowCount);
             req->mutable_info()->set_uncompressed_data_size(quorumInfo.UncompressedDataSize);
             req->mutable_info()->set_compressed_data_size(quorumInfo.CompressedDataSize);
-            req->mutable_info()->set_physical_row_count(GetPhysicalChunkRowCount(quorumInfo.RowCount, overlayed));
+            req->mutable_info()->set_physical_row_count(GetPhysicalChunkRowCount(sealedRowCount, overlayed));
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(

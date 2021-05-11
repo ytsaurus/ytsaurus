@@ -41,7 +41,8 @@ TString ToString(const TChunkReplicaDescriptor& replica);
 TFuture<std::vector<TChunkReplicaDescriptor>> AbortSessionsQuorum(
     NChunkClient::TChunkId chunkId,
     std::vector<TChunkReplicaDescriptor> replicas,
-    TDuration timeout,
+    TDuration abortRequestTimeout,
+    TDuration quorumSessionDelay,
     int quorum,
     NNodeTrackerClient::INodeChannelFactoryPtr channelFactory);
 
@@ -60,6 +61,9 @@ struct TChunkQuorumInfo
 
     //! Some approximation for the compressed data size of the journal chunk.
     i64 CompressedDataSize = 0;
+
+    //! Number of replicas replied during quorum session.
+    int ResponseCount = 0;
 };
 
 TFuture<TChunkQuorumInfo> ComputeQuorumInfo(
@@ -67,8 +71,9 @@ TFuture<TChunkQuorumInfo> ComputeQuorumInfo(
     bool overlayed,
     NErasure::ECodec codecId,
     int quorum,
+    i64 replicaLagLimit,
     std::vector<TChunkReplicaDescriptor> replicas,
-    TDuration timeout,
+    TDuration requestTimeout,
     NNodeTrackerClient::INodeChannelFactoryPtr channelFactory);
 
 ////////////////////////////////////////////////////////////////////////////////

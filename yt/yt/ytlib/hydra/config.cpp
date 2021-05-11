@@ -68,6 +68,8 @@ TRemoteChangelogStoreOptions::TRemoteChangelogStoreOptions()
         .Default(true);
     RegisterParameter("enable_changelog_chunk_preallocation", EnableChangelogChunkPreallocation)
         .Default(false);
+    RegisterParameter("changelog_replica_lag_limit", ChangelogReplicaLagLimit)
+        .Default(NJournalClient::DefaultReplicaLagLimit);
     RegisterParameter("changelog_account", ChangelogAccount)
         .NonEmpty();
     RegisterParameter("changelog_primary_medium", ChangelogPrimaryMedium)

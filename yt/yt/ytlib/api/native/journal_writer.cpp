@@ -141,6 +141,12 @@ private:
                 Path_,
                 Options_.TransactionId))
         {
+            if (Config_->MaxBatchRowCount > options.ReplicaLagLimit) {
+                THROW_ERROR_EXCEPTION("\"max_batch_row_count\" cannot be greater than \"replica_lag_limit\"")
+                    << TErrorAttribute("max_batch_row_count", Config_->MaxBatchRowCount)
+                    << TErrorAttribute("replica_lag_limit", options.ReplicaLagLimit);
+            }
+
             if (Options_.TransactionId) {
                 TTransactionAttachOptions attachOptions{
                     .Ping = true
@@ -316,8 +322,12 @@ private:
             TSessionId Id;
             std::vector<TNodePtr> Nodes;
 
-            i64 FlushedRowCount = 0;
-            i64 FlushedDataSize = 0;
+            //! Row is called completed iff it is written to all the replicas.
+            i64 ReplicationFactorFlushedRowCount = 0;
+
+            //! Row is called flushed iff it is written to #WriteQuorum replicas.
+            i64 QuorumFlushedRowCount = 0;
+            i64 QuorumFlushedDataSize = 0;
 
             EChunkSessionState State = EChunkSessionState::Allocating;
             bool SwitchScheduled = false;
@@ -338,7 +348,9 @@ private:
         int AllocatedChunkSessionIndex_ = -1;
 
         i64 CurrentRowIndex_ = 0;
-        std::deque<TBatchPtr> PendingBatches_;
+
+        std::deque<TBatchPtr> QuorumUnflushedBatches_;
+        std::deque<TBatchPtr> ReplicationFactorUnflushedBatches_;
 
         struct TBatchCommand
         {
@@ -647,6 +659,7 @@ private:
                 req->set_movable(true);
                 req->set_vital(true);
                 req->set_overlayed(Options_.EnableChunkPreallocation);
+                req->set_replica_lag_limit(Options_.ReplicaLagLimit);
 
                 auto batchRspOrError = WaitFor(batchReq->Invoke());
                 THROW_ERROR_EXCEPTION_IF_FAILED(
@@ -662,6 +675,8 @@ private:
             YT_LOG_DEBUG("Chunk created (SessionId: %v, ElapsedTime: %v)",
                 session->Id,
                 timer.GetElapsedTime());
+
+            auto chunkId = session->Id.ChunkId;
 
             int replicaCount = ErasureCodec_ == NErasure::ECodec::None
                 ? ReplicationFactor_
@@ -711,7 +726,8 @@ private:
                 session->Nodes.push_back(node);
             }
 
-            YT_LOG_DEBUG("Starting chunk session at nodes (ElapsedTime: %v)",
+            YT_LOG_DEBUG("Starting chunk session at nodes (SessionId: %v, ElapsedTime: %v)",
+                session->Id,
                 timer.GetElapsedTime());
 
             try {
@@ -738,7 +754,8 @@ private:
                 return nullptr;
             }
 
-            YT_LOG_DEBUG("Chunk session started at nodes (ElapsedTime: %v)",
+            YT_LOG_DEBUG("Chunk session started at nodes (SessionId: %v, ElapsedTime: %v)",
+                session->Id,
                 timer.GetElapsedTime());
 
             for (const auto& node : session->Nodes) {
@@ -749,9 +766,9 @@ private:
                 node->PingExecutor->Start();
             }
 
-            auto chunkId = session->Id.ChunkId;
 
-            YT_LOG_DEBUG("Confirming chunk (ElapsedTime: %v)",
+            YT_LOG_DEBUG("Confirming chunk (SessionId: %v, ElapsedTime: %v)",
+                session->Id,
                 timer.GetElapsedTime());
 
             {
@@ -779,10 +796,12 @@ private:
                     "Error confirming chunk %v",
                     chunkId);
             }
-            YT_LOG_DEBUG("Chunk confirmed (ElapsedTime: %v)",
+            YT_LOG_DEBUG("Chunk confirmed (SessionId: %v, ElapsedTime: %v)",
+                session->Id,
                 timer.GetElapsedTime());
 
-            YT_LOG_DEBUG("Attaching chunk (ElapsedTime: %v)",
+            YT_LOG_DEBUG("Attaching chunk (SessionId: %v, ElapsedTime: %v)",
+                session->Id,
                 timer.GetElapsedTime());
             {
                 TEventTimerGuard timingGuard(Counters_.AttachChunkTimer);
@@ -802,7 +821,8 @@ private:
                     "Error attaching chunk %v",
                     chunkId);
             }
-            YT_LOG_DEBUG("Chunk attached (ElapsedTime: %v)",
+            YT_LOG_DEBUG("Chunk attached (SessionId: %v, ElapsedTime: %v)",
+                session->Id,
                 timer.GetElapsedTime());
 
             return session;
@@ -903,15 +923,18 @@ private:
             YT_LOG_DEBUG("Current chunk session updated (SessionId: %v)",
                 CurrentChunkSession_->Id);
 
-            if (!PendingBatches_.empty()) {
-                const auto& firstBatch = PendingBatches_.front();
-                const auto& lastBatch = PendingBatches_.back();
+            ReplicationFactorUnflushedBatches_.clear();
+
+            if (!QuorumUnflushedBatches_.empty()) {
+                const auto& firstBatch = QuorumUnflushedBatches_.front();
+                const auto& lastBatch = QuorumUnflushedBatches_.back();
                 YT_LOG_DEBUG("Batches re-enqueued (SessionId: %v, Rows: %v-%v)",
                     CurrentChunkSession_->Id,
                     firstBatch->FirstRowIndex,
                     lastBatch->FirstRowIndex + lastBatch->RowCount - 1);
 
-                for (const auto& batch : PendingBatches_) {
+                for (const auto& batch : QuorumUnflushedBatches_) {
+                    ReplicationFactorUnflushedBatches_.push_back(batch);
                     EnqueueBatchToCurrentChunkSession(batch);
                 }
             }
@@ -992,7 +1015,8 @@ private:
                 batch->ErasureRows = EncodeErasureJournalRows(NErasure::GetCodec(ErasureCodec_), batch->Rows);
                 batch->Rows.clear();
             }
-            PendingBatches_.push_back(batch);
+            QuorumUnflushedBatches_.push_back(batch);
+            ReplicationFactorUnflushedBatches_.push_back(batch);
             EnqueueBatchToCurrentChunkSession(batch);
         }
 
@@ -1064,7 +1088,7 @@ private:
 
                 YT_LOG_DEBUG("Sealing chunk (SessionId: %v, RowCount: %v)",
                     sessionId,
-                    session->FlushedRowCount);
+                    session->QuorumFlushedRowCount);
 
                 TChunkServiceProxy proxy(UploadMasterChannel_);
 
@@ -1074,15 +1098,15 @@ private:
 
                 auto* req = batchReq->add_seal_chunk_subrequests();
                 ToProto(req->mutable_chunk_id(), sessionId.ChunkId);
-                req->mutable_info()->set_row_count(session->FlushedRowCount);
-                req->mutable_info()->set_uncompressed_data_size(session->FlushedDataSize);
-                req->mutable_info()->set_compressed_data_size(session->FlushedDataSize);
-                req->mutable_info()->set_physical_row_count(GetPhysicalChunkRowCount(session->FlushedRowCount, Options_.EnableChunkPreallocation));
+                req->mutable_info()->set_row_count(session->QuorumFlushedRowCount);
+                req->mutable_info()->set_uncompressed_data_size(session->QuorumFlushedDataSize);
+                req->mutable_info()->set_compressed_data_size(session->QuorumFlushedDataSize);
+                req->mutable_info()->set_physical_row_count(GetPhysicalChunkRowCount(session->QuorumFlushedRowCount, Options_.EnableChunkPreallocation));
                 // COMPAT(babenko): YT-14089
                 req->mutable_misc()->set_sealed(true);
-                req->mutable_misc()->set_row_count(session->FlushedRowCount);
-                req->mutable_misc()->set_uncompressed_data_size(session->FlushedDataSize);
-                req->mutable_misc()->set_compressed_data_size(session->FlushedDataSize);
+                req->mutable_misc()->set_row_count(session->QuorumFlushedRowCount);
+                req->mutable_misc()->set_uncompressed_data_size(session->QuorumFlushedDataSize);
+                req->mutable_misc()->set_compressed_data_size(session->QuorumFlushedDataSize);
                 auto batchRspOrError = WaitFor(batchReq->Invoke());
                 THROW_ERROR_EXCEPTION_IF_FAILED(
                     GetCumulativeError(batchRspOrError),
@@ -1115,7 +1139,7 @@ private:
                 OpenChunk();
                 WriteChunk();
                 CloseChunk();
-            } while (!Closing_ || !PendingBatches_.empty());
+            } while (!Closing_ || !QuorumUnflushedBatches_.empty());
             CloseJournal();
         }
 
@@ -1137,10 +1161,11 @@ private:
             OpenedPromise_.TrySet(error);
             ClosedPromise_.TrySet(error);
 
-            for (const auto& batch : PendingBatches_) {
+            for (const auto& batch : QuorumUnflushedBatches_) {
                 batch->FlushedPromise.Set(error);
             }
-            PendingBatches_.clear();
+            QuorumUnflushedBatches_.clear();
+            ReplicationFactorUnflushedBatches_.clear();
 
             while (true) {
                 auto command = DequeueCommand();
@@ -1354,11 +1379,21 @@ private:
             }
 
             YT_VERIFY(node->InFlightBatches.empty());
-            while (flushRowCount <= Config_->MaxFlushRowCount &&
-                   flushDataSize <= Config_->MaxFlushDataSize &&
-                   !node->PendingBatches.empty())
-            {
+            while (!node->PendingBatches.empty()) {
                 auto batch = node->PendingBatches.front();
+
+                i64 replicaRowCountAfterFlush = node->FirstPendingBlockIndex + batch->RowCount;
+                if (session->ReplicationFactorFlushedRowCount + Options_.ReplicaLagLimit < replicaRowCountAfterFlush) {
+                    break;
+                }
+
+                if (flushRowCount + batch->RowCount > Config_->MaxFlushRowCount) {
+                    break;
+                }
+                if (flushDataSize + batch->DataSize > Config_->MaxFlushDataSize) {
+                    break;
+                }
+
                 node->PendingBatches.pop();
 
                 const auto& rows = ErasureCodec_ == NErasure::ECodec::None
@@ -1372,6 +1407,10 @@ private:
                 node->InFlightBatches.push_back(batch);
             }
 
+            if (node->InFlightBatches.empty()) {
+                return;
+            }
+
             YT_LOG_DEBUG("Writing journal replica (Address: %v, BlockIds: %v:%v-%v, Rows: %v-%v, DataSize: %v, LagTime: %v)",
                 node->Descriptor.GetDefaultAddress(),
                 CurrentChunkSession_->Id,
@@ -1381,6 +1420,10 @@ private:
                 node->FirstPendingRowIndex + flushRowCount - 1,
                 flushDataSize,
                 CpuDurationToDuration(lagTime));
+
+            if (SimulateReplicaTimeout(node, session, flushRowCount)) {
+                return;
+            }
 
             req->Invoke().Subscribe(
                 BIND(&TImpl::OnBlocksWritten, MakeWeak(this), CurrentChunkSession_, node, flushRowCount)
@@ -1423,16 +1466,16 @@ private:
             node->InFlightBatches.clear();
 
             std::vector<TPromise<void>> fulfilledPromises;
-            while (!PendingBatches_.empty()) {
-                auto front = PendingBatches_.front();
-                if (front->FlushedReplicas <  WriteQuorum_) {
+            while (!QuorumUnflushedBatches_.empty()) {
+                auto front = QuorumUnflushedBatches_.front();
+                if (front->FlushedReplicas < WriteQuorum_) {
                     break;
                 }
 
                 fulfilledPromises.push_back(front->FlushedPromise);
-                session->FlushedRowCount += front->RowCount;
-                session->FlushedDataSize += front->DataSize;
-                PendingBatches_.pop_front();
+                session->QuorumFlushedRowCount += front->RowCount;
+                session->QuorumFlushedDataSize += front->DataSize;
+                QuorumUnflushedBatches_.pop_front();
 
                 YT_LOG_DEBUG("Rows are written by quorum (Rows: %v-%v)",
                     front->FirstRowIndex,
@@ -1443,21 +1486,43 @@ private:
                 promise.Set();
             }
 
-            if (!session->SwitchScheduled && session->FlushedRowCount >= Config_->MaxChunkRowCount) {
+            bool flushAllReplicas = false;
+            while (!ReplicationFactorUnflushedBatches_.empty()) {
+                auto batch = ReplicationFactorUnflushedBatches_.front();
+                if (batch->FlushedReplicas < ReplicationFactor_) {
+                    break;
+                }
+
+                session->ReplicationFactorFlushedRowCount += batch->RowCount;
+                ReplicationFactorUnflushedBatches_.pop_front();
+                flushAllReplicas = true;
+
+                YT_LOG_DEBUG("Rows are written to all replicas (Rows: %v-%v)",
+                    batch->FirstRowIndex,
+                    batch->FirstRowIndex + batch->RowCount - 1);
+            }
+
+            if (!session->SwitchScheduled && session->QuorumFlushedRowCount >= Config_->MaxChunkRowCount) {
                 YT_LOG_DEBUG("Chunk row count limit exceeded; requesting chunk switch (RowCount: %v, SessionId: %v)",
-                    session->FlushedRowCount,
+                    session->QuorumFlushedRowCount,
                     session->Id);
                 ScheduleChunkSessionSwitch(session);
             }
 
-            if (!session->SwitchScheduled && session->FlushedDataSize >= Config_->MaxChunkDataSize) {
+            if (!session->SwitchScheduled && session->QuorumFlushedDataSize >= Config_->MaxChunkDataSize) {
                 YT_LOG_DEBUG("Chunk data size limit exceeded; requesting chunk switch (DataSize: %v, SessionId: %v)",
-                    session->FlushedDataSize,
+                    session->QuorumFlushedDataSize,
                     session->Id);
                 ScheduleChunkSessionSwitch(session);
             }
 
-            MaybeFlushBlocks(CurrentChunkSession_, node);
+            if (flushAllReplicas) {
+                for (const auto& node : session->Nodes) {
+                    MaybeFlushBlocks(CurrentChunkSession_, node);
+                }
+            } else {
+                MaybeFlushBlocks(CurrentChunkSession_, node);
+            }
         }
 
         bool SimulateReplicaFailure(
@@ -1474,6 +1539,32 @@ private:
                 address,
                 session->Id);
             ScheduleChunkSessionSwitch(session);
+            return true;
+        }
+
+        bool SimulateReplicaTimeout(
+            const TNodePtr& node,
+            const TChunkSessionPtr& session,
+            i64 flushRowCount)
+        {
+            if (!Config_->ReplicaRowLimits) {
+                return false;
+            }
+
+            i64 replicaRowLimit = (*Config_->ReplicaRowLimits)[node->Index];
+            if (node->FirstPendingBlockIndex + flushRowCount <= replicaRowLimit) {
+                return false;
+            }
+
+            YT_LOG_WARNING("Simulating journal replica timeout (ReplicaIndex: %v, FlushRowCount: %v, ReplicaRowLimit: %v)",
+                node->Index,
+                flushRowCount,
+                replicaRowLimit);
+
+            TDelayedExecutor::Submit(
+                BIND(&TImpl::OnReplicaFailure, MakeWeak(this), TError(NYT::EErrorCode::Timeout, "Fake timeout"), node, session)
+                    .Via(Invoker_),
+                Config_->ReplicaFakeTimeoutDelay);
             return true;
         }
 
@@ -1637,8 +1728,8 @@ private:
                 session->Id,
                 session->Index,
                 session->FirstRowIndex,
-                session->FlushedRowCount,
-                session->FlushedDataSize);
+                session->QuorumFlushedRowCount,
+                session->QuorumFlushedDataSize);
 
             YT_VERIFY(IndexToChunkSessionToSeal_.emplace(session->Index, std::move(session)).second);
 
@@ -1677,10 +1768,10 @@ private:
                 if (session->FirstRowIndex) {
                     req->mutable_info()->set_first_overlayed_row_index(*session->FirstRowIndex);
                 }
-                req->mutable_info()->set_row_count(session->FlushedRowCount);
-                req->mutable_info()->set_uncompressed_data_size(session->FlushedDataSize);
-                req->mutable_info()->set_compressed_data_size(session->FlushedDataSize);
-                req->mutable_info()->set_physical_row_count(GetPhysicalChunkRowCount(session->FlushedRowCount, Options_.EnableChunkPreallocation));
+                req->mutable_info()->set_row_count(session->QuorumFlushedRowCount);
+                req->mutable_info()->set_uncompressed_data_size(session->QuorumFlushedDataSize);
+                req->mutable_info()->set_compressed_data_size(session->QuorumFlushedDataSize);
+                req->mutable_info()->set_physical_row_count(GetPhysicalChunkRowCount(session->QuorumFlushedRowCount, Options_.EnableChunkPreallocation));
             }
 
             SealInProgress_ = true;

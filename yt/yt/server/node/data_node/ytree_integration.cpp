@@ -3,6 +3,7 @@
 #include "chunk.h"
 #include "chunk_cache.h"
 #include "chunk_store.h"
+#include "journal_chunk.h"
 #include "location.h"
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
@@ -74,6 +75,10 @@ private:
                     .DoIf(blocksExt.has_value(), [&] (TFluentMap fluent) {
                         fluent
                             .Item("block_count").Value(blocksExt->blocks_size());
+                    })
+                    .DoIf(chunk->IsJournalChunk(), [&] (TFluentMap fluent) {
+                        fluent
+                            .Item("flushed_row_count").Value(chunk->AsJournalChunk()->GetFlushedRowCount());
                     })
                 .EndMap();
         }));

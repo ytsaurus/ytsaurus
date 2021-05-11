@@ -695,7 +695,8 @@ public:
         bool movable,
         bool vital,
         bool overlayed,
-        TConsistentReplicaPlacementHash consistentReplicaPlacementHash)
+        TConsistentReplicaPlacementHash consistentReplicaPlacementHash,
+        i64 replicaLagLimit)
     {
         YT_VERIFY(HasMutationContext());
 
@@ -705,6 +706,7 @@ public:
         auto* chunk = DoCreateChunk(chunkType);
         chunk->SetReadQuorum(readQuorum);
         chunk->SetWriteQuorum(writeQuorum);
+        chunk->SetReplicaLagLimit(replicaLagLimit);
         chunk->SetErasureCodec(erasureCodecId);
         chunk->SetMovable(movable);
         chunk->SetOverlayed(overlayed);
@@ -1571,6 +1573,7 @@ public:
             chunk->GetOverlayed(),
             chunk->GetErasureCodec(),
             chunk->GetReadQuorum(),
+            chunk->GetReplicaLagLimit(),
             GetChunkReplicaDescriptors(chunk));
     }
 
@@ -1579,6 +1582,7 @@ public:
         bool overlayed,
         NErasure::ECodec codecId,
         int readQuorum,
+        i64 replicaLagLimit,
         const std::vector<NJournalClient::TChunkReplicaDescriptor>& replicaDescriptors)
     {
         return ComputeQuorumInfo(
@@ -1586,6 +1590,7 @@ public:
             overlayed,
             codecId,
             readQuorum,
+            replicaLagLimit,
             replicaDescriptors,
             GetDynamicConfig()->JournalRpcTimeout,
             Bootstrap_->GetNodeChannelFactory());
@@ -2370,6 +2375,16 @@ private:
         int readQuorum = isJournal ? subrequest->read_quorum() : 0;
         int writeQuorum = isJournal ? subrequest->write_quorum() : 0;
 
+        i64 replicaLagLimit = 0;
+        // COMPAT(gritukan)
+        if (isJournal) {
+            if (subrequest->has_replica_lag_limit()) {
+                replicaLagLimit = subrequest->replica_lag_limit();
+            } else {
+                replicaLagLimit = MaxReplicaLagLimit;
+            }
+        }
+
         const auto& mediumName = subrequest->medium_name();
         auto* medium = GetMediumByNameOrThrow(mediumName);
         int mediumIndex = medium->GetIndex();
@@ -2419,7 +2434,8 @@ private:
             subrequest->movable(),
             subrequest->vital(),
             overlayed,
-            consistentReplicaPlacementHash);
+            consistentReplicaPlacementHash,
+            replicaLagLimit);
 
         if (subresponse) {
             auto sessionId = TSessionId(chunk->GetId(), mediumIndex);
@@ -4001,7 +4017,8 @@ TChunk* TChunkManager::CreateChunk(
     bool movable,
     bool vital,
     bool overlayed,
-    TConsistentReplicaPlacementHash consistentReplicaPlacementHash)
+    TConsistentReplicaPlacementHash consistentReplicaPlacementHash,
+    i64 replicaLagLimit)
 {
     return Impl_->CreateChunk(
         transaction,
@@ -4016,7 +4033,8 @@ TChunk* TChunkManager::CreateChunk(
         movable,
         vital,
         overlayed,
-        consistentReplicaPlacementHash);
+        consistentReplicaPlacementHash,
+        replicaLagLimit);
 }
 
 TChunkView* TChunkManager::CloneChunkView(
@@ -4125,6 +4143,7 @@ TFuture<TChunkQuorumInfo> TChunkManager::GetChunkQuorumInfo(
     bool overlayed,
     NErasure::ECodec codecId,
     int readQuorum,
+    i64 replicaLagLimit,
     const std::vector<NJournalClient::TChunkReplicaDescriptor>& replicaDescriptors)
 {
     return Impl_->GetChunkQuorumInfo(
@@ -4132,6 +4151,7 @@ TFuture<TChunkQuorumInfo> TChunkManager::GetChunkQuorumInfo(
         overlayed,
         codecId,
         readQuorum,
+        replicaLagLimit,
         replicaDescriptors);
 }
 

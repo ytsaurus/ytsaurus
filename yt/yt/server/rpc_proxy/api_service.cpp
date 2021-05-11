@@ -3367,6 +3367,7 @@ private:
         }
         options.EnableMultiplexing = request->enable_multiplexing();
         options.EnableChunkPreallocation = request->enable_chunk_preallocation();
+        options.ReplicaLagLimit = request->replica_lag_limit();
 
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
@@ -3376,10 +3377,11 @@ private:
         }
 
         context->SetRequestInfo(
-            "Path: %v, EnableMultiplexing: %v, EnableChunkPreallocation: %v",
+            "Path: %v, EnableMultiplexing: %v, EnableChunkPreallocation: %v, ReplicaLagLimit: %v",
             path,
             options.EnableMultiplexing,
-            options.EnableChunkPreallocation);
+            options.EnableChunkPreallocation,
+            options.ReplicaLagLimit);
 
         auto journalWriter = client->CreateJournalWriter(path, options);
         WaitFor(journalWriter->Open())

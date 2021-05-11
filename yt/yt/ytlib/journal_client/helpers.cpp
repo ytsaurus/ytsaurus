@@ -363,12 +363,12 @@ public:
     TQuorumSessionBase(
         TChunkId chunkId,
         std::vector<TChunkReplicaDescriptor> replicas,
-        TDuration timeout,
+        TDuration requestTimeout,
         int quorum,
         INodeChannelFactoryPtr channelFactory)
         : ChunkId_(chunkId)
         , Replicas_(std::move(replicas))
-        , Timeout_(timeout)
+        , RequestTimeout_(requestTimeout)
         , Quorum_(quorum)
         , ChannelFactory_(std::move(channelFactory))
         , Logger(JournalClientLogger.WithTag("ChunkId: %v", ChunkId_))
@@ -377,7 +377,7 @@ public:
 protected:
     const TChunkId ChunkId_;
     const std::vector<TChunkReplicaDescriptor> Replicas_;
-    const TDuration Timeout_;
+    const TDuration RequestTimeout_;
     const int Quorum_;
     const INodeChannelFactoryPtr ChannelFactory_;
 
@@ -395,15 +395,17 @@ public:
     TAbortSessionsQuorumSession(
         TChunkId chunkId,
         std::vector<TChunkReplicaDescriptor> replicas,
-        TDuration timeout,
+        TDuration abortRequestTimeout,
+        TDuration quorumSessionDelay,
         int quorum,
         INodeChannelFactoryPtr channelFactory)
         : TQuorumSessionBase(
             chunkId,
             std::move(replicas),
-            timeout,
+            abortRequestTimeout,
             quorum,
             std::move(channelFactory))
+        , QuorumSessionDelay_(quorumSessionDelay)
     { }
 
     TFuture<std::vector<TChunkReplicaDescriptor>> Run()
@@ -415,6 +417,8 @@ public:
     }
 
 private:
+    const TDuration QuorumSessionDelay_;
+
     int SuccessCounter_ = 0;
     int ResponseCounter_ = 0;
     NErasure::TPartIndexSet SuccessPartIndexes_;
@@ -423,6 +427,8 @@ private:
     std::vector<TChunkReplicaDescriptor> AbortedReplicas_;
 
     const TPromise<std::vector<TChunkReplicaDescriptor>> Promise_ = NewPromise<std::vector<TChunkReplicaDescriptor>>();
+
+    bool QuorumSessionDelayReached_ = false;
 
     void DoRun()
     {
@@ -442,7 +448,7 @@ private:
         for (const auto& replica : Replicas_) {
             auto channel = ChannelFactory_->CreateChannel(replica.NodeDescriptor);
             TDataNodeServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(Timeout_);
+            proxy.SetDefaultTimeout(RequestTimeout_);
 
             auto chunkIdWithIndex = TChunkIdWithIndex(ChunkId_, replica.ReplicaIndex);
             auto sessionId = TSessionId(EncodeChunkId(chunkIdWithIndex), replica.MediumIndex);
@@ -453,6 +459,11 @@ private:
             req->Invoke().Subscribe(BIND(&TAbortSessionsQuorumSession::OnResponse, MakeStrong(this), replica)
                 .Via(Invoker_));
         }
+
+        TDelayedExecutor::Submit(
+            BIND(&TAbortSessionsQuorumSession::OnQuorumSessionDelayReached, MakeWeak(this))
+                .Via(Invoker_),
+            QuorumSessionDelay_);
     }
 
     void OnResponse(
@@ -477,7 +488,32 @@ private:
             InnerErrors_.push_back(rspOrError);
         }
 
-        if (IsSuccess()) {
+        CheckCompleted();
+    }
+
+    bool IsQuorumReached()
+    {
+        return IsErasureChunkId(ChunkId_)
+            ? static_cast<ssize_t>(SuccessPartIndexes_.count()) >= Quorum_
+            : SuccessCounter_ >= Quorum_;
+    }
+
+    void OnQuorumSessionDelayReached()
+    {
+        YT_LOG_DEBUG("Quorum session delay reached (QuorumSessionDelay: %v, AbortedReplicaCount: %v)",
+            QuorumSessionDelay_,
+            AbortedReplicas_.size());
+
+        QuorumSessionDelayReached_ = true;
+        CheckCompleted();
+    }
+
+    void CheckCompleted()
+    {
+        if (IsQuorumReached()) {
+            if (ResponseCounter_ != std::ssize(Replicas_) && !QuorumSessionDelayReached_) {
+                return;
+            }
             if (Promise_.TrySet(AbortedReplicas_)) {
                 YT_LOG_DEBUG("Journal chunk session quorum aborted successfully");
             }
@@ -488,19 +524,13 @@ private:
             Promise_.TrySet(combinedError);
         }
     }
-
-    bool IsSuccess()
-    {
-        return IsErasureChunkId(ChunkId_)
-            ? static_cast<ssize_t>(SuccessPartIndexes_.count()) >= Quorum_
-            : SuccessCounter_ >= Quorum_;
-    }
 };
 
 TFuture<std::vector<TChunkReplicaDescriptor>> AbortSessionsQuorum(
     TChunkId chunkId,
     std::vector<TChunkReplicaDescriptor> replicas,
-    TDuration timeout,
+    TDuration abortRequestTimeout,
+    TDuration quorumSessionDelay,
     int quorum,
     INodeChannelFactoryPtr channelFactory)
 {
@@ -508,7 +538,8 @@ TFuture<std::vector<TChunkReplicaDescriptor>> AbortSessionsQuorum(
         New<TAbortSessionsQuorumSession>(
             chunkId,
             std::move(replicas),
-            timeout,
+            abortRequestTimeout,
+            quorumSessionDelay,
             quorum,
             std::move(channelFactory))
         ->Run();
@@ -525,17 +556,19 @@ public:
         bool overlayed,
         NErasure::ECodec codecId,
         int quorum,
+        i64 replicaLagLimit,
         std::vector<TChunkReplicaDescriptor> replicas,
-        TDuration timeout,
+        TDuration requestTimeout,
         INodeChannelFactoryPtr channelFactory)
         : TQuorumSessionBase(
             chunkId,
             std::move(replicas),
-            timeout,
+            requestTimeout,
             quorum,
             std::move(channelFactory))
         , Overlayed_(overlayed)
         , CodecId_(codecId)
+        , ReplicaLagLimit_(replicaLagLimit)
     { }
 
     TFuture<TChunkQuorumInfo> Run()
@@ -549,6 +582,7 @@ public:
 private:
     const bool Overlayed_;
     const NErasure::ECodec CodecId_;
+    const i64 ReplicaLagLimit_;
 
     struct TChunkMetaResult
     {
@@ -586,7 +620,7 @@ private:
         for (const auto& replica : Replicas_) {
             auto channel = ChannelFactory_->CreateChannel(replica.NodeDescriptor);
             TDataNodeServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(Timeout_);
+            proxy.SetDefaultTimeout(RequestTimeout_);
 
             auto chunkIdWithIndex = TChunkIdWithIndex(ChunkId_, replica.ReplicaIndex);
             auto partChunkId = EncodeChunkId(chunkIdWithIndex);
@@ -744,14 +778,16 @@ private:
         }
         result.UncompressedDataSize = miscExt.uncompressed_data_size();
         result.CompressedDataSize = miscExt.compressed_data_size();
+        result.ResponseCount = ChunkMetaResults_.size();
 
         YT_LOG_DEBUG("Quorum info for journal chunk computed successfully (PhysicalRowCount: %v, LogicalRowCount: %v, "
-            "FirstOverlayedRowIndex: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
+            "FirstOverlayedRowIndex: %v, UncompressedDataSize: %v, CompressedDataSize: %v, ResponseCount: %v)",
             miscExt.row_count(),
             result.RowCount,
             result.FirstOverlayedRowIndex,
             result.UncompressedDataSize,
-            result.CompressedDataSize);
+            result.CompressedDataSize,
+            result.ResponseCount);
 
         Promise_.Set(result);
     }
@@ -771,6 +807,10 @@ private:
             [] (const auto& lhs, const auto& rhs) {
                 return lhs.MiscExt.row_count() > rhs.MiscExt.row_count();
             });
+
+        YT_VERIFY(!ChunkMetaResults_.empty());
+        ValidateReplicaLag(ChunkMetaResults_.back(), ChunkMetaResults_.front());
+
         auto* codec = NErasure::GetCodec(CodecId_);
         return ChunkMetaResults_[codec->GetGuaranteedRepairablePartCount() - 1];
     }
@@ -783,7 +823,25 @@ private:
             [] (const auto& lhs, const auto& rhs) {
                 return lhs.MiscExt.row_count() < rhs.MiscExt.row_count();
             });
+
+        YT_VERIFY(!ChunkMetaResults_.empty());
+        ValidateReplicaLag(ChunkMetaResults_.front(), ChunkMetaResults_.back());
+
         return ChunkMetaResults_[Quorum_ - 1];
+    }
+
+    void ValidateReplicaLag(
+        const TChunkMetaResult& shortestReplica,
+        const TChunkMetaResult& longestReplica)
+    {
+        if (longestReplica.MiscExt.row_count() - shortestReplica.MiscExt.row_count() > ReplicaLagLimit_) {
+            YT_LOG_ALERT("Replica lag limit violated "
+                "(ShortestReplicaAddress: %v, ShortestReplicaRowCount: %v, LongestReplicaAddress: %v, LongestReplicaRowCount: %v)",
+                shortestReplica.Address,
+                shortestReplica.MiscExt.row_count(),
+                longestReplica.Address,
+                longestReplica.MiscExt.row_count());
+        }
     }
 };
 
@@ -792,8 +850,9 @@ TFuture<TChunkQuorumInfo> ComputeQuorumInfo(
     bool overlayed,
     NErasure::ECodec codecId,
     int quorum,
+    i64 replicaLagLimit,
     std::vector<TChunkReplicaDescriptor> replicas,
-    TDuration timeout,
+    TDuration requestTimeout,
     INodeChannelFactoryPtr channelFactory)
 {
     return
@@ -802,8 +861,9 @@ TFuture<TChunkQuorumInfo> ComputeQuorumInfo(
             overlayed,
             codecId,
             quorum,
+            replicaLagLimit,
             std::move(replicas),
-            timeout,
+            requestTimeout,
             std::move(channelFactory))
         ->Run();
 }

@@ -198,6 +198,12 @@ public:
     bool DontSeal;
     double ReplicaFailureProbability;
 
+    //! After writing #ReplicaRowLimits[index] rows to replica #index
+    //! request will fail with timeout after #ReplicaFakeTimeoutDelay
+    //! but rows will be actually written.
+    std::optional<std::vector<int>> ReplicaRowLimits;
+    TDuration ReplicaFakeTimeoutDelay;
+
     TJournalWriterConfig()
     {
         RegisterParameter("max_batch_row_count", MaxBatchRowCount)
@@ -247,6 +253,23 @@ public:
         RegisterParameter("replica_failure_probability", ReplicaFailureProbability)
             .Default(0.0)
             .InRange(0.0, 1.0);
+        RegisterParameter("replica_row_limits", ReplicaRowLimits)
+            .Default();
+        RegisterParameter("replica_fake_timeout_delay", ReplicaFakeTimeoutDelay)
+            .Default();
+
+        RegisterPostprocessor([&] {
+            if (MaxBatchRowCount > MaxFlushRowCount) {
+                THROW_ERROR_EXCEPTION("\"max_batch_row_count\" cannot be greater than \"max_flush_row_count\"")
+                    << TErrorAttribute("max_batch_row_count", MaxBatchRowCount)
+                    << TErrorAttribute("max_flush_row_count", MaxFlushRowCount);
+            }
+            if (MaxBatchDataSize > MaxFlushDataSize) {
+                THROW_ERROR_EXCEPTION("\"max_batch_data_size\" cannot be greater than \"max_flush_data_size\"")
+                    << TErrorAttribute("max_batch_data_size", MaxBatchDataSize)
+                    << TErrorAttribute("max_flush_data_size", MaxFlushDataSize);
+            }
+        });
     }
 };
 

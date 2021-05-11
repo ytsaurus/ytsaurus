@@ -233,6 +233,8 @@ constexpr TChunkRequisitionIndex MigrationRF2ChunkRequisitionIndex = MigrationCh
 // index will be removed.
 constexpr TChunkRequisitionIndex MigrationErasureChunkRequisitionIndex = MigrationRF2ChunkRequisitionIndex + 1;
 
+constexpr i64 MaxReplicaLagLimit = Max<i64>() / 4;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

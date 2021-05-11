@@ -216,6 +216,9 @@ public:
     int GetWriteQuorum() const;
     void SetWriteQuorum(int value);
 
+    i64 GetReplicaLagLimit() const;
+    void SetReplicaLagLimit(i64 value);
+
     NErasure::ECodec GetErasureCodec() const;
     void SetErasureCodec(NErasure::ECodec value);
 
@@ -288,6 +291,12 @@ public:
 private:
     ui8 ReadQuorum_ = 0;
     ui8 WriteQuorum_ = 0;
+
+    //! Ceil(log_2 x), where x is an upper bound
+    //! for the difference between length of any
+    //! two replicas of a journal chunk.
+    ui8 LogReplicaLagLimit_ = 0;
+
     NErasure::ECodec ErasureCodec_ = NErasure::ECodec::None;
 
     struct
