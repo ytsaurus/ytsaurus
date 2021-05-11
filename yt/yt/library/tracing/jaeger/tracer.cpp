@@ -13,6 +13,7 @@
 #include <yt/yt/core/misc/serialize.h>
 
 #include <util/string/cast.h>
+#include <util/string/reverse.h>
 
 #include <util/system/getpid.h>
 #include <util/system/env.h>
@@ -111,6 +112,7 @@ namespace {
 void ToProtoGuid(TString* proto, const TGuid& guid)
 {
     *proto = TString{reinterpret_cast<const char*>(&guid.Parts32[0]), 16};
+    ReverseInPlace(*proto);
 }
 
 void ToProtoUInt64(TString* proto, i64 i)
@@ -239,6 +241,7 @@ void TJaegerTracer::DequeueAll(const TJaegerTracerConfigPtr& config)
         MemoryUsage_.Update(QueueMemory_);
         QueueSize_ += batch.spans_size();
         TraceQueueSize_.Update(QueueSize_);
+        TracesDequeued_.Increment(batch.spans_size());
 
         batch.Clear();
     };

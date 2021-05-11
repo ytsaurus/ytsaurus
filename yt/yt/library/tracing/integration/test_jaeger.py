@@ -47,11 +47,7 @@ def test_start(jaeger_server):
 
     trace_id = subprocess.check_output(cmd, stderr=sys.stderr).strip().decode("utf-8")
 
-    def encode_part(part):
-        part = part.rjust(8, "0")
-        return part[6:8] + part[4:6] + part[2:4] + part[0:2]
-
-    trace_id = "".join(encode_part(part) for part in trace_id.split("-")[::-1])
+    trace_id = "".join(part.rjust(8, "0") for part in trace_id.split("-"))
 
     # wait for collector queue
     time.sleep(3)
