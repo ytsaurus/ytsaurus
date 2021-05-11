@@ -1017,7 +1017,6 @@ def get_at(config, path, default_value=None):
 
 def init_singletons(config, fqdn, name, process_tags={}):
     set_at(config, "address_resolver/localhost_fqdn", fqdn)
-    set_at(config, "solomon_exporter/enable_core_profiling_compatibility", True)
     set_at(config, "solomon_exporter/grid_step", 1000)
 
     if "JAEGER_COLLECTOR" in os.environ:

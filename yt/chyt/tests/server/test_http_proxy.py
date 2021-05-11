@@ -7,7 +7,7 @@ from yt_commands import (get, write_table, authors, raises_yt_error, abort_job, 
 
 from yt.common import wait
 
-from yt_helpers import Metric
+from yt_helpers import Profiler
 
 import yt.environment.init_operation_archive as init_operation_archive
 
@@ -34,7 +34,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         self._setup()
 
     def _get_proxy_metric(self, metric_name):
-        return Metric.at_proxy(self.Env.get_http_proxy_address(), metric_name)
+        return Profiler.at_proxy(self.Env.get_http_proxy_address()).counter(metric_name)
 
     @authors("evgenstf")
     def test_instance_choice(self):
@@ -120,15 +120,15 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
                 assert proxy_responses[i].status_code == 200
                 assert proxy_responses[i].json()["data"] == proxy_responses[i - 1].json()["data"]
                 time.sleep(0.05)
-                if banned_count.update().get(verbose=True) == 1:
+                if banned_count.get_delta(verbose=True) == 1:
                     break
 
             assert proxy_responses[0].json()["data"] == [{"1": 1}]
             assert clique.get_active_instance_count() == 2
 
-        assert cache_missed_count.update().get(verbose=True) == 1
-        assert force_update_count.update().get(verbose=True) == 1
-        assert banned_count.update().get(verbose=True) == 1
+        assert cache_missed_count.get_delta(verbose=True) == 1
+        assert force_update_count.get_delta(verbose=True) == 1
+        assert banned_count.get_delta(verbose=True) == 1
 
     @authors("dakovalkov")
     def test_ban_stopped_instance_in_proxy(self):
@@ -161,15 +161,15 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
                 assert proxy_responses[i + 1].status_code == 200
                 assert proxy_responses[i].json()["data"] == proxy_responses[i + 1].json()["data"]
                 time.sleep(0.05)
-                if banned_count.update().get(verbose=True) == 1:
+                if banned_count.get_delta(verbose=True) == 1:
                     break
 
             assert proxy_responses[0].json()["data"] == [{"1": 1}]
             assert clique.get_active_instance_count() == 1
 
-        assert cache_missed_count.update().get(verbose=True) == 1
-        assert force_update_count.update().get(verbose=True) == 1
-        assert banned_count.update().get(verbose=True) == 1
+        assert cache_missed_count.get_delta(verbose=True) == 1
+        assert force_update_count.get_delta(verbose=True) == 1
+        assert banned_count.get_delta(verbose=True) == 1
 
     @authors("dakovalkov")
     @pytest.mark.skipif(True, reason="whatever")
@@ -219,9 +219,9 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             running = False
             ping_thread.join()
 
-        assert cache_missed_counter.update().get(verbose=True) == 1
-        assert force_update_counter.update().get(verbose=True) == 1
-        assert banned_count.update().get(verbose=True) == 1
+        assert cache_missed_counter.get_delta(verbose=True) == 1
+        assert force_update_counter.get_delta(verbose=True) == 1
+        assert banned_count.get_delta(verbose=True) == 1
 
     @authors("max42")
     def test_database_specification(self):

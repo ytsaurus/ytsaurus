@@ -1790,7 +1790,7 @@ public:
 
     virtual bool IsCoreProfilingCompatibilityEnabled() const override
     {
-        return Bootstrap_->GetConfig()->SolomonExporter->EnableCoreProfilingCompatibility;
+        return Bootstrap_->GetConfig()->Scheduler->EnableProfilingCompatibility;
     }
 
     TFuture<TOperationId> FindOperationIdByJobId(TJobId jobId)
