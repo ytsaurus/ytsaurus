@@ -468,12 +468,14 @@ public:
     TMultiplexedWriter(
         TMultiplexedChangelogConfigPtr config,
         IFileChangelogDispatcherPtr multiplexedChangelogDispatcher,
-        const TString& path,
-        const NLogging::TLogger& logger)
-        : Config_(config)
-        , MultiplexedChangelogDispatcher_(multiplexedChangelogDispatcher)
-        , Path_(path)
-        , Logger(logger)
+        TString path,
+        IInvokerPtr invoker,
+        NLogging::TLogger logger)
+        : Config_(std::move(config))
+        , MultiplexedChangelogDispatcher_(std::move(multiplexedChangelogDispatcher))
+        , Path_(std::move(path))
+        , Invoker_(std::move(invoker))
+        , Logger(std::move(logger))
     { }
 
     void Initialize(int changelogId)
@@ -482,13 +484,13 @@ public:
         SetMultiplexedChangelog(changelog, changelogId);
 
         MultiplexedCleanupExecutor_ = New<TPeriodicExecutor>(
-            GetHydraIOInvoker(),
+            Invoker_,
             BIND(&TMultiplexedWriter::OnMultiplexedCleanup, MakeWeak(this)),
             MultiplexedCleanupPeriod);
         MultiplexedCleanupExecutor_->Start();
 
         BarrierCleanupExecutor_ = New<TPeriodicExecutor>(
-            GetHydraIOInvoker(),
+            Invoker_,
             BIND(&TMultiplexedWriter::OnBarrierCleanup, MakeWeak(this)),
             BarrierCleanupPeriod);
         BarrierCleanupExecutor_->Start();
@@ -586,13 +588,15 @@ public:
         auto combinedResult = AllSucceeded(std::vector<TFuture<void>>{prevResult, delayedResult});
         curResult.SetFrom(combinedResult.Apply(
             BIND(&TMultiplexedWriter::DoMarkMultiplexedChangelogClean, MakeStrong(this), changelogId)
-                .Via(GetHydraIOInvoker())));
+                .Via(Invoker_)));
     }
 
 private:
     const TMultiplexedChangelogConfigPtr Config_;
     const IFileChangelogDispatcherPtr MultiplexedChangelogDispatcher_;
     const TString Path_;
+    const IInvokerPtr Invoker_;
+
     const NLogging::TLogger Logger;
 
     //! Protects a section of members.
@@ -875,6 +879,7 @@ public:
             MultiplexedChangelogConfig_,
             MultiplexedChangelogDispatcher_,
             NFS::CombinePaths(Location_->GetPath(), MultiplexedDirectory),
+            MultiplexedChangelogDispatcher_->GetInvoker(),
             Logger);
     }
 
