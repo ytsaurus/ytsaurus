@@ -83,11 +83,8 @@ def _build_description(cypress_ytserver_clickhouse_path=None,
 
     # Put link to monitoring.
     if cluster is not None and operation_alias is not None and enable_monitoring:
-        # Trunk version has 0 in first two components, so compare only revision number.
-        use_new_dashboard = (version[2] >= 7704556)
-
-        solomon_dashboard = ("chyt_v2" if use_new_dashboard else "chyt")
-        solomon_service = ("clickhouse" if use_new_dashboard else "yt_clickhouse")
+        solomon_dashboard = "chyt_v2"
+        solomon_service = "clickhouse"
 
         description["solomon_root_url"] = _format_url(
             "https://solomon.yandex-team.ru/?project=yt&cluster={}&service={}&operation_alias={}"
