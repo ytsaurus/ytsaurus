@@ -9,6 +9,8 @@
 
 #include <yt/yt/client/job_tracker_client/helpers.h>
 
+#include <yt/yt/client/query_client/query_builder.h>
+
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/name_table.h>
 

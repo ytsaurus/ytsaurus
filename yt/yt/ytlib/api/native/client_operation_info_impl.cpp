@@ -8,6 +8,8 @@
 #include <yt/yt/client/api/operation_archive_schema.h>
 #include <yt/yt/client/api/rowset.h>
 
+#include <yt/yt/client/query_client/query_builder.h>
+
 #include <yt/yt/client/security_client/helpers.h>
 
 #include <yt/yt/client/table_client/helpers.h>
