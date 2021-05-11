@@ -13,7 +13,7 @@ import random
 class TestJournals(YTEnvSetup):
     NUM_TEST_PARTITIONS = 7
     NUM_MASTERS = 1
-    NUM_NODES = 5
+    NUM_NODES = 6
 
     DATA = [
         {
@@ -82,6 +82,13 @@ class TestJournals(YTEnvSetup):
         else:
             assert get(path + "/@quorum_row_count") == original_row_count
             assert read_journal(path) == rows
+
+    def _get_chunk_replica_length(self, chunk_id):
+        result = []
+        for replica in get("#{}/@last_seen_replicas".format(chunk_id)):
+            orchid = get("//sys/cluster_nodes/{}/orchid/stored_chunks/{}".format(replica, chunk_id))
+            result.append(orchid["flushed_row_count"])
+        return result
 
     @authors("babenko")
     def test_explicit_compression_codec_forbidden(self):
@@ -268,7 +275,7 @@ class TestJournals(YTEnvSetup):
         if enable_chunk_preallocation and self.Env.get_component_version("ytserver-master").abi <= (20, 2):
             pytest.skip("Chunk preallocation is not available without 20.3+ masters")
 
-        set("//sys/@config/chunk_manager/enable_chunk_sealer", False, recursive=True)
+        set("//sys/@config/chunk_manager/enable_chunk_sealer", False)
 
         create("journal", "//tmp/j")
         write_journal(
@@ -340,7 +347,7 @@ class TestJournals(YTEnvSetup):
         if enable_chunk_preallocation and self.Env.get_component_version("ytserver-master").abi <= (20, 2):
             pytest.skip("Chunk preallocation is not available without 20.3+ masters")
 
-        set("//sys/@config/chunk_manager/enable_chunk_sealer", False, recursive=True)
+        set("//sys/@config/chunk_manager/enable_chunk_sealer", False)
 
         create("journal", "//tmp/j")
         write_journal(
@@ -364,7 +371,7 @@ class TestJournals(YTEnvSetup):
         if enable_chunk_preallocation and self.Env.get_component_version("ytserver-master").abi <= (20, 2):
             pytest.skip("Chunk preallocation is not available without 20.3+ masters")
 
-        set("//sys/@config/chunk_manager/enable_chunk_sealer", seal_mode=="master-side", recursive=True)
+        set("//sys/@config/chunk_manager/enable_chunk_sealer", seal_mode=="master-side")
         set("//sys/@config/chunk_manager/chunk_refresh_period", 50)
 
         create("journal", "//tmp/j")
@@ -404,6 +411,118 @@ class TestJournals(YTEnvSetup):
         assert "location" in orchid
         assert "disk_space" in orchid
 
+    @authors("gritukan")
+    def test_replica_lag_limit(self):
+        if self.Env.get_component_version("ytserver-master").abi <= (20, 3):
+            pytest.skip("Replica lag limit is available in 21.1+ versions")
+
+        set("//sys/@config/chunk_manager/enable_chunk_sealer", False)
+        set("//sys/@config/chunk_manager/chunk_refresh_period", 50)
+
+        def _check(row_count,
+                   max_batch_row_count,
+                   max_flush_row_count,
+                   replica_lag_limit,
+                   replica_row_limits,
+                   expected_replica_length):
+            if exists("//tmp/j"):
+                remove("//tmp/j")
+
+            rf = len(replica_row_limits)
+            rq = 2
+            wq = rf - 1
+            create("journal", "//tmp/j", attributes={
+                "erasure_codec": "none",
+                "replication_factor": rf,
+                "read_quorum": rq,
+                "write_quorum": wq,
+            })
+
+            rows = []
+            for i in range(row_count):
+                rows.append(self.DATA[i % len(self.DATA)])
+
+            self._write_slowly(
+                "//tmp/j",
+                rows,
+                enable_chunk_preallocation=True,
+                replica_lag_limit=replica_lag_limit,
+                journal_writer={
+                    "dont_close": False,
+                    "dont_seal": True,
+                    "node_ban_timeout": 0,
+                    "max_batch_row_count": max_batch_row_count,
+                    "max_flush_row_count": max_flush_row_count,
+                    "replica_row_limits": replica_row_limits,
+                    "replica_fake_timeout_delay": 500,
+                },
+            )
+
+            chunk_id = get("//tmp/j/@chunk_ids/0")
+            replica_length = self._get_chunk_replica_length(chunk_id)
+            # Discount header row.
+            for i in range(len(replica_length)):
+                replica_length[i] -= 1
+            assert sorted(replica_length) == sorted(expected_replica_length)
+
+        _check(
+            row_count=10,
+            max_batch_row_count=1,
+            max_flush_row_count=1,
+            replica_lag_limit=3,
+            replica_row_limits=[1, 2, 3, 4, 5, 6],
+            expected_replica_length=[1, 2, 3, 4, 4, 4],
+        )
+        _check(
+            row_count=10,
+            max_batch_row_count=1,
+            max_flush_row_count=1,
+            replica_lag_limit=100500,
+            replica_row_limits=[1, 2, 3, 4, 5, 6],
+            expected_replica_length=[1, 2, 3, 4, 5, 6],
+        )
+        _check(
+            row_count=3,
+            max_batch_row_count=1,
+            max_flush_row_count=1,
+            replica_lag_limit=1,
+            replica_row_limits=[1, 2, 3],
+            expected_replica_length=[1, 2, 2],
+        )
+        _check(
+            row_count=12,
+            max_batch_row_count=3,
+            max_flush_row_count=3,
+            replica_lag_limit=4,
+            replica_row_limits=[10, 7, 4],
+            expected_replica_length=[3, 6, 6],
+        )
+        _check(
+            row_count=12,
+            max_batch_row_count=2,
+            max_flush_row_count=4,
+            replica_lag_limit=4,
+            replica_row_limits=[10, 7, 4],
+            expected_replica_length=[2, 6, 6],
+        )
+
+    @authors("gritukan")
+    def test_replica_lag_limit_attribute(self):
+        if self.Env.get_component_version("ytserver-master").abi <= (20, 3):
+            pytest.skip("Replica lag limit is available in 21.1+ versions")
+
+        create("journal", "//tmp/j")
+        self._write_slowly(
+            "//tmp/j",
+            self.DATA,
+            replica_lag_limit=123456,
+        )
+
+        chunk_id = get("//tmp/j/@chunk_ids/0")
+        # Replica lag limit is rounded up to the nearest
+        # power of two at master.
+        assert get("#{}/@replica_lag_limit".format(chunk_id)) == 131072
+
 
 class TestJournalsMulticell(TestJournals):
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -430,7 +549,7 @@ class TestJournalsChangeMedia(YTEnvSetup):
 
     @authors("ilpauzner", "shakurov")
     def test_journal_replica_changes_medium_yt_8669(self):
-        set("//sys/@config/chunk_manager/enable_chunk_sealer", False, recursive=True)
+        set("//sys/@config/chunk_manager/enable_chunk_sealer", False)
 
         create("journal", "//tmp/j1")
         write_journal("//tmp/j1", self.DATA, journal_writer={"dont_close": True})
@@ -463,7 +582,7 @@ class TestJournalsChangeMedia(YTEnvSetup):
 
             assert patched_node_config
 
-        set("//sys/@config/chunk_manager/enable_chunk_sealer", True, recursive=True)
+        set("//sys/@config/chunk_manager/enable_chunk_sealer", True)
 
         wait_until_sealed("//tmp/j1")
 

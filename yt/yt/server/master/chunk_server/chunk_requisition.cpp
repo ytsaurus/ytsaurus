@@ -150,6 +150,11 @@ bool TChunkReplication::IsValid() const
     return false;
 }
 
+int TChunkRequisition::GetSize() const
+{
+    return std::ssize(Entries_);
+}
+
 void FormatValue(TStringBuilderBase* builder, const TChunkReplication& replication, TStringBuf /*spec*/)
 {
     return builder->AppendFormat(

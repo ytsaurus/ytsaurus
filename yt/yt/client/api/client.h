@@ -7,6 +7,8 @@
 
 #include <yt/yt/client/job_tracker_client/public.h>
 
+#include <yt/yt/client/journal_client/public.h>
+
 #include <yt/yt/client/object_client/public.h>
 
 #include <yt/yt/client/query_client/query_statistics.h>
@@ -790,6 +792,8 @@ struct TJournalWriterOptions
     bool EnableMultiplexing = true;
     // TODO(babenko): enable by default
     bool EnableChunkPreallocation = false;
+
+    i64 ReplicaLagLimit = NJournalClient::DefaultReplicaLagLimit;
 
     TJournalWriterPerformanceCounters Counters;
 };

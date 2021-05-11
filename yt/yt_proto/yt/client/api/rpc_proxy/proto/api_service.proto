@@ -1804,6 +1804,7 @@ message TReqWriteJournal
     optional bytes config = 2; // YSON-serialized TJournalWriterConfig
     optional bool enable_multiplexing = 3 [default = true];
     optional bool enable_chunk_preallocation = 4 [default = false];
+    optional int64 replica_lag_limit = 5 [default = 32768];
 
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;

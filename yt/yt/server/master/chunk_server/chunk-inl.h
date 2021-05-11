@@ -309,6 +309,21 @@ inline void TChunk::SetWriteQuorum(int value)
     WriteQuorum_ = value;
 }
 
+inline i64 TChunk::GetReplicaLagLimit() const
+{
+    return 1LL << LogReplicaLagLimit_;
+}
+
+inline void TChunk::SetReplicaLagLimit(i64 value)
+{
+    YT_VERIFY(value >= 0);
+
+    LogReplicaLagLimit_ = 0;
+    while ((1LL << LogReplicaLagLimit_) < value) {
+        ++LogReplicaLagLimit_;
+    }
+}
+
 inline NErasure::ECodec TChunk::GetErasureCodec() const
 {
     return ErasureCodec_;

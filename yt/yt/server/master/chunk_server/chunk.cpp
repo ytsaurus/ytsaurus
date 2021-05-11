@@ -126,6 +126,7 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     Save(context, LocalRequisitionIndex_);
     Save(context, ReadQuorum_);
     Save(context, WriteQuorum_);
+    Save(context, LogReplicaLagLimit_);
     Save(context, GetErasureCodec());
     Save(context, GetMovable());
     Save(context, GetOverlayed());
@@ -172,6 +173,12 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
 
     SetReadQuorum(Load<i8>(context));
     SetWriteQuorum(Load<i8>(context));
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= EMasterReign::ReplicaLagLimit) {
+        LogReplicaLagLimit_ = Load<ui8>(context);
+    } else {
+        SetReplicaLagLimit(MaxReplicaLagLimit);
+    }
     SetErasureCodec(Load<NErasure::ECodec>(context));
     SetMovable(Load<bool>(context));
     // COMPAT(babenko)

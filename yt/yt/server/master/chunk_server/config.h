@@ -354,6 +354,10 @@ public:
     TDuration ChunkSealBackoffTime;
     //! Timeout for RPC requests to nodes during journal operations.
     TDuration JournalRpcTimeout;
+    //! Quorum session waits for this period of time even if quorum is already reached
+    //! in order to receive responses from all the replicas and then run fast path
+    //! during chunk seal.
+    TDuration QuorumSessionDelay;
     //! Maximum number of chunks to process during a seal scan.
     int MaxChunksPerSeal;
     //! Maximum number of chunks that can be sealed concurrently.
@@ -489,6 +493,8 @@ public:
             .Default(TDuration::Seconds(30));
         RegisterParameter("journal_rpc_timeout", JournalRpcTimeout)
             .Default(TDuration::Seconds(15));
+        RegisterParameter("quorum_session_delay", QuorumSessionDelay)
+            .Default(TDuration::Seconds(5));
         RegisterParameter("max_chunks_per_seal", MaxChunksPerSeal)
             .GreaterThan(0)
             .Default(10000);

@@ -59,6 +59,7 @@ public:
     int ChangelogWriteQuorum;
     bool EnableChangelogMultiplexing;
     bool EnableChangelogChunkPreallocation;
+    i64 ChangelogReplicaLagLimit;
     TString ChangelogAccount;
     TString ChangelogPrimaryMedium;
     NYTree::IListNodePtr ChangelogAcl;

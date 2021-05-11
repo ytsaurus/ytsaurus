@@ -152,6 +152,7 @@ private:
                 options.Config = Config_->Writer;
                 options.EnableMultiplexing = Options_->EnableChangelogMultiplexing;
                 options.EnableChunkPreallocation = Options_->EnableChangelogChunkPreallocation;
+                options.ReplicaLagLimit = Options_->ChangelogReplicaLagLimit;
                 options.Counters = Counters_;
                 writer = Client_->CreateJournalWriter(path, options);
                 WaitFor(writer->Open())

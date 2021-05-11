@@ -385,6 +385,8 @@ public:
 
     size_t GetHash() const;
 
+    int GetSize() const;
+
 private:
     // Maintained sorted.
     TEntries Entries_;

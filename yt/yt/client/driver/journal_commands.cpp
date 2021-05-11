@@ -273,6 +273,8 @@ TWriteJournalCommand::TWriteJournalCommand()
         .Default();
     RegisterParameter("enable_chunk_preallocation", Options.EnableChunkPreallocation)
         .Optional();
+    RegisterParameter("replica_lag_limit", Options.ReplicaLagLimit)
+        .Optional();
 }
 
 void TWriteJournalCommand::DoExecute(ICommandContextPtr context)
