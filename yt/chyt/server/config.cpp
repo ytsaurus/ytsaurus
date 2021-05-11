@@ -345,6 +345,8 @@ TMemoryConfig::TMemoryConfig()
         .Default();
     RegisterParameter("uncompressed_block_cache", UncompressedBlockCache)
         .Default();
+    RegisterParameter("chunk_meta_cache", ChunkMetaCache)
+        .Default();
     RegisterParameter("memory_limit", MemoryLimit)
         .Default();
     RegisterParameter("max_server_memory_usage", MaxServerMemoryUsage)
