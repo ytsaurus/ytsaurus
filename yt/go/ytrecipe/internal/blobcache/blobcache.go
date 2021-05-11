@@ -113,6 +113,7 @@ func (f *Cache) pingKey(ctx context.Context, key string) error {
 
 func (f *Cache) startPingKey(ctx context.Context, key string) (stop func()) {
 	var once sync.Once
+	gracefulStop := make(chan struct{})
 	stopped := make(chan struct{})
 	ctx, cancel := context.WithCancel(ctx)
 
@@ -121,6 +122,8 @@ func (f *Cache) startPingKey(ctx context.Context, key string) (stop func()) {
 
 		for {
 			select {
+			case <-gracefulStop:
+				return
 			case <-ctx.Done():
 				return
 			case <-time.After(f.config.UploadPingPeriod):
@@ -135,6 +138,14 @@ func (f *Cache) startPingKey(ctx context.Context, key string) (stop func()) {
 
 	return func() {
 		once.Do(func() {
+			close(gracefulStop)
+			select {
+			case <-stopped:
+				return
+
+			case <-time.After(f.config.UploadPingPeriod):
+			}
+
 			cancel()
 			<-stopped
 		})
