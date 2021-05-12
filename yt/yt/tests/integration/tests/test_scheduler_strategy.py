@@ -1365,6 +1365,46 @@ class TestSchedulerPreemption(YTEnvSetup):
 
         wait(lambda: opA.get_job_count("aborted") == 1)
 
+    @authors("eshcherbin")
+    @pytest.mark.xfail(run=False, reason="Fails until YT-14804 is resolved.")
+    def test_usage_overcommit_due_to_interruption(self):
+        # Pool tree misconfiguration
+        set("//sys/pool_trees/default/@config/waiting_job_timeout", 600000)
+        set("//sys/pool_trees/default/@config/job_interrupt_timeout", 600000)
+
+        set("//sys/scheduler/config/running_jobs_update_period", 100)
+
+        total_cpu_limit = int(get("//sys/scheduler/orchid/scheduler/cell/resource_limits/cpu"))
+        create_pool("poolA", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
+        create_pool("poolB")
+
+        command = """(trap "sleep 115; exit 0" SIGINT; BREAKPOINT)"""
+
+        run_test_vanilla(
+            with_breakpoint(command),
+            spec={
+                "pool": "poolB",
+            },
+            task_patch={
+                "interruption_signal": "SIGINT",
+            },
+            job_count=total_cpu_limit,
+        )
+        job_ids = wait_breakpoint(job_count=total_cpu_limit)
+        assert len(job_ids) == total_cpu_limit
+
+        run_test_vanilla(
+            "sleep 1",
+            spec={
+                "pool": "poolA",
+            },
+            job_count=1,
+        )
+
+        for i in range(100):
+            time.sleep(0.1)
+            assert get(scheduler_orchid_pool_path("<Root>") + "/resource_usage/cpu") <= total_cpu_limit
+
 
 class TestSchedulingBugOfOperationWithGracefulPreemption(YTEnvSetup):
     NUM_MASTERS = 1
