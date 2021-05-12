@@ -9,6 +9,8 @@
 #include <yt/yt/core/yson/pull_parser_deserialize.h>
 #include <yt/yt/core/yson/token_writer.h>
 
+#include <experimental/functional>
+
 namespace NYT::NApi::NNative {
 
 using namespace NScheduler;
@@ -105,20 +107,7 @@ public:
     { }
 
     void OnEndOperation()
-    {
-        // COMPAT(gritukan)
-        if (Annotations_) {
-            IMapNodePtr RuntimeParametersMapNode;
-            if (Operation_.RuntimeParameters) {
-                RuntimeParametersMapNode = ConvertToNode(Operation_.RuntimeParameters)->AsMap();
-            } else {
-                RuntimeParametersMapNode = GetEphemeralNodeFactory()->CreateMap();
-            }
-            RuntimeParametersMapNode->AddChild("annotations", ConvertToNode(Annotations_));
-
-            Operation_.RuntimeParameters = ConvertToYsonString(RuntimeParametersMapNode);
-        }
-    }
+    { }
 
     void OnId(TOperationId id)
     {
@@ -229,12 +218,6 @@ public:
         TransferAndGetYson("task_names", Operation_.TaskNames, cursor);
     }
 
-    // COMPAT(gritukan)
-    void OnAnnotations(TYsonPullParserCursor* cursor)
-    {
-        TransferAndGetYson("annotations", Annotations_, cursor);
-    }
-
     void OnExperimentAssignments(TYsonPullParserCursor* cursor)
     {
         TransferAndGetYson("experiment_assignments", Operation_.ExperimentAssignments, cursor);
@@ -339,9 +322,6 @@ void ParseOperationToConsumer(TYsonPullParserCursor* cursor, TConsumer* consumer
         } else if (key == TStringBuf("alerts")) {
             cursor->Next();
             consumer->OnAlerts(cursor);
-        } else if (key == TStringBuf("annotations")) {
-            cursor->Next();
-            consumer->OnAnnotations(cursor);
         } else if (key == TStringBuf("task_names")) {
             cursor->Next();
             consumer->OnTaskNames(cursor);
@@ -562,9 +542,20 @@ public:
                         }
                     });
                 });
+            // TODO(ignat): move annotations to some 'runtime_parameters_heavy'?
             } else if (key == TStringBuf("annotations")) {
                 cursor->Next();
-                OnAnnotations(cursor);
+                if (!Options_.SubstrFilter || SubstringFound_) {
+                    cursor->SkipComplexValue();
+                } else {
+                    {
+                        Annotations_.clear();
+                        TStringOutput output(Annotations_);
+                        TYsonWriter writer(&output, EYsonFormat::Text);
+                        cursor->TransferComplexValue(&writer);
+                    }
+                    SearchSubstring(Annotations_);
+                }
             } else {
                 cursor->Next();
                 cursor->SkipComplexValue();
@@ -598,22 +589,6 @@ public:
     void OnTaskNames(TYsonPullParserCursor* cursor)
     {
         cursor->SkipComplexValue();
-    }
-
-    // COMPAT(gritukan): Move it to `OnRuntimeParameters'.
-    void OnAnnotations(TYsonPullParserCursor* cursor)
-    {
-        if (!Options_.SubstrFilter || SubstringFound_) {
-            cursor->SkipComplexValue();
-            return;
-        }
-        {
-            Annotations_.clear();
-            TStringOutput output(Annotations_);
-            TYsonWriter writer(&output, EYsonFormat::Text);
-            cursor->TransferComplexValue(&writer);
-        }
-        SearchSubstring(Annotations_);
     }
 
     void OnExperimentAssignments(TYsonPullParserCursor* cursor)
@@ -652,11 +627,15 @@ private:
         auto it = std::search(
             haystack.begin(),
             haystack.end(),
-            Options_.SubstrFilter->begin(),
-            Options_.SubstrFilter->end(),
-            [] (char left, char right) {
-                return std::tolower(left) == std::tolower(right);
-            });
+            std::experimental::boyer_moore_horspool_searcher(
+                Options_.SubstrFilter->begin(),
+                Options_.SubstrFilter->end(),
+                [] (char ch) {
+                    return std::hash<char>()(std::tolower(ch));
+                },
+                [] (char left, char right) {
+                    return std::tolower(left) == std::tolower(right);
+                }));
         SubstringFound_ = (it != haystack.end());
     }
 

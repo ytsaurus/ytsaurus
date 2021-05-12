@@ -58,8 +58,6 @@ static const THashSet<TString> SupportedOperationAttributes = {
     "spec",
     "experiment_assignments",
     "experiment_assignment_names",
-    // COMPAT(gritukan): Drop it.
-    "annotations",
     "full_spec",
     "unrecognized_spec",
     "brief_progress",
@@ -152,8 +150,6 @@ static std::vector<TString> CreateArchiveOperationAttributes(const THashSet<TStr
             result.emplace_back("id_lo");
         } else if (attribute == "type") {
             result.emplace_back("operation_type");
-        } else if (attribute == "annotations") {
-            // COMPAT(gritukan): This field is deprecated.
         } else if (attribute == "operation_type" && attributes.contains("type")) {
             // Avoid duplicate column name.
         } else {
@@ -675,9 +671,6 @@ void TClient::DoListOperationsFromCypress(
     auto requestedAttributes = DeduceActualAttributes(options.Attributes, RequiredAttributes, DefaultAttributes, IgnoredAttributes);
 
     auto filteringAttributes = LightAttributes;
-    if (options.SubstrFilter) {
-        filteringAttributes.emplace("annotations");
-    }
     auto filteringCypressAttributes = CreateCypressOperationAttributes(filteringAttributes);
 
     TObjectServiceProxy proxy(GetOperationArchiveChannel(options.ReadFrom), Connection_->GetStickyGroupSizeCache());
