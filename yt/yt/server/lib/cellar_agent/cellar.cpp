@@ -118,7 +118,8 @@ public:
         occupier->SetOccupant(occupant);
         occupant->Initialize();
         ++OccupantCount_;
-    
+        YT_VERIFY(OccupantCount_ <= std::ssize(Occupants_));   
+
         {
             auto guard = WriterGuard(CellIdToOccupantLock_);
             YT_VERIFY(CellIdToOccupant_.emplace(occupant->GetCellId(), occupant).second);
@@ -160,9 +161,10 @@ public:
                 VERIFY_THREAD_AFFINITY(ControlThread);
              
                 if (Occupants_[occupant->GetIndex()] == occupant) {
-                     Occupants_[occupant->GetIndex()].Reset();
+                    Occupants_[occupant->GetIndex()].Reset();
+                    --OccupantCount_;
+                    YT_VERIFY(OccupantCount_ >= 0);
                 }
-                --OccupantCount_;
              
                 {
                     auto guard = WriterGuard(CellIdToOccupantLock_);
