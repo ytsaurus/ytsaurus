@@ -11,7 +11,6 @@
 #include <yt/yt/core/misc/crash_handler.h>
 
 #include <yt/yt/core/profiling/profile_manager.h>
-#include <yt/yt/core/profiling/exponential_bins.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 

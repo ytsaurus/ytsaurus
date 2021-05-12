@@ -82,33 +82,6 @@ void ProfileResourceVector(
     }
 }
 
-void ProfileResourceVector(
-    NProfiling::TMetricsAccumulator& accumulator,
-    const THashSet<EJobResourceType>& resourceTypes,
-    const TResourceVector& resourceVector,
-    const TString& prefix,
-    const NProfiling::TTagIdList& tagIds,
-    bool profilingCompatibilityEnabled)
-{
-    if (profilingCompatibilityEnabled) {
-        for (auto resourceType : resourceTypes) {
-            accumulator.Add(
-                prefix + "_x100000/" + FormatEnum(resourceType),
-                static_cast<i64>(resourceVector[resourceType] * 1e5),
-                NProfiling::EMetricType::Gauge,
-                tagIds);
-        }
-    } else {
-        for (auto resourceType : resourceTypes) {
-            accumulator.Add(
-                prefix + "/" + FormatEnum(resourceType),
-                resourceVector[resourceType],
-                NProfiling::EMetricType::Gauge,
-                tagIds);
-        }
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

@@ -31,7 +31,6 @@
 
 #include <yt/yt/core/profiling/profile_manager.h>
 #include <yt/yt/core/profiling/timing.h>
-#include <yt/yt/core/profiling/metrics_accumulator.h>
 
 namespace NYT::NScheduler {
 
