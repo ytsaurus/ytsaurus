@@ -42,7 +42,7 @@ namespace NYT::NApi::NNative {
 
 using TTableReplicaInfoPtrList = SmallVector<
     NTabletClient::TTableReplicaInfoPtr,
-    NChunkClient::TypicalReplicaCount>;
+    NTabletClient::TypicalTableReplicaCount>;
 
 DECLARE_REFCOUNTED_CLASS(TClient)
 
