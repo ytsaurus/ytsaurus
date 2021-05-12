@@ -18,12 +18,12 @@ struct TChunkReaderMemoryManagerOptions
 {
     explicit TChunkReaderMemoryManagerOptions(
         i64 bufferSize,
-        NProfiling::TTagIdList profilingTagList = {},
+        NProfiling::TTagList profilingTagList = {},
         bool enableDetailedLogging = false);
 
     i64 BufferSize;
 
-    NProfiling::TTagIdList ProfilingTagList;
+    NProfiling::TTagList ProfilingTagList;
 
     const bool EnableDetailedLogging;
 };
@@ -48,7 +48,7 @@ public:
     virtual void SetReservedMemorySize(i64 size) = 0;
 
     //! Returns list of profiling tags for this memory manager.
-    virtual const NProfiling::TTagIdList& GetProfilingTagList() const = 0;
+    virtual const NProfiling::TTagList& GetProfilingTagList() const = 0;
 
     //! Adds information about corresponding chunk reader.
     virtual void AddChunkReaderInfo(TGuid chunkReaderId) = 0;
@@ -83,7 +83,7 @@ public:
 
     virtual void SetReservedMemorySize(i64 size) override;
 
-    virtual const NProfiling::TTagIdList& GetProfilingTagList() const override;
+    virtual const NProfiling::TTagList& GetProfilingTagList() const override;
 
     virtual void AddChunkReaderInfo(TGuid chunkReaderId) override;
 
@@ -140,7 +140,7 @@ private:
 
     TWeakPtr<IReaderMemoryManagerHost> HostMemoryManager_;
 
-    NProfiling::TTagIdList ProfilingTagList_;
+    NProfiling::TTagList ProfilingTagList_;
 
     const TGuid Id_;
 

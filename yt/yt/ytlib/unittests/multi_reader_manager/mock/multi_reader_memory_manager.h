@@ -15,14 +15,14 @@ class TMultiReaderMemoryManagerMock
 public:
     virtual TChunkReaderMemoryManagerPtr CreateChunkReaderMemoryManager(
         std::optional<i64> /*reservedMemorySize*/,
-        NProfiling::TTagIdList /*profilingTagList*/) override
+        const NProfiling::TTagList& /*profilingTagList*/) override
     {
         YT_UNIMPLEMENTED();
     }
 
     virtual IMultiReaderMemoryManagerPtr CreateMultiReaderMemoryManager(
         std::optional<i64> /*requiredMemorySize*/,
-        NProfiling::TTagIdList /*profilingTagList*/) override
+        const NProfiling::TTagList& /*profilingTagList*/) override
     {
         YT_UNIMPLEMENTED();
     }
@@ -65,7 +65,7 @@ public:
     virtual void Finalize() override
     { }
 
-    virtual const NProfiling::TTagIdList& GetProfilingTagList() const override
+    virtual const NProfiling::TTagList& GetProfilingTagList() const override
     {
         YT_UNIMPLEMENTED();
     }

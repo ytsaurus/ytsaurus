@@ -34,15 +34,6 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<NProfiling::TTagId> RegisterQueryTags(size_t queryCount)
-{
-    std::vector<NProfiling::TTagId> queryTags;
-    for (size_t queryIndex = 0; queryIndex < queryCount; ++queryIndex) {
-        queryTags.emplace_back(NProfiling::TProfileManager::Get()->RegisterTag("query_index", queryIndex));
-    }
-    return queryTags;
-}
-
 DB::ContextPtr PrepareContextForQuery(
     DB::ContextPtr databaseContext,
     const TString& dataBaseUser,

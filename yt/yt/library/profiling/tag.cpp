@@ -123,3 +123,12 @@ size_t THash<NYT::NProfiling::TTagIndexList>::operator()(const NYT::NProfiling::
     }
     return result;
 }
+
+size_t THash<NYT::NProfiling::TTagList>::operator()(const NYT::NProfiling::TTagList& list) const
+{
+    size_t result = 0;
+    for (const auto& tag : list) {
+        NYT::HashCombine(result, THash<NYT::NProfiling::TTag>()(tag));
+    }
+    return result;
+}

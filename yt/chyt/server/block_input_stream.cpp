@@ -387,7 +387,7 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
 
     auto readerMemoryManager = queryContext->Host->GetMultiReaderMemoryManager()->CreateMultiReaderMemoryManager(
         queryContext->Host->GetConfig()->ReaderMemoryRequirement,
-        {queryContext->UserTagId});
+        {{"user", queryContext->User}});
 
     auto defaultTableReaderConfig = queryContext->Host->GetConfig()->TableReader;
     auto tableReaderConfig = storageContext->Settings->TableReader;
