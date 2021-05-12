@@ -494,6 +494,12 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::UpdateWeight(const TKey& key)
         OlderWeightCounter_.fetch_add(weightDelta);
     }
 
+    // If item weight increases, it means that some parts of the item were missing in cache,
+    // so add delta to missed weight.
+    if (weightDelta > 0) {
+        MissedWeightCounter_.Increment(weightDelta);
+    }
+
     item->CachedWeight = newWeight;
 
     Trim(shard, guard);
