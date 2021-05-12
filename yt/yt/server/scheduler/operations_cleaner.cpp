@@ -439,6 +439,9 @@ public:
         Profiler.AddFuncGauge("/archive_pending", MakeStrong(this), [this] {
             return ArchivePending_.load();
         });
+        Profiler.AddFuncGauge("/submitted", MakeStrong(this), [this] {
+            return Submitted_.load();
+        });
     }
 
     void Start()
@@ -511,6 +514,8 @@ public:
         ArchiveTimeToOperationIdMap_.emplace(deadline, id);
         YT_VERIFY(OperationMap_.emplace(id, std::move(request)).second);
 
+        ++Submitted_;
+
         YT_LOG_DEBUG("Operation submitted for archivation (OperationId: %v, ArchivationStartTime: %v)",
             id,
             deadline);
@@ -551,7 +556,7 @@ public:
             .Item("enable_archivation").Value(IsArchivationEnabled())
             .Item("remove_pending").Value(RemovePending_.load())
             .Item("archive_pending").Value(ArchivePending_.load())
-            .Item("submitted_count").Value(ArchiveTimeToOperationIdMap_.size());
+            .Item("submitted").Value(Submitted_.load());
     }
 
 private:
@@ -582,6 +587,7 @@ private:
     TProfiler Profiler{"/operations_cleaner"};
     std::atomic<i64> RemovePending_{0};
     std::atomic<i64> ArchivePending_{0};
+    std::atomic<i64> Submitted_{0};
 
     TCounter ArchivedCounter_ = Profiler.Counter("/archived");
     TCounter RemovedCounter_ = Profiler.Counter("/removed");
@@ -763,7 +769,10 @@ private:
             }
         }
 
-        YT_LOG_INFO("Finished analyzing operations submitted for archivation "
+        Submitted_.store(ArchiveTimeToOperationIdMap_.size());
+
+        YT_LOG_INFO(
+            "Finished analyzing operations submitted for archivation "
             "(RetainedCount: %v, EnqueuedForArchivationCount: %v)",
             retainedCount,
             enqueuedForArchivationCount);
@@ -812,7 +821,8 @@ private:
         auto transaction = WaitFor(asyncTransaction)
             .ValueOrThrow();
 
-        YT_LOG_DEBUG("Operations archivation transaction started (TransactionId: %v, OperationCount: %v)",
+        YT_LOG_DEBUG(
+            "Operations archivation transaction started (TransactionId: %v, OperationCount: %v)",
             transaction->GetId(),
             operationIds.size());
 
@@ -931,7 +941,8 @@ private:
 
         i64 totalDataWeight = orderedByIdRowsDataWeight + orderedByStartTimeRowsDataWeight;
 
-        YT_LOG_DEBUG("Started committing archivation transaction (TransactionId: %v, OperationCount: %v, SkippedOperationCount: %v, "
+        YT_LOG_DEBUG(
+            "Started committing archivation transaction (TransactionId: %v, OperationCount: %v, SkippedOperationCount: %v, "
             "OrderedByIdRowsDataWeight: %v, OrderedByStartTimeRowsDataWeight: %v, TotalDataWeight: %v)",
             transaction->GetId(),
             operationIds.size(),
@@ -1024,6 +1035,9 @@ private:
         std::vector<TOperationId> removedOperationIds;
         std::vector<TOperationId> operationIdsToRemove;
 
+        int lockedOperationCount = 0;
+        int failedToRemoveOperationCount = 0;
+
         // Fetch lock_count attribute.
         {
             auto channel = Client_->GetMasterChannelOrThrow(
@@ -1058,6 +1072,7 @@ private:
                     auto operationId = operationIds[index];
                     if (isLocked) {
                         failedOperationIds.push_back(operationId);
+                        ++lockedOperationCount;
                     } else {
                         operationIdsToRemove.push_back(operationId);
                     }
@@ -1069,6 +1084,8 @@ private:
                     operationIds.size());
 
                 failedOperationIds = operationIds;
+
+                failedToRemoveOperationCount = operationIds.size();
             }
         }
 
@@ -1127,6 +1144,8 @@ private:
                                 operationId);
 
                             failedOperationIds.push_back(operationId);
+
+                            ++failedToRemoveOperationCount;
                         }
                     }
                 } else {
@@ -1137,6 +1156,7 @@ private:
 
                     for (int index = startIndex; index < endIndex; ++index) {
                         failedOperationIds.push_back(operationIdsToRemove[index]);
+                        ++failedToRemoveOperationCount;
                     }
                 }
             }
@@ -1155,7 +1175,11 @@ private:
         }
 
         RemovePending_ -= removedCount;
-        YT_LOG_DEBUG("Successfully removed operations from Cypress (Count: %v)", removedCount);
+        YT_LOG_DEBUG(
+            "Successfully removed operations from Cypress (Count: %v, LockedCount: %v, FailedToRemoveCount: %)",
+            removedCount,
+            lockedOperationCount,
+            failedToRemoveOperationCount);
     }
 
     void RemoveOperations()

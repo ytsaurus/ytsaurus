@@ -185,12 +185,12 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
         _run_maps_parallel(7, "cat")
 
-        wait(lambda: get(CLEANER_ORCHID + "/submitted_count") == 3)
+        wait(lambda: get(CLEANER_ORCHID + "/submitted") == 3)
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
 
-        wait(lambda: get(CLEANER_ORCHID + "/submitted_count") == 3)
+        wait(lambda: get(CLEANER_ORCHID + "/submitted") == 3)
 
     @authors("asaitgalin")
     def test_max_operation_count_per_user(self):
