@@ -22,37 +22,6 @@ const TString UnknownProfilingTag("unknown");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TUserTagTrait
-{
-    using TKey = TString;
-    using TValue = TTagId;
-
-    static const TString& ToKey(const TString& user)
-    {
-        return user;
-    }
-
-    static TTagId ToValue(const TString& user)
-    {
-        return TProfileManager::Get()->RegisterTag("user", user);
-    }
-};
-
-TTagIdList AddUserTag(TTagIdList tags, const NRpc::TAuthenticationIdentity& identity)
-{
-    tags.push_back(GetLocallyCachedValue<TUserTagTrait>(identity.UserTag));
-    return tags;
-}
-
-TTagIdList AddCurrentUserTag(TTagIdList tags)
-{
-    const auto& identity = NRpc::GetCurrentAuthenticationIdentity();
-    if (&identity == &NRpc::GetRootAuthenticationIdentity()) {
-        return tags;
-    }
-    return AddUserTag(tags, identity);
-}
-
 std::optional<TString> GetCurrentProfilingUser()
 {
     return GetProfilingUser(NRpc::GetCurrentAuthenticationIdentity());

@@ -56,7 +56,7 @@ struct TQueryContext
 public:
     NLogging::TLogger Logger;
     const TString User;
-    NProfiling::TTagId UserTagId;
+
     const NTracing::TTraceContextPtr TraceContext;
     const TQueryId QueryId;
     const EQueryKind QueryKind;

@@ -20,14 +20,14 @@ struct IMultiReaderMemoryManager
     //! If not set `MaxInitialReaderReservedMemory' memory will be allocated.
     virtual TChunkReaderMemoryManagerPtr CreateChunkReaderMemoryManager(
         std::optional<i64> reservedMemorySize = std::nullopt,
-        NProfiling::TTagIdList profilingTagList = {}) = 0;
+        const NProfiling::TTagList& profilingTagList = {}) = 0;
 
     //! Creates child multi reader memory manager with `requiredMemorySize' reserved memory. Memory requirements of child memory manager will
     //! never become less than `requiredMemorySize' until its destruction.
     //! If not set it is assumed to be equal 0.
     virtual IMultiReaderMemoryManagerPtr CreateMultiReaderMemoryManager(
         std::optional<i64> requiredMemorySize = std::nullopt,
-        NProfiling::TTagIdList profilingTagList = {}) = 0;
+        const NProfiling::TTagList& profilingTagList = {}) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMultiReaderMemoryManager)
@@ -61,7 +61,7 @@ struct TParallelReaderMemoryManagerOptions
     //! Maximum (and default) amount of reserved memory for created reader.
     i64 MaxInitialReaderReservedMemory;
 
-    const NProfiling::TTagIdList ProfilingTagList = {};
+    const NProfiling::TTagList ProfilingTagList = {};
 
     bool EnableProfiling = false;
 

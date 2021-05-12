@@ -67,7 +67,7 @@ public:
 
     virtual TChunkReaderMemoryManagerPtr CreateChunkReaderMemoryManager(
         std::optional<i64> reservedMemorySize,
-        TTagIdList profilingTagList) override
+        const TTagList& profilingTagList) override
     {
         YT_VERIFY(!Finalized_);
 
@@ -76,7 +76,7 @@ public:
         initialReaderMemory = std::max<i64>(initialReaderMemory, 0);
 
         auto memoryManager = New<TChunkReaderMemoryManager>(
-            TChunkReaderMemoryManagerOptions(initialReaderMemory, std::move(profilingTagList), Options_.EnableDetailedLogging),
+            TChunkReaderMemoryManagerOptions(initialReaderMemory, profilingTagList, Options_.EnableDetailedLogging),
             MakeWeak(this));
         FreeMemory_ -= initialReaderMemory;
 
@@ -93,7 +93,7 @@ public:
 
     virtual IMultiReaderMemoryManagerPtr CreateMultiReaderMemoryManager(
         std::optional<i64> requiredMemorySize,
-        TTagIdList profilingTagList) override
+        const TTagList& profilingTagList) override
     {
         YT_VERIFY(!Finalized_);
 
@@ -103,7 +103,7 @@ public:
         TParallelReaderMemoryManagerOptions options{
             initialReservedMemory,
             Options_.MaxInitialReaderReservedMemory,
-            std::move(profilingTagList),
+            profilingTagList,
             Options_.EnableDetailedLogging
         };
         auto memoryManager = New<TParallelReaderMemoryManager>(options, MakeWeak(this), Invoker_);
@@ -182,7 +182,7 @@ public:
         Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::TryUnregister, MakeWeak(this)));
     }
 
-    virtual const TTagIdList& GetProfilingTagList() const override
+    virtual const TTagList& GetProfilingTagList() const override
     {
         return ProfilingTagList_;
     }
@@ -230,19 +230,18 @@ private:
     };
     THashMap<IReaderMemoryManagerPtr, TMemoryManagerState> State_;
 
-    THashMap<TTagIdList, std::pair<i64, TGauge>> ReservedMemoryByProfilingTags_;
+    THashMap<TTagList, std::pair<i64, TGauge>> ReservedMemoryByProfilingTags_;
 
-    void UpdateReservedMemory(const TTagIdList& tags, i64 delta)
+    void UpdateReservedMemory(const TTagList& tags, i64 delta)
     {
+        if (!Options_.EnableProfiling) {
+            return;
+        }
+
         // TODO(prime@): Update this, once transition to new profiling API is done.
         auto it = ReservedMemoryByProfilingTags_.find(tags);
         if (it == ReservedMemoryByProfilingTags_.end()) {
-            auto profiler = Profiler_;
-            for (auto tag : tags) {
-                auto strTag = TProfileManager::Get()->LookupTag(tag);
-                profiler = profiler.WithTag(strTag.Key, strTag.Value);
-            }
-            auto gauge = profiler.Gauge("/usage");
+            auto gauge = Profiler_.WithTags(TTagSet{tags}).Gauge("/usage");
 
             auto [newIt, ok] = ReservedMemoryByProfilingTags_.emplace(tags, std::pair<i64, TGauge>(0, gauge));
             it = newIt;
@@ -270,7 +269,7 @@ private:
     //! ordered by desired_memory - reserved_memory.
     std::set<std::pair<i64, IReaderMemoryManagerPtr>> ReadersWithoutDesiredMemoryAmount_;
 
-    const TTagIdList ProfilingTagList_;
+    const TTagList ProfilingTagList_;
     TProfiler Profiler_;
     const TPeriodicExecutorPtr ProfilingExecutor_;
 

@@ -97,6 +97,12 @@ struct THash<NYT::NProfiling::TTagIndexList>
     size_t operator()(const NYT::NProfiling::TTagIndexList& ids) const;
 };
 
+template <>
+struct THash<NYT::NProfiling::TTagList>
+{
+    size_t operator()(const NYT::NProfiling::TTagList& ids) const;
+};
+
 #define TAG_INL_H_
 #include "tag-inl.h"
 #undef TAG_INL_H_

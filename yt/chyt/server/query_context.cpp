@@ -95,8 +95,6 @@ TQueryContext::TQueryContext(
         HttpUserAgent = clientInfo.http_user_agent;
     }
 
-    UserTagId = NProfiling::TProfileManager::Get()->RegisterTag("user", User);
-
     Settings = ParseCustomSettings(Host->GetConfig()->QuerySettings, context->getSettings().allCustom(), Logger);
 
     YT_LOG_INFO(

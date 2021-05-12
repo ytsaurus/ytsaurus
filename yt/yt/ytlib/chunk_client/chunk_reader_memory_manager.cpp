@@ -13,7 +13,7 @@ using namespace NLogging;
 
 TChunkReaderMemoryManagerOptions::TChunkReaderMemoryManagerOptions(
     i64 bufferSize,
-    NProfiling::TTagIdList profilingTagList,
+    NProfiling::TTagList profilingTagList,
     bool enableDetailedLogging)
     : BufferSize(bufferSize)
     , ProfilingTagList(std::move(profilingTagList))
@@ -87,7 +87,7 @@ void TChunkReaderMemoryManager::SetReservedMemorySize(i64 size)
     AsyncSemaphore_->SetTotal(ReservedMemorySize_);
 }
 
-const NProfiling::TTagIdList& TChunkReaderMemoryManager::GetProfilingTagList() const
+const NProfiling::TTagList& TChunkReaderMemoryManager::GetProfilingTagList() const
 {
     return ProfilingTagList_;
 }

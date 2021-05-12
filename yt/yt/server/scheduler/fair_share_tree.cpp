@@ -861,9 +861,6 @@ private:
 
     std::optional<TInstant> LastFairShareUpdateTime_;
 
-    THashMap<TString, TTagId> PoolIdToProfilingTagId_;
-
-
     THashMap<TString, THashSet<TString>> UserToEphemeralPoolsInDefaultPool_;
 
     THashMap<TString, THashSet<int>> PoolToSpareSlotIndices_;
@@ -1938,18 +1935,6 @@ private:
             FreeSchedulingTagFilterIndexes_.push_back(it->second.Index);
             SchedulingTagFilterToIndexAndCount_.erase(it);
         }
-    }
-
-    TTagId GetPoolProfilingTag(const TString& id)
-    {
-        auto it = PoolIdToProfilingTagId_.find(id);
-        if (it == PoolIdToProfilingTagId_.end()) {
-            it = PoolIdToProfilingTagId_.emplace(
-                id,
-                TProfileManager::Get()->RegisterTag("pool", id)
-            ).first;
-        }
-        return it->second;
     }
 
     void OnOperationRemovedFromPool(
