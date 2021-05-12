@@ -6,8 +6,6 @@
 #include <yt/yt/library/numeric/double_array.h>
 #include <yt/yt/library/numeric/piecewise_linear_function.h>
 
-#include <yt/yt/core/profiling/metrics_accumulator.h>
-
 #include <util/generic/cast.h>
 
 #include <cmath>
@@ -111,14 +109,6 @@ void ProfileResourceVector(
     const THashSet<EJobResourceType>& resourceTypes,
     const TResourceVector& resourceVector,
     const TString& prefix,
-    bool profilingCompatibilityEnabled);
-
-void ProfileResourceVector(
-    NProfiling::TMetricsAccumulator& accumulator,
-    const THashSet<EJobResourceType>& resourceTypes,
-    const TResourceVector& resourceVector,
-    const TString& prefix,
-    const NProfiling::TTagIdList& tagIds,
     bool profilingCompatibilityEnabled);
 
 ////////////////////////////////////////////////////////////////////////////////

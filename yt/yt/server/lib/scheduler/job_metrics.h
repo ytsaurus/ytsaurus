@@ -4,8 +4,6 @@
 
 #include <yt/yt/ytlib/controller_agent/public.h>
 
-#include <yt/yt/core/profiling/metrics_accumulator.h>
-
 #include <yt/yt/core/misc/phoenix.h>
 #include <yt/yt/core/misc/public.h>
 
@@ -99,11 +97,6 @@ public:
         const std::vector<TCustomJobMetricDescription>& customJobMetrics);
 
     bool IsEmpty() const;
-
-    void Profile(
-        NProfiling::TMetricsAccumulator& accumulator,
-        const TString& prefix,
-        const NProfiling::TTagIdList& tagIds) const;
 
     void Profile(NProfiling::ISensorWriter* writer) const;
 

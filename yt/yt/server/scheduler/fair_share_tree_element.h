@@ -26,8 +26,6 @@
 
 #include <yt/yt/core/misc/historic_usage_aggregator.h>
 
-#include <yt/yt/core/profiling/metrics_accumulator.h>
-
 namespace NYT::NScheduler {
 
 using NFairShare::TSchedulableAttributes;

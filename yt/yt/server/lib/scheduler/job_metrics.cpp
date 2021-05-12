@@ -5,7 +5,6 @@
 #include <yt/yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
 #include <yt/yt/core/profiling/profiler.h>
-#include <yt/yt/core/profiling/metrics_accumulator.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -174,21 +173,6 @@ void TJobMetrics::Profile(NProfiling::ISensorWriter* writer) const
             continue;
         }
         writer->AddCounter("/metrics/" + jobMetriDescription.ProfilingName, value);
-    }
-}
-
-void TJobMetrics::Profile(
-    TMetricsAccumulator& accumulator,
-    const TString& prefix,
-    const NProfiling::TTagIdList& tagIds) const
-{
-    for (auto metricName : TEnumTraits<EJobMetricName>::GetDomainValues()) {
-        auto profilingName = prefix + "/" + FormatEnum(metricName);
-        accumulator.Add(profilingName, Values_[metricName], EMetricType::Counter, tagIds);
-    }
-    for (const auto& [jobMetriDescription, value] : CustomValues_) {
-        auto profilingName = prefix + "/" + jobMetriDescription.ProfilingName;
-        accumulator.Add(profilingName, value, EMetricType::Counter, tagIds);
     }
 }
 
