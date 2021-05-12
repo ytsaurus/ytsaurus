@@ -660,6 +660,8 @@ void TChunkMerger::ProcessTouchedNodes()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(IsLeader());
 
+    const auto& config = GetDynamicConfig();
+
     std::vector<TAccount*> accountsToRemove;
     const auto& objectManager = Bootstrap_->GetObjectManager();
 
@@ -670,7 +672,10 @@ void TChunkMerger::ProcessTouchedNodes()
         }
 
         auto maxRate = account->GetMergeJobRateLimit();
-        while (!queue.empty() && account->GetMergeJobRate() < maxRate) {
+        while (!queue.empty() &&
+            account->GetMergeJobRate() < maxRate &&
+            std::ssize(JobsAwaitingNodeHeartbeat_) < config->QueueSizeLimit)
+        {
             auto* node = queue.front();
             queue.pop();
 

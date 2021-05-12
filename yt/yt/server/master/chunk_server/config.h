@@ -221,6 +221,8 @@ public:
 
     int CreateChunksBatchSize;
 
+    int QueueSizeLimit;
+
     TDynamicChunkMergerConfig()
     {
         RegisterParameter("enable", Enable)
@@ -257,6 +259,10 @@ public:
         RegisterParameter("create_chunks_batch_size", CreateChunksBatchSize)
             .GreaterThan(1)
             .Default(100);
+
+        RegisterParameter("queue_size_limit", QueueSizeLimit)
+            .GreaterThan(1)
+            .Default(1000000);
     }
 };
 
