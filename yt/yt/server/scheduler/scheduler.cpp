@@ -898,6 +898,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        // It can happen if agent communication failure happened at operation unregistration.
+        if (operation->IsFinishedState()) {
+            return;
+        }
+
         const auto& controller = operation->GetController();
         controller->RevokeAgent();
 
@@ -3913,6 +3918,15 @@ private:
 
             YT_VERIFY(operation->RevivalDescriptor());
             const auto& revivalDescriptor = *operation->RevivalDescriptor();
+
+            YT_LOG_DEBUG("Operation revival descriptor flags "
+                "(UserTransactionAborted: %v, OperationAborting: %v, OperationCommitted: %v, ShouldCommitOutputTransaction: %v, "
+                "OperationId: %v)",
+                revivalDescriptor.UserTransactionAborted,
+                revivalDescriptor.OperationAborting,
+                revivalDescriptor.OperationCommitted,
+                revivalDescriptor.ShouldCommitOutputTransaction,
+                operation->GetId());
 
             if (revivalDescriptor.OperationCommitted) {
                 CompleteOperationWithoutRevival(operation);

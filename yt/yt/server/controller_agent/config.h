@@ -63,6 +63,9 @@ public:
     //! and all the rootfs's become writable.
     std::vector<NYPath::TRichYPath> RootfsTestLayers;
 
+    //! If this option is set, controller agent sleeps for this duration before performing actual unregistration.
+    std::optional<TDuration> DelayInUnregistration;
+
     TTestingOptions();
 };
 

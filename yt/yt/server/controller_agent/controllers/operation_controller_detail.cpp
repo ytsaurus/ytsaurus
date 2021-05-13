@@ -1805,7 +1805,7 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
 
-        auto path = GetOperationPath(OperationId) + "/@committed";
+        auto path = GetOperationPath(OperationId) + "/@" + CommittedAttribute;
         auto req = TYPathProxy::Set(path);
         SetTransactionId(req, OutputCompletionTransaction ? OutputCompletionTransaction->GetId() : NullTransactionId);
         req->set_value(ConvertToYsonString(true).ToString());
