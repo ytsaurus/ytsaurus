@@ -23,7 +23,7 @@ bool IsCachingEnabled(
         return false;
     }
 
-    if (!cache->EnableMasterCacheDiscovery && (!cache->Addresses || cache->Addresses->empty())) {
+    if (!cache->EnableMasterCacheDiscovery && !cache->Endpoints && (!cache->Addresses || cache->Addresses->empty())) {
         return false;
     }
 

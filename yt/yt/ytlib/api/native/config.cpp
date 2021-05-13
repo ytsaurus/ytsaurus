@@ -39,6 +39,12 @@ TMasterConnectionConfig::TMasterConnectionConfig()
         RetryAttempts = 100;
         RetryTimeout = TDuration::Minutes(3);
     });
+
+    RegisterPostprocessor([&] {
+        if (EnableMasterCacheDiscovery && Endpoints) {
+            THROW_ERROR_EXCEPTION("Cannot specify \"endpoints\" when master cache discovery is enabled");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
