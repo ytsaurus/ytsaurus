@@ -82,6 +82,10 @@ def test_environment(request):
     environment = init_environment_for_test_session(request, request.param)
     return environment
 
+@pytest.fixture(scope="class", params=["v4"])
+def test_environment_v4(request):
+    environment = init_environment_for_test_session(request, request.param)
+    return environment
 
 @pytest.fixture(scope="class", params=["v3", "v4"])
 def test_environment_with_framing(request):
@@ -230,6 +234,10 @@ def _yt_env(request, test_environment):
 def yt_env(request, test_environment):
     return _yt_env(request, test_environment)
 
+
+@pytest.fixture(scope="function")
+def yt_env_v4(request, test_environment_v4):
+    return _yt_env(request, test_environment_v4)
 
 @pytest.fixture(scope="function")
 def yt_env_with_framing(request, test_environment_with_framing):

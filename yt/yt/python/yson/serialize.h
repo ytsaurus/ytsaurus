@@ -61,6 +61,22 @@ struct TContext
 
 } // namespace NYT
 
+namespace NYT::NPython {
+
+////////////////////////////////////////////////////////////////////////////////
+
+#if PY_MAJOR_VERSION >= 3
+const std::optional<TString> DefaultEncoding = std::make_optional(TString("utf-8"));
+#else
+const std::optional<TString> DefaultEncoding = std::nullopt;
+#endif
+
+Py::Object CreateYsonObject(const std::string& className, const Py::Object& object, const Py::Object& attributes);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NPython
+
 namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -69,11 +85,7 @@ namespace NYT::NYTree {
 void Serialize(
     const Py::Object& obj,
     NYson::IYsonConsumer* consumer,
-#if PY_MAJOR_VERSION >= 3
-    const std::optional<TString>& encoding = std::make_optional(TString("utf-8")),
-#else
-    const std::optional<TString>& encoding = std::nullopt,
-#endif
+    const std::optional<TString>& encoding = NPython::DefaultEncoding,
     bool ignoreInnerAttributes = false,
     NYson::EYsonType ysonType = NYson::EYsonType::Node,
     bool sortKeys = false,
@@ -85,13 +97,3 @@ void Deserialize(Py::Object& obj, NYTree::INodePtr node, const std::optional<TSt
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYTree
-
-namespace NYT::NPython {
-
-////////////////////////////////////////////////////////////////////////////////
-
-Py::Object CreateYsonObject(const std::string& className, const Py::Object& object, const Py::Object& attributes);
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT::NPython

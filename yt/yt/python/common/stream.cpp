@@ -9,8 +9,6 @@
 #include <util/stream/zerocopy.h>
 
 #include <Objects.hxx> // pycxx
-
-#include <memory>
 #include <string>
 
 namespace NYT::NPython {
@@ -97,6 +95,25 @@ std::unique_ptr<IZeroCopyInput> CreateInputStreamWrapper(const Py::Object& pytho
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename TFun>
+void RunWithPossiblePythonException(TStringBuf description, TFun fun)
+{
+    PyObject *errorType, *errorValue, *errorTraceback;
+    PyErr_Fetch(&errorType, &errorValue, &errorTraceback);
+
+    try {
+        fun();
+    } catch (const Py::BaseException& pyException) {
+        if (!errorType) {
+            throw;
+        }
+        Cerr << "Exception raised inside " << description << " while handling exception:\n";
+        PyErr_Print();
+    }
+
+    PyErr_Restore(errorType, errorValue, errorTraceback);
+}
+
 class TOutputStreamForwarder
     : public IOutputStream
 {
@@ -112,16 +129,18 @@ public:
     {
         TGilGuard guard;
 
-        size_t index = 0;
-        while (len > 0) {
-            // NB: python string interface uses i32 for length.
-            size_t toWrite = std::min(len, static_cast<size_t>(1_GB));
-            WriteFunction_.apply(Py::TupleN(Py::Bytes(
-                reinterpret_cast<const char*>(buf) + index,
-                toWrite)));
-            len -= toWrite;
-            index += toWrite;
-        }
+        RunWithPossiblePythonException("TOutputStreamForwarder::DoWrite", [&] {
+            size_t index = 0;
+            while (len > 0) {
+                // NB: python string interface uses i32 for length.
+                size_t toWrite = std::min(len, static_cast<size_t>(1_GB));
+                WriteFunction_.apply(Py::TupleN(Py::Bytes(
+                    reinterpret_cast<const char*>(buf) + index,
+                    toWrite)));
+                len -= toWrite;
+                index += toWrite;
+            }
+        });
     }
 
 private:
