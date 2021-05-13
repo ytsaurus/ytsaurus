@@ -1,16 +1,17 @@
-#pragma once
+#include <yt/yt/core/misc/error.h>
 
-#include "public.h"
+#include "converter_common.h"
 
-#include <Extensions.hxx> // pycxx
 #include <Objects.hxx> // pycxx
 
 namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Py::Object DumpSkiff(Py::Tuple& args, Py::Dict& kwargs);
-Py::Object DumpSkiffStructured(Py::Tuple& args, Py::Dict& kwargs);
+Py::Exception CreateSkiffError(
+    const TString& message,
+    const TError& error,
+    TSkiffRowContext* rowContext = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

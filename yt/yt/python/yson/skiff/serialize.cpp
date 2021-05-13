@@ -1,4 +1,7 @@
 #include "serialize.h"
+
+#include "converter_python_to_skiff.h"
+#include "error.h"
 #include "schema.h"
 #include "record.h"
 #include "switch.h"
@@ -12,12 +15,11 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/yt/core/misc/ref_counted_tracker.h>
-
 #include <library/cpp/skiff/skiff.h>
 
 namespace NYT::NPython {
 
+using namespace NSkiff;
 using namespace NYson;
 using namespace NYTree;
 
@@ -213,6 +215,119 @@ Py::Object DumpSkiff(Py::Tuple& args, Py::Dict& kwargs)
         skiffWriter->Finish();
     }
     return Py::None();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+static bool IsOutputRow(const Py::Object& obj)
+{
+    static PyObjectPtr RowClass(GetModuleAttribute("yt.wrapper.schema", "OutputRow"));
+    return Py_TYPE(obj.ptr()) == reinterpret_cast<PyTypeObject*>(RowClass.get());
+}
+
+static bool IsYtDataclass(const Py::Object& obj)
+{
+    return obj.hasAttr("_YT_DATACLASS_MARKER");
+}
+
+static Py::Object DumpSkiffStructuredImpl(Py::Tuple &args, Py::Dict &kwargs)
+{
+    auto objects = ExtractArgument(args, kwargs, "objects");
+    auto streamsArg = ExtractArgument(args, kwargs, "streams");
+    if (!streamsArg.isList()) {
+        throw Py::TypeError("\"streams\" should be a list");
+    }
+    auto streams = Py::List(streamsArg);
+
+    std::vector<std::unique_ptr<IZeroCopyOutput>> outputStreams;
+    for (const auto& stream : streams) {
+        outputStreams.push_back(CreateZeroCopyOutputStreamWrapper(stream));
+    }
+
+    auto pySchemasArg = ExtractArgument(args, kwargs, "py_schemas");
+    if (!pySchemasArg.isList()) {
+        throw Py::TypeError("\"py_schemas\" should be a list");
+    }
+    auto pySchemas = Py::List(pySchemasArg);
+
+    auto skiffSchemasArg = ExtractArgument(args, kwargs, "skiff_schemas");
+    if (!skiffSchemasArg.isList()) {
+        throw Py::TypeError("\"skiff_schemas\" should be a list");
+    }
+    auto skiffSchemas = Py::List(skiffSchemasArg);
+    if (pySchemas.size() != skiffSchemas.size()) {
+        throw Py::RuntimeError(Format(
+            "Length of \"py_schemas\" and of \"skiff_schemas\" must be the same, got %v != %v",
+            pySchemas.size(),
+            skiffSchemas.size()));
+    }
+    
+    ValidateArgumentsEmpty(args, kwargs);
+
+    std::vector<TPythonToSkiffConverter> converters;
+    std::vector<std::unique_ptr<TCheckedInDebugSkiffWriter>> skiffWriters;
+    for (int index = 0; index < streams.size(); ++index) {
+        Py::PythonClassObject<TSkiffSchemaPython> schemaPythonObject(skiffSchemas[index]);
+        auto skiffSchema = schemaPythonObject.getCxxObject()->GetSchemaObject()->GetSkiffSchema();
+        converters.push_back(CreateRowPythonToSkiffConverter(pySchemas[index]));
+        auto skiffWriter = std::make_unique<TCheckedInDebugSkiffWriter>(
+            CreateVariant16Schema(std::vector{skiffSchema}), outputStreams[index].get());
+        skiffWriters.push_back(std::move(skiffWriter));
+    }
+
+    auto iterator = CreateIterator(objects);
+    while (auto* item_ = PyIter_Next(*iterator)) {
+        auto item = Py::Object(item_, /* owned */ true);
+        Py::Object actualRow;
+        ui16 tableIndex = 0;
+        if (IsOutputRow(item)) {
+            auto tableIndexObj = item.getAttr("_table_index");
+            tableIndex = static_cast<int>(Py::Int(tableIndexObj));
+            actualRow = item.getAttr("_row");
+        } else {
+            if (!IsYtDataclass(item)) {
+                throw Py::TypeError(Format(
+                    "Expected an object of type yt.wrapper.Row "
+                    "or a class marked with @yt_dataclass, got %v",
+                    Repr(item)));
+            }
+            actualRow = std::move(item);
+        }
+        if (tableIndex >= converters.size()) {
+            throw Py::RuntimeError(Format("Invalid table index %v, expected it to be in range [0, %v)",
+                tableIndex,
+                converters.size()));
+        }
+        try {
+            skiffWriters[tableIndex]->WriteVariant16Tag(0);
+            converters[tableIndex](actualRow.ptr(), skiffWriters[tableIndex].get());
+        } catch (const TErrorException& exception) {
+            throw CreateSkiffError(
+                "Python to Skiff conversion failed",
+                exception.Error());
+        } catch (const std::exception& exception) {
+            throw CreateSkiffError(
+                "Python to Skiff conversion failed",
+                TError(exception));
+        }
+    }
+    if (PyErr_Occurred()) {
+        throw Py::Exception();
+    }
+
+    for (const auto& skiffWriter : skiffWriters) {
+        skiffWriter->Finish();
+    }
+    return Py::None();
+}
+
+Py::Object DumpSkiffStructured(Py::Tuple& args, Py::Dict& kwargs)
+{
+    try {
+        return DumpSkiffStructuredImpl(args, kwargs);
+    } catch (const std::exception& exception) {
+        throw Py::RuntimeError(Format("Error dumping structured skiff: %v", exception.what()));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
