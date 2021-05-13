@@ -25,6 +25,8 @@
 
 #include <yt/yt/library/erasure/public.h>
 
+#include <yt/yt/client/chunk_client/public.h>
+
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
@@ -48,6 +50,8 @@ using namespace NTableClient;
 using namespace NTableServer;
 using namespace NObjectServer;
 using namespace NCypressServer;
+using namespace NChunkClient;
+using namespace NNodeTrackerClient::NProto;
 
 using NYT::ToProto;
 
@@ -791,7 +795,7 @@ bool TChunkMerger::CreateMergeJob(TNode* node, const TMergeJobInfo& jobInfo, TJo
     chunkMergerWriterOptions.set_compression_codec(ToProto<int>(chunkOwner->GetCompressionCodec()));
     chunkMergerWriterOptions.set_enable_skynet_sharing(chunkOwner->GetEnableSkynetSharing());
 
-    TJob::TChunkVector inputChunks;
+    TMergeJob::TChunkVector inputChunks;
     inputChunks.reserve(jobInfo.InputChunkIds.size());
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -803,12 +807,11 @@ bool TChunkMerger::CreateMergeJob(TNode* node, const TMergeJobInfo& jobInfo, TJo
         inputChunks.push_back(chunk);
     }
 
-    *job = TJob::CreateMerge(
+    *job = New<TMergeJob>(
         jobInfo.JobId,
-        jobInfo.OutputChunkId,
-        chunkOwner->GetPrimaryMediumIndex(),
-        std::move(inputChunks),
         node,
+        TChunkIdWithIndexes(jobInfo.OutputChunkId, GenericChunkReplicaIndex, chunkOwner->GetPrimaryMediumIndex()),
+        std::move(inputChunks),
         std::move(chunkMergerWriterOptions));
 
     return true;

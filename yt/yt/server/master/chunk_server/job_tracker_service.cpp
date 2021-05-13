@@ -86,12 +86,6 @@ private:
                 "Cannot process a job heartbeat unless data node heartbeat is reported");
         }
 
-        const auto& configManager = Bootstrap_->GetConfigManager();
-        const auto& config = configManager->GetConfig()->ChunkManager;
-        auto chunkRemovalJobExpirationDeadline = TInstant::Now() + config->ChunkRemovalJobReplicasExpirationTime;
-
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-
         std::vector<TJobPtr> currentJobs;
         for (const auto& jobStatus : request->jobs()) {
             auto jobId = FromProto<TJobId>(jobStatus.job_id());
@@ -141,6 +135,8 @@ private:
             }
         }
 
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+
         std::vector<TJobPtr> jobsToStart;
         std::vector<TJobPtr> jobsToAbort;
         std::vector<TJobPtr> jobsToRemove;
@@ -158,117 +154,13 @@ private:
         }
 
         for (const auto& job : jobsToStart) {
-            auto chunkIdWithIndexes = job->GetChunkIdWithIndexes();
-            auto chunkId = chunkIdWithIndexes.Id;
-
             auto* jobInfo = response->add_jobs_to_start();
             ToProto(jobInfo->mutable_job_id(), job->GetJobId());
             *jobInfo->mutable_resource_limits() = job->ResourceUsage();
 
             TJobSpec jobSpec;
             jobSpec.set_type(static_cast<int>(job->GetType()));
-
-            switch (job->GetType()) {
-                case EJobType::ReplicateChunk: {
-                    auto* jobSpecExt = jobSpec.MutableExtension(TReplicateChunkJobSpecExt::replicate_chunk_job_spec_ext);
-                    ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(chunkIdWithIndexes));
-                    jobSpecExt->set_source_medium_index(chunkIdWithIndexes.MediumIndex);
-
-                    NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
-                    for (auto replica : job->TargetReplicas()) {
-                        jobSpecExt->add_target_replicas(ToProto<ui64>(replica));
-                        builder.Add(replica);
-                    }
-                    break;
-                }
-
-                case EJobType::RemoveChunk: {
-                    auto* jobSpecExt = jobSpec.MutableExtension(TRemoveChunkJobSpecExt::remove_chunk_job_spec_ext);
-                    ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(chunkIdWithIndexes));
-                    jobSpecExt->set_medium_index(chunkIdWithIndexes.MediumIndex);
-                    if (auto* chunk = job->GetChunk()) {
-                        bool isErasure = chunk->IsErasure();
-                        for (auto replica : chunk->StoredReplicas()) {
-                            if (replica.GetPtr() == node) {
-                                continue;
-                            }
-                            if (isErasure && replica.GetReplicaIndex() != chunkIdWithIndexes.ReplicaIndex) {
-                                continue;
-                            }
-                            jobSpecExt->add_replicas(ToProto<ui32>(replica));
-                        }
-                        jobSpecExt->set_replicas_expiration_deadline(ToProto<ui64>(chunkRemovalJobExpirationDeadline));
-                    }
-                    break;
-                }
-
-                case EJobType::RepairChunk: {
-                    auto* chunk = chunkManager->GetChunk(chunkId);
-
-                    auto* jobSpecExt = jobSpec.MutableExtension(TRepairChunkJobSpecExt::repair_chunk_job_spec_ext);
-                    jobSpecExt->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
-                    ToProto(jobSpecExt->mutable_chunk_id(), chunkId);
-                    jobSpecExt->set_decommission(job->GetDecommission());
-
-                    if (chunk->IsJournal()) {
-                        YT_VERIFY(chunk->IsSealed());
-                        jobSpecExt->set_row_count(chunk->GetPhysicalSealedRowCount());
-                    }
-
-                    NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
-
-                    const auto& sourceReplicas = chunk->StoredReplicas();
-                    builder.Add(sourceReplicas);
-                    ToProto(jobSpecExt->mutable_source_replicas(), sourceReplicas);
-
-                    for (auto replica : job->TargetReplicas()) {
-                        jobSpecExt->add_target_replicas(ToProto<ui64>(replica));
-                        builder.Add(replica);
-                    }
-                    break;
-                }
-
-                case EJobType::SealChunk: {
-                    auto* chunk = chunkManager->GetChunk(chunkId);
-
-                    auto* jobSpecExt = jobSpec.MutableExtension(TSealChunkJobSpecExt::seal_chunk_job_spec_ext);
-                    ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(chunkIdWithIndexes));
-                    jobSpecExt->set_codec_id(ToProto<int>(chunk->GetErasureCodec()));
-                    jobSpecExt->set_medium_index(chunkIdWithIndexes.MediumIndex);
-                    jobSpecExt->set_row_count(chunk->GetPhysicalSealedRowCount());
-
-                    NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
-                    const auto& replicas = chunk->StoredReplicas();
-                    builder.Add(replicas);
-                    ToProto(jobSpecExt->mutable_source_replicas(), replicas);
-                    break;
-                }
-
-                case EJobType::MergeChunks: {
-                    auto* jobSpecExt = jobSpec.MutableExtension(TMergeChunksJobSpecExt::merge_chunks_job_spec_ext);
-
-                    jobSpecExt->set_cell_tag(Bootstrap_->GetCellTag());
-
-                    ToProto(jobSpecExt->mutable_output_chunk_id(), EncodeChunkId(chunkIdWithIndexes));
-                    jobSpecExt->set_medium_index(chunkIdWithIndexes.MediumIndex);
-                    *jobSpecExt->mutable_chunk_merger_writer_options() = job->ChunkMergerWriterOptions();
-
-                    NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
-
-                    for (auto* chunk : job->InputChunks()) {
-                        auto* protoChunk = jobSpecExt->add_input_chunks();
-                        ToProto(protoChunk->mutable_id(), chunk->GetId());
-
-                        const auto& replicas = chunk->StoredReplicas();
-                        ToProto(protoChunk->mutable_source_replicas(), replicas);
-                        builder.Add(replicas);
-                    }
-
-                    break;
-                }
-                default:
-                    YT_ABORT();
-            }
+            job->FillJobSpec(Bootstrap_, &jobSpec);
 
             auto serializedJobSpec = SerializeProtoToRefWithEnvelope(jobSpec);
             response->Attachments().push_back(serializedJobSpec);

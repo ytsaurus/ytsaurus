@@ -467,10 +467,10 @@ private:
             return true;
         }
 
-        *job = TJob::CreateSeal(
+        *job = New<TSealJob>(
             JobTracker_->GenerateJobId(),
-            chunkWithIndexes,
-            node);
+            node,
+            chunkWithIndexes);
 
         YT_LOG_DEBUG("Seal job scheduled (JobId: %v, Address: %v, ChunkId: %v)",
             (*job)->GetJobId(),

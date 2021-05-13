@@ -27,75 +27,155 @@ class TJob
 public:
     DEFINE_BYVAL_RO_PROPERTY(TJobId, JobId);
     DEFINE_BYVAL_RO_PROPERTY(EJobType, Type);
-    DEFINE_BYVAL_RO_PROPERTY(bool, Decommission);
-
-    //! Could be null for removal jobs issued against non-existing chunks.
-    DEFINE_BYVAL_RO_PROPERTY(TChunk*, Chunk);
-    //! Can't make it TChunkPtrWithIndexes since removal jobs may refer to nonexistent chunks.
-    DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkIdWithIndexes, ChunkIdWithIndexes);
     DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerServer::TNode*, Node);
-    DEFINE_BYREF_RO_PROPERTY(TNodePtrWithIndexesList, TargetReplicas);
-    DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
-    using TChunkVector = SmallVector<TChunk*, 16>;
-    DEFINE_BYREF_RO_PROPERTY(TChunkVector, InputChunks);
-    DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TChunkMergerWriterOptions, ChunkMergerWriterOptions);
 
+    DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
     //! Current state (as reported by node).
     DEFINE_BYVAL_RW_PROPERTY(EJobState, State);
     //! Failure reason (as reported by node).
     DEFINE_BYREF_RW_PROPERTY(TError, Error);
 
 public:
-    static TJobPtr CreateReplicate(
-        TJobId jobId,
-        TChunkPtrWithIndexes chunkWithIndexes,
-        NNodeTrackerServer::TNode* node,
-        const TNodePtrWithIndexesList& targetReplicas);
-
-    static TJobPtr CreateRemove(
-        TJobId jobId,
-        TChunk* chunk,
-        const NChunkClient::TChunkIdWithIndexes& chunkIdWithIndexes,
-        NNodeTrackerServer::TNode* node);
-
-    static TJobPtr CreateRepair(
-        TJobId jobId,
-        TChunk* chunk,
-        NNodeTrackerServer::TNode* node,
-        const TNodePtrWithIndexesList& targetReplicas,
-        i64 memoryUsage,
-        bool decommission);
-
-    static TJobPtr CreateSeal(
-        TJobId jobId,
-        TChunkPtrWithIndexes chunkWithIndexes,
-        NNodeTrackerServer::TNode* node);
-
-    static TJobPtr CreateMerge(
-        TJobId jobId,
-        TChunkId chunkId,
-        int mediumIndex,
-        TChunkVector inputChunks,
-        NNodeTrackerServer::TNode* node,
-        NChunkClient::NProto::TChunkMergerWriterOptions chunkMergerWriterOptions);
-
-private:
     TJob(
-        EJobType type,
         TJobId jobId,
-        TChunk* chunk,
-        const NChunkClient::TChunkIdWithIndexes& chunkIdWithIndexes,
+        EJobType type,
         NNodeTrackerServer::TNode* node,
-        const TNodePtrWithIndexesList& targetReplicas,
-        const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
-        TChunkVector inputChunks = {},
-        NChunkClient::NProto::TChunkMergerWriterOptions chunkMergerWriterOptions = {},
-        bool decommission = false);
-    DECLARE_NEW_FRIEND();
+        const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
+
+    virtual void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const = 0;
+    virtual NChunkClient::TChunkIdWithIndexes GetChunkIdWithIndexes() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJob)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReplicationJob
+    : public TJob
+{
+public:
+    DEFINE_BYREF_RO_PROPERTY(TNodePtrWithIndexesList, TargetReplicas);
+
+public:
+    TReplicationJob(
+        TJobId jobId,
+        NNodeTrackerServer::TNode* node,
+        TChunkPtrWithIndexes chunkWithIndexes,
+        const TNodePtrWithIndexesList& targetReplicas);
+
+    virtual void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
+    virtual NChunkClient::TChunkIdWithIndexes GetChunkIdWithIndexes() const override;
+
+private:
+    NChunkClient::TChunkIdWithIndexes ChunkIdWithIndexes_;
+
+    static NNodeTrackerClient::NProto::TNodeResources GetResourceUsage(TChunk* chunk);
+};
+
+DEFINE_REFCOUNTED_TYPE(TReplicationJob)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRemovalJob
+    : public TJob
+{
+public:
+    TRemovalJob(
+        TJobId jobId,
+        NNodeTrackerServer::TNode* node,
+        TChunk* chunk,
+        const NChunkClient::TChunkIdWithIndexes& chunkIdWithIndexes);
+
+    virtual void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
+    virtual NChunkClient::TChunkIdWithIndexes GetChunkIdWithIndexes() const override;
+
+private:
+    TChunk* Chunk_;
+    NChunkClient::TChunkIdWithIndexes ChunkIdWithIndexes_;
+
+    static NNodeTrackerClient::NProto::TNodeResources GetResourceUsage();
+};
+
+DEFINE_REFCOUNTED_TYPE(TRemovalJob)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRepairJob
+    : public TJob
+{
+public:
+    DEFINE_BYREF_RO_PROPERTY(TNodePtrWithIndexesList, TargetReplicas);
+
+public:
+    TRepairJob(
+        TJobId jobId,
+        NNodeTrackerServer::TNode* node,
+        i64 jobMemoryUsage,
+        TChunk* chunk,
+        const TNodePtrWithIndexesList& targetReplicas,
+        bool decommission);
+
+    virtual void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
+    virtual NChunkClient::TChunkIdWithIndexes GetChunkIdWithIndexes() const override;
+
+private:
+    TChunk* Chunk_;
+    bool Decommission_;
+
+    static NNodeTrackerClient::NProto::TNodeResources GetResourceUsage(TChunk* chunk, i64 jobMemoryUsage);
+};
+
+DEFINE_REFCOUNTED_TYPE(TRepairJob)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSealJob
+    : public TJob
+{
+public:
+    TSealJob(
+        TJobId jobId,
+        NNodeTrackerServer::TNode* node,
+        TChunkPtrWithIndexes chunkWithIndexes);
+
+    virtual void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
+    virtual NChunkClient::TChunkIdWithIndexes GetChunkIdWithIndexes() const override;
+
+private:
+    TChunkPtrWithIndexes ChunkWithIndexes_;
+
+    static NNodeTrackerClient::NProto::TNodeResources GetResourceUsage();
+};
+
+DEFINE_REFCOUNTED_TYPE(TSealJob)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMergeJob
+    : public TJob
+{
+public:
+    using TChunkVector = SmallVector<TChunk*, 16>;
+    TMergeJob(
+        TJobId jobId,
+        NNodeTrackerServer::TNode* node,
+        NChunkClient::TChunkIdWithIndexes chunkIdWithIndexes,
+        TChunkVector inputChunks,
+        NChunkClient::NProto::TChunkMergerWriterOptions chunkMergerWriterOptions);
+
+    virtual void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
+    virtual NChunkClient::TChunkIdWithIndexes GetChunkIdWithIndexes() const override;
+
+private:
+    NChunkClient::TChunkIdWithIndexes ChunkIdWithIndexes_;
+    TChunkVector InputChunks_;
+    NChunkClient::NProto::TChunkMergerWriterOptions ChunkMergerWriterOptions_;
+
+    static NNodeTrackerClient::NProto::TNodeResources GetResourceUsage();
+};
+
+DEFINE_REFCOUNTED_TYPE(TMergeJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 

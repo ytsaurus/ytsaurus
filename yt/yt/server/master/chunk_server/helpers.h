@@ -11,6 +11,8 @@
 
 #include <yt/yt/ytlib/journal_client/public.h>
 
+#include <yt/yt/client/chunk_client/chunk_replica.h>
+
 #include <yt/yt/client/object_client/public.h>
 
 #include <yt/yt/client/table_client/comparator.h>
@@ -128,6 +130,8 @@ NTableClient::TLegacyOwningKey GetMaxKeyOrThrow(const TChunkTree* chunkTree);
 std::vector<TChunkViewMergeResult> MergeAdjacentChunkViewRanges(std::vector<TChunkView*> chunkViews);
 
 std::vector<NJournalClient::TChunkReplicaDescriptor> GetChunkReplicaDescriptors(const TChunk* chunk);
+
+NChunkClient::TChunkIdWithIndexes ToChunkIdWithIndexes(TChunkPtrWithIndexes chunkWithIndexes);
 
 ////////////////////////////////////////////////////////////////////////////////
 
