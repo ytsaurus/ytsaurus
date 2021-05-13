@@ -2415,6 +2415,35 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         delta = time.time() - start_time
         assert delta > 5
 
+    @authors("akozhikhov")
+    def test_write_throttler(self):
+        sync_create_cells(1)
+
+        self._create_sorted_table("//tmp/t")
+        set("//tmp/t/@throttlers", {"write": {"limit": 10}})
+        sync_mount_table("//tmp/t")
+
+        def _insert():
+            start_time = time.time()
+            for i in range(5):
+                while True:
+                    try:
+                        insert_rows("//tmp/t", [{"key": i, "value": str(i)}])
+                        break
+                    except YtError as e:
+                        if not e.contains_code(RequestThrottled):
+                            raise e
+                        time.sleep(1)
+            return time.time() - start_time
+
+        assert _insert() > 2
+
+        remove("//tmp/t/@throttlers")
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        assert _insert() < 2
+
 
 ##################################################################
 

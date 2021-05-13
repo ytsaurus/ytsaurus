@@ -1523,6 +1523,16 @@ void TTablet::ReconfigureDistributedThrottlers(const IDistributedThrottlerManage
             EDistributedThrottlerMode::Adaptive,
             CompactionReadThrottlerRpcTimeout,
             /* admitUnlimitedThrottler */ false);
+
+    DistributedThrottlers_[ETabletDistributedThrottlerKind::Write] =
+        throttlerManager->GetOrCreateThrottler(
+            TablePath_,
+            CellTagFromId(Id_),
+            getThrottlerConfig("write"),
+            "write",
+            EDistributedThrottlerMode::Adaptive,
+            WriteThrottlerRpcTimeout,
+            /* admitUnlimitedThrottler */ false);
 }
 
 const TString& TTablet::GetLoggingTag() const

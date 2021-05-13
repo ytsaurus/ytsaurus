@@ -166,6 +166,13 @@ private:
             slotOptions->SnapshotAccount,
             slotOptions->SnapshotPrimaryMedium);
 
+        const auto& writeThrottler = tabletSnapshot->DistributedThrottlers[ETabletDistributedThrottlerKind::Write];
+        if (writeThrottler && !writeThrottler->TryAcquire(dataWeight)) {
+            THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::RequestThrottled,
+                "Write is throttled")
+                << TErrorAttribute("queue_total_count", writeThrottler->GetQueueTotalCount());
+        }
+
         auto* requestCodec = NCompression::GetCodec(requestCodecId);
         auto requestData = requestCodec->Decompress(request->Attachments()[0]);
         struct TWriteBufferTag { };
