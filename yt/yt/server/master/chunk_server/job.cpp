@@ -1,8 +1,13 @@
 #include "job.h"
 #include "chunk.h"
+#include "helpers.h"
 #include "public.h"
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
+#include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
+
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 
 #include <yt/yt/core/misc/string.h>
 
@@ -14,147 +19,271 @@ using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NChunkClient;
 using namespace NTableServer;
+using namespace NObjectClient;
 using namespace NChunkClient::NProto;
+using namespace NJobTrackerClient::NProto;
+
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TJob::TJob(
-    EJobType type,
     TJobId jobId,
-    TChunk* chunk,
-    const TChunkIdWithIndexes& chunkIdWithIndexes,
-    TNode* node,
-    const TNodePtrWithIndexesList& targetReplicas,
-    const TNodeResources& resourceUsage,
-    TChunkVector inputChunks,
-    TChunkMergerWriterOptions chunkMergerWriterOptions,
-    bool decommission)
+    EJobType type,
+    NNodeTrackerServer::TNode* node,
+    const TNodeResources& resourceUsage)
     : JobId_(jobId)
     , Type_(type)
-    , Decommission_(decommission)
-    , Chunk_(chunk)
-    , ChunkIdWithIndexes_(chunkIdWithIndexes)
     , Node_(node)
-    , TargetReplicas_(targetReplicas)
-    , StartTime_(TInstant::Now())
     , ResourceUsage_(resourceUsage)
-    , InputChunks_(std::move(inputChunks))
-    , ChunkMergerWriterOptions_(std::move(chunkMergerWriterOptions))
+    , StartTime_(TInstant::Now())
     , State_(EJobState::Running)
 { }
 
-TJobPtr TJob::CreateReplicate(
+////////////////////////////////////////////////////////////////////////////////
+
+TReplicationJob::TReplicationJob(
     TJobId jobId,
+    NNodeTrackerServer::TNode* node,
     TChunkPtrWithIndexes chunkWithIndexes,
-    TNode* node,
     const TNodePtrWithIndexesList& targetReplicas)
+    : TJob(jobId, EJobType::ReplicateChunk, node, TReplicationJob::GetResourceUsage(chunkWithIndexes.GetPtr()))
+    , TargetReplicas_(targetReplicas)
+    , ChunkIdWithIndexes_(ToChunkIdWithIndexes(chunkWithIndexes))
+{ }
+
+void TReplicationJob::FillJobSpec(NCellMaster::TBootstrap* /*bootstrap*/, TJobSpec* jobSpec) const
 {
-    auto* chunk = chunkWithIndexes.GetPtr();
+    auto* jobSpecExt = jobSpec->MutableExtension(TReplicateChunkJobSpecExt::replicate_chunk_job_spec_ext);
+    ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(ChunkIdWithIndexes_));
+    jobSpecExt->set_source_medium_index(ChunkIdWithIndexes_.MediumIndex);
+
+    NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
+    for (auto replica : TargetReplicas_) {
+        jobSpecExt->add_target_replicas(ToProto<ui64>(replica));
+        builder.Add(replica);
+    }
+}
+
+NChunkClient::TChunkIdWithIndexes TReplicationJob::GetChunkIdWithIndexes() const
+{
+    return ChunkIdWithIndexes_;
+}
+
+TNodeResources TReplicationJob::GetResourceUsage(TChunk* chunk)
+{
     auto dataSize = chunk->GetPartDiskSpace();
 
     TNodeResources resourceUsage;
     resourceUsage.set_replication_slots(1);
     resourceUsage.set_replication_data_size(dataSize);
 
-    return New<TJob>(
-        EJobType::ReplicateChunk,
-        jobId,
-        chunk,
-        TChunkIdWithIndexes(chunk->GetId(), chunkWithIndexes.GetReplicaIndex(), chunkWithIndexes.GetMediumIndex()),
-        node,
-        targetReplicas,
-        resourceUsage);
+    return resourceUsage;
 }
 
-TJobPtr TJob::CreateRemove(
+////////////////////////////////////////////////////////////////////////////////
+
+TRemovalJob::TRemovalJob(
     TJobId jobId,
+    NNodeTrackerServer::TNode* node,
     TChunk* chunk,
-    const TChunkIdWithIndexes& chunkIdWithIndexes,
-    TNode* node)
+    const NChunkClient::TChunkIdWithIndexes& chunkIdWithIndexes)
+    : TJob(jobId, EJobType::RemoveChunk, node, TRemovalJob::GetResourceUsage())
+    , Chunk_(chunk)
+    , ChunkIdWithIndexes_(chunkIdWithIndexes)
+{ }
+
+void TRemovalJob::FillJobSpec(NCellMaster::TBootstrap* bootstrap, TJobSpec* jobSpec) const
+{
+    auto* jobSpecExt = jobSpec->MutableExtension(TRemoveChunkJobSpecExt::remove_chunk_job_spec_ext);
+    ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(ChunkIdWithIndexes_));
+    jobSpecExt->set_medium_index(ChunkIdWithIndexes_.MediumIndex);
+    if (!Chunk_) {
+        return;
+    }
+
+    bool isErasure = Chunk_->IsErasure();
+    for (auto replica : Chunk_->StoredReplicas()) {
+        if (replica.GetPtr() == Node_) {
+            continue;
+        }
+        if (isErasure && replica.GetReplicaIndex() != ChunkIdWithIndexes_.ReplicaIndex) {
+            continue;
+        }
+        jobSpecExt->add_replicas(ToProto<ui32>(replica));
+    }
+
+
+    const auto& configManager = bootstrap->GetConfigManager();
+    const auto& config = configManager->GetConfig()->ChunkManager;
+    auto chunkRemovalJobExpirationDeadline = TInstant::Now() + config->ChunkRemovalJobReplicasExpirationTime;
+
+    jobSpecExt->set_replicas_expiration_deadline(ToProto<ui64>(chunkRemovalJobExpirationDeadline));
+}
+
+NChunkClient::TChunkIdWithIndexes TRemovalJob::GetChunkIdWithIndexes() const
+{
+    return ChunkIdWithIndexes_;
+}
+
+TNodeResources TRemovalJob::GetResourceUsage()
 {
     TNodeResources resourceUsage;
     resourceUsage.set_removal_slots(1);
 
-    return New<TJob>(
-        EJobType::RemoveChunk,
-        jobId,
-        chunk,
-        chunkIdWithIndexes,
-        node,
-        TNodePtrWithIndexesList(),
-        resourceUsage);
+    return resourceUsage;
 }
 
-TJobPtr TJob::CreateRepair(
+////////////////////////////////////////////////////////////////////////////////
+
+TRepairJob::TRepairJob(
     TJobId jobId,
+    NNodeTrackerServer::TNode* node,
+    i64 jobMemoryUsage,
     TChunk* chunk,
-    TNode* node,
     const TNodePtrWithIndexesList& targetReplicas,
-    i64 memoryUsage,
-    bool decommisssion)
+    bool decommission)
+    : TJob(
+        jobId,
+        EJobType::RepairChunk,
+        node,
+        TRepairJob::GetResourceUsage(chunk, jobMemoryUsage))
+    , TargetReplicas_(targetReplicas)
+    , Chunk_(chunk)
+    , Decommission_(decommission)
+{ }
+
+void TRepairJob::FillJobSpec(NCellMaster::TBootstrap* /*bootstrap*/, TJobSpec* jobSpec) const
+{
+    auto* jobSpecExt = jobSpec->MutableExtension(TRepairChunkJobSpecExt::repair_chunk_job_spec_ext);
+    jobSpecExt->set_erasure_codec(static_cast<int>(Chunk_->GetErasureCodec()));
+    ToProto(jobSpecExt->mutable_chunk_id(), Chunk_->GetId());
+    jobSpecExt->set_decommission(Decommission_);
+
+    if (Chunk_->IsJournal()) {
+        YT_VERIFY(Chunk_->IsSealed());
+        jobSpecExt->set_row_count(Chunk_->GetPhysicalSealedRowCount());
+    }
+
+    NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
+
+    const auto& sourceReplicas = Chunk_->StoredReplicas();
+    builder.Add(sourceReplicas);
+    ToProto(jobSpecExt->mutable_source_replicas(), sourceReplicas);
+
+    for (auto replica : TargetReplicas_) {
+        jobSpecExt->add_target_replicas(ToProto<ui64>(replica));
+        builder.Add(replica);
+    }
+}
+
+NChunkClient::TChunkIdWithIndexes TRepairJob::GetChunkIdWithIndexes() const
+{
+    return {Chunk_->GetId(), GenericChunkReplicaIndex, GenericMediumIndex};
+}
+
+TNodeResources TRepairJob::GetResourceUsage(TChunk* chunk, i64 jobMemoryUsage)
 {
     auto dataSize = chunk->GetPartDiskSpace();
 
     TNodeResources resourceUsage;
     resourceUsage.set_repair_slots(1);
-    resourceUsage.set_system_memory(memoryUsage);
+    resourceUsage.set_system_memory(jobMemoryUsage);
     resourceUsage.set_repair_data_size(dataSize);
 
-    return New<TJob>(
-        EJobType::RepairChunk,
-        jobId,
-        chunk,
-        TChunkIdWithIndexes(chunk->GetId(), GenericChunkReplicaIndex, GenericMediumIndex),
-        node,
-        targetReplicas,
-        resourceUsage,
-        TChunkVector(),
-        TChunkMergerWriterOptions(),
-        decommisssion);
+    return resourceUsage;
 }
 
-TJobPtr TJob::CreateSeal(
-    TJobId jobId,
-    TChunkPtrWithIndexes chunkWithIndexes,
-    TNode* node)
-{
-    auto* chunk = chunkWithIndexes.GetPtr();
+////////////////////////////////////////////////////////////////////////////////
 
+TSealJob::TSealJob(
+    TJobId jobId,
+    NNodeTrackerServer::TNode* node,
+    TChunkPtrWithIndexes chunkWithIndexes)
+    : TJob(jobId, EJobType::SealChunk, node, TSealJob::GetResourceUsage())
+    , ChunkWithIndexes_(chunkWithIndexes)
+{ }
+
+void TSealJob::FillJobSpec(NCellMaster::TBootstrap* /*bootstrap*/, TJobSpec* jobSpec) const
+{
+    auto* chunk = ChunkWithIndexes_.GetPtr();
+    auto chunkId = GetChunkIdWithIndexes();
+
+    auto* jobSpecExt = jobSpec->MutableExtension(TSealChunkJobSpecExt::seal_chunk_job_spec_ext);
+    ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(chunkId));
+    jobSpecExt->set_codec_id(ToProto<int>(chunk->GetErasureCodec()));
+    jobSpecExt->set_medium_index(chunkId.MediumIndex);
+    jobSpecExt->set_row_count(chunk->GetPhysicalSealedRowCount());
+
+    NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
+    const auto& replicas = chunk->StoredReplicas();
+    builder.Add(replicas);
+    ToProto(jobSpecExt->mutable_source_replicas(), replicas);
+}
+
+NChunkClient::TChunkIdWithIndexes TSealJob::GetChunkIdWithIndexes() const
+{
+    return ToChunkIdWithIndexes(ChunkWithIndexes_);
+}
+
+TNodeResources TSealJob::GetResourceUsage()
+{
     TNodeResources resourceUsage;
     resourceUsage.set_seal_slots(1);
 
-    return New<TJob>(
-        EJobType::SealChunk,
-        jobId,
-        chunk,
-        TChunkIdWithIndexes(chunk->GetId(), chunkWithIndexes.GetReplicaIndex(), chunkWithIndexes.GetMediumIndex()),
-        node,
-        TNodePtrWithIndexesList(),
-        resourceUsage);
+    return resourceUsage;
 }
 
-TJobPtr TJob::CreateMerge(
+////////////////////////////////////////////////////////////////////////////////
+
+TMergeJob::TMergeJob(
     TJobId jobId,
-    TChunkId chunkId,
-    int mediumIndex,
-    TChunkVector inputChunks,
     NNodeTrackerServer::TNode* node,
-    TChunkMergerWriterOptions chunkMergeTableOptions)
+    TChunkIdWithIndexes chunkIdWithIndexes,
+    TChunkVector inputChunks,
+    NChunkClient::NProto::TChunkMergerWriterOptions chunkMergerWriterOptions)
+    : TJob(jobId, EJobType::MergeChunks, node, TMergeJob::GetResourceUsage())
+    , ChunkIdWithIndexes_(chunkIdWithIndexes)
+    , InputChunks_(std::move(inputChunks))
+    , ChunkMergerWriterOptions_(chunkMergerWriterOptions)
+{ }
+
+void TMergeJob::FillJobSpec(NCellMaster::TBootstrap* bootstrap, TJobSpec* jobSpec) const
+{
+    auto* jobSpecExt = jobSpec->MutableExtension(TMergeChunksJobSpecExt::merge_chunks_job_spec_ext);
+
+    jobSpecExt->set_cell_tag(bootstrap->GetCellTag());
+
+    ToProto(jobSpecExt->mutable_output_chunk_id(), EncodeChunkId(ChunkIdWithIndexes_));
+    jobSpecExt->set_medium_index(ChunkIdWithIndexes_.MediumIndex);
+    *jobSpecExt->mutable_chunk_merger_writer_options() = ChunkMergerWriterOptions_;
+
+    NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
+
+    for (auto* chunk : InputChunks_) {
+        auto* protoChunk = jobSpecExt->add_input_chunks();
+        ToProto(protoChunk->mutable_id(), chunk->GetId());
+
+        const auto& replicas = chunk->StoredReplicas();
+        ToProto(protoChunk->mutable_source_replicas(), replicas);
+        builder.Add(replicas);
+    }
+}
+
+NChunkClient::TChunkIdWithIndexes TMergeJob::GetChunkIdWithIndexes() const
+{
+    return ChunkIdWithIndexes_;
+}
+
+
+TNodeResources TMergeJob::GetResourceUsage()
 {
     TNodeResources resourceUsage;
     resourceUsage.set_merge_slots(1);
 
-    return New<TJob>(
-        EJobType::MergeChunks,
-        jobId,
-        nullptr,
-        TChunkIdWithIndexes(chunkId, GenericChunkReplicaIndex, mediumIndex),
-        node,
-        TNodePtrWithIndexesList(),
-        resourceUsage,
-        std::move(inputChunks),
-        std::move(chunkMergeTableOptions));
+    return resourceUsage;
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

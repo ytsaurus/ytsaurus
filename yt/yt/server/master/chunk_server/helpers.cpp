@@ -1196,6 +1196,13 @@ std::vector<NJournalClient::TChunkReplicaDescriptor> GetChunkReplicaDescriptors(
     return replicas;
 }
 
+TChunkIdWithIndexes ToChunkIdWithIndexes(TChunkPtrWithIndexes chunkWithIndexes)
+{
+    auto* chunk = chunkWithIndexes.GetPtr();
+    YT_VERIFY(chunk);
+    return {chunk->GetId(), chunkWithIndexes.GetReplicaIndex(), chunkWithIndexes.GetMediumIndex()};
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

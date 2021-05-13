@@ -221,7 +221,7 @@ private:
         EChunkRepairQueue repairQueue,
         TNode* node,
         TChunkPtrWithIndexes chunkWithIndexes,
-        TJobPtr* job);
+        TRepairJobPtr* job);
 
     void OnRefresh();
     void RefreshChunk(TChunk* chunk);

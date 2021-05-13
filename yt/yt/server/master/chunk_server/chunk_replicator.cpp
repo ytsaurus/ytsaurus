@@ -11,6 +11,7 @@
 #include "chunk_scanner.h"
 #include "chunk_replica.h"
 #include "medium.h"
+#include "helpers.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
@@ -859,11 +860,8 @@ void TChunkReplicator::OnReplicaRemoved(
     TChunkPtrWithIndexes chunkWithIndexes,
     ERemoveReplicaReason reason)
 {
-    const auto* chunk = chunkWithIndexes.GetPtr();
-    TChunkIdWithIndexes chunkIdWithIndexes(
-        chunk->GetId(),
-        chunkWithIndexes.GetReplicaIndex(),
-        chunkWithIndexes.GetMediumIndex());
+    auto* chunk = chunkWithIndexes.GetPtr();
+    auto chunkIdWithIndexes = ToChunkIdWithIndexes(chunkWithIndexes);
     node->RemoveFromChunkReplicationQueues(chunkWithIndexes, AllMediaIndex);
     if (reason != ERemoveReplicaReason::ChunkDestroyed) {
         node->RemoveFromChunkRemovalQueue(chunkIdWithIndexes);
@@ -884,10 +882,7 @@ void TChunkReplicator::ScheduleReplicaRemoval(
     TNode* node,
     TChunkPtrWithIndexes chunkWithIndexes)
 {
-    TChunkIdWithIndexes chunkIdWithIndexes(
-        chunkWithIndexes.GetPtr()->GetId(),
-        chunkWithIndexes.GetReplicaIndex(),
-        chunkWithIndexes.GetMediumIndex());
+    auto chunkIdWithIndexes = ToChunkIdWithIndexes(chunkWithIndexes);
     node->AddToChunkRemovalQueue(chunkIdWithIndexes);
 }
 
@@ -959,10 +954,10 @@ bool TChunkReplicator::CreateReplicationJob(
         targetReplicas.emplace_back(node, replicaIndex, targetMediumIndex);
     }
 
-    *job = TJob::CreateReplicate(
+    *job = New<TReplicationJob>(
         JobTracker_->GenerateJobId(),
-        chunkWithIndexes,
         sourceNode,
+        chunkWithIndexes,
         targetReplicas);
 
     YT_LOG_DEBUG("Replication job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddresses: %v)",
@@ -1010,10 +1005,10 @@ bool TChunkReplicator::CreateBalancingJob(
         TNodePtrWithIndexes(targetNode, replicaIndex, mediumIndex)
     };
 
-    *job = TJob::CreateReplicate(
+    *job = New<TReplicationJob>(
         JobTracker_->GenerateJobId(),
-        chunkWithIndexes,
         sourceNode,
+        chunkWithIndexes,
         targetReplicas);
 
     YT_LOG_DEBUG("Balancing job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddress: %v)",
@@ -1044,11 +1039,11 @@ bool TChunkReplicator::CreateRemovalJob(
         }
     }
 
-    *job = TJob::CreateRemove(
+    *job = New<TRemovalJob>(
         JobTracker_->GenerateJobId(),
+        node,
         IsObjectAlive(chunk) ? chunk : nullptr,
-        chunkIdWithIndexes,
-        node);
+        chunkIdWithIndexes);
 
     YT_LOG_DEBUG("Removal job scheduled (JobId: %v, Address: %v, ChunkId: %v)",
         (*job)->GetJobId(),
@@ -1062,7 +1057,7 @@ bool TChunkReplicator::CreateRepairJob(
     EChunkRepairQueue repairQueue,
     TNode* node,
     TChunkPtrWithIndexes chunkWithIndexes,
-    TJobPtr* job)
+    TRepairJobPtr* job)
 {
     YT_VERIFY(chunkWithIndexes.GetReplicaIndex() == GenericChunkReplicaIndex);
 
@@ -1153,12 +1148,12 @@ bool TChunkReplicator::CreateRepairJob(
         targetReplicas.emplace_back(node, erasedPartIndexes[targetIndex++], mediumIndex);
     }
 
-    *job = TJob::CreateRepair(
+    *job = New<TRepairJob>(
         JobTracker_->GenerateJobId(),
-        chunk,
         node,
-        targetReplicas,
         GetDynamicConfig()->RepairJobMemoryUsage,
+        chunk,
+        targetReplicas,
         repairQueue == EChunkRepairQueue::Decommissioned);
 
     YT_LOG_DEBUG("Repair job scheduled (JobId: %v, Address: %v, ChunkId: %v, Targets: %v, ErasedPartIndexes: %v)",
@@ -1278,7 +1273,7 @@ void TChunkReplicator::ScheduleJobs(
             auto chunkIt = iteratorPerRepairQueue[mediumIndex].first++;
             auto chunkWithIndexes = *chunkIt;
             auto* chunk = chunkWithIndexes.GetPtr();
-            TJobPtr job;
+            TRepairJobPtr job;
             if (CreateRepairJob(queue, node, chunkWithIndexes, &job)) {
                 chunk->SetRepairQueueIterator(chunkWithIndexes.GetMediumIndex(), queue, TChunkRepairQueueIterator());
                 chunkRepairQueue.erase(chunkIt);

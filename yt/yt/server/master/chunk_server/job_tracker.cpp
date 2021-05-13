@@ -122,6 +122,7 @@ void TJobTracker::UpdateInterDCEdgeConsumption(
     const TDataCenter* srcDataCenter,
     int sizeMultiplier)
 {
+    // TODO(aleksandra-zh): Add merge jobs here.
     if (job->GetType() != EJobType::ReplicateChunk &&
         job->GetType() != EJobType::RepairChunk)
     {
@@ -133,20 +134,35 @@ void TJobTracker::UpdateInterDCEdgeConsumption(
 
     const auto defaultCapacity = GetDynamicConfig()->InterDCLimits->GetDefaultCapacity() / GetCappedSecondaryCellCount();
 
-    for (const auto& nodePtrWithIndexes : job->TargetReplicas()) {
-        const auto* dstDataCenter = nodePtrWithIndexes.GetPtr()->GetDataCenter();
-
-        i64 chunkPartSize = 0;
+    auto getReplicas = [&] (const TJobPtr& job) {
         switch (job->GetType()) {
-            case EJobType::ReplicateChunk:
-                chunkPartSize = job->ResourceUsage().replication_data_size();
-                break;
-            case EJobType::RepairChunk:
-                chunkPartSize = job->ResourceUsage().repair_data_size();
-                break;
+            case EJobType::ReplicateChunk: {
+                auto replicateJob = StaticPointerCast<TReplicationJob>(job);
+                return replicateJob->TargetReplicas();
+            }
+            case EJobType::RepairChunk: {
+                auto repairJob = StaticPointerCast<TRepairJob>(job);
+                return repairJob->TargetReplicas();
+            }
             default:
                 YT_ABORT();
         }
+    };
+
+    i64 chunkPartSize = 0;
+    switch (job->GetType()) {
+        case EJobType::ReplicateChunk:
+            chunkPartSize = job->ResourceUsage().replication_data_size();
+            break;
+        case EJobType::RepairChunk:
+            chunkPartSize = job->ResourceUsage().repair_data_size();
+            break;
+        default:
+            YT_ABORT();
+    }
+
+    for (const auto& nodePtrWithIndexes : getReplicas(job)) {
+        const auto* dstDataCenter = nodePtrWithIndexes.GetPtr()->GetDataCenter();
 
         auto& consumption = interDCEdgeConsumption[dstDataCenter];
         consumption += sizeMultiplier * chunkPartSize;
