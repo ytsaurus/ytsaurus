@@ -19,6 +19,7 @@ DEFINE_ENUM(ETabletDistributedThrottlerKind,
     (Lookup)
     (Select)
     (CompactionRead)
+    (Write)
 )
 
 using TTabletDistributedThrottlersVector = TEnumIndexedVector<

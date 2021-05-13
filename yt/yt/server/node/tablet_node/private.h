@@ -27,6 +27,7 @@ static constexpr auto TabletStoresUpdateThrottlerRpcTimeout = TDuration::Minutes
 static constexpr auto LookupThrottlerRpcTimeout = TDuration::Seconds(15);
 static constexpr auto SelectThrottlerRpcTimeout = TDuration::Seconds(15);
 static constexpr auto CompactionReadThrottlerRpcTimeout = TDuration::Minutes(1);
+static constexpr auto WriteThrottlerRpcTimeout = TDuration::Seconds(15);
 
 ////////////////////////////////////////////////////////////////////////////////
 

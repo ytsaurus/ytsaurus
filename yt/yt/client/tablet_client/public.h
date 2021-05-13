@@ -62,6 +62,7 @@ DEFINE_ENUM(EErrorCode,
     ((SyncReplicaIsNotKnown)            (1722))
     ((SyncReplicaIsNotInSyncMode)       (1723))
     ((SyncReplicaIsNotWritten)          (1724))
+    ((RequestThrottled)                 (1725))
 );
 
 DEFINE_ENUM(EInMemoryMode,

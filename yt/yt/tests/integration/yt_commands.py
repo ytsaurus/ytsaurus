@@ -65,6 +65,7 @@ UserJobProducedCoreFiles = 1206
 TabletNotMounted = 1702
 AllWritesDisabled = 1703
 BundleResourceLimitExceeded = 1720
+RequestThrottled = 1725
 OperationProgressOutdated = 1911
 NoSuchOperation = 1915
 NoSuchJob = 1916
