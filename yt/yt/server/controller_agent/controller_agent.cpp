@@ -541,6 +541,9 @@ public:
 
         TOperationControllerUnregisterResult result;
         {
+            if (auto maybeDelay = Config_->TestingOptions->DelayInUnregistration) {
+                TDelayedExecutor::WaitForDuration(*maybeDelay);
+            }
             auto operation = GetOperationOrThrow(operationId);
             auto controller = operation->GetController();
             if (controller) {

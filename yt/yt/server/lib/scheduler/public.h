@@ -182,6 +182,10 @@ static constexpr TControllerEpoch InvalidControllerEpoch = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern const TString CommittedAttribute;
+
+////////////////////////////////////////////////////////////////////////////////
+
 extern const TString DefaultTreeAttributeName;
 extern const TString TreeConfigAttributeName;
 extern const TString PoolTreesRootCypressPath;

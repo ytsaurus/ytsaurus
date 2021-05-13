@@ -21,6 +21,9 @@ TTestingOptions::TTestingOptions()
 
     RegisterParameter("rootfs_test_layers", RootfsTestLayers)
         .Default();
+    
+    RegisterParameter("delay_in_unregistration", DelayInUnregistration)
+        .Default();
 }
 
 TOperationAlertsConfig::TOperationAlertsConfig()

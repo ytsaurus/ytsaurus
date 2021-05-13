@@ -1563,7 +1563,7 @@ class TestControllerAgentPrerequisiteTxError(YTEnvSetup):
     def test_incarnation_transaction_abort(self):
         create("table", "//tmp/test_input")
         create("table", "//tmp/test_output")
-        write_table("//tmp/test_output", [{"a": "b"}])
+        write_table("//tmp/test_input", [{"a": "b"}])
         op = map(
             track=False,
             command="sleep 1",
@@ -1575,3 +1575,54 @@ class TestControllerAgentPrerequisiteTxError(YTEnvSetup):
         time.sleep(3)
         self._abort_controller_agent_incarnation_transaction()
         op.track()
+
+class TestControllerAgentDisconnectionDuringUnregistration(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 2  # snapshot upload replication factor is 2; unable to configure
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "controller_agent_tracker": {
+                "heavy_rpc_timeout": 12000,
+                "light_rpc_timeout": 8000,
+            }
+        }
+    }
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "testing_options": {
+                "delay_in_unregistration": 20000,
+            }
+        },
+    }
+
+    @authors("ignat")
+    def test_no_revive_after_unregistration(self):
+        create("table", "//tmp/test_input")
+        create("table", "//tmp/test_output")
+        write_table("//tmp/test_input", [{"a": "b"}])
+
+        transaction_id = start_transaction(timeout=300 * 1000)
+        op = map(
+            track=False,
+            command="sleep 1000",
+            in_="//tmp/test_input",
+            out="//tmp/test_output",
+            transaction_id=transaction_id,
+        )
+
+        wait(lambda: op.get_running_jobs())
+
+        # TODO(ignat): avoid this sleep.
+        time.sleep(2)
+
+        abandon_job(op.get_running_jobs().keys()[0])
+
+        wait(lambda: op.get_state() == "completed")
+
+        # Wait for delay in unregistration.
+        time.sleep(15)
+
+        assert op.get_state() == "completed"
+

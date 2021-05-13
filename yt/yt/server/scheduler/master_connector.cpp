@@ -1403,6 +1403,9 @@ private:
                 if (transactions.OutputTransaction) {
                     possibleTransactions.push_back(transactions.OutputTransaction->GetId());
                 }
+                if (operation->GetUserTransactionId()) {
+                    possibleTransactions.push_back(operation->GetUserTransactionId());
+                }
                 possibleTransactions.push_back(NullTransactionId);
 
                 operationsToRevive.push_back(operation);
@@ -1410,9 +1413,7 @@ private:
                 for (auto transactionId : possibleTransactions)
                 {
                     auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()) + "/@");
-                    ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
-                        "committed"
-                    });
+                    ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{CommittedAttribute});
                     SetTransactionId(req, transactionId);
                     batchReq->AddRequest(req, getBatchKey(operation));
                 }
@@ -1447,11 +1448,11 @@ private:
                         continue;
                     }
 
-                    if (attributes->Get<bool>("committed", false)) {
+                    if (attributes->Get<bool>(CommittedAttribute, false)) {
                         revivalDescriptor.OperationCommitted = true;
                         // If it is an output transaction, it should be committed. It is exactly when there are
                         // two responses and we are processing the first one (cf. previous for-loop).
-                        if (rspIndex == 0 && rsps.size() == 2) {
+                        if (rspIndex == 0 && operation->Transactions()->OutputTransaction) {
                             revivalDescriptor.ShouldCommitOutputTransaction = true;
                         }
                         break;
