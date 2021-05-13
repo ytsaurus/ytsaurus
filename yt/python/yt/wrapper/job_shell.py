@@ -8,14 +8,19 @@ from .driver import get_api_version
 from .http_helpers import get_proxy_url, get_token, make_request_with_retries
 
 from yt.packages.six import b
+
 # yt.packages is imported here just to set sys.path for further loading of local tornado module
 from yt.packages import PackagesImporter
-with PackagesImporter():  # noqa
-    from tornado.httpclient import HTTPClient, AsyncHTTPClient, HTTPRequest, HTTPError
-    from tornado.httputil import HTTPHeaders
-    from tornado.ioloop import IOLoop
-    # It is necessary to prevent local imports during runtime.
-    import tornado.simple_httpclient # noqa
+try:
+    with PackagesImporter():  # noqa
+        from tornado.httpclient import HTTPClient, AsyncHTTPClient, HTTPRequest, HTTPError
+        from tornado.httputil import HTTPHeaders
+        from tornado.ioloop import IOLoop
+        # It is necessary to prevent local imports during runtime.
+        import tornado.simple_httpclient # noqa
+    tornado_was_imported = True
+except ImportError:
+    tornado_was_imported = False
 
 from binascii import hexlify
 from io import FileIO
@@ -40,6 +45,8 @@ class JobShell(object):
     def __init__(self, job_id, shell_name=None, interactive=True, timeout=None, client=None):
         if not job_shell_supported:
             raise YtError("Job shell is not supported on your platform")
+        if not tornado_was_imported:
+            raise YtError("Job shell requires tornado module that is missing")
         if get_backend_type(client) != "http":
             raise YtError("Command run-job-shell requires http backend.")
 
