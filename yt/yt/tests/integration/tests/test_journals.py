@@ -463,7 +463,12 @@ class TestJournals(YTEnvSetup):
             # Discount header row.
             for i in range(len(replica_length)):
                 replica_length[i] -= 1
-            assert sorted(replica_length) == sorted(expected_replica_length)
+            if expected_replica_length:
+                assert sorted(replica_length) == sorted(expected_replica_length)
+
+            set("//sys/@config/chunk_manager/enable_chunk_sealer", True)
+            wait(lambda: get("#{}/@sealed".format(chunk_id)))
+            set("//sys/@config/chunk_manager/enable_chunk_sealer", False)
 
         _check(
             row_count=10,
@@ -503,7 +508,7 @@ class TestJournals(YTEnvSetup):
             max_flush_row_count=4,
             replica_lag_limit=4,
             replica_row_limits=[10, 7, 4],
-            expected_replica_length=[2, 6, 6],
+            expected_replica_length=None,
         )
 
     @authors("gritukan")

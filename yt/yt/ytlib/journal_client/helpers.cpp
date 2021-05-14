@@ -836,11 +836,13 @@ private:
     {
         if (longestReplica.MiscExt.row_count() - shortestReplica.MiscExt.row_count() > ReplicaLagLimit_) {
             YT_LOG_ALERT("Replica lag limit violated "
-                "(ShortestReplicaAddress: %v, ShortestReplicaRowCount: %v, LongestReplicaAddress: %v, LongestReplicaRowCount: %v)",
+                "(ShortestReplicaAddress: %v, ShortestReplicaRowCount: %v, "
+                "LongestReplicaAddress: %v, LongestReplicaRowCount: %v, ReplicaLagLimit: %v)",
                 shortestReplica.Address,
                 shortestReplica.MiscExt.row_count(),
                 longestReplica.Address,
-                longestReplica.MiscExt.row_count());
+                longestReplica.MiscExt.row_count(),
+                ReplicaLagLimit_);
         }
     }
 };
