@@ -550,8 +550,8 @@ TOperation TClient::DoGetOperationImpl(
         //         |               |             |
         //    archive rsp.   archivation   cypress rsp.
         if (!isCompleteArchiveResult(*archiveResult)) {
-            YT_LOG_DEBUG("Got empty response from Cypress and incomplete response from archive, "
-                "retrying (OperationId: %v)",
+            YT_LOG_DEBUG("Operation missing in Cypress and incomplete in archive, "
+                "retrying due to possible race (OperationId: %v)",
                 operationId);
             archiveResult = DoGetOperationFromArchive(operationId, deadline, archiveOptions);
         }
@@ -563,6 +563,11 @@ TOperation TClient::DoGetOperationImpl(
             archiveResultOrError.ThrowOnError();
         }
         archiveResult = DoGetOperationFromArchive(operationId, deadline, archiveOptions);
+    }
+
+    if (archiveResult && !isCompleteArchiveResult(*archiveResult)) {
+        YT_LOG_DEBUG("Operation missing in Cypress and incomplete in archive (OperationId: %v)",
+            operationId);
     }
 
     if (!archiveResult || !isCompleteArchiveResult(*archiveResult)) {
