@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/rpc/public.h>
 
+#include <yt/yt/library/tracing/jaeger/sampler.h>
+
 namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////

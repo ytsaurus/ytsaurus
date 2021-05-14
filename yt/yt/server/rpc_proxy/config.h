@@ -24,6 +24,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/library/tracing/jaeger/sampler.h>
+
 namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -271,7 +273,7 @@ class TProxyDynamicConfig
 public:
     TApiServiceDynamicConfigPtr Api;
 
-    NTracing::TSamplingConfigPtr Tracing;
+    NTracing::TSamplerConfigPtr Tracing;
     THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;
 
     TAccessCheckerDynamicConfigPtr AccessChecker;

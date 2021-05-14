@@ -22,6 +22,8 @@
 
 #include <yt/yt/core/https/public.h>
 
+#include <yt/yt/library/tracing/jaeger/sampler.h>
+
 namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -217,7 +219,7 @@ class TProxyDynamicConfig
 public:
     TApiDynamicConfigPtr Api;
 
-    NTracing::TSamplingConfigPtr Tracing;
+    NTracing::TSamplerConfigPtr Tracing;
 
     TString FitnessFunction;
     double CpuWeight;

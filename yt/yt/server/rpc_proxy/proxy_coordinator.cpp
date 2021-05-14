@@ -8,11 +8,11 @@
 #include <yt/yt/core/rpc/public.h>
 #include <yt/yt/core/rpc/service.h>
 
-#include <yt/yt/core/tracing/sampler.h>
-
 #include <yt/yt/core/ytree/ypath_proxy.h>
 
 #include <yt/yt/core/misc/atomic_object.h>
+
+#include <yt/yt/library/tracing/jaeger/sampler.h>
 
 #include <atomic>
 
@@ -150,7 +150,6 @@ void TProxyCoordinator::OnDynamicConfigChanged(
     const TProxyDynamicConfigPtr& newConfig)
 {
     Sampler_.UpdateConfig(newConfig->Tracing);
-    Sampler_.ResetPerUserLimits();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
