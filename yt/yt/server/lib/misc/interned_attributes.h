@@ -415,6 +415,7 @@
     XX(UnmergedRowCount, unmerged_row_count) \
     XX(Unregistered, unregistered) \
     XX(UpdateMode, update_mode) \
+    XX(UpdatePreemptableListDurationLoggingThreshold, update_preemptable_list_duration_logging_threshold) \
     XX(UpperLimit, upper_limit) \
     XX(UpstreamReplicaId, upstream_replica_id) \
     XX(UsableAccounts, usable_accounts) \
