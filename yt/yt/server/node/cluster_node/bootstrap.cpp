@@ -568,6 +568,7 @@ void TBootstrap::DoInitialize()
 
     auto patchMasterConnectionConfig = [&] (const NNative::TMasterConnectionConfigPtr& config) {
         config->Addresses = {localAddress};
+        config->Endpoints = nullptr;
         if (config->RetryTimeout && *config->RetryTimeout > config->RpcTimeout) {
             config->RpcTimeout = *config->RetryTimeout;
         }
