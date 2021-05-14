@@ -27,6 +27,10 @@ public:
 
     std::optional<i64> MaxMemory;
 
+    std::optional<double> SubsamplingRate;
+
+    std::optional<TDuration> FlushPeriod;
+
     TJaegerTracerDynamicConfig();
 };
 
@@ -51,6 +55,8 @@ public:
     i64 MaxBatchSize;
 
     i64 MaxMemory;
+
+    std::optional<double> SubsamplingRate;
 
     // ServiceName is required by jaeger. When ServiceName is missing, tracer is disabled.
     std::optional<TString> ServiceName;

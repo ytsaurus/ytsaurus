@@ -14,8 +14,6 @@
 
 #include <yt/yt/core/bus/tcp/config.h>
 
-#include <yt/yt/core/tracing/config.h>
-
 #include <yt/yt/core/logging/config.h>
 
 #include <yt/yt/core/http/config.h>

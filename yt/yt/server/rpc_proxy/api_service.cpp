@@ -67,7 +67,7 @@
 #include <yt/yt/core/rpc/service_detail.h>
 #include <yt/yt/core/rpc/stream.h>
 
-#include <yt/yt/core/tracing/sampler.h>
+#include <yt/yt/library/tracing/jaeger/sampler.h>
 
 namespace NYT::NRpcProxy {
 

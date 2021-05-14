@@ -38,6 +38,10 @@ TJaegerTracerDynamicConfig::TJaegerTracerDynamicConfig()
         .Default();
     RegisterParameter("max_memory", MaxMemory)
         .Default();
+    RegisterParameter("subsampling_rate", SubsamplingRate)
+        .Default();
+    RegisterParameter("flush_period", FlushPeriod)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,6 +62,8 @@ TJaegerTracerConfig::TJaegerTracerConfig()
         .Default(128);
     RegisterParameter("max_memory", MaxMemory)
         .Default(1_GB);
+    RegisterParameter("subsampling_rate", SubsamplingRate)
+        .Default();
 
     RegisterParameter("service_name", ServiceName)
         .Default();
@@ -75,11 +81,15 @@ TJaegerTracerConfigPtr TJaegerTracerConfig::ApplyDynamic(const TJaegerTracerDyna
         config->CollectorChannelConfig = dynamicConfig->CollectorChannelConfig;
     }
 
-    config->FlushPeriod = FlushPeriod;
+    config->FlushPeriod = dynamicConfig->FlushPeriod.value_or(FlushPeriod);
     config->QueueStallTimeout = QueueStallTimeout;
     config->MaxRequestSize = dynamicConfig->MaxRequestSize.value_or(MaxRequestSize);
     config->MaxBatchSize = MaxBatchSize;
     config->MaxMemory = dynamicConfig->MaxMemory.value_or(MaxMemory);
+    config->SubsamplingRate = SubsamplingRate;
+    if (dynamicConfig->SubsamplingRate) {
+        config->SubsamplingRate = dynamicConfig->SubsamplingRate;
+    }
 
     config->ServiceName = ServiceName;
     config->ProcessTags = ProcessTags;
@@ -209,6 +219,7 @@ void TJaegerTracer::Stop()
 void TJaegerTracer::Configure(const TJaegerTracerConfigPtr& config)
 {
     Config_.Store(config);
+    Flusher_->SetPeriod(config->FlushPeriod);
 }
 
 void TJaegerTracer::Enqueue(TTraceContextPtr trace)
@@ -247,6 +258,14 @@ void TJaegerTracer::DequeueAll(const TJaegerTracerConfigPtr& config)
     };
 
     for (const auto& trace : traces) {
+        if (config->SubsamplingRate && !trace->IsDebug()) {
+            auto traceHash = THash<TGuid>()(trace->GetTraceId());
+
+            if (((traceHash % 128) / 128.) > *config->SubsamplingRate) {
+                continue;
+            }
+        }
+
         ToProto(batch.add_spans(), trace);
 
         if (batch.spans_size() > config->MaxBatchSize) {

@@ -13,11 +13,7 @@ class TTracingExt;
 
 } // namespace NProto
 
-DECLARE_REFCOUNTED_CLASS(TTraceManagerConfig)
-DECLARE_REFCOUNTED_CLASS(TSamplingConfig)
-
 DECLARE_REFCOUNTED_CLASS(TTraceContext)
-DECLARE_REFCOUNTED_CLASS(TSampler)
 
 using TTraceId = TGuid;
 constexpr TTraceId InvalidTraceId = {};

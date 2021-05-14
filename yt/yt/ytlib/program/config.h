@@ -12,8 +12,6 @@
 
 #include <yt/yt/core/logging/config.h>
 
-#include <yt/yt/core/tracing/config.h>
-
 #include <yt/yt/core/profiling/config.h>
 
 #include <yt/yt/core/service_discovery/yp/config.h>

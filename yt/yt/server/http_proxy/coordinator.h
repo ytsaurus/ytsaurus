@@ -13,7 +13,7 @@
 
 #include <yt/yt/core/http/http.h>
 
-#include <yt/yt/core/tracing/sampler.h>
+#include <yt/yt/library/tracing/jaeger/sampler.h>
 
 #include <yt/yt/core/ytree/yson_serializable.h>
 
