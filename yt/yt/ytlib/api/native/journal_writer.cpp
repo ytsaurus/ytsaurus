@@ -1382,7 +1382,10 @@ private:
             while (!node->PendingBatches.empty()) {
                 auto batch = node->PendingBatches.front();
 
-                i64 replicaRowCountAfterFlush = node->FirstPendingBlockIndex + batch->RowCount;
+                i64 replicaRowCountAfterFlush =
+                    node->FirstPendingBlockIndex + // rows flushed to node
+                    flushRowCount +                // rows already in flush session
+                    batch->RowCount;               // rows in current batch
                 if (session->ReplicationFactorFlushedRowCount + Options_.ReplicaLagLimit < replicaRowCountAfterFlush) {
                     break;
                 }
