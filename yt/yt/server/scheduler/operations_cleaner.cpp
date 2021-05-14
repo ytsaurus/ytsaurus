@@ -956,6 +956,8 @@ private:
 
         YT_LOG_DEBUG("Finished committing archivation transaction (TransactionId: %v)", transaction->GetId());
 
+        YT_LOG_DEBUG("Operations archived (OperationIds: %v)", operationIds);
+
         CommittedDataWeightCounter_.Increment(totalDataWeight);
         ArchivedCounter_.Increment(operationIds.size());
     }
