@@ -88,7 +88,7 @@ class TGpuManagerConfig
 {
 public:
     bool Enable;
-    
+
     TDuration HealthCheckTimeout;
     TDuration HealthCheckPeriod;
 
@@ -233,6 +233,8 @@ public:
     std::optional<TShellCommandConfigPtr> JobSetupCommand;
     TString SetupCommandUser;
 
+    TDuration JobProxyBuildInfoUpdatePeriod;
+
     TJobControllerConfig()
     {
         RegisterParameter("resource_limits", ResourceLimits)
@@ -293,6 +295,9 @@ public:
         RegisterParameter("setup_command_user", SetupCommandUser)
             .Default("root");
 
+        RegisterParameter("job_proxy_build_info_update_period", JobProxyBuildInfoUpdatePeriod)
+            .Default(TDuration::Seconds(5));
+
         RegisterPreprocessor([&] () {
             // 100 kB/sec * 1000 [nodes] = 100 MB/sec that corresponds to
             // approximate incoming bandwidth of 1Gbit/sec of the scheduler.
@@ -325,7 +330,7 @@ public:
     std::optional<int> MaxInProgressJobSpecDataSize;
     std::optional<int> MaxInProgressJobStderrDataSize;
     std::optional<int> MaxInProgressJobFailContextDataSize;
-    
+
     TJobReporterConfig()
     {
         RegisterParameter("job_handler", JobHandler)

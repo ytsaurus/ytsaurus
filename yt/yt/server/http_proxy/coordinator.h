@@ -174,13 +174,14 @@ protected:
     const NApi::IClientPtr Client_;
     const TCoordinatorConfigPtr Config_;
 
-    std::vector<TString> GetInstances(const TString& path, bool fromSubdirectories = false);
+    std::vector<TString> GetInstances(const NYPath::TYPath& path, bool fromSubdirectories = false);
     std::vector<TInstance> ListComponent(const TString& component, const TString& type);
     std::vector<TInstance> ListProxies(const TString& component, const TString& type);
     std::vector<TInstance> GetAttributes(
-        const TString& path,
+        const NYPath::TYPath& path,
         const std::vector<TString>& instances,
-        const TString& type);
+        const TString& type,
+        const NYPath::TYPath& suffix = "/orchid/service");
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiscoverVersionsHandler)

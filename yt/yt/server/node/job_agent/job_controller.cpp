@@ -38,6 +38,9 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/library/process/process.h>
+#include <yt/yt/library/process/subprocess.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/misc/fs.h>
@@ -178,6 +181,9 @@ private:
 
     THashSet<int> FreePorts_;
 
+    mutable TInstant CachedJobProxyBuildInfoUpdateTime_ = TInstant::Zero();
+    mutable TYsonString CachedJobProxyBuildInfo_;
+
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
     void DoPrepareHeartbeatRequest(TCellTag cellTag, EObjectType jobObjectType, const TReqHeartbeatPtr& request);
@@ -254,6 +260,8 @@ private:
     void CheckReservedMappedMemory();
 
     TCounter* GetJobFinalStateCounter(EJobState state, EJobOrigin origin);
+
+    void BuildJobProxyBuildInfo(NYTree::TFluentAny fluent) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1455,8 +1463,49 @@ void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
             .Item("slot_manager").DoMap(BIND(
                 &NExecAgent::TSlotManager::BuildOrchidYson,
                 Bootstrap_->GetExecSlotManager()))
-
+            .Item("job_proxy_build").Do(BIND(&TJobController::TImpl::BuildJobProxyBuildInfo, MakeStrong(this)))
         .EndMap();
+}
+
+void TJobController::TImpl::BuildJobProxyBuildInfo(NYTree::TFluentAny fluent) const
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    auto now = TInstant::Now();
+    if (CachedJobProxyBuildInfoUpdateTime_ + Config_->JobProxyBuildInfoUpdatePeriod >= now) {
+        fluent.Value(CachedJobProxyBuildInfo_);
+        return;
+    }
+
+    CachedJobProxyBuildInfoUpdateTime_ = now;
+
+    try {
+        auto jobProxyPath = ResolveBinaryPath(JobProxyProgramName)
+            .ValueOrThrow();
+
+        TSubprocess jobProxy(jobProxyPath);
+        jobProxy.AddArguments({"--build", "--yson"});
+
+        auto result = jobProxy.Execute();
+        result.Status.ThrowOnError();
+
+        TMemoryInput input(result.Output.begin(), result.Output.size());
+        TYsonInput ysonInput(&input);
+
+        TString ysonBytes;
+        TStringOutput outputStream(ysonBytes);
+        TYsonWriter writer(&outputStream);
+        ParseYson(ysonInput, &writer);
+
+        CachedJobProxyBuildInfo_ = TYsonString(ysonBytes);
+    } catch (const TErrorException& ex) {
+        CachedJobProxyBuildInfo_ = BuildYsonStringFluently()
+            .BeginMap()
+                .Item("error").Value(ex.Error())
+            .EndMap();
+    }
+
+    fluent.Value(CachedJobProxyBuildInfo_);
 }
 
 IYPathServicePtr TJobController::TImpl::GetOrchidService()
