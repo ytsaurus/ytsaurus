@@ -7,7 +7,7 @@ from .default_config import get_dynamic_master_config
 from .helpers import (
     read_config, write_config, is_dead, OpenPortIterator,
     wait_for_removing_file_lock, get_value_from_config, WaitFailed,
-    is_port_opened)
+    is_port_opened, push_front_env_path)
 from .porto_helpers import PortoSubprocess, porto_avaliable
 from .watcher import ProcessWatcher
 from .init_cluster import _initialize_world
@@ -126,6 +126,7 @@ class YTInstance(object):
                  watcher_binary=None,
                  stderrs_path=None,
                  preserve_working_dir=False,
+                 external_bin_path=None,
                  tmpfs_path=None):
         _configure_logger()
 
@@ -143,7 +144,10 @@ class YTInstance(object):
         self._watcher_binary = watcher_binary
 
         self.path = os.path.realpath(os.path.abspath(path))
-        self.bin_path = os.path.abspath(os.path.join(self.path, "bin"))
+        if external_bin_path is not None:
+            self.bin_path = external_bin_path
+        else:
+            self.bin_path = os.path.abspath(os.path.join(self.path, "bin"))
         self.logs_path = os.path.abspath(os.path.join(self.path, "logs"))
         self.configs_path = os.path.abspath(os.path.join(self.path, "configs"))
         self.runtime_data_path = os.path.abspath(os.path.join(self.path, "runtime_data"))
@@ -168,14 +172,14 @@ class YTInstance(object):
                             "controller-agent", "timestamp-provider", "master-cache"]
                 for program in programs:
                     os.symlink(os.path.abspath(ytserver_all_path), os.path.join(self.bin_path, "ytserver-" + program))
-                os.environ["PATH"] = self.bin_path + ":" + os.environ["PATH"]
 
         if os.path.exists(self.bin_path):
             self.custom_paths = [self.bin_path]
         else:
             self.custom_paths = None
 
-        self._binaries = _get_yt_versions(custom_paths=self.custom_paths)
+        with push_front_env_path(self.bin_path):
+            self._binaries = _get_yt_versions(custom_paths=self.custom_paths)
         abi_versions = set(imap(lambda v: v.abi, self._binaries.values()))
         self.abi_version = abi_versions.pop()
 
@@ -794,8 +798,7 @@ class YTInstance(object):
             env = update(env, {"YT_ALLOC_CONFIG": "{enable_eager_memory_release=%true}"})
 
             p = self._subprocess_module.Popen(args, shell=False, close_fds=True, cwd=self.runtime_data_path,
-                                              env=env,
-                                              stdout=stdout, stderr=stderr)
+                                              env=env, stdout=stdout, stderr=stderr)
 
             self._validate_process_is_running(p, name, number)
 
@@ -822,13 +825,15 @@ class YTInstance(object):
         logger.info("Starting %s", name)
 
         for index in xrange(len(self.configs[name])):
-            args = [_get_yt_binary_path("ytserver-" + component, custom_paths=self.custom_paths)]
+            with push_front_env_path(self.bin_path):
+                args = [_get_yt_binary_path("ytserver-" + component, custom_paths=self.custom_paths)]
             if self._kill_child_processes:
                 args.extend(["--pdeathsig", str(int(signal.SIGKILL))])
             args.extend([config_option, self.config_paths[name][index]])
 
             number = None if len(self.configs[name]) == 1 else index
-            self._run(args, name, number=number)
+            with push_front_env_path(self.bin_path):
+                self._run(args, name, number=number)
 
     def _get_master_name(self, master_name, cell_index):
         if cell_index == 0:
@@ -1520,16 +1525,17 @@ class YTInstance(object):
 
         self._service_processes["watcher"].append(None)
 
-        self._watcher = ProcessWatcher(
-            self._watcher_binary,
-            self._pid_to_process.keys(),
-            log_paths,
-            lock_path=os.path.join(self.path, "lock_file"),
-            config_dir=self.configs_path,
-            logs_dir=self.logs_path,
-            runtime_dir=self.runtime_data_path,
-            process_runner=lambda args, env=None: self._run(args, "watcher", env=env),
-            config=self.watcher_config)
+        with push_front_env_path(self.bin_path):
+            self._watcher = ProcessWatcher(
+                self._watcher_binary,
+                self._pid_to_process.keys(),
+                log_paths,
+                lock_path=os.path.join(self.path, "lock_file"),
+                config_dir=self.configs_path,
+                logs_dir=self.logs_path,
+                runtime_dir=self.runtime_data_path,
+                process_runner=lambda args, env=None: self._run(args, "watcher", env=env),
+                config=self.watcher_config)
 
         try:
             self._watcher.start()

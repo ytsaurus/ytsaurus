@@ -1,10 +1,9 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
-from distutils.spawn import find_executable
-
 import subprocess
 import os
+import os.path
 
 ##################################################################
 
@@ -30,7 +29,7 @@ class TestSnapshotValidation(YTEnvSetup):
 
         config_path = os.path.join(self.path_to_run, "configs", "master-0-0.yson")
 
-        binary = find_executable("ytserver-master")
+        binary = os.path.join(self.bin_path, "ytserver-master")
 
         # NB: Sleep after initialize is required since the main thread otherwise can halt before
         # some other thread uses network.
@@ -56,7 +55,7 @@ class TestSnapshotValidation(YTEnvSetup):
         snapshots = ls(snapshot_path)
         assert snapshots
 
-        binary = find_executable("ytserver-node")
+        binary = os.path.join(self.bin_path, "ytserver-node")
 
         config_path = os.path.join(self.path_to_run, "configs", "node-0.yson")
 

@@ -15,14 +15,13 @@ import yt.common
 import yt.environment.init_operation_archive as init_operation_archive
 from yt.environment import arcadia_interop
 
-from distutils.spawn import find_executable
-
 import pytest
 from flaky import flaky
 
 import shutil
 import time
 import subprocess
+import os.path
 from datetime import timedelta
 
 ##################################################################
@@ -1221,7 +1220,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
                 "--batch",
                 "-ex",
                 "bt",
-                find_executable("ytserver-controller-agent"),
+                os.path.join(self.bin_path, "ytserver-controller-agent"),
                 core_path,
             ],
             stdout=subprocess.PIPE,

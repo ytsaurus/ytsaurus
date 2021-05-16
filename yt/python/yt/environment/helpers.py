@@ -35,6 +35,7 @@ import random
 import socket
 import subprocess
 import time
+import contextlib
 
 try:
     import yatest.common as yatest_common
@@ -411,3 +412,25 @@ class Restarter(object):
             except KeyError:
                 logger.error("Failed to start {}. No such component.".format(comp_name))
                 raise
+
+
+@contextlib.contextmanager
+def push_front_env_path(path):
+    """
+    Run everything as if os.environ["PATH"] is prepended with #path.
+
+    :type path: str
+    :param path: value to prepend PATH with.
+    """
+    old_env_path = os.environ.get("PATH")
+    if old_env_path is None:
+        os.environ["PATH"] = path
+    else:
+        os.environ["PATH"] = os.path.pathsep.join([path, old_env_path])
+    try:
+        yield
+    finally:
+        if old_env_path is None:
+            del os.environ["PATH"]
+        else:
+            os.environ["PATH"] = old_env_path
