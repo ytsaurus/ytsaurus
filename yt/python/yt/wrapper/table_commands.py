@@ -8,7 +8,7 @@ from .default_config import DEFAULT_WRITE_CHUNK_SIZE
 from .driver import make_request, make_formatted_request
 from .retries import default_chaos_monkey, run_chaos_monkey
 from .errors import YtIncorrectResponse, YtError, YtResponseError
-from .format import create_format, YsonFormat, StructuredSkiffFormat
+from .format import create_format, YsonFormat
 from .batch_response import apply_function_to_result
 from .heavy_commands import make_write_request, make_read_request
 from .parallel_writer import make_parallel_write_request
@@ -17,7 +17,6 @@ from .table_helpers import (_prepare_source_tables, _are_default_empty_table, _p
                             _remove_tables, DEFAULT_EMPTY_TABLE, _to_chunk_stream, _prepare_command_format)
 from .file_commands import _get_remote_temp_files_directory, _enrich_with_attributes
 from .parallel_reader import make_read_parallel_request
-from .schema import _create_row_py_schema, TableSchema
 from .ypath import TablePath, ypath_join
 
 import yt.json_wrapper as json
@@ -229,32 +228,6 @@ def write_table(table, input_stream, format=None, table_writer=None, max_row_buf
 
     if get_config(client)["yamr_mode"]["delete_empty_tables"] and is_empty(table, client=client):
         _remove_tables([table], client=client)
-
-def _try_get_schema(table, client=None):
-    table = TablePath(table, client=client)
-    try:
-        schema_node = get(table + "/@schema", client=client)
-        return TableSchema.from_yson_type(schema_node)
-    except YtResponseError as e:
-        if e.is_resolve_error():
-            return None
-        raise
-
-def write_table_structured(table, row_type, input_stream, table_writer=None, max_row_buffer_size=None,
-                           is_stream_compressed=False, force_create=None, client=None):
-    """Writes rows from input_stream to table in structured format. Cf. docstring for write_table"""
-    schema = _try_get_schema(table, client=client)
-    write_table(
-        table,
-        input_stream,
-        format=StructuredSkiffFormat([_create_row_py_schema(row_type, schema)], for_reading=False),
-        table_writer=table_writer,
-        max_row_buffer_size=max_row_buffer_size,
-        is_stream_compressed=is_stream_compressed,
-        force_create=force_create,
-        raw=False,
-        client=client,
-    )
 
 def _prepare_table_path_for_read_blob_table(table, part_index_column_name, client=None):
     table = TablePath(table, client=client)
@@ -691,8 +664,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
             raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)", response._get_response())
         set_response_parameters(response.response_parameters)
 
-    # TODO(levysotsky): Turn retries on for skiff.
-    allow_retries = not attributes.get("dynamic") and not isinstance(format, StructuredSkiffFormat)
+    allow_retries = not attributes.get("dynamic")
 
     # For read commands response is actually ResponseStream
     response = make_read_request(
@@ -708,32 +680,6 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
         return response
     else:
         return format.load_rows(response)
-
-def read_table_structured(table, row_type, table_reader=None, unordered=None,
-                          enable_read_parallel=None, client=None):
-    """Reads rows from table in structured format. Cf. docstring for read_table"""
-    schema = _try_get_schema(table, client=client)
-    control_attributes = {
-        "enable_row_index": True,
-        "enable_range_index": True,
-    }
-    py_schema = _create_row_py_schema(row_type, schema, control_attributes=control_attributes)
-    if not isinstance(table, TablePath):
-        table = TablePath(table)
-    columns = py_schema.get_columns_for_reading()
-    if columns is not None and "columns" not in table.attributes:
-        table.attributes["columns"] = columns
-    return read_table(
-        table,
-        format=StructuredSkiffFormat([py_schema], for_reading=True),
-        table_reader=table_reader,
-        control_attributes=control_attributes,
-        unordered=unordered,
-        raw=False,
-        response_parameters=None,
-        enable_read_parallel=enable_read_parallel,
-        client=client,
-    )
 
 def _are_valid_nodes(source_tables, destination_table):
     return \

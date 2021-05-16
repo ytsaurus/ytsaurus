@@ -9,13 +9,10 @@ from .errors import YtOperationFailedError
 from .file_commands import LocalFile, _touch_file_in_cache
 from .ypath import TablePath, FilePath
 from .py_wrapper import OperationParameters, TempfilesManager, get_local_temp_directory, WrapResult
-from .schema import TableSchema
 from .table_commands import is_empty, is_sorted
 from .table_helpers import (FileManager, _prepare_operation_formats, _is_python_function,
                             _prepare_python_command, _prepare_source_tables, _prepare_destination_tables,
                             _prepare_table_writer, _prepare_stderr_table)
-from .prepare_operation import (TypedJob, run_operation_preparation,
-                                SimpleOperationPreparationContext, IntermediateOperationPreparationContext)
 from .local_mode import is_local_mode, enable_local_files_usage_in_job
 
 import yt.logger as logger
@@ -604,17 +601,7 @@ class UserJobSpecBuilder(object):
     def _apply_spec_patch(self, spec):
         self._spec_patch = update(spec, self._spec_patch)
 
-    def _supports_row_index(self, operation_type):
-        return self._job_type != "reducer" or operation_type != "map_reduce"
-
-    @staticmethod
-    def _set_control_attribute(job_io_spec, key, value):
-        assert job_io_spec is not None
-        if "control_attributes" not in job_io_spec:
-            job_io_spec["control_attributes"] = {}
-        job_io_spec["control_attributes"][key] = value
-
-    def build(self, operation_preparation_context, operation_type, requires_command, requires_format, job_io_spec,
+    def build(self, input_tables, output_tables, operation_type, requires_command, requires_format, job_io_spec,
               local_files_to_remove=None, uploaded_files=None, group_by=None, client=None):
         """Builds final spec."""
         require(self._spec_builder is None, lambda: YtError("The job spec builder is incomplete"))
@@ -632,46 +619,24 @@ class UserJobSpecBuilder(object):
             return None
         require(self._spec.get("command") is not None, lambda: YtError("You should specify job command"))
 
-        command = spec["command"]
-
-        if not requires_format:
-            input_format, output_format = None, None
-            input_tables = operation_preparation_context.get_input_paths()
-            output_tables = operation_preparation_context.get_output_paths()
-            should_process_key_switch = False
-        elif isinstance(command, TypedJob):
-            if "input_format" in spec or "output_format" in spec or "format" in spec:
-                raise YtError("Typed job {} must not be used with explicit format specification".format(type(command)))
-            assert operation_preparation_context is not None
-            input_format, output_format, input_tables, output_tables = run_operation_preparation(
-                command,
-                operation_preparation_context,
-            )
-            should_process_key_switch = True
-            if self._supports_row_index(operation_type):
-                self._set_control_attribute(job_io_spec, "enable_row_index", True)
-            spec["enable_input_table_index"] = True
-        else:
+        should_process_key_switch = False
+        if requires_format:
             format_ = spec.pop("format", None)
-            input_tables = operation_preparation_context.get_input_paths()
-            output_tables = operation_preparation_context.get_output_paths()
             input_format, output_format = _prepare_operation_formats(
-                format_, spec.get("input_format"), spec.get("output_format"), command,
+                format_, spec.get("input_format"), spec.get("output_format"), spec["command"],
                 input_tables, output_tables, client)
-            should_process_key_switch = (
-                group_by is not None and
-                getattr(input_format, "control_attributes_mode", None) == "iterator" and
-                _is_python_function(spec["command"]) and
-                (enable_key_switch is None or enable_key_switch)
-            )
-
-        if should_process_key_switch:
-            self._set_control_attribute(job_io_spec, "enable_key_switch", True)
-
-        if input_format is not None:
+            if getattr(input_format, "control_attributes_mode", None) == "iterator" \
+                    and _is_python_function(spec["command"]) \
+                    and (enable_key_switch is None or enable_key_switch) \
+                    and group_by is not None:
+                if "control_attributes" not in job_io_spec:
+                    job_io_spec["control_attributes"] = {}
+                job_io_spec["control_attributes"]["enable_key_switch"] = True
+                should_process_key_switch = True
             spec["input_format"] = input_format.to_yson_type()
-        if output_format is not None:
             spec["output_format"] = output_format.to_yson_type()
+        else:
+            input_format, output_format = None, None
 
         spec = self._prepare_ld_library_path(spec, client)
         spec, tmpfs_size = self._prepare_job_files(
@@ -685,7 +650,7 @@ class UserJobSpecBuilder(object):
         spec = self._prepare_memory_limit(spec, client)
         spec = update(spec, self._user_spec)
         spec = update(get_config(client)["user_job_spec_defaults"], spec)
-        return spec, input_tables, output_tables
+        return spec
 
 class TaskSpecBuilder(UserJobSpecBuilder):
     """Builder for task section in vanilla operation spec.
@@ -877,76 +842,41 @@ class SpecBuilder(object):
             spec["stderr_table_path"] = _prepare_stderr_table(spec["stderr_table_path"], client=client)
         return spec
 
-    def _set_tables(self, spec, input_tables, output_tables, single_output_table=False):
-        if input_tables is not None:
-            self._input_table_paths = input_tables
-            spec["input_table_paths"] = list(imap(lambda table: table.to_yson_type(), self._input_table_paths))
-
-        if output_tables is not None:
-            output_tables_param = "output_table_path" if single_output_table else "output_table_paths"
-            if output_tables_param in spec:
-                self._output_table_paths = output_tables
-                if single_output_table:
-                    spec[output_tables_param] = self._output_table_paths[0].to_yson_type()
-                else:
-                    spec[output_tables_param] = list(imap(lambda table: table.to_yson_type(), self._output_table_paths))
-
     def _prepare_tables(self, spec, single_output_table=False, replace_unexisting_by_empty=True, client=None):
         require("input_table_paths" in spec,
                 lambda: YtError("You should specify input_table_paths"))
-        input_tables = _prepare_source_tables(
+
+        self._input_table_paths = _prepare_source_tables(
             spec["input_table_paths"],
             replace_unexisting_by_empty=replace_unexisting_by_empty,
             client=client)
+        spec["input_table_paths"] = list(imap(lambda table: table.to_yson_type(), self._input_table_paths))
+
         output_tables_param = "output_table_path" if single_output_table else "output_table_paths"
-        output_tables = None
         if output_tables_param in spec:
-            output_tables = _prepare_destination_tables(spec[output_tables_param], client=client)
-        self._set_tables(spec, input_tables, output_tables, single_output_table=single_output_table)
+            self._output_table_paths = _prepare_destination_tables(spec[output_tables_param], client=client)
+            if single_output_table:
+                spec[output_tables_param] = self._output_table_paths[0].to_yson_type()
+            else:
+                spec[output_tables_param] = list(imap(lambda table: table.to_yson_type(), self._output_table_paths))
 
-    def _build_simple_user_job_spec(self, spec, job_type, job_io_type,
-                                    requires_command=True, requires_format=True, group_by=None, client=None):
-        spec, input_tables, output_tables = self._build_user_job_spec(
-            spec,
-            job_type=job_type,
-            job_io_type=job_io_type,
-            requires_command=requires_command,
-            requires_format=requires_format,
-            group_by=group_by,
-            client=client,
-        )
-        self._set_tables(spec, input_tables, output_tables)
-        return spec
-
-    def _build_user_job_spec(self, spec, job_type, job_io_type,
-                             requires_command=True, requires_format=True, group_by=None,
-                             operation_preparation_context=None,
-                             client=None):
-        if operation_preparation_context is None:
-            operation_preparation_context = SimpleOperationPreparationContext(
-                self.get_input_table_paths(),
-                self.get_output_table_paths(),
-                client=client,
-            )
+    def _build_user_job_spec(self, spec, job_type, job_io_type, input_tables, output_tables,
+                             requires_command=True, requires_format=True, group_by=None, client=None):
         if isinstance(spec[job_type], UserJobSpecBuilder):
             job_spec_builder = spec[job_type]
-            spec[job_type], input_tables, output_tables = job_spec_builder.build(
-                operation_preparation_context=operation_preparation_context,
-                group_by=group_by,
-                local_files_to_remove=self._local_files_to_remove,
-                uploaded_files=self._uploaded_files,
-                operation_type=self.operation_type,
-                requires_command=requires_command,
-                requires_format=requires_format,
-                job_io_spec=spec.get(job_io_type),
-                client=client,
-            )
+            spec[job_type] = job_spec_builder.build(group_by=group_by,
+                                                    local_files_to_remove=self._local_files_to_remove,
+                                                    uploaded_files=self._uploaded_files,
+                                                    operation_type=self.operation_type,
+                                                    input_tables=input_tables,
+                                                    output_tables=output_tables,
+                                                    requires_command=requires_command,
+                                                    requires_format=requires_format,
+                                                    job_io_spec=spec.get(job_io_type),
+                                                    client=client)
             if spec[job_type] is None:
                 del spec[job_type]
-        else:
-            input_tables = operation_preparation_context.get_input_paths()
-            output_tables = operation_preparation_context.get_output_paths()
-        return spec, input_tables, output_tables
+        return spec
 
     def _build_job_io(self, spec, job_io_type, client=None):
         table_writer = None
@@ -1195,13 +1125,13 @@ class ReduceSpecBuilder(SpecBuilder):
             group_by = spec.get("join_by")
 
         if "reducer" in spec:
-            spec = self._build_simple_user_job_spec(
-                spec,
-                job_type="reducer",
-                job_io_type="job_io",
-                group_by=group_by,
-                client=client,
-            )
+            spec = self._build_user_job_spec(spec,
+                                             job_type="reducer",
+                                             job_io_type="job_io",
+                                             input_tables=self.get_input_table_paths(),
+                                             output_tables=self.get_output_table_paths(),
+                                             group_by=group_by,
+                                             client=client)
         spec = self._apply_spec_defaults(spec, client=client)
         return spec
 
@@ -1276,11 +1206,13 @@ class JoinReduceSpecBuilder(SpecBuilder):
         spec = self._prepared_spec
 
         if "reducer" in spec:
-            spec = self._build_simple_user_job_spec(spec,
-                                                    job_type="reducer",
-                                                    job_io_type="job_io",
-                                                    group_by=spec.get("join_by"),
-                                                    client=client)
+            spec = self._build_user_job_spec(spec,
+                                             job_type="reducer",
+                                             job_io_type="job_io",
+                                             input_tables=self.get_output_table_paths(),
+                                             output_tables=self.get_output_table_paths(),
+                                             group_by=spec.get("join_by"),
+                                             client=client)
         spec = self._apply_spec_defaults(spec, client=client)
         return spec
 
@@ -1350,12 +1282,12 @@ class MapSpecBuilder(SpecBuilder):
         spec = self._prepared_spec
 
         if "mapper" in spec:
-            spec = self._build_simple_user_job_spec(
-                spec=spec,
-                job_type="mapper",
-                job_io_type="job_io",
-                client=client,
-            )
+            spec = self._build_user_job_spec(spec=spec,
+                                             job_type="mapper",
+                                             job_io_type="job_io",
+                                             input_tables=self.get_input_table_paths(),
+                                             output_tables=self.get_output_table_paths(),
+                                             client=client)
         spec = self._apply_spec_defaults(spec, client=client)
         return spec
 
@@ -1461,7 +1393,7 @@ class MapReduceSpecBuilder(SpecBuilder):
 
     @spec_option("I/O settings of map jobs", nested_spec_builder=MapJobIOSpecBuilder)
     def map_job_io(self, job_io_spec):
-        self._spec["map_job_io"] = deepcopy(job_io_spec)
+        self._spec["map_job_io"] = job_io_spec
         return self
 
     def begin_map_job_io(self):
@@ -1470,7 +1402,7 @@ class MapReduceSpecBuilder(SpecBuilder):
 
     @spec_option("I/O settings of sort jobs", nested_spec_builder=SortJobIOSpecBuilder)
     def sort_job_io(self, job_io_spec):
-        self._spec["sort_job_io"] = deepcopy(job_io_spec)
+        self._spec["sort_job_io"] = job_io_spec
         return self
 
     def begin_sort_job_io(self):
@@ -1479,7 +1411,7 @@ class MapReduceSpecBuilder(SpecBuilder):
 
     @spec_option("I/O settings of reduce jobs", nested_spec_builder=ReduceJobIOSpecBuilder)
     def reduce_job_io(self, job_io_spec):
-        self._spec["reduce_job_io"] = deepcopy(job_io_spec)
+        self._spec["reduce_job_io"] = job_io_spec
         return self
 
     def begin_reduce_job_io(self):
@@ -1510,149 +1442,41 @@ class MapReduceSpecBuilder(SpecBuilder):
 
         self._prepare_spec(spec, client=client)
 
-    def _do_build_mapper(self, spec, client):
-        additional_mapper_output_table_count = spec.get("mapper_output_table_count", 0)
-        additional_mapper_output_table_slice = slice(
-            len(self.get_output_table_paths()) - additional_mapper_output_table_count,
-            len(self.get_output_table_paths()))
-        intermediate_stream_count = 1
-
-        if isinstance(spec["mapper"], UserJobSpecBuilder):
-            command = spec["mapper"]._spec["command"]
-        else:
-            command = spec["mapper"].get("command")
-
-        if isinstance(command, TypedJob) and command.get_intermediate_stream_count() is not None:
-            intermediate_stream_count = command.get_intermediate_stream_count()
-
-        mapper_output_tables = [None] * intermediate_stream_count + \
-            self.get_output_table_paths()[additional_mapper_output_table_slice]
-
-        operation_preparation_context = SimpleOperationPreparationContext(
-            self.get_input_table_paths(),
-            mapper_output_tables,
-            client=client,
-        )
-
-        spec, input_tables, mapper_output_tables = self._build_user_job_spec(
-            spec,
-            job_type="mapper",
-            job_io_type="map_job_io",
-            requires_command=False,
-            operation_preparation_context=operation_preparation_context,
-            client=client,
-        )
-
-        output_tables = self.get_output_table_paths()
-        output_tables[additional_mapper_output_table_slice] = \
-            mapper_output_tables[additional_mapper_output_table_slice]
-        self._set_tables(spec, input_tables, output_tables)
-
-        if isinstance(command, TypedJob):
-            intermediate_streams = []
-            for intermediate_table_path in mapper_output_tables[:intermediate_stream_count]:
-                schema = intermediate_table_path.attributes.get("schema")
-                if schema is None:
-                    schema = TableSchema()
-                else:
-                    schema = schema.build_schema_sorted_by(spec["sort_by"])
-                intermediate_streams.append({
-                    "schema": schema,
-                })
-            spec["mapper"]["output_streams"] = intermediate_streams
-            intermediate_stream_schemas = [stream["schema"] for stream in intermediate_streams]
-        else:
-            intermediate_stream_schemas = [None]
-
-        return spec, intermediate_stream_schemas
-
-    def _do_build_reduce_combiner(self, spec, is_first_task, intermediate_stream_schemas, client):
-        if is_first_task:
-            intermediate_stream_count = len(self.get_input_table_paths())
-            operation_preparation_context = SimpleOperationPreparationContext(
-                self.get_input_table_paths(),
-                [None] * intermediate_stream_count,
-                client=client,
-            )
-            intermediate_stream_schemas = operation_preparation_context.get_input_schemas()
-        else:
-            intermediate_stream_count = len(intermediate_stream_schemas)
-            operation_preparation_context = IntermediateOperationPreparationContext(
-                intermediate_stream_schemas,
-                [None] * intermediate_stream_count,
-                client=client,
-            )
-        spec, input_tables, _ = self._build_user_job_spec(
-            spec,
-            job_type="reduce_combiner",
-            job_io_type="reduce_job_io",
-            group_by=spec.get("reduce_by"),
-            requires_command=False,
-            operation_preparation_context=operation_preparation_context,
-            client=client,
-        )
-        if is_first_task:
-            self._set_tables(spec, input_tables, output_tables=None)
-        return spec, intermediate_stream_schemas
-
-    def _do_build_reducer(self, spec, is_first_task, intermediate_stream_schemas, client):
-        additional_mapper_output_table_count = spec.get("mapper_output_table_count", 0)
-        reducer_output_tables = self.get_output_table_paths()[additional_mapper_output_table_count:]
-        if is_first_task:
-            operation_preparation_context = SimpleOperationPreparationContext(
-                self.get_input_table_paths(),
-                reducer_output_tables,
-                client=client,
-            )
-        else:
-            operation_preparation_context = IntermediateOperationPreparationContext(
-                intermediate_stream_schemas,
-                reducer_output_tables,
-                client=client,
-            )
-        spec, input_tables, reducer_output_tables = self._build_user_job_spec(
-            spec,
-            job_type="reducer",
-            job_io_type="reduce_job_io",
-            group_by=spec.get("reduce_by"),
-            operation_preparation_context=operation_preparation_context,
-            client=client,
-        )
-        if not is_first_task:
-            input_tables = None
-        output_tables = self.get_output_table_paths()
-        output_tables[additional_mapper_output_table_count:] = reducer_output_tables
-        self._set_tables(spec, input_tables, output_tables)
-        return spec
-
     def _do_build(self, client=None):
         if self._prepared_spec is None:
             self.prepare(client)
         spec = self._prepared_spec
 
-        is_first_task = True
-        intermediate_stream_schemas = None
-        if "mapper" in spec:
-            spec, intermediate_stream_schemas = self._do_build_mapper(
-                spec,
-                client=client)
-            is_first_task = False
-        if "reduce_combiner" in spec:
-            spec, intermediate_stream_schemas = self._do_build_reduce_combiner(
-                spec,
-                is_first_task,
-                intermediate_stream_schemas,
-                client=client,
-            )
-            is_first_task = False
-        if "reducer" in spec:
-            spec = self._do_build_reducer(
-                spec,
-                is_first_task,
-                intermediate_stream_schemas,
-                client=client,
-            )
+        additional_mapper_output_table_count = spec.get("mapper_output_table_count", 0)
+        reducer_output_table_count = len(self.get_output_table_paths()) - additional_mapper_output_table_count
+        reducer_output_tables = self.get_output_table_paths()[:reducer_output_table_count]
+        mapper_output_tables = [None] + self.get_output_table_paths()[reducer_output_table_count:]
 
+        if "mapper" in spec:
+            spec = self._build_user_job_spec(spec,
+                                             job_type="mapper",
+                                             job_io_type="map_job_io",
+                                             input_tables=self.get_input_table_paths(),
+                                             output_tables=mapper_output_tables,
+                                             requires_command=False,
+                                             client=client)
+        if "reducer" in spec:
+            spec = self._build_user_job_spec(spec,
+                                             job_type="reducer",
+                                             job_io_type="reduce_job_io",
+                                             input_tables=[None],
+                                             output_tables=reducer_output_tables,
+                                             group_by=spec.get("reduce_by"),
+                                             client=client)
+        if "reduce_combiner" in spec:
+            spec = self._build_user_job_spec(spec,
+                                             job_type="reduce_combiner",
+                                             job_io_type="reduce_job_io",
+                                             input_tables=[None],
+                                             output_tables=[None],
+                                             group_by=spec.get("reduce_by"),
+                                             requires_command=False,
+                                             client=client)
         spec = self._apply_spec_defaults(spec, client=client)
         return spec
 
@@ -2001,13 +1825,13 @@ class VanillaSpecBuilder(SpecBuilder):
             assert len(task_path) == 2
             assert task_path[0] == "tasks"
             task = task_path[-1]
-            spec["tasks"], _, _ = self._build_user_job_spec(
-                spec=spec["tasks"],
-                job_type=task,
-                job_io_type=None,
-                client=client,
-                requires_format=False,
-            )
+            spec["tasks"] = self._build_user_job_spec(spec=spec["tasks"],
+                                                      job_type=task,
+                                                      job_io_type=None,
+                                                      input_tables=[],
+                                                      output_tables=[],
+                                                      client=client,
+                                                      requires_format=False)
         return spec
 
     def supports_user_job_spec(self):

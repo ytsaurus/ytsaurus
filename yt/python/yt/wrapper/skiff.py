@@ -1,7 +1,7 @@
 from .errors import YtError
 
 try:
-    from yt.skiff import SkiffRecord, SkiffSchema, SkiffTableSwitch, SkiffOtherColumns # noqa
+    from yt.skiff import SkiffRecord, SkiffSchema, SkiffTableSwitch # noqa
 except ImportError:
     pass
 
@@ -30,14 +30,6 @@ def dump(*args, **kwargs):
 def dumps(*args, **kwargs):
     check_skiff_bindings()
     return yt.skiff.dumps(*args, **kwargs)
-
-def load_structured(*args, **kwargs):
-    check_skiff_bindings()
-    return yt.skiff.load_structured(*args, **kwargs)
-
-def dump_structured(*args, **kwargs):
-    check_skiff_bindings()
-    return yt.skiff.dump_structured(*args, **kwargs)
 
 def _convert_to_skiff_type(type_name):
     types_dict = {
