@@ -59,42 +59,55 @@ static const auto ResolveRetryTimeout = TDuration::Seconds(1);
 
 TErrorOr<TString> ResolveBinaryPath(const TString& binary)
 {
+    auto Logger = NYT::Logger
+        .WithTag("Binary: %Qv", binary);
+    YT_LOG_DEBUG("Resolving binary path");
+
     std::vector<TError> accumulatedErrors;
 
     auto test = [&] (const char* path) {
+        YT_LOG_DEBUG("Probing path (Path: %Qv)", path);
         if (access(path, R_OK | X_OK) == 0) {
             return true;
         } else {
-            auto error = TError("No capabilities to run %Qlv", path) << TError::FromSystem();
+            auto error = TError("Cannot run %Qlv", path) << TError::FromSystem();
             accumulatedErrors.push_back(std::move(error));
             return false;
         }
     };
 
-    auto done = [&] () {
+    auto failure = [&] {
         auto error = TError(
             EProcessErrorCode::CannotResolveBinary,
             "Cannot resolve binary %Qlv",
             binary);
         error.MutableInnerErrors()->swap(accumulatedErrors);
+        YT_LOG_DEBUG(error, "Error resolving binary path");
         return error;
     };
 
+    auto success = [&] (const TString& path) {
+        YT_LOG_DEBUG("Binary resolved (Path: %Qv)", path);
+        return path;
+    };
+
     if (test(binary.c_str())) {
-        return binary;
+        return success(binary);
     }
 
     // If this is an absolute path, stop here.
     if (binary.empty() || binary[0] == '/') {
-        return done();
+        return failure();
     }
 
     // XXX(sandello): Sometimes we drop PATH from environment when spawning isolated processes.
     // In this case, try to locate somewhere nearby.
     {
-        auto probe = TString::Join(GetDirName(GetExecPath()), "/", binary);
+        auto execPathDirName = GetDirName(GetExecPath());
+        YT_LOG_DEBUG("Looking in our exec path directory (ExecPathDir: %Qv)", execPathDirName);
+        auto probe = TString::Join(execPathDirName, "/", binary);
         if (test(probe.c_str())) {
-            return probe;
+            return success(probe);
         }
     }
 
@@ -103,6 +116,8 @@ TErrorOr<TString> ResolveBinaryPath(const TString& binary)
     auto envPathStr = GetEnv("PATH");
     TStringBuf envPath(envPathStr);
     TStringBuf envPathItem;
+
+    YT_LOG_DEBUG("Looking for binary in PATH (Path: %Qv)", envPathStr);
 
     while (envPath.NextTok(':', envPathItem)) {
         if (buffer.size() < 2 + envPathItem.size() + binary.size()) {
@@ -119,11 +134,11 @@ TErrorOr<TString> ResolveBinaryPath(const TString& binary)
         buffer[index] = 0;
 
         if (test(buffer.data())) {
-            return TString(buffer.data(), index);
+            return success(TString(buffer.data(), index));
         }
     }
 
-    return done();
+    return failure();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

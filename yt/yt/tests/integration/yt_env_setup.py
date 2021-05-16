@@ -6,7 +6,7 @@ from yt_helpers import get_current_time, parse_yt_time
 
 from yt.environment import YTInstance, arcadia_interop
 from yt.environment.api import LocalYtConfig
-from yt.environment.helpers import emergency_exit_within_tests
+from yt.environment.helpers import emergency_exit_within_tests, push_front_env_path
 from yt.environment.default_config import (
     get_dynamic_master_config,
     get_dynamic_node_config,
@@ -64,6 +64,8 @@ def prepare_yatest_environment(need_suid, artifact_components=None):
         # So just skip such components.
         artifact_components.pop("trunk")
 
+    bin_path = os.path.join(destination, "bin")
+
     if not os.path.exists(destination):
         os.makedirs(destination)
         path = arcadia_interop.prepare_yt_environment(
@@ -73,7 +75,7 @@ def prepare_yatest_environment(need_suid, artifact_components=None):
             need_suid=need_suid and not ytrecipe,
             artifact_components=artifact_components,
         )
-        os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
+        assert path == bin_path
 
     if ytrecipe:
         SANDBOX_ROOTDIR = os.environ.get("YT_OUTPUT")
@@ -81,6 +83,8 @@ def prepare_yatest_environment(need_suid, artifact_components=None):
         SANDBOX_ROOTDIR = arcadia_interop.yatest_common.output_path()
     else:
         SANDBOX_ROOTDIR = arcadia_interop.yatest_common.output_ram_drive_path()
+
+    return bin_path
 
 
 def _retry_with_gc_collect(func, driver=None):
@@ -332,6 +336,7 @@ class YTEnvSetup(object):
             kill_child_processes=True,
             modify_configs_func=modify_configs_func,
             stderrs_path=os.path.join(arcadia_interop.yatest_common.output_path("yt_stderrs"), cls.run_name, str(index)),
+            external_bin_path=cls.bin_path
         )
 
         instance._cluster_name = cls.get_cluster_name(index)
@@ -376,7 +381,7 @@ class YTEnvSetup(object):
         cls.liveness_checkers.append(log_rotator)
 
         # The following line initializes SANDBOX_ROOTDIR.
-        prepare_yatest_environment(need_suid=need_suid, artifact_components=cls.ARTIFACT_COMPONENTS)
+        cls.bin_path = prepare_yatest_environment(need_suid=need_suid, artifact_components=cls.ARTIFACT_COMPONENTS)
         cls.path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
 
         cls.run_id = None
