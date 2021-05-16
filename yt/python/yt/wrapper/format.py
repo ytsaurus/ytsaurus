@@ -7,7 +7,6 @@ from .config import get_config
 from .common import get_value, require, filter_dict, merge_dicts, YtError, parse_bool, declare_deprecated, flatten
 from .mappings import FrozenDict
 from .yamr_record import Record, SimpleRecord, SubkeyedRecord
-from . import schema
 from . import yson
 try:
     from . import skiff
@@ -114,19 +113,6 @@ class RowsIterator(Iterator):
 
     def __iter__(self):
         return self
-
-    def get_table_index(self):
-        return self.table_index
-    
-    def get_key_switch(self):
-        return self.key_switch
-
-    def get_row_index(self):
-        return self.row_index
-
-    def get_range_index(self):
-        return self.range_index
-
 
 # This function should not be put inside class method to avoid reference loop.
 def rows_generator(rows, extract_control_attributes,
@@ -380,47 +366,6 @@ class Format(object):
     def dumps_node(self):
         """Load python object from byte string. Supported obly for structured format (JSON and YSON)."""
         raise NotImplementedError("Implemented only for JsonFormat and YsonFormat")
-
-
-class StructuredSkiffFormat(Format):
-    def __init__(self, py_schemas, for_reading, raw=None):
-        assert not raw
-        schema.check_schema_module_available()
-        self._for_reading = for_reading
-        self._py_schemas = py_schemas
-        for py_schema in self._py_schemas:
-            schema._validate_py_schema(py_schema, for_reading=for_reading)
-        self._skiff_schemas = [
-            schema._row_py_schema_to_skiff_schema(py_schema, for_reading=for_reading)
-            for py_schema in self._py_schemas
-        ]
-        attributes = {
-            "table_skiff_schemas": self._skiff_schemas,
-        }
-        super(StructuredSkiffFormat, self).__init__("skiff", attributes=attributes, raw=raw)
-
-    def load_row(self, stream, raw=None):
-        """Not supported."""
-        raise YtFormatError("load_row is not supported in StructuredSkiffFormat")
-
-    def load_rows(self, stream, raw=None):
-        assert self._for_reading
-        assert not raw
-        skiff_schemas = [skiff.SkiffSchema([s]) for s in self._skiff_schemas]
-        return skiff.load_structured(stream, self._py_schemas, skiff_schemas)
-
-    def _dump_row(self, row, stream):
-        self._dump_rows([row], stream)
-
-    def _dump_rows(self, rows, stream_or_streams):
-        assert not self._for_reading
-        streams = stream_or_streams if isinstance(stream_or_streams, list) else [stream_or_streams]
-        skiff_schemas = [skiff.SkiffSchema([s]) for s in self._skiff_schemas]
-        skiff.dump_structured(rows, streams, self._py_schemas, skiff_schemas)
-
-    def _check_bindings(self):
-        schema.check_schema_module_available()
-
 
 class SkiffFormat(Format):
     """Efficient schemaful format

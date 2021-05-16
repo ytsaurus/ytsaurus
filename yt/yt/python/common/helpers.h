@@ -37,13 +37,24 @@ TString Str(const Object& obj);
 
 Object CreateIterator(const Object& object);
 
-NYT::TError BuildErrorFromPythonException(bool clear = false);
+NYT::TError BuildErrorFromPythonException();
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace Py
 
 namespace NYT::NPython {
+
+////////////////////////////////////////////////////////////////////////////////
+
+// NOTE: We want to avoid using specific PyCXX objects (e.g. Py::Bytes) to avoid unnecessary checks in hot path.
+
+struct TPyObjectDeleter
+{
+    void operator() (PyObject* object) const;
+};
+
+using PyObjectPtr = std::unique_ptr<PyObject, TPyObjectDeleter>; // decltype(&Py::_XDECREF)>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,8 +105,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-PyObject* FindModuleAttribute(const TString& moduleName, const TString& attributeName);
-PyObject* GetModuleAttribute(const TString& moduleName, const TString& attributeName);
 PyObject* GetYsonTypeClass(const std::string& name);
 PyObject* FindYsonTypeClass(const std::string& name);
 
@@ -104,19 +113,5 @@ PyObject* FindYsonTypeClass(const std::string& name);
 bool WaitForSettingFuture(TFuture<void> future);
 
 ///////////////////////////////////////////////////////////////////////////////
-
-struct TPyObjectDeleter
-{
-    void operator() (PyObject* object) const
-    {
-        Py_XDECREF(object);
-    }
-};
-
-// Use PyObjectPtr instead of specific PyCXX objects (e.g. Py::Bytes)
-// to avoid redundant checks (i.e. in hot paths).
-using PyObjectPtr = std::unique_ptr<PyObject, TPyObjectDeleter>;
-
-////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NPython

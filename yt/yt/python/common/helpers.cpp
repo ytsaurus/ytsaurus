@@ -28,9 +28,7 @@ TStringBuf ConvertToStringBuf(PyObject* pyString)
 {
     char* stringData;
     Py_ssize_t length;
-    if (PyBytes_AsStringAndSize(pyString, &stringData, &length) == -1) {
-        throw Py::Exception();
-    }
+    PyBytes_AsStringAndSize(pyString, &stringData, &length);
     return TStringBuf(stringData, length);
 }
 
@@ -93,7 +91,7 @@ Object CreateIterator(const Object& obj)
     return Object(iter, true);
 }
 
-TError BuildErrorFromPythonException(bool clear)
+TError BuildErrorFromPythonException()
 {
     PyObject* errorTypeRaw;
     PyObject* errorValueRaw;
@@ -114,9 +112,7 @@ TError BuildErrorFromPythonException(bool clear)
     }
 
     auto restoreGuard = Finally([&] {
-        if (!clear) {
-            PyErr_Restore(errorType.ptr(), errorValue.ptr(), errorBacktrace.ptr());
-        }
+        PyErr_Restore(errorType.ptr(), errorValue.ptr(), errorBacktrace.ptr());
     });
 
     if (errorType.isNone()) {
@@ -239,32 +235,17 @@ Py::Callable TPythonClassObject::Get()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-PyObject* FindModuleAttribute(const TString& moduleName, const TString& attributeName)
-{
-    auto module = PyObjectPtr(PyImport_ImportModuleNoBlock(moduleName.c_str()));
-    if (!module) {
-        throw Py::ImportError(Format("No module named %Qv", moduleName));
-    }
-    if (!PyObject_HasAttrString(module.get(), attributeName.c_str())) {
-        return nullptr;
-    }
-    return PyObject_GetAttrString(module.get(), attributeName.c_str());
-}
-
-PyObject* GetModuleAttribute(const TString& moduleName, const TString& attributeName)
-{
-    auto attribute = FindModuleAttribute(moduleName, attributeName);
-    if (!attribute) {
-        throw Py::ImportError(Format("Cannot import name %Qv from module %Qv",
-            attributeName,
-            moduleName));
-    }
-    return attribute;
-}
-
 PyObject* FindYsonTypeClass(const std::string& name)
 {
-    return FindModuleAttribute("yt.yson.yson_types", TString(name));
+    // TODO(ignat): Make singleton
+    static PyObject* ysonTypesModule = PyImport_ImportModuleNoBlock("yt.yson.yson_types");
+    if (!ysonTypesModule) {
+        throw Py::RuntimeError("Failed to import module yt.yson.yson_types");
+    }
+    if (!PyObject_HasAttrString(ysonTypesModule, name.c_str())) {
+        return nullptr;
+    }
+    return PyObject_GetAttrString(ysonTypesModule, name.c_str());
 }
 
 PyObject* GetYsonTypeClass(const std::string& name)

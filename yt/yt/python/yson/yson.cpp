@@ -16,7 +16,6 @@
 #include "skiff/serialize.h"
 #include "skiff/switch.h"
 #include "skiff/raw_iterator.h"
-#include "skiff/structured_iterator.h"
 
 #include <yt/yt/python/common/shutdown.h>
 #include <yt/yt/python/common/helpers.h>
@@ -263,8 +262,6 @@ public:
         TSkiffTableSwitchPython::InitType();
         TSkiffIterator::InitType();
         TSkiffRawIterator::InitType();
-        TSkiffStructuredIterator::InitType();
-        TSkiffOtherColumns::InitType();
 
         PyType_Ready(TLazyYsonMapBaseType);
         PyType_Ready(TLazyYsonMapType);
@@ -286,20 +283,15 @@ public:
         add_keyword_method("load_skiff", &TYsonModule::LoadSkiff, "Loads Skiff from stream");
         add_keyword_method("dump_skiff", &TYsonModule::DumpSkiff, "Dumps Skiff to stream");
 
-        add_keyword_method("load_skiff_structured", &TYsonModule::LoadSkiffStructured, "Loads Skiff rows from stream in structured form");
-        add_keyword_method("dump_skiff_structured", &TYsonModule::DumpSkiffStructured, "Dumps Skiff rows to stream in structured form");
-
-        initialize("Python bindings for YSON and Skiff");
+        initialize("Python bindings for YSON");
 
         Py::Dict moduleDict(moduleDictionary());
         Py::Object skiffRecordClass(TSkiffRecordPython::type());
         Py::Object skiffSchemaClass(TSkiffSchemaPython::type());
         Py::Object skiffTableSwitchClass(TSkiffTableSwitchPython::type());
-        Py::Object skiffOtherColumns(TSkiffOtherColumns::type());
         moduleDict.setItem("SkiffRecord", skiffRecordClass);
         moduleDict.setItem("SkiffSchema", skiffSchemaClass);
         moduleDict.setItem("SkiffTableSwitch", skiffTableSwitchClass);
-        moduleDict.setItem("SkiffOtherColumns", skiffOtherColumns);
 
         RegisterShutdown();
     }
@@ -448,20 +440,6 @@ public:
         auto args = args_;
         auto kwargs = kwargs_;
         return NPython::DumpSkiff(args, kwargs);
-    }
-
-    Py::Object LoadSkiffStructured(const Py::Tuple& args_, const Py::Dict& kwargs_)
-    {
-        auto args = args_;
-        auto kwargs = kwargs_;
-        return NPython::LoadSkiffStructured(args, kwargs);
-    }
-
-    Py::Object DumpSkiffStructured(const Py::Tuple& args_, const Py::Dict& kwargs_)
-    {
-        auto args = args_;
-        auto kwargs = kwargs_;
-        return NPython::DumpSkiffStructured(args, kwargs);
     }
 
     virtual ~TYsonModule()
