@@ -496,7 +496,7 @@ void TPingHandler::HandleRequest(
         return;
     }
 
-    rsp->SetStatus(Coordinator_->IsBanned() || Coordinator_->IsDead(Coordinator_->GetSelf(), TInstant::Now()) 
+    rsp->SetStatus(Coordinator_->IsBanned() || Coordinator_->IsDead(Coordinator_->GetSelf(), TInstant::Now())
         ? EStatusCode::ServiceUnavailable
         : EStatusCode::OK);
     WaitFor(rsp->Close())
@@ -641,7 +641,7 @@ std::vector<TInstance> TDiscoverVersionsHandler::ListProxies(
     return instances;
 }
 
-std::vector<TString> TDiscoverVersionsHandler::GetInstances(const TString& path, bool fromSubdirectories)
+std::vector<TString> TDiscoverVersionsHandler::GetInstances(const TYPath& path, bool fromSubdirectories)
 {
     std::vector<TString> instances;
     if (fromSubdirectories) {
@@ -663,9 +663,10 @@ std::vector<TString> TDiscoverVersionsHandler::GetInstances(const TString& path,
 }
 
 std::vector<TInstance> TDiscoverVersionsHandler::GetAttributes(
-    const TString& path,
+    const TYPath& path,
     const std::vector<TString>& instances,
-    const TString& type)
+    const TString& type,
+    const TYPath& suffix)
 {
     const auto OrchidTimeout = TDuration::Seconds(1);
 
@@ -675,31 +676,36 @@ std::vector<TInstance> TDiscoverVersionsHandler::GetAttributes(
 
     std::vector<TFuture<TYsonString>> responses;
     for (const auto& instance : instances) {
-        responses.push_back(Client_->GetNode(path + "/" + instance + "/orchid/service"));
+        responses.push_back(Client_->GetNode(path + "/" + instance + suffix));
     }
 
     std::vector<TInstance> results;
     for (size_t i = 0; i < instances.size(); ++i) {
         auto ysonOrError = WaitFor(responses[i]);
 
-        TInstance result;
+        auto& result = results.emplace_back();
         result.Type = type;
 
         TVector<TString> parts;
         Split(instances[i], "/", parts);
         result.Address = parts.back();
-        if (ysonOrError.IsOK()) {
-            auto rspMap = ConvertToNode(ysonOrError.Value())->AsMap();
-            auto version = ConvertTo<TString>(rspMap->GetChildOrThrow("version"));
-            auto startTime = ConvertTo<TString>(rspMap->GetChildOrThrow("start_time"));
-
-            result.Version = version;
-            result.StartTime = startTime;
-        } else {
+        if (!ysonOrError.IsOK()) {
             result.Error = ysonOrError;
+            continue;
         }
 
-        results.push_back(result);
+        auto rspMap = ConvertToNode(ysonOrError.Value())->AsMap();
+
+        if (auto errorNode = rspMap->FindChild("error")) {
+            result.Error = ConvertTo<TError>(errorNode);
+            continue;
+        }
+
+        auto version = ConvertTo<TString>(rspMap->GetChildOrThrow("version"));
+        auto startTime = ConvertTo<TString>(rspMap->GetChildOrThrow("start_time"));
+
+        result.Version = version;
+        result.StartTime = startTime;
     }
     return results;
 };
@@ -819,6 +825,7 @@ void TDiscoverVersionsHandlerV2::HandleRequest(
     add(GetAttributes("//sys/scheduler/instances", GetInstances("//sys/scheduler/instances"), "scheduler"));
     add(GetAttributes("//sys/controller_agents/instances", GetInstances("//sys/controller_agents/instances"), "controller_agent"));
     add(ListComponent("cluster_nodes", "node"));
+    add(GetAttributes("//sys/cluster_nodes", GetInstances("//sys/cluster_nodes"), "job_proxy", "/orchid/job_controller/job_proxy_build"));
     add(ListProxies("proxies", "http_proxy"));
     add(ListProxies("rpc_proxies", "rpc_proxy"));
 
