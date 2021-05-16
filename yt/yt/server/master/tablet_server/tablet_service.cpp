@@ -123,7 +123,11 @@ private:
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* cellBundle = table->GetTabletCellBundle();
-        securityManager->ValidatePermission(cellBundle, EPermission::Use);
+        if (cellBundle) {
+            securityManager->ValidatePermission(cellBundle, EPermission::Use);
+        } else {
+            THROW_ERROR_EXCEPTION("Table has null cell bundle (TableId: %v)", table->GetId());
+        }
     }
 
 
