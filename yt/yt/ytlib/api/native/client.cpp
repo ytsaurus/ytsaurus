@@ -86,7 +86,6 @@ TClient::TClient(
     const TClientOptions& options)
     : Connection_(std::move(connection))
     , Options_(options)
-    , ConcurrentRequestsSemaphore_(New<TAsyncSemaphore>(Connection_->GetConfig()->MaxConcurrentRequests))
     , Logger(ApiLogger.WithTag("ClientId: %v", TGuid::Create()))
 {
     if (!Options_.User) {
@@ -248,40 +247,40 @@ TFuture<T> TClient::Execute(
     TCallback<T()> callback)
 {
     auto promise = NewPromise<T>();
-    ConcurrentRequestsSemaphore_->AsyncAcquire(
-        BIND([
-            commandName,
-            promise,
-            callback = std::move(callback),
-            this,
-            this_ = MakeWeak(this)
-        ] (TAsyncSemaphoreGuard /*guard*/) mutable {
-            auto client = this_.Lock();
-            if (!client) {
-                return;
-            }
+    BIND([
+        commandName,
+        promise,
+        callback = std::move(callback),
+        this,
+        this_ = MakeWeak(this)
+    ] () mutable {
+        auto client = this_.Lock();
+        if (!client) {
+            return;
+        }
 
-            if (promise.IsCanceled()) {
-                return;
-            }
+        if (promise.IsCanceled()) {
+            return;
+        }
 
-            auto canceler = NConcurrency::GetCurrentFiberCanceler();
-            if (canceler) {
-                promise.OnCanceled(std::move(canceler));
-            }
+        auto canceler = NConcurrency::GetCurrentFiberCanceler();
+        if (canceler) {
+            promise.OnCanceled(std::move(canceler));
+        }
 
+        try {
+            YT_LOG_DEBUG("Command started (Command: %v)", commandName);
+            TBox<T> result(callback);
+            YT_LOG_DEBUG("Command completed (Command: %v)", commandName);
+            result.SetPromise(promise);
+        } catch (const std::exception& ex) {
+            YT_LOG_DEBUG(ex, "Command failed (Command: %v)", commandName);
+            promise.Set(TError(ex));
+        }
+    })
+        .Via(Connection_->GetInvoker())
+        .Run();
 
-            try {
-                YT_LOG_DEBUG("Command started (Command: %v)", commandName);
-                TBox<T> result(callback);
-                YT_LOG_DEBUG("Command completed (Command: %v)", commandName);
-                result.SetPromise(promise);
-            } catch (const std::exception& ex) {
-                YT_LOG_DEBUG(ex, "Command failed (Command: %v)", commandName);
-                promise.Set(TError(ex));
-            }
-        }),
-        Connection_->GetInvoker());
     return promise
         .ToFuture()
         .WithTimeout(options.Timeout);
