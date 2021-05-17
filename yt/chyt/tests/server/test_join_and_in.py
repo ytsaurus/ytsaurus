@@ -381,10 +381,9 @@ class TestJoinAndIn(ClickHouseTestBase):
         write_table("<append=%true>//tmp/t2", [{"key": 7, "subkey": -1}])
         write_table("<append=%true>//tmp/t2", [{"key": 10, "subkey": 42}])
         with Clique(1) as clique:
-            # TODO(max42): why 7 rows are read? I would expect 6 rows.
             assert clique.make_query_and_validate_row_count(
                 'select * from "//tmp/t1" t1 inner join "//tmp/t2" t2 using key where t2.subkey == 42',
-                exact=7) == [{"key": 5, "subkey": 42},
+                exact=6) == [{"key": 5, "subkey": 42},
                              {"key": 10, "subkey": 42}]
 
     @authors("max42")

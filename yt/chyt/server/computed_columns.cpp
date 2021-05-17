@@ -6,7 +6,19 @@
 #include "config.h"
 
 #include <yt/yt/ytlib/query_client/query_preparer.h>
+
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wmacro-redefined"
+#endif
+
 #include <yt/yt/ytlib/query_client/folding_profiler.h>
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+
+
 #include <yt/yt/ytlib/query_client/evaluation_helpers.h>
 
 #include <Parsers/IAST.h>

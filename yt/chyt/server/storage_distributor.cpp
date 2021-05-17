@@ -674,6 +674,7 @@ public:
     virtual DB::QueryProcessingStage::Enum getQueryProcessingStage(
         DB::ContextPtr context,
         DB::QueryProcessingStage::Enum toStage,
+        const DB::StorageMetadataPtr &,
         DB::SelectQueryInfo &) const override
     {
         // If we use WithMergeableState while using single node, caller would process aggregation functions incorrectly.
