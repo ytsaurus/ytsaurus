@@ -501,18 +501,18 @@ protected:
         }
         return Reader_
             ->ReadFragments(Options_, std::move(Requests_))
-            .Apply(
+            .ApplyUnique(
                 BIND(&TSessionBase::OnFragmentsRead, MakeStrong(this)));
     }
 
 private:
-    TSharedRange<TRow> OnFragmentsRead(const std::vector<TSharedRef>& fragments)
+    TSharedRange<TRow> OnFragmentsRead(std::vector<TSharedRef>&& fragments)
     {
         YT_VERIFY(fragments.size() == HunkValues_.size());
         for (int index = 0; index < static_cast<int>(fragments.size()); ++index) {
             SetValueRef(HunkValues_[index], fragments[index]);
         }
-        return MakeSharedRange(Rows_, Rows_, fragments);
+        return MakeSharedRange(Rows_, Rows_, std::move(fragments));
     }
 };
 
