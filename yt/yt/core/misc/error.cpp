@@ -342,7 +342,7 @@ TError& TError::SetCode(TErrorCode code)
 
 TErrorCode TError::GetNonTrivialCode() const
 {
-    if (Impl_) {
+    if (!Impl_) {
         return NYT::EErrorCode::OK;
     }
 
