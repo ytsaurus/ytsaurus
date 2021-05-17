@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -74,7 +75,18 @@ func (c *httpClient) listHeavyProxies() ([]string, error) {
 	}
 	defer c.stop.Done()
 
-	req, err := http.NewRequest("GET", c.schema()+"://"+c.clusterURL.Address+"/hosts", nil)
+	v := url.Values{}
+	if c.config.ProxyRole != "" {
+		v.Add("role", c.config.ProxyRole)
+	}
+
+	var resolveURL url.URL
+	resolveURL.Scheme = c.schema()
+	resolveURL.Host = c.clusterURL.Address
+	resolveURL.Path = "hosts"
+	resolveURL.RawQuery = v.Encode()
+
+	req, err := http.NewRequest("GET", resolveURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}

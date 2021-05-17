@@ -27,6 +27,11 @@ type Config struct {
 	// In that case, provided host is used for all requests and proxy discovery is disabled.
 	Proxy string
 
+	// ProxyRole configures desired proxy role used by the client.
+	//
+	// If not set, default role is used.
+	ProxyRole string
+
 	// UseTLS enables TLS for all connections to cluster.
 	//
 	// This option is supported only in HTTP client.
