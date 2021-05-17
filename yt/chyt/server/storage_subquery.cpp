@@ -219,6 +219,7 @@ public:
     virtual DB::QueryProcessingStage::Enum getQueryProcessingStage(
         DB::ContextPtr /* context */,
         DB::QueryProcessingStage::Enum /* toStage */,
+        const DB::StorageMetadataPtr &,
         DB::SelectQueryInfo &) const override
     {
         return DB::QueryProcessingStage::Enum::FetchColumns;

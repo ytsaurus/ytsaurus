@@ -29,7 +29,7 @@ public:
         }
     }
 
-    virtual const std::string & getName() const
+    virtual std::string getName() const override
     {
         return Name_;
     }
