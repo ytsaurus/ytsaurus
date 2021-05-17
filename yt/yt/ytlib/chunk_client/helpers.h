@@ -26,6 +26,8 @@
 
 #include <yt/yt/core/actions/public.h>
 
+#include <yt/yt/core/concurrency/throughput_throttler.h>
+
 #include <yt/yt/library/erasure/public.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -149,10 +151,10 @@ IChunkReaderPtr CreateRemoteReader(
     std::optional<NNodeTrackerClient::TNodeId> localNodeId,
     IBlockCachePtr blockCache,
     IClientChunkMetaCachePtr chunkMetaCache,
-    TTrafficMeterPtr trafficMeter,
-    NNodeTrackerClient::INodeStatusDirectoryPtr nodeStatusDirectory,
-    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
-    NConcurrency::IThroughputThrottlerPtr rpsThrottler);
+    TTrafficMeterPtr trafficMeter = nullptr,
+    NNodeTrackerClient::INodeStatusDirectoryPtr nodeStatusDirectory = nullptr,
+    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
+    NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////
 

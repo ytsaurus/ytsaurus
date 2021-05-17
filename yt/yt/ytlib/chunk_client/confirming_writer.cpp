@@ -201,6 +201,9 @@ private:
         if (SessionId_.ChunkId) {
             YT_LOG_DEBUG("Writing existing chunk (ChunkId: %v)", SessionId_.ChunkId);
         } else {
+            if (Options_->Account.empty()) {
+                THROW_ERROR_EXCEPTION("Error creating chunk: account should not be empty");
+            }
             SessionId_ = NChunkClient::CreateChunk(
                 Client_,
                 CellTag_,

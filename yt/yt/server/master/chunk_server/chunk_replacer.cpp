@@ -9,6 +9,7 @@
 namespace NYT::NChunkServer {
 
 using namespace NObjectClient;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,7 +96,7 @@ bool TChunkReplacer::Replace(
                         return false;
                     }
 
-                    YT_VERIFY(child->GetType() == EObjectType::Chunk);
+                    YT_VERIFY(IsBlobChunkType(child->GetType()));
                     auto childChunk = child->AsChunk();
 
                     auto result = processChunk(childChunk);
@@ -105,7 +106,7 @@ bool TChunkReplacer::Replace(
                         }
                         lastChunkToReplace = i;
                     } else if (result == EProcessChunkResult::Unknown) {
-                        YT_LOG_ALERT_IF(ChunkReplacerCallbacks_->IsMutationLoggingEnabled(), "Could not replace chunks: unexpected chunk (ChunkId: %v, ChunkListId: %v, Index: %v)",
+                        YT_LOG_WARNING_IF(ChunkReplacerCallbacks_->IsMutationLoggingEnabled(), "Could not replace chunks: unexpected chunk (ChunkId: %v, ChunkListId: %v, Index: %v)",
                             childChunk->GetId(),
                             oldChunkList->GetId(),
                             oldChunkIndex);
@@ -142,7 +143,7 @@ bool TChunkReplacer::Replace(
                 return false;
             }
 
-            YT_VERIFY(chunkTree->GetType() == EObjectType::Chunk);
+            YT_VERIFY(IsBlobChunkType(chunkTree->GetType()));
             auto chunk = chunkTree->AsChunk();
 
             auto result = processChunk(chunk);
@@ -151,7 +152,7 @@ bool TChunkReplacer::Replace(
                     ChunkReplacerCallbacks_->AttachToChunkList(newChunkList, newChunk);
                 }
             } else if (result == EProcessChunkResult::Unknown) {
-                YT_LOG_ALERT_IF(ChunkReplacerCallbacks_->IsMutationLoggingEnabled(), "Could not replace chunks: unexpected chunk (ChunkId: %v, ChunkListId: %v, Index: %v)",
+                YT_LOG_WARNING_IF(ChunkReplacerCallbacks_->IsMutationLoggingEnabled(), "Could not replace chunks: unexpected chunk (ChunkId: %v, ChunkListId: %v, Index: %v)",
                     chunk->GetId(),
                     oldChunkList->GetId(),
                     oldChunkIndex);

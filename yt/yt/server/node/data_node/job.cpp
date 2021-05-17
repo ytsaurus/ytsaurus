@@ -34,6 +34,7 @@
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/yt/ytlib/chunk_client/replication_writer.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
 
 #include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
 
@@ -45,6 +46,7 @@
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/columnar_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/schemaless_chunk_reader.h>
+#include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
@@ -1080,7 +1082,6 @@ private:
     }
 };
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkMergeJob
@@ -1120,11 +1121,15 @@ private:
         auto outputChunkId = FromProto<TChunkId>(JobSpecExt_.output_chunk_id());
         int mediumIndex = JobSpecExt_.medium_index();
         auto sessionId = TSessionId(outputChunkId, mediumIndex);
-        auto codec = CheckedEnumCast<NCompression::ECodec>(chunkMergerWriterOptions.compression_codec());
+        auto compressionCodec = CheckedEnumCast<NCompression::ECodec>(chunkMergerWriterOptions.compression_codec());
+        auto erasureCodec = CheckedEnumCast<NErasure::ECodec>(chunkMergerWriterOptions.erasure_codec());
+
+        YT_LOG_INFO("Merge job started (ChunkId: %v@%v)", outputChunkId, mediumIndex);
 
         auto options = New<TMultiChunkWriterOptions>();
         options->TableSchema = schema;
-        options->CompressionCodec = codec;
+        options->CompressionCodec = compressionCodec;
+        options->ErasureCodec = erasureCodec;
 
         auto confirmingWriter = CreateConfirmingWriter(
             Config_->MergeWriter,
@@ -1140,7 +1145,7 @@ private:
             sessionId);
 
         auto chunkWriterOptions = New<TChunkWriterOptions>();
-        chunkWriterOptions->CompressionCodec = codec;
+        chunkWriterOptions->CompressionCodec = compressionCodec;
         if (chunkMergerWriterOptions.has_optimize_for()) {
             chunkWriterOptions->OptimizeFor = CheckedEnumCast<EOptimizeFor>(chunkMergerWriterOptions.optimize_for());
         }
@@ -1160,29 +1165,31 @@ private:
         for (const auto& chunk : JobSpecExt_.input_chunks()) {
             auto inputChunkId = FromProto<TChunkId>(chunk.id());
             auto inputChunkReplicas = FromProto<TChunkReplicaList>(chunk.source_replicas());
-
             YT_LOG_INFO("Reading input chunk (ChunkId: %v)", inputChunkId);
 
-            auto replicationReader = CreateReplicationReader(
-                Config_->MergeReader,
+            TChunkSpec chunkSpec;
+            chunkSpec.set_row_count_override(chunk.row_count());
+            chunkSpec.set_erasure_codec(chunk.erasure_codec()),
+            *chunkSpec.mutable_chunk_id() = chunk.id();
+            chunkSpec.mutable_replicas()->CopyFrom(chunk.source_replicas());
+
+            auto erasureReaderConfig = New<TErasureReaderConfig>();
+            erasureReaderConfig->EnableAutoRepair = false;
+            auto remoteReader = CreateRemoteReader(
+                chunkSpec,
+                erasureReaderConfig,
                 New<TRemoteReaderOptions>(),
                 Bootstrap_->GetMasterClient(),
                 nodeDirectory,
                 Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor(),
                 Bootstrap_->GetClusterNodeMasterConnector()->GetNodeId(),
-                inputChunkId,
-                inputChunkReplicas,
                 Bootstrap_->GetBlockCache(),
                 /*chunkMetaCache*/ nullptr,
-                /*trafficMeter*/ nullptr ,
-                /*nodeStatusDirectory*/ nullptr ,
+                /*trafficMeter*/ nullptr,
+                /*nodeStatusDirectory*/ nullptr,
                 Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::MergeIn));
 
-            auto chunkMeta = GetChunkMeta(replicationReader);
-
-            TChunkSpec chunkSpec;
-            ToProto(chunkSpec.mutable_chunk_id(), inputChunkId);
-
+            auto chunkMeta = GetChunkMeta(remoteReader);
             auto chunkState = New<TChunkState>(
                 Bootstrap_->GetBlockCache(),
                 chunkSpec,
@@ -1192,13 +1199,12 @@ private:
                 nullptr,
                 nullptr,
                 nullptr);
-
             auto reader = CreateSchemalessRangeChunkReader(
                 std::move(chunkState),
                 New<TColumnarChunkMeta>(*chunkMeta),
                 TChunkReaderConfig::GetDefault(),
                 TChunkReaderOptions::GetDefault(),
-                replicationReader,
+                remoteReader,
                 New<TNameTable>(),
                 TClientChunkReadOptions(),
                 /*keyColumns*/ {},
