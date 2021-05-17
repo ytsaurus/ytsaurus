@@ -61,6 +61,7 @@ TErrorOr<TString> ResolveBinaryPath(const TString& binary)
 {
     auto Logger = NYT::Logger
         .WithTag("Binary: %Qv", binary);
+
     YT_LOG_DEBUG("Resolving binary path");
 
     std::vector<TError> accumulatedErrors;
