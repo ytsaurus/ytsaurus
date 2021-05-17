@@ -119,8 +119,6 @@ public:
 
     int ThreadPoolSize;
 
-    int MaxConcurrentRequests;
-
     NBus::TTcpBusConfigPtr BusClient;
     TDuration IdleChannelTtl;
 

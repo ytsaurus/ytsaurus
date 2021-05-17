@@ -475,7 +475,6 @@ private:
 
     const IConnectionPtr Connection_;
     const TClientOptions Options_;
-    const NConcurrency::TAsyncSemaphorePtr ConcurrentRequestsSemaphore_;
     const NLogging::TLogger Logger;
 
     TEnumIndexedVector<EMasterChannelKind, THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>> MasterChannels_;

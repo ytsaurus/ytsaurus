@@ -149,10 +149,6 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("thread_pool_size", ThreadPoolSize)
         .Default(4);
 
-    RegisterParameter("max_concurrent_requests", MaxConcurrentRequests)
-        .GreaterThan(0)
-        .Default(1000);
-
     RegisterParameter("bus_client", BusClient)
         .DefaultNew();
     RegisterParameter("idle_channel_ttl", IdleChannelTtl)
