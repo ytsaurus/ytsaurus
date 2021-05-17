@@ -620,7 +620,8 @@ protected:
     process(InMemoryMode, in_memory_mode) \
     process(OptimizeFor, optimize_for) \
     process(ProfilingMode, profiling_mode) \
-    process(ProfilingTag, profiling_tag)
+    process(ProfilingTag, profiling_tag) \
+    process(EnableChunkMerger, enable_chunk_merger)
 
 #define FOR_EACH_OBJECT_REF_INHERITABLE_ATTRIBUTE(process) \
     process(TabletCellBundle, tablet_cell_bundle)
@@ -635,6 +636,27 @@ protected:
     FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(process) \
     process(PrimaryMediumIndex, primary_medium) \
     process(Media, media) \
+
+// COMPAT(aleksandra-zh)
+#define FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE_BEFORE_1613(process) \
+    process(CompressionCodec, compression_codec) \
+    process(ErasureCodec, erasure_codec) \
+    process(ReplicationFactor, replication_factor) \
+    process(Vital, vital) \
+    process(Atomicity, atomicity) \
+    process(CommitOrdering, commit_ordering) \
+    process(InMemoryMode, in_memory_mode) \
+    process(OptimizeFor, optimize_for) \
+    process(ProfilingMode, profiling_mode) \
+    process(ProfilingTag, profiling_tag) \
+    process(EnableChunkMerger, enable_chunk_merger)
+
+// COMPAT(aleksandra-zh)
+#define FOR_EACH_INHERITABLE_ATTRIBUTE_BEFORE_1613(process) \
+    FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE_BEFORE_1613(process) \
+    process(PrimaryMediumIndex, primary_medium) \
+    process(Media, media) \
+    FOR_EACH_OBJECT_REF_INHERITABLE_ATTRIBUTE(process) \
 
 // COMPAT(akozhikhov)
 #define FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE_BEFORE_1403(process) \
@@ -680,6 +702,7 @@ public:
         TVersionedBuiltinAttribute<NTableClient::EOptimizeFor> OptimizeFor;
         TVersionedBuiltinAttribute<NTabletNode::EDynamicTableProfilingMode> ProfilingMode;
         TVersionedBuiltinAttribute<TString> ProfilingTag;
+        TVersionedBuiltinAttribute<bool> EnableChunkMerger;
 
         void Persist(const NCellMaster::TPersistenceContext& context);
         void Persist(const NCypressServer::TCopyPersistenceContext& context);

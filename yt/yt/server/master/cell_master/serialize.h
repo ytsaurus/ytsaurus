@@ -136,6 +136,7 @@ DEFINE_ENUM(EMasterReign,
     ((CellNamesInUserLimits)                                        (1610))  // aleksandra-zh
     ((WaitUnmountBeforeTabletCellDecommission)                      (1611))  // savrus
     ((ReplicaLagLimit)                                              (1612))  // gritukan
+    ((InheritEnableChunkMerger)                                     (1613))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////

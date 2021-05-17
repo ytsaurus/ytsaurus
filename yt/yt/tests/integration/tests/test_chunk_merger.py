@@ -652,6 +652,26 @@ class TestChunkMerger(YTEnvSetup):
 
         assert _schematize_rows(rows, schema2) == _schematize_rows(merged_rows, schema2)
 
+    @authors("aleksandra-zh")
+    def test_inherit_enable_chunk_merger(self):
+        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
+
+        create("map_node", "//tmp/d")
+        set("//tmp/d/@enable_chunk_merger", True)
+
+        create("table", "//tmp/d/t")
+        write_table("<append=true>//tmp/d/t", {"a": "b"})
+        write_table("<append=true>//tmp/d/t", {"a": "c"})
+        write_table("<append=true>//tmp/d/t", {"a": "d"})
+
+        assert get("//tmp/d/t/@resource_usage/chunk_count") > 1
+        info = read_table("//tmp/d/t")
+
+        set("//tmp/d/@enable_chunk_merger", True)
+        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+
+        wait(lambda: get("//tmp/d/t/@resource_usage/chunk_count") == 1)
+        assert read_table("//tmp/d/t") == info
 
 class TestChunkMergerMulticell(TestChunkMerger):
     NUM_SECONDARY_MASTER_CELLS = 2
