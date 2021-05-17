@@ -151,8 +151,7 @@ public:
         RegisterParameter("replication_factor", ReplicationFactor)
             .GreaterThanOrEqual(1)
             .Default(DefaultReplicationFactor);
-        RegisterParameter("account", Account)
-            .NonEmpty();
+        RegisterParameter("account", Account);
         RegisterParameter("chunks_vital", ChunksVital)
             .Default(true);
         RegisterParameter("chunks_movable", ChunksMovable)

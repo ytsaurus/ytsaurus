@@ -208,13 +208,6 @@ private:
         const NChunkClient::TReadLimit& /*upperLimit*/,
         TTransactionId /*timestampTransactionId*/) override
     {
-        if (chunk->IsErasure()) {
-            YT_LOG_DEBUG("Chunk merging is not supported for erasure chunks (NodeId: %v, ChunkId: %v)",
-                Node_->GetId(),
-                chunk->GetId());
-            return false;
-        }
-
         if (MaybeAddChunk(chunk)) {
             return true;
         }
@@ -351,12 +344,6 @@ void TChunkMerger::ScheduleMerge(TChunkOwnerBase* trunkNode)
 
     if (trunkNode->GetType() != EObjectType::Table) {
         YT_LOG_DEBUG("Chunk merging is supported only for table types (NodeId: %v)",
-            trunkNode->GetId());
-        return;
-    }
-
-    if (trunkNode->GetErasureCodec() != NErasure::ECodec::None) {
-        YT_LOG_DEBUG("Chunk merging is not supported for erasure chunks (NodeId: %v)",
             trunkNode->GetId());
         return;
     }
@@ -793,6 +780,7 @@ bool TChunkMerger::CreateMergeJob(TNode* node, const TMergeJobInfo& jobInfo, TJo
         chunkMergerWriterOptions.set_optimize_for(ToProto<int>(table->GetOptimizeFor()));
     }
     chunkMergerWriterOptions.set_compression_codec(ToProto<int>(chunkOwner->GetCompressionCodec()));
+    chunkMergerWriterOptions.set_erasure_codec(ToProto<int>(chunkOwner->GetErasureCodec()));
     chunkMergerWriterOptions.set_enable_skynet_sharing(chunkOwner->GetEnableSkynetSharing());
 
     TMergeJob::TChunkVector inputChunks;

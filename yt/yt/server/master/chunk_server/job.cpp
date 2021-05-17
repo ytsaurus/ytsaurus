@@ -254,7 +254,7 @@ void TMergeJob::FillJobSpec(NCellMaster::TBootstrap* bootstrap, TJobSpec* jobSpe
 
     jobSpecExt->set_cell_tag(bootstrap->GetCellTag());
 
-    ToProto(jobSpecExt->mutable_output_chunk_id(), EncodeChunkId(ChunkIdWithIndexes_));
+    ToProto(jobSpecExt->mutable_output_chunk_id(), ChunkIdWithIndexes_.Id);
     jobSpecExt->set_medium_index(ChunkIdWithIndexes_.MediumIndex);
     *jobSpecExt->mutable_chunk_merger_writer_options() = ChunkMergerWriterOptions_;
 
@@ -267,6 +267,9 @@ void TMergeJob::FillJobSpec(NCellMaster::TBootstrap* bootstrap, TJobSpec* jobSpe
         const auto& replicas = chunk->StoredReplicas();
         ToProto(protoChunk->mutable_source_replicas(), replicas);
         builder.Add(replicas);
+
+        protoChunk->set_erasure_codec(ToProto<int>(chunk->GetErasureCodec()));
+        protoChunk->set_row_count(chunk->MiscExt().row_count());
     }
 }
 

@@ -484,7 +484,7 @@ class TestChunkMerger(YTEnvSetup):
         assert get("#{0}/@compression_codec".format(chunk_ids[0])) == codec2
 
     @authors("aleksandra-zh")
-    def test_erasure(self):
+    def test_erasure1(self):
         set("//sys/@config/chunk_manager/chunk_merger/enable", True)
 
         codec = "lrc_12_2_2"
@@ -494,12 +494,68 @@ class TestChunkMerger(YTEnvSetup):
         write_table("<append=true>//tmp/t", {"b": "c"})
         write_table("<append=true>//tmp/t", {"c": "d"})
 
+        info = read_table("//tmp/t")
+
         set("//tmp/t/@enable_chunk_merger", True)
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
 
-        sleep(5)
+        wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
+        assert read_table("//tmp/t") == info
 
-        assert get("//tmp/t/@merge_job_counter") == 0
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        assert get("#{0}/@erasure_codec".format(chunk_ids[0])) == codec
+
+    @authors("aleksandra-zh")
+    def test_erasure2(self):
+        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
+
+        codec = "lrc_12_2_2"
+        none_codec = "none"
+        create("table", "//tmp/t", attributes={"erasure_codec": codec})
+
+        write_table("<append=true>//tmp/t", {"a": "b"})
+        write_table("<append=true>//tmp/t", {"b": "c"})
+        write_table("<append=true>//tmp/t", {"c": "d"})
+
+        info = read_table("//tmp/t")
+
+        set("//tmp/t/@erasure_codec", none_codec)
+
+        set("//tmp/t/@enable_chunk_merger", True)
+        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+
+        wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
+        assert read_table("//tmp/t") == info
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        assert not exists("#{0}/@erasure_codec".format(chunk_ids[0]))
+
+    @authors("aleksandra-zh")
+    def test_erasure3(self):
+        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
+
+        codec = "lrc_12_2_2"
+        none_codec = "none"
+        create("table", "//tmp/t")
+
+        write_table("<append=true>//tmp/t", {"a": "b"})
+        set("//tmp/t/@erasure_codec", codec)
+        write_table("<append=true>//tmp/t", {"b": "c"})
+        set("//tmp/t/@erasure_codec", none_codec)
+        write_table("<append=true>//tmp/t", {"c": "d"})
+
+        info = read_table("//tmp/t")
+
+        set("//tmp/t/@erasure_codec", codec)
+
+        set("//tmp/t/@enable_chunk_merger", True)
+        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+
+        wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
+        assert read_table("//tmp/t") == info
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        assert get("#{0}/@erasure_codec".format(chunk_ids[0])) == codec
 
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])

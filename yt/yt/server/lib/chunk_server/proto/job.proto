@@ -119,6 +119,8 @@ message TMergeChunkInfo
     // Replica indexes are not used.
     // No medium indexes are provided (hence fixed32).
     repeated fixed32 source_replicas = 2;
+    optional int64 row_count = 3 [default = 0];
+    optional int32 erasure_codec = 4 [default = 0]; // NErasure::ECodec
 }
 
 message TChunkMergerWriterOptions
@@ -127,6 +129,7 @@ message TChunkMergerWriterOptions
     required int32 compression_codec = 2; // NCompression::ECodec
     optional int32 optimize_for = 3; // EOptimizeFor
     optional bool enable_skynet_sharing = 4;
+    optional int32 erasure_codec = 5 [default = 0]; // NErasure::ECodec
 }
 
 message TMergeChunksJobSpecExt
