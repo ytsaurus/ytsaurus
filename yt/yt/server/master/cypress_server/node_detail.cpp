@@ -508,7 +508,11 @@ void TCompositeNodeBase::TAttributes::Persist(const NCellMaster::TPersistenceCon
             FOR_EACH_INHERITABLE_ATTRIBUTE_BEFORE_1403(LOAD_AS_OPTIONAL);
         }
     } else {
-        FOR_EACH_INHERITABLE_ATTRIBUTE(PERSIST);
+        if (reign >= EMasterReign::InheritEnableChunkMerger) {
+            FOR_EACH_INHERITABLE_ATTRIBUTE(PERSIST);
+        } else {
+            FOR_EACH_INHERITABLE_ATTRIBUTE_BEFORE_1613(PERSIST);
+        }
     }
 
 #undef LOAD_AS_OPTIONAL

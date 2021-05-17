@@ -73,7 +73,8 @@ bool TChunkOwnerTypeHandler<TChunkOwner>::IsSupportedInheritableAttribute(const 
         "media"
         "primary_medium",
         "replication_factor",
-        "vital"
+        "vital",
+        "enable_chunk_merger"
     };
 
     return supportedInheritableAttributes.contains(key);
@@ -123,6 +124,8 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
     auto nodeHolder = TBase::DoCreate(id, context);
     auto* node = nodeHolder.get();
 
+    auto enableChunkMerger = combinedAttributes->GetAndRemove<bool>("primary_medium", false);
+
     try {
         node->SetPrimaryMediumIndex(primaryMedium->GetIndex());
 
@@ -130,6 +133,8 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
 
         node->SetCompressionCodec(compressionCodec);
         node->SetErasureCodec(erasureCodec);
+
+        node->SetEnableChunkMerger(enableChunkMerger);
 
         if (securityTags) {
             const auto& securityManager = this->Bootstrap_->GetSecurityManager();
