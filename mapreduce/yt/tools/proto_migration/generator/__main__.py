@@ -42,9 +42,6 @@ def get_project(path, arcadia_root):
                 if "PY2_LIBRARY(" in yamake or "PY3_LIBRARY(" in yamake or "PY23_LIBRARY(" in yamake:
                     logger.warning("Ignoring python library %s", yamake_path)
                     return None
-                if "PY_LIBRARY(" in yamake:  # remove after DEVTOOLS-8159
-                    logger.warning("Ignoring python library %s", yamake_path)
-                    return None
                 elif "PROGRAM(" in yamake:
                     logger.warning("Ignoring program %s", yamake_path)
                     return None
