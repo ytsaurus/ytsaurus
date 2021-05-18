@@ -12,13 +12,13 @@ import (
 	"go.uber.org/atomic"
 
 	"a.yandex-team.ru/library/go/core/log"
+	"a.yandex-team.ru/library/go/core/log/nop"
 	"a.yandex-team.ru/library/go/ptr"
 	"a.yandex-team.ru/yt/go/compression"
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/proto/core/misc"
 	"a.yandex-team.ru/yt/go/proto/core/rpc"
 	"a.yandex-team.ru/yt/go/yterrors"
-	"a.yandex-team.ru/yt/go/ytlog"
 )
 
 const (
@@ -77,6 +77,7 @@ type ClientOption func(conn *ClientConn)
 func WithLogger(l log.Logger) ClientOption {
 	return func(conn *ClientConn) {
 		conn.log = l
+		conn.bus.setLogger(l)
 	}
 }
 
@@ -115,10 +116,7 @@ type ClientConn struct {
 }
 
 func NewClient(ctx context.Context, address string, opts ...ClientOption) (*ClientConn, error) {
-	l, err := ytlog.New()
-	if err != nil {
-		return nil, err
-	}
+	l := &nop.Logger{}
 
 	bus, err := Dial(ctx, Options{Address: address, Logger: l})
 	if err != nil {
