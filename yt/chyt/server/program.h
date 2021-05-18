@@ -40,18 +40,25 @@ private:
     ui16 TcpPort_ = 0;
     ui16 HttpPort_ = 0;
 
+    bool PrintClickHouseVersion_ = false;
+
 public:
     TClickHouseServerProgram()
-        : TProgram(true /* suppressVersion */)
+        : TProgram()
         , TProgramPdeathsigMixin(Opts_)
         , TProgramSetsidMixin(Opts_)
         , TProgramConfigMixin(Opts_)
     {
         Opts_.AddLongOption("instance-id", "ClickHouse instance id")
-            .Required()
+            // Some special options (e.g. --version) do not require --instance-id.
+            // To prevent misleading "missing argument" errors, we first handle these special options,
+            // and then check required arguments by ourselves.
+            // See ValidateRequiredArguments() for more details.
+            // .Required()
             .StoreResult(&InstanceId_);
         Opts_.AddLongOption("clique-id", "ClickHouse clique id")
-            .Required()
+            // See ValidateRequiredArguments() for more details.
+            // .Required()
             .StoreResult(&CliqueId_);
         Opts_.AddLongOption("rpc-port", "ytserver RPC port")
             .DefaultValue(9200)
@@ -67,17 +74,17 @@ public:
             .StoreResult(&HttpPort_);
         Opts_.AddLongOption("clickhouse-version", "ClickHouse version")
             .NoArgument()
-            .Handler0(std::bind(&TClickHouseServerProgram::PrintClickHouseVersionAndExit, this));
-        Opts_.AddLongOption("version", "CHYT version")
-            .NoArgument()
-            .Handler0(std::bind(&TClickHouseServerProgram::PrintVersionAndExit, this));
+            .StoreValue(&PrintClickHouseVersion_, true);
 
         SetCrashOnError();
     }
 
 private:
-    virtual void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
+    virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
     {
+        HandleClickHouseVersion();
+        ValidateRequiredArguments(parseResult);
+
         TThread::SetCurrentThreadName("Main");
 
         ConfigureUids();
@@ -152,16 +159,46 @@ private:
         config->Yt->InstanceId = TGuid::FromString(InstanceId_);
     }
 
+    //! Override to print CHYT version.
+    virtual void PrintVersionAndExit() const override
+    {
+        Cout << GetVersion() << Endl;
+        _exit(0);
+    }
+
     void PrintClickHouseVersionAndExit() const
     {
         Cout << VERSION_STRING << Endl;
         _exit(0);
     }
 
-    void PrintVersionAndExit() const
+    void HandleClickHouseVersion() const
     {
-        Cout << GetVersion() << Endl;
-        _exit(0);
+        if (PrintClickHouseVersion_) {
+            PrintClickHouseVersionAndExit();
+            Y_UNREACHABLE();
+        }
+    }
+
+    void ValidateRequiredArguments(const NLastGetopt::TOptsParseResult& parseResult) const
+    {
+        std::vector<TString> requiredArguments = {
+            "instance-id",
+            "clique-id",
+        };
+
+        bool missingRequiredArgument = false;
+        
+        for (const auto& argument: requiredArguments) {
+            if (!parseResult.Has(argument)) {
+                missingRequiredArgument = true;
+                Cout << "Missing required argument: --" << argument << Endl;
+            }
+        }
+
+        if (missingRequiredArgument) {
+            _exit(1);
+        }
     }
 };
 

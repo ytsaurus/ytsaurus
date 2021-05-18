@@ -85,9 +85,11 @@ void TProgram::HandleVersionAndBuild() const
 {
     if (PrintVersion_) {
         PrintVersionAndExit();
+        Y_UNREACHABLE();
     }
     if (PrintBuild_) {
         PrintBuildAndExit();
+        Y_UNREACHABLE();
     }
 }
 
