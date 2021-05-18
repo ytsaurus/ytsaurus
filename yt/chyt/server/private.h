@@ -6,6 +6,8 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
+#include <yt/yt/library/clickhouse_functions/public.h>
+
 #include <Common/ProfileEvents.h>
 #include <Common/COW.h>
 
@@ -108,7 +110,6 @@ DEFINE_ENUM(EInstanceState,
     ((Stopped)        (1))
 );
 
-
 DEFINE_ENUM(EQueryPhase,
     ((Start)          (0))
     ((Preparation)    (1))
@@ -119,7 +120,7 @@ DEFINE_ENUM(EQueryPhase,
 DEFINE_ENUM(EDeducedStatementMode,
     ((In)             (0))
     ((DNF)            (1))
-)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

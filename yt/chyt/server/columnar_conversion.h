@@ -30,7 +30,7 @@ DB::ColumnUInt8::MutablePtr BuildNullBytemapForCHColumn(
 DB::ColumnString::MutablePtr ConvertCHColumnToAny(
     const DB::IColumn& column,
     NTableClient::ESimpleLogicalValueType type,
-    NYson::EYsonFormat ysonFormat = NYson::EYsonFormat::Binary);
+    EExtendedYsonFormat ysonFormat = EExtendedYsonFormat::Binary);
 
 ////////////////////////////////////////////////////////////////////////////////
 

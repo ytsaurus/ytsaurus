@@ -4,6 +4,8 @@
 #include "columnar_conversion.h"
 #include "data_type_boolean.h"
 
+#include <yt/yt/library/clickhouse_functions/unescaped_yson.h>
+
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/logical_type.h>
 
@@ -252,7 +254,7 @@ private:
     TCompositeSettingsPtr Settings_;
     TString YsonBuffer_;
     TStringOutput YsonOutput_;
-    TYsonWriter YsonWriter_;
+    TExtendedYsonWriter YsonWriter_;
 
     void PushValueFromWriter()
     {
