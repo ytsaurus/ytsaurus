@@ -366,8 +366,13 @@ TClickHouseServerBootstrapConfig::TClickHouseServerBootstrapConfig()
     RegisterParameter("yt", Yt)
         .DefaultNew();
 
-    RegisterParameter("interruption_graceful_timeout", InterruptionGracefulTimeout)
-        .Default(TDuration::Seconds(2));
+    RegisterParameter("graceful_interruption_delay", GracefulInterruptionDelay)
+        .Default(TDuration::Seconds(2))
+        // COMPAT(dakovalkov)
+        .Alias("interruption_graceful_timeout");
+
+    RegisterParameter("interruption_timeout", InterruptionTimeout)
+        .Default(TDuration::Minutes(5));
 
     RegisterParameter("launcher", Launcher)
         .DefaultNew();

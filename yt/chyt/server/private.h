@@ -29,7 +29,10 @@ extern const NProfiling::TProfiler ClickHouseYtProfiler;
 //! Profiler exporting raw ClickHouse metrics.
 extern const NProfiling::TProfiler ClickHouseNativeProfiler;
 
+// Set 0 to not see graceful exits in failed jobs.
+constexpr int GracefulInterruptionExitCode = 0;
 constexpr int MemoryLimitExceededExitCode = 42;
+constexpr int InterruptionTimedOutExitCode = 43;
 
 constexpr int SentinelMaxStringLength = 50;
 
