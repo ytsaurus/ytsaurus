@@ -44,14 +44,14 @@ protected:
 
     void SetCrashOnError();
 
+    virtual void PrintVersionAndExit() const;
+    virtual void PrintBuildAndExit() const;
+
 private:
     bool CrashOnError_ = false;
 
     // Custom handler for option parsing errors.
     class TOptsParseResult;
-
-    void PrintVersionAndExit() const;
-    void PrintBuildAndExit() const;
 };
 
 //! The simplest exception possible.
