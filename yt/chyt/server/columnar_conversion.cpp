@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/misc/memory_ops.h>
 
+#include <yt/yt/library/clickhouse_functions/unescaped_yson.h>
+
 #include <Columns/ColumnNullable.h>
 #include <Columns/ColumnVector.h>
 #include <Columns/ColumnString.h>
@@ -27,19 +29,19 @@ static const auto& Logger = ClickHouseYtLogger;
 
 namespace {
 
-template <EYsonFormat ysonFormat, class F>
+template <EExtendedYsonFormat ysonFormat, class F>
 DB::ColumnString::MutablePtr ConvertCHColumnToAnyByIndexImpl(const DB::IColumn& column, F func)
 {
     TString ysonBuffer;
     TStringOutput ysonOutput(ysonBuffer);
 
     // Using IIFE for constexpr resolution of the writer (for binary YSON we use TBufferedBinaryYsonWriter,
-    // for non-binary we use TYsonWriter).
+    // for non-binary we use TExtendedYsonWriter).
     auto ysonWriter = [&] {
-        if constexpr (ysonFormat == EYsonFormat::Binary) {
+        if constexpr (ysonFormat == EExtendedYsonFormat::Binary) {
             return TBufferedBinaryYsonWriter(&ysonOutput);
         } else {
-            return TYsonWriter(&ysonOutput, ysonFormat);
+            return TExtendedYsonWriter(&ysonOutput, ysonFormat);
         }
     }();
 
@@ -59,7 +61,7 @@ DB::ColumnString::MutablePtr ConvertCHColumnToAnyByIndexImpl(const DB::IColumn& 
     return anyColumn;
 }
 
-template <EYsonFormat ysonFormat, class T, class F>
+template <EExtendedYsonFormat ysonFormat, class T, class F>
 DB::ColumnString::MutablePtr ConvertCHVectorColumnToAnyImpl(const DB::IColumn& column, F func)
 {
     const auto* typedColumnPtr = dynamic_cast<const DB::ColumnVector<T>*>(&column);
@@ -74,7 +76,7 @@ DB::ColumnString::MutablePtr ConvertCHVectorColumnToAnyImpl(const DB::IColumn& c
         });
 }
 
-template <EYsonFormat ysonFormat, class F>
+template <EExtendedYsonFormat ysonFormat, class F>
 DB::ColumnString::MutablePtr ConvertCHStringColumnToAnyImpl(const DB::IColumn& column, F func)
 {
     const auto* typedColumnPtr = dynamic_cast<const DB::ColumnString*>(&column);
@@ -88,7 +90,7 @@ DB::ColumnString::MutablePtr ConvertCHStringColumnToAnyImpl(const DB::IColumn& c
         });
 }
 
-template <EYsonFormat ysonFormat>
+template <EExtendedYsonFormat ysonFormat>
 DB::ColumnString::MutablePtr ConvertCHColumnToAnyImpl(const DB::IColumn& column, ESimpleLogicalValueType type)
 {
     YT_LOG_TRACE("Converting column to any (Count: %v, Type: %v)",
@@ -570,16 +572,18 @@ DB::MutableColumnPtr ConvertIntegerYTColumnToCHColumn(
 DB::ColumnString::MutablePtr ConvertCHColumnToAny(
     const DB::IColumn& column,
     ESimpleLogicalValueType type,
-    EYsonFormat ysonFormat)
+    EExtendedYsonFormat ysonFormat)
 {
     switch (ysonFormat) {
         #define XX(format) \
-            case EYsonFormat::format: \
-                return ConvertCHColumnToAnyImpl<EYsonFormat::format>(column, type);
+            case EExtendedYsonFormat::format: \
+                return ConvertCHColumnToAnyImpl<EExtendedYsonFormat::format>(column, type);
 
         XX(Binary)
-        XX(Pretty)
         XX(Text)
+        XX(Pretty)
+        XX(UnescapedText)
+        XX(UnescapedPretty)
 
         #undef XX
     }

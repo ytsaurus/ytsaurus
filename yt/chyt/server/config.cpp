@@ -9,7 +9,7 @@ namespace NYT::NClickHouseServer {
 TCompositeSettings::TCompositeSettings()
 {
     RegisterParameter("default_yson_format", DefaultYsonFormat)
-        .Default(NYson::EYsonFormat::Binary);
+        .Default(EExtendedYsonFormat::Binary);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

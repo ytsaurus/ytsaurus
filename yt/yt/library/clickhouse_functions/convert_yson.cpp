@@ -1,5 +1,7 @@
 #include "ypath.h"
 
+#include "unescaped_yson.h"
+
 #include <yt/yt/core/yson/string.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -98,6 +100,15 @@ public:
             columnFormat = &nullableColumnFormat->getNestedColumn();
         }
 
+        bool isConstFormat = DB::isColumnConst(*columnFormat);
+        EExtendedYsonFormat ysonFormat;
+
+        // Deserializing format string can be done once if the format column is const.
+        if (isConstFormat && inputRowCount > 0) {
+            const auto& format = columnFormat->getDataAt(0);
+            ysonFormat = ConvertTo<EExtendedYsonFormat>(TStringBuf(format.data, format.size));
+        }
+
         MutableColumnPtr columnTo;
         if (columnYsonOrNull->isNullable()) {
             columnTo = makeNullable(std::make_shared<DataTypeString>())->createColumn();
@@ -116,13 +127,15 @@ public:
                 THROW_ERROR_EXCEPTION("YSON format should be not null");
             }
 
+            if (!isConstFormat) {
+                const auto& format = columnFormat->getDataAt(i);
+                ysonFormat = ConvertTo<EExtendedYsonFormat>(TStringBuf(format.data, format.size));
+            }
             const auto& yson = columnYson->getDataAt(i);
-            const auto& format = columnFormat->getDataAt(i);
-
-            auto ysonFormat = ConvertTo<NYson::EYsonFormat>(TStringBuf(format.data, format.size));
             auto ysonString = TYsonStringBuf(TStringBuf(yson.data, yson.size));
 
-            columnTo->insert(toField(ConvertToYsonString(ysonString, ysonFormat).ToString()));
+            auto convertedYsonString = ConvertToYsonStringExtendedFormat(ysonString, ysonFormat);
+            columnTo->insertData(convertedYsonString.AsStringBuf().Data(), convertedYsonString.AsStringBuf().Size());
         }
 
         return columnTo;

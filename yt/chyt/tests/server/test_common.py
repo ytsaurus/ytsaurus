@@ -846,6 +846,45 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 clique.make_query("select ConvertYson(1, 'text')")
 
     @authors("dakovalkov")
+    def test_unescaped_yson(self):
+        create(
+            "table",
+            "//tmp/table",
+            attributes={"schema": [{"name": "i", "type": "any"}, {"name": "fmt", "type": "string"}]},
+        )
+
+        value1 = ["test", "АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ\nабвгдежзийклмнопрстуфхцчшщъыьэюя\n"]
+        # yson.dumps does not support our unescaped formats, so hard code it :(
+        value1_dumped = '["test";"АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ\\nабвгдежзийклмнопрстуфхцчшщъыьэюя\\n";]'
+        assert yson.loads(value1_dumped) == value1
+        assert yson.dumps(value1, 'text') != value1_dumped
+
+        value2 = {"key": "\\знач\rение\""}
+        value2_dumped = '{\n' + '    "key" = "\\\\знач\\rение\\\"";\n' + '}'
+        assert yson.loads(value2_dumped) == value2
+        assert yson.dumps(value2, 'pretty') != value2_dumped
+
+        write_table(
+            "//tmp/table",
+            [
+                {"i": value1, "fmt": "unescaped_text"},
+                {"i": value2, "fmt": "unescaped_pretty"},
+                {"i": None, "fmt": "unescaped_text"},
+            ],
+        )
+        with Clique(1) as clique:
+            result = clique.make_query('''select ConvertYson(i, fmt) as a from "//tmp/table" ''')
+            for row in result:
+                if row["a"] is not None:
+                    row["a"] = row["a"].encode('utf-8')
+
+            assert result == [
+                {"a": value1_dumped},
+                {"a": value2_dumped},
+                {"a": None},
+            ]
+
+    @authors("dakovalkov")
     def test_reject_request(self):
         with Clique(1) as clique:
             instance = clique.get_active_instances()[0]

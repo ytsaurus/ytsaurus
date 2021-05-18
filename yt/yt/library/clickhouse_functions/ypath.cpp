@@ -1,6 +1,7 @@
 #include "ypath.h"
 
 #include "yson_parser_adapter.h"
+#include "unescaped_yson.h"
 
 #include <yt/yt/core/yson/string.h>
 
@@ -360,6 +361,7 @@ public:
             columnPath = &nullableColumnPath->getNestedColumn();
         }
 
+        EExtendedYsonFormat ysonFormat = EExtendedYsonFormat::Binary;
         const IColumn* columnFormatOrNull = nullptr;
         const IColumn* columnFormat = nullptr;
         if (arguments.size() == 3) {
@@ -368,14 +370,17 @@ public:
             if (auto* nullableColumnFormat = checkAndGetColumn<ColumnNullable>(columnFormat)) {
                 columnFormat = &nullableColumnFormat->getNestedColumn();
             }
+            if (DB::isColumnConst(*columnFormat) && inputRowCount > 0) {
+                const auto& format = columnFormat->getDataAt(0);
+                ysonFormat = ConvertTo<EExtendedYsonFormat>(TStringBuf(format.data, format.size));
+                columnFormat = nullptr;
+            }
         }
 
         auto columnTo = resultType->createColumn();
         columnTo->reserve(inputRowCount);
 
         for (size_t i = 0; i < inputRowCount; ++i) {
-            auto format = NYson::EYsonFormat::Binary;
-
             if (columnYsonOrNull->isNullAt(i) || columnPathOrNull->isNullAt(i) || (columnFormat && columnFormatOrNull->isNullAt(i))) {
                 // Default is Null.
                 columnTo->insertDefault();
@@ -383,8 +388,8 @@ public:
             }
 
             if (columnFormat) {
-                auto formatField = columnFormat->getDataAt(i);
-                format = ConvertTo<NYson::EYsonFormat>(TString(formatField.data, formatField.size));
+                const auto& format = columnFormat->getDataAt(i);
+                ysonFormat = ConvertTo<EExtendedYsonFormat>(TStringBuf(format.data, format.size));
             }
 
             const auto& yson = columnYson->getDataAt(i);
@@ -411,7 +416,8 @@ public:
             }
 
             if (subNode) {
-                columnTo->insert(toField(ConvertToYsonString(subNode, format).ToString()));
+                auto convertedYson = ConvertToYsonStringExtendedFormat(subNode, ysonFormat);
+                columnTo->insertData(convertedYson.AsStringBuf().Data(), convertedYson.AsStringBuf().Size());
             } else {
                 columnTo->insertDefault();
             }

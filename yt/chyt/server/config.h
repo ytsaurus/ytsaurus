@@ -35,7 +35,7 @@ class TCompositeSettings
     : public NYTree::TYsonSerializable
 {
 public:
-    NYson::EYsonFormat DefaultYsonFormat;
+    EExtendedYsonFormat DefaultYsonFormat;
 
     TCompositeSettings();
 };
