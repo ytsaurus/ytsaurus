@@ -170,6 +170,7 @@ func (p *busMsg) writeTo(w io.Writer) (int, error) {
 }
 
 type Bus struct {
+	id      guid.GUID
 	options Options
 	conn    net.Conn
 	logger  log.Logger
@@ -177,16 +178,23 @@ type Bus struct {
 }
 
 func NewBus(conn net.Conn, options Options) *Bus {
+	bus := &Bus{
+		id:      guid.New(),
+		options: options,
+		conn:    conn,
+	}
+
 	logger := options.Logger
 	if logger == nil {
 		logger = &nop.Logger{}
 	}
+	bus.setLogger(logger)
 
-	return &Bus{
-		options: options,
-		conn:    conn,
-		logger:  log.With(logger, log.Any("busID", guid.New())),
-	}
+	return bus
+}
+
+func (c *Bus) setLogger(l log.Logger) {
+	c.logger = log.With(l, log.Any("busID", c.id))
 }
 
 func (c *Bus) Close() {
@@ -238,7 +246,7 @@ func (c *Bus) Receive() (busMsg, error) {
 		return busMsg{}, err
 	}
 
-	c.logger.Info("Packet received",
+	c.logger.Debug("Packet received",
 		log.String("id", packet.fixHeader.packetID.String()),
 		log.Any("type", packet.fixHeader.typ),
 		log.Int16("flags", int16(packet.fixHeader.flags)))
