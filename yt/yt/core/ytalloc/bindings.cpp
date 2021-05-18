@@ -127,9 +127,8 @@ private:
         size_t rank,
         const TEnumIndexedVector<ESmallArenaCounter, ssize_t>& counters)
     {
-        writer->PushTag(std::pair<TString, TString>{"rank", ToString(rank)});
+        NProfiling::TWithTagGuard withTagGuard(writer, {"rank", ToString(rank)});
         PushAllocationCounterStatistics(writer, "/small_arena", counters);
-        writer->PopTag();
     }
 
     void PushSmallAllocationStatistics(NProfiling::ISensorWriter* writer)
@@ -148,9 +147,9 @@ private:
         size_t rank,
         const TEnumIndexedVector<ELargeArenaCounter, ssize_t>& counters)
     {
-        writer->PushTag(std::pair<TString, TString>{"rank", ToString(rank)});
+        NProfiling::TWithTagGuard withTagGuard(writer, {"rank", ToString(rank)});
+
         PushAllocationCounterStatistics(writer, "/large_arena", counters);
-        writer->PopTag();
 
         ssize_t bytesFreed = counters[ELargeArenaCounter::BytesFreed];
         ssize_t bytesReleased = counters[ELargeArenaCounter::PagesReleased] * PageSize;
@@ -183,10 +182,9 @@ private:
         for (auto type : TEnumTraits<ETimingEventType>::GetDomainValues()) {
             const auto& counters = timingEventCounters[type];
 
-            writer->PushTag(std::pair<TString, TString>{"type", ToString(type)});
+            NProfiling::TWithTagGuard withTagGuard(writer, {"type", ToString(type)});
             writer->AddGauge("/timing_events/count", counters.Count);
             writer->AddGauge("/timing_events/size", counters.Size);
-            writer->PopTag();
         }
     }
 };
