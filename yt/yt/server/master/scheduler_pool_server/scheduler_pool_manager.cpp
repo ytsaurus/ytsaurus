@@ -24,6 +24,7 @@ using namespace NObjectServer;
 using namespace NCellMaster;
 using namespace NHydra;
 using namespace NScheduler;
+using namespace NSecurityClient;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,8 +57,7 @@ public:
 
     TSchedulerPoolTree* CreatePoolTree(TString treeName)
     {
-        NScheduler::CheckPoolName(treeName)
-            .ThrowOnError();
+        ValidatePoolName(treeName);
 
         if (FindPoolTreeObjectByName(treeName)) {
             THROW_ERROR_EXCEPTION(
@@ -394,7 +394,12 @@ public:
 
     virtual void ValidateObjectName(const TString& name) override
     {
-        ValidatePoolName(name);
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        auto* schema = Bootstrap_->GetObjectManager()->FindSchema(EObjectType::SchedulerPool);
+        auto* user = securityManager->GetAuthenticatedUser();
+        bool validateStrictly = securityManager->CheckPermission(schema, user, EPermission::Administer).Action == ESecurityAction::Deny;
+
+        ValidatePoolName(name, validateStrictly);
     }
 
     virtual TString GetRootPath(const TSchedulerPool* rootPool) const override

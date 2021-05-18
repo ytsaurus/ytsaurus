@@ -109,8 +109,8 @@ TErrorOr<NApi::IUnversionedRowsetPtr> LookupOperationsInArchive(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TError CheckPoolName(const TString& poolName);
-void ValidatePoolName(const TString& poolName);
+TError CheckPoolName(const TString& poolName, bool strictly = false);
+void ValidatePoolName(const TString& poolName, bool strictly = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 
