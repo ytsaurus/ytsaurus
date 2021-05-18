@@ -186,11 +186,21 @@ void TBootstrap::HandleSigint()
         Host_->HandleSigint();
     }
     if (SigintCounter_ > 1) {
-        WriteToStderr("*** Immediately stopping server due to second SIGINT ***");
-        _exit(InterruptionExitCode);
+        WriteToStderr("*** Immediately stopping server due to second SIGINT ***\n");
+        _exit(GracefulInterruptionExitCode);
     }
-    WriteToStderr("*** Gracefully stopping server due to SIGINT ***");
+    WriteToStderr("*** Gracefully stopping server due to SIGINT ***\n");
     YT_LOG_INFO("Stopping server due to SIGINT");
+
+    // Set up hard timeout to avoid hanging in interruption.
+    TDelayedExecutor::Submit(
+        BIND([] {
+            WriteToStderr("*** Interuption timed out ***\n");
+            _exit(InterruptionTimedOutExitCode);
+        }),
+        Config_->InterruptionTimeout,
+        GetControlInvoker());
+
     TFuture<void> discoveryStopFuture;
     if (Host_) {
         discoveryStopFuture = Host_->StopDiscovery();
@@ -199,7 +209,7 @@ void TBootstrap::HandleSigint()
         discoveryStopFuture = VoidFuture;
     }
     discoveryStopFuture.Apply(BIND([this] {
-        TDelayedExecutor::WaitForDuration(Config_->InterruptionGracefulTimeout);
+        TDelayedExecutor::WaitForDuration(Config_->GracefulInterruptionDelay);
         if (Host_) {
             Y_UNUSED(WaitFor(Host_->GetIdleFuture()));
         }
@@ -216,8 +226,8 @@ void TBootstrap::HandleSigint()
             HttpServer_->Stop();
         }
         NLogging::TLogManager::StaticShutdown();
-        WriteToStderr("*** Server gracefully stopped ***");
-        _exit(InterruptionExitCode);
+        WriteToStderr("*** Server gracefully stopped ***\n");
+        _exit(GracefulInterruptionExitCode);
     }).Via(GetControlInvoker()));
 }
 

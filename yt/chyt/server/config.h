@@ -388,10 +388,14 @@ public:
 
     TYtConfigPtr Yt;
 
-    //! Instance will not shutdown during this timeout after receiving signal even
+    //! Instance will not shutdown during this period of time after receiving signal even
     //! if there are not any running queries.
     //! To avoid receiving queries after shutdown, this value should be greater than GossipPeriod.
-    TDuration InterruptionGracefulTimeout;
+    TDuration GracefulInterruptionDelay;
+
+    //! Hard timeout for process termination after receiving the interruption signal.
+    //! If the timeout is exceeded, the process will be forcefully terminated and the job will be marked as failed.
+    TDuration InterruptionTimeout;
 
     TLauncherConfigPtr Launcher;
 

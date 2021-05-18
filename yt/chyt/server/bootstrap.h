@@ -39,8 +39,6 @@ private:
 
     std::atomic<int> SigintCounter_ = {0};
 
-    static constexpr int InterruptionExitCode = 0;
-
     void DoRun();
 
     void HandleSigint();
