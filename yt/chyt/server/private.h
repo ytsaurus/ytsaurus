@@ -82,10 +82,11 @@ DECLARE_REFCOUNTED_CLASS(TMemoryWatchdog);
 DECLARE_REFCOUNTED_CLASS(TCompositeSettings);
 DECLARE_REFCOUNTED_CLASS(TDynamicTableSettings);
 DECLARE_REFCOUNTED_CLASS(TTestingSettings);
+DECLARE_REFCOUNTED_CLASS(TExecutionSettings);
 DECLARE_REFCOUNTED_CLASS(TClickHouseIndex);
 DECLARE_REFCOUNTED_CLASS(TQueryStatisticsReporter);
 DECLARE_REFCOUNTED_CLASS(TQueryStatisticsReporterConfig);
-DECLARE_REFCOUNTED_CLASS(TSubqueryHeader);
+DECLARE_REFCOUNTED_CLASS(TSecondaryQueryHeader);
 
 struct TValue;
 class TSubquerySpec;
@@ -123,6 +124,12 @@ DEFINE_ENUM(EQueryPhase,
 DEFINE_ENUM(EDeducedStatementMode,
     ((In)             (0))
     ((DNF)            (1))
+);
+
+DEFINE_ENUM(EJoinPolicy,
+    ((Local)               (0))
+    ((DistributeInitial)   (1))
+    ((DistributeSecondary) (2))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

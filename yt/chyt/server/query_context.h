@@ -81,8 +81,11 @@ public:
     TStatistics InstanceStatistics;
     //! Aggregated statistics from all subquery. InstanceStatistics is merged in the end of the query.
     TStatistics AggregatedStatistics;
-    //! Index of this select in the parent query (=Storage index).
-    int SelectQueryIndex;
+    //! Index of this select in the parent query.
+    int SelectQueryIndex = 0;
+
+    //! Level of the query in an execution tree.
+    int QueryDepth = 0;
 
     NTableClient::TRowBufferPtr RowBuffer;
 
@@ -94,7 +97,7 @@ public:
         TQueryId queryId,
         NTracing::TTraceContextPtr traceContext,
         std::optional<TString> dataLensRequestId,
-        const TSubqueryHeaderPtr& subqueryHeader);
+        const TSecondaryQueryHeaderPtr& secondaryQueryHeader);
 
     ~TQueryContext();
 
@@ -145,7 +148,7 @@ void SetupHostContext(
     TQueryId queryId,
     NTracing::TTraceContextPtr traceContext,
     std::optional<TString> dataLensRequestId = std::nullopt,
-    const TSubqueryHeaderPtr& subqueryHeader = nullptr);
+    const TSecondaryQueryHeaderPtr& secondaryQueryHeader = nullptr);
 
 TQueryContext* GetQueryContext(DB::ContextPtr context);
 

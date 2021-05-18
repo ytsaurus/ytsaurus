@@ -322,9 +322,21 @@ public:
         for (const auto& [_, attributes] : nodeList) {
             auto host = attributes->Get<TString>("host");
             auto tcpPort = attributes->Get<i64>("tcp_port");
-            result.push_back(CreateClusterNode(TClusterNodeName{host, tcpPort}, getContext()->getSettingsRef()));
+            bool isLocal = (host == Config_->Address) && (tcpPort == Ports_.Tcp);
+            result.push_back(CreateClusterNode(
+                TClusterNodeName{host, tcpPort},
+                getContext()->getSettingsRef(),
+                isLocal));
         }
         return result;
+    }
+
+    IClusterNodePtr GetLocalNode() const
+    {
+        return CreateClusterNode(
+            TClusterNodeName{*Config_->Address, Ports_.Tcp},
+            getContext()->getSettingsRef(),
+            /*isLocal*/ true);
     }
 
     int GetInstanceCookie() const
@@ -772,6 +784,11 @@ const IInvokerPtr& THost::GetClickHouseFetcherInvoker() const
 TClusterNodes THost::GetNodes() const
 {
     return Impl_->GetNodes();
+}
+
+IClusterNodePtr THost::GetLocalNode() const
+{
+    return Impl_->GetLocalNode();
 }
 
 int THost::GetInstanceCookie() const

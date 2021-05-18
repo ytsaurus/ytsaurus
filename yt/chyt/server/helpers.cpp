@@ -212,37 +212,38 @@ TQuerySettingsPtr ParseCustomSettings(
 {
     const auto& Logger = logger;
 
-    auto result = New<TQuerySettings>();
     auto node = ConvertToNode(baseSettings);
     for (const auto& setting : customSettings) {
         auto settingName = TString(setting.getName());
         YT_VERIFY(settingName.StartsWith("chyt"));
         if (!settingName.StartsWith("chyt.") && !settingName.StartsWith("chyt_")) {
             THROW_ERROR_EXCEPTION(
-                "Invalid setting name %Qv; CHYT settings should start with \"chyt.\" or with \"chyt_\" prefix",
+                "Invalid setting name %Qv; CHYT settings should start with \"chyt.\" prefix",
                 settingName);
         }
-        TYPath ypath = "/" + settingName.substr(5);
+
+        TYPath ypath = "/" + settingName.substr(/*strlen("chyt.")*/ 5);
         for (auto& character : ypath) {
             if (character == '.') {
                 character = '/';
             }
         }
+
         auto field = setting.getValue();
         YT_LOG_TRACE("Parsing custom setting (YPath: %v, FieldValue: %v)", ypath, field.dump());
-
-        TUnversionedValue unversionedValue;
-        unversionedValue.Id = 0;
-        ToUnversionedValue(field, &unversionedValue);
 
         auto modifiedNode = FindNodeByYPath(node, ypath);
 
         INodePtr patchNode;
-        if (modifiedNode && unversionedValue.Type == EValueType::String && modifiedNode->GetType() != ENodeType::String) {
-            // If we expect something different from string, then try to convert it.
+        if (modifiedNode && modifiedNode->GetType() != ENodeType::String && field.getType() == DB::Field::Types::Which::String) {
+            // All settings provided via http interface have a 'string' type.
+            // To overcome this limitation, try to parse it as a YsonString if not a string value is expected.
             const auto& stringVal = field.get<std::string>();
             patchNode = ConvertToNode(TYsonStringBuf(stringVal));
         } else {
+            TUnversionedValue unversionedValue;
+            unversionedValue.Id = 0;
+            ToUnversionedValue(field, &unversionedValue);
             patchNode = ConvertToNode(unversionedValue);
         }
 
@@ -251,6 +252,8 @@ TQuerySettingsPtr ParseCustomSettings(
     }
 
     YT_LOG_TRACE("Resulting node (Node: %v)", ConvertToYsonString(node, EYsonFormat::Text));
+   
+    auto result = New<TQuerySettings>();
     result->SetUnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
     result->Load(node);
 

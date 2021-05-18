@@ -85,6 +85,44 @@ DEFINE_REFCOUNTED_TYPE(TTestingSettings);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TExecutionSettings
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Hard limit. Query will be aborted after reaching this.
+    //! -1 means unlimited.
+    i64 QueryDepthLimit;
+    // i64 TotalSecondaryQueryLimit;
+
+    //! Do not distribute small tables!
+    i64 MinDataWeightPerSecondaryQuery;
+
+    //! -1 means unlimited.
+    i64 DistributedJoinNodeLimit;
+    //! -1 means unlimited.
+    i64 DistributedSelectNodeLimit;
+
+    //! Soft limits. After reaching, queries will be processed with local node only.
+    //! -1 means unlimited.
+    i64 DistributedJoinDepthLimit;
+    //! -1 means unlimited.
+    i64 DistributedSelectDepthLimit;
+
+    EJoinPolicy JoinPolicy;
+
+    //! To distribute queries deterministically.
+    size_t DistributionSeed;
+
+    //! if 0, the max_threads is used.
+    i64 InputStreamsPerSecondaryQuery;
+
+    TExecutionSettings();
+};
+
+DEFINE_REFCOUNTED_TYPE(TExecutionSettings);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! This class will be accessible either via settings or via default_settings.
 class TQuerySettings
     : public NYTree::TYsonSerializable
@@ -109,6 +147,8 @@ public:
     TDynamicTableSettingsPtr DynamicTable;
 
     TTestingSettingsPtr Testing;
+
+    TExecutionSettingsPtr Execution;
 
     NTableClient::TTableReaderConfigPtr TableReader;
 

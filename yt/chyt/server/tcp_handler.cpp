@@ -2,7 +2,7 @@
 
 #include "helpers.h"
 #include "query_context.h"
-#include "subquery_header.h"
+#include "secondary_query_header.h"
 
 #include <Poco/Util/LayeredConfiguration.h>
 #include <Server/TCPHandler.h>
@@ -59,7 +59,7 @@ Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(const Poco:
 
             clientInfo.current_user = clientInfo.initial_user;
 
-            auto header = NYTree::ConvertTo<TSubqueryHeaderPtr>(NYson::TYsonString(clientInfo.current_query_id));
+            auto header = NYTree::ConvertTo<TSecondaryQueryHeaderPtr>(NYson::TYsonString(clientInfo.current_query_id));
             clientInfo.current_query_id = ToString(header->QueryId);
 
             TTraceContextPtr traceContext = New<TTraceContext>(header->SpanContext, "TcpHandler");

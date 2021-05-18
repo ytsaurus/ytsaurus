@@ -54,6 +54,43 @@ TTestingSettings::TTestingSettings()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TExecutionSettings::TExecutionSettings()
+{
+    RegisterParameter("query_depth_limit", QueryDepthLimit)
+        .GreaterThanOrEqual(-1)
+        .Default(-1);
+    
+    RegisterParameter("min_data_weight_per_secondary_query", MinDataWeightPerSecondaryQuery)
+        .GreaterThanOrEqual(0)
+        .Default();
+    
+    RegisterParameter("distributed_join_node_limit", DistributedJoinNodeLimit)
+        .GreaterThanOrEqual(-1)
+        .Default(-1);
+    RegisterParameter("distributed_select_node_limit", DistributedSelectNodeLimit)
+        .GreaterThanOrEqual(-1)
+        .Default(-1);
+    
+    RegisterParameter("distributed_join_depth_limit", DistributedJoinDepthLimit)
+        .GreaterThanOrEqual(-1)
+        .Default(-1);
+    RegisterParameter("distributed_select_depth_limit", DistributedSelectDepthLimit)
+        .GreaterThanOrEqual(-1)
+        .Default(-1);
+    
+    RegisterParameter("join_policy", JoinPolicy)
+        .Default(EJoinPolicy::DistributeSecondary);
+    
+    RegisterParameter("distribution_seed", DistributionSeed)
+        .Default(42);
+
+    RegisterParameter("input_streams_per_secondary_query", InputStreamsPerSecondaryQuery)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TQuerySettings::TQuerySettings()
 {
     RegisterParameter("enable_columnar_read", EnableColumnarRead)
@@ -84,6 +121,9 @@ TQuerySettings::TQuerySettings()
         .DefaultNew();
 
     RegisterParameter("testing", Testing)
+        .DefaultNew();
+
+    RegisterParameter("execution", Execution)
         .DefaultNew();
 
     RegisterParameter("table_reader", TableReader)
