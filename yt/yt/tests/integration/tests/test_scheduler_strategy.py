@@ -1299,15 +1299,15 @@ class TestSchedulerPreemption(YTEnvSetup):
         set("//sys/pool_trees/default/@config/job_interrupt_timeout", 5000)
 
         total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cell/resource_limits/cpu")
-        create_pool("poolA", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
-        create_pool("poolB")
+        create_pool("pool1", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
+        create_pool("pool2")
 
         command = """(trap "sleep 15; exit 0" SIGINT; BREAKPOINT)"""
 
-        opB = run_test_vanilla(
+        run_test_vanilla(
             with_breakpoint(command),
             spec={
-                "pool": "poolB",
+                "pool": "pool2",
             },
             task_patch={
                 "interruption_signal": "SIGINT",
@@ -1317,18 +1317,18 @@ class TestSchedulerPreemption(YTEnvSetup):
         job_ids = wait_breakpoint(job_count=3)
         assert len(job_ids) == 3
 
-        opA = run_test_vanilla(
+        op1 = run_test_vanilla(
             "sleep 1",
             spec={
-                "pool": "poolA",
+                "pool": "pool1",
             },
             job_count=1,
         )
 
-        opA.track()
+        op1.track()
 
-        assert opA.get_job_count("completed", from_orchid=False) == 1
-        assert opA.get_job_count("aborted", from_orchid=False) == 0
+        assert op1.get_job_count("completed", from_orchid=False) == 1
+        assert op1.get_job_count("aborted", from_orchid=False) == 0
 
     @authors("ignat")
     def test_inconsistent_waiting_job_timeout(self):
@@ -1337,15 +1337,15 @@ class TestSchedulerPreemption(YTEnvSetup):
         set("//sys/pool_trees/default/@config/job_interrupt_timeout", 15000)
 
         total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cell/resource_limits/cpu")
-        create_pool("poolA", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
-        create_pool("poolB")
+        create_pool("pool1", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
+        create_pool("pool2")
 
         command = """(trap "sleep 10; exit 0" SIGINT; BREAKPOINT)"""
 
-        opB = run_test_vanilla(
+        run_test_vanilla(
             with_breakpoint(command),
             spec={
-                "pool": "poolB",
+                "pool": "pool2",
             },
             task_patch={
                 "interruption_signal": "SIGINT",
@@ -1355,15 +1355,15 @@ class TestSchedulerPreemption(YTEnvSetup):
         job_ids = wait_breakpoint(job_count=3)
         assert len(job_ids) == 3
 
-        opA = run_test_vanilla(
+        op1 = run_test_vanilla(
             "cat",
             spec={
-                "pool": "poolA",
+                "pool": "pool1",
             },
             job_count=1,
         )
 
-        wait(lambda: opA.get_job_count("aborted") == 1)
+        wait(lambda: op1.get_job_count("aborted") == 1)
 
     @authors("eshcherbin")
     @pytest.mark.xfail(run=False, reason="Fails until YT-14804 is resolved.")
@@ -1375,15 +1375,15 @@ class TestSchedulerPreemption(YTEnvSetup):
         set("//sys/scheduler/config/running_jobs_update_period", 100)
 
         total_cpu_limit = int(get("//sys/scheduler/orchid/scheduler/cell/resource_limits/cpu"))
-        create_pool("poolA", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
-        create_pool("poolB")
+        create_pool("pool1", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
+        create_pool("pool2")
 
         command = """(trap "sleep 115; exit 0" SIGINT; BREAKPOINT)"""
 
         run_test_vanilla(
             with_breakpoint(command),
             spec={
-                "pool": "poolB",
+                "pool": "pool2",
             },
             task_patch={
                 "interruption_signal": "SIGINT",
@@ -1396,7 +1396,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         run_test_vanilla(
             "sleep 1",
             spec={
-                "pool": "poolA",
+                "pool": "pool1",
             },
             job_count=1,
         )

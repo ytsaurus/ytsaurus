@@ -1140,7 +1140,7 @@ class TestSchedulerPoolAcls(YTEnvSetup):
         set("//sys/pool_trees/my_tree/nirvana/@acl", [make_ace("allow", "u", "write")])
         with pytest.raises(YtError):
             remove(
-                "//sys/pool_trees/my_tree/nirvana/@non_sytem_attribute",
+                "//sys/pool_trees/my_tree/nirvana/@non_system_attribute",
                 authenticated_user="u",
             )
 
@@ -1152,6 +1152,17 @@ class TestSchedulerPoolAcls(YTEnvSetup):
             "//sys/pool_trees/my_tree/nirvana/@non_system_attribute",
             authenticated_user="u",
         )
+
+    def test_administer_allows_some_forbidden_symbols_in_pool_name(self):
+        create_pool_tree("my_tree", wait_for_orchid=False)
+        create_user("u")
+        set("//sys/pool_trees/my_tree/@acl", [make_ace("allow", "u", "write")])
+
+        with pytest.raises(YtError):
+            create_pool("abc:nirvana", pool_tree="my_tree", wait_for_orchid=False, authenticated_user="u")
+
+        set("//sys/schemas/scheduler_pool/@acl/end", make_ace("allow", "u", "administer"))
+        create_pool("abc:nirvana", pool_tree="my_tree", wait_for_orchid=False, authenticated_user="u")
 
     def test_write_on_root_allows_to_create_remove_pool_trees(self):
         create_pool_tree("my_tree", wait_for_orchid=False)

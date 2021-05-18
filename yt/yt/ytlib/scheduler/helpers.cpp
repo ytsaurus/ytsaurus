@@ -637,9 +637,17 @@ TErrorOr<IUnversionedRowsetPtr> LookupOperationsInArchive(
 ////////////////////////////////////////////////////////////////////////////////
 
 const int PoolNameMaxLength = 100;
-const char* PoolNameRegex = "[A-Za-z0-9-_]+";
 
-TError CheckPoolName(const TString& poolName)
+TString StrictPoolNameRegexSymbols = "-_a-z0-9";
+TString NonStrictPoolNameRegexSymbols = StrictPoolNameRegexSymbols + ":";
+
+TString StrictRegexString = "[" + StrictPoolNameRegexSymbols + "]+";
+TString NonStrictRegexString = "[" + NonStrictPoolNameRegexSymbols + "]+";
+
+auto StrictRegex = New<NRe2::TRe2>(StrictRegexString);
+auto NonStrictRegex = New<NRe2::TRe2>(NonStrictRegexString);
+
+TError CheckPoolName(const TString& poolName, bool strictly)
 {
     if (poolName == RootPoolName) {
         return TError("Pool name cannot be equal to root pool name")
@@ -652,17 +660,21 @@ TError CheckPoolName(const TString& poolName)
             << TErrorAttribute("max_length", PoolNameMaxLength);
     }
 
-    static const auto regex = New<NRe2::TRe2>(PoolNameRegex);
+    auto regex = strictly
+        ? StrictRegex
+        : NonStrictRegex;
+
     if (!NRe2::TRe2::FullMatch(NRe2::StringPiece(poolName), *regex)) {
-        return TError("Pool name %Qv must match regular expression %Qv", poolName, PoolNameRegex);
+        const auto& regexString = strictly ? StrictRegexString : NonStrictRegexString;
+        return TError("Pool name %Qv must match regular expression %Qv", poolName, regexString);
     }
 
     return TError();
 }
 
-void ValidatePoolName(const TString& poolName)
+void ValidatePoolName(const TString& poolName, bool strictly)
 {
-    CheckPoolName(poolName).ThrowOnError();
+    CheckPoolName(poolName, strictly).ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
