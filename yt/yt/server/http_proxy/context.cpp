@@ -29,6 +29,7 @@
 #include <yt/yt/core/tracing/trace_context.h>
 
 #include <yt/yt/client/security_client/public.h>
+#include <yt/yt/client/api/rpc_proxy/public.h>
 
 #include <util/string/ascii.h>
 #include <util/string/strip.h>
@@ -204,14 +205,14 @@ bool TContext::TryParseUser()
 
     if (Api_->IsUserBannedInCache(authenticatedUser)) {
         Response_->SetStatus(EStatusCode::Forbidden);
-        ReplyFakeError(Format("User %Qv is banned", authenticatedUser));
+        ReplyError(TError{Format("User %Qv is banned", authenticatedUser)});
         return false;
     }
 
     if (auto error = Api_->ValidateAccess(authenticatedUser); !error.IsOK()) {
         YT_LOG_DEBUG(error);
         Response_->SetStatus(EStatusCode::Forbidden);
-        ReplyFakeError(Format("User %Qv is not allowed to access this proxy", authenticatedUser));
+        ReplyError(TError{Format("User %Qv is not allowed to access this proxy", authenticatedUser)});
         return false;
     }
 
@@ -257,9 +258,9 @@ bool TContext::TryCheckMethod()
     if (Request_->GetMethod() != expectedMethod) {
         Response_->SetStatus(EStatusCode::MethodNotAllowed);
         Response_->GetHeaders()->Set("Allow", TString(ToHttpString(expectedMethod)));
-        ReplyFakeError(Format("Command %Qv have to be executed with the %Qv HTTP method",
+        ReplyError(TError{Format("Command %Qv have to be executed with the %Qv HTTP method",
             Descriptor_->CommandName,
-            ToHttpString(expectedMethod)));
+            ToHttpString(expectedMethod))});
 
         return false;
     }
@@ -270,7 +271,7 @@ bool TContext::TryCheckMethod()
 bool TContext::TryCheckAvailability()
 {
     if (Api_->GetCoordinator()->IsBanned()) {
-        DispatchUnavailable("60", "This proxy is banned");
+        DispatchUnavailable(TError{NApi::NRpcProxy::EErrorCode::ProxyBanned, "This proxy is banned"});
         return false;
     }
 
@@ -286,7 +287,7 @@ bool TContext::TryRedirectHeavyRequests()
         !IsBrowserRequest(Request_))
     {
         if (Descriptor_->InputType != NFormats::EDataType::Null) {
-            DispatchUnavailable("60", "Control proxy may not serve heavy requests with input data");
+            DispatchUnavailable(TError{"Control proxy may not serve heavy requests with input data"});
             return false;
         }
 
@@ -334,7 +335,7 @@ bool TContext::TryGetInputCompression()
         auto compression = StripString(*header);
         if (!IsCompressionSupported(compression)) {
             Response_->SetStatus(EStatusCode::UnsupportedMediaType);
-            ReplyFakeError("Unsupported Content-Encoding");
+            ReplyError(TError{"Unsupported Content-Encoding"});
             return false;
         }
 
@@ -393,10 +394,9 @@ bool TContext::TryAcquireConcurrencySemaphore()
 {
     SemaphoreGuard_ = Api_->AcquireSemaphore(DriverRequest_.AuthenticatedUser, DriverRequest_.CommandName);
     if (!SemaphoreGuard_) {
-        DispatchUnavailable(
-            "60",
-            "There are too many concurrent requests being served at the moment; "
-            "please try another proxy or try again later");
+        DispatchUnavailable(TError{
+            NRpc::EErrorCode::RequestQueueSizeLimitExceeded,
+            "There are too many concurrent requests being served at the moment; please try another proxy or try again later"});
         return false;
     }
 
@@ -931,31 +931,27 @@ void TContext::DispatchUnauthorized(const TString& scope, const TString& message
 {
     Response_->SetStatus(EStatusCode::Unauthorized);
     Response_->GetHeaders()->Set("WWW-Authenticate", scope);
-    ReplyFakeError(message);
+    ReplyError(TError{message});
 }
 
-void TContext::DispatchUnavailable(const TString& retryAfter, const TString& message)
+void TContext::DispatchUnavailable(const TError& error)
 {
     Response_->SetStatus(EStatusCode::ServiceUnavailable);
-    Response_->GetHeaders()->Set("Retry-After", retryAfter);
-    ReplyFakeError(message);
+    // This header is header is probably useless, but we keep it for compatibility.
+    Response_->GetHeaders()->Set("Retry-After", "60");
+    ReplyError(error);
 }
 
 void TContext::DispatchNotFound(const TString& message)
 {
     Response_->SetStatus(EStatusCode::NotFound);
-    ReplyFakeError(message);
+    ReplyError(TError{message});
 }
 
 void TContext::ReplyError(const TError& error)
 {
     YT_LOG_DEBUG(error, "Request finished with error");
     NHttpProxy::ReplyError(Response_, error);
-}
-
-void TContext::ReplyFakeError(const TString& message)
-{
-    ReplyError(TError(message));
 }
 
 void TContext::OnOutputParameters()

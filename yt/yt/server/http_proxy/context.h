@@ -118,11 +118,10 @@ private:
     template <class TJsonProducer>
     void DispatchJson(const TJsonProducer& producer);
     void DispatchUnauthorized(const TString& scope, const TString& message);
-    void DispatchUnavailable(const TString& retryAfter, const TString& message);
+    void DispatchUnavailable(const TError& error);
     void DispatchNotFound(const TString& message);
 
     void ReplyError(const TError& error);
-    void ReplyFakeError(const TString& message);
 
     void OnOutputParameters();
 
