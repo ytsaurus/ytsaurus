@@ -72,6 +72,7 @@ public:
     NApi::NNative::IClientPtr CreateClient(const TString& user);
 
     TClusterNodes GetNodes() const;
+    IClusterNodePtr GetLocalNode() const;
 
     int GetInstanceCookie() const;
 

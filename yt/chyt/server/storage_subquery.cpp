@@ -61,8 +61,8 @@ public:
         const DB::StorageMetadataPtr& metadataSnapshot,
         DB::SelectQueryInfo& queryInfo,
         DB::ContextPtr context,
-        DB::QueryProcessingStage::Enum /* processedStage */,
-        size_t /* maxBlockSize */,
+        DB::QueryProcessingStage::Enum /*processedStage*/,
+        size_t /*maxBlockSize*/,
         unsigned maxStreamCount) override
     {
         NTracing::TChildTraceContextGuard traceContextGuard(
@@ -217,10 +217,10 @@ public:
     }
 
     virtual DB::QueryProcessingStage::Enum getQueryProcessingStage(
-        DB::ContextPtr /* context */,
-        DB::QueryProcessingStage::Enum /* toStage */,
-        const DB::StorageMetadataPtr &,
-        DB::SelectQueryInfo &) const override
+        DB::ContextPtr /*context*/,
+        DB::QueryProcessingStage::Enum /*toStage*/,
+        const DB::StorageMetadataPtr&,
+        DB::SelectQueryInfo& /*queryInfo*/) const override
     {
         return DB::QueryProcessingStage::Enum::FetchColumns;
     }

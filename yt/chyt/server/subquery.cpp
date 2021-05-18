@@ -851,7 +851,7 @@ void LogSubqueryDebugInfo(const std::vector<TSubquery>& subqueries, TStringBuf p
         static_cast<double>(totalRowCount) / subqueries.size());
 }
 
-std::vector<TSubquery> BuildSubqueries(
+std::vector<TSubquery> BuildThreadSubqueries(
     const TChunkStripeListPtr& inputStripeList,
     std::optional<int> keyColumnCount,
     EPoolKind poolKind,

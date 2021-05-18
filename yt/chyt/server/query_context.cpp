@@ -4,7 +4,7 @@
 #include "host.h"
 #include "query_registry.h"
 #include "statistics_reporter.h"
-#include "subquery_header.h"
+#include "secondary_query_header.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -55,7 +55,7 @@ TQueryContext::TQueryContext(
     TQueryId queryId,
     TTraceContextPtr traceContext,
     std::optional<TString> dataLensRequestId,
-    const TSubqueryHeaderPtr& subqueryHeader)
+    const TSecondaryQueryHeaderPtr& secondaryQueryHeader)
     : Logger(QueryLogger)
     , User(TString(context->getClientInfo().initial_user))
     , TraceContext(std::move(traceContext))
@@ -83,10 +83,12 @@ TQueryContext::TQueryContext(
     InitialQueryId = TQueryId::FromString(clientInfo.initial_query_id);
 
     if (QueryKind == EQueryKind::SecondaryQuery) {
-        YT_VERIFY(subqueryHeader);
-        ParentQueryId = subqueryHeader->ParentQueryId;
-        SelectQueryIndex = subqueryHeader->StorageIndex;
+        YT_VERIFY(secondaryQueryHeader);
+        ParentQueryId = secondaryQueryHeader->ParentQueryId;
+        SelectQueryIndex = secondaryQueryHeader->StorageIndex;
 
+        QueryDepth = secondaryQueryHeader->QueryDepth;
+        
         Logger.AddTag("InitialQueryId: %v", InitialQueryId);
         Logger.AddTag("ParentQueryId: %v", ParentQueryId);
     }
@@ -300,7 +302,7 @@ void SetupHostContext(THost* host,
     TQueryId queryId,
     TTraceContextPtr traceContext,
     std::optional<TString> dataLensRequestId,
-    const TSubqueryHeaderPtr& subqueryHeader)
+    const TSecondaryQueryHeaderPtr& secondaryQueryHeader)
 {
     YT_VERIFY(traceContext);
 
@@ -310,7 +312,7 @@ void SetupHostContext(THost* host,
         queryId,
         std::move(traceContext),
         std::move(dataLensRequestId),
-        subqueryHeader);
+        secondaryQueryHeader);
 
     WaitFor(BIND(
         &TQueryRegistry::Register,

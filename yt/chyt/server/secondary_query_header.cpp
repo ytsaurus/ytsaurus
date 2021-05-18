@@ -1,10 +1,10 @@
-#include "subquery_header.h"
+#include "secondary_query_header.h"
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSubqueryHeader::TSubqueryHeader()
+TSecondaryQueryHeader::TSecondaryQueryHeader()
 {
     RegisterParameter("query_id", QueryId);
     RegisterParameter("parent_query_id", ParentQueryId);

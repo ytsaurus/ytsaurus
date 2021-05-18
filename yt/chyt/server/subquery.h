@@ -40,7 +40,7 @@ TQueryInput FetchInput(
     const std::vector<TString>& virtualColumnNames,
     const TClickHouseIndexBuilder& indexBuilder);
 
-std::vector<TSubquery> BuildSubqueries(
+std::vector<TSubquery> BuildThreadSubqueries(
     const NChunkPools::TChunkStripeListPtr& inputStripeList,
     std::optional<int> keyColumnCount,
     EPoolKind poolKind,

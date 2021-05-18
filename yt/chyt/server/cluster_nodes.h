@@ -81,7 +81,8 @@ using TClusterNodes = std::vector<IClusterNodePtr>;
 
 IClusterNodePtr CreateClusterNode(
     TClusterNodeName name,
-    const DB::Settings& settings);
+    const DB::Settings& settings,
+    bool isLocal = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

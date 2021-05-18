@@ -45,7 +45,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IClusterNodePtr CreateClusterNode(TClusterNodeName name, const DB::Settings& settings)
+IClusterNodePtr CreateClusterNode(TClusterNodeName name, const DB::Settings& settings, bool isLocal)
 {
     if (!name.Host.empty() && name.Host.front() == '[' && name.Host.back() == ']') {
         name.Host = name.Host.substr(1, name.Host.size() - 2);
@@ -76,7 +76,7 @@ IClusterNodePtr CreateClusterNode(TClusterNodeName name, const DB::Settings& set
 
     return std::make_shared<TClusterNode>(
         name,
-        false /* isLocal */,
+        isLocal,
         std::move(connection));
 }
 
