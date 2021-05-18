@@ -649,7 +649,6 @@ protected:
     process(OptimizeFor, optimize_for) \
     process(ProfilingMode, profiling_mode) \
     process(ProfilingTag, profiling_tag) \
-    process(EnableChunkMerger, enable_chunk_merger)
 
 // COMPAT(aleksandra-zh)
 #define FOR_EACH_INHERITABLE_ATTRIBUTE_BEFORE_1613(process) \
