@@ -33,11 +33,15 @@ class TestDiscoveryServers(YTEnvSetup):
     @authors("aleksandra-zh")
     def test_discovery_servers_orchid(self):
         primary_cell_tag = get("//sys/@primary_cell_tag")
-        assert exists("//sys/discovery_servers")
+        wait(lambda: exists("//sys/discovery_servers"))
 
         ds = ls(("//sys/discovery_servers"))[0]
-        master_cells = ls(("//sys/discovery_servers/{}/orchid/discovery_server/security/master_cells").format(ds))
-        assert str(primary_cell_tag) in master_cells
+        def primary_cell_tag_in_master_cells():
+            master_cells = ls(("//sys/discovery_servers/{}/orchid/discovery_server/security/master_cells").format(ds))
+            return str(primary_cell_tag) in master_cells
+        wait(primary_cell_tag_in_master_cells)
 
-        members = ls(("//sys/discovery_servers/{}/orchid/discovery_server/security/master_cells/{}/@members").format(ds, primary_cell_tag))
-        assert len(members) == self.NUM_MASTERS
+        def enough_members():
+            members = ls(("//sys/discovery_servers/{}/orchid/discovery_server/security/master_cells/{}/@members").format(ds, primary_cell_tag))
+            return len(members) == self.NUM_MASTERS
+        wait(enough_members)
