@@ -302,7 +302,88 @@ DEFINE_REFCOUNTED_TYPE(TMediumDirectorySynchronizerConfig)
 
 class TChunkFragmentReaderConfig
     : public NYTree::TYsonSerializable
-{ };
+{
+public:
+    //! Expiration timeouts of corresponding sync expiring caches.
+    TDuration ChunkReplicaLocatorExpirationTimeout;
+    TDuration PeerInfoExpirationTimeout;
+
+    //! Minimal delay between sequential chunk replica locations.
+    TDuration SeedsExpirationTimeout;
+
+    //! Config of async expiring cache that stores peer probing results.
+    TAsyncExpiringCacheConfigPtr PeerProbingResultCache;
+
+    //! Delay between background cache updates. 
+    TDuration PeriodicUpdateDelay;
+
+    //! Factors to calculate peer load as linear combination of disk queue and net queue.
+    double NetQueueSizeFactor;
+    double DiskQueueSizeFactor;
+
+    //! Rpc timeouts of ProbeChunkSet and GetChunkFragmentSet.
+    TDuration ProbeChunkSetRpcTimeout;
+    TDuration GetChunkFragmentSetRpcTimeout;
+
+    //! Limit on retry count.
+    int MaxRetryCount;
+    //! Time between retries.
+    TDuration RetryBackoffTime;
+
+    //! Chunk that was not accessed for the time by user
+    //! will stop being accessed within periodic updates and then will be evicted via expiring cache logic.
+    TDuration EvictAfterSuccessfulAccessTime;
+
+    TChunkFragmentReaderConfig()
+    {
+        RegisterParameter("chunk_replica_locator_expiration_timeout", ChunkReplicaLocatorExpirationTimeout)
+            .Default(TDuration::Minutes(30));
+        RegisterParameter("peer_info_expiration_timeout", PeerInfoExpirationTimeout)
+            .Default(TDuration::Minutes(30));
+
+        RegisterParameter("seeds_expiration_timeout", SeedsExpirationTimeout)
+            .Default(TDuration::Seconds(3));
+
+        RegisterParameter("peer_probing_result_cache", PeerProbingResultCache)
+            .DefaultNew();
+
+        RegisterParameter("periodic_update_delay", PeriodicUpdateDelay)
+            .GreaterThan(TDuration::Zero())
+            .Default(TDuration::Seconds(10));
+
+        RegisterParameter("net_queue_size_factor", NetQueueSizeFactor)
+            .Default(0.5);
+        RegisterParameter("disk_queue_size_factor", DiskQueueSizeFactor)
+            .Default(1.0);
+
+        RegisterParameter("probe_chunk_set_rpc_timeout", ProbeChunkSetRpcTimeout)
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("get_chunk_fragment_set_rpc_timeout", GetChunkFragmentSetRpcTimeout)
+            .Default(TDuration::Seconds(15));
+
+        RegisterParameter("max_retry_count", MaxRetryCount)
+            .GreaterThanOrEqual(1)
+            .Default(3);
+        RegisterParameter("retry_backoff_time", RetryBackoffTime)
+            .Default(TDuration::MilliSeconds(10));
+
+        RegisterParameter("evict_after_successful_access_time", EvictAfterSuccessfulAccessTime)
+            .Default(TDuration::Seconds(30));
+
+        RegisterPreprocessor([&] {
+            // XXX(akozhikhov): Reconsider the values.
+            PeerProbingResultCache->ExpireAfterAccessTime = TDuration::Seconds(30);
+            PeerProbingResultCache->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(30);
+            PeerProbingResultCache->ExpireAfterFailedUpdateTime = TDuration::Seconds(30);
+
+            PeerProbingResultCache->RefreshTime = PeriodicUpdateDelay;
+        });
+
+        RegisterPostprocessor([&] {
+            PeerProbingResultCache->BatchUpdate = true;
+        });
+    }
+};
 
 DEFINE_REFCOUNTED_TYPE(TChunkFragmentReaderConfig)
 

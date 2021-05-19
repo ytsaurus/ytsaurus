@@ -34,7 +34,7 @@ Y_FORCE_INLINE TChunkReplicaWithMedium::TChunkReplicaWithMedium(int nodeId, int 
     YT_ASSERT(mediumIndex >= 0 && mediumIndex < MediumIndexBound);
 }
 
-Y_FORCE_INLINE int TChunkReplicaWithMedium::GetNodeId() const
+Y_FORCE_INLINE NNodeTrackerClient::TNodeId TChunkReplicaWithMedium::GetNodeId() const
 {
     return Value & 0x00ffffff;
 }
@@ -78,7 +78,7 @@ Y_FORCE_INLINE TChunkReplica::TChunkReplica(const TChunkReplicaWithMedium& repli
     : Value(static_cast<ui64>(replica.GetNodeId()) | (static_cast<ui64>(replica.GetReplicaIndex()) << 24))
 { }
 
-Y_FORCE_INLINE int TChunkReplica::GetNodeId() const
+Y_FORCE_INLINE NNodeTrackerClient::TNodeId TChunkReplica::GetNodeId() const
 {
     return Value & 0x00ffffff;
 }

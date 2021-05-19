@@ -20,7 +20,7 @@ public:
     TChunkReplicaWithMedium();
     TChunkReplicaWithMedium(int nodeId, int replicaIndex, int mediumIndex);
 
-    int GetNodeId() const;
+    NNodeTrackerClient::TNodeId GetNodeId() const;
     int GetReplicaIndex() const;
     int GetMediumIndex() const;
 
@@ -51,7 +51,7 @@ public:
     TChunkReplica(int nodeId, int replicaIndex);
     TChunkReplica(const TChunkReplicaWithMedium& replica);
 
-    int GetNodeId() const;
+    NNodeTrackerClient::TNodeId GetNodeId() const;
     int GetReplicaIndex() const;
 
 private:

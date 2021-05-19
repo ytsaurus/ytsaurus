@@ -1,6 +1,6 @@
 #pragma once
 
-#include "chunk_reader_statistics.h"
+#include "public.h"
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -22,16 +22,18 @@ struct IChunkFragmentReader
     {
         TChunkId ChunkId;
         i64 Offset;
-        i64 Size;
+        i64 Length;
     };
 
     //! Asynchronously reads a given set of chunk fragments.
     virtual TFuture<std::vector<TSharedRef>> ReadFragments(
-        const TClientChunkReadOptions& options,
+        TClientChunkReadOptions options,
         std::vector<TChunkFragmentRequest> requests) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkFragmentReader)
+
+////////////////////////////////////////////////////////////////////////////////
 
 IChunkFragmentReaderPtr CreateChunkFragmentReader(
     TChunkFragmentReaderConfigPtr config,
