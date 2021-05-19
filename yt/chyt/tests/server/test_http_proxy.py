@@ -93,7 +93,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             }
         }
 
-        cache_missed_count = self._get_proxy_metric("clickhouse_proxy/discovery_cache/missed")
+        cache_missed_count = self._get_proxy_metric("clickhouse_proxy/discovery_cache/missed_count")
         force_update_count = self._get_proxy_metric("clickhouse_proxy/force_update_count")
         banned_count = self._get_proxy_metric("clickhouse_proxy/banned_count")
 
@@ -136,7 +136,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             "interruption_graceful_timeout": 100000,
         }
 
-        cache_missed_count = self._get_proxy_metric("clickhouse_proxy/discovery_cache/missed")
+        cache_missed_count = self._get_proxy_metric("clickhouse_proxy/discovery_cache/missed_count")
         force_update_count = self._get_proxy_metric("clickhouse_proxy/force_update_count")
         banned_count = self._get_proxy_metric("clickhouse_proxy/banned_count")
 
@@ -180,7 +180,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             "interruption_graceful_timeout": 600,
         }
 
-        cache_missed_counter = self._get_proxy_metric("clickhouse_proxy/discovery_cache/missed")
+        cache_missed_counter = self._get_proxy_metric("clickhouse_proxy/discovery_cache/missed_count")
         force_update_counter = self._get_proxy_metric("clickhouse_proxy/force_update_count")
         banned_count = self._get_proxy_metric("clickhouse_proxy/banned_count")
 

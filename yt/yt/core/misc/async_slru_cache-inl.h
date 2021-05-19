@@ -49,14 +49,22 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::TAsyncSlruCacheBase(
     : Config_(std::move(config))
     , Capacity_(Config_->Capacity)
     , YoungerSizeFraction_(Config_->YoungerSizeFraction)
-    , HitWeightCounter_(profiler.Counter("/hit"))
-    , MissedWeightCounter_(profiler.Counter("/missed"))
+    , HitWeightCounter_(profiler.Counter("/hit_weight"))
+    , MissedWeightCounter_(profiler.Counter("/missed_weight"))
+    , HitCounter_(profiler.Counter("/hit_count"))
+    , MissedCounter_(profiler.Counter("/missed_count"))
 {
-    profiler.AddFuncGauge("/younger", MakeStrong(this), [this] {
+    profiler.AddFuncGauge("/younger_weight", MakeStrong(this), [this] {
         return YoungerWeightCounter_.load();
     });
-    profiler.AddFuncGauge("/older", MakeStrong(this), [this] {
+    profiler.AddFuncGauge("/older_weight", MakeStrong(this), [this] {
         return OlderWeightCounter_.load();
+    });
+    profiler.AddFuncGauge("/younger_size", MakeStrong(this), [this] {
+        return YoungerSizeCounter_.load();
+    });
+    profiler.AddFuncGauge("/older_size", MakeStrong(this), [this] {
+        return OlderSizeCounter_.load();
     });
 
     Shards_.reset(new TShard[Config_->ShardCount]);
@@ -99,7 +107,8 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Clear()
         shard->OlderWeightCounter -= totalOlderWeight;
         YoungerWeightCounter_.fetch_sub(totalYoungerWeight);
         OlderWeightCounter_.fetch_sub(totalOlderWeight);
-
+        YoungerSizeCounter_.fetch_sub(youngerLruList.size());
+        OlderSizeCounter_.fetch_sub(olderLruList.size());
         // NB: Lists must die outside the critical section.
         writerGuard.Release();
     }
@@ -131,18 +140,21 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Find(const TKey& key)
 
     auto itemIt = shard->ItemMap.find(key);
     if (itemIt == shard->ItemMap.end()) {
+        MissedCounter_.Increment();
         return nullptr;
     }
 
     auto* item = itemIt->second;
     auto value = item->Value;
     if (!value) {
+        MissedCounter_.Increment();
         return nullptr;
     }
 
     bool needToDrain = Touch(shard, item);
 
     HitWeightCounter_.Increment(item->CachedWeight);
+    HitCounter_.Increment();
 
     readerGuard.Release();
 
@@ -200,6 +212,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
 
             if (item->Value) {
                 HitWeightCounter_.Increment(item->CachedWeight);
+                HitCounter_.Increment();
             }
 
             readerGuard.Release();
@@ -214,6 +227,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
 
         auto valueIt = valueMap.find(key);
         if (valueIt == valueMap.end()) {
+            MissedCounter_.Increment();
             return TValueFuture();
         }
 
@@ -239,6 +253,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
 
             auto weight = PushToYounger(shard, item);
             HitWeightCounter_.Increment(weight);
+            HitCounter_.Increment();
 
             Trim(shard, writerGuard);
             // ...since the item can be dead at this moment.
@@ -273,6 +288,7 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
 
             if (item->Value) {
                 HitWeightCounter_.Increment(item->CachedWeight);
+                HitCounter_.Increment();
             }
 
             return TInsertCookie(
@@ -292,6 +308,8 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
             YT_VERIFY(itemMap.emplace(key, item).second);
             ++Size_;
 
+            MissedCounter_.Increment();
+
             return TInsertCookie(
                 key,
                 this,
@@ -308,6 +326,7 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
 
             auto weight = PushToYounger(shard, item);
             HitWeightCounter_.Increment(weight);
+            HitCounter_.Increment();
 
             // NB: Releases the lock.
             Trim(shard, guard);
@@ -350,6 +369,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value)
     YT_VERIFY(shard->ValueMap.emplace(key, value.Get()).second);
 
     auto weight = PushToYounger(shard, item);
+    // MissedCounter_ has already been incremented in BeginInsert.
     MissedWeightCounter_.Increment(weight);
 
     // NB: Releases the lock.
@@ -575,6 +595,7 @@ i64 TAsyncSlruCacheBase<TKey, TValue, THash>::PushToYounger(TShard* shard, TItem
     shard->YoungerWeightCounter += weight;
     item->CachedWeight = weight;
     YoungerWeightCounter_.fetch_add(weight);
+    YoungerSizeCounter_.fetch_add(1);
     item->Younger = true;
     return weight;
 }
@@ -589,8 +610,10 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::MoveToYounger(TShard* shard, TIte
         auto weight = item->CachedWeight;
         shard->OlderWeightCounter -= weight;
         OlderWeightCounter_.fetch_sub(weight);
+        OlderSizeCounter_.fetch_sub(1);
         shard->YoungerWeightCounter += weight;
         YoungerWeightCounter_.fetch_add(weight);
+        YoungerSizeCounter_.fetch_add(1);
         item->Younger = true;
     }
 }
@@ -605,8 +628,10 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::MoveToOlder(TShard* shard, TItem*
         auto weight = item->CachedWeight;
         shard->YoungerWeightCounter -= weight;
         YoungerWeightCounter_.fetch_sub(weight);
+        YoungerSizeCounter_.fetch_sub(1);
         shard->OlderWeightCounter += weight;
         OlderWeightCounter_.fetch_add(weight);
+        OlderSizeCounter_.fetch_add(1);
         item->Younger = false;
     }
 }
@@ -622,9 +647,11 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Pop(TShard* shard, TItem* item)
     if (item->Younger) {
         shard->YoungerWeightCounter -= weight;
         YoungerWeightCounter_.fetch_sub(weight);
+        YoungerSizeCounter_.fetch_sub(1);
     } else {
         shard->OlderWeightCounter -= weight;
         OlderWeightCounter_.fetch_sub(weight);
+        OlderSizeCounter_.fetch_sub(1);
     }
     item->Unlink();
 }
