@@ -1575,6 +1575,7 @@ class TestControllerAgentPrerequisiteTxError(YTEnvSetup):
         self._abort_controller_agent_incarnation_transaction()
         op.track()
 
+
 class TestControllerAgentDisconnectionDuringUnregistration(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 2  # snapshot upload replication factor is 2; unable to configure
@@ -1624,4 +1625,3 @@ class TestControllerAgentDisconnectionDuringUnregistration(YTEnvSetup):
         time.sleep(15)
 
         assert op.get_state() == "completed"
-
