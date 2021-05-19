@@ -133,6 +133,8 @@ message TRspGetMountInfo
     required bool dynamic = 5;
     required NYT.NProto.TGuid upstream_replica_id = 6;
     repeated TReplicaInfo replicas = 7;
+    // COMPAT(akozhikhov): Drop default value.
+    optional bool enable_detailed_profiling = 8 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

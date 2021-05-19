@@ -81,6 +81,7 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, TabletStatistics);
     Save(context, ProfilingMode);
     Save(context, ProfilingTag);
+    Save(context, EnableDetailedProfiling);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
@@ -120,6 +121,10 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     if (context.GetVersion() >= EMasterReign::MakeProfilingModeAnInheritedAttribute_20_3) {
         Load(context, ProfilingMode);
         Load(context, ProfilingTag);
+    }
+    // COMPAT(akozhikhov)
+    if (context.GetVersion() >= EMasterReign::FlagForDetailedProfiling) {
+        Load(context, EnableDetailedProfiling);
     }
 }
 

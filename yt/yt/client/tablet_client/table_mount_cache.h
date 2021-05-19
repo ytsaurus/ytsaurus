@@ -104,6 +104,8 @@ struct TTableMountInfo
     NHydra::TRevision PrimaryRevision;
     NHydra::TRevision SecondaryRevision;
 
+    bool EnableDetailedProfiling = false;
+
     bool IsSorted() const;
     bool IsOrdered() const;
     bool IsReplicated() const;

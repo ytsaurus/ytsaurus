@@ -105,6 +105,7 @@
     XX(EnableAggressiveStarvation, enable_aggressive_starvation) \
     XX(EnableByUserProfiling, enable_by_user_profiling) \
     XX(EnableDetailedLogs, enable_detailed_logs) \
+    XX(EnableDetailedProfiling, enable_detailed_profiling) \
     XX(EnableLimitingAncestorCheck, enable_limiting_ancestor_check) \
     XX(EnableOperationsProfiling, enable_operations_profiling) \
     XX(EnableOperationsVectorProfiling, enable_operations_vector_profiling) \

@@ -45,6 +45,8 @@
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/optional.h>
 
+#include <yt/yt/core/profiling/public.h>
+
 #include <yt/yt/core/ytree/yson_serializable.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -78,6 +80,15 @@ struct TTimeoutOptions
 {
     std::optional<TDuration> Timeout;
 };
+
+struct TDetailedProfilingInfo
+    : public TRefCounted
+{
+    bool EnableDetailedProfiling = false;
+    NYPath::TYPath TablePath;
+};
+
+DEFINE_REFCOUNTED_TYPE(TDetailedProfilingInfo)
 
 struct TMultiplexingBandOptions
 {
@@ -465,6 +476,7 @@ struct TLookupRequestOptions
     bool KeepMissingRows = false;
     bool EnablePartialResult = false;
     bool UseLookupCache = false;
+    TDetailedProfilingInfoPtr DetailedProfilingInfo;
 };
 
 struct TLookupRowsOptionsBase

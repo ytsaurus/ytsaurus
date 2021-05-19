@@ -64,6 +64,8 @@
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/serialize.h>
 
+#include <yt/yt/core/profiling/profiler.h>
+
 #include <yt/yt/core/rpc/service_detail.h>
 #include <yt/yt/core/rpc/stream.h>
 
@@ -86,6 +88,7 @@ using namespace NObjectClient;
 using namespace NScheduler;
 using namespace NTransactionClient;
 using namespace NYPath;
+using namespace NProfiling;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -304,6 +307,16 @@ bool IsColumnarRowsetFormat(NApi::NRpcProxy::NProto::ERowsetFormat format)
     return format == NApi::NRpcProxy::NProto::RF_ARROW;
 }
 
+struct TTableDetailedProfilingCounters
+{
+    TTableDetailedProfilingCounters(const NProfiling::TProfiler& profiler)
+        : LookupDuration(profiler.Histogram("/lookup_duration", TDuration::MicroSeconds(1), TDuration::Seconds(10)))
+    { }
+
+    // Histogram.
+    NYT::NProfiling::TEventTimer LookupDuration;
+};
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -459,6 +472,8 @@ private:
     const IStickyTransactionPoolPtr StickyTransactionPool_;
     const NNative::TClientCachePtr AuthenticatedClientCache_;
 
+    NConcurrency::TSyncMap<TString, TTableDetailedProfilingCounters> TableToDetailedProfilingCounters_;
+
 
     NNative::IClientPtr GetOrCreateClient(const TString& user)
     {
@@ -610,6 +625,21 @@ private:
         context->SubscribeCanceled(BIND([future = std::move(future)] {
             future.Cancel(MakeCanceledError());
         }));
+    }
+
+    TTableDetailedProfilingCounters* GetOrCreateDetailedProfilingCounters(const TString& tablePath)
+    {    
+        return TableToDetailedProfilingCounters_.FindOrInsert(
+            tablePath,
+            [&] {
+                auto tableDetailedProfiler = RpcProxyProfiler
+                    .WithPrefix("/table_detailed_profiler")
+                    .WithTag("table_path", tablePath)
+                    .WithSparse();
+
+                return TTableDetailedProfilingCounters(tableDetailedProfiler);
+            })
+            .first;
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GenerateTimestamps)
@@ -2495,6 +2525,16 @@ private:
         options->UseLookupCache = request->use_lookup_cache();
     }
 
+    void ProcessLookupRowsDetailedProfilingInfo(
+        TWallTimer timer,
+        const TDetailedProfilingInfoPtr& detailedProfilingInfo)
+    {
+        if (detailedProfilingInfo->EnableDetailedProfiling) {
+            auto* counter = GetOrCreateDetailedProfilingCounters(detailedProfilingInfo->TablePath);
+            counter->LookupDuration.Record(timer.GetElapsedTime());
+        }
+    }
+
     template <class TResponse, class TRow>
     static std::vector<TSharedRef> PrepareRowsetForAttachment(
         TResponse* response,
@@ -2510,11 +2550,17 @@ private:
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
+        TWallTimer timer;
+
         const auto& path = request->path();
 
         TNameTablePtr nameTable;
         TSharedRange<TUnversionedRow> keys;
+
         TLookupRowsOptions options;
+        auto detailedProfilingInfo = New<TDetailedProfilingInfo>();
+        options.DetailedProfilingInfo = detailedProfilingInfo;
+
         LookupRowsPrelude(
             context,
             request,
@@ -2540,12 +2586,16 @@ private:
                 std::move(nameTable),
                 std::move(keys),
                 options),
-            [] (const auto& context, const auto& rowset) {
+            [=, this_ = MakeStrong(this), detailedProfilingInfo = std::move(detailedProfilingInfo)]
+            (const auto& context, const auto& rowset) {
                 auto* response = &context->Response();
                 response->Attachments() = PrepareRowsetForAttachment(response, rowset);
 
-                context->SetResponseInfo("RowCount: %v",
-                    rowset->GetRows().Size());
+                ProcessLookupRowsDetailedProfilingInfo(timer, detailedProfilingInfo);
+
+                context->SetResponseInfo("RowCount: %v, EnableDetailedProfiling: %v",
+                    rowset->GetRows().Size(),
+                    detailedProfilingInfo->EnableDetailedProfiling);
             });
     }
 
@@ -2553,11 +2603,17 @@ private:
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
+        TWallTimer timer;
+
         const auto& path = request->path();
 
         TNameTablePtr nameTable;
         TSharedRange<TUnversionedRow> keys;
+
         TVersionedLookupRowsOptions options;
+        auto detailedProfilingInfo = New<TDetailedProfilingInfo>();
+        options.DetailedProfilingInfo = detailedProfilingInfo;
+
         LookupRowsPrelude(
             context,
             request,
@@ -2588,18 +2644,24 @@ private:
                 std::move(nameTable),
                 std::move(keys),
                 options),
-            [] (const auto& context, const auto& rowset) {
+            [=, this_ = MakeStrong(this), detailedProfilingInfo = std::move(detailedProfilingInfo)]
+            (const auto& context, const auto& rowset) {
                 auto* response = &context->Response();
                 response->Attachments() = PrepareRowsetForAttachment(response, rowset);
 
-                context->SetResponseInfo("RowCount: %v",
-                    rowset->GetRows().Size());
+                ProcessLookupRowsDetailedProfilingInfo(timer, detailedProfilingInfo);
+
+                context->SetResponseInfo("RowCount: %v, EnableDetailedProfiling: %v",
+                    rowset->GetRows().Size(),
+                    detailedProfilingInfo->EnableDetailedProfiling);
             });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, MultiLookup)
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        TWallTimer timer;
 
         int subrequestCount = request->subrequests_size();
 
@@ -2610,7 +2672,9 @@ private:
             &options);
 
         std::vector<TMultiLookupSubrequest> subrequests;
+        std::vector<TDetailedProfilingInfoPtr> profilingInfos;
         subrequests.reserve(subrequestCount);
+        profilingInfos.reserve(subrequestCount);
 
         int beginAttachmentIndex = 0;
         for (int i = 0; i < subrequestCount; ++i) {
@@ -2618,6 +2682,9 @@ private:
 
             auto& subrequest = subrequests.emplace_back();
             subrequest.Path = protoSubrequest.path();
+
+            profilingInfos.push_back(New<TDetailedProfilingInfo>());
+            subrequest.Options.DetailedProfilingInfo = profilingInfos.back();
 
             int endAttachmentIndex = beginAttachmentIndex + protoSubrequest.attachment_count();
             if (endAttachmentIndex > std::ssize(request->Attachments())) {
@@ -2666,7 +2733,8 @@ private:
             client->MultiLookup(
                 std::move(subrequests),
                 std::move(options)),
-            [=] (const auto& context, const auto& rowsets) {
+            [=, this_ = MakeStrong(this), profilingInfos = std::move(profilingInfos)]
+            (const auto& context, const auto& rowsets) {
                 auto* response = &context->Response();
 
                 YT_VERIFY(subrequestCount == std::ssize(rowsets));
@@ -2682,6 +2750,10 @@ private:
                         attachments.begin(),
                         attachments.end());
                     rowCounts.push_back(rowset->GetRows().Size());
+                }
+
+                for (const auto& detailedProfilingInfo : profilingInfos) {
+                    ProcessLookupRowsDetailedProfilingInfo(timer, detailedProfilingInfo);
                 }
 
                 context->SetResponseInfo("RowCounts: %v",

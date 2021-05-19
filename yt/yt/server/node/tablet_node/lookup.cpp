@@ -99,6 +99,7 @@ public:
             ChunkReadOptions_.ReadSessionId);
 
         TFiberWallTimer timer;
+        TWallTimer wallTimer;
 
         ThrottleUponOverdraft(ETabletDistributedThrottlerKind::Lookup, TabletSnapshot_, ChunkReadOptions_);
 
@@ -260,14 +261,21 @@ public:
             counters->DecompressionCpuTime.Add(DecompressionCpuTime_);
 
             counters->ChunkReaderStatisticsCounters.Increment(ChunkReadOptions_.ChunkReaderStatistics);
+
+            if (mountConfig->EnableDetailedProfiling) {
+                counters->LookupDuration.Record(wallTimer.GetElapsedTime());
+            }
         }
 
         if (const auto& throttler = TabletSnapshot_->DistributedThrottlers[ETabletDistributedThrottlerKind::Lookup]) {
             throttler->Acquire(FoundDataWeight_);
         }
 
-        YT_LOG_DEBUG("Tablet lookup completed (TabletId: %v, CellId: %v, CacheHits: %v, CacheOutdated: %v, CacheMisses: %v, "
-            "FoundRowCount: %v, FoundDataWeight: %v, CpuTime: %v, DecompressionCpuTime: %v, ReadSessionId: %v)",
+        YT_LOG_DEBUG(
+            "Tablet lookup completed "
+            "(TabletId: %v, CellId: %v, CacheHits: %v, CacheOutdated: %v, CacheMisses: %v, "
+            "FoundRowCount: %v, FoundDataWeight: %v, CpuTime: %v, DecompressionCpuTime: %v, "
+            "ReadSessionId: %v, EnableDetailedProfiling: %v)",
             TabletSnapshot_->TabletId,
             TabletSnapshot_->CellId,
             CacheHits_,
@@ -277,7 +285,8 @@ public:
             FoundDataWeight_,
             cpuTime,
             DecompressionCpuTime_,
-            ChunkReadOptions_.ReadSessionId);
+            ChunkReadOptions_.ReadSessionId,
+            mountConfig->EnableDetailedProfiling);
     }
 
 private:

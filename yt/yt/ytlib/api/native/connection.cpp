@@ -526,6 +526,7 @@ private:
 
     std::atomic<bool> Terminated_ = false;
 
+
     void BuildOrchid(IYsonConsumer* consumer)
     {
         bool hasMasterCache = static_cast<bool>(Config_->MasterCache);

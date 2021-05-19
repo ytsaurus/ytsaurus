@@ -59,6 +59,7 @@ using namespace NQueryClient;
 using namespace NNodeTrackerClient;
 using namespace NHiveClient;
 using namespace NChunkClient;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -495,6 +496,11 @@ TRowset TClient::DoLookupRowsOnce(
 
     tableInfo->ValidateDynamic();
     tableInfo->ValidateSorted();
+
+    if (tableInfo->EnableDetailedProfiling) {
+        options.DetailedProfilingInfo->EnableDetailedProfiling = true;
+        options.DetailedProfilingInfo->TablePath = path;
+    }
 
     const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
     auto idMapping = BuildColumnIdMapping(*schema, nameTable);
