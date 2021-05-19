@@ -435,6 +435,8 @@ protected:
     ISuspendableInvokerPoolPtr SuspendableInvokerPool;
     IInvokerPoolPtr CancelableInvokerPool;
 
+    IInvokerPtr JobSpecBuildInvoker_;
+
     std::atomic<EControllerState> State = {EControllerState::Preparing};
 
     // These totals are approximate.

@@ -242,6 +242,10 @@ TOperationControllerBase::TOperationControllerBase(
     , CancelableInvokerPool(TransformInvokerPool(
         SuspendableInvokerPool,
         BIND(&TCancelableContext::CreateInvoker, CancelableContext)))
+    , JobSpecBuildInvoker_(
+        CreateMemoryTaggingInvoker(
+            Host->GetJobSpecBuildPoolInvoker(),
+            operation->GetMemoryTag()))
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
     , MemoryTag_(operation->GetMemoryTag())
     , PoolTreeControllerSettingsMap_(operation->PoolTreeControllerSettingsMap())
@@ -4270,7 +4274,7 @@ void TOperationControllerBase::CustomizeJoblet(const TJobletPtr& /* joblet */)
 
 void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSpec* jobSpec) const
 {
-    VERIFY_INVOKER_AFFINITY(Host->GetJobSpecBuildPoolInvoker());
+    VERIFY_INVOKER_AFFINITY(JobSpecBuildInvoker_);
 
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
@@ -4514,7 +4518,7 @@ IInvokerPtr TOperationControllerBase::GetJobSpecBuildInvoker() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Host->GetJobSpecBuildPoolInvoker();
+    return JobSpecBuildInvoker_;
 }
 
 IDiagnosableInvokerPool::TInvokerStatistics TOperationControllerBase::GetInvokerStatistics(EOperationControllerQueue queue) const
@@ -7953,7 +7957,7 @@ void TOperationControllerBase::CheckTentativeTreeEligibility()
 
 TSharedRef TOperationControllerBase::SafeBuildJobSpecProto(const TJobletPtr& joblet, const NScheduler::NProto::TScheduleJobSpec& scheduleJobSpec)
 {
-    VERIFY_INVOKER_AFFINITY(Host->GetJobSpecBuildPoolInvoker());
+    VERIFY_INVOKER_AFFINITY(JobSpecBuildInvoker_);
 
     if (auto buildJobSpecProtoDelay = Spec_->TestingOperationOptions->BuildJobSpecProtoDelay) {
         Sleep(*buildJobSpecProtoDelay);
@@ -8425,7 +8429,7 @@ void TOperationControllerBase::InitUserJobSpec(
     NScheduler::NProto::TUserJobSpec* jobSpec,
     TJobletPtr joblet) const
 {
-    VERIFY_INVOKER_AFFINITY(Host->GetJobSpecBuildPoolInvoker());
+    VERIFY_INVOKER_AFFINITY(JobSpecBuildInvoker_);
 
     ToProto(jobSpec->mutable_debug_output_transaction_id(), DebugTransaction->GetId());
 
@@ -8498,7 +8502,7 @@ void TOperationControllerBase::AddStderrOutputSpecs(
     NScheduler::NProto::TUserJobSpec* jobSpec,
     TJobletPtr joblet) const
 {
-    VERIFY_INVOKER_AFFINITY(Host->GetJobSpecBuildPoolInvoker());
+    VERIFY_INVOKER_AFFINITY(JobSpecBuildInvoker_);
 
     auto* stderrTableSpec = jobSpec->mutable_stderr_table_spec();
     auto* outputSpec = stderrTableSpec->mutable_output_table_spec();
@@ -8515,7 +8519,7 @@ void TOperationControllerBase::AddCoreOutputSpecs(
     NScheduler::NProto::TUserJobSpec* jobSpec,
     TJobletPtr joblet) const
 {
-    VERIFY_INVOKER_AFFINITY(Host->GetJobSpecBuildPoolInvoker());
+    VERIFY_INVOKER_AFFINITY(JobSpecBuildInvoker_);
 
     auto* coreTableSpec = jobSpec->mutable_core_table_spec();
     auto* outputSpec = coreTableSpec->mutable_output_table_spec();
