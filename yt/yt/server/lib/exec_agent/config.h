@@ -148,6 +148,25 @@ DEFINE_REFCOUNTED_TYPE(TSlotLocationConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSlotManagerTestingConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    //! If set, slot manager does not report JobProxyUnavailableAlert
+    //! allowing scheduler to schedule jobs to current node. Such jobs are
+    //! going to be aborted instead of failing; that is exactly what we test
+    //! using this switch.
+    bool SkipJobProxyUnavailableAlert;
+
+    TSlotManagerTestingConfig()
+    {
+        RegisterParameter("skip_job_proxy_unavailable_alert", SkipJobProxyUnavailableAlert)
+            .Default(false);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TSlotManagerTestingConfig)
+
 class TSlotManagerConfig
     : public virtual NYTree::TYsonSerializable
 {
@@ -181,6 +200,8 @@ public:
 
     bool DisableJobsOnGpuCheckFailure;
 
+    TSlotManagerTestingConfigPtr Testing;
+
     TSlotManagerConfig()
     {
         RegisterParameter("locations", Locations);
@@ -210,6 +231,9 @@ public:
 
         RegisterParameter("disable_jobs_on_gpu_check_failure", DisableJobsOnGpuCheckFailure)
             .Default(true);
+
+        RegisterParameter("testing", Testing)
+            .DefaultNew();
     }
 };
 
@@ -526,7 +550,7 @@ public:
     {
         RegisterParameter("master_connector", MasterConnector)
             .DefaultNew();
-        
+
         RegisterParameter("slot_manager", SlotManager)
             .DefaultNew();
     }

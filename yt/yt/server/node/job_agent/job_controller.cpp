@@ -94,6 +94,7 @@ class TJobController::TImpl
 public:
     DEFINE_SIGNAL(void(), ResourcesUpdated);
     DEFINE_SIGNAL(void(const IJobPtr& job), JobFinished);
+    DEFINE_SIGNAL(void(const TError& error), JobProxyBuildInfoUpdated);
 
 public:
     TImpl(
@@ -175,14 +176,14 @@ private:
     TPeriodicExecutorPtr ResourceAdjustmentExecutor_;
     TPeriodicExecutorPtr RecentlyRemovedJobCleaner_;
     TPeriodicExecutorPtr ReservedMappedMemoryChecker_;
+    TPeriodicExecutorPtr JobProxyBuildInfoUpdater_;
 
     THashSet<TJobId> JobIdsToConfirm_;
     TInstant LastStoredJobsSendTime_;
 
     THashSet<int> FreePorts_;
 
-    mutable TInstant CachedJobProxyBuildInfoUpdateTime_ = TInstant::Zero();
-    mutable TYsonString CachedJobProxyBuildInfo_;
+    TErrorOr<TYsonString> CachedJobProxyBuildInfo_;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
@@ -262,6 +263,7 @@ private:
     TCounter* GetJobFinalStateCounter(EJobState state, EJobOrigin origin);
 
     void BuildJobProxyBuildInfo(NYTree::TFluentAny fluent) const;
+    void UpdateJobProxyBuildInfo();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -319,6 +321,14 @@ void TJobController::TImpl::Initialize()
             Config_->MappedMemoryController->CheckPeriod);
         ReservedMappedMemoryChecker_->Start();
     }
+
+    JobProxyBuildInfoUpdater_ = New<TPeriodicExecutor>(
+        Bootstrap_->GetJobInvoker(),
+        BIND(&TImpl::UpdateJobProxyBuildInfo, MakeWeak(this)),
+        Config_->JobProxyBuildInfoUpdatePeriod);
+    JobProxyBuildInfoUpdater_->Start();
+    // Fetch initial job proxy build info immediately.
+    JobProxyBuildInfoUpdater_->ScheduleOutOfBand();
 }
 
 void TJobController::TImpl::RegisterJobFactory(EJobType type, TJobFactory factory)
@@ -1471,13 +1481,22 @@ void TJobController::TImpl::BuildJobProxyBuildInfo(NYTree::TFluentAny fluent) co
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    auto now = TInstant::Now();
-    if (CachedJobProxyBuildInfoUpdateTime_ + Config_->JobProxyBuildInfoUpdatePeriod >= now) {
-        fluent.Value(CachedJobProxyBuildInfo_);
-        return;
+    if (CachedJobProxyBuildInfo_.IsOK()) {
+        fluent.Value(CachedJobProxyBuildInfo_.Value());
+    } else {
+        fluent
+            .BeginMap()
+                .Item("error").Value(static_cast<TError>(CachedJobProxyBuildInfo_))
+            .EndMap();
     }
+}
 
-    CachedJobProxyBuildInfoUpdateTime_ = now;
+void TJobController::TImpl::UpdateJobProxyBuildInfo()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    // TODO(max42): not sure if running ytserver-job-proxy --build --yson from JobThread
+    // is a good idea; maybe delegate to another thread?
 
     try {
         auto jobProxyPath = ResolveBinaryPath(JobProxyProgramName)
@@ -1498,14 +1517,12 @@ void TJobController::TImpl::BuildJobProxyBuildInfo(NYTree::TFluentAny fluent) co
         ParseYson(ysonInput, &writer);
 
         CachedJobProxyBuildInfo_ = TYsonString(ysonBytes);
-    } catch (const TErrorException& ex) {
-        CachedJobProxyBuildInfo_ = BuildYsonStringFluently()
-            .BeginMap()
-                .Item("error").Value(ex.Error())
-            .EndMap();
+    } catch (const std::exception& ex) {
+        auto error = TError(ex);
+        CachedJobProxyBuildInfo_ = error;
     }
 
-    fluent.Value(CachedJobProxyBuildInfo_);
+    JobProxyBuildInfoUpdated_.Fire(static_cast<TError>(CachedJobProxyBuildInfo_));
 }
 
 IYPathServicePtr TJobController::TImpl::GetOrchidService()
@@ -1650,6 +1667,7 @@ IYPathServicePtr TJobController::GetOrchidService()
 
 DELEGATE_SIGNAL(TJobController, void(), ResourcesUpdated, *Impl_)
 DELEGATE_SIGNAL(TJobController, void(const IJobPtr&), JobFinished, *Impl_)
+DELEGATE_SIGNAL(TJobController, void(const TError&), JobProxyBuildInfoUpdated, *Impl_)
 
 ////////////////////////////////////////////////////////////////////////////////
 

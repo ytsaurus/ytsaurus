@@ -1,5 +1,5 @@
-from yt_env_setup import YTEnvSetup
-from yt_commands import (ls, get, print_debug, authors, wait)
+from yt_env_setup import (YTEnvSetup, Restarter, NODES_SERVICE)
+from yt_commands import (ls, get, print_debug, authors, wait, create, run_test_vanilla, write_table)
 
 import os.path
 import shutil
@@ -8,13 +8,34 @@ import requests
 ##################################################################
 
 
-class TestJobProxy(YTEnvSetup):
+class JobProxyTestBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
     ENABLE_HTTP_PROXY = True
     NUM_HTTP_PROXIES = 1
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "safe_online_node_count": 2,
+        },
+    }
+
+    def _job_proxy_path(self):
+        return os.path.join(self.bin_path, "ytserver-job-proxy")
+
+    def _hide_job_proxy(self):
+        job_proxy_path_hidden = self._job_proxy_path() + ".hidden"
+        print_debug("Moving {} to {}".format(self._job_proxy_path(), job_proxy_path_hidden))
+        shutil.move(self._job_proxy_path(), job_proxy_path_hidden)
+
+    def _unhide_job_proxy(self):
+        job_proxy_path_hidden = self._job_proxy_path() + ".hidden"
+        print_debug("Moving {} to {}".format(job_proxy_path_hidden, self._job_proxy_path()))
+        shutil.move(job_proxy_path_hidden, self._job_proxy_path())
+
+
+class TestJobProxyBinary(JobProxyTestBase):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "job_controller": {
@@ -54,17 +75,66 @@ class TestJobProxy(YTEnvSetup):
         assert check_direct(False)
         assert check_discover_versions(False)
 
-        job_proxy_path = os.path.join(self.bin_path, "ytserver-job-proxy")
-        job_proxy_path_hidden = job_proxy_path + ".hide"
-
-        print_debug("Moving {} to {}".format(job_proxy_path, job_proxy_path_hidden))
-        shutil.move(job_proxy_path, job_proxy_path_hidden)
+        self._hide_job_proxy()
 
         wait(lambda: check_direct(True))
         wait(lambda: check_discover_versions(True))
 
-        print_debug("Moving {} to {}".format(job_proxy_path_hidden, job_proxy_path))
-        shutil.move(job_proxy_path_hidden, job_proxy_path)
+        self._unhide_job_proxy()
 
         wait(lambda: check_direct(False))
         wait(lambda: check_discover_versions(False))
+
+    @authors("max42")
+    def test_slot_disabling_on_unavailable_job_proxy(self):
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/total_node_count") == 1)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 1)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/total_node_count") == 0)
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 0)
+            self._hide_job_proxy()
+
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/total_node_count") == 1)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 0)
+
+        self._unhide_job_proxy()
+
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/total_node_count") == 1)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 1)
+
+
+class TestUnavailableJobProxy(JobProxyTestBase):
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "job_proxy_build_info_update_period": 300,
+            },
+            "slot_manager": {
+                "testing": {
+                    "skip_job_proxy_unavailable_alert": True,
+                }
+            }
+        }
+    }
+
+    @authors("max42")
+    def test_job_abort_on_unavailable_job_proxy(self):
+        # JobProxyUnavailable alert is racy by its nature, so we still must ensure
+        # that whenever job is scheduled to a node that does not have ytserver-job-proxy now,
+        # job is simply aborted instead of accounting as failed. We do so
+        # by forcefully skipping aforementioned alert and checking that operation successfully
+        # terminates despite job proxy being unavailable for some period.
+
+        job_count = 4
+        op = run_test_vanilla("sleep 0.6", job_count=job_count, spec={"max_failed_job_count": 0}, track=False)
+        
+        wait(lambda: op.get_job_count("completed") > 0)
+
+        self._hide_job_proxy()
+
+        wait(lambda: op.get_job_count("aborted") > 2)
+
+        self._unhide_job_proxy()
+
+        op.track()

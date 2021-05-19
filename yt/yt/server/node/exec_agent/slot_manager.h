@@ -26,6 +26,7 @@ DEFINE_ENUM(ESlotManagerAlertType,
     ((GenericPersistentError)         (0))
     ((GpuCheckFailed)                 (1))
     ((TooManyConsecutiveJobAbortions) (2))
+    ((JobProxyUnavailable)            (3))
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,6 +94,10 @@ public:
      */
     void InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 
+    //! Returns event which is set when initial value of "JobProxyUnavailable" alert
+    //! is consistent (i.e. when OnJobProxyBuildInfoUpdated is called for the first time).
+    TFuture<void> GetJobProxyBuildInfoReadyEvent() const;
+
 private:
     const TSlotManagerConfigPtr Config_;
     NClusterNode::TBootstrap* const Bootstrap_;
@@ -119,11 +124,29 @@ private:
 
     int DefaultMediumIndex_ = NChunkClient::DefaultSlotsMediumIndex;
 
+    //! Sets once at the beginning of the program (namely, during initialization stage of the node)
+    //! to make sure we start with a correct understanding of current job proxy status. This eliminates
+    //! the possibility of the first job being scheduled to this node before we find out there is no
+    //! ytserver-job-proxy binary, which may theoretically happen since job proxy is prepared asynchronously
+    //! by ytcfgen.
+    TPromise<void> JobProxyBuildInfoReadyEvent_ = NewPromise<void>();
+
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
     bool HasSlotDisablingAlert() const;
 
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
     void OnJobFinished(const NJobAgent::IJobPtr& job);
+
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
+    void OnJobProxyBuildInfoUpdated(const TError& error);
+
     void OnJobsCpuLimitUpdated();
     void UpdateAliveLocations();
     void ResetConsecutiveAbortedJobCount();

@@ -56,6 +56,8 @@ void TSlotManager::Initialize()
         BIND(&TSlotManager::PopulateAlerts, MakeStrong(this)));
     Bootstrap_->GetJobController()->SubscribeJobFinished(
         BIND(&TSlotManager::OnJobFinished, MakeStrong(this)));
+    Bootstrap_->GetJobController()->SubscribeJobProxyBuildInfoUpdated(
+        BIND(&TSlotManager::OnJobProxyBuildInfoUpdated, MakeStrong(this)));
 
     const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
     dynamicConfigManager->SubscribeConfigChanged(BIND(&TSlotManager::OnDynamicConfigChanged, MakeWeak(this)));
@@ -239,6 +241,7 @@ bool TSlotManager::HasSlotDisablingAlert() const
     return
         !Alerts_[ESlotManagerAlertType::GenericPersistentError].IsOK() ||
         !Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions].IsOK() ||
+        !Alerts_[ESlotManagerAlertType::JobProxyUnavailable].IsOK() ||
         (disableJobsOnGpuCheckFailure && !Alerts_[ESlotManagerAlertType::GpuCheckFailed].IsOK());
 }
 
@@ -267,6 +270,13 @@ std::vector<TSlotLocationPtr> TSlotManager::GetLocations() const
 
     auto guard = ReaderGuard(LocationsLock_);
     return Locations_;
+}
+
+TFuture<void> TSlotManager::GetJobProxyBuildInfoReadyEvent() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return JobProxyBuildInfoReadyEvent_.ToFuture();
 }
 
 void TSlotManager::Disable(const TError& error)
@@ -322,6 +332,27 @@ void TSlotManager::OnJobFinished(const IJobPtr& job)
             TDelayedExecutor::Submit(BIND(&TSlotManager::ResetConsecutiveAbortedJobCount, MakeStrong(this)), delay);
         }
     }
+}
+
+void TSlotManager::OnJobProxyBuildInfoUpdated(const TError& error)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    if (!Config_->Testing->SkipJobProxyUnavailableAlert) {
+        auto guard = Guard(SpinLock_);
+
+        auto& alert = Alerts_[ESlotManagerAlertType::JobProxyUnavailable];
+
+        if (alert.IsOK() && !error.IsOK()) {
+            YT_LOG_INFO(error, "Disabling scheduler jobs due to job proxy unavailability");
+        } else if (!alert.IsOK() && error.IsOK()) {
+            YT_LOG_INFO(error, "Enable scheduler jobs as job proxy became available");
+        }
+
+        alert = error;
+    }
+
+    JobProxyBuildInfoReadyEvent_.TrySet();
 }
 
 void TSlotManager::ResetConsecutiveAbortedJobCount()

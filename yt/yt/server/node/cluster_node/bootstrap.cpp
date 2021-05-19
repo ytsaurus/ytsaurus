@@ -737,8 +737,20 @@ void TBootstrap::DoInitialize()
     ChunkStore_->Initialize();
     ChunkCache_->Initialize();
     SessionManager_->Initialize();
+
+    // We must ensure we know actual status of job proxy binary before Run phase.
+    // Otherwise we may erroneously receive some job which we fail to run due to missing
+    // ytserver-job-proxy. This requires slot manager to be initialized before job controller
+    // in order for the first out-of-band job proxy build info update to reach job controller
+    // via signal.
+    //
+    // Swapping two lines below does not break anything, but introduces additional latency
+    // of Config_->JobController->JobProxyBuildInfoUpdatePeriod.
     ExecSlotManager_->Initialize();
     JobController_->Initialize();
+
+    WaitFor(ExecSlotManager_->GetJobProxyBuildInfoReadyEvent())
+        .ThrowOnError();
 
 #ifdef __linux__
     if (GetEnvironmentType() == EJobEnvironmentType::Porto) {
