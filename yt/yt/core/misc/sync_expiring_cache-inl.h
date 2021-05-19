@@ -93,6 +93,14 @@ void TSyncExpiringCache<TKey, TValue>::Set(const TKey& key, TValue value)
 }
 
 template <class TKey, class TValue>
+void TSyncExpiringCache<TKey, TValue>::Invalidate(const TKey& key)
+{
+    auto guard = WriterGuard(MapLock_);
+
+    Map_.erase(key);
+}
+
+template <class TKey, class TValue>
 void TSyncExpiringCache<TKey, TValue>::Clear()
 {
     decltype(Map_) map;

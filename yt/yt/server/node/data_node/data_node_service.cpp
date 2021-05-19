@@ -133,6 +133,10 @@ public:
             .SetConcurrencyLimit(5000)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ProbeChunkSet)
+            .SetInvoker(Bootstrap_->GetStorageLookupInvoker())
+            .SetQueueSizeLimit(5000)
+            .SetConcurrencyLimit(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ProbeBlockSet)
             .SetCancelable(true)
             .SetQueueSizeLimit(5000)
@@ -454,6 +458,74 @@ private:
         }
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ProbeChunkSet)
+    {
+        auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
+
+        auto chunkCount = request->chunk_ids_size();
+        context->SetRequestInfo("ChunkCount: %v, Workload: %v",
+            chunkCount,
+            workloadDescriptor);
+
+        ValidateConnected();
+        
+        const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
+
+        int completeChunkCount = 0;
+        for (auto chunkIdProto : request->chunk_ids()) {
+            auto chunkId = FromProto<TChunkId>(chunkIdProto);
+
+            auto* subresponse = response->add_subresponses();
+
+            auto chunk = chunkRegistry->FindChunk(chunkId);
+            bool hasCompleteChunk = chunk.operator bool();
+            subresponse->set_has_complete_chunk(hasCompleteChunk);
+            if (hasCompleteChunk) {
+                ++completeChunkCount;
+            }
+
+            i64 diskReadQueueSize = GetDiskReadQueueSize(chunk, workloadDescriptor);
+            auto locationThrottler = GetLocationOutThrottler(chunk, workloadDescriptor);
+            i64 diskThrottlerQueueSize = locationThrottler
+                ? locationThrottler->GetQueueTotalCount()
+                : 0LL;
+            i64 diskQueueSize = diskReadQueueSize + diskThrottlerQueueSize;
+            subresponse->set_disk_queue_size(diskQueueSize);
+
+            bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
+            subresponse->set_disk_throttling(diskThrottling);
+
+            const auto& blockPeerTable = Bootstrap_->GetBlockPeerTable();
+            if (auto peerList = blockPeerTable->FindPeerList(chunkId)) {
+                if (auto peers = peerList->GetPeers(); !peers.empty()) {
+                    ToProto(subresponse->mutable_peer_node_ids(), peers);
+                    YT_LOG_DEBUG("Chunk peers suggested (ChunkId: %v, PeerCount: %v)",
+                        chunkId,
+                        peers.size());
+                }
+            }
+        }
+
+        const auto& netThrottler = Bootstrap_->GetDataNodeOutThrottler(workloadDescriptor);
+        i64 netThrottlerQueueSize = netThrottler->GetQueueTotalCount();
+        i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
+        i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
+        response->set_net_queue_size(netQueueSize);
+
+        bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
+        response->set_net_throttling(netThrottling);
+
+        context->SetResponseInfo(
+            "ChunkCount: %v, CompleteChunkCount: %v, "
+            "NetThrottling: %v, NetOutQueueSize: %v, NetThrottlerQueueSize: %v",
+            chunkCount,
+            completeChunkCount,
+            netThrottling,
+            netOutQueueSize,
+            netThrottlerQueueSize);
+
+        context->Reply();
+    }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ProbeBlockSet)
     {
@@ -777,7 +849,6 @@ private:
         bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
         if (netThrottling) {
             IncrementReadThrottlingCounter(context);
-            response->set_net_throttling(true);
         }
 
         struct TChunkFragmentBuffer
@@ -826,7 +897,6 @@ private:
                 bool chunkAvailable = false;
                 if (chunk) {
                     if (auto guard = TChunkReadGuard::TryAcquire(chunk)) {
-                        subresponse->set_has_complete_chunk(true);
                         if (auto future = guard.GetReaderPreparedFuture()) {
                             YT_LOG_DEBUG("Will wait for chunk reader to become prepared (ChunkId: %v)",
                                 chunk->GetId());

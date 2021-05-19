@@ -137,6 +137,31 @@ message TRspPopulateCache
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqProbeChunkSet
+{
+    repeated NYT.NProto.TGuid chunk_ids = 1;
+    required NYT.NProto.TWorkloadDescriptor workload_descriptor = 3;
+}
+
+message TRspProbeChunkSet
+{
+    message TSubresponse
+    {
+        required bool has_complete_chunk = 1;
+        repeated int32 peer_node_ids = 2;
+
+        required bool disk_throttling = 3;
+        required int64 disk_queue_size = 4;
+    }
+
+    required bool net_throttling = 1;
+    required int64 net_queue_size = 2;
+
+    repeated TSubresponse subresponses = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqProbeBlockSet
 {
     required NYT.NProto.TGuid chunk_id = 1;
@@ -242,14 +267,12 @@ message TRspGetChunkFragmentSet
     message TSubresponse
     {
         required bool has_complete_chunk = 1;
-        required bool disk_throttling = 2;
         repeated TPeerDescriptor peer_descriptors = 3;
     }
 
     repeated TSubresponse subresponses = 1;
 
     optional TChunkReaderStatistics chunk_reader_statistics = 2;
-    required bool net_throttling = 3;
 
     // Block fragments are returned via attachments and correspond to the flattened list
     // of all fragment subrequests. Some attachments can be null (if the requested chunk is missing

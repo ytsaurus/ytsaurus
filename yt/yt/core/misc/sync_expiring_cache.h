@@ -22,6 +22,7 @@ public:
     std::optional<TValue> Find(const TKey& key);
 
     void Set(const TKey& key, TValue value);
+    void Invalidate(const TKey& key);
     void Clear();
 
     void SetExpirationTimeout(std::optional<TDuration> expirationTimeout);

@@ -600,6 +600,7 @@ protected:
             return false;
         }
 
+        // TODO(akozhikhov): catch this exception.
         TPeer peer(
             descriptor.GetAddressWithNetworkOrThrow(Networks_),
             descriptor,
@@ -658,6 +659,7 @@ protected:
 
         try {
             const auto& channelFactory = reader->Client_->GetChannelFactory();
+            // TODO(akozhikhov): Don't catch here.
             return channelFactory->CreateChannel(addressWithNetwork);
         } catch (const std::exception& ex) {
             RegisterError(ex);
@@ -2886,6 +2888,7 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     NNative::IClientPtr client,
+    // TODO(akozhikhov): Extract nodeDirectory from client.
     TNodeDirectoryPtr nodeDirectory,
     const TNodeDescriptor& localDescriptor,
     std::optional<TNodeId> localNodeId,

@@ -39,9 +39,9 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         keys = [{"key": i} for i in xrange(10)]
         rows = [{"key": i, "value": "value" + str(i)} for i in xrange(10)]
         insert_rows("//tmp/t", rows)
-        # assert_items_equal(select_rows("* from [//tmp/t]"), rows)
-        # assert_items_equal(lookup_rows("//tmp/t", keys), rows)
-        # assert_items_equal(select_rows("* from [//tmp/t] where value = \"{}\"".format(rows[0]["value"])), [rows[0]])
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+        assert_items_equal(select_rows("* from [//tmp/t] where value = \"{}\"".format(rows[0]["value"])), [rows[0]])
         sync_unmount_table("//tmp/t")
 
         store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
@@ -53,8 +53,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         sync_mount_table("//tmp/t")
 
-        # assert_items_equal(select_rows("* from [//tmp/t]"), rows)
-        # assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
 
     @authors("babenko")
     def test_flush_to_hunk_chunk(self):
@@ -65,8 +65,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         keys = [{"key": i} for i in xrange(10)]
         rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10)]
         insert_rows("//tmp/t", rows)
-        # assert_items_equal(select_rows("* from [//tmp/t]"), rows)
-        # assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
         sync_unmount_table("//tmp/t")
 
         store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
@@ -80,9 +80,9 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         sync_mount_table("//tmp/t")
 
-        # assert_items_equal(select_rows("* from [//tmp/t]"), rows)
-        # assert_items_equal(lookup_rows("//tmp/t", keys), rows)
-        # assert_items_equal(select_rows("* from [//tmp/t] where value = \"{}\"".format(rows[0]["value"])), [rows[0]])
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+        assert_items_equal(select_rows("* from [//tmp/t] where value = \"{}\"".format(rows[0]["value"])), [rows[0]])
 
     @authors("babenko")
     def test_compaction(self):
@@ -93,8 +93,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10)]
         keys1 = [{"key": i} for i in xrange(10)]
         insert_rows("//tmp/t", rows1)
-        # assert_items_equal(select_rows("* from [//tmp/t]"), rows1)
-        # assert_items_equal(lookup_rows("//tmp/t", keys1), rows1)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows1)
+        assert_items_equal(lookup_rows("//tmp/t", keys1), rows1)
         sync_unmount_table("//tmp/t")
 
         assert len(self._get_store_chunk_ids("//tmp/t")) == 1
@@ -104,8 +104,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         rows2 = [{"key": i, "value": "value" + str(i) + "y" * 20} for i in xrange(10, 20)]
         keys2 = [{"key": i} for i in xrange(10, 20)]
         insert_rows("//tmp/t", rows2)
-        # select_rows("* from [//tmp/t]")
-        # assert_items_equal(lookup_rows("//tmp/t", keys1 + keys2), rows1 + rows2)
+        select_rows("* from [//tmp/t]")
+        assert_items_equal(lookup_rows("//tmp/t", keys1 + keys2), rows1 + rows2)
 
         sync_unmount_table("//tmp/t")
         wait(lambda: get("//tmp/t/@chunk_count") == 4)
@@ -134,8 +134,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         sync_mount_table("//tmp/t")
 
-        # assert_items_equal(select_rows("* from [//tmp/t]"), rows1 + rows2)
-        # assert_items_equal(lookup_rows("//tmp/t", keys1 + keys2), rows1 + rows2)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows1 + rows2)
+        assert_items_equal(lookup_rows("//tmp/t", keys1 + keys2), rows1 + rows2)
 
         set("//tmp/t/@forced_compaction_revision", 1)
         remount_table("//tmp/t")
@@ -154,8 +154,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        # assert_items_equal(select_rows("* from [//tmp/t]"), rows1 + rows2)
-        # assert_items_equal(lookup_rows("//tmp/t", keys1 + keys2), rows1 + rows2)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows1 + rows2)
+        assert_items_equal(lookup_rows("//tmp/t", keys1 + keys2), rows1 + rows2)
 
     @authors("babenko")
     def test_hunk_sweep(self):
@@ -168,8 +168,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         rows2 = [{"key": i, "value": "value" + str(i)} for i in xrange(10, 20)]
         keys2 = [{"key": i} for i in xrange(10, 20)]
         insert_rows("//tmp/t", rows1 + rows2)
-        # assert_items_equal(select_rows("* from [//tmp/t]"), rows1 + rows2)
-        # assert_items_equal(lookup_rows("//tmp/t", keys1 + keys2), rows1 + rows2)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows1 + rows2)
+        assert_items_equal(lookup_rows("//tmp/t", keys1 + keys2), rows1 + rows2)
         sync_unmount_table("//tmp/t")
 
         assert len(self._get_store_chunk_ids("//tmp/t")) == 1
@@ -177,16 +177,16 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         sync_mount_table("//tmp/t")
         delete_rows("//tmp/t", keys1)
-        # assert_items_equal(select_rows("* from [//tmp/t]"), rows2)
-        # assert_items_equal(lookup_rows("//tmp/t", keys1 + keys2), rows2)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows2)
+        assert_items_equal(lookup_rows("//tmp/t", keys1 + keys2), rows2)
         sync_unmount_table("//tmp/t")
 
         assert len(self._get_store_chunk_ids("//tmp/t")) == 2
         assert len(self._get_hunk_chunk_ids("//tmp/t")) == 1
 
         sync_mount_table("//tmp/t")
-        # assert_items_equal(select_rows("* from [//tmp/t]"), rows2)
-        # assert_items_equal(lookup_rows("//tmp/t", keys1 + keys2), rows2)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows2)
+        assert_items_equal(lookup_rows("//tmp/t", keys1 + keys2), rows2)
 
         set("//tmp/t/@min_data_ttl", 60000)
         set("//tmp/t/@forced_compaction_revision", 1)
