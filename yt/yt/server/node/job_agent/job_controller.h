@@ -97,8 +97,9 @@ public:
 
     NYTree::IYPathServicePtr GetOrchidService();
 
-    DECLARE_SIGNAL(void(), ResourcesUpdated)
+    DECLARE_SIGNAL(void(), ResourcesUpdated);
     DECLARE_SIGNAL(void(const IJobPtr&), JobFinished);
+    DECLARE_SIGNAL(void(const TError& error), JobProxyBuildInfoUpdated);
 
 private:
     class TImpl;
