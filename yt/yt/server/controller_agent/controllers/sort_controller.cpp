@@ -1247,8 +1247,14 @@ protected:
             std::vector<TStreamDescriptor> streamDescriptors,
             bool isFinalSort)
             : TSortTaskBase(controller, std::move(streamDescriptors), isFinalSort)
-            , MultiChunkPoolOutput_(CreateMultiChunkPoolOutput({}))
-        { }
+        {
+            TMultiChunkPoolOutputOptions options{
+                .HandleBlockedJobs = false
+            };
+            MultiChunkPoolOutput_ = CreateMultiChunkPoolOutput(
+                /*underlyingPools*/ {},
+                std::move(options));
+        }
 
         virtual TDuration GetLocalityTimeout() const override
         {
@@ -1520,8 +1526,15 @@ protected:
             std::vector<TStreamDescriptor> streamDescriptors)
             : TTask(controller, std::move(streamDescriptors))
             , Controller_(controller)
-            , MultiChunkPool_(CreateMultiChunkPool({}))
         {
+            TMultiChunkPoolOptions options{
+                /*multiChunkPoolInputOptions*/ { },
+                /*multiChunkPoolOutputOptions*/ {.HandleBlockedJobs = false},
+            };
+            MultiChunkPool_ = CreateMultiChunkPool(
+                /*underlyingPools*/ {},
+                std::move(options));
+
             ChunkPoolInput_ = CreateTaskUpdatingAdapter(MultiChunkPool_, this);
 
             MultiChunkPool_->GetJobCounter()->AddParent(Controller_->SortedMergeJobCounter);
@@ -1814,8 +1827,13 @@ protected:
             std::vector<TStreamDescriptor> streamDescriptors)
             : TTask(controller, std::move(streamDescriptors))
             , Controller_(controller)
-            , MultiChunkPoolOutput_(CreateMultiChunkPoolOutput({}))
         {
+            TMultiChunkPoolOutputOptions options{
+                .HandleBlockedJobs = false,
+            };
+            MultiChunkPoolOutput_ = CreateMultiChunkPoolOutput(
+                /*underlyingPools*/ {},
+                std::move(options));
             MultiChunkPoolOutput_->GetJobCounter()->AddParent(Controller_->UnorderedMergeJobCounter);
         }
 
@@ -2043,7 +2061,10 @@ protected:
             outputs.push_back(partition->ChunkPoolOutput);
         }
 
-        auto multiChunkPoolOutput = CreateMultiChunkPoolOutput(std::move(outputs));
+        TMultiChunkPoolOutputOptions options{
+            .HandleBlockedJobs = false
+        };
+        auto multiChunkPoolOutput = CreateMultiChunkPoolOutput(std::move(outputs), std::move(options));
         multiChunkPoolOutput->Finalize();
         return multiChunkPoolOutput;
     }
