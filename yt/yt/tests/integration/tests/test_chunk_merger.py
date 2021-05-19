@@ -673,6 +673,7 @@ class TestChunkMerger(YTEnvSetup):
         wait(lambda: get("//tmp/d/t/@resource_usage/chunk_count") == 1)
         assert read_table("//tmp/d/t") == info
 
+
 class TestChunkMergerMulticell(TestChunkMerger):
     NUM_SECONDARY_MASTER_CELLS = 2
 
