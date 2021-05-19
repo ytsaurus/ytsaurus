@@ -103,7 +103,10 @@ func (f *Cache) pingKey(ctx context.Context, key string) error {
 		return err
 	}
 
-	entry.LockedAt = schema.NewTimestamp(time.Now())
+	entry.LockedAt, err = schema.NewTimestamp(time.Now())
+	if err != nil {
+		return err
+	}
 	if err = f.putEntry(ctx, tx, entry); err != nil {
 		return err
 	}
@@ -205,9 +208,14 @@ func (f *Cache) tryUpload(ctx context.Context, key string, openBlob func() (io.R
 		return *entry.Path, false, nil
 
 	case entry == nil || f.isDead(entry):
+		lockedAt, err := schema.NewTimestamp(time.Now())
+		if err != nil {
+			return "", false, err
+		}
+
 		entry = &Entry{
 			Key:        key,
-			LockedAt:   schema.NewTimestamp(time.Now()),
+			LockedAt:   lockedAt,
 			UploadedBy: f.config.ProcessName,
 		}
 		if err := f.putEntry(ctx, tx, entry); err != nil {
@@ -223,15 +231,20 @@ func (f *Cache) tryUpload(ctx context.Context, key string, openBlob func() (io.R
 			return "", false, err
 		}
 
-		expiresAt := time.Now().Add(f.config.EntryTTL)
-		path, err := f.doUpload(ctx, key, openBlob, expiresAt.Add(f.config.ExpirationDelay))
+		expireTime := time.Now().Add(f.config.EntryTTL)
+		path, err := f.doUpload(ctx, key, openBlob, expireTime.Add(f.config.ExpirationDelay))
+		if err != nil {
+			return "", false, err
+		}
+
+		expiresAt, err := schema.NewTimestamp(expireTime)
 		if err != nil {
 			return "", false, err
 		}
 
 		entry = &Entry{
 			Key:        key,
-			ExpiresAt:  schema.NewTimestamp(expiresAt),
+			ExpiresAt:  expiresAt,
 			UploadedBy: f.config.ProcessName,
 			Path:       &path,
 		}
