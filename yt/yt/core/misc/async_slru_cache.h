@@ -172,8 +172,12 @@ private:
 
     NProfiling::TCounter HitWeightCounter_;
     NProfiling::TCounter MissedWeightCounter_;
+    NProfiling::TCounter HitCounter_;
+    NProfiling::TCounter MissedCounter_;
     std::atomic<i64> YoungerWeightCounter_ = 0;
     std::atomic<i64> OlderWeightCounter_ = 0;
+    std::atomic<i64> YoungerSizeCounter_ = 0;
+    std::atomic<i64> OlderSizeCounter_ = 0;
 
     TShard* GetShardByKey(const TKey& key) const;
 

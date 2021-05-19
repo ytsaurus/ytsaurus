@@ -146,10 +146,10 @@ class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSyn
     @authors("max42", "prime")
     @clear_everything_after_test
     def test_wow_such_flappy_test_so_many_failures(self):
-        metric_s_delta = Profiler.at_node(self.seed).counter("data_node/block_cache/compressed_data/hit")
-        metric_ns0_delta = Profiler.at_node(self.non_seeds[0]).counter("data_node/block_cache/compressed_data/hit")
-        metric_ns1_delta = Profiler.at_node(self.non_seeds[1]).counter("data_node/block_cache/compressed_data/hit")
-        metric_ns2_delta = Profiler.at_node(self.non_seeds[2]).counter("data_node/block_cache/compressed_data/hit")
+        metric_s_delta = Profiler.at_node(self.seed).counter("data_node/block_cache/compressed_data/hit_weight")
+        metric_ns0_delta = Profiler.at_node(self.non_seeds[0]).counter("data_node/block_cache/compressed_data/hit_weight")
+        metric_ns1_delta = Profiler.at_node(self.non_seeds[1]).counter("data_node/block_cache/compressed_data/hit_weight")
+        metric_ns2_delta = Profiler.at_node(self.non_seeds[2]).counter("data_node/block_cache/compressed_data/hit_weight")
 
         def read_table():
             for i in range(10):
