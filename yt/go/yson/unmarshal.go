@@ -285,14 +285,6 @@ func decodeAny(r *Reader, v interface{}) (err error) {
 		*vv = make([]byte, len(raw))
 		copy(*vv, raw)
 
-	case *Time:
-		var b []byte
-		b, err = decodeString(r)
-		if err != nil {
-			return
-		}
-		*vv, err = UnmarshalTime(string(b))
-
 	case *Duration:
 		i, err = decodeInt(r, 64)
 		*vv = Duration(time.Millisecond * time.Duration(i))

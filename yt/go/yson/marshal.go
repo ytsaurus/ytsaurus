@@ -275,26 +275,6 @@ func encodeAny(w *Writer, value interface{}) (err error) {
 			return err
 		}
 
-	case Time:
-		var ts string
-		ts, err = MarshalTime(vv)
-		if err != nil {
-			return
-		}
-		w.String(ts)
-
-	case *Time:
-		if vv != nil {
-			var ts string
-			ts, err = MarshalTime(*vv)
-			if err != nil {
-				return
-			}
-			w.String(ts)
-		} else {
-			w.Entity()
-		}
-
 	case Duration:
 		w.Int64(int64(time.Duration(vv) / time.Millisecond))
 
