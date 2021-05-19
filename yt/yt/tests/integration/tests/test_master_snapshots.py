@@ -300,6 +300,21 @@ def check_error_attribute():
 
     assert exists("#{}/@peers/0/last_revocation_reason".format(cell_id))
 
+MASTER_SNAPSHOT_CHECKER_LIST = [
+    check_simple_node,
+    check_schema,
+    check_forked_schema,
+    check_dynamic_tables,
+    check_security_tags,
+    check_master_memory,
+    check_hierarchical_accounts,
+    check_duplicate_attributes,
+    check_proxy_roles,
+    check_attribute_tombstone_yt_14682,
+    check_error_attribute,
+    check_removed_account,  # keep this item last as it's sensitive to timings
+]
+
 
 class TestMasterSnapshots(YTEnvSetup):
     NUM_MASTERS = 3
@@ -308,22 +323,7 @@ class TestMasterSnapshots(YTEnvSetup):
 
     @authors("ermolovd")
     def test(self):
-        CHECKER_LIST = [
-            check_simple_node,
-            check_schema,
-            check_forked_schema,
-            check_dynamic_tables,
-            check_security_tags,
-            check_master_memory,
-            check_hierarchical_accounts,
-            check_duplicate_attributes,
-            check_proxy_roles,
-            check_attribute_tombstone_yt_14682,
-            check_error_attribute,
-            check_removed_account,  # keep this item last as it's sensitive to timings
-        ]
-
-        checker_state_list = [iter(c()) for c in CHECKER_LIST]
+        checker_state_list = [iter(c()) for c in MASTER_SNAPSHOT_CHECKER_LIST]
         for s in checker_state_list:
             next(s)
 
