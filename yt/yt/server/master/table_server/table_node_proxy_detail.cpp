@@ -324,6 +324,10 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetReplicated(true)
         .SetRemovable(true)
         .SetPresent(static_cast<bool>(table->GetProfilingTag())));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EnableDetailedProfiling)
+        .SetWritable(true)
+        .SetReplicated(true)
+        .SetPresent(isDynamic));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -791,6 +795,15 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 .Value(*table->GetProfilingTag());
             return true;
 
+        case EInternedAttributeKey::EnableDetailedProfiling:
+            if (!isDynamic) {
+                break;
+            }
+
+            BuildYsonFluently(consumer)
+                .Value(table->GetEnableDetailedProfiling());
+            return true;
+
         default:
             break;
     }
@@ -1091,6 +1104,16 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             return true;
         }
 
+        case EInternedAttributeKey::EnableDetailedProfiling: {
+            if (!table->IsDynamic()) {
+                break;
+            }
+
+            auto* lockedTable = LockThisImpl();
+            lockedTable->SetEnableDetailedProfiling(ConvertTo<bool>(value));
+            return true;
+        }
+
         default:
             break;
     }
@@ -1246,6 +1269,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
     response->set_dynamic(trunkTable->IsDynamic());
     ToProto(response->mutable_upstream_replica_id(), trunkTable->GetUpstreamReplicaId());
     ToProto(response->mutable_schema(), trunkTable->GetTableSchema());
+    response->set_enable_detailed_profiling(trunkTable->GetEnableDetailedProfiling());
 
     THashSet<TTabletCell*> cells;
     for (const auto* tablet : trunkTable->Tablets()) {

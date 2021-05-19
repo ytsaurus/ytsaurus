@@ -284,6 +284,8 @@ private:
             tableInfo->Dynamic = rsp->dynamic();
             tableInfo->NeedKeyEvaluation = primarySchema->HasComputedColumns();
 
+            tableInfo->EnableDetailedProfiling = rsp->enable_detailed_profiling();
+
             for (const auto& protoTabletInfo : rsp->tablets()) {
                 auto tabletInfo = New<TTabletInfo>();
                 tabletInfo->CellId = FromProto<TCellId>(protoTabletInfo.cell_id());

@@ -137,6 +137,7 @@ DEFINE_ENUM(EMasterReign,
     ((WaitUnmountBeforeTabletCellDecommission)                      (1611))  // savrus
     ((ReplicaLagLimit)                                              (1612))  // gritukan
     ((InheritEnableChunkMerger)                                     (1613))  // aleksandra-zh
+    ((FlagForDetailedProfiling)                                     (1614))  // akozhikhov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

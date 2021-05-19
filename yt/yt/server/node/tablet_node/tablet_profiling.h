@@ -38,6 +38,7 @@ struct TLookupCounters
         , CpuTime(profiler.TimeCounter("/lookup/cpu_time"))
         , DecompressionCpuTime(profiler.TimeCounter("/lookup/decompression_cpu_time"))
         , ChunkReaderStatisticsCounters(profiler.WithPrefix("/lookup/chunk_reader_statistics"))
+        , LookupDuration(profiler.Histogram("/lookup/duration", TDuration::MicroSeconds(1), TDuration::Seconds(10)))
     { }
 
     NProfiling::TCounter CacheHits;
@@ -51,6 +52,7 @@ struct TLookupCounters
     NProfiling::TTimeCounter CpuTime;
     NProfiling::TTimeCounter DecompressionCpuTime;
     NChunkClient::TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
+    NYT::NProfiling::TEventTimer LookupDuration;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -110,7 +110,7 @@ private:
     std::vector<TDuration> Bounds_;
     std::vector<std::atomic<int>> Buckets_;
 
-    // These to methods are not used.
+    // These two methods are not used.
     virtual TSummarySnapshot<TDuration> GetSummary() override;
     virtual TSummarySnapshot<TDuration> GetSummaryAndReset() override;
 };

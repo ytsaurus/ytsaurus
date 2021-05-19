@@ -4,8 +4,10 @@ from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
 from yt_env_setup import wait
 from yt_commands import *
+from yt_helpers import Profiler
 from yt.yson import YsonEntity
 
+from copy import deepcopy
 import random
 
 from yt.environment.helpers import assert_items_equal
@@ -908,3 +910,52 @@ class TestLookupMulticell(TestLookup):
 class TestLookupRpcProxy(TestLookup):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+
+    @authors("akozhikhov")
+    def test_detailed_lookup_profiling(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        set("//tmp/t/@enable_detailed_profiling", True)
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 1, "value": "one"}]
+        insert_rows("//tmp/t", rows)
+
+        node_lookup_duration_histogram = Profiler.at_tablet_node("//tmp/t").histogram(
+            name="lookup/duration")
+
+        # NB(eshcherbin): This is done to bypass RPC driver which currently doesn't support options for get queries.
+        driver_config = deepcopy(self.Env.configs["driver"])
+        driver_config["api_version"] = 4
+        driver = Driver(config=driver_config)
+    
+        rpc_proxy = ls("//sys/rpc_proxies")[0]
+
+        rpc_driver_config = deepcopy(self.Env.configs["rpc_driver"])
+        rpc_driver_config["addresses"] = [rpc_proxy]
+        rpc_driver_config["api_version"] = 3
+        rpc_driver = Driver(config=rpc_driver_config)
+
+        proxy_lookup_duration_histogram = Profiler.at_rpc_proxy(rpc_proxy).histogram(
+            name="rpc_proxy/table_detailed_profiler/lookup_duration",
+            fixed_tags={"table_path": "//tmp/t"})
+
+        for i in range(5):
+            assert lookup_rows("//tmp/t", [{"key": 1}], driver=rpc_driver) == rows
+
+        def _check(lookup_duration_histogram):
+            try:
+                bins = lookup_duration_histogram.get_bins(verbose=True, driver=driver)
+                bin_counters = [bin["count"] for bin in bins]
+                if sum(bin_counters) == 0:
+                    return False
+                if len(bin_counters) < 20:
+                    return False
+                return True
+            except YtError as e:
+                # TODO(eshcherbin): get rid of this.
+                if "No sensors have been collected so far" not in str(e):
+                    raise e
+
+        wait(lambda: _check(node_lookup_duration_histogram))
+        wait(lambda: _check(proxy_lookup_duration_histogram))

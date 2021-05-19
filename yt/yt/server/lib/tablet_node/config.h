@@ -159,6 +159,8 @@ public:
 
     bool EnableConsistentChunkReplicaPlacement;
 
+    bool EnableDetailedProfiling;
+
     TTableMountConfig()
     {
         RegisterParameter("tablet_cell_bundle", TabletCellBundle)
@@ -370,6 +372,9 @@ public:
             .Default(false);
 
         RegisterParameter("enable_consistent_chunk_replica_placement", EnableConsistentChunkReplicaPlacement)
+            .Default(false);
+
+        RegisterParameter("enable_detailed_profiling", EnableDetailedProfiling)
             .Default(false);
 
         RegisterPostprocessor([&] () {
