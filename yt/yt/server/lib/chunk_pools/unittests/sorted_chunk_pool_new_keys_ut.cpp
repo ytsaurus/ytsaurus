@@ -2144,9 +2144,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingWithForeigns)
     InputSliceDataWeight_ = 1;
     InitJobConstraints();
 
-    // Each slice must be sliced into approximately 100 parts.
+    // Primary slice must be sliced into approximately 100 parts.
     auto chunkA = CreateChunk(BuildRow({2}), BuildRow({4}), 0, 1_MB);
-    auto chunkB = CreateChunk(BuildRow({3}), BuildRow({5}), 1, 1_MB);
+    auto chunkB = CreateChunk(BuildRow({3}), BuildRow({5}), 1);
 
     CreateChunkPool();
 
@@ -2282,6 +2282,46 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitWithForeign)
         ASSERT_EQ(stripeList->Stripes.size(), 2u);
         ASSERT_LE(GetStripeByTableIndex(stripeList, 1)->DataSlices.size(), 2u);
     }
+}
+
+TEST_F(TSortedChunkPoolNewKeysTest, SuchForeignMuchData)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false, true} /* isForeign */,
+        {false, false} /* isTeleportable */,
+        {false, false} /* isVersioned */
+    );
+    InitPrimaryComparator(1);
+    InitForeignComparator(1);
+    DataSizePerJob_ = 10_KB;
+    InitJobConstraints();
+
+    std::vector<TLegacyDataSlicePtr> dataSlices;
+
+    for (int index = 0; index < 10; ++index) {
+        auto chunk = CreateChunk(BuildRow({100 * index}), BuildRow({100 * (index + 1)}), 0);
+        dataSlices.emplace_back(CreateDataSlice(chunk));
+    }
+
+    for (int index = 0; index < 1000; ++index) {
+        auto chunk = CreateChunk(BuildRow({index}), BuildRow({index + 1}), 1);
+        dataSlices.emplace_back(CreateDataSlice(chunk));
+    }
+
+    CreateChunkPool();
+
+    for (const auto& dataSlice : dataSlices) {
+        AddDataSlice(dataSlice);
+    }
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+
+    auto stripeLists = GetAllStripeLists();
+    EXPECT_GE(stripeLists.size(), 90u);
+    EXPECT_LE(stripeLists.size(), 110u);
 }
 
 TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitStripeSuspension)

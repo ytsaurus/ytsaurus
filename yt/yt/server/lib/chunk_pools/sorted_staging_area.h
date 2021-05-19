@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "resource.h"
 
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
@@ -55,6 +56,9 @@ struct ISortedStagingArea
     //! Returns largest of all primary data slice upper bounds. Used to
     //! determine how far current staging area spans to the right.
     virtual NTableClient::TKeyBound GetPrimaryUpperBound() const = 0;
+
+    //! Returns total resource vector of all staged foreign data slices.
+    virtual TResourceVector GetForeignResourceVector() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISortedStagingArea)

@@ -300,6 +300,9 @@ private:
         auto primarySliceSize = JobSizeConstraints_->GetInputSliceDataWeight();
         auto foreignSliceSize = JobSizeConstraints_->GetForeignSliceDataWeight();
 
+        // TODO(max42): job size constraints is incredibly bloated :( get rid of such workarounds.
+        primarySliceSize = std::min(primarySliceSize, JobSizeConstraints_->GetPrimaryDataWeightPerJob());
+
         YT_LOG_DEBUG("Fetching non-teleport data slices (HasChunkSliceFetcher: %v, PrimarySliceSize: %v, ForeignSliceSize: %v, SliceForeignChunks: %v)",
             static_cast<bool>(chunkSliceFetcher),
             primarySliceSize,

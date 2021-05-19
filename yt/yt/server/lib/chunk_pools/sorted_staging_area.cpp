@@ -161,12 +161,7 @@ public:
     {
         YT_LOG_TRACE("Promoting upper bound (NewUpperBound: %v)", newUpperBound);
 
-        // NB: The leftmost endpoint may be >=[] when dealing with sorted dynamic stores,
-        // and it is the only case when UpperBound_ may not be smaller than upperBound.
-        YT_VERIFY(
-            PrimaryComparator_.CompareKeyBounds(UpperBound_, newUpperBound) < 0 ||
-            (PrimaryComparator_.CompareKeyBounds(UpperBound_, newUpperBound) == 0 &&
-            newUpperBound.IsEmpty()));
+        YT_VERIFY(PrimaryComparator_.CompareKeyBounds(UpperBound_, newUpperBound) <= 0);
 
         // Buffer slices are not attached to current upper bound any more, so they
         // should me moved to the main area.
@@ -269,6 +264,11 @@ public:
             }
         }
         return upperBound;
+    }
+
+    virtual TResourceVector GetForeignResourceVector() const override
+    {
+        return ForeignDomain_.Statistics;
     }
 
 private:
@@ -639,6 +639,9 @@ private:
                         CreateInputDataSlice(dataSlice, ForeignComparator_, shortenedActualLowerBound, shortenedActualUpperBound),
                         *dataSlice->Tag,
                         /* isPrimary */ false);
+                    YT_LOG_TRACE(
+                        "Adding foreign data slice to job (DataSlice: %v)",
+                        GetDataSliceDebugString(dataSlice));
                     foreignStatistics += TResourceVector::FromDataSlice(dataSlice, /* isPrimary */ false);
                 }
             }

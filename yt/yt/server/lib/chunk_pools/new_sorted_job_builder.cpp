@@ -66,17 +66,20 @@ public:
         // Pivot keys provide guarantee that we won't introduce more jobs than
         // defined by them, so we do not try to flush by ourself if they are present.
         if (Options_.PivotKeys.empty()) {
-            TResourceVector limitVector;
-            limitVector.Values[EResourceKind::DataWeight] = static_cast<i64>(std::min<double>(
+            LimitVector_.Values[EResourceKind::DataWeight] = static_cast<i64>(std::min<double>(
                 std::numeric_limits<i64>::max() / 2,
                 GetDataWeightPerJob() * retryFactor));
-            limitVector.Values[EResourceKind::PrimaryDataWeight] = static_cast<i64>(std::min<double>(
+            LimitVector_.Values[EResourceKind::PrimaryDataWeight] = static_cast<i64>(std::min<double>(
                 std::numeric_limits<i64>::max() / 2,
                 GetPrimaryDataWeightPerJob() * retryFactor));
 
-            limitVector.Values[EResourceKind::DataSliceCount] = JobSizeConstraints_->GetMaxDataSlicesPerJob();
+            if (Options_.ConsiderOnlyPrimarySize) {
+                LimitVector_.Values[EResourceKind::DataWeight] = std::numeric_limits<i64>::max() / 2;
+            }
 
-            JobSizeTracker_ = CreateJobSizeTracker(limitVector, Logger);
+            LimitVector_.Values[EResourceKind::DataSliceCount] = JobSizeConstraints_->GetMaxDataSlicesPerJob();
+
+            JobSizeTracker_ = CreateJobSizeTracker(LimitVector_, Logger);
         }
 
         if (Options_.EnablePeriodicYielder) {
@@ -308,6 +311,8 @@ private:
     ISortedStagingAreaPtr StagingArea_;
     TBernoulliSampler JobSampler_;
 
+    TResourceVector LimitVector_;
+
     TRowBufferPtr RowBuffer_;
 
     struct TPrimaryEndpoint
@@ -396,9 +401,8 @@ private:
     //! primary upper bound. It works correctly under assumption that StagingArea_->GetPrimaryUpperBound()
     //! monotonically increases.
     //! This method is idempotent and cheap to call (on average).
-    void AttachForeignSlices()
+    void AttachForeignSlices(TKeyBound primaryUpperBound)
     {
-        auto primaryUpperBound = StagingArea_->GetPrimaryUpperBound();
         YT_LOG_TRACE(
             "Attaching foreign slices (PrimaryUpperBound: %v, FirstUnstagedForeignIndex: %v)",
             primaryUpperBound,
@@ -491,16 +495,16 @@ private:
     {
         if (JobSampler_.Sample()) {
             YT_LOG_DEBUG("Sorted job created (JobIndex: %v, BuiltJobCount: %v, PrimaryDataSize: %v, PrimaryRowCount: %v, "
-                "PrimarySliceCount: %v, PreliminaryForeignDataSize: %v, PreliminaryForeignRowCount: %v, "
-                "PreliminaryForeignSliceCount: %v, PrimaryLowerBound: %v, PrimaryUpperBound: %v)",
+                "PrimarySliceCount: %v, ForeignDataSize: %v, ForeignRowCount: %v, "
+                "ForeignSliceCount: %v, PrimaryLowerBound: %v, PrimaryUpperBound: %v)",
                 JobIndex_,
                 Jobs_.size(),
                 job.GetPrimaryDataWeight(),
                 job.GetPrimaryRowCount(),
                 job.GetPrimarySliceCount(),
-                job.GetPreliminaryForeignDataWeight(),
-                job.GetPreliminaryForeignRowCount(),
-                job.GetPreliminaryForeignSliceCount(),
+                job.GetForeignDataWeight(),
+                job.GetForeignRowCount(),
+                job.GetForeignSliceCount(),
                 job.GetPrimaryLowerBound(),
                 job.GetPrimaryUpperBound());
 
@@ -514,11 +518,11 @@ private:
             Jobs_.emplace_back(std::move(job));
         } else {
             YT_LOG_DEBUG("Sorted job skipped (JobIndex: %v, BuiltJobCount: %v, PrimaryDataSize: %v, "
-                "PreliminaryForeignDataSize: %v, PrimaryLowerBound: %v, PrimaryUpperBound: %v)",
+                "ForeignDataSize: %v, PrimaryLowerBound: %v, PrimaryUpperBound: %v)",
                 JobIndex_,
                 static_cast<int>(Jobs_.size()),
                 job.GetPrimaryDataWeight(),
-                job.GetPreliminaryForeignDataWeight(),
+                job.GetForeignDataWeight(),
                 job.GetPrimaryLowerBound(),
                 job.GetPrimaryUpperBound());
         }
@@ -585,6 +589,22 @@ private:
             return false;
         }
 
+        // Now goes the tricky moment. If the range defined by the only wide enough primary data slice
+        // overlaps with too many foreign data slices (namely, enough to induce an overflow), we do not
+        // attempt to slice by rows, preferring slicing by keys instead.
+        // Refer to SuchForeignMuchData unittest for an example, or to "TFilterRedirectsReducer" operation
+        // by Jupiter.
+        auto foreignVector = StagingArea_->GetForeignResourceVector();
+        for (const auto& dataSlice : ForeignSlices_) {
+            if (PrimaryComparator_.IsRangeEmpty(dataSlice->LowerLimit().KeyBound, maxUpperBound)) {
+                break;
+            }
+            foreignVector += TResourceVector::FromDataSlice(dataSlice, /*isPrimary*/ false);
+        }
+        if (LimitVector_.GetDataWeight() < foreignVector.GetDataWeight()) {
+            return false;
+        }
+
         return true;
     }
 
@@ -607,7 +627,13 @@ private:
                 /*isPrimary*/ sliceType == ESliceType::Buffer || sliceType == ESliceType::Solid);
             JobSizeTracker_->AccountSlice(vector);
         }
-        StagingArea_->Put(std::move(dataSlice), sliceType);
+        StagingArea_->Put(dataSlice, sliceType);
+
+        if (sliceType == ESliceType::Solid) {
+            AttachForeignSlices(dataSlice->UpperLimit().KeyBound);
+        } else if (sliceType == ESliceType::Buffer) {
+            AttachForeignSlices(dataSlice->LowerLimit().KeyBound.Invert());
+        }
     }
 
     //! Stage several data slices using row slicing for better job size constraints meeting.
@@ -629,8 +655,6 @@ private:
 
         while (!dataSlices.empty()) {
             PeriodicYielder_.TryYield();
-
-            AttachForeignSlices();
 
             auto dataSlice = std::move(dataSlices.front());
             dataSlices.pop_front();
@@ -690,14 +714,12 @@ private:
                 }
             }();
 
-            AttachForeignSlices();
-
             Flush(overflowToken);
         }
     }
 
     //! Stage several data slices without row slicing "atomically".
-    void StageRangeWithoutRowSlicing(TRange<TPrimaryEndpoint> endpoints)
+    void StageRangeWithoutRowSlicing(TRange<TPrimaryEndpoint> endpoints, TKeyBound nextPrimaryLowerBound)
     {
         YT_LOG_TRACE("Processing endpoint range without row slicing (EndpointCount: %v)", endpoints.size());
 
@@ -706,12 +728,33 @@ private:
         for (const auto& endpoint : endpoints) {
             Stage(endpoint.DataSlice, ESliceType::Buffer);
         }
-        AttachForeignSlices();
-        if (JobSizeTracker_) {
-            auto overflowToken = JobSizeTracker_->CheckOverflow();
-            if (overflowToken) {
-                Flush(overflowToken);
+
+        if (!nextPrimaryLowerBound) {
+            nextPrimaryLowerBound = TKeyBound::MakeEmpty(/*isUpper*/ false);
+        }
+
+        auto tryFlush = [&] {
+            if (JobSizeTracker_) {
+                auto overflowToken = JobSizeTracker_->CheckOverflow();
+                if (overflowToken) {
+                    Flush(overflowToken);
+                }
             }
+        };
+
+        AttachForeignSlices(endpoints[0].KeyBound.Invert());
+        tryFlush();
+
+        for (size_t foreignDataSliceIndex = FirstUnstagedForeignIndex_; foreignDataSliceIndex < ForeignSlices_.size(); ++foreignDataSliceIndex) {
+            const auto& dataSlice = ForeignSlices_[foreignDataSliceIndex];
+            if (PrimaryComparator_.CompareKeyBounds(dataSlice->LowerLimit().KeyBound, nextPrimaryLowerBound) >= 0) {
+                break;
+            }
+
+            auto upperBound = dataSlice->LowerLimit().KeyBound.Invert();
+            StagingArea_->PromoteUpperBound(upperBound);
+            AttachForeignSlices(upperBound);
+            tryFlush();
         }
     }
 
@@ -790,13 +833,13 @@ private:
             if (DecideRowSliceability(primaryEndpoints, nextPrimaryLowerBound)) {
                 StageRangeWithRowSlicing(primaryEndpoints);
             } else {
-                StageRangeWithoutRowSlicing(primaryEndpoints);
+                StageRangeWithoutRowSlicing(primaryEndpoints, nextPrimaryLowerBound);
             }
         }
 
         StagingArea_->PutBarrier();
 
-        AttachForeignSlices();
+        AttachForeignSlices(TKeyBound::MakeUniversal(/*isUpper*/ true));
 
         StagingArea_->Finish();
 

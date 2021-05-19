@@ -1310,6 +1310,7 @@ private:
         auto options = TSortedControllerBase::GetSortedChunkPoolOptions();
         options.SortedJobOptions.PivotKeys = std::vector<TLegacyKey>(Spec_->PivotKeys.begin(), Spec_->PivotKeys.end());
         options.SliceForeignChunks = Spec_->SliceForeignChunks;
+        options.SortedJobOptions.ConsiderOnlyPrimarySize = Spec_->ConsiderOnlyPrimarySize;
         return options;
     }
 
