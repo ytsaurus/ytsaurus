@@ -25,6 +25,8 @@ struct TSortedJobOptions
     bool ShouldSlicePrimaryTableByKeys = false;
     bool ValidateOrder = true;
 
+    bool ConsiderOnlyPrimarySize = false;
+
     std::vector<NTableClient::TLegacyKey> PivotKeys;
 
     //! An upper bound for a total number of slices that is allowed. If this value

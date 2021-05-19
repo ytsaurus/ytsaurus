@@ -15,6 +15,7 @@ void TSortedJobOptions::Persist(const TPersistenceContext& context)
     Persist(context, ForeignComparator);
     Persist(context, MaxTotalSliceCount);
     Persist(context, EnablePeriodicYielder);
+    Persist(context, ConsiderOnlyPrimarySize);
     Persist(context, PivotKeys);
     Persist(context, ShouldSlicePrimaryTableByKeys);
     Persist(context, ValidateOrder);
