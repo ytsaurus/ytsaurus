@@ -38,7 +38,7 @@ static void validate_timestamp_too_large(int64_t timestamp)
             sizeof(buffer),
             "Timestamp is greater than maximal value: got %" PRId64 " > %" PRId64,
             timestamp,
-            TimestampMinSeconds);
+            TimestampMaxSeconds);
         buffer[length] = 0;
         ThrowException(buffer);
     }
