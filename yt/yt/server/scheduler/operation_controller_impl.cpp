@@ -94,6 +94,8 @@ void TOperationControllerImpl::RevokeAgent()
 
     IncarnationId_ = {};
     Agent_.Reset();
+
+    YT_LOG_INFO("Agent revoked for operation");
 }
 
 TControllerAgentPtr TOperationControllerImpl::FindAgent() const
@@ -400,18 +402,18 @@ TFuture<TOperationControllerUnregisterResult> TOperationControllerImpl::Unregist
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    YT_LOG_INFO("Unregistering operation controller");
-
     if (!IncarnationId_) {
         YT_LOG_INFO("Operation has no agent assigned; unregister request ignored");
         return MakeFuture<TOperationControllerUnregisterResult>({});
     }
 
+    YT_LOG_INFO("Unregistering operation controller");
+
     auto req = AgentProxy_->UnregisterOperation();
     ToProto(req->mutable_operation_id(), OperationId_);
     req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
     return InvokeAgent<TControllerAgentServiceProxy::TRspUnregisterOperation>(req).Apply(
-        BIND([] (const TControllerAgentServiceProxy::TRspUnregisterOperationPtr& rsp){
+        BIND([] (const TControllerAgentServiceProxy::TRspUnregisterOperationPtr& rsp) {
             return TOperationControllerUnregisterResult{FromProto<TOperationJobMetrics>(rsp->residual_job_metrics())};
         }));
 }
@@ -788,8 +790,9 @@ TFuture<TIntrusivePtr<TResponse>> TOperationControllerImpl::InvokeAgent(
     }
     auto method = request->GetMethod();
 
-    YT_LOG_DEBUG("Sending request to agent (AgentId: %v, OperationId: %v, Method: %v)",
+    YT_LOG_DEBUG("Sending request to agent (AgentId: %v, IncarnationId: %v, OperationId: %v, Method: %v)",
         agent->GetId(),
+        agent->GetIncarnationId(),
         OperationId_,
         method);
 
