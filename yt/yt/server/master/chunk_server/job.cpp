@@ -31,11 +31,13 @@ TJob::TJob(
     TJobId jobId,
     EJobType type,
     NNodeTrackerServer::TNode* node,
-    const TNodeResources& resourceUsage)
+    const TNodeResources& resourceUsage,
+    TChunkIdWithIndexes chunkIdWithIndexes)
     : JobId_(jobId)
     , Type_(type)
     , Node_(node)
     , ResourceUsage_(resourceUsage)
+    , ChunkIdWithIndexes_(chunkIdWithIndexes)
     , StartTime_(TInstant::Now())
     , State_(EJobState::Running)
 { }
@@ -47,9 +49,13 @@ TReplicationJob::TReplicationJob(
     NNodeTrackerServer::TNode* node,
     TChunkPtrWithIndexes chunkWithIndexes,
     const TNodePtrWithIndexesList& targetReplicas)
-    : TJob(jobId, EJobType::ReplicateChunk, node, TReplicationJob::GetResourceUsage(chunkWithIndexes.GetPtr()))
+    : TJob(
+        jobId,
+        EJobType::ReplicateChunk,
+        node,
+        TReplicationJob::GetResourceUsage(chunkWithIndexes.GetPtr()),
+        ToChunkIdWithIndexes(chunkWithIndexes))
     , TargetReplicas_(targetReplicas)
-    , ChunkIdWithIndexes_(ToChunkIdWithIndexes(chunkWithIndexes))
 { }
 
 void TReplicationJob::FillJobSpec(NCellMaster::TBootstrap* /*bootstrap*/, TJobSpec* jobSpec) const
@@ -63,11 +69,6 @@ void TReplicationJob::FillJobSpec(NCellMaster::TBootstrap* /*bootstrap*/, TJobSp
         jobSpecExt->add_target_replicas(ToProto<ui64>(replica));
         builder.Add(replica);
     }
-}
-
-NChunkClient::TChunkIdWithIndexes TReplicationJob::GetChunkIdWithIndexes() const
-{
-    return ChunkIdWithIndexes_;
 }
 
 TNodeResources TReplicationJob::GetResourceUsage(TChunk* chunk)
@@ -88,9 +89,8 @@ TRemovalJob::TRemovalJob(
     NNodeTrackerServer::TNode* node,
     TChunk* chunk,
     const NChunkClient::TChunkIdWithIndexes& chunkIdWithIndexes)
-    : TJob(jobId, EJobType::RemoveChunk, node, TRemovalJob::GetResourceUsage())
+    : TJob(jobId, EJobType::RemoveChunk, node, TRemovalJob::GetResourceUsage(), chunkIdWithIndexes)
     , Chunk_(chunk)
-    , ChunkIdWithIndexes_(chunkIdWithIndexes)
 { }
 
 void TRemovalJob::FillJobSpec(NCellMaster::TBootstrap* bootstrap, TJobSpec* jobSpec) const
@@ -121,11 +121,6 @@ void TRemovalJob::FillJobSpec(NCellMaster::TBootstrap* bootstrap, TJobSpec* jobS
     jobSpecExt->set_replicas_expiration_deadline(ToProto<ui64>(chunkRemovalJobExpirationDeadline));
 }
 
-NChunkClient::TChunkIdWithIndexes TRemovalJob::GetChunkIdWithIndexes() const
-{
-    return ChunkIdWithIndexes_;
-}
-
 TNodeResources TRemovalJob::GetResourceUsage()
 {
     TNodeResources resourceUsage;
@@ -147,7 +142,8 @@ TRepairJob::TRepairJob(
         jobId,
         EJobType::RepairChunk,
         node,
-        TRepairJob::GetResourceUsage(chunk, jobMemoryUsage))
+        TRepairJob::GetResourceUsage(chunk, jobMemoryUsage),
+        TChunkIdWithIndexes{chunk->GetId(), GenericChunkReplicaIndex, GenericMediumIndex})
     , TargetReplicas_(targetReplicas)
     , Chunk_(chunk)
     , Decommission_(decommission)
@@ -177,11 +173,6 @@ void TRepairJob::FillJobSpec(NCellMaster::TBootstrap* /*bootstrap*/, TJobSpec* j
     }
 }
 
-NChunkClient::TChunkIdWithIndexes TRepairJob::GetChunkIdWithIndexes() const
-{
-    return {Chunk_->GetId(), GenericChunkReplicaIndex, GenericMediumIndex};
-}
-
 TNodeResources TRepairJob::GetResourceUsage(TChunk* chunk, i64 jobMemoryUsage)
 {
     auto dataSize = chunk->GetPartDiskSpace();
@@ -200,7 +191,12 @@ TSealJob::TSealJob(
     TJobId jobId,
     NNodeTrackerServer::TNode* node,
     TChunkPtrWithIndexes chunkWithIndexes)
-    : TJob(jobId, EJobType::SealChunk, node, TSealJob::GetResourceUsage())
+    : TJob(
+        jobId,
+        EJobType::SealChunk,
+        node,
+        TSealJob::GetResourceUsage(),
+        ToChunkIdWithIndexes(chunkWithIndexes))
     , ChunkWithIndexes_(chunkWithIndexes)
 { }
 
@@ -221,11 +217,6 @@ void TSealJob::FillJobSpec(NCellMaster::TBootstrap* /*bootstrap*/, TJobSpec* job
     ToProto(jobSpecExt->mutable_source_replicas(), replicas);
 }
 
-NChunkClient::TChunkIdWithIndexes TSealJob::GetChunkIdWithIndexes() const
-{
-    return ToChunkIdWithIndexes(ChunkWithIndexes_);
-}
-
 TNodeResources TSealJob::GetResourceUsage()
 {
     TNodeResources resourceUsage;
@@ -242,8 +233,7 @@ TMergeJob::TMergeJob(
     TChunkIdWithIndexes chunkIdWithIndexes,
     TChunkVector inputChunks,
     NChunkClient::NProto::TChunkMergerWriterOptions chunkMergerWriterOptions)
-    : TJob(jobId, EJobType::MergeChunks, node, TMergeJob::GetResourceUsage())
-    , ChunkIdWithIndexes_(chunkIdWithIndexes)
+    : TJob(jobId, EJobType::MergeChunks, node, TMergeJob::GetResourceUsage(), chunkIdWithIndexes)
     , InputChunks_(std::move(inputChunks))
     , ChunkMergerWriterOptions_(chunkMergerWriterOptions)
 { }
@@ -272,12 +262,6 @@ void TMergeJob::FillJobSpec(NCellMaster::TBootstrap* bootstrap, TJobSpec* jobSpe
         protoChunk->set_row_count(chunk->MiscExt().row_count());
     }
 }
-
-NChunkClient::TChunkIdWithIndexes TMergeJob::GetChunkIdWithIndexes() const
-{
-    return ChunkIdWithIndexes_;
-}
-
 
 TNodeResources TMergeJob::GetResourceUsage()
 {

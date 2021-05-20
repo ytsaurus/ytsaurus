@@ -30,6 +30,10 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerServer::TNode*, Node);
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
 
+    // NB: This field is used for logging in job tracker, in particular when chunk is already dead,
+    // so we store it at the beginning of the job.
+    DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkIdWithIndexes, ChunkIdWithIndexes);
+
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
     //! Current state (as reported by node).
     DEFINE_BYVAL_RW_PROPERTY(EJobState, State);
@@ -41,10 +45,10 @@ public:
         TJobId jobId,
         EJobType type,
         NNodeTrackerServer::TNode* node,
-        const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
+        const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
+        NChunkClient::TChunkIdWithIndexes chunkIdWithIndexes);
 
     virtual void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const = 0;
-    virtual NChunkClient::TChunkIdWithIndexes GetChunkIdWithIndexes() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJob)
@@ -65,11 +69,8 @@ public:
         const TNodePtrWithIndexesList& targetReplicas);
 
     virtual void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
-    virtual NChunkClient::TChunkIdWithIndexes GetChunkIdWithIndexes() const override;
 
 private:
-    NChunkClient::TChunkIdWithIndexes ChunkIdWithIndexes_;
-
     static NNodeTrackerClient::NProto::TNodeResources GetResourceUsage(TChunk* chunk);
 };
 
@@ -88,11 +89,9 @@ public:
         const NChunkClient::TChunkIdWithIndexes& chunkIdWithIndexes);
 
     virtual void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
-    virtual NChunkClient::TChunkIdWithIndexes GetChunkIdWithIndexes() const override;
 
 private:
     TChunk* Chunk_;
-    NChunkClient::TChunkIdWithIndexes ChunkIdWithIndexes_;
 
     static NNodeTrackerClient::NProto::TNodeResources GetResourceUsage();
 };
@@ -117,7 +116,6 @@ public:
         bool decommission);
 
     virtual void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
-    virtual NChunkClient::TChunkIdWithIndexes GetChunkIdWithIndexes() const override;
 
 private:
     TChunk* Chunk_;
@@ -140,7 +138,6 @@ public:
         TChunkPtrWithIndexes chunkWithIndexes);
 
     virtual void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
-    virtual NChunkClient::TChunkIdWithIndexes GetChunkIdWithIndexes() const override;
 
 private:
     TChunkPtrWithIndexes ChunkWithIndexes_;
@@ -165,10 +162,8 @@ public:
         NChunkClient::NProto::TChunkMergerWriterOptions chunkMergerWriterOptions);
 
     virtual void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
-    virtual NChunkClient::TChunkIdWithIndexes GetChunkIdWithIndexes() const override;
 
 private:
-    NChunkClient::TChunkIdWithIndexes ChunkIdWithIndexes_;
     TChunkVector InputChunks_;
     NChunkClient::NProto::TChunkMergerWriterOptions ChunkMergerWriterOptions_;
 
