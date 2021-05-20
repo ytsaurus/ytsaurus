@@ -63,7 +63,7 @@ func Example() error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Created table at https://yt.yandex-team.ru/%s/navigation?path=%s", cluster, tablePath.String())
+	fmt.Printf("Created table at https://yt.yandex-team.ru/%s/navigation?path=%s\n", cluster, tablePath.String())
 
 	writer, err := yc.WriteTable(ctx, tablePath, nil)
 	if err != nil {
@@ -79,7 +79,7 @@ func Example() error {
 	if err = writer.Commit(); err != nil {
 		return err
 	}
-	fmt.Printf("Written and committed %v rows", len(fakeContacts))
+	fmt.Printf("Written and committed %v rows\n", len(fakeContacts))
 
 	type Attrs struct {
 		Rows int `yson:"row_count"`
@@ -88,7 +88,7 @@ func Example() error {
 	if err = yc.GetNode(ctx, tablePath.Attrs(), &attrs, nil); err != nil {
 		return err
 	}
-	fmt.Printf("YT table contains %v rows", attrs.Rows)
+	fmt.Printf("YT table contains %v rows\n", attrs.Rows)
 
 	reader, err := yc.ReadTable(ctx, tablePath, nil)
 	if err != nil {
