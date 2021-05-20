@@ -8,6 +8,7 @@ import os
 import sys
 import pytest
 import random
+import yatest.common
 
 ##################################################################
 
@@ -62,7 +63,7 @@ class TestMasterSnapshotsCompatibility(YTEnvSetup):
 
         with Restarter(self.Env, MASTERS_SERVICE):
             master_path = os.path.join(self.bin_path, "ytserver-master")
-            ytserver_all_trunk_path = os.path.join(self.bin_path, "ytserver-all.trunk")
+            ytserver_all_trunk_path = yatest.common.binary_path("yt/yt/server/all/ytserver-all")
             print_debug("Removing {}".format(master_path))
             os.remove(master_path)
             print_debug("Symlinking {} to {}".format(ytserver_all_trunk_path, master_path))
