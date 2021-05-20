@@ -52,6 +52,7 @@ T* AcquireHazardPointer(const TPtrLoader& ptrLoader, T* localPtr)
     void* checkPtr;
     do {
         HazardPointer.store(TGetIdentityPtr<T>::Do(localPtr), std::memory_order_release);
+        std::atomic_thread_fence(std::memory_order_seq_cst);
         checkPtr = localPtr;
         localPtr = ptrLoader();
     } while (localPtr != checkPtr);
