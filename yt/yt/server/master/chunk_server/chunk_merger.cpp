@@ -735,17 +735,19 @@ void TChunkMerger::CreateChunks()
         auto mediumIndex = node->GetPrimaryMediumIndex();
         req->set_medium_index(mediumIndex);
 
-        const auto& policy = node->Replication().Get(mediumIndex);
-        req->set_replication_factor(policy.GetReplicationFactor());
-
         auto erasureCodec = node->GetErasureCodec();
         req->set_erasure_codec(ToProto<int>(erasureCodec));
-        req->set_account(node->GetAccount()->GetName());
 
-        auto chunkType = erasureCodec == NErasure::ECodec::None
-            ? EObjectType::Chunk
-            : EObjectType::ErasureChunk;
-        req->set_type(ToProto<int>(chunkType));
+        if (erasureCodec == NErasure::ECodec::None) {
+            req->set_type(ToProto<int>(EObjectType::Chunk));
+            const auto& policy = node->Replication().Get(mediumIndex);
+            req->set_replication_factor(policy.GetReplicationFactor());
+        } else {
+            req->set_type(ToProto<int>(EObjectType::ErasureChunk));
+            req->set_replication_factor(1);
+        }
+
+        req->set_account(node->GetAccount()->GetName());
 
         req->set_vital(node->Replication().GetVital());
         ToProto(req->mutable_job_id(), jobInfo.JobId);
