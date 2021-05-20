@@ -564,10 +564,17 @@ TGetOperationCommand::TGetOperationCommand()
 void TGetOperationCommand::DoExecute(ICommandContextPtr context)
 {
     auto asyncResult = context->GetClient()->GetOperation(OperationIdOrAlias, Options);
-    auto result = WaitFor(asyncResult)
+    auto operation = WaitFor(asyncResult)
         .ValueOrThrow();
 
-    context->ProduceOutputValue(ConvertToYsonString(result));
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .Do([&] (TFluentAny fluent) {
+            Serialize(
+                operation,
+                fluent.GetConsumer(),
+                /* needType */ true,
+                /* needOperationType */ true);
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -128,6 +128,8 @@ class TestGetOperation(YTEnvSetup):
 
         res_get_operation_progress = res_get_operation["progress"]
 
+        assert res_get_operation["operation_type"] == res_get_operation["type"]
+
         for key in res_orchid_progress:
             if key != "build_time":
                 assert key in res_get_operation_progress
