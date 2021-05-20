@@ -813,7 +813,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             },
         )
         op.track()
-        assert op.get_job_count("completed") >= 2
+        assert op.get_job_count("completed", from_orchid=False) >= 2
 
     @authors("ignat", "klyachin")
     def test_with_intermediate_account(self):
