@@ -12,7 +12,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TIterator, class TComparer>
-void SiftDown(TIterator begin, TIterator end, TIterator current, TComparer comparer, std::function<void(size_t)> onAssign)
+void SiftDown(TIterator begin, TIterator end, TIterator current, TComparer comparer)
 {
     size_t size = std::distance(begin, end);
     size_t offset = std::distance(begin, current);
@@ -40,31 +40,19 @@ void SiftDown(TIterator begin, TIterator end, TIterator current, TComparer compa
         }
 
         begin[offset] = std::move(minValue);
-        if (onAssign) {
-            onAssign(offset);
-        }
         offset = min;
     }
     begin[offset] = std::move(value);
-    if (onAssign) {
-        onAssign(offset);
-    }
-}
-
-template <class TIterator, class TComparer>
-void SiftDown(TIterator begin, TIterator end, TIterator current, TComparer comparer)
-{
-    SiftDown(std::move(begin), std::move(end), std::move(current), comparer, nullptr);
 }
 
 template <class TIterator>
 void SiftDown(TIterator begin, TIterator end, TIterator current)
 {
-    SiftDown(std::move(begin), std::move(end), std::move(current), std::less<>(), nullptr);
+    SiftDown(std::move(begin), std::move(end), std::move(current), std::less<>());
 }
 
 template <class TIterator, class TComparer>
-void SiftUp(TIterator begin, TIterator /*end*/, TIterator current, TComparer comparer, std::function<void(size_t)> onAssign)
+void SiftUp(TIterator begin, TIterator /*end*/, TIterator current, TComparer comparer)
 {
     auto value = std::move(*current);
     while (current != begin) {
@@ -76,27 +64,15 @@ void SiftUp(TIterator begin, TIterator /*end*/, TIterator current, TComparer com
         }
 
         *current = std::move(parentValue);
-        if (onAssign) {
-            onAssign(dist);
-        }
         current = parent;
     }
     *current = std::move(value);
-    if (onAssign) {
-        onAssign(std::distance(begin, current));
-    }
-}
-
-template <class TIterator, class TComparer>
-void SiftUp(TIterator begin, TIterator end, TIterator current, TComparer comparer)
-{
-    SiftUp(std::move(begin), std::move(end), std::move(current), comparer, nullptr);
 }
 
 template <class TIterator>
 void SiftUp(TIterator begin, TIterator end, TIterator current)
 {
-    SiftUp(std::move(begin), std::move(end), std::move(current), std::less<>(), nullptr);
+    SiftUp(std::move(begin), std::move(end), std::move(current), std::less<>());
 }
 
 template <class TIterator, class TComparer>
@@ -161,7 +137,7 @@ void ExtractHeap(TIterator begin, TIterator end)
 }
 
 template <class TIterator, class TComparer>
-void AdjustHeapItem(TIterator begin, TIterator end, TIterator current, TComparer comparer, std::function<void(size_t)> onAssign)
+void AdjustHeapItem(TIterator begin, TIterator end, TIterator current, TComparer comparer)
 {
     // It intentionally duplicates SiftUp and SiftDown code by optimization reasons.
     bool hasSiftedUp = false;
@@ -178,19 +154,12 @@ void AdjustHeapItem(TIterator begin, TIterator end, TIterator current, TComparer
             hasSiftedUp = true;
 
             *current = std::move(parentValue);
-            if (onAssign) {
-                onAssign(dist);
-            }
             current = parent;
         }
         *current = std::move(value);
     }
 
-    if (hasSiftedUp) {
-        if (onAssign) {
-            onAssign(std::distance(begin, current));
-        }
-    } else {
+    if (!hasSiftedUp) {
         size_t size = std::distance(begin, end);
         size_t offset = std::distance(begin, current);
 
@@ -217,28 +186,16 @@ void AdjustHeapItem(TIterator begin, TIterator end, TIterator current, TComparer
             }
 
             begin[offset] = std::move(minValue);
-            if (onAssign) {
-                onAssign(offset);
-            }
             offset = min;
         }
         begin[offset] = std::move(value);
-        if (onAssign) {
-            onAssign(offset);
-        }
     }
-}
-
-template <class TIterator, class TComparer>
-void AdjustHeapItem(TIterator begin, TIterator end, TIterator current, TComparer comparer)
-{
-    AdjustHeapItem(std::move(begin), std::move(end), std::move(current), comparer, nullptr);
 }
 
 template <class TIterator>
 void AdjustHeapItem(TIterator begin, TIterator end, TIterator current)
 {
-    AdjustHeapItem(std::move(begin), std::move(end), std::move(current), std::less<>(), nullptr);
+    AdjustHeapItem(std::move(begin), std::move(end), std::move(current), std::less<>());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
