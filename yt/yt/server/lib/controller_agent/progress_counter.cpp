@@ -106,11 +106,6 @@ i64 TProgressCounter::GetBlocked() const
 
 void TProgressCounter::AddRunning(i64 value)
 {
-    // Fast path.
-    if (value == 0) {
-        return;
-    }
-
     Running_ += value;
     for (const auto& parent : Parents_) {
         parent->AddRunning(value);
@@ -119,11 +114,6 @@ void TProgressCounter::AddRunning(i64 value)
 
 void TProgressCounter::AddCompleted(i64 value, EInterruptReason reason)
 {
-    // Fast path.
-    if (value == 0) {
-        return;
-    }
-
     Completed_[reason] += value;
     for (const auto& parent : Parents_) {
         parent->AddCompleted(value, reason);
@@ -132,11 +122,6 @@ void TProgressCounter::AddCompleted(i64 value, EInterruptReason reason)
 
 void TProgressCounter::AddFailed(i64 value)
 {
-    // Fast path.
-    if (value == 0) {
-        return;
-    }
-
     Failed_ += value;
     for (const auto& parent : Parents_) {
         parent->AddFailed(value);
@@ -145,18 +130,11 @@ void TProgressCounter::AddFailed(i64 value)
 
 void TProgressCounter::AddPending(i64 value)
 {
-    // Fast path.
-    if (value == 0) {
-        return;
-    }
-
     Pending_ += value;
     for (const auto& parent : Parents_) {
         parent->AddPending(value);
     }
-    for (const auto& pendingUpdatedSubscriber : PendingUpdatedSubscribers_) {
-        pendingUpdatedSubscriber();
-    }
+    PendingUpdated_.Fire();
 }
 
 void TProgressCounter::SetPending(i64 value)
@@ -166,11 +144,6 @@ void TProgressCounter::SetPending(i64 value)
 
 void TProgressCounter::AddSuspended(i64 value)
 {
-    // Fast path.
-    if (value == 0) {
-        return;
-    }
-
     Suspended_ += value;
     for (const auto& parent : Parents_) {
         parent->AddSuspended(value);
@@ -184,11 +157,6 @@ void TProgressCounter::SetSuspended(i64 value)
 
 void TProgressCounter::AddAborted(i64 value, EAbortReason reason)
 {
-    // Fast path.
-    if (value == 0) {
-        return;
-    }
-
     Aborted_[reason] += value;
     for (const auto& parent : Parents_) {
         parent->AddAborted(value, reason);
@@ -197,11 +165,6 @@ void TProgressCounter::AddAborted(i64 value, EAbortReason reason)
 
 void TProgressCounter::AddLost(i64 value)
 {
-    // Fast path.
-    if (value == 0) {
-        return;
-    }
-
     Lost_ += value;
     for (const auto& parent : Parents_) {
         parent->AddLost(value);
@@ -210,11 +173,6 @@ void TProgressCounter::AddLost(i64 value)
 
 void TProgressCounter::AddInvalidated(i64 value)
 {
-    // Fast path.
-    if (value == 0) {
-        return;
-    }
-
     Invalidated_ += value;
     for (const auto& parent : Parents_) {
         parent->AddInvalidated(value);
@@ -223,11 +181,6 @@ void TProgressCounter::AddInvalidated(i64 value)
 
 void TProgressCounter::AddUncategorized(i64 value)
 {
-    // Fast path.
-    if (value == 0) {
-        return;
-    }
-
     Uncategorized_ += value;
     for (const auto& parent : Parents_) {
         parent->AddUncategorized(value);
@@ -236,18 +189,11 @@ void TProgressCounter::AddUncategorized(i64 value)
 
 void TProgressCounter::AddBlocked(i64 value)
 {
-    // Fast path.
-    if (value == 0) {
-        return;
-    }
-
     Blocked_ += value;
     for (const auto& parent : Parents_) {
         parent->AddBlocked(value);
     }
-    for (const auto& blockedUpdatedSubscriber : BlockedUpdatedSubscribers_) {
-        blockedUpdatedSubscriber();
-    }
+    BlockedUpdated_.Fire();
 }
 
 void TProgressCounter::SetBlocked(i64 value)
@@ -274,16 +220,6 @@ bool TProgressCounter::RemoveParent(TProgressCounterPtr parent)
     Parents_.erase(parentIt);
 
     return true;
-}
-
-void TProgressCounter::SubscribePendingUpdated(TCallback<void ()> callback)
-{
-    PendingUpdatedSubscribers_.push_back(std::move(callback));
-}
-
-void TProgressCounter::SubscribeBlockedUpdated(TCallback<void ()> callback)
-{
-    BlockedUpdatedSubscribers_.push_back(std::move(callback));
 }
 
 void TProgressCounter::Persist(const TPersistenceContext& context)
@@ -417,11 +353,6 @@ i64 TProgressCounterGuard::GetValue() const
 
 void TProgressCounterGuard::SetValue(i64 newValue)
 {
-    // Fast path.
-    if (Value_ == newValue) {
-        return;
-    }
-
     UpdateProgressCounter(-1);
     Value_ = newValue;
     UpdateProgressCounter(+1);
@@ -429,22 +360,12 @@ void TProgressCounterGuard::SetValue(i64 newValue)
 
 void TProgressCounterGuard::UpdateValue(i64 delta)
 {
-    // Fast path.
-    if (delta == 0) {
-        return;
-    }
-
     auto newValue = Value_ + delta;
     SetValue(newValue);
 }
 
 void TProgressCounterGuard::SetCategory(EProgressCategory newCategory)
 {
-    // Fast path.
-    if (Category_ == newCategory) {
-        return;
-    }
-
     UpdateProgressCounter(-1);
     Category_ = newCategory;
     UpdateProgressCounter(+1);
