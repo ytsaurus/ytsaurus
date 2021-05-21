@@ -898,9 +898,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        // It can happen if agent communication failure happened at operation unregistration.
-        if (operation->IsFinishedState()) {
+        if (operation->GetUnregistering()) {
+            // Operation marked as completed, but unregistration in controller agent has not processed yet.
             return;
+        } else if (operation->IsFinishedState()) {
+            // Operation marked as completed, but it may be not persisted to cypress.
         }
 
         const auto& controller = operation->GetController();
@@ -3285,21 +3287,26 @@ private:
                     .ThrowOnError();
                 YT_VERIFY(operation->GetState() == EOperationState::Completed);
             }
-
-            // Notify controller that it is going to be disposed.
-            {
-                const auto& controller = operation->GetController();
-                auto resultOrError = WaitFor(controller->Unregister());
-                if (resultOrError.IsOK()) {
-                    ProcessUnregisterOperationResult(operation, resultOrError.Value());
-                }
-            }
-
-            FinishOperation(operation);
         } catch (const std::exception& ex) {
             OnOperationFailed(operation, ex);
             return;
         }
+
+        // Switch to regular control invoker.
+        SwitchTo(GetControlInvoker(EControlQueue::Operation));
+
+        operation->SetUnregistering();
+            
+        // Notify controller that it is going to be disposed (failure is intentionally ignored).
+        {
+            const auto& controller = operation->GetController();
+            auto resultOrError = WaitFor(controller->Unregister());
+            if (resultOrError.IsOK()) {
+                ProcessUnregisterOperationResult(operation, resultOrError.Value());
+            }
+        }
+
+        FinishOperation(operation);
 
         YT_LOG_INFO("Operation completed (OperationId: %v)",
              operationId);

@@ -275,6 +275,16 @@ void TOperation::SetFinished()
     }
     Alerts_.clear();
 }
+    
+bool TOperation::GetUnregistering() const
+{
+    return Unregistering_;
+}
+
+void TOperation::SetUnregistering()
+{
+    Unregistering_ = true;
+}
 
 bool TOperation::IsFinishedState() const
 {
