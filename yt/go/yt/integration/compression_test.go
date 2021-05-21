@@ -15,8 +15,7 @@ import (
 func TestClientCompression(t *testing.T) {
 	t.Parallel()
 
-	env, cancel := yttest.NewEnv(t)
-	defer cancel()
+	env := yttest.New(t)
 
 	for _, codec := range []yt.ClientCompressionCodec{
 		yt.ClientCodecDefault,

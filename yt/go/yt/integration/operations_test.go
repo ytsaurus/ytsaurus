@@ -22,8 +22,7 @@ import (
 func TestOperation(t *testing.T) {
 	t.Parallel()
 
-	env, cancel := yttest.NewEnv(t)
-	defer cancel()
+	env := yttest.New(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
@@ -81,8 +80,7 @@ func TestOperation(t *testing.T) {
 func TestOperationWithStderr(t *testing.T) {
 	t.Parallel()
 
-	env, cancel := yttest.NewEnv(t)
-	defer cancel()
+	env := yttest.New(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
@@ -132,8 +130,7 @@ func TestOperationWithStderr(t *testing.T) {
 func TestListOperations(t *testing.T) {
 	t.Parallel()
 
-	env, cancel := yttest.NewEnv(t)
-	defer cancel()
+	env := yttest.New(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
@@ -185,8 +182,7 @@ func TestListOperations(t *testing.T) {
 func TestListAllOperations(t *testing.T) {
 	t.Parallel()
 
-	env, cancel := yttest.NewEnv(t)
-	defer cancel()
+	env := yttest.New(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*2)
 	defer cancel()
@@ -228,8 +224,7 @@ func TestListAllOperations(t *testing.T) {
 func TestListAllJobs(t *testing.T) {
 	t.Parallel()
 
-	env, cancel := yttest.NewEnv(t)
-	defer cancel()
+	env := yttest.New(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()

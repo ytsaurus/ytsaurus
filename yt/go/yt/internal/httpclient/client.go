@@ -155,6 +155,19 @@ func (c *httpClient) writeParams(req *http.Request, call *internal.Call) error {
 	return nil
 }
 
+func (c *httpClient) injectTracing(ctx context.Context, req *http.Request) {
+	if c.config.TraceFn == nil {
+		return
+	}
+
+	traceID, spanID, flags, ok := c.config.TraceFn(ctx)
+	if !ok {
+		return
+	}
+
+	req.Header.Add("traceparent", fmt.Sprintf("%s-%016x-%02x", traceID.HexString(), spanID, flags))
+}
+
 func (c *httpClient) newHTTPRequest(ctx context.Context, call *internal.Call, body io.Reader) (req *http.Request, err error) {
 	var address string
 	if call.RequestedProxy != "" {
@@ -183,6 +196,8 @@ func (c *httpClient) newHTTPRequest(ctx context.Context, call *internal.Call, bo
 	if err = c.writeParams(req, call); err != nil {
 		return
 	}
+
+	c.injectTracing(ctx, req)
 
 	if body != nil {
 		req.Header.Add("X-YT-Input-Format", "yson")

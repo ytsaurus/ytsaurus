@@ -16,11 +16,10 @@ func TestTLS(t *testing.T) {
 		t.Skip("TLS test should run against real cluster")
 	}
 
-	env, cancel := yttest.NewEnv(t, yttest.WithConfig(yt.Config{
+	env := yttest.New(t, yttest.WithConfig(yt.Config{
 		UseTLS:            true,
 		ReadTokenFromFile: true,
 	}))
-	defer cancel()
 
 	name := env.TmpPath()
 

@@ -1,6 +1,7 @@
 package yt
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/library/go/core/log/nop"
 	zaplog "a.yandex-team.ru/library/go/core/log/zap"
+	"a.yandex-team.ru/yt/go/guid"
 )
 
 type Config struct {
@@ -97,6 +99,13 @@ type Config struct {
 	//
 	// NOTE: this codec has nothing to do with codec used for storing table chunks.
 	CompressionCodec ClientCompressionCodec
+
+	// TraceFn extracts trace parent from request context.
+	//
+	// This function is extracted into config in order to avoid direct dependency on jaeger client.
+	//
+	// Assign ytjaeger.TraceFn to this field, if you wish to enable tracing.
+	TraceFn TraceFn
 }
 
 func (c *Config) GetProxy() (string, error) {
@@ -267,3 +276,5 @@ func (c ClientCompressionCodec) BlockCodec() (string, bool) {
 		return "", false
 	}
 }
+
+type TraceFn func(ctx context.Context) (traceID guid.GUID, spanID uint64, flags byte, ok bool)

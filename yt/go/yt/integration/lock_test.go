@@ -14,8 +14,7 @@ import (
 func TestLocks(t *testing.T) {
 	t.Parallel()
 
-	env, cancel := yttest.NewEnv(t)
-	defer cancel()
+	env := yttest.New(t)
 
 	prepare := func(t *testing.T) (name ypath.Path, tx0, tx1 yt.Tx) {
 		name = env.TmpPath()
@@ -85,8 +84,7 @@ func TestLocks(t *testing.T) {
 func TestSnapshotLock(t *testing.T) {
 	t.Parallel()
 
-	env, cancel := yttest.NewEnv(t)
-	defer cancel()
+	env := yttest.New(t)
 
 	tmpName := env.TmpPath()
 	_, err := env.YT.CreateNode(env.Ctx, tmpName, yt.NodeTable, nil)

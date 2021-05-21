@@ -32,8 +32,7 @@ type testRow struct {
 func TestTabletTx(t *testing.T) {
 	t.Parallel()
 
-	env, cancel := yttest.NewEnv(t)
-	defer cancel()
+	env := yttest.New(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
 	defer cancel()
@@ -119,8 +118,7 @@ func TestAbortCommittedTx(t *testing.T) {
 	core, recorded := observer.New(zapcore.ErrorLevel)
 	l := logzap.Logger{L: zap.New(core)}
 
-	env, cancel := yttest.NewEnv(t, yttest.WithLogger(l.Structured()))
-	defer cancel()
+	env := yttest.New(t, yttest.WithLogger(l.Structured()))
 
 	tx, err := env.YT.BeginTabletTx(env.Ctx, nil)
 	require.NoError(t, err)
@@ -159,8 +157,7 @@ func TestGenerateTimestamp(t *testing.T) {
 func TestTxDuration(t *testing.T) {
 	t.Parallel()
 
-	env, cancel := yttest.NewEnv(t)
-	defer cancel()
+	env := yttest.New(t)
 
 	testTable := env.TmpPath().Child("table")
 	require.NoError(t, migrate.Create(env.Ctx, env.YT, testTable, schema.MustInfer(&testRow{})))
@@ -183,8 +180,7 @@ func TestTxDuration(t *testing.T) {
 func TestLockRows(t *testing.T) {
 	t.Parallel()
 
-	env, cancel := yttest.NewEnv(t)
-	defer cancel()
+	env := yttest.New(t)
 
 	testTable := env.TmpPath().Child("table")
 
@@ -214,8 +210,7 @@ func TestLockRows(t *testing.T) {
 func TestExecTabletTx(t *testing.T) {
 	t.Parallel()
 
-	env, cancel := yttest.NewEnv(t)
-	defer cancel()
+	env := yttest.New(t)
 
 	testTable := env.TmpPath().Child("table")
 	require.NoError(t, migrate.Create(env.Ctx, env.YT, testTable, schema.MustInfer(&testRow{})))
@@ -244,8 +239,7 @@ func TestExecTabletTx(t *testing.T) {
 func TestReadTimestamp(t *testing.T) {
 	t.Parallel()
 
-	env, cancel := yttest.NewEnv(t)
-	defer cancel()
+	env := yttest.New(t)
 
 	testTable := env.TmpPath().Child("table")
 	require.NoError(t, migrate.Create(env.Ctx, env.YT, testTable, schema.MustInfer(&testRow{})))

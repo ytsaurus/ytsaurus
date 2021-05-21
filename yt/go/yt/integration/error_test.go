@@ -14,8 +14,7 @@ import (
 func TestErrors(t *testing.T) {
 	t.Parallel()
 
-	env, cancel := yttest.NewEnv(t)
-	defer cancel()
+	env := yttest.New(t)
 
 	badPath := ypath.Path("//foo/bar/zog")
 

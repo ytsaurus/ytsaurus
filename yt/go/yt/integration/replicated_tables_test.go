@@ -20,8 +20,7 @@ import (
 func TestGetInSyncReplicas(t *testing.T) {
 	t.Parallel()
 
-	env, cancel := yttest.NewEnv(t)
-	defer cancel()
+	env := yttest.New(t)
 
 	tablePath := env.TmpPath()
 	_, err := createReplicatedTable(env, tablePath)
