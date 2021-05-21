@@ -57,7 +57,7 @@ func checkSchemas(t *testing.T, env *yttest.Env, schemas map[ypath.Path]migrate.
 	for path, expected := range schemas {
 		var actual schema.Schema
 		require.NoError(t, env.YT.GetNode(env.Ctx, path.Attr("schema"), &actual, nil))
-		require.Equal(t, expected.Schema.WithUniqueKeys(), actual)
+		require.Equal(t, expected.Schema.Normalize().WithUniqueKeys(), actual.Normalize())
 	}
 }
 

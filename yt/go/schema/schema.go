@@ -1,7 +1,12 @@
 // Package schema defines schema of YT tables.
 package schema
 
-import "reflect"
+import (
+	"reflect"
+
+	"a.yandex-team.ru/library/go/ptr"
+	"a.yandex-team.ru/yt/go/yson"
+)
 
 type Type string
 
@@ -30,10 +35,19 @@ const (
 	TypeUint8  Type = "uint8"
 	// No float32 type :(
 	TypeFloat64 Type = "double"
+
+	TypeBytes  Type = "string"
+	TypeString Type = "utf8"
+
+	// NOTE: "boolean" was renamed into "bool" in type_v3, and "any" was renamed into "yson"
+	//
+	// We keep old in-memory representation for this types for compatibility reasons.
+	// Code that only operates with constants provided by this package should not care.
 	TypeBoolean Type = "boolean"
-	TypeBytes   Type = "string"
-	TypeString  Type = "utf8"
-	TypeAny     Type = "any"
+	typeBool    Type = "bool"
+
+	TypeAny  Type = "any"
+	typeYSON Type = "yson"
 
 	TypeDate      Type = "date"
 	TypeDatetime  Type = "datetime"
@@ -78,11 +92,24 @@ const (
 
 // Column specifies schema of a single column.
 //
-// See https://wiki.yandex-team.ru/yt/userdoc/tables/#sxema
+// See https://yt.yandex-team.ru/docs/description/storage/static_schema
 type Column struct {
-	Name       string            `yson:"name"`
-	Type       Type              `yson:"type"`
-	Required   bool              `yson:"required"`
+	Name string `yson:"name"`
+
+	// Type and Required represent "legacy" row schema.
+	//
+	// When creating Column fill either Type and Required, or ComplexType but not both.
+	//
+	// When reading schema from YT, both "legacy" and "new" fields are available.
+	Type     Type `yson:"type,omitempty"`
+	Required bool `yson:"required,omitempty"`
+
+	// ComplexType is "new" row schema.
+	//
+	//   Type == TypeInt64 && Required == true is equivalent to ComplexType == TypeInt64
+	//   Type == TypeInt64 && Required == false is equivalent to ComplexType == Optional{Item: TypeInt64}
+	ComplexType ComplexType `yson:"type_v3,omitempty"`
+
 	SortOrder  SortOrder         `yson:"sort_order,omitempty"`
 	Lock       string            `yson:"lock,omitempty"`
 	Expression string            `yson:"expression,omitempty"`
@@ -90,11 +117,35 @@ type Column struct {
 	Group      string            `yson:"group,omitempty"`
 }
 
+func (c *Column) MarshalYSON(w *yson.Writer) error {
+	type column Column
+
+	cc := column(*c)
+	cc.ComplexType = fixV3type(cc.ComplexType)
+	w.Any(cc)
+
+	return w.Err()
+}
+
+func (c Column) NormalizeType() Column {
+	if c.ComplexType == nil {
+		if c.Required {
+			c.ComplexType = c.Type
+		} else {
+			c.ComplexType = Optional{Item: c.Type}
+		}
+	}
+
+	c.Type = ""
+	c.Required = false
+	return c
+}
+
 // Schema describe schema of YT table.
 //
 // Schema is strict by default.
 //
-// See https://wiki.yandex-team.ru/yt/userdoc/tables/#sxema
+// See https://yt.yandex-team.ru/docs/description/storage/static_schema
 type Schema struct {
 	// Schema is strict by default. Change this option only if you know that you are doing.
 	Strict     *bool `yson:"strict,attr,omitempty"`
@@ -159,15 +210,23 @@ func (s Schema) SortedBy(keyColumns ...string) Schema {
 	return s
 }
 
-func (s Schema) Equal(other Schema) bool {
-	explicitTrue := true
+// Normalize converts in-memory Schema to canonical representation.
+//   - Strict flag is explicitly set to %true.
+//   - Old types are converted to new types.
+func (s Schema) Normalize() Schema {
 	if s.Strict == nil {
-		s.Strict = &explicitTrue
+		s.Strict = ptr.Bool(true)
 	}
-	if other.Strict == nil {
-		other.Strict = &explicitTrue
+
+	for i := range s.Columns {
+		s.Columns[i] = s.Columns[i].NormalizeType()
 	}
-	return reflect.DeepEqual(&s, &other)
+
+	return s
+}
+
+func (s Schema) Equal(other Schema) bool {
+	return reflect.DeepEqual(s.Normalize(), other.Normalize())
 }
 
 // WithUniqueKeys returns copy of schema with UniqueKeys attribute set.
