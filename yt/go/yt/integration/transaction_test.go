@@ -15,8 +15,7 @@ import (
 )
 
 func TestTransactions(t *testing.T) {
-	env, cancel := yttest.NewEnv(t)
-	defer cancel()
+	env := yttest.New(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
 	defer cancel()
@@ -75,8 +74,7 @@ func TestTransactions(t *testing.T) {
 }
 
 func TestNestedTransactions(t *testing.T) {
-	env, cancel := yttest.NewEnv(t)
-	defer cancel()
+	env := yttest.New(t)
 
 	rootTx, err := env.YT.BeginTx(env.Ctx, nil)
 	require.NoError(t, err)
@@ -107,8 +105,7 @@ func TestNestedTransactions(t *testing.T) {
 func TestExecTx_retries(t *testing.T) {
 	t.Parallel()
 
-	env, cancel := yttest.NewEnv(t)
-	defer cancel()
+	env := yttest.New(t)
 
 	wrapExecTx := func(ctx context.Context, cb func() error, opts yt.ExecTxRetryOptions) error {
 		return yt.ExecTx(ctx, env.YT, func(ctx context.Context, tx yt.Tx) error {

@@ -23,8 +23,7 @@ type exampleRow struct {
 func TestTables(t *testing.T) {
 	t.Parallel()
 
-	env, cancel := yttest.NewEnv(t)
-	defer cancel()
+	env := yttest.New(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
 	defer cancel()
@@ -244,8 +243,7 @@ func TestTables(t *testing.T) {
 func TestHighLevelTableWriter(t *testing.T) {
 	t.Parallel()
 
-	env, cancel := yttest.NewEnv(t)
-	defer cancel()
+	env := yttest.New(t)
 
 	checkTable := func(t *testing.T, path ypath.Path, rowCount int, expectedSchema schema.Schema) {
 		t.Helper()
@@ -329,8 +327,7 @@ type testTimeTypes struct {
 func TestTimeTables(t *testing.T) {
 	t.Parallel()
 
-	env, cancel := yttest.NewEnv(t)
-	defer cancel()
+	env := yttest.New(t)
 
 	rows := []testTimeTypes{
 		{D0: 1, D1: 2, D2: 3, D3: 4},
@@ -348,8 +345,7 @@ func TestTimeTables(t *testing.T) {
 func TestBigRow(t *testing.T) {
 	t.Parallel()
 
-	env, cancel := yttest.NewEnv(t)
-	defer cancel()
+	env := yttest.New(t)
 
 	bigRow := map[string]interface{}{
 		"row": make([]byte, 20*(1<<20)),

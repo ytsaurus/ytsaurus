@@ -26,8 +26,7 @@ func tmpPath() ypath.Path {
 func TestCypress(t *testing.T) {
 	t.Parallel()
 
-	env, cancel := yttest.NewEnv(t)
-	defer cancel()
+	env := yttest.New(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
 	defer cancel()
