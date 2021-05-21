@@ -82,10 +82,13 @@ public:
     // NB: removes at most one occurence of parent in parents list.
     bool RemoveParent(TProgressCounterPtr parent);
 
-    void SubscribePendingUpdated(TCallback<void()> callback);
-    void SubscribeBlockedUpdated(TCallback<void()> callback);
-
     void Persist(const TPersistenceContext& context);
+
+    //! Raises when pending counter changes.
+    DEFINE_SIGNAL(void(), PendingUpdated);
+
+    //! Raises when blocked counter changes.
+    DEFINE_SIGNAL(void(), BlockedUpdated);
 
 private:
     i64 Running_ = 0;
@@ -100,11 +103,6 @@ private:
     i64 Blocked_ = 0;
 
     std::vector<TProgressCounterPtr> Parents_;
-
-    // NB: We use thread-unsafe custom implementation of signals
-    // here for better performance.
-    std::vector<TCallback<void()>> PendingUpdatedSubscribers_;
-    std::vector<TCallback<void()>> BlockedUpdatedSubscribers_;
 
     void Propagate(TProgressCounterPtr parent, int multiplier);
 };

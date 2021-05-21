@@ -15,18 +15,6 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TMultiChunkPoolInputOptions::Persist(const TPersistenceContext& /*context*/)
-{ }
-
-void TMultiChunkPoolOutputOptions::Persist(const TPersistenceContext& context)
-{
-    using ::NYT::Persist;
-
-    Persist(context, HandleBlockedJobs);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TMultiChunkPoolInput
     : public virtual IMultiChunkPoolInput
 {
@@ -39,11 +27,8 @@ public:
     //! Used only for persistence.
     TMultiChunkPoolInput() = default;
 
-    explicit TMultiChunkPoolInput(
-        std::vector<IChunkPoolInputPtr> underlyingPools,
-        TMultiChunkPoolInputOptions options)
-        : Options_(std::move(options))
-        , UnderlyingPools_(std::move(underlyingPools))
+    explicit TMultiChunkPoolInput(std::vector<IChunkPoolInputPtr> underlyingPools)
+        : UnderlyingPools_(std::move(underlyingPools))
     { }
 
     virtual TExternalCookie Add(TChunkStripePtr stripe) override
@@ -117,11 +102,6 @@ public:
     {
         using ::NYT::Persist;
 
-        // COMPAT(gritukan)
-        if (context.IsSave() || context.GetVersion() >= ESnapshotVersion::MultiChunkPoolOptions) {
-            Persist(context, Options_);
-        }
-
         Persist(context, UnderlyingPools_);
         Persist<TVectorSerializer<TTupleSerializer<std::pair<int, TCookie>, 2>>>(context, Cookies_);
         Persist(context, IsFinished_);
@@ -129,8 +109,6 @@ public:
 
 protected:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMultiChunkPoolInput, 0xe712ad5b);
-
-    TMultiChunkPoolInputOptions Options_;
 
     std::vector<IChunkPoolInputPtr> UnderlyingPools_;
 
@@ -195,10 +173,7 @@ public:
     //! Used only for persistence.
     TMultiChunkPoolOutput() = default;
 
-    TMultiChunkPoolOutput(
-        std::vector<IChunkPoolOutputPtr> underlyingPools,
-        TMultiChunkPoolOutputOptions options)
-        : Options_(std::move(options))
+    explicit TMultiChunkPoolOutput(std::vector<IChunkPoolOutputPtr> underlyingPools)
     {
         UnderlyingPools_.reserve(underlyingPools.size());
         PendingPoolIterators_.reserve(underlyingPools.size());
@@ -256,7 +231,7 @@ public:
         auto cookie = NullCookie;
 
         if (PendingPools_.empty()) {
-            if (BlockedPools_.empty() || !Options_.HandleBlockedJobs) {
+            if (BlockedPools_.empty()) {
                 return NullCookie;
             } else {
                 poolIndex = *BlockedPools_.begin();
@@ -391,11 +366,6 @@ public:
     {
         using ::NYT::Persist;
 
-        // COMPAT(gritukan)
-        if (context.IsSave() || context.GetVersion() >= ESnapshotVersion::MultiChunkPoolOptions) {
-            Persist(context, Options_);
-        }
-
         Persist(context, UnderlyingPools_);
         Persist(context, ActivePoolCount_);
         Persist(context, JobCounter_);
@@ -416,9 +386,7 @@ public:
                 if (Pool(poolIndex)) {
                     SetupCallbacks(poolIndex);
                     OnUnderlyingPoolPendingJobCountChanged(poolIndex);
-                    if (Options_.HandleBlockedJobs) {
-                        OnUnderlyingPoolBlockedJobCountChanged(poolIndex);
-                    }
+                    OnUnderlyingPoolBlockedJobCountChanged(poolIndex);
                 }
             }
         }
@@ -426,8 +394,6 @@ public:
 
 protected:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMultiChunkPoolOutput, 0x135ffa20);
-
-    TMultiChunkPoolOutputOptions Options_;
 
     std::vector<IChunkPoolOutputPtr> UnderlyingPools_;
 
@@ -543,7 +509,7 @@ protected:
         auto& poolIterator = PendingPoolIterators_[poolIndex];
         bool hasPendingJobs = pool->GetJobCounter()->GetPending() > 0;
         if (poolIterator == PendingPools_.end() && hasPendingJobs) {
-                poolIterator = PendingPools_.insert(PendingPools_.begin(), poolIndex);
+            poolIterator = PendingPools_.insert(PendingPools_.begin(), poolIndex);
         } else if (poolIterator != PendingPools_.end() && !hasPendingJobs) {
             PendingPools_.erase(poolIterator);
             poolIterator = PendingPools_.end();
@@ -577,10 +543,9 @@ public:
 
     TMultiChunkPool(
         std::vector<IChunkPoolInputPtr> underlyingPoolsInput,
-        std::vector<IChunkPoolOutputPtr> underlyingPoolsOutput,
-        const TMultiChunkPoolOptions& options)
-        : TMultiChunkPoolInput(std::move(underlyingPoolsInput), options)
-        , TMultiChunkPoolOutput(std::move(underlyingPoolsOutput), options)
+        std::vector<IChunkPoolOutputPtr> underlyingPoolsOutput)
+        : TMultiChunkPoolInput(std::move(underlyingPoolsInput))
+        , TMultiChunkPoolOutput(std::move(underlyingPoolsOutput))
     {
         YT_VERIFY(underlyingPoolsInput.size() == underlyingPoolsOutput.size());
     }
@@ -606,26 +571,23 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TMultiChunkPool);
 ////////////////////////////////////////////////////////////////////////////////
 
 IMultiChunkPoolInputPtr CreateMultiChunkPoolInput(
-    std::vector<IChunkPoolInputPtr> underlyingPools,
-    TMultiChunkPoolInputOptions options)
+    std::vector<IChunkPoolInputPtr> underlyingPools)
 {
-    return New<TMultiChunkPoolInput>(std::move(underlyingPools), std::move(options));
+    return New<TMultiChunkPoolInput>(std::move(underlyingPools));
 }
 
 IMultiChunkPoolOutputPtr CreateMultiChunkPoolOutput(
-    std::vector<IChunkPoolOutputPtr> underlyingPools,
-    TMultiChunkPoolOutputOptions options)
+    std::vector<IChunkPoolOutputPtr> underlyingPools)
 {
-    return New<TMultiChunkPoolOutput>(std::move(underlyingPools), std::move(options));
+    return New<TMultiChunkPoolOutput>(std::move(underlyingPools));
 }
 
 IMultiChunkPoolPtr CreateMultiChunkPool(
-    std::vector<IChunkPoolPtr> underlyingPools,
-    TMultiChunkPoolOptions options)
+    std::vector<IChunkPoolPtr> underlyingPools)
 {
     std::vector<IChunkPoolInputPtr> inputPools(underlyingPools.begin(), underlyingPools.end());
     std::vector<IChunkPoolOutputPtr> outputPools(underlyingPools.begin(), underlyingPools.end());
-    return New<TMultiChunkPool>(std::move(inputPools), std::move(outputPools), std::move(options));
+    return New<TMultiChunkPool>(std::move(inputPools), std::move(outputPools));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
