@@ -264,6 +264,7 @@ func TestReadTimestamp(t *testing.T) {
 		require.Equal(t, &row, rows[0])
 
 		require.False(t, r.Next())
+		require.NoError(t, r.Err())
 	}
 
 	r, err := env.YT.LookupRows(env.Ctx, testTable, keys, &yt.LookupRowsOptions{Timestamp: &ts})

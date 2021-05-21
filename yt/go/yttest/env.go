@@ -131,6 +131,10 @@ func DownloadSlice(ctx context.Context, c yt.TableClient, path ypath.YPath, valu
 		sliceValue = reflect.Append(sliceValue, row.Elem())
 	}
 
+	if r.Err() != nil {
+		return r.Err()
+	}
+
 	reflect.ValueOf(value).Elem().Set(sliceValue)
 	return nil
 }
