@@ -223,8 +223,8 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
     @pytest.mark.parametrize("freeze", [True, False])
     def test_bulk_insert_overwrite(self, freeze):
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
-        sync_mount_table("//tmp/t", dynamic_store_auto_flush_period=YsonEntity())
+        self._create_simple_table("//tmp/t", dynamic_store_auto_flush_period=YsonEntity())
+        sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", [{"key": 1, "value": "a"}])
         create("table", "//tmp/p")
         write_table("//tmp/p", [{"key": 2, "value": "b"}])
@@ -346,7 +346,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         set("//sys/cluster_nodes/{}/@disable_scheduler_jobs".format(node), True)
         node_id = self._get_node_env_id(node)
 
-        self._create_simple_table("//tmp/t", attributes={"dynamic_store_auto_flush_period": YsonEntity()})
+        self._create_simple_table("//tmp/t", dynamic_store_auto_flush_period=YsonEntity())
         sync_mount_table("//tmp/t")
 
         insert_rows("//tmp/t", [{"key": i} for i in range(50000)])
@@ -535,6 +535,73 @@ class TestReadOrderedDynamicTables(TestOrderedDynamicTablesBase):
         remount_table("//tmp/t")
         sync_flush_table("//tmp/t")
         assert read_table(path_with_range, tx=tx) == expected
+
+    @pytest.mark.parametrize("disturbance_type", ["cell_move", "unmount"])
+    def test_locate_row_index(self, disturbance_type):
+        cell_id = sync_create_cells(1)[0]
+
+        self._create_simple_table("//tmp/t", dynamic_store_auto_flush_period=YsonEntity())
+        sync_mount_table("//tmp/t")
+        rows = [{"a": i, "b": i * 1.0, "c": str(i)} for i in range(10)]
+        insert_rows("//tmp/t", rows[:5])
+        sync_flush_table("//tmp/t")
+        insert_rows("//tmp/t", rows[5:])
+
+        operations = []
+
+        create("table", "//tmp/out1")
+        op1 = merge(
+            in_=_make_path_with_range("//tmp/t", (0, 6), (0, 8)),
+            out="//tmp/out1",
+            spec={"testing": {"delay_inside_materialize": 10000}},
+            track=False,
+        )
+        operations.append(("//tmp/out1", op1, rows[6:8]))
+
+        create("table", "//tmp/out2")
+        op1 = merge(
+            in_=_make_path_with_range("//tmp/t", None, (0, 8)),
+            out="//tmp/out2",
+            spec={"testing": {"delay_inside_materialize": 10000}},
+            track=False,
+        )
+        operations.append(("//tmp/out2", op1, rows[:8]))
+
+        create("table", "//tmp/out3")
+        op1 = merge(
+            in_=_make_path_with_range("//tmp/t", (0, 6), None),
+            out="//tmp/out3",
+            spec={"testing": {"delay_inside_materialize": 10000}},
+            track=False,
+        )
+        operations.append(("//tmp/out3", op1, rows[6:]))
+
+        create("table", "//tmp/out4")
+        op1 = merge(
+            in_=_make_path_with_range("//tmp/t", (0, 6), (0, 15)),
+            out="//tmp/out4",
+            spec={"testing": {"delay_inside_materialize": 10000}},
+            track=False,
+        )
+        operations.append(("//tmp/out4", op1, rows[6:15]))
+
+        for _, op, _ in operations:
+            wait(lambda: op.get_state() == "materializing")
+
+        if disturbance_type == "cell_move":
+            self._disable_tablet_cells_on_peer(cell_id)
+        elif disturbance_type == "unmount":
+            sync_unmount_table("//tmp/t")
+        else:
+            assert False
+
+        for _, op, _ in operations:
+            op.track()
+
+        for output_table, op, rows in operations:
+            op.track()
+            assert_items_equal(read_table(output_table), rows)
+
 
 ##################################################################
 
