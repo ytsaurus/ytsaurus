@@ -2224,7 +2224,7 @@ TEST_F(TFairShareTreeTest, ChildHeap)
         const auto& dynamicAttributes = context.DynamicAttributesFor(rootElement.Get());
         ASSERT_TRUE(dynamicAttributes.Active);
     }
-
+            
     for (int iter = 0; iter < 2; ++iter) {
         for (auto operationElement : operationElements) {
             auto scheduleJobResult = operationElement->ScheduleJob(&context, /* ignorePacking */ true);
@@ -2236,8 +2236,10 @@ TEST_F(TFairShareTreeTest, ChildHeap)
             const auto& childHeap = GetOrCrash(context.ChildHeapMap(), rootElement->GetTreeIndex());
 
             int heapIndex = 0;
-            for (auto* element : childHeap.GetHeap()) {
-                ASSERT_TRUE(context.DynamicAttributesFor(element).HeapIndex == heapIndex);
+            const auto& heapVector = childHeap.GetHeap();
+            for (const auto& heapItem : heapVector) {
+                auto* heapIteratorFromAttributes = context.DynamicAttributesFor(heapItem.GetElement()).HeapIterator;
+                ASSERT_TRUE(heapIteratorFromAttributes == &heapItem);
                 ++heapIndex;
             }
 

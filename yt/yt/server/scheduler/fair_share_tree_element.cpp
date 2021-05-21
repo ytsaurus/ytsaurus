@@ -863,7 +863,7 @@ void TSchedulerCompositeElement::PreUpdateBottomUp(NFairShare::TFairShareUpdateC
         ResourceUsageAtUpdate_ += child->GetResourceUsageAtUpdate();
         ResourceDemand_ += child->GetResourceDemand();
         PendingJobCount_ += child->GetPendingJobCount();
-        
+
         if (IsInferringChildrenWeightsFromHistoricUsageEnabled()) {
             // NB(eshcherbin): This is a lazy parameters update so it has to be done every time.
             child->PersistentAttributes_.HistoricUsageAggregator.UpdateParameters(
@@ -1269,7 +1269,7 @@ TSchedulerElement* TSchedulerCompositeElement::GetBestActiveChild(
     const auto& childHeapIt = childHeapMap.find(GetTreeIndex());
     if (childHeapIt != childHeapMap.end()) {
         const auto& childHeap = childHeapIt->second;
-        auto* element = childHeap.GetTop();
+        auto* element = childHeap.GetTopElement();
         return dynamicAttributesList[element->GetTreeIndex()].Active
             ? element
             : nullptr;
@@ -1398,7 +1398,7 @@ void TSchedulerCompositeElement::InitializeChildHeap(TScheduleJobsContext* conte
         return;
     }
 
-    TChildHeap::TComparator elementComparator;
+    TChildHeap::TElementComparator elementComparator;
 
     switch (Mode_) {
         case ESchedulingMode::Fifo:
@@ -3767,50 +3767,97 @@ double TSchedulerRootElement::GetSpecifiedResourceFlowRatio() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChildHeap::TChildHeap(
-    const std::vector<TSchedulerElementPtr>& children,
-    TDynamicAttributesList* dynamicAttributesList,
-    TComparator comparator)
-    : DynamicAttributesList_(*dynamicAttributesList)
-    , Comparator_(comparator)
+TChildHeapItem::TChildHeapItem(TSchedulerElement* element, TDynamicAttributesList* dynamicAttributesList)
+    : Element_(element)
+    , DynamicAttributesList_(dynamicAttributesList)
 {
-    ChildHeap_.reserve(children.size());
-    for (const auto& child : children) {
-        ChildHeap_.push_back(child.Get());
-    }
-    MakeHeap(ChildHeap_.begin(), ChildHeap_.end(), Comparator_);
+    AdjustBackReference();
+}
 
-    for (size_t index = 0; index < ChildHeap_.size(); ++index) {
-        DynamicAttributesList_[ChildHeap_[index]->GetTreeIndex()].HeapIndex = index;
+TChildHeapItem::TChildHeapItem(TChildHeapItem&& other) noexcept
+    : Element_(other.Element_)
+    , DynamicAttributesList_(other.DynamicAttributesList_)
+{
+    other.Element_ = nullptr;
+
+    AdjustBackReference();
+}
+
+TChildHeapItem& TChildHeapItem::operator=(TChildHeapItem&& other) noexcept
+{
+    Element_ = other.Element_;
+    DynamicAttributesList_ = other.DynamicAttributesList_;
+
+    other.Element_ = nullptr;
+
+    AdjustBackReference();
+
+    return *this;
+}
+
+TSchedulerElement* TChildHeapItem::GetElement() const
+{
+    return Element_;
+}
+
+void TChildHeapItem::AdjustBackReference()
+{
+    if (Element_) {
+        (*DynamicAttributesList_)[Element_->GetTreeIndex()].HeapIterator = this;
     }
 }
 
-TSchedulerElement* TChildHeap::GetTop() const
+TChildHeapItem::~TChildHeapItem()
+{
+    if (Element_) {
+        (*DynamicAttributesList_)[Element_->GetTreeIndex()].HeapIterator = nullptr;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChildHeap::TChildHeap(
+    const std::vector<TSchedulerElementPtr>& children,
+    TDynamicAttributesList* dynamicAttributesList,
+    TElementComparator elementComparator)
+    : DynamicAttributesList_(dynamicAttributesList)
+    , Comparator_([elementComparator=std::move(elementComparator)] (const TChildHeapItem& lhs, const TChildHeapItem& rhs) {
+        YT_VERIFY(lhs.GetElement());
+        YT_VERIFY(rhs.GetElement());
+        return elementComparator(lhs.GetElement(), rhs.GetElement());
+    })
+{
+    ChildHeap_.reserve(children.size());
+    for (const auto& child : children) {
+        ChildHeap_.emplace_back(child.Get(), DynamicAttributesList_);
+    }
+    MakeHeap(ChildHeap_.begin(), ChildHeap_.end(), Comparator_);
+}
+
+TSchedulerElement* TChildHeap::GetTopElement() const
 {
     YT_VERIFY(!ChildHeap_.empty());
-    return ChildHeap_.front();
+    return ChildHeap_.front().GetElement();
 }
 
 void TChildHeap::Update(TSchedulerElement* child)
 {
-    int heapIndex = DynamicAttributesList_[child->GetTreeIndex()].HeapIndex;
-    YT_VERIFY(heapIndex != InvalidHeapIndex);
+    auto* iterator = (*DynamicAttributesList_)[child->GetTreeIndex()].HeapIterator;
+
+    YT_VERIFY(iterator != nullptr);
+    YT_VERIFY(std::distance(ChildHeap_.data(), iterator) >= 0);
+    YT_VERIFY(std::distance(ChildHeap_.data(), iterator) < std::ssize(ChildHeap_));
+
     AdjustHeapItem(
         ChildHeap_.begin(),
         ChildHeap_.end(),
-        ChildHeap_.begin() + heapIndex,
-        Comparator_,
-        std::bind(&TChildHeap::OnAssign, this, std::placeholders::_1));
+        iterator,
+        Comparator_);
 }
 
-const std::vector<TSchedulerElement*>& TChildHeap::GetHeap() const
+const std::vector<TChildHeapItem>& TChildHeap::GetHeap() const
 {
     return ChildHeap_;
-}
-
-void TChildHeap::OnAssign(size_t offset)
-{
-    DynamicAttributesList_[ChildHeap_[offset]->GetTreeIndex()].HeapIndex = offset;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
