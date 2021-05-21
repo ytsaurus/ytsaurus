@@ -27,6 +27,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((Actually21_2StartsHere)               (300603))
     ((PersistStandardStreamDescriptors)     (300604))
     ((JSCInitialPrimaryDataWeight)          (300605))
+    ((OptimizeShufflePool)                  (300606))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

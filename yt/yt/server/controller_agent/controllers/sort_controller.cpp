@@ -2020,14 +2020,14 @@ protected:
                         return;
                     }
 
+                    if (partition->IsIntermediate()) {
+                        partition->ShuffleChunkPoolInput->Finish();
+                    }
+
                     // Partitioning of #partition data is completed,
                     // so its data can be processed.
                     for (const auto& child : partition->Children) {
                         child->OnPartitioningCompleted();
-                    }
-
-                    if (partition->IsIntermediate()) {
-                        partition->ShuffleChunkPoolInput->Finish();
                     }
                 }));
             }
@@ -2298,6 +2298,11 @@ protected:
 
     virtual void OnOperationCompleted(bool interrupted) override
     {
+        // This can happen if operation failed during completion.
+        if (IsFinished()) {
+            return;
+        }
+
         if (!interrupted) {
             auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables();
 
