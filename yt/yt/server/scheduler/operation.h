@@ -305,6 +305,12 @@ public:
 
     //! Marks the operation as finished.
     void SetFinished();
+    
+    //! Gets set when the operation is finished and start unregistering.
+    bool GetUnregistering() const;
+
+    //! Marks operation as unregistering.
+    void SetUnregistering();
 
     //! Delegates to #NYT::NScheduler::IsOperationFinished.
     bool IsFinishedState() const;
@@ -413,6 +419,8 @@ private:
 
     TPromise<void> StartedPromise_ = NewPromise<void>();
     TPromise<void> FinishedPromise_ = NewPromise<void>();
+
+    bool Unregistering_ = false;
 
     TWeakPtr<TControllerAgent> Agent_;
 };
