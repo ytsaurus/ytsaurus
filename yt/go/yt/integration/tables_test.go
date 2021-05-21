@@ -165,6 +165,7 @@ func TestTables(t *testing.T) {
 
 		_, ok := yt.StartRowIndex(r)
 		require.False(t, ok)
+		require.NoError(t, r.Err())
 	})
 
 	t.Run("ReaderInfo", func(t *testing.T) {
@@ -184,6 +185,8 @@ func TestTables(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, int64(0), startRowIndex)
 
+		require.NoError(t, r.Err())
+
 		r, err = env.YT.ReadTable(env.Ctx, name+"[#1:]", nil)
 		require.NoError(t, err)
 		defer r.Close()
@@ -195,6 +198,8 @@ func TestTables(t *testing.T) {
 		rowCount, ok := yt.ApproximateRowCount(r)
 		require.True(t, ok)
 		require.Greater(t, rowCount, int64(0))
+
+		require.NoError(t, r.Err())
 	})
 
 	t.Run("ExecTx", func(t *testing.T) {
