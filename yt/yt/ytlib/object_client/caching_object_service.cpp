@@ -274,7 +274,6 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
             if (cookie.IsActive()) {
                 TObjectServiceProxy proxy(MasterChannel_);
                 auto req = proxy.Execute();
-                req->set_suppress_upstream_sync(true);
                 req->add_part_counts(subrequestMessage.Size());
                 req->Attachments().insert(
                     req->Attachments().end(),
