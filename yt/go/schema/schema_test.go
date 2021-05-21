@@ -63,3 +63,15 @@ func TestMergeSchemas(t *testing.T) {
 		{Type: TypeBoolean, Name: "D"},
 	})
 }
+
+func TestSchemaEqual(t *testing.T) {
+	s0 := Schema{
+		Columns: []Column{},
+	}
+
+	s1 := Schema{
+		Columns: []Column{},
+	}
+
+	require.True(t, s0.Equal(s1))
+}

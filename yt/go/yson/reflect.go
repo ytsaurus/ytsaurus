@@ -2,6 +2,7 @@ package yson
 
 import (
 	"encoding"
+	"fmt"
 	"reflect"
 	"sync"
 
@@ -177,6 +178,28 @@ func getStructType(v reflect.Value) *structType {
 	return info
 }
 
+var (
+	ifaceDecoders sync.Map
+)
+
+type DecoderFn func(*Reader, interface{}) error
+
+func RegisterInterfaceDecoder(iface interface{}, decoder DecoderFn) {
+	_, loaded := ifaceDecoders.LoadOrStore(reflect.TypeOf(iface), decoder)
+	if loaded {
+		panic(fmt.Sprintf("decode for type %s is already registered", iface))
+	}
+}
+
+func decodeReflectInterface(d *Reader, v reflect.Value) error {
+	decoder, ok := ifaceDecoders.Load(v.Type())
+	if !ok {
+		return &UnsupportedTypeError{v.Type()}
+	}
+
+	return decoder.(DecoderFn)(d, v.Interface())
+}
+
 func decodeReflect(d *Reader, v reflect.Value) error {
 	if v.Kind() != reflect.Ptr {
 		return &UnsupportedTypeError{v.Type()}
@@ -208,6 +231,9 @@ func decodeReflect(d *Reader, v reflect.Value) error {
 		return decodeReflectPtr(d, v.Elem())
 	case reflect.Map:
 		return decodeReflectMap(d, v, false)
+	case reflect.Interface:
+		return decodeReflectInterface(d, v)
+
 	default:
 		return &UnsupportedTypeError{v.Type()}
 	}
