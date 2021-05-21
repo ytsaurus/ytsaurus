@@ -18,6 +18,10 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr int DataSliceCounterUpdatePeriod = 100;
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(EShuffleChunkPoolRunState,
     (Initializing)
     (Pending)
@@ -90,22 +94,28 @@ public:
             YT_VERIFY(partitionsExt->row_counts_size() == std::ssize(Outputs_));
             YT_VERIFY(partitionsExt->uncompressed_data_sizes_size() == std::ssize(Outputs_));
 
+            const auto* uncompressedDataSizes = partitionsExt->uncompressed_data_sizes().data();
+            const auto* rowCounts = partitionsExt->row_counts().data();
             for (int index = 0; index < std::ssize(Outputs_); ++index) {
                 YT_VERIFY(partitionsExt->row_counts(index) <= RowCountThreshold_);
                 Outputs_[index]->AddStripe(
                     elementaryIndex,
                     // NB: currently uncompressed data size and data weight for partition chunks are roughly
                     // equal, since we use horizontal chunk format.
-                    partitionsExt->uncompressed_data_sizes(index),
-                    partitionsExt->row_counts(index));
+                    uncompressedDataSizes[index],
+                    rowCounts[index]);
             }
 
             chunkSpec->ReleaseBoundaryKeys();
             chunkSpec->ReleasePartitionsExt();
         }
 
-        for (auto& output : Outputs_) {
-            output->UpdateDataSliceCount();
+        // NB(gritukan): It's quite expensive to update data slice counters during each stripe
+        // addition, so we batch such updates.
+        if (cookie % DataSliceCounterUpdatePeriod == 0) {
+            for (auto& output : Outputs_) {
+                output->UpdateDataSliceCount();
+            }
         }
 
         inputStripe.ElementaryIndexEnd = static_cast<int>(ElementaryStripes_.size());
@@ -147,6 +157,7 @@ public:
         TChunkPoolInputBase::Finish();
 
         for (const auto& output : Outputs_) {
+            output->UpdateDataSliceCount();
             output->FinishInput();
             output->CheckCompleted();
         }
@@ -207,13 +218,16 @@ private:
             AddNewRun();
         }
 
+        // NB(gritukan): This function is probably the most loaded all over the controller agent
+        // as it's called O(partition_job_count * partition_count) times during Sort/MR operations.
+        // Keep it _really_ fast.
         void AddStripe(int elementaryIndex, i64 dataWeight, i64 rowCount)
         {
             auto* run = &Runs_.back();
-            if (run->GetTotalDataWeight() > 0) {
-                if (run->GetTotalDataWeight() + dataWeight > Owner_->DataWeightThreshold_ ||
-                    run->GetTotalRowCount() + rowCount > Owner_->RowCountThreshold_ ||
-                    run->ElementaryIndexEnd - run->ElementaryIndexBegin >= Owner_->ChunkSliceThreshold_)
+            if (run->DataWeight > 0) {
+                if (run->DataWeight + dataWeight > Owner_->DataWeightThreshold_ ||
+                    run->RowCount + rowCount > Owner_->RowCountThreshold_ ||
+                    run->GetSliceCount() >= Owner_->ChunkSliceThreshold_)
                 {
                     SealLastRun();
                     AddNewRun();
@@ -223,10 +237,8 @@ private:
 
             YT_VERIFY(elementaryIndex == run->ElementaryIndexEnd);
             run->ElementaryIndexEnd = elementaryIndex + 1;
-            run->DataWeightProgressCounterGuard.UpdateValue(dataWeight);
-            run->RowProgressCounterGuard.UpdateValue(rowCount);
-            UpdateRun(run);
-            CheckCompleted();
+            run->RowCount += rowCount;
+            run->DataWeight += dataWeight;
         }
 
         void SuspendStripe(int elementaryIndex)
@@ -252,7 +264,7 @@ private:
         void FinishInput()
         {
             auto& lastRun = Runs_.back();
-            if (lastRun.GetTotalDataWeight() > 0) {
+            if (lastRun.DataWeight > 0) {
                 SealLastRun();
             } else {
                 // Remove last run from counters.
@@ -279,9 +291,9 @@ private:
             auto& stat = result.front();
 
             // NB: cannot estimate MaxBlockSize here.
-            stat.ChunkCount = run.ElementaryIndexEnd - run.ElementaryIndexBegin;
-            stat.DataWeight = run.GetTotalDataWeight();
-            stat.RowCount = run.GetTotalRowCount();
+            stat.ChunkCount = run.GetSliceCount();
+            stat.DataWeight = run.DataWeight;
+            stat.RowCount = run.RowCount;
 
             if (run.IsApproximate) {
                 stat.DataWeight *= ApproximateSizesBoostFactor;
@@ -328,8 +340,8 @@ private:
 
             // NB: never ever make TotalDataWeight and TotalBoostFactor approximate.
             // Otherwise sort data size and row counters will be severely corrupted
-            list->TotalDataWeight = run.GetTotalDataWeight();
-            list->TotalRowCount = run.GetTotalRowCount();
+            list->TotalDataWeight = run.DataWeight;
+            list->TotalRowCount = run.RowCount;
 
             list->IsApproximate = run.IsApproximate;
 
@@ -345,7 +357,7 @@ private:
         virtual int GetStripeListSliceCount(TCookie cookie) const override
         {
             const auto& run = Runs_[cookie];
-            return run.ElementaryIndexEnd - run.ElementaryIndexBegin;
+            return run.GetSliceCount();
         }
 
         virtual void Completed(TCookie cookie, const TCompletedJobSummary& /* jobSummary */) override
@@ -439,6 +451,10 @@ private:
             ERunState State = ERunState::Initializing;
             bool IsApproximate = false;
 
+            i64 RowCount = 0;
+            i64 DataWeight = 0;
+
+            // NB: These counters become active only after job seal.
             TProgressCounterGuard DataWeightProgressCounterGuard;
             TProgressCounterGuard RowProgressCounterGuard;
             TProgressCounterGuard JobProgressCounterGuard;
@@ -451,9 +467,27 @@ private:
                 Persist(context, SuspendCount);
                 Persist(context, State);
                 Persist(context, IsApproximate);
+
+                // COMPAT(gritukan): We are either loading or saving snapshot of new version,
+                // so we freely use #RowCount and #DataWeight here.
+                if (context.GetVersion() >= ESnapshotVersion::OptimizeShufflePool) {
+                    Persist(context, RowCount);
+                    Persist(context, DataWeight);
+                }
+
                 Persist(context, DataWeightProgressCounterGuard);
                 Persist(context, RowProgressCounterGuard);
                 Persist(context, JobProgressCounterGuard);
+
+                // COMPAT(gritukan): We are loading old snapshot using code of new version.
+                // All the previous versions of the job preparation code stored row count and
+                // data weight of a job into a corresponding progress counter that was loaded
+                // using the code above. #RowCount and #DataWeight can be obtained from guard
+                // values in this case.
+                if (context.IsLoad() && context.GetVersion() < ESnapshotVersion::OptimizeShufflePool) {
+                    RowCount = RowProgressCounterGuard.GetValue();
+                    DataWeight = DataWeightProgressCounterGuard.GetValue();
+                }
             }
 
             template <class... TArgs>
@@ -464,14 +498,9 @@ private:
                 (JobProgressCounterGuard.*Method)(std::forward<TArgs>(args)...);
             }
 
-            i64 GetTotalDataWeight() const
+            int GetSliceCount() const
             {
-                return DataWeightProgressCounterGuard.GetValue();
-            }
-
-            i64 GetTotalRowCount() const
-            {
-                return RowProgressCounterGuard.GetValue();
+                return ElementaryIndexEnd - ElementaryIndexBegin;
             }
 
             bool IsPending() const
@@ -534,9 +563,10 @@ private:
             TRun run;
             run.ElementaryIndexBegin = Runs_.empty() ? 0 : Runs_.back().ElementaryIndexEnd;
             run.ElementaryIndexEnd = run.ElementaryIndexBegin;
-            run.DataWeightProgressCounterGuard = TProgressCounterGuard(DataWeightCounter, /*value=*/0);
-            run.RowProgressCounterGuard = TProgressCounterGuard(RowCounter, /*value=*/0);
-            run.JobProgressCounterGuard = TProgressCounterGuard(JobCounter, /*value=*/1);
+            run.DataWeightProgressCounterGuard = TProgressCounterGuard(DataWeightCounter, /*value*/ 0);
+            run.RowProgressCounterGuard = TProgressCounterGuard(RowCounter, /*value*/ 0);
+            run.JobProgressCounterGuard = TProgressCounterGuard(JobCounter, /*value*/ 1);
+            run.UpdateState();
             Runs_.push_back(run);
             ++Owner_->TotalJobCount_;
         }
@@ -567,9 +597,15 @@ private:
         void SealLastRun()
         {
             auto& run = Runs_.back();
-            YT_VERIFY(run.GetTotalDataWeight() > 0);
+            YT_VERIFY(run.DataWeight > 0);
             YT_VERIFY(run.State == ERunState::Initializing);
             run.State = ERunState::Pending;
+
+            // Set actual values to progress counter guards.
+            run.DataWeightProgressCounterGuard.SetValue(run.DataWeight);
+            run.RowProgressCounterGuard.SetValue(run.RowCount);
+            run.JobProgressCounterGuard.SetValue(1);
+
             UpdateRun(&run);
         }
     };
