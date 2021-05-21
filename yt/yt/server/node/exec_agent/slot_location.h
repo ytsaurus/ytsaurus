@@ -83,6 +83,7 @@ public:
     void DecreaseSessionCount();
 
     NNodeTrackerClient::NProto::TDiskLocationResources GetDiskResources() const;
+    void AcquireDiskSpace(i64 diskSpace);
 
     NNodeTrackerClient::NProto::TSlotLocationStatistics GetSlotLocationStatistics() const;
 

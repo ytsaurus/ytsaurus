@@ -826,6 +826,12 @@ NNodeTrackerClient::NProto::TDiskLocationResources TSlotLocation::GetDiskResourc
     return DiskResources_;
 }
 
+void TSlotLocation::AcquireDiskSpace(i64 diskSpace)
+{
+    auto guard = WriterGuard(DiskResourcesLock_);
+    DiskResources_.set_usage(DiskResources_.usage() + diskSpace);
+}
+
 NNodeTrackerClient::NProto::TSlotLocationStatistics TSlotLocation::GetSlotLocationStatistics() const
 {
     auto guard = ReaderGuard(SlotLocationStatisticsLock_);
