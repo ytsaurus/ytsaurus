@@ -193,6 +193,10 @@ ISlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest)
     int slotIndex = *FreeSlots_.begin();
     FreeSlots_.erase(slotIndex);
 
+    if (diskRequest.disk_space() > 0) {
+        bestLocation->AcquireDiskSpace(diskRequest.disk_space());
+    }
+
     return CreateSlot(slotIndex, std::move(bestLocation), JobEnvironment_, RootVolumeManager_, NodeTag_);
 }
 
