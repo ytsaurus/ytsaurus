@@ -1793,7 +1793,7 @@ private:
             transaction->GetId());
 
         YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet stores update prepared "
-            "(%v, TransactionId: %vm, StoreIdsToAdd: %v, HunkChunkIdsToAdd: %v, StoreIdsToRemove: %v, HunkChunkIdsToRemove: %v, "
+            "(%v, TransactionId: %v, StoreIdsToAdd: %v, HunkChunkIdsToAdd: %v, StoreIdsToRemove: %v, HunkChunkIdsToRemove: %v, "
             "UpdateReason: %v)",
             tablet->GetLoggingTag(),
             transaction->GetId(),
@@ -2808,7 +2808,7 @@ private:
             FinishTabletCommit(tablet, transaction, commitTimestamp);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled() || lockedRowCount + locklessRowCount == 0,
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled() && (lockedRowCount + locklessRowCount > 0),
             "Immediate rows committed (TransactionId: %v, LockedRowCount: %v, LocklessRowCount: %v)",
             transaction->GetId(),
             lockedRowCount,
@@ -2953,7 +2953,7 @@ private:
                 rowRef.StoreManager->AbortRow(transaction, rowRef);
             }
         }
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled() || lockedRowCount == 0,
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled() && lockedRowCount > 0,
             "Locked rows aborted (TransactionId: %v, RowCount: %v)",
             transaction->GetId(),
             lockedRowCount);
@@ -2963,7 +2963,7 @@ private:
 
         auto lockedTabletCount = transaction->LockedTablets().size();
         UnlockLockedTablets(transaction);
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled() || lockedTabletCount == 0,
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled() && lockedTabletCount > 0,
             "Locked tablets unlocked (TransactionId: %v, TabletCount: %v)",
             transaction->GetId(),
             lockedTabletCount);
@@ -3054,7 +3054,7 @@ private:
             auto oldTotalRowCount = tablet->GetTotalRowCount();
             tablet->UpdateTotalRowCount();
             auto newTotalRowCount = tablet->GetTotalRowCount();
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled() || oldTotalRowCount == newTotalRowCount,
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled() && oldTotalRowCount != newTotalRowCount,
                 "Tablet total row count updated (TabletId: %v, TotalRowCount: %v -> %v)",
                 tablet->GetId(),
                 oldTotalRowCount,
@@ -3194,7 +3194,7 @@ private:
             prepareRow(*it);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled() || (lockedRowCount + prelockedRowCount == 0),
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled() && (lockedRowCount + prelockedRowCount > 0),
             "Locked rows prepared (TransactionId: %v, LockedRowCount: %v, PrelockedRowCount: %v)",
             transaction->GetId(),
             lockedRowCount,
