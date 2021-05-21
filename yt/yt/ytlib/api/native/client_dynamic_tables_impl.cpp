@@ -497,7 +497,7 @@ TRowset TClient::DoLookupRowsOnce(
     tableInfo->ValidateDynamic();
     tableInfo->ValidateSorted();
 
-    if (tableInfo->EnableDetailedProfiling) {
+    if (options.DetailedProfilingInfo && tableInfo->EnableDetailedProfiling) {
         options.DetailedProfilingInfo->EnableDetailedProfiling = true;
         options.DetailedProfilingInfo->TablePath = path;
     }
