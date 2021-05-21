@@ -1279,10 +1279,23 @@ private:
             lowerLimit.SetRowIndex(*TabletRowIndex_);
             ToProto(ChunkSpec_.mutable_lower_limit(), lowerLimit);
         } else {
-            int firstChunkRowIndex = ChunkSpec_.table_row_index();
+            // COMPAT(ifsmirnov)
+            if (ChunkSpec_.has_row_index_is_absolute()) {
+                YT_VERIFY(ChunkSpec_.row_index_is_absolute());
+            }
+
+            auto firstChunkRowIndex = ChunkSpec_.table_row_index();
             if (*TabletRowIndex_ >= firstChunkRowIndex) {
                 lowerLimit.SetRowIndex(*TabletRowIndex_ - firstChunkRowIndex);
                 ToProto(ChunkSpec_.mutable_lower_limit(), lowerLimit);
+            }
+
+            if (ChunkSpec_.has_upper_limit()) {
+                auto upperLimit = FromProto<TLegacyReadLimit>(ChunkSpec_.upper_limit());
+                YT_VERIFY(upperLimit.HasRowIndex());
+                i64 relativeUpperRowIndex = upperLimit.GetRowIndex() - firstChunkRowIndex;
+                upperLimit.SetRowIndex(std::min(relativeUpperRowIndex, ChunkSpec_.row_count_override()));
+                ToProto(ChunkSpec_.mutable_upper_limit(), upperLimit);
             }
         }
     }

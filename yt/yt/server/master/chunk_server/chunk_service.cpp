@@ -192,9 +192,12 @@ private:
             if (dynamicStore->IsFlushed()) {
                 auto* chunk = dynamicStore->GetFlushedChunk();
                 if (chunk) {
+                    auto rowIndex = dynamicStore->GetType() == EObjectType::OrderedDynamicTabletStore
+                        ? std::make_optional(dynamicStore->GetTableRowIndex())
+                        : std::nullopt;
                     BuildChunkSpec(
                         chunk,
-                        {} /*rowIndex*/,
+                        rowIndex,
                         {} /*tabletIndex*/,
                         {} /*lowerLimit*/,
                         {} /*upperLimit*/,
@@ -205,6 +208,10 @@ private:
                         &nodeDirectoryBuilder,
                         Bootstrap_,
                         subresponse->mutable_chunk_spec());
+
+                    if (dynamicStore->GetType() == EObjectType::OrderedDynamicTabletStore) {
+                        subresponse->mutable_chunk_spec()->set_row_index_is_absolute(true);
+                    }
                 }
             } else {
                 const auto& tabletManager = Bootstrap_->GetTabletManager();
