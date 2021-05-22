@@ -14,37 +14,32 @@ namespace NYT::NDistributedThrottler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDistributedThrottlerFactory
-    : public TRefCounted
+struct IDistributedThrottlerFactory
+    : public virtual TRefCounted
 {
-public:
-    TDistributedThrottlerFactory(
-        TDistributedThrottlerConfigPtr config,
-        NRpc::IChannelFactoryPtr channelFactory,
-        IInvokerPtr invoker,
-        NDiscoveryClient::TGroupId groupId,
-        NDiscoveryClient::TMemberId memberId,
-        NRpc::IServerPtr rpcServer,
-        TString address,
-        NLogging::TLogger logger);
-    ~TDistributedThrottlerFactory();
-
-    NConcurrency::IReconfigurableThroughputThrottlerPtr GetOrCreateThrottler(
+    virtual NConcurrency::IReconfigurableThroughputThrottlerPtr GetOrCreateThrottler(
         const TString& throttlerId,
         NConcurrency::TThroughputThrottlerConfigPtr throttlerConfig,
-        TDuration throttleRpcTimeout = DefaultThrottleRpcTimeout);
+        TDuration throttleRpcTimeout = DefaultThrottleRpcTimeout) = 0;
 
-    void Reconfigure(TDistributedThrottlerConfigPtr config);
+    virtual void Reconfigure(TDistributedThrottlerConfigPtr config) = 0;
 
-    void Start();
-    void Stop();
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    virtual void Start() = 0;
+    virtual void Stop() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TDistributedThrottlerFactory)
+DEFINE_REFCOUNTED_TYPE(IDistributedThrottlerFactory)
+
+IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
+    TDistributedThrottlerConfigPtr config,
+    NRpc::IChannelFactoryPtr channelFactory,
+    IInvokerPtr invoker,
+    NDiscoveryClient::TGroupId groupId,
+    NDiscoveryClient::TMemberId memberId,
+    NRpc::IServerPtr rpcServer,
+    TString address,
+    NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NConcurrency
+} // namespace NYT::NDistributedThrottler

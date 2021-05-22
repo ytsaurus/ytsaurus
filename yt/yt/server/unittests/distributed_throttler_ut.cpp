@@ -126,14 +126,14 @@ TEST_F(TDistributedThrottlerTest, TestLimitUniform)
 
     std::vector<TActionQueuePtr> actionQueues;
 
-    std::vector<TDistributedThrottlerFactoryPtr> factories;
+    std::vector<IDistributedThrottlerFactoryPtr> factories;
     std::vector<IReconfigurableThroughputThrottlerPtr> throttlers;
 
     for (int i = 0; i < 4; ++i) {
         auto memberActionQueue = New<TActionQueue>("MemberClient" + ToString(i));
         actionQueues.push_back(memberActionQueue);
 
-        auto factory = New<TDistributedThrottlerFactory>(
+        auto factory = CreateDistributedThrottlerFactory(
             config,
             channelFactory,
             memberActionQueue->GetInvoker(),
@@ -213,14 +213,14 @@ TEST_F(TDistributedThrottlerTest, TestLimitAdaptive)
 
     std::vector<TActionQueuePtr> actionQueues;
 
-    std::vector<TDistributedThrottlerFactoryPtr> factories;
+    std::vector<IDistributedThrottlerFactoryPtr> factories;
     std::vector<IReconfigurableThroughputThrottlerPtr> throttlers;
 
     for (int i = 0; i < throttlersCount; ++i) {
         auto memberActionQueue = New<TActionQueue>("MemberClient" + ToString(i));
         actionQueues.push_back(memberActionQueue);
 
-        auto factory = New<TDistributedThrottlerFactory>(
+        auto factory = CreateDistributedThrottlerFactory(
             config,
             channelFactory,
             memberActionQueue->GetInvoker(),

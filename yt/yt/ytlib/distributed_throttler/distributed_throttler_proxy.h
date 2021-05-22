@@ -12,7 +12,7 @@ class TDistributedThrottlerProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TDistributedThrottlerProxy, DistributedThrottlerProxy);
+    DEFINE_RPC_PROXY(TDistributedThrottlerProxy, DistributedThrottlerService);
 
     DEFINE_RPC_PROXY_METHOD(NProto, Heartbeat);
     DEFINE_RPC_PROXY_METHOD(NProto, Throttle);

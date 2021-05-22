@@ -436,13 +436,13 @@ const INodeChannelFactoryPtr& TBootstrap::GetNodeChannelFactory() const
     return NodeChannelFactory_;
 }
 
-NDistributedThrottler::TDistributedThrottlerFactoryPtr TBootstrap::CreateDistributedThrottlerFactory(
+NDistributedThrottler::IDistributedThrottlerFactoryPtr TBootstrap::CreateDistributedThrottlerFactory(
     TDistributedThrottlerConfigPtr config,
     IInvokerPtr invoker,
     const TString& groupIdPrefix,
     NLogging::TLogger logger) const
 {
-    return New<TDistributedThrottlerFactory>(
+    return NDistributedThrottler::CreateDistributedThrottlerFactory(
         std::move(config),
         ChannelFactory_,
         std::move(invoker),
