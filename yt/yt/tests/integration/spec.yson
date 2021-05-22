@@ -2,6 +2,9 @@
     cluster=hahn;
     pool="yt-integration-tests";
     cypress_root="//home/yt-integration-tests";
+    spec_patch={
+        scheduling_tag_filter="!cpu_vendor_amd";
+    };
     run_as_root=%true;
     enable_network=%false;
     blob_ttl=604800000000000;
