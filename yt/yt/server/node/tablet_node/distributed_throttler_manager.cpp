@@ -87,7 +87,7 @@ private:
     NClusterNode::TBootstrap* const Bootstrap_;
     const TString MemberId_;
 
-    THashMap<TKey, NDistributedThrottler::TDistributedThrottlerFactoryPtr> Factories_;
+    THashMap<TKey, NDistributedThrottler::IDistributedThrottlerFactoryPtr> Factories_;
 
     static TString MakeFactoryName(
         const TString& tablePath,
@@ -98,7 +98,7 @@ private:
             mode);
     }
 
-    NDistributedThrottler::TDistributedThrottlerFactoryPtr DoCreateFactory(
+    NDistributedThrottler::IDistributedThrottlerFactoryPtr DoCreateFactory(
         const TString& factoryName,
         NObjectClient::TCellTag cellTag,
         NDistributedThrottler::EDistributedThrottlerMode mode)
@@ -118,7 +118,7 @@ private:
 
         auto address = Bootstrap_->GetDefaultLocalAddressOrThrow();
 
-        return New<TDistributedThrottlerFactory>(
+        return CreateDistributedThrottlerFactory(
             config,
             Bootstrap_->GetMasterConnection()->GetChannelFactory(),
             Bootstrap_->GetControlInvoker(),

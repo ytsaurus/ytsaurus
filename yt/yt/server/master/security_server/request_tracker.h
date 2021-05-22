@@ -57,7 +57,7 @@ public:
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
-    const NDistributedThrottler::TDistributedThrottlerFactoryPtr ThrottlerFactory_;
+    const NDistributedThrottler::IDistributedThrottlerFactoryPtr ThrottlerFactory_;
 
     const TCallback<void(NCellMaster::TDynamicClusterConfigPtr)> DynamicConfigChangedCallback_ =
         BIND(&TRequestTracker::OnDynamicConfigChanged, MakeWeak(this));

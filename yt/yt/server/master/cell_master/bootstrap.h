@@ -117,7 +117,7 @@ public:
     const IInvokerPtr& GetControlInvoker() const;
     const NNodeTrackerClient::INodeChannelFactoryPtr& GetNodeChannelFactory() const;
 
-    NDistributedThrottler::TDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
+    NDistributedThrottler::IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
         NDistributedThrottler::TDistributedThrottlerConfigPtr config,
         IInvokerPtr invoker,
         const TString& groupIdPrefix,
