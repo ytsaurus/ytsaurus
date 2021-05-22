@@ -132,6 +132,20 @@ IGaugeImplPtr TSolomonRegistry::RegisterGaugeSummary(
     return gauge;
 }
 
+ITimeGaugeImplPtr TSolomonRegistry::RegisterTimeGaugeSummary(
+    const TString& name,
+    const TTagSet& tags,
+    TSensorOptions options)
+{
+    auto gauge = New<TSimpleTimeGauge>();
+    DoRegister([this, name, tags, options, gauge] () {
+        auto set = FindSet(name, options);
+        set->AddTimerSummary(New<TTimerSummaryState>(gauge, Tags_.Encode(tags), tags));
+    });
+
+    return gauge;
+}
+
 ITimerImplPtr TSolomonRegistry::RegisterTimerSummary(
     const TString& name,
     const TTagSet& tags,

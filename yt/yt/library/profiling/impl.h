@@ -45,6 +45,11 @@ public:
         const TTagSet& tags,
         TSensorOptions options) = 0;
 
+    virtual ITimeGaugeImplPtr RegisterTimeGaugeSummary(
+        const TString& name,
+        const TTagSet& tags,
+        TSensorOptions options) = 0;
+
     virtual ITimerImplPtr RegisterTimerSummary(
         const TString& name,
         const TTagSet& tags,
@@ -117,7 +122,7 @@ DEFINE_REFCOUNTED_TYPE(IGaugeImpl)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ITimeGaugeImpl
-    : public TRefCounted
+    : public virtual TRefCounted
 {
     virtual void Update(TDuration value) = 0;
     virtual TDuration GetValue() = 0;

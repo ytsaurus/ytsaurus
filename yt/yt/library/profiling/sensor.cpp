@@ -252,6 +252,17 @@ TProfiler TProfiler::WithSparse() const
     return TProfiler(Prefix_, Namespace_, Tags_, Impl_, opts);
 }
 
+TProfiler TProfiler::WithDense() const
+{
+    if (!Enabled_) {
+        return {};
+    }
+
+    auto opts = Options_;
+    opts.Sparse = false;
+    return TProfiler(Prefix_, Namespace_, Tags_, Impl_, opts);
+}
+
 TProfiler TProfiler::WithGlobal() const
 {
     if (!Enabled_) {
@@ -373,6 +384,17 @@ TGauge TProfiler::GaugeSummary(const TString& name) const
 
     TGauge gauge;
     gauge.Gauge_ = Impl_->RegisterGaugeSummary(Namespace_ + Prefix_ + name, Tags_, Options_);
+    return gauge;
+}
+
+TTimeGauge TProfiler::TimeGaugeSummary(const TString& name) const
+{
+    if (!Impl_) {
+        return {};
+    }
+
+    TTimeGauge gauge;
+    gauge.Gauge_ = Impl_->RegisterTimeGaugeSummary(Namespace_ + Prefix_ + name, Tags_, Options_);
     return gauge;
 }
 

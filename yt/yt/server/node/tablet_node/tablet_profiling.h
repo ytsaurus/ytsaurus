@@ -190,10 +190,6 @@ struct TChunkWriteCounters
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TTabletDistributedThrottlerTimersVector = TEnumIndexedVector<
-    ETabletDistributedThrottlerKind,
-    NProfiling::TEventTimer>;
-
 struct TTabletCounters
 {
     TTabletCounters() = default;
@@ -201,17 +197,10 @@ struct TTabletCounters
     explicit TTabletCounters(const NProfiling::TProfiler& profiler)
         : OverlappingStoreCount(profiler.GaugeSummary("/tablet/overlapping_store_count"))
         , EdenStoreCount(profiler.GaugeSummary("/tablet/eden_store_count"))
-    {
-        for (auto kind : TEnumTraits<ETabletDistributedThrottlerKind>::GetDomainValues()) {
-            ThrottlerWaitTimers[kind] = profiler.Timer(
-                "/tablet/" + CamelCaseToUnderscoreCase(ToString(kind)) + "_throttler_wait_time");
-        }
-    }
+    { }
 
     NProfiling::TGauge OverlappingStoreCount;
     NProfiling::TGauge EdenStoreCount;
-
-    TTabletDistributedThrottlerTimersVector ThrottlerWaitTimers;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -221,8 +210,8 @@ struct TReplicaCounters
     TReplicaCounters() = default;
 
     explicit TReplicaCounters(const NProfiling::TProfiler& profiler)
-        : LagRowCount(profiler.Summary("/replica/lag_row_count"))
-        , LagTime(profiler.TimeGauge("/replica/lag_time"))
+        : LagRowCount(profiler.WithDense().Gauge("/replica/lag_row_count"))
+        , LagTime(profiler.WithDense().TimeGaugeSummary("/replica/lag_time"))
         , ReplicationThrottleTime(profiler.Timer("/replica/replication_throttle_time"))
         , ReplicationTransactionStartTime(profiler.Timer("/replica/replication_transaction_start_time"))
         , ReplicationTransactionCommitTime(profiler.Timer("/replica/replication_transaction_commit_time"))
@@ -230,12 +219,12 @@ struct TReplicaCounters
         , ReplicationRowsWriteTime(profiler.Timer("/replica/replication_rows_write_time"))
         , ReplicationBatchRowCount(profiler.Summary("/replica/replication_batch_row_count"))
         , ReplicationBatchDataWeight(profiler.Summary("/replica/replication_batch_data_weight"))
-        , ReplicationRowCount(profiler.Counter("/replica/replication_row_count"))
-        , ReplicationDataWeight(profiler.Counter("/replica/replication_data_weight"))
-        , ReplicationErrorCount(profiler.Counter("/replica/replication_error_count"))
+        , ReplicationRowCount(profiler.WithDense().Counter("/replica/replication_row_count"))
+        , ReplicationDataWeight(profiler.WithDense().Counter("/replica/replication_data_weight"))
+        , ReplicationErrorCount(profiler.WithDense().Counter("/replica/replication_error_count"))
     { }
 
-    NProfiling::TSummary LagRowCount;
+    NProfiling::TGauge LagRowCount;
     NProfiling::TTimeGauge LagTime;
     NProfiling::TEventTimer ReplicationThrottleTime;
     NProfiling::TEventTimer ReplicationTransactionStartTime;
@@ -289,6 +278,10 @@ using TChunkReadCountersVector = TEnumIndexedVector<
     EChunkReadProfilingMethod,
     std::array<TChunkReadCounters, 2>>;
 
+using TTabletDistributedThrottlerTimersVector = TEnumIndexedVector<
+    ETabletDistributedThrottlerKind,
+    NProfiling::TEventTimer>;
+
 class TTableProfiler
     : public TRefCounted
 {
@@ -301,7 +294,7 @@ public:
 
     static TTableProfilerPtr GetDisabled();
 
-    TTabletCounters* GetTabletCounters();
+    TTabletCounters GetTabletCounters();
 
     TLookupCounters* GetLookupCounters(const std::optional<TString>& userTag);
     TWriteCounters* GetWriteCounters(const std::optional<TString>& userTag);
@@ -311,20 +304,15 @@ public:
     TRemoteDynamicStoreReadCounters* GetRemoteDynamicStoreReadCounters(const std::optional<TString>& userTag);
     TQueryServiceCounters* GetQueryServiceCounters(const std::optional<TString>& userTag);
 
-    TReplicaCounters GetReplicaCounters(
-        bool enableProfiling,
-        const TString& cluster,
-        const NYPath::TYPath& path,
-        const TTableReplicaId& replicaId);
+    TReplicaCounters GetReplicaCounters(const TString& cluster);
 
     TChunkWriteCounters* GetWriteCounters(EChunkWriteProfilingMethod method, bool failed);
     TChunkReadCounters* GetReadCounters(EChunkReadProfilingMethod method, bool failed);
+    NProfiling::TEventTimer* GetThrottlerTimer(ETabletDistributedThrottlerKind kind);
 
 private:
     bool Disabled_ = true;
     const NProfiling::TProfiler Profiler_{};
-
-    TTabletCounters TabletCounters_;
 
     template <class TCounter>
     struct TUserTaggedCounter
@@ -345,10 +333,9 @@ private:
     TUserTaggedCounter<TRemoteDynamicStoreReadCounters> DynamicStoreReadCounters_;
     TUserTaggedCounter<TQueryServiceCounters> QueryServiceCounters_;
 
-    NConcurrency::TSyncMap<std::tuple<bool, TString, NYPath::TYPath, TTableReplicaId>, TReplicaCounters> ReplicaCounters_;
-
     TChunkWriteCountersVector ChunkWriteCounters_;
     TChunkReadCountersVector ChunkReadCounters_;
+    TTabletDistributedThrottlerTimersVector ThrottlerWaitTimers_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableProfiler)
