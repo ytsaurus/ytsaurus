@@ -232,7 +232,7 @@ private:
                     ? TDuration::Zero()
                     : TimestampToInstant(timestampProvider->GetLatestTimestamp()).second - TimestampToInstant(replicaRuntimeData->CurrentReplicationTimestamp).first;
 
-                counters.LagRowCount.Record(rowCount);
+                counters.LagRowCount.Update(rowCount);
                 counters.LagTime.Update(time);
             });
 

@@ -33,11 +33,17 @@ private:
 
 class TSimpleTimeGauge
     : public ITimeGaugeImpl
+    , public ITimerImpl
 {
 public:
     virtual void Update(TDuration value) override;
 
     virtual TDuration GetValue() override;
+
+    virtual void Record(TDuration value) override;
+
+    virtual TSummarySnapshot<TDuration> GetSummary() override;
+    virtual TSummarySnapshot<TDuration> GetSummaryAndReset() override;
 
 private:
     std::atomic<TDuration::TValue> Value_ = 0.0;

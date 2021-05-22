@@ -1463,6 +1463,7 @@ void TTablet::FillProfilerTags()
         // TODO(babenko): hunks profiling
         Settings_.StoreWriterOptions->Account,
         Settings_.StoreWriterOptions->MediumName);
+    TabletCounters_ = TableProfiler_->GetTabletCounters();
 }
 
 void TTablet::ReconfigureThrottlers()
@@ -1551,11 +1552,7 @@ std::optional<TString> TTablet::GetPoolTagByMemoryCategory(EMemoryCategory categ
 void TTablet::UpdateReplicaCounters()
 {
     for (auto& [replicaId, replica] : Replicas_) {
-        replica.SetCounters(TableProfiler_->GetReplicaCounters(
-            Settings_.MountConfig->EnableProfiling,
-            replica.GetClusterName(),
-            replica.GetReplicaPath(),
-            replicaId));
+        replica.SetCounters(TableProfiler_->GetReplicaCounters(replica.GetClusterName()));
     }
 }
 
@@ -1634,9 +1631,8 @@ void TTablet::UpdateOverlappingStoreCount()
     EdenOverlappingStoreCount_ = edenOverlappingStoreCount;
     CriticalPartitionCount_ = criticalPartitionCount;
 
-    auto counters = TableProfiler_->GetTabletCounters();
-    counters->OverlappingStoreCount.Update(OverlappingStoreCount_);
-    counters->EdenStoreCount.Update(GetEdenStoreCount());
+    TabletCounters_.OverlappingStoreCount.Update(OverlappingStoreCount_);
+    TabletCounters_.EdenStoreCount.Update(GetEdenStoreCount());
 }
 
 void TTablet::UpdateUnflushedTimestamp() const
@@ -1784,8 +1780,8 @@ void TTablet::ThrottleTabletStoresUpdate(
     YT_LOG_DEBUG("Finished waiting for tablet stores update throttler (ElapsedTime: %v, CellId: %v)",
         elapsedTime,
         slot->GetCellId());
-    TableProfiler_->GetTabletCounters()->ThrottlerWaitTimers[ETabletDistributedThrottlerKind::StoresUpdate]
-        .Record(elapsedTime);
+    TableProfiler_->GetThrottlerTimer(ETabletDistributedThrottlerKind::StoresUpdate)
+        ->Record(elapsedTime);
 }
 
 void TTablet::UpdateDanglingHunkChunks(const THunkChunkPtr& hunkChunk)

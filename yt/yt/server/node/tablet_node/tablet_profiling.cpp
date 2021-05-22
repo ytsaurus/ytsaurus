@@ -281,7 +281,6 @@ TTableProfiler::TTableProfiler(
     const NProfiling::TProfiler& diskProfiler)
     : Disabled_(false)
     , Profiler_(profiler)
-    , TabletCounters_(profiler)
 {
     for (auto method : TEnumTraits<EChunkWriteProfilingMethod>::GetDomainValues()) {
         ChunkWriteCounters_[method] = {
@@ -296,6 +295,11 @@ TTableProfiler::TTableProfiler(
             TChunkReadCounters{diskProfiler.WithTag("method", FormatEnum(method) + "_failed")}
         };
     }
+
+    for (auto kind : TEnumTraits<ETabletDistributedThrottlerKind>::GetDomainValues()) {
+        ThrottlerWaitTimers_[kind] = profiler.Timer(
+            "/tablet/" + CamelCaseToUnderscoreCase(ToString(kind)) + "_throttler_wait_time");
+    }
 }
 
 TTableProfilerPtr TTableProfiler::GetDisabled()
@@ -303,9 +307,13 @@ TTableProfilerPtr TTableProfiler::GetDisabled()
     return RefCountedSingleton<TTableProfiler>();
 }
 
-TTabletCounters* TTableProfiler::GetTabletCounters()
+TTabletCounters TTableProfiler::GetTabletCounters()
 {
-    return &TabletCounters_;
+    if (Disabled_) {
+        return {};
+    }
+
+    return TTabletCounters{Profiler_};
 }
 
 TLookupCounters* TTableProfiler::GetLookupCounters(const std::optional<TString>& userTag)
@@ -343,27 +351,13 @@ TQueryServiceCounters* TTableProfiler::GetQueryServiceCounters(const std::option
     return QueryServiceCounters_.Get(Disabled_, userTag, Profiler_);
 }
 
-TReplicaCounters TTableProfiler::GetReplicaCounters(
-    bool enableProfiling,
-    const TString& cluster,
-    const NYPath::TYPath& path,
-    const TTableReplicaId& replicaId)
+TReplicaCounters TTableProfiler::GetReplicaCounters(const TString& cluster)
 {
     if (Disabled_) {
         return {};
     }
 
-    auto key = std::make_tuple(enableProfiling, cluster, path, replicaId);
-    return *ReplicaCounters_.FindOrInsert(key, [&] {
-        if (!enableProfiling) {
-            return TReplicaCounters{Profiler_.WithTag("replica_cluster", cluster, -1)};
-        }
-
-        return TReplicaCounters{Profiler_
-            .WithTag("replica_cluster", cluster, -1)
-            .WithTag("replica_path", path, -1)
-            .WithRequiredTag("replica_id", ToString(replicaId), -1)};
-    }).first;
+    return TReplicaCounters{Profiler_.WithTag("replica_cluster", cluster)};
 }
 
 TChunkWriteCounters* TTableProfiler::GetWriteCounters(EChunkWriteProfilingMethod method, bool failed)
@@ -374,6 +368,11 @@ TChunkWriteCounters* TTableProfiler::GetWriteCounters(EChunkWriteProfilingMethod
 TChunkReadCounters* TTableProfiler::GetReadCounters(EChunkReadProfilingMethod method, bool failed)
 {
     return &ChunkReadCounters_[method][failed ? 1 : 0];
+}
+
+NProfiling::TEventTimer* TTableProfiler::GetThrottlerTimer(ETabletDistributedThrottlerKind kind)
+{
+    return &ThrottlerWaitTimers_[kind];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

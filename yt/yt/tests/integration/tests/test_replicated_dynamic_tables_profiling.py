@@ -72,8 +72,6 @@ class TestReplicatedDynamicTablesProfiling(TestReplicatedDynamicTablesBase):
 
         replica_tags = {
             "replica_cluster": self.REPLICA_CLUSTER_NAME,
-            "replica_path": replica_table_path,
-            "replica_id": str(replica_id),
         }
 
         def get_lag_row_count():

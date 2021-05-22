@@ -82,8 +82,8 @@ void ThrottleUponOverdraft(
         tabletThrottlerKind,
         elapsedTime);
 
-    tabletSnapshot->TableProfiler->GetTabletCounters()->ThrottlerWaitTimers[tabletThrottlerKind]
-        .Record(elapsedTime);
+    tabletSnapshot->TableProfiler->GetThrottlerTimer(tabletThrottlerKind)
+        ->Record(elapsedTime);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

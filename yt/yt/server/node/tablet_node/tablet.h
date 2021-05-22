@@ -600,6 +600,8 @@ private:
     NConcurrency::IReconfigurableThroughputThrottlerPtr CompactionThrottler_;
     NConcurrency::IReconfigurableThroughputThrottlerPtr PartitioningThrottler_;
 
+    TTabletCounters TabletCounters_;
+
     void Initialize();
 
     TPartition* GetContainingPartition(const ISortedStorePtr& store);

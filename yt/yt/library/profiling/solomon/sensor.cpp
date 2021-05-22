@@ -50,6 +50,23 @@ TDuration TSimpleTimeGauge::GetValue()
     return TDuration::FromValue(Value_.load(std::memory_order_relaxed));
 }
 
+void TSimpleTimeGauge::Record(TDuration /* value */)
+{
+    YT_UNIMPLEMENTED();
+}
+
+TSummarySnapshot<TDuration> TSimpleTimeGauge::GetSummary()
+{
+    TSummarySnapshot<TDuration> summary;
+    summary.Record(GetValue());
+    return summary;
+}
+
+TSummarySnapshot<TDuration> TSimpleTimeGauge::GetSummaryAndReset()
+{
+    return GetSummary();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TSimpleCounter::Increment(i64 delta)

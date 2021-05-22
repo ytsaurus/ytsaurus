@@ -200,6 +200,9 @@ public:
      */
     TProfiler WithSparse() const;
 
+    //! WithDense clears sparse flags on all sensors created using returned registry.
+    TProfiler WithDense() const;
+
     //! WithGlobal marks all sensors as global.
     /*!
      *  Global sensors are exported without host= tag and instance tags.
@@ -253,6 +256,12 @@ public:
      *  Each TGauge tracks single value. Values are aggregated using Summary rules.
      */
     TGauge GaugeSummary(const TString& name) const;
+
+    //! TimeGaugeSummary is used to aggregate multiple values locally.
+    /*!
+     *  Each TGauge tracks single value. Values are aggregated using Summary rules.
+     */
+    TTimeGauge TimeGaugeSummary(const TString& name) const;
 
     //! Timer is used to measure distribution of event durations.
     /*!
