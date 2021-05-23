@@ -1101,8 +1101,8 @@ private:
 
     int FailedJobCount_ = 0;
 
-    // Finished jobs to be sent to scheduler in EAgentToSchedulerJobEventType::Released.
-    THashMap<TJobId, TFinishedJobInfoPtr> FinishedJobs_;
+    // Release job flags to be sent to scheduler in EAgentToSchedulerJobEventType::Released.
+    THashMap<TJobId, NJobTrackerClient::TReleaseJobFlags> ReleaseJobFlags_;
     std::vector<std::pair<TJobId, NYson::TYsonString>> RetainedFinishedJobs_;
 
     NChunkPools::IChunkPoolInputPtr Sink_;
@@ -1256,7 +1256,8 @@ private:
         NYTree::TFluentMap fluent) const;
 
     void BuildFinishedJobAttributes(
-        const TFinishedJobInfoPtr& job,
+        const TJobInfoPtr& jobInfo,
+        TJobSummary* jobSummary,
         bool outputStatistics,
         bool hasStderr,
         bool hasFailContext,
