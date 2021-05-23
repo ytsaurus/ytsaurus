@@ -56,7 +56,7 @@ using TChunkReplicaLocatorCachePtr = TIntrusivePtr<TChunkReplicaLocatorCache>;
 
 struct TPeerInfo
 {
-    TAddressWithNetwork Address; 
+    TAddressWithNetwork Address;
     IChannelPtr Channel;
 };
 
@@ -223,12 +223,12 @@ private:
         if (isPeriodicUpdate) {
             struct TPeerProbingRequestInfo
             {
-                i64 RequestIndex;
                 std::vector<TPeerProbingKey> Keys;
+                std::vector<int> KeyIndexes;
             };
 
             THashMap<TNodeId, TPeerProbingRequestInfo> nodeIdToRequestInfo;
-            std::vector<std::vector<int>> requestKeyIndexes;
+            std::vector<std::pair<TNodeId, const TPeerProbingRequestInfo*>> nodeIdAndRequestInfos;
 
             for (int i = 0; i < std::ssize(keys); ++i) {
                 const auto& key = keys[i];
@@ -236,38 +236,38 @@ private:
 
                 auto it = nodeIdToRequestInfo.find(nodeId);
                 if (it == nodeIdToRequestInfo.end()) {
-                    it = nodeIdToRequestInfo.emplace(
-                        nodeId,
-                        TPeerProbingRequestInfo{
-                            .RequestIndex = std::ssize(requestKeyIndexes)
-                        })
-                        .first;
-
-                    requestKeyIndexes.emplace_back();
+                    it = nodeIdToRequestInfo.emplace(nodeId, TPeerProbingRequestInfo()).first;
+                    nodeIdAndRequestInfos.emplace_back(nodeId, &it->second);
                 }
 
-                requestKeyIndexes[it->second.RequestIndex].push_back(i);
-                it->second.Keys.push_back(key);
+                auto& requestInfo = it->second;
+                requestInfo.Keys.push_back(key);
+                requestInfo.KeyIndexes.push_back(i);
             }
 
             std::vector<TFuture<TProbeChunkSetResult>> futures;
-            futures.reserve(nodeIdToRequestInfo.size());
-            for (const auto& [nodeId, requestInfo] : nodeIdToRequestInfo) {
-                futures.push_back(sendProbingRequest(nodeId, requestInfo.Keys));
+            futures.reserve(nodeIdAndRequestInfos.size());
+            for (auto [nodeId, requestInfo] : nodeIdAndRequestInfos) {
+                futures.push_back(sendProbingRequest(nodeId, requestInfo->Keys));
             }
 
             return AllSet(std::move(futures))
                 .Apply(BIND(
-                    [keyCount = keys.size(), requestKeyIndexes = std::move(requestKeyIndexes), handleBatchResult]
+                    [
+                        keyCount = keys.size(),
+                        nodeIdToRequestInfo = std::move(nodeIdToRequestInfo),
+                        nodeIdAndRequestInfos = std::move(nodeIdAndRequestInfos),
+                        handleBatchResult = std::move(handleBatchResult)
+                    ]
                     (const std::vector<TErrorOrProbeChunkSetResult>& resultOrErrors)
                 {
                     std::vector<TErrorOrPeerProbingResult> values(keyCount);
 
-                    YT_VERIFY(requestKeyIndexes.size() == resultOrErrors.size());
+                    YT_VERIFY(nodeIdAndRequestInfos.size() == resultOrErrors.size());
 
-                    for (int i = 0; i < std::ssize(requestKeyIndexes); ++i) {
+                    for (int i = 0; i < std::ssize(nodeIdAndRequestInfos); ++i) {
                         const auto& resultOrError = resultOrErrors[i];
-                        handleBatchResult(&values, resultOrError, requestKeyIndexes[i]);
+                        handleBatchResult(&values, resultOrError, nodeIdAndRequestInfos[i].second->KeyIndexes);
                     }
 
                     return values;
@@ -276,7 +276,10 @@ private:
         } else {
             return sendProbingRequest(keys[0].NodeId, keys)
                 .Apply(BIND(
-                    [keyCount = keys.size(), handleBatchResult]
+                    [
+                        keyCount = keys.size(),
+                        handleBatchResult = std::move(handleBatchResult)
+                    ]
                     (const TErrorOrProbeChunkSetResult& resultOrError)
                 {
                     std::vector<TErrorOrPeerProbingResult> values(keyCount);
@@ -1416,7 +1419,7 @@ private:
                 }
 
                 auto currentProbingPenalty = ComputeProbingPenalty(probingResult);
-                if (chunkBestNodeIndex[chunkIndex] == -1 || 
+                if (chunkBestNodeIndex[chunkIndex] == -1 ||
                     currentProbingPenalty < chunkLowestProbingPenalty[chunkIndex])
                 {
                     chunkBestNodeIndex[chunkIndex] = nodeIndex;
