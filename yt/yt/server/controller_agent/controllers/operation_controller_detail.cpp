@@ -3016,7 +3016,8 @@ void TOperationControllerBase::BuildJobAttributes(
 }
 
 void TOperationControllerBase::BuildFinishedJobAttributes(
-    const TFinishedJobInfoPtr& job,
+    const TJobInfoPtr& jobInfo,
+    TJobSummary* jobSummary,
     bool outputStatistics,
     bool hasStderr,
     bool hasFailContext,
@@ -3024,24 +3025,23 @@ void TOperationControllerBase::BuildFinishedJobAttributes(
 {
     auto stderrSize = hasStderr
         // Report nonzero stderr size as we are sure it is saved.
-        ? std::max(job->StderrSize, static_cast<i64>(1))
+        ? std::max(jobInfo->StderrSize, static_cast<i64>(1))
         : 0;
 
     i64 failContextSize = hasFailContext ? 1 : 0;
 
-    BuildJobAttributes(job, job->Summary.State, outputStatistics, stderrSize, fluent);
+    BuildJobAttributes(jobInfo, jobSummary->State, outputStatistics, stderrSize, fluent);
 
-    const auto& summary = job->Summary;
     fluent
-        .Item("finish_time").Value(job->FinishTime)
-        .DoIf(summary.State == EJobState::Failed, [&] (TFluentMap fluent) {
-            auto error = FromProto<TError>(summary.Result.error());
+        .Item("finish_time").Value(jobInfo->FinishTime)
+        .DoIf(jobSummary->State == EJobState::Failed, [&] (TFluentMap fluent) {
+            auto error = FromProto<TError>(jobSummary->Result.error());
             fluent.Item("error").Value(error);
         })
-        .DoIf(summary.Result.HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext),
+        .DoIf(jobSummary->Result.HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext),
             [&] (TFluentMap fluent)
         {
-            const auto& schedulerResultExt = summary.Result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+            const auto& schedulerResultExt = jobSummary->Result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
             fluent.Item("core_infos").Value(schedulerResultExt.core_infos());
         })
         .Item("fail_context_size").Value(failContextSize);
@@ -4887,27 +4887,23 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
         (hasStderr && RetainedJobWithStderrCount_ < Spec_->MaxStderrCount) ||
         (coreInfoCount > 0 && RetainedJobsCoreInfoCount_ + coreInfoCount <= Spec_->MaxCoreInfoCount);
 
+    auto releaseJobFlags = summary->ReleaseFlags;
     if (hasStderr && shouldRetainJob) {
-        summary->ReleaseFlags.ArchiveStderr = true;
+        releaseJobFlags.ArchiveStderr = true;
         // Job spec is necessary for ACL checks for stderr.
-        summary->ReleaseFlags.ArchiveJobSpec = true;
+        releaseJobFlags.ArchiveJobSpec = true;
     }
     if (hasFailContext && shouldRetainJob) {
-        summary->ReleaseFlags.ArchiveFailContext = true;
+        releaseJobFlags.ArchiveFailContext = true;
         // Job spec is necessary for ACL checks for fail context.
-        summary->ReleaseFlags.ArchiveJobSpec = true;
+        releaseJobFlags.ArchiveJobSpec = true;
     }
 
-    summary->ReleaseFlags.ArchiveProfile = true;
+    releaseJobFlags.ArchiveProfile = true;
 
-    auto finishedJob = New<TFinishedJobInfo>(joblet, std::move(*summary));
-
-    // NB: we do not want these values to get into the snapshot as they may be pretty large.
-    finishedJob->Summary.StatisticsYson = TYsonString();
-    finishedJob->Summary.Statistics.reset();
-
-    if (finishedJob->Summary.ReleaseFlags.IsNonTrivial()) {
-        FinishedJobs_.emplace(jobId, finishedJob);
+    // TODO(gritukan, prime): This is always true.
+    if (releaseJobFlags.IsNonTrivial()) {
+        ReleaseJobFlags_.emplace(jobId, releaseJobFlags);
     }
 
     if (!shouldRetainJob) {
@@ -4920,7 +4916,8 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
     auto attributesFragment = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Do([&] (TFluentMap fluent) {
             BuildFinishedJobAttributes(
-                finishedJob,
+                joblet,
+                summary.get(),
                 /* outputStatistics */ true,
                 hasStderr,
                 hasFailContext,
@@ -4933,7 +4930,7 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
             .DoMap([&] (TFluentMap fluent) {
                 fluent.GetConsumer()->OnRaw(attributesFragment);
             });
-        RetainedFinishedJobs_.emplace_back(finishedJob->JobId, std::move(attributes));
+        RetainedFinishedJobs_.emplace_back(jobId, std::move(attributes));
     }
 
     {
@@ -8049,14 +8046,9 @@ void TOperationControllerBase::ReleaseJobs(const std::vector<TJobId>& jobIds)
     jobsToRelease.reserve(jobIds.size());
 
     for (auto jobId : jobIds) {
-        TReleaseJobFlags releaseFlags;
-        auto it = FinishedJobs_.find(jobId);
-        if (it != FinishedJobs_.end()) {
-            const auto& jobSummary = it->second->Summary;
-            releaseFlags = jobSummary.ReleaseFlags;
-            FinishedJobs_.erase(it);
+        if (auto it = ReleaseJobFlags_.find(jobId); it != ReleaseJobFlags_.end()) {
+            jobsToRelease.emplace_back(TJobToRelease{jobId, it->second});
         }
-        jobsToRelease.emplace_back(TJobToRelease{jobId, releaseFlags});
     }
     Host->ReleaseJobs(jobsToRelease);
 }
@@ -8826,7 +8818,20 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, RetainedJobWithStderrCount_);
     Persist(context, RetainedJobsCoreInfoCount_);
     Persist(context, RetainedJobCount_);
-    Persist(context, FinishedJobs_);
+
+    // COMPAT(gritukan)
+    if (context.IsLoad() && context.GetVersion() < ESnapshotVersion::RemoveFinishedJobs) {
+        THashMap<TJobId, TFinishedJobInfoPtr> finishedJobs;
+        Persist(context, finishedJobs);
+
+        for (const auto& [jobId, finishedJob] : finishedJobs) {
+            auto releaseJobFlags = finishedJob->Summary.ReleaseFlags;
+            ReleaseJobFlags_.emplace(jobId, releaseJobFlags);
+        }
+    } else {
+        Persist(context, ReleaseJobFlags_);
+    }
+
     Persist(context, JobSpecCompletedArchiveCount_);
     Persist(context, FailedJobCount_);
     Persist(context, Sink_);

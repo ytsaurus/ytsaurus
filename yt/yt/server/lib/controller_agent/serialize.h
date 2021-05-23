@@ -28,6 +28,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((PersistStandardStreamDescriptors)     (300604))
     ((JSCInitialPrimaryDataWeight)          (300605))
     ((OptimizeShufflePool)                  (300606))
+    ((RemoveFinishedJobs)                   (300608))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
