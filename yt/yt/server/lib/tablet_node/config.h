@@ -106,6 +106,9 @@ public:
     int MaxEdenStoresPerTablet;
 
     std::optional<NHydra::TRevision> ForcedCompactionRevision;
+    std::optional<NHydra::TRevision> ForcedStoreCompactionRevision;
+    std::optional<NHydra::TRevision> ForcedHunkCompactionRevision;
+    // TODO(babenko,ifsmirnov): make builtin
     std::optional<NHydra::TRevision> ForcedChunkViewCompactionRevision;
 
     std::optional<TDuration> DynamicStoreAutoFlushPeriod;
@@ -160,6 +163,9 @@ public:
     bool EnableConsistentChunkReplicaPlacement;
 
     bool EnableDetailedProfiling;
+
+    i64 MinHunkCompactionTotalHunkLength;
+    double MaxHunkCompactionGarbageRatio;
 
     TTableMountConfig()
     {
@@ -275,6 +281,10 @@ public:
 
         RegisterParameter("forced_compaction_revision", ForcedCompactionRevision)
             .Default();
+        RegisterParameter("forced_store_compaction_revision", ForcedStoreCompactionRevision)
+            .Default();
+        RegisterParameter("forced_hunk_compaction_revision", ForcedHunkCompactionRevision)
+            .Default();
         RegisterParameter("forced_chunk_view_compaction_revision", ForcedCompactionRevision)
             .Default();
 
@@ -377,6 +387,13 @@ public:
         RegisterParameter("enable_detailed_profiling", EnableDetailedProfiling)
             .Default(false);
 
+        RegisterParameter("min_hunk_compaction_total_hunk_length", MinHunkCompactionTotalHunkLength)
+            .GreaterThanOrEqual(0)
+            .Default(1_MB);
+        RegisterParameter("max_hunk_compaction_garbage_ratio", MaxHunkCompactionGarbageRatio)
+            .InRange(0.0, 1.0)
+            .Default(0.5);
+
         RegisterPostprocessor([&] () {
             if (MaxDynamicStoreRowCount > MaxDynamicStoreValueCount) {
                 THROW_ERROR_EXCEPTION("\"max_dynamic_store_row_count\" must be less than or equal to \"max_dynamic_store_value_count\"");
@@ -431,6 +448,28 @@ DEFINE_REFCOUNTED_TYPE(TTransactionManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBatchHunkReaderConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    int MaxHunkCountPerRead;
+    i64 MaxTotalHunkLengthPerRead;
+
+    TBatchHunkReaderConfig()
+    {
+        RegisterParameter("max_hunk_count_per_read", MaxHunkCountPerRead)
+            .GreaterThan(0)
+            .Default(10'000);
+        RegisterParameter("max_total_hunk_length_per_read", MaxTotalHunkLengthPerRead)
+            .GreaterThan(0)
+            .Default(16_MB);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TBatchHunkReaderConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
 class TTabletStoreReaderConfig
     : public NTableClient::TChunkReaderConfig
     , public NChunkClient::TErasureReaderConfig
@@ -451,6 +490,7 @@ DEFINE_REFCOUNTED_TYPE(TTabletStoreReaderConfig)
 
 class TTabletHunkReaderConfig
     : public NChunkClient::TChunkFragmentReaderConfig
+    , public TBatchHunkReaderConfig
 { };
 
 DEFINE_REFCOUNTED_TYPE(TTabletHunkReaderConfig)

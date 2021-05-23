@@ -225,6 +225,7 @@ DECLARE_REFCOUNTED_CLASS(TReplicatorHintConfig)
 DECLARE_REFCOUNTED_CLASS(THintManagerConfig)
 DECLARE_REFCOUNTED_CLASS(THunkChunkPayloadWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletHunkWriterConfig)
+DECLARE_REFCOUNTED_CLASS(TBatchHunkReaderConfig)
 
 using TTabletStoreWriterConfig = NTableClient::TTableWriterConfig;
 using TTabletStoreWriterConfigPtr = NTableClient::TTableWriterConfigPtr;

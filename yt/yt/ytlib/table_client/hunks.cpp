@@ -69,12 +69,7 @@ TRef WriteHunkValue(TChunkedMemoryPool* pool, const TInlineHunkValue& value)
     auto size =
         sizeof(ui8) +         // tag
         value.Payload.Size(); // payload
-    auto* beginPtr = pool->AllocateUnaligned(size);
-    auto* currentPtr = beginPtr;
-    *currentPtr++ = static_cast<char>(EHunkValueTag::Inline);          // tag
-    ::memcpy(currentPtr, value.Payload.Begin(), value.Payload.Size()); // payload
-    currentPtr += value.Payload.Size();
-    return TRef(beginPtr, currentPtr);
+    return WriteHunkValue(pool->AllocateUnaligned(size), value);
 }
 
 TRef WriteHunkValue(TChunkedMemoryPool* pool, const TLocalRefHunkValue& value)
@@ -101,6 +96,21 @@ TRef WriteHunkValue(TChunkedMemoryPool* pool, const TGlobalRefHunkValue& value)
     currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(value.Length)); // length
     currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(value.Offset)); // offset
     pool->Free(currentPtr, endPtr);
+    return TRef(beginPtr, currentPtr);
+}
+
+size_t GetInlineHunkValueSize(const TInlineHunkValue& value)
+{
+    return InlineHunkRefHeaderSize + value.Payload.Size();
+}
+
+TRef WriteHunkValue(char* ptr, const TInlineHunkValue& value)
+{
+    auto beginPtr = ptr;
+    auto currentPtr = ptr;
+    *currentPtr++ = static_cast<char>(EHunkValueTag::Inline);          // tag
+    ::memcpy(currentPtr, value.Payload.Begin(), value.Payload.Size()); // payload
+    currentPtr += value.Payload.Size();
     return TRef(beginPtr, currentPtr);
 }
 

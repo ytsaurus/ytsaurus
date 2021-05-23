@@ -8,7 +8,6 @@
 #include <yt/yt/ytlib/chunk_client/block.h>
 #include <yt/yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
-#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
@@ -20,7 +19,7 @@
 #include <yt/yt/client/table_client/versioned_reader.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 
-#include <yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/yt/core/misc/variant.h>
 
@@ -51,20 +50,6 @@ void SetValueRef(TUnversionedValue* value, TRef ref)
     value->Length = ref.Size();
 }
 
-TInlineHunkValue ReadInlineHunkValue(TRef input)
-{
-    if (input.Empty()) {
-        return TInlineHunkValue{
-            .Payload = TRef::MakeEmpty()
-        };
-    }
-
-    YT_ASSERT(input.Begin()[0] == static_cast<char>(EHunkValueTag::Inline));
-    return TInlineHunkValue{
-        .Payload = input.Slice(1, input.Size())
-    };
-}
-
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,25 +60,19 @@ class THunkChunkPayloadWriter
 public:
     THunkChunkPayloadWriter(
         THunkChunkPayloadWriterConfigPtr config,
-        IChunkWriterPtr underlying,
-        int chunkIndex)
+        IChunkWriterPtr underlying)
         : Config_(std::move(config))
         , Underlying_(std::move(underlying))
-        , ChunkIndex_(chunkIndex)
         , Buffer_(TBufferTag())
     {
         Buffer_.Reserve(static_cast<i64>(Config_->DesiredBlockSize * BufferReserveFactor));
     }
 
-    virtual TFuture<void> Open() override
+    virtual std::tuple<i64, bool> WriteHunk(TRef payload) override
     {
-        return Underlying_->Open();
-    }
-
-    virtual std::tuple<TLocalRefHunkValue, bool> WriteHunk(TRef payload) override
-    {
-        HunkChunkRef_.HunkCount += 1;
-        HunkChunkRef_.TotalHunkLength += payload.Size();
+        if (!OpenFuture_) {
+            OpenFuture_ = Underlying_->Open();
+        }
 
         if (std::ssize(payload) >= Config_->PayloadSectorAlignmentLengthThreshold) {
             AppendPaddingToBuffer(static_cast<i64>(GetSectorPadding(Buffer_.Size())));
@@ -102,48 +81,71 @@ public:
         auto offset = AppendPayloadToBuffer(payload);
 
         bool ready = true;
-        if (static_cast<i64>(Buffer_.Size()) >= Config_->DesiredBlockSize) {
+        if (!OpenFuture_.IsSet()) {
+            ready = false;
+        } else if (std::ssize(Buffer_) >= Config_->DesiredBlockSize) {
             ready = FlushBuffer();
         }
 
-        return {
-            TLocalRefHunkValue{
-                .ChunkIndex = ChunkIndex_,
-                .Length = static_cast<i64>(payload.Size()),
-                .Offset = offset
-            },
-            ready
-        };
+        HunkCount_ += 1;
+        TotalHunkLength_ += std::ssize(payload);
+
+        return {offset, ready};
+    }
+
+    virtual bool HasHunks() const override
+    {
+        return OpenFuture_.operator bool();
     }
 
     virtual TFuture<void> GetReadyEvent() override
     {
+        if (!OpenFuture_) {
+            return VoidFuture;
+        }
+        if (!OpenFuture_.IsSet()) {
+            return OpenFuture_;
+        }
         return Underlying_->GetReadyEvent();
+    }
+
+    virtual TFuture<void> GetOpenFuture() override
+    {
+        YT_VERIFY(OpenFuture_);
+        return OpenFuture_;
     }
 
     virtual TFuture<void> Close() override
     {
-        auto ready = FlushBuffer();
-        auto future = ready ? VoidFuture : Underlying_->GetReadyEvent();
-        return future.Apply(BIND([=, this_ = MakeStrong(this)] {
-            Meta_->set_type(ToProto<int>(EChunkType::Hunk));
-            Meta_->set_format(ToProto<int>(EHunkChunkFormat::Default));
+        if (!OpenFuture_) {
+            return VoidFuture;
+        }
 
-            NChunkClient::NProto::TMiscExt miscExt;
-            miscExt.set_compression_codec(ToProto<int>(NCompression::ECodec::None));
-            miscExt.set_uncompressed_data_size(TotalSize_);
-            miscExt.set_compressed_data_size(TotalSize_);
-            SetProtoExtension(Meta_->mutable_extensions(), miscExt);
+        return OpenFuture_
+            .Apply(BIND([=, this_ = MakeStrong(this)] {
+                return FlushBuffer() ? VoidFuture : Underlying_->GetReadyEvent();
+            }))
+            .Apply(BIND([=, this_ = MakeStrong(this)] {
+                Meta_->set_type(ToProto<int>(EChunkType::Hunk));
+                Meta_->set_format(ToProto<int>(EHunkChunkFormat::Default));
 
-            return Underlying_->Close(Meta_);
-        }));
-    }
+                {
+                    NChunkClient::NProto::TMiscExt ext;
+                    ext.set_compression_codec(ToProto<int>(NCompression::ECodec::None));
+                    ext.set_uncompressed_data_size(UncompressedDataSize_);
+                    ext.set_compressed_data_size(UncompressedDataSize_);
+                    SetProtoExtension(Meta_->mutable_extensions(), ext);
+                }
 
-    virtual THunkChunkRef GetHunkChunkRef() const override
-    {
-        auto result = HunkChunkRef_;
-        result.ChunkId = Underlying_->GetChunkId();
-        return result;
+                {
+                    NTableClient::NProto::THunkChunkMiscExt ext;
+                    ext.set_hunk_count(HunkCount_);
+                    ext.set_total_hunk_length(TotalHunkLength_);
+                    SetProtoExtension(Meta_->mutable_extensions(), ext);
+                }
+
+                return Underlying_->Close(Meta_);
+            }));
     }
 
     virtual TDeferredChunkMetaPtr GetMeta() const override
@@ -151,14 +153,20 @@ public:
         return Meta_;
     }
 
+    virtual TChunkId GetChunkId() const override
+    {
+        return Underlying_->GetChunkId();
+    }
+
 private:
     const THunkChunkPayloadWriterConfigPtr Config_;
     const IChunkWriterPtr Underlying_;
-    const int ChunkIndex_;
 
-    // NB: ChunkId is not filled.
-    THunkChunkRef HunkChunkRef_;
-    i64 TotalSize_ = 0;
+    TFuture<void> OpenFuture_;
+
+    i64 UncompressedDataSize_ = 0;
+    i64 HunkCount_ = 0;
+    i64 TotalHunkLength_ = 0;
 
     const TDeferredChunkMetaPtr Meta_ = New<TDeferredChunkMeta>();
 
@@ -190,20 +198,21 @@ private:
         }
         auto* ptr = BeginWriteToBuffer(size);
         ::memset(ptr, 0, size);
-        TotalSize_ += size;
+        UncompressedDataSize_ += size;
     }
 
     i64 AppendPayloadToBuffer(TRef payload)
     {
-        auto offset = TotalSize_;
+        auto offset = UncompressedDataSize_;
         auto* ptr = BeginWriteToBuffer(payload.Size());
         ::memcpy(ptr, payload.Begin(), payload.Size());
-        TotalSize_ += payload.Size();
+        UncompressedDataSize_ += payload.Size();
         return offset;
     }
 
     bool FlushBuffer()
     {
+        YT_VERIFY(OpenFuture_.IsSet());
         if (Buffer_.IsEmpty()) {
             return true;
         }
@@ -216,51 +225,73 @@ private:
 
 IHunkChunkPayloadWriterPtr CreateHunkChunkPayloadWriter(
     THunkChunkPayloadWriterConfigPtr config,
-    IChunkWriterPtr underlying,
-    int chunkIndex)
+    IChunkWriterPtr underlying)
 {
     return New<THunkChunkPayloadWriter>(
         std::move(config),
-        std::move(underlying),
-        chunkIndex);
+        std::move(underlying));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THunkRefLocalizingVersionedWriterAdapter
+class THunkEncodingVersionedWriter
     : public IVersionedChunkWriter
 {
 public:
-    THunkRefLocalizingVersionedWriterAdapter(
+    THunkEncodingVersionedWriter(
         IVersionedChunkWriterPtr underlying,
-        TTableSchemaPtr schema)
+        TTableSchemaPtr schema,
+        IHunkChunkPayloadWriterPtr hunkChunkPayloadWriter)
         : Underlying_(std::move(underlying))
         , Schema_(std::move(schema))
+        , HunkChunkPayloadWriter_(std::move(hunkChunkPayloadWriter))
     { }
 
     virtual bool Write(TRange<TVersionedRow> rows) override
     {
-        RowBuffer_->Clear();
-        LocalizedRows_.clear();
-        LocalizedRows_.reserve(rows.Size());
+        ScratchRowBuffer_->Clear();
+        ScratchRows_.clear();
+        ScratchRows_.reserve(rows.Size());
 
-        auto* pool = RowBuffer_->GetPool();
+        auto* pool = ScratchRowBuffer_->GetPool();
+
+        bool ready = true;
 
         for (auto row : rows) {
-            auto localizedRow = RowBuffer_->CaptureRow(row, false);
-            LocalizedRows_.push_back(localizedRow);
+            auto scratchRow = ScratchRowBuffer_->CaptureRow(row, false);
+            ScratchRows_.push_back(scratchRow);
 
-            for (int index = 0; index < localizedRow.GetValueCount(); ++index) {
-                auto& value = localizedRow.BeginValues()[index];
-                if (!Schema_->Columns()[value.Id].MaxInlineHunkSize()) {
+            for (int index = 0; index < scratchRow.GetValueCount(); ++index) {
+                auto& value = scratchRow.BeginValues()[index];
+                auto maxInlineHunkSize = Schema_->Columns()[value.Id].MaxInlineHunkSize();
+                if (!maxInlineHunkSize) {
                     continue;
                 }
 
                 auto hunkValue = ReadHunkValue(GetValueRef(value));
                 Visit(
                     hunkValue,
-                    [&] (const TInlineHunkValue& /*inlineHunkValue*/) {
-                        // Leave as is.
+                    [&] (const TInlineHunkValue& inlineHunkValue) {
+                        auto payloadLength = static_cast<i64>(inlineHunkValue.Payload.Size());
+                        if (payloadLength < *maxInlineHunkSize) {
+                            // Leave as is.
+                            return;
+                        }
+
+                        HunkCount_ += 1;
+                        TotalHunkLength_ += payloadLength;
+
+                        auto [offset, hunkWriterReady] = HunkChunkPayloadWriter_->WriteHunk(inlineHunkValue.Payload);
+                        ready &= hunkWriterReady;
+
+                        auto localizedPayload = WriteHunkValue(
+                            pool,
+                            TLocalRefHunkValue{
+                                .ChunkIndex = GetHunkChunkPayloadWriterChunkIndex(),
+                                .Length = payloadLength,
+                                .Offset = offset
+                            });
+                        SetValueRef(&value, localizedPayload);
                     },
                     [&] (const TLocalRefHunkValue& /*localRefHunkValue*/) {
                         THROW_ERROR_EXCEPTION("Unexpected local hunk reference");
@@ -278,12 +309,18 @@ public:
             }
         }
 
-        return Underlying_->Write(MakeRange(LocalizedRows_));
+        ready &= Underlying_->Write(MakeRange(ScratchRows_));
+        return ready;
     }
 
     virtual TFuture<void> GetReadyEvent() override
     {
-        return Underlying_->GetReadyEvent();
+        std::vector<TFuture<void>> futures;
+        futures.push_back(Underlying_->GetReadyEvent());
+        if (HunkChunkPayloadWriter_) {
+            futures.push_back(HunkChunkPayloadWriter_->GetReadyEvent());
+        }
+        return AllSucceeded(std::move(futures));
     }
 
     virtual TFuture<void> Close() override
@@ -291,14 +328,26 @@ public:
         Underlying_->GetMeta()->RegisterFinalizer(
             [
                 weakUnderlying = MakeWeak(Underlying_),
-                hunkChunkRefs = std::move(HunkChunkRefs_)
-            ] (TDeferredChunkMeta* meta) {
+                hunkChunkPayloadWriter = HunkChunkPayloadWriter_,
+                hunkChunkPayloadWriterChunkIndex = HunkChunkPayloadWriterChunkIndex_,
+                hunkChunkRefs = std::move(HunkChunkRefs_),
+                hunkCount = HunkCount_,
+                totalHunkLength = TotalHunkLength_
+            ] (TDeferredChunkMeta* meta) mutable {
                 if (hunkChunkRefs.empty()) {
                     return;
                 }
 
                 auto underlying = weakUnderlying.Lock();
                 YT_VERIFY(underlying);
+
+                if (hunkChunkPayloadWriterChunkIndex) {
+                    hunkChunkRefs[*hunkChunkPayloadWriterChunkIndex] = THunkChunkRef{
+                        .ChunkId = hunkChunkPayloadWriter->GetChunkId(),
+                        .HunkCount = hunkCount,
+                        .TotalHunkLength = totalHunkLength
+                    };
+                }
 
                 YT_LOG_DEBUG("Hunk chunk references written (StoreId: %v, HunkChunkRefs: %v)",
                     underlying->GetChunkId(),
@@ -308,7 +357,9 @@ public:
                 ToProto(hunkChunkRefsExt.mutable_refs(), hunkChunkRefs);
                 SetProtoExtension(meta->mutable_extensions(), hunkChunkRefsExt);
             });
-        return Underlying_->Close();
+
+        auto openFuture = HunkChunkPayloadWriterChunkIndex_ ? HunkChunkPayloadWriter_->GetOpenFuture() : VoidFuture;
+        return openFuture.Apply(BIND(&IVersionedMultiChunkWriter::Close, Underlying_));
     }
 
     virtual i64 GetRowCount() const override
@@ -358,18 +409,23 @@ public:
 
 private:
     const IVersionedChunkWriterPtr Underlying_;
-    const IChunkWriterPtr ChunkWriter_;
     const TTableSchemaPtr Schema_;
+    const IHunkChunkPayloadWriterPtr HunkChunkPayloadWriter_;
 
-    struct TRowBufferTag
+    struct TScratchRowBufferTag
     { };
 
-    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
-    std::vector<TVersionedRow> LocalizedRows_;
+    const TRowBufferPtr ScratchRowBuffer_ = New<TRowBuffer>(TScratchRowBufferTag());
+    std::vector<TVersionedRow> ScratchRows_;
+
+    i64 HunkCount_ = 0;
+    i64 TotalHunkLength_ = 0;
 
     using TChunkIdToIndex = THashMap<TChunkId, int>;
     TChunkIdToIndex ChunkIdToIndex_;
     std::vector<THunkChunkRef> HunkChunkRefs_;
+
+    std::optional<int> HunkChunkPayloadWriterChunkIndex_;
 
 
     int RegisterHunkRef(TChunkId chunkId, i64 length)
@@ -378,7 +434,7 @@ private:
         TChunkIdToIndex::insert_ctx context;
         auto it = ChunkIdToIndex_.find(chunkId, context);
         if (it == ChunkIdToIndex_.end()) {
-            chunkIndex = static_cast<int>(HunkChunkRefs_.size());
+            chunkIndex = std::ssize(HunkChunkRefs_);
             HunkChunkRefs_.emplace_back().ChunkId = chunkId;
             ChunkIdToIndex_.emplace_direct(context, chunkId, chunkIndex);
         } else {
@@ -391,61 +447,65 @@ private:
 
         return chunkIndex;
     }
+
+    int GetHunkChunkPayloadWriterChunkIndex()
+    {
+        if (!HunkChunkPayloadWriterChunkIndex_) {
+            HunkChunkPayloadWriterChunkIndex_ = std::ssize(HunkChunkRefs_);
+            HunkChunkRefs_.emplace_back(); // to be filled on close
+        }
+        return *HunkChunkPayloadWriterChunkIndex_;
+    }
 };
 
-IVersionedChunkWriterPtr CreateHunkRefLocalizingVersionedWriterAdapter(
+IVersionedChunkWriterPtr CreateHunkEncodingVersionedWriter(
     IVersionedChunkWriterPtr underlying,
-    TTableSchemaPtr schema)
+    TTableSchemaPtr schema,
+    IHunkChunkPayloadWriterPtr hunkChunkPayloadWriter)
 {
-    return New<THunkRefLocalizingVersionedWriterAdapter>(
+    if (!schema->HasHunkColumns()) {
+        return underlying;
+    }
+    return New<THunkEncodingVersionedWriter>(
         std::move(underlying),
-        std::move(schema));
+        std::move(schema),
+        std::move(hunkChunkPayloadWriter));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TVersionedRow EncodeHunkValues(
-    TVersionedRow row,
-    const TTableSchema& schema,
-    const TRowBufferPtr& rowBuffer,
-    const IHunkChunkPayloadWriterPtr& hunkChunkPayloadWriter)
+class THunkPayloadReader
 {
-    auto encodedRow = rowBuffer->AllocateVersioned(
-        row.GetKeyCount(),
-        row.GetValueCount(),
-        row.GetWriteTimestampCount(),
-        row.GetDeleteTimestampCount());
+public:
+    THunkPayloadReader(
+        IChunkFragmentReaderPtr chunkFragmentReader,
+        TTableSchemaPtr schema,
+        TClientChunkReadOptions options);
 
-    ::memcpy(encodedRow.BeginKeys(), row.BeginKeys(), sizeof (TUnversionedValue) * row.GetKeyCount());
-    ::memcpy(encodedRow.BeginWriteTimestamps(), row.BeginWriteTimestamps(), sizeof (TTimestamp) * row.GetWriteTimestampCount());
-    ::memcpy(encodedRow.BeginDeleteTimestamps(), row.BeginDeleteTimestamps(), sizeof (TTimestamp) * row.GetDeleteTimestampCount());
+    TFuture<TSharedRange<TMutableUnversionedRow>> ReadAndDecode(
+        TSharedRange<TMutableUnversionedRow> rows);
+    TFuture<TSharedRange<TMutableVersionedRow>> ReadAndDecode(
+        TSharedRange<TMutableVersionedRow> rows);
+    TFuture<TSharedRange<TMutableVersionedRow>> ReadAndInline(
+        TSharedRange<TMutableVersionedRow> rows,
+        const THashSet<TChunkId>& hunkChunkIdsToForceInline);
 
-    auto* pool = rowBuffer->GetPool();
+private:
+    template <class TRow>
+    class TSessionBase;
+    template <class TRow>
+    class TDecodeSessionBase;
+    class TUnversionedDecodeSession;
+    class TVersionedDecodeSession;
+    class TVersionedInlineSession;
 
-    for (int index = 0; index < row.GetValueCount(); ++index) {
-        auto value = row.BeginValues()[index];
-        const auto& columnSchema = schema.Columns()[value.Id];
-        if (auto maxInlineHunkSize = columnSchema.MaxInlineHunkSize()) {
-            auto inputValueRef = GetValueRef(value);
-            auto inputValue = ReadInlineHunkValue(inputValueRef);
-            TRef encodedValueRef;
-            if (value.Length > *maxInlineHunkSize) {
-                auto [refHunkValue, ready] = hunkChunkPayloadWriter->WriteHunk(inputValue.Payload);
-                if (!ready) {
-                    WaitFor(hunkChunkPayloadWriter->GetReadyEvent())
-                        .ThrowOnError();
-                }
-                encodedValueRef = WriteHunkValue(pool, refHunkValue);
-            } else {
-                encodedValueRef = inputValueRef;
-            }
-            SetValueRef(&value, encodedValueRef);
-        }
-        encodedRow.BeginValues()[index] = value;
-    }
+    const IChunkFragmentReaderPtr ChunkFragmentReader_;
+    const TTableSchemaPtr Schema_;
+    const TClientChunkReadOptions Options_;
 
-    return encodedRow;
-}
+    template <class TSession, class TRow, class... TArgs>
+    TFuture<TSharedRange<TRow>> DoRead(TSharedRange<TRow> rows, TArgs&&... args);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -473,6 +533,39 @@ protected:
         , Options_(std::move(options))
     { }
 
+    void RegisterRequest(
+        TUnversionedValue* value,
+        const TGlobalRefHunkValue& globalRefHunkValue)
+    {
+        HunkValues_.push_back(value);
+        Requests_.push_back({
+            globalRefHunkValue.ChunkId,
+            globalRefHunkValue.Offset,
+            globalRefHunkValue.Length
+        });
+    }
+
+    TFuture<TSharedRange<TRow>> RequestFragments()
+    {
+        if (Requests_.empty()) {
+            return {};
+        }
+        return Reader_
+            ->ReadFragments(Options_, std::move(Requests_))
+            .Apply(
+                BIND(&TSessionBase::OnFragmentsRead, MakeStrong(this)));
+    }
+
+    virtual TSharedRange<TRow> OnFragmentsRead(const std::vector<TSharedRef>& fragments) = 0;
+};
+
+template <class TRow>
+class THunkPayloadReader::TDecodeSessionBase
+    : public TSessionBase<TRow>
+{
+protected:
+    using TSessionBase<TRow>::TSessionBase;
+
     void ProcessHunkValue(TUnversionedValue* value)
     {
         auto hunkValue = ReadHunkValue(GetValueRef(*value));
@@ -485,42 +578,25 @@ protected:
                 THROW_ERROR_EXCEPTION("Unexpected local hunk reference");
             },
             [&] (const TGlobalRefHunkValue& globalRefHunkValue) {
-                HunkValues_.push_back(value);
-                Requests_.push_back({
-                    globalRefHunkValue.ChunkId,
-                    globalRefHunkValue.Offset,
-                    globalRefHunkValue.Length
-                });
+                this->RegisterRequest(value, globalRefHunkValue);
             });
     }
 
-    TFuture<TSharedRange<TRow>> RequestFragments()
+    virtual TSharedRange<TRow> OnFragmentsRead(const std::vector<TSharedRef>& fragments) override
     {
-        if (Requests_.empty()) {
-            return {};
-        }
-        return Reader_
-            ->ReadFragments(Options_, std::move(Requests_))
-            .ApplyUnique(
-                BIND(&TSessionBase::OnFragmentsRead, MakeStrong(this)));
-    }
-
-private:
-    TSharedRange<TRow> OnFragmentsRead(std::vector<TSharedRef>&& fragments)
-    {
-        YT_VERIFY(fragments.size() == HunkValues_.size());
+        YT_VERIFY(fragments.size() == this->HunkValues_.size());
         for (int index = 0; index < static_cast<int>(fragments.size()); ++index) {
-            SetValueRef(HunkValues_[index], fragments[index]);
+            SetValueRef(this->HunkValues_[index], fragments[index]);
         }
-        return MakeSharedRange(Rows_, Rows_, std::move(fragments));
+        return MakeSharedRange(this->Rows_, this->Rows_, fragments);
     }
 };
 
-class THunkPayloadReader::TUnversionedSession
-    : public TSessionBase<TMutableUnversionedRow>
+class THunkPayloadReader::TUnversionedDecodeSession
+    : public TDecodeSessionBase<TMutableUnversionedRow>
 {
 public:
-    using TSessionBase::TSessionBase;
+    using TDecodeSessionBase<TMutableUnversionedRow>::TDecodeSessionBase;
 
     TFuture<TSharedRange<TMutableUnversionedRow>> Run()
     {
@@ -536,15 +612,14 @@ public:
     }
 };
 
-class THunkPayloadReader::TVersionedSession
-    : public TSessionBase<TMutableVersionedRow>
+class THunkPayloadReader::TVersionedDecodeSession
+    : public TDecodeSessionBase<TMutableVersionedRow>
 {
 public:
-    using TSessionBase::TSessionBase;
+    using TDecodeSessionBase::TDecodeSessionBase;
 
     TFuture<TSharedRange<TMutableVersionedRow>> Run()
     {
-        std::vector<IChunkFragmentReader::TChunkFragmentRequest> requests;
         for (auto row : Rows_) {
             if (row) {
                 for (int index = 0; index < row.GetValueCount(); ++index) {
@@ -559,55 +634,171 @@ public:
     }
 };
 
+class THunkPayloadReader::TVersionedInlineSession
+    : public TSessionBase<TMutableVersionedRow>
+{
+public:
+    using TSessionBase<TMutableVersionedRow>::TSessionBase;
+
+    TFuture<TSharedRange<TMutableVersionedRow>> Run(const THashSet<TChunkId>& hunkChunkIdsToForceInline)
+    {
+        for (auto row : Rows_) {
+            if (row) {
+                for (int index = 0; index < row.GetValueCount(); ++index) {
+                    auto& value = row.BeginValues()[index];
+                    if (auto maxInlineHunkSize = Schema_->Columns()[value.Id].MaxInlineHunkSize()) {
+                        ProcessHunkValue(&value, *maxInlineHunkSize, hunkChunkIdsToForceInline);
+                    }
+                }
+            }
+        }
+        return RequestFragments();
+    }
+
+private:
+    void ProcessHunkValue(
+        TUnversionedValue* value,
+        i64 maxInlineHunkSize,
+        const THashSet<TChunkId>& hunkChunkIdsToForceInline)
+    {
+        auto hunkValue = ReadHunkValue(GetValueRef(*value));
+        const auto* globalRefHunkValue = std::get_if<TGlobalRefHunkValue>(&hunkValue);
+        if (!globalRefHunkValue) {
+            return;
+        }
+        if (globalRefHunkValue->Length <= maxInlineHunkSize ||
+            hunkChunkIdsToForceInline.contains(globalRefHunkValue->ChunkId))
+        {
+            RegisterRequest(value, *globalRefHunkValue);
+        }
+    }
+
+    virtual TSharedRange<TMutableVersionedRow> OnFragmentsRead(const std::vector<TSharedRef>& fragments) override
+    {
+        YT_VERIFY(fragments.size() == HunkValues_.size());
+
+        size_t bufferSize = 0;
+        for (const auto& fragment : fragments) {
+            bufferSize += GetInlineHunkValueSize(TInlineHunkValue{fragment});
+        }
+
+        struct TBufferTag
+        { };
+        auto buffer = TSharedMutableRef::Allocate<TBufferTag>(bufferSize, false);
+
+        auto* currentPtr = buffer.Begin();
+        for (int index = 0; index < std::ssize(fragments); ++index) {
+            auto payload = WriteHunkValue(currentPtr, TInlineHunkValue{fragments[index]});
+            SetValueRef(HunkValues_[index], payload);
+            currentPtr += payload.Size();
+        }
+
+        return MakeSharedRange(Rows_, Rows_, std::move(buffer));
+    }
+};
+
 THunkPayloadReader::THunkPayloadReader(
     IChunkFragmentReaderPtr chunkFragmentReader,
-    TTableSchemaPtr schema)
+    TTableSchemaPtr schema,
+    TClientChunkReadOptions options)
     : ChunkFragmentReader_(std::move(chunkFragmentReader))
     , Schema_(std::move(schema))
+    , Options_(std::move(options))
 { }
 
-template <class TSession, class TRow>
+template <class TSession, class TRow, class... TArgs>
 TFuture<TSharedRange<TRow>> THunkPayloadReader::DoRead(
     TSharedRange<TRow> rows,
-    TClientChunkReadOptions options)
+    TArgs&&... args)
 {
     return New<TSession>(
         ChunkFragmentReader_,
         Schema_,
         std::move(rows),
-        std::move(options))
-        ->Run();
+        Options_)
+        ->Run(std::forward<TArgs>(args)...);
 }
 
-TFuture<TSharedRange<TMutableUnversionedRow>> THunkPayloadReader::Read(
-    TSharedRange<TMutableUnversionedRow> rows,
-    TClientChunkReadOptions options)
+TFuture<TSharedRange<TMutableUnversionedRow>> THunkPayloadReader::ReadAndDecode(
+    TSharedRange<TMutableUnversionedRow> rows)
 {
-    return DoRead<TUnversionedSession, TMutableUnversionedRow>(std::move(rows), std::move(options));
+    return DoRead<TUnversionedDecodeSession, TMutableUnversionedRow>(
+        std::move(rows));
 }
 
-TFuture<TSharedRange<TMutableVersionedRow>> THunkPayloadReader::Read(
+TFuture<TSharedRange<TMutableVersionedRow>> THunkPayloadReader::ReadAndDecode(
+    TSharedRange<TMutableVersionedRow> rows)
+{
+    return DoRead<TVersionedDecodeSession, TMutableVersionedRow>(
+        std::move(rows));
+}
+
+TFuture<TSharedRange<TMutableVersionedRow>> THunkPayloadReader::ReadAndInline(
     TSharedRange<TMutableVersionedRow> rows,
-    TClientChunkReadOptions options)
+    const THashSet<TChunkId>& hunkChunkIdsToForceInline)
 {
-    return DoRead<TVersionedSession, TMutableVersionedRow>(std::move(rows), std::move(options));
+    return DoRead<TVersionedInlineSession, TMutableVersionedRow>(
+        std::move(rows),
+        hunkChunkIdsToForceInline);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THunkResolvingSchemafulUnversionedReader
-    : public ISchemafulUnversionedReader
+template <class TRow>
+TFuture<TSharedRange<TRow>> ReadAndDecodeHunks(
+    IChunkFragmentReaderPtr chunkFragmentReader,
+    TTableSchemaPtr schema,
+    TClientChunkReadOptions options,
+    TSharedRange<TRow> rows)
+{
+    THunkPayloadReader hunkReader(
+        std::move(chunkFragmentReader),
+        std::move(schema),
+        std::move(options));
+    return hunkReader.ReadAndDecode(std::move(rows));
+}
+
+template
+TFuture<TSharedRange<TMutableUnversionedRow>> ReadAndDecodeHunks<TMutableUnversionedRow>(
+    IChunkFragmentReaderPtr chunkFragmentReader,
+    TTableSchemaPtr schema,
+    TClientChunkReadOptions options,
+    TSharedRange<TMutableUnversionedRow> rows);
+
+template
+TFuture<TSharedRange<TMutableVersionedRow>> ReadAndDecodeHunks<TMutableVersionedRow>(
+    IChunkFragmentReaderPtr chunkFragmentReader,
+    TTableSchemaPtr schema,
+    TClientChunkReadOptions options,
+    TSharedRange<TMutableVersionedRow> rows);
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <
+    class IReader,
+    class TImmutableRow,
+    class TMutableRow
+>
+class TBatchHunkReader
+    : public IReader
 {
 public:
-    THunkResolvingSchemafulUnversionedReader(
-        ISchemafulUnversionedReaderPtr underlying,
+    TBatchHunkReader(
+        TBatchHunkReaderConfigPtr config,
+        TIntrusivePtr<IReader> underlying,
         IChunkFragmentReaderPtr chunkFragmentReader,
         TTableSchemaPtr schema,
         TClientChunkReadOptions options)
-        : Underlying_(std::move(underlying))
+        : Config_(std::move(config))
+        , Underlying_(std::move(underlying))
         , Schema_(std::move(schema))
         , Options_(std::move(options))
-        , HunkPayloadReader_(std::move(chunkFragmentReader), Schema_)
+        , Logger(TabletNodeLogger.WithTag("ReadSessionId: %v",
+            Options_.ReadSessionId))
+        , HunkPayloadReader_(
+            std::move(chunkFragmentReader),
+            Schema_,
+            Options_)
     { }
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
@@ -618,6 +809,7 @@ public:
 
     virtual TCodecStatistics GetDecompressionStatistics() const override
     {
+        // TODO(babenko): hunk statistics
         return Underlying_->GetDecompressionStatistics();
     }
 
@@ -636,78 +828,174 @@ public:
         return ReadyEvent_;
     }
 
-    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
-    {
-        if (ReadyRowBatch_) {
-            return std::move(ReadyRowBatch_);
-        }
-
-        UnderlyingRowBatch_ = Underlying_->Read(options);
-        if (!UnderlyingRowBatch_) {
-            return UnderlyingRowBatch_;
-        }
-
-        if (UnderlyingRowBatch_->IsEmpty()) {
-            ReadyEvent_ = Underlying_->GetReadyEvent();
-            return UnderlyingRowBatch_;
-        }
-
-        UnderlyingRows_ = UnderlyingRowBatch_->MaterializeRows();
-
-        RowBuffer_->Clear();
-        ResolvedRows_.clear();
-        ResolvedRows_.reserve(UnderlyingRows_.Size());
-
-        for (auto row : UnderlyingRows_) {
-            ResolvedRows_.push_back(RowBuffer_->CaptureRow(row, /*captureValues*/ false));
-        }
-
-        auto sharedResolvedRows = MakeSharedRange(MakeRange(ResolvedRows_), MakeStrong(this));
-        auto hunkPayloadReaderFuture = HunkPayloadReader_.Read(sharedResolvedRows, Options_);
-        if (!hunkPayloadReaderFuture) {
-            return MakeResultBatch(sharedResolvedRows);
-        }
-
-        ReadyEvent_ = hunkPayloadReaderFuture.Apply(
-            BIND(&THunkResolvingSchemafulUnversionedReader::OnHunksRead, MakeStrong(this)));
-        return CreateEmptyUnversionedRowBatch();
-    }
-
-private:
-    const ISchemafulUnversionedReaderPtr Underlying_;
+protected:
+    const TBatchHunkReaderConfigPtr Config_;
+    const TIntrusivePtr<IReader> Underlying_;
     const TTableSchemaPtr Schema_;
     const TClientChunkReadOptions Options_;
+
+    const NLogging::TLogger Logger;
 
     THunkPayloadReader HunkPayloadReader_;
 
     TFuture<void> ReadyEvent_ = VoidFuture;
 
-    IUnversionedRowBatchPtr UnderlyingRowBatch_;
-    TSharedRange<TUnversionedRow> UnderlyingRows_;
-    IUnversionedRowBatchPtr ReadyRowBatch_;
+    using IRowBatchPtr = typename TRowBatchTrait<TImmutableRow>::IRowBatchPtr;
+
+    IRowBatchPtr UnderlyingRowBatch_;
+    TSharedRange<TImmutableRow> EncodedRows_;
+
+    std::vector<TMutableRow> MutableRows_;
+    std::vector<TRange<TMutableRow>> MutableRowSlices_;
+
+    int CurrentRowSliceIndex_ = -1;
+    IRowBatchPtr ReadyRowBatch_;
 
     struct TRowBufferTag
     { };
     const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TRowBufferTag());
 
-    std::vector<TMutableUnversionedRow> ResolvedRows_;
 
-
-    static IUnversionedRowBatchPtr MakeResultBatch(const TSharedRange<TMutableUnversionedRow>& resolvedMutableRows)
+    template <class THunkCounter, class TRowReader>
+    IRowBatchPtr DoRead(
+        const TRowBatchReadOptions& options,
+        const THunkCounter& hunkCounter,
+        const TRowReader& rowReader)
     {
-        auto resolvedImmutableRows = MakeSharedRange(
-            MakeRange<TUnversionedRow>(resolvedMutableRows.Begin(), resolvedMutableRows.Size()),
-            resolvedMutableRows);
-        return CreateBatchFromRows(std::move(resolvedImmutableRows));
+        if (ReadyRowBatch_) {
+            return std::move(ReadyRowBatch_);
+        }
+
+        ++CurrentRowSliceIndex_;
+
+        if (CurrentRowSliceIndex_ >= std::ssize(MutableRowSlices_)) {
+            CurrentRowSliceIndex_ = -1;
+            MutableRowSlices_.clear();
+
+            UnderlyingRowBatch_ = Underlying_->Read(options);
+            if (!UnderlyingRowBatch_) {
+                return nullptr;
+            }
+
+            if (UnderlyingRowBatch_->IsEmpty()) {
+                ReadyEvent_ = Underlying_->GetReadyEvent();
+                return UnderlyingRowBatch_;
+            }
+
+            EncodedRows_ = UnderlyingRowBatch_->MaterializeRows();
+
+            YT_LOG_DEBUG("Hunk-encoded rows materialized (RowCount: %v)",
+                EncodedRows_.size());
+
+            RowBuffer_->Clear();
+            MutableRows_.clear();
+            for (auto row : EncodedRows_) {
+                MutableRows_.push_back(RowBuffer_->CaptureRow(row, /*captureValues*/ false));
+            }
+
+            int startSliceRowIndex = 0;
+            int cumulativeHunkCount = 0;
+            i64 cumulativeTotalHunkLength = 0;
+
+            auto addRowSlice = [&] (int startRowIndex, int endRowIndex) {
+                if (startRowIndex < endRowIndex) {
+                    MutableRowSlices_.emplace_back(MutableRows_.data() + startRowIndex, MutableRows_.data() + endRowIndex);
+                    YT_LOG_DEBUG("Hunk-encoded row slice added (StartRowIndex: %v, EndRowIndex: %v, HunkCount: %v, TotalHunkLength: %v)",
+                        startRowIndex,
+                        endRowIndex,
+                        cumulativeHunkCount,
+                        cumulativeTotalHunkLength);
+                }
+            };
+
+            for (int rowIndex = 0; rowIndex < std::ssize(MutableRows_); ++rowIndex) {
+                if (cumulativeHunkCount >= Config_->MaxHunkCountPerRead ||
+                    cumulativeTotalHunkLength >= Config_->MaxTotalHunkLengthPerRead)
+                {
+                    addRowSlice(startSliceRowIndex, rowIndex);
+                    startSliceRowIndex = rowIndex;
+                    cumulativeHunkCount = 0;
+                    cumulativeTotalHunkLength = 0;
+                }
+                auto row = MutableRows_[rowIndex];
+                auto [hunkCount, totalHunkLength] = hunkCounter(row);
+                cumulativeHunkCount += hunkCount;
+                cumulativeTotalHunkLength += totalHunkLength;
+            }
+            addRowSlice(startSliceRowIndex, std::ssize(MutableRows_));
+
+            CurrentRowSliceIndex_ = 0;
+        }
+
+        YT_VERIFY(CurrentRowSliceIndex_ < std::ssize(MutableRowSlices_));
+
+        YT_LOG_DEBUG("Reading hunks in row slice (SliceIndex: %v)",
+            CurrentRowSliceIndex_);
+
+        auto sharedMutableRows = MakeSharedRange(MutableRowSlices_[CurrentRowSliceIndex_], MakeStrong(this));
+        auto hunkPayloadReaderFuture = rowReader(sharedMutableRows);
+        if (!hunkPayloadReaderFuture) {
+            return MakeBatch(sharedMutableRows);
+        }
+
+        ReadyEvent_ = hunkPayloadReaderFuture.Apply(
+            BIND(&TBatchHunkReader::OnHunksRead, MakeStrong(this)));
+
+        return CreateEmptyRowBatch<TImmutableRow>();
     }
 
-    void OnHunksRead(const TSharedRange<TMutableUnversionedRow>& resolvedMutableRows)
+private:
+    static IRowBatchPtr MakeBatch(const TSharedRange<TMutableRow>& mutableRows)
     {
-        ReadyRowBatch_ = MakeResultBatch(resolvedMutableRows);
+        return CreateBatchFromRows(MakeSharedRange(
+            MakeRange<TImmutableRow>(mutableRows.Begin(), mutableRows.Size()),
+            mutableRows));
+    }
+
+    void OnHunksRead(const TSharedRange<TMutableRow>& mutableRows)
+    {
+        ReadyRowBatch_ = MakeBatch(mutableRows);
     }
 };
 
-ISchemafulUnversionedReaderPtr CreateHunkResolvingSchemafulReader(
+class THunkDecodingSchemafulUnversionedReader
+    : public TBatchHunkReader<ISchemafulUnversionedReader, TUnversionedRow, TMutableUnversionedRow>
+{
+public:
+    using TBatchHunkReader<ISchemafulUnversionedReader, TUnversionedRow, TMutableUnversionedRow>::TBatchHunkReader;
+
+    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    {
+        return this->DoRead(
+            options,
+            [&] (TMutableUnversionedRow row) {
+                i64 hunkCount = 0;
+                i64 totalHunkLength = 0;
+                for (auto id : this->Schema_->GetHunkColumnIds()) {
+                    const auto& value = row[id];
+                    auto hunkValue = ReadHunkValue(GetValueRef(value));
+                    Visit(
+                        hunkValue,
+                        [&] (const TInlineHunkValue& /*inlineHunkValue*/) {
+                        },
+                        [&] (const TLocalRefHunkValue& /*localRefHunkValue*/) {
+                            THROW_ERROR_EXCEPTION("Unexpected local hunk reference");
+                        },
+                        [&] (const TGlobalRefHunkValue& globalRefHunkValue) {
+                            hunkCount += 1;
+                            totalHunkLength += globalRefHunkValue.Length;
+                        });
+                }
+                return std::make_pair(hunkCount, totalHunkLength);
+            },
+            [&] (const TSharedRange<TMutableUnversionedRow>& sharedMutableRows) {
+                return this->HunkPayloadReader_.ReadAndDecode(sharedMutableRows);
+            });
+    }
+};
+
+ISchemafulUnversionedReaderPtr CreateHunkDecodingSchemafulReader(
+    TBatchHunkReaderConfigPtr config,
     ISchemafulUnversionedReaderPtr underlying,
     IChunkFragmentReaderPtr chunkFragmentReader,
     TTableSchemaPtr schema,
@@ -716,10 +1004,99 @@ ISchemafulUnversionedReaderPtr CreateHunkResolvingSchemafulReader(
     if (!schema->HasHunkColumns()) {
         return underlying;
     }
-    return New<THunkResolvingSchemafulUnversionedReader>(
+    return New<THunkDecodingSchemafulUnversionedReader>(
+        std::move(config),
         std::move(underlying),
         std::move(chunkFragmentReader),
         std::move(schema),
+        std::move(options));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class THunkInliningVersionedReader
+    : public TBatchHunkReader<IVersionedReader, TVersionedRow, TMutableVersionedRow>
+{
+public:
+    THunkInliningVersionedReader(
+        TBatchHunkReaderConfigPtr config,
+        IVersionedReaderPtr underlying,
+        IChunkFragmentReaderPtr chunkFragmentReader,
+        TTableSchemaPtr schema,
+        THashSet<TChunkId> hunkChunkIdsToForceInline,
+        TClientChunkReadOptions options)
+        : TBatchHunkReader(
+            std::move(config),
+            std::move(underlying),
+            std::move(chunkFragmentReader),
+            std::move(schema),
+            std::move(options))
+        , HunkChunkIdsToForceInline_(std::move(hunkChunkIdsToForceInline))
+    { }
+
+    virtual TFuture<void> Open() override
+    {
+        return this->Underlying_->Open();
+    }
+
+    virtual IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    {
+        return this->DoRead(
+            options,
+            [&] (TMutableVersionedRow row) {
+                i64 hunkCount = 0;
+                i64 totalHunkLength = 0;
+                for (const auto* value = row.BeginValues(); value != row.EndValues(); ++value) {
+                    const auto& schema = this->Schema_->Columns()[value->Id];
+                    auto maxInlineSizeHunk = schema.MaxInlineHunkSize();
+                    if (!maxInlineSizeHunk) {
+                        continue;
+                    }
+                    auto hunkValue = ReadHunkValue(GetValueRef(*value));
+                    Visit(
+                        hunkValue,
+                        [&] (const TInlineHunkValue& /*inlineHunkValue*/) {
+                        },
+                        [&] (const TLocalRefHunkValue& /*localRefHunkValue*/) {
+                            THROW_ERROR_EXCEPTION("Unexpected local hunk reference");
+                        },
+                        [&] (const TGlobalRefHunkValue& globalRefHunkValue) {
+                            if (globalRefHunkValue.Length <= *maxInlineSizeHunk ||
+                                HunkChunkIdsToForceInline_.contains(globalRefHunkValue.ChunkId))
+                            {
+                                hunkCount += 1;
+                                totalHunkLength += globalRefHunkValue.Length;
+                            }
+                        });
+                }
+                return std::make_pair(hunkCount, totalHunkLength);
+            },
+            [&] (const TSharedRange<TMutableVersionedRow>& sharedMutableRows) {
+                return this->HunkPayloadReader_.ReadAndInline(sharedMutableRows, HunkChunkIdsToForceInline_);
+            });
+    }
+
+private:
+    const THashSet<TChunkId> HunkChunkIdsToForceInline_;
+};
+
+IVersionedReaderPtr CreateHunkInliningVersionedReader(
+    TBatchHunkReaderConfigPtr config,
+    IVersionedReaderPtr underlying,
+    IChunkFragmentReaderPtr chunkFragmentReader,
+    TTableSchemaPtr schema,
+    THashSet<TChunkId> hunkChunkIdsToForceInline,
+    TClientChunkReadOptions options)
+{
+    if (!schema->HasHunkColumns()) {
+        return underlying;
+    }
+    return New<THunkInliningVersionedReader>(
+        std::move(config),
+        std::move(underlying),
+        std::move(chunkFragmentReader),
+        std::move(schema),
+        std::move(hunkChunkIdsToForceInline),
         std::move(options));
 }
 

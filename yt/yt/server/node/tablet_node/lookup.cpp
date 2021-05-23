@@ -727,11 +727,12 @@ void DoLookupRows(
 
         auto sharedRows = MakeSharedRange(std::move(rows), std::move(rowBuffer));
 
-        THunkPayloadReader hunkReader(
+        auto hunkReaderFuture = ReadAndDecodeHunks(
             tabletSnapshot->ChunkFragmentReader,
-            schema);
-
-        if (auto hunkReaderFuture = hunkReader.Read(sharedRows, chunkReadOptions)) {
+            schema,
+            chunkReadOptions,
+            sharedRows);
+        if (hunkReaderFuture) {
             sharedRows = WaitFor(std::move(hunkReaderFuture))
                 .ValueOrThrow();
         }

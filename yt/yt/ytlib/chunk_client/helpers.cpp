@@ -89,6 +89,7 @@ const THashSet<int>& GetMasterChunkMetaExtensionTagsFilter()
     static const THashSet<int> Result{
         TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
         TProtoExtensionTag<NTableClient::NProto::THunkChunkRefsExt>::Value,
+        TProtoExtensionTag<NTableClient::NProto::THunkChunkMiscExt>::Value,
         TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value,
         TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value
     };

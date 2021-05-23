@@ -63,7 +63,7 @@ void TWriterProfiler::Profile(
     counters->CompressionCpuTime.Add(compressionCpuTime);
 }
 
-void TWriterProfiler::Update(const NTableClient::IVersionedMultiChunkWriterPtr& writer)
+void TWriterProfiler::Update(const NChunkClient::IMultiChunkWriterPtr& writer)
 {
     if (writer) {
         DataStatistics_ += writer->GetDataStatistics();

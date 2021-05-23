@@ -48,6 +48,8 @@ using namespace NNodeTrackerServer;
 
 using NChunkClient::NProto::TMiscExt;
 using NTableClient::NProto::TBoundaryKeysExt;
+using NTableClient::NProto::THunkChunkRefsExt;
+using NTableClient::NProto::THunkChunkMiscExt;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -76,6 +78,7 @@ private:
         const auto& miscExt = chunk->MiscExt();
 
         bool hasBoundaryKeysExt = HasProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
+        bool hasHunkChunkMiscExt = HasProtoExtension<THunkChunkMiscExt>(chunk->ChunkMeta().extensions());
         auto isForeign = chunk->IsForeign();
 
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CachedReplicas)
@@ -180,6 +183,10 @@ private:
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SharedToSkynet)
             .SetPresent(chunk->IsConfirmed() && miscExt.has_shared_to_skynet()));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkCount)
+            .SetPresent(hasHunkChunkMiscExt));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TotalHunkLength)
+            .SetPresent(hasHunkChunkMiscExt));
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -189,7 +196,12 @@ private:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
         auto* chunk = GetThisImpl();
+
         auto isForeign = chunk->IsForeign();
+        auto isConfirmed = chunk->IsConfirmed();
+
+        const auto& extensions = chunk->ChunkMeta().extensions();
+        const auto& miscExt = chunk->MiscExt();
 
         auto serializePhysicalReplica = [&] (TFluentList fluent, TNodePtrWithIndexes replica) {
             auto* medium = chunkManager->GetMediumByIndex(replica.GetMediumIndex());
@@ -237,9 +249,6 @@ private:
             BuildYsonFluently(consumer)
                 .DoListFor(replicas, serializeLastSeenReplica);
         };
-
-        auto isConfirmed = chunk->IsConfirmed();
-        const auto& miscExt = chunk->MiscExt();
 
         switch (key) {
             case EInternedAttributeKey::CachedReplicas: {
@@ -686,8 +695,7 @@ private:
                 return true;
 
             case EInternedAttributeKey::MinKey: {
-                auto boundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
-                if (boundaryKeysExt) {
+                if (auto boundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(extensions)) {
                     BuildYsonFluently(consumer)
                         .Value(FromProto<TLegacyOwningKey>(boundaryKeysExt->min()));
                     return true;
@@ -696,8 +704,7 @@ private:
             }
 
             case EInternedAttributeKey::MaxKey: {
-                auto boundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
-                if (boundaryKeysExt) {
+                if (auto boundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(extensions)) {
                     BuildYsonFluently(consumer)
                         .Value(FromProto<TLegacyOwningKey>(boundaryKeysExt->max()));
                     return true;
@@ -752,8 +759,8 @@ private:
                     break;
                 }
                 std::vector<THunkChunkRef> hunkChunkRefs;
-                if (auto optionalHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(chunk->ChunkMeta().extensions())) {
-                    hunkChunkRefs = FromProto<std::vector<THunkChunkRef>>(optionalHunkChunkRefsExt->refs());
+                if (auto hunkChunkRefsExt = FindProtoExtension<THunkChunkRefsExt>(extensions)) {
+                    hunkChunkRefs = FromProto<std::vector<THunkChunkRef>>(hunkChunkRefsExt->refs());
                 }
                 BuildYsonFluently(consumer)
                     .Value(hunkChunkRefs);
@@ -768,6 +775,22 @@ private:
                     .Value(miscExt.shared_to_skynet());
                 return true;
             }
+
+            case EInternedAttributeKey::HunkCount:
+                if (auto miscExt = FindProtoExtension<THunkChunkMiscExt>(extensions)) {
+                    BuildYsonFluently(consumer)
+                        .Value(miscExt->hunk_count());
+                    return true;
+                }
+                break;
+
+            case EInternedAttributeKey::TotalHunkLength:
+                if (auto miscExt = FindProtoExtension<THunkChunkMiscExt>(extensions)) {
+                    BuildYsonFluently(consumer)
+                        .Value(miscExt->total_hunk_length());
+                    return true;
+                }
+                break;
 
             default:
                 break;

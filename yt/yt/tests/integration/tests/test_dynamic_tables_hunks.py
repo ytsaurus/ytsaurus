@@ -12,7 +12,7 @@ import __builtin__
 class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
     SCHEMA = [
         {"name": "key", "type": "int64", "sort_order": "ascending"},
-        {"name": "value", "type": "string", "max_inline_hunk_size": 10},
+        {"name": "value", "type": "string"},
     ]
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
@@ -21,8 +21,22 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         }
     }
 
-    def _create_table(self):
-        self._create_simple_table("//tmp/t", schema=self.SCHEMA, enable_dynamic_store_read=False)
+    def _get_table_schema(self, max_inline_hunk_size):
+        schema = self.SCHEMA
+        schema[1]["max_inline_hunk_size"] = max_inline_hunk_size
+        return schema
+
+    def _create_table(self, max_inline_hunk_size=10):
+        self._create_simple_table("//tmp/t",
+                                  schema=self._get_table_schema(max_inline_hunk_size),
+                                  enable_dynamic_store_read=False,
+                                  hunk_chunk_reader={
+                                      "max_hunk_count_per_read": 2,
+                                      "max_total_hunk_length_per_read": 60,
+                                  },
+                                  min_hunk_compaction_total_hunk_length=1,
+                                  max_hunk_compaction_garbage_ratio=0.5,
+                                  enable_lsm_verbose_logging=True)
 
     def _get_store_chunk_ids(self, path):
         chunk_ids = get(path + "/@chunk_ids")
@@ -139,7 +153,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert_items_equal(select_rows("* from [//tmp/t]"), rows1 + rows2)
         assert_items_equal(lookup_rows("//tmp/t", keys1 + keys2), rows1 + rows2)
 
-        set("//tmp/t/@forced_compaction_revision", 1)
+        set("//tmp/t/@forced_store_compaction_revision", 1)
         remount_table("//tmp/t")
 
         wait(lambda: get("//tmp/t/@chunk_count") == 3)
@@ -191,7 +205,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert_items_equal(lookup_rows("//tmp/t", keys1 + keys2), rows2)
 
         set("//tmp/t/@min_data_ttl", 60000)
-        set("//tmp/t/@forced_compaction_revision", 1)
+        set("//tmp/t/@forced_store_compaction_revision", 1)
         remount_table("//tmp/t")
 
         wait(lambda: get("//tmp/t/@chunk_count") == 2)
@@ -200,7 +214,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         set("//tmp/t/@min_data_ttl", 0)
         set("//tmp/t/@min_data_versions", 1)
-        set("//tmp/t/@forced_compaction_revision", 1)
+        set("//tmp/t/@forced_store_compaction_revision", 1)
         remount_table("//tmp/t")
 
         wait(lambda: get("//tmp/t/@chunk_count") == 1)
@@ -258,3 +272,146 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         assert_items_equal(select_rows("* from [//tmp/t]"), rows1 + rows2)
+
+    @authors("babenko")
+    def test_compaction_writes_hunk_chunk(self):
+        sync_create_cells(1)
+        self._create_table(max_inline_hunk_size=1000)
+
+        sync_mount_table("//tmp/t")
+        rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10)]
+        rows2 = [{"key": i, "value": "value" + str(i)} for i in xrange(10, 20)]
+        insert_rows("//tmp/t", rows1 + rows2)
+        sync_unmount_table("//tmp/t")
+
+        alter_table("//tmp/t", schema=self._get_table_schema(max_inline_hunk_size=10))
+
+        chunk_ids_before_compaction = get("//tmp/t/@chunk_ids")
+        assert len(chunk_ids_before_compaction) == 1
+        chunk_id_before_compaction = chunk_ids_before_compaction[0]
+        assert get("#{}/@hunk_chunk_refs".format(chunk_id_before_compaction)) == []
+
+        sync_mount_table("//tmp/t")
+
+        set("//tmp/t/@forced_store_compaction_revision", 1)
+        remount_table("//tmp/t")
+
+        wait(lambda: get("//tmp/t/@chunk_ids") != chunk_ids_before_compaction)
+        store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
+        assert len(store_chunk_ids) == 1
+        compacted_store_id = store_chunk_ids[0]
+        hunk_chunk_ids = self._get_hunk_chunk_ids("//tmp/t")
+        assert len(hunk_chunk_ids) == 1
+        hunk_chunk_id = hunk_chunk_ids[0]
+        assert_items_equal(get("#{}/@hunk_chunk_refs".format(compacted_store_id)), [
+            {"chunk_id": hunk_chunk_id, "hunk_count": 10, "total_hunk_length": 260},
+        ])
+
+    @authors("babenko")
+    def test_compaction_inlines_hunks(self):
+        sync_create_cells(1)
+        self._create_table(max_inline_hunk_size=10)
+
+        sync_mount_table("//tmp/t")
+        rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10)]
+        rows2 = [{"key": i, "value": "value" + str(i)} for i in xrange(10, 20)]
+        insert_rows("//tmp/t", rows1 + rows2)
+        sync_unmount_table("//tmp/t")
+
+        alter_table("//tmp/t", schema=self._get_table_schema(max_inline_hunk_size=1000))
+
+        store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
+        assert len(store_chunk_ids) == 1
+        store_chunk_id = store_chunk_ids[0]
+        hunk_chunk_ids = self._get_hunk_chunk_ids("//tmp/t")
+        assert len(hunk_chunk_ids) == 1
+        hunk_chunk_id = hunk_chunk_ids[0]
+        assert_items_equal(get("#{}/@hunk_chunk_refs".format(store_chunk_id)), [
+            {"chunk_id": hunk_chunk_id, "hunk_count": 10, "total_hunk_length": 260},
+        ])
+
+        sync_mount_table("//tmp/t")
+
+        set("//tmp/t/@forced_store_compaction_revision", 1)
+        remount_table("//tmp/t")
+
+        wait(lambda: len(get("//tmp/t/@chunk_ids")) == 1)
+        store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
+        assert len(store_chunk_ids) == 1
+        store_chunk_id = store_chunk_ids[0]
+        assert get("#{}/@hunk_chunk_refs".format(store_chunk_id)) == []
+
+    @authors("babenko")
+    def test_compaction_rewrites_hunk_chunk(self):
+        sync_create_cells(1)
+        self._create_table(max_inline_hunk_size=10)
+
+        sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10)]
+        keys = [{"key": i} for i in xrange(10)]
+        insert_rows("//tmp/t", rows)
+        sync_unmount_table("//tmp/t")
+
+        store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
+        assert len(store_chunk_ids) == 1
+        store_chunk_id = store_chunk_ids[0]
+        hunk_chunk_ids = self._get_hunk_chunk_ids("//tmp/t")
+        assert len(hunk_chunk_ids) == 1
+        hunk_chunk_id0 = hunk_chunk_ids[0]
+        assert_items_equal(get("#{}/@hunk_chunk_refs".format(store_chunk_id)), [
+            {"chunk_id": hunk_chunk_id0, "hunk_count": 10, "total_hunk_length": 260},
+        ])
+
+        sync_mount_table("//tmp/t")
+        delete_rows("//tmp/t", keys[1:])
+        sync_unmount_table("//tmp/t")
+
+        sync_mount_table("//tmp/t")
+
+        chunk_ids_before_compaction1 = get("//tmp/t/@chunk_ids")
+        assert len(chunk_ids_before_compaction1) == 3
+
+        set("//tmp/t/@min_data_ttl", 0)
+        set("//tmp/t/@min_data_versions", 1)
+        set("//tmp/t/@forced_store_compaction_revision", 1)
+        remount_table("//tmp/t")
+
+        def _check1():
+            chunk_ids = get("//tmp/t/@chunk_ids")
+            return chunk_ids != chunk_ids_before_compaction1 and len(chunk_ids) == 2
+        wait(_check1)
+
+        store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
+        assert len(store_chunk_ids) == 1
+        store_chunk_id = store_chunk_ids[0]
+        hunk_chunk_ids = self._get_hunk_chunk_ids("//tmp/t")
+        assert len(hunk_chunk_ids) == 1
+        hunk_chunk_id1 = hunk_chunk_ids[0]
+        assert hunk_chunk_id0 == hunk_chunk_id1
+        assert_items_equal(get("#{}/@hunk_chunk_refs".format(store_chunk_id)), [
+            {"chunk_id": hunk_chunk_id1, "hunk_count": 1, "total_hunk_length": 26},
+        ])
+
+        chunk_ids_before_compaction2 = get("//tmp/t/@chunk_ids")
+        assert len(chunk_ids_before_compaction2) == 2
+
+        set("//tmp/t/@forced_store_compaction_revision", 1)
+        remount_table("//tmp/t")
+
+        def _check2():
+            chunk_ids = get("//tmp/t/@chunk_ids")
+            return chunk_ids != chunk_ids_before_compaction2 and len(chunk_ids) == 2
+        wait(_check2)
+
+        store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
+        assert len(store_chunk_ids) == 1
+        store_chunk_id = store_chunk_ids[0]
+        hunk_chunk_ids = self._get_hunk_chunk_ids("//tmp/t")
+        assert len(hunk_chunk_ids) == 1
+        hunk_chunk_id2 = hunk_chunk_ids[0]
+        assert hunk_chunk_id1 != hunk_chunk_id2
+        assert_items_equal(get("#{}/@hunk_chunk_refs".format(store_chunk_id)), [
+            {"chunk_id": hunk_chunk_id2, "hunk_count": 1, "total_hunk_length": 26},
+        ])
+        assert get("#{}/@hunk_count".format(hunk_chunk_id2)) == 1
+        assert get("#{}/@total_hunk_length".format(hunk_chunk_id2)) == 26

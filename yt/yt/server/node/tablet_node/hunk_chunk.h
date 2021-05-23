@@ -19,9 +19,10 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkId, Id);
     DEFINE_BYVAL_RW_PROPERTY(EHunkChunkState, State, EHunkChunkState::Active);
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::NProto::TChunkMeta, ChunkMeta);
-    DEFINE_BYVAL_RO_PROPERTY(i64, UncompressedDataSize);
-    DEFINE_BYVAL_RW_PROPERTY(i64, ReferencedTotalHunkLength);
+    DEFINE_BYVAL_RO_PROPERTY(i64, HunkCount);
+    DEFINE_BYVAL_RO_PROPERTY(i64, TotalHunkLength);
     DEFINE_BYVAL_RW_PROPERTY(i64, ReferencedHunkCount);
+    DEFINE_BYVAL_RW_PROPERTY(i64, ReferencedTotalHunkLength);
     // Includes references from prepared tablet stores updates.
     DEFINE_BYVAL_RW_PROPERTY(int, StoreRefCount);
     DEFINE_BYVAL_RW_PROPERTY(int, PreparedStoreRefCount);

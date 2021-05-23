@@ -93,6 +93,9 @@ using THunkValue = std::variant<
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr auto InlineHunkRefHeaderSize =
+    sizeof(ui8);       // tag
+
 constexpr auto MaxLocalHunkRefSize =
     sizeof(ui8) +      // tag
     MaxVarUint32Size + // chunkIndex
@@ -110,6 +113,9 @@ constexpr auto MaxGlobalHunkRefSize =
 TRef WriteHunkValue(TChunkedMemoryPool* pool, const TInlineHunkValue& value);
 TRef WriteHunkValue(TChunkedMemoryPool* pool, const TLocalRefHunkValue& value);
 TRef WriteHunkValue(TChunkedMemoryPool* pool, const TGlobalRefHunkValue& value);
+
+size_t GetInlineHunkValueSize(const TInlineHunkValue& value);
+TRef WriteHunkValue(char* ptr, const TInlineHunkValue& value);
 
 THunkValue ReadHunkValue(TRef input);
 

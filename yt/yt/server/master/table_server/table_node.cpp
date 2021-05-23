@@ -64,6 +64,8 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, InMemoryMode);
     Save(context, TabletErrorCount);
     Save(context, ForcedCompactionRevision);
+    Save(context, ForcedStoreCompactionRevision);
+    Save(context, ForcedHunkCompactionRevision);
     Save(context, Dynamic);
     Save(context, MountPath);
     Save(context, ExternalTabletResourceUsage);
@@ -96,6 +98,10 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, InMemoryMode);
     Load(context, TabletErrorCount);
     Load(context, ForcedCompactionRevision);
+    if (context.GetVersion() >= EMasterReign::HunkCompaction) {
+        Load(context, ForcedStoreCompactionRevision);
+        Load(context, ForcedHunkCompactionRevision);
+    }
     Load(context, Dynamic);
     Load(context, MountPath);
     // COMPAT(ifsmirnov)

@@ -233,4 +233,10 @@ message THunkChunkRefsExt
     repeated THunkChunkRef refs = 1;
 }
 
+message THunkChunkMiscExt
+{
+    optional int64 hunk_count = 1;
+    optional int64 total_hunk_length = 2;
+}
+
 ////////////////////////////////////////////////////////////////////////////////

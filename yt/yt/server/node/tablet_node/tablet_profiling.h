@@ -353,7 +353,7 @@ public:
         EChunkWriteProfilingMethod method,
         bool failed);
 
-    void Update(const NTableClient::IVersionedMultiChunkWriterPtr& writer);
+    void Update(const NChunkClient::IMultiChunkWriterPtr& writer);
     void Update(const NChunkClient::IChunkWriterBasePtr& writer);
 
 private:
