@@ -138,6 +138,8 @@ DEFINE_ENUM(EMasterReign,
     ((ReplicaLagLimit)                                              (1612))  // gritukan
     ((InheritEnableChunkMerger)                                     (1613))  // aleksandra-zh
     ((FlagForDetailedProfiling)                                     (1614))  // akozhikhov
+    ((HunksReshard)                                                 (1615))  // babenko
+    // 21.3 starts here.
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3578,7 +3578,7 @@ private:
             return newTabletCount;
         } else {
             auto newPivotKeys = CalculatePivotKeys(table, firstTabletIndex, lastTabletIndex, newTabletCount);
-            newTabletCount = newPivotKeys.size();
+            newTabletCount = std::ssize(newPivotKeys);
             ReshardTableImpl(
                 table,
                 firstTabletIndex,
@@ -3592,7 +3592,7 @@ private:
     // If there are several otherwise identical chunk views with adjacent read ranges
     // we merge them into one chunk view with the joint range.
     std::vector<TChunkTree*> MergeChunkViewRanges(
-        std::vector<NChunkServer::TChunkView*> chunkViews,
+        std::vector<TChunkView*> chunkViews,
         const TLegacyOwningKey& lowerPivot,
         const TLegacyOwningKey& upperPivot)
     {
@@ -3742,12 +3742,12 @@ private:
         CopyChunkListIfShared(table, firstTabletIndex, lastTabletIndex);
 
         auto* oldRootChunkList = table->GetChunkList();
-        const auto& oldTabletChunkTrees = oldRootChunkList->Children();
+        const auto& oldTabletChunkLists = oldRootChunkList->Children();
+
+        std::vector<TChunkTree*> newTabletChunkLists;
+        newTabletChunkLists.reserve(newTabletCount);
 
         auto* newRootChunkList = chunkManager->CreateChunkList(oldRootChunkList->GetKind());
-
-        std::vector<TChunkTree*> newTabletChunkTrees;
-        newTabletChunkTrees.reserve(newTabletCount);
 
         // Initialize new tablet chunk lists.
         if (table->IsPhysicallySorted()) {
@@ -3757,8 +3757,7 @@ private:
             const auto& tabletChunkTrees = table->GetChunkList()->Children();
 
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-                std::vector<TChunkTree*> tabletStores;
-                EnumerateStoresInChunkTree(tabletChunkTrees[index]->AsChunkList(), &tabletStores);
+                auto tabletStores = EnumerateStoresInChunkTree(tabletChunkTrees[index]->AsChunkList());
 
                 const auto& lowerPivot = oldPivotKeys[index - firstTabletIndex];
                 const auto& upperPivot = oldPivotKeys[index - firstTabletIndex + 1];
@@ -3778,7 +3777,7 @@ private:
                             upperPivot < readRange.UpperLimit().GetLegacyKey())
                         {
                             if (!chunkView->GetTransactionId()) {
-                                YT_LOG_ALERT("Chunk view without transaction id is not fully inside its tablet "
+                                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Chunk view without transaction id is not fully inside its tablet "
                                     "(ChunkViewId: %v, UnderlyingChunkId: %v, "
                                     "EffectiveLowerLimit: %v, EffectiveUpperLimit: %v, "
                                     "PivotKey: %v, NextPivotKey: %v)",
@@ -3807,34 +3806,41 @@ private:
                 }
             }
 
-            std::sort(chunksOrViews.begin(), chunksOrViews.end(), TObjectRefComparer::Compare);
-            chunksOrViews.erase(
-                std::unique(chunksOrViews.begin(), chunksOrViews.end()),
-                chunksOrViews.end());
+            SortUnique(chunksOrViews, TObjectRefComparer::Compare);
+
             int keyColumnCount = table->GetTableSchema().GetKeyColumnCount();
 
             // Create new tablet chunk lists.
             for (int index = 0; index < newTabletCount; ++index) {
                 auto* tabletChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicTablet);
                 tabletChunkList->SetPivotKey(pivotKeys[index]);
-                newTabletChunkTrees.push_back(tabletChunkList);
+                newTabletChunkLists.push_back(tabletChunkList);
             }
 
             // Move chunks or views from the resharded tablets to appropriate chunk lists.
-            std::vector<std::vector<NChunkServer::TChunkView*>> newTabletChildrenToBeMerged(newTablets.size());
+            std::vector<std::vector<TChunkView*>> newTabletChildrenToBeMerged(newTablets.size());
+            std::vector<std::vector<TChunkTree*>> newTabletHunkChunks(newTablets.size());
             std::vector<std::vector<TStoreId>> newEdenStoreIds(newTablets.size());
 
             for (auto* chunkOrView : chunksOrViews) {
                 NChunkClient::TLegacyReadRange readRange;
+                TChunk* chunk;
                 if (chunkOrView->GetType() == EObjectType::ChunkView) {
-                    readRange = chunkOrView->AsChunkView()->GetCompleteReadRange();
-                } else {
-                    auto keyPair = GetChunkBoundaryKeys(chunkOrView->AsChunk()->ChunkMeta(), keyColumnCount);
+                    auto* chunkView = chunkOrView->AsChunkView();
+                    chunk = chunkView->GetUnderlyingChunk();
+                    readRange = chunkView->GetCompleteReadRange();
+                } else if (IsPhysicalChunkType(chunkOrView->GetType())) {
+                    chunk = chunkOrView->AsChunk();
+                    auto keyPair = GetChunkBoundaryKeys(chunk->ChunkMeta(), keyColumnCount);
                     readRange = {
                         NChunkClient::TLegacyReadLimit(keyPair.first),
                         NChunkClient::TLegacyReadLimit(GetKeySuccessor(keyPair.second))
                     };
+                } else {
+                    YT_ABORT();
                 }
+
+                auto referencedHunkChunks = GetReferencedHunkChunks(chunk);
 
                 auto tabletsRange = GetIntersectingTablets(newTablets, readRange);
                 for (auto it = tabletsRange.first; it != tabletsRange.second; ++it) {
@@ -3845,22 +3851,27 @@ private:
                         : tablets[tablet->GetIndex() + 1]->GetPivotKey();
                     int relativeIndex = it - newTablets.begin();
 
+                    newTabletHunkChunks[relativeIndex].insert(
+                        newTabletHunkChunks[relativeIndex].end(),
+                        referencedHunkChunks.begin(),
+                        referencedHunkChunks.end());
+
                     // Chunks or chunk views created directly from chunks may be attached to tablets as is.
                     // On the other hand, old chunk views may link to the same chunk and have adjacent ranges,
                     // so we handle them separately.
                     if (chunkOrView->GetType() == EObjectType::ChunkView) {
                         // Read range given by tablet's pivot keys will be enforced later.
                         newTabletChildrenToBeMerged[relativeIndex].push_back(chunkOrView->AsChunkView());
-                    } else {
+                    } else if (IsPhysicalChunkType(chunkOrView->GetType())) {
                         if (lowerPivot <= readRange.LowerLimit().GetLegacyKey() &&
                             readRange.UpperLimit().GetLegacyKey() <= upperPivot)
                         {
                             // Chunk fits into the tablet.
                             chunkManager->AttachToChunkList(
-                                newTabletChunkTrees[relativeIndex]->AsChunkList(),
-                                chunkOrView);
-                            if (oldEdenStoreIds.contains(chunkOrView->GetId())) {
-                                newEdenStoreIds[relativeIndex].push_back(chunkOrView->GetId());
+                                newTabletChunkLists[relativeIndex]->AsChunkList(),
+                                chunk);
+                            if (oldEdenStoreIds.contains(chunk->GetId())) {
+                                newEdenStoreIds[relativeIndex].push_back(chunk->GetId());
                             }
                         } else {
                             // Chunk does not fit into the tablet, create chunk view.
@@ -3871,14 +3882,16 @@ private:
                             if (upperPivot < readRange.UpperLimit().GetLegacyKey()) {
                                 newReadRange.UpperLimit().SetLegacyKey(upperPivot);
                             }
-                            auto* newChunkView = chunkManager->CreateChunkView(chunkOrView, newReadRange);
+                            auto* newChunkView = chunkManager->CreateChunkView(chunk, newReadRange);
                             chunkManager->AttachToChunkList(
-                                newTabletChunkTrees[relativeIndex]->AsChunkList(),
+                                newTabletChunkLists[relativeIndex]->AsChunkList(),
                                 newChunkView);
-                            if (oldEdenStoreIds.contains(chunkOrView->GetId())) {
+                            if (oldEdenStoreIds.contains(chunk->GetId())) {
                                 newEdenStoreIds[relativeIndex].push_back(newChunkView->GetId());
                             }
                         }
+                    } else {
+                        YT_ABORT();
                     }
                 }
             }
@@ -3890,50 +3903,33 @@ private:
                     ? MaxKey()
                     : tablets[tablet->GetIndex() + 1]->GetPivotKey();
 
-                std::vector<TChunkTree*> mergedChunksOrViews;
+                std::vector<TChunkTree*> mergedChunkViews;
                 try {
-                    mergedChunksOrViews = MergeChunkViewRanges(newTabletChildrenToBeMerged[relativeIndex], lowerPivot, upperPivot);
+                    mergedChunkViews = MergeChunkViewRanges(newTabletChildrenToBeMerged[relativeIndex], lowerPivot, upperPivot);
                 } catch (const std::exception& ex) {
                     YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), ex, "Failed to merge chunk view ranges");
-                    mergedChunksOrViews = {};
                 }
 
-                auto* newTabletChunkList = newTabletChunkTrees[relativeIndex]->AsChunkList();
-                chunkManager->AttachToChunkList(newTabletChunkList, mergedChunksOrViews);
+                auto* newTabletChunkList = newTabletChunkLists[relativeIndex]->AsChunkList();
+                chunkManager->AttachToChunkList(newTabletChunkList, mergedChunkViews);
 
                 std::vector<TChunkTree*> hunkChunks;
-                for (auto* chunkOrView : mergedChunksOrViews) {
+                for (auto* chunkOrView : mergedChunkViews) {
                     if (oldEdenStoreIds.contains(chunkOrView->AsChunkView()->GetUnderlyingChunk()->GetId())) {
                         newEdenStoreIds[relativeIndex].push_back(chunkOrView->GetId());
                     }
-
-                    if (chunkOrView->GetType() == EObjectType::Chunk) {
-                        const auto* chunk = chunkOrView->AsChunk();
-                        if (auto hunkRefsExt = FindProtoExtension<THunkChunkRefsExt>(chunk->ChunkMeta().extensions())) {
-                            for (const auto& protoRef : hunkRefsExt->refs()) {
-                                auto hunkChunkId = FromProto<TChunkId>(protoRef.chunk_id());
-                                auto* hunkChunk = chunkManager->FindChunk(hunkChunkId);
-                                if (!IsObjectAlive(hunkChunk)) {
-                                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Store references a non-existing hunk chunk (StoreId: %v, HunkChunkId: %v)",
-                                        chunk->GetId(),
-                                        hunkChunkId);
-                                    continue;
-                                }
-                                hunkChunks.push_back(hunkChunk);
-                            }
-                        }
-                    }
-                }
-
-                if (!hunkChunks.empty()) {
-                    SortUniqueBy(hunkChunks, [] (const auto* chunkTree) { return chunkTree->GetId(); });
-                    auto* hunkChunkList = chunkManager->GetOrCreateHunkChunkList(newTabletChunkList);
-                    chunkManager->AttachToChunkList(hunkChunkList, hunkChunks);
                 }
             }
 
             for (int relativeIndex = 0; relativeIndex < std::ssize(newTablets); ++relativeIndex) {
                 SetTabletEdenStoreIds(newTablets[relativeIndex], newEdenStoreIds[relativeIndex]);
+
+                if (!newTabletHunkChunks[relativeIndex].empty()) {
+                    SortUnique(newTabletHunkChunks[relativeIndex], TObjectRefComparer());
+                    auto* tabletChunkList = newTabletChunkLists[relativeIndex]->AsChunkList();
+                    auto* hunkChunkList = chunkManager->GetOrCreateHunkChunkList(tabletChunkList);
+                    chunkManager->AttachToChunkList(hunkChunkList, newTabletHunkChunks[relativeIndex]);
+                }
             }
         } else {
             // If the number of tablets increases, just leave the new trailing ones empty.
@@ -3941,38 +3937,38 @@ private:
             auto attachChunksToChunkList = [&] (TChunkList* chunkList, int firstTabletIndex, int lastTabletIndex) {
                 std::vector<TChunk*> chunks;
                 for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-                    EnumerateChunksInChunkTree(oldTabletChunkTrees[index]->AsChunkList(), &chunks);
+                    EnumerateChunksInChunkTree(oldTabletChunkLists[index]->AsChunkList(), &chunks);
                 }
                 for (auto* chunk : chunks) {
                     chunkManager->AttachToChunkList(chunkList, chunk);
                 }
             };
             for (int index = firstTabletIndex; index < firstTabletIndex + std::min(oldTabletCount, newTabletCount); ++index) {
-                newTabletChunkTrees.push_back(chunkManager->CloneTabletChunkList(oldTabletChunkTrees[index]->AsChunkList()));
+                newTabletChunkLists.push_back(chunkManager->CloneTabletChunkList(oldTabletChunkLists[index]->AsChunkList()));
             }
             if (oldTabletCount > newTabletCount) {
-                auto* chunkList = newTabletChunkTrees[newTabletCount - 1]->AsChunkList();
+                auto* chunkList = newTabletChunkLists[newTabletCount - 1]->AsChunkList();
                 attachChunksToChunkList(chunkList, firstTabletIndex + newTabletCount, lastTabletIndex);
             } else {
                 for (int index = oldTabletCount; index < newTabletCount; ++index) {
-                    newTabletChunkTrees.push_back(chunkManager->CreateChunkList(EChunkListKind::OrderedDynamicTablet));
+                    newTabletChunkLists.push_back(chunkManager->CreateChunkList(EChunkListKind::OrderedDynamicTablet));
                 }
             }
-            YT_ASSERT(std::ssize(newTabletChunkTrees) == newTabletCount);
+            YT_VERIFY(std::ssize(newTabletChunkLists) == newTabletCount);
         }
 
         // Update tablet chunk lists.
         chunkManager->AttachToChunkList(
             newRootChunkList,
-            oldTabletChunkTrees.data(),
-            oldTabletChunkTrees.data() + firstTabletIndex);
+            oldTabletChunkLists.data(),
+            oldTabletChunkLists.data() + firstTabletIndex);
         chunkManager->AttachToChunkList(
             newRootChunkList,
-            newTabletChunkTrees);
+            newTabletChunkLists);
         chunkManager->AttachToChunkList(
             newRootChunkList,
-            oldTabletChunkTrees.data() + lastTabletIndex + 1,
-            oldTabletChunkTrees.data() + oldTabletChunkTrees.size());
+            oldTabletChunkLists.data() + lastTabletIndex + 1,
+            oldTabletChunkLists.data() + oldTabletChunkLists.size());
 
         // Replace root chunk list.
         table->SetChunkList(newRootChunkList);
@@ -3995,6 +3991,31 @@ private:
         table->RecomputeTabletMasterMemoryUsage();
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->UpdateMasterMemoryUsage(table);
+    }
+
+    std::vector<TChunk*> GetReferencedHunkChunks(TChunk* storeChunk)
+    {
+        auto hunkRefsExt = FindProtoExtension<THunkChunkRefsExt>(storeChunk->ChunkMeta().extensions());
+        if (!hunkRefsExt) {
+            return {};
+        }
+
+        std::vector<TChunk*> hunkChunks;
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        for (const auto& protoRef : hunkRefsExt->refs()) {
+            auto hunkChunkId = FromProto<TChunkId>(protoRef.chunk_id());
+            auto* hunkChunk = chunkManager->FindChunk(hunkChunkId);
+            if (!IsObjectAlive(hunkChunk)) {
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Store references a non-existing hunk chunk (StoreId: %v, HunkChunkId: %v)",
+                    storeChunk->GetId(),
+                    hunkChunkId);
+                continue;
+            }
+            hunkChunks.push_back(hunkChunk);
+        }
+
+        return hunkChunks;
     }
 
 
@@ -5143,7 +5164,7 @@ private:
                     if (subtabletChunkListCount > 0) {
                         TChunkTreeStatistics delta{};
                         delta.ChunkListCount = -subtabletChunkListCount;
-                        NChunkServer::AccumulateUniqueAncestorsStatistics(newTabletChunkList, delta);
+                        AccumulateUniqueAncestorsStatistics(newTabletChunkList, delta);
                     }
                 }
             }
