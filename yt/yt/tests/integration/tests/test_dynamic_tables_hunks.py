@@ -4,6 +4,8 @@ from yt.test_helpers import assert_items_equal, wait
 
 from yt_commands import *
 
+import __builtin__
+
 ################################################################################
 
 
@@ -204,3 +206,55 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         wait(lambda: get("//tmp/t/@chunk_count") == 1)
         assert len(self._get_store_chunk_ids("//tmp/t")) == 1
         assert len(self._get_hunk_chunk_ids("//tmp/t")) == 0
+
+    @authors("babenko")
+    def test_reshard(self):
+        sync_create_cells(1)
+        self._create_table()
+
+        sync_mount_table("//tmp/t")
+        # This chunk will intersect both of new tablets and will produce chunk views.
+        rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in [0, 10, 20, 30, 40, 50]]
+        insert_rows("//tmp/t", rows1)
+        sync_unmount_table("//tmp/t")
+
+        store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
+        assert len(store_chunk_ids) == 1
+        store_chunk_id1 = store_chunk_ids[0]
+
+        hunk_chunk_ids = self._get_hunk_chunk_ids("//tmp/t")
+        assert len(hunk_chunk_ids) == 1
+        hunk_chunk_id1 = hunk_chunk_ids[0]
+
+        sync_mount_table("//tmp/t")
+        # This chunk will be fully contained in the first tablet.
+        rows2 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in [11, 12, 13]]
+        insert_rows("//tmp/t", rows2)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows1 + rows2)
+        sync_unmount_table("//tmp/t")
+
+        store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
+        assert len(store_chunk_ids) == 2
+        store_chunk_id2 = list(__builtin__.set(store_chunk_ids) - __builtin__.set([store_chunk_id1]))[0]
+
+        hunk_chunk_ids = self._get_hunk_chunk_ids("//tmp/t")
+        assert len(hunk_chunk_ids) == 2
+        hunk_chunk_id2 = list(__builtin__.set(hunk_chunk_ids) - __builtin__.set([hunk_chunk_id1]))[0]
+
+        gc_collect()
+        assert get("#{}/@ref_counter".format(store_chunk_id1)) == 1
+        assert get("#{}/@ref_counter".format(hunk_chunk_id1)) == 1
+        assert get("#{}/@ref_counter".format(store_chunk_id2)) == 1
+        assert get("#{}/@ref_counter".format(hunk_chunk_id2)) == 1
+
+        reshard_table("//tmp/t", [[], [30]])
+
+        gc_collect()
+        assert get("#{}/@ref_counter".format(store_chunk_id1)) == 2
+        assert get("#{}/@ref_counter".format(hunk_chunk_id1)) == 2
+        assert get("#{}/@ref_counter".format(store_chunk_id2)) == 1
+        assert get("#{}/@ref_counter".format(hunk_chunk_id2)) == 1
+
+        sync_mount_table("//tmp/t")
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows1 + rows2)
