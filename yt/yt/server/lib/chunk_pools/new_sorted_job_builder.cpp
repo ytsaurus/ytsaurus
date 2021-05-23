@@ -641,6 +641,11 @@ private:
     {
         YT_LOG_TRACE("Processing endpoint range with row slicing (EndpointCount: %v)", endpoints.size());
 
+        // TODO(max42): describe this situation, refer to RowSlicingCorrectness unittest.
+        if (!endpoints[0].KeyBound.Invert().IsInclusive) {
+            StagingArea_->PromoteUpperBound(endpoints[0].KeyBound.Invert().ToggleInclusiveness());
+        }
+
         YT_VERIFY(JobSizeTracker_);
 
         std::deque<TLegacyDataSlicePtr> dataSlices;
