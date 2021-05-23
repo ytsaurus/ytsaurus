@@ -62,6 +62,8 @@ private:
         i64 TabletMasterMemoryUsage = 0;
         int TabletErrorCount = 0;
         std::optional<NHydra::TRevision> ForcedCompactionRevision;
+        std::optional<NHydra::TRevision> ForcedStoreCompactionRevision;
+        std::optional<NHydra::TRevision> ForcedHunkCompactionRevision;
         bool Dynamic = false;
         TString MountPath;
         NTabletServer::TTabletResources ExternalTabletResourceUsage;
@@ -108,6 +110,8 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletErrorCount);
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletBalancerConfig);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ForcedCompactionRevision);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ForcedStoreCompactionRevision);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ForcedHunkCompactionRevision);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, Dynamic);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, MountPath);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ExternalTabletResourceUsage);

@@ -295,6 +295,16 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetRemovable(true)
         .SetReplicated(true)
         .SetPresent(static_cast<bool>(table->GetForcedCompactionRevision())));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ForcedStoreCompactionRevision)
+        .SetWritable(true)
+        .SetRemovable(true)
+        .SetReplicated(true)
+        .SetPresent(static_cast<bool>(table->GetForcedStoreCompactionRevision())));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ForcedHunkCompactionRevision)
+        .SetWritable(true)
+        .SetRemovable(true)
+        .SetReplicated(true)
+        .SetPresent(static_cast<bool>(table->GetForcedHunkCompactionRevision())));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::FlushLagTime)
         .SetExternal(isExternal)
         .SetPresent(isDynamic && isSorted));
@@ -675,6 +685,22 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 .Value(*trunkTable->GetForcedCompactionRevision());
             return true;
 
+        case EInternedAttributeKey::ForcedStoreCompactionRevision:
+            if (!trunkTable->GetForcedStoreCompactionRevision()) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(*trunkTable->GetForcedStoreCompactionRevision());
+            return true;
+
+        case EInternedAttributeKey::ForcedHunkCompactionRevision:
+            if (!trunkTable->GetForcedHunkCompactionRevision()) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(*trunkTable->GetForcedHunkCompactionRevision());
+            return true;
+
         case EInternedAttributeKey::FlushLagTime: {
             if (!isSorted || !isDynamic || isExternal) {
                 break;
@@ -908,8 +934,23 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
         }
 
         case EInternedAttributeKey::ForcedCompactionRevision: {
+            ValidateNoTransaction();
             auto* lockedTable = LockThisImpl();
             lockedTable->SetForcedCompactionRevision(std::nullopt);
+            return true;
+        }
+
+        case EInternedAttributeKey::ForcedStoreCompactionRevision: {
+            ValidateNoTransaction();
+            auto* lockedTable = LockThisImpl();
+            lockedTable->SetForcedStoreCompactionRevision(std::nullopt);
+            return true;
+        }
+
+        case EInternedAttributeKey::ForcedHunkCompactionRevision: {
+            ValidateNoTransaction();
+            auto* lockedTable = LockThisImpl();
+            lockedTable->SetForcedHunkCompactionRevision(std::nullopt);
             return true;
         }
 
@@ -949,6 +990,9 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
 bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value)
 {
     const auto* table = GetThisImpl();
+
+    const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+    auto revision = hydraManager->GetAutomatonVersion().ToRevision();
 
     switch (key) {
         case EInternedAttributeKey::TabletCellBundle: {
@@ -1062,10 +1106,23 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
         }
 
         case EInternedAttributeKey::ForcedCompactionRevision: {
+            ValidateNoTransaction();
             auto* lockedTable = LockThisImpl();
-            const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-            auto revision = hydraManager->GetAutomatonVersion().ToRevision();
             lockedTable->SetForcedCompactionRevision(revision);
+            return true;
+        }
+
+        case EInternedAttributeKey::ForcedStoreCompactionRevision: {
+            ValidateNoTransaction();
+            auto* lockedTable = LockThisImpl();
+            lockedTable->SetForcedStoreCompactionRevision(revision);
+            return true;
+        }
+
+        case EInternedAttributeKey::ForcedHunkCompactionRevision: {
+            ValidateNoTransaction();
+            auto* lockedTable = LockThisImpl();
+            lockedTable->SetForcedHunkCompactionRevision(revision);
             return true;
         }
 
@@ -1422,7 +1479,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         GetId(),
         GetPath(),
         Transaction_);
-        
+
     if (options.Schema || options.SchemaModification) {
         if (options.SchemaModification) {
             schema = *schema.ToModifiedSchema(*options.SchemaModification);

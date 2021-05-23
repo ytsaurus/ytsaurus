@@ -301,7 +301,7 @@ DEFINE_REFCOUNTED_TYPE(TMediumDirectorySynchronizerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkFragmentReaderConfig
-    : public NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     //! Expiration timeouts of corresponding sync expiring caches.
@@ -314,7 +314,7 @@ public:
     //! Config of async expiring cache that stores peer probing results.
     TAsyncExpiringCacheConfigPtr PeerProbingResultCache;
 
-    //! Delay between background cache updates. 
+    //! Delay between background cache updates.
     TDuration PeriodicUpdateDelay;
 
     //! Factors to calculate peer load as linear combination of disk queue and net queue.

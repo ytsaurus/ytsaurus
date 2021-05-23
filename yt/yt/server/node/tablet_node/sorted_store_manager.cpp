@@ -655,12 +655,6 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         TTimestamp currentTimestamp,
         const TWriterProfilerPtr& writerProfiler
     ) {
-        IVersionedChunkWriterPtr tableWriter;
-
-        auto updateProfilerGuard = Finally([&] () {
-            writerProfiler->Update(tableWriter);
-        });
-
         TMemoryZoneGuard memoryZoneGuard(inMemoryMode == EInMemoryMode::None
             ? EMemoryZone::Normal
             : EMemoryZone::Undumpable);
@@ -716,37 +710,34 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             /*trafficMeter*/ nullptr,
             combinedThrottler);
 
-        IChunkWriterPtr hunkChunkWriter;
-        IHunkChunkPayloadWriterPtr hunkChunkPayloadWriter;
-        TRowBufferPtr hunkScratchRowBuffer;
-        if (tabletSnapshot->PhysicalSchema->HasHunkColumns()) {
-            hunkChunkWriter = CreateConfirmingWriter(
-                hunkWriterConfig,
-                hunkWriterOptions,
-                tabletCellTag,
-                transaction->GetId(),
-                /*parentChunkListId*/ {},
-                nodeDirectory,
-                Client_,
-                GetNullBlockCache(),
-                /*trafficMeter*/ nullptr,
-                combinedThrottler);
-            hunkChunkPayloadWriter = CreateHunkChunkPayloadWriter(
-                hunkWriterConfig,
-                hunkChunkWriter,
-                /*chunkIndex*/ 0);
-            hunkScratchRowBuffer = New<TRowBuffer>(THunkScratchBufferTag());
+        auto hunkChunkWriter = CreateConfirmingWriter(
+            hunkWriterConfig,
+            hunkWriterOptions,
+            tabletCellTag,
+            transaction->GetId(),
+            /*parentChunkListId*/ {},
+            nodeDirectory,
+            Client_,
+            GetNullBlockCache(),
+            /*trafficMeter*/ nullptr,
+            combinedThrottler);
+        auto hunkChunkPayloadWriter = CreateHunkChunkPayloadWriter(
+            hunkWriterConfig,
+            hunkChunkWriter);
 
-            WaitFor(hunkChunkPayloadWriter->Open())
-                .ThrowOnError();
-        }
-
-        tableWriter = CreateVersionedChunkWriter(
-            storeWriterConfig,
-            storeWriterOptions,
+        auto storeWriter = CreateHunkEncodingVersionedWriter(
+            CreateVersionedChunkWriter(
+                storeWriterConfig,
+                storeWriterOptions,
+                tabletSnapshot->PhysicalSchema,
+                storeChunkWriter,
+                blockCache),
             tabletSnapshot->PhysicalSchema,
-            storeChunkWriter,
-            blockCache);
+            hunkChunkPayloadWriter);
+
+        auto updateProfilerGuard = Finally([&] () {
+            writerProfiler->Update(storeWriter);
+        });
 
         TVersionedRowMerger onFlushRowMerger(
             New<TRowBuffer>(TMergeRowsOnFlushBufferTag()),
@@ -910,26 +901,13 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                 }
             }
 
-            if (hunkChunkPayloadWriter) {
-                for (auto& row : rows) {
-                    row = EncodeHunkValues(
-                        row,
-                        *tabletSnapshot->PhysicalSchema,
-                        hunkScratchRowBuffer,
-                        hunkChunkPayloadWriter);
-                }
-            }
-
-            if (!tableWriter->Write(rows)) {
-                WaitFor(tableWriter->GetReadyEvent())
+            if (!storeWriter->Write(rows)) {
+                WaitFor(storeWriter->GetReadyEvent())
                     .ThrowOnError();
             }
 
             onFlushRowMerger.Reset();
             compactionRowMerger.Reset();
-            if (hunkScratchRowBuffer) {
-                hunkScratchRowBuffer->Clear();
-            }
         }
 
         if (rowCache) {
@@ -959,7 +937,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
             auto lookuper = rowCache->Cache.GetLookuper();
 
-            // Reallocate secondary hash table at first beacuse 
+            // Reallocate secondary hash table at first beacuse
             // rows can be concurrently moved into primary during lookup.
             if (auto secondaryHashTable = lookuper.GetSecondary()) {
                 secondaryHashTable->ForEach(onItem);
@@ -971,41 +949,22 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             YT_LOG_DEBUG("Lookup cache reallocation finished (ReallocatedRows: %v)", reallocatedRows);
         }
 
-        if (tableWriter->GetRowCount() == 0) {
+        if (storeWriter->GetRowCount() == 0) {
             YT_LOG_DEBUG("Sorted store is empty, nothing to flush (StoreId: %v)",
                 store->GetId());
             return TStoreFlushResult();
         }
 
-        bool hasHunkRefs =
-            hunkChunkPayloadWriter &&
-            hunkChunkPayloadWriter->GetHunkChunkRef().HunkCount > 0;
+        WaitFor(storeWriter->Close())
+            .ThrowOnError();
 
-        if (hasHunkRefs) {
-            WaitFor(hunkChunkPayloadWriter->Close())
-                .ThrowOnError();
-
-            auto hunkChunkRef = hunkChunkPayloadWriter->GetHunkChunkRef();
-
-            tableWriter->GetMeta()->RegisterFinalizer(
-                [=] (TDeferredChunkMeta* meta) {
-                    NTableClient::NProto::THunkChunkRefsExt hunkChunkRefsExt;
-                    ToProto(hunkChunkRefsExt.add_refs(), hunkChunkRef);
-                    SetProtoExtension(meta->mutable_extensions(), hunkChunkRefsExt);
-                });
-
-            YT_LOG_DEBUG("Hunk chunk reference written (StoreId: %v, HunkChunkRef: %v)",
-                store->GetId(),
-                hunkChunkRef);
-        }
-
-        WaitFor(tableWriter->Close())
+        WaitFor(hunkChunkPayloadWriter->Close())
             .ThrowOnError();
 
         std::vector<TChunkInfo> chunkInfos;
         chunkInfos.emplace_back(
-            tableWriter->GetChunkId(),
-            tableWriter->GetMeta(),
+            storeWriter->GetChunkId(),
+            storeWriter->GetMeta(),
             tabletSnapshot->TabletId,
             tabletSnapshot->MountRevision);
 
@@ -1020,10 +979,17 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                 dataStatistics.erasure_disk_space());
         };
 
-        YT_LOG_DEBUG("Sorted store flushed (StoreId: %v, ChunkId: %v, DiskSpace: %v)",
+        YT_LOG_DEBUG("Sorted store flushed (StoreId: %v, StoreChunkId: %v, StoreChunkDiskSpace: %v%v)",
             store->GetId(),
             storeChunkWriter->GetChunkId(),
-            getDiskSpace(tableWriter, tabletSnapshot->Settings.StoreWriterOptions));
+            getDiskSpace(storeWriter, tabletSnapshot->Settings.StoreWriterOptions),
+            MakeFormatterWrapper([&] (auto* builder) {
+                if (hunkChunkPayloadWriter->HasHunks()) {
+                    builder->AppendFormat(", HunkChunkId: %v, HunkChunkDiskSpace: %v",
+                        hunkChunkPayloadWriter->GetChunkId(),
+                        getDiskSpace(hunkChunkWriter, tabletSnapshot->Settings.HunkWriterOptions));
+                }
+            }));
 
         TStoreFlushResult result;
         {
@@ -1031,12 +997,12 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             descriptor.set_store_type(ToProto<int>(EStoreType::SortedChunk));
             ToProto(descriptor.mutable_store_id(), storeChunkWriter->GetChunkId());
             ToProto(descriptor.mutable_backing_store_id(), store->GetId());
-            *descriptor.mutable_chunk_meta() = *tableWriter->GetMeta();
+            *descriptor.mutable_chunk_meta() = *storeWriter->GetMeta();
             FilterProtoExtensions(descriptor.mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
         }
-        if (hasHunkRefs) {
+        if (hunkChunkPayloadWriter->HasHunks()) {
             auto& descriptor = result.HunkChunksToAdd.emplace_back();
-            ToProto(descriptor.mutable_chunk_id(), hunkChunkWriter->GetChunkId());
+            ToProto(descriptor.mutable_chunk_id(), hunkChunkPayloadWriter->GetChunkId());
             *descriptor.mutable_chunk_meta() = *hunkChunkPayloadWriter->GetMeta();
             FilterProtoExtensions(descriptor.mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
         }

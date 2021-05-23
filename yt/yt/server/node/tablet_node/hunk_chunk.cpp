@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
-#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
 namespace NYT::NTabletNode {
 
@@ -24,8 +24,9 @@ THunkChunk::THunkChunk(
 
 void THunkChunk::Initialize()
 {
-    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(ChunkMeta_.extensions());
-    UncompressedDataSize_ = miscExt.uncompressed_data_size();
+    auto miscExt = GetProtoExtension<NTableClient::NProto::THunkChunkMiscExt>(ChunkMeta_.extensions());
+    HunkCount_ = miscExt.hunk_count();
+    TotalHunkLength_ = miscExt.total_hunk_length();
 }
 
 void THunkChunk::Save(TSaveContext& context) const

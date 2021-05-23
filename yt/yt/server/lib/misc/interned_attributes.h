@@ -155,6 +155,8 @@
     XX(FlushLagTime, flush_lag_time) \
     XX(FlushedRowCount, flushed_row_count) \
     XX(ForcedCompactionRevision, forced_compaction_revision) \
+    XX(ForcedStoreCompactionRevision, forced_store_compaction_revision) \
+    XX(ForcedHunkCompactionRevision, forced_hunk_compaction_revision) \
     XX(ForbidImmediateOperations, forbid_immediate_operations) \
     XX(ForbidImmediateOperationsInRoot, forbid_immediate_operations_in_root) \
     XX(Foreign, foreign) \
@@ -168,6 +170,7 @@
     XX(HunkChunkRefs, hunk_chunk_refs) \
     XX(HunkChunkReader, hunk_chunk_reader) \
     XX(HunkChunkWriter, hunk_chunk_writer) \
+    XX(HunkCount, hunk_count) \
     XX(HydraReadOnly, hydra_read_only) \
     XX(Id, id) \
     XX(Implicit, implicit) \
@@ -397,6 +400,7 @@
     XX(Timestamp, timestamp) \
     XX(TimestampProviderNodes, timestamp_provider_nodes) \
     XX(Title, title) \
+    XX(TotalHunkLength, total_hunk_length) \
     XX(TotalAccountStatistics, total_account_statistics) \
     XX(TotalChildrenResourceLimits, total_children_resource_limits) \
     XX(TotalCommittedResourceUsage, total_committed_resource_usage) \

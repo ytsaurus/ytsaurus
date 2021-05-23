@@ -566,7 +566,8 @@ private:
     void OnHunkChunkFullHeartbeat(const THunkChunkPtr& hunkChunk, TFluentMap fluent)
     {
         fluent
-            .Item("uncompressed_data_size").Value(hunkChunk->GetUncompressedDataSize());
+            .Item("hunk_count").Value(hunkChunk->GetHunkCount())
+            .Item("total_hunk_length").Value(hunkChunk->GetTotalHunkLength());
     }
 
     void OnDynamicStoreIncrementalHeartbeat(const IDynamicStorePtr& store, TFluentMap fluent)

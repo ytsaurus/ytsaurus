@@ -26,7 +26,7 @@ void ThrottleUponOverdraft(
 //! Creates a range reader that merges data from the relevant stores and
 //! returns a single version of each value.
 /*!
- *  Resolves hunks.
+ *  Decodes hunks.
  */
 NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
     const TTabletSnapshotPtr& tabletSnapshot,
@@ -39,7 +39,7 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
 
 //! Creates a range reader that handles ordered stores.
 /*!
- *  Resolves hunks.
+ *  Decodes hunks.
  */
 NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
     const TTabletSnapshotPtr& tabletSnapshot,
@@ -53,8 +53,7 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
 
 //! Creates a range reader that handles both sorted and ordered tables.
 /*!
- *
- *  Resolves hunks.
+ *  Decodes hunks.
  */
 NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulRangeTabletReader(
     const TTabletSnapshotPtr& tabletSnapshot,
@@ -70,7 +69,7 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulRangeTabletReader(
 //! returns a single version of each value.
 /*!
  *  Can only handle sorted tables.
- *  Resolves hunks.
+ *  Decodes hunks.
  */
 NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
     const TTabletSnapshotPtr& tabletSnapshot,
@@ -85,7 +84,7 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
 //! returns all versions of each value.
 /*!
  *  Can only handle sorted tables.
- *  Does not resolve hunks, intentionally.
+ *  Does not decode hunks, intentionally.
  */
 NTableClient::IVersionedReaderPtr CreateVersionedTabletReader(
     const TTabletSnapshotPtr& tabletSnapshot,

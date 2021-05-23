@@ -139,6 +139,7 @@ DEFINE_ENUM(EMasterReign,
     ((InheritEnableChunkMerger)                                     (1613))  // aleksandra-zh
     ((FlagForDetailedProfiling)                                     (1614))  // akozhikhov
     ((HunksReshard)                                                 (1615))  // babenko
+    ((HunkCompaction)                                               (1616))  // babenko
     // 21.3 starts here.
 );
 

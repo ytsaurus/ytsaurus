@@ -203,7 +203,8 @@ ISchemafulUnversionedReaderPtr WrapSchemafulTabletReader(
         tabletSnapshot,
         std::move(reader));
 
-    reader = CreateHunkResolvingSchemafulReader(
+    reader = CreateHunkDecodingSchemafulReader(
+        tabletSnapshot->Settings.HunkReaderConfig,
         std::move(reader),
         tabletSnapshot->ChunkFragmentReader,
         tabletSnapshot->PhysicalSchema,
