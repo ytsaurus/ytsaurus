@@ -120,18 +120,24 @@ public:
 
     virtual void Flush(std::optional<std::any> overflowToken) override
     {
-        if (!overflowToken) {
+        std::optional<TOverflowToken> typedToken;
+        if (overflowToken) {
+            typedToken = std::any_cast<TOverflowToken>(*overflowToken);
+        }
+
+        YT_LOG_TRACE("Flushing job size tracker (LocalVector: %v, OverflowToken: %v)", LocalVector_, *typedToken);
+
+        if (!typedToken) {
             DropRun(DominantResource_);
             return;
         }
 
-        auto typedToken = std::any_cast<TOverflowToken>(*overflowToken);
-        if (!typedToken.IsLocal && typedToken.OverflownResource == DominantResource_) {
+        if (!typedToken->IsLocal && typedToken->OverflownResource == DominantResource_) {
             LocalVector_ = TResourceVector::Zero();
             CumulativeLimitVector_ += LocalLimitVector_;
             SafeClamp(CumulativeLimitVector_);
         } else {
-            DropRun(typedToken.OverflownResource);
+            DropRun(typedToken->OverflownResource);
         }
     }
 
@@ -161,8 +167,16 @@ private:
 
     void SwitchDominantResource(EResourceKind dominantResource)
     {
-        YT_LOG_DEBUG("Switching dominant resource (Resource: %v -> %v)", DominantResource_, dominantResource);
+        auto oldDominantResource = DominantResource_;
         DominantResource_ = dominantResource;
+        HysteresizedLocalLimitVector_ = LocalLimitVector_ * HysteresisFactor;
+        HysteresizedLocalLimitVector_.Values[DominantResource_] = std::numeric_limits<i64>::max();
+        SafeClamp(HysteresizedLocalLimitVector_);
+        YT_LOG_DEBUG(
+            "Switching dominant resource (Resource: %v -> %v, HysteresizedLocalLimitVector: %v)",
+            oldDominantResource,
+            DominantResource_,
+            HysteresizedLocalLimitVector_);
     }
 
     TResourceVector GetLocalGap() const
@@ -186,6 +200,11 @@ private:
         return result;
     }
 };
+
+TString ToString(const TJobSizeTracker::TOverflowToken& token)
+{
+    return Format("{R: %v, L: %v}", token.OverflownResource, token.IsLocal);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

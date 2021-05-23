@@ -169,7 +169,6 @@ public:
         TransferSolidToMain();
 
         UpperBound_ = newUpperBound;
-
     }
 
     virtual void Put(TLegacyDataSlicePtr dataSlice, ESliceType sliceType) override
@@ -182,7 +181,10 @@ public:
                 BufferDomain_.PushBack(std::move(dataSlice));
                 break;
             case ESliceType::Solid:
-                YT_VERIFY(dataSlice->LowerLimit().KeyBound == UpperBound_.Invert());
+                YT_VERIFY(
+                    dataSlice->LowerLimit().KeyBound == UpperBound_.Invert() ||
+                    (dataSlice->LowerLimit().KeyBound.IsInclusive &&
+                    dataSlice->LowerLimit().KeyBound == UpperBound_.Invert().ToggleInclusiveness()));
                 SolidDomain_.PushBack(std::move(dataSlice));
                 break;
             case ESliceType::Foreign:
@@ -471,7 +473,7 @@ private:
 
         for (auto& dataSlice : NonSolidMainDataSlices_) {
             YT_VERIFY(!PrimaryComparator_.IsRangeEmpty(dataSlice->LowerLimit().KeyBound, dataSlice->UpperLimit().KeyBound));
-            YT_VERIFY(!PrimaryComparator_.IsRangeEmpty(dataSlice->LowerLimit().KeyBound, UpperBound_));
+            YT_VERIFY(PrimaryComparator_.CompareKeyBounds(dataSlice->LowerLimit().KeyBound, UpperBound_) <= 0);
 
             TLegacyDataSlicePtr restDataSlice;
 
@@ -491,9 +493,7 @@ private:
                 dataSlice->UpperLimit().KeyBound = UpperBound_;
             }
 
-            // Data slices are moved into Main domain strictly after they are first introduced (i.e. after promotion of upper bound),
-            // so the left part can't be empty.
-            YT_VERIFY(!PrimaryComparator_.IsRangeEmpty(dataSlice->LowerLimit().KeyBound, dataSlice->UpperLimit().KeyBound));
+            YT_VERIFY(PrimaryComparator_.CompareKeyBounds(dataSlice->LowerLimit().KeyBound, dataSlice->UpperLimit().KeyBound) <= 0);
         }
 
         NonSolidMainDataSlices_.clear();
@@ -518,7 +518,10 @@ private:
     void TransferSolidToMain()
     {
         for (const auto& dataSlice : SolidDomain_.DataSlices) {
-            YT_VERIFY(dataSlice->LowerLimit().KeyBound == UpperBound_.Invert());
+            YT_VERIFY(
+                dataSlice->LowerLimit().KeyBound == UpperBound_.Invert() ||
+                (dataSlice->LowerLimit().KeyBound.IsInclusive &&
+                dataSlice->LowerLimit().KeyBound == UpperBound_.Invert().ToggleInclusiveness()));
             MainDomain_.PushBack(std::move(dataSlice));
         }
         SolidDomain_.Clear();
