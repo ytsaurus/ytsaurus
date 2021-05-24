@@ -3575,6 +3575,10 @@ class TestSchedulingSegments(YTEnvSetup):
 
         op.wait_for_fresh_snapshot()
 
+        agent_to_incarnation = {}
+        for agent in ls("//sys/controller_agents/instances"):
+            agent_to_incarnation[agent] = get("//sys/controller_agents/instances/{}/orchid/controller_agent/incarnation_id".format(agent))
+
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             set("//sys/scheduler/config/scheduling_segments_initialization_timeout", 30000)
 
@@ -3584,6 +3588,10 @@ class TestSchedulingSegments(YTEnvSetup):
                 if node == expected_node \
                 else "default"
             wait(lambda: get(node_segment_orchid_path.format(node), default="") == expected_segment)
+
+        # NB(eshcherbin): See: YT-14796.
+        for agent, old_incarnation in agent_to_incarnation.items():
+            wait(lambda: old_incarnation != get("//sys/controller_agents/instances/{}/orchid/controller_agent/incarnation_id".format(agent), default=None))
 
         wait(lambda: len(list(op.get_running_jobs())) == 1)
         jobs = list(op.get_running_jobs())
