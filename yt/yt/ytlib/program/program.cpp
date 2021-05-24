@@ -53,18 +53,15 @@ private:
     TProgram* Owner_;
 };
 
-TProgram::TProgram(bool suppressVersion)
+TProgram::TProgram()
 {
     Opts_.AddHelpOption();
-    Opts_.AddLongOption("yt-version", "print version and exit")
+    Opts_.AddLongOption("yt-version", "print YT version and exit")
+        .NoArgument()
+        .StoreValue(&PrintYTVersion_, true);
+    Opts_.AddLongOption("version", "print version and exit")
         .NoArgument()
         .StoreValue(&PrintVersion_, true);
-    // Some components like clickhouse-server have their own meaning of --version.
-    if (!suppressVersion) {
-        Opts_.AddLongOption("version", "print version and exit")
-            .NoArgument()
-            .StoreValue(&PrintVersion_, true);
-    }
     Opts_.AddLongOption("yson", "print build information in YSON")
         .NoArgument()
         .StoreValue(&UseYson_, true);
@@ -85,6 +82,10 @@ void TProgram::HandleVersionAndBuild() const
 {
     if (PrintVersion_) {
         PrintVersionAndExit();
+        Y_UNREACHABLE();
+    }
+    if (PrintYTVersion_) {
+        PrintYTVersionAndExit();
         Y_UNREACHABLE();
     }
     if (PrintBuild_) {
@@ -147,7 +148,7 @@ void TProgram::OnError(const TString& message) const noexcept
     }
 }
 
-void TProgram::PrintVersionAndExit() const
+void TProgram::PrintYTVersionAndExit() const
 {
     if (UseYson_) {
         THROW_ERROR_EXCEPTION("--yson is not supported when printing version");
@@ -167,6 +168,11 @@ void TProgram::PrintBuildAndExit() const
         Cout << "Build Host: " << GetBuildHost() << Endl;
     }
     _exit(0);
+}
+
+void TProgram::PrintVersionAndExit() const
+{
+    PrintYTVersionAndExit();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

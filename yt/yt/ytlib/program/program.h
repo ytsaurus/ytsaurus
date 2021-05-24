@@ -17,7 +17,7 @@ DEFINE_ENUM(EProgramExitCode,
 class TProgram
 {
 public:
-    explicit TProgram(bool suppressVersion = false);
+    explicit TProgram();
     ~TProgram();
 
     TProgram(const TProgram&) = delete;
@@ -31,6 +31,7 @@ public:
 protected:
     NLastGetopt::TOpts Opts_;
     TString Argv0_;
+    bool PrintYTVersion_ = false;
     bool PrintVersion_ = false;
     bool PrintBuild_ = false;
     bool UseYson_ = false;
@@ -44,8 +45,15 @@ protected:
 
     void SetCrashOnError();
 
+    //! Handler for --yt-version command argument.
+    void PrintYTVersionAndExit() const;
+    //! Handler for --build command argument.
+    void PrintBuildAndExit() const;
+
+    //! Handler for --version command argument.
+    //! By default, --version and --yt-version work the same way,
+    //! but some yt components (e.g. chyt) can override it to provide its own version. 
     virtual void PrintVersionAndExit() const;
-    virtual void PrintBuildAndExit() const;
 
 private:
     bool CrashOnError_ = false;

@@ -162,7 +162,7 @@ private:
     //! Override to print CHYT version.
     virtual void PrintVersionAndExit() const override
     {
-        Cout << GetVersion() << Endl;
+        Cout << GetCHYTVersion() << Endl;
         _exit(0);
     }
 
