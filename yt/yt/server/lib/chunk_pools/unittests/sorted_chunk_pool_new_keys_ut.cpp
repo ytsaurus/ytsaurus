@@ -27,6 +27,8 @@
 
 #include <util/stream/null.h>
 
+#include <util/system/env.h>
+
 #include <random>
 
 namespace NYT::NChunkPools {
@@ -722,6 +724,9 @@ protected:
                             ASSERT_TRUE(separatedByRows || separatedByKeys)
                                 << Format("LhsUpperLimit: %v", lhsDataSlice->UpperLimit()) << std::endl
                                 << Format("RhsUpperLimit: %v", rhsDataSlice->LowerLimit()) << std::endl;
+                            if (!separatedByRows && !separatedByKeys) {
+                                // YT_ABORT();
+                            }
                         }
                     }
                 }
@@ -3538,7 +3543,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, DynamicStores)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCorrectness)
+TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCorrectnessCustom)
 {
     for (int iter = 0; iter < 100; ++iter) {
         SetUp();
@@ -3602,6 +3607,96 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCorrectness)
         EXPECT_LE(stripeLists.size(), 1.1 * jobCount);
 
         CheckEverything(stripeLists);
+    }
+}
+
+TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCorrectnessStrong)
+{
+    const int defaultIterCount = 10000;
+
+    int iterCount = defaultIterCount;
+
+    Cerr << "Default iteration count = " << defaultIterCount << ", in order to override it use YT_ITER_COUNT env var" << Endl;
+    if (auto iterCountStr = GetEnv("YT_ITER_COUNT"); !iterCountStr.empty()) {
+        iterCount = FromString<int>(iterCountStr);
+    }
+
+    Cerr << "Running " << iterCount << " iterations" << Endl;
+
+    for (int iter = 0; iter < iterCount; ++iter) {
+        SetUp();
+        Gen_.seed(iter);
+        Options_.SortedJobOptions.EnableKeyGuarantee = false;
+
+        if (iter % 1000 == 0) {
+            Cerr << iter << Endl;
+        }
+
+        const int maxTableCount = 3;
+        const int maxChunkCount = 10;
+        const int maxMaxKey = 100;
+        const double coincidenceProbability = 0.5;
+        const int minDataWeight = 1_KB;
+        const int maxDataWeight = 100_KB;
+        const int maxJobCount = 5;
+
+        int tableCount = std::uniform_int_distribution<int>(1, maxTableCount)(Gen_);
+
+        InitTables(
+            std::vector<bool>(tableCount, false) /* isForeign */,
+            std::vector<bool>(tableCount, false) /* isTeleportable */,
+            std::vector<bool>(tableCount, false) /* isVersioned */
+        );
+        InitPrimaryComparator(1);
+
+
+        int maxKey = std::uniform_int_distribution<int>(1, maxMaxKey)(Gen_);
+
+        std::vector<TLegacyDataSlicePtr> dataSlices;
+
+        int totalSize = 0;
+
+        for (int tableIndex = 0; tableIndex < tableCount; ++tableIndex) {
+            std::vector<int> endpoints;
+            int chunkCount = std::uniform_int_distribution<int>(1, maxChunkCount)(Gen_);
+            for (int endpointIndex = 0; endpointIndex < 2 * chunkCount; ++endpointIndex) {
+                if (!endpoints.empty() && std::bernoulli_distribution(coincidenceProbability)(Gen_)) {
+                    endpoints.push_back(endpoints[std::uniform_int_distribution<int>(0, endpoints.size() - 1)(Gen_)]);
+                } else {
+                    endpoints.push_back(std::uniform_int_distribution<int>(0, maxKey)(Gen_));
+                }
+            }
+            std::sort(endpoints.begin(), endpoints.end());
+            for (int chunkIndex = 0; chunkIndex < chunkCount; ++chunkIndex) {
+                int size = std::uniform_int_distribution<int>(minDataWeight, maxDataWeight)(Gen_);
+                auto chunk = CreateChunk(BuildRow({endpoints[2 * chunkIndex]}), BuildRow({endpoints[2 * chunkIndex + 1]}), tableIndex, size);
+                dataSlices.emplace_back(CreateDataSlice(chunk));
+                totalSize += size;
+            }
+        }
+
+        int jobCount = std::uniform_int_distribution<int>(1, maxJobCount)(Gen_);
+
+        DataSizePerJob_ = totalSize / jobCount;
+        InitJobConstraints();
+
+        CreateChunkPool();
+
+        for (const auto& dataSlice : dataSlices) {
+            AddDataSlice(dataSlice);
+        }
+
+        ChunkPool_->Finish();
+
+        ExtractOutputCookiesWhilePossible();
+        auto stripeLists = GetAllStripeLists();
+
+        CheckEverything(stripeLists);
+
+        if (HasFailure()) {
+            Cerr << "Failed on iteration " << iter << Endl;
+            break;
+        }
     }
 }
 
