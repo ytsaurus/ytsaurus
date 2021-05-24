@@ -871,14 +871,27 @@ print row + table_index
     @authors("psushin")
     def test_multiple_row_count_limit(self):
         create("table", "//tmp/input")
-
-        create("table", "//tmp/output")
+        create("table", "//tmp/out_1")
+        create("table", "//tmp/out_2")
         with pytest.raises(YtError):
             map(
                 in_="//tmp/input",
                 out=[
                     "<row_count_limit=1>//tmp/out_1",
                     "<row_count_limit=1>//tmp/out_2",
+                ],
+                command="cat",
+            )
+
+    @authors("gritukan")
+    def test_negative_row_count_limit(self):
+        create("table", "//tmp/input")
+        create("table", "//tmp/output")
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/input",
+                out=[
+                    "<row_count_limit=-1>//tmp/output",
                 ],
                 command="cat",
             )
