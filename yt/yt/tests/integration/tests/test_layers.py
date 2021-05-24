@@ -975,11 +975,11 @@ class TestRootFS(YTEnvSetup):
             spec={
                 "tasks": {
                     "task_a": {
-                        "job_count": 3,
+                        "job_count": 1,
                         "command": 'echo "task_a" >&2',
                     },
                     "task_b": {
-                        "job_count": 2,
+                        "job_count": 1,
                         "command": 'echo "task_b" >&2',
                     },
                 },
@@ -995,8 +995,8 @@ class TestRootFS(YTEnvSetup):
             read_file(op.get_path() + "/jobs/{0}/stderr".format(job_id)) for job_id in job_ids
         )
 
-        assert dict(table_stderrs_per_task) == {"task_a\n": 3, "task_b\n": 2}
-        assert dict(cypress_stderrs_per_task) == {"task_a\n": 3, "task_b\n": 2}
+        assert dict(table_stderrs_per_task) == {"task_a\n": 1, "task_b\n": 1}
+        assert dict(cypress_stderrs_per_task) == {"task_a\n": 1, "task_b\n": 1}
 
 
 @authors("ignat")
