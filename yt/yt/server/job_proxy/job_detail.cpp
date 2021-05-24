@@ -193,6 +193,9 @@ TJobResult TSimpleJobBase::Run()
 void TSimpleJobBase::Cleanup()
 { }
 
+void TSimpleJobBase::PrepareArtifacts()
+{ }
+
 bool TSimpleJobBase::ShouldSendBoundaryKeys() const
 {
     return true;

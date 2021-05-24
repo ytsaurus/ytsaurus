@@ -1,9 +1,13 @@
 package NYT.NExecAgent.NProto;
 
+import "yt_proto/yt/core/misc/proto/error.proto";
 import "yt_proto/yt/core/misc/proto/guid.proto";
+
 import "yt_proto/yt/client/misc/proto/workload.proto";
-import "yt/ytlib/job_tracker_client/proto/job.proto";
+
 import "yt/ytlib/core_dump/proto/core_info.proto";
+
+import "yt/ytlib/job_tracker_client/proto/job.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,6 +22,54 @@ message TRspGetJobSpec
     required TJobProxyResources resource_usage = 2;
     repeated int32 ports = 3;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqOnJobProxySpawned
+{
+    required NYT.NProto.TGuid job_id = 1;
+}
+
+message TRspOnJobProxySpawned
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqPrepareArtifact
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required string artifact_name = 2;
+
+    // Artifact will be streamed into this pipe.
+    required string pipe_path = 3;
+}
+
+message TRspPrepareArtifact
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqOnArtifactPreparationFailed
+{
+    required NYT.NProto.TGuid job_id = 1;
+
+    required string artifact_name = 2;
+    required string artifact_path = 3;
+    required NYT.NProto.TError error = 4;
+}
+
+message TRspOnArtifactPreparationFailed
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqOnArtifactsPrepared
+{
+    required NYT.NProto.TGuid job_id = 1;
+}
+
+message TRspOnArtifactsPrepared
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -281,7 +281,8 @@ public:
             case EJobPhase::PreparingSandboxDirectories:
             case EJobPhase::PreparingArtifacts:
             case EJobPhase::PreparingRootVolume:
-            case EJobPhase::PreparingProxy:
+            case EJobPhase::SpawningJobProxy:
+            case EJobPhase::PreparingJob:
                 // Wait for the next event handler to complete the abortion.
                 startAbortion();
                 Slot_->CancelPreparation();
@@ -295,6 +296,114 @@ public:
         }
     }
 
+    virtual void OnJobProxySpawned() override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        GuardedAction([&] {
+            YT_LOG_INFO("Job proxy spawned");
+
+            ValidateJobPhase(EJobPhase::SpawningJobProxy);
+            SetJobPhase(EJobPhase::PreparingArtifacts);
+        });
+    }
+
+    virtual void PrepareArtifact(
+        const TString& artifactName,
+        const TString& pipePath) override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        GuardedAction([&] {
+            YT_LOG_DEBUG("Preparing job artifact (ArtifactName: %v, PipePath: %v)",
+                artifactName,
+                pipePath);
+
+            ValidateJobPhase(EJobPhase::PreparingArtifacts);
+
+            int artifactIndex = GetOrCrash(UserArtifactNameToIndex_, artifactName);
+            const auto& artifact = Artifacts_[artifactIndex];
+
+            YT_VERIFY(artifact.BypassArtifactCache || artifact.CopyFile);
+            if (artifact.BypassArtifactCache) {
+                YT_LOG_INFO("Downloading artifact with cache bypass (FileName: %v, Executable: %v, SandboxKind: %v, CompressedDataSize: %v)",
+                    artifact.Name,
+                    artifact.Executable,
+                    artifact.SandboxKind,
+                    artifact.Key.GetCompressedDataSize());
+
+                const auto& chunkCache = Bootstrap_->GetChunkCache();
+                auto downloadOptions = MakeArtifactDownloadOptions();
+                auto producer = chunkCache->MakeArtifactDownloadProducer(artifact.Key, downloadOptions);
+
+                ArtifactPrepareFutures_.push_back(
+                    Slot_->MakeFile(
+                        Id_,
+                        artifact.Name,
+                        artifact.SandboxKind,
+                        producer,
+                        pipePath,
+                        artifact.Executable));
+            } else if (artifact.CopyFile) {
+                YT_VERIFY(artifact.Chunk);
+
+                if (artifact.CopyFile) {
+                    YT_LOG_INFO("Copying artifact (FileName: %v, Executable: %v, SandboxKind: %v, CompressedDataSize: %v)",
+                        artifact.Name,
+                        artifact.Executable,
+                        artifact.SandboxKind,
+                        artifact.Key.GetCompressedDataSize());
+
+                    ArtifactPrepareFutures_.push_back(
+                        Slot_->MakeCopy(
+                            Id_,
+                            artifact.Name,
+                            artifact.SandboxKind,
+                            artifact.Chunk->GetFileName(),
+                            pipePath,
+                            artifact.Executable));
+                }
+            }
+        });
+    }
+
+    virtual void OnArtifactPreparationFailed(
+        const TString& artifactName,
+        const TString& artifactPath,
+        const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        Y_UNUSED(artifactName);
+
+        GuardedAction([&] {
+            ValidateJobPhase(EJobPhase::PreparingArtifacts);
+
+            Slot_->OnArtifactPreparationFailed(
+                Id_,
+                artifactName,
+                ESandboxKind::User,
+                artifactPath,
+                error);
+        });
+    }
+
+    virtual void OnArtifactsPrepared() override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        // Wait for possible errors during node-side artifact preparation.
+        WaitFor(AllSucceeded(ArtifactPrepareFutures_))
+            .ThrowOnError();
+
+        GuardedAction([&] {
+            YT_LOG_INFO("Artifacts prepared");
+
+            ValidateJobPhase(EJobPhase::PreparingArtifacts);
+            SetJobPhase(EJobPhase::PreparingJob);
+        });
+    }
+
     virtual void OnJobPrepared() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
@@ -302,7 +411,7 @@ public:
         GuardedAction([&] {
             YT_LOG_INFO("Job prepared");
 
-            ValidateJobPhase(EJobPhase::PreparingProxy);
+            ValidateJobPhase(EJobPhase::PreparingJob);
             SetJobPhase(EJobPhase::Running);
         });
     }
@@ -311,8 +420,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        GuardedAction([&] () {
-            SetJobPhase(EJobPhase::FinalizingProxy);
+        GuardedAction([&] {
+            SetJobPhase(EJobPhase::FinalizingJobProxy);
             DoSetResult(jobResult);
         });
     }
@@ -568,7 +677,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        if (JobPhase_ == EJobPhase::Running || JobPhase_ == EJobPhase::FinalizingProxy) {
+        if (JobPhase_ == EJobPhase::Running || JobPhase_ == EJobPhase::FinalizingJobProxy) {
             auto statistics = ConvertTo<TStatistics>(statisticsYson);
             GetTimeStatistics().AddSamplesTo(&statistics);
 
@@ -844,6 +953,9 @@ private:
     std::vector<TArtifact> Artifacts_;
     std::vector<TArtifactKey> LayerArtifactKeys_;
 
+    //! Artifact name -> index of the artifact in #Artifacts_ list.
+    THashMap<TString, int> UserArtifactNameToIndex_;
+
     IVolumePtr RootVolume_;
 
     TNodeResources ResourceUsage_;
@@ -868,6 +980,8 @@ private:
     i64 CacheHitArtifactsSize_ = 0;
     i64 CacheMissArtifactsSize_ = 0;
     i64 CacheBypassedArtifactsSize_ = 0;
+
+    std::vector<TFuture<void>> ArtifactPrepareFutures_;
 
     // Helpers.
 
@@ -1070,26 +1184,6 @@ private:
             ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to prepare sandbox directories");
 
-            SetJobPhase(EJobPhase::PreparingArtifacts);
-            BIND(&TJob::PrepareArtifacts, MakeWeak(this))
-                .AsyncVia(Invoker_)
-                .Run()
-                .Subscribe(BIND(
-                    &TJob::OnArtifactsPrepared,
-                    MakeWeak(this))
-                .Via(Invoker_));
-        });
-    }
-
-    void OnArtifactsPrepared(const TError& error)
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        GuardedAction([&] {
-            ValidateJobPhase(EJobPhase::PreparingArtifacts);
-            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to prepare artifacts");
-
-            YT_LOG_INFO("Artifacts prepared");
             if (LayerArtifactKeys_.empty()) {
                 RunJobProxy();
             } else {
@@ -1208,7 +1302,7 @@ private:
 
         auto checkCommand = New<TShellCommandConfig>();
         checkCommand->Path = gpuCheckBinaryPath;
-        
+
         std::vector<TDevice> devices;
         for (const auto& descriptor : ListGpuDevices()) {
             const auto& deviceName = descriptor.DeviceName;
@@ -1261,7 +1355,7 @@ private:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         ExecTime_ = TInstant::Now();
-        SetJobPhase(EJobPhase::PreparingProxy);
+        SetJobPhase(EJobPhase::SpawningJobProxy);
         InitializeJobProbe();
 
         BIND(
@@ -1277,8 +1371,12 @@ private:
             MakeWeak(this))
         .Via(Invoker_));
 
-        TDelayedExecutor::Submit(BIND(&TJob::OnJobProxyPreparationTimeout, MakeStrong(this))
-           .Via(Invoker_), Config_->JobProxyPreparationTimeout);
+        TDelayedExecutor::Submit(
+            BIND(
+                &TJob::OnJobProxyPreparationTimeout,
+                MakeStrong(this))
+           .Via(Invoker_),
+           Config_->JobProxyPreparationTimeout);
     }
 
     void OnJobProxyPreparationTimeout()
@@ -1286,7 +1384,7 @@ private:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         GuardedAction([&] {
-            if (JobPhase_ == EJobPhase::PreparingProxy) {
+            if (JobPhase_ == EJobPhase::PreparingJob) {
                 THROW_ERROR_EXCEPTION(
                     EErrorCode::JobProxyPreparationTimeout,
                     "Failed to prepare job proxy within timeout, aborting job");
@@ -1689,6 +1787,33 @@ private:
         TmpfsPaths_ = WaitFor(Slot_->PrepareSandboxDirectories(options))
             .ValueOrThrow();
 
+        for (const auto& artifact : Artifacts_) {
+            // Artifact is passed into the job via symlink.
+            if (!artifact.BypassArtifactCache && !artifact.CopyFile) {
+                YT_VERIFY(artifact.Chunk);
+
+                YT_LOG_INFO("Making symlink for artifact (FileName: %v, Executable: %v, SandboxKind: %v, CompressedDataSize: %v)",
+                    artifact.Name,
+                    artifact.Executable,
+                    artifact.SandboxKind,
+                    artifact.Key.GetCompressedDataSize());
+
+                auto sandboxPath = Slot_->GetSandboxPath(artifact.SandboxKind);
+                auto symlinkPath = NFS::CombinePaths(sandboxPath, artifact.Name);
+
+                WaitFor(Slot_->MakeLink(
+                    Id_,
+                    artifact.Name,
+                    artifact.SandboxKind,
+                    artifact.Chunk->GetFileName(),
+                    symlinkPath,
+                    artifact.Executable))
+                    .ThrowOnError();
+            } else {
+                YT_VERIFY(artifact.SandboxKind == ESandboxKind::User);
+            }
+        }
+
         YT_LOG_INFO("Finished preparing sandbox directories");
     }
 
@@ -1699,22 +1824,16 @@ private:
 
         if (UserJobSpec_) {
             for (const auto& descriptor : UserJobSpec_->files()) {
-                bool copyFile;
-                // COMPAT(gritukan)
-                if (descriptor.has_copy_file()) {
-                    copyFile = descriptor.copy_file();
-                } else {
-                    copyFile = UserJobSpec_->copy_files();
-                }
-
                 Artifacts_.push_back(TArtifact{
                     ESandboxKind::User,
                     descriptor.file_name(),
                     descriptor.executable(),
                     descriptor.bypass_artifact_cache(),
-                    copyFile,
+                    descriptor.copy_file(),
                     TArtifactKey(descriptor),
-                    nullptr});
+                    nullptr
+                });
+                YT_VERIFY(UserArtifactNameToIndex_.emplace(descriptor.file_name(), Artifacts_.size() - 1).second);
             }
 
             bool needGpuLayers = NeedGpuLayers() || Config_->JobController->GpuManager->TestLayers;
@@ -1752,7 +1871,8 @@ private:
                     false,
                     false,
                     key,
-                    nullptr});
+                    nullptr
+                });
             }
         }
     }
@@ -1817,85 +1937,6 @@ private:
         }
 
         return AllSucceeded(asyncChunks);
-    }
-
-    // Put files to sandbox.
-    TFuture<void> PrepareArtifact(const TArtifact& artifact)
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        if (artifact.BypassArtifactCache) {
-            YT_LOG_INFO("Downloading artifact with cache bypass (FileName: %v, Executable: %v, SandboxKind: %v, CompressedDataSize: %v)",
-                artifact.Name,
-                artifact.Executable,
-                artifact.SandboxKind,
-                artifact.Key.GetCompressedDataSize());
-
-            const auto& chunkCache = Bootstrap_->GetChunkCache();
-            auto downloadOptions = MakeArtifactDownloadOptions();
-            auto producer = chunkCache->MakeArtifactDownloadProducer(artifact.Key, downloadOptions);
-
-            return Slot_->MakeFile(
-                artifact.SandboxKind,
-                producer,
-                artifact.Name,
-                artifact.Executable);
-        } else {
-            YT_VERIFY(artifact.Chunk);
-
-            if (artifact.CopyFile) {
-                YT_LOG_INFO("Copying artifact (FileName: %v, Executable: %v, SandboxKind: %v, CompressedDataSize: %v)",
-                    artifact.Name,
-                    artifact.Executable,
-                    artifact.SandboxKind,
-                    artifact.Key.GetCompressedDataSize());
-
-                return Slot_->MakeCopy(
-                    artifact.SandboxKind,
-                    artifact.Chunk->GetFileName(),
-                    artifact.Name,
-                    artifact.Executable);
-            } else {
-                YT_LOG_INFO("Making symlink for artifact (FileName: %v, Executable: %v, SandboxKind: %v, CompressedDataSize: %v)",
-                    artifact.Name,
-                    artifact.Executable,
-                    artifact.SandboxKind,
-                    artifact.Key.GetCompressedDataSize());
-
-                return Slot_->MakeLink(
-                    artifact.SandboxKind,
-                    artifact.Chunk->GetFileName(),
-                    artifact.Name,
-                    artifact.Executable);
-            }
-        }
-    }
-
-    void PrepareArtifacts()
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        YT_LOG_INFO("Started preparing artifacts");
-
-        for (const auto& artifact : Artifacts_) {
-            // Artifact preparation is uncancelable, so we check for an early exit.
-            if (JobPhase_ != EJobPhase::PreparingArtifacts) {
-                return;
-            }
-
-            WaitFor(PrepareArtifact(artifact))
-                .ThrowOnError();
-        }
-
-        // When all artifacts are prepared we can finally change permission for sandbox which will
-        // take away write access from the current user (see slot_location.cpp for details).
-        if (SchedulerJobSpecExt_->has_user_job_spec()) {
-            YT_LOG_INFO("Setting sandbox permissions");
-            WaitFor(Slot_->FinalizePreparation())
-                .ThrowOnError();
-        }
-
-        YT_LOG_INFO("Finished preparing artifacts");
     }
 
     TFuture<void> RunSetupCommands()

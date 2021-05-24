@@ -325,6 +325,11 @@ TError TError::FromSystem(int error)
         TErrorAttribute("errno", error);
 }
 
+TError TError::FromSystem(const TSystemError& error)
+{
+    return FromSystem(error.Status());
+}
+
 TErrorCode TError::GetCode() const
 {
     if (!Impl_) {

@@ -11,6 +11,8 @@
 
 #include <yt/yt/core/misc/error.h>
 
+#include <util/system/file.h>
+
 namespace NYT::NFS {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -171,6 +173,13 @@ void Chmod(const TString& path, int mode);
 void ChunkedCopy(
     const TString& existingPath,
     const TString& newPath,
+    i64 chunkSize);
+
+//! Copies file chunk after chunk via splice syscall,
+//! releasing thread between chunks.
+void Splice(
+    const TFile& source,
+    const TFile& destintation,
     i64 chunkSize);
 
 TError AttachLsofOutput(TError error, const TString& path);

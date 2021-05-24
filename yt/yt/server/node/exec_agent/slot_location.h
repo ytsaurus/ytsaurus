@@ -45,28 +45,31 @@ public:
         TUserSandboxOptions options);
 
     TFuture<void> MakeSandboxCopy(
+        TJobId jobId,
         int slotIndex,
-        ESandboxKind kind,
+        const TString& artifactName,
+        ESandboxKind sandboxKind,
         const TString& sourcePath,
-        const TString& destinationName,
+        const TString& destinationPath,
         bool executable);
 
     TFuture<void> MakeSandboxLink(
+        TJobId jobId,
         int slotIndex,
-        ESandboxKind kind,
+        const TString& artifactName,
+        ESandboxKind sandboxKind,
         const TString& targetPath,
-        const TString& linkName,
+        const TString& linkPath,
         bool executable);
 
     TFuture<void> MakeSandboxFile(
+        TJobId jobId,
         int slotIndex,
-        ESandboxKind kind,
+        const TString& artifactName,
+        ESandboxKind sandboxKind,
         const std::function<void(IOutputStream*)>& producer,
-        const TString& destinationName,
+        const TString& destinationPath,
         bool executable);
-
-    //! Must be called when all files are prepared.
-    TFuture<void> FinalizeSandboxPreparation(int slotIndex);
 
     TFuture<void> MakeConfig(int slotIndex, NYTree::INodePtr config);
 
@@ -92,6 +95,15 @@ public:
     void InvokeUpdateDiskResources();
 
     TString GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) const;
+
+    //! nullopt in #destinationPath stands for streaming into the pipe.
+    void OnArtifactPreparationFailed(
+        TJobId jobId,
+        int slotIndex,
+        const TString& artifactName,
+        ESandboxKind sandboxKind,
+        const std::optional<TString>& destinationPath,
+        const TError& error);
 
 private:
     const TSlotLocationConfigPtr Config_;
@@ -151,17 +163,15 @@ private:
 
     TString GetConfigPath(int slotIndex) const;
 
+    //! nullopt in #destinationPath stands for streaming into the pipe.
     TFuture<void> DoMakeSandboxFile(
+        TJobId jobId,
         int slotIndex,
-        ESandboxKind kind,
-        const std::function<void(const TString& destinationPath)>& callback,
-        const TString& destinationName,
+        const TString& artifactName,
+        ESandboxKind sandboxKind,
+        const TCallback<void()>& callback,
+        const std::optional<TString>& destinationPath,
         bool canUseLightInvoker);
-
-    void ChownChmod(
-        const TString& path,
-        int userId,
-        int permissions);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSlotLocation)

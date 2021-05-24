@@ -18,6 +18,10 @@ public:
         .SetProtocolVersion(3));
 
     DEFINE_RPC_PROXY_METHOD(NProto, GetJobSpec);
+    DEFINE_RPC_PROXY_METHOD(NProto, OnJobProxySpawned);
+    DEFINE_RPC_PROXY_METHOD(NProto, PrepareArtifact);
+    DEFINE_RPC_PROXY_METHOD(NProto, OnArtifactPreparationFailed);
+    DEFINE_RPC_PROXY_METHOD(NProto, OnArtifactsPrepared);
     DEFINE_RPC_PROXY_METHOD(NProto, OnJobFinished);
     DEFINE_RPC_PROXY_METHOD(NProto, OnJobPrepared);
     DEFINE_RPC_PROXY_METHOD(NProto, OnJobProgress);

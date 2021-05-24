@@ -50,6 +50,7 @@
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
+#include <yt/yt/ytlib/tools/proc.h>
 #include <yt/yt/ytlib/tools/tools.h>
 #include <yt/yt/ytlib/tools/signaler.h>
 
@@ -403,6 +404,84 @@ public:
         }
     }
 
+    virtual void PrepareArtifacts() override
+    {
+        YT_LOG_INFO("Started preparing artifacts");
+
+        // Prepare user artifacts.
+        for (const auto& file : UserJobSpec_.files()) {
+            if (!file.bypass_artifact_cache() && !file.copy_file()) {
+                continue;
+            }
+
+            PrepareArtifact(
+                file.file_name(),
+                file.executable() ? 0777 : 0666);
+        }
+
+        // We need to give read access to sandbox directory to yt_node/yt_job_proxy effective user (usually yt:yt)
+        // and to job user (e.g. yt_slot_N). Since they can have different groups, we fallback to giving read
+        // access to everyone.
+        // job proxy requires read access e.g. for getting tmpfs size.
+        // Write access is for job user only, who becomes an owner.
+        if (UserId_) {
+            auto sandboxPath = NFS::CombinePaths(
+                Host_->GetPreparationPath(),
+                SandboxDirectoryNames[ESandboxKind::User]);
+
+            auto config = New<TChownChmodConfig>();
+            config->Permissions = 0755;
+            config->Path = sandboxPath;
+            config->UserId = static_cast<uid_t>(*UserId_);
+            RunTool<TChownChmodTool>(config);
+        }
+
+        YT_LOG_INFO("Artifacts prepared");
+    }
+
+    void PrepareArtifact(
+        const TString& artifactName,
+        int permissions)
+    {
+        auto Logger = this->Logger
+            .WithTag("ArtifactName: %v", artifactName);
+
+        YT_LOG_DEBUG("Preparing artifact");
+
+        auto sandboxPath = NFS::CombinePaths(
+            Host_->GetPreparationPath(),
+            SandboxDirectoryNames[ESandboxKind::User]);
+        auto artifactPath = NFS::CombinePaths(sandboxPath, artifactName);
+
+        auto onError = [&] (const TError& error) {
+            Host_->OnArtifactPreparationFailed(artifactName, artifactPath, error);
+        };
+
+        try {
+            auto pipePath = CreateNamedPipePath();
+            auto pipe = TNamedPipe::Create(pipePath, /*permissions*/ 0755);
+
+            TFile pipeFile(pipePath, OpenExisting | RdOnly | Seq | CloseOnExec);
+            TFile artifactFile(artifactPath, CreateAlways | WrOnly | Seq | CloseOnExec);
+
+            Host_->PrepareArtifact(artifactName, pipePath);
+
+            YT_LOG_DEBUG("Materializing artifact");
+
+            constexpr ssize_t SpliceCopyBlockSize = 16_MB;
+            Splice(pipeFile, artifactFile, SpliceCopyBlockSize);
+
+            NFS::SetPermissions(artifactPath, permissions);
+
+            YT_LOG_DEBUG("Artifact materialized");
+        } catch (const TSystemError& ex) {
+            // For util functions.
+            onError(TError::FromSystem(ex));
+        } catch (const std::exception& ex) {
+            onError(TError(ex));
+        }
+    }
+
     virtual double GetProgress() const override
     {
         return UserJobReadController_->GetProgress();
@@ -413,7 +492,7 @@ public:
         if (!Prepared_) {
             return 0;
         }
-        auto result = WaitFor(BIND([=] () { return ErrorOutput_->GetCurrentSize(); })
+        auto result = WaitFor(BIND([=] { return ErrorOutput_->GetCurrentSize(); })
             .AsyncVia(ReadStderrInvoker_)
             .Run());
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error collecting job stderr size");

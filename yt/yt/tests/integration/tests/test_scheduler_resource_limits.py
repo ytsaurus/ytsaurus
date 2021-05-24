@@ -72,7 +72,12 @@ while True:
         create("table", "//tmp/t_out")
 
         command = "cat > /dev/null; mkdir ./tmpxxx; echo 1 > ./tmpxxx/f1; chmod 700 ./tmpxxx;"
-        map(in_="//tmp/t_in", out="//tmp/t_out", command=command)
+        map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command=command,
+            spec={"max_failed_job_count": 1},
+        )
 
 
 class TestMemoryReserveFactor(YTEnvSetup):

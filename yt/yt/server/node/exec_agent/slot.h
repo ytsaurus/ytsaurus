@@ -47,21 +47,27 @@ struct ISlot
     virtual TFuture<std::vector<TString>> PrepareSandboxDirectories(const TUserSandboxOptions& options) = 0;
 
     virtual TFuture<void> MakeLink(
+        TJobId jobId,
+        const TString& artifactName,
         ESandboxKind sandboxKind,
         const TString& targetPath,
-        const TString& linkName,
+        const TString& linkPath,
         bool executable) = 0;
 
     virtual TFuture<void> MakeCopy(
+        TJobId jobId,
+        const TString& artifactName,
         ESandboxKind sandboxKind,
         const TString& sourcePath,
-        const TString& destinationName,
+        const TString& destinationPath,
         bool executable) = 0;
 
     virtual TFuture<void> MakeFile(
+        TJobId jobId,
+        const TString& artifactName,
         ESandboxKind sandboxKind,
         const std::function<void(IOutputStream*)>& producer,
-        const TString& destinationName,
+        const TString& destinationPath,
         bool executable) = 0;
 
     virtual bool IsLayerCached(const NDataNode::TArtifactKey& artifactKey) const = 0;
@@ -70,15 +76,13 @@ struct ISlot
         const std::vector<NDataNode::TArtifactKey>& layers,
         const NDataNode::TArtifactDownloadOptions& downloadOptions) = 0;
 
-    virtual TFuture<void> FinalizePreparation() = 0;
-
     virtual NBus::TTcpBusServerConfigPtr GetBusServerConfig() const = 0;
     virtual NBus::TTcpBusClientConfigPtr GetBusClientConfig() const = 0;
 
     virtual int GetSlotIndex() const = 0;
 
     virtual TString GetSandboxPath(ESandboxKind sandbox) const = 0;
-    
+
     virtual TString GetMediumName() const = 0;
 
     virtual TFuture<void> RunSetupCommands(
@@ -88,6 +92,13 @@ struct ISlot
         const TString& user,
         const std::optional<std::vector<NContainers::TDevice>>& devices,
         int startIndex) = 0;
+
+    virtual void OnArtifactPreparationFailed(
+        TJobId jobId,
+        const TString& artifactName,
+        ESandboxKind sandboxKind,
+        const TString& artifactPath,
+        const TError& error) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISlot)
