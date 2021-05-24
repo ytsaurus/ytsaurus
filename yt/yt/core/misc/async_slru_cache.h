@@ -145,6 +145,9 @@ private:
         TValuePromise ValuePromise;
         TValuePtr Value;
         i64 CachedWeight;
+        //! Counter for accurate calculation of AsyncHitWeight.
+        //! It can be updated concurrently under the ReadLock.
+        std::atomic<i32> AsyncHitCount = 0;
         bool Younger;
     };
 
@@ -170,9 +173,25 @@ private:
 
     std::atomic<int> Size_ = 0;
 
-    NProfiling::TCounter HitWeightCounter_;
+    /*
+     * Every request counts to one of the following metric types:
+     *
+     * SyncHit* - Item is present in the cache and contains the value.
+     * 
+     * AsyncHit* - Item is present in the cache and contains the value future.
+     * Caller should wait till the concurrent request set the value.
+     * 
+     * Missed* - Item is missing in the cache and should be requested.
+     *  
+     * Hit/Missed counters are updated immediately, while the update of
+     * all Weight* metrics can be delayed till the EndInsert call,
+     * because we do not know the weight of the object before it arrives.
+     */
+    NProfiling::TCounter SyncHitWeightCounter_;
+    NProfiling::TCounter AsyncHitWeightCounter_;
     NProfiling::TCounter MissedWeightCounter_;
-    NProfiling::TCounter HitCounter_;
+    NProfiling::TCounter SyncHitCounter_;
+    NProfiling::TCounter AsyncHitCounter_;
     NProfiling::TCounter MissedCounter_;
     std::atomic<i64> YoungerWeightCounter_ = 0;
     std::atomic<i64> OlderWeightCounter_ = 0;
