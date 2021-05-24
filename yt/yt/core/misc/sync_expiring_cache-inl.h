@@ -12,6 +12,35 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue>
+TSyncExpiringCache<TKey, TValue>::TEntry::TEntry(
+    NProfiling::TCpuInstant lastAccessTime,
+    NProfiling::TCpuInstant lastUpdateTime,
+    TValue value)
+    : LastAccessTime(lastAccessTime)
+    , LastUpdateTime(lastUpdateTime)
+    , Value(std::move(value))
+{ }
+
+template <class TKey, class TValue>
+TSyncExpiringCache<TKey, TValue>::TEntry::TEntry(TSyncExpiringCache<TKey, TValue>::TEntry&& entry)
+    : LastAccessTime(entry.LastAccessTime.load())
+    , LastUpdateTime(entry.LastUpdateTime) 
+    , Value(std::move(entry.Value))
+{ };
+
+template <class TKey, class TValue>
+typename TSyncExpiringCache<TKey, TValue>::TEntry&
+TSyncExpiringCache<TKey, TValue>::TEntry::operator=(typename TSyncExpiringCache<TKey, TValue>::TEntry&& other)
+{
+    LastAccessTime = other.LastAccessTime.load();
+    LastUpdateTime = other.LastUpdateTime;
+    Value = std::move(other.Value);
+    return *this;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TKey, class TValue>
 TSyncExpiringCache<TKey, TValue>::TSyncExpiringCache(
     TCallback<TValue(const TKey&)> calculateValueAction,
     std::optional<TDuration> expirationTimeout,
@@ -53,7 +82,9 @@ TValue TSyncExpiringCache<TKey, TValue>::Get(const TKey& key)
         if (it != Map_.end()) {
             it->second = {now, now, std::move(result)};
         } else {
-            auto emplaceResult = Map_.emplace(key, TEntry({now, now, std::move(result)}));
+            auto emplaceResult = Map_.emplace(
+                key,
+                TEntry(now, now, std::move(result)));
             YT_VERIFY(emplaceResult.second);
             it = emplaceResult.first;
         }
@@ -89,7 +120,17 @@ void TSyncExpiringCache<TKey, TValue>::Set(const TKey& key, TValue value)
 
     auto guard = WriterGuard(MapLock_);
 
-    Map_[key] = {now, now, std::move(value)};
+    if (auto it = Map_.find(key);
+        it != Map_.end())
+    {
+        it->second = {now, now, std::move(value)};
+    } else
+    {
+        YT_VERIFY(Map_.emplace(
+            key,
+            TEntry(now, now, std::move(value)))
+            .second);
+    }
 }
 
 template <class TKey, class TValue>

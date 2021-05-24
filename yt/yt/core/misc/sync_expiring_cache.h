@@ -30,17 +30,27 @@ public:
 private:
     struct TEntry
     {
-        NProfiling::TCpuInstant LastAccessTime;
+        TEntry(
+            NProfiling::TCpuInstant lastAccessTime,
+            NProfiling::TCpuInstant lastUpdateTime,
+            TValue value);
+
+        TEntry(TEntry&& entry);
+        TEntry& operator=(TEntry&& other);
+
+        std::atomic<NProfiling::TCpuInstant> LastAccessTime;
         NProfiling::TCpuInstant LastUpdateTime;
         TValue Value;
     };
 
+    const TCallback<TValue(const TKey&)> CalculateValueAction_;
+    const NConcurrency::TPeriodicExecutorPtr EvictionExecutor_;
+
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, MapLock_);
     THashMap<TKey, TEntry> Map_;
 
-    const TCallback<TValue(const TKey&)> CalculateValueAction_;
     std::atomic<NProfiling::TCpuDuration> ExpirationTimeout_;
-    NConcurrency::TPeriodicExecutorPtr EvictionExecutor_;
+
 
     void DeleteExpiredItems();
 };
