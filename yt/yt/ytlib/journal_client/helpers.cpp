@@ -760,22 +760,17 @@ private:
         const auto& miscExt = quorumResult.MiscExt;
 
         TChunkQuorumInfo result;
-        if (Overlayed_) {
-            if (miscExt.row_count() > 0) {
-                if (!Header_) {
-                    Promise_.Set(TError("Could not receive successful response to any header request for overlayed journal chunk %v",
-                        ChunkId_)
-                        << HeaderBlockInnerErrors_);
-                    return;
-                }
-                result.FirstOverlayedRowIndex = Header_->first_row_index();
-                result.RowCount = miscExt.row_count() - 1;
-            } else {
-                result.RowCount = 0;
+        if (Overlayed_ && miscExt.row_count() > 0) {
+            if (!Header_) {
+                Promise_.Set(TError("Could not receive successful response to any header request for overlayed journal chunk %v",
+                    ChunkId_)
+                    << HeaderBlockInnerErrors_);
+                return;
             }
-        } else {
-            result.RowCount = miscExt.row_count();
+            result.FirstOverlayedRowIndex = Header_->first_row_index();
         }
+
+        result.RowCount = GetLogicalChunkRowCount(miscExt.row_count(), Overlayed_);
         result.UncompressedDataSize = miscExt.uncompressed_data_size();
         result.CompressedDataSize = miscExt.compressed_data_size();
         result.ResponseCount = ChunkMetaResults_.size();
@@ -834,14 +829,16 @@ private:
         const TChunkMetaResult& shortestReplica,
         const TChunkMetaResult& longestReplica)
     {
-        if (longestReplica.MiscExt.row_count() - shortestReplica.MiscExt.row_count() > ReplicaLagLimit_) {
+        i64 longestReplicaRowCount = GetLogicalChunkRowCount(longestReplica.MiscExt.row_count(), Overlayed_);
+        i64 shortestReplicaRowCount = GetLogicalChunkRowCount(shortestReplica.MiscExt.row_count(), Overlayed_);
+        if (longestReplicaRowCount - shortestReplicaRowCount > ReplicaLagLimit_) {
             YT_LOG_ALERT("Replica lag limit violated "
                 "(ShortestReplicaAddress: %v, ShortestReplicaRowCount: %v, "
                 "LongestReplicaAddress: %v, LongestReplicaRowCount: %v, ReplicaLagLimit: %v)",
                 shortestReplica.Address,
-                shortestReplica.MiscExt.row_count(),
+                shortestReplicaRowCount,
                 longestReplica.Address,
-                longestReplica.MiscExt.row_count(),
+                longestReplicaRowCount,
                 ReplicaLagLimit_);
         }
     }
@@ -884,6 +881,20 @@ i64 GetPhysicalChunkRowCount(i64 logicalRowCount, bool overlayed)
         return logicalRowCount + 1;
     } else {
         return logicalRowCount;
+    }
+}
+
+i64 GetLogicalChunkRowCount(i64 physicalRowCount, bool overlayed)
+{
+    if (physicalRowCount == 0) {
+        return 0;
+    }
+
+    if (overlayed) {
+        // Discount header row.
+        return physicalRowCount - 1;
+    } else {
+        return physicalRowCount;
     }
 }
 
