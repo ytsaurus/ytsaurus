@@ -685,6 +685,8 @@ class TestReadGenericDynamicTables(DynamicTablesBase):
         # Wait till all stores are flushed.
         def _wait_func():
             orchid = self._find_tablet_orchid(get_tablet_leader_address(tablet_id), tablet_id)
+            if orchid is None:
+                return False
             stores = orchid["eden"]["stores"] if sorted else orchid["stores"]
             for store in stores.itervalues():
                 if store["store_state"] == "passive_dynamic":
