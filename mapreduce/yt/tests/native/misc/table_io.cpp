@@ -26,6 +26,8 @@
 
 #include <util/random/fast.h>
 
+#include <type_traits>
+
 using namespace NYT;
 using namespace NYT::NTesting;
 
@@ -2245,8 +2247,8 @@ Y_UNIT_TEST_SUITE(BlobTableIo)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-Y_UNIT_TEST_SUITE(TableIoEnableTypeConversion) {
-
+Y_UNIT_TEST_SUITE(TableIoEnableTypeConversion)
+{
     TTableSchema CreateSchemaForTypeConversion()
     {
         return TTableSchema()
@@ -2355,5 +2357,170 @@ Y_UNIT_TEST_SUITE(TableIoEnableTypeConversion) {
         WriteRowAndAssertException(
             TFormatHints().EnableTypeConversion(false),
             TNode()("String", 178));
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+Y_UNIT_TEST_SUITE(StreamReaders)
+{
+    TString SerializeProto(const Message& row)
+    {
+        TString data;
+        row.SerializeToString(&data);
+        auto len = static_cast<ui32>(data.size());
+        auto lenStr = TString(reinterpret_cast<char*>(&len), sizeof(len));
+        auto dataWithLen = lenStr + data;
+        return dataWithLen;
+    }
+
+    Y_UNIT_TEST(Protobuf)
+    {
+        TUrlRow row;
+        row.SetHost("http://www.example.com");
+        row.SetPath("/");
+        row.SetHttpCode(302);
+
+        auto data = SerializeProto(row);
+        auto stream = TMemoryInput(data);
+        auto reader = CreateTableReader<TUrlRow>(&stream);
+
+        UNIT_ASSERT(reader->IsValid());
+        {
+            const auto& row = reader->GetRow();
+            UNIT_ASSERT_VALUES_EQUAL(row.GetHost(), "http://www.example.com");
+            UNIT_ASSERT_VALUES_EQUAL(row.GetPath(), "/");
+            UNIT_ASSERT_VALUES_EQUAL(row.GetHttpCode(), 302);
+        }
+        reader->Next();
+        UNIT_ASSERT(!reader->IsValid());
+    }
+
+    Y_UNIT_TEST(ProtobufMultiTableHetero)
+    {
+        TUrlRow row1;
+        row1.SetHost("http://www.example.com");
+        row1.SetPath("/");
+        row1.SetHttpCode(302);
+        
+        TRowVer1 row2;
+        row2.SetString_1("String");
+        row2.SetUint32_2(32);
+        
+        TUrlRow row3;
+        row3.SetHost("http://www.example.com");
+        row3.SetPath("/");
+        row3.SetHttpCode(302);
+
+        auto data = SerializeProto(row1) +
+            "\xFF\xFF\xFF\xFF" + TString("\x01\x00\x00\x00", 4) + // Table index
+            SerializeProto(row2) +
+            SerializeProto(row2) +
+            "\xFF\xFF\xFF\xFF" + TString("\x02\x00\x00\x00", 4) + // Table index
+            SerializeProto(row3);
+
+        auto stream = TMemoryInput(data);
+        auto reader = CreateProtoMultiTableReader<TUrlRow, TRowVer1, TUrlRow>(&stream);
+
+        static_assert(std::is_same_v<
+            std::remove_reference_t<decltype(*reader)>,
+            TTableReader<TProtoOneOf<TUrlRow, TRowVer1>>
+        >);
+
+        UNIT_ASSERT(reader->IsValid());
+        {
+            UNIT_ASSERT_VALUES_EQUAL(reader->GetTableIndex(), 0);
+            const auto& row = reader->GetRow<TUrlRow>();
+            UNIT_ASSERT_VALUES_EQUAL(row.GetHost(), "http://www.example.com");
+            UNIT_ASSERT_VALUES_EQUAL(row.GetPath(), "/");
+            UNIT_ASSERT_VALUES_EQUAL(row.GetHttpCode(), 302);
+        }
+        reader->Next();
+
+        UNIT_ASSERT(reader->IsValid());
+        {
+            UNIT_ASSERT_VALUES_EQUAL(reader->GetTableIndex(), 1);
+            const auto& row = reader->GetRow<TRowVer1>();
+            UNIT_ASSERT_VALUES_EQUAL(row.GetString_1(), "String");
+            UNIT_ASSERT_VALUES_EQUAL(row.GetUint32_2(), 32);
+        }
+        reader->Next();
+
+        UNIT_ASSERT(reader->IsValid());
+        {
+            UNIT_ASSERT_VALUES_EQUAL(reader->GetTableIndex(), 1);
+            const auto& row = reader->GetRow<TRowVer1>();
+            UNIT_ASSERT_VALUES_EQUAL(row.GetString_1(), "String");
+            UNIT_ASSERT_VALUES_EQUAL(row.GetUint32_2(), 32);
+        }
+        reader->Next();
+
+        UNIT_ASSERT(reader->IsValid());
+        {
+            UNIT_ASSERT_VALUES_EQUAL(reader->GetTableIndex(), 2);
+            const auto& row = reader->GetRow<TUrlRow>();
+            UNIT_ASSERT_VALUES_EQUAL(row.GetHost(), "http://www.example.com");
+            UNIT_ASSERT_VALUES_EQUAL(row.GetPath(), "/");
+            UNIT_ASSERT_VALUES_EQUAL(row.GetHttpCode(), 302);
+        }
+        reader->Next();
+
+        UNIT_ASSERT(!reader->IsValid());
+    }
+
+    Y_UNIT_TEST(ProtobufMultiTableHomo)
+    {
+        TUrlRow row;
+        row.SetHost("http://www.example.com");
+        row.SetPath("/");
+        row.SetHttpCode(302);
+        
+        auto data = SerializeProto(row) +
+            "\xFF\xFF\xFF\xFF" + TString("\x01\x00\x00\x00", 4) + // Table index
+            SerializeProto(row) +
+            SerializeProto(row) +
+            "\xFF\xFF\xFF\xFF" + TString("\x02\x00\x00\x00", 4) + // Table index
+            SerializeProto(row);
+
+        auto stream = TMemoryInput(data);
+        auto reader = CreateProtoMultiTableReader<TUrlRow>(&stream, 3);
+
+        for (auto expectedIndex : TVector<int>{0, 1, 1, 2}) {
+            UNIT_ASSERT(reader->IsValid());
+            UNIT_ASSERT_VALUES_EQUAL(reader->GetTableIndex(), expectedIndex);
+            const auto& row = reader->GetRow();
+            UNIT_ASSERT_VALUES_EQUAL(row.GetHost(), "http://www.example.com");
+            UNIT_ASSERT_VALUES_EQUAL(row.GetPath(), "/");
+            UNIT_ASSERT_VALUES_EQUAL(row.GetHttpCode(), 302);
+            reader->Next();
+        }
+    }
+
+    Y_UNIT_TEST(Yson)
+    {
+        auto data = "{x=1;y=2};{x=2;y=3}";
+
+        auto stream = TMemoryInput(data);
+        auto reader = CreateTableReader<TNode>(&stream);
+
+        UNIT_ASSERT(reader->IsValid());
+        {
+            UNIT_ASSERT_VALUES_EQUAL(reader->GetTableIndex(), 0);
+            const auto& row = reader->GetRow();
+            UNIT_ASSERT_VALUES_EQUAL(row["x"].AsInt64(), 1);
+            UNIT_ASSERT_VALUES_EQUAL(row["y"].AsInt64(), 2);
+        }
+        reader->Next();
+
+        UNIT_ASSERT(reader->IsValid());
+        {
+            UNIT_ASSERT_VALUES_EQUAL(reader->GetTableIndex(), 0);
+            const auto& row = reader->GetRow();
+            UNIT_ASSERT_VALUES_EQUAL(row["x"].AsInt64(), 2);
+            UNIT_ASSERT_VALUES_EQUAL(row["y"].AsInt64(), 3);
+        }
+        reader->Next();
+
+        UNIT_ASSERT(!reader->IsValid());
     }
 }

@@ -45,6 +45,11 @@ private:
     const TTableReaderOptions& /* options */,
     const ::google::protobuf::Descriptor* descriptor);
 
+::TIntrusivePtr<IProtoReaderImpl> CreateProtoReader(
+    IInputStream* stream,
+    const TTableReaderOptions& /* options */,
+    TVector<const ::google::protobuf::Descriptor*> descriptors);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail

@@ -231,8 +231,11 @@ namespace NYT {
 
     } // namespace NDetail
 
-    template<class... TYdlRows>
+    template<class... TYdlRowTypes>
     class TYdlOneOf;
+
+    template<class... TProtoRowTypes>
+    class TProtoOneOf;
 
     using TYaMRReader = TTableReader<TYaMRRow>;
     using TYaMRWriter = TTableWriter<TYaMRRow>;

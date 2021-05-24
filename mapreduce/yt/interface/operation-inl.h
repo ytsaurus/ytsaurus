@@ -40,12 +40,12 @@ TStructuredRowStreamDescription GetStructuredRowStreamDescription()
         return TTNodeStructuredRowStream{};
     } else if constexpr (std::is_same_v<TRow, NYT::TYaMRRow>) {
         return TTYaMRRowStructuredRowStream{};
-    } else if constexpr (std::is_base_of_v<::google::protobuf::Message, TRow>) {
-        if constexpr (std::is_same_v<::google::protobuf::Message, TRow>) {
-            return TProtobufStructuredRowStream{nullptr};
-        } else {
-            return TProtobufStructuredRowStream{TRow::descriptor()};
-        }
+    } else if constexpr (std::is_same_v<::google::protobuf::Message, TRow>) {
+        return TProtobufStructuredRowStream{nullptr};
+    } else if constexpr (TIsBaseOf<::google::protobuf::Message, TRow>::Value) {
+        return TProtobufStructuredRowStream{TRow::descriptor()};
+    } else if constexpr (TIsProtoOneOf<TRow>::value) {
+        return TProtobufStructuredRowStream{nullptr};
     } else if constexpr (
         NYdl::TIsYdlGenerated<TRow>::value
         || TIsYdlOneOf<TRow>::value
@@ -192,7 +192,7 @@ inline ::TIntrusivePtr<IProtoReaderImpl> CreateJobReaderImpl<Message>()
 template <class T>
 inline ::TIntrusivePtr<typename TRowTraits<T>::IReaderImpl> CreateJobReaderImpl()
 {
-    if constexpr (TIsBaseOf<Message, T>::Value) {
+    if constexpr (TIsBaseOf<Message, T>::Value || NDetail::TIsProtoOneOf<T>::value) {
         return CreateJobProtoReader();
     } else if constexpr (NYdl::TIsYdlGenerated<T>::value) {
         return CreateJobYdlReader();

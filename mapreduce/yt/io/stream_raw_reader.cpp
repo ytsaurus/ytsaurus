@@ -43,6 +43,16 @@ namespace NDetail {
         {descriptor});
 }
 
+::TIntrusivePtr<IProtoReaderImpl> CreateProtoReader(
+    IInputStream* stream,
+    const TTableReaderOptions& /* options */,
+    TVector<const ::google::protobuf::Descriptor*> descriptors)
+{
+    return new TLenvalProtoTableReader(
+        ::MakeIntrusive<TInputStreamProxy>(stream),
+        std::move(descriptors));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail
