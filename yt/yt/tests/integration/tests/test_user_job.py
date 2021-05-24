@@ -903,7 +903,8 @@ class TestArtifactCacheBypass(YTEnvSetup):
                 "mapper": {
                     "file_paths": ["<bypass_artifact_cache=%true>//tmp/file"],
                     "output_format": "json",
-                }
+                },
+                "max_failed_job_count": 1,
             },
         )
 
@@ -929,7 +930,8 @@ class TestArtifactCacheBypass(YTEnvSetup):
                 "mapper": {
                     "file_paths": ["<bypass_artifact_cache=%true;format=json>//tmp/table"],
                     "output_format": "json",
-                }
+                },
+                "max_failed_job_count": 1,
             },
         )
 

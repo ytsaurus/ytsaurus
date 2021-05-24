@@ -81,6 +81,18 @@ struct IJob
     virtual NYson::TYsonString GetStatistics() const = 0;
     virtual void SetStatistics(const NYson::TYsonString& statistics) = 0;
 
+    virtual void OnJobProxySpawned() = 0;
+
+    virtual void PrepareArtifact(
+        const TString& artifactName,
+        const TString& pipePath) = 0;
+
+    virtual void OnArtifactPreparationFailed(
+        const TString& artifactName,
+        const TString& artifactPath,
+        const TError& error) = 0;
+
+    virtual void OnArtifactsPrepared() = 0;
     virtual void OnJobPrepared() = 0;
 
     virtual TInstant GetStartTime() const = 0;

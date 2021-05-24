@@ -198,6 +198,9 @@ public:
     virtual void Cleanup() override
     { }
 
+    virtual void PrepareArtifacts() override
+    { }
+
     virtual double GetProgress() const override
     {
         // Caution: progress calculated approximately (assuming all chunks have equal size).

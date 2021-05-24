@@ -685,14 +685,18 @@ TJobResult TJobProxy::DoRun()
         SetJob(job);
         job->Initialize();
 
-        MemoryWatchdogExecutor_->Start();
-        HeartbeatExecutor_->Start();
-        CpuMonitor_->Start();
+        OnSpawned();
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Failed to prepare job proxy");
         Exit(EJobProxyExitCode::JobProxyPrepareFailed);
     }
 
+    job->PrepareArtifacts();
+    OnArtifactsPrepared();
+
+    MemoryWatchdogExecutor_->Start();
+    HeartbeatExecutor_->Start();
+    CpuMonitor_->Start();
 
     return job->Run();
 }
@@ -841,6 +845,22 @@ void TJobProxy::UpdateResourceUsage()
     req->Invoke().Subscribe(BIND(&TJobProxy::OnResourcesUpdated, MakeWeak(this), RequestedMemoryReserve_.load()));
 }
 
+void TJobProxy::OnSpawned()
+{
+    auto req = SupervisorProxy_->OnJobProxySpawned();
+    ToProto(req->mutable_job_id(), JobId_);
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+}
+
+void TJobProxy::OnArtifactsPrepared()
+{
+    auto req = SupervisorProxy_->OnArtifactsPrepared();
+    ToProto(req->mutable_job_id(), JobId_);
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+}
+
 void TJobProxy::SetUserJobMemoryUsage(i64 memoryUsage)
 {
     UserJobCurrentMemoryUsage_ = memoryUsage;
@@ -876,6 +896,42 @@ void TJobProxy::OnPrepared()
     auto req = SupervisorProxy_->OnJobPrepared();
     ToProto(req->mutable_job_id(), JobId_);
     req->Invoke();
+}
+
+void TJobProxy::PrepareArtifact(
+    const TString& artifactName,
+    const TString& pipePath)
+{
+    YT_LOG_DEBUG("Asking node to prepare artifact (ArtifactName: %v, PipePath: %v)",
+        artifactName,
+        pipePath);
+
+    auto req = SupervisorProxy_->PrepareArtifact();
+    ToProto(req->mutable_job_id(), JobId_);
+    req->set_artifact_name(artifactName);
+    req->set_pipe_path(pipePath);
+
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+}
+
+void TJobProxy::OnArtifactPreparationFailed(
+    const TString& artifactName,
+    const TString& artifactPath,
+    const TError& error)
+{
+    YT_LOG_DEBUG(error, "Artifact preparation failed (ArtifactName: %v, ArtifactPath: %v)",
+        artifactName,
+        artifactPath);
+
+    auto req = SupervisorProxy_->OnArtifactPreparationFailed();
+    ToProto(req->mutable_job_id(), JobId_);
+    req->set_artifact_name(artifactName);
+    req->set_artifact_path(artifactPath);
+    ToProto(req->mutable_error(), error);
+
+    WaitFor(req->Invoke())
+        .ThrowOnError();
 }
 
 NApi::NNative::IClientPtr TJobProxy::GetClient() const

@@ -162,6 +162,9 @@ private:
 
     void UpdateResourceUsage();
 
+    void OnSpawned();
+    void OnArtifactsPrepared();
+
     // IJobHost implementation.
     virtual TJobProxyConfigPtr GetConfig() const override;
     virtual IUserJobEnvironmentPtr CreateUserJobEnvironment() const override;
@@ -177,6 +180,15 @@ private:
     virtual NApi::NNative::IClientPtr GetClient() const override;
 
     virtual void OnPrepared() override;
+
+    virtual void PrepareArtifact(
+        const TString& artifactName,
+        const TString& pipePath) override;
+
+    virtual void OnArtifactPreparationFailed(
+        const TString& artifactName,
+        const TString& artifactPath,
+        const TError& error) override;
 
     virtual NChunkClient::IBlockCachePtr GetReaderBlockCache() const override;
     virtual NChunkClient::IBlockCachePtr GetWriterBlockCache() const override;

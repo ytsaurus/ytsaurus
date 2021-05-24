@@ -263,115 +263,79 @@ TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(int slotI
 }
 
 TFuture<void> TSlotLocation::DoMakeSandboxFile(
+    TJobId jobId,
     int slotIndex,
-    ESandboxKind kind,
-    const std::function<void(const TString& destinationPath)>& callback,
-    const TString& destinationName,
+    const TString& artifactName,
+    ESandboxKind sandboxKind,
+    const TCallback<void()>& callback,
+    const std::optional<TString>& destinationPath,
     bool canUseLightInvoker)
 {
-    auto sandboxPath = GetSandboxPath(slotIndex, kind);
-    auto destinationPath = NFS::CombinePaths(sandboxPath, destinationName);
+    if (destinationPath) {
+        canUseLightInvoker &= IsInsideTmpfs(*destinationPath);
+    }
 
-    bool useLightInvoker = (canUseLightInvoker && IsInsideTmpfs(destinationPath));
-    const auto& invoker = useLightInvoker
+    const auto& invoker = canUseLightInvoker
         ? LightInvoker_
         : HeavyInvoker_;
+
+    YT_LOG_DEBUG(
+        "Started making sandbox file "
+        "(JobId: %v, ArtifactName: %v, SandboxKind: %v, UseLightInvoker: %v)",
+        jobId,
+        artifactName,
+        sandboxKind,
+        canUseLightInvoker);
 
     return BIND([=, this_ = MakeStrong(this)] {
         ValidateEnabled();
 
-        YT_LOG_DEBUG("Making sandbox file (DestinationName: %v, UseLightInvoker: %v, SlotIndex: %v)",
-            destinationName,
-            useLightInvoker,
-            slotIndex);
-
-        try {
-            // This validations do not disable slot.
-            ValidateNotExists(destinationPath);
-            ForceSubdirectories(destinationPath, sandboxPath);
-        } catch (const std::exception& ex) {
-            // Job will be failed.
-            THROW_ERROR_EXCEPTION(
-                "Failed to build file %Qv in sandbox %v",
-                destinationName,
-                sandboxPath)
-                << ex;
-        }
-
-        auto processError = [&] (const std::exception& ex, bool systemError, bool noSpace) {
-            bool slotWithQuota = false;
-            {
-                auto guard = ReaderGuard(SlotsLock_);
-                slotWithQuota = SlotsWithQuota_.contains(slotIndex);
-            }
-
-            if (IsInsideTmpfs(destinationPath) && noSpace) {
-                THROW_ERROR_EXCEPTION(
-                    EErrorCode::TmpfsOverflow,
-                    "Failed to build file %Qv in sandbox %v: tmpfs is too small",
-                    destinationName,
-                    sandboxPath)
-                    << ex;
-            } else if (slotWithQuota && noSpace) {
-                THROW_ERROR_EXCEPTION(
-                    "Failed to build file %Qv in sandbox %v: disk space limit is too small",
-                    destinationName,
-                    sandboxPath)
-                    << ex;
-            } else {
-                auto error = TError(
-                    EErrorCode::ArtifactCopyingFailed,
-                    "Failed to build file %Qv in sandbox %v",
-                    destinationName,
-                    sandboxPath)
-                    << ex;
-
-                if (systemError) {
-                    Disable(error);
-                }
-                // Job will be aborted.
-                THROW_ERROR error;
-            }
+        auto onError = [&] (const TError& error) {
+            OnArtifactPreparationFailed(
+                jobId,
+                slotIndex,
+                artifactName,
+                sandboxKind,
+                destinationPath,
+                error);
         };
 
         try {
-            callback(destinationPath);
-            EnsureNotInUse(destinationPath);
-        } catch (const TErrorException& ex) {
-            const auto& error = ex.Error();
-            bool noSpace = static_cast<bool>(error.FindMatching(ELinuxErrorCode::NOSPC));
-            processError(ex, IsSystemError(error), noSpace);
+            callback.Run();
         } catch (const TSystemError& ex) {
             // For util functions.
-            bool noSpace = (ex.Status() == ENOSPC);
-            processError(ex, /* systemError */ true, noSpace);
+            onError(TError::FromSystem(ex));
         } catch (const std::exception& ex) {
-            // Unclassified error. We consider it system to disable location.
-            processError(ex, /* systemError */ true, /* noSpace */ false);
+            onError(TError(ex));
         }
-
-        YT_LOG_DEBUG("Sandbox file created (DestinationName: %v, SlotIndex: %v)",
-            destinationName,
-            slotIndex);
     })
     .AsyncVia(invoker)
     .Run();
 }
 
 TFuture<void> TSlotLocation::MakeSandboxCopy(
+    TJobId jobId,
     int slotIndex,
-    ESandboxKind kind,
+    const TString& artifactName,
+    ESandboxKind sandboxKind,
     const TString& sourcePath,
-    const TString& destinationName,
+    const TString& destinationPath,
     bool executable)
 {
     return DoMakeSandboxFile(
+        jobId,
         slotIndex,
-        kind,
-        [=] (const TString& destinationPath) {
-            YT_LOG_DEBUG("Started copying file to sandbox (SourcePath: %v, DestinationName: %v)",
+        artifactName,
+        sandboxKind,
+        BIND([=] {
+            YT_LOG_DEBUG(
+                "Started copying file to sandbox "
+                "(JobId: %v, ArtifactName: %v, SandboxKind: %v, SourcePath: %v, DestinationPath: %v)",
+                jobId,
+                artifactName,
+                sandboxKind,
                 sourcePath,
-                destinationName);
+                destinationPath);
 
             NFS::ChunkedCopy(
                 sourcePath,
@@ -380,106 +344,108 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
 
             NFS::SetPermissions(destinationPath, 0666 + (executable ? 0111 : 0));
 
-            YT_LOG_DEBUG("Finished copying file to sandbox (SourcePath: %v, DestinationName: %v)",
-                sourcePath,
-                destinationName);
-        },
-        destinationName,
-        /* canUseLightInvoker */IsInsideTmpfs(sourcePath));
+            YT_LOG_DEBUG(
+                "Finished copying file to sandbox "
+                "(JobId: %v, ArtifactName: %v, SandboxKind: %v)",
+                jobId,
+                artifactName,
+                sandboxKind);
+        }),
+        /*destinationPath*/ std::nullopt,
+        /*canUseLightInvoker*/ IsInsideTmpfs(sourcePath));
 }
 
 TFuture<void> TSlotLocation::MakeSandboxLink(
+    TJobId jobId,
     int slotIndex,
-    ESandboxKind kind,
+    const TString& artifactName,
+    ESandboxKind sandboxKind,
     const TString& targetPath,
-    const TString& linkName,
+    const TString& linkPath,
     bool executable)
 {
     return DoMakeSandboxFile(
+        jobId,
         slotIndex,
-        kind,
-        [=] (const TString& linkPath) {
-            YT_LOG_DEBUG("Started making sandbox symlink (TargetPath: %v, LinkName: %v)",
+        artifactName,
+        sandboxKind,
+        BIND([=] {
+            YT_LOG_DEBUG(
+                "Started making sandbox symlink "
+                "(JobId: %v, ArtifactName: %v, SandboxKind: %v, TargetPath: %v, LinkPath: %v)",
+                jobId,
+                artifactName,
+                sandboxKind,
                 targetPath,
-                linkName);
+                linkPath);
+
+            auto sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
+            try {
+                // These validations do not disable slot.
+                ValidateNotExists(linkPath);
+                ForceSubdirectories(linkPath, sandboxPath);
+            } catch (const std::exception& ex) {
+                // Job will be failed.
+                THROW_ERROR_EXCEPTION(
+                    "Failed to build file %Qv in sandbox %Qv",
+                    artifactName,
+                    sandboxKind)
+                    << ex;
+            }
 
             // NB: Set permissions for the link _source_ and prevent writes to it.
             NFS::SetPermissions(targetPath, 0644 + (executable ? 0111 : 0));
 
             NFS::MakeSymbolicLink(targetPath, linkPath);
 
-            YT_LOG_DEBUG("Finished making sandbox symlink (TargetPath: %v, LinkName: %v)",
-                targetPath,
-                linkName);
-        },
-        linkName,
-        /* canUseLightInvoker */true);
+            YT_LOG_DEBUG("Finished making sandbox symlink "
+                "(JobId: %v, ArtifactName: %v, SandboxKind: %v)",
+                jobId,
+                artifactName,
+                sandboxKind);
+        }),
+        /*destinationPath*/ targetPath,
+        /*canUseLightInvoker*/ true);
 }
 
 TFuture<void> TSlotLocation::MakeSandboxFile(
+    TJobId jobId,
     int slotIndex,
-    ESandboxKind kind,
+    const TString& artifactName,
+    ESandboxKind sandboxKind,
     const std::function<void(IOutputStream*)>& producer,
-    const TString& destinationName,
+    const TString& destinationPath,
     bool executable)
 {
     return DoMakeSandboxFile(
+        jobId,
         slotIndex,
-        kind,
-        [=] (const TString& destinationPath) {
-            YT_LOG_DEBUG("Started building sandbox file (DestinationName: %v)",
-                destinationName);
+        artifactName,
+        sandboxKind,
+        BIND([=] {
+            YT_LOG_DEBUG(
+                "Started building sandbox file "
+                "(JobId: %v, ArtifactName: %v, SandboxKind: %v, DestinationPath: %v)",
+                jobId,
+                artifactName,
+                sandboxKind,
+                destinationPath);
 
-            TFile file(destinationPath, CreateAlways | WrOnly | Seq | CloseOnExec);
-            file.Flock(LOCK_EX);
-
+            TFile file(destinationPath, WrOnly | Seq | CloseOnExec);
             TFileOutput stream(file);
             producer(&stream);
 
             NFS::SetPermissions(destinationPath, 0666 + (executable ? 0111 : 0));
 
-            YT_LOG_DEBUG("Finished building sandbox file (DestinationName: %v)",
-                destinationName);
-        },
-        destinationName,
-        /* canUseLightInvoker */true);
-}
-
-TFuture<void> TSlotLocation::FinalizeSandboxPreparation(int slotIndex)
-{
-    auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
-    const auto& invoker = IsInsideTmpfs(sandboxPath)
-        ? LightInvoker_
-        : HeavyInvoker_;
-
-    return BIND([=, this_ = MakeStrong(this)] {
-        YT_LOG_DEBUG("Finalizing sandbox preparation (SlotIndex: %v)",
-            slotIndex);
-
-        ValidateEnabled();
-
-        auto userId = SlotIndexToUserId_(slotIndex);
-
-        // We need to give read access to sandbox directory to yt_node/yt_job_proxy effective user (usually yt:yt)
-        // and to job user (e.g. yt_slot_N). Since they can have different groups, we fallback to giving read
-        // access to everyone.
-        // job proxy requires read access e.g. for getting tmpfs size.
-        // Write access is for job user only, who becomes an owner.
-        try {
-            ChownChmod(sandboxPath, userId, 0755);
-        } catch (const std::exception& ex) {
-            auto error = TError(EErrorCode::QuotaSettingFailed, "Failed to set owner and permissions for a job sandbox")
-                << TErrorAttribute("sandbox_path", sandboxPath)
-                << ex;
-            Disable(error);
-            THROW_ERROR error;
-        }
-
-        YT_LOG_DEBUG("Finalized sandbox preparation (SlotIndex: %v)",
-            slotIndex);
-    })
-    .AsyncVia(invoker)
-    .Run();
+            YT_LOG_DEBUG(
+                "Finished building sandbox file "
+                "(JobId: %v, ArtifactName: %v, SandboxKind: %v)",
+                jobId,
+                artifactName,
+                sandboxKind);
+        }),
+        /*destinationPath*/ std::nullopt,
+        /*canUseLightInvoker*/ true);
 }
 
 TFuture<void> TSlotLocation::MakeConfig(int slotIndex, INodePtr config)
@@ -646,6 +612,70 @@ TString TSlotLocation::GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) c
     const auto& sandboxName = SandboxDirectoryNames[sandboxKind];
     YT_ASSERT(sandboxName);
     return NFS::CombinePaths(GetSlotPath(slotIndex), sandboxName);
+}
+
+void TSlotLocation::OnArtifactPreparationFailed(
+    TJobId jobId,
+    int slotIndex,
+    const TString& artifactName,
+    ESandboxKind sandboxKind,
+    const std::optional<TString>& destinationPath,
+    const TError& error)
+{
+    auto Logger = this->Logger
+        .WithTag("JobId: %v, ArtifactName: %v, SandboxKind: %v",
+            jobId,
+            artifactName,
+            sandboxKind);
+
+    bool slotWithQuota = false;
+    {
+        auto guard = ReaderGuard(SlotsLock_);
+        slotWithQuota = SlotsWithQuota_.contains(slotIndex);
+    }
+
+    bool destinationInsideTmpfs = destinationPath && IsInsideTmpfs(*destinationPath);
+
+    bool brokenPipe = static_cast<bool>(error.FindMatching(ELinuxErrorCode::PIPE));
+    bool noSpace = static_cast<bool>(error.FindMatching(ELinuxErrorCode::NOSPC));
+
+    // NB: Broken pipe error usually means that job proxy exited abnormally during artifact preparation.
+    // We silently ignore it and wait for the job proxy exit error.
+    if (brokenPipe) {
+        YT_LOG_INFO(error, "Failed to build file in sandbox: broken pipe");
+    } else if (destinationInsideTmpfs && noSpace) {
+        YT_LOG_INFO(error, "Failed to build file in sandbox: tmpfs is too small");
+
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::TmpfsOverflow,
+            "Failed to build file %Qv in sandbox %Qv: tmpfs is too small",
+            artifactName,
+            sandboxKind)
+            << error;
+    } else if (slotWithQuota && noSpace) {
+        YT_LOG_INFO(error, "Failed to build file in sandbox: disk space limit is too small");
+
+        THROW_ERROR_EXCEPTION(
+            "Failed to build file %Qv in sandbox %Qv: disk space limit is too small",
+            artifactName,
+            sandboxKind)
+            << error;
+    } else {
+        YT_LOG_INFO(error, "Failed to build file in sandbox:");
+
+        auto wrappedError = TError(
+            EErrorCode::ArtifactCopyingFailed,
+            "Failed to build file %Qv in sandbox %Qv",
+            artifactName,
+            sandboxKind)
+            << error;
+
+        if (IsSystemError(wrappedError)) {
+            Disable(wrappedError);
+        }
+        // Job will be aborted.
+        THROW_ERROR wrappedError;
+    }
 }
 
 bool TSlotLocation::IsInsideTmpfs(const TString& path) const
@@ -836,23 +866,6 @@ NNodeTrackerClient::NProto::TSlotLocationStatistics TSlotLocation::GetSlotLocati
 {
     auto guard = ReaderGuard(SlotLocationStatisticsLock_);
     return SlotLocationStatistics_;
-}
-
-void TSlotLocation::ChownChmod(
-    const TString& path,
-    int userId,
-    int permissions)
-{
-    if (Bootstrap_->IsSimpleEnvironment()) {
-        ChownChmodDirectoriesRecursively(path, std::nullopt, permissions);
-    } else {
-        auto config = New<TChownChmodConfig>();
-
-        config->Permissions = permissions;
-        config->Path = path;
-        config->UserId = static_cast<uid_t>(userId);
-        RunTool<TChownChmodTool>(config);
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

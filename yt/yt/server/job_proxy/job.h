@@ -52,6 +52,14 @@ struct IJobHost
 
     virtual void OnPrepared() = 0;
 
+    virtual void PrepareArtifact(
+        const TString& artifactName,
+        const TString& pipePath) = 0;
+    virtual void OnArtifactPreparationFailed(
+        const TString& artifactName,
+        const TString& artifactPath,
+        const TError& error) = 0;
+
     virtual NChunkClient::IBlockCachePtr GetReaderBlockCache() const = 0;
     virtual NChunkClient::IBlockCachePtr GetWriterBlockCache() const = 0;
 
@@ -90,6 +98,8 @@ struct IJob
     //! Tries to clean up (e.g. user processes), best effort guarantees.
     //! Used during abnormal job proxy termination.
     virtual void Cleanup() = 0;
+
+    virtual void PrepareArtifacts() = 0;
 
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const = 0;
     virtual NChunkClient::TInterruptDescriptor GetInterruptDescriptor() const = 0;

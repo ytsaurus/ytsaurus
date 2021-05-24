@@ -885,6 +885,51 @@ void ChunkedCopy(
 #endif
 }
 
+void Splice(
+    const TFile& source,
+    const TFile& destination,
+    i64 chunkSize)
+{
+#ifdef _linux_
+    try {
+        int srcFd = source.GetHandle();
+        int dstFd = destination.GetHandle();
+
+        loff_t offset = 0;
+
+        bool completed = false;
+        while (!completed) {
+            i64 currentChunkSize = 0;
+            while (currentChunkSize < chunkSize) {
+                auto size = splice(srcFd, nullptr, dstFd, &offset, chunkSize, SPLICE_F_MOVE | SPLICE_F_MORE);
+                if (size == -1) {
+                    THROW_ERROR_EXCEPTION("Error while doing splice")
+                        << TErrorAttribute("source_path", source.GetName())
+                        << TErrorAttribute("destination_path", destination.GetName())
+                        << TError::FromSystem();
+                } else if (size == 0) {
+                    completed = true;
+                    break;
+                } else {
+                    currentChunkSize += size;
+                }
+            }
+
+            NConcurrency::Yield();
+        }
+
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to copy %v to %v via splice",
+            source.GetName(),
+            destination.GetName())
+            << ex;
+    }
+#else
+    Y_UNUSED(source, destination, chunkSize);
+    ThrowNotSupported();
+#endif
+}
+
 TError AttachLsofOutput(TError error, const TString& path)
 {
     auto lsofOutput = TShellCommand("lsof", {path})

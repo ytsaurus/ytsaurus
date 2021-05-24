@@ -85,6 +85,7 @@ public:
 
     static TError FromSystem();
     static TError FromSystem(int error);
+    static TError FromSystem(const TSystemError& error);
 
     TErrorCode GetCode() const;
     TError& SetCode(TErrorCode code);

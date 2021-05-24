@@ -67,6 +67,8 @@ public:
 
     virtual void Cleanup() override;
 
+    virtual void PrepareArtifacts() override;
+
     virtual double GetProgress() const override;
 
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;

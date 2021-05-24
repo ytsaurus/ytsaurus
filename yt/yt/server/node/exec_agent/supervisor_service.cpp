@@ -50,6 +50,10 @@ public:
             RPC_SERVICE_METHOD_DESC(GetJobSpec)
                 .SetResponseCodec(NCompression::ECodec::Lz4)
                 .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobProxySpawned));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PrepareArtifact));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(OnArtifactPreparationFailed));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(OnArtifactsPrepared));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobFinished));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobProgress));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobPrepared));
@@ -133,10 +137,10 @@ private:
         auto job = jobController->GetJobOrThrow(jobId);
 
         auto jobPhase = job->GetPhase();
-        if (jobPhase != EJobPhase::PreparingProxy) {
+        if (jobPhase != EJobPhase::SpawningJobProxy) {
             THROW_ERROR_EXCEPTION("Cannot fetch job spec; job is in wrong phase")
-                  << TErrorAttribute("expected_phase", EJobPhase::PreparingProxy)
-                  << TErrorAttribute("actual_phase", jobPhase);
+                << TErrorAttribute("expected_phase", EJobPhase::SpawningJobProxy)
+                << TErrorAttribute("actual_phase", jobPhase);
         }
 
         *response->mutable_job_spec() = job->GetSpec();
@@ -148,6 +152,69 @@ private:
         jobProxyResources->set_network(resources.network());
 
         ToProto(response->mutable_ports(), job->GetPorts());
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, OnJobProxySpawned)
+    {
+        auto jobId = FromProto<TJobId>(request->job_id());
+
+        context->SetRequestInfo("JobId: %v", jobId);
+
+        const auto& jobController = Bootstrap_->GetJobController();
+        auto job = jobController->GetJobOrThrow(jobId);
+        job->OnJobProxySpawned();
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, PrepareArtifact)
+    {
+        auto jobId = FromProto<TJobId>(request->job_id());
+        auto artifactName = request->artifact_name();
+        auto pipePath = request->pipe_path();
+
+        context->SetRequestInfo("JobId: %v, ArtifactName: %v",
+            jobId,
+            artifactName);
+
+        const auto& jobController = Bootstrap_->GetJobController();
+        auto job = jobController->GetJobOrThrow(jobId);
+
+        job->PrepareArtifact(artifactName, pipePath);
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, OnArtifactPreparationFailed)
+    {
+        auto jobId = FromProto<TJobId>(request->job_id());
+        auto artifactName = request->artifact_name();
+        auto artifactPath = request->artifact_path();
+        auto error = FromProto<TError>(request->error());
+
+        context->SetRequestInfo("JobId: %v, ArtifactName: %v",
+            jobId,
+            artifactName);
+
+        const auto& jobController = Bootstrap_->GetJobController();
+        auto job = jobController->GetJobOrThrow(jobId);
+
+        job->OnArtifactPreparationFailed(artifactName, artifactPath, error);
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, OnArtifactsPrepared)
+    {
+        auto jobId = FromProto<TJobId>(request->job_id());
+
+        context->SetRequestInfo("JobId: %v", jobId);
+
+        const auto& jobController = Bootstrap_->GetJobController();
+        auto job = jobController->GetJobOrThrow(jobId);
+        job->OnArtifactsPrepared();
 
         context->Reply();
     }

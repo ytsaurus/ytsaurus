@@ -99,6 +99,8 @@ public:
     }
 
     virtual TFuture<void> MakeLink(
+        TJobId jobId,
+        const TString& artifactName,
         ESandboxKind sandboxKind,
         const TString& targetPath,
         const TString& linkName,
@@ -106,7 +108,9 @@ public:
     {
         return RunPrepareAction<void>([&] {
                 return Location_->MakeSandboxLink(
+                    jobId,
                     SlotIndex_,
+                    artifactName,
                     sandboxKind,
                     targetPath,
                     linkName,
@@ -115,44 +119,43 @@ public:
     }
 
     virtual TFuture<void> MakeCopy(
+        TJobId jobId,
+        const TString& artifactName,
         ESandboxKind sandboxKind,
         const TString& sourcePath,
-        const TString& destinationName,
+        const TString& destinationPath,
         bool executable) override
     {
         return RunPrepareAction<void>([&] {
                 return Location_->MakeSandboxCopy(
+                    jobId,
                     SlotIndex_,
+                    artifactName,
                     sandboxKind,
                     sourcePath,
-                    destinationName,
+                    destinationPath,
                     executable);
             });
     }
 
     virtual TFuture<void> MakeFile(
+        TJobId jobId,
+        const TString& artifactName,
         ESandboxKind sandboxKind,
         const std::function<void(IOutputStream*)>& producer,
-        const TString& destinationName,
+        const TString& destinationPath,
         bool executable) override
     {
         return RunPrepareAction<void>([&] {
                 return Location_->MakeSandboxFile(
+                    jobId,
                     SlotIndex_,
+                    artifactName,
                     sandboxKind,
                     producer,
-                    destinationName,
+                    destinationPath,
                     executable);
             });
-    }
-
-    virtual TFuture<void> FinalizePreparation() override
-    {
-        return RunPrepareAction<void>([&] {
-                return Location_->FinalizeSandboxPreparation(SlotIndex_);
-            },
-            // Permission setting is uncancelable since it includes tool invocation in a separate process.
-            true);
     }
 
     virtual bool IsLayerCached(const TArtifactKey& artifactKey) const override
@@ -181,7 +184,7 @@ public:
     {
         return Location_->GetSandboxPath(SlotIndex_, sandbox);
     }
-    
+
     virtual TString GetMediumName() const override
     {
         return Location_->GetMediumName();
@@ -221,6 +224,22 @@ public:
             },
             // Setup commands are uncancelable since they are run in separate processes.
             true);
+    }
+
+    virtual void OnArtifactPreparationFailed(
+        TJobId jobId,
+        const TString& artifactName,
+        ESandboxKind sandboxKind,
+        const TString& artifactPath,
+        const TError& error)
+    {
+        Location_->OnArtifactPreparationFailed(
+            jobId,
+            SlotIndex_,
+            artifactName,
+            sandboxKind,
+            artifactPath,
+            error);
     }
 
 private:

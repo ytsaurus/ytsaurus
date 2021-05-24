@@ -364,6 +364,31 @@ public:
         THROW_ERROR_EXCEPTION("Interrupting is not supported");
     }
 
+    virtual void OnJobProxySpawned() override
+    {
+        YT_ABORT();
+    }
+
+    virtual void PrepareArtifact(
+        const TString& /*artifactName*/,
+        const TString& /*pipePath*/)
+    {
+        YT_ABORT();
+    }
+
+    virtual void OnArtifactPreparationFailed(
+        const TString& /*artifactName*/,
+        const TString& /*artifactPath*/,
+        const TError& /*error*/)
+    {
+        YT_ABORT();
+    }
+
+    virtual void OnArtifactsPrepared() override
+    {
+        YT_ABORT();
+    }
+
     virtual void OnJobPrepared() override
     {
         YT_ABORT();
