@@ -613,7 +613,7 @@ TMutableVersionedRow TVersionedRowMerger::BuildMergedRow()
 
             if (retentionBeginIt > ColumnValues_.begin()) {
                 auto valueIt = retentionBeginIt;
-                while (valueIt != ColumnValues_.begin()) {
+                while (true) {
                     if (valueIt->Type == EValueType::TheBottom) {
                         ++valueIt;
                         break;
@@ -622,6 +622,11 @@ TMutableVersionedRow TVersionedRowMerger::BuildMergedRow()
                     if (!valueIt->Aggregate) {
                         break;
                     }
+
+                    if (valueIt == ColumnValues_.begin()) {
+                        break;
+                    }
+
                     --valueIt;
                 }
 

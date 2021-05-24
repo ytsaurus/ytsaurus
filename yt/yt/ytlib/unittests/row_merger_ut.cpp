@@ -1314,6 +1314,42 @@ TEST_F(TVersionedRowMergerTest, MergeAggregates5)
         TIdentityComparableVersionedRow{merger->BuildMergedRow()});
 }
 
+TTableSchema GetAggregateMinSchema()
+{
+    TTableSchema schema({
+        TColumnSchema("k", EValueType::Int64),
+        TColumnSchema("l", EValueType::Int64),
+        TColumnSchema("m", EValueType::Int64),
+        TColumnSchema("n", EValueType::Uint64)
+            .SetAggregate(TString("min"))
+    });
+    return schema;
+}
+
+TEST_F(TVersionedRowMergerTest, MergeAggregates6)
+{
+    auto config = GetRetentionConfig();
+    config->MinDataTtl = TDuration::Zero();
+
+    auto merger = GetTypicalMerger(
+        config,
+        100000000003ULL,
+        100,
+        GetAggregateMinSchema(),
+        TColumnFilter(),
+        false);
+
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", {40}));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=50;aggregate=true> 67890u"));
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=60;aggregate=true> 12345u"));
+
+    EXPECT_EQ(
+        TIdentityComparableVersionedRow{BuildVersionedRow(
+            "<id=0> 0",
+            "<id=3;ts=60;aggregate=true> 12345u")},
+        TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+}
+
 TEST_F(TVersionedRowMergerTest, IgnoreMajorTimestamp)
 {
     auto config = GetRetentionConfig();
