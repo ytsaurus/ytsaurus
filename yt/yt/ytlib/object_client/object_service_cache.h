@@ -35,6 +35,8 @@ struct TObjectServiceCacheKey
 
     operator size_t() const;
     bool operator == (const TObjectServiceCacheKey& other) const;
+
+    i64 ComputeExtraSpace() const;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TObjectServiceCacheKey& key, TStringBuf /*format*/);
@@ -69,6 +71,8 @@ private:
     std::atomic<double> ByteRate_ = 0;
     std::atomic<TInstant> LastUpdateTime_ = TInstant::Zero();
     YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
+
+    i64 ComputeExtraSpace() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TObjectServiceCacheEntry)

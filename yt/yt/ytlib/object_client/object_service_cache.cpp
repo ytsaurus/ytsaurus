@@ -70,6 +70,16 @@ bool TObjectServiceCacheKey::operator == (const TObjectServiceCacheKey& other) c
         TRef::AreBitwiseEqual(RequestBody, other.RequestBody);
 }
 
+i64 TObjectServiceCacheKey::ComputeExtraSpace() const
+{
+    return
+        User.length() +
+        Path.length() +
+        Service.length() +
+        Method.length() +
+        RequestBody.Size();
+}
+
 void FormatValue(TStringBuilderBase* builder, const TObjectServiceCacheKey& key, TStringBuf /*format*/)
 {
     builder->AppendFormat("{%v %v %v.%v %v %x}",
@@ -94,12 +104,13 @@ TObjectServiceCacheEntry::TObjectServiceCacheEntry(
     : TAsyncCacheValueBase(key)
     , Success_(success)
     , ResponseMessage_(std::move(responseMessage))
-    , TotalSpace_(GetByteSize(ResponseMessage_))
     , Timestamp_(timestamp)
     , Revision_(revision)
     , ByteRate_(byteRate)
     , LastUpdateTime_(lastUpdateTime)
-{ }
+{
+    TotalSpace_ = sizeof(*this) + ComputeExtraSpace();
+}
 
 void TObjectServiceCacheEntry::IncrementRate()
 {
@@ -127,6 +138,13 @@ double TObjectServiceCacheEntry::GetByteRate() const
 TInstant TObjectServiceCacheEntry::GetLastUpdateTime() const
 {
     return LastUpdateTime_;
+}
+
+i64 TObjectServiceCacheEntry::ComputeExtraSpace() const
+{
+    return
+        ResponseMessage_.ByteSize() +
+        GetKey().ComputeExtraSpace();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
