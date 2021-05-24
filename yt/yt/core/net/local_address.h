@@ -36,11 +36,8 @@ TString GetLocalHostName();
 
 // Update* function interacts with the system to determine actual hostname
 // of the local machine (by calling `gethostname` and `getaddrinfo`).
-// On success, calls Write* with the hostname, and returns `true`.
-// On failure, calls error callback with diagnostics, and returns `false`.
-bool UpdateLocalHostName(
-    std::function<void(const char* /* failedCall */, const char* /* details */)> errorCallback,
-    bool resolveIntoFqdn);
+// On success, calls Write* with the hostname, throws on errors.
+void UpdateLocalHostName(const TAddressResolverConfigPtr& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

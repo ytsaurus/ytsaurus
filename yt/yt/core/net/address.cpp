@@ -954,9 +954,7 @@ void TAddressResolver::TImpl::EnsureLocalHostName()
         return;
     }
 
-    UpdateLocalHostName([] (const char* failedCall, const char* details) {
-        THROW_ERROR_EXCEPTION("Error updating localhost name; %v failed: %v", failedCall, details);
-    }, Config_->ResolveHostNameIntoFqdn);
+    UpdateLocalHostName(Config_);
 
     YT_LOG_INFO("Localhost name determined via system call (LocalHostName: %v, ResolveHostNameIntoFqdn: %v)",
         GetLocalHostName(),
