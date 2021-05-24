@@ -971,7 +971,7 @@ private:
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         for (auto [id, node] : cypressManager->Nodes()) {
-            if (node->IsTrunk() && node->GetType() == EObjectType::ReplicatedTable) {
+            if (IsObjectAlive(node) && node->IsTrunk() && node->GetType() == EObjectType::ReplicatedTable) {
                 auto* object = node->As<NTableServer::TReplicatedTableNode>();
                 ProcessReplicatedTable(object);
             }
