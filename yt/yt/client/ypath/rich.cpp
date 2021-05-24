@@ -461,7 +461,7 @@ TYsonString TRichYPath::GetFormat() const
 
 TTableSchemaPtr TRichYPath::GetSchema() const
 {
-    return RunAttributeAccessor(*this, "schema", [&] () {
+    return RunAttributeAccessor(*this, "schema", [&] {
         auto schema = FindAttribute<TTableSchemaPtr>(*this, "schema");
         if (schema) {
             ValidateTableSchema(*schema);
@@ -491,7 +491,14 @@ void TRichYPath::SetSortedBy(const TSortColumns& value)
 
 std::optional<i64> TRichYPath::GetRowCountLimit() const
 {
-    return FindAttribute<i64>(*this, "row_count_limit");
+    return RunAttributeAccessor(*this, "row_count_limit", [&] {
+        auto rowCountLimit = FindAttribute<i64>(*this, "row_count_limit");
+        if (rowCountLimit && *rowCountLimit < 0) {
+            THROW_ERROR_EXCEPTION("Row count limit should be non-negative")
+                << TErrorAttribute("row_count_limit", rowCountLimit);
+        }
+        return rowCountLimit;
+    });
 }
 
 std::optional<NTransactionClient::TTimestamp> TRichYPath::GetTimestamp() const
