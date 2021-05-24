@@ -65,6 +65,7 @@ public:
     //! than retrieved via |NYT::NNet::UpdateLocalHostName|.
     std::optional<TString> LocalHostNameOverride;
     int Retries;
+    TDuration RetryDelay;
     TDuration ResolveTimeout;
     TDuration MaxResolveTimeout;
     double Jitter;
@@ -83,6 +84,8 @@ public:
             .Default(true);
         RegisterParameter("retries", Retries)
             .Default(25);
+        RegisterParameter("retry_delay", RetryDelay)
+            .Default(TDuration::MilliSeconds(200));
         RegisterParameter("resolve_timeout", ResolveTimeout)
             .Default(TDuration::Seconds(1));
         RegisterParameter("max_resolve_timeout", MaxResolveTimeout)

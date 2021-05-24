@@ -1,5 +1,7 @@
 #include "local_address.h"
 
+#include "config.h"
+
 #include <yt/yt/core/concurrency/fork_aware_spinlock.h>
 
 #include <yt/yt/core/misc/proc.h>
@@ -68,20 +70,41 @@ TString GetLocalHostName()
     return TString(ReadLocalHostName());
 }
 
-bool UpdateLocalHostName(std::function<void(const char* /* failedCall */, const char* /* details */)> errorCallback, bool resolveIntoFqdn)
+void UpdateLocalHostName(const TAddressResolverConfigPtr& config)
 {
     std::array<char, MaxLocalHostNameLength> hostName;
     hostName.fill(0);
 
-    int result = HandleEintr(::gethostname, hostName.data(), hostName.size() - 1);
-    if (result != 0) {
-        errorCallback("gethostname", ::strerror(errno));
-        return false;
-    }
+    auto onFail = [&] (const std::vector<TError>& errors) {
+        THROW_ERROR_EXCEPTION("Failed to update localhost name") << errors;
+    };
 
-    if (!resolveIntoFqdn) {
+    auto runWithRetries = [&] (std::function<int()> func, std::function<TError(int /*result*/)> onError) {
+        std::vector<TError> errors;
+
+        for (int retryIndex = 0; retryIndex < config->Retries; ++retryIndex) {
+            auto result = func();
+            if (result == 0) {
+                return;
+            }
+
+            errors.push_back(onError(result));
+
+            if (retryIndex + 1 == config->Retries) {
+                onFail(errors);
+            } else {
+                Sleep(config->RetryDelay);
+            }
+        }
+    };
+
+    runWithRetries(
+        [&] { return HandleEintr(::gethostname, hostName.data(), hostName.size() - 1); },
+        [&] (int /*result*/) { return TError("gethostname failed: %v", strerror(errno)); });
+
+    if (!config->ResolveHostNameIntoFqdn) {
         WriteLocalHostName(TStringBuf(hostName.data()));
-        return true;
+        return;
     }
 
     addrinfo request;
@@ -91,22 +114,19 @@ bool UpdateLocalHostName(std::function<void(const char* /* failedCall */, const 
     request.ai_flags |= AI_CANONNAME;
 
     addrinfo* response = nullptr;
-    result = ::getaddrinfo(hostName.data(), nullptr, &request, &response);
-    if (result != 0) {
-        errorCallback("getaddrinfo", gai_strerror(result));
-        return false;
-    }
+
+    runWithRetries(
+        [&] { return getaddrinfo(hostName.data(), nullptr, &request, &response); },
+        [&] (int result) { return TError("getaddrinfo failed: %v", gai_strerror(result)); });
 
     std::unique_ptr<addrinfo, void(*)(addrinfo*)> holder(response, &::freeaddrinfo);
 
     if (!response->ai_canonname) {
-        errorCallback("getaddrinfo", "no canonical hostname");
-        return false;
+        auto error = TError("getaddrinfo failed: no canonical hostname");
+        onFail({error});
     }
 
     WriteLocalHostName(TStringBuf(response->ai_canonname));
-
-    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
