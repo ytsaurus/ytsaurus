@@ -641,8 +641,10 @@ private:
     {
         YT_LOG_TRACE("Processing endpoint range with row slicing (EndpointCount: %v)", endpoints.size());
 
-        // TODO(max42): describe this situation, refer to RowSlicingCorrectness unittest.
-        if (!endpoints[0].KeyBound.Invert().IsInclusive) {
+        auto lowerBound = endpoints[0].KeyBound;
+
+        // TODO(max42): describe this situation, refer to RowSlicingCorrectnessCustom unittest.
+        if (!lowerBound.Invert().IsInclusive) {
             StagingArea_->PromoteUpperBound(endpoints[0].KeyBound.Invert().ToggleInclusiveness());
         }
 
@@ -652,6 +654,24 @@ private:
 
         for (const auto& endpoint : endpoints) {
             dataSlices.push_back(endpoint.DataSlice);
+        }
+
+        auto longSliceIterator = dataSlices.end();
+        for (auto iterator = dataSlices.begin(); iterator != dataSlices.end(); ++iterator) {
+            if (PrimaryComparator_.IsInteriorEmpty(lowerBound, (*iterator)->UpperLimit().KeyBound)) {
+                continue;
+            }
+            YT_VERIFY(longSliceIterator == dataSlices.end());
+            longSliceIterator = iterator;
+        }
+
+        if (longSliceIterator != dataSlices.end()) {
+            auto longSliceStreamIndex = (*longSliceIterator)->InputStreamIndex;
+            std::stable_sort(dataSlices.begin(), dataSlices.end(), [=] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
+                bool lhsToEnd = lhs->InputStreamIndex == longSliceStreamIndex;
+                bool rhsToEnd = rhs->InputStreamIndex == longSliceStreamIndex;
+                return lhsToEnd < rhsToEnd;
+            });
         }
 
         // We consider data slices one by one, adding them into the staging area.
