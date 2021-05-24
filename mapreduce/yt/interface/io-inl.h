@@ -34,6 +34,16 @@ struct TIsYdlOneOf<TYdlOneOf<TYdlRowTypes...>>
     : std::true_type
 { };
 
+template<class T>
+struct TIsProtoOneOf
+    : std::false_type
+{ };
+
+template <class ...TProtoRowTypes>
+struct TIsProtoOneOf<TProtoOneOf<TProtoRowTypes...>>
+    : std::true_type
+{ };
+
 } // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,7 +83,7 @@ struct TRowTraits<T, std::enable_if_t<TIsBaseOf<Message, T>::Value>>
     using IWriterImpl = IProtoWriterImpl;
 };
 
-template<>
+template <>
 struct TRowTraits<NDetail::TYdlGenericRowType>
 {
     using TRowType = NDetail::TYdlGenericRowType;
@@ -81,7 +91,7 @@ struct TRowTraits<NDetail::TYdlGenericRowType>
     using IWriterImpl = IYdlWriterImpl;
 };
 
-template<class T>
+template <class T>
 struct TRowTraits<T, std::enable_if_t<NYdl::TIsYdlGenerated<T>::value>>
 {
     using TRowType = T;
@@ -89,7 +99,7 @@ struct TRowTraits<T, std::enable_if_t<NYdl::TIsYdlGenerated<T>::value>>
     using IWriterImpl = IYdlWriterImpl;
 };
 
-template<class... TYdlRowTypes>
+template <class... TYdlRowTypes>
 struct TRowTraits<TYdlOneOf<TYdlRowTypes...>>
 {
     using TRowType = TYdlOneOf<TYdlRowTypes...>;
@@ -97,6 +107,13 @@ struct TRowTraits<TYdlOneOf<TYdlRowTypes...>>
     using IWriterImpl = IYdlWriterImpl;
 };
 
+template <class... TProtoRowTypes>
+struct TRowTraits<TProtoOneOf<TProtoRowTypes...>>
+{
+    using TRowType = TProtoOneOf<TProtoRowTypes...>;
+    using IReaderImpl = IProtoReaderImpl;
+    using IWriterImpl = IProtoWriterImpl;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -281,7 +298,7 @@ public:
         // Caching is implemented in underlying reader.
         return TBase::DoGetRowCached(
             /* cacher */ [&] {},
-            [&] {
+            /* cacheGetter */ [&] {
                 return &Reader_->GetRow();
             });
     }
@@ -291,10 +308,10 @@ public:
         // Caching is implemented in underlying reader.
         TBase::DoMoveRowCached(
             result,
-            [&] (TRowType* result) {
+            /* mover */ [&] (TRowType* result) {
                 Reader_->MoveRow(result);
             },
-            [&] (TRowType* result) {
+            /* cacheMover */ [&] (TRowType* result) {
                 Reader_->MoveRow(result);
             });
     }
@@ -343,10 +360,10 @@ public:
         AssertIsOneOf<U>();
         Reader_->VerifyRowType(NYdl::TYdlTraits<U>::ReflectRaw()->GetHash());
         return TBase::DoGetRowCached(
-            [&] {
+            /* cacher */ [&] {
                 std::get<U>(CachedRows_) = U::DeserializeFromYson(Reader_->GetRow());
             },
-            [&] {
+            /* cacheGetter */ [&] {
                 return &std::get<U>(CachedRows_);
             });
     }
@@ -358,10 +375,10 @@ public:
         Reader_->VerifyRowType(NYdl::TYdlTraits<U>::ReflectRaw()->GetHash());
         return TBase::DoMoveRowCached(
             result,
-            [&] (U* result) {
+            /* mover */ [&] (U* result) {
                 *result = U::DeserializeFromYson(Reader_->GetRow());
             },
-            [&] (U* result) {
+            /* cacheMover */ [&] (U* result) {
                 *result = std::move(std::get<U>(CachedRows_));
             });
     }
@@ -430,11 +447,11 @@ public:
         static_assert(TIsBaseOf<Message, U>::Value);
 
         return TBase::DoGetRowCached(
-            [&] {
+            /* cacher */ [&] {
                 CachedRow_.Reset(new U);
                 Reader_->ReadRow(CachedRow_.Get());
             },
-            [&] {
+            /* cacheGetter */ [&] {
                 auto result = dynamic_cast<const U*>(CachedRow_.Get());
                 Y_VERIFY(result);
                 return result;
@@ -448,10 +465,10 @@ public:
 
         TBase::DoMoveRowCached(
             result,
-            [&] (U* result) {
+            /* mover */ [&] (U* result) {
                 Reader_->ReadRow(result);
             },
-            [&] (U* result) {
+            /* cacheMover */ [&] (U* result) {
                 auto cast = dynamic_cast<U*>(CachedRow_.Get());
                 Y_VERIFY(cast);
                 result->Swap(cast);
@@ -478,42 +495,49 @@ private:
     mutable THolder<Message> CachedRow_;
 };
 
-template <class T>
-class TTableReader<T, std::enable_if_t<TIsBaseOf<Message, T>::Value>>
-    : public NDetail::TTableReaderBase<T>
+
+template<class... TProtoRowTypes>
+class TTableReader<TProtoOneOf<TProtoRowTypes...>>
+    : public NDetail::TTableReaderBase<TProtoOneOf<TProtoRowTypes...>>
 {
 public:
-    using TBase = NDetail::TTableReaderBase<T>;
-    using typename TBase::TRowType;
+    using TBase = NDetail::TTableReaderBase<TProtoOneOf<TProtoRowTypes...>>;
 
     using TBase::TBase;
 
-    const TRowType& GetRow() const
+    template <class U>
+    const U& GetRow() const
     {
+        AssertIsOneOf<U>();
         return TBase::DoGetRowCached(
-            [&] {
-                Reader_->ReadRow(&CachedRow_);
+            /* cacher */ [&] {
+                Reader_->ReadRow(&std::get<U>(CachedRows_));
+                CachedIndex_ = NDetail::TIndexInTuple<U, decltype(CachedRows_)>::Value;
             },
-            [&] {
-                return &CachedRow_;
+            /* cacheGetter */ [&] {
+                return &std::get<U>(CachedRows_);
             });
     }
 
-    void MoveRow(TRowType* result)
+    template <class U>
+    void MoveRow(U* result)
     {
-        TBase::DoMoveRowCached(
+        AssertIsOneOf<U>();
+        return TBase::DoMoveRowCached(
             result,
-            [&] (TRowType* result) {
+            /* mover */ [&] (U* result) {
                 Reader_->ReadRow(result);
             },
-            [&] (TRowType* result) {
-                result->Swap(&CachedRow_);
+            /* cacheMover */ [&] (U* result) {
+                Y_VERIFY((NDetail::TIndexInTuple<U, decltype(CachedRows_)>::Value) == CachedIndex_);
+                *result = std::move(std::get<U>(CachedRows_));
             });
     }
 
-    TRowType MoveRow()
+    template <class U>
+    U MoveRow()
     {
-        TRowType result;
+        U result;
         MoveRow(&result);
         return result;
     }
@@ -525,7 +549,44 @@ public:
 
 private:
     using TBase::Reader_;
-    mutable TRowType CachedRow_;
+    // std::variant could also be used here, but std::tuple leads to better performance
+    // because of deallocations that std::variant has to do
+    mutable std::tuple<TProtoRowTypes...> CachedRows_;
+    mutable int CachedIndex_;
+
+    template <class U>
+    static constexpr void AssertIsOneOf()
+    {
+        static_assert(
+            (std::is_same<U, TProtoRowTypes>::value || ...),
+            "Template parameter must be one of TProtoOneOf template parameter");
+    }
+};
+
+template <class T>
+class TTableReader<T, std::enable_if_t<TIsBaseOf<Message, T>::Value>>
+    : public TTableReader<TProtoOneOf<T>>
+{
+public:
+    using TRowType = T;
+    using TBase = TTableReader<TProtoOneOf<T>>;
+
+    using TBase::TBase;
+
+    const T& GetRow() const
+    {
+        return TBase::template GetRow<T>();
+    }
+
+    void MoveRow(T* result)
+    {
+        TBase::template MoveRow<T>(result);
+    }
+
+    T MoveRow()
+    {
+        return TBase::template MoveRow<T>();
+    }
 };
 
 template <>
@@ -569,9 +630,30 @@ inline TTableReaderPtr<T> IIOClient::CreateTableReader(
 
 template <typename T>
 TTableReaderPtr<T> CreateTableReader(
-    IInputStream* stream, const TTableReaderOptions& options)
+    IInputStream* stream,
+    const TTableReaderOptions& options)
 {
     return TReaderCreator<T>::Create(NDetail::CreateProtoReader(stream, options, T::descriptor()));
+}
+
+template <class... Ts>
+TTableReaderPtr<typename NDetail::TProtoOneOfUnique<Ts...>::TType> CreateProtoMultiTableReader(
+    IInputStream* stream,
+    const TTableReaderOptions& options)
+{
+    return new TTableReader<typename NDetail::TProtoOneOfUnique<Ts...>::TType>(
+        NDetail::CreateProtoReader(stream, options, {Ts::descriptor()...}));
+}
+
+template <class T>
+TTableReaderPtr<T> CreateProtoMultiTableReader(
+    IInputStream* stream,
+    int tableCount,
+    const TTableReaderOptions& options)
+{
+    static_assert(TIsBaseOf<::google::protobuf::Message, T>::Value);
+    TVector<const ::google::protobuf::Descriptor*> descriptors(tableCount, T::descriptor());
+    return new TTableReader<T>(NDetail::CreateProtoReader(stream, options, std::move(descriptors)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

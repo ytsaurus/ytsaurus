@@ -259,28 +259,48 @@ REGISTER_MAPPER(TProtobufMapperProto3)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TComplexTypesProtobufMapper
+template <class TReader, class TWriter>
+void ComplexTypesProtobufMapperDo(TReader* reader, TWriter* writer)
+{
+    for (; reader->IsValid(); reader->Next()) {
+        if (reader->GetTableIndex() == 0) {
+            auto row = reader->template MoveRow<TRowMixedSerializationOptions>();
+            row.MutableUrlRow_1()->SetHost(row.GetUrlRow_1().GetHost() + ".mapped");
+            row.MutableUrlRow_2()->SetHost(row.GetUrlRow_2().GetHost() + ".mapped");
+            writer->AddRow(row, 0);
+        } else {
+            Y_ENSURE(reader->GetTableIndex() == 1);
+            auto row = reader->template MoveRow<TRowSerializedRepeatedFields>();
+            row.AddInts(40000);
+            writer->AddRow(row, 1);
+        }
+    }
+}
+
+class TComplexTypesProtobufMapperMessage
     : public IMapper<TTableReader<Message>, TTableWriter<Message>>
 {
 public:
     void Do(TReader* reader, TWriter* writer) override
     {
-        for (; reader->IsValid(); reader->Next()) {
-            if (reader->GetTableIndex() == 0) {
-                auto row = reader->MoveRow<TRowMixedSerializationOptions>();
-                row.MutableUrlRow_1()->SetHost(row.GetUrlRow_1().GetHost() + ".mapped");
-                row.MutableUrlRow_2()->SetHost(row.GetUrlRow_2().GetHost() + ".mapped");
-                writer->AddRow(row, 0);
-            } else {
-                Y_ENSURE(reader->GetTableIndex() == 1);
-                auto row = reader->MoveRow<TRowSerializedRepeatedFields>();
-                row.AddInts(40000);
-                writer->AddRow(row, 1);
-            }
-        }
+        ComplexTypesProtobufMapperDo(reader, writer);
     }
 };
-REGISTER_MAPPER(TComplexTypesProtobufMapper)
+REGISTER_MAPPER(TComplexTypesProtobufMapperMessage)
+
+class TComplexTypesProtobufMapperOneOf
+    : public IMapper<
+        TTableReader<TProtoOneOf<TRowMixedSerializationOptions, TRowSerializedRepeatedFields>>,
+        TTableWriter<Message>
+    >
+{
+public:
+    void Do(TReader* reader, TWriter* writer) override
+    {
+        ComplexTypesProtobufMapperDo(reader, writer);
+    }
+};
+REGISTER_MAPPER(TComplexTypesProtobufMapperOneOf)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1390,7 +1410,7 @@ Y_UNIT_TEST_SUITE(Operations)
         MapWithProtobuf(true, true);
     }
 
-    Y_UNIT_TEST(ProtobufMap_ComplexTypes)
+    void TestProtobufMap_ComplexTypes(bool useOneOfMapper)
     {
         TTestFixture fixture;
         auto client = fixture.GetClient();
@@ -1459,13 +1479,20 @@ Y_UNIT_TEST_SUITE(Operations)
             writer->Finish();
         }
 
+        ::TIntrusivePtr<IMapperBase> mapper;
+        if (useOneOfMapper) {
+            mapper = new TComplexTypesProtobufMapperOneOf;
+        } else {
+            mapper = new TComplexTypesProtobufMapperMessage;
+        }
+
         client->Map(
             TMapOperationSpec()
                 .AddInput<TRowMixedSerializationOptions>(inputTable1)
                 .AddInput<TRowSerializedRepeatedFields>(inputTable2)
                 .AddOutput<TRowMixedSerializationOptions>(outputTable1)
                 .AddOutput<TRowSerializedRepeatedFields>(outputTable2),
-            new TComplexTypesProtobufMapper);
+            mapper);
 
         TVector<TNode> expectedContent1 = {
             TNode()
@@ -1500,6 +1527,16 @@ Y_UNIT_TEST_SUITE(Operations)
 
         UNIT_ASSERT_VALUES_EQUAL(expectedContent1, actualContent1);
         UNIT_ASSERT_VALUES_EQUAL(expectedContent2, actualContent2);
+    }
+
+    Y_UNIT_TEST(ProtobufMap_ComplexTypes_Message)
+    {
+        TestProtobufMap_ComplexTypes(/* useOneOf */ false);
+    }
+
+    Y_UNIT_TEST(ProtobufMap_ComplexTypes_OneOf)
+    {
+        TestProtobufMap_ComplexTypes(/* useOneOf */ true);
     }
 
     Y_UNIT_TEST(ProtobufMap_TypeOptions)

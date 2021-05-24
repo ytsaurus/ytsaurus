@@ -27,22 +27,59 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+///
+/// @brief "Marker" type to use for YDL types in @ref NYT::TTableReader.
+///
+/// @tparam TYdlRowTypes Possible types of rows to be read.
+template<class... TYdlRowTypes>
+class TYdlOneOf
+{
+public:
+    static_assert(
+        (NYdl::TIsYdlGenerated<TYdlRowTypes>::value && ...),
+        "Template parameters can only be YDL types");
+    
+    TYdlOneOf() = delete;
+};
+
+///
+/// @brief "Marker" type to use for several protobuf types in @ref NYT::TTableReader.
+///
+/// @tparam Ts Possible types of rows to be read.
+template<class... TProtoRowTypes>
+class TProtoOneOf
+{
+public:
+    static_assert(
+        (TIsBaseOf<::google::protobuf::Message, TProtoRowTypes>::Value && ...),
+        "Template parameters can only be protobuf types");
+
+    TProtoOneOf() = delete;
+};
+
 namespace NDetail {
 
 /// "Marker" type to use for YDL types in @ref NYT::TTableWriter.
 class TYdlGenericRowType
 { };
 
-} // namespace NDetail
+template <class TTuple>
+struct TProtoOneOfFromTuple;
 
-/// @brief "Marker" type to use for YDL types in @ref NYT::TTableReader.
-///
-/// @tparam TYdlRowTypes Possible types of rows to be read.
-template<class ... TYdlRowTypes>
-class TYdlOneOf
+template <class... Ts>
+struct TProtoOneOfFromTuple<std::tuple<Ts...>>
 {
-    static_assert((NYdl::TIsYdlGenerated<TYdlRowTypes>::value && ...), "Template parameters can only be YDL types");
+    using TType = TProtoOneOf<Ts...>;
 };
+
+template <class... Ts>
+struct TProtoOneOfUnique
+{
+    using TTuple = typename TUniqueTypes<std::tuple<>, std::tuple<Ts...>>::TType;
+    using TType = typename TProtoOneOfFromTuple<TTuple>::TType;
+};
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -445,13 +482,40 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+///
 /// @brief Create a protobuf table reader from a stream.
 ///
 /// @tparam T Protobuf message type to read (must be inherited from `Message`).
+///
+/// @param stream Input stream in YT protobuf format.
 template <typename T>
 TTableReaderPtr<T> CreateTableReader(
     IInputStream* stream,
-    const TTableReaderOptions& options = TTableReaderOptions());
+    const TTableReaderOptions& options = {});
+
+///
+/// @brief Create a protobuf multi table reader from a stream.
+///
+/// @tparam Ts Protobuf message types to read (must be inherited from `Message`).
+///
+/// @param stream Input stream in YT protobuf format.
+template <class... Ts>
+TTableReaderPtr<typename NDetail::TProtoOneOfUnique<Ts...>::TType> CreateProtoMultiTableReader(
+    IInputStream* stream,
+    const TTableReaderOptions& options = {});
+
+///
+/// @brief Create a homogenous protobuf multi table reader from a stream.
+///
+/// @tparam T Protobuf message type to read (must be inherited from `Message`).
+///
+/// @param stream Input stream in YT protobuf format.
+/// @param tableCount Number of tables in input stream.
+template <class T>
+TTableReaderPtr<T> CreateProtoMultiTableReader(
+    IInputStream* stream,
+    int tableCount,
+    const TTableReaderOptions& options = {});
 
 /// Create a @ref NYT::TNode table reader from a stream.
 template <>
@@ -470,6 +534,13 @@ namespace NDetail {
     IInputStream* stream,
     const TTableReaderOptions& options,
     const ::google::protobuf::Descriptor* descriptor);
+
+
+/// Create a protobuf table reader from a stream that can contain table switches.
+::TIntrusivePtr<IProtoReaderImpl> CreateProtoReader(
+    IInputStream* stream,
+    const TTableReaderOptions& options,
+    TVector<const ::google::protobuf::Descriptor*> descriptors);
 
 } // namespace NDetail
 
@@ -498,4 +569,3 @@ TTableReaderPtr<Message> CreateGenericProtobufReader(const TTableReaderPtr<T>& r
 #define IO_INL_H_
 #include "io-inl.h"
 #undef IO_INL_H_
-

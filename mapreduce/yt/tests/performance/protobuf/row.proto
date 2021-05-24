@@ -69,3 +69,13 @@ message TUrlDataRowProto
     optional uint64 HttpModTime = 7;
 }
 
+message TUrlDataRowProto1
+{
+    optional string Host = 1;
+    optional string Path = 2;
+    optional string Region = 3;
+    optional uint64 LastAccess = 4;
+    optional uint64 ExportTime = 5;
+    optional uint64 TextCRC = 6;
+    optional uint64 HttpModTime = 7;
+}
