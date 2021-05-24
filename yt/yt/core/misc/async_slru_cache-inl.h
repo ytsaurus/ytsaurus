@@ -49,9 +49,11 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::TAsyncSlruCacheBase(
     : Config_(std::move(config))
     , Capacity_(Config_->Capacity)
     , YoungerSizeFraction_(Config_->YoungerSizeFraction)
-    , HitWeightCounter_(profiler.Counter("/hit_weight"))
+    , SyncHitWeightCounter_(profiler.Counter("/hit_weight_sync"))
+    , AsyncHitWeightCounter_(profiler.Counter("/hit_weight_async"))
     , MissedWeightCounter_(profiler.Counter("/missed_weight"))
-    , HitCounter_(profiler.Counter("/hit_count"))
+    , SyncHitCounter_(profiler.Counter("/hit_count_sync"))
+    , AsyncHitCounter_(profiler.Counter("/hit_count_async"))
     , MissedCounter_(profiler.Counter("/missed_count"))
 {
     profiler.AddFuncGauge("/younger_weight", MakeStrong(this), [this] {
@@ -109,6 +111,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Clear()
         OlderWeightCounter_.fetch_sub(totalOlderWeight);
         YoungerSizeCounter_.fetch_sub(youngerLruList.size());
         OlderSizeCounter_.fetch_sub(olderLruList.size());
+
         // NB: Lists must die outside the critical section.
         writerGuard.Release();
     }
@@ -153,8 +156,8 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Find(const TKey& key)
 
     bool needToDrain = Touch(shard, item);
 
-    HitWeightCounter_.Increment(item->CachedWeight);
-    HitCounter_.Increment();
+    SyncHitWeightCounter_.Increment(item->CachedWeight);
+    SyncHitCounter_.Increment();
 
     readerGuard.Release();
 
@@ -211,8 +214,11 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
             auto promise = item->ValuePromise;
 
             if (item->Value) {
-                HitWeightCounter_.Increment(item->CachedWeight);
-                HitCounter_.Increment();
+                SyncHitWeightCounter_.Increment(item->CachedWeight);
+                SyncHitCounter_.Increment();
+            } else {
+                AsyncHitCounter_.Increment();
+                item->AsyncHitCount.fetch_add(1);
             }
 
             readerGuard.Release();
@@ -251,9 +257,9 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
             YT_VERIFY(itemMap.emplace(key, item).second);
             ++Size_;
 
-            auto weight = PushToYounger(shard, item);
-            HitWeightCounter_.Increment(weight);
-            HitCounter_.Increment();
+            i64 weight = PushToYounger(shard, item);
+            SyncHitWeightCounter_.Increment(weight);
+            SyncHitCounter_.Increment();
 
             Trim(shard, writerGuard);
             // ...since the item can be dead at this moment.
@@ -287,8 +293,11 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
                 .ToUncancelable();
 
             if (item->Value) {
-                HitWeightCounter_.Increment(item->CachedWeight);
-                HitCounter_.Increment();
+                SyncHitWeightCounter_.Increment(item->CachedWeight);
+                SyncHitCounter_.Increment();
+            } else {
+                AsyncHitCounter_.Increment();
+                item->AsyncHitCount.fetch_add(1);
             }
 
             return TInsertCookie(
@@ -324,9 +333,9 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
             YT_VERIFY(itemMap.emplace(key, item).second);
             ++Size_;
 
-            auto weight = PushToYounger(shard, item);
-            HitWeightCounter_.Increment(weight);
-            HitCounter_.Increment();
+            i64 weight = PushToYounger(shard, item);
+            SyncHitWeightCounter_.Increment(weight);
+            SyncHitCounter_.Increment();
 
             // NB: Releases the lock.
             Trim(shard, guard);
@@ -368,9 +377,10 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value)
 
     YT_VERIFY(shard->ValueMap.emplace(key, value.Get()).second);
 
-    auto weight = PushToYounger(shard, item);
-    // MissedCounter_ has already been incremented in BeginInsert.
+    i64 weight = PushToYounger(shard, item);
+    // MissedCounter_ and AsyncHitCounter_ have already been incremented in BeginInsert.
     MissedWeightCounter_.Increment(weight);
+    AsyncHitWeightCounter_.Increment(weight * item->AsyncHitCount.load());
 
     // NB: Releases the lock.
     Trim(shard, guard);
@@ -591,7 +601,7 @@ i64 TAsyncSlruCacheBase<TKey, TValue, THash>::PushToYounger(TShard* shard, TItem
 {
     YT_ASSERT(item->Empty());
     shard->YoungerLruList.PushFront(item);
-    auto weight = GetWeight(item->Value);
+    i64 weight = GetWeight(item->Value);
     shard->YoungerWeightCounter += weight;
     item->CachedWeight = weight;
     YoungerWeightCounter_.fetch_add(weight);
@@ -607,7 +617,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::MoveToYounger(TShard* shard, TIte
     item->Unlink();
     shard->YoungerLruList.PushFront(item);
     if (!item->Younger) {
-        auto weight = item->CachedWeight;
+        i64 weight = item->CachedWeight;
         shard->OlderWeightCounter -= weight;
         OlderWeightCounter_.fetch_sub(weight);
         OlderSizeCounter_.fetch_sub(1);
@@ -625,7 +635,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::MoveToOlder(TShard* shard, TItem*
     item->Unlink();
     shard->OlderLruList.PushFront(item);
     if (item->Younger) {
-        auto weight = item->CachedWeight;
+        i64 weight = item->CachedWeight;
         shard->YoungerWeightCounter -= weight;
         YoungerWeightCounter_.fetch_sub(weight);
         YoungerSizeCounter_.fetch_sub(1);
@@ -643,7 +653,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Pop(TShard* shard, TItem* item)
         return;
     }
 
-    auto weight = item->CachedWeight;
+    i64 weight = item->CachedWeight;
     if (item->Younger) {
         shard->YoungerWeightCounter -= weight;
         YoungerWeightCounter_.fetch_sub(weight);
