@@ -7,7 +7,7 @@
 
 #include <yt/yt/core/misc/common.h>
 
-#include <util/system/demangle.h>
+#include <util/system/type_name.h>
 
 namespace NYT {
 

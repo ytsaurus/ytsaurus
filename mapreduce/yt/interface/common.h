@@ -11,7 +11,7 @@
 #include <util/generic/map.h>
 #include <util/generic/maybe.h>
 #include <util/generic/ptr.h>
-#include <util/generic/type_name.h>
+#include <util/system/type_name.h>
 #include <util/generic/vector.h>
 
 #include <google/protobuf/message.h>
