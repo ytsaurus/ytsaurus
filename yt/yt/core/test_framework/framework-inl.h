@@ -17,7 +17,7 @@ template <class T>
 void PrintTo(const TIntrusivePtr<T>& arg, std::ostream* os)
 {
     *os << "TIntrusivePtr<"
-        << CppDemangle(typeid(T).name())
+        << TypeName<T>()
         << ">@0x"
         << std::hex
         << reinterpret_cast<uintptr_t>(arg.Get())
