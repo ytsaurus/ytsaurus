@@ -461,7 +461,9 @@ public:
             auto pipePath = CreateNamedPipePath();
             auto pipe = TNamedPipe::Create(pipePath, /*permissions*/ 0755);
 
-            TFile pipeFile(pipePath, OpenExisting | RdOnly | Seq | CloseOnExec);
+            auto pipeFd = HandleEintr(::open, pipePath.c_str(), O_RDONLY | O_NONBLOCK);
+            TFile pipeFile(pipeFd);
+
             TFile artifactFile(artifactPath, CreateAlways | WrOnly | Seq | CloseOnExec);
 
             Host_->PrepareArtifact(artifactName, pipePath);
