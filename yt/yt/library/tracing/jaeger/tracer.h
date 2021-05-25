@@ -48,6 +48,8 @@ public:
 
     TDuration FlushPeriod;
 
+    TDuration RpcTimeout;
+
     TDuration QueueStallTimeout;
 
     i64 MaxRequestSize;
