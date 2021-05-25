@@ -34,12 +34,14 @@ def _flatten_dict(dict_):
 
 
 def _get_object_id(path=None, account=None, pool=None, group=None, tablet_cell_bundle=None,
-                   pool_tree=None, network_project=None, rpc_proxy_role=None, http_proxy_role=None):
+                   pool_tree=None, network_project=None, rpc_proxy_role=None, http_proxy_role=None,
+                   ql_pool=None):
     no_pool = dict(path=path, account=account, group=group,
                    tablet_cell_bundle=tablet_cell_bundle,
                    network_project=network_project,
                    rpc_proxy_role=rpc_proxy_role,
-                   http_proxy_role=http_proxy_role)
+                   http_proxy_role=http_proxy_role,
+                   ql_pool=ql_pool)
     exclusive = [dict(pool=pool, **no_pool), dict(pool_tree=pool_tree, **no_pool)]
     for exclusive_group in exclusive:
         keys = [key for key, value in iteritems(exclusive_group) if value is not None]
@@ -63,9 +65,9 @@ def _get_object_id(path=None, account=None, pool=None, group=None, tablet_cell_b
 def _with_object_id(func):
     def wrapper(client, path=None, account=None, pool=None, group=None, tablet_cell_bundle=None,
                 pool_tree=None, network_project=None,
-                rpc_proxy_role=None, http_proxy_role=None, *args, **kwargs):
+                rpc_proxy_role=None, http_proxy_role=None, ql_pool=None, *args, **kwargs):
         object_id = _get_object_id(path, account, pool, group, tablet_cell_bundle, pool_tree,
-                                   network_project, rpc_proxy_role, http_proxy_role)
+                                   network_project, rpc_proxy_role, http_proxy_role, ql_pool)
         return func(client, *args, object_id=object_id, **kwargs)
     wrapper.__doc__ = func.__doc__
     return wrapper
@@ -73,11 +75,12 @@ def _with_object_id(func):
 
 def _with_optional_object_id(func):
     def wrapper(client, path=None, account=None, pool=None, group=None, tablet_cell_bundle=None,
-                pool_tree=None, network_project=None, rpc_proxy_role=None, http_proxy_role=None, *args, **kwargs):
+                pool_tree=None, network_project=None, rpc_proxy_role=None, http_proxy_role=None,
+                ql_pool=None, *args, **kwargs):
         if any((path, account, pool, group, tablet_cell_bundle, pool_tree, network_project,
-               rpc_proxy_role, http_proxy_role)):
+               rpc_proxy_role, http_proxy_role, ql_pool)):
             object_id = _get_object_id(path, account, pool, group, tablet_cell_bundle, pool_tree,
-                                       network_project, rpc_proxy_role, http_proxy_role)
+                                       network_project, rpc_proxy_role, http_proxy_role, ql_pool)
         else:
             object_id = None
         return func(client, *args, object_id=object_id, **kwargs)
