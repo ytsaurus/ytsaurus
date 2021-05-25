@@ -54,6 +54,8 @@ TJaegerTracerConfig::TJaegerTracerConfig()
     // 10K nodes x 128 KB / 15s == 85mb/s
     RegisterParameter("flush_period", FlushPeriod)
         .Default(TDuration::Seconds(15));
+    RegisterParameter("rpc_timeout", RpcTimeout)
+        .Default(TDuration::Seconds(15));
     RegisterParameter("queue_stall_timeout", QueueStallTimeout)
         .Default(TDuration::Minutes(15));
     RegisterParameter("max_request_size", MaxRequestSize)
@@ -348,6 +350,7 @@ void TJaegerTracer::Flush()
         }
 
         TJaegerCollectorProxy proxy(CollectorChannel_);
+        proxy.SetDefaultTimeout(config->RpcTimeout);
         auto req = proxy.PostSpans();
 
         auto [batch, i] = PeekQueue(config);
