@@ -9,7 +9,7 @@
 
 #include <util/generic/bt_exception.h>
 #include <util/generic/singleton.h>
-#include <util/generic/type_name.h>
+#include <util/system/type_name.h>
 
 #include <util/stream/file.h>
 #include <util/stream/buffer.h>
