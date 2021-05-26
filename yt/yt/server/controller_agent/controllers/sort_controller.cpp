@@ -1742,7 +1742,7 @@ protected:
             VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
             jobSpec->CopyFrom(Controller_->SortedMergeJobSpecTemplate);
-            auto comparator = GetComparator(Controller_->GetSortedMergeSortColumns());
+            auto comparator = GetComparator(Controller_->Spec->SortBy);
             AddParallelInputSpec(jobSpec, joblet, comparator);
             AddOutputTableSpecs(jobSpec, joblet);
         }

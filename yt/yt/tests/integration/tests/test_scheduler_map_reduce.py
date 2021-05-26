@@ -2519,6 +2519,34 @@ done
                 mapper_command="cat",
                 reducer_command="cat")
 
+    @authors("gritukan")
+    def test_longer_sort_columns_sorted_reduce(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        expected = []
+        for i in range(20):
+            row = {"a": "a", "b": "%02d" % (20 - i)}
+            write_table("<append=%true>//tmp/t_in", row)
+            expected.append(row)
+        expected = expected[::-1]
+
+        map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            mapper_command="cat",
+            reducer_command="cat",
+            reduce_by=["a"],
+            sort_by=["a", "b"],
+            spec={
+                "mapper": {"format": "dsv"},
+                "reducer": {"format": "dsv"},
+                "data_size_per_map_job": 1,
+                "data_size_per_sort_job": 1,
+            })
+
+        assert read_table("//tmp/t_out") == expected
+
+
 ##################################################################
 
 
