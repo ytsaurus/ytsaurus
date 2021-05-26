@@ -9,6 +9,7 @@
 #include <yt/yt/core/ytree/yson_serializable.h>
 
 #include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/intrusive_linked_list.h>
 #include <yt/yt/core/misc/proc.h>
 
 #include <util/generic/size_literals.h>
@@ -35,12 +36,13 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto PageSize = 4_KBs;
-
 #ifdef _linux_
 
+static constexpr auto PageSize = 4_KBs;
+
+static constexpr auto UringEngineNotificationCount = 2;
 static constexpr auto MaxIovCountPerRequest = 64;
-static constexpr auto MaxUringQueueSize = 32;
+static constexpr auto MaxUringConcurrentRequestsPerThread = 32;
 
 // See SetRequestUserData/GetRequestUserData.
 static constexpr auto MaxSubrequestCount = 1 << 16;
@@ -172,6 +174,8 @@ DEFINE_REFCOUNTED_TYPE(TThreadPoolIOEngineConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef _linux_
+
 DECLARE_REFCOUNTED_CLASS(TUringIOEngineConfig)
 
 class TUringIOEngineConfig
@@ -179,7 +183,6 @@ class TUringIOEngineConfig
 {
 public:
     int UringThreadCount;
-    int UringQueueSize;
 
     //! Limits the number of concurrent (outstanding) #IIOEngine requests per a single uring thread.
     int MaxConcurrentRequestsPerThread;
@@ -205,12 +208,10 @@ public:
         RegisterParameter("uring_thread_count", UringThreadCount)
             .GreaterThanOrEqual(1)
             .Default(1);
-        RegisterParameter("uring_queue_size", UringQueueSize)
-            .GreaterThan(0)
-            .Default(16);
         RegisterParameter("max_concurrent_requests_per_thread", MaxConcurrentRequestsPerThread)
             .GreaterThan(0)
-            .Default(16);
+            .LessThanOrEqual(MaxUringConcurrentRequestsPerThread)
+            .Default(22);
 
         RegisterParameter("pooled_direct_io_read_buffer_size", PooledDirectIOReadBufferSize)
             .GreaterThan(0)
@@ -228,6 +229,8 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TUringIOEngineConfig)
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -781,6 +784,15 @@ public:
         return cqe;
     }
 
+    io_uring_cqe* PeekCqe()
+    {
+        io_uring_cqe* cqe;
+        bool result = ValidateUringNonBlockingResult(
+            HandleUringEintr(io_uring_peek_cqe, &Uring_, &cqe),
+            TStringBuf("io_uring_peek_cqe"));
+        return result ? cqe : nullptr;
+    }
+
     int GetSQSpaceLeft()
     {
         return io_uring_sq_space_left(&Uring_);
@@ -829,13 +841,30 @@ private:
         YT_LOG_FATAL_IF(result < 0, TError::FromSystem(-result), "Uring %Qv call failed",
             callName);
     }
+
+    static bool ValidateUringNonBlockingResult(int result, TStringBuf callName)
+    {
+        if (result == -EAGAIN) {
+            return false;
+        }
+        CheckUringResult(result, callName);
+        return true;
+    }
 };
 
 using TUringIovBuffer = std::array<iovec, MaxIovCountPerRequest>;
 
 struct TUringRequest
+    : public TIntrusiveLinkedListNode<TUringRequest>
 {
     using TReadSubrequest = IIOEngine::TReadRequest;
+
+    struct TRequestToNode
+    {
+        TIntrusiveLinkedListNode<TUringRequest>* operator() (TUringRequest* request) const {
+            return request;
+        }
+    };
 
     struct TReadSubrequestState
     {
@@ -939,7 +968,7 @@ private:
             , PooledDirectIOReadBuffers_(TSharedMutableRef::AllocatePageAligned<TPooledDirectIOReadBufferTag>(
                 Config_->MaxConcurrentRequestsPerThread * Config_->PooledDirectIOReadBufferSize,
                 false))
-            , Uring_(Config_->UringQueueSize)
+            , Uring_(Config_->MaxConcurrentRequestsPerThread + UringEngineNotificationCount)
         {
             RegisterDirectIOBuffersWithUring();
             PopulateSpareDirectIOBuffers();
@@ -970,13 +999,16 @@ private:
 
         TEvent StartedEvent_;
 
+        // Linked list of requests that have subrequests yet to be started.
+        TIntrusiveLinkedList<TUringRequest, TUringRequest::TRequestToNode> UndersubmittedRequests_;
+
         int PendingSubmissionsCount_ = 0;
         bool RequestNotificationReadArmed_ = false;
 
         TNotificationHandle StopNotificationHandle_{true};
         bool Stopping_ = false;
 
-        std::array<TUringIovBuffer, MaxUringQueueSize> AllIovBuffers_;
+        std::array<TUringIovBuffer, MaxUringConcurrentRequestsPerThread + UringEngineNotificationCount> AllIovBuffers_;
         std::vector<TUringIovBuffer*> FreeIovBuffers_;
 
         bool PooledDirectIOReadBufferRegistered_ = false;
@@ -985,8 +1017,8 @@ private:
         static constexpr int StopNotificationIndex = 0;
         static constexpr int RequestNotificationIndex = 1;
 
-        std::array<ui64, 2> NotificationReadBuffer_;
-        std::array<iovec, 2> NotificationIov_;
+        std::array<ui64, UringEngineNotificationCount> NotificationReadBuffer_;
+        std::array<iovec, UringEngineNotificationCount> NotificationIov_;
 
         void InitIovBuffers()
         {
@@ -1050,31 +1082,35 @@ private:
 
         bool IsUringDrained()
         {
-            return
-                Stopping_ &&
-                PendingSubmissionsCount_ == (RequestNotificationReadArmed_ ? 1 : 0);
+            return Stopping_ && PendingSubmissionsCount_ == 0;
         }
 
         void ThreadMainStep()
         {
-            auto* cqe = WaitForCqe();
+            auto cqe = GetCqe(true);
+            while (cqe) {
+                auto* userData = io_uring_cqe_get_data(&*cqe);
+                if (userData == reinterpret_cast<void*>(StopNotificationUserData)) {
+                    YT_VERIFY(cqe->res == sizeof(ui64));
+                    HandleStop();
+                } else if (userData == reinterpret_cast<void*>(RequestNotificationUserData)) {
+                    YT_VERIFY(cqe->res == sizeof(ui64));
+                    YT_VERIFY(RequestNotificationReadArmed_);
+                    RequestNotificationReadArmed_ = false;
+                } else {
+                    HandleCompletion(&*cqe);
+                }
 
-            auto* userData = io_uring_cqe_get_data(cqe);
-            if (userData == reinterpret_cast<void*>(StopNotificationUserData)) {
-                YT_VERIFY(cqe->res == sizeof(ui64));
-                HandleStop();
-            } else if (userData == reinterpret_cast<void*>(RequestNotificationUserData)) {
-                YT_VERIFY(cqe->res == sizeof(ui64));
-                YT_VERIFY(RequestNotificationReadArmed_);
-                RequestNotificationReadArmed_ = false;
-            } else {
-                HandleCompletion(cqe);
+                cqe = GetCqe(false);
             }
 
-            Uring_.CqeSeen(cqe);
+            while (UndersubmittedRequests_.GetSize() > 0 && CanHandleMoreSubmissions()) {
+                YT_LOG_TRACE("Submitting extra request from undersubmitted list.");
+                auto* request = UndersubmittedRequests_.GetFront();
+                HandleRequest(request);
+            }
 
             HandleSubmissions();
-
             SubmitSqes();
         }
 
@@ -1110,11 +1146,12 @@ private:
 
         bool CanHandleMoreSubmissions()
         {
-            return
-                Uring_.GetSQSpaceLeft() > 0 &&
-                !SparePooledDirectIOReadBuffers_.empty() &&
-                // +2 is for TNotificationHandle reads.
-                PendingSubmissionsCount_ < Config_->MaxConcurrentRequestsPerThread + 2;
+            bool result = PendingSubmissionsCount_ < Config_->MaxConcurrentRequestsPerThread;
+
+            YT_VERIFY(!result || Uring_.GetSQSpaceLeft() > 0);
+            YT_VERIFY(!result || !SparePooledDirectIOReadBuffers_.empty());
+
+            return result;
         }
 
         void HandleSubmissions()
@@ -1164,6 +1201,10 @@ private:
                 request,
                 request->FinishedSubrequestCount,
                 totalSubrequestCount);
+
+            if (request->Prev || UndersubmittedRequests_.GetFront() == request) {
+                UndersubmittedRequests_.Remove(request);
+            }
 
             if (request->FinishedSubrequestCount == totalSubrequestCount) {
                 TrySetRequestSucceeded(request);
@@ -1245,6 +1286,10 @@ private:
                 }
 
                 SetRequestUserData(sqe, request, subrequestIndex);
+            }
+
+            if (!request->PendingReadSubrequestIndexes.empty()) {
+                UndersubmittedRequests_.PushBack(request);
             }
         }
 
@@ -1523,7 +1568,7 @@ private:
                 .iov_len = sizeof(NotificationReadBuffer_[notificationIndex])
             };
 
-            auto* sqe = AllocateSqe();
+            auto* sqe = AllocateNonRequestSqe();
             io_uring_prep_readv(sqe, notificationHandle.GetFD(), iov, 1, 0);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(notificationUserData));
         }
@@ -1566,13 +1611,31 @@ private:
             }
         }
 
-        io_uring_cqe* WaitForCqe()
+        std::optional<io_uring_cqe> GetCqe(bool wait)
         {
-            auto* cqe = Uring_.WaitCqe();
-            YT_VERIFY(--PendingSubmissionsCount_ >= 0);
+            auto* cqe = wait ? Uring_.WaitCqe() : Uring_.PeekCqe();
+            if (!cqe) {
+                YT_VERIFY(!wait);
+                return std::nullopt;
+            }
+            auto userData = reinterpret_cast<intptr_t>(io_uring_cqe_get_data(cqe));
+            if (userData != StopNotificationUserData && userData != RequestNotificationUserData) {
+                --PendingSubmissionsCount_;
+            }
+            YT_VERIFY(PendingSubmissionsCount_ >= 0);
             YT_LOG_TRACE("CQE received (PendingRequestCount: %v)",
                 PendingSubmissionsCount_);
-            return cqe;
+
+            auto result = *cqe;
+            Uring_.CqeSeen(cqe);
+            return result;
+        }
+
+        io_uring_sqe* AllocateNonRequestSqe()
+        {
+            auto* sqe = Uring_.TryGetSqe();
+            YT_VERIFY(sqe);
+            return sqe;
         }
 
         io_uring_sqe* AllocateSqe()
