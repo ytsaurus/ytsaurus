@@ -634,8 +634,6 @@ private:
 
     // Preprocessed chunk requests grouped by node.
     THashMap<TNodeId, TGetChunkFragmentSetInfo> PeerToRequestInfo_;
-    // Node ids corresponding to keys of PeerToRequestInfo_.
-    std::vector<TNodeId> NodeIds_;
     // Chunk requests that are not assigned to any node yet.
     std::vector<TChunkFragmentSetInfo> PendingChunkFragmentSetInfos_;
     // Resulting fragments.
@@ -691,7 +689,6 @@ private:
 
                 auto [it, emplaced] = PeerToRequestInfo_.try_emplace(peerInfoIt->second.NodeId);
                 if (emplaced) {
-                    NodeIds_.push_back(peerInfoIt->second.NodeId);
                     it->second.PeerInfo = peerInfoIt->second;
                 }
                 it->second.ChunkFragmentSetInfos.push_back({
@@ -920,7 +917,6 @@ private:
 
             auto [it, emplaced] = PeerToRequestInfo_.try_emplace(probingInfo.NodeId);
             if (emplaced) {
-                NodeIds_.push_back(probingInfo.NodeId);
                 it->second.PeerInfo = probingInfo.PeerInfoOrError.Value();
             }
             it->second.ChunkFragmentSetInfos.push_back(std::move(pendingChunkFragmentSetInfo));
@@ -935,15 +931,12 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        YT_VERIFY(NodeIds_.size() == PeerToRequestInfo_.size());
-
+        std::vector<TNodeId> nodeIds;
         std::vector<TFuture<TDataNodeServiceProxy::TRspGetChunkFragmentSetPtr>> responseFutures;
-        responseFutures.reserve(NodeIds_.size());
+        nodeIds.reserve(PeerToRequestInfo_.size());
+        responseFutures.reserve(PeerToRequestInfo_.size());
 
-        for (auto nodeId : NodeIds_) {
-            auto it = PeerToRequestInfo_.find(nodeId);
-            YT_VERIFY(it != PeerToRequestInfo_.end());
-            const auto& requestInfo = it->second;
+        for (const auto& [nodeId, requestInfo] : PeerToRequestInfo_) {
             if (requestInfo.ChunkFragmentSetInfos.empty()) {
                 continue;
             }
@@ -973,16 +966,19 @@ private:
 
             req->Header().set_response_memory_zone(ToProto<int>(NYTAlloc::EMemoryZone::Undumpable));
 
+            nodeIds.push_back(nodeId);
             responseFutures.push_back(req->Invoke());
         }
 
         AllSet(std::move(responseFutures)).Subscribe(BIND(
             &TReadFragmentsSession::OnGotChunkFragments,
-            MakeStrong(this))
+            MakeStrong(this),
+            Passed(std::move(nodeIds)))
             .Via(SessionInvoker_));
     }
 
     void OnGotChunkFragments(
+        std::vector<TNodeId> nodeIds,
         const TErrorOr<std::vector<TDataNodeServiceProxy::TErrorOrRspGetChunkFragmentSetPtr>>& resultOrError)
     {
         VERIFY_INVOKER_AFFINITY(SessionInvoker_);
@@ -990,27 +986,27 @@ private:
         YT_VERIFY(resultOrError.IsOK());
         const auto& responseOrErrors = resultOrError.Value();
 
-        YT_VERIFY(NodeIds_.size() == responseOrErrors.size());
+        YT_VERIFY(nodeIds.size() == responseOrErrors.size());
 
         std::vector<std::vector<int>> failedChunkIndexesByNode;
-        failedChunkIndexesByNode.reserve(NodeIds_.size());
+        failedChunkIndexesByNode.reserve(nodeIds.size());
 
-        for (int nodeIndex = 0; nodeIndex < std::ssize(NodeIds_); ++nodeIndex) {
-            auto nodeId = NodeIds_[nodeIndex];
+        for (int nodeIndex = 0; nodeIndex < std::ssize(nodeIds); ++nodeIndex) {
+            auto nodeId = nodeIds[nodeIndex];
             const auto& responseOrError = responseOrErrors[nodeIndex];
 
             auto it = PeerToRequestInfo_.find(nodeId);
             YT_VERIFY(it != PeerToRequestInfo_.end());
 
-            auto& requestInfo = it->second;
-            auto& chunkFragmentSetInfos = requestInfo.ChunkFragmentSetInfos;
+            const auto& peerInfo = it->second.PeerInfo;
+            auto& chunkFragmentSetInfos = it->second.ChunkFragmentSetInfos;
             auto& failedChunkIndexes = failedChunkIndexesByNode.emplace_back();
 
             if (!responseOrError.IsOK()) {
                 auto error = TError("Failed to get chunk fragment set from peer %v",
-                    requestInfo.PeerInfo.Address)
+                    peerInfo.Address)
                     << responseOrError;
-                ProcessRpcError(std::move(error), nodeId, requestInfo.PeerInfo);
+                ProcessRpcError(std::move(error), nodeId, peerInfo);
 
                 // TODO(akozhikhov): NoSuchChunk error should not be an issue after YT-14660.
                 // YT_VERIFY(error.GetCode() != EErrorCode::NoSuchChunk);
@@ -1046,7 +1042,7 @@ private:
                     TryDiscardChunkReplicas(chunkFragmentSetInfo.ChunkId);
 
                     auto error = TError("Peer %v does not contain chunk %v",
-                        requestInfo.PeerInfo.Address,
+                        peerInfo.Address,
                         chunkFragmentSetInfo.ChunkId);
                     ProcessError(std::move(error));
 
@@ -1084,8 +1080,8 @@ private:
         {
             auto readerGuard = ReaderGuard(Reader_->ChunkIdToPeerAccessInfoLock_);
 
-            for (int nodeIndex = 0; nodeIndex < std::ssize(NodeIds_); ++nodeIndex) {
-                auto nodeId = NodeIds_[nodeIndex];
+            for (int nodeIndex = 0; nodeIndex < std::ssize(nodeIds); ++nodeIndex) {
+                auto nodeId = nodeIds[nodeIndex];
                 const auto& failedChunkIndexes = failedChunkIndexesByNode[nodeIndex];
                 const auto& responseOrError = responseOrErrors[nodeIndex];
 
