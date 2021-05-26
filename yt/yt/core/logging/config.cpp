@@ -213,7 +213,7 @@ TLogManagerConfigPtr TLogManagerConfig::CreateSilent()
     return config;
 }
 
-TLogManagerConfigPtr TLogManagerConfig::CreateYtServer(const TString& componentName)
+TLogManagerConfigPtr TLogManagerConfig::CreateYtServer(const TString& componentName, const TString& directory)
 {
     auto config = New<TLogManagerConfig>();
 
@@ -230,7 +230,8 @@ TLogManagerConfigPtr TLogManagerConfig::CreateYtServer(const TString& componentN
         auto fileWriterConfig = New<TWriterConfig>();
         fileWriterConfig->Type = EWriterType::File;
         fileWriterConfig->FileName = Format(
-            "./%v%v.log",
+            "%v/%v%v.log",
+            directory,
             componentName,
             logLevel == ELogLevel::Info ? "" : "." + FormatEnum(logLevel));
 

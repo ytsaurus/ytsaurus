@@ -23,6 +23,7 @@
 
 #include <library/cpp/testing/gtest/gtest.h>
 #include <library/cpp/testing/hook/hook.h>
+#include <library/cpp/testing/common/env.h>
 
 #include <util/system/fs.h>
 #include <util/system/env.h>
@@ -120,7 +121,11 @@ Y_TEST_HOOK_BEFORE_RUN(GTEST_YT_SETUP)
     NYT::NYTAlloc::InitializeLibunwindInterop();
     NYT::NYTAlloc::EnableStockpile();
     NYT::NYTAlloc::ConfigureFromEnv();
+
+    auto config = NYT::NLogging::TLogManagerConfig::CreateYtServer("unittester", GetOutputPath().GetPath());
+    NYT::NLogging::TLogManager::Get()->Configure(config);
     NYT::NLogging::TLogManager::Get()->EnableReopenOnSighup();
+
     NYT::NProfiling::TSolomonRegistry::Get()->Disable();
 
     ::testing::AddGlobalTestEnvironment(new TYTEnvironment());
