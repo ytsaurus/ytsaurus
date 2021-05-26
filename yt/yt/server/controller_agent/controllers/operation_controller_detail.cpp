@@ -9160,11 +9160,11 @@ void TOperationControllerBase::MarkJobHasCompetitors(const TJobletPtr& joblet)
 {
     if (!joblet->HasCompetitors) {
         joblet->HasCompetitors = true;
-        auto statistics = NJobAgent::TControllerJobReport()
+        auto jobReport = NJobAgent::TControllerJobReport()
             .OperationId(OperationId)
             .JobId(joblet->JobId)
             .HasCompetitors(true);
-        Host->GetJobReporter()->ReportStatistics(std::move(statistics));
+        Host->GetJobReporter()->HandleJobReport(std::move(jobReport));
     }
 }
 

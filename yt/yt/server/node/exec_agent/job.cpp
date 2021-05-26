@@ -149,7 +149,7 @@ public:
             }
         }
 
-        ReportStatistics(MakeDefaultJobStatistics()
+        HandleJobReport(MakeDefaultJobReport()
             .TreeId(SchedulerJobSpecExt_->tree_id()));
     }
 
@@ -619,7 +619,7 @@ public:
 
         if (StderrSize_ != value) {
             StderrSize_ = value;
-            ReportStatistics(MakeDefaultJobStatistics()
+            HandleJobReport(MakeDefaultJobReport()
                 .StderrSize(StderrSize_));
         }
     }
@@ -689,7 +689,7 @@ public:
 
             StatisticsYson_ = ConvertToYsonString(statistics);
 
-            ReportStatistics(MakeDefaultJobStatistics()
+            HandleJobReport(MakeDefaultJobReport()
                 .Statistics(StatisticsYson_));
 
             if (UserJobSensorProducer_) {
@@ -782,12 +782,12 @@ public:
         }
     }
 
-    virtual void ReportStatistics(TNodeJobReport&& statistics) override
+    virtual void HandleJobReport(TNodeJobReport&& jobReport) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        Bootstrap_->GetJobReporter()->ReportStatistics(
-            statistics
+        Bootstrap_->GetJobReporter()->HandleJobReport(
+            jobReport
                 .OperationId(GetOperationId())
                 .JobId(GetId()));
     }
@@ -796,7 +796,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        ReportStatistics(MakeDefaultJobStatistics()
+        HandleJobReport(MakeDefaultJobReport()
             .Spec(JobSpec_));
     }
 
@@ -804,7 +804,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        ReportStatistics(TNodeJobReport()
+        HandleJobReport(TNodeJobReport()
             .Stderr(GetStderr()));
     }
 
@@ -813,7 +813,7 @@ public:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         if (auto failContext = GetFailContext()) {
-            ReportStatistics(TNodeJobReport()
+            HandleJobReport(TNodeJobReport()
                 .FailContext(*failContext));
         }
     }
@@ -823,7 +823,7 @@ public:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         if (auto profile = GetProfile()) {
-            ReportStatistics(TNodeJobReport()
+            HandleJobReport(TNodeJobReport()
                 .Profile(*profile));
         }
     }
@@ -991,7 +991,7 @@ private:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         JobEvents_.emplace_back(std::forward<U>(u)...);
-        ReportStatistics(MakeDefaultJobStatistics()
+        HandleJobReport(MakeDefaultJobReport()
             .Events(JobEvents_));
     }
 
@@ -1051,7 +1051,7 @@ private:
             .WithGlobal()
             .WithRequiredTag("job_descriptor", monitoringConfig.job_descriptor())
             .AddProducer("", UserJobSensorProducer_);
-        ReportStatistics(TNodeJobReport()
+        HandleJobReport(TNodeJobReport()
             .MonitoringDescriptor(monitoringConfig.job_descriptor()));
     }
 
@@ -1519,7 +1519,7 @@ private:
         if (!error.IsOK()) {
             // NB: it is required to report error that occurred in some place different
             // from OnJobFinished method.
-            ReportStatistics(TNodeJobReport().Error(error));
+            HandleJobReport(TNodeJobReport().Error(error));
         }
 
         YT_LOG_INFO(error, "Setting final job state (JobState: %v)", GetState());
@@ -2223,11 +2223,11 @@ private:
         return rootFS;
     }
 
-    TNodeJobReport MakeDefaultJobStatistics()
+    TNodeJobReport MakeDefaultJobReport()
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        auto statistics = TNodeJobReport()
+        auto report = TNodeJobReport()
             .Type(GetType())
             .State(GetState())
             .StartTime(GetStartTime())
@@ -2235,16 +2235,16 @@ private:
             .CoreInfos(CoreInfos_)
             .ExecAttributes(ConvertToYsonString(ExecAttributes_));
         if (FinishTime_) {
-            statistics.SetFinishTime(*FinishTime_);
+            report.SetFinishTime(*FinishTime_);
         }
         if (SchedulerJobSpecExt_->has_job_competition_id()) {
-            statistics.SetJobCompetitionId(FromProto<TGuid>(SchedulerJobSpecExt_->job_competition_id()));
+            report.SetJobCompetitionId(FromProto<TGuid>(SchedulerJobSpecExt_->job_competition_id()));
         }
         if (SchedulerJobSpecExt_ && SchedulerJobSpecExt_->has_task_name()) {
-            statistics.SetTaskName(SchedulerJobSpecExt_->task_name());
+            report.SetTaskName(SchedulerJobSpecExt_->task_name());
         }
 
-        return statistics;
+        return report;
     }
 
 

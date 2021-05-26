@@ -117,7 +117,7 @@ struct IJob
     virtual bool GetStored() const = 0;
     virtual void SetStored(bool value) = 0;
 
-    virtual void ReportStatistics(TNodeJobReport&& statistics) = 0;
+    virtual void HandleJobReport(TNodeJobReport&& statistics) = 0;
     virtual void ReportSpec() = 0;
     virtual void ReportStderr() = 0;
     virtual void ReportFailContext() = 0;
