@@ -446,24 +446,24 @@ public:
                 ReporterProfiler.WithTag("reporter_type", "profiles")))
     { }
 
-    void ReportStatistics(TJobReport&& statistics)
+    void HandleJobReport(TJobReport&& jobReport)
     {
-        if (IsSpecEntry(statistics)) {
-            JobSpecHandler_->Enqueue(std::make_unique<TJobSpecRowlet>(statistics.ExtractSpec()));
+        if (IsSpecEntry(jobReport)) {
+            JobSpecHandler_->Enqueue(std::make_unique<TJobSpecRowlet>(jobReport.ExtractSpec()));
         }
-        if (statistics.Stderr()) {
-            JobStderrHandler_->Enqueue(std::make_unique<TJobStderrRowlet>(statistics.ExtractStderr()));
+        if (jobReport.Stderr()) {
+            JobStderrHandler_->Enqueue(std::make_unique<TJobStderrRowlet>(jobReport.ExtractStderr()));
         }
-        if (statistics.FailContext()) {
-            JobFailContextHandler_->Enqueue(std::make_unique<TJobFailContextRowlet>(statistics.ExtractFailContext()));
+        if (jobReport.FailContext()) {
+            JobFailContextHandler_->Enqueue(std::make_unique<TJobFailContextRowlet>(jobReport.ExtractFailContext()));
         }
-        if (statistics.Profile()) {
-            JobProfileHandler_->Enqueue(std::make_unique<TJobProfileRowlet>(statistics.ExtractProfile()));
+        if (jobReport.Profile()) {
+            JobProfileHandler_->Enqueue(std::make_unique<TJobProfileRowlet>(jobReport.ExtractProfile()));
         }
-        if (!statistics.IsEmpty()) {
-            OperationIdHandler_->Enqueue(std::make_unique<TOperationIdRowlet>(statistics.ExtractIds()));
+        if (!jobReport.IsEmpty()) {
+            OperationIdHandler_->Enqueue(std::make_unique<TOperationIdRowlet>(jobReport.ExtractIds()));
             JobHandler_->Enqueue(std::make_unique<TJobRowlet>(
-                std::move(statistics),
+                std::move(jobReport),
                 Config_->ReportStatisticsLz4,
                 LocalAddress_));
         }
@@ -554,10 +554,10 @@ TJobReporter::TJobReporter(
 TJobReporter::~TJobReporter()
 { }
 
-void TJobReporter::ReportStatistics(TJobReport&& statistics)
+void TJobReporter::HandleJobReport(TJobReport&& jobReport)
 {
     if (Impl_) {
-        Impl_->ReportStatistics(std::move(statistics));
+        Impl_->HandleJobReport(std::move(jobReport));
     }
 }
 

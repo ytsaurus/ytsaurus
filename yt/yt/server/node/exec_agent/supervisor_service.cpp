@@ -247,7 +247,7 @@ private:
             jobReport.SetFinishTime(FromProto<TInstant>(request->finish_time()));
         }
         job->SetCoreInfos(FromProto<TCoreInfos>(request->core_infos()));
-        job->ReportStatistics(std::move(jobReport));
+        job->HandleJobReport(std::move(jobReport));
 
         if (request->has_job_stderr()) {
             job->SetStderr(request->job_stderr());

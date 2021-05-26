@@ -394,7 +394,7 @@ public:
         YT_ABORT();
     }
 
-    virtual void ReportStatistics(TNodeJobReport&&) override
+    virtual void HandleJobReport(TNodeJobReport&&) override
     {
         YT_ABORT();
     }

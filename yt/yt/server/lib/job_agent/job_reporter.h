@@ -33,7 +33,7 @@ public:
 
     ~TJobReporter();
 
-    void ReportStatistics(TJobReport&& statistics);
+    void HandleJobReport(TJobReport&& statistics);
     void SetEnabled(bool enable);
     void SetSpecEnabled(bool enable);
     void SetStderrEnabled(bool enable);
