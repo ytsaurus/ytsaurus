@@ -68,6 +68,7 @@ class LocalYtConfig(object):
     scheduler_count = attr.ib(1)
     controller_agent_count = attr.ib(1)
     node_count = attr.ib(1)
+    chaos_node_count = attr.ib(0)
     http_proxy_count = attr.ib(1)
     rpc_proxy_count = attr.ib(1)
     master_cache_count = attr.ib(0)
@@ -75,6 +76,7 @@ class LocalYtConfig(object):
 
     """Start options"""
     defer_node_start = attr.ib(False)
+    defer_chaos_node_start = attr.ib(False)
     defer_scheduler_start = attr.ib(False)
     defer_controller_agent_start = attr.ib(False)
     defer_secondary_cell_start = attr.ib(False)

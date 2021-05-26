@@ -8,7 +8,7 @@ import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 
 message TReqCellarHeartbeat
 {
-    required int32 type = 1; // NCellarAgent::ECellarType
+    required int32 type = 1; // NCellarClient::ECellarType
 
     required NNodeTrackerClient.NProto.TCellarNodeStatistics statistics = 2;
     repeated TCellSlotInfo cell_slots = 3;
@@ -16,7 +16,7 @@ message TReqCellarHeartbeat
 
 message TRspCellarHeartbeat
 {
-    required int32 type = 1; // NCellarAgent::ECellarType
+    required int32 type = 1; // NCellarClient::ECellarType
 
     repeated TCreateCellSlotInfo slots_to_create = 2;
     repeated TRemoveCellSlotInfo slots_to_remove = 3;

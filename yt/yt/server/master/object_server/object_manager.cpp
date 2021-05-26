@@ -1317,7 +1317,7 @@ TObject* TObjectManager::TImpl::CreateObject(
 
     YT_VERIFY(object->GetObjectRefCounter() == 1);
 
-    if (object->GetNativeCellTag() != multicellManager->GetCellTag()) {
+    if (object->GetNativeCellTag() != multicellManager->GetCellTag() && !IsAlienType(type)) {
         object->SetForeign();
     }
 

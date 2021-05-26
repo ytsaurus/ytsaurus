@@ -47,10 +47,6 @@ using NTabletClient::NullStoreId;
 using NTabletClient::TPartitionId;
 using NTabletClient::NullPartitionId;
 
-using NTabletClient::TTransactionSignature;
-using NTabletClient::InitialTransactionSignature;
-using NTabletClient::FinalTransactionSignature;
-
 using NTabletClient::TTabletCellConfig;
 using NTabletClient::TTabletCellConfigPtr;
 using NTabletClient::TTabletCellOptions;
@@ -68,6 +64,9 @@ using NTransactionClient::SyncLastCommittedTimestamp;
 using NTransactionClient::AsyncLastCommittedTimestamp;
 using NTransactionClient::AllCommittedTimestamp;
 using NTransactionClient::TTransactionActionData;
+using NTransactionClient::TTransactionSignature;
+using NTransactionClient::InitialTransactionSignature;
+using NTransactionClient::FinalTransactionSignature;
 
 using NTableClient::EValueType;
 using NTableClient::TLegacyKey;

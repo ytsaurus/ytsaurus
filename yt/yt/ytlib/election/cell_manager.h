@@ -1,5 +1,6 @@
 #pragma once
 
+#include "alien_cell_peer_channel_factory.h"
 #include "public.h"
 
 #include <yt/yt/core/actions/signal.h>
@@ -19,6 +20,7 @@ public:
     TCellManager(
         TCellConfigPtr config,
         NRpc::IChannelFactoryPtr channelFactory,
+        IAlienCellPeerChannelFactoryPtr foreignChannelFactory,
         TPeerId selfId);
 
     TCellId GetCellId() const;
@@ -35,6 +37,7 @@ public:
 private:
     const TCellConfigPtr Config_;
     const NRpc::IChannelFactoryPtr ChannelFactory_;
+    const IAlienCellPeerChannelFactoryPtr AlienCellPeerChannelFactory_;
     const TPeerId SelfId_;
 
     const int VotingPeerCount_;
@@ -45,7 +48,7 @@ private:
 
     std::vector<NRpc::IChannelPtr> PeerChannels_;
 
-    NRpc::IChannelPtr CreatePeerChannel(const TCellPeerConfig& peerConfig);
+    NRpc::IChannelPtr CreatePeerChannel(TPeerId id, const TCellPeerConfig& peerConfig);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellManager)

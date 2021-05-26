@@ -14,6 +14,7 @@ struct TCellPeerConfig
     explicit TCellPeerConfig(const std::optional<TString>& address, bool voting = true);
 
     std::optional<TString> Address;
+    std::optional<TString> AlienCluster;
     bool Voting = true;
 };
 

@@ -1524,6 +1524,14 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             assert _get_cell_acl(cell_id) == [make_ace("allow", "user2", ["write"])]
 
     @authors("savrus")
+    def test_bundle_bad_options(self):
+        sync_create_cells(1)
+        with pytest.raises(YtError):
+            set("//sys/tablet_cell_bundles/default/@options/peer_count", 2)
+        with pytest.raises(YtError):
+            set("//sys/tablet_cell_bundles/default/@options/independent_peers", True)
+
+    @authors("savrus")
     def test_tablet_count_by_state(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")

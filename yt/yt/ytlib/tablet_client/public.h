@@ -46,7 +46,6 @@ DEFINE_ENUM(ETabletStoresUpdateReason,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr int TypicalTabletSlotCount = 10;
 constexpr int TypicalPeerCount = 5;
 constexpr int MaxPeerCount = 10;
 constexpr int MaxTabletCount = 10000;
@@ -61,17 +60,6 @@ static_assert(
 
 //! $tablet_index and $row_index.
 constexpr int OrderedTabletSystemColumnCount = 2;
-
-//! Signatures enable checking tablet transaction integrity.
-/*!
- *  When a transaction is created, its signature is #InitialTransactionSignature.
- *  Each change within a transaction is annotated with a signature; these signatures are
- *  added to the transaction's signature. For a commit to be successful, the final signature must
- *  be equal to #FinalTransactionSignature.
- */
-using TTransactionSignature = ui32;
-const TTransactionSignature InitialTransactionSignature = 0;
-const TTransactionSignature FinalTransactionSignature = 0xffffffffU;
 
 ////////////////////////////////////////////////////////////////////////////////
 

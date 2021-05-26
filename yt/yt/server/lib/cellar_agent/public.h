@@ -2,6 +2,8 @@
 
 #include <yt/yt/ytlib/cellar_client/public.h>
 
+#include <yt/yt/client/election/public.h>
+
 #include <yt/yt/core/misc/common.h>
 
 namespace NYT::NCellarAgent {

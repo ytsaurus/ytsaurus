@@ -8,6 +8,8 @@
 #include "world_initializer.h"
 #include "multicell_manager.h"
 
+#include <yt/yt/server/master/chaos_server/chaos_manager.h>
+
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/chunk_service.h>
 #include <yt/yt/server/master/chunk_server/data_node_tracker.h>
@@ -159,6 +161,7 @@ namespace NYT::NCellMaster {
 using namespace NAdmin;
 using namespace NApi;
 using namespace NBus;
+using namespace NChaosServer;
 using namespace NChunkServer;
 using namespace NConcurrency;
 using namespace NCypressServer;
@@ -416,6 +419,11 @@ const TTabletManagerPtr& TBootstrap::GetTabletManager() const
     return TabletManager_;
 }
 
+const IChaosManagerPtr& TBootstrap::GetChaosManager() const
+{
+    return ChaosManager_;
+}
+
 const THiveManagerPtr& TBootstrap::GetHiveManager() const
 {
     return HiveManager_;
@@ -660,6 +668,7 @@ void TBootstrap::DoInitialize()
     CellManager_ = New<TCellManager>(
         localCellConfig,
         ChannelFactory_,
+        nullptr,
         localPeerId);
 
     ChangelogStoreFactory_ = CreateLocalChangelogStoreFactory(
@@ -752,6 +761,8 @@ void TBootstrap::DoInitialize()
 
     TabletManager_ = New<TTabletManager>(this);
 
+    ChaosManager_ = CreateChaosManager(this);
+
     ReplicatedTableTracker_ = New<TReplicatedTableTracker>(Config_->ReplicatedTableTracker, this);
 
     SchedulerPoolManager_ = New<TSchedulerPoolManager>(this);
@@ -800,6 +811,7 @@ void TBootstrap::DoInitialize()
     CellHydraJanitor_->Initialize();
     TableManager_->Initialize();
     TabletManager_->Initialize();
+    ChaosManager_->Initialize();
     MulticellManager_->Initialize();
     SchedulerPoolManager_->Initialize();
 

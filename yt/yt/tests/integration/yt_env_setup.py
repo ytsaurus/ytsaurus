@@ -195,6 +195,8 @@ class YTEnvSetup(object):
     MASTER_CELL_ROLES = {}
     NUM_NODES = 5
     DEFER_NODE_START = False
+    NUM_CHAOS_NODES = 0
+    DEFER_CHAOS_NODE_START = False
     NUM_MASTER_CACHES = 0
     NUM_SCHEDULERS = 0
     DEFER_SCHEDULER_START = False
@@ -309,6 +311,8 @@ class YTEnvSetup(object):
             discovery_server_count=cls.get_param("NUM_DISCOVERY_SERVERS", index),
             node_count=cls.get_param("NUM_NODES", index),
             defer_node_start=cls.get_param("DEFER_NODE_START", index),
+            chaos_node_count=cls.get_param("NUM_CHAOS_NODES", index),
+            defer_chaos_node_start=cls.get_param("DEFER_CHAOS_NODE_START", index),
             master_cache_count=cls.get_param("NUM_MASTER_CACHES", index),
             scheduler_count=cls.get_param("NUM_SCHEDULERS", index),
             defer_scheduler_start=cls.get_param("DEFER_SCHEDULER_START", index),

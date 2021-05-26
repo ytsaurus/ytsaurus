@@ -14,6 +14,8 @@
 
 #include <yt/yt/server/lib/hydra/hydra_janitor_helpers.h>
 
+#include <yt/yt/ytlib/tablet_client/config.h>
+
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/ytree/ypath_proxy.h>
@@ -185,6 +187,31 @@ private:
         }
     }
 
+    void CleanSnapshotsAndChangelogs(
+        TCellId /*cellId*/,
+        TString path,
+        int* snapshotBudget,
+        int* changelogBudget)
+    {
+        auto snapshotPath = path + "/snapshots";
+        auto changelogPath = path + "/changelogs";
+
+        auto snapshots = ListHydraFiles(snapshotPath);
+        auto changelogs = ListHydraFiles(changelogPath);
+
+        if (!snapshots || !changelogs) {
+            return;
+        }
+
+        auto thresholdId = ComputeJanitorThresholdId(
+            *snapshots,
+            *changelogs,
+            GetDynamicConfig());
+
+        RemoveHydraFiles(snapshotPath, thresholdId, snapshotBudget);
+        RemoveHydraFiles(changelogPath, thresholdId, changelogBudget);
+    }
+
     void OnCleanup()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -195,28 +222,24 @@ private:
         const auto& tamedCellManager = Bootstrap_->GetTamedCellManager();
         auto cellIds = GetKeys(tamedCellManager->Cells());
         for (auto cellId : cellIds) {
-            if (!IsObjectAlive(tamedCellManager->FindCell(cellId))) {
+            auto* cell = tamedCellManager->FindCell(cellId);
+
+            if (!IsObjectAlive(cell)) {
                 continue;
             }
 
             try {
-                auto snapshotPath = Format("//sys/tablet_cells/%v/snapshots", ToYPathLiteral(ToString(cellId)));
-                auto changelogPath = Format("//sys/tablet_cells/%v/changelogs", ToYPathLiteral(ToString(cellId)));
-
-                auto snapshots = ListHydraFiles(snapshotPath);
-                auto changelogs = ListHydraFiles(changelogPath);
-
-                if (!snapshots || !changelogs) {
-                    continue;
+                if (cell->GetCellBundle()->GetOptions()->IndependentPeers) {
+                    for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+                        if (!cell->IsAlienPeer(peerId)) {
+                            auto path = Format("//sys/tablet_cells/%v/%v", ToYPathLiteral(ToString(cellId)), peerId);
+                            CleanSnapshotsAndChangelogs(cellId, path, &snapshotBudget, &changelogBudget);
+                        }
+                    }
+                } else {
+                    auto path = Format("//sys/tablet_cells/%v", ToYPathLiteral(ToString(cellId)));
+                    CleanSnapshotsAndChangelogs(cellId, path, &snapshotBudget, &changelogBudget);
                 }
-
-                auto thresholdId = ComputeJanitorThresholdId(
-                    *snapshots,
-                    *changelogs,
-                    GetDynamicConfig());
-
-                RemoveHydraFiles(snapshotPath, thresholdId, &snapshotBudget);
-                RemoveHydraFiles(changelogPath, thresholdId, &changelogBudget);
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Janitor cleanup failed (CellId: %v)", cellId);
             }

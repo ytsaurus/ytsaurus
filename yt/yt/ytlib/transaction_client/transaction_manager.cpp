@@ -374,7 +374,8 @@ public:
     {
         YT_VERIFY(
             TypeFromId(cellId) == EObjectType::TabletCell ||
-            TypeFromId(cellId) == EObjectType::MasterCell);
+            TypeFromId(cellId) == EObjectType::MasterCell ||
+            TypeFromId(cellId) == EObjectType::ChaosCell);
 
         if (Atomicity_ != EAtomicity::Full) {
             return;

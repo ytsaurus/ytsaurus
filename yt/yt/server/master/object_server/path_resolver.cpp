@@ -298,7 +298,8 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot()
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             if (CellTagFromId(objectId) != multicellManager->GetCellTag() &&
                 multicellManager->IsPrimaryMaster() &&
-                !ampersandSkipped)
+                !ampersandSkipped &&
+                !IsAlienType(TypeFromId(objectId)))
             {
                 return TRemoteObjectPayload{objectId};
             }

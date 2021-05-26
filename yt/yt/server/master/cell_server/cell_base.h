@@ -15,9 +15,12 @@
 
 #include <yt/yt/server/master/transaction_server/public.h>
 
+#include <yt/yt/server/lib/cellar_agent/public.h>
+
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
 #include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/core/misc/optional.h>
@@ -61,6 +64,7 @@ public:
         TInstant LastSeenTime;
         EPeerState LastSeenState = EPeerState::None;
         TError LastRevocationReason;
+        NTransactionServer::TTransaction* PrerequisiteTransaction = nullptr;
 
         void Persist(const NCellMaster::TPersistenceContext& context);
     };
@@ -100,6 +104,10 @@ public:
     virtual void Save(NCellMaster::TSaveContext& context) const;
     virtual void Load(NCellMaster::TLoadContext& context);
 
+    virtual NHiveClient::TCellDescriptor GetDescriptor() const = 0;
+
+    virtual bool IsAlienPeer(int peerId) const;
+
     TPeerId FindPeerId(const TString& address) const;
     TPeerId GetPeerId(const TString& address) const;
 
@@ -119,6 +127,11 @@ public:
 
     NHydra::EPeerState GetPeerState(TPeerId peerId) const;
 
+    //! If peers are independent peerId should be specified.
+    //! If peers are not independent std::nullopt should be passed as peerId.
+    NTransactionServer::TTransaction* GetPrerequisiteTransaction(std::optional<int> peerId) const;
+    void SetPrerequisiteTransaction(std::optional<int> peerId, NTransactionServer::TTransaction* transaction);
+
     //! Computes the health from a point of view of a single master.
     ECellHealth GetHealth() const;
 
@@ -128,8 +141,6 @@ public:
 
     //! Get aggregated health for all masters.
     ECellHealth GetMulticellHealth() const;
-
-    NHiveClient::TCellDescriptor GetDescriptor() const;
 
     //! Recompute cluster statistics from multicell statistics.
     void RecomputeClusterStatus();
@@ -142,6 +153,15 @@ public:
 
     //! Returns |true| if cell reported that it is decommissioned.
     bool IsDecommissionCompleted() const;
+
+    //! Retrns |true| if peers are independent.
+    bool IsIndependent() const;
+
+    NCellarClient::ECellarType GetCellarType() const;
+
+protected:
+    ECellHealth GetCumulativeIndependentPeersHealth() const;
+    ECellHealth GetCumulativeDependentPeersHealth() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

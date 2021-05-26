@@ -231,6 +231,7 @@ void TBootstrap::DoInitialize()
     CellManager_ = New<TCellManager>(
         localCellConfig,
         channelFactory,
+        nullptr,
         localPeerId);
 
     ChangelogStoreFactory_ = CreateLocalChangelogStoreFactory(

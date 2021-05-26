@@ -102,8 +102,6 @@ constexpr auto DefaultSyncTabletActionKeepalivePeriod = TDuration::Minutes(1);
 
 constexpr int DefaultTabletCountLimit = 1000;
 
-using TTabletCellSet = SmallVector<std::pair<const TTabletCell*, int>, NTabletClient::TypicalTabletSlotCount>;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletServer

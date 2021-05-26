@@ -33,7 +33,8 @@ public:
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
     const TInstant StartTime_;
-    const ICellBalancerProviderPtr TCellBalancerProvider_;
+
+    THashMap<NCellarClient::ECellarType, ICellBalancerProviderPtr> PerCellarProviders_;
     bool WaitForCommit_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -44,6 +45,7 @@ private:
 
     void Profile(const std::vector<TCellMoveDescriptor>& moveDescriptors);
 
+    void ScanCellarCells(NCellarClient::ECellarType cellarType);
     void ScheduleLeaderReassignment(TCellBase* cell);
     void SchedulePeerAssignment(TCellBase* cell, ICellBalancer* balancer);
     void SchedulePeerRevocation(TCellBase* cell, ICellBalancer* balancer);

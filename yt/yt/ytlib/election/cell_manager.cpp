@@ -22,9 +22,11 @@ using namespace NRpc;
 TCellManager::TCellManager(
     TCellConfigPtr config,
     IChannelFactoryPtr channelFactory,
+    IAlienCellPeerChannelFactoryPtr foreignChannelFactory,
     TPeerId selfId)
     : Config_(std::move(config))
     , ChannelFactory_(std::move(channelFactory))
+    , AlienCellPeerChannelFactory_(std::move(foreignChannelFactory))
     , SelfId_(selfId)
     , VotingPeerCount_(Config_->CountVotingPeers())
     , QuorumPeerCount_(VotingPeerCount_ / 2 + 1)
@@ -35,7 +37,7 @@ TCellManager::TCellManager(
 {
     PeerChannels_.resize(TotalPeerCount_);
     for (TPeerId id = 0; id < TotalPeerCount_; ++id) {
-        PeerChannels_[id] = CreatePeerChannel(Config_->Peers[id]);
+        PeerChannels_[id] = CreatePeerChannel(id, Config_->Peers[id]);
     }
 
     YT_LOG_INFO("Cell initialized (SelfId: %v, Peers: %v, VotingPeers: %v)",
@@ -84,8 +86,14 @@ IChannelPtr TCellManager::GetPeerChannel(TPeerId id) const
     return PeerChannels_[id];
 }
 
-IChannelPtr TCellManager::CreatePeerChannel(const TCellPeerConfig& config)
+IChannelPtr TCellManager::CreatePeerChannel(TPeerId id, const TCellPeerConfig& config)
 {
+    if (config.AlienCluster) {
+        return AlienCellPeerChannelFactory_->CreateChannel(
+            *config.AlienCluster,
+            Config_->CellId,
+            id);
+    }
     if (!config.Address) {
         return nullptr;
     }

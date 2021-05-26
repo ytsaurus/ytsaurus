@@ -20,6 +20,7 @@
 
 #include <yt/yt/server/lib/election/election_manager.h>
 #include <yt/yt/server/lib/election/election_manager_thunk.h>
+#include <yt/yt/server/lib/election/alien_cell_peer_channel_factory.h>
 
 #include <yt/yt/server/lib/hydra/changelog.h>
 #include <yt/yt/server/lib/hydra/remote_changelog_store.h>
@@ -144,6 +145,9 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (Finalizing_) {
+            YT_LOG_DEBUG("Peer is finalized (CellId: %v, State: %v)",
+                GetCellId(),
+                EPeerState::Stopped);
             return EPeerState::Stopped;
         }
 
@@ -152,6 +156,9 @@ public:
         }
 
         if (Initialized_) {
+            YT_LOG_DEBUG("Peer is not initialized yet (CellId: %v, State: %v)",
+                GetCellId(),
+                EPeerState::Stopped);
             return EPeerState::Stopped;
         }
 
@@ -303,10 +310,18 @@ public:
         auto snapshotClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::TabletCellSnapshotterUserName));
         auto changelogClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::TabletCellChangeloggerUserName));
 
+        bool independent = Options_->IndependentPeers;
+        TStringBuilder builder;
+        builder.AppendFormat("//sys/tablet_cells/%v", GetCellId());
+        if (independent) {
+            builder.AppendFormat("/%v", PeerId_);
+        }
+        auto path = builder.Flush();
+
         auto snapshotStore = CreateRemoteSnapshotStore(
             Config_->Snapshots,
             Options_,
-            Format("//sys/tablet_cells/%v/snapshots", GetCellId()),
+            path + "/snapshots",
             snapshotClient,
             PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId);
         SnapshotStoreThunk_->SetUnderlying(snapshotStore);
@@ -321,7 +336,7 @@ public:
         auto changelogStoreFactory = CreateRemoteChangelogStoreFactory(
             Config_->Changelogs,
             Options_,
-            Format("//sys/tablet_cells/%v/changelogs", GetCellId()),
+            path + "/changelogs",
             changelogClient,
             Bootstrap_->GetResourceLimitsManager(),
             PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId,
@@ -334,10 +349,14 @@ public:
             ->GetMasterClient()
             ->GetNativeConnection()
             ->GetChannelFactory();
+        auto foreignChannelFactory = CreateAlienCellPeerChannelFactory(
+            connection->GetClusterDirectory(),
+            connection->GetClusterDirectorySynchronizer());
 
         CellManager_ = New<TCellManager>(
             cellConfig,
             channelFactory,
+            foreignChannelFactory,
             PeerId_);
 
         if (auto slotHydraManager = GetHydraManager()) {
@@ -359,8 +378,8 @@ public:
 
             TDistributedHydraManagerOptions hydraManagerOptions{
                 .UseFork = false,
-                .WriteChangelogsAtFollowers = false,
-                .WriteSnapshotsAtFollowers = false,
+                .WriteChangelogsAtFollowers = independent,
+                .WriteSnapshotsAtFollowers = independent,
                 .ResponseKeeper = ResponseKeeper_
             };
 
@@ -378,9 +397,11 @@ public:
                 hydraManagerDynamicOptions);
             HydraManager_.Store(hydraManager);
 
-            hydraManager->SubscribeLeaderLeaseCheck(
-                BIND(&TCellarOccupant::OnLeaderLeaseCheckThunk, MakeWeak(this))
-                    .AsyncVia(Bootstrap_->GetControlInvoker()));
+            if (!independent) {
+                hydraManager->SubscribeLeaderLeaseCheck(
+                    BIND(&TCellarOccupant::OnLeaderLeaseCheckThunk, MakeWeak(this))
+                        .AsyncVia(Bootstrap_->GetControlInvoker()));
+            }
 
             ElectionManager_ = CreateDistributedElectionManager(
                 Config_->ElectionManager,

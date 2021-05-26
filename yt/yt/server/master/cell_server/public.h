@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/hydra/public.h>
 
+#include <yt/yt/ytlib/cellar_client/public.h>
+
 #include <yt/yt/ytlib/tablet_client/public.h>
 
 #include <yt/yt/core/misc/enum.h>
@@ -63,7 +65,7 @@ DECLARE_ENTITY_TYPE(TCellBase, TTamedCellId, NObjectClient::TDirectObjectIdHash)
 
 extern const TString DefaultCellBundleName;
 
-using TCellSet = SmallVector<std::pair<const TCellBase*, int>, NTabletClient::TypicalTabletSlotCount>;
+using TCellSet = SmallVector<std::pair<const TCellBase*, int>, NCellarClient::TypicalCellarSize>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

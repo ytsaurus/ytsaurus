@@ -780,6 +780,10 @@ public:
                     result.insert(ENodeHeartbeatType::Cellar);
                     break;
 
+                case ENodeFlavor::Chaos:
+                    result.insert(ENodeHeartbeatType::Cellar);
+                    break;
+
                 default:
                     YT_ABORT();
             }

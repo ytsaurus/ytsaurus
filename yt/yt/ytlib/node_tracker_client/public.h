@@ -88,6 +88,8 @@ DEFINE_ENUM(ENodeFlavor,
     ((Exec)         (2))
     // Node that is used to host dynamic tables tablets.
     ((Tablet)       (3))
+    // Node that is used to host chaos cells.
+    ((Chaos)        (4))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

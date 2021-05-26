@@ -21,12 +21,15 @@ class TTabletCellOptions
 {
 public:
     int PeerCount;
+    bool IndependentPeers;
 
     TTabletCellOptions()
     {
         RegisterParameter("peer_count", PeerCount)
             .Default(1)
             .InRange(1, MaxPeerCount);
+        RegisterParameter("independent_peers", IndependentPeers)
+            .Default(false);
     }
 };
 

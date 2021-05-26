@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/master/chaos_server/public.h>
+
 #include <yt/yt/server/master/chunk_server/public.h>
 
 #include <yt/yt/server/master/cypress_server/public.h>
@@ -112,6 +114,7 @@ public:
     const NCellServer::TTamedCellManagerPtr& GetTamedCellManager() const;
     const NTableServer::TTableManagerPtr& GetTableManager() const;
     const NTabletServer::TTabletManagerPtr& GetTabletManager() const;
+    const NChaosServer::IChaosManagerPtr& GetChaosManager() const;
     const NHiveServer::THiveManagerPtr& GetHiveManager() const;
     const NHiveClient::TCellDirectoryPtr& GetCellDirectory() const;
     const IInvokerPtr& GetControlInvoker() const;
@@ -182,6 +185,7 @@ private:
     NTabletServer::TTabletManagerPtr TabletManager_;
     NSchedulerPoolServer::TSchedulerPoolManagerPtr SchedulerPoolManager_;
     NTabletServer::TReplicatedTableTrackerPtr ReplicatedTableTracker_;
+    NChaosServer::IChaosManagerPtr ChaosManager_;
     NHiveServer::THiveManagerPtr HiveManager_;
     NHiveClient::TCellDirectoryPtr CellDirectory_;
     NHiveServer::TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;

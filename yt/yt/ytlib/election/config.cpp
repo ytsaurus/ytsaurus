@@ -2,6 +2,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
 namespace NYT::NElection {
 
 using namespace NYson;
@@ -22,6 +24,9 @@ TString ToString(const TCellPeerConfig& config)
 {
     TStringBuilder builder;
     builder.AppendFormat("%v", config.Address);
+    if (config.AlienCluster) {
+        builder.AppendFormat("@%v", *config.AlienCluster);
+    }
     if (!config.Voting) {
         builder.AppendString(" (non-voting)");
     }
@@ -30,10 +35,19 @@ TString ToString(const TCellPeerConfig& config)
 
 void Serialize(const TCellPeerConfig& config, IYsonConsumer* consumer)
 {
-    if (!config.Voting) {
+    if (!config.Voting || config.AlienCluster) {
         consumer->OnBeginAttributes();
+
+        if (!config.Voting) {
             consumer->OnKeyedItem("voting");
             consumer->OnBooleanScalar(false);
+        }
+
+        if (config.AlienCluster) {
+            consumer->OnKeyedItem("alien_cluster");
+            consumer->OnStringScalar(*config.AlienCluster);
+        }
+
         consumer->OnEndAttributes();
     }
     if (config.Address) {
@@ -47,6 +61,7 @@ void Deserialize(TCellPeerConfig& config, INodePtr node)
 {
     config.Address = node->GetType() == ENodeType::Entity ? std::nullopt : std::make_optional(node->GetValue<TString>());
     config.Voting = node->Attributes().Get<bool>("voting", true);
+    config.AlienCluster = node->Attributes().Find<TString>("alien_cluster");
 }
 
 bool operator ==(const TCellPeerConfig& lhs, const TCellPeerConfig& rhs)

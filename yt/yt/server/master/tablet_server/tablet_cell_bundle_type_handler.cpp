@@ -41,10 +41,11 @@ public:
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::TabletCellBundle, hintId);
+        auto options = attributes->GetAndRemove<TTabletCellOptionsPtr>("options");
         auto holder = std::make_unique<TTabletCellBundle>(id);
         holder->ResourceUsage().Initialize(Bootstrap_);
         holder->ResourceLimits().TabletCount = DefaultTabletCountLimit;
-        return DoCreateObject(std::move(holder), attributes);
+        return DoCreateObject(std::move(holder), attributes, std::move(options));
     }
 
     virtual std::unique_ptr<TObject> InstantiateObject(

@@ -11,6 +11,8 @@
 #include <yt/yt/server/master/cell_server/cell_bundle.h>
 #include <yt/yt/server/master/cell_server/cell_base.h>
 
+#include <yt/yt/server/master/tablet_server/tablet_cell.h>
+
 #include <yt/yt/ytlib/tablet_client/config.h>
 
 #include <util/random/random.h>
@@ -23,6 +25,7 @@ using namespace NNodeTrackerServer;
 using namespace NNodeTrackerClient;
 using namespace NYson;
 using namespace NHydra;
+using namespace NTabletServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -251,7 +254,7 @@ private:
     void CreateCell(TCellBundle* bundle, int index)
     {
         auto id = GenerateTabletCellId();
-        auto cellHolder = std::make_unique<TCellBase>(id);
+        auto cellHolder = std::make_unique<TTabletCell>(id);
         cellHolder->Peers().resize(bundle->GetOptions()->PeerCount);
         cellHolder->SetCellBundle(bundle);
         auto* cell = CellMap_.Insert(id, std::move(cellHolder));

@@ -6,6 +6,8 @@
 #include <yt/yt/ytlib/election/config.h>
 #include <yt/yt/ytlib/election/election_service_proxy.h>
 
+#include <yt/yt/core/actions/cancelable_context.h>
+
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/lease_manager.h>
@@ -14,8 +16,6 @@
 #include <yt/yt/core/rpc/service_detail.h>
 
 #include <yt/yt/core/ytree/fluent.h>
-
-#include <yt/yt/core/actions/cancelable_context.h>
 
 namespace NYT::NElection {
 
@@ -251,7 +251,9 @@ private:
         auto code = error.GetCode();
         if (code == NElection::EErrorCode::InvalidState ||
             code == NElection::EErrorCode::InvalidLeader ||
-            code == NElection::EErrorCode::InvalidEpoch)
+            code == NElection::EErrorCode::InvalidEpoch ||
+            code == NRpc::EErrorCode::NoSuchService ||
+            code == NYTree::EErrorCode::ResolveError)
         {
             // These errors are possible during grace period.
             if (Owner_->PotentialPeerIds_.contains(id)) {

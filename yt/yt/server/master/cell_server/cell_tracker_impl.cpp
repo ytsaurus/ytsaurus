@@ -11,6 +11,8 @@
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 
+#include <yt/yt/server/master/chaos_server/chaos_cell_bundle.h>
+
 #include <yt/yt/server/master/node_tracker_server/config.h>
 #include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
@@ -18,6 +20,8 @@
 #include <yt/yt/server/master/table_server/table_node.h>
 
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+
+#include <yt/yt/ytlib/tablet_client/config.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -29,6 +33,7 @@
 
 namespace NYT::NCellServer {
 
+using namespace NCellarClient;
 using namespace NCellMaster;
 using namespace NConcurrency;
 using namespace NObjectServer;
@@ -48,8 +53,9 @@ class TCellBalancerProvider
     : public ICellBalancerProvider
 {
 public:
-    explicit TCellBalancerProvider(TBootstrap* bootstrap)
+    TCellBalancerProvider(TBootstrap* bootstrap, ECellarType cellarType)
         : Bootstrap_(bootstrap)
+        , CellarType_(cellarType)
         , BalanceRequestTime_(Now())
     {
         const auto& bundleNodeTracker = Bootstrap_->GetTamedCellManager()->GetBundleNodeTracker();
@@ -64,7 +70,7 @@ public:
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
 
         auto isGood = [&] (const auto* node) {
-            return CheckIfNodeCanHostCells(node) && node->GetTotalTabletSlots() > 0;
+            return node->GetCellarSize(CellarType_) > 0 && CheckIfNodeCanHostCells(node);
         };
 
         int nodeCount = 0;
@@ -76,7 +82,6 @@ public:
 
         std::vector<TNodeHolder> nodes;
         nodes.reserve(nodeCount);
-
         for (auto [nodeId, node] : nodeTracker->Nodes()) {
             if (!isGood(node)) {
                 continue;
@@ -85,7 +90,7 @@ public:
             const auto* cells = cellManager->FindAssignedCells(node->GetDefaultAddress());
             nodes.emplace_back(
                 node,
-                node->GetTotalTabletSlots(),
+                node->GetCellarSize(CellarType_),
                 cells ? *cells : TCellSet());
         }
 
@@ -127,6 +132,7 @@ public:
 
 private:
     TBootstrap* const Bootstrap_;
+    const ECellarType CellarType_;
 
     std::optional<TInstant> BalanceRequestTime_;
 
@@ -151,10 +157,13 @@ TCellTrackerImpl::TCellTrackerImpl(
     TInstant startTime)
     : Bootstrap_(bootstrap)
     , StartTime_(startTime)
-    , TCellBalancerProvider_(New<TCellBalancerProvider>(Bootstrap_))
 {
     YT_VERIFY(Bootstrap_);
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
+
+    for (auto cellarType : TEnumTraits<ECellarType>::GetDomainValues()) {
+        PerCellarProviders_[cellarType] = New<TCellBalancerProvider>(Bootstrap_, cellarType);
+    }
 
     const auto& cellManager = Bootstrap_->GetTamedCellManager();
     cellManager->SubscribeCellPeersAssigned(BIND(&TCellTrackerImpl::OnCellPeersReassigned, MakeWeak(this)));
@@ -168,7 +177,14 @@ void TCellTrackerImpl::ScanCells()
         return;
     }
 
-    auto balancer = CreateCellBalancer(TCellBalancerProvider_);
+    for (auto cellarType : TEnumTraits<ECellarType>::GetDomainValues()) {
+        ScanCellarCells(cellarType);
+    }
+}
+
+void TCellTrackerImpl::ScanCellarCells(ECellarType cellarType)
+{
+    auto balancer = CreateCellBalancer(PerCellarProviders_[cellarType]);
 
     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     const auto& cellManger = Bootstrap_->GetTamedCellManager();
@@ -180,17 +196,22 @@ void TCellTrackerImpl::ScanCells()
             continue;
         }
 
-        bool peerCountChanged = false;
-        if (GetDynamicConfig()->DecommissionThroughExtraPeers) {
-            peerCountChanged = SchedulePeerCountChange(cell, &request);
+        if (cell->GetCellarType() != cellarType) {
+            continue;
         }
 
-        // NB: If peer count changes cells state is not valid.
-        if (!peerCountChanged) {
-            ScheduleLeaderReassignment(cell);
-            SchedulePeerAssignment(cell, balancer.get());
-            SchedulePeerRevocation(cell, balancer.get());
+        if (cellarType == ECellarType::Tablet && GetDynamicConfig()->DecommissionThroughExtraPeers) {
+            if (SchedulePeerCountChange(cell, &request)) {
+                // NB: If peer count changes cells state is not valid.
+                continue;
+            }
         }
+
+        if (!cell->GetCellBundle()->GetOptions()->IndependentPeers) {
+            ScheduleLeaderReassignment(cell);
+        }
+        SchedulePeerAssignment(cell, balancer.get());
+        SchedulePeerRevocation(cell, balancer.get());
     }
 
     auto moveDescriptors = balancer->GetCellMoveDescriptors();
@@ -356,6 +377,10 @@ void TCellTrackerImpl::SchedulePeerAssignment(TCellBase* cell, ICellBalancer* ba
 
     // Try to assign missing peers.
     for (TPeerId id = 0; id < static_cast<int>(cell->Peers().size()); ++id) {
+        if (cell->IsAlienPeer(id)) {
+            continue;
+        }
+
         if (peers[id].Descriptor.IsNull()) {
             ++assignCount;
             balancer->AssignPeer(cell, id);

@@ -59,16 +59,6 @@ private:
         return TBase::DoInvoke(context);
     }
 
-    virtual void ValidateRemoval() override
-    {
-        const auto* cellBundle = GetThisImpl<TTabletCellBundle>();
-        if (!cellBundle->Cells().empty()) {
-            THROW_ERROR_EXCEPTION("Cannot remove tablet cell bundle %Qv since it has %v active tablet cell(s)",
-                cellBundle->GetName(),
-                cellBundle->Cells().size());
-        }
-    }
-
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override
     {
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletBalancerConfig)

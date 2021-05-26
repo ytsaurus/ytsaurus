@@ -107,6 +107,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (DataNodeTrackerService)
     (TableManager)
     (ChunkMerger)
+    (ChaosManager)
 );
 
 DEFINE_ENUM(EAutomatonThreadBucket,

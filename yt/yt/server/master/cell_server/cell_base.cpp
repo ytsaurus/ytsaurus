@@ -13,6 +13,8 @@
 
 #include <yt/yt/server/lib/hydra/mutation_context.h>
 
+#include <yt/yt/server/lib/cellar_agent/helpers.h>
+
 #include <yt/yt/ytlib/tablet_client/config.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -20,12 +22,14 @@
 namespace NYT::NCellServer {
 
 using namespace NCellMaster;
+using namespace NCellarAgent;
+using namespace NCellarClient;
 using namespace NHiveClient;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
 using namespace NTabletClient;
-using namespace NYTree;
 using namespace NTabletServer;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,17 +82,17 @@ void TCellBase::TPeer::Persist(const NCellMaster::TPersistenceContext& context)
     Persist(context, LastSeenTime);
     Persist(context, LastRevocationReason);
     Persist(context, LastSeenState);
+    // COMPAT(savrus)
+    if (context.GetVersion() >= EMasterReign::ChaosCells) {
+        Persist(context, PrerequisiteTransaction);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TCellBase::TCellBase(TTamedCellId id)
     : TNonversionedObjectBase(id)
-    , LeadingPeerId_(0)
-    , ConfigVersion_(0)
     , Config_(New<TTamedCellConfig>())
-    , PrerequisiteTransaction_(nullptr)
-    , CellBundle_(nullptr)
 { }
 
 void TCellBase::Save(TSaveContext& context) const
@@ -239,7 +243,58 @@ NHydra::EPeerState TCellBase::GetPeerState(NElection::TPeerId peerId) const
     return slot->PeerState;
 }
 
+NTransactionServer::TTransaction* TCellBase::GetPrerequisiteTransaction(std::optional<int> peerId) const
+{
+    if (IsIndependent()) {
+        return Peers()[*peerId].PrerequisiteTransaction;
+    } else {
+        return GetPrerequisiteTransaction();
+    }
+}
+
+void TCellBase::SetPrerequisiteTransaction(std::optional<int> peerId, NTransactionServer::TTransaction* transaction)
+{
+    if (IsIndependent()) {
+        Peers()[*peerId].PrerequisiteTransaction = transaction;
+    } else {
+        SetPrerequisiteTransaction(transaction);
+    }
+}
+
+bool TCellBase::IsAlienPeer(int /*peerId*/) const
+{
+    return false;
+}
+
 ECellHealth TCellBase::GetHealth() const
+{
+    return IsIndependent()
+        ? GetCumulativeIndependentPeersHealth()
+        : GetCumulativeDependentPeersHealth();
+}
+
+ECellHealth TCellBase::GetCumulativeIndependentPeersHealth() const
+{
+    for (auto peerId = 0; peerId < std::ssize(Peers_); ++peerId) {
+        if (IsAlienPeer(peerId)) {
+            continue;
+        }
+
+        const auto& peer = Peers_[peerId];
+        auto* node = peer.Node;
+        if (!IsObjectAlive(node)) {
+            return ETabletCellHealth::Degraded;
+        }
+        const auto* slot = node->GetCellSlot(this);
+        if (slot->PeerState != EPeerState::Following && slot->PeerState != EPeerState::Leading) {
+            return ETabletCellHealth::Degraded;
+        }
+    }
+
+    return ETabletCellHealth::Good;
+}
+
+ECellHealth TCellBase::GetCumulativeDependentPeersHealth() const
 {
     const auto& leaderPeer = Peers_[LeadingPeerId_];
     auto* leaderNode = leaderPeer.Node;
@@ -252,7 +307,7 @@ ECellHealth TCellBase::GetHealth() const
         return ECellHealth::Failed;
     }
 
-    for (auto peerId = 0; peerId < static_cast<int>(Peers_.size()); ++peerId) {
+    for (auto peerId = 0; peerId < std::ssize(Peers_); ++peerId) {
         if (peerId == LeadingPeerId_) {
             continue;
         }
@@ -302,19 +357,6 @@ void TCellBase::RecomputeClusterStatus()
     }
 }
 
-TCellDescriptor TCellBase::GetDescriptor() const
-{
-    TCellDescriptor descriptor;
-    descriptor.CellId = Id_;
-    descriptor.ConfigVersion = ConfigVersion_;
-    for (auto peerId = 0; peerId < static_cast<int>(Peers_.size()); ++peerId) {
-        descriptor.Peers.push_back(TCellPeerDescriptor(
-            Peers_[peerId].Descriptor,
-            peerId == LeadingPeerId_));
-    }
-    return descriptor;
-}
-
 ECellHealth TCellBase::CombineHealths(ECellHealth lhs, ECellHealth rhs)
 {
     static constexpr std::array<ECellHealth, 4> HealthOrder{{
@@ -343,6 +385,16 @@ bool TCellBase::IsDecommissionStarted() const
 bool TCellBase::IsDecommissionCompleted() const
 {
     return CellLifeStage_ == ECellLifeStage::Decommissioned;
+}
+
+bool TCellBase::IsIndependent() const
+{
+    return GetCellBundle()->GetOptions()->IndependentPeers;
+}
+
+ECellarType TCellBase::GetCellarType() const
+{
+    return GetCellarTypeFromId(GetId());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -67,6 +67,7 @@ TCellPeerConfig TCellPeerDescriptor::ToConfig(const TNetworkPreferenceList& netw
     TCellPeerConfig config;
     config.Voting = Voting_;
     config.Address = IsNull() ? std::nullopt : std::make_optional(GetAddressOrThrow(networks));
+    config.AlienCluster = AlienCluster_;
     return config;
 }
 
@@ -99,12 +100,20 @@ void ToProto(NProto::TCellPeerDescriptor* protoDescriptor, const TCellPeerDescri
 {
     ToProto(protoDescriptor->mutable_node_descriptor(), descriptor);
     protoDescriptor->set_voting(descriptor.GetVoting());
+    if (descriptor.GetAlienCluster()) {
+        protoDescriptor->set_alien_cluster(*descriptor.GetAlienCluster());
+    } else {
+        protoDescriptor->clear_alien_cluster();
+    }
 }
 
 void FromProto(TCellPeerDescriptor* descriptor, const NProto::TCellPeerDescriptor& protoDescriptor)
 {
     FromProto(descriptor, protoDescriptor.node_descriptor());
     descriptor->SetVoting(protoDescriptor.voting());
+    descriptor->SetAlienCluster(protoDescriptor.has_alien_cluster()
+        ? std::make_optional(protoDescriptor.alien_cluster())
+        : std::nullopt);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

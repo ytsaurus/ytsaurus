@@ -140,6 +140,7 @@ DEFINE_ENUM(EMasterReign,
     ((FlagForDetailedProfiling)                                     (1614))  // akozhikhov
     ((HunksReshard)                                                 (1615))  // babenko
     ((HunkCompaction)                                               (1616))  // babenko
+    ((ChaosCells)                                                   (1617))  // savrus
     // 21.3 starts here.
 );
 

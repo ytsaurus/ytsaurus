@@ -5,6 +5,8 @@
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
+#include <yt/yt/server/master/chaos_server/chaos_cell_bundle.h>
+
 #include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -19,6 +21,7 @@ using namespace NTransactionServer;
 using namespace NSecurityServer;
 using namespace NYTree;
 using namespace NCellMaster;
+using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,10 +46,10 @@ NObjectServer::ETypeFlags TCellBundleTypeHandlerBase<TImpl>::GetFlags() const
 template <class TImpl>
 NObjectServer::TObject* TCellBundleTypeHandlerBase<TImpl>::DoCreateObject(
     std::unique_ptr<TCellBundle> holder,
-    NYTree::IAttributeDictionary* attributes)
+    NYTree::IAttributeDictionary* attributes,
+    NTabletClient::TTabletCellOptionsPtr options)
 {
     auto name = attributes->GetAndRemove<TString>("name");
-    auto options = attributes->GetAndRemove<TTabletCellOptionsPtr>("options");
 
     const auto& cellManager = TBase::Bootstrap_->GetTamedCellManager();
     return cellManager->CreateCellBundle(name, std::move(holder), std::move(options));
@@ -91,6 +94,9 @@ void TCellBundleTypeHandlerBase<TImpl>::DoDestroyObject(TImpl* cellBundle)
 
 template class
 TCellBundleTypeHandlerBase<NTabletServer::TTabletCellBundle>;
+
+template class
+TCellBundleTypeHandlerBase<NChaosServer::TChaosCellBundle>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
