@@ -903,6 +903,7 @@ public:
             return;
         } else if (operation->IsFinishedState()) {
             // Operation marked as completed, but it may be not persisted to cypress.
+            // We should perform operation revival in this case.
         }
 
         const auto& controller = operation->GetController();
@@ -3292,10 +3293,10 @@ private:
             return;
         }
 
+        operation->SetUnregistering();
+
         // Switch to regular control invoker.
         SwitchTo(GetControlInvoker(EControlQueue::Operation));
-
-        operation->SetUnregistering();
             
         // Notify controller that it is going to be disposed (failure is intentionally ignored).
         {
