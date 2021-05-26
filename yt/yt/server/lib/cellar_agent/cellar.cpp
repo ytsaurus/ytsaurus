@@ -185,6 +185,8 @@ public:
             THROW_ERROR_EXCEPTION("Cellar %Qlv already has a provider", Type_);
         }
 
+        YT_LOG_DEBUG("Registered occupier provider (CellarType: %v)", Type_);
+
         OccupierProvider_ = std::move(provider);
     }
 
@@ -282,6 +284,9 @@ private:
     ICellarOccupierPtr CreateOccupier(int index)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YT_LOG_DEBUG("Create occupier (CellarType: %Qlv)",
+            Type_);
 
         if (!OccupierProvider_) {
             THROW_ERROR_EXCEPTION("No provider at cellar %Qlv", Type_);

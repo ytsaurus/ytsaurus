@@ -118,6 +118,11 @@ bool IsCellBundleType(EObjectType type)
     return type == EObjectType::TabletCellBundle;
 }
 
+bool IsAlienType(EObjectType type)
+{
+    return type == EObjectType::ChaosCell;
+}
+
 bool HasSchema(EObjectType type)
 {
     if (type == EObjectType::Master) {

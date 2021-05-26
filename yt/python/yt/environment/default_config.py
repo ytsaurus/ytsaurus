@@ -469,6 +469,100 @@ b"""
 }
 """)
 
+def get_chaos_node_config():
+    return yson.loads(
+b"""
+{
+    orchid_cache_update_period = 0;
+
+    node_directory_synchronizer = {
+        sync_period = 100;
+    };
+
+    dynamic_config_manager = {
+        update_period = 50;
+    };
+
+    cluster_connection = {
+        enable_read_from_followers = %true;
+
+        transaction_manager = {
+            default_transaction_timeout = 3000;
+        };
+
+        scheduler = {
+            retry_backoff_time = 100;
+        };
+
+        node_directory_synchronizer = {
+            expire_after_successful_update_time = 100;
+            expire_after_failed_update_time = 100;
+        };
+    };
+
+    flavors = [
+        "data";
+        "exec";
+        "tablet";
+        "chaos";
+    ];
+
+    data_node = {
+        block_cache = {
+            compressed_data = {
+                capacity = 0;
+            };
+            uncompressed_data = {
+                capacity = 0;
+            };
+        };
+
+        chunk_meta_cache = {
+            capacity = 0;
+        };
+    };
+
+    exec_agent = {
+        job_controller = {
+            resource_limits = {
+                user_slots = 0;
+                cpu = 0;
+            };
+        };
+
+        node_directory_prepare_backoff_time = 100;
+    };
+
+    tablet_node = {
+        resource_limits ={
+            slots = 0;
+        };
+    };
+
+    cellar_node = {
+        master_connector = {
+            heartbeat_period = 100;
+            heartbeat_period_splay = 30;
+        };
+
+        cellar_manager = {
+            cellars = {
+                chaos = {
+                    size = 4;
+                };
+            };
+        };
+    };
+
+    master_connector = {
+        heartbeat_period = 100;
+        heartbeat_period_splay = 30;
+    };
+
+    use_new_heartbeats = %true;
+}
+""")
+
 def get_master_cache_config():
     return yson.loads(
 b"""

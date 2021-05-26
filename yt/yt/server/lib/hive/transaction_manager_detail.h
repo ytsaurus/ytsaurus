@@ -33,6 +33,23 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Maintains a set of transaction ids of bounded capacity.
+//! Expires old ids in FIFO order.
+class TTransactionIdPool
+{
+public:
+    explicit TTransactionIdPool(int maxSize);
+    void Register(TTransactionId id);
+    bool IsRegistered(TTransactionId id) const;
+
+private:
+    const int MaxSize_;
+    THashSet<TTransactionId> IdSet_;
+    TRingQueue<TTransactionId> IdQueue_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NHiveServer
 
 #define TRANSACTION_MANAGER_DETAIL_INL_H_

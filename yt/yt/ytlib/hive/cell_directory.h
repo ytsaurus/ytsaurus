@@ -39,6 +39,7 @@ class TCellPeerDescriptor
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Voting);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, AlienCluster);
 
 public:
     TCellPeerDescriptor();
@@ -47,7 +48,6 @@ public:
     TCellPeerDescriptor(const NElection::TCellPeerConfig& config, const NNodeTrackerClient::TNetworkPreferenceList& networks);
 
     NElection::TCellPeerConfig ToConfig(const NNodeTrackerClient::TNetworkPreferenceList& networkName) const;
-
 };
 
 void ToProto(NProto::TCellPeerDescriptor* protoDescriptor, const TCellPeerDescriptor& descriptor);

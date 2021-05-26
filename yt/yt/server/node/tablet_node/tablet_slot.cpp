@@ -378,8 +378,6 @@ private:
 
     const TActionQueuePtr SnapshotQueue_;
 
-    TCellDescriptor CellDescriptor_;
-
     NLogging::TLogger Logger;
 
     const TRuntimeTabletCellDataPtr RuntimeData_ = New<TRuntimeTabletCellData>();

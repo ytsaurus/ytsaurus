@@ -257,6 +257,7 @@ class YTInstance(object):
                 "controller_agent": self._make_service_dirs("controller_agent", self.yt_config.controller_agent_count),
                 "node": self._make_service_dirs("node", self.yt_config.node_count),
                 "node_tmpfs": self._make_service_dirs("node", self.yt_config.node_count, in_tmpfs=True),
+                "chaos_node": self._make_service_dirs("chaos_node", self.yt_config.chaos_node_count),
                 "master_cache_dirs": self._make_service_dirs("master_cache", self.yt_config.master_cache_count),
                 "http_proxy": self._make_service_dirs("http_proxy", self.yt_config.http_proxy_count),
                 "rpc_proxy": self._make_service_dirs("rpc_proxy", self.yt_config.rpc_proxy_count)}
@@ -269,6 +270,7 @@ class YTInstance(object):
                     self.yt_config.master_count, self.yt_config.nonvoting_master_count)
         logger.info("  timestamp providers   %d", self.yt_config.timestamp_provider_count)
         logger.info("  nodes                 %d", self.yt_config.node_count)
+        logger.info("  chaos nodes           %d", self.yt_config.chaos_node_count)
         logger.info("  master caches         %d", self.yt_config.master_cache_count)
         logger.info("  schedulers            %d", self.yt_config.scheduler_count)
         logger.info("  controller agents     %d", self.yt_config.controller_agent_count)
@@ -305,6 +307,8 @@ class YTInstance(object):
             self._prepare_discovery_servers(cluster_configuration["discovery"])
         if self.yt_config.node_count > 0:
             self._prepare_nodes(cluster_configuration["node"])
+        if self.yt_config.chaos_node_count > 0:
+            self._prepare_chaos_nodes(cluster_configuration["chaos_node"])
         if self.yt_config.master_cache_count > 0:
             self._prepare_master_caches(cluster_configuration["master_cache"])
         if self.yt_config.scheduler_count > 0:
@@ -397,6 +401,8 @@ class YTInstance(object):
                 on_masters_started_func()
             if self.yt_config.node_count > 0 and not self.yt_config.defer_node_start:
                 self.start_nodes(sync=False)
+            if self.yt_config.chaos_node_count > 0 and not self.yt_config.defer_chaos_node_start:
+                self.start_chaos_nodes(sync=False)
             if self.yt_config.scheduler_count > 0 and not self.yt_config.defer_scheduler_start:
                 self.start_schedulers(sync=False)
             if self.yt_config.controller_agent_count > 0 and not self.yt_config.defer_controller_agent_start:
@@ -450,7 +456,7 @@ class YTInstance(object):
             self.kill_service("watcher")
             killed_services.add("watcher")
 
-        for name in ["http_proxy", "node", "scheduler", "controller_agent", "master",
+        for name in ["http_proxy", "node", "chaos_node", "scheduler", "controller_agent", "master",
                      "rpc_proxy", "timestamp_provider", "master_caches"]:
             if name in self.configs:
                 self.kill_service(name)
@@ -481,14 +487,17 @@ class YTInstance(object):
     def rewrite_node_configs(self):
         self._prepare_nodes(self._cluster_configuration["node"], force_overwrite=True)
 
+    def rewrite_chaos_node_configs(self):
+        self._prepare_chaos_nodes(self._cluster_configuration["chaos_node"], force_overwrite=True)
+
     def rewrite_scheduler_configs(self):
         self._prepare_schedulers(self._cluster_configuration["scheduler"], force_overwrite=True)
 
     def rewrite_controller_agent_configs(self):
         self._prepare_controller_agents(self._cluster_configuration["controller_agent"], force_overwrite=True)
 
-    def get_node_address(self, index, with_port=True):
-        node_config = self.configs["node"][index]
+    def get_node_address(self, index, with_port=True, config_service="node"):
+        node_config = self.configs[config_service][index]
         node_address = node_config["address_resolver"]["localhost_fqdn"]
         if with_port:
             node_address = "{}:{}".format(node_address, node_config["rpc_port"])
@@ -536,14 +545,7 @@ class YTInstance(object):
     def kill_controller_agents(self, indexes=None):
         self.kill_service("controller_agent", indexes=indexes)
 
-    def kill_nodes(self, indexes=None, wait_offline=True):
-        self.kill_service("node", indexes=indexes)
-
-        addresses = None
-        if indexes is None:
-            indexes = list(xrange(self.yt_config.node_count))
-        addresses = [self.get_node_address(index) for index in indexes]
-
+    def _abort_node_transactions_and_wait(self, addresses, wait_offline):
         client = self._create_cluster_client()
         for node in client.list("//sys/cluster_nodes", attributes=["lease_transaction_id"]):
             if str(node) not in addresses:
@@ -560,6 +562,26 @@ class YTInstance(object):
                     if str(node) in addresses
                 ])
             )
+
+    def kill_nodes(self, indexes=None, wait_offline=True):
+        self.kill_service("node", indexes=indexes)
+
+        addresses = None
+        if indexes is None:
+            indexes = list(xrange(self.yt_config.node_count))
+        addresses = [self.get_node_address(index) for index in indexes]
+
+        self._abort_node_transactions_and_wait(addresses, wait_offline)
+
+    def kill_chaos_nodes(self, indexes=None, wait_offline=True):
+        self.kill_service("chaos_node", indexes=indexes)
+
+        addresses = None
+        if indexes is None:
+            indexes = list(xrange(self.yt_config.chaos_node_count))
+        addresses = [self.get_node_address(index, config_service="chaos_node") for index in indexes]
+
+        self._abort_node_transactions_and_wait(addresses, wait_offline)
 
     def kill_http_proxies(self, indexes=None):
         self.kill_service("proxy", indexes=indexes)
@@ -1021,6 +1043,14 @@ class YTInstance(object):
             lambda: self._wait_for(timestamp_providers_ready, "timestamp_provider", max_wait_time=20),
             sync)
 
+    def _list_nodes(self, pick_chaos=False):
+        client = self._create_cluster_client()
+        nodes = client.list("//sys/cluster_nodes", attributes=["state", "flavors"])
+
+        # COMPAT(savrus): drop default flavors list when 20.3 is deprecated
+        nodes = [n for n in nodes if ("chaos" in n.attributes.get("flavors", [])) == pick_chaos]
+        return nodes
+
     def _prepare_nodes(self, node_configs, force_overwrite=False):
         if force_overwrite:
             self.configs["node"] = []
@@ -1051,7 +1081,7 @@ class YTInstance(object):
         def nodes_ready():
             self._validate_processes_are_running("node")
 
-            nodes = client.list("//sys/cluster_nodes", attributes=["state"])
+            nodes = self._list_nodes(pick_chaos=False)
             return len(nodes) == self.yt_config.node_count and \
                 all(node.attributes["state"] == "online" for node in nodes)
 
@@ -1059,6 +1089,42 @@ class YTInstance(object):
             lambda:
                 self._wait_for(nodes_ready, "node", max_wait_time=max(self.yt_config.node_count * 6.0, 60)),
             sync)
+
+    def _prepare_chaos_nodes(self, chaos_node_configs, force_overwrite=False):
+        if force_overwrite:
+            self.configs["chaos_node"] = []
+            self.config_paths["chaos_node"] = []
+            self._service_processes["chaos_node"] = []
+
+        for chaos_node_index in xrange(self.yt_config.chaos_node_count):
+            chaos_node_config_name = "chaos-node-" + str(chaos_node_index) + ".yson"
+            config_path = os.path.join(self.configs_path, chaos_node_config_name)
+            if self._load_existing_environment and not force_overwrite:
+                if not os.path.isfile(config_path):
+                    raise YtError("Chaos node config {0} not found. It is possible that you requested "
+                                  "more chaos nodes than configs exist".format(config_path))
+                config = read_config(config_path)
+            else:
+                config = chaos_node_configs[chaos_node_index]
+                write_config(config, config_path)
+
+            self.configs["chaos_node"].append(config)
+            self.config_paths["chaos_node"].append(config_path)
+            self._service_processes["chaos_node"].append(None)
+
+    def start_chaos_nodes(self, sync=True):
+        self._run_yt_component("node", name="chaos_node")
+
+        client = self._create_cluster_client()
+
+        def chaos_nodes_ready():
+            self._validate_processes_are_running("node")
+
+            nodes = self._list_nodes(pick_chaos=True)
+            return len(nodes) == self.yt_config.chaos_node_count and all(node.attributes["state"] == "online" for node in nodes)
+
+        wait_function = lambda: self._wait_for(chaos_nodes_ready, "chaos_node", max_wait_time=max(self.yt_config.chaos_node_count * 6.0, 60))
+        self._wait_or_skip(wait_function, sync)
 
     def _prepare_master_caches(self, master_cache_configs):
         for master_cache_index in xrange(self.yt_config.master_cache_count):

@@ -216,9 +216,10 @@ void TNodeResourceManager::UpdateJobsCpuLimit()
             newJobsCpuLimit = Bootstrap_->GetConfig()->ExecAgent->JobController->ResourceLimits->Cpu;
         }
 
-        double cpuPerTabletSlot = dynamicConfig->CpuPerTabletSlot.value_or(*config->CpuPerTabletSlot);
-        const auto& tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-        newJobsCpuLimit -= tabletSlotManager->GetUsedCpu(cpuPerTabletSlot);
+        if (const auto& tabletSlotManager = Bootstrap_->GetTabletSlotManager(); tabletSlotManager) {
+            double cpuPerTabletSlot = dynamicConfig->CpuPerTabletSlot.value_or(*config->CpuPerTabletSlot);
+            newJobsCpuLimit -= tabletSlotManager->GetUsedCpu(cpuPerTabletSlot);
+        }
     }
     newJobsCpuLimit = std::max<double>(newJobsCpuLimit, 0);
 

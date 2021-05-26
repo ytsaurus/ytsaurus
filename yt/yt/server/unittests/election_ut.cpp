@@ -59,7 +59,7 @@ public:
             cellConfig->Peers.push_back(TCellPeerConfig(GetPeerAddress(id)));
         }
 
-        auto cellManager = New<TCellManager>(cellConfig, ChannelFactory, selfId);
+        auto cellManager = New<TCellManager>(cellConfig, ChannelFactory, nullptr, selfId);
 
         auto electionConfig = New<TDistributedElectionManagerConfig>();
         electionConfig->ControlRpcTimeout = RpcTimeout;

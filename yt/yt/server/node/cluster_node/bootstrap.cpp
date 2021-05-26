@@ -13,6 +13,8 @@
 #include <yt/yt/server/node/cellar_node/config.h>
 #include <yt/yt/server/node/cellar_node/master_connector.h>
 
+#include <yt/yt/server/node/chaos_node/slot_manager.h>
+
 #include <yt/yt/server/node/data_node/blob_reader_cache.h>
 #include <yt/yt/server/node/data_node/chunk_block_manager.h>
 #include <yt/yt/server/node/data_node/chunk_cache.h>
@@ -71,6 +73,8 @@
 #include <yt/yt/server/node/tablet_node/tablet_cell_service.h>
 #include <yt/yt/server/node/tablet_node/tablet_snapshot_store.h>
 #include <yt/yt/server/node/tablet_node/versioned_chunk_meta_manager.h>
+
+#include <yt/yt/server/lib/chaos_node/config.h>
 
 #include <yt/yt/server/lib/transaction_server/timestamp_proxy_service.h>
 
@@ -180,6 +184,7 @@ using namespace NApi;
 using namespace NBus;
 using namespace NCellarAgent;
 using namespace NCellarClient;
+using namespace NChaosNode;
 using namespace NChunkClient;
 using namespace NContainers;
 using namespace NNodeTrackerClient;
@@ -306,9 +311,14 @@ bool TBootstrap::IsTabletNode() const
     return Flavors_.contains(ENodeFlavor::Tablet);
 }
 
+bool TBootstrap::IsChaosNode() const
+{
+    return Flavors_.contains(ENodeFlavor::Chaos);
+}
+
 bool TBootstrap::IsCellarNode() const
 {
-    return IsTabletNode();
+    return IsTabletNode() || IsChaosNode();
 }
 
 void TBootstrap::DoInitialize()
@@ -444,24 +454,36 @@ void TBootstrap::DoInitialize()
     NodeResourceManager_ = New<TNodeResourceManager>(this);
 
     // COMPAT(savrus)
-    auto cellarConfig = New<TCellarConfig>();
-    cellarConfig->Size = Config_->TabletNode->ResourceLimits->Slots;
-    cellarConfig->Occupant = New<TCellarOccupantConfig>();
-    cellarConfig->Occupant->Snapshots = Config_->TabletNode->Snapshots;
-    cellarConfig->Occupant->Changelogs = Config_->TabletNode->Changelogs;
-    cellarConfig->Occupant->HydraManager = Config_->TabletNode->HydraManager;
-    cellarConfig->Occupant->ElectionManager = Config_->TabletNode->ElectionManager;
-    cellarConfig->Occupant->HiveManager = Config_->TabletNode->HiveManager;
-    cellarConfig->Occupant->TransactionSupervisor = Config_->TabletNode->TransactionSupervisor;
-    cellarConfig->Occupant->ResponseKeeper = Config_->TabletNode->HydraManager->ResponseKeeper;
-    auto cellarManagerConfig = New<TCellarManagerConfig>();
-    cellarManagerConfig->Cellars.insert({ECellarType::Tablet, std::move(cellarConfig)});
+    auto getCellarManagerConfig = [&] {
+        auto& config = Config_->CellarNode->CellarManager;
 
-    CellarManager_ = CreateCellarManager(cellarManagerConfig, CreateCellarBootstrapProxy(this));
+        if (!IsTabletNode()) {
+            return config;
+        }
 
-    TabletSlotManager_ = NTabletNode::CreateSlotManager(this);
-    TabletNodeHintManager_ = NTabletNode::CreateHintManager(this);
-    TabletNodeStructuredLogger_ = NTabletNode::CreateStructuredLogger(this);
+        for (const auto& [type, _] : config->Cellars) {
+            if (type == ECellarType::Tablet) {
+                return config;
+            }
+        }
+
+        auto cellarConfig = New<TCellarConfig>();
+        cellarConfig->Size = Config_->TabletNode->ResourceLimits->Slots;
+        cellarConfig->Occupant = New<TCellarOccupantConfig>();
+        cellarConfig->Occupant->Snapshots = Config_->TabletNode->Snapshots;
+        cellarConfig->Occupant->Changelogs = Config_->TabletNode->Changelogs;
+        cellarConfig->Occupant->HydraManager = Config_->TabletNode->HydraManager;
+        cellarConfig->Occupant->ElectionManager = Config_->TabletNode->ElectionManager;
+        cellarConfig->Occupant->HiveManager = Config_->TabletNode->HiveManager;
+        cellarConfig->Occupant->TransactionSupervisor = Config_->TabletNode->TransactionSupervisor;
+        cellarConfig->Occupant->ResponseKeeper = Config_->TabletNode->HydraManager->ResponseKeeper;
+
+        auto cellarManagerConfig = CloneYsonSerializable(config);
+        cellarManagerConfig->Cellars.insert({ECellarType::Tablet, std::move(cellarConfig)});
+        return cellarManagerConfig;
+    };
+
+    CellarManager_ = CreateCellarManager(getCellarManagerConfig(), CreateCellarBootstrapProxy(this));
 
     MediumUpdater_ = New<TMediumUpdater>(this);
 
@@ -549,8 +571,6 @@ void TBootstrap::DoInitialize()
     }
 
     RpcServer_->RegisterService(CreateDataNodeService(Config_->DataNode, this));
-
-    RpcServer_->RegisterService(CreateInMemoryService(Config_->TabletNode->InMemoryManager, this));
 
     auto localAddress = GetDefaultAddress(localRpcAddresses);
 
@@ -675,17 +695,29 @@ void TBootstrap::DoInitialize()
         SchedulerConnector_ = New<TSchedulerConnector>(Config_->ExecAgent->SchedulerConnector, this);
     }
 
-    ColumnEvaluatorCache_ = NQueryClient::CreateColumnEvaluatorCache(Config_->TabletNode->ColumnEvaluatorCache);
+    if (IsChaosNode()) {
+        ChaosSlotManager_ = NChaosNode::CreateSlotManager(Config_->ChaosNode, this);
+    }
 
-    RowComparerProvider_ = NTabletNode::CreateRowComparerProvider(Config_->TabletNode->ColumnEvaluatorCache->CGCache);
+    if (IsTabletNode()) {
+        RpcServer_->RegisterService(CreateInMemoryService(Config_->TabletNode->InMemoryManager, this));
 
-    SecurityManager_ = New<TSecurityManager>(Config_->TabletNode->SecurityManager, this);
+        TabletSlotManager_ = NTabletNode::CreateSlotManager(this);
+        TabletNodeHintManager_ = NTabletNode::CreateHintManager(this);
+        TabletNodeStructuredLogger_ = NTabletNode::CreateStructuredLogger(this);
 
-    InMemoryManager_ = CreateInMemoryManager(Config_->TabletNode->InMemoryManager, this);
+        ColumnEvaluatorCache_ = NQueryClient::CreateColumnEvaluatorCache(Config_->TabletNode->ColumnEvaluatorCache);
 
-    VersionedChunkMetaManager_ = CreateVersionedChunkMetaManager(Config_->TabletNode, this);
+        RowComparerProvider_ = NTabletNode::CreateRowComparerProvider(Config_->TabletNode->ColumnEvaluatorCache->CGCache);
 
-    TabletSnapshotStore_ = CreateTabletSnapshotStore(Config_->TabletNode, this);
+        SecurityManager_ = New<TSecurityManager>(Config_->TabletNode->SecurityManager, this);
+
+        InMemoryManager_ = CreateInMemoryManager(Config_->TabletNode->InMemoryManager, this);
+
+        VersionedChunkMetaManager_ = CreateVersionedChunkMetaManager(Config_->TabletNode, this);
+
+        TabletSnapshotStore_ = CreateTabletSnapshotStore(Config_->TabletNode, this);
+    }
 
     RpcServer_->RegisterService(CreateQueryService(Config_->QueryAgent, this));
 
@@ -732,8 +764,16 @@ void TBootstrap::DoInitialize()
 
     RpcServer_->Configure(Config_->RpcServer);
 
-    CellarManager_->Initialize();
-    TabletSlotManager_->Initialize();
+    if (IsCellarNode()) {
+        CellarManager_->Initialize();
+    }    
+    if (IsTabletNode()) {
+        TabletSlotManager_->Initialize();
+    }
+    if (IsChaosNode()) {
+        ChaosSlotManager_->Initialize();
+    }
+
     ChunkStore_->Initialize();
     ChunkCache_->Initialize();
     SessionManager_->Initialize();
@@ -801,7 +841,6 @@ void TBootstrap::DoRun()
         Config_->Tags);
 
     DynamicConfigManager_->Start();
-    TabletNodeHintManager_->Start();
 
     NodeResourceManager_->Start();
 #ifdef __linux__
@@ -844,14 +883,20 @@ void TBootstrap::DoRun()
         "/cached_chunks",
         CreateVirtualNode(CreateCachedChunkMapService(ChunkCache_)
             ->Via(GetControlInvoker())));
-    SetNodeByYPath(
-        OrchidRoot_,
-        "/tablet_cells",
-        CreateVirtualNode(CellarManager_->GetCellar(ECellarType::Tablet)->GetOrchidService()));
-    SetNodeByYPath(
-        OrchidRoot_,
-        "/tablet_slot_manager",
-        CreateVirtualNode(TabletSlotManager_->GetOrchidService()));
+    if (IsTabletNode()) {
+        SetNodeByYPath(
+            OrchidRoot_,
+            "/tablet_cells",
+            CreateVirtualNode(CellarManager_->GetCellar(ECellarType::Tablet)->GetOrchidService()));
+        SetNodeByYPath(
+            OrchidRoot_,
+            "/tablet_slot_manager",
+            CreateVirtualNode(TabletSlotManager_->GetOrchidService()));
+        SetNodeByYPath(
+            OrchidRoot_,
+            "/store_compactor",
+            CreateVirtualNode(StoreCompactor_->GetOrchidService()));
+    }
     SetNodeByYPath(
         OrchidRoot_,
         "/job_controller",
@@ -861,10 +906,6 @@ void TBootstrap::DoRun()
         OrchidRoot_,
         "/cluster_connection",
         CreateVirtualNode(MasterConnection_->GetOrchidService()));
-    SetNodeByYPath(
-        OrchidRoot_,
-        "/store_compactor",
-        CreateVirtualNode(StoreCompactor_->GetOrchidService()));
     SetNodeByYPath(
         OrchidRoot_,
         "/dynamic_config_manager",
@@ -907,7 +948,14 @@ void TBootstrap::DoRun()
         CellarNodeMasterConnector_->Initialize();
     }
     if (IsTabletNode()) {
+        TabletNodeHintManager_->Start();
         TabletNodeMasterConnector_->Initialize();
+        StoreCompactor_->Start();
+        StoreFlusher_->Start();
+        StoreTrimmer_->Start();
+        HunkChunkSweeper_->Start();
+        PartitionBalancer_->Start();
+        BackingStoreCleaner_->Start();
     }
     ClusterNodeMasterConnector_->Start();
     LegacyMasterConnector_->Start();
@@ -916,12 +964,6 @@ void TBootstrap::DoRun()
         SchedulerConnector_->Start();
     }
 
-    StoreCompactor_->Start();
-    StoreFlusher_->Start();
-    StoreTrimmer_->Start();
-    HunkChunkSweeper_->Start();
-    PartitionBalancer_->Start();
-    BackingStoreCleaner_->Start();
     RpcServer_->Start();
     HttpServer_->Start();
     SkynetHttpServer_->Start();
@@ -1095,6 +1137,11 @@ const IVersionedChunkMetaManagerPtr& TBootstrap::GetVersionedChunkMetaManager() 
 const NTabletNode::IStructuredLoggerPtr& TBootstrap::GetTabletNodeStructuredLogger() const
 {
     return TabletNodeStructuredLogger_;
+}
+
+const NChaosNode::ISlotManagerPtr& TBootstrap::GetChaosSlotManager() const
+{
+    return ChaosSlotManager_;
 }
 
 const NExecAgent::TSlotManagerPtr& TBootstrap::GetExecSlotManager() const
@@ -1451,14 +1498,6 @@ void TBootstrap::OnDynamicConfigChanged(
 {
     ReconfigureSingletons(Config_, newConfig);
 
-    QueryThreadPool_->Configure(
-        newConfig->QueryAgent->QueryThreadPoolSize.value_or(Config_->QueryAgent->QueryThreadPoolSize));
-    TabletLookupThreadPool_->Configure(
-        newConfig->QueryAgent->LookupThreadPoolSize.value_or(Config_->QueryAgent->LookupThreadPoolSize));
-    TabletFetchThreadPool_->Configure(
-        newConfig->QueryAgent->FetchThreadPoolSize.value_or(Config_->QueryAgent->FetchThreadPoolSize));
-    TableReplicatorThreadPool_->Configure(
-        newConfig->TabletNode->TabletManager->ReplicatorThreadPoolSize.value_or(Config_->TabletNode->TabletManager->ReplicatorThreadPoolSize));
     StorageHeavyThreadPool_->Configure(
         newConfig->DataNode->StorageHeavyThreadCount.value_or(Config_->DataNode->StorageHeavyThreadCount));
     StorageLightThreadPool_->Configure(
@@ -1488,8 +1527,6 @@ void TBootstrap::OnDynamicConfigChanged(
 
     TableSchemaCache_->Reconfigure(newConfig->DataNode->TableSchemaCache);
 
-    ColumnEvaluatorCache_->Reconfigure(newConfig->TabletNode->ColumnEvaluatorCache);
-
     ObjectServiceCache_->Reconfigure(newConfig->CachingObjectService);
     for (const auto& service : CachingObjectServices_) {
         service->Reconfigure(newConfig->CachingObjectService);
@@ -1516,6 +1553,18 @@ void TBootstrap::OnDynamicConfigChanged(
     };
 
     CellarManager_->Reconfigure(getCellarManagerConfig());
+
+    if (IsTabletNode()) {
+        QueryThreadPool_->Configure(
+            newConfig->QueryAgent->QueryThreadPoolSize.value_or(Config_->QueryAgent->QueryThreadPoolSize));
+        TabletLookupThreadPool_->Configure(
+            newConfig->QueryAgent->LookupThreadPoolSize.value_or(Config_->QueryAgent->LookupThreadPoolSize));
+        TabletFetchThreadPool_->Configure(
+            newConfig->QueryAgent->FetchThreadPoolSize.value_or(Config_->QueryAgent->FetchThreadPoolSize));
+        TableReplicatorThreadPool_->Configure(
+            newConfig->TabletNode->TabletManager->ReplicatorThreadPoolSize.value_or(Config_->TabletNode->TabletManager->ReplicatorThreadPoolSize));
+        ColumnEvaluatorCache_->Reconfigure(newConfig->TabletNode->ColumnEvaluatorCache);
+    }
 }
 
 TRelativeThroughputThrottlerConfigPtr TBootstrap::PatchRelativeNetworkThrottlerConfig(

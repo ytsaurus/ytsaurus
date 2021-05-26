@@ -34,10 +34,14 @@ using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NChunkClient;
 using namespace NChunkServer;
+using namespace NCellarAgent;
 using namespace NCellServer;
 using namespace NCellMaster;
 using namespace NTabletServer;
 using namespace NNodeTrackerClient;
+using namespace NNodeTrackerClient::NProto;
+using namespace NCellarClient;
+using namespace NCellarNodeTrackerClient::NProto;
 
 using NYT::FromProto;
 
@@ -386,7 +390,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, ClusterNodeStatistics_);
     Save(context, DataNodeStatistics_);
     Save(context, ExecNodeStatistics_);
-    Save(context, TabletNodeStatistics_);
+    Save(context, CellarNodeStatistics_);
     Save(context, Alerts_);
     Save(context, ResourceLimits_);
     Save(context, ResourceUsage_);
@@ -415,7 +419,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     }
 
     Save(context, UnapprovedReplicas_);
-    Save(context, TabletSlots_);
+    Save(context, Cellars_);
     Save(context, Annotations_);
     Save(context, Version_);
     Save(context, LocationUuids_);
@@ -459,12 +463,18 @@ void TNode::Load(NCellMaster::TLoadContext& context)
         FromNodeStatistics(&ClusterNodeStatistics_, legacyStatistics);
         FromNodeStatistics(&DataNodeStatistics_, legacyStatistics);
         FromNodeStatistics(&ExecNodeStatistics_, legacyStatistics);
-        FromNodeStatistics(&TabletNodeStatistics_, legacyStatistics);
+        FromNodeStatistics(&CellarNodeStatistics_[ECellarType::Tablet], legacyStatistics);
     } else {
         Load(context, ClusterNodeStatistics_);
         Load(context, DataNodeStatistics_);
         Load(context, ExecNodeStatistics_);
-        Load(context, TabletNodeStatistics_);
+
+        // COMPAT(savrus)
+        if (context.GetVersion() >= EMasterReign::ChaosCells) {
+            Load(context, CellarNodeStatistics_);
+        } else {
+            Load(context, CellarNodeStatistics_[ECellarType::Tablet]);
+        }
     }
 
     Load(context, Alerts_);
@@ -489,7 +499,14 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     }
 
     Load(context, UnapprovedReplicas_);
-    Load(context, TabletSlots_);
+
+    // COMPAT(savrus)
+    if (context.GetVersion() >= EMasterReign::ChaosCells) {
+        Load(context, Cellars_);
+    } else {
+        Load(context, Cellars_[ECellarType::Tablet]);
+    }
+
     Load(context, Annotations_);
     Load(context, Version_);
 
@@ -742,9 +759,15 @@ int TNode::GetTotalSessionCount() const
 
 TNode::TCellSlot* TNode::FindCellSlot(const TCellBase* cell)
 {
-    for (auto& slot : TabletSlots_) {
-        if (slot.Cell == cell) {
-            return &slot;
+    if (auto* cellar = FindCellar(cell->GetCellarType())) {
+        auto predicate = [cell] (const auto& slot) {
+            return slot.Cell == cell;
+        };
+
+        auto it = std::find_if(cellar->begin(), cellar->end(), predicate);
+        if (it != cellar->end()) {
+            YT_VERIFY(std::find_if(it + 1, cellar->end(), predicate) == cellar->end());
+            return &*it;
         }
     }
     return nullptr;
@@ -829,13 +852,6 @@ void TNode::ValidateNotBanned()
     if (Banned_) {
         THROW_ERROR_EXCEPTION("Node %v is banned", GetDefaultAddress());
     }
-}
-
-int TNode::GetTotalTabletSlots() const
-{
-    return
-        TabletNodeStatistics_.used_cell_slots() +
-        TabletNodeStatistics_.available_cell_slots();
 }
 
 bool TNode::HasMedium(int mediumIndex) const
@@ -1011,9 +1027,99 @@ void TNode::SetResourceLimits(const NNodeTrackerClient::NProto::TNodeResources& 
     ResourceLimits_ = resourceLimits;
 }
 
-void TNode::SetTabletNodeStatistics(NNodeTrackerClient::NProto::TCellarNodeStatistics&& statistics)
+void TNode::InitCellars()
 {
-    TabletNodeStatistics_.Swap(&statistics);
+    YT_VERIFY(Cellars_.empty());
+
+    for (auto cellarType : TEnumTraits<ECellarType>::GetDomainValues()) {
+        if (int size = GetTotalSlotCount(cellarType); size > 0) {
+            Cellars_[cellarType].resize(size);
+        }
+    }
+}
+
+void TNode::ClearCellars()
+{
+    Cellars_.clear();
+}
+
+void TNode::UpdateCellarSize(ECellarType cellarType, int newSize)
+{
+    if (newSize == 0) {
+        Cellars_.erase(cellarType);
+    } else {
+        Cellars_[cellarType].resize(newSize);
+    }
+}
+
+TNode::TCellar* TNode::FindCellar(ECellarType cellarType)
+{
+    if (auto it = Cellars_.find(cellarType)) {
+        return &it->second;
+    }
+    return nullptr;
+}
+
+const TNode::TCellar* TNode::FindCellar(ECellarType cellarType) const
+{
+    if (auto it = Cellars_.find(cellarType)) {
+        return &it->second;
+    }
+    return nullptr;
+}
+
+TNode::TCellar& TNode::GetCellar(ECellarType cellarType)
+{
+    auto* cellar = FindCellar(cellarType);
+    YT_VERIFY(cellar);
+    return *cellar;
+}
+
+const TNode::TCellar& TNode::GetCellar(ECellarType cellarType) const
+{
+    auto* cellar = FindCellar(cellarType);
+    YT_VERIFY(cellar);
+    return *cellar;
+}
+
+int TNode::GetCellarSize(ECellarType cellarType) const
+{
+    if (auto it = Cellars_.find(cellarType)) {
+        return it->second.size();
+    }
+    return 0;
+}
+
+void TNode::SetCellarNodeStatistics(
+    ECellarType cellarType,
+    TCellarNodeStatistics&& statistics)
+{
+    CellarNodeStatistics_[cellarType].Swap(&statistics);
+}
+
+void TNode::RemoveCellarNodeStatistics(ECellarType cellarType)
+{
+    CellarNodeStatistics_.erase(cellarType);
+}
+
+int TNode::GetAvailableSlotCount(ECellarType cellarType) const
+{
+    if (const auto& it = CellarNodeStatistics_.find(cellarType)) {
+        return it->second.available_cell_slots();
+    }
+
+    return 0;
+}
+
+int TNode::GetTotalSlotCount(ECellarType cellarType) const
+{
+    if (const auto& it = CellarNodeStatistics_.find(cellarType)) {
+        return
+            it->second.used_cell_slots() +
+            it->second.available_cell_slots();
+    }
+
+    return 0;
 }
 
 TCellNodeStatistics TNode::ComputeCellStatistics() const

@@ -15,6 +15,9 @@ ECellarType GetCellarTypeFromId(TCellId id)
         case EObjectType::TabletCell:
             return ECellarType::Tablet;
 
+        case EObjectType::ChaosCell:
+            return ECellarType::Chaos;
+
         default:
             YT_ABORT();
     }

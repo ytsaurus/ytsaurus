@@ -14,6 +14,8 @@
 
 #include <yt/yt/server/node/tablet_node/public.h>
 
+#include <yt/yt/server/node/chaos_node/public.h>
+
 #include <yt/yt/server/lib/cellar_agent/public.h>
 
 #include <yt/yt/server/lib/containers/public.h>
@@ -89,6 +91,7 @@ public:
     const NTabletNode::IStructuredLoggerPtr& GetTabletNodeStructuredLogger() const;
     const NTabletNode::ITabletSnapshotStorePtr& GetTabletSnapshotStore() const;
     const NExecAgent::TSlotManagerPtr& GetExecSlotManager() const;
+    const NChaosNode::ISlotManagerPtr& GetChaosSlotManager() const;
     const NJobAgent::TGpuManagerPtr& GetGpuManager() const;
     const TNodeMemoryTrackerPtr& GetMemoryUsageTracker() const;
     const NDataNode::TChunkStorePtr& GetChunkStore() const;
@@ -152,6 +155,7 @@ public:
     bool IsExecNode() const;
     bool IsCellarNode() const;
     bool IsTabletNode() const;
+    bool IsChaosNode() const;
 
 private:
     const TClusterNodeConfigPtr Config_;
@@ -229,6 +233,8 @@ private:
     NTabletNode::IVersionedChunkMetaManagerPtr VersionedChunkMetaManager_;
     NTabletNode::IStructuredLoggerPtr TabletNodeStructuredLogger_;
     NTabletNode::ITabletSnapshotStorePtr TabletSnapshotStore_;
+
+    NChaosNode::ISlotManagerPtr ChaosSlotManager_;
 
     NQueryClient::IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     NTabletNode::IRowComparerProviderPtr RowComparerProvider_;

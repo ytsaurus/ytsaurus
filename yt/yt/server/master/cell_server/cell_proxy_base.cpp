@@ -54,6 +54,11 @@ void TCellProxyBase::ValidateRemoval()
         THROW_ERROR_EXCEPTION("Cannot remove tablet cell %v since it is not decommissioned on node",
             cell->GetId());
     }
+
+    if (!cell->GossipStatus().Cluster().Decommissioned) {
+        THROW_ERROR_EXCEPTION("Cannot remove chaos cell %v since it is not decommissioned on all masters",
+            cell->GetId());
+    }
 }
 
 void TCellProxyBase::RemoveSelf(TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context)
@@ -136,6 +141,7 @@ bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYson
                                 .Item("state").Value(EPeerState::None)
                             .EndMap();
                     } else {
+                        const auto* transaction = peer.PrerequisiteTransaction;
                         const auto* slot = peer.Node ? peer.Node->GetCellSlot(cell) : nullptr;
                         auto state = slot ? slot->PeerState : EPeerState::None;
                         fluent
@@ -147,6 +153,10 @@ bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYson
                                 .DoIf(!peer.LastRevocationReason.IsOK(), [&] (auto fluent) {
                                     fluent
                                         .Item("last_revocation_reason").Value(peer.LastRevocationReason);
+                                })
+                                .DoIf(transaction, [&] (TFluentMap fluent) {
+                                    fluent
+                                        .Item("prerequisite_transaction").Value(transaction->GetId());
                                 })
                             .EndMap();
                     }

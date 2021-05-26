@@ -44,6 +44,8 @@
 #include <yt/yt/server/master/security_server/group.h>
 #include <yt/yt/server/master/security_server/subject.h>
 
+#include <yt/yt/server/lib/cellar_agent/helpers.h>
+
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/yt/server/lib/cell_server/proto/cell_manager.pb.h>
@@ -79,6 +81,7 @@ namespace NYT::NCellServer {
 
 using namespace NCellMaster;
 using namespace NCellarClient;
+using namespace NCellarAgent;
 using namespace NChunkClient::NProto;
 using namespace NChunkClient;
 using namespace NChunkServer;
@@ -251,30 +254,37 @@ public:
         CellBundleMap_.Release(cellBundle->GetId()).release();
     }
 
-    void SetCellBundleOptions(TCellBundle* cellBundle, TTabletCellOptionsPtr options)
+    void SetCellBundleOptions(TCellBundle* cellBundle, TTabletCellOptionsPtr newOptions)
     {
         Bootstrap_->GetSecurityManager()->ValidatePermission(cellBundle, EPermission::Use);
 
         const auto& currentOptions = cellBundle->GetOptions();
-        if (options->PeerCount != currentOptions->PeerCount && !cellBundle->Cells().empty()) {
+        if (newOptions->PeerCount != currentOptions->PeerCount && !cellBundle->Cells().empty()) {
             THROW_ERROR_EXCEPTION("Cannot change peer count since tablet cell bundle has %v tablet cell(s)",
-                                  cellBundle->Cells().size());
+                cellBundle->Cells().size());
+        }
+        if (newOptions->IndependentPeers != currentOptions->IndependentPeers && !cellBundle->Cells().empty()) {
+            THROW_ERROR_EXCEPTION("Cannot change peer independency since bundle has %v cell(s)",
+                cellBundle->Cells().size());
+        }
+        if (!newOptions->IndependentPeers && cellBundle->GetType() == EObjectType::ChaosCellBundle) {
+            THROW_ERROR_EXCEPTION("Chaos cells must always have independent peers");
         }
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        if (currentOptions->SnapshotAccount != options->SnapshotAccount) {
-            auto* account = securityManager->GetAccountByNameOrThrow(options->SnapshotAccount, true /*activeLifeStageOnly*/);
+        if (currentOptions->SnapshotAccount != newOptions->SnapshotAccount) {
+            auto* account = securityManager->GetAccountByNameOrThrow(newOptions->SnapshotAccount, /*activeLifeStageOnly*/ true);
             securityManager->ValidatePermission(account, EPermission::Use);
         }
-        if (currentOptions->ChangelogAccount != options->ChangelogAccount) {
-            auto* account = securityManager->GetAccountByNameOrThrow(options->ChangelogAccount, true /*activeLifeStageOnly*/);
+        if (currentOptions->ChangelogAccount != newOptions->ChangelogAccount) {
+            auto* account = securityManager->GetAccountByNameOrThrow(newOptions->ChangelogAccount, /*activeLifeStageOnly*/ true);
             securityManager->ValidatePermission(account, EPermission::Use);
         }
 
-        auto snapshotAcl = ConvertToYsonString(options->SnapshotAcl, EYsonFormat::Binary).ToString();
-        auto changelogAcl = ConvertToYsonString(options->ChangelogAcl, EYsonFormat::Binary).ToString();
+        auto snapshotAcl = ConvertToYsonString(newOptions->SnapshotAcl, EYsonFormat::Binary).ToString();
+        auto changelogAcl = ConvertToYsonString(newOptions->ChangelogAcl, EYsonFormat::Binary).ToString();
 
-        cellBundle->SetOptions(std::move(options));
+        cellBundle->SetOptions(std::move(newOptions));
 
         auto* rootUser = securityManager->GetRootUser();
 
@@ -304,10 +314,33 @@ public:
                     }
                 }
 
-                RestartPrerequisiteTransaction(cell);
+                RestartAllPrerequisiteTransactions(cell);
             }
 
             ReconfigureCell(cell);
+        }
+    }
+
+    void CreateSnapshotAndChangelogNodes(
+        TString path,
+        IMapNodePtr cellMapNodeProxy,
+        const IAttributeDictionaryPtr& snapshotAttributes,
+        const IAttributeDictionaryPtr& changelogAttributes)
+    {
+        // Create "snapshots" child.
+        {
+            auto req = TCypressYPathProxy::Create(path + "/snapshots");
+            req->set_type(ToProto<int>(EObjectType::MapNode));
+            ToProto(req->mutable_node_attributes(), *snapshotAttributes);
+            SyncExecuteVerb(cellMapNodeProxy, req);
+        }
+
+        // Create "changelogs" child.
+        {
+            auto req = TCypressYPathProxy::Create(path + "/changelogs");
+            req->set_type(ToProto<int>(EObjectType::MapNode));
+            ToProto(req->mutable_node_attributes(), *changelogAttributes);
+            SyncExecuteVerb(cellMapNodeProxy, req);
         }
     }
 
@@ -318,17 +351,29 @@ public:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidatePermission(cellBundle, EPermission::Use);
 
+        auto id = holder->GetId();
+        if (FindCell(id)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Cell %v already exists",
+                id);
+        }
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
-        holder->Peers().resize(cellBundle->GetOptions()->PeerCount);
+        int peerCount = cellBundle->GetOptions()->PeerCount;
+        holder->Peers().resize(peerCount);
         holder->SetCellBundle(cellBundle);
         YT_VERIFY(cellBundle->Cells().insert(holder.get()).second);
         objectManager->RefObject(cellBundle);
 
-        ReconfigureCell(holder.get());
-
-        auto id = holder->GetId();
         auto* cell = CellMap_.Insert(id, std::move(holder));
+
+        if (cell->IsIndependent()) {
+            cell->SetLeadingPeerId(InvalidPeerId);
+        }
+
+        ReconfigureCell(cell);
 
         // Make the fake reference.
         YT_VERIFY(cell->RefObject() == 1);
@@ -360,27 +405,42 @@ public:
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             if (multicellManager->IsPrimaryMaster()) {
-                auto attributes = CreateEphemeralAttributes();
-                attributes->Set("inherit_acl", false);
+                auto createAttributes = [&] (const auto& acl) {
+                    auto attributes = CreateEphemeralAttributes();
+                    attributes->Set("inherit_acl", false);
+                    attributes->Set("acl", acl);
+                    return attributes;
+                };
 
-                // Create "snapshots" child.
-                {
-                    auto req = TCypressYPathProxy::Create(cellNodePath + "/snapshots");
-                    req->set_type(static_cast<int>(EObjectType::MapNode));
-                    attributes->Set("acl", cellBundle->GetOptions()->SnapshotAcl);
-                    ToProto(req->mutable_node_attributes(), *attributes);
+                auto snapshotAttributes = createAttributes(cellBundle->GetOptions()->SnapshotAcl);
+                auto changelogAttributes = createAttributes(cellBundle->GetOptions()->ChangelogAcl);
 
-                    SyncExecuteVerb(cellMapNodeProxy, req);
-                }
+                if (cell->IsIndependent()) {
+                    for (TPeerId peerId = 0; peerId < peerCount; ++peerId) {
+                        if (cell->IsAlienPeer(peerId)) {
+                            continue;
+                        }
 
-                // Create "changelogs" child.
-                {
-                    auto req = TCypressYPathProxy::Create(cellNodePath + "/changelogs");
-                    req->set_type(static_cast<int>(EObjectType::MapNode));
-                    attributes->Set("acl", cellBundle->GetOptions()->ChangelogAcl);
-                    ToProto(req->mutable_node_attributes(), *attributes);
+                        auto peerNodePath = Format("%v/%v", cellNodePath, peerId);
 
-                    SyncExecuteVerb(cellMapNodeProxy, req);
+                        {
+                            auto req = TCypressYPathProxy::Create(peerNodePath);
+                            req->set_type(static_cast<int>(EObjectType::MapNode));
+                            SyncExecuteVerb(cellMapNodeProxy, req);
+                        }
+
+                        CreateSnapshotAndChangelogNodes(
+                            peerNodePath,
+                            cellMapNodeProxy,
+                            snapshotAttributes,
+                            changelogAttributes);
+                    }
+                } else {
+                    CreateSnapshotAndChangelogNodes(
+                        cellNodePath,
+                        cellMapNodeProxy,
+                        snapshotAttributes,
+                        changelogAttributes);
                 }
             }
         } catch (const std::exception& ex) {
@@ -417,13 +477,6 @@ public:
                 RemoveFromAddressToCellMap(peer.Descriptor, cell);
             }
         }
-        cell->Peers().clear();
-
-        auto* cellBundle = cell->GetCellBundle();
-        YT_VERIFY(cellBundle->Cells().erase(cell) == 1);
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->UnrefObject(cellBundle);
-        cell->SetCellBundle(nullptr);
 
         // NB: Code below interacts with other master parts and may require root permissions
         // (for example, when aborting a transaction).
@@ -434,19 +487,25 @@ public:
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
-            AbortPrerequisiteTransaction(cell);
-            AbortCellSubtreeTransactions(cell);
+            AbortAllCellTransactions(cell);
         }
 
         auto cellNodeProxy = FindCellNode(cellId);
         if (cellNodeProxy) {
             try {
-                // NB: Subtree transactions were already aborted in AbortPrerequisiteTransaction.
+                // NB: Subtree transactions were already aborted above.
                 cellNodeProxy->GetParent()->RemoveChild(cellNodeProxy);
             } catch (const std::exception& ex) {
                 YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error unregisterting tablet cell from Cypress");
             }
         }
+
+        auto* cellBundle = cell->GetCellBundle();
+        YT_VERIFY(cellBundle->Cells().erase(cell) == 1);
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        objectManager->UnrefObject(cellBundle);
+        cell->SetCellBundle(nullptr);
+        cell->Peers().clear();
     }
 
     void DestroyCell(TCellBase* cell)
@@ -458,6 +517,8 @@ public:
 
     void UpdatePeerCount(TCellBase* cell, std::optional<int> peerCount)
     {
+        YT_VERIFY(!cell->IsIndependent());
+
         cell->PeerCount() = peerCount;
         cell->LastPeerCountUpdateTime() = TInstant::Now();
 
@@ -506,7 +567,7 @@ public:
             auto revocationReason = TError("Peer count reduced from %v to %v",
                 oldPeerCount,
                 newPeerCount);
-            for (int peerId = newPeerCount; peerId < oldPeerCount; ++peerId) {
+            for (TPeerId peerId = newPeerCount; peerId < oldPeerCount; ++peerId) {
                 DoRevokePeer(cell, peerId, revocationReason);
             }
 
@@ -515,7 +576,7 @@ public:
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (leaderChanged && multicellManager->IsPrimaryMaster()) {
-            RestartPrerequisiteTransaction(cell);
+            RestartAllPrerequisiteTransactions(cell);
         }
 
         ReconfigureCell(cell);
@@ -786,7 +847,7 @@ private:
     THashMap<TString, TCellBundle*> NameToCellBundleMap_;
 
     THashMap<TString, TCellSet> AddressToCell_;
-    THashMap<TTransaction*, TCellBase*> TransactionToCellMap_;
+    THashMap<TTransaction*, std::pair<TCellBase*, std::optional<TPeerId>>> TransactionToCellMap_;
 
     TPeriodicExecutorPtr CellStatusIncrementalGossipExecutor_;
     TPeriodicExecutorPtr CellStatusFullGossipExecutor_;
@@ -860,16 +921,24 @@ private:
 
             YT_VERIFY(cell->GetCellBundle()->Cells().insert(cell).second);
 
-            for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+            for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
                 const auto& peer = cell->Peers()[peerId];
                 if (!peer.Descriptor.IsNull()) {
                     AddToAddressToCellMap(peer.Descriptor, cell, peerId);
                 }
             }
 
-            auto* transaction = cell->GetPrerequisiteTransaction();
-            if (transaction) {
-                YT_VERIFY(TransactionToCellMap_.emplace(transaction, cell).second);
+            if (cell->IsIndependent()) {
+                for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+                    auto* transaction = cell->Peers()[peerId].PrerequisiteTransaction;
+                    if (transaction) {
+                        YT_VERIFY(TransactionToCellMap_.emplace(transaction, std::make_pair(cell, peerId)).second);
+                    }
+                }
+            } else {
+                if (auto* transaction = cell->GetPrerequisiteTransaction(); transaction) {
+                    YT_VERIFY(TransactionToCellMap_.emplace(transaction, std::make_pair(cell, std::nullopt)).second);
+                }
             }
 
             cell->GossipStatus().Initialize(Bootstrap_);
@@ -1042,24 +1111,30 @@ private:
         }
     }
 
-    void UpdateNodeTabletSlotCount(TNode* node, int newSlotCount)
+    void UpdateNodeCellarSize(TNode* node, ECellarType cellarType, int newSize)
     {
-        if (std::ssize(node->TabletSlots()) == newSlotCount) {
+        auto oldSize = node->GetCellarSize(cellarType);
+
+        if (oldSize == newSize) {
             return;
         }
 
-        YT_LOG_DEBUG("Node tablet slot count changed (Address: %v, OldTabletCellCount: %v, NewTabletCellCount: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Node cellar size changed (Address: %v, CellarType: %v, OldCellarSize: %v, NewCellarSize: %v)",
             node->GetDefaultAddress(),
-            node->TabletSlots().size(),
-            newSlotCount);
+            cellarType,
+            oldSize,
+            newSize);
 
-        if (newSlotCount < std::ssize(node->TabletSlots())) {
-            for (int slotIndex = newSlotCount; slotIndex < std::ssize(node->TabletSlots()); ++slotIndex) {
-                const auto& slot = node->TabletSlots()[slotIndex];
+        if (newSize < oldSize) {
+            const auto& cellar = node->GetCellar(cellarType);
+
+            for (int index = newSize; index < oldSize; ++index) {
+                const auto& slot = cellar[index];
                 auto* cell = slot.Cell;
                 if (cell) {
-                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet slot destroyed, detaching tablet cell peer (Address: %v, CellId: %v, PeerId: %v)",
+                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Slot destroyed, detaching cell peer (Address: %v, CellarType: %v, CellId: %v, PeerId: %v)",
                         node->GetDefaultAddress(),
+                        cellarType,
                         cell->GetId(),
                         slot.PeerId);
 
@@ -1068,7 +1143,12 @@ private:
             }
         }
 
-        node->TabletSlots().resize(newSlotCount);
+        node->UpdateCellarSize(cellarType, newSize);
+    }
+
+    void OnNodeRegistered(TNode* node)
+    {
+        node->InitCellars();
     }
 
     void OnNodeUnregistered(TNode* node)
@@ -1076,7 +1156,9 @@ private:
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Node unregistered (Address: %v)",
             node->GetDefaultAddress());
 
-        UpdateNodeTabletSlotCount(node, 0);
+        for (auto cellarType : TEnumTraits<ECellarType>::GetDomainValues()) {
+            UpdateNodeCellarSize(node, cellarType, 0);
+        }
     }
 
     void OnCellarNodeHeartbeat(
@@ -1084,10 +1166,26 @@ private:
         NCellarNodeTrackerClient::NProto::TReqHeartbeat* request,
         NCellarNodeTrackerClient::NProto::TRspHeartbeat* response)
     {
+        THashSet<ECellarType> seenCellarTypes;
+
         for (auto cellarRequest : request->cellars()) {
             auto* cellarResponse = response->add_cellars();
             cellarResponse->set_type(cellarRequest.type());
+
+            auto cellarType = FromProto<ECellarType>(cellarRequest.type());
+            if (!seenCellarTypes.insert(cellarType).second) {
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Duplicate cellar type in heartbeat, skipped (CellarType: %Qlv)",
+                    cellarType);
+                continue;
+            }
+
             ProcessCellarHeartbeat(node, &cellarRequest, cellarResponse);
+        }
+
+        for (auto cellarType : TEnumTraits<ECellarType>::GetDomainValues()) {
+            if (!seenCellarTypes.contains(cellarType)) {
+                UpdateNodeCellarSize(node, cellarType, 0);
+            }
         }
     }
 
@@ -1099,9 +1197,6 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto cellarType = FromProto<ECellarType>(request->type());
-        // COMPAT(savrus)
-        YT_VERIFY(cellarType == ECellarType::Tablet);
-
         auto Logger = CellServerLogger.WithTag("CellarType: %Qlv", cellarType);
 
         // Various request helpers.
@@ -1111,14 +1206,17 @@ private:
             }
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            if (!multicellManager->IsPrimaryMaster() || !cell->GetPrerequisiteTransaction()) {
+            if (!multicellManager->IsPrimaryMaster()) {
+                return;
+            }
+
+            auto cellId = cell->GetId();
+            auto peerId = cell->GetPeerId(node->GetDefaultAddress());
+            if (!cell->GetPrerequisiteTransaction(peerId)) {
                 return;
             }
 
             auto* protoInfo = response->add_slots_to_create();
-
-            auto cellId = cell->GetId();
-            auto peerId = cell->GetPeerId(node->GetDefaultAddress());
 
             ToProto(protoInfo->mutable_cell_id(), cell->GetId());
             protoInfo->set_peer_id(peerId);
@@ -1140,25 +1238,27 @@ private:
             }
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            if (!multicellManager->IsPrimaryMaster() || !cell->GetPrerequisiteTransaction()) {
+            if (!multicellManager->IsPrimaryMaster()) {
+                return;
+            }
+
+            auto cellId = cell->GetId();
+            auto peerId = cell->GetPeerId(node->GetDefaultAddress());
+            if (!cell->GetPrerequisiteTransaction(peerId)) {
                 return;
             }
 
             auto* protoInfo = response->add_slots_to_configure();
 
-            auto cellId = cell->GetId();
-            auto peerId = cell->GetPeerId(node->GetDefaultAddress());
-
             auto cellDescriptor = cell->GetDescriptor();
 
-            const auto& prerequisiteTransactionId = cell->GetPrerequisiteTransaction()->GetId();
+            const auto& prerequisiteTransactionId = cell->GetPrerequisiteTransaction(peerId)->GetId();
 
             protoInfo->set_peer_id(peerId);
             ToProto(protoInfo->mutable_cell_descriptor(), cellDescriptor);
             ToProto(protoInfo->mutable_prerequisite_transaction_id(), prerequisiteTransactionId);
             protoInfo->set_abandon_leader_lease_during_recovery(GetDynamicConfig()->AbandonLeaderLeaseDuringRecovery);
             protoInfo->set_options(ConvertToYsonString(cell->GetCellBundle()->GetOptions()).ToString());
-
 
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Occupant configuration update requested "
                 "(Address: %v, CellId: %v, PeerId: %v, Version: %v, PrerequisiteTransactionId: %v, AbandonLeaderLeaseDuringRecovery: %v)",
@@ -1219,11 +1319,20 @@ private:
 
         const auto& address = node->GetDefaultAddress();
 
-        UpdateNodeTabletSlotCount(node, request->cell_slots_size());
+        UpdateNodeCellarSize(node, cellarType, request->cell_slots_size());
+
+        auto* cellar = node->FindCellar(cellarType);
+        if (!cellar) {
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Received heartbeat for unexisting cellar, skipped (Address: %v, CellarType: %v)",
+                node->GetDefaultAddress(),
+                cellarType);
+            return;
+        }
+        YT_VERIFY(std::ssize(*cellar) == request->cell_slots_size());
 
         // Our expectations.
         THashSet<TCellBase*> expectedCells;
-        for (const auto& slot : node->TabletSlots()) {
+        for (const auto& slot : *cellar) {
             auto* cell = slot.Cell;
             if (!IsObjectAlive(cell)) {
                 continue;
@@ -1231,13 +1340,11 @@ private:
             YT_VERIFY(expectedCells.insert(cell).second);
         }
 
-        THashMap<TTamedCellId, EPeerState> cellIdToPeerState;
-
         // Figure out and analyze the reality.
         THashSet<const TCellBase*> actualCells;
         for (int slotIndex = 0; slotIndex < request->cell_slots_size(); ++slotIndex) {
             // Pre-erase slot.
-            auto& slot = node->TabletSlots()[slotIndex];
+            auto& slot = (*cellar)[slotIndex];
             slot = TNode::TCellSlot();
 
             const auto& slotInfo = request->cell_slots(slotIndex);
@@ -1253,6 +1360,16 @@ private:
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Unknown cell is running (Address: %v, CellId: %v)",
                     address,
                     cellId);
+                requestRemoveSlot(cellId);
+                continue;
+            }
+
+            if (GetCellarTypeFromId(cellId) != cellarType) {
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell with unexpected cellar type is running (Address: %v, CellId: %v, CellarType: %v, CellarType: %v)",
+                    address,
+                    cellId,
+                    GetCellarTypeFromId(cellId),
+                    cellarType);
                 requestRemoveSlot(cellId);
                 continue;
             }
@@ -1295,8 +1412,6 @@ private:
                     cellId,
                     peerId);
             }
-
-            cellIdToPeerState.emplace(cellId, state);
 
             cell->UpdatePeerSeenTime(peerId, mutationTimestamp);
             cell->UpdatePeerState(peerId, state);
@@ -1341,13 +1456,10 @@ private:
 
         // Request slot starts.
         {
-            int availableSlots = node->TabletNodeStatistics().available_cell_slots();
+            int availableSlots = node->GetAvailableSlotCount(cellarType);
             auto it = AddressToCell_.find(address);
-            if (it != AddressToCell_.end()) {
+            if (it != AddressToCell_.end() && availableSlots > 0) {
                 for (auto [cell, peerId] : it->second) {
-                    if (!availableSlots) {
-                        break;
-                    }
                     if (!IsObjectAlive(cell)) {
                         continue;
                     }
@@ -1356,7 +1468,6 @@ private:
                         requestCreateSlot(cell);
                         requestConfigureSlot(cell);
                         requestUpdateSlot(cell);
-                        --availableSlots;
                     }
                 }
             }
@@ -1364,7 +1475,7 @@ private:
     }
 
 
-    void AddToAddressToCellMap(const TNodeDescriptor& descriptor, TCellBase* cell, int peerId)
+    void AddToAddressToCellMap(const TNodeDescriptor& descriptor, TCellBase* cell, TPeerId peerId)
     {
         const auto& address = descriptor.GetDefaultAddress();
         auto cellsIt = AddressToCell_.find(address);
@@ -1405,10 +1516,11 @@ private:
             return;
         }
 
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         const auto* mutationContext = GetCurrentMutationContext();
         auto mutationTimestamp = mutationContext->GetTimestamp();
 
-        bool leadingPeerAssigned = false;
+        std::vector<TPeerId> assignedPeers;
         for (const auto& peerInfo : request->peer_infos()) {
             auto peerId = peerInfo.peer_id();
             auto descriptor = FromProto<TNodeDescriptor>(peerInfo.node_descriptor());
@@ -1418,27 +1530,22 @@ private:
                 continue;
             }
 
-            if (peerId == cell->GetLeadingPeerId()) {
-                leadingPeerAssigned = true;
+            if (!cell->GetPrerequisiteTransaction(peerId)) {
+                assignedPeers.push_back(peerId);
             }
 
             AddToAddressToCellMap(descriptor, cell, peerId);
             cell->AssignPeer(descriptor, peerId);
             cell->UpdatePeerSeenTime(peerId, mutationTimestamp);
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell peer assigned (CellId: %v, Address: %v, PeerId: %v)",
+
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell peer assigned (CellId: %v, PeerId: %v, Address: %v)",
                 cellId,
-                descriptor.GetDefaultAddress(),
-                peerId);
+                peerId,
+                descriptor.GetDefaultAddress());
         }
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
-            // Once a peer is assigned, we must ensure that the cell has a valid prerequisite transaction.
-            if (leadingPeerAssigned || !cell->GetPrerequisiteTransaction()) {
-                RestartPrerequisiteTransaction(cell);
-            }
-
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            RestartPrerequisiteTransactions(cell, assignedPeers);
             multicellManager->PostToMasters(*request, multicellManager->GetRegisteredMasterCellTags());
         }
 
@@ -1455,22 +1562,14 @@ private:
             return;
         }
 
-        bool leadingPeerRevoked = false;
-        for (auto peerId : request->peer_ids()) {
-            if (peerId == cell->GetLeadingPeerId()) {
-                leadingPeerRevoked = true;
-            }
+        auto revokedPeers = FromProto<std::vector<int>>(request->peer_ids());
+        for (auto peerId : revokedPeers) {
             DoRevokePeer(cell, peerId, FromProto<TError>(request->reason()));
         }
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
-            if (leadingPeerRevoked) {
-                AbortPrerequisiteTransaction(cell);
-                AbortCellSubtreeTransactions(cell);
-            }
-
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            AbortCellTransactions(cell, revokedPeers);
             multicellManager->PostToMasters(*request, multicellManager->GetRegisteredMasterCellTags());
         }
 
@@ -1509,6 +1608,8 @@ private:
             return;
         }
 
+        YT_VERIFY(!cell->IsIndependent());
+
         auto peerId = request->peer_id();
         const auto& newLeader = cell->Peers()[peerId];
 
@@ -1522,7 +1623,7 @@ private:
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
-            RestartPrerequisiteTransaction(cell);
+            RestartAllPrerequisiteTransactions(cell);
 
             multicellManager->PostToMasters(*request, multicellManager->GetRegisteredMasterCellTags());
         }
@@ -1629,22 +1730,78 @@ private:
         return IsObjectAlive(cell) && !cell->IsDecommissionStarted();
     }
 
-    void RestartPrerequisiteTransaction(TCellBase* cell)
+
+    void RestartPrerequisiteTransactions(TCellBase* cell, const std::vector<TPeerId>& peerIds)
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsPrimaryMaster());
 
-        AbortPrerequisiteTransaction(cell);
-        AbortCellSubtreeTransactions(cell);
-        StartPrerequisiteTransaction(cell);
+        AbortCellTransactions(cell, peerIds);
+
+        bool independent = cell->IsIndependent();
+        for (auto peerId : peerIds) {
+            if (independent || peerId == cell->GetLeadingPeerId()) {
+                StartPrerequisiteTransaction(cell, independent ? std::make_optional(peerId) : std::nullopt);
+            }
+        }
     }
 
-    void StartPrerequisiteTransaction(TCellBase* cell)
+    void AbortCellTransactions(TCellBase* cell, const std::vector<TPeerId>& peerIds)
+    {
+        bool independent = cell->IsIndependent();
+        for (auto peerId : peerIds) {
+            if (independent || peerId == cell->GetLeadingPeerId()) {
+                AbortPrerequisiteTransaction(cell, independent ? std::make_optional(peerId) : std::nullopt);
+                AbortCellSubtreeTransactions(cell, independent ? std::make_optional(peerId) : std::nullopt);
+            }
+        }
+    }
+
+    void RestartAllPrerequisiteTransactions(TCellBase* cell)
+    {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsPrimaryMaster());
+
+        AbortAllCellTransactions(cell);
+
+        bool independent = cell->IsIndependent();
+        if (independent) {
+            for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+                if (!cell->IsAlienPeer(peerId)) {
+                    StartPrerequisiteTransaction(cell, peerId);
+                }
+            }
+        } else {
+            StartPrerequisiteTransaction(cell, std::nullopt);
+        }
+    }
+
+    void AbortAllCellTransactions(TCellBase* cell)
+    {
+        bool independent = cell->IsIndependent();
+        if (independent) {
+            for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+                if (!cell->IsAlienPeer(peerId)) {
+                    AbortPrerequisiteTransaction(cell, peerId);
+                    AbortCellSubtreeTransactions(cell, peerId);
+                }
+            }
+        } else {
+            AbortPrerequisiteTransaction(cell, std::nullopt);
+            AbortCellSubtreeTransactions(cell, std::nullopt);
+        }
+    }
+
+    void StartPrerequisiteTransaction(TCellBase* cell, std::optional<TPeerId> peerId)
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsPrimaryMaster());
 
         const auto& secondaryCellTags = multicellManager->GetRegisteredMasterCellTags();
+
+        auto title = peerId
+            ? Format("Prerequisite for cell %v, peer %v", cell->GetId(), peerId)
+            : Format("Prerequisite for cell %v", cell->GetId());
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->StartTransaction(
@@ -1653,20 +1810,24 @@ private:
             secondaryCellTags,
             std::nullopt /*timeout*/,
             std::nullopt /*deadline*/,
-            Format("Prerequisite for cell %v", cell->GetId()),
+            title,
             EmptyAttributes());
 
-        YT_VERIFY(!cell->GetPrerequisiteTransaction());
-        cell->SetPrerequisiteTransaction(transaction);
-        YT_VERIFY(TransactionToCellMap_.emplace(transaction, cell).second);
+        YT_VERIFY(!cell->GetPrerequisiteTransaction(peerId));
+        YT_VERIFY(TransactionToCellMap_.emplace(transaction, std::make_pair(cell, peerId)).second);
+        cell->SetPrerequisiteTransaction(peerId, transaction);
 
         TReqStartPrerequisiteTransaction request;
         ToProto(request.mutable_cell_id(), cell->GetId());
         ToProto(request.mutable_transaction_id(), transaction->GetId());
+        if (peerId) {
+            request.set_peer_id(*peerId);
+        }
         multicellManager->PostToMasters(request, multicellManager->GetRegisteredMasterCellTags());
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell prerequisite transaction started (CellId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell prerequisite transaction started (CellId: %v, PeerId: %v, TransactionId: %v)",
             cell->GetId(),
+            peerId,
             transaction->GetId());
     }
 
@@ -1676,6 +1837,7 @@ private:
 
         auto cellId = FromProto<TTamedCellId>(request->cell_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto peerId = request->has_peer_id() ? std::make_optional(request->peer_id()) : std::nullopt;
 
         auto* cell = FindCell(cellId);
         if (!IsObjectAlive(cell)) {
@@ -1686,46 +1848,61 @@ private:
         auto transaction = transactionManager->FindTransaction(transactionId);
 
         if (!IsObjectAlive(transaction)) {
-            YT_LOG_INFO("Prerequisite transaction is not found on secondary master (CellId: %v, TransactionId: %v)",
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Prerequisite transaction is not found on secondary master (CellId: %v, PeerId: %v, TransactionId: %v)",
                 cellId,
+                peerId,
                 transactionId);
             return;
         }
 
-        YT_VERIFY(TransactionToCellMap_.emplace(transaction, cell).second);
+        YT_VERIFY(TransactionToCellMap_.emplace(transaction, std::make_pair(cell, peerId)).second);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell prerequisite transaction attached (CellId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell prerequisite transaction attached (CellId: %v, PeerId: %v, TransactionId: %v)",
             cell->GetId(),
+            peerId,
             transaction->GetId());
     }
 
-    void AbortCellSubtreeTransactions(TCellBase* cell)
+    void AbortCellSubtreeTransactions(TCellBase* cell, std::optional<int> peerId)
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto cellNodeProxy = FindCellNode(cell->GetId());
-        if (cellNodeProxy) {
-            cypressManager->AbortSubtreeTransactions(cellNodeProxy);
+        auto nodeProxy = FindCellNode(cell->GetId());
+        if (nodeProxy && peerId) {
+            nodeProxy = nodeProxy->FindChild(ToString(*peerId))->AsMap();
+        }
+        if (nodeProxy) {
+            cypressManager->AbortSubtreeTransactions(nodeProxy);
         }
     }
 
-    void AbortPrerequisiteTransaction(TCellBase* cell)
+    void AbortPrerequisiteTransaction(TCellBase* cell, std::optional<int> peerId)
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsPrimaryMaster());
 
-        auto* transaction = cell->GetPrerequisiteTransaction();
+        auto* transaction = cell->GetPrerequisiteTransaction(peerId);
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Aborting prerequisite transaction (CellId: %v, PeerId: %v, transactionId: %v)",
+            cell->GetId(),
+            peerId,
+            GetObjectId(transaction));
+
         if (!transaction) {
             return;
         }
 
         // Suppress calling OnTransactionFinished.
         YT_VERIFY(TransactionToCellMap_.erase(transaction) == 1);
-        cell->SetPrerequisiteTransaction(nullptr);
+
+        cell->SetPrerequisiteTransaction(peerId, nullptr);
 
         // Suppress calling OnTransactionFinished on secondary masters.
         TReqAbortPrerequisiteTransaction request;
         ToProto(request.mutable_cell_id(), cell->GetId());
         ToProto(request.mutable_transaction_id(), transaction->GetId());
+        if (peerId) {
+            request.set_peer_id(*peerId);
+        }
         multicellManager->PostToMasters(request, multicellManager->GetRegisteredMasterCellTags());
 
         // NB: Make a copy, transaction will die soon.
@@ -1734,8 +1911,9 @@ private:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->AbortTransaction(transaction, true);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell prerequisite transaction aborted (CellId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell prerequisite transaction aborted (CellId: %v, PeerId: %v, TransactionId: %v)",
             cell->GetId(),
+            peerId,
             transactionId);
     }
 
@@ -1745,13 +1923,15 @@ private:
 
         auto cellId = FromProto<TTamedCellId>(request->cell_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto peerId = request->has_peer_id() ? std::make_optional(request->peer_id()) : std::nullopt;
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto transaction = transactionManager->FindTransaction(transactionId);
 
         if (!IsObjectAlive(transaction)) {
-            YT_LOG_WARNING("Unexpected error: prerequisite transaction not found at secondary master (CellId: %v, TransactionId: %v)",
+            YT_LOG_WARNING("Unexpected error: prerequisite transaction not found at secondary master (CellId: %v, PeerId: %v, TransactionId: %v)",
                 cellId,
+                peerId,
                 transactionId);
             return;
         }
@@ -1759,8 +1939,9 @@ private:
         // COMPAT(savrus) Don't check since we didn't have them in earlier versions.
         TransactionToCellMap_.erase(transaction);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell prerequisite transaction aborted (CellId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell prerequisite transaction aborted (CellId: %v, PeerId: %v, TransactionId: %v)",
             cellId,
+            peerId,
             transactionId);
     }
 
@@ -1771,14 +1952,27 @@ private:
             return;
         }
 
-        auto* cell = it->second;
-        cell->SetPrerequisiteTransaction(nullptr);
+        auto [cell, peerId] = it->second;
         TransactionToCellMap_.erase(it);
 
         auto revocationReason = TError("Tablet cell prerequisite transaction %v finished",
             transaction->GetId());
-        for (auto peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
-            DoRevokePeer(cell, peerId, revocationReason);
+
+        cell->SetPrerequisiteTransaction(peerId, nullptr);
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell prerequisite transaction finished (CellId: %v, PeerId: %v, TransactionId: %v)",
+            cell->GetId(),
+            peerId,
+            transaction->GetId());
+
+        if (peerId) {
+            DoRevokePeer(cell, *peerId, revocationReason);
+        } else {
+            for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+                if (!cell->IsAlienPeer(peerId)) {
+                    DoRevokePeer(cell, peerId, revocationReason);
+                }
+            }
         }
     }
 
@@ -1810,12 +2004,11 @@ private:
         return cypressManager->ResolvePathToNodeProxy("//sys/tablet_cells")->AsMap();
     }
 
-    INodePtr FindCellNode(TTamedCellId cellId)
+    IMapNodePtr FindCellNode(TTamedCellId cellId)
     {
         auto cellMapNodeProxy = GetCellMapNode();
-        return cellMapNodeProxy->FindChild(ToString(cellId));
+        return cellMapNodeProxy->FindChild(ToString(cellId))->AsMap();
     }
-
 
     void OnReplicateKeysToSecondaryMaster(TCellTag cellTag)
     {

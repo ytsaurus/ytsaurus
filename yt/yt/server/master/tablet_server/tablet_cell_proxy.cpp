@@ -101,22 +101,12 @@ private:
     {
         const auto* cell = GetThisImpl<TTabletCell>();
 
-        ValidatePermission(cell->GetCellBundle(), EPermission::Write);
-
-        if (!cell->IsDecommissionCompleted()) {
-            THROW_ERROR_EXCEPTION("Cannot remove tablet cell %v since it is not decommissioned on node",
-                cell->GetId());
-        }
-
-        if (!cell->GossipStatus().Cluster().Decommissioned) {
-            THROW_ERROR_EXCEPTION("Cannot remove tablet cell %v since it is not decommissioned on all masters",
-                cell->GetId());
-        }
-
         if (cell->GossipStatistics().Cluster().TabletCount != 0) {
             THROW_ERROR_EXCEPTION("Cannot remove tablet cell %v since it has active tablet(s)",
                 cell->GetId());
         }
+
+        TBase::ValidateRemoval();
     }
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override

@@ -950,6 +950,11 @@ private:
                 prerequisiteResolveResult->UnresolvedPathSuffix));
         }
 
+        if (IsAlienType(TypeFromId(targetResolveResult->RemoteNodeId))) {
+            MarkSubrequestLocal(subrequest);
+            return;
+        }
+
         MarkSubrequestRemoteCrossCell(subrequest, CellTagFromId(targetResolveResult->RemoteNodeId));
     }
 

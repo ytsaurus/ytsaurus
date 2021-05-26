@@ -76,18 +76,32 @@ public:
     {
         YT_VERIFY(node->IsCellarNode());
 
+        auto Logger = CellServerLogger
+            .WithTag("NodeId: %v", node->GetId())
+            .WithTag("Address: %v", node->GetDefaultAddress());
+
+        THashSet<ECellarType> seenCellarTypes;
         for (auto& cellarInfo : *request->mutable_cellars()) {
             auto cellarType = FromProto<ECellarType>(cellarInfo.type());
             auto& statistics = *cellarInfo.mutable_statistics();
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing cellar heartbeat (NodeId: %v, Address: %v, CellarType: %v, Statistics: %v)",
-                node->GetId(),
-                node->GetDefaultAddress(),
+            if (!seenCellarTypes.insert(cellarType).second) {
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Duplicate cellar type in heartbeat (CellarType: %v)",
+                    cellarType);
+                continue;
+            }
+
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing cellar heartbeat (CellarType: %v, Statistics: %v)",
                 cellarType,
                 statistics);
 
-            // TODO(savrus) Separate statistics for different cellars
-            node->SetTabletNodeStatistics(std::move(statistics));
+            node->SetCellarNodeStatistics(cellarType, std::move(statistics));
+        }
+
+        for (auto cellarType : TEnumTraits<ECellarType>::GetDomainValues()) {
+            if (!seenCellarTypes.contains(cellarType)) {
+                node->RemoveCellarNodeStatistics(cellarType);
+            }
         }
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();

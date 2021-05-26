@@ -238,6 +238,10 @@ DEFINE_ENUM(EObjectType,
 
     // Object manager stuff
     ((EstimatedCreationTimeMap)     (1100))
+
+    // Chaos stuff
+    ((ChaosCell)                    (1200))
+    ((ChaosCellBundle)              (1201))
 );
 
 //! A bit mask marking schema types.

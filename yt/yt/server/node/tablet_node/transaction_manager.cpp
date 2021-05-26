@@ -69,43 +69,6 @@ static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Maintains a set of transaction ids of bounded capacity.
-//! Expires old ids in FIFO order.
-class TTransactionIdPool
-{
-public:
-    explicit TTransactionIdPool(int maxSize)
-        : MaxSize_(maxSize)
-    { }
-
-    void Register(TTransactionId id)
-    {
-        if (IdSet_.insert(id).second) {
-            IdQueue_.push(id);
-        }
-
-        if (std::ssize(IdQueue_) > MaxSize_) {
-            auto idToExpire = IdQueue_.front();
-            IdQueue_.pop();
-            YT_VERIFY(IdSet_.erase(idToExpire) == 1);
-        }
-    }
-
-    bool IsRegistered(TTransactionId id) const
-    {
-        return IdSet_.find(id) != IdSet_.end();
-    }
-
-private:
-    const int MaxSize_;
-
-    THashSet<TTransactionId> IdSet_;
-    TRingQueue<TTransactionId> IdQueue_;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTransactionManager::TImpl
     : public TTabletAutomatonPart
     , public TTransactionManagerBase<TTransaction>

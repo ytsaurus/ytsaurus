@@ -16,6 +16,8 @@
 
 #include <yt/yt/server/master/object_server/object.h>
 
+#include <yt/yt/server/lib/cellar_agent/public.h>
+
 #include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 #include <yt/yt/ytlib/node_tracker_client/node_statistics.h>
@@ -225,11 +227,9 @@ public:
         void Persist(const NCellMaster::TPersistenceContext& context);
     };
 
-    using TCellSlotList = SmallVector<TCellSlot, NTabletClient::TypicalTabletSlotCount>;
-    DEFINE_BYREF_RW_PROPERTY(TCellSlotList, TabletSlots);
-
-    DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TCellarNodeStatistics, TabletNodeStatistics);
-    void SetTabletNodeStatistics(NNodeTrackerClient::NProto::TCellarNodeStatistics&& statistics);
+    using TCellar = SmallVector<TCellSlot, NCellarClient::TypicalCellarSize>;
+    using TCellarMap = THashMap<NCellarClient::ECellarType, TCellar>;
+    DEFINE_BYREF_RW_PROPERTY(TCellarMap, Cellars);
 
 public:
     explicit TNode(NObjectServer::TObjectId objectId);
@@ -315,7 +315,7 @@ public:
     int GetSessionCount(NChunkClient::ESessionType sessionType) const;
     int GetTotalSessionCount() const;
 
-    int GetTotalTabletSlots() const;
+    int GetCellarSize(NCellarClient::ECellarType) const;
 
     // Returns true iff the node has at least one location belonging to the
     // specified medium.
@@ -332,6 +332,23 @@ public:
     TCellSlot* GetCellSlot(const NCellServer::TCellBase* cell);
 
     void DetachTabletCell(const NCellServer::TCellBase* cell);
+
+    TCellar* FindCellar(NCellarClient::ECellarType cellarType);
+    const TCellar* FindCellar(NCellarClient::ECellarType cellarType) const;
+    TCellar& GetCellar(NCellarClient::ECellarType cellarType);
+    const TCellar& GetCellar(NCellarClient::ECellarType cellarType) const;
+
+    void InitCellars();
+    void ClearCellars();
+    void UpdateCellarSize(NCellarClient::ECellarType cellarType, int newSize);
+
+    void SetCellarNodeStatistics(
+        NCellarClient::ECellarType cellarType,
+        NNodeTrackerClient::NProto::TCellarNodeStatistics&& statistics);
+    void RemoveCellarNodeStatistics(NCellarClient::ECellarType cellarType);
+
+    int GetAvailableSlotCount(NCellarClient::ECellarType cellarType) const;
+    int GetTotalSlotCount(NCellarClient::ECellarType cellarType) const;
 
     void ShrinkHashTables();
 
@@ -367,6 +384,8 @@ private:
 
     ENodeState* LocalStatePtr_ = nullptr;
     ENodeState AggregatedState_ = ENodeState::Unknown;
+
+    THashMap<NCellarClient::ECellarType, NNodeTrackerClient::NProto::TCellarNodeStatistics> CellarNodeStatistics_;
 
     int GetHintedSessionCount(int mediumIndex, int chunkHostMasterCellCount) const;
 

@@ -88,6 +88,16 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
     if len(master_cache_addresses) == 0:
         master_cache_addresses = node_addresses
 
+    chaos_node_configs = _build_chaos_node_configs(
+        dirs["chaos_node"],
+        deepcopy(master_connection_configs),
+        deepcopy(clock_connection_configs),
+        timestamp_provider_addresses,
+        master_cache_addresses,
+        ports_generator,
+        logs_dir,
+        yt_config)
+
     scheduler_configs = _build_scheduler_configs(
         dirs["scheduler"],
         deepcopy(master_connection_configs),
@@ -169,6 +179,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         "scheduler": scheduler_configs,
         "controller_agent": controller_agent_configs,
         "node": node_configs,
+        "chaos_node": chaos_node_configs,
         "master_cache": master_cache_configs,
         "http_proxy": http_proxy_configs,
         "rpc_proxy": rpc_proxy_configs,
@@ -637,6 +648,54 @@ def _build_node_configs(node_dirs,
 
     return configs, addresses
 
+def _build_chaos_node_configs(chaos_node_dirs,
+                              master_connection_configs,
+                              clock_connection_configs,
+                              timestamp_provider_addresses,
+                              master_cache_addresses,
+                              ports_generator,
+                              logs_dir,
+                              yt_config):
+    configs = []
+
+    for index in xrange(yt_config.chaos_node_count):
+        config = default_config.get_chaos_node_config()
+
+        init_singletons(config, yt_config.fqdn, "chaos_node", {"chaos_node_index": str(index)})
+
+        config["addresses"] = [
+            ("interconnect", yt_config.fqdn),
+            ("default", yt_config.fqdn)
+        ]
+        config["rpc_port"] = next(ports_generator)
+        config["monitoring_port"] = next(ports_generator)
+        config["skynet_http_port"] = next(ports_generator)
+
+        config["cluster_connection"] = \
+            _build_cluster_connection_config(
+                yt_config,
+                master_connection_configs,
+                clock_connection_configs,
+                timestamp_provider_addresses,
+                master_cache_addresses,
+                config_template=config["cluster_connection"])
+
+        cache_location_config = {
+            "quota": 0,
+            "io_config": {
+                "enable_sync": False,
+            },
+            "path": os.path.join(chaos_node_dirs[index], "chunk_cache"),
+        }
+        set_at(config, "data_node/cache_locations", [cache_location_config])
+
+        set_at(config, "cellar_node/cellar_manager/cellars/chaos/occupant/hydra_manager", _get_hydra_manager_config(), merge=True)
+        set_at(config, "cellar_node/cellar_manager/cellars/chaos/occupant/hydra_manager/restart_backoff_time", 100)
+
+        config["logging"] = _init_logging(logs_dir, "chaos-node-{0}".format(index), yt_config)
+        configs.append(config)
+
+    return configs
 
 def _build_http_proxy_config(proxy_dir,
                              master_connection_configs,

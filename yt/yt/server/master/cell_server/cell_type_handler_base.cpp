@@ -5,6 +5,8 @@
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
+#include <yt/yt/server/master/chaos_server/chaos_cell.h>
+
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
 #include <yt/yt/server/master/tablet_server/tablet_cell.h>
@@ -46,10 +48,16 @@ NObjectServer::TObject* TCellTypeHandlerBase<TImpl>::DoCreateObject(
     std::unique_ptr<TCellBase> holder,
     NYTree::IAttributeDictionary* attributes)
 {
-    auto cellBundleName = attributes->GetAndRemove("tablet_cell_bundle", DefaultCellBundleName);
+    auto cellBundleName = attributes->FindAndRemove<TString>("cell_bundle");
+    auto tabletCellBundleName = attributes->FindAndRemove<TString>("tablet_cell_bundle");
+    if (cellBundleName && tabletCellBundleName) {
+        THROW_ERROR_EXCEPTION("Only one of \"cell_bundle\" or \"tablet_cell_bundle\" should be specified");
+    }
 
     const auto& cellManager = TBase::Bootstrap_->GetTamedCellManager();
-    auto* cellBundle = cellManager->GetCellBundleByNameOrThrow(cellBundleName, true /*activeLifeStageOnly*/);
+    auto* cellBundle = cellManager->GetCellBundleByNameOrThrow(
+        cellBundleName.value_or(tabletCellBundleName.value_or(DefaultCellBundleName)),
+        /*activeLifeStageOnly*/ true);
 
     const auto& objectManager = TBase::Bootstrap_->GetObjectManager();
     objectManager->ValidateObjectLifeStage(cellBundle);
@@ -90,6 +98,9 @@ void TCellTypeHandlerBase<TImpl>::DoDestroyObject(TImpl* cell)
 
 template class
 TCellTypeHandlerBase<NTabletServer::TTabletCell>;
+
+template class
+TCellTypeHandlerBase<NChaosServer::TChaosCell>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

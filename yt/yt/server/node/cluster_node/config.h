@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/chaos_node/config.h>
+
 #include <yt/yt/server/lib/dynamic_config/config.h>
 
 #include <yt/yt/server/lib/exec_agent/config.h>
@@ -448,6 +450,9 @@ public:
     //! Query node configuration part.
     NQueryAgent::TQueryAgentConfigPtr QueryAgent;
 
+    //! Chaos node configuration part.
+    NChaosNode::TChaosNodeConfigPtr ChaosNode;
+
     //! Metadata cache service configuration.
     NObjectClient::TCachingObjectServiceConfigPtr CachingObjectService;
 
@@ -513,6 +518,8 @@ public:
         RegisterParameter("tablet_node", TabletNode)
             .DefaultNew();
         RegisterParameter("query_agent", QueryAgent)
+            .DefaultNew();
+        RegisterParameter("chaos_node", ChaosNode)
             .DefaultNew();
         RegisterParameter("caching_object_service", CachingObjectService)
             .Alias("master_cache_service")

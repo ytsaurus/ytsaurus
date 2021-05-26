@@ -47,12 +47,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto cellar = FindCellar(type);
-
-        if (!cellar) {
-            THROW_ERROR_EXCEPTION("Cellar %Qlv is unavailable",
-                type);
-        }
-
+        YT_VERIFY(cellar);
         return cellar;
     }
 

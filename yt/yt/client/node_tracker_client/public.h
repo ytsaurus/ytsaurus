@@ -44,7 +44,6 @@ constexpr TNodeId InvalidNodeId = 0;
 constexpr TNodeId MaxNodeId = (1 << 24) - 1; // TNodeId must fit into 24 bits (see TChunkReplica)
 
 using TRackId = NObjectClient::TObjectId;
-
 using TDataCenterId = NObjectClient::TObjectId;
 
 // Only domain names, without port number.

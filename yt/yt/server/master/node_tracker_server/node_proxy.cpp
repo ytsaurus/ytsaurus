@@ -23,12 +23,13 @@
 
 namespace NYT::NNodeTrackerServer {
 
-using namespace NYson;
-using namespace NYTree;
-using namespace NNodeTrackerClient;
-using namespace NNodeTrackerClient::NProto;
-using namespace NObjectServer;
+using namespace NCellarClient;
 using namespace NChunkClient;
+using namespace NNodeTrackerClient::NProto;
+using namespace NNodeTrackerClient;
+using namespace NObjectServer;
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,6 +100,8 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Flavors)
             .SetPresent(isGood));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletSlots)
+            .SetPresent(isGood));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Cellars)
             .SetPresent(isGood));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::IOWeights)
             .SetPresent(isGood));
@@ -379,22 +382,24 @@ private:
                 return true;
 
             case EInternedAttributeKey::TabletSlots:
+                if (!isGood || !node->FindCellar(ECellarType::Tablet)) {
+                    break;
+                }
+
+                BuildYsonFluently(consumer)
+                    .Do(BIND(&TClusterNodeProxy::BuildYsonCellar, node->GetCellar(ECellarType::Tablet)));
+                return true;
+
+            case EInternedAttributeKey::Cellars:
                 if (!isGood) {
                     break;
                 }
 
                 BuildYsonFluently(consumer)
-                    .DoListFor(node->TabletSlots(), [] (TFluentList fluent, const TNode::TCellSlot& slot) {
+                    .DoMapFor(node->Cellars(), [] (TFluentMap fluent, const auto& it) {
                         fluent
-                            .Item().BeginMap()
-                            .Item("state").Value(slot.PeerState)
-                            .DoIf(slot.Cell, [&] (TFluentMap fluent) {
-                                fluent
-                                    .Item("cell_id").Value(slot.Cell->GetId())
-                                    .Item("peer_id").Value(slot.PeerId)
-                                    .Item("tablet_cell_bundle").Value(slot.Cell->GetCellBundle()->GetName());
-                            })
-                            .EndMap();
+                            .Item(CamelCaseToUnderscoreCase(ToString(it.first)))
+                            .Do(BIND(&TClusterNodeProxy::BuildYsonCellar, it.second));
                     });
                 return true;
 
@@ -572,6 +577,25 @@ private:
         if (node->GetLocalState() != ENodeState::Offline) {
             THROW_ERROR_EXCEPTION("Cannot remove node since it is not offline");
         }
+    }
+
+    static void BuildYsonCellar(const TNode::TCellar& cellar, TFluentAny fluent)
+    {
+        fluent
+            .DoListFor(cellar, [] (TFluentList fluent, const TNode::TCellSlot& slot) {
+                fluent
+                    .Item().BeginMap()
+                    .Item("state").Value(slot.PeerState)
+                    .DoIf(slot.Cell, [&](TFluentMap fluent) {
+                        fluent
+                            .Item("cell_id").Value(slot.Cell->GetId())
+                            .Item("peer_id").Value(slot.PeerId)
+                            .Item("cell_bundle").Value(slot.Cell->GetCellBundle()->GetName())
+                            // COMPAT(savrus)
+                            .Item("tablet_cell_bundle").Value(slot.Cell->GetCellBundle()->GetName());
+                    })
+                    .EndMap();
+            });
     }
 };
 

@@ -237,12 +237,14 @@ message TReqStartPrerequisiteTransaction
 {
     required NYT.NProto.TGuid cell_id = 1;
     required NYT.NProto.TGuid transaction_id = 2;
+    optional int32 peer_id = 3;
 }
 
 message TReqAbortPrerequisiteTransaction
 {
     required NYT.NProto.TGuid cell_id = 1;
     required NYT.NProto.TGuid transaction_id = 2;
+    optional int32 peer_id = 3;
 }
 
 message TReqAllocateDynamicStore

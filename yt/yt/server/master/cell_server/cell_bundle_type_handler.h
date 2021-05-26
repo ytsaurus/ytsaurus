@@ -29,7 +29,8 @@ protected:
 
     NObjectServer::TObject* DoCreateObject(
         std::unique_ptr<TCellBundle> holder,
-        NYTree::IAttributeDictionary* attributes);
+        NYTree::IAttributeDictionary* attributes,
+        NTabletClient::TTabletCellOptionsPtr options);
 
     virtual NObjectClient::TCellTagList DoGetReplicationCellTags(const TImpl* /*cellBundle*/) override;
     virtual NSecurityServer::TAccessControlDescriptor* DoFindAcd(TImpl* cellBundle) override;

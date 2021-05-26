@@ -33,6 +33,9 @@ bool IsCellType(EObjectType type);
 //! Checks if the given type is cell bundle.
 bool IsCellBundleType(EObjectType type);
 
+//! Checks if the given type allws alien objects.
+bool IsAlienType(EObjectType type);
+
 //! Extracts the type component from #id.
 EObjectType TypeFromId(TObjectId id);
 

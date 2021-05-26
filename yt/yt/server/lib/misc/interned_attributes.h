@@ -42,10 +42,13 @@
     XX(Builtin, builtin) \
     XX(Cache, cache) \
     XX(CachedReplicas, cached_replicas) \
+    XX(Cellars, cellars) \
     XX(CellBalancerConfig, cell_balancer_config) \
+    XX(CellBundle, cell_bundle) \
     XX(CellId, cell_id) \
     XX(CellIds, cell_ids) \
     XX(CellTag, cell_tag) \
+    XX(ChaosOptions, chaos_options) \
     XX(ChildCount, child_count) \
     XX(ChildIds, child_ids) \
     XX(ChildKey, child_key) \
