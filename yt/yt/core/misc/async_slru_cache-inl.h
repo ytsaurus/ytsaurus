@@ -819,16 +819,19 @@ TMemoryTrackingAsyncSlruCacheBase<TKey, TValue, THash>::TMemoryTrackingAsyncSlru
     : TAsyncSlruCacheBase<TKey, TValue, THash>(
         std::move(config),
         profiler)
-    , MemoryTrackerGuard_(TMemoryUsageTrackerGuard::Acquire(
-        std::move(memoryTracker),
-        this->Config_->Capacity))
+    , MemoryTracker_(std::move(memoryTracker))
 { }
 
 template <class TKey, class TValue, class THash>
-void TMemoryTrackingAsyncSlruCacheBase<TKey, TValue, THash>::Reconfigure(const TSlruCacheDynamicConfigPtr& config)
+void TMemoryTrackingAsyncSlruCacheBase<TKey, TValue, THash>::OnAdded(const TValuePtr& value)
 {
-    MemoryTrackerGuard_.SetSize(config->Capacity.value_or(this->Config_->Capacity));
-    TAsyncSlruCacheBase<TKey, TValue, THash>::Reconfigure(config);
+    MemoryTracker_->Acquire(this->GetWeight(value));
+}
+
+template <class TKey, class TValue, class THash>
+void TMemoryTrackingAsyncSlruCacheBase<TKey, TValue, THash>::OnRemoved(const TValuePtr& value)
+{
+    MemoryTracker_->Release(this->GetWeight(value));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
