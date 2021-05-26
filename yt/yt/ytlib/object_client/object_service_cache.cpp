@@ -320,7 +320,7 @@ void TObjectServiceCache::OnAdded(const TObjectServiceCacheEntryPtr& entry)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TAsyncSlruCacheBase::OnAdded(entry);
+    TMemoryTrackingAsyncSlruCacheBase::OnAdded(entry);
 
     const auto& key = entry->GetKey();
     YT_LOG_DEBUG("Cache entry added (Key: %v, Revision: %llx, Success: %v, TotalSpace: %v)",
@@ -334,7 +334,7 @@ void TObjectServiceCache::OnRemoved(const TObjectServiceCacheEntryPtr& entry)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TAsyncSlruCacheBase::OnRemoved(entry);
+    TMemoryTrackingAsyncSlruCacheBase::OnRemoved(entry);
 
     const auto& key = entry->GetKey();
     YT_LOG_DEBUG("Cache entry removed (Key: %v, Revision: %llx, Success: %v, TotalSpace: %v)",

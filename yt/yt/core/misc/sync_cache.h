@@ -124,15 +124,18 @@ class TMemoryTrackingSyncSlruCacheBase
     : public TSyncSlruCacheBase<TKey, TValue, THash>
 {
 public:
+    using TValuePtr = typename TSyncSlruCacheBase<TKey, TValue, THash>::TValuePtr;
+
     explicit TMemoryTrackingSyncSlruCacheBase(
         TSlruCacheConfigPtr config,
         IMemoryUsageTrackerPtr memoryTracker,
         const NProfiling::TProfiler& profiler = {});
 
-    void Reconfigure(const TSlruCacheDynamicConfigPtr& config);
+    virtual void OnAdded(const TValuePtr& value) override;
+    virtual void OnRemoved(const TValuePtr& value) override;
 
 private:
-    TMemoryUsageTrackerGuard MemoryTrackerGuard_;
+    IMemoryUsageTrackerPtr MemoryTracker_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
