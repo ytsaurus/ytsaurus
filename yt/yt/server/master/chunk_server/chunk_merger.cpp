@@ -387,7 +387,7 @@ void TChunkMerger::ScheduleJobs(
             continue;
         }
 
-        JobTracker_->RegisterJob(std::move(job), jobsToStart, resourceUsage);
+        JobTracker_->RegisterJob(job, jobsToStart, resourceUsage);
 
         YT_LOG_DEBUG("Merge job scheduled (JobId: %v, Address: %v, NodeId: %v, InputChunkIds: %v, OutputChunkId: %v)",
             job->GetJobId(),
@@ -887,10 +887,18 @@ void TChunkMerger::HydraCreateChunks(NProto::TReqCreateChunks* request)
         auto jobId = FromProto<TJobId>(subrequest.job_id());
 
         auto eraseFromQueue = [&] () {
-            if (IsLeader()) {
-                // NB: Job could be missing.
-                JobsUndergoingChunkCreation_.erase(jobId);
+            if (!IsLeader()) {
+                return;
             }
+            auto it = JobsUndergoingChunkCreation_.find(jobId);
+            if (it == JobsUndergoingChunkCreation_.end()) {
+                return;
+            }
+
+            if (auto* trunkNode = FindChunkOwner(it->second.NodeId)) {
+                DecrementMergeJobCounter(Bootstrap_, trunkNode);
+            }
+            JobsUndergoingChunkCreation_.erase(it);
         };
 
         if (!IsObjectAlive(transaction)) {
