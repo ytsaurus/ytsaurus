@@ -395,8 +395,16 @@ class TestMastersSnapshotsShardedTx(YTEnvSetup):
         create("map_node", "//tmp/m", tx=tx)
 
         build_snapshot(cell_id=self.Env.configs["master"][0]["primary_master"]["cell_id"], set_read_only=True)
-        primary = ls("//sys/primary_masters", suppress_transaction_coordinator_sync=True)[0]
-        wait(lambda: get("//sys/primary_masters/{}/orchid/monitoring/hydra/read_only".format(primary), suppress_transaction_coordinator_sync=True))
+        def is_leader_in_readonly(monitoring_prefix, master_list):
+            for master in master_list:
+                monitoring = get("{}/{}/orchid/monitoring/hydra".format(monitoring_prefix, master), suppress_transaction_coordinator_sync=True)
+                if monitoring["state"] == "leading" and monitoring["read_only"]:
+                    return True
+
+            return False
+
+        primary = ls("//sys/primary_masters", suppress_transaction_coordinator_sync=True)
+        wait(lambda : is_leader_in_readonly("//sys/primary_masters", primary))
 
         abort_transaction(tx)
 
@@ -405,11 +413,11 @@ class TestMastersSnapshotsShardedTx(YTEnvSetup):
 
         secondary_masters = get("//sys/secondary_masters", suppress_transaction_coordinator_sync=True)
         for cell_tag in secondary_masters:
-            address = secondary_masters[cell_tag].keys()[0]
-            wait(lambda: get("//sys/secondary_masters/{}/{}/orchid/monitoring/hydra/read_only".format(cell_tag, address), suppress_transaction_coordinator_sync=True))
+            addresses = secondary_masters[cell_tag].keys()
+            wait(lambda : is_leader_in_readonly("//sys/secondary_masters/{}".format(cell_tag), addresses))
 
         # Must not hang on this.
-        get("//sys/primary_masters/{}/orchid/monitoring/hydra".format(primary), suppress_transaction_coordinator_sync=True)
+        get("//sys/primary_masters/{}/orchid/monitoring/hydra".format(primary[0]), suppress_transaction_coordinator_sync=True)
 
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
