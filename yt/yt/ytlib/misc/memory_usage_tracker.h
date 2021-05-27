@@ -46,6 +46,7 @@ public:
     TError TryAcquire(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {});
     TError TryChange(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {});
     void Release(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {});
+    i64 UpdateUsage(ECategory category, i64 newUsage);
 
     IMemoryUsageTrackerPtr WithCategory(
         ECategory category,

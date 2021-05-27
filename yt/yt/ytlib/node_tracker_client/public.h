@@ -50,6 +50,7 @@ DEFINE_ENUM(EMemoryCategory,
     ((TmpfsLayers)                (11))
     ((MasterCache)                (12))
     ((LookupRowsCache)            (13))
+    ((AllocFragmentation)         (14))
 );
 
 DEFINE_ENUM(EMemoryLimitType,
