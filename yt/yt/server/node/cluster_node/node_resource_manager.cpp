@@ -168,32 +168,34 @@ void TNodeResourceManager::UpdateMemoryFootprint()
 
     const auto& memoryUsageTracker = Bootstrap_->GetMemoryUsageTracker();
 
-    auto bytesCommitted = NYTAlloc::GetTotalAllocationCounters()[NYTAlloc::ETotalCounter::BytesCommitted];
-    auto newFootprint = bytesCommitted;
+    auto allocCounters = NYTAlloc::GetTotalAllocationCounters();
+    auto bytesUsed = allocCounters[NYTAlloc::ETotalCounter::BytesUsed];
+    auto bytesCommitted = allocCounters[NYTAlloc::ETotalCounter::BytesCommitted];
+
+    auto newFragmentation = std::max<i64>(0, bytesCommitted - bytesUsed);
+
+    auto newFootprint = bytesUsed;
     for (auto memoryCategory : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
-        if (memoryCategory == EMemoryCategory::UserJobs || memoryCategory == EMemoryCategory::Footprint) {
+        if (memoryCategory == EMemoryCategory::UserJobs ||
+            memoryCategory == EMemoryCategory::Footprint ||
+            memoryCategory == EMemoryCategory::AllocFragmentation) {
             continue;
         }
+
         newFootprint -= memoryUsageTracker->GetUsed(memoryCategory);
     }
     newFootprint = std::max<i64>(newFootprint, 0);
 
-    auto oldFootprint = memoryUsageTracker->GetUsed(EMemoryCategory::Footprint);
+    auto oldFootprint = memoryUsageTracker->UpdateUsage(EMemoryCategory::Footprint, newFootprint);
+    auto oldFragmentation = memoryUsageTracker->UpdateUsage(EMemoryCategory::AllocFragmentation, newFootprint);
 
-    YT_LOG_INFO("Memory footprint updated (BytesCommitted: %v, OldFootprint: %v, NewFootprint: %v)",
+    YT_LOG_INFO("Memory footprint updated (BytesCommitted: %v, BytesUsed: %v, Footprint: %v -> %v, Fragmentation: %v -> %v)",
         bytesCommitted,
+        bytesUsed,
         oldFootprint,
-        newFootprint);
-
-    if (newFootprint > oldFootprint) {
-        memoryUsageTracker->Acquire(
-            EMemoryCategory::Footprint,
-            newFootprint - oldFootprint);
-    } else {
-        memoryUsageTracker->Release(
-            EMemoryCategory::Footprint,
-            oldFootprint - newFootprint);
-    }
+        newFootprint,
+        oldFragmentation,
+        newFragmentation);
 }
 
 void TNodeResourceManager::UpdateJobsCpuLimit()

@@ -422,6 +422,18 @@ void TMemoryUsageTracker<ECategory, TPoolTag>::Release(ECategory category, i64 s
 }
 
 template <class ECategory, class TPoolTag>
+i64 TMemoryUsageTracker<ECategory, TPoolTag>::UpdateUsage(ECategory category, i64 newUsage)
+{
+    auto oldUsage = GetUsed(category);
+    if (oldUsage < newUsage) {
+        Acquire(category, newUsage - oldUsage);
+    } else {
+        Release(category, oldUsage - newUsage);
+    }
+    return oldUsage;
+}
+
+template <class ECategory, class TPoolTag>
 IMemoryUsageTrackerPtr TMemoryUsageTracker<ECategory, TPoolTag>::WithCategory(
     ECategory category,
     std::optional<TPoolTag> poolTag)
