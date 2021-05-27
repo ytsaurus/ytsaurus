@@ -1110,9 +1110,12 @@ class TestCypress(YTEnvSetup):
             remove_user("u", sync_deletion=False)
         remove_user("u", force=True)
 
-    @authors("babenko")
+    @authors("babenko", "s-v-m")
     def test_link1(self):
+        set("//tmp/a", 1)
         link("//tmp/a", "//tmp/b")
+        assert not get("//tmp/b&/@broken")
+        remove("//tmp/a")
         assert get("//tmp/b&/@broken")
 
     @authors("babenko")
@@ -1193,6 +1196,19 @@ class TestCypress(YTEnvSetup):
         set("//tmp/t1", 1, tx=tx)
         link("//tmp/t1", "//tmp/l1", tx=tx)
         assert get("//tmp/l1", tx=tx) == 1
+
+    @authors("s-v-m")
+    def test_link_dst_doesnt_exist(self):
+        tx = start_transaction()
+        set("//tmp/t", 1, tx=tx)
+        with pytest.raises(YtError):
+            link("//tmp/t", "//tmp/link1")
+        link("//tmp/t", "//tmp/link1", tx=tx)
+        link("//tmp/t", "//tmp/link2", force=True)
+        assert get("//tmp/link2&/@broken")
+        commit_transaction(tx)
+        assert not get("//tmp/link1&/@broken")
+        assert not get("//tmp/link2&/@broken")
 
     @authors("babenko")
     def test_link_existing_fail(self):

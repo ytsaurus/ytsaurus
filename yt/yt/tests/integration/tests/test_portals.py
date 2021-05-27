@@ -1346,7 +1346,9 @@ class TestResolveCache(YTEnvSetup):
     def test_link_through_portal(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         create("table", "//tmp/p/t")
+        set("//tmp/p/t-non-existing", 1)
         link("//tmp/p/t-non-existing", "//tmp/l-bad")
+        remove("//tmp/p/t-non-existing")
         assert get("//tmp/l-bad&/@broken")
         link("//tmp/p/t", "//tmp/l-ok")
         assert not get("//tmp/l-ok&/@broken")

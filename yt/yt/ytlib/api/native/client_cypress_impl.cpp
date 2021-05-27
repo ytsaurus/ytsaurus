@@ -969,6 +969,25 @@ TNodeId TClient::DoLinkNode(
     const TLinkNodeOptions& options)
 {
     auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+
+    if (!options.Force) {
+        auto batchReq = proxy->ExecuteBatch();
+        SetPrerequisites(batchReq, options);
+
+        auto req = TYPathProxy::Exists(srcPath);
+        SetTransactionId(req, options, true);
+        batchReq->AddRequest(req);
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspExists>(0)
+            .ValueOrThrow();
+        if (!rsp->value()) {
+            THROW_ERROR_EXCEPTION("Target %v for the link %v does not exist.",
+                srcPath,
+                dstPath);
+        }
+    }
+
     auto batchReq = proxy->ExecuteBatch();
     batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
     SetPrerequisites(batchReq, options);
