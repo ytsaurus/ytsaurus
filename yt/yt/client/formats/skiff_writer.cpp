@@ -717,13 +717,18 @@ public:
                         << ex;
                 }
             };
-
+            size_t nextDenseIndex = 0;
             for (size_t i = 0; i < denseFieldDescriptionList.size(); ++i) {
                 const auto& denseField = denseFieldDescriptionList[i];
                 const auto id = NameTable_->GetIdOrRegisterName(denseField.Name());
                 ResizeToContainIndex(&knownFields, id);
                 YT_VERIFY(knownFields[id].EncodingPart == ESkiffWriterColumnType::Unknown);
-                knownFields[id] = TSkiffEncodingInfo::Dense(i);
+
+                if (denseField.Simplify() == EWireType::Nothing) {
+                    knownFields[id] = TSkiffEncodingInfo::Skip();
+                    continue;
+                }
+                knownFields[id] = TSkiffEncodingInfo::Dense(nextDenseIndex++);
 
                 TUnversionedValueToSkiffConverter converter;
                 try {
