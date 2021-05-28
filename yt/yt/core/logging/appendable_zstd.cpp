@@ -29,10 +29,9 @@ constexpr const char ZstdSyncTag[] = {
     // 64-bit offset is written separately.
 };
 
-constexpr i64 MaxFrameUncompressedLength = 5_MB;
-constexpr i64 MaxFrameLength = ZSTD_COMPRESSBOUND(MaxFrameUncompressedLength);
+constexpr i64 MaxZstdFrameLength = ZSTD_COMPRESSBOUND(MaxZstdFrameUncompressedLength);
 constexpr i64 ZstdSyncTagLength = sizeof(ZstdSyncTag) + sizeof(ui64);
-constexpr i64 TailScanLength = MaxFrameLength + 2 * ZstdSyncTagLength;
+constexpr i64 TailScanLength = MaxZstdFrameLength + 2 * ZstdSyncTagLength;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,17 +70,17 @@ void TAppendableZstdFile::DoWrite(const void* buf, size_t len)
     const char* in = reinterpret_cast<const char*>(buf);
     while (len > 0) {
         size_t toWrite = len;
-        if (Input_.Size() >= MaxFrameUncompressedLength) {
+        if (Input_.Size() >= MaxZstdFrameUncompressedLength) {
             toWrite = 0;
-        } else if (Input_.Size() + len >= MaxFrameUncompressedLength) {
-            toWrite = MaxFrameUncompressedLength - Input_.Size();
+        } else if (Input_.Size() + len >= MaxZstdFrameUncompressedLength) {
+            toWrite = MaxZstdFrameUncompressedLength - Input_.Size();
         }
 
         Input_.Append(in, toWrite);
         in += toWrite;
         len -= toWrite;
 
-        while (Input_.Size() >= MaxFrameUncompressedLength) {
+        while (Input_.Size() >= MaxZstdFrameUncompressedLength) {
             CompressOneFrame();
         }
     }
@@ -106,10 +105,17 @@ void TAppendableZstdFile::CompressOneFrame()
         return;
     }
 
-    size_t toWrite = Min(Input_.Size(), size_t(MaxFrameUncompressedLength));
+    size_t toWrite = Min(Input_.Size(), size_t(MaxZstdFrameUncompressedLength));
 
-    Output_.Reserve(MaxFrameLength + ZstdSyncTagLength);
-    size_t size = ZSTD_compressCCtx(Context_->CCtx, Output_.Data(), MaxFrameLength, Input_.Data(), toWrite, CompressionLevel_);
+    Output_.Reserve(MaxZstdFrameLength + ZstdSyncTagLength);
+    size_t size = ZSTD_compressCCtx(
+        Context_->CCtx,
+        Output_.Data() + Output_.Size(),
+        MaxZstdFrameLength,
+        Input_.Data(),
+        toWrite,
+        CompressionLevel_);
+
     if (ZSTD_isError(size)) {
         THROW_ERROR_EXCEPTION("ZSTD_compressCCtx() failed")
             << TErrorAttribute("zstd_error", ZSTD_getErrorName(size));

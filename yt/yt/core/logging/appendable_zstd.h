@@ -14,6 +14,7 @@ namespace NYT {
 namespace NLogging {
 
 constexpr const int DefaultZstdCompressionLevel = 3;
+constexpr const i64 MaxZstdFrameUncompressedLength = 5_MB;
 
 ////////////////////////////////////////////////////////////////////////////////
 

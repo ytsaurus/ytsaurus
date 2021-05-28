@@ -368,6 +368,11 @@ class TAppendableZstdFileTest
     : public ::testing::Test
 {
 protected:
+    TTempFile GetLogFile()
+    {
+        return {GenerateLogFileName() + ".zst"};
+    }
+
     void WriteTestFile(const TString& filename, i64 addBytes, bool writeTruncateMessage)
     {
         {
@@ -391,7 +396,7 @@ protected:
 
 TEST_F(TAppendableZstdFileTest, Write)
 {
-    TTempFile logFile(GenerateLogFileName() + ".zst");
+    auto logFile = GetLogFile();
     WriteTestFile(logFile.Name(), 0, false);
 
     TUnbufferedFileInput file(logFile.Name());
@@ -399,9 +404,33 @@ TEST_F(TAppendableZstdFileTest, Write)
     EXPECT_EQ("foo\nbar\nzog\n", decompress.ReadAll());
 }
 
+TEST_F(TAppendableZstdFileTest, WriteMultipleFramesPerFlush)
+{
+    auto logFile = GetLogFile();
+
+    TStringBuilder builder;
+    for (int index = 0; builder.GetLength() < 3 * MaxZstdFrameUncompressedLength; ++index) {
+        builder.AppendFormat("test%v\n", index);
+    }
+
+    auto data = builder.Flush();
+    {
+        TFile rawFile(logFile.Name(), OpenAlways|RdWr|CloseOnExec);
+        TAppendableZstdFile file(&rawFile, DefaultZstdCompressionLevel, true);
+        file.Write(data.Data(), data.Size());
+        file.Finish();
+    }
+
+    TUnbufferedFileInput file(logFile.Name());
+    TZstdDecompress decompress(&file);
+    auto decompressed = decompress.ReadAll();
+
+    EXPECT_TRUE(data == decompressed);
+}
+
 TEST_F(TAppendableZstdFileTest, RepairSmall)
 {
-    TTempFile logFile(GenerateLogFileName() + ".zst");
+    auto logFile = GetLogFile();
     WriteTestFile("test.txt.zst", -1, false);
 
     TUnbufferedFileInput file("test.txt.zst");
@@ -411,7 +440,7 @@ TEST_F(TAppendableZstdFileTest, RepairSmall)
 
 TEST_F(TAppendableZstdFileTest, RepairLarge)
 {
-    TTempFile logFile(GenerateLogFileName() + ".zst");
+    auto logFile = GetLogFile();
     WriteTestFile(logFile.Name(), 10_MB, true);
 
     TUnbufferedFileInput file(logFile.Name());
