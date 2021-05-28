@@ -1,8 +1,9 @@
 package rpcclient
 
 import (
-	"a.yandex-team.ru/yt/go/proto/core/rpc"
 	"github.com/golang/protobuf/proto"
+
+	"a.yandex-team.ru/yt/go/proto/core/rpc"
 )
 
 func setToken(req *rpc.TRequestHeader, token string) error {

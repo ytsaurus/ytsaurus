@@ -5,22 +5,17 @@ import (
 	"testing"
 	"time"
 
-	"a.yandex-team.ru/yt/go/yterrors"
-
-	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
+	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
+	"a.yandex-team.ru/yt/go/yterrors"
 	"a.yandex-team.ru/yt/go/yttest"
 )
 
 func tmpPath() ypath.Path {
-	id, err := uuid.NewV4()
-	if err != nil {
-		panic(err)
-	}
-	return ypath.Path("//tmp").Child(id.String())
+	return ypath.Path("//tmp").Child(guid.New().String())
 }
 
 func TestCypress(t *testing.T) {
