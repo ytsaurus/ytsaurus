@@ -17,24 +17,25 @@ type StopGroup struct {
 
 func (l *StopGroup) TryAdd() bool {
 	l.m.Lock()
+	defer l.m.Unlock()
+
 	if l.done {
-		l.m.Unlock()
 		return false
 	}
 
 	l.count++
-	l.m.Unlock()
 	return true
 }
 
 func (l *StopGroup) Done() {
 	l.m.Lock()
+	defer l.m.Unlock()
+
 	l.count--
 
 	if l.count == 0 {
 		l.finished.Broadcast()
 	}
-	l.m.Unlock()
 }
 
 func (l *StopGroup) C() <-chan struct{} {
@@ -68,6 +69,8 @@ func (l *StopGroup) Context() context.Context {
 
 func (l *StopGroup) Stop() {
 	l.m.Lock()
+	defer l.m.Unlock()
+
 	if !l.done {
 		l.done = true
 		close(l.c)
@@ -76,8 +79,6 @@ func (l *StopGroup) Stop() {
 	for l.count > 0 {
 		l.finished.Wait()
 	}
-
-	l.m.Unlock()
 }
 
 func NewStopGroup() *StopGroup {
