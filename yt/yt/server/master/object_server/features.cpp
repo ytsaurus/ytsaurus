@@ -28,11 +28,14 @@ void ListPrimitiveTypes(TFluentList fluent)
 
 void ListCompressionCodecs(TFluentList fluent, const THashSet<NCompression::ECodec>& configuredDeprecatedCodecIds)
 {
-    for (auto codecId : TEnumTraits<NCompression::ECodec>::GetDomainValues()) {
-        if (configuredDeprecatedCodecIds.contains(codecId)) {
+    static const THashSet<NCompression::ECodec> UniqueValues = {
+        std::begin(TEnumTraits<NCompression::ECodec>::GetDomainValues()),
+        std::end(TEnumTraits<NCompression::ECodec>::GetDomainValues())};
+    for (auto codec : UniqueValues) {
+        if (configuredDeprecatedCodecIds.contains(codec)) {
             continue;
         }
-        fluent.Item().Value(codecId);
+        fluent.Item().Value(codec);
     }
 }
 

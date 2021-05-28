@@ -65,6 +65,7 @@ class TestGetFeatures(YTEnvSetup):
         )
         deprecated_compression_codecs = {"zlib6", "gzip_best_compression", "brotli8"}
         assert not deprecated_compression_codecs.intersection(__builtin__.set(features["compression_codecs"]))
+        assert len(features["compression_codecs"]) == len(__builtin__.set(features["compression_codecs"]))
 
         assert "erasure_codecs" in features
         expected_erasure_codecs = {
