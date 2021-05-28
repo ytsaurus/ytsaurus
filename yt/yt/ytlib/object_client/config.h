@@ -164,4 +164,27 @@ DEFINE_REFCOUNTED_TYPE(TReqExecuteBatchWithRetriesConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAbcConfig
+    : virtual public NYTree::TYsonSerializable
+{
+public:
+    int Id;
+    std::optional<TString> Name;
+    TString Slug;
+
+    TAbcConfig() {
+        RegisterParameter("id", Id)
+            .GreaterThan(0);
+        RegisterParameter("name", Name)
+            .Default()
+            .NonEmpty();
+        RegisterParameter("slug", Slug)
+            .NonEmpty();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TAbcConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NObjectClient

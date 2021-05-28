@@ -10,6 +10,8 @@
 #include <yt/yt/server/master/object_server/map_object.h>
 #include <yt/yt/server/master/object_server/object.h>
 
+#include <yt/yt/ytlib/object_client/public.h>
+
 #include <yt/yt/core/yson/public.h>
 
 #include <yt/yt/core/misc/property.h>
@@ -52,6 +54,9 @@ public:
 
     //! Transient property.
     DEFINE_BYREF_RW_PROPERTY(TDetailedMasterMemory, DetailedMasterMemoryUsage);
+
+    DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TAbcConfigPtr, AbcConfig);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, FolderId);
 
 public:
     explicit TAccount(TAccountId id, bool isRoot = false);

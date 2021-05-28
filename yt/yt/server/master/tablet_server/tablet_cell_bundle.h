@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/master/cell_server/cell_bundle.h>
 
+#include <yt/yt/ytlib/object_client/public.h>
+
 #include <yt/yt/ytlib/tablet_client/public.h>
 
 #include <yt/yt/core/misc/ref_tracked.h>
@@ -48,6 +50,9 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(TTabletResources, ResourceLimits);
     DEFINE_BYREF_RW_PROPERTY(TGossipTabletResources, ResourceUsage);
+
+    DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TAbcConfigPtr, AbcConfig);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, FolderId);
 
 public:
     explicit TTabletCellBundle(TTabletCellBundleId id);

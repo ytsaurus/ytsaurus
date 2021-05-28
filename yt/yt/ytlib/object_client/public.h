@@ -19,6 +19,8 @@ DECLARE_REFCOUNTED_CLASS(TCachingObjectServiceDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TObjectServiceCacheEntry)
 DECLARE_REFCOUNTED_CLASS(TObjectServiceCache)
 
+DECLARE_REFCOUNTED_CLASS(TAbcConfig)
+
 DECLARE_REFCOUNTED_STRUCT(ICachingObjectService)
 
 ////////////////////////////////////////////////////////////////////////////////

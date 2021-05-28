@@ -69,6 +69,19 @@ TDuration ComputeForwardingTimeout(
         config);
 }
 
+void ValidateFolderId(const TString& folderId)
+{
+    static constexpr size_t MaxFolderIdLength = 256;
+    if (folderId.size() > MaxFolderIdLength) {
+        THROW_ERROR_EXCEPTION("Folder id %Qv is too long")
+            << TErrorAttribute("length", folderId.size())
+            << TErrorAttribute("max_folder_id_length", MaxFolderIdLength);
+    }
+    if (folderId.empty()) {
+        THROW_ERROR_EXCEPTION("Folder id cannot be empty");
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NObjectServer

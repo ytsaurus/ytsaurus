@@ -1,8 +1,15 @@
 #include "account.h"
+#include "private.h"
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/server/master/object_server/object.h>
+
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
 #include <yt/yt/server/lib/security_server/proto/security_manager.pb.h>
+
+#include <yt/yt/ytlib/object_client/config.h>
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
@@ -14,6 +21,10 @@ using namespace NYTree;
 using namespace NCellMaster;
 using namespace NObjectServer;
 using namespace NConcurrency;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = SecurityServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,6 +105,11 @@ void TAccount::Save(NCellMaster::TSaveContext& context) const
     Save(context, ClusterResourceLimits_);
     Save(context, AllowChildrenLimitOvercommit_);
     Save(context, MergeJobRateLimit_);
+    Save(context, AbcConfig_.operator bool());
+    if (AbcConfig_) {
+        Save(context, *AbcConfig_);
+    }
+    Save(context, FolderId_);
 }
 
 void TAccount::Load(NCellMaster::TLoadContext& context)
@@ -109,6 +125,33 @@ void TAccount::Load(NCellMaster::TLoadContext& context)
     // COMPAT(aleksandra-zh)
     if (context.GetVersion() >= EMasterReign::MasterMergeJobs) {
         Load(context, MergeJobRateLimit_);
+    }
+
+    // COMPAT(cookiedoth)
+    if (context.GetVersion() < EMasterReign::MakeAbcFolderIdBuiltin) {
+        auto moveUserToBuiltinAttribute = [&] (auto& field, TInternedAttributeKey internedAttributeKey) {
+            const auto& attributeName = internedAttributeKey.Unintern();
+            if (auto attribute = FindAttribute(attributeName)) {
+                auto value = std::move(*attribute);
+                YT_VERIFY(Attributes_->Remove(attributeName));
+                try {
+                    field = ConvertTo<std::decay_t<decltype(field)>>(value);
+                } catch (const std::exception& ex) {
+                    YT_LOG_WARNING(ex, "Cannot parse %Qv attribute (Value: %v, AccountId: %v)",
+                        attributeName,
+                        value,
+                        GetId());
+                }
+            }
+        };
+        moveUserToBuiltinAttribute(AbcConfig_, EInternedAttributeKey::Abc);
+        moveUserToBuiltinAttribute(FolderId_, EInternedAttributeKey::FolderId);
+    } else {
+        if (Load<bool>(context)) {
+            AbcConfig_ = New<NObjectClient::TAbcConfig>();
+            Load(context, *AbcConfig_);
+        }
+        Load(context, FolderId_);
     }
 }
 

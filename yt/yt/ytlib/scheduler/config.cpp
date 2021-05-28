@@ -1728,19 +1728,6 @@ TEphemeralSubpoolConfig::TEphemeralSubpoolConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAbcConfig::TAbcConfig()
-{
-    RegisterParameter("id", Id)
-        .GreaterThan(0);
-    RegisterParameter("name", Name)
-        .Default()
-        .NonEmpty();
-    RegisterParameter("slug", Slug)
-        .NonEmpty();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TPoolIntegralGuaranteesConfig::TPoolIntegralGuaranteesConfig()
 {
     RegisterParameter("guarantee_type", GuaranteeType)

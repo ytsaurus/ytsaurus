@@ -6,6 +6,7 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/server/master/object_server/helpers.h>
 #include <yt/yt/server/master/object_server/map_object_proxy.h>
 #include <yt/yt/server/master/object_server/object_detail.h>
 
@@ -13,6 +14,8 @@
 #include <yt/yt/server/master/chunk_server/medium.h>
 
 #include <yt/yt/ytlib/security_client/proto/account_ypath.pb.h>
+
+#include <yt/yt/ytlib/object_client/config.h>
 
 #include <yt/yt/core/yson/async_writer.h>
 
@@ -122,6 +125,7 @@ private:
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
+        const auto* account = GetThisImpl();
         TBase::ListSystemAttributes(descriptors);
 
         auto isRootAccount = IsRootAccount();
@@ -155,6 +159,18 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MergeJobRateLimit)
             .SetWritable(true)
             .SetWritePermission(EPermission::Administer));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Abc)
+            .SetWritable(true)
+            .SetWritePermission(EPermission::Administer)
+            .SetReplicated(true)
+            .SetRemovable(true)
+            .SetPresent(account->GetAbcConfig().operator bool()));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::FolderId)
+            .SetWritable(true)
+            .SetWritePermission(EPermission::Administer)
+            .SetReplicated(true)
+            .SetRemovable(true)
+            .SetPresent(account->GetFolderId().has_value()));
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -277,6 +293,26 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::Abc: {
+                if (account->GetAbcConfig()) {
+                    BuildYsonFluently(consumer)
+                        .Value(*account->GetAbcConfig());
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+
+            case EInternedAttributeKey::FolderId: {
+                if (account->GetFolderId()) {
+                    BuildYsonFluently(consumer)
+                        .Value(account->GetFolderId().value());
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+
             default:
                 break;
         }
@@ -325,11 +361,45 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::Abc: {
+                account->SetAbcConfig(ConvertTo<NObjectClient::TAbcConfigPtr>(value));
+                return true;
+            }
+
+            case EInternedAttributeKey::FolderId: {
+                TString newFolderId = ConvertTo<TString>(value);
+                ValidateFolderId(newFolderId);
+                account->SetFolderId(std::move(newFolderId));
+                return true;
+            }
+
             default:
                 break;
         }
 
         return TBase::SetBuiltinAttribute(key, value);
+    }
+
+    virtual bool RemoveBuiltinAttribute(TInternedAttributeKey key) override
+    {
+        auto* account = GetThisImpl();
+
+        switch (key) {
+            case EInternedAttributeKey::Abc: {
+                account->SetAbcConfig(nullptr);
+                return true;
+            }
+
+            case EInternedAttributeKey::FolderId: {
+                account->SetFolderId(std::nullopt);
+                return true;
+            }
+
+            default:
+                break;
+        }
+
+        return TBase::RemoveBuiltinAttribute(key);
     }
 
     void SerializeClusterResources(
