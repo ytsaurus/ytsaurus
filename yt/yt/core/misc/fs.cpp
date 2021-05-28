@@ -844,16 +844,35 @@ void ChunkedCopy(
         TFile src(existingPath, OpenExisting | RdOnly | Seq | CloseOnExec);
         TFile dst(newPath, CreateAlways | WrOnly | Seq | CloseOnExec);
         dst.Flock(LOCK_EX);
+        ChunkedCopy(src, dst, chunkSize);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to copy %v to %v",
+            existingPath,
+            newPath)
+            << ex;
+    }
+#else
+    Y_UNUSED(existingPath, newPath, chunkSize);
+    ThrowNotSupported();
+#endif
+}
 
-        i64 srcSize = src.GetLength();
+void ChunkedCopy(
+    const TFile& source,
+    const TFile& destination,
+    i64 chunkSize)
+{
+#ifdef _linux_
+    try {
+        i64 srcSize = source.GetLength();
         if (srcSize == -1) {
             THROW_ERROR_EXCEPTION("Cannot get source file length: stat failed for %v",
-                existingPath)
+                destination.GetName())
                 << TError::FromSystem();
         }
 
-        int srcFd = src.GetHandle();
-        int dstFd = dst.GetHandle();
+        int srcFd = source.GetHandle();
+        int dstFd = destination.GetHandle();
 
         while (true) {
             i64 currentChunkSize = 0;
@@ -875,12 +894,12 @@ void ChunkedCopy(
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to copy %v to %v",
-            existingPath,
-            newPath)
+            source.GetName(),
+            destination.GetName())
             << ex;
     }
 #else
-    Y_UNUSED(existingPath, newPath, chunkSize);
+    Y_UNUSED(source, destination, chunkSize);
     ThrowNotSupported();
 #endif
 }

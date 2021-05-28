@@ -175,6 +175,11 @@ void ChunkedCopy(
     const TString& newPath,
     i64 chunkSize);
 
+void ChunkedCopy(
+    const TFile& source,
+    const TFile& destination,
+    i64 chunkSize);
+
 //! Copies file chunk after chunk via splice syscall,
 //! releasing thread between chunks.
 void Splice(
