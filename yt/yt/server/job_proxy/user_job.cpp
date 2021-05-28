@@ -468,6 +468,13 @@ public:
 
             Host_->PrepareArtifact(artifactName, pipePath);
 
+            // Now pipe is opened and O_NONBLOCK is not required anymore.
+            auto fcntlResult = HandleEintr(::fcntl, pipeFd, F_SETFL, O_RDONLY);
+            if (fcntlResult < 0) {
+                THROW_ERROR_EXCEPTION("Failed to disable O_RDONLY for artifact pipe")
+                    << TError::FromSystem();
+            }
+
             YT_LOG_DEBUG("Materializing artifact");
 
             constexpr ssize_t SpliceCopyBlockSize = 16_MB;
