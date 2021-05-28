@@ -9,6 +9,8 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
+#include <yt/yt/ytlib/object_client/config.h>
+
 #include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
 
@@ -185,21 +187,6 @@ DEFINE_REFCOUNTED_TYPE(TEphemeralSubpoolConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAbcConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    int Id;
-    std::optional<TString> Name;
-    TString Slug;
-
-    TAbcConfig();
-};
-
-DEFINE_REFCOUNTED_TYPE(TAbcConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 DEFINE_ENUM(EIntegralGuaranteeType,
     (None)
     (Burst)
@@ -253,7 +240,7 @@ public:
 
     std::optional<bool> EnableByUserProfiling;
 
-    TAbcConfigPtr Abc;
+    NObjectClient::TAbcConfigPtr Abc;
 
     TPoolIntegralGuaranteesConfigPtr IntegralGuarantees;
 

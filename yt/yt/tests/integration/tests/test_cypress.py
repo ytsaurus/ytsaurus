@@ -3275,6 +3275,66 @@ class TestCypress(YTEnvSetup):
             create("table", "//tmp/t1")
             set("//tmp/t1/@compression_codec", "gzip_normal")
             remove("//tmp/t1")
+    
+    @authors("cookiedoth")
+    @pytest.mark.parametrize("create_object,object_map", [(create_account, "//sys/accounts"), (create_tablet_cell_bundle, "//sys/tablet_cell_bundles")])
+    def test_abc(self, create_object, object_map):
+        create_object("sample")
+        with pytest.raises(YtError):
+            set("{}/sample/@abc".format(object_map), {"id": 42})
+        set("{}/sample/@abc".format(object_map), {"id": 42, "slug": "text"})
+        with pytest.raises(YtError):
+            remove("{}/sample/@abc/id".format(object_map))
+        with pytest.raises(YtError):
+            remove("{}/sample/@abc/slug".format(object_map))
+        with pytest.raises(YtError):
+            set("{}/sample/@abc/id".format(object_map), -1)
+        with pytest.raises(YtError):
+            set("{}/sample/@abc/id".format(object_map), 0)
+        with pytest.raises(YtError):
+            set("{}/sample/@abc/name".format(object_map), "")
+        set("{}/sample/@abc/name".format(object_map), "abacaba")
+        remove("{}/sample/@abc/name".format(object_map))
+        set("{}/sample/@abc/id".format(object_map), 43)
+        remove("{}/sample/@abc".format(object_map))
+    
+    @authors("cookiedoth")
+    @pytest.mark.parametrize("create_object,object_map", [(create_account, "//sys/accounts"), (create_tablet_cell_bundle, "//sys/tablet_cell_bundles")])
+    def test_abc_other_fields(self, create_object, object_map):
+        create_object("sample")
+        set("{}/sample/@abc".format(object_map), {"id": 42, "slug": "text"})
+        set("{}/sample/@abc/foo".format(object_map), "bar")
+        assert not exists("{}/sample/@abc/foo".format(object_map))
+    
+    @authors("cookiedoth")
+    @pytest.mark.parametrize("create_object,object_map", [(create_account, "//sys/accounts"), (create_tablet_cell_bundle, "//sys/tablet_cell_bundles")])
+    def test_folder_id(self, create_object, object_map):
+        create_object("sample")
+        with pytest.raises(YtError):
+            set("{}/sample/@folder_id".format(object_map), "abacaba" * 42)
+        set("{}/sample/@folder_id".format(object_map), "b7189bb3-fcf3-46da-accf-52be0d4148f0")
+        with pytest.raises(YtError):
+            set("{}/sample/@folder_id".format(object_map), 0)
+
+    @authors("cookiedoth")
+    @pytest.mark.parametrize("create_object,object_map",[(create_account, "//sys/accounts"), (create_tablet_cell_bundle, "//sys/tablet_cell_bundles")])
+    def test_abc_remove(self, create_object, object_map):
+        create_object("sample")
+        assert not exists("{}/sample/@abc".format(object_map))
+        set("{}/sample/@abc".format(object_map), {"id": 42, "slug": "text"})
+        assert exists("{}/sample/@abc".format(object_map))
+        remove("{}/sample/@abc".format(object_map))
+        assert not exists("{}/sample/@abc".format(object_map))
+    
+    @authors("cookiedoth")
+    @pytest.mark.parametrize("create_object,object_map", [(create_account, "//sys/accounts"), (create_tablet_cell_bundle, "//sys/tablet_cell_bundles")])
+    def test_folder_id_remove(self, create_object, object_map):
+        create_object("sample")
+        assert not exists("{}/sample/@folder_id".format(object_map))
+        set("{}/sample/@folder_id".format(object_map), "b7189bb3-fcf3-46da-accf-52be0d4148f0")
+        assert exists("{}/sample/@folder_id".format(object_map))
+        remove("{}/sample/@folder_id".format(object_map))
+        assert not exists("{}/sample/@folder_id".format(object_map))
 
 
 ##################################################################

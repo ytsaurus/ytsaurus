@@ -3,7 +3,13 @@
 #include "tablet_cell_bundle.h"
 #include "tablet_cell.h"
 
+#include <yt/yt/server/master/object_server/object.h>
+
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
 #include <yt/yt/ytlib/tablet_client/config.h>
+
+#include <yt/yt/ytlib/object_client/config.h>
 
 #include <yt/yt/core/profiling/profile_manager.h>
 
@@ -112,6 +118,11 @@ void TTabletCellBundle::Save(TSaveContext& context) const
     Save(context, *TabletBalancerConfig_);
     Save(context, ResourceLimits_);
     Save(context, ResourceUsage_);
+    Save(context, AbcConfig_.operator bool());
+    if (AbcConfig_) {
+        Save(context, *AbcConfig_);
+    }
+    Save(context, FolderId_);
 }
 
 void TTabletCellBundle::Load(TLoadContext& context)
@@ -126,6 +137,33 @@ void TTabletCellBundle::Load(TLoadContext& context)
     if (context.GetVersion() >= EMasterReign::BundleQuotas) {
         Load(context, ResourceLimits_);
         Load(context, ResourceUsage_);
+    }
+
+    // COMPAT(cookiedoth)
+    if (context.GetVersion() < EMasterReign::MakeAbcFolderIdBuiltin) {
+        auto moveUserToBuiltinAttribute = [&] (auto& field, TInternedAttributeKey internedAttributeKey) {
+            const auto& attributeName = internedAttributeKey.Unintern();
+            if (auto attribute = FindAttribute(attributeName)) {
+                auto value = std::move(*attribute);
+                YT_VERIFY(Attributes_->Remove(attributeName));
+                try {
+                    field = ConvertTo<std::decay_t<decltype(field)>>(value);
+                } catch (const std::exception& ex) {
+                    YT_LOG_WARNING(ex, "Cannot parse %Qv attribute (Value: %v, TabletCellBundleId: %v)",
+                        attributeName,
+                        value,
+                        GetId());
+                }
+            }
+        };
+        moveUserToBuiltinAttribute(AbcConfig_, EInternedAttributeKey::Abc);
+        moveUserToBuiltinAttribute(FolderId_, EInternedAttributeKey::FolderId);
+    } else {
+        if (Load<bool>(context)) {
+            AbcConfig_ = New<NObjectClient::TAbcConfig>();
+            Load(context, *AbcConfig_);
+        }
+        Load(context, FolderId_);
     }
 }
 

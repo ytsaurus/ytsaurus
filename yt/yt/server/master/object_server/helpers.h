@@ -36,6 +36,8 @@ TDuration ComputeForwardingTimeout(
     const NRpc::IServiceContextPtr& context,
     const TObjectServiceConfigPtr& config);
 
+void ValidateFolderId(const TString& folderId);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NObjectServer

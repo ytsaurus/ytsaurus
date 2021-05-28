@@ -12,6 +12,7 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/server/master/object_server/helpers.h>
 #include <yt/yt/server/master/object_server/object_detail.h>
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -21,6 +22,8 @@
 #include <yt/yt/server/master/node_tracker_server/node.h>
 
 #include <yt/yt/server/master/table_server/public.h>
+
+#include <yt/yt/ytlib/object_client/config.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>
 #include <yt/yt/ytlib/tablet_client/tablet_cell_bundle_ypath_proxy.h>
@@ -61,6 +64,8 @@ private:
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override
     {
+        const auto* cellBundle = GetThisImpl<TTabletCellBundle>();
+
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletBalancerConfig)
             .SetWritable(true)
             .SetReplicated(true)
@@ -73,6 +78,18 @@ private:
             .SetReplicated(true));
         attributes->push_back(EInternedAttributeKey::ViolatedResourceLimits);
         attributes->push_back(EInternedAttributeKey::ResourceUsage);
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::Abc)
+            .SetWritable(true)
+            .SetWritePermission(EPermission::Administer)
+            .SetReplicated(true)
+            .SetRemovable(true)
+            .SetPresent(cellBundle->GetAbcConfig().operator bool()));
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::FolderId)
+            .SetWritable(true)
+            .SetWritePermission(EPermission::Administer)
+            .SetReplicated(true)
+            .SetRemovable(true)
+            .SetPresent(cellBundle->GetFolderId().has_value()));
 
         TBase::ListSystemAttributes(attributes);
     }
@@ -131,6 +148,26 @@ private:
                 BuildYsonFluently(consumer)
                     .Value(New<TSerializableTabletResources>(cellBundle->ResourceUsage().Cluster()));
                 return true;
+            
+            case EInternedAttributeKey::Abc: {
+                if (cellBundle->GetAbcConfig()) {
+                    BuildYsonFluently(consumer)
+                        .Value(*cellBundle->GetAbcConfig());
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+
+            case EInternedAttributeKey::FolderId: {
+                if (cellBundle->GetFolderId()) {
+                    BuildYsonFluently(consumer)
+                        .Value(cellBundle->GetFolderId().value());
+                    return true;
+                } else {
+                    return false;
+                }
+            }
 
             default:
                 break;
@@ -154,11 +191,45 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::Abc: {
+                cellBundle->SetAbcConfig(ConvertTo<NObjectClient::TAbcConfigPtr>(value));
+                return true;
+            }
+
+            case EInternedAttributeKey::FolderId: {
+                TString newFolderId = ConvertTo<TString>(value);
+                ValidateFolderId(newFolderId);
+                cellBundle->SetFolderId(std::move(newFolderId));
+                return true;
+            }
+
             default:
                 break;
         }
 
         return TBase::SetBuiltinAttribute(key, value);
+    }
+
+    virtual bool RemoveBuiltinAttribute(TInternedAttributeKey key) override
+    {
+        auto* cellBundle = GetThisImpl<TTabletCellBundle>();
+
+        switch (key) {
+            case EInternedAttributeKey::Abc: {
+                cellBundle->SetAbcConfig(nullptr);
+                return true;
+            }
+
+            case EInternedAttributeKey::FolderId: {
+                cellBundle->SetFolderId(std::nullopt);
+                return true;
+            }
+
+            default:
+                break;
+        }
+
+        return TBase::RemoveBuiltinAttribute(key);
     }
 
     DECLARE_YPATH_SERVICE_METHOD(NTabletClient::NProto, BalanceTabletCells);
