@@ -319,6 +319,9 @@ public:
                 artifactName,
                 pipePath);
 
+            // NB: Open pipe for writing before reply.
+            TFile pipe(pipePath, WrOnly | Seq | CloseOnExec);
+
             ValidateJobPhase(EJobPhase::PreparingArtifacts);
 
             int artifactIndex = GetOrCrash(UserArtifactNameToIndex_, artifactName);
@@ -342,7 +345,7 @@ public:
                         artifact.Name,
                         artifact.SandboxKind,
                         producer,
-                        pipePath,
+                        pipe,
                         artifact.Executable));
             } else if (artifact.CopyFile) {
                 YT_VERIFY(artifact.Chunk);
@@ -360,7 +363,7 @@ public:
                             artifact.Name,
                             artifact.SandboxKind,
                             artifact.Chunk->GetFileName(),
-                            pipePath,
+                            pipe,
                             artifact.Executable));
                 }
             }

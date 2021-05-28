@@ -319,7 +319,7 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
     const TString& artifactName,
     ESandboxKind sandboxKind,
     const TString& sourcePath,
-    const TString& destinationPath,
+    const TFile& destinationFile,
     bool executable)
 {
     return DoMakeSandboxFile(
@@ -335,14 +335,15 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
                 artifactName,
                 sandboxKind,
                 sourcePath,
-                destinationPath);
+                destinationFile.GetName());
 
+            TFile sourceFile(sourcePath, OpenExisting | RdOnly | Seq | CloseOnExec);
             NFS::ChunkedCopy(
-                sourcePath,
-                destinationPath,
+                sourceFile,
+                destinationFile,
                 Bootstrap_->GetConfig()->ExecAgent->SlotManager->FileCopyChunkSize);
 
-            NFS::SetPermissions(destinationPath, 0666 + (executable ? 0111 : 0));
+            NFS::SetPermissions(destinationFile.GetName(), 0666 + (executable ? 0111 : 0));
 
             YT_LOG_DEBUG(
                 "Finished copying file to sandbox "
@@ -414,7 +415,7 @@ TFuture<void> TSlotLocation::MakeSandboxFile(
     const TString& artifactName,
     ESandboxKind sandboxKind,
     const std::function<void(IOutputStream*)>& producer,
-    const TString& destinationPath,
+    const TFile& destinationFile,
     bool executable)
 {
     return DoMakeSandboxFile(
@@ -429,13 +430,12 @@ TFuture<void> TSlotLocation::MakeSandboxFile(
                 jobId,
                 artifactName,
                 sandboxKind,
-                destinationPath);
+                destinationFile.GetName());
 
-            TFile file(destinationPath, WrOnly | Seq | CloseOnExec);
-            TFileOutput stream(file);
+            TFileOutput stream(destinationFile);
             producer(&stream);
 
-            NFS::SetPermissions(destinationPath, 0666 + (executable ? 0111 : 0));
+            NFS::SetPermissions(destinationFile.GetName(), 0666 + (executable ? 0111 : 0));
 
             YT_LOG_DEBUG(
                 "Finished building sandbox file "

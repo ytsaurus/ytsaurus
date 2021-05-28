@@ -59,7 +59,7 @@ struct ISlot
         const TString& artifactName,
         ESandboxKind sandboxKind,
         const TString& sourcePath,
-        const TString& destinationPath,
+        const TFile& destinationFile,
         bool executable) = 0;
 
     virtual TFuture<void> MakeFile(
@@ -67,7 +67,7 @@ struct ISlot
         const TString& artifactName,
         ESandboxKind sandboxKind,
         const std::function<void(IOutputStream*)>& producer,
-        const TString& destinationPath,
+        const TFile& destinationFile,
         bool executable) = 0;
 
     virtual bool IsLayerCached(const NDataNode::TArtifactKey& artifactKey) const = 0;

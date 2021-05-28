@@ -464,6 +464,8 @@ public:
             auto pipeFd = HandleEintr(::open, pipePath.c_str(), O_RDONLY | O_NONBLOCK);
             TFile pipeFile(pipeFd);
 
+            NFS::MakeDirRecursive(NFS::GetDirectoryName(artifactPath));
+
             TFile artifactFile(artifactPath, CreateAlways | WrOnly | Seq | CloseOnExec);
 
             Host_->PrepareArtifact(artifactName, pipePath);

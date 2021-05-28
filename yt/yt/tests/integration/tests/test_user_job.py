@@ -1354,7 +1354,8 @@ class TestUserFiles(YTEnvSetup):
     }
 
     @authors("ignat")
-    def test_file_with_integer_name(self):
+    @pytest.mark.parametrize("copy_files", [False, True])
+    def test_file_with_integer_name(self, copy_files):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
 
@@ -1370,12 +1371,14 @@ class TestUserFiles(YTEnvSetup):
             command="cat 1000 >&2; cat",
             file=[file],
             verbose=True,
+            spec={"mapper": {"copy_files": copy_files}},
         )
 
         assert read_table("//tmp/t_output") == [{"hello": "world"}]
 
     @authors("ignat")
-    def test_file_with_subdir(self):
+    @pytest.mark.parametrize("copy_files", [False, True])
+    def test_file_with_subdir(self, copy_files):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
 
@@ -1390,6 +1393,7 @@ class TestUserFiles(YTEnvSetup):
             out=["//tmp/t_output"],
             command="cat dir/my_file >&2; cat",
             file=[to_yson_type("//tmp/test_file", attributes={"file_name": "dir/my_file"})],
+            spec={"mapper": {"copy_files": copy_files}},
             verbose=True,
         )
 
@@ -1399,7 +1403,7 @@ class TestUserFiles(YTEnvSetup):
                 out=["//tmp/t_output"],
                 command="cat dir/my_file >&2; cat",
                 file=[to_yson_type("//tmp/test_file", attributes={"file_name": "../dir/my_file"})],
-                spec={"max_failed_job_count": 1},
+                spec={"max_failed_job_count": 1, "mapper": {"copy_files": copy_files}},
                 verbose=True,
             )
 
