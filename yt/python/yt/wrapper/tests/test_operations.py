@@ -1515,7 +1515,9 @@ class TestOperationsTmpfs(object):
             for path, dirnames, filenames in os.walk("."):
                 for file_name in filenames:
                     file_path = os.path.join(path, file_name)
-                    size += get_disk_size(file_path)
+                    file_size = get_disk_size(file_path)
+                    size += file_size
+                    print(file_path, file_size, file=sys.stderr)
             yield {"size": size}
 
         def get_spec_option(id, name):
@@ -1541,6 +1543,10 @@ class TestOperationsTmpfs(object):
             table_file_object = yt.FilePath(table_file, attributes={"format": "json", "disk_size": 1000})
             op = yt.run_map(foo, table, table, local_files=[local_file.name], yt_files=[file, table_file_object])
             disk_size = next(yt.read_table(table))["size"]
+        
+            job_infos = get_jobs_with_error_or_stderr(op.id, False)
+            for job_info in job_infos:
+                print("Operation job_info:", job_info, file=sys.stderr)
 
             tmpfs_size = get_spec_option(op.id, "mapper/tmpfs_size")
             memory_limit = get_spec_option(op.id, "mapper/memory_limit")
