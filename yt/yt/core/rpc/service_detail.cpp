@@ -132,7 +132,7 @@ auto TServiceBase::TMethodDescriptor::SetSystem(bool value) const -> TMethodDesc
 {
     auto result = *this;
     result.System = value;
-    return *this;
+    return result;
 }
 
 auto TServiceBase::TMethodDescriptor::SetLogLevel(NLogging::ELogLevel value) const -> TMethodDescriptor
