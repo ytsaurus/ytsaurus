@@ -174,7 +174,7 @@ static void CheckDecimalValueSize(TStringBuf value, int precision, int scale)
     int expectedSize = TDecimal::GetValueBinarySize(precision);
     if (std::ssize(value) != expectedSize) {
         THROW_ERROR_EXCEPTION(
-            "Decimal<%v,%v> binary value representation contains %Qv bytes, expected: %Qv",
+            "Decimal<%v,%v> binary value representation has invalid length: actual %v, expected %v",
             precision,
             scale,
             value.Size(),
@@ -447,22 +447,22 @@ static void ValidateDecimalBinaryValueImpl(TStringBuf binaryDecimal, int precisi
         return;
     }
 
-    if (decoded == TDecimalTraits<T>::MinusInf
-        || decoded == TDecimalTraits<T>::PlusInf
-        || decoded == TDecimalTraits<T>::Nan)
+    if (decoded == TDecimalTraits<T>::MinusInf ||
+        decoded == TDecimalTraits<T>::PlusInf ||
+        decoded == TDecimalTraits<T>::Nan)
     {
         return;
     }
 
     char textBuffer[TDecimal::MaxTextSize];
-    TStringBuf textDecimal = WriteTextDecimalUnchecked<T>(decoded, scale, textBuffer);
+    auto textDecimal = WriteTextDecimalUnchecked<T>(decoded, scale, textBuffer);
 
     THROW_ERROR_EXCEPTION(
-        "Decimal<%v,%v> does not have enough precision to represent %Qv (binary value: %Qv)",
+        "Decimal<%v,%v> does not have enough precision to represent %Qv",
         precision,
         scale,
-        textDecimal,
-        HexEncode(binaryDecimal));
+        textDecimal)
+        << TErrorAttribute("binary_value", HexEncode(binaryDecimal));
 }
 
 void TDecimal::ValidateBinaryValue(TStringBuf binaryDecimal, int precision, int scale)
@@ -537,10 +537,10 @@ Y_FORCE_INLINE void CheckBufferLength(int precision, size_t bufferLength)
 {
     CheckDecimalIntBits<T>(precision);
     if (sizeof(T) != bufferLength) {
-        THROW_ERROR_EXCEPTION("Decimal<%v, ?> has unexpected length: %v expected: %v",
+        THROW_ERROR_EXCEPTION("Decimal<%v, ?> has unexpected length: expected %v, actual %v",
             precision,
-            bufferLength,
-            sizeof(T));
+            sizeof(T),
+            bufferLength);
     }
 }
 

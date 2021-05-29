@@ -169,12 +169,12 @@ private:
     {
         const auto& local = bundle->TabletBalancerConfig()->TabletBalancerSchedule;
         if (!local.IsEmpty()) {
-            YT_LOG_DEBUG("Using local balancer schedule for bundle (BundleName: %v, ScheduleFormula: %Qv)",
+            YT_LOG_DEBUG("Using local balancer schedule for bundle (BundleName: %v, ScheduleFormula: %v)",
                 bundle->GetName(),
                 local.GetFormula());
             return local;
         }
-        YT_LOG_DEBUG("Using global balancer schedule for bundle (BundleName: %v, ScheduleFormula: %Qv)",
+        YT_LOG_DEBUG("Using global balancer schedule for bundle (BundleName: %v, ScheduleFormula: %v)",
             bundle->GetName(),
             FallbackBalancingSchedule_.GetFormula());
         return FallbackBalancingSchedule_;

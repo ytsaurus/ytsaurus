@@ -1247,7 +1247,7 @@ public:
             auto& [schema, alias, mapping] = Tables[index];
 
             if (alias == reference.TableName && schema.FindColumn(reference.ColumnName)) {
-                THROW_ERROR_EXCEPTION("Ambiguous resolution (Column: %Qv)",
+                THROW_ERROR_EXCEPTION("Ambiguous resolution for column %Qv",
                     NAst::InferColumnName(reference));
             }
         }
@@ -1459,7 +1459,7 @@ public:
         const TString& subexprName)
     {
         if (!AfterGroupBy) {
-            THROW_ERROR_EXCEPTION("Misuse of aggregate (Function: %Qv)", functionName);
+            THROW_ERROR_EXCEPTION("Misuse of aggregate function %Qv", functionName);
         }
 
         auto typer = ProvideAggregateColumn(

@@ -60,14 +60,14 @@ static const auto ResolveRetryTimeout = TDuration::Seconds(1);
 TErrorOr<TString> ResolveBinaryPath(const TString& binary)
 {
     auto Logger = NYT::Logger
-        .WithTag("Binary: %Qv", binary);
+        .WithTag("Binary: %v", binary);
 
     YT_LOG_DEBUG("Resolving binary path");
 
     std::vector<TError> accumulatedErrors;
 
     auto test = [&] (const char* path) {
-        YT_LOG_DEBUG("Probing path (Path: %Qv)", path);
+        YT_LOG_DEBUG("Probing path (Path: %v)", path);
         if (access(path, R_OK | X_OK) == 0) {
             return true;
         } else {
@@ -88,7 +88,7 @@ TErrorOr<TString> ResolveBinaryPath(const TString& binary)
     };
 
     auto success = [&] (const TString& path) {
-        YT_LOG_DEBUG("Binary resolved (Path: %Qv)", path);
+        YT_LOG_DEBUG("Binary resolved (Path: %v)", path);
         return path;
     };
 
@@ -105,7 +105,7 @@ TErrorOr<TString> ResolveBinaryPath(const TString& binary)
     // In this case, try to locate somewhere nearby.
     {
         auto execPathDirName = GetDirName(GetExecPath());
-        YT_LOG_DEBUG("Looking in our exec path directory (ExecPathDir: %Qv)", execPathDirName);
+        YT_LOG_DEBUG("Looking in our exec path directory (ExecPathDir: %v)", execPathDirName);
         auto probe = TString::Join(execPathDirName, "/", binary);
         if (test(probe.c_str())) {
             return success(probe);
@@ -118,7 +118,7 @@ TErrorOr<TString> ResolveBinaryPath(const TString& binary)
     TStringBuf envPath(envPathStr);
     TStringBuf envPathItem;
 
-    YT_LOG_DEBUG("Looking for binary in PATH (Path: %Qv)", envPathStr);
+    YT_LOG_DEBUG("Looking for binary in PATH (Path: %v)", envPathStr);
 
     while (envPath.NextTok(':', envPathItem)) {
         if (buffer.size() < 2 + envPathItem.size() + binary.size()) {

@@ -31,7 +31,7 @@ static void ThrowInvalidSkiffTypeError(const TString& columnName, std::shared_pt
 static ERowRangeIndexMode GetRowRangeIndexMode(const std::shared_ptr<TSkiffSchema>& skiffSchema, TStringBuf columnName)
 {
     auto throwRowRangeIndexError = [&] {
-        THROW_ERROR_EXCEPTION("Column %Qv has unsupported Skiff type: %Qv",
+        THROW_ERROR_EXCEPTION("Column %Qv has unsupported Skiff type %Qv",
             columnName,
             GetShortDebugString(skiffSchema));
     };
@@ -256,7 +256,7 @@ std::shared_ptr<TSkiffSchema> ParseSchema(
             auto schemaFromRegistry = registry->FindChild(name);
             if (!schemaFromRegistry) {
                 THROW_ERROR_EXCEPTION(
-                    "Cannot resolve type reference: %Qv",
+                    "Cannot resolve type reference %Qv",
                     name);
             }
             parseInProgressNames->insert(name);
@@ -333,7 +333,7 @@ EWireType TFieldDescription::ValidatedSimplify() const
 {
     auto result = Simplify();
     if (!result) {
-        THROW_ERROR_EXCEPTION("Column %Qv cannot be represented with skiff schema %Qlv",
+        THROW_ERROR_EXCEPTION("Column %Qv cannot be represented with Skiff schema %Qv",
             Name_,
             GetShortDebugString(Schema_));
     }

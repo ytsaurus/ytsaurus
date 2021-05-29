@@ -189,7 +189,7 @@ static void RunColumnSchemaPostprocessor(
             } else {
                 if (*logicalTypeV1 != schema.CastToV1Type()) {
                     THROW_ERROR_EXCEPTION(
-                        "\"type_v%v\" doesn't match \"type\"; \"type_v%v\": %Qv \"type\": %Qlv expected \"type\": %Qlv",
+                        "\"type_v%v\" does not match \"type\"; \"type_v%v\": %Qv \"type\": %Qlv expected \"type\": %Qlv",
                         setTypeVersion,
                         setTypeVersion,
                         *schema.LogicalType(),
@@ -201,7 +201,7 @@ static void RunColumnSchemaPostprocessor(
 
         if (requiredV1 && setTypeVersion > 1 && *requiredV1 != schema.Required()) {
             THROW_ERROR_EXCEPTION(
-                "\"type_v%v\" doesn't match \"required\"; \"type_v%v\": %Qv \"required\": %Qlv",
+                "\"type_v%v\" does not match \"required\"; \"type_v%v\": %Qv \"required\": %Qlv",
                 setTypeVersion,
                 setTypeVersion,
                 *schema.LogicalType(),

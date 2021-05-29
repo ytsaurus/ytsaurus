@@ -2138,7 +2138,7 @@ TEST(TSkiffWriter, TestBadWireTypeForSimpleColumn)
     TStringStream resultStream;
     EXPECT_THROW_WITH_SUBSTRING(
         CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{New<TTableSchema>()}),
-        "cannot be represented with skiff schema"
+        "cannot be represented with Skiff schema"
     );
 }
 
@@ -2154,11 +2154,11 @@ TEST(TSkiffWriter, TestMissingComplexColumn)
         CreateRepeatedVariant8Schema({CreateSimpleTypeSchema(EWireType::Int64)})->SetName("opt_list"),
     });
 
-    { // Non optional skiff schema
+    { // Non optional Skiff schema
         auto nameTable = New<TNameTable>();
         EXPECT_THROW_WITH_SUBSTRING(
             CreateSkiffWriter(requiredSkiffSchema, nameTable, &Cnull, std::vector{New<TTableSchema>()}),
-            "cannot be represented with skiff schema"
+            "cannot be represented with Skiff schema"
         );
     }
 
@@ -2214,7 +2214,7 @@ TEST(TSkiffWriter, TestSkippedFields)
         writer->Close()
             .Get()
             .ThrowOnError();
-        
+
         TStringInput resultInput(result);
         TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
@@ -2229,7 +2229,7 @@ TEST(TSkiffWriter, TestSkippedFields)
         ASSERT_EQ(checkedSkiffParser.HasMoreData(), false);
         checkedSkiffParser.ValidateFinished();
     }
-    
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2320,7 +2320,7 @@ TEST(TSkiffParser, TestOptionalNull)
         TCollectingValueConsumer collectedRows;
         EXPECT_THROW_WITH_SUBSTRING(
             CreateParserForSkiff(skiffSchema, &collectedRows),
-            "cannot be represented with skiff schema");
+            "cannot be represented with Skiff schema");
     }
 
     auto tableSchema = New<TTableSchema>(std::vector{
@@ -2755,7 +2755,7 @@ TEST(TSkiffParser, TestBadWireTypeForSimpleColumn)
     TCollectingValueConsumer collectedRows;
     EXPECT_THROW_WITH_SUBSTRING(
         CreateParserForSkiff(skiffSchema, &collectedRows),
-        "cannot be represented with skiff schema"
+        "cannot be represented with Skiff schema"
     );
 }
 

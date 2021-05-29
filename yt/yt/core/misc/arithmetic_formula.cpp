@@ -1088,7 +1088,7 @@ TTimeFormula MakeTimeFormula(const TString& formula)
 
     for (const auto& variable : arithmeticFormula.GetVariables()) {
         if (!allowedVariables.contains(variable)) {
-            THROW_ERROR_EXCEPTION("Invalid variable in time formula (Variable: %Qv, TimeFormula: %Qv)",
+            THROW_ERROR_EXCEPTION("Invalid variable %Qv in time formula %Qv",
                 variable,
                 formula);
         }

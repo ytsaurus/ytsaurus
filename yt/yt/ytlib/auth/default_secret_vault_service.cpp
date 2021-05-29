@@ -164,7 +164,7 @@ private:
                     auto warningMessage = GetWarningMessageFromResponse(secretMapNode);
                     YT_LOG_DEBUG(
                         "Received warning status in subresponse from Vault "
-                        "(CallId: %v, SubresponseIndex: %v, WarningMessage: %Qv)",
+                        "(CallId: %v, SubresponseIndex: %v, WarningMessage: %v)",
                         callId,
                         subresponseIndex,
                         warningMessage);

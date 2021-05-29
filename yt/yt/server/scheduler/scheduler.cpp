@@ -2329,7 +2329,7 @@ private:
                 } catch (const std::exception& ex) {
                     YT_LOG_WARNING(
                         ex,
-                        "Failed to deserialize strategy state; will drop it (Value: %Qv)",
+                        "Failed to deserialize strategy state; will drop it (Value: %v)",
                         ConvertToYsonString(value, EYsonFormat::Text));
                 }
             }

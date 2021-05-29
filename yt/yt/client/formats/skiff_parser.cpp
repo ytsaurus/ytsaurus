@@ -386,7 +386,7 @@ public:
                     if (columnSchema && *columnSchema) {
                         logicalType = (*columnSchema)->LogicalType();
                     }
-                    THROW_ERROR_EXCEPTION("Cannot create skiff parser for table #%v",
+                    THROW_ERROR_EXCEPTION("Cannot create Skiff parser for table #%v",
                         tableIndex)
                         << TErrorAttribute("logical_type", logicalType)
                         << ex;
@@ -405,7 +405,7 @@ public:
                         fieldDescription,
                         /*sparseColumn*/ true);
                 } catch (const std::exception& ex) {
-                    THROW_ERROR_EXCEPTION("Cannot create skiff parser for table #%v",
+                    THROW_ERROR_EXCEPTION("Cannot create Skiff parser for table #%v",
                         tableIndex)
                         << ex;
                 }
@@ -507,8 +507,9 @@ private:
             }
             YT_ABORT();
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Cannot create skiff parser for column: %Qv",
-                skiffField.Name()) << ex;
+            THROW_ERROR_EXCEPTION("Cannot create Skiff parser for column %Qv",
+                skiffField.Name())
+                << ex;
         }
     }
 

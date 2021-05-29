@@ -440,7 +440,7 @@ TEST(TYsonSkiffConverterTest, TestUnknownSkiffFields)
             " [ true ; 1; %true ] ");
         GTEST_FAIL() << "exception expected";
     } catch (const std::exception& e) {
-        EXPECT_THAT(e.what(), testing::ContainsRegex("Non optional skiff field .* is missing corresponding logical struct field"));
+        EXPECT_THAT(e.what(), testing::ContainsRegex("Non optional Skiff field .* is missing corresponding logical struct field"));
     }
 
     try {

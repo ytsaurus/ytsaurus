@@ -149,7 +149,7 @@ void ConvertSimpleValueImpl(const TUnversionedValue& value, TCheckedInDebugSkiff
         constexpr auto expectedValueType = WireTypeToValueType<wireType>();
         if (value.Type != expectedValueType) {
             THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::FormatCannotRepresentRow,
-                "Unexpected type of %Qv column: skiff format expected %Qlv, actual table type %Qlv",
+                "Unexpected type of %Qv column: Skiff format expected %Qlv, actual table type %Qlv",
                 context->NameTable->GetName(value.Id),
                 expectedValueType,
                 value.Type);
@@ -222,7 +222,7 @@ public:
         }
         if (value.Type != ExpectedValueType) {
             THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::FormatCannotRepresentRow,
-                "Unexpected type of %Qv column: skiff format expected %Qlv, actual table type %Qlv",
+                "Unexpected type of %Qv column: Skiff format expected %Qlv, actual table type %Qlv",
                 context->NameTable->GetName(value.Id),
                 ExpectedValueType,
                 value.Type);
@@ -326,7 +326,7 @@ private:
 TUnversionedValueToSkiffConverter CreateMissingCompositeValueConverter(TString name) {
     return [name=std::move(name)] (const TUnversionedValue& value, TCheckedInDebugSkiffWriter* writer, TWriteContext*) {
         if (value.Type != EValueType::Null) {
-            THROW_ERROR_EXCEPTION("Cannot represent nonnull value of column %Qv absent in schema as composite skiff value",
+            THROW_ERROR_EXCEPTION("Cannot represent nonnull value of column %Qv absent in schema as composite Skiff value",
                     name);
         }
         writer->WriteVariant8Tag(0);
@@ -515,7 +515,7 @@ struct TSkiffEncodingInfo
     // Converter is set only for sparse part.
     TUnversionedValueToSkiffConverter Converter;
 
-    // FieldIndex is index of field inside skiff tuple for dense part of the row
+    // FieldIndex is index of field inside Skiff tuple for dense part of the row
     // and variant tag for sparse part of the row.
     ui32 FieldIndex = 0;
 
@@ -668,12 +668,12 @@ public:
                 // (column is missing in schema or has simple type).
                 //   1. Complex value converter expects unversioned values of type ANY
                 //      and simple types have other types.
-                //   2. For historical reasons we don't check skiff schema that strictly for simple types,
-                //      e.g we allow column to be optional in table schema and be required in skiff schema
+                //   2. For historical reasons we don't check Skiff schema that strictly for simple types,
+                //      e.g we allow column to be optional in table schema and be required in Skiff schema
                 //      (runtime check is used in such cases).
                 if (!columnSchema) {
                     if (!skiffField.Simplify() && !skiffField.IsRequired()) {
-                        // NB. Special case, column is described in skiff schema as non required complex field
+                        // NB. Special case, column is described in Skiff schema as non required complex field
                         // but is missing in schema.
                         // We expect it to be missing in whole table and return corresponding converter.
                         return CreateMissingCompositeValueConverter(skiffField.Name());
@@ -711,7 +711,7 @@ public:
                     }
                     YT_ABORT();
                 } catch (const std::exception& ex) {
-                    THROW_ERROR_EXCEPTION("Cannot create skiff writer for column: %Qv",
+                    THROW_ERROR_EXCEPTION("Cannot create Skiff writer for column %Qv",
                         skiffField.Name())
                         << TErrorAttribute("logical_type", logicalType)
                         << ex;
@@ -760,7 +760,7 @@ public:
                         converter = createComplexValueConverter(denseField, /*sparse*/ false);
                     }
                 } catch (const std::exception& ex) {
-                    THROW_ERROR_EXCEPTION("Cannot create skiff writer for table #%v",
+                    THROW_ERROR_EXCEPTION("Cannot create Skiff writer for table #%v",
                         tableIndex)
                         << ex;
                 }
@@ -778,7 +778,7 @@ public:
                     auto converter = createComplexValueConverter(sparseField, /*sparse*/ true);
                     knownFields[id] = TSkiffEncodingInfo::Sparse(converter, i);
                 } catch (const std::exception& ex) {
-                    THROW_ERROR_EXCEPTION("Cannot create skiff writer for table #%v",
+                    THROW_ERROR_EXCEPTION("Cannot create Skiff writer for table #%v",
                         tableIndex)
                         << ex;
                 }
