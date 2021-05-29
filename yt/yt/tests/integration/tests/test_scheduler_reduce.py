@@ -13,7 +13,7 @@ from yt.yson import YsonEntity
 
 
 class TestSchedulerReduceCommands(YTEnvSetup):
-    NUM_TEST_PARTITIONS = 3
+    NUM_TEST_PARTITIONS = 4
 
     NUM_MASTERS = 1
     NUM_NODES = 5
