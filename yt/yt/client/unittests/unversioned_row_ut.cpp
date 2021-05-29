@@ -86,7 +86,7 @@ static_assert(TUnversionedValueConversionTraits<std::optional<i64>>::Inline, "i6
 static_assert(TUnversionedValueConversionTraits<std::optional<i64>>::Scalar, "i64? must be scalar.");
 static_assert(!TUnversionedValueConversionTraits<TString>::Inline, "TString must not be inline.");
 static_assert(TUnversionedValueConversionTraits<TString>::Scalar, "TString must be scalar.");
-static_assert(TUnversionedValueConversionTraits<TValueWithId<i64>>::Scalar, "i64 must be scalar.");
+static_assert(TUnversionedValueConversionTraits<TAnnotatedValue<i64>>::Scalar, "i64 must be scalar.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -175,8 +175,8 @@ TEST(TMakeUnversionedOwningRow, TupleFromUnversionedRow)
 TEST(TMakeUnversionedOwningRow, ExplicitIds)
 {
     auto row = MakeUnversionedOwningRow(
-        TValueWithId{TString("hello"), 10},
-        TValueWithId{TStringBuf("world"), 20});
+        TAnnotatedValue{TString("hello"), 10},
+        TAnnotatedValue{TStringBuf("world"), 20});
     EXPECT_EQ(2, row.GetCount());
     EXPECT_EQ(10, row[0].Id);
     EXPECT_EQ(20, row[1].Id);
@@ -214,13 +214,14 @@ TEST(TUnversionedRowsBuilder, SomeValues)
     }
 }
 
-TEST(TUnversionedRowsBuilder, ExplicitIds)
+TEST(TUnversionedRowsBuilder, AnnotatedValue)
 {
     TUnversionedRowsBuilder builder;
-    builder.AddRow(TValueWithId{1, 10}, TValueWithId{"hello", 20});
-    builder.AddRow(TValueWithId{2, 30}, TValueWithId{"world", 40});
+    builder.AddRow(TAnnotatedValue{1, 10}, TAnnotatedValue{"hello", 20});
+    builder.AddRow(TAnnotatedValue{2, 30}, TAnnotatedValue{"world", 40});
+    builder.AddRow(TAnnotatedValue{77, 1, true});
     auto rows = builder.Build();
-    EXPECT_EQ(2, std::ssize(rows));
+    EXPECT_EQ(3, std::ssize(rows));
     {
         auto [i, s] = FromUnversionedRow<int, TString>(rows[0]);
         EXPECT_EQ(1, i);
@@ -234,6 +235,12 @@ TEST(TUnversionedRowsBuilder, ExplicitIds)
         EXPECT_EQ("world", s);
         EXPECT_EQ(30, rows[1][0].Id);
         EXPECT_EQ(40, rows[1][1].Id);
+    }
+    {
+        auto [i] = FromUnversionedRow<int>(rows[2]);
+        EXPECT_EQ(77, i);
+        EXPECT_EQ(1, rows[2][0].Id);
+        EXPECT_TRUE(rows[2][0].Aggregate);
     }
 }
 

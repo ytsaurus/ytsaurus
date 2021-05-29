@@ -78,7 +78,7 @@ struct TUnversionedValueConversionTraits<std::optional<T>, void>
 };
 
 template <class T>
-struct TUnversionedValueConversionTraits<TValueWithId<T>, void>
+struct TUnversionedValueConversionTraits<TAnnotatedValue<T>, void>
 {
     static constexpr bool Scalar = TUnversionedValueConversionTraits<T>::Scalar;
     static constexpr bool Inline = TUnversionedValueConversionTraits<T>::Inline;
@@ -89,11 +89,12 @@ struct TUnversionedValueConversionTraits<TValueWithId<T>, void>
 template <class T>
 void ToUnversionedValue(
     TUnversionedValue* unversionedValue,
-    const TValueWithId<T>& value,
+    const TAnnotatedValue<T>& value,
     const TRowBufferPtr& rowBuffer,
-    int /*id*/)
+    int /*id*/,
+    bool /*aggregate*/)
 {
-    ToUnversionedValue(unversionedValue, value.Value, rowBuffer, value.Id);
+    ToUnversionedValue(unversionedValue, value.Value, rowBuffer, value.Id, value.Aggregate);
 }
 
 template <class T>
@@ -103,7 +104,7 @@ struct TValueWithIdTrait
 };
 
 template <class T>
-struct TValueWithIdTrait<TValueWithId<T>>
+struct TValueWithIdTrait<TAnnotatedValue<T>>
 {
     static constexpr bool WithId = true;
 };
@@ -124,14 +125,15 @@ void ToUnversionedValue(
     T value,
     const TRowBufferPtr& rowBuffer,
     int id,
+    bool aggregate,
     typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type*)
 {
     if constexpr (TEnumTraits<T>::IsStringSerializableEnum) {
-        ToUnversionedValue(unversionedValue, NYT::FormatEnum(value), rowBuffer, id);
+        ToUnversionedValue(unversionedValue, NYT::FormatEnum(value), rowBuffer, id, aggregate);
     } else if constexpr (TEnumTraits<T>::IsBitEnum) {
-        ToUnversionedValue(unversionedValue, static_cast<ui64>(value), rowBuffer, id);
+        ToUnversionedValue(unversionedValue, static_cast<ui64>(value), rowBuffer, id, aggregate);
     } else {
-        ToUnversionedValue(unversionedValue, static_cast<i64>(value), rowBuffer, id);
+        ToUnversionedValue(unversionedValue, static_cast<i64>(value), rowBuffer, id, aggregate);
     }
 }
 
@@ -164,7 +166,8 @@ void ProtobufToUnversionedValueImpl(
     const google::protobuf::Message& value,
     const NYson::TProtobufMessageType* type,
     const TRowBufferPtr& rowBuffer,
-    int id);
+    int id,
+    bool aggregate);
 
 template <class T>
 void ToUnversionedValue(
@@ -172,6 +175,7 @@ void ToUnversionedValue(
     const T& value,
     const TRowBufferPtr& rowBuffer,
     int id,
+    bool aggregate,
     typename std::enable_if<std::is_convertible<T*, google::protobuf::Message*>::value, void>::type*)
 {
     ProtobufToUnversionedValueImpl(
@@ -179,7 +183,8 @@ void ToUnversionedValue(
         value,
         NYson::ReflectProtobufMessageType<T>(),
         rowBuffer,
-        id);
+        id,
+        aggregate);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -208,12 +213,13 @@ void ToUnversionedValue(
     TUnversionedValue* unversionedValue,
     const std::optional<T>& value,
     const TRowBufferPtr& rowBuffer,
-    int id)
+    int id,
+    bool aggregate)
 {
     if (value) {
-        ToUnversionedValue(unversionedValue, *value, rowBuffer, id);
+        ToUnversionedValue(unversionedValue, *value, rowBuffer, id, aggregate);
     } else {
-        *unversionedValue = MakeUnversionedSentinelValue(EValueType::Null, id);
+        *unversionedValue = MakeUnversionedSentinelValue(EValueType::Null, id, aggregate);
     }
 }
 
@@ -245,10 +251,9 @@ void ToVersionedValue(
         static_cast<TUnversionedValue*>(versionedValue),
         std::forward<T>(value),
         rowBuffer,
-        id);
+        id,
+        aggregate);
     versionedValue->Timestamp = timestamp;
-    // TODO(babenko): support aggregates for unversioned values
-    versionedValue->Aggregate = aggregate;
 }
 
 template <class T>
@@ -276,14 +281,16 @@ void ListToUnversionedValueImpl(
     TUnversionedValue* unversionedValue,
     const std::function<bool(TUnversionedValue*)> producer,
     const TRowBufferPtr& rowBuffer,
-    int id);
+    int id,
+    bool aggregate);
 
 template <class T>
 void ToUnversionedValue(
     TUnversionedValue* unversionedValue,
     const std::vector<T>& values,
     const TRowBufferPtr& rowBuffer,
-    int id)
+    int id,
+    bool aggregate)
 {
     size_t index = 0;
     ListToUnversionedValueImpl(
@@ -296,7 +303,8 @@ void ToUnversionedValue(
             return true;
         },
         rowBuffer,
-        id);
+        id,
+        aggregate);
 }
 
 void UnversionedValueToListImpl(
@@ -345,14 +353,16 @@ void MapToUnversionedValueImpl(
     TUnversionedValue* unversionedValue,
     const std::function<bool(TString*, TUnversionedValue*)> producer,
     const TRowBufferPtr& rowBuffer,
-    int id);
+    int id,
+    bool aggregate);
 
 template <class TKey, class TValue>
 void ToUnversionedValue(
     TUnversionedValue* unversionedValue,
     const THashMap<TKey, TValue>& map,
     const TRowBufferPtr& rowBuffer,
-    int id)
+    int id,
+    bool aggregate)
 {
     auto it = map.begin();
     MapToUnversionedValueImpl(
@@ -367,7 +377,8 @@ void ToUnversionedValue(
             return true;
         },
         rowBuffer,
-        id);
+        id,
+        aggregate);
 }
 
 void UnversionedValueToMapImpl(
@@ -450,10 +461,10 @@ std::tuple<Ts...> FromUnversionedRow(TUnversionedRow row)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TUnversionedValue ToUnversionedValue(T&& value, const TRowBufferPtr& rowBuffer, int id)
+TUnversionedValue ToUnversionedValue(T&& value, const TRowBufferPtr& rowBuffer, int id, bool aggregate)
 {
     TUnversionedValue unversionedValue;
-    ToUnversionedValue(&unversionedValue, std::forward<T>(value), rowBuffer, id);
+    ToUnversionedValue(&unversionedValue, std::forward<T>(value), rowBuffer, id, aggregate);
     return unversionedValue;
 }
 
@@ -488,7 +499,7 @@ void TUnversionedRowsBuilder::AddRow(Ts&&... values)
     auto row = RowBuffer_->AllocateUnversioned(sizeof...(Ts));
     auto* current = row.Begin();
     int id = 0;
-    (ToUnversionedValue(current++, std::forward<Ts>(values), RowBuffer_, id++), ...);
+    (ToUnversionedValue(current++, std::forward<Ts>(values), RowBuffer_, id++, /*aggregate*/ false), ...);
     Rows_.push_back(row);
 }
 

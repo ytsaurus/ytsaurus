@@ -28,7 +28,11 @@ using namespace google::protobuf::io;
 
 namespace {
 
-void YTreeNodeToUnversionedValue(TUnversionedOwningRowBuilder* builder, const INodePtr& value, int id, bool aggregate)
+void YTreeNodeToUnversionedValue(
+    TUnversionedOwningRowBuilder* builder,
+    const INodePtr& value,
+    int id,
+    bool aggregate)
 {
     switch (value->GetType()) {
         case ENodeType::Entity:
@@ -104,7 +108,7 @@ TUnversionedOwningRow YsonToSchemafulRow(
     const auto& keyColumns = tableSchema.GetKeyColumns();
 
     // Key
-    for (int id = 0; id < static_cast<int>(keyColumns.size()); ++id) {
+    for (int id = 0; id < std::ssize(keyColumns); ++id) {
         auto it = rowParts.find(nameTable->GetName(id));
         if (it == rowParts.end()) {
             rowBuilder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id));
@@ -114,7 +118,7 @@ TUnversionedOwningRow YsonToSchemafulRow(
     }
 
     // Fixed values
-    for (int id = static_cast<int>(keyColumns.size()); id < static_cast<int>(tableSchema.Columns().size()); ++id) {
+    for (int id = std::ssize(keyColumns); id < std::ssize(tableSchema.Columns()); ++id) {
         auto it = rowParts.find(nameTable->GetName(id));
         if (it != rowParts.end()) {
             addValue(id, it->second);
@@ -146,11 +150,6 @@ TUnversionedOwningRow YsonToSchemalessRow(const TString& valueYson)
     }
 
     return builder.FinishRow();
-}
-
-void foo()
-{
-    MakeUnversionedOwningRow(TStringBuf("hello"));
 }
 
 TVersionedRow YsonToVersionedRow(
@@ -275,19 +274,29 @@ TString KeyToYson(TUnversionedRow row)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, std::nullopt_t, const TRowBufferPtr& /*rowBuffer*/, int id)
+void ToUnversionedValue(
+    TUnversionedValue* unversionedValue,
+    std::nullopt_t,
+    const TRowBufferPtr& /*rowBuffer*/,
+    int id,
+    bool aggregate)
 {
-    *unversionedValue = MakeUnversionedSentinelValue(EValueType::Null, id);
+    *unversionedValue = MakeUnversionedSentinelValue(EValueType::Null, id, aggregate);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, TGuid value, const TRowBufferPtr& rowBuffer, int id)
+void ToUnversionedValue(
+    TUnversionedValue* unversionedValue,
+    TGuid value,
+    const TRowBufferPtr& rowBuffer,
+    int id,
+    bool aggregate)
 {
     auto strValue = ToString(value);
     *unversionedValue = value
-        ? rowBuffer->CaptureValue(MakeUnversionedStringValue(strValue, id))
-        : MakeUnversionedSentinelValue(EValueType::Null);
+        ? rowBuffer->CaptureValue(MakeUnversionedStringValue(strValue, id, aggregate))
+        : MakeUnversionedSentinelValue(EValueType::Null, aggregate);
 }
 
 void FromUnversionedValue(TGuid* value, TUnversionedValue unversionedValue)
@@ -305,9 +314,14 @@ void FromUnversionedValue(TGuid* value, TUnversionedValue unversionedValue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, const TString& value, const TRowBufferPtr& rowBuffer, int id)
+void ToUnversionedValue(
+    TUnversionedValue* unversionedValue,
+    const TString& value,
+    const TRowBufferPtr& rowBuffer,
+    int id,
+    bool aggregate)
 {
-    ToUnversionedValue(unversionedValue, static_cast<TStringBuf>(value), rowBuffer, id);
+    ToUnversionedValue(unversionedValue, static_cast<TStringBuf>(value), rowBuffer, id, aggregate);
 }
 
 void FromUnversionedValue(TString* value, TUnversionedValue unversionedValue)
@@ -319,9 +333,14 @@ void FromUnversionedValue(TString* value, TUnversionedValue unversionedValue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, TStringBuf value, const TRowBufferPtr& rowBuffer, int id)
+void ToUnversionedValue(
+    TUnversionedValue* unversionedValue,
+    TStringBuf value,
+    const TRowBufferPtr& rowBuffer,
+    int id,
+    bool aggregate)
 {
-    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedStringValue(value, id));
+    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedStringValue(value, id, aggregate));
 }
 
 void FromUnversionedValue(TStringBuf* value, TUnversionedValue unversionedValue)
@@ -339,9 +358,14 @@ void FromUnversionedValue(TStringBuf* value, TUnversionedValue unversionedValue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, const char* value, const TRowBufferPtr& rowBuffer, int id)
+void ToUnversionedValue(
+    TUnversionedValue* unversionedValue,
+    const char* value,
+    const TRowBufferPtr& rowBuffer,
+    int id,
+    bool aggregate)
 {
-    ToUnversionedValue(unversionedValue, TStringBuf(value), rowBuffer, id);
+    ToUnversionedValue(unversionedValue, TStringBuf(value), rowBuffer, id, aggregate);
 }
 
 void FromUnversionedValue(const char** value, TUnversionedValue unversionedValue)
@@ -351,9 +375,14 @@ void FromUnversionedValue(const char** value, TUnversionedValue unversionedValue
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, bool value, const TRowBufferPtr& rowBuffer, int id)
+void ToUnversionedValue(
+    TUnversionedValue* unversionedValue,
+    bool value,
+    const TRowBufferPtr& rowBuffer,
+    int id,
+    bool aggregate)
 {
-    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedBooleanValue(value, id));
+    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedBooleanValue(value, id, aggregate));
 }
 
 void FromUnversionedValue(bool* value, TUnversionedValue unversionedValue)
@@ -371,10 +400,15 @@ void FromUnversionedValue(bool* value, TUnversionedValue unversionedValue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, const TYsonString& value, const TRowBufferPtr& rowBuffer, int id)
+void ToUnversionedValue(
+    TUnversionedValue* unversionedValue,
+    const TYsonString& value,
+    const TRowBufferPtr& rowBuffer,
+    int id,
+    bool aggregate)
 {
     YT_ASSERT(value.GetType() == EYsonType::Node);
-    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(value.AsStringBuf(), id));
+    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(value.AsStringBuf(), id, aggregate));
 }
 
 void FromUnversionedValue(TYsonString* value, TUnversionedValue unversionedValue)
@@ -388,10 +422,15 @@ void FromUnversionedValue(TYsonString* value, TUnversionedValue unversionedValue
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, const NYson::TYsonStringBuf& value, const TRowBufferPtr& rowBuffer, int id)
+void ToUnversionedValue(
+    TUnversionedValue* unversionedValue,
+    const NYson::TYsonStringBuf& value,
+    const TRowBufferPtr& rowBuffer,
+    int id,
+    bool aggregate)
 {
     YT_ASSERT(value.GetType() == EYsonType::Node);
-    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(value.AsStringBuf(), id));
+    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(value.AsStringBuf(), id, aggregate));
 }
 
 void FromUnversionedValue(NYson::TYsonStringBuf* value, TUnversionedValue unversionedValue)
@@ -406,9 +445,14 @@ void FromUnversionedValue(NYson::TYsonStringBuf* value, TUnversionedValue unvers
 ////////////////////////////////////////////////////////////////////////////////
 
 #define XX(cppType, codeType, humanReadableType) \
-    void ToUnversionedValue(TUnversionedValue* unversionedValue, cppType value, const TRowBufferPtr& /*rowBuffer*/, int id) \
+    void ToUnversionedValue( \
+        TUnversionedValue* unversionedValue, \
+        cppType value, \
+        const TRowBufferPtr& /*rowBuffer*/, \
+        int id, \
+        bool aggregate) \
     { \
-        *unversionedValue = MakeUnversioned ## codeType ## Value(value, id); \
+        *unversionedValue = MakeUnversioned ## codeType ## Value(value, id, aggregate); \
     } \
     \
     void FromUnversionedValue(cppType* value, TUnversionedValue unversionedValue) \
@@ -439,9 +483,14 @@ XX(ui8,  Uint64, uint8)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, double value, const TRowBufferPtr& /*rowBuffer*/, int id)
+void ToUnversionedValue(
+    TUnversionedValue* unversionedValue,
+    double value,
+    const TRowBufferPtr& /*rowBuffer*/,
+    int id,
+    bool aggregate)
 {
-    *unversionedValue = MakeUnversionedDoubleValue(value, id);
+    *unversionedValue = MakeUnversionedDoubleValue(value, id, aggregate);
 }
 
 void FromUnversionedValue(double* value, TUnversionedValue unversionedValue)
@@ -455,9 +504,14 @@ void FromUnversionedValue(double* value, TUnversionedValue unversionedValue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, TInstant value, const TRowBufferPtr& /*rowBuffer*/, int id)
+void ToUnversionedValue(
+    TUnversionedValue* unversionedValue,
+    TInstant value,
+    const TRowBufferPtr& /*rowBuffer*/,
+    int id,
+    bool aggregate)
 {
-    *unversionedValue = MakeUnversionedUint64Value(value.MicroSeconds(), id);
+    *unversionedValue = MakeUnversionedUint64Value(value.MicroSeconds(), id, aggregate);
 }
 
 void FromUnversionedValue(TInstant* value, TUnversionedValue unversionedValue)
@@ -477,9 +531,14 @@ void FromUnversionedValue(TInstant* value, TUnversionedValue unversionedValue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, TDuration value, const TRowBufferPtr& /*rowBuffer*/, int id)
+void ToUnversionedValue(
+    TUnversionedValue* unversionedValue,
+    TDuration value,
+    const TRowBufferPtr& /*rowBuffer*/,
+    int id,
+    bool aggregate)
 {
-    *unversionedValue = MakeUnversionedUint64Value(value.MicroSeconds(), id);
+    *unversionedValue = MakeUnversionedUint64Value(value.MicroSeconds(), id, aggregate);
 }
 
 void FromUnversionedValue(TDuration* value, TUnversionedValue unversionedValue)
@@ -499,9 +558,14 @@ void FromUnversionedValue(TDuration* value, TUnversionedValue unversionedValue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, const IMapNodePtr& value, const TRowBufferPtr& rowBuffer, int id)
+void ToUnversionedValue(
+    TUnversionedValue* unversionedValue,
+    const IMapNodePtr& value,
+    const TRowBufferPtr& rowBuffer,
+    int id,
+    bool aggregate)
 {
-    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(ConvertToYsonString(value).AsStringBuf(), id));
+    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(ConvertToYsonString(value).AsStringBuf(), id, aggregate));
 }
 
 void FromUnversionedValue(IMapNodePtr* value, TUnversionedValue unversionedValue)
@@ -518,9 +582,14 @@ void FromUnversionedValue(IMapNodePtr* value, TUnversionedValue unversionedValue
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, const TIP6Address& value, const TRowBufferPtr& rowBuffer, int id)
+void ToUnversionedValue(
+    TUnversionedValue* unversionedValue,
+    const TIP6Address& value,
+    const TRowBufferPtr& rowBuffer,
+    int id,
+    bool aggregate)
 {
-    ToUnversionedValue(unversionedValue, ToString(value), rowBuffer, id);
+    ToUnversionedValue(unversionedValue, ToString(value), rowBuffer, id, aggregate);
 }
 
 void FromUnversionedValue(TIP6Address* value, TUnversionedValue unversionedValue)
@@ -539,7 +608,8 @@ void ProtobufToUnversionedValueImpl(
     const Message& value,
     const TProtobufMessageType* type,
     const TRowBufferPtr& rowBuffer,
-    int id)
+    int id,
+    bool aggregate)
 {
     auto byteSize = value.ByteSizeLong();
     auto* pool = rowBuffer->GetPool();
@@ -550,7 +620,7 @@ void ProtobufToUnversionedValueImpl(
     TStringOutput outputStream(ysonBytes);
     TYsonWriter ysonWriter(&outputStream);
     ParseProtobuf(&ysonWriter, &inputStream, type);
-    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(ysonBytes, id));
+    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(ysonBytes, id, aggregate));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -589,7 +659,8 @@ void ListToUnversionedValueImpl(
     TUnversionedValue* unversionedValue,
     const std::function<bool(TUnversionedValue*)> producer,
     const TRowBufferPtr& rowBuffer,
-    int id)
+    int id,
+    bool aggregate)
 {
     TString ysonBytes;
     TStringOutput outputStream(ysonBytes);
@@ -606,7 +677,7 @@ void ListToUnversionedValueImpl(
     }
     writer.OnEndList();
 
-    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(ysonBytes, id));
+    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(ysonBytes, id, aggregate));
 }
 
 void UnversionedValueToListImpl(
@@ -895,7 +966,8 @@ void MapToUnversionedValueImpl(
     TUnversionedValue* unversionedValue,
     const std::function<bool(TString*, TUnversionedValue*)> producer,
     const TRowBufferPtr& rowBuffer,
-    int id)
+    int id,
+    bool aggregate)
 {
     TString ysonBytes;
     TStringOutput outputStream(ysonBytes);
@@ -913,7 +985,7 @@ void MapToUnversionedValueImpl(
     }
     writer.OnEndMap();
 
-    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(ysonBytes, id));
+    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(ysonBytes, id, aggregate));
 }
 
 void UnversionedValueToMapImpl(
@@ -1160,7 +1232,11 @@ TYsonString UnversionedValueToYson(TUnversionedValue unversionedValue, bool enab
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToAny(TRowBuffer* rowBuffer, TUnversionedValue* result, TUnversionedValue* value, EYsonFormat format)
+void ToAny(
+    TRowBuffer* rowBuffer,
+    TUnversionedValue* result,
+    TUnversionedValue* value,
+    EYsonFormat format)
 {
     TStringStream stream;
     NYson::TYsonWriter writer(&stream, format);
@@ -1254,22 +1330,29 @@ TSharedRange<TUnversionedRow> TUnversionedRowsBuilder::Build()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(NProto::TBlockMeta, /*last_key*/9, TUnversionedOwningRow)
+REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(
+    NProto::TBlockMeta,
+    /*last_key*/ 9,
+    TUnversionedOwningRow)
 
-REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(NProto::TBoundaryKeysExt, /*min*/1, TUnversionedOwningRow)
-REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(NProto::TBoundaryKeysExt, /*max*/2, TUnversionedOwningRow)
+REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(
+    NProto::TBoundaryKeysExt,
+    /*min*/ 1,
+    TUnversionedOwningRow)
+REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(
+    NProto::TBoundaryKeysExt,
+    /*max*/ 2,
+    TUnversionedOwningRow)
 
-REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(NProto::TSamplesExt, /*entries*/1, TUnversionedOwningRow)
+REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(
+    NProto::TSamplesExt,
+    /*entries*/ 1,
+    TUnversionedOwningRow)
 
-namespace {
-
-////////////////////////////////////////////////////////////////////////////////
-
-REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(NProto::THeavyColumnStatisticsExt, /*column_data_weights*/5, TUnversionedOwningRow)
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace
+REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(
+    NProto::THeavyColumnStatisticsExt,
+    /*column_data_weights*/ 5,
+    TUnversionedOwningRow)
 
 ////////////////////////////////////////////////////////////////////////////////
 
