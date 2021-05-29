@@ -176,7 +176,7 @@ TEST(TTableSchemaTest, ColumnTypeV3Deserialization)
               required=%true;
             }
         )"),
-        R"("type_v3" doesn't match "required")"
+        R"("type_v3" does not match "required")"
     );
 
     EXPECT_THROW_WITH_SUBSTRING(
@@ -193,7 +193,7 @@ TEST(TTableSchemaTest, ColumnTypeV3Deserialization)
               type=utf8;
             }
         )"),
-        R"("type_v3" doesn't match "type")"
+        R"("type_v3" does not match "type")"
     );
 }
 

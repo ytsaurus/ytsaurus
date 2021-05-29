@@ -118,7 +118,7 @@ struct TOptionalTypesMatch
 
 [[noreturn]] void ThrowBadWireType(EWireType expected, EWireType actual)
 {
-    THROW_ERROR_EXCEPTION("Bad skiff wire type: expected %Qlv, actual %Qlv",
+    THROW_ERROR_EXCEPTION("Bad Skiff wire type: expected %Qlv, actual %Qlv",
         expected,
         actual);
 }
@@ -128,7 +128,7 @@ struct TOptionalTypesMatch
     const std::shared_ptr<TSkiffSchema>& skiffSchema,
     const std::exception& ex)
 {
-    THROW_ERROR_EXCEPTION("Cannot match field %Qv to skiff schema",
+    THROW_ERROR_EXCEPTION("Cannot match field %Qv to Skiff schema",
         descriptor.GetDescription())
         << SkiffYsonErrorAttributes(descriptor, skiffSchema)
         << ex;
@@ -182,16 +182,16 @@ TOptionalTypesMatch MatchOptionalTypes(
     bool allowOmitOptional)
 {
     // NB. Here we have a problem:
-    // variant_tuple<null, T> has exactly the same skiff representation as optional<T>.
+    // variant_tuple<null, T> has exactly the same Skiff representation as optional<T>.
     // We need to perform nontrivial analysis of schemas in order to align these schemas.
     //
     // When reading this code you can keep in mind following examples
     //   1. logical type: optional<variant_tuple<null, T>>
-    //      skiff type: variant8<nothing, variant8<nothing, T>>
-    //      Outer skiff `variant8` encodes logical outer `optional` type
+    //      Skiff type: variant8<nothing, variant8<nothing, T>>
+    //      Outer Skiff `variant8` encodes logical outer `optional` type
     //   2. logical type: optional<variant_tuple<null, T>>
-    //      skiff type: variant8<nothing, T>
-    //      Outer `variant8` skiff type encodes logical inner `variant_tuple` type when allowOmitOptional is true.
+    //      Skiff type: variant8<nothing, T>
+    //      Outer `variant8` Skiff type encodes logical inner `variant_tuple` type when allowOmitOptional is true.
 
     // When logical type is either optional<T> or variant_tuple<null, T> this function returns descriptor of T.
     // Otherwise it returns std::nullopt.
@@ -237,7 +237,7 @@ TOptionalTypesMatch MatchOptionalTypes(
         YT_VERIFY(logicalNestingStrict);
         YT_VERIFY(logicalNestingRelaxed >= logicalNestingStrict);
 
-        // Then we compute depth of corresponding skiff chain of variant<nothing, T>
+        // Then we compute depth of corresponding Skiff chain of variant<nothing, T>
         // This chain should match to logical relaxed chain.
         int skiffNestingRelaxed = 0;
         {
@@ -251,13 +251,13 @@ TOptionalTypesMatch MatchOptionalTypes(
         if (logicalNestingRelaxed != skiffNestingRelaxed &&
             !(allowOmitOptional && logicalNestingRelaxed == skiffNestingRelaxed + 1))
         {
-            THROW_ERROR_EXCEPTION("Optional nesting mismatch, logical type nesting: %Qv, skiff nesting: %Qv",
+            THROW_ERROR_EXCEPTION("Optional nesting mismatch: logical type nesting %v, Skiff nesting %v",
                 logicalNestingRelaxed,
                 skiffNestingRelaxed);
         }
 
         // NB. We only allow to omit outer optional of the column so in order to match lengths of inner chains must be
-        // equal. Based on this assertion we compute lengths of skiff chain corresponding to length of
+        // equal. Based on this assertion we compute lengths of Skiff chain corresponding to length of
         auto skiffNestingStrict = skiffNestingRelaxed - (logicalNestingRelaxed - logicalNestingStrict);
         YT_VERIFY(skiffNestingRelaxed >= 0);
 
@@ -340,7 +340,7 @@ std::vector<std::optional<TTypePair>> MatchStructTypes(
                     skiffFields[index].Name);
             }
             if (!GetOptionalChild(skiffFields[index].Type)) {
-                THROW_ERROR_EXCEPTION("Non optional skiff field %Qv is missing corresponding logical struct field",
+                THROW_ERROR_EXCEPTION("Non optional Skiff field %Qv is missing corresponding logical struct field",
                     skiffFields[index].Name);
             }
             result.emplace_back(std::nullopt);
@@ -393,7 +393,7 @@ std::vector<TTypePair> MatchTupleTypes(const TComplexTypeFieldDescriptor& descri
         const auto& children = skiffSchema->GetChildren();
 
         if (children.size() != elements.size()) {
-            THROW_ERROR_EXCEPTION("Tuple element counts do not match; logical type elements: %v skiff elements: %v",
+            THROW_ERROR_EXCEPTION("Tuple element counts do not match: logical type elements %v, Skiff elements %v",
                 elements.size(),
                 children.size());
         }
@@ -420,7 +420,7 @@ std::vector<TTypePair> MatchVariantTupleTypes(const TComplexTypeFieldDescriptor&
         const auto& children = skiffSchema->GetChildren();
 
         if (children.size() != elements.size()) {
-            THROW_ERROR_EXCEPTION("Variant element counts do not match; logical type elements: %v skiff elements: %v",
+            THROW_ERROR_EXCEPTION("Variant element counts do not match: logical type elements %v, Skiff elements %v",
                 elements.size(),
                 children.size());
         }
@@ -447,7 +447,7 @@ std::vector<TTypePair> MatchVariantStructTypes(const TComplexTypeFieldDescriptor
         const auto& children = skiffSchema->GetChildren();
 
         if (children.size() != fields.size()) {
-            THROW_ERROR_EXCEPTION("Variant element counts do not match; logical type elements: %v skiff elements: %v",
+            THROW_ERROR_EXCEPTION("Variant element counts do not match: logical type elements %v, Skiff elements %v",
                 fields.size(),
                 children.size());
         }
@@ -478,15 +478,15 @@ std::pair<TTypePair, TTypePair> MatchDictTypes(const TComplexTypeFieldDescriptor
         }
 
         if (skiffSchema->GetChildren().size() != 1) {
-            THROW_ERROR_EXCEPTION("%Qlv has unexpected children count: %Qv expected children count: %Qv",
+            THROW_ERROR_EXCEPTION("%Qlv has unexpected children count: expected %v, actual %v",
                 EWireType::RepeatedVariant8,
-                skiffSchema->GetChildren().size(),
-                1);
+                1,
+                skiffSchema->GetChildren().size());
         }
 
         auto tupleSchema = skiffSchema->GetChildren()[0];
         if (tupleSchema->GetWireType() != EWireType::Tuple) {
-            THROW_ERROR_EXCEPTION("%Qlv has unexpected child: expected %Qlv, found %Qlv",
+            THROW_ERROR_EXCEPTION("%Qlv has unexpected wire type: expected %Qlv, actual %Qlv",
                 EWireType::RepeatedVariant8,
                 EWireType::Tuple,
                 tupleSchema->GetWireType());
@@ -824,7 +824,7 @@ private:
     // Max level of outer optional we want to translate to yson.
     const int OuterTranslateLevel_;
 
-    // If true we translate inner yson optional into skiff optional
+    // If true we translate inner yson optional into Skiff optional
     // if false we expect inner yson optional to be filled.
     const bool InnerOptionalTranslate_;
 };
@@ -839,7 +839,7 @@ public:
         : Descriptor_(std::move(descriptor))
         , OuterExpectFilledLevel_(ysonOptionalLevel - skiffOptionalLevel)
         , OuterTranslateLevel_(ysonOptionalLevel)
-    {}
+    { }
 
     void operator () (TYsonPullParserCursor* cursor, TCheckedInDebugSkiffWriter* writer)
     {
@@ -972,7 +972,7 @@ public:
         : Stream_(TStringBuf("#;#;#;#;#;#;#;#;"))
         , Parser_(&Stream_, EYsonType::ListFragment)
         , Cursor_(&Parser_)
-    {}
+    { }
 
     TYsonPullParserCursor* GetCursor()
     {
@@ -987,7 +987,7 @@ private:
         explicit TRingBufferStream(TStringBuf buffer)
             : Buffer_(buffer)
             , Pointer_(Buffer_.data())
-        {}
+        { }
 
     private:
         virtual size_t DoNext(const void** ptr, size_t len) override
@@ -1484,7 +1484,7 @@ private:
     // How many levels of yson optional we set unconditionally.
     const int OuterFill_;
 
-    // How many levels of skiff optionals we translate to yson outer optionals (which are encoded as list).
+    // How many levels of Skiff optionals we translate to yson outer optionals (which are encoded as list).
     const int OuterTranslate_;
 
     const bool InnerTranslate_;
@@ -1551,7 +1551,7 @@ private:
     // How many levels of yson optional we set unconditionally.
     const int OuterFill_;
 
-    // How many levels of skiff optionals we translate to yson outer optionals (which are encoded as list).
+    // How many levels of Skiff optionals we translate to yson outer optionals (which are encoded as list).
     const int OuterTranslate_;
 };
 
@@ -1635,7 +1635,7 @@ TSkiffToYsonConverter CreateStructSkiffToYsonConverter(
                 descriptor,
                 skiffSchema,
                 TErrorException() <<= TError(
-                    "Non optional struct field %Qv is missing in skiff schema",
+                    "Non optional struct field %Qv is missing in Skiff schema",
                     fieldDescriptor.GetDescription()));
         }
     }
@@ -1887,7 +1887,7 @@ void CheckSkiffWireTypeForDecimal(int precision, NSkiff::EWireType wireType)
 void CheckWireType(EWireType wireType, const std::initializer_list<EWireType>& allowed)
 {
     if (std::find(allowed.begin(), allowed.end(), wireType) == allowed.end()) {
-        THROW_ERROR_EXCEPTION("Unexpected wire type: %Qv",
+        THROW_ERROR_EXCEPTION("Unexpected wire type %Qlv",
             wireType);
     }
 }

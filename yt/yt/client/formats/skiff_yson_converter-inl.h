@@ -123,9 +123,10 @@ TStringBuf TUuidParser::operator()(NSkiff::TCheckedInDebugSkiffParser* parser) c
 
 void TUuidWriter::operator()(TStringBuf value, NSkiff::TCheckedInDebugSkiffWriter* writer) const
 {
-    if (value.size() != 16) {
-        THROW_ERROR_EXCEPTION("Internal error: bad size of uuid value; expected: %Qv, actual: %Qv",
-            16,
+    constexpr size_t ExpectedSize = 16;
+    if (value.size() != ExpectedSize) {
+        THROW_ERROR_EXCEPTION("Invalid size of UUID value: expected %v, actual %v",
+            ExpectedSize,
             value.size());
     }
     const ui64* array = reinterpret_cast<const ui64*>(value.Data());

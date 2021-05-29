@@ -1259,7 +1259,7 @@ std::vector<TLegacyOwningKey> TClient::PickUniformPivotKeys(
         THROW_ERROR_EXCEPTION("Table is not sorted");
     }
     if (!column.IsOfV1Type()) {
-        THROW_ERROR_EXCEPTION("First key column type is too complex: %Qv",
+        THROW_ERROR_EXCEPTION("First key column type %Qv is too complex",
             *column.LogicalType());
     }
 

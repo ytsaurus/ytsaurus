@@ -93,7 +93,7 @@ void TMediumUpdater::UpdateMedia()
 
     auto myRpcAddress = Bootstrap_->GetDefaultLocalAddressOrThrow();
     auto mediumConfigPath = Format("//sys/cluster_nodes/%s/@config/medium_overrides", myRpcAddress);
-    YT_LOG_DEBUG("Loading node media config (MediumConfigPath: %Qv)", mediumConfigPath);
+    YT_LOG_DEBUG("Loading node media config (MediumConfigPath: %v)", mediumConfigPath);
 
     auto mediumConfigOrError = WaitFor(client->GetNode(mediumConfigPath));
 
@@ -102,7 +102,7 @@ void TMediumUpdater::UpdateMedia()
             MediumOverrides_ = NYT::NYTree::ConvertTo<TMediumOverrideMap>(mediumConfigOrError.Value());
         } catch (const TErrorException& ex) {
             // TODO(s-v-m): Also populate alert to MasterConnector.
-            YT_LOG_WARNING(ex, "Can not parse medium config; Skipping reconfiguration (MediumConfigPath: %Qv)", mediumConfigPath);
+            YT_LOG_WARNING(ex, "Can not parse medium config; skipping reconfiguration (MediumConfigPath: %v)", mediumConfigPath);
             return;
         }
     } else if (mediumConfigOrError.FindMatching(NYTree::EErrorCode::ResolveError)){
@@ -124,7 +124,7 @@ void TMediumUpdater::UpdateMedia()
             ? it->second
             : location->GetConfig()->MediumName;
         if (newName != location->GetMediumName()) {
-            YT_LOG_INFO("Changing location medium (Location: %Qv, OldMedium: %Qv, NewMedium: %Qv)",
+            YT_LOG_INFO("Changing location medium (Location: %v, OldMedium: %v, NewMedium: %v)",
                 location->GetUuid(),
                 location->GetMediumName(),
                 newName);

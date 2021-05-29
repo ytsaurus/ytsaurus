@@ -581,7 +581,7 @@ std::pair<ESchemaCompatibility, TError> CheckTableSchemaCompatibilityImpl(
         if (inputColumn.Name() != outputColumn.Name()) {
             return {
                 ESchemaCompatibility::Incompatible,
-                TError("Key columns do not match input column: %Qv; output column: %Qv",
+                TError("Key columns do not match: input column %Qv, output column %Qv",
                     inputColumn.Name(),
                     outputColumn.Name())
             };
@@ -589,7 +589,7 @@ std::pair<ESchemaCompatibility, TError> CheckTableSchemaCompatibilityImpl(
         if (inputColumn.SortOrder() != outputColumn.SortOrder()) {
             return {
                 ESchemaCompatibility::Incompatible,
-                TError("Sort order of column %Qv doesn't match; input sort order: %Qv; output sort order: %Qv",
+                TError("Sort order of column %Qv does not match: input sort order %Qlv, output sort order %Qlv",
                     inputColumn.Name(),
                     inputColumn.SortOrder(),
                     outputColumn.SortOrder())
