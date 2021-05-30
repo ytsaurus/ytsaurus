@@ -644,7 +644,7 @@ private:
         auto lowerBound = endpoints[0].KeyBound;
 
         // TODO(max42): describe this situation, refer to RowSlicingCorrectnessCustom unittest.
-        if (!lowerBound.Invert().IsInclusive) {
+        if (!lowerBound.Invert().IsInclusive && lowerBound.Prefix.GetCount() == static_cast<ui32>(PrimaryComparator_.GetLength())) {
             StagingArea_->PromoteUpperBound(endpoints[0].KeyBound.Invert().ToggleInclusiveness());
         }
 

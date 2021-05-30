@@ -211,6 +211,11 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 "min_uncompressed_block_size": 1,
                 "min_partition_size": 1,
                 "max_data_slices_per_job": 100,
+            },
+            "operation_options": {
+                "spec_template": {
+                    "use_new_sorted_pool": False,
+                }
             }
         }
     }

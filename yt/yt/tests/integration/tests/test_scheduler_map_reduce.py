@@ -35,6 +35,11 @@ class TestSchedulerMapReduceCommands(YTEnvSetup):
                 },
             },
             "enable_partition_map_job_size_adjustment": True,
+            "operation_options": {
+                "spec_template": {
+                    "use_new_sorted_pool": False,
+                }
+            },
         }
     }
 

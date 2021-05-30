@@ -265,6 +265,31 @@ b"""
                 enable_trace_logging = %true;
             }
         };
+        sorted_merge_operation_options = {
+            spec_template = {
+                use_new_sorted_pool = %true;
+            };
+        };
+        reduce_operation_options = {
+            spec_template = {
+                use_new_sorted_pool = %true;
+            };
+        };
+        join_reduce_operation_options = {
+            spec_template = {
+                use_new_sorted_pool = %true;
+            };
+        };
+        sort_operation_options = {
+            spec_template = {
+                use_new_sorted_pool = %true;
+            };
+        };
+        map_reduce_operation_options = {
+            spec_template = {
+                use_new_sorted_pool = %true;
+            };
+        };
     };
 }
 """)

@@ -1027,12 +1027,6 @@ class TestSchedulerMaxChunkPerJob(YTEnvSetup):
             "ordered_merge_operation_options": {
                 "max_data_slices_per_job": 1,
             },
-            "sorted_merge_operation_options": {
-                "max_data_slices_per_job": 1,
-            },
-            "reduce_operation_options": {
-                "max_data_slices_per_job": 1,
-            },
         }
     }
 
@@ -1057,17 +1051,6 @@ class TestSchedulerMaxChunkPerJob(YTEnvSetup):
         assert get(op.get_path() + "/@progress/jobs/total") == 2
 
         op = map(command="cat >/dev/null", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out")
-        assert get(op.get_path() + "/@progress/jobs/total") == 2
-
-        op = merge(mode="sorted", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out")
-        assert get(op.get_path() + "/@progress/jobs/total") == 2
-
-        op = reduce(
-            command="cat >/dev/null",
-            in_=["//tmp/in1", "//tmp/in2"],
-            out="//tmp/out",
-            reduce_by=["foo"],
-        )
         assert get(op.get_path() + "/@progress/jobs/total") == 2
 
     @authors("babenko")
