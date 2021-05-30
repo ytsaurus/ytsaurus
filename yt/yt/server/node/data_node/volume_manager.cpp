@@ -143,6 +143,8 @@ struct TLayerLocationPerformanceCounters
         AvailableSpace = profiler.Gauge("/available_space");
         TotalSpace = profiler.Gauge("/total_space");
         Full = profiler.Gauge("/full");
+
+        ImportLayerTimer = profiler.Timer("/import_layer_time");
     }
 
     NProfiling::TGauge LayerCount;
@@ -152,6 +154,8 @@ struct TLayerLocationPerformanceCounters
     NProfiling::TGauge UsedSpace;
     NProfiling::TGauge AvailableSpace;
     NProfiling::TGauge Full;
+    
+    TEventTimer ImportLayerTimer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -659,6 +663,8 @@ private:
                 YT_LOG_DEBUG("Unpack layer (Path: %v, Tag: %v)",
                     layerDirectory,
                     tag);
+
+                TEventTimerGuard timer(PerformanceCounters_.ImportLayerTimer);
                 WaitFor(LayerExecutor_->ImportLayer(archivePath, ToString(id), PlacePath_))
                     .ThrowOnError();
             } catch (const std::exception& ex) {
