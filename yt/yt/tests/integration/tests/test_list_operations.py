@@ -1,6 +1,6 @@
 import yt.environment.init_operation_archive as init_operation_archive
 from yt_env_setup import YTEnvSetup, wait
-from yt_commands import *
+from yt_commands import *  # noqa
 
 from yt.common import YT_DATETIME_FORMAT_STRING, uuid_to_parts
 

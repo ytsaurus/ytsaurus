@@ -3,7 +3,7 @@ import pytest
 from test_dynamic_tables import DynamicTablesBase
 
 from yt_env_setup import wait, Restarter, NODES_SERVICE
-from yt_commands import *
+from yt_commands import *  # noqa
 
 from yt.environment.helpers import assert_items_equal
 from yt.yson import YsonEntity

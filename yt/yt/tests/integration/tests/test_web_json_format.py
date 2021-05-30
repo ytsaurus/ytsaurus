@@ -1,4 +1,4 @@
-from yt_commands import *
+from yt_commands import *  # noqa
 from yt_env_setup import YTEnvSetup
 
 import yt.yson as yson

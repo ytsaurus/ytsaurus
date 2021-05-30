@@ -1,16 +1,19 @@
 # -*- coding: utf8 -*-
 
+from decimal_helpers import decode_decimal, encode_decimal, YtNaN, MAX_DECIMAL_PRECISION
+
+from yt_env_setup import YTEnvSetup
+from yt_commands import *  # noqa
+import yt_error_codes
+from yt import yson
+
+import pytest
+
 import collections
 import decimal
 import json
 import random
 
-import pytest
-
-from decimal_helpers import decode_decimal, encode_decimal, YtNaN, MAX_DECIMAL_PRECISION
-from yt_env_setup import YTEnvSetup
-from yt_commands import *
-from yt import yson
 
 # Run our tests on all decimal precisions might be expensive so we create
 # representative sample of possible precisions.
@@ -84,7 +87,7 @@ class TypeTester(object):
         self._helper.write(path, value)
 
     def check_bad_value(self, logical_type, value):
-        with raises_yt_error(SchemaViolation):
+        with raises_yt_error(yt_error_codes.SchemaViolation):
             self.check_good_value(logical_type, value)
 
     def check_conversion_error(self, logical_type, value):
@@ -109,7 +112,7 @@ class SingleColumnTable(object):
         tx_write_table(self.path, [{"column": value}], input_format=POSITIONAL_YSON)
 
     def check_bad_value(self, value):
-        with raises_yt_error(SchemaViolation):
+        with raises_yt_error(yt_error_codes.SchemaViolation):
             self.check_good_value(value)
 
 
@@ -302,7 +305,7 @@ class TestComplexTypes(YTEnvSetup):
 
         # no exception
         tx_write_table("//tmp/table", [{}, {"column": None}])
-        with raises_yt_error(SchemaViolation):
+        with raises_yt_error(yt_error_codes.SchemaViolation):
             tx_write_table("//tmp/table", [{"column": 0}])
 
         with raises_yt_error("Null type cannot be required"):
@@ -340,7 +343,7 @@ class TestComplexTypes(YTEnvSetup):
         )
         tx_write_table("//tmp/table", [{"column": []}, {"column": [None]}])
         tx_write_table("//tmp/table", [{"column": []}, {"column": [None, None]}])
-        with raises_yt_error(SchemaViolation):
+        with raises_yt_error(yt_error_codes.SchemaViolation):
             tx_write_table("//tmp/table", [{"column": [0]}])
 
         create(
@@ -351,10 +354,10 @@ class TestComplexTypes(YTEnvSetup):
         )
         tx_write_table("//tmp/table", [{"column": None}, {"column": [None]}])
 
-        with raises_yt_error(SchemaViolation):
+        with raises_yt_error(yt_error_codes.SchemaViolation):
             tx_write_table("//tmp/table", [{"column": []}])
 
-        with raises_yt_error(SchemaViolation):
+        with raises_yt_error(yt_error_codes.SchemaViolation):
             tx_write_table("//tmp/table", [{"column": []}])
 
     @authors("ermolovd")
@@ -389,7 +392,7 @@ class TestComplexTypes(YTEnvSetup):
         )
 
         def check_bad(value):
-            with raises_yt_error(SchemaViolation):
+            with raises_yt_error(yt_error_codes.SchemaViolation):
                 tx_write_table(
                     "//tmp/table",
                     [
@@ -1103,7 +1106,7 @@ class TestLogicalType(YTEnvSetup):
             create("table", "//test-alter-table", attributes={"schema": schema_before})
             # Make table nonempty, since empty table allows any alter
             tx_write_table("//test-alter-table", [{}])
-            with raises_yt_error(IncompatibleSchemas):
+            with raises_yt_error(yt_error_codes.IncompatibleSchemas):
                 alter_table("//test-alter-table", schema=schema_after)
 
         for (source_type, bad_destination_type_list) in [
@@ -1163,11 +1166,11 @@ class TestRequiredOption(YTEnvSetup):
         )
 
         tx_write_table("//tmp/required_table", [{"value": "foo"}])
-        with raises_yt_error(SchemaViolation):
+        with raises_yt_error(yt_error_codes.SchemaViolation):
             tx_write_table("//tmp/required_table", [{"value": 100500}])
-        with raises_yt_error(SchemaViolation):
+        with raises_yt_error(yt_error_codes.SchemaViolation):
             tx_write_table("//tmp/required_table", [{"value": None}])
-        with raises_yt_error(SchemaViolation):
+        with raises_yt_error(yt_error_codes.SchemaViolation):
             tx_write_table("//tmp/required_table", [{}])
 
     @authors("ermolovd")
@@ -1223,7 +1226,7 @@ class TestRequiredOption(YTEnvSetup):
             },
         )
         tx_write_table(table, [{"column": None}])
-        with raises_yt_error(IncompatibleSchemas):
+        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
             alter_table(
                 table,
                 schema=[
@@ -1406,7 +1409,7 @@ class TestRequiredOption(YTEnvSetup):
         # Old column cannot become required
         bad_schema = [i.copy() for i in schema]
         bad_schema[3]["required"] = True
-        with raises_yt_error(IncompatibleSchemas):
+        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
             alter_table("//tmp/t", schema=bad_schema)
 
         # Removing 'required' attribute is OK
@@ -1533,7 +1536,7 @@ class TestErrorCodes(YTEnvSetup):
         create("table", "//tmp/t", attributes={"schema": schema, "dynamic": True})
 
         sync_mount_table("//tmp/t")
-        with raises_yt_error(SchemaViolation):
+        with raises_yt_error(yt_error_codes.SchemaViolation):
             insert_rows("//tmp/t", [{"baz": 1}])
         sync_unmount_table("//tmp/t")
 
@@ -1542,7 +1545,7 @@ class TestErrorCodes(YTEnvSetup):
 
         create("table", "//tmp/t", attributes={"schema": schema})
 
-        with raises_yt_error(SchemaViolation):
+        with raises_yt_error(yt_error_codes.SchemaViolation):
             tx_write_table("//tmp/t", [{"foo": -1}])
 
 
@@ -1627,7 +1630,7 @@ class TestAlterTable(YTEnvSetup):
         self.prepare_table(old_schema, dynamic=dynamic)
 
         alter_table(self._TABLE_PATH, schema=new_schema)
-        with raises_yt_error(IncompatibleSchemas):
+        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
             alter_table(self._TABLE_PATH, schema=old_schema)
 
     def check_bad_alter_type(self, old_type_v3, new_type_v3, dynamic=False):
@@ -1638,7 +1641,7 @@ class TestAlterTable(YTEnvSetup):
         new_schema = self._create_test_schema_with_type(new_type_v3)
         self.prepare_table(old_schema, dynamic=dynamic)
 
-        with raises_yt_error(IncompatibleSchemas):
+        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
             alter_table(self._TABLE_PATH, schema=new_schema)
 
     def check_bad_both_way_alter_type(self, lhs_type_v3, rhs_type_v3, dynamic=False):

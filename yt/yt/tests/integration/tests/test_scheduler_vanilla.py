@@ -1,7 +1,7 @@
 import pytest
 
 from yt_env_setup import YTEnvSetup, wait, Restarter, SCHEDULERS_SERVICE
-from yt_commands import *
+from yt_commands import *  # noqa
 from yt_helpers import Profiler, skip_if_no_descending
 
 from yt.yson import to_yson_type

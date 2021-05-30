@@ -1,7 +1,7 @@
 import pytest
 
 from yt_env_setup import wait, Restarter, NODES_SERVICE
-from yt_commands import *
+from yt_commands import *  # noqa
 
 from test_dynamic_tables import DynamicTablesBase
 

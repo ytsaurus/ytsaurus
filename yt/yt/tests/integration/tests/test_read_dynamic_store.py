@@ -5,7 +5,7 @@ from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 from test_ordered_dynamic_tables import TestOrderedDynamicTablesBase
 
 from yt_env_setup import wait, Restarter, NODES_SERVICE
-from yt_commands import *
+from yt_commands import *  # noqa
 from yt.yson import YsonEntity, to_yson_type
 
 from time import sleep

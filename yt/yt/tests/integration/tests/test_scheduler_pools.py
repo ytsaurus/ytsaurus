@@ -1,7 +1,8 @@
 import pytest
 
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
-from yt_commands import *
+from yt_commands import *  # noqa
+import yt_error_codes
 
 
 @authors("renadeen")
@@ -797,7 +798,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
     def test_set_inexistent_path_fails_with_correct_error(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
 
-        with raises_yt_error(ResolveErrorCode):
+        with raises_yt_error(yt_error_codes.ResolveErrorCode):
             set("//sys/pool_trees/my_tree/nirvana/@mode", "fifo")
 
     def test_pool_tree_and_pool_common_attributes(self):

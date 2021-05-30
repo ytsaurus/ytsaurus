@@ -1,7 +1,7 @@
 import pytest
 
 from yt_env_setup import YTEnvSetup, is_asan_build
-from yt_commands import *
+from yt_commands import *  # noqa
 
 import socket
 import __builtin__

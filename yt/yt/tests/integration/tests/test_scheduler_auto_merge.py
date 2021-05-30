@@ -1,8 +1,43 @@
-import pytest
+from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, is_asan_build
+
+from yt_commands import (  # noqa
+    authors, print_debug, wait, wait_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
+    events_on_fs, reset_events_on_fs,
+    create, ls, get, set, copy, move, remove, link, exists,
+    create_account, create_network_project, create_tmpdir, create_user, create_group,
+    create_pool, create_pool_tree,
+    create_data_center, create_rack,
+    make_ace, check_permission, add_member,
+    make_batch_request, execute_batch, get_batch_error,
+    start_transaction, abort_transaction, lock,
+    read_file, write_file, read_table, write_table,
+    map, reduce, map_reduce, join_reduce, merge, vanilla, sort, erase,
+    run_test_vanilla, run_sleeping_vanilla,
+    abort_job, list_jobs, get_job, abandon_job,
+    get_job_fail_context, get_job_input, get_job_stderr, get_job_spec,
+    dump_job_context, poll_job_shell,
+    abort_op, complete_op, suspend_op, resume_op,
+    get_operation, list_operations, clean_operations,
+    get_operation_cypress_path, scheduler_orchid_pool_path,
+    scheduler_orchid_default_pool_tree_path, scheduler_orchid_operation_path,
+    scheduler_orchid_default_pool_tree_config_path, scheduler_orchid_path,
+    scheduler_orchid_node_path, scheduler_orchid_pool_tree_config_path,
+    sync_create_cells, sync_mount_table,
+    get_first_chunk_id, get_singular_chunk_id, multicell_sleep,
+    update_nodes_dynamic_config, update_controller_agent_config,
+    update_op_parameters, enable_op_detailed_logs,
+    set_node_banned, set_banned_flag,
+    check_all_stderrs,
+    create_test_tables, PrepareTables,
+    get_statistics,
+    make_random_string, raises_yt_error,
+    normalize_schema, make_schema)
+
+from yt.common import YtError
+
 import yt.yson as yson
 
-from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, is_asan_build
-from yt_commands import *
+import pytest
 
 from time import sleep
 
@@ -307,7 +342,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         init_content = [{"a": -1, "b": "1"}]
         write_table("<append=%true>//tmp/t_out", init_content)
 
-        op = map(
+        map(
             in_="//tmp/t_in",
             out=["<append=%true>//tmp/t_out"],
             command="cat",
@@ -384,7 +419,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         for i in range(10):
             write_table("<append=%true>//tmp/t_in", [{"a": i}])
 
-        op = map(
+        map(
             in_="//tmp/t_in",
             out=["//tmp/t_out"],
             command="cat",
@@ -413,7 +448,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         for i in range(10):
             write_table("<append=%true>//tmp/t_in", [{"a": i}])
 
-        op = map(
+        map(
             in_="//tmp/t_in",
             out=["//tmp/t_out"],
             command="cat",
@@ -566,7 +601,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                         live_preview_appeared[vertex][i] = True
                     except YtError:
                         pass
-            time.sleep(0.5)
+            sleep(0.5)
             print_debug("{0} jobs completed".format(op.get_job_count("completed")))
 
             if all(live_preview_appeared["map"]) and all(live_preview_appeared["auto_merge"]):
@@ -601,7 +636,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         ]
         write_table("//tmp/t_in", rows)
 
-        op = map(
+        map(
             in_="//tmp/t_in",
             out="<append=%true;schema_modification=unversioned_update>//tmp/t_out",
             command="cat",

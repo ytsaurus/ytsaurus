@@ -1,7 +1,7 @@
 import pytest
 
 from yt_env_setup import YTEnvSetup
-from yt_commands import *
+from yt_commands import *  # noqa
 
 from flaky import flaky
 

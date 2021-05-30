@@ -5,7 +5,7 @@ import time
 from datetime import datetime
 from datetime import timedelta
 from yt_env_setup import YTEnvSetup, wait
-from yt_commands import *
+from yt_commands import *  # noqa
 from yt_driver_bindings import BufferedStream
 from yt.common import YtResponseError
 import yt.yson as yson

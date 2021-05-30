@@ -4,7 +4,7 @@ import __builtin__
 from test_dynamic_tables import DynamicTablesBase
 
 from yt_env_setup import wait, parametrize_external, Restarter, NODES_SERVICE
-from yt_commands import *
+from yt_commands import *  # noqa
 
 from flaky import flaky
 

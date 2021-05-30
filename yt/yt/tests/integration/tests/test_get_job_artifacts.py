@@ -1,5 +1,5 @@
 from yt_env_setup import wait, YTEnvSetup
-from yt_commands import *
+from yt_commands import *  # noqa
 
 import yt.environment.init_operation_archive as init_operation_archive
 from yt.wrapper.common import uuid_hash_pair

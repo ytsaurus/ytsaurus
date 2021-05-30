@@ -1,4 +1,4 @@
-from yt_commands import *
+from yt_commands import *  # noqa
 
 from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 

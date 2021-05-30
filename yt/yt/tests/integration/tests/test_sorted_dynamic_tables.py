@@ -6,7 +6,9 @@ from test_dynamic_tables import DynamicTablesBase
 from yt_helpers import Profiler
 
 from yt_env_setup import wait, parametrize_external, Restarter, NODES_SERVICE
-from yt_commands import *
+from yt_commands import *  # noqa
+import yt_error_codes
+
 from yt.yson import YsonEntity, loads
 
 from copy import deepcopy
@@ -1960,11 +1962,11 @@ class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
             try:
                 insert_rows("//tmp/t1", [_get_row.next() for i in range(500)])
             except YtError as err:
-                if err.contains_code(AllWritesDisabled):
+                if err.contains_code(yt_error_codes.AllWritesDisabled):
                     break
 
         insert_rows("//tmp/t2", [_get_row.next()])
-        with raises_yt_error(AllWritesDisabled):
+        with raises_yt_error(yt_error_codes.AllWritesDisabled):
             insert_rows("//tmp/t1", [_get_row.next()])
 
         remove("//tmp/t2")

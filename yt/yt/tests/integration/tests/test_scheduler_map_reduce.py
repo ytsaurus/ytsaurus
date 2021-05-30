@@ -2,7 +2,7 @@ import pytest
 
 from yt_env_setup import YTEnvSetup, wait
 from yt.environment.helpers import assert_items_equal
-from yt_commands import *
+from yt_commands import *  # noqa
 from yt_helpers import skip_if_no_descending
 
 from collections import defaultdict

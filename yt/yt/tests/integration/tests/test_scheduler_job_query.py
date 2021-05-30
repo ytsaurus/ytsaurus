@@ -1,5 +1,7 @@
 from yt_env_setup import YTEnvSetup, find_ut_file
-from yt_commands import *
+from yt_commands import *  # noqa
+
+import yt_error_codes
 
 from yt.test_helpers import assert_items_equal
 
@@ -61,7 +63,7 @@ class TestJobQuery(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
 
-        with raises_yt_error(OperationFailedToPrepare):
+        with raises_yt_error(yt_error_codes.OperationFailedToPrepare):
             map(
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -69,7 +71,7 @@ class TestJobQuery(YTEnvSetup):
                 spec={"input_query": "a,a"},
             )
 
-        with raises_yt_error(OperationFailedToPrepare):
+        with raises_yt_error(yt_error_codes.OperationFailedToPrepare):
             map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"input_query": "b"})
 
     @authors("lukyan")

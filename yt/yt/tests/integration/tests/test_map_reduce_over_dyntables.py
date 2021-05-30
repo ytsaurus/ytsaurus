@@ -3,7 +3,7 @@ from yt_env_setup import (
     wait,
     parametrize_external,
 )
-from yt_commands import *
+from yt_commands import *  # noqa
 
 from yt.test_helpers import assert_items_equal
 from yt.yson import YsonEntity, YsonInt64

@@ -2,7 +2,7 @@ import json
 import os.path
 
 from yt_env_setup import YTEnvSetup
-from yt_commands import *
+from yt_commands import *  # noqa  # noqa
 from yt_helpers import get_current_time
 
 ##################################################################

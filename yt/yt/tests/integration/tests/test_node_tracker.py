@@ -1,7 +1,8 @@
 import pytest
 
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE
-from yt_commands import *
+from yt_commands import *  # noqa
+import yt_error_codes
 
 from time import sleep
 
@@ -335,7 +336,7 @@ class TestNodeUnrecognizedOptionsAlert(YTEnvSetup):
     def test_node_unrecognized_options_alert(self):
         nodes = ls("//sys/cluster_nodes")
         alerts = get("//sys/cluster_nodes/{}/@alerts".format(nodes[0]))
-        assert alerts[0]["code"] == UnrecognizedConfigOption
+        assert alerts[0]["code"] == yt_error_codes.UnrecognizedConfigOption
 
 
 ################################################################################

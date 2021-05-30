@@ -1,6 +1,7 @@
 from decimal_helpers import *
 from yt_env_setup import YTEnvSetup
-from yt_commands import *
+from yt_commands import *  # noqa
+import yt_error_codes
 
 from decimal import Decimal
 from random import shuffle
@@ -760,7 +761,7 @@ class TestGoodSkiffDecimal(YTEnvSetup):
             Decimal("3.14"),
             Decimal("-2.71"),
         ]
-        with raises_yt_error(SchemaViolation):
+        with raises_yt_error(yt_error_codes.SchemaViolation):
             write_table(
                 "//tmp/table",
                 "\x00\x00\x00",

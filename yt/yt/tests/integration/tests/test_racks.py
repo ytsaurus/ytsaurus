@@ -2,7 +2,7 @@ import pytest
 
 from yt_env_setup import YTEnvSetup, wait
 from yt.environment.helpers import assert_items_equal
-from yt_commands import *
+from yt_commands import *  # noqa
 
 import __builtin__
 

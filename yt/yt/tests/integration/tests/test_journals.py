@@ -1,7 +1,7 @@
 import pytest
 
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, is_asan_build
-from yt_commands import *
+from yt_commands import *  # noqa
 from io import TextIOBase
 from time import sleep
 

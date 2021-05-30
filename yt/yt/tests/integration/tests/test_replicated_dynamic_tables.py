@@ -3,7 +3,7 @@ import pytest
 from test_dynamic_tables import DynamicTablesBase
 
 from yt_env_setup import parametrize_external
-from yt_commands import *
+from yt_commands import *  # noqa
 from yt_helpers import *
 from time import sleep
 from yt.yson import YsonEntity

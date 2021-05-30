@@ -1,5 +1,5 @@
 from yt_env_setup import YTEnvSetup
-from yt_commands import *
+from yt_commands import *  # noqa
 from yt.test_helpers import wait
 
 import yt.environment.init_operation_archive as init_operation_archive
