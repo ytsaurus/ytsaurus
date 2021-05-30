@@ -1,7 +1,7 @@
 from copy import deepcopy
 
 from yt_env_setup import YTEnvSetup
-from yt_commands import *
+from yt_commands import *  # noqa
 
 ##################################################################
 

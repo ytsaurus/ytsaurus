@@ -1,7 +1,7 @@
 import pytest
 
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
-from yt_commands import *
+from yt_commands import *  # noqa
 
 import copy
 import __builtin__

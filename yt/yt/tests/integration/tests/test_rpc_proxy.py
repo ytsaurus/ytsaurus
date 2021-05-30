@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup, wait
 from proxy_format_config import _TestProxyFormatConfigBase
-from yt_commands import *
+from yt_commands import *  # noqa
 
 from yt.wrapper import JsonFormat
 

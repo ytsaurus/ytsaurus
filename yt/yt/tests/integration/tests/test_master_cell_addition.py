@@ -9,7 +9,7 @@ from yt_env_setup import (
     MASTERS_SERVICE,
 )
 
-from yt_commands import *
+from yt_commands import *  # noqa
 
 from copy import deepcopy
 

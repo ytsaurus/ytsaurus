@@ -1,6 +1,7 @@
 from yt_env_setup import YTEnvSetup
-from yt_commands import *
+from yt_commands import *  # noqa
 from yt_helpers import Profiler
+import yt_error_codes
 
 import yt.environment.init_operation_archive as init_operation_archive
 
@@ -327,7 +328,7 @@ class TestGetJob(_TestGetJobCommon):
 
     @authors("levysotsky")
     def test_not_found(self):
-        with raises_yt_error(NoSuchJob):
+        with raises_yt_error(yt_error_codes.NoSuchJob):
             get_job("1-2-3-4", "5-6-7-8")
 
 

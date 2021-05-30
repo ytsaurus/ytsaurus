@@ -6,8 +6,9 @@ from yt_env_setup import (
     CONTROLLER_AGENTS_SERVICE,
 )
 from yt.test_helpers import are_almost_equal
-from yt_commands import *
+from yt_commands import *  # noqa
 from yt_helpers import create_custom_pool_tree_with_one_node
+import yt_error_codes
 
 import io
 import pytest
@@ -601,7 +602,7 @@ class TestOperationDetailedLogs(YTEnvSetup):
 
         with pytest.raises(YtError) as excinfo:
             update_enable_detailed_logs()
-        if not excinfo.value.contains_code(AuthorizationErrorCode):
+        if not excinfo.value.contains_code(yt_error_codes.AuthorizationErrorCode):
             raise excinfo.value
 
         add_member("u1", "superusers")

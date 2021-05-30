@@ -2,7 +2,7 @@ import pytest
 import yt.yson as yson
 
 from yt_env_setup import YTEnvSetup, parametrize_external
-from yt_commands import *
+from yt_commands import *  # noqa
 from yt_helpers import skip_if_no_descending
 
 from yt.environment.helpers import assert_items_equal

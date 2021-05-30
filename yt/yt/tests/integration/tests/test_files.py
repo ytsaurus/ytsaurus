@@ -4,7 +4,7 @@ from io import TextIOBase
 
 from yt.common import YtError
 from yt_env_setup import YTEnvSetup
-from yt_commands import *
+from yt_commands import *  # noqa
 
 ##################################################################
 

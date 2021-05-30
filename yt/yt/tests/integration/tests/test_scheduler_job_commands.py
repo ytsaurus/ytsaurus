@@ -4,8 +4,46 @@ from yt_env_setup import (
     YTEnvSetup,
     wait,
 )
-from yt_commands import *
+
+from yt_commands import (  # noqa
+    authors, print_debug, wait, wait_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
+    events_on_fs, reset_events_on_fs,
+    create, ls, get, copy, move, remove, link, exists,
+    create_account, create_network_project, create_tmpdir, create_user, create_group,
+    create_pool, create_pool_tree,
+    create_data_center, create_rack,
+    make_ace, check_permission, add_member,
+    make_batch_request, execute_batch, get_batch_error,
+    start_transaction, abort_transaction, lock,
+    read_file, write_file, read_table, write_table,
+    map, reduce, map_reduce, join_reduce, merge, vanilla, sort, erase,
+    run_test_vanilla, run_sleeping_vanilla,
+    abort_job, list_jobs, get_job, abandon_job,
+    get_job_fail_context, get_job_input, get_job_stderr, get_job_spec,
+    dump_job_context, poll_job_shell,
+    abort_op, complete_op, suspend_op, resume_op,
+    get_operation, list_operations, clean_operations,
+    get_operation_cypress_path, scheduler_orchid_pool_path,
+    scheduler_orchid_default_pool_tree_path, scheduler_orchid_operation_path,
+    scheduler_orchid_default_pool_tree_config_path, scheduler_orchid_path,
+    scheduler_orchid_node_path, scheduler_orchid_pool_tree_config_path,
+    sync_create_cells, sync_mount_table,
+    get_first_chunk_id, get_singular_chunk_id, multicell_sleep,
+    update_nodes_dynamic_config, update_controller_agent_config,
+    update_op_parameters, enable_op_detailed_logs,
+    set_node_banned, set_banned_flag,
+    check_all_stderrs,
+    create_test_tables, PrepareTables,
+    get_statistics,
+    make_random_string, raises_yt_error,
+    normalize_schema, make_schema,
+    Driver)
+
 from yt_helpers import get_job_count_profiling
+
+import yt_error_codes
+
+from yt.common import YtError, YtResponseError
 
 import pytest
 import time
@@ -206,7 +244,7 @@ class TestJobProber(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"key": "foo"})
 
-        op = map(
+        map(
             track=False,
             label="poll_job_shell",
             in_="//tmp/t1",
@@ -235,7 +273,7 @@ class TestJobProber(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"key": "foo"})
 
-        op = map(
+        map(
             track=False,
             label="poll_job_shell",
             in_="//tmp/t1",
@@ -262,7 +300,7 @@ class TestJobProber(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"key": "foo"})
 
-        op = map(
+        map(
             track=False,
             label="poll_job_shell",
             in_="//tmp/t1",
@@ -454,13 +492,13 @@ class TestJobShellInSubcontainer(TestJobProber):
         assert get_subcontainer_name(None) == ""
         assert get_subcontainer_name("nirvana") == "N"
 
-        with raises_yt_error(ContainerDoesNotExist):
+        with raises_yt_error(yt_error_codes.ContainerDoesNotExist):
             poll_job_shell(job_id, shell_name="non_existent", operation="spawn", command="echo hi")
-        with raises_yt_error(NoSuchJobShell):
+        with raises_yt_error(yt_error_codes.NoSuchJobShell):
             poll_job_shell(job_id, shell_name="brrr", operation="spawn", command="echo hi")
 
         # Check job shell permissions.
-        def check_permission(shell_name, user, allowed):
+        def check_job_shell_permission(shell_name, user, allowed):
             if allowed:
                 r = poll_job_shell(
                     job_id,
@@ -472,7 +510,7 @@ class TestJobShellInSubcontainer(TestJobProber):
                 output = self._poll_until_shell_exited(job_id, r["shell_id"])
                 assert output == "hi\r\n"
             else:
-                with raises_yt_error(AuthorizationErrorCode):
+                with raises_yt_error(yt_error_codes.AuthorizationErrorCode):
                     poll_job_shell(
                         job_id,
                         shell_name=shell_name,
@@ -481,18 +519,18 @@ class TestJobShellInSubcontainer(TestJobProber):
                         command="echo hi",
                     )
 
-        check_permission("default", "nirvana_boss", allowed=True)
-        check_permission("default", "nirvana_dev", allowed=True)
-        check_permission("default", "taxi_boss", allowed=False)
-        check_permission("default", "taxi_dev", allowed=False)
-        check_permission("default", "yt_dev", allowed=True)
-        check_permission("default", "root", allowed=True)
-        check_permission("nirvana", "nirvana_boss", allowed=True)
-        check_permission("nirvana", "nirvana_dev", allowed=True)
-        check_permission("nirvana", "taxi_boss", allowed=True)
-        check_permission("nirvana", "taxi_dev", allowed=True)
-        check_permission("nirvana", "yt_dev", allowed=True)
-        check_permission("nirvana", "root", allowed=True)
+        check_job_shell_permission("default", "nirvana_boss", allowed=True)
+        check_job_shell_permission("default", "nirvana_dev", allowed=True)
+        check_job_shell_permission("default", "taxi_boss", allowed=False)
+        check_job_shell_permission("default", "taxi_dev", allowed=False)
+        check_job_shell_permission("default", "yt_dev", allowed=True)
+        check_job_shell_permission("default", "root", allowed=True)
+        check_job_shell_permission("nirvana", "nirvana_boss", allowed=True)
+        check_job_shell_permission("nirvana", "nirvana_dev", allowed=True)
+        check_job_shell_permission("nirvana", "taxi_boss", allowed=True)
+        check_job_shell_permission("nirvana", "taxi_dev", allowed=True)
+        check_job_shell_permission("nirvana", "yt_dev", allowed=True)
+        check_job_shell_permission("nirvana", "root", allowed=True)
 
     @authors("gritukan")
     def test_job_shell_in_subcontainer_invalid(self):
@@ -501,7 +539,7 @@ class TestJobShellInSubcontainer(TestJobProber):
         write_table("//tmp/t1", {"key": "foo"})
 
         with pytest.raises(YtError):
-            op = run_test_vanilla(
+            run_test_vanilla(
                 with_breakpoint("portoctl create N ; BREAKPOINT"),
                 spec={
                     "enable_porto": "isolate",

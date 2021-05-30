@@ -1,4 +1,5 @@
-from yt_commands import (raises_yt_error, create, FormatDisabled, write_table, authors, create_user)
+from yt_commands import (raises_yt_error, create, write_table, authors, create_user)
+import yt_error_codes
 
 import yt.yson
 
@@ -148,7 +149,7 @@ class _TestProxyFormatConfigBase:
                 yield
         else:
             def manager():
-                return raises_yt_error(FormatDisabled)
+                return raises_yt_error(yt_error_codes.FormatDisabled)
         return manager
 
     def _run_operation(self, op_type, spec, user, use_start_op=True, content=[]):

@@ -1,5 +1,5 @@
 from yt_env_setup import YTEnvSetup
-from yt_commands import *
+from yt_commands import *  # noqa
 
 from yt.common import date_string_to_datetime
 

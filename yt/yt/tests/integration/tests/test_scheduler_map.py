@@ -5,7 +5,7 @@ from yt_env_setup import (
     is_asan_build,
 )
 
-from yt_commands import *
+from yt_commands import *  # noqa
 from yt_helpers import skip_if_no_descending
 
 from yt.test_helpers import assert_items_equal

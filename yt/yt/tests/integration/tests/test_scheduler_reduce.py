@@ -4,7 +4,7 @@ import pytest
 
 from yt.environment.helpers import assert_items_equal, wait
 from yt_env_setup import YTEnvSetup, parametrize_external
-from yt_commands import *
+from yt_commands import *  # noqa
 from yt_helpers import skip_if_no_descending
 from yt.yson import YsonEntity
 

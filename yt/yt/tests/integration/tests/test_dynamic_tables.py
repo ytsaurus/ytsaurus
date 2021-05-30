@@ -8,8 +8,9 @@ from yt_env_setup import (
     MASTERS_SERVICE,
     is_asan_build,
 )
-from yt_commands import *
+from yt_commands import *  # noqa
 from yt_helpers import *
+import yt_error_codes
 
 from yt.environment.helpers import assert_items_equal
 
@@ -2439,7 +2440,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                         insert_rows("//tmp/t", [{"key": i, "value": str(i)}])
                         break
                     except YtError as e:
-                        if not e.contains_code(RequestThrottled):
+                        if not e.contains_code(yt_error_codes.RequestThrottled):
                             raise e
                         time.sleep(1)
             return time.time() - start_time

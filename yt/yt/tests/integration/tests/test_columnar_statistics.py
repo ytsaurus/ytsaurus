@@ -1,5 +1,5 @@
 from yt_env_setup import wait, YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE
-from yt_commands import *
+from yt_commands import *  # noqa
 
 import pytest
 

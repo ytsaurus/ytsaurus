@@ -2,7 +2,7 @@ from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
 from yt.test_helpers import assert_items_equal, wait
 
-from yt_commands import *
+from yt_commands import *  # noqa
 
 import __builtin__
 

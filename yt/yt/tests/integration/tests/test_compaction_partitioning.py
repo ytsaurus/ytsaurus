@@ -1,7 +1,7 @@
 from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
 from yt_env_setup import wait
-from yt_commands import *
+from yt_commands import *  # noqa
 
 from time import sleep, time
 

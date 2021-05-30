@@ -7,12 +7,43 @@ from yt_env_setup import (
     SCHEDULERS_SERVICE,
     CONTROLLER_AGENTS_SERVICE,
 )
-from yt_commands import *
-from yt_helpers import *
+from yt_commands import (  # noqa
+    authors, print_debug, wait, wait_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
+    events_on_fs, reset_events_on_fs,
+    create, ls, get, set, copy, move, remove, link, exists,
+    create_account, create_network_project, create_tmpdir, create_user, create_group,
+    create_pool, create_pool_tree,
+    create_data_center, create_rack,
+    make_ace, check_permission, add_member,
+    make_batch_request, execute_batch, get_batch_error,
+    start_transaction, abort_transaction, lock,
+    read_file, write_file, read_table, write_table,
+    map, reduce, map_reduce, join_reduce, merge, vanilla, sort, erase,
+    run_test_vanilla, run_sleeping_vanilla,
+    abort_job, list_jobs, get_job, abandon_job,
+    get_job_fail_context, get_job_input, get_job_stderr, get_job_spec,
+    dump_job_context, poll_job_shell,
+    abort_op, complete_op, suspend_op, resume_op,
+    clean_operations,
+    get_operation_cypress_path, scheduler_orchid_pool_path,
+    scheduler_orchid_default_pool_tree_path, scheduler_orchid_operation_path,
+    scheduler_orchid_default_pool_tree_config_path, scheduler_orchid_path,
+    scheduler_orchid_node_path, scheduler_orchid_pool_tree_config_path,
+    sync_create_cells, sync_mount_table,
+    get_first_chunk_id, get_singular_chunk_id, multicell_sleep,
+    update_nodes_dynamic_config, update_controller_agent_config,
+    update_op_parameters, enable_op_detailed_logs,
+    set_node_banned, set_banned_flag,
+    check_all_stderrs,
+    create_test_tables, PrepareTables,
+    get_statistics,
+    make_random_string, raises_yt_error,
+    normalize_schema, make_schema)
 
-from yt.yson import *
+import yt.yson as yson
+
 from yt.wrapper import JsonFormat
-from yt.common import date_string_to_timestamp
+from yt.common import date_string_to_timestamp, YtError
 
 import pytest
 
@@ -38,6 +69,7 @@ def get_by_composite_key(item, composite_key, default=None):
     return current_item
 
 ##################################################################
+
 
 SCHEDULER_COMMON_NODE_CONFIG_PATCH = {
     "exec_agent": {
@@ -121,7 +153,7 @@ class TestSchedulerCommon(YTEnvSetup):
             in_="//tmp/t1",
             out="//tmp/t2",
             command=with_breakpoint("cat ; BREAKPOINT"),
-            spec={"test_flag": to_yson_type("value", attributes={"attr": 0})},
+            spec={"test_flag": yson.to_yson_type("value", attributes={"attr": 0})},
         )
 
         jobs = wait_breakpoint()
@@ -435,7 +467,7 @@ class TestSchedulerCommon(YTEnvSetup):
             },
         )
         write_table("//tmp/sorted_table", [{"key": 1}, {"key": 5}, {"key": 10}])
-        op = map(
+        map(
             in_="//tmp/sorted_table",
             out="<append=%true>//tmp/sorted_table",
             command="echo '{key=30};{key=39}'",
@@ -465,7 +497,7 @@ class TestSchedulerCommon(YTEnvSetup):
         write_table("//tmp/sorted_table", [{"key": 1}, {"key": 5}, {"key": 10}])
 
         with pytest.raises(YtError):
-            op = map(
+            map(
                 in_="//tmp/sorted_table",
                 out="<append=%true>//tmp/sorted_table",
                 command="echo '{key=7};{key=39}'",
@@ -485,7 +517,7 @@ class TestSchedulerCommon(YTEnvSetup):
             },
         )
         write_table("//tmp/sorted_table", [{"key": 1}, {"key": 5}, {"key": 10}])
-        op = map(
+        map(
             in_="//tmp/sorted_table",
             out="<append=%true>//tmp/sorted_table",
             command="echo '{key=10};{key=39}'",
@@ -515,7 +547,7 @@ class TestSchedulerCommon(YTEnvSetup):
         write_table("//tmp/sorted_table", [{"key": 1}, {"key": 5}, {"key": 10}])
 
         with pytest.raises(YtError):
-            op = map(
+            map(
                 in_="//tmp/sorted_table",
                 out="<append=%true>//tmp/sorted_table",
                 command="echo '{key=10};{key=39}'",
@@ -536,7 +568,7 @@ class TestSchedulerCommon(YTEnvSetup):
         )
         create("table", "//tmp/t1")
         write_table("//tmp/t1", [{}])
-        op = map(
+        map(
             in_="//tmp/t1",
             out="<append=%true>//tmp/sorted_table",
             command="echo '{key=30};{key=39}'",
@@ -559,14 +591,14 @@ class TestSchedulerCommon(YTEnvSetup):
         )
         create("table", "//tmp/t1")
         write_table("//tmp/t1", [{}])
-        op = map(
+        map(
             in_="//tmp/t1",
             out="<append=%true>//tmp/sorted_table",
             command="echo '{ }'",
             spec={"job_count": 1},
         )
 
-        assert read_table("//tmp/sorted_table") == [{"key": YsonEntity()}]
+        assert read_table("//tmp/sorted_table") == [{"key": yson.YsonEntity()}]
 
     @authors("dakovalkov")
     def test_append_to_sorted_table_exclusive_lock(self):
@@ -586,7 +618,7 @@ class TestSchedulerCommon(YTEnvSetup):
         write_table("//tmp/t1", [{"key": 6}, {"key": 10}])
         write_table("//tmp/t2", [{"key": 8}, {"key": 12}])
 
-        op = map(
+        map(
             track=False,
             in_="//tmp/t1",
             out="<append=%true>//tmp/sorted_table",
@@ -1942,11 +1974,11 @@ class TestNewLivePreview(YTEnvSetup):
 
         position = 0
         for i, range_ in enumerate(expected_all_ranges_data):
-            if all_ranges_data[position : position + len(range_)] != range_:
+            if all_ranges_data[position:position + len(range_)] != range_:
                 print_debug("position =", position, ", range =", all_ranges[i])
                 print_debug("expected:", range_)
-                print_debug("actual:", all_ranges_data[position : position + len(range_)])
-                assert all_ranges_data[position : position + len(range_)] == range_
+                print_debug("actual:", all_ranges_data[position:position + len(range_)])
+                assert all_ranges_data[position:position + len(range_)] == range_
             position += len(range_)
 
         release_breakpoint()

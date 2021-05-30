@@ -7,7 +7,7 @@ from yt_env_setup import (
     NODES_SERVICE,
 )
 
-from yt_commands import *
+from yt_commands import *  # noqa
 from yt_helpers import get_current_time, parse_yt_time
 
 import pytest

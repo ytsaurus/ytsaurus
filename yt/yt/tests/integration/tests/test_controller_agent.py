@@ -5,8 +5,9 @@ from yt_env_setup import (
     Restarter,
     CONTROLLER_AGENTS_SERVICE,
 )
-from yt_commands import *
+from yt_commands import *  # noqa
 from yt_helpers import *
+import yt_error_codes
 
 from yt.yson import *
 
@@ -520,5 +521,5 @@ class TestOperationControllerLimit(YTEnvSetup):
     @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
     def test_operation_controller_memory_limit_exceeded(self):
         op = run_test_vanilla("sleep 60", job_count=1)
-        with raises_yt_error(ControllerMemoryLimitExceeded):
+        with raises_yt_error(yt_error_codes.ControllerMemoryLimitExceeded):
             op.track()

@@ -1,7 +1,7 @@
 from time import sleep
 
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
-from yt_commands import *
+from yt_commands import *  # noqa
 from yt_helpers import Profiler
 from yt.environment.helpers import assert_items_equal
 

@@ -7,7 +7,7 @@ from test_replicated_dynamic_tables import (
 )
 
 from yt_env_setup import parametrize_external
-from yt_commands import *
+from yt_commands import *  # noqa
 from time import sleep, time
 from yt.environment.helpers import wait
 

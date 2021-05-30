@@ -7,7 +7,7 @@ from yt_env_setup import (
     SCHEDULERS_SERVICE,
     CONTROLLER_AGENTS_SERVICE,
 )
-from yt_commands import *
+from yt_commands import *  # noqa
 from yt_helpers import *
 
 from yt.test_helpers import are_almost_equal

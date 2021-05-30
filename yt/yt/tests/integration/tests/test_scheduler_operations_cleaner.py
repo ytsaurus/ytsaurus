@@ -1,5 +1,5 @@
 from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE
-from yt_commands import *
+from yt_commands import *  # noqa
 
 import yt.environment.init_operation_archive as init_operation_archive
 from yt.test_helpers import wait

@@ -43,42 +43,6 @@ _zombie_responses = []
 _events_on_fs = None
 default_api_version = 4
 
-# TODO(levysotsky): Move error codes to separate file in python repo.
-OperationFailedToPrepare = 216
-NoSuchJobShell = 219
-SortOrderViolation = 301
-UniqueKeyViolation = 306
-SchemaViolation = 307
-IncompatibleKeyColumns = 311
-IncompatibleSchemas = 316
-InvalidSchemaValue = 314
-InvalidPartitionedBy = 317
-MisconfiguredPartitions = 318
-ResolveErrorCode = 500
-InvalidInputChunk = 733
-UnsupportedChunkFeature = 734
-AuthorizationErrorCode = 901
-AccountLimitExceeded = 902
-InvalidObjectType = 1006
-TmpfsOverflow = 1124
-UserJobProducedCoreFiles = 1206
-TabletNotMounted = 1702
-AllWritesDisabled = 1703
-BundleResourceLimitExceeded = 1720
-RequestThrottled = 1725
-OperationProgressOutdated = 1911
-NoSuchOperation = 1915
-NoSuchJob = 1916
-NoSuchAttribute = 1920
-FormatDisabled = 1925
-UnrecognizedConfigOption = 2500
-FailedToFetchDynamicConfig = 2600
-DuplicateMatchingDynamicConfigs = 2601
-UnrecognizedDynamicConfigOption = 2602
-InvalidDynamicConfig = 2604
-ControllerMemoryLimitExceeded = 4416
-ContainerDoesNotExist = 12004
-
 # See transaction_client/public.h
 SyncLastCommittedTimestamp = 0x3FFFFFFFFFFFFF01
 AsyncLastCommittedTimestamp = 0x3FFFFFFFFFFFFF04
@@ -90,7 +54,7 @@ def authors(*the_authors):
 
 
 @contextlib.contextmanager
-def raises_yt_error(code=None):
+def raises_yt_error(code=None, required=True):
     """
     Context manager that helps to check that code raises YTError.
     When description is int we check that raised error contains this error code.
@@ -98,7 +62,7 @@ def raises_yt_error(code=None):
     Value of context manager is a single-element list containing caught error.
 
     Examples:
-        with raises_yt_error(SortOrderViolation):
+        with raises_yt_error(yt_error_codes.SortOrderViolation):
             ...
 
         with raises_yt_error("Name of struct field #0 is empty"):
@@ -114,7 +78,8 @@ def raises_yt_error(code=None):
         raise TypeError("code must be str, int or None, actual type: {}".format(code.__class__))
     try:
         yield result_list
-        raise AssertionError("Expected exception to be raised.")
+        if required:
+            raise AssertionError("Expected exception to be raised")
     except YtError as e:
         if isinstance(code, int):
             if not e.contains_code(code):
@@ -194,7 +159,7 @@ def wait_assert(check_fn, *args, **kwargs):
         except AssertionError as e:
             last_exception[:] = [e]
             last_exc_info[:] = [sys.exc_info()]
-            print_debug("Assertion failed, retrying.\n{}".format(e))
+            print_debug("Assertion failed, retrying\n{}".format(e))
             return False
         return True
 

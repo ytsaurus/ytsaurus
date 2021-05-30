@@ -4,7 +4,7 @@ from yt_env_setup import (
     Restarter,
     CONTROLLER_AGENTS_SERVICE,
 )
-from yt_commands import *
+from yt_commands import *  # noqa
 from yt_helpers import *
 
 from yt.yson import *

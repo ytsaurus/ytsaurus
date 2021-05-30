@@ -3,7 +3,8 @@ import pytest
 from test_dynamic_tables import DynamicTablesBase
 
 from yt_env_setup import wait, parametrize_external
-from yt_commands import *
+from yt_commands import *  # noqa
+import yt_error_codes
 import yt.yson as yson
 
 from yt.test_helpers import assert_items_equal
@@ -609,7 +610,7 @@ class TestBulkInsert(DynamicTablesBase):
         wait(lambda: get("//tmp/t_output/@tablet_statistics/overlapping_store_count") == 3)
 
         # Single job processing [1, 3, 2, 4] should fail.
-        with raises_yt_error(SortOrderViolation):
+        with raises_yt_error(yt_error_codes.SortOrderViolation):
             map(
                 in_="//tmp/t_input",
                 out="<append=%true;partially_sorted=%true>//tmp/t_output",
@@ -1236,15 +1237,15 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
         assert select_rows("* from [//tmp/t_output]") == [{"k1": 1, "k2": 2, "v1": 3, "v2": "4"}]
 
         # Missing change_type.
-        with raises_yt_error(SchemaViolation):
+        with raises_yt_error(yt_error_codes.SchemaViolation):
             self._run_operation({"k1": 1, "k2": 1, "$value:v2": "1"})
 
         # Invalid change_type.
-        with raises_yt_error(SchemaViolation):
+        with raises_yt_error(yt_error_codes.SchemaViolation):
             self._run_operation({"k1": 1, "k2": 1, "$change_type": 2, "$value:v2": "1"})
 
         # Invalid flags.
-        with raises_yt_error(SchemaViolation):
+        with raises_yt_error(yt_error_codes.SchemaViolation):
             self._run_operation(
                 {
                     "k1": 1,
@@ -1256,30 +1257,30 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
             )
 
         # Invalid key type.
-        with raises_yt_error(SchemaViolation):
+        with raises_yt_error(yt_error_codes.SchemaViolation):
             self._run_operation(self._prepare_write_row(self._make_value("v2", "1"), k1=1, k2=0.5))
-        with raises_yt_error(SchemaViolation):
+        with raises_yt_error(yt_error_codes.SchemaViolation):
             self._run_operation(self._prepare_delete_row(k1=1, k2=0.5))
 
         # Invalid value type.
-        with raises_yt_error(SchemaViolation):
+        with raises_yt_error(yt_error_codes.SchemaViolation):
             self._run_operation(self._prepare_write_row(self._make_value("v2", 100500), k1=1, k2=1))
 
         # Delete with non-null value columns.
-        with raises_yt_error(SchemaViolation):
+        with raises_yt_error(yt_error_codes.SchemaViolation):
             self._run_operation(self._prepare_delete_row(self._make_value("v2", 1), k1=1, k2=1))
 
         # Null required key column.
-        with raises_yt_error(SchemaViolation):
+        with raises_yt_error(yt_error_codes.SchemaViolation):
             self._run_operation(self._prepare_write_row(self._make_value("v2", 1), k1=1))
             self._run_operation(self._prepare_delete_row(k1=1))
 
         # Null required value column.
-        with raises_yt_error(SchemaViolation):
+        with raises_yt_error(yt_error_codes.SchemaViolation):
             self._run_operation(self._prepare_write_row(k1=1, k2=1))
 
         # Required column marked as missing.
-        with raises_yt_error(SchemaViolation):
+        with raises_yt_error(yt_error_codes.SchemaViolation):
             self._run_operation(self._prepare_write_row(self._make_value("v2", None), k1=1, k2=1))
 
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
@@ -1431,10 +1432,10 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
         self._create_simple_dynamic_table("//tmp/t_output")
         sync_mount_table("//tmp/t_output")
 
-        with raises_yt_error(UniqueKeyViolation):
+        with raises_yt_error(yt_error_codes.UniqueKeyViolation):
             self._run_operation([self._prepare_write_row(key=1), self._prepare_delete_row(key=1)])
 
-        with raises_yt_error(SortOrderViolation):
+        with raises_yt_error(yt_error_codes.SortOrderViolation):
             self._run_operation([self._prepare_delete_row(key=2), self._prepare_write_row(key=1)])
 
     @pytest.mark.parametrize("mode", ["sorted", "ordered"])

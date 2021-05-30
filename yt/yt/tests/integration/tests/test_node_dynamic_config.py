@@ -1,5 +1,6 @@
 from yt_env_setup import YTEnvSetup, wait, Restarter, NODES_SERVICE
-from yt_commands import *
+from yt_commands import *  # noqa
+import yt_error_codes
 from yt.yson import YsonEntity
 
 #################################################################
@@ -134,7 +135,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
 
         def check_alert():
             alerts = get("//sys/cluster_nodes/{0}/@alerts".format(nodes[0]))
-            return len(alerts) == 1 and alerts[0]["code"] == UnrecognizedDynamicConfigOption
+            return len(alerts) == 1 and alerts[0]["code"] == yt_error_codes.UnrecognizedDynamicConfigOption
 
         wait(check_alert)
         wait(lambda: len(get("//sys/cluster_nodes/{0}/@alerts".format(nodes[1]))) == 0)
@@ -175,7 +176,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
 
         def check_alert():
             alerts = get("//sys/cluster_nodes/{0}/@alerts".format(nodes[0]))
-            return len(alerts) == 1 and alerts[0]["code"] == InvalidDynamicConfig
+            return len(alerts) == 1 and alerts[0]["code"] == yt_error_codes.InvalidDynamicConfig
 
         wait(check_alert)
         wait(lambda: len(get("//sys/cluster_nodes/{0}/@alerts".format(nodes[1]))) == 0)
@@ -214,7 +215,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
 
         def check_alert():
             alerts = get("//sys/cluster_nodes/{0}/@alerts".format(nodes[2]))
-            return len(alerts) == 1 and alerts[0]["code"] == DuplicateMatchingDynamicConfigs
+            return len(alerts) == 1 and alerts[0]["code"] == yt_error_codes.DuplicateMatchingDynamicConfigs
 
         wait(check_alert)
         wait(lambda: self.get_dynamic_config_annotation(nodes[2]) == "foo")

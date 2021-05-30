@@ -1,7 +1,8 @@
 from yt_env_setup import YTEnvSetup
-from yt_commands import *
+from yt_commands import *  # noqa
 
 from yt_helpers import skip_if_no_descending
+import yt_error_codes
 
 import pytest
 
@@ -517,7 +518,7 @@ class TestConcatenate(YTEnvSetup):
             attributes={"schema": make_schema([{"name": "a", "type": "int64", "sort_order": sort_order}])},
         )
 
-        with raises_yt_error(SortOrderViolation):
+        with raises_yt_error(yt_error_codes.SortOrderViolation):
             concatenate(["//tmp/in1", "//tmp/in2"], "//tmp/out")
 
     @authors("gritukan")
@@ -590,7 +591,7 @@ class TestConcatenate(YTEnvSetup):
             },
         )
 
-        with raises_yt_error(SchemaViolation):
+        with raises_yt_error(yt_error_codes.SchemaViolation):
             concatenate(["//tmp/in1"], "//tmp/out2")
 
         create(
@@ -643,7 +644,7 @@ class TestConcatenate(YTEnvSetup):
         )
         write_table("//tmp/out1", make_rows([3, 4]))
 
-        with raises_yt_error(SortOrderViolation):
+        with raises_yt_error(yt_error_codes.SortOrderViolation):
             concatenate(["//tmp/in1"], "<append=true>//tmp/out1")
 
         concatenate(["//tmp/in2"], "<append=true>//tmp/out1")
@@ -680,7 +681,7 @@ class TestConcatenate(YTEnvSetup):
             },
         )
         write_table("//tmp/in4", make_rows([2]))
-        with raises_yt_error(UniqueKeyViolation):
+        with raises_yt_error(yt_error_codes.UniqueKeyViolation):
             concatenate(["//tmp/in4", "//tmp/in4"], "<append=true>//tmp/in4")
 
     @authors("gritukan")
@@ -714,11 +715,11 @@ class TestConcatenate(YTEnvSetup):
         create("table", "//tmp/out", attributes={"schema": unique_keys_schema})
 
         # No. Keys are not unique.
-        with raises_yt_error(UniqueKeyViolation):
+        with raises_yt_error(yt_error_codes.UniqueKeyViolation):
             concatenate(["//tmp/in1", "//tmp/in2"], "//tmp/out")
 
         # No. Schema is too weak.
-        with raises_yt_error(SchemaViolation):
+        with raises_yt_error(yt_error_codes.SchemaViolation):
             concatenate(["//tmp/in1", "//tmp/in3"], "//tmp/out")
 
     @authors("gritukan")

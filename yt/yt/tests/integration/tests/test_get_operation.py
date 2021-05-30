@@ -1,9 +1,11 @@
 from yt_env_setup import YTEnvSetup
-from yt_commands import *
+from yt_commands import *  # noqa
 
 import yt.environment.init_operation_archive as init_operation_archive
 
 from yt.test_helpers import wait
+import yt_error_codes
+
 from yt.common import uuid_to_parts
 
 import pytest
@@ -170,7 +172,7 @@ class TestGetOperation(YTEnvSetup):
         op.track()
 
         remove(op.get_path(), force=True)
-        with raises_yt_error(NoSuchOperation):
+        with raises_yt_error(yt_error_codes.NoSuchOperation):
             get_operation(op.id)
 
     @authors("ilpauzner")
@@ -274,7 +276,7 @@ class TestGetOperation(YTEnvSetup):
             if "alerts" in res_get_operation and "alerts" in res_cypress:
                 assert res_get_operation["alerts"] == res_cypress["alerts"]
 
-        with raises_yt_error(NoSuchAttribute):
+        with raises_yt_error(yt_error_codes.NoSuchAttribute):
             get_operation(op.id, attributes=["nonexistent-attribute-ZZZ"])
 
         release_breakpoint()
@@ -299,7 +301,7 @@ class TestGetOperation(YTEnvSetup):
         )
         assert res_get_operation_archive["slot_index_per_pool_tree"]["default"] == 0
 
-        with raises_yt_error(NoSuchAttribute):
+        with raises_yt_error(yt_error_codes.NoSuchAttribute):
             get_operation(op.id, attributes=["nonexistent-attribute-ZZZ"])
 
     @authors("gritukan")
@@ -357,7 +359,7 @@ class TestGetOperation(YTEnvSetup):
 
     @authors("kiselyovp", "ilpauzner")
     def test_not_existing_operation(self):
-        with raises_yt_error(NoSuchOperation):
+        with raises_yt_error(yt_error_codes.NoSuchOperation):
             get_operation("00000000-00000000-0000000-00000001")
 
     @authors("levysotsky")
@@ -436,7 +438,7 @@ class TestGetOperation(YTEnvSetup):
         assert res_cypress["progress"]["jobs"]["running"] > 0
 
         sync_unmount_table("//sys/operations_archive/ordered_by_id")
-        with raises_yt_error(OperationProgressOutdated):
+        with raises_yt_error(yt_error_codes.OperationProgressOutdated):
             get_operation(op.id, maximum_cypress_progress_age=0)
         sync_mount_table("//sys/operations_archive/ordered_by_id")
 
@@ -450,7 +452,7 @@ class TestGetOperation(YTEnvSetup):
 
         # Unmount table again and check that error is _not_ "No such operation".
         sync_unmount_table("//sys/operations_archive/ordered_by_id")
-        with raises_yt_error(TabletNotMounted):
+        with raises_yt_error(yt_error_codes.TabletNotMounted):
             get_operation(op.id)
 
     @authors("levysotsky")

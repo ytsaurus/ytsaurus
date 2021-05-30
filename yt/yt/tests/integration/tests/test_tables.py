@@ -1,6 +1,7 @@
 from yt_env_setup import YTEnvSetup
-from yt_commands import *
+from yt_commands import *  # noqa
 from yt_helpers import skip_if_no_descending
+import yt_error_codes
 
 from yt.yson import to_yson_type, loads
 from yt.environment.helpers import assert_items_equal
@@ -235,7 +236,7 @@ class TestTables(YTEnvSetup):
             first_chunk, second_chunk = second_chunk, first_chunk
         sorted_by = [{"name": "a", "sort_order": sort_order}]
         write_table("//tmp/table", first_chunk, sorted_by=sorted_by)
-        with raises_yt_error(SortOrderViolation):
+        with raises_yt_error(yt_error_codes.SortOrderViolation):
             write_table("<append=true>//tmp/table", second_chunk, sorted_by=sorted_by)
         self._wait_until_unlocked("//tmp/table")
 
@@ -1345,25 +1346,25 @@ class TestTables(YTEnvSetup):
         suffix = "allow_static"
         create_static_descending(suffix)
         alter_static_regular_to_static_descending(suffix)
-        with raises_yt_error(InvalidSchemaValue):
+        with raises_yt_error(yt_error_codes.InvalidSchemaValue):
             alter_static_descending_to_dynamic_descending(suffix)
-        with raises_yt_error(InvalidSchemaValue):
+        with raises_yt_error(yt_error_codes.InvalidSchemaValue):
             create_dynamic_descending(suffix)
-        with raises_yt_error(InvalidSchemaValue):
+        with raises_yt_error(yt_error_codes.InvalidSchemaValue):
             alter_dynamic_regular_to_dynamic_descending(suffix)
 
         # No tables are allowed to have descending sort order.
         suffix = "deny_all"
         set("//sys/@config/enable_descending_sort_order", False)
-        with raises_yt_error(InvalidSchemaValue):
+        with raises_yt_error(yt_error_codes.InvalidSchemaValue):
             create_static_descending(suffix)
-        with raises_yt_error(InvalidSchemaValue):
+        with raises_yt_error(yt_error_codes.InvalidSchemaValue):
             alter_static_regular_to_static_descending(suffix)
-        with raises_yt_error(InvalidSchemaValue):
+        with raises_yt_error(yt_error_codes.InvalidSchemaValue):
             alter_static_descending_to_dynamic_descending(suffix)
-        with raises_yt_error(InvalidSchemaValue):
+        with raises_yt_error(yt_error_codes.InvalidSchemaValue):
             create_dynamic_descending(suffix)
-        with raises_yt_error(InvalidSchemaValue):
+        with raises_yt_error(yt_error_codes.InvalidSchemaValue):
             alter_dynamic_regular_to_dynamic_descending(suffix)
 
     @authors("babenko", "ignat")
@@ -1933,21 +1934,21 @@ class TestTables(YTEnvSetup):
         write_table("<chunk_sort_columns=[{name=a;sort_order=descending};{name=b;sort_order=ascending}]>//tmp/t1", [make_row(-1, 2, 3), make_row(-4, 5, 6)])
         assert read_table("//tmp/t1") == [make_row(-1, 2, 3), make_row(-4, 5, 6)]
 
-        with raises_yt_error(SchemaViolation):
+        with raises_yt_error(yt_error_codes.SchemaViolation):
             write_table("<chunk_sort_columns=[{name=a;sort_order=descending}]>//tmp/t1", [make_row(-31, 41, 59)])
 
-        with raises_yt_error(IncompatibleKeyColumns):
+        with raises_yt_error(yt_error_codes.IncompatibleKeyColumns):
             write_table("<chunk_sort_columns=[{name=a;sort_order=ascending};{name=b;sort_order=ascending}]>//tmp/t1", [make_row(-31, 41, 59)])
 
-        with raises_yt_error(IncompatibleKeyColumns):
+        with raises_yt_error(yt_error_codes.IncompatibleKeyColumns):
             write_table("<chunk_sort_columns=[{name=f;sort_order=ascending};{name=b;sort_order=ascending}]>//tmp/t1", [make_row(-31, 41, 59)])
 
-        with raises_yt_error(IncompatibleKeyColumns):
+        with raises_yt_error(yt_error_codes.IncompatibleKeyColumns):
             write_table(
                 "<chunk_sort_columns=[{name=a;sort_order=descending};{name=b;sort_order=ascending};{name=d;sort_order=ascending}]>//tmp/t1",
                 [{"a": -31, "b": 41, "d": 59, "c": 23}])
 
-        with raises_yt_error(SortOrderViolation):
+        with raises_yt_error(yt_error_codes.SortOrderViolation):
             write_table(
                 "<chunk_sort_columns=[{name=a;sort_order=descending};{name=b;sort_order=ascending};{name=c;sort_order=ascending}]>//tmp/t1",
                 [make_row(-100, 200, 300), make_row(-100, 200, 100)],
@@ -2040,7 +2041,7 @@ class TestTables(YTEnvSetup):
             },
         )
 
-        with raises_yt_error(SchemaViolation):
+        with raises_yt_error(yt_error_codes.SchemaViolation):
             write_table(
                 "<chunk_sort_columns=[a];append=true>//tmp/t1",
                 make_rows([1, 2, 2, 3]),
@@ -2103,12 +2104,12 @@ class TestTables(YTEnvSetup):
         )
 
         # Keys inside chunks are not unique.
-        with raises_yt_error(UniqueKeyViolation):
+        with raises_yt_error(yt_error_codes.UniqueKeyViolation):
             write_table(
                 "<chunk_sort_columns=[a];chunk_unique_keys=true;append=true>//tmp/t1",
                 make_rows([2, 2]),
             )
-        with raises_yt_error(UniqueKeyViolation):
+        with raises_yt_error(yt_error_codes.UniqueKeyViolation):
             write_table(
                 "<chunk_sort_columns=[a];chunk_unique_keys=true;append=true>//tmp/t2",
                 make_rows([2, 2]),
@@ -2116,11 +2117,11 @@ class TestTables(YTEnvSetup):
 
         # `key_column_count' infers from table schema.
         write_table("<chunk_unique_keys=true;append=true>//tmp/t1", make_rows([3]))
-        with raises_yt_error(InvalidSchemaValue):
+        with raises_yt_error(yt_error_codes.InvalidSchemaValue):
             write_table("<chunk_unique_keys=true;append=true>//tmp/t2", make_rows([3]))
 
         # Keys are not ordered between chunks.
-        with raises_yt_error(SortOrderViolation):
+        with raises_yt_error(yt_error_codes.SortOrderViolation):
             write_table(
                 "<chunk_sort_columns=[a];chunk_unique_keys=true;append=true>//tmp/t1",
                 make_rows([0]),
@@ -2266,13 +2267,13 @@ class TestTables(YTEnvSetup):
         write_table("<append=true>//tmp/t", rows[1])
         assert get("//tmp/t/@chunk_count") == 2
 
-        with raises_yt_error(IncompatibleSchemas):
+        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
             alter_table("//tmp/t", schema=bad_schema_1)
 
-        with raises_yt_error(IncompatibleSchemas):
+        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
             alter_table("//tmp/t", schema=bad_schema_2)
 
-        with raises_yt_error(IncompatibleSchemas):
+        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
             alter_table("//tmp/t", schema=bad_schema_3)
 
         alter_table("//tmp/t", schema=new_schema)
@@ -2290,7 +2291,7 @@ class TestTables(YTEnvSetup):
             ]
             assert get("//tmp/t_out/@chunk_count") == 1
 
-            with raises_yt_error(IncompatibleSchemas):
+            with raises_yt_error(yt_error_codes.IncompatibleSchemas):
                 alter_table("//tmp/t", schema=old_schema)
 
     @authors("akozhikhov")
@@ -2463,7 +2464,7 @@ class TestTables(YTEnvSetup):
             else:
                 # NB: after table altering last key becomes [42, #], which is greater than
                 # [42, 23] in descending sort order.
-                with raises_yt_error(SortOrderViolation):
+                with raises_yt_error(yt_error_codes.SortOrderViolation):
                     append_fn(dst)
 
         validate_or_expect_error(append_via_write_table, "write_table")
@@ -2822,11 +2823,11 @@ class TestTablesMulticell(TestTables):
         )
         write_table("//tmp/t", [{"foo": "bar"}])
 
-        with raises_yt_error(UnsupportedChunkFeature):
+        with raises_yt_error(yt_error_codes.UnsupportedChunkFeature):
             read_table("//tmp/t")
 
         create("table", "//tmp/t_out")
-        with raises_yt_error(UnsupportedChunkFeature):
+        with raises_yt_error(yt_error_codes.UnsupportedChunkFeature):
             remote_copy(
                 in_="//tmp/t",
                 out="//tmp/t_out",

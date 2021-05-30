@@ -5,7 +5,7 @@ from copy import deepcopy
 from flaky import flaky
 
 from yt_env_setup import YTEnvSetup, wait
-from yt_commands import *
+from yt_commands import *  # noqa
 
 from yt.yson import to_yson_type, YsonEntity
 

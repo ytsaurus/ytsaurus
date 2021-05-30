@@ -6,7 +6,8 @@ from yt_env_setup import (
     Restarter,
     SCHEDULERS_SERVICE,
 )
-from yt_commands import *
+from yt_commands import *  # noqa
+import yt_error_codes
 
 import yt.environment.init_operation_archive as init_operation_archive
 from yt.environment import arcadia_interop
@@ -820,7 +821,7 @@ class TestCoreTable(YTEnvSetup):
         release_breakpoint()
 
         if fail_job_on_core_dump:
-            with raises_yt_error(UserJobProducedCoreFiles):
+            with raises_yt_error(yt_error_codes.UserJobProducedCoreFiles):
                 op.track()
         else:
             op.track()

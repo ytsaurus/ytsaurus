@@ -1,11 +1,46 @@
 from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE
-from yt_commands import *
+
+from yt_commands import (  # noqa
+    authors, print_debug, wait, wait_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
+    events_on_fs, reset_events_on_fs,
+    create, ls, get, set, copy, move, remove, link, exists,
+    create_account, create_network_project, create_tmpdir, create_user, create_group,
+    create_pool, create_pool_tree,
+    create_data_center, create_rack,
+    make_ace, check_permission, add_member,
+    make_batch_request, execute_batch, get_batch_error,
+    start_transaction, abort_transaction, lock,
+    read_file, write_file, read_table, write_table,
+    map, reduce, map_reduce, join_reduce, merge, vanilla, sort, erase,
+    run_test_vanilla, run_sleeping_vanilla,
+    abort_job, list_jobs, get_job, abandon_job,
+    get_job_fail_context, get_job_input, get_job_stderr, get_job_spec,
+    dump_job_context, poll_job_shell,
+    abort_op, complete_op, suspend_op, resume_op,
+    get_operation, list_operations, clean_operations,
+    get_operation_cypress_path, scheduler_orchid_pool_path,
+    scheduler_orchid_default_pool_tree_path, scheduler_orchid_operation_path,
+    scheduler_orchid_default_pool_tree_config_path, scheduler_orchid_path,
+    scheduler_orchid_node_path, scheduler_orchid_pool_tree_config_path,
+    sync_create_cells, sync_mount_table,
+    get_first_chunk_id, get_singular_chunk_id, multicell_sleep,
+    update_nodes_dynamic_config, update_controller_agent_config,
+    update_op_parameters, enable_op_detailed_logs,
+    set_node_banned, set_banned_flag,
+    check_all_stderrs,
+    create_test_tables, PrepareTables,
+    get_statistics,
+    make_random_string, raises_yt_error,
+    normalize_schema, make_schema)
+
 from yt_helpers import Profiler
 
+import yt_error_codes
+
 import yt.environment.init_operation_archive as init_operation_archive
-from yt.yson import *
+import yt.yson as yson
 from yt.test_helpers import are_almost_equal
-from yt.common import update
+from yt.common import update, YtError
 
 from flaky import flaky
 
@@ -158,7 +193,7 @@ class TestSandboxTmpfs(YTEnvSetup):
                     "copy_files": True,
                     "file_paths": [
                         "//tmp/test_file",
-                        to_yson_type("//tmp/script", attributes={"file_name": "script.py"}),
+                        yson.to_yson_type("//tmp/script", attributes={"file_name": "script.py"}),
                     ],
                 }
             },
@@ -423,7 +458,7 @@ time.sleep(10)
         create("file", "//tmp/file.txt")
         write_file("//tmp/file.txt", "{trump = moron};\n")
 
-        op = map(
+        map(
             command="cat; cat ./tmpfs/trump.txt",
             in_="//tmp/t_input",
             out="//tmp/t_output",
@@ -595,7 +630,7 @@ time.sleep(10)
 
     @authors("ignat")
     def test_vanilla(self):
-        op = vanilla(
+        vanilla(
             spec={
                 "tasks": {
                     "a": {"job_count": 2, "command": "sleep 5", "tmpfs_volumes": []},
@@ -946,7 +981,7 @@ class TestArtifactCacheBypass(YTEnvSetup):
         create("file", "//tmp/file")
         write_file("//tmp/file", "A" * 10 ** 7)
 
-        with raises_yt_error(TmpfsOverflow):
+        with raises_yt_error(yt_error_codes.TmpfsOverflow):
             map(
                 command="cat table",
                 in_="//tmp/t_input",
@@ -1392,7 +1427,7 @@ class TestUserFiles(YTEnvSetup):
             in_="//tmp/t_input",
             out=["//tmp/t_output"],
             command="cat dir/my_file >&2; cat",
-            file=[to_yson_type("//tmp/test_file", attributes={"file_name": "dir/my_file"})],
+            file=[yson.to_yson_type("//tmp/test_file", attributes={"file_name": "dir/my_file"})],
             spec={"mapper": {"copy_files": copy_files}},
             verbose=True,
         )
@@ -1402,7 +1437,7 @@ class TestUserFiles(YTEnvSetup):
                 in_="//tmp/t_input",
                 out=["//tmp/t_output"],
                 command="cat dir/my_file >&2; cat",
-                file=[to_yson_type("//tmp/test_file", attributes={"file_name": "../dir/my_file"})],
+                file=[yson.to_yson_type("//tmp/test_file", attributes={"file_name": "../dir/my_file"})],
                 spec={"max_failed_job_count": 1, "mapper": {"copy_files": copy_files}},
                 verbose=True,
             )
@@ -1428,7 +1463,7 @@ class TestUserFiles(YTEnvSetup):
             in_="//tmp/t_input",
             out=["//tmp/t_output"],
             command="cat my_file; cat",
-            file=[to_yson_type("#" + file_id, attributes={"file_name": "my_file"})],
+            file=[yson.to_yson_type("#" + file_id, attributes={"file_name": "my_file"})],
             verbose=True,
         )
 
@@ -1439,7 +1474,7 @@ class TestUserFiles(YTEnvSetup):
                 in_="//tmp/t_input",
                 out=["//tmp/t_output"],
                 command="cat my_file; cat",
-                file=[to_yson_type("#" + file)],
+                file=[yson.to_yson_type("#" + file)],
                 spec={"max_failed_job_count": 1},
                 verbose=True,
             )
@@ -1468,7 +1503,7 @@ class TestUserFiles(YTEnvSetup):
             file=[
                 file1,
                 file2,
-                to_yson_type(file3, attributes={"file_name": "file3_name_in_path"}),
+                yson.to_yson_type(file3, attributes={"file_name": "file3_name_in_path"}),
             ],
         )
 
@@ -1656,7 +1691,7 @@ class TestSecureVault(YTEnvSetup):
 
     secure_vault = {
         "int64": 42424243,
-        "uint64": YsonUint64(1234),
+        "uint64": yson.YsonUint64(1234),
         "string": "penguin",
         "boolean": True,
         "double": 3.14,
@@ -1676,13 +1711,13 @@ class TestSecureVault(YTEnvSetup):
             out="//tmp/t_out",
             spec=merged_spec,
             command="""
-                echo {YT_SECURE_VAULT=$YT_SECURE_VAULT}\;;
-                echo {YT_SECURE_VAULT_int64=$YT_SECURE_VAULT_int64}\;;
-                echo {YT_SECURE_VAULT_uint64=$YT_SECURE_VAULT_uint64}\;;
-                echo {YT_SECURE_VAULT_string=$YT_SECURE_VAULT_string}\;;
-                echo {YT_SECURE_VAULT_boolean=$YT_SECURE_VAULT_boolean}\;;
-                echo {YT_SECURE_VAULT_double=$YT_SECURE_VAULT_double}\;;
-                echo {YT_SECURE_VAULT_composite=\\"$YT_SECURE_VAULT_composite\\"}\;;
+                echo -e "{YT_SECURE_VAULT=$YT_SECURE_VAULT};"
+                echo -e "{YT_SECURE_VAULT_int64=$YT_SECURE_VAULT_int64};"
+                echo -e "{YT_SECURE_VAULT_uint64=$YT_SECURE_VAULT_uint64};"
+                echo -e "{YT_SECURE_VAULT_string=$YT_SECURE_VAULT_string};"
+                echo -e "{YT_SECURE_VAULT_boolean=$YT_SECURE_VAULT_boolean};"
+                echo -e "{YT_SECURE_VAULT_double=$YT_SECURE_VAULT_double};"
+                echo -e "{YT_SECURE_VAULT_composite=\\"$YT_SECURE_VAULT_composite\\"};"
            """,
         )
         return op
@@ -1959,4 +1994,3 @@ class TestUserJobMonitoring(YTEnvSetup):
                     },
                 },
             )
-
