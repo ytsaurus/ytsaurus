@@ -40,6 +40,11 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                     "max_jobs_per_split": 3,
                 }
             },
+            "operation_options": {
+                "spec_template": {
+                    "use_new_sorted_pool": False,
+                }
+            },
         }
     }
 
@@ -2162,9 +2167,8 @@ done
     @authors("renadeen")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_reduce_skewed_key_distribution_two_tables(self, sort_order):
-        if sort_order == "descending":
-            skip_if_no_descending(self.Env)
-            self.skip_if_legacy_sorted_pool()
+        skip_if_no_descending(self.Env)
+        self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/in1")
         create("table", "//tmp/out")
