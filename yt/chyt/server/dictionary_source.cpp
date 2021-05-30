@@ -168,7 +168,7 @@ void RegisterTableDictionarySource(THost* host)
         const Poco::Util::AbstractConfiguration& config,
         const std::string& dictSectionPath,
         DB::Block& sampleBlock,
-        DB::ContextPtr /* context */,
+        DB::ContextConstPtr /* context */,
         const std::string& /* default_database */,
         bool /* checkConfig */) -> DB::DictionarySourcePtr
     {

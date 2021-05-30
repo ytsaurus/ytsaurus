@@ -41,7 +41,7 @@ class TFunctionConvertYson : public IFunction
 {
 public:
     static constexpr auto name = "ConvertYson";
-    static FunctionPtr create(ContextPtr)
+    static FunctionPtr create(ContextConstPtr)
     {
         return std::make_shared<TFunctionConvertYson>();
     }

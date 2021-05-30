@@ -197,7 +197,7 @@ public:
         this->OutputDataType_ = std::make_shared<TCHOutputDataType>();
     }
 
-    static FunctionPtr create(ContextPtr /*context*/)
+    static FunctionPtr create(ContextConstPtr /*context*/)
     {
         return std::make_shared<TScalarYPathFunction>();
     }
@@ -213,7 +213,7 @@ public:
         this->OutputDataType_ = std::make_shared<DataTypeArray>(std::make_shared<TCHOutputElementDataType>());
     }
 
-    static FunctionPtr create(ContextPtr /* context */)
+    static FunctionPtr create(ContextConstPtr /* context */)
     {
         return std::make_shared<TArrayYPathFunction>();
     }
@@ -293,7 +293,7 @@ public:
         return 0;
     }
 
-    static FunctionPtr create(ContextPtr /*context*/)
+    static FunctionPtr create(ContextConstPtr /*context*/)
     {
         return std::make_shared<TFunctionYPathRawImpl>();
     }
@@ -447,7 +447,7 @@ public:
         return 3;
     }
 
-    static FunctionPtr create(ContextPtr /* context */)
+    static FunctionPtr create(ContextConstPtr /* context */)
     {
         return std::make_shared<TFunctionYPathExtractImpl>();
     }
