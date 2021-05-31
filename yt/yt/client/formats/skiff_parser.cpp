@@ -196,7 +196,7 @@ TSkiffToUnversionedValueConverter CreateSimpleValueConverter(
         case ESimpleLogicalValueType::Int32:
         case ESimpleLogicalValueType::Int64:
 
-        case ESimpleLogicalValueType::Timestamp:
+        case ESimpleLogicalValueType::Interval:
             CheckWireType(
                 wireType,
                 {EWireType::Int8, EWireType::Int16, EWireType::Int32, EWireType::Int64, EWireType::Yson32});
@@ -209,7 +209,7 @@ TSkiffToUnversionedValueConverter CreateSimpleValueConverter(
 
         case ESimpleLogicalValueType::Date:
         case ESimpleLogicalValueType::Datetime:
-        case ESimpleLogicalValueType::Interval:
+        case ESimpleLogicalValueType::Timestamp:
             CheckWireType(
                 wireType,
                 {EWireType::Uint8, EWireType::Uint16, EWireType::Uint32, EWireType::Uint64, EWireType::Yson32});

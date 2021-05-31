@@ -35,6 +35,57 @@ NTableClient::TUnversionedValue TTableField::ToUnversionedValue(const NTableClie
         }
     }, Value_);
 }
+
+TTableField::TValue TTableField::ExtractValue(const NTableClient::TUnversionedValue& value)
+{
+    auto getString = [] (const TUnversionedValue& value) {
+        return TString(value.Data.String, value.Length);
+    };
+    switch (value.Type) {
+        case EValueType::Null:
+            return nullptr;
+        case EValueType::Int64:
+            return value.Data.Int64;
+        case EValueType::Uint64:
+            return value.Data.Uint64;
+        case EValueType::Boolean:
+            return value.Data.Boolean;
+        case EValueType::Double:
+            return value.Data.Double;
+        case EValueType::String:
+            return getString(value);
+        case EValueType::Any:
+            return TAny{getString(value)};
+        case EValueType::Composite:
+            return TComposite{getString(value)};
+        case EValueType::Min:
+        case EValueType::Max:
+        case EValueType::TheBottom:
+            break;
+    }
+    YT_ABORT();
+}
+
+bool operator ==(const TTableField::TAny& lhs, const TTableField::TAny& rhs)
+{
+    return lhs.Value == rhs.Value;
+}
+
+bool operator !=(const TTableField::TAny& lhs, const TTableField::TAny& rhs)
+{
+    return !(lhs == rhs);
+}
+
+bool operator ==(const TTableField::TComposite& lhs, const TTableField::TComposite& rhs)
+{
+    return lhs.Value == rhs.Value;
+}
+
+bool operator !=(const TTableField::TComposite& lhs, const TTableField::TComposite& rhs)
+{
+    return !(lhs.Value == rhs.Value);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static void EnsureTypesMatch(EValueType expected, EValueType actual)
