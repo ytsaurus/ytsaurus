@@ -107,6 +107,7 @@ class TChunkJobBase
 public:
     DEFINE_SIGNAL(void(const TNodeResources& resourcesDelta), ResourcesUpdated);
     DEFINE_SIGNAL(void(), PortsReleased);
+    DEFINE_SIGNAL(void(), JobPrepared);
     DEFINE_SIGNAL(void(), JobFinished);
 
 public:
@@ -302,6 +303,12 @@ public:
         YT_ABORT();
     }
 
+    virtual const TChunkCacheStatistics& GetChunkCacheStatistics() const override
+    {
+        const static TChunkCacheStatistics EmptyChunkCacheStatistics;
+        return EmptyChunkCacheStatistics;
+    }
+
     virtual TYsonString GetStatistics() const override
     {
         return TYsonString();
@@ -461,6 +468,7 @@ protected:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         try {
+            JobPrepared_.Fire();
             DoRun();
         } catch (const std::exception& ex) {
             SetFailed(ex);

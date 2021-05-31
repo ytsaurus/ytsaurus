@@ -21,6 +21,13 @@ DECLARE_REFCOUNTED_CLASS(TGpuManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TMappedMemoryControllerConfig)
 DECLARE_REFCOUNTED_CLASS(TJobController)
 
+struct TChunkCacheStatistics
+{
+    i64 CacheHitArtifactsSize = 0;
+    i64 CacheMissArtifactsSize = 0;
+    i64 CacheBypassedArtifactsSize = 0;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJobAgent

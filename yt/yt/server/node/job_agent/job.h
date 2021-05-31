@@ -36,6 +36,8 @@ struct IJob
 
     DECLARE_INTERFACE_SIGNAL(void(), PortsReleased);
 
+    DECLARE_INTERFACE_SIGNAL(void(), JobPrepared);
+
     DECLARE_INTERFACE_SIGNAL(void(), JobFinished);
 
     virtual void Start() = 0;
@@ -77,6 +79,8 @@ struct IJob
     virtual void SetFailContext(const TString& value) = 0;
     virtual void SetProfile(const TJobProfile& value) = 0;
     virtual void SetCoreInfos(NCoreDump::TCoreInfos value) = 0;
+
+    virtual const TChunkCacheStatistics& GetChunkCacheStatistics() const = 0;
 
     virtual NYson::TYsonString GetStatistics() const = 0;
     virtual void SetStatistics(const NYson::TYsonString& statistics) = 0;

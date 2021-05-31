@@ -104,6 +104,7 @@ class TJob
 public:
     DEFINE_SIGNAL(void(const TNodeResources&), ResourcesUpdated);
     DEFINE_SIGNAL(void(), PortsReleased);
+    DEFINE_SIGNAL(void(), JobPrepared);
     DEFINE_SIGNAL(void(), JobFinished);
 
 public:
@@ -412,6 +413,8 @@ public:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         GuardedAction([&] {
+            JobPrepared_.Fire();
+
             YT_LOG_INFO("Job prepared");
 
             ValidateJobPhase(EJobPhase::PreparingJob);
@@ -653,6 +656,13 @@ public:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         CoreInfos_ = std::move(value);
+    }
+
+    virtual const TChunkCacheStatistics& GetChunkCacheStatistics() const override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        return ChunkCacheStatistics_;
     }
 
     virtual TYsonString GetStatistics() const override
@@ -980,9 +990,7 @@ private:
     std::vector<std::pair<TString, TIP6Address>> ResolvedNodeAddresses_;
 
     // Artifact statistics.
-    i64 CacheHitArtifactsSize_ = 0;
-    i64 CacheMissArtifactsSize_ = 0;
-    i64 CacheBypassedArtifactsSize_ = 0;
+    TChunkCacheStatistics ChunkCacheStatistics_;
 
     std::vector<TFuture<void>> ArtifactPrepareFutures_;
 
@@ -1907,7 +1915,7 @@ private:
         for (const auto& artifact : Artifacts_) {
             i64 artifactSize = artifact.Key.GetCompressedDataSize();
             if (artifact.BypassArtifactCache) {
-                CacheBypassedArtifactsSize_ += artifactSize;
+                ChunkCacheStatistics_.CacheBypassedArtifactsSize += artifactSize;
                 asyncChunks.push_back(MakeFuture<IChunkPtr>(nullptr));
                 continue;
             }
@@ -2171,17 +2179,17 @@ private:
 
     void EnrichStatisticsWithArtifactsInfo(TStatistics* statistics)
     {
-        statistics->AddSample("/exec_agent/artifacts/cache_hit_artifacts_size", CacheHitArtifactsSize_);
-        statistics->AddSample("/exec_agent/artifacts/cache_miss_artifacts_size", CacheMissArtifactsSize_);
-        statistics->AddSample("/exec_agent/artifacts/cache_bypassed_artifacts_size", CacheBypassedArtifactsSize_);
+        statistics->AddSample("/exec_agent/artifacts/cache_hit_artifacts_size", ChunkCacheStatistics_.CacheHitArtifactsSize);
+        statistics->AddSample("/exec_agent/artifacts/cache_miss_artifacts_size", ChunkCacheStatistics_.CacheMissArtifactsSize);
+        statistics->AddSample("/exec_agent/artifacts/cache_bypassed_artifacts_size", ChunkCacheStatistics_.CacheBypassedArtifactsSize);
     }
 
     void UpdateArtifactStatistics(i64 compressedDataSize, bool cacheHit)
     {
         if (cacheHit) {
-            CacheHitArtifactsSize_ += compressedDataSize;
+            ChunkCacheStatistics_.CacheHitArtifactsSize += compressedDataSize;
         } else {
-            CacheMissArtifactsSize_ += compressedDataSize;
+            ChunkCacheStatistics_.CacheMissArtifactsSize += compressedDataSize;
         }
     }
 
