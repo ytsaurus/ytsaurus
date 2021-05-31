@@ -942,7 +942,11 @@ class YTEnvSetup(object):
         if should_set_default_config:
             yt_commands.set(
                 scheduler_pool_trees_root + "/default/@config",
-                {"nodes_filter": "", "main_resource": "cpu"})
+                {
+                    "nodes_filter": "",
+                    "main_resource": "cpu",
+                    "min_child_heap_size": 3,
+                })
 
         if scheduler_count > 0:
             self._wait_for_scheduler_state_restored(driver=driver)
