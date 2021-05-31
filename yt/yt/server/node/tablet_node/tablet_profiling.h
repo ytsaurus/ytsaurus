@@ -282,6 +282,10 @@ using TTabletDistributedThrottlerTimersVector = TEnumIndexedVector<
     ETabletDistributedThrottlerKind,
     NProfiling::TEventTimer>;
 
+using TTabletDistributedThrottlerCounters = TEnumIndexedVector<
+    ETabletDistributedThrottlerKind,
+    NProfiling::TCounter>;
+
 class TTableProfiler
     : public TRefCounted
 {
@@ -309,6 +313,7 @@ public:
     TChunkWriteCounters* GetWriteCounters(EChunkWriteProfilingMethod method, bool failed);
     TChunkReadCounters* GetReadCounters(EChunkReadProfilingMethod method, bool failed);
     NProfiling::TEventTimer* GetThrottlerTimer(ETabletDistributedThrottlerKind kind);
+    NProfiling::TCounter* GetThrottlerCounter(ETabletDistributedThrottlerKind kind);
 
 private:
     bool Disabled_ = true;
@@ -336,6 +341,7 @@ private:
     TChunkWriteCountersVector ChunkWriteCounters_;
     TChunkReadCountersVector ChunkReadCounters_;
     TTabletDistributedThrottlerTimersVector ThrottlerWaitTimers_;
+    TTabletDistributedThrottlerCounters ThrottlerCounters_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableProfiler)

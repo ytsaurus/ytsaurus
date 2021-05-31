@@ -166,10 +166,16 @@ private:
             slotOptions->SnapshotAccount,
             slotOptions->SnapshotPrimaryMedium);
 
-        const auto& writeThrottler = tabletSnapshot->DistributedThrottlers[ETabletDistributedThrottlerKind::Write];
+        auto throttlerKind = ETabletDistributedThrottlerKind::Write;
+        const auto& writeThrottler = tabletSnapshot->DistributedThrottlers[throttlerKind];
         if (writeThrottler && !writeThrottler->TryAcquire(dataWeight)) {
+            tabletSnapshot->TableProfiler->GetThrottlerCounter(throttlerKind)
+                ->Increment();
+
             THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::RequestThrottled,
-                "Write is throttled")
+                "%v to tablet %v is throttled",
+                throttlerKind,
+                tabletId)
                 << TErrorAttribute("queue_total_count", writeThrottler->GetQueueTotalCount());
         }
 

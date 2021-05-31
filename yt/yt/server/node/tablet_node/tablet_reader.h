@@ -15,8 +15,8 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Throttles with corresponding tablet distributed throttler if it's in overdraft.
-void ThrottleUponOverdraft(
+//! Throttles with corresponding tablet distributed throttler if it is in overdraft.
+void ThrowUponThrottlerOverdraft(
     ETabletDistributedThrottlerKind tabletThrottlerKind,
     const TTabletSnapshotPtr& tabletSnapshot,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions);
