@@ -136,10 +136,16 @@ bool TYsonItem::IsEndOfStream() const
 
 void NDetail::TZeroCopyInputStreamReader::RefreshBlock()
 {
+    if (RecordingFrom_) {
+        RecordOutput_->Write(RecordingFrom_, Current_ - RecordingFrom_);
+    }
     TotalReadBlocksSize_ += (Current_ - Begin_);
     size_t size = Reader_->Next(&Begin_);
     Current_ = Begin_;
     End_ = Begin_ + size;
+    if (RecordOutput_) {
+        RecordingFrom_ = Begin_;
+    }
     if (size == 0) {
         Finished_ = true;
     }

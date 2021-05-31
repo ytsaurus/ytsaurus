@@ -1,13 +1,24 @@
 #include "pull_object_builder.h"
+#include "yson_lazy_map.h"
+
+#include <yt/yt/core/yson/detail.h>
 
 #include <yt/yt/python/common/helpers.h>
 
+#include <util/stream/str.h>
+
 namespace NYT::NPython {
+
+using namespace NYTree;
+using namespace NYson;
+using namespace NYson::NDetail;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr const char* attributesStr = "attributes";
+
 TPullObjectBuilder::TPullObjectBuilder(
-    NYson::TYsonPullParser* parser,
+    TYsonPullParser* parser,
     bool alwaysCreateAttributes,
     const std::optional<TString>& encoding)
     : Cursor_(parser)
@@ -39,6 +50,14 @@ TPullObjectBuilder::TPullObjectBuilder(
     if (!Tuple1_) {
         throw Py::Exception();
     }
+
+    Py::Object encodingParam;
+    if (encoding) {
+        encodingParam = Py::String(*encoding);
+    } else {
+        encodingParam = Py::None();
+    }
+    LazyMapParserParams_ = Py::TupleN(encodingParam, Py::Boolean(alwaysCreateAttributes));
 }
 
 PyObjectPtr TPullObjectBuilder::ParseObject(bool hasAttributes)
@@ -48,48 +67,47 @@ PyObjectPtr TPullObjectBuilder::ParseObject(bool hasAttributes)
 
     PyObjectPtr result;
     switch (current.GetType()) {
-        case NYson::EYsonItemType::BeginAttributes: {
+        case EYsonItemType::BeginAttributes: {
             Cursor_.Next();
-            auto attributes = ParseMap(NYson::EYsonItemType::EndAttributes);
-            result = ParseObject(true);
-            static const char* attributesStr = "attributes";
+            auto attributes = ParseMap(EYsonItemType::EndAttributes);
+            result = ParseObject(/* hasAttributes */ true);
             if (PyObject_SetAttrString(result.get(), attributesStr, attributes.get()) == -1) {
                 throw Py::Exception();
             }
             return result;
-        } case NYson::EYsonItemType::BeginList: {
+        } case EYsonItemType::BeginList: {
             Cursor_.Next();
             return ParseList(hasAttributes);
-        } case NYson::EYsonItemType::BeginMap: {
+        } case EYsonItemType::BeginMap: {
             Cursor_.Next();
-            return ParseMap(NYson::EYsonItemType::EndMap, hasAttributes);
-        } case NYson::EYsonItemType::EntityValue: {
+            return ParseMap(EYsonItemType::EndMap, hasAttributes);
+        } case EYsonItemType::EntityValue: {
             result = PyObjectPtr(Py::new_reference_to(Py_None));
             Cursor_.Next();
             constructor = &YsonEntity;
             break;
-        } case NYson::EYsonItemType::BooleanValue: {
+        } case EYsonItemType::BooleanValue: {
             result = PyObjectPtr(PyBool_FromLong(current.UncheckedAsBoolean()));
             Cursor_.Next();
             constructor = &YsonBoolean;
             break;
-        } case NYson::EYsonItemType::Int64Value: {
+        } case EYsonItemType::Int64Value: {
             result = PyObjectPtr(PyLong_FromLongLong(current.UncheckedAsInt64()));
             Cursor_.Next();
             constructor = &YsonInt64;
             break;
-        } case NYson::EYsonItemType::Uint64Value: {
+        } case EYsonItemType::Uint64Value: {
             result = PyObjectPtr(PyLong_FromUnsignedLongLong(current.UncheckedAsUint64()));
             hasAttributes = true;
             Cursor_.Next();
             constructor = &YsonUint64;
             break;
-        } case NYson::EYsonItemType::DoubleValue: {
+        } case EYsonItemType::DoubleValue: {
             result = PyObjectPtr(PyFloat_FromDouble(current.UncheckedAsDouble()));
             Cursor_.Next();
             constructor = &YsonDouble;
             break;
-        } case NYson::EYsonItemType::StringValue: {
+        } case EYsonItemType::StringValue: {
             TStringBuf str = current.UncheckedAsString();
             auto bytes = PyObjectPtr(PyBytes_FromStringAndSize(str.data(), str.size()));
             Cursor_.Next();
@@ -133,13 +151,13 @@ PyObjectPtr TPullObjectBuilder::ParseObject(bool hasAttributes)
             break;
         }
         // We don't need to check yson correctness, pull parser does it by itself.
-        case NYson::EYsonItemType::EndOfStream: {
+        case EYsonItemType::EndOfStream: {
 	        PyErr_SetNone(PyExc_StopIteration);
             return nullptr;
 	    }
-        case NYson::EYsonItemType::EndAttributes:
-        case NYson::EYsonItemType::EndMap:
-        case NYson::EYsonItemType::EndList: {
+        case EYsonItemType::EndAttributes:
+        case EYsonItemType::EndMap:
+        case EYsonItemType::EndList: {
             // Bad yson, as we skip these tokens in ParseList or ParseMap.
             // Pull parser checks yson correctness, so this code can't be reached.
             YT_ABORT();
@@ -174,7 +192,7 @@ PyObjectPtr TPullObjectBuilder::ParseList(bool hasAttributes)
         throw Py::Exception();
     }
 
-    while (Cursor_.GetCurrent().GetType() != NYson::EYsonItemType::EndList) {
+    while (Cursor_.GetCurrent().GetType() != EYsonItemType::EndList) {
         auto value = ParseObject();
         if (PyList_Append(listObj.get(), value.get()) == -1) {
             throw Py::Exception();
@@ -185,12 +203,12 @@ PyObjectPtr TPullObjectBuilder::ParseList(bool hasAttributes)
     return listObj;
 }
 
-PyObjectPtr TPullObjectBuilder::ParseMap(NYson::EYsonItemType endType, bool hasAttributes)
+PyObjectPtr TPullObjectBuilder::ParseMap(EYsonItemType endType, bool hasAttributes)
 {
     PyObjectPtr dictObj;
 
     // If endType == EndAttributes, we are reading attributes, so we should not wrap them to YsonMap.
-    if ((hasAttributes || AlwaysCreateAttributes_) && endType != NYson::EYsonItemType::EndAttributes) {
+    if ((hasAttributes || AlwaysCreateAttributes_) && endType != EYsonItemType::EndAttributes) {
         dictObj = PyObjectPtr(PyObject_CallObject(YsonMap.ptr(), Tuple0_.get()));
     } else {
         dictObj = PyObjectPtr(PyDict_New());
@@ -213,6 +231,88 @@ PyObjectPtr TPullObjectBuilder::ParseMap(NYson::EYsonItemType endType, bool hasA
 
     return dictObj;
 }
+
+PyObjectPtr TPullObjectBuilder::ParseObjectLazy(bool hasAttributes)
+{
+    auto current = Cursor_.GetCurrent();
+    switch (current.GetType()) {
+        case EYsonItemType::BeginAttributes: {
+            Cursor_.Next();
+            auto attributes = ParseMapLazy(EYsonItemType::EndAttributes);
+            auto result = ParseObjectLazy(/* hasAttributes */ true);
+            if (PyObject_SetAttrString(result.get(), attributesStr, attributes.get()) == -1) {
+                throw Py::Exception();
+            }
+            return result;
+        }
+        case EYsonItemType::BeginList:
+            Cursor_.Next();
+            return ParseList();
+        case EYsonItemType::BeginMap:
+            Cursor_.Next();
+            return ParseMapLazy(EYsonItemType::EndMap);
+        default:
+            return ParseObject(hasAttributes);
+    }
+}
+
+PyObjectPtr TPullObjectBuilder::ParseMapLazy(EYsonItemType endType)
+{
+    PyObjectPtr dictObj;
+    TLazyDict* lazyDict;
+    // TODO(egor-gutrov): refactor
+    if (endType == EYsonItemType::EndAttributes) {
+        dictObj = PyObjectPtr(LazyYsonMapBaseNew(TLazyYsonMapBaseType, Py_None, Py_None));
+        LazyYsonMapBaseInit(reinterpret_cast<TLazyYsonMapBase*>(dictObj.get()), LazyMapParserParams_.ptr(), Py::Dict().ptr());
+        TLazyYsonMapBase* object = reinterpret_cast<TLazyYsonMapBase*>(dictObj.get());
+        lazyDict = object->Dict;
+    } else {
+        dictObj = PyObjectPtr(LazyYsonMapNew(TLazyYsonMapType, Py_None, Py_None));
+        LazyYsonMapInit(reinterpret_cast<TLazyYsonMap*>(dictObj.get()), LazyMapParserParams_.ptr(), Py::Dict().ptr());
+        TLazyYsonMap* object = reinterpret_cast<TLazyYsonMap*>(dictObj.get());
+        lazyDict = object->super.Dict;
+    }
+
+    TStringStream data;
+    while (Cursor_.GetCurrent().GetType() != endType) {
+        auto keyStr = Cursor_.GetCurrent().UncheckedAsString();
+        auto key = KeyCache_.GetPythonString(keyStr);
+
+        Cursor_.StartRecording(&data);
+        Cursor_.Next();
+        switch (Cursor_.GetCurrent().GetType()) {
+            case EYsonItemType::EntityValue:
+            case EYsonItemType::BooleanValue:
+            case EYsonItemType::Int64Value:
+            case EYsonItemType::Uint64Value:
+            case EYsonItemType::DoubleValue:
+                Cursor_.CancelRecording();
+                data.Clear();
+                lazyDict->SetItem(Py::Object(key.get()), Cursor_.GetCurrent());
+                Cursor_.Next();
+                break;
+            default: {
+                Cursor_.SkipComplexValueAndFinishRecording();
+                auto value = TSharedRef::FromString(data.Str());
+                data = TStringStream();
+                // value contains KeyValueSeparatorSymbol and an arbitrary amount of spaces before it
+                int separatorPos = -1;
+                for (size_t index = 0; index < value.Size(); ++index) {
+                    if (value[index] == KeyValueSeparatorSymbol) {
+                        separatorPos = index;
+                        break;
+                    }
+                }
+                YT_VERIFY(separatorPos != -1);
+                value = value.Slice(separatorPos + 1, value.Size());
+                lazyDict->SetItem(Py::Object(key.get()), value);
+            }
+        }
+    }
+    Cursor_.Next(); // skip end token
+
+    return dictObj;
+ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

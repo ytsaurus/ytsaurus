@@ -1,7 +1,5 @@
 #pragma once
 
-#include "object_builder.h"
-
 #include <yt/yt/python/common/helpers.h>
 #include <yt/yt/python/common/public.h>
 #include <yt/yt/python/common/stream.h>
@@ -17,6 +15,8 @@
 
 namespace NYT::NYTree {
 
+using NPython::PyObjectPtr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TPyObjectHasher
@@ -26,7 +26,9 @@ struct TPyObjectHasher
 
 struct TLazyDictValue
 {
-    TSharedRef Data;
+    // For simple types we store TYsonItem.
+    // For strings and complex objects we store TSharedRef.
+    std::variant<TSharedRef, NYson::TYsonItem> Data;
     std::optional<Py::Object> Value;
 };
 
@@ -40,6 +42,9 @@ public:
     PyObject* GetItem(const Py::Object& key);
     void SetItem(const Py::Object& key, const TSharedRef& value);
     void SetItem(const Py::Object& key, const Py::Object& value);
+    void SetItem(const Py::Object& key, const NYson::TYsonItem& value);
+    void SetItem(const Py::Object& key, const std::variant<TSharedRef, NYson::TYsonItem>& value);
+
     bool HasItem(const Py::Object& key) const;
     void DeleteItem(const Py::Object& key);
     void Clear();
@@ -49,7 +54,14 @@ public:
 
 private:
     THashMapType Data_;
-    std::unique_ptr<NYTree::TPythonObjectBuilder> Consumer_;
+
+    Py::Callable YsonInt64;
+    Py::Callable YsonUint64;
+    Py::Callable YsonDouble;
+    Py::Callable YsonBoolean;
+    Py::Callable YsonEntity;
+    PyObjectPtr Tuple1_;
+    
     bool AlwaysCreateAttributes_;
     std::optional<TString> Encoding_;
 };

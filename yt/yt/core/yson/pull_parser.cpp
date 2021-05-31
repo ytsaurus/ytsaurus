@@ -1,8 +1,8 @@
 #include "pull_parser.h"
-
 #include "consumer.h"
-
 #include "token_writer.h"
+
+#include <util/stream/output.h>
 
 namespace NYT::NYson {
 
@@ -102,6 +102,31 @@ TZeroCopyInputStreamReader::TZeroCopyInputStreamReader(IZeroCopyInput* reader)
 ui64 TZeroCopyInputStreamReader::GetTotalReadSize() const
 {
     return TotalReadBlocksSize_ + (Current_ - Begin_);
+}
+
+void NDetail::TZeroCopyInputStreamReader::StartRecording(IOutputStream* out)
+{
+    YT_VERIFY(!RecordOutput_);
+    RecordOutput_ = out;
+    RecordingFrom_ = Current_;
+}
+
+void NDetail::TZeroCopyInputStreamReader::CancelRecording()
+{
+    YT_VERIFY(RecordOutput_);
+    RecordOutput_ = nullptr;
+    RecordingFrom_ = nullptr;
+}
+
+void NDetail::TZeroCopyInputStreamReader::FinishRecording()
+{
+    YT_VERIFY(RecordOutput_);
+    if (RecordingFrom_) {
+        RecordOutput_->Write(RecordingFrom_, Current_ - RecordingFrom_);
+    }
+    
+    RecordOutput_ = nullptr;
+    RecordingFrom_ = nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -373,6 +398,21 @@ TYsonItem TYsonPullParser::Next()
     }
 }
 
+void TYsonPullParser::StartRecording(IOutputStream* out)
+{
+    Lexer_.StartRecording(out);
+}
+
+void TYsonPullParser::CancelRecording()
+{
+    Lexer_.CancelRecording();
+}
+
+void TYsonPullParser::FinishRecording()
+{
+    Lexer_.FinishRecording();
+}
+
 void TYsonPullParser::SkipComplexValue()
 {
     TraverseComplexValueOrAttributes(TNullVisitor(), /* stopAfterAttributes */ false);
@@ -423,6 +463,23 @@ std::vector<TErrorAttribute> TYsonPullParser::GetErrorAttributes() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void TYsonPullParserCursor::StartRecording(IOutputStream* out)
+{
+    Parser_->StartRecording(out);
+}
+
+void TYsonPullParserCursor::CancelRecording()
+{
+    Parser_->CancelRecording();
+}
+
+void TYsonPullParserCursor::SkipComplexValueAndFinishRecording()
+{
+    Parser_->SkipComplexValue(Current_);
+    Parser_->FinishRecording();
+    Current_ = Parser_->Next();
+}
 
 std::vector<TErrorAttribute> TYsonPullParserCursor::GetErrorAttributes() const
 {

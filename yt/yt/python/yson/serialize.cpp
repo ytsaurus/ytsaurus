@@ -6,11 +6,10 @@
 #include <yt/yt/core/misc/finally.h>
 
 #include <util/system/sanitizers.h>
+#include <util/generic/typetraits.h>
 
 namespace NYT {
 
-using NYson::TToken;
-using NYson::ETokenType;
 using NYson::EYsonType;
 using NYson::IYsonConsumer;
 using NYTree::INodePtr;
@@ -83,7 +82,35 @@ void SerializeLazyMapFragment(
         if (value.Value) {
             Serialize(*value.Value, consumer, encoding, ignoreInnerAttributes, ysonType, sortKeys, depth + 1);
         } else {
-            consumer->OnRaw(TStringBuf(value.Data.Begin(), value.Data.Size()), NYson::EYsonType::Node);
+            std::visit([&] (auto&& data) {
+                using T = std::decay_t<decltype(data)>;
+                if constexpr (std::is_same_v<T, TSharedRef>) {
+                    consumer->OnRaw(TStringBuf(data.Begin(), data.Size()), NYson::EYsonType::Node);
+                } else if constexpr (std::is_same_v<T, NYson::TYsonItem>) {
+                    switch (data.GetType()) {
+                        case NYson::EYsonItemType::EntityValue:
+                            consumer->OnEntity();
+                            break;
+                        case NYson::EYsonItemType::BooleanValue:
+                            consumer->OnBooleanScalar(data.UncheckedAsBoolean());
+                            break;
+                        case NYson::EYsonItemType::Int64Value:
+                            consumer->OnInt64Scalar(data.UncheckedAsInt64());
+                            break;
+                        case NYson::EYsonItemType::Uint64Value:
+                            consumer->OnUint64Scalar(data.UncheckedAsUint64());
+                            break;
+                        case NYson::EYsonItemType::DoubleValue:
+                            consumer->OnDoubleScalar(data.UncheckedAsDouble());
+                            break;
+                        default:
+                            YT_ABORT();
+                    }
+                } else {
+                    static_assert(TDependentFalse<T>, "non-exhaustive visitor!");
+                }
+            },
+            value.Data);
         }
         context->Pop();
     }
