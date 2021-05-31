@@ -19,8 +19,7 @@ TChunkView::TChunkView(const TChunkViewId& id)
 void TChunkView::SetUnderlyingChunk(TChunk* underlyingChunk)
 {
     YT_VERIFY(underlyingChunk);
-    auto chunkType = EChunkType(underlyingChunk->ChunkMeta().type());
-    YT_VERIFY(chunkType == EChunkType::Table);
+    YT_VERIFY(underlyingChunk->GetChunkType() == EChunkType::Table);
 
     UnderlyingChunk_ = underlyingChunk;
 }

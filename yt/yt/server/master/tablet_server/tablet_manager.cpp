@@ -5349,37 +5349,47 @@ private:
         chunkManager->AttachToTabletChunkList(tabletChunkList, chunkTrees);
     }
 
-    void DetachChunksFromTablet(TTablet* tablet, const std::vector<TChunkTree*>& chunkTrees)
+    TChunkList* GetTabletChildParent(TTablet* tablet, TChunkTree* child)
     {
         auto* tabletChunkList = tablet->GetChunkList();
+        if (IsHunkChunk(child)) {
+            auto* hunkRootChunkList = tabletChunkList->GetHunkRootChild();
+            YT_VERIFY(hunkRootChunkList);
+            return hunkRootChunkList;
+        } else {
+            if (GetParentCount(child) == 1) {
+                auto* parent = GetUniqueParent(child);
+                YT_VERIFY(parent->GetType() == EObjectType::ChunkList);
+                return parent;
+            }
+            return tabletChunkList;
+        }
+    }
 
+    void PruneEmptySubtabletChunkList(TChunkList* chunkList)
+    {
+        while (chunkList->GetKind() == EChunkListKind::SortedDynamicSubtablet && chunkList->Children().empty()) {
+            auto* parent = GetUniqueParent(chunkList);
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            chunkManager->DetachFromChunkList(parent, chunkList);
+            chunkList = parent;
+        }
+    }
+
+    void DetachChunksFromTablet(TTablet* tablet, const std::vector<TChunkTree*>& chunkTrees)
+    {
         // Ensure deteministic ordering of keys.
         std::map<TChunkList*, std::vector<TChunkTree*>, TObjectRefComparer> childrenByParent;
         for (auto* child : chunkTrees) {
-            int parentCount = GetParentCount(child);
-            if (parentCount == 1) {
-                auto* parent = GetUniqueParent(child);
-                YT_VERIFY(parent->GetType() == EObjectType::ChunkList);
-                childrenByParent[parent].push_back(child);
-            } else {
-                YT_VERIFY(HasParent(child, tabletChunkList));
-                childrenByParent[tabletChunkList].push_back(child);
-            }
+            auto* parent = GetTabletChildParent(tablet, child);
+            YT_VERIFY(HasParent(child, parent));
+            childrenByParent[parent].push_back(child);
         }
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-
-        auto pruneEmptyChunkList = [&] (TChunkList* chunkList) {
-            while (chunkList->GetKind() == EChunkListKind::SortedDynamicSubtablet && chunkList->Children().empty()) {
-                auto* parent = GetUniqueParent(chunkList);
-                chunkManager->DetachFromChunkList(parent, chunkList);
-                chunkList = parent;
-            }
-        };
-
         for (const auto& [parent, children] : childrenByParent) {
             chunkManager->DetachFromChunkList(parent, children);
-            pruneEmptyChunkList(parent);
+            PruneEmptySubtabletChunkList(parent);
         }
     }
 
@@ -5505,7 +5515,6 @@ private:
 
         // Chunk views are also possible.
         std::vector<TChunkTree*> chunksOrViewsToDetach;
-
         i64 detachedRowCount = 0;
         bool flatteningRequired = false;
         for (const auto& descriptor : request->stores_to_remove()) {
@@ -5524,9 +5533,7 @@ private:
                 chunksOrViewsToDetach.push_back(chunkView);
                 flatteningRequired |= !CanUnambiguouslyDetachChild(tablet->GetChunkList(), chunkView);
             } else if (IsDynamicTabletStoreType(TypeFromId(storeId))) {
-                const auto& chunkManager = Bootstrap_->GetChunkManager();
-                auto* dynamicStore = chunkManager->FindDynamicStore(storeId);
-                if (dynamicStore) {
+                if (auto* dynamicStore = chunkManager->FindDynamicStore(storeId)) {
                     YT_VERIFY(updateReason == ETabletStoresUpdateReason::Flush);
                     dynamicStore->SetFlushedChunk(flushedChunk);
                     if (!table->IsSorted()) {
@@ -6408,7 +6415,7 @@ private:
     {
         if (IsPhysicalChunkType(chunkOrView->GetType())) {
             const auto* chunk = chunkOrView->AsChunk();
-            if (FromProto<EChunkType>(chunk->ChunkMeta().type()) == EChunkType::Hunk) {
+            if (chunk->GetChunkType() == EChunkType::Hunk) {
                 return EStoreType::HunkChunk;
             }
         }

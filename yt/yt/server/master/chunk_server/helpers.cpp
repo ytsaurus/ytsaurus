@@ -849,7 +849,7 @@ bool IsHunkChunk(const TChunkTree* chunkTree)
         return false;
     }
     const auto* chunk = chunkTree->AsChunk();
-    return FromProto<EChunkType>(chunk->ChunkMeta().type()) == EChunkType::Hunk;
+    return chunk->GetChunkType() == EChunkType::Hunk;
 }
 
 bool IsHunkChunkList(const TChunkTree* chunkTree)

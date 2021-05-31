@@ -557,6 +557,11 @@ i64 TChunk::GetMasterMemoryUsage() const
     return ChunkMeta().ByteSize();
 }
 
+EChunkType TChunk::GetChunkType() const
+{
+    return FromProto<EChunkType>(ChunkMeta().type());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer
