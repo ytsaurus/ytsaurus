@@ -536,7 +536,7 @@ class TestReadOrderedDynamicTables(TestOrderedDynamicTablesBase):
         sync_flush_table("//tmp/t")
         assert read_table(path_with_range, tx=tx) == expected
 
-    @pytest.mark.parametrize("disturbance_type", ["cell_move", "unmount"])
+    @pytest.mark.parametrize("disturbance_type", ["cell_move", "unmount", "flush_under_lock"])
     def test_locate_row_index(self, disturbance_type):
         cell_id = sync_create_cells(1)[0]
 
@@ -547,59 +547,87 @@ class TestReadOrderedDynamicTables(TestOrderedDynamicTablesBase):
         sync_flush_table("//tmp/t")
         insert_rows("//tmp/t", rows[5:])
 
+        if disturbance_type == "flush_under_lock":
+            tx = start_transaction(timeout=60000)
+            lock("//tmp/t", mode="snapshot", tx=tx)
+            sync_freeze_table("//tmp/t")
+            spec = {}
+        else:
+            tx = "0-0-0-0"
+            spec = {"testing": {"delay_inside_materialize": 5000}}
+
         operations = []
 
         create("table", "//tmp/out1")
         op1 = merge(
             in_=_make_path_with_range("//tmp/t", (0, 6), (0, 8)),
             out="//tmp/out1",
-            spec={"testing": {"delay_inside_materialize": 10000}},
+            spec=spec,
             track=False,
+            tx=tx,
         )
         operations.append(("//tmp/out1", op1, rows[6:8]))
 
         create("table", "//tmp/out2")
-        op1 = merge(
+        op2 = merge(
             in_=_make_path_with_range("//tmp/t", None, (0, 8)),
             out="//tmp/out2",
-            spec={"testing": {"delay_inside_materialize": 10000}},
+            spec=spec,
             track=False,
+            tx=tx,
         )
-        operations.append(("//tmp/out2", op1, rows[:8]))
+        operations.append(("//tmp/out2", op2, rows[:8]))
 
         create("table", "//tmp/out3")
-        op1 = merge(
+        op3 = merge(
             in_=_make_path_with_range("//tmp/t", (0, 6), None),
             out="//tmp/out3",
-            spec={"testing": {"delay_inside_materialize": 10000}},
+            spec=spec,
             track=False,
+            tx=tx,
         )
-        operations.append(("//tmp/out3", op1, rows[6:]))
+        operations.append(("//tmp/out3", op3, rows[6:]))
 
         create("table", "//tmp/out4")
-        op1 = merge(
+        op4 = merge(
             in_=_make_path_with_range("//tmp/t", (0, 6), (0, 15)),
             out="//tmp/out4",
-            spec={"testing": {"delay_inside_materialize": 10000}},
+            spec=spec,
             track=False,
+            tx=tx,
         )
-        operations.append(("//tmp/out4", op1, rows[6:15]))
+        operations.append(("//tmp/out4", op4, rows[6:15]))
 
-        for _, op, _ in operations:
-            wait(lambda: op.get_state() == "materializing")
+        create("table", "//tmp/out5")
+        op5 = merge(
+            in_=_make_path_with_range("//tmp/t", (0, 10), (0, 15)),
+            out="//tmp/out5",
+            spec=spec,
+            track=False,
+            tx=tx,
+        )
+        operations.append(("//tmp/out5", op5, []))
+
+        if disturbance_type != "flush_under_lock":
+            for _, op, _ in operations:
+                wait(lambda: op.get_state() == "materializing")
 
         if disturbance_type == "cell_move":
             self._disable_tablet_cells_on_peer(cell_id)
         elif disturbance_type == "unmount":
             sync_unmount_table("//tmp/t")
+        elif disturbance_type == "flush_under_lock":
+            pass
         else:
             assert False
 
         for _, op, _ in operations:
             op.track()
 
+        if tx != "0-0-0-0":
+            commit_transaction(tx)
+
         for output_table, op, rows in operations:
-            op.track()
             assert_items_equal(read_table(output_table), rows)
 
 

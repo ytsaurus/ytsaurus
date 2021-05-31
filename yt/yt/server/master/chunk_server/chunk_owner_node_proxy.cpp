@@ -448,17 +448,25 @@ private:
             if (auto* chunk = dynamicStore->GetFlushedChunk()) {
                 auto relativeLowerLimit = lowerLimit;
                 auto relativeUpperLimit = upperLimit;
-                i64 tabletRowIndex = dynamicStore->GetTableRowIndex();
+
+                i64 chunkStartRowIndex = dynamicStore->GetTableRowIndex();
+                i64 chunkRowCount = chunk->GetStatistics().RowCount;
+
                 if (relativeLowerLimit.GetRowIndex()) {
-                    relativeLowerLimit.SetRowIndex(std::max<i64>(
-                        *relativeLowerLimit.GetRowIndex() - tabletRowIndex,
-                        0));
+                    i64 relativeLowerRowIndex = *relativeLowerLimit.GetRowIndex() - chunkStartRowIndex;
+                    if (relativeLowerRowIndex >= chunkRowCount) {
+                        return true;
+                    }
+                    relativeLowerLimit.SetRowIndex(std::max<i64>(relativeLowerRowIndex, 0));
                 }
                 if (relativeUpperLimit.GetRowIndex()) {
-                    relativeUpperLimit.SetRowIndex(std::max<i64>(
-                        *relativeUpperLimit.GetRowIndex() - tabletRowIndex,
-                        0));
+                    i64 relativeUpperRowIndex = *relativeUpperLimit.GetRowIndex() - chunkStartRowIndex;
+                    if (relativeUpperRowIndex <= 0) {
+                        return true;
+                    }
+                    relativeUpperLimit.SetRowIndex(std::min<i64>(relativeUpperRowIndex, chunkRowCount));
                 }
+
                 return OnChunk(
                     chunk,
                     dynamicStore->GetTableRowIndex(),
