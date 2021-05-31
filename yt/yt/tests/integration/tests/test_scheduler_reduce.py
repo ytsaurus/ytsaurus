@@ -2020,6 +2020,45 @@ done
         expected = [3, 4, 5] if sort_order == "ascending" else [2, 5, 5]
         assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == expected
 
+    @authors("gritukan")
+    def test_empty_pivot_key(self):
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={
+                "schema": [
+                    {"name": "key", "type": "string", "sort_order": "ascending"},
+                    {"name": "value", "type": "int64"},
+                ]
+            },
+        )
+        create("table", "//tmp/t2")
+        for i in range(20):
+            write_table("<append=%true>//tmp/t1", {"key": "%02d" % i, "value": i})
+
+        reduce(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat",
+            reduce_by=[{"name": "key", "sort_order": "ascending"}],
+            spec={"pivot_keys": [[]]},
+        )
+        assert get("//tmp/t2/@chunk_count") == 1
+        chunk_ids = get("//tmp/t2/@chunk_ids")
+        assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [20]
+
+        create("table", "//tmp/t3")
+        reduce(
+            in_="//tmp/t1",
+            out="//tmp/t3",
+            command="cat",
+            reduce_by=[{"name": "key", "sort_order": "ascending"}],
+            spec={"pivot_keys": [[], ["10"]]},
+        )
+        assert get("//tmp/t3/@chunk_count") == 2
+        chunk_ids = get("//tmp/t3/@chunk_ids")
+        assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [10, 10]
+
     @authors("max42")
     def test_pivot_keys_incorrect_options(self):
         create(

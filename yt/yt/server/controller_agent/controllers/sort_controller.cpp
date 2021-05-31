@@ -2971,6 +2971,10 @@ protected:
         partitionKeys.reserve(Spec->PivotKeys.size());
 
         for (const auto& key : Spec->PivotKeys) {
+            // Skip empty pivot keys since they coincide with virtual empty pivot of the first partition.
+            if (key.GetCount() == 0) {
+                continue;
+            }
             auto upperBound = TKeyBound::FromRow(RowBuffer->CaptureRow(key), /* isInclusive */true, /* isUpper */false);
             partitionKeys.emplace_back(upperBound);
         }
