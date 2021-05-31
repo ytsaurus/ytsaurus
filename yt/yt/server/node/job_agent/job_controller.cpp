@@ -1,8 +1,6 @@
 #include "job_controller.h"
-#include "library/cpp/ytalloc/core/misc/enum.h"
 #include "private.h"
 #include "gpu_manager.h"
-#include "yt/yt/server/lib/job_agent/gpu_helpers.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -18,6 +16,7 @@
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 
+#include <yt/yt/server/lib/job_agent/gpu_helpers.h>
 #include <yt/yt/server/lib/job_agent/job_reporter.h>
 
 #include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
@@ -170,7 +169,13 @@ private:
     TBufferedProducerPtr GpuUtilizationBuffer_ = New<TBufferedProducer>();
 
     TEnumIndexedVector<EJobOrigin, TGauge> ActiveJobCount_;
+
     THashMap<std::pair<EJobState, EJobOrigin>, TCounter> JobFinalStateCounters_;
+
+    // Chunk cache counters.
+    TCounter CacheHitArtifactsSizeCounter_;
+    TCounter CacheMissArtifactsSizeCounter_;
+    TCounter CacheBypassedArtifactsSizeCounter_;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr ResourceAdjustmentExecutor_;
@@ -228,12 +233,13 @@ private:
     void OnWaitingJobTimeout(const TWeakPtr<IJob>& weakJob, TDuration waitingJobTimeout);
 
     void OnResourcesUpdated(
-        const TWeakPtr<IJob>& job,
+        const TWeakPtr<IJob>& weakJob,
         const TNodeResources& resourceDelta);
 
-    void OnPortsReleased(const TWeakPtr<IJob>& job);
+    void OnPortsReleased(const TWeakPtr<IJob>& weakJob);
 
-    void OnJobFinished(const TWeakPtr<IJob>& job);
+    void OnJobPrepared(const TWeakPtr<IJob>& weakJob);
+    void OnJobFinished(const TWeakPtr<IJob>& weakJob);
 
     void StartWaitingJobs();
 
@@ -275,6 +281,9 @@ TJobController::TImpl::TImpl(
     , Bootstrap_(bootstrap)
     , StatisticsThrottler_(CreateReconfigurableThroughputThrottler(Config_->StatisticsThrottler))
     , Profiler_("/job_controller")
+    , CacheHitArtifactsSizeCounter_(Profiler_.Counter("/chunk_cache/cache_hit_artifacts_size"))
+    , CacheMissArtifactsSizeCounter_(Profiler_.Counter("/chunk_cache/cache_miss_artifacts_size"))
+    , CacheBypassedArtifactsSizeCounter_(Profiler_.Counter("/chunk_cache/cache_bypassed_artifacts_size"))
 {
     Profiler_.AddProducer("/resource_limits", ResourceLimitsBuffer_);
     Profiler_.AddProducer("/resource_usage", ResourceUsageBuffer_);
@@ -738,6 +747,10 @@ void TJobController::TImpl::StartWaitingJobs()
             BIND(&TImpl::OnPortsReleased, MakeWeak(this), MakeWeak(job))
                 .Via(Bootstrap_->GetJobInvoker()));
 
+        job->SubscribeJobPrepared(
+            BIND(&TImpl::OnJobPrepared, MakeWeak(this), MakeWeak(job))
+                .Via(Bootstrap_->GetJobInvoker()));
+
         job->SubscribeJobFinished(
             BIND(&TImpl::OnJobFinished, MakeWeak(this), MakeWeak(job))
                 .Via(Bootstrap_->GetJobInvoker()));
@@ -950,6 +963,21 @@ void TJobController::TImpl::OnPortsReleased(const TWeakPtr<IJob>& weakJob)
     for (auto port : ports) {
         YT_VERIFY(FreePorts_.insert(port).second);
     }
+}
+
+void TJobController::TImpl::OnJobPrepared(const TWeakPtr<IJob>& weakJob)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    auto job = weakJob.Lock();
+    if (!job) {
+        return;
+    }
+
+    const auto& chunkCacheStatistics = job->GetChunkCacheStatistics();
+    CacheHitArtifactsSizeCounter_.Increment(chunkCacheStatistics.CacheHitArtifactsSize);
+    CacheMissArtifactsSizeCounter_.Increment(chunkCacheStatistics.CacheMissArtifactsSize);
+    CacheBypassedArtifactsSizeCounter_.Increment(chunkCacheStatistics.CacheBypassedArtifactsSize);
 }
 
 void TJobController::TImpl::OnJobFinished(const TWeakPtr<IJob>& weakJob)

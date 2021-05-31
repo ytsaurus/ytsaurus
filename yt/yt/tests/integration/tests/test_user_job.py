@@ -924,6 +924,11 @@ class TestArtifactCacheBypass(YTEnvSetup):
 
     @authors("babenko")
     def test_bypass_artifact_cache_for_file(self):
+        counters = [
+            Profiler.at_node(node).counter("job_controller/chunk_cache/cache_bypassed_artifacts_size")
+            for node in sorted(ls("//sys/cluster_nodes"))
+        ]
+
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", {"foo": "bar"})
@@ -946,6 +951,9 @@ class TestArtifactCacheBypass(YTEnvSetup):
         statistics = get(op.get_path() + "/@progress/job_statistics")
         bypassed_size = get_statistics(statistics, "exec_agent.artifacts.cache_bypassed_artifacts_size.$.completed.map.sum")
         assert bypassed_size == 18
+
+        total_delta = sum(counter.get_delta() for counter in counters)
+        assert total_delta == 18
 
         assert read_table("//tmp/t_output") == [{"hello": "world"}]
 
