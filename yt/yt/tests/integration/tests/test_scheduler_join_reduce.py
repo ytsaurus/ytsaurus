@@ -1,9 +1,48 @@
-import pytest
-
 from yt_env_setup import YTEnvSetup
-from yt_commands import *  # noqa
+
+from yt_commands import (  # noqa
+    authors, print_debug, wait, wait_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
+    events_on_fs, reset_events_on_fs,
+    create, ls, get, set, copy, move, remove, link, exists,
+    create_account, create_network_project, create_tmpdir, create_user, create_group,
+    create_pool, create_pool_tree,
+    create_data_center, create_rack,
+    make_ace, check_permission, add_member,
+    make_batch_request, execute_batch, get_batch_error,
+    start_transaction, abort_transaction, lock,
+    insert_rows, select_rows, delete_rows,
+    read_file, write_file, read_table, write_table, write_local_file,
+    map, reduce, map_reduce, join_reduce, merge, vanilla, sort, erase,
+    run_test_vanilla, run_sleeping_vanilla,
+    abort_job, list_jobs, get_job, abandon_job, interrupt_job,
+    get_job_fail_context, get_job_input, get_job_stderr, get_job_spec,
+    dump_job_context, poll_job_shell,
+    abort_op, complete_op, suspend_op, resume_op,
+    get_operation, list_operations, clean_operations,
+    get_operation_cypress_path, scheduler_orchid_pool_path,
+    scheduler_orchid_default_pool_tree_path, scheduler_orchid_operation_path,
+    scheduler_orchid_default_pool_tree_config_path, scheduler_orchid_path,
+    scheduler_orchid_node_path, scheduler_orchid_pool_tree_config_path,
+    sync_create_cells, sync_mount_table, sync_unmount_table,
+    get_first_chunk_id, get_singular_chunk_id, multicell_sleep,
+    update_nodes_dynamic_config, update_controller_agent_config,
+    update_op_parameters, enable_op_detailed_logs,
+    set_node_banned, set_banned_flag, set_account_disk_space_limit,
+    check_all_stderrs,
+    create_test_tables, PrepareTables,
+    get_statistics,
+    make_random_string, raises_yt_error,
+    normalize_schema, make_schema,
+    Driver)
+
 from yt_helpers import skip_if_no_descending
-from yt.yson import YsonEntity
+
+import yt_error_codes
+
+import yt.yson as yson
+from yt.common import YtError
+
+import pytest
 
 
 ##################################################################
@@ -594,9 +633,9 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         write("//tmp/in2", [{"key": "1", "subkey": "3"}, {"key": "3", "subkey": "3"}, {"key": "4"}])
 
         if sort_order == "ascending":
-            in_=['//tmp/in1["1":"4"]', "<foreign=true>//tmp/in2"]
+            in_ = ['//tmp/in1["1":"4"]', "<foreign=true>//tmp/in2"]
         else:
-            in_=['//tmp/in1["3":"0"]', "<foreign=true>//tmp/in2"]
+            in_ = ['//tmp/in1["3":"0"]', "<foreign=true>//tmp/in2"]
 
         join_reduce(
             in_=in_,
@@ -615,11 +654,11 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         if sort_order == "ascending":
             assert read_table("//tmp/out") == [
                 {"key": "1", "subkey": "2"},
-                {"key": "3", "subkey": YsonEntity()},
+                {"key": "3", "subkey": yson.YsonEntity()},
             ]
         else:
             assert read_table("//tmp/out") == [
-                {"key": "3", "subkey": YsonEntity()},
+                {"key": "3", "subkey": yson.YsonEntity()},
                 {"key": "1", "subkey": "2"},
             ]
 
@@ -796,12 +835,12 @@ echo {v = 2} >&7
         )
 
         if sort_order == "ascending":
-            in_=[
+            in_ = [
                 '<ranges=[{lower_limit={row_index=100;key=["10010"]};upper_limit={row_index=540;key=["10280"]}}];primary=true>//tmp/in1',
                 "<foreign=true>//tmp/in2",
             ]
         else:
-            in_=[
+            in_ = [
                 '<ranges=[{lower_limit={row_index=60;key=["10280"]};upper_limit={row_index=500;key=["10010"]}}];primary=true>//tmp/in1',
                 "<foreign=true>//tmp/in2",
             ]
@@ -956,7 +995,7 @@ echo {v = 2} >&7
         assert get("//tmp/in2/@chunk_count") == 5
 
         create("table", "//tmp/out")
-        op = join_reduce(
+        join_reduce(
             in_=["<foreign=true>//tmp/in2", "//tmp/in1"],
             out="<row_count_limit=5>//tmp/out",
             command="cat",
@@ -1007,9 +1046,9 @@ echo {v = 2} >&7
         create("table", "//tmp/out")
 
         if sort_order == "ascending":
-            in_=['//tmp/in1["00100":"00200"]', "<foreign=true>//tmp/in2"]
+            in_ = ['//tmp/in1["00100":"00200"]', "<foreign=true>//tmp/in2"]
         else:
-            in_=['//tmp/in1["00199":"00099"]', "<foreign=true>//tmp/in2"]
+            in_ = ['//tmp/in1["00199":"00099"]', "<foreign=true>//tmp/in2"]
 
         join_reduce(
             in_=in_,
@@ -1462,19 +1501,13 @@ class TestMaxTotalSliceCount(YTEnvSetup):
         )
 
         create("table", "//tmp/t_out")
-        try:
+        with raises_yt_error(yt_error_codes.DataSliceLimitExceeded):
             join_reduce(
                 in_=["//tmp/t_primary", "<foreign=true>//tmp/t_foreign"],
                 out="//tmp/t_out",
                 join_by=["key"],
                 command="cat > /dev/null",
             )
-        except YtError as err:
-            # TODO(bidzilya): check error code here when it is possible.
-            # assert err.contains_code(20000)
-            pass
-        else:
-            assert False, "Did not throw!"
 
 
 ##################################################################
