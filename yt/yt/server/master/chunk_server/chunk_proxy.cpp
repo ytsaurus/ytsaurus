@@ -122,7 +122,7 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkType)
             .SetPresent(chunk->IsConfirmed()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TableChunkFormat)
-            .SetPresent(chunk->IsConfirmed() && FromProto<EChunkType>(chunk->ChunkMeta().type()) == EChunkType::Table));
+            .SetPresent(chunk->IsConfirmed() && chunk->GetChunkType() == EChunkType::Table));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MetaSize)
             .SetPresent(chunk->IsConfirmed() && miscExt.has_meta_size()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CompressedDataSize)
@@ -507,14 +507,13 @@ private:
                 if (!isConfirmed) {
                     break;
                 }
-                auto type = EChunkType(chunk->ChunkMeta().type());
                 BuildYsonFluently(consumer)
-                    .Value(type);
+                    .Value(chunk->GetChunkType());
                 return true;
             }
 
             case EInternedAttributeKey::TableChunkFormat: {
-                if (!isConfirmed || FromProto<EChunkType>(chunk->ChunkMeta().type()) != EChunkType::Table) {
+                if (!isConfirmed || chunk->GetChunkType() != EChunkType::Table) {
                     break;
                 }
                 auto format = FromProto<ETableChunkFormat>(chunk->ChunkMeta().format());
