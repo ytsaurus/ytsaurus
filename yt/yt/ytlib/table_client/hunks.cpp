@@ -184,6 +184,9 @@ void GlobalizeHunkValues(
     const auto& schemaColumns = chunkMeta->GetSchema()->Columns();
     for (int index = 0; index < row.GetValueCount(); ++index) {
         auto& value = row.BeginValues()[index];
+        if (value.Type == EValueType::Null) {
+            continue;
+        }
         if (!schemaColumns[value.Id].MaxInlineHunkSize()) {
             continue;
         }

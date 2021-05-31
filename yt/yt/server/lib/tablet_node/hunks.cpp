@@ -263,6 +263,10 @@ public:
 
             for (int index = 0; index < scratchRow.GetValueCount(); ++index) {
                 auto& value = scratchRow.BeginValues()[index];
+                if (value.Type == EValueType::Null) {
+                    continue;
+                }
+
                 auto maxInlineHunkSize = Schema_->Columns()[value.Id].MaxInlineHunkSize();
                 if (!maxInlineHunkSize) {
                     continue;
@@ -568,6 +572,10 @@ protected:
 
     void ProcessHunkValue(TUnversionedValue* value)
     {
+        if (value->Type == EValueType::Null) {
+            return;
+        }
+
         auto hunkValue = ReadHunkValue(GetValueRef(*value));
         Visit(
             hunkValue,
@@ -661,11 +669,16 @@ private:
         i64 maxInlineHunkSize,
         const THashSet<TChunkId>& hunkChunkIdsToForceInline)
     {
+        if (value->Type == EValueType::Null) {
+            return;
+        }
+
         auto hunkValue = ReadHunkValue(GetValueRef(*value));
         const auto* globalRefHunkValue = std::get_if<TGlobalRefHunkValue>(&hunkValue);
         if (!globalRefHunkValue) {
             return;
         }
+
         if (globalRefHunkValue->Length <= maxInlineHunkSize ||
             hunkChunkIdsToForceInline.contains(globalRefHunkValue->ChunkId))
         {
@@ -973,6 +986,10 @@ public:
                 i64 totalHunkLength = 0;
                 for (auto id : this->Schema_->GetHunkColumnIds()) {
                     const auto& value = row[id];
+                    if (value.Type == EValueType::Null) {
+                        continue;
+                    }
+
                     auto hunkValue = ReadHunkValue(GetValueRef(value));
                     Visit(
                         hunkValue,
@@ -1047,11 +1064,16 @@ public:
                 i64 hunkCount = 0;
                 i64 totalHunkLength = 0;
                 for (const auto* value = row.BeginValues(); value != row.EndValues(); ++value) {
+                    if (value->Type == EValueType::Null) {
+                        continue;
+                    }
+
                     const auto& schema = this->Schema_->Columns()[value->Id];
                     auto maxInlineSizeHunk = schema.MaxInlineHunkSize();
                     if (!maxInlineSizeHunk) {
                         continue;
                     }
+
                     auto hunkValue = ReadHunkValue(GetValueRef(*value));
                     Visit(
                         hunkValue,
