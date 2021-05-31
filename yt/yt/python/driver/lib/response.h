@@ -3,7 +3,6 @@
 #include <yt/yt/python/common/shutdown.h>
 #include <yt/yt/python/common/stream.h>
 
-#include <yt/yt/python/yson/object_builder.h>
 #include <yt/yt/python/yson/serialize.h>
 
 #include <yt/yt/client/driver/driver.h>

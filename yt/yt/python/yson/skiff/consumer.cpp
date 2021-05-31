@@ -1,11 +1,12 @@
 #include "consumer.h"
-#include "../object_builder.h"
 
 #include <yt/yt/python/yson/serialize.h>
+#include <yt/yt/python/yson/pull_object_builder.h>
 
 #include <yt/yt/core/ytree/convert.h>
-
 #include <yt/yt/core/misc/finally.h>
+
+#include <util/stream/str.h>
 
 namespace NYT::NPython {
 
@@ -16,9 +17,10 @@ using namespace NYson;
 
 Py::Object LoadYsonFromStringBuf(TStringBuf string, const std::optional<TString>& encoding)
 {
-    TPythonObjectBuilder consumer(/* alwaysCreateAttributes */ false, encoding);
-    ParseYsonStringBuffer(string, EYsonType::Node, &consumer);
-    return consumer.ExtractObject();
+    auto input = TMemoryInput(string.Data(), string.Size());
+    TYsonPullParser parser(&input, EYsonType::Node);
+    TPullObjectBuilder builder(&parser, /* alwaysCreateAttributes */ false, encoding);
+    return Py::Object(builder.ParseObject().release(), /* owned */ true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

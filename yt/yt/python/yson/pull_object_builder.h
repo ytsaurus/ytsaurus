@@ -32,7 +32,12 @@ public:
     // Parse map, cursor must point to the first key.
     PyObjectPtr ParseMap(NYson::EYsonItemType endType, bool hasAttributes = false);
 
+    PyObjectPtr ParseMapLazy(NYson::EYsonItemType endType);
+
+    PyObjectPtr ParseObjectLazy(bool hasAttributes = false);
+
 private:
+    // TODO(egor-gutrov): initialize py objects once
     NYT::NYson::TYsonPullParserCursor Cursor_;
     Py::Callable YsonMap;
     Py::Callable YsonList;
@@ -53,6 +58,9 @@ private:
     NPython::TPythonStringCache KeyCache_;
     PyObjectPtr Tuple0_;
     PyObjectPtr Tuple1_;
+
+    // Encoding and AlwaysCreateAttributes for Python lazy_dict.
+    Py::Object LazyMapParserParams_;
 
     // Parse list of objects, cursor must point to the first element.
     PyObjectPtr ParseList(bool hasAttributes = false);

@@ -5,6 +5,7 @@
 #include "syntax_checker.h"
 
 #include <util/generic/strbuf.h>
+#include <util/stream/output.h>
 #include <util/stream/zerocopy.h>
 
 #include <stack>
@@ -83,6 +84,10 @@ public:
     Y_FORCE_INLINE bool IsFinished() const;
     ui64 GetTotalReadSize() const;
 
+    void StartRecording(IOutputStream* out);
+    void CancelRecording();
+    void FinishRecording();
+
 private:
     IZeroCopyInput* Reader_;
     const char* Begin_ = nullptr;
@@ -90,6 +95,9 @@ private:
     const char* Current_ = nullptr;
     ui64 TotalReadBlocksSize_ = 0;
     bool Finished_ = false;
+
+    const char* RecordingFrom_ = nullptr;
+    IOutputStream* RecordOutput_ = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -171,6 +179,10 @@ public:
     // Returns |true| iff the next item is '#'.
     // NOTE: it does NOT move the cursor.
     Y_FORCE_INLINE bool IsEntity();
+    
+    void StartRecording(IOutputStream* out);
+    void CancelRecording();
+    void FinishRecording();
 
 private:
     template <typename TVisitor>
@@ -252,6 +264,10 @@ public:
     void SkipAttributes();
     void TransferAttributes(IYsonConsumer* consumer);
     void TransferAttributes(TCheckedInDebugYsonTokenWriter* writer);
+
+    void StartRecording(IOutputStream* out);
+    void CancelRecording();
+    void SkipComplexValueAndFinishRecording();
 
 private:
     TYsonItem Current_;

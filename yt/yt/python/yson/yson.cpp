@@ -1,7 +1,4 @@
 #include "serialize.h"
-#include "lazy_parser.h"
-#include "lazy_yson_consumer.h"
-#include "lazy_list_fragment_parser.h"
 #include "yson_lazy_map.h"
 #include "protobuf_descriptor_pool.h"
 #include "list_fragment_parser.h"
@@ -34,6 +31,8 @@
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 
 #include <google/protobuf/descriptor.pb.h>
+
+#include <util/stream/zerocopy.h>
 
 namespace NYT::NPython {
 
@@ -187,16 +186,17 @@ public:
     { }
 
     void Init(
-        IInputStream* inputStream,
-        std::unique_ptr<IInputStream> inputStreamHolder,
+        IZeroCopyInput* inputStream,
+        std::unique_ptr<IZeroCopyInput> inputStreamHolder,
         const std::optional<TString>& encoding,
         bool alwaysCreateAttributes)
     {
         YT_VERIFY(!inputStreamHolder || inputStreamHolder.get() == inputStream);
 
+
         InputStreamHolder_ = std::move(inputStreamHolder);
-        KeyCache_ = TPythonStringCache(/* enable */ true, encoding);
-        Parser_.reset(new TLazyListFragmentParser(inputStream, encoding, alwaysCreateAttributes, &KeyCache_));
+        Parser_.reset(new TYsonPullParser(inputStream, EYsonType::ListFragment));
+        ObjectBuilder_.reset(new TPullObjectBuilder(Parser_.get(), alwaysCreateAttributes, encoding));
     }
 
     Py::Object iter()
@@ -207,13 +207,14 @@ public:
     PyObject* iternext()
     {
         try {
-            auto item = Parser_->NextItem();
-            if (!item) {
+            auto result = ObjectBuilder_->ParseObjectLazy().release();
+            if (!result) {
                 PyErr_SetNone(PyExc_StopIteration);
                 return nullptr;
             }
-            return item;
+            return result;
         } CATCH_AND_CREATE_YSON_ERROR("Yson load failed");
+        
     }
 
     virtual ~TLazyYsonIterator()
@@ -231,9 +232,9 @@ public:
     }
 
 private:
-    std::unique_ptr<IInputStream> InputStreamHolder_;
-    std::unique_ptr<TLazyListFragmentParser> Parser_;
-    TPythonStringCache KeyCache_;
+    std::unique_ptr<IZeroCopyInput> InputStreamHolder_;
+    std::unique_ptr<NYson::TYsonPullParser> Parser_;
+    std::unique_ptr<NPython::TPullObjectBuilder> ObjectBuilder_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -500,7 +501,13 @@ private:
                 iter->Init(inputStream, std::move(inputStreamHolder), encoding, alwaysCreateAttributes);
                 return pythonIter;
             } else {
-                return ParseLazyYson(inputStream, encoding, alwaysCreateAttributes, ysonType);
+                TYsonPullParser parser(inputStreamHolder.get(), ysonType);
+                TPullObjectBuilder builder(&parser, alwaysCreateAttributes, encoding);
+                if (ysonType == NYson::EYsonType::MapFragment) {
+                    return Py::Object(builder.ParseMapLazy(NYson::EYsonItemType::EndOfStream).release(), /* owned */ true);
+                } else {
+                    return Py::Object(builder.ParseObjectLazy().release(), /* owned */ true);
+                }
             }
         }
 
@@ -528,9 +535,9 @@ private:
             TYsonPullParser parser(inputStreamHolder.get(), ysonType);
             TPullObjectBuilder builder(&parser, alwaysCreateAttributes, encoding);
             if (ysonType == NYson::EYsonType::MapFragment) {
-                return Py::Object(builder.ParseMap(NYson::EYsonItemType::EndOfStream, alwaysCreateAttributes).release(), true);
+                return Py::Object(builder.ParseMap(NYson::EYsonItemType::EndOfStream, alwaysCreateAttributes).release(), /* owned */ true);
             } else {
-                return Py::Object(builder.ParseObject(alwaysCreateAttributes).release(), true);
+                return Py::Object(builder.ParseObject(alwaysCreateAttributes).release(), /* owned */ true);
             }
         }
     }

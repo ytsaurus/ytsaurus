@@ -1,7 +1,16 @@
 #include "lazy_dict.h"
 #include "yson_lazy_map.h"
 
+#include <yt/yt/core/yson/pull_parser.h>
+
+#include <yt/yt/python/yson/pull_object_builder.h>
+
+#include <util/stream/mem.h>
+#include <util/generic/typetraits.h>
+
 namespace NYT::NYTree {
+
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -10,11 +19,21 @@ size_t TPyObjectHasher::operator()(const Py::Object& object) const
     return object.hashValue();
 }
 
+using NPython::GetYsonTypeClass;
+
 TLazyDict::TLazyDict(bool alwaysCreateAttributes, const std::optional<TString>& encoding)
-    : AlwaysCreateAttributes_(alwaysCreateAttributes)
+    : YsonInt64(GetYsonTypeClass("YsonInt64"), /* owned */ true)
+    , YsonUint64(GetYsonTypeClass("YsonUint64"), /* owned */ true)
+    , YsonDouble(GetYsonTypeClass("YsonDouble"), /* owned */ true)
+    , YsonBoolean(GetYsonTypeClass("YsonBoolean"), /* owned */ true)
+    , YsonEntity(GetYsonTypeClass("YsonEntity"), /* owned */ true)
+    , AlwaysCreateAttributes_(alwaysCreateAttributes)
     , Encoding_(encoding)
 {
-    Consumer_.reset(new NYTree::TPythonObjectBuilder(alwaysCreateAttributes, encoding));
+    Tuple1_ = PyObjectPtr(PyTuple_New(1));
+    if (!Tuple1_) {
+        throw Py::Exception();
+    }
 }
 
 PyObject* TLazyDict::GetItem(const Py::Object& key)
@@ -23,32 +42,88 @@ PyObject* TLazyDict::GetItem(const Py::Object& key)
     if (it == Data_.end()) {
         Py_RETURN_NONE;
     }
-    if (!it->second.Value) {
-        NYson::TYsonParser parser(Consumer_.get());
-
-        auto data = it->second.Data;
-        parser.Read(TStringBuf(data.Begin(), data.Size()));
-        parser.Finish();
-
-        it->second.Value = Consumer_->ExtractObject();
+    auto& value = it->second.Value;
+    if (value) {
+        return value->ptr();
     }
-    return it->second.Value->ptr();
+    std::visit([&] (auto&& data) {
+            using T = std::decay_t<decltype(data)>;
+            if constexpr (std::is_same_v<T, TSharedRef>) {
+                auto inputStream = TMemoryInput(data.Begin(), data.Size());
+                TYsonPullParser parser(&inputStream, EYsonType::ListFragment);
+                NPython::TPullObjectBuilder builder(&parser, AlwaysCreateAttributes_, Encoding_);
+
+                value.emplace(builder.ParseObject().release(), /* owned */ true);
+            } else if constexpr (std::is_same_v<T, TYsonItem>) {
+                Py::Callable* constructor = nullptr;
+                PyObjectPtr result;
+                bool isUint = false;
+
+                switch (data.GetType()) {
+                    case EYsonItemType::EntityValue:
+                        result = PyObjectPtr(Py::new_reference_to(Py_None));
+                        constructor = &YsonEntity;
+                        break;
+                    case EYsonItemType::BooleanValue:
+                        result = PyObjectPtr(PyBool_FromLong(data.UncheckedAsBoolean()));
+                        constructor = &YsonBoolean;
+                        break;
+                    case EYsonItemType::Int64Value:
+                        result = PyObjectPtr(PyLong_FromLongLong(data.UncheckedAsInt64()));
+                        constructor = &YsonInt64;
+                        break;
+                    case EYsonItemType::Uint64Value:
+                        result = PyObjectPtr(PyLong_FromUnsignedLongLong(data.UncheckedAsUint64()));
+                        isUint = true;
+                        constructor = &YsonUint64;
+                        break;
+                    case EYsonItemType::DoubleValue:
+                        result = PyObjectPtr(PyFloat_FromDouble(data.UncheckedAsDouble()));
+                        constructor = &YsonDouble;
+                        break;
+                    default:
+                        YT_ABORT();
+                }
+                if (!result) {
+                    throw Py::Exception();
+                }
+                if (AlwaysCreateAttributes_ || isUint) {
+                    if (PyTuple_SetItem(Tuple1_.get(), 0, result.release()) == -1) {
+                        throw Py::Exception();
+                    }
+                    Y_VERIFY(constructor);
+                    result = PyObjectPtr(PyObject_CallObject(constructor->ptr(), Tuple1_.get()));
+                    if (!result) {
+                        throw Py::Exception();
+                    }
+                }
+                value.emplace(result.release(), /* owned */ true);
+            } else {
+                static_assert(TDependentFalse<T>, "non-exhaustive visitor!");
+            }
+        },
+        it->second.Data);
+    return value->ptr();
 }
 
 void TLazyDict::SetItem(const Py::Object& key, const TSharedRef& value)
 {
-    if (HasItem(key)) {
-        Data_.erase(key);
-    }
-    Data_.emplace(key, TLazyDictValue({value, std::nullopt}));
+    Data_[key] = {value, std::nullopt};
 }
 
 void TLazyDict::SetItem(const Py::Object& key, const Py::Object& value)
 {
-    if (HasItem(key)) {
-        Data_.erase(key);
-    }
-    Data_.emplace(key, TLazyDictValue({TSharedRef(), value}));
+    Data_[key] = {TSharedRef(), value};
+}
+
+void TLazyDict::SetItem(const Py::Object& key, const TYsonItem& value)
+{
+    Data_[key] = {value, std::nullopt};
+}
+
+void TLazyDict::SetItem(const Py::Object& key, const std::variant<TSharedRef, TYsonItem>& value)
+{
+    Data_[key] = {value, std::nullopt};
 }
 
 size_t TLazyDict::Length() const
