@@ -60,30 +60,30 @@ class ClusterSetupTestBase(YTEnvSetup):
 
 class TestEverythingIsOld(ClusterSetupTestBase):
     ARTIFACT_COMPONENTS = {
-        "20_2": ["master", "node", "job-proxy", "exec", "tools", "scheduler",
+        "21_2": ["master", "node", "job-proxy", "exec", "tools", "scheduler",
                  "controller-agent", "proxy", "http-proxy"]
     }
 
 
 class TestNewUpToProxies(ClusterSetupTestBase):
     ARTIFACT_COMPONENTS = {
-        "20_2": ["master", "node", "job-proxy", "exec", "tools", "scheduler",
+        "21_2": ["master", "node", "job-proxy", "exec", "tools", "scheduler",
                  "controller-agent"],
-        "20_3": ["proxy", "http-proxy"],
+        "trunk": ["proxy", "http-proxy"],
     }
 
 
 class TestNewUpToSchedulerAndCA(ClusterSetupTestBase):
     ARTIFACT_COMPONENTS = {
-        "20_2": ["master", "node", "job-proxy", "exec", "tools"],
-        "20_3": ["scheduler", "controller-agent", "proxy", "http-proxy"],
+        "21_2": ["master", "node", "job-proxy", "exec", "tools"],
+        "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy"],
     }
 
 
 class TestNewUpToNodes(ClusterSetupTestBase):
     ARTIFACT_COMPONENTS = {
-        "20_2": ["master"],
-        "20_3": ["node", "job-proxy", "exec", "tools", "scheduler", "controller-agent", "proxy", "http-proxy"],
+        "21_2": ["master"],
+        "trunk": ["node", "job-proxy", "exec", "tools", "scheduler", "controller-agent", "proxy", "http-proxy"],
     }
 
 # There is no need in test with new masters, such test should not belong to this test suite.
