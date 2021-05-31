@@ -2168,10 +2168,10 @@ TEST_F(TFairShareTreeTest, ChildHeap)
     operationJobResources.SetDiskQuota(CreateDiskQuota(0));
 
     // Create 5 operations.
-    std::vector<TOperationStrategyHostMockPtr> operations(5);
-    std::vector<TSchedulerOperationElementPtr> operationElements(5);
-    for (int opIndex = 0; opIndex < 5; ++opIndex) {
-
+    constexpr int OperationCount = 5;
+    std::vector<TOperationStrategyHostMockPtr> operations(OperationCount);
+    std::vector<TSchedulerOperationElementPtr> operationElements(OperationCount);
+    for (int opIndex = 0; opIndex < OperationCount; ++opIndex) {
         auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
         operationOptions->Weight = 1.0;
         // Operation with 2 jobs.
@@ -2193,12 +2193,11 @@ TEST_F(TFairShareTreeTest, ChildHeap)
             .Times(2)
             .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*treeId*/, auto /*treeConfig*/) {
                 auto result = New<TControllerScheduleJobResult>();
-                result->StartDescriptor.emplace(TGuid::Create(), EJobType::Vanilla, operationJobResources, /* interraptible */ false);
+                result->StartDescriptor.emplace(TGuid::Create(), EJobType::Vanilla, operationJobResources, /* interruptible */ false);
                 return MakeFuture<TControllerScheduleJobResultPtr>(
                     TErrorOr<TControllerScheduleJobResultPtr>(result));
             }));
     }
-
 
 	DoFairShareUpdate(host.Get(), rootElement);
 
@@ -2215,7 +2214,7 @@ TEST_F(TFairShareTreeTest, ChildHeap)
         /* registeredSchedulingTagFilters */ {},
         /* enableSchedulingInfoLogging */ true,
         SchedulerLogger);
-    context.StartStage(&SchedulingStageMock_, "stage");
+    context.StartStage(&SchedulingStageMock_, "stage1");
     context.PrepareForScheduling(rootElement);
     rootElement->CalculateCurrentResourceUsage(&context);
     rootElement->PrescheduleJob(&context, EPrescheduleJobOperationCriterion::All, /* aggressiveStarvationEnabled */ false);
@@ -2224,7 +2223,7 @@ TEST_F(TFairShareTreeTest, ChildHeap)
         const auto& dynamicAttributes = context.DynamicAttributesFor(rootElement.Get());
         ASSERT_TRUE(dynamicAttributes.Active);
     }
-            
+
     for (int iter = 0; iter < 2; ++iter) {
         for (auto operationElement : operationElements) {
             auto scheduleJobResult = operationElement->ScheduleJob(&context, /* ignorePacking */ true);
@@ -2234,18 +2233,33 @@ TEST_F(TFairShareTreeTest, ChildHeap)
             YT_VERIFY(childHeapMap.contains(rootElement->GetTreeIndex()));
 
             const auto& childHeap = GetOrCrash(context.ChildHeapMap(), rootElement->GetTreeIndex());
-
-            int heapIndex = 0;
             const auto& heapVector = childHeap.GetHeap();
             for (const auto& heapItem : heapVector) {
                 auto* heapIteratorFromAttributes = context.DynamicAttributesFor(heapItem.GetElement()).HeapIterator;
                 ASSERT_TRUE(heapIteratorFromAttributes == &heapItem);
-                ++heapIndex;
             }
-
         }
     }
     context.FinishStage();
+
+    // NB(eshcherbin): It is impossible to have two consecutive non-preemptive scheduling stages, however
+    // here we only need to trigger the second PrescheduleJob call so that the child heap is rebuilt.
+    context.StartStage(&SchedulingStageMock_, "stage2");
+    context.PrepareForScheduling(rootElement);
+    rootElement->CalculateCurrentResourceUsage(&context);
+    rootElement->PrescheduleJob(&context, EPrescheduleJobOperationCriterion::All, /* aggressiveStarvationEnabled */ false);
+
+    for (auto operationElement : operationElements) {
+        const auto& childHeapMap = context.ChildHeapMap();
+        YT_VERIFY(childHeapMap.contains(rootElement->GetTreeIndex()));
+
+        const auto& childHeap = GetOrCrash(context.ChildHeapMap(), rootElement->GetTreeIndex());
+        const auto& heapVector = childHeap.GetHeap();
+        for (const auto& heapItem : heapVector) {
+            auto* heapIteratorFromAttributes = context.DynamicAttributesFor(heapItem.GetElement()).HeapIterator;
+            ASSERT_TRUE(heapIteratorFromAttributes == &heapItem);
+        }
+    }
 }
 
 TEST_F(TFairShareTreeTest, TestAccumulatedResourceVolumeRatioBeforeFairShareUpdate)

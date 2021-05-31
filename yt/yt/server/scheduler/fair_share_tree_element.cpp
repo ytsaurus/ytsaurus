@@ -110,6 +110,8 @@ void TScheduleJobsContext::PrepareForScheduling(const TSchedulerRootElementPtr& 
         for (auto& attributes : DynamicAttributesList_) {
             attributes.Active = false;
         }
+
+        ChildHeapMap_.clear();
     }
 }
 
@@ -3785,6 +3787,10 @@ TChildHeapItem::TChildHeapItem(TChildHeapItem&& other) noexcept
 
 TChildHeapItem& TChildHeapItem::operator=(TChildHeapItem&& other) noexcept
 {
+    if (this == &other) {
+        return *this;
+    }
+
     Element_ = other.Element_;
     DynamicAttributesList_ = other.DynamicAttributesList_;
 
