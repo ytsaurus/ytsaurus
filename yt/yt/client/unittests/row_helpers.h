@@ -127,6 +127,8 @@ public:
 
     NTableClient::TUnversionedValue ToUnversionedValue(const NTableClient::TNameTablePtr& nameTable) const;
 
+    static TValue ExtractValue(const NTableClient::TUnversionedValue& value);
+
 private:
     static TValue ToValue(NTableClient::EValueType valueType, TStringBuf value) {
         using namespace NTableClient;
@@ -145,6 +147,11 @@ private:
     TString Name_;
     TValue Value_;
 };
+
+bool operator ==(const TTableField::TAny& lhs, const TTableField::TAny& rhs);
+bool operator !=(const TTableField::TAny& lhs, const TTableField::TAny& rhs);
+bool operator ==(const TTableField::TComposite& lhs, const TTableField::TComposite& rhs);
+bool operator !=(const TTableField::TComposite& lhs, const TTableField::TComposite& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

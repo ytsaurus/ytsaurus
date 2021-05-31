@@ -64,6 +64,17 @@ TString ConvertToYsonTextStringStable(const INodePtr& node)
     return out.Str();
 }
 
+TTableSchemaPtr CreateSingleValueTableSchema(const TLogicalTypePtr& logicalType)
+{
+    std::vector<TColumnSchema> columns;
+    if (logicalType) {
+        columns.emplace_back("value", logicalType);
+
+    }
+    auto strict = static_cast<bool>(logicalType);
+    return New<TTableSchema>(columns, strict);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TSkiffSchemaParse, TestAllowedTypes)
@@ -340,6 +351,81 @@ ISchemalessFormatWriterPtr CreateSkiffWriter(
         controlAttributesConfig,
         keyColumnCount);
 }
+
+TString TableToSkiff(
+    const TLogicalTypePtr& logicalType,
+    const std::shared_ptr<TSkiffSchema>& typeSchema,
+    const TTableField::TValue& value)
+{
+    auto schema = CreateSingleValueTableSchema(logicalType);
+    auto skiffSchema = CreateTupleSchema({
+        typeSchema->SetName("value")
+    });
+
+    auto nameTable = New<TNameTable>();
+
+    TStringStream resultStream;
+    auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {schema});
+
+    writer->Write({
+        MakeRow(nameTable, {
+            {"value", value}
+        }).Get(),
+    });
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto result = resultStream.Str();
+    if (!TStringBuf(result).StartsWith(TString(2, '\0'))) {
+        THROW_ERROR_EXCEPTION("Expected skiff value to start with \\x00\\x00, but prefix is %Qv",
+                EscapeC(result.substr(0, 2)));
+    }
+
+    return result.substr(2);
+}
+
+TTableField::TValue SkiffToTable(
+    const TLogicalTypePtr& logicalType,
+    const std::shared_ptr<TSkiffSchema>& typeSchema,
+    const TString& skiffValue)
+{
+    auto schema = CreateSingleValueTableSchema(logicalType);
+    auto skiffSchema = CreateTupleSchema({
+        typeSchema->SetName("value")
+    });
+    auto nameTable = New<TNameTable>();
+
+    TCollectingValueConsumer rowCollector(schema);
+    auto parser = CreateParserForSkiff(skiffSchema, &rowCollector);
+    parser->Read(TString(2, 0));
+    parser->Read(skiffValue);
+    parser->Finish();
+
+    if (rowCollector.Size() != 1) {
+        THROW_ERROR_EXCEPTION("Expected 1 row collected actual: %Qv",
+            rowCollector.Size());
+    }
+    auto value = rowCollector.GetRowValue(0, "value");
+    return TTableField::ExtractValue(value);
+}
+
+#define CHECK_BIDIRECTIONAL_CONVERSION(logicalTypeArg, skiffSchemaArg, tableValueArg, hexSkiffArg) \
+    do {                                                                                           \
+        try {                                                                                      \
+            TLogicalTypePtr logicalType = (logicalTypeArg);                                        \
+            std::shared_ptr<TSkiffSchema> skiffSchema = (skiffSchemaArg);                          \
+            TTableField::TValue tableValue = (tableValueArg);                                      \
+            TString hexSkiff = (hexSkiffArg);                                                      \
+            auto nameTable = New<TNameTable>();                                                    \
+            auto actualSkiff = TableToSkiff(logicalType, skiffSchema, tableValue);                 \
+            EXPECT_EQ(HexEncode(actualSkiff), hexSkiff);                                           \
+            auto actualValue = SkiffToTable(logicalType, skiffSchema, HexDecode(hexSkiff));        \
+            EXPECT_EQ(actualValue, tableValue);                                                    \
+        } catch (const std::exception& ex) {                                                       \
+            ADD_FAILURE() << "unexpected exception: " << ex.what();                                \
+        } \
+    } while (0)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2770,6 +2856,14 @@ TEST(TSkiffParser, TestEmptyColumns)
 
     ASSERT_EQ(static_cast<int>(collectedRows.Size()), 2);
 }
+
+TEST(TSkiffFormat, TestTimestamp)
+{
+    using namespace NLogicalTypeShortcuts;
+    CHECK_BIDIRECTIONAL_CONVERSION(Timestamp(), CreateSimpleTypeSchema(EWireType::Uint64), 42ull, "2A000000" "00000000");
+    CHECK_BIDIRECTIONAL_CONVERSION(Interval(), CreateSimpleTypeSchema(EWireType::Int64), 42, "2A000000" "00000000");
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
