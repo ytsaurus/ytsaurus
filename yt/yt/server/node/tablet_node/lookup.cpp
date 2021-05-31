@@ -101,7 +101,10 @@ public:
         TFiberWallTimer timer;
         TWallTimer wallTimer;
 
-        ThrottleUponOverdraft(ETabletDistributedThrottlerKind::Lookup, TabletSnapshot_, ChunkReadOptions_);
+        ThrowUponThrottlerOverdraft(
+            ETabletDistributedThrottlerKind::Lookup,
+            TabletSnapshot_,
+            ChunkReadOptions_);
 
         std::vector<TUnversionedRow> chunkLookupKeys;
 

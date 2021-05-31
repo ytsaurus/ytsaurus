@@ -178,6 +178,12 @@ class DynamicTablesBase(YTEnvSetup):
 
         wait(check)
 
+    def _override_driver_config(self):
+        # NB(eshcherbin): This is done to bypass RPC driver which currently doesn't support options for get queries.
+        driver_config = deepcopy(self.Env.configs["driver"])
+        driver_config["api_version"] = 4
+        return Driver(config=driver_config)
+
 
 ##################################################################
 
@@ -215,10 +221,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
             assert lookup_rows("//tmp/t", keys) == rows
 
     def _check_cell_stable(self, cell_id):
-        # NB(eshcherbin): This is done to bypass RPC driver which currently doesn't support options for get queries.
-        driver_config = deepcopy(self.Env.configs["driver"])
-        driver_config["api_version"] = 4
-        driver = Driver(config=driver_config)
+        driver = self._override_driver_config()
 
         addresses = [peer["address"] for peer in get("#" + cell_id + "/@peers")]
 
@@ -633,10 +636,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
     @authors("akozhikhov")
     def test_override_profiling_mode_attribute(self):
-        # NB(eshcherbin): This is done to bypass RPC driver which currently doesn't support options for get queries.
-        driver_config = deepcopy(self.Env.configs["driver"])
-        driver_config["api_version"] = 4
-        driver = Driver(config=driver_config)
+        driver = self._override_driver_config()
 
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
@@ -2395,8 +2395,22 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         delta = time.time() - start_time
         assert delta > 3
 
+    def _retry_while_throttling(self, action, check_result):
+        while True:
+            try:
+                result = action()
+                if check_result:
+                    assert result
+                break
+            except YtError as e:
+                if not e.contains_code(yt_error_codes.RequestThrottled):
+                    raise e
+                time.sleep(0.5)
+
     @authors("akozhikhov")
-    def test_lookup_and_select_throttler(self):
+    def test_lookup_throttler(self):
+        driver = self._override_driver_config()
+
         sync_create_cells(1)
 
         self._create_sorted_table("//tmp/t")
@@ -2407,45 +2421,70 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(5)])
         sync_flush_table("//tmp/t")
 
+        throttled_lookup_count = Profiler.at_tablet_node("//tmp/t").counter(
+            name="tablet/throttled_lookup_count",
+            driver=driver)
+
         start_time = time.time()
         for i in range(5):
-            assert lookup_rows("//tmp/t", [{"key": i}]) == [{"key": i, "value": str(i)}]
+            self._retry_while_throttling(
+                lambda: lookup_rows("//tmp/t", [{"key": i}]) == [{"key": i, "value": str(i)}],
+                check_result=True)
         delta = time.time() - start_time
         assert delta > 5
+        assert throttled_lookup_count.get_delta(driver=driver) > 0
 
+    @authors("akozhikhov")
+    def test_select_throttler(self):
+        driver = self._override_driver_config()
+
+        sync_create_cells(1)
+
+        self._create_sorted_table("//tmp/t")
         # 5 bytes per second.
         set("//tmp/t/@throttlers", {"select": {"limit": 5}})
-        # With remount throttler will be set asynchronously.
-        sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(5)])
+        sync_flush_table("//tmp/t")
+
+        throttled_select_count = Profiler.at_tablet_node("//tmp/t").counter(
+            name="tablet/throttled_select_count",
+            driver=driver)
+
         start_time = time.time()
         for i in range(5):
-            assert select_rows("key, value from [//tmp/t] where key = {}".format(i)) == [{"key": i, "value": str(i)}]
+            self._retry_while_throttling(
+                lambda: select_rows("key, value from [//tmp/t] where key = {}".format(i)) == [{"key": i, "value": str(i)}],
+                check_result=True)
         delta = time.time() - start_time
         assert delta > 5
+        assert throttled_select_count.get_delta(driver=driver) > 0
 
     @authors("akozhikhov")
     def test_write_throttler(self):
+        driver = self._override_driver_config()
+
         sync_create_cells(1)
 
         self._create_sorted_table("//tmp/t")
         set("//tmp/t/@throttlers", {"write": {"limit": 10}})
         sync_mount_table("//tmp/t")
 
+        throttled_write_count = Profiler.at_tablet_node("//tmp/t").counter(
+            name="tablet/throttled_write_count",
+            driver=driver)
+
         def _insert():
             start_time = time.time()
             for i in range(5):
-                while True:
-                    try:
-                        insert_rows("//tmp/t", [{"key": i, "value": str(i)}])
-                        break
-                    except YtError as e:
-                        if not e.contains_code(yt_error_codes.RequestThrottled):
-                            raise e
-                        time.sleep(1)
+                self._retry_while_throttling(
+                    lambda: insert_rows("//tmp/t", [{"key": i, "value": str(i)}]),
+                    check_result=False)
             return time.time() - start_time
 
         assert _insert() > 2
+        assert throttled_write_count.get_delta(driver=driver) > 0
 
         remove("//tmp/t/@throttlers")
         sync_unmount_table("//tmp/t")

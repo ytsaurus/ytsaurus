@@ -300,6 +300,11 @@ TTableProfiler::TTableProfiler(
         ThrottlerWaitTimers_[kind] = profiler.Timer(
             "/tablet/" + CamelCaseToUnderscoreCase(ToString(kind)) + "_throttler_wait_time");
     }
+
+    for (auto kind : TEnumTraits<ETabletDistributedThrottlerKind>::GetDomainValues()) {
+        ThrottlerCounters_[kind] = profiler.Counter(
+            "/tablet/throttled_" + CamelCaseToUnderscoreCase(ToString(kind)) + "_count");
+    }
 }
 
 TTableProfilerPtr TTableProfiler::GetDisabled()
@@ -373,6 +378,11 @@ TChunkReadCounters* TTableProfiler::GetReadCounters(EChunkReadProfilingMethod me
 NProfiling::TEventTimer* TTableProfiler::GetThrottlerTimer(ETabletDistributedThrottlerKind kind)
 {
     return &ThrottlerWaitTimers_[kind];
+}
+
+NProfiling::TCounter* TTableProfiler::GetThrottlerCounter(ETabletDistributedThrottlerKind kind)
+{
+    return &ThrottlerCounters_[kind];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

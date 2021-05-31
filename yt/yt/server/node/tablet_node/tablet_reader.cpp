@@ -56,34 +56,23 @@ struct TStoreRangeFormatter
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ThrottleUponOverdraft(
+void ThrowUponThrottlerOverdraft(
     ETabletDistributedThrottlerKind tabletThrottlerKind,
     const TTabletSnapshotPtr& tabletSnapshot,
     const TClientChunkReadOptions& chunkReadOptions)
 {
     const auto& tabletThrottler = tabletSnapshot->DistributedThrottlers[tabletThrottlerKind];
-    if (!tabletThrottler || !tabletThrottler->IsOverdraft()) {
-        return;
+    if (tabletThrottler && tabletThrottler->IsOverdraft()) {
+        tabletSnapshot->TableProfiler->GetThrottlerCounter(tabletThrottlerKind)
+            ->Increment();
+
+        THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::RequestThrottled,
+            "%v from tablet %v is throttled within read session %v",
+            tabletThrottlerKind,
+            tabletSnapshot->TabletId,
+            chunkReadOptions.ReadSessionId)
+            << TErrorAttribute("queue_total_count", tabletThrottler->GetQueueTotalCount());
     }
-
-    YT_LOG_DEBUG("Started waiting for tablet throttler (TabletId: %v, ReadSessionId: %v, ThrottlerKind: %v)",
-        tabletSnapshot->TabletId,
-        chunkReadOptions.ReadSessionId,
-        tabletThrottlerKind);
-
-    NProfiling::TWallTimer throttlerWaitTimer;
-    WaitFor(tabletThrottler->Throttle(1))
-        .ThrowOnError();
-    auto elapsedTime = throttlerWaitTimer.GetElapsedTime();
-
-    YT_LOG_DEBUG("Finished waiting for tablet throttler (TabletId: %v, ReadSessionId: %v, ThrottlerKind: %v, ElapsedTime: %v)",
-        tabletSnapshot->TabletId,
-        chunkReadOptions.ReadSessionId,
-        tabletThrottlerKind,
-        elapsedTime);
-
-    tabletSnapshot->TableProfiler->GetThrottlerTimer(tabletThrottlerKind)
-        ->Record(elapsedTime);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -237,7 +226,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
     tabletSnapshot->WaitOnLocks(timestamp);
 
     if (tabletThrottlerKind) {
-        ThrottleUponOverdraft(*tabletThrottlerKind, tabletSnapshot, chunkReadOptions);
+        ThrowUponThrottlerOverdraft(*tabletThrottlerKind, tabletSnapshot, chunkReadOptions);
     }
 
     // Pick stores which intersect [lowerBound, upperBound) (excluding upperBound).
@@ -358,7 +347,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
     YT_VERIFY(upperBound.GetCount() >= 1);
 
     if (tabletThrottlerKind) {
-        ThrottleUponOverdraft(*tabletThrottlerKind, tabletSnapshot, chunkReadOptions);
+        ThrowUponThrottlerOverdraft(*tabletThrottlerKind, tabletSnapshot, chunkReadOptions);
     }
 
     const i64 infinity = std::numeric_limits<i64>::max() / 2;
@@ -592,7 +581,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
     tabletSnapshot->WaitOnLocks(timestamp);
 
     if (tabletThrottlerKind) {
-        ThrottleUponOverdraft(*tabletThrottlerKind, tabletSnapshot, chunkReadOptions);
+        ThrowUponThrottlerOverdraft(*tabletThrottlerKind, tabletSnapshot, chunkReadOptions);
     }
 
     if (!tabletSnapshot->PhysicalSchema->IsSorted()) {
@@ -678,7 +667,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
     tabletSnapshot->WaitOnLocks(majorTimestamp);
 
     if (tabletThrottlerKind) {
-        ThrottleUponOverdraft(*tabletThrottlerKind, tabletSnapshot, chunkReadOptions);
+        ThrowUponThrottlerOverdraft(*tabletThrottlerKind, tabletSnapshot, chunkReadOptions);
     }
 
     YT_LOG_DEBUG(
