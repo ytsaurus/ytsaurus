@@ -5,11 +5,46 @@ from yt_env_setup import (
     is_asan_build,
 )
 
-from yt_commands import *  # noqa
+from yt_commands import (  # noqa
+    authors, print_debug, wait, wait_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
+    events_on_fs, reset_events_on_fs,
+    create, ls, get, set, copy, move, remove, link, exists,
+    create_account, create_network_project, create_tmpdir, create_user, create_group,
+    create_pool, create_pool_tree,
+    create_data_center, create_rack,
+    make_ace, check_permission, add_member,
+    make_batch_request, execute_batch, get_batch_error,
+    start_transaction, abort_transaction, lock,
+    insert_rows, select_rows, delete_rows, alter_table,
+    read_file, write_file, read_table, write_table, write_local_file,
+    map, reduce, map_reduce, join_reduce, merge, vanilla, sort, erase,
+    run_test_vanilla, run_sleeping_vanilla,
+    abort_job, list_jobs, get_job, abandon_job, interrupt_job,
+    get_job_fail_context, get_job_input, get_job_stderr, get_job_spec,
+    dump_job_context, poll_job_shell,
+    abort_op, complete_op, suspend_op, resume_op,
+    get_operation, list_operations, clean_operations,
+    get_operation_cypress_path, scheduler_orchid_pool_path,
+    scheduler_orchid_default_pool_tree_path, scheduler_orchid_operation_path,
+    scheduler_orchid_default_pool_tree_config_path, scheduler_orchid_path,
+    scheduler_orchid_node_path, scheduler_orchid_pool_tree_config_path,
+    sync_create_cells, sync_mount_table, sync_unmount_table,
+    get_first_chunk_id, get_singular_chunk_id, multicell_sleep,
+    update_nodes_dynamic_config, update_controller_agent_config,
+    update_op_parameters, enable_op_detailed_logs,
+    set_node_banned, set_banned_flag, set_account_disk_space_limit,
+    check_all_stderrs,
+    create_test_tables, PrepareTables,
+    get_statistics,
+    make_random_string, raises_yt_error,
+    normalize_schema, make_schema,
+    Driver)
+
 from yt_helpers import skip_if_no_descending
 
+import yt.yson as yson
 from yt.test_helpers import assert_items_equal
-from yt.yson import loads
+from yt.common import YtError
 
 from flaky import flaky
 
@@ -580,9 +615,15 @@ print row + table_index
             )
 
         if sort_order == "ascending":
-            t_in = '<ranges=[{lower_limit={key=["00002"]};upper_limit={key=["00003"]}};{lower_limit={key=["00002"]};upper_limit={key=["00003"]}}]>//tmp/t_in'
+            t_in = '<ranges=['\
+                '{lower_limit={key=["00002"]};upper_limit={key=["00003"]}};'\
+                '{lower_limit={key=["00002"]};upper_limit={key=["00003"]}}'\
+                ']>//tmp/t_in'
         else:
-            t_in = '<ranges=[{lower_limit={key=["00002"]};upper_limit={key=["00001"]}};{lower_limit={key=["00002"]};upper_limit={key=["00001"]}}]>//tmp/t_in'
+            t_in = '<ranges=['\
+                '{lower_limit={key=["00002"]};upper_limit={key=["00001"]}};'\
+                '{lower_limit={key=["00002"]};upper_limit={key=["00001"]}}'\
+                ']>//tmp/t_in'
 
         op = map(
             track=False,
@@ -1361,9 +1402,9 @@ print row + table_index
         create("table", "//tmp/t_output")
         original_data = [{"key": i} for i in xrange(1000)]
         for i in xrange(10):
-            write_table("<append=true>//tmp/t_input", original_data[100 * i : 100 * (i + 1)])
+            write_table("<append=true>//tmp/t_input", original_data[100 * i:100 * (i + 1)])
 
-        op = map(
+        map(
             in_="//tmp/t_input",
             out="<sorted_by=[key]>//tmp/t_output" if with_output_schema else "//tmp/t_output",
             command="cat; sleep $(($RANDOM % 5)); echo stderr 1>&2",
@@ -1646,8 +1687,12 @@ done
         op.track()
 
         statistics = get(op.get_path() + "/@progress/job_statistics")
-        read_from_disk = get_statistics(statistics, "chunk_reader_statistics.data_bytes_read_from_disk.$.completed.map.sum")
-        read_from_cache = get_statistics(statistics, "chunk_reader_statistics.data_bytes_read_from_cache.$.completed.map.sum")
+        read_from_disk = get_statistics(
+            statistics,
+            "chunk_reader_statistics.data_bytes_read_from_disk.$.completed.map.sum")
+        read_from_cache = get_statistics(
+            statistics,
+            "chunk_reader_statistics.data_bytes_read_from_cache.$.completed.map.sum")
         assert read_from_cache == 99 * read_from_disk
 
 ##################################################################
@@ -1753,7 +1798,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
         chunk_size = get("#{0}/@data_weight".format(chunk_id))
         create("table", "//tmp/t_output")
 
-        op = map(
+        map(
             in_="//tmp/t_input",
             out="//tmp/t_output",
             command="echo lines=`wc -l`",
@@ -2052,7 +2097,6 @@ print '{hello=world}'
             attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]},
         )
         create("table", "//tmp/t_out")
-        in_content = [{"key": 0}, {"key": 1}, {"key": 2}]
         write_table("//tmp/t_in", [{"key": 0}, {"key": 1}, {"key": 2}])
 
         script = "\n".join(
@@ -2084,7 +2128,7 @@ print '{hello=world}'
                 "job_count": 1,
                 "mapper": {
                     "file_paths": ["//tmp/script.py"],
-                    "format": loads("<format=text>yson"),
+                    "format": yson.loads("<format=text>yson"),
                 },
                 "max_failed_job_count": 1,
                 "job_io": {
@@ -2100,7 +2144,7 @@ print '{hello=world}'
 
         job_input = read_table("//tmp/t_out")[0]["out"]
         job_input = base64.standard_b64decode(job_input)
-        rows = loads(job_input, yson_type="list_fragment")
+        rows = yson.loads(job_input, yson_type="list_fragment")
         actual_content = []
         current_attrs = {}
         for row in rows:
