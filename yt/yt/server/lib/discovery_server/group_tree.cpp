@@ -669,7 +669,7 @@ public:
         auto guard = ReaderGuard(Lock_);
 
         auto [node, unresolvedSuffix] = ResolvePath(path);
-        
+
         // exists /group_id
         if (unresolvedSuffix.empty()) {
             return true;
@@ -703,7 +703,7 @@ public:
         if (internedKey == EInternedAttributeKey::ChildCount || internedKey == EInternedAttributeKey::Type) {
             return tokenizer.GetType() == NYPath::ETokenType::EndOfStream;
         }
-            
+
         // member_count and members exist only if there is a group in node.
         if (!group) {
             return false;
@@ -777,7 +777,7 @@ public:
         if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
             return true;
         }
-    
+
         // exists /group_id/@members/member_id/@user_attribute/path
         return SyncYPathExists(ConvertToNode(userAttributeYson), TYPath(tokenizer.GetInput()));
     }
@@ -800,8 +800,7 @@ public:
                 if (result.contains(id)) {
                     continue;
                 }
-                auto group = DoFindGroup(id);
-                if (group) {
+                if (auto group = DoFindGroup(id)) {
                     YT_VERIFY(result.emplace(id, group).second);
                 } else {
                     nonexistingGroupIds.push_back(id);
@@ -814,42 +813,45 @@ public:
         }
 
         auto createGroup = [&] (const TGroupId& id) {
-                NYPath::TTokenizer tokenizer(id);
-                TString key;
-                auto currentNode = Root_;
-                for (auto token = tokenizer.Advance(); token != NYPath::ETokenType::EndOfStream; token = tokenizer.Advance()) {
-                    if (tokenizer.GetType() != NYPath::ETokenType::Slash) {
-                        YT_LOG_WARNING("Invalid group id (GroupId: %v)", id);
-                        RemovePath(currentNode->GetPath(), currentNode);
-                        return;
-                    }
-                    if (tokenizer.Advance() != NYPath::ETokenType::Literal) {
-                        YT_LOG_WARNING("Invalid group id (GroupId: %v)", id);
-                        RemovePath(currentNode->GetPath(), currentNode);
-                        return;
-                    }
-
-                    key = tokenizer.GetLiteralValue();
-
-                    auto nextNode = currentNode->FindChild(key);
-                    if (nextNode) {
-                        currentNode = nextNode;
-                        continue;
-                    }
-
-                    auto currentPath = tokenizer.GetPrefixPlusToken();
-                    auto newNode = New<TGroupNode>(key, ToString(currentPath), MakeWeak(currentNode));
-                    YT_VERIFY(IdToNode_.emplace(currentPath, newNode).second);
-                    currentNode->AddChild(key, newNode);
-                    currentNode = newNode;
+            NYPath::TTokenizer tokenizer(id);
+            TString key;
+            auto currentNode = Root_;
+            for (auto token = tokenizer.Advance(); token != NYPath::ETokenType::EndOfStream; token = tokenizer.Advance()) {
+                if (tokenizer.GetType() != NYPath::ETokenType::Slash) {
+                    YT_LOG_WARNING("Invalid group id (GroupId: %v)", id);
+                    RemovePath(currentNode->GetPath(), currentNode);
+                    return;
+                }
+                if (tokenizer.Advance() != NYPath::ETokenType::Literal) {
+                    YT_LOG_WARNING("Invalid group id (GroupId: %v)", id);
+                    RemovePath(currentNode->GetPath(), currentNode);
+                    return;
                 }
 
+                key = tokenizer.GetLiteralValue();
+
+                if (auto nextNode = currentNode->FindChild(key)) {
+                    currentNode = nextNode;
+                    continue;
+                }
+
+                auto currentPath = tokenizer.GetPrefixPlusToken();
+                auto newNode = New<TGroupNode>(key, ToString(currentPath), MakeWeak(currentNode));
+                YT_VERIFY(IdToNode_.emplace(currentPath, newNode).second);
+                currentNode->AddChild(key, newNode);
+                currentNode = newNode;
+            }
+
+            // NB: Double-check that the group is still missing.
+            if (!currentNode->GetGroup()) {
                 auto group = New<TGroup>(
                     id,
                     BIND(&TImpl::OnGroupEmptied, MakeWeak(this), id, MakeWeak(currentNode)),
                     Logger);
                 currentNode->SetGroup(group);
-                YT_VERIFY(result.emplace(id, group).second);
+            }
+
+            YT_VERIFY(result.emplace(id, currentNode->GetGroup()).second);
         };
 
         // Slow path.
@@ -859,7 +861,6 @@ public:
                 if (result.contains(id)) {
                     continue;
                 }
-
                 createGroup(id);
             }
         }
@@ -924,6 +925,7 @@ private:
             YT_LOG_WARNING("Trying to delete not empty group (GroupId: %v)", groupId);
             return;
         }
+
         // Group should be deleted even if node has children.
         node->DropGroup();
 
