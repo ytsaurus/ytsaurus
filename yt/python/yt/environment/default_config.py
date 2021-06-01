@@ -109,6 +109,8 @@ b"""
             tablet_cell_status_incremental_gossip_period = 100;
             bundle_resource_usage_gossip_period = 100;
         };
+
+        enable_bulk_insert = %true;
     };
 }
 """)
@@ -290,6 +292,8 @@ b"""
                 use_new_sorted_pool = %true;
             };
         };
+
+        enable_bulk_insert_for_everyone = %true;
     };
 }
 """)
