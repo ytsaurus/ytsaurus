@@ -316,10 +316,14 @@ public:
         , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory())
         , NodeStatusDirectory_(std::move(nodeStatusDirectory))
         , Networks_(Client_->GetNativeConnection()->GetNetworks())
+        , Logger(ChunkClientLogger.WithTag("ChunkFragmentReaderId: %v", TGuid::Create()))
         , ReaderInvoker_(TDispatcher::Get()->GetReaderInvoker())
         , ChunkReplicaLocatorCache_(New<TChunkReplicaLocatorCache>(
-            BIND(
-                [client = Client_, nodeDirectory = NodeDirectory_, expirationTimeout = Config_->SeedsExpirationTimeout]
+            BIND([
+                logger = Logger,
+                client = Client_,
+                nodeDirectory = NodeDirectory_,
+                expirationTimeout = Config_->SeedsExpirationTimeout]
                 (TChunkId chunkId)
             {
                 return New<TChunkReplicaLocator>(
@@ -328,7 +332,7 @@ public:
                     chunkId,
                     expirationTimeout,
                     TChunkReplicaList{},
-                    ChunkClientLogger);
+                    logger.WithTag("ChunkId: %v", chunkId));
             }),
             Config_->ChunkReplicaLocatorExpirationTimeout,
             ReaderInvoker_))
@@ -375,6 +379,8 @@ private:
     const TNodeDirectoryPtr NodeDirectory_;
     const INodeStatusDirectoryPtr NodeStatusDirectory_;
     const TNetworkPreferenceList Networks_;
+
+    const NLogging::TLogger Logger;
 
     const IInvokerPtr ReaderInvoker_;
 
@@ -451,7 +457,7 @@ public:
         , Options_(std::move(options))
         , Config_(Reader_->Config_)
         , SessionInvoker_(Reader_->ReaderInvoker_)
-        , Logger(ChunkClientLogger.WithTag("SessionId: %v, ReadSessionId: %v",
+        , Logger(Reader_->Logger.WithTag("SessionId: %v, ReadSessionId: %v",
             TGuid::Create(),
             Options_.ReadSessionId))
     { }
@@ -943,6 +949,9 @@ private:
 
             YT_VERIFY(requestInfo.PeerInfo.Channel);
 
+            std::vector<TChunkId> chunkIds;
+            chunkIds.reserve(requestInfo.ChunkFragmentSetInfos.size());
+
             TDataNodeServiceProxy proxy(requestInfo.PeerInfo.Channel);
             proxy.SetDefaultTimeout(Config_->GetChunkFragmentSetRpcTimeout);
 
@@ -954,6 +963,8 @@ private:
             ToProto(req->mutable_workload_descriptor(), Options_.WorkloadDescriptor);
 
             for (const auto& chunkFragmentSetInfos : requestInfo.ChunkFragmentSetInfos) {
+                chunkIds.push_back(chunkFragmentSetInfos.ChunkId);
+
                 auto* subrequest = req->add_subrequests();
                 ToProto(subrequest->mutable_chunk_id(), chunkFragmentSetInfos.ChunkId);
 
@@ -968,6 +979,11 @@ private:
 
             nodeIds.push_back(nodeId);
             responseFutures.push_back(req->Invoke());
+
+            YT_LOG_DEBUG("Requesting chunk fragments (NodeId: %v, Address: %v, ChunkIds: %v)",
+                nodeId,
+                requestInfo.PeerInfo.Address,
+                chunkIds);
         }
 
         AllSet(std::move(responseFutures)).Subscribe(BIND(
@@ -1252,6 +1268,7 @@ public:
         FindFreshAndObsoleteChunks();
 
         if (ChunkIds_.empty()) {
+            EraseBadChunksIfAny();
             YT_LOG_DEBUG("Chunk fragment reader periodic update session finished due to empty chunk set");
             Reader_->SchedulePeriodicUpdate();
             return;
@@ -1444,6 +1461,8 @@ private:
 
                     const auto& probingInfo = probingInfos[chunkBestNodeIndex[chunkIndex]];
                     if (it->second.NodeId != probingInfo.NodeId) {
+                        it->second.NodeId = probingInfo.NodeId;
+
                         const auto& peerInfo = probingInfo.PeerInfoOrError.Value();
                         it->second.Address = peerInfo.Address;
                         it->second.Channel = peerInfo.Channel;
@@ -1452,6 +1471,16 @@ private:
             }
         }
 
+        EraseBadChunksIfAny();
+
+        YT_LOG_DEBUG("Chunk fragment reader periodic update session successfully finished (WallTime: %v)",
+            Timer_.GetElapsedTime());
+
+        Reader_->SchedulePeriodicUpdate();
+    }
+
+    void EraseBadChunksIfAny()
+    {
         if (!ObsoleteChunkIds_.empty() ||
             !MissingChunkIds_.empty() ||
             !NonexistentChunkIds_.empty() ||
@@ -1483,16 +1512,12 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Chunk fragment reader periodic update session successfully finished "
-            "(ObsoleteChunkCount: %v, MissingChunkCount: %v, NonexistentChunkCount: %v, FailedChunkCount: %v, "
-            "WallTime: %v)",
+        YT_LOG_DEBUG("Erased bad chunks within periodic update session "
+            "(ObsoleteChunkCount: %v, MissingChunkCount: %v, NonexistentChunkCount: %v, FailedChunkCount: %v)",
             ObsoleteChunkIds_.size(),
             MissingChunkIds_.size(),
             NonexistentChunkIds_.size(),
-            FailedChunkIds_.size(),
-            Timer_.GetElapsedTime());
-
-        Reader_->SchedulePeriodicUpdate();
+            FailedChunkIds_.size());
     }
 
     virtual TChunkId GetPendingChunkId(int chunkIndex) const final
