@@ -3,6 +3,8 @@
 
 #include <util/string/vector.h>
 
+#include <library/cpp/iterator/functools.h>
+
 namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -12,8 +14,9 @@ TWriterConfig::TWriterConfig()
     RegisterParameter("type", Type);
     RegisterParameter("file_name", FileName)
         .Default();
-    RegisterParameter("accepted_message_format", AcceptedMessageFormat)
-        .Default(ELogMessageFormat::PlainText);
+    RegisterParameter("format", Format)
+        .Alias("accepted_message_format")
+        .Default(ELogFormat::PlainText);
     RegisterParameter("rate_limit", RateLimit)
         .Default();
     RegisterParameter("enable_compression", EnableCompression)
@@ -42,7 +45,17 @@ TWriterConfig::TWriterConfig()
         } else if (CompressionMethod == ECompressionMethod::Zstd && CompressionLevel > 22) {
             THROW_ERROR_EXCEPTION("Invalid \"compression_level\" attribute for \"zstd\" compression method");
         }
+
+        // COMPAT(max42).
+        if (Format == ELogFormat::Structured) {
+            Format = ELogFormat::Json;
+        }
     });
+}
+
+ELogFamily TWriterConfig::GetFamily() const
+{
+    return Format == ELogFormat::PlainText ? ELogFamily::PlainText : ELogFamily::Structured;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,26 +70,28 @@ TRuleConfig::TRuleConfig()
         .Default(ELogLevel::Minimum);
     RegisterParameter("max_level", MaxLevel)
         .Default(ELogLevel::Maximum);
-    RegisterParameter("message_format", MessageFormat)
-        .Default(ELogMessageFormat::PlainText);
+    RegisterParameter("family", Family)
+        .Alias("message_format")
+        .Default(ELogFamily::PlainText);
     RegisterParameter("writers", Writers)
         .NonEmpty();
 }
 
-bool TRuleConfig::IsApplicable(TStringBuf category, ELogMessageFormat format) const
+bool TRuleConfig::IsApplicable(TStringBuf category, ELogFamily family) const
 {
     return
-        MessageFormat == format &&
+        Family == family &&
         ExcludeCategories.find(category) == ExcludeCategories.end() &&
         (!IncludeCategories || IncludeCategories->find(category) != IncludeCategories->end());
 }
 
-bool TRuleConfig::IsApplicable(TStringBuf category, ELogLevel level, ELogMessageFormat format) const
+bool TRuleConfig::IsApplicable(TStringBuf category, ELogLevel level, ELogFamily family) const
 {
     return
-        IsApplicable(category, format) &&
+        IsApplicable(category, family) &&
         MinLevel <= level && level <= MaxLevel;
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -115,16 +130,18 @@ TLogManagerConfig::TLogManagerConfig()
         .Default(false);
 
     RegisterPostprocessor([&] () {
-        for (const auto& rule : Rules) {
+        for (const auto& [ruleIndex, rule] : Enumerate(Rules)) {
             for (const TString& writer : rule->Writers) {
                 auto it = Writers.find(writer);
                 if (it == Writers.end()) {
                     THROW_ERROR_EXCEPTION("Unknown writer %Qv", writer);
                 }
-                if (rule->MessageFormat != it->second->AcceptedMessageFormat) {
-                    THROW_ERROR_EXCEPTION("Writer %Qv does not accept message format %Qv",
+                if (rule->Family != it->second->GetFamily()) {
+                    THROW_ERROR_EXCEPTION("Writer %Qv is from family %Qlv while rule %v is from family %Qlv",
                         writer,
-                        rule->MessageFormat);
+                        it->second->GetFamily(),
+                        ruleIndex,
+                        rule->Family);
                 }
             }
         }

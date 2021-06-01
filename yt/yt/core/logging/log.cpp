@@ -128,7 +128,7 @@ bool TLogger::IsLevelEnabledHeavy(ELogLevel level) const
         LogManager_->UpdateCategory(const_cast<TLoggingCategory*>(Category_));
     }
 
-    return level >= Category_->MinLevel;
+    return level >= Category_->MinPlainTextLevel;
 }
 
 bool TLogger::GetAbortOnAlert() const

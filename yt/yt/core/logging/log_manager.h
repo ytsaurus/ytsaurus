@@ -13,14 +13,14 @@ namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TLogWritersCacheKey
+struct TLogWriterCacheKey
 {
     TStringBuf Category;
     ELogLevel LogLevel;
-    ELogMessageFormat MessageFormat;
+    ELogFamily Family;
 };
 
-bool operator == (const TLogWritersCacheKey& lhs, const TLogWritersCacheKey& rhs);
+bool operator == (const TLogWriterCacheKey& lhs, const TLogWriterCacheKey& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,14 +82,14 @@ struct TSingletonTraits<NYT::NLogging::TLogManager>
 };
 
 template <>
-struct THash<NYT::NLogging::TLogWritersCacheKey>
+struct THash<NYT::NLogging::TLogWriterCacheKey>
 {
-    size_t operator () (const NYT::NLogging::TLogWritersCacheKey& obj) const
+    size_t operator () (const NYT::NLogging::TLogWriterCacheKey& obj) const
     {
         size_t hash = 0;
         NYT::HashCombine(hash, THash<TString>()(obj.Category));
         NYT::HashCombine(hash, static_cast<size_t>(obj.LogLevel));
-        NYT::HashCombine(hash, static_cast<size_t>(obj.MessageFormat));
+        NYT::HashCombine(hash, static_cast<size_t>(obj.Family));
         return hash;
     }
 };

@@ -24,7 +24,12 @@ namespace NYT::NLogging {
 struct TLoggingCategory
 {
     TStringBuf Name;
-    std::atomic<ELogLevel> MinLevel;
+    //! This value is used for early dropping of plaintext events in order
+    //! to reduce load on logging thread for events which are definitely going
+    //! to be dropped due to rule setup.
+    //! NB: this optimization is used only for plaintext events since structured
+    //! logging rate is negligible comparing to the plaintext logging rate.
+    std::atomic<ELogLevel> MinPlainTextLevel;
     std::atomic<int> CurrentVersion;
     std::atomic<int>* ActualVersion;
 };
@@ -43,7 +48,7 @@ struct TLogEvent
 {
     const TLoggingCategory* Category = nullptr;
     ELogLevel Level = ELogLevel::Minimum;
-    ELogMessageFormat MessageFormat = ELogMessageFormat::PlainText;
+    ELogFamily Family = ELogFamily::PlainText;
     bool Essential = false;
 
     TSharedRef Message;

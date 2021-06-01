@@ -19,10 +19,18 @@ DEFINE_ENUM(ELogLevel,
     (Maximum)
 );
 
-DEFINE_ENUM(ELogMessageFormat,
+DEFINE_ENUM(ELogFamily,
     (PlainText)
     (Structured)
 );
+
+DEFINE_ENUM(ELogFormat,
+    (PlainText)
+    (Json)
+    // Legacy alias for JSON.
+    (Structured)
+    (Yson)
+)
 
 DEFINE_ENUM(EWriterType,
     (File)

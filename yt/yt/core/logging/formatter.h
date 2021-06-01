@@ -59,11 +59,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJsonLogFormatter
+class TStructuredLogFormatter
     : public ILogFormatter
 {
 public:
-    TJsonLogFormatter(
+    TStructuredLogFormatter(
+        ELogFormat format,
         const THashMap<TString, NYTree::INodePtr>& commonFields,
         bool enableControlMessages = true);
 
@@ -73,6 +74,7 @@ public:
     virtual void WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, TStringBuf skippedBy) const override;
 
 private:
+    ELogFormat Format_;
     const std::unique_ptr<TCachingDateFormatter> CachingDateFormatter_;
     const THashMap<TString, NYTree::INodePtr> CommonFields_;
     const bool EnableSystemMessages_;
