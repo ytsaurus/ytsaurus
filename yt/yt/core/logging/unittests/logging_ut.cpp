@@ -431,9 +431,9 @@ TEST_F(TAppendableZstdFileTest, WriteMultipleFramesPerFlush)
 TEST_F(TAppendableZstdFileTest, RepairSmall)
 {
     auto logFile = GetLogFile();
-    WriteTestFile("test.txt.zst", -1, false);
+    WriteTestFile(logFile.Name(), -1, false);
 
-    TUnbufferedFileInput file("test.txt.zst");
+    TUnbufferedFileInput file(logFile.Name());
     TZstdDecompress decompress(&file);
     EXPECT_EQ("foo\nzog\n", decompress.ReadAll());
 }
