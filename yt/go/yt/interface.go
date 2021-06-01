@@ -874,9 +874,20 @@ type Tx interface {
 }
 
 type LookupRowsOptions struct {
+	// KeepMissingRows changes handling of missing rows.
+	//
+	// When this flag is not set, missing rows are skipped.
+	// When flag is set, nil values are returned for missing rows.
 	KeepMissingRows bool `http:"keep_missing_rows"`
 
+	// Timestamp overrides timestamp for lookup.
+	//
+	// By default, lookup returns data from the point in time when
+	// transaction was started.
 	Timestamp *Timestamp `http:"timestamp,omitnil"`
+
+	// Columns filters columns in lookup result.
+	Columns []string `http:"column_names,omitnil"`
 
 	*TransactionOptions
 }
@@ -931,6 +942,15 @@ type TabletClient interface {
 		options *SelectRowsOptions,
 	) (r TableReader, err error)
 
+	// LookupRows performs lookup by key.
+	//
+	// Rows are returned in the order of provided keys.
+	//
+	// By default, returns one row for each key that is present in the table.
+	//
+	// When KeepMissingRows option is set, returns exactly len(keys) number of rows. If key is missing
+	// from the table, corresponding row will be nil.
+	//
 	// http:verb:"lookup_rows"
 	// http:params:"path"
 	// http:extra

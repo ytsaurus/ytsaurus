@@ -277,3 +277,43 @@ func TestReadTimestamp(t *testing.T) {
 	defer r.Close()
 	checkReader(r)
 }
+
+type testRowWithTwoColumns struct {
+	Key    string `yson:"table_key,key"`
+	Value0 string `yson:"value0"`
+	Value1 string `yson:"value1"`
+}
+
+func TestLookupColumnFilter(t *testing.T) {
+	t.Parallel()
+
+	env := yttest.New(t)
+
+	testTable := env.TmpPath().Child("table")
+	require.NoError(t, migrate.Create(env.Ctx, env.YT, testTable, schema.MustInfer(&testRowWithTwoColumns{})))
+	require.NoError(t, migrate.MountAndWait(env.Ctx, env.YT, testTable))
+
+	rows := []interface{}{&testRowWithTwoColumns{"foo", "1", "2"}}
+	keys := []interface{}{&testKey{"foo"}}
+
+	require.NoError(t, env.YT.InsertRows(env.Ctx, testTable, rows, nil))
+
+	readRow := func(r yt.TableReader) (row testRowWithTwoColumns) {
+		defer r.Close()
+
+		require.True(t, r.Next())
+		require.NoError(t, r.Scan(&row))
+
+		require.False(t, r.Next())
+		require.NoError(t, r.Err())
+		return
+	}
+
+	r, err := env.YT.LookupRows(env.Ctx, testTable, keys, nil)
+	require.NoError(t, err)
+	require.Equal(t, readRow(r), testRowWithTwoColumns{"foo", "1", "2"})
+
+	r, err = env.YT.LookupRows(env.Ctx, testTable, keys, &yt.LookupRowsOptions{Columns: []string{"table_key", "value0"}})
+	require.NoError(t, err)
+	require.Equal(t, readRow(r), testRowWithTwoColumns{Key: "foo", Value0: "1"})
+}

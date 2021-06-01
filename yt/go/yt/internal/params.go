@@ -740,6 +740,10 @@ func writeLookupRowsOptions(w *yson.Writer, o *yt.LookupRowsOptions) {
 		w.MapKeyString("timestamp")
 		w.Any(o.Timestamp)
 	}
+	if o.Columns != nil {
+		w.MapKeyString("column_names")
+		w.Any(o.Columns)
+	}
 	writeTransactionOptions(w, o.TransactionOptions)
 }
 
