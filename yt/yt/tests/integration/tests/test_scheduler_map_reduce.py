@@ -1,9 +1,47 @@
-import pytest
-
 from yt_env_setup import YTEnvSetup, wait
-from yt.environment.helpers import assert_items_equal
-from yt_commands import *  # noqa
+
+from yt_commands import (  # noqa
+    authors, print_debug, wait, wait_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
+    events_on_fs, reset_events_on_fs,
+    create, ls, get, set, copy, move, remove, link, exists,
+    create_account, create_network_project, create_tmpdir, create_user, create_group,
+    create_pool, create_pool_tree,
+    create_data_center, create_rack,
+    make_ace, check_permission, add_member,
+    make_batch_request, execute_batch, get_batch_error,
+    start_transaction, abort_transaction, commit_transaction, lock,
+    insert_rows, select_rows, delete_rows, alter_table,
+    read_file, write_file, read_table, write_table, write_local_file,
+    map, reduce, map_reduce, join_reduce, merge, vanilla, sort, erase,
+    run_test_vanilla, run_sleeping_vanilla,
+    abort_job, list_jobs, get_job, abandon_job, interrupt_job,
+    get_job_fail_context, get_job_input, get_job_stderr, get_job_spec,
+    dump_job_context, poll_job_shell,
+    abort_op, complete_op, suspend_op, resume_op,
+    get_operation, list_operations, clean_operations,
+    get_operation_cypress_path, scheduler_orchid_pool_path,
+    scheduler_orchid_default_pool_tree_path, scheduler_orchid_operation_path,
+    scheduler_orchid_default_pool_tree_config_path, scheduler_orchid_path,
+    scheduler_orchid_node_path, scheduler_orchid_pool_tree_config_path,
+    sync_create_cells, sync_mount_table, sync_unmount_table,
+    get_first_chunk_id, get_singular_chunk_id, multicell_sleep,
+    update_nodes_dynamic_config, update_controller_agent_config,
+    update_op_parameters, enable_op_detailed_logs,
+    set_node_banned, set_banned_flag, set_account_disk_space_limit,
+    check_all_stderrs,
+    create_test_tables, PrepareTables,
+    get_statistics,
+    make_random_string, raises_yt_error,
+    Driver)
+
+from yt_type_helpers import struct_type, list_type, tuple_type
+
 from yt_helpers import skip_if_no_descending
+
+from yt.common import YtError
+from yt.environment.helpers import assert_items_equal
+
+import pytest
 
 from collections import defaultdict
 from random import shuffle
@@ -19,12 +57,12 @@ class TestSchedulerMapReduceCommands(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent" : {
-            "sort_operation_options" : {
-                "min_uncompressed_block_size" : 1
+        "controller_agent": {
+            "sort_operation_options": {
+                "min_uncompressed_block_size": 1
             },
-            "map_reduce_operation_options" : {
-                "min_uncompressed_block_size" : 1,
+            "map_reduce_operation_options": {
+                "min_uncompressed_block_size": 1,
                 "job_splitter": {
                     "min_job_time": 3000,
                     "min_total_data_size": 1024,
@@ -655,7 +693,7 @@ print "x={0}\ty={1}".format(x, y)
                 try:
                     if 'Scheduler "output" transaction' in get("#{}/@title".format(tx_id)):
                         intermediate_chunk_ids.append(str(c))
-                except:
+                except YtError:
                     # Transaction may vanish
                     pass
 
@@ -821,7 +859,6 @@ print "x={0}\ty={1}".format(x, y)
         partition_reduce_counter = get(
             op.get_path() + "/@progress/data_flow_graph/vertices/partition_reduce/job_counter"
         )
-        total_counter = get(op.get_path() + "/@progress/jobs")
 
         assert partition_reduce_counter["aborted"]["total"] == 1
         assert partition_reduce_counter["pending"] == 0
@@ -993,7 +1030,7 @@ print "x={0}\ty={1}".format(x, y)
 
         create("table", "//tmp/t_output")
 
-        op = map_reduce(
+        map_reduce(
             in_="//tmp/t_input",
             out="//tmp/t_output",
             sort_by="lines",
@@ -1039,7 +1076,7 @@ print "x={0}\ty={1}".format(x, y)
             sort_by = [{"name": "shuffle_key", "sort_order": "descending"}]
         else:
             sort_by = [{"name": "shuffle_key", "sort_order": "ascending"}]
-        op = map_reduce(
+        map_reduce(
             in_="//tmp/t_in",
             out=["//tmp/t_out_map", "//tmp/t_out"],
             mapper_command="echo \"{bypass_key=$YT_JOB_INDEX}\" 1>&4; echo '{shuffle_key=23}'",
@@ -1063,7 +1100,7 @@ print "x={0}\ty={1}".format(x, y)
         job_count = 20
         node_count = get("//sys/cluster_nodes/@count")
         write_table("//tmp/t1", [{"a": "x" * 10 ** 6} for i in range(job_count)])
-        op = map_reduce(
+        map_reduce(
             in_="//tmp/t1",
             out="//tmp/t2",
             spec={
@@ -1095,7 +1132,7 @@ print "x={0}\ty={1}".format(x, y)
         create("table", "//tmp/t_out")
         for i in range(50):
             write_table("<append=%true>//tmp/t_in", [{"key": i}])
-        op = map_reduce(
+        map_reduce(
             in_="//tmp/t_in",
             out="//tmp/t_out",
             mapper_command="cat",
@@ -1120,7 +1157,7 @@ print "x={0}\ty={1}".format(x, y)
         create("table", "//tmp/t_out")
         for i in range(50):
             write_table("<append=%true>//tmp/t_in", [{"key": i}])
-        op = map_reduce(
+        map_reduce(
             in_="//tmp/t_in",
             out="//tmp/t_out",
             reducer_command="cat",
@@ -2479,7 +2516,9 @@ done
             })
 
         assert get(op.get_path() + "/controller_orchid/progress/tasks/0/task_name") == "partition_map(0)"
-        assert get(op.get_path() + "/controller_orchid/progress/tasks/0/job_counter/completed/interrupted/job_split") == 1
+
+        path = op.get_path() + "/controller_orchid/progress/tasks/0/job_counter/completed/interrupted/job_split"
+        assert get(path) == 1
 
         assert sorted(read_table("//tmp/t_out{a}", verbose=False)) == sorted(expected)
 
@@ -2523,7 +2562,9 @@ done
         op.track()
 
         assert get(op.get_path() + "/@progress/tasks/0/task_name") == "partition_map(0)"
-        assert get(op.get_path() + "/@progress/tasks/0/speculative_job_counter/aborted/scheduled/speculative_run_won") == 1
+
+        path = op.get_path() + "/@progress/tasks/0/speculative_job_counter/aborted/scheduled/speculative_run_won"
+        assert get(path) == 1
 
     @authors("gritukan")
     def test_empty_mapper_output(self):
@@ -2606,12 +2647,12 @@ class TestSchedulerMapReduceCommandsPortal(TestSchedulerMapReduceCommandsMultice
 
 class TestSchedulerMapReduceCommandsNewSortedPool(TestSchedulerMapReduceCommands):
     DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent" : {
-            "sort_operation_options" : {
-                "min_uncompressed_block_size" : 1
+        "controller_agent": {
+            "sort_operation_options": {
+                "min_uncompressed_block_size": 1
             },
-            "map_reduce_operation_options" : {
-                "min_uncompressed_block_size" : 1,
+            "map_reduce_operation_options": {
+                "min_uncompressed_block_size": 1,
                 "job_splitter": {
                     "min_job_time": 3000,
                     "min_total_data_size": 1024,
