@@ -342,8 +342,15 @@ def extract_object_id(**kwargs):
     # NB: this object id is not a string because it corresponds to ObjectID proto message in
     # yt/idm-integration/aclapi/aclapi.proto.
     object_id = {object_type: kwargs[object_type]}
-
     del kwargs[object_type]
+
+    if object_type == "pool":
+        if not kwargs.get("pool_tree"):
+            raise ArgumentTypeError("Specify --pool-tree")
+
+        object_id["pool_tree"] = kwargs["pool_tree"]
+        del kwargs["pool_tree"]
+
     return object_id, Namespace(**kwargs)
 
 def with_idm_info(func):
