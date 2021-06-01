@@ -15,7 +15,7 @@ class TWriterConfig
 public:
     EWriterType Type;
     TString FileName;
-    ELogMessageFormat AcceptedMessageFormat;
+    ELogFormat Format;
     std::optional<size_t> RateLimit;
     bool EnableCompression;
     ECompressionMethod CompressionMethod;
@@ -23,6 +23,8 @@ public:
     THashMap<TString, NYTree::INodePtr> CommonFields;
     bool EnableSystemMessages;
     bool EnableSourceLocation;
+
+    ELogFamily GetFamily() const;
 
     TWriterConfig();
 };
@@ -41,14 +43,14 @@ public:
     ELogLevel MinLevel;
     ELogLevel MaxLevel;
 
-    ELogMessageFormat MessageFormat;
+    ELogFamily Family;
 
     std::vector<TString> Writers;
 
     TRuleConfig();
 
-    bool IsApplicable(TStringBuf category, ELogMessageFormat format) const;
-    bool IsApplicable(TStringBuf category, ELogLevel level, ELogMessageFormat format) const;
+    bool IsApplicable(TStringBuf category, ELogFamily family) const;
+    bool IsApplicable(TStringBuf category, ELogLevel level, ELogFamily family) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TRuleConfig)

@@ -5,7 +5,10 @@
 #include <yt/yt/build/build.h>
 
 #include <yt/yt/core/json/json_writer.h>
+
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <yt/yt/core/yson/writer.h>
 
 #include <util/stream/length.h>
 
@@ -13,6 +16,7 @@ namespace NYT::NLogging {
 
 using namespace NProfiling;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -196,22 +200,34 @@ void TPlainTextLogFormatter::WriteLogSkippedEvent(IOutputStream* outputStream, i
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJsonLogFormatter::TJsonLogFormatter(const THashMap<TString, NYTree::INodePtr>& commonFields, bool enableControlMessages)
-    : CachingDateFormatter_(std::make_unique<TCachingDateFormatter>())
+TStructuredLogFormatter::TStructuredLogFormatter(ELogFormat format, const THashMap<TString, NYTree::INodePtr>& commonFields, bool enableControlMessages)
+    : Format_(format)
+    , CachingDateFormatter_(std::make_unique<TCachingDateFormatter>())
     , CommonFields_(commonFields)
     , EnableSystemMessages_(enableControlMessages)
 { }
 
-i64 TJsonLogFormatter::WriteFormatted(IOutputStream* stream, const TLogEvent& event) const
+i64 TStructuredLogFormatter::WriteFormatted(IOutputStream* stream, const TLogEvent& event) const
 {
     if (!stream) {
         return 0;
     }
 
     auto countingStream = TCountingOutput(stream);
+    std::unique_ptr<IFlushableYsonConsumer> consumer;
 
-    auto jsonConsumer = NJson::CreateJsonConsumer(&countingStream);
-    NYTree::BuildYsonFluently(jsonConsumer.get())
+    switch (Format_) {
+        case ELogFormat::Json:
+            consumer = NJson::CreateJsonConsumer(&countingStream);
+            break;
+        case ELogFormat::Yson:
+            consumer = std::make_unique<TYsonWriter>(&countingStream, EYsonFormat::Text);
+            break;
+        default:
+            YT_ABORT();
+    }
+
+    BuildYsonFluently(consumer.get())
         .BeginMap()
             .DoFor(CommonFields_, [] (auto fluent, auto item) {
                 fluent.Item(item.first).Value(item.second);
@@ -221,24 +237,29 @@ i64 TJsonLogFormatter::WriteFormatted(IOutputStream* stream, const TLogEvent& ev
             .Item("level").Value(FormatEnum(event.Level))
             .Item("category").Value(event.Category->Name)
         .EndMap();
-    jsonConsumer->Flush();
+    consumer->Flush();
+
+    if (Format_ == ELogFormat::Yson) {
+        // In order to obtain proper list fragment, we must manually insert trailing semicolon in each line.
+        countingStream.Write(';');
+    }
 
     countingStream.Write('\n');
 
     return countingStream.Counter();
 }
 
-void TJsonLogFormatter::WriteLogReopenSeparator(IOutputStream* /*outputStream*/) const
+void TStructuredLogFormatter::WriteLogReopenSeparator(IOutputStream* /*outputStream*/) const
 { }
 
-void TJsonLogFormatter::WriteLogStartEvent(IOutputStream* outputStream) const
+void TStructuredLogFormatter::WriteLogStartEvent(IOutputStream* outputStream) const
 {
     if (EnableSystemMessages_) {
         WriteFormatted(outputStream, GetStartLogStructuredEvent());
     }
 }
 
-void TJsonLogFormatter::WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, TStringBuf skippedBy) const
+void TStructuredLogFormatter::WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, TStringBuf skippedBy) const
 {
     if (EnableSystemMessages_) {
         WriteFormatted(outputStream, GetSkippedLogStructuredEvent(count, skippedBy));

@@ -272,7 +272,7 @@ inline void LogEventImpl(
 {
     auto event = CreateLogEvent(traceContext, logger, level);
     event.Message = std::move(message);
-    event.MessageFormat = ELogMessageFormat::PlainText;
+    event.Family = ELogFamily::PlainText;
     event.SourceFile = sourceLocation.File;
     event.SourceLine = sourceLocation.Line;
     logger.Write(std::move(event));
@@ -293,7 +293,7 @@ inline void LogStructuredEvent(
         logger,
         level);
     event.StructuredMessage = std::move(message);
-    event.MessageFormat = ELogMessageFormat::Structured;
+    event.Family = ELogFamily::Structured;
     logger.Write(std::move(event));
 }
 

@@ -69,9 +69,9 @@ static constexpr auto DequeuePeriod = TDuration::MilliSeconds(30);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool operator == (const TLogWritersCacheKey& lhs, const TLogWritersCacheKey& rhs)
+bool operator == (const TLogWriterCacheKey& lhs, const TLogWriterCacheKey& rhs)
 {
-    return lhs.Category == rhs.Category && lhs.LogLevel == rhs.LogLevel && lhs.MessageFormat == rhs.MessageFormat;
+    return lhs.Category == rhs.Category && lhs.LogLevel == rhs.LogLevel && lhs.Family == rhs.Family;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -667,7 +667,7 @@ private:
             return SystemWriters_;
         }
 
-        TLogWritersCacheKey cacheKey{event.Category->Name, event.Level, event.MessageFormat};
+        TLogWriterCacheKey cacheKey{event.Category->Name, event.Level, event.Family};
         auto it = CachedWriters_.find(cacheKey);
         if (it != CachedWriters_.end()) {
             return it->second;
@@ -675,7 +675,7 @@ private:
 
         THashSet<TString> writerIds;
         for (const auto& rule : Config_->Rules) {
-            if (rule->IsApplicable(event.Category->Name, event.Level, event.MessageFormat)) {
+            if (rule->IsApplicable(event.Category->Name, event.Level, event.Family)) {
                 writerIds.insert(rule->Writers.begin(), rule->Writers.end());
             }
         }
@@ -807,14 +807,16 @@ private:
             std::unique_ptr<ILogFormatter> formatter;
             std::unique_ptr<TNotificationWatch> watch;
 
-            switch (writerConfig->AcceptedMessageFormat) {
-                case ELogMessageFormat::PlainText:
+            switch (writerConfig->Format) {
+                case ELogFormat::PlainText:
                     formatter = std::make_unique<TPlainTextLogFormatter>(
                         writerConfig->EnableSystemMessages,
                         writerConfig->EnableSourceLocation);
                     break;
-                case ELogMessageFormat::Structured:
-                    formatter = std::make_unique<TJsonLogFormatter>(
+                case ELogFormat::Json: [[fallthrough]];
+                case ELogFormat::Yson:
+                    formatter = std::make_unique<TStructuredLogFormatter>(
+                        writerConfig->Format,
                         writerConfig->CommonFields,
                         writerConfig->EnableSystemMessages);
                     break;
@@ -1160,14 +1162,14 @@ private:
 
     void DoUpdateCategory(TLoggingCategory* category)
     {
-        auto level = ELogLevel::Maximum;
+        auto minPlainTextLevel = ELogLevel::Maximum;
         for (const auto& rule : Config_->Rules) {
-            if (rule->IsApplicable(category->Name, ELogMessageFormat::PlainText)) {
-                level = std::min(level, rule->MinLevel);
+            if (rule->IsApplicable(category->Name, ELogFamily::PlainText)) {
+                minPlainTextLevel = std::min(minPlainTextLevel, rule->MinLevel);
             }
         }
 
-        category->MinLevel.store(level, std::memory_order_relaxed);
+        category->MinPlainTextLevel.store(minPlainTextLevel, std::memory_order_relaxed);
         category->CurrentVersion.store(GetVersion(), std::memory_order_relaxed);
     }
 
@@ -1240,7 +1242,7 @@ private:
     std::atomic<ui64> DroppedEvents_ = 0;
 
     THashMap<TString, ILogWriterPtr> Writers_;
-    THashMap<TLogWritersCacheKey, std::vector<ILogWriterPtr>> CachedWriters_;
+    THashMap<TLogWriterCacheKey, std::vector<ILogWriterPtr>> CachedWriters_;
     std::vector<ILogWriterPtr> SystemWriters_;
 
     std::atomic<bool> ReopenRequested_ = false;

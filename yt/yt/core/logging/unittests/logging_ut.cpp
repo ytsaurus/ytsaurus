@@ -58,19 +58,31 @@ protected:
     };
     const int DateLength = ToString("2014-04-24 23:41:09,804").length();
 
-    IMapNodePtr DeserializeJson(const TString& source)
+    IMapNodePtr DeserializeStructured(const TString& source, ELogFormat format)
     {
-        auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
-        builder->BeginTree();
-        TStringStream stream(source);
-        ParseJson(&stream, builder.get());
-        return builder->EndTree()->AsMap();
+        switch (format) {
+        case ELogFormat::Json: {
+            auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+            builder->BeginTree();
+            TStringStream stream(source);
+            ParseJson(&stream, builder.get());
+            return builder->EndTree()->AsMap();
+        }
+        case ELogFormat::Yson: {
+            // Each line ends with a semicolon, so it must be treated as a list fragment.
+            auto listFragment = ConvertTo<std::vector<IMapNodePtr>>(TYsonStringBuf(source, EYsonType::ListFragment));
+            YT_VERIFY(listFragment.size() == 1);
+            return listFragment.front();
+        }
+        default:
+            YT_ABORT();
+        }
     }
 
     void WritePlainTextEvent(ILogWriter* writer)
     {
         TLogEvent event;
-        event.MessageFormat = ELogMessageFormat::PlainText;
+        event.Family = ELogFamily::PlainText;
         event.Category = &Category;
         event.Level = ELogLevel::Debug;
         event.Message = TSharedRef::FromString("message");
@@ -281,12 +293,12 @@ TEST_F(TLoggingTest, Rule)
             writers = [ some_writer ];
         })"))));
 
-    EXPECT_TRUE(rule->IsApplicable("some_service", ELogMessageFormat::PlainText));
-    EXPECT_FALSE(rule->IsApplicable("bus", ELogMessageFormat::PlainText));
-    EXPECT_FALSE(rule->IsApplicable("bus", ELogLevel::Debug, ELogMessageFormat::PlainText));
-    EXPECT_FALSE(rule->IsApplicable("some_service", ELogLevel::Debug, ELogMessageFormat::PlainText));
-    EXPECT_TRUE(rule->IsApplicable("some_service", ELogLevel::Warning, ELogMessageFormat::PlainText));
-    EXPECT_TRUE(rule->IsApplicable("some_service", ELogLevel::Info, ELogMessageFormat::PlainText));
+    EXPECT_TRUE(rule->IsApplicable("some_service", ELogFamily::PlainText));
+    EXPECT_FALSE(rule->IsApplicable("bus", ELogFamily::PlainText));
+    EXPECT_FALSE(rule->IsApplicable("bus", ELogLevel::Debug, ELogFamily::PlainText));
+    EXPECT_FALSE(rule->IsApplicable("some_service", ELogLevel::Debug, ELogFamily::PlainText));
+    EXPECT_TRUE(rule->IsApplicable("some_service", ELogLevel::Warning, ELogFamily::PlainText));
+    EXPECT_TRUE(rule->IsApplicable("some_service", ELogLevel::Info, ELogFamily::PlainText));
 }
 
 TEST_F(TLoggingTest, LogManager)
@@ -330,10 +342,10 @@ TEST_F(TLoggingTest, LogManager)
     EXPECT_EQ(2, std::ssize(errorLog));
 }
 
-TEST_F(TLoggingTest, StructuredJsonLogging)
+TEST_F(TLoggingTest, StructuredLogging)
 {
     TLogEvent event;
-    event.MessageFormat = ELogMessageFormat::Structured;
+    event.Family = ELogFamily::Structured;
     event.Category = &Category;
     event.Level = ELogLevel::Debug;
     event.StructuredMessage = NYTree::BuildYsonStringFluently<EYsonType::MapFragment>()
@@ -341,25 +353,27 @@ TEST_F(TLoggingTest, StructuredJsonLogging)
         .Value("test_message")
         .Finish();
 
-    TTempFile logFile(GenerateLogFileName());
-    auto writer = New<TFileLogWriter>(
-        std::make_unique<TJsonLogFormatter>(THashMap<TString, INodePtr>{}),
-        "test_writer",
-        logFile.Name());
-    WriteEvent(writer.Get(), event);
-    TLogManager::Get()->Synchronize();
+    for (auto format : {ELogFormat::Yson, ELogFormat::Json}) {
+        TTempFile logFile(GenerateLogFileName());
+        auto writer = New<TFileLogWriter>(
+            std::make_unique<TStructuredLogFormatter>(format, THashMap<TString, INodePtr>{}),
+            "test_writer",
+            logFile.Name());
+        WriteEvent(writer.Get(), event);
+        TLogManager::Get()->Synchronize();
 
-    auto log = ReadFile(logFile.Name());
+        auto log = ReadFile(logFile.Name());
 
-    auto logStartedJson = DeserializeJson(log[0]);
-    EXPECT_EQ(logStartedJson->GetChildOrThrow("message")->AsString()->GetValue(), "Logging started");
-    EXPECT_EQ(logStartedJson->GetChildOrThrow("level")->AsString()->GetValue(), "info");
-    EXPECT_EQ(logStartedJson->GetChildOrThrow("category")->AsString()->GetValue(), "Logging");
+        auto loggingStarted = DeserializeStructured(log[0], format);
+        EXPECT_EQ(loggingStarted->GetChildOrThrow("message")->AsString()->GetValue(), "Logging started");
+        EXPECT_EQ(loggingStarted->GetChildOrThrow("level")->AsString()->GetValue(), "info");
+        EXPECT_EQ(loggingStarted->GetChildOrThrow("category")->AsString()->GetValue(), "Logging");
 
-    auto contentJson = DeserializeJson(log[1]);
-    EXPECT_EQ(contentJson->GetChildOrThrow("message")->AsString()->GetValue(), "test_message");
-    EXPECT_EQ(contentJson->GetChildOrThrow("level")->AsString()->GetValue(), "debug");
-    EXPECT_EQ(contentJson->GetChildOrThrow("category")->AsString()->GetValue(), "category");
+        auto message = DeserializeStructured(log[1], format);
+        EXPECT_EQ(message->GetChildOrThrow("message")->AsString()->GetValue(), "test_message");
+        EXPECT_EQ(message->GetChildOrThrow("level")->AsString()->GetValue(), "debug");
+        EXPECT_EQ(message->GetChildOrThrow("category")->AsString()->GetValue(), "category");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
