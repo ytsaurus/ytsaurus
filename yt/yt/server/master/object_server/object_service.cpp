@@ -190,10 +190,17 @@ private:
     class TExecuteSession;
     using TExecuteSessionPtr = TIntrusivePtr<TExecuteSession>;
 
+    struct TExecuteSessionInfo
+    {
+        TCancelableContextPtr EpochCancelableContext;
+        TUser* User;
+        bool RequestQueueSizeIncreased;
+    };
+
     struct TUserBucket
     {
-        explicit TUserBucket(const TString& userName)
-            : UserName(userName)
+        explicit TUserBucket(TString userName)
+            : UserName(std::move(userName))
         { }
 
         TString UserName;
@@ -222,7 +229,7 @@ private:
     std::vector<TUserBucket*> BucketHeap_;
 
     TMultipleProducerSingleConsumerLockFreeStack<TExecuteSessionPtr> ReadySessions_;
-    TMultipleProducerSingleConsumerLockFreeStack<TExecuteSessionPtr> FinishedSessions_;
+    TMultipleProducerSingleConsumerLockFreeStack<TExecuteSessionInfo> FinishedSessionInfos_;
 
     std::atomic<bool> ProcessSessionsCallbackEnqueued_ = false;
 
@@ -238,10 +245,11 @@ private:
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig = nullptr);
     void EnqueueReadySession(TExecuteSessionPtr session);
-    void EnqueueFinishedSession(TExecuteSessionPtr session);
+    void EnqueueFinishedSession(TExecuteSessionInfo sessionInfo);
 
     void EnqueueProcessSessionsCallback();
     void ProcessSessions();
+    void FinishSession(const TExecuteSessionInfo& sessionInfo);
 
     TUserBucket* GetOrCreateBucket(const TString& userName);
     void OnUserCharged(TUser* user, const TUserWorkload& workload);
@@ -311,10 +319,13 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG_IF(User_ && !Finished_, "User reference leaked due to unfinished request (RequestId: %v)",
-            RequestId_);
-        YT_LOG_DEBUG_IF(RequestQueueSizeIncreased_ && !Finished_, "Request queue size increment leaked due to unfinished request (RequestId: %v)",
-            RequestId_);
+        CancelPendingCacheSubrequests();
+
+        Owner_->EnqueueFinishedSession(TExecuteSessionInfo{
+            std::move(EpochCancelableContext_),
+            User_,
+            RequestQueueSizeIncreased_
+        });
     }
 
     const TString& GetUserName() const
@@ -356,41 +367,6 @@ public:
             GuardedRunAutomatonSlow();
         } catch (const std::exception& ex) {
             Reply(ex);
-        }
-    }
-
-    void Finish()
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        Finished_ = true;
-
-        if (!EpochCancelableContext_) {
-            return;
-        }
-
-        if (EpochCancelableContext_->IsCanceled()) {
-            return;
-        }
-
-        if (RequestQueueSizeIncreased_ && IsObjectAlive(User_)) {
-            const auto& securityManager = Bootstrap_->GetSecurityManager();
-            securityManager->DecreaseRequestQueueSize(User_);
-        }
-
-        if (User_) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->EphemeralUnrefObject(User_);
-        }
-
-        for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
-            auto& subrequest = Subrequests_[subrequestIndex];
-            if (subrequest.CacheCookie) {
-                auto& cookie = *subrequest.CacheCookie;
-                if (cookie.IsActive()) {
-                    cookie.Cancel(TError(NYT::EErrorCode::Canceled, "Cache request canceled"));
-                }
-            }
         }
     }
 
@@ -465,9 +441,6 @@ private:
     bool RequestQueueSizeIncreased_ = false;
 
     std::atomic<bool> ReplyScheduled_ = false;
-    std::atomic<bool> FinishScheduled_ = false;
-    bool Finished_ = false;
-
     std::atomic<bool> LocalExecutionStarted_ = false;
     std::atomic<bool> LocalExecutionInterrupted_ = false;
     // If this is locked, the automaton invoker is currently busy serving
@@ -615,63 +588,70 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        if (!Owner_->EnableTwoLevelCache_) {
+            return;
+        }
+
         for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
             auto& subrequest = Subrequests_[subrequestIndex];
             const auto& requestHeader = subrequest.RequestHeader;
-
-            if (requestHeader.HasExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext)) {
-                if (subrequest.YPathExt->mutating()) {
-                    Reply(TError(NObjectClient::EErrorCode::CannotCacheMutatingRequest, "Mutating requests cannot be cached"));
-                    return;
-                }
-
-                TObjectServiceCacheKey key(
-                    Bootstrap_->GetCellTag(),
-                    RpcContext_->GetAuthenticationIdentity().User,
-                    subrequest.YPathExt->target_path(),
-                    requestHeader.service(),
-                    requestHeader.method(),
-                    subrequest.RequestMessage[1]);
-
-                YT_LOG_DEBUG("Serving subrequest from cache (RequestId: %v, SubrequestIndex: %v, Key: %v)",
-                    RequestId_,
-                    subrequestIndex,
-                    key);
-
-                const auto& cachingRequestHeaderExt = requestHeader.GetExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
-                auto refreshRevision = cachingRequestHeaderExt.refresh_revision();
-                auto cookie = Owner_->Cache_->BeginLookup(
-                    RequestId_,
-                    key,
-                    FromProto<TDuration>(cachingRequestHeaderExt.expire_after_successful_update_time()),
-                    FromProto<TDuration>(cachingRequestHeaderExt.expire_after_failed_update_time()),
-                    refreshRevision);
-
-                if (cookie.IsActive()) {
-                    subrequest.CacheCookie.emplace(std::move(cookie));
-                } else {
-                    subrequest.Type = EExecutionSessionSubrequestType::Cache;
-
-                    AcquireReplyLock();
-
-                    cookie.GetValue()
-                        .Subscribe(BIND([this, this_ = MakeStrong(this), subrequestIndex] (const TErrorOr<TObjectServiceCacheEntryPtr>& entryOrError) {
-                            auto& subrequest = Subrequests_[subrequestIndex];
-                            if (!entryOrError.IsOK()) {
-                                if (entryOrError.FindMatching(NYT::EErrorCode::Canceled)) {
-                                    Reply(TError(NRpc::EErrorCode::TransientFailure, "Transient failure")
-                                    << entryOrError);
-                                } else {
-                                    Reply(entryOrError);
-                                }
-                                return;
-                            }
-                            const auto& entry = entryOrError.Value();
-                            subrequest.Revision = entry->GetRevision();
-                            OnSuccessfullSubresponse(&subrequest, entry->GetResponseMessage());
-                        }));
-                }
+            if (!requestHeader.HasExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext)) {
+                continue;
             }
+
+            if (subrequest.YPathExt->mutating()) {
+                THROW_ERROR_EXCEPTION(
+                    NObjectClient::EErrorCode::CannotCacheMutatingRequest,
+                    "Mutating requests cannot be cached");
+            }
+
+            TObjectServiceCacheKey key(
+                Bootstrap_->GetCellTag(),
+                RpcContext_->GetAuthenticationIdentity().User,
+                subrequest.YPathExt->target_path(),
+                requestHeader.service(),
+                requestHeader.method(),
+                subrequest.RequestMessage[1]);
+
+            YT_LOG_DEBUG("Serving subrequest from cache (RequestId: %v, SubrequestIndex: %v, Key: %v)",
+                RequestId_,
+                subrequestIndex,
+                key);
+
+            const auto& cachingRequestHeaderExt = requestHeader.GetExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
+            auto refreshRevision = cachingRequestHeaderExt.refresh_revision();
+            auto cookie = Owner_->Cache_->BeginLookup(
+                RequestId_,
+                key,
+                FromProto<TDuration>(cachingRequestHeaderExt.expire_after_successful_update_time()),
+                FromProto<TDuration>(cachingRequestHeaderExt.expire_after_failed_update_time()),
+                refreshRevision);
+
+            if (cookie.IsActive()) {
+                subrequest.CacheCookie.emplace(std::move(cookie));
+                continue;
+            }
+
+            subrequest.Type = EExecutionSessionSubrequestType::Cache;
+
+            AcquireReplyLock();
+
+            cookie.GetValue()
+                .Subscribe(BIND([this, this_ = MakeStrong(this), subrequestIndex] (const TErrorOr<TObjectServiceCacheEntryPtr>& entryOrError) {
+                    auto& subrequest = Subrequests_[subrequestIndex];
+                    if (!entryOrError.IsOK()) {
+                        if (entryOrError.FindMatching(NYT::EErrorCode::Canceled)) {
+                            Reply(TError(NRpc::EErrorCode::TransientFailure, "Transient failure")
+                            << entryOrError);
+                        } else {
+                            Reply(entryOrError);
+                        }
+                        return;
+                    }
+                    const auto& entry = entryOrError.Value();
+                    subrequest.Revision = entry->GetRevision();
+                    OnSuccessfullSubresponse(&subrequest, entry->GetResponseMessage());
+                }));
         }
     }
 
@@ -798,12 +778,10 @@ private:
             return;
         }
 
-        if (Owner_->EnableTwoLevelCache_) {
-            LookupCachedSubrequests();
-        }
-
         try {
-            // Re-check remote requests to see if the cache resolve is still OK.
+            LookupCachedSubrequests();
+
+            // Re-check remote requests to see if resolve cache resolve is still OK.
             DecideSubrequestTypes();
 
             ValidateRequestsFeatures();
@@ -1363,7 +1341,7 @@ private:
             EpochCancelableContext_ = hydraManager->GetAutomatonCancelableContext();
         }
 
-        if (ScheduleFinishIfCanceled()) {
+        if (InterruptIfCanceled()) {
             return false;
         }
 
@@ -1450,7 +1428,7 @@ private:
         Owner_->ValidateClusterInitialized();
 
         while (CurrentSubrequestIndex_ < TotalSubrequestCount_) {
-            if (ScheduleFinishIfCanceled()) {
+            if (InterruptIfCanceled()) {
                 break;
             }
 
@@ -1489,6 +1467,7 @@ private:
             ReleaseUltimateReplyLock();
         }
     }
+
     void ExecuteCurrentSubrequest()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1746,11 +1725,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        ScheduleFinish();
+        Interrupt();
 
-        bool expected = false;
-        if (ReplyScheduled_.compare_exchange_strong(expected, true)) {
-            LocalExecutionInterrupted_.store(true);
+        if (!ReplyScheduled_.exchange(true)) {
             TObjectService::GetRpcInvoker()
                 ->Invoke(BIND(&TExecuteSession::DoReply, MakeStrong(this), error));
         }
@@ -1868,23 +1845,36 @@ private:
     }
 
 
-    void ScheduleFinish()
+    void Interrupt()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        bool expected = false;
-        if (FinishScheduled_.compare_exchange_strong(expected, true)) {
-            LocalExecutionInterrupted_.store(true);
-            Owner_->EnqueueFinishedSession(this);
+        LocalExecutionInterrupted_.store(true);
+    }
+
+    void CancelPendingCacheSubrequests()
+    {
+        if (!Subrequests_) {
+            return;
+        }
+
+        for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
+            auto& subrequest = Subrequests_[subrequestIndex];
+            if (subrequest.CacheCookie) {
+                auto& cookie = *subrequest.CacheCookie;
+                if (cookie.IsActive()) {
+                    cookie.Cancel(TError(NYT::EErrorCode::Canceled, "Cache request canceled"));
+                }
+            }
         }
     }
 
-    bool ScheduleFinishIfCanceled()
+    bool InterruptIfCanceled()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         if (RpcContext_->IsCanceled() || EpochCancelableContext_->IsCanceled()) {
-            ScheduleFinish();
+            Interrupt();
             return true;
         } else {
             return false;
@@ -1947,8 +1937,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto expected = false;
-        if (!UltimateReplyLockReleased_.compare_exchange_strong(expected, true)) {
+        if (UltimateReplyLockReleased_.exchange(true)) {
             return false;
         }
 
@@ -2011,33 +2000,42 @@ void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig
 
 void TObjectService::EnqueueReadySession(TExecuteSessionPtr session)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     ReadySessions_.Enqueue(std::move(session));
     EnqueueProcessSessionsCallback();
 }
 
-void TObjectService::EnqueueFinishedSession(TExecuteSessionPtr session)
+void TObjectService::EnqueueFinishedSession(TExecuteSessionInfo sessionInfo)
 {
-    FinishedSessions_.Enqueue(std::move(session));
-    EnqueueProcessSessionsCallback();
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    if (sessionInfo.EpochCancelableContext) {
+        FinishedSessionInfos_.Enqueue(std::move(sessionInfo));
+        EnqueueProcessSessionsCallback();
+    }
 }
 
 void TObjectService::EnqueueProcessSessionsCallback()
 {
-    bool expected = false;
-    if (ProcessSessionsCallbackEnqueued_.compare_exchange_strong(expected, true)) {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    if (!ProcessSessionsCallbackEnqueued_.exchange(true)) {
         AutomatonInvoker_->Invoke(BIND(&TObjectService::ProcessSessions, MakeStrong(this)));
     }
 }
 
 void TObjectService::ProcessSessions()
 {
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
     auto startTime = GetCpuInstant();
     auto deadlineTime = startTime + DurationToCpuDuration(Config_->YieldTimeout);
 
     ProcessSessionsCallbackEnqueued_.store(false);
 
-    FinishedSessions_.DequeueAll(false, [&] (const TExecuteSessionPtr& session) {
-        session->Finish();
+    FinishedSessionInfos_.DequeueAll(false, [&] (const TExecuteSessionInfo& sessionInfo) {
+        FinishSession(sessionInfo);
     });
 
     ReadySessions_.DequeueAll(false, [&] (TExecuteSessionPtr& session) {
@@ -2091,14 +2089,37 @@ void TObjectService::ProcessSessions()
     }
 }
 
+void TObjectService::FinishSession(const TExecuteSessionInfo& sessionInfo)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    if (sessionInfo.EpochCancelableContext->IsCanceled()) {
+        return;
+    }
+
+    if (sessionInfo.RequestQueueSizeIncreased && IsObjectAlive(sessionInfo.User)) {
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->DecreaseRequestQueueSize(sessionInfo.User);
+    }
+
+    if (sessionInfo.User) {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        objectManager->EphemeralUnrefObject(sessionInfo.User);
+    }
+}
+
 TObjectService::TUserBucket* TObjectService::GetOrCreateBucket(const TString& userName)
 {
-    auto pair = NameToUserBucket_.emplace(userName, TUserBucket(userName));
-    return &pair.first->second;
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    auto [it, inserted] = NameToUserBucket_.emplace(userName, TUserBucket(userName));
+    return &it->second;
 }
 
 void TObjectService::OnUserCharged(TUser* user, const TUserWorkload& workload)
 {
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
     auto* bucket = GetOrCreateBucket(user->GetName());
     // Just charge the bucket, do not reorder it in the heap.
     auto actualExcessTime = std::max(bucket->ExcessTime, ExcessBaseline_);
@@ -2107,6 +2128,8 @@ void TObjectService::OnUserCharged(TUser* user, const TUserWorkload& workload)
 
 void TObjectService::SetStickyUserError(const TString& userName, const TError& error)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     StickyUserErrorCache_.Put(userName, error);
 }
 
