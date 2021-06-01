@@ -142,6 +142,7 @@ DEFINE_ENUM(EMasterReign,
     ((HunkCompaction)                                               (1616))  // babenko
     ((ChaosCells)                                                   (1617))  // savrus
     ((MakeAbcFolderIdBuiltin)                                       (1618))  // cookiedoth
+    ((NoAggregateForHunkColumns)                                    (1619))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

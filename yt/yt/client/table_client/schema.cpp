@@ -1456,6 +1456,9 @@ void ValidateColumnSchema(
             if (columnSchema.SortOrder()) {
                 THROW_ERROR_EXCEPTION("Max inline hunk size cannot be set for key column");
             }
+            if (columnSchema.Aggregate()) {
+                THROW_ERROR_EXCEPTION("Max inline hunk size cannot be set for aggregate column");
+            }
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error validating schema of a column %Qv",
