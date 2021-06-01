@@ -104,4 +104,45 @@ DEFINE_REFCOUNTED_TYPE(TTableColumnarStatisticsCacheConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class THunkChunkPayloadWriterConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    //! Writer will be aiming for blocks of approximately this size.
+    i64 DesiredBlockSize;
+
+    THunkChunkPayloadWriterConfig()
+    {
+        RegisterParameter("desired_block_size", DesiredBlockSize)
+            .GreaterThan(0)
+            .Default(1_MBs);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(THunkChunkPayloadWriterConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TBatchHunkReaderConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    int MaxHunkCountPerRead;
+    i64 MaxTotalHunkLengthPerRead;
+
+    TBatchHunkReaderConfig()
+    {
+        RegisterParameter("max_hunk_count_per_read", MaxHunkCountPerRead)
+            .GreaterThan(0)
+            .Default(10'000);
+        RegisterParameter("max_total_hunk_length_per_read", MaxTotalHunkLengthPerRead)
+            .GreaterThan(0)
+            .Default(16_MB);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TBatchHunkReaderConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient

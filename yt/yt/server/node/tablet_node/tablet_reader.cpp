@@ -6,11 +6,11 @@
 #include "tablet_slot.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
-#include <yt/yt/server/lib/tablet_node/hunks.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 
+#include <yt/yt/ytlib/table_client/hunks.h>
 #include <yt/yt/ytlib/table_client/overlapping_reader.h>
 #include <yt/yt/ytlib/table_client/row_merger.h>
 #include <yt/yt/ytlib/table_client/schemaful_concatencaing_reader.h>

@@ -7,7 +7,6 @@
 #include "tablet_profiling.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
-#include <yt/yt/server/lib/tablet_node/hunks.h>
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
@@ -19,6 +18,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/yt/ytlib/table_client/config.h>
+#include <yt/yt/ytlib/table_client/hunks.h>
 #include <yt/yt/ytlib/table_client/row_merger.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
@@ -674,6 +674,32 @@ NTableClient::TColumnFilter DecodeColumnFilter(
         : TColumnFilter();
     ValidateColumnFilter(columnFilter, columnCount);
     return columnFilter;
+}
+
+TFuture<TSharedRange<TMutableUnversionedRow>> ReadAndDecodeHunks(
+    NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader,
+    TTableSchemaPtr schema,
+    NChunkClient::TClientChunkReadOptions options,
+    TSharedRange<TMutableUnversionedRow> rows)
+{
+    return ReadAndDecodeHunksInSchemafulUnversionedRows(
+        std::move(chunkFragmentReader),
+        std::move(schema),
+        std::move(options),
+        std::move(rows));
+}
+
+TFuture<TSharedRange<TMutableVersionedRow>> ReadAndDecodeHunks(
+    NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader,
+    TTableSchemaPtr schema,
+    NChunkClient::TClientChunkReadOptions options,
+    TSharedRange<TMutableVersionedRow> rows)
+{
+    return ReadAndDecodeHunksInVersionedRows(
+        std::move(chunkFragmentReader),
+        std::move(schema),
+        std::move(options),
+        std::move(rows));
 }
 
 template <

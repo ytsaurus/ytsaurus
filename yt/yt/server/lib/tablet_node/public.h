@@ -190,13 +190,7 @@ DEFINE_ENUM(EDynamicTableProfilingMode,
     (PathLetters)
 );
 
-DEFINE_ENUM(EHunkChunkFormat,
-    ((Default)(0))
-);
-
 ////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_STRUCT(IHunkChunkPayloadWriter)
 
 DECLARE_REFCOUNTED_CLASS(TTabletHydraManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTableMountConfig)
@@ -222,9 +216,7 @@ DECLARE_REFCOUNTED_CLASS(TTabletNodeDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletNodeConfig)
 DECLARE_REFCOUNTED_CLASS(TReplicatorHintConfig)
 DECLARE_REFCOUNTED_CLASS(THintManagerConfig)
-DECLARE_REFCOUNTED_CLASS(THunkChunkPayloadWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletHunkWriterConfig)
-DECLARE_REFCOUNTED_CLASS(TBatchHunkReaderConfig)
 
 using TTabletStoreWriterConfig = NTableClient::TTableWriterConfig;
 using TTabletStoreWriterConfigPtr = NTableClient::TTableWriterConfigPtr;

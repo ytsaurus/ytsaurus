@@ -26,7 +26,6 @@
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
-#include <yt/yt/server/lib/tablet_node/hunks.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
@@ -47,6 +46,7 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/ytlib/table_client/hunks.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_writer.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>

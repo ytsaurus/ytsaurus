@@ -26,6 +26,10 @@ DEFINE_ENUM(ETableChunkFormat,
     ((UnversionedColumnar)  (6))
 );
 
+DEFINE_ENUM(EHunkChunkFormat,
+    ((Default)(0))
+);
+
 struct TColumnIdMapping
 {
     int ChunkSchemaIndex;
@@ -63,6 +67,8 @@ DECLARE_REFCOUNTED_CLASS(TPartitionMultiChunkReader)
 DECLARE_REFCOUNTED_STRUCT(IVersionedChunkWriter)
 DECLARE_REFCOUNTED_STRUCT(IVersionedMultiChunkWriter)
 
+DECLARE_REFCOUNTED_STRUCT(IHunkChunkPayloadWriter)
+
 DECLARE_REFCOUNTED_STRUCT(ITimingReader)
 
 DECLARE_REFCOUNTED_STRUCT(IPartitioner)
@@ -94,6 +100,8 @@ DECLARE_REFCOUNTED_CLASS(TSkynetColumnEvaluator)
 DECLARE_REFCOUNTED_CLASS(TCachedBlockMeta)
 DECLARE_REFCOUNTED_CLASS(TBlockMetaCache)
 
+DECLARE_REFCOUNTED_CLASS(TTableColumnarStatisticsCache)
+
 class TSchemafulRowMerger;
 class TUnversionedRowMerger;
 class TVersionedRowMerger;
@@ -103,14 +111,11 @@ DECLARE_REFCOUNTED_CLASS(TTableWriterOptions)
 DECLARE_REFCOUNTED_CLASS(TTableReaderOptions)
 
 DECLARE_REFCOUNTED_CLASS(TBlobTableWriterConfig)
-
 DECLARE_REFCOUNTED_CLASS(TBufferedTableWriterConfig)
-
 DECLARE_REFCOUNTED_CLASS(TPartitionConfig)
-
 DECLARE_REFCOUNTED_CLASS(TTableColumnarStatisticsCacheConfig)
-
-DECLARE_REFCOUNTED_CLASS(TTableColumnarStatisticsCache)
+DECLARE_REFCOUNTED_CLASS(THunkChunkPayloadWriterConfig)
+DECLARE_REFCOUNTED_CLASS(TBatchHunkReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
