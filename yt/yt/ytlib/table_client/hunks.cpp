@@ -1325,8 +1325,9 @@ public:
                 {
                     NChunkClient::NProto::TMiscExt ext;
                     ext.set_compression_codec(ToProto<int>(NCompression::ECodec::None));
-                    ext.set_uncompressed_data_size(UncompressedDataSize_);
-                    ext.set_compressed_data_size(UncompressedDataSize_);
+                    ext.set_data_weight(TotalHunkLength_);
+                    ext.set_uncompressed_data_size(TotalHunkLength_);
+                    ext.set_compressed_data_size(TotalHunkLength_);
                     SetProtoExtension(Meta_->mutable_extensions(), ext);
                 }
 

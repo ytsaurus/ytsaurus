@@ -89,10 +89,14 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert len(store_chunk_ids) == 1
         hunk_chunk_ids = self._get_hunk_chunk_ids("//tmp/t")
         assert len(hunk_chunk_ids) == 1
+        hunk_chunk_id = hunk_chunk_ids[0]
 
         assert get("#{}/@hunk_chunk_refs".format(store_chunk_ids[0])) == [
             {"chunk_id": hunk_chunk_ids[0], "hunk_count": 10, "total_hunk_length": 260}
         ]
+        assert get("#{}/@data_weight".format(hunk_chunk_id)) == 260
+        assert get("#{}/@uncompressed_data_size".format(hunk_chunk_id)) == 260
+        assert get("#{}/@compressed_data_size".format(hunk_chunk_id)) == 260
 
         sync_mount_table("//tmp/t")
 
