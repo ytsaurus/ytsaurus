@@ -1550,9 +1550,11 @@ def add_idm_parser(root_subparsers):
     object_group = parser.add_mutually_exclusive_group(required=True)
     object_group.add_argument("--path", help="Cypress node path")
     object_group.add_argument("--account", help="Account name")
-    object_group.add_argument("--pool", help="Pool name")
     object_group.add_argument("--bundle", dest="tablet_cell_bundle", help="Tablet cell bundle name")
     object_group.add_argument("--group", help="YT group name")
+    object_group.add_argument("--pool", help="Pool name")
+
+    parser.add_argument("--pool-tree", help="Pool tree name")
 
     parser.add_argument("--address", help="IDM integration service address")
 
@@ -1562,7 +1564,7 @@ def add_idm_parser(root_subparsers):
     add_idm_show_parser(idm_subparsers)
 
     # idm request
-    request_parser = populate_argument_help(idm_subparsers.add_parser("request", description="Show IDM information"))
+    request_parser = populate_argument_help(idm_subparsers.add_parser("request", help="Request IDM role"))
     add_idm_request_or_revoke_parser(request_parser)
     request_parser.add_argument(
         "--permissions", "-p", action="store", dest="permissions",
@@ -1571,7 +1573,7 @@ def add_idm_parser(root_subparsers):
     request_parser.set_defaults(func=idm.request)
 
     # idm revoke
-    revoke_parser = populate_argument_help(idm_subparsers.add_parser("revoke", description="Show IDM information"))
+    revoke_parser = populate_argument_help(idm_subparsers.add_parser("revoke", help="Revoke IDM role"))
     add_idm_request_or_revoke_parser(revoke_parser)
     revoke_parser.add_argument("--revoke-all-roles", help="Revoke all IDM roles", action="store_true")
     revoke_parser.set_defaults(func=idm.revoke)
@@ -1580,7 +1582,7 @@ def add_idm_parser(root_subparsers):
     add_idm_copy_parser(idm_subparsers)
 
 def add_idm_show_parser(idm_subparsers):
-    parser = populate_argument_help(idm_subparsers.add_parser("show", description="Show IDM information"))
+    parser = populate_argument_help(idm_subparsers.add_parser("show", help="Show IDM information"))
     parser.add_argument(
         "--immediate", "-i", help="Show only immediate IDM information (not inherited)",
         action="store_true", default=False)
@@ -1638,7 +1640,7 @@ def add_idm_request_or_revoke_parser(parser):
 
 
 def add_idm_copy_parser(idm_subparsers):
-    parser = populate_argument_help(idm_subparsers.add_parser("copy", description="Copy IDM permissions"))
+    parser = populate_argument_help(idm_subparsers.add_parser("copy", help="Copy IDM permissions"))
     parser.add_argument("destination", help="Destination object")
     parser.add_argument(
         "--immediate", "-i", help="Only copy immediate IDM permissions",
