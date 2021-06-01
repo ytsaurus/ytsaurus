@@ -448,28 +448,6 @@ DEFINE_REFCOUNTED_TYPE(TTransactionManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBatchHunkReaderConfig
-    : public virtual NYTree::TYsonSerializable
-{
-public:
-    int MaxHunkCountPerRead;
-    i64 MaxTotalHunkLengthPerRead;
-
-    TBatchHunkReaderConfig()
-    {
-        RegisterParameter("max_hunk_count_per_read", MaxHunkCountPerRead)
-            .GreaterThan(0)
-            .Default(10'000);
-        RegisterParameter("max_total_hunk_length_per_read", MaxTotalHunkLengthPerRead)
-            .GreaterThan(0)
-            .Default(16_MB);
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TBatchHunkReaderConfig)
-
-///////////////////////////////////////////////////////////////////////////////
-
 class TTabletStoreReaderConfig
     : public NTableClient::TChunkReaderConfig
     , public NChunkClient::TErasureReaderConfig
@@ -490,7 +468,7 @@ DEFINE_REFCOUNTED_TYPE(TTabletStoreReaderConfig)
 
 class TTabletHunkReaderConfig
     : public NChunkClient::TChunkFragmentReaderConfig
-    , public TBatchHunkReaderConfig
+    , public NTableClient::TBatchHunkReaderConfig
 { };
 
 DEFINE_REFCOUNTED_TYPE(TTabletHunkReaderConfig)
@@ -1205,35 +1183,9 @@ DEFINE_REFCOUNTED_TYPE(TReplicatorHintConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class THunkChunkPayloadWriterConfig
-    : public virtual NYTree::TYsonSerializable
-{
-public:
-    //! Writer will be aiming for blocks of approximately this size.
-    i64 DesiredBlockSize;
-
-    //! Each payload whose length exceeds this threshold will be sector-aligned
-    //! for better direct IO performance.
-    i64 PayloadSectorAlignmentLengthThreshold;
-
-    THunkChunkPayloadWriterConfig()
-    {
-        RegisterParameter("desired_block_size", DesiredBlockSize)
-            .GreaterThan(0)
-            .Default(1_MBs);
-        RegisterParameter("payload_sector_alignment_length_threshold", PayloadSectorAlignmentLengthThreshold)
-            .GreaterThan(0)
-            .Default(16_KB);
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(THunkChunkPayloadWriterConfig)
-
-///////////////////////////////////////////////////////////////////////////////
-
 class TTabletHunkWriterConfig
     : public NChunkClient::TMultiChunkWriterConfig
-    , public THunkChunkPayloadWriterConfig
+    , public NTableClient::THunkChunkPayloadWriterConfig
 { };
 
 DEFINE_REFCOUNTED_TYPE(TTabletHunkWriterConfig)

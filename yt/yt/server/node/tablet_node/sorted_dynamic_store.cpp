@@ -4,7 +4,6 @@
 #include "automaton.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
-#include <yt/yt/server/lib/tablet_node/hunks.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
