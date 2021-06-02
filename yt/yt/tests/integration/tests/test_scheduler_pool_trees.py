@@ -1,5 +1,3 @@
-import pytest
-
 from yt_env_setup import (
     YTEnvSetup,
     wait,
@@ -7,23 +5,63 @@ from yt_env_setup import (
     SCHEDULERS_SERVICE,
     CONTROLLER_AGENTS_SERVICE,
 )
-from yt_commands import *  # noqa
-from yt_helpers import *
+
+from yt_commands import (  # noqa
+    authors, print_debug, wait, wait_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
+    events_on_fs, reset_events_on_fs,
+    create, ls, get, set, copy, move, remove, link, exists,
+    create_account, create_network_project, create_tmpdir, create_user, create_group,
+    create_pool, create_pool_tree, remove_pool_tree,
+    create_data_center, create_rack,
+    make_ace, check_permission, add_member,
+    make_batch_request, execute_batch, get_batch_error,
+    start_transaction, abort_transaction, commit_transaction, lock,
+    insert_rows, select_rows, lookup_rows, delete_rows, trim_rows, alter_table,
+    read_file, write_file, read_table, write_table, write_local_file,
+    map, reduce, map_reduce, join_reduce, merge, vanilla, sort, erase,
+    run_test_vanilla, run_sleeping_vanilla,
+    abort_job, list_jobs, get_job, abandon_job, interrupt_job,
+    get_job_fail_context, get_job_input, get_job_stderr, get_job_spec,
+    dump_job_context, poll_job_shell,
+    abort_op, complete_op, suspend_op, resume_op,
+    get_operation, list_operations, clean_operations,
+    get_operation_cypress_path, scheduler_orchid_pool_path,
+    scheduler_orchid_default_pool_tree_path, scheduler_orchid_operation_path,
+    scheduler_orchid_default_pool_tree_config_path, scheduler_orchid_path,
+    scheduler_orchid_node_path, scheduler_orchid_pool_tree_config_path, scheduler_orchid_pool_tree_path,
+    sync_create_cells, sync_mount_table, sync_unmount_table,
+    sync_freeze_table, sync_unfreeze_table,
+    get_first_chunk_id, get_singular_chunk_id, get_chunk_replication_factor, multicell_sleep,
+    update_nodes_dynamic_config, update_controller_agent_config,
+    update_op_parameters, enable_op_detailed_logs,
+    set_node_banned, set_banned_flag, set_account_disk_space_limit,
+    check_all_stderrs,
+    create_test_tables, create_dynamic_table, PrepareTables,
+    get_statistics,
+    make_random_string, raises_yt_error,
+    build_snapshot,
+    get_driver, Driver)
+
+from yt_helpers import create_custom_pool_tree_with_one_node
 
 from yt.test_helpers import are_almost_equal
+from yt.common import YtError
 import yt.environment.init_operation_archive as init_operation_archive
 
+import pytest
 from flaky import flaky
 
 import time
-
 import __builtin__
 
 ##################################################################
 
 
 def get_from_tree_orchid(tree, path, **kwargs):
-    return get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/{}/{}".format(tree, path), default=None, **kwargs)
+    return get(
+        "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/{}/{}".format(tree, path),
+        default=None,
+        **kwargs)
 
 
 ##################################################################
@@ -467,7 +505,8 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         # 6. new operation registers in old tree that is being removed
         # 7. all aborts are completed, scheduler publishes new tree structure (without new operation)
         # 8. operation tries to complete scheduler doesn't know this operation and crashes
-        # NB(ignat): This scenario is not valid anymore since update pool trees is atomic now, but abort is asynchronous.
+        # NB(ignat): This scenario is not valid anymore since update pool trees is atomic now,
+        # but abort is asynchronous.
 
         create_custom_pool_tree_with_one_node("other")
         orchid_root = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"
@@ -543,7 +582,9 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
                 },
             }
         )
-        create_pool_tree("custom_pool_tree", config={"nodes_filter": "custom_tag", "max_running_operation_count_per_pool": 180})
+        create_pool_tree(
+            "custom_pool_tree",
+            config={"nodes_filter": "custom_tag", "max_running_operation_count_per_pool": 180})
 
         def check_dict_is_subdict(dict_, subdict):
             for key, value in subdict.items():
@@ -552,8 +593,9 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
             return True
 
         pool_tree_settings = {}
+
         def save_settings_and_check_them():
-            pool_tree_settings["custom_pool_tree"] = get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/custom_pool_tree/config")
+            pool_tree_settings["custom_pool_tree"] = get_from_tree_orchid("custom_pool_tree", "config")
             return check_dict_is_subdict(
                 pool_tree_settings["custom_pool_tree"],
                 {
@@ -602,11 +644,11 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
                     assert len(inner_errors) == 1
                     inner_error = inner_errors[0]
 
-                return alert["code"] == 217 and (
-                    alert["message"] == message and (
-                    alert["attributes"]["alert_type"] == alert_type and (
-                    inner_error["message"] == "\"template_pool_tree_config_map\" has equal priority for templates" and (
-                    inner_error["attributes"]["template_names"] == ["pool", "custom_"]))))
+                return alert["code"] == 217 and \
+                    alert["message"] == message and \
+                    alert["attributes"]["alert_type"] == alert_type and \
+                    inner_error["message"] == "\"template_pool_tree_config_map\" has equal priority for templates" and \
+                    inner_error["attributes"]["template_names"] == ["pool", "custom_"]
 
             alerts = get("//sys/scheduler/@alerts")
             if not alerts:
@@ -768,7 +810,7 @@ class TestTentativePoolTrees(YTEnvSetup):
                     dummy["stability_count"] += 1
 
                 return dummy["stability_count"] > 5
-            except:
+            except YtError:
                 return False
 
         wait(all_jobs_running)
@@ -886,7 +928,8 @@ class TestTentativePoolTrees(YTEnvSetup):
                     events.notify_event("continue_job_{0}".format(job_id))
             return len(context["completed_jobs"]) == 20
 
-        # We have 30 jobs overall, 5 should be tentative, 20 regular jobs we complete fast. It must be enough to ban tentative tree.
+        # We have 30 jobs overall, 5 should be tentative, 20 regular jobs we complete fast.
+        # It must be enough to ban tentative tree.
         context = {"completed_jobs": __builtin__.set()}
         wait(lambda: complete_non_tentative_jobs(context))
 
@@ -964,8 +1007,7 @@ class TestTentativePoolTrees(YTEnvSetup):
 
     @authors("ignat")
     def test_use_default_tentative_pool_trees(self):
-        other_node_list = self._prepare_pool_trees()
-
+        self._prepare_pool_trees()
         set(
             "//sys/scheduler/config/default_tentative_pool_trees",
             ["other"],
@@ -1427,7 +1469,8 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_path() + "/scheduler/config/fair_share_update_period") == 5000)
 
         # TODO(eshcherbin): Remove this sleep in favour of a more stable way to do the same wait.
-        # This sleep is used to ensure the last fair share update before the fair share update period change has finished.
+        # This sleep is used to ensure the last fair share update before
+        # the fair share update period change has finished.
         time.sleep(1.0)
 
         job_count = 10
@@ -1464,7 +1507,8 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_path() + "/scheduler/config/fair_share_update_period") == 5000)
 
         # TODO(eshcherbin): Remove this sleep in favour of a more stable way to do the same wait.
-        # This sleep is used to ensure the last fair share update before the fair share update period change has finished.
+        # This sleep is used to ensure the last fair share update
+        # before the fair share update period change has finished.
         time.sleep(1.0)
 
         job_count = 10
@@ -1528,7 +1572,8 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
         time.sleep(3)
         # NB(eshcherbin): There are 2 nodes in tree "other" and 1 node in tree "default".
         # Both trees have "max_running_operation_count_per_pool" set to 1.
-        # At this moment operation `blocking_op` is running in tree "other", so operation `op` can only run in tree "default",
+        # At this moment operation `blocking_op` is running in tree "other",
+        # so operation `op` can only run in tree "default",
         # where it can have only 1 out of the 2 desired jobs.
         # Thus, if everything is correct, op should be enabled only in tree "default".
         assert op.get_job_count("running") == 1

@@ -1,12 +1,53 @@
-import itertools
+from yt_env_setup import YTEnvSetup, parametrize_external
+
+from yt_commands import (  # noqa
+    authors, print_debug, wait, wait_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
+    events_on_fs, reset_events_on_fs,
+    create, ls, get, set, copy, move, remove, link, exists,
+    create_account, create_network_project, create_tmpdir, create_user, create_group,
+    create_pool, create_pool_tree, remove_pool_tree,
+    create_data_center, create_rack,
+    make_ace, check_permission, add_member,
+    make_batch_request, execute_batch, get_batch_error,
+    start_transaction, abort_transaction, commit_transaction, lock,
+    insert_rows, select_rows, lookup_rows, delete_rows, trim_rows, alter_table,
+    read_file, write_file, read_table, write_table, write_local_file,
+    map, reduce, map_reduce, join_reduce, merge, vanilla, sort, erase,
+    run_test_vanilla, run_sleeping_vanilla,
+    abort_job, list_jobs, get_job, abandon_job, interrupt_job,
+    get_job_fail_context, get_job_input, get_job_stderr, get_job_spec,
+    dump_job_context, poll_job_shell,
+    abort_op, complete_op, suspend_op, resume_op,
+    get_operation, list_operations, clean_operations,
+    get_operation_cypress_path, scheduler_orchid_pool_path,
+    scheduler_orchid_default_pool_tree_path, scheduler_orchid_operation_path,
+    scheduler_orchid_default_pool_tree_config_path, scheduler_orchid_path,
+    scheduler_orchid_node_path, scheduler_orchid_pool_tree_config_path, scheduler_orchid_pool_tree_path,
+    sync_create_cells, sync_mount_table, sync_unmount_table,
+    sync_freeze_table, sync_unfreeze_table, sync_reshard_table,
+    sync_flush_table,
+    get_first_chunk_id, get_singular_chunk_id, get_chunk_replication_factor, multicell_sleep,
+    update_nodes_dynamic_config, update_controller_agent_config,
+    update_op_parameters, enable_op_detailed_logs,
+    set_node_banned, set_banned_flag, set_account_disk_space_limit,
+    check_all_stderrs,
+    create_test_tables, create_dynamic_table, PrepareTables,
+    get_statistics,
+    make_random_string, raises_yt_error,
+    build_snapshot,
+    get_driver, Driver)
+
+from yt_helpers import skip_if_no_descending
+from yt_type_helpers import make_schema, tuple_type
+
+from yt.environment.helpers import assert_items_equal
+from yt.common import YtError
+import yt.yson as yson
 
 import pytest
 
-from yt.environment.helpers import assert_items_equal, wait
-from yt_env_setup import YTEnvSetup, parametrize_external
-from yt_commands import *  # noqa
-from yt_helpers import skip_if_no_descending
-from yt.yson import YsonEntity
+import itertools
+import time
 
 
 ##################################################################
@@ -727,7 +768,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             assert read_table("//tmp/out") == [
                 {"key": "1", "subkey": "2"},
                 {"key": "1", "subkey": "2"},
-                {"key": "2", "subkey": YsonEntity()},
+                {"key": "2", "subkey": yson.YsonEntity()},
             ]
         else:
             reduce(
@@ -745,8 +786,8 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             )
 
             assert read_table("//tmp/out") == [
-                {"key": "2", "subkey": YsonEntity()},
-                {"key": "2", "subkey": YsonEntity()},
+                {"key": "2", "subkey": yson.YsonEntity()},
+                {"key": "2", "subkey": yson.YsonEntity()},
                 {"key": "1", "subkey": "2"},
             ]
 
@@ -1383,7 +1424,7 @@ echo {v = 2} >&7
             )
 
         create("table", "//tmp/output")
-        op = reduce(
+        reduce(
             in_="//tmp/input",
             out="<row_count_limit=3>//tmp/output",
             command="cat",
@@ -2814,7 +2855,7 @@ for line in sys.stdin:
         create("table", "//tmp/output")
 
         # Explicit `pivot_keys' list adds barrier job after each real job.
-        op = reduce(
+        reduce(
             in_=["//tmp/primary", "<foreign=true>//tmp/foreign"],
             out=["//tmp/output"],
             command="cat",
