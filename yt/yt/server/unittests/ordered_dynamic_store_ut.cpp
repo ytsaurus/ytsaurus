@@ -313,6 +313,17 @@ TEST_F(TOrderedDynamicStoreTimestampColumnTest, Write)
     EXPECT_TRUE(AreRowsEqual(rows[2], Format("a=3;\"$timestamp\"=%vu", ts3)));
 }
 
+TEST_F(TOrderedDynamicStoreTimestampColumnTest, VersionedWrite)
+{
+    auto ts = WriteRow(BuildRow("a=1;\"$timestamp\"=42"));
+    EXPECT_NE(ts, 42u);
+
+    auto rows = Store_->GetAllRows();
+    EXPECT_EQ(1u, rows.size());
+
+    EXPECT_TRUE(AreRowsEqual(rows[0], Format("a=1;\"$timestamp\"=42")));
+}
+
 TEST_F(TOrderedDynamicStoreTimestampColumnTest, Serialize)
 {
     WriteRow(BuildRow("a=1"));

@@ -32,6 +32,8 @@
 #include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/name_table.h>
 
+#include <util/generic/cast.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NYTree;
@@ -243,7 +245,17 @@ TOrderedDynamicRow TOrderedDynamicStore::WriteRow(
         dstValue = RowBuffer_->CaptureValue(srcValue);
     }
 
-    if (TimestampColumnId_) {
+    bool versionedWrite = TimestampColumnId_ && dynamicRow[*TimestampColumnId_].Type != EValueType::Null;
+
+    // COMPAT(gritukan)
+    // Should be false in unittests only.
+    if (auto* mutationContext = NHydra::TryGetCurrentMutationContext()) {
+        if (mutationContext->Request().Reign < ToUnderlying(ETabletReign::VersionedWriteToOrderedTablet)) {
+            versionedWrite = false;
+        }
+    }
+
+    if (TimestampColumnId_ && !versionedWrite) {
         dynamicRow[*TimestampColumnId_] = MakeUnversionedUint64Value(context->CommitTimestamp, *TimestampColumnId_);
     }
 

@@ -29,6 +29,7 @@ DEFINE_ENUM(ETabletReign,
     ((RowBufferEmptyRowDeserialization)   (100200)) // max42
     ((Hunks1)                             (100201)) // babenko
     ((Hunks2)                             (100202)) // babenko
+    ((VersionedWriteToOrderedTablet)      (100203)) // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

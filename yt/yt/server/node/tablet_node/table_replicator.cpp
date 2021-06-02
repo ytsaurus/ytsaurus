@@ -101,6 +101,10 @@ public:
         , MountConfig_(tablet->GetSettings().MountConfig)
         , PreserveTabletIndex_(MountConfig_->PreserveTabletIndex)
         , TabletIndexColumnId_(TableSchema_->ToReplicationLog()->GetColumnCount() + 1) /* maxColumnId - 1(timestamp) + 3(header size)*/
+        , TimestampColumnId_(
+            TableSchema_->HasTimestampColumn()
+                ? std::make_optional(TableSchema_->GetColumnIndex(TimestampColumnName))
+                : std::nullopt)
         , Logger(TabletNodeLogger.WithTag("%v, ReplicaId: %v",
             tablet->GetLoggingTag(),
             ReplicaId_))
@@ -148,6 +152,7 @@ private:
     const TTableMountConfigPtr MountConfig_;
     const bool PreserveTabletIndex_;
     const int TabletIndexColumnId_;
+    const std::optional<int> TimestampColumnId_;
 
     const NLogging::TLogger Logger;
 
@@ -242,7 +247,9 @@ private:
                 return;
             }
 
-            auto isVersioned = TableSchema_->IsSorted() && replicaRuntimeData->PreserveTimestamps;
+            auto isVersioned = TableSchema_->IsSorted()
+                ? replicaRuntimeData->PreserveTimestamps.load()
+                : replicaRuntimeData->PreserveTimestamps.load() && TimestampColumnId_;
 
             if (totalRowCount <= lastReplicationRowIndex) {
                 // All committed rows are replicated.
@@ -296,7 +303,7 @@ private:
 
             {
                 TEventTimerGuard timerGuard(counters.ReplicationRowsReadTime);
-                auto readReplicationBatch = [&]() {
+                auto readReplicationBatch = [&] {
                     return ReadReplicationBatch(
                         MountConfig_,
                         tabletSnapshot,
@@ -712,7 +719,8 @@ private:
                 logRow,
                 rowBuffer,
                 replicationRow,
-                modificationType);
+                modificationType,
+                isVersioned);
         }
     }
 
@@ -720,27 +728,39 @@ private:
         TUnversionedRow logRow,
         const TRowBufferPtr& rowBuffer,
         TTypeErasedRow* replicationRow,
-        ERowModificationType* modificationType)
+        ERowModificationType* modificationType,
+        bool isVersioned)
     {
-        int headerRows = 3;
+        constexpr int headerRows = 3;
         YT_VERIFY(static_cast<int>(logRow.GetCount()) >= headerRows);
 
         auto mutableReplicationRow = rowBuffer->AllocateUnversioned(logRow.GetCount() - headerRows);
         int columnCount = 0;
         for (int index = headerRows; index < static_cast<int>(logRow.GetCount()); ++index) {
+            int id = index - headerRows;
+
             if (logRow[index].Id == TabletIndexColumnId_ && !PreserveTabletIndex_) {
                 continue;
             }
 
-            int id = index - headerRows;
-            mutableReplicationRow.Begin()[id] = rowBuffer->CaptureValue(logRow[index]);
-            mutableReplicationRow.Begin()[id].Id = id;
+            if (id == TimestampColumnId_) {
+                continue;
+            }
+
+            mutableReplicationRow.Begin()[columnCount] = rowBuffer->CaptureValue(logRow[index]);
+            mutableReplicationRow.Begin()[columnCount].Id = id;
             columnCount++;
+        }
+
+        if (isVersioned) {
+            auto timestamp = GetTimestamp(logRow);
+            YT_VERIFY(TimestampColumnId_);
+            mutableReplicationRow.Begin()[columnCount++] = MakeUnversionedUint64Value(timestamp, *TimestampColumnId_);
         }
 
         mutableReplicationRow.SetCount(columnCount);
 
-        *modificationType = ERowModificationType::Write;
+        *modificationType = isVersioned ? ERowModificationType::VersionedWrite : ERowModificationType::Write;
         *replicationRow = mutableReplicationRow.ToTypeErasedRow();
     }
 

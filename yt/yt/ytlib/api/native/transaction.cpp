@@ -674,23 +674,26 @@ private:
                         break;
 
                     case ERowModificationType::VersionedWrite:
-                        if (!tableInfo->IsSorted()) {
-                            THROW_ERROR_EXCEPTION(
-                                NTabletClient::EErrorCode::TableMustBeSorted,
-                                "Cannot perform versioned writes into a non-sorted table %v",
-                                tableInfo->Path);
-                        }
                         if (tableInfo->IsReplicated()) {
                             THROW_ERROR_EXCEPTION(
                                 NTabletClient::EErrorCode::TableMustNotBeReplicated,
                                 "Cannot perform versioned writes into a replicated table %v",
                                 tableInfo->Path);
                         }
-                        ValidateClientDataRow(
-                            TVersionedRow(modification.Row),
-                            *versionedWriteSchema,
-                            versionedWriteIdMapping,
-                            NameTable_);
+                        if (tableInfo->IsSorted()) {
+                            ValidateClientDataRow(
+                                TVersionedRow(modification.Row),
+                                *versionedWriteSchema,
+                                versionedWriteIdMapping,
+                                NameTable_);
+                        } else {
+                            ValidateClientDataRow(
+                                TUnversionedRow(modification.Row),
+                                *versionedWriteSchema,
+                                versionedWriteIdMapping,
+                                NameTable_,
+                                tabletIndexColumnId);
+                        }
                         break;
 
                     case ERowModificationType::Delete:
@@ -762,17 +765,37 @@ private:
                     }
 
                     case ERowModificationType::VersionedWrite: {
-                        auto capturedRow = rowBuffer->CaptureAndPermuteRow(
-                            TVersionedRow(modification.Row),
-                            *primarySchema,
-                            primaryIdMapping,
-                            &columnPresenceBuffer);
-                        if (evaluator) {
-                            evaluator->EvaluateKeys(capturedRow, rowBuffer);
+                        TTypeErasedRow row;
+                        TTabletInfoPtr tabletInfo;
+                        if (tableInfo->IsSorted()) {
+                            auto capturedRow = rowBuffer->CaptureAndPermuteRow(
+                                TVersionedRow(modification.Row),
+                                *primarySchema,
+                                primaryIdMapping,
+                                &columnPresenceBuffer);
+                            if (evaluator) {
+                                evaluator->EvaluateKeys(capturedRow, rowBuffer);
+                            }
+                            row = capturedRow.ToTypeErasedRow();
+                            tabletInfo = GetSortedTabletForRow(tableInfo, capturedRow, true);
+                        } else {
+                            auto capturedRow = rowBuffer->CaptureAndPermuteRow(
+                                TUnversionedRow(modification.Row),
+                                *primarySchema,
+                                primarySchema->GetKeyColumnCount(),
+                                primaryIdMapping,
+                                &columnPresenceBuffer);
+                            row = capturedRow.ToTypeErasedRow();
+                            tabletInfo = GetOrderedTabletForRow(
+                                tableInfo,
+                                randomTabletInfo,
+                                tabletIndexColumnId,
+                                TUnversionedRow(modification.Row),
+                                true);
                         }
-                        auto tabletInfo = GetSortedTabletForRow(tableInfo, capturedRow, true);
+
                         auto session = Transaction_->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
-                        session->SubmitRow(capturedRow);
+                        session->SubmitRow(row);
                         break;
                     }
 
@@ -906,6 +929,7 @@ private:
             , Config_(transaction->Client_->GetNativeConnection()->GetConfig())
             , ColumnEvaluator_(std::move(columnEvaluator))
             , TableMountCache_(transaction->Client_->GetNativeConnection()->GetTableMountCache())
+            , IsSortedTable_(TableInfo_->Schemas[ETableSchemaKind::Primary]->IsSorted())
             , ColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary]->Columns().size())
             , KeyColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary]->GetKeyColumnCount())
             , EnforceRowCountLimit_(transaction->Client_->GetOptions().GetAuthenticatedUser() != NSecurityClient::ReplicatorUserName)
@@ -924,7 +948,7 @@ private:
                 static_cast<int>(UnversionedSubmittedRows_.size())});
         }
 
-        void SubmitRow(TVersionedRow row)
+        void SubmitRow(TTypeErasedRow row)
         {
             VersionedSubmittedRows_.push_back(row);
         }
@@ -972,6 +996,7 @@ private:
         const TConnectionConfigPtr Config_;
         const TColumnEvaluatorPtr ColumnEvaluator_;
         const ITableMountCachePtr TableMountCache_;
+        const bool IsSortedTable_;
         const int ColumnCount_;
         const int KeyColumnCount_;
         const bool EnforceRowCountLimit_;
@@ -994,7 +1019,7 @@ private:
         int TotalBatchedRowCount_ = 0;
         std::vector<std::unique_ptr<TBatch>> Batches_;
 
-        std::vector<TVersionedRow> VersionedSubmittedRows_;
+        std::vector<TTypeErasedRow> VersionedSubmittedRows_;
 
         struct TUnversionedSubmittedRow
         {
@@ -1009,6 +1034,29 @@ private:
         IChannelPtr InvokeChannel_;
         int InvokeBatchIndex_ = 0;
         const TPromise<void> InvokePromise_ = NewPromise<void>();
+
+        void PrepareVersionedRows()
+        {
+            for (const auto& typeErasedRow : VersionedSubmittedRows_) {
+                IncrementAndCheckRowCount();
+
+                auto* batch = EnsureBatch();
+                ++batch->RowCount;
+
+                auto& writer = batch->Writer;
+                writer.WriteCommand(EWireProtocolCommand::VersionedWriteRow);
+
+                if (IsSortedTable_) {
+                    TVersionedRow row(typeErasedRow);
+                    batch->DataWeight += GetDataWeight(row);
+                    writer.WriteVersionedRow(row);
+                } else {
+                    TUnversionedRow row(typeErasedRow);
+                    batch->DataWeight += GetDataWeight(row);
+                    writer.WriteUnversionedRow(row);
+                }
+            }
+        }
 
         void PrepareSortedBatches()
         {
@@ -1077,18 +1125,7 @@ private:
                 WriteRow(submittedRow);
             }
 
-            for (const auto& row : VersionedSubmittedRows_) {
-
-                IncrementAndCheckRowCount();
-
-                auto* batch = EnsureBatch();
-                auto& writer = batch->Writer;
-                ++batch->RowCount;
-                batch->DataWeight += GetDataWeight(row);
-
-                writer.WriteCommand(EWireProtocolCommand::VersionedWriteRow);
-                writer.WriteVersionedRow(row);
-            }
+            PrepareVersionedRows();
         }
 
         void WriteRow(const TUnversionedSubmittedRow& submittedRow)
@@ -1114,6 +1151,8 @@ private:
             for (const auto& submittedRow : UnversionedSubmittedRows_) {
                 WriteRow(submittedRow);
             }
+
+            PrepareVersionedRows();
         }
 
         bool IsNewBatchNeeded()

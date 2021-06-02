@@ -40,12 +40,12 @@ private:
     {
         const auto& path = key.Path;
 
-        YT_LOG_DEBUG("Requesting table mount info (Path: %v)", 
+        YT_LOG_DEBUG("Requesting table mount info (Path: %v)",
             path);
 
         TApiServiceProxy proxy(Channel_);
         proxy.SetDefaultTimeout(Timeout_);
-        
+
         auto req = proxy.GetTableMountInfo();
         req->set_path(path);
 
@@ -56,7 +56,7 @@ private:
                 auto tableId = FromProto<NObjectClient::TObjectId>(rsp->table_id());
                 tableInfo->TableId = tableId;
 
-                auto primarySchema = NYT::FromProto<NTableClient::TTableSchemaPtr>(rsp->schema());;
+                auto primarySchema = NYT::FromProto<NTableClient::TTableSchemaPtr>(rsp->schema());
                 tableInfo->Schemas[ETableSchemaKind::Primary] = primarySchema;
                 tableInfo->Schemas[ETableSchemaKind::Write] = primarySchema->ToWrite();
                 tableInfo->Schemas[ETableSchemaKind::VersionedWrite] = primarySchema->ToVersionedWrite();

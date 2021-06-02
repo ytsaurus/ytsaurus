@@ -2434,6 +2434,66 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert not replica_infos[replica_id2]["replicated_table_tracker_enabled"]
 
 
+    @authors("gritukan")
+    @pytest.mark.parametrize("preserve_timestamps", [False, True])
+    def test_replicate_timestamp_column(self, preserve_timestamps):
+        self._create_cells()
+
+        schema = [{"name": "$timestamp", "type": "uint64"}] + SIMPLE_SCHEMA_ORDERED
+
+        self._create_replicated_table("//tmp/t", schema=schema)
+        replica_id1 = create_table_replica(
+            "//tmp/t",
+            self.REPLICA_CLUSTER_NAME,
+            "//tmp/r1",
+            attributes={"mode": "sync"},
+        )
+        replica_id2 = create_table_replica(
+            "//tmp/t",
+            self.REPLICA_CLUSTER_NAME,
+            "//tmp/r2",
+            attributes={"mode": "async", "preserve_timestamps": preserve_timestamps},
+        )
+
+        self._create_replica_table("//tmp/r1", replica_id1, schema)
+        self._create_replica_table("//tmp/r2", replica_id2, schema)
+        sync_enable_table_replica(replica_id1)
+        sync_enable_table_replica(replica_id2)
+
+        ts_before = generate_timestamp()
+        insert_rows("//tmp/t", [{"key": 42, "value1": "a", "value2": 123}])
+        ts_after = generate_timestamp()
+
+        rows = select_rows("* from [//tmp/r1]", driver=self.replica_driver)
+        assert len(rows) == 1
+        row1 = rows[0]
+        ts = row1["$timestamp"]
+        assert ts_before <= ts <= ts_after
+        assert row1 == {
+            "$timestamp": ts,
+            "$tablet_index": 0,
+            "$row_index": 0,
+            "key": 42,
+            "value1": "a",
+            "value2": 123,
+        }
+
+        def get_rows_from_async_replica():
+            return select_rows("* from [//tmp/r2]", driver=self.replica_driver)
+
+        wait(lambda: len(get_rows_from_async_replica()) > 0)
+        rows = get_rows_from_async_replica()
+        assert len(rows) == 1
+        row2 = rows[0]
+        if preserve_timestamps:
+            assert row1 == row2
+        else:
+            assert row1["$timestamp"] != row2["$timestamp"]
+            del row1["$timestamp"]
+            del row2["$timestamp"]
+            assert row1 == row2
+
+
 ##################################################################
 
 

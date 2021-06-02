@@ -104,7 +104,8 @@ bool TOrderedStoreManager::ExecuteWrites(
     while (!reader->IsFinished()) {
         auto command = reader->ReadCommand();
         switch (command) {
-            case EWireProtocolCommand::WriteRow: {
+            case EWireProtocolCommand::WriteRow:
+            case EWireProtocolCommand::VersionedWriteRow: {
                 auto row = reader->ReadUnversionedRow(false);
                 WriteRow(row, context);
                 break;
