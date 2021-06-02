@@ -187,7 +187,7 @@ void TNodeResourceManager::UpdateMemoryFootprint()
     newFootprint = std::max<i64>(newFootprint, 0);
 
     auto oldFootprint = memoryUsageTracker->UpdateUsage(EMemoryCategory::Footprint, newFootprint);
-    auto oldFragmentation = memoryUsageTracker->UpdateUsage(EMemoryCategory::AllocFragmentation, newFootprint);
+    auto oldFragmentation = memoryUsageTracker->UpdateUsage(EMemoryCategory::AllocFragmentation, newFragmentation);
 
     YT_LOG_INFO("Memory footprint updated (BytesCommitted: %v, BytesUsed: %v, Footprint: %v -> %v, Fragmentation: %v -> %v)",
         bytesCommitted,
