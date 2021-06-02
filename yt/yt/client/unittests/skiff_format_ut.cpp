@@ -2265,59 +2265,6 @@ TEST(TSkiffWriter, TestMissingComplexColumn)
     }
 }
 
-TEST(TSkiffWriter, TestSkippedFields)
-{
-    auto skiffSchema = CreateTupleSchema({
-        CreateSimpleTypeSchema(EWireType::Int64)->SetName("number"),
-        CreateSimpleTypeSchema(EWireType::Nothing)->SetName("string"),
-        CreateSimpleTypeSchema(EWireType::Double)->SetName("double"),
-    });
-    auto tableSchema = New<TTableSchema>(std::vector{
-        TColumnSchema("number", EValueType::Int64),
-        TColumnSchema("string", EValueType::String),
-        TColumnSchema("double", EValueType::Double),
-    });
-
-    auto nameTable = New<TNameTable>();
-    TString result;
-    {
-        TStringOutput resultStream(result);
-        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {tableSchema});
-
-        writer->Write({
-            MakeRow({
-                MakeUnversionedInt64Value(1, nameTable->GetIdOrRegisterName("number")),
-                MakeUnversionedStringValue("hello", nameTable->GetIdOrRegisterName("string")),
-                MakeUnversionedDoubleValue(1.5, nameTable->GetIdOrRegisterName("double"))
-            }).Get()
-        });
-        writer->Write({
-            MakeRow({
-                MakeUnversionedInt64Value(1, nameTable->GetIdOrRegisterName("number")),
-                MakeUnversionedDoubleValue(2.5, nameTable->GetIdOrRegisterName("double")),
-            }).Get()
-        });
-        writer->Close()
-            .Get()
-            .ThrowOnError();
-
-        TStringInput resultInput(result);
-        TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
-
-        // row 0
-        ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
-        ASSERT_EQ(checkedSkiffParser.ParseInt64(), 1);
-        ASSERT_EQ(checkedSkiffParser.ParseDouble(), 1.5);
-        // row 1
-        ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
-        ASSERT_EQ(checkedSkiffParser.ParseInt64(), 1);
-        ASSERT_EQ(checkedSkiffParser.ParseDouble(), 2.5);
-        ASSERT_EQ(checkedSkiffParser.HasMoreData(), false);
-        checkedSkiffParser.ValidateFinished();
-    }
-
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TSkiffParser, Simple)
