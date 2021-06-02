@@ -2492,6 +2492,25 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         assert _insert() < 2
 
+    @authors("savrus")
+    def test_mounted_table_attributes_update_validation(self):
+        create_account("test_account")
+        set("//sys/accounts/test_account/@resource_limits/tablet_count", 10)
+        set("//sys/accounts/test_account/@resource_limits/tablet_static_memory", 1024)
+
+        sync_create_cells(1)
+        self._create_ordered_table("//tmp/t")
+        mount_table("//tmp/t")
+
+        with pytest.raises(YtError):
+            set("//tmp/t/@account", "test_account")
+        with pytest.raises(YtError):
+            set("//tmp/t/@atomicity", "none")
+        with pytest.raises(YtError):
+            set("//tmp/t/@commit_ordering", "weak")
+        with pytest.raises(YtError):
+            set("//tmp/t/@in_memory_mode", "compressed")
+
 
 ##################################################################
 
