@@ -1643,6 +1643,11 @@ int TSchedulerPoolElement::GetMaxOperationCount() const
     return Config_->MaxOperationCount.value_or(TreeConfig_->MaxOperationCountPerPool);
 }
 
+TPoolIntegralGuaranteesConfigPtr TSchedulerPoolElement::GetIntegralGuaranteesConfig() const
+{
+    return Config_->IntegralGuarantees;
+}
+
 std::vector<EFifoSortParameter> TSchedulerPoolElement::GetFifoSortParameters() const
 {
     return FifoSortParameters_;
@@ -3639,6 +3644,11 @@ int TSchedulerRootElement::GetMaxRunningOperationCount() const
 int TSchedulerRootElement::GetMaxOperationCount() const
 {
     return TreeConfig_->MaxOperationCount;
+}
+
+TPoolIntegralGuaranteesConfigPtr TSchedulerRootElement::GetIntegralGuaranteesConfig() const
+{
+    return New<TPoolIntegralGuaranteesConfig>();
 }
 
 std::vector<EFifoSortParameter> TSchedulerRootElement::GetFifoSortParameters() const

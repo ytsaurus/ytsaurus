@@ -550,6 +550,8 @@ public:
     virtual int GetMaxRunningOperationCount() const = 0;
     int GetAvailableRunningOperationCount() const;
 
+    virtual TPoolIntegralGuaranteesConfigPtr GetIntegralGuaranteesConfig() const = 0;
+
     void IncreaseOperationCount(int delta);
     void IncreaseRunningOperationCount(int delta);
 
@@ -733,6 +735,8 @@ public:
 
     virtual int GetMaxOperationCount() const override;
     virtual int GetMaxRunningOperationCount() const override;
+
+    virtual TPoolIntegralGuaranteesConfigPtr GetIntegralGuaranteesConfig() const override;
 
     void SetEphemeralInDefaultParentPool();
     bool IsEphemeralInDefaultParentPool() const;
@@ -1259,6 +1263,8 @@ public:
     //! Trunk node interface.
     virtual int GetMaxRunningOperationCount() const override;
     virtual int GetMaxOperationCount() const override;
+
+    virtual TPoolIntegralGuaranteesConfigPtr GetIntegralGuaranteesConfig() const override;
 
     virtual bool IsDefaultConfigured() const override;
     virtual bool AreImmediateOperationsForbidden() const override;
