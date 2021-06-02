@@ -4,6 +4,8 @@ namespace NYT::NScheduler {
 
 using namespace NProfiling;
 
+using NFairShare::ToJobResources;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr TDuration PoolKeepAlivePeriod = TDuration::Minutes(1);
@@ -426,6 +428,12 @@ void TFairShareTreeProfiler::ProfilePool(
     } else {
         ProfileResources(&buffer, element->GetSpecifiedStrongGuaranteeResources(), "/strong_guarantee_resources");
         ProfileResources(&buffer, element->Attributes().EffectiveStrongGuaranteeResources, "/effective_strong_guarantee_resources");
+
+        auto integralGuaranteesConfig = element->GetIntegralGuaranteesConfig();
+        if (integralGuaranteesConfig->GuaranteeType != EIntegralGuaranteeType::None) {
+            ProfileResources(&buffer, ToJobResources(integralGuaranteesConfig->ResourceFlow, {}), "/resource_flow");
+            ProfileResources(&buffer, ToJobResources(integralGuaranteesConfig->BurstGuaranteeResources, {}), "/burst_guarantee_resources");
+        }
     }
 
     producer->Update(std::move(buffer));
