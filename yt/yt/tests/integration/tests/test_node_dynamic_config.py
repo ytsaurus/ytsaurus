@@ -403,3 +403,21 @@ class TestNodeDynamicConfig(YTEnvSetup):
                 config["nodeA"]["tablet_node"]["slots"] = slot_count
             set("//sys/cluster_nodes/@config", config)
             wait(lambda: healthy_cell_count() == min(5, slot_count))
+
+    @authors("starodub")
+    def test_versioned_chunk_meta_cache(self):
+        nodes = ls("//sys/cluster_nodes")
+
+        set("//sys/cluster_nodes/{0}/@user_tags".format(nodes[0]), ["nodeA"])
+        config = {
+            "nodeA": {
+                "tablet_node": {
+                    "versioned_chunk_meta_cache": {
+                        "capacity": 300,
+                    }
+                }
+            }
+        }
+        set("//sys/cluster_nodes/@config", config)
+        key = "//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/effective_config/tablet_node/versioned_chunk_meta_cache/capacity"
+        wait(lambda: get(key.format(nodes[0])) == 300, ignore_exceptions=True)

@@ -71,13 +71,18 @@ class TVersionedChunkMetaManager
 {
 public:
     TVersionedChunkMetaManager(
-        TTabletNodeConfigPtr config,
+        TSlruCacheConfigPtr config,
         NClusterNode::TBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
-            config->VersionedChunkMetaCache,
+            config,
             TabletNodeProfiler.WithPrefix("/versioned_chunk_meta_cache"))
         , Bootstrap_(bootstrap)
     { }
+
+    virtual void Reconfigure(TSlruCacheDynamicConfigPtr config) override
+    {
+        TAsyncSlruCacheBase::Reconfigure(config);
+    }
 
     virtual TFuture<TCachedVersionedChunkMetaPtr> GetMeta(
         const IChunkReaderPtr& chunkReader,
@@ -126,7 +131,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IVersionedChunkMetaManagerPtr CreateVersionedChunkMetaManager(
-    TTabletNodeConfigPtr config,
+    TSlruCacheConfigPtr config,
     NClusterNode::TBootstrap* bootstrap)
 {
     return New<TVersionedChunkMetaManager>(
