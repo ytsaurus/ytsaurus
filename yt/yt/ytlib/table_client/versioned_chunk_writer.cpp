@@ -728,7 +728,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
             config,
             options,
             schema,
-            underlyingWriter,
+            std::move(underlyingWriter),
             blockCache);
     };
 

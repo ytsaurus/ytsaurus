@@ -1942,7 +1942,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
                     config,
                     options,
                     schema,
-                    underlyingWriter,
+                    std::move(underlyingWriter),
                     blockCache);
             };
 

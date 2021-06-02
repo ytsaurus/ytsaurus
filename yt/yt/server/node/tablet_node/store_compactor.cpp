@@ -177,16 +177,12 @@ protected:
 
     IVersionedMultiChunkWriterPtr CreateWriter()
     {
-        auto chunkWriterFactory = [=, this_ = MakeStrong(this)] (IChunkWriterPtr underlyingWriter) {
-            return CreateHunkEncodingVersionedWriter(
-                CreateVersionedChunkWriter(
-                    StoreWriterConfig_,
-                    StoreWriterOptions_,
-                    TabletSnapshot_->PhysicalSchema,
-                    underlyingWriter,
-                    BlockCache_),
-                TabletSnapshot_->PhysicalSchema,
-                HunkChunkPayloadWriter_);
+        auto chunkWriterFactory = [weakThis = MakeWeak(this)] (IChunkWriterPtr underlyingWriter) {
+            if (auto this_ = weakThis.Lock()) {
+                return this_->CreateUnderlyingWriterAdapter(std::move(underlyingWriter));
+            } else {
+                THROW_ERROR_EXCEPTION(NYT::EErrorCode::Canceled, "Store compactor session destroyed");
+            }
         };
 
         auto writer = CreateVersionedMultiChunkWriter(
@@ -289,6 +285,19 @@ private:
 
         WaitFor(BlockCache_->Finish(chunkInfos))
             .ThrowOnError();
+    }
+
+    IVersionedChunkWriterPtr CreateUnderlyingWriterAdapter(IChunkWriterPtr underlyingWriter) const
+    {
+        return CreateHunkEncodingVersionedWriter(
+            CreateVersionedChunkWriter(
+                StoreWriterConfig_,
+                StoreWriterOptions_,
+                TabletSnapshot_->PhysicalSchema,
+                std::move(underlyingWriter),
+                BlockCache_),
+            TabletSnapshot_->PhysicalSchema,
+            HunkChunkPayloadWriter_);
     }
 };
 
