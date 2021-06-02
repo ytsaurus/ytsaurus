@@ -609,6 +609,11 @@ bool TTableSchema::HasHunkColumns() const
     return !HunkColumnsIds_.empty();
 }
 
+bool TTableSchema::HasTimestampColumn() const
+{
+    return FindColumn(TimestampColumnName);
+}
+
 bool TTableSchema::IsSorted() const
 {
     return KeyColumnCount_ > 0;
@@ -783,6 +788,7 @@ TTableSchemaPtr TTableSchema::WithTabletIndex() const
         return New<TTableSchema>(*this);
     } else {
         auto columns = Columns_;
+        // XXX: Is it ok? $tablet_index is usually a key column.
         columns.push_back(TColumnSchema(TabletIndexColumnName, ESimpleLogicalValueType::Int64));
         return New<TTableSchema>(std::move(columns), Strict_, UniqueKeys_);
     }
@@ -790,7 +796,14 @@ TTableSchemaPtr TTableSchema::WithTabletIndex() const
 
 TTableSchemaPtr TTableSchema::ToVersionedWrite() const
 {
-    return New<TTableSchema>(*this);
+    if (IsSorted()) {
+        return New<TTableSchema>(*this);
+    } else {
+        auto columns = Columns_;
+        columns.insert(columns.begin(), TColumnSchema(TabletIndexColumnName, ESimpleLogicalValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending));
+        return New<TTableSchema>(std::move(columns), Strict_, UniqueKeys_);
+    }
 }
 
 TTableSchemaPtr TTableSchema::ToLookup() const

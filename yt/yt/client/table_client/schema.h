@@ -171,6 +171,7 @@ public:
 
     bool HasComputedColumns() const;
     bool HasHunkColumns() const;
+    bool HasTimestampColumn() const;
     bool IsSorted() const;
     bool IsUniqueKeys() const;
 
@@ -213,11 +214,11 @@ public:
     TTableSchemaPtr ToWrite() const;
 
     //! For sorted tables, return the current schema
-    //! For ordered tables, prepends the current schema with |(tablet_index)| key column
+    //! For ordered tables, prepends the current schema with |(tablet_index)| key column.
     TTableSchemaPtr WithTabletIndex() const;
 
-    //! Only applies to sorted replicated tables.
     //! Returns the current schema as-is.
+    //! For ordered tables, prepends the current schema with |(tablet_index)| key column.
     TTableSchemaPtr ToVersionedWrite() const;
 
     //! For sorted tables, returns the non-computed key columns.
