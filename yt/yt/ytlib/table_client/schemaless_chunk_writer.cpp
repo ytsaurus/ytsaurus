@@ -1337,18 +1337,18 @@ public:
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache)
         : TSchemalessMultiChunkWriterBase(
-        config,
-        options,
-        client,
-        cellTag,
-        transactionId,
-        parentChunkListId,
-        nameTable,
-        schema,
-        TLegacyOwningKey(),
-        trafficMeter,
-        throttler,
-        blockCache)
+            config,
+            options,
+            client,
+            cellTag,
+            transactionId,
+            parentChunkListId,
+            nameTable,
+            schema,
+            TLegacyOwningKey(),
+            trafficMeter,
+            throttler,
+            blockCache)
         , Partitioner_(partitioner)
         , BlockReserveSize_(std::max(Config_->MaxBufferSize / Partitioner_->GetPartitionCount() / 2, i64(1)))
     {
