@@ -944,6 +944,8 @@ public:
     THunkChunkSweeperDynamicConfigPtr HunkChunkSweeper;
     TPartitionBalancerDynamicConfigPtr PartitionBalancer;
 
+    TSlruCacheDynamicConfigPtr VersionedChunkMetaCache;
+
     NQueryClient::TColumnEvaluatorCacheDynamicConfigPtr ColumnEvaluatorCache;
 
     bool EnableStructuredLogger;
@@ -972,6 +974,9 @@ public:
         RegisterParameter("hunk_chunk_sweeper", HunkChunkSweeper)
             .DefaultNew();
         RegisterParameter("partition_balancer", PartitionBalancer)
+            .DefaultNew();
+
+        RegisterParameter("versioned_chunk_meta_cache", VersionedChunkMetaCache)
             .DefaultNew();
 
         RegisterParameter("column_evaluator_cache", ColumnEvaluatorCache)

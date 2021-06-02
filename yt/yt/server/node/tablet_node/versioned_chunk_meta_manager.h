@@ -11,6 +11,8 @@ namespace NYT::NTabletNode {
 struct IVersionedChunkMetaManager
     : public virtual TRefCounted
 {
+    virtual void Reconfigure(TSlruCacheDynamicConfigPtr config) = 0;
+
     virtual TFuture<NTableClient::TCachedVersionedChunkMetaPtr> GetMeta(
         const NChunkClient::IChunkReaderPtr& chunkReader,
         const NTableClient::TTableSchemaPtr& schema,
@@ -20,7 +22,7 @@ struct IVersionedChunkMetaManager
 DEFINE_REFCOUNTED_TYPE(IVersionedChunkMetaManager)
 
 IVersionedChunkMetaManagerPtr CreateVersionedChunkMetaManager(
-    TTabletNodeConfigPtr config,
+    TSlruCacheConfigPtr config,
     NClusterNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
