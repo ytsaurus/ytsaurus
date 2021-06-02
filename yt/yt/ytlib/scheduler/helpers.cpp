@@ -575,7 +575,7 @@ void ValidateOperationAccess(
             auto error = TError(
                 NSecurityClient::EErrorCode::AuthorizationError,
                 "Operation access denied")
-                << TErrorAttribute("user", user)
+                << TErrorAttribute("user", user.value_or(GetCurrentAuthenticationIdentity().User))
                 << TErrorAttribute("required_permissions", permissionSet)
                 << TErrorAttribute("acl", acl);
             if (operationId) {
