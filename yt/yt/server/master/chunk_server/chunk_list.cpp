@@ -153,9 +153,6 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
         if (HasChildToIndexMapping()) {
             YT_VERIFY(ChildToIndex_.emplace(child, index).second);
         }
-        if (IsHunkChunkList(child)) {
-            SetHunkRootChild(child->AsChunkList());
-        }
     }
 }
 

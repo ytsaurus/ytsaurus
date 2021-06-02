@@ -2647,12 +2647,10 @@ private:
 
         YT_LOG_INFO("Started initializing chunks");
 
-        for (const auto& pair : ChunkMap_) {
-            auto* chunk = pair.second;
-
+        for (auto [chunkId, chunk] : ChunkMap_) {
             RegisterChunk(chunk);
 
-            auto addReplicas = [&] (const auto& replicas) {
+            auto addReplicas = [&, chunk = chunk] (const auto& replicas) {
                 for (auto replica : replicas) {
                     TChunkPtrWithIndexes chunkWithIndexes(
                         chunk,
@@ -2673,6 +2671,14 @@ private:
             // COMPAT(shakurov)
             if (chunk->GetExpirationTime()) {
                 ExpirationTracker_->ScheduleExpiration(chunk);
+            }
+        }
+
+        for (auto [chunkListId, chunkList] : ChunkListMap_) {
+            if (chunkList->GetKind() == EChunkListKind::HunkRoot) {
+                for (auto* parent : chunkList->Parents()) {
+                    parent->SetHunkRootChild(chunkList);
+                }
             }
         }
 
