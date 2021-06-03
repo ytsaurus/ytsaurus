@@ -358,6 +358,7 @@ public:
         builder.AddValue(MakeUnversionedInt64Value(0, index.PartIndex));
         builder.AddValue(MakeUnversionedStringValue(profile->Type, index.ProfileType));
         builder.AddValue(MakeUnversionedStringValue(profile->Blob, index.ProfileBlob));
+        builder.AddValue(MakeUnversionedDoubleValue(profile->ProfilingProbability, index.ProfilingProbability));
         
         return builder.FinishRow();
     }

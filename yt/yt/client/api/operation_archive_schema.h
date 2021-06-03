@@ -199,6 +199,7 @@ struct TJobProfileTableDescriptor
         const int PartIndex;
         const int ProfileType;
         const int ProfileBlob;
+        const int ProfilingProbability;
     };
 
     const NTableClient::TNameTablePtr NameTable;

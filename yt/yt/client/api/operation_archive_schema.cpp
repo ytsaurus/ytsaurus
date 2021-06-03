@@ -197,6 +197,7 @@ TJobProfileTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
     , PartIndex(nameTable->RegisterName("part_index"))
     , ProfileType(nameTable->RegisterName("profile_type"))
     , ProfileBlob(nameTable->RegisterName("profile_blob"))
+    , ProfilingProbability(nameTable->RegisterName("profiling_probability"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

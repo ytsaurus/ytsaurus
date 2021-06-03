@@ -8258,7 +8258,9 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_use_yamr_descriptors(config->UseYamrDescriptors);
     jobSpec->set_check_input_fully_consumed(config->CheckInputFullyConsumed);
     jobSpec->set_max_stderr_size(config->MaxStderrSize);
-    jobSpec->set_max_profile_size(config->MaxProfileSize);
+    if (Spec_->ProfilingProbability) {
+        jobSpec->set_profiling_probability(*Spec_->ProfilingProbability);
+    }
     jobSpec->set_custom_statistics_count_limit(config->CustomStatisticsCountLimit);
     jobSpec->set_copy_files(config->CopyFiles);
     jobSpec->set_file_account(fileAccount);
@@ -8401,10 +8403,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     jobSpec->add_environment(Format("YT_OPERATION_ID=%v", OperationId));
 
-    if (config->EnableProfiling) {
-        jobSpec->add_environment(Format("YT_PROFILE_JOB=1"));
-    }
-
     BuildFileSpecs(jobSpec, files, config, Config->EnableBypassArtifactCache);
 
     if (config->Monitoring->Enable) {
@@ -8487,6 +8485,11 @@ void TOperationControllerBase::InitUserJobSpec(
         auto* monitoringConfig = jobSpec->mutable_monitoring_config();
         monitoringConfig->set_enable(true);
         monitoringConfig->set_job_descriptor(*joblet->UserJobMonitoringDescriptor);
+    }
+
+    if (joblet->EnabledProfiler) {
+        jobSpec->set_enabled_profiler(*joblet->EnabledProfiler);
+        jobSpec->add_environment(Format("YT_JOB_PROFILER=%v", *joblet->EnabledProfiler));
     }
 }
 

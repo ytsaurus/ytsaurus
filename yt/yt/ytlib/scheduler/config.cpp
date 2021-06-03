@@ -610,6 +610,11 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("user_file_columnar_statistics", UserFileColumnarStatistics)
         .DefaultNew();
 
+    RegisterParameter("enabled_profilers", EnabledProfilers)
+        .Default();
+    RegisterParameter("profiling_probability", ProfilingProbability)
+        .Default();
+
     RegisterPostprocessor([&] {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)
@@ -651,6 +656,10 @@ TOperationSpecBase::TOperationSpecBase()
         if (UseColumnarStatistics) {
             InputTableColumnarStatistics->Enabled = true;
             UserFileColumnarStatistics->Enabled = true;
+        }
+
+        if (ProfilingProbability && *ProfilingProbability * EnabledProfilers.size() > 1.0) {
+            THROW_ERROR_EXCEPTION("Profiling probability is too high");
         }
     });
 }
@@ -726,12 +735,7 @@ TUserJobSpec::TUserJobSpec()
         .Default(5_MB)
         .GreaterThan(0)
         .LessThanOrEqual(1_GB);
-    RegisterParameter("enable_profiling", EnableProfiling)
-        .Default(false);
-    RegisterParameter("max_profile_size", MaxProfileSize)
-        .Default(2_MB)
-        .GreaterThan(0)
-        .LessThanOrEqual(2_MB);
+
     RegisterParameter("custom_statistics_count_limit", CustomStatisticsCountLimit)
         .Default(128)
         .GreaterThan(0)
@@ -790,6 +794,9 @@ TUserJobSpec::TUserJobSpec()
         .DefaultNew();
 
     RegisterParameter("system_layer_path", SystemLayerPath)
+        .Default();
+
+    RegisterParameter("supported_profilers", SupportedProfilers)
         .Default();
 
     RegisterPostprocessor([&] () {

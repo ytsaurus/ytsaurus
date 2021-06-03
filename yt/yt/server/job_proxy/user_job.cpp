@@ -564,7 +564,7 @@ private:
 
     // Writes stderr data to Cypress file.
     std::unique_ptr<TStderrWriter> ErrorOutput_;
-    std::unique_ptr<TProfileWriter> ProfileOutput_;
+    std::unique_ptr<TStringStream> ProfileOutput_;
 
     // Core infos.
     TCoreInfos CoreInfos_;
@@ -735,9 +735,7 @@ private:
 
     IOutputStream* CreateProfileOutput()
     {
-        ProfileOutput_.reset(new TProfileWriter(
-            UserJobSpec_.max_profile_size()));
-
+        ProfileOutput_.reset(new TStringStream());
         return ProfileOutput_.get();
     }
 
@@ -854,18 +852,15 @@ private:
         if (!ProfileOutput_) {
             return {};
         }
+        if (!UserJobSpec_.has_enabled_profiler()) {
+            return {};
+        }
 
-        auto result = WaitFor(BIND([=] () {
-            auto profilePair = ProfileOutput_->GetProfile();
-            TJobProfile profile;
-            profile.Type = profilePair.first;
-            profile.Blob = profilePair.second;
-            return profile;
-        })
-            .AsyncVia(ReadStderrInvoker_)
-            .Run());
-        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error collecting job profile");
-        return result.Value();
+        return TJobProfile{
+            .Type = UserJobSpec_.enabled_profiler(),
+            .Blob = ProfileOutput_->Str(),
+            .ProfilingProbability = UserJobSpec_.profiling_probability(),
+        };
     }
 
     virtual TYsonString PollJobShell(

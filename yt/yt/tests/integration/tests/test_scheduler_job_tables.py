@@ -19,7 +19,7 @@ from yt_commands import (  # noqa
     start_transaction, abort_transaction, lock,
     read_file, write_file, read_table, write_table, write_local_file,
     map, reduce, map_reduce, join_reduce, merge, vanilla, sort, erase,
-    run_test_vanilla, run_sleeping_vanilla,
+    run_test_vanilla, run_sleeping_vanilla, select_rows,
     abort_job, list_jobs, get_job, abandon_job,
     get_job_fail_context, get_job_input, get_job_stderr, get_job_spec,
     dump_job_context, poll_job_shell,
@@ -46,6 +46,7 @@ import yt_error_codes
 import yt.environment.init_operation_archive as init_operation_archive
 from yt.environment import arcadia_interop
 from yt.common import YtError
+from yt.wrapper.common import uuid_hash_pair
 
 import binascii
 import itertools
@@ -54,6 +55,7 @@ import os
 import subprocess
 import time
 import threading
+import __builtin__
 from multiprocessing import Queue
 
 TEST_DIR = arcadia_interop.yatest_common.source_path("yt/tests/integration/tests")
@@ -1181,3 +1183,106 @@ class TestCoreTablePorto(TestCoreTable):
 @pytest.mark.skipif(is_asan_build(), reason="Cores are not dumped in ASAN build")
 class TestCoreTablePortoRootfs(TestCoreTablePorto):
     USE_CUSTOM_ROOTFS = True
+
+
+def get_profiles_from_table(operation_id):
+    operation_hash = uuid_hash_pair(operation_id)
+    return list(
+        select_rows(
+            "profile_type, profile_blob, profiling_probability from [//sys/operations_archive/job_profiles] "
+            "where operation_id_lo={0}u and operation_id_hi={1}u".format(
+                operation_hash.lo, operation_hash.hi
+            )
+        )
+    )
+
+
+class TestJobProfiling(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_reporter": {
+                "enabled": True,
+                "reporting_period": 10,
+                "min_repeat_delay": 10,
+                "max_repeat_delay": 10,
+            },
+        }
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "enable_job_reporter": True,
+        }
+    }
+
+    def setup(self):
+        sync_create_cells(1)
+        init_operation_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
+
+    @authors("prime")
+    def test_job_profiling(self):
+        input_table = "//tmp/input_table"
+        output_table = "//tmp/output_table"
+
+        create("table", input_table)
+        create("table", output_table)
+        write_table(input_table, [{"foo": "{}".format(i)} for i in range(5000)])
+
+        mapper_command = """
+            cat;
+            if test "$YT_JOB_PROFILER" == "cpu"
+            then printf 'mapper_cpu' >&8
+            fi
+        """
+        reducer_command = """
+            cat;
+            if test "$YT_JOB_PROFILER" == "memory"
+            then printf 'reducer_memory' >&8
+            fi
+        """
+
+        spec={
+            "mapper": {
+                "supported_profilers": ["cpu"],
+            },
+            "reducer": {
+                "supported_profilers": ["memory"],
+            },
+
+            "enabled_profilers": ["cpu", "memory"],
+            "profiling_probability": 0.1,
+
+            "map_job_count": 100,
+            "partition_count": 100,
+            "data_size_per_sort_job": 1,
+        }
+
+        op = map_reduce(
+            in_=input_table,
+            out=output_table,
+            mapper_command=mapper_command,
+            reducer_command=reducer_command,
+            sort_by="foo",
+            reduce_by="foo",
+            spec=spec,
+        )
+
+        def profiles_ready():
+            profiles = get_profiles_from_table(op.id)
+            return len(__builtin__.set(row["profile_type"] for row in profiles)) == 2
+
+        wait(profiles_ready)
+        profiles = get_profiles_from_table(op.id)
+
+        assert all(row["profiling_probability"] == 0.1 for row in profiles)
+        assert all(row["profile_blob"] == "reducer_memory" for row in profiles if row["profile_type"] == "memory")
+        assert all(row["profile_blob"] == "mapper_cpu" for row in profiles if row["profile_type"] == "cpu")
+        assert 0 < len(list(row for row in profiles if row["profile_type"] == "memory")) < 50
+        assert 0 < len(list(row for row in profiles if row["profile_type"] == "cpu")) < 50

@@ -125,8 +125,9 @@ public:
 
     std::vector<TStreamDescriptor> StreamDescriptors;
 
-    // This field is used only to build job spec and thus transient.
+    // This fields are used only to build job spec and thus transient.
     std::optional<TString> UserJobMonitoringDescriptor;
+    std::optional<TString> EnabledProfiler;
 
     virtual void Persist(const TPersistenceContext& context) override;
 

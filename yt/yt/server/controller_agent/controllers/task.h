@@ -377,6 +377,8 @@ private:
     int EstimateSplitJobCount(const TCompletedJobSummary& jobSummary, const TJobletPtr& joblet);
 
     TString GetOrCacheSerializedSchema(const NTableClient::TTableSchemaPtr& schema);
+
+    std::optional<TString> SelectProfiler();
 };
 
 DEFINE_REFCOUNTED_TYPE(TTask)

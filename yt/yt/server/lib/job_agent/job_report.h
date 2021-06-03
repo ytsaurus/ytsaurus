@@ -68,6 +68,7 @@ struct TJobProfile
 {
     TString Type;
     TString Blob;
+    double ProfilingProbability;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

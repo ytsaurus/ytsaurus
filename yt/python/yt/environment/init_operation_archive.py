@@ -945,6 +945,29 @@ TRANSFORMS[40] = [
             in_memory=True)),
 ]
 
+TRANSFORMS[41] = [
+    Conversion(
+        "job_profiles",
+        table_info=TableInfo([
+                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
+                ("operation_id_hi", "uint64"),
+                ("operation_id_lo", "uint64"),
+                ("job_id_hi", "uint64"),
+                ("job_id_lo", "uint64"),
+                ("part_index", "int64"),
+            ], [
+                ("profile_type", "string"),
+                ("profile_blob", "string"),
+                ("profiling_probability", "double"),
+            ],
+            get_pivot_keys=get_default_pivots,
+            attributes={
+                "atomicity": "none",
+                "tablet_cell_bundle": "sys"
+            }),
+        use_default_mapper=True)
+]
+
 
 def swap_table(client, target, source, version):
     backup_path = target + ".bak.{0}".format(version)

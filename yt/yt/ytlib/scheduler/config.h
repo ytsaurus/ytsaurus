@@ -827,6 +827,12 @@ public:
     //! Columnar statistics config for user files.
     TColumnarStatisticsConfigPtr UserFileColumnarStatistics;
 
+    //! List of profiler enabled on cluster.
+    std::vector<TString> EnabledProfilers;
+
+    //! Probability of enabling single profiler inside of the job.
+    std::optional<double> ProfilingProbability;
+
     TOperationSpecBase();
 
 private:
@@ -889,9 +895,6 @@ public:
     bool CheckInputFullyConsumed;
 
     i64 MaxStderrSize;
-
-    bool EnableProfiling;
-    i64 MaxProfileSize;
 
     i64 CustomStatisticsCountLimit;
 
@@ -966,6 +969,8 @@ public:
     TUserJobMonitoringConfigPtr Monitoring;
 
     std::optional<TString> SystemLayerPath;
+
+    std::vector<TString> SupportedProfilers;
 
     TUserJobSpec();
 
