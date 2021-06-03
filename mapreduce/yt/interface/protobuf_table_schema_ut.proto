@@ -1,6 +1,6 @@
 import "mapreduce/yt/interface/protos/extension.proto";
 
-package NYT.NTesting;
+package NYT.NUnitTesting;
 
 message TIntegral
 {

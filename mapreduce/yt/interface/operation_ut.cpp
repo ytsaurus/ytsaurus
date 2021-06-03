@@ -1,16 +1,16 @@
 #include <mapreduce/yt/interface/common_ut.h>
 #include <mapreduce/yt/interface/job_statistics.h>
 #include <mapreduce/yt/interface/operation.h>
+#include <mapreduce/yt/interface/protobuf_table_schema_ut.pb.h>
 
 #include <library/cpp/yson/node/node_io.h>
 
-#include <mapreduce/yt/tests/native/proto_lib/row.pb.h>
 #include <mapreduce/yt/tests/native/ydl_lib/row.ydl.h>
 
 #include <library/cpp/testing/unittest/registar.h>
 
 using namespace NYT;
-using namespace NYT::NTesting;
+using namespace NYT::NUnitTesting;
 namespace NYdlRows = mapreduce::yt::tests::native::ydl_lib::row;
 
 class TDummyInferenceContext
