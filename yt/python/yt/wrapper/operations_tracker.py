@@ -2,9 +2,7 @@ from .config import get_config, get_backend_type
 from .common import get_value
 from .errors import YtError, YtResponseError
 from .exceptions_catcher import ExceptionCatcher
-from .operation_commands import (Operation, PrintOperationInfo,
-                                 get_operation_attributes, get_operation_state, get_operation_url,
-                                 OperationState, abort_operation)
+from .operation_commands import (Operation, OperationState, get_operation_attributes)
 from .spec_builders import SpecBuilder
 from .run_operation_commands import run_operation
 from .batch_helpers import batch_apply
@@ -20,6 +18,10 @@ from threading import Thread, RLock
 from copy import deepcopy
 
 import sys
+
+
+SpecTask = namedtuple("SpecTask", ["spec_builder", "client", "enable_optimizations"])
+
 
 def copy_client(client):
     from .client import YtClient
@@ -37,6 +39,7 @@ class _OperationsTrackingThread(Thread):
 
         self.finished = False
         self.errors = []
+        self.exception = None
 
         self.daemon = True
 
@@ -50,7 +53,12 @@ class _OperationsTrackingThread(Thread):
 
     def run(self):
         while not self.finished:
-            self._check_operations()
+            try:
+                self._check_operations()
+            except Exception as ex:
+                logger.exception("Check operations failed")
+                self.exception = ex
+                return
 
             # NOTE: Wait time should decrease with the number of operations
             # because if poll period is fixed and number of operations is large then
@@ -199,6 +207,8 @@ class OperationsTrackerBase(object):
         with ExceptionCatcher(abort_exceptions, self.abort_all, enable=self._abort_on_sigint):
             while self._tracking_thread.get_operation_count() > 0:
                 sleep(self._poll_period / 1000.0)
+                if self._tracking_thread.exception is not None:
+                    raise self._tracking_thread.exception
                 if not self._tracking_thread.is_alive():
                     raise YtError("OperationsTracker tracking thread died unexpectedly")
 
@@ -257,7 +267,6 @@ class OperationsTracker(OperationsTrackerBase):
 
         self._add_operation(operation)
 
-SpecTask = namedtuple("SpecTask", ["spec_builder", "client", "enable_optimizations"])
 
 class _OperationsTrackingPoolThread(_OperationsTrackingThread):
     def __init__(self, *args, **kwargs):
@@ -337,13 +346,12 @@ class OperationsTrackerPool(OperationsTrackerBase):
     def __init__(self, pool_size, enable_optimizations=True, client=None, **kwargs):
         """Create an OperationsTrackerPool.
 
-        :param int pool_size: maximum number of concurrently running operation 
+        :param int pool_size: maximum number of concurrently running operation
         :param bool enable_optimizations: enable optimizations when starting operations \
         (see :func: `run_operation <yt.wrapper.run_operation_commands.run_operation>`)
         :param int poll_period: period of operation state polling (in ms). \
         This parameter may be tuned by the tracker itself. The more operations -- the less `poll_period` is.
         """
-       
         super(OperationsTrackerPool, self).__init__(**kwargs)
         self._tracking_thread.set_pool_size(pool_size)
 
