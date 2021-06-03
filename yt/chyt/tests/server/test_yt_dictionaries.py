@@ -1,8 +1,8 @@
-from base import ClickHouseTestBase, Clique
+from base import ClickHouseTestBase, Clique, QueryFailedError
 
 from helpers import get_async_expiring_cache_config
 
-from yt_commands import (authors, write_table, create, remove)
+from yt_commands import (authors, write_table, create, remove, raises_yt_error)
 
 import time
 from flaky import flaky
@@ -206,3 +206,10 @@ class TestYtDictionaries(ClickHouseTestBase):
                 clique.make_query("select dictGetString('dict', 'value', CAST(42 as UInt64)) as value")[0]["value"]
                 == "z"
             )
+
+    # CHYT-611
+    @authors("dakovalkov")
+    def test_dict_does_not_exist(self):
+        with Clique(1) as clique:
+            with raises_yt_error(QueryFailedError):
+                clique.make_query("select dictGetString('this_dict_does_not_exist', 'value', 1)")

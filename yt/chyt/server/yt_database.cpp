@@ -190,6 +190,14 @@ private:
         DB::ContextPtr context,
         const std::string& name) const
     {
+        // Normally it's called with a query context.
+        // In rare cases CH tries to find special tables (e.g. Dictionary)
+        // outside of query execution and provides a global context.
+        // We do not support such tables, so returning nullptr is fine.
+        if (context->isGlobalContext()) {
+            return nullptr;
+        }
+
         auto* queryContext = GetQueryContext(context);
 
         // Here goes the dirty-ass hack. When query context is created, query AST is not parsed yet,
