@@ -6,6 +6,7 @@
 #include "data_type_boolean.h"
 #include "dictionary_source.h"
 #include "health_checker.h"
+#include "invoker_liveness_checker.h"
 #include "memory_watchdog.h"
 #include "poco_config.h"
 #include "query_context.h"
@@ -124,7 +125,12 @@ public:
         , GossipExecutor_(New<TPeriodicExecutor>(
             ControlInvoker_,
             BIND(&TImpl::MakeGossip, MakeWeak(this)),
-            Config_->GossipPeriod))
+            Config_->Gossip->Period))
+        , ControlInvokerChecker_(New<TInvokerLivenessChecker>(
+            ControlInvoker_,
+            Config_->ControlInvokerChecker->Period,
+            Config_->ControlInvokerChecker->Timeout,
+            "Control"))
         , WorkerThreadPool_(New<TThreadPool>(Config_->WorkerThreadCount, "Worker"))
         , WorkerInvoker_(WorkerThreadPool_->GetInvoker())
         , ClickHouseWorkerInvoker_(CreateClickHouseInvoker(WorkerInvoker_))
@@ -199,11 +205,16 @@ public:
 
         YT_VERIFY(getContext());
 
+        if (Config_->ControlInvokerChecker->Enabled) {
+            ControlInvokerChecker_->Start();
+        }
+
         QueryRegistry_->Start();
         MemoryWatchdog_->Start();
 
         GossipExecutor_->Start();
         HealthChecker_->Start();
+
         CreateOrchidNode();
         StartDiscovery();
 
@@ -212,9 +223,7 @@ public:
 
     void HandleIncomingGossip(const TString& instanceId, EInstanceState state)
     {
-        BIND(&TImpl::DoHandleIncomingGossip, MakeWeak(this), instanceId, state)
-            .Via(ControlInvoker_)
-            .Run();
+        ControlInvoker_->Invoke(BIND(&TImpl::DoHandleIncomingGossip, MakeWeak(this), instanceId, state));
     }
 
     TFuture<void> StopDiscovery()
@@ -459,6 +468,7 @@ private:
     TMemoryWatchdogPtr MemoryWatchdog_;
     TQueryRegistryPtr QueryRegistry_;
     TPeriodicExecutorPtr GossipExecutor_;
+    TInvokerLivenessCheckerPtr ControlInvokerChecker_;
     NConcurrency::TThreadPoolPtr WorkerThreadPool_;
     IInvokerPtr WorkerInvoker_;
     IInvokerPtr ClickHouseWorkerInvoker_;
@@ -594,7 +604,9 @@ private:
     {
         YT_LOG_DEBUG("Gossip started");
 
-        auto nodes = Discovery_->List();
+        // Instances can be banned because of transient errors (e.g. network errors).
+        // Pinging banned instances can help to restore clique faster after such errors.
+        auto nodes = Discovery_->List(/*includeBanned*/ Config_->Gossip->PingBanned);
         std::vector<TFuture<NRpc::TTypedClientResponse<TRspProcessGossip>::TResult>> futures;
         futures.reserve(nodes.size());
         auto selfState = GetInstanceState();
@@ -604,6 +616,7 @@ private:
                 attributes->Get<TString>("host") + ":" + ToString(attributes->Get<ui64>("rpc_port")));
             TClickHouseServiceProxy proxy(channel);
             auto req = proxy.ProcessGossip();
+            req->SetTimeout(Config_->Gossip->Timeout);
             req->set_instance_id(ToString(Config_->InstanceId));
             req->set_instance_state(static_cast<int>(selfState));
             futures.push_back(req->Invoke());
@@ -611,9 +624,12 @@ private:
         auto responses = WaitFor(AllSet(futures))
             .ValueOrThrow();
 
-        i64 bannedCount = 0;
-
         // TODO(max42): better logging.
+
+        std::vector<TString> alive;
+        std::vector<TString> dead;
+
+        alive.reserve(nodes.size());
 
         auto responseIt = responses.begin();
         for (auto [name, attributes] : nodes) {
@@ -627,23 +643,33 @@ private:
                     attributes->Get<ui64>("rpc_port"),
                     name,
                     (responseIt->IsOK() ? Format("%v", EInstanceState(responseIt->Value()->instance_state())) : "Request failed"));
-                Discovery_->Ban(name);
-                ++bannedCount;
+                dead.push_back(name);
+            } else {
+                alive.push_back(name);
             }
             ++responseIt;
         }
 
-        YT_LOG_DEBUG("Gossip completed (Alive: %v, Banned: %v)", nodes.size() - bannedCount, bannedCount);
+        if (Config_->Gossip->AllowUnban) {
+            Discovery_->Unban(alive);
+        }
+        Discovery_->Ban(dead);
+
+        YT_LOG_DEBUG("Gossip completed (Alive: %v, Dead: %v)", alive.size(), dead.size());
     }
 
     void DoHandleIncomingGossip(const TString& instanceId, EInstanceState state)
     {
         if (state != EInstanceState::Active) {
-            YT_LOG_DEBUG("Banning instance (InstanceId: %v, State: %v)",
+            YT_LOG_DEBUG("Received gossip from non-active instance (InstanceId: %v, State: %v)",
                 instanceId,
                 state);
             Discovery_->Ban(instanceId);
             return;
+        }
+
+        if (Config_->Gossip->AllowUnban) {
+            Discovery_->Unban(instanceId);
         }
 
         if (KnownInstances_.contains(instanceId)) {
@@ -658,7 +684,7 @@ private:
             state,
             counter);
 
-        if (counter >= Config_->UnknownInstancePingLimit) {
+        if (counter >= Config_->Gossip->UnknownInstancePingLimit) {
             return;
         }
 
@@ -672,7 +698,7 @@ private:
             return;
         }
 
-        Discovery_->UpdateList(Config_->UnknownInstanceAgeThreshold);
+        Discovery_->UpdateList(Config_->Gossip->UnknownInstanceAgeThreshold);
     }
 
     void CreateOrchidNode()

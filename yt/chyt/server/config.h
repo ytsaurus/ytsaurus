@@ -78,6 +78,8 @@ public:
     bool ThrowExceptionInSubquery;
     i64 SubqueryAllocationSize;
 
+    bool HangControlInvoker;
+
     TTestingSettings();
 };
 
@@ -271,6 +273,51 @@ DEFINE_REFCOUNTED_TYPE(TQueryStatisticsReporterConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGossipConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Period to run the gossip procedure.
+    //! Note: TPeriodicExecutor counts down the period since the completion of previous invocation,
+    //! so the actual period will be in [Period, Period + Timeout].
+    TDuration Period;
+    //! Timeout for the gossip request. If it is exceeded, the instance is assumed to be dead.
+    TDuration Timeout;
+
+    //! We will ignore ping from unknown instances if discovery is younger than this.
+    TDuration UnknownInstanceAgeThreshold;
+    //! How many times we will handle ping from an unknown instance before ignoring it.
+    int UnknownInstancePingLimit;
+    //! Try to ping banned instances. It can help to prevent ban expiration for dead instances and
+    //! to find mistakenly banned instances. 
+    bool PingBanned;
+    //! Allow to unban the instance after successful gossip request.
+    //! It can help to restore discovery list faster if the instance was banned because of
+    //! transient error (e.g. temporary network overload).
+    bool AllowUnban;
+
+    TGossipConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TGossipConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TInvokerLivenessCheckerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool Enabled;
+    TDuration Period;
+    TDuration Timeout;
+
+    TInvokerLivenessCheckerConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TInvokerLivenessCheckerConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TYtConfig
     : public NYTree::TYsonSerializable
 {
@@ -300,13 +347,9 @@ public:
     //! Note that CliqueId will be added to Directory automatically.
     TDiscoveryConfigPtr Discovery;
 
-    TDuration GossipPeriod;
+    TGossipConfigPtr Gossip;
 
-    //! We will ignore ping from unknown instances if discovery is younger than this.
-    TDuration UnknownInstanceAgeThreshold;
-
-    //! How many times we will handle ping from an unknown instance before ignore it.
-    int UnknownInstancePingLimit;
+    TInvokerLivenessCheckerConfigPtr ControlInvokerChecker;
 
     //! Config for cache which is used for checking read permissions to tables.
     NSecurityClient::TPermissionCacheConfigPtr PermissionCache;
@@ -430,7 +473,7 @@ public:
 
     //! Instance will not shutdown during this period of time after receiving signal even
     //! if there are not any running queries.
-    //! To avoid receiving queries after shutdown, this value should be greater than GossipPeriod.
+    //! To avoid receiving queries after shutdown, this value should be greater than gossip period.
     TDuration GracefulInterruptionDelay;
 
     //! Hard timeout for process termination after receiving the interruption signal.

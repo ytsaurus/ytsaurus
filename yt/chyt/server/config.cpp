@@ -50,6 +50,9 @@ TTestingSettings::TTestingSettings()
         .Default(false);
     RegisterParameter("subquery_allocation_size", SubqueryAllocationSize)
         .Default(0);
+    
+    RegisterParameter("hang_control_invoker", HangControlInvoker)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -236,6 +239,37 @@ TQueryStatisticsReporterConfig::TQueryStatisticsReporterConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TGossipConfig::TGossipConfig()
+{
+    RegisterParameter("period", Period)
+        .Default(TDuration::Seconds(1));
+    RegisterParameter("timeout", Timeout)
+        .Default(TDuration::Seconds(1));
+
+    RegisterParameter("unknown_instance_age_threshold", UnknownInstanceAgeThreshold)
+        .Default(TDuration::Seconds(1));
+    RegisterParameter("unknown_instance_ping_limit", UnknownInstancePingLimit)
+        .Default(10);
+    RegisterParameter("ping_banned", PingBanned)
+        .Default(true);
+    RegisterParameter("allow_unban", AllowUnban)
+        .Default(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TInvokerLivenessCheckerConfig::TInvokerLivenessCheckerConfig()
+{
+    RegisterParameter("enabled", Enabled)
+        .Default(true);
+    RegisterParameter("period", Period)
+        .Default(TDuration::Seconds(30));
+    RegisterParameter("timeout", Timeout)
+        .Default(TDuration::Seconds(5));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TYtConfig::TYtConfig()
 {
     RegisterParameter("clique_id", CliqueId)
@@ -271,14 +305,11 @@ TYtConfig::TYtConfig()
     RegisterParameter("discovery", Discovery)
         .DefaultNew("//sys/clickhouse/cliques");
 
-    RegisterParameter("gossip_period", GossipPeriod)
-        .Default(TDuration::Seconds(1));
+    RegisterParameter("gossip", Gossip)
+        .DefaultNew();
 
-    RegisterParameter("unknown_instance_age_threshold", UnknownInstanceAgeThreshold)
-        .Default(TDuration::Seconds(1));
-
-    RegisterParameter("unknown_instance_ping_limit", UnknownInstancePingLimit)
-        .Default(10);
+    RegisterParameter("control_invoker_checker", ControlInvokerChecker)
+        .DefaultNew();
 
     RegisterParameter("permission_cache", PermissionCache)
         .DefaultNew();

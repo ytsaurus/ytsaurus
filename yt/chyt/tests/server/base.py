@@ -253,7 +253,7 @@ class Clique(object):
         return YtError("ClickHouse request failed:\n" + "\n".join(result))
 
     def make_request(self, url, query, headers, format="JSON", params=None, verbose=False,
-                     only_rows=True, full_response=False):
+                     only_rows=True, full_response=False, timeout=None):
         if params is None:
             params = {}
         # Make some improvements to query: strip trailing semicolon, add format if needed.
@@ -268,7 +268,7 @@ class Clique(object):
 
         params["output_format_json_quote_64bit_integers"] = 0
 
-        result = requests.post(url, data=query, headers=headers, params=params)
+        result = requests.post(url, data=query, headers=headers, params=params, timeout=timeout)
 
         inner_errors = []
 
@@ -325,6 +325,7 @@ class Clique(object):
             verbose=True,
             only_rows=True,
             full_response=False,
+            timeout=None,
     ):
         host = instance.attributes["host"]
         port = instance.attributes["http_port"]
@@ -351,6 +352,7 @@ class Clique(object):
                     "X-Yt-Span-Id": "0",
                     "X-Yt-Sampled": str(int(self.is_tracing)),
                 },
+                timeout=timeout,
             )
         except requests.ConnectionError as err:
             print_debug("Caught network level error: ", err)
@@ -408,7 +410,15 @@ class Clique(object):
         )
 
     def make_query(
-            self, query, user="root", format="JSON", settings=None, verbose=True, only_rows=True, full_response=False
+            self,
+            query,
+            user="root",
+            format="JSON",
+            settings=None,
+            verbose=True,
+            only_rows=True,
+            full_response=False,
+            timeout=None,
     ):
         instances = self.get_active_instances()
         assert len(instances) > 0
@@ -422,6 +432,7 @@ class Clique(object):
             verbose=verbose,
             only_rows=only_rows,
             full_response=full_response,
+            timeout=timeout,
         )
 
     def make_async_query(self, *args, **kwargs):
