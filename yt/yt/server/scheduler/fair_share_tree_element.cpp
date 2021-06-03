@@ -1748,7 +1748,31 @@ void TSchedulerPoolElement::ChangeParent(TSchedulerCompositeElement* newParent)
 
     auto oldParentId = Parent_->GetId();
     Parent_ = newParent;
-    TreeHost_->GetResourceTree()->ChangeParent(ResourceTreeElement_, newParent->ResourceTreeElement_);
+
+    bool destinationHasSpecifiedResourceLimits = false;
+    {
+        const auto* currentParent = newParent;
+        while (currentParent != nullptr) {
+            destinationHasSpecifiedResourceLimits = destinationHasSpecifiedResourceLimits || 
+                (currentParent->PersistentAttributes().AppliedResourceLimits != TJobResources::Infinite());
+            currentParent = currentParent->GetParent();
+        }
+    }
+
+    if (PersistentAttributes_.AppliedResourceLimits == TJobResources::Infinite() && destinationHasSpecifiedResourceLimits) {
+        std::vector<TResourceTreeElementPtr> descendantOperationElements;
+        CollectResourceTreeOperationElements(&descendantOperationElements);
+
+        TreeHost_->GetResourceTree()->ChangeParent(
+            ResourceTreeElement_,
+            newParent->ResourceTreeElement_,
+            descendantOperationElements);
+    } else {
+        TreeHost_->GetResourceTree()->ChangeParent(
+            ResourceTreeElement_,
+            newParent->ResourceTreeElement_,
+            /* descendantOperationElements */ std::nullopt);
+    }
 
     Parent_->AddChild(this, enabled);
     Parent_->IncreaseOperationCount(OperationCount());
@@ -3361,7 +3385,10 @@ void TSchedulerOperationElement::ChangeParent(TSchedulerCompositeElement* parent
     Parent_->RemoveChild(this);
 
     Parent_ = parent;
-    TreeHost_->GetResourceTree()->ChangeParent(ResourceTreeElement_, parent->ResourceTreeElement_);
+    TreeHost_->GetResourceTree()->ChangeParent(
+        ResourceTreeElement_,
+        parent->ResourceTreeElement_,
+        /* descendantOperationElements */ std::nullopt);
 
     RunningInThisPoolTree_ = false;  // for consistency
     Parent_->IncreaseOperationCount(1);

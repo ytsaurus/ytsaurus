@@ -59,11 +59,18 @@ void TResourceTree::AttachParent(const TResourceTreeElementPtr& element, const T
     AliveElements_.insert(element);
 }
 
-void TResourceTree::ChangeParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& newParent)
+void TResourceTree::ChangeParent(
+    const TResourceTreeElementPtr& element,
+    const TResourceTreeElementPtr& newParent,
+    const std::optional<std::vector<TResourceTreeElementPtr>>& operationElements)
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
     auto structureGuard = WriterGuard(StructureLock_);
+
+    if (operationElements) {
+        DoInitializeResourceUsageFor(element, *operationElements);
+    }
 
     IncrementStructureLockWriteCount();
 
@@ -80,6 +87,12 @@ void TResourceTree::ChangeParent(const TResourceTreeElementPtr& element, const T
 
     DoIncreaseHierarchicalResourceUsage(newParent, element->ResourceUsage_);
     DoIncreaseHierarchicalResourceUsagePrecommit(newParent, element->ResourceUsagePrecommit_);
+
+    if (operationElements) {
+        auto guard = WriterGuard(element->ResourceUsageLock_);
+        element->ResourceUsage_ = TJobResources();
+        element->ResourceUsagePrecommit_ = TJobResources();
+    }
 }
 
 void TResourceTree::ScheduleDetachParent(const TResourceTreeElementPtr& element)
@@ -347,6 +360,32 @@ void TResourceTree::IncrementUsageLockWriteCount()
     }
 }
 
+void TResourceTree::DoInitializeResourceUsageFor(
+    const TResourceTreeElementPtr& targetElement,
+    const std::vector<TResourceTreeElementPtr>& operationElements)
+{
+    TJobResources newResourceUsage;
+    TJobResources newResourceUsagePrecommit;
+    for (auto element : operationElements) {
+        auto guard = ReaderGuard(element->ResourceUsageLock_);
+        YT_VERIFY(AliveElements_.contains(element));
+        newResourceUsage += element->ResourceUsage_;
+        newResourceUsagePrecommit += element->ResourceUsagePrecommit_;
+    }
+
+    {
+        auto guard = WriterGuard(targetElement->ResourceUsageLock_);
+        IncrementUsageLockWriteCount();
+        targetElement->ResourceUsage_ = newResourceUsage;
+        targetElement->ResourceUsagePrecommit_ = newResourceUsagePrecommit;
+    }
+
+    YT_LOG_DEBUG("Resource usage initialized for element in resource tree (Id: %v, ResourceUsage: %v, ResourceUsagePrecommit: %v)",
+        targetElement->Id_,
+        FormatResources(newResourceUsage),
+        FormatResources(newResourceUsagePrecommit));
+}
+
 void TResourceTree::InitializeResourceUsageFor(
     const TResourceTreeElementPtr& targetElement,
     const std::vector<TResourceTreeElementPtr>& operationElements)
@@ -358,21 +397,7 @@ void TResourceTree::InitializeResourceUsageFor(
     // all operations are alive.
     auto structureGuard = WriterGuard(StructureLock_);
 
-    TJobResources newResourceUsage;
-    for (auto element : operationElements) {
-        YT_VERIFY(AliveElements_.contains(element));
-        newResourceUsage += element->ResourceUsage_;
-    }
-
-    {
-        auto guard = WriterGuard(targetElement->ResourceUsageLock_);
-        IncrementUsageLockWriteCount();
-        targetElement->ResourceUsage_ = newResourceUsage;
-    }
-
-    YT_LOG_DEBUG("Resource usage initialized for element in resource tree (Id: %v, ResourceUsage: %v)",
-        targetElement->Id_,
-        FormatResources(newResourceUsage));
+    DoInitializeResourceUsageFor(targetElement, operationElements);
 }
 
 void TResourceTree::DoRecalculateAllResourceUsages()
