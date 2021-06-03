@@ -23,54 +23,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPingRetryPolicy::TPingRetryPolicy(ui32 attemptCount)
-    : AttemptCount_(attemptCount)
-{ }
-
-void TPingRetryPolicy::NotifyNewAttempt()
-{
-    ++Attempt_;
-}
-
-TMaybe<TDuration> TPingRetryPolicy::OnGenericError(const yexception& /*e*/)
-{
-    if (AttemptCount_ && Attempt_ >= AttemptCount_) {
-        return Nothing();
-    }
-    return TConfig::Get()->PingTimeout;
-}
-
-void TPingRetryPolicy::OnIgnoredError(const NYT::TErrorResponse& /*e*/)
-{
-    --Attempt_;
-}
-
-TMaybe<TDuration> TPingRetryPolicy::OnRetriableError(const TErrorResponse& e)
-{
-    if (AttemptCount_ && Attempt_ >= AttemptCount_) {
-        return Nothing();
-    }
-    if (e.GetError().ContainsErrorCode(NYT::NClusterErrorCodes::NTransactionClient::NoSuchTransaction)) {
-        return Nothing();
-    }
-    if (e.GetError().ContainsErrorCode(NYT::NClusterErrorCodes::Timeout)) {
-        return TDuration::MilliSeconds(0);
-    }
-    return TConfig::Get()->PingTimeout;
-}
-
-TString TPingRetryPolicy::GetAttemptDescription() const
-{
-    TStringStream s;
-    s << "attempt " << Attempt_;
-    if (AttemptCount_) {
-        s << " of " << AttemptCount_;
-    }
-    return s.Str();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TPingableTransaction::TPingableTransaction(
     const IClientRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
@@ -208,22 +160,23 @@ void TPingableTransaction::Stop(EStopAction action)
 void TPingableTransaction::Pinger()
 {
     while (Running_) {
+        TDuration waitTime = MinPingInterval_ + (MaxPingInterval_ - MinPingInterval_) * RandomNumber<float>();
         try {
-            auto retryPolicy = MakeIntrusive<TPingRetryPolicy>();
-            NDetail::NRawClient::PingTx(retryPolicy, Auth_, TransactionId_);
-        } catch (const TErrorResponse& e) {
-            // All other errors must be retried by our TPingRetryPolicy.
-            Y_VERIFY(
-                !IsRetriable(e) ||
-                e.GetError().ContainsErrorCode(NYT::NClusterErrorCodes::NTransactionClient::NoSuchTransaction),
-                "Unexpected exception: %s",
-                e.what());
-            break;
+            auto noRetryPolicy = MakeIntrusive<TAttemptLimitedRetryPolicy>(1u);
+            NDetail::NRawClient::PingTx(noRetryPolicy, Auth_, TransactionId_);
+        } catch (const yexception& e) {
+            if (auto* errorResponse = dynamic_cast<const TErrorResponse*>(&e)) {
+                if (errorResponse->GetError().ContainsErrorCode(NYT::NClusterErrorCodes::NTransactionClient::NoSuchTransaction)) {
+                    break;
+                } else if (errorResponse->GetError().ContainsErrorCode(NYT::NClusterErrorCodes::Timeout)) {
+                    waitTime = TDuration::MilliSeconds(0);
+                }
+            }
+            // Else do nothing, going to retry this error.
         }
 
-        TDuration pingInterval = MinPingInterval_ + (MaxPingInterval_ - MinPingInterval_) * RandomNumber<float>();
         TInstant t = Now();
-        while (Running_ && Now() - t < pingInterval) {
+        while (Running_ && Now() - t < waitTime) {
             NDetail::TWaitProxy::Get()->Sleep(TDuration::MilliSeconds(100));
         }
     }

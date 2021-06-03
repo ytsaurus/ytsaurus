@@ -80,25 +80,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPingRetryPolicy
-    :   public IRequestRetryPolicy
-{
-public:
-    TPingRetryPolicy(ui32 attemptCount = 0);
-
-    void NotifyNewAttempt() override;
-    TMaybe<TDuration> OnGenericError(const yexception& e) override;
-    TMaybe<TDuration> OnRetriableError(const TErrorResponse& e) override;
-    void OnIgnoredError(const TErrorResponse& e) override;
-    TString GetAttemptDescription() const override;
-
-private:
-    ui32 AttemptCount_;
-    ui32 Attempt_ = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 TYPath Snapshot(
     const IClientRetryPolicyPtr& clientRetryPolicy,
     const TAuth& auth,

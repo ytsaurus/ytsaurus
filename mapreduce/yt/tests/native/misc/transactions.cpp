@@ -2,6 +2,8 @@
 
 #include <mapreduce/yt/interface/client.h>
 
+#include <mapreduce/yt/http/abortable_http_response.h>
+
 #include <library/cpp/testing/unittest/registar.h>
 
 #include <util/system/getpid.h>
@@ -150,6 +152,27 @@ Y_UNIT_TEST_SUITE(Transactions)
         UNIT_ASSERT(client->Exists("#" + GetGuidAsString(transactionId)));
         Sleep(TDuration::Seconds(12));
         UNIT_ASSERT(!client->Exists("#" + GetGuidAsString(transactionId)));
+    }
+
+    Y_UNIT_TEST(TestPingErrors)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        TConfig::Get()->PingInterval = TDuration::MilliSeconds(10);
+        TConfig::Get()->UseAbortableResponse = true;
+
+        auto transaction = client->StartTransaction(TStartTransactionOptions().Timeout(TDuration::Seconds(3)));
+        auto transactionId = transaction->GetId();
+
+        {
+            auto outage = TAbortableHttpResponse::StartOutage("/ping");
+            Sleep(TDuration::Seconds(1));
+        }
+
+        Sleep(TDuration::Seconds(5));
+        UNIT_ASSERT(client->Exists("#" + GetGuidAsString(transactionId)));
     }
 }
 
