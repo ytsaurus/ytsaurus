@@ -25,7 +25,7 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Simple)
 {
     Y_UNIT_TEST(TIntegral)
     {
-        const auto schema = CreateTableSchema<NTesting::TIntegral>();
+        const auto schema = CreateTableSchema<NUnitTesting::TIntegral>();
 
         ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
             .AddColumn(TColumnSchema().Name("DoubleField").Type(ToTypeV3(EValueType::VT_DOUBLE, false)))
@@ -46,7 +46,7 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Simple)
 
     Y_UNIT_TEST(TOneOf)
     {
-        const auto schema = CreateTableSchema<NTesting::TOneOf>();
+        const auto schema = CreateTableSchema<NUnitTesting::TOneOf>();
 
         ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
             .AddColumn(TColumnSchema().Name("DoubleField").Type(ToTypeV3(EValueType::VT_DOUBLE, false)))
@@ -56,7 +56,7 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Simple)
 
     Y_UNIT_TEST(TWithRequired)
     {
-        const auto schema = CreateTableSchema<NTesting::TWithRequired>();
+        const auto schema = CreateTableSchema<NUnitTesting::TWithRequired>();
 
         ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
             .AddColumn(TColumnSchema().Name("RequiredField").Type(ToTypeV3(EValueType::VT_STRING, true)))
@@ -65,7 +65,7 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Simple)
 
     Y_UNIT_TEST(TAggregated)
     {
-        const auto schema = CreateTableSchema<NTesting::TAggregated>();
+        const auto schema = CreateTableSchema<NUnitTesting::TAggregated>();
 
         UNIT_ASSERT_VALUES_EQUAL(6, schema.Columns().size());
         ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
@@ -79,7 +79,7 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Simple)
 
     Y_UNIT_TEST(TAliased)
     {
-        const auto schema = CreateTableSchema<NTesting::TAliased>();
+        const auto schema = CreateTableSchema<NUnitTesting::TAliased>();
 
         ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
             .AddColumn(TColumnSchema().Name("key").Type(ToTypeV3(EValueType::VT_INT32, false)))
@@ -91,7 +91,7 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Simple)
     {
         const TKeyColumns keys = {"key", "subkey"};
 
-        const auto schema = CreateTableSchema<NTesting::TAliased>(keys);
+        const auto schema = CreateTableSchema<NUnitTesting::TAliased>(keys);
 
         ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
             .AddColumn(TColumnSchema()
@@ -109,7 +109,7 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Simple)
     {
         const TKeyColumns keys = {"subkey"};
 
-        const auto schema = CreateTableSchema<NTesting::TAliased>(keys);
+        const auto schema = CreateTableSchema<NUnitTesting::TAliased>(keys);
 
         ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
             .AddColumn(TColumnSchema()
@@ -122,13 +122,13 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Simple)
 
     Y_UNIT_TEST(KeyColumnsInvalid)
     {
-        UNIT_ASSERT_EXCEPTION(CreateTableSchema<NTesting::TAliased>({"subkey", "subkey"}), yexception);
-        UNIT_ASSERT_EXCEPTION(CreateTableSchema<NTesting::TAliased>({"key", "junk"}), yexception);
+        UNIT_ASSERT_EXCEPTION(CreateTableSchema<NUnitTesting::TAliased>({"subkey", "subkey"}), yexception);
+        UNIT_ASSERT_EXCEPTION(CreateTableSchema<NUnitTesting::TAliased>({"key", "junk"}), yexception);
     }
 
     Y_UNIT_TEST(KeepFieldsWithoutExtensionTrue)
     {
-        const auto schema = CreateTableSchema<NTesting::TAliased>({}, true);
+        const auto schema = CreateTableSchema<NUnitTesting::TAliased>({}, true);
         UNIT_ASSERT(IsFieldPresent(schema, "key"));
         UNIT_ASSERT(IsFieldPresent(schema, "subkey"));
         UNIT_ASSERT(IsFieldPresent(schema, "Data"));
@@ -137,7 +137,7 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Simple)
 
     Y_UNIT_TEST(KeepFieldsWithoutExtensionFalse)
     {
-        const auto schema = CreateTableSchema<NTesting::TAliased>({}, false);
+        const auto schema = CreateTableSchema<NUnitTesting::TAliased>({}, false);
         UNIT_ASSERT(IsFieldPresent(schema, "key"));
         UNIT_ASSERT(IsFieldPresent(schema, "subkey"));
         UNIT_ASSERT(!IsFieldPresent(schema, "Data"));
@@ -146,7 +146,7 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Simple)
 
     Y_UNIT_TEST(ProtobufTypeOption)
     {
-        const auto schema = CreateTableSchema<NTesting::TWithTypeOptions>({});
+        const auto schema = CreateTableSchema<NUnitTesting::TWithTypeOptions>({});
 
         ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
             .Strict(false)
@@ -164,16 +164,16 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Simple)
     Y_UNIT_TEST(ProtobufTypeOption_TypeMismatch)
     {
         UNIT_ASSERT_EXCEPTION(
-            CreateTableSchema<NTesting::TWithTypeOptions_TypeMismatch_EnumInt>({}),
+            CreateTableSchema<NUnitTesting::TWithTypeOptions_TypeMismatch_EnumInt>({}),
             yexception);
         UNIT_ASSERT_EXCEPTION(
-            CreateTableSchema<NTesting::TWithTypeOptions_TypeMismatch_EnumString>({}),
+            CreateTableSchema<NUnitTesting::TWithTypeOptions_TypeMismatch_EnumString>({}),
             yexception);
         UNIT_ASSERT_EXCEPTION(
-            CreateTableSchema<NTesting::TWithTypeOptions_TypeMismatch_Any>({}),
+            CreateTableSchema<NUnitTesting::TWithTypeOptions_TypeMismatch_Any>({}),
             yexception);
         UNIT_ASSERT_EXCEPTION(
-            CreateTableSchema<NTesting::TWithTypeOptions_TypeMismatch_OtherColumns>({}),
+            CreateTableSchema<NUnitTesting::TWithTypeOptions_TypeMismatch_OtherColumns>({}),
             yexception);
     }
 }
@@ -182,16 +182,16 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Complex)
 {
     Y_UNIT_TEST(TRepeated)
     {
-        UNIT_ASSERT_EXCEPTION(CreateTableSchema<NTesting::TRepeated>(), yexception);
+        UNIT_ASSERT_EXCEPTION(CreateTableSchema<NUnitTesting::TRepeated>(), yexception);
 
-        const auto schema = CreateTableSchema<NTesting::TRepeatedYtMode>();
+        const auto schema = CreateTableSchema<NUnitTesting::TRepeatedYtMode>();
         ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
             .AddColumn(TColumnSchema().Name("Int32Field").Type(NTi::List(ToTypeV3(EValueType::VT_INT32, true)))));
     }
 
     Y_UNIT_TEST(TRepeatedOptionalList)
     {
-        const auto schema = CreateTableSchema<NTesting::TOptionalList>();
+        const auto schema = CreateTableSchema<NUnitTesting::TOptionalList>();
         auto type = NTi::Optional(NTi::List(NTi::Int64()));
         ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
             .AddColumn(TColumnSchema().Name("OptionalListInt64").TypeV3(type)));
@@ -208,7 +208,7 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Complex)
 
     Y_UNIT_TEST(TRowFieldSerializationOption)
     {
-        const auto schema = CreateTableSchema<NTesting::TRowFieldSerializationOption>();
+        const auto schema = CreateTableSchema<NUnitTesting::TRowFieldSerializationOption>();
 
         ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
             .AddColumn(TColumnSchema().Name("UrlRow_1").Type(GetUrlRowType(false)))
@@ -217,7 +217,7 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Complex)
 
     Y_UNIT_TEST(TRowMessageSerializationOption)
     {
-        const auto schema = CreateTableSchema<NTesting::TRowMessageSerializationOption>();
+        const auto schema = CreateTableSchema<NUnitTesting::TRowMessageSerializationOption>();
 
         ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
             .AddColumn(TColumnSchema().Name("UrlRow_1").Type(GetUrlRowType(false)))
@@ -226,7 +226,7 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Complex)
 
     Y_UNIT_TEST(TRowMixedSerializationOptions)
     {
-        const auto schema = CreateTableSchema<NTesting::TRowMixedSerializationOptions>();
+        const auto schema = CreateTableSchema<NUnitTesting::TRowMixedSerializationOptions>();
 
         ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
             .AddColumn(TColumnSchema().Name("UrlRow_1").Type(GetUrlRowType(false)))
@@ -245,7 +245,7 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Complex)
 
     Y_UNIT_TEST(TRowMixedSerializationOptions_ColumnNames)
     {
-        const auto schema = CreateTableSchema<NTesting::TRowMixedSerializationOptions_ColumnNames>();
+        const auto schema = CreateTableSchema<NUnitTesting::TRowMixedSerializationOptions_ColumnNames>();
 
         ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
             .AddColumn(TColumnSchema().Name("UrlRow_1").Type(GetUrlRowType_ColumnNames(false)))
@@ -256,7 +256,7 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Complex)
     {
         auto deepestEmbedded = NTi::Optional(NTi::Struct({{"x", ToTypeV3(EValueType::VT_INT64, false)}}));
 
-        const auto schema = CreateTableSchema<NTesting::TNoOptionInheritance>();
+        const auto schema = CreateTableSchema<NUnitTesting::TNoOptionInheritance>();
 
         ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
             .AddColumn(TColumnSchema()
@@ -278,21 +278,21 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Complex)
 
     Y_UNIT_TEST(Cyclic)
     {
-        UNIT_ASSERT_EXCEPTION(CreateTableSchema<NTesting::TCyclic>(), TApiUsageError);
-        UNIT_ASSERT_EXCEPTION(CreateTableSchema<NTesting::TCyclic::TA>(), TApiUsageError);
-        UNIT_ASSERT_EXCEPTION(CreateTableSchema<NTesting::TCyclic::TB>(), TApiUsageError);
-        UNIT_ASSERT_EXCEPTION(CreateTableSchema<NTesting::TCyclic::TC>(), TApiUsageError);
-        UNIT_ASSERT_EXCEPTION(CreateTableSchema<NTesting::TCyclic::TD>(), TApiUsageError);
+        UNIT_ASSERT_EXCEPTION(CreateTableSchema<NUnitTesting::TCyclic>(), TApiUsageError);
+        UNIT_ASSERT_EXCEPTION(CreateTableSchema<NUnitTesting::TCyclic::TA>(), TApiUsageError);
+        UNIT_ASSERT_EXCEPTION(CreateTableSchema<NUnitTesting::TCyclic::TB>(), TApiUsageError);
+        UNIT_ASSERT_EXCEPTION(CreateTableSchema<NUnitTesting::TCyclic::TC>(), TApiUsageError);
+        UNIT_ASSERT_EXCEPTION(CreateTableSchema<NUnitTesting::TCyclic::TD>(), TApiUsageError);
 
         ASSERT_SERIALIZABLES_EQUAL(
             TTableSchema().AddColumn(
                 TColumnSchema().Name("d").TypeV3(NTi::Optional(NTi::String()))),
-            CreateTableSchema<NTesting::TCyclic::TE>());
+            CreateTableSchema<NUnitTesting::TCyclic::TE>());
     }
 
     Y_UNIT_TEST(FieldSortOrder)
     {
-        const auto schema = CreateTableSchema<NTesting::TFieldSortOrder>();
+        const auto schema = CreateTableSchema<NUnitTesting::TFieldSortOrder>();
 
         auto byFieldNumber = NTi::Optional(NTi::Struct({
             {"z", NTi::Optional(NTi::Bool())},
@@ -314,7 +314,7 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Complex)
 
     Y_UNIT_TEST(Map)
     {
-        const auto schema = CreateTableSchema<NTesting::TWithMap>();
+        const auto schema = CreateTableSchema<NUnitTesting::TWithMap>();
 
         auto createKeyValueStruct = [] (NTi::TTypePtr key, NTi::TTypePtr value) {
             return NTi::List(NTi::Struct({
@@ -348,7 +348,7 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Complex)
 
     Y_UNIT_TEST(Oneof)
     {
-        const auto schema = CreateTableSchema<NTesting::TWithOneof>();
+        const auto schema = CreateTableSchema<NUnitTesting::TWithOneof>();
 
         auto embedded = NTi::Struct({
             {"Oneof", NTi::Optional(NTi::Variant(NTi::Struct({

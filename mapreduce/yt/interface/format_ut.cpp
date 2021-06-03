@@ -18,7 +18,7 @@ Y_UNIT_TEST_SUITE(ProtobufFormat)
 {
     Y_UNIT_TEST(TIntegral)
     {
-        const auto format = TFormat::Protobuf<NTesting::TIntegral>();
+        const auto format = TFormat::Protobuf<NUnitTesting::TIntegral>();
         auto columns = GetColumns(format);
 
         struct TColumn
@@ -55,7 +55,7 @@ Y_UNIT_TEST_SUITE(ProtobufFormat)
 
     Y_UNIT_TEST(TRowFieldSerializationOption)
     {
-        const auto format = TFormat::Protobuf<NTesting::TRowFieldSerializationOption>();
+        const auto format = TFormat::Protobuf<NUnitTesting::TRowFieldSerializationOption>();
         auto columns = GetColumns(format);
 
         UNIT_ASSERT_VALUES_EQUAL(columns[0]["name"], "UrlRow_1");
@@ -81,7 +81,7 @@ Y_UNIT_TEST_SUITE(ProtobufFormat)
 
     Y_UNIT_TEST(Packed)
     {
-        const auto format = TFormat::Protobuf<NTesting::TPacked>();
+        const auto format = TFormat::Protobuf<NUnitTesting::TPacked>();
         auto column = GetColumns(format)[0];
 
         UNIT_ASSERT_VALUES_EQUAL(column["name"], "PackedListInt64");
@@ -93,13 +93,13 @@ Y_UNIT_TEST_SUITE(ProtobufFormat)
 
     Y_UNIT_TEST(Cyclic)
     {
-        UNIT_ASSERT_EXCEPTION(TFormat::Protobuf<NTesting::TCyclic>(), TApiUsageError);
-        UNIT_ASSERT_EXCEPTION(TFormat::Protobuf<NTesting::TCyclic::TA>(), TApiUsageError);
-        UNIT_ASSERT_EXCEPTION(TFormat::Protobuf<NTesting::TCyclic::TB>(), TApiUsageError);
-        UNIT_ASSERT_EXCEPTION(TFormat::Protobuf<NTesting::TCyclic::TC>(), TApiUsageError);
-        UNIT_ASSERT_EXCEPTION(TFormat::Protobuf<NTesting::TCyclic::TD>(), TApiUsageError);
+        UNIT_ASSERT_EXCEPTION(TFormat::Protobuf<NUnitTesting::TCyclic>(), TApiUsageError);
+        UNIT_ASSERT_EXCEPTION(TFormat::Protobuf<NUnitTesting::TCyclic::TA>(), TApiUsageError);
+        UNIT_ASSERT_EXCEPTION(TFormat::Protobuf<NUnitTesting::TCyclic::TB>(), TApiUsageError);
+        UNIT_ASSERT_EXCEPTION(TFormat::Protobuf<NUnitTesting::TCyclic::TC>(), TApiUsageError);
+        UNIT_ASSERT_EXCEPTION(TFormat::Protobuf<NUnitTesting::TCyclic::TD>(), TApiUsageError);
 
-        const auto format = TFormat::Protobuf<NTesting::TCyclic::TE>();
+        const auto format = TFormat::Protobuf<NUnitTesting::TCyclic::TE>();
         auto column = GetColumns(format)[0];
         UNIT_ASSERT_VALUES_EQUAL(column["name"], "d");
         UNIT_ASSERT_VALUES_EQUAL(column["proto_type"], "message");
@@ -108,7 +108,7 @@ Y_UNIT_TEST_SUITE(ProtobufFormat)
 
     Y_UNIT_TEST(Map)
     {
-        const auto format = TFormat::Protobuf<NTesting::TWithMap>();
+        const auto format = TFormat::Protobuf<NUnitTesting::TWithMap>();
         auto columns = GetColumns(format);
 
         UNIT_ASSERT_VALUES_EQUAL(columns.Size(), 5);
@@ -156,7 +156,7 @@ Y_UNIT_TEST_SUITE(ProtobufFormat)
 
     Y_UNIT_TEST(Oneof)
     {
-        const auto format = TFormat::Protobuf<NTesting::TWithOneof>();
+        const auto format = TFormat::Protobuf<NUnitTesting::TWithOneof>();
         auto columns = GetColumns(format);
 
         UNIT_ASSERT_VALUES_EQUAL(columns.Size(), 3);
