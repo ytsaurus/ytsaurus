@@ -1796,11 +1796,6 @@ public:
         MasterConnector_->InvokeStoringStrategyState(std::move(strategyState));
     }
 
-    virtual bool IsCoreProfilingCompatibilityEnabled() const override
-    {
-        return Bootstrap_->GetConfig()->Scheduler->EnableProfilingCompatibility;
-    }
-
     TFuture<TOperationId> FindOperationIdByJobId(TJobId jobId)
     {
         const auto& nodeShard = GetNodeShardByJobId(jobId);

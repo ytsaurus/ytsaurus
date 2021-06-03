@@ -628,8 +628,6 @@ public:
 
     bool EnableUnrecognizedAlert;
 
-    bool EnableProfilingCompatibility;
-
     // How much time we wait before aborting the revived job that was not confirmed
     // by the corresponding execution node.
     TDuration JobRevivalAbortTimeout;

@@ -755,12 +755,11 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
 
         profiler = Profiler.at_scheduler(fixed_tags={"tree": "default", "pool": "unique_pool"})
 
-        # TODO(eshcherbin): Change to new names when profiling compatibility is disabled.
         metric_prefix = "scheduler/pools/"
-        fair_share_ratio_sensor = profiler.gauge(metric_prefix + "fair_share_ratio_x100000")
-        usage_ratio_sensor = profiler.gauge(metric_prefix + "usage_ratio_x100000")
-        demand_ratio_sensor = profiler.gauge(metric_prefix + "demand_ratio_x100000")
-        unlimited_demand_fair_share_sensor = profiler.gauge(metric_prefix + "unlimited_demand_fair_share_ratio_x100000")
+        dominant_fair_share_sensor = profiler.gauge(metric_prefix + "dominant_fair_share")
+        dominant_usage_share_sensor = profiler.gauge(metric_prefix + "dominant_usage_share")
+        dominant_demand_share_sensor = profiler.gauge(metric_prefix + "dominant_demand_share")
+        dominant_promised_fair_share_sensor = profiler.gauge(metric_prefix + "promised_dominant_fair_share")
         cpu_usage_sensor = profiler.gauge(metric_prefix + "resource_usage/cpu")
         user_slots_usage_sensor = profiler.gauge(metric_prefix + "resource_usage/user_slots")
         cpu_demand_sensor = profiler.gauge(metric_prefix + "resource_demand/cpu")
@@ -770,16 +769,16 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         max_operation_count_sensor = profiler.gauge(metric_prefix + "max_operation_count")
         max_running_operation_count_sensor = profiler.gauge(metric_prefix + "max_running_operation_count")
         finished_operation_count_sensor = profiler.gauge(metric_prefix + "finished_operation_count")
-        min_share_resources_cpu_sensor = profiler.gauge(metric_prefix + "min_share_resources/cpu")
-        min_share_resources_memory_sensor = profiler.gauge(metric_prefix + "min_share_resources/user_memory")
-        min_share_resources_user_slots_sensor = profiler.gauge(metric_prefix + "min_share_resources/user_slots")
+        strong_guarantee_resources_cpu_sensor = profiler.gauge(metric_prefix + "strong_guarantee_resources/cpu")
+        strong_guarantee_resources_memory_sensor = profiler.gauge(metric_prefix + "strong_guarantee_resources/user_memory")
+        strong_guarantee_resources_user_slots_sensor = profiler.gauge(metric_prefix + "strong_guarantee_resources/user_slots")
 
         op = run_sleeping_vanilla(spec={"pool": "unique_pool"})
 
-        wait(lambda: fair_share_ratio_sensor.get() == 100000)
-        wait(lambda: usage_ratio_sensor.get() == 100000)
-        wait(lambda: demand_ratio_sensor.get() == 100000)
-        wait(lambda: unlimited_demand_fair_share_sensor.get() == 100000)
+        wait(lambda: dominant_fair_share_sensor.get() == 1.0)
+        wait(lambda: dominant_usage_share_sensor.get() == 1.0)
+        wait(lambda: dominant_demand_share_sensor.get() == 1.0)
+        wait(lambda: dominant_promised_fair_share_sensor.get() == 1.0)
         wait(lambda: cpu_usage_sensor.get() == 1)
         wait(lambda: user_slots_usage_sensor.get() == 1)
         wait(lambda: cpu_demand_sensor.get() == 1)
@@ -790,9 +789,9 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         # pool guaranties metrics
         wait(lambda: max_operation_count_sensor.get() == 50)
         wait(lambda: max_running_operation_count_sensor.get() == 8)
-        wait(lambda: min_share_resources_cpu_sensor.get() == 0)
-        wait(lambda: min_share_resources_memory_sensor.get() == 0)
-        wait(lambda: min_share_resources_user_slots_sensor.get() == 0)
+        wait(lambda: strong_guarantee_resources_cpu_sensor.get() == 0)
+        wait(lambda: strong_guarantee_resources_memory_sensor.get() == 0)
+        wait(lambda: strong_guarantee_resources_user_slots_sensor.get() == 0)
         op.complete()
 
         wait(lambda: finished_operation_count_sensor.get(tags={"state": "completed"}) == 1)
@@ -801,15 +800,17 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
 
     @authors("ignat", "eshcherbin")
     def test_operations_by_slot_profiling(self):
+        EPS = 1e-5
+
         create_pool("some_pool")
 
         profiler = Profiler.at_scheduler(fixed_tags={"tree": "default", "pool": "some_pool"})
 
         metric_prefix = "scheduler/operations_by_slot/"
-        fair_share_ratio_sensor = profiler.gauge(metric_prefix + "fair_share_ratio_x100000")
-        usage_ratio_sensor = profiler.gauge(metric_prefix + "usage_ratio_x100000")
-        demand_ratio_sensor = profiler.gauge(metric_prefix + "demand_ratio_x100000")
-        unlimited_demand_fair_share_sensor = profiler.gauge(metric_prefix + "unlimited_demand_fair_share_ratio_x100000")
+        dominant_fair_share_sensor = profiler.gauge(metric_prefix + "dominant_fair_share")
+        dominant_usage_share_sensor = profiler.gauge(metric_prefix + "dominant_usage_share")
+        dominant_demand_share_sensor = profiler.gauge(metric_prefix + "dominant_demand_share")
+        dominant_promised_fair_share_sensor = profiler.gauge(metric_prefix + "promised_dominant_fair_share")
         cpu_usage_sensor = profiler.gauge(metric_prefix + "resource_usage/cpu")
         user_slots_usage_sensor = profiler.gauge(metric_prefix + "resource_usage/user_slots")
         cpu_demand_sensor = profiler.gauge(metric_prefix + "resource_demand/cpu")
@@ -826,22 +827,19 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: get_slot_index(op1) == 0)
         wait(lambda: get_slot_index(op2) == 1)
 
-        # TODO(eshcherbin): Change to new names when profiling compatibility is disabled.
-        range_ = (49999, 50000, 50001)
-
-        wait(lambda: fair_share_ratio_sensor.get(tags={"slot_index": "0"}) in range_)
-        wait(lambda: usage_ratio_sensor.get(tags={"slot_index": "0"}) == 100000)
-        wait(lambda: demand_ratio_sensor.get(tags={"slot_index": "0"}) == 100000)
-        wait(lambda: unlimited_demand_fair_share_sensor.get(tags={"slot_index": "0"}) in range_)
+        wait(lambda: (dominant_fair_share_sensor.get(tags={"slot_index": "0"}) - 0.5) < EPS)
+        wait(lambda: dominant_usage_share_sensor.get(tags={"slot_index": "0"}) == 1.0)
+        wait(lambda: dominant_demand_share_sensor.get(tags={"slot_index": "0"}) == 1.0)
+        wait(lambda: (dominant_promised_fair_share_sensor.get(tags={"slot_index": "0"}) - 0.5) < EPS)
         wait(lambda: cpu_usage_sensor.get(tags={"slot_index": "0"}) == 1)
         wait(lambda: user_slots_usage_sensor.get(tags={"slot_index": "0"}) == 1)
         wait(lambda: cpu_demand_sensor.get(tags={"slot_index": "0"}) == 1)
         wait(lambda: user_slots_demand_sensor.get(tags={"slot_index": "0"}) == 1)
 
-        wait(lambda: fair_share_ratio_sensor.get(tags={"slot_index": "1"}) in range_)
-        wait(lambda: usage_ratio_sensor.get(tags={"slot_index": "1"}) == 0)
-        wait(lambda: demand_ratio_sensor.get(tags={"slot_index": "1"}) == 100000)
-        wait(lambda: unlimited_demand_fair_share_sensor.get(tags={"slot_index": "1"}) in range_)
+        wait(lambda: (dominant_fair_share_sensor.get(tags={"slot_index": "1"}) - 0.5) < EPS)
+        wait(lambda: dominant_usage_share_sensor.get(tags={"slot_index": "1"}) == 0)
+        wait(lambda: dominant_demand_share_sensor.get(tags={"slot_index": "1"}) == 1.0)
+        wait(lambda: (dominant_promised_fair_share_sensor.get(tags={"slot_index": "1"}) - 0.5) < EPS)
         wait(lambda: cpu_usage_sensor.get(tags={"slot_index": "1"}) == 0)
         wait(lambda: user_slots_usage_sensor.get(tags={"slot_index": "1"}) == 0)
         wait(lambda: cpu_demand_sensor.get(tags={"slot_index": "1"}) == 1)
@@ -849,13 +847,15 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
 
         op1.abort(wait_until_finished=True)
 
-        wait(lambda: fair_share_ratio_sensor.get(tags={"slot_index": "1"}) == 100000)
-        wait(lambda: usage_ratio_sensor.get(tags={"slot_index": "1"}) == 100000)
-        wait(lambda: demand_ratio_sensor.get(tags={"slot_index": "1"}) == 100000)
-        wait(lambda: unlimited_demand_fair_share_sensor.get(tags={"slot_index": "1"}) == 100000)
+        wait(lambda: dominant_fair_share_sensor.get(tags={"slot_index": "1"}) == 1.0)
+        wait(lambda: dominant_usage_share_sensor.get(tags={"slot_index": "1"}) == 1.0)
+        wait(lambda: dominant_demand_share_sensor.get(tags={"slot_index": "1"}) == 1.0)
+        wait(lambda: dominant_promised_fair_share_sensor.get(tags={"slot_index": "1"}) == 1.0)
 
     @authors("ignat", "eshcherbin")
     def test_operations_by_user_profiling(self):
+        EPS = 1e-5
+
         create_user("ignat")
         create_user("egor")
 
@@ -865,10 +865,10 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         profiler = Profiler.at_scheduler(fixed_tags={"tree": "default"})
 
         metric_prefix = "scheduler/operations_by_user/"
-        fair_share_ratio_sensor = profiler.gauge(metric_prefix + "fair_share_ratio_x100000")
-        usage_ratio_sensor = profiler.gauge(metric_prefix + "usage_ratio_x100000")
-        demand_ratio_sensor = profiler.gauge(metric_prefix + "demand_ratio_x100000")
-        unlimited_demand_fair_share_sensor = profiler.gauge(metric_prefix + "unlimited_demand_fair_share_ratio_x100000")
+        dominant_fair_share_sensor = profiler.gauge(metric_prefix + "dominant_fair_share")
+        dominant_usage_share_sensor = profiler.gauge(metric_prefix + "dominant_usage_share")
+        dominant_demand_share_sensor = profiler.gauge(metric_prefix + "dominant_demand_share")
+        dominant_promised_fair_share_sensor = profiler.gauge(metric_prefix + "promised_dominant_fair_share")
         cpu_usage_sensor = profiler.gauge(metric_prefix + "resource_usage/cpu")
         user_slots_usage_sensor = profiler.gauge(metric_prefix + "resource_usage/user_slots")
         cpu_demand_sensor = profiler.gauge(metric_prefix + "resource_demand/cpu")
@@ -895,15 +895,11 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         )
         wait(lambda: op4.get_state() == "running")
 
-        range_1 = (49998, 49999, 50000, 50001)
-        range_2 = (16665, 16666, 16667)
-        range_3 = (33332, 33333, 33334)
-
         tags = {"pool": "some_pool", "user_name": "ignat"}
-        wait(lambda: fair_share_ratio_sensor.get(tags=tags) in range_1)
-        wait(lambda: usage_ratio_sensor.get(tags=tags) == 100000)
-        wait(lambda: demand_ratio_sensor.get(tags=tags) == 100000)
-        wait(lambda: unlimited_demand_fair_share_sensor.get(tags=tags) in range_1)
+        wait(lambda: abs(dominant_fair_share_sensor.get(tags=tags) - 0.5) < EPS)
+        wait(lambda: dominant_usage_share_sensor.get(tags=tags) == 1.0)
+        wait(lambda: dominant_demand_share_sensor.get(tags=tags) == 1.0)
+        wait(lambda: abs(dominant_promised_fair_share_sensor.get(tags=tags) - 0.5) < EPS)
         wait(lambda: cpu_usage_sensor.get(tags=tags) == 1)
         wait(lambda: user_slots_usage_sensor.get(tags=tags) == 1)
         wait(lambda: cpu_demand_sensor.get(tags=tags) == 1)
@@ -913,30 +909,30 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             return sum(metric.get(tags=dict({"user_name": user}, **tags_), default=0) for user in ("ignat", "egor"))
 
         tags = {"pool": "other_pool", "custom": "hello"}
-        wait(lambda: get_total_metric_by_users(fair_share_ratio_sensor, tags) in range_3)
-        wait(lambda: get_total_metric_by_users(usage_ratio_sensor, tags) == 0)
-        wait(lambda: get_total_metric_by_users(demand_ratio_sensor, tags) == 200000)
-        wait(lambda: get_total_metric_by_users(unlimited_demand_fair_share_sensor, tags) in range_3)
+        wait(lambda: abs(get_total_metric_by_users(dominant_fair_share_sensor, tags) - 1.0 / 3.0) < EPS)
+        wait(lambda: get_total_metric_by_users(dominant_usage_share_sensor, tags) == 0)
+        wait(lambda: get_total_metric_by_users(dominant_demand_share_sensor, tags) == 2.0)
+        wait(lambda: abs(get_total_metric_by_users(dominant_promised_fair_share_sensor, tags) - 1.0 / 3.0) < EPS)
         wait(lambda: get_total_metric_by_users(cpu_usage_sensor, tags) == 0)
         wait(lambda: get_total_metric_by_users(user_slots_usage_sensor, tags) == 0)
         wait(lambda: get_total_metric_by_users(cpu_demand_sensor, tags) == 2)
         wait(lambda: get_total_metric_by_users(user_slots_demand_sensor, tags) == 2)
 
         tags = {"pool": "other_pool", "custom": "world"}
-        wait(lambda: get_total_metric_by_users(fair_share_ratio_sensor, tags) in range_2)
-        wait(lambda: get_total_metric_by_users(usage_ratio_sensor, tags) == 0)
-        wait(lambda: get_total_metric_by_users(demand_ratio_sensor, tags) == 100000)
-        wait(lambda: get_total_metric_by_users(unlimited_demand_fair_share_sensor, tags) in range_2)
+        wait(lambda: abs(get_total_metric_by_users(dominant_fair_share_sensor, tags) - 1.0 / 6.0) < EPS)
+        wait(lambda: get_total_metric_by_users(dominant_usage_share_sensor, tags) == 0)
+        wait(lambda: get_total_metric_by_users(dominant_demand_share_sensor, tags) == 1.0)
+        wait(lambda: abs(get_total_metric_by_users(dominant_promised_fair_share_sensor, tags) - 1.0 / 6.0) < EPS)
         wait(lambda: get_total_metric_by_users(cpu_usage_sensor, tags) == 0)
         wait(lambda: get_total_metric_by_users(user_slots_usage_sensor, tags) == 0)
         wait(lambda: get_total_metric_by_users(cpu_demand_sensor, tags) == 1)
         wait(lambda: get_total_metric_by_users(user_slots_demand_sensor, tags) == 1)
 
         tags = {"pool": "other_pool", "user_name": "egor"}
-        wait(lambda: fair_share_ratio_sensor.get(tags=tags) in range_1)
-        wait(lambda: usage_ratio_sensor.get(tags=tags) == 0)
-        wait(lambda: demand_ratio_sensor.get(tags=tags) == 300000)
-        wait(lambda: unlimited_demand_fair_share_sensor.get(tags=tags) in range_1)
+        wait(lambda: abs(dominant_fair_share_sensor.get(tags=tags) - 0.5) < EPS)
+        wait(lambda: dominant_usage_share_sensor.get(tags=tags) == 0)
+        wait(lambda: dominant_demand_share_sensor.get(tags=tags) == 3.0)
+        wait(lambda: abs(dominant_promised_fair_share_sensor.get(tags=tags) - 0.5) < EPS)
         wait(lambda: cpu_usage_sensor.get(tags=tags) == 0)
         wait(lambda: user_slots_usage_sensor.get(tags=tags) == 0)
         wait(lambda: cpu_demand_sensor.get(tags=tags) == 3)
@@ -947,16 +943,16 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         op1.abort(wait_until_finished=True)
 
         tags = {"pool": "other_pool", "user_name": "egor"}
-        wait(lambda: fair_share_ratio_sensor.get(tags=tags) == 100000)
-        wait(lambda: usage_ratio_sensor.get(tags=tags) == 100000)
-        wait(lambda: demand_ratio_sensor.get(tags=tags) == 100000)
-        wait(lambda: unlimited_demand_fair_share_sensor.get(tags=tags) in range_1)
+        wait(lambda: dominant_fair_share_sensor.get(tags=tags) == 1.0)
+        wait(lambda: dominant_usage_share_sensor.get(tags=tags) == 1.0)
+        wait(lambda: dominant_demand_share_sensor.get(tags=tags) == 1.0)
+        wait(lambda: abs(dominant_promised_fair_share_sensor.get(tags=tags) - 0.5) < EPS)
 
         tags = {"pool": "other_pool", "custom": "world"}
-        wait(lambda: get_total_metric_by_users(fair_share_ratio_sensor, tags) == 100000)
-        wait(lambda: get_total_metric_by_users(usage_ratio_sensor, tags) == 100000)
-        wait(lambda: get_total_metric_by_users(demand_ratio_sensor, tags) == 100000)
-        wait(lambda: get_total_metric_by_users(unlimited_demand_fair_share_sensor, tags) in range_1)
+        wait(lambda: get_total_metric_by_users(dominant_fair_share_sensor, tags) == 1.0)
+        wait(lambda: get_total_metric_by_users(dominant_usage_share_sensor, tags) == 1.0)
+        wait(lambda: get_total_metric_by_users(dominant_demand_share_sensor, tags) == 1.0)
+        wait(lambda: abs(get_total_metric_by_users(dominant_promised_fair_share_sensor, tags) - 0.5) < EPS)
 
     @authors("ignat", "eshcherbin")
     def test_job_count_profiling(self):

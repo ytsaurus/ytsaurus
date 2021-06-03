@@ -73,7 +73,7 @@ void TFairShareTreeProfiler::RegisterPool(const TSchedulerCompositeElementPtr& e
 void TFairShareTreeProfiler::UnregisterPool(const TSchedulerCompositeElementPtr& element)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-        
+
     auto guard = WriterGuard(PoolNameToProfilingEntryLock_);
 
     GetOrCrash(PoolNameToProfilingEntry_, element->GetId()).RemoveTime = TInstant::Now();
@@ -250,34 +250,22 @@ void TFairShareTreeProfiler::RegisterPoolProfiler(const TString& poolName)
 void TFairShareTreeProfiler::ProfileElement(
     ISensorWriter* writer,
     const TSchedulerElement* element,
-    const TFairShareStrategyTreeConfigPtr& treeConfig,
-    bool profilingCompatibilityEnabled)
+    const TFairShareStrategyTreeConfigPtr& treeConfig)
 {
     VERIFY_INVOKER_AFFINITY(ProfilingInvoker_);
 
     const auto& attributes = element->Attributes();
 
     const auto& detailedFairShare = attributes.FairShare;
-    if (profilingCompatibilityEnabled) {
-        writer->AddGauge("/fair_share_ratio_x100000", static_cast<i64>(MaxComponent(attributes.FairShare.Total) * 1e5));
-        writer->AddGauge("/usage_ratio_x100000", static_cast<i64>(element->GetResourceDominantUsageShareAtUpdate() * 1e5));
-        writer->AddGauge("/demand_ratio_x100000", static_cast<i64>(MaxComponent(attributes.DemandShare) * 1e5));
-        writer->AddGauge("/unlimited_demand_fair_share_ratio_x100000", static_cast<i64>(MaxComponent(attributes.PromisedFairShare) * 1e5));
-        writer->AddGauge("/accumulated_resource_ratio_volume_x100000", static_cast<i64>(element->GetAccumulatedResourceRatioVolume() * 1e5));
-        writer->AddGauge("/min_share_guarantee_ratio_x100000", static_cast<i64>(MaxComponent(detailedFairShare.StrongGuarantee) * 1e5));
-        writer->AddGauge("/integral_guarantee_ratio_x100000", static_cast<i64>(MaxComponent(detailedFairShare.IntegralGuarantee) * 1e5));
-        writer->AddGauge("/weight_proportional_ratio_x100000", static_cast<i64>(MaxComponent(detailedFairShare.WeightProportional) * 1e5));
-    } else {
-        writer->AddGauge("/dominant_fair_share", MaxComponent(attributes.FairShare.Total));
-        writer->AddGauge("/dominant_usage_share", element->GetResourceDominantUsageShareAtUpdate());
-        writer->AddGauge("/dominant_demand_share", MaxComponent(attributes.DemandShare));
-        writer->AddGauge("/promised_dominant_fair_share", MaxComponent(attributes.PromisedFairShare));
-        writer->AddGauge("/accumulated_volume_dominant_share", element->GetAccumulatedResourceRatioVolume());
-        writer->AddGauge("/dominant_fair_share/strong_guarantee", MaxComponent(detailedFairShare.StrongGuarantee));
-        writer->AddGauge("/dominant_fair_share/integral_guarantee", MaxComponent(detailedFairShare.IntegralGuarantee));
-        writer->AddGauge("/dominant_fair_share/weight_proportional", MaxComponent(detailedFairShare.WeightProportional));
-        writer->AddGauge("/dominant_fair_share/total", MaxComponent(detailedFairShare.Total));
-    }
+    writer->AddGauge("/dominant_fair_share", MaxComponent(attributes.FairShare.Total));
+    writer->AddGauge("/dominant_usage_share", element->GetResourceDominantUsageShareAtUpdate());
+    writer->AddGauge("/dominant_demand_share", MaxComponent(attributes.DemandShare));
+    writer->AddGauge("/promised_dominant_fair_share", MaxComponent(attributes.PromisedFairShare));
+    writer->AddGauge("/accumulated_volume_dominant_share", element->GetAccumulatedResourceRatioVolume());
+    writer->AddGauge("/dominant_fair_share/strong_guarantee", MaxComponent(detailedFairShare.StrongGuarantee));
+    writer->AddGauge("/dominant_fair_share/integral_guarantee", MaxComponent(detailedFairShare.IntegralGuarantee));
+    writer->AddGauge("/dominant_fair_share/weight_proportional", MaxComponent(detailedFairShare.WeightProportional));
+    writer->AddGauge("/dominant_fair_share/total", MaxComponent(detailedFairShare.Total));
 
     ProfileResources(writer, element->GetResourceUsageAtUpdate(), "/resource_usage");
     ProfileResources(writer, element->GetResourceLimits(), "/resource_limits");
@@ -304,77 +292,58 @@ void TFairShareTreeProfiler::ProfileElement(
             writer,
             profiledResources,
             detailedFairShare.StrongGuarantee,
-            "/fair_share/strong_guarantee",
-            profilingCompatibilityEnabled);
+            "/fair_share/strong_guarantee");
         ProfileResourceVector(
             writer,
             profiledResources,
             detailedFairShare.IntegralGuarantee,
-            "/fair_share/integral_guarantee",
-            profilingCompatibilityEnabled);
+            "/fair_share/integral_guarantee");
         ProfileResourceVector(
             writer,
             profiledResources,
             detailedFairShare.WeightProportional,
-            "/fair_share/weight_proportional",
-            profilingCompatibilityEnabled);
+            "/fair_share/weight_proportional");
         ProfileResourceVector(
             writer,
             profiledResources,
             detailedFairShare.Total,
-            "/fair_share/total",
-            profilingCompatibilityEnabled);
+            "/fair_share/total");
 
         ProfileResourceVector(
             writer,
             profiledResources,
             attributes.UsageShare,
-            "/usage_share",
-            profilingCompatibilityEnabled);
+            "/usage_share");
 
         ProfileResourceVector(
             writer,
             profiledResources,
             attributes.DemandShare,
-            "/demand_share",
-            profilingCompatibilityEnabled);
+            "/demand_share");
 
         ProfileResourceVector(
             writer,
             profiledResources,
             attributes.LimitsShare,
-            "/limits_share",
-            profilingCompatibilityEnabled);
+            "/limits_share");
 
-        if (profilingCompatibilityEnabled) {
-            ProfileResourceVector(
-                writer,
-                profiledResources,
-                attributes.StrongGuaranteeShare,
-                "/min_share",
-                profilingCompatibilityEnabled);
-        } else {
-            ProfileResourceVector(
-                writer,
-                profiledResources,
-                attributes.StrongGuaranteeShare,
-                "/strong_guarantee_share",
-                profilingCompatibilityEnabled);
-        }
+        ProfileResourceVector(
+            writer,
+            profiledResources,
+            attributes.StrongGuaranteeShare,
+            "/strong_guarantee_share");
 
         ProfileResourceVector(
             writer,
             profiledResources,
             attributes.ProposedIntegralShare,
-            "/proposed_integral_share",
-            profilingCompatibilityEnabled);
+            "/proposed_integral_share");
 
         ProfileResourceVector(
             writer,
             profiledResources,
             attributes.PromisedFairShare,
-            "/promised_fair_share",
-            profilingCompatibilityEnabled);
+            "/promised_fair_share");
 
         if (!element->IsOperation()) {
             ProfileResourceVolume(
@@ -398,8 +367,7 @@ void TFairShareTreeProfiler::ProfileOperations(const TFairShareTreeSnapshotImplP
         ProfileElement(
             &buffer,
             element,
-            treeSnapshot->TreeConfig(),
-            treeSnapshot->GetCoreProfilingCompatibilityEnabled());
+            treeSnapshot->TreeConfig());
         GetOrCrash(OperationIdToProfilingEntry_, operationId).BufferedProducer->Update(std::move(buffer));
     }
 }
@@ -407,7 +375,6 @@ void TFairShareTreeProfiler::ProfileOperations(const TFairShareTreeSnapshotImplP
 void TFairShareTreeProfiler::ProfilePool(
     const TSchedulerCompositeElement* element,
     const TFairShareStrategyTreeConfigPtr& treeConfig,
-    bool profilingCompatibilityEnabled,
     const NProfiling::TBufferedProducerPtr& producer)
 {
     VERIFY_INVOKER_AFFINITY(ProfilingInvoker_);
@@ -416,24 +383,19 @@ void TFairShareTreeProfiler::ProfilePool(
     ProfileElement(
         &buffer,
         element,
-        treeConfig,
-        profilingCompatibilityEnabled);
+        treeConfig);
     buffer.AddGauge("/max_operation_count", element->GetMaxOperationCount());
     buffer.AddGauge("/max_running_operation_count", element->GetMaxRunningOperationCount());
     buffer.AddGauge("/running_operation_count", element->RunningOperationCount());
     buffer.AddGauge("/total_operation_count", element->OperationCount());
-    if (profilingCompatibilityEnabled) {
-        ProfileResources(&buffer, element->GetSpecifiedStrongGuaranteeResources(), "/min_share_resources");
-        ProfileResources(&buffer, element->Attributes().EffectiveStrongGuaranteeResources, "/effective_min_share_resources");
-    } else {
-        ProfileResources(&buffer, element->GetSpecifiedStrongGuaranteeResources(), "/strong_guarantee_resources");
-        ProfileResources(&buffer, element->Attributes().EffectiveStrongGuaranteeResources, "/effective_strong_guarantee_resources");
 
-        auto integralGuaranteesConfig = element->GetIntegralGuaranteesConfig();
-        if (integralGuaranteesConfig->GuaranteeType != EIntegralGuaranteeType::None) {
-            ProfileResources(&buffer, ToJobResources(integralGuaranteesConfig->ResourceFlow, {}), "/resource_flow");
-            ProfileResources(&buffer, ToJobResources(integralGuaranteesConfig->BurstGuaranteeResources, {}), "/burst_guarantee_resources");
-        }
+    ProfileResources(&buffer, element->GetSpecifiedStrongGuaranteeResources(), "/strong_guarantee_resources");
+    ProfileResources(&buffer, element->Attributes().EffectiveStrongGuaranteeResources, "/effective_strong_guarantee_resources");
+
+    auto integralGuaranteesConfig = element->GetIntegralGuaranteesConfig();
+    if (integralGuaranteesConfig->GuaranteeType != EIntegralGuaranteeType::None) {
+        ProfileResources(&buffer, ToJobResources(integralGuaranteesConfig->ResourceFlow, {}), "/resource_flow");
+        ProfileResources(&buffer, ToJobResources(integralGuaranteesConfig->BurstGuaranteeResources, {}), "/burst_guarantee_resources");
     }
 
     producer->Update(std::move(buffer));
@@ -466,14 +428,12 @@ void TFairShareTreeProfiler::ProfilePools(const TFairShareTreeSnapshotImplPtr& t
         ProfilePool(
             element,
             treeSnapshot->TreeConfig(),
-            treeSnapshot->GetCoreProfilingCompatibilityEnabled(),
             entry);
     }
 
     ProfilePool(
         treeSnapshot->RootElement().Get(),
         treeSnapshot->TreeConfig(),
-        treeSnapshot->GetCoreProfilingCompatibilityEnabled(),
         findPoolBufferedProducer(RootPoolName));
 }
 

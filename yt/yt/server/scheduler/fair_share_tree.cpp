@@ -1164,7 +1164,6 @@ private:
             std::move(fairSharePostUpdateContext.PoolNameToElement),
             Config_,
             ControllerConfig_,
-            StrategyHost_->IsCoreProfilingCompatibilityEnabled(),
             std::move(manageSegmentsContext.SchedulingSegmentsState));
 
         TreeSnapshotImplPrecommit_ = treeSnapshotImpl;

@@ -259,11 +259,6 @@ int TSchedulerStrategyHost::GetDefaultAbcId() const
 void TSchedulerStrategyHost::InvokeStoringStrategyState(TPersistentStrategyStatePtr /* persistentStrategyState */)
 { }
 
-bool TSchedulerStrategyHost::IsCoreProfilingCompatibilityEnabled() const
-{
-    return true;
-}
-
 void TSchedulerStrategyHost::CloseEventLogger()
 {
     if (RemoteEventLogWriter_) {

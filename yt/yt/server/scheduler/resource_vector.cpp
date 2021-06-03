@@ -64,21 +64,12 @@ void ProfileResourceVector(
     NProfiling::ISensorWriter* writer,
     const THashSet<EJobResourceType>& resourceTypes,
     const TResourceVector& resourceVector,
-    const TString& prefix,
-    bool profilingCompatibilityEnabled)
+    const TString& prefix)
 {
-    if (profilingCompatibilityEnabled) {
-        for (auto resourceType : resourceTypes) {
-            writer->AddGauge(
-                prefix + "_x100000/" + FormatEnum(resourceType),
-                static_cast<i64>(resourceVector[resourceType] * 1e5));
-        }
-    } else {
-        for (auto resourceType : resourceTypes) {
-            writer->AddGauge(
-                prefix + "/" + FormatEnum(resourceType),
-                resourceVector[resourceType]);
-        }
+    for (auto resourceType : resourceTypes) {
+        writer->AddGauge(
+            prefix + "/" + FormatEnum(resourceType),
+            resourceVector[resourceType]);
     }
 }
 

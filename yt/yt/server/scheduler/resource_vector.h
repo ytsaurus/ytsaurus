@@ -108,8 +108,7 @@ void ProfileResourceVector(
     NProfiling::ISensorWriter* writer,
     const THashSet<EJobResourceType>& resourceTypes,
     const TResourceVector& resourceVector,
-    const TString& prefix,
-    bool profilingCompatibilityEnabled);
+    const TString& prefix);
 
 ////////////////////////////////////////////////////////////////////////////////
 
