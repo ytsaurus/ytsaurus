@@ -74,12 +74,12 @@ TFuture<void> TDiscovery::UpdateList(TDuration ageThreshold)
 THashMap<TString, IAttributeDictionaryPtr> TDiscovery::List(bool includeBanned) const
 {
     THashMap<TString, IAttributeDictionaryPtr> result;
-    THashMap<TString, TInstant> bannedSince;
+    THashMap<TString, TInstant> bannedUntil;
     decltype(NameAndAttributes_) nameAndAttributes;
     {
         auto guard = ReaderGuard(Lock_);
         result = List_;
-        bannedSince = BannedSince_;
+        bannedUntil = BannedUntil_;
         nameAndAttributes = NameAndAttributes_;
     }
     auto now = TInstant::Now();
@@ -88,8 +88,8 @@ THashMap<TString, IAttributeDictionaryPtr> TDiscovery::List(bool includeBanned) 
     }
     if (!includeBanned) {
         for (auto it = result.begin(); it != result.end();) {
-            auto banIt = bannedSince.find(it->first);
-            if (banIt != bannedSince.end() && (banIt->second + Config_->BanTimeout) > now) {
+            auto banIt = bannedUntil.find(it->first);
+            if (banIt != bannedUntil.end() && now < banIt->second) {
                 result.erase(it++);
             } else {
                 ++it;
@@ -99,11 +99,41 @@ THashMap<TString, IAttributeDictionaryPtr> TDiscovery::List(bool includeBanned) 
     return result;
 }
 
-void TDiscovery::Ban(TString name)
+void TDiscovery::Ban(const TString& name)
 {
+    Ban(std::vector{name});
+}
+
+void TDiscovery::Ban(const std::vector<TString>& names)
+{
+    if (names.empty()) {
+        return;
+    }
     auto guard = WriterGuard(Lock_);
-    BannedSince_[name] = TInstant::Now();
-    YT_LOG_INFO("Participant banned (Name: %v, Duration: %v)", name, Config_->BanTimeout);
+    auto banDeadline = TInstant::Now() + Config_->BanTimeout;
+    for (const auto& name : names) {
+        BannedUntil_[name] = banDeadline;
+    }
+    YT_LOG_INFO("Participants banned (Names: %v, Until: %v)", names, banDeadline);
+}
+
+void TDiscovery::Unban(const TString& name)
+{
+    Unban(std::vector{name});
+}
+
+void TDiscovery::Unban(const std::vector<TString>& names)
+{
+    if (names.empty()) {
+        return;
+    }
+    auto guard = WriterGuard(Lock_);
+    for (const auto& name : names) {
+        if (auto it = BannedUntil_.find(name); it != BannedUntil_.end()) {
+            BannedUntil_.erase(it);
+            YT_LOG_INFO("Participant unbanned (Name: %v)", name);
+        }
+    }
 }
 
 TFuture<void> TDiscovery::StartPolling()

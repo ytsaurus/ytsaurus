@@ -86,7 +86,10 @@ DECLARE_REFCOUNTED_CLASS(TExecutionSettings);
 DECLARE_REFCOUNTED_CLASS(TClickHouseIndex);
 DECLARE_REFCOUNTED_CLASS(TQueryStatisticsReporter);
 DECLARE_REFCOUNTED_CLASS(TQueryStatisticsReporterConfig);
+DECLARE_REFCOUNTED_CLASS(TGossipConfig);
+DECLARE_REFCOUNTED_CLASS(TInvokerLivenessCheckerConfig);
 DECLARE_REFCOUNTED_CLASS(TSecondaryQueryHeader);
+DECLARE_REFCOUNTED_CLASS(TInvokerLivenessChecker);
 
 struct TValue;
 class TSubquerySpec;

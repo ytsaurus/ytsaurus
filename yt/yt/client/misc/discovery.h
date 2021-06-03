@@ -36,8 +36,13 @@ public:
 
     //! Return the list of participants stored in data structure.
     THashMap<TString, NYTree::IAttributeDictionaryPtr> List(bool includeBanned = false) const;
-    //! Temporary exclude |name| from the list of available participants.
-    void Ban(TString name);
+    //! Temporary add |name| to the ban list (timeout is specified in discovery config).
+    //! Instances from the ban list are excluded from the list of available participants.
+    void Ban(const TString& name);
+    void Ban(const std::vector<TString>& names);
+    //! Remove |name| from the ban list.
+    void Unban(const TString& name);
+    void Unban(const::std::vector<TString>& names);
 
     //! Force update the list of participants if stored data is older than |maxDivergency|.
     //! Returns a future that becomes set when data is up to date.
@@ -58,7 +63,7 @@ private:
     NApi::IClientPtr Client_;
     IInvokerPtr Invoker_;
     THashMap<TString, NYTree::IAttributeDictionaryPtr> List_;
-    THashMap<TString, TInstant> BannedSince_;
+    THashMap<TString, TInstant> BannedUntil_;
     NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
     NApi::TListNodeOptions ListOptions_;
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, Lock_);

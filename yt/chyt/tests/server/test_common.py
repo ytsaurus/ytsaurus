@@ -722,6 +722,68 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 wait(lambda: len(clique.make_direct_query(instance, "select * from system.clique")) == 2)
 
     @authors("dakovalkov")
+    def test_gossip_timeout(self):
+        patch = {
+            "yt": {
+                "control_invoker_checker": {
+                    # Disable control invoker checker to prevent instance from core dump.
+                    "enabled": False,
+                },
+            },
+        }
+        with Clique(2, config_patch=patch) as clique:
+            instances = clique.get_active_instances()
+            assert len(instances) == 2
+            wait(lambda: len(clique.make_direct_query(instances[0], "select * from system.clique")) == 2)
+
+            # Set timeout because clique with hanged control invoker can never response.
+            try:
+                clique.make_direct_query(
+                    instances[1],
+                    "select 1",
+                    settings={"chyt.testing.hang_control_invoker": 1},
+                    timeout=0.1)
+            # 🔥 This is fine 🔥, just igore timeout.
+            except requests.exceptions.ReadTimeout:
+                pass
+
+            # First instance should figure out that second one is not responding.
+            wait(lambda: len(clique.make_direct_query(instances[0], "select * from system.clique")) == 1)
+            # But it is not dead completely, cypress node should exist.
+            assert clique.get_active_instances() == instances
+            # Abort job because it will never finish gracefully.
+            abort_job(str(instances[1]))
+
+    @authors("dakovalkov")
+    def test_control_invoker_checker(self):
+        patch = {
+            "yt": {
+                "control_invoker_checker": {
+                    # Speed up the test
+                    "period": 500,
+                    "timeout": 250,
+                },
+            },
+        }
+        with Clique(1, config_patch=patch, max_failed_job_count=2) as clique:
+            instances = clique.get_active_instances()
+            assert len(instances) == 1
+            assert clique.op.get_job_count("failed") == 0
+
+            # Set timeout because clique with hanged control invoker can never response.
+            try:
+                clique.make_direct_query(
+                    instances[0],
+                    "select 1",
+                    settings={"chyt.testing.hang_control_invoker": 1},
+                    timeout=0.1)
+            except requests.exceptions.ReadTimeout:
+                pass
+
+            # Wait for instance core dump.
+            wait(lambda: clique.op.get_job_count("failed") == 1)
+
+    @authors("dakovalkov")
     def test_single_interrupt(self):
         patch = {
             "interruption_graceful_timeout": 1000,

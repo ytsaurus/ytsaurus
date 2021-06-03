@@ -109,6 +109,13 @@ TQueryContext::TQueryContext(
         Interface,
         HttpUserAgent,
         QueryKind);
+    
+    if (Settings->Testing->HangControlInvoker) {
+        auto longAction = BIND([] {
+            std::this_thread::sleep_for(std::chrono::hours(1));
+        });
+        Host->GetControlInvoker()->Invoke(longAction);
+    }
 }
 
 TQueryContext::~TQueryContext()
