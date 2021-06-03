@@ -45,7 +45,11 @@ public:
         const TJobResources& precommittedResources);
 
     void AttachParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& parent);
-    void ChangeParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& newParent);
+    void ChangeParent(
+        const TResourceTreeElementPtr& element,
+        const TResourceTreeElementPtr& newParent,
+        // NB: this argument is required for correct transfer of resource usage.
+        const std::optional<std::vector<TResourceTreeElementPtr>>& operationElements);
     void ScheduleDetachParent(const TResourceTreeElementPtr& element);
     void ReleaseResources(const TResourceTreeElementPtr& element, bool markAsNonAlive);
 
@@ -85,6 +89,10 @@ private:
     void DoIncreaseHierarchicalResourceUsagePrecommit(const TResourceTreeElementPtr& element, const TJobResources& delta);
 
     void DoRecalculateAllResourceUsages();
+    
+    void DoInitializeResourceUsageFor(
+        const TResourceTreeElementPtr& targetElement,
+        const std::vector<TResourceTreeElementPtr>& operationElements);
 };
 
 DEFINE_REFCOUNTED_TYPE(TResourceTree)

@@ -384,6 +384,34 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         release_breakpoint()
         op.track()
 
+    @authors("ignat")
+    def test_pool_change_with_resource_limits(self):
+        resource_limits = {"cpu": 1, "memory": 1000 * 1024 * 1024, "network": 10}
+        create_pool("destination_pool", attributes={"resource_limits": resource_limits})
+
+        create_pool("source_pool")
+
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out")
+        data = [{"foo": i} for i in xrange(3)]
+        write_table("//tmp/t_in", data)
+
+        op = map(
+            track=False,
+            command=with_breakpoint("cat ; BREAKPOINT"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "job_count": 1,
+                "pool": "source_pool",
+            },
+        )
+        wait_breakpoint()
+
+        move("//sys/pools/source_pool", "//sys/pools/destination_pool/source_pool")
+
+        release_breakpoint()
+        op.track()
 
 ##################################################################
 
