@@ -322,6 +322,8 @@ private:
             return;
         }
 
+        tablet->RuntimeData()->Errors[ETabletBackgroundActivity::Rotation].Store(TError());
+
         if (storeManager->IsOverflowRotationNeeded()) {
             YT_LOG_DEBUG("Scheduling store rotation due to overflow (%v)",
                 tablet->GetLoggingTag());
