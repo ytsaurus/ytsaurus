@@ -1,13 +1,53 @@
+from yt_env_setup import YTEnvSetup
+
+from yt_commands import (  # noqa
+    authors, print_debug, wait, wait_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
+    events_on_fs, reset_events_on_fs,
+    create, ls, get, set, copy, move, remove, link, exists,
+    create_account, create_network_project, create_tmpdir, create_user, create_group,
+    create_pool, create_pool_tree, remove_pool_tree,
+    create_data_center, create_rack,
+    make_ace, check_permission, add_member,
+    make_batch_request, execute_batch, get_batch_error,
+    start_transaction, abort_transaction, commit_transaction, lock,
+    insert_rows, select_rows, lookup_rows, delete_rows, trim_rows, alter_table,
+    read_file, write_file, read_table, write_table, write_local_file,
+    map, reduce, map_reduce, join_reduce, merge, vanilla, sort, erase, remote_copy,
+    run_test_vanilla, run_sleeping_vanilla,
+    abort_job, list_jobs, get_job, abandon_job, interrupt_job,
+    get_job_fail_context, get_job_input, get_job_stderr, get_job_spec,
+    dump_job_context, poll_job_shell,
+    abort_op, complete_op, suspend_op, resume_op,
+    get_operation, list_operations, clean_operations,
+    get_operation_cypress_path, scheduler_orchid_pool_path,
+    scheduler_orchid_default_pool_tree_path, scheduler_orchid_operation_path,
+    scheduler_orchid_default_pool_tree_config_path, scheduler_orchid_path,
+    scheduler_orchid_node_path, scheduler_orchid_pool_tree_config_path, scheduler_orchid_pool_tree_path,
+    sync_create_cells, sync_mount_table, sync_unmount_table,
+    sync_freeze_table, sync_unfreeze_table, sync_reshard_table,
+    sync_flush_table, sync_compact_table,
+    get_first_chunk_id, get_singular_chunk_id, get_chunk_replication_factor, multicell_sleep,
+    update_nodes_dynamic_config, update_controller_agent_config,
+    update_op_parameters, enable_op_detailed_logs,
+    set_node_banned, set_banned_flag, set_account_disk_space_limit,
+    check_all_stderrs,
+    create_test_tables, create_dynamic_table, PrepareTables,
+    get_statistics,
+    make_random_string, raises_yt_error,
+    build_snapshot,
+    get_driver, Driver, execute_command)
+
+from yt_helpers import skip_if_no_descending
+from yt_type_helpers import make_schema, normalize_schema, normalize_schema_v3, list_type, optional_type
+
+from yt.environment.helpers import assert_items_equal
+from yt.common import YtError
+
 import pytest
 
-from copy import deepcopy
-from random import shuffle
-from yt_env_setup import YTEnvSetup
-from yt_helpers import skip_if_no_descending
-from yt.environment.helpers import assert_items_equal
-from yt_commands import *  # noqa
-
+import random
 import __builtin__
+from copy import deepcopy
 
 ##################################################################
 
@@ -318,7 +358,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             result = read_table("//tmp/t_out")
             assert n * 0.5 - 100 <= len(result) <= n * 0.5 + 100
 
-        op = sort(
+        sort(
             in_="//tmp/t_in",
             out="//tmp/t_out",
             sort_by=[{"name": "a", "sort_order": sort_order}],
@@ -329,7 +369,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         )
         check()
 
-        op = sort(
+        sort(
             in_="//tmp/t_in",
             out="//tmp/t_out",
             sort_by=[{"name": "a", "sort_order": sort_order}],
@@ -707,7 +747,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         create("table", "//tmp/t_in")
         for i in xrange(0, 10):
             row = [v1, v2, v3, v4, v5]
-            shuffle(row)
+            random.shuffle(row)
             write_table("<append=true>//tmp/t_in", row)  # some random order
 
         create("table", "//tmp/t_out")
@@ -738,7 +778,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         if sort_order == "descending":
             rows = rows[::-1]
         shuffled_rows = rows[::]
-        shuffle(shuffled_rows)
+        random.shuffle(shuffled_rows)
         write_table("//tmp/t_in", shuffled_rows)
 
         create("table", "//tmp/t_out")
@@ -763,10 +803,10 @@ class TestSchedulerSortCommands(YTEnvSetup):
         create("table", "//tmp/t_in")
         rows = [{"key": "k%03d" % (i), "value": "v%03d" % (i)} for i in xrange(500)]
         shuffled_rows = rows[::]
-        shuffle(shuffled_rows)
+        random.shuffle(shuffled_rows)
 
         for i in range(10):
-            write_table("<append=%true>//tmp/t_in", shuffled_rows[50 * i : 50 * (i + 1)])
+            write_table("<append=%true>//tmp/t_in", shuffled_rows[50 * i:50 * (i + 1)])
 
         create("table", "//tmp/t_out")
 
@@ -802,7 +842,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         rows = [generate_row(i) for i in xrange(500)]
         shuffled_rows = rows[::]
-        shuffle(shuffled_rows)
+        random.shuffle(shuffled_rows)
 
         write_table("//tmp/t_in", shuffled_rows)
 
@@ -1411,12 +1451,12 @@ class TestSchedulerSortCommands(YTEnvSetup):
                     if row[k] == None:  # noqa
                         row[k] = None
 
-            key = lambda r: [r[k] for k in sort_by]
+            key = lambda r: [r[k] for k in sort_by]  # noqa
             for i in xrange(1, len(actual)):
                 assert key(actual[i - 1]) <= key(actual[i])
 
             wide_by = sort_by + [c["name"] for c in schema if c["name"] not in sort_by]
-            key = lambda r: [r[k] for k in wide_by]
+            key = lambda r: [r[k] for k in wide_by]  # noqa
             assert sorted(actual, key=key) == sorted(rows, key=key)
 
         verify_sort(["key1"])
@@ -1675,7 +1715,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         create("table", "//tmp/t2")
 
         rows = [{"key": "%02d" % key} for key in range(50)]
-        shuffle(rows)
+        random.shuffle(rows)
         write_table("//tmp/t1", rows)
 
         sort(
@@ -1710,7 +1750,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         create("table", "//tmp/t2")
 
         rows = [{"key": "%02d" % key} for key in range(100)]
-        shuffle(rows)
+        random.shuffle(rows)
         write_table("//tmp/t1", rows)
 
         op = sort(
@@ -1736,7 +1776,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         create("table", "//tmp/t2")
 
         rows = [{"key": "%02d" % key} for key in range(50)]
-        shuffle(rows)
+        random.shuffle(rows)
         write_table("//tmp/t1", rows)
 
         sort(
