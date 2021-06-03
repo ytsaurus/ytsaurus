@@ -507,7 +507,7 @@ class TestLookup(TestSortedDynamicTablesBase):
         for tablet in xrange(10):
             path = "//tmp/t/@tablets/{0}/performance_counters/static_chunk_row_lookup_count".format(tablet)
             wait(lambda: get(path) > 0)
-            assert get(path) == 200
+            assert get(path) == 100
 
     @authors("ifsmirnov")
     def test_lookup_rich_ypath(self):
@@ -928,7 +928,7 @@ class TestLookupRpcProxy(TestLookup):
         driver_config = deepcopy(self.Env.configs["driver"])
         driver_config["api_version"] = 4
         driver = Driver(config=driver_config)
-    
+
         rpc_proxy = ls("//sys/rpc_proxies")[0]
 
         rpc_driver_config = deepcopy(self.Env.configs["rpc_driver"])

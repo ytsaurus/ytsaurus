@@ -344,8 +344,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             actual = lookup_rows("//tmp/t", [{"key": i} for i in xrange(100, 200, 2 * step)], use_lookup_cache=True)
             assert_items_equal(actual, expected)
 
-        # Lookup non-existent key without polluting cache.
-        lookup_rows("//tmp/t", [{"key": 1}])
+        # Lookup key without polluting cache to increment static_chunk_row_lookup_count.
+        lookup_rows("//tmp/t", [{"key": 2}])
 
         path = "//tmp/t/@tablets/0/performance_counters/static_chunk_row_lookup_count"
         wait(lambda: get(path) > 50)
@@ -366,11 +366,11 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         actual = lookup_rows("//tmp/t", [{"key": i} for i in xrange(100, 200, 2)], use_lookup_cache=True)
         assert_items_equal(actual, rows)
 
-        # Lookup non existent key adds two lookups (in two chunks).
-        lookup_rows("//tmp/t", [{"key": 1}], use_lookup_cache=True)
+        # Lookup key without cache.
+        lookup_rows("//tmp/t", [{"key": 2}])
 
         wait(lambda: get(path) > 51)
-        assert get(path) == 53
+        assert get(path) == 52
 
         node = get_tablet_leader_address(get("//tmp/t/@tablets/0/tablet_id"))
         sync_unmount_table("//tmp/t")
@@ -401,8 +401,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         actual = lookup_rows("//tmp/t", [{"key": i} for i in xrange(100, 200, 2)], use_lookup_cache=True)
         assert_items_equal(actual, expected)
 
-        # Lookup non-existent key without polluting cache.
-        lookup_rows("//tmp/t", [{"key": 1}])
+        # Lookup key without cache.
+        lookup_rows("//tmp/t", [{"key": 2}])
 
         path = "//tmp/t/@tablets/0/performance_counters/static_chunk_row_lookup_count"
         wait(lambda: get(path) > 0)

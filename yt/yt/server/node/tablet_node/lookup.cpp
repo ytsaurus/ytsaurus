@@ -256,6 +256,7 @@ public:
             counters->CacheMisses.Increment(CacheMisses_);
             counters->CacheInserts.Increment(CacheInserts_);
             counters->RowCount.Increment(FoundRowCount_);
+            counters->MissingKeyCount.Increment(LookupKeys_.size() - FoundRowCount_);
             counters->DataWeight.Increment(FoundDataWeight_);
             counters->UnmergedRowCount.Increment(UnmergedRowCount_);
             counters->UnmergedDataWeight.Increment(UnmergedDataWeight_);

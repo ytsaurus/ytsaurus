@@ -501,20 +501,21 @@ public:
             return CreateEmptyVersionedRowBatch();
         }
 
+        i64 rowCount = 0;
         i64 dataWeight = 0;
 
         if (!BlockReader_) {
             // Nothing to read from chunk.
-            if (RowCount_ == std::ssize(Keys_)) {
+            if (KeyIndex_ == std::ssize(Keys_)) {
                 return nullptr;
             }
 
-            while (rows.size() < rows.capacity() && RowCount_ < std::ssize(Keys_)) {
+            while (rows.size() < rows.capacity() && KeyIndex_ < std::ssize(Keys_)) {
                 rows.push_back(TVersionedRow());
-                ++RowCount_;
+                ++KeyIndex_;
             }
 
-            PerformanceCounters_->StaticChunkRowLookupCount += rows.size();
+            PerformanceCounters_->StaticChunkRowLookupCount += rowCount;
             PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeight;
 
             return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
@@ -529,16 +530,16 @@ public:
         auto hasHunkColumns = ChunkMeta_->GetSchema()->HasHunkColumns();
 
         while (rows.size() < rows.capacity()) {
-            if (RowCount_ == std::ssize(Keys_)) {
+            if (KeyIndex_ == std::ssize(Keys_)) {
                 BlockEnded_ = true;
                 break;
             }
 
-            if (!KeyFilterTest_[RowCount_]) {
+            if (!KeyFilterTest_[KeyIndex_]) {
                 rows.push_back(TVersionedRow());
                 ++PerformanceCounters_->StaticChunkRowLookupTrueNegativeCount;
             } else {
-                const auto& key = Keys_[RowCount_];
+                const auto& key = Keys_[KeyIndex_];
                 if (!BlockReader_->SkipToKey(key)) {
                     BlockEnded_ = true;
                     break;
@@ -550,19 +551,20 @@ public:
                         GlobalizeHunkValues(&MemoryPool_, ChunkMeta_, row);
                     }
                     rows.push_back(row);
-                    ++RowCount_;
+                    ++KeyIndex_;
+                    ++rowCount;
                     dataWeight += GetDataWeight(rows.back());
                 } else if (BlockReader_->GetKey() > key) {
                     auto nextKeyIt = std::lower_bound(
-                        Keys_.begin() + RowCount_,
+                        Keys_.begin() + KeyIndex_,
                         Keys_.end(),
                         BlockReader_->GetKey());
 
-                    size_t skippedKeys = std::distance(Keys_.begin() + RowCount_, nextKeyIt);
+                    size_t skippedKeys = std::distance(Keys_.begin() + KeyIndex_, nextKeyIt);
                     skippedKeys = std::min(skippedKeys, rows.capacity() - rows.size());
 
                     rows.insert(rows.end(), skippedKeys, TVersionedRow());
-                    RowCount_ += skippedKeys;
+                    KeyIndex_ += skippedKeys;
                     dataWeight += skippedKeys * GetDataWeight(TVersionedRow());
                 } else {
                     YT_ABORT();
@@ -570,8 +572,9 @@ public:
             }
         }
 
+        RowCount_ += rowCount;
         DataWeight_ += dataWeight;
-        PerformanceCounters_->StaticChunkRowLookupCount += rows.size();
+        PerformanceCounters_->StaticChunkRowLookupCount += rowCount;
         PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeight;
 
         return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
@@ -583,6 +586,7 @@ private:
     std::vector<int> BlockIndexes_;
 
     int NextBlockIndex_ = 0;
+    i64 KeyIndex_ = 0;
 
     std::vector<TBlockFetcher::TBlockInfo> GetBlockSequence()
     {
@@ -1166,9 +1170,12 @@ public:
             }
         }
 
-        i64 rowCount = rows.size();
+        i64 rowCount = 0;
         i64 dataWeight = 0;
         for (auto row : rows) {
+            if (row) {
+                ++rowCount;
+            }
             dataWeight += GetDataWeight(row);
         }
 
@@ -1511,9 +1518,12 @@ public:
             }
         }
 
-        i64 rowCount = rows.size();
+        i64 rowCount = 0;
         i64 dataWeight = 0;
         for (auto row : rows) {
+            if (row) {
+                ++rowCount;
+            }
             dataWeight += GetDataWeight(row);
         }
 

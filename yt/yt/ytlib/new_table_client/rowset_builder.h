@@ -42,7 +42,7 @@ struct TDataWeightStatistics
     void AddFixedPart(ui64 count)
     {
         if (!IsStringLikeType(Type)) {
-            Count += count * GetDataWeight(Type);
+            DataWeight += count * GetDataWeight(Type);
         }
     }
 
@@ -50,11 +50,11 @@ struct TDataWeightStatistics
     void AddVariablePart(TUnversionedValue value, ui64 count = 1)
     {
         if (IsStringLikeType(Type)) {
-            Count += value.Length * count;
+            DataWeight += value.Length * count;
         }
     }
 
-    ui64 Count = 0;
+    ui64 DataWeight = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
