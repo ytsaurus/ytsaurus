@@ -1042,7 +1042,6 @@ private:
     i64 RowCount_ = 0;
     i64 DataWeight_ = 0;
 
-
     bool Read(std::vector<TMutableVersionedRow>* rows)
     {
         TDataWeightStatistics dataWeightStatistics;
@@ -1060,17 +1059,22 @@ private:
             }
         }
 
-        i64 rowCount = static_cast<i64>(rows->size());
+        i64 rowCount = 0;
+        for (auto row : *rows) {
+            if (row) {
+                ++rowCount;
+            }
+        }
 
         RowCount_ += rowCount;
-        DataWeight_ += dataWeightStatistics.Count;
+        DataWeight_ += dataWeightStatistics.DataWeight;
 
         if (Lookup_) {
             PerformanceCounters_->StaticChunkRowLookupCount += rowCount;
-            PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeightStatistics.Count;
+            PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeightStatistics.DataWeight;
         } else {
             PerformanceCounters_->StaticChunkRowReadCount += rowCount;
-            PerformanceCounters_->StaticChunkRowReadDataWeightCount += dataWeightStatistics.Count;
+            PerformanceCounters_->StaticChunkRowReadDataWeightCount += dataWeightStatistics.DataWeight;
         }
 
         if (hasMore) {
