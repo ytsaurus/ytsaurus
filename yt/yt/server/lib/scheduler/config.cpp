@@ -644,8 +644,6 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("enable_unrecognized_alert", EnableUnrecognizedAlert)
         .Default(true);
-    RegisterParameter("enable_profiling_compatibility", EnableProfilingCompatibility)
-        .Default(false);
 
     RegisterParameter("job_revival_abort_timeout", JobRevivalAbortTimeout)
         .Default(TDuration::Minutes(5));

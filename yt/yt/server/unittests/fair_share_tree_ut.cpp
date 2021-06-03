@@ -213,11 +213,6 @@ struct TSchedulerStrategyHostMock
     virtual void InvokeStoringStrategyState(TPersistentStrategyStatePtr /* persistentStrategyState */) override
     { }
 
-    virtual bool IsCoreProfilingCompatibilityEnabled() const override
-    {
-        return true;
-    }
-
     TJobResourcesWithQuotaList NodeResourceLimitsList;
     NChunkClient::TMediumDirectoryPtr MediumDirectory_;
 };

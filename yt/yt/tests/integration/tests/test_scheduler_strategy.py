@@ -3342,7 +3342,7 @@ class TestSchedulingSegments(YTEnvSetup):
 
         op_usage_ratio_sensor = Profiler\
             .at_scheduler(fixed_tags={"tree": "default", "pool": "large_gpu", "slot_index": str(op_slot_index)})\
-            .gauge("scheduler/operations_by_slot/usage_ratio_x100000")
+            .gauge("scheduler/operations_by_slot/dominant_usage_share")
 
         for _ in range(30):
             time.sleep(0.1)
@@ -3373,7 +3373,7 @@ class TestSchedulingSegments(YTEnvSetup):
 
         op_usage_ratio_sensor = Profiler \
             .at_scheduler(fixed_tags={"tree": "default", "pool": "large_gpu", "slot_index": str(op_slot_index)}) \
-            .gauge("scheduler/operations_by_slot/usage_ratio_x100000")
+            .gauge("scheduler/operations_by_slot/dominant_usage_share")
 
         for _ in range(30):
             time.sleep(0.1)
@@ -4204,13 +4204,13 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
 
     def _get_pool_fair_share_ratio(self, pool):
         try:
-            return get(scheduler_orchid_pool_path(pool) + "/fair_share_ratio")
+            return get(scheduler_orchid_pool_path(pool) + "/dominant_fair_share")
         except YtError:
             return 0.0
 
     def _get_pool_usage_ratio(self, pool):
         try:
-            return get(scheduler_orchid_pool_path(pool) + "/usage_ratio")
+            return get(scheduler_orchid_pool_path(pool) + "/dominant_usage_share")
         except YtError:
             return 0.0
 
@@ -4232,16 +4232,16 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
 
         op2_tasks_spec = {"task": {"job_count": num_jobs_op2, "command": "sleep 100;"}}
 
-        fair_share_ratio_sensor = Profiler\
+        dominant_fair_share_sensor = Profiler\
             .at_scheduler(fixed_tags={"tree": "default", "pool": "child2"})\
-            .gauge("scheduler/pools/fair_share_ratio_x100000")
+            .gauge("scheduler/pools/dominant_fair_share")
 
         op2 = vanilla(spec={"pool": "child2", "tasks": op2_tasks_spec}, track=False)
 
         # it's hard to estimate historic usage for all children, because run time can vary and jobs
         # can spuriously abort and restart; so we don't set the threshold any greater than 0.5
-        wait(lambda: fair_share_ratio_sensor.get() is not None, iter=300, sleep_backoff=0.1)
-        wait(lambda: fair_share_ratio_sensor.get() > 0.5 * 100000, iter=300, sleep_backoff=0.1)
+        wait(lambda: dominant_fair_share_sensor.get() is not None, iter=300, sleep_backoff=0.1)
+        wait(lambda: dominant_fair_share_sensor.get() > 0.5, iter=300, sleep_backoff=0.1)
 
         op1.complete()
         op2.complete()
@@ -4260,6 +4260,8 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
 
     # NB(eshcherbin): this test works only if new config effectively disables historic usage aggregation
     def _test_equal_fair_share_after_disabling_config_change_base(self, new_config):
+        EPS = 1e-5
+
         self._init_children()
 
         op1_tasks_spec = {"task": {"job_count": self.NUM_SLOTS_PER_NODE, "command": "sleep 100;"}}
@@ -4288,14 +4290,14 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
 
         op2_tasks_spec = {"task": {"job_count": self.NUM_SLOTS_PER_NODE, "command": "sleep 100;"}}
 
-        fair_share_ratio_sensor = Profiler \
+        dominant_fair_share_sensor = Profiler \
             .at_scheduler(fixed_tags={"tree": "default", "pool": "child2"}) \
-            .gauge("scheduler/pools/fair_share_ratio_x100000")
+            .gauge("scheduler/pools/dominant_fair_share")
 
         op2 = vanilla(spec={"pool": "child2", "tasks": op2_tasks_spec}, track=False)
 
-        wait(lambda: fair_share_ratio_sensor.get() is not None, iter=300, sleep_backoff=0.1)
-        wait(lambda: fair_share_ratio_sensor.get() in (49999, 50000, 50001), iter=300, sleep_backoff=0.1)
+        wait(lambda: dominant_fair_share_sensor.get() is not None, iter=300, sleep_backoff=0.1)
+        wait(lambda: (dominant_fair_share_sensor.get() - 0.5) < EPS, iter=300, sleep_backoff=0.1)
 
         op1.complete()
         op2.complete()

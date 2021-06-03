@@ -11,7 +11,6 @@ TFairShareTreeSnapshotImpl::TFairShareTreeSnapshotImpl(
     TNonOwningPoolElementMap poolNameToElement,
     TFairShareStrategyTreeConfigPtr treeConfig,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
-    bool coreProfilingCompatibilityEnabled,
     TTreeSchedulingSegmentsState schedulingSegmentsState)
     : RootElement_(std::move(rootElement))
     , EnabledOperationMap_(std::move(enabledOperationIdToElement))
@@ -19,7 +18,6 @@ TFairShareTreeSnapshotImpl::TFairShareTreeSnapshotImpl(
     , PoolMap_(std::move(poolNameToElement))
     , TreeConfig_(std::move(treeConfig))
     , ControllerConfig_(std::move(controllerConfig))
-    , CoreProfilingCompatibilityEnabled_(coreProfilingCompatibilityEnabled)
     , SchedulingSegmentsState_(std::move(schedulingSegmentsState))
 { }
 

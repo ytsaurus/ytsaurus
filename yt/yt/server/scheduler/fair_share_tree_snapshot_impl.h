@@ -16,7 +16,6 @@ class TFairShareTreeSnapshotImpl
     DEFINE_BYREF_RO_PROPERTY(TNonOwningPoolElementMap, PoolMap)
     DEFINE_BYREF_RO_PROPERTY(TFairShareStrategyTreeConfigPtr, TreeConfig)
     DEFINE_BYREF_RO_PROPERTY(TFairShareStrategyOperationControllerConfigPtr, ControllerConfig)
-    DEFINE_BYVAL_RO_PROPERTY(bool, CoreProfilingCompatibilityEnabled)
     DEFINE_BYREF_RO_PROPERTY(TTreeSchedulingSegmentsState, SchedulingSegmentsState)
         
 public:
@@ -27,7 +26,6 @@ public:
         TNonOwningPoolElementMap poolNameToElement,
         TFairShareStrategyTreeConfigPtr treeConfig,
         TFairShareStrategyOperationControllerConfigPtr controllerConfig,
-        bool coreProfilingCompatibilityEnabled,
         TTreeSchedulingSegmentsState schedulingSegmentsState);
 
     TSchedulerPoolElement* FindPool(const TString& poolName) const;

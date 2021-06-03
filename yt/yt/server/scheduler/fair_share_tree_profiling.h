@@ -100,14 +100,12 @@ private:
     void ProfilePool(
         const TSchedulerCompositeElement* element,
         const TFairShareStrategyTreeConfigPtr& treeConfig,
-        bool profilingCompatibilityEnabled,
         const NProfiling::TBufferedProducerPtr& producer);
 
     void ProfileElement(
         NProfiling::ISensorWriter* writer,
         const TSchedulerElement* element,
-        const TFairShareStrategyTreeConfigPtr& treeConfig,
-        bool profilingCompatibilityEnabled);
+        const TFairShareStrategyTreeConfigPtr& treeConfig);
 
     void ProfileDistributedResources(const TFairShareTreeSnapshotImplPtr& treeSnapshot);
 };
