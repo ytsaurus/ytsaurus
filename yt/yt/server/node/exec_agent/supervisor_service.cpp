@@ -257,8 +257,8 @@ private:
             job->SetFailContext(request->fail_context());
         }
 
-        if (request->has_profile_type() && request->has_profile_blob()) {
-            job->SetProfile({request->profile_type(), request->profile_blob()});
+        if (request->has_profile_type() && request->has_profile_blob() && request->has_profiling_probability()) {
+            job->SetProfile({request->profile_type(), request->profile_blob(), request->profiling_probability()});
         }
 
         context->Reply();

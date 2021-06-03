@@ -161,7 +161,7 @@ message TUserJobSpec
     // Enables secure vault variables in job shell.
     optional bool enable_secure_vault_variables_in_job_shell = 37 [default = true];
 
-    optional int64 max_profile_size = 38 [default = 0];
+    reserved 38;
 
     optional bool set_container_cpu_limit = 39 [default = false];
 
@@ -201,6 +201,9 @@ message TUserJobSpec
 
     // Limit for the number of threads in user job container.
     optional int64 thread_limit = 60 [default = 1000000];
+
+    optional double profiling_probability = 61;
+    optional string enabled_profiler = 62;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

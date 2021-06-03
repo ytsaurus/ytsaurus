@@ -95,6 +95,7 @@ message TReqOnJobFinished
 
     optional string profile_type = 8;
     optional string profile_blob = 9;
+    optional double profiling_probability = 11;
 
     repeated NYT.NCoreDump.NProto.TCoreInfo core_infos = 10;
 }

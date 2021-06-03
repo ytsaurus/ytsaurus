@@ -27,21 +27,6 @@ def get_stderr_from_table(operation_id, job_id):
     return rows[0]["stderr"]
 
 
-def get_profile_from_table(operation_id, job_id):
-    operation_hash = uuid_hash_pair(operation_id)
-    job_hash = uuid_hash_pair(job_id)
-    rows = list(
-        select_rows(
-            "profile_type, profile_blob from [//sys/operations_archive/job_profiles] "
-            "where operation_id_lo={0}u and operation_id_hi={1}u and job_id_lo={2}u and job_id_hi={3}u".format(
-                operation_hash.lo, operation_hash.hi, job_hash.lo, job_hash.hi
-            )
-        )
-    )
-    assert len(rows) == 1
-    return rows[0]["profile_type"], rows[0]["profile_blob"]
-
-
 def get_job_from_table(operation_id, job_id):
     path = init_operation_archive.DEFAULT_ARCHIVE_PATH + "/jobs"
     operation_hash = uuid_hash_pair(operation_id)
@@ -413,13 +398,12 @@ class TestListJobsBase(YTEnvSetup):
         res = checked_list_jobs(op.id, with_stderr=True)
         job_id = res["jobs"][0]["id"]
         assert get_stderr_from_table(op.id, job_id) == "STDERR-OUTPUT\n"
-        assert get_profile_from_table(op.id, job_id) == ("test", "foobar")
 
     def _run_op_and_wait_mapper_breakpoint(self, spec_patch={}):
         input_table, output_table = self._create_tables()
         # Write stderrs in jobs to ensure they will be saved.
         mapper_command = with_breakpoint(
-            """echo STDERR-OUTPUT >&2 ; cat; printf 'test\\nfoobar' >&8; """
+            """echo STDERR-OUTPUT >&2 ; cat; """
             """test $YT_JOB_INDEX -eq "1" && echo $YT_JOB_ID > {failed_job_id_fname} && exit 1; """
             """BREAKPOINT""".format(failed_job_id_fname=self.failed_job_id_fname),
             breakpoint_name="mapper",
@@ -429,7 +413,6 @@ class TestListJobsBase(YTEnvSetup):
             breakpoint_name="reducer",
         )
         spec={
-            "enable_profiling": True,
             "mapper": {
                 "input_format": "json",
                 "output_format": "json",

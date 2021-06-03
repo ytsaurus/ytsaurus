@@ -505,6 +505,8 @@ void TTask::ScheduleJob(
         joblet->UserJobMonitoringDescriptor = TaskHost_->RegisterJobForMonitoring(joblet->JobId);
     }
 
+    joblet->EnabledProfiler = SelectProfiler();
+
     if (userJobSpec && userJobSpec->JobSpeculationTimeout) {
         joblet->JobSpeculationTimeout = userJobSpec->JobSpeculationTimeout;
     } else if (TaskHost_->GetSpec()->JobSpeculationTimeout) {
@@ -1703,6 +1705,36 @@ int TTask::EstimateSplitJobCount(const TCompletedJobSummary& jobSummary, const T
     }
 
     return splitJobCount;
+}
+
+std::optional<TString> TTask::SelectProfiler()
+{
+    const auto& spec = TaskHost_->GetSpec();
+    auto profilingProbability = spec->ProfilingProbability;
+    if (!profilingProbability) {
+        return {};
+    }
+
+    if (!HasUserJob()) {
+        return {};
+    }
+
+    const auto& userJobSpec = GetUserJobSpec();
+    auto p = RandomNumber<double>();
+
+    for (const auto& profiler : userJobSpec->SupportedProfilers) {
+        if (std::count(spec->EnabledProfilers.begin(), spec->EnabledProfilers.end(), profiler) != 1) {
+            continue;
+        }
+
+        if (p < *profilingProbability) {
+            return profiler;
+        }
+
+        p -= *profilingProbability;
+    }
+
+    return {};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
