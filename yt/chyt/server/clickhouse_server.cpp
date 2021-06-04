@@ -110,7 +110,7 @@ public:
         }
     }
 
-    DB::ContextPtr GetContext() override
+    DB::ContextMutablePtr GetContext() override
     {
         return ServerContext_;
     }
@@ -127,7 +127,7 @@ public:
         return *const_cast<Poco::Util::LayeredConfiguration*>(LayeredConfig_.get());
     }
 
-    DB::ContextPtr context() const override
+    DB::ContextMutablePtr context() const override
     {
         return ServerContext_;
     }
@@ -141,7 +141,7 @@ private:
     THost* Host_;
     const TClickHouseConfigPtr Config_;
     DB::SharedContextHolder SharedContext_;
-    DB::ContextPtr ServerContext_;
+    DB::ContextMutablePtr ServerContext_;
 
     // Poco representation of Config_.
     Poco::AutoPtr<Poco::Util::LayeredConfiguration> LayeredConfig_;

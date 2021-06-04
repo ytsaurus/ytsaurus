@@ -76,7 +76,7 @@ public:
         }
     }
 
-    virtual void customizeContext(DB::HTTPServerRequest & /* request */, DB::ContextPtr context) override
+    virtual void customizeContext(DB::HTTPServerRequest & /* request */, DB::ContextMutablePtr context) override
     {
         YT_VERIFY(TraceContext_);
 

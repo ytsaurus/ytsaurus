@@ -34,7 +34,7 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::ContextPtr PrepareContextForQuery(
+DB::ContextMutablePtr PrepareContextForQuery(
     DB::ContextPtr databaseContext,
     const TString& dataBaseUser,
     TDuration timeout,
@@ -91,9 +91,9 @@ void THealthChecker::ExecuteQuery(const TString& query)
 THealthChecker::THealthChecker(
     THealthCheckerConfigPtr config,
     TString dataBaseUser,
-    DB::ContextPtr databaseContext,
+    DB::ContextMutablePtr databaseContext,
     THost* host)
-    : DB::WithContext(databaseContext)
+    : DB::WithMutableContext(databaseContext)
     , Config_(std::move(config))
     , DatabaseUser_(std::move(dataBaseUser))
     , Host_(host)
