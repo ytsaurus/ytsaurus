@@ -57,6 +57,7 @@ public:
     NYTAlloc::TYTAllocConfigPtr YTAlloc;
     NRpc::TDispatcherDynamicConfigPtr RpcDispatcher;
     NChunkClient::TDispatcherDynamicConfigPtr ChunkClientDispatcher;
+    NProfiling::TProfileManagerDynamicConfigPtr ProfileManager;
     NLogging::TLogManagerDynamicConfigPtr Logging;
     NTracing::TJaegerTracerDynamicConfigPtr Jaeger;
 

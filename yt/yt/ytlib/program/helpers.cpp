@@ -104,6 +104,8 @@ void ReconfigureSingletons(const TSingletonsConfigPtr& config, const TSingletons
     NRpc::TDispatcher::Get()->Configure(config->RpcDispatcher->ApplyDynamic(dynamicConfig->RpcDispatcher));
 
     NChunkClient::TDispatcher::Get()->Configure(config->ChunkClientDispatcher->ApplyDynamic(dynamicConfig->ChunkClientDispatcher));
+
+    NProfiling::TProfileManager::Get()->Reconfigure(config->ProfileManager, dynamicConfig->ProfileManager);
 }
 
 void StartDiagnosticDump(const TDiagnosticDumpConfigPtr& config)

@@ -64,6 +64,9 @@ public:
     //! Configure profiling.
     void Configure(const TProfileManagerConfigPtr& config);
 
+    //! Reconfigure profiling.
+    void Reconfigure(const TProfileManagerConfigPtr& config, const TProfileManagerDynamicConfigPtr& dynamicConfig);
+
     //! Starts profiling.
     /*!
      *  No samples are collected before this method is called.

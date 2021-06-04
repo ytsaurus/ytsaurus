@@ -51,6 +51,7 @@ DEFINE_ENUM(EMetricType,
 );
 
 DECLARE_REFCOUNTED_CLASS(TProfileManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TProfileManagerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TResourceTracker)
 
 ////////////////////////////////////////////////////////////////////////////////

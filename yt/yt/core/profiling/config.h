@@ -5,9 +5,36 @@
 #include <yt/yt/core/ytree/public.h>
 #include <yt/yt/core/ytree/yson_serializable.h>
 
+#include <optional>
+
 namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EPerfEvents,
+    (CpuCycles)
+    (Instructions)
+    (CacheReferences)
+    (CacheMisses)
+    (BranchInstructions)
+    (BranchMisses)
+    (BusCycles)
+    (StalledCyclesFrontend)
+    (StalledCyclesBackend)
+    (RefCpuCycles)
+    (CpuClock)
+    (TaskClock)
+    (ContextSwitches)
+    (CpuMigrations)
+    (fAlignmentFaults)
+    (EmulationFaults)
+    (DataTlbReferences)
+    (DataTlbMisses)
+    (InstructionTlbReferences)
+    (InstructionTlbMisses)
+    (LocalMemoryReferences)
+    (LocalMemoryMisses)
+);
 
 class TProfileManagerConfig
     : public NYTree::TYsonSerializable
@@ -18,21 +45,22 @@ public:
     TDuration SampleRateLimit;
 
     THashMap<TString, TString> GlobalTags;
+    THashSet<EPerfEvents> EnabledPerfEvents;
 
-    TProfileManagerConfig()
-    {
-        RegisterParameter("global_tags", GlobalTags)
-            .Default();
-        RegisterParameter("max_keep_interval", MaxKeepInterval)
-            .Default(TDuration::Minutes(5));
-        RegisterParameter("deque_period", DequeuePeriod)
-            .Default(TDuration::MilliSeconds(100));
-        RegisterParameter("sample_rate_limit", SampleRateLimit)
-            .Default(TDuration::MilliSeconds(5));
-    }
+    TProfileManagerConfig();
 };
 
-DEFINE_REFCOUNTED_TYPE(TProfileManagerConfig)
+class TProfileManagerDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    std::optional<THashSet<EPerfEvents>> EnabledPerfEvents;
+
+    TProfileManagerDynamicConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TProfileManagerConfig);
+DEFINE_REFCOUNTED_TYPE(TProfileManagerDynamicConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
