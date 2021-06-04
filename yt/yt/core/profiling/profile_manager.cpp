@@ -37,7 +37,6 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLogging::TLogger Logger("Profiling");
-static TLegacyProfiler ProfilingProfiler("/profiling", {}, true);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,7 +80,7 @@ public:
         Thread_->Shutdown();
     }
 
-    void Enqueue(const TQueuedSample& sample, bool selfProfiling)
+    void Enqueue(const TQueuedSample& sample)
     {
         if (!WasStarted_ || WasShutdown_) {
             return;
@@ -94,10 +93,6 @@ public:
                     id);
                 return;
             }
-        }
-
-        if (!selfProfiling) {
-            ProfilingProfiler.Increment(EnqueuedCounter_);
         }
 
         SampleQueue_.Enqueue(sample);
@@ -473,11 +468,6 @@ private:
 
     const IMapNodePtr Root_;
 
-    TShardedMonotonicCounter EnqueuedCounter_{"/enqueued"};
-    TShardedMonotonicCounter DequeuedCounter_{"/dequeued"};
-    TShardedMonotonicCounter DroppedCounter_{"/dropped"};
-
-
     TProfileManagerConfigPtr Config_;
 
     TMultipleProducerSingleConsumerLockFreeStack<TQueuedSample> SampleQueue_;
@@ -529,8 +519,6 @@ private:
                 }
             }))
         { }
-
-        ProfilingProfiler.Increment(DequeuedCounter_, samplesProcessed);
     }
 
     TBucketPtr LookupBucket(const TYPath& path)
@@ -574,7 +562,6 @@ private:
             YT_LOG_DEBUG("Profiling sample dropped (Path: %v, Tags: %v)",
                 queuedSample.Path,
                 tags);
-            ProfilingProfiler.Increment(DroppedCounter_);
         }
         bucket->TrimSamples(Config_->MaxKeepInterval);
     }
@@ -630,9 +617,9 @@ void TProfileManager::Shutdown()
     Impl_->Shutdown();
 }
 
-void TProfileManager::Enqueue(const TQueuedSample& sample, bool selfProfiling)
+void TProfileManager::Enqueue(const TQueuedSample& sample)
 {
-    Impl_->Enqueue(sample, selfProfiling);
+    Impl_->Enqueue(sample);
 }
 
 IInvokerPtr TProfileManager::GetInvoker() const

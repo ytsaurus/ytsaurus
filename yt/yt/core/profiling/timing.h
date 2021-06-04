@@ -103,28 +103,6 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Upon destruction, increments the counter by the elapsed time (measured by the timer)
-//! passed since construction.
-template <class TTimer>
-class TCounterIncrementingTimingGuard
-{
-public:
-    TCounterIncrementingTimingGuard(
-        const TLegacyProfiler& profiler,
-        TShardedMonotonicCounter* counter);
-    ~TCounterIncrementingTimingGuard();
-
-    TCounterIncrementingTimingGuard(const TCounterIncrementingTimingGuard&) = delete;
-    TCounterIncrementingTimingGuard& operator=(const TCounterIncrementingTimingGuard&) = delete;
-
-private:
-    const TLegacyProfiler& Profiler_;
-    TShardedMonotonicCounter* const Counter_;
-    TTimer Timer_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Calls TTimer::Start() on construction and TTimer::Stop() on destruction.
 template <class TTimer>
 class TTimerGuard
