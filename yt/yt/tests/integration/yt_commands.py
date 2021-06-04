@@ -721,36 +721,6 @@ def write_table(path, value=None, is_raw=False, **kwargs):
     return execute_command("write_table", kwargs, input_stream=input_stream)
 
 
-def tx_write_table(*args, **kwargs):
-    """
-    Write rows to table transactionally.
-
-    If write_table fails with some error it is not guaranteed that table is not locked.
-    Locks can linger for some time and prevent from working with this table.
-
-    This function avoids such lingering locks by explicitly creating external transaction
-    and aborting it explicitly in case of error.
-    """
-    parent_tx = kwargs.pop("tx", "0-0-0-0")
-    timeout = kwargs.pop("timeout", 60000)
-
-    try:
-        tx = start_transaction(timeout=timeout, tx=parent_tx)
-    except Exception as e:
-        raise AssertionError("Cannot start transaction: {}".format(e))
-
-    try:
-        write_table(*args, tx=tx, **kwargs)
-    except YtError:
-        try:
-            abort_transaction(tx)
-        except Exception as e:
-            raise AssertionError("Cannot abort wrapper transaction: {}".format(e))
-        raise
-
-    commit_transaction(tx)
-
-
 def locate_skynet_share(path, **kwargs):
     kwargs["path"] = path
 
