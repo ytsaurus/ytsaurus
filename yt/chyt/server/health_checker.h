@@ -13,13 +13,13 @@ namespace NYT::NClickHouseServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class THealthChecker
-    : public TRefCounted, DB::WithContext
+    : public TRefCounted, DB::WithMutableContext
 {
 public:
     THealthChecker(
         THealthCheckerConfigPtr config,
         TString dataBaseUser,
-        DB::ContextPtr databaseContext,
+        DB::ContextMutablePtr databaseContext,
         THost* host);
 
     void Start();

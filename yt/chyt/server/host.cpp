@@ -179,7 +179,7 @@ public:
             });
     }
 
-    void SetContext(DB::ContextPtr context_)
+    void SetContext(DB::ContextMutablePtr context_)
     {
         YT_VERIFY(context_ && context.expired());
         context = context_;
@@ -887,7 +887,7 @@ std::shared_ptr<DB::IDatabase> THost::CreateYtDatabase() const
     return Impl_->CreateYtDatabase();
 }
 
-void THost::SetContext(DB::ContextPtr context)
+void THost::SetContext(DB::ContextMutablePtr context)
 {
     Impl_->SetContext(context);
 }

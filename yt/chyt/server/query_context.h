@@ -144,7 +144,7 @@ void Serialize(const TQueryContext& queryContext, NYson::IYsonConsumer* consumer
 
 void SetupHostContext(
     THost* host,
-    DB::ContextPtr context,
+    DB::ContextMutablePtr context,
     TQueryId queryId,
     NTracing::TTraceContextPtr traceContext,
     std::optional<TString> dataLensRequestId = std::nullopt,
