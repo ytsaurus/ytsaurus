@@ -42,7 +42,7 @@ class InfraClient(object):
         session = requests.Session()
         retry_strategy = retry.Retry(
             total=self.max_retries,
-            backoff_factor = self.backoff_factor,
+            backoff_factor=self.backoff_factor,
             status_forcelist=[500, 502, 503, 504],
             method_whitelist=["GET"],
         )
@@ -84,6 +84,7 @@ class InfraClient(object):
         start_time=None,  # type: int
         finish_time=None,  # type: int
         affected_dcs=None,  # type: typing.List[str]
+        tickets=None,  # type: str
     ):
         if start_time is None:
             start_time = int(time.time())
@@ -107,6 +108,8 @@ class InfraClient(object):
         if affected_dcs is not None:
             for dc in affected_dcs:
                 event_spec[dc] = True
+        if tickets is not None:
+            event_spec['tickets'] = tickets
         return event_spec
 
     @staticmethod
