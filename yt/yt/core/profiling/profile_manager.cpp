@@ -107,6 +107,13 @@ public:
     {
         GlobalTags_ = config->GlobalTags;
         Config_ = config;
+
+        GetResourceTracker()->Configure(config);
+    }
+
+    void Reconfigure(const TProfileManagerConfigPtr& config, const TProfileManagerDynamicConfigPtr& dynamicConfig)
+    {
+        GetResourceTracker()->Reconfigure(config, dynamicConfig);
     }
 
     IInvokerPtr GetInvoker() const
@@ -606,6 +613,11 @@ void TProfileManager::StaticShutdown()
 void TProfileManager::Configure(const TProfileManagerConfigPtr& config)
 {
     Impl_->Configure(config);
+}
+
+void TProfileManager::Reconfigure(const TProfileManagerConfigPtr& config, const TProfileManagerDynamicConfigPtr& dynamicConfig)
+{
+    Impl_->Reconfigure(config, dynamicConfig);
 }
 
 void TProfileManager::Start()
