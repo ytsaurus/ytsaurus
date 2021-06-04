@@ -4,14 +4,14 @@
 
 #include <yt/yt/library/ytprof/profile.pb.h>
 
-namespace NYT::NProf {
+namespace NYT::NYTProf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Symbolize(Profile* profile);
+void Symbolize(NProto::Profile* profile);
 
-std::pair<void*, void*> GetVDSORange();
+std::pair<void*, void*> GetVdsoRange();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NProf
+} // namespace NYT::NYTProf

@@ -1,6 +1,6 @@
 #include <atomic>
 
-static std::atomic<int> CallCount{0};
+static std::atomic<int> CallCount;
 
 extern "C" void CallOtherNext(void (*next)())
 {

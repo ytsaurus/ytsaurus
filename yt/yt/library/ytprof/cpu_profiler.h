@@ -10,7 +10,7 @@
 
 #include "queue.h"
 
-namespace NYT::NProf {
+namespace NYT::NYTProf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,7 +48,7 @@ public:
     /*!
      *  This function may be called only after profiler is stopped.
      */
-    Profile ReadProfile();
+    NProto::Profile ReadProfile();
 
 private:
     const TCpuProfilerOptions Options_;
@@ -61,7 +61,7 @@ private:
     std::atomic<i64> QueueOverflows_{0};
     std::atomic<i64> SignalOverruns_{0};
 
-    std::pair<void*, void*> VDSORange_;
+    std::pair<void*, void*> VdsoRange_;
 
     TStaticQueue Queue_;
     std::thread BackgroundThread_;
@@ -77,4 +77,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NProf
+} // namespace NYT::NYTProf

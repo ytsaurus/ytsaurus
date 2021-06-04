@@ -2,7 +2,10 @@
 
 #include <yt/yt/library/ytprof/queue.h>
 
-namespace NYT::NProf {
+namespace NYT::NYTProf {
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
 
 TEST(StaticQueue, PushPop)
 {
@@ -59,4 +62,5 @@ TEST(StaticQueue, Overflow)
     }));
 }
 
-} // namespace NYT::NProf
+} // namespace
+} // namespace NYT::NYTProf

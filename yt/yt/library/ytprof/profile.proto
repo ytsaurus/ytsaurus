@@ -38,7 +38,7 @@
 
 syntax = "proto3";
 
-package NYT.NProf;
+package NYT.NYTProf.NProto;
 
 message Profile {
   // A description of the samples associated with each Sample.value.

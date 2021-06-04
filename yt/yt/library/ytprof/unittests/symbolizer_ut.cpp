@@ -2,7 +2,10 @@
 
 #include <yt/yt/library/ytprof/symbolize.h>
 
-namespace NYT::NProf {
+namespace NYT::NYTProf {
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
 
 Y_NO_INLINE void* GetIP()
 {
@@ -11,7 +14,7 @@ Y_NO_INLINE void* GetIP()
 
 TEST(Symbolize, EmptyProfile)
 {
-    Profile profile;
+    NProto::Profile profile;
     profile.add_string_table();
 
     Symbolize(&profile);
@@ -19,7 +22,7 @@ TEST(Symbolize, EmptyProfile)
 
 TEST(Symbolize, SingleLocation)
 {
-    Profile profile;
+    NProto::Profile profile;
     profile.add_string_table();
 
     auto thisIP = GetIP();
@@ -45,4 +48,7 @@ TEST(Symbolize, SingleLocation)
         << "function name is " << name;
 }
 
-} // namespace NYT::NProf
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+} // namespace NYT::NYTProf
