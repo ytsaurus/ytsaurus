@@ -2,11 +2,11 @@
 
 #include <util/stream/zlib.h>
 
-namespace NYT::NProf {
+namespace NYT::NYTProf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void WriteProfile(IOutputStream* out, const Profile& profile)
+void WriteProfile(IOutputStream* out, const NProto::Profile& profile)
 {
     TZLibCompress compress(out, ZLib::StreamType::GZip);
     profile.SerializeToArcadiaStream(&compress);
@@ -15,4 +15,4 @@ void WriteProfile(IOutputStream* out, const Profile& profile)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NProf
+} // namespace NYT::NYTProf

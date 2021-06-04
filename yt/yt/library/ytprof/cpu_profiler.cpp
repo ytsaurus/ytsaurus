@@ -11,7 +11,7 @@
 
 #include <util/generic/yexception.h>
 
-namespace NYT::NProf {
+namespace NYT::NYTProf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,15 +31,11 @@ TCpuSample::operator size_t() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
-
-////////////////////////////////////////////////////////////////////////////////
-
 TCpuProfiler::TCpuProfiler(TCpuProfilerOptions options)
     : Options_(options)
     , Queue_(options.RingBufferLogSize)
 {
-    VDSORange_ = GetVDSORange();
+    VdsoRange_ = GetVdsoRange();
 }
 
 TCpuProfiler::~TCpuProfiler()
@@ -216,7 +212,7 @@ void TCpuProfiler::OnSigProf(siginfo_t* info, ucontext_t* ucontext)
     void* userIP = reinterpret_cast<void *>(ucontext->uc_mcontext.gregs[REG_RIP]);
 
     // For some reason, libunwind segfaults inside vDSO.
-    if (VDSORange_.first <= userIP && userIP < VDSORange_.second) {
+    if (VdsoRange_.first <= userIP && userIP < VdsoRange_.second) {
         return;
     }
 
@@ -281,9 +277,9 @@ void TCpuProfiler::DequeueSamples()
     }
 }
 
-Profile TCpuProfiler::ReadProfile()
+NProto::Profile TCpuProfiler::ReadProfile()
 {
-    Profile profile;
+    NProto::Profile profile;
     profile.add_string_table();
 
     profile.add_string_table("cpu");
@@ -351,4 +347,4 @@ Profile TCpuProfiler::ReadProfile()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NProf
+} // namespace NYT::NYTProf

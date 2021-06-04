@@ -4,12 +4,12 @@
 
 #include <yt/yt/library/ytprof/profile.pb.h>
 
-namespace NYT::NProf {
+namespace NYT::NYTProf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void WriteProfile(IOutputStream* out, const Profile& profile);
+void WriteProfile(IOutputStream* out, const NProto::Profile& profile);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NProf
+} // namespace NYT::NYTProf

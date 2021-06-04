@@ -12,7 +12,10 @@
 #include <yt/yt/library/ytprof/symbolize.h>
 #include <yt/yt/library/ytprof/profile.h>
 
-namespace NYT::NProf {
+namespace NYT::NYTProf {
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <size_t Index>
 Y_NO_INLINE void BurnCpu()
@@ -41,7 +44,7 @@ static Y_NO_INLINE void StaticFunction()
     BurnCpu<0>();
 }
 
-void RunUnderProfiler(const TString& name, std::function<void()> work)
+void RunUnderProfiler(const TString& name, std::function<void()> work, bool checkSamples = true)
 {
     TCpuProfilerOptions options;
     options.SamplingFrequency = 100000;
@@ -55,7 +58,9 @@ void RunUnderProfiler(const TString& name, std::function<void()> work)
     profiler.Stop();
 
     auto profile = profiler.ReadProfile();
-    ASSERT_NE(0, profile.sample_size());
+    if (checkSamples) {
+        ASSERT_NE(0, profile.sample_size());
+    }
 
     Symbolize(&profile);
 
@@ -169,7 +174,10 @@ TEST(TCpuProfiler, VDSO)
         auto now = TInstant::Now();
         while (TInstant::Now() < now + TDuration::MilliSeconds(100))
         { }
-    });
+    }, false);
 }
 
-} // namespace NYT::NProf
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+} // namespace NYT::NYTProf

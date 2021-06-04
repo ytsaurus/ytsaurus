@@ -16,11 +16,11 @@
 #include <exception>
 #include <cxxabi.h>
 
-namespace NYT::NProf {
+namespace NYT::NYTProf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString DemangleCxxName(const char* mangledName)
+static TString DemangleCxxName(const char* mangledName)
 {
     TTempBuf buffer;
 
@@ -36,7 +36,7 @@ TString DemangleCxxName(const char* mangledName)
 class TDLAddrSymbolizer
 {
 public:
-    TDLAddrSymbolizer(Profile* profile)
+    explicit TDLAddrSymbolizer(NProto::Profile* profile)
         : Profile_(profile)
     { }
 
@@ -70,7 +70,7 @@ public:
     }
 
 private:
-    Profile* Profile_;
+    NProto::Profile* const Profile_;
 
     THashMap<TString, ui64> Strings_;
 
@@ -134,7 +134,7 @@ public:
             return Header.sh_size;
         }
 
-        TSection(const TElfShdr & header, const TElf& elf)
+        TSection(const TElfShdr& header, const TElf& elf)
             : Header(header)
             , Elf_(elf)
         { }
@@ -164,9 +164,10 @@ public:
         TElfOff sectionHeaderOffset = Header_->e_shoff;
         uint16_t sectionHeaderNumEntries = Header_->e_shnum;
 
-        if (!sectionHeaderOffset
-            || !sectionHeaderNumEntries
-            || sectionHeaderOffset + sectionHeaderNumEntries * sizeof(TElfShdr) > ElfSize_) {
+        if (!sectionHeaderOffset ||
+            !sectionHeaderNumEntries ||
+            sectionHeaderOffset + sectionHeaderNumEntries * sizeof(TElfShdr) > ElfSize_
+        ) {
             throw yexception() << "The ELF is truncated (section header points after end of file)";
         }
 
@@ -194,9 +195,10 @@ public:
         TElfOff programHeaderOffset = Header_->e_phoff;
         uint16_t programHeaderNumEntries = Header_->e_phnum;
 
-        if (!programHeaderOffset
-            || !programHeaderNumEntries
-            || programHeaderOffset + programHeaderNumEntries * sizeof(TElfPhdr) > ElfSize_) {
+        if (!programHeaderOffset ||
+            !programHeaderNumEntries ||
+            programHeaderOffset + programHeaderNumEntries * sizeof(TElfPhdr) > ElfSize_
+        ) {
             throw yexception() << "The ELF is truncated (program header points after end of file)";
         }
 
@@ -335,7 +337,7 @@ public:
         TSymbolIndex* symbolIndex = reinterpret_cast<TSymbolIndex*>(ptr);
 
         symbolIndex->CollectSymbolsFromProgramHeaders(info);
-        symbolIndex->CollectSymbolsFromELF(info);
+        symbolIndex->CollectSymbolsFromElf(info);
 
         /* Continue iterations */
         return 0;
@@ -429,7 +431,7 @@ private:
             /* Get a pointer to the first entry of the dynamic section.
             * It's address is the shared lib's address + the virtual address
             */
-            const ElfW(Dyn) * dynBegin = reinterpret_cast<const ElfW(Dyn) *>(info->dlpi_addr + info->dlpi_phdr[headerIndex].p_vaddr);
+            const ElfW(Dyn)* dynBegin = reinterpret_cast<const ElfW(Dyn) *>(info->dlpi_addr + info->dlpi_phdr[headerIndex].p_vaddr);
 
             /// For unknown reason, addresses are sometimes relative sometimes absolute.
             auto correctAddress = [](ElfW(Addr) base, ElfW(Addr) ptr) {
@@ -521,7 +523,7 @@ private:
         }
     }
 
-    void CollectSymbolsFromELF(dl_phdr_info * info)
+    void CollectSymbolsFromElf(dl_phdr_info* info)
     {
         /// MSan does not know that the program segments in memory are initialized.
 #if defined(_msan_enabled_)
@@ -599,8 +601,8 @@ private:
     void CollectSymbolsFromELFSymbolTable(
         dl_phdr_info* info,
         const TElf& elf,
-        const TElf::TSection & symbol_table,
-        const TElf::TSection & string_table)
+        const TElf::TSection& symbol_table,
+        const TElf::TSection& string_table)
     {
         const TElfSym* symbolTableEntry = reinterpret_cast<const TElfSym*>(symbol_table.begin());
         const TElfSym* symbolTableEnd = reinterpret_cast<const TElfSym*>(symbol_table.end());
@@ -635,7 +637,7 @@ private:
 class TSymbolIndexSymbolizer
 {
 public:
-    TSymbolIndexSymbolizer(Profile* profile)
+    explicit TSymbolIndexSymbolizer(NProto::Profile* profile)
         : Profile_(profile)
     { }
 
@@ -676,7 +678,7 @@ public:
     }
 
 private:
-    Profile* Profile_;
+    NProto::Profile* const Profile_;
 
     TSymbolIndex SymbolIndex_;
 
@@ -720,27 +722,27 @@ static int OnPhdr(struct dl_phdr_info *info, size_t /* size */, void *data)
 {
     auto vdso = (uintptr_t) getauxval(AT_SYSINFO_EHDR);
 
-    auto vDSORange = reinterpret_cast<std::pair<void*, void*>*>(data);
+    auto vdsoRange = reinterpret_cast<std::pair<void*, void*>*>(data);
     if (info->dlpi_addr == vdso) {
         auto range = GetExecutableRange(info);
         if (range) {
-            *vDSORange = *range;
+            *vdsoRange = *range;
         }
     }
 
     return 0;
 }
 
-std::pair<void*, void*> GetVDSORange()
+std::pair<void*, void*> GetVdsoRange()
 {
-    std::pair<void*, void*> vDSORange{nullptr, nullptr};
-    dl_iterate_phdr(OnPhdr, &vDSORange);
-    return vDSORange;
+    std::pair<void*, void*> vdsoRange;
+    dl_iterate_phdr(OnPhdr, &vdsoRange);
+    return vdsoRange;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Symbolize(Profile* profile)
+void Symbolize(NProto::Profile* profile)
 {
     TSymbolIndexSymbolizer symbolizer(profile);
     symbolizer.Symbolize();
@@ -749,4 +751,4 @@ void Symbolize(Profile* profile)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NProf
+} // namespace NYT::NYTProf
