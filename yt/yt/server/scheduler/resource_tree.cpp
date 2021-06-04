@@ -89,7 +89,6 @@ void TResourceTree::ChangeParent(
     DoIncreaseHierarchicalResourceUsagePrecommit(newParent, element->ResourceUsagePrecommit_);
 
     if (operationElements) {
-        auto guard = WriterGuard(element->ResourceUsageLock_);
         element->ResourceUsage_ = TJobResources();
         element->ResourceUsagePrecommit_ = TJobResources();
     }
