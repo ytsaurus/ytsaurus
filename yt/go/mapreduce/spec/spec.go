@@ -45,9 +45,10 @@ type UserScript struct {
 
 	EnablePorto string `yson:"enable_porto,omitempty"`
 
-	// JobCount and OutputTablePaths are used only in vanilla operations.
+	// Following fields are used only in vanilla operations.
 	JobCount         int           `yson:"job_count,omitempty"`
 	OutputTablePaths []ypath.YPath `yson:"output_table_paths,omitempty"`
+	JobIO            *JobIO        `yson:"job_io,omitempty"`
 }
 
 type ResourceLimits struct {
