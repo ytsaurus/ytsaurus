@@ -1233,9 +1233,12 @@ class Operation(object):
                 result[job_type] = progress[job_type]
         return "({0})".format(", ".join("{0}={1}".format(key, result[key]) for key in result))
 
-    def track(self, raise_on_failed=True, raise_on_aborted=True):
+    def track(self, raise_on_failed=True, raise_on_aborted=True, timeout=timedelta(minutes=10)):
+        now = datetime.now()
+        deadline = now + timeout
         counter = 0
-        while True:
+        operation_finished = False
+        while now < deadline:
             state = self.get_state(verbose=False)
             message = "Operation {0} {1}".format(self.id, state)
             if counter % 30 == 0 or state in ["failed", "aborted", "completed"]:
@@ -1250,9 +1253,14 @@ class Operation(object):
             if state == "aborted" and raise_on_aborted:
                 raise self.get_error()
             if state in ["failed", "aborted", "completed"]:
+                operation_finished = True
                 break
             counter += 1
             time.sleep(self._poll_frequency)
+            now = datetime.now()
+
+        if not operation_finished:
+            raise YtError("Operation {} has not finished in {} seconds".format(self.id, timeout.total_seconds()))
 
     def abort(self, wait_until_finished=False, **kwargs):
         abort_op(self.id, **kwargs)
