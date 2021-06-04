@@ -37,22 +37,6 @@ TValueIncrementingTimingGuard<TTimer>::~TValueIncrementingTimingGuard()
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TTimer>
-TCounterIncrementingTimingGuard<TTimer>::TCounterIncrementingTimingGuard(
-    const TLegacyProfiler& profiler,
-    TShardedMonotonicCounter* counter)
-    : Profiler_(profiler)
-    , Counter_(counter)
-{ }
-
-template <class TTimer>
-TCounterIncrementingTimingGuard<TTimer>::~TCounterIncrementingTimingGuard()
-{
-    Profiler_.Increment(*Counter_, Timer_.GetElapsedValue());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TTimer>
 TTimerGuard<TTimer>::TTimerGuard(TTimer* timer)
     : Timer_(timer)
 {

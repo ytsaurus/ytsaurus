@@ -282,7 +282,7 @@ void TSensorSet::LegacyReadSensors(const TString& name, TTagRegistry* tagRegistr
             sample.Path = fullName;
             sample.TagIds = tagRegistry->EncodeLegacy(counter->TagIds);
 
-            TProfileManager::Get()->Enqueue(sample, false);
+            TProfileManager::Get()->Enqueue(sample);
         }
     };
 

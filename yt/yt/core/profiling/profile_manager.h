@@ -80,7 +80,7 @@ public:
     virtual void Shutdown() override;
 
     //! Enqueues a new sample for processing.
-    void Enqueue(const TQueuedSample& sample, bool selfProfiling);
+    void Enqueue(const TQueuedSample& sample);
 
     //! Returns the invoker associated with the profiler thread.
     IInvokerPtr GetInvoker() const;
