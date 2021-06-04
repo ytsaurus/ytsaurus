@@ -195,6 +195,13 @@ private:
     void DoPrepareHeartbeatRequest(TCellTag cellTag, EObjectType jobObjectType, const TReqHeartbeatPtr& request);
     void DoProcessHeartbeatResponse(const TRspHeartbeatPtr& response, EObjectType jobObjectType);
 
+    TFuture<void> RequestJobSpecsAndStartJobs(
+        std::vector<NJobTrackerClient::NProto::TJobStartInfo> jobStartInfos);
+    void OnJobSpecsReceived(
+        std::vector<NJobTrackerClient::NProto::TJobStartInfo> startInfos,
+        const TAddressWithNetwork& addressWithNetwork,
+        const TJobSpecServiceProxy::TErrorOrRspGetJobSpecsPtr& rspOrError);
+
     //! Starts a new job.
     IJobPtr CreateJob(
         TJobId jobId,
@@ -1309,51 +1316,64 @@ void TJobController::TImpl::DoProcessHeartbeatResponse(
 
     std::vector<TJobSpec> specs(response->jobs_to_start_size());
 
-    auto startJob = [&] (const NJobTrackerClient::NProto::TJobStartInfo& startInfo, const TSharedRef& attachment) {
-        TJobSpec spec;
-        DeserializeProtoWithEnvelope(&spec, attachment);
+    YT_VERIFY(response->Attachments().empty() || std::ssize(response->Attachments()) == response->jobs_to_start_size());
 
-        auto jobId = FromProto<TJobId>(startInfo.job_id());
-        auto operationId = FromProto<TJobId>(startInfo.operation_id());
-        const auto& resourceLimits = startInfo.resource_limits();
-
-        CreateJob(jobId, operationId, resourceLimits, std::move(spec));
-    };
-
-    THashMap<TAddressWithNetwork, std::vector<NJobTrackerClient::NProto::TJobStartInfo>> groupedStartInfos;
-    size_t attachmentIndex = 0;
-    for (const auto& startInfo : response->jobs_to_start()) {
-        auto operationId = FromProto<TJobId>(startInfo.operation_id());
-        auto jobId = FromProto<TJobId>(startInfo.job_id());
-        if (attachmentIndex < response->Attachments().size()) {
-            // Start the job right away.
+    if (response->Attachments().empty()) {
+        std::vector<NJobTrackerClient::NProto::TJobStartInfo> jobWithoutSpecStartInfos;
+        for (const auto& startInfo : response->jobs_to_start()) {
+            jobWithoutSpecStartInfos.push_back(startInfo);
+        }
+        Y_UNUSED(WaitFor(RequestJobSpecsAndStartJobs(std::move(jobWithoutSpecStartInfos))));
+    } else {
+        int attachmentIndex = 0;
+        for (const auto& startInfo : response->jobs_to_start()) {
+            auto operationId = FromProto<TJobId>(startInfo.operation_id());
+            auto jobId = FromProto<TJobId>(startInfo.job_id());
             YT_LOG_DEBUG("Job spec is passed via attachments (OperationId: %v, JobId: %v)",
                 operationId,
                 jobId);
-            const auto& attachment = response->Attachments()[attachmentIndex];
-            startJob(startInfo, attachment);
-        } else {
-            auto addresses = FromProto<NNodeTrackerClient::TAddressMap>(startInfo.spec_service_addresses());
-            try {
-                auto addressWithNetwork = GetAddressWithNetworkOrThrow(addresses, Bootstrap_->GetLocalNetworks());
-                YT_LOG_DEBUG("Job spec will be fetched (OperationId: %v, JobId: %v, SpecServiceAddress: %v)",
-                    operationId,
-                    jobId,
-                    addressWithNetwork.Address);
-                groupedStartInfos[addressWithNetwork].push_back(startInfo);
-            } catch (const std::exception& ex) {
-                YT_VERIFY(SpecFetchFailedJobIds_.insert({jobId, operationId}).second);
-                YT_LOG_DEBUG(ex, "Job spec cannot be fetched since no suitable network exists (OperationId: %v, JobId: %v, SpecServiceAddresses: %v)",
-                    operationId,
-                    jobId,
-                    GetValues(addresses));
-            }
-        }
-        ++attachmentIndex;
-    }
 
-    if (groupedStartInfos.empty()) {
-        return;
+            const auto& attachment = response->Attachments()[attachmentIndex];
+
+            TJobSpec spec;
+            DeserializeProtoWithEnvelope(&spec, attachment);
+
+            const auto& resourceLimits = startInfo.resource_limits();
+
+            CreateJob(jobId, operationId, resourceLimits, std::move(spec));
+
+            ++attachmentIndex;
+        }
+    }
+}
+
+TFuture<void> TJobController::TImpl::RequestJobSpecsAndStartJobs(std::vector<NJobTrackerClient::NProto::TJobStartInfo> jobStartInfos)
+{
+    THashMap<TAddressWithNetwork, std::vector<NJobTrackerClient::NProto::TJobStartInfo>> groupedStartInfos;
+
+    for (auto& startInfo : jobStartInfos) {
+        auto operationId = FromProto<TJobId>(startInfo.operation_id());
+        auto jobId = FromProto<TJobId>(startInfo.job_id());
+        auto addresses = FromProto<NNodeTrackerClient::TAddressMap>(startInfo.spec_service_addresses());
+
+        std::optional<TAddressWithNetwork> addressWithNetwork;
+        try {
+            addressWithNetwork = GetAddressWithNetworkOrThrow(addresses, Bootstrap_->GetLocalNetworks());
+        } catch (const std::exception& ex) {
+            YT_VERIFY(SpecFetchFailedJobIds_.insert({jobId, operationId}).second);
+            YT_LOG_DEBUG(ex, "Job spec cannot be requested since no suitable network address exists (OperationId: %v, JobId: %v, SpecServiceAddresses: %v)",
+                operationId,
+                jobId,
+                GetValues(addresses));
+        }
+
+        if (addressWithNetwork) {
+            YT_LOG_DEBUG("Job spec will be requested (OperationId: %v, JobId: %v, SpecServiceAddress: %v)",
+                operationId,
+                jobId,
+                addressWithNetwork->Address);
+            groupedStartInfos[*addressWithNetwork].push_back(startInfo);
+        }
     }
 
     auto getSpecServiceChannel = [&] (const auto& addressWithNetwork) {
@@ -1363,10 +1383,7 @@ void TJobController::TImpl::DoProcessHeartbeatResponse(
     };
 
     std::vector<TFuture<void>> asyncResults;
-    for (const auto& pair : groupedStartInfos) {
-        const auto& addressWithNetwork = pair.first;
-        const auto& startInfos = pair.second;
-
+    for (auto& [addressWithNetwork, startInfos] : groupedStartInfos) {
         auto channel = getSpecServiceChannel(addressWithNetwork);
         TJobSpecServiceProxy jobSpecServiceProxy(channel);
         jobSpecServiceProxy.SetDefaultTimeout(Config_->GetJobSpecsTimeout);
@@ -1378,52 +1395,67 @@ void TJobController::TImpl::DoProcessHeartbeatResponse(
             *subrequest->mutable_job_id() = startInfo.job_id();
         }
 
-        YT_LOG_DEBUG("Getting job specs (SpecServiceAddress: %v, Count: %v)",
+        YT_LOG_DEBUG("Requesting job specs (SpecServiceAddress: %v, Count: %v)",
             addressWithNetwork,
             startInfos.size());
 
         auto asyncResult = jobSpecRequest->Invoke().Apply(
-            BIND([=, this_ = MakeStrong(this)] (const TJobSpecServiceProxy::TErrorOrRspGetJobSpecsPtr& rspOrError) {
-                if (!rspOrError.IsOK()) {
-                    YT_LOG_DEBUG(rspOrError, "Error getting job specs (SpecServiceAddress: %v)",
-                        addressWithNetwork);
-                    for (const auto& startInfo : startInfos) {
-                        auto jobId = FromProto<TJobId>(startInfo.job_id());
-                        auto operationId = FromProto<TOperationId>(startInfo.operation_id());
-                        YT_VERIFY(SpecFetchFailedJobIds_.insert({jobId, operationId}).second);
-                    }
-                    return;
-                }
-
-                YT_LOG_DEBUG("Job specs received (SpecServiceAddress: %v)",
-                    addressWithNetwork);
-
-                const auto& rsp = rspOrError.Value();
-                YT_VERIFY(rsp->responses_size() == std::ssize(startInfos));
-                for (size_t index = 0; index < startInfos.size(); ++index) {
-                    const auto& startInfo = startInfos[index];
-                    auto operationId = FromProto<TJobId>(startInfo.operation_id());
-                    auto jobId = FromProto<TJobId>(startInfo.job_id());
-
-                    const auto& subresponse = rsp->mutable_responses(index);
-                    auto error = FromProto<TError>(subresponse->error());
-                    if (!error.IsOK()) {
-                        YT_VERIFY(SpecFetchFailedJobIds_.insert({jobId, operationId}).second);
-                        YT_LOG_DEBUG(error, "No spec is available for job (OperationId: %v, JobId: %v)",
-                            operationId,
-                            jobId);
-                        continue;
-                    }
-
-                    const auto& attachment = rsp->Attachments()[index];
-                    startJob(startInfo, attachment);
-                }
-            })
+            BIND(
+                &TJobController::TImpl::OnJobSpecsReceived,
+                MakeStrong(this),
+                Passed(std::move(startInfos)),
+                addressWithNetwork)
             .AsyncVia(Bootstrap_->GetJobInvoker()));
         asyncResults.push_back(asyncResult);
     }
 
-    Y_UNUSED(WaitFor(AllSet(asyncResults)));
+    return AllSet(asyncResults).As<void>();
+}
+
+void TJobController::TImpl::OnJobSpecsReceived(
+    std::vector<NJobTrackerClient::NProto::TJobStartInfo> startInfos,
+    const TAddressWithNetwork& addressWithNetwork,
+    const TJobSpecServiceProxy::TErrorOrRspGetJobSpecsPtr& rspOrError)
+{
+    if (!rspOrError.IsOK()) {
+        YT_LOG_DEBUG(rspOrError, "Error getting job specs (SpecServiceAddress: %v)",
+            addressWithNetwork);
+        for (const auto& startInfo : startInfos) {
+            auto jobId = FromProto<TJobId>(startInfo.job_id());
+            auto operationId = FromProto<TOperationId>(startInfo.operation_id());
+            YT_VERIFY(SpecFetchFailedJobIds_.insert({jobId, operationId}).second);
+        }
+        return;
+    }
+
+    YT_LOG_DEBUG("Job specs received (SpecServiceAddress: %v)", addressWithNetwork);
+
+    const auto& rsp = rspOrError.Value();
+    YT_VERIFY(rsp->responses_size() == std::ssize(startInfos));
+    for (size_t index = 0; index < startInfos.size(); ++index) {
+        const auto& startInfo = startInfos[index];
+        auto operationId = FromProto<TJobId>(startInfo.operation_id());
+        auto jobId = FromProto<TJobId>(startInfo.job_id());
+
+        const auto& subresponse = rsp->mutable_responses(index);
+        auto error = FromProto<TError>(subresponse->error());
+        if (!error.IsOK()) {
+            YT_VERIFY(SpecFetchFailedJobIds_.insert({jobId, operationId}).second);
+            YT_LOG_DEBUG(error, "No spec is available for job (OperationId: %v, JobId: %v)",
+                operationId,
+                jobId);
+            continue;
+        }
+
+        const auto& attachment = rsp->Attachments()[index];
+
+        TJobSpec spec;
+        DeserializeProtoWithEnvelope(&spec, attachment);
+
+        const auto& resourceLimits = startInfo.resource_limits();
+
+        CreateJob(jobId, operationId, resourceLimits, std::move(spec));
+    }
 }
 
 TEnumIndexedVector<EJobOrigin, std::vector<IJobPtr>> TJobController::TImpl::GetJobsByOrigin() const

@@ -86,6 +86,7 @@ void TSchedulerConnector::SendHeartbeat()
 
     const auto& jobController = Bootstrap_->GetJobController();
     const auto& masterConnection = client->GetNativeConnection();
+    // TODO(ignat): it should not throw.
     WaitFor(jobController->PrepareHeartbeatRequest(
         masterConnection->GetPrimaryMasterCellTag(),
         EObjectType::SchedulerJob,
@@ -154,6 +155,7 @@ void TSchedulerConnector::SendHeartbeat()
         reporter->SetOperationArchiveVersion(rsp->operation_archive_version());
     }
 
+    // TODO(ignat): it should not throw.
     WaitFor(jobController->ProcessHeartbeatResponse(rsp, EObjectType::SchedulerJob))
         .ThrowOnError();
 }

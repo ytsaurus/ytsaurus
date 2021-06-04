@@ -519,6 +519,7 @@ private:
             req->SetTimeout(Config_->JobHeartbeatTimeout);
 
             const auto& jobController = Bootstrap_->GetJobController();
+            // TODO(ignat): it should not throw.
             WaitFor(jobController->PrepareHeartbeatRequest(cellTag, EObjectType::MasterJob, req))
                 .ThrowOnError();
 
@@ -533,6 +534,7 @@ private:
                     cellTag);
 
                 const auto& rsp = rspOrError.Value();
+                // TODO(ignat): it should not throw.
                 WaitFor(jobController->ProcessHeartbeatResponse(rsp, EObjectType::MasterJob))
                     .ThrowOnError();
             } else {
