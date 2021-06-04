@@ -1722,37 +1722,24 @@ private:
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Partitioning));
-
-            std::vector<TStoreId> storeIdsToRemove;
-            for (const auto& store : stores) {
-                auto storeId = store->GetId();
-                storeIdsToRemove.push_back(storeId);
-                auto* descriptor = actionRequest.add_stores_to_remove();
-                ToProto(descriptor->mutable_store_id(), storeId);
+            for (const auto& [writer, partitionIndex] : partitionWriters) {
+                AddStoresToAdd(&actionRequest, writer);
             }
-
-            std::vector<std::pair<TChunkId, int>> loggableChunkInfos;
+            AddStoresToAdd(&actionRequest, partitioningResult.HunkWriter);
+            AddStoresToRemove(&actionRequest, stores);
 
             std::vector<TStoreId> storeIdsToAdd;
             for (const auto& [writer, partitionIndex] : partitionWriters) {
                 for (const auto& chunkSpec : writer->GetWrittenChunkSpecs()) {
-                    auto chunkId = FromProto<TStoreId>(chunkSpec.chunk_id());
-                    storeIdsToAdd.push_back(chunkId);
-                    loggableChunkInfos.emplace_back(chunkId, partitionIndex);
-                    auto* descriptor = actionRequest.add_stores_to_add();
-                    descriptor->set_store_type(ToProto<int>(EStoreType::SortedChunk));
-                    *descriptor->mutable_store_id() = chunkSpec.chunk_id();
-                    *descriptor->mutable_chunk_meta() = chunkSpec.chunk_meta();
-                    FilterProtoExtensions(descriptor->mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
+                    storeIdsToAdd.push_back(FromProto<TStoreId>(chunkSpec.chunk_id()));
                 }
-
                 tabletSnapshot->PerformanceCounters->PartitioningDataWeightCount += writer->GetDataStatistics().data_weight();
             }
 
             YT_LOG_INFO("Eden partitioning completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v%v, WallTime: %v)",
                 partitioningResult.RowCount,
                 storeIdsToAdd,
-                storeIdsToRemove,
+                MakeFormattableView(stores, TStoreIdFormatter()),
                 MakeFormatterWrapper([&] (auto* builder) {
                     if (partitioningResult.HunkWriter->HasHunks()) {
                         builder->AppendFormat(", HunkChunkIdToAdd: %v",
@@ -1763,15 +1750,18 @@ private:
 
             structuredLogger->LogEvent("end_partitioning")
                 .Item("partition_id").Value(eden->GetId())
-                .Item("stores_to_add").DoListFor(
-                    loggableChunkInfos,
-                    [&] (auto fluent, const auto& chunkInfo) {
-                        fluent
-                            .Item().BeginMap()
-                                .Item("chunk_id").Value(chunkInfo.first)
-                                .Item("partition_index").Value(chunkInfo.second)
-                            .EndMap();
-                    })
+                .Item("stores_to_add").DoList([&] (auto fluent) {
+                    for (const auto& [writer, partitionIndex] : partitionWriters) {
+                        for (const auto& chunkSpec : writer->GetWrittenChunkSpecs()) {
+                            auto chunkId = FromProto<TStoreId>(chunkSpec.chunk_id());
+                            fluent
+                                .Item().BeginMap()
+                                    .Item("chunk_id").Value(chunkId)
+                                    .Item("partition_index").Value(partitionIndex)
+                                .EndMap();
+                        }
+                    }
+                })
                 .DoIf(partitioningResult.HunkWriter->HasHunks(), [&] (auto fluent) {
                     fluent
                         .Item("hunk_chunk_id_to_add").Value(partitioningResult.HunkWriter->GetChunkId());
@@ -1846,19 +1836,12 @@ private:
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             actionRequest.set_retained_timestamp(retainedTimestamp);
             actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Compaction));
-
-            std::vector<TStoreId> storeIdsToRemove;
-            for (const auto& store : stores) {
-                auto* descriptor = actionRequest.add_stores_to_remove();
-                auto storeId = store->GetId();
-                ToProto(descriptor->mutable_store_id(), storeId);
-                storeIdsToRemove.push_back(storeId);
-            }
+            AddStoresToRemove(&actionRequest, stores);
 
             YT_LOG_INFO("Partition stores discarded by TTL (UnmergedRowCount: %v, CompressedDataSize: %v, StoreIdsToRemove: %v)",
                 partition->GetUnmergedRowCount(),
                 partition->GetCompressedDataSize(),
-                storeIdsToRemove);
+                MakeFormattableView(stores, TStoreIdFormatter()));
 
             structuredLogger->LogEvent("discard_stores")
                 .Item("partition_id").Value(partition->GetId());
@@ -2075,39 +2058,21 @@ private:
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             actionRequest.set_retained_timestamp(retainedTimestamp);
             actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Compaction));
-
-            std::vector<TStoreId> storeIdsToRemove;
-            for (const auto& store : stores) {
-                auto storeId = store->GetId();
-                storeIdsToRemove.push_back(storeId);
-                auto* descriptor = actionRequest.add_stores_to_remove();
-                ToProto(descriptor->mutable_store_id(), storeId);
-            }
+            AddStoresToAdd(&actionRequest, compactionResult.StoreWriter);
+            AddStoresToAdd(&actionRequest, compactionResult.HunkWriter);
+            AddStoresToRemove(&actionRequest, stores);
 
             std::vector<TStoreId> storeIdsToAdd;
             for (const auto& chunkSpec : compactionResult.StoreWriter->GetWrittenChunkSpecs()) {
-                auto storeId = FromProto<TStoreId>(chunkSpec.chunk_id());
-                storeIdsToAdd.push_back(storeId);
-                auto* descriptor = actionRequest.add_stores_to_add();
-                descriptor->set_store_type(ToProto<int>(EStoreType::SortedChunk));
-                *descriptor->mutable_store_id() = chunkSpec.chunk_id();
-                *descriptor->mutable_chunk_meta() = chunkSpec.chunk_meta();
-                FilterProtoExtensions(descriptor->mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
+                storeIdsToAdd.push_back(FromProto<TStoreId>(chunkSpec.chunk_id()));
             }
-            if (compactionResult.HunkWriter->HasHunks()) {
-                auto* descriptor = actionRequest.add_hunk_chunks_to_add();
-                ToProto(descriptor->mutable_chunk_id(), compactionResult.HunkWriter->GetChunkId());
-                *descriptor->mutable_chunk_meta() = *compactionResult.HunkWriter->GetMeta();
-                FilterProtoExtensions(descriptor->mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
-            }
-
             tabletSnapshot->PerformanceCounters->CompactionDataWeightCount += compactionResult.StoreWriter->GetDataStatistics().data_weight();
 
             YT_LOG_INFO("Partition compaction completed (RowCount: %v, CompressedDataSize: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v%v, WallTime: %v)",
                 compactionResult.RowCount,
                 compactionResult.CompressedDataSize,
                 storeIdsToAdd,
-                storeIdsToRemove,
+                MakeFormattableView(stores, TStoreIdFormatter()),
                 MakeFormatterWrapper([&] (auto* builder) {
                     if (compactionResult.HunkWriter->HasHunks()) {
                         builder->AppendFormat(", HunkChunkIdToAdd: %v",
@@ -2335,6 +2300,45 @@ private:
         return std::min(
             config->MaxOverlappingStoreCount,
             config->CriticalOverlappingStoreCount.value_or(config->MaxOverlappingStoreCount));
+    }
+
+
+    static void AddStoresToRemove(
+        NTabletServer::NProto::TReqUpdateTabletStores* actionRequest,
+        const std::vector<TSortedChunkStorePtr>& stores)
+    {
+        for (const auto& store : stores) {
+            auto storeId = store->GetId();
+            auto* descriptor = actionRequest->add_stores_to_remove();
+            ToProto(descriptor->mutable_store_id(), storeId);
+        }
+    }
+
+    static void AddStoresToAdd(
+        NTabletServer::NProto::TReqUpdateTabletStores* actionRequest,
+        const IVersionedMultiChunkWriterPtr& writer)
+    {
+        for (const auto& chunkSpec : writer->GetWrittenChunkSpecs()) {
+            auto* descriptor = actionRequest->add_stores_to_add();
+            descriptor->set_store_type(ToProto<int>(EStoreType::SortedChunk));
+            *descriptor->mutable_store_id() = chunkSpec.chunk_id();
+            *descriptor->mutable_chunk_meta() = chunkSpec.chunk_meta();
+            FilterProtoExtensions(descriptor->mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
+        }
+    }
+
+    static void AddStoresToAdd(
+        NTabletServer::NProto::TReqUpdateTabletStores* actionRequest,
+        const IHunkChunkPayloadWriterPtr& writer)
+    {
+        if (!writer->HasHunks()) {
+            return;
+        }
+
+        auto* descriptor = actionRequest->add_hunk_chunks_to_add();
+        ToProto(descriptor->mutable_chunk_id(), writer->GetChunkId());
+        *descriptor->mutable_chunk_meta() = *writer->GetMeta();
+        FilterProtoExtensions(descriptor->mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
     }
 };
 
