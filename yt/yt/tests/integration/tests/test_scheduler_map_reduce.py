@@ -34,7 +34,7 @@ from yt_commands import (  # noqa
     make_random_string, raises_yt_error,
     Driver)
 
-from yt_type_helpers import struct_type, list_type, tuple_type
+from yt_type_helpers import struct_type, list_type, tuple_type, optional_type
 
 from yt_helpers import skip_if_no_descending
 
@@ -1627,6 +1627,118 @@ for l in sys.stdin:
 
     @authors("levysotsky")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_several_intermediate_schemas_trivial_mapper_type_casting(self, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
+        input_schemas = [
+            [
+                {"name": "a", "type_v3": "int64"},
+                {
+                    "name": "b",
+                    "type_v3": struct_type(
+                        [
+                            ("x", "int64"),
+                            ("y", optional_type("string")),
+                        ]
+                    ),
+                },
+            ],
+            [
+                {"name": "a", "type_v3": optional_type("int64")},
+                {
+                    "name": "b",
+                    "type_v3": struct_type(
+                        [
+                            ("x", "int64"),
+                        ]
+                    ),
+                },
+            ],
+            [
+                {"name": "a", "type_v3": "int32"},
+                {
+                    "name": "b",
+                    "type_v3": optional_type(struct_type(
+                        [
+                            ("x", optional_type("int64")),
+                            ("y", optional_type("string")),
+                            ("z", optional_type("int64")),
+                        ]
+                    )),
+                },
+            ],
+        ]
+
+        output_schema = [
+            {"name": "a", "type_v3": optional_type("int64")},
+            {
+                "name": "b",
+                "type_v3": optional_type(struct_type(
+                    [
+                        ("x", optional_type("int64")),
+                        ("y", optional_type("string")),
+                        ("z", optional_type("int64")),
+                    ]
+                )),
+            },
+        ]
+
+        input_paths = ["//tmp/in_{}".format(i) for i in range(len(input_schemas))]
+        for path, schema in zip(input_paths, input_schemas):
+            create("table", path, attributes={"schema": schema})
+
+        create("table", "//tmp/out", attributes={"schema": output_schema})
+
+        row_count = 50
+        all_rows = [[] for _ in input_schemas]
+        rows0, rows1, rows2 = all_rows
+        for i in range(row_count):
+            rows0.append({
+                "a": i,
+                "b": {"x": i ** 2, "y": str(i) * 3 if i % 2 == 0 else None},
+            })
+            rows1.append({
+                "a": row_count + i,
+                "b": {"x": i ** 2},
+            })
+            rows2.append({
+                "a": 2 * row_count + i,
+                "b": {"x": i ** 2, "y": str(i) * 3 if i % 2 == 0 else None, "z": None}
+            })
+        for i, rows in enumerate(all_rows):
+            write_table("//tmp/in_{}".format(i), rows)
+
+        create("file", "//tmp/reducer.py")
+        write_file("//tmp/reducer.py", self.DROP_TABLE_INDEX_REDUCER)
+
+        map_reduce(
+            in_=input_paths,
+            out="//tmp/out",
+            reducer_file=["//tmp/reducer.py"],
+            reducer_command="python reducer.py",
+            sort_by=[
+                {"name": "a", "sort_order": sort_order},
+                {"name": "b", "sort_order": sort_order},
+            ],
+            spec={
+                "reduce_job_io": {
+                    "control_attributes": {
+                        "enable_table_index": True,
+                    },
+                },
+                "reducer": {"format": "json"},
+                "max_failed_job_count": 1,
+            },
+        )
+
+        result_rows = list(read_table("//tmp/out"))
+        assert len(result_rows) == row_count * len(input_schemas)
+        assert sorted([r["a"] for r in result_rows]) == list(range(row_count * len(input_schemas)))
+
+    @authors("levysotsky")
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_several_intermediate_schemas(self, sort_order):
         if sort_order == "descending":
             skip_if_no_descending(self.Env)
@@ -2419,7 +2531,7 @@ for l in sys.stdin:
             )
 
         with pytest.raises(YtError):
-            # Key column types must not differ.
+            # Key column types must be castable.
             run(
                 ["a", "b"],
                 [
@@ -2437,7 +2549,65 @@ for l in sys.stdin:
                     [{"a": 12, "b": "NotBool"}],
                 ],
             )
+        
+        with pytest.raises(YtError):
+            # Key column types must be castable.
+            run(
+                ["a", "b"],
+                [
+                    [
+                        {"name": "a", "type_v3": "int64"},
+                        {"name": "b", "type_v3": "int64"},
+                    ],
+                    [
+                        {"name": "a", "type_v3": "uint64"},
+                        {"name": "b", "type_v3": "int64"},
+                    ],
+                ],
+                [
+                    [{"a": -10, "b": -20}],
+                    [{"a": 12, "b": -20}],
+                ],
+            )
 
+        # Key column types don't have to be identical.
+        run(
+            ["a", "b"],
+            [
+                [
+                    {"name": "a", "type_v3": "int64"},
+                    {"name": "b", "type_v3": optional_type("bool")},
+                ],
+                [
+                    {"name": "a", "type_v3": optional_type("int64")},
+                    {"name": "b", "type_v3": "bool"},
+                ],
+            ],
+            [
+                [{"a": 10, "b": None}],
+                [{"a": None, "b": True}],
+            ],
+        )
+
+        # Key column types don't have to be identical.
+        run(
+            ["a", "b"],
+            [
+                [
+                    {"name": "a", "type_v3": "int32"},
+                    {"name": "b", "type_v3": optional_type("string")},
+                ],
+                [
+                    {"name": "a", "type_v3": optional_type("int64")},
+                    {"name": "b", "type_v3": "utf8"},
+                ],
+            ],
+            [
+                [{"a": 10, "b": None}],
+                [{"a": None, "b": b"\xd0\xa3\xd1\x85"}],
+            ],
+        )
+        
         # Non-key columns can differ.
         run(
             ["a"],

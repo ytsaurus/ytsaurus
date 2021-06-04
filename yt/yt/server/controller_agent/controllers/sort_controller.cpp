@@ -38,6 +38,8 @@
 #include <yt/yt/ytlib/table_client/samples_fetcher.h>
 #include <yt/yt/ytlib/table_client/schemaless_block_writer.h>
 
+#include <yt/yt/client/complex_types/check_type_compatibility.h>
+
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
@@ -57,6 +59,7 @@ using namespace NYson;
 using namespace NYPath;
 using namespace NChunkPools;
 using namespace NTableClient;
+using namespace NComplexTypes;
 using namespace NLogging;
 using namespace NObjectClient;
 using namespace NCypressClient;
@@ -3945,6 +3948,46 @@ private:
         return true;
     }
 
+    TLogicalTypePtr InferColumnType(const std::vector<TInputTablePtr>& tables, TStringBuf keyColumn)
+    {
+        auto chooseMostGenericOrThrow = [&] (const auto& lhs, const auto& rhs) {
+            auto [compatibilityRhs, errorRhs] = CheckTypeCompatibility(lhs, rhs);
+            if (compatibilityRhs == ESchemaCompatibility::FullyCompatible) {
+                return rhs;
+            }
+            auto [compatibilityLhs, errorLhs] = CheckTypeCompatibility(rhs, lhs);
+            if (compatibilityLhs == ESchemaCompatibility::FullyCompatible) {
+                return lhs;
+            }
+            THROW_ERROR_EXCEPTION("Type mismatch for key column %Qv in input schemas", keyColumn)
+                << errorLhs
+                << TErrorAttribute("lhs_type", lhs)
+                << TErrorAttribute("rhs_type", rhs);
+        };
+
+        TLogicalTypePtr mostGenericType;
+        bool missingInSomeSchema = false;
+        for (const auto& table : tables) {
+            auto column = table->Schema->FindColumn(keyColumn);
+            if (!column) {
+                missingInSomeSchema = true;
+                continue;
+            }
+            if (!mostGenericType) {
+                mostGenericType = column->LogicalType();
+            } else {
+                mostGenericType = chooseMostGenericOrThrow(mostGenericType, column->LogicalType());
+            }
+        }
+        if (!mostGenericType) {
+            return SimpleLogicalType(ESimpleLogicalValueType::Any);
+        }
+        if (missingInSomeSchema && !mostGenericType->IsNullable()) {
+            return OptionalLogicalType(std::move(mostGenericType));
+        }
+        return mostGenericType;
+    }
+
     virtual void InitIntermediateSchemas() override
     {
         if (!Spec->HasSchemafulIntermediateStreams()) {
@@ -3957,36 +4000,10 @@ private:
             auto columns = schema->Columns();
             for (const auto& sortColumn : sortColumns) {
                 if (!schema->FindColumn(sortColumn.Name)) {
-                    columns.push_back(TColumnSchema(sortColumn.Name, SimpleLogicalType(ESimpleLogicalValueType::Null)));
+                    columns.push_back(TColumnSchema(sortColumn.Name, SimpleLogicalType(ESimpleLogicalValueType::Any)));
                 }
             }
             return New<TTableSchema>(std::move(columns), schema->GetStrict())->ToSorted(sortColumns);
-        };
-
-        auto inferColumnType = [] (const std::vector<TInputTablePtr>& tables, TStringBuf keyColumn) -> TLogicalTypePtr {
-            TLogicalTypePtr type;
-            bool missingInSomeSchema = false;
-            for (const auto& table : tables) {
-                auto column = table->Schema->FindColumn(keyColumn);
-                if (!column) {
-                    missingInSomeSchema = true;
-                    continue;
-                }
-                if (!type) {
-                    type = column->LogicalType();
-                } else if (*type != *column->LogicalType()) {
-                    THROW_ERROR_EXCEPTION("Type mismatch for key column %Qv in input schemas", keyColumn)
-                        << TErrorAttribute("lhs_type", type)
-                        << TErrorAttribute("rhs_type", column->LogicalType());
-                }
-            }
-            if (!type) {
-                return SimpleLogicalType(ESimpleLogicalValueType::Null);
-            }
-            if (missingInSomeSchema && !type->IsNullable()) {
-                return OptionalLogicalType(std::move(type));
-            }
-            return type;
         };
 
         std::vector<TColumnSchema> chunkSchemaColumns;
@@ -4010,7 +4027,7 @@ private:
                 chunkSchemaColumns = IntermediateStreamSchemas_.front()->Columns();
             } else {
                 for (const auto& sortColumn : Spec->SortBy) {
-                    auto type = inferColumnType(InputTables_, sortColumn.Name);
+                    auto type = InferColumnType(InputTables_, sortColumn.Name);
                     chunkSchemaColumns.emplace_back(sortColumn.Name, std::move(type), sortColumn.SortOrder);
                 }
             }
