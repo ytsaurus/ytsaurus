@@ -952,8 +952,7 @@ class TestArtifactCacheBypass(YTEnvSetup):
         bypassed_size = get_statistics(statistics, "exec_agent.artifacts.cache_bypassed_artifacts_size.$.completed.map.sum")
         assert bypassed_size == 18
 
-        total_delta = sum(counter.get_delta() for counter in counters)
-        assert total_delta == 18
+        wait(lambda: sum(counter.get_delta() for counter in counters) == 18)
 
         assert read_table("//tmp/t_output") == [{"hello": "world"}]
 
