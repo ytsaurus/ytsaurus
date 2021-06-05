@@ -27,7 +27,7 @@ struct TCpuSample
 class TCpuProfilerOptions
 {
 public:
-    int SamplingFrequency = 1;
+    int SamplingFrequency = 100;
     TDuration DequeuePeriod = TDuration::MilliSeconds(100);
     int MaxBacktraceSize = 256;
     int RingBufferLogSize = 16; // 32KiB
@@ -57,7 +57,7 @@ private:
     static std::atomic<bool> HandlingSigprof_;
     static void SigProfHandler(int sig, siginfo_t* info, void* ucontext);
 
-    std::atomic<bool> Stop_{false};
+    std::atomic<bool> Stop_{true};
     std::atomic<i64> QueueOverflows_{0};
     std::atomic<i64> SignalOverruns_{0};
 

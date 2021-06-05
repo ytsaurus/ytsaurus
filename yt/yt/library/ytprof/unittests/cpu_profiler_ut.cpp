@@ -177,6 +177,14 @@ TEST(TCpuProfiler, VDSO)
     }, false);
 }
 
+TEST(TCpuProfiler, MultipleProfilers)
+{
+    TCpuProfiler profiler, secondProfiler;
+
+    profiler.Start();
+    EXPECT_THROW(secondProfiler.Start(), std::exception);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
