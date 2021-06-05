@@ -2225,13 +2225,6 @@ def get_tablet_leader_address(tablet_id):
     return leader_peer["address"]
 
 
-def get_tablet_follower_addresses(tablet_id):
-    cell_id = get("//sys/tablets/" + tablet_id + "/@cell_id")
-    peers = get("//sys/tablet_cells/" + cell_id + "/@peers")
-    follower_peers = list(x for x in peers if x["state"] == "following")
-    return [peer["address"] for peer in follower_peers]
-
-
 def sync_alter_table_replica_mode(replica_id, mode, driver=None):
     alter_table_replica(replica_id, mode=mode, driver=driver)
 

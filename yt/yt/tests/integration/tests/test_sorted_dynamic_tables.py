@@ -1,27 +1,77 @@
-import pytest
-import __builtin__
-
 from test_dynamic_tables import DynamicTablesBase
 
-from yt_helpers import Profiler
-
 from yt_env_setup import wait, parametrize_external, Restarter, NODES_SERVICE
-from yt_commands import *  # noqa
+
+from yt_commands import (  # noqa
+    authors, print_debug, wait, wait_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
+    events_on_fs, reset_events_on_fs,
+    create, ls, get, set, copy, move, remove, link, exists,
+    create_account, create_network_project, create_tmpdir, create_user, create_group,
+    create_pool, create_pool_tree, remove_pool_tree,
+    create_data_center, create_rack, create_table,
+    create_tablet_cell_bundle,
+    make_ace, check_permission, add_member,
+    make_batch_request, execute_batch, get_batch_error,
+    start_transaction, abort_transaction, commit_transaction, lock,
+    insert_rows, select_rows, lookup_rows, delete_rows, trim_rows, lock_rows, alter_table,
+    read_file, write_file, read_table, write_table, write_local_file,
+    map, reduce, map_reduce, join_reduce, merge, vanilla, sort, erase, remote_copy,
+    run_test_vanilla, run_sleeping_vanilla,
+    abort_job, list_jobs, get_job, abandon_job, interrupt_job,
+    get_job_fail_context, get_job_input, get_job_stderr, get_job_spec,
+    dump_job_context, poll_job_shell,
+    abort_op, complete_op, suspend_op, resume_op,
+    get_operation, list_operations, clean_operations,
+    get_operation_cypress_path, scheduler_orchid_pool_path,
+    scheduler_orchid_default_pool_tree_path, scheduler_orchid_operation_path,
+    scheduler_orchid_default_pool_tree_config_path, scheduler_orchid_path,
+    scheduler_orchid_node_path, scheduler_orchid_pool_tree_config_path, scheduler_orchid_pool_tree_path,
+    mount_table, remount_table, reshard_table, generate_timestamp,
+    wait_for_tablet_state, wait_for_cells,
+    sync_create_cells, sync_mount_table, sync_unmount_table,
+    sync_freeze_table, sync_unfreeze_table, sync_reshard_table,
+    sync_flush_table, sync_compact_table,
+    get_first_chunk_id, get_singular_chunk_id, get_chunk_replication_factor, multicell_sleep,
+    update_nodes_dynamic_config, update_controller_agent_config,
+    update_op_parameters, enable_op_detailed_logs,
+    set_node_banned, set_banned_flag, set_account_disk_space_limit,
+    check_all_stderrs,
+    create_test_tables, create_dynamic_table, PrepareTables,
+    get_statistics, get_tablet_leader_address,
+    make_random_string, raises_yt_error,
+    build_snapshot,
+    get_driver, Driver, execute_command,
+    AsyncLastCommittedTimestamp, MinTimestamp)
+
 import yt_error_codes
 
-from yt.yson import YsonEntity, loads
-
-from copy import deepcopy
-from time import sleep
-from random import randint, choice, sample
-from string import ascii_lowercase
-
-import random
+from yt_type_helpers import make_schema
+from yt_helpers import Profiler
 
 from yt.environment.helpers import assert_items_equal
+from yt.common import YtError, YtResponseError
+import yt.yson as yson
+
+import pytest
+
+from copy import deepcopy
+from random import randint, choice, sample
+from string import ascii_lowercase
+import random
+import time
+import __builtin__
 
 ##################################################################
 
+
+def get_tablet_follower_addresses(tablet_id):
+    cell_id = get("//sys/tablets/" + tablet_id + "/@cell_id")
+    peers = get("//sys/tablet_cells/" + cell_id + "/@peers")
+    follower_peers = list(x for x in peers if x["state"] == "following")
+    return [peer["address"] for peer in follower_peers]
+
+
+##################################################################
 
 class TestSortedDynamicTablesBase(DynamicTablesBase):
     DELTA_NODE_CONFIG = {
@@ -76,6 +126,19 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
         create_dynamic_table(path, **attributes)
 
     def _wait_for_in_memory_stores_preload(self, table, first_tablet_index=None, last_tablet_index=None):
+        def all_preloaded(address):
+            orchid = self._find_tablet_orchid(address, tablet_id)
+            if not orchid:
+                return False
+            for store in orchid["eden"]["stores"].itervalues():
+                if store["store_state"] == "persistent" and store["preload_state"] != "complete":
+                    return False
+            for partition in orchid["partitions"]:
+                for store in partition["stores"].itervalues():
+                    if store["preload_state"] != "complete":
+                        return False
+            return True
+
         tablets = get(table + "/@tablets")
         if last_tablet_index is not None:
             tablets = tablets[:last_tablet_index + 1]
@@ -84,18 +147,6 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
 
         for tablet in tablets:
             tablet_id = tablet["tablet_id"]
-            def all_preloaded(address):
-                orchid = self._find_tablet_orchid(address, tablet_id)
-                if not orchid:
-                    return False
-                for store in orchid["eden"]["stores"].itervalues():
-                    if store["store_state"] == "persistent" and store["preload_state"] != "complete":
-                        return False
-                for partition in orchid["partitions"]:
-                    for store in partition["stores"].itervalues():
-                        if store["preload_state"] != "complete":
-                            return False
-                return True
             for address in get_tablet_follower_addresses(tablet_id) + [get_tablet_leader_address(tablet_id)]:
                 wait(lambda: all_preloaded(address))
 
@@ -122,12 +173,12 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
                 sync_unmount_table(path)
                 sync_reshard_table(path, pivots)
                 resharded = True
-            except:
+            except YtError:
                 pass
             sync_mount_table(path)
             if resharded:
                 break
-            sleep(5)
+            time.sleep(5)
         assert resharded
 
     def _create_partitions(self, partition_count, do_overlap=False):
@@ -489,7 +540,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         required_columns = ["v", "i"]
 
         def get_checksum(row):
-            row_data = " ".join(yson.dumps(row.get(col, yson.YsonEntity())) for col in (required_columns + optional_columns))
+            row_data = " ".join(yson.dumps(row.get(col, yson.YsonEntity()))
+                                for col in (required_columns + optional_columns))
             return row_data
 
         def check_row(row, check):
@@ -531,7 +583,10 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
             for i in xrange(1, 10):
                 keys = [{"k": decorate_key(k)} for k in sample(range(1, count), 10)]
-                lookup_value_columns = ["k", "md5"] + required_columns + sample(optional_columns, randint(2, len(optional_columns)))
+                lookup_value_columns = \
+                    ["k", "md5"] +\
+                    required_columns +\
+                    sample(optional_columns, randint(2, len(optional_columns)))
                 result = lookup_rows(
                     "//tmp/t",
                     keys,
@@ -569,7 +624,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         address = get_tablet_leader_address(tablet_id)
 
         def _check_preload_state(state):
-            sleep(1.0)
+            time.sleep(1.0)
             tablet_data = self._find_tablet_orchid(address, tablet_id)
             assert len(tablet_data["eden"]["stores"]) == 1
             for partition in tablet_data["partitions"]:
@@ -625,13 +680,13 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         # Check cell statistics
         tablet_statistics = get("//tmp/t/@tablets/0/statistics")
+
         def _check():
             cell_statistics = get("//sys/tablet_cells/{}/@total_statistics".format(cell_id))
-            return (
-                cell_statistics["preload_completed_store_count"] ==
-                    tablet_statistics["preload_completed_store_count"] and
+            return \
+                cell_statistics["preload_completed_store_count"] == \
+                tablet_statistics["preload_completed_store_count"] and \
                 cell_statistics["preload_pending_store_count"] == 0
-            )
         wait(_check)
 
     @authors("ifsmirnov")
@@ -714,7 +769,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         # check that stores are rotated on-demand
         insert_rows("//tmp/t", _rows(10, 20))
         # ensure slot gets scanned
-        sleep(3)
+        time.sleep(3)
         insert_rows("//tmp/t", _rows(20, 30))
         assert lookup_rows("//tmp/t", _keys(10, 30)) == _rows(10, 30)
 
@@ -787,7 +842,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         rows2 = [{"key": i, "key2": 0, "value": str(i)} for i in xrange(100)]
         insert_rows("//tmp/t", rows2)
 
-        assert lookup_rows("//tmp/t", [{"key": 77}]) == [{"key": 77, "key2": YsonEntity(), "value": "77"}]
+        assert lookup_rows("//tmp/t", [{"key": 77}]) == [{"key": 77, "key2": yson.YsonEntity(), "value": "77"}]
         assert lookup_rows("//tmp/t", [{"key": 77, "key2": 1}]) == []
         assert lookup_rows("//tmp/t", [{"key": 77, "key2": 0}]) == [{"key": 77, "key2": 0, "value": "77"}]
         assert select_rows("sum(1) as s from [//tmp/t] where is_null(key2) group by 0") == [{"s": 100}]
@@ -919,11 +974,11 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         sync_create_cells(1)
 
-        key_range=100
-        num_writes_per_iteration=50
-        num_deletes_per_iteration=10
-        num_write_iterations=3
-        num_lookup_iterations=30
+        key_range = 100
+        num_writes_per_iteration = 50
+        num_deletes_per_iteration = 10
+        num_write_iterations = 3
+        num_lookup_iterations = 30
 
         def random_row():
             return {"key": randint(1, key_range), "value": "".join(choice(ascii_lowercase) for i in range(5))}
@@ -955,7 +1010,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
             sync_flush_table("//tmp/t")
             num_pivots = randint(0, 5)
-            pivots = [[]] + [[i] for i in sorted(sample(range(1, key_range+1), num_pivots))]
+            pivots = [[]] + [[i] for i in sorted(sample(range(1, key_range + 1), num_pivots))]
             sync_unmount_table("//tmp/t")
             sync_reshard_table("//tmp/t", pivots)
             sync_mount_table("//tmp/t")
@@ -973,7 +1028,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
             # Lookup ranges.
             ranges_count = randint(1, 5)
-            keys = sorted(sample(range(1, key_range+1), ranges_count * 2))
+            keys = sorted(sample(range(1, key_range + 1), ranges_count * 2))
             query = "* from [{}] where " + " or ".join(
                     "({} <= key and key < {})".format(l, r)
                     for l, r
@@ -1055,7 +1110,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         keys = [{"key": 1}]
         insert_rows("//tmp/t", rows)
 
-        sleep(1.0)
+        time.sleep(1.0)
         for delay in xrange(0, 10):
             assert lookup_rows(
                 "//tmp/t",
@@ -1091,12 +1146,11 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         rows = [{"key": 1, "value": "2"}]
         keys = [{"key": 1}, {"key": 2}]
-        expect_rows = rows + [None]
         insert_rows("//tmp/t", rows)
         actual = lookup_rows("//tmp/t", keys, keep_missing_rows=True)
         assert len(actual) == 2
         assert_items_equal(rows[0], actual[0])
-        assert actual[1] == YsonEntity()
+        assert actual[1] == yson.YsonEntity()
 
     @authors("savrus", "levysotsky")
     def test_chunk_statistics(self):
@@ -1237,8 +1291,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             "int64": yson.YsonUint64(3)
         }
 
-        yson_with_type_conversion = loads("<enable_type_conversion=%true>yson")
-        yson_without_type_conversion = loads("<enable_integral_type_conversion=%false>yson")
+        yson_with_type_conversion = yson.loads("<enable_type_conversion=%true>yson")
+        yson_without_type_conversion = yson.loads("<enable_integral_type_conversion=%false>yson")
 
         with pytest.raises(YtError):
             insert_rows("//tmp/t", [row1], input_format=yson_without_type_conversion)
@@ -1266,10 +1320,10 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         t1 = generate_timestamp()
         assert t1 > t12
         # Wait for timestamp provider at the node.
-        sleep(1)
+        time.sleep(1)
         sync_mount_table("//tmp/t")
         # Wait for master to receive node statistics.
-        sleep(1)
+        time.sleep(1)
         t2 = get("//tmp/t/@unflushed_timestamp")
         assert t2 > t1
         assert get("//tmp/t/@retained_timestamp") == MinTimestamp
@@ -1284,7 +1338,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert t2 < t4
         assert t3 < t4
 
-        sleep(1)
+        time.sleep(1)
         t11 = get("//tmp/t/@unflushed_timestamp")
         assert t4 < t11
 
@@ -1292,10 +1346,10 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         lock("//tmp/t", mode="snapshot", tx=tx)
         t5 = get("//tmp/t/@retained_timestamp", tx=tx)
         t6 = get("//tmp/t/@unflushed_timestamp", tx=tx)
-        sleep(1)
+        time.sleep(1)
         sync_flush_table("//tmp/t")
         sync_compact_table("//tmp/t")
-        sleep(1)
+        time.sleep(1)
         t7 = get("//tmp/t/@retained_timestamp")
         t8 = get("//tmp/t/@unflushed_timestamp")
         t9 = get("//tmp/t/@retained_timestamp", tx=tx)
@@ -1307,7 +1361,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         abort_transaction(tx)
 
         sync_freeze_table("//tmp/t")
-        sleep(1)
+        time.sleep(1)
         t14 = get("//tmp/t/@unflushed_timestamp")
         assert t14 > t8
 
@@ -1318,7 +1372,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         set("//tmp/t/@min_data_ttl", 0)
 
         ts = generate_timestamp()
-        sleep(1)
+        time.sleep(1)
         sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", [{"key": 0}])
         sync_unmount_table("//tmp/t")
@@ -1335,7 +1389,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         set("//tmp/t/@compression_codec", "none")
         sync_mount_table("//tmp/t")
 
-        insert_rows("//tmp/t", [{"key": i, "value": "A"*1024} for i in xrange(10)])
+        insert_rows("//tmp/t", [{"key": i, "value": "A" * 1024} for i in xrange(10)])
         sync_unmount_table("//tmp/t")
 
         chunk_id = get_singular_chunk_id("//tmp/t")
@@ -1472,36 +1526,37 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
     @authors("ifsmirnov")
     def test_backing_stores(self):
-        sync_create_cells(1)
-        self._create_simple_table(
-            "//tmp/t",
-            backing_store_retention_time=10000,
-            max_dynamic_store_row_count=5,
-            dynamic_store_auto_flush_period=YsonEntity())
-        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-        sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", [{"key": i} for i in range(5)])
-        wait(lambda: len(get("//tmp/t/@chunk_ids")) == 1)
-
-        address = get_tablet_leader_address(tablet_id)
-        def _has_backing_store():
+        def _has_backing_store(address, tablet_id):
             orchid = self._find_tablet_orchid(address, tablet_id)
             for store in orchid["partitions"][0]["stores"].values():
                 if "backing_store" in store:
                     return True
             return False
 
-        assert _has_backing_store()
-        wait(lambda: not _has_backing_store())
+        sync_create_cells(1)
+        self._create_simple_table(
+            "//tmp/t",
+            backing_store_retention_time=10000,
+            max_dynamic_store_row_count=5,
+            dynamic_store_auto_flush_period=yson.YsonEntity())
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i} for i in range(5)])
+        wait(lambda: len(get("//tmp/t/@chunk_ids")) == 1)
+
+        address = get_tablet_leader_address(tablet_id)
+
+        assert _has_backing_store(address, tablet_id)
+        wait(lambda: not _has_backing_store(address, tablet_id))
 
         set("//tmp/t/@backing_store_retention_time", 1000000000)
         remount_table("//tmp/t")
         insert_rows("//tmp/t", [{"key": i} for i in range(5)])
         wait(lambda: len(get("//tmp/t/@chunk_ids")) == 2)
 
-        assert _has_backing_store()
+        assert _has_backing_store(address, tablet_id)
         set("//sys/tablet_cell_bundles/default/@dynamic_options/max_backing_store_memory_ratio", 0.00000001)
-        wait(lambda: not _has_backing_store())
+        wait(lambda: not _has_backing_store(address, tablet_id))
 
     @authors("ifsmirnov")
     def test_forced_chunk_view_compaction_revision(self):
@@ -1575,12 +1630,12 @@ class TestSortedDynamicTablesSpecialColumns(TestSortedDynamicTablesBase):
             insert_rows("//tmp/t", [dict(key_req=1, key_opt=1, value_opt="other_data")], update=True)
 
         assert lookup_rows("//tmp/t", [dict(key_req=1, key_opt=1)]) == \
-                [dict(key_req=1, key_opt=1, value_req="data", value_opt="data")]
+            [dict(key_req=1, key_opt=1, value_req="data", value_opt="data")]
 
         insert_rows("//tmp/t", [dict(key_req=1, key_opt=1, value_req="updated")], update=True)
 
         assert lookup_rows("//tmp/t", [dict(key_req=1, key_opt=1)]) == \
-                [dict(key_req=1, key_opt=1, value_req="updated", value_opt="data")]
+            [dict(key_req=1, key_opt=1, value_req="updated", value_opt="data")]
 
         with pytest.raises(YtError):
             delete_rows("//tmp/t", [dict(key_opt=1)])
@@ -1725,7 +1780,7 @@ class TestSortedDynamicTablesSpecialColumns(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         insert_rows("//tmp/t", [{"key2": 1, "value1": "2"}])
-        expected = [{"key1": 1, "key2": 1, "value1": "2", "value2": YsonEntity()}]
+        expected = [{"key1": 1, "key2": 1, "value1": "2", "value2": yson.YsonEntity()}]
         actual = lookup_rows("//tmp/t", [{"key2": 1}])
         assert_items_equal(actual, expected)
 
@@ -1868,10 +1923,10 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
         sync_flush_table(path)
 
         def is_preloaded(statistics):
-            return (
-                statistics["preload_completed_store_count"] > 0 and
-                statistics["preload_pending_store_count"] == 0 and
-                statistics["preload_failed_store_count"] == 0)
+            return \
+                statistics["preload_completed_store_count"] > 0 and \
+                statistics["preload_pending_store_count"] == 0 and \
+                statistics["preload_failed_store_count"] == 0
 
         def wait_preload(table, tablet):
             wait(lambda: is_preloaded(get("{}/@tablets/{}/statistics".format(table, tablet))))
@@ -1953,7 +2008,10 @@ class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
                                   chunk_writer={"upload_replication_factor": 10})
         sync_mount_table("//tmp/t1")
 
-        self._create_simple_table("//tmp/t2", tablet_cell_bundle="b2", dynamic_store_auto_flush_period=YsonEntity())
+        self._create_simple_table(
+            "//tmp/t2",
+            tablet_cell_bundle="b2",
+            dynamic_store_auto_flush_period=yson.YsonEntity())
         sync_mount_table("//tmp/t2")
 
         _get_row = ({"key": i, "value": str(i) * 100} for i in xrange(10**9))
@@ -2000,6 +2058,10 @@ class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
     @pytest.mark.parametrize("ratio", [0.3, 0.6])
     @pytest.mark.parametrize("locality", ["bundle", "glocal"])
     def test_forced_rotation_memory_ratio(self, ratio, locality):
+        def _wait_func():
+            config = get(config_manager + "/applied_config")
+            return config.get("tablet_node", {}).get("store_flusher", {}).get("forced_rotation_memory_ratio", None) == ratio
+
         create_tablet_cell_bundle("b", attributes={"options": self.BUNDLE_OPTIONS})
         if locality == "bundle":
             set("//sys/tablet_cell_bundles/b/@dynamic_options/forced_rotation_memory_ratio", ratio)
@@ -2009,14 +2071,11 @@ class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
             }})
             node = ls("//sys/cluster_nodes")[0]
             config_manager = "//sys/cluster_nodes/{}/orchid/dynamic_config_manager".format(node)
-            def _wait_func():
-                config = get(config_manager + "/applied_config")
-                return config.get("tablet_node", {}).get("store_flusher", {}).get("forced_rotation_memory_ratio", None) == ratio
             wait(_wait_func)
 
         cell_id = sync_create_cells(1, tablet_cell_bundle="b")[0]
 
-        self._create_simple_table("//tmp/t", tablet_cell_bundle="b", dynamic_store_auto_flush_period=YsonEntity())
+        self._create_simple_table("//tmp/t", tablet_cell_bundle="b", dynamic_store_auto_flush_period=yson.YsonEntity())
         sync_mount_table("//tmp/t")
 
         _get_row = ({"key": i, "value": str(i) * 100} for i in xrange(10**9))
@@ -2031,7 +2090,6 @@ class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
 
         for store_id in ls(orchid_root + "/eden/stores"):
             if get(orchid_root + "/eden/stores/{}/store_state".format(store_id)) == "active_dynamic":
-                original_store_id = store_id
                 break
         else:
             assert False
@@ -2048,7 +2106,7 @@ class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
             insert_rows("//tmp/t", [_get_row.next() for i in range(100)])
 
             # Wait for slot scan.
-            sleep(0.2)
+            time.sleep(0.2)
 
             store = get(orchid_root + "/eden/stores/{}".format(store_id))
             if store["store_state"] == "passive_dynamic":
