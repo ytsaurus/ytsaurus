@@ -47,8 +47,6 @@ import csv
 from copy import deepcopy
 from collections import defaultdict
 
-EPS = 1e-4
-
 ##################################################################
 # TODO: get rid of copy-paste: functions below are from scheduler simulator prepare script
 

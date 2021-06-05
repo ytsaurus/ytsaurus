@@ -4260,8 +4260,6 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
 
     # NB(eshcherbin): this test works only if new config effectively disables historic usage aggregation
     def _test_equal_fair_share_after_disabling_config_change_base(self, new_config):
-        EPS = 1e-5
-
         self._init_children()
 
         op1_tasks_spec = {"task": {"job_count": self.NUM_SLOTS_PER_NODE, "command": "sleep 100;"}}
@@ -4297,7 +4295,7 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
         op2 = vanilla(spec={"pool": "child2", "tasks": op2_tasks_spec}, track=False)
 
         wait(lambda: dominant_fair_share_sensor.get() is not None, iter=300, sleep_backoff=0.1)
-        wait(lambda: (dominant_fair_share_sensor.get() - 0.5) < EPS, iter=300, sleep_backoff=0.1)
+        wait(lambda: are_almost_equal(dominant_fair_share_sensor.get(), 0.5), iter=300, sleep_backoff=0.1)
 
         op1.complete()
         op2.complete()

@@ -1,17 +1,11 @@
 from yt_commands import get, set, ls, create_pool_tree, print_debug
 from yt.test_helpers import wait
 
-from yt.packages import requests
-import decimal
-import struct
 import time
 from datetime import datetime
 from dateutil import parser
 from dateutil.tz import tzlocal
 import pytest
-import tarfile
-import os
-from io import BytesIO
 from collections import defaultdict
 
 MAX_DECIMAL_PRECISION = 35
@@ -278,7 +272,8 @@ class Metric(object):
 #
 # Example:
 # > profiler = Profiler.at_scheduler(fixed_tags={"tree": "default"})
-# > total_time_completed_parent_counter = profiler.counter("scheduler/pools/metrics/total_time_completed", {"pool": "parent"})
+# > total_time_completed_parent_counter =
+# >     profiler.counter("scheduler/pools/metrics/total_time_completed", {"pool": "parent"})
 # > ...
 # > wait(lambda: total_time_completed_parent_counter.get_delta() > 0)
 #
@@ -344,7 +339,8 @@ class Profiler(object):
         if value is not None:
             value = postprocessor(value)
         if verbose:
-            print_debug("{} of sensor \"{}\" with tags {}: {}".format(verbose_value_name.capitalize(), name, tags, value))
+            print_debug("{} of sensor \"{}\" with tags {}: {}"
+                        .format(verbose_value_name.capitalize(), name, tags, value))
 
         return value
 
@@ -452,7 +448,12 @@ def get_job_count_profiling(tree="default", driver=None):
             continue
         job_count["state"][projection["tags"]["state"]] = int(projection["value"])
 
-    job_count["state"]["completed"] = int(profiler.get("scheduler/jobs/completed_job_count", tags={}, default=0, verbose=False, driver=driver))
+    job_count["state"]["completed"] = int(
+        profiler.get("scheduler/jobs/completed_job_count",
+                     tags={},
+                     default=0,
+                     verbose=False,
+                     driver=driver))
 
     for projection in profiler.get_all("scheduler/jobs/aborted_job_count", tags={}, verbose=False, driver=driver):
         if "job_type" in projection["tags"]:
