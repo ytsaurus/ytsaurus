@@ -47,6 +47,7 @@ void TCpuProfiler::Start()
 {
     StartTimer();
 
+    Stop_ = false;
     BackgroundThread_ = std::thread([this] {
         DequeueSamples();
     });
@@ -71,7 +72,10 @@ void TCpuProfiler::SigProfHandler(int /* sig */, siginfo_t* info, void* ucontext
 
 void TCpuProfiler::StartTimer()
 {
-    ActiveProfiler_ = this;
+    TCpuProfiler* expected = nullptr;
+    if (!ActiveProfiler_.compare_exchange_strong(expected, this)) {
+        throw yexception() << "another instance of CPU profiler is running";
+    }
 
     struct sigaction sig;
     sig.sa_flags = SA_SIGINFO | SA_RESTART;
