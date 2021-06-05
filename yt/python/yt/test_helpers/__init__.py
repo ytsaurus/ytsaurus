@@ -75,6 +75,8 @@ def assert_items_equal(actual_seq, expected_seq):
     assert not unexpected, "Unexpected, but present:\n    %s" % repr(unexpected)
 
 def are_almost_equal(lhs, rhs, decimal_places=4):
+    if lhs is None or rhs is None:
+        return False
     eps = 10**(-decimal_places)
     return abs(lhs - rhs) < eps
 
