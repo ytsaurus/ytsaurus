@@ -27,7 +27,7 @@ from yt.wrapper.table_commands import copy_table, move_table, _get_format_from_t
 from yt.wrapper.table_helpers import _remove_locks
 from yt.wrapper.cypress_commands import remove_with_empty_dirs
 
-from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, get_version, MB, GB, \
+from yt.wrapper.common import flatten, first_not_none, get_value, get_version, MB, GB, \
                               chunk_iter_stream, date_string_to_timestamp, update, parse_bool, \
                               get_binary_std_stream, chunk_iter_rows
 import yt.wrapper.config as config
@@ -44,6 +44,14 @@ from argparse import ArgumentParser, RawTextHelpFormatter, REMAINDER, Action
 from copy import deepcopy
 from operator import attrgetter
 from itertools import groupby
+
+def bool_to_string(bool_value):
+    if bool_value not in [False, True]:
+        raise YtError("Incorrect bool value '{0}'".format(bool_value))
+    if bool_value:
+        return "true"
+    else:
+        return "false"
 
 def removed(list, value):
     result = deepcopy(list)

@@ -3,7 +3,7 @@
 from yt.testlib import authors, yatest_common
 
 from yt.wrapper.errors import YtHttpResponseError
-from yt.wrapper.common import (update, unlist, parse_bool, dict_depth, bool_to_string,
+from yt.wrapper.common import (update, unlist, parse_bool, dict_depth,
                                is_prefix, prefix, first_not_none, merge_blobs_by_size,
                                datetime_to_string, date_string_to_timestamp, chunk_iter_list,
                                escape_c)
@@ -55,18 +55,6 @@ def test_dict_depth():
     assert dict_depth({"x": {"y": 1}, "z": {"t": {"v": 3}}}) == 3
     assert dict_depth(0) == 0
 
-@authors("asaitgalin")
-def test_bool_to_string():
-    assert bool_to_string(True) == "true"
-    assert bool_to_string(False) == "false"
-    assert bool_to_string("true") == "true"
-    assert bool_to_string("false") == "false"
-    assert bool_to_string(1) == "true"
-    assert bool_to_string(0) == "false"
-    with pytest.raises(yt.YtError):
-        bool_to_string("word")
-    with pytest.raises(yt.YtError):
-        bool_to_string(42)
 
 @authors("asaitgalin")
 def test_is_prefix():
