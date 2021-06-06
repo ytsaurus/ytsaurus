@@ -419,3 +419,51 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         ])
         assert get("#{}/@hunk_count".format(hunk_chunk_id2)) == 1
         assert get("#{}/@total_hunk_length".format(hunk_chunk_id2)) == 26
+
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("in_memory_mode", ["compressed", "uncompressed"])
+    def test_hunks_not_counted_in_tablet_static(self, in_memory_mode):
+        sync_create_cells(1)
+        self._create_table()
+
+        set("//tmp/t/@in_memory_mode", in_memory_mode)
+        sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
+        assert len(store_chunk_ids) == 1
+        store_chunk_id = store_chunk_ids[0]
+        hunk_chunk_ids = self._get_hunk_chunk_ids("//tmp/t")
+        assert len(hunk_chunk_ids) == 1
+        hunk_chunk_id = hunk_chunk_ids[0]
+
+        compressed_size = get("#{}/@compressed_data_size".format(store_chunk_id))
+        uncompressed_size = get("#{}/@uncompressed_data_size".format(store_chunk_id))
+        hunk_compressed_size = get("#{}/@compressed_data_size".format(hunk_chunk_id))
+        hunk_uncompressed_size = get("#{}/@uncompressed_data_size".format(hunk_chunk_id))
+
+        def _validate_tablet_statistics():
+            tablet_statistics = get("//tmp/t/@tablet_statistics")
+            return (
+                tablet_statistics["compressed_data_size"] == compressed_size + hunk_compressed_size and
+                tablet_statistics["uncompressed_data_size"] == uncompressed_size + hunk_uncompressed_size and
+                tablet_statistics["hunk_compressed_data_size"] == hunk_compressed_size and
+                tablet_statistics["hunk_uncompressed_data_size"] == hunk_uncompressed_size)
+        wait(_validate_tablet_statistics)
+
+        memory_size = compressed_size if in_memory_mode == "compressed" else uncompressed_size
+
+        assert get("//tmp/t/@tablet_statistics/memory_size") == memory_size
+        def _check_account_resource_usage(expected_memory_usage):
+            return (
+                get("//sys/accounts/tmp/@resource_usage/tablet_static_memory") ==
+                    expected_memory_usage and
+                get("//sys/tablet_cell_bundles/default/@resource_usage/tablet_static_memory") ==
+                    expected_memory_usage)
+
+        wait(lambda: _check_account_resource_usage(memory_size))
+
+        sync_unmount_table("//tmp/t")
+        wait(lambda: _check_account_resource_usage(0))

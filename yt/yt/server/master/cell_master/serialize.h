@@ -143,6 +143,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChaosCells)                                                   (1617))  // savrus
     ((MakeAbcFolderIdBuiltin)                                       (1618))  // cookiedoth
     ((NoAggregateForHunkColumns)                                    (1619))  // babenko
+    ((HunksNotInTabletStatic)                                       (1620))  // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

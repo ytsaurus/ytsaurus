@@ -35,6 +35,8 @@ struct TTabletCellStatisticsBase
     i64 UnmergedRowCount = 0;
     i64 UncompressedDataSize = 0;
     i64 CompressedDataSize = 0;
+    i64 HunkUncompressedDataSize = 0;
+    i64 HunkCompressedDataSize = 0;
     i64 MemorySize = 0;
     i64 DynamicMemoryPoolSize = 0;
     NChunkClient::TMediumMap<i64> DiskSpacePerMedium = NChunkClient::TMediumMap<i64>();
@@ -312,6 +314,9 @@ public:
     i64 GetTabletStaticMemorySize(NTabletClient::EInMemoryMode mode) const;
     i64 GetTabletStaticMemorySize() const;
     i64 GetTabletMasterMemoryUsage() const;
+
+    i64 GetHunkUncompressedDataSize() const;
+    i64 GetHunkCompressedDataSize() const;
 
     int GetTabletErrorCount() const;
     void SetTabletErrorCount(int tabletErrorCount);
