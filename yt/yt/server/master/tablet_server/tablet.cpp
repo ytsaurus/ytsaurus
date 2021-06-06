@@ -42,6 +42,11 @@ void TTabletCellStatisticsBase::Persist(const NCellMaster::TPersistenceContext& 
     Persist(context, UnmergedRowCount);
     Persist(context, UncompressedDataSize);
     Persist(context, CompressedDataSize);
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::HunksNotInTabletStatic) {
+        Persist(context, HunkUncompressedDataSize);
+        Persist(context, HunkCompressedDataSize);
+    }
     Persist(context, MemorySize);
     Persist(context, DiskSpacePerMedium);
     Persist(context, ChunkCount);
@@ -152,6 +157,8 @@ TTabletCellStatisticsBase& operator += (TTabletCellStatisticsBase& lhs, const TT
     lhs.UnmergedRowCount += rhs.UnmergedRowCount;
     lhs.UncompressedDataSize += rhs.UncompressedDataSize;
     lhs.CompressedDataSize += rhs.CompressedDataSize;
+    lhs.HunkUncompressedDataSize += rhs.HunkUncompressedDataSize;
+    lhs.HunkCompressedDataSize += rhs.HunkCompressedDataSize;
     lhs.MemorySize += rhs.MemorySize;
     for (const auto& [mediumIndex, diskSpace] : rhs.DiskSpacePerMedium) {
         lhs.DiskSpacePerMedium[mediumIndex] += diskSpace;
@@ -185,6 +192,8 @@ TTabletCellStatisticsBase& operator -= (TTabletCellStatisticsBase& lhs, const TT
     lhs.UnmergedRowCount -= rhs.UnmergedRowCount;
     lhs.UncompressedDataSize -= rhs.UncompressedDataSize;
     lhs.CompressedDataSize -= rhs.CompressedDataSize;
+    lhs.HunkUncompressedDataSize -= rhs.HunkUncompressedDataSize;
+    lhs.HunkCompressedDataSize -= rhs.HunkCompressedDataSize;
     lhs.MemorySize -= rhs.MemorySize;
     for (const auto& [mediumIndex, diskSpace] : rhs.DiskSpacePerMedium) {
         lhs.DiskSpacePerMedium[mediumIndex] -= diskSpace;
@@ -219,6 +228,8 @@ bool operator == (const TTabletCellStatisticsBase& lhs, const TTabletCellStatist
         lhs.UnmergedRowCount == rhs.UnmergedRowCount &&
         lhs.UncompressedDataSize == rhs.UncompressedDataSize &&
         lhs.CompressedDataSize == rhs.CompressedDataSize &&
+        lhs.HunkUncompressedDataSize == rhs.HunkUncompressedDataSize &&
+        lhs.HunkCompressedDataSize == rhs.HunkCompressedDataSize &&
         lhs.MemorySize == rhs.MemorySize &&
         lhs.DynamicMemoryPoolSize == rhs.DynamicMemoryPoolSize &&
         lhs.ChunkCount == rhs.ChunkCount &&
@@ -320,6 +331,8 @@ void ToProto(NProto::TTabletCellStatistics* protoStatistics, const TTabletCellSt
     protoStatistics->set_unmerged_row_count(statistics.UnmergedRowCount);
     protoStatistics->set_uncompressed_data_size(statistics.UncompressedDataSize);
     protoStatistics->set_compressed_data_size(statistics.CompressedDataSize);
+    protoStatistics->set_hunk_uncompressed_data_size(statistics.HunkUncompressedDataSize);
+    protoStatistics->set_hunk_compressed_data_size(statistics.HunkCompressedDataSize);
     protoStatistics->set_memory_size(statistics.MemorySize);
     protoStatistics->set_chunk_count(statistics.ChunkCount);
     protoStatistics->set_partition_count(statistics.PartitionCount);
@@ -352,6 +365,8 @@ void FromProto(TTabletCellStatistics* statistics, const NProto::TTabletCellStati
     statistics->UnmergedRowCount = protoStatistics.unmerged_row_count();
     statistics->UncompressedDataSize = protoStatistics.uncompressed_data_size();
     statistics->CompressedDataSize = protoStatistics.compressed_data_size();
+    statistics->HunkUncompressedDataSize = protoStatistics.hunk_uncompressed_data_size();
+    statistics->HunkCompressedDataSize = protoStatistics.hunk_compressed_data_size();
     statistics->MemorySize = protoStatistics.memory_size();
     statistics->ChunkCount = protoStatistics.chunk_count();
     statistics->PartitionCount = protoStatistics.partition_count();
@@ -417,6 +432,8 @@ void TSerializableTabletCellStatisticsBase::InitParameters()
     RegisterParameter("unmerged_row_count", UnmergedRowCount);
     RegisterParameter("uncompressed_data_size", UncompressedDataSize);
     RegisterParameter("compressed_data_size", CompressedDataSize);
+    RegisterParameter("hunk_uncompressed_data_size", HunkUncompressedDataSize);
+    RegisterParameter("hunk_compressed_data_size", HunkCompressedDataSize);
     RegisterParameter("memory_size", MemorySize);
     RegisterParameter("disk_space", DiskSpace_);
     RegisterParameter("disk_space_per_medium", DiskSpacePerMediumMap_);
@@ -655,9 +672,9 @@ i64 TTablet::GetTabletStaticMemorySize(EInMemoryMode mode) const
     const auto& statistics = GetChunkList()->Statistics();
     switch (mode) {
         case EInMemoryMode::Compressed:
-            return statistics.CompressedDataSize;
+            return statistics.CompressedDataSize - GetHunkCompressedDataSize();
         case EInMemoryMode::Uncompressed:
-            return statistics.UncompressedDataSize;
+            return statistics.UncompressedDataSize - GetHunkUncompressedDataSize();
         case EInMemoryMode::None:
             return 0;
         default:
@@ -673,6 +690,18 @@ i64 TTablet::GetTabletStaticMemorySize() const
 i64 TTablet::GetTabletMasterMemoryUsage() const
 {
     return sizeof(TTablet) + GetDataWeight(GetPivotKey()) + EdenStoreIds_.size() * sizeof(TStoreId);
+}
+
+i64 TTablet::GetHunkUncompressedDataSize() const
+{
+    const auto* hunkChunkList = GetChunkList()->GetHunkRootChild();
+    return hunkChunkList ? hunkChunkList->Statistics().UncompressedDataSize : 0;
+}
+
+i64 TTablet::GetHunkCompressedDataSize() const
+{
+    const auto* hunkChunkList = GetChunkList()->GetHunkRootChild();
+    return hunkChunkList ? hunkChunkList->Statistics().CompressedDataSize : 0;
 }
 
 ETabletState TTablet::GetState() const

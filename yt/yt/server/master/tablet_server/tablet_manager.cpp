@@ -774,19 +774,9 @@ public:
         tabletStatistics.UnmergedRowCount = treeStatistics.RowCount;
         tabletStatistics.UncompressedDataSize = treeStatistics.UncompressedDataSize;
         tabletStatistics.CompressedDataSize = treeStatistics.CompressedDataSize;
-        switch (tablet->GetInMemoryMode()) {
-            case EInMemoryMode::Compressed:
-                tabletStatistics.MemorySize = tabletStatistics.CompressedDataSize;
-                break;
-            case EInMemoryMode::Uncompressed:
-                tabletStatistics.MemorySize = tabletStatistics.UncompressedDataSize;
-                break;
-            case EInMemoryMode::None:
-                tabletStatistics.MemorySize = 0;
-                break;
-            default:
-                YT_ABORT();
-        }
+        tabletStatistics.HunkUncompressedDataSize = tablet->GetHunkUncompressedDataSize();
+        tabletStatistics.HunkCompressedDataSize = tablet->GetHunkCompressedDataSize();
+        tabletStatistics.MemorySize = tablet->GetTabletStaticMemorySize();
         for (const auto& entry : table->Replication()) {
             tabletStatistics.DiskSpacePerMedium[entry.GetMediumIndex()] = CalculateDiskSpaceUsage(
                 entry.Policy().GetReplicationFactor(),
@@ -2402,6 +2392,7 @@ private:
     bool EnableUpdateStatisticsOnHeartbeat_ = true;
     bool RecomputeAggregateTabletStatistics_ = false;
     bool RecomputeBundleResourceUsage_ = false;
+    bool RecomputeHunkResourceUsage_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -4107,6 +4098,9 @@ private:
 
         // COMPAT(ifsmirnov)
         RecomputeBundleResourceUsage_ = (context.GetVersion() < EMasterReign::BundleQuotas);
+
+        // COMPAT(ifsmirnov)
+        RecomputeHunkResourceUsage_ = (context.GetVersion() < EMasterReign::HunksNotInTabletStatic);
     }
 
     void RecomputeBundleResourceUsage()
@@ -4134,6 +4128,52 @@ private:
             if (auto* bundle = table->GetTabletCellBundle()) {
                 bundle->UpdateResourceUsage(table->GetTabletResourceUsage());
             }
+        }
+    }
+
+    void RecomputeHunkResourceUsage()
+    {
+        for (const auto& [id, tablet] : Tablets()) {
+            auto* table = tablet->GetTable();
+            if (!table) {
+                continue;
+            }
+
+            if (!tablet->GetChunkList()->GetHunkRootChild()) {
+                continue;
+            }
+
+            YT_LOG_DEBUG("Recomputing hunk resource usage (TabletId: %v, TableId: %v, "
+                "HunkUncompressedDataSize: %v, HunkCompressedDataSize: %v)",
+                tablet->GetId(),
+                table->GetId(),
+                tablet->GetHunkUncompressedDataSize(),
+                tablet->GetHunkCompressedDataSize());
+
+            i64 memoryDelta = 0;
+            switch (tablet->GetInMemoryMode()) {
+                case EInMemoryMode::Uncompressed:
+                    memoryDelta = -tablet->GetHunkUncompressedDataSize();
+                    break;
+                case EInMemoryMode::Compressed:
+                    memoryDelta = -tablet->GetHunkCompressedDataSize();
+                    break;
+                case EInMemoryMode::None:
+                    memoryDelta = 0;
+                    break;
+                default:
+                    YT_ABORT();
+            }
+
+            TTabletStatistics statisticsDelta;
+            statisticsDelta.HunkUncompressedDataSize = tablet->GetHunkUncompressedDataSize();
+            statisticsDelta.HunkCompressedDataSize = tablet->GetHunkCompressedDataSize();
+            statisticsDelta.MemorySize = memoryDelta;
+            table->AccountTabletStatisticsDelta(statisticsDelta);
+
+            auto resourcesDelta = TTabletResources{}
+                .SetTabletStaticMemory(memoryDelta);
+            UpdateResourceUsage(table, resourcesDelta);
         }
     }
 
@@ -4183,6 +4223,11 @@ private:
         // COMPAT(ifsmirnov)
         if (RecomputeBundleResourceUsage_) {
             RecomputeBundleResourceUsage();
+        }
+
+        // COMPAT(ifsmirnov)
+        if (RecomputeHunkResourceUsage_) {
+            RecomputeHunkResourceUsage();
         }
 
         for (auto [actionId, action] : TabletActionMap_) {

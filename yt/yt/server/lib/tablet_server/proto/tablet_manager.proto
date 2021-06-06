@@ -181,6 +181,8 @@ message TTabletCellStatistics
     required int64 unmerged_row_count = 1;
     required int64 uncompressed_data_size = 2;
     required int64 compressed_data_size = 3;
+    optional int64 hunk_uncompressed_data_size = 18;
+    optional int64 hunk_compressed_data_size = 19;
     required int64 memory_size = 4;
     required int64 dynamic_memory_pool_size = 5;
     repeated int64 disk_space_per_medium_old = 6;
