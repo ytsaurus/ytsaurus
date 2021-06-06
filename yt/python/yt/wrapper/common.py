@@ -115,20 +115,6 @@ def parse_bool(word):
     else:
         raise YtError("Cannot parse boolean from %s" % word)
 
-def bool_to_string(bool_value):
-    """Convert Python bool value to "true" or "false" string
-
-    Raises :class:`YtError <yt.common.YtError>` if value is incorrect.
-    """
-    if bool_value in ["false", "true"]:
-        return bool_value
-    if bool_value not in [False, True]:
-        raise YtError("Incorrect bool value '{0}'".format(bool_value))
-    if bool_value:
-        return "true"
-    else:
-        return "false"
-
 def is_prefix(list_a, list_b):
     if len(list_a) > len(list_b):
         return False

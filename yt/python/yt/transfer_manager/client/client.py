@@ -1,4 +1,4 @@
-from yt.wrapper.common import get_value, require, generate_uuid, bool_to_string
+from yt.wrapper.common import get_value, require, generate_uuid
 from yt.wrapper.http_helpers import get_retriable_errors, get_token, configure_ip
 try:
     from yt.wrapper.common import hide_auth_headers
@@ -121,7 +121,7 @@ class HTTPRequestRetrier(Retrier):
         params = get_value(params, {})
         if is_mutating:
             params["mutation_id"] = generate_uuid(random.SystemRandom())
-            params["retry"] = bool_to_string(False)
+            params["retry"] = False
 
         self.params = params
 
@@ -137,9 +137,9 @@ class HTTPRequestRetrier(Retrier):
         if self.is_mutating:
             if isinstance(exception, TransferManagerUnavailableError):
                 self.params["mutation_id"] = generate_uuid(random.SystemRandom())
-                self.params["retry"] = bool_to_string(False)
+                self.params["retry"] = False
             else:
-                self.params["retry"] = bool_to_string(True)
+                self.params["retry"] = True
 
     def action(self):
         update_inplace(self.headers, {"X-TM-Parameters": json.dumps(self.params)})
