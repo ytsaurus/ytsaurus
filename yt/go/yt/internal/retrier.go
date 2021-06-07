@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"errors"
+	"io"
 	"net"
 	"time"
 
@@ -36,10 +37,6 @@ func isNetError(err error) bool {
 }
 
 func (r *Retrier) shouldRetry(isRead bool, err error) bool {
-	if isRead && isNetError(err) {
-		return true
-	}
-
 	var opErr *net.OpError
 	if errors.As(err, &opErr) && opErr.Op == "dial" {
 		var lookupErr *net.DNSError
@@ -51,6 +48,10 @@ func (r *Retrier) shouldRetry(isRead bool, err error) bool {
 			return false
 		}
 
+		return true
+	}
+
+	if isRead && isNetError(err) {
 		return true
 	}
 
@@ -102,7 +103,70 @@ func (r *Retrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker)
 		}
 
 		if r.Log != nil {
-			ctxlog.Warn(ctx, r.Log.Logger(), "retrying read request",
+			ctxlog.Warn(ctx, r.Log.Logger(), "retrying light request",
+				log.String("call_id", call.CallID.String()),
+				log.Duration("backoff", b),
+				log.Error(err))
+		}
+
+		select {
+		case <-time.After(b):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+}
+
+func (r *Retrier) Read(ctx context.Context, call *Call, invoke ReadInvoker) (rc io.ReadCloser, err error) {
+	for {
+		rc, err = invoke(ctx, call)
+		if err == nil || call.DisableRetries {
+			return
+		}
+
+		if !r.shouldRetry(true, err) {
+			return
+		}
+
+		b := call.Backoff.NextBackOff()
+		if b == backoff.Stop {
+			return
+		}
+
+		if r.Log != nil {
+			ctxlog.Warn(ctx, r.Log.Logger(), "retrying heavy read request",
+				log.String("call_id", call.CallID.String()),
+				log.Duration("backoff", b),
+				log.Error(err))
+		}
+
+		select {
+		case <-time.After(b):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+}
+
+func (r *Retrier) Write(ctx context.Context, call *Call, invoke WriteInvoker) (w io.WriteCloser, err error) {
+	for {
+		w, err = invoke(ctx, call)
+		if err == nil || call.DisableRetries {
+			return
+		}
+
+		// We never actually sent any data to server. In is safe to retry this request like any other read.
+		if !r.shouldRetry(true, err) {
+			return
+		}
+
+		b := call.Backoff.NextBackOff()
+		if b == backoff.Stop {
+			return
+		}
+
+		if r.Log != nil {
+			ctxlog.Warn(ctx, r.Log.Logger(), "retrying heavy write request",
 				log.String("call_id", call.CallID.String()),
 				log.Duration("backoff", b),
 				log.Error(err))

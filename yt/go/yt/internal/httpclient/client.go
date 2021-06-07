@@ -115,6 +115,10 @@ func (c *httpClient) listHeavyProxies() ([]string, error) {
 }
 
 func (c *httpClient) pickHeavyProxy(ctx context.Context) (string, error) {
+	if proxy, ok := GetHeavyProxyOverride(ctx); ok {
+		return proxy, nil
+	}
+
 	if c.clusterURL.DisableDiscovery {
 		return c.clusterURL.Address, nil
 	}
@@ -303,11 +307,31 @@ func (c *httpClient) do(ctx context.Context, call *internal.Call) (res *internal
 	return
 }
 
+type pipeWrapper struct {
+	*io.PipeReader
+	readStarted chan struct{}
+}
+
+func (w *pipeWrapper) Read(buf []byte) (int, error) {
+	if w.readStarted != nil {
+		close(w.readStarted)
+		w.readStarted = nil
+	}
+
+	return w.PipeReader.Read(buf)
+}
+
+func (w *pipeWrapper) Close() error {
+	return nil
+}
+
 func (c *httpClient) doWrite(ctx context.Context, call *internal.Call) (w io.WriteCloser, err error) {
 	pr, pw := io.Pipe()
-	errChan := make(chan error, 1)
 
-	req, err := c.newHTTPRequest(ctx, call, ioutil.NopCloser(pr))
+	errChan := make(chan error, 1)
+	readStarted := make(chan struct{})
+
+	req, err := c.newHTTPRequest(ctx, call, &pipeWrapper{pr, readStarted})
 	if err != nil {
 		return nil, err
 	}
@@ -326,13 +350,12 @@ func (c *httpClient) doWrite(ctx context.Context, call *internal.Call) (w io.Wri
 
 	go func() {
 		defer close(errChan)
-
-		rsp, err := c.roundTrip(req.WithContext(ctx))
 		closeErr := func(err error) {
 			errChan <- err
 			_ = pr.CloseWithError(err)
 		}
 
+		rsp, err := c.roundTrip(req.WithContext(ctx))
 		if err != nil {
 			closeErr(err)
 			return
@@ -358,6 +381,12 @@ func (c *httpClient) doWrite(ctx context.Context, call *internal.Call) (w io.Wri
 
 		closeErr(unexpectedStatusCode(rsp))
 	}()
+
+	select {
+	case err = <-errChan:
+		return
+	case <-readStarted:
+	}
 
 	hw := &httpWriter{w: pw, c: pw, errChan: errChan}
 	w = hw
@@ -618,11 +647,13 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 	client.Encoder.InvokeRead = client.Encoder.InvokeRead.
 		Wrap(proxyBouncer.Read).
 		Wrap(client.requestLogger.Read).
+		Wrap(client.readRetrier.Read).
 		Wrap(errorWrapper.Read)
 
 	client.Encoder.InvokeWrite = client.Encoder.InvokeWrite.
 		Wrap(proxyBouncer.Write).
 		Wrap(client.requestLogger.Write).
+		Wrap(client.readRetrier.Write).
 		Wrap(errorWrapper.Write)
 
 	if token := c.GetToken(); token != "" {
