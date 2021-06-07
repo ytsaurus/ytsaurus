@@ -47,7 +47,12 @@ static Y_NO_INLINE void StaticFunction()
 void RunUnderProfiler(const TString& name, std::function<void()> work, bool checkSamples = true)
 {
     TCpuProfilerOptions options;
+
     options.SamplingFrequency = 100000;
+
+#ifdef YTPROF_DEBUG_BUILD
+    options.SamplingFrequency = 100;
+#endif
 
     TCpuProfiler profiler(options);
 
