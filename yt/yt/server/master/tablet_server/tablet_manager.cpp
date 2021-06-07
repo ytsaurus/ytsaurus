@@ -1138,6 +1138,13 @@ public:
             }
         }
 
+        if (resourceUsageBefore != table->GetTabletResourceUsage()) {
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                "Tablet resource usage changed during table remount "
+                "(TableId: %v, UsageBefore: %v, UsageAfter: %v)",
+                resourceUsageBefore,
+                table->GetTabletResourceUsage());
+        }
         UpdateResourceUsage(table, table->GetTabletResourceUsage() - resourceUsageBefore);
     }
 
@@ -3264,7 +3271,7 @@ private:
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        const auto resourceUsageBefore = table->GetTabletResourceUsage();
+        TTabletResources resourceUsageDelta;
         const auto& allTablets = table->Tablets();
         for (auto [tablet, cell] : assignment) {
             YT_VERIFY(tablet->GetState() == ETabletState::Unmounted);
@@ -3297,6 +3304,7 @@ private:
 
             tablet->SetState(freeze ? ETabletState::FrozenMounting : ETabletState::Mounting);
             tablet->SetInMemoryMode(inMemoryMode);
+            resourceUsageDelta.TabletStaticMemory += tablet->GetTabletStaticMemorySize();
 
             cell->GossipStatistics().Local() += GetTabletStatistics(tablet);
             table->AccountTabletStatistics(GetTabletStatistics(tablet));
@@ -3428,7 +3436,7 @@ private:
             }
         }
 
-        UpdateResourceUsage(table, table->GetTabletResourceUsage() - resourceUsageBefore);
+        UpdateResourceUsage(table, resourceUsageDelta);
     }
 
     void DoFreezeTablet(TTablet* tablet)
@@ -4693,19 +4701,12 @@ private:
         auto* table = tablet->GetTable();
         auto* cell = tablet->GetCell();
 
-        // FIXME(savrus) Remove this.
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet mounted (TableId: %v, TabletId: %v, MountRevision: %llx, CellId: %v, Frozen: %v)",
             table->GetId(),
             tablet->GetId(),
             tablet->GetMountRevision(),
             cell->GetId(),
             frozen);
-
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet static memory usage (TableId: %v, TabletMemorySize: %v, TabletStaticUsage: %v, ExternalTabletResourceUsage: %v)",
-            table->GetId(),
-            tablet->GetTabletStaticMemorySize(),
-            table->GetTabletResourceUsage().TabletStaticMemory,
-            table->GetExternalTabletResourceUsage().TabletStaticMemory);
 
         tablet->SetState(frozen ? ETabletState::Frozen : ETabletState::Mounted);
 
@@ -5013,7 +5014,8 @@ private:
         table->DiscountTabletStatistics(tabletStatistics);
         CheckIfFullyUnmounted(cell);
 
-        auto resourceUsageBefore = table->GetTabletResourceUsage();
+        auto resourceUsageDelta = TTabletResources()
+            .SetTabletStaticMemory(tablet->GetTabletStaticMemorySize());
 
         tablet->NodeStatistics().Clear();
         tablet->PerformanceCounters() = TTabletPerformanceCounters();
@@ -5023,7 +5025,7 @@ private:
         tablet->SetStoresUpdatePreparedTransaction(nullptr);
         tablet->SetMountRevision(NullRevision);
 
-        UpdateResourceUsage(table, table->GetTabletResourceUsage() - resourceUsageBefore);
+        UpdateResourceUsage(table, -resourceUsageDelta);
         UpdateTabletState(table);
 
         if (!table->IsPhysicallySorted()) {
