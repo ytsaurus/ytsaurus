@@ -1,5 +1,14 @@
-from yt_commands import *  # noqa
 from yt_env_setup import YTEnvSetup
+
+from yt_commands import authors, write_table, read_table, create
+
+from yt_type_helpers import make_schema, struct_type, optional_type, variant_struct_type
+
+import yt.yson as yson
+
+import pytest
+
+##################################################################
 
 
 def _test_yson_row(type, optimize_for, canonical_value, format, format_value):
@@ -25,6 +34,8 @@ def _test_yson_row(type, optimize_for, canonical_value, format, format_value):
     read = read_table(path, output_format=format)
     read_rows = list(yson.loads(read, yson_type="list_fragment"))
     assert read_rows == [{"column": format_value}]
+
+##################################################################
 
 
 @authors("ermolovd")
