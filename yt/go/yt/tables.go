@@ -10,6 +10,8 @@ import (
 // TableWriter is interface for writing stream of rows.
 type TableWriter interface {
 	// Write writes single row.
+	//
+	// Error returned from write indicates that the whole write operation has failed.
 	Write(value interface{}) error
 
 	// Commit closes table writer.
@@ -22,6 +24,8 @@ type TableWriter interface {
 	// Rollback blocks until upload transaction is aborted.
 	//
 	// If you need to cancel table writer without blocking, use context cancelFunc.
+	//
+	// Error returned from Rollback() may be safely ignored.
 	Rollback() error
 }
 
@@ -47,10 +51,27 @@ func ApproximateRowCount(r TableReader) (count int64, ok bool) {
 	return
 }
 
+// TableReader is interface for reading stream of rows.
 type TableReader interface {
+	// Scan unmarshals current row into value.
+	//
+	// It is safe to call Scan multiple times for a single row.
 	Scan(value interface{}) error
+
+	// Next prepares the next result row for reading with the Scan method.
+	//
+	// It returns true on success, or false if there is no next result row or an error
+	// happened while preparing it. Err should be consulted to distinguish between the two cases.
 	Next() bool
+
+	// Err returns error that occured during read.
 	Err() error
+
+	// Close frees any associated resources.
+	//
+	// User MUST call Close(). Failure to do so will result in resource leak.
+	//
+	// Error returned from Close() may be safely ignored.
 	Close() error
 }
 

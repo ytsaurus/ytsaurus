@@ -1,13 +1,16 @@
 package httpclient
 
 import (
+	"context"
 	"io"
 	"reflect"
 
 	"golang.org/x/xerrors"
 
+	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
+	"a.yandex-team.ru/yt/go/yt/internal/smartreader"
 )
 
 type tableReader struct {
@@ -123,4 +126,24 @@ func zeroInitialize(v interface{}) {
 
 	value = value.Elem()
 	value.Set(reflect.Zero(value.Type()))
+}
+
+func (c *httpClient) ReadTable(
+	ctx context.Context,
+	path ypath.YPath,
+	options *yt.ReadTableOptions,
+) (r yt.TableReader, err error) {
+	if options != nil && options.Smart != nil && *options.Smart && !options.Unordered {
+		opts := *options
+		opts.Smart = nil
+
+		tx, err := c.BeginTx(ctx, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		return smartreader.NewReader(ctx, tx, true, c.log, path, &opts)
+	} else {
+		return c.Encoder.ReadTable(ctx, path, options)
+	}
 }

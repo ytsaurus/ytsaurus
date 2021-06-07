@@ -404,3 +404,7 @@ func TestBigRow(t *testing.T) {
 		require.NoError(t, w.Commit())
 	})
 }
+
+func TestSmartReader(t *testing.T) {
+
+}

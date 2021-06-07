@@ -6,13 +6,17 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"a.yandex-team.ru/library/go/core/log"
+	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
+	"a.yandex-team.ru/yt/go/yt/internal/smartreader"
 )
 
 type TxInterceptor struct {
 	Encoder
 	Client Encoder
+	log    log.Structured
 	pinger *Pinger
 }
 
@@ -23,6 +27,7 @@ type TransactionParams interface {
 func NewTx(
 	ctx context.Context,
 	e Encoder,
+	log log.Structured,
 	stop *StopGroup,
 	config *yt.Config,
 	options *yt.StartTxOptions,
@@ -43,6 +48,7 @@ func NewTx(
 	tx := &TxInterceptor{
 		Encoder: e,
 		Client:  e,
+		log:     log,
 		pinger:  NewPinger(ctx, &e, txID, config, stop),
 	}
 
@@ -84,7 +90,7 @@ func (t *TxInterceptor) BeginTx(ctx context.Context, options *yt.StartTxOptions)
 
 	options.TransactionID = t.ID()
 
-	return NewTx(ctx, t.Client, t.pinger.stop, t.pinger.config, options)
+	return NewTx(ctx, t.Client, t.log, t.pinger.stop, t.pinger.config, options)
 }
 
 func (t *TxInterceptor) Abort() (err error) {
@@ -156,4 +162,18 @@ func (t *TxInterceptor) WriteRow(ctx context.Context, call *Call, next WriteRowI
 	}
 
 	return next(ctx, call)
+}
+
+func (t *TxInterceptor) ReadTable(
+	ctx context.Context,
+	path ypath.YPath,
+	options *yt.ReadTableOptions,
+) (r yt.TableReader, err error) {
+	if options != nil && options.Smart != nil && *options.Smart && !options.Unordered {
+		opts := *options
+		opts.Smart = nil
+		return smartreader.NewReader(ctx, t, false, t.log, path, &opts)
+	} else {
+		return t.Encoder.ReadTable(ctx, path, options)
+	}
 }
