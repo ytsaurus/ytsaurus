@@ -78,12 +78,12 @@ private:
 
     struct TEventConfigs
     {
-        std::array<std::atomic<bool>, TEnumTraits<EPerfEvents>::DomainSize> Enabled;
+        std::array<std::atomic<bool>, TEnumTraits<EPerfEvents>::DomainSize> Enabled{};
     };
 
     struct TEventConfigSnapshot 
     {
-        std::array<bool, TEnumTraits<EPerfEvents>::DomainSize> Enabled;
+        std::array<bool, TEnumTraits<EPerfEvents>::DomainSize> Enabled{};
     };
 
     // thread id -> stats
