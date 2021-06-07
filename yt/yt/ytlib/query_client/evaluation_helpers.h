@@ -191,7 +191,6 @@ struct TWriteOpClosure
     size_t RowSize;
 
     TWriteOpClosure();
-
 };
 
 typedef TRowBuffer TExpressionContext;

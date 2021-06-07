@@ -1,4 +1,6 @@
-#include "yt_udf_cpp.h"
+#include "udf_cpp_abi.h"
+
+using namespace NYT::NQueryClient::NUdf;
 
 extern "C" void ListContains(
     TExpressionContext* context,
@@ -13,6 +15,7 @@ extern "C" void list_contains(
     TUnversionedValue* what)
 {
     if (ysonList->Type == EValueType::Null) {
+        ClearValue(result);
         result->Type = EValueType::Null;
         return;
     }

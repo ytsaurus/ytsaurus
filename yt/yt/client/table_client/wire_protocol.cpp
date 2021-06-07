@@ -302,11 +302,9 @@ private:
     void UnsafeWriteUnversionedValue(const TUnversionedValue& value)
     {
         // Write header (id, type, aggregate, length).
-        const ui64* rawValue = reinterpret_cast<const ui64*>(&value);
-        UnsafeWritePod<ui64>(rawValue[0]);
+        UnsafeWritePod(*reinterpret_cast<const ui64*>(&value));
         // Write data in-place.
         if (IsStringLikeType(value.Type)) {
-            NSan::CheckMemIsInitialized(value.Data.String, value.Length);
             UnsafeWriteRaw(value.Data.String, value.Length);
         } else if (IsValueType(value.Type)) {
             UnsafeWritePod(value.Data);
@@ -850,11 +848,13 @@ private:
         rawValue[0] = schemaData;
         if (null) {
             value->Type = EValueType::Null;
+            // NB: Don't leave the second half uninitialized.
+            rawValue[1] = 0;
         } else if (IsStringLikeType(value->Type)) {
             value->Length = ReadUint32();
             DoReadStringData(value->Type, value->Length, &value->Data.String, captureValues);
         } else if (IsValueType(value->Type)) {
-            value->Data.Uint64 = ReadUint64();
+            rawValue[1] = ReadUint64();
         }
     }
 
@@ -898,15 +898,15 @@ private:
     {
         if (*id >= idMapping->size()) {
             THROW_ERROR_EXCEPTION("Value with index %v has id %v which is out of range [0, %v)",
-                    index,
-                    *id,
-                    idMapping->size());
+                index,
+                *id,
+                idMapping->size());
         }
         int mappedId = (*idMapping)[*id];
         if (mappedId == -1) {
             THROW_ERROR_EXCEPTION("Id mapping for value with index %v contains unexpected value %Qv",
-                    index,
-                    -1);
+                index,
+                -1);
         }
         *id = mappedId;
     }

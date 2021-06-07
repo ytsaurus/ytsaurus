@@ -6,8 +6,10 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// XXX(babenko): "struct" is due to ABI bug.
 struct TFunctionContext
 {
+public:
     explicit TFunctionContext(std::unique_ptr<bool[]> literalArgs);
     ~TFunctionContext();
 
@@ -23,14 +25,13 @@ struct TFunctionContext
     void* CreateUntypedObject(void* pointer, void(*deleter)(void*));
 
     void* GetPrivateData() const;
-
     void SetPrivateData(void* data);
 
     bool IsLiteralArg(int argIndex) const;
 
 private:
     class TImpl;
-    std::unique_ptr<TImpl> Impl_;
+    const std::unique_ptr<TImpl> Impl_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

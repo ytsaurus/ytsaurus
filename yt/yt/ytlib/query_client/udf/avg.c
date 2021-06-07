@@ -1,4 +1,4 @@
-#include "yt_udf.h"
+#include "udf_c_abi.h"
 
 void avg_init(
     TExpressionContext* context,
@@ -10,8 +10,9 @@ void avg_init(
     intStatePtr[0] = 0;
     intStatePtr[1] = 0;
 
+    ClearValue(result);
+    result->Type = VT_String;
     result->Length = stateSize;
-    result->Type = String;
     result->Data.String = statePtr;
 }
 
@@ -22,14 +23,16 @@ void avg_update(
     TUnversionedValue* newValue)
 {
     (void)context;
+
     int64_t* intStatePtr = (int64_t*)state->Data.String;
-    if (newValue->Type != Null) {
+    if (newValue->Type != VT_Null) {
         intStatePtr[0] += 1;
         intStatePtr[1] += newValue->Data.Int64;
     }
 
+    ClearValue(result);
+    result->Type = VT_String;
     result->Length = 2 * sizeof(int64_t);
-    result->Type = String;
     result->Data.String = (char*)intStatePtr;
 }
 
@@ -40,14 +43,16 @@ void avg_merge(
     TUnversionedValue* state)
 {
     (void)context;
+
     int64_t* dstStatePtr = (int64_t*)dstState->Data.String;
     int64_t* intStatePtr = (int64_t*)state->Data.String;
 
     dstStatePtr[0] += intStatePtr[0];
     dstStatePtr[1] += intStatePtr[1];
 
+    ClearValue(result);
+    result->Type = VT_String;
     result->Length = 2 * sizeof(int64_t);
-    result->Type = String;
     result->Data.String = (char*)dstStatePtr;
 }
 
@@ -57,13 +62,14 @@ void avg_finalize(
     TUnversionedValue* state)
 {
     (void)context;
+
+    ClearValue(result);
     int64_t* intStatePtr = (int64_t*)state->Data.String;
     if (intStatePtr[0] == 0) {
-        result->Type = Null;
+        result->Type = VT_Null;
     } else {
         double resultData = (double)intStatePtr[1] / (double)intStatePtr[0];
-        result->Type = Double;
+        result->Type = VT_Double;
         result->Data.Double = resultData;
     }
 }
-

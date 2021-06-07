@@ -1,4 +1,4 @@
-#include "yt_udf.h"
+#include "udf_c_abi.h"
 
 #include <string.h>
 
@@ -89,7 +89,7 @@ void format_guid(
     WRITE_COMPONENT((id_hi >> 32));
     WRITE_DASH();
     WRITE_COMPONENT((id_hi & ((1ull << 32) - 1)));
-    
+
     size_t length = ptr - begin;
     *result = AllocateBytes(context, length);
     strncpy(*result, buffer, length);

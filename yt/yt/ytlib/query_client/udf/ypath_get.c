@@ -1,4 +1,4 @@
-#include "yt_udf.h"
+#include "udf_c_abi.h"
 
 #define DEFINE_YPATH_GET_IMPL(PREFIX, prefix, TYPE, type) \
     void PREFIX ## Get ## TYPE( \
@@ -13,8 +13,9 @@
         TUnversionedValue* anyValue, \
         TUnversionedValue* ypath) \
     { \
-        if (anyValue->Type == Null || ypath->Type == Null) { \
-            result->Type = Null; \
+        if (anyValue->Type == VT_Null || ypath->Type == VT_Null) { \
+            ClearValue(result); \
+            result->Type = VT_Null; \
         } else { \
             PREFIX ## Get ## TYPE(context, result, anyValue, ypath); \
         } \

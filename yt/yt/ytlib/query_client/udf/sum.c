@@ -1,11 +1,13 @@
-#include "yt_udf.h"
+#include "udf_c_abi.h"
 
 void sum_init(
     TExpressionContext* context,
     TUnversionedValue* result)
 {
     (void)context;
-    result->Type = Null;
+
+    ClearValue(result);
+    result->Type = VT_Null;
 }
 
 static void sum_iteration(
@@ -15,19 +17,21 @@ static void sum_iteration(
     TUnversionedValue* newValue)
 {
     (void)context;
-    if (newValue->Type == Null) {
+
+    ClearValue(result);
+    if (newValue->Type == VT_Null) {
         result->Type = state->Type;
         result->Data = state->Data;
-    } else if (state->Type == Null) {
+    } else if (state->Type == VT_Null) {
         result->Type = newValue->Type;
         result->Data = newValue->Data;
-    } else if (newValue->Type == Int64) {
+    } else if (newValue->Type == VT_Int64) {
         result->Type = state->Type;
         result->Data.Int64 = state->Data.Int64 + newValue->Data.Int64;
-    } else if (newValue->Type == Uint64) {
+    } else if (newValue->Type == VT_Uint64) {
         result->Type = state->Type;
         result->Data.Uint64 = state->Data.Uint64 + newValue->Data.Uint64;
-    } else if (newValue->Type == Double) {
+    } else if (newValue->Type == VT_Double) {
         result->Type = state->Type;
         result->Data.Double = state->Data.Double + newValue->Data.Double;
     }
@@ -57,6 +61,8 @@ void sum_finalize(
     TUnversionedValue* state)
 {
     (void)context;
+
+    ClearValue(result);
     result->Type = state->Type;
     result->Data = state->Data;
 }

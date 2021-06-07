@@ -1,4 +1,4 @@
-#include "yt_udf.h"
+#include "udf_c_abi.h"
 
 int8_t is_substr(
     TExpressionContext* context,
@@ -8,6 +8,7 @@ int8_t is_substr(
     int s1_len)
 {
     (void)context;
+
     if (s2_len == 0) {
         return 1;
     }

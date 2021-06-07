@@ -1,4 +1,4 @@
-#include "yt_udf.h"
+#include "udf_c_abi.h"
 #include <string.h>
 
 void first_init(
@@ -6,7 +6,9 @@ void first_init(
     TUnversionedValue* result)
 {
     (void)context;
-    result->Type = Null;
+
+    ClearValue(result);
+    result->Type = VT_Null;
 }
 
 static void first_iteration(
@@ -15,14 +17,13 @@ static void first_iteration(
     TUnversionedValue* state,
     TUnversionedValue* newValue)
 {
-    (void)context;
-    if (state->Type == Null) {
+    ClearValue(result);
+    if (state->Type == VT_Null) {
         result->Type = newValue->Type;
-        result->Length = newValue->Length;
-
-        if (newValue->Type == String) {
+        if (newValue->Type == VT_String || newValue->Type == VT_Any) {
             char* permanentData = AllocateBytes(context, newValue->Length);
             memcpy(permanentData, newValue->Data.String, newValue->Length);
+            result->Length = newValue->Length;
             result->Data.String = permanentData;
         } else {
             result->Data = newValue->Data;
@@ -58,6 +59,8 @@ void first_finalize(
     TUnversionedValue* state)
 {
     (void)context;
+
+    ClearValue(result);
     result->Type = state->Type;
     result->Length = state->Length;
     result->Data = state->Data;

@@ -21,13 +21,12 @@ struct TBlock
 
 struct IBlockWriter
 {
+    virtual ~IBlockWriter() = default;
+
     virtual i64 GetBlockSize() const = 0;
     virtual i64 GetRowCount() const = 0;
 
     virtual TBlock FlushBlock() = 0;
-
-    virtual ~IBlockWriter()
-    { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

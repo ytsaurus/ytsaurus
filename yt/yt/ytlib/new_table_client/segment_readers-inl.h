@@ -433,6 +433,7 @@ inline void TLookupBlobExtractor::Extract(TUnversionedValue* value, ui32 index) 
     } else {
         TCompressedVectorView ids(ptr);
         ptr += ids.GetSizeInWords();
+
         TCompressedVectorView offsets(ptr);
         ptr += offsets.GetSizeInWords();
 

@@ -1,4 +1,6 @@
-#include <yt/yt/ytlib/query_client/udf/yt_udf_cpp.h>
+#include <yt/yt/ytlib/query_client/udf/udf_cpp_abi.h>
+
+using namespace NYT::NQueryClient::NUdf;
 
 extern "C" void udf_with_function_context(
     TExpressionContext* /*expressionContext*/,

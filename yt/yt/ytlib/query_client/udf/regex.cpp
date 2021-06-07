@@ -1,8 +1,12 @@
-#include "yt_udf_cpp.h"
+#include "udf_cpp_abi.h"
+
+using namespace NYT::NQueryClient::NUdf;
 
 namespace re2 {
-    class RE2;
-}
+
+class RE2;
+
+} // namespace re2
 
 extern "C" re2::RE2* RegexCreate(TUnversionedValue*);
 extern "C" void RegexDestroy(re2::RE2*);
@@ -29,6 +33,7 @@ struct TRe2Regex
 
     re2::RE2* Re2;
 };
+
 template <class TFunc>
 static void regex_apply(
     NYT::NQueryClient::TFunctionContext* functionContext,
@@ -44,9 +49,8 @@ static void regex_apply(
             regex = functionContext->CreateObject<TRe2Regex>(pattern);
             if (!regex) {
                 ThrowException("Failed to precompile regular expression");
-            } else {
-                functionContext->SetPrivateData(regex);
             }
+            functionContext->SetPrivateData(regex);
         }
         func(static_cast<TRe2Regex*>(regex));
     }
@@ -60,6 +64,7 @@ extern "C" void regex_full_match(
     TUnversionedValue* input)
 {
     if (pattern->Type == EValueType::Null || input->Type == EValueType::Null) {
+        ClearValue(result);
         result->Type = EValueType::Boolean;
         result->Data.Boolean = false;
     } else {
@@ -67,6 +72,7 @@ extern "C" void regex_full_match(
             functionContext,
             pattern,
             [=] (TRe2Regex* regex) {
+                ClearValue(result);
                 result->Type = EValueType::Boolean;
                 result->Data.Boolean = RegexFullMatch(regex->Re2, input);
             });
@@ -81,6 +87,7 @@ extern "C" void regex_partial_match(
     TUnversionedValue* input)
 {
     if (pattern->Type == EValueType::Null || input->Type == EValueType::Null) {
+        ClearValue(result);
         result->Type = EValueType::Boolean;
         result->Data.Boolean = false;
     } else {
@@ -88,6 +95,7 @@ extern "C" void regex_partial_match(
             functionContext,
             pattern,
             [=] (TRe2Regex* regex) {
+                ClearValue(result);
                 result->Type = EValueType::Boolean;
                 result->Data.Boolean = RegexPartialMatch(regex->Re2, input);
             });
@@ -103,6 +111,7 @@ extern "C" void regex_replace_first(
     TUnversionedValue* rewrite)
 {
     if (pattern->Type == EValueType::Null || input->Type == EValueType::Null || rewrite->Type == EValueType::Null) {
+        ClearValue(result);
         result->Type = EValueType::Null;
     } else {
         regex_apply(
@@ -123,6 +132,7 @@ extern "C" void regex_replace_all(
     TUnversionedValue* rewrite)
 {
     if (pattern->Type == EValueType::Null || input->Type == EValueType::Null || rewrite->Type == EValueType::Null) {
+        ClearValue(result);
         result->Type = EValueType::Null;
     } else {
         regex_apply(
@@ -143,6 +153,7 @@ extern "C" void regex_extract(
     TUnversionedValue* rewrite)
 {
     if (pattern->Type == EValueType::Null || input->Type == EValueType::Null || rewrite->Type == EValueType::Null) {
+        ClearValue(result);
         result->Type = EValueType::Null;
     } else {
         regex_apply(
@@ -161,6 +172,7 @@ extern "C" void regex_escape(
     TUnversionedValue* input)
 {
     if (input->Type == EValueType::Null) {
+        ClearValue(result);
         result->Type = EValueType::Null;
     } else {
         RegexEscape(expressionContext, input, result);

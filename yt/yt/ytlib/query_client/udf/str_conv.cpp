@@ -1,4 +1,6 @@
-#include "yt_udf_cpp.h"
+#include "udf_cpp_abi.h"
+
+using namespace NYT::NQueryClient::NUdf;
 
 extern "C" void NumericToString(
     TExpressionContext* context,
@@ -51,4 +53,3 @@ extern "C" void parse_uint64(
 {
     StringToUint64(context, result, value);
 }
-
