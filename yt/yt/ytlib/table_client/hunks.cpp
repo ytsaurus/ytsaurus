@@ -1121,7 +1121,7 @@ public:
             [&] (TMutableUnversionedRow row) {
                 i64 hunkCount = 0;
                 i64 totalHunkLength = 0;
-                TSchemafulUnversionedRowVisitor::ForEachHunkValue(
+                TSchemalessUnversionedRowVisitor::ForEachHunkValue(
                     row,
                     *this->Schema_,
                     [&] (const auto& value) {
