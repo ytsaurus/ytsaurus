@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
+#include <yt/yt/server/lib/lsm/lsm_backend.h>
+
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -11,7 +13,9 @@ namespace NYT::NTabletNode {
 struct IPartitionBalancer
     : public virtual TRefCounted
 {
-    virtual void Start() = 0;
+    virtual void ProcessLsmActionBatch(
+        const ITabletSlotPtr& slot,
+        const NLsm::TLsmActionBatch& batch) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IPartitionBalancer)

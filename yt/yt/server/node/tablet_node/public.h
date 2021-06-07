@@ -26,13 +26,6 @@ using TTabletDistributedThrottlersVector = TEnumIndexedVector<
     ETabletDistributedThrottlerKind,
     NConcurrency::IThroughputThrottlerPtr>;
 
-DEFINE_ENUM(ETabletDynamicMemoryType,
-    (Active)
-    (Passive)
-    (Backing)
-    (Other)
-);
-
 DECLARE_REFCOUNTED_STRUCT(ITabletSnapshotStore)
 DECLARE_REFCOUNTED_STRUCT(ISlotManager)
 DECLARE_REFCOUNTED_STRUCT(IMasterConnector)
@@ -112,6 +105,9 @@ DECLARE_REFCOUNTED_STRUCT(IStoreTrimmer)
 DECLARE_REFCOUNTED_STRUCT(IPartitionBalancer)
 DECLARE_REFCOUNTED_STRUCT(IBackingStoreCleaner)
 DECLARE_REFCOUNTED_STRUCT(IHunkChunkSweeper)
+DECLARE_REFCOUNTED_STRUCT(ILsmInterop)
+
+DECLARE_REFCOUNTED_STRUCT(ICompactionBackend)
 
 DECLARE_REFCOUNTED_STRUCT(IStructuredLogger)
 DECLARE_REFCOUNTED_STRUCT(IPerTabletStructuredLogger)
@@ -137,8 +133,6 @@ struct ITabletContext;
 struct TWriteContext;
 
 using TSyncReplicaIdList = SmallVector<TTableReplicaId, 2>;
-
-constexpr int EdenIndex = -1;
 
 DECLARE_REFCOUNTED_STRUCT(IRowComparerProvider)
 

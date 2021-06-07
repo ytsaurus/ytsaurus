@@ -251,6 +251,7 @@ private:
     NTabletNode::IHunkChunkSweeperPtr HunkChunkSweeper_;
     NTabletNode::IPartitionBalancerPtr PartitionBalancer_;
     NTabletNode::IBackingStoreCleanerPtr BackingStoreCleaner_;
+    NTabletNode::ILsmInteropPtr LsmInterop_;
 
     THashSet<NNodeTrackerClient::ENodeFlavor> Flavors_;
 

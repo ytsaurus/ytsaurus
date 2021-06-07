@@ -2,6 +2,7 @@
 
 #include "hunk_chunk.h"
 #include "in_memory_manager.h"
+#include "lsm_interop.h"
 #include "partition.h"
 #include "private.h"
 #include "public.h"
@@ -22,6 +23,8 @@
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/data_node/legacy_master_connector.h>
+
+#include <yt/yt/server/lib/lsm/tablet.h>
 
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
@@ -103,13 +106,6 @@ static const size_t MaxRowsPerWrite = 65536;
 static const size_t FinishedQueueSize = 100;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EStoreCompactionReason,
-    (None)
-    (ForcedCompaction)
-    (PeriodicCompaction)
-    (StoreOutOfTabletRange)
-);
 
 DEFINE_ENUM(EHunkCompactionReason,
     (None)
@@ -569,12 +565,105 @@ public:
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         dynamicConfigManager->SubscribeConfigChanged(BIND(&TStoreCompactor::OnDynamicConfigChanged, MakeWeak(this)));
-
-        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
-        slotManager->SubscribeBeginSlotScan(BIND(&TStoreCompactor::OnBeginSlotScan, MakeWeak(this)));
-        slotManager->SubscribeScanSlot(BIND(&TStoreCompactor::OnScanSlot, MakeWeak(this)));
-        slotManager->SubscribeEndSlotScan(BIND(&TStoreCompactor::OnEndSlotScan, MakeWeak(this)));
     }
+
+    virtual void OnBeginSlotScan() override
+    {
+        // NB: Strictly speaking, redundant.
+        auto guard = Guard(ScanSpinLock_);
+
+        // Save some scheduling resources by skipping unnecessary work.
+        ScanForPartitioning_ = PartitioningSemaphore_->IsReady();
+        ScanForCompactions_ = CompactionSemaphore_->IsReady();
+        PartitioningCandidates_.clear(); // Though must be clear already.
+        CompactionCandidates_.clear(); // Though must be clear already.
+    }
+
+    virtual void ProcessLsmActionBatch(
+        const ITabletSlotPtr& slot,
+        const NLsm::TLsmActionBatch& batch) override
+    {
+        TEventTimerGuard timerGuard(ScanTimer_);
+
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        auto dynamicConfig = dynamicConfigManager->GetConfig()->TabletNode->StoreCompactor;
+        if (!dynamicConfig->Enable) {
+            return;
+        }
+
+        if (slot->GetAutomatonState() != EPeerState::Leading) {
+            return;
+        }
+
+        const auto& Logger = TabletNodeLogger;
+
+        YT_LOG_DEBUG("Store compactor started processing action batch (CellId: %v)",
+            slot->GetCellId());
+
+        if (ScanForCompactions_) {
+            const auto& Logger = TabletNodeLogger
+                .WithTag("CellId: %v, TaskKind: Compaction", slot->GetCellId());
+
+            std::vector<std::unique_ptr<TTask>> tasks;
+            for (const auto& request : batch.Compactions) {
+                auto* eventType = request.DiscardStores
+                    ? "discard_stores_candidate"
+                    : "compaction_candidate";
+                if (auto task = MakeTask(slot.Get(), request, eventType, Logger)) {
+                    tasks.push_back(std::move(task));
+                }
+            }
+
+            auto guard = Guard(ScanSpinLock_);
+            CompactionCandidates_.insert(
+                CompactionCandidates_.end(),
+                std::make_move_iterator(tasks.begin()),
+                std::make_move_iterator(tasks.end()));
+        }
+
+        if (ScanForPartitioning_) {
+            const auto& Logger = TabletNodeLogger
+                .WithTag("CellId: %v, TaskKind: Partitioning", slot->GetCellId());
+
+            std::vector<std::unique_ptr<TTask>> tasks;
+            for (const auto& request : batch.Partitionings) {
+                if (auto task = MakeTask(
+                        slot.Get(),
+                        request,
+                        "partitioning_candidate",
+                        Logger))
+                {
+                    tasks.push_back(std::move(task));
+                }
+            }
+
+            auto guard = Guard(ScanSpinLock_);
+            PartitioningCandidates_.insert(
+                PartitioningCandidates_.end(),
+                std::make_move_iterator(tasks.begin()),
+                std::make_move_iterator(tasks.end()));
+        }
+
+        YT_LOG_DEBUG("Store compactor finished processing action batch (CellId: %v)",
+            slot->GetCellId());
+    }
+
+    void OnEndSlotScan()
+    {
+        // NB: Strictly speaking, redundant.
+        auto guard = Guard(ScanSpinLock_);
+
+        if (ScanForPartitioning_) {
+            PickMorePartitionings(guard);
+            ScheduleMorePartitionings();
+        }
+
+        if (ScanForCompactions_) {
+            PickMoreCompactions(guard);
+            ScheduleMoreCompactions();
+        }
+    }
+
 
     virtual IYPathServicePtr GetOrchidService() override
     {
@@ -662,14 +751,14 @@ private:
         TTask(
             ITabletSlot* slot,
             const TTablet* tablet,
-            const TPartition* partition,
+            TPartitionId partitionId,
             std::vector<TStoreId> stores)
             : Slot(slot)
             , Invoker(tablet->GetEpochAutomatonInvoker())
             , TabletId(tablet->GetId())
             , MountRevision(tablet->GetMountRevision())
             , TabletLoggingTag(tablet->GetLoggingTag())
-            , PartitionId(partition->GetId())
+            , PartitionId(partitionId)
             , StoreIds(std::move(stores))
         { }
 
@@ -874,419 +963,42 @@ private:
         CompactionSemaphore_->SetTotal(config->MaxConcurrentPartitionings.value_or(Config_->MaxConcurrentCompactions));
     }
 
-    void OnBeginSlotScan()
+    std::unique_ptr<TTask> MakeTask(
+        ITabletSlot* slot,
+        const NLsm::TCompactionRequest& request,
+        TStringBuf eventType,
+        const NLogging::TLogger& Logger)
     {
-        // NB: Strictly speaking, redundant.
-        auto guard = Guard(ScanSpinLock_);
-
-        // Save some scheduling resources by skipping unnecessary work.
-        ScanForPartitioning_ = PartitioningSemaphore_->IsReady();
-        ScanForCompactions_ = CompactionSemaphore_->IsReady();
-        PartitioningCandidates_.clear(); // Though must be clear already.
-        CompactionCandidates_.clear(); // Though must be clear already.
-    }
-
-    void OnScanSlot(const ITabletSlotPtr& slot)
-    {
-        TEventTimerGuard timerGuard(ScanTimer_);
-
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        auto dynamicConfig = dynamicConfigManager->GetConfig()->TabletNode->StoreCompactor;
-        if (!dynamicConfig->Enable) {
-            return;
-        }
-
-        if (slot->GetAutomatonState() != EPeerState::Leading) {
-            return;
-        }
-
         const auto& tabletManager = slot->GetTabletManager();
-        for (auto [tabletId, tablet] : tabletManager->Tablets()) {
-            ScanTablet(slot.Get(), tablet);
+        const auto* tablet = tabletManager->FindTablet(request.Tablet->GetId());
+        if (!tablet) {
+            YT_LOG_DEBUG("Task declined: tablet is missing (TabletId: %v)",
+                request.Tablet->GetId());
+            return nullptr;
         }
-    }
-
-    void OnEndSlotScan()
-    {
-        // NB: Strictly speaking, redundant.
-        auto guard = Guard(ScanSpinLock_);
-
-        if (ScanForPartitioning_) {
-            PickMorePartitionings(guard);
-            ScheduleMorePartitionings();
-        }
-
-        if (ScanForCompactions_) {
-            PickMoreCompactions(guard);
-            ScheduleMoreCompactions();
-        }
-    }
-
-    void ScanTablet(ITabletSlot* slot, TTablet* tablet)
-    {
-        if (tablet->GetState() != ETabletState::Mounted) {
-            return;
+        if (tablet->GetMountRevision() != request.Tablet->GetMountRevision()) {
+            YT_LOG_DEBUG("Task declined: mount revision mismatch (TabletId: %v, "
+                "ActualMountRevision: %v, RequestMountRevision: %v)",
+                request.Tablet->GetId(),
+                tablet->GetMountRevision(),
+                request.Tablet->GetMountRevision());
+            return nullptr;
         }
 
-        if (!tablet->IsPhysicallySorted()) {
-            return;
-        }
-
-        const auto& mountConfig = tablet->GetSettings().MountConfig;
-        if (!mountConfig->EnableCompactionAndPartitioning) {
-            return;
-        }
-
-        ScanEdenForPartitioning(slot, tablet->GetEden());
-        ScanPartitionForCompaction(slot, tablet->GetEden());
-
-        for (auto& partition : tablet->PartitionList()) {
-            ScanPartitionForCompaction(slot, partition.get());
-        }
-    }
-
-    bool ScanEdenForPartitioning(ITabletSlot* slot, TPartition* eden)
-    {
-        if (!ScanForPartitioning_ || eden->GetState() != EPartitionState::Normal) {
-            return false;
-        }
-
-        const auto* tablet = eden->GetTablet();
-
-        auto stores = PickStoresForPartitioning(eden);
-        if (stores.empty()) {
-            return false;
-        }
-
-        auto candidate = std::make_unique<TTask>(slot, tablet, eden, std::move(stores));
-        const auto& mountConfig = tablet->GetSettings().MountConfig;
-        // We aim to improve OSC; partitioning unconditionally improves OSC (given at least two stores).
-        // So we consider how constrained is the tablet, and how many stores we consider for partitioning.
-        const int overlappingStoreLimit = GetOverlappingStoreLimit(mountConfig);
-        const int overlappingStoreCount = tablet->GetOverlappingStoreCount();
-        candidate->Slack = std::max(0, overlappingStoreLimit - overlappingStoreCount);
-        candidate->Effect = candidate->StoreIds.size() - 1;
-        candidate->FutureEffect = GetFutureEffect(tablet->GetId());
-
-        tablet->GetStructuredLogger()->LogEvent("partitioning_candidate")
-            .Do(BIND(&TTask::StoreToStructuredLog, candidate.get()));
-
-        {
-            auto guard = Guard(ScanSpinLock_);
-            PartitioningCandidates_.push_back(std::move(candidate));
-        }
-
-        return true;
-    }
-
-    bool TryDiscardExpiredPartition(ITabletSlot* slot, TPartition* partition)
-    {
-        if (partition->IsEden()) {
-            return false;
-        }
-
-        const auto* tablet = partition->GetTablet();
-
-        const auto& mountConfig = tablet->GetSettings().MountConfig;
-        if (!mountConfig->EnableDiscardingExpiredPartitions || mountConfig->MinDataVersions != 0) {
-            return false;
-        }
-
-        for (const auto& store : partition->Stores()) {
-            if (store->AsSortedChunk()->GetCompactionState() != EStoreCompactionState::None) {
-                return false;
-            }
-        }
-
-        auto timestampProvider = Bootstrap_
-            ->GetMasterClient()
-            ->GetNativeConnection()
-            ->GetTimestampProvider();
-        auto currentTimestamp = timestampProvider->GetLatestTimestamp();
-
-        auto partitionMaxTimestamp = NullTimestamp;
-        for (const auto& store : partition->Stores()) {
-            partitionMaxTimestamp = std::max(partitionMaxTimestamp, store->GetMaxTimestamp());
-        }
-
-        if (partitionMaxTimestamp >= currentTimestamp ||
-            TimestampDiffToDuration(partitionMaxTimestamp, currentTimestamp).first <= mountConfig->MaxDataTtl)
-        {
-            return false;
-        }
-
-        auto majorTimestamp = currentTimestamp;
-        for (const auto& store : tablet->GetEden()->Stores()) {
-            majorTimestamp = std::min(majorTimestamp, store->GetMinTimestamp());
-        }
-
-        if (partitionMaxTimestamp >= majorTimestamp) {
-            return false;
-        }
-
-        std::vector<TStoreId> stores;
-        for (const auto& store : partition->Stores()) {
-            stores.push_back(store->GetId());
-        }
-        auto candidate = std::make_unique<TTask>(slot, tablet, partition, std::move(stores));
-        candidate->DiscardStores = true;
-
-        const auto& Logger = TabletNodeLogger;
-        YT_LOG_DEBUG("Found partition with expired stores (%v, PartitionId: %v, PartitionIndex: %v, "
-            "PartitionMaxTimestamp: %v, MajorTimestamp: %v, StoreCount: %v)",
-            tablet->GetLoggingTag(),
-            partition->GetId(),
-            partition->GetIndex(),
-            partitionMaxTimestamp,
-            majorTimestamp,
-            partition->Stores().size());
-
-        tablet->GetStructuredLogger()->LogEvent("discard_stores_candidate")
-            .Do(BIND(&TTask::StoreToStructuredLog, candidate.get()));
-
-        {
-            auto guard = Guard(ScanSpinLock_);
-            CompactionCandidates_.push_back(std::move(candidate));
-        }
-
-        return true;
-    }
-
-    bool ScanPartitionForCompaction(ITabletSlot* slot, TPartition* partition)
-    {
-        if (!ScanForCompactions_ ||
-            partition->GetState() != EPartitionState::Normal ||
-            partition->IsImmediateSplitRequested() ||
-            partition->Stores().empty())
-        {
-            return false;
-        }
-
-        const auto* tablet = partition->GetTablet();
-
-        if (TryDiscardExpiredPartition(slot, partition)) {
-            return true;
-        }
-
-
-        auto stores = PickStoresForCompaction(partition);
-        if (stores.empty()) {
-            return false;
-        }
-
-        auto candidate = std::make_unique<TTask>(slot, tablet, partition, std::move(stores));
-        const auto& mountConfig = tablet->GetSettings().MountConfig;
-        // We aim to improve OSC; compaction improves OSC _only_ if the partition contributes towards OSC.
-        // So we consider how constrained is the partition, and how many stores we consider for compaction.
-        const int overlappingStoreLimit = GetOverlappingStoreLimit(mountConfig);
-        const int overlappingStoreCount = tablet->GetOverlappingStoreCount();
-        if (partition->IsEden()) {
-            // Normalized eden store count dominates when number of eden stores is too close to its limit.
-            int normalizedEdenStoreCount = tablet->GetEdenStoreCount() * overlappingStoreLimit /
-                mountConfig->MaxEdenStoresPerTablet;
-            int overlappingStoreLimitSlackness = overlappingStoreLimit -
-                std::max(overlappingStoreCount, normalizedEdenStoreCount);
-
-            candidate->Slack = std::max(0, overlappingStoreLimitSlackness);
-            candidate->Effect = candidate->StoreIds.size() - 1;
-        } else {
-            // For critical partitions, this is equivalent to MOSC-OSC; for unconstrained -- includes extra slack.
-            const int edenOverlappingStoreCount = tablet->GetEdenOverlappingStoreCount();
-            const int partitionStoreCount = static_cast<int>(partition->Stores().size());
-            candidate->Slack = std::max(0, overlappingStoreLimit - edenOverlappingStoreCount - partitionStoreCount);
-            if (tablet->GetCriticalPartitionCount() == 1 &&
-                edenOverlappingStoreCount + partitionStoreCount == overlappingStoreCount)
-            {
-                candidate->Effect = candidate->StoreIds.size() - 1;
-            }
-        }
-        candidate->FutureEffect = GetFutureEffect(tablet->GetId());
-
-        tablet->GetStructuredLogger()->LogEvent("compaction_candidate")
-            .Do(BIND(&TTask::StoreToStructuredLog, candidate.get()));
-
-        {
-            auto guard = Guard(ScanSpinLock_);
-            CompactionCandidates_.push_back(std::move(candidate));
-        }
-
-        return true;
-    }
-
-
-    std::vector<TStoreId> PickStoresForPartitioning(TPartition* eden)
-    {
-        std::vector<TStoreId> finalists;
-
-        const auto* tablet = eden->GetTablet();
-        const auto& storeManager = tablet->GetStoreManager();
-        const auto& mountConfig = tablet->GetSettings().MountConfig;
-
-        std::vector<TSortedChunkStorePtr> candidates;
-
-        for (const auto& store : eden->Stores()) {
-            if (!storeManager->IsStoreCompactable(store)) {
-                continue;
-            }
-
-            auto candidate = store->AsSortedChunk();
-            candidates.push_back(candidate);
-
-            auto compactionReason = GetStoreCompactionReason(tablet, candidate);
-            if (compactionReason != EStoreCompactionReason::None) {
-                finalists.push_back(candidate->GetId());
-            }
-
-            if (std::ssize(finalists) >= mountConfig->MaxPartitioningStoreCount) {
-                break;
-            }
-        }
-
-        // Check for forced candidates.
-        if (!finalists.empty()) {
-            return finalists;
-        }
-
-        // Sort by decreasing data size.
-        std::sort(
-            candidates.begin(),
-            candidates.end(),
-            [] (const TSortedChunkStorePtr& lhs, const TSortedChunkStorePtr& rhs) {
-                return lhs->GetCompressedDataSize() > rhs->GetCompressedDataSize();
-            });
-
-        i64 dataSizeSum = 0;
-        int bestStoreCount = -1;
-        for (int i = 0; i < std::ssize(candidates); ++i) {
-            dataSizeSum += candidates[i]->GetCompressedDataSize();
-            int storeCount = i + 1;
-            if (storeCount >= mountConfig->MinPartitioningStoreCount &&
-                storeCount <= mountConfig->MaxPartitioningStoreCount &&
-                dataSizeSum >= mountConfig->MinPartitioningDataSize &&
-                // Ignore max_partitioning_data_size limit for a minimal set of stores.
-                (dataSizeSum <= mountConfig->MaxPartitioningDataSize || storeCount == mountConfig->MinPartitioningStoreCount))
-            {
-                // Prefer to partition more data.
-                bestStoreCount = storeCount;
-            }
-        }
-
-        if (bestStoreCount > 0) {
-            finalists.reserve(bestStoreCount);
-            for (int i = 0; i < bestStoreCount; ++i) {
-                finalists.push_back(candidates[i]->GetId());
-            }
-        }
-
-        return finalists;
-    }
-
-    std::vector<TStoreId> PickStoresForCompaction(TPartition* partition)
-    {
-        std::vector<TStoreId> finalists;
-
-        const auto* tablet = partition->GetTablet();
-        const auto& storeManager = tablet->GetStoreManager();
-        const auto& mountConfig = tablet->GetSettings().MountConfig;
-
-        auto Logger = TabletNodeLogger.WithTag("%v, PartitionId: %v",
-            tablet->GetLoggingTag(),
-            partition->GetId());
-
-        YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-            "Picking stores for compaction");
-
-        std::vector<TSortedChunkStorePtr> candidates;
-
-        for (const auto& store : partition->Stores()) {
-            if (!storeManager->IsStoreCompactable(store)) {
-                continue;
-            }
-
-            // Don't compact large Eden stores.
-            if (partition->IsEden() && store->GetCompressedDataSize() >= mountConfig->MinPartitioningDataSize) {
-                continue;
-            }
-
-            auto candidate = store->AsSortedChunk();
-            candidates.push_back(candidate);
-
-            auto compactionReason = GetStoreCompactionReason(tablet, candidate);
-            if (compactionReason != EStoreCompactionReason::None) {
-                finalists.push_back(candidate->GetId());
-                YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging, "Finalist store picked out of order (StoreId: %v, CompactionReason: %v)",
-                    candidate->GetId(),
-                    compactionReason);
-            }
-
-            if (std::ssize(finalists) >= mountConfig->MaxCompactionStoreCount) {
-                break;
-            }
-        }
-
-        // Check for forced candidates.
-        if (!finalists.empty()) {
-            return finalists;
-        }
-
-        // Sort by increasing data size.
-        std::sort(
-            candidates.begin(),
-            candidates.end(),
-            [] (TSortedChunkStorePtr lhs, TSortedChunkStorePtr rhs) {
-                return lhs->GetCompressedDataSize() < rhs->GetCompressedDataSize();
-            });
-
-        int overlappingStoreCount;
-        if (partition->IsEden()) {
-            overlappingStoreCount = tablet->GetOverlappingStoreCount();
-        } else {
-            overlappingStoreCount = partition->Stores().size() + tablet->GetEdenOverlappingStoreCount();
-        }
-        // Partition is critical if it contributes towards the OSC, and MOSC is reached.
-        bool criticalPartition = overlappingStoreCount >= GetOverlappingStoreLimit(mountConfig);
-
-        if (criticalPartition) {
-            YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                "Partition is critical, picking as many stores as possible");
-        }
-
-        for (int i = 0; i < std::ssize(candidates); ++i) {
-            i64 dataSizeSum = 0;
-            int j = i;
-            while (j < std::ssize(candidates)) {
-                int storeCount = j - i;
-                if (storeCount > mountConfig->MaxCompactionStoreCount) {
-                   break;
-                }
-                i64 dataSize = candidates[j]->GetCompressedDataSize();
-                if (!criticalPartition &&
-                    dataSize > mountConfig->CompactionDataSizeBase &&
-                    dataSizeSum > 0 && dataSize > dataSizeSum * mountConfig->CompactionDataSizeRatio) {
-                    break;
-                }
-                dataSizeSum += dataSize;
-                ++j;
-            }
-
-            int storeCount = j - i;
-            if (storeCount >= mountConfig->MinCompactionStoreCount) {
-                finalists.reserve(storeCount);
-                while (i < j) {
-                    finalists.push_back(candidates[i]->GetId());
-                    ++i;
-                }
-                YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                    "Picked stores for compaction (DataSize: %v, StoreId: %v)",
-                    dataSizeSum,
-                    MakeFormattableView(
-                        MakeRange(finalists),
-                        TDefaultFormatter{}));
-                break;
-            }
-        }
-
-        return finalists;
+        auto task = std::make_unique<TTask>(
+            slot,
+            tablet,
+            request.PartitionId,
+            request.Stores);
+        task->Slack = request.Slack;
+        task->Effect = request.Effect;
+        task->DiscardStores = request.DiscardStores;
+        task->FutureEffect = GetFutureEffect(tablet->GetId());
+
+        tablet->GetStructuredLogger()->LogEvent(eventType)
+            .Do(BIND(&TTask::StoreToStructuredLog, task.get()));
+
+        return task;
     }
 
     static TTimestamp ComputeMajorTimestamp(
@@ -2123,78 +1835,6 @@ private:
         readerProfiler->Profile(tabletSnapshot, EChunkReadProfilingMethod::Compaction, failed);
 
         partition->CheckedSetState(EPartitionState::Compacting, EPartitionState::Normal);
-    }
-
-
-    static bool IsStoreCompactionForced(
-        const TTablet* tablet,
-        const TSortedChunkStorePtr& store)
-    {
-        const auto& mountConfig = tablet->GetSettings().MountConfig;
-        auto forcedCompactionRevision = std::max(
-            mountConfig->ForcedCompactionRevision,
-            mountConfig->ForcedStoreCompactionRevision);
-        if (TypeFromId(store->GetId()) == EObjectType::ChunkView) {
-            forcedCompactionRevision = std::max(
-                forcedCompactionRevision,
-                mountConfig->ForcedChunkViewCompactionRevision);
-        }
-
-        auto revision = CounterFromId(store->GetId());
-        return revision <= forcedCompactionRevision.value_or(NHydra::NullRevision);
-    }
-
-    static bool IsStorePeriodicCompactionNeeded(
-        const TTablet* tablet,
-        const TSortedChunkStorePtr& store)
-    {
-        const auto& mountConfig = tablet->GetSettings().MountConfig;
-        if (!mountConfig->AutoCompactionPeriod) {
-            return false;
-        }
-
-        auto splayRatio = mountConfig->AutoCompactionPeriodSplayRatio *
-            store->GetId().Parts32[0] / std::numeric_limits<ui32>::max();
-        auto effectivePeriod = *mountConfig->AutoCompactionPeriod * (1 + splayRatio);
-        if (TInstant::Now() < store->GetCreationTime() + effectivePeriod) {
-            return false;
-        }
-
-        return true;
-    }
-
-    static bool IsStoreOutOfTabletRange(
-        const TTablet* tablet,
-        const TSortedChunkStorePtr& store)
-    {
-        if (store->GetMinKey() < tablet->GetPivotKey()) {
-            return true;
-        }
-
-        if (store->GetUpperBoundKey() > tablet->GetNextPivotKey()) {
-            return true;
-        }
-
-        return false;
-    }
-
-    static EStoreCompactionReason GetStoreCompactionReason(
-        const TTablet* tablet,
-        const TSortedChunkStorePtr& store)
-    {
-        if (IsStoreCompactionForced(tablet, store)) {
-            return EStoreCompactionReason::ForcedCompaction;
-        }
-
-        if (IsStorePeriodicCompactionNeeded(tablet, store)) {
-            return EStoreCompactionReason::PeriodicCompaction;
-        }
-
-        if (IsStoreOutOfTabletRange(tablet, store)) {
-            return EStoreCompactionReason::StoreOutOfTabletRange;
-        }
-
-        return EStoreCompactionReason::None;
     }
 
 
