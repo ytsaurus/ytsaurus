@@ -269,6 +269,15 @@ func (c *httpClient) startCall() *internal.Call {
 	}
 }
 
+func (c *httpClient) roundTrip(req *http.Request) (*http.Response, error) {
+	rt, ok := GetRoundTripper(req.Context())
+	if ok {
+		return rt.RoundTrip(req)
+	}
+
+	return c.httpClient.Do(req)
+}
+
 func (c *httpClient) do(ctx context.Context, call *internal.Call) (res *internal.CallResult, err error) {
 	var req *http.Request
 	req, err = c.newHTTPRequest(ctx, call, nil)
@@ -277,7 +286,7 @@ func (c *httpClient) do(ctx context.Context, call *internal.Call) (res *internal
 	}
 
 	var rsp *http.Response
-	rsp, err = c.httpClient.Do(req.WithContext(ctx))
+	rsp, err = c.roundTrip(req.WithContext(ctx))
 	if err != nil {
 		select {
 		case <-ctx.Done():
@@ -318,7 +327,7 @@ func (c *httpClient) doWrite(ctx context.Context, call *internal.Call) (w io.Wri
 	go func() {
 		defer close(errChan)
 
-		rsp, err := c.httpClient.Do(req.WithContext(ctx))
+		rsp, err := c.roundTrip(req.WithContext(ctx))
 		closeErr := func(err error) {
 			errChan <- err
 			_ = pr.CloseWithError(err)
@@ -461,7 +470,7 @@ func (c *httpClient) doRead(ctx context.Context, call *internal.Call) (r io.Read
 	}
 
 	var rsp *http.Response
-	rsp, err = c.httpClient.Do(req.WithContext(ctx))
+	rsp, err = c.roundTrip(req.WithContext(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -518,7 +527,7 @@ func (c *httpClient) doRead(ctx context.Context, call *internal.Call) (r io.Read
 }
 
 func (c *httpClient) BeginTx(ctx context.Context, options *yt.StartTxOptions) (yt.Tx, error) {
-	return internal.NewTx(ctx, c.Encoder, c.stop, c.config, options)
+	return internal.NewTx(ctx, c.Encoder, c.log, c.stop, c.config, options)
 }
 
 func (c *httpClient) Stop() {

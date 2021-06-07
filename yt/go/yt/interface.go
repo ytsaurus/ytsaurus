@@ -495,6 +495,18 @@ type ReadTableOptions struct {
 	ControlAttributes interface{} `http:"control_attributes,omitnil"`
 	StartRowIndexOnly *bool       `http:"start_row_index_only,omitnil"`
 
+	// Smart flag enables client side retries.
+	//
+	// When used outside of transaction, ReadTable automatically creates new transaction and
+	// acquired table snapshot lock.
+	//
+	// When used inside of transaction, ReadTable does not create any additional transactions.
+	//
+	// Internal retries continue indefinitely. User must set appropriate timeout on request context.
+	//
+	// This is experimental option, that is currently off by default.
+	Smart *bool
+
 	*TransactionOptions
 	*AccessTrackingOptions
 }
