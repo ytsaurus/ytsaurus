@@ -356,10 +356,10 @@ public:
             auto* chunkOwner = node->As<TChunkOwnerBase>();
 
             auto actualContentRevision = entry.actual_content_revision();
-            if (actualContentRevision > chunkOwner->GetNativeContentRevision()) {
+            if (actualContentRevision >= chunkOwner->GetNativeContentRevision()) {
                 chunkOwner->SetNativeContentRevision(actualContentRevision);
             } else {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Received non-monotonic revision with content revision CAS failure notification; ignored (NodeId: %v, ReceivedRevision: %v, NodeRevision: %v)",
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Received non-monotonic revision with content revision CAS failure notification; ignored (NodeId: %v, ReceivedRevision: %llx, NodeRevision: %llx)",
                     nodeId,
                     actualContentRevision,
                     chunkOwner->GetNativeContentRevision());
