@@ -3291,7 +3291,7 @@ private:
         operation->SetUnregistering();
 
         // Switch to regular control invoker.
-        SwitchTo(GetControlInvoker(EControlQueue::Operation));
+        SwitchTo(operation->GetControlInvoker());
             
         // Notify controller that it is going to be disposed (failure is intentionally ignored).
         {
