@@ -11,6 +11,19 @@ namespace NYT::NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTcpDispatcherConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    int ThreadPoolSize;
+
+    TTcpDispatcherConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TTcpDispatcherConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTcpBusConfig
     : public NNet::TDialerConfig
 {

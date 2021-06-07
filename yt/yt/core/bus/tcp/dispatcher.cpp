@@ -33,6 +33,11 @@ void TTcpDispatcher::Shutdown()
     Impl_->Shutdown();
 }
 
+void TTcpDispatcher::Configure(const TTcpDispatcherConfigPtr& config)
+{
+    Impl_->Configure(config);
+}
+
 const TTcpDispatcherCountersPtr& TTcpDispatcher::GetCounters(const TString& networkName)
 {
     return Impl_->GetCounters(networkName);

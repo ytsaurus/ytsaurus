@@ -56,6 +56,8 @@ public:
     //! May return null if shutdown is already initiated.
     NConcurrency::IPollerPtr GetXferPoller();
 
+    void Configure(const TTcpDispatcherConfigPtr& config);
+
     //! Disables all networking. Safety measure for local runs and snapshot validation.
     void DisableNetworking();
 

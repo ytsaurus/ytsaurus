@@ -19,7 +19,6 @@ using namespace NNet;
 
 static const auto& Logger = BusLogger;
 
-static constexpr auto XferThreadCount = 8;
 static constexpr auto LivenessCheckPeriod = TDuration::MilliSeconds(100);
 static constexpr auto PerConnectionLivenessChecksPeriod = TDuration::Seconds(10);
 
@@ -101,7 +100,7 @@ const TTcpDispatcherCountersPtr& TTcpDispatcher::TImpl::GetCounters(const TStrin
 
 IPollerPtr TTcpDispatcher::TImpl::GetOrCreatePoller(
     IPollerPtr* pollerPtr,
-    int threadCount,
+    bool isXfer,
     const TString& threadNamePrefix)
 {
     {
@@ -121,7 +120,7 @@ IPollerPtr TTcpDispatcher::TImpl::GetOrCreatePoller(
             return nullptr;
         }
         if (!*pollerPtr) {
-            *pollerPtr = CreateThreadPoolPoller(threadCount, threadNamePrefix);
+            *pollerPtr = CreateThreadPoolPoller(isXfer ? Config_->ThreadPoolSize : 1, threadNamePrefix);
         }
         poller = *pollerPtr;
     }
@@ -160,13 +159,20 @@ void TTcpDispatcher::TImpl::ValidateNetworkingNotDisabled(EMessageDirection mess
 IPollerPtr TTcpDispatcher::TImpl::GetAcceptorPoller()
 {
     static const TString ThreadNamePrefix("BusAcceptor");
-    return GetOrCreatePoller(&AcceptorPoller_, 1, ThreadNamePrefix);
+    return GetOrCreatePoller(&AcceptorPoller_, false, ThreadNamePrefix);
 }
 
 IPollerPtr TTcpDispatcher::TImpl::GetXferPoller()
 {
     static const TString ThreadNamePrefix("BusXfer");
-    return GetOrCreatePoller(&XferPoller_, XferThreadCount, ThreadNamePrefix);
+    return GetOrCreatePoller(&XferPoller_, true, ThreadNamePrefix);
+}
+
+void TTcpDispatcher::TImpl::Configure(const TTcpDispatcherConfigPtr& config)
+{
+    auto guard = WriterGuard(PollerLock_);
+    YT_VERIFY(!XferPoller_);
+    Config_ = config;
 }
 
 void TTcpDispatcher::TImpl::RegisterConnection(TTcpConnectionPtr connection)
