@@ -1,4 +1,4 @@
-#include <yt/ytlib/query_client/udf/yt_udf.h>
+#include <yt/ytlib/query_client/udf/udf_c_abi.h>
 
 #include <stdio.h>
 
@@ -8,7 +8,8 @@ void xor_aggregate_init(
 {
     (void)context;
 
-    result->Type = Int64;
+    ClearValue(result);
+    result->Type = VT_Int64;
     result->Aggregate = 1;
     result->Data.Int64 = 0;
 }
@@ -21,7 +22,8 @@ void xor_aggregate_update(
 {
     (void)context;
 
-    result->Type = Int64;
+    ClearValue(result);
+    result->Type = VT_Int64;
     result->Aggregate = state->Aggregate ^ newValue->Aggregate;
     result->Data.Int64 = 0;
 }
@@ -34,7 +36,8 @@ void xor_aggregate_merge(
 {
     (void)context;
 
-    result->Type = Int64;
+    ClearValue(result);
+    result->Type = VT_Int64;
     result->Aggregate = dstState->Aggregate ^ state->Aggregate;
     result->Data.Int64 = 0;
 }
@@ -46,13 +49,8 @@ void xor_aggregate_finalize(
 {
     (void)context;
 
-    if (state->Aggregate) {
-        printf("Aggregate true");
-    } else {
-        printf("Aggregate false");
-    }
-
-    result->Type = Int64;
+    ClearValue(result);
+    result->Type = VT_Int64;
     result->Aggregate = state->Aggregate;
     result->Data.Int64 = 0;
 }

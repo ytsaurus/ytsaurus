@@ -14,7 +14,7 @@ class TFunctionContext::TImpl
     : public TObjectsHolder
 {
 public:
-    TImpl(std::unique_ptr<bool[]> literalArgs)
+    explicit TImpl(std::unique_ptr<bool[]> literalArgs)
         : LiteralArgs_(std::move(literalArgs))
     { }
 
@@ -35,10 +35,12 @@ public:
     }
 
 private:
-    std::unique_ptr<bool[]> LiteralArgs_;
+    const std::unique_ptr<bool[]> LiteralArgs_;
 
     void* PrivateData_ = nullptr;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 TFunctionContext::TFunctionContext(std::unique_ptr<bool[]> literalArgs)
     : Impl_(std::make_unique<TImpl>(std::move(literalArgs)))

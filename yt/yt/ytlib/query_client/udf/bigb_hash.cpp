@@ -1,6 +1,10 @@
-#include "yt_udf_cpp.h"
+#include "udf_cpp_abi.h"
+
 #include <util/string/cast.h>
+
 #include <util/digest/multi.h>
+
+using namespace NYT::NQueryClient::NUdf;
 
 extern "C" uint64_t bigb_hash(
     TExpressionContext* /*context*/,

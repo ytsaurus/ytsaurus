@@ -1,4 +1,6 @@
-#include "yt_udf_cpp.h"
+#include "udf_cpp_abi.h"
+
+using namespace NYT::NQueryClient::NUdf;
 
 extern "C" void MakeMap(
     TExpressionContext* context,

@@ -78,9 +78,7 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
                 mergedValue = keyBegin[id];
             } else {
                 MergedTimestamps_[index] = NullTimestamp;
-                mergedValue.Id = id;
-                mergedValue.Type = EValueType::Null;
-                mergedValue.Aggregate = false;
+                mergedValue = MakeUnversionedNullValue(id);
              }
         }
 
@@ -148,9 +146,7 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row, TTimestamp upperTimes
                 *mergedValue = keyBegin[id];
             } else {
                 MergedTimestamps_[index] = NullTimestamp;
-                mergedValue->Id = id;
-                mergedValue->Type = EValueType::Null;
-                mergedValue->Aggregate = false;
+                *mergedValue = MakeUnversionedNullValue(id);
              }
         }
 
@@ -259,7 +255,7 @@ TMutableUnversionedRow TSchemafulRowMerger::BuildMergedRow()
     for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
         int id = ColumnIds_[index];
         if (MergedTimestamps_[index] < LatestDelete_ && !ColumnEvaluator_->IsAggregate(id)) {
-            MergedRow_[index].Type = EValueType::Null;
+            MergedRow_[index] = MakeUnversionedNullValue(index);
         }
     }
 
@@ -310,10 +306,7 @@ void TUnversionedRowMerger::InitPartialRow(TUnversionedRow row)
     std::copy(row.begin(), row.begin() + KeyColumnCount_, MergedRow_.begin());
 
     for (int index = KeyColumnCount_; index < ColumnCount_; ++index) {
-        auto& value = MergedRow_[index];
-        value.Id = index;
-        value.Type = EValueType::Null;
-        value.Aggregate = ColumnEvaluator_->IsAggregate(index);
+        MergedRow_[index] = MakeUnversionedNullValue(index, ColumnEvaluator_->IsAggregate(index));
     }
 }
 
@@ -344,9 +337,7 @@ void TUnversionedRowMerger::DeletePartialRow(TUnversionedRow /*row*/)
 
     for (int index = KeyColumnCount_; index < ColumnCount_; ++index) {
         ValidValues_[index - KeyColumnCount_] = true;
-        auto& mergedValue = MergedRow_[index];
-        mergedValue.Type = EValueType::Null;
-        mergedValue.Aggregate = false;
+        MergedRow_[index] = MakeUnversionedNullValue(index);
     }
 }
 

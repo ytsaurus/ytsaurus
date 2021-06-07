@@ -106,9 +106,8 @@ private:
         YT_ASSERT(rowIndex < UpperRowBound(position));
 
         while (rowIndex < rowLimit) {
-            TUnversionedValue value;
+            TUnversionedValue value{};
             value.Id = id;
-            value.Aggregate = false;
 
             YT_ASSERT(position < Count_);
             Value_.Extract(&value, position);
@@ -253,7 +252,9 @@ private:
 
             statistics->AddFixedPart<Type>(valueIdxEnd - valueIdx);
             do {
+                *valuePtr = {};
                 valuePtr->Id = Id_;
+
                 Value_.Extract(valuePtr, valueIdx);
                 Version_.Extract(valuePtr, *timestamps, valueIdx);
                 statistics->AddVariablePart<Type>(*valuePtr);
@@ -297,8 +298,7 @@ private:
             auto [lowerId, upperId] = values->IdRange;
             // Adjust valueIdx and valueIdxEnd according to tsIds.
             valueIdx = Version_.AdjustLowerIndex(valueIdx, valueIdxEnd, lowerId);
-
-            // TODO(lukyan): No need co call AdjustIndex when produceAll is true. upperId is max.
+            // TODO(lukyan): No need co call AdjustIndex when produceAll is true; upperId is max.
             valueIdxEnd = Version_.AdjustIndex(valueIdx, valueIdxEnd, upperId);
 
             YT_ASSERT((valueIdx == valueIdxEnd) || (lowerId != upperId));
@@ -311,7 +311,9 @@ private:
 
             // TODO(lukyan): Use condition instead of loop if produceAll is false and not aggregate column.
             while (valueIdx != valueIdxEnd) {
+                *valuePtr = {};
                 valuePtr->Id = Id_;
+
                 Value_.Extract(valuePtr, valueIdx);
                 Version_.Extract(valuePtr, timestamps, valueIdx);
                 statistics->AddVariablePart<Type>(*valuePtr);

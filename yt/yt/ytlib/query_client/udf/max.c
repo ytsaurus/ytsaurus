@@ -1,4 +1,5 @@
-#include "yt_udf.h"
+#include "udf_c_abi.h"
+
 #include <string.h>
 
 static int string_less_than(
@@ -6,14 +7,14 @@ static int string_less_than(
     TUnversionedValue* string2)
 {
     int length1IsLess = string1->Length < string2->Length;
-    int min_length = length1IsLess ? string1->Length : string2->Length;
+    int minLength = length1IsLess ? string1->Length : string2->Length;
 
-    int cmp_result = memcmp(
+    int cmpResult = memcmp(
         string1->Data.String,
         string2->Data.String,
-        min_length);
+        minLength);
 
-    return (cmp_result < 0) || (cmp_result == 0 && length1IsLess);
+    return (cmpResult < 0) || (cmpResult == 0 && length1IsLess);
 }
 
 void max_init(
@@ -21,7 +22,9 @@ void max_init(
     TUnversionedValue* result)
 {
     (void)context;
-    result->Type = Null;
+
+    ClearValue(result);
+    result->Type = VT_Null;
 }
 
 static void max_iteration(
@@ -30,20 +33,20 @@ static void max_iteration(
     TUnversionedValue* state,
     TUnversionedValue* newValue)
 {
-    (void)context;
-    if (newValue->Type == Null) {
+    ClearValue(result);
+    if (newValue->Type == VT_Null) {
         result->Type = state->Type;
         result->Length = state->Length;
         result->Data = state->Data;
-    } else if (state->Type == Null
-        || (newValue->Type == Int64 && state->Data.Int64 < newValue->Data.Int64)
-        || (newValue->Type == Uint64 && state->Data.Uint64 < newValue->Data.Uint64)
-        || (newValue->Type == Double && state->Data.Double < newValue->Data.Double)
-        || (newValue->Type == String && string_less_than(state, newValue)))
+    } else if (state->Type == VT_Null
+        || (newValue->Type == VT_Int64 && state->Data.Int64 < newValue->Data.Int64)
+        || (newValue->Type == VT_Uint64 && state->Data.Uint64 < newValue->Data.Uint64)
+        || (newValue->Type == VT_Double && state->Data.Double < newValue->Data.Double)
+        || (newValue->Type == VT_String && string_less_than(state, newValue)))
     {
         result->Type = newValue->Type;
         result->Length = newValue->Length;
-        if (newValue->Type == String) {
+        if (newValue->Type == VT_String) {
             char* permanentData = AllocateBytes(context, newValue->Length);
             memcpy(permanentData, newValue->Data.String, newValue->Length);
             result->Data.String = permanentData;
@@ -81,6 +84,8 @@ void max_finalize(
     TUnversionedValue* state)
 {
     (void)context;
+
+    ClearValue(result);
     result->Type = state->Type;
     result->Length = state->Length;
     result->Data = state->Data;

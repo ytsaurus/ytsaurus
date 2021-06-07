@@ -120,12 +120,12 @@ bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TValue* valu
     batch.push_back(rowBuffer->CaptureRow(MakeRange(values, closure->RowSize)));
 
     // NB: Aggregate flag is neither set from TCG value nor cleared during row allocation.
+    // XXX(babenko): fix this
     size_t id = 0;
     for (auto* value = batch.back().Begin(); value < batch.back().End(); ++value) {
         auto mutableValue = const_cast<TUnversionedValue*>(value);
-        mutableValue->Aggregate = false;
         mutableValue->Id = id++;
-
+        mutableValue->Aggregate = false;
         if (!IsStringLikeType(value->Type)) {
             mutableValue->Length = 0;
         }
@@ -234,9 +234,9 @@ void ScanOpHelper(
     }
 }
 
-char* AllocateAlignedBytes(TExpressionContext* buffer, size_t byteCount)
+char* AllocateAlignedBytes(TExpressionContext* context, size_t byteCount)
 {
-    return buffer
+    return context
         ->GetPool()
         ->AllocateAligned(byteCount);
 }
@@ -343,7 +343,7 @@ void MultiJoinOpHelper(
     void (*collectRows)(
         void** closure,
         TMultiJoinClosure* joinClosure,
-        TExpressionContext* buffer),
+        TExpressionContext* context),
     void** consumeRowsClosure,
     TRowsConsumer consumeRows)
 {
@@ -727,7 +727,7 @@ void GroupOpHelper(
     void (*collectRows)(
         void** closure,
         TGroupByClosure* groupByClosure,
-        TExpressionContext* buffer),
+        TExpressionContext* context),
     void** boundaryConsumeRowsClosure,
     TRowsConsumer boundaryConsumeRows,
     void** innerConsumeRowsClosure,
@@ -830,21 +830,21 @@ void GroupTotalsOpHelper(
     void** collectRowsClosure,
     void (*collectRows)(
         void** closure,
-        TExpressionContext* buffer))
+        TExpressionContext* context))
 {
     auto buffer = New<TRowBuffer>(TIntermediateBufferTag());
     collectRows(collectRowsClosure, buffer.Get());
 }
 
 void AllocatePermanentRow(
-    TExecutionContext* /*context*/,
-    TExpressionContext* buffer,
+    TExecutionContext* /*executionContext*/,
+    TExpressionContext* expressionContext,
     int valueCount,
     TValue** row)
 {
     CHECK_STACK();
 
-    *row = buffer->AllocateUnversioned(valueCount).Begin();
+    *row = expressionContext->AllocateUnversioned(valueCount).Begin();
 }
 
 void AddRowToCollector(TTopCollector* topCollector, TValue* row)
@@ -1080,7 +1080,7 @@ ui64 SimpleHash(const TUnversionedValue* begin, const TUnversionedValue* end)
     ui64 result = end - begin;
 
     for (auto value = begin; value != end; value++) {
-        switch(value->Type) {
+        switch (value->Type) {
             case EValueType::Int64:
                 result = hash64(value->Data.Int64, result);
                 continue;
@@ -1169,24 +1169,20 @@ ui8 RegexPartialMatch(re2::RE2* re2, TUnversionedValue* string)
         *re2);
 }
 
-template <typename StringType>
-void CopyString(TExpressionContext* context, TUnversionedValue* result, const StringType& str)
+template <typename TStringType>
+void CopyString(TExpressionContext* context, TUnversionedValue* result, const TStringType& str)
 {
     char* data = AllocateBytes(context, str.size());
     memcpy(data, str.data(), str.size());
-    result->Type = EValueType::String;
-    result->Length = str.size();
-    result->Data.String = data;
+    *result = MakeUnversionedStringValue(TStringBuf(data, str.size()));
 }
 
-template <typename StringType>
-void CopyAny(TExpressionContext* context, TUnversionedValue* result, const StringType& str)
+template <typename TStringType>
+void CopyAny(TExpressionContext* context, TUnversionedValue* result, const TStringType& str)
 {
     char* data = AllocateBytes(context, str.size());
     memcpy(data, str.c_str(), str.size());
-    result->Type = EValueType::Any;
-    result->Length = str.size();
-    result->Data.String = data;
+    *result = MakeUnversionedAnyValue(TStringBuf(data, str.size()));
 }
 
 void RegexReplaceFirst(
@@ -1277,15 +1273,15 @@ void RegexEscape(
 
 #define DEFINE_YPATH_GET_IMPL(TYPE, STATEMENT_OK) \
     DEFINE_YPATH_GET_IMPL2(Try, TYPE, STATEMENT_OK, \
-        result->Type = EValueType::Null;) \
+        *result = MakeUnversionedNullValue();) \
     DEFINE_YPATH_GET_IMPL2(, TYPE, STATEMENT_OK, \
-        THROW_ERROR_EXCEPTION("Value of type %Qv is not found at ypath %Qv", \
-            #TYPE, TStringBuf{ypath->Data.String, ypath->Length});)
+        THROW_ERROR_EXCEPTION("Value of type %Qlv is not found at YPath %v", \
+            EValueType::TYPE, \
+            TStringBuf(ypath->Data.String, ypath->Length));)
 
 #define DEFINE_YPATH_GET(TYPE) \
     DEFINE_YPATH_GET_IMPL(TYPE, \
-        result->Type = EValueType::TYPE; \
-        result->Data.TYPE = *value;)
+        *result = MakeUnversioned ## TYPE ## Value(*value);)
 
 #define DEFINE_YPATH_GET_STRING \
     DEFINE_YPATH_GET_IMPL(String, \
@@ -1308,18 +1304,18 @@ DEFINE_YPATH_GET_ANY
     void AnyTo ## TYPE([[maybe_unused]] TExpressionContext* context, TUnversionedValue* result, TUnversionedValue* anyValue) \
     { \
         if (anyValue->Type == EValueType::Null) { \
-            result->Type = EValueType::Null; \
+            *result = MakeUnversionedNullValue(); \
             return; \
         } \
         NYson::TToken token; \
-        NYson::GetToken(TStringBuf(anyValue->Data.String, anyValue->Length), &token); \
+        auto anyString = TStringBuf(anyValue->Data.String, anyValue->Length); \
+        NYson::GetToken(anyString, &token); \
         if (token.GetType() == NYson::ETokenType::TYPE) { \
-            result->Type = EValueType::TYPE; \
             STATEMENT_OK \
         } else { \
-            THROW_ERROR_EXCEPTION("Can not convert value %Qv of type Any to %v", \
-                TStringBuf(anyValue->Data.String, anyValue->Length), \
-                #TYPE); \
+            THROW_ERROR_EXCEPTION("Cannot convert value %Qv of type \"any\" to %Qlv", \
+                anyString, \
+                EValueType::TYPE); \
         } \
     }
 
@@ -1327,31 +1323,29 @@ DEFINE_YPATH_GET_ANY
     void AnyTo ## TYPE(TExpressionContext* /*context*/, TUnversionedValue* result, TUnversionedValue* anyValue) \
     { \
         if (anyValue->Type == EValueType::Null) { \
-            result->Type = EValueType::Null; \
+            *result = MakeUnversionedNullValue(); \
             return; \
         } \
         NYson::TToken token; \
-        NYson::GetToken(TStringBuf(anyValue->Data.String, anyValue->Length), &token); \
+        auto anyString = TStringBuf(anyValue->Data.String, anyValue->Length); \
+        NYson::GetToken(anyString, &token); \
         if (token.GetType() == NYson::ETokenType::Int64) { \
-            result->Type = EValueType::TYPE; \
-            result->Data.TYPE = token.GetInt64Value(); \
+            *result = MakeUnversioned ## TYPE ## Value(token.GetInt64Value()); \
         } else if (token.GetType() == NYson::ETokenType::Uint64) { \
-            result->Type = EValueType::TYPE; \
-            result->Data.TYPE = token.GetUint64Value(); \
+            *result = MakeUnversioned ## TYPE ## Value(token.GetUint64Value()); \
         } else if (token.GetType() == NYson::ETokenType::Double) { \
-            result->Type = EValueType::TYPE; \
-            result->Data.TYPE = token.GetDoubleValue(); \
+            *result = MakeUnversioned ## TYPE ## Value(token.GetDoubleValue()); \
         } else { \
-            THROW_ERROR_EXCEPTION("Can not convert value %Qv of type Any to %v", \
-                TStringBuf(anyValue->Data.String, anyValue->Length), \
-                #TYPE); \
+            THROW_ERROR_EXCEPTION("Cannot convert value %Qv of type \"any\" to %Qlv", \
+                anyString, \
+                EValueType::TYPE); \
         } \
     }
 
 DEFINE_CONVERT_ANY_NUMERIC_IMPL(Int64)
 DEFINE_CONVERT_ANY_NUMERIC_IMPL(Uint64)
 DEFINE_CONVERT_ANY_NUMERIC_IMPL(Double)
-DEFINE_CONVERT_ANY(Boolean, result->Data.Boolean = token.GetBooleanValue();)
+DEFINE_CONVERT_ANY(Boolean, *result = MakeUnversionedBooleanValue(token.GetBooleanValue());)
 DEFINE_CONVERT_ANY(String, CopyString(context, result, token.GetStringValue());)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1700,24 +1694,22 @@ extern "C" void NumericToString(
     extern "C" void StringTo ## TYPE(TExpressionContext* /*context*/, TUnversionedValue* result, TUnversionedValue* value) \
     { \
         if (value->Type == EValueType::Null) { \
-            result->Type = EValueType::Null; \
+            *result = MakeUnversionedNullValue(); \
             return; \
         } \
         NYson::TToken token; \
-        NYson::GetToken(TStringBuf(value->Data.String, value->Length), &token); \
+        auto valueString = TStringBuf(value->Data.String, value->Length); \
+        NYson::GetToken(valueString, &token); \
         if (token.GetType() == NYson::ETokenType::Int64) { \
-            result->Type = EValueType::TYPE; \
-            result->Data.TYPE = token.GetInt64Value(); \
+            *result = MakeUnversioned ## TYPE ## Value(token.GetInt64Value()); \
         } else if (token.GetType() == NYson::ETokenType::Uint64) { \
-            result->Type = EValueType::TYPE; \
-            result->Data.TYPE = token.GetUint64Value(); \
+            *result = MakeUnversioned ## TYPE ## Value(token.GetUint64Value()); \
         } else if (token.GetType() == NYson::ETokenType::Double) { \
-            result->Type = EValueType::TYPE; \
-            result->Data.TYPE = token.GetDoubleValue(); \
+            *result = MakeUnversioned ## TYPE ## Value(token.GetDoubleValue()); \
         } else { \
-            THROW_ERROR_EXCEPTION("Can not convert value %Qv of type %v to String", \
-                TStringBuf(value->Data.String, value->Length), \
-                #TYPE); \
+            THROW_ERROR_EXCEPTION("Cannot convert value %Qv of type %Qlv to \"string\"", \
+                valueString, \
+                EValueType::TYPE); \
         } \
     }
 
@@ -1729,12 +1721,9 @@ DEFINE_CONVERT_STRING(Double)
 
 void HyperLogLogAllocate(TExpressionContext* context, TUnversionedValue* result)
 {
-    auto hll = AllocateBytes(context, sizeof(THLL));
+    auto* hll = AllocateBytes(context, sizeof(THLL));
     new (hll) THLL();
-
-    result->Type = EValueType::String;
-    result->Length = sizeof(THLL);
-    result->Data.String = hll;
+    *result = MakeUnversionedStringValue(TStringBuf(hll, sizeof(THLL)));
 }
 
 void HyperLogLogAdd(void* hll, uint64_t value)

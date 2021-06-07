@@ -196,7 +196,7 @@ constexpr char ItemTypeToMarker(EYsonItemType itemType)
         case EYsonItemType::EntityValue:
             return NDetail::EntitySymbol;
         default:
-            THROW_ERROR_EXCEPTION("Can not convert item type %Qlv to marker",
+            THROW_ERROR_EXCEPTION("Cannot convert item type %Qlv to marker",
                 itemType);
     }
 }

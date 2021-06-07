@@ -430,18 +430,20 @@ protected:
 
     void ProduceUnversionedValue(TUnversionedValue* dstValue, int index, TDynamicValueData srcData, bool null, bool aggregate)
     {
+        if (null) {
+            *dstValue = MakeUnversionedNullValue(index, aggregate);
+            return;
+        }
+
+        *dstValue = {};
         dstValue->Id = index;
         dstValue->Aggregate = aggregate;
-        if (null) {
-            dstValue->Type = EValueType::Null;
+        dstValue->Type = Store_->Schema_->Columns()[index].GetPhysicalType();
+        if (IsStringLikeType(dstValue->Type)) {
+            dstValue->Length = srcData.String->Length;
+            dstValue->Data.String = srcData.String->Data;
         } else {
-            dstValue->Type = Store_->Schema_->Columns()[index].GetPhysicalType();
-            if (IsStringLikeType(dstValue->Type)) {
-                dstValue->Length = srcData.String->Length;
-                dstValue->Data.String = srcData.String->Data;
-            } else {
-                ::memcpy(&dstValue->Data, &srcData, sizeof(TDynamicValueData));
-            }
+            ::memcpy(&dstValue->Data, &srcData, sizeof(TDynamicValueData));
         }
     }
 

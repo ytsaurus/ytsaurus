@@ -1,7 +1,7 @@
-#include "yt_udf.h"
+#include "udf_c_abi.h"
 
 uint64_t farm_hash_combine(
-    TExecutionContext* context,
+    TExecutionContext* /*context*/,
     uint64_t lhs,
     uint64_t rhs)
 {

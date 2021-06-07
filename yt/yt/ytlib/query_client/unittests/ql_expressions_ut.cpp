@@ -1625,7 +1625,6 @@ INSTANTIATE_TEST_SUITE_P(
             "u1=17271244077285990991u",
             "u1=17271244077285990991",
             MakeBoolean(true)),
-        ///
         std::tuple<const char*, const char*, TUnversionedValue>(
             "any=%false",
             "boolean(any)",
@@ -1867,21 +1866,21 @@ TEST_F(TExpressionErrorTest, ConvertFromAny)
             auto expr = PrepareExpression("string(any)", *schema);
             EvaluateExpression(expr, "any=1", schema, &result, buffer);
         }(),
-        HasSubstr("Can not convert value"));
+        HasSubstr("Cannot convert value"));
 
     EXPECT_THROW_THAT(
         [&] {
             auto expr = PrepareExpression("int64(any)", *schema);
             EvaluateExpression(expr, "any=\"hello\"", schema, &result, buffer);
         }(),
-        HasSubstr("Can not convert value"));
+        HasSubstr("Cannot convert value"));
 
     EXPECT_THROW_THAT(
         [&] {
             auto expr = PrepareExpression("int64(any)", *schema);
             EvaluateExpression(expr, "any=%true", schema, &result, buffer);
         }(),
-        HasSubstr("Can not convert value"));
+        HasSubstr("Cannot convert value"));
 }
 
 class TExpressionStrConvTest
@@ -1979,7 +1978,7 @@ TEST_F(TExpressionStrConvTest, ErrorConvertStringToNumericTest) {
             auto expr = PrepareExpression("parse_int64(string)", *schema);
             EvaluateExpression(expr, "string=\"hello\"", schema, &result, buffer);
         }(),
-        HasSubstr("Can not convert value"));
+        HasSubstr("Cannot convert value"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1242,10 +1242,9 @@ void ToAny(
     NYson::TYsonWriter writer(&stream, format);
 
     switch (value->Type) {
-        case EValueType::Null: {
-            result->Type = EValueType::Null;
+        case EValueType::Null:
+            *result = MakeUnversionedNullValue();
             return;
-        }
         case EValueType::Any:
         case EValueType::Composite: {
             if (format == EYsonFormat::Binary) {
@@ -1283,10 +1282,9 @@ void ToAny(
     }
 
     writer.Flush();
-    result->Type = EValueType::Any;
-    result->Length = stream.Size();
-    result->Data.String = stream.Data();
-    *result = rowBuffer->CaptureValue(*result);
+
+    *result = rowBuffer->CaptureValue(
+        MakeUnversionedAnyValue(TStringBuf(stream.Data(), stream.Size())));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

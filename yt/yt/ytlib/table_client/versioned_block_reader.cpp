@@ -47,16 +47,7 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     Key_ = TLegacyMutableKey::Create(KeyBuffer_.data(), KeyColumnCount_);
 
     for (int index = 0; index < KeyColumnCount_; ++index) {
-        auto& value = Key_[index];
-        value.Id = index;
-        value.Aggregate = false;
-    }
-
-    for (int index = ChunkKeyColumnCount_; index < KeyColumnCount_; ++index) {
-        auto& value = Key_[index];
-        value.Id = index;
-        value.Type = EValueType::Null;
-        value.Aggregate = false;
+        Key_[index] = MakeUnversionedNullValue(index);
     }
 
     KeyData_ = TRef(const_cast<char*>(Block_.Begin()), TSimpleVersionedBlockWriter::GetPaddedKeySize(
@@ -399,9 +390,10 @@ void TSimpleVersionedBlockReader::ReadValue(TVersionedValue* value, int valueInd
     const char* ptr = ValueData_.Begin() + TSimpleVersionedBlockWriter::ValueSize * valueIndex;
     auto timestamp = *reinterpret_cast<const TTimestamp*>(ptr + 8);
 
+    *value = {};
     value->Id = id;
     value->Timestamp = timestamp;
-    value->Aggregate = ValueAggregateFlags_ ? ValueAggregateFlags_->operator[](valueIndex) : false;
+    value->Aggregate = ValueAggregateFlags_ && (*ValueAggregateFlags_)[valueIndex];
 
     bool isNull = ValueNullFlags_[valueIndex];
     if (Y_UNLIKELY(isNull)) {

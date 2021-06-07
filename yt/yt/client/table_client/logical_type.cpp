@@ -1441,11 +1441,11 @@ bool IsComparable(const TLogicalTypePtr& type)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TV3Variant
-{};
+{ };
 
 using TV3TypeName = std::variant<ESimpleLogicalValueType, ELogicalMetatype, TV3Variant>;
 
-std::pair<ESimpleLogicalValueType, TString> V3SimpleLogicalValueTypeEncoding[] =
+static const std::pair<ESimpleLogicalValueType, TString> V3SimpleLogicalValueTypeEncoding[] =
 {
     {ESimpleLogicalValueType::Null,      "null"},
     {ESimpleLogicalValueType::Int64,     "int64"},
@@ -1911,7 +1911,7 @@ void DeserializeV3(TLogicalTypePtr& type, NYson::TYsonPullParserCursor* cursor)
             cursor->SkipComplexValue();
         }
     });
-    
+
     if (!typeName) {
         THROW_ERROR_EXCEPTION("\"type_name\" is required");
     }

@@ -1,14 +1,19 @@
-#include <yt/ytlib/query_client/udf/yt_udf.h>
+#include <yt/ytlib/query_client/udf/udf_c_abi.h>
 
 uint64_t seventyfive(TExpressionContext* context)
 {
     (void)context;
+
     return 75;
 }
 
-uint64_t strtol_udf(TExpressionContext* context, const char* string, int length)
+uint64_t strtol_udf(
+    TExpressionContext* context,
+    const char* string,
+    int length)
 {
     (void)context;
+
     uint64_t result = 0;
     for (int i = 0; i < length; i++) {
         result *= 10;
@@ -18,9 +23,13 @@ uint64_t strtol_udf(TExpressionContext* context, const char* string, int length)
     return result;
 }
 
-int64_t exp_udf(TExpressionContext* context, int64_t n, int64_t m)
+int64_t exp_udf(
+    TExpressionContext* context,
+    int64_t n,
+    int64_t m)
 {
     (void)context;
+
     int64_t result = 1;
     for (int64_t i = 0; i < m; i++) {
         result *= n;
@@ -49,34 +58,44 @@ void tolower_udf(
     *result_length = length;
 }
 
-void is_null_udf(TExpressionContext* context, TUnversionedValue* result, TUnversionedValue* value)
+void is_null_udf(
+    TExpressionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* value)
 {
     (void)context;
-    int8_t isnull = value->Type == Null;
-    result->Type = Boolean;
-    result->Data.Boolean = isnull;
+
+    ClearValue(result);
+    result->Type = VT_Boolean;
+    result->Data.Boolean = value->Type == VT_Null;
 }
 
-int64_t abs_udf(TExpressionContext* context, int64_t n)
+int64_t abs_udf(
+    TExpressionContext* context,
+    int64_t n)
 {
     (void)context;
+
     return llabs(n);
 }
 
 void sum_udf(
     TExpressionContext* context,
-    TUnversionedValue* result_value,
+    TUnversionedValue* result,
     TUnversionedValue* n1,
     TUnversionedValue* ns,
     int ns_len)
 {
     (void)context;
-    int64_t result = n1->Data.Int64;
+
+    int64_t value = n1->Data.Int64;
     for (int i = 0; i < ns_len; i++) {
-        result += ns[i].Data.Int64;
+        value += ns[i].Data.Int64;
     }
-    result_value->Type = Int64;
-    result_value->Data.Int64 = result;
+
+    ClearValue(result);
+    result->Type = VT_Int64;
+    result->Data.Int64 = value;
 }
 
 int64_t throw_if_negative_udf(
@@ -84,6 +103,7 @@ int64_t throw_if_negative_udf(
     int64_t argument)
 {
     (void)context;
+
     if (argument < 0) {
         ThrowException("Argument was negative");
     }
@@ -101,8 +121,9 @@ void avg_udaf_init(
     intStatePtr[0] = 0;
     intStatePtr[1] = 0;
 
+    ClearValue(result);
+    result->Type = VT_String;
     result->Length = stateSize;
-    result->Type = String;
     result->Data.String = statePtr;
 }
 
@@ -113,14 +134,16 @@ void avg_udaf_update(
     TUnversionedValue* newValue)
 {
     (void)context;
+
     int64_t* intStatePtr = (int64_t*)state->Data.String;
-    if (newValue->Type != Null) {
+    if (newValue->Type != VT_Null) {
         intStatePtr[0] += 1;
         intStatePtr[1] += newValue->Data.Int64;
     }
 
+    ClearValue(result);
+    result->Type = VT_String;
     result->Length = 2 * sizeof(int64_t);
-    result->Type = String;
     result->Data.String = (char*)intStatePtr;
 }
 
@@ -131,14 +154,16 @@ void avg_udaf_merge(
     TUnversionedValue* state)
 {
     (void)context;
+
     int64_t* dstStatePtr = (int64_t*)dstState->Data.String;
     int64_t* intStatePtr = (int64_t*)state->Data.String;
 
     dstStatePtr[0] += intStatePtr[0];
     dstStatePtr[1] += intStatePtr[1];
 
+    ClearValue(result);
+    result->Type = VT_String;
     result->Length = 2 * sizeof(int64_t);
-    result->Type = String;
     result->Data.String = (char*)dstStatePtr;
 }
 
@@ -148,12 +173,14 @@ void avg_udaf_finalize(
     TUnversionedValue* state)
 {
     (void)context;
+
+    ClearValue(result);
     int64_t* intStatePtr = (int64_t*)state->Data.String;
     if (intStatePtr[0] == 0) {
-        result->Type = Null;
+        result->Type = VT_Null;
     } else {
         double resultData = (double)intStatePtr[1] / (double)intStatePtr[0];
-        result->Type = Double;
+        result->Type = VT_Double;
         result->Data.Double = resultData;
     }
 }
