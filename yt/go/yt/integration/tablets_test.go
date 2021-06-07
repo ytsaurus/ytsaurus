@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -234,6 +235,9 @@ func TestExecTabletTx(t *testing.T) {
 
 	require.False(t, r.Next())
 	require.NoError(t, r.Err())
+
+	var mu sync.Mutex
+	mu.Lock()
 }
 
 func TestReadTimestamp(t *testing.T) {

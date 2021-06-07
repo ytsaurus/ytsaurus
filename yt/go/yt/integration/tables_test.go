@@ -12,6 +12,7 @@ import (
 	"a.yandex-team.ru/yt/go/schema"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
+	"a.yandex-team.ru/yt/go/yt/internal/httpclient"
 	"a.yandex-team.ru/yt/go/yttest"
 )
 
@@ -404,7 +405,56 @@ func TestBigRow(t *testing.T) {
 		require.NoError(t, w.Commit())
 	})
 }
+func TestWriteEarlyErrorRetry(t *testing.T) {
+	t.Parallel()
 
-func TestSmartReader(t *testing.T) {
+	env := yttest.New(t)
+	path := env.TmpPath()
 
+	_, err := env.YT.CreateNode(env.Ctx, path, yt.NodeTable, nil)
+	require.NoError(t, err)
+
+	done := false
+	returnInvalidProxyOnce := func() (string, bool) {
+		if !done {
+			done = true
+			return "hahn.yt.yandex-team.ru:1", true
+		} else {
+			return "", false
+		}
+	}
+
+	w, err := env.YT.WriteTable(httpclient.WithHeavyProxyOverride(env.Ctx, returnInvalidProxyOnce), path, nil)
+	require.NoError(t, err)
+	defer w.Rollback()
+
+	require.NoError(t, w.Write(testRow{Key: "foo", Value: "bar"}))
+	require.NoError(t, w.Commit())
+}
+
+func TestReadEarlyErrorRetry(t *testing.T) {
+	t.Parallel()
+
+	env := yttest.New(t)
+	path := env.TmpPath()
+
+	_, err := env.YT.CreateNode(env.Ctx, path, yt.NodeTable, nil)
+	require.NoError(t, err)
+
+	done := false
+	returnInvalidProxyOnce := func() (string, bool) {
+		if !done {
+			done = true
+			return "hahn.yt.yandex-team.ru:1", true
+		} else {
+			return "", false
+		}
+	}
+
+	r, err := env.YT.ReadTable(httpclient.WithHeavyProxyOverride(env.Ctx, returnInvalidProxyOnce), path, nil)
+	require.NoError(t, err)
+	defer r.Close()
+
+	require.False(t, r.Next())
+	require.NoError(t, r.Err())
 }

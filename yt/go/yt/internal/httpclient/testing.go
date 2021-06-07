@@ -19,3 +19,20 @@ func GetRoundTripper(ctx context.Context) (http.RoundTripper, bool) {
 
 	return v.(http.RoundTripper), true
 }
+
+type HeavyProxyOverride func() (string, bool)
+
+type heavyProxyOverrideKey struct{}
+
+func WithHeavyProxyOverride(ctx context.Context, override HeavyProxyOverride) context.Context {
+	return context.WithValue(ctx, heavyProxyOverrideKey{}, override)
+}
+
+func GetHeavyProxyOverride(ctx context.Context) (string, bool) {
+	v := ctx.Value(heavyProxyOverrideKey{})
+	if v == nil {
+		return "", false
+	}
+
+	return v.(HeavyProxyOverride)()
+}
