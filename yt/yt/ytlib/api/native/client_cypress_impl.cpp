@@ -1217,16 +1217,36 @@ private:
 
     void GetCommonType()
     {
+        auto isValidType = [&] (EObjectType type) {
+            return type == EObjectType::Table || type == EObjectType::File;
+        };
+
+        DstObject_.Type = TypeFromId(DstObject_.ObjectId);
+
+        // For virtual tables object types cannot be infered from object ids.
+        bool needToFetchSourceObjectTypes = false;
+        for (auto& srcObject : SrcObjects_) {
+            srcObject.Type = TypeFromId(srcObject.ObjectId);
+            if (!isValidType(srcObject.Type)) {
+                needToFetchSourceObjectTypes = true;
+            }
+        }
+
+        if (needToFetchSourceObjectTypes) {
+            FetchSourceObjectTypes();
+        }
+
         std::optional<EObjectType> commonType;
         TString pathWithCommonType;
 
         auto checkType = [&] (const TUserObject& object) {
-            auto type = TypeFromId(object.ObjectId);
-            if (type != EObjectType::Table && type != EObjectType::File) {
-                THROW_ERROR_EXCEPTION("Type of %v must be either %Qlv or %Qlv",
+            auto type = object.Type;
+            if (!isValidType(type)) {
+                THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv or %Qlv, %Qlv found",
                     object.GetPath(),
                     EObjectType::Table,
-                    EObjectType::File);
+                    EObjectType::File,
+                    type);
             }
             if (commonType && *commonType != type) {
                 THROW_ERROR_EXCEPTION("Type of %v (%Qlv) must be the same as type of %v (%Qlv)",
@@ -1247,13 +1267,42 @@ private:
         CommonType_ = *commonType;
     }
 
+    void FetchSourceObjectTypes()
+    {
+        auto proxy = Client_->CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions());
+        auto batchReq = proxy->ExecuteBatch();
+
+        for (auto& srcObject : SrcObjects_) {
+            auto req = TObjectYPathProxy::Get(srcObject.GetPath() + "/@");
+            req->Tag() = &srcObject;
+            req->mutable_attributes()->add_keys("type");
+            NCypressClient::SetTransactionId(req, *srcObject.TransactionId);
+            batchReq->AddRequest(req, "get_src_object_types");
+        }
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error fetching source object types");
+        const auto& batchRsp = batchRspOrError.Value();
+        auto rspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGet>("get_src_object_types");
+        for (const auto& rspOrError : rspsOrError) {
+            const auto& rsp = rspOrError.Value();
+            auto* srcObject = std::any_cast<TUserObject*>(rsp->Tag());
+            auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+            srcObject->Type = attributes->Get<EObjectType>("type");
+
+            YT_LOG_DEBUG("Source object type fetched (Path: %v, Type: %v)",
+                srcObject->GetPath(),
+                srcObject->Type);
+        }
+    }
+
     void GetSrcObjectChunkCounts()
     {
         auto proxy = Client_->CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions());
         auto batchReq = proxy->ExecuteBatch();
 
         for (auto& srcObject : SrcObjects_) {
-            auto req = TYPathProxy::Get(srcObject.GetObjectIdPath() + "/@");
+            auto req = TYPathProxy::Get(srcObject.GetObjectIdPathIfAvailable() + "/@");
             req->Tag() = &srcObject;
             AddCellTagToSyncWith(req, srcObject.ObjectId);
             NCypressClient::SetTransactionId(req, *srcObject.TransactionId);
@@ -1278,7 +1327,7 @@ private:
     void InferOutputTableSchema()
     {
         auto createGetSchemaRequest = [&] (const TUserObject& object) {
-            auto req = TYPathProxy::Get(object.GetObjectIdPath() + "/@");
+            auto req = TYPathProxy::Get(object.GetObjectIdPathIfAvailable() + "/@");
             req->Tag() = &object;
             AddCellTagToSyncWith(req, object.ObjectId);
             NCypressClient::SetTransactionId(req, *object.TransactionId);
@@ -1368,27 +1417,34 @@ private:
 
     void FetchChunkSpecs()
     {
+        auto prepareFetchRequest = [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& request, int srcObjectIndex) {
+            const auto& srcObject = SrcObjects_[srcObjectIndex];
+
+            request->set_fetch_all_meta_extensions(false);
+            if (Sorted_) {
+                request->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+                request->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
+            }
+            AddCellTagToSyncWith(request, srcObject.ObjectId);
+            NCypressClient::SetTransactionId(request, srcObject.ExternalTransactionId);
+        };
+
         auto chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
             Client_,
             Client_->Connection_->GetNodeDirectory(),
             Client_->Connection_->GetInvoker(),
             Client_->Connection_->GetConfig()->MaxChunksPerFetch,
             Client_->Connection_->GetConfig()->MaxChunksPerLocateRequest,
-            [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& request, int srcObjectIndex) {
-                const auto& srcObject = SrcObjects_[srcObjectIndex];
-
-                request->set_fetch_all_meta_extensions(false);
-                if (Sorted_) {
-                    request->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                    request->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
-                }
-                AddCellTagToSyncWith(request, srcObject.ObjectId);
-                NCypressClient::SetTransactionId(request, srcObject.ExternalTransactionId);
-            },
+            prepareFetchRequest,
             Logger);
 
         for (int srcObjectIndex = 0; srcObjectIndex < std::ssize(SrcObjects_); ++srcObjectIndex) {
             const auto& srcObject = SrcObjects_[srcObjectIndex];
+
+            // TODO(gritukan): Implement TVirtualTableChunkSpecFetcher.
+            if (!srcObject.ObjectId) {
+                continue;
+            }
 
             chunkSpecFetcher->Add(
                 srcObject.ObjectId,
@@ -1403,6 +1459,28 @@ private:
             .ThrowOnError();
 
         ChunkSpecs_ = chunkSpecFetcher->GetChunkSpecsOrderedNaturally();
+
+        // Fetch chunk specs of virtual tables separately.
+        for (int srcObjectIndex = 0; srcObjectIndex < std::ssize(SrcObjects_); ++srcObjectIndex) {
+            const auto& srcObject = SrcObjects_[srcObjectIndex];
+            if (srcObject.ObjectId) {
+                continue;
+            }
+
+            auto chunkSpecs = NChunkClient::FetchChunkSpecs(
+                Client_,
+                Client_->Connection_->GetNodeDirectory(),
+                srcObject,
+                /*ranges*/ {TReadRange()},
+                srcObject.ChunkCount,
+                Client_->Connection_->GetConfig()->MaxChunksPerFetch,
+                Client_->Connection_->GetConfig()->MaxChunksPerLocateRequest,
+                [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& request) {
+                    prepareFetchRequest(request, srcObjectIndex);
+                },
+                Logger);
+            ChunkSpecs_.insert(ChunkSpecs_.end(), chunkSpecs.begin(), chunkSpecs.end());
+        }
 
         YT_LOG_DEBUG("Chunk specs fetched (ChunkSpecCount: %v)",
             ChunkSpecs_.size());
