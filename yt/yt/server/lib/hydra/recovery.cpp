@@ -67,9 +67,17 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
 
     auto currentVersion = DecoratedAutomaton_->GetAutomatonVersion();
     if (currentVersion > targetVersion) {
-        THROW_ERROR_EXCEPTION("Error recovering to version %v: current automaton version %v is greater",
-            targetVersion,
-            currentVersion);
+        // NB: YT-14934, rollback is possible at observers but not at leaders.
+        if (IsLeader()) {
+            YT_LOG_FATAL("Current automaton version is greater than target version during leader recovery "
+                "(CurrentVersion: %v, TargetVersion: %v)",
+                currentVersion,
+                targetVersion);
+        } else {
+            THROW_ERROR_EXCEPTION("Error recovering to version %v: current automaton version %v is greater",
+                targetVersion,
+                currentVersion);
+        }
     }
 
     auto reachableVersion = EpochContext_->ReachableVersion;
