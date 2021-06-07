@@ -10,7 +10,7 @@ from yt_env_setup import (
 from yt_commands import (  # noqa
     authors, print_debug, wait, wait_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
     events_on_fs, reset_events_on_fs,
-    create, ls, get, set, copy, move, remove, link, exists,
+    create, ls, get, set, copy, move, remove, link, exists, concatenate,
     create_account, create_network_project, create_tmpdir, create_user, create_group,
     create_pool, create_pool_tree,
     create_data_center, create_rack,
@@ -1828,7 +1828,7 @@ class TestNewLivePreview(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 3
 
-    @authors("max42")
+    @authors("max42", "gritukan")
     def test_new_live_preview_simple(self):
         data = [{"foo": i} for i in range(3)]
 
@@ -1846,7 +1846,7 @@ class TestNewLivePreview(YTEnvSetup):
             spec={"data_size_per_job": 1},
         )
 
-        jobs = wait_breakpoint(job_count=2)
+        jobs = wait_breakpoint(job_count=3)
 
         assert exists(op.get_path() + "/controller_orchid")
 
@@ -1854,14 +1854,22 @@ class TestNewLivePreview(YTEnvSetup):
         release_breakpoint(job_id=jobs[1])
         wait(lambda: op.get_job_count("completed") == 2)
 
-        live_preview_data = read_table(
-            op.get_path() + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0"
-        )
+        live_preview_path = op.get_path() + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0"
+        live_preview_data = read_table(live_preview_path)
         assert len(live_preview_data) == 2
-
         assert all(record in data for record in live_preview_data)
 
-    @authors("max42")
+        create("table", "//tmp/lp")
+        concatenate([live_preview_path], "//tmp/lp")
+
+        release_breakpoint(job_id=jobs[2])
+        op.track()
+
+        live_preview_data = read_table("//tmp/lp")
+        assert len(live_preview_data) == 2
+        assert all(record in data for record in live_preview_data)
+
+    @authors("max42", "gritukan")
     def test_new_live_preview_intermediate_data_acl(self):
         create_user("u1")
         create_user("u2")
@@ -1904,7 +1912,7 @@ class TestNewLivePreview(YTEnvSetup):
                 authenticated_user="u2",
             )
 
-    @authors("max42")
+    @authors("max42", "gritukan")
     def test_new_live_preview_ranges(self):
         create("table", "//tmp/t1")
         for i in range(3):
@@ -1984,7 +1992,7 @@ class TestNewLivePreview(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-    @authors("max42")
+    @authors("max42", "gritukan")
     def test_disabled_live_preview(self):
         create_user("robot-root")
         add_member("robot-root", "superusers")
@@ -2045,6 +2053,10 @@ class TestNewLivePreview(YTEnvSetup):
                 )
                 == (live_preview_created, suppression_alert_set)
             )
+
+
+class TestNewLivePreviewMulticell(TestNewLivePreview):
+    NUM_SECONDARY_MASTER_CELLS = 2
 
 
 ##################################################################

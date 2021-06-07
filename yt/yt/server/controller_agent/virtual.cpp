@@ -107,6 +107,7 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, Fetch)
 void TVirtualStaticTable::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
     descriptors->push_back(EInternedAttributeKey::Schema);
+    descriptors->push_back(EInternedAttributeKey::SchemaMode);
     descriptors->push_back(EInternedAttributeKey::ChunkCount);
     descriptors->push_back(EInternedAttributeKey::Dynamic);
     descriptors->push_back(EInternedAttributeKey::Type);
@@ -123,6 +124,10 @@ bool TVirtualStaticTable::GetBuiltinAttribute(TInternedAttributeKey key, IYsonCo
         case EInternedAttributeKey::Schema:
             BuildYsonFluently(consumer)
                 .Value(TTableSchema());
+            return true;
+        case EInternedAttributeKey::SchemaMode:
+            BuildYsonFluently(consumer)
+                .Value(ETableSchemaMode::Weak);
             return true;
         case EInternedAttributeKey::ChunkCount:
             BuildYsonFluently(consumer)

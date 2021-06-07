@@ -2464,7 +2464,11 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 42, "value1": "a", "value2": 123}])
         ts_after = generate_timestamp()
 
-        rows = select_rows("* from [//tmp/r1]", driver=self.replica_driver)
+        def get_rows_from_sync_replica():
+            return select_rows("* from [//tmp/r1]", driver=self.replica_driver)
+        # TODO(gritukan, babenko): Remove wait when YT-8746 will be ready.
+        wait(lambda: len(get_rows_from_sync_replica()) > 0)
+        rows = get_rows_from_sync_replica();
         assert len(rows) == 1
         row1 = rows[0]
         ts = row1["$timestamp"]
