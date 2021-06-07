@@ -807,6 +807,10 @@ private:
         {
             return;
         }
+        
+        YT_LOG_INFO("Notify operations that agent is going to unregister (AgentId: %v, IncarnationId: %v)",
+            agent->GetId(),
+            agent->GetIncarnationId());
 
         YT_VERIFY(agent->GetState() == EControllerAgentState::Registered || agent->GetState() == EControllerAgentState::WaitingForInitialHeartbeat);
 

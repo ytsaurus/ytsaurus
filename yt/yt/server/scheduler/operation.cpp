@@ -442,6 +442,11 @@ const IInvokerPtr& TOperation::GetCancelableControlInvoker()
     return CancelableInvoker_;
 }
 
+const IInvokerPtr& TOperation::GetControlInvoker()
+{
+    return ControlInvoker_;
+}
+
 void TOperation::Cancel(const TError& error)
 {
     if (CancelableContext_) {

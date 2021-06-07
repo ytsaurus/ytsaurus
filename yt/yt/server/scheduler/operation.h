@@ -347,6 +347,9 @@ public:
     void SetAlert(EOperationAlertType alertType, const TError& error, std::optional<TDuration> timeout = std::nullopt);
     void ResetAlert(EOperationAlertType alertType);
 
+    //! Returns a control invoker corresponding to this operation.
+    const IInvokerPtr& GetControlInvoker();
+
     //! Returns a cancelable control invoker corresponding to this operation.
     const IInvokerPtr& GetCancelableControlInvoker();
 
