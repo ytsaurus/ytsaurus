@@ -7,7 +7,7 @@
 
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 
-#include <yt/yt/core/ytalloc/bindings.h>
+#include <yt/yt/core/bus/tcp/dispatcher.h>
 
 #include <yt/yt/library/tracing/jaeger/tracer.h>
 
@@ -69,6 +69,8 @@ void ConfigureSingletons(const TSingletonsConfigPtr& config)
     // By default, server component must have reasonable fqdn.
     // Failure to do so may result in issues like YT-4561.
     NNet::TAddressResolver::Get()->EnsureLocalHostName();
+
+    NBus::TTcpDispatcher::Get()->Configure(config->TcpDispatcher);
 
     NRpc::TDispatcher::Get()->Configure(config->RpcDispatcher);
 

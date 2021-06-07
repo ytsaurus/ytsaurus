@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "dispatcher.h"
+#include "config.h"
 
 #include <yt/yt/library/profiling/producer.h>
 
@@ -37,6 +38,8 @@ public:
     NConcurrency::IPollerPtr GetAcceptorPoller();
     NConcurrency::IPollerPtr GetXferPoller();
 
+    void Configure(const TTcpDispatcherConfigPtr& config);
+
     void RegisterConnection(TTcpConnectionPtr connection);
 
     void ValidateNetworkingNotDisabled(EMessageDirection messageDirection);
@@ -53,13 +56,14 @@ private:
 
     NConcurrency::IPollerPtr GetOrCreatePoller(
         NConcurrency::IPollerPtr* poller,
-        int threadCount,
+        bool isXfer,
         const TString& threadNamePrefix);
     void ShutdownPoller(NConcurrency::IPollerPtr* poller);
 
     void DisableNetworking();
 
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, PollerLock_);
+    TTcpDispatcherConfigPtr Config_ = New<TTcpDispatcherConfig>();
     bool Terminated_ = false;
     NConcurrency::IPollerPtr AcceptorPoller_;
     NConcurrency::IPollerPtr XferPoller_;

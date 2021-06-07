@@ -4,6 +4,14 @@ namespace NYT::NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTcpDispatcherConfig::TTcpDispatcherConfig()
+{
+    RegisterParameter("thread_pool_size", ThreadPoolSize)
+        .Default(8);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTcpBusServerConfig::TTcpBusServerConfig()
 {
     RegisterParameter("port", Port)

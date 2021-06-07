@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/rpc/config.h>
 
+#include <yt/yt/core/bus/tcp/config.h>
+
 #include <yt/yt/core/logging/config.h>
 
 #include <yt/yt/core/profiling/config.h>
@@ -34,6 +36,7 @@ public:
     NYTAlloc::TYTAllocConfigPtr YTAlloc;
     THashMap<TString, int> FiberStackPoolSizes;
     NNet::TAddressResolverConfigPtr AddressResolver;
+    NBus::TTcpDispatcherConfigPtr TcpDispatcher;
     NRpc::TDispatcherConfigPtr RpcDispatcher;
     NServiceDiscovery::NYP::TServiceDiscoveryConfigPtr YPServiceDiscovery;
     NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;

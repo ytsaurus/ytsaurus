@@ -16,6 +16,8 @@ TSingletonsConfig::TSingletonsConfig()
         .Default({});
     RegisterParameter("address_resolver", AddressResolver)
         .DefaultNew();
+    RegisterParameter("tcp_dispatcher", TcpDispatcher)
+        .DefaultNew();
     RegisterParameter("rpc_dispatcher", RpcDispatcher)
         .DefaultNew();
     RegisterParameter("yp_service_discovery", YPServiceDiscovery)
