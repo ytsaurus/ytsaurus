@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/karlseguin/ccache"
+	"github.com/karlseguin/ccache/v2"
 
 	"a.yandex-team.ru/yt/go/bus"
 )
