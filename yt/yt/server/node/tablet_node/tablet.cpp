@@ -6,11 +6,11 @@
 #include "sorted_chunk_store.h"
 #include "sorted_dynamic_store.h"
 #include "store_manager.h"
+#include "structured_logger.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
 #include "tablet_profiling.h"
 #include "transaction_manager.h"
-#include "structured_logger.h"
 #include "hunk_chunk.h"
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>

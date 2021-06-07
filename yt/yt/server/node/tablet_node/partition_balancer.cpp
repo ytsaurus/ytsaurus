@@ -21,6 +21,8 @@
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
+#include <yt/yt/server/lib/lsm/tablet.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
@@ -77,12 +79,6 @@ public:
             Logger))
     { }
 
-    virtual void Start() override
-    {
-        auto slotManager = Bootstrap_->GetTabletSlotManager();
-        slotManager->SubscribeScanSlot(BIND(&TPartitionBalancer::OnScanSlot, MakeStrong(this)));
-    }
-
 private:
     NClusterNode::TBootstrap* const Bootstrap_;
     const TPartitionBalancerConfigPtr Config_;
@@ -95,8 +91,13 @@ private:
     TCounter ScheduledMergesCounter_ = Profiler_.Counter("/scheduled_merges");
     TEventTimer ScanTime_ = Profiler_.Timer("/scan_time");
 
-    void OnScanSlot(ITabletSlotPtr slot)
+    virtual void ProcessLsmActionBatch(
+        const ITabletSlotPtr& slot,
+        const NLsm::TLsmActionBatch& batch) override
     {
+        YT_LOG_DEBUG("Partition balancer started processing action batch (CellId: %v)",
+            slot->GetCellId());
+
         TEventTimerGuard guard(ScanTime_);
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
@@ -109,286 +110,171 @@ private:
             return;
         }
 
+        for (const auto& request : batch.Samplings) {
+            ProcessSampleRequest(slot, request);
+        }
+
+        for (const auto& request : batch.Splits) {
+            ProcessSplitRequest(slot, request);
+        }
+
+        for (const auto& request : batch.Merges) {
+            ProcessMergeRequest(slot, request);
+        }
+
+        YT_LOG_DEBUG("Partition balancer finished processing action batch (CellId: %v)",
+            slot->GetCellId());
+    }
+
+    static bool CheckPartitionIdMatch(
+        const TTablet* tablet,
+        TPartitionId partitionId,
+        int partitionIndex)
+    {
+        const auto& partitions = tablet->PartitionList();
+        return partitionIndex < ssize(partitions) &&
+            partitions[partitionIndex]->GetId() == partitionId;
+    }
+
+    void ProcessSampleRequest(const ITabletSlotPtr& slot, const NLsm::TSamplePartitionRequest& request)
+    {
         const auto& tabletManager = slot->GetTabletManager();
-        for (auto [tabletId, tablet] : tabletManager->Tablets()) {
-            ScanTablet(slot, tablet);
+        auto* tablet = tabletManager->FindTablet(request.Tablet->GetId());
+        if (!tablet) {
+            return;
         }
+
+        if (!CheckPartitionIdMatch(tablet, request.PartitionId, request.PartitionIndex)) {
+            return;
+        }
+
+        RunSample(slot, tablet->PartitionList()[request.PartitionIndex].get());
     }
 
-    void ScanTablet(ITabletSlotPtr slot, TTablet* tablet)
+    void ProcessSplitRequest(const ITabletSlotPtr& slot, const NLsm::TSplitPartitionRequest& request)
     {
-        if (tablet->GetState() != ETabletState::Mounted) {
+        const auto& tabletManager = slot->GetTabletManager();
+        auto* tablet = tabletManager->FindTablet(request.Tablet->GetId());
+        if (!tablet) {
             return;
         }
 
-        if (!tablet->IsPhysicallySorted()) {
+        if (!CheckPartitionIdMatch(tablet, request.PartitionId, request.PartitionIndex)) {
             return;
         }
 
-        for (const auto& partition : tablet->PartitionList()) {
-            ScanPartitionToSample(slot, partition.get());
-        }
-
-        const auto& mountConfig = tablet->GetSettings().MountConfig;
-        if (!mountConfig->EnableCompactionAndPartitioning) {
-            return;
-        }
-
-        int currentMaxOverlappingStoreCount = tablet->GetOverlappingStoreCount();
-        int estimatedMaxOverlappingStoreCount = currentMaxOverlappingStoreCount;
-
-        YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-            "Partition balancer started tablet scan for splits (%v, CurrentMosc: %v)",
-            tablet->GetLoggingTag(),
-            currentMaxOverlappingStoreCount);
-
-        int largestPartitionStoreCount = 0;
-        int secondLargestPartitionStoreCount = 0;
-        for (const auto& partition : tablet->PartitionList()) {
-            int storeCount = partition->Stores().size();
-            if (storeCount > largestPartitionStoreCount) {
-                secondLargestPartitionStoreCount = largestPartitionStoreCount;
-                largestPartitionStoreCount = storeCount;
-            } else if (storeCount > secondLargestPartitionStoreCount) {
-                secondLargestPartitionStoreCount = storeCount;
-            }
-        }
-
-        for (const auto& partition : tablet->PartitionList()) {
-            ScanPartitionToSplit(
-                slot,
-                partition.get(),
-                &estimatedMaxOverlappingStoreCount,
-                secondLargestPartitionStoreCount);
-        }
-
-        int maxAllowedOverlappingStoreCount = mountConfig->MaxOverlappingStoreCount -
-            (estimatedMaxOverlappingStoreCount - currentMaxOverlappingStoreCount);
-
-        YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-            "Partition balancer started tablet scan for merges (%v, "
-            "EstimatedMosc: %v, MaxAllowedOsc: %v)",
-            tablet->GetLoggingTag(),
-            estimatedMaxOverlappingStoreCount,
-            maxAllowedOverlappingStoreCount);
-
-        for (const auto& partition : tablet->PartitionList()) {
-            ScanPartitionToMerge(slot, partition.get(), maxAllowedOverlappingStoreCount);
-        }
-    }
-
-    void ScanPartitionToSplit(
-        ITabletSlotPtr slot,
-        TPartition* partition,
-        int* estimatedMaxOverlappingStoreCount,
-        int secondLargestPartitionStoreCount)
-    {
-        auto* tablet = partition->GetTablet();
-        const auto& mountConfig = tablet->GetSettings().MountConfig;
-        int partitionCount = tablet->PartitionList().size();
-        i64 actualDataSize = partition->GetCompressedDataSize();
-        int estimatedStoresDelta = partition->Stores().size();
-
-        auto Logger = BuildLogger(slot, partition);
-
-        YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-            "Scanning partition to split (PartitionIndex: %v of %v, "
-            "EstimatedMosc: %v, DataSize: %v, StoreCount: %v, SecondLargestPartitionStoreCount: %v)",
-            partition->GetIndex(),
-            partitionCount,
-            *estimatedMaxOverlappingStoreCount,
-            actualDataSize,
-            partition->Stores().size(),
-            secondLargestPartitionStoreCount);
-
+        auto* partition = tablet->PartitionList()[request.PartitionIndex].get();
         if (partition->GetState() != EPartitionState::Normal) {
-            YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                "Will not split partition due to improper partition state (PartitionState: %v)",
-                partition->GetState());
             return;
-        }
-
-
-        if (partition->IsImmediateSplitRequested()) {
-            if (ValidateSplit(slot, partition, true)) {
-                partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Splitting);
-                ScheduledSplitsCounter_.Increment();
-                DoRunImmediateSplit(slot, partition, Logger);
-                // This is inexact to say the least: immediate split is called when we expect that
-                // most of the stores will stay intact after splitting by the provided pivots.
-                *estimatedMaxOverlappingStoreCount += estimatedStoresDelta;
-            }
-            return;
-        }
-
-        int maxOverlappingStoreCountAfterSplit = estimatedStoresDelta + *estimatedMaxOverlappingStoreCount;
-        // If the partition is the largest one, the estimate is incorrect since its stores will move to eden
-        // and the partition will no longer contribute to the first summand in (max_partition_size + eden_size).
-        // Instead, the second largest partition will.
-        if (std::ssize(partition->Stores()) > secondLargestPartitionStoreCount) {
-            maxOverlappingStoreCountAfterSplit -= partition->Stores().size() - secondLargestPartitionStoreCount;
-        }
-
-        if (maxOverlappingStoreCountAfterSplit <= mountConfig->MaxOverlappingStoreCount &&
-            actualDataSize > mountConfig->MaxPartitionDataSize)
-        {
-            int splitFactor = std::min({
-                actualDataSize / mountConfig->DesiredPartitionDataSize + 1,
-                actualDataSize / mountConfig->MinPartitionDataSize,
-                static_cast<i64>(mountConfig->MaxPartitionCount - partitionCount)});
-
-            if (splitFactor > 1 && ValidateSplit(slot, partition, false)) {
-                partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Splitting);
-                ScheduledSplitsCounter_.Increment();
-                YT_LOG_DEBUG("Partition is scheduled for split");
-                tablet->GetStructuredLogger()->LogEvent("schedule_partition_split")
-                    .Item("partition_id").Value(partition->GetId())
-                    // NB: deducible.
-                    .Item("split_factor").Value(splitFactor)
-                    .Item("data_size").Value(actualDataSize);
-                tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
-                    &TPartitionBalancer::DoRunSplit,
-                    MakeStrong(this),
-                    slot,
-                    partition,
-                    splitFactor,
-                    partition->GetTablet(),
-                    Logger));
-                *estimatedMaxOverlappingStoreCount = maxOverlappingStoreCountAfterSplit;
-            }
-        }
-    }
-
-    void ScanPartitionToMerge(ITabletSlotPtr slot, TPartition* partition, int maxAllowedOverlappingStoreCount)
-    {
-        auto* tablet = partition->GetTablet();
-        const auto& mountConfig = tablet->GetSettings().MountConfig;
-        int partitionCount = tablet->PartitionList().size();
-        i64 actualDataSize = partition->GetCompressedDataSize();
-
-        // Maximum data size the partition might have if all chunk stores from Eden go here.
-        i64 maxPotentialDataSize = actualDataSize;
-        for (const auto& store : tablet->GetEden()->Stores()) {
-            if (store->GetType() == EStoreType::SortedChunk) {
-                maxPotentialDataSize += store->GetCompressedDataSize();
-            }
-        }
-
-        auto Logger = BuildLogger(slot, partition);
-
-        YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-            "Scanning partition to merge (PartitionIndex: %v of %v, "
-            "DataSize: %v, MaxPotentialDataSize: %v)",
-            partition->GetIndex(),
-            partitionCount,
-            actualDataSize,
-            maxPotentialDataSize);
-
-        if (maxPotentialDataSize < mountConfig->MinPartitionDataSize && partitionCount > 1) {
-            int firstPartitionIndex = partition->GetIndex();
-            int lastPartitionIndex = firstPartitionIndex + 1;
-            if (lastPartitionIndex == partitionCount) {
-                --firstPartitionIndex;
-                --lastPartitionIndex;
-            }
-            int estimatedOverlappingStoreCount = tablet->GetEdenOverlappingStoreCount() +
-                tablet->PartitionList()[firstPartitionIndex]->Stores().size() +
-                tablet->PartitionList()[lastPartitionIndex]->Stores().size();
-
-            YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                "Found candidate partitions to merge (FirstPartitionIndex: %v, "
-                "LastPartitionIndex: %v, EstimatedOsc: %v, WillRunMerge: %v",
-                firstPartitionIndex,
-                lastPartitionIndex,
-                estimatedOverlappingStoreCount,
-                estimatedOverlappingStoreCount < maxAllowedOverlappingStoreCount);
-
-            if (estimatedOverlappingStoreCount <= maxAllowedOverlappingStoreCount) {
-                RunMerge(slot, partition, firstPartitionIndex, lastPartitionIndex);
-            }
-        }
-    }
-
-    void ScanPartitionToSample(ITabletSlotPtr slot, TPartition* partition)
-    {
-        if (partition->GetSamplingRequestTime() > partition->GetSamplingTime() &&
-            partition->GetSamplingTime() < TInstant::Now() - Config_->ResamplingPeriod) {
-            RunSample(slot, partition);
-        }
-    }
-
-    bool ValidateSplit(ITabletSlotPtr slot, TPartition* partition, bool immediateSplit) const
-    {
-        const auto* tablet = partition->GetTablet();
-
-        if (!immediateSplit && TInstant::Now() < partition->GetAllowedSplitTime()) {
-            return false;
-        }
-
-        auto Logger = BuildLogger(slot, partition);
-
-        const auto& mountConfig = tablet->GetSettings().MountConfig;
-        if (!mountConfig->EnablePartitionSplitWhileEdenPartitioning &&
-            tablet->GetEden()->GetState() == EPartitionState::Partitioning)
-        {
-            YT_LOG_DEBUG("Eden is partitioning, will not split partition (EdenPartitionId: %v)",
-                tablet->GetEden()->GetId());
-            return false;
         }
 
         for (const auto& store : partition->Stores()) {
             if (store->GetStoreState() != EStoreState::Persistent) {
+                return;
+            }
+        }
+
+        if (request.Immediate) {
+            if (!ValidateImmediateSplit(slot, partition)) {
+                partition->PivotKeysForImmediateSplit().clear();
+                return;
+            }
+
+            partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Splitting);
+            ScheduledSplitsCounter_.Increment();
+            DoRunImmediateSplit(slot, partition, Logger);
+            return;
+        }
+
+        tablet->GetStructuredLogger()->LogEvent("schedule_partition_split")
+            .Item("partition_id").Value(partition->GetId())
+            // NB: deducible.
+            .Item("split_factor").Value(request.SplitFactor);
+
+        partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Splitting);
+        tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
+            &TPartitionBalancer::DoRunSplit,
+            MakeStrong(this),
+            slot,
+            partition,
+            request.SplitFactor,
+            partition->GetTablet(),
+            Logger));
+    }
+
+    void ProcessMergeRequest(const ITabletSlotPtr& slot, const NLsm::TMergePartitionsRequest& request)
+    {
+        const auto& tabletManager = slot->GetTabletManager();
+        auto* tablet = tabletManager->FindTablet(request.Tablet->GetId());
+        if (!tablet) {
+            return;
+        }
+
+        int partitionIndex = request.FirstPartitionIndex;
+        for (auto partitionId : request.PartitionIds) {
+            if (!CheckPartitionIdMatch(tablet, partitionId, partitionIndex)) {
+                return;
+            }
+            ++partitionIndex;
+        }
+
+        RunMerge(
+            slot,
+            tablet->PartitionList()[request.FirstPartitionIndex].get(),
+            request.FirstPartitionIndex,
+            request.FirstPartitionIndex + request.PartitionIds.size() - 1);
+    }
+
+    bool ValidateImmediateSplit(ITabletSlotPtr slot, TPartition* partition) const
+    {
+        auto Logger = BuildLogger(slot, partition);
+
+        const auto* tablet = partition->GetTablet();
+        const auto& mountConfig = tablet->GetSettings().MountConfig;
+
+        const auto& pivotKeys = partition->PivotKeysForImmediateSplit();
+        if (pivotKeys.empty()) {
+            return false;
+        }
+
+        if (pivotKeys[0] != partition->GetPivotKey()) {
+            YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
+                "Will not perform immediate partition split: first proposed pivot key "
+                "does not match partition pivot key (PartitionPivotKey: %v, ProposedPivotKey: %v)",
+                partition->GetPivotKey(),
+                pivotKeys[0]);
+
+            partition->PivotKeysForImmediateSplit().clear();
+            return false;
+        }
+
+        for (int index = 1; index < ssize(pivotKeys); ++index) {
+            if (pivotKeys[index] <= pivotKeys[index - 1]) {
                 YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                    "Will not split partition due to improper store state "
-                    "(StoreId: %v, StoreState: %v)",
-                    store->GetId(),
-                    store->GetStoreState());
+                    "Will not perform immediate partition split: proposed pivots are not sorted");
+
+                partition->PivotKeysForImmediateSplit().clear();
                 return false;
             }
         }
 
-        if (immediateSplit) {
-            const auto& pivotKeys = partition->PivotKeysForImmediateSplit();
-            YT_VERIFY(!pivotKeys.empty());
-            if (pivotKeys[0] != partition->GetPivotKey()) {
-                YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                    "Will not perform immediate partition split: first proposed pivot key "
-                    "does not match partition pivot key (PartitionPivotKey: %v, ProposedPivotKey: %v)",
-                    partition->GetPivotKey(),
-                    pivotKeys[0]);
+        if (pivotKeys.back() >= partition->GetNextPivotKey()) {
+            YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
+                "Will not perform immediate partition split: last proposed pivot key "
+                "is not less than partition next pivot key (NextPivotKey: %v, ProposedPivotKey: %v)",
+                partition->GetNextPivotKey(),
+                pivotKeys.back());
 
-                partition->PivotKeysForImmediateSplit().clear();
-                return false;
-            }
+            partition->PivotKeysForImmediateSplit().clear();
+            return false;
+        }
 
-            for (int index = 1; index < std::ssize(pivotKeys); ++index) {
-                if (pivotKeys[index] <= pivotKeys[index - 1]) {
-                    YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                        "Will not perform immediate partition split: proposed pivots are not sorted");
+        if (pivotKeys.size() <= 1) {
+            YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
+                "Will not perform immediate partition split: too few pivot keys");
 
-                    partition->PivotKeysForImmediateSplit().clear();
-                    return false;
-                }
-            }
-
-            if (pivotKeys.back() >= partition->GetNextPivotKey()) {
-                YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                    "Will not perform immediate partition split: last proposed pivot key "
-                    "is not less than partition next pivot key (NextPivotKey: %v, ProposedPivotKey: %v)",
-                    partition->GetNextPivotKey(),
-                    pivotKeys.back());
-
-                partition->PivotKeysForImmediateSplit().clear();
-                return false;
-            }
-
-            if (pivotKeys.size() <= 1) {
-                YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                    "Will not perform immediate partition split: too few pivot keys");
-
-                partition->PivotKeysForImmediateSplit().clear();
-                return false;
-            }
+            partition->PivotKeysForImmediateSplit().clear();
+            return false;
         }
 
         return true;

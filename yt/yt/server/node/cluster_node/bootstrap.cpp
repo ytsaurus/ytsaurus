@@ -69,6 +69,7 @@
 #include <yt/yt/server/node/tablet_node/store_flusher.h>
 #include <yt/yt/server/node/tablet_node/store_trimmer.h>
 #include <yt/yt/server/node/tablet_node/hunk_chunk_sweeper.h>
+#include <yt/yt/server/node/tablet_node/lsm_interop.h>
 #include <yt/yt/server/node/tablet_node/structured_logger.h>
 #include <yt/yt/server/node/tablet_node/tablet_cell_service.h>
 #include <yt/yt/server/node/tablet_node/tablet_snapshot_store.h>
@@ -868,6 +869,7 @@ void TBootstrap::DoRun()
     HunkChunkSweeper_ = CreateHunkChunkSweeper(this);
     PartitionBalancer_ = CreatePartitionBalancer(this);
     BackingStoreCleaner_ = CreateBackingStoreCleaner(this);
+    LsmInterop_ = CreateLsmInterop(this, StoreCompactor_, PartitionBalancer_);
 
     SetNodeByYPath(
         OrchidRoot_,
@@ -954,8 +956,8 @@ void TBootstrap::DoRun()
         StoreFlusher_->Start();
         StoreTrimmer_->Start();
         HunkChunkSweeper_->Start();
-        PartitionBalancer_->Start();
         BackingStoreCleaner_->Start();
+        LsmInterop_->Start();
     }
     ClusterNodeMasterConnector_->Start();
     LegacyMasterConnector_->Start();

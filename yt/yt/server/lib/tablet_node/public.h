@@ -190,6 +190,13 @@ DEFINE_ENUM(EDynamicTableProfilingMode,
     (PathLetters)
 );
 
+DEFINE_ENUM(ETabletDynamicMemoryType,
+    (Active)
+    (Passive)
+    (Backing)
+    (Other)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TTabletHydraManagerConfig)
@@ -247,6 +254,9 @@ constexpr int DynamicStoreCountLimit = 10;
 
 //! Limit on `MaxParallelPartitionLookups` parameter.
 constexpr int MaxParallelPartitionLookupsLimit = 5;
+
+//! Sentinel index for Eden partition.
+constexpr int EdenIndex = -1;
 
 DEFINE_ENUM(ETabletNodeThrottlerKind,
     //! Controls outcoming bandwidth used by store flushes.
