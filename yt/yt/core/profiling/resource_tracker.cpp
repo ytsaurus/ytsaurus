@@ -187,9 +187,11 @@ void SetPerfEventEnableMode(const bool enable, const int FD)
     YT_VERIFY(ioctl(FD, ioctlArg, 0) != -1);
 }
 
-void OpenPerfEventsIfNeeded(const TStringBuf tidString, TResourceTracker::TThreadPerfInfoMap& perfInfoMap) 
+void OpenPerfEventIfNeeded(const TStringBuf tidString, TResourceTracker::TThreadPerfInfoMap& perfInfoMap, const int eventIndex) 
 {
-    if (perfInfoMap.contains(tidString)) {
+    auto& perfEventInfos = perfInfoMap[tidString].EventInfos;
+
+    if (perfEventInfos[eventIndex].FD != 0) {
         return;
     }
 
@@ -201,12 +203,7 @@ void OpenPerfEventsIfNeeded(const TStringBuf tidString, TResourceTracker::TThrea
             throw;
         }
     }();
-
-    auto& perfEventInfos = perfInfoMap[tidString].EventInfos;
-    for (int index = 0; index < std::ssize(EventDescriptions); ++index) {
-        const auto fd = OpenPerfEvent(tid, EventDescriptions[index].EventType, EventDescriptions[index].EventConfig);
-        perfEventInfos[index].FD = fd;
-    }
+    perfEventInfos[eventIndex].FD = OpenPerfEvent(tid, EventDescriptions[eventIndex].EventType, EventDescriptions[eventIndex].EventConfig);
 }
 
 #endif
@@ -267,7 +264,6 @@ void TResourceTracker::FetchPerfStats(
     Y_UNUSED(perfInfoMap);
     Y_UNUSED(counters);
 #ifdef RESOURCE_TRACKER_ENABLED
-    OpenPerfEventsIfNeeded(tidString, perfInfoMap);
     auto& perfInfo = TidToPerfInfo_[tidString];
 
     for (int eventIndex = 0; eventIndex < TEnumTraits<EPerfEvents>::DomainSize; ++eventIndex) {
@@ -276,6 +272,7 @@ void TResourceTracker::FetchPerfStats(
 
         if (eventCurrentlyEnabled != eventInfo.Enabled) {
             if (eventCurrentlyEnabled) {
+                OpenPerfEventIfNeeded(tidString, perfInfoMap, eventIndex);
                 YT_LOG_INFO("Start collecting %v metrics for thread %v", FormatEnum(EPerfEvents{eventIndex}), tidString);
             } else {
                 YT_LOG_INFO("Stop collecting %v metrics for thread %v", FormatEnum(EPerfEvents{eventIndex}), tidString);
