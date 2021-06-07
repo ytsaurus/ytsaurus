@@ -100,6 +100,9 @@ public:
 
         TFiberWallTimer timer;
         TWallTimer wallTimer;
+        auto updateProfiling = Finally([&] {
+            UpdateProfilingCounters(timer.GetElapsedTime(), wallTimer.GetElapsedTime());
+        });
 
         ThrowUponThrottlerOverdraft(
             ETabletDistributedThrottlerKind::Lookup,
@@ -246,31 +249,6 @@ public:
         UpdateUnmergedStatistics(DynamicEdenSessions_);
         UpdateUnmergedStatistics(ChunkEdenSessions_);
 
-        auto cpuTime = timer.GetElapsedTime();
-
-        {
-            auto counters = TabletSnapshot_->TableProfiler->GetLookupCounters(GetCurrentProfilingUser());
-
-            counters->CacheHits.Increment(CacheHits_);
-            counters->CacheOutdated.Increment(CacheOutdated_);
-            counters->CacheMisses.Increment(CacheMisses_);
-            counters->CacheInserts.Increment(CacheInserts_);
-            counters->RowCount.Increment(FoundRowCount_);
-            counters->MissingKeyCount.Increment(LookupKeys_.size() - FoundRowCount_);
-            counters->DataWeight.Increment(FoundDataWeight_);
-            counters->UnmergedRowCount.Increment(UnmergedRowCount_);
-            counters->UnmergedDataWeight.Increment(UnmergedDataWeight_);
-
-            counters->CpuTime.Add(cpuTime);
-            counters->DecompressionCpuTime.Add(DecompressionCpuTime_);
-
-            counters->ChunkReaderStatisticsCounters.Increment(ChunkReadOptions_.ChunkReaderStatistics);
-
-            if (mountConfig->EnableDetailedProfiling) {
-                counters->LookupDuration.Record(wallTimer.GetElapsedTime());
-            }
-        }
-
         if (const auto& throttler = TabletSnapshot_->DistributedThrottlers[ETabletDistributedThrottlerKind::Lookup]) {
             throttler->Acquire(FoundDataWeight_);
         }
@@ -287,7 +265,7 @@ public:
             CacheMisses_,
             FoundRowCount_,
             FoundDataWeight_,
-            cpuTime,
+            timer.GetElapsedTime(),
             DecompressionCpuTime_,
             ChunkReadOptions_.ReadSessionId,
             mountConfig->EnableDetailedProfiling);
@@ -660,6 +638,31 @@ private:
                     addPartialRow,
                     finishRow);
             }
+        }
+    }
+
+    void UpdateProfilingCounters(TDuration cpuTime, TDuration wallTime)
+    {
+        auto counters = TabletSnapshot_->TableProfiler->GetLookupCounters(GetCurrentProfilingUser());
+
+        counters->CacheHits.Increment(CacheHits_);
+        counters->CacheOutdated.Increment(CacheOutdated_);
+        counters->CacheMisses.Increment(CacheMisses_);
+        counters->CacheInserts.Increment(CacheInserts_);
+        counters->RowCount.Increment(FoundRowCount_);
+        counters->MissingKeyCount.Increment(LookupKeys_.size() - FoundRowCount_);
+        counters->DataWeight.Increment(FoundDataWeight_);
+        counters->UnmergedRowCount.Increment(UnmergedRowCount_);
+        counters->UnmergedDataWeight.Increment(UnmergedDataWeight_);
+
+        counters->CpuTime.Add(cpuTime);
+        counters->DecompressionCpuTime.Add(DecompressionCpuTime_);
+
+        counters->ChunkReaderStatisticsCounters.Increment(ChunkReadOptions_.ChunkReaderStatistics);
+
+        const auto& mountConfig = TabletSnapshot_->Settings.MountConfig;
+        if (mountConfig->EnableDetailedProfiling) {
+            counters->LookupDuration.Record(wallTime);
         }
     }
 };
