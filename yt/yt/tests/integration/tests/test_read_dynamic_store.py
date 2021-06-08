@@ -608,6 +608,16 @@ class TestReadOrderedDynamicTables(TestOrderedDynamicTablesBase):
         )
         operations.append(("//tmp/out5", op5, []))
 
+        create("table", "//tmp/out6")
+        op6 = merge(
+            in_=_make_path_with_range("//tmp/t", (0, 4), (0, 6)),
+            out="//tmp/out6",
+            spec=spec,
+            track=False,
+            tx=tx,
+        )
+        operations.append(("//tmp/out6", op6, rows[4:6]))
+
         if disturbance_type != "flush_under_lock":
             for _, op, _ in operations:
                 wait(lambda: op.get_state() == "materializing")
