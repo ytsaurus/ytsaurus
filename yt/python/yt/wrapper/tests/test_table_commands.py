@@ -51,7 +51,9 @@ class FakeFileManager(object):
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestTableCommands(object):
-    def _test_read_write(self):
+    def _test_read_write_small(self):
+        # NB: this method should not operate with large number of rows, since in some test configurations
+        # we perform write using very small chunks.
         table = TEST_DIR + "/table"
         yt.create("table", table)
         check_rows_equality([], yt.read_table(table))
@@ -93,8 +95,8 @@ class TestTableCommands(object):
             yt.write_table(table, [b"x=1\n"], raw=True)
 
         with set_config_option("read_retries/change_proxy_period", 1):
-            yt.write_table(table, [{"y": i} for i in xrange(100)])
-            check_rows_equality([{"y": i} for i in xrange(100)], yt.read_table(table))
+            yt.write_table(table, [{"y": i} for i in xrange(10)])
+            check_rows_equality([{"y": i} for i in xrange(10)], yt.read_table(table))
 
         file = TEST_DIR + "/test_file"
         yt.create("file", file)
@@ -118,6 +120,14 @@ class TestTableCommands(object):
             with pytest.raises(yt.YtError):
                 for _ in iterator:
                     pass
+
+    def _test_abandoned_read(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(yt.TablePath(table), [{"x": i} for i in xrange(100000)])
+        iterator = yt.read_table(table)
+        row = next(iterator)
+        assert row == {"x": 0}
+        del iterator
 
     @authors("levysotsky")
     def test_read_write_with_schema(self, yt_env_with_rpc):
@@ -200,34 +210,25 @@ class TestTableCommands(object):
     @authors("asaitgalin")
     def test_read_write_with_retries(self):
         with set_config_option("write_retries/enable", True):
-            self._test_read_write()
-
-            with set_config_option("read_buffer_size", 4 * 1024):
-                # This test does not work in parallel settings.
-                # Move it to _test_read_write after YT-14767.
-                table = TEST_DIR + "/table"
-                yt.write_table(yt.TablePath(table), [{"x": i} for i in xrange(1000000)])
-                iterator = yt.read_table(table)
-                row = next(iterator)
-                assert row == {"x": 0}
-                del iterator
+            self._test_read_write_small()
 
     @authors("asaitgalin", "ignat")
     def test_read_write_without_retries(self):
         with set_config_option("write_retries/enable", False):
-            self._test_read_write()
+            self._test_read_write_small()
+            self._test_abandoned_read()
 
     @authors("ignat")
     def test_read_parallel(self, yt_env_with_rpc):
         with set_config_option("read_parallel/enable", True):
-            self._test_read_write()
+            self._test_read_write_small()
 
     @authors("asaitgalin", "ignat")
     def test_parallel_write(self):
         with set_config_option("write_parallel/enable", True):
             with set_config_option("write_retries/chunk_size", 1):
                 with set_config_option("write_parallel/concatenate_size", 3):
-                    self._test_read_write()
+                    self._test_read_write_small()
 
     @authors("asaitgalin", "babenko")
     def test_schemaful_parallel_write(self):
