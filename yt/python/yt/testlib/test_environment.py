@@ -191,6 +191,7 @@ class YtTestEnvironment(object):
 
         self.config["read_retries"]["backoff"]["constant_time"] = 500
         self.config["read_retries"]["backoff"]["policy"] = "constant_time"
+        self.config["read_buffer_size"] = 4 * 1024
 
         self.config["write_retries"]["backoff"]["constant_time"] = 500
         self.config["write_retries"]["backoff"]["policy"] = "constant_time"
