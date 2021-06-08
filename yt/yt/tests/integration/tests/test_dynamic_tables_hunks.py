@@ -1,8 +1,46 @@
 from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
-from yt.test_helpers import assert_items_equal, wait
+from yt_commands import (  # noqa
+    authors, print_debug, wait, wait_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
+    events_on_fs, reset_events_on_fs,
+    create, ls, get, set, copy, move, remove, link, exists, concatenate,
+    create_account, create_network_project, create_tmpdir, create_user, create_group,
+    create_pool, create_pool_tree, remove_pool_tree,
+    create_data_center, create_rack, create_table,
+    make_ace, check_permission, add_member,
+    make_batch_request, execute_batch, get_batch_error,
+    start_transaction, abort_transaction, commit_transaction, lock,
+    insert_rows, select_rows, lookup_rows, delete_rows, trim_rows, alter_table,
+    read_file, write_file, read_table, write_table, write_local_file, read_blob_table,
+    map, reduce, map_reduce, join_reduce, merge, vanilla, sort, erase, remote_copy,
+    run_test_vanilla, run_sleeping_vanilla,
+    abort_job, list_jobs, get_job, abandon_job, interrupt_job,
+    get_job_fail_context, get_job_input, get_job_stderr, get_job_spec,
+    dump_job_context, poll_job_shell,
+    abort_op, complete_op, suspend_op, resume_op,
+    get_operation, list_operations, clean_operations,
+    get_operation_cypress_path, scheduler_orchid_pool_path,
+    scheduler_orchid_default_pool_tree_path, scheduler_orchid_operation_path,
+    scheduler_orchid_default_pool_tree_config_path, scheduler_orchid_path,
+    scheduler_orchid_node_path, scheduler_orchid_pool_tree_config_path, scheduler_orchid_pool_tree_path,
+    mount_table, remount_table, reshard_table, wait_for_tablet_state,
+    sync_create_cells, sync_mount_table, sync_unmount_table,
+    sync_freeze_table, sync_unfreeze_table, sync_reshard_table,
+    sync_flush_table, sync_compact_table,
+    get_first_chunk_id, get_singular_chunk_id, get_chunk_replication_factor, multicell_sleep,
+    update_nodes_dynamic_config, update_controller_agent_config,
+    update_op_parameters, enable_op_detailed_logs,
+    set_node_banned, set_banned_flag, set_account_disk_space_limit,
+    check_all_stderrs,
+    create_test_tables, create_dynamic_table, PrepareTables,
+    get_statistics, get_recursive_disk_space, get_chunk_owner_disk_space,
+    make_random_string, raises_yt_error,
+    build_snapshot, gc_collect,
+    get_driver, Driver, execute_command)
 
-from yt_commands import *  # noqa
+from yt.test_helpers import assert_items_equal
+
+import pytest
 
 import __builtin__
 
@@ -141,7 +179,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         hunk_chunk_id2 = get("#{}/@hunk_chunk_refs/0/chunk_id".format(store_chunk_id2))
         assert_items_equal(hunk_chunk_ids, [hunk_chunk_id1, hunk_chunk_id2])
 
-        if get("#{}/@hunk_chunk_refs/0/total_hunk_length".format(store_chunk_id1)) > get("#{}/@hunk_chunk_refs/0/total_hunk_length".format(store_chunk_id2)):
+        if get("#{}/@hunk_chunk_refs/0/total_hunk_length".format(store_chunk_id1)) \
+                > get("#{}/@hunk_chunk_refs/0/total_hunk_length".format(store_chunk_id2)):
             store_chunk_id1, store_chunk_id2 = store_chunk_id2, store_chunk_id1
             hunk_chunk_id1, hunk_chunk_id2 = hunk_chunk_id2, hunk_chunk_id1
 
@@ -423,6 +462,11 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
     @authors("ifsmirnov")
     @pytest.mark.parametrize("in_memory_mode", ["compressed", "uncompressed"])
     def test_hunks_not_counted_in_tablet_static(self, in_memory_mode):
+        def _check_account_resource_usage(expected_memory_usage):
+            return \
+                get("//sys/accounts/tmp/@resource_usage/tablet_static_memory") == expected_memory_usage and \
+                get("//sys/tablet_cell_bundles/default/@resource_usage/tablet_static_memory") == expected_memory_usage
+
         sync_create_cells(1)
         self._create_table()
 
@@ -446,22 +490,16 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         def _validate_tablet_statistics():
             tablet_statistics = get("//tmp/t/@tablet_statistics")
-            return (
-                tablet_statistics["compressed_data_size"] == compressed_size + hunk_compressed_size and
-                tablet_statistics["uncompressed_data_size"] == uncompressed_size + hunk_uncompressed_size and
-                tablet_statistics["hunk_compressed_data_size"] == hunk_compressed_size and
-                tablet_statistics["hunk_uncompressed_data_size"] == hunk_uncompressed_size)
+            return \
+                tablet_statistics["compressed_data_size"] == compressed_size + hunk_compressed_size and \
+                tablet_statistics["uncompressed_data_size"] == uncompressed_size + hunk_uncompressed_size and \
+                tablet_statistics["hunk_compressed_data_size"] == hunk_compressed_size and \
+                tablet_statistics["hunk_uncompressed_data_size"] == hunk_uncompressed_size
         wait(_validate_tablet_statistics)
 
         memory_size = compressed_size if in_memory_mode == "compressed" else uncompressed_size
 
         assert get("//tmp/t/@tablet_statistics/memory_size") == memory_size
-        def _check_account_resource_usage(expected_memory_usage):
-            return (
-                get("//sys/accounts/tmp/@resource_usage/tablet_static_memory") ==
-                    expected_memory_usage and
-                get("//sys/tablet_cell_bundles/default/@resource_usage/tablet_static_memory") ==
-                    expected_memory_usage)
 
         wait(lambda: _check_account_resource_usage(memory_size))
 
