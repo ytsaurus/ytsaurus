@@ -18,8 +18,10 @@ public:
         std::optional<TDuration> expirationTimeout,
         IInvokerPtr invoker);
 
-    TValue Get(const TKey& key);
     std::optional<TValue> Find(const TKey& key);
+
+    TValue Get(const TKey& key);
+    std::vector<TValue> Get(const std::vector<TKey>& keys);
 
     void Set(const TKey& key, TValue value);
     void Invalidate(const TKey& key);

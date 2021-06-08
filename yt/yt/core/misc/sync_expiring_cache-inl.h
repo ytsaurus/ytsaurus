@@ -55,6 +55,26 @@ TSyncExpiringCache<TKey, TValue>::TSyncExpiringCache(
 }
 
 template <class TKey, class TValue>
+std::optional<TValue> TSyncExpiringCache<TKey, TValue>::Find(const TKey& key)
+{
+    auto now = NProfiling::GetCpuInstant();
+    auto deadline = now - ExpirationTimeout_.load();
+
+    auto guard = ReaderGuard(MapLock_);
+
+    auto it = Map_.find(key);
+    if (it != Map_.end()) {
+        auto& entry = it->second;
+        if (entry.LastUpdateTime >= deadline) {
+            entry.LastAccessTime = now;
+            return entry.Value;
+        }
+    }
+
+    return std::nullopt;
+}
+
+template <class TKey, class TValue>
 TValue TSyncExpiringCache<TKey, TValue>::Get(const TKey& key)
 {
     auto now = NProfiling::GetCpuInstant();
@@ -94,23 +114,67 @@ TValue TSyncExpiringCache<TKey, TValue>::Get(const TKey& key)
 }
 
 template <class TKey, class TValue>
-std::optional<TValue> TSyncExpiringCache<TKey, TValue>::Find(const TKey& key)
+std::vector<TValue> TSyncExpiringCache<TKey, TValue>::Get(const std::vector<TKey>& keys)
 {
     auto now = NProfiling::GetCpuInstant();
     auto deadline = now - ExpirationTimeout_.load();
 
-    auto guard = ReaderGuard(MapLock_);
+    std::vector<TValue> foundValues;
+    std::vector<int> missingValueIndexes;
 
-    auto it = Map_.find(key);
-    if (it != Map_.end()) {
-        auto& entry = it->second;
-        if (entry.LastUpdateTime >= deadline) {
-            entry.LastAccessTime = now;
-            return entry.Value;
+    {
+        auto guard = ReaderGuard(MapLock_);
+
+        for (int i = 0; i < std::ssize(keys); ++i) {
+            auto it = Map_.find(keys[i]);
+            if (it != Map_.end()) {
+                auto& entry = it->second;
+                if (entry.LastUpdateTime >= deadline) {
+                    entry.LastAccessTime = now;
+                    foundValues.push_back(entry.Value);
+                    continue;
+                }
+            }
+
+            missingValueIndexes.push_back(i);
         }
     }
 
-    return std::nullopt;
+    if (missingValueIndexes.empty()) {
+        return foundValues;
+    }
+
+    std::vector<TValue> results;
+    results.reserve(keys.size());
+
+    int missingIndex = 0;
+    for (int keyIndex = 0; keyIndex < std::ssize(keys); ++keyIndex) {
+        if (missingIndex < std::ssize(missingValueIndexes) &&
+            missingValueIndexes[missingIndex] == keyIndex)
+        {
+            results.push_back(CalculateValueAction_.Run(keys[keyIndex]));
+            ++missingIndex;
+        } else {
+            results.push_back(std::move(foundValues[keyIndex - missingIndex]));
+        }
+    }
+
+    {
+        auto guard = WriterGuard(MapLock_);
+
+        for (auto index : missingValueIndexes) {
+            if (auto it = Map_.find(keys[index]); it != Map_.end()) {
+                it->second = {now, now, results[index]};
+            } else {
+                YT_VERIFY(Map_.emplace(
+                    keys[index],
+                    TEntry(now, now, results[index]))
+                    .second);
+            }
+        }
+    }
+
+    return results;
 }
 
 template <class TKey, class TValue>

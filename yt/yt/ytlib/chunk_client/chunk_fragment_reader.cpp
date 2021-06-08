@@ -493,16 +493,22 @@ protected:
         ChunkReplicaListFutures_.reserve(chunkCount);
         ChunkIdToReplicaLocationInfo_.reserve(chunkCount);
 
+        std::vector<TChunkId> chunkIds;
+        chunkIds.reserve(chunkCount);
         for (int chunkIndex = 0; chunkIndex < chunkCount; ++chunkIndex) {
-            auto chunkId = GetPendingChunkId(chunkIndex);
-            // TODO(akozhikhov): Implement GetMany here.
-            auto locator = Reader_->ChunkReplicaLocatorCache_->Get(chunkId);
+            chunkIds.push_back(GetPendingChunkId(chunkIndex));
+        }
+
+        auto locators = Reader_->ChunkReplicaLocatorCache_->Get(chunkIds);
+        YT_VERIFY(locators.size() == chunkIds.size());
+        for (int i = 0; i < std::ssize(locators); ++i) {
+            auto&& locator = locators[i];
             ChunkReplicaListFutures_.push_back(locator->GetReplicas());
             YT_VERIFY(ChunkIdToReplicaLocationInfo_.emplace(
-                chunkId,
+                chunkIds[i],
                 TChunkReplicaLocationInfo{
                     .Locator = std::move(locator),
-                    .FutureIndex = chunkIndex
+                    .FutureIndex = i
                 })
                 .second);
         }
@@ -527,6 +533,7 @@ protected:
         VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
         THashMap<TNodeId, int> nodeIdToPeerIndex;
+        std::vector<TNodeId> nodeIds;
         std::vector<TPeerProbingInfo> probingInfos;
 
         for (int chunkIndex = 0; chunkIndex < std::ssize(chunkReplicaLists); ++chunkIndex) {
@@ -546,6 +553,7 @@ protected:
                     probingInfos.push_back({
                         .NodeId = nodeId
                     });
+                    nodeIds.push_back(nodeId);
                 }
 
                 probingInfos[it->second].ChunkIndexes.push_back(chunkIndex);
@@ -556,11 +564,10 @@ protected:
             }
         }
 
-        for (auto& probingInfo : probingInfos) {
-            // TODO(akozhikhov): Implement GetMany (so this deferred initialization will be justified).
-            probingInfo.PeerInfoOrError = Reader_->PeerInfoCache_->Get(probingInfo.NodeId);
-
-            YT_VERIFY(!probingInfo.PeerInfoOrError.IsOK() || probingInfo.PeerInfoOrError.Value().Channel);
+        auto peerInfoOrErrors = Reader_->PeerInfoCache_->Get(nodeIds);
+        for (int i = 0; i < std::ssize(peerInfoOrErrors); ++i) {
+            YT_VERIFY(!peerInfoOrErrors[i].IsOK() || peerInfoOrErrors[i].Value().Channel);
+            probingInfos[i].PeerInfoOrError = std::move(peerInfoOrErrors[i]);
         }
 
         return probingInfos;
@@ -1364,7 +1371,6 @@ private:
                 YT_LOG_ERROR(probingInfo.PeerInfoOrError, "Failed to obtain peer info");
 
                 // TODO(akozhikhov): Node should be marked suspicious as we cannot get address.
-                // TODO(akozhikhov): Implement InvalidateMany.
                 Reader_->PeerInfoCache_->Invalidate(probingInfo.NodeId);
 
                 probingFutures.push_back(MakeFuture<std::vector<TErrorOrPeerProbingResult>>({}));
