@@ -5,6 +5,7 @@
 #include <yt/yt/core/logging/log_manager.h>
 
 #include <yt/yt/core/misc/raw_formatter.h>
+#include <yt/yt/core/misc/proc.h>
 
 #include <yt/yt/core/concurrency/fls.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
@@ -14,6 +15,7 @@
 #include <signal.h>
 #include <time.h>
 #include <yt/yt/build/config.h>
+
 #ifdef HAVE_SYS_TYPES_H
 #   include <sys/types.h>
 #endif
@@ -487,6 +489,8 @@ void CrashSignalHandler(int /*signal*/, siginfo_t* si, void* uc)
     formatter.Reset();
     formatter.AppendString("*** Terminate ***\n");
     WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
+
+    CloseAllDescriptors({});
 }
 #endif
 
