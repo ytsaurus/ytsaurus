@@ -6,8 +6,14 @@ namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TProtobufWriterFormatDescription)
+DECLARE_REFCOUNTED_CLASS(TProtobufParserType)
+DECLARE_REFCOUNTED_CLASS(TProtobufWriterType)
+
+class TProtobufParserFieldDescription;
+class TProtobufWriterFieldDescription;
+
 DECLARE_REFCOUNTED_CLASS(TProtobufParserFormatDescription)
+DECLARE_REFCOUNTED_CLASS(TProtobufWriterFormatDescription)
 
 ////////////////////////////////////////////////////////////////////////////////
 

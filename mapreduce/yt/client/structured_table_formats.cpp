@@ -524,7 +524,7 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateProtobufFormat(
     }
     Y_VERIFY(!descriptorList.empty(), "Messages for proto format are unknown (empty ProtoDescriptors)");
     return {
-        TFormat::Protobuf(descriptorList),
+        TFormat::Protobuf(descriptorList, TConfig::Get()->ProtobufFormatWithDescriptors),
         TSmallJobFile{
             TString("proto") + GetSuffix(direction),
             CreateProtoConfig(descriptorList)

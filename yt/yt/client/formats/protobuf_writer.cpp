@@ -202,13 +202,12 @@ public:
         InRange = TryIntegralCast<i32>(value, &EnumValue);
     }
 
-    Y_FORCE_INLINE void OnString(TStringBuf value, const TProtobufWriterFieldDescription& fieldDescription)
+    Y_FORCE_INLINE void OnString(TStringBuf value, const TProtobufWriterTypePtr& type)
     {
-        if (Y_UNLIKELY(!fieldDescription.EnumerationDescription)) {
-            THROW_ERROR_EXCEPTION("Enumeration description not found for field %Qv",
-                fieldDescription.Name);
+        if (Y_UNLIKELY(!type->EnumerationDescription)) {
+            THROW_ERROR_EXCEPTION("Enumeration description not found");
         }
-        EnumValue = fieldDescription.EnumerationDescription->GetValue(value);
+        EnumValue = type->EnumerationDescription->GetValue(value);
     }
 
 public:
@@ -219,10 +218,10 @@ public:
 template <typename TValueExtractor>
 Y_FORCE_INLINE void WriteProtobufField(
     TZeroCopyOutputStreamWriter* writer,
-    const TProtobufWriterFieldDescription& fieldDescription,
+    const TProtobufWriterTypePtr& type,
     const TValueExtractor& extractor)
 {
-    switch (fieldDescription.Type) {
+    switch (type->ProtoType) {
         case EProtobufType::String:
         case EProtobufType::Bytes:
         case EProtobufType::Message: {
@@ -273,12 +272,12 @@ Y_FORCE_INLINE void WriteProtobufField(
         case EProtobufType::EnumInt:
         case EProtobufType::EnumString: {
             auto getEnumerationName = [&] () {
-                return fieldDescription.EnumerationDescription
-                    ? fieldDescription.EnumerationDescription->GetEnumerationName()
+                return type->EnumerationDescription
+                    ? type->EnumerationDescription->GetEnumerationName()
                     : "<unknown>";
             };
             TEnumVisitor visitor;
-            extractor.ExtractEnum(&visitor, fieldDescription);
+            extractor.ExtractEnum(&visitor, type);
             if (Y_UNLIKELY(!visitor.InRange)) {
                 THROW_ERROR_EXCEPTION("Value out of range for protobuf enumeration %Qv",
                     getEnumerationName());
@@ -292,7 +291,7 @@ Y_FORCE_INLINE void WriteProtobufField(
         case EProtobufType::StructuredMessage:
         case EProtobufType::Oneof:
             THROW_ERROR_EXCEPTION("Wrong protobuf type %Qlv",
-                fieldDescription.Type);
+                type->ProtoType);
     }
     YT_ABORT();
 }
@@ -318,7 +317,7 @@ public:
         : Parser_(parser)
     { }
 
-    void ExtractEnum(TEnumVisitor* visitor, const TProtobufWriterFieldDescription& fieldDescription) const
+    void ExtractEnum(TEnumVisitor* visitor, const TProtobufWriterTypePtr& type) const
     {
         auto item = Parser_->Next();
         switch (item.GetType()) {
@@ -329,10 +328,10 @@ public:
                 visitor->OnUint64(item.UncheckedAsUint64());
                 return;
             case EYsonItemType::StringValue:
-                visitor->OnString(item.UncheckedAsString(), fieldDescription);
+                visitor->OnString(item.UncheckedAsString(), type);
                 return;
             default:
-                auto* enumDescription = fieldDescription.EnumerationDescription;
+                const auto* enumDescription = type->EnumerationDescription;
                 THROW_ERROR_EXCEPTION("Cannot parse protobuf enumeration %Qv from YSON value of type %Qlv",
                     enumDescription ? enumDescription->GetEnumerationName() : "<unknown>",
                     item.GetType());
@@ -390,7 +389,7 @@ public:
         : Value_(value)
     { }
 
-    void ExtractEnum(TEnumVisitor* visitor, const TProtobufWriterFieldDescription& fieldDescription) const
+    void ExtractEnum(TEnumVisitor* visitor, const TProtobufWriterTypePtr& type) const
     {
         switch (Value_.Type) {
             case EValueType::Int64:
@@ -400,10 +399,10 @@ public:
                 visitor->OnUint64(Value_.Data.Uint64);
                 return;
             case EValueType::String:
-                visitor->OnString(TStringBuf(Value_.Data.String, Value_.Length), fieldDescription);
+                visitor->OnString(TStringBuf(Value_.Data.String, Value_.Length), type);
                 return;
             default:
-                auto* enumDescription = fieldDescription.EnumerationDescription;
+                const auto* enumDescription = type->EnumerationDescription;
                 THROW_ERROR_EXCEPTION("Cannot parse protobuf enumeration %Qv from unverioned value of type %Qlv",
                     enumDescription ? enumDescription->GetEnumerationName() : "<unknown>",
                     Value_.Type);
@@ -521,8 +520,8 @@ public:
 static bool MatchesCompositeType(const TProtobufWriterFieldDescription& field)
 {
     return field.Repeated ||
-        field.Type == EProtobufType::StructuredMessage ||
-        field.Type == EProtobufType::Oneof;
+        field.Type->ProtoType == EProtobufType::StructuredMessage ||
+        field.Type->ProtoType == EProtobufType::Oneof;
 }
 
 class TWriterImpl
@@ -595,14 +594,14 @@ public:
             Traverse(fieldDescription, &parser, maxVarIntSize);
         } else {
             WriteVarUint32(Writer_, fieldDescription.WireTag);
-            if (fieldDescription.Type == EProtobufType::Any) {
+            if (fieldDescription.Type->ProtoType == EProtobufType::Any) {
                 auto maxYsonSize = GetMaxBinaryYsonSize(value);
                 WriteWithSizePrefix(WireFormatLite::UInt64Size(maxYsonSize), [&] {
                     TCheckedInDebugYsonTokenWriter tokenWriter(Writer_);
                     UnversionedValueToYson(value, &tokenWriter);
                 });
             } else {
-                WriteProtobufField(Writer_, fieldDescription, TUnversionedValueExtractor(value));
+                WriteProtobufField(Writer_, fieldDescription.Type, TUnversionedValueExtractor(value));
             }
         }
     }
@@ -635,7 +634,7 @@ private:
         int maxVarIntSize)
     {
         if (fieldDescription.Repeated) {
-            if (fieldDescription.Optional && parser->IsEntity()) {
+            if (fieldDescription.Type->Optional && parser->IsEntity()) {
                 parser->ParseEntity();
                 return;
             }
@@ -658,7 +657,7 @@ private:
         TYsonPullParser* parser,
         int maxVarIntSize)
     {
-        if (fieldDescription.Optional) {
+        if (fieldDescription.Type->Optional) {
             if (!parser->ParseOptionalBeginList()) {
                 return;
             }
@@ -667,7 +666,7 @@ private:
         }
 
         auto alternativeIndex = parser->ParseInt64();
-        auto alternative = fieldDescription.FindAlternative(alternativeIndex);
+        auto alternative = fieldDescription.Type->FindAlternative(alternativeIndex);
         if (alternative) {
             Traverse(*alternative, parser, maxVarIntSize);
         } else {
@@ -699,7 +698,7 @@ private:
             WriteVarUint32(Writer_, fieldDescription.WireTag);
             WriteWithSizePrefix(maxVarIntSize, [&] {
                 while (!parser->IsEndList()) {
-                    WriteProtobufField(Writer_, fieldDescription, TYsonValueExtractor(parser));
+                    WriteProtobufField(Writer_, fieldDescription.Type, TYsonValueExtractor(parser));
                 }
             });
         }
@@ -711,13 +710,13 @@ private:
         TYsonPullParser* parser,
         int maxVarIntSize)
     {
-        if (fieldDescription.Type == EProtobufType::Oneof) {
+        if (fieldDescription.Type->ProtoType == EProtobufType::Oneof) {
             TraverseOneof(fieldDescription, parser, maxVarIntSize);
             return;
         }
-        if (fieldDescription.Optional && parser->IsEntity()) {
+        if (fieldDescription.Type->Optional && parser->IsEntity()) {
             parser->ParseEntity();
-            if (fieldDescription.Type == EProtobufType::Any) {
+            if (fieldDescription.Type->ProtoType == EProtobufType::Any) {
                 WriteVarUint32(Writer_, fieldDescription.WireTag);
                 WriteWithSizePrefix(1, [&] {
                     TCheckedInDebugYsonTokenWriter writer(Writer_);
@@ -728,7 +727,7 @@ private:
         }
 
         WriteVarUint32(Writer_, fieldDescription.WireTag);
-        switch (fieldDescription.Type) {
+        switch (fieldDescription.Type->ProtoType) {
             case EProtobufType::StructuredMessage:
                 WriteWithSizePrefix(maxVarIntSize, [&] {
                     TraverseStruct(fieldDescription, parser, maxVarIntSize);
@@ -743,7 +742,7 @@ private:
             case EProtobufType::Oneof:
                 YT_ABORT();
             default:
-                WriteProtobufField(Writer_, fieldDescription, TYsonValueExtractor(parser));
+                WriteProtobufField(Writer_, fieldDescription.Type, TYsonValueExtractor(parser));
                 return;
         }
         YT_ABORT();
@@ -755,10 +754,10 @@ private:
         int maxVarIntSize)
     {
         parser->ParseBeginList();
-        auto childIterator = fieldDescription.Children.cbegin();
+        auto childIterator = fieldDescription.Type->Children.cbegin();
         int elementIndex = 0;
         while (!parser->IsEndList()) {
-            if (childIterator == fieldDescription.Children.cend() || (*childIterator)->StructFieldIndex != elementIndex) {
+            if (childIterator == fieldDescription.Type->Children.cend() || (*childIterator)->StructFieldIndex != elementIndex) {
                 parser->SkipComplexValue();
                 ++elementIndex;
                 continue;

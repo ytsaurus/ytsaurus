@@ -89,6 +89,7 @@ struct TConfig
 
     bool UseClientProtobuf;
     ENodeReaderFormat NodeReaderFormat;
+    bool ProtobufFormatWithDescriptors;
 
     int ConnectionPoolSize;
 

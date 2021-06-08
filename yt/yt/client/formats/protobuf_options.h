@@ -1,24 +1,16 @@
 #pragma once
 
-///
-/// @file mapreduce/yt/interface/protobuf_format.h
-///
-/// Header containing declarations of types and functions
-/// to work with protobuf format flags and options
-
-#include "common.h"
-
 #include <mapreduce/yt/interface/protos/extension.pb.h>
-
-#include <util/generic/maybe.h>
 
 #include <google/protobuf/message.h>
 
-namespace NYT::NDetail {
+#include <util/generic/maybe.h>
+
+namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-enum class EProtobufType
+enum class ESpecialProtobufType
 {
     EnumInt       /* "enum_int" */,
     EnumString    /* "enum_string" */,
@@ -66,7 +58,7 @@ struct TProtobufOneofOptions
 
 struct TProtobufFieldOptions
 {
-    TMaybe<EProtobufType> Type;
+    TMaybe<ESpecialProtobufType> Type;
     EProtobufSerializationMode SerializationMode = EProtobufSerializationMode::Protobuf;
     EProtobufListMode ListMode = EProtobufListMode::Required;
     EProtobufMapMode MapMode = EProtobufMapMode::ListOfStructsLegacy;
@@ -77,6 +69,13 @@ struct TProtobufMessageOptions
     EProtobufFieldSortOrder FieldSortOrder = EProtobufFieldSortOrder::ByFieldNumber;
 };
 
+TProtobufFieldOptions GetDefaultFieldOptions(
+    const ::google::protobuf::Descriptor* descriptor,
+    TProtobufFieldOptions defaultFieldOptions = {});
+
+TProtobufOneofOptions GetDefaultOneofOptions(
+    const ::google::protobuf::Descriptor* descriptor);
+
 TProtobufFieldOptions GetFieldOptions(
     const ::google::protobuf::FieldDescriptor* fieldDescriptor,
     const TMaybe<TProtobufFieldOptions>& defaultFieldOptions = {});
@@ -85,18 +84,12 @@ TProtobufOneofOptions GetOneofOptions(
     const ::google::protobuf::OneofDescriptor* oneofDescriptor,
     const TMaybe<TProtobufOneofOptions>& defaultOneofOptions = {});
 
-TProtobufMessageOptions GetMessageOptions(const ::google::protobuf::Descriptor* descriptor);
+TString GetColumnName(const ::google::protobuf::FieldDescriptor* field);
 
-TMaybe<TVector<TString>> InferColumnFilter(const ::google::protobuf::Descriptor& descriptor);
-
-TNode MakeProtoFormatConfigWithTables(const TVector<const ::google::protobuf::Descriptor*>& descriptors);
-TNode MakeProtoFormatConfigWithDescriptors(const TVector<const ::google::protobuf::Descriptor*>& descriptors);
-
-TTableSchema CreateTableSchemaImpl(
-    const ::google::protobuf::Descriptor& messageDescriptor,
-    bool keepFieldsWithoutExtension);
+void ValidateProtobufType(
+    const ::google::protobuf::FieldDescriptor* fieldDescriptor,
+    ESpecialProtobufType protobufType);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDetail
-
+} // namespace NYT::NFormats
