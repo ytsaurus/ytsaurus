@@ -17,6 +17,7 @@ public:
     TThreadPoolBase(TString threadNamePrefix);
 
     void Configure(int threadCount);
+    int GetThreadCount();
     void Shutdown();
 
 protected:

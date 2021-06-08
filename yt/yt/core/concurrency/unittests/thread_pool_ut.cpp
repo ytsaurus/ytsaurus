@@ -20,15 +20,27 @@ TEST(TThreadPoolTest, Configure)
     std::vector<TFuture<void>> futures;
 
     const int N = 10000;
+    int threadCount = 0;
     for (int i = 0; i < N; ++i) {
         futures.push_back(callback.AsyncVia(threadPool->GetInvoker()).Run());
         if (i % 100 == 0) {
-            threadPool->Configure(RandomNumber<size_t>(10) + 1);
+            threadCount = RandomNumber<size_t>(10) + 1;
+            threadPool->Configure(threadCount);
+            EXPECT_EQ(threadPool->GetThreadCount(), threadCount);
         }
     }
 
     AllSucceeded(std::move(futures))
         .Get();
+
+    // Thread pool doesn't contain less than one thread whatever you configured.
+    threadPool->Configure(0);
+    EXPECT_EQ(threadPool->GetThreadCount(), 1);
+
+    // Thread pool doesn't contain more than maximal threads count whatever you configured.
+    threadPool->Configure(1e8);
+    EXPECT_LE(threadPool->GetThreadCount(), 1e8);
+
     threadPool->Shutdown();
     EXPECT_EQ(N, counter->load());
 }
@@ -37,4 +49,3 @@ TEST(TThreadPoolTest, Configure)
 
 } // namespace
 } // namespace NYT::NConcurrency
-

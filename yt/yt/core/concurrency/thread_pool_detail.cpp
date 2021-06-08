@@ -72,6 +72,12 @@ TClosure TThreadPoolBase::MakeFinalizerCallback()
     });
 }
 
+int TThreadPoolBase::GetThreadCount()
+{
+    auto guard = Guard(SpinLock_);
+    return std::ssize(Threads_);
+}
+
 void TThreadPoolBase::DoConfigure(int threadCount)
 {
     decltype(Threads_) threadsToStart;
@@ -102,4 +108,3 @@ void TThreadPoolBase::DoConfigure(int threadCount)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NConcurrency
-
