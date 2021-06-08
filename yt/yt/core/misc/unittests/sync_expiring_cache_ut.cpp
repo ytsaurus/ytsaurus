@@ -72,6 +72,20 @@ TEST(TSyncExpiringCacheTest, SetExpirationTimeout)
     EXPECT_EQ(3, cache->Find(1));
 }
 
+TEST(TSyncExpiringCacheTest, GetMany)
+{
+    auto cache = New<TSyncExpiringCache<int, int>>(
+        BIND([] (int x) { return x; }),
+        TDuration::Seconds(1),
+        GetSyncInvoker());
+
+    EXPECT_EQ(1, cache->Get({1}));
+    EXPECT_EQ(1, cache->Get({1}));
+    
+    std::vector<int> expected{0, 1, 2};
+    EXPECT_EQ(expected, cache->Get({0, 1, 2}));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
