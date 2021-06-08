@@ -1,11 +1,13 @@
-from yt_env_setup import wait, YTEnvSetup, Restarter, NODES_SERVICE
+from yt_env_setup import wait, YTEnvSetup, Restarter, NODES_SERVICE, CONTROLLER_AGENTS_SERVICE
 from yt_commands import *  # noqa
 import yt.environment.init_operation_archive as init_operation_archive
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.wrapper.common import uuid_hash_pair
 from yt.common import date_string_to_datetime
+import yt_error_codes
 
 import copy
+from flaky import flaky
 from collections import defaultdict
 from datetime import datetime
 import __builtin__
@@ -105,6 +107,9 @@ class TestListJobsBase(YTEnvSetup):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "controller_static_orchid_update_period": 100,
+            "operation_time_limit_check_period": 100,
+            "snapshot_period": 500,
+            "operations_update_period": 100,
         },
     }
 
@@ -744,6 +749,32 @@ class TestListJobs(TestListJobsBase):
         assert res_job.get("controller_agent_state") is None
         assert res_job["archive_state"] == "running"
         assert res_job.get("is_stale")
+
+    @authors("levysotsky")
+    @flaky(max_runs=3)
+    def test_revival(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=1,
+            spec={"testing": {"delay_inside_revive": 5000}},
+        )
+        (job_id,) = wait_breakpoint()
+        op.wait_for_fresh_snapshot()
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+        
+        with raises_yt_error(yt_error_codes.UncertainOperationControllerState):
+            checked_list_jobs(op.id)
+
+        res = retry(lambda: checked_list_jobs(op.id))
+        res_jobs = [job for job in res["jobs"] if job["id"] == job_id]
+        assert len(res_jobs) == 1
+        res_job = res_jobs[0]
+        
+        assert res_job.get("controller_agent_state") == "running"
+        assert res_job.get("archive_state") == "running"
+        assert not res_job.get("is_stale")
 
     @authors("gritukan")
     def test_task_name(self):

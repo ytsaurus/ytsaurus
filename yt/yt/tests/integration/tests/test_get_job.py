@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE
 from yt_commands import *  # noqa
 from yt_helpers import Profiler
 import yt_error_codes
@@ -10,6 +10,7 @@ from yt.common import date_string_to_datetime, uuid_to_parts, parts_to_uuid
 import __builtin__
 import copy
 import datetime
+from flaky import flaky
 
 JOB_ARCHIVE_TABLE = "//sys/operations_archive/jobs"
 OPERATION_IDS_TABLE = "//sys/operations_archive/operation_ids"
@@ -238,6 +239,14 @@ class _TestGetJobCommon(_TestGetJobBase):
 
 
 class TestGetJob(_TestGetJobCommon):
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operation_time_limit_check_period": 100,
+            "snapshot_period": 500,
+            "operations_update_period": 100,
+        }
+    }
+
     @authors("gritukan")
     def test_get_job_task_name_attribute_vanilla(self):
         op = vanilla(
@@ -331,6 +340,28 @@ class TestGetJob(_TestGetJobCommon):
         with raises_yt_error(yt_error_codes.NoSuchJob):
             get_job("1-2-3-4", "5-6-7-8")
 
+    @authors("levysotsky")
+    @flaky(max_runs=3)
+    def test_get_job_is_stale_during_revival(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=1,
+            spec={"testing": {"delay_inside_revive": 5000}},
+        )
+        (job_id,) = wait_breakpoint()
+        op.wait_for_fresh_snapshot()
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+        
+        with raises_yt_error(yt_error_codes.UncertainOperationControllerState):
+            get_job(op.id, job_id)
+
+        job_info = retry(lambda: get_job(op.id, job_id))
+        assert job_info.get("controller_agent_state") == "running"
+        assert job_info.get("archive_state") == "running"
+        assert not job_info.get("is_stale")
+
 
 class TestGetJobStatisticsLz4(_TestGetJobCommon):
     DELTA_NODE_CONFIG = copy.deepcopy(_TestGetJobBase.DELTA_NODE_CONFIG)
@@ -377,7 +408,7 @@ class TestGetJobIsStale(_TestGetJobBase):
         assert job_info.get("controller_agent_state") is None
         assert job_info.get("archive_state") == "running"
         assert job_info.get("is_stale")
-
+        
 
 class TestGetJobMonitoring(_TestGetJobBase):
     USE_PORTO = True
