@@ -21,7 +21,11 @@ type File struct {
 }
 
 type UserScript struct {
-	Command            string            `yson:"command"`
+	// Command specifies shell command that would be executed inside job.
+	//
+	// mapreduce package uses command for it's own purpose. User should not set this field.
+	Command string `yson:"command"`
+
 	Format             interface{}       `yson:"format,omitempty"`
 	InputFormat        interface{}       `yson:"input_format,omitempty"`
 	OutputFormat       interface{}       `yson:"output_format,omitempty"`
