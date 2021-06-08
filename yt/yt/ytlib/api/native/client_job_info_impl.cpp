@@ -1635,7 +1635,10 @@ static void ParseJobsFromControllerAgentResponse(
         return;
     }
     if (!rspOrError.IsOK()) {
-        THROW_ERROR_EXCEPTION("Cannot get %Qv from controller agent", key)
+        THROW_ERROR_EXCEPTION(EErrorCode::UncertainOperationControllerState,
+            "Error obtaining %Qv of operation %v from controller agent orchid",
+            key,
+            operationId)
             << rspOrError;
     }
 
@@ -1701,6 +1704,10 @@ TFuture<TClient::TListJobsFromControllerAgentResult> TClient::DoListJobsFromCont
     auto batchReq = proxy.ExecuteBatch();
 
     batchReq->AddRequest(
+        TYPathProxy::Get(GetControllerAgentOrchidOperationPath(*controllerAgentAddress, operationId) + "/state"),
+        "controller_state");
+
+    batchReq->AddRequest(
         TYPathProxy::Get(GetControllerAgentOrchidRunningJobsPath(*controllerAgentAddress, operationId)),
         "running_jobs");
 
@@ -1710,6 +1717,20 @@ TFuture<TClient::TListJobsFromControllerAgentResult> TClient::DoListJobsFromCont
 
     return batchReq->Invoke().Apply(
         BIND([operationId, options, this, this_ = MakeStrong(this)] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) {
+            auto operationStateRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("controller_state");
+            if (!operationStateRspOrError.IsOK()) {
+                THROW_ERROR_EXCEPTION(EErrorCode::UncertainOperationControllerState,
+                    "Error obtaining state of operation %v from controller agent",
+                    operationId)
+                    << operationStateRspOrError;
+            }
+            auto state = ConvertTo<EControllerState>(TYsonStringBuf(operationStateRspOrError.Value()->value()));
+            if (state == EControllerState::Preparing) {
+                THROW_ERROR_EXCEPTION(EErrorCode::UncertainOperationControllerState,
+                    "Operation controller of operation %v is in %Qlv state",
+                    operationId,
+                    EControllerState::Preparing);
+            }
             TListJobsFromControllerAgentResult result;
             ParseJobsFromControllerAgentResponse(
                 operationId,
@@ -1865,7 +1886,10 @@ static void UpdateJobsAndAddMissing(std::vector<std::vector<TJob>>&& controllerA
 
 static bool IsJobStale(std::optional<EJobState> controllerAgentState, std::optional<EJobState> archiveState)
 {
-    return !controllerAgentState && archiveState && IsJobInProgress(*archiveState);
+    return
+        !controllerAgentState &&
+        archiveState &&
+        IsJobInProgress(*archiveState);
 }
 
 static TError TryFillJobPools(
@@ -1950,6 +1974,11 @@ TListJobsResult TClient::DoListJobs(
         controllerAgentAddress,
         deadline,
         options);
+    
+    auto operationInfo = DoGetOperation(operationId, TGetOperationOptions{
+        .Attributes = {{"state"}},
+        .IncludeRuntime = true,
+    });
 
     // Wait for results and extract them.
     TListJobsResult result;
@@ -1959,11 +1988,14 @@ TListJobsResult TClient::DoListJobs(
         controllerAgentResult = std::move(controllerAgentResultOrError.Value());
         result.ControllerAgentJobCount =
             controllerAgentResult.TotalFinishedJobCount + controllerAgentResult.TotalInProgressJobCount;
-    } else if (controllerAgentResultOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-        // No such operation in the controller agent.
-        result.ControllerAgentJobCount = 0;
     } else {
-        result.Errors.push_back(std::move(controllerAgentResultOrError));
+        auto operationFinished = operationInfo.State &&  IsOperationFinished(*operationInfo.State);
+        if (operationFinished && controllerAgentResultOrError.FindMatching(EErrorCode::UncertainOperationControllerState)) {
+            // No such operation in the controller agent.
+            result.ControllerAgentJobCount = 0;
+        } else {
+            result.Errors.push_back(std::move(controllerAgentResultOrError));
+        }
     }
 
     std::vector<TJob> archiveResult;
@@ -2125,13 +2157,17 @@ std::optional<TJob> TClient::DoGetJobFromControllerAgent(
     proxy.SetDefaultTimeout(deadline - Now());
     auto batchReq = proxy.ExecuteBatch();
 
+    auto operationStatePath = 
+        GetControllerAgentOrchidOperationPath(*controllerAgentAddress, operationId) + "/state";
+    batchReq->AddRequest(TYPathProxy::Get(operationStatePath), "get_controller_state");
+
     auto runningJobPath =
         GetControllerAgentOrchidRunningJobsPath(*controllerAgentAddress, operationId) + "/" + ToString(jobId);
-    batchReq->AddRequest(TYPathProxy::Get(runningJobPath));
+    batchReq->AddRequest(TYPathProxy::Get(runningJobPath), "get_job");
 
     auto finishedJobPath =
         GetControllerAgentOrchidRetainedFinishedJobsPath(*controllerAgentAddress, operationId) + "/" + ToString(jobId);
-    batchReq->AddRequest(TYPathProxy::Get(finishedJobPath));
+    batchReq->AddRequest(TYPathProxy::Get(finishedJobPath), "get_job");
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
 
@@ -2139,14 +2175,15 @@ std::optional<TJob> TClient::DoGetJobFromControllerAgent(
         THROW_ERROR_EXCEPTION("Cannot get jobs from controller agent")
             << batchRspOrError;
     }
+    const auto& batchRsp = batchRspOrError.Value();
 
-    for (const auto& rspOrError : batchRspOrError.Value()->GetResponses<TYPathProxy::TRspGet>()) {
+    for (const auto& rspOrError : batchRsp->GetResponses<TYPathProxy::TRspGet>("get_job")) {
         if (rspOrError.IsOK()) {
             std::vector<TJob> jobs;
             ParseJobsFromControllerAgentResponse(
                 operationId,
-                {{ToString(jobId), ConvertToNode(TYsonString(rspOrError.Value()->value()))}},
-                [] (const INodePtr&) {
+                {{ToString(jobId), ConvertToNode(TYsonStringBuf(rspOrError.Value()->value()))}},
+                /* filter */ [] (const INodePtr&) {
                     return true;
                 },
                 attributes,
@@ -2154,9 +2191,27 @@ std::optional<TJob> TClient::DoGetJobFromControllerAgent(
             YT_VERIFY(jobs.size() == 1);
             return jobs[0];
         } else if (!rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            THROW_ERROR_EXCEPTION("Cannot get jobs from controller agent")
+            THROW_ERROR_EXCEPTION(EErrorCode::UncertainOperationControllerState,
+                "Error obtaining job %v of operation %v from controller agent",
+                jobId,
+                operationId)
                 << rspOrError;
         }
+    }
+
+    auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_controller_state");
+    if (!rspOrError.IsOK()) {
+         THROW_ERROR_EXCEPTION(EErrorCode::UncertainOperationControllerState,
+            "Error obtaining state of operation %v from controller agent",
+            operationId)
+            << rspOrError;
+    }
+    auto state = ConvertTo<EControllerState>(TYsonStringBuf(rspOrError.Value()->value()));
+    if (state == EControllerState::Preparing) {
+        THROW_ERROR_EXCEPTION(EErrorCode::UncertainOperationControllerState,
+            "Operation controller of operation %v is in %Qlv state",
+            operationId,
+            EControllerState::Preparing);
     }
 
     return {};
@@ -2181,8 +2236,27 @@ TYsonString TClient::DoGetJob(
 
     const auto& attributes = options.Attributes.value_or(DefaultGetJobAttributes);
 
-    auto controllerAgentJob = DoGetJobFromControllerAgent(operationId, jobId, deadline, attributes);
+    auto operationInfoFuture = GetOperation(operationId, TGetOperationOptions{
+        .Attributes = {{"state"}},
+        .IncludeRuntime = true,
+    });
+
+    std::optional<TJob> controllerAgentJob;
+    TError controllerAgentError;
+    try {
+        controllerAgentJob = DoGetJobFromControllerAgent(operationId, jobId, deadline, attributes);
+    } catch (const TErrorException& exception) {
+        controllerAgentError = exception.Error();
+    }
+
     auto archiveJob = DoGetJobFromArchive(operationId, jobId, deadline, attributes);
+
+    auto operationInfo = WaitFor(operationInfoFuture).ValueOrThrow();
+
+    if (!controllerAgentError.IsOK() && (!operationInfo.State || !IsOperationFinished(*operationInfo.State))) {
+        // Operation is running but controller agent request failed, it is bad.
+        THROW_ERROR controllerAgentError;
+    }
 
     TJob job;
     if (archiveJob && controllerAgentJob) {
@@ -2199,7 +2273,7 @@ TYsonString TClient::DoGetJob(
             jobId,
             operationId);
     }
-
+    
     job.IsStale = IsJobStale(job.ControllerAgentState, job.ArchiveState);
 
     if (attributes.contains("pool")) {

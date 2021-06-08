@@ -36,6 +36,7 @@ DEFINE_ENUM(EErrorCode,
     ((OperationProgressOutdated)                         (1911))
     ((NoSuchOperation)                                   (1915))
     ((NoSuchJob)                                         (1916))
+    ((UncertainOperationControllerState)                 (1917))
     ((NoSuchAttribute)                                   (1920))
     ((FormatDisabled)                                    (1925))
 );

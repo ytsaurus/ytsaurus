@@ -23,6 +23,7 @@ RequestThrottled = 1725
 OperationProgressOutdated = 1911
 NoSuchOperation = 1915
 NoSuchJob = 1916
+UncertainOperationControllerState = 1917
 NoSuchAttribute = 1920
 FormatDisabled = 1925
 DataSliceLimitExceeded = 2000

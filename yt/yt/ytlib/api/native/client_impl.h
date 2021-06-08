@@ -1097,16 +1097,17 @@ private:
         NScheduler::TJobId jobId,
         TInstant deadline,
         const THashSet<TString>& attributes);
+
     std::optional<TJob> DoGetJobFromControllerAgent(
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId,
         TInstant deadline,
         const THashSet<TString>& attributes);
+
     NYson::TYsonString DoGetJob(
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         NScheduler::TJobId jobId,
         const TGetJobOptions& options);
-
 
     // Misc.
     TClusterMeta DoGetClusterMeta(
