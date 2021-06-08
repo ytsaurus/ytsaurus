@@ -89,6 +89,11 @@ void TThreadPool::Shutdown()
     return Impl_->Shutdown();
 }
 
+int TThreadPool::GetThreadCount()
+{
+    return Impl_->GetThreadCount();
+}
+
 void TThreadPool::Configure(int threadCount)
 {
     return Impl_->Configure(threadCount);
@@ -102,4 +107,3 @@ const IInvokerPtr& TThreadPool::GetInvoker()
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NConcurrency
-
