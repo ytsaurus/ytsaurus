@@ -1,5 +1,3 @@
-import pytest
-
 from yt_env_setup import (
     YTEnvSetup,
     wait,
@@ -8,20 +6,65 @@ from yt_env_setup import (
     MASTERS_SERVICE,
     is_asan_build,
 )
-from yt_commands import *  # noqa
-from yt_helpers import *
+
+from yt_commands import (  # noqa
+    authors, print_debug, wait, wait_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
+    events_on_fs, reset_events_on_fs,
+    create, ls, get, set, copy, move, remove, link, exists, concatenate,
+    create_account, create_network_project, create_tmpdir, create_user, create_group,
+    create_pool, create_pool_tree, remove_pool_tree,
+    create_data_center, create_rack, create_table,
+    create_tablet_cell_bundle, remove_tablet_cell_bundle, create_tablet_cell, create_table_replica,
+    make_ace, check_permission, add_member, remove_member, remove_group, remove_user,
+    remove_network_project,
+    make_batch_request, execute_batch, get_batch_error,
+    start_transaction, abort_transaction, commit_transaction, lock,
+    insert_rows, select_rows, lookup_rows, delete_rows, trim_rows, alter_table,
+    read_file, write_file, read_table, write_table, write_local_file, read_blob_table,
+    map, reduce, map_reduce, join_reduce, merge, vanilla, sort, erase, remote_copy,
+    run_test_vanilla, run_sleeping_vanilla,
+    abort_job, list_jobs, get_job, abandon_job, interrupt_job,
+    get_job_fail_context, get_job_input, get_job_stderr, get_job_spec,
+    dump_job_context, poll_job_shell,
+    abort_op, complete_op, suspend_op, resume_op,
+    get_operation, list_operations, clean_operations,
+    get_operation_cypress_path, scheduler_orchid_pool_path,
+    scheduler_orchid_default_pool_tree_path, scheduler_orchid_operation_path,
+    scheduler_orchid_default_pool_tree_config_path, scheduler_orchid_path,
+    scheduler_orchid_node_path, scheduler_orchid_pool_tree_config_path, scheduler_orchid_pool_tree_path,
+    mount_table, unmount_table, freeze_table, unfreeze_table, reshard_table, remount_table, generate_timestamp,
+    wait_for_tablet_state, wait_for_cells,
+    get_tablet_infos, get_table_pivot_keys, get_tablet_leader_address,
+    sync_create_cells, sync_mount_table, sync_unmount_table,
+    sync_freeze_table, sync_unfreeze_table, sync_reshard_table,
+    sync_flush_table, sync_compact_table, sync_remove_tablet_cells,
+    sync_reshard_table_automatic, sync_balance_tablet_cells,
+    get_first_chunk_id, get_singular_chunk_id, get_chunk_replication_factor, multicell_sleep,
+    update_nodes_dynamic_config, update_controller_agent_config,
+    update_op_parameters, enable_op_detailed_logs,
+    set_node_banned, set_banned_flag, set_account_disk_space_limit, set_node_decommissioned,
+    check_all_stderrs,
+    create_test_tables, create_dynamic_table, PrepareTables,
+    get_statistics, get_recursive_disk_space, get_chunk_owner_disk_space,
+    make_random_string, raises_yt_error,
+    build_snapshot, is_multicell,
+    get_driver, Driver, execute_command,
+    AsyncLastCommittedTimestamp)
+
+from yt_helpers import Profiler
+from yt_type_helpers import make_schema, optional_type
 import yt_error_codes
 
 from yt.environment.helpers import assert_items_equal
+from yt.common import YtError
+import yt.yson as yson
+
+import pytest
 
 from copy import deepcopy
-
 from flaky import flaky
-
-from time import sleep
-
 from collections import Counter
-
+import time
 import __builtin__
 
 ##################################################################
@@ -108,7 +151,7 @@ class DynamicTablesBase(YTEnvSetup):
                     if tablet_id in tablets:
                         try:
                             return self._get_recursive("{}/{}/tablets/{}".format(path, cell_id, tablet_id))
-                        except:
+                        except YtError:
                             return None
             return None
 
@@ -144,7 +187,8 @@ class DynamicTablesBase(YTEnvSetup):
                 if user is not None:
                     self.tags["user"] = user
 
-                # NB(eshcherbin): This is done to bypass RPC driver which currently doesn't support options for get queries.
+                # NB(eshcherbin): This is done to bypass RPC driver
+                # which currently doesn't support options for get queries.
                 self.driver = Driver(config=driver_config)
 
             def get_counter(self, counter_name, tags={}):
@@ -228,16 +272,17 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         # NB(eshcherbin): Should use Profiler.counter() and counter.get_delta(). However, as long as
         # we have to use the custom driver here we cannot use the counter helper.
         sensors = [
-            Profiler.at_node(address).gauge("hydra/restart_count", fixed_tags={"cell_id": cell_id}) for address in addresses
+            Profiler.at_node(address).gauge("hydra/restart_count", fixed_tags={"cell_id": cell_id})
+            for address in addresses
         ]
 
-        sleep(10.0)
+        time.sleep(10.0)
 
         counts = []
         for sensor in sensors:
             counts.append(sensor.get(driver=driver))
 
-        sleep(10.0)
+        time.sleep(10.0)
 
         for i, sensor in enumerate(sensors):
             assert sensor.get(driver=driver) == counts[i]
@@ -356,7 +401,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
             try:
                 insert_rows("//tmp/t", [{"key": 2, "value": "2"}])
                 return True
-            except:
+            except YtError:
                 return False
 
         wait(check_insert)
@@ -636,7 +681,8 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
     @authors("akozhikhov")
     def test_override_profiling_mode_attribute(self):
-        driver = self._override_driver_config()
+        # TODO: ?
+        # driver = self._override_driver_config()
 
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
@@ -988,7 +1034,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     @authors("savrus")
     def test_tablet_cell_acl_change(self):
         create_user("u")
-        acl = [make_ace("allow", "unknown_user", "read")]
         create_tablet_cell_bundle("b")
         cell_id = sync_create_cells(1, tablet_cell_bundle="b")[0]
 
@@ -1014,13 +1059,13 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
         set("//sys/tablet_cell_bundles/b/@options/enable_changelog_multiplexing", False)
-        sleep(0.5)
+        time.sleep(0.5)
         wait_for_cells([cell_id])
         assert lookup_rows("//tmp/t", [{"key": 1}]) == [{"key": 1, "value": "1"}]
 
         insert_rows("//tmp/t", [{"key": 1, "value": "2"}])
         set("//sys/tablet_cell_bundles/b/@options/enable_changelog_multiplexing", True)
-        sleep(0.5)
+        time.sleep(0.5)
         wait_for_cells([cell_id])
         assert lookup_rows("//tmp/t", [{"key": 1}]) == [{"key": 1, "value": "2"}]
 
@@ -1330,7 +1375,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 set_node_decommissioned(node, True)
                 _check([node], 0, 0)
                 _check(nodes[:idx], 1, 2)
-                _check(nodes[idx + 1 :], 1, 2)
+                _check(nodes[idx + 1:], 1, 2)
                 set_node_decommissioned(node, False)
                 _check(nodes, 1, 1)
 
@@ -1347,7 +1392,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         for node in nodes[: len(nodes) / 2]:
             set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), True)
-        _check(nodes[len(nodes) / 2 :], 2, 2)
+        _check(nodes[len(nodes) / 2:], 2, 2)
 
         for node in nodes[: len(nodes) / 2]:
             set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), False)
@@ -1438,7 +1483,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             try:
                 insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
                 return True
-            except:
+            except YtError:
                 return False
 
         wait(_check_insert)
@@ -1698,7 +1743,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
     @authors("savrus", "gritukan")
     def test_tablet_slot_charges_cpu_resource_limit(self):
-        get_cpu = lambda x: get("//sys/cluster_nodes/{0}/orchid/job_controller/resource_limits/cpu".format(x))
+        get_cpu = lambda x: get("//sys/cluster_nodes/{0}/orchid/job_controller/resource_limits/cpu".format(x))  # noqa
 
         create_tablet_cell_bundle("b")
         cell = sync_create_cells(1, tablet_cell_bundle="b")[0]
@@ -1901,7 +1946,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         rows1 = [{"key": i, "value": str(i)} for i in xrange(2)]
         rows2 = [{"key": i, "value": str(i + 1)} for i in xrange(2)]
-        keys = [{"key": i} for i in xrange(2)]
 
         insert_rows("//tmp/t", rows1)
 
@@ -2081,7 +2125,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             try:
                 build_snapshot(cell_id=cell_id)
                 return True
-            except:
+            except YtError:
                 return False
 
         wait(_try_build_snapshot)
@@ -2201,7 +2245,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             read_ranges = _generate_read_ranges(lower_key=i, upper_key=None)
             for j in range(3):
                 assert read_table(read_ranges[j]) == all_rows[i:]
-            assert read_table(read_ranges[3]) == all_rows[i + 1 :]
+            assert read_table(read_ranges[3]) == all_rows[i + 1:]
 
             # upper_limit only
             read_ranges = _generate_read_ranges(lower_key=None, upper_key=i)
@@ -2217,10 +2261,10 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 for k in range(3):
                     for l in range(3):
                         assert read_table(read_ranges[k * 4 + l]) == all_rows[i:j]
-                    assert read_table(read_ranges[k * 4 + 3]) == all_rows[i : j + 1]
+                    assert read_table(read_ranges[k * 4 + 3]) == all_rows[i:j + 1]
                 for l in range(3):
-                    assert read_table(read_ranges[12 + l]) == all_rows[i + 1 : j]
-                assert read_table(read_ranges[15]) == all_rows[i + 1 : j + 1]
+                    assert read_table(read_ranges[12 + l]) == all_rows[i + 1:j]
+                assert read_table(read_ranges[15]) == all_rows[i + 1:j + 1]
 
     @authors("babenko")
     def test_erasure_snapshots(self):
@@ -2231,7 +2275,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             try:
                 build_snapshot(cell_id=cell_id)
                 return True
-            except:
+            except YtError:
                 return False
 
         wait(_try_build_snapshot)
@@ -2286,7 +2330,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
             # Wait until `limit` resource is available.
             set(path, {"limit": 1000000, "period": 1000})
-            sleep(1)
+            time.sleep(1)
 
             # `limit` resource is still available, but new resource will come
             # in a very long time.
@@ -2315,7 +2359,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             remove("//sys/tablet_cells/{}".format(cell_id))
 
         wait(lambda: get("//tmp/t/@tablet_count_by_state/unmounted") == 3)
-        sleep(2)
+        time.sleep(2)
         tablet_count_by_state = get("//tmp/t/@tablet_count_by_state")
         assert tablet_count_by_state["unmounted"] == 3
         assert tablet_count_by_state["mounted"] == tablet_count - 3
@@ -2330,7 +2374,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         get("//tmp/t/@tablet_count_by_state")
         wait(lambda: get("//tmp/t/@tablet_count_by_state/mounted") == 4)
-        sleep(2)
+        time.sleep(2)
         tablet_count_by_state = get("//tmp/t/@tablet_count_by_state")
         assert tablet_count_by_state["mounted"] == 4
         assert tablet_count_by_state["unmounted"] == tablet_count - 4
@@ -2455,7 +2499,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         start_time = time.time()
         for i in range(5):
             self._retry_while_throttling(
-                lambda: select_rows("key, value from [//tmp/t] where key = {}".format(i)) == [{"key": i, "value": str(i)}],
+                lambda:
+                    select_rows("key, value from [//tmp/t] where key = {}".format(i)) ==  # noqa
+                    [{"key": i, "value": str(i)}],
                 check_result=True)
         delta = time.time() - start_time
         assert delta > 5
@@ -2696,7 +2742,7 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
 
 class TestDynamicTablesDecommissionStall(DynamicTablesBase):
     NUM_SECONDARY_MASTER_CELLS = 2
-    DELTA_NODE_CONFIG={
+    DELTA_NODE_CONFIG = {
         "logging": {
             "abort_on_alert": False,
         },
@@ -2705,17 +2751,18 @@ class TestDynamicTablesDecommissionStall(DynamicTablesBase):
     @authors("savrus")
     def test_decommission_stall(self):
         cells = sync_create_cells(1)
-        set("//sys/@config/tablet_manager/multicell_gossip/tablet_cell_statistics_gossip_period", 30*1000)
+        set("//sys/@config/tablet_manager/multicell_gossip/tablet_cell_statistics_gossip_period", 30 * 1000)
 
         self._create_sorted_table("//tmp/t", external=True, external_cell_tag=2)
         sync_mount_table("//tmp/t")
 
         driver = get_driver(2)
-        set("//sys/@config/tablet_manager/tablet_cell_decommissioner/decommission_check_period", 5*1000, driver=driver)
+        set("//sys/@config/tablet_manager/tablet_cell_decommissioner/decommission_check_period", 5 * 1000,
+            driver=driver)
         cell_path = "#{0}".format(cells[0])
         remove(cell_path)
 
-        wait(lambda : not exists(cell_path))
+        wait(lambda: not exists(cell_path))
 
 
 class TestDynamicTablesPortal(TestDynamicTablesMulticell):
