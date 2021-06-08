@@ -1285,10 +1285,10 @@ private:
             }
 
             auto firstChunkRowIndex = ChunkSpec_.table_row_index();
-            if (*TabletRowIndex_ >= firstChunkRowIndex) {
-                lowerLimit.SetRowIndex(*TabletRowIndex_ - firstChunkRowIndex);
-                ToProto(ChunkSpec_.mutable_lower_limit(), lowerLimit);
-            }
+            lowerLimit.SetRowIndex(std::max<i64>(
+                *TabletRowIndex_ - firstChunkRowIndex,
+                0));
+            ToProto(ChunkSpec_.mutable_lower_limit(), lowerLimit);
 
             if (ChunkSpec_.has_upper_limit()) {
                 auto upperLimit = FromProto<TLegacyReadLimit>(ChunkSpec_.upper_limit());
