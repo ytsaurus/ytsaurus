@@ -315,8 +315,8 @@ private:
             , RetryOnFailureInterval_(retryOnFailureInterval)
             , SyncReplicaLagThreshold_(syncReplicaLagThreshold)
             , CheckPreloadState_(checkPreloadState)
-            , MaxIterationsWithoutAcceptableBundleHealth_(maxIterationsWithoutAcceptableBundleHealth)
             , GeneralCheckTimeout_(generalCheckTimeout)
+            , MaxIterationsWithoutAcceptableBundleHealth_(maxIterationsWithoutAcceptableBundleHealth)
         { }
 
         TObjectId GetId()
@@ -417,8 +417,9 @@ private:
 
         void Merge(const TIntrusivePtr<TReplica>& oldReplica)
         {
-            // NB: Thread safe because new replica hasn't been used yet.
             AsyncTabletCellBundleName_.Store(oldReplica->AsyncTabletCellBundleName_.Load());
+            LastUpdateTime_.store(oldReplica->LastUpdateTime_.load());
+            IterationsWithoutAcceptableBundleHealth_.store(oldReplica->IterationsWithoutAcceptableBundleHealth_.load());
         }
 
     private:
@@ -438,16 +439,13 @@ private:
         const TDuration TabletCellBundleNameTtl_;
         const TDuration RetryOnFailureInterval_;
         const TDuration SyncReplicaLagThreshold_;
-        bool CheckPreloadState_;
+        const bool CheckPreloadState_;
+        const TDuration GeneralCheckTimeout_;
+        const i64 MaxIterationsWithoutAcceptableBundleHealth_;
 
+        std::atomic<i64> IterationsWithoutAcceptableBundleHealth_ = 0;
+        std::atomic<TInstant> LastUpdateTime_ = {};
         TAtomicObject<TFuture<TString>> AsyncTabletCellBundleName_ = MakeFuture<TString>(TError("<unknown>"));
-
-        TInstant LastUpdateTime_;
-
-        i64 IterationsWithoutAcceptableBundleHealth_ = 0;
-        i64 MaxIterationsWithoutAcceptableBundleHealth_;
-
-        TDuration GeneralCheckTimeout_;
 
 
         TFuture<void> CheckClusterState()
@@ -484,17 +482,22 @@ private:
                 })).Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<ETabletCellHealth>& healthOrError) {
                     THROW_ERROR_EXCEPTION_IF_FAILED(healthOrError, "Error getting tablet cell bundle health");
 
+                    auto iterationCount = IterationsWithoutAcceptableBundleHealth_.load();
                     auto health = healthOrError.Value();
                     if (health != ETabletCellHealth::Good && health != ETabletCellHealth::Degraded) {
-                        ++IterationsWithoutAcceptableBundleHealth_;
-                        if (IterationsWithoutAcceptableBundleHealth_ <= MaxIterationsWithoutAcceptableBundleHealth_) {
+                        auto newIterationCount = iterationCount + 1;
+                        IterationsWithoutAcceptableBundleHealth_.store(newIterationCount);
+                        if (newIterationCount <= MaxIterationsWithoutAcceptableBundleHealth_) {
                             return;
                         }
 
-                        THROW_ERROR_EXCEPTION("Bad tablet cell health %Qlv",
-                            health);
+                        THROW_ERROR_EXCEPTION("Bad tablet cell health %Qlv for %v times in a row",
+                            health,
+                            newIterationCount);
                     } else {
-                        IterationsWithoutAcceptableBundleHealth_ = 0;
+                        if (iterationCount != 0) {
+                            IterationsWithoutAcceptableBundleHealth_.store(0);
+                        }
                     }
                 }));
         }
