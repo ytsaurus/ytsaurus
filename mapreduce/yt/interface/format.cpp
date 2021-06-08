@@ -22,9 +22,15 @@ TFormat::TFormat(const TNode& config)
 { }
 
 
-TFormat TFormat::Protobuf(const TVector<const ::google::protobuf::Descriptor*>& descriptors)
+TFormat TFormat::Protobuf(
+    const TVector<const ::google::protobuf::Descriptor*>& descriptors,
+    bool withDescriptors)
 {
-    return TFormat(NDetail::MakeProtoFormatConfig(descriptors));
+    if (withDescriptors) {
+        return TFormat(NDetail::MakeProtoFormatConfigWithDescriptors(descriptors));
+    } else {
+        return TFormat(NDetail::MakeProtoFormatConfigWithTables(descriptors));
+    }
 }
 
 TFormat TFormat::YsonText()

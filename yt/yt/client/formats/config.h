@@ -387,15 +387,38 @@ DEFINE_ENUM(EProtobufType,
     (OtherColumns)
 );
 
+class TProtobufTypeConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    EProtobufType ProtoType;
+    std::vector<TProtobufColumnConfigPtr> Fields;
+    std::optional<TString> EnumerationName;
+
+    TProtobufTypeConfig()
+    {
+        RegisterParameter("proto_type", ProtoType);
+        RegisterParameter("fields", Fields)
+            .Default();
+        RegisterParameter("enumeration_name", EnumerationName)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TProtobufTypeConfig)
+
 class TProtobufColumnConfig
     : public NYTree::TYsonSerializable
 {
 public:
     TString Name;
-    EProtobufType ProtoType;
     std::optional<ui64> FieldNumber;
     bool Repeated;
     bool Packed;
+  
+    TProtobufTypeConfigPtr Type;
+
+    std::optional<EProtobufType> ProtoType;
     std::vector<TProtobufColumnConfigPtr> Fields;
     std::optional<TString> EnumerationName;
 
@@ -403,26 +426,32 @@ public:
     {
         RegisterParameter("name", Name)
             .NonEmpty();
-        RegisterParameter("proto_type", ProtoType);
         RegisterParameter("field_number", FieldNumber)
             .Optional();
         RegisterParameter("repeated", Repeated)
             .Default(false);
         RegisterParameter("packed", Packed)
             .Default(false);
+
+        RegisterParameter("type", Type)
+            .Default();
+
+        RegisterParameter("proto_type", ProtoType)
+            .Default();
         RegisterParameter("fields", Fields)
             .Default();
         RegisterParameter("enumeration_name", EnumerationName)
             .Default();
 
         RegisterPostprocessor([&] {
-            if (!FieldNumber && ProtoType != EProtobufType::Oneof) {
-                THROW_ERROR_EXCEPTION("\"field_number\" is required for type %Qlv",
-                    ProtoType);
-            }
+            Postprocess();
         });
     }
+
+public:
+    void Postprocess();
 };
+
 DEFINE_REFCOUNTED_TYPE(TProtobufColumnConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -450,6 +479,7 @@ public:
         });
     }
 };
+
 DEFINE_REFCOUNTED_TYPE(TProtobufTableConfig)
 
 DEFINE_ENUM(ENestedMessagesMode,
@@ -470,6 +500,9 @@ public:
     std::vector<TProtobufTableConfigPtr> Tables;
     NYTree::IMapNodePtr Enumerations;
 
+    std::optional<TString> FileDescriptorSetText;
+    std::vector<TString> TypeNames;
+
     EComplexTypeMode ComplexTypeMode;
 
     TProtobufFormatConfig()
@@ -484,18 +517,20 @@ public:
             .Default(ENestedMessagesMode::Protobuf);
         RegisterParameter("enums_as_strings", EnumsAsStrings)
             .Default();
-
+        
         RegisterParameter("tables", Tables)
             .Default();
         RegisterParameter("enumerations", Enumerations)
             .Default();
 
+        RegisterParameter("file_descriptor_set_text", FileDescriptorSetText)
+            .Default();
+        RegisterParameter("type_names", TypeNames)
+            .Default();
+
         RegisterParameter("complex_type_mode", ComplexTypeMode)
             .Default(EComplexTypeMode::Named);
     }
-
-private:
-    void Validate();
 };
 
 DEFINE_REFCOUNTED_TYPE(TProtobufFormatConfig)

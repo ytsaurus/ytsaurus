@@ -209,6 +209,7 @@ void TConfig::Reset()
 
     UseClientProtobuf = GetBool("YT_USE_CLIENT_PROTOBUF", false);
     NodeReaderFormat = ENodeReaderFormat::Auto;
+    ProtobufFormatWithDescriptors = false;
 
     MountSandboxInTmpfs = GetBool("YT_MOUNT_SANDBOX_IN_TMPFS");
 

@@ -64,7 +64,9 @@ public:
     /// @brief Create protobuf format from protobuf message descriptors.
     ///
     /// @see [the doc](https://yt.yandex-team.ru/docs/api/c++/protobuf.html).
-    static TFormat Protobuf(const TVector<const ::google::protobuf::Descriptor*>& descriptors);
+    static TFormat Protobuf(
+        const TVector<const ::google::protobuf::Descriptor*>& descriptors,
+        bool withDescriptors = false);
 
     /// @brief Create JSON format.
     ///
@@ -77,7 +79,7 @@ public:
     ///
     /// @see [the doc](https://yt.yandex-team.ru/docs/api/c++/protobuf.html).
     template<typename T>
-    static inline TFormat Protobuf();
+    static inline TFormat Protobuf(bool withDescriptors = false);
 
     /// @brief Is the format text YSON?
     ///
@@ -103,8 +105,8 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 template<typename T>
-TFormat TFormat::Protobuf() {
-    return TFormat::Protobuf({T::descriptor()});
+TFormat TFormat::Protobuf(bool withDescriptors) {
+    return TFormat::Protobuf({T::descriptor()}, withDescriptors);
 }
 
 /// @brief Create table schema from protobuf message descriptor.

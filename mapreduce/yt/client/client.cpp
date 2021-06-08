@@ -561,7 +561,7 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
             CreateClientReader(path, TFormat::YsonBinary(), options),
             std::move(descriptors));
     } else {
-        auto format = TFormat::Protobuf({prototype->GetDescriptor()});
+        auto format = TFormat::Protobuf({prototype->GetDescriptor()}, TConfig::Get()->ProtobufFormatWithDescriptors);
         return new TLenvalProtoTableReader(
             CreateClientReader(path, format, options),
             std::move(descriptors));
@@ -625,7 +625,7 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
             CreateClientWriter(pathWithSchema, format, options),
             std::move(descriptors));
     } else {
-        auto format = TFormat::Protobuf({prototype->GetDescriptor()});
+        auto format = TFormat::Protobuf({prototype->GetDescriptor()}, TConfig::Get()->ProtobufFormatWithDescriptors);
         ApplyFormatHints<::google::protobuf::Message>(&format, options.FormatHints_);
         return new TLenvalProtoTableWriter(
             CreateClientWriter(pathWithSchema, format, options),

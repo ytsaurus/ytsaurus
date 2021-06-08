@@ -4,17 +4,33 @@
 
 #include <mapreduce/yt/interface/protos/extension.pb.h>
 
+#include <google/protobuf/text_format.h>
+
+#include <library/cpp/yson/node/node_io.h>
+
 #include <util/generic/hash_set.h>
 #include <util/generic/stack.h>
 
 #include <util/stream/output.h>
-
+#include <util/stream/file.h>
 
 namespace NYT::NDetail {
 
 using ::google::protobuf::Descriptor;
+using ::google::protobuf::DescriptorProto;
+using ::google::protobuf::EnumDescriptor;
+using ::google::protobuf::EnumDescriptorProto;
 using ::google::protobuf::FieldDescriptor;
+using ::google::protobuf::FieldDescriptorProto;
 using ::google::protobuf::OneofDescriptor;
+using ::google::protobuf::Message;
+using ::google::protobuf::FileDescriptor;
+using ::google::protobuf::FileDescriptorProto;
+using ::google::protobuf::FileDescriptorSet;
+using ::google::protobuf::FieldOptions;
+using ::google::protobuf::FileOptions;
+using ::google::protobuf::OneofOptions;
+using ::google::protobuf::MessageOptions;
 
 namespace {
 
@@ -613,8 +629,8 @@ TNode MakeProtoFormatFieldConfig(
 
     if (fieldDescriptor->is_repeated()) {
         Y_ENSURE_EX(fieldOptions.SerializationMode == EProtobufSerializationMode::Yt,
-            TApiUsageError() << "Repeated field " << fieldDescriptor->full_name() << ' ' <<
-            "must have flag " << EWrapperFieldFlag::SERIALIZATION_YT);
+            TApiUsageError() << "Repeated field \"" << fieldDescriptor->full_name() << "\" " <<
+            "must have flag \"" << EWrapperFieldFlag::SERIALIZATION_YT << "\"");
     }
     fieldConfig["repeated"] = fieldDescriptor->is_repeated();
     fieldConfig["packed"] = fieldDescriptor->is_packed();
@@ -729,7 +745,7 @@ TNode MakeProtoFormatMessageFieldsConfig(
         cycleChecker);
 }
 
-TNode MakeProtoFormatConfig(const TVector<const Descriptor*>& descriptors)
+TNode MakeProtoFormatConfigWithTables(const TVector<const Descriptor*>& descriptors)
 {
     TNode config("protobuf");
     config.Attributes()
@@ -745,6 +761,205 @@ TNode MakeProtoFormatConfig(const TVector<const Descriptor*>& descriptors)
             TNode()("columns", std::move(columns)));
     }
 
+    return config;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFileDescriptorSetBuilder
+{
+public:
+    TFileDescriptorSetBuilder()
+        : ExtensionFile_(EWrapperFieldFlag::descriptor()->file())
+    { }
+
+    void AddDescriptor(const Descriptor* descriptor)
+    {
+        auto [it, inserted] = AllDescriptors_.insert(descriptor);
+        if (!inserted) {
+            return;
+        }
+
+        const auto* containingType = descriptor->containing_type();
+        while (containingType) {
+            AddDescriptor(containingType);
+            containingType = containingType->containing_type();
+        }
+        for (int i = 0; i < descriptor->field_count(); ++i) {
+            AddField(descriptor->field(i));
+        }
+    }
+
+    FileDescriptorSet Build()
+    {
+        THashSet<const FileDescriptor*> visitedFiles;
+        TVector<const FileDescriptor*> fileTopoOrder;
+        for (const auto* descriptor : AllDescriptors_) {
+            TraverseDependencies(descriptor->file(), visitedFiles, fileTopoOrder);
+        }
+
+        THashSet<TString> messageTypeNames;
+        THashSet<TString> enumTypeNames;
+        for (const auto* descriptor : AllDescriptors_) {
+            messageTypeNames.insert(descriptor->full_name());
+        }
+        for (const auto* enumDescriptor : EnumDescriptors_) {
+            enumTypeNames.insert(enumDescriptor->full_name());
+        }
+        FileDescriptorSet fileDescriptorSetProto;
+        for (const auto* file : fileTopoOrder) {
+            auto* fileProto = fileDescriptorSetProto.add_file();
+            file->CopyTo(fileProto);
+            Strip(fileProto, messageTypeNames, enumTypeNames);
+        }
+        return fileDescriptorSetProto;
+    }
+
+private:
+    void AddField(const FieldDescriptor* fieldDescriptor)
+    {
+        if (fieldDescriptor->message_type()) {
+            AddDescriptor(fieldDescriptor->message_type());
+        }
+        if (fieldDescriptor->enum_type()) {
+            AddEnumDescriptor(fieldDescriptor->enum_type());
+        }
+    }
+
+    void AddEnumDescriptor(const EnumDescriptor* enumDescriptor)
+    {
+        auto [it, inserted] = EnumDescriptors_.insert(enumDescriptor);
+        if (!inserted) {
+            return;
+        }
+        const auto* containingType = enumDescriptor->containing_type();
+        while (containingType) {
+            AddDescriptor(containingType);
+            containingType = containingType->containing_type();
+        }
+    }
+
+    void TraverseDependencies(
+        const FileDescriptor* current,
+        THashSet<const FileDescriptor*>& visited,
+        TVector<const FileDescriptor*>& topoOrder)
+    {
+        auto [it, inserted] = visited.insert(current);
+        if (!inserted) {
+            return;
+        }
+        for (int i = 0; i < current->dependency_count(); ++i) {
+            TraverseDependencies(current->dependency(i), visited, topoOrder);
+        }
+        topoOrder.push_back(current);
+    }
+
+    template <typename TOptions>
+    void StripUnknownOptions(TOptions* options)
+    {
+        std::vector<const FieldDescriptor*> fields;
+        auto reflection = options->GetReflection();
+        reflection->ListFields(*options, &fields);
+        for (auto field : fields) {
+            if (field->is_extension() && field->file() != ExtensionFile_) {
+                reflection->ClearField(options, field);
+            }
+        }
+    }
+
+    template <typename TRepeatedField, typename TPredicate>
+    void RemoveIf(TRepeatedField* repeatedField, TPredicate predicate)
+    {
+        repeatedField->erase(
+            std::remove_if(repeatedField->begin(), repeatedField->end(), predicate),
+            repeatedField->end());
+    }
+
+    void Strip(
+        const TString& containingTypePrefix,
+        DescriptorProto* messageProto,
+        const THashSet<TString>& messageTypeNames,
+        const THashSet<TString>& enumTypeNames)
+    {
+        const auto prefix = containingTypePrefix + messageProto->name() + '.';
+
+        RemoveIf(messageProto->mutable_nested_type(), [&] (const DescriptorProto& descriptorProto) {
+            return !messageTypeNames.contains(prefix + descriptorProto.name());
+        });
+        RemoveIf(messageProto->mutable_enum_type(), [&] (const EnumDescriptorProto& enumDescriptorProto) {
+            return !enumTypeNames.contains(prefix + enumDescriptorProto.name());
+        });
+        
+        messageProto->clear_extension();
+        StripUnknownOptions(messageProto->mutable_options());
+        for (auto& fieldProto : *messageProto->mutable_field()) {
+            StripUnknownOptions(fieldProto.mutable_options());
+        }
+        for (auto& oneofProto : *messageProto->mutable_oneof_decl()) {
+            StripUnknownOptions(oneofProto.mutable_options());
+        }
+        for (auto& nestedTypeProto : *messageProto->mutable_nested_type()) {
+            Strip(prefix, &nestedTypeProto, messageTypeNames, enumTypeNames);
+        }
+        for (auto& enumProto : *messageProto->mutable_enum_type()) {
+            StripUnknownOptions(enumProto.mutable_options());
+            for (auto& enumValue : *enumProto.mutable_value()) {
+                StripUnknownOptions(enumValue.mutable_options());
+            }
+        }
+    }
+
+    void Strip(
+        FileDescriptorProto* fileProto,
+        const THashSet<TString>& messageTypeNames,
+        const THashSet<TString>& enumTypeNames)
+    {
+        const auto prefix = fileProto->package().Empty()
+            ? ""
+            : fileProto->package() + '.';
+
+        RemoveIf(fileProto->mutable_message_type(), [&] (const DescriptorProto& descriptorProto) {
+            return !messageTypeNames.contains(prefix + descriptorProto.name());
+        });
+        RemoveIf(fileProto->mutable_enum_type(), [&] (const EnumDescriptorProto& enumDescriptorProto) {
+            return !enumTypeNames.contains(prefix + enumDescriptorProto.name());
+        });
+
+        fileProto->clear_service();
+        fileProto->clear_extension();
+
+        StripUnknownOptions(fileProto->mutable_options());
+        for (auto& messageProto : *fileProto->mutable_message_type()) {
+            Strip(prefix, &messageProto, messageTypeNames, enumTypeNames);
+        }
+        for (auto& enumProto : *fileProto->mutable_enum_type()) {
+            StripUnknownOptions(enumProto.mutable_options());
+            for (auto& enumValue : *enumProto.mutable_value()) {
+                StripUnknownOptions(enumValue.mutable_options());
+            }
+        }
+    }
+
+private:
+    const FileDescriptor* const ExtensionFile_;
+    THashSet<const Descriptor*> AllDescriptors_;
+    THashSet<const EnumDescriptor*> EnumDescriptors_;
+};
+
+TNode MakeProtoFormatConfigWithDescriptors(const TVector<const Descriptor*>& descriptors)
+{
+    TFileDescriptorSetBuilder builder;
+    auto typeNames = TNode::CreateList();
+    for (const auto* descriptor : descriptors) {
+        builder.AddDescriptor(descriptor);
+        typeNames.Add(descriptor->full_name());
+    }
+
+    auto fileDescriptorSetText = builder.Build().ShortDebugString();
+    TNode config("protobuf");
+    config.Attributes()
+        ("file_descriptor_set_text", std::move(fileDescriptorSetText))
+        ("type_names", std::move(typeNames));
     return config;
 }
 
