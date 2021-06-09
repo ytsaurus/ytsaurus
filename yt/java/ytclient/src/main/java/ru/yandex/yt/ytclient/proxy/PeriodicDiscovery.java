@@ -124,7 +124,7 @@ public class PeriodicDiscovery implements AutoCloseable, Closeable {
     }
 
     private void setProxies(Collection<HostPort> list) {
-        logger.info("[{}] New proxy list added", datacenterName);
+        logger.debug("[{}] New proxy list added", datacenterName);
         proxies.clear();
         proxies.addAll(list);
         if (listener != null) {
