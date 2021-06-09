@@ -150,8 +150,10 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
 {
     // TODO(gritukan): Pass chunk fragment reader config and batch hunk reader config from controller.
     auto nodeStatusDirectory = CreateTrivialNodeStatusDirectory();
+    auto chunkFragmentReaderConfig = New<TChunkFragmentReaderConfig>();
+    chunkFragmentReaderConfig->Postprocess();
     auto chunkFragmentReader = CreateChunkFragmentReader(
-        New<TChunkFragmentReaderConfig>(),
+        std::move(chunkFragmentReaderConfig),
         client,
         std::move(nodeStatusDirectory));
 
@@ -224,7 +226,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             nullptr,
                             dataSource.GetVirtualValueDirectory());
 
-                        return wrapReader(CreateSchemalessRangeChunkReader(
+                        return CreateSchemalessRangeChunkReader(
                             std::move(chunkState),
                             std::move(chunkMeta),
                             PatchConfig(config, memoryEstimate),
@@ -241,7 +243,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                                 ? chunkReaderMemoryManager
                                 : multiReaderMemoryManager->CreateChunkReaderMemoryManager(memoryEstimate),
                             dataSliceDescriptor.VirtualRowIndex,
-                            interruptDescriptorKeyLength));
+                            interruptDescriptorKeyLength);
                     }));
                 });
 
