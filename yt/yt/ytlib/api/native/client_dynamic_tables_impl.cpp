@@ -98,7 +98,10 @@ TColumnFilter RemapColumnFilter(
                 idMapping.size() - 1);
         }
         if (idMapping[index] == -1) {
-            THROW_ERROR_EXCEPTION("Invalid column %Qv in column filter", nameTable->GetName(index));
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::ColumnNotFound,
+                "Invalid column %Qv in column filter",
+                nameTable->GetName(index));
         }
         index = idMapping[index];
     }
