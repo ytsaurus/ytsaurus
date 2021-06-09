@@ -109,8 +109,13 @@ TErrorOr<NApi::IUnversionedRowsetPtr> LookupOperationsInArchive(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TError CheckPoolName(const TString& poolName, bool strictly = false);
-void ValidatePoolName(const TString& poolName, bool strictly = false);
+DEFINE_ENUM(EPoolNameValidationLevel,
+    (Compatible)
+    (NonStrict)
+    (Strict))
+
+TError CheckPoolName(const TString& poolName, EPoolNameValidationLevel validationLevel = EPoolNameValidationLevel::NonStrict);
+void ValidatePoolName(const TString& poolName, EPoolNameValidationLevel validationLevel = EPoolNameValidationLevel::NonStrict);
 
 ////////////////////////////////////////////////////////////////////////////////
 
