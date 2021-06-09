@@ -637,6 +637,7 @@ protected:
     {
         auto* chunkList = entry->ChunkList;
         auto* child = chunkList->Children()[entry->ChildIndex];
+        auto childType = child->GetType();
         const auto& cumulativeStatistics = chunkList->CumulativeStatistics();
 
         bool isOrdered = chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet;
@@ -724,20 +725,26 @@ protected:
                 if (entry->LowerLimit.KeyBound() || entry->UpperLimit.KeyBound()) {
                     YT_VERIFY(Comparator_);
 
-                    childLowerLimit.KeyBound() = GetLowerKeyBoundOrThrow(child, Comparator_.GetLength());
-                    childUpperLimit.KeyBound() = GetUpperKeyBoundOrThrow(child, Comparator_.GetLength());
+                    // NB: If child is a chunk list, its children can be unsorted, so we can't prune by lower or upper key bounds.
+                    if (childType == EObjectType::ChunkList) {
+                        childLowerLimit.KeyBound() = entry->LowerLimit.KeyBound();
+                        childUpperLimit.KeyBound() = entry->UpperLimit.KeyBound();
+                    } else {
+                        childLowerLimit.KeyBound() = GetLowerKeyBoundOrThrow(child, Comparator_.GetLength());
+                        childUpperLimit.KeyBound() = GetUpperKeyBoundOrThrow(child, Comparator_.GetLength());
 
-                    // NB: tablet children are NOT sorted by keys, so we should not perform pruning in
-                    // any of two branches below, full scan is intended.
+                        // NB: tablet children are NOT sorted by keys, so we should not perform pruning in
+                        // any of two branches below, full scan is intended.
 
-                    if (entry->UpperLimit.KeyBound() && Comparator_.IsRangeEmpty(childLowerLimit.KeyBound(), entry->UpperLimit.KeyBound())) {
-                        ++entry->ChildIndex;
-                        return;
-                    }
+                        if (entry->UpperLimit.KeyBound() && Comparator_.IsRangeEmpty(childLowerLimit.KeyBound(), entry->UpperLimit.KeyBound())) {
+                            ++entry->ChildIndex;
+                            return;
+                        }
 
-                    if (entry->LowerLimit.KeyBound() && Comparator_.IsRangeEmpty(entry->LowerLimit.KeyBound(), childUpperLimit.KeyBound())) {
-                        ++entry->ChildIndex;
-                        return;
+                        if (entry->LowerLimit.KeyBound() && Comparator_.IsRangeEmpty(entry->LowerLimit.KeyBound(), childUpperLimit.KeyBound())) {
+                            ++entry->ChildIndex;
+                            return;
+                        }
                     }
                 }
             }
@@ -752,13 +759,13 @@ protected:
 
         ++entry->ChildIndex;
 
-        switch (child->GetType()) {
+        switch (childType) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
             case EObjectType::ChunkView: {
                 TChunk* childChunk = nullptr;
                 TTransactionId timestampTransactionId;
-                if (child->GetType() == EObjectType::ChunkView) {
+                if (childType == EObjectType::ChunkView) {
                     auto* chunkView = child->AsChunkView();
 
                     YT_LOG_TRACE(
@@ -864,7 +871,7 @@ protected:
             default:
                 THROW_ERROR_EXCEPTION("Child %v has unexpected type %Qlv",
                     child->GetId(),
-                    child->GetType());
+                    childType);
         }
     }
 
@@ -1180,8 +1187,7 @@ protected:
             }
             if (entry.UpperLimit.GetRowIndex()) {
                 YT_VERIFY(childUpperLimit.GetRowIndex());
-                if (*entry.UpperLimit.GetRowIndex() < *childUpperLimit.GetRowIndex())
-                {
+                if (*entry.UpperLimit.GetRowIndex() < *childUpperLimit.GetRowIndex()) {
                     i64 newUpperRowIndex = *entry.UpperLimit.GetRowIndex();
                     if (child->GetType() != EObjectType::OrderedDynamicTabletStore) {
                         newUpperRowIndex -= *childLowerLimit.GetRowIndex();
