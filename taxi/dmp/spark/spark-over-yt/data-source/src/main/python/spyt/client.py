@@ -305,7 +305,7 @@ def stop(spark, exception=None):
     _try_with_safe_finally(
         lambda: spark.stop(),
         lambda e1: _try_with_safe_finally(
-            lambda: _shutdown_jvm(spark) if is_client_mode else _close_yt_client(spark),
+            lambda: _shutdown_jvm(spark) if is_client_mode else None,
             lambda e2: _try_with_safe_finally(
                 lambda: Environment.unset_python_path(),
                 lambda e3: _raise_first(exception, e1, e2, e3)

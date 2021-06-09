@@ -1,7 +1,6 @@
 package ru.yandex.spark.yt.serializers
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
-
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{GenericRowWithSchema, UnsafeArrayData, UnsafeMapData, UnsafeRow}
@@ -17,6 +16,7 @@ import ru.yandex.inside.yt.kosher.ytree.{YTreeBooleanNode, YTreeNode}
 import ru.yandex.misc.reflection.ClassX
 import ru.yandex.yson.YsonConsumer
 import ru.yandex.yt.ytclient.proxy.TableWriter
+import ru.yandex.yt.ytclient.tables.ColumnValueType
 
 import scala.annotation.tailrec
 import scala.collection.mutable
@@ -26,6 +26,8 @@ class YsonRowConverter(schema: StructType, skipNulls: Boolean) extends YTreeSeri
   private val entityNode = new YTreeEntityNodeImpl(new EmptyMap)
 
   override def getClazz: ClassX[Row] = ClassX.wrap(classOf[Row])
+
+  override def getColumnValueType: ColumnValueType = ColumnValueType.ANY
 
   private def skipNullsForField(field: StructField): Boolean = {
     field.metadata.contains("skipNulls") && field.metadata.getBoolean("skipNulls")

@@ -12,16 +12,8 @@ public abstract class SparkAppJava {
     public void run(String[] args) {
         SparkConf sparkConf = getSparkConf();
         CompoundClient yt = YtClientProvider.ytClient(YtClientConfigurationConverter.ytClientConfiguration(sparkConf));
-        try {
-            SparkSession spark = SessionUtils.buildSparkSession(sparkConf);
-            try {
-                doRun(args, spark, yt);
-            } finally {
-                spark.stop();
-            }
-        } finally {
-            YtClientProvider.close();
-        }
+        SparkSession spark = SessionUtils.buildSparkSession(sparkConf);
+        doRun(args, spark, yt);
     }
 
     protected abstract void doRun(String[] args, SparkSession spark, CompoundClient yt);

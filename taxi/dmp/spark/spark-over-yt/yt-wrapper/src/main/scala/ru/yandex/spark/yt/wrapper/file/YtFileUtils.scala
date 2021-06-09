@@ -1,9 +1,10 @@
 package ru.yandex.spark.yt.wrapper.file
 
+import org.slf4j.LoggerFactory
+
 import java.io.OutputStream
 import java.time.format.DateTimeFormatter
 import java.time.{LocalDateTime, ZoneOffset}
-
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper.client.{YtClientUtils, YtRpcClient}
@@ -19,9 +20,12 @@ import scala.language.postfixOps
 trait YtFileUtils {
   self: YtCypressUtils with YtTransactionUtils with YtClientUtils =>
 
+  private val log = LoggerFactory.getLogger(getClass)
+
   def readFile(path: String, transaction: Option[String] = None, timeout: Duration = 1 minute)
               (implicit yt: CompoundClient): YtFileInputStream = {
-    val fileReader = yt.readFile(new ReadFile(formatPath(path))).join()
+    log.debug(s"Read file: $path, transaction: $transaction")
+    val fileReader = yt.readFile(new ReadFile(formatPath(path)).optionalTransaction(transaction)).join()
     new YtFileInputStream(fileReader, timeout)
   }
 
@@ -36,6 +40,7 @@ trait YtFileUtils {
   }
 
   def createFile(path: String, transaction: Option[String] = None, force: Boolean = false)(implicit yt: CompoundClient): Unit = {
+    log.debug(s"Create file: $path, transaction: $transaction")
     val request = new CreateNode(formatPath(path), ObjectType.File).optionalTransaction(transaction).setForce(force)
     yt.createNode(request).join()
   }
@@ -50,13 +55,13 @@ trait YtFileUtils {
 
   def writeFile(path: String, timeout: Duration, ytRpcClient: Option[YtRpcClient], transaction: Option[String])
                (implicit yt: CompoundClient): OutputStream = {
+    log.debug(s"Write file: $path, transaction: $transaction")
     val writer = yt.writeFile(writeFileRequest(path, transaction, timeout)).join()
     new YtFileOutputStream(writer, ytRpcClient)
   }
 
   def writeFile(path: String, timeout: Duration, transaction: Option[String])(implicit yt: CompoundClient): OutputStream = {
-    val writer = yt.writeFile(writeFileRequest(path, transaction, timeout)).join()
-    new YtFileOutputStream(writer, None)
+    writeFile(path, timeout, None, transaction)
   }
 
   def fileSize(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Long = {

@@ -85,6 +85,8 @@ trait TestUtils {
       override def getClazz: ClassX[String] = ClassX.wrap(classOf[String])
 
       override def deserialize(node: YTreeNode): String = ???
+
+      override def getColumnValueType: ColumnValueType = ColumnValueType.STRING
     }
     YtWrapper.createTable(path, options ++ Map("schema" -> schema, "optimize_for" -> optimizeFor.node), None)
     val writer = yt.writeTable(new WriteTable[String](path, serializer)).join()

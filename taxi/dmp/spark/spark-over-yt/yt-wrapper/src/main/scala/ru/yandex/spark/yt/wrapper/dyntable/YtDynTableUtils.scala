@@ -1,8 +1,9 @@
 package ru.yandex.spark.yt.wrapper.dyntable
 
+import org.slf4j.LoggerFactory
+
 import java.io.ByteArrayOutputStream
 import java.time.{Duration => JDuration}
-
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
@@ -20,6 +21,8 @@ import scala.util.{Failure, Success, Try}
 trait YtDynTableUtils {
   self: YtCypressUtils =>
 
+  private val log = LoggerFactory.getLogger(getClass)
+
   type PivotKey = Array[Byte]
   val emptyPivotKey: PivotKey = serialiseYson(new YTreeBuilder().beginMap().endMap().build())
 
@@ -35,6 +38,7 @@ trait YtDynTableUtils {
 
   def pivotKeysYson(path: String)(implicit yt: CompoundClient): Seq[YTreeNode] = {
     import scala.collection.JavaConverters._
+    log.debug(s"Get pivot keys for $path")
     yt
       .getTablePivotKeys(new GetTablePivotKeys(formatPath(path)))
       .join()
@@ -59,10 +63,12 @@ trait YtDynTableUtils {
   }
 
   def mountTable(path: String)(implicit yt: CompoundClient): Unit = {
+    log.debug(s"Mount table: $path")
     yt.mountTable(formatPath(path)).join()
   }
 
   def unmountTable(path: String)(implicit yt: CompoundClient): Unit = {
+    log.debug(s"Unmount table: $path")
     yt.unmountTable(formatPath(path)).join()
   }
 

@@ -2,7 +2,6 @@ package ru.yandex.spark.yt.wrapper.client
 
 
 import java.util.{ArrayList => JArrayList}
-
 import com.google.common.net.HostAndPort
 import io.netty.channel.nio.NioEventLoopGroup
 import org.slf4j.LoggerFactory
@@ -15,6 +14,7 @@ import ru.yandex.yt.ytclient.proxy.internal.{DiscoveryMethod, HostPort}
 import ru.yandex.yt.ytclient.proxy.{CompoundClient, YtClient, YtCluster}
 import ru.yandex.yt.ytclient.rpc.RpcOptions
 
+import java.util.concurrent.ThreadFactory
 import scala.concurrent.duration.Duration
 import scala.util.{Failure, Success}
 
@@ -27,26 +27,26 @@ trait YtClientUtils {
     createYtClient(id, config.timeout) { case (connector, options) => createYtClient(config, connector, options) }
   }
 
-  def createYtClient(id: String, proxy: String, timeout: Duration): YtRpcClient = {
-    createYtClient(id, timeout) { case (connector, options) =>
-      new SingleProxyYtClient(
-        connector,
-        DefaultRpcCredentials.credentials,
-        options,
-        HostPort.parse(proxy)
-      )
-    }
-  }
-
   private def createYtClient(id: String, timeout: Duration)
                             (client: (DefaultBusConnector, RpcOptions) => CompoundClient): YtRpcClient = {
-    val connector = new DefaultBusConnector(new NioEventLoopGroup(1), true)
+    val daemonThreadFactory = new ThreadFactory {
+      override def newThread(r: Runnable): Thread = {
+        val thread = new Thread(r)
+        thread.setDaemon(true)
+        thread
+      }
+    }
+
+    val group = new NioEventLoopGroup(1, daemonThreadFactory)
+    val connector = new DefaultBusConnector(group, true)
       .setReadTimeout(toJavaDuration(timeout))
       .setWriteTimeout(toJavaDuration(timeout))
 
     try {
       val rpcOptions = new RpcOptions()
       rpcOptions.setTimeouts(timeout)
+      rpcOptions.setNewDiscoveryServiceEnabled(true)
+      rpcOptions.setDiscoveryThreadFactory(daemonThreadFactory)
 
       val yt = client(connector, rpcOptions)
       log.info(s"YtClient $id created")
