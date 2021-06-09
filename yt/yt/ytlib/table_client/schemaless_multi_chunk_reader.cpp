@@ -6,6 +6,7 @@
 #include "columnar_chunk_reader_base.h"
 #include "config.h"
 #include "helpers.h"
+#include "hunks.h"
 #include "overlapping_reader.h"
 #include "private.h"
 #include "row_merger.h"
@@ -22,6 +23,7 @@
 #include <yt/yt/ytlib/table_chunk_format/column_reader.h>
 #include <yt/yt/ytlib/table_chunk_format/null_column_reader.h>
 
+#include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
@@ -31,6 +33,8 @@
 #include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 #include <yt/yt/ytlib/chunk_client/reader_factory.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
+
+#include <yt/yt/ytlib/node_tracker_client/node_status_directory.h>
 
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 
@@ -144,9 +148,25 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     IMultiReaderMemoryManagerPtr multiReaderMemoryManager,
     int interruptDescriptorKeyLength)
 {
+    // TODO(gritukan): Pass chunk fragment reader config and batch hunk reader config from controller.
+    auto nodeStatusDirectory = CreateTrivialNodeStatusDirectory();
+    auto chunkFragmentReader = CreateChunkFragmentReader(
+        New<TChunkFragmentReaderConfig>(),
+        client,
+        std::move(nodeStatusDirectory));
+
     std::vector<IReaderFactoryPtr> factories;
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
         const auto& dataSource = dataSourceDirectory->DataSources()[dataSliceDescriptor.GetDataSourceIndex()];
+
+        auto wrapReader = [=] (ISchemalessChunkReaderPtr chunkReader) {
+            return CreateHunkDecodingSchemalessChunkReader(
+                New<TBatchHunkReaderConfig>(),
+                std::move(chunkReader),
+                chunkFragmentReader,
+                dataSource.Schema(),
+                chunkReadOptions);
+        };
 
         switch (dataSource.GetType()) {
             case EDataSourceType::UnversionedTable: {
@@ -204,7 +224,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             nullptr,
                             dataSource.GetVirtualValueDirectory());
 
-                        return CreateSchemalessRangeChunkReader(
+                        return wrapReader(CreateSchemalessRangeChunkReader(
                             std::move(chunkState),
                             std::move(chunkMeta),
                             PatchConfig(config, memoryEstimate),
@@ -221,7 +241,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                                 ? chunkReaderMemoryManager
                                 : multiReaderMemoryManager->CreateChunkReaderMemoryManager(memoryEstimate),
                             dataSliceDescriptor.VirtualRowIndex,
-                            interruptDescriptorKeyLength);
+                            interruptDescriptorKeyLength));
                     }));
                 });
 
@@ -266,7 +286,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                 int dataSourceIndex = dataSliceDescriptor.GetDataSourceIndex();
                 const auto& dataSource = dataSourceDirectory->DataSources()[dataSourceIndex];
                 auto createReader = BIND([=] () -> IReaderBasePtr {
-                    return CreateSchemalessMergingMultiChunkReader(
+                    return wrapReader(CreateSchemalessMergingMultiChunkReader(
                         config,
                         options,
                         client,
@@ -282,7 +302,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         columnFilter.IsUniversal() ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
                         trafficMeter,
                         bandwidthThrottler,
-                        rpsThrottler);
+                        rpsThrottler));
                 });
 
                 auto canCreateReader = BIND([=] {

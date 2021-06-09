@@ -48,6 +48,8 @@ import __builtin__
 
 
 class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
+    NUM_SCHEDULERS = 1
+
     SCHEMA = [
         {"name": "key", "type": "int64", "sort_order": "ascending"},
         {"name": "value", "type": "string"},
@@ -505,3 +507,31 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         sync_unmount_table("//tmp/t")
         wait(lambda: _check_account_resource_usage(0))
+
+    @authors("gritukan")
+    @pytest.mark.parametrize("hunk_type", ["inline", "chunk"])
+    def test_hunks_in_operation(self, hunk_type):
+        sync_create_cells(1)
+        self._create_table()
+        sync_mount_table("//tmp/t")
+
+        if hunk_type == "inline":
+            rows = [{"key": i, "value": "value" + str(i)} for i in xrange(10)]
+        else:
+            rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10)]
+        insert_rows("//tmp/t", rows)
+        sync_unmount_table("//tmp/t")
+
+        hunk_chunk_ids = self._get_hunk_chunk_ids("//tmp/t")
+        if hunk_type == "inline":
+            assert len(hunk_chunk_ids) == 0
+        else:
+            assert len(hunk_chunk_ids) == 1
+
+        create("table", "//tmp/t_out")
+        map(
+            in_="//tmp/t",
+            out="//tmp/t_out",
+            command="cat",
+        )
+        assert read_table("//tmp/t_out") == rows
