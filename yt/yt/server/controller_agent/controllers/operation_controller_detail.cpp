@@ -4665,11 +4665,9 @@ void TOperationControllerBase::FlushOperationNode(bool checkFlushResult)
     }
 }
 
-void TOperationControllerBase::OnOperationCompleted(bool interrupted)
+void TOperationControllerBase::OnOperationCompleted(bool /*interrupted*/)
 {
     VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
-
-    Y_UNUSED(interrupted);
 
     // This can happen if operation failed during completion in derived class (e.g. SortController).
     if (IsFinished()) {
@@ -4689,27 +4687,33 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
 {
     VERIFY_INVOKER_POOL_AFFINITY(InvokerPool);
 
-    YT_LOG_DEBUG("Operation controller failed (Error: %v, Flush: %v)", error, flush);
+    WaitFor(BIND([=, this_ = MakeStrong(this)] {
+        YT_LOG_DEBUG(error, "Operation controller failed (Flush: %v)", flush);
 
-    // During operation failing job aborting can lead to another operation fail, we don't want to invoke it twice.
-    if (IsFinished()) {
-        return;
-    }
-    State = EControllerState::Failed;
+        // During operation failing job aborting can lead to another operation fail, we don't want to invoke it twice.
+        if (IsFinished()) {
+            return;
+        }
+        State = EControllerState::Failed;
 
-    BuildAndSaveProgress();
-    LogProgress(/* force */ true);
+        BuildAndSaveProgress();
+        LogProgress(/*force*/ true);
 
-    if (flush) {
-        // NB: Error ignored since we cannot do anything with it.
-        FlushOperationNode(/* checkFlushResult */ false);
-    }
+        if (flush) {
+            // NB: Error ignored since we cannot do anything with it.
+            FlushOperationNode(/*checkFlushResult*/ false);
+        }
 
-    Error_ = error;
+        Error_ = error;
 
-    YT_LOG_DEBUG("Notifying host about operation controller failure");
-    Host->OnOperationFailed(error);
-    YT_LOG_DEBUG("Host notified about operation controller failure");
+        YT_LOG_DEBUG("Notifying host about operation controller failure");
+        Host->OnOperationFailed(error);
+        YT_LOG_DEBUG("Host notified about operation controller failure");
+    })
+        .AsyncVia(GetInvoker())
+        .Run()
+        .ToUncancelable())
+        .ThrowOnError();
 }
 
 void TOperationControllerBase::OnOperationAborted(const TError& error)
