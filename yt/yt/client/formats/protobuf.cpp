@@ -909,7 +909,7 @@ void TProtobufFormatDescriptionBase<TType>::InitFromProtobufSchema(
                 || columnConfig->ProtoType == EProtobufType::StructuredMessage
                 || columnConfig->ProtoType == EProtobufType::Oneof;
             if (!logicalType && needSchema) {
-                if (tableSchema->GetColumnCount() > 0 && columnConfig->FieldNumber) {
+                if (columnConfig->FieldNumber) {
                     // Ignore missing column to facilitate schema evolution.
                     tableType->IgnoreChild(maybeDescriptor, *columnConfig->FieldNumber);
                     continue;

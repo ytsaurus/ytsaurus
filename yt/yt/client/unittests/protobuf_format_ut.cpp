@@ -2872,13 +2872,9 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
         createWriter(schema_struct_with_uint64, config_struct_with_int64),
         "signedness of both types must be the same");
 
-    // No schema for structured field.
-    EXPECT_THROW_WITH_SUBSTRING(
-        createParser(New<TTableSchema>(), config_struct_with_int64),
-        "requires a corresponding schematized column");
-    EXPECT_THROW_WITH_SUBSTRING(
-        createWriter(New<TTableSchema>(), config_struct_with_int64),
-        "requires a corresponding schematized column");
+    // No schema for structured field is Ok.
+    EXPECT_NO_THROW(createParser(New<TTableSchema>(), config_struct_with_int64));
+    EXPECT_NO_THROW(createWriter(New<TTableSchema>(), config_struct_with_int64));
 
     auto schema_list_int64 = New<TTableSchema>(std::vector<TColumnSchema>{
         {"repeated", ListLogicalType(
@@ -2916,13 +2912,9 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
     EXPECT_NO_THROW(createParser(schema_list_int64, config_repeated_int64));
     EXPECT_NO_THROW(createWriter(schema_list_int64, config_repeated_int64));
 
-    // No schema for repeated field.
-    EXPECT_THROW_WITH_SUBSTRING(
-        createParser(New<TTableSchema>(), config_repeated_int64),
-        "requires a corresponding schematized column");
-    EXPECT_THROW_WITH_SUBSTRING(
-        createWriter(New<TTableSchema>(), config_repeated_int64),
-        "requires a corresponding schematized column");
+    // No schema for repeated field is Ok.
+    EXPECT_NO_THROW(createParser(New<TTableSchema>(), config_repeated_int64));
+    EXPECT_NO_THROW(createWriter(New<TTableSchema>(), config_repeated_int64));
 
     // List of optional is not allowed.
     EXPECT_THROW_WITH_SUBSTRING(
@@ -3166,6 +3158,14 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
                 .EndMap()
             .EndList()
         .EndMap();
+
+    // Oneof fields require schematized columns.
+    EXPECT_THROW_WITH_SUBSTRING(
+        createParser(New<TTableSchema>(), config_with_oneof),
+        "requires a corresponding schematized column");
+    EXPECT_THROW_WITH_SUBSTRING(
+        createWriter(New<TTableSchema>(), config_with_oneof),
+        "requires a corresponding schematized column");
 
     EXPECT_THROW_WITH_SUBSTRING(
         createParser(schema_variant_with_optional_int, config_with_oneof),
