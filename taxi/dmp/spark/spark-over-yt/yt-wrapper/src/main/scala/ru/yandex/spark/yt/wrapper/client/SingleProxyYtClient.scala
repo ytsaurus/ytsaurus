@@ -26,17 +26,17 @@ class SingleProxyYtClient(connector: BusConnector,
     }
   }
 
-  override def invoke[RequestType <: MessageLite.Builder, ResponseType]
-  (builder: RpcClientRequestBuilder[RequestType, ResponseType]): CompletableFuture[ResponseType] = {
+  override def invoke[RequestType <: MessageLite.Builder, ResponseType <: MessageLite]
+  (builder: RpcClientRequestBuilder[RequestType, ResponseType]): CompletableFuture[RpcClientResponse[ResponseType]] = {
     builder.invokeVia(connector.executorService(), rpcClientPool)
   }
 
-  override def startStream[RequestType <: MessageLite.Builder, ResponseType]
+  override def startStream[RequestType <: MessageLite.Builder, ResponseType <: MessageLite]
   (builder: RpcClientRequestBuilder[RequestType, ResponseType],
    consumer: RpcStreamConsumer): CompletableFuture[RpcClientStreamControl] = {
-    builder.startStream(connector.executorService(), rpcClientPool, consumer)
+    val control = client.startStream(client, builder.getRpcRequest, consumer, builder.getOptions)
+    CompletableFuture.completedFuture(control)
   }
-
 
   override def close(): Unit = {
     client.close()

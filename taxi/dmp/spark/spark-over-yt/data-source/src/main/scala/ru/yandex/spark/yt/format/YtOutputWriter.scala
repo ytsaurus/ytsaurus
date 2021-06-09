@@ -136,6 +136,7 @@ class YtOutputWriter(path: String,
   }
 
   protected def initializeWriter(): TableWriter[InternalRow] = {
+    log.debugLazy(s"Initialize new write: ${appendPath()}, transaction: $transactionGuid")
     val request = new WriteTable[InternalRow](appendPath(), new InternalRowSerializer(schema, schemaHint))
       .setTransactionalOptions(new TransactionalOptions(GUID.valueOf(transactionGuid)))
     client.writeTable(request).join()

@@ -50,6 +50,7 @@ trait YtTableUtils {
                   options: Map[String, YTreeNode],
                   transaction: Option[String])
                  (implicit yt: CompoundClient): Unit = {
+    log.debug(s"Create table: $path, transaction: $transaction")
     import scala.collection.JavaConverters._
     val request = new CreateNode(formatPath(path), ObjectType.Table, options.asJava)
       .optionalTransaction(transaction)
@@ -130,6 +131,8 @@ trait YtTableUtils {
                   transaction: Option[String] = None,
                   specParams: Map[String, YTreeNode] = Map.empty)
                  (implicit yt: CompoundClient, ytHttp: Yt): Unit = {
+    log.debug(s"Merge tables: $srcDir -> $dstTable, transaction: $transaction")
+
     val srcList = dstTable +: listDir(srcDir, transaction).map(name => s"$srcDir/$name")
 
     val operationSpec = new YTreeBuilder()

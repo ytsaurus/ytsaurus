@@ -40,10 +40,12 @@ trait YtTransactionUtils {
   }
 
   def abortTransaction(guid: String)(implicit yt: CompoundClient): Unit = {
+    log.info(s"Abort transaction $guid")
     yt.abortTransaction(GUID.valueOf(guid)).join()
   }
 
   def commitTransaction(guid: String)(implicit yt: CompoundClient): Unit = {
+    log.info(s"Commit transaction $guid")
     yt.commitTransaction(GUID.valueOf(guid)).join()
   }
 
@@ -107,6 +109,14 @@ trait YtTransactionUtils {
   }
 
   implicit class RichWriteFileRequest[T <: WriteFile](val request: T) {
+    def optionalTransaction(transaction: Option[String]): T = {
+      transaction.map { t =>
+        request.setTransactionalOptions(new TransactionalOptions(GUID.valueOf(t))).asInstanceOf[T]
+      }.getOrElse(request)
+    }
+  }
+
+  implicit class RichReadFileRequest[T <: ReadFile](val request: T) {
     def optionalTransaction(transaction: Option[String]): T = {
       transaction.map { t =>
         request.setTransactionalOptions(new TransactionalOptions(GUID.valueOf(t))).asInstanceOf[T]
