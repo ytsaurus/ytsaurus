@@ -640,14 +640,21 @@ const int PoolNameMaxLength = 100;
 
 TString StrictPoolNameRegexSymbols = "-_a-z0-9";
 TString NonStrictPoolNameRegexSymbols = StrictPoolNameRegexSymbols + ":";
+TString CompatiblePoolNameRegexSymbols = NonStrictPoolNameRegexSymbols + "A-Z";
 
-TString StrictRegexString = "[" + StrictPoolNameRegexSymbols + "]+";
-TString NonStrictRegexString = "[" + NonStrictPoolNameRegexSymbols + "]+";
+TEnumIndexedVector<EPoolNameValidationLevel, TString> RegexStrings = {
+    "[" + CompatiblePoolNameRegexSymbols + "]+",
+    "[" + NonStrictPoolNameRegexSymbols + "]+",
+    "[" + StrictPoolNameRegexSymbols + "]+",
+};
 
-auto StrictRegex = New<NRe2::TRe2>(StrictRegexString);
-auto NonStrictRegex = New<NRe2::TRe2>(NonStrictRegexString);
+TEnumIndexedVector<EPoolNameValidationLevel, TIntrusivePtr<NRe2::TRe2>> Regexes = {
+    New<NRe2::TRe2>(RegexStrings[EPoolNameValidationLevel::Compatible]),
+    New<NRe2::TRe2>(RegexStrings[EPoolNameValidationLevel::NonStrict]),
+    New<NRe2::TRe2>(RegexStrings[EPoolNameValidationLevel::Strict]),
+};
 
-TError CheckPoolName(const TString& poolName, bool strictly)
+TError CheckPoolName(const TString& poolName, EPoolNameValidationLevel validationLevel)
 {
     if (poolName == RootPoolName) {
         return TError("Pool name cannot be equal to root pool name")
@@ -660,21 +667,19 @@ TError CheckPoolName(const TString& poolName, bool strictly)
             << TErrorAttribute("max_length", PoolNameMaxLength);
     }
 
-    auto regex = strictly
-        ? StrictRegex
-        : NonStrictRegex;
+    const auto& regex = Regexes[validationLevel];
 
     if (!NRe2::TRe2::FullMatch(NRe2::StringPiece(poolName), *regex)) {
-        const auto& regexString = strictly ? StrictRegexString : NonStrictRegexString;
+        const auto& regexString = RegexStrings[validationLevel];
         return TError("Pool name %Qv must match regular expression %Qv", poolName, regexString);
     }
 
     return TError();
 }
 
-void ValidatePoolName(const TString& poolName, bool strictly)
+void ValidatePoolName(const TString& poolName, EPoolNameValidationLevel validationLevel)
 {
-    CheckPoolName(poolName, strictly).ThrowOnError();
+    CheckPoolName(poolName, validationLevel).ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

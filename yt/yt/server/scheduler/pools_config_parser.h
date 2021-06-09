@@ -74,7 +74,7 @@ private:
         }
 
         for (const auto& [childName, childNode] : children) {
-            Error_ = CheckPoolName(childName);
+            Error_ = CheckPoolName(childName, EPoolNameValidationLevel::Compatible);
             if (!Error_.IsOK()) {
                 return false;
             }

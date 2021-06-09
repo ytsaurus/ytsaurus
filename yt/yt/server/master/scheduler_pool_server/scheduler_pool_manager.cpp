@@ -397,9 +397,11 @@ public:
         auto securityManager = Bootstrap_->GetSecurityManager();
         auto* schema = Bootstrap_->GetObjectManager()->FindSchema(EObjectType::SchedulerPool);
         auto* user = securityManager->GetAuthenticatedUser();
-        bool validateStrictly = securityManager->CheckPermission(schema, user, EPermission::Administer).Action == ESecurityAction::Deny;
+        auto validationLevel = securityManager->CheckPermission(schema, user, EPermission::Administer).Action == ESecurityAction::Deny
+            ? EPoolNameValidationLevel::Strict
+            : EPoolNameValidationLevel::NonStrict;
 
-        ValidatePoolName(name, validateStrictly);
+        ValidatePoolName(name, validationLevel);
     }
 
     virtual TString GetRootPath(const TSchedulerPool* rootPool) const override
