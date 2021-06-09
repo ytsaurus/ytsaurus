@@ -423,6 +423,14 @@ static TYsonString GetLatestProgress(const TYsonString& cypressProgress, const T
         : archiveProgress;
 }
 
+static bool IsErrorRetriable(const TError& error)
+{
+    if (error.FindMatching(NTabletClient::EErrorCode::ColumnNotFound)) {
+        return false;
+    }
+    return true;
+}
+
 TOperation TClient::DoGetOperationImpl(
     TOperationId operationId,
     TInstant deadline,
@@ -525,11 +533,18 @@ TOperation TClient::DoGetOperationImpl(
         }
 
         if (!archiveResultOrError.IsOK()) {
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::OperationProgressOutdated,
-                "Operation progress in Cypress is outdated while archive request failed")
-                << archiveResultOrError;
+            if (IsErrorRetriable(archiveResultOrError)) {
+                THROW_ERROR_EXCEPTION(
+                    EErrorCode::OperationProgressOutdated,
+                    "Operation progress in Cypress is outdated while archive request failed")
+                    << archiveResultOrError;
+            } else {
+                THROW_ERROR_EXCEPTION(
+                    "Failed to get operation progress from archive")
+                    << archiveResultOrError;
+            }
         }
+
         mergeResults(archiveResultOrError.Value(), &cypressResult);
         return *cypressResult;
     }
