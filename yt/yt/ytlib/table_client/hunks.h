@@ -160,10 +160,16 @@ ISchemafulUnversionedReaderPtr CreateHunkDecodingSchemafulReader(
     TTableSchemaPtr schema,
     NChunkClient::TClientChunkReadOptions options);
 
-//! A schemaless counterpart of #CreateHunkDecodingSchemafulReader.
+//! A schemaless counterparts of #CreateHunkDecodingSchemafulReader.
 ISchemalessUnversionedReaderPtr CreateHunkDecodingSchemalessReader(
     TBatchHunkReaderConfigPtr config,
     ISchemalessUnversionedReaderPtr underlying,
+    NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader,
+    TTableSchemaPtr schema,
+    NChunkClient::TClientChunkReadOptions options);
+ISchemalessChunkReaderPtr CreateHunkDecodingSchemalessChunkReader(
+    TBatchHunkReaderConfigPtr config,
+    ISchemalessChunkReaderPtr underlying,
     NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader,
     TTableSchemaPtr schema,
     NChunkClient::TClientChunkReadOptions options);

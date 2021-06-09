@@ -4,6 +4,7 @@
 #include "chunk_meta_extensions.h"
 #include "config.h"
 #include "private.h"
+#include "schemaless_chunk_reader.h"
 #include "versioned_chunk_writer.h"
 
 #include <yt/yt/ytlib/chunk_client/block.h>
@@ -1090,7 +1091,7 @@ ISchemafulUnversionedReaderPtr CreateHunkDecodingSchemafulReader(
     TTableSchemaPtr schema,
     TClientChunkReadOptions options)
 {
-    if (!schema->HasHunkColumns()) {
+    if (!schema || !schema->HasHunkColumns()) {
         return underlying;
     }
     return New<THunkDecodingSchemafulUnversionedReader>(
@@ -1152,10 +1153,97 @@ ISchemalessUnversionedReaderPtr CreateHunkDecodingSchemalessReader(
     TTableSchemaPtr schema,
     TClientChunkReadOptions options)
 {
-    if (!schema->HasHunkColumns()) {
+    if (!schema || !schema->HasHunkColumns()) {
         return underlying;
     }
     return New<THunkDecodingSchemalessUnversionedReader>(
+        std::move(config),
+        std::move(underlying),
+        std::move(chunkFragmentReader),
+        std::move(schema),
+        std::move(options));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class THunkDecodingSchemalessChunkReader
+    : public TBatchHunkReader<ISchemalessChunkReader, TUnversionedRow, TMutableUnversionedRow>
+{
+public:
+    using TBatchHunkReader<ISchemalessChunkReader, TUnversionedRow, TMutableUnversionedRow>::TBatchHunkReader;
+
+    //! IUnversionedReaderBase implementation.
+    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    {
+        return this->DoRead(
+            options,
+            [&] (TMutableUnversionedRow row) {
+                i64 hunkCount = 0;
+                i64 totalHunkLength = 0;
+                TSchemalessUnversionedRowVisitor::ForEachHunkValue(
+                    row,
+                    *this->Schema_,
+                    [&] (const auto& value) {
+                        Visit(
+                            ReadHunkValue(GetValueRef(value)),
+                            [&] (const TInlineHunkValue& /*inlineHunkValue*/) {
+                            },
+                            [&] (const TLocalRefHunkValue& /*localRefHunkValue*/) {
+                                THROW_ERROR_EXCEPTION("Unexpected local hunk reference");
+                            },
+                            [&] (const TGlobalRefHunkValue& globalRefHunkValue) {
+                                hunkCount += 1;
+                                totalHunkLength += globalRefHunkValue.Length;
+                            });
+                    });
+                return std::make_pair(hunkCount, totalHunkLength);
+            },
+            [&] (const TSharedRange<TMutableUnversionedRow>& sharedMutableRows) {
+                return this->HunkPayloadReader_.ReadAndDecodeSchemalessUnversioned(sharedMutableRows);
+            });
+    }
+
+    //! ISchemalessUnversionedReader implementation.
+    virtual const TNameTablePtr& GetNameTable() const override
+    {
+        return this->Underlying_->GetNameTable();
+    }
+
+    //! ITimingReader implementation.
+    virtual TTimingStatistics GetTimingStatistics() const override
+    {
+        return this->Underlying_->GetTimingStatistics();
+    }
+
+    //! ISchemalessChunkReader implementation.
+    virtual i64 GetTableRowIndex() const override
+    {
+        return this->Underlying_->GetTableRowIndex();
+    }
+
+    virtual TInterruptDescriptor GetInterruptDescriptor(
+        TRange<TUnversionedRow> unreadRows) const override
+    {
+        return this->Underlying_->GetInterruptDescriptor(std::move(unreadRows));
+    }
+
+    virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
+    {
+        return this->Underlying_->GetCurrentReaderDescriptor();
+    }
+};
+
+ISchemalessChunkReaderPtr CreateHunkDecodingSchemalessChunkReader(
+    TBatchHunkReaderConfigPtr config,
+    ISchemalessChunkReaderPtr underlying,
+    IChunkFragmentReaderPtr chunkFragmentReader,
+    TTableSchemaPtr schema,
+    TClientChunkReadOptions options)
+{
+    if (!schema || !schema->HasHunkColumns()) {
+        return underlying;
+    }
+    return New<THunkDecodingSchemalessChunkReader>(
         std::move(config),
         std::move(underlying),
         std::move(chunkFragmentReader),
