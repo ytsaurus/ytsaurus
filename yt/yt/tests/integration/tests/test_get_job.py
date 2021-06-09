@@ -337,8 +337,20 @@ class TestGetJob(_TestGetJobCommon):
 
     @authors("levysotsky")
     def test_not_found(self):
-        with raises_yt_error(yt_error_codes.NoSuchJob):
+        with raises_yt_error(yt_error_codes.NoSuchOperation):
             get_job("1-2-3-4", "5-6-7-8")
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=1,
+        )
+        (job_id,) = wait_breakpoint()
+
+        with raises_yt_error(yt_error_codes.NoSuchJob):
+            get_job(op.id, "5-6-7-8")
+
+        release_breakpoint()
+        op.track()
 
     @authors("levysotsky")
     @flaky(max_runs=3)
