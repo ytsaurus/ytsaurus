@@ -2,6 +2,7 @@ package ru.yandex.yt.ytclient.rpc;
 
 import java.time.Duration;
 import java.util.Objects;
+import java.util.concurrent.ThreadFactory;
 
 import javax.annotation.Nullable;
 
@@ -58,6 +59,8 @@ public class RpcOptions {
     private DiscoveryMethod preferableDiscoveryMethod = DiscoveryMethod.RPC;
 
     private boolean newDiscoveryServiceEnabled = false;
+
+    private ThreadFactory discoveryThreadFactory;
 
     public RpcOptions() {
         // nothing
@@ -348,5 +351,14 @@ public class RpcOptions {
      */
     public Duration getMaxBackoffTime() {
         return maxBackoffTime;
+    }
+
+    public ThreadFactory getDiscoveryThreadFactory() {
+        return discoveryThreadFactory;
+    }
+
+    public RpcOptions setDiscoveryThreadFactory(ThreadFactory discoveryThreadFactory) {
+        this.discoveryThreadFactory = discoveryThreadFactory;
+        return this;
     }
 }

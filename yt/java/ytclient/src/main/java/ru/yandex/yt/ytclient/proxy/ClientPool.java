@@ -273,6 +273,7 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
         AsyncHttpClient asyncHttpClient = asyncHttpClient(
                 new DefaultAsyncHttpClientConfig.Builder()
                         .setThreadPoolName(httpBuilder.dataCenterName + "::periodicDiscovery")
+                        .setThreadFactory(httpBuilder.options.getDiscoveryThreadFactory())
                         .setEventLoopGroup(httpBuilder.eventLoop)
                         .setHttpClientCodecMaxHeaderSize(65536)
                         .build()
