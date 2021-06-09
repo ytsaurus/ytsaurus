@@ -41,11 +41,13 @@ bool TAtomicObject<T>::CompareExchange(T& expected, const T& desired)
     auto guard = WriterGuard(Spinlock_);
     if (Object_ == expected) {
         auto oldObject = std::move(Object_);
+        Y_UNUSED(oldObject);
         Object_ = desired;
         guard.Release();
         return true;
     } else {
         auto oldExpected = std::move(expected);
+        Y_UNUSED(oldExpected);
         expected = Object_;
         guard.Release();
         return false;
