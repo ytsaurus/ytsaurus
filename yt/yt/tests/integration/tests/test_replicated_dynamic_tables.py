@@ -7,7 +7,7 @@ from yt_commands import *  # noqa
 from yt_helpers import *
 from time import sleep
 from yt.yson import YsonEntity
-from yt.environment.helpers import assert_items_equal, wait
+from yt.test_helpers import are_items_equal, assert_items_equal, wait
 from yt.wrapper import YtResponseError
 
 from flaky import flaky
@@ -401,8 +401,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         timestamp1 = generate_timestamp()
 
-        assert sorted(get_in_sync_replicas("//tmp/t", [], timestamp=timestamp1)) \
-               == sorted([replica_id1, replica_id2])
+        assert_items_equal(get_in_sync_replicas("//tmp/t", [], timestamp=timestamp1),
+                           [replica_id1, replica_id2])
         wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp1)
                      == [replica_id1])
         assert get_in_sync_replicas("//tmp/t", None, timestamp=timestamp1) == [replica_id1]
@@ -412,20 +412,54 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         timestamp2 = generate_timestamp()
 
         wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp2) == [replica_id1])
-        assert get_in_sync_replicas("//tmp/t", None, timestamp=timestamp2) == [replica_id1]
-        assert sorted(get_in_sync_replicas("//tmp/t", [], timestamp=timestamp2)) \
-               == sorted([replica_id1, replica_id2])
+        assert_items_equal(get_in_sync_replicas("//tmp/t", None, timestamp=timestamp2),
+                          [replica_id1])
+        assert_items_equal(get_in_sync_replicas("//tmp/t", [], timestamp=timestamp2),
+                           [replica_id1, replica_id2])
 
         sync_enable_table_replica(replica_id2)
 
         wait(
-            lambda: sorted(get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp2))
-            == sorted([replica_id1, replica_id2])
+            lambda: are_items_equal(get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp2),
+                                    [replica_id1, replica_id2])
         )
-        assert sorted(get_in_sync_replicas("//tmp/t", None, timestamp=timestamp2)) \
-               == sorted([replica_id1, replica_id2])
-        assert sorted(get_in_sync_replicas("//tmp/t", [], timestamp=timestamp2)) \
-               == sorted([replica_id1, replica_id2])
+        assert_items_equal(get_in_sync_replicas("//tmp/t", None, timestamp=timestamp2),
+                           [replica_id1, replica_id2])
+        assert_items_equal(get_in_sync_replicas("//tmp/t", [], timestamp=timestamp2),
+                           [replica_id1, replica_id2])
+
+    @authors("babenko")
+    def test_in_sync_replicas_with_sync_last_committed_timestamp(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t")
+
+        replica_id1 = create_table_replica(
+            "//tmp/t",
+            self.REPLICA_CLUSTER_NAME,
+            "//tmp/r1",
+            attributes={"mode": "sync"},
+        )
+        replica_id2 = create_table_replica(
+            "//tmp/t",
+            self.REPLICA_CLUSTER_NAME,
+            "//tmp/r2",
+            attributes={"mode": "async"},
+        )
+
+        self._create_replica_table("//tmp/r1", replica_id1)
+        self._create_replica_table("//tmp/r2", replica_id2)
+
+        sync_enable_table_replica(replica_id1)
+        sync_enable_table_replica(replica_id2)
+
+        timestamp = generate_timestamp()
+        wait(
+            lambda: are_items_equal(get_in_sync_replicas("//tmp/t", None, timestamp=timestamp),
+                                   [replica_id1, replica_id2])
+        )
+
+        assert_items_equal(get_in_sync_replicas("//tmp/t", None, timestamp=SyncLastCommittedTimestamp),
+                           [replica_id1])
 
     @authors("babenko")
     @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA_SORTED, MULTILOCK_SCHEMA_SORTED])

@@ -55,8 +55,8 @@ except ImportError:
 
 from yt.common import wait, WaitFailed
 
-def assert_items_equal(actual_seq, expected_seq):
-    # It is simplified version of the same method of unittest.TestCase
+# A simplified version of the same method of unittest.TestCase
+def _compute_items_difference(actual_seq, expected_seq):
     try:
         actual = Counter(iter(actual_seq))
         expected = Counter(iter(expected_seq))
@@ -66,13 +66,20 @@ def assert_items_equal(actual_seq, expected_seq):
         expected = list(expected_seq)
         missing, unexpected = unorderable_list_difference(expected, actual)
     else:
-        if actual == expected:
-            return
         missing = list(expected - actual)
         unexpected = list(actual - expected)
+    return [missing, unexpected]
 
+# A simplified version of the same method of unittest.TestCase
+def assert_items_equal(actual_seq, expected_seq):
+    missing, unexpected = _compute_items_difference(actual_seq, expected_seq)
     assert not missing, "Expected, but missing:\n    %s" % repr(missing)
     assert not unexpected, "Unexpected, but present:\n    %s" % repr(unexpected)
+
+# A checking counterpart of assert_items_equal.
+def are_items_equal(actual_seq, expected_seq):
+    missing, unexpected = _compute_items_difference(actual_seq, expected_seq)
+    return missing == [] and unexpected == []
 
 def are_almost_equal(lhs, rhs, decimal_places=4):
     if lhs is None or rhs is None:
