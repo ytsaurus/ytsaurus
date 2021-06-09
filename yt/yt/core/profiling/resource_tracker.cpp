@@ -183,6 +183,10 @@ ui64 FetchPerfCounter(const int fd)
 
 void SetPerfEventEnableMode(const bool enable, const int FD) 
 {
+    if (FD <= 0) {
+        return;
+    }
+
     const auto ioctlArg = enable ? PERF_EVENT_IOC_ENABLE : PERF_EVENT_IOC_DISABLE;
     YT_VERIFY(ioctl(FD, ioctlArg, 0) != -1);
 }
@@ -342,7 +346,7 @@ void TResourceTracker::Reconfigure(const TProfileManagerConfigPtr& config, const
 {
     if (dynamicConfig && dynamicConfig->EnabledPerfEvents) {
         SetPerfEventsConfiguration(*dynamicConfig->EnabledPerfEvents);
-    } else {
+    } else if (config) {
         SetPerfEventsConfiguration(config->EnabledPerfEvents);
     }
 }

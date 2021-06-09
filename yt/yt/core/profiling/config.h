@@ -26,7 +26,7 @@ DEFINE_ENUM(EPerfEvents,
     (TaskClock)
     (ContextSwitches)
     (CpuMigrations)
-    (fAlignmentFaults)
+    (AlignmentFaults)
     (EmulationFaults)
     (DataTlbReferences)
     (DataTlbMisses)
