@@ -427,7 +427,7 @@ class TestColumnarStatistics(YTEnvSetup):
             command="echo '{a=1}'",
         )
 
-        with raises_yt_error("Test operation failure"):
+        with raises_yt_error("Operation controller canceled"):
             op.track()
 
         def operation_disposed():
