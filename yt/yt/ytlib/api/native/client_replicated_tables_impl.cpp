@@ -28,12 +28,12 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TClient::IsReplicaInSync(
+bool TClient::IsReplicaSync(
     const NQueryClient::NProto::TReplicaInfo& replicaInfo,
     const NQueryClient::NProto::TTabletInfo& tabletInfo)
 {
     return
-        ETableReplicaMode(replicaInfo.mode()) == ETableReplicaMode::Sync &&
+        FromProto<ETableReplicaMode>(replicaInfo.mode()) == ETableReplicaMode::Sync &&
         replicaInfo.current_replication_row_index() >= tabletInfo.total_row_count();
 }
 
@@ -42,9 +42,16 @@ bool TClient::IsReplicaInSync(
     const NQueryClient::NProto::TTabletInfo& tabletInfo,
     TTimestamp timestamp)
 {
-    return
-        replicaInfo.last_replication_timestamp() >= timestamp ||
-        IsReplicaInSync(replicaInfo, tabletInfo);
+    if (IsReplicaSync(replicaInfo, tabletInfo)) {
+        return true;
+    }
+    if (timestamp >= MinTimestamp &&
+        timestamp <= MaxTimestamp &&
+        replicaInfo.last_replication_timestamp() >= timestamp)
+    {
+        return true;
+    }
+    return false;
 }
 
 std::vector<TTableReplicaId> TClient::DoGetInSyncReplicasWithKeys(
@@ -80,7 +87,7 @@ std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
     const TSharedRange<TLegacyKey>& keys,
     const TGetInSyncReplicasOptions& options)
 {
-    ValidateSyncTimestamp(options.Timestamp);
+    ValidateGetInSyncReplicasTimestamp(options.Timestamp);
 
     const auto& tableMountCache = Connection_->GetTableMountCache();
     auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
@@ -270,7 +277,7 @@ TFuture<TTableReplicaInfoPtrList> TClient::PickInSyncReplicas(
         for (const auto& rsp : rsps) {
             for (const auto& protoTabletInfo : rsp->tablets()) {
                 for (const auto& protoReplicaInfo : protoTabletInfo.replicas()) {
-                    if (IsReplicaInSync(protoReplicaInfo, protoTabletInfo)) {
+                    if (IsReplicaSync(protoReplicaInfo, protoTabletInfo)) {
                         ++replicaIdToCount[FromProto<TTableReplicaId>(protoReplicaInfo.replica_id())];
                     }
                 }

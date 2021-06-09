@@ -611,7 +611,7 @@ private:
         const TString& queryString,
         const TExplainQueryOptions& options);
 
-    static bool IsReplicaInSync(
+    static bool IsReplicaSync(
         const NQueryClient::NProto::TReplicaInfo& replicaInfo,
         const NQueryClient::NProto::TTabletInfo& tabletInfo);
     static bool IsReplicaInSync(

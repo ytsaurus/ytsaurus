@@ -458,7 +458,7 @@ void ValidateReadTimestamp(TTimestamp timestamp);
 
 //! Checks if #timestamp is sane and can be used for replica synchronization.
 //! Allows timestamps in range [MinTimestamp, MaxTimestamp].
-void ValidateSyncTimestamp(TTimestamp timestamp);
+void ValidateGetInSyncReplicasTimestamp(TTimestamp timestamp);
 
 //! Checks if #timestamp is sane and can be used for writing (versioned) data.
 //! Allows timestamps in range [MinTimestamp, MaxTimestamp].
