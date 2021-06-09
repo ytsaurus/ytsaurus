@@ -1,5 +1,8 @@
 from yt_env_setup import YTEnvSetup
-from yt_commands import *  # noqa
+
+from yt_commands import authors, create_dynamic_table, sync_mount_table, sync_create_cells, explain_query
+
+from yt_type_helpers import make_schema
 
 
 class TestExplainQuery(YTEnvSetup):
