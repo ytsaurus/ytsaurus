@@ -728,8 +728,18 @@ class YTInstance(object):
                                name, proc.pid, os.path.join(self.path, name), proc.returncode))
             return
 
-        logger.info("Sending SIGKILL (pid: {}, current_process_pid: {})".format(proc.pid, os.getpid()))
-        os.kill(proc.pid, signal.SIGKILL)
+        logger.info("Sending SIGTERM (pid: {}, current_process_pid: {})".format(proc.pid, os.getpid()))
+        os.kill(proc.pid, signal.SIGTERM)
+
+        # leave 5s for process to finish writing coverage profile.
+        for i in range(50):
+            if proc.poll() is not None:
+                break
+            time.sleep(0.1)
+        else:
+            logger.info("Sending SIGKILL (pid: {}, current_process_pid: {})".format(proc.pid, os.getpid()))
+            os.kill(proc.pid, signal.SIGKILL)
+
         try:
             os.killpg(proc.pid, signal.SIGKILL)
         except OSError as e:
