@@ -204,13 +204,23 @@ Y_UNIT_TEST_SUITE(OperationCommands)
         UNIT_ASSERT(attrs.BriefProgress->Completed > 0);
         UNIT_ASSERT_VALUES_EQUAL(attrs.BriefProgress->Failed, 0);
 
+        auto stripEmptyAttributesInList = [] (auto list) {
+            for (auto& node : list) {
+                if (!node.HasAttributes()) {
+                    node.ClearAttributes();
+                }
+            }
+            return list;
+        };
+
         auto inputTables = TNode().Add(workingDir + "/input").AsList();
         UNIT_ASSERT(attrs.BriefSpec);
         UNIT_ASSERT(attrs.Spec);
         UNIT_ASSERT(attrs.FullSpec);
         UNIT_ASSERT_VALUES_EQUAL((*attrs.BriefSpec)["input_table_paths"].AsList(), inputTables);
         UNIT_ASSERT_VALUES_EQUAL((*attrs.Spec)["input_table_paths"].AsList(), inputTables);
-        UNIT_ASSERT_VALUES_EQUAL((*attrs.FullSpec)["input_table_paths"].AsList(), inputTables);
+        // NB(eshcherbin): Input table path from full spec comes with empty but existing attributes.
+        UNIT_ASSERT_VALUES_EQUAL(stripEmptyAttributesInList((*attrs.FullSpec)["input_table_paths"].AsList()), inputTables);
 
 
         UNIT_ASSERT(attrs.Suspended);
