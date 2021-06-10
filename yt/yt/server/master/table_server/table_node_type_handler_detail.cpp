@@ -1,9 +1,10 @@
+#include "table_manager.h"
 #include "table_node_type_handler_detail.h"
 #include "table_node.h"
 #include "table_node_proxy.h"
 #include "replicated_table_node.h"
 #include "replicated_table_node_proxy.h"
-#include "shared_table_schema.h"
+#include "master_table_schema.h"
 #include "private.h"
 
 #include <yt/yt/ytlib/table_client/schema.h>
@@ -21,8 +22,6 @@
 
 #include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
-
-#include <yt/yt/server/master/table_server/shared_table_schema.h>
 
 namespace NYT::NTableServer {
 
@@ -94,10 +93,32 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         THROW_ERROR_EXCEPTION("Replicated table must be dynamic");
     }
 
-    auto schema = combinedAttributes->FindAndRemove<TTableSchemaPtr>("schema");
+    auto tableSchema = combinedAttributes->FindAndRemove<TTableSchemaPtr>("schema");
+    auto schemaId = combinedAttributes->FindAndRemove<TObjectId>("schema_id");
 
-    if (dynamic && !schema) {
-        THROW_ERROR_EXCEPTION("\"schema\" is mandatory for dynamic tables");
+    if (dynamic && !tableSchema && !schemaId) {
+        THROW_ERROR_EXCEPTION("Either \"schema\" or \"schema_id\" must be specified for dynamic tables");
+    }
+
+    const auto& tableManager = this->Bootstrap_->GetTableManager();
+    const TTableSchema* effectiveTableSchema = nullptr;
+    if (schemaId) {
+        auto* schemaById = tableManager->GetMasterTableSchemaOrThrow(*schemaId);
+        if (tableSchema) {
+            auto* schemaByYson = tableManager->FindMasterTableSchema(*tableSchema);
+            if (IsObjectAlive(schemaByYson)) {
+                if (schemaById != schemaByYson) {
+                    THROW_ERROR_EXCEPTION("Both \"schema\" and \"schema_id\" specified and they refer to different schemas");
+                }
+            } else {
+                if (schemaById->AsTableSchema() != *tableSchema) {
+                    THROW_ERROR_EXCEPTION("Both \"schema\" and \"schema_id\" specified and the schemas do not match");
+                }
+            }
+        }
+        effectiveTableSchema = &schemaById->AsTableSchema();
+    } else if (tableSchema) {
+        effectiveTableSchema = &*tableSchema;
     }
 
     if (replicated) {
@@ -106,20 +127,21 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         }
     }
 
-    if (schema) {
+    if (effectiveTableSchema) {
         // NB: Sorted dynamic tables contain unique keys, set this for user.
-        if (dynamic && schema->IsSorted() && !schema->GetUniqueKeys()) {
-            schema = schema->ToUniqueKeys();
+        if (dynamic && effectiveTableSchema->IsSorted() && !effectiveTableSchema->GetUniqueKeys()) {
+            tableSchema = effectiveTableSchema->ToUniqueKeys();
+            effectiveTableSchema = &*tableSchema;
         }
 
-        if (schema->HasNontrivialSchemaModification()) {
+        if (effectiveTableSchema->HasNontrivialSchemaModification()) {
             THROW_ERROR_EXCEPTION("Cannot create table with nontrivial schema modification");
         }
 
-        ValidateTableSchemaUpdate(TTableSchema(), *schema, dynamic, true);
+        ValidateTableSchemaUpdate(TTableSchema(), *effectiveTableSchema, dynamic, true);
 
         if (!dynamicConfig->EnableDescendingSortOrder || (dynamic && !dynamicConfig->EnableDescendingSortOrderDynamic)) {
-            ValidateNoDescendingSortOrder(*schema);
+            ValidateNoDescendingSortOrder(*effectiveTableSchema);
         }
     }
 
@@ -160,9 +182,14 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
             node->SetCommitOrdering(NTransactionClient::ECommitOrdering::Strong);
         }
 
-        if (schema) {
-            const auto& registry = this->Bootstrap_->GetCypressManager()->GetSharedTableSchemaRegistry();
-            node->SharedTableSchema() = registry->GetSchema(std::move(*schema));
+        if (effectiveTableSchema) {
+            tableManager->GetOrCreateMasterTableSchema(*effectiveTableSchema, node);
+        } else {
+            auto* emptySchema = tableManager->GetEmptyMasterTableSchema();
+            tableManager->SetTableSchema(node, emptySchema);
+        }
+
+        if (effectiveTableSchema) {
             node->SetSchemaMode(ETableSchemaMode::Strong);
         }
 
@@ -211,6 +238,9 @@ void TTableNodeTypeHandlerBase<TImpl>::DoDestroy(TImpl* table)
         const auto& tabletManager = this->Bootstrap_->GetTabletManager();
         tabletManager->DestroyTable(table);
     }
+
+    const auto& tableManager = this->Bootstrap_->GetTableManager();
+    tableManager->ResetTableSchema(table);
 }
 
 template <class TImpl>
@@ -219,7 +249,9 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBranch(
     TImpl* branchedNode,
     const TLockRequest& lockRequest)
 {
-    branchedNode->SharedTableSchema() = originatingNode->SharedTableSchema();
+    const auto& tableManager = this->Bootstrap_->GetTableManager();
+    tableManager->SetTableSchema(branchedNode, originatingNode->GetSchema());
+
     branchedNode->SetSchemaMode(originatingNode->GetSchemaMode());
     branchedNode->SetOptimizeFor(originatingNode->GetOptimizeFor());
     branchedNode->SetProfilingMode(originatingNode->GetProfilingMode());
@@ -237,7 +269,10 @@ void TTableNodeTypeHandlerBase<TImpl>::DoMerge(
     TImpl* originatingNode,
     TImpl* branchedNode)
 {
-    originatingNode->SharedTableSchema() = branchedNode->SharedTableSchema();
+    const auto& tableManager = this->Bootstrap_->GetTableManager();
+    tableManager->SetTableSchema(originatingNode, branchedNode->GetSchema());
+    tableManager->ResetTableSchema(branchedNode);
+
     originatingNode->SetSchemaMode(branchedNode->GetSchemaMode());
     originatingNode->MergeOptimizeFor(branchedNode);
     originatingNode->SetProfilingMode(branchedNode->GetProfilingMode());
@@ -273,7 +308,9 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
             mode);
     }
 
-    clonedTrunkNode->SharedTableSchema() = sourceNode->SharedTableSchema();
+    const auto& tableManager = this->Bootstrap_->GetTableManager();
+    tableManager->SetTableSchema(clonedTrunkNode, sourceNode->GetSchema());
+
     clonedTrunkNode->SetSchemaMode(sourceNode->GetSchemaMode());
     clonedTrunkNode->SetOptimizeFor(sourceNode->GetOptimizeFor());
 
@@ -310,11 +347,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBeginCopy(
     auto* trunkNode = node->GetTrunkNode();
     Save(*context, trunkNode->GetTabletCellBundle());
 
-    const auto& schema = node->SharedTableSchema();
-    Save(*context, schema.operator bool());
-    if (schema) {
-        Save(*context, context->GetTableSchemaRegistry()->Intern(schema->GetTableSchema()));
-    }
+    Save(*context, node->GetSchema());
 
     Save(*context, node->GetSchemaMode());
     Save(*context, node->GetOptimizeFor());
@@ -354,11 +387,9 @@ void TTableNodeTypeHandlerBase<TImpl>::DoEndCopy(
         tabletManager->SetTabletCellBundle(node, bundle);
     }
 
-    if (Load<bool>(*context)) {
-        auto schema = Load<TInternedTableSchema>(*context);
-        const auto& registry = this->Bootstrap_->GetCypressManager()->GetSharedTableSchemaRegistry();
-        node->SharedTableSchema() = registry->GetSchema(*schema);
-    }
+    const auto& tableManager = this->Bootstrap_->GetTableManager();
+    auto* schema = Load<TMasterTableSchema*>(*context);
+    tableManager->SetTableSchema(node, schema);
 
     node->SetSchemaMode(Load<ETableSchemaMode>(*context));
     node->SetOptimizeFor(Load<EOptimizeFor>(*context));
@@ -400,17 +431,15 @@ bool TTableNodeTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const TSt
 template <class TImpl>
 std::optional<std::vector<TString>> TTableNodeTypeHandlerBase<TImpl>::DoListColumns(TImpl* node) const
 {
-    const auto& sharedSchema = node->SharedTableSchema();
-    if (!sharedSchema) {
-        return std::nullopt;
-    }
+    YT_VERIFY(IsObjectAlive(node->GetSchema()));
+    const auto& schema = node->GetSchema()->AsTableSchema();
 
-    const auto& schema = sharedSchema->GetTableSchema();
     std::vector<TString> result;
     result.reserve(schema.Columns().size());
     for (const auto& column : schema.Columns()) {
         result.push_back(column.Name());
     }
+
     return result;
 }
 

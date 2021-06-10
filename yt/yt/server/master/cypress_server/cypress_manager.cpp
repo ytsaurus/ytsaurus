@@ -41,7 +41,8 @@
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/user.h>
 
-#include <yt/yt/server/master/table_server/shared_table_schema.h>
+#include <yt/yt/server/master/table_server/master_table_schema.h>
+#include <yt/yt/server/master/table_server/table_node.h>
 
 #include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -72,6 +73,7 @@ using namespace NObjectServer;
 using namespace NRpc;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
+using namespace NTableServer;
 using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NYson;
@@ -406,6 +408,19 @@ public:
             true);
 
         if (external) {
+            // Schemas are cell-local and require special care.
+            if (IsTableType(trunkNode->GetType()) &&
+                replicationExplicitAttributes->FindAndRemove<TMasterTableSchemaId>("schema_id"))
+            {
+                auto* table = trunkNode->As<TTableNode>();
+                auto* schema = table->GetSchema();
+                const auto& objectManager = Bootstrap_->GetObjectManager();
+                // NB: this sometimes will lead to a synchronous serialization of
+                // schemas in automaton thread. This is unavoidable.
+                auto ysonSchema = schema->AsYsonSync(objectManager);
+                replicationExplicitAttributes->SetYson("schema", std::move(ysonSchema));
+            }
+
             const auto& transactionManager = Bootstrap_->GetTransactionManager();
             auto externalCellTag = node->GetExternalCellTag();
             auto externalizedTransactionId = transactionManager->ExternalizeTransaction(node->GetTransaction(), {externalCellTag});
@@ -833,7 +848,6 @@ class TCypressManager::TImpl
 public:
     explicit TImpl(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::CypressManager)
-        , SharedTableSchemaRegistry_(New<NTableServer::TSharedTableSchemaRegistry>())
         , AccessTracker_(New<TAccessTracker>(bootstrap))
         , ExpirationTracker_(New<TExpirationTracker>(bootstrap))
         , NodeMap_(TNodeMapTraits(this))
@@ -1937,7 +1951,6 @@ public:
         return result;
     }
 
-    DEFINE_BYREF_RO_PROPERTY(NTableServer::TSharedTableSchemaRegistryPtr, SharedTableSchemaRegistry);
     DEFINE_BYREF_RO_PROPERTY(TResolveCachePtr, ResolveCache);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Node, TCypressNode);
@@ -2045,7 +2058,6 @@ private:
         NodeMap_.Clear();
         LockMap_.Clear();
         ShardMap_.Clear();
-        SharedTableSchemaRegistry_->Clear();
 
         RootNode_ = nullptr;
         RootShard_ = nullptr;
@@ -4051,11 +4063,6 @@ TCypressNodeList TCypressManager::GetNodeReverseOriginators(
     TCypressNode* trunkNode)
 {
     return Impl_->GetNodeReverseOriginators(transaction, trunkNode);
-}
-
-const NTableServer::TSharedTableSchemaRegistryPtr& TCypressManager::GetSharedTableSchemaRegistry() const
-{
-    return Impl_->SharedTableSchemaRegistry();
 }
 
 const TResolveCachePtr& TCypressManager::GetResolveCache()

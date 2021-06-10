@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 
+#include <yt/yt/server/master/node_tracker_server/node.h>
+
 #include <yt/yt/server/master/security_server/account.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>

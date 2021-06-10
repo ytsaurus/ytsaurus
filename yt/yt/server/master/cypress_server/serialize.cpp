@@ -1,23 +1,31 @@
 #include "serialize.h"
 
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+
+#include <yt/yt/server/master/object_server/object.h>
+
 #include <yt/yt/server/master/security_server/security_manager.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 
-#include <yt/yt/server/master/tablet_server/tablet_manager.h>
+#include <yt/yt/server/master/table_server/master_table_schema.h>
+#include <yt/yt/server/master/table_server/table_manager.h>
 
-#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
 namespace NYT::NCypressServer {
 
+using namespace NCellMaster;
 using namespace NSecurityServer;
 using namespace NObjectServer;
 using namespace NChunkServer;
 using namespace NObjectServer;
 using namespace NTabletServer;
+using namespace NTableClient;
 using namespace NTableServer;
 using namespace NTransactionServer;
 using namespace NYPath;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,7 +36,6 @@ TBeginCopyContext::TBeginCopyContext(
     : Transaction_(transaction)
     , Mode_(mode)
     , RootNode_(rootNode)
-    , TableSchemaRegistry_(New<TTableSchemaRegistry>())
 {
     SetOutput(&Stream_);
 }
@@ -59,20 +66,25 @@ void TBeginCopyContext::RegisterExternalCellTag(TCellTag cellTag)
     ExternalCellTags_.push_back(cellTag);
 }
 
-const TTableSchemaRegistryPtr& TBeginCopyContext::GetTableSchemaRegistry() const
+TEntitySerializationKey TBeginCopyContext::RegisterSchema(TMasterTableSchema* schema)
 {
-    return TableSchemaRegistry_;
+    YT_VERIFY(IsObjectAlive(schema));
+    return SchemaRegistry_.RegisterObject(schema);
+}
+
+const THashMap<TMasterTableSchema*, TEntitySerializationKey>& TBeginCopyContext::GetRegisteredSchemas() const
+{
+    return SchemaRegistry_.RegisteredObjects();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TEndCopyContext::TEndCopyContext(
-    NCellMaster::TBootstrap* bootstrap,
+    TBootstrap* bootstrap,
     ENodeCloneMode mode,
     TRef data)
     : Mode_(mode)
     , Bootstrap_(bootstrap)
-    , TableSchemaRegistry_(New<NTableServer::TTableSchemaRegistry>())
     , Stream_(data.Begin(), data.Size())
 {
     SetInput(&Stream_);
@@ -109,10 +121,14 @@ const TSecurityTagsRegistryPtr& TEndCopyContext::GetInternRegistry() const
     return securityManager->GetSecurityTagsRegistry();
 }
 
-template <>
-const TTableSchemaRegistryPtr& TEndCopyContext::GetInternRegistry() const
+void TEndCopyContext::RegisterSchema(TEntitySerializationKey key, TMasterTableSchema* schema)
 {
-    return TableSchemaRegistry_;
+    SchemaRegistry_.RegisterObject(key, schema);
+}
+
+TMasterTableSchema* TEndCopyContext::GetSchemaOrThrow(TEntitySerializationKey key)
+{
+    return SchemaRegistry_.GetObjectOrThrow(key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

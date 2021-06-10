@@ -159,7 +159,6 @@ public:
      */
     TAccount* GetChunkWiseAccountingMigrationAccount();
 
-
     using TViolatedResourceLimits = TClusterResourceLimits;
     //! Returns recursive violated resource limits for account's subtree.
     TViolatedResourceLimits GetAccountRecursiveViolatedResourceLimits(const TAccount* account) const;
@@ -199,6 +198,9 @@ public:
         i64 delta);
 
     void UpdateMasterMemoryUsage(NCypressServer::TCypressNode* node);
+
+    void UpdateMasterMemoryUsage(NTableServer::TMasterTableSchema* schema, TAccount* account);
+    void ResetMasterMemoryUsage(NTableServer::TMasterTableSchema* schema, TAccount* account);
 
     //! Clears the transaction per-account usage statistics releasing the references to accounts.
     void ResetTransactionAccountResourceUsage(NTransactionServer::TTransaction* transaction);

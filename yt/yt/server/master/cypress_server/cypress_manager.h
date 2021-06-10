@@ -206,7 +206,6 @@ public:
         NTransactionServer::TTransaction* transaction,
         TCypressNode* trunkNode);
 
-    const NTableServer::TSharedTableSchemaRegistryPtr& GetSharedTableSchemaRegistry() const;
     const TResolveCachePtr& GetResolveCache();
 
     TFuture<NYson::TYsonString> ComputeRecursiveResourceUsage(

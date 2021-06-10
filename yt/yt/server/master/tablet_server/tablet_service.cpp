@@ -9,8 +9,6 @@
 
 #include <yt/yt/server/lib/hive/helpers.h>
 
-#include <yt/yt/server/master/table_server/shared_table_schema.h>
-
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/access_log.h>
 

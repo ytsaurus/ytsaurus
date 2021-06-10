@@ -8,6 +8,7 @@
 #include <yt/yt/server/master/cell_master/config_manager.h>
 
 #include <yt/yt/server/master/node_tracker_server/data_center.h>
+#include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>

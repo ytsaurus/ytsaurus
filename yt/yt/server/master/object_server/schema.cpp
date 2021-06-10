@@ -1,7 +1,7 @@
 #include "schema.h"
 #include "private.h"
-#include "type_handler.h"
 #include "schema_proxy.h"
+#include "type_handler.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 

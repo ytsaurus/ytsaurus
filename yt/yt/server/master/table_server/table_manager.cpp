@@ -1,5 +1,6 @@
 #include "table_manager.h"
 #include "private.h"
+#include "master_table_schema_proxy.h"
 #include "table_node.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
@@ -11,11 +12,20 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_owner_base.h>
 
+#include <yt/yt/server/master/object_server/object_manager.h>
+#include <yt/yt/server/master/object_server/type_handler_detail.h>
+
 #include <yt/yt/server/master/tablet_server/config.h>
+
+#include <yt/yt/server/master/transaction_server/transaction.h>
 
 #include <yt/yt/server/lib/table_server/proto/table_manager.pb.h>
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
+
+#include <yt/yt/client/object_client/public.h>
+
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
@@ -24,14 +34,19 @@
 namespace NYT::NTableServer {
 
 using namespace NCellMaster;
+
 using namespace NChunkClient::NProto;
 using namespace NChunkServer;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NObjectClient;
+using namespace NObjectServer;
 using namespace NHydra;
 using namespace NSecurityServer;
+using namespace NTableClient;
 using namespace NTabletServer;
+using namespace NTransactionServer;
+using namespace NYTree;
 
 using NCypressServer::TNodeId;
 
@@ -40,6 +55,37 @@ using NCypressServer::TNodeId;
 static const auto& Logger = TableServerLogger;
 
 ///////////////////////////////////////////////////////////////////////////////
+
+class TTableManager::TMasterTableSchemaTypeHandler
+    : public TObjectTypeHandlerWithMapBase<TMasterTableSchema>
+{
+public:
+    explicit TMasterTableSchemaTypeHandler(TImpl* owner);
+
+    virtual ETypeFlags GetFlags() const override
+    {
+        // NB: schema objects are cell-local. Different cells have differing schema sets.
+        return ETypeFlags::None;
+    }
+
+    virtual EObjectType GetType() const override
+    {
+        return EObjectType::MasterTableSchema;
+    }
+
+    virtual TObject* CreateObject(
+        TObjectId hintId,
+        IAttributeDictionary* attributes) override;
+
+private:
+    TImpl* const Owner_;
+
+    virtual IObjectProxyPtr DoGetProxy(TMasterTableSchema* user, TTransaction* transaction) override;
+
+    virtual void DoZombifyObject(TMasterTableSchema* user) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TTableManager::TImpl
     : public TMasterAutomatonPart
@@ -72,6 +118,12 @@ public:
         RegisterMethod(BIND(&TImpl::HydraSendTableStatisticsUpdates, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqSendTableStatisticsUpdates"});
         RegisterMethod(BIND(&TImpl::HydraUpdateTableStatistics, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqUpdateTableStatistics"});
         RegisterMethod(BIND(&TImpl::HydraNotifyContentRevisionCasFailed, Unretained(this)));
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        objectManager->RegisterHandler(New<TMasterTableSchemaTypeHandler>(this));
+
+        auto cellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
+        EmptyMasterTableSchemaId_ = MakeWellKnownId(EObjectType::MasterTableSchema, cellTag, 0xffffffffffffffff);
     }
 
     void Initialize()
@@ -378,22 +430,212 @@ public:
         Load(context, StatisticsUpdateRequests_);
     }
 
-    void LoadKeys(NCellMaster::TLoadContext& /*context*/)
-    { }
+    void LoadKeys(NCellMaster::TLoadContext& context)
+    {
+        MasterTableSchemaMap_.LoadKeys(context);
+    }
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
+        // COMPAT(shakurov)
+        if (context.GetVersion() >= EMasterReign::TrueTableSchemaObjects) {
+            MasterTableSchemaMap_.LoadValues(context);
+        }
+
+        // COMPAT(shakurov)
         if (context.GetVersion() >= EMasterReign::MoveTableStatisticsGossipToTableManager) {
             LoadStatisticsUpdateRequests(context);
         } // Otherwise loading is initiated from tablet manager.
     }
 
-    void SaveKeys(NCellMaster::TSaveContext& /*context*/) const
-    { }
+    void SaveKeys(NCellMaster::TSaveContext& context) const
+    {
+        MasterTableSchemaMap_.SaveKeys(context);
+    }
 
     void SaveValues(NCellMaster::TSaveContext& context) const
     {
+        MasterTableSchemaMap_.SaveValues(context);
         Save(context, StatisticsUpdateRequests_);
+    }
+
+    DECLARE_ENTITY_MAP_ACCESSORS(MasterTableSchema, TMasterTableSchema);
+
+    TMasterTableSchema* GetEmptyMasterTableSchema()
+    {
+        return GetBuiltin(EmptyMasterTableSchema_);
+    }
+
+    void SetTableSchema(TTableNode* table, TMasterTableSchema* schema)
+    {
+        if (!schema) {
+            // During cross-shard copying of an opaque table, it is materialized
+            // by EndCopy (non-inplace) without any schema.
+            return;
+        }
+
+        // NB: a newly created schema object has zero reference count.
+        // Thus the new schema may technically be not alive here.
+        YT_ASSERT(!schema->IsDestroyed());
+
+        if (schema == table->GetSchema()) {
+            // Typical when branched nodes are being merged back in.
+            return;
+        }
+
+        ResetTableSchema(table);
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        table->SetSchema(schema);
+        objectManager->RefObject(schema);
+
+        auto* tableAccount = table->GetAccount();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->UpdateMasterMemoryUsage(schema, tableAccount);
+    }
+
+    void ResetTableSchema(TTableNode* table)
+    {
+        auto* oldSchema = table->GetSchema();
+        if (!oldSchema) {
+            return;
+        }
+        YT_VERIFY(IsObjectAlive(oldSchema));
+        table->SetSchema(nullptr);
+
+        if (auto* account = table->GetAccount()) {
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            securityManager->ResetMasterMemoryUsage(oldSchema, account);
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        objectManager->UnrefObject(oldSchema);
+    }
+
+    TMasterTableSchema* GetMasterTableSchemaOrThrow(TMasterTableSchemaId id)
+    {
+        auto* schema = FindMasterTableSchema(id);
+        if (!IsObjectAlive(schema)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::ResolveError,
+                "No such schema %v",
+                id);
+        }
+
+        return schema;
+    }
+
+    TMasterTableSchema* FindMasterTableSchema(const TTableSchema& tableSchema) const
+    {
+        auto it = TableSchemaToObjectMap_.find(tableSchema);
+        return it != TableSchemaToObjectMap_.end()
+            ? it->second
+            : nullptr;
+    }
+
+    TMasterTableSchema* GetOrCreateMasterTableSchema(const TTableSchema& tableSchema, TTableNode* schemaHolder)
+    {
+        auto* schema = DoGetOrCreateMasterTableSchema(tableSchema);
+        SetTableSchema(schemaHolder, schema);
+        YT_VERIFY(IsObjectAlive(schema));
+        return schema;
+    }
+
+    TMasterTableSchema* GetOrCreateMasterTableSchema(const TTableSchema& tableSchema, TTransaction* schemaHolder)
+    {
+        YT_VERIFY(IsObjectAlive(schemaHolder));
+
+        auto* schema = DoGetOrCreateMasterTableSchema(tableSchema);
+        if (!schemaHolder->StagedObjects().contains(schema)) {
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
+            transactionManager->StageObject(schemaHolder, schema);
+        }
+        YT_VERIFY(IsObjectAlive(schema));
+        return schema;
+    }
+
+    TMasterTableSchema* DoGetOrCreateMasterTableSchema(const TTableSchema& tableSchema)
+    {
+        // NB: freshly created schemas have zero refcounter and are technically not alive.
+        if (auto* schema = FindMasterTableSchema(tableSchema)) {
+            return schema;
+        }
+
+        return CreateMasterTableSchema(tableSchema);
+    }
+
+    TMasterTableSchema* CreateMasterTableSchemaUnsafely(
+        TMasterTableSchemaId tableSchemaId,
+        const TTableSchema& tableSchema)
+    {
+        // During compat-migration, Create...Unsafely should only be called once per unique schema.
+        YT_VERIFY(!FindMasterTableSchema(tableSchema));
+        YT_VERIFY(!FindMasterTableSchema(tableSchemaId));
+
+        return DoCreateMasterTableSchema(tableSchemaId, tableSchema);
+    }
+
+    TMasterTableSchema* GetBuiltin(TMasterTableSchema*& builtin)
+    {
+        if (!builtin) {
+            InitBuiltins();
+        }
+        YT_VERIFY(builtin);
+        return builtin;
+    }
+
+    void InitBuiltins()
+    {
+        if (EmptyMasterTableSchema_) {
+            return;
+        }
+
+        EmptyMasterTableSchema_ = FindMasterTableSchema(EmptyMasterTableSchemaId_);
+
+        if (EmptyMasterTableSchema_) {
+            return;
+        }
+
+        EmptyMasterTableSchema_ = DoCreateMasterTableSchema(EmptyMasterTableSchemaId_, EmptyTableSchema);
+    }
+
+    TMasterTableSchema* CreateMasterTableSchema(const TTableSchema& tableSchema)
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto id = objectManager->GenerateId(EObjectType::MasterTableSchema, NullObjectId);
+        auto* schema = DoCreateMasterTableSchema(id, tableSchema);
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Schema created (Id: %v)", id);
+
+        return schema;
+    }
+
+    void ZombifySchema(TMasterTableSchema* schema)
+    {
+        TableSchemaToObjectMap_.erase(schema->GetTableSchemaToObjectMapIterator());
+    }
+
+    TMasterTableSchema* DoCreateMasterTableSchema(TMasterTableSchemaId id, const TTableSchema& tableSchema)
+    {
+        auto [it, inserted] = TableSchemaToObjectMap_.emplace(tableSchema, nullptr);
+        YT_VERIFY(inserted);
+
+        auto schemaHolder = std::make_unique<TMasterTableSchema>(id, it);
+        auto* schema = MasterTableSchemaMap_.Insert(id, std::move(schemaHolder));
+        it->second = schema;
+
+        YT_VERIFY(schema->GetTableSchemaToObjectMapIterator()->second == schema);
+
+        return schema;
+    }
+
+    TMasterTableSchema::TTableSchemaToObjectMapIterator InitializeSchema(
+        TMasterTableSchema* schema,
+        const TTableSchema& tableSchema)
+    {
+        auto [it, inserted] = TableSchemaToObjectMap_.emplace(tableSchema, schema);
+        YT_VERIFY(inserted);
+        return it;
     }
 
 private:
@@ -442,12 +684,57 @@ private:
         }
     };
 
+    friend class TMasterTableSchemaTypeHandler;
+
+    static const TTableSchema EmptyTableSchema;
+    static const NYson::TYsonString EmptyYsonTableSchema;
+
+    NHydra::TEntityMap<TMasterTableSchema> MasterTableSchemaMap_;
+    TMasterTableSchema::TTableSchemaToObjectMap TableSchemaToObjectMap_;
+
+    TMasterTableSchemaId EmptyMasterTableSchemaId_;
+    TMasterTableSchema* EmptyMasterTableSchema_ = nullptr;
+
     TRandomAccessQueue<TNodeId, TStatisticsUpdateRequest> StatisticsUpdateRequests_;
     TPeriodicExecutorPtr StatisticsGossipExecutor_;
     IReconfigurableThroughputThrottlerPtr StatisticsGossipThrottler_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 };
+
+DEFINE_ENTITY_MAP_ACCESSORS(TTableManager::TImpl, MasterTableSchema, TMasterTableSchema, MasterTableSchemaMap_)
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TTableSchema TTableManager::TImpl::EmptyTableSchema;
+const NYson::TYsonString TTableManager::TImpl::EmptyYsonTableSchema = BuildYsonStringFluently().Value(EmptyTableSchema);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTableManager::TMasterTableSchemaTypeHandler::TMasterTableSchemaTypeHandler(TImpl* owner)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->MasterTableSchemaMap_)
+    , Owner_(owner)
+{ }
+
+TObject* TTableManager::TMasterTableSchemaTypeHandler::CreateObject(
+    TObjectId /*hintId*/,
+    IAttributeDictionary* /*attributes*/)
+{
+    THROW_ERROR_EXCEPTION("%Qv objects cannot be created manually", EObjectType::MasterTableSchema);
+}
+
+IObjectProxyPtr TTableManager::TMasterTableSchemaTypeHandler::DoGetProxy(
+    TMasterTableSchema* schema,
+    TTransaction* /*transaction*/)
+{
+    return CreateMasterTableSchemaProxy(Owner_->Bootstrap_, &Metadata_, schema);
+}
+
+void TTableManager::TMasterTableSchemaTypeHandler::DoZombifyObject(TMasterTableSchema* schema)
+{
+    TObjectTypeHandlerWithMapBase::DoZombifyObject(schema);
+    Owner_->ZombifySchema(schema);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -486,6 +773,61 @@ void TTableManager::LoadStatisticsUpdateRequests(NCellMaster::TLoadContext& cont
 {
     Impl_->LoadStatisticsUpdateRequests(context);
 }
+
+TMasterTableSchema* TTableManager::GetMasterTableSchemaOrThrow(TMasterTableSchemaId id)
+{
+    return Impl_->GetMasterTableSchemaOrThrow(id);
+}
+
+TMasterTableSchema* TTableManager::FindMasterTableSchema(const TTableSchema& tableSchema) const
+{
+    return Impl_->FindMasterTableSchema(tableSchema);
+}
+
+TMasterTableSchema* TTableManager::GetOrCreateMasterTableSchema(
+    const TTableSchema& schema,
+    TTableNode* schemaHolder)
+{
+    return Impl_->GetOrCreateMasterTableSchema(schema, schemaHolder);
+}
+
+TMasterTableSchema* TTableManager::GetOrCreateMasterTableSchema(
+    const TTableSchema& schema,
+    TTransaction* schemaHolder)
+{
+    return Impl_->GetOrCreateMasterTableSchema(schema, schemaHolder);
+}
+
+TMasterTableSchema* TTableManager::CreateMasterTableSchemaUnsafely(
+    TMasterTableSchemaId schemaId,
+    const TTableSchema& schema)
+{
+    return Impl_->CreateMasterTableSchemaUnsafely(schemaId, schema);
+}
+
+TMasterTableSchema* TTableManager::GetEmptyMasterTableSchema()
+{
+    return Impl_->GetEmptyMasterTableSchema();
+}
+
+TMasterTableSchema::TTableSchemaToObjectMapIterator TTableManager::InitializeSchema(
+    TMasterTableSchema* schema,
+    const TTableSchema& tableSchema)
+{
+    return Impl_->InitializeSchema(schema, tableSchema);
+}
+
+void TTableManager::SetTableSchema(TTableNode* table, TMasterTableSchema* schema)
+{
+    return Impl_->SetTableSchema(table, schema);
+}
+
+void TTableManager::ResetTableSchema(TTableNode* table)
+{
+    return Impl_->ResetTableSchema(table);
+}
+
+DELEGATE_ENTITY_MAP_ACCESSORS(TTableManager, MasterTableSchema, TMasterTableSchema, *Impl_)
 
 ////////////////////////////////////////////////////////////////////////////////
 

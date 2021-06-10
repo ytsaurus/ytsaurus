@@ -126,6 +126,7 @@ DEFINE_ENUM(EMasterMemoryType,
     ((Chunks)         (1))
     ((Attributes)     (2))
     ((Tablets)        (3))
+    ((Schemas)        (4))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

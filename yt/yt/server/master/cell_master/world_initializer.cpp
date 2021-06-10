@@ -477,6 +477,11 @@ private:
                 EObjectType::ChunkListMap);
 
             ScheduleCreateNode(
+                "//sys/master_table_schemas",
+                transactionId,
+                EObjectType::MasterTableSchemaMap);
+
+            ScheduleCreateNode(
                 "//sys/media",
                 transactionId,
                 EObjectType::MediumMap);

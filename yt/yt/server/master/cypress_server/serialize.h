@@ -26,6 +26,34 @@ namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Used for cross-cell copying of cell-local objects (e.g. schemas).
+template <class T>
+class TCellLocalObjectSaveRegistry
+{
+public:
+    TEntitySerializationKey RegisterObject(T* object);
+    const THashMap<T*, TEntitySerializationKey>& RegisteredObjects() const;
+
+private:
+    THashMap<T*, TEntitySerializationKey> RegisteredObjects_;
+    int NextSerializationKeyIndex_ = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+class TCellLocalObjectLoadRegistry
+{
+public:
+    void RegisterObject(TEntitySerializationKey key, T* object);
+    T* GetObjectOrThrow(TEntitySerializationKey key);
+
+private:
+    THashMap<int, T*> RegisteredObjects_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBeginCopyContext
     : public TEntityStreamSaveContext
 {
@@ -38,6 +66,8 @@ public:
     void RegisterPortalRootId(TNodeId portalRootId);
     void RegisterOpaqueChildPath(const NYPath::TYPath& opaqueChildPath);
     void RegisterExternalCellTag(NObjectClient::TCellTag cellTag);
+    TEntitySerializationKey RegisterSchema(NTableServer::TMasterTableSchema* schema);
+    const THashMap<NTableServer::TMasterTableSchema*, TEntitySerializationKey>& GetRegisteredSchemas() const;
 
     DEFINE_BYREF_RO_PROPERTY(std::vector<TNodeId>, PortalRootIds);
     DEFINE_BYREF_RO_PROPERTY(std::vector<NYPath::TYPath>, OpaqueChildPaths);
@@ -48,12 +78,8 @@ public:
     std::vector<TSharedRef> Finish();
     NObjectClient::TCellTagList GetExternalCellTags();
 
-    // TODO(babenko): get rid of this separate registry
-    const NTableServer::TTableSchemaRegistryPtr& GetTableSchemaRegistry() const;
-
 private:
-    // TODO(babenko): get rid of this separate registry
-    const NTableServer::TTableSchemaRegistryPtr TableSchemaRegistry_;
+    TCellLocalObjectSaveRegistry<NTableServer::TMasterTableSchema> SchemaRegistry_;
     TChunkedOutputStream Stream_;
     std::vector<NObjectClient::TCellTag> ExternalCellTags_;
 };
@@ -77,14 +103,19 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(ENodeCloneMode, Mode);
 
+    void RegisterSchema(TEntitySerializationKey key, NTableServer::TMasterTableSchema* schema);
+    NTableServer::TMasterTableSchema* GetSchemaOrThrow(TEntitySerializationKey key);
+
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
-    // TODO(babenko): get rid of this separate registry
-    const NTableServer::TTableSchemaRegistryPtr TableSchemaRegistry_;
-
+    TCellLocalObjectLoadRegistry<NTableServer::TMasterTableSchema> SchemaRegistry_;
     TMemoryInput Stream_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer
+
+#define SERIALIZE_INL_H_
+#include "serialize-inl.h"
+#undef SERIALIZE_INL_H_

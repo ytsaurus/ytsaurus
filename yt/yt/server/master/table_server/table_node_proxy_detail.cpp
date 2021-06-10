@@ -1,7 +1,9 @@
 #include "table_node_proxy_detail.h"
 #include "private.h"
+#include "table_manager.h"
 #include "table_node.h"
 #include "replicated_table_node.h"
+#include "master_table_schema.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
@@ -14,8 +16,6 @@
 #include <yt/yt/server/master/chunk_server/helpers.h>
 
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
-
-#include <yt/yt/server/master/table_server/shared_table_schema.h>
 
 #include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_cell.h>
@@ -103,7 +103,7 @@ void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
         if (context->Columns) {
             checkOptions.Columns = std::move(context->Columns);
         } else {
-            const auto& tableSchema = table->GetTableSchema();
+            const auto& tableSchema = table->GetSchema()->AsTableSchema();
             checkOptions.Columns.emplace();
             checkOptions.Columns->reserve(tableSchema.Columns().size());
             for (const auto& columnSchema : tableSchema.Columns()) {
@@ -179,8 +179,10 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(EInternedAttributeKey::Sorted);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::KeyColumns)
         .SetReplicated(true));
+    // TODO(shakurov): make @schema opaque (in favor of @schema_id)?
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Schema)
         .SetReplicated(true));
+    descriptors->push_back(EInternedAttributeKey::SchemaId);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SchemaDuplicateCount));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SortedBy)
         .SetPresent(isSorted));
@@ -400,19 +402,25 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
 
         case EInternedAttributeKey::Sorted:
             BuildYsonFluently(consumer)
-                .Value(table->GetTableSchema().IsSorted());
+                .Value(table->GetSchema()->AsTableSchema().IsSorted());
             return true;
 
         case EInternedAttributeKey::KeyColumns:
             BuildYsonFluently(consumer)
-                .Value(table->GetTableSchema().GetKeyColumns());
+                .Value(table->GetSchema()->AsTableSchema().GetKeyColumns());
             return true;
 
-        case EInternedAttributeKey::SchemaDuplicateCount: {
-            const auto& sharedSchema = table->SharedTableSchema();
-            i64 duplicateCount = sharedSchema ? sharedSchema->GetRefCount() : 0;
+        case EInternedAttributeKey::SchemaId: {
+            auto* schema = table->GetSchema();
             BuildYsonFluently(consumer)
-                .Value(duplicateCount);
+                .Value(schema->GetId());
+            return true;
+        }
+
+        case EInternedAttributeKey::SchemaDuplicateCount: {
+            auto* schema = table->GetSchema();
+            BuildYsonFluently(consumer)
+                .Value(schema->GetObjectRefCounter());
             return true;
         }
 
@@ -426,7 +434,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 break;
             }
             BuildYsonFluently(consumer)
-                .Value(table->GetTableSchema().GetKeyColumns());
+                .Value(table->GetSchema()->AsTableSchema().GetKeyColumns());
             return true;
 
         case EInternedAttributeKey::Dynamic:
@@ -878,7 +886,8 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
         }
 
         case EInternedAttributeKey::Schema: {
-            return table->GetYsonTableSchema();
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            return table->GetSchema()->AsYsonAsync(objectManager);
         }
 
         default:
@@ -989,7 +998,7 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
 
 bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value)
 {
-    const auto* table = GetThisImpl();
+    auto* table = GetThisImpl();
 
     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     auto revision = hydraManager->GetAutomatonVersion().ToRevision();
@@ -1247,8 +1256,8 @@ void TTableNodeProxy::ValidateReadLimit(const NChunkClient::NProto::TReadLimit& 
 
 TComparator TTableNodeProxy::GetComparator() const
 {
-    const auto& schema = GetThisImpl()->GetTableSchema();
-    return schema.ToComparator();
+    auto* schema = GetThisImpl()->GetSchema();
+    return schema->AsTableSchema().ToComparator();
 }
 
 bool TTableNodeProxy::DoInvoke(const IServiceContextPtr& context)
@@ -1266,7 +1275,7 @@ void TTableNodeProxy::ValidateBeginUpload()
     TBase::ValidateBeginUpload();
     const auto* table = GetThisImpl();
 
-    if (table->IsDynamic() && !table->GetTableSchema().IsSorted()) {
+    if (table->IsDynamic() && !table->GetSchema()->AsTableSchema().IsSorted()) {
         THROW_ERROR_EXCEPTION("Cannot upload into ordered dynamic table");
     }
 
@@ -1325,7 +1334,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
     ToProto(response->mutable_table_id(), trunkTable->GetId());
     response->set_dynamic(trunkTable->IsDynamic());
     ToProto(response->mutable_upstream_replica_id(), trunkTable->GetUpstreamReplicaId());
-    ToProto(response->mutable_schema(), trunkTable->GetTableSchema());
+    ToProto(response->mutable_schema(), trunkTable->GetSchema()->AsTableSchema());
     response->set_enable_detailed_profiling(trunkTable->GetEnableDetailedProfiling());
 
     THashSet<TTabletCell*> cells;
@@ -1395,7 +1404,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     const auto& tabletManager = Bootstrap_->GetTabletManager();
     auto* table = LockThisImpl();
     auto dynamic = options.Dynamic.value_or(table->IsDynamic());
-    auto schema = options.Schema.value_or(table->GetTableSchema());
+    auto schema = options.Schema.value_or(table->GetSchema()->AsTableSchema());
 
     // NB: Sorted dynamic tables contain unique keys, set this for user.
     if (dynamic && options.Schema && options.Schema->IsSorted() && !options.Schema->GetUniqueKeys()) {
@@ -1405,7 +1414,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     if (table->IsNative()) {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
-        if (table->GetTableSchema().HasNontrivialSchemaModification()) {
+        if (table->GetSchema()->AsTableSchema().HasNontrivialSchemaModification()) {
             THROW_ERROR_EXCEPTION("Cannot alter table with nontrivial schema modification");
         }
 
@@ -1454,7 +1463,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         }
 
         ValidateTableSchemaUpdate(
-            table->GetTableSchema(),
+            table->GetSchema()->AsTableSchema(),
             schema,
             dynamic,
             table->IsEmpty() && !table->IsDynamic());
@@ -1485,9 +1494,9 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             schema = *schema.ToModifiedSchema(*options.SchemaModification);
         }
 
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        const auto& sharedSchemaRegistry = cypressManager->GetSharedTableSchemaRegistry();
-        table->SharedTableSchema() = sharedSchemaRegistry->GetSchema(std::move(schema));
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        tableManager->GetOrCreateMasterTableSchema(schema, table);
+
         table->SetSchemaMode(ETableSchemaMode::Strong);
     }
 

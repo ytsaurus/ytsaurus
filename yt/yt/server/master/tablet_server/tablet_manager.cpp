@@ -53,16 +53,15 @@
 
 #include <yt/yt/server/lib/hydra/hydra_janitor_helpers.h>
 
-#include <yt/yt/server/master/table_server/table_node.h>
+#include <yt/yt/server/master/table_server/master_table_schema.h>
 #include <yt/yt/server/master/table_server/replicated_table_node.h>
+#include <yt/yt/server/master/table_server/table_manager.h>
+#include <yt/yt/server/master/table_server/table_node.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
-
-#include <yt/yt/server/master/table_server/shared_table_schema.h>
-#include <yt/yt/server/master/table_server/table_manager.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
@@ -1342,7 +1341,7 @@ public:
 
                 // Validate pivot keys against table schema.
                 for (const auto& pivotKey : pivotKeys) {
-                    ValidatePivotKey(pivotKey, table->GetTableSchema());
+                    ValidatePivotKey(pivotKey, table->GetSchema()->AsTableSchema());
                 }
             }
 
@@ -3326,7 +3325,9 @@ private:
                 ToProto(req.mutable_tablet_id(), tablet->GetId());
                 req.set_mount_revision(tablet->GetMountRevision());
                 ToProto(req.mutable_table_id(), table->GetId());
-                ToProto(req.mutable_schema(), table->GetTableSchema());
+
+                ToProto(req.mutable_schema(), table->GetSchema()->AsTableSchema());
+
                 if (table->IsPhysicallySorted()) {
                     ToProto(req.mutable_pivot_key(), tablet->GetPivotKey());
                     ToProto(req.mutable_next_pivot_key(), tablet->GetIndex() + 1 == std::ssize(allTablets)
@@ -3807,7 +3808,7 @@ private:
 
             SortUnique(chunksOrViews, TObjectRefComparer::Compare);
 
-            int keyColumnCount = table->GetTableSchema().GetKeyColumnCount();
+            auto keyColumnCount = table->GetSchema()->AsTableSchema().GetKeyColumnCount();
 
             // Create new tablet chunk lists.
             for (int index = 0; index < newTabletCount; ++index) {

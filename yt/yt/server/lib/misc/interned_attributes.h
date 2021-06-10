@@ -241,6 +241,7 @@
     XX(MemberOf, member_of) \
     XX(MemberOfClosure, member_of_closure) \
     XX(Members, members) \
+    XX(MemoryUsage, memory_usage) \
     XX(MergeJobCounter, merge_job_counter) \
     XX(MergeJobRateLimit, merge_job_rate_limit) \
     XX(MetaSize, meta_size) \
@@ -323,6 +324,7 @@
     XX(RecursiveResourceUsage, recursive_resource_usage) \
     XX(RecursiveViolatedResourceLimits, recursive_violated_resource_limits) \
     XX(RefCounter, ref_counter) \
+    XX(ReferencingAccounts, referencing_accounts) \
     XX(RegisterTime, register_time) \
     XX(Registered, registered) \
     XX(RegisteredMasterCellTags, registered_master_cell_tags) \
@@ -352,6 +354,7 @@
     XX(SchedulingTagFilter, scheduling_tag_filter) \
     XX(Schema, schema) \
     XX(SchemaDuplicateCount, schema_duplicate_count) \
+    XX(SchemaId, schema_id) \
     XX(SchemaMode, schema_mode) \
     XX(Sealed, sealed) \
     XX(SharedToSkynet, shared_to_skynet) \

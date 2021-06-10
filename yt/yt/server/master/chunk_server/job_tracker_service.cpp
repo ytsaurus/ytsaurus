@@ -16,8 +16,6 @@
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
-#include <yt/yt/server/master/table_server/shared_table_schema.h>
-
 #include <yt/yt/server/lib/chunk_server/proto/job.pb.h>
 
 #include <yt/yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>

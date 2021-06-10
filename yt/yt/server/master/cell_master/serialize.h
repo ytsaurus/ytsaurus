@@ -144,6 +144,8 @@ DEFINE_ENUM(EMasterReign,
     ((MakeAbcFolderIdBuiltin)                                       (1618))  // cookiedoth
     ((NoAggregateForHunkColumns)                                    (1619))  // babenko
     ((HunksNotInTabletStatic)                                       (1620))  // ifsmirnov
+    ((TrueTableSchemaObjects)                                       (1621))  // shakurov
+    // 21.3 starts here.
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -151,10 +153,6 @@ DEFINE_ENUM(EMasterReign,
 class TSaveContext
     : public NHydra::TSaveContext
 {
-public:
-    using TSavedSchemaMap = THashMap<NTableServer::TSharedTableSchema*, NObjectClient::TVersionedObjectId>;
-    DEFINE_BYREF_RW_PROPERTY(TSavedSchemaMap, SavedSchemas);
-
 public:
     TEntitySerializationKey RegisterInternedYsonString(NYson::TYsonString str);
 
@@ -171,9 +169,10 @@ class TLoadContext
     : public NHydra::TLoadContext
 {
 public:
+    // COMPAT(shakurov): remove #LoadedSchemas once 21.1 is deployed.
     using TLoadedSchemaMap = THashMap<
         NObjectClient::TVersionedObjectId,
-        NTableServer::TSharedTableSchema*,
+        NTableServer::TMasterTableSchema*,
         NObjectClient::TDirectVersionedObjectIdHash>;
     DEFINE_BYVAL_RO_PROPERTY(TBootstrap*, Bootstrap);
     DEFINE_BYREF_RW_PROPERTY(TLoadedSchemaMap, LoadedSchemas);

@@ -89,7 +89,8 @@ private:
     };
 
 public:
-    DEFINE_BYREF_RW_PROPERTY(TSharedTableSchemaPtr, SharedTableSchema);
+    TMasterTableSchema* Schema_ = nullptr;
+
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::ETableSchemaMode, SchemaMode, NTableClient::ETableSchemaMode::Weak);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp, NTransactionClient::NullTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, UnflushedTimestamp, NTransactionClient::NullTimestamp);
@@ -180,8 +181,8 @@ public:
     NTransactionClient::TTimestamp GetCurrentUnflushedTimestamp(
         NTransactionClient::TTimestamp latestTimestamp) const;
 
-    const NTableClient::TTableSchema& GetTableSchema() const;
-    const TFuture<NYson::TYsonString>& GetYsonTableSchema() const;
+    TMasterTableSchema* GetSchema() const;
+    void SetSchema(TMasterTableSchema* schema);
 
     void UpdateExpectedTabletState(NTabletClient::ETabletState state);
 

@@ -22,13 +22,15 @@
 
 #include <yt/yt/server/master/object_server/object.h>
 
-#include <yt/yt/server/master/table_server/shared_table_schema.h>
+#include <yt/yt/server/master/table_server/master_table_schema.h>
 
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/security_tags.h>
 #include <yt/yt/server/master/security_server/access_log.h>
+
+#include <yt/yt/server/master/table_server/table_manager.h>
 
 #include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
 
@@ -1441,7 +1443,11 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
 {
     DeclareMutating();
 
-    TChunkOwnerBase::TEndUploadContext uploadContext;
+    TChunkOwnerBase::TEndUploadContext uploadContext(Bootstrap_);
+
+    auto tableSchema = request->has_table_schema()
+        ? std::make_optional(FromProto<TTableSchema>(request->table_schema()))
+        : std::nullopt;
 
     uploadContext.SchemaMode = CheckedEnumCast<ETableSchemaMode>(request->schema_mode());
 
@@ -1455,11 +1461,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
 
     if (request->has_md5_hasher()) {
         uploadContext.MD5Hasher = FromProto<std::optional<TMD5Hasher>>(request->md5_hasher());
-    }
-
-    if (request->has_table_schema()) {
-        const auto& registry = Bootstrap_->GetCypressManager()->GetSharedTableSchemaRegistry();
-        uploadContext.Schema = registry->GetSchema(FromProto<TTableSchema>(request->table_schema()));
     }
 
     if (request->has_security_tags()) {
@@ -1496,6 +1497,13 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
 
     auto* node = GetThisImpl<TChunkOwnerBase>();
     YT_VERIFY(node->GetTransaction() == Transaction_);
+
+    const auto& tableManager = Bootstrap_->GetTableManager();
+    if (tableSchema) {
+        uploadContext.Schema = tableManager->GetOrCreateMasterTableSchema(*tableSchema, Transaction_);
+    } else {
+        uploadContext.Schema = tableManager->GetEmptyMasterTableSchema();
+    }
 
     if (node->IsExternal()) {
         ExternalizeToMasters(context, {node->GetExternalCellTag()});

@@ -60,14 +60,18 @@ public:
 
     struct TEndUploadContext
     {
+        explicit TEndUploadContext(NCellMaster::TBootstrap* bootstrap);
+
         std::optional<NCompression::ECodec> CompressionCodec;
         std::optional<NErasure::ECodec> ErasureCodec;
         const NChunkClient::NProto::TDataStatistics* Statistics = nullptr;
-        NTableServer::TSharedTableSchemaPtr Schema;
+        NTableServer::TMasterTableSchema* Schema;
         NTableClient::ETableSchemaMode SchemaMode = NTableClient::ETableSchemaMode::Weak;
         std::optional<NTableClient::EOptimizeFor> OptimizeFor;
         std::optional<NCrypto::TMD5Hasher> MD5Hasher;
         NSecurityServer::TInternedSecurityTags SecurityTags;
+
+        NCellMaster::TBootstrap* const Bootstrap;
     };
 
     virtual void EndUpload(const TEndUploadContext& context);
