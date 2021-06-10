@@ -650,11 +650,12 @@ private:
         ScheduleTestingDisconnect();
     }
 
-    void OnLockTransactionAborted()
+    void OnLockTransactionAborted(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        Disconnect(TError("Lock transaction aborted"));
+        Disconnect(TError("Lock transaction aborted")
+            << error);
     }
 
 

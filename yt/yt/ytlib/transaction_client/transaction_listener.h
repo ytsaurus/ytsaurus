@@ -47,7 +47,7 @@ private:
     THashMap<TTransactionId, NConcurrency::TPeriodicExecutorPtr> TransactionIdToProbeExecutor_;
 
     void ProbeTransaction(const NApi::ITransactionPtr& transaction);
-    void OnTransactionAborted(TTransactionId transactionId);
+    void OnTransactionAborted(TTransactionId transactionId, const TError& error);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

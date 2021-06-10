@@ -163,7 +163,7 @@ void TDiscovery::DoEnter(TString name, IAttributeDictionaryPtr attributes)
         NameAndAttributes_ = {name, attributes};
     }
 
-    TransactionRestorer_ = BIND(&TDiscovery::DoRestoreTransaction, MakeWeak(this), Epoch_)
+    TransactionAbortedHandler_ = BIND(&TDiscovery::DoRestoreTransaction, MakeWeak(this), Epoch_)
         .Via(Invoker_);
 
     DoCreateNode(Epoch_);
@@ -179,7 +179,7 @@ void TDiscovery::DoLeave()
     // Transaction can be null during "restore" routine.
     // An epoch increment will stop restore attempts, so no more actions are required in this case.
     if (Transaction_) {
-        Transaction_->UnsubscribeAborted(TransactionRestorer_);
+        Transaction_->UnsubscribeAborted(TransactionAbortedHandler_);
 
         auto transactionId = Transaction_->GetId();
         auto error = WaitFor(Transaction_->Abort());
@@ -309,16 +309,16 @@ void TDiscovery::DoLockNode(int epoch)
 
     Transaction_ = std::move(transaction);
     // Set it here to avoid restoring transaction without lock.
-    Transaction_->SubscribeAborted(TransactionRestorer_);
+    Transaction_->SubscribeAborted(TransactionAbortedHandler_);
 
     YT_LOG_DEBUG("Lock completed (TransactionId: %v, LockId: %v)",
         Transaction_->GetId(),
         lock.LockId);
 }
 
-void TDiscovery::DoRestoreTransaction(int epoch)
+void TDiscovery::DoRestoreTransaction(int epoch, const TError& error)
 {
-    YT_LOG_WARNING("Lock transaction aborted (Epoch: %v)", epoch);
+    YT_LOG_WARNING(error, "Lock transaction aborted (Epoch: %v)", epoch);
     while (Epoch_ == epoch) {
         try {
             Transaction_.Reset();

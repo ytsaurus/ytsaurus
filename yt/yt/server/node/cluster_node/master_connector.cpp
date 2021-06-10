@@ -335,11 +335,11 @@ private:
             std::move(tags));
     }
 
-    void OnLeaseTransactionAborted()
+    void OnLeaseTransactionAborted(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_WARNING("Master transaction lease aborted");
+        YT_LOG_WARNING(error, "Master transaction lease aborted");
 
         ResetAndRegisterAtMaster(/* firstTime */ false);
     }

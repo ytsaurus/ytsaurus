@@ -284,23 +284,23 @@ public:
     }
 
 
-    virtual void SubscribeCommitted(const TClosure& callback) override
+    virtual void SubscribeCommitted(const TCommittedHandler& callback) override
     {
         Transaction_->SubscribeCommitted(callback);
     }
 
-    virtual void UnsubscribeCommitted(const TClosure& callback) override
+    virtual void UnsubscribeCommitted(const TCommittedHandler& callback) override
     {
         Transaction_->UnsubscribeCommitted(callback);
     }
 
 
-    virtual void SubscribeAborted(const TClosure& callback) override
+    virtual void SubscribeAborted(const TAbortedHandler& callback) override
     {
         Transaction_->SubscribeAborted(callback);
     }
 
-    virtual void UnsubscribeAborted(const TClosure& callback) override
+    virtual void UnsubscribeAborted(const TAbortedHandler& callback) override
     {
         Transaction_->UnsubscribeAborted(callback);
     }

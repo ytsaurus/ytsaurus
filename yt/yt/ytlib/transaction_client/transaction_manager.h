@@ -3,7 +3,7 @@
 #include "public.h"
 #include "config.h"
 
-#include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -97,10 +97,10 @@ public:
 
 
     //! Raised when the transaction is committed.
-    DECLARE_SIGNAL(void(), Committed);
+    DECLARE_SIGNAL(NApi::ITransaction::TCommittedHandlerSignature, Committed);
 
     //! Raised when the transaction is aborted.
-    DECLARE_SIGNAL(void(), Aborted);
+    DECLARE_SIGNAL(NApi::ITransaction::TAbortedHandlerSignature, Aborted);
 
 private:
     class TImpl;

@@ -807,7 +807,7 @@ private:
         {
             return;
         }
-        
+
         YT_LOG_INFO("Notify operations that agent is going to unregister (AgentId: %v, IncarnationId: %v)",
             agent->GetId(),
             agent->GetIncarnationId());
@@ -875,7 +875,7 @@ private:
         UnregisterAgent(agent);
     }
 
-    void OnAgentIncarnationTransactionAborted(const TWeakPtr<TControllerAgent>& weakAgent)
+    void OnAgentIncarnationTransactionAborted(const TWeakPtr<TControllerAgent>& weakAgent, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -884,7 +884,7 @@ private:
             return;
         }
 
-        YT_LOG_WARNING("Agent incarnation transaction aborted; unregistering (AgentId: %v, IncarnationId: %v)",
+        YT_LOG_WARNING(error, "Agent incarnation transaction aborted; unregistering (AgentId: %v, IncarnationId: %v)",
             agent->GetId(),
             agent->GetIncarnationId());
 
@@ -900,7 +900,7 @@ private:
         batchReq->AddRequest(req, "get_agent_list");
     }
 
-    void HandleControllerAgentInstances(const NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) 
+    void HandleControllerAgentInstances(const NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
