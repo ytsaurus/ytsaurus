@@ -994,6 +994,15 @@ protected:
             if (ChunkSpec_.has_upper_limit()) {
                 *chunkSpec.mutable_upper_limit() = ChunkSpec_.upper_limit();
             }
+            if (ChunkSpec_.has_tablet_index()) {
+                chunkSpec.set_tablet_index(ChunkSpec_.tablet_index());
+            }
+            if (ChunkSpec_.has_range_index()) {
+                chunkSpec.set_range_index(ChunkSpec_.range_index());
+            }
+            if (ChunkSpec_.has_table_index()) {
+                chunkSpec.set_table_index(ChunkSpec_.table_index());
+            }
             std::swap(ChunkSpec_, chunkSpec);
             PatchChunkSpecWithContinuationToken();
 

@@ -34,7 +34,7 @@ def _validate_tablet_statistics(table):
     wait(lambda: check_statistics(get("#{0}/@total_statistics".format(cell_id))))
 
 
-def _make_path_with_range(path, lower_limit, upper_limit):
+def _make_range(lower_limit, upper_limit):
     range = {}
     if lower_limit:
         range["lower_limit"] = {
@@ -46,6 +46,11 @@ def _make_path_with_range(path, lower_limit, upper_limit):
             "tablet_index": upper_limit[0],
             "row_index": upper_limit[1]
         }
+    return range
+
+
+def _make_path_with_range(path, lower_limit, upper_limit):
+    range = _make_range(lower_limit, upper_limit)
     return to_yson_type(path, attributes={"ranges": [range]})
 
 ##################################################################
@@ -639,6 +644,111 @@ class TestReadOrderedDynamicTables(TestOrderedDynamicTablesBase):
 
         for output_table, op, rows in operations:
             assert_items_equal(read_table(output_table), rows)
+
+    @pytest.mark.parametrize("disturbance_type", ["cell_move", "unmount", "flush_under_lock"])
+    def test_locate_control_attributes(self, disturbance_type):
+        cell_id = sync_create_cells(1)[0]
+
+        self._create_simple_table(
+            "//tmp/t",
+            dynamic_store_auto_flush_period=YsonEntity(),
+            tablet_count=3)
+        sync_mount_table("//tmp/t")
+
+        rows = [{"a": i, "$tablet_index": i / 5} for i in range(15)]
+        insert_rows("//tmp/t", rows)
+
+        ranges = [
+            _make_range((0, 2), (1, 4)),
+            _make_range((1, 1), (2, 3)),
+            {},
+        ]
+        expected = [
+            list(range(0 * 5 + 2, 1 * 5 + 4)),
+            list(range(1 * 5 + 1, 2 * 5 + 3)),
+            list(range(15)),
+        ]
+
+        path = to_yson_type("//tmp/t", attributes={"ranges": ranges})
+
+        spec = {
+            "mapper": {
+                "input_format": yson.loads("<format=text>yson"),
+                "output_format": yson.loads("<columns=[a]>schemaful_dsv"),
+                "enable_input_table_index": True,
+            },
+            "job_io": {
+                "control_attributes": {
+                    "enable_row_index": True,
+                    "enable_tablet_index": True,
+                    "enable_range_index": True,
+                    "enable_table_index": True,
+                }
+            }
+        }
+
+        if disturbance_type == "flush_under_lock":
+            tx = start_transaction(timeout=60000)
+            lock("//tmp/t", mode="snapshot", tx=tx)
+            sync_freeze_table("//tmp/t")
+        else:
+            tx = "0-0-0-0"
+            spec["testing"] = {"delay_inside_materialize": 5000}
+
+        create("table", "//tmp/out")
+        create("table", "//tmp/empty_table")
+        op = map(
+            in_=["//tmp/empty_table", path],
+            out="//tmp/out",
+            command="cat",
+            spec=spec,
+            track=False,
+            tx=tx,
+        )
+
+        if disturbance_type != "flush_under_lock":
+            wait(lambda: op.get_state() == "materializing")
+
+        if disturbance_type == "cell_move":
+            self._disable_tablet_cells_on_peer(cell_id)
+        elif disturbance_type == "unmount":
+            sync_unmount_table("//tmp/t")
+        elif disturbance_type == "flush_under_lock":
+            pass
+        else:
+            assert False
+
+        op.track()
+
+        if tx != "0-0-0-0":
+            commit_transaction(tx)
+
+        actual = [[], [], []]
+        current_range_index = None
+        current_tablet_index = None
+        current_row_index = None
+
+        output_rows = read_table("//tmp/out")
+        assert yson.loads(output_rows[0]["a"].rstrip(";")).attributes["table_index"] == 1
+        for yson_row in output_rows[1:]:
+            row = yson.loads(yson_row["a"].rstrip(";"))
+            if "tablet_index" in row.attributes:
+                current_tablet_index = row.attributes["tablet_index"]
+            elif "row_index" in row.attributes:
+                current_row_index = row.attributes["row_index"]
+            elif "range_index" in row.attributes:
+                current_range_index = row.attributes["range_index"]
+            else:
+                assert not row.attributes
+                key = row["a"]
+                assert key % 5 == current_row_index
+                assert key / 5 == current_tablet_index
+                current_row_index += 1
+                actual[current_range_index].append(key)
+
+        for values in actual:
+            values.sort()
+        assert expected == actual
 
 
 ##################################################################
