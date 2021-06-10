@@ -16,9 +16,7 @@ template <class T>
     YT_ASSERT(future);
     YT_ASSERT(invoker);
 
-    if (!future.IsSet()) {
-        WaitUntilSet(future.AsVoid(), std::move(invoker));
-    }
+    WaitUntilSet(future.AsVoid(), std::move(invoker));
 
     return future.Get();
 }
@@ -29,11 +27,19 @@ template <class T>
     YT_ASSERT(future);
     YT_ASSERT(invoker);
 
-    if (!future.IsSet()) {
-        WaitUntilSet(future.AsVoid(), std::move(invoker));
-    }
+    WaitUntilSet(future.AsVoid(), std::move(invoker));
 
     return future.GetUnique();
+}
+
+inline void Yield()
+{
+    WaitUntilSet(VoidFuture);
+}
+
+inline void SwitchTo(IInvokerPtr invoker)
+{
+    WaitUntilSet(VoidFuture, invoker);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
