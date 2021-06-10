@@ -1198,6 +1198,8 @@ void TSortedStoreManager::TrySplitPartitionByAddedStores(
             proposedPivots.size());
 
         partition->RequestImmediateSplit(std::move(proposedPivots));
+
+        Tablet_->GetStructuredLogger()->OnImmediatePartitionSplitRequested(partition);
     }
 }
 
