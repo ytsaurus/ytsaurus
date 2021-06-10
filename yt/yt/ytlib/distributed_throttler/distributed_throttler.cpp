@@ -322,7 +322,7 @@ public:
             for (const auto& throttlerId : throttlerIdsByShard[i]) {
                 auto totalLimitIt = throttlerShard.ThrottlerIdToTotalLimit.find(throttlerId);
                 if (totalLimitIt == throttlerShard.ThrottlerIdToTotalLimit.end()) {
-                    YT_LOG_WARNING("There is no total limit for throttler (ThrottlerId: %v)", throttlerId);
+                    YT_LOG_DEBUG("There is no total limit for throttler (ThrottlerId: %v)", throttlerId);
                     continue;
                 }
 
@@ -339,7 +339,7 @@ public:
                     }
                     auto limitIt = throttlerIdToLimits.find(throttlerId);
                     if (limitIt == throttlerIdToLimits.end()) {
-                        YT_LOG_WARNING("There is no total limit for throttler (ThrottlerId: %v)", throttlerId);
+                        YT_LOG_DEBUG("There is no total limit for throttler (ThrottlerId: %v)", throttlerId);
                     } else {
                         YT_VERIFY(result.emplace(throttlerId, limitIt->second).second);
                     }
