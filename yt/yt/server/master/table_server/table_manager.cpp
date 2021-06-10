@@ -432,7 +432,10 @@ public:
 
     void LoadKeys(NCellMaster::TLoadContext& context)
     {
-        MasterTableSchemaMap_.LoadKeys(context);
+        // COMPAT(shakurov)
+        if (context.GetVersion() >= EMasterReign::TrueTableSchemaObjects) {
+            MasterTableSchemaMap_.LoadKeys(context);
+        }
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
