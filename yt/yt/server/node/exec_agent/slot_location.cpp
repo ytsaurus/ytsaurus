@@ -795,7 +795,6 @@ void TSlotLocation::UpdateDiskResources()
             diskLimit,
             Config_->MediumName);
 
-
         auto mediumDescriptor = GetMediumDescriptor();
         if (mediumDescriptor.Index != NChunkClient::GenericMediumIndex) {
             auto guard = WriterGuard(DiskResourcesLock_);
@@ -811,7 +810,6 @@ void TSlotLocation::UpdateDiskResources()
 
     YT_LOG_DEBUG("Disk resources updated");
 }
-
 
 void TSlotLocation::UpdateSlotLocationStatistics()
 {

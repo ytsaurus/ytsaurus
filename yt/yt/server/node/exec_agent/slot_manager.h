@@ -94,15 +94,14 @@ public:
      */
     void InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 
-    //! Returns event which is set when initial value of "JobProxyUnavailable" alert
-    //! is consistent (i.e. when OnJobProxyBuildInfoUpdated is called for the first time).
-    TFuture<void> GetJobProxyBuildInfoReadyEvent() const;
-
 private:
     const TSlotManagerConfigPtr Config_;
     NClusterNode::TBootstrap* const Bootstrap_;
     const int SlotCount_;
     const TString NodeTag_;
+
+    std::atomic_bool Initialized_ = false;
+    std::atomic_bool JobProxyReady_ = false;
 
     TAtomicObject<TSlotManagerDynamicConfigPtr> DynamicConfig_;
 
@@ -124,16 +123,11 @@ private:
 
     int DefaultMediumIndex_ = NChunkClient::DefaultSlotsMediumIndex;
 
-    //! Sets once at the beginning of the program (namely, during initialization stage of the node)
-    //! to make sure we start with a correct understanding of current job proxy status. This eliminates
-    //! the possibility of the first job being scheduled to this node before we find out there is no
-    //! ytserver-job-proxy binary, which may theoretically happen since job proxy is prepared asynchronously
-    //! by ytcfgen.
-    TPromise<void> JobProxyBuildInfoReadyEvent_ = NewPromise<void>();
-
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
     bool HasSlotDisablingAlert() const;
+
+    void AsyncInitialize();
 
     /*!
      *  \note
