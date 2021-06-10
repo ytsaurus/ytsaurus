@@ -1738,6 +1738,8 @@ class TestAccounts(AccountsTestSuiteBase):
             get("#" + t2_schema_id + "/@memory_usage") - get("#" + t1_schema_id + "/@memory_usage")
         assert memory_usage_delta > 0
 
+        master_memory_sleep()
+
         old_memory_usage = get("//sys/accounts/a/@resource_usage/master_memory")
         copy("//tmp/t2", "//tmp/t1", force=True)  # NB: overwriting.
         set("//tmp/t1/@account", "a")
