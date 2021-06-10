@@ -38,6 +38,7 @@
 #include <yt/yt/server/master/object_server/map_object_type_handler.h>
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
+#include <yt/yt/server/master/table_server/master_table_schema.h>
 #include <yt/yt/server/master/table_server/table_node.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
@@ -866,35 +867,100 @@ public:
 
     void ResetMasterMemoryUsage(TCypressNode* node)
     {
-        ChargeMasterMemoryUsage(node, {});
+        auto* account = node->GetAccount();
+        auto chargedMasterMemoryUsage = ChargeMasterMemoryUsage(
+            account,
+            TDetailedMasterMemory(),
+            node->ChargedDetailedMasterMemoryUsage());
+        YT_ASSERT(chargedMasterMemoryUsage == TDetailedMasterMemory());
+        node->ChargedDetailedMasterMemoryUsage() = chargedMasterMemoryUsage;
+
+        if (IsTableType(node->GetType())) {
+            // NB: this may also be a replicated table.
+            const auto* table = node->As<TTableNode>();
+            ResetMasterMemoryUsage(table->GetSchema(), account);
+        }
     }
 
-    void UpdateMasterMemoryUsage(TCypressNode* node)
-    {
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        const auto& typeHandler = cypressManager->GetHandler(node);
-
-        auto detailedMasterMemoryUsage = node->GetDetailedMasterMemoryUsage();
-        auto staticMasterMemoryUsage = typeHandler->GetStaticMasterMemoryUsage();
-        detailedMasterMemoryUsage[EMasterMemoryType::Nodes] += staticMasterMemoryUsage;
-        
-        ChargeMasterMemoryUsage(
-            node,
-            detailedMasterMemoryUsage);
-    }
-
-    void ChargeMasterMemoryUsage(
-        TCypressNode* node,
-        const TDetailedMasterMemory& currentDetailedMasterMemoryUsage)
+    void UpdateMasterMemoryUsage(TCypressNode* node, bool accountChanged = false)
     {
         auto* account = node->GetAccount();
         if (!account) {
             return;
         }
 
-        auto delta = currentDetailedMasterMemoryUsage - node->ChargedDetailedMasterMemoryUsage();
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto& typeHandler = cypressManager->GetHandler(node);
+        auto detailedMasterMemoryUsage = node->GetDetailedMasterMemoryUsage();
+        auto staticMasterMemoryUsage = typeHandler->GetStaticMasterMemoryUsage();
+        detailedMasterMemoryUsage[EMasterMemoryType::Nodes] += staticMasterMemoryUsage;
+        auto chargedMasterMemoryUsage = ChargeMasterMemoryUsage(
+            account,
+            detailedMasterMemoryUsage,
+            node->ChargedDetailedMasterMemoryUsage());
+        YT_ASSERT(chargedMasterMemoryUsage == detailedMasterMemoryUsage);
+        node->ChargedDetailedMasterMemoryUsage() = chargedMasterMemoryUsage;
 
-        YT_LOG_TRACE("Updating master memory usage (Account: %v, MasterMemoryUsage: %v, Delta: %v)",
+        if (accountChanged && IsTableType(node->GetType())) {
+            // NB: this may also be a replicated table.
+            auto* table = node->As<TTableNode>();
+            UpdateMasterMemoryUsage(table->GetSchema(), account);
+        }
+    }
+
+    void ResetMasterMemoryUsage(TMasterTableSchema* schema, TAccount* account)
+    {
+        YT_VERIFY(IsObjectAlive(account));
+
+        if (!schema) {
+            return;
+        }
+
+        if (schema->UnrefBy(account)) {
+            TDetailedMasterMemory currentMasterMemoryUsage; // Leaving empty.
+
+            TDetailedMasterMemory chargedMasterMemoryUsage;
+            chargedMasterMemoryUsage[EMasterMemoryType::Schemas] += schema->GetChargedMasterMemoryUsage(account);
+
+            chargedMasterMemoryUsage = ChargeMasterMemoryUsage(account, currentMasterMemoryUsage, chargedMasterMemoryUsage);
+            YT_ASSERT(chargedMasterMemoryUsage == currentMasterMemoryUsage);
+
+            schema->SetChargedMasterMemoryUsage(
+                account,
+                chargedMasterMemoryUsage[EMasterMemoryType::Schemas]);
+        }
+    }
+
+    void UpdateMasterMemoryUsage(TMasterTableSchema* schema, TAccount* account)
+    {
+        if (!schema) {
+            return;
+        }
+
+        YT_VERIFY(IsObjectAlive(account));
+
+        if (schema->RefBy(account)) {
+            TDetailedMasterMemory currentMasterMemoryUsage;
+            currentMasterMemoryUsage[EMasterMemoryType::Schemas] += schema->GetMasterMemoryUsage(account);
+
+            TDetailedMasterMemory chargedMasterMemoryUsage;
+            chargedMasterMemoryUsage[EMasterMemoryType::Schemas] += schema->GetChargedMasterMemoryUsage(account);
+
+            chargedMasterMemoryUsage = ChargeMasterMemoryUsage(account, currentMasterMemoryUsage, chargedMasterMemoryUsage);
+            YT_ASSERT(chargedMasterMemoryUsage == currentMasterMemoryUsage);
+            schema->SetChargedMasterMemoryUsage(
+                account,
+                chargedMasterMemoryUsage[EMasterMemoryType::Schemas]);
+        }
+    }
+
+    [[nodiscard]] TDetailedMasterMemory ChargeMasterMemoryUsage(
+        TAccount* account,
+        const TDetailedMasterMemory& currentDetailedMasterMemoryUsage,
+        const TDetailedMasterMemory& chargedDetailedMasterMemoryUsage)
+    {
+        auto delta = currentDetailedMasterMemoryUsage - chargedDetailedMasterMemoryUsage;
+        YT_LOG_TRACE_IF(IsMutationLoggingEnabled(), "Updating master memory usage (Account: %v, MasterMemoryUsage: %v, Delta: %v)",
             account->GetName(),
             account->DetailedMasterMemoryUsage(),
             delta);
@@ -908,7 +974,7 @@ public:
                 account->GetName(),
                 account->DetailedMasterMemoryUsage());
         }
-        node->ChargedDetailedMasterMemoryUsage() = currentDetailedMasterMemoryUsage;
+        return currentDetailedMasterMemoryUsage;
     }
 
     void ResetTransactionAccountResourceUsage(TTransaction* transaction)
@@ -974,7 +1040,7 @@ public:
         }
         UpdateAccountNodeCountUsage(node, newAccount, transaction, +1);
         node->SetAccount(newAccount);
-        UpdateMasterMemoryUsage(node);
+        UpdateMasterMemoryUsage(node, /*accountChanged*/ true);
         objectManager->RefObject(newAccount);
         UpdateAccountTabletResourceUsage(node, oldAccount, true, newAccount, !transaction);
     }
@@ -2858,7 +2924,7 @@ private:
                 auto* table = node->As<TTableNode>();
                 table->RecomputeTabletMasterMemoryUsage();
             }
-            UpdateMasterMemoryUsage(node);
+            UpdateMasterMemoryUsage(node, /*accountChanged*/ true);
         }
 
         auto chargeAccount = [&] (TAccount* account, int /*mediumIndex*/, i64 /*chunkCount*/, i64 /*diskSpace*/, i64 masterMemoryUsage, bool /*committed*/) {
@@ -4145,9 +4211,19 @@ void TSecurityManager::UpdateTransactionResourceUsage(const TChunk* chunk, const
     Impl_->UpdateTransactionResourceUsage(chunk, requisition, delta);
 }
 
-void TSecurityManager::UpdateMasterMemoryUsage(NCypressServer::TCypressNode* node)
+void TSecurityManager::UpdateMasterMemoryUsage(TCypressNode* node)
 {
     Impl_->UpdateMasterMemoryUsage(node);
+}
+
+void TSecurityManager::UpdateMasterMemoryUsage(TMasterTableSchema* schema, TAccount* account)
+{
+    Impl_->UpdateMasterMemoryUsage(schema, account);
+}
+
+void TSecurityManager::ResetMasterMemoryUsage(TMasterTableSchema* schema, TAccount* account)
+{
+    Impl_->ResetMasterMemoryUsage(schema, account);
 }
 
 void TSecurityManager::ResetTransactionAccountResourceUsage(TTransaction* transaction)

@@ -1,5 +1,7 @@
 package NYT.NCypressClient.NProto;
 
+import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
+
 import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt_proto/yt/core/ytree/proto/attributes.proto";
 import "yt_proto/yt/core/ytree/proto/ypath.proto";
@@ -91,13 +93,21 @@ message TSerializedTree
     optional int32 codec_id = 3; // ECodec
 }
 
+message TRegisteredSchema
+{
+    required int32 key = 1; // TEntitySerializationKey
+    required NYT.NTableClient.NProto.TTableSchemaExt schema = 2;
+}
+
 message TRspBeginCopy
 {
+
     required TSerializedTree serialized_tree = 1;
     repeated NYT.NProto.TGuid portal_child_ids = 2;
     repeated int32 external_cell_tags = 3;
     required NYT.NProto.TGuid node_id = 4;
     repeated string opaque_child_paths = 5;
+    repeated TRegisteredSchema schemas = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -121,6 +131,8 @@ message TReqEndCopy
     required int32 mode = 1; // ENodeCloneMode
     optional bool inplace = 12;
     required TSerializedTree serialized_tree = 10;
+
+    repeated TRegisteredSchema schemas = 17;
 }
 
 message TRspEndCopy

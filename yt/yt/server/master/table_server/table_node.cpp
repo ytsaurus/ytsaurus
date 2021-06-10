@@ -1,6 +1,7 @@
 #include "table_node.h"
-#include "shared_table_schema.h"
 #include "private.h"
+#include "master_table_schema.h"
+#include "table_manager.h"
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
@@ -158,7 +159,7 @@ void TTableNode::EndUpload(const TEndUploadContext& context)
 {
     if (IsDynamic()) {
         if (SchemaMode_ != context.SchemaMode ||
-            SharedTableSchema()->GetTableSchema() != context.Schema->GetTableSchema())
+            GetSchema()->AsTableSchema() != context.Schema->AsTableSchema())
         {
             YT_LOG_ALERT("Schema of a dynamic table changed during end upload (TableId: %v, TransactionId: %v, "
                 "OriginalSchemaMode: %v, NewSchemaMode: %v, OriginalSchema: %v, NewSchema: %v)",
@@ -166,13 +167,16 @@ void TTableNode::EndUpload(const TEndUploadContext& context)
                 GetTransaction()->GetId(),
                 SchemaMode_,
                 context.SchemaMode,
-                SharedTableSchema()->GetTableSchema(),
-                context.Schema->GetTableSchema());
+                GetSchema()->AsTableSchema(),
+                context.Schema->AsTableSchema());
         }
     }
 
     SchemaMode_ = context.SchemaMode;
-    SharedTableSchema() = context.Schema;
+
+    const auto& tableManager = context.Bootstrap->GetTableManager();
+    tableManager->SetTableSchema(this, context.Schema);
+
     if (context.OptimizeFor) {
         OptimizeFor_.Set(*context.OptimizeFor);
     }
@@ -228,12 +232,12 @@ void TTableNode::RecomputeTabletMasterMemoryUsage()
 
 bool TTableNode::IsSorted() const
 {
-    return GetTableSchema().IsSorted();
+    return GetSchema()->AsTableSchema().IsSorted();
 }
 
 bool TTableNode::IsUniqueKeys() const
 {
-    return GetTableSchema().IsUniqueKeys();
+    return GetSchema()->AsTableSchema().IsUniqueKeys();
 }
 
 bool TTableNode::IsReplicated() const
@@ -306,23 +310,46 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
 void TTableNode::LoadTableSchema(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
-    const auto& registry = context.GetBootstrap()->GetCypressManager()->GetSharedTableSchemaRegistry();
 
-    switch (Load<ESchemaSerializationMethod>(context)) {
-        case ESchemaSerializationMethod::Schema: {
-            SharedTableSchema() = registry->GetSchema(Load<TTableSchema>(context));
-            auto inserted = context.LoadedSchemas().emplace(GetVersionedId(), SharedTableSchema().Get()).second;
-            YT_VERIFY(inserted);
-            break;
+    // COMPAT(shakurov)
+    if (context.GetVersion() < EMasterReign::TrueTableSchemaObjects) {
+        // NB: using the table manager (which is global by its nature) only works
+        // here for compat-loading a snapshot. Loading this way during EndCopy
+        // would cause trouble. Luckily, there's no need for that.
+        const auto& tableManager = context.GetBootstrap()->GetTableManager();
+        auto* emptyMasterTableSchema = tableManager->GetEmptyMasterTableSchema();
+        const auto& emptyTableSchema = emptyMasterTableSchema->AsTableSchema();
+
+        switch (Load<ESchemaSerializationMethod>(context)) {
+            case ESchemaSerializationMethod::Schema: {
+                auto tableSchema = Load<TTableSchema>(context);
+                if (tableSchema == emptyTableSchema) {
+                    Schema_ = emptyMasterTableSchema;
+                } else {
+                    auto tableSchemaId = ReplaceTypeInId(Id_, EObjectType::MasterTableSchema);
+                    auto versionedIdHash = NObjectClient::TDirectVersionedObjectIdHash()(GetVersionedId());
+                    tableSchemaId.Parts32[0] = static_cast<ui32>(versionedIdHash);
+                    Schema_ = tableManager->CreateMasterTableSchemaUnsafely(tableSchemaId, tableSchema);
+                }
+                YT_VERIFY(context.LoadedSchemas().emplace(GetVersionedId(), Schema_).second);
+
+                break;
+            }
+            case ESchemaSerializationMethod::TableIdWithSameSchema: {
+                auto previousTableId = Load<TVersionedObjectId>(context);
+                auto it = context.LoadedSchemas().find(previousTableId);
+                YT_VERIFY(it != context.LoadedSchemas().end());
+                Schema_ = it->second;
+                break;
+            }
+            default:
+                YT_ABORT();
         }
-        case ESchemaSerializationMethod::TableIdWithSameSchema: {
-            auto previousTableId = Load<TVersionedObjectId>(context);
-            YT_VERIFY(context.LoadedSchemas().contains(previousTableId));
-            SharedTableSchema() = context.LoadedSchemas().at(previousTableId);
-            break;
-        }
-        default:
-            YT_ABORT();
+
+        const auto& objectManager = context.GetBootstrap()->GetObjectManager();
+        objectManager->RefObject(Schema_);
+    } else {
+        Load(context, Schema_);
     }
 }
 
@@ -330,17 +357,7 @@ void TTableNode::SaveTableSchema(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
 
-    // NB `emplace' doesn't overwrite existing element so if key is already preset in map it won't be updated.
-    auto pair = context.SavedSchemas().emplace(SharedTableSchema().Get(), GetVersionedId());
-    auto insertedNew = pair.second;
-    if (insertedNew) {
-        Save(context, ESchemaSerializationMethod::Schema);
-        Save(context, GetTableSchema());
-    } else {
-        const auto& previousId = pair.first->second;
-        Save(context, ESchemaSerializationMethod::TableIdWithSameSchema);
-        Save(context, previousId);
-    }
+    Save(context, Schema_);
 }
 
 std::pair<TTableNode::TTabletListIterator, TTableNode::TTabletListIterator> TTableNode::GetIntersectingTablets(
@@ -435,14 +452,14 @@ TTimestamp TTableNode::CalculateRetainedTimestamp() const
     return result;
 }
 
-const NTableClient::TTableSchema& TTableNode::GetTableSchema() const
+TMasterTableSchema* TTableNode::GetSchema() const
 {
-    return SharedTableSchema() ? SharedTableSchema()->GetTableSchema() : TSharedTableSchemaRegistry::EmptyTableSchema;
+    return Schema_;
 }
 
-const TFuture<TYsonString>& TTableNode::GetYsonTableSchema() const
+void TTableNode::SetSchema(TMasterTableSchema* schema)
 {
-    return SharedTableSchema() ? SharedTableSchema()->GetYsonTableSchema() : TSharedTableSchemaRegistry::EmptyYsonTableSchema;
+    Schema_ = schema;
 }
 
 void TTableNode::UpdateExpectedTabletState(ETabletState state)

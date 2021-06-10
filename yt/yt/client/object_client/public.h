@@ -196,6 +196,10 @@ DEFINE_ENUM(EObjectType,
     ((HttpProxyRoleMap)              (427))
     ((RpcProxyRoleMap)               (429))
 
+    // Table Manager stuff
+    ((MasterTableSchema)            (1300))
+    ((MasterTableSchemaMap)         (1301))
+
     // Global stuff
     // A mysterious creature representing the master as a whole.
     ((Master)                        (600))

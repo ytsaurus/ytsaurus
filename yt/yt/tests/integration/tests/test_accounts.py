@@ -9,6 +9,8 @@ from yt_commands import *  # noqa
 
 from yt.yson import to_yson_type, YsonEntity
 
+import __builtin__
+
 ##################################################################
 
 
@@ -1714,6 +1716,39 @@ class TestAccounts(AccountsTestSuiteBase):
 
         remove("//tmp/dir1")
         wait(lambda: self._get_master_memory_usage("a") == 0)
+
+    @authors("shakurov")
+    def test_master_memory_schema_accounting(self):
+        create_account("a")
+
+        create("table", "//tmp/t1", attributes={"account": "a"})
+        create("table", "//tmp/t2", attributes={
+            "account": "tmp",
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ]})
+
+        master_memory_sleep()
+
+        t1_schema_id = get("//tmp/t1/@schema_id")
+        t2_schema_id = get("//tmp/t2/@schema_id")
+        assert __builtin__.set(get("#" + t2_schema_id + "/@referencing_accounts")) == {"tmp"}
+        memory_usage_delta = \
+            get("#" + t2_schema_id + "/@memory_usage") - get("#" + t1_schema_id + "/@memory_usage")
+        assert memory_usage_delta > 0
+
+        old_memory_usage = get("//sys/accounts/a/@resource_usage/master_memory")
+        copy("//tmp/t2", "//tmp/t1", force=True)  # NB: overwriting.
+        set("//tmp/t1/@account", "a")
+        assert get("//tmp/t1/@schema_id") == t2_schema_id
+        expected_memory_usage = old_memory_usage + memory_usage_delta
+        if get("//tmp/t1/@external"):
+            # Schema object is present on external cell also.
+            expected_memory_usage += memory_usage_delta
+        assert __builtin__.set(get("#" + t2_schema_id + "/@referencing_accounts")) == {"tmp", "a"}
+        wait(lambda: get("//sys/accounts/a/@resource_usage/master_memory") == expected_memory_usage,
+             sleep_backoff=2.0)
 
     @authors("babenko")
     def test_regular_disk_usage(self):

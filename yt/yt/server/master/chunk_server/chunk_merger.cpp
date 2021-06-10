@@ -14,6 +14,8 @@
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
+#include <yt/yt/server/master/node_tracker_server/node.h>
+
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
 
 #include <yt/yt/server/master/table_server/table_node.h>
@@ -775,10 +777,7 @@ bool TChunkMerger::CreateMergeJob(TNode* node, const TMergeJobInfo& jobInfo, TJo
     TChunkMergerWriterOptions chunkMergerWriterOptions;
     if (chunkOwner->GetType() == EObjectType::Table) {
         const auto* table = chunkOwner->As<TTableNode>();
-        const auto& schema = table->SharedTableSchema();
-        if (schema) {
-            ToProto(chunkMergerWriterOptions.mutable_schema(), schema->GetTableSchema());
-        }
+        ToProto(chunkMergerWriterOptions.mutable_schema(), table->GetSchema()->AsTableSchema());
         chunkMergerWriterOptions.set_optimize_for(ToProto<int>(table->GetOptimizeFor()));
     }
     chunkMergerWriterOptions.set_compression_codec(ToProto<int>(chunkOwner->GetCompressionCodec()));

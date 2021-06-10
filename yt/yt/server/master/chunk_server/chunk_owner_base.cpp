@@ -8,6 +8,8 @@
 #include <yt/yt/server/master/security_server/cluster_resources.h>
 #include <yt/yt/server/master/security_server/security_tags.h>
 
+#include <yt/yt/server/master/table_server/table_manager.h>
+
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
@@ -25,6 +27,13 @@ using namespace NCypressClient;
 using namespace NCypressClient::NProto;
 using namespace NCypressServer;
 using namespace NSecurityServer;
+using namespace NTableClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChunkOwnerBase::TEndUploadContext::TEndUploadContext(TBootstrap* bootstrap)
+    : Bootstrap(bootstrap)
+{ }
 
 static const auto& Logger = ChunkServerLogger;
 
@@ -75,7 +84,7 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, ErasureCodec_);
     Load(context, SnapshotSecurityTags_);
     Load(context, DeltaSecurityTags_);
-    
+
     // COMPAT(aleksandra-zh)
     if (context.GetVersion() >= EMasterReign::MasterMergeJobs) {
         Load(context, EnableChunkMerger_);

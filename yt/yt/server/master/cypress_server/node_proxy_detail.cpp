@@ -23,6 +23,9 @@
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/user.h>
 
+#include <yt/yt/server/master/table_server/master_table_schema.h>
+#include <yt/yt/server/master/table_server/table_manager.h>
+
 #include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
@@ -69,6 +72,8 @@ using namespace NObjectServer;
 using namespace NCellMaster;
 using namespace NChunkClient;
 using namespace NChunkServer;
+using namespace NTableClient;
+using namespace NTableServer;
 using namespace NTransactionServer;
 using namespace NSecurityServer;
 using namespace NCypressClient;
@@ -1708,6 +1713,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, BeginCopy)
     copyContext.SetVersion(NCellMaster::GetCurrentReign());
     handler->BeginCopy(node, &copyContext);
 
+    for (auto [schema, key] : copyContext.GetRegisteredSchemas()) {
+        auto* entry = response->add_schemas();
+        entry->set_key(key.Index);
+        ToProto(entry->mutable_schema(), schema->AsTableSchema());
+    }
+
     ToProto(response->mutable_portal_child_ids(), copyContext.PortalRootIds());
     ToProto(response->mutable_external_cell_tags(), copyContext.GetExternalCellTags());
 
@@ -1763,6 +1774,14 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, EndCopy)
         mode,
         uncompressedData);
     copyContext.SetVersion(serializedTree.version());
+
+    const auto& tableManager = Bootstrap_->GetTableManager();
+    for (const auto& registeredSchema : request->schemas()) {
+        auto key = TEntitySerializationKey(registeredSchema.key());
+        auto tableSchema = FromProto<TTableSchema>(registeredSchema.schema());
+        auto* schema = tableManager->GetOrCreateMasterTableSchema(tableSchema, Transaction_);
+        copyContext.RegisterSchema(key, schema);
+    }
 
     TNodeId clonedTrunkNodeId;
     CopyCore(

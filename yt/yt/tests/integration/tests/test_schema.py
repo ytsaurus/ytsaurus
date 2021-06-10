@@ -1493,29 +1493,189 @@ class TestRequiredOption(YTEnvSetup):
 
 
 class TestSchemaDeduplication(YTEnvSetup):
+    def _get_schema(self, strict):
+        return make_schema([make_column("value", "string")], unique_keys=False, strict=strict)
+
     @authors("ermolovd")
     def test_empty_schema(self):
         create("table", "//tmp/table")
-        assert get("//tmp/table/@schema_duplicate_count") == 0
+        assert get("//tmp/table/@schema_duplicate_count") == 2
 
     @authors("ermolovd")
     def test_simple_schema(self):
-        def get_schema(strict):
-            return make_schema([make_column("value", "string")], unique_keys=False, strict=strict)
-
-        create("table", "//tmp/table1", attributes={"schema": get_schema(True)})
-        create("table", "//tmp/table2", attributes={"schema": get_schema(True)})
-        create("table", "//tmp/table3", attributes={"schema": get_schema(False)})
+        create("table", "//tmp/table1", attributes={"schema": self._get_schema(True)})
+        create("table", "//tmp/table2", attributes={"schema": self._get_schema(True)})
+        create("table", "//tmp/table3", attributes={"schema": self._get_schema(False)})
 
         assert get("//tmp/table1/@schema_duplicate_count") == 2
         assert get("//tmp/table2/@schema_duplicate_count") == 2
         assert get("//tmp/table3/@schema_duplicate_count") == 1
 
-        alter_table("//tmp/table2", schema=get_schema(False))
+        alter_table("//tmp/table2", schema=self._get_schema(False))
 
         assert get("//tmp/table1/@schema_duplicate_count") == 1
         assert get("//tmp/table2/@schema_duplicate_count") == 2
         assert get("//tmp/table3/@schema_duplicate_count") == 2
+
+
+class TestSchemaObjects(TestSchemaDeduplication):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    @authors("shakurov")
+    def test_schema_map(self):
+        create("table", "//tmp/empty_schema_holder")
+        empty_schema_0_id = get("//tmp/empty_schema_holder/@schema_id")
+
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
+        create("table", "//tmp/p1/empty_schema_holder")
+        empty_schema_1_id = get("//tmp/p1/empty_schema_holder/@schema_id")
+
+        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 2})
+        create("table", "//tmp/p2/empty_schema_holder")
+        empty_schema_2_id = get("//tmp/p2/empty_schema_holder/@schema_id")
+
+        assert empty_schema_0_id != empty_schema_1_id
+        assert empty_schema_0_id != empty_schema_2_id
+        assert empty_schema_1_id != empty_schema_2_id
+
+        create("table", "//tmp/schema_holder1", attributes={"schema": self._get_schema(True)})
+        create("table", "//tmp/schema_holder2", attributes={"schema": self._get_schema(False)})
+        schema1_id = get("//tmp/schema_holder1/@schema_id")
+        schema2_id = get("//tmp/schema_holder2/@schema_id")
+        assert schema1_id != schema2_id
+
+        expected_schemas = {
+            empty_schema_0_id,
+            empty_schema_1_id,
+            empty_schema_2_id,
+            schema1_id,
+            schema2_id}
+        assert len(expected_schemas) == 5  # Validate there're no duplicates.
+        actual_schemas = {schema_id for schema_id in ls("//sys/master_table_schemas")}
+        for expected_schema_id in expected_schemas:
+            assert expected_schema_id in actual_schemas
+
+        remove("//tmp/schema_holder2")
+        wait(lambda: not exists("#" + schema2_id))
+
+        expected_schemas = {
+            empty_schema_0_id,
+            empty_schema_1_id,
+            empty_schema_2_id,
+            schema1_id}
+        actual_schemas = {schema_id for schema_id in ls("//sys/master_table_schemas")}
+        for expected_schema_id in expected_schemas:
+            assert expected_schema_id in actual_schemas
+
+    @authors("shakurov")
+    def test_schema_id(self):
+        # @schema only.
+        create("table", "//tmp/table1", attributes={"schema": self._get_schema(True)})
+
+        schema = get("//tmp/table1/@schema")
+        schema_id = get("//tmp/table1/@schema_id")
+
+        # @schema_id only.
+        create("table", "//tmp/table2", attributes={"schema_id": schema_id})
+        assert get("//tmp/table2/@schema_id") == schema_id
+        assert get("//tmp/table2/@schema") == schema
+
+        # Both @schema and @schema_id.
+        create("table", "//tmp/table3", attributes={"schema_id": schema_id, "schema": schema})
+        assert get("//tmp/table3/@schema_id") == schema_id
+        assert get("//tmp/table3/@schema") == schema
+
+        # Invalid @schema_id only.
+        with raises_yt_error("No such schema"):
+            create("table", "//tmp/table4", attributes={"schema_id": "a-b-c-d"})
+
+        # @schema and invalid @schema_id.
+        with raises_yt_error("No such schema"):
+            create("table", "//tmp/table5", attributes={"schema_id": "a-b-c-d", "schema": schema})
+
+        other_schema = make_schema([make_column("some_column", "int8")], unique_keys=False, strict=True)
+
+        # Hitherto-unseen @schema and a mismatching @schema_id.
+        with raises_yt_error("Both \"schema\" and \"schema_id\" specified and the schemas do not match"):
+            create("table", "//tmp/table6", attributes={"schema_id": schema_id, "schema": other_schema})
+
+        create("table", "//tmp/other_schema_holder", attributes={"schema": other_schema})
+
+        # @schema and a mismatching @schema_id.
+        with raises_yt_error("Both \"schema\" and \"schema_id\" specified and they refer to different schemas"):
+            create("table", "//tmp/table7", attributes={"schema_id": schema_id, "schema": other_schema})
+
+        assert get("#" + schema_id + "/@ref_counter") == 3
+        assert get("//tmp/table1/@schema_duplicate_count") == 3
+        assert get("//tmp/table2/@schema_duplicate_count") == 3
+        assert get("//tmp/table3/@schema_duplicate_count") == 3
+
+    @authors("shakurov")
+    def test_create_with_schema(self):
+        create("table", "//tmp/table1", attributes={"schema": self._get_schema(True), "external_cell_tag": 1})
+        table_id = get("//tmp/table1/@id")
+        schema_id = get("//tmp/table1/@schema_id")
+        external_schema_id = get("#" + table_id + "/@schema_id", driver=get_driver(1))
+        assert schema_id != external_schema_id
+        schema = get("//tmp/table1/@schema")
+        external_schema = get("#" + table_id + "/@schema", driver=get_driver(1))
+        assert schema == external_schema
+
+    @authors("shakurov")
+    def test_create_with_schema_id(self):
+        # Just to have a pre-existing schema to refer to by ID.
+        create("table", "//tmp/schema_holder", attributes={"schema": self._get_schema(True)})
+        schema_id = get("//tmp/schema_holder/@schema_id")
+
+        create("table", "//tmp/table1", attributes={"schema_id": schema_id, "external_cell_tag": 1})
+        table_id = get("//tmp/table1/@id")
+        assert get("//tmp/table1/@schema_id") == schema_id
+        external_schema_id = get("#" + table_id + "/@schema_id", driver=get_driver(1))
+        assert schema_id != external_schema_id
+        schema = get("//tmp/table1/@schema")
+        external_schema = get("#" + table_id + "/@schema", driver=get_driver(1))
+        assert schema == external_schema
+
+    @authors("shakurov")
+    @pytest.mark.parametrize("cross_shard", [False, True])
+    def test_copy_with_schema(self, cross_shard):
+        create("table", "//tmp/table1", attributes={"schema": self._get_schema(True), "external_cell_tag": 1})
+        if cross_shard:
+            create("portal_entrance", "//tmp/d", attributes={"exit_cell_tag": 2})
+        else:
+            create("map_node", "//tmp/d")
+
+        copy("//tmp/table1", "//tmp/d/table1_copy")
+
+        src_table_id = get("//tmp/table1/@id")
+        dst_table_id = get("//tmp/d/table1_copy/@id")
+
+        src_schema = get("//tmp/table1/@schema")
+        src_schema_id = get("//tmp/table1/@schema_id")
+        external_src_schema = get("#" + src_table_id + "/@schema", driver=get_driver(1))
+        external_src_schema_id = get("#" + src_table_id + "/@schema_id", driver=get_driver(1))
+        dst_schema = get("//tmp/d/table1_copy/@schema")
+        dst_schema_id = get("//tmp/d/table1_copy/@schema_id")
+        external_dst_schema = get("#" + dst_table_id + "/@schema", driver=get_driver(1))
+        external_dst_schema_id = get("#" + dst_table_id + "/@schema_id", driver=get_driver(1))
+
+        # All schemas are identical.
+        assert src_schema == external_src_schema
+        assert src_schema == dst_schema
+        assert src_schema == external_dst_schema
+
+        # External schema is always shared.
+        assert external_src_schema_id == external_dst_schema_id
+        # Native schemas differ when on different cellls.
+        if cross_shard:
+            assert src_schema_id != dst_schema_id
+        else:
+            assert src_schema_id == dst_schema_id
+        # Everything else always differs.
+        assert src_schema_id != external_src_schema_id
+        assert src_schema_id != external_dst_schema_id
+        assert external_src_schema_id != dst_schema_id
+        assert dst_schema_id != external_dst_schema_id
 
 
 class TestSchemaValidation(YTEnvSetup):

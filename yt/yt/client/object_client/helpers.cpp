@@ -69,7 +69,8 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::EstimatedCreationTimeMap ||
         type == EObjectType::NetworkProjectMap ||
         type == EObjectType::HttpProxyRoleMap ||
-        type == EObjectType::RpcProxyRoleMap;
+        type == EObjectType::RpcProxyRoleMap ||
+        type == EObjectType::MasterTableSchemaMap;
 }
 
 bool IsUserType(EObjectType type)

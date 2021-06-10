@@ -159,9 +159,13 @@ protected:
     {
         TSerializedSubtree() = default;
 
-        TSerializedSubtree(TYPath path, NCypressClient::NProto::TSerializedTree serializedValue)
+        TSerializedSubtree(
+            TYPath path,
+            NCypressClient::NProto::TSerializedTree serializedValue,
+            NProtoBuf::RepeatedPtrField<NCypressClient::NProto::TRegisteredSchema> schemas)
             : Path(std::move(path))
             , SerializedValue(std::move(serializedValue))
+            , Schemas(std::move(schemas))
         { }
 
         //! Relative to tree root path to subtree root.
@@ -169,6 +173,9 @@ protected:
 
         //! Serialized subtree.
         NCypressClient::NProto::TSerializedTree SerializedValue;
+
+        //! These schemas are referenced from #SerializedValue (by serialization keys).
+        NProtoBuf::RepeatedPtrField<NCypressClient::NProto::TRegisteredSchema> Schemas;
     };
 
     const TClientPtr Client_;
@@ -254,19 +261,23 @@ protected:
             }
 
             YT_LOG_DEBUG("Serialized subtree received (NodeId: %v, Path: %v, FormatVersion: %v, TreeSize: %v, "
-                 "PortalChildIds: %v, ExternalCellTags: %v, OpaqueChildPaths: %v)",
-                 nodeId,
-                 subtreePath,
-                 rsp->serialized_tree().version(),
-                 rsp->serialized_tree().data().size(),
-                 portalChildIds,
-                 externalCellTags,
-                 opaqueChildPaths);
+                "PortalChildIds: %v, ExternalCellTags: %v, OpaqueChildPaths: %v, RegisteredSchemaCount: %v)",
+                nodeId,
+                subtreePath,
+                rsp->serialized_tree().version(),
+                rsp->serialized_tree().data().size(),
+                portalChildIds,
+                externalCellTags,
+                opaqueChildPaths,
+                rsp->schemas_size());
 
             auto relativePath = TryComputeYPathSuffix(subtreePath, ResolvedSrcNodePath_);
             YT_VERIFY(relativePath);
 
-            SerializedSubtrees_.emplace_back(*relativePath, std::move(*rsp->mutable_serialized_tree()));
+            SerializedSubtrees_.emplace_back(
+                *relativePath,
+                std::move(*rsp->mutable_serialized_tree()),
+                std::move(*rsp->mutable_schemas()));
 
             for (auto cellTag : externalCellTags) {
                 ExternalCellTags_.push_back(cellTag);
@@ -326,6 +337,7 @@ protected:
             SetEndCopyNodeRequestParameters(req, options);
             req->set_inplace(inplace);
             *req->mutable_serialized_tree() = std::move(subtree.SerializedValue);
+            *req->mutable_schemas() = std::move(subtree.Schemas);
             batchReq->AddRequest(req);
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());

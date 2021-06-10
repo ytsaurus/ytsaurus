@@ -4,8 +4,6 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_replica.h>
 
-#include <yt/yt/server/master/table_server/shared_table_schema.h>
-
 #include <yt/yt/server/lib/chunk_server/proto/job.pb.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>

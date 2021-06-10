@@ -16,7 +16,7 @@
 #include <yt/yt/server/master/cypress_server/node.h>
 #include <yt/yt/server/master/cypress_server/serialize.h>
 
-#include <yt/yt/server/master/node_tracker_server/node.h>
+#include <yt/yt/server/master/table_server/master_table_schema.h>
 
 namespace NYT::NCellMaster {
 
@@ -165,6 +165,39 @@ struct TInternedYsonStringSerializer
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMasterTableSchemaRefSerializer
+{
+    template <class T>
+    static void Save(NCellMaster::TSaveContext& context, T object)
+    {
+        TNonversionedObjectRefSerializer::Save(context, object);
+    }
+
+    template <class T>
+    static void Load(NCellMaster::TLoadContext& context, T& object)
+    {
+        TNonversionedObjectRefSerializer::Load(context, object);
+    }
+
+    template <class T>
+    static void Save(NCypressServer::TBeginCopyContext& context, T object)
+    {
+        YT_VERIFY(object);
+
+        auto serializationKey = context.RegisterSchema(object);
+        NYT::Save(context, serializationKey);
+    }
+
+    template <class T>
+    static void Load(NCypressServer::TEndCopyContext& context, T& object)
+    {
+        auto serializationKey = NYT::Load<TEntitySerializationKey>(context);
+        object = context.GetSchemaOrThrow(serializationKey);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NCellMaster
 
 namespace NYT {
@@ -178,8 +211,13 @@ struct TSerializerTraits<
     typename std::enable_if_t<
         std::conjunction_v<
             std::is_convertible<T, const NObjectServer::TObject*>,
-            std::negation<
-                std::is_convertible<T, const NCypressServer::TCypressNode*>
+            std::conjunction<
+                std::negation<
+                    std::is_convertible<T, const NCypressServer::TCypressNode*>
+                >,
+                std::negation<
+                    std::is_convertible<T, const NTableServer::TMasterTableSchema*>
+                >
             >
         >
     >
@@ -200,6 +238,21 @@ struct TSerializerTraits<
 {
     using TSerializer = NCellMaster::TVersionedObjectRefSerializer;
     using TComparer = NCypressServer::TCypressNodeRefComparer;
+};
+
+// Unlike most (non-versioned) objects, schemas are cell-local, which necessitates
+// special handling for cross-cell copying.
+template <class T, class C>
+struct TSerializerTraits<
+    T,
+    C,
+    typename std::enable_if_t<
+        std::is_convertible_v<T, const NTableServer::TMasterTableSchema*>
+    >
+>
+{
+    using TSerializer = NCellMaster::TMasterTableSchemaRefSerializer;
+    using TComparer = NObjectServer::TObjectRefComparer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
