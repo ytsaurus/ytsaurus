@@ -202,7 +202,7 @@ private:
 
     void SetValue(NTableClient::TUnversionedValue* value, i64 rowIndex) const
     {
-        ValueExtractor_.ExtractValue(value, rowIndex, ColumnId_, false);
+        ValueExtractor_.ExtractValue(value, rowIndex, ColumnId_, NTableClient::EValueFlags::None);
     }
 
     template<class TRow>
@@ -379,7 +379,7 @@ private:
 
     void SetValue(NTableClient::TUnversionedValue* value, i64 valueIndex) const
     {
-        ValueExtractor_.ExtractValue(value, valueIndex, ColumnId_, false);
+        ValueExtractor_.ExtractValue(value, valueIndex, ColumnId_, NTableClient::EValueFlags::None);
     }
 
     template <class TRow>
@@ -705,8 +705,11 @@ protected:
             row.SetValueCount(row.GetValueCount() + 1);
             value->Timestamp = timestampIndex;
 
-            bool aggregate = ValueExtractor_.GetAggregate(valueIndex);
-            ValueExtractor_.ExtractValue(value, valueIndex, ColumnId_, aggregate);
+            auto flags = NTableClient::EValueFlags::None;
+            if (ValueExtractor_.GetAggregate(valueIndex)) {
+                flags |= NTableClient::EValueFlags::Aggregate;
+            }
+            ValueExtractor_.ExtractValue(value, valueIndex, ColumnId_, flags);
 
             if (!produceAllVersions && !Aggregate_) {
                 break;
@@ -723,9 +726,15 @@ protected:
         for (; valueIndex < upperValueIndex; ++valueIndex) {
             auto* value = row.BeginValues() + row.GetValueCount();
             row.SetValueCount(row.GetValueCount() + 1);
+
             value->Timestamp = ValueExtractor_.GetTimestampIndex(valueIndex);
-            bool aggregate = ValueExtractor_.GetAggregate(valueIndex);
-            ValueExtractor_.ExtractValue(value, valueIndex, ColumnId_, aggregate);
+
+            auto flags = NTableClient::EValueFlags::None;
+            if (ValueExtractor_.GetAggregate(valueIndex)) {
+                flags |= NTableClient::EValueFlags::Aggregate;
+            }
+
+            ValueExtractor_.ExtractValue(value, valueIndex, ColumnId_, flags);
         }
     }
 };

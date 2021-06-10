@@ -34,6 +34,12 @@ static_assert(
     EValueType::Uint64 < EValueType::Double,
     "Incorrect type order.");
 
+DEFINE_BIT_ENUM_WITH_UNDERLYING_TYPE(EValueFlags, ui8,
+    ((None)       (0x0000))
+    ((Aggregate)  (0x0001))
+    ((Hunk)       (0x0002))
+);
+
 DEFINE_ENUM_WITH_UNDERLYING_TYPE(ESimpleLogicalValueType, ui32,
     ((Null)        (0x02))
 
@@ -324,97 +330,97 @@ void ValidateColumnFilter(const TColumnFilter& columnFilter, int schemaColumnCou
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TValue>
-TValue MakeSentinelValue(EValueType type, int id = 0, bool aggregate = false)
+TValue MakeSentinelValue(EValueType type, int id = 0, EValueFlags flags = EValueFlags::None)
 {
     TValue result{};
     result.Id = id;
     result.Type = type;
-    result.Aggregate = aggregate;
+    result.Flags = flags;
     return result;
 }
 
 template <class TValue>
-TValue MakeNullValue(int id = 0, bool aggregate = false)
+TValue MakeNullValue(int id = 0, EValueFlags flags = EValueFlags::None)
 {
     TValue result{};
     result.Id = id;
     result.Type = EValueType::Null;
-    result.Aggregate = aggregate;
+    result.Flags = flags;
     return result;
 }
 
 template <class TValue>
-TValue MakeInt64Value(i64 value, int id = 0, bool aggregate = false)
+TValue MakeInt64Value(i64 value, int id = 0, EValueFlags flags = EValueFlags::None)
 {
     TValue result{};
     result.Id = id;
     result.Type = EValueType::Int64;
-    result.Aggregate = aggregate;
+    result.Flags = flags;
     result.Data.Int64 = value;
     return result;
 }
 
 template <class TValue>
-TValue MakeUint64Value(ui64 value, int id = 0, bool aggregate = false)
+TValue MakeUint64Value(ui64 value, int id = 0, EValueFlags flags = EValueFlags::None)
 {
     TValue result{};
     result.Id = id;
     result.Type = EValueType::Uint64;
-    result.Aggregate = aggregate;
+    result.Flags = flags;
     result.Data.Uint64 = value;
     return result;
 }
 
 template <class TValue>
-TValue MakeDoubleValue(double value, int id = 0, bool aggregate = false)
+TValue MakeDoubleValue(double value, int id = 0, EValueFlags flags = EValueFlags::None)
 {
     TValue result{};
     result.Id = id;
     result.Type = EValueType::Double;
-    result.Aggregate = aggregate;
+    result.Flags = flags;
     result.Data.Double = value;
     return result;
 }
 
 template <class TValue>
-TValue MakeBooleanValue(bool value, int id = 0, bool aggregate = false)
+TValue MakeBooleanValue(bool value, int id = 0, EValueFlags flags = EValueFlags::None)
 {
     TValue result{};
     result.Id = id;
     result.Type = EValueType::Boolean;
-    result.Aggregate = aggregate;
+    result.Flags = flags;
     result.Data.Boolean = value;
     return result;
 }
 
 template <class TValue>
-TValue MakeStringLikeValue(EValueType valueType, TStringBuf value, int id = 0, bool aggregate = false)
+TValue MakeStringLikeValue(EValueType valueType, TStringBuf value, int id = 0, EValueFlags flags = EValueFlags::None)
 {
     TValue result{};
     result.Id = id;
     result.Type = valueType;
-    result.Aggregate = aggregate;
+    result.Flags = flags;
     result.Length = value.length();
     result.Data.String = value.begin();
     return result;
 }
 
 template <class TValue>
-TValue MakeStringValue(TStringBuf value, int id = 0, bool aggregate = false)
+TValue MakeStringValue(TStringBuf value, int id = 0, EValueFlags flags = EValueFlags::None)
 {
-    return MakeStringLikeValue<TValue>(EValueType::String, value, id, aggregate);
+    return MakeStringLikeValue<TValue>(EValueType::String, value, id, flags);
 }
 
 template <class TValue>
-TValue MakeAnyValue(TStringBuf value, int id = 0, bool aggregate = false)
+TValue MakeAnyValue(TStringBuf value, int id = 0, EValueFlags flags = EValueFlags::None)
 {
-    return MakeStringLikeValue<TValue>(EValueType::Any, value, id, aggregate);
+    return MakeStringLikeValue<TValue>(EValueType::Any, value, id, flags);
 }
 
 template <class TValue>
-TValue MakeCompositeValue(TStringBuf value, int id = 0, bool aggregate = false)
+TValue MakeCompositeValue(TStringBuf value, int id = 0, EValueFlags flags = EValueFlags::None)
 {
-    return MakeStringLikeValue<TValue>(EValueType::Composite, value, id, aggregate);
+    return MakeStringLikeValue<TValue>(EValueType::Composite, value, id, flags);
 }
 
 [[noreturn]] void ThrowUnexpectedValueType(EValueType valueType);

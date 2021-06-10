@@ -10,7 +10,7 @@ void xor_aggregate_init(
 
     ClearValue(result);
     result->Type = VT_Int64;
-    result->Aggregate = 1;
+    result->Flags = VF_Aggregate;
     result->Data.Int64 = 0;
 }
 
@@ -24,7 +24,9 @@ void xor_aggregate_update(
 
     ClearValue(result);
     result->Type = VT_Int64;
-    result->Aggregate = state->Aggregate ^ newValue->Aggregate;
+    if ((state->Flags & VF_Aggregate) ^ (newValue->Flags & VF_Aggregate)) {
+        result->Flags = VF_Aggregate;
+    }
     result->Data.Int64 = 0;
 }
 
@@ -38,7 +40,9 @@ void xor_aggregate_merge(
 
     ClearValue(result);
     result->Type = VT_Int64;
-    result->Aggregate = dstState->Aggregate ^ state->Aggregate;
+    if ((dstState->Flags & VF_Aggregate) ^ (state->Flags & VF_Aggregate)) {
+        result->Flags = VF_Aggregate;
+    }
     result->Data.Int64 = 0;
 }
 
@@ -51,7 +55,6 @@ void xor_aggregate_finalize(
 
     ClearValue(result);
     result->Type = VT_Int64;
-    result->Aggregate = state->Aggregate;
+    result->Flags = state->Flags;
     result->Data.Int64 = 0;
 }
-

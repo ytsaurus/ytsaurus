@@ -143,9 +143,7 @@ protected:
     //! Some sanity checks may need the tablet's atomicity mode but the tablet may die.
     //! So we capture a copy of this mode upon store's construction.
     const NTransactionClient::EAtomicity Atomicity_;
-
     const NTableClient::TRowBufferPtr RowBuffer_;
-    const std::unique_ptr<bool[]> HunkColumnFlags_;
 
     TTimestamp MinTimestamp_ = NTransactionClient::MaxTimestamp;
     TTimestamp MaxTimestamp_ = NTransactionClient::MinTimestamp;

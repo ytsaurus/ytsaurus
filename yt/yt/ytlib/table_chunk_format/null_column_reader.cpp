@@ -22,9 +22,9 @@ public:
     TNullValueExtractor(TRef /*data*/, const TSegmentMeta& /*meta*/)
     { }
 
-    void ExtractValue(TUnversionedValue* value, i64 /*valueIndex*/, int id, bool aggregate) const
+    void ExtractValue(TUnversionedValue* value, i64 /*valueIndex*/, int id, EValueFlags flags) const
     {
-        *value = MakeUnversionedNullValue(id, aggregate);
+        *value = MakeUnversionedNullValue(id, flags);
     }
 
     int GetBatchColumnCount()

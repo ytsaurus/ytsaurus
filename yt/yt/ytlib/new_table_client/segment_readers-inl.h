@@ -240,15 +240,14 @@ inline ui32 TVersionInfoBase::AdjustLowerIndex(ui32 valueIdx, ui32 valueIdxEnd, 
 
 inline void TVersionInfo<true>::Extract(TVersionedValue* value, const TTimestamp* timestamps, ui32 index) const
 {
-    value->Aggregate = AggregateBits_[index];
-    // Write index and restore timestamps later.
+    if (AggregateBits_[index]) {
+        value->Flags |= NTableClient::EValueFlags::Aggregate;
+    }
     value->Timestamp = timestamps[WriteTimestampIds_[index]];
 }
 
 inline void TVersionInfo<false>::Extract(TVersionedValue* value, const TTimestamp* timestamps, ui32 index) const
 {
-    value->Aggregate = false;
-    // Write index and restore timestamps later.
     value->Timestamp = timestamps[WriteTimestampIds_[index]];
 }
 

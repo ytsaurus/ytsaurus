@@ -217,7 +217,7 @@ TBuildingValueConsumer::TBuildingValueConsumer(
     , Logger(std::move(logger))
     , NameTable_(TNameTable::FromSchema(*Schema_))
     , ConvertNullToEntity_(convertNullToEntity)
-    , WrittenFlags_(NameTable_->GetSize(), false)
+    , WrittenFlags_(NameTable_->GetSize())
 {
     InitializeIdToTypeMapping();
 }
@@ -289,21 +289,21 @@ TUnversionedValue TBuildingValueConsumer::MakeAnyFromScalar(const TUnversionedVa
             ValueBuffer_.Begin(),
             ValueBuffer_.Begin() + ValueBuffer_.Size()),
         value.Id,
-        value.Aggregate);
+        value.Flags);
 }
 
 void TBuildingValueConsumer::OnMyValue(const TUnversionedValue& value)
 {
-    if (value.Id >= Schema_->Columns().size()) {
+    if (value.Id >= Schema_->GetColumnCount()) {
         return;
     }
     auto valueCopy = value;
     const auto& columnSchema = Schema_->Columns()[valueCopy.Id];
-    if (columnSchema.Aggregate()) {
-        valueCopy.Aggregate = Aggregate_;
+    if (columnSchema.Aggregate() && Aggregate_) {
+        valueCopy.Flags |= EValueFlags::Aggregate;
     }
-    if (columnSchema.GetPhysicalType() == EValueType::Any
-        && valueCopy.Type != EValueType::Any &&
+    if (columnSchema.GetPhysicalType() == EValueType::Any &&
+        valueCopy.Type != EValueType::Any &&
         (valueCopy.Type != EValueType::Null || ConvertNullToEntity_))
     {
         if (valueCopy.Type == EValueType::Null && LogNullToEntity_) {
@@ -324,13 +324,13 @@ void TBuildingValueConsumer::OnEndRow()
         if (WrittenFlags_[id]) {
             WrittenFlags_[id] = false;
         } else if ((TreatMissingAsNull_ || id < Schema_->GetKeyColumnCount()) && !Schema_->Columns()[id].Expression()) {
-            Builder_.AddValue(MakeUnversionedSentinelValue(
-                EValueType::Null,
-                id,
-                Schema_->Columns()[id].Aggregate() && Aggregate_));
+            auto flags = EValueFlags::None;
+            if (Schema_->Columns()[id].Aggregate() && Aggregate_) {
+                flags |= EValueFlags::Aggregate;
+            }
+            Builder_.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id, flags));
         }
     }
-
     Rows_.emplace_back(Builder_.FinishRow());
 }
 

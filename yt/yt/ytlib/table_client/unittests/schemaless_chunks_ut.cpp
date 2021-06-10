@@ -518,7 +518,7 @@ TEST_F(TColumnarReadTest, ReadAll)
         auto columnarBatch = batch->TryAsColumnar();
         ASSERT_TRUE(columnarBatch.operator bool());
         auto columns = columnarBatch->MaterializeColumns();
-        EXPECT_EQ(Schema_->Columns().size(), columns.size());
+        EXPECT_EQ(Schema_->GetColumnCount(), std::ssize(columns));
         for (int index = 0; index < std::ssize(columns); ++index) {
             EXPECT_EQ(index, columns[index]->Id);
         }
@@ -616,7 +616,7 @@ protected:
 
     TUnversionedRow CreateRow(int rowIndex, TTableSchemaPtr schema, TNameTablePtr nameTable)
     {
-        auto row = TMutableUnversionedRow::Allocate(&Pool_, schema->Columns().size());
+        auto row = TMutableUnversionedRow::Allocate(&Pool_, schema->GetColumnCount());
         for (int index = 0; index < std::ssize(schema->Columns()); ++index) {
             const auto& column = schema->Columns()[index];
             row[index] = CreateValue(rowIndex, nameTable->GetIdOrRegisterName(column.Name()), column);

@@ -119,20 +119,20 @@ bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TValue* valu
 
     batch.push_back(rowBuffer->CaptureRow(MakeRange(values, closure->RowSize)));
 
-    // NB: Aggregate flag is neither set from TCG value nor cleared during row allocation.
+    // NB: Flags are neither set from TCG value nor cleared during row allocation.
     // XXX(babenko): fix this
     size_t id = 0;
     for (auto* value = batch.back().Begin(); value < batch.back().End(); ++value) {
         auto mutableValue = const_cast<TUnversionedValue*>(value);
         mutableValue->Id = id++;
-        mutableValue->Aggregate = false;
+        mutableValue->Flags = {};
         if (!IsStringLikeType(value->Type)) {
             mutableValue->Length = 0;
         }
     }
 
     if (batch.size() == batch.capacity()) {
-        auto& writer = context->Writer;
+        const auto& writer = context->Writer;
         bool shouldNotWait;
         {
             TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&statistics->WriteTime);
@@ -384,10 +384,10 @@ void MultiJoinOpHelper(
 
             std::vector<TRow> orderedKeys;
             for (TValue* key : closure.Items[joinId].OrderedKeys) {
-                // NB: Aggregate flag is neither set from TCG value nor cleared during row allocation.
+                // NB: Flags are neither set from TCG value nor cleared during row allocation.
                 size_t id = 0;
                 for (auto* value = key; value < key + closure.Items[joinId].KeySize; ++value) {
-                    value->Aggregate = false;
+                    value->Flags = {};
                     value->Id = id++;
                 }
                 orderedKeys.push_back(TRow(reinterpret_cast<const TUnversionedRowHeader*>(key) - 1));

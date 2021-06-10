@@ -18,9 +18,9 @@ using namespace NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
-    const TSharedRef& block,
+    TSharedRef block,
     const TBlockMeta& meta,
-    const TTableSchemaPtr& chunkSchema,
+    TTableSchemaPtr chunkSchema,
     int chunkKeyColumnCount,
     int keyColumnCount,
     const std::vector<TColumnIdMapping>& schemaIdMapping,
@@ -28,19 +28,27 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     bool initialize)
-    : Block_(block)
+    : Block_(std::move(block))
     , Timestamp_(timestamp)
     , ProduceAllVersions_(produceAllVersions)
     , ChunkKeyColumnCount_(chunkKeyColumnCount)
     , KeyColumnCount_(keyColumnCount)
     , SchemaIdMapping_(schemaIdMapping)
-    , ChunkSchema_(chunkSchema)
+    , ChunkSchema_(std::move(chunkSchema))
     , Meta_(meta)
     , VersionedMeta_(Meta_.GetExtension(TSimpleVersionedBlockMeta::block_meta_ext))
+    , ColumnHunkFlags_(new bool[ChunkSchema_->GetColumnCount()])
+    , ColumnTypes_(new EValueType[ChunkSchema_->GetColumnCount()])
     , KeyComparer_(keyComparer)
 {
     YT_VERIFY(Meta_.row_count() > 0);
     YT_VERIFY(KeyColumnCount_ >= ChunkKeyColumnCount_);
+
+    for (int id = 0; id < ChunkSchema_->GetColumnCount(); ++id) {
+        const auto& columnSchema = ChunkSchema_->Columns()[id];
+        ColumnHunkFlags_[id] = columnSchema.MaxInlineHunkSize().operator bool();
+        ColumnTypes_[id] = columnSchema.GetPhysicalType();
+    }
 
     auto keyDataSize = GetUnversionedRowByteSize(KeyColumnCount_);
     KeyBuffer_.reserve(keyDataSize);
@@ -52,7 +60,7 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
 
     KeyData_ = TRef(const_cast<char*>(Block_.Begin()), TSimpleVersionedBlockWriter::GetPaddedKeySize(
         ChunkKeyColumnCount_,
-        ChunkSchema_->Columns().size()) * Meta_.row_count());
+        ChunkSchema_->GetColumnCount()) * Meta_.row_count());
 
     ValueData_ = TRef(
         KeyData_.End(),
@@ -68,8 +76,8 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     ValueNullFlags_.Reset(ptr, VersionedMeta_.value_count());
     ptr += AlignUp(ValueNullFlags_.GetByteSize(), SerializationAlignment);
 
-    for (const auto& column : ChunkSchema_->Columns()) {
-        if (column.Aggregate()) {
+    for (const auto& columnSchema : ChunkSchema_->Columns()) {
+        if (columnSchema.Aggregate()) {
             ValueAggregateFlags_ = TReadOnlyBitmap(ptr, VersionedMeta_.value_count());
             ptr += AlignUp(ValueAggregateFlags_->GetByteSize(), SerializationAlignment);
             break;
@@ -130,7 +138,7 @@ bool TSimpleVersionedBlockReader::JumpToRowIndex(i64 index)
     RowIndex_ = index;
     KeyDataPtr_ = KeyData_.Begin() + TSimpleVersionedBlockWriter::GetPaddedKeySize(
         ChunkKeyColumnCount_,
-        ChunkSchema_->Columns().size()) * RowIndex_;
+        ChunkSchema_->GetColumnCount()) * RowIndex_;
 
     for (int id = 0; id < ChunkKeyColumnCount_; ++id) {
         ReadKeyValue(&Key_[id], id);
@@ -187,7 +195,7 @@ TMutableVersionedRow TSimpleVersionedBlockReader::ReadAllVersions(TChunkedMemory
     auto row = TMutableVersionedRow::Allocate(
         memoryPool,
         KeyColumnCount_,
-        GetColumnValueCount(ChunkSchema_->Columns().size() - 1), // shrinkable
+        GetColumnValueCount(ChunkSchema_->GetColumnCount() - 1), // shrinkable
         WriteTimestampCount_ - writeTimestampIndex,
         DeleteTimestampCount_ - deleteTimestampIndex);
 
@@ -291,7 +299,7 @@ TMutableVersionedRow TSimpleVersionedBlockReader::ReadOneVersion(TChunkedMemoryP
     auto row = TMutableVersionedRow::Allocate(
         memoryPool,
         KeyColumnCount_,
-        GetColumnValueCount(ChunkSchema_->Columns().size() - 1), // shrinkable
+        GetColumnValueCount(ChunkSchema_->GetColumnCount() - 1), // shrinkable
         1,
         hasDeleteTimestamp ? 1 : 0);
 
@@ -359,7 +367,7 @@ void TSimpleVersionedBlockReader::ReadKeyValue(TUnversionedValue* value, int id)
         return;
     }
 
-    auto type = ChunkSchema_->Columns()[id].GetPhysicalType();
+    auto type = ColumnTypes_[id];
     value->Type = type;
 
     switch (type) {
@@ -387,21 +395,28 @@ void TSimpleVersionedBlockReader::ReadKeyValue(TUnversionedValue* value, int id)
 void TSimpleVersionedBlockReader::ReadValue(TVersionedValue* value, int valueIndex, int id, int chunkSchemaId)
 {
     YT_ASSERT(id >= ChunkKeyColumnCount_);
+
     const char* ptr = ValueData_.Begin() + TSimpleVersionedBlockWriter::ValueSize * valueIndex;
     auto timestamp = *reinterpret_cast<const TTimestamp*>(ptr + 8);
 
     *value = {};
     value->Id = id;
     value->Timestamp = timestamp;
-    value->Aggregate = ValueAggregateFlags_ && (*ValueAggregateFlags_)[valueIndex];
 
-    bool isNull = ValueNullFlags_[valueIndex];
-    if (Y_UNLIKELY(isNull)) {
+    if (ValueAggregateFlags_ && (*ValueAggregateFlags_)[valueIndex]) {
+        value->Flags |= EValueFlags::Aggregate;
+    }
+
+    if (ColumnHunkFlags_[chunkSchemaId]) {
+        value->Flags |= EValueFlags::Hunk;
+    }
+
+    if (Y_UNLIKELY(ValueNullFlags_[valueIndex])) {
         value->Type = EValueType::Null;
         return;
     }
 
-    auto type = ChunkSchema_->Columns()[chunkSchemaId].GetPhysicalType();
+    auto type = ColumnTypes_[chunkSchemaId];
     value->Type = type;
 
     switch (type) {

@@ -98,31 +98,24 @@ public:
     }
 
     static_assert(
-        std::is_standard_layout<NYT::NTableClient::TUnversionedValue>::value,
-        "TUnversionedValue must be of standart layout type");
+        std::is_standard_layout<NYT::NTableClient::TUnversionedValue>::value);
     static_assert(
-        sizeof(NYT::NTableClient::TUnversionedValue) == 16,
-        "TUnversionedValue size has to be 16 bytes");
+        sizeof(NYT::NTableClient::TUnversionedValue) == 16);
     static_assert(
-        offsetof(NYT::NTableClient::TUnversionedValue, Id) == 0
-            && sizeof(NYT::NTableClient::TUnversionedValue::Id) == 2,
-        "TUnversionedValue must be of type {i16, i8, i8, i32, i64}");
+        offsetof(NYT::NTableClient::TUnversionedValue, Id) == 0 &&
+        sizeof(NYT::NTableClient::TUnversionedValue::Id) == 2);
     static_assert(
-        offsetof(NYT::NTableClient::TUnversionedValue, Type) == 2
-            && sizeof(NYT::NTableClient::TUnversionedValue::Type) == 1,
-        "TUnversionedValue must be of type {i16, i8, i8, i32, i64}");
+        offsetof(NYT::NTableClient::TUnversionedValue, Type) == 2 &&
+        sizeof(NYT::NTableClient::TUnversionedValue::Type) == 1);
     static_assert(
-        offsetof(NYT::NTableClient::TUnversionedValue, Aggregate) == 3
-            && sizeof(NYT::NTableClient::TUnversionedValue::Aggregate) == 1,
-        "TUnversionedValue must be of type {i16, i8, i8, i32, i64}");
+        offsetof(NYT::NTableClient::TUnversionedValue, Flags) == 3 &&
+        sizeof(NYT::NTableClient::TUnversionedValue::Flags) == 1);
     static_assert(
-        offsetof(NYT::NTableClient::TUnversionedValue, Length) == 4
-            && sizeof(NYT::NTableClient::TUnversionedValue::Length) == 4,
-        "TUnversionedValue must be of type {i16, i8, i8, i32, i64}");
+        offsetof(NYT::NTableClient::TUnversionedValue, Length) == 4 &&
+        sizeof(NYT::NTableClient::TUnversionedValue::Length) == 4);
     static_assert(
-        offsetof(NYT::NTableClient::TUnversionedValue, Data) == 8
-            && sizeof(NYT::NTableClient::TUnversionedValue::Data) == 8,
-        "TUnversionedValue must be of type {i16, i8, i8, i32, i64}");
+        offsetof(NYT::NTableClient::TUnversionedValue, Data) == 8 &&
+        sizeof(NYT::NTableClient::TUnversionedValue::Data) == 8);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

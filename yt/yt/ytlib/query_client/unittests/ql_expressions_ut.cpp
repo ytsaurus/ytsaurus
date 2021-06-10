@@ -1364,7 +1364,7 @@ class TEvaluateAggregationTest
 
 TEST_F(TEvaluateAggregationTest, AggregateFlag)
 {
-    TAggregateProfilerMapPtr aggregateProfilers = New<TAggregateProfilerMap>();
+    auto aggregateProfilers = New<TAggregateProfilerMap>();
 
     TFunctionRegistryBuilder builder(
         nullptr,
@@ -1390,39 +1390,38 @@ TEST_F(TEvaluateAggregationTest, AggregateFlag)
     auto state = MakeUint64(0);
     auto value = MakeUint64(0);
 
-    state.Aggregate = false;
     // Init sets aggregate flag to true.
     callbacks.Init(buffer.Get(), &state);
-    EXPECT_EQ(true, state.Aggregate);
+    EXPECT_EQ(EValueFlags::Aggregate, state.Flags);
 
-    value.Aggregate = true;
+    value.Flags |= EValueFlags::Aggregate;
     callbacks.Update(buffer.Get(), &state, &value);
-    EXPECT_EQ(false, state.Aggregate);
+    EXPECT_EQ(EValueFlags::None, state.Flags);
 
     callbacks.Update(buffer.Get(), &state, &value);
-    EXPECT_EQ(true, state.Aggregate);
+    EXPECT_EQ(EValueFlags::Aggregate, state.Flags);
 
-    value.Aggregate = false;
+    value.Flags &= ~EValueFlags::Aggregate;
     callbacks.Update(buffer.Get(), &state, &value);
-    EXPECT_EQ(true, state.Aggregate);
+    EXPECT_EQ(EValueFlags::Aggregate, state.Flags);
 
-    value.Aggregate = false;
+    value.Flags &= ~EValueFlags::Aggregate;
     callbacks.Merge(buffer.Get(), &state, &value);
-    EXPECT_EQ(true, state.Aggregate);
+    EXPECT_EQ(EValueFlags::Aggregate, state.Flags);
 
-    value.Aggregate = true;
+    value.Flags |= EValueFlags::Aggregate;
     callbacks.Merge(buffer.Get(), &state, &value);
-    EXPECT_EQ(false, state.Aggregate);
+    EXPECT_EQ(EValueFlags::None, state.Flags);
 
     TUnversionedValue result;
     // Finalize preserves aggregate flag.
-    state.Aggregate = false;
+    state.Flags &= ~EValueFlags::Aggregate;
     callbacks.Finalize(buffer.Get(), &result, &state);
-    EXPECT_EQ(false, state.Aggregate);
+    EXPECT_EQ(EValueFlags::None, state.Flags);
 
-    state.Aggregate = true;
+    state.Flags |= EValueFlags::Aggregate;
     callbacks.Finalize(buffer.Get(), &result, &state);
-    EXPECT_EQ(true, state.Aggregate);
+    EXPECT_EQ(EValueFlags::Aggregate, state.Flags);
 }
 
 TEST_P(TEvaluateAggregationTest, Basic)

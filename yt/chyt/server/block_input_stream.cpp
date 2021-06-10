@@ -226,7 +226,7 @@ void TBlockInputStream::readSuffixImpl()
 DB::Block TBlockInputStream::readImpl()
 {
     TCurrentTraceContextGuard guard(TraceContext_);
-    
+
     TNullTraceContextGuard nullGuard;
     if (Settings_->EnableReaderTracing) {
         nullGuard.Release();
@@ -303,7 +303,7 @@ void TBlockInputStream::Prepare()
         ExecutePrewhereActions(OutputHeaderBlock_, PrewhereInfo_);
     }
 
-    for (int index = 0; index < static_cast<int>(ReadSchemaWithVirtualColumns_->Columns().size()); ++index) {
+    for (int index = 0; index < ReadSchemaWithVirtualColumns_->GetColumnCount(); ++index) {
         const auto& columnSchema = ReadSchemaWithVirtualColumns_->Columns()[index];
         auto id = Reader_->GetNameTable()->GetIdOrRegisterName(columnSchema.Name());
         if (static_cast<int>(IdToColumnIndex_.size()) <= id) {

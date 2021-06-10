@@ -258,7 +258,8 @@ public class WireProtocolReader {
 
         final ColumnValueType type = ColumnValueType.fromValue(readRawByte() & 0xff);
 
-        final boolean aggregate = readRawByte() != 0;
+        final byte flags = readRawByte();
+        final boolean aggregate = (flags & WireProtocol.AGGREGATE_FLAG) != 0;
         consumer.setAggregate(aggregate);
 
         final int length = readRawInt();

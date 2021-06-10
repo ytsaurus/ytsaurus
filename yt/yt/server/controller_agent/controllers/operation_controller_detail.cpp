@@ -9313,7 +9313,11 @@ void TOperationControllerBase::MaybeCancel(ECancelationStage cancelationStage)
         cancelationStage == *Spec_->TestingOperationOptions->CancelationStage)
     {
         YT_LOG_INFO("Making test operation failure (CancelationStage: %v)", cancelationStage);
-        GetInvoker()->Invoke(BIND(&TOperationControllerBase::OnOperationFailed, MakeWeak(this), TError("Test operation failure"), false /* flush */));
+        GetInvoker()->Invoke(BIND(
+            &TOperationControllerBase::OnOperationFailed,
+            MakeWeak(this),
+            TError("Test operation failure"),
+            /*flush*/ false));
         YT_LOG_INFO("Making test cancelation (CancelationStage: %v)", cancelationStage);
         Cancel();
     }

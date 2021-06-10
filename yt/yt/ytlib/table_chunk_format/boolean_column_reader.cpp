@@ -18,12 +18,12 @@ using namespace NProto;
 class TBooleanValueExtractorBase
 {
 public:
-    void ExtractValue(TUnversionedValue* value, i64 valueIndex, int id, bool aggregate) const
+    void ExtractValue(TUnversionedValue* value, i64 valueIndex, int id, EValueFlags flags) const
     {
         if (NullBitmap_[valueIndex]) {
-            *value = MakeUnversionedSentinelValue(EValueType::Null, id, aggregate);
+            *value = MakeUnversionedSentinelValue(EValueType::Null, id, flags);
         } else {
-            *value = MakeUnversionedBooleanValue(Values_[valueIndex], id, aggregate);
+            *value = MakeUnversionedBooleanValue(Values_[valueIndex], id, flags);
         }
     }
 

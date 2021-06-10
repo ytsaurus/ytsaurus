@@ -44,6 +44,7 @@ private:
 
     const int SchemaColumnCount_;
     const int KeyColumnCount_;
+    const std::unique_ptr<bool[]> ColumnHunkFlags_;
 
     TChunkedOutputStream KeyStream_;
     TBitmapOutput KeyNullFlags_;

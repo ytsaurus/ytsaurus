@@ -32,6 +32,12 @@ union TUnversionedValueData
     char* String;
 };
 
+enum class EValueFlags : uint8_t
+{
+    None = 0x00,
+    Aggregate = 0x01
+};
+
 //! Fully initializes #value but leaves it in invalid state.
 void ClearValue(TUnversionedValue* value);
 
@@ -43,7 +49,7 @@ struct TUnversionedValue
 {
     uint16_t Id;
     NYT::NQueryClient::NUdf::EValueType Type;
-    uint8_t Aggregate;
+    NYT::NQueryClient::NUdf::EValueFlags Flags;
     uint32_t Length;
     NYT::NQueryClient::NUdf::TUnversionedValueData Data;
 };

@@ -26,14 +26,14 @@ size_t GetDataWeight(const TVersionedValue& value)
 
 size_t ReadValue(const char* input, TVersionedValue* value)
 {
-    int result = ReadValue(input, static_cast<TUnversionedValue*>(value));
+    int result = ReadRowValue(input, static_cast<TUnversionedValue*>(value));
     result += ReadVarUint64(input + result, &value->Timestamp);
     return result;
 }
 
 size_t WriteValue(char* output, const TVersionedValue& value)
 {
-    int result = WriteValue(output, static_cast<TUnversionedValue>(value));
+    int result = WriteRowValue(output, static_cast<TUnversionedValue>(value));
     result += WriteVarUint64(output + result, value.Timestamp);
     return result;
 }
@@ -304,9 +304,9 @@ void ValidateClientDataRow(
         const auto& column = schema.Columns()[mappedId];
         ValidateValueType(value, schema, mappedId, /*typeAnyAcceptsAllValues*/ false);
 
-        if (value.Aggregate && !column.Aggregate()) {
+        if (Any(value.Flags & EValueFlags::Aggregate) && !column.Aggregate()) {
             THROW_ERROR_EXCEPTION(
-                "\"aggregate\" flag is set for value in column %Qv which is not aggregating",
+                "\"aggregate\" flag is set for value in non-aggregating column %Qv",
                 column.Name());
         }
 

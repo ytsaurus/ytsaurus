@@ -87,7 +87,13 @@ public:
     }
 
 private:
-    TUnversionedValue Value_ = {0, EValueType::TheBottom, false, 0, {0}};
+    TUnversionedValue Value_{
+        .Id = 0,
+        .Type = EValueType::TheBottom,
+        .Flags = {},
+        .Length = 0,
+        .Data = {}
+    };
 
     void Assign(const TUnversionedValue& other)
     {
@@ -102,59 +108,59 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TUnversionedValue MakeUnversionedSentinelValue(EValueType type, int id = 0, bool aggregate = false)
+inline TUnversionedValue MakeUnversionedSentinelValue(EValueType type, int id = 0, EValueFlags flags = EValueFlags::None)
 {
-    return MakeSentinelValue<TUnversionedValue>(type, id, aggregate);
+    return MakeSentinelValue<TUnversionedValue>(type, id, flags);
 }
 
-inline TUnversionedValue MakeUnversionedNullValue(int id = 0, bool aggregate = false)
+inline TUnversionedValue MakeUnversionedNullValue(int id = 0, EValueFlags flags = EValueFlags::None)
 {
-    return MakeNullValue<TUnversionedValue>(id, aggregate);
+    return MakeNullValue<TUnversionedValue>(id, flags);
 }
 
-inline TUnversionedValue MakeUnversionedInt64Value(i64 value, int id = 0, bool aggregate = false)
+inline TUnversionedValue MakeUnversionedInt64Value(i64 value, int id = 0, EValueFlags flags = EValueFlags::None)
 {
-    return MakeInt64Value<TUnversionedValue>(value, id, aggregate);
+    return MakeInt64Value<TUnversionedValue>(value, id, flags);
 }
 
-inline TUnversionedValue MakeUnversionedUint64Value(ui64 value, int id = 0, bool aggregate = false)
+inline TUnversionedValue MakeUnversionedUint64Value(ui64 value, int id = 0, EValueFlags flags = EValueFlags::None)
 {
-    return MakeUint64Value<TUnversionedValue>(value, id, aggregate);
+    return MakeUint64Value<TUnversionedValue>(value, id, flags);
 }
 
-inline TUnversionedValue MakeUnversionedDoubleValue(double value, int id = 0, bool aggregate = false)
+inline TUnversionedValue MakeUnversionedDoubleValue(double value, int id = 0, EValueFlags flags = EValueFlags::None)
 {
-    return MakeDoubleValue<TUnversionedValue>(value, id, aggregate);
+    return MakeDoubleValue<TUnversionedValue>(value, id, flags);
 }
 
-inline TUnversionedValue MakeUnversionedBooleanValue(bool value, int id = 0, bool aggregate = false)
+inline TUnversionedValue MakeUnversionedBooleanValue(bool value, int id = 0, EValueFlags flags = EValueFlags::None)
 {
-    return MakeBooleanValue<TUnversionedValue>(value, id, aggregate);
+    return MakeBooleanValue<TUnversionedValue>(value, id, flags);
 }
 
-inline TUnversionedValue MakeUnversionedStringLikeValue(EValueType valueType, TStringBuf value, int id = 0, bool aggregate = false)
+inline TUnversionedValue MakeUnversionedStringLikeValue(EValueType valueType, TStringBuf value, int id = 0, EValueFlags flags = EValueFlags::None)
 {
-    return MakeStringLikeValue<TUnversionedValue>(valueType, value, id, aggregate);
+    return MakeStringLikeValue<TUnversionedValue>(valueType, value, id, flags);
 }
 
-inline TUnversionedValue MakeUnversionedStringValue(TStringBuf value, int id = 0, bool aggregate = false)
+inline TUnversionedValue MakeUnversionedStringValue(TStringBuf value, int id = 0, EValueFlags flags = EValueFlags::None)
 {
-    return MakeStringValue<TUnversionedValue>(value, id, aggregate);
+    return MakeStringValue<TUnversionedValue>(value, id, flags);
 }
 
-inline TUnversionedValue MakeUnversionedAnyValue(TStringBuf value, int id = 0, bool aggregate = false)
+inline TUnversionedValue MakeUnversionedAnyValue(TStringBuf value, int id = 0, EValueFlags flags = EValueFlags::None)
 {
-    return MakeAnyValue<TUnversionedValue>(value, id, aggregate);
+    return MakeAnyValue<TUnversionedValue>(value, id, flags);
 }
 
-inline TUnversionedValue MakeUnversionedCompositeValue(TStringBuf value, int id = 0, bool aggregate = false)
+inline TUnversionedValue MakeUnversionedCompositeValue(TStringBuf value, int id = 0, EValueFlags flags = EValueFlags::None)
 {
-    return MakeCompositeValue<TUnversionedValue>(value, id, aggregate);
+    return MakeCompositeValue<TUnversionedValue>(value, id, flags);
 }
 
-inline TUnversionedValue MakeUnversionedValueHeader(EValueType type, int id = 0, bool aggregate = false)
+inline TUnversionedValue MakeUnversionedValueHeader(EValueType type, int id = 0, EValueFlags flags = EValueFlags::None)
 {
-    return MakeSentinelValue<TUnversionedValue>(type, id, aggregate);
+    return MakeSentinelValue<TUnversionedValue>(type, id, flags);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -207,8 +213,8 @@ inline size_t GetDataWeight(const TUnversionedValue& value)
 }
 
 size_t GetByteSize(const TUnversionedValue& value);
-size_t WriteValue(char* output, const TUnversionedValue& value);
-size_t ReadValue(const char* input, TUnversionedValue* value);
+size_t WriteRowValue(char* output, const TUnversionedValue& value);
+size_t ReadRowValue(const char* input, TUnversionedValue* value);
 
 void Save(TStreamSaveContext& context, const TUnversionedValue& value);
 void Load(TStreamLoadContext& context, TUnversionedValue& value, TChunkedMemoryPool* pool);
@@ -217,11 +223,11 @@ TString ToString(const TUnversionedValue& value, bool valueOnly = false);
 
 //! Ternary comparison predicate for TUnversionedValue-s.
 //! Returns zero, positive or negative value depending on the outcome.
-//! Note that this ignores aggregate flags.
+//! Note that this ignores flags.
 int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 
 //! Derived comparison operators.
-//! Note that these ignore aggregate flags.
+//! Note that these ignore flags.
 bool operator == (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 bool operator != (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 bool operator <= (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
@@ -229,8 +235,10 @@ bool operator <  (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 bool operator >= (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 bool operator >  (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 
-//! Similar to operator == but takes aggregate flags into account.
+//! Similar to operator == but takes flags into account.
+//! Also handles any-typed values (which are generally not comparable).
 bool AreRowValuesIdentical(const TUnversionedValue& lhs, const TUnversionedValue& rhs);
+bool AreRowValuesIdentical(const TVersionedValue& lhs, const TVersionedValue& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -259,11 +267,8 @@ bool operator <  (TUnversionedRow lhs, TUnversionedRow rhs);
 bool operator >= (TUnversionedRow lhs, TUnversionedRow rhs);
 bool operator >  (TUnversionedRow lhs, TUnversionedRow rhs);
 
-//! Similar to operator == but takes aggregate flags into account.
+//! See #AreRowValuesIdentical.
 bool AreRowsIdentical(TUnversionedRow lhs, TUnversionedRow rhs);
-
-//! Sets all value types of |row| to |EValueType::Null|. Ids are not changed.
-void ResetRowValues(TMutableUnversionedRow* row);
 
 //! Computes hash for a given TUnversionedRow.
 ui64 GetHash(TUnversionedRow row, ui32 keyColumnCount = std::numeric_limits<ui32>::max());

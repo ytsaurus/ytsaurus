@@ -1270,7 +1270,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
 
     auto rowMerger = std::make_unique<TSchemafulRowMerger>(
         New<TRowBuffer>(TSchemalessMergingMultiChunkReaderBufferTag()),
-        versionedReadSchema->Columns().size(),
+        versionedReadSchema->GetColumnCount(),
         versionedReadSchema->GetKeyColumnCount(),
         TColumnFilter(),
         client->GetNativeConnection()->GetColumnEvaluatorCache()->Find(versionedReadSchema),

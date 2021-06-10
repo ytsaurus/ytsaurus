@@ -371,7 +371,7 @@ TUnversionedRow TReplicatedStoreManager::BuildSortedLogRow(
             logRow[value.Id] = value;
             auto& flags = logRow[value.Id + 1].Data.Uint64;
             flags &= ~static_cast<ui64>(EReplicationLogDataFlags::Missing);
-            if (value.Aggregate) {
+            if (Any(value.Flags & EValueFlags::Aggregate)) {
                 flags |= static_cast<ui64>(EReplicationLogDataFlags::Aggregate);
             }
         }

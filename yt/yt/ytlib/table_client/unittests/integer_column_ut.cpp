@@ -44,7 +44,7 @@ protected:
             nullptr,
             value.Timestamp,
             ColumnId,
-            Aggregate_ ? value.Aggregate : false);
+            Aggregate_ && value.Aggregate ? EValueFlags::Aggregate : EValueFlags::None);
     }
 
     TVersionedRow CreateRow(const std::vector<TValue>& values) const
@@ -369,11 +369,11 @@ protected:
         if (!ResolveDictionaryEncoding(column, index)) {
             return std::nullopt;
         }
-        
+
         if (IsColumnValueNull(column, index)) {
             return std::nullopt;
         }
-        
+
         return DecodeIntegerFromColumn<TValue>(*column, index);
     }
 

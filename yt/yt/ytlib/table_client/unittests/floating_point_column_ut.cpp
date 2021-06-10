@@ -37,14 +37,12 @@ protected:
             return MakeVersionedDoubleValue(
                 *value.Data,
                 value.Timestamp,
-                ColumnId,
-                false);
+                ColumnId);
         } else {
             return MakeVersionedSentinelValue(
                 EValueType::Null,
                 value.Timestamp,
-                ColumnId,
-                false);
+                ColumnId);
         }
     }
 

@@ -930,7 +930,7 @@ private:
             , ColumnEvaluator_(std::move(columnEvaluator))
             , TableMountCache_(transaction->Client_->GetNativeConnection()->GetTableMountCache())
             , IsSortedTable_(TableInfo_->Schemas[ETableSchemaKind::Primary]->IsSorted())
-            , ColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary]->Columns().size())
+            , ColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary]->GetColumnCount())
             , KeyColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary]->GetKeyColumnCount())
             , EnforceRowCountLimit_(transaction->Client_->GetOptions().GetAuthenticatedUser() != NSecurityClient::ReplicatorUserName)
             , Logger(transaction->Logger.WithTag("TabletId: %v", TabletInfo_->TabletId))

@@ -80,7 +80,7 @@ size_t GetByteSize(const TUnversionedValue& value)
     return result;
 }
 
-size_t WriteValue(char* output, const TUnversionedValue& value)
+size_t WriteRowValue(char* output, const TUnversionedValue& value)
 {
     char* current = output;
 
@@ -126,7 +126,7 @@ size_t WriteValue(char* output, const TUnversionedValue& value)
     return current - output;
 }
 
-size_t ReadValue(const char* input, TUnversionedValue* value)
+size_t ReadRowValue(const char* input, TUnversionedValue* value)
 {
     const char* current = input;
 
@@ -294,8 +294,11 @@ TString ToString(const TUnversionedValue& value, bool valueOnly)
 {
     TStringBuilder builder;
     if (!valueOnly) {
-        if (value.Aggregate) {
+        if (Any(value.Flags & EValueFlags::Aggregate)) {
             builder.AppendChar('%');
+        }
+        if (Any(value.Flags & EValueFlags::Hunk)) {
+            builder.AppendChar('&');
         }
         builder.AppendFormat("%v#", value.Id);
     }
@@ -328,35 +331,35 @@ TString ToString(const TUnversionedValue& value, bool valueOnly)
             break;
 
         case EValueType::Any:
-            builder.AppendString(ConvertToYsonString(
-                TYsonString(TString(value.Data.String, value.Length)),
-                EYsonFormat::Text).AsStringBuf());
-            break;
-
         case EValueType::Composite:
+            if (value.Type == EValueType::Composite) {
+                // ermolovd@ says "composites" are comparable, in contrast to "any".
+                builder.AppendString("><");
+            }
             builder.AppendString(ConvertToYsonString(
                 TYsonString(TString(value.Data.String, value.Length)),
                 EYsonFormat::Text).AsStringBuf());
-            builder.AppendFormat("@%v", value.Type);
             break;
     }
     auto result = builder.Flush();
-    constexpr ui16 cutoff = 128;
-    if (result.size() <= 2 * cutoff + 3) {
+    constexpr auto Cutoff = 128;
+    if (result.size() <= 2 * Cutoff + 3) {
         return result;
     } else {
-        return result.substr(0, cutoff) + "..." + result.substr(result.size() - cutoff, cutoff);
+        return result.substr(0, Cutoff) + "..." + result.substr(result.size() - Cutoff, Cutoff);
     }
 }
 
-static inline void ValidateDoubleValueIsComparable(double value)
+namespace {
+
+void ValidateDoubleValueIsComparable(double value)
 {
     if (Y_UNLIKELY(std::isnan(value))) {
         THROW_ERROR_EXCEPTION(EErrorCode::InvalidDoubleValue, "NaN value is not comparable");
     }
 }
 
-[[noreturn]] static void ThrowIncomparable(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
+[[noreturn]] void ThrowIncomparableTypes(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
 {
     THROW_ERROR_EXCEPTION(
         EErrorCode::IncomparableType,
@@ -367,6 +370,8 @@ static inline void ValidateDoubleValueIsComparable(double value)
         << TErrorAttribute("rhs_value", rhs);
 }
 
+} // namespace
+
 Y_FORCE_INLINE bool IsSentinel(EValueType valueType)
 {
     return valueType == EValueType::Min || valueType == EValueType::Max;
@@ -374,10 +379,12 @@ Y_FORCE_INLINE bool IsSentinel(EValueType valueType)
 
 int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
 {
+    // TODO(babenko): check flags; forbid comparing hunks and aggregates.
+
     if (lhs.Type == EValueType::Any || rhs.Type == EValueType::Any) {
         if (!IsSentinel(lhs.Type) && !IsSentinel(rhs.Type)) {
             // Never compare composite values with non-sentinels.
-            ThrowIncomparable(lhs, rhs);
+            ThrowIncomparableTypes(lhs, rhs);
         }
     }
 
@@ -386,7 +393,7 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
             if (!IsSentinel(lhs.Type) && lhs.Type != EValueType::Null &&
                 !IsSentinel(rhs.Type) && rhs.Type != EValueType::Null)
             {
-                ThrowIncomparable(lhs, rhs);
+                ThrowIncomparableTypes(lhs, rhs);
             }
             return static_cast<int>(lhs.Type) - static_cast<int>(rhs.Type);
         }
@@ -487,7 +494,6 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
         case EValueType::Max:
             return 0;
 
-        case EValueType::Any:
         default:
             YT_ABORT();
     }
@@ -525,7 +531,33 @@ bool operator > (const TUnversionedValue& lhs, const TUnversionedValue& rhs)
 
 bool AreRowValuesIdentical(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
 {
-    return lhs == rhs && lhs.Aggregate == rhs.Aggregate;
+    if (lhs.Flags != rhs.Flags) {
+        return false;
+    }
+
+    if (lhs.Type != rhs.Type) {
+        return false;
+    }
+
+    // Handle "any" and "composite" values specially since these are not comparable.
+    if (lhs.Type == EValueType::Any || lhs.Type == EValueType::Composite) {
+        return
+            lhs.Length == rhs.Length &&
+            ::memcmp(lhs.Data.String, rhs.Data.String, lhs.Length) == 0;
+    }
+
+    return lhs == rhs;
+}
+
+bool AreRowValuesIdentical(const TVersionedValue& lhs, const TVersionedValue& rhs)
+{
+    if (lhs.Timestamp != rhs.Timestamp) {
+        return false;
+    }
+
+    return AreRowValuesIdentical(
+        static_cast<const TUnversionedValue&>(lhs),
+        static_cast<const TUnversionedValue&>(rhs));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -844,7 +876,7 @@ void ValidateClientRow(
         const auto& column = schema.Columns()[mappedId];
         ValidateValueType(value, schema, mappedId, /*typeAnyAcceptsAllValues*/false);
 
-        if (value.Aggregate && !column.Aggregate()) {
+        if (Any(value.Flags & EValueFlags::Aggregate) && !column.Aggregate()) {
             THROW_ERROR_EXCEPTION(
                 "\"aggregate\" flag is set for value in column %Qv which is not aggregating",
                 column.Name());
@@ -918,7 +950,7 @@ TString SerializeToString(const TUnversionedValue* begin, const TUnversionedValu
     current += WriteVarUint32(current, static_cast<ui32>(std::distance(begin, end)));
 
     for (auto* it = begin; it != end; ++it) {
-        current += WriteValue(current, *it);
+        current += WriteRowValue(current, *it);
     }
 
     buffer.resize(current - buffer.data());
@@ -954,7 +986,7 @@ TUnversionedOwningRow DeserializeFromString(const TString& data, std::optional<i
     auto* values = reinterpret_cast<TUnversionedValue*>(header + 1);
     for (int index = 0; index < static_cast<int>(valueCount); ++index) {
         auto* value = values + index;
-        current += ReadValue(current, value);
+        current += ReadRowValue(current, value);
     }
     for (int index = valueCount; index < static_cast<int>(valueCount + nullCount); ++index) {
         values[index] = MakeUnversionedNullValue(index);
@@ -983,7 +1015,7 @@ TUnversionedRow DeserializeFromString(const TString& data, const TRowBufferPtr& 
     auto* values = row.begin();
     for (int index = 0; index < static_cast<int>(valueCount); ++index) {
         auto* value = values + index;
-        current += ReadValue(current, value);
+        current += ReadRowValue(current, value);
         rowBuffer->CaptureValue(value);
     }
 
@@ -1512,7 +1544,7 @@ void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, const TRo
 
     auto* values = mutableRow.Begin();
     for (auto* value = values; value < values + valueCount; ++value) {
-        current += ReadValue(current, value);
+        current += ReadRowValue(current, value);
         rowBuffer->CaptureValue(value);
     }
 }

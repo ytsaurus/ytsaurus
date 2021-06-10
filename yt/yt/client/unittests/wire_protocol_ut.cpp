@@ -4,10 +4,8 @@
 
 #include <cstring>
 
-namespace NYT {
+namespace NYT::NTableClient {
 namespace {
-
-using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,52 +16,48 @@ class TWireProtocolTest
     : public ::testing::Test
 {
 public:
-    static std::vector<EValueType> MakeValueTypes()
+    static std::vector<EValueType> GetValueTypes()
     {
         return {
-            EValueType::Null, EValueType::Int64, EValueType::Uint64, EValueType::Double, EValueType::Boolean,
-            EValueType::String, EValueType::Any
+            EValueType::Null,
+            EValueType::Int64,
+            EValueType::Uint64,
+            EValueType::Double,
+            EValueType::Boolean,
+            EValueType::String,
+            EValueType::Any
         };
     }
 
-    static TUnversionedValue MakeValueSample(ui16 id, EValueType type, bool aggregate)
+    static TUnversionedValue MakeValueSample(ui16 id, EValueType type, EValueFlags flags = EValueFlags::None)
     {
-        TUnversionedValue value{};
-        value.Id = id;
-        value.Type = type;
-        value.Aggregate = aggregate;
-        value.Length = 0;
-        switch (value.Type) {
+        switch (type) {
+            case EValueType::Null:
+                return MakeUnversionedNullValue(id, flags);
             case EValueType::Int64:
-                value.Data.Uint64 = 0x0123456789ABCDEFULL;
-                break;
+                return MakeUnversionedInt64Value(0x0123456789ABCDEFLL, id, flags);
             case EValueType::Uint64:
-                value.Data.Uint64 = 0xFEDCBA9876543210ULL;
-                break;
+                return MakeUnversionedUint64Value(0xFEDCBA9876543210ULL, id, flags);
             case EValueType::Double:
-                value.Data.Double = 3.141592653589793;
-                break;
+                return MakeUnversionedDoubleValue(3.141592653589793, id, flags);
+            case EValueType::Boolean:
+                return MakeUnversionedBooleanValue(false, id, flags);
             case EValueType::String:
-                value.Length = 1;
-                value.Data.String = "s";
-                break;
+                return MakeUnversionedStringValue("s", id, flags);
             case EValueType::Any:
-                value.Length = 2;
-                value.Data.String = "{}";
-                break;
+                return MakeUnversionedAnyValue("{}", id, flags);
             default:
-                break;
+                YT_ABORT();
         }
-        return value;
     }
 
     static TUnversionedOwningRow MakeUnversionedRowSample()
     {
         TUnversionedOwningRowBuilder builder;
         ui16 id = 0;
-        for (auto type : MakeValueTypes()) {
-            for (auto aggregate : {true, false}) {
-                builder.AddValue(MakeValueSample(id, type, aggregate));
+        for (auto type : GetValueTypes()) {
+            for (auto flags : {EValueFlags::Aggregate, EValueFlags::None}) {
+                builder.AddValue(MakeValueSample(id, type, flags));
             }
         }
         return builder.FinishRow();
@@ -73,9 +67,9 @@ public:
     {
         TUnversionedOwningRowBuilder builder;
         ui16 id = 0;
-        for (auto type : MakeValueTypes()) {
+        for (auto type : GetValueTypes()) {
             // This one does not support aggregate flags.
-            builder.AddValue(MakeValueSample(id, type, false));
+            builder.AddValue(MakeValueSample(id, type));
         }
         return builder.FinishRow();
     }
@@ -103,18 +97,8 @@ public:
         for (ui32 i = 0; i < lhs.GetCount(); ++i) {
             const auto& lhsValue = lhs[i];
             const auto& rhsValue = rhs[i];
-
             SCOPED_TRACE(Format("#%v: LHS = %v ; RHS = %v", i, lhsValue, rhsValue));
-            EXPECT_EQ(lhsValue.Id, rhsValue.Id);
-            EXPECT_EQ(lhsValue.Type, rhsValue.Type);
-            EXPECT_EQ(lhsValue.Aggregate, rhsValue.Aggregate);
-            // Double-check types here to avoid accessing dangling pointers.
-            if (IsStringLikeType(lhsValue.Type) && IsStringLikeType(rhsValue.Type)) {
-                EXPECT_EQ(lhsValue.Length, rhsValue.Length);
-                EXPECT_EQ(0, memcmp(lhsValue.Data.String, rhsValue.Data.String, lhsValue.Length));
-            } else if (lhsValue.Type != EValueType::Null || rhsValue.Type != EValueType::Null){
-                EXPECT_EQ(lhsValue.Data.Uint64, rhsValue.Data.Uint64);
-            }
+            EXPECT_TRUE(AreRowValuesIdentical(lhsValue, rhsValue));
         }
     }
 
@@ -131,18 +115,16 @@ public:
         }
     }
 
-    void DumpSharedRef(const TSharedRef& blob)
+    static void Dump(const TSharedRef& blob)
     {
-        Cerr << "=== BEGIN DUMP SHARED REF ===" << Endl;
-        Cerr << "{";
+        Cerr << "=== BEGIN DUMP ===" << Endl;
         for (size_t i = 0; i < blob.Size(); ++i) {
             if (i % 16 == 0) {
-                Cerr << "\n";
+                Cerr << Endl;
             }
             Cerr << Format("0x%02x, ", static_cast<unsigned char>(blob.Begin()[i]));
         }
-        Cerr << Endl << "}" << Endl;
-        Cerr << "=== END DUMP SHARED REF ===" << Endl;
+        Cerr << Endl << "=== END DUMP ===" << Endl;
     }
 };
 
@@ -153,7 +135,7 @@ TEST_F(TWireProtocolTest, UnversionedRow)
     TWireProtocolWriter writer;
     writer.WriteUnversionedRow(originalRow);
     auto blob = MergeRefsToRef<TWireProtocolTestTag>(writer.Finish());
-    // DumpSharedRef(blob);
+    Dump(blob);
 
     TWireProtocolReader reader(blob);
     auto reconstructedRow = reader.ReadUnversionedRow(true);
@@ -190,7 +172,7 @@ TEST_F(TWireProtocolTest, SchemafulRow)
     TWireProtocolWriter writer;
     writer.WriteSchemafulRow(originalRow);
     auto blob = MergeRefsToRef<TWireProtocolTestTag>(writer.Finish());
-    // DumpSharedRef(blob);
+    Dump(blob);
 
     TWireProtocolReader reader(blob);
     auto reconstructedRow = reader.ReadSchemafulRow(ExtractSchemaData(originalRow, EValueType::Int64), true);
@@ -248,23 +230,23 @@ TEST_F(TWireProtocolTest, Regression1)
 
     EXPECT_EQ(row[0].Id, 0);
     EXPECT_EQ(row[0].Type, EValueType::Int64);
-    EXPECT_EQ(row[0].Aggregate, false);
+    EXPECT_EQ(row[0].Flags, EValueFlags::None);
     EXPECT_EQ(row[0].Data.Int64, 1);
 
     EXPECT_EQ(row[1].Id, 1);
     EXPECT_EQ(row[1].Type, EValueType::Int64);
-    EXPECT_EQ(row[1].Aggregate, false);
+    EXPECT_EQ(row[1].Flags, EValueFlags::None);
     EXPECT_EQ(row[1].Data.Int64, 1);
 
     EXPECT_EQ(row[2].Id, 2);
     EXPECT_EQ(row[2].Type, EValueType::String);
-    EXPECT_EQ(row[2].Aggregate, false);
+    EXPECT_EQ(row[2].Flags, EValueFlags::None);
     EXPECT_EQ(static_cast<int>(row[2].Length), 1);
     EXPECT_EQ(row[2].Data.String[0], '2');
 
     EXPECT_EQ(row[3].Id, 3);
     EXPECT_EQ(row[3].Type, EValueType::Null);
-    EXPECT_EQ(row[3].Aggregate, false);
+    EXPECT_EQ(row[3].Flags, EValueFlags::None);
 }
 
 // Test sentinel values (min & max) serializability.
@@ -286,18 +268,18 @@ TEST_F(TWireProtocolTest, Regression2)
 
     EXPECT_EQ(row[0].Id, 0);
     EXPECT_EQ(row[0].Type, EValueType::Null);
-    EXPECT_EQ(row[0].Aggregate, false);
+    EXPECT_EQ(row[0].Flags, EValueFlags::None);
 
     EXPECT_EQ(row[1].Id, 1);
     EXPECT_EQ(row[1].Type, EValueType::Min);
-    EXPECT_EQ(row[1].Aggregate, false);
+    EXPECT_EQ(row[1].Flags, EValueFlags::None);
 
     EXPECT_EQ(row[2].Id, 2);
     EXPECT_EQ(row[2].Type, EValueType::Max);
-    EXPECT_EQ(row[2].Aggregate, false);
+    EXPECT_EQ(row[2].Flags, EValueFlags::None);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT
+} // namespace NYT::NTableClient

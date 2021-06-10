@@ -129,7 +129,7 @@ private:
                 MaxValueCount_ = std::max(MaxValueCount_, static_cast<ui32>(valueCount));
                 ValueCounts_.push_back(valueCount);
                 for (int index = SchemaColumnCount_; index < static_cast<int>(row.GetCount()); ++index) {
-                    current += WriteValue(current, row[index]);
+                    current += WriteRowValue(current, row[index]);
                 }
             }
         }

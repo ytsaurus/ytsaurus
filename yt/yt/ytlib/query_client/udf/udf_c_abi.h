@@ -28,11 +28,17 @@ typedef union TUnversionedValueData
     char* String;
 } TUnversionedValueData;
 
+typedef enum EValueFlags
+{
+    VF_None = 0x00,
+    VF_Aggregate = 0x01
+} EValueFlags;
+
 typedef struct TUnversionedValue
 {
     uint16_t Id;
     uint8_t Type;
-    uint8_t Aggregate;
+    uint8_t Flags;
     uint32_t Length;
     TUnversionedValueData Data;
 } TUnversionedValue;

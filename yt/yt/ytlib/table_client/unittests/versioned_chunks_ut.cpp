@@ -418,7 +418,6 @@ protected:
             memoryWriter->GetChunkMeta(),
             memoryWriter->GetBlocks());
 
-
         auto chunkMeta = TCachedVersionedChunkMeta::Load(
             memoryReader,
             /* chunkReadOptions */ {},
@@ -509,7 +508,7 @@ protected:
 
             // v1
             for (int i = 0; i < std::rand() % 3; ++i) {
-                builder.AddValue(MakeVersionedInt64Value(-10 + (rowIndex / 16) + i, writeTimestamps[i], 5, i % 2));
+                builder.AddValue(MakeVersionedInt64Value(-10 + (rowIndex / 16) + i, writeTimestamps[i], 5, i % 2 == 0 ? EValueFlags::None : EValueFlags::Aggregate));
             }
 
             // v2
@@ -553,10 +552,10 @@ protected:
     {
         std::vector<TVersionedRow> expected;
 
-        std::vector<int> idMapping(writeSchema->Columns().size(), -1);
-        for (int i = 0; i < std::ssize(writeSchema->Columns()); ++i) {
+        std::vector<int> idMapping(writeSchema->GetColumnCount(), -1);
+        for (int i = 0; i < writeSchema->GetColumnCount(); ++i) {
             auto writeColumnSchema = writeSchema->Columns()[i];
-            for (int j = 0; j < std::ssize(readSchema->Columns()); ++j) {
+            for (int j = 0; j < readSchema->GetColumnCount(); ++j) {
                 auto readColumnSchema = readSchema->Columns()[j];
                 if (writeColumnSchema.Name() == readColumnSchema.Name()) {
                     idMapping[i] = j;

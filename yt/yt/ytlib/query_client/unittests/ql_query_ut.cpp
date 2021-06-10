@@ -369,7 +369,7 @@ TEST_F(TQueryPrepareTest, SelectColumns)
 
         auto schema = query->GetReadSchema();
 
-        EXPECT_EQ(schema->Columns().size(), 5u);
+        EXPECT_EQ(schema->GetColumnCount(), 5);
         EXPECT_EQ(schema->Columns()[0].Name(), "h");
         EXPECT_EQ(schema->Columns()[1].Name(), "a");
         EXPECT_EQ(schema->Columns()[2].Name(), "b");
@@ -384,7 +384,7 @@ TEST_F(TQueryPrepareTest, SelectColumns)
 
         auto schema = query->GetReadSchema();
 
-        EXPECT_EQ(schema->Columns().size(), 3u);
+        EXPECT_EQ(schema->GetColumnCount(), 3);
         EXPECT_EQ(schema->Columns()[0].Name(), "a");
         EXPECT_EQ(schema->Columns()[1].Name(), "c");
         EXPECT_EQ(schema->Columns()[2].Name(), "d");

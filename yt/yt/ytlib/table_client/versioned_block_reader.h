@@ -38,9 +38,9 @@ class TSimpleVersionedBlockReader
 {
 public:
     TSimpleVersionedBlockReader(
-        const TSharedRef& block,
+        TSharedRef block,
         const NProto::TBlockMeta& meta,
-        const TTableSchemaPtr& chunkSchema,
+        TTableSchemaPtr chunkSchema,
         int chunkKeyColumnCount,
         int keyColumnCount,
         const std::vector<TColumnIdMapping>& schemaIdMapping,
@@ -73,6 +73,12 @@ private:
     const NProto::TBlockMeta& Meta_;
     const NProto::TSimpleVersionedBlockMeta& VersionedMeta_;
 
+    const std::unique_ptr<bool[]> ColumnHunkFlags_;
+    const std::unique_ptr<EValueType[]> ColumnTypes_;
+
+    // NB: chunk reader holds the comparer.
+    const TKeyComparer& KeyComparer_;
+
     TRef KeyData_;
     TReadOnlyBitmap KeyNullFlags_;
 
@@ -97,9 +103,6 @@ private:
     i64 ValueOffset_;
     ui16 WriteTimestampCount_;
     ui16 DeleteTimestampCount_;
-
-    // NB: chunk reader holds the comparer.
-    const TKeyComparer& KeyComparer_;
 
     bool JumpToRowIndex(i64 index);
     TMutableVersionedRow ReadAllVersions(TChunkedMemoryPool* memoryPool);

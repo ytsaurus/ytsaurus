@@ -2,6 +2,8 @@
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
+#include <yt/yt/ytlib/table_client/hunks.h>
+
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/core/misc/serialize.h>
@@ -17,24 +19,28 @@ static const i64 NullValue = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSimpleVersionedBlockWriterTag { };
+struct TSimpleVersionedBlockWriterTag
+{ };
 
 TSimpleVersionedBlockWriter::TSimpleVersionedBlockWriter(TTableSchemaPtr schema)
     : MinTimestamp_(MaxTimestamp)
     , MaxTimestamp_(MinTimestamp)
     , Schema_(std::move(schema))
-    , SchemaColumnCount_(Schema_->Columns().size())
+    , SchemaColumnCount_(Schema_->GetColumnCount())
     , KeyColumnCount_(Schema_->GetKeyColumnCount())
+    , ColumnHunkFlags_(new bool[Schema_->GetColumnCount()])
     , KeyStream_(TSimpleVersionedBlockWriterTag())
     , ValueStream_(TSimpleVersionedBlockWriterTag())
     , TimestampStream_(TSimpleVersionedBlockWriterTag())
     , StringDataStream_(TSimpleVersionedBlockWriterTag())
 {
-    for (const auto& column : Schema_->Columns()) {
-        if (column.Aggregate()) {
-            ValueAggregateFlags_ = TBitmapOutput();
-            break;
-        }
+    for (int id = 0; id < Schema_->GetColumnCount(); ++id) {
+        const auto& columnSchema = Schema_->Columns()[id];
+        ColumnHunkFlags_[id] = columnSchema.MaxInlineHunkSize().operator bool();
+    }
+
+    if (Schema_->HasAggregateColumns()) {
+        ValueAggregateFlags_ = TBitmapOutput();
     }
 }
 
@@ -146,7 +152,7 @@ void TSimpleVersionedBlockWriter::WriteValue(
     const TUnversionedValue& value)
 {
     if (aggregateFlags) {
-        aggregateFlags->Append(value.Aggregate);
+        aggregateFlags->Append(Any(value.Flags & EValueFlags::Aggregate));
     }
 
     switch (value.Type) {
@@ -174,8 +180,14 @@ void TSimpleVersionedBlockWriter::WriteValue(
         case EValueType::String:
         case EValueType::Any:
             WritePod(stream, static_cast<ui32>(StringDataStream_.GetSize()));
-            WritePod(stream, value.Length);
-            StringDataStream_.Write(value.Data.String, value.Length);
+            if (!ColumnHunkFlags_[value.Id] || Any(value.Flags & EValueFlags::Hunk)) {
+                WritePod(stream, value.Length);
+                StringDataStream_.Write(value.Data.String, value.Length);
+            } else {
+                WritePod(stream, value.Length + 1);
+                StringDataStream_.Write(static_cast<char>(EHunkValueTag::Inline));
+                StringDataStream_.Write(value.Data.String, value.Length);
+            }
             nullFlags.Append(false);
             break;
 

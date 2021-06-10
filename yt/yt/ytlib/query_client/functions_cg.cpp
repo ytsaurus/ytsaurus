@@ -130,7 +130,7 @@ void CheckCallee(
 ////////////////////////////////////////////////////////////////////////////////
 
 void PushArgument(
-    TCGIRBuilderPtr& builder,
+    const TCGIRBuilderPtr& builder,
     std::vector<Value*>& argumentValues,
     TCGValue argumentValue)
 {

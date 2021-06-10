@@ -90,7 +90,7 @@ Y_FORCE_INLINE int ComparePrimitive<double>(double lhs, double rhs)
 
 [[noreturn]] static void ThrowIncomparableYsonToken(EYsonItemType tokenType)
 {
-    THROW_ERROR_EXCEPTION("Incomparable yson token: %Qlv",
+    THROW_ERROR_EXCEPTION("Incomparable YSON token %Qlv",
         tokenType);
 }
 
@@ -139,7 +139,7 @@ Y_FORCE_INLINE static int CompareYsonItems(const TYsonItem& lhs, const TYsonItem
     }
 
     if (lhsClass == ECompareClass::BeginValue && rhsClass == ECompareClass::BeginValue) {
-        THROW_ERROR_EXCEPTION("Incomparable scalar types %Qlv and %Qlv in yson representation",
+        THROW_ERROR_EXCEPTION("Incomparable scalar types %Qlv and %Qlv in YSON representation",
             lhs.GetType(),
             rhs.GetType());
     }
@@ -172,7 +172,7 @@ int CompareCompositeValues(TStringBuf lhs, TStringBuf rhs)
 TFingerprint CompositeHash(TStringBuf value)
 {
     auto throwUnexpectedYsonToken = [] (const TYsonItem& item) {
-        THROW_ERROR_EXCEPTION("Unexpected yson token in composite value: %Qlv", item.GetType());
+        THROW_ERROR_EXCEPTION("Unexpected YSON token %Qlv in composite value", item.GetType());
     };
     TMemoryInput in(value);
     TYsonPullParser parser(&in, EYsonType::Node);

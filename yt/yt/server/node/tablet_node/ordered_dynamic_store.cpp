@@ -80,7 +80,7 @@ public:
         if (MaybeColumnFilter_->IsUniversal()) {
             TColumnFilter::TIndexes columnFilterIndexes;
             // +2 is for (tablet_index, row_index).
-            for (int id = 0; id < static_cast<int>(Store_->Schema_->Columns().size()) + 2; ++id) {
+            for (int id = 0; id < Store_->Schema_->GetColumnCount() + 2; ++id) {
                 columnFilterIndexes.push_back(id);
             }
             MaybeColumnFilter_.emplace(std::move(columnFilterIndexes));
@@ -233,7 +233,7 @@ TOrderedDynamicRow TOrderedDynamicStore::WriteRow(
 {
     YT_ASSERT(context->Phase == EWritePhase::Commit);
 
-    int columnCount = static_cast<int>(Schema_->Columns().size());
+    int columnCount = Schema_->GetColumnCount();
     auto dynamicRow = RowBuffer_->AllocateUnversioned(columnCount);
 
     for (int index = 0; index < columnCount; ++index) {

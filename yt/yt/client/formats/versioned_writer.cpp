@@ -111,7 +111,7 @@ bool TVersionedWriter::Write(TRange<TVersionedRow> rows)
                 Consumer_->OnKeyedItem("timestamp");
                 Consumer_->OnUint64Scalar(columnBeginIt->Timestamp);
                 Consumer_->OnKeyedItem("aggregate");
-                Consumer_->OnBooleanScalar(columnBeginIt->Aggregate);
+                Consumer_->OnBooleanScalar(Any(columnBeginIt->Flags & EValueFlags::Aggregate));
                 Consumer_->OnEndAttributes();
                 consumeUnversionedData(*columnBeginIt);
                 ++columnBeginIt;

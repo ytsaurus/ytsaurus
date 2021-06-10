@@ -109,7 +109,7 @@ TMutableUnversionedRow THorizontalBlockReader::GetRow(TChunkedMemoryPool* memory
 
     for (int i = 0; i < static_cast<int>(ValueCount_); ++i) {
         TUnversionedValue value;
-        CurrentPointer_ += ReadValue(CurrentPointer_, &value);
+        CurrentPointer_ += ReadRowValue(CurrentPointer_, &value);
 
         const auto remappedId = IdMapping_[value.Id].ReaderSchemaIndex;
         if (remappedId >= 0) {
@@ -139,7 +139,7 @@ TMutableVersionedRow THorizontalBlockReader::GetVersionedRow(
     auto currentPointer = CurrentPointer_;
     for (int i = 0; i < static_cast<int>(ValueCount_); ++i) {
         TUnversionedValue value;
-        currentPointer += ReadValue(currentPointer, &value);
+        currentPointer += ReadRowValue(currentPointer, &value);
 
         if (IdMapping_[value.Id].ReaderSchemaIndex >= Comparator_.GetLength()) {
             ++valueCount;
@@ -160,7 +160,7 @@ TMutableVersionedRow THorizontalBlockReader::GetVersionedRow(
     TVersionedValue* currentValue = versionedRow.BeginValues();
     for (int i = 0; i < static_cast<int>(ValueCount_); ++i) {
         TUnversionedValue value;
-        CurrentPointer_ += ReadValue(CurrentPointer_, &value);
+        CurrentPointer_ += ReadRowValue(CurrentPointer_, &value);
 
         int id = IdMapping_[value.Id].ReaderSchemaIndex;
         if (id >= Comparator_.GetLength()) {
@@ -209,7 +209,7 @@ bool THorizontalBlockReader::JumpToRowIndex(i64 rowIndex)
     const char* ptr = CurrentPointer_;
     for (int i = 0; i < ChunkComparator_.GetLength(); ++i) {
         auto* currentKeyValue = Key_.Begin() + i;
-        ptr += ReadValue(ptr, currentKeyValue);
+        ptr += ReadRowValue(ptr, currentKeyValue);
         if (currentKeyValue->Type == EValueType::Any
             && currentKeyValue->Id < IsCompositeColumn_.size()
             && IsCompositeColumn_[currentKeyValue->Id])
