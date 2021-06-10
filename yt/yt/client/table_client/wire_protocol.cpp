@@ -301,7 +301,7 @@ private:
 
     void UnsafeWriteUnversionedValue(const TUnversionedValue& value)
     {
-        // Write header (id, type, aggregate, length).
+        // Write header (id, type, flags, length).
         UnsafeWritePod(*reinterpret_cast<const ui64*>(&value));
         // Write data in-place.
         if (IsStringLikeType(value.Type)) {
@@ -313,7 +313,7 @@ private:
 
     void UnsafeWriteVersionedValue(const TVersionedValue& value)
     {
-        // Write header (id, type, aggregate, length).
+        // Write header (id, type, flags, length).
         const ui64* rawValue = reinterpret_cast<const ui64*>(&value);
         UnsafeWritePod<ui64>(rawValue[0]);
         // Write data in-place.

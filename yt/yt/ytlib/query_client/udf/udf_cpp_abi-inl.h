@@ -11,11 +11,7 @@ namespace NYT::NQueryClient::NUdf {
 
 inline void ClearValue(TUnversionedValue* value)
 {
-    value->Id = 0;
-    value->Type = EValueType::Min; // effectively 0
-    value->Aggregate = 0;
-    value->Length = 0;
-    value->Data.String = nullptr;
+    *value = {};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

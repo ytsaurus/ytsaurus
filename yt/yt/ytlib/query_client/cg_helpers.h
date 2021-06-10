@@ -143,13 +143,13 @@ public:
     }
 
     static TCGValue Create(
-        TCGIRBuilderPtr& builder,
+        const TCGIRBuilderPtr& builder,
         Value* isNull,
         Value* isAggregate,
         Value* length,
         Value* data,
         EValueType staticType,
-        Twine name = Twine())
+        Twine name = {})
     {
         YT_VERIFY(
             isNull->getType() == builder->getInt1Ty() ||
@@ -164,20 +164,20 @@ public:
     }
 
     static TCGValue Create(
-        TCGIRBuilderPtr& builder,
+        const TCGIRBuilderPtr& builder,
         Value* isNull,
         Value* length,
         Value* data,
         EValueType staticType,
-        Twine name = Twine())
+        Twine name = {})
     {
         return Create(builder, isNull, nullptr, length, data, staticType, name);
     }
 
     static TCGValue CreateNull(
-        TCGIRBuilderPtr& builder,
+        const TCGIRBuilderPtr& builder,
         EValueType staticType,
-        Twine name = Twine())
+        Twine name = {})
     {
         Value* length = nullptr;
         if (IsStringLikeType(staticType)) {
@@ -194,13 +194,13 @@ public:
     }
 
     static TCGValue LoadFromRowValues(
-        TCGIRBuilderPtr& builder,
+        const TCGIRBuilderPtr& builder,
         Value* rowValues,
         int index,
         bool nullable,
         bool aggregate,
         EValueType staticType,
-        Twine name = Twine())
+        Twine name = {})
     {
         Value* isNull = builder->getFalse();
         if (nullable) {
@@ -235,11 +235,11 @@ public:
     }
 
     static TCGValue LoadFromRowValues(
-        TCGIRBuilderPtr& builder,
+        const TCGIRBuilderPtr& builder,
         Value* rowValues,
         int index,
         EValueType staticType,
-        Twine name = Twine())
+        Twine name = {})
     {
         return LoadFromRowValues(
             builder,
@@ -252,34 +252,38 @@ public:
     }
 
     static TCGValue LoadFromRowValue(
-        TCGIRBuilderPtr& builder,
+        const TCGIRBuilderPtr& builder,
         Value* valuePtr,
         bool nullable,
         EValueType staticType,
-        Twine name = Twine())
+        Twine name = {})
     {
         return LoadFromRowValues(builder, valuePtr, 0, nullable, false, staticType, name);
     }
 
     static TCGValue LoadFromRowValue(
-        TCGIRBuilderPtr& builder,
+        const TCGIRBuilderPtr& builder,
         Value* valuePtr,
         EValueType staticType,
-        Twine name = Twine())
+        Twine name = {})
     {
         return LoadFromRowValue(builder, valuePtr, true, staticType, name);
     }
 
     static TCGValue LoadFromAggregate(
-        TCGIRBuilderPtr& builder,
+        const TCGIRBuilderPtr& builder,
         Value* valuePtr,
         EValueType staticType,
-        Twine name = Twine())
+        Twine name = {})
     {
         return LoadFromRowValues(builder, valuePtr, 0, true, true, staticType, name);
     }
 
-    void StoreToValues(TCGIRBuilderPtr& builder, Value* valuePtr, size_t index, Twine name) const
+    void StoreToValues(
+        const TCGIRBuilderPtr& builder,
+        Value* valuePtr,
+        size_t index,
+        Twine name) const
     {
         const auto& type = TTypeBuilder<NTableClient::TUnversionedValue>::TType::Get(builder->getContext());
 
@@ -329,12 +333,18 @@ public:
                 nullptr, valuePtr, index, TValueTypeBuilder::Data, name + ".dataPtr"));
     }
 
-    void StoreToValues(TCGIRBuilderPtr& builder, Value* valuePtr, size_t index) const
+    void StoreToValues(
+        const TCGIRBuilderPtr& builder,
+        Value* valuePtr,
+        size_t index) const
     {
         StoreToValues(builder, valuePtr, index, Name_);
     }
 
-    void StoreToValue(TCGIRBuilderPtr& builder, Value* valuePtr, Twine name = "") const
+    void StoreToValue(
+        const TCGIRBuilderPtr& builder,
+        Value* valuePtr,
+        Twine name = {}) const
     {
         StoreToValues(builder, valuePtr, 0, name);
     }
@@ -344,7 +354,7 @@ public:
         return IsNull_;
     }
 
-    Value* GetIsNull(TCGIRBuilderPtr& builder) const
+    Value* GetIsNull(const TCGIRBuilderPtr& builder) const
     {
         if (IsNull_->getType() == builder->getInt1Ty()) {
             return IsNull_;
@@ -364,7 +374,7 @@ public:
         return Data_;
     }
 
-    Value* GetTypedData(TCGIRBuilderPtr& builder, bool isAbi = false) const
+    Value* GetTypedData(const TCGIRBuilderPtr& builder, bool isAbi = false) const
     {
         Value* castedData = nullptr;
         Type* targetType = (isAbi ? GetABIType : GetLLVMType)(builder->getContext(), StaticType_);
@@ -384,7 +394,7 @@ public:
         return castedData;
     }
 
-    TCGValue Cast(TCGIRBuilderPtr& builder, EValueType dest) const
+    TCGValue Cast(const TCGIRBuilderPtr& builder, EValueType dest) const
     {
         if (dest == StaticType_) {
             return *this;
@@ -627,20 +637,20 @@ struct TCGContext
 
 ////////////////////////////////////////////////////////////////////////////////
 TCGValue MakePhi(
-    TCGIRBuilderPtr& builder,
+    const TCGIRBuilderPtr& builder,
     BasicBlock* thenBB,
     BasicBlock* elseBB,
     TCGValue thenValue,
     TCGValue elseValue,
-    Twine name = Twine());
+    Twine name = {});
 
 Value* MakePhi(
-    TCGIRBuilderPtr& builder,
+    const TCGIRBuilderPtr& builder,
     BasicBlock* thenBB,
     BasicBlock* elseBB,
     Value* thenValue,
     Value* elseValue,
-    Twine name = Twine());
+    Twine name = {});
 
 template <class TBuilder, class TResult>
 TResult CodegenIf(
@@ -648,7 +658,7 @@ TResult CodegenIf(
     Value* condition,
     const std::function<TResult(TBuilder& builder)>& thenCodegen,
     const std::function<TResult(TBuilder& builder)>& elseCodegen,
-    Twine name = Twine())
+    Twine name = {})
 {
     if (llvm::Constant* constantCondition = llvm::dyn_cast<llvm::Constant>(condition)) {
         if (constantCondition->isNullValue()) {

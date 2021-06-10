@@ -40,66 +40,66 @@ struct TUnversionedValueConversionTraits
     static constexpr bool Inline = false;
 };
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, std::nullopt_t, const TRowBufferPtr& rowBuffer, int id = 0, bool aggregate = false);
+void ToUnversionedValue(TUnversionedValue* unversionedValue, std::nullopt_t, const TRowBufferPtr& rowBuffer, int id = 0, EValueFlags flags = EValueFlags::None);
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, TGuid value, const TRowBufferPtr& rowBuffer, int id = 0, bool aggregate = false);
+void ToUnversionedValue(TUnversionedValue* unversionedValue, TGuid value, const TRowBufferPtr& rowBuffer, int id = 0, EValueFlags flags = EValueFlags::None);
 void FromUnversionedValue(TGuid* value, TUnversionedValue unversionedValue);
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, const TString& value, const TRowBufferPtr& rowBuffer, int id = 0, bool aggregate = false);
+void ToUnversionedValue(TUnversionedValue* unversionedValue, const TString& value, const TRowBufferPtr& rowBuffer, int id = 0, EValueFlags flags = EValueFlags::None);
 void FromUnversionedValue(TString* value, TUnversionedValue unversionedValue);
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, TStringBuf value, const TRowBufferPtr& rowBuffer, int id = 0, bool aggregate = false);
+void ToUnversionedValue(TUnversionedValue* unversionedValue, TStringBuf value, const TRowBufferPtr& rowBuffer, int id = 0, EValueFlags flags = EValueFlags::None);
 void FromUnversionedValue(TStringBuf* value, TUnversionedValue unversionedValue);
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, const char* value, const TRowBufferPtr& rowBuffer, int id = 0, bool aggregate = false);
+void ToUnversionedValue(TUnversionedValue* unversionedValue, const char* value, const TRowBufferPtr& rowBuffer, int id = 0, EValueFlags flags = EValueFlags::None);
 void FromUnversionedValue(const char** value, TUnversionedValue unversionedValue);
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, bool value, const TRowBufferPtr& rowBuffer, int id = 0, bool aggregate = false);
+void ToUnversionedValue(TUnversionedValue* unversionedValue, bool value, const TRowBufferPtr& rowBuffer, int id = 0, EValueFlags flags = EValueFlags::None);
 void FromUnversionedValue(bool* value, TUnversionedValue unversionedValue);
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, const NYson::TYsonString& value, const TRowBufferPtr& rowBuffer, int id = 0, bool aggregate = false);
+void ToUnversionedValue(TUnversionedValue* unversionedValue, const NYson::TYsonString& value, const TRowBufferPtr& rowBuffer, int id = 0, EValueFlags flags = EValueFlags::None);
 void FromUnversionedValue(NYson::TYsonString* value, TUnversionedValue unversionedValue);
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, const NYson::TYsonStringBuf& value, const TRowBufferPtr& rowBuffer, int id = 0, bool aggregate = false);
+void ToUnversionedValue(TUnversionedValue* unversionedValue, const NYson::TYsonStringBuf& value, const TRowBufferPtr& rowBuffer, int id = 0, EValueFlags flags = EValueFlags::None);
 void FromUnversionedValue(NYson::TYsonStringBuf* value, TUnversionedValue unversionedValue);
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, i64 value, const TRowBufferPtr& rowBuffer, int id = 0, bool aggregate = false);
+void ToUnversionedValue(TUnversionedValue* unversionedValue, i64 value, const TRowBufferPtr& rowBuffer, int id = 0, EValueFlags flags = EValueFlags::None);
 void FromUnversionedValue(i64* value, TUnversionedValue unversionedValue);
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, ui64 value, const TRowBufferPtr& rowBuffer, int id = 0, bool aggregate = false);
+void ToUnversionedValue(TUnversionedValue* unversionedValue, ui64 value, const TRowBufferPtr& rowBuffer, int id = 0, EValueFlags flags = EValueFlags::None);
 void FromUnversionedValue(ui64* value, TUnversionedValue unversionedValue);
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, i32 value, const TRowBufferPtr& rowBuffer, int id = 0, bool aggregate = false);
+void ToUnversionedValue(TUnversionedValue* unversionedValue, i32 value, const TRowBufferPtr& rowBuffer, int id = 0, EValueFlags flags = EValueFlags::None);
 void FromUnversionedValue(i32* value, TUnversionedValue unversionedValue);
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, ui32 value, const TRowBufferPtr& rowBuffer, int id = 0, bool aggregate = false);
+void ToUnversionedValue(TUnversionedValue* unversionedValue, ui32 value, const TRowBufferPtr& rowBuffer, int id = 0, EValueFlags flags = EValueFlags::None);
 void FromUnversionedValue(ui32* value, TUnversionedValue unversionedValue);
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, i16 value, const TRowBufferPtr& rowBuffer, int id = 0, bool aggregate = false);
+void ToUnversionedValue(TUnversionedValue* unversionedValue, i16 value, const TRowBufferPtr& rowBuffer, int id = 0, EValueFlags flags = EValueFlags::None);
 void FromUnversionedValue(i16* value, TUnversionedValue unversionedValue);
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, ui16 value, const TRowBufferPtr& rowBuffer, int id = 0, bool aggregate = false);
+void ToUnversionedValue(TUnversionedValue* unversionedValue, ui16 value, const TRowBufferPtr& rowBuffer, int id = 0, EValueFlags flags = EValueFlags::None);
 void FromUnversionedValue(ui16* value, TUnversionedValue unversionedValue);
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, i8 value, const TRowBufferPtr& rowBuffer, int id = 0, bool aggregate = false);
+void ToUnversionedValue(TUnversionedValue* unversionedValue, i8 value, const TRowBufferPtr& rowBuffer, int id = 0, EValueFlags flags = EValueFlags::None);
 void FromUnversionedValue(i8* value, TUnversionedValue unversionedValue);
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, ui8 value, const TRowBufferPtr& rowBuffer, int id = 0, bool aggregate = false);
+void ToUnversionedValue(TUnversionedValue* unversionedValue, ui8 value, const TRowBufferPtr& rowBuffer, int id = 0, EValueFlags flags = EValueFlags::None);
 void FromUnversionedValue(ui8* value, TUnversionedValue unversionedValue);
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, double value, const TRowBufferPtr& rowBuffer, int id = 0, bool aggregate = false);
+void ToUnversionedValue(TUnversionedValue* unversionedValue, double value, const TRowBufferPtr& rowBuffer, int id = 0, EValueFlags flags = EValueFlags::None);
 void FromUnversionedValue(double* value, TUnversionedValue unversionedValue);
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, TInstant value, const TRowBufferPtr& rowBuffer, int id = 0, bool aggregate = false);
+void ToUnversionedValue(TUnversionedValue* unversionedValue, TInstant value, const TRowBufferPtr& rowBuffer, int id = 0, EValueFlags flags = EValueFlags::None);
 void FromUnversionedValue(TInstant* value, TUnversionedValue unversionedValue);
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, TDuration value, const TRowBufferPtr& rowBuffer, int id = 0, bool aggregate = false);
+void ToUnversionedValue(TUnversionedValue* unversionedValue, TDuration value, const TRowBufferPtr& rowBuffer, int id = 0, EValueFlags flags = EValueFlags::None);
 void FromUnversionedValue(TDuration* value, TUnversionedValue unversionedValue);
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, const NYTree::IMapNodePtr& value, const TRowBufferPtr& rowBuffer, int id = 0, bool aggregate = false);
+void ToUnversionedValue(TUnversionedValue* unversionedValue, const NYTree::IMapNodePtr& value, const TRowBufferPtr& rowBuffer, int id = 0, EValueFlags flags = EValueFlags::None);
 void FromUnversionedValue(NYTree::IMapNodePtr* value, TUnversionedValue unversionedValue);
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, const NNet::TIP6Address& value, const TRowBufferPtr& rowBuffer, int id = 0, bool aggregate = false);
+void ToUnversionedValue(TUnversionedValue* unversionedValue, const NNet::TIP6Address& value, const TRowBufferPtr& rowBuffer, int id = 0, EValueFlags flags = EValueFlags::None);
 void FromUnversionedValue(NNet::TIP6Address* value, TUnversionedValue unversionedValue);
 
 template <class T>
@@ -108,7 +108,7 @@ void ToUnversionedValue(
     T value,
     const TRowBufferPtr& rowBuffer,
     int id = 0,
-    bool aggregate = false,
+    EValueFlags flags = EValueFlags::None,
     typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type* = nullptr);
 template <class T>
 void FromUnversionedValue(
@@ -121,7 +121,7 @@ TUnversionedValue ToUnversionedValue(
     T&& value,
     const TRowBufferPtr& rowBuffer,
     int id = 0,
-    bool aggregate = false);
+    EValueFlags flags = EValueFlags::None);
 template <class T>
 T FromUnversionedValue(TUnversionedValue unversionedValue);
 
@@ -131,7 +131,7 @@ void ToUnversionedValue(
     const T& value,
     const TRowBufferPtr& rowBuffer,
     int id = 0,
-    bool aggregate = false,
+    EValueFlags flags = EValueFlags::None,
     typename std::enable_if<std::is_convertible<T*, ::google::protobuf::Message*>::value, void>::type* = nullptr);
 template <class T>
 void FromUnversionedValue(
@@ -145,7 +145,7 @@ void ToUnversionedValue(
     const std::optional<T>& value,
     const TRowBufferPtr& rowBuffer,
     int id = 0,
-    bool aggregate = false);
+    EValueFlags flags = EValueFlags::None);
 template <class T>
 void FromUnversionedValue(
     std::optional<T>* value,
@@ -157,7 +157,7 @@ void ToUnversionedValue(
     const std::vector<T>& values,
     const TRowBufferPtr& rowBuffer,
     int id = 0,
-    bool aggregate = false);
+    EValueFlags flags = EValueFlags::None);
 template <class T>
 void FromUnversionedValue(
     std::vector<T>* values,
@@ -175,7 +175,7 @@ void ToUnversionedValue(
     const THashMap<TKey, TValue>& map,
     const TRowBufferPtr& rowBuffer,
     int id = 0,
-    bool aggregate = false);
+    EValueFlags flags = EValueFlags::None);
 template <class TKey, class TValue>
 void FromUnversionedValue(
     THashMap<TKey, TValue>* map,
@@ -198,14 +198,14 @@ void ToVersionedValue(
     const TRowBufferPtr& rowBuffer,
     NTransactionClient::TTimestamp timestamp,
     int id,
-    bool aggregate = false);
+    EValueFlags flags = EValueFlags::None);
 template <class T>
 TVersionedValue ToVersionedValue(
     T&& value,
     const TRowBufferPtr& rowBuffer,
     NTransactionClient::TTimestamp timestamp,
     int id,
-    bool aggregate = false);
+    EValueFlags flags = EValueFlags::None);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -230,15 +230,15 @@ struct TAnnotatedValue
     TAnnotatedValue(
         const T& value,
         int id = 0,
-        bool aggregate = false)
+        EValueFlags flags = EValueFlags::None)
         : Value(value)
         , Id(id)
-        , Aggregate(aggregate)
+        , Flags(flags)
     { }
 
     const T& Value;
     int Id;
-    bool Aggregate;
+    EValueFlags Flags;
 };
 
 //! Constructs an owning row from arbitrarily-typed values.

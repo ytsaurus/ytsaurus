@@ -1404,7 +1404,7 @@ void TQueryProfiler::Profile(
         codegenSource,
         slotCount,
         currentSlot,
-        schema->Columns().size());
+        schema->GetColumnCount());
 
     Profile(codegenSource, query, slotCount, finalSlot, intermediateSlot, totalsSlot, schema, true);
 }

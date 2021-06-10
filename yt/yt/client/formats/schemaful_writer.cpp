@@ -29,7 +29,7 @@ bool TSchemafulWriter::Write(TRange<TUnversionedRow> rows)
 {
     Buffer_.Clear();
 
-    int columnCount = static_cast<int>(Schema_->Columns().size());
+    int columnCount = Schema_->GetColumnCount();
     for (auto row : rows) {
         if (!row) {
             Consumer_->OnEntity();

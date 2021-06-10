@@ -215,14 +215,8 @@ TDynamicStoreBase::TDynamicStoreBase(
     , RowBuffer_(New<TRowBuffer>(
         TDynamicStoreBufferTag(),
         Config_->PoolChunkSize))
-    , HunkColumnFlags_(new bool[Tablet_->GetPhysicalSchema()->Columns().size()])
 {
     SetStoreState(EStoreState::ActiveDynamic);
-
-    const auto& schema = *Tablet_->GetPhysicalSchema();
-    for (int index = 0; index < static_cast<int>(schema.Columns().size()); ++index) {
-        HunkColumnFlags_[index] = schema.Columns()[index].MaxInlineHunkSize().has_value();
-    }
 }
 
 EMemoryCategory TDynamicStoreBase::GetMemoryCategory() const

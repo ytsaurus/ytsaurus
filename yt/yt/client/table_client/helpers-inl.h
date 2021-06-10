@@ -92,9 +92,9 @@ void ToUnversionedValue(
     const TAnnotatedValue<T>& value,
     const TRowBufferPtr& rowBuffer,
     int /*id*/,
-    bool /*aggregate*/)
+    EValueFlags /*flags*/)
 {
-    ToUnversionedValue(unversionedValue, value.Value, rowBuffer, value.Id, value.Aggregate);
+    ToUnversionedValue(unversionedValue, value.Value, rowBuffer, value.Id, value.Flags);
 }
 
 template <class T>
@@ -125,15 +125,15 @@ void ToUnversionedValue(
     T value,
     const TRowBufferPtr& rowBuffer,
     int id,
-    bool aggregate,
+    EValueFlags flags,
     typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type*)
 {
     if constexpr (TEnumTraits<T>::IsStringSerializableEnum) {
-        ToUnversionedValue(unversionedValue, NYT::FormatEnum(value), rowBuffer, id, aggregate);
+        ToUnversionedValue(unversionedValue, NYT::FormatEnum(value), rowBuffer, id, flags);
     } else if constexpr (TEnumTraits<T>::IsBitEnum) {
-        ToUnversionedValue(unversionedValue, static_cast<ui64>(value), rowBuffer, id, aggregate);
+        ToUnversionedValue(unversionedValue, static_cast<ui64>(value), rowBuffer, id, flags);
     } else {
-        ToUnversionedValue(unversionedValue, static_cast<i64>(value), rowBuffer, id, aggregate);
+        ToUnversionedValue(unversionedValue, static_cast<i64>(value), rowBuffer, id, flags);
     }
 }
 
@@ -167,7 +167,7 @@ void ProtobufToUnversionedValueImpl(
     const NYson::TProtobufMessageType* type,
     const TRowBufferPtr& rowBuffer,
     int id,
-    bool aggregate);
+    EValueFlags flags);
 
 template <class T>
 void ToUnversionedValue(
@@ -175,7 +175,7 @@ void ToUnversionedValue(
     const T& value,
     const TRowBufferPtr& rowBuffer,
     int id,
-    bool aggregate,
+    EValueFlags flags,
     typename std::enable_if<std::is_convertible<T*, google::protobuf::Message*>::value, void>::type*)
 {
     ProtobufToUnversionedValueImpl(
@@ -184,7 +184,7 @@ void ToUnversionedValue(
         NYson::ReflectProtobufMessageType<T>(),
         rowBuffer,
         id,
-        aggregate);
+        flags);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -214,12 +214,12 @@ void ToUnversionedValue(
     const std::optional<T>& value,
     const TRowBufferPtr& rowBuffer,
     int id,
-    bool aggregate)
+    EValueFlags flags)
 {
     if (value) {
-        ToUnversionedValue(unversionedValue, *value, rowBuffer, id, aggregate);
+        ToUnversionedValue(unversionedValue, *value, rowBuffer, id, flags);
     } else {
-        *unversionedValue = MakeUnversionedSentinelValue(EValueType::Null, id, aggregate);
+        *unversionedValue = MakeUnversionedSentinelValue(EValueType::Null, id, flags);
     }
 }
 
@@ -245,14 +245,14 @@ void ToVersionedValue(
     const TRowBufferPtr& rowBuffer,
     NTransactionClient::TTimestamp timestamp,
     int id,
-    bool aggregate)
+    EValueFlags flags)
 {
     ToUnversionedValue(
         static_cast<TUnversionedValue*>(versionedValue),
         std::forward<T>(value),
         rowBuffer,
         id,
-        aggregate);
+        flags);
     versionedValue->Timestamp = timestamp;
 }
 
@@ -262,7 +262,7 @@ TVersionedValue ToVersionedValue(
     const TRowBufferPtr& rowBuffer,
     NTransactionClient::TTimestamp timestamp,
     int id,
-    bool aggregate)
+    EValueFlags flags)
 {
     TVersionedValue versionedValue;
     ToVersionedValue(
@@ -271,7 +271,7 @@ TVersionedValue ToVersionedValue(
         rowBuffer,
         timestamp,
         id,
-        aggregate);
+        flags);
     return versionedValue;
 }
 
@@ -282,7 +282,7 @@ void ListToUnversionedValueImpl(
     const std::function<bool(TUnversionedValue*)> producer,
     const TRowBufferPtr& rowBuffer,
     int id,
-    bool aggregate);
+    EValueFlags flags);
 
 template <class T>
 void ToUnversionedValue(
@@ -290,7 +290,7 @@ void ToUnversionedValue(
     const std::vector<T>& values,
     const TRowBufferPtr& rowBuffer,
     int id,
-    bool aggregate)
+    EValueFlags flags)
 {
     size_t index = 0;
     ListToUnversionedValueImpl(
@@ -304,7 +304,7 @@ void ToUnversionedValue(
         },
         rowBuffer,
         id,
-        aggregate);
+        flags);
 }
 
 void UnversionedValueToListImpl(
@@ -354,7 +354,7 @@ void MapToUnversionedValueImpl(
     const std::function<bool(TString*, TUnversionedValue*)> producer,
     const TRowBufferPtr& rowBuffer,
     int id,
-    bool aggregate);
+    EValueFlags flags);
 
 template <class TKey, class TValue>
 void ToUnversionedValue(
@@ -362,7 +362,7 @@ void ToUnversionedValue(
     const THashMap<TKey, TValue>& map,
     const TRowBufferPtr& rowBuffer,
     int id,
-    bool aggregate)
+    EValueFlags flags)
 {
     auto it = map.begin();
     MapToUnversionedValueImpl(
@@ -378,7 +378,7 @@ void ToUnversionedValue(
         },
         rowBuffer,
         id,
-        aggregate);
+        flags);
 }
 
 void UnversionedValueToMapImpl(
@@ -461,10 +461,10 @@ std::tuple<Ts...> FromUnversionedRow(TUnversionedRow row)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TUnversionedValue ToUnversionedValue(T&& value, const TRowBufferPtr& rowBuffer, int id, bool aggregate)
+TUnversionedValue ToUnversionedValue(T&& value, const TRowBufferPtr& rowBuffer, int id, EValueFlags flags)
 {
     TUnversionedValue unversionedValue;
-    ToUnversionedValue(&unversionedValue, std::forward<T>(value), rowBuffer, id, aggregate);
+    ToUnversionedValue(&unversionedValue, std::forward<T>(value), rowBuffer, id, flags);
     return unversionedValue;
 }
 
@@ -499,7 +499,7 @@ void TUnversionedRowsBuilder::AddRow(Ts&&... values)
     auto row = RowBuffer_->AllocateUnversioned(sizeof...(Ts));
     auto* current = row.Begin();
     int id = 0;
-    (ToUnversionedValue(current++, std::forward<Ts>(values), RowBuffer_, id++, /*aggregate*/ false), ...);
+    (ToUnversionedValue(current++, std::forward<Ts>(values), RowBuffer_, id++, /*flags*/ EValueFlags::None), ...);
     Rows_.push_back(row);
 }
 

@@ -219,7 +219,7 @@ TEST(TUnversionedRowsBuilder, AnnotatedValue)
     TUnversionedRowsBuilder builder;
     builder.AddRow(TAnnotatedValue{1, 10}, TAnnotatedValue{"hello", 20});
     builder.AddRow(TAnnotatedValue{2, 30}, TAnnotatedValue{"world", 40});
-    builder.AddRow(TAnnotatedValue{77, 1, true});
+    builder.AddRow(TAnnotatedValue{77, 1, EValueFlags::Aggregate});
     auto rows = builder.Build();
     EXPECT_EQ(3, std::ssize(rows));
     {
@@ -240,7 +240,7 @@ TEST(TUnversionedRowsBuilder, AnnotatedValue)
         auto [i] = FromUnversionedRow<int>(rows[2]);
         EXPECT_EQ(77, i);
         EXPECT_EQ(1, rows[2][0].Id);
-        EXPECT_TRUE(rows[2][0].Aggregate);
+        EXPECT_EQ(EValueFlags::Aggregate, rows[2][0].Flags);
     }
 }
 

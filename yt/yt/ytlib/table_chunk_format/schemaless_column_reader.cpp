@@ -54,7 +54,7 @@ public:
 
             for (int index = 0; index < static_cast<int>(ValueCountReader_[SegmentRowIndex_ + rowIndex]); ++index) {
                 TUnversionedValue value;
-                ptr += ReadValue(ptr, &value);
+                ptr += ReadRowValue(ptr, &value);
 
                 if (value.Type == EValueType::Any) {
                     value = MakeUnversionedValue(

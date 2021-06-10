@@ -126,7 +126,7 @@ void TVersionedColumnWriterBase::AddPendingValues(
             TimestampIndexes_.push_back(timestampIndex);
             NullBitmap_.Append(isNull);
             if (Aggregate_) {
-                AggregateBitmap_.Append(value.Aggregate);
+                AggregateBitmap_.Append(Any(value.Flags & EValueFlags::Aggregate));
             }
         }
     }

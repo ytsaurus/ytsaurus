@@ -150,9 +150,7 @@ void TVersionedColumnTestBase::Validate(
 
 void TVersionedColumnTestBase::ValidateValues(const TVersionedValue& expected, const TVersionedValue& actual, i64 rowIndex)
 {
-    ASSERT_EQ(expected.Aggregate, actual.Aggregate) << Format("Row index - %v", rowIndex);
-    ASSERT_EQ(expected.Timestamp, actual.Timestamp) << Format("Row index - %v", rowIndex);
-    ASSERT_EQ(0, CompareRowValues(expected, actual)) << Format("Row index - %v", rowIndex);
+    ASSERT_TRUE(AreRowValuesIdentical(expected, actual)) << Format("Row index - %v", rowIndex);
 }
 
 std::vector<TMutableVersionedRow> TVersionedColumnTestBase::AllocateRows(int count)

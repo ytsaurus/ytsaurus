@@ -66,10 +66,9 @@ struct TSchemafulUnversionedRowVisitor
     {
         for (auto id : schema.GetHunkColumnIds()) {
             auto& value = row[id];
-            if (value.Type == EValueType::Null) {
-                continue;
+            if (Any(value.Flags & EValueFlags::Hunk)) {
+                func(value);
             }
-            func(value);
         }
     }
 };
@@ -79,18 +78,13 @@ struct TSchemalessUnversionedRowVisitor
     template <class TRow, class F>
     static void ForEachHunkValue(
         TRow row,
-        const TTableSchema& schema,
+        const TTableSchema& /*schema*/,
         const F& func)
     {
         for (auto& value : row) {
-            if (value.Type == EValueType::Null) {
-                continue;
+            if (Any(value.Flags & EValueFlags::Hunk)) {
+                func(value);
             }
-            const auto& columnSchema = schema.Columns()[value.Id];
-            if (!columnSchema.MaxInlineHunkSize()) {
-                continue;
-            }
-            func(value);
         }
     }
 };
@@ -100,18 +94,13 @@ struct TVersionedRowVisitor
     template <class TRow, class F>
     static void ForEachHunkValue(
         TRow row,
-        const TTableSchema& schema,
+        const TTableSchema& /*schema*/,
         const F& func)
     {
         for (auto* value = row.BeginValues(); value != row.EndValues(); ++value) {
-            if (value->Type == EValueType::Null) {
-                continue;
+            if (Any(value->Flags & EValueFlags::Hunk)) {
+                func(*value);
             }
-            const auto& columnSchema = schema.Columns()[value->Id];
-            if (!columnSchema.MaxInlineHunkSize()) {
-                continue;
-            }
-            func(*value);
         }
     }
 };
@@ -216,17 +205,13 @@ TRef WriteHunkValue(char* ptr, const TInlineHunkValue& value)
 THunkValue ReadHunkValue(TRef input)
 {
     if (input.Size() == 0) {
-        return TInlineHunkValue{
-            .Payload = TRef::MakeEmpty()
-        };
+        return TInlineHunkValue{TRef::MakeEmpty()};
     }
 
     const char* currentPtr = input.Begin();
     switch (auto tag = *currentPtr++) {
         case static_cast<char>(EHunkValueTag::Inline):
-            return TInlineHunkValue{
-                .Payload = TRef(currentPtr, input.End())
-            };
+            return TInlineHunkValue{TRef(currentPtr, input.End())};
 
         case static_cast<char>(EHunkValueTag::LocalRef): {
             ui32 chunkIndex;
@@ -279,16 +264,14 @@ void GlobalizeHunkValues(
     if (!row) {
         return;
     }
+
     const auto& hunkChunkRefsExt = chunkMeta->HunkChunkRefsExt();
-    const auto& schemaColumns = chunkMeta->GetSchema()->Columns();
     for (int index = 0; index < row.GetValueCount(); ++index) {
         auto& value = row.BeginValues()[index];
-        if (value.Type == EValueType::Null) {
+        if (None(value.Flags & EValueFlags::Hunk)) {
             continue;
         }
-        if (!schemaColumns[value.Id].MaxInlineHunkSize()) {
-            continue;
-        }
+
         auto hunkValue = ReadHunkValue(TRef(value.Data.String, value.Length));
         if (const auto* localRefHunkValue = std::get_if<TLocalRefHunkValue>(&hunkValue)) {
             auto globalRefHunkValue = TGlobalRefHunkValue{
@@ -343,43 +326,53 @@ public:
                     continue;
                 }
 
-                Visit(
-                    ReadHunkValue(GetValueRef(value)),
-                    [&] (const TInlineHunkValue& inlineHunkValue) {
-                        auto payloadLength = static_cast<i64>(inlineHunkValue.Payload.Size());
-                        if (payloadLength < *maxInlineHunkSize) {
-                            // Leave as is.
-                            return;
-                        }
+                auto handleInlineHunkValue = [&] (const TInlineHunkValue& inlineHunkValue) {
+                    auto payloadLength = static_cast<i64>(inlineHunkValue.Payload.Size());
+                    if (payloadLength < *maxInlineHunkSize) {
+                        // Leave as is.
+                        return;
+                    }
 
-                        HunkCount_ += 1;
-                        TotalHunkLength_ += payloadLength;
+                    HunkCount_ += 1;
+                    TotalHunkLength_ += payloadLength;
 
-                        auto [offset, hunkWriterReady] = HunkChunkPayloadWriter_->WriteHunk(inlineHunkValue.Payload);
-                        ready &= hunkWriterReady;
+                    auto [offset, hunkWriterReady] = HunkChunkPayloadWriter_->WriteHunk(inlineHunkValue.Payload);
+                    ready &= hunkWriterReady;
 
-                        auto localizedPayload = WriteHunkValue(
-                            pool,
-                            TLocalRefHunkValue{
-                                .ChunkIndex = GetHunkChunkPayloadWriterChunkIndex(),
-                                .Length = payloadLength,
-                                .Offset = offset
-                            });
-                        SetValueRef(&value, localizedPayload);
-                    },
-                    [&] (const TLocalRefHunkValue& /*localRefHunkValue*/) {
-                        THROW_ERROR_EXCEPTION("Unexpected local hunk reference");
-                    },
-                    [&] (const TGlobalRefHunkValue& globalRefHunkValue) {
-                        auto localizedPayload = WriteHunkValue(
-                            pool,
-                            TLocalRefHunkValue{
-                                .ChunkIndex = RegisterHunkRef(globalRefHunkValue.ChunkId, globalRefHunkValue.Length),
-                                .Length = globalRefHunkValue.Length,
-                                .Offset = globalRefHunkValue.Offset
-                            });
-                        SetValueRef(&value, localizedPayload);
-                    });
+                    auto localizedPayload = WriteHunkValue(
+                        pool,
+                        TLocalRefHunkValue{
+                            .ChunkIndex = GetHunkChunkPayloadWriterChunkIndex(),
+                            .Length = payloadLength,
+                            .Offset = offset
+                        });
+                    SetValueRef(&value, localizedPayload);
+                    value.Flags |= EValueFlags::Hunk;
+                };
+
+                auto valueRef = GetValueRef(value);
+                if (Any(value.Flags & EValueFlags::Hunk)) {
+                    Visit(
+                        ReadHunkValue(valueRef),
+                        handleInlineHunkValue,
+                        [&] (const TLocalRefHunkValue& /*localRefHunkValue*/) {
+                            THROW_ERROR_EXCEPTION("Unexpected local hunk reference");
+                        },
+                        [&] (const TGlobalRefHunkValue& globalRefHunkValue) {
+                            auto localizedPayload = WriteHunkValue(
+                                pool,
+                                TLocalRefHunkValue{
+                                    .ChunkIndex = RegisterHunkRef(globalRefHunkValue.ChunkId, globalRefHunkValue.Length),
+                                    .Length = globalRefHunkValue.Length,
+                                    .Offset = globalRefHunkValue.Offset
+                                });
+                            SetValueRef(&value, localizedPayload);
+                            // NB: Strictly speaking, this is redundant.
+                            value.Flags |= EValueFlags::Hunk;
+                        });
+                } else {
+                     handleInlineHunkValue(TInlineHunkValue{valueRef});
+                }
             }
         }
 
@@ -628,9 +621,9 @@ protected:
     {
         HunkValues_.push_back(value);
         Requests_.push_back({
-            globalRefHunkValue.ChunkId,
-            globalRefHunkValue.Offset,
-            globalRefHunkValue.Length
+            .ChunkId = globalRefHunkValue.ChunkId,
+            .Offset = globalRefHunkValue.Offset,
+            .Length = globalRefHunkValue.Length
         });
     }
 
@@ -645,7 +638,16 @@ protected:
                 BIND(&TSessionBase::OnFragmentsRead, MakeStrong(this)));
     }
 
-    virtual TSharedRange<TRow> OnFragmentsRead(const std::vector<TSharedRef>& fragments) = 0;
+    TSharedRange<TRow> OnFragmentsRead(const std::vector<TSharedRef>& fragments)
+    {
+        YT_VERIFY(fragments.size() == this->HunkValues_.size());
+        for (int index = 0; index < static_cast<int>(fragments.size()); ++index) {
+            auto* value = this->HunkValues_[index];
+            SetValueRef(value, fragments[index]);
+            value->Flags &= ~EValueFlags::Hunk;
+        }
+        return MakeSharedRange(this->Rows_, this->Rows_, fragments);
+    }
 };
 
 template <class TRow>
@@ -668,15 +670,6 @@ protected:
             [&] (const TGlobalRefHunkValue& globalRefHunkValue) {
                 this->RegisterRequest(value, globalRefHunkValue);
             });
-    }
-
-    virtual TSharedRange<TRow> OnFragmentsRead(const std::vector<TSharedRef>& fragments) override
-    {
-        YT_VERIFY(fragments.size() == this->HunkValues_.size());
-        for (int index = 0; index < static_cast<int>(fragments.size()); ++index) {
-            SetValueRef(this->HunkValues_[index], fragments[index]);
-        }
-        return MakeSharedRange(this->Rows_, this->Rows_, fragments);
     }
 };
 
@@ -752,29 +745,6 @@ private:
         {
             RegisterRequest(value, *globalRefHunkValue);
         }
-    }
-
-    virtual TSharedRange<TMutableVersionedRow> OnFragmentsRead(const std::vector<TSharedRef>& fragments) override
-    {
-        YT_VERIFY(fragments.size() == HunkValues_.size());
-
-        size_t bufferSize = 0;
-        for (const auto& fragment : fragments) {
-            bufferSize += GetInlineHunkValueSize(TInlineHunkValue{fragment});
-        }
-
-        struct TBufferTag
-        { };
-        auto buffer = TSharedMutableRef::Allocate<TBufferTag>(bufferSize, false);
-
-        auto* currentPtr = buffer.Begin();
-        for (int index = 0; index < std::ssize(fragments); ++index) {
-            auto payload = WriteHunkValue(currentPtr, TInlineHunkValue{fragments[index]});
-            SetValueRef(HunkValues_[index], payload);
-            currentPtr += payload.Size();
-        }
-
-        return MakeSharedRange(Rows_, Rows_, std::move(buffer));
     }
 };
 

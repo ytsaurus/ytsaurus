@@ -808,10 +808,12 @@ private:
                     YT_ASSERT(flagsValue.Type == EValueType::Uint64);
                     auto flags = static_cast<EReplicationLogDataFlags>(flagsValue.Data.Uint64);
                     if (None(flags & EReplicationLogDataFlags::Missing)) {
-                        TVersionedValue value;
+                        TVersionedValue value{};
                         static_cast<TUnversionedValue&>(value) = rowBuffer->CaptureValue(logRow[logValueIndex * 2 + keyColumnCount + 4]);
                         value.Id = logValueIndex + keyColumnCount;
-                        value.Aggregate = Any(flags & EReplicationLogDataFlags::Aggregate);
+                        if (Any(flags & EReplicationLogDataFlags::Aggregate)) {
+                            value.Flags |= EValueFlags::Aggregate;
+                        }
                         value.Timestamp = timestamp;
                         mutableReplicationRow.BeginValues()[replicationValueIndex++] = value;
                     }
@@ -889,10 +891,12 @@ private:
                     YT_ASSERT(flagsValue.Type == EValueType::Uint64);
                     auto flags = static_cast<EReplicationLogDataFlags>(flagsValue.Data.Uint64);
                     if (None(flags & EReplicationLogDataFlags::Missing)) {
-                        TUnversionedValue value;
+                        TUnversionedValue value{};
                         static_cast<TUnversionedValue&>(value) = rowBuffer->CaptureValue(logRow[logValueIndex * 2 + keyColumnCount + 4]);
                         value.Id = logValueIndex + keyColumnCount;
-                        value.Aggregate = Any(flags & EReplicationLogDataFlags::Aggregate);
+                        if (Any(flags & EReplicationLogDataFlags::Aggregate)) {
+                            value.Flags |= EValueFlags::Aggregate;
+                        }
                         mutableReplicationRow.Begin()[keyColumnCount + replicationValueIndex++] = value;
                     }
                 }

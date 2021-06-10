@@ -188,7 +188,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulReaderAdapter(
     auto nameTable = TNameTable::FromSchema(*schema);
     auto underlyingReader = createReader(
         nameTable,
-        columnFilter.IsUniversal() ? TColumnFilter(schema->Columns().size()) : columnFilter);
+        columnFilter.IsUniversal() ? TColumnFilter(schema->GetColumnCount()) : columnFilter);
 
     auto result = New<TSchemafulReaderAdapter>(
         std::move(underlyingReader),

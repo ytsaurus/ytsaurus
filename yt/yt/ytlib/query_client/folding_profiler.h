@@ -17,7 +17,7 @@ typedef std::function<TCGQueryCallback()> TCGQueryCallbackGenerator;
 typedef std::function<TCGExpressionCallback()> TCGExpressionCallbackGenerator;
 
 struct TExtraColumnsChecker
-    : TVisitor<TExtraColumnsChecker>
+    : public TVisitor<TExtraColumnsChecker>
 {
     using TBase = TVisitor<TExtraColumnsChecker>;
 

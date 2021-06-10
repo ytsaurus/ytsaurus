@@ -25,12 +25,12 @@ static constexpr size_t RowBufferCapacity = 1000;
 struct TChunkReaderPerformanceCounters
     : public virtual TRefCounted
 {
-    std::atomic<i64> StaticChunkRowReadCount = {0};
-    std::atomic<i64> StaticChunkRowReadDataWeightCount = {0};
-    std::atomic<i64> StaticChunkRowLookupCount = {0};
-    std::atomic<i64> StaticChunkRowLookupTrueNegativeCount = {0};
-    std::atomic<i64> StaticChunkRowLookupFalsePositiveCount = {0};
-    std::atomic<i64> StaticChunkRowLookupDataWeightCount = {0};
+    std::atomic<i64> StaticChunkRowReadCount = 0;
+    std::atomic<i64> StaticChunkRowReadDataWeightCount = 0;
+    std::atomic<i64> StaticChunkRowLookupCount = 0;
+    std::atomic<i64> StaticChunkRowLookupTrueNegativeCount = 0;
+    std::atomic<i64> StaticChunkRowLookupFalsePositiveCount = 0;
+    std::atomic<i64> StaticChunkRowLookupDataWeightCount = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderPerformanceCounters)
@@ -92,8 +92,6 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     const NChunkClient::TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_CLASS(TRowReaderAdapter)
 
 class TRowReaderAdapter
     : public TRefCounted

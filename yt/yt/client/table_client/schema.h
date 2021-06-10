@@ -170,6 +170,7 @@ public:
         bool discardSortOrder = false) const;
 
     bool HasComputedColumns() const;
+    bool HasAggregateColumns() const;
     bool HasHunkColumns() const;
     bool HasTimestampColumn() const;
     bool IsSorted() const;
@@ -274,6 +275,7 @@ public:
 private:
     int KeyColumnCount_ = 0;
     bool HasComputedColumns_ = false;
+    bool HasAggregateColumns_ = false;
     SmallVector<int, 4> HunkColumnsIds_;
 };
 

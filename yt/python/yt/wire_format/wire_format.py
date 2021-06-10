@@ -159,7 +159,7 @@ def serialize_rows_to_unversioned_wire_format(stream, rows, schema, enable_value
                 "<HBBI",
                 key_to_index[key],
                 schema_type_to_value_type[expected_value_type],
-                False,  # "aggregate" = False
+                0, # flags = none
                 len(serialized_value))
 
             assert len(value_header) == 8
@@ -198,8 +198,8 @@ def deserialize_rows_from_unversioned_wire_format(stream, column_names, skip_non
         row = {}
 
         for _ in xrange(column_count):
-            id_, type_, aggregate, length = struct.unpack("<HBBI", stream.read_exact(8))
-            assert not aggregate, "Aggregate values are not currently supported"
+            id_, type_, flags, length = struct.unpack("<HBBI", stream.read_exact(8))
+            assert flags == 0, "Nontrivial value flags are not currently supported"
 
             if type_ == VT_ANY:
                 if not PY3:

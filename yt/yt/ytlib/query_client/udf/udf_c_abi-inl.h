@@ -5,15 +5,13 @@
 #include "udf_c_abi.h"
 #endif
 
+#include <string.h>
+
 ////////////////////////////////////////////////////////////////////////////////
 
 inline void ClearValue(TUnversionedValue* value)
 {
-    value->Id = 0;
-    value->Type = VT_Min; // effectively 0
-    value->Aggregate = 0;
-    value->Length = 0;
-    value->Data.String = 0;
+    memset(value, 0, sizeof(*value));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -32,15 +32,19 @@ static_assert(
 // NB: Wire protocol readers/writer rely on this fixed layout.
 struct TUnversionedValue
 {
-    //! Column id obtained from a name table.
+    //! Column id w.r.t. the name table.
     ui16 Id;
+
     //! Column type.
     EValueType Type;
-    //! Aggregate mode;
-    bool Aggregate;
-    //! Length of a variable-sized value (only meaningful for |String| and |Any| types).
+
+    //! Various bit-packed flags.
+    EValueFlags Flags;
+
+    //! Length of a variable-sized value (only meaningful for string-like types).
     ui32 Length;
 
+    //! Payload.
     TUnversionedValueData Data;
 };
 

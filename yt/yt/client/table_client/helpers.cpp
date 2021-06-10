@@ -32,26 +32,26 @@ void YTreeNodeToUnversionedValue(
     TUnversionedOwningRowBuilder* builder,
     const INodePtr& value,
     int id,
-    bool aggregate)
+    EValueFlags flags)
 {
     switch (value->GetType()) {
         case ENodeType::Entity:
-            builder->AddValue(MakeUnversionedSentinelValue(EValueType::Null, id, aggregate));
+            builder->AddValue(MakeUnversionedSentinelValue(EValueType::Null, id, flags));
             break;
         case ENodeType::Int64:
-            builder->AddValue(MakeUnversionedInt64Value(value->GetValue<i64>(), id, aggregate));
+            builder->AddValue(MakeUnversionedInt64Value(value->GetValue<i64>(), id, flags));
             break;
         case ENodeType::Uint64:
-            builder->AddValue(MakeUnversionedUint64Value(value->GetValue<ui64>(), id, aggregate));
+            builder->AddValue(MakeUnversionedUint64Value(value->GetValue<ui64>(), id, flags));
             break;
         case ENodeType::Double:
-            builder->AddValue(MakeUnversionedDoubleValue(value->GetValue<double>(), id, aggregate));
+            builder->AddValue(MakeUnversionedDoubleValue(value->GetValue<double>(), id, flags));
             break;
         case ENodeType::String:
-            builder->AddValue(MakeUnversionedStringValue(value->GetValue<TString>(), id, aggregate));
+            builder->AddValue(MakeUnversionedStringValue(value->GetValue<TString>(), id, flags));
             break;
         default:
-            builder->AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).AsStringBuf(), id, aggregate));
+            builder->AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).AsStringBuf(), id, flags));
             break;
     }
 }
@@ -131,7 +131,7 @@ TUnversionedOwningRow YsonToSchemafulRow(
     for (const auto& [name, value] : rowParts) {
         int id = nameTable->GetIdOrRegisterName(name);
         if (id >= std::ssize(tableSchema.Columns())) {
-            YTreeNodeToUnversionedValue(&rowBuilder, value, id, false);
+            YTreeNodeToUnversionedValue(&rowBuilder, value, id, EValueFlags::None);
         }
     }
 
@@ -145,8 +145,11 @@ TUnversionedOwningRow YsonToSchemalessRow(const TString& valueYson)
     auto values = ConvertTo<std::vector<INodePtr>>(TYsonString(valueYson, EYsonType::ListFragment));
     for (const auto& value : values) {
         int id = value->Attributes().Get<int>("id");
-        bool aggregate = value->Attributes().Get<bool>("aggregate", false);
-        YTreeNodeToUnversionedValue(&builder, value, id, aggregate);
+        auto flags = EValueFlags::None;
+        if (value->Attributes().Get<bool>("aggregate", false)) {
+            flags |= EValueFlags::Aggregate;
+        }
+        YTreeNodeToUnversionedValue(&builder, value, id, flags);
     }
 
     return builder.FinishRow();
@@ -188,25 +191,28 @@ TVersionedRow YsonToVersionedRow(
     for (auto value : values) {
         int id = value->Attributes().Get<int>("id");
         auto timestamp = value->Attributes().Get<TTimestamp>("ts");
-        bool aggregate = value->Attributes().Get<bool>("aggregate", false);
+        auto flags = EValueFlags::None;
+        if (value->Attributes().Get<bool>("aggregate", false)) {
+            flags |= EValueFlags::Aggregate;
+        }
         switch (value->GetType()) {
             case ENodeType::Entity:
-                builder.AddValue(MakeVersionedSentinelValue(EValueType::Null, timestamp, id, aggregate));
+                builder.AddValue(MakeVersionedSentinelValue(EValueType::Null, timestamp, id, flags));
                 break;
             case ENodeType::Int64:
-                builder.AddValue(MakeVersionedInt64Value(value->GetValue<i64>(), timestamp, id, aggregate));
+                builder.AddValue(MakeVersionedInt64Value(value->GetValue<i64>(), timestamp, id, flags));
                 break;
             case ENodeType::Uint64:
-                builder.AddValue(MakeVersionedUint64Value(value->GetValue<ui64>(), timestamp, id, aggregate));
+                builder.AddValue(MakeVersionedUint64Value(value->GetValue<ui64>(), timestamp, id, flags));
                 break;
             case ENodeType::Double:
-                builder.AddValue(MakeVersionedDoubleValue(value->GetValue<double>(), timestamp, id, aggregate));
+                builder.AddValue(MakeVersionedDoubleValue(value->GetValue<double>(), timestamp, id, flags));
                 break;
             case ENodeType::String:
-                builder.AddValue(MakeVersionedStringValue(value->GetValue<TString>(), timestamp, id, aggregate));
+                builder.AddValue(MakeVersionedStringValue(value->GetValue<TString>(), timestamp, id, flags));
                 break;
             default:
-                builder.AddValue(MakeVersionedAnyValue(ConvertToYsonString(value).AsStringBuf(), timestamp, id, aggregate));
+                builder.AddValue(MakeVersionedAnyValue(ConvertToYsonString(value).AsStringBuf(), timestamp, id, flags));
                 break;
         }
     }
@@ -279,9 +285,9 @@ void ToUnversionedValue(
     std::nullopt_t,
     const TRowBufferPtr& /*rowBuffer*/,
     int id,
-    bool aggregate)
+    EValueFlags flags)
 {
-    *unversionedValue = MakeUnversionedSentinelValue(EValueType::Null, id, aggregate);
+    *unversionedValue = MakeUnversionedSentinelValue(EValueType::Null, id, flags);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -291,12 +297,12 @@ void ToUnversionedValue(
     TGuid value,
     const TRowBufferPtr& rowBuffer,
     int id,
-    bool aggregate)
+    EValueFlags flags)
 {
     auto strValue = ToString(value);
     *unversionedValue = value
-        ? rowBuffer->CaptureValue(MakeUnversionedStringValue(strValue, id, aggregate))
-        : MakeUnversionedSentinelValue(EValueType::Null, aggregate);
+        ? rowBuffer->CaptureValue(MakeUnversionedStringValue(strValue, id, flags))
+        : MakeUnversionedSentinelValue(EValueType::Null, id, flags);
 }
 
 void FromUnversionedValue(TGuid* value, TUnversionedValue unversionedValue)
@@ -319,9 +325,9 @@ void ToUnversionedValue(
     const TString& value,
     const TRowBufferPtr& rowBuffer,
     int id,
-    bool aggregate)
+    EValueFlags flags)
 {
-    ToUnversionedValue(unversionedValue, static_cast<TStringBuf>(value), rowBuffer, id, aggregate);
+    ToUnversionedValue(unversionedValue, static_cast<TStringBuf>(value), rowBuffer, id, flags);
 }
 
 void FromUnversionedValue(TString* value, TUnversionedValue unversionedValue)
@@ -338,9 +344,9 @@ void ToUnversionedValue(
     TStringBuf value,
     const TRowBufferPtr& rowBuffer,
     int id,
-    bool aggregate)
+    EValueFlags flags)
 {
-    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedStringValue(value, id, aggregate));
+    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedStringValue(value, id, flags));
 }
 
 void FromUnversionedValue(TStringBuf* value, TUnversionedValue unversionedValue)
@@ -363,9 +369,9 @@ void ToUnversionedValue(
     const char* value,
     const TRowBufferPtr& rowBuffer,
     int id,
-    bool aggregate)
+    EValueFlags flags)
 {
-    ToUnversionedValue(unversionedValue, TStringBuf(value), rowBuffer, id, aggregate);
+    ToUnversionedValue(unversionedValue, TStringBuf(value), rowBuffer, id, flags);
 }
 
 void FromUnversionedValue(const char** value, TUnversionedValue unversionedValue)
@@ -380,9 +386,9 @@ void ToUnversionedValue(
     bool value,
     const TRowBufferPtr& rowBuffer,
     int id,
-    bool aggregate)
+    EValueFlags flags)
 {
-    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedBooleanValue(value, id, aggregate));
+    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedBooleanValue(value, id, flags));
 }
 
 void FromUnversionedValue(bool* value, TUnversionedValue unversionedValue)
@@ -405,10 +411,10 @@ void ToUnversionedValue(
     const TYsonString& value,
     const TRowBufferPtr& rowBuffer,
     int id,
-    bool aggregate)
+    EValueFlags flags)
 {
     YT_ASSERT(value.GetType() == EYsonType::Node);
-    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(value.AsStringBuf(), id, aggregate));
+    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(value.AsStringBuf(), id, flags));
 }
 
 void FromUnversionedValue(TYsonString* value, TUnversionedValue unversionedValue)
@@ -427,10 +433,10 @@ void ToUnversionedValue(
     const NYson::TYsonStringBuf& value,
     const TRowBufferPtr& rowBuffer,
     int id,
-    bool aggregate)
+    EValueFlags flags)
 {
     YT_ASSERT(value.GetType() == EYsonType::Node);
-    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(value.AsStringBuf(), id, aggregate));
+    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(value.AsStringBuf(), id, flags));
 }
 
 void FromUnversionedValue(NYson::TYsonStringBuf* value, TUnversionedValue unversionedValue)
@@ -450,9 +456,9 @@ void FromUnversionedValue(NYson::TYsonStringBuf* value, TUnversionedValue unvers
         cppType value, \
         const TRowBufferPtr& /*rowBuffer*/, \
         int id, \
-        bool aggregate) \
+        EValueFlags flags) \
     { \
-        *unversionedValue = MakeUnversioned ## codeType ## Value(value, id, aggregate); \
+        *unversionedValue = MakeUnversioned ## codeType ## Value(value, id, flags); \
     } \
     \
     void FromUnversionedValue(cppType* value, TUnversionedValue unversionedValue) \
@@ -488,9 +494,9 @@ void ToUnversionedValue(
     double value,
     const TRowBufferPtr& /*rowBuffer*/,
     int id,
-    bool aggregate)
+    EValueFlags flags)
 {
-    *unversionedValue = MakeUnversionedDoubleValue(value, id, aggregate);
+    *unversionedValue = MakeUnversionedDoubleValue(value, id, flags);
 }
 
 void FromUnversionedValue(double* value, TUnversionedValue unversionedValue)
@@ -509,9 +515,9 @@ void ToUnversionedValue(
     TInstant value,
     const TRowBufferPtr& /*rowBuffer*/,
     int id,
-    bool aggregate)
+    EValueFlags flags)
 {
-    *unversionedValue = MakeUnversionedUint64Value(value.MicroSeconds(), id, aggregate);
+    *unversionedValue = MakeUnversionedUint64Value(value.MicroSeconds(), id, flags);
 }
 
 void FromUnversionedValue(TInstant* value, TUnversionedValue unversionedValue)
@@ -536,9 +542,9 @@ void ToUnversionedValue(
     TDuration value,
     const TRowBufferPtr& /*rowBuffer*/,
     int id,
-    bool aggregate)
+    EValueFlags flags)
 {
-    *unversionedValue = MakeUnversionedUint64Value(value.MicroSeconds(), id, aggregate);
+    *unversionedValue = MakeUnversionedUint64Value(value.MicroSeconds(), id, flags);
 }
 
 void FromUnversionedValue(TDuration* value, TUnversionedValue unversionedValue)
@@ -563,9 +569,9 @@ void ToUnversionedValue(
     const IMapNodePtr& value,
     const TRowBufferPtr& rowBuffer,
     int id,
-    bool aggregate)
+    EValueFlags flags)
 {
-    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(ConvertToYsonString(value).AsStringBuf(), id, aggregate));
+    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(ConvertToYsonString(value).AsStringBuf(), id, flags));
 }
 
 void FromUnversionedValue(IMapNodePtr* value, TUnversionedValue unversionedValue)
@@ -587,9 +593,9 @@ void ToUnversionedValue(
     const TIP6Address& value,
     const TRowBufferPtr& rowBuffer,
     int id,
-    bool aggregate)
+    EValueFlags flags)
 {
-    ToUnversionedValue(unversionedValue, ToString(value), rowBuffer, id, aggregate);
+    ToUnversionedValue(unversionedValue, ToString(value), rowBuffer, id, flags);
 }
 
 void FromUnversionedValue(TIP6Address* value, TUnversionedValue unversionedValue)
@@ -609,7 +615,7 @@ void ProtobufToUnversionedValueImpl(
     const TProtobufMessageType* type,
     const TRowBufferPtr& rowBuffer,
     int id,
-    bool aggregate)
+    EValueFlags flags)
 {
     auto byteSize = value.ByteSizeLong();
     auto* pool = rowBuffer->GetPool();
@@ -620,7 +626,7 @@ void ProtobufToUnversionedValueImpl(
     TStringOutput outputStream(ysonBytes);
     TYsonWriter ysonWriter(&outputStream);
     ParseProtobuf(&ysonWriter, &inputStream, type);
-    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(ysonBytes, id, aggregate));
+    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(ysonBytes, id, flags));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -660,7 +666,7 @@ void ListToUnversionedValueImpl(
     const std::function<bool(TUnversionedValue*)> producer,
     const TRowBufferPtr& rowBuffer,
     int id,
-    bool aggregate)
+    EValueFlags flags)
 {
     TString ysonBytes;
     TStringOutput outputStream(ysonBytes);
@@ -677,7 +683,7 @@ void ListToUnversionedValueImpl(
     }
     writer.OnEndList();
 
-    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(ysonBytes, id, aggregate));
+    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(ysonBytes, id, flags));
 }
 
 void UnversionedValueToListImpl(
@@ -967,7 +973,7 @@ void MapToUnversionedValueImpl(
     const std::function<bool(TString*, TUnversionedValue*)> producer,
     const TRowBufferPtr& rowBuffer,
     int id,
-    bool aggregate)
+    EValueFlags flags)
 {
     TString ysonBytes;
     TStringOutput outputStream(ysonBytes);
@@ -985,7 +991,7 @@ void MapToUnversionedValueImpl(
     }
     writer.OnEndMap();
 
-    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(ysonBytes, id, aggregate));
+    *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(ysonBytes, id, flags));
 }
 
 void UnversionedValueToMapImpl(

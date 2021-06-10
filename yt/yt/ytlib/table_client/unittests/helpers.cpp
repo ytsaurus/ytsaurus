@@ -6,33 +6,16 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void CheckEqualNoTrace(const TUnversionedValue& expected, const TUnversionedValue& actual)
-{
-    EXPECT_EQ(expected.Id, actual.Id);
-    ASSERT_EQ(expected.Type, actual.Type);
-    ASSERT_EQ(expected.Aggregate, expected.Aggregate);
-
-    if (IsStringLikeType(expected.Type)) {
-        ASSERT_EQ(expected.Length, actual.Length);
-        EXPECT_EQ(0, ::memcmp(expected.Data.String, actual.Data.String, expected.Length));
-    } else if (IsValueType(expected.Type)) {
-        EXPECT_EQ(expected.Data.Uint64, actual.Data.Uint64);
-    }
-}
-
 void CheckEqual(const TUnversionedValue& expected, const TUnversionedValue& actual)
 {
     SCOPED_TRACE(Format("Expected: %v; Actual: %v", expected, actual));
-    CheckEqualNoTrace(expected, actual);
+    EXPECT_TRUE(AreRowValuesIdentical(expected, actual));
 }
 
 void CheckEqual(const TVersionedValue& expected, const TVersionedValue& actual)
 {
     SCOPED_TRACE(Format("Expected: %v; Actual: %v", expected, actual));
-    CheckEqualNoTrace(
-        static_cast<const TUnversionedValue&>(expected),
-        static_cast<const TUnversionedValue&>(actual));
-    EXPECT_EQ(expected.Timestamp, expected.Timestamp);
+    EXPECT_TRUE(AreRowValuesIdentical(expected, actual));
 }
 
 void ExpectSchemafulRowsEqual(TUnversionedRow expected, TUnversionedRow actual)

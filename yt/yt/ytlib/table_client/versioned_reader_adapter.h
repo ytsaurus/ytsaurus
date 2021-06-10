@@ -2,7 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/client/table_client/public.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
 
 namespace NYT::NTableClient {
@@ -11,7 +10,8 @@ namespace NYT::NTableClient {
 
 using TSchemafulReaderFactory = std::function<ISchemafulUnversionedReaderPtr(
     const TTableSchemaPtr&,
-    const TColumnFilter&)>;
+    const TColumnFilter&)
+>;
 
 IVersionedReaderPtr CreateVersionedReaderAdapter(
     TSchemafulReaderFactory createReader,

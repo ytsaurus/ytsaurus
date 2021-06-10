@@ -424,20 +424,29 @@ protected:
              index < KeyColumnCount_;
              ++index, nullKeyBit <<= 1, ++srcKey, ++dstKey)
         {
-            ProduceUnversionedValue(dstKey, index, *srcKey, (nullKeyMask & nullKeyBit) != 0, false);
+            ProduceUnversionedValue(
+                dstKey,
+                index,
+                *srcKey,
+                /*null*/ (nullKeyMask & nullKeyBit) != 0,
+                /*flags*/ {});
         }
     }
 
-    void ProduceUnversionedValue(TUnversionedValue* dstValue, int index, TDynamicValueData srcData, bool null, bool aggregate)
+    void ProduceUnversionedValue(
+        TUnversionedValue* dstValue,
+        int index,
+        TDynamicValueData srcData,
+        bool null,
+        EValueFlags flags)
     {
-        if (null) {
-            *dstValue = MakeUnversionedNullValue(index, aggregate);
-            return;
-        }
-
         *dstValue = {};
         dstValue->Id = index;
-        dstValue->Aggregate = aggregate;
+        dstValue->Flags = flags;
+        if (null) {
+            dstValue->Type = EValueType::Null;
+            return;
+        }
         dstValue->Type = Store_->Schema_->Columns()[index].GetPhysicalType();
         if (IsStringLikeType(dstValue->Type)) {
             dstValue->Length = srcData.String->Length;
@@ -449,7 +458,7 @@ protected:
 
     void ProduceVersionedValue(TVersionedValue* dstValue, int index, const TDynamicValue& srcValue)
     {
-        ProduceUnversionedValue(dstValue, index, srcValue.Data, srcValue.Null, srcValue.Aggregate);
+        ProduceUnversionedValue(dstValue, index, srcValue.Data, srcValue.Null, srcValue.Flags);
         dstValue->Timestamp = Store_->TimestampFromRevision(srcValue.Revision);
     }
 
@@ -1797,7 +1806,7 @@ void TSortedDynamicStore::CaptureUnversionedValue(
 {
     YT_ASSERT(src.Type == EValueType::Null || src.Type == Schema_->Columns()[src.Id].GetPhysicalType());
 
-    dst->Aggregate = src.Aggregate;
+    dst->Flags = src.Flags;
 
     if (src.Type == EValueType::Null) {
         dst->Null = true;
@@ -1828,20 +1837,12 @@ TDynamicValueData TSortedDynamicStore::CaptureStringValue(const TUnversionedValu
 {
     YT_ASSERT(IsStringLikeType(src.Type));
     ui32 length = src.Length;
-    auto isHunk = HunkColumnFlags_[src.Id];
-    if (isHunk) {
-        ++length;
-    }
     TDynamicValueData dst;
     dst.String = reinterpret_cast<TDynamicString*>(RowBuffer_->GetPool()->AllocateAligned(
         sizeof(ui32) + length,
         sizeof(ui32)));
     dst.String->Length = length;
-    auto* currentPtr = dst.String->Data;
-    if (isHunk) {
-        *currentPtr++ = static_cast<char>(EHunkValueTag::Inline);
-    }
-    ::memcpy(currentPtr, src.Data.String, src.Length);
+    ::memcpy(dst.String->Data, src.Data.String, length);
     return dst;
 }
 
@@ -1881,7 +1882,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const NChunkClient::TClientChunkReadOptions& /*chunkReadOptions*/,
+    const TClientChunkReadOptions& /*chunkReadOptions*/,
     std::optional<EWorkloadCategory> /*workloadCategory*/)
 {
     return New<TRangeReader>(
@@ -1900,7 +1901,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const NChunkClient::TClientChunkReadOptions&,
+    const TClientChunkReadOptions& /*chunkReadOptions*/,
     std::optional<EWorkloadCategory> /*workloadCategory*/)
 {
     return New<TLookupReader>(

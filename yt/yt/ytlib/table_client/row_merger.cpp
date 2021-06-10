@@ -229,13 +229,13 @@ TMutableUnversionedRow TSchemafulRowMerger::BuildMergedRow()
         // Find first element with different id.
         auto next = it;
         while (++next != end && id == next->Id) {
-            if (!next->Aggregate) {
+            if (None(next->Flags & EValueFlags::Aggregate)) {
                 // Skip older aggregate values.
                 it = next;
             }
         }
 
-        TUnversionedValue state = *it++;
+        auto state = *it++;
         while (it != next) {
             ColumnEvaluator_->MergeAggregate(id, &state, *it, RowBuffer_);
             ++it;
@@ -306,7 +306,11 @@ void TUnversionedRowMerger::InitPartialRow(TUnversionedRow row)
     std::copy(row.begin(), row.begin() + KeyColumnCount_, MergedRow_.begin());
 
     for (int index = KeyColumnCount_; index < ColumnCount_; ++index) {
-        MergedRow_[index] = MakeUnversionedNullValue(index, ColumnEvaluator_->IsAggregate(index));
+        auto flags = EValueFlags::None;
+        if (ColumnEvaluator_->IsAggregate(index)) {
+            flags |= EValueFlags::Aggregate;
+        }
+        MergedRow_[index] = MakeUnversionedNullValue(index, flags);
     }
 }
 
@@ -320,11 +324,13 @@ void TUnversionedRowMerger::AddPartialRow(TUnversionedRow row)
         YT_VERIFY(id >= KeyColumnCount_);
         ValidValues_[id - KeyColumnCount_] = true;
         auto& mergedValue = MergedRow_[id];
-        if (partialValue.Aggregate) {
+        if (Any(partialValue.Flags & EValueFlags::Aggregate)) {
             YT_VERIFY(ColumnEvaluator_->IsAggregate(id));
-            bool isAggregate = mergedValue.Aggregate;
+            bool isAggregate = Any(mergedValue.Flags & EValueFlags::Aggregate);
             ColumnEvaluator_->MergeAggregate(id, &mergedValue, partialValue, RowBuffer_);
-            mergedValue.Aggregate = isAggregate;
+            if (isAggregate) {
+                mergedValue.Flags |= EValueFlags::Aggregate;
+            }
         } else {
             mergedValue = partialValue;
         }
@@ -594,7 +600,7 @@ TMutableVersionedRow TVersionedRowMerger::BuildMergedRow()
         int id = partialValueIt->Id;
         if (ColumnEvaluator_->IsAggregate(id) && retentionBeginIt < ColumnValues_.end()) {
 
-            // TODO: Use MajorTimestamp_ == int max for MergeRowsOnFlush_.
+            // TODO(lukyan): Use MajorTimestamp_ == int max for MergeRowsOnFlush_.
             while (retentionBeginIt != ColumnValues_.begin()
                 && retentionBeginIt->Timestamp >= MajorTimestamp_
                 && !MergeRowsOnFlush_)
@@ -610,7 +616,7 @@ TMutableVersionedRow TVersionedRowMerger::BuildMergedRow()
                         break;
                     }
 
-                    if (!valueIt->Aggregate) {
+                    if (None(valueIt->Flags & EValueFlags::Aggregate)) {
                         break;
                     }
 
@@ -622,27 +628,31 @@ TMutableVersionedRow TVersionedRowMerger::BuildMergedRow()
                 }
 
                 if (valueIt < retentionBeginIt) {
-                    TVersionedValue state = *valueIt++;
+                    // NB: RHS is versioned.
+                    TUnversionedValue state = *valueIt++;
 
                     // The very first aggregated value determines the final aggregation mode.
                     // Preserve initial aggregate flag.
-                    bool initialAggregate = state.Aggregate;
+                    auto initialAggregateFlags = state.Flags & EValueFlags::Aggregate;
 
                     for (; valueIt <= retentionBeginIt; ++valueIt) {
                         const auto& value = *valueIt;
+
                         // Do no expect any tombstones.
                         YT_ASSERT(value.Type != EValueType::TheBottom);
                         // Only expect overwrites at the very beginning.
-                        YT_ASSERT(value.Aggregate);
+                        YT_ASSERT(Any(value.Flags & EValueFlags::Aggregate));
+
                         ColumnEvaluator_->MergeAggregate(id, &state, value, RowBuffer_);
 
-                        // Or preserve aggregate flag in aggregate functions.
-                        state.Aggregate = initialAggregate;
+                        // Preserve aggregate flag in aggregate functions.
+                        state.Flags &= ~EValueFlags::Aggregate;
+                        state.Flags |= initialAggregateFlags;
                     }
 
                     // Value is not finalized yet. Further merges may happen.
+                    YT_ASSERT((state.Flags & EValueFlags::Aggregate) == initialAggregateFlags);
                     static_cast<TUnversionedValue&>(*retentionBeginIt) = state;
-                    YT_ASSERT(retentionBeginIt->Aggregate == initialAggregate);
                 }
             }
         }

@@ -7,6 +7,7 @@ public class WireProtocol {
     public static final int MAX_STRING_VALUE_LENGTH = 16 * 1024 * 1024;
     public static final int MAX_ANY_VALUE_LENGTH = 16 * 1024 * 1024;
     public static final int SERIALIZATION_ALIGNMENT = 8;
+    public static final byte AGGREGATE_FLAG = 1;
 
     private WireProtocol() {
     }

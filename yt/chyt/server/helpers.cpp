@@ -252,7 +252,7 @@ TQuerySettingsPtr ParseCustomSettings(
     }
 
     YT_LOG_TRACE("Resulting node (Node: %v)", ConvertToYsonString(node, EYsonFormat::Text));
-   
+
     auto result = New<TQuerySettings>();
     result->SetUnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
     result->Load(node);
@@ -310,7 +310,7 @@ TTableSchemaPtr InferCommonSchema(const std::vector<TTablePtr>& tables, const TL
     }
 
     std::vector<TColumnSchema> resultColumns;
-    resultColumns.reserve(firstSchema->Columns().size());
+    resultColumns.reserve(firstSchema->GetColumnCount());
     for (const auto& column : firstSchema->Columns()) {
         if (nameCounter[column.Name()] == schemas.size()) {
             resultColumns.push_back(nameToColumn[column.Name()]);

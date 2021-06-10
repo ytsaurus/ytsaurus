@@ -287,7 +287,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
 
     auto rowMerger = std::make_unique<TSchemafulRowMerger>(
         New<TRowBuffer>(TTabletReaderPoolTag()),
-        tabletSnapshot->QuerySchema->Columns().size(),
+        tabletSnapshot->QuerySchema->GetColumnCount(),
         tabletSnapshot->QuerySchema->GetKeyColumnCount(),
         columnFilter,
         tabletSnapshot->ColumnEvaluator);
@@ -538,7 +538,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulPartitionReader(
 
     auto rowMerger = std::make_unique<TSchemafulRowMerger>(
         std::move(rowBuffer),
-        tabletSnapshot->QuerySchema->Columns().size(),
+        tabletSnapshot->QuerySchema->GetColumnCount(),
         tabletSnapshot->QuerySchema->GetKeyColumnCount(),
         columnFilter,
         tabletSnapshot->ColumnEvaluator);

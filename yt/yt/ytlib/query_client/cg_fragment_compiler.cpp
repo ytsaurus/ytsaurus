@@ -37,7 +37,7 @@ using NCodegen::TCGModule;
 // Operator helpers
 //
 
-Value* CodegenAllocateValues(TCGIRBuilderPtr& builder, size_t valueCount)
+Value* CodegenAllocateValues(const TCGIRBuilderPtr& builder, size_t valueCount)
 {
     Value* newValues = builder->CreateAlignedAlloca(
         TTypeBuilder<TValue>::Get(builder->getContext()),
@@ -113,7 +113,7 @@ struct TValueTypeLabels
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Value* CodegenFingerprint64(TCGIRBuilderPtr& builder, Value* x)
+Value* CodegenFingerprint64(const TCGIRBuilderPtr& builder, Value* x)
 {
     Value* kMul = builder->getInt64(0x9ddfea08eb382d69ULL);
     Value* b = builder->CreateMul(x, kMul);
@@ -124,7 +124,7 @@ Value* CodegenFingerprint64(TCGIRBuilderPtr& builder, Value* x)
     return b;
 };
 
-Value* CodegenFingerprint128(TCGIRBuilderPtr& builder, Value* x, Value* y)
+Value* CodegenFingerprint128(const TCGIRBuilderPtr& builder, Value* x, Value* y)
 {
     Value* kMul = builder->getInt64(0x9ddfea08eb382d69ULL);
     Value* a = builder->CreateMul(builder->CreateXor(x, y), kMul);
@@ -144,7 +144,7 @@ TValueTypeLabels CodegenHasherBody(
     Value* startIndex,
     Value* finishIndex)
 {
-    auto codegenHashCombine = [&] (TCGIRBuilderPtr& builder, Value* first, Value* second) -> Value* {
+    auto codegenHashCombine = [&] (const TCGIRBuilderPtr& builder, Value* first, Value* second) -> Value* {
         //first ^ (second + 0x9e3779b9 + (second << 6) + (second >> 2));
         return builder->CreateXor(
             first,
@@ -1180,7 +1180,7 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
     ] (TCGExprContext& builder) {
         auto operandValue = CodegenFragment(builder, operandId);
 
-        auto evaluate = [&] (TCGIRBuilderPtr& builder) {
+        auto evaluate = [&] (const TCGIRBuilderPtr& builder) {
             auto operandType = operandValue.GetStaticType();
             Value* operandData = operandValue.GetTypedData(builder);
             Value* evalData = nullptr;
@@ -1228,7 +1228,7 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
             return CodegenIf<TCGIRBuilderPtr, TCGValue>(
                 builder,
                 operandValue.GetIsNull(builder),
-                [&] (TCGIRBuilderPtr& builder) {
+                [&] (const TCGIRBuilderPtr& builder) {
                     return TCGValue::CreateNull(builder, type);
                 },
                 evaluate,

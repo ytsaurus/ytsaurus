@@ -191,9 +191,10 @@ public:
     }
 
 private:
+    const ui16 Id_;
+
     TVersionInfo<Aggregate> Version_;
     TValueExtractor<Type> Value_;
-    const ui16 Id_;
 
     void DoReadSegment(const NProto::TSegmentMeta& meta, const char* data, TTmpBuffers* tmpBuffers)
     {
@@ -242,6 +243,7 @@ private:
 
             ui32 skipCount = rowToValue->RowIndex - rowIndex;
             values += skipCount;
+            timestamps += skipCount;
             rowIndex = rowToValue->RowIndex + 1;
 
             ++rowToValue;
@@ -262,6 +264,7 @@ private:
                 ++valuePtr;
                 ++valueIdx;
             } while (valueIdx != valueIdxEnd);
+
             *values++ = valuePtr;
             ++timestamps;
         }
@@ -426,17 +429,17 @@ private:
     {
         auto batchSize = rowLimit - rowIndex;
         for (ui32 index = 0; index < batchSize; ++index) {
-            auto [writeTimestampsIdx, writeTimestampsEnd] = GetWriteTimestampsSpan(rowIndex + index);
-            auto [deleteTimestampsIdx, deleteTimestampsEnd] = GetDeleteTimestampsSpan(rowIndex + index);
+            auto [writeTimestampsBegin, writeTimestampsEnd] = GetWriteTimestampsSpan(rowIndex + index);
+            auto [deleteTimestampsBegin, deleteTimestampsEnd] = GetDeleteTimestampsSpan(rowIndex + index);
 
             auto row = Buffer_->AllocateVersioned(
                 keySize,
                 valueCounts[index],
-                writeTimestampsEnd - writeTimestampsIdx,
-                deleteTimestampsEnd - deleteTimestampsIdx);
+                writeTimestampsEnd - writeTimestampsBegin,
+                deleteTimestampsEnd - deleteTimestampsBegin);
 
-            std::copy(WriteTimestamps_ + writeTimestampsIdx, WriteTimestamps_ + writeTimestampsEnd, row.BeginWriteTimestamps());
-            std::copy(DeleteTimestamps_ + deleteTimestampsIdx, DeleteTimestamps_ + deleteTimestampsEnd, row.BeginDeleteTimestamps());
+            std::copy(WriteTimestamps_ + writeTimestampsBegin, WriteTimestamps_ + writeTimestampsEnd, row.BeginWriteTimestamps());
+            std::copy(DeleteTimestamps_ + deleteTimestampsBegin, DeleteTimestamps_ + deleteTimestampsEnd, row.BeginDeleteTimestamps());
 
             rows[index] = row;
         }
@@ -476,10 +479,9 @@ private:
         }
 
         for (ui32 index = 0; index < batchSize; ++index) {
-            auto valuesIt = rows[index].BeginValues();
+            auto valuesBegin = rows[index].BeginValues();
             auto valuesEnd = rowValues[index];
-
-            rows[index].SetValueCount(valuesEnd - valuesIt);
+            rows[index].SetValueCount(valuesEnd - valuesBegin);
         }
     }
 };

@@ -360,16 +360,14 @@ IUnversionedRowsetWriterPtr CreateSchemafulWriterForSchemafulDsv(
     TTableSchemaPtr schema,
     IAsyncOutputStreamPtr stream)
 {
-    std::vector<int> idToIndexInRow(schema->Columns().size(), -1);
+    std::vector<int> idToIndexInRow(schema->GetColumnCount(), -1);
     if (config->Columns) {
         ValidateDuplicateColumns(*config->Columns);
         for (int columnIndex = 0; columnIndex < static_cast<int>(config->Columns->size()); ++columnIndex) {
             idToIndexInRow[schema->GetColumnIndexOrThrow((*config->Columns)[columnIndex])] = columnIndex;
         }
     } else {
-        for (int id = 0; id < static_cast<int>(schema->Columns().size()); ++id) {
-            idToIndexInRow[id] = id;
-        }
+        std::iota(idToIndexInRow.begin(), idToIndexInRow.end(), 0);
     }
 
     return New<TSchemafulWriterForSchemafulDsv>(

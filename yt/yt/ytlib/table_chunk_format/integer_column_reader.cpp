@@ -13,18 +13,18 @@ using namespace NTableClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 template <EValueType ValueType>
-void SetIntegerValue(TUnversionedValue* value, ui64 data, int id, bool aggregate);
+void SetIntegerValue(TUnversionedValue* value, ui64 data, int id, EValueFlags flags);
 
 template <>
-void SetIntegerValue<EValueType::Int64>(TUnversionedValue* value, ui64 data, int id, bool aggregate)
+void SetIntegerValue<EValueType::Int64>(TUnversionedValue* value, ui64 data, int id, EValueFlags flags)
 {
-    *value = MakeUnversionedInt64Value(ZigZagDecode64(data), id, aggregate);
+    *value = MakeUnversionedInt64Value(ZigZagDecode64(data), id, flags);
 }
 
 template <>
-void SetIntegerValue<EValueType::Uint64>(TUnversionedValue* value, ui64 data, int id, bool aggregate)
+void SetIntegerValue<EValueType::Uint64>(TUnversionedValue* value, ui64 data, int id, EValueFlags flags)
 {
-    *value = MakeUnversionedUint64Value(data, id, aggregate);
+    *value = MakeUnversionedUint64Value(data, id, flags);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,9 +42,9 @@ protected:
         : Meta_(meta.GetExtension(TIntegerSegmentMeta::integer_segment_meta))
     { }
 
-    void SetValue(TUnversionedValue* value, i64 valueIndex, int id, bool aggregate) const
+    void SetValue(TUnversionedValue* value, i64 valueIndex, int id, EValueFlags flags) const
     {
-        SetIntegerValue<ValueType>(value, Meta_.min_value() + ValueReader_[valueIndex], id, aggregate);
+        SetIntegerValue<ValueType>(value, Meta_.min_value() + ValueReader_[valueIndex], id, flags);
     }
 };
 
@@ -57,12 +57,12 @@ class TDirectIntegerValueExtractorBase
 public:
     using TIntegerValueExtractorBase<ValueType, Scan>::TIntegerValueExtractorBase;
 
-    void ExtractValue(TUnversionedValue* value, i64 valueIndex, int id, bool aggregate) const
+    void ExtractValue(TUnversionedValue* value, i64 valueIndex, int id, EValueFlags flags) const
     {
         if (NullBitmap_[valueIndex]) {
-            *value = MakeUnversionedSentinelValue(EValueType::Null, id, aggregate);
+            *value = MakeUnversionedSentinelValue(EValueType::Null, id, flags);
         } else {
-            TIntegerValueExtractorBase<ValueType, Scan>::SetValue(value, valueIndex, id, aggregate);
+            TIntegerValueExtractorBase<ValueType, Scan>::SetValue(value, valueIndex, id, flags);
         }
     }
 
@@ -93,13 +93,13 @@ class TDictionaryIntegerValueExtractorBase
 public:
     using TIntegerValueExtractorBase<ValueType, Scan>::TIntegerValueExtractorBase;
 
-    void ExtractValue(TUnversionedValue* value, i64 valueIndex, int id, bool aggregate) const
+    void ExtractValue(TUnversionedValue* value, i64 valueIndex, int id, EValueFlags flags) const
     {
         auto dictionaryId = IndexReader_[valueIndex];
         if (dictionaryId == 0) {
-            *value = MakeUnversionedSentinelValue(EValueType::Null, id, aggregate);
+            *value = MakeUnversionedSentinelValue(EValueType::Null, id, flags);
         } else {
-            TIntegerValueExtractorBase<ValueType, Scan>::SetValue(value, dictionaryId - 1, id, aggregate);
+            TIntegerValueExtractorBase<ValueType, Scan>::SetValue(value, dictionaryId - 1, id, flags);
         }
     }
 

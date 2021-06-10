@@ -155,7 +155,7 @@ TCodegenConsumer& TCGOperatorContext::operator[] (size_t index) const
 ////////////////////////////////////////////////////////////////////////////////
 
 TCGValue MakePhi(
-    TCGIRBuilderPtr& builder,
+    const TCGIRBuilderPtr& builder,
     BasicBlock* thenBB,
     BasicBlock* elseBB,
     TCGValue thenValue,
@@ -240,7 +240,7 @@ TCGValue MakePhi(
 }
 
 Value* MakePhi(
-    TCGIRBuilderPtr& builder,
+    const TCGIRBuilderPtr& builder,
     BasicBlock* thenBB,
     BasicBlock* elseBB,
     Value* thenValue,

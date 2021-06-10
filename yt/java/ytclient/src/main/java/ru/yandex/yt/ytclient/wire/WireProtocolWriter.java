@@ -174,7 +174,7 @@ public class WireProtocolWriter {
         reserveAligned(8);
         current.putShort(WireProtocol.validateColumnId(columnId));
         current.put((byte) type.getValue());
-        current.put((byte) (aggregate ? 1 : 0));
+        current.put((byte) (aggregate ? WireProtocol.AGGREGATE_FLAG : 0));
         current.putInt(length);
         alignAfterWriting(8);
     }

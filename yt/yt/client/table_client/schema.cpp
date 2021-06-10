@@ -487,6 +487,9 @@ TTableSchema::TTableSchema(
         if (column.Expression()) {
             HasComputedColumns_ = true;
         }
+        if (column.Aggregate()) {
+            HasAggregateColumns_ = true;
+        }
         if (column.MaxInlineHunkSize()) {
             HunkColumnsIds_.push_back(index);
         }
@@ -602,6 +605,11 @@ TTableSchemaPtr TTableSchema::Filter(const std::optional<std::vector<TString>>& 
 bool TTableSchema::HasComputedColumns() const
 {
     return HasComputedColumns_;
+}
+
+bool TTableSchema::HasAggregateColumns() const
+{
+    return HasAggregateColumns_;
 }
 
 bool TTableSchema::HasHunkColumns() const

@@ -48,7 +48,7 @@ struct TDynamicValue
     TDynamicValueData Data;
     ui32 Revision;
     bool Null;
-    bool Aggregate;
+    NTableClient::EValueFlags Flags;
     char Padding[2];
 };
 

@@ -807,7 +807,7 @@ void LookupRows(
 
     TSchemafulRowMerger rowMerger(
         rowBuffer,
-        tabletSnapshot->PhysicalSchema->Columns().size(),
+        tabletSnapshot->PhysicalSchema->GetColumnCount(),
         tabletSnapshot->PhysicalSchema->GetKeyColumnCount(),
         columnFilter,
         tabletSnapshot->ColumnEvaluator);

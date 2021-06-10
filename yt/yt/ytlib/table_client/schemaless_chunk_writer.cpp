@@ -687,7 +687,7 @@ public:
             // that at least one writer should be present.
             auto blockWriter = std::make_unique<TDataBlockWriter>();
             ValueColumnWriters_.emplace_back(CreateSchemalessColumnWriter(
-               Schema_->Columns().size(),
+               Schema_->GetColumnCount(),
                blockWriter.get()));
             BlockWriters_.emplace_back(std::move(blockWriter));
         }
@@ -1084,11 +1084,11 @@ protected:
 
             ValidateDuplicateIds(row);
 
-            int maxColumnCount = Schema_->Columns().size() + (Schema_->GetStrict() ? 0 : row.GetCount());
+            int columnCount = Schema_->GetColumnCount();
+            int maxColumnCount = columnCount + (Schema_->GetStrict() ? 0 : row.GetCount());
             auto mutableRow = TMutableUnversionedRow::Allocate(RowBuffer_->GetPool(), maxColumnCount);
-            int columnCount = Schema_->Columns().size();
 
-            for (int i = 0; i < std::ssize(Schema_->Columns()); ++i) {
+            for (int i = 0; i < columnCount; ++i) {
                 // Id for schema columns in chunk name table always coincide with column index in schema.
                 mutableRow[i] = MakeUnversionedSentinelValue(EValueType::Null, i);
             }
@@ -1859,7 +1859,9 @@ private:
                     // NB: Any timestamp works here. The reader will replace it with the correct one.
                     *currentValue = MakeVersionedValue(row[index], MinTimestamp);
                     currentValue->Id = ToOriginalId(currentValue->Id, keyColumnCount);
-                    currentValue->Aggregate = Any(flags & EUnversionedUpdateDataFlags::Aggregate);
+                    if (Any(flags & EUnversionedUpdateDataFlags::Aggregate)) {
+                        currentValue->Flags |= EValueFlags::Aggregate;
+                    }
                     ++currentValue;
                 }
 

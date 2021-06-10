@@ -73,7 +73,7 @@ public:
     ~TCGIRBuilder();
 
     //! Captures and passes a value from the parent context via the closure.
-    llvm::Value* ViaClosure(llvm::Value* value, llvm::Twine name = llvm::Twine());
+    llvm::Value* ViaClosure(llvm::Value* value, llvm::Twine name = {});
 
     //! Returns the closure in the parent context.
     llvm::Value* GetClosure();

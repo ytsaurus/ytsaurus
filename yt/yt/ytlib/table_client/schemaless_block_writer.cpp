@@ -41,9 +41,9 @@ void THorizontalBlockWriter::WriteRow(TUnversionedRow row)
         if (value.Type == EValueType::Composite) {
             auto valueCopy = value;
             valueCopy.Type = EValueType::Any;
-            current += WriteValue(current, valueCopy);
+            current += WriteRowValue(current, valueCopy);
         } else {
-            current += WriteValue(current, value);
+            current += WriteRowValue(current, value);
         }
     }
 
