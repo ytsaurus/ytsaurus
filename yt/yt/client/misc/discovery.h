@@ -2,8 +2,7 @@
 
 #include "config.h"
 
-#include <yt/yt/client/api/public.h>
-#include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/core/concurrency/spinlock.h>
 
@@ -72,7 +71,7 @@ private:
     std::optional<std::pair<TString, NYTree::IAttributeDictionaryPtr>> NameAndAttributes_;
     TFuture<void> ScheduledForceUpdate_;
     TInstant LastUpdate_;
-    TCallback<void(void)> TransactionRestorer_;
+    NApi::ITransaction::TAbortedHandler TransactionAbortedHandler_;
     int Epoch_;
 
     void DoEnter(TString name, NYTree::IAttributeDictionaryPtr attributes);
@@ -85,7 +84,7 @@ private:
     void DoCreateNode(int epoch);
     void DoLockNode(int epoch);
 
-    void DoRestoreTransaction(int epoch);
+    void DoRestoreTransaction(int epoch, const TError& error);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiscovery)

@@ -428,14 +428,15 @@ public:
         return CheckDownedParticipants(participantIds);
     }
 
-    void SubscribeCommitted(const TCallback<void()>& handler)
+
+    void SubscribeCommitted(const ITransaction::TCommittedHandler& handler)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         Committed_.Subscribe(handler);
     }
 
-    void UnsubscribeCommitted(const TCallback<void()>& handler)
+    void UnsubscribeCommitted(const ITransaction::TCommittedHandler& handler)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -443,14 +444,14 @@ public:
     }
 
 
-    void SubscribeAborted(const TCallback<void()>& handler)
+    void SubscribeAborted(const ITransaction::TAbortedHandler& handler)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         Aborted_.Subscribe(handler);
     }
 
-    void UnsubscribeAborted(const TCallback<void()>& handler)
+    void UnsubscribeAborted(const ITransaction::TAbortedHandler& handler)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -483,7 +484,7 @@ private:
     ETransactionState State_ = ETransactionState::Initializing;
 
     TSingleShotCallbackList<void()> Committed_;
-    TSingleShotCallbackList<void()> Aborted_;
+    TSingleShotCallbackList<void(const TError& error)> Aborted_;
 
     THashSet<TCellId> RegisteredParticipantIds_;
     THashSet<TCellId> PrepareOnlyRegisteredParticipantIds_;
@@ -1200,9 +1201,9 @@ private:
     }
 
 
-    void FireAborted()
+    void FireAborted(const TError& error)
     {
-        Aborted_.Fire();
+        Aborted_.Fire(error);
     }
 
     void SetAborted(const TError& error)
@@ -1218,7 +1219,7 @@ private:
             Error_ = error;
         }
 
-        FireAborted();
+        FireAborted(error);
     }
 
     void OnFailure(const TError& error)
@@ -1427,8 +1428,8 @@ TFuture<void> TTransaction::ValidateNoDownedParticipants()
     return Impl_->ValidateNoDownedParticipants();
 }
 
-DELEGATE_SIGNAL(TTransaction, void(), Committed, *Impl_);
-DELEGATE_SIGNAL(TTransaction, void(), Aborted, *Impl_);
+DELEGATE_SIGNAL(TTransaction, ITransaction::TCommittedHandlerSignature, Committed, *Impl_);
+DELEGATE_SIGNAL(TTransaction, ITransaction::TAbortedHandlerSignature, Aborted, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

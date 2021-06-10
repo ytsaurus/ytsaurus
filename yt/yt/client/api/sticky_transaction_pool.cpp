@@ -62,9 +62,9 @@ public:
         }
 
         transaction->SubscribeCommitted(
-            BIND(&TStickyTransactionPool::OnStickyTransactionFinished, MakeWeak(this), transactionId));
+            BIND(&TStickyTransactionPool::OnStickyTransactionCommitted, MakeWeak(this), transactionId));
         transaction->SubscribeAborted(
-            BIND(&TStickyTransactionPool::OnStickyTransactionFinished, MakeWeak(this), transactionId));
+            BIND(&TStickyTransactionPool::OnStickyTransactionAborted, MakeWeak(this), transactionId));
 
         YT_LOG_DEBUG("Sticky transaction registered (TransactionId: %v)",
             transactionId);
@@ -144,6 +144,16 @@ private:
             transactionId);
 
         transaction->Abort();
+    }
+
+    void OnStickyTransactionCommitted(TTransactionId transactionId)
+    {
+        OnStickyTransactionFinished(transactionId);
+    }
+
+    void OnStickyTransactionAborted(TTransactionId transactionId, const TError& /*error*/)
+    {
+        OnStickyTransactionFinished(transactionId);
     }
 
     void OnStickyTransactionFinished(TTransactionId transactionId)

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "public.h"
 #include "client.h"
 
 #include <yt/yt/client/table_client/unversioned_row.h>
@@ -74,8 +73,13 @@ struct ITransaction
     virtual TFuture<TTransactionFlushResult> Flush() = 0;
     virtual void RegisterAlienTransaction(const ITransactionPtr& transaction) = 0;
 
-    DECLARE_INTERFACE_SIGNAL(void(), Committed);
-    DECLARE_INTERFACE_SIGNAL(void(), Aborted);
+    using TCommittedHandlerSignature = void();
+    using TCommittedHandler = TCallback<TCommittedHandlerSignature>;
+    DECLARE_INTERFACE_SIGNAL(TCommittedHandlerSignature, Committed);
+
+    using TAbortedHandlerSignature = void(const TError& error);
+    using TAbortedHandler = TCallback<TAbortedHandlerSignature>;
+    DECLARE_INTERFACE_SIGNAL(TAbortedHandlerSignature, Aborted);
 
     // Tables
 

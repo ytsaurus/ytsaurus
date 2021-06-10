@@ -194,10 +194,10 @@ public:
 
     MOCK_METHOD1(RegisterAlienTransaction, void(const NApi::ITransactionPtr& transaction));
 
-    MOCK_METHOD1(SubscribeCommitted, void(const TCallback<void()>& callback));
-    MOCK_METHOD1(UnsubscribeCommitted, void(const TCallback<void()>& callback));
-    MOCK_METHOD1(SubscribeAborted, void(const TCallback<void()>& callback));
-    MOCK_METHOD1(UnsubscribeAborted, void(const TCallback<void()>& callback));
+    MOCK_METHOD1(SubscribeCommitted, void(const TCommittedHandler& callback));
+    MOCK_METHOD1(UnsubscribeCommitted, void(const TCommittedHandler& callback));
+    MOCK_METHOD1(SubscribeAborted, void(const TAbortedHandler& callback));
+    MOCK_METHOD1(UnsubscribeAborted, void(const TAbortedHandler& callback));
 
     MOCK_METHOD4(ModifyRows, void(
         const NYPath::TYPath& path,

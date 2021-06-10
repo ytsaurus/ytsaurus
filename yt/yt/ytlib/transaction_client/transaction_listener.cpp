@@ -102,18 +102,18 @@ void TTransactionListener::ProbeTransaction(const ITransactionPtr& transaction)
     transaction->Ping()
         .Subscribe(BIND([=, this_ = MakeStrong(this), transactionId = transaction->GetId()] (const TError& error) {
             if (error.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction) {
-                OnTransactionAborted(transactionId);
+                OnTransactionAborted(transactionId, error);
             }
         }));
 }
 
-void TTransactionListener::OnTransactionAborted(TTransactionId transactionId)
+void TTransactionListener::OnTransactionAborted(TTransactionId transactionId, const TError& error)
 {
     auto guard = Guard(SpinLock_);
     if (std::find(IgnoredTransactionIds_.begin(), IgnoredTransactionIds_.end(), transactionId) != IgnoredTransactionIds_.end()) {
         return;
     }
-    YT_LOG_DEBUG("Transaction abort detected (TransactionId: %v)",
+    YT_LOG_DEBUG(error, "Transaction abort detected (TransactionId: %v)",
         transactionId);
     AbortedTransactionIds_.push_back(transactionId);
     Aborted_.store(true);

@@ -57,11 +57,11 @@ public:
     virtual void Detach() override;
     virtual void RegisterAlienTransaction(const ITransactionPtr& transaction) override;
 
-    virtual void SubscribeCommitted(const TClosure&) override;
-    virtual void UnsubscribeCommitted(const TClosure&) override;
+    virtual void SubscribeCommitted(const TCommittedHandler& handler) override;
+    virtual void UnsubscribeCommitted(const TCommittedHandler& handler) override;
 
-    virtual void SubscribeAborted(const TClosure&) override;
-    virtual void UnsubscribeAborted(const TClosure&) override;
+    virtual void SubscribeAborted(const TAbortedHandler& handler) override;
+    virtual void UnsubscribeAborted(const TAbortedHandler& handler) override;
 
     virtual void ModifyRows(
         const NYPath::TYPath& path,
@@ -222,8 +222,8 @@ private:
     TApiServiceProxy::TReqBatchModifyRowsPtr BatchModifyRowsRequest_;
     std::vector<TFuture<void>> BatchModifyRowsFutures_;
 
-    TSingleShotCallbackList<void()> Committed_;
-    TSingleShotCallbackList<void()> Aborted_;
+    TSingleShotCallbackList<TCommittedHandlerSignature> Committed_;
+    TSingleShotCallbackList<TAbortedHandlerSignature> Aborted_;
 
     TFuture<void> SendPing();
     void RunPeriodicPings();

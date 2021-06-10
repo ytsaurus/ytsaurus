@@ -177,22 +177,22 @@ void TTransaction::Detach()
     req->Invoke();
 }
 
-void TTransaction::SubscribeCommitted(const TCallback<void()>& handler)
+void TTransaction::SubscribeCommitted(const TCommittedHandler& handler)
 {
     Committed_.Subscribe(handler);
 }
 
-void TTransaction::UnsubscribeCommitted(const TCallback<void()>& handler)
+void TTransaction::UnsubscribeCommitted(const TCommittedHandler& handler)
 {
     Committed_.Unsubscribe(handler);
 }
 
-void TTransaction::SubscribeAborted(const TCallback<void()>& handler)
+void TTransaction::SubscribeAborted(const TAbortedHandler& handler)
 {
     Aborted_.Subscribe(handler);
 }
 
-void TTransaction::UnsubscribeAborted(const TCallback<void()>& handler)
+void TTransaction::UnsubscribeAborted(const TAbortedHandler& handler)
 {
     Aborted_.Unsubscribe(handler);
 }
@@ -817,7 +817,7 @@ TFuture<void> TTransaction::DoAbort(
                 State_ = ETransactionState::Aborted;
             }
 
-            Aborted_.Fire();
+            Aborted_.Fire(TError("Transaction aborted by user request"));
         })));
 
     for (const auto& transaction : alienTransactions) {
@@ -856,15 +856,17 @@ TFuture<void> TTransaction::SendPing()
                     }
                 }
 
-                if (fireAborted) {
-                    AbortPromise_.TrySet();
-                    Aborted_.Fire();
-                }
-
-                THROW_ERROR_EXCEPTION(
+                auto error = TError(
                     NTransactionClient::EErrorCode::NoSuchTransaction,
                     "Transaction %v has expired or was aborted",
                     GetId());
+
+                if (fireAborted) {
+                    AbortPromise_.TrySet();
+                    Aborted_.Fire(error);
+                }
+
+                THROW_ERROR(error);
             } else {
                 // Soft error.
                 YT_LOG_DEBUG(rspOrError, "Error pinging transaction");
