@@ -1278,6 +1278,12 @@ private:
             storeManager->DiscardAllStores();
         }
 
+        const auto& structuredLogger = tablet->GetStructuredLogger();
+        structuredLogger->OnTabletUnlocked(
+            MakeRange(storesToAdd),
+            updateMode == EUpdateMode::Overwrite,
+            transactionId);
+
         storeManager->BulkAddStores(MakeRange(storesToAdd), /*onMount*/ false);
 
         const auto& lockManager = tablet->GetLockManager();

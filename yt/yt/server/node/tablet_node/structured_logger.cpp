@@ -364,6 +364,26 @@ public:
             .Item("transaction_id").Value(transactionId);
     }
 
+    virtual void OnTabletUnlocked(
+        TRange<IStorePtr> stores,
+        bool overwrite,
+        TTransactionId transactionId) override
+    {
+        LogEvent("bulk_add_stores")
+            .Item("added_stores").DoMapFor(
+                stores,
+                [&] (auto fluent, const IStorePtr& store) {
+                    fluent
+                        .Item(ToString(store->GetId()))
+                        .DoMap(BIND(
+                            &TPerTabletStructuredLogger::OnStoreFullHeartbeat,
+                            Unretained(this),
+                            store));
+                })
+            .Item("overwrite").Value(overwrite)
+            .Item("transaction_id").Value(transactionId);
+    }
+
     virtual void OnPartitionStateChanged(const TPartition* partition) override
     {
         LogEvent("set_partition_state")
@@ -441,6 +461,13 @@ public:
         LogEvent("merge_partitions")
             .Item("old_partition_ids").List(oldPartitionIds)
             .Item("new_partition_id").Value(newPartition->GetId());
+    }
+
+    virtual void OnImmediatePartitionSplitRequested(const TPartition* partition) override
+    {
+        LogEvent("request_immediate_split")
+            .Item("partition_id").Value(partition->GetId())
+            .Item("keys").List(partition->PivotKeysForImmediateSplit());
     }
 
 private:

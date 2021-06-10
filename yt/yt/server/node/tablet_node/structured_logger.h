@@ -113,6 +113,11 @@ struct IPerTabletStructuredLogger
         TDynamicStoreId allocatedDynamicStoreId,
         TTransactionId transactionId) = 0;
 
+    virtual void OnTabletUnlocked(
+        TRange<IStorePtr> stores,
+        bool overwrite,
+        TTransactionId transactionId) = 0;
+
     virtual void OnPartitionStateChanged(const TPartition* partition) = 0;
     virtual void OnStoreStateChanged(const IStorePtr& store) = 0;
     virtual void OnHunkChunkStateChanged(const THunkChunkPtr& hunkChunk) = 0;
@@ -128,6 +133,8 @@ struct IPerTabletStructuredLogger
     virtual void OnPartitionsMerged(
         const std::vector<TPartitionId>& oldPartitionIds,
         const TPartition* newPartition) = 0;
+
+    virtual void OnImmediatePartitionSplitRequested(const TPartition* partition) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IPerTabletStructuredLogger)
