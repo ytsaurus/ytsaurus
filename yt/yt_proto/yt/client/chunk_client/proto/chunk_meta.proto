@@ -116,11 +116,7 @@ message TChunkMeta
     // The type (EChunkType) of data stored in this chunk (e.g. tabular, file blob etc).
     required int32 type = 1;
 
-    // Format validated by reader.
-    // ETableChunkFormat for tables.
-    // EFileChunkFormat for files.
-    // EJournalChunkFormat for journals.
-    // EHunkChunkFormat for hunk chunks.
+    // Format (EChunkFormat) validated by reader.
     required int32 format = 3;
 
     // EChunkFeatures bitmask of the features that are used in this chunk.

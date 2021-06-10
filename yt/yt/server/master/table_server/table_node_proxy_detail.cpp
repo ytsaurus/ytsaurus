@@ -859,22 +859,24 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
             return ComputeChunkStatistics(
                 Bootstrap_,
                 chunkList,
-                [] (const TChunk* chunk) { return FromProto<ETableChunkFormat>(chunk->ChunkMeta().format()); });
+                [] (const TChunk* chunk) { return FromProto<ETableChunkFormat>(chunk->ChunkMeta().format()); },
+                [] (const TChunk* chunk) { return chunk->GetChunkType() == EChunkType::Table; });
 
         case EInternedAttributeKey::OptimizeForStatistics: {
             if (isExternal) {
                 break;
             }
             auto optimizeForExtractor = [] (const TChunk* chunk) {
-                auto format = FromProto<ETableChunkFormat>(chunk->ChunkMeta().format());
+                auto format = chunk->GetChunkFormat();
                 switch (format) {
-                    case ETableChunkFormat::Old:
-                    case ETableChunkFormat::VersionedSimple:
-                    case ETableChunkFormat::Schemaful:
-                    case ETableChunkFormat::SchemalessHorizontal:
+                    // COMPAT(gritukan): EChunkFormat::FileDefault == ETableChunkFormat::Old.
+                    case EChunkFormat::FileDefault:
+                    case EChunkFormat::TableVersionedSimple:
+                    case EChunkFormat::TableSchemaful:
+                    case EChunkFormat::TableSchemalessHorizontal:
                         return NTableClient::EOptimizeFor::Lookup;
-                    case ETableChunkFormat::VersionedColumnar:
-                    case ETableChunkFormat::UnversionedColumnar:
+                    case EChunkFormat::TableVersionedColumnar:
+                    case EChunkFormat::TableUnversionedColumnar:
                         return NTableClient::EOptimizeFor::Scan;
                     default:
                         THROW_ERROR_EXCEPTION("Unsupported table chunk format %Qlv",

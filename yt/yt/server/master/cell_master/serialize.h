@@ -145,6 +145,7 @@ DEFINE_ENUM(EMasterReign,
     ((NoAggregateForHunkColumns)                                    (1619))  // babenko
     ((HunksNotInTabletStatic)                                       (1620))  // ifsmirnov
     ((TrueTableSchemaObjects)                                       (1621))  // shakurov
+    ((ChunkFormat)                                                  (1622))  // gritukan
     // 21.3 starts here.
 );
 

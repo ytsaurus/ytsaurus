@@ -120,8 +120,8 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
     const TCachedVersionedChunkMetaPtr& chunkMeta,
     const TKeyComparer& keyComparer)
 {
-    if (chunkMeta->GetChunkFormat() != ETableChunkFormat::VersionedSimple &&
-        chunkMeta->GetChunkFormat() != ETableChunkFormat::SchemalessHorizontal)
+    if (chunkMeta->GetChunkFormat() != EChunkFormat::TableVersionedSimple &&
+        chunkMeta->GetChunkFormat() != EChunkFormat::TableSchemalessHorizontal)
     {
         YT_LOG_INFO("Cannot create lookup hash table for improper chunk format (ChunkId: %v, ChunkFormat: %v)",
             chunkMeta->GetChunkId(),
@@ -157,7 +157,7 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
 
         std::unique_ptr<IVersionedBlockReader> blockReader;
         switch (chunkMeta->GetChunkFormat()) {
-            case ETableChunkFormat::VersionedSimple:
+            case EChunkFormat::TableVersionedSimple:
                 blockReader = std::make_unique<TSimpleVersionedBlockReader>(
                     uncompressedBlock.Data,
                     blockMeta,
@@ -171,7 +171,7 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
                     true);
                 break;
 
-            case ETableChunkFormat::SchemalessHorizontal:
+            case EChunkFormat::TableSchemalessHorizontal:
                 blockReader = std::make_unique<THorizontalSchemalessVersionedBlockReader>(
                     uncompressedBlock.Data,
                     blockMeta,

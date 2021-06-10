@@ -5,6 +5,8 @@
 #include "block_writer.h"
 #include "chunk_meta_extensions.h"
 
+#include <yt/yt/ytlib/chunk_client/public.h>
+
 #include <yt/yt/client/table_client/public.h>
 #include <yt/yt/client/table_client/versioned_row.h>
 
@@ -35,7 +37,7 @@ public:
     static int GetKeySize(int keyColumnCount, int schemaColumnCount);
     static int GetPaddedKeySize(int keyColumnCount, int schemaColumnCount);
 
-    static const ETableChunkFormat FormatVersion = ETableChunkFormat::VersionedSimple;
+    static const NChunkClient::EChunkFormat FormatVersion = NChunkClient::EChunkFormat::TableVersionedSimple;
     static const int ValueSize = 16;
     static const int TimestampSize = 8;
 

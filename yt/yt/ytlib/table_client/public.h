@@ -17,19 +17,6 @@ constexpr int DefaultPartitionTag = -1;
 // TODO(ifsmirnov): calculate actual estimates.
 constexpr i64 DefaultRemoteDynamicStoreReaderMemoryEstimate = 64_MB;
 
-DEFINE_ENUM(ETableChunkFormat,
-    ((Old)                  (1))
-    ((VersionedSimple)      (2))
-    ((Schemaful)            (3))
-    ((SchemalessHorizontal) (4))
-    ((VersionedColumnar)    (5))
-    ((UnversionedColumnar)  (6))
-);
-
-DEFINE_ENUM(EHunkChunkFormat,
-    ((Default)(0))
-);
-
 struct TColumnIdMapping
 {
     int ChunkSchemaIndex;

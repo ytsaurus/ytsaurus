@@ -138,6 +138,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert get("#{}/@uncompressed_data_size".format(hunk_chunk_id)) == 260
         assert get("#{}/@compressed_data_size".format(hunk_chunk_id)) == 260
 
+        assert get("//tmp/t/@chunk_format_statistics/hunk_default/chunk_count") == 1
+
         sync_mount_table("//tmp/t")
 
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)

@@ -46,12 +46,12 @@ public:
         : SliceReq_(sliceReq)
         , Meta_(meta)
     {
-        auto chunkFormat = FromProto<ETableChunkFormat>(Meta_.format());
+        auto chunkFormat = CheckedEnumCast<EChunkFormat>(Meta_.format());
         switch (chunkFormat) {
-            case ETableChunkFormat::SchemalessHorizontal:
-            case ETableChunkFormat::UnversionedColumnar:
-            case ETableChunkFormat::VersionedSimple:
-            case ETableChunkFormat::VersionedColumnar:
+            case EChunkFormat::TableSchemalessHorizontal:
+            case EChunkFormat::TableUnversionedColumnar:
+            case EChunkFormat::TableVersionedSimple:
+            case EChunkFormat::TableVersionedColumnar:
                 break;
             default:
                 auto chunkId = FromProto<TChunkId>(SliceReq_.chunk_id());

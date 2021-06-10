@@ -491,7 +491,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     }
 
     switch (chunkState->ChunkMeta->GetChunkFormat()) {
-        case ETableChunkFormat::SchemalessHorizontal: {
+        case EChunkFormat::TableSchemalessHorizontal: {
             auto chunkTimestamp = chunkState->ChunkMeta->Misc().min_timestamp();
             if (timestamp < chunkTimestamp) {
                 return CreateEmptyVersionedReader(keys.Size());
@@ -506,7 +506,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 produceAllVersions);
         }
 
-        case ETableChunkFormat::VersionedSimple:
+        case EChunkFormat::TableVersionedSimple:
             return New<TCacheBasedSimpleVersionedLookupChunkReader<TSimpleVersionedBlockReader>>(
                 chunkState,
                 keys,
@@ -514,8 +514,8 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 timestamp,
                 produceAllVersions);
 
-        case ETableChunkFormat::UnversionedColumnar:
-        case ETableChunkFormat::VersionedColumnar:
+        case EChunkFormat::TableUnversionedColumnar:
+        case EChunkFormat::TableVersionedColumnar:
             return createGenericVersionedReader();
 
         default:
@@ -694,7 +694,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     }
 
     switch (chunkState->ChunkMeta->GetChunkFormat()) {
-        case ETableChunkFormat::SchemalessHorizontal: {
+        case EChunkFormat::TableSchemalessHorizontal: {
             auto chunkTimestamp = static_cast<TTimestamp>(chunkState->ChunkMeta->Misc().min_timestamp());
             if (timestamp < chunkTimestamp) {
                 return CreateEmptyVersionedReader();
@@ -708,7 +708,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 singletonClippingRange);
         }
 
-        case ETableChunkFormat::VersionedSimple:
+        case EChunkFormat::TableVersionedSimple:
             return New<TSimpleCacheBasedVersionedRangeChunkReader<TSimpleVersionedBlockReader>>(
                 chunkState,
                 std::move(ranges),
@@ -717,8 +717,8 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 produceAllVersions,
                 singletonClippingRange);
 
-        case ETableChunkFormat::UnversionedColumnar:
-        case ETableChunkFormat::VersionedColumnar:
+        case EChunkFormat::TableUnversionedColumnar:
+        case EChunkFormat::TableVersionedColumnar:
             return createGenericVersionedReader();
 
         default:

@@ -1299,11 +1299,11 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
         )
 
         for chunk_id in get("//tmp/t_output/@chunk_ids"):
-            chunk_format = get("#{}/@table_chunk_format".format(chunk_id))
+            chunk_format = get("#{}/@chunk_format".format(chunk_id))
             if optimize_for == "lookup":
-                assert chunk_format == "versioned_simple"
+                assert chunk_format == "table_versioned_simple"
             else:
-                assert chunk_format == "versioned_columnar"
+                assert chunk_format == "table_versioned_columnar"
 
         def _verify():
             assert_items_equal(select_rows("* from [//tmp/t_output]"), [{"key": 2, "value": "b"}])

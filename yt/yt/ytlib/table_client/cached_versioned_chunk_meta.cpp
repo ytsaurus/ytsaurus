@@ -110,10 +110,10 @@ void TCachedVersionedChunkMeta::ValidateChunkMeta()
             EChunkType::Table);
     }
 
-    if (ChunkFormat_ != ETableChunkFormat::VersionedSimple &&
-        ChunkFormat_ != ETableChunkFormat::VersionedColumnar &&
-        ChunkFormat_ != ETableChunkFormat::UnversionedColumnar &&
-        ChunkFormat_ != ETableChunkFormat::SchemalessHorizontal)
+    if (ChunkFormat_ != EChunkFormat::TableVersionedSimple &&
+        ChunkFormat_ != EChunkFormat::TableVersionedColumnar &&
+        ChunkFormat_ != EChunkFormat::TableUnversionedColumnar &&
+        ChunkFormat_ != EChunkFormat::TableSchemalessHorizontal)
     {
         THROW_ERROR_EXCEPTION("Incorrect chunk format %Qlv",
             ChunkFormat_);

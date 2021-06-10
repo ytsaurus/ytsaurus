@@ -41,7 +41,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NErasure::ECodec, ErasureCodec, NErasure::ECodec::None);
     DEFINE_BYVAL_RW_PROPERTY(i64, TableRowIndex);
     DEFINE_BYVAL_RW_PROPERTY(int, RangeIndex, 0);
-    DEFINE_BYVAL_RO_PROPERTY(NTableClient::ETableChunkFormat, TableChunkFormat);
+    DEFINE_BYVAL_RO_PROPERTY(EChunkFormat, ChunkFormat);
     DEFINE_BYVAL_RW_PROPERTY(i64, ChunkIndex, -1);
     DEFINE_BYVAL_RW_PROPERTY(i64, TabletIndex, -1);
     DEFINE_BYVAL_RW_PROPERTY(NTabletClient::TTabletId, TabletId);

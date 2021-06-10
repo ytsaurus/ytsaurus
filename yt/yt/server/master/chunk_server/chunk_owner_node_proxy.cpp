@@ -573,6 +573,9 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MulticellStatistics)
         .SetExternal(isExternal)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkFormatStatistics)
+        .SetExternal(isExternal)
+        .SetOpaque(true));
     descriptors->push_back(EInternedAttributeKey::ChunkCount);
     descriptors->push_back(EInternedAttributeKey::UncompressedDataSize);
     descriptors->push_back(EInternedAttributeKey::CompressedDataSize);
@@ -608,7 +611,7 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EnableSkynetSharing)
         .SetWritable(true)
-        .SetReplicated(true));        
+        .SetReplicated(true));
 }
 
 bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
@@ -787,6 +790,15 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAtt
                 Bootstrap_,
                 chunkList,
                 [] (const TChunk* chunk) { return chunk->GetNativeCellTag(); });
+
+        case EInternedAttributeKey::ChunkFormatStatistics:
+            if (isExternal) {
+                break;
+            }
+            return ComputeChunkStatistics(
+                Bootstrap_,
+                chunkList,
+                [] (const TChunk* chunk) { return chunk->GetChunkFormat(); });
 
         default:
             break;

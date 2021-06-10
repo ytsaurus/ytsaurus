@@ -190,8 +190,8 @@ private:
                 type);
         }
 
-        auto format = FromProto<EFileChunkFormat>(meta->format());
-        if (format != EFileChunkFormat::Default) {
+        auto format = CheckedEnumCast<EChunkFormat>(meta->format());
+        if (format != EChunkFormat::FileDefault) {
             THROW_ERROR_EXCEPTION("Unsupported file chunk format %Qlv",
                 format);
         }

@@ -202,7 +202,7 @@ TSimpleVersionedChunkReaderBase::TSimpleVersionedChunkReaderBase(
 {
     YT_VERIFY(ChunkMeta_->Misc().sorted());
     YT_VERIFY(ChunkMeta_->GetChunkType() == EChunkType::Table);
-    YT_VERIFY(ChunkMeta_->GetChunkFormat() == ETableChunkFormat::VersionedSimple);
+    YT_VERIFY(ChunkMeta_->GetChunkFormat() == EChunkFormat::TableVersionedSimple);
     YT_VERIFY(Timestamp_ != AllCommittedTimestamp || columnFilter.IsUniversal());
     YT_VERIFY(PerformanceCounters_);
 }
@@ -682,7 +682,7 @@ public:
     {
         YT_VERIFY(ChunkMeta_->Misc().sorted());
         YT_VERIFY(ChunkMeta_->GetChunkType() == EChunkType::Table);
-        YT_VERIFY(ChunkMeta_->GetChunkFormat() == ETableChunkFormat::VersionedColumnar);
+        YT_VERIFY(ChunkMeta_->GetChunkFormat() == EChunkFormat::TableVersionedColumnar);
         YT_VERIFY(Timestamp_ != AllCommittedTimestamp || columnFilter.IsUniversal());
         YT_VERIFY(PerformanceCounters_);
 
@@ -1722,7 +1722,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     IVersionedReaderPtr reader;
 
     switch (chunkMeta->GetChunkFormat()) {
-        case ETableChunkFormat::VersionedSimple:
+        case EChunkFormat::TableVersionedSimple:
             reader = New<TSimpleVersionedRangeChunkReader>(
                 std::move(config),
                 chunkMeta,
@@ -1738,7 +1738,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 memoryManager);
             break;
 
-        case ETableChunkFormat::VersionedColumnar: {
+        case EChunkFormat::TableVersionedColumnar: {
             YT_VERIFY(!ranges.Empty());
             IVersionedReaderPtr unwrappedReader;
 
@@ -1773,8 +1773,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             break;
         }
 
-        case ETableChunkFormat::UnversionedColumnar:
-        case ETableChunkFormat::SchemalessHorizontal: {
+        case EChunkFormat::TableUnversionedColumnar:
+        case EChunkFormat::TableSchemalessHorizontal: {
             // COMPAT(sandello): Fix me.
             if (produceAllVersions && timestamp != AllCommittedTimestamp) {
                 THROW_ERROR_EXCEPTION("Reading all value versions is not supported with a particular timestamp");
@@ -1893,7 +1893,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     IVersionedReaderPtr reader;
 
     switch (chunkMeta->GetChunkFormat()) {
-        case ETableChunkFormat::VersionedSimple:
+        case EChunkFormat::TableVersionedSimple:
             reader = New<TSimpleVersionedLookupChunkReader>(
                 std::move(config),
                 chunkMeta,
@@ -1909,7 +1909,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 memoryManager);
             break;
 
-        case ETableChunkFormat::VersionedColumnar: {
+        case EChunkFormat::TableVersionedColumnar: {
             if (produceAllVersions) {
                 YT_VERIFY(columnFilter.IsUniversal());
             }
@@ -1943,8 +1943,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             break;
         }
 
-        case ETableChunkFormat::UnversionedColumnar:
-        case ETableChunkFormat::SchemalessHorizontal: {
+        case EChunkFormat::TableUnversionedColumnar:
+        case EChunkFormat::TableSchemalessHorizontal: {
             if (produceAllVersions && !columnFilter.IsUniversal()) {
                 THROW_ERROR_EXCEPTION("Reading all value versions is not supported with non-universal column filter");
             }

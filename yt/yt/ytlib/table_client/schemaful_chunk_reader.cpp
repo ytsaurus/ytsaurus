@@ -55,8 +55,8 @@ ISchemafulUnversionedReaderPtr CreateSchemafulChunkReader(
     const NChunkClient::TReadRange& readRange)
 {
     switch (chunkMeta->GetChunkFormat()) {
-        case ETableChunkFormat::UnversionedColumnar:
-        case ETableChunkFormat::SchemalessHorizontal: {
+        case EChunkFormat::TableUnversionedColumnar:
+        case EChunkFormat::TableSchemalessHorizontal: {
             auto createSchemalessReader = [=] (TNameTablePtr nameTable, TColumnFilter columnFilter) {
                 return CreateSchemalessRangeChunkReader(
                     chunkState,
@@ -67,7 +67,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulChunkReader(
                     std::move(nameTable),
                     chunkReadOptions,
                     sortColumns,
-                    /* omittedInaccessibleColumns */ {},
+                    /*omittedInaccessibleColumns*/ {},
                     columnFilter,
                     readRange);
             };

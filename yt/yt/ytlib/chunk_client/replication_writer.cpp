@@ -260,7 +260,7 @@ public:
             // This is a journal chunk; let's synthesize some meta.
             ChunkMeta_ = New<TDeferredChunkMeta>();
             ChunkMeta_->set_type(ToProto<int>(EChunkType::Journal));
-            ChunkMeta_->set_format(ToProto<int>(NJournalClient::EJournalChunkFormat::Default));
+            ChunkMeta_->set_format(ToProto<int>(EChunkFormat::JournalDefault));
             ChunkMeta_->mutable_extensions();
         }
 

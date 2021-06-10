@@ -94,7 +94,7 @@ class TChunkBuilder
 public:
     TChunkBuilder(int keyColumnCount)
     {
-        ChunkMeta_.set_format(ToProto<int>(ETableChunkFormat::SchemalessHorizontal));
+        ChunkMeta_.set_format(ToProto<int>(EChunkFormat::TableSchemalessHorizontal));
 
         {
             std::vector<TColumnSchema> columns;

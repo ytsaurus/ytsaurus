@@ -342,6 +342,9 @@ void TChunk::Confirm(
         THROW_ERROR_EXCEPTION("Missing TMiscExt in chunk meta");
     }
 
+    Y_UNUSED(CheckedEnumCast<EChunkType>(chunkMeta->type()));
+    Y_UNUSED(CheckedEnumCast<EChunkFormat>(chunkMeta->format()));
+
     ChunkInfo_.Swap(chunkInfo);
     ChunkMeta_.Swap(chunkMeta);
     MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
@@ -562,6 +565,11 @@ i64 TChunk::GetMasterMemoryUsage() const
 EChunkType TChunk::GetChunkType() const
 {
     return FromProto<EChunkType>(ChunkMeta().type());
+}
+
+EChunkFormat TChunk::GetChunkFormat() const
+{
+    return FromProto<EChunkFormat>(ChunkMeta().format());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

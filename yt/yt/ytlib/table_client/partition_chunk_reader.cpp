@@ -76,7 +76,7 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
         extensionTags))
         .ValueOrThrow();
 
-    YT_VERIFY(FromProto<ETableChunkFormat>(ChunkMeta_->format()) == ETableChunkFormat::SchemalessHorizontal);
+    YT_VERIFY(FromProto<EChunkFormat>(ChunkMeta_->format()) == EChunkFormat::TableSchemalessHorizontal);
 
     TNameTablePtr chunkNameTable;
     auto nameTableExt = GetProtoExtension<NProto::TNameTableExt>(ChunkMeta_->extensions());

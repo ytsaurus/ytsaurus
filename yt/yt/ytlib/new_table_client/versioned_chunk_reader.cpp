@@ -45,7 +45,6 @@ using NTableClient::TRefCountedBlockMetaPtr;
 using NTableClient::TChunkReaderConfigPtr;
 using NTableClient::TColumnIdMapping;
 using NTableClient::TColumnFilter;
-using NTableClient::ETableChunkFormat;
 
 using NTableClient::IVersionedReader;
 using NTableClient::IVersionedReaderPtr;

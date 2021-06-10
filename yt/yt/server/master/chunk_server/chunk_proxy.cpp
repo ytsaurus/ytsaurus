@@ -121,6 +121,8 @@ private:
             .SetPresent(chunk->IsConfirmed()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkType)
             .SetPresent(chunk->IsConfirmed()));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkFormat)
+            .SetPresent(chunk->IsConfirmed()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TableChunkFormat)
             .SetPresent(chunk->IsConfirmed() && chunk->GetChunkType() == EChunkType::Table));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MetaSize)
@@ -509,6 +511,15 @@ private:
                 }
                 BuildYsonFluently(consumer)
                     .Value(chunk->GetChunkType());
+                return true;
+            }
+
+            case EInternedAttributeKey::ChunkFormat: {
+                if (!isConfirmed) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(chunk->GetChunkFormat());
                 return true;
             }
 

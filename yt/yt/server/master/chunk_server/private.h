@@ -48,6 +48,19 @@ DEFINE_ENUM(ERemoveReplicaReason,
     (NodeDisposed)
 );
 
+
+// This enum is used only for text representation of table chunk formats in deprecated
+// TableChunkFormat and TableChunkFormatStatistics attributes.
+// Keep in sync with NChunkClient::EChunkFormat.
+DEFINE_ENUM(ETableChunkFormat,
+    ((Old)                  (1))
+    ((VersionedSimple)      (2))
+    ((Schemaful)            (3))
+    ((SchemalessHorizontal) (4))
+    ((VersionedColumnar)    (5))
+    ((UnversionedColumnar)  (6))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

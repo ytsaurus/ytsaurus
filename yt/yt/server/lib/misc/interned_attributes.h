@@ -53,6 +53,8 @@
     XX(ChildIds, child_ids) \
     XX(ChildKey, child_key) \
     XX(ChunkCount, chunk_count) \
+    XX(ChunkFormat, chunk_format) \
+    XX(ChunkFormatStatistics, chunk_format_statistics) \
     XX(ChunkId, chunk_id) \
     XX(ChunkIds, chunk_ids) \
     XX(ChunkListId, chunk_list_id) \

@@ -576,9 +576,9 @@ class TestChunkMerger(YTEnvSetup):
         wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
         assert read_table("//tmp/t") == rows
 
-        chunk_format = "schemaless_horizontal" if optimize_for == "lookup" else "unversioned_columnar"
+        chunk_format = "table_schemaless_horizontal" if optimize_for == "lookup" else "table_unversioned_columnar"
         chunk_ids = get("//tmp/t/@chunk_ids")
-        assert get("#{0}/@table_chunk_format".format(chunk_ids[0])) == chunk_format
+        assert get("#{0}/@chunk_format".format(chunk_ids[0])) == chunk_format
 
     @authors("babenko")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -611,9 +611,9 @@ class TestChunkMerger(YTEnvSetup):
         wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
         assert read_table("//tmp/t") == rows1 + rows2 + rows3
 
-        chunk_format = "schemaless_horizontal" if optimize_for == "lookup" else "unversioned_columnar"
+        chunk_format = "table_schemaless_horizontal" if optimize_for == "lookup" else "table_unversioned_columnar"
         chunk_ids = get("//tmp/t/@chunk_ids")
-        assert get("#{0}/@table_chunk_format".format(chunk_ids[0])) == chunk_format
+        assert get("#{0}/@chunk_format".format(chunk_ids[0])) == chunk_format
 
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
