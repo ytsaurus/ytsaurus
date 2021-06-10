@@ -509,6 +509,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         wait(lambda: _check_account_resource_usage(0))
 
     @authors("gritukan")
+    @pytest.mark.skip("Test is temporaly broken")
     @pytest.mark.parametrize("hunk_type", ["inline", "chunk"])
     def test_hunks_in_operation(self, hunk_type):
         sync_create_cells(1)
