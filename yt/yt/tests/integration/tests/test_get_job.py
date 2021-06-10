@@ -420,7 +420,7 @@ class TestGetJobIsStale(_TestGetJobBase):
         assert job_info.get("controller_agent_state") is None
         assert job_info.get("archive_state") == "running"
         assert job_info.get("is_stale")
-        
+
 
 class TestGetJobMonitoring(_TestGetJobBase):
     USE_PORTO = True

@@ -413,7 +413,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp2) == [replica_id1])
         assert_items_equal(get_in_sync_replicas("//tmp/t", None, timestamp=timestamp2),
-                          [replica_id1])
+                           [replica_id1])
         assert_items_equal(get_in_sync_replicas("//tmp/t", [], timestamp=timestamp2),
                            [replica_id1, replica_id2])
 
@@ -455,7 +455,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         timestamp = generate_timestamp()
         wait(
             lambda: are_items_equal(get_in_sync_replicas("//tmp/t", None, timestamp=timestamp),
-                                   [replica_id1, replica_id2])
+                                    [replica_id1, replica_id2])
         )
 
         assert_items_equal(get_in_sync_replicas("//tmp/t", None, timestamp=SyncLastCommittedTimestamp),

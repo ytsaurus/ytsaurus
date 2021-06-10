@@ -771,7 +771,7 @@ class TestListJobs(TestListJobsBase):
         res_jobs = [job for job in res["jobs"] if job["id"] == job_id]
         assert len(res_jobs) == 1
         res_job = res_jobs[0]
-        
+
         assert res_job.get("controller_agent_state") == "running"
         assert res_job.get("archive_state") == "running"
         assert not res_job.get("is_stale")
