@@ -790,9 +790,6 @@ void TBootstrap::DoInitialize()
     ExecSlotManager_->Initialize();
     JobController_->Initialize();
 
-    WaitFor(ExecSlotManager_->GetJobProxyBuildInfoReadyEvent())
-        .ThrowOnError();
-
 #ifdef __linux__
     if (GetEnvironmentType() == EJobEnvironmentType::Porto) {
         auto portoEnvironmentConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(Config_->ExecAgent->SlotManager->JobEnvironment);

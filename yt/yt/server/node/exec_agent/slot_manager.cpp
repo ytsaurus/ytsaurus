@@ -72,6 +72,9 @@ void TSlotManager::Initialize()
         Config_->JobEnvironment,
         Bootstrap_);
 
+    // Job environment must be initialized first, since it cleans up all the processes, 
+    // which may hold open decsriptors to volumes, layers and files in sandboxes.
+    // It should also be initialized synchronously, since it may prevent delection of chunk cache artifacts.
     JobEnvironment_->Init(
         SlotCount_,
         Bootstrap_->GetConfig()->ExecAgent->JobController->ResourceLimits->Cpu);
@@ -81,7 +84,6 @@ void TSlotManager::Initialize()
         return;
     }
 
-    std::vector<TFuture<void>> initLocationFutures;
     int locationIndex = 0;
     for (const auto& locationConfig : Config_->Locations) {
         auto guard = WriterGuard(LocationsLock_);
@@ -93,42 +95,10 @@ void TSlotManager::Initialize()
             Config_->EnableTmpfs,
             SlotCount_,
             BIND(&IJobEnvironment::GetUserId, JobEnvironment_)));
-
-        initLocationFutures.push_back(Locations_.back()->Initialize());
-
         ++locationIndex;
     }
 
-    auto initResults = WaitFor(AllSet(initLocationFutures));
-    if (!initResults.IsOK()) {
-        auto error =  TError("Failed to initialize slot locations") << initResults;
-        Disable(error);
-    } else {
-        // We ignore results from initLocationsFutures,
-        // they are provided via TSlotLocation::IsEnabled method.
-        for (const auto& location: Locations_) {
-            if (!location->IsEnabled()) {
-                AliveLocations_.push_back(location);
-            }
-        }
-    }
-
-    // To this moment all old processed must have been killed, so we can safely clean up old volumes
-    // during root volume manager initialization.
-    auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
-    if (environmentConfig->Type == EJobEnvironmentType::Porto) {
-        RootVolumeManager_ = CreatePortoVolumeManager(
-            Bootstrap_->GetConfig()->DataNode->VolumeManager,
-            Bootstrap_);
-    }
-
-    UpdateAliveLocations();
-
-    Bootstrap_->GetNodeResourceManager()->SubscribeJobsCpuLimitUpdated(
-        BIND(&TSlotManager::OnJobsCpuLimitUpdated, MakeWeak(this))
-            .Via(Bootstrap_->GetJobInvoker()));
-
-    YT_LOG_INFO("Exec slots initialized");
+    Bootstrap_->GetJobInvoker()->Invoke(BIND(&TSlotManager::AsyncInitialize, MakeStrong(this)));
 }
 
 void TSlotManager::OnDynamicConfigChanged(
@@ -154,7 +124,7 @@ ISlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest)
 
     UpdateAliveLocations();
 
-    int feasibleSlotCount = 0;
+    int feasibleLocationCount = 0;
     int skippedByDiskSpace = 0;
     int skippedByMedium = 0;
     TSlotLocationPtr bestLocation;
@@ -175,7 +145,7 @@ ISlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest)
                 continue;
             }
         }
-        ++feasibleSlotCount;
+        ++feasibleLocationCount;
         if (!bestLocation || bestLocation->GetSessionCount() > location->GetSessionCount()) {
             bestLocation = location;
         }
@@ -183,8 +153,8 @@ ISlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest)
 
     if (!bestLocation) {
         THROW_ERROR_EXCEPTION(EErrorCode::SlotNotFound, "No feasible slot found")
-            << TErrorAttribute("alive_slot_count", AliveLocations_.size())
-            << TErrorAttribute("feasible_slot_count", feasibleSlotCount)
+            << TErrorAttribute("alive_location_count", AliveLocations_.size())
+            << TErrorAttribute("feasible_location_count", feasibleLocationCount)
             << TErrorAttribute("skipped_by_disk_space", skippedByDiskSpace)
             << TErrorAttribute("skipped_by_medium", skippedByMedium);
     }
@@ -226,6 +196,8 @@ bool TSlotManager::IsEnabled() const
     VERIFY_THREAD_AFFINITY(JobThread);
 
     bool enabled =
+        JobProxyReady_.load() &&
+        Initialized_.load() &&
         SlotCount_ > 0 &&
         !AliveLocations_.empty() &&
         JobEnvironment_->IsEnabled();
@@ -274,13 +246,6 @@ std::vector<TSlotLocationPtr> TSlotManager::GetLocations() const
 
     auto guard = ReaderGuard(LocationsLock_);
     return Locations_;
-}
-
-TFuture<void> TSlotManager::GetJobProxyBuildInfoReadyEvent() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return JobProxyBuildInfoReadyEvent_.ToFuture();
 }
 
 void TSlotManager::Disable(const TError& error)
@@ -355,8 +320,7 @@ void TSlotManager::OnJobProxyBuildInfoUpdated(const TError& error)
 
         alert = error;
     }
-
-    JobProxyBuildInfoReadyEvent_.TrySet();
+    JobProxyReady_.store(true);
 }
 
 void TSlotManager::ResetConsecutiveAbortedJobCount()
@@ -442,6 +406,51 @@ void TSlotManager::InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDire
         }
         DefaultMediumIndex_ = descriptor->Index;
     }
+}
+
+void TSlotManager::AsyncInitialize()
+{
+    auto finally = Finally([&] () {
+        Initialized_.store(true);
+    }); 
+
+    YT_LOG_INFO("Start async slot manager initialization");
+
+    std::vector<TFuture<void>> initLocationFutures;
+    for (auto& location : Locations_) {
+        initLocationFutures.push_back(location->Initialize());
+    }
+
+    auto initResults = WaitFor(AllSet(initLocationFutures));
+    if (!initResults.IsOK()) {
+        auto error =  TError("Failed to initialize slot locations") << initResults;
+        Disable(error);
+    } else {
+        // We ignore results from initLocationsFutures,
+        // they are provided via TSlotLocation::IsEnabled method.
+        for (const auto& location: Locations_) {
+            if (!location->IsEnabled()) {
+                AliveLocations_.push_back(location);
+            }
+        }
+    }
+
+    // To this moment all old processed must have been killed, so we can safely clean up old volumes
+    // during root volume manager initialization.
+    auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
+    if (environmentConfig->Type == EJobEnvironmentType::Porto) {
+        RootVolumeManager_ = CreatePortoVolumeManager(
+            Bootstrap_->GetConfig()->DataNode->VolumeManager,
+            Bootstrap_);
+    }
+
+    UpdateAliveLocations();
+
+    Bootstrap_->GetNodeResourceManager()->SubscribeJobsCpuLimitUpdated(
+        BIND(&TSlotManager::OnJobsCpuLimitUpdated, MakeWeak(this))
+            .Via(Bootstrap_->GetJobInvoker()));
+
+    YT_LOG_INFO("Exec slot manager initialized");
 }
 
 NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskResources()
