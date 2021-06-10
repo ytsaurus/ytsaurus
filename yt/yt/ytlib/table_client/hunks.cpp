@@ -1378,7 +1378,7 @@ public:
             }))
             .Apply(BIND([=, this_ = MakeStrong(this)] {
                 Meta_->set_type(ToProto<int>(EChunkType::Hunk));
-                Meta_->set_format(ToProto<int>(EHunkChunkFormat::Default));
+                Meta_->set_format(ToProto<int>(EChunkFormat::HunkDefault));
 
                 {
                     NChunkClient::NProto::TMiscExt ext;

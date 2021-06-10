@@ -291,6 +291,9 @@ public:
     //! Extracts chunk type from meta.
     NChunkClient::EChunkType GetChunkType() const;
 
+    //! Extracts chunk format from meta.
+    NChunkClient::EChunkFormat GetChunkFormat() const;
+
 private:
     ui8 ReadQuorum_ = 0;
     ui8 WriteQuorum_ = 0;

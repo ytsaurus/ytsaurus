@@ -158,15 +158,15 @@ void TColumnarStatisticsFetcher::ApplyColumnSelectivityFactors() const
         if (statistics.LegacyChunkDataWeight == 0) {
             // We have columnar statistics, so we can adjust input chunk data weight by setting column selectivity factor.
             i64 totalColumnDataWeight = 0;
-            if (chunk->GetTableChunkFormat() == ETableChunkFormat::SchemalessHorizontal ||
-                chunk->GetTableChunkFormat() == ETableChunkFormat::UnversionedColumnar)
+            if (chunk->GetChunkFormat() == EChunkFormat::TableSchemalessHorizontal ||
+                chunk->GetChunkFormat() == EChunkFormat::TableUnversionedColumnar)
             {
                 // NB: we should add total row count to the column data weights because otherwise for the empty column list
                 // there will be zero data weight which does not allow unordered pool to work properly.
                 totalColumnDataWeight += chunk->GetTotalRowCount();
             } else if (
-                chunk->GetTableChunkFormat() == ETableChunkFormat::VersionedSimple ||
-                chunk->GetTableChunkFormat() == ETableChunkFormat::VersionedColumnar)
+                chunk->GetChunkFormat() == EChunkFormat::TableVersionedSimple ||
+                chunk->GetChunkFormat() == EChunkFormat::TableVersionedColumnar)
             {
                 // Default value of sizeof(TTimestamp) = 8 is used for versioned chunks that were written before
                 // we started to save the timestamp statistics to columnar statistics extension.
@@ -174,7 +174,7 @@ void TColumnarStatisticsFetcher::ApplyColumnSelectivityFactors() const
             } else {
                 THROW_ERROR_EXCEPTION("Cannot apply column selectivity factor for chunk of an old table format")
                     << TErrorAttribute("chunk_id", chunk->GetChunkId())
-                    << TErrorAttribute("table_chunk_format", chunk->GetTableChunkFormat());
+                    << TErrorAttribute("chunk_format", chunk->GetChunkFormat());
             }
             totalColumnDataWeight += statistics.ColumnDataWeightsSum;
             auto totalDataWeight = chunk->GetTotalDataWeight();

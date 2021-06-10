@@ -205,12 +205,12 @@ protected:
 
     virtual void DoClose() = 0;
     virtual void DoWriteRows(TRange<TVersionedRow> rows) = 0;
-    virtual ETableChunkFormat GetTableChunkFormat() const = 0;
+    virtual EChunkFormat GetChunkFormat() const = 0;
 
     void FillCommonMeta(TChunkMeta* meta) const
     {
         meta->set_type(ToProto<int>(EChunkType::Table));
-        meta->set_format(ToProto<int>(GetTableChunkFormat()));
+        meta->set_format(ToProto<int>(GetChunkFormat()));
 
         SetProtoExtension(meta->mutable_extensions(), BoundaryKeysExt_);
     }
@@ -411,7 +411,7 @@ private:
         EncodingChunkWriter_->Close();
     }
 
-    virtual ETableChunkFormat GetTableChunkFormat() const override
+    virtual EChunkFormat GetChunkFormat() const override
     {
         return TSimpleVersionedBlockWriter::FormatVersion;
     }
@@ -638,9 +638,9 @@ private:
         EncodingChunkWriter_->Close();
     }
 
-    virtual ETableChunkFormat GetTableChunkFormat() const override
+    virtual EChunkFormat GetChunkFormat() const override
     {
-        return ETableChunkFormat::VersionedColumnar;
+        return EChunkFormat::TableVersionedColumnar;
     }
 };
 

@@ -786,7 +786,7 @@ private:
                 ToProto(req->mutable_replicas(), replicas);
                 auto* meta = req->mutable_chunk_meta();
                 meta->set_type(ToProto<int>(EChunkType::Journal));
-                meta->set_format(ToProto<int>(EJournalChunkFormat::Default));
+                meta->set_format(ToProto<int>(EChunkFormat::JournalDefault));
                 TMiscExt miscExt;
                 SetProtoExtension(meta->mutable_extensions(), miscExt);
 

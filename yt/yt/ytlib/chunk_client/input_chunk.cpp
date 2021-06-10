@@ -57,7 +57,7 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
 
     if (IsDynamicStore()) {
         // TODO(ifsmirnov): See YT-12212 for reasonable estimates.
-        TableChunkFormat_ = ETableChunkFormat::SchemalessHorizontal;
+        ChunkFormat_ = EChunkFormat::TableSchemalessHorizontal;
         TotalDataWeight_ = 1;
         TotalRowCount_ = 1;
         CompressedDataSize_ = 1;
@@ -66,7 +66,7 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
         TabletId_ = GetTabletIdFromDataSplit(chunkSpec);
     } else {
         YT_VERIFY(FromProto<EChunkType>(chunkMeta.type()) == EChunkType::Table);
-        TableChunkFormat_ = CheckedEnumCast<ETableChunkFormat>(chunkMeta.format());
+        ChunkFormat_ = CheckedEnumCast<EChunkFormat>(chunkMeta.format());
     }
 }
 
@@ -124,7 +124,7 @@ void TInputChunkBase::CheckOffsets()
     static_assert(offsetof(TInputChunkBase, ErasureCodec_) == 84, "invalid offset");
     static_assert(offsetof(TInputChunkBase, TableRowIndex_) == 88, "invalid offset");
     static_assert(offsetof(TInputChunkBase, RangeIndex_) == 96, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, TableChunkFormat_) == 100, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, ChunkFormat_) == 100, "invalid offset");
     static_assert(offsetof(TInputChunkBase, ChunkIndex_) == 104, "invalid offset");
     static_assert(offsetof(TInputChunkBase, TabletIndex_) == 112, "invalid offset");
     static_assert(offsetof(TInputChunkBase, TabletId_) == 120, "invalid offset");
@@ -288,8 +288,8 @@ i64 TInputChunk::ApplySelectivityFactors(i64 dataSize) const
     auto rowCount = GetRowCount();
     auto rowSelectivityFactor = static_cast<double>(rowCount) / TotalRowCount_;
     i64 result;
-    if (TableChunkFormat_ == ETableChunkFormat::UnversionedColumnar ||
-        TableChunkFormat_ == ETableChunkFormat::VersionedColumnar)
+    if (ChunkFormat_ == EChunkFormat::TableUnversionedColumnar ||
+        ChunkFormat_ == EChunkFormat::TableVersionedColumnar)
     {
         result = std::ceil(dataSize * ColumnSelectivityFactor_ * rowSelectivityFactor);
     } else {
@@ -344,7 +344,7 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk)
     }
 
     chunkSpec->mutable_chunk_meta()->set_type(ToProto<int>(EChunkType::Table));
-    chunkSpec->mutable_chunk_meta()->set_format(ToProto<int>(inputChunk->TableChunkFormat_));
+    chunkSpec->mutable_chunk_meta()->set_format(ToProto<int>(inputChunk->ChunkFormat_));
     chunkSpec->mutable_chunk_meta()->mutable_extensions();
 }
 
@@ -360,7 +360,7 @@ TString ToString(const TInputChunkPtr& inputChunk)
 
     return Format(
         "{ChunkId: %v, Replicas: %v, TableIndex: %v, ErasureCodec: %v, TableRowIndex: %v, "
-        "RangeIndex: %v, ChunkIndex: %v, TabletIndex: %v, TableChunkFormat: %v, UncompressedDataSize: %v, RowCount: %v, "
+        "RangeIndex: %v, ChunkIndex: %v, TabletIndex: %v, ChunkFormat: %v, UncompressedDataSize: %v, RowCount: %v, "
         "CompressedDataSize: %v, DataWeight: %v, MaxBlockSize: %v, LowerLimit: %v, UpperLimit: %v, "
         "BoundaryKeys: {%v}, PartitionsExt: {%v}}",
         inputChunk->GetChunkId(),
@@ -371,7 +371,7 @@ TString ToString(const TInputChunkPtr& inputChunk)
         inputChunk->GetRangeIndex(),
         inputChunk->GetChunkIndex(),
         inputChunk->GetTabletIndex(),
-        inputChunk->GetTableChunkFormat(),
+        inputChunk->GetChunkFormat(),
         inputChunk->GetUncompressedDataSize(),
         inputChunk->GetRowCount(),
         inputChunk->GetCompressedDataSize(),

@@ -481,7 +481,7 @@ TFuture<void> THorizontalSchemalessChunkReaderBase::InitializeBlockSequence()
 
 void THorizontalSchemalessChunkReaderBase::InitializeIdMapping()
 {
-    YT_VERIFY(ChunkMeta_->GetChunkFormat() == ETableChunkFormat::SchemalessHorizontal);
+    YT_VERIFY(ChunkMeta_->GetChunkFormat() == EChunkFormat::TableSchemalessHorizontal);
 
     BlockMetaExt_ = ChunkMeta_->BlockMeta();
 
@@ -1461,7 +1461,7 @@ private:
 
     void InitializeBlockSequence()
     {
-        YT_VERIFY(ChunkMeta_->GetChunkFormat() == ETableChunkFormat::UnversionedColumnar);
+        YT_VERIFY(ChunkMeta_->GetChunkFormat() == EChunkFormat::TableUnversionedColumnar);
         InitializeVirtualColumns();
 
         // Minimum prefix of key columns, that must be included in column filter.
@@ -1865,7 +1865,7 @@ private:
 
     void InitializeBlockSequence()
     {
-        YT_VERIFY(ChunkMeta_->GetChunkFormat() == ETableChunkFormat::UnversionedColumnar);
+        YT_VERIFY(ChunkMeta_->GetChunkFormat() == EChunkFormat::TableUnversionedColumnar);
         InitializeVirtualColumns();
 
         if (!ChunkMeta_->Misc().sorted()) {
@@ -2013,7 +2013,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
     YT_VERIFY(chunkMeta->GetChunkType() == EChunkType::Table);
 
     switch (chunkMeta->GetChunkFormat()) {
-        case ETableChunkFormat::SchemalessHorizontal:
+        case EChunkFormat::TableSchemalessHorizontal:
             return New<THorizontalSchemalessRangeChunkReader>(
                 chunkState,
                 chunkMeta,
@@ -2031,7 +2031,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
                 virtualRowIndex,
                 interruptDescriptorKeyLength);
 
-        case ETableChunkFormat::UnversionedColumnar:
+        case EChunkFormat::TableUnversionedColumnar:
             return New<TColumnarSchemalessRangeChunkReader>(
                 chunkState,
                 chunkMeta,
@@ -2075,7 +2075,7 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
 
     auto formatVersion = chunkMeta->GetChunkFormat();
     switch (formatVersion) {
-        case ETableChunkFormat::SchemalessHorizontal:
+        case EChunkFormat::TableSchemalessHorizontal:
             return New<THorizontalSchemalessLookupChunkReader>(
                 chunkState,
                 chunkMeta,
@@ -2092,7 +2092,7 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
                 partitionTag,
                 memoryManager);
 
-        case ETableChunkFormat::UnversionedColumnar:
+        case EChunkFormat::TableUnversionedColumnar:
             return New<TColumnarSchemalessLookupChunkReader>(
                 chunkState,
                 chunkMeta,

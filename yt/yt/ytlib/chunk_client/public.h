@@ -86,6 +86,22 @@ DEFINE_ENUM(EChunkType,
     ((Hunk)    (4))
 );
 
+// Keep in sync with NChunkServer::ETableChunkFormat.
+DEFINE_ENUM(EChunkFormat,
+    // File chunks.
+    ((FileDefault)                (1))
+    // Table chunks.
+    ((TableVersionedSimple)       (2))
+    ((TableSchemaful)             (3))
+    ((TableSchemalessHorizontal)  (4))
+    ((TableVersionedColumnar)     (5))
+    ((TableUnversionedColumnar)   (6))
+    // Journal chunks.
+    ((JournalDefault)             (0))
+    // Hunk chunks.
+    ((HunkDefault)                (7))
+);
+
 //! Values must be contiguous.
 DEFINE_ENUM(ESessionType,
     ((User)                     (0))

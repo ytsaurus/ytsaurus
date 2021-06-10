@@ -309,7 +309,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 
     const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
     if (mountConfig->EnableNewScanReaderForSelect &&
-        chunkState->ChunkMeta->GetChunkFormat() == ETableChunkFormat::VersionedColumnar &&
+        chunkState->ChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar &&
         timestamp != AllCommittedTimestamp)
     {
         // Chunk view support.
@@ -441,7 +441,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     ValidateBlockSize(tabletSnapshot, chunkState, chunkReadOptions.WorkloadDescriptor);
 
     if (mountConfig->EnableNewScanReaderForLookup &&
-        chunkState->ChunkMeta->GetChunkFormat() == ETableChunkFormat::VersionedColumnar)
+        chunkState->ChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar)
     {
         return createFilteringReader(NNewTableClient::CreateVersionedChunkReader(
             filteredKeys,
@@ -594,8 +594,8 @@ void TSortedChunkStore::ValidateBlockSize(
 {
     if ((workloadDescriptor.Category == EWorkloadCategory::UserInteractive ||
         workloadDescriptor.Category == EWorkloadCategory::UserRealtime) &&
-        (chunkState->ChunkMeta->GetChunkFormat() == ETableChunkFormat::SchemalessHorizontal ||
-        chunkState->ChunkMeta->GetChunkFormat() == ETableChunkFormat::UnversionedColumnar))
+        (chunkState->ChunkMeta->GetChunkFormat() == EChunkFormat::TableSchemalessHorizontal ||
+        chunkState->ChunkMeta->GetChunkFormat() == EChunkFormat::TableUnversionedColumnar))
     {
         // For unversioned chunks verify that block size is correct.
         const auto& mountConfig = tabletSnapshot->Settings.MountConfig;

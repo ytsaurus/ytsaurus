@@ -1765,15 +1765,18 @@ class TestTables(YTEnvSetup):
             part_size=6,
         )
 
-    @authors("savrus")
+    @authors("savrus", "gritukan")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_table_chunk_format_statistics(self, optimize_for):
+    def test_chunk_format_statistics(self, optimize_for):
         create("table", "//tmp/t", attributes={"optimize_for": optimize_for})
         write_table("//tmp/t", [{"a": "b"}])
-        chunk_format = "schemaless_horizontal" if optimize_for == "lookup" else "unversioned_columnar"
-        assert get("//tmp/t/@table_chunk_format_statistics/{0}/chunk_count".format(chunk_format)) == 1
+        table_chunk_format = "schemaless_horizontal" if optimize_for == "lookup" else "unversioned_columnar"
+        chunk_format = "table_schemaless_horizontal" if optimize_for == "lookup" else "table_unversioned_columnar"
+        assert get("//tmp/t/@table_chunk_format_statistics/{0}/chunk_count".format(table_chunk_format)) == 1
+        assert get("//tmp/t/@chunk_format_statistics/{0}/chunk_count".format(chunk_format)) == 1
         chunk = get_singular_chunk_id("//tmp/t")
-        assert get("#{0}/@table_chunk_format".format(chunk)) == chunk_format
+        assert get("#{0}/@table_chunk_format".format(chunk)) == table_chunk_format
+        assert get("#{0}/@chunk_format".format(chunk)) == chunk_format
 
     @authors("savrus")
     def test_get_start_row_index(self):

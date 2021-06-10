@@ -74,6 +74,13 @@ TFuture<NYson::TYsonString> ComputeChunkStatistics(
     TChunkList* chunkList,
     TKeyExtractor keyExtractor);
 
+template <class TKeyExtractor, class TPredicate>
+TFuture<NYson::TYsonString> ComputeChunkStatistics(
+    NCellMaster::TBootstrap* bootstrap,
+    TChunkList* chunkList,
+    TKeyExtractor keyExtractor,
+    TPredicate predicate);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

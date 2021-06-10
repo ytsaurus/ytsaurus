@@ -246,7 +246,7 @@ protected:
 
     NProto::TBlockMetaExt BlockMetaExt_;
 
-    virtual ETableChunkFormat GetTableChunkFormat() const = 0;
+    virtual EChunkFormat GetChunkFormat() const = 0;
     virtual bool SupportBoundaryKeys() const = 0;
 
     bool IsSorted() const
@@ -405,7 +405,7 @@ private:
     void FillCommonMeta(TChunkMeta* meta) const
     {
         meta->set_type(ToProto<int>(EChunkType::Table));
-        meta->set_format(ToProto<int>(GetTableChunkFormat()));
+        meta->set_format(ToProto<int>(GetChunkFormat()));
 
         {
             EChunkFeatures chunkFeatures = EChunkFeatures::None;
@@ -605,9 +605,9 @@ public:
 private:
     std::unique_ptr<THorizontalBlockWriter> BlockWriter_;
 
-    virtual ETableChunkFormat GetTableChunkFormat() const override
+    virtual EChunkFormat GetChunkFormat() const override
     {
-        return ETableChunkFormat::SchemalessHorizontal;
+        return EChunkFormat::TableSchemalessHorizontal;
     }
 
     virtual bool SupportBoundaryKeys() const
@@ -747,9 +747,9 @@ private:
 
     i64 DataToBlockFlush_;
 
-    virtual ETableChunkFormat GetTableChunkFormat() const override
+    virtual EChunkFormat GetChunkFormat() const override
     {
-        return ETableChunkFormat::UnversionedColumnar;
+        return EChunkFormat::TableUnversionedColumnar;
     }
 
     virtual bool SupportBoundaryKeys() const
@@ -949,9 +949,9 @@ private:
     TPartitionsExt PartitionsExt_;
     i64 LargestPartitionRowCount_ = 0;
 
-    virtual ETableChunkFormat GetTableChunkFormat() const override
+    virtual EChunkFormat GetChunkFormat() const override
     {
-        return ETableChunkFormat::SchemalessHorizontal;
+        return EChunkFormat::TableSchemalessHorizontal;
     }
 
     virtual void PrepareChunkMeta() override

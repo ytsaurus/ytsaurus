@@ -12,7 +12,7 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TKeyExtractor>
+template <class TKeyExtractor, class TPredicate>
 class TChunkStatisticsVisitor
     : public TChunkVisitorBase
 {
@@ -20,13 +20,16 @@ public:
     TChunkStatisticsVisitor(
         NCellMaster::TBootstrap* bootstrap,
         TChunkList* chunkList,
-        TKeyExtractor keyExtractor)
+        TKeyExtractor keyExtractor,
+        TPredicate predicate)
         : TChunkVisitorBase(bootstrap, chunkList)
         , KeyExtractor_(keyExtractor)
+        , Predicate_(predicate)
     { }
 
 private:
     const TKeyExtractor KeyExtractor_;
+    const TPredicate Predicate_;
 
     struct TStatistics
     {
@@ -48,9 +51,11 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto& statistics = StatisticsMap_[KeyExtractor_(chunk)];
-        statistics.ChunkTreeStatistics.Accumulate(chunk->GetStatistics());
-        statistics.MaxBlockSize = std::max(statistics.MaxBlockSize, chunk->MiscExt().max_block_size());
+        if (Predicate_(chunk)) {
+            auto& statistics = StatisticsMap_[KeyExtractor_(chunk)];
+            statistics.ChunkTreeStatistics.Accumulate(chunk->GetStatistics());
+            statistics.MaxBlockSize = std::max(statistics.MaxBlockSize, chunk->MiscExt().max_block_size());
+        }
         return true;
     }
 
@@ -108,10 +113,25 @@ TFuture<NYson::TYsonString> ComputeChunkStatistics(
     TChunkList* chunkList,
     TKeyExtractor keyExtractor)
 {
-    auto visitor = New<TChunkStatisticsVisitor<TKeyExtractor>>(
+    return ComputeChunkStatistics(
         bootstrap,
         chunkList,
-        keyExtractor);
+        keyExtractor,
+        [] (const TChunk* /*chunk*/) { return true; });
+}
+
+template <class TKeyExtractor, class TPredicate>
+TFuture<NYson::TYsonString> ComputeChunkStatistics(
+    NCellMaster::TBootstrap* bootstrap,
+    TChunkList* chunkList,
+    TKeyExtractor keyExtractor,
+    TPredicate predicate)
+{
+    auto visitor = New<TChunkStatisticsVisitor<TKeyExtractor, TPredicate>>(
+        bootstrap,
+        chunkList,
+        keyExtractor,
+        predicate);
     return visitor->Run();
 }
 
