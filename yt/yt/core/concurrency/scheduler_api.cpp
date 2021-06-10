@@ -538,16 +538,6 @@ void WaitUntilSet(TFuture<void> future, IInvokerPtr invoker)
     }
 }
 
-void Yield()
-{
-    WaitUntilSet(VoidFuture);
-}
-
-void SwitchTo(IInvokerPtr invoker)
-{
-    WaitUntilSet(VoidFuture, std::move(invoker));
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } //namespace NYT::NConcurrency
