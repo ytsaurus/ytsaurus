@@ -15,6 +15,8 @@
 #include <util/system/thread.h>
 #include <util/system/sigset.h>
 
+#include <util/string/subst.h>
+
 #ifdef _unix_
 #include <unistd.h>
 #include <sys/types.h>
@@ -24,6 +26,11 @@
 #ifdef _linux_
 #include <grp.h>
 #include <sys/prctl.h>
+#endif
+
+#if defined(_linux_) && defined(CLANG_COVERAGE)
+extern "C" int __llvm_profile_write_file(void);
+extern "C" void __llvm_profile_set_filename(const char* name);
 #endif
 
 namespace NYT {
@@ -69,6 +76,8 @@ TProgram::TProgram()
         .NoArgument()
         .StoreValue(&PrintBuild_, true);
     Opts_.SetFreeArgsNum(0);
+
+    ConfigureCoverageOutput();
 }
 
 void TProgram::SetCrashOnError()
@@ -131,6 +140,10 @@ int TProgram::Exit(EProgramExitCode code) const noexcept
 int TProgram::Exit(int code) const noexcept
 {
     NLogging::TLogManager::StaticShutdown();
+
+#if defined(_linux_) && defined(CLANG_COVERAGE)
+    __llvm_profile_write_file();
+#endif
 
     // No graceful shutdown at the moment.
     _exit(code);
@@ -236,6 +249,19 @@ void ConfigureUids()
 #endif
 }
 
+void ConfigureCoverageOutput()
+{
+#if defined(_linux_) && defined(CLANG_COVERAGE)
+    // YT tests use pid namespaces. We can't use process id as unique identifier for output file.
+    if (auto profileFile = getenv("LLVM_PROFILE_FILE")) {
+        TString fixedProfile{profileFile};
+        SubstGlobal(fixedProfile, "%e", "ytserver-all");
+        SubstGlobal(fixedProfile, "%p", ToString(TInstant::Now().NanoSeconds()));
+        __llvm_profile_set_filename(fixedProfile.c_str());
+    }
+#endif
+}
+
 void ConfigureIgnoreSigpipe()
 {
 #ifdef _unix_
@@ -251,6 +277,9 @@ void ConfigureCrashHandler()
 
 void ExitZero(int /* unused */)
 {
+#if defined(_linux_) && defined(CLANG_COVERAGE)
+    __llvm_profile_write_file();
+#endif
     _exit(0);
 }
 

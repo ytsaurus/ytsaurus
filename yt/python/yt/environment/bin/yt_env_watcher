@@ -13,6 +13,8 @@ import fcntl
 import logging
 import datetime
 import subprocess
+import signal
+import sys
 import time
 import os
 from logging.handlers import WatchedFileHandler
@@ -46,6 +48,8 @@ def main():
 
     configure_logging(options.log_path)
     logger.info("YT watcher started. Logrotate config file: %s", options.logrotate_config_path)
+
+    signal.signal(signal.SIGTERM, sys.exit)
 
     if options.pdeathsig is not None:
         set_pdeathsig(options.pdeathsig)
