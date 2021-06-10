@@ -1,5 +1,5 @@
 from yt_env_setup import (YTEnvSetup, Restarter, NODES_SERVICE)
-from yt_commands import (ls, get, print_debug, authors, wait, create, run_test_vanilla, write_table)
+from yt_commands import (ls, get, print_debug, authors, wait, run_test_vanilla)
 
 import os.path
 import shutil
@@ -128,7 +128,7 @@ class TestUnavailableJobProxy(JobProxyTestBase):
 
         job_count = 4
         op = run_test_vanilla("sleep 0.6", job_count=job_count, spec={"max_failed_job_count": 0}, track=False)
-        
+
         wait(lambda: op.get_job_count("completed") > 0)
 
         self._hide_job_proxy()
