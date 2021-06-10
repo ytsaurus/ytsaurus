@@ -308,6 +308,7 @@ void TResourceTracker::CollectPerfMetrics(
     const TResourceTracker::TThreadMap& oldTidToInfo,
     const TResourceTracker::TThreadMap& newTidToInfo) 
 {
+    THashMap<TStringBuf, TPerfCounters> aggregatedPerfCounters;
     for (const auto& [tid, newInfo] : newTidToInfo) {
         const auto it = oldTidToInfo.find(tid);
 
@@ -321,18 +322,21 @@ void TResourceTracker::CollectPerfMetrics(
             continue;
         }
 
-        writer->PushTag(std::pair<TString, TString>("thread", newInfo.ProfilingKey));
+        aggregatedPerfCounters[newInfo.ProfilingKey] += newInfo.PerfCounters;
+    }
 
-        for (int index = 0; index < std::ssize(newInfo.PerfCounters.Counters); ++index) {
+    for (const auto& [profilingKey, perfCounters] : aggregatedPerfCounters) {
+        writer->PushTag(std::pair<TString, TString>{"thread", profilingKey});
+
+        for (int index = 0; index < std::ssize(perfCounters.Counters); ++index) {
             if (!EventConfigSnapshot.Enabled[index]) {
                 continue;
             }
-            writer->AddCounter("/" + FormatEnum(EPerfEvents{index}), newInfo.PerfCounters.Counters[index]);
+            writer->AddCounter("/" + FormatEnum(EPerfEvents{index}), perfCounters.Counters[index]);
         }
 
         writer->PopTag();
     }
-
 }
 
 void TResourceTracker::Configure(const TProfileManagerConfigPtr& config) 

@@ -62,6 +62,15 @@ private:
     struct TPerfCounters final
     {
         std::array<ui64, TEnumTraits<EPerfEvents>::DomainSize> Counters{};
+
+        TPerfCounters& operator+=(const TPerfCounters& other)
+        {
+            for (int index = 0; index < std::ssize(Counters); ++index) {
+                Counters[index] += other.Counters[index];
+            }
+
+            return *this;
+        }
     };
 
     struct TThreadInfo
