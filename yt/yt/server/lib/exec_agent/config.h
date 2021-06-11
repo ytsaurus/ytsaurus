@@ -545,6 +545,8 @@ public:
     TMasterConnectorDynamicConfigPtr MasterConnector;
 
     TSlotManagerDynamicConfigPtr SlotManager;
+    
+    NJobAgent::TJobControllerDynamicConfigPtr JobController;
 
     TExecAgentDynamicConfig()
     {
@@ -552,6 +554,9 @@ public:
             .DefaultNew();
 
         RegisterParameter("slot_manager", SlotManager)
+            .DefaultNew();
+        
+        RegisterParameter("job_controller", JobController)
             .DefaultNew();
     }
 };

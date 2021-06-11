@@ -71,11 +71,12 @@ public:
 
     std::vector<TShellCommandConfigPtr> GetSetupCommands();
     std::vector<NDataNode::TArtifactKey> GetToppingLayers();
-    void VerifyToolkitDriverVersion(const TString& toolkitVersion);
+    void VerifyCudaToolkitDriverVersion(const TString& toolkitVersion);
 
 private:
     NClusterNode::TBootstrap* const Bootstrap_;
     const TGpuManagerConfigPtr Config_;
+    TAtomicObject<TGpuManagerDynamicConfigPtr> DynamicConfig_;
 
     const NConcurrency::TPeriodicExecutorPtr HealthCheckExecutor_;
     const NConcurrency::TPeriodicExecutorPtr FetchDriverLayerExecutor_;
@@ -105,6 +106,14 @@ private:
     TString DriverVersionString_;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
+
+    void OnDynamicConfigChanged(
+        const NClusterNode::TClusterNodeDynamicConfigPtr& oldNodeConfig,
+        const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig);
+
+    TDuration GetHealthCheckTimeout() const;
+    TDuration GetHealthCheckFailureBackoff() const;
+	THashMap<TString, TString> GetCudaToolkitMinDriverVersion() const;
 
     void ReleaseGpuSlot(TGpuSlot* slot);
 

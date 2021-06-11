@@ -16,6 +16,9 @@ DECLARE_REFCOUNTED_CLASS(TJobReporterConfig)
 DECLARE_REFCOUNTED_CLASS(TShellCommandConfig)
 DECLARE_REFCOUNTED_CLASS(TJobReporter)
 
+DECLARE_REFCOUNTED_CLASS(TJobControllerDynamicConfig)
+DECLARE_REFCOUNTED_CLASS(TGpuManagerDynamicConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJobAgent

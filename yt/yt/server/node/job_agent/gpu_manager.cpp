@@ -3,6 +3,7 @@
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/data_node/helpers.h>
@@ -142,6 +143,53 @@ TGpuManager::TGpuManager(
 
     Bootstrap_->GetClusterNodeMasterConnector()->SubscribePopulateAlerts(
         BIND(&TGpuManager::PopulateAlerts, MakeStrong(this)));
+
+    const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+    dynamicConfigManager->SubscribeConfigChanged(BIND(&TGpuManager::OnDynamicConfigChanged, MakeWeak(this)));
+}
+
+void TGpuManager::OnDynamicConfigChanged(
+    const TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
+    const TClusterNodeDynamicConfigPtr& newNodeConfig)
+{
+	auto gpuManagerConfig = newNodeConfig->ExecAgent->JobController->GpuManager;
+
+    DynamicConfig_.Store(gpuManagerConfig);
+
+    if (gpuManagerConfig && gpuManagerConfig->HealthCheckPeriod) {
+        HealthCheckExecutor_->SetPeriod(*gpuManagerConfig->HealthCheckPeriod);
+    } else {
+        HealthCheckExecutor_->SetPeriod(Config_->HealthCheckPeriod);
+    }
+    if (gpuManagerConfig && gpuManagerConfig->DriverLayerFetchPeriod) {
+        FetchDriverLayerExecutor_->SetPeriod(*gpuManagerConfig->DriverLayerFetchPeriod);
+    } else {
+        FetchDriverLayerExecutor_->SetPeriod(Config_->DriverLayerFetchPeriod);
+    }
+}
+
+TDuration TGpuManager::GetHealthCheckTimeout() const
+{
+    auto dynamicConfig = DynamicConfig_.Load();
+    return dynamicConfig
+        ? dynamicConfig->HealthCheckTimeout.value_or(Config_->HealthCheckTimeout)
+        : Config_->HealthCheckTimeout;
+}
+    
+TDuration TGpuManager::GetHealthCheckFailureBackoff() const
+{
+    auto dynamicConfig = DynamicConfig_.Load();
+    return dynamicConfig
+        ? dynamicConfig->HealthCheckFailureBackoff.value_or(Config_->HealthCheckFailureBackoff)
+        : Config_->HealthCheckFailureBackoff;
+}
+
+THashMap<TString, TString> TGpuManager::GetCudaToolkitMinDriverVersion() const
+{
+    auto dynamicConfig = DynamicConfig_.Load();
+    return dynamicConfig
+        ? dynamicConfig->CudaToolkitMinDriverVersion.value_or(Config_->CudaToolkitMinDriverVersion)
+        : Config_->CudaToolkitMinDriverVersion;
 }
 
 void TGpuManager::OnHealthCheck()
@@ -153,7 +201,7 @@ void TGpuManager::OnHealthCheck()
     }
 
     try {
-        auto gpuInfos = GetGpuInfos(Config_->HealthCheckTimeout);
+        auto gpuInfos = GetGpuInfos(GetHealthCheckTimeout());
 
         THashSet<int> deviceNumbers;
         for (const auto& info : gpuInfos) {
@@ -222,7 +270,7 @@ void TGpuManager::OnHealthCheck()
         }
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(ex, "Failed to get healthy GPU devices");
-        BannedDeadline_ = TInstant::Now() + Config_->HealthCheckFailureBackoff;
+        BannedDeadline_ = TInstant::Now() + GetHealthCheckFailureBackoff();
 
         {
             auto guard = Guard(SpinLock_);
@@ -424,15 +472,17 @@ std::vector<TArtifactKey> TGpuManager::GetToppingLayers()
     }
 }
 
-void TGpuManager::VerifyToolkitDriverVersion(const TString& toolkitVersion)
+void TGpuManager::VerifyCudaToolkitDriverVersion(const TString& toolkitVersion)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    if (!Config_->ToolkitMinDriverVersion.contains(toolkitVersion)) {
-        THROW_ERROR_EXCEPTION("Unknown toolkit version %v", toolkitVersion);
+    auto cudaToolkitMinDriverVersion = GetCudaToolkitMinDriverVersion();
+    auto it = cudaToolkitMinDriverVersion.find(toolkitVersion);
+    if (it == cudaToolkitMinDriverVersion.end()) {
+        THROW_ERROR_EXCEPTION("Unknown CUDA toolkit version %v", toolkitVersion);
     }
 
-    auto minVersionString = Config_->ToolkitMinDriverVersion[toolkitVersion];
+    const auto& minVersionString = it->second;
     auto minVersion = TGpuDriverVersion::FromString(minVersionString);
 
     auto actualVersion = TGpuDriverVersion::FromString(DriverVersionString_);
