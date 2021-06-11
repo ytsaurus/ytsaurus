@@ -539,7 +539,7 @@ struct TSelectRowsOptions
     bool AllowFullScan = true;
     //! Allow queries with join condition which implies foreign query with IN operator.
     bool AllowJoinWithoutIndex = false;
-    //! Execution pool
+    //! Execution pool.
     std::optional<TString> ExecutionPool;
     //! If |true| then incomplete result would lead to a failure.
     bool FailOnIncompleteResult = true;
@@ -547,8 +547,10 @@ struct TSelectRowsOptions
     bool EnableCodeCache = true;
     //! Used to prioritize requests.
     TUserWorkloadDescriptor WorkloadDescriptor;
-    //! Memory limit per execution node
+    //! Memory limit per execution node.
     size_t MemoryLimitPerNode = std::numeric_limits<size_t>::max();
+    //! Info on detailed profiling.
+    TDetailedProfilingInfoPtr DetailedProfilingInfo;
 };
 
 struct TExplainQueryOptions

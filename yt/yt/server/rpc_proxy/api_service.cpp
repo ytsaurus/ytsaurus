@@ -310,11 +310,19 @@ bool IsColumnarRowsetFormat(NApi::NRpcProxy::NProto::ERowsetFormat format)
 struct TTableDetailedProfilingCounters
 {
     TTableDetailedProfilingCounters(const NProfiling::TProfiler& profiler)
-        : LookupDuration(profiler.Histogram("/lookup_duration", TDuration::MicroSeconds(1), TDuration::Seconds(10)))
+        : LookupDuration(profiler.Histogram(
+            "/lookup_duration",
+            TDuration::MicroSeconds(1),
+            TDuration::Seconds(10)))
+        , SelectDuration(profiler.Histogram(
+            "/select_duration",
+            TDuration::MicroSeconds(1),
+            TDuration::Seconds(10)))
     { }
 
-    // Histogram.
+    //! Histograms.
     NYT::NProfiling::TEventTimer LookupDuration;
+    NYT::NProfiling::TEventTimer SelectDuration;
 };
 
 } // namespace
@@ -2535,6 +2543,16 @@ private:
         }
     }
 
+    void ProcessSelectRowsDetailedProfilingInfo(
+        TWallTimer timer,
+        const TDetailedProfilingInfoPtr& detailedProfilingInfo)
+    {
+        if (detailedProfilingInfo->EnableDetailedProfiling) {
+            auto* counter = GetOrCreateDetailedProfilingCounters(detailedProfilingInfo->TablePath);
+            counter->SelectDuration.Record(timer.GetElapsedTime());
+        }
+    }
+
     template <class TResponse, class TRow>
     static std::vector<TSharedRef> PrepareRowsetForAttachment(
         TResponse* response,
@@ -2774,6 +2792,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SelectRows)
     {
+        TWallTimer timer;
+
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& query = request->query();
@@ -2820,6 +2840,8 @@ private:
         if (request->has_suppressable_access_tracking_options()) {
             FromProto(&options, request->suppressable_access_tracking_options());
         }
+        auto detailedProfilingInfo = New<TDetailedProfilingInfo>();
+        options.DetailedProfilingInfo = detailedProfilingInfo;
 
         context->SetRequestInfo("Query: %v, Timestamp: %llx",
             query,
@@ -2829,10 +2851,13 @@ private:
             client,
             context,
             client->SelectRows(query, options),
-            [] (const auto& context, const auto& result) {
+            [=, this_ = MakeStrong(this), detailedProfilingInfo = std::move(detailedProfilingInfo)]
+            (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 response->Attachments() = PrepareRowsetForAttachment(response, result.Rowset);
                 ToProto(response->mutable_statistics(), result.Statistics);
+
+                ProcessSelectRowsDetailedProfilingInfo(timer, detailedProfilingInfo);
 
                 context->SetResponseInfo("RowCount: %v",
                     result.Rowset->GetRows().Size());
