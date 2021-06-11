@@ -38,7 +38,7 @@ func (c *httpClient) BeginTabletTx(ctx context.Context, options *yt.StartTabletT
 	txTimeout := yson.Duration(c.config.GetTxTimeout())
 
 	startOptions := &yt.StartTabletTxOptions{
-		Type:    "tablet",
+		Type:    yt.TxTypeTablet,
 		Sticky:  true,
 		Timeout: &txTimeout,
 	}

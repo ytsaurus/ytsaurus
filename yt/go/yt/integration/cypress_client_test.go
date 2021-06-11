@@ -58,6 +58,8 @@ func TestCypressClient(t *testing.T) {
 			})
 
 			t.Run("NodeExists", func(t *testing.T) {
+				t.Parallel()
+
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 				defer cancel()
 
@@ -71,6 +73,8 @@ func TestCypressClient(t *testing.T) {
 			})
 
 			t.Run("RemoveNode", func(t *testing.T) {
+				t.Parallel()
+
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 				defer cancel()
 
@@ -99,6 +103,8 @@ func TestCypressClient(t *testing.T) {
 			})
 
 			t.Run("GetNode", func(t *testing.T) {
+				t.Parallel()
+
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 				defer cancel()
 
@@ -115,6 +121,8 @@ func TestCypressClient(t *testing.T) {
 			})
 
 			t.Run("SetNode", func(t *testing.T) {
+				t.Parallel()
+
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 				defer cancel()
 
@@ -131,6 +139,8 @@ func TestCypressClient(t *testing.T) {
 			})
 
 			t.Run("ListNode", func(t *testing.T) {
+				t.Parallel()
+
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 				defer cancel()
 
@@ -152,6 +162,8 @@ func TestCypressClient(t *testing.T) {
 			})
 
 			t.Run("MultisetAttributes", func(t *testing.T) {
+				t.Parallel()
+
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 				defer cancel()
 
@@ -181,6 +193,8 @@ func TestCypressClient(t *testing.T) {
 			})
 
 			t.Run("CopyNode", func(t *testing.T) {
+				t.Parallel()
+
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 				defer cancel()
 
@@ -202,6 +216,8 @@ func TestCypressClient(t *testing.T) {
 			})
 
 			t.Run("MoveNode", func(t *testing.T) {
+				t.Parallel()
+
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 				defer cancel()
 
@@ -227,6 +243,8 @@ func TestCypressClient(t *testing.T) {
 			})
 
 			t.Run("LinkNode", func(t *testing.T) {
+				t.Parallel()
+
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 				defer cancel()
 
@@ -248,6 +266,8 @@ func TestCypressClient(t *testing.T) {
 			})
 
 			t.Run("CreateObject", func(t *testing.T) {
+				t.Parallel()
+
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 				defer cancel()
 
@@ -266,6 +286,8 @@ func TestCypressClient(t *testing.T) {
 			})
 
 			t.Run("BinaryPath", func(t *testing.T) {
+				t.Parallel()
+
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 				defer cancel()
 

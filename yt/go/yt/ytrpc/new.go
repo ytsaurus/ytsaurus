@@ -26,5 +26,16 @@ func NewCypressClient(c *yt.Config) (yt.CypressClient, error) {
 		return nil, err
 	}
 
-	return rpcclient.NewCypressClient(c)
+	return rpcclient.NewClient(c)
+}
+
+// LowLevelTxClient creates new stateless transaction client from config.
+//
+// Clients should rarely use it directly.
+func NewLowLevelTxClient(c *yt.Config) (yt.LowLevelTxClient, error) {
+	if err := checkNotInsideJob(c); err != nil {
+		return nil, err
+	}
+
+	return rpcclient.NewClient(c)
 }

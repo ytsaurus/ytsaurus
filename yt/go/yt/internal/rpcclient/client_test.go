@@ -14,7 +14,7 @@ func TestCypressClient_listRPCProxies(t *testing.T) {
 	_ = yttest.New(t)
 
 	t.Run("empty", func(t *testing.T) {
-		c, err := NewCypressClient(&yt.Config{
+		c, err := NewClient(&yt.Config{
 			Proxy: os.Getenv("YT_PROXY"),
 		})
 		require.NoError(t, err)
@@ -26,7 +26,7 @@ func TestCypressClient_listRPCProxies(t *testing.T) {
 	})
 
 	t.Run("default", func(t *testing.T) {
-		c, err := NewCypressClient(&yt.Config{
+		c, err := NewClient(&yt.Config{
 			Proxy:     os.Getenv("YT_PROXY"),
 			ProxyRole: "default",
 		})
@@ -39,7 +39,7 @@ func TestCypressClient_listRPCProxies(t *testing.T) {
 	})
 
 	t.Run("missing", func(t *testing.T) {
-		c, err := NewCypressClient(&yt.Config{
+		c, err := NewClient(&yt.Config{
 			Proxy:     os.Getenv("YT_PROXY"),
 			ProxyRole: "missing-role",
 		})
