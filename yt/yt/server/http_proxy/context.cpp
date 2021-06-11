@@ -177,11 +177,6 @@ bool TContext::TryParseUser()
     // NB: This function is the only thing protecting cluster from
     // unauthorized requests. Please write code without bugs.
 
-    if (DriverRequest_.CommandName == "discover_proxies") {
-        DriverRequest_.AuthenticatedUser = NSecurityClient::RootUserName;
-        return true;
-    }
-
     auto authResult = Api_->GetHttpAuthenticator()->Authenticate(Request_);
     if (!authResult.IsOK()) {
         YT_LOG_DEBUG(authResult, "Authentication error");
@@ -785,11 +780,16 @@ void TContext::Run()
 {
     Response_->SetStatus(EStatusCode::OK);
 
+    auto driverRequest = DriverRequest_;
+    if (driverRequest.CommandName == "discover_proxies") {
+        driverRequest.AuthenticatedUser = NSecurityClient::RootUserName;
+    }
+
     if (*ApiVersion_ == 4) {
-        WaitFor(Api_->GetDriverV4()->Execute(DriverRequest_))
+        WaitFor(Api_->GetDriverV4()->Execute(driverRequest))
             .ThrowOnError();
     } else {
-        WaitFor(Api_->GetDriverV3()->Execute(DriverRequest_))
+        WaitFor(Api_->GetDriverV3()->Execute(driverRequest))
             .ThrowOnError();
     }
 
