@@ -2,7 +2,6 @@ package integration
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -126,20 +125,20 @@ func TestAbortCommittedTx(t *testing.T) {
 	require.NoError(t, tx.Commit())
 
 	err = tx.Abort()
-	require.Truef(t, errors.Is(err, yt.ErrTxCommitted), "%+v", err)
+	require.Error(t, err)
 
 	err = tx.InsertRows(env.Ctx, "//tmp", []interface{}{}, nil)
-	require.Truef(t, errors.Is(err, yt.ErrTxCommitted), "%+v", err)
+	require.Error(t, err)
 
 	tx, err = env.YT.BeginTabletTx(env.Ctx, nil)
 	require.NoError(t, err)
 	require.NoError(t, tx.Abort())
 
 	err = tx.Commit()
-	require.Truef(t, errors.Is(err, yt.ErrTxAborted), "%+v", err)
+	require.Error(t, err)
 
 	err = tx.InsertRows(env.Ctx, "//tmp", []interface{}{}, nil)
-	require.Truef(t, errors.Is(err, yt.ErrTxAborted), "%+v", err)
+	require.Error(t, err)
 
 	require.Empty(t, recorded.All())
 }

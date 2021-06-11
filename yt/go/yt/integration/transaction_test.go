@@ -65,12 +65,29 @@ func TestTransactions(t *testing.T) {
 		cancel()
 		time.Sleep(time.Second)
 
-		require.Equal(t, yt.ErrTxAborted, tx.Commit())
+		require.Error(t, tx.Commit())
 
 		err = env.YT.PingTx(ctx, tx.ID(), nil)
 		require.Error(t, err)
 		require.True(t, yterrors.ContainsErrorCode(err, yterrors.CodeNoSuchTransaction))
 	})
+}
+
+func TestTransactionAbortCancel(t *testing.T) {
+	env := yttest.New(t)
+
+	ctx, cancel := context.WithCancel(env.Ctx)
+	defer cancel()
+
+	tx, err := env.YT.BeginTx(ctx, nil)
+	require.NoError(t, err)
+
+	go func() {
+		<-tx.Finished()
+		cancel()
+	}()
+
+	require.NoError(t, tx.Abort())
 }
 
 func TestNestedTransactions(t *testing.T) {
