@@ -128,17 +128,15 @@ void GlobalizeHunkValues(
     TMutableVersionedRow row);
 
 //! Reads hunks in schemaful #rows and decodes them (updating #rows in-place).
-//! May return null if no asynchronous activities are needed.
-TFuture<TSharedRange<TMutableUnversionedRow>> ReadAndDecodeHunksInSchemafulUnversionedRows(
+TFuture<TSharedRange<TMutableUnversionedRow>> DecodeHunksInSchemafulUnversionedRows(
     NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader,
     TTableSchemaPtr schema,
     NChunkClient::TClientChunkReadOptions options,
     TSharedRange<TMutableUnversionedRow> rows);
 
 //! A versioned counterpart of #ReadAndDecodeHunksInSchemafulRows.
-TFuture<TSharedRange<TMutableVersionedRow>> ReadAndDecodeHunksInVersionedRows(
+TFuture<TSharedRange<TMutableVersionedRow>> DecodeHunksInVersionedRows(
     NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader,
-    TTableSchemaPtr schema,
     NChunkClient::TClientChunkReadOptions options,
     TSharedRange<TMutableVersionedRow> rows);
 
