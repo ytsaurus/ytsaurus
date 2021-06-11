@@ -557,7 +557,9 @@ private:
         // TODO(sandello): Extract this out of RPC request.
         TClientChunkReadOptions chunkReadOptions{
             .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive),
-            .ReadSessionId = TReadSessionId::Create()
+            .ReadSessionId = TReadSessionId::Create(),
+            //! ChunkReaderStatistics will be created per lookup call.
+            .ChunkReaderStatistics = nullptr
         };
 
         TRetentionConfigPtr retentionConfig;
