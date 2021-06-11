@@ -9,7 +9,7 @@ def get_local_mode_fqdn(client):
 
     fqdn = None
     try:
-        fqdn = get("//sys/@local_mode_fqdn", client=client)
+        fqdn = get("//sys/@local_mode_fqdn", read_from="cache", client=client)
     except YtResponseError as err:
         if not err.is_resolve_error():
             raise
@@ -24,7 +24,7 @@ def get_local_mode_proxy_address(client):
 
     address = None
     try:
-        address = get("//sys/@local_mode_proxy_address", client=client)
+        address = get("//sys/@local_mode_proxy_address", read_from="cache", client=client)
     except YtResponseError as err:
         if not err.is_resolve_error():
             raise
