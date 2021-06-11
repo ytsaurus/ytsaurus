@@ -4,6 +4,7 @@
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 #include <yt/yt/server/node/cluster_node/node_resource_manager.h>
 
@@ -132,6 +133,8 @@ private:
     const TJobControllerConfigPtr Config_;
     NClusterNode::TBootstrap* const Bootstrap_;
 
+    TAtomicObject<TJobControllerDynamicConfigPtr> DynamicConfig_ = New<TJobControllerDynamicConfig>();
+
     THashMap<EJobType, TJobFactory> JobFactoryMap_;
 
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, JobMapLock_);
@@ -191,6 +194,10 @@ private:
     TErrorOr<TYsonString> CachedJobProxyBuildInfo_;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
+
+    void OnDynamicConfigChanged(
+        const TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
+        const TClusterNodeDynamicConfigPtr& newNodeConfig);
 
     void DoPrepareHeartbeatRequest(TCellTag cellTag, EObjectType jobObjectType, const TReqHeartbeatPtr& request);
     void DoProcessHeartbeatResponse(const TRspHeartbeatPtr& response, EObjectType jobObjectType);
@@ -277,6 +284,11 @@ private:
 
     void BuildJobProxyBuildInfo(NYTree::TFluentAny fluent) const;
     void UpdateJobProxyBuildInfo();
+
+    TDuration GetTotalConfirmationPeriod() const;
+    TDuration GetMemoryOverdraftTimeout() const;
+    TDuration GetCpuOverdraftTimeout() const;
+    TDuration GetRecentlyRemovedJobsStoreTimeout() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -345,6 +357,9 @@ void TJobController::TImpl::Initialize()
     JobProxyBuildInfoUpdater_->Start();
     // Fetch initial job proxy build info immediately.
     JobProxyBuildInfoUpdater_->ScheduleOutOfBand();
+        
+    const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+    dynamicConfigManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
 }
 
 void TJobController::TImpl::RegisterJobFactory(EJobType type, TJobFactory factory)
@@ -493,7 +508,7 @@ void TJobController::TImpl::AdjustResources()
     bool preemptCpuOverdraft = false;
     if (usage.user_memory() > limits.user_memory()) {
         if (UserMemoryOverdraftInstant_) {
-            preemptMemoryOverdraft = *UserMemoryOverdraftInstant_ + Config_->MemoryOverdraftTimeout <
+            preemptMemoryOverdraft = *UserMemoryOverdraftInstant_ + GetMemoryOverdraftTimeout() <
                 TInstant::Now();
         } else {
             UserMemoryOverdraftInstant_ = TInstant::Now();
@@ -504,7 +519,7 @@ void TJobController::TImpl::AdjustResources()
 
     if (usage.cpu() > limits.cpu()) {
         if (CpuOverdraftInstant_) {
-            preemptCpuOverdraft = *CpuOverdraftInstant_+ Config_->CpuOverdraftTimeout <
+            preemptCpuOverdraft = *CpuOverdraftInstant_ + GetCpuOverdraftTimeout() <
                 TInstant::Now();
         } else {
             CpuOverdraftInstant_ = TInstant::Now();
@@ -550,7 +565,7 @@ void TJobController::TImpl::CleanRecentlyRemovedJobs()
 
     std::vector<TJobId> jobIdsToRemove;
     for (const auto& [jobId, jobRecord] : RecentlyRemovedJobMap_) {
-        if (jobRecord.RemovalTime + Config_->RecentlyRemovedJobsStoreTimeout < now) {
+        if (jobRecord.RemovalTime + GetRecentlyRemovedJobsStoreTimeout() < now) {
             jobIdsToRemove.push_back(jobId);
         }
     }
@@ -1093,7 +1108,7 @@ void TJobController::TImpl::DoPrepareHeartbeatRequest(
     bool totalConfirmation = false;
     if (jobObjectType == EObjectType::SchedulerJob) {
         auto now = TInstant::Now();
-        if (LastStoredJobsSendTime_ + Config_->TotalConfirmationPeriod < now) {
+        if (LastStoredJobsSendTime_ + GetTotalConfirmationPeriod() < now) {
             LastStoredJobsSendTime_ = now;
             YT_LOG_INFO("Including all stored jobs in heartbeat");
             totalConfirmation = true;
@@ -1386,7 +1401,13 @@ TFuture<void> TJobController::TImpl::RequestJobSpecsAndStartJobs(std::vector<NJo
     for (auto& [addressWithNetwork, startInfos] : groupedStartInfos) {
         auto channel = getSpecServiceChannel(addressWithNetwork);
         TJobSpecServiceProxy jobSpecServiceProxy(channel);
-        jobSpecServiceProxy.SetDefaultTimeout(Config_->GetJobSpecsTimeout);
+    
+        auto dynamicConfig = DynamicConfig_.Load();
+        auto getJobSpecsTimeout = dynamicConfig
+            ? dynamicConfig->GetJobSpecsTimeout.value_or(Config_->GetJobSpecsTimeout)
+            : Config_->GetJobSpecsTimeout;
+
+        jobSpecServiceProxy.SetDefaultTimeout(getJobSpecsTimeout);
         auto jobSpecRequest = jobSpecServiceProxy.GetJobSpecs();
 
         for (const auto& startInfo : startInfos) {
@@ -1476,6 +1497,27 @@ TEnumIndexedVector<EJobOrigin, std::vector<IJobPtr>> TJobController::TImpl::GetJ
         }
     }
     return result;
+}
+
+void TJobController::TImpl::OnDynamicConfigChanged(
+    const TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
+    const TClusterNodeDynamicConfigPtr& newNodeConfig)
+{
+    auto jobControllerConfig = newNodeConfig->ExecAgent->JobController;
+    
+    DynamicConfig_.Store(jobControllerConfig);
+    
+    if (jobControllerConfig && jobControllerConfig->ResourceAdjustmentPeriod) {
+        ResourceAdjustmentExecutor_->SetPeriod(*jobControllerConfig->ResourceAdjustmentPeriod);
+    } else {
+        ResourceAdjustmentExecutor_->SetPeriod(Config_->ResourceAdjustmentPeriod);
+    }
+    
+    if (jobControllerConfig && jobControllerConfig->RecentlyRemovedJobsCleanPeriod) {
+        RecentlyRemovedJobCleaner_->SetPeriod(*jobControllerConfig->RecentlyRemovedJobsCleanPeriod);
+    } else {
+        RecentlyRemovedJobCleaner_->SetPeriod(Config_->RecentlyRemovedJobsCleanPeriod);
+    }
 }
 
 void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
@@ -1644,6 +1686,38 @@ TCounter* TJobController::TImpl::GetJobFinalStateCounter(EJobState state, EJobOr
     }
 
     return &it->second;
+}
+
+TDuration TJobController::TImpl::GetTotalConfirmationPeriod() const
+{
+    auto dynamicConfig = DynamicConfig_.Load();
+    return dynamicConfig
+        ? dynamicConfig->TotalConfirmationPeriod.value_or(Config_->TotalConfirmationPeriod)
+        : Config_->TotalConfirmationPeriod;
+}
+
+TDuration TJobController::TImpl::GetMemoryOverdraftTimeout() const
+{
+    auto dynamicConfig = DynamicConfig_.Load();
+    return dynamicConfig
+        ? dynamicConfig->MemoryOverdraftTimeout.value_or(Config_->MemoryOverdraftTimeout)
+        : Config_->MemoryOverdraftTimeout;
+}
+
+TDuration TJobController::TImpl::GetCpuOverdraftTimeout() const
+{
+    auto dynamicConfig = DynamicConfig_.Load();
+    return dynamicConfig
+        ? dynamicConfig->CpuOverdraftTimeout.value_or(Config_->CpuOverdraftTimeout)
+        : Config_->CpuOverdraftTimeout;
+}
+
+TDuration TJobController::TImpl::GetRecentlyRemovedJobsStoreTimeout() const
+{
+    auto dynamicConfig = DynamicConfig_.Load();
+    return dynamicConfig
+        ? dynamicConfig->RecentlyRemovedJobsStoreTimeout.value_or(Config_->RecentlyRemovedJobsStoreTimeout)
+        : Config_->RecentlyRemovedJobsStoreTimeout;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

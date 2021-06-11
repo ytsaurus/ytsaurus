@@ -710,13 +710,13 @@ class TestCudaLayer(YTEnvSetup):
 
     USE_PORTO = True
 
-    def setup_files(self):
+    def setup_files(self, cuda_version="0"):
         create("map_node", "//tmp/cuda")
 
-        create("file", "//tmp/cuda/0", attributes={"replication_factor": 1})
+        create("file", "//tmp/cuda/" + cuda_version, attributes={"replication_factor": 1})
         file_name = "layers/static-bin.tar.gz"
         write_file(
-            "//tmp/cuda/0",
+            "//tmp/cuda/" + cuda_version,
             open(file_name).read(),
             file_writer={"upload_replication_factor": 1},
         )
@@ -757,6 +757,88 @@ class TestCudaLayer(YTEnvSetup):
                     "layer_paths": ["//tmp/layer2"],
                     "enable_gpu_layers": True,
                     "cuda_toolkit_version": "0",
+                    "gpu_limit": 1,
+                },
+            },
+        )
+
+        jobs_path = op.get_path() + "/jobs"
+        assert get(jobs_path + "/@count") == 1
+        job_id = ls(jobs_path)[0]
+
+        res = op.read_stderr(job_id)
+        assert res == "SETUP-OUTPUT\n"
+
+    def test_setup_cat_gpu_layer(self):
+        self.setup_files()
+
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={"replication_factor": 1},
+            file_writer={"upload_replication_factor": 1},
+        )
+        create(
+            "table",
+            "//tmp/t_out",
+            attributes={"replication_factor": 1},
+            file_writer={"upload_replication_factor": 1},
+        )
+
+        write_table("//tmp/t_in", [{"k": 0}])
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="$YT_ROOT_FS/static-bin/static-cat $YT_ROOT_FS/setup_output_file >&2",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "job_count": 1,
+                    "layer_paths": ["//tmp/layer2"],
+                    "enable_gpu_layers": True,
+                    "cuda_toolkit_version": "0",
+                    "gpu_limit": 1,
+                },
+            },
+        )
+
+        jobs_path = op.get_path() + "/jobs"
+        assert get(jobs_path + "/@count") == 1
+        job_id = ls(jobs_path)[0]
+
+        res = op.read_stderr(job_id)
+        assert res == "SETUP-OUTPUT\n"
+
+    def test_dynamic_config_for_cuda_toolkit_version(self):
+        self.setup_files(cuda_version="1")
+        update_nodes_dynamic_config({
+            "exec_agent": {
+                "job_controller": {
+                    "gpu_manager": {
+                        "toolkit_min_driver_version": {"1": "0"},
+                    },
+                },
+            },
+        })
+
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        write_table("//tmp/t_in", [{"k": 0}])
+
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="$YT_ROOT_FS/static-bin/static-cat $YT_ROOT_FS/setup_output_file >&2",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "job_count": 1,
+                    "layer_paths": ["//tmp/layer2"],
+                    "enable_gpu_layers": True,
+                    "cuda_toolkit_version": "1",
+                    "gpu_limit": 1,
                 },
             },
         )

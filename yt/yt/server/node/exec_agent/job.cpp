@@ -222,8 +222,8 @@ public:
                     GpuStatistics_.emplace_back(std::move(statistics));
                 }
 
-                if (UserJobSpec_ && UserJobSpec_->has_cuda_toolkit_version() && !Config_->JobController->GpuManager->TestResource) {
-                    Bootstrap_->GetGpuManager()->VerifyToolkitDriverVersion(UserJobSpec_->cuda_toolkit_version());
+                if (UserJobSpec_ && UserJobSpec_->has_cuda_toolkit_version()) {
+                    Bootstrap_->GetGpuManager()->VerifyCudaToolkitDriverVersion(UserJobSpec_->cuda_toolkit_version());
                 }
 
                 std::vector<int> deviceNumbers;

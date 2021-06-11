@@ -100,7 +100,7 @@ public:
     std::optional<TString> DriverVersion;
     TDuration DriverLayerFetchPeriod;
 
-    THashMap<TString, TString> ToolkitMinDriverVersion;
+    THashMap<TString, TString> CudaToolkitMinDriverVersion;
 
     //! This is a special testing option.
     //! Instead of normal gpu discovery, it forces the node to believe the number of GPUs passed in the config.
@@ -132,7 +132,8 @@ public:
             .Default();
         RegisterParameter("driver_layer_fetch_period", DriverLayerFetchPeriod)
             .Default(TDuration::Minutes(5));
-        RegisterParameter("toolkit_min_driver_version", ToolkitMinDriverVersion)
+        RegisterParameter("cuda_toolkit_min_driver_version", CudaToolkitMinDriverVersion)
+            .Alias("toolkit_min_driver_version")
             .Default();
 
         RegisterParameter("test_resource", TestResource)
@@ -156,6 +157,39 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TGpuManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TGpuManagerDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    std::optional<TDuration> HealthCheckTimeout;
+    std::optional<TDuration> HealthCheckPeriod;
+    std::optional<TDuration> HealthCheckFailureBackoff;
+
+    std::optional<TDuration> DriverLayerFetchPeriod;
+
+    std::optional<THashMap<TString, TString>> CudaToolkitMinDriverVersion;
+
+    TGpuManagerDynamicConfig()
+    {
+        RegisterParameter("health_check_timeout", HealthCheckTimeout)
+            .Default();
+        RegisterParameter("health_check_period", HealthCheckPeriod)
+            .Default();
+        RegisterParameter("health_check_failure_backoff", HealthCheckFailureBackoff)
+            .Default();
+
+        RegisterParameter("driver_layer_fetch_period", DriverLayerFetchPeriod)
+            .Default();
+        RegisterParameter("cuda_toolkit_min_driver_version", CudaToolkitMinDriverVersion)
+            .Alias("toolkit_min_driver_version")
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TGpuManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -196,6 +230,55 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TMappedMemoryControllerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJobControllerDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    std::optional<TDuration> GetJobSpecsTimeout;
+    std::optional<TDuration> TotalConfirmationPeriod;
+
+    std::optional<TDuration> CpuOverdraftTimeout;
+    std::optional<TDuration> MemoryOverdraftTimeout;
+    
+    std::optional<TDuration> ResourceAdjustmentPeriod;
+    
+    std::optional<TDuration> RecentlyRemovedJobsCleanPeriod;
+    std::optional<TDuration> RecentlyRemovedJobsStoreTimeout;
+    
+    TGpuManagerDynamicConfigPtr GpuManager;
+
+    TJobControllerDynamicConfig()
+    {
+        RegisterParameter("get_job_specs_timeout", GetJobSpecsTimeout)
+            .Default();
+        
+        RegisterParameter("total_confirmation_period", TotalConfirmationPeriod)
+            .Default();
+        
+        RegisterParameter("cpu_overdraft_timeout", CpuOverdraftTimeout)
+            .Default();
+        
+        RegisterParameter("memory_overdraft_timeout", MemoryOverdraftTimeout)
+            .Default();
+        
+        RegisterParameter("resource_adjustment_period", ResourceAdjustmentPeriod)
+            .Default();
+
+        RegisterParameter("recently_removed_jobs_clean_period", RecentlyRemovedJobsCleanPeriod)
+            .Default();
+
+        RegisterParameter("recently_removed_jobs_store_timeout", RecentlyRemovedJobsStoreTimeout)
+            .Default();
+        
+        RegisterParameter("gpu_manager", GpuManager)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobControllerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
