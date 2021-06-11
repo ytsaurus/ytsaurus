@@ -676,28 +676,27 @@ NTableClient::TColumnFilter DecodeColumnFilter(
     return columnFilter;
 }
 
-TFuture<TSharedRange<TMutableUnversionedRow>> ReadAndDecodeHunks(
+TFuture<TSharedRange<TMutableUnversionedRow>> DecodeHunks(
     NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader,
     TTableSchemaPtr schema,
     NChunkClient::TClientChunkReadOptions options,
     TSharedRange<TMutableUnversionedRow> rows)
 {
-    return ReadAndDecodeHunksInSchemafulUnversionedRows(
+    return DecodeHunksInSchemafulUnversionedRows(
         std::move(chunkFragmentReader),
         std::move(schema),
         std::move(options),
         std::move(rows));
 }
 
-TFuture<TSharedRange<TMutableVersionedRow>> ReadAndDecodeHunks(
+TFuture<TSharedRange<TMutableVersionedRow>> DecodeHunks(
     NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader,
-    TTableSchemaPtr schema,
+    TTableSchemaPtr /*schema*/,
     NChunkClient::TClientChunkReadOptions options,
     TSharedRange<TMutableVersionedRow> rows)
 {
-    return ReadAndDecodeHunksInVersionedRows(
+    return DecodeHunksInVersionedRows(
         std::move(chunkFragmentReader),
-        std::move(schema),
         std::move(options),
         std::move(rows));
 }
@@ -767,7 +766,7 @@ void DoLookupRows(
 
         auto sharedRows = MakeSharedRange(std::move(rows), std::move(rowBuffer));
 
-        auto hunkReaderFuture = ReadAndDecodeHunks(
+        auto hunkReaderFuture = DecodeHunks(
             tabletSnapshot->ChunkFragmentReader,
             schema,
             chunkReadOptions,
