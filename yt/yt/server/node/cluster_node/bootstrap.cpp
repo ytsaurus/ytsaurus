@@ -442,6 +442,8 @@ void TBootstrap::DoInitialize()
 
     ChunkMetaManager_ = CreateChunkMetaManager(this);
 
+    VersionedChunkMetaManager_ = CreateVersionedChunkMetaManager(Config_->TabletNode->VersionedChunkMetaCache, this);
+
     ChunkBlockManager_ = CreateChunkBlockManager(this);
 
     NetworkStatistics_ = std::make_unique<TNetworkStatistics>(Config_->DataNode);
@@ -714,8 +716,6 @@ void TBootstrap::DoInitialize()
         SecurityManager_ = New<TSecurityManager>(Config_->TabletNode->SecurityManager, this);
 
         InMemoryManager_ = CreateInMemoryManager(Config_->TabletNode->InMemoryManager, this);
-
-        VersionedChunkMetaManager_ = CreateVersionedChunkMetaManager(Config_->TabletNode->VersionedChunkMetaCache, this);
 
         TabletSnapshotStore_ = CreateTabletSnapshotStore(Config_->TabletNode, this);
     }
@@ -1524,6 +1524,8 @@ void TBootstrap::OnDynamicConfigChanged(
 
     ClientBlockCache_->Reconfigure(newConfig->DataNode->BlockCache);
 
+    VersionedChunkMetaManager_->Reconfigure(newConfig->TabletNode->VersionedChunkMetaCache);
+
     TableSchemaCache_->Reconfigure(newConfig->DataNode->TableSchemaCache);
 
     ObjectServiceCache_->Reconfigure(newConfig->CachingObjectService);
@@ -1563,8 +1565,6 @@ void TBootstrap::OnDynamicConfigChanged(
         TableReplicatorThreadPool_->Configure(
             newConfig->TabletNode->TabletManager->ReplicatorThreadPoolSize.value_or(Config_->TabletNode->TabletManager->ReplicatorThreadPoolSize));
         ColumnEvaluatorCache_->Reconfigure(newConfig->TabletNode->ColumnEvaluatorCache);
-
-        VersionedChunkMetaManager_->Reconfigure(newConfig->TabletNode->VersionedChunkMetaCache);
     }
 }
 
