@@ -39,7 +39,10 @@ struct TLookupCounters
         , CpuTime(profiler.TimeCounter("/lookup/cpu_time"))
         , DecompressionCpuTime(profiler.TimeCounter("/lookup/decompression_cpu_time"))
         , ChunkReaderStatisticsCounters(profiler.WithPrefix("/lookup/chunk_reader_statistics"))
-        , LookupDuration(profiler.Histogram("/lookup/duration", TDuration::MicroSeconds(1), TDuration::Seconds(10)))
+        , LookupDuration(profiler.Histogram(
+            "/lookup/duration",
+            TDuration::MicroSeconds(1),
+            TDuration::Seconds(10)))
     { }
 
     NProfiling::TCounter CacheHits;
@@ -82,6 +85,10 @@ struct TSelectReadCounters
         , UnmergedRowCount(profiler.Counter("/select/unmerged_row_count"))
         , UnmergedDataWeight(profiler.Counter("/select/unmerged_data_weight"))
         , DecompressionCpuTime(profiler.TimeCounter("/select/decompression_cpu_time"))
+        , SelectDuration(profiler.Histogram(
+            "/select/duration",
+            TDuration::MicroSeconds(1),
+            TDuration::Seconds(10)))
     { }
 
     NProfiling::TCounter RowCount;
@@ -89,6 +96,7 @@ struct TSelectReadCounters
     NProfiling::TCounter UnmergedRowCount;
     NProfiling::TCounter UnmergedDataWeight;
     NProfiling::TTimeCounter DecompressionCpuTime;
+    NYT::NProfiling::TEventTimer SelectDuration;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

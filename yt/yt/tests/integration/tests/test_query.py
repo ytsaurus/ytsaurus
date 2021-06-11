@@ -6,10 +6,13 @@ import os.path
 
 from yt_env_setup import YTEnvSetup, find_ut_file, skip_if_rpc_driver_backend
 from yt_commands import *  # noqa
+from yt_helpers import Profiler
 
 from yt.environment.helpers import assert_items_equal
 
 from flaky import flaky
+
+from copy import deepcopy
 
 from random import randint, shuffle
 
@@ -1466,3 +1469,62 @@ class TestQuery(YTEnvSetup):
 class TestQueryRpcProxy(TestQuery):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+
+    @authors("akozhikhov")
+    def test_detailed_select_profiling(self):
+        sync_create_cells(1)
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"},
+                ],
+                "enable_detailed_profiling": True,
+            },
+        )
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 1, "value": "one"}]
+        insert_rows("//tmp/t", rows)
+
+        node_select_duration_histogram = Profiler.at_tablet_node("//tmp/t").histogram(
+            name="select/duration")
+
+        # NB(eshcherbin): This is done to bypass RPC driver which currently doesn't support options for get queries.
+        driver_config = deepcopy(self.Env.configs["driver"])
+        driver_config["api_version"] = 4
+        driver = Driver(config=driver_config)
+
+        rpc_proxy = ls("//sys/rpc_proxies")[0]
+
+        rpc_driver_config = deepcopy(self.Env.configs["rpc_driver"])
+        rpc_driver_config["addresses"] = [rpc_proxy]
+        rpc_driver_config["api_version"] = 3
+        rpc_driver = Driver(config=rpc_driver_config)
+
+        proxy_select_duration_histogram = Profiler.at_rpc_proxy(rpc_proxy).histogram(
+            name="rpc_proxy/table_detailed_profiler/select_duration",
+            fixed_tags={"table_path": "//tmp/t"})
+
+        for _ in range(5):
+            assert select_rows("""* from [//tmp/t]""", driver=rpc_driver) == rows
+
+        def _check(select_duration_histogram):
+            try:
+                bins = select_duration_histogram.get_bins(verbose=True, driver=driver)
+                bin_counters = [bin["count"] for bin in bins]
+                if sum(bin_counters) == 0:
+                    return False
+                if len(bin_counters) < 20:
+                    return False
+                return True
+            except YtError as e:
+                # TODO(eshcherbin): get rid of this.
+                if "No sensors have been collected so far" not in str(e):
+                    raise e
+
+        wait(lambda: _check(node_select_duration_histogram))
+        wait(lambda: _check(proxy_select_duration_histogram))

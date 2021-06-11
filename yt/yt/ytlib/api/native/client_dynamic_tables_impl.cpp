@@ -835,7 +835,8 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         AppendUdfDescriptors(typeInferrers, externalCGInfo, externalNames, descriptors);
     };
 
-    auto queryPreparer = New<TQueryPreparer>(Connection_->GetTableMountCache(), Connection_->GetInvoker());
+    const auto& tableMountCache = Connection_->GetTableMountCache();
+    auto queryPreparer = New<TQueryPreparer>(tableMountCache, Connection_->GetInvoker());
 
     auto queryExecutor = CreateQueryExecutor(
         Connection_,
@@ -895,6 +896,16 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         .ValueOrThrow();
     for (const auto& error : permissionCheckErrors) {
         error.ThrowOnError();
+    }
+
+    if (options.DetailedProfilingInfo) {
+        const auto& path = astQuery->Table.Path;
+        auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
+            .ValueOrThrow();
+        if (tableInfo->EnableDetailedProfiling) {
+            options.DetailedProfilingInfo->EnableDetailedProfiling = true;
+            options.DetailedProfilingInfo->TablePath = path;
+        }
     }
 
     TQueryOptions queryOptions;

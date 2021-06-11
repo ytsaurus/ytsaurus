@@ -147,13 +147,20 @@ private:
     const ISchemafulUnversionedReaderPtr Underlying_;
     const TSelectReadCounters Counters_;
 
+    std::optional<TWallTimer> Timer_;
+
 public:
     TProfilingReaderWrapper(
         ISchemafulUnversionedReaderPtr underlying,
-        TSelectReadCounters counters)
+        TSelectReadCounters counters,
+        bool enableDetailedProfiling)
         : Underlying_(std::move(underlying))
         , Counters_(std::move(counters))
-    { }
+    {
+        if (enableDetailedProfiling) {
+            Timer_.emplace();
+        }
+    }
 
     virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
@@ -195,6 +202,10 @@ public:
         Counters_.UnmergedRowCount.Increment(statistics.unmerged_row_count());
         Counters_.UnmergedDataWeight.Increment(statistics.unmerged_data_weight());
         Counters_.DecompressionCpuTime.Add(decompressionCpuTime);
+
+        if (Timer_) {
+            Counters_.SelectDuration.Record(Timer_->GetElapsedTime());
+        }
     }
 };
 
@@ -318,7 +329,7 @@ public:
         for (const auto& source : DataSources_) {
             auto type = TypeFromId(source.ObjectId);
             switch (type) {
-                case  EObjectType::Tablet:
+                case EObjectType::Tablet:
                     TabletSnapshots_.ValidateAndRegisterTabletSnapshot(
                         source.ObjectId,
                         source.CellId,
@@ -970,6 +981,7 @@ private:
         auto columnFilter = GetColumnFilter(*Query_->GetReadSchema(), *tabletSnapshot->QuerySchema);
         auto tableProfiler = tabletSnapshot->TableProfiler;
         auto userTag = GetProfilingUser(Identity_);
+        auto enableDetailedProfiling = tabletSnapshot->Settings.MountConfig->EnableDetailedProfiling;
 
         ISchemafulUnversionedReaderPtr reader;
 
@@ -1010,7 +1022,10 @@ private:
                 /*workloadCategory*/ std::nullopt);
         }
 
-        return New<TProfilingReaderWrapper>(reader, *tableProfiler->GetSelectReadCounters(userTag));
+        return New<TProfilingReaderWrapper>(
+            reader,
+            *tableProfiler->GetSelectReadCounters(userTag),
+            enableDetailedProfiling);
     }
 
     ISchemafulUnversionedReaderPtr GetTabletReader(
@@ -1021,6 +1036,7 @@ private:
         auto columnFilter = GetColumnFilter(*Query_->GetReadSchema(), *tabletSnapshot->QuerySchema);
         auto tableProfiler = tabletSnapshot->TableProfiler;
         auto userTag = GetProfilingUser(Identity_);
+        auto enableDetailedProfiling = tabletSnapshot->Settings.MountConfig->EnableDetailedProfiling;
 
         auto reader = CreateSchemafulLookupTabletReader(
             std::move(tabletSnapshot),
@@ -1031,7 +1047,10 @@ private:
             ETabletDistributedThrottlerKind::Select,
             /*workloadCategory*/ std::nullopt);
 
-        return New<TProfilingReaderWrapper>(reader, *tableProfiler->GetSelectReadCounters(userTag));
+        return New<TProfilingReaderWrapper>(
+            reader,
+            *tableProfiler->GetSelectReadCounters(userTag),
+            enableDetailedProfiling);
     }
 };
 
