@@ -98,12 +98,6 @@ public:
             LookupKeys_.Size(),
             ChunkReadOptions_.ReadSessionId);
 
-        TFiberWallTimer timer;
-        TWallTimer wallTimer;
-        auto updateProfiling = Finally([&] {
-            UpdateProfilingCounters(timer.GetElapsedTime(), wallTimer.GetElapsedTime());
-        });
-
         ThrowUponThrottlerOverdraft(
             ETabletDistributedThrottlerKind::Lookup,
             TabletSnapshot_,
@@ -113,7 +107,8 @@ public:
 
         // Lookup in dynamic stores always and merge with cache.
         if (UseLookupCache_) {
-            YT_LOG_DEBUG("Looking up in row cache");
+            YT_LOG_DEBUG("Looking up in row cache (ReadSessionId: %v)",
+                ChunkReadOptions_.ReadSessionId);
 
             auto flushIndex = TabletSnapshot_->RowCache->FlushIndex.load(std::memory_order_acquire);
 
@@ -174,7 +169,9 @@ public:
             auto compactionTimestamp = NTransactionClient::InstantToTimestamp(
                 NTransactionClient::TimestampToInstant(RetainedTimestamp_).first + mountConfig->MinDataTtl).first;
 
-            YT_LOG_DEBUG("Creating cache row merger (CompactionTimestamp: %llx)", compactionTimestamp);
+            YT_LOG_DEBUG("Creating cache row merger (CompactionTimestamp: %llx, ReadSessionId: %v)",
+                compactionTimestamp,
+                ChunkReadOptions_.ReadSessionId);
 
             CacheRowMerger_ = std::make_unique<TVersionedRowMerger>(
                 New<TRowBuffer>(TLookupSessionBufferTag()),
@@ -256,7 +253,7 @@ public:
         YT_LOG_DEBUG(
             "Tablet lookup completed "
             "(TabletId: %v, CellId: %v, CacheHits: %v, CacheOutdated: %v, CacheMisses: %v, "
-            "FoundRowCount: %v, FoundDataWeight: %v, CpuTime: %v, DecompressionCpuTime: %v, "
+            "FoundRowCount: %v, FoundDataWeight: %v, DecompressionCpuTime: %v, "
             "ReadSessionId: %v, EnableDetailedProfiling: %v)",
             TabletSnapshot_->TabletId,
             TabletSnapshot_->CellId,
@@ -265,10 +262,34 @@ public:
             CacheMisses_,
             FoundRowCount_,
             FoundDataWeight_,
-            timer.GetElapsedTime(),
             DecompressionCpuTime_,
             ChunkReadOptions_.ReadSessionId,
             mountConfig->EnableDetailedProfiling);
+    }
+
+    void UpdateProfilingCounters(TDuration cpuTime, TDuration wallTime)
+    {
+        auto counters = TabletSnapshot_->TableProfiler->GetLookupCounters(GetCurrentProfilingUser());
+
+        counters->CacheHits.Increment(CacheHits_);
+        counters->CacheOutdated.Increment(CacheOutdated_);
+        counters->CacheMisses.Increment(CacheMisses_);
+        counters->CacheInserts.Increment(CacheInserts_);
+        counters->RowCount.Increment(FoundRowCount_);
+        counters->MissingKeyCount.Increment(LookupKeys_.size() - FoundRowCount_);
+        counters->DataWeight.Increment(FoundDataWeight_);
+        counters->UnmergedRowCount.Increment(UnmergedRowCount_);
+        counters->UnmergedDataWeight.Increment(UnmergedDataWeight_);
+
+        counters->CpuTime.Add(cpuTime);
+        counters->DecompressionCpuTime.Add(DecompressionCpuTime_);
+
+        counters->ChunkReaderStatisticsCounters.Increment(ChunkReadOptions_.ChunkReaderStatistics);
+
+        const auto& mountConfig = TabletSnapshot_->Settings.MountConfig;
+        if (mountConfig->EnableDetailedProfiling) {
+            counters->LookupDuration.Record(wallTime);
+        }
     }
 
 private:
@@ -640,31 +661,6 @@ private:
             }
         }
     }
-
-    void UpdateProfilingCounters(TDuration cpuTime, TDuration wallTime)
-    {
-        auto counters = TabletSnapshot_->TableProfiler->GetLookupCounters(GetCurrentProfilingUser());
-
-        counters->CacheHits.Increment(CacheHits_);
-        counters->CacheOutdated.Increment(CacheOutdated_);
-        counters->CacheMisses.Increment(CacheMisses_);
-        counters->CacheInserts.Increment(CacheInserts_);
-        counters->RowCount.Increment(FoundRowCount_);
-        counters->MissingKeyCount.Increment(LookupKeys_.size() - FoundRowCount_);
-        counters->DataWeight.Increment(FoundDataWeight_);
-        counters->UnmergedRowCount.Increment(UnmergedRowCount_);
-        counters->UnmergedDataWeight.Increment(UnmergedDataWeight_);
-
-        counters->CpuTime.Add(cpuTime);
-        counters->DecompressionCpuTime.Add(DecompressionCpuTime_);
-
-        counters->ChunkReaderStatisticsCounters.Increment(ChunkReadOptions_.ChunkReaderStatistics);
-
-        const auto& mountConfig = TabletSnapshot_->Settings.MountConfig;
-        if (mountConfig->EnableDetailedProfiling) {
-            counters->LookupDuration.Record(wallTime);
-        }
-    }
 };
 
 namespace {
@@ -716,7 +712,7 @@ void DoLookupRows(
     bool produceAllVersions,
     bool useLookupCache,
     const TColumnFilter& columnFilter,
-    const TClientChunkReadOptions& chunkReadOptions,
+    TClientChunkReadOptions chunkReadOptions,
     TSharedRange<TUnversionedRow> lookupKeys,
     const TRowBufferPtr& rowBuffer,
     TRowMerger& rowMerger,
@@ -726,6 +722,10 @@ void DoLookupRows(
 
     THazardPtrFlushGuard flushGuard;
 
+    if (!chunkReadOptions.ChunkReaderStatistics) {
+        chunkReadOptions.ChunkReaderStatistics = New<NChunkClient::TChunkReaderStatistics>();
+    }
+
     TLookupSession session(
         tabletSnapshot,
         timestamp,
@@ -734,6 +734,13 @@ void DoLookupRows(
         columnFilter,
         chunkReadOptions,
         std::move(lookupKeys));
+
+    TFiberWallTimer cpuTimer;
+    TWallTimer wallTimer;
+    // NB: Hunk reader statistics will also be accounted with this guard.
+    auto updateProfiling = Finally([&] {
+        session.UpdateProfilingCounters(cpuTimer.GetElapsedTime(), wallTimer.GetElapsedTime());
+    });
 
     auto addPartialRow = [&] (TVersionedRow partialRow, TTimestamp timestamp) {
         rowMerger.AddPartialRow(partialRow, timestamp);
@@ -782,6 +789,13 @@ void DoLookupRows(
                 return getMergedRowStatistics(mergedRow);
             });
     }
+
+    YT_LOG_DEBUG("Tablet lookup timing statistics "
+        "(CpuTime: %v, WallTime: %v, TabletId: %v, ReadSessionId: %v)",
+        cpuTimer.GetElapsedTime(),
+        wallTimer.GetElapsedTime(),
+        tabletSnapshot->TabletId,
+        chunkReadOptions.ReadSessionId);
 }
 
 } // namespace
