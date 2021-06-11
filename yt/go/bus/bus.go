@@ -257,7 +257,7 @@ func (c *Bus) Receive() (busMsg, error) {
 func (c *Bus) receive(message io.Reader) (busMsg, error) {
 	rawFixHeader := make([]byte, fixHeaderSize)
 	if _, err := io.ReadFull(message, rawFixHeader); err != nil {
-		return busMsg{}, err
+		return busMsg{}, fmt.Errorf("bus: error reading fix header: %w", err)
 	}
 
 	fixHeader := fixedHeader{}
@@ -301,7 +301,7 @@ func (c *Bus) receive(message io.Reader) (busMsg, error) {
 
 	rawVarHeader := make([]byte, int((4+8)*fixHeader.partCount+8))
 	if _, err := io.ReadFull(message, rawVarHeader); err != nil {
-		return busMsg{}, err
+		return busMsg{}, fmt.Errorf("bus: error reading var header: %w", err)
 	}
 
 	p := 0
@@ -330,7 +330,7 @@ func (c *Bus) receive(message io.Reader) (busMsg, error) {
 
 			part = make([]byte, partSize)
 			if _, err := io.ReadFull(message, part); err != nil {
-				return busMsg{}, err
+				return busMsg{}, fmt.Errorf("bus: error reading part %d: %w", i, err)
 			}
 			parts[i] = part
 		}

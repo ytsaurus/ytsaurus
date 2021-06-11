@@ -2,7 +2,7 @@ package rpcclient
 
 import (
 	"context"
-	"fmt"
+	"sync"
 	"time"
 
 	"github.com/karlseguin/ccache/v2"
@@ -29,6 +29,7 @@ type ConnPool interface {
 type dialFunc func(ctx context.Context, addr string) (*bus.ClientConn, error)
 
 type lruConnPool struct {
+	dialLock sync.Mutex
 	dialFunc dialFunc
 	cache    *ccache.Cache
 }
@@ -57,6 +58,15 @@ func closeConn(conn *bus.ClientConn) {
 }
 
 func (p *lruConnPool) Conn(ctx context.Context, addr string) (*bus.ClientConn, error) {
+	item := p.cache.Get(addr)
+	if item != nil && !item.Expired() {
+		item.Extend(connTTL)
+		return item.Value().(*bus.ClientConn), nil
+	}
+
+	p.dialLock.Lock()
+	defer p.dialLock.Unlock()
+
 	item, err := p.cache.Fetch(addr, connTTL, func() (i interface{}, e error) {
 		return p.dialFunc(ctx, addr)
 	})
@@ -69,8 +79,7 @@ func (p *lruConnPool) Conn(ctx context.Context, addr string) (*bus.ClientConn, e
 }
 
 func (p *lruConnPool) Discard(addr string) {
-	deleted := p.cache.Delete(addr)
-	fmt.Println("deleted:", deleted)
+	p.cache.Delete(addr)
 }
 
 func (p *lruConnPool) Close() error {

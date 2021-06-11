@@ -249,3 +249,17 @@ const (
 
 // Timestamp is a cluster-wide unique monotonically increasing number used to implement the MVCC.
 type Timestamp uint64
+
+type TxType string
+
+var (
+	TxTypeMaster TxType = "master"
+	TxTypeTablet TxType = "tablet"
+)
+
+type Atomicity string
+
+var (
+	AtomicityNone Atomicity = "none"
+	AtomicityFull Atomicity = "full"
+)

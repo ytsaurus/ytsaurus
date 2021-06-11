@@ -343,7 +343,7 @@ type StartTxOptions struct {
 	Timeout  *yson.Duration `http:"timeout,omitnil"`
 	Deadline *yson.Time     `http:"deadline,omitnil"`
 
-	Type   *string `http:"type,omitnil"`
+	Type   *TxType `http:"type,omitnil"`
 	Sticky bool    `http:"sticky"`
 
 	PrerequisiteTransactionIDs []TxID                 `http:"prerequisite_transaction_ids,omitnil"`
@@ -905,9 +905,9 @@ type LookupRowsOptions struct {
 }
 
 type InsertRowsOptions struct {
-	Atomicity          *string `http:"atomicity,omitnil"`
-	RequireSyncReplica *bool   `http:"require_sync_replica,omitnil"`
-	Update             *bool   `http:"update,omitnil"`
+	Atomicity          *Atomicity `http:"atomicity,omitnil"`
+	RequireSyncReplica *bool      `http:"require_sync_replica,omitnil"`
+	Update             *bool      `http:"update,omitnil"`
 
 	*TransactionOptions
 }
@@ -934,10 +934,10 @@ type SelectRowsOptions struct {
 }
 
 type StartTabletTxOptions struct {
-	Atomicity *string        `http:"atomicity,omitnil"`
+	Atomicity *Atomicity     `http:"atomicity,omitnil"`
 	Timeout   *yson.Duration `http:"timeout,omitnil"`
 
-	Type   string `http:"type"`
+	Type   TxType `http:"type"`
 	Sticky bool   `http:"sticky"`
 }
 

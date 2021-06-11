@@ -436,3 +436,29 @@ func TestMyService(t *testing.T) {
 		require.Equal(t, *req.Message, *rsp.Message)
 	})
 }
+
+func TestClient_stress(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	addr, stop := StartMyService(t)
+	defer stop()
+
+	c, err := NewMyServiceClient(addr)
+	require.NoError(t, err)
+	defer c.Close()
+
+	var wg sync.WaitGroup
+	for i := 0; i < 1000; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+
+			req := &myservice.TReqSomeCall{A: ptr.Int32(int32(i))}
+			rsp, err := c.SomeCall(context.Background(), req)
+			require.NoError(t, err)
+			require.Equal(t, int32(i+100), *rsp.B)
+		}(i)
+	}
+
+	wg.Wait()
+}
