@@ -63,32 +63,36 @@ func (tx *tabletTx) setTx(call *internal.Call) {
 }
 
 func (tx *tabletTx) do(ctx context.Context, call *internal.Call) (res *internal.CallResult, err error) {
+	call.RequestedProxy = tx.coordinator
 	switch call.Params.HTTPVerb() {
 	case internal.VerbStartTransaction:
-		break
+		return tx.c.Invoke(ctx, call)
 
 	case internal.VerbCommitTransaction:
-		if err = tx.pinger.TryCommit(); err != nil {
-			return
-		}
+		err = tx.pinger.TryCommit(func() error {
+			res, err = tx.c.Invoke(ctx, call)
+			return err
+		})
+		return
 
 	case internal.VerbAbortTransaction:
-		if err = tx.pinger.TryAbort(); err != nil {
-			return
-		}
+		err = tx.pinger.TryAbort(func() error {
+			res, err = tx.c.Invoke(ctx, call)
+			return err
+		})
+		return
 
 	default:
-		if err = tx.pinger.Check(); err != nil {
+		if err = tx.pinger.CheckAlive(); err != nil {
 			return
 		}
-	}
 
-	call.RequestedProxy = tx.coordinator
-	return tx.c.Invoke(ctx, call)
+		return tx.c.Invoke(ctx, call)
+	}
 }
 
 func (tx *tabletTx) doReadRow(ctx context.Context, call *internal.Call) (r yt.TableReader, err error) {
-	if err = tx.pinger.Check(); err != nil {
+	if err = tx.pinger.CheckAlive(); err != nil {
 		return
 	}
 
@@ -98,7 +102,7 @@ func (tx *tabletTx) doReadRow(ctx context.Context, call *internal.Call) (r yt.Ta
 }
 
 func (tx *tabletTx) doWriteRow(ctx context.Context, call *internal.Call) (r yt.TableWriter, err error) {
-	if err = tx.pinger.Check(); err != nil {
+	if err = tx.pinger.CheckAlive(); err != nil {
 		return
 	}
 

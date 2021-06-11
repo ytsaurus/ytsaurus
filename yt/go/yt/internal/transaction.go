@@ -77,7 +77,7 @@ func (t *TxInterceptor) Finished() <-chan struct{} {
 }
 
 func (t *TxInterceptor) BeginTx(ctx context.Context, options *yt.StartTxOptions) (tx yt.Tx, err error) {
-	if err = t.pinger.Check(); err != nil {
+	if err = t.pinger.CheckAlive(); err != nil {
 		return
 	}
 
@@ -94,23 +94,19 @@ func (t *TxInterceptor) BeginTx(ctx context.Context, options *yt.StartTxOptions)
 }
 
 func (t *TxInterceptor) Abort() (err error) {
-	if err = t.pinger.TryAbort(); err != nil {
-		return
-	}
-
-	return t.Client.AbortTx(t.pinger.ctx, t.pinger.txID, nil)
+	return t.pinger.TryAbort(func() error {
+		return t.Client.AbortTx(t.pinger.ctx, t.pinger.txID, nil)
+	})
 }
 
 func (t *TxInterceptor) Commit() (err error) {
-	if err = t.pinger.TryCommit(); err != nil {
-		return
-	}
-
-	return t.Client.CommitTx(t.pinger.ctx, t.pinger.txID, nil)
+	return t.pinger.TryAbort(func() error {
+		return t.Client.CommitTx(t.pinger.ctx, t.pinger.txID, nil)
+	})
 }
 
 func (t *TxInterceptor) setTx(call *Call) error {
-	if err := t.pinger.Check(); err != nil {
+	if err := t.pinger.CheckAlive(); err != nil {
 		return err
 	}
 
