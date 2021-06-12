@@ -72,9 +72,35 @@ void TChunkFileWriter::TryLockDataFile(TPromise<void> promise)
         IOEngine_->GetAuxPoolInvoker());
 }
 
+void TChunkFileWriter::SetFailed(const TError& error)
+{
+    auto expected = TError();
+    Error_.CompareExchange(expected, error);
+
+    State_.store(EState::Failed);
+}
+
+TError TChunkFileWriter::TryChangeState(EState oldState, EState newState)
+{
+    if (State_.compare_exchange_strong(oldState, newState)) {
+        return {};
+    }
+
+    auto error = TError(
+        "Invalid chunk writer state: expected %Qlv, actual %Qlv",
+        oldState,
+        newState);
+    if (oldState == EState::Failed) {
+        error.MutableInnerErrors()->push_back(Error_.Load());
+    }
+    return error;
+}
+
 TFuture<void> TChunkFileWriter::Open()
 {
-    YT_VERIFY(State_.exchange(EState::Opening) == EState::Created);
+    if (auto error = TryChangeState(EState::Created, EState::Opening); !error.IsOK()) {
+        return MakeFuture<void>(std::move(error));
+    }
 
     // NB: Races are possible between file creation and a call to flock.
     // Unfortunately in Linux we can't create'n'flock a file atomically.
@@ -92,7 +118,7 @@ TFuture<void> TChunkFileWriter::Open()
             YT_VERIFY(State_.load() == EState::Opening);
 
             if (!error.IsOK()) {
-                State_.store(EState::Failed);
+                SetFailed(error);
                 THROW_ERROR_EXCEPTION("Failed to open chunk data file %v",
                     FileName_)
                     << error;
@@ -109,7 +135,10 @@ bool TChunkFileWriter::WriteBlock(const TBlock& block)
 
 bool TChunkFileWriter::WriteBlocks(const std::vector<TBlock>& blocks)
 {
-    YT_VERIFY(State_.exchange(EState::WritingBlocks) == EState::Ready);
+    if (auto error = TryChangeState(EState::Ready, EState::WritingBlocks); !error.IsOK()) {
+        ReadyEvent_ = MakeFuture<void>(std::move(error));
+        return false;
+    }
 
     i64 startOffset = DataSize_;
     i64 currentOffset = startOffset;
@@ -140,7 +169,7 @@ bool TChunkFileWriter::WriteBlocks(const std::vector<TBlock>& blocks)
             YT_VERIFY(State_.load() == EState::WritingBlocks);
 
             if (!error.IsOK()) {
-                State_.store(EState::Failed);
+                SetFailed(error);
                 THROW_ERROR_EXCEPTION("Failed to write chunk data file %v",
                     FileName_)
                     << error;
@@ -163,7 +192,9 @@ TFuture<void> TChunkFileWriter::GetReadyEvent()
 
 TFuture<void> TChunkFileWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
 {
-    YT_VERIFY(State_.exchange(EState::Closing) == EState::Ready);
+    if (auto error = TryChangeState(EState::Ready, EState::Closing); !error.IsOK()) {
+        return MakeFuture<void>(std::move(error));
+    }
 
     auto metaFileName = FileName_ + ChunkMetaSuffix;
     return IOEngine_->Close({std::move(DataFile_), DataSize_, SyncOnClose_})
@@ -226,7 +257,7 @@ TFuture<void> TChunkFileWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
             YT_VERIFY(State_.load() == EState::Closing);
 
             if (!error.IsOK()) {
-                State_.store(EState::Failed);
+                SetFailed(error);
                 THROW_ERROR_EXCEPTION("Failed to close chunk data file %v",
                     FileName_)
                     << error;

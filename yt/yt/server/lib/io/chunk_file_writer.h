@@ -8,6 +8,7 @@
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
+#include <yt/yt/core/misc/atomic_object.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <util/system/file.h>
@@ -84,6 +85,7 @@ private:
 
     using EState = EFileWriterState;
     std::atomic<EState> State_ = EFileWriterState::Created;
+    TAtomicObject<TError> Error_;
 
     TFuture<void> ReadyEvent_ = VoidFuture;
 
@@ -97,6 +99,9 @@ private:
     NChunkClient::NProto::TBlocksExt BlocksExt_;
 
     void TryLockDataFile(TPromise<void> promise);
+
+    void SetFailed(const TError& error);
+    TError TryChangeState(EState oldState, EState newState);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkFileWriter)
