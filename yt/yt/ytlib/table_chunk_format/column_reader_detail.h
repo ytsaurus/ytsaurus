@@ -10,6 +10,7 @@
 #include <yt/yt/client/table_client/comparator.h>
 #include <yt/yt/client/table_client/versioned_row.h>
 #include <yt/yt/client/table_client/logical_type.h>
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/core/misc/bitmap.h>
 #include <yt/yt/core/misc/zigzag.h>
@@ -212,9 +213,8 @@ private:
         i64 segmentRowIndex = SegmentRowIndex_;
 
         while (rangeRowIndex < std::ssize(rows) && segmentRowIndex < Meta_.row_count()) {
-            auto row = rows[rangeRowIndex];
-            if (row) {
-                YT_VERIFY(static_cast<int>(GetUnversionedValueCount(row)) > ColumnIndex_);
+            if (auto row = rows[rangeRowIndex]) {
+                YT_ASSERT(static_cast<int>(GetUnversionedValueCount(row)) > ColumnIndex_);
                 SetValue(&GetUnversionedValue(row, ColumnIndex_), segmentRowIndex);
             }
 
@@ -630,12 +630,10 @@ class TSparseVersionedValueExtractorBase
     : public TVersionedValueExtractorBase
 {
 public:
-    TSparseVersionedValueExtractorBase(bool aggregate);
+    explicit TSparseVersionedValueExtractorBase(bool aggregate);
 
     i64 GetLowerValueIndex(i64 segmentRowIndex, int valueIndex) const;
-
     i64 GetRowIndex(i64 valueIndex) const;
-
     i64 GetValueCount() const;
 
     std::pair<ui32, ui32> GetValueIndexRange(i64 segmentRowIndex, i64 valueIndex, ui32 lowerTimestampIndex);
@@ -659,19 +657,23 @@ public:
         TRef data,
         const NProto::TSegmentMeta& meta,
         int columnId,
-        bool aggregate)
+        const NTableClient::TColumnSchema& columnSchema)
         : Data_(data)
         , Meta_(meta)
-        , Aggregate_(aggregate)
+        , Aggregate_(columnSchema.Aggregate().has_value())
+        , BaseFlags_(columnSchema.MaxInlineHunkSize()
+            ? NTableClient::EValueFlags::Hunk
+            : NTableClient::EValueFlags::None)
         , ColumnId_(columnId)
         , SegmentStartRowIndex_(meta.chunk_row_count() - meta.row_count())
-        , ValueExtractor_(data, meta, aggregate)
+        , ValueExtractor_(data, meta, Aggregate_)
     { }
 
 protected:
     const TRef Data_;
     const NProto::TSegmentMeta& Meta_;
     const bool Aggregate_;
+    const NTableClient::EValueFlags BaseFlags_;
     const int ColumnId_;
 
     const i64 SegmentStartRowIndex_;
@@ -688,8 +690,8 @@ protected:
 
     void DoSetValues(
         NTableClient::TMutableVersionedRow row,
-        const std::pair<ui32, ui32>& timestampIndexRange,
-        const std::pair<ui32, ui32>& valueIndexRange,
+        std::pair<ui32, ui32> timestampIndexRange,
+        std::pair<ui32, ui32> valueIndexRange,
         bool produceAllVersions)
     {
         ui32 valueIndex = valueIndexRange.first;
@@ -705,7 +707,8 @@ protected:
             row.SetValueCount(row.GetValueCount() + 1);
             value->Timestamp = timestampIndex;
 
-            auto flags = NTableClient::EValueFlags::None;
+
+            auto flags = BaseFlags_;
             if (ValueExtractor_.GetAggregate(valueIndex)) {
                 flags |= NTableClient::EValueFlags::Aggregate;
             }
@@ -719,7 +722,7 @@ protected:
 
     void DoSetAllValues(
         NTableClient::TMutableVersionedRow row,
-        const std::pair<ui32, ui32>& valueIndexRange)
+        std::pair<ui32, ui32> valueIndexRange)
     {
         ui32 valueIndex = valueIndexRange.first;
         ui32 upperValueIndex = valueIndexRange.second;
@@ -729,7 +732,7 @@ protected:
 
             value->Timestamp = ValueExtractor_.GetTimestampIndex(valueIndex);
 
-            auto flags = NTableClient::EValueFlags::None;
+            auto flags = BaseFlags_;
             if (ValueExtractor_.GetAggregate(valueIndex)) {
                 flags |= NTableClient::EValueFlags::Aggregate;
             }
@@ -750,8 +753,12 @@ public:
         TRef data,
         const NProto::TSegmentMeta& meta,
         int columnId,
-        bool aggregate)
-        : TVersionedSegmentReaderBase<TValueExtractor>(data, meta, columnId, aggregate)
+        const NTableClient::TColumnSchema& columnSchema)
+        : TVersionedSegmentReaderBase<TValueExtractor>(
+            data,
+            meta,
+            columnId,
+            columnSchema)
     { }
 
     virtual void SkipToRowIndex(i64 rowIndex) override
@@ -814,7 +821,7 @@ private:
 
     void SetValues(
         NTableClient::TMutableVersionedRow row,
-        const std::pair<ui32, ui32>& timestampIndexRange,
+        std::pair<ui32, ui32> timestampIndexRange,
         bool produceAllVersions)
     {
         auto valueIndexRange = ValueExtractor_.GetValueIndexRange(
@@ -842,8 +849,12 @@ public:
         TRef data,
         const NProto::TSegmentMeta& meta,
         int columnId,
-        bool aggregate)
-        : TVersionedSegmentReaderBase<TValueExtractor>(data, meta, columnId, aggregate)
+        const NTableClient::TColumnSchema& columnSchema)
+        : TVersionedSegmentReaderBase<TValueExtractor>(
+            data,
+            meta,
+            columnId,
+            columnSchema)
     { }
 
     virtual void SkipToRowIndex(i64 rowIndex) override
@@ -1029,7 +1040,7 @@ public:
     TVersionedColumnReaderBase(
         const NProto::TColumnMeta& columnMeta,
         int columnId,
-        bool aggregate);
+        const NTableClient::TColumnSchema& columnSchema);
 
     virtual void ReadValueCounts(TMutableRange<ui32> valueCounts) override;
 
@@ -1042,7 +1053,7 @@ public:
 
 protected:
     const int ColumnId_;
-    const bool Aggregate_;
+    const NTableClient::TColumnSchema ColumnSchema_;
 
     std::unique_ptr<IVersionedSegmentReader> SegmentReader_;
 
@@ -1061,7 +1072,7 @@ protected:
             TRef(segmentBegin, segmentBegin + meta.size()),
             meta,
             ColumnId_,
-            Aggregate_);
+            ColumnSchema_);
     }
 };
 

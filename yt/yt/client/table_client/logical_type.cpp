@@ -2105,7 +2105,10 @@ TLogicalTypePtr TaggedLogicalType(TString tag, TLogicalTypePtr element)
     return New<TTaggedLogicalType>(std::move(tag), std::move(element));
 }
 
-const TLogicalTypePtr NullLogicalType = Singleton<TSimpleTypeStore>()->GetSimpleType(ESimpleLogicalValueType::Null);
+TLogicalTypePtr NullLogicalType()
+{
+    return Singleton<TSimpleTypeStore>()->GetSimpleType(ESimpleLogicalValueType::Null);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

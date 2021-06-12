@@ -388,10 +388,13 @@ void TUnversionedColumnReaderBase::CreateCurrentSegmentReader()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TVersionedColumnReaderBase::TVersionedColumnReaderBase(const TColumnMeta& columnMeta, int columnId, bool aggregate)
+TVersionedColumnReaderBase::TVersionedColumnReaderBase(
+    const TColumnMeta& columnMeta,
+    int columnId,
+    const TColumnSchema& columnSchema)
     : TColumnReaderBase(columnMeta)
     , ColumnId_(columnId)
-    , Aggregate_(aggregate)
+    , ColumnSchema_(columnSchema)
 { }
 
 void TVersionedColumnReaderBase::ReadValueCounts(TMutableRange<ui32> valueCounts)

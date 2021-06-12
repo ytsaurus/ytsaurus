@@ -153,7 +153,7 @@ struct IVersionedColumnReader
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IVersionedColumnReader> CreateVersionedColumnReader(
-    const NTableClient::TColumnSchema& schema,
+    const NTableClient::TColumnSchema& columnSchema,
     const NProto::TColumnMeta& meta,
     int columnId);
 

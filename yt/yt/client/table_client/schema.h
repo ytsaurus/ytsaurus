@@ -62,7 +62,7 @@ class TColumnSchema
 public:
     // Keep in sync with hasher below.
     DEFINE_BYREF_RO_PROPERTY(TString, Name);
-    DEFINE_BYREF_RO_PROPERTY(TLogicalTypePtr, LogicalType, NullLogicalType);
+    DEFINE_BYREF_RO_PROPERTY(TLogicalTypePtr, LogicalType, NullLogicalType());
     DEFINE_BYREF_RO_PROPERTY(std::optional<ESortOrder>, SortOrder);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Lock);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Expression);

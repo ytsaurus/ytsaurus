@@ -219,8 +219,14 @@ class TVersionedIntegerColumnReader
     : public TVersionedColumnReaderBase
 {
 public:
-    TVersionedIntegerColumnReader(const TColumnMeta& columnMeta, int columnId, bool aggregate)
-        : TVersionedColumnReaderBase(columnMeta, columnId, aggregate)
+    TVersionedIntegerColumnReader(
+        const TColumnMeta& columnMeta,
+        int columnId,
+        const TColumnSchema& columnSchema)
+        : TVersionedColumnReaderBase(
+            columnMeta,
+            columnId,
+            columnSchema)
     { }
 
 private:
@@ -262,23 +268,23 @@ private:
 std::unique_ptr<IVersionedColumnReader> CreateVersionedInt64ColumnReader(
     const TColumnMeta& columnMeta,
     int columnId,
-    bool aggregate)
+    const TColumnSchema& columnSchema)
 {
     return std::make_unique<TVersionedIntegerColumnReader<EValueType::Int64>>(
         columnMeta,
         columnId,
-        aggregate);
+        columnSchema);
 }
 
 std::unique_ptr<IVersionedColumnReader> CreateVersionedUint64ColumnReader(
     const TColumnMeta& columnMeta,
     int columnId,
-    bool aggregate)
+    const TColumnSchema& columnSchema)
 {
     return std::make_unique<TVersionedIntegerColumnReader<EValueType::Uint64>>(
         columnMeta,
         columnId,
-        aggregate);
+        columnSchema);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -19,15 +19,19 @@ static const int MaxValueCount = 128 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline ui64 GetEncodedValue(i64 value)
+namespace {
+
+ui64 EncodeValue(i64 value)
 {
     return ZigZagEncode64(value);
 }
 
-inline ui64 GetEncodedValue(ui64 value)
+ui64 EncodeValue(ui64 value)
 {
     return value;
 }
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -109,20 +113,26 @@ class TVersionedIntegerColumnWriter
     , private TIntegerColumnWriterBase
 {
 public:
-    TVersionedIntegerColumnWriter(int columnId, bool aggregate, TDataBlockWriter* blockWriter)
-        : TVersionedColumnWriterBase(columnId, aggregate, blockWriter)
+    TVersionedIntegerColumnWriter(
+        int columnId,
+        const TColumnSchema& columnSchema,
+        TDataBlockWriter* blockWriter)
+        : TVersionedColumnWriterBase(
+            columnId,
+            columnSchema,
+            blockWriter)
     {
         Reset();
     }
 
-    virtual void WriteValues(TRange<TVersionedRow> rows) override
+    virtual void WriteVersionedValues(TRange<TVersionedRow> rows) override
     {
-        AddPendingValues(
+        AddValues(
             rows,
             [&] (const TVersionedValue& value) {
                 ui64 data = 0;
                 if (value.Type != EValueType::Null) {
-                    data = GetEncodedValue(GetValue<TValue>(value));
+                    data = EncodeValue(GetValue<TValue>(value));
                     UpdateStatistics(data);
                 }
                 Values_.push_back(data);
@@ -207,23 +217,23 @@ private:
 
 std::unique_ptr<IValueColumnWriter> CreateVersionedInt64ColumnWriter(
     int columnId,
-    bool aggregate,
+    const TColumnSchema& columnSchema,
     TDataBlockWriter* dataBlockWriter)
 {
     return std::make_unique<TVersionedIntegerColumnWriter<i64>>(
         columnId,
-        aggregate,
+        columnSchema,
         dataBlockWriter);
 }
 
 std::unique_ptr<IValueColumnWriter> CreateVersionedUint64ColumnWriter(
     int columnId,
-    bool aggregate,
+    const TColumnSchema& columnSchema,
     TDataBlockWriter* dataBlockWriter)
 {
     return std::make_unique<TVersionedIntegerColumnWriter<ui64>>(
         columnId,
-        aggregate,
+        columnSchema,
         dataBlockWriter);
 }
 
@@ -243,7 +253,7 @@ public:
         Reset();
     }
 
-    virtual void WriteValues(TRange<TVersionedRow> rows) override
+    virtual void WriteVersionedValues(TRange<TVersionedRow> rows) override
     {
         DoWriteValues(rows);
     }
@@ -459,21 +469,21 @@ private:
     template <class TRow>
     void DoWriteValues(TRange<TRow> rows)
     {
-        AddPendingValues(rows);
+        AddValues(rows);
         if (Values_.size() > MaxValueCount) {
             FinishCurrentSegment();
         }
     }
 
     template <class TRow>
-    void AddPendingValues(TRange<TRow> rows)
+    void AddValues(TRange<TRow> rows)
     {
         for (auto row : rows) {
             const auto& value = GetUnversionedValue(row, ColumnIndex_);
             bool isNull = value.Type == EValueType::Null;
             ui64 data = 0;
             if (!isNull) {
-                data = GetEncodedValue(GetValue<TValue>(value));
+                data = EncodeValue(GetValue<TValue>(value));
                 UpdateStatistics(data);
             }
 

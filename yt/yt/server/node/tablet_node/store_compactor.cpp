@@ -480,7 +480,6 @@ struct TPartitionCompactionResult
     IVersionedMultiChunkWriterPtr StoreWriter;
     IHunkChunkPayloadWriterPtr HunkWriter;
     i64 RowCount;
-    i64 CompressedDataSize;
 };
 
 class TPartitionCompactionSession
@@ -518,7 +517,8 @@ public:
 
             while (auto batch = WaitForRowBatch(reader, readOptions)) {
                 rowCount += batch->GetRowCount();
-                if (!writer->Write(batch->MaterializeRows())) {
+                auto rows = batch->MaterializeRows();
+                if (!writer->Write(rows)) {
                     WaitFor(writer->GetReadyEvent())
                         .ThrowOnError();
                 }
@@ -529,8 +529,7 @@ public:
             return TPartitionCompactionResult{
                 writer,
                 HunkChunkPayloadWriter_,
-                rowCount,
-                writer->GetDataStatistics().compressed_data_size()
+                rowCount
             };
         });
     }
@@ -1780,9 +1779,8 @@ private:
             }
             tabletSnapshot->PerformanceCounters->CompactionDataWeightCount += compactionResult.StoreWriter->GetDataStatistics().data_weight();
 
-            YT_LOG_INFO("Partition compaction completed (RowCount: %v, CompressedDataSize: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v%v, WallTime: %v)",
+            YT_LOG_INFO("Partition compaction completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v%v, WallTime: %v)",
                 compactionResult.RowCount,
-                compactionResult.CompressedDataSize,
                 storeIdsToAdd,
                 MakeFormattableView(stores, TStoreIdFormatter()),
                 MakeFormatterWrapper([&] (auto* builder) {
@@ -1800,8 +1798,7 @@ private:
                     fluent
                         .Item("hunk_chunk_id_to_add").Value(compactionResult.HunkWriter->GetChunkId());
                 })
-                .Item("output_row_count").Value(compactionResult.RowCount)
-                .Item("output_compressed_data_size").Value(compactionResult.CompressedDataSize);
+                .Item("output_row_count").Value(compactionResult.RowCount);
 
             FinishTabletStoresUpdateTransaction(tablet, slot, std::move(actionRequest), std::move(transaction), Logger);
 

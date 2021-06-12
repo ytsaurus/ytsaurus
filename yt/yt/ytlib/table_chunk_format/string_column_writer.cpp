@@ -2,6 +2,9 @@
 #include "column_writer_detail.h"
 #include "helpers.h"
 
+#include <yt/yt/ytlib/table_client/hunks.h>
+
+#include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/versioned_row.h>
 
 #include <yt/yt/core/yson/writer.h>
@@ -15,10 +18,10 @@ using namespace NProto;
 using namespace NTableClient;
 using namespace NYson;
 
-const int MaxValueCount = 128 * 1024;
-const int MaxBufferSize = 32 * 1024 * 1024;
+////////////////////////////////////////////////////////////////////////////////
 
-char* EmptyStringBase = (char*)1;
+static const int MaxValueCount = 128 * 1024 * 1024;;
+static const int MaxBufferSize = 32_MB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,32 +29,34 @@ template <EValueType ValueType>
 class TStringColumnWriterBase
 {
 protected:
+    const bool Hunk_;
+
     std::unique_ptr<TChunkedOutputStream> DirectBuffer_;
     char* CurrentPreallocated_;
 
+    ui32 MaxValueLength_;
     std::vector<TStringBuf> Values_;
 
-    ui32 MaxValueLength_;
-
-    i64 DictionarySize_;
+    i64 DictionaryByteSize_;
     THashMap<TStringBuf, ui32> Dictionary_;
 
+    explicit TStringColumnWriterBase(const TColumnSchema& columnSchema = {})
+        : Hunk_(columnSchema.MaxInlineHunkSize().has_value())
+    { }
 
     void Reset()
     {
-        DictionarySize_ = 0;
-
-        Values_.clear();
-        Dictionary_.clear();
-
         DirectBuffer_ = std::make_unique<TChunkedOutputStream>();
         CurrentPreallocated_ = nullptr;
 
         MaxValueLength_ = 0;
         Values_.clear();
+
+        DictionaryByteSize_ = 0;
+        Dictionary_.clear();
     }
 
-    void EnsureCapacity(size_t size)
+    void EnsureCapacity(i64 size)
     {
         CurrentPreallocated_ = DirectBuffer_->Preallocate(size);
     }
@@ -62,36 +67,23 @@ protected:
         offsets.reserve(Values_.size());
 
         ui32 offset = 0;
-        for (const auto& value : Values_){
+        for (auto value : Values_) {
             offset += value.length();
             offsets.push_back(offset);
         }
+
         return offsets;
     }
 
-    bool EqualValues(TStringBuf lhs, TStringBuf rhs) const
-    {
-        if (!lhs.data() && !rhs.data()) {
-            // Both are null.
-            return true;
-        } else if (!lhs.data() || !rhs.data()) {
-            // One is null, and the other is not.
-            return false;
-        } else {
-            // Compare as strings.
-            return lhs == rhs;
-        }
-    }
-
-    size_t GetDictionarySize() const
+    i64 GetDictionaryByteSize() const
     {
         return
-            DictionarySize_ +
+            DictionaryByteSize_ +
             CompressedUnsignedVectorSizeInBytes(MaxValueLength_, Dictionary_.size()) +
             CompressedUnsignedVectorSizeInBytes(Dictionary_.size() + 1, Values_.size());
     }
 
-    size_t GetDirectSize() const
+    i64 GetDirectByteSize() const
     {
         return
             DirectBuffer_->GetSize() +
@@ -99,41 +91,43 @@ protected:
             Values_.size() / 8;
     }
 
-    TStringBuf UpdateStatistics(const TUnversionedValue& unversionedValue)
+    TStringBuf CaptureValue(const TUnversionedValue& unversionedValue)
     {
-        bool isNull = unversionedValue.Type == EValueType::Null;
-
-        TStringBuf value = TStringBuf(nullptr, nullptr);
-
-        if (CurrentPreallocated_ == nullptr) {
+        if (!CurrentPreallocated_) {
             // This means, that we reserved nothing, because all strings are either null or empty.
             // To distinguish between null and empty, we set preallocated pointer to special value.
+            static char* const EmptyStringBase = reinterpret_cast<char*>(1);
             CurrentPreallocated_ = EmptyStringBase;
         }
 
-        if (!isNull) {
-            ui32 size;
-            if (IsAnyOrComposite(ValueType) && !IsAnyOrComposite(unversionedValue.Type)) {
-                // Any non-any and non-null value convert to yson.
-                size = WriteYson(CurrentPreallocated_, unversionedValue);
-            } else {
-                std::memcpy(
-                    CurrentPreallocated_,
-                    unversionedValue.Data.String,
-                    unversionedValue.Length);
-                size = unversionedValue.Length;
-            }
+        if (unversionedValue.Type == EValueType::Null) {
+            return {};
+        }
 
-            value = TStringBuf(CurrentPreallocated_, size);
-            CurrentPreallocated_ += size;
-            DirectBuffer_->Advance(size);
+        char* dst = CurrentPreallocated_;
+        if (Hunk_ && None(unversionedValue.Flags & EValueFlags::Hunk)) {
+            *dst++ = static_cast<char>(EHunkValueTag::Inline);
+        }
+        if (IsAnyOrComposite(ValueType) && !IsAnyOrComposite(unversionedValue.Type)) {
+            // Any non-any and non-null value convert to YSON.
+            dst += WriteYson(dst, unversionedValue);
+        } else {
+            std::memcpy(
+                dst,
+                unversionedValue.Data.String,
+                unversionedValue.Length);
+            dst += unversionedValue.Length;
+        }
 
-            auto pair = Dictionary_.emplace(value, Dictionary_.size() + 1);
+        auto value = TStringBuf(CurrentPreallocated_, dst);
+        auto length = value.length();
+        CurrentPreallocated_ = dst;
 
-            if (pair.second) {
-                DictionarySize_ += size;
-                MaxValueLength_ = std::max(MaxValueLength_, size);
-            }
+        DirectBuffer_->Advance(length);
+
+        if (Dictionary_.emplace(value, Dictionary_.size() + 1).second) {
+            DictionaryByteSize_ += length;
+            MaxValueLength_ = std::max(MaxValueLength_, static_cast<ui32>(length));
         }
 
         return value;
@@ -141,36 +135,37 @@ protected:
 
     void DumpDictionaryValues(TSegmentInfo* segmentInfo)
     {
-        auto dictionaryData = TSharedMutableRef::Allocate<TSegmentWriterTag>(DictionarySize_, false);
+        auto dictionaryData = TSharedMutableRef::Allocate<TSegmentWriterTag>(DictionaryByteSize_, false);
+
         std::vector<ui32> dictionaryOffsets;
         dictionaryOffsets.reserve(Dictionary_.size());
 
         std::vector<ui32> ids;
         ids.reserve(Values_.size());
 
-        int dictionarySize = 0;
+        ui32 dictionarySize = 0;
         ui32 dictionaryOffset = 0;
-        for (const auto& value : Values_) {
-            if (!value.data()) {
+        for (auto value : Values_) {
+            if (this->IsValueNull(value)) {
                 ids.push_back(0);
-            } else {
-                ui32 id = GetOrCrash(Dictionary_, value);
-                ids.push_back(id);
+                continue;
+            }
 
-                if (static_cast<int>(id) > dictionarySize) {
-                    std::memcpy(
-                        dictionaryData.Begin() + dictionaryOffset,
-                        value.data(),
-                        value.length());
+            ui32 id = GetOrCrash(Dictionary_, value);
+            ids.push_back(id);
 
-                    dictionaryOffset += value.length();
-                    dictionaryOffsets.push_back(dictionaryOffset);
-                    ++dictionarySize;
-                }
+            if (id > dictionarySize) {
+                std::memcpy(
+                    dictionaryData.Begin() + dictionaryOffset,
+                    value.data(),
+                    value.length());
+                dictionaryOffset += value.length();
+                dictionaryOffsets.push_back(dictionaryOffset);
+                ++dictionarySize;
             }
         }
 
-        YT_VERIFY(dictionaryOffset == DictionarySize_);
+        YT_VERIFY(dictionaryOffset == DictionaryByteSize_);
 
         // 1. Value ids.
         segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(ids), dictionarySize + 1));
@@ -212,6 +207,39 @@ protected:
         auto* stringSegmentMeta = segmentInfo->SegmentMeta.MutableExtension(TStringSegmentMeta::string_segment_meta);
         stringSegmentMeta->set_expected_length(expectedLength);
     }
+
+
+    static bool IsValueNull(TStringBuf lhs)
+    {
+        return !lhs.data();
+    }
+
+    static bool AreValuesEqual(TStringBuf lhs, TStringBuf rhs)
+    {
+        if (IsValueNull(lhs) && IsValueNull(rhs)) {
+            // Both are null.
+            return true;
+        } else if (IsValueNull(lhs) || IsValueNull(rhs)) {
+            // One is null, and the other is not.
+            return false;
+        } else {
+            // Compare as strings.
+            return lhs == rhs;
+        }
+    }
+
+    i64 GetValueByteSize(const TUnversionedValue& value) const
+    {
+        if (value.Type == EValueType::Null) {
+            return 0;
+        }
+        YT_ASSERT(IsStringLikeType(value.Type));
+        auto result = static_cast<i64>(value.Length);
+        if (Hunk_ && None(value.Flags & EValueFlags::Hunk)) {
+            result += 1;
+        }
+        return result;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -219,32 +247,36 @@ protected:
 template <EValueType ValueType>
 class TVersionedStringColumnWriter
     : public TVersionedColumnWriterBase
-    , private TStringColumnWriterBase<ValueType>
+    , public TStringColumnWriterBase<ValueType>
 {
 public:
-    TVersionedStringColumnWriter(int columnId, bool aggregate, TDataBlockWriter* blockWriter)
-        : TVersionedColumnWriterBase(columnId, aggregate, blockWriter)
+    TVersionedStringColumnWriter(
+        int columnId,
+        const TColumnSchema& columnSchema,
+        TDataBlockWriter* blockWriter)
+        : TVersionedColumnWriterBase(
+            columnId,
+            columnSchema,
+            blockWriter)
+        , TStringColumnWriterBase<ValueType>(columnSchema)
     {
         this->Reset();
     }
 
-    virtual void WriteValues(TRange<TVersionedRow> rows) override
+    virtual void WriteVersionedValues(TRange<TVersionedRow> rows) override
     {
-        size_t cumulativeSize = 0;
+        i64 totalSize = 0;
         for (auto row : rows) {
             for (const auto& value : FindValues(row, ColumnId_)) {
-                if (value.Type != EValueType::Null) {
-                    cumulativeSize += value.Length;
-                }
+                totalSize += this->GetValueByteSize(value);
             }
         }
-        this->EnsureCapacity(cumulativeSize);
+        this->EnsureCapacity(totalSize);
 
-        AddPendingValues(
+        AddValues(
             rows,
             [&] (const TVersionedValue& value) {
-                auto stringBuf = this->UpdateStatistics(value);
-                Values_.push_back(stringBuf);
+                Values_.push_back(this->CaptureValue(value));
             });
 
         if (Values_.size() > MaxValueCount || DirectBuffer_->GetSize() > MaxBufferSize) {
@@ -257,8 +289,9 @@ public:
         if (ValuesPerRow_.empty()) {
             return 0;
         } else {
-            return std::min(this->GetDirectSize(), this->GetDictionarySize()) +
-                   TVersionedColumnWriterBase::GetCurrentSegmentSize();
+            return
+                std::min(this->GetDirectByteSize(), this->GetDictionaryByteSize()) +
+                TVersionedColumnWriterBase::GetCurrentSegmentSize();
         }
     }
 
@@ -288,19 +321,19 @@ private:
 
         DumpVersionedData(&segmentInfo);
 
-        ui64 dictionarySize = this->GetDictionarySize();
-        ui64 directSize = this->GetDirectSize();
-        if (dictionarySize < directSize) {
+        i64 dictionaryByteSize = this->GetDictionaryByteSize();
+        i64 directByteSize = this->GetDirectByteSize();
+        if (dictionaryByteSize < directByteSize) {
             this->DumpDictionaryValues(&segmentInfo);
 
-            segmentInfo.SegmentMeta.set_type(static_cast<int>(segmentInfo.Dense
+            segmentInfo.SegmentMeta.set_type(ToProto<int>(segmentInfo.Dense
                 ? EVersionedStringSegmentType::DictionaryDense
                 : EVersionedStringSegmentType::DictionarySparse));
 
         } else {
             this->DumpDirectValues(&segmentInfo, NullBitmap_.Flush<TSegmentWriterTag>());
 
-            segmentInfo.SegmentMeta.set_type(static_cast<int>(segmentInfo.Dense
+            segmentInfo.SegmentMeta.set_type(ToProto<int>(segmentInfo.Dense
                 ? EVersionedStringSegmentType::DirectDense
                 : EVersionedStringSegmentType::DirectSparse));
         }
@@ -313,23 +346,23 @@ private:
 
 std::unique_ptr<IValueColumnWriter> CreateVersionedStringColumnWriter(
     int columnId,
-    bool aggregate,
+    const TColumnSchema& columnSchema,
     TDataBlockWriter* dataBlockWriter)
 {
     return std::make_unique<TVersionedStringColumnWriter<EValueType::String>>(
         columnId,
-        aggregate,
+        columnSchema,
         dataBlockWriter);
 }
 
 std::unique_ptr<IValueColumnWriter> CreateVersionedAnyColumnWriter(
     int columnId,
-    bool aggregate,
+    const TColumnSchema& columnSchema,
     TDataBlockWriter* dataBlockWriter)
 {
     return std::make_unique<TVersionedStringColumnWriter<EValueType::Any>>(
         columnId,
-        aggregate,
+        columnSchema,
         dataBlockWriter);
 }
 
@@ -338,7 +371,7 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedAnyColumnWriter(
 template <EValueType ValueType>
 class TUnversionedStringColumnWriter
     : public TColumnWriterBase
-    , private TStringColumnWriterBase<ValueType>
+    , public TStringColumnWriterBase<ValueType>
 {
 public:
     TUnversionedStringColumnWriter(int columnIndex, TDataBlockWriter* blockWriter)
@@ -348,7 +381,7 @@ public:
         Reset();
     }
 
-    virtual void WriteValues(TRange<TVersionedRow> rows) override
+    virtual void WriteVersionedValues(TRange<TVersionedRow> rows) override
     {
         DoWriteValues(rows);
     }
@@ -362,11 +395,11 @@ public:
     {
         if (Values_.empty()) {
             return 0;
-        } else {
-            auto sizes = GetSegmentSizeVector();
-            auto minElement = std::min_element(sizes.begin(), sizes.end());
-            return *minElement;
         }
+
+        auto sizes = GetSegmentSizeVector();
+        auto minElement = std::min_element(sizes.begin(), sizes.end());
+        return *minElement;
     }
 
     virtual void FinishCurrentSegment() override
@@ -385,7 +418,7 @@ private:
 
     using TStringColumnWriterBase<ValueType>::Values_;
     using TStringColumnWriterBase<ValueType>::Dictionary_;
-    using TStringColumnWriterBase<ValueType>::DictionarySize_;
+    using TStringColumnWriterBase<ValueType>::DictionaryByteSize_;
     using TStringColumnWriterBase<ValueType>::MaxValueLength_;
     using TStringColumnWriterBase<ValueType>::DirectBuffer_;
 
@@ -400,8 +433,8 @@ private:
     {
         TBitmapOutput nullBitmap(Values_.size());
 
-        for (const auto& value : Values_) {
-            nullBitmap.Append(value.data() == nullptr);
+        for (auto value : Values_) {
+            nullBitmap.Append(this->IsValueNull(value));
         }
 
         return nullBitmap.Flush<TSegmentWriterTag>();
@@ -417,12 +450,13 @@ private:
 
         ui32 stringOffset = 0;
         for (auto rowIndex : RleRowIndexes_) {
-            nullBitmap.Append(Values_[rowIndex].data() == nullptr);
+            auto value = Values_[rowIndex];
+            nullBitmap.Append(this->IsValueNull(value));
             std::memcpy(
                 stringData.Begin() + stringOffset,
-                Values_[rowIndex].data(),
-                Values_[rowIndex].length());
-            stringOffset += Values_[rowIndex].length();
+                value.data(),
+                value.length());
+            stringOffset += value.length();
             offsets.push_back(stringOffset);
         }
 
@@ -449,7 +483,8 @@ private:
 
     void DumpDictionaryRleData(TSegmentInfo* segmentInfo)
     {
-        auto dictionaryData = TSharedMutableRef::Allocate<TSegmentWriterTag>(DictionarySize_, false);
+        auto dictionaryData = TSharedMutableRef::Allocate<TSegmentWriterTag>(DictionaryByteSize_, false);
+
         std::vector<ui32> offsets;
         offsets.reserve(Dictionary_.size());
 
@@ -459,23 +494,23 @@ private:
         ui32 dictionaryOffset = 0;
         ui32 dictionarySize = 0;
         for (auto rowIndex : RleRowIndexes_) {
-            const auto& value = Values_[rowIndex];
-            if (!value.data()) {
+            auto value = Values_[rowIndex];
+            if (this->IsValueNull(value)) {
                 ids.push_back(0);
-            } else {
-                ui32 id = GetOrCrash(Dictionary_, Values_[rowIndex]);
-                ids.push_back(id);
+                continue;
+            }
 
-                if (id > dictionarySize) {
-                    std::memcpy(
-                        dictionaryData.Begin() + dictionaryOffset,
-                        Values_[rowIndex].data(),
-                        Values_[rowIndex].length());
+            ui32 id = GetOrCrash(Dictionary_, value);
+            ids.push_back(id);
 
-                    dictionaryOffset += Values_[rowIndex].length();
-                    offsets.push_back(dictionaryOffset);
-                    ++dictionarySize;
-                }
+            if (id > dictionarySize) {
+                std::memcpy(
+                    dictionaryData.Begin() + dictionaryOffset,
+                    value.data(),
+                    value.length());
+                dictionaryOffset += value.length();
+                offsets.push_back(dictionaryOffset);
+                ++dictionarySize;
             }
         }
 
@@ -506,7 +541,7 @@ private:
         auto type = EUnversionedStringSegmentType(std::distance(sizes.begin(), minElement));
 
         TSegmentInfo segmentInfo;
-        segmentInfo.SegmentMeta.set_type(static_cast<int>(type));
+        segmentInfo.SegmentMeta.set_type(ToProto<int>(type));
         segmentInfo.SegmentMeta.set_version(0);
         segmentInfo.SegmentMeta.set_row_count(Values_.size());
 
@@ -548,7 +583,7 @@ private:
         switch (type) {
             case EUnversionedStringSegmentType::DictionaryRle:
                 return
-                    DictionarySize_ +
+                    DictionaryByteSize_ +
                     // This is estimate. We will keep diff from expected offset.
                     CompressedUnsignedVectorSizeInBytes(MaxValueLength_, Dictionary_.size()) +
                     CompressedUnsignedVectorSizeInBytes(Dictionary_.size() + 1, RleRowIndexes_.size()) +
@@ -562,10 +597,10 @@ private:
                     Values_.size() / 8; // Null bitmaps.
 
             case EUnversionedStringSegmentType::DictionaryDense:
-                return this->GetDictionarySize();
+                return this->GetDictionaryByteSize();
 
             case EUnversionedStringSegmentType::DirectDense:
-                return this->GetDirectSize();
+                return this->GetDirectByteSize();
 
             default:
                 YT_ABORT();
@@ -575,42 +610,43 @@ private:
     template <class TRow>
     void DoWriteValues(TRange<TRow> rows)
     {
-        AddPendingValues(rows);
+        AddValues(rows);
         if (Values_.size() > MaxValueCount || DirectBuffer_->GetSize() > MaxBufferSize) {
             FinishCurrentSegment();
         }
     }
 
     template <class TRow>
-    void AddPendingValues(TRange<TRow> rows)
+    void AddValues(TRange<TRow> rows)
     {
-        size_t cumulativeSize = 0;
+        i64 totalSize = 0;
         for (auto row : rows) {
             const auto& unversionedValue = GetUnversionedValue(row, ColumnIndex_);
-                if (unversionedValue.Type != EValueType::Null) {
-                    if constexpr (
-                        ValueType == EValueType::String ||
-                        ValueType == EValueType::Composite)
-                    {
-                        cumulativeSize += unversionedValue.Length;
-                    } else {
-                        static_assert(ValueType == EValueType::Any);
-                        cumulativeSize += GetYsonSize(unversionedValue);
-                    }
-                }
+            YT_ASSERT(None(unversionedValue.Flags & EValueFlags::Hunk));
+            if (unversionedValue.Type == EValueType::Null) {
+                continue;
+            }
+            if constexpr (
+                ValueType == EValueType::String ||
+                ValueType == EValueType::Composite)
+            {
+                totalSize += unversionedValue.Length;
+            } else {
+                static_assert(ValueType == EValueType::Any);
+                totalSize += GetYsonSize(unversionedValue);
+            }
         }
 
-        this->EnsureCapacity(cumulativeSize);
+        this->EnsureCapacity(totalSize);
 
         for (auto row : rows) {
             const auto& unversionedValue = GetUnversionedValue(row, ColumnIndex_);
-            TStringBuf value = this->UpdateStatistics(unversionedValue);
-
-            if (Values_.empty() || !this->EqualValues(value, Values_.back())) {
+            YT_ASSERT(None(unversionedValue.Flags & EValueFlags::Hunk));
+            auto value = this->CaptureValue(unversionedValue);
+            if (Values_.empty() || !this->AreValuesEqual(value, Values_.back())) {
                 DirectRleSize_ += value.length();
                 RleRowIndexes_.push_back(Values_.size());
             }
-
             Values_.push_back(value);
         }
 

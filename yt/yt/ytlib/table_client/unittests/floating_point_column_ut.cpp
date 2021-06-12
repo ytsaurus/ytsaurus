@@ -19,7 +19,7 @@ class TVersionedFloatingPointColumnTest
     , public ::testing::WithParamInterface<ESimpleLogicalValueType>
 {
 protected:
-    const TTimestamp TimestampBase = 1000000;
+    static constexpr TTimestamp TimestampBase = 1000000;
 
     struct TValue
     {
@@ -28,7 +28,7 @@ protected:
     };
 
     TVersionedFloatingPointColumnTest()
-        : TVersionedColumnTestBase(false)
+        : TVersionedColumnTestBase(NoAggregateSchema)
     { }
 
     TVersionedValue MakeValue(const TValue& value) const
@@ -117,9 +117,9 @@ protected:
     {
         switch (GetParam()) {
             case ESimpleLogicalValueType::Float:
-                return CreateVersionedFloatingPointColumnReader<float>(ColumnMeta_, ColumnId, Aggregate_);
+                return CreateVersionedFloatingPointColumnReader<float>(ColumnMeta_, ColumnId, ColumnSchema_);
             case ESimpleLogicalValueType::Double:
-                return CreateVersionedFloatingPointColumnReader<double>(ColumnMeta_, ColumnId, Aggregate_);
+                return CreateVersionedFloatingPointColumnReader<double>(ColumnMeta_, ColumnId, ColumnSchema_);
             default:
                 YT_ABORT();
         }
@@ -129,9 +129,9 @@ protected:
     {
         switch (GetParam()) {
             case ESimpleLogicalValueType::Float:
-                return CreateVersionedFloatingPointColumnWriter<float>(ColumnId, Aggregate_, blockWriter);
+                return CreateVersionedFloatingPointColumnWriter<float>(ColumnId, ColumnSchema_, blockWriter);
             case ESimpleLogicalValueType::Double:
-                return CreateVersionedFloatingPointColumnWriter<double>(ColumnId, Aggregate_, blockWriter);
+                return CreateVersionedFloatingPointColumnWriter<double>(ColumnId, ColumnSchema_, blockWriter);
             default:
                 YT_ABORT();
         }

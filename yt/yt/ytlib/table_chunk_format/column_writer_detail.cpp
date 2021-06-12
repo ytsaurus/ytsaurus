@@ -3,6 +3,7 @@
 #include "data_block_writer.h"
 #include "helpers.h"
 
+#include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/versioned_row.h>
 
 #include <yt/yt/core/misc/zigzag.h>
@@ -63,10 +64,14 @@ i64 TColumnWriterBase::GetMetaSize() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TVersionedColumnWriterBase::TVersionedColumnWriterBase(int columnId, bool aggregate, TDataBlockWriter* blockWriter)
+TVersionedColumnWriterBase::TVersionedColumnWriterBase(
+    int columnId,
+    const TColumnSchema& columnSchema,
+    TDataBlockWriter* blockWriter)
     : TColumnWriterBase(blockWriter)
     , ColumnId_(columnId)
-    , Aggregate_(aggregate)
+    , Aggregate_(columnSchema.Aggregate().has_value())
+    , Hunk_(columnSchema.MaxInlineHunkSize().has_value())
 { }
 
 i32 TVersionedColumnWriterBase::GetCurrentSegmentSize() const
@@ -97,7 +102,7 @@ void TVersionedColumnWriterBase::WriteUnversionedValues(TRange<NTableClient::TUn
      EmptyPendingRowCount_ = 0;
  }
 
-void TVersionedColumnWriterBase::AddPendingValues(
+void TVersionedColumnWriterBase::AddValues(
     TRange<TVersionedRow> rows,
     std::function<void (const TVersionedValue& value)> onValue)
 {
@@ -115,7 +120,6 @@ void TVersionedColumnWriterBase::AddPendingValues(
         }
 
         for (const auto& value : values) {
-
             bool isNull = value.Type == EValueType::Null;
 
             onValue(value);

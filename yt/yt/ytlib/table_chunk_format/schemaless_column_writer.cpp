@@ -31,14 +31,14 @@ public:
         Reset();
     }
 
-    virtual void WriteValues(TRange<TVersionedRow> /*rows*/) override
+    virtual void WriteVersionedValues(TRange<TVersionedRow> /*rows*/) override
     {
         YT_ABORT();
     }
 
     virtual void WriteUnversionedValues(TRange<TUnversionedRow> rows) override
     {
-        AddPendingValues(rows);
+        AddValues(rows);
         if (Offsets_.size() > MaxRowCount || DataBuffer_->GetSize() > MaxBufferSize) {
             FinishCurrentSegment();
         }
@@ -104,18 +104,17 @@ private:
         TColumnWriterBase::DumpSegment(&segmentInfo);
     }
 
-    void AddPendingValues(TRange<TUnversionedRow> rows)
+    void AddValues(TRange<TUnversionedRow> rows)
     {
-        size_t cumulativeSize = 0;
-
+        size_t totalSize = 0;
         for (auto row : rows) {
             for (int index = SchemaColumnCount_; index < static_cast<int>(row.GetCount()); ++index) {
-                cumulativeSize += GetByteSize(row[index]);
+                totalSize += GetByteSize(row[index]);
             }
         }
 
         ui32 base = DataBuffer_->GetSize();
-        char* begin = DataBuffer_->Preallocate(cumulativeSize);
+        char* begin = DataBuffer_->Preallocate(totalSize);
         char* current = begin;
 
         for (auto row : rows) {

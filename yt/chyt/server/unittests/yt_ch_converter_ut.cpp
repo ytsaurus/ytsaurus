@@ -185,8 +185,8 @@ std::pair<TYtColumn, std::any> UnversionedValuesToYtColumn(TUnversionedValues va
 {
     TDataBlockWriter blockWriter;
     auto writer = CreateUnversionedColumnWriter(
-        columnSchema,
         /* columnIndex */ 0,
+        columnSchema,
         &blockWriter);
 
     for (const auto& value : values) {

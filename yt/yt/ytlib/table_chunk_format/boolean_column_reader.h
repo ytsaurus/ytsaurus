@@ -2,7 +2,7 @@
 
 #include "column_reader.h"
 
-#include <yt/yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/public.h>
 
 namespace NYT::NTableChunkFormat {
 
@@ -11,7 +11,7 @@ namespace NYT::NTableChunkFormat {
 std::unique_ptr<IVersionedColumnReader> CreateVersionedBooleanColumnReader(
     const NProto::TColumnMeta& columnMeta,
     int columnId,
-    bool aggregate);
+    const NTableClient::TColumnSchema& columnSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 

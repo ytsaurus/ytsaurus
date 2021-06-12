@@ -101,8 +101,8 @@ protected:
         WriteSegment(columnWriter, CreateDictionaryRle());
 
         // Write-only, regression test.
-        columnWriter->WriteValues(MakeRange(CreateRows({Empty, Empty, Empty, Empty})));
-        columnWriter->WriteValues(MakeRange(CreateRows({FewSymbol, FewSymbol, FewSymbol, FewSymbol})));
+        columnWriter->WriteVersionedValues(MakeRange(CreateRows({Empty, Empty, Empty, Empty})));
+        columnWriter->WriteVersionedValues(MakeRange(CreateRows({FewSymbol, FewSymbol, FewSymbol, FewSymbol})));
         columnWriter->FinishCurrentSegment();
     }
 

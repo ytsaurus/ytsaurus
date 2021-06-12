@@ -3,6 +3,7 @@
 #include "column_writer_detail.h"
 #include "helpers.h"
 
+#include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/versioned_row.h>
 
 #include <yt/yt/core/misc/bit_packed_unsigned_vector.h>
@@ -32,15 +33,21 @@ class TVersionedBooleanColumnWriter
     : public TVersionedColumnWriterBase
 {
 public:
-    TVersionedBooleanColumnWriter(int columnId, bool aggregate, TDataBlockWriter* blockWriter)
-        : TVersionedColumnWriterBase(columnId, aggregate, blockWriter)
+    TVersionedBooleanColumnWriter(
+        int columnId,
+        const TColumnSchema& columnSchema,
+        TDataBlockWriter* blockWriter)
+        : TVersionedColumnWriterBase(
+            columnId,
+            columnSchema,
+            blockWriter)
     {
         Reset();
     }
 
-    virtual void WriteValues(TRange<TVersionedRow> rows) override
+    virtual void WriteVersionedValues(TRange<TVersionedRow> rows) override
     {
-        AddPendingValues(
+        AddValues(
             rows,
             [&] (const TVersionedValue& value) {
                 bool isNull = value.Type == EValueType::Null;
@@ -93,12 +100,12 @@ private:
 
 std::unique_ptr<IValueColumnWriter> CreateVersionedBooleanColumnWriter(
     int columnId,
-    bool aggregate,
+    const TColumnSchema& columnSchema,
     TDataBlockWriter* blockWriter)
 {
     return std::make_unique<TVersionedBooleanColumnWriter>(
         columnId,
-        aggregate,
+        columnSchema,
         blockWriter);
 }
 
@@ -115,14 +122,14 @@ public:
         Reset();
     }
 
-    virtual void WriteValues(TRange<TVersionedRow> rows) override
+    virtual void WriteVersionedValues(TRange<TVersionedRow> rows) override
     {
-        AddPendingValues(rows);
+        AddValues(rows);
     }
 
     virtual void WriteUnversionedValues(TRange<TUnversionedRow> rows) override
     {
-        AddPendingValues(rows);
+        AddValues(rows);
     }
 
     virtual i32 GetCurrentSegmentSize() const override
@@ -167,7 +174,7 @@ private:
     }
 
     template <class TRow>
-    void AddPendingValues(TRange<TRow> rows)
+    void AddValues(TRange<TRow> rows)
     {
         for (auto row : rows) {
             ++RowCount_;

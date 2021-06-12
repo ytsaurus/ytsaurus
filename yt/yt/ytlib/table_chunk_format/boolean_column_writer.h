@@ -2,13 +2,15 @@
 
 #include "column_writer.h"
 
+#include <yt/yt/ytlib/table_client/public.h>
+
 namespace NYT::NTableChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IValueColumnWriter> CreateVersionedBooleanColumnWriter(
     int columnId,
-    bool aggregate,
+    const NTableClient::TColumnSchema& columnSchema,
     TDataBlockWriter* blockWriter);
 
 ////////////////////////////////////////////////////////////////////////////////

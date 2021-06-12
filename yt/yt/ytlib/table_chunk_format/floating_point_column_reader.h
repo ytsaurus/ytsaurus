@@ -2,7 +2,7 @@
 
 #include "column_reader.h"
 
-#include <yt/yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/public.h>
 
 namespace NYT::NTableChunkFormat {
 
@@ -12,7 +12,7 @@ template <typename T>
 std::unique_ptr<IVersionedColumnReader> CreateVersionedFloatingPointColumnReader(
     const NProto::TColumnMeta& columnMeta,
     int columnId,
-    bool aggregate);
+    const NTableClient::TColumnSchema& columnSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 

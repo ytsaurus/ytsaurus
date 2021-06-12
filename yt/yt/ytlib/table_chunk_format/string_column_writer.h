@@ -2,19 +2,23 @@
 
 #include "column_writer.h"
 
+#include <yt/yt/client/table_client/public.h>
+
 namespace NYT::NTableChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IValueColumnWriter> CreateVersionedStringColumnWriter(
     int columnId,
-    bool aggregate,
+    const NTableClient::TColumnSchema& columnSchema,
     TDataBlockWriter* dataBlockWriter);
 
 std::unique_ptr<IValueColumnWriter> CreateVersionedAnyColumnWriter(
     int columnId,
-    bool aggregate,
+    const NTableClient::TColumnSchema& columnSchema,
     TDataBlockWriter* dataBlockWriter);
+
+////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IValueColumnWriter> CreateUnversionedStringColumnWriter(
     int columnIndex,

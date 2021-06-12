@@ -18,7 +18,7 @@ public:
         : TColumnWriterBase(blockWriter)
     { }
 
-    virtual void WriteValues(TRange<TVersionedRow> rows) override
+    virtual void WriteVersionedValues(TRange<TVersionedRow> rows) override
     {
         RowCount_ += rows.size();
     }

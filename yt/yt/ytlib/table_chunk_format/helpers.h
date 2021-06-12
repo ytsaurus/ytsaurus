@@ -138,7 +138,7 @@ int CompareValues(
 
 inline ui32 GetTimestampIndex(
     const NTableClient::TVersionedValue& value,
-    const NTableClient::TVersionedRow row)
+    NTableClient::TVersionedRow row)
 {
     const NTableClient::TTimestamp* beginIt;
     const NTableClient::TTimestamp* endIt;
@@ -158,7 +158,9 @@ inline ui32 GetTimestampIndex(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TRange<NTableClient::TVersionedValue> FindValues(const NTableClient::TVersionedRow row, int columnId)
+inline TRange<NTableClient::TVersionedValue> FindValues(
+    NTableClient::TVersionedRow row,
+    int columnId)
 {
     auto lower = std::lower_bound(
         row.BeginValues(),

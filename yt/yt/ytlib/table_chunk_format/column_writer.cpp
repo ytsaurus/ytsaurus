@@ -15,8 +15,8 @@ using namespace NTableClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IValueColumnWriter> CreateUnversionedColumnWriter(
-    const TColumnSchema& columnSchema,
     int columnIndex,
+    const TColumnSchema& columnSchema,
     TDataBlockWriter* blockWriter)
 {
     switch (columnSchema.GetPhysicalType()) {
@@ -62,53 +62,53 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedColumnWriter(
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
+    int columnId,
     const TColumnSchema& columnSchema,
-    int id,
     TDataBlockWriter* blockWriter)
 {
     switch (columnSchema.GetPhysicalType()) {
         case EValueType::Int64:
             return CreateVersionedInt64ColumnWriter(
-                id,
-                static_cast<bool>(columnSchema.Aggregate()),
+                columnId,
+                columnSchema,
                 blockWriter);
 
         case EValueType::Uint64:
             return CreateVersionedUint64ColumnWriter(
-                id,
-                static_cast<bool>(columnSchema.Aggregate()),
+                columnId,
+                columnSchema,
                 blockWriter);
 
         case EValueType::Double:
             switch (auto simplifiedLogicalType = columnSchema.CastToV1Type()) {
                 case ESimpleLogicalValueType::Float:
                     return CreateVersionedFloatingPointColumnWriter<float>(
-                        id,
-                        static_cast<bool>(columnSchema.Aggregate()),
+                        columnId,
+                        columnSchema,
                         blockWriter);
                 default:
                     return CreateVersionedFloatingPointColumnWriter<double>(
-                        id,
-                        static_cast<bool>(columnSchema.Aggregate()),
+                        columnId,
+                        columnSchema,
                         blockWriter);
             }
 
         case EValueType::Boolean:
             return CreateVersionedBooleanColumnWriter(
-                id,
-                static_cast<bool>(columnSchema.Aggregate()),
+                columnId,
+                columnSchema,
                 blockWriter);
 
         case EValueType::Any:
             return CreateVersionedAnyColumnWriter(
-                id,
-                static_cast<bool>(columnSchema.Aggregate()),
+                columnId,
+                columnSchema,
                 blockWriter);
 
         case EValueType::String:
             return CreateVersionedStringColumnWriter(
-                id,
-                static_cast<bool>(columnSchema.Aggregate()),
+                columnId,
+                columnSchema,
                 blockWriter);
 
         case EValueType::Null:

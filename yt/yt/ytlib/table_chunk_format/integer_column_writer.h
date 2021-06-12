@@ -1,11 +1,8 @@
 #pragma once
 
-#include "public.h"
-
 #include "column_writer.h"
-#include "data_block_writer.h"
 
-#include <yt/yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/public.h>
 
 namespace NYT::NTableChunkFormat {
 
@@ -13,12 +10,12 @@ namespace NYT::NTableChunkFormat {
 
 std::unique_ptr<IValueColumnWriter> CreateVersionedInt64ColumnWriter(
     int columnId,
-    bool aggregate,
+    const NTableClient::TColumnSchema& columnSchema,
     TDataBlockWriter* dataBlockWriter);
 
 std::unique_ptr<IValueColumnWriter> CreateVersionedUint64ColumnWriter(
     int columnId,
-    bool aggregate,
+    const NTableClient::TColumnSchema& columnSchema,
     TDataBlockWriter* dataBlockWriter);
 
 ////////////////////////////////////////////////////////////////////////////////

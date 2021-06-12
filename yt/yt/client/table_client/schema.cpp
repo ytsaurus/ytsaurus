@@ -40,7 +40,7 @@ TLockMask MaxMask(TLockMask lhs, TLockMask rhs)
 TColumnSchema::TColumnSchema()
     : TColumnSchema(
         TString(),
-        NullLogicalType,
+        NullLogicalType(),
         std::nullopt)
 { }
 

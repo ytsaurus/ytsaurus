@@ -166,8 +166,8 @@ TEST(TNamedPositionalYsonConverter, TestStructSkipNullValues)
     auto type2 = StructLogicalType({
         {"opt_int", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
         {"opt_opt_int", OptionalLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))},
-        {"list_null", ListLogicalType(NullLogicalType)},
-        {"null", NullLogicalType},
+        {"list_null", ListLogicalType(NullLogicalType())},
+        {"null", NullLogicalType()},
     });
     CHECK_POSITIONAL_TO_NAMED(type2, "[42; [#]; []; #]", "{opt_int=42; opt_opt_int=[#]; list_null=[]}");
     CHECK_POSITIONAL_TO_NAMED(type2, "[#; #; [#; #;]]", "{list_null=[#; #;]}");

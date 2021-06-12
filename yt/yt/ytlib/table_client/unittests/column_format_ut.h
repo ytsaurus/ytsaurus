@@ -12,6 +12,7 @@
 #include <yt/yt/client/table_client/versioned_row.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/core/compression/codec.h>
 
@@ -63,16 +64,21 @@ class TVersionedColumnTestBase
 {
 protected:
     const TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
+
     TSharedRef Data_;
     NTableChunkFormat::NProto::TColumnMeta ColumnMeta_;
 
     TChunkedMemoryPool Pool_;
-    bool Aggregate_;
+
+    TColumnSchema ColumnSchema_;
+
+    static inline const auto NoAggregateSchema = TColumnSchema();
+    static inline const auto AggregateSchema = TColumnSchema().SetAggregate("max");
 
     static constexpr int ColumnId = 0;
     static constexpr int MaxValueCount = 10;
 
-    explicit TVersionedColumnTestBase(bool aggregate);
+    explicit TVersionedColumnTestBase(TColumnSchema columnSchema);
 
     virtual void SetUp() override;
 
@@ -90,7 +96,10 @@ protected:
         int endRowIndex,
         TTimestamp timestamp);
 
-    void ValidateValues(const TVersionedValue& expected, const TVersionedValue& actual, i64 rowIndex);
+    void ValidateValues(
+        const TVersionedValue& expected,
+        const TVersionedValue& actual,
+        i64 rowIndex);
 
     std::vector<TMutableVersionedRow> AllocateRows(int count);
 
@@ -170,7 +179,7 @@ protected:
     void WriteSegment(NTableChunkFormat::IValueColumnWriter* columnWriter, std::vector<std::optional<TValue>> values)
     {
         auto rows = CreateRows(values);
-        columnWriter->WriteValues(MakeRange(rows));
+        columnWriter->WriteVersionedValues(MakeRange(rows));
         columnWriter->FinishCurrentSegment();
     }
 
