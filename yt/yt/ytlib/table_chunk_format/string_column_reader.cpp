@@ -5,6 +5,7 @@
 #include "helpers.h"
 
 #include <yt/yt/ytlib/table_client/helpers.h>
+#include <yt/yt/ytlib/table_client/schema.h>
 
 #include <yt/yt/core/yson/lexer.h>
 
@@ -54,7 +55,7 @@ protected:
             *value = MakeUnversionedCompositeValue(string, id, flags);
         } else if constexpr (ValueType == EValueType::Any) {
             if constexpr (UnpackValue) {
-                YT_VERIFY(flags == EValueFlags::None);
+                YT_ASSERT(flags == EValueFlags::None);
                 *value = MakeUnversionedValue(string, id, Lexer_);
             } else {
                 *value = MakeUnversionedAnyValue(string, id, flags);
@@ -477,8 +478,14 @@ class TVersionedStringColumnReader
     : public TVersionedColumnReaderBase
 {
 public:
-    TVersionedStringColumnReader(const TColumnMeta& columnMeta, int columnId, bool aggregate)
-        : TVersionedColumnReaderBase(columnMeta, columnId, aggregate)
+    TVersionedStringColumnReader(
+        const TColumnMeta& columnMeta,
+        int columnId,
+        const TColumnSchema& columnSchema)
+        : TVersionedColumnReaderBase(
+            columnMeta,
+            columnId,
+            columnSchema)
     { }
 
 private:
@@ -519,23 +526,23 @@ private:
 std::unique_ptr<IVersionedColumnReader> CreateVersionedStringColumnReader(
     const TColumnMeta& columnMeta,
     int columnId,
-    bool aggregate)
+    const TColumnSchema& columnSchema)
 {
     return std::make_unique<TVersionedStringColumnReader<EValueType::String>>(
         columnMeta,
         columnId,
-        aggregate);
+        columnSchema);
 }
 
 std::unique_ptr<IVersionedColumnReader> CreateVersionedAnyColumnReader(
     const TColumnMeta& columnMeta,
     int columnId,
-    bool aggregate)
+    const TColumnSchema& columnSchema)
 {
     return std::make_unique<TVersionedStringColumnReader<EValueType::Any>>(
         columnMeta,
         columnId,
-        aggregate);
+        columnSchema);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

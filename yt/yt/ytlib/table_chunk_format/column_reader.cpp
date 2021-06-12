@@ -61,23 +61,23 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IVersionedColumnReader> CreateVersionedColumnReader(
-    const TColumnSchema& schema,
+    const TColumnSchema& columnSchema,
     const TColumnMeta& meta,
     int columnId)
 {
-    auto simplifiedLogicalType = schema.CastToV1Type();
-    switch (schema.GetPhysicalType()) {
+    auto simplifiedLogicalType = columnSchema.CastToV1Type();
+    switch (columnSchema.GetPhysicalType()) {
         case EValueType::Int64:
             return CreateVersionedInt64ColumnReader(
                 meta,
                 columnId,
-                static_cast<bool>(schema.Aggregate()));
+                columnSchema);
 
         case EValueType::Uint64:
             return CreateVersionedUint64ColumnReader(
                 meta,
                 columnId,
-                static_cast<bool>(schema.Aggregate()));
+                columnSchema);
 
         case EValueType::Double:
             switch (simplifiedLogicalType) {
@@ -85,34 +85,34 @@ std::unique_ptr<IVersionedColumnReader> CreateVersionedColumnReader(
                     return CreateVersionedFloatingPointColumnReader<float>(
                         meta,
                         columnId,
-                        static_cast<bool>(schema.Aggregate()));
+                        columnSchema);
                 default:
                     return CreateVersionedFloatingPointColumnReader<double>(
                         meta,
                         columnId,
-                        static_cast<bool>(schema.Aggregate()));
+                        columnSchema);
             }
 
         case EValueType::Boolean:
             return CreateVersionedBooleanColumnReader(
                 meta,
                 columnId,
-                static_cast<bool>(schema.Aggregate()));
+                columnSchema);
 
         case EValueType::String:
             return CreateVersionedStringColumnReader(
                 meta,
                 columnId,
-                static_cast<bool>(schema.Aggregate()));
+                columnSchema);
 
         case EValueType::Any:
             return CreateVersionedAnyColumnReader(
                 meta,
                 columnId,
-                static_cast<bool>(schema.Aggregate()));
+                columnSchema);
 
         default:
-            ThrowUnexpectedValueType(schema.GetPhysicalType());
+            ThrowUnexpectedValueType(columnSchema.GetPhysicalType());
     }
 }
 

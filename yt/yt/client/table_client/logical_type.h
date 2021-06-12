@@ -407,10 +407,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const TLogicalTypePtr NullLogicalType;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TLogicalTypePtr SimpleLogicalType(ESimpleLogicalValueType element);
 TLogicalTypePtr DecimalLogicalType(int precision, int scale);
 TLogicalTypePtr OptionalLogicalType(TLogicalTypePtr element);
@@ -421,6 +417,7 @@ TLogicalTypePtr VariantStructLogicalType(std::vector<TStructField> fields);
 TLogicalTypePtr VariantTupleLogicalType(std::vector<TLogicalTypePtr> elements);
 TLogicalTypePtr DictLogicalType(TLogicalTypePtr key, TLogicalTypePtr value);
 TLogicalTypePtr TaggedLogicalType(TString tag, TLogicalTypePtr element);
+TLogicalTypePtr NullLogicalType();
 
 TLogicalTypePtr MakeOptionalIfNot(TLogicalTypePtr element);
 

@@ -3,6 +3,8 @@
 #include "column_writer.h"
 #include "private.h"
 
+#include <yt/yt/client/table_client/public.h>
+
 #include <yt/yt/core/misc/bitmap.h>
 #include <yt/yt/core/misc/ref.h>
 
@@ -14,16 +16,15 @@ class TColumnWriterBase
     : public IValueColumnWriter
 {
 public:
-    TColumnWriterBase(TDataBlockWriter* blockWriter);
+    explicit TColumnWriterBase(TDataBlockWriter* blockWriter);
 
     virtual void FinishBlock(int blockIndex) override;
 
     virtual const NProto::TColumnMeta& ColumnMeta() const override;
-
     virtual i64 GetMetaSize() const override;
 
 protected:
-    TDataBlockWriter* BlockWriter_;
+    TDataBlockWriter* const BlockWriter_;
 
     i64 RowCount_ = 0;
 
@@ -40,7 +41,10 @@ class TVersionedColumnWriterBase
     : public TColumnWriterBase
 {
 public:
-    TVersionedColumnWriterBase(int columnId, bool aggregate, TDataBlockWriter* blockWriter);
+    TVersionedColumnWriterBase(
+        int columnId,
+        const NTableClient::TColumnSchema& columnSchema,
+        TDataBlockWriter* blockWriter);
 
     virtual i32 GetCurrentSegmentSize() const override;
 
@@ -49,6 +53,7 @@ public:
 protected:
     const int ColumnId_;
     const bool Aggregate_;
+    const bool Hunk_;
 
     i64 EmptyPendingRowCount_ = 0;
 
@@ -63,7 +68,7 @@ protected:
 
     void Reset();
 
-    void AddPendingValues(
+    void AddValues(
         TRange<NTableClient::TVersionedRow> rows,
         std::function<void (const NTableClient::TVersionedValue& value)> onValue);
 

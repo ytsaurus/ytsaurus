@@ -6,8 +6,7 @@
 
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/column_meta.pb.h>
 
-#include <yt/yt/client/table_client/comparator.h>
-#include <yt/yt/client/table_client/versioned_row.h>
+#include <yt/yt/client/table_client/public.h>
 
 namespace NYT::NTableChunkFormat {
 
@@ -16,12 +15,12 @@ namespace NYT::NTableChunkFormat {
 std::unique_ptr<IVersionedColumnReader> CreateVersionedInt64ColumnReader(
     const NProto::TColumnMeta& columnMeta,
     int columnId,
-    bool aggregate);
+    const NTableClient::TColumnSchema& columnSchema);
 
 std::unique_ptr<IVersionedColumnReader> CreateVersionedUint64ColumnReader(
     const NProto::TColumnMeta& columnMeta,
     int columnId,
-    bool aggregate);
+    const NTableClient::TColumnSchema& columnSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 

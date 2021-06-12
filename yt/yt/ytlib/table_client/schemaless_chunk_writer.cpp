@@ -674,15 +674,15 @@ public:
             }
         };
 
-        for (int columnIndex = 0; columnIndex < std::ssize(Schema_->Columns()); ++columnIndex) {
-            const auto& column = Schema_->Columns()[columnIndex];
+        for (int columnIndex = 0; columnIndex < Schema_->GetColumnCount(); ++columnIndex) {
+            const auto& columnSchema = Schema_->Columns()[columnIndex];
             ValueColumnWriters_.emplace_back(CreateUnversionedColumnWriter(
-                column,
                 columnIndex,
-                getBlockWriter(column)));
+                columnSchema,
+                getBlockWriter(columnSchema)));
         }
 
-        if (!Schema_->GetStrict() || BlockWriters_.size() == 0) {
+        if (!Schema_->GetStrict() || BlockWriters_.empty()) {
             // When we have empty strict schema, we create schemaless writer (trash writer) to fullfill the invariant
             // that at least one writer should be present.
             auto blockWriter = std::make_unique<TDataBlockWriter>();

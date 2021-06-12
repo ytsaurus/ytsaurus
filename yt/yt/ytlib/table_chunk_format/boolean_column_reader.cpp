@@ -96,8 +96,14 @@ class TVersionedBooleanColumnReader
     : public TVersionedColumnReaderBase
 {
 public:
-    TVersionedBooleanColumnReader(const TColumnMeta& columnMeta, int columnId, bool aggregate)
-        : TVersionedColumnReaderBase(columnMeta, columnId, aggregate)
+    TVersionedBooleanColumnReader(
+        const TColumnMeta& columnMeta,
+        int columnId,
+        const TColumnSchema& columnSchema)
+        : TVersionedColumnReaderBase(
+            columnMeta,
+            columnId,
+            columnSchema)
     { }
 
 private:
@@ -122,12 +128,12 @@ private:
 std::unique_ptr<IVersionedColumnReader> CreateVersionedBooleanColumnReader(
     const TColumnMeta& columnMeta,
     int columnId,
-    bool aggregate)
+    const TColumnSchema& columnSchema)
 {
     return std::make_unique<TVersionedBooleanColumnReader>(
         columnMeta,
         columnId,
-        aggregate);
+        columnSchema);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

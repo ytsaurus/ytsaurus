@@ -32,8 +32,8 @@ protected:
         bool Aggregate;
     };
 
-    TVersionedIntegerColumnTest(TStored base, bool aggregate)
-        : TVersionedColumnTestBase(aggregate)
+    TVersionedIntegerColumnTest(TStored base, TColumnSchema columnSchema)
+        : TVersionedColumnTestBase(std::move(columnSchema))
         , Base(base)
     { }
 
@@ -44,7 +44,7 @@ protected:
             nullptr,
             value.Timestamp,
             ColumnId,
-            Aggregate_ && value.Aggregate ? EValueFlags::Aggregate : EValueFlags::None);
+            ColumnSchema_.Aggregate() && value.Aggregate ? EValueFlags::Aggregate : EValueFlags::None);
     }
 
     TVersionedRow CreateRow(const std::vector<TValue>& values) const
@@ -203,17 +203,17 @@ class TAggregateVersionedInt64ColumnTest
 {
 public:
     TAggregateVersionedInt64ColumnTest()
-        : TVersionedIntegerColumnTest<i64>(-1234, true)
+        : TVersionedIntegerColumnTest<i64>(-1234, AggregateSchema)
     { }
 
     virtual std::unique_ptr<IVersionedColumnReader> DoCreateColumnReader() override
     {
-        return CreateVersionedInt64ColumnReader(ColumnMeta_, ColumnId, Aggregate_);
+        return CreateVersionedInt64ColumnReader(ColumnMeta_, ColumnId, ColumnSchema_);
     }
 
     virtual std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
     {
-        return CreateVersionedInt64ColumnWriter(ColumnId, Aggregate_, blockWriter);
+        return CreateVersionedInt64ColumnWriter(ColumnId, ColumnSchema_, blockWriter);
     }
 };
 
@@ -226,17 +226,17 @@ class TSimpleVersionedInt64ColumnTest
 {
 public:
     TSimpleVersionedInt64ColumnTest()
-        : TVersionedIntegerColumnTest<i64>(-1234, false)
+        : TVersionedIntegerColumnTest<i64>(-1234, NoAggregateSchema)
     { }
 
     virtual std::unique_ptr<IVersionedColumnReader> DoCreateColumnReader() override
     {
-        return CreateVersionedInt64ColumnReader(ColumnMeta_, ColumnId, Aggregate_);
+        return CreateVersionedInt64ColumnReader(ColumnMeta_, ColumnId, ColumnSchema_);
     }
 
     virtual std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
     {
-        return CreateVersionedInt64ColumnWriter(ColumnId, Aggregate_, blockWriter);
+        return CreateVersionedInt64ColumnWriter(ColumnId, ColumnSchema_, blockWriter);
     }
 };
 
@@ -249,17 +249,17 @@ class TAggregateVersionedUint64ColumnTest
 {
 public:
     TAggregateVersionedUint64ColumnTest()
-        : TVersionedIntegerColumnTest<ui64>(1234, true)
+        : TVersionedIntegerColumnTest<ui64>(1234, AggregateSchema)
     { }
 
     virtual std::unique_ptr<IVersionedColumnReader> DoCreateColumnReader() override
     {
-        return CreateVersionedUint64ColumnReader(ColumnMeta_, ColumnId, Aggregate_);
+        return CreateVersionedUint64ColumnReader(ColumnMeta_, ColumnId, ColumnSchema_);
     }
 
     virtual std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
     {
-        return CreateVersionedUint64ColumnWriter(ColumnId, Aggregate_, blockWriter);
+        return CreateVersionedUint64ColumnWriter(ColumnId, ColumnSchema_, blockWriter);
     }
 };
 
@@ -272,17 +272,17 @@ class TSimpleVersionedUint64ColumnTest
 {
 public:
     TSimpleVersionedUint64ColumnTest()
-        : TVersionedIntegerColumnTest<ui64>(1234, false)
+        : TVersionedIntegerColumnTest<ui64>(1234, NoAggregateSchema)
     { }
 
     virtual std::unique_ptr<IVersionedColumnReader> DoCreateColumnReader() override
     {
-        return CreateVersionedUint64ColumnReader(ColumnMeta_, ColumnId, Aggregate_);
+        return CreateVersionedUint64ColumnReader(ColumnMeta_, ColumnId, ColumnSchema_);
     }
 
     virtual std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
     {
-        return CreateVersionedUint64ColumnWriter(ColumnId, Aggregate_, blockWriter);
+        return CreateVersionedUint64ColumnWriter(ColumnId, ColumnSchema_, blockWriter);
     }
 };
 

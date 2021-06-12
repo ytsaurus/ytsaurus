@@ -2,6 +2,7 @@
 #include "column_writer_detail.h"
 #include "helpers.h"
 
+#include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/versioned_row.h>
 
 #include <yt/yt/core/misc/bit_packed_unsigned_vector.h>
@@ -17,6 +18,8 @@ static const int MaxValueCount = 128 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 template <typename T>
 TSharedRef SerializeFloatingPointVector(const std::vector<T>& values)
 {
@@ -29,6 +32,8 @@ TSharedRef SerializeFloatingPointVector(const std::vector<T>& values)
     return data;
 }
 
+} // namespace
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
@@ -36,16 +41,21 @@ class TVersionedFloatingPointColumnWriter
     : public TVersionedColumnWriterBase
 {
 public:
-    TVersionedFloatingPointColumnWriter(int columnId, bool aggregate, TDataBlockWriter* blockWriter)
-        : TVersionedColumnWriterBase(columnId, aggregate, blockWriter)
+    TVersionedFloatingPointColumnWriter(
+        int columnId,
+        const TColumnSchema& columnSchema,
+        TDataBlockWriter* blockWriter)
+        : TVersionedColumnWriterBase(
+            columnId,
+            columnSchema,
+            blockWriter)
     {
-        static_assert(std::is_floating_point_v<T>);
         Reset();
     }
 
-    virtual void WriteValues(TRange<TVersionedRow> rows) override
+    virtual void WriteVersionedValues(TRange<TVersionedRow> rows) override
     {
-        AddPendingValues(
+        AddValues(
             rows,
             [&] (const TVersionedValue& value) {
                 Values_.push_back(static_cast<T>(value.Data.Double));
@@ -61,9 +71,10 @@ public:
         if (ValuesPerRow_.empty()) {
             return 0;
         } else {
-            return Values_.size() * sizeof(double) +
-                   NullBitmap_.GetByteSize() +
-                   TVersionedColumnWriterBase::GetCurrentSegmentSize();
+            return
+                Values_.size() * sizeof(double) +
+                NullBitmap_.GetByteSize() +
+                TVersionedColumnWriterBase::GetCurrentSegmentSize();
         }
     }
 
@@ -76,6 +87,8 @@ public:
     }
 
 private:
+    static_assert(std::is_floating_point_v<T>);
+
     std::vector<T> Values_;
 
     void Reset()
@@ -104,12 +117,12 @@ private:
 template <typename T>
 std::unique_ptr<IValueColumnWriter> CreateVersionedFloatingPointColumnWriter(
     int columnId,
-    bool aggregate,
+    const TColumnSchema& columnSchema,
     TDataBlockWriter* blockWriter)
 {
     return std::make_unique<TVersionedFloatingPointColumnWriter<T>>(
         columnId,
-        aggregate,
+        columnSchema,
         blockWriter);
 }
 
@@ -128,7 +141,7 @@ public:
         Reset();
     }
 
-    virtual void WriteValues(TRange<TVersionedRow> rows) override
+    virtual void WriteVersionedValues(TRange<TVersionedRow> rows) override
     {
         DoWriteValues(rows);
     }
@@ -184,14 +197,14 @@ private:
     template <class TRow>
     void DoWriteValues(TRange<TRow> rows)
     {
-        AddPendingValues(rows);
+        AddValues(rows);
         if (Values_.size() > MaxValueCount) {
             FinishCurrentSegment();
         }
     }
 
     template <class TRow>
-    void AddPendingValues(TRange<TRow> rows)
+    void AddValues(TRange<TRow> rows)
     {
         for (auto row : rows) {
             ++RowCount_;
@@ -228,13 +241,13 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedFloatingPointColumnWriter<d
 template
 std::unique_ptr<IValueColumnWriter> CreateVersionedFloatingPointColumnWriter<float>(
     int columnId,
-    bool aggregate,
+    const TColumnSchema& columnSchema,
     TDataBlockWriter* blockWriter);
 
 template
 std::unique_ptr<IValueColumnWriter> CreateVersionedFloatingPointColumnWriter<double>(
     int columnId,
-    bool aggregate,
+    const TColumnSchema& columnSchema,
     TDataBlockWriter* blockWriter);
 
 ////////////////////////////////////////////////////////////////////////////////

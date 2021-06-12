@@ -90,8 +90,14 @@ class TVersionedFloatingPointColumnReader
     : public TVersionedColumnReaderBase
 {
 public:
-    TVersionedFloatingPointColumnReader(const TColumnMeta& columnMeta, int columnId, bool aggregate)
-        : TVersionedColumnReaderBase(columnMeta, columnId, aggregate)
+    TVersionedFloatingPointColumnReader(
+        const TColumnMeta& columnMeta,
+        int columnId,
+        const TColumnSchema& columnSchema)
+        : TVersionedColumnReaderBase(
+            columnMeta,
+            columnId,
+            columnSchema)
     { }
 
 private:
@@ -117,12 +123,12 @@ template <typename T>
 std::unique_ptr<IVersionedColumnReader> CreateVersionedFloatingPointColumnReader(
     const TColumnMeta& columnMeta,
     int columnId,
-    bool aggregate)
+    const TColumnSchema& columnSchema)
 {
     return std::make_unique<TVersionedFloatingPointColumnReader<T>>(
         columnMeta,
         columnId,
-        aggregate);
+        columnSchema);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -235,13 +241,13 @@ template
 std::unique_ptr<IVersionedColumnReader> CreateVersionedFloatingPointColumnReader<float>(
     const NProto::TColumnMeta& columnMeta,
     int columnId,
-    bool aggregate);
+    const TColumnSchema& columnSchema);
 
 template
 std::unique_ptr<IVersionedColumnReader> CreateVersionedFloatingPointColumnReader<double>(
     const NProto::TColumnMeta& columnMeta,
     int columnId,
-    bool aggregate);
+    const TColumnSchema& columnSchema);
 
 template
 std::unique_ptr<IUnversionedColumnReader> CreateUnversionedFloatingPointColumnReader<float>(

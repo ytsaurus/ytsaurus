@@ -67,8 +67,8 @@ std::vector<TUnversionedOwningRow> TSingleColumnReader::ReadBlock(const TSharedR
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TVersionedColumnTestBase::TVersionedColumnTestBase(bool aggregate)
-    : Aggregate_(aggregate)
+TVersionedColumnTestBase::TVersionedColumnTestBase(TColumnSchema columnSchema)
+    : ColumnSchema_(std::move(columnSchema))
 { }
 
 void TVersionedColumnTestBase::SetUp()
@@ -105,7 +105,7 @@ TVersionedRow TVersionedColumnTestBase::CreateRowWithValues(const std::vector<TV
 
 void TVersionedColumnTestBase::WriteSegment(IValueColumnWriter* columnWriter, const std::vector<TVersionedRow>& rows)
 {
-    columnWriter->WriteValues(MakeRange(rows));
+    columnWriter->WriteVersionedValues(MakeRange(rows));
     columnWriter->FinishCurrentSegment();
 }
 
@@ -192,7 +192,7 @@ std::vector<TVersionedRow> TVersionedColumnTestBase::GetExpectedRows(
         TVersionedRowBuilder builder(RowBuffer_);
         for (const auto& value : values) {
             builder.AddValue(value);
-            if (!Aggregate_) {
+            if (!ColumnSchema_.Aggregate()) {
                 break;
             }
         }

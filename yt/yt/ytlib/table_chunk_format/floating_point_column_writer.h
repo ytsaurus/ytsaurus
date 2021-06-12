@@ -2,6 +2,8 @@
 
 #include "column_writer.h"
 
+#include <yt/yt/client/table_client/public.h>
+
 namespace NYT::NTableChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -16,7 +18,7 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedFloatingPointColumnWriter(
 template <typename T>
 std::unique_ptr<IValueColumnWriter> CreateVersionedFloatingPointColumnWriter(
     int columnId,
-    bool aggregate,
+    const NTableClient::TColumnSchema& columnSchema,
     TDataBlockWriter* blockWriter);
 
 ////////////////////////////////////////////////////////////////////////////////

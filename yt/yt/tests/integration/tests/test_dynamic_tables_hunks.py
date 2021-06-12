@@ -66,7 +66,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         schema[1]["max_inline_hunk_size"] = max_inline_hunk_size
         return schema
 
-    def _create_table(self, max_inline_hunk_size=10):
+    def _create_table(self, optimize_for="lookup", max_inline_hunk_size=10):
         self._create_simple_table("//tmp/t",
                                   schema=self._get_table_schema(max_inline_hunk_size),
                                   enable_dynamic_store_read=False,
@@ -76,7 +76,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
                                   },
                                   min_hunk_compaction_total_hunk_length=1,
                                   max_hunk_compaction_garbage_ratio=0.5,
-                                  enable_lsm_verbose_logging=True)
+                                  enable_lsm_verbose_logging=True,
+                                  optimize_for=optimize_for)
 
     def _get_store_chunk_ids(self, path):
         chunk_ids = get(path + "/@chunk_ids")
@@ -87,9 +88,10 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         return [chunk_id for chunk_id in chunk_ids if get("#{}/@chunk_type".format(chunk_id)) == "hunk"]
 
     @authors("babenko")
-    def test_flush_inline(self):
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_flush_inline(self, optimize_for):
         sync_create_cells(1)
-        self._create_table()
+        self._create_table(optimize_for=optimize_for)
 
         sync_mount_table("//tmp/t")
         keys = [{"key": i} for i in xrange(10)]
@@ -113,9 +115,10 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
 
     @authors("babenko")
-    def test_flush_to_hunk_chunk(self):
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_flush_to_hunk_chunk(self, optimize_for):
         sync_create_cells(1)
-        self._create_table()
+        self._create_table(optimize_for=optimize_for)
 
         sync_mount_table("//tmp/t")
         keys = [{"key": i} for i in xrange(10)]
@@ -147,9 +150,10 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert_items_equal(select_rows("* from [//tmp/t] where value = \"{}\"".format(rows[0]["value"])), [rows[0]])
 
     @authors("babenko")
-    def test_compaction(self):
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_compaction(self, optimize_for):
         sync_create_cells(1)
-        self._create_table()
+        self._create_table(optimize_for=optimize_for)
 
         sync_mount_table("//tmp/t")
         rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10)]
@@ -321,9 +325,10 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert_items_equal(select_rows("* from [//tmp/t]"), rows1 + rows2)
 
     @authors("babenko")
-    def test_compaction_writes_hunk_chunk(self):
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_compaction_writes_hunk_chunk(self, optimize_for):
         sync_create_cells(1)
-        self._create_table(max_inline_hunk_size=1000)
+        self._create_table(optimize_for=optimize_for, max_inline_hunk_size=1000)
 
         sync_mount_table("//tmp/t")
         rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10)]
@@ -355,9 +360,10 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         ])
 
     @authors("babenko")
-    def test_compaction_inlines_hunks(self):
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_compaction_inlines_hunks(self, optimize_for):
         sync_create_cells(1)
-        self._create_table(max_inline_hunk_size=10)
+        self._create_table(optimize_for=optimize_for, max_inline_hunk_size=10)
 
         sync_mount_table("//tmp/t")
         rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10)]
@@ -389,9 +395,10 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert get("#{}/@hunk_chunk_refs".format(store_chunk_id)) == []
 
     @authors("babenko")
-    def test_compaction_rewrites_hunk_chunk(self):
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_compaction_rewrites_hunk_chunk(self, optimize_for):
         sync_create_cells(1)
-        self._create_table(max_inline_hunk_size=10)
+        self._create_table(optimize_for=optimize_for, max_inline_hunk_size=10)
 
         sync_mount_table("//tmp/t")
         rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10)]
@@ -511,10 +518,11 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         wait(lambda: _check_account_resource_usage(0))
 
     @authors("gritukan")
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("hunk_type", ["inline", "chunk"])
-    def test_hunks_in_operation(self, hunk_type):
+    def test_hunks_in_operation(self, optimize_for, hunk_type):
         sync_create_cells(1)
-        self._create_table()
+        self._create_table(optimize_for=optimize_for)
         sync_mount_table("//tmp/t")
 
         if hunk_type == "inline":

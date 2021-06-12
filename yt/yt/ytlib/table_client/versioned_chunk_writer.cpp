@@ -419,11 +419,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TColumnVersionedChunkWriter
+class TColumnarVersionedChunkWriter
     : public TVersionedChunkWriterBase
 {
 public:
-    TColumnVersionedChunkWriter(
+    TColumnarVersionedChunkWriter(
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
         TTableSchemaPtr schema,
@@ -439,10 +439,10 @@ public:
     {
         // Only scan-optimized version for now.
         THashMap<TString, TDataBlockWriter*> groupBlockWriters;
-        for (const auto& column : Schema_->Columns()) {
-            if (column.Group() && groupBlockWriters.find(*column.Group()) == groupBlockWriters.end()) {
+        for (const auto& columnSchema : Schema_->Columns()) {
+            if (columnSchema.Group() && groupBlockWriters.find(*columnSchema.Group()) == groupBlockWriters.end()) {
                 auto blockWriter = std::make_unique<TDataBlockWriter>();
-                groupBlockWriters[*column.Group()] = blockWriter.get();
+                groupBlockWriters[*columnSchema.Group()] = blockWriter.get();
                 BlockWriters_.emplace_back(std::move(blockWriter));
             }
         }
@@ -458,11 +458,11 @@ public:
 
         // Key columns.
         for (int keyColumnIndex = 0; keyColumnIndex < Schema_->GetKeyColumnCount(); ++keyColumnIndex) {
-            const auto& column = Schema_->Columns()[keyColumnIndex];
+            const auto& columnSchema = Schema_->Columns()[keyColumnIndex];
             ValueColumnWriters_.emplace_back(CreateUnversionedColumnWriter(
-                column,
                 keyColumnIndex,
-                getBlockWriter(column)));
+                columnSchema,
+                getBlockWriter(columnSchema)));
         }
 
         // Non-key columns.
@@ -471,11 +471,11 @@ public:
             valueColumnIndex < std::ssize(Schema_->Columns());
             ++valueColumnIndex)
         {
-            const auto& column = Schema_->Columns()[valueColumnIndex];
+            const auto& columnSchema = Schema_->Columns()[valueColumnIndex];
             ValueColumnWriters_.emplace_back(CreateVersionedColumnWriter(
-                column,
                 valueColumnIndex,
-                getBlockWriter(column)));
+                columnSchema,
+                getBlockWriter(columnSchema)));
         }
 
         auto blockWriter = std::make_unique<TDataBlockWriter>();
@@ -538,7 +538,7 @@ private:
 
             auto range = MakeRange(rows.Begin() + startRowIndex, rows.Begin() + rowIndex);
             for (const auto& columnWriter : ValueColumnWriters_) {
-                columnWriter->WriteValues(range);
+                columnWriter->WriteVersionedValues(range);
             }
             TimestampWriter_->WriteTimestamps(range);
 
@@ -588,7 +588,6 @@ private:
             } else {
                 DataToBlockFlush_ = std::min(Config_->MaxBufferSize - totalSize, Config_->BlockSize - maxWriterSize);
                 DataToBlockFlush_ = std::max(MinRowRangeDataWeight, DataToBlockFlush_);
-
                 break;
             }
         }
@@ -662,7 +661,7 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
     }
 
     if (options->OptimizeFor == EOptimizeFor::Scan) {
-        return New<TColumnVersionedChunkWriter>(
+        return New<TColumnarVersionedChunkWriter>(
             std::move(config),
             std::move(options),
             std::move(schema),
