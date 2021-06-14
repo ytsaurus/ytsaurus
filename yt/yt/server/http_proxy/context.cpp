@@ -181,6 +181,11 @@ bool TContext::TryParseUser()
     if (!authResult.IsOK()) {
         YT_LOG_DEBUG(authResult, "Authentication error");
 
+        if (DriverRequest_.CommandName == "discover_proxies") {
+            DriverRequest_.AuthenticatedUser = NSecurityClient::RootUserName;
+            return true;
+        }
+
         SetStatusFromAuthError(Response_, TError(authResult));
         FillYTErrorHeaders(Response_, TError(authResult));
         DispatchJson([&] (auto consumer) {
