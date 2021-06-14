@@ -38,6 +38,7 @@ from yt_commands import (  # noqa
     build_snapshot, gc_collect,
     get_driver, Driver, execute_command)
 
+from yt.common import YtError
 from yt.test_helpers import assert_items_equal
 
 import pytest
@@ -545,3 +546,35 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
             command="cat",
         )
         assert read_table("//tmp/t_out") == rows
+
+    @authors("babenko")
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_alter_to_hunks(self, optimize_for):
+        sync_create_cells(1)
+        self._create_table(optimize_for=optimize_for, max_inline_hunk_size=None)
+        sync_mount_table("//tmp/t")
+        rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10)]
+        insert_rows("//tmp/t", rows1)
+        sync_unmount_table("//tmp/t")
+
+        assert len(self._get_store_chunk_ids("//tmp/t")) == 1
+        assert len(self._get_hunk_chunk_ids("//tmp/t")) == 0
+
+        alter_table("//tmp/t", schema=self._get_table_schema(max_inline_hunk_size=10))
+
+        sync_mount_table("//tmp/t")
+        rows2 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10, 20)]
+        insert_rows("//tmp/t", rows2)
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows1 + rows2)
+
+        sync_unmount_table("//tmp/t")
+
+        assert len(self._get_store_chunk_ids("//tmp/t")) == 2
+        assert len(self._get_hunk_chunk_ids("//tmp/t")) == 1
+
+    @authors("babenko")
+    def test_alter_must_preserve_hunks(self):
+        self._create_table()
+        with pytest.raises(YtError):
+            alter_table("//tmp/t", schema=self._get_table_schema(max_inline_hunk_size=None))
