@@ -109,7 +109,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTransactionToSnapshotLocksIterator, TransactionToSnapshotLocksIterator);
 
 public:
-    explicit TLock(const TLockId& id);
+    explicit TLock(TLockId id);
 
     virtual TString GetLowercaseObjectName() const override;
     virtual TString GetCapitalizedObjectName() const override;

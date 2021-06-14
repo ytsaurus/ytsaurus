@@ -1032,7 +1032,7 @@ void TMapNodeChildren::UnrefChildren(const NObjectServer::TObjectManagerPtr& obj
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMapNode::TMapNode(const TVersionedNodeId& id)
+TMapNode::TMapNode(TVersionedNodeId id)
     : TCompositeNodeBase(id)
 { }
 

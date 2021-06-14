@@ -6,7 +6,6 @@
 #include "transaction_replication_session.h"
 #include "transaction.h"
 #include "transaction_proxy.h"
-#include "yt/yt/server/lib/transaction_server/private.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -28,6 +27,7 @@
 #include <yt/yt/server/lib/hydra/mutation.h>
 
 #include <yt/yt/server/lib/transaction_server/helpers.h>
+#include <yt/yt/server/lib/transaction_server/private.h>
 
 #include <yt/yt/server/master/object_server/attribute_set.h>
 #include <yt/yt/server/master/object_server/object.h>

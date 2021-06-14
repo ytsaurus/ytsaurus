@@ -100,7 +100,7 @@ bool TChunkOwnerTypeHandler<TChunkOwner>::HasBranchedChangesImpl(TChunkOwner* or
 
 template <class TChunkOwner>
 std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
-    const TVersionedNodeId& id,
+    TVersionedNodeId id,
     const TCreateNodeContext& context,
     int replicationFactor,
     NCompression::ECodec compressionCodec,

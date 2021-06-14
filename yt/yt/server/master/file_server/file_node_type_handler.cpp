@@ -51,7 +51,7 @@ protected:
     }
 
     virtual std::unique_ptr<TFileNode> DoCreate(
-        const TVersionedNodeId& id,
+        TVersionedNodeId id,
         const TCreateNodeContext& context) override
     {
         const auto& config = Bootstrap_->GetConfig()->CypressManager;

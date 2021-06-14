@@ -26,7 +26,7 @@ public:
 
 protected:
     virtual std::unique_ptr<TImpl> DoCreate(
-        const NCypressServer::TVersionedNodeId& id,
+        NCypressServer::TVersionedNodeId id,
         const NCypressServer::TCreateNodeContext& context) override;
 
     virtual void DoDestroy(TImpl* table) override;

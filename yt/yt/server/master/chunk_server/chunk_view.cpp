@@ -12,7 +12,7 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkView::TChunkView(const TChunkViewId& id)
+TChunkView::TChunkView(TChunkViewId id)
     : TChunkTree(id)
 { }
 

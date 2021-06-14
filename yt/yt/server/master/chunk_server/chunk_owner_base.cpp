@@ -39,7 +39,7 @@ static const auto& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkOwnerBase::TChunkOwnerBase(const TVersionedNodeId& id)
+TChunkOwnerBase::TChunkOwnerBase(TVersionedNodeId id)
     : TCypressNode(id)
 {
     Replication_.SetVital(true);

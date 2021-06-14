@@ -202,7 +202,7 @@ public:
     //! Always null for non-trunk nodes.
     DEFINE_BYVAL_RW_PROPERTY(TResolveCacheNodePtr, ResolveCacheNode);
 
-    explicit TCypressNode(const TVersionedNodeId& id);
+    explicit TCypressNode(TVersionedNodeId id);
     virtual ~TCypressNode();
 
     NHydra::TRevision GetRevision() const;

@@ -559,7 +559,7 @@ class TVirtualNode
     : public TCypressNode
 {
 public:
-    explicit TVirtualNode(const TVersionedNodeId& id)
+    explicit TVirtualNode(TVersionedNodeId id)
         : TCypressNode(id)
     { }
 

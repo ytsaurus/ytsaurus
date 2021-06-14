@@ -825,7 +825,7 @@ private:
             : Bootstrap_(bootstrap)
         { }
 
-        std::unique_ptr<T> Create(const TObjectId& id) const
+        std::unique_ptr<T> Create(TObjectId id) const
         {
             auto type = TypeFromId(id);
             const auto& objectManager = Bootstrap_->GetObjectManager();
