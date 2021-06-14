@@ -63,7 +63,7 @@ class YtTestEnvironment(object):
 
         has_http_proxy = config["backend"] not in ("native",)
 
-        logging.getLogger("Yt.local").setLevel(logging.INFO)
+        logging.getLogger("YtLocal").setLevel(logging.INFO)
 
         run_id = uuid.uuid4().hex[:8]
         self.uniq_dir_name = os.path.join(self.test_name, "run_" + run_id)

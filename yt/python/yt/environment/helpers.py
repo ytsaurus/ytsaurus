@@ -47,7 +47,7 @@ if yatest_common is not None:
 else:
     yatest_common_network = None
 
-logger = logging.getLogger("Yt.local")
+logger = logging.getLogger("YtLocal")
 
 def _dump_netstat(dump_file_path):
     logger.info("Dumping netstat to the file '{}'".format(dump_file_path))
