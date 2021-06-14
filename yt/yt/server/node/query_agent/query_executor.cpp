@@ -706,6 +706,7 @@ private:
         }
 
         size_t rangesCount = 0;
+        size_t keysCount = 0;
         for (const auto& source : DataSources_) {
             TRowRanges rowRanges;
             std::vector<TRow> keys;
@@ -725,6 +726,7 @@ private:
 
             auto pushKeys = [&] {
                 if (!keys.empty()) {
+                    keysCount += keys.size();
                     dataSourcesByTablet.push_back(TDataSource{
                         .ObjectId = source.ObjectId,
                         .CellId = source.CellId,
@@ -772,7 +774,7 @@ private:
             pushKeys();
         }
 
-        YT_LOG_DEBUG("Splitting ranges (RangeCount: %v)", rangesCount);
+        YT_LOG_DEBUG("Splitting ranges (RangesCount: %v, KeysCount: %v)", rangesCount, keysCount);
 
         auto splits = Split(std::move(dataSourcesByTablet), rowBuffer);
 
