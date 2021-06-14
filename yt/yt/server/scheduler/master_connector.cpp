@@ -135,7 +135,6 @@ public:
 
     const IInvokerPtr& GetCancelableControlInvoker(EControlQueue queue) const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         return CancelableControlInvokers_[queue];
@@ -1130,7 +1129,7 @@ private:
                 scheduler->GetOperationBaseAcl(),
                 user,
                 attributes.Get<TInstant>("start_time"),
-                Owner_->Bootstrap_->GetControlInvoker(EControlQueue::Operation),
+                Owner_->GetCancelableControlInvoker(EControlQueue::Operation),
                 spec->Alias,
                 std::move(preprocessedSpec.ExperimentAssignments),
                 attributes.Get<EOperationState>("state"),
