@@ -137,7 +137,7 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableNode::TTableNode(const TVersionedNodeId& id)
+TTableNode::TTableNode(TVersionedNodeId id)
     : TChunkOwnerBase(id)
 {
     if (IsTrunk()) {

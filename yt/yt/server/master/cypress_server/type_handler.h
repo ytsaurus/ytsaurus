@@ -53,7 +53,7 @@ struct INodeTypeHandler
     //! Create an empty instance of a node.
     //! Called during snapshot deserialization and node cloning.
     virtual std::unique_ptr<TCypressNode> Instantiate(
-        const TVersionedNodeId& id,
+        TVersionedNodeId id,
         NObjectClient::TCellTag externalCellTag) = 0;
 
     //! Creates a new trunk node.

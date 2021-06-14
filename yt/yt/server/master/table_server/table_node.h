@@ -138,7 +138,7 @@ public:
     DECLARE_BYVAL_RW_PROPERTY(std::optional<int>, DesiredTabletCount);
 
 public:
-    explicit TTableNode(const NCypressServer::TVersionedNodeId& id);
+    explicit TTableNode(NCypressServer::TVersionedNodeId id);
 
     TTableNode* GetTrunkNode();
     const TTableNode* GetTrunkNode() const;

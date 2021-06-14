@@ -34,7 +34,7 @@ protected:
     NLogging::TLogger Logger;
 
     std::unique_ptr<TChunkOwner> DoCreateImpl(
-        const NCypressServer::TVersionedNodeId& id,
+        NCypressServer::TVersionedNodeId id,
         const NCypressServer::TCreateNodeContext& context,
         int replicationFactor,
         NCompression::ECodec compressionCodec,

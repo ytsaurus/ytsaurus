@@ -112,7 +112,7 @@ const TCypressNodeLockingState TCypressNodeLockingState::Empty = TCypressNodeLoc
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLock::TLock(const TLockId& id)
+TLock::TLock(TLockId id)
     : TNonversionedObjectBase(id)
 { }
 

@@ -29,7 +29,7 @@ class TChunkView
     DEFINE_BYREF_RO_PROPERTY(TParents, Parents);
 
 public:
-    explicit TChunkView(const TChunkViewId& id);
+    explicit TChunkView(TChunkViewId id);
 
     void SetUnderlyingChunk(TChunk* underlyingChunk);
     void SetReadRange(NChunkClient::TLegacyReadRange readRange);

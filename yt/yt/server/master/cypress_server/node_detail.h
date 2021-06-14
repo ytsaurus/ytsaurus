@@ -134,7 +134,7 @@ public:
     }
 
     virtual std::unique_ptr<TCypressNode> Instantiate(
-        const TVersionedNodeId& id,
+        TVersionedNodeId id,
         NObjectClient::TCellTag externalCellTag) override
     {
         std::unique_ptr<TCypressNode> nodeHolder(new TImpl(id));
@@ -302,7 +302,7 @@ protected:
         NTransactionServer::TTransaction* transaction) = 0;
 
     virtual std::unique_ptr<TImpl> DoCreate(
-        const NCypressServer::TVersionedNodeId& id,
+        NCypressServer::TVersionedNodeId id,
         const TCreateNodeContext& context)
     {
         auto nodeHolder = std::make_unique<TImpl>(id);
@@ -492,7 +492,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TValue, Value)
 
 public:
-    explicit TScalarNode(const TVersionedNodeId& id)
+    explicit TScalarNode(TVersionedNodeId id)
         : TCypressNode(id)
         , Value_()
     { }
@@ -856,7 +856,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(int, ChildCountDelta);
 
 public:
-    explicit TMapNode(const TVersionedNodeId& id);
+    explicit TMapNode(TVersionedNodeId id);
 
     ~TMapNode();
 

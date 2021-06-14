@@ -1166,7 +1166,7 @@ public:
         return RootNode_;
     }
 
-    TCypressNode* GetNodeOrThrow(const TVersionedNodeId& id)
+    TCypressNode* GetNodeOrThrow(TVersionedNodeId id)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1975,7 +1975,7 @@ private:
     public:
         explicit TNodeMapTraits(TImpl* owner);
 
-        std::unique_ptr<TCypressNode> Create(const TVersionedNodeId& id) const;
+        std::unique_ptr<TCypressNode> Create(TVersionedNodeId id) const;
 
     private:
         TImpl* const Owner_;
@@ -2406,7 +2406,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(trunkNodeHolder->IsTrunk());
 
-        const auto& nodeId = trunkNodeHolder->GetId();
+        const auto nodeId = trunkNodeHolder->GetId();
         auto* node = NodeMap_.Insert(TVersionedNodeId(nodeId), std::move(trunkNodeHolder));
 
         const auto* mutationContext = GetCurrentMutationContext();
@@ -3773,7 +3773,7 @@ TCypressManager::TImpl::TNodeMapTraits::TNodeMapTraits(TImpl* owner)
     : Owner_(owner)
 { }
 
-std::unique_ptr<TCypressNode> TCypressManager::TImpl::TNodeMapTraits::Create(const TVersionedNodeId& id) const
+std::unique_ptr<TCypressNode> TCypressManager::TImpl::TNodeMapTraits::Create(TVersionedNodeId id) const
 {
     auto type = TypeFromId(id.ObjectId);
     const auto& handler = Owner_->GetHandler(type);
@@ -3927,7 +3927,7 @@ TMapNode* TCypressManager::GetRootNode() const
     return Impl_->GetRootNode();
 }
 
-TCypressNode* TCypressManager::GetNodeOrThrow(const TVersionedNodeId& id)
+TCypressNode* TCypressManager::GetNodeOrThrow(TVersionedNodeId id)
 {
     return Impl_->GetNodeOrThrow(id);
 }

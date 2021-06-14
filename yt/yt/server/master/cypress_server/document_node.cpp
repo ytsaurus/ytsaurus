@@ -11,7 +11,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDocumentNode::TDocumentNode(const TVersionedNodeId& id)
+TDocumentNode::TDocumentNode(TVersionedNodeId id)
     : TCypressNode(id)
     , Value_(GetEphemeralNodeFactory()->CreateEntity())
 { }

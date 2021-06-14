@@ -117,7 +117,7 @@ public:
     TMapNode* GetRootNode() const;
 
     //! Finds node by id, throws if nothing is found.
-    TCypressNode* GetNodeOrThrow(const TVersionedNodeId& id);
+    TCypressNode* GetNodeOrThrow(TVersionedNodeId id);
 
     NYPath::TYPath GetNodePath(
         TCypressNode* trunkNode,

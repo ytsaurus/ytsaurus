@@ -17,7 +17,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NYTree::INodePtr, Value);
 
 public:
-    explicit TDocumentNode(const TVersionedNodeId& id);
+    explicit TDocumentNode(TVersionedNodeId id);
 
     virtual NYTree::ENodeType GetNodeType() const override;
 

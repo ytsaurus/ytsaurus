@@ -63,7 +63,7 @@ bool TTableNodeTypeHandlerBase<TImpl>::HasBranchedChangesImpl(
 
 template <class TImpl>
 std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
-    const TVersionedNodeId& id,
+    TVersionedNodeId id,
     const TCreateNodeContext& context)
 {
     const auto& dynamicConfig = this->Bootstrap_->GetConfigManager()->GetConfig();

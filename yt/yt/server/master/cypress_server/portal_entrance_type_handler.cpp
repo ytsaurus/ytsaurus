@@ -55,7 +55,7 @@ private:
     }
 
     virtual std::unique_ptr<TPortalEntranceNode> DoCreate(
-        const TVersionedNodeId& id,
+        TVersionedNodeId id,
         const TCreateNodeContext& context) override
     {
         auto exitCellTag = context.ExplicitAttributes->GetAndRemove<TCellTag>("exit_cell_tag");

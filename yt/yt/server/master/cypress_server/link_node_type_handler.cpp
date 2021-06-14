@@ -52,7 +52,7 @@ private:
     }
 
     virtual std::unique_ptr<TLinkNode> DoCreate(
-        const TVersionedNodeId& id,
+        TVersionedNodeId id,
         const TCreateNodeContext& context) override
     {
         // TODO(babenko): Make sure that target_path is valid upon creation.

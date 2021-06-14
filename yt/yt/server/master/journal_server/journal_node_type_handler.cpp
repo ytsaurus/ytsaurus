@@ -66,7 +66,7 @@ protected:
     }
 
     virtual std::unique_ptr<TJournalNode> DoCreate(
-        const TVersionedNodeId& id,
+        TVersionedNodeId id,
         const TCreateNodeContext& context) override
     {
         const auto& config = Bootstrap_->GetConfig()->CypressManager;

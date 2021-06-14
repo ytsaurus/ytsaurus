@@ -11,7 +11,7 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReplicatedTableNode::TReplicatedTableNode(const TVersionedNodeId& id)
+TReplicatedTableNode::TReplicatedTableNode(TVersionedNodeId id)
     : TTableNode(id)
     , ReplicatedTableOptions_(New<TReplicatedTableOptions>())
 { }

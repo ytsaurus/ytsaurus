@@ -44,7 +44,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, EnableChunkMerger, false);
 
 public:
-    explicit TChunkOwnerBase(const NCypressServer::TVersionedNodeId& id);
+    explicit TChunkOwnerBase(NCypressServer::TVersionedNodeId id);
 
     const TChunkList* GetSnapshotChunkList() const;
     const TChunkList* GetDeltaChunkList() const;

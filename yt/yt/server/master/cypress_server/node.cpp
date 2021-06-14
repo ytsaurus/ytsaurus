@@ -35,7 +35,7 @@ void TTombstonedVersionedBuiltinAttribute::Persist(const NCypressServer::TCopyPe
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressNode::TCypressNode(const TVersionedNodeId& id)
+TCypressNode::TCypressNode(TVersionedNodeId id)
     : TObject(id.ObjectId)
     , Acd_(this)
     , TransactionId_(id.TransactionId)
