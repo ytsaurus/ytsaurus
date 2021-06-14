@@ -550,6 +550,7 @@ class TestQuery(YTEnvSetup):
         actual = select_rows(
             "* from [//tmp/jl] join [//tmp/jr] on b = d and c = 2",
             allow_join_without_index=True,
+            max_subqueries=1,
         )
 
         assert sorted(expected) == sorted(actual)
