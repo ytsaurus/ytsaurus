@@ -43,34 +43,41 @@ void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSch
             THROW_ERROR compatibility.second;
         }
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleSchemas, "Type mismatch for column %Qv",
+        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::IncompatibleSchemas, "Type mismatch for column %Qv",
             oldColumn.Name())
             << ex;
     }
 
     if (newColumn.SortOrder().operator bool() && newColumn.SortOrder() != oldColumn.SortOrder()) {
-        THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleSchemas, "Sort order mismatch for column %Qv: old %Qlv, new %Qlv",
+        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::IncompatibleSchemas, "Sort order mismatch for column %Qv: old %Qlv, new %Qlv",
             oldColumn.Name(),
             oldColumn.SortOrder(),
             newColumn.SortOrder());
     }
 
     if (newColumn.Expression() != oldColumn.Expression()) {
-        THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleSchemas, "Expression mismatch for column %Qv: old %Qv, new %Qv",
+        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::IncompatibleSchemas, "Expression mismatch for column %Qv: old %Qv, new %Qv",
             oldColumn.Name(),
             oldColumn.Expression(),
             newColumn.Expression());
     }
 
     if (oldColumn.Aggregate() && oldColumn.Aggregate() != newColumn.Aggregate()) {
-        THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleSchemas, "Aggregate mode mismatch for column %Qv: old %Qv, new %Qv",
+        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::IncompatibleSchemas, "Aggregate mode mismatch for column %Qv: old %Qv, new %Qv",
             oldColumn.Name(),
             oldColumn.Aggregate(),
             newColumn.Aggregate());
     }
 
     if (oldColumn.SortOrder() && oldColumn.Lock() != newColumn.Lock()) {
-        THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleSchemas, "Lock mismatch for key column %Qv: old %Qv, new %Qv",
+        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::IncompatibleSchemas, "Lock mismatch for key column %Qv: old %Qv, new %Qv",
+            oldColumn.Name(),
+            oldColumn.Lock(),
+            newColumn.Lock());
+    }
+
+    if (oldColumn.MaxInlineHunkSize() && !newColumn.MaxInlineHunkSize()) {
+        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::IncompatibleSchemas, "Cannot reset max inline hunk size for column %Qv",
             oldColumn.Name(),
             oldColumn.Lock(),
             newColumn.Lock());
@@ -83,7 +90,7 @@ void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSch
 void ValidateColumnsNotRemoved(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
     YT_VERIFY(newSchema.GetStrict());
-    for (int oldColumnIndex = 0; oldColumnIndex < std::ssize(oldSchema.Columns()); ++oldColumnIndex) {
+    for (int oldColumnIndex = 0; oldColumnIndex < oldSchema.GetColumnCount(); ++oldColumnIndex) {
         const auto& oldColumn = oldSchema.Columns()[oldColumnIndex];
         if (!newSchema.FindColumn(oldColumn.Name())) {
             THROW_ERROR_EXCEPTION("Cannot remove column %Qv from a strict schema",
@@ -96,7 +103,7 @@ void ValidateColumnsNotRemoved(const TTableSchema& oldSchema, const TTableSchema
 void ValidateColumnsNotInserted(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
     YT_VERIFY(!oldSchema.GetStrict());
-    for (int newColumnIndex = 0; newColumnIndex < std::ssize(newSchema.Columns()); ++newColumnIndex) {
+    for (int newColumnIndex = 0; newColumnIndex < newSchema.GetColumnCount(); ++newColumnIndex) {
         const auto& newColumn = newSchema.Columns()[newColumnIndex];
         if (!oldSchema.FindColumn(newColumn.Name())) {
             THROW_ERROR_EXCEPTION("Cannot insert a new column %Qv into non-strict schema",
@@ -110,7 +117,7 @@ void ValidateColumnsNotInserted(const TTableSchema& oldSchema, const TTableSchem
 void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
     int commonKeyColumnPrefix = 0;
-    for (int oldColumnIndex = 0; oldColumnIndex < std::ssize(oldSchema.Columns()); ++oldColumnIndex) {
+    for (int oldColumnIndex = 0; oldColumnIndex < oldSchema.GetColumnCount(); ++oldColumnIndex) {
         const auto& oldColumn = oldSchema.Columns()[oldColumnIndex];
         const auto* newColumnPtr = newSchema.FindColumn(oldColumn.Name());
         if (!newColumnPtr) {
@@ -119,9 +126,9 @@ void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSchema& new
         }
         const auto& newColumn = *newColumnPtr;
         ValidateColumnSchemaUpdate(oldColumn, newColumn);
-        int newColumnIndex = newSchema.GetColumnIndex(newColumn);
 
         if (oldColumn.SortOrder() && newColumn.SortOrder()) {
+            int newColumnIndex = newSchema.GetColumnIndex(newColumn);
             if (oldColumnIndex != newColumnIndex) {
                 THROW_ERROR_EXCEPTION("Cannot change position of a key column %Qv: old %v, new %v",
                     oldColumn.Name(),
@@ -143,13 +150,13 @@ void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSchema& new
     }
 
     if (commonKeyColumnPrefix < oldSchema.GetKeyColumnCount() && newSchema.GetUniqueKeys()) {
-        THROW_ERROR_EXCEPTION("Cannot have unique_keys = true after removing some of the key columns");
+        THROW_ERROR_EXCEPTION("Table cannot have unique keys since some of its key columns were removed");
     }
 }
 
 void ValidateNoRequiredColumnsAdded(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
-    for (int newColumnIndex = 0; newColumnIndex < std::ssize(newSchema.Columns()); ++newColumnIndex) {
+    for (int newColumnIndex = 0; newColumnIndex < newSchema.GetColumnCount(); ++newColumnIndex) {
         const auto& newColumn = newSchema.Columns()[newColumnIndex];
         if (newColumn.Required()) {
             const auto* oldColumn = oldSchema.FindColumn(newColumn.Name());
@@ -175,7 +182,7 @@ static bool IsPhysicalType(ESimpleLogicalValueType logicalType)
  */
 void ValidateAggregatedColumns(const TTableSchema& schema)
 {
-    for (int index = 0; index < std::ssize(schema.Columns()); ++index) {
+    for (int index = 0; index < schema.GetColumnCount(); ++index) {
         const auto& columnSchema = schema.Columns()[index];
         if (columnSchema.Aggregate()) {
             if (index < schema.GetKeyColumnCount()) {
@@ -231,7 +238,7 @@ void ValidateComputedColumns(const TTableSchema& schema, bool isTableDynamic)
     // TODO(max42): Passing *this before the object is finally constructed
     // doesn't look like a good idea (although it works :) ). Get rid of this.
 
-    for (int index = 0; index < std::ssize(schema.Columns()); ++index) {
+    for (int index = 0; index < schema.GetColumnCount(); ++index) {
         const auto& columnSchema = schema.Columns()[index];
         if (columnSchema.Expression()) {
             if (index >= schema.GetKeyColumnCount() && isTableDynamic) {
@@ -321,7 +328,7 @@ void ValidateTableSchemaUpdate(
 
         ValidateNoRequiredColumnsAdded(oldSchema, newSchema);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleSchemas, "Table schemas are incompatible")
+        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::IncompatibleSchemas, "Table schemas are incompatible")
             << TErrorAttribute("old_schema", oldSchema)
             << TErrorAttribute("new_schema", newSchema)
             << ex;
@@ -398,7 +405,7 @@ TTableSchemaPtr InferInputSchema(const std::vector<TTableSchemaPtr>& schemas, bo
     std::vector<TString> columnNames;
 
     for (const auto& schema : schemas) {
-        for (int columnIndex = 0; columnIndex < std::ssize(schema->Columns()); ++columnIndex) {
+        for (int columnIndex = 0; columnIndex < schema->GetColumnCount(); ++columnIndex) {
             auto column = schema->Columns()[columnIndex];
             if (columnIndex >= commonKeyColumnPrefix) {
                 column = column.SetSortOrder(std::nullopt);
@@ -575,7 +582,7 @@ std::pair<ESchemaCompatibility, TError> CheckTableSchemaCompatibilityImpl(
     auto inputKeySchema = inputSchema.ToKeys();
     auto outputKeySchema = outputSchema.ToKeys();
 
-    for (int index = 0; index < std::ssize(outputKeySchema->Columns()); ++index) {
+    for (int index = 0; index < outputKeySchema->GetColumnCount(); ++index) {
         const auto& inputColumn = inputKeySchema->Columns()[index];
         const auto& outputColumn = outputKeySchema->Columns()[index];
         if (inputColumn.Name() != outputColumn.Name()) {
@@ -607,7 +614,7 @@ std::pair<ESchemaCompatibility, TError> CheckTableSchemaCompatibility(
 {
     auto result = CheckTableSchemaCompatibilityImpl(inputSchema, outputSchema, ignoreSortOrder);
     if (result.first != ESchemaCompatibility::FullyCompatible) {
-        result.second = TError(EErrorCode::IncompatibleSchemas, "Table schemas are incompatible")
+        result.second = TError(NTableClient::EErrorCode::IncompatibleSchemas, "Table schemas are incompatible")
             << result.second
             << TErrorAttribute("input_table_schema", inputSchema)
             << TErrorAttribute("output_table_schema", outputSchema);

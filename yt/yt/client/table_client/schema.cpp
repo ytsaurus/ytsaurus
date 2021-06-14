@@ -1757,3 +1757,30 @@ TKeyColumnTypes GetKeyColumnTypes(NTableClient::TTableSchemaPtr schema)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient
+
+size_t THash<NYT::NTableClient::TColumnSchema>::operator()(const NYT::NTableClient::TColumnSchema& columnSchema) const
+{
+    return MultiHash(
+        columnSchema.Name(),
+        *columnSchema.LogicalType(),
+        columnSchema.SortOrder(),
+        columnSchema.Lock(),
+        columnSchema.Expression(),
+        columnSchema.Aggregate(),
+        columnSchema.Group(),
+        columnSchema.MaxInlineHunkSize());
+}
+
+size_t THash<NYT::NTableClient::TTableSchema>::operator()(const NYT::NTableClient::TTableSchema& tableSchema) const
+{
+    size_t result = CombineHashes(THash<bool>()(tableSchema.GetUniqueKeys()), THash<bool>()(tableSchema.GetStrict()));
+    if (tableSchema.HasNontrivialSchemaModification()) {
+        result = CombineHashes(
+            result,
+            THash<NYT::NTableClient::ETableSchemaModification>()(tableSchema.GetSchemaModification()));
+    }
+    for (const auto& columnSchema : tableSchema.Columns()) {
+        result = CombineHashes(result, THash<NYT::NTableClient::TColumnSchema>()(columnSchema));
+    }
+    return result;
+}
