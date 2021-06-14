@@ -19,7 +19,7 @@ import time
 import os
 from logging.handlers import WatchedFileHandler
 
-logger = logging.getLogger("Yt.local.watcher")
+logger = logging.getLogger("YtLocal")
 
 def configure_logging(log_path):
     if set_log_level_from_config is not None:

@@ -22,7 +22,7 @@ import time
 import codecs
 from functools import partial
 
-logger = logging.getLogger("Yt.local")
+logger = logging.getLogger("YtLocal")
 
 YT_LOCAL_STOP_WAIT_TIME = 5
 

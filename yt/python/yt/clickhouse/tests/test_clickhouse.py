@@ -56,7 +56,8 @@ DEFAULTS = {
 
 class ClickhouseTestBase(object):
     def _setup(self):
-        if os.environ.get("YT_OUTPUT") is not None:
+        ytrecipe = os.environ.get("YT_OUTPUT") is not None
+        if ytrecipe:
             pytest.skip()
 
         yt.create("document", "//sys/clickhouse/defaults", recursive=True, attributes={"value": DEFAULTS}, force=True)

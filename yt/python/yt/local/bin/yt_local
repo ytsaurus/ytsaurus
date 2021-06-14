@@ -23,7 +23,7 @@ DESCRIPTION = """Command-line utility to work with local YT instances."""
 
 SERVICE_LIST = ("master", "node", "scheduler", "controller-agent", "proxy", "rpc-proxy", "watcher")
 
-logger = logging.getLogger("Yt.local")
+logger = logging.getLogger("YtLocal")
 
 
 def start_func(**kwargs):

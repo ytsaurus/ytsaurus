@@ -42,7 +42,7 @@ from collections import defaultdict, namedtuple, OrderedDict
 from threading import RLock
 from itertools import count
 
-logger = logging.getLogger("Yt.local")
+logger = logging.getLogger("YtLocal")
 
 # YT-12960: disable debug logging about file locks.
 logging.getLogger("library.python.filelock").setLevel(logging.INFO)
@@ -94,15 +94,16 @@ def _get_yt_versions(custom_paths):
     return result
 
 
-def _configure_logger():
-    logger.propagate = False
-    if not logger.handlers:
-        logger.addHandler(logging.StreamHandler())
-
-    if os.environ.get("YT_ENABLE_VERBOSE_LOGGING"):
-        logger.handlers[0].setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
-    else:
+def _configure_logger(path):
+    ytrecipe = os.environ.get("YT_OUTPUT") is not None
+    if not ytrecipe:
+        logger.propagate = False
+        if not logger.handlers:
+            logger.addHandler(logging.StreamHandler())
         logger.handlers[0].setFormatter(logging.Formatter("%(message)s"))
+    else:
+        logger.handlers = [logging.FileHandler(path)]
+        logger.handlers[0].setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
 
 
 def _get_ports_generator(yt_config):
@@ -128,8 +129,7 @@ class YTInstance(object):
                  preserve_working_dir=False,
                  external_bin_path=None,
                  tmpfs_path=None):
-        _configure_logger()
-
+        self.path = os.path.realpath(os.path.abspath(path))
         self.yt_config = yt_config
 
         if yt_config.master_count == 0:
@@ -143,7 +143,6 @@ class YTInstance(object):
 
         self._watcher_binary = watcher_binary
 
-        self.path = os.path.realpath(os.path.abspath(path))
         if external_bin_path is not None:
             self.bin_path = external_bin_path
         else:
@@ -195,6 +194,9 @@ class YTInstance(object):
         makedirp(self.logs_path)
         makedirp(self.configs_path)
         makedirp(self.runtime_data_path)
+        
+        # NB: we should not write logs before this point.
+        _configure_logger(os.path.join(self.path, "yt_local.log"))
 
         self.stderrs_path = stderrs_path or os.path.join(self.path, "stderrs")
         makedirp(self.stderrs_path)

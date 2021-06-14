@@ -12,7 +12,7 @@ except ImportError:
     disable_porto = True
 
 
-logger = logging.getLogger("Yt.local")
+logger = logging.getLogger("YtLocal")
 
 def porto_avaliable():
     global disable_porto

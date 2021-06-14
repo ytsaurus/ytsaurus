@@ -23,6 +23,7 @@ import pytest
 import random
 import json
 
+# TODO(ignat): YT-14959
 @pytest.mark.skipif('os.environ.get("YT_OUTPUT") is not None')
 @pytest.mark.usefixtures("yt_env")
 class TestCachedYtClient(object):
@@ -73,6 +74,7 @@ class TestCachedYtClient(object):
         for name in sample_names:
             assert real_attributes[name] == cached_attributes[name]
 
+# TODO(ignat): YT-14959
 @pytest.mark.skipif('os.environ.get("YT_OUTPUT") is not None')
 @pytest.mark.usefixtures("yt_env")
 class TestCypress(object):

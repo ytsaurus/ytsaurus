@@ -18,7 +18,7 @@ try:
 except ImportError:
     yt_env_watcher = None
 
-logger = logging.getLogger("Yt.local")
+logger = logging.getLogger("YtLocal")
 
 class ProcessWatcher(object):
     def __init__(self,

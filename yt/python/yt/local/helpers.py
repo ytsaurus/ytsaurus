@@ -5,7 +5,7 @@ import time
 import os
 import logging
 
-logger = logging.getLogger("Yt.local")
+logger = logging.getLogger("YtLocal")
 
 def _sync_mode_finalize_func(environment, process, process_call_args):
     logger.error("Process run by command '{0}' is dead! Terminating local YT processes..."\

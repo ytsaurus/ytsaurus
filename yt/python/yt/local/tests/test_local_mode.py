@@ -30,7 +30,7 @@ import time
 import string
 import random
 
-logger = logging.getLogger("Yt.local")
+logger = logging.getLogger("YtLocal")
 
 yt.http_helpers.RECEIVE_TOKEN_FROM_SSH_SESSION = False
 

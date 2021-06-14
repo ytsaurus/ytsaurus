@@ -5,7 +5,7 @@ import logging
 import yt.yson as yson
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("YtLocal")
 
 
 def _get_attributes_from_local_dir(local_path, meta_files_suffix):
