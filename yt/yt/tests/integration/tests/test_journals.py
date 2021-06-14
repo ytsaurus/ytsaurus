@@ -1,11 +1,62 @@
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, is_asan_build
+
+from yt_commands import (  # noqa
+    authors, print_debug, wait, retry, wait_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
+    events_on_fs, reset_events_on_fs,
+    create, ls, get, set, copy, move, remove, link, exists, concatenate,
+    create_account, create_network_project, create_tmpdir, create_user, create_group, create_medium,
+    create_pool, create_pool_tree, remove_pool_tree,
+    create_data_center, create_rack, create_table,
+    create_tablet_cell_bundle, remove_tablet_cell_bundle, create_tablet_cell, create_table_replica,
+    make_ace, check_permission, add_member, remove_member, remove_group, remove_user,
+    remove_network_project,
+    make_batch_request, execute_batch, get_batch_error,
+    start_transaction, abort_transaction, commit_transaction, lock,
+    insert_rows, select_rows, lookup_rows, delete_rows, trim_rows, alter_table,
+    read_file, write_file, read_table, write_table, write_local_file, read_blob_table,
+    read_journal, write_journal, truncate_journal, wait_until_sealed,
+    map, reduce, map_reduce, join_reduce, merge, vanilla, sort, erase, remote_copy,
+    run_test_vanilla, run_sleeping_vanilla,
+    abort_job, list_jobs, get_job, abandon_job, interrupt_job,
+    get_job_fail_context, get_job_input, get_job_stderr, get_job_spec, get_job_input_paths,
+    dump_job_context, poll_job_shell,
+    abort_op, complete_op, suspend_op, resume_op,
+    get_operation, list_operations, clean_operations,
+    get_operation_cypress_path, scheduler_orchid_pool_path,
+    scheduler_orchid_default_pool_tree_path, scheduler_orchid_operation_path,
+    scheduler_orchid_default_pool_tree_config_path, scheduler_orchid_path,
+    scheduler_orchid_node_path, scheduler_orchid_pool_tree_config_path, scheduler_orchid_pool_tree_path,
+    mount_table, unmount_table, freeze_table, unfreeze_table, reshard_table, remount_table, generate_timestamp,
+    reshard_table_automatic, wait_for_tablet_state, wait_for_cells,
+    get_tablet_infos, get_table_pivot_keys, get_tablet_leader_address,
+    sync_create_cells, sync_mount_table, sync_unmount_table,
+    sync_freeze_table, sync_unfreeze_table, sync_reshard_table,
+    sync_flush_table, sync_compact_table, sync_remove_tablet_cells,
+    sync_reshard_table_automatic, sync_balance_tablet_cells,
+    get_first_chunk_id, get_singular_chunk_id, get_chunk_replication_factor, multicell_sleep,
+    update_nodes_dynamic_config, update_controller_agent_config,
+    update_op_parameters, enable_op_detailed_logs,
+    set_node_banned, set_banned_flag,
+    set_account_disk_space_limit, set_node_decommissioned,
+    get_account_disk_space, get_account_committed_disk_space,
+    check_all_stderrs,
+    create_test_tables, create_dynamic_table, PrepareTables,
+    get_statistics, get_recursive_disk_space, get_chunk_owner_disk_space,
+    make_random_string, raises_yt_error,
+    build_snapshot, gc_collect, is_multicell,
+    get_driver, Driver, execute_command,
+    AsyncLastCommittedTimestamp)
+
+import yt.yson as yson
+from yt.common import YtError
+
 import pytest
 
-from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, is_asan_build
-from yt_commands import *  # noqa
+import random
+import string
+import sys
 from io import TextIOBase
 from time import sleep
-
-import random
 
 ##################################################################
 
@@ -47,7 +98,7 @@ class TestJournals(YTEnvSetup):
                 sys.stderr.write("Reading {} bytes at position {}\n".format(size, self._position))
                 sleep(0.1)
 
-                result = self._data[self._position : self._position + size]
+                result = self._data[self._position:self._position + size]
                 self._position = min(self._position + size, len(self._data))
                 return result
 
@@ -60,8 +111,8 @@ class TestJournals(YTEnvSetup):
             try:
                 chunk_ids = get(path + "/@chunk_ids")
                 chunk_id = chunk_ids[-1]
-                return lambda: all(r.attributes["state"] == "sealed" for r in get("#{}/@stored_replicas".format(chunk_id)))
-            except:
+                return all(r.attributes["state"] == "sealed" for r in get("#{}/@stored_replicas".format(chunk_id)))
+            except YtError:
                 return False
         wait(check)
 
@@ -371,7 +422,7 @@ class TestJournals(YTEnvSetup):
         if enable_chunk_preallocation and self.Env.get_component_version("ytserver-master").abi <= (20, 2):
             pytest.skip("Chunk preallocation is not available without 20.3+ masters")
 
-        set("//sys/@config/chunk_manager/enable_chunk_sealer", seal_mode=="master-side")
+        set("//sys/@config/chunk_manager/enable_chunk_sealer", seal_mode == "master-side")
         set("//sys/@config/chunk_manager/chunk_refresh_period", 50)
 
         create("journal", "//tmp/j")
@@ -383,8 +434,8 @@ class TestJournals(YTEnvSetup):
             rows,
             enable_chunk_preallocation=enable_chunk_preallocation,
             journal_writer={
-                "dont_close": seal_mode=="client-side",
-                "dont_seal": seal_mode=="master-side",
+                "dont_close": seal_mode == "client-side",
+                "dont_seal": seal_mode == "master-side",
                 "max_batch_row_count": 9,
                 "max_flush_row_count": 9,
                 "max_chunk_row_count": 49,
@@ -670,7 +721,9 @@ class TestErasureJournals(TestJournals):
 
             set_banned_flag(False, nodes_to_ban)
 
-    @pytest.mark.parametrize("erasure_codec", ["none", "isa_lrc_12_2_2", "isa_reed_solomon_3_3", "isa_reed_solomon_6_3"])
+    @pytest.mark.parametrize(
+        "erasure_codec",
+        ["none", "isa_lrc_12_2_2", "isa_reed_solomon_3_3", "isa_reed_solomon_6_3"])
     @authors("babenko", "ignat")
     def test_seal_abruptly_closed_journal(self, erasure_codec):
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES[erasure_codec])
@@ -719,7 +772,9 @@ class TestErasureJournals(TestJournals):
     def test_erasure_lost(self):
         self._test_critical_erasure_state("lost_vital", 5)
 
-    @pytest.mark.parametrize("erasure_codec", ["none", "isa_lrc_12_2_2", "isa_reed_solomon_3_3", "isa_reed_solomon_6_3"])
+    @pytest.mark.parametrize(
+        "erasure_codec",
+        ["none", "isa_lrc_12_2_2", "isa_reed_solomon_3_3", "isa_reed_solomon_6_3"])
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
     @authors("babenko", "ignat")
     def test_read_with_repair(self, erasure_codec, enable_chunk_preallocation):
@@ -785,6 +840,3 @@ class TestErasureJournalsRpcProxy(TestErasureJournals):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
-
-
-##################################################################
