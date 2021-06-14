@@ -12,7 +12,7 @@ namespace NYT {
 template <class TIter, class TPredicate>
 Y_FORCE_INLINE TIter LinearSearch(TIter begin, TIter end, TPredicate pred)
 {
-    while (begin < end && pred(begin)) {
+    while (begin != end && pred(begin)) {
         ++begin;
     }
 
@@ -22,7 +22,7 @@ Y_FORCE_INLINE TIter LinearSearch(TIter begin, TIter end, TPredicate pred)
 template <class TIter, class TPredicate>
 TIter BinarySearch(TIter begin, TIter end, TPredicate pred)
 {
-    while (begin < end) {
+    while (begin != end) {
         TIter middle = begin + (end - begin) / 2;
         if (pred(middle)) {
             begin = ++middle;
@@ -46,7 +46,7 @@ Y_FORCE_INLINE TIter ExponentialSearch(TIter begin, TIter end, TPredicate pred)
     decltype(TIter() - TIter()) step = 1;
     TIter next = begin;
 
-    if (begin >= end) {
+    if (begin == end) {
         return begin;
     }
 
