@@ -83,7 +83,7 @@ bool IsChannelFailureError(const TError& error)
         code == NRpc::EErrorCode::NoSuchMethod ||
         code == NRpc::EErrorCode::ProtocolError ||
         code == NRpc::EErrorCode::PeerBanned ||
-        code == NRpc::EErrorCode::UnknownRealm ||
+        code == NRpc::EErrorCode::NoSuchRealm ||
         // COMPAT(babenko): this is NRpcProxy::EErrorCode::ProxyBanned
         code == TErrorCode(2100);
 }

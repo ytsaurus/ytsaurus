@@ -673,7 +673,7 @@ IServicePtr TServerBase::GetServiceOrThrow(const TServiceId& serviceId) const
     if (serviceMapIt == RealmIdToServiceMap_.end()) {
         if (realmId) {
             // TODO(gritukan): Stop wrapping error one day.
-            auto innerError = TError(EErrorCode::UnknownRealm, "Request realm is unknown")
+            auto innerError = TError(EErrorCode::NoSuchRealm, "Request realm is unknown")
                 << TErrorAttribute("service", serviceName)
                 << TErrorAttribute("realm_id", realmId);
             THROW_ERROR_EXCEPTION(

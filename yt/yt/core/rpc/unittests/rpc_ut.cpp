@@ -999,14 +999,14 @@ TYPED_TEST(TRpcTest, NoMethod)
 }
 
 // NB: Realms are not supported in RPC over GRPC.
-TYPED_TEST(TNotGrpcTest, UnknownRealm)
+TYPED_TEST(TNotGrpcTest, NoSuchRealm)
 {
     TMyProxy proxy(this->CreateChannel());
     auto req = proxy.DoNothing();
     ToProto(req->Header().mutable_realm_id(), TGuid::FromString("1-2-3-4"));
     auto rspOrError = req->Invoke().Get();
     EXPECT_EQ(NRpc::EErrorCode::NoSuchService, rspOrError.GetCode());
-    EXPECT_TRUE(rspOrError.FindMatching(NRpc::EErrorCode::UnknownRealm));
+    EXPECT_TRUE(rspOrError.FindMatching(NRpc::EErrorCode::NoSuchRealm));
 }
 
 TYPED_TEST(TRpcTest, ClientTimeout)
