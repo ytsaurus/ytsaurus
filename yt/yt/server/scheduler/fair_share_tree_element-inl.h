@@ -39,6 +39,31 @@ inline const NLogging::TLogger& TSchedulerElement::GetLogger() const
     return Logger;
 }
 
+inline bool TSchedulerElement::IsActive(const TDynamicAttributesList& dynamicAttributesList) const
+{
+    return dynamicAttributesList[GetTreeIndex()].Active;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline TDynamicAttributes& TScheduleJobsContext::DynamicAttributesFor(const TSchedulerElement* element)
+{
+    YT_VERIFY(Initialized_);
+
+    int index = element->GetTreeIndex();
+    YT_VERIFY(index != UnassignedTreeIndex && index < std::ssize(DynamicAttributesList_));
+    return DynamicAttributesList_[index];
+}
+
+inline const TDynamicAttributes& TScheduleJobsContext::DynamicAttributesFor(const TSchedulerElement* element) const
+{
+    YT_VERIFY(Initialized_);
+
+    int index = element->GetTreeIndex();
+    YT_VERIFY(index != UnassignedTreeIndex && index < std::ssize(DynamicAttributesList_));
+    return DynamicAttributesList_[index];
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
