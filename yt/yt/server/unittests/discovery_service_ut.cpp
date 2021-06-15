@@ -119,7 +119,7 @@ public:
             memberClientConfig->ServerAddresses = Addresses_;
         }
         memberClientConfig->HeartbeatPeriod = TDuration::MilliSeconds(500);
-        memberClientConfig->LeaseTimeout = TDuration::Seconds(1);
+        memberClientConfig->LeaseTimeout = TDuration::Seconds(3);
         memberClientConfig->AttributeUpdatePeriod = TDuration::Seconds(1);
 
         const auto& actionQueue = New<TActionQueue>("MemberClient");
@@ -372,7 +372,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestServerBan)
         if (!membersOrError.IsOK()) {
             return false;
         }
-        const auto& members = membersOrError.ValueOrThrow();        
+        const auto& members = membersOrError.ValueOrThrow();
         return members.size() == 1 && members[0].Id == memberId;
     };
     WaitForPredicate(checkListMembers);
@@ -415,7 +415,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestNestedGroups)
 
     WaitFor(AllSucceeded(memberStartFutures))
         .ThrowOnError();
-        
+
 
     auto discoveryClient = CreateDiscoveryClient();
 
@@ -472,12 +472,18 @@ TEST_F(TDiscoveryServiceTestSuite, TestYPath)
     const TString memberId1 = "sample_member1";
     const TString memberId2 = "sample_member2";
 
-    auto memberClient1 = CreateMemberClient(groupId1, memberId1);
+    auto member1Config = New<TMemberClientConfig>();
+    member1Config->WriteQuorum = std::ssize(GetDiscoveryServersAddresses());
+
+    auto memberClient1 = CreateMemberClient(groupId1, memberId1, member1Config);
     memberClient1->SetPriority(3);
     WaitFor(memberClient1->Start())
         .ThrowOnError();
 
-    auto memberClient2 = CreateMemberClient(groupId2, memberId2);
+    auto member2Config = New<TMemberClientConfig>();
+    member2Config->WriteQuorum = std::ssize(GetDiscoveryServersAddresses());
+
+    auto memberClient2 = CreateMemberClient(groupId2, memberId2, member2Config);
     WaitFor(memberClient2->Start())
         .ThrowOnError();
 
