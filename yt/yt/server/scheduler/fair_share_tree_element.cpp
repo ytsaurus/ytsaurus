@@ -115,24 +115,6 @@ void TScheduleJobsContext::PrepareForScheduling(const TSchedulerRootElementPtr& 
     }
 }
 
-TDynamicAttributes& TScheduleJobsContext::DynamicAttributesFor(const TSchedulerElement* element)
-{
-    YT_VERIFY(Initialized_);
-
-    int index = element->GetTreeIndex();
-    YT_VERIFY(index != UnassignedTreeIndex && index < std::ssize(DynamicAttributesList_));
-    return DynamicAttributesList_[index];
-}
-
-const TDynamicAttributes& TScheduleJobsContext::DynamicAttributesFor(const TSchedulerElement* element) const
-{
-    YT_VERIFY(Initialized_);
-
-    int index = element->GetTreeIndex();
-    YT_VERIFY(index != UnassignedTreeIndex && index < std::ssize(DynamicAttributesList_));
-    return DynamicAttributesList_[index];
-}
-
 TJobResources TScheduleJobsContext::GetUsageDiscountFor(const TSchedulerElement* element) const
 {
     int index = element->GetTreeIndex();
@@ -359,11 +341,6 @@ TString TSchedulerElement::GetLoggingAttributesString() const
 TString TSchedulerElement::GetLoggingString() const
 {
     return Format("Scheduling info for tree %Qv = {%v}", GetTreeId(), GetLoggingAttributesString());
-}
-
-bool TSchedulerElement::IsActive(const TDynamicAttributesList& dynamicAttributesList) const
-{
-    return dynamicAttributesList[GetTreeIndex()].Active;
 }
 
 TJobResources TSchedulerElement::GetCurrentResourceUsage(const TDynamicAttributesList& dynamicAttributesList) const
