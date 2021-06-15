@@ -220,7 +220,8 @@ public:
     virtual void RegisterService(IServicePtr service) override;
     virtual bool UnregisterService(IServicePtr service) override;
 
-    virtual IServicePtr FindService(const TServiceId& serviceId) override;
+    virtual IServicePtr FindService(const TServiceId& serviceId) const override;
+    virtual IServicePtr GetServiceOrThrow(const TServiceId& serviceId) const override;
 
     virtual void Configure(TServerConfigPtr config) override;
 
@@ -234,7 +235,10 @@ protected:
 
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, ServicesLock_);
     TServerConfigPtr Config_;
-    THashMap<TServiceId, IServicePtr> ServiceMap_;
+
+    //! Service name to service.
+    using TServiceMap = THashMap<TString, IServicePtr>;
+    THashMap<TGuid, TServiceMap> RealmIdToServiceMap_;
 
     explicit TServerBase(const NLogging::TLogger& logger);
 
@@ -243,9 +247,6 @@ protected:
 
     virtual void DoRegisterService(const IServicePtr& service);
     virtual void DoUnregisterService(const IServicePtr& service);
-
-    std::vector<IServicePtr> DoFindServices(const TString& serviceName);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

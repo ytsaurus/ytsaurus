@@ -25,7 +25,10 @@ struct IServer
     virtual bool UnregisterService(IServicePtr service) = 0;
 
     //! Finds a service by id, returns null if none is found.
-    virtual IServicePtr FindService(const TServiceId& serviceId) = 0;
+    virtual IServicePtr FindService(const TServiceId& serviceId) const = 0;
+
+    //! Finds a service by id, throws an appropriate error if none is found.
+    virtual IServicePtr GetServiceOrThrow(const TServiceId& serviceId) const = 0;
 
     //! Reconfigures the server on-the-fly.
     virtual void Configure(TServerConfigPtr config) = 0;

@@ -253,6 +253,7 @@ private:
             code == NElection::EErrorCode::InvalidLeader ||
             code == NElection::EErrorCode::InvalidEpoch ||
             code == NRpc::EErrorCode::NoSuchService ||
+            code == NRpc::EErrorCode::UnknownRealm ||
             code == NYTree::EErrorCode::ResolveError)
         {
             // These errors are possible during grace period.

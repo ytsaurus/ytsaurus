@@ -151,6 +151,7 @@ DEFINE_ENUM(EErrorCode,
     ((UnsupportedClientFeature)     (113))
     ((UnsupportedServerFeature)     (114))
     ((PeerBanned)                   (115)) // The server is explicitly banned and thus must be dropped.
+    ((UnknownRealm)                 (117))
 );
 
 DEFINE_ENUM(EMessageFormat,
