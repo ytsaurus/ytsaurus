@@ -9,6 +9,8 @@
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
+#include <yt/yt/server/node/exec_agent/slot_manager.h>
+
 #include <yt/yt/server/node/job_agent/job_controller.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -70,6 +72,11 @@ void TSchedulerConnector::SendHeartbeat()
 
     const auto& masterConnector = Bootstrap_->GetClusterNodeMasterConnector();
     if (!masterConnector->IsConnected()) {
+        return;
+    }
+
+    const auto slotManager = Bootstrap_->GetExecSlotManager();
+    if (!slotManager->IsInitialized()) {
         return;
     }
 

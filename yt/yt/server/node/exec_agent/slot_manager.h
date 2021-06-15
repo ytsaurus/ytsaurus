@@ -59,6 +59,7 @@ public:
     int GetSlotCount() const;
     int GetUsedSlotCount() const;
 
+    bool IsInitialized() const;
     bool IsEnabled() const;
     bool HasFatalAlert() const;
 
