@@ -62,14 +62,13 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         }
     }
 
-    def _get_table_schema(self, max_inline_hunk_size):
-        schema = self.SCHEMA
+    def _get_table_schema(self, schema, max_inline_hunk_size):
         schema[1]["max_inline_hunk_size"] = max_inline_hunk_size
         return schema
 
-    def _create_table(self, optimize_for="lookup", max_inline_hunk_size=10):
+    def _create_table(self, optimize_for="lookup", max_inline_hunk_size=10, schema=SCHEMA):
         self._create_simple_table("//tmp/t",
-                                  schema=self._get_table_schema(max_inline_hunk_size),
+                                  schema=self._get_table_schema(schema, max_inline_hunk_size),
                                   enable_dynamic_store_read=False,
                                   hunk_chunk_reader={
                                       "max_hunk_count_per_read": 2,
@@ -337,7 +336,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows1 + rows2)
         sync_unmount_table("//tmp/t")
 
-        alter_table("//tmp/t", schema=self._get_table_schema(max_inline_hunk_size=10))
+        alter_table("//tmp/t", schema=self._get_table_schema(schema=self.SCHEMA, max_inline_hunk_size=10))
 
         chunk_ids_before_compaction = get("//tmp/t/@chunk_ids")
         assert len(chunk_ids_before_compaction) == 1
@@ -372,7 +371,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows1 + rows2)
         sync_unmount_table("//tmp/t")
 
-        alter_table("//tmp/t", schema=self._get_table_schema(max_inline_hunk_size=1000))
+        alter_table("//tmp/t", schema=self._get_table_schema(schema=self.SCHEMA, max_inline_hunk_size=1000))
 
         store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
         assert len(store_chunk_ids) == 1
@@ -547,6 +546,40 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         )
         assert read_table("//tmp/t_out") == rows
 
+    @authors("gritukan")
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    @pytest.mark.parametrize("hunk_type", ["inline", "chunk"])
+    def test_hunks_in_operation_any_column(self, optimize_for, hunk_type):
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "any", "max_inline_chunk_size": 10},
+        ]
+
+        sync_create_cells(1)
+        self._create_table(optimize_for=optimize_for, schema=schema)
+        sync_mount_table("//tmp/t")
+
+        if hunk_type == "inline":
+            rows = [{"key": i, "value": "value" + str(i)} for i in xrange(10)]
+        else:
+            rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10)]
+        insert_rows("//tmp/t", rows)
+        sync_unmount_table("//tmp/t")
+
+        hunk_chunk_ids = self._get_hunk_chunk_ids("//tmp/t")
+        if hunk_type == "inline":
+            assert len(hunk_chunk_ids) == 0
+        else:
+            assert len(hunk_chunk_ids) == 1
+
+        create("table", "//tmp/t_out")
+        map(
+            in_="//tmp/t",
+            out="//tmp/t_out",
+            command="cat",
+        )
+        assert read_table("//tmp/t_out") == rows
+
     @authors("babenko")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_alter_to_hunks(self, optimize_for):
@@ -560,7 +593,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert len(self._get_store_chunk_ids("//tmp/t")) == 1
         assert len(self._get_hunk_chunk_ids("//tmp/t")) == 0
 
-        alter_table("//tmp/t", schema=self._get_table_schema(max_inline_hunk_size=10))
+        alter_table("//tmp/t", schema=self._get_table_schema(schema=self.SCHEMA, max_inline_hunk_size=10))
 
         sync_mount_table("//tmp/t")
         rows2 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10, 20)]
@@ -577,4 +610,4 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
     def test_alter_must_preserve_hunks(self):
         self._create_table()
         with pytest.raises(YtError):
-            alter_table("//tmp/t", schema=self._get_table_schema(max_inline_hunk_size=None))
+            alter_table("//tmp/t", schema=self._get_table_schema(schema=self.SCHEMA, max_inline_hunk_size=None))
