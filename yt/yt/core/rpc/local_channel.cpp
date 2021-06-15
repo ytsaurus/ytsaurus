@@ -73,16 +73,11 @@ public:
         const TSendOptions& options) override
     {
         TServiceId serviceId(request->GetService(), request->GetRealmId());
-        auto service = Server_->FindService(serviceId);
-        if (!service) {
-            auto error = TError(
-                EErrorCode::NoSuchService,
-                "Service is not registered")
-                << *EndpointAttributes
-                << TErrorAttribute("request_id", request->GetRequestId())
-                << TErrorAttribute("service", serviceId.ServiceName)
-                << TErrorAttribute("realm_id", serviceId.RealmId);
-            responseHandler->HandleError(error);
+        IServicePtr service;
+        try {
+            service = Server_->GetServiceOrThrow(serviceId);
+        } catch (const TErrorException& ex) {
+            responseHandler->HandleError(TError(ex));
             return nullptr;
         }
 

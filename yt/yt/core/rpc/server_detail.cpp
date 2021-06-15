@@ -601,7 +601,8 @@ void TServerBase::RegisterService(IServicePtr service)
 
     {
         auto guard = WriterGuard(ServicesLock_);
-        YT_VERIFY(ServiceMap_.emplace(serviceId, service).second);
+        auto& serviceMap = RealmIdToServiceMap_[serviceId.RealmId];
+        YT_VERIFY(serviceMap.emplace(serviceId.ServiceName, service).second);
         if (Config_) {
             auto it = Config_->Services.find(serviceId.ServiceName);
             if (it != Config_->Services.end()) {
@@ -626,11 +627,21 @@ bool TServerBase::UnregisterService(IServicePtr service)
 
     {
         auto guard = WriterGuard(ServicesLock_);
-        auto it = ServiceMap_.find(serviceId);
-        if (it == ServiceMap_.end() || it->second != service) {
+
+        auto serviceMapIt = RealmIdToServiceMap_.find(serviceId.RealmId);
+        if (serviceMapIt == RealmIdToServiceMap_.end()) {
             return false;
         }
-        ServiceMap_.erase(it);
+        auto& serviceMap = serviceMapIt->second;
+        auto serviceIt = serviceMap.find(serviceId.ServiceName);
+        if (serviceIt == serviceMap.end() || serviceIt->second != service) {
+            return false;
+        }
+        serviceMap.erase(serviceIt);
+        if (serviceMap.empty()) {
+            YT_VERIFY(RealmIdToServiceMap_.erase(serviceId.RealmId));
+        }
+
         DoUnregisterService(service);
     }
 
@@ -640,11 +651,54 @@ bool TServerBase::UnregisterService(IServicePtr service)
     return true;
 }
 
-IServicePtr TServerBase::FindService(const TServiceId& serviceId)
+IServicePtr TServerBase::FindService(const TServiceId& serviceId) const
 {
     auto guard = ReaderGuard(ServicesLock_);
-    auto it = ServiceMap_.find(serviceId);
-    return it == ServiceMap_.end() ? nullptr : it->second;
+    auto serviceMapIt = RealmIdToServiceMap_.find(serviceId.RealmId);
+    if (serviceMapIt == RealmIdToServiceMap_.end()) {
+        return nullptr;
+    }
+    auto& serviceMap = serviceMapIt->second;
+    auto serviceIt = serviceMap.find(serviceId.ServiceName);
+    return serviceIt == serviceMap.end() ? nullptr : serviceIt->second;
+}
+
+IServicePtr TServerBase::GetServiceOrThrow(const TServiceId& serviceId) const
+{
+    auto guard = ReaderGuard(ServicesLock_);
+
+    const auto& realmId = serviceId.RealmId;
+    const auto& serviceName = serviceId.ServiceName;
+    auto serviceMapIt = RealmIdToServiceMap_.find(realmId);
+    if (serviceMapIt == RealmIdToServiceMap_.end()) {
+        if (realmId) {
+            // TODO(gritukan): Stop wrapping error one day.
+            auto innerError = TError(EErrorCode::UnknownRealm, "Request realm is unknown")
+                << TErrorAttribute("service", serviceName)
+                << TErrorAttribute("realm_id", realmId);
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::NoSuchService,
+                "Service is not registered")
+                << innerError;
+        } else {
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::NoSuchService,
+                "Service is not registered")
+                << TErrorAttribute("service", serviceName)
+                << TErrorAttribute("realm_id", realmId);
+        }
+    }
+    auto& serviceMap = serviceMapIt->second;
+    auto serviceIt = serviceMap.find(serviceName);
+    if (serviceIt == serviceMap.end()) {
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::NoSuchService,
+            "Service is not registered")
+            << TErrorAttribute("service", serviceName)
+            << TErrorAttribute("realm_id", realmId);
+    }
+
+    return serviceIt->second;
 }
 
 void TServerBase::Configure(TServerConfigPtr config)
@@ -655,12 +709,14 @@ void TServerBase::Configure(TServerConfigPtr config)
     Config_ = config;
 
     // Apply configuration to all existing services.
-    for (const auto& [serviceId, service] : ServiceMap_) {
-        auto it = config->Services.find(serviceId.ServiceName);
-        if (it != config->Services.end()) {
-            service->Configure(config, it->second);
-        } else {
-            service->Configure(config, nullptr);
+    for (const auto& [realmId, serviceMap] : RealmIdToServiceMap_) {
+        for (const auto& [serviceName, service] : serviceMap) {
+            auto it = config->Services.find(serviceName);
+            if (it != config->Services.end()) {
+                service->Configure(config, it->second);
+            } else {
+                service->Configure(config, nullptr);
+            }
         }
     }
 }
@@ -705,8 +761,10 @@ TFuture<void> TServerBase::DoStop(bool graceful)
         std::vector<IServicePtr> services;
         {
             auto guard = ReaderGuard(ServicesLock_);
-            for (const auto& [serviceId, service] : ServiceMap_) {
-                services.push_back(service);
+            for (const auto& [realmId, serviceMap] : RealmIdToServiceMap_) {
+                for (const auto& [serviceName, service] : serviceMap) {
+                    services.push_back(service);
+                }
             }
         }
 
@@ -725,18 +783,6 @@ void TServerBase::DoRegisterService(const IServicePtr& /*service*/)
 
 void TServerBase::DoUnregisterService(const IServicePtr& /*service*/)
 { }
-
-std::vector<IServicePtr> TServerBase::DoFindServices(const TString& serviceName)
-{
-    std::vector<IServicePtr> result;
-    for (const auto& [serviceId, service] : ServiceMap_) {
-        if (serviceId.ServiceName == serviceName) {
-            result.push_back(service);
-        }
-    }
-
-    return result;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

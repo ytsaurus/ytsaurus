@@ -126,19 +126,17 @@ private:
         }
 
         TServiceId serviceId(serviceName, realmId);
-        auto service = FindService(serviceId);
-        if (!service) {
-            replyWithError(TError(
-                EErrorCode::NoSuchService,
-                "Service is not registered")
-                << TErrorAttribute("service", serviceName)
-                << TErrorAttribute("realm_id", realmId)
-                << TErrorAttribute("endpoint", replyBus->GetEndpointDescription()));
+        IServicePtr service;
+        try {
+            service = GetServiceOrThrow(serviceId);
+        } catch (const TErrorException& ex) {
+            replyWithError(TError(ex));
             return;
         }
 
         replyBus->SetTosLevel(tosLevel);
 
+        YT_VERIFY(service);
         service->HandleRequest(
             std::move(header),
             std::move(message),
