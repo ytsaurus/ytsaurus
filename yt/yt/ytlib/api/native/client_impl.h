@@ -28,6 +28,8 @@
 #include <yt/yt/ytlib/object_client/object_service_cache.h>
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/yt/library/syncmap/map.h>
+
 #include <yt/yt/core/rpc/public.h>
 
 #include <yt/yt/core/ypath/public.h>
@@ -487,6 +489,8 @@ private:
     NQueryClient::IFunctionRegistryPtr FunctionRegistry_;
     std::unique_ptr<NScheduler::TSchedulerServiceProxy> SchedulerProxy_;
     std::unique_ptr<NScheduler::TJobProberServiceProxy> JobProberProxy_;
+    NConcurrency::TSyncMap<TString, NApi::IClientPtr> ReplicaClients_;
+
 
     const NRpc::IChannelPtr& GetOperationArchiveChannel(EMasterChannelKind kind);
 
@@ -599,7 +603,7 @@ private:
         NQueryClient::NAst::TQuery* query);
 
     NApi::IConnectionPtr GetReplicaConnectionOrThrow(const TString& clusterName);
-    NApi::IClientPtr CreateReplicaClient(const TString& clusterName);
+    NApi::IClientPtr GetOrCreateReplicaClient(const TString& clusterName);
 
     TSelectRowsResult DoSelectRows(
         const TString& queryString,
