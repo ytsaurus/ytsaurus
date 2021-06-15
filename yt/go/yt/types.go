@@ -213,15 +213,15 @@ const (
 type JobSortField string
 
 const (
-	NoneSortField       JobSortField = "none"
-	TypeSortField       JobSortField = "type"
-	StateSortField      JobSortField = "state"
-	StartTimeSortField  JobSortField = "start_time"
-	FinishTimeSortField JobSortField = "finish_time"
-	AddressSortField    JobSortField = "address"
-	DurationSortField   JobSortField = "duration"
-	ProgressSortField   JobSortField = "progress"
-	IDSortField         JobSortField = "id"
+	SortFieldNone       JobSortField = "none"
+	SortFieldType       JobSortField = "type"
+	SortFieldState      JobSortField = "state"
+	SortFieldStartTime  JobSortField = "start_time"
+	SortFieldFinishTime JobSortField = "finish_time"
+	SortFieldAddress    JobSortField = "address"
+	SortFieldDuration   JobSortField = "duration"
+	SortFieldProgress   JobSortField = "progress"
+	SortFieldID         JobSortField = "id"
 )
 
 type JobSortOrder string
