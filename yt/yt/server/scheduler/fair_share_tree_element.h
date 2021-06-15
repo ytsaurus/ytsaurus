@@ -182,6 +182,7 @@ private:
 
         int ActiveOperationCount = 0;
         int ActiveTreeSize = 0;
+        int TotalHeapElementCount = 0;
         int ScheduleJobAttemptCount = 0;
         int ScheduleJobFailureCount = 0;
         TEnumIndexedVector<EDeactivationReason, int> DeactivationReasons;

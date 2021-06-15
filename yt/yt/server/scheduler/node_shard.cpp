@@ -506,17 +506,19 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     bool isThrottlingActive = false;
     if (ConcurrentHeartbeatCount_ >= Config_->HardConcurrentHeartbeatLimit) {
         isThrottlingActive = true;
-        YT_LOG_INFO("Hard heartbeat limit reached (NodeAddress: %v, Limit: %v)",
+        YT_LOG_INFO("Hard heartbeat limit reached (NodeAddress: %v, Limit: %v, Count: %v)",
             node->GetDefaultAddress(),
-            Config_->HardConcurrentHeartbeatLimit);
+            Config_->HardConcurrentHeartbeatLimit,
+            ConcurrentHeartbeatCount_);
         HardConcurrentHeartbeatLimitReachedCounter_.Increment();
     } else if (ConcurrentHeartbeatCount_ >= Config_->SoftConcurrentHeartbeatLimit &&
         node->GetLastSeenTime() + Config_->HeartbeatProcessBackoff > TInstant::Now())
     {
         isThrottlingActive = true;
-        YT_LOG_TRACE("Soft heartbeat limit reached (NodeAddress: %v, Limit: %v)",
+        YT_LOG_DEBUG("Soft heartbeat limit reached (NodeAddress: %v, Limit: %v, Count: %v)",
             node->GetDefaultAddress(),
-            Config_->SoftConcurrentHeartbeatLimit);
+            Config_->SoftConcurrentHeartbeatLimit,
+            ConcurrentHeartbeatCount_);
         SoftConcurrentHeartbeatLimitReachedCounter_.Increment();
     }
 
@@ -548,10 +550,12 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     bool skipScheduleJobs = false;
     if (hasWaitingJobs || isThrottlingActive) {
         if (hasWaitingJobs) {
-            YT_LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
+            YT_LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling (NodeAddress: %v)",
+                node->GetDefaultAddress());
         }
         if (isThrottlingActive) {
-            YT_LOG_DEBUG("Throttling is active, suppressing new jobs scheduling");
+            YT_LOG_DEBUG("Throttling is active, suppressing new jobs scheduling (NodeAddress: %v)",
+                node->GetDefaultAddress());
         }
         skipScheduleJobs = true;
     }

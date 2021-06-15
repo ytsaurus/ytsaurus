@@ -217,10 +217,13 @@ void TScheduleJobsContext::LogStageStatistics()
 
     YT_VERIFY(StageState_);
 
-    YT_LOG_DEBUG("%v scheduling statistics (ActiveTreeSize: %v, ActiveOperationCount: %v, DeactivationReasons: %v, CanStartMoreJobs: %v, Address: %v, SchedulingSegment: %v)",
+    YT_LOG_DEBUG(
+        "%v scheduling statistics (ActiveTreeSize: %v, ActiveOperationCount: %v, TotalHeapElementCount: %v, "
+        "DeactivationReasons: %v, CanStartMoreJobs: %v, Address: %v, SchedulingSegment: %v)",
         StageState_->SchedulingStage->LoggingName,
         StageState_->ActiveTreeSize,
         StageState_->ActiveOperationCount,
+        StageState_->TotalHeapElementCount,
         StageState_->DeactivationReasons,
         SchedulingContext_->CanStartMoreJobs(),
         SchedulingContext_->GetNodeDescriptor().Address,
@@ -1399,6 +1402,8 @@ void TSchedulerCompositeElement::InitializeChildHeap(TScheduleJobsContext* conte
     if (std::ssize(SchedulableChildren_) < TreeConfig_->MinChildHeapSize) {
         return;
     }
+
+    context->StageState()->TotalHeapElementCount += std::ssize(SchedulableChildren_);
 
     TChildHeap::TElementComparator elementComparator;
 
