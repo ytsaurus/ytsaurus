@@ -1405,39 +1405,13 @@ void TSchedulerCompositeElement::InitializeChildHeap(TScheduleJobsContext* conte
 
     context->StageState()->TotalHeapElementCount += std::ssize(SchedulableChildren_);
 
-    TChildHeap::TElementComparator elementComparator;
-
-    switch (Mode_) {
-        case ESchedulingMode::Fifo:
-            elementComparator = [this, context] (TSchedulerElement* lhs, TSchedulerElement* rhs) {
-                auto& lhsAttributes = context->DynamicAttributesFor(lhs);
-                auto& rhsAttributes = context->DynamicAttributesFor(rhs);
-                if (lhsAttributes.Active != rhsAttributes.Active) {
-                    return rhsAttributes.Active < lhsAttributes.Active;
-                }
-                return HasHigherPriorityInFifoMode(lhs, rhs);
-            };
-            break;
-        case ESchedulingMode::FairShare:
-            elementComparator = [context] (TSchedulerElement* lhs, TSchedulerElement* rhs) {
-                auto& lhsAttributes = context->DynamicAttributesFor(lhs);
-                auto& rhsAttributes = context->DynamicAttributesFor(rhs);
-                if (lhsAttributes.Active != rhsAttributes.Active) {
-                    return rhsAttributes.Active < lhsAttributes.Active;
-                }
-                return lhsAttributes.SatisfactionRatio < rhsAttributes.SatisfactionRatio;
-            };
-            break;
-        default:
-            YT_ABORT();
-    }
-
     context->ChildHeapMap().emplace(
         GetTreeIndex(),
         TChildHeap{
             SchedulableChildren_,
+            this,
             &context->DynamicAttributesList(),
-            elementComparator
+            Mode_
         });
 }
 
@@ -1758,7 +1732,7 @@ void TSchedulerPoolElement::ChangeParent(TSchedulerCompositeElement* newParent)
     {
         const auto* currentParent = newParent;
         while (currentParent != nullptr) {
-            destinationHasSpecifiedResourceLimits = destinationHasSpecifiedResourceLimits || 
+            destinationHasSpecifiedResourceLimits = destinationHasSpecifiedResourceLimits ||
                 (currentParent->PersistentAttributes().AppliedResourceLimits != TJobResources::Infinite());
             currentParent = currentParent->GetParent();
         }
@@ -3866,20 +3840,21 @@ TChildHeapItem::~TChildHeapItem()
 
 TChildHeap::TChildHeap(
     const std::vector<TSchedulerElementPtr>& children,
+    const TSchedulerCompositeElement* owningElement,
     TDynamicAttributesList* dynamicAttributesList,
-    TElementComparator elementComparator)
+    ESchedulingMode mode)
     : DynamicAttributesList_(dynamicAttributesList)
-    , Comparator_([elementComparator=std::move(elementComparator)] (const TChildHeapItem& lhs, const TChildHeapItem& rhs) {
-        YT_VERIFY(lhs.GetElement());
-        YT_VERIFY(rhs.GetElement());
-        return elementComparator(lhs.GetElement(), rhs.GetElement());
-    })
+    , OwningElement_(owningElement)
+    , Mode_(mode)
 {
     ChildHeap_.reserve(children.size());
     for (const auto& child : children) {
         ChildHeap_.emplace_back(child.Get(), DynamicAttributesList_);
     }
-    MakeHeap(ChildHeap_.begin(), ChildHeap_.end(), Comparator_);
+    MakeHeap(
+        ChildHeap_.begin(),
+        ChildHeap_.end(),
+        std::bind(&TChildHeap::Comparator, this, std::placeholders::_1, std::placeholders::_2));
 }
 
 TSchedulerElement* TChildHeap::GetTopElement() const
@@ -3900,12 +3875,37 @@ void TChildHeap::Update(TSchedulerElement* child)
         ChildHeap_.begin(),
         ChildHeap_.end(),
         iterator,
-        Comparator_);
+        std::bind(&TChildHeap::Comparator, this, std::placeholders::_1, std::placeholders::_2));
 }
 
 const std::vector<TChildHeapItem>& TChildHeap::GetHeap() const
 {
     return ChildHeap_;
+}
+
+bool TChildHeap::Comparator(const TChildHeapItem& lhs, const TChildHeapItem& rhs) const
+{
+    auto lhsElement = lhs.GetElement();
+    auto rhsElement = rhs.GetElement();
+
+    YT_VERIFY(lhsElement);
+    YT_VERIFY(rhsElement);
+
+    const auto& lhsAttributes = (*DynamicAttributesList_)[lhsElement->GetTreeIndex()];
+    const auto& rhsAttributes = (*DynamicAttributesList_)[rhsElement->GetTreeIndex()];
+
+    if (lhsAttributes.Active != rhsAttributes.Active) {
+        return rhsAttributes.Active < lhsAttributes.Active;
+    }
+
+    switch (Mode_) {
+        case ESchedulingMode::Fifo:
+            return OwningElement_->HasHigherPriorityInFifoMode(lhsElement, rhsElement);
+        case ESchedulingMode::FairShare:
+            return lhsAttributes.SatisfactionRatio < rhsAttributes.SatisfactionRatio;
+        default:
+            YT_ABORT();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
