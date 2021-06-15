@@ -410,10 +410,12 @@ NApi::IConnectionPtr TClient::GetReplicaConnectionOrThrow(const TString& cluster
     return clusterDirectory->GetConnectionOrThrow(clusterName);
 }
 
-NApi::IClientPtr TClient::CreateReplicaClient(const TString& clusterName)
+NApi::IClientPtr TClient::GetOrCreateReplicaClient(const TString& clusterName)
 {
-    auto replicaConnection = GetReplicaConnectionOrThrow(clusterName);
-    return replicaConnection->CreateClient(Options_);
+    return *ReplicaClients_.FindOrInsert(clusterName, [&] {
+        auto replicaConnection = GetReplicaConnectionOrThrow(clusterName);
+        return replicaConnection->CreateClient(Options_);
+    }).first;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

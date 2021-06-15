@@ -556,7 +556,7 @@ TRowset TClient::DoLookupRowsOnce(
         auto inSyncReplicaInfos = WaitFor(PickInSyncReplicas(tableInfo, options, sortedKeys))
             .ValueOrThrow();
         auto inSyncReplicaInfo = PickRandomReplica(inSyncReplicaInfos);
-        auto replicaClient = CreateReplicaClient(inSyncReplicaInfo->ClusterName);
+        auto replicaClient = GetOrCreateReplicaClient(inSyncReplicaInfo->ClusterName);
         auto asyncResult = replicaFallbackHandler(replicaClient, inSyncReplicaInfo);
         return WaitFor(asyncResult)
             .ValueOrThrow();
@@ -803,7 +803,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto* astQuery = &std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
     auto optionalClusterName = PickInSyncClusterAndPatchQuery(options, astQuery);
     if (optionalClusterName) {
-        auto replicaClient = CreateReplicaClient(*optionalClusterName);
+        auto replicaClient = GetOrCreateReplicaClient(*optionalClusterName);
         auto updatedQueryString = NAst::FormatQuery(*astQuery);
         auto asyncResult = replicaClient->SelectRows(updatedQueryString, options);
         return WaitFor(asyncResult)
