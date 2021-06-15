@@ -661,6 +661,7 @@ private:
     friend class TSchedulerElement;
     friend class TSchedulerOperationElement;
     friend class TSchedulerRootElement;
+    friend class TChildHeap;
 
     bool HasHigherPriorityInFifoMode(const TSchedulerElement* lhs, const TSchedulerElement* rhs) const;
 
@@ -1345,13 +1346,11 @@ private:
 class TChildHeap
 {
 public:
-    using TElementComparator = std::function<bool(TSchedulerElement*, TSchedulerElement*)>;
-    using TComparator = std::function<bool(const TChildHeapItem&, const TChildHeapItem&)>;
-
     TChildHeap(
         const std::vector<TSchedulerElementPtr>& children,
+        const TSchedulerCompositeElement* owningElement,
         TDynamicAttributesList* dynamicAttributesList,
-        TElementComparator elementComparator);
+        ESchedulingMode mode);
     TSchedulerElement* GetTopElement() const;
     void Update(TSchedulerElement* child);
     
@@ -1360,9 +1359,12 @@ public:
 
 private:
     TDynamicAttributesList* const DynamicAttributesList_;
-    const TComparator Comparator_;
+    const TSchedulerCompositeElement* OwningElement_;
+    const ESchedulingMode Mode_;
 
     std::vector<TChildHeapItem> ChildHeap_;
+
+    bool Comparator(const TChildHeapItem& lhs, const TChildHeapItem& rhs) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
