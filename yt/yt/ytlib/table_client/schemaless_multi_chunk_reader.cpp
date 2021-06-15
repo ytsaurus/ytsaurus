@@ -764,7 +764,6 @@ public:
                     auto id = IdMapping_[value.Id];
 
                     if (id >= 0) {
-                        ValidateDataValue(value);
                         schemalessRow[schemalessValueIndex] = value;
                         schemalessRow[schemalessValueIndex].Id = id;
                         ++schemalessValueIndex;
