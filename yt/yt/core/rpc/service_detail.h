@@ -291,20 +291,16 @@ protected:
             const auto& requestHeader = GetRequestHeader();
 
             // COMPAT(kiselyovp): legacy RPC codecs
-            bool enableBodyEnvelope;
             NCompression::ECodec attachmentCodecId;
             auto bodyCodecId = UnderlyingContext_->GetResponseCodec();
-            if (requestHeader.has_request_codec()) {
-                enableBodyEnvelope = false;
+            TSharedRef serializedBody;
+            if (requestHeader.has_response_codec()) {
+                serializedBody = SerializeProtoToRefWithCompression(*Response_, bodyCodecId, false);
                 attachmentCodecId = bodyCodecId;
             } else {
-                enableBodyEnvelope = true;
+                serializedBody = SerializeProtoToRefWithEnvelope(*Response_, bodyCodecId);
                 attachmentCodecId = NCompression::ECodec::None;
             }
-
-            auto serializedBody = enableBodyEnvelope
-                ? SerializeProtoToRefWithEnvelope(*Response_, bodyCodecId)
-                : SerializeProtoToRefWithCompression(*Response_, bodyCodecId, false);
 
             if (requestHeader.has_response_format()) {
                 int intFormat = requestHeader.response_format();
