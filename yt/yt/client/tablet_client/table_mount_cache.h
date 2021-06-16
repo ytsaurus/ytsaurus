@@ -51,7 +51,7 @@ struct TTableReplicaInfo
 {
     TTableReplicaId ReplicaId;
     TString ClusterName;
-    TString ReplicaPath;
+    NYPath::TYPath ReplicaPath;
     ETableReplicaMode Mode;
 };
 

@@ -1,6 +1,7 @@
 #include "config.h"
 #include "connection.h"
 #include "client.h"
+#include "tablet_sync_replica_cache.h"
 #include "transaction_participant.h"
 #include "transaction.h"
 #include "private.h"
@@ -101,11 +102,12 @@ public:
             Config_->Name))
         , ClusterId_(Format("Native(PrimaryCellTag=%v)",
             CellTagFromId(Config_->PrimaryMaster->CellId)))
-        , Logger(ApiLogger.WithRawTag(LoggingTag_))
         , ChannelFactory_(CreateCachingChannelFactory(
             NRpc::NBus::CreateBusChannelFactory(Config_->BusClient),
             Config_->IdleChannelTtl))
         , StickyGroupSizeCache_(Config_->EnableDynamicCacheStickyGroupSize ? New<TStickyGroupSizeCache>() : nullptr)
+        , TabletSyncReplicaCache_(New<TTabletSyncReplicaCache>())
+        , Logger(ApiLogger.WithRawTag(LoggingTag_))
         , Profiler_(TProfiler("/connection").WithTag("connection_name", Config_->Name))
     { }
 
@@ -250,6 +252,11 @@ public:
     virtual const TStickyGroupSizeCachePtr& GetStickyGroupSizeCache() override
     {
         return StickyGroupSizeCache_;
+    }
+
+    virtual const TTabletSyncReplicaCachePtr& GetTabletSyncReplicaCache() override
+    {
+        return TabletSyncReplicaCache_;
     }
 
     virtual IInvokerPtr GetInvoker() override
@@ -486,10 +493,13 @@ private:
     const TString LoggingTag_;
     const TString ClusterId_;
 
-    const NLogging::TLogger Logger;
-
     const NRpc::IChannelFactoryPtr ChannelFactory_;
     const TStickyGroupSizeCachePtr StickyGroupSizeCache_;
+
+    const TTabletSyncReplicaCachePtr TabletSyncReplicaCache_;
+
+    const NLogging::TLogger Logger;
+    const TProfiler Profiler_;
 
     // NB: There're also CellDirectory_ and CellDirectorySynchronizer_, which are completely different from these.
     NCellMasterClient::TCellDirectoryPtr MasterCellDirectory_;
@@ -521,8 +531,6 @@ private:
 
     TThreadPoolPtr ConnectionThreadPool_;
     IInvokerPtr ConnectionInvoker_;
-
-    TProfiler Profiler_;
 
     std::atomic<bool> Terminated_ = false;
 

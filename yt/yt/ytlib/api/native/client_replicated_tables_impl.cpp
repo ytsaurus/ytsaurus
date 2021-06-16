@@ -1,6 +1,7 @@
 #include "client_impl.h"
 #include "connection.h"
 #include "tablet_helpers.h"
+#include "tablet_sync_replica_cache.h"
 #include "config.h"
 
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
@@ -197,6 +198,16 @@ TTableReplicaInfoPtr TClient::PickRandomReplica(
     return replicas[RandomNumber<size_t>() % replicas.size()];
 }
 
+TClient::TReplicaFallbackInfo TClient::GetReplicaFallbackInfo(
+    const TTableReplicaInfoPtrList& replicas)
+{
+    auto replicaInfo = PickRandomReplica(replicas);
+    return {
+        .Client = GetOrCreateReplicaClient(replicaInfo->ClusterName),
+        .Path = replicaInfo->ReplicaPath
+    };
+}
+
 TString TClient::PickRandomCluster(
     const std::vector<TString>& clusterNames)
 {
@@ -218,7 +229,10 @@ TFuture<TTableReplicaInfoPtrList> TClient::PickInSyncReplicas(
             cellIdToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
         }
     }
-    return PickInSyncReplicas(tableInfo, options, cellIdToTabletIds);
+    return PickInSyncReplicas(
+        tableInfo,
+        options,
+        std::move(cellIdToTabletIds));
 }
 
 TFuture<TTableReplicaInfoPtrList> TClient::PickInSyncReplicas(
@@ -229,29 +243,62 @@ TFuture<TTableReplicaInfoPtrList> TClient::PickInSyncReplicas(
     for (const auto& tabletInfo : tableInfo->Tablets) {
         cellIdToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
     }
-    return PickInSyncReplicas(tableInfo, options, cellIdToTabletIds);
+    return PickInSyncReplicas(
+        tableInfo,
+        options,
+        std::move(cellIdToTabletIds));
 }
 
 TFuture<TTableReplicaInfoPtrList> TClient::PickInSyncReplicas(
     const TTableMountInfoPtr& tableInfo,
     const TTabletReadOptions& options,
-    const THashMap<TCellId, std::vector<TTabletId>>& cellIdToTabletIds)
+    THashMap<TCellId, std::vector<TTabletId>> cellIdToTabletIds)
 {
-    size_t cellCount = cellIdToTabletIds.size();
-    size_t tabletCount = 0;
+    auto cachedSyncReplicasAt = options.CachedSyncReplicasTimeout
+        ? std::make_optional(TInstant::Now())
+        : std::nullopt;
+
+    int totalTabletCount = 0;
     for (const auto& [cellId, tabletIds] : cellIdToTabletIds) {
-        tabletCount += tabletIds.size();
+        totalTabletCount += tabletIds.size();
     }
 
-    YT_LOG_DEBUG("Looking for in-sync replicas (Path: %v, CellCount: %v, TabletCount: %v)",
+    THashMap<TTableReplicaId, int> replicaIdToCount;
+
+    int cachedTabletCount = 0;
+    if (cachedSyncReplicasAt) {
+        auto cachedSyncReplicasDeadline = *cachedSyncReplicasAt - *options.CachedSyncReplicasTimeout;
+        auto syncReplicaIdLists = Connection_->GetTabletSyncReplicaCache()->Filter(
+            &cellIdToTabletIds,
+            cachedSyncReplicasDeadline);
+        for (const auto& syncReplicaIds : syncReplicaIdLists) {
+            for (auto syncReplicaId : syncReplicaIds) {
+                ++replicaIdToCount[syncReplicaId];
+            }
+            ++cachedTabletCount;
+        }
+    }
+
+    YT_LOG_DEBUG("Looking for in-sync replicas "
+        "(Path: %v, CellCount: %v, TotalTabletCount: %v, CachedTabletCount: %v)",
         tableInfo->Path,
-        cellCount,
-        tabletCount);
+        cellIdToTabletIds.size(),
+        totalTabletCount,
+        cachedTabletCount);
 
     const auto& channelFactory = Connection_->GetChannelFactory();
     const auto& cellDirectory = Connection_->GetCellDirectory();
+
     std::vector<TFuture<TQueryServiceProxy::TRspGetTabletInfoPtr>> asyncResults;
+    if (!cachedSyncReplicasAt) {
+        asyncResults.reserve(cellIdToTabletIds.size());
+    }
+
     for (const auto& [cellId, tabletIds] : cellIdToTabletIds) {
+        if (tabletIds.empty()) {
+            continue;
+        }
+
         const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(cellId);
         auto channel = CreateTabletReadChannel(
             channelFactory,
@@ -271,38 +318,80 @@ TFuture<TTableReplicaInfoPtrList> TClient::PickInSyncReplicas(
         asyncResults.push_back(req->Invoke());
     }
 
-    return AllSucceeded(asyncResults).Apply(
-        BIND([=, this_ = MakeStrong(this)] (const std::vector<TQueryServiceProxy::TRspGetTabletInfoPtr>& rsps) {
-        THashMap<TTableReplicaId, int> replicaIdToCount;
-        for (const auto& rsp : rsps) {
-            for (const auto& protoTabletInfo : rsp->tablets()) {
-                for (const auto& protoReplicaInfo : protoTabletInfo.replicas()) {
-                    if (IsReplicaSync(protoReplicaInfo, protoTabletInfo)) {
-                        ++replicaIdToCount[FromProto<TTableReplicaId>(protoReplicaInfo.replica_id())];
+    auto asyncResult = AllSucceeded(std::move(asyncResults));
+    if (const auto& resultOrError = asyncResult.TryGet()) {
+        return MakeFuture(OnTabletInfosReceived(
+            tableInfo,
+            totalTabletCount,
+            cachedSyncReplicasAt,
+            std::move(replicaIdToCount),
+            resultOrError->ValueOrThrow()));
+    } else {
+        return asyncResult.Apply(BIND(
+            &TClient::OnTabletInfosReceived,
+            MakeStrong(this),
+            tableInfo,
+            totalTabletCount,
+            cachedSyncReplicasAt,
+            Passed(std::move(replicaIdToCount))));
+    }
+}
+
+TTableReplicaInfoPtrList TClient::OnTabletInfosReceived(
+    const TTableMountInfoPtr& tableInfo,
+    int totalTabletCount,
+    std::optional<TInstant> cachedSyncReplicasAt,
+    THashMap<TTableReplicaId, int> replicaIdToCount,
+    const std::vector<TQueryServiceProxy::TRspGetTabletInfoPtr>& responses)
+{
+    THashMap<TTabletId, TTableReplicaIdList> tabletIdToSyncReplicaIds;
+
+    for (const auto& response : responses) {
+        for (const auto& protoTabletInfo : response->tablets()) {
+            TTableReplicaIdList* syncReplicaIds = nullptr;
+            if (cachedSyncReplicasAt) {
+                auto tabletId = FromProto<TTabletId>(protoTabletInfo.tablet_id());
+                auto [it, emplaced] = tabletIdToSyncReplicaIds.try_emplace(tabletId);
+                YT_VERIFY(emplaced);
+                syncReplicaIds = &it->second;
+            }
+
+            for (const auto& protoReplicaInfo : protoTabletInfo.replicas()) {
+                if (IsReplicaSync(protoReplicaInfo, protoTabletInfo)) {
+                    auto replicaId = FromProto<TTableReplicaId>(protoReplicaInfo.replica_id());
+                    ++replicaIdToCount[replicaId];
+                    if (cachedSyncReplicasAt) {
+                        syncReplicaIds->push_back(replicaId);
                     }
                 }
             }
         }
+    }
 
-        TTableReplicaInfoPtrList inSyncReplicaInfos;
-        for (const auto& replicaInfo : tableInfo->Replicas) {
-            auto it = replicaIdToCount.find(replicaInfo->ReplicaId);
-            if (it != replicaIdToCount.end() && it->second == static_cast<ssize_t>(tabletCount)) {
-                YT_LOG_DEBUG("In-sync replica found (Path: %v, ReplicaId: %v, ClusterName: %v)",
-                    tableInfo->Path,
-                    replicaInfo->ReplicaId,
-                    replicaInfo->ClusterName);
-                inSyncReplicaInfos.push_back(replicaInfo);
-            }
+    if (cachedSyncReplicasAt && !tabletIdToSyncReplicaIds.empty()) {
+        Connection_->GetTabletSyncReplicaCache()->Put(
+            *cachedSyncReplicasAt,
+            std::move(tabletIdToSyncReplicaIds));
+    }
+
+    TTableReplicaInfoPtrList inSyncReplicaInfos;
+    for (const auto& replicaInfo : tableInfo->Replicas) {
+        auto it = replicaIdToCount.find(replicaInfo->ReplicaId);
+        if (it != replicaIdToCount.end() && it->second == totalTabletCount) {
+            YT_LOG_DEBUG("In-sync replica found (Path: %v, ReplicaId: %v, ClusterName: %v)",
+                tableInfo->Path,
+                replicaInfo->ReplicaId,
+                replicaInfo->ClusterName);
+            inSyncReplicaInfos.push_back(replicaInfo);
         }
+    }
 
-        if (inSyncReplicaInfos.empty()) {
-            THROW_ERROR_EXCEPTION("No in-sync replicas found for table %v",
-                tableInfo->Path);
-        }
+    if (inSyncReplicaInfos.empty()) {
+        THROW_ERROR_EXCEPTION("No in-sync replicas found for table %v",
+            tableInfo->Path);
+    }
 
-        return inSyncReplicaInfos;
-    }));
+    return inSyncReplicaInfos;
 }
 
 std::optional<TString> TClient::PickInSyncClusterAndPatchQuery(

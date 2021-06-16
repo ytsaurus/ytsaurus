@@ -355,10 +355,13 @@ IUnversionedRowsetPtr TClient::DoLookupRows(
     const TLookupRowsOptions& options)
 {
     TReplicaFallbackHandler<IUnversionedRowsetPtr> fallbackHandler = [&] (
-        const NApi::IClientPtr& replicaClient,
-        const TTableReplicaInfoPtr& replicaInfo)
+        const TReplicaFallbackInfo& replicaFallbackInfo)
     {
-        return replicaClient->LookupRows(replicaInfo->ReplicaPath, nameTable, keys, options);
+        return replicaFallbackInfo.Client->LookupRows(
+            replicaFallbackInfo.Path,
+            nameTable,
+            keys,
+            options);
     };
 
     return CallAndRetryIfMetadataCacheIsInconsistent([&] () {
@@ -405,10 +408,13 @@ IVersionedRowsetPtr TClient::DoVersionedLookupRows(
     };
 
     TReplicaFallbackHandler<IVersionedRowsetPtr> fallbackHandler = [&] (
-        const NApi::IClientPtr& replicaClient,
-        const TTableReplicaInfoPtr& replicaInfo)
+        const TReplicaFallbackInfo& replicaFallbackInfo)
     {
-        return replicaClient->VersionedLookupRows(replicaInfo->ReplicaPath, nameTable, keys, options);
+        return replicaFallbackInfo.Client->VersionedLookupRows(
+            replicaFallbackInfo.Path,
+            nameTable,
+            keys,
+            options);
     };
 
     std::optional<TString> retentionConfig;
@@ -448,11 +454,10 @@ std::vector<IUnversionedRowsetPtr> TClient::DoMultiLookup(
                 lookupRowsOptions = std::move(lookupRowsOptions)
             ] {
                 TReplicaFallbackHandler<IUnversionedRowsetPtr> fallbackHandler = [&] (
-                    const NApi::IClientPtr& replicaClient,
-                    const TTableReplicaInfoPtr& replicaInfo)
+                    const TReplicaFallbackInfo& replicaFallbackInfo)
                 {
-                    return replicaClient->LookupRows(
-                        replicaInfo->ReplicaPath,
+                    return replicaFallbackInfo.Client->LookupRows(
+                        replicaFallbackInfo.Path,
                         subrequest.NameTable,
                         subrequest.Keys,
                         lookupRowsOptions);
@@ -553,12 +558,22 @@ TRowset TClient::DoLookupRowsOnce(
     }
 
     if (tableInfo->IsReplicated()) {
-        auto inSyncReplicaInfos = WaitFor(PickInSyncReplicas(tableInfo, options, sortedKeys))
-            .ValueOrThrow();
-        auto inSyncReplicaInfo = PickRandomReplica(inSyncReplicaInfos);
-        auto replicaClient = GetOrCreateReplicaClient(inSyncReplicaInfo->ClusterName);
-        auto asyncResult = replicaFallbackHandler(replicaClient, inSyncReplicaInfo);
-        return WaitFor(asyncResult)
+        auto inSyncReplicasFuture = PickInSyncReplicas(
+            tableInfo,
+            options,
+            sortedKeys);
+
+        TReplicaFallbackInfo replicaFallbackInfo;
+        if (auto inSyncReplicasOrError = inSyncReplicasFuture.TryGet()) {
+            replicaFallbackInfo = GetReplicaFallbackInfo(
+                inSyncReplicasOrError->ValueOrThrow());
+        } else {
+            auto inSyncReplicas = WaitFor(inSyncReplicasFuture)
+                .ValueOrThrow();
+            replicaFallbackInfo = GetReplicaFallbackInfo(inSyncReplicas);
+        }
+
+        return WaitFor(replicaFallbackHandler(replicaFallbackInfo))
             .ValueOrThrow();
     }
 

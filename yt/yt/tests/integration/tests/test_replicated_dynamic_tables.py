@@ -2681,3 +2681,38 @@ class TestReplicatedDynamicTablesMulticell(TestReplicatedDynamicTables):
 class TestReplicatedDynamicTablesRpcProxy(TestReplicatedDynamicTables):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+
+    @authors("akozhikhov")
+    def test_sync_replicas_cache(self):
+        self._create_cells()
+
+        self._create_replicated_table("//tmp/t")
+
+        replica_id = create_table_replica(
+            "//tmp/t",
+            self.REPLICA_CLUSTER_NAME,
+            "//tmp/r",
+            attributes={"mode": "sync"})
+        self._create_replica_table("//tmp/r", replica_id)
+        sync_enable_table_replica(replica_id)
+
+        keys = [{"key": 1}]
+        rows = [{"key": 1, "value1": "test", "value2": 10}]
+        insert_rows("//tmp/t", rows)
+
+        for _ in range(10):
+            assert lookup_rows("//tmp/t", keys, cached_sync_replicas_timeout=100) == rows
+
+        replica_id2 = create_table_replica(
+            "//tmp/t",
+            self.REPLICA_CLUSTER_NAME,
+            "//tmp/r2",
+            attributes={"mode": "sync"})
+        self._create_replica_table("//tmp/r2", replica_id2)
+        sync_enable_table_replica(replica_id2)
+        sync_alter_table_replica_mode(replica_id, "async")
+
+        for _ in range(10):
+            assert lookup_rows("//tmp/t", keys, cached_sync_replicas_timeout=5000) == rows
+        for _ in range(10):
+            assert lookup_rows("//tmp/t", keys, cached_sync_replicas_timeout=100) == rows

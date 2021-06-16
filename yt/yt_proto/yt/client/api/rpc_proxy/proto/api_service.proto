@@ -717,6 +717,8 @@ message TTabletRangeOptions
 message TTabletReadOptions
 {
     optional ETabletReadKind read_from = 1 [default = TRK_LEADER];
+
+    optional uint64 cached_sync_replicas_timeout = 2; // TDuration
 }
 
 ////////////////////////////////////////////////////////////////////////////////
