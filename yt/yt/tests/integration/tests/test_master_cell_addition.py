@@ -1,5 +1,3 @@
-import pytest
-
 from yt_env_setup import (
     YTEnvSetup,
     Restarter,
@@ -9,10 +7,17 @@ from yt_env_setup import (
     MASTERS_SERVICE,
 )
 
-from yt_commands import *  # noqa
+from yt_commands import (
+    authors, wait,
+    exists, get, set, ls, create, remove,
+    create_account, create_medium, remove_account,
+    start_transaction, abort_transaction,
+    assert_true_for_secondary_cells,
+    build_snapshot, get_driver)
+
+import pytest
 
 from copy import deepcopy
-
 import __builtin__
 
 ################################################################################

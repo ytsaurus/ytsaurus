@@ -1,8 +1,13 @@
-import pytest
-
 from yt_env_setup import YTEnvSetup
-from yt_commands import *  # noqa
 
+from yt_commands import (
+    authors, wait,
+    exists, get, set, ls, remove, create_account, remove_account, make_ace, create_rack,
+    create_user, remove_user, add_member, remove_member, create_group, remove_group,
+    create_tablet_cell, create_tablet_cell_bundle, remove_tablet_cell_bundle, wait_for_cells,
+    get_driver)
+
+import pytest
 from flaky import flaky
 
 ##################################################################
@@ -31,20 +36,20 @@ class TestMasterCellsSync(YTEnvSetup):
         try:
 
             def _check():
-                for i in xrange(self.Env.secondary_master_cell_count):
+                for i in xrange(self.Env.yt_config.secondary_cell_count):
                     if not check(get_driver(i + 1)):
                         return False
-                return true
-                wait(_check)
+                return True
+            wait(_check)
 
         finally:
             if self.delayed_secondary_cells_start:
-                for cell_index in xrange(self.Env.secondary_master_cell_count):
+                for cell_index in xrange(self.Env.yt_config.secondary_cell_count):
                     self.Env.kill_master_cell(cell_index + 1)
 
     def teardown(self):
         if self.delayed_secondary_cells_start:
-            for cell_index in xrange(self.Env.secondary_master_cell_count):
+            for cell_index in xrange(self.Env.yt_config.secondary_cell_count):
                 self.Env.start_master_cell(cell_index + 1)
 
     @authors("asaitgalin")
@@ -77,10 +82,10 @@ class TestMasterCellsSync(YTEnvSetup):
             set("//sys/groups/sudoers/@attr{0}".format(i), "value")
         remove_member("tester", "sudoers")
 
-        check_attributes = lambda driver: all(
+        check_attributes = lambda driver: all(  # noqa
             [get("//sys/groups/sudoers/@attr{0}".format(i), driver=driver) == "value" for i in xrange(10)]
         )
-        check_membership = lambda driver: "tester" not in get("//sys/groups/sudoers/@members", driver=driver)
+        check_membership = lambda driver: "tester" not in get("//sys/groups/sudoers/@members", driver=driver)  # noqa
 
         self._check_true_for_secondary(lambda driver: check_attributes(driver) and check_membership(driver))
         remove_group("sudoers")
@@ -229,7 +234,9 @@ class TestMasterCellsSync(YTEnvSetup):
     def test_master_alerts_sync(self):
         def check(alert_count):
             wait(lambda: len(get("//sys/@master_alerts")) == alert_count)
-            self._check_true_for_secondary(lambda driver: len(get("//sys/@master_alerts", driver=driver)) == alert_count)
+            # Alerts are not replicated to secondary masters.
+            self._check_true_for_secondary(
+                lambda driver: len(get("//sys/@master_alerts", driver=driver)) == 0)
 
         set("//sys/@config/cell_master/alert_update_period", 100)
 
