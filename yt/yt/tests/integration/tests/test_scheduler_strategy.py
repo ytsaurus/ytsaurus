@@ -2,6 +2,7 @@ from yt_env_setup import (
     YTEnvSetup,
     Restarter,
     SCHEDULERS_SERVICE,
+    NODES_SERVICE,
     CONTROLLER_AGENTS_SERVICE,
     is_asan_build,
 )
@@ -38,6 +39,8 @@ from yt_commands import (  # noqa
     get_statistics,
     make_random_string, raises_yt_error,
     normalize_schema, make_schema)
+
+import yt_error_codes
 
 from yt_helpers import Profiler
 
@@ -2661,10 +2664,6 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
     def get_pool_parent(self, pool):
         return get(self.orchid_pools + "/" + pool + "/parent")
 
-    def wait_and_get_inner_alert_message(self):
-        wait(lambda: get("//sys/scheduler/@alerts"))
-        return get("//sys/scheduler/@alerts")[0]["inner_errors"][0]["inner_errors"][0]["message"]
-
 
 ##################################################################
 
@@ -4868,6 +4867,7 @@ class TestVectorStrongGuarantees(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "watchers_update_period": 100,  # Update pools configuration period
+            "alerts_update_period": 100,
         }
     }
 
@@ -4973,6 +4973,11 @@ class TestVectorStrongGuarantees(YTEnvSetup):
             get(scheduler_orchid_pool_path("subpool3") + "/strong_guarantee_share"),
             {"cpu": 1.0 / 3.0, "user_slots": 1.0 / 10.0, "network": 1.0 / 3.0}))
 
+    def _wait_for_guarantee_overcommit_alert(self):
+        wait(lambda: get("//sys/scheduler/@alerts"))
+        assert get("//sys/scheduler/@alerts")[0]["inner_errors"][0]["inner_errors"][0]["code"] == \
+               yt_error_codes.Scheduler.PoolTreeGuaranteesOvercommit
+
     @authors("eshcherbin")
     def test_guarantee_overcommit(self):
         create_pool("pool1", attributes={"strong_guarantee_resources": {"cpu": 15, "user_slots": 20}})
@@ -4990,3 +4995,39 @@ class TestVectorStrongGuarantees(YTEnvSetup):
         wait(lambda: self._are_almost_equal_vec(
             get(scheduler_orchid_pool_path("pool2") + "/strong_guarantee_share"),
             {"cpu": 1.0 / 2.0, "user_slots": 1.0 / 2.0, "network": 1.0 / 2.0}))
+
+        self._wait_for_guarantee_overcommit_alert()
+
+    @authors("eshcherbin")
+    def test_guarantee_overcommit_zero_cluster(self):
+        with Restarter(self.Env, NODES_SERVICE):
+            create_pool("pool1", attributes={"strong_guarantee_resources": {"cpu": 15, "user_slots": 20}})
+            create_pool("pool2", attributes={"strong_guarantee_resources": {"cpu": 20}})
+
+            wait(lambda: self._are_almost_equal_vec(
+                get(scheduler_orchid_pool_path("pool1") + "/effective_strong_guarantee_resources"),
+                {"cpu": 15, "user_slots": 20, "network": 0}))
+            wait(lambda: self._are_almost_equal_vec(
+                get(scheduler_orchid_pool_path("pool1") + "/strong_guarantee_share"),
+                {"cpu": 0.0, "user_slots": 0.0, "network": 0.0}))
+            wait(lambda: self._are_almost_equal_vec(
+                get(scheduler_orchid_pool_path("pool2") + "/effective_strong_guarantee_resources"),
+                {"cpu": 20, "user_slots": 0, "network": 0}))
+            wait(lambda: self._are_almost_equal_vec(
+                get(scheduler_orchid_pool_path("pool2") + "/strong_guarantee_share"),
+                {"cpu": 0.0, "user_slots": 0.0, "network": 0.0}))
+
+            self._wait_for_guarantee_overcommit_alert()
+
+    @authors("eshcherbin")
+    def test_guarantee_overcommit_single_large_pool(self):
+        create_pool("pool", attributes={"strong_guarantee_resources": {"cpu": 40}})
+
+        wait(lambda: self._are_almost_equal_vec(
+            get(scheduler_orchid_pool_path("pool") + "/effective_strong_guarantee_resources"),
+            {"cpu": 40, "user_slots": 40, "network": 400}))
+        wait(lambda: self._are_almost_equal_vec(
+            get(scheduler_orchid_pool_path("pool") + "/strong_guarantee_share"),
+            {"cpu": 1.0, "user_slots": 1.0, "network": 1.0}))
+
+        self._wait_for_guarantee_overcommit_alert()

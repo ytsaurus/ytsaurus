@@ -38,3 +38,4 @@ ContainerDoesNotExist = 12004
 
 class Scheduler(object):
     NoSuchOperation = 200
+    PoolTreeGuaranteesOvercommit = 220

@@ -822,17 +822,23 @@ void TRootElement::UpdateCumulativeAttributes(TFairShareUpdateContext* context)
 void TRootElement::ValidateAndAdjustSpecifiedGuarantees(TFairShareUpdateContext* context)
 {
     auto totalResourceFlow = context->TotalResourceLimits * Attributes().TotalResourceFlowRatio;
-    auto strongGuaranteeResources = context->TotalResourceLimits * Attributes().StrongGuaranteeShare;
-    if (!Dominates(context->TotalResourceLimits, strongGuaranteeResources + totalResourceFlow)) {
-        context->Errors.push_back(TError("Strong guarantees and resource flows exceed total cluster resources")
-            << TErrorAttribute("total_strong_guarantee_resources", strongGuaranteeResources)
+    auto totalBurstResources = context->TotalResourceLimits * Attributes().TotalBurstRatio;
+    TJobResources totalStrongGuaranteeResources;
+    for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+        const auto* child = GetChild(childIndex);
+        totalStrongGuaranteeResources += child->Attributes().EffectiveStrongGuaranteeResources;
+    }
+
+    if (!Dominates(context->TotalResourceLimits, totalStrongGuaranteeResources + totalResourceFlow)) {
+        context->Errors.push_back(TError(NScheduler::EErrorCode::PoolTreeGuaranteesOvercommit, "Strong guarantees and resource flows exceed total cluster resources")
+            << TErrorAttribute("total_strong_guarantee_resources", totalStrongGuaranteeResources)
             << TErrorAttribute("total_resource_flow", totalResourceFlow)
             << TErrorAttribute("total_cluster_resources", context->TotalResourceLimits));
     }
-    auto totalBurstResources = context->TotalResourceLimits * Attributes().TotalBurstRatio;
-    if (!Dominates(context->TotalResourceLimits, strongGuaranteeResources + totalBurstResources)) {
-        context->Errors.push_back(TError("Strong guarantees and burst guarantees exceed total cluster resources")
-            << TErrorAttribute("total_strong_guarantee_resources", strongGuaranteeResources)
+
+    if (!Dominates(context->TotalResourceLimits, totalStrongGuaranteeResources + totalBurstResources)) {
+        context->Errors.push_back(TError(NScheduler::EErrorCode::PoolTreeGuaranteesOvercommit, "Strong guarantees and burst guarantees exceed total cluster resources")
+            << TErrorAttribute("total_strong_guarantee_resources", totalStrongGuaranteeResources)
             << TErrorAttribute("total_burst_resources", totalBurstResources)
             << TErrorAttribute("total_cluster_resources", context->TotalResourceLimits));
 
@@ -846,11 +852,15 @@ void TRootElement::ValidateAndAdjustSpecifiedGuarantees(TFairShareUpdateContext*
 
         double fitFactor = FloatingPointInverseLowerBound(0.0, 1.0, checkSum);
 
+        // NB(eshcherbin): Note that we validate the sum of EffectiveStrongGuaranteeResources but adjust StrongGuaranteeShare.
+        // During validation we need to check the absolute values to handle corner cases correctly and always show the alert. See: YT-14758.
+        // During adjustment we need to assure the invariants required for vector fair share computation.
         Attributes().StrongGuaranteeShare = Attributes().StrongGuaranteeShare * fitFactor;
         for (const auto& pool : context->BurstPools) {
             pool->Attributes().BurstRatio *= fitFactor;
         }
     }
+
     AdjustStrongGuarantees(context);
 }
 
