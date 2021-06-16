@@ -79,8 +79,8 @@ private:
         bool MountedWithEnabledDynamicStoreRead = false;
         NTabletServer::TTabletStatisticsAggregate TabletStatistics;
         // If ProfilingMode is nullopt, cluster-wise attribute will be used.
-        std::optional<NTabletNode::EDynamicTableProfilingMode> ProfilingMode = std::nullopt;
-        std::optional<TString> ProfilingTag = std::nullopt;
+        std::optional<NTabletNode::EDynamicTableProfilingMode> ProfilingMode;
+        std::optional<TString> ProfilingTag;
         bool EnableDetailedProfiling = false;
 
         TDynamicTableAttributes();

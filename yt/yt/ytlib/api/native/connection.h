@@ -76,6 +76,9 @@ struct IConnection
     virtual const NSecurityClient::TPermissionCachePtr& GetPermissionCache() = 0;
 
     virtual const TStickyGroupSizeCachePtr& GetStickyGroupSizeCache() = 0;
+
+    virtual const TTabletSyncReplicaCachePtr& GetTabletSyncReplicaCache() = 0;
+
     virtual IClientPtr CreateNativeClient(const TClientOptions& options) = 0;
 
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;

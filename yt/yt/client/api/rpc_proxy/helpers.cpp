@@ -107,6 +107,9 @@ void ToProto(
     const NApi::TTabletReadOptionsBase& options)
 {
     protoOptions->set_read_from(static_cast<NProto::ETabletReadKind>(options.ReadFrom));
+    if (options.CachedSyncReplicasTimeout) {
+        protoOptions->set_cached_sync_replicas_timeout(NYT::ToProto<i64>(*options.CachedSyncReplicasTimeout));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

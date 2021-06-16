@@ -217,6 +217,9 @@ void FromProto(
     if (proto.has_read_from()) {
         options->ReadFrom = CheckedEnumCast<NHydra::EPeerKind>(proto.read_from());
     }
+    if (proto.has_cached_sync_replicas_timeout()) {
+        FromProto(&options->CachedSyncReplicasTimeout.emplace(), proto.cached_sync_replicas_timeout());
+    }
 }
 
 void FromProto(

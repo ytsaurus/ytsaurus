@@ -477,6 +477,7 @@ private:
 
     const IConnectionPtr Connection_;
     const TClientOptions Options_;
+  
     const NLogging::TLogger Logger;
 
     TEnumIndexedVector<EMasterChannelKind, THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>> MasterChannels_;
@@ -565,10 +566,18 @@ private:
         NTableClient::TWireProtocolReader*)>;
     TDecoderWithMapping GetLookupRowsDecoder() const;
 
+    struct TReplicaFallbackInfo
+    {
+        NApi::IClientPtr Client;
+        NYPath::TYPath Path; 
+    };
+
+    TReplicaFallbackInfo GetReplicaFallbackInfo(
+        const TTableReplicaInfoPtrList& replicas);
+
     template <class TResult>
     using TReplicaFallbackHandler = std::function<TFuture<TResult>(
-        const NApi::IClientPtr&,
-        const NTabletClient::TTableReplicaInfoPtr&)>;
+        const TReplicaFallbackInfo& replicaFallbackInfo)>;
 
     template <class TRowset, class TRow>
     TRowset DoLookupRowsOnce(
@@ -596,7 +605,13 @@ private:
     TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
         const NTabletClient::TTableMountInfoPtr& tableInfo,
         const TTabletReadOptions& options,
-        const THashMap<NObjectClient::TCellId, std::vector<NTabletClient::TTabletId>>& cellIdToTabletIds);
+        THashMap<NObjectClient::TCellId, std::vector<NTabletClient::TTabletId>> cellIdToTabletIds);
+    TTableReplicaInfoPtrList OnTabletInfosReceived(
+        const NTabletClient::TTableMountInfoPtr& tableInfo,
+        int totalTabletCount,
+        std::optional<TInstant> cachedSyncReplicasAt,
+        THashMap<NTabletClient::TTableReplicaId, int> replicaIdToCount,
+        const std::vector<NQueryClient::TQueryServiceProxy::TRspGetTabletInfoPtr>& responses);
 
     std::optional<TString> PickInSyncClusterAndPatchQuery(
         const TTabletReadOptions& options,

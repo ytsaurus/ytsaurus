@@ -749,6 +749,8 @@ TLookupRowsCommand::TLookupRowsCommand()
         .Optional();
     RegisterParameter("use_lookup_cache", Options.UseLookupCache)
         .Optional();
+    RegisterParameter("cached_sync_replicas_timeout", Options.CachedSyncReplicasTimeout)
+        .Optional();
 }
 
 void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
@@ -820,6 +822,7 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
         versionedOptions.KeepMissingRows = Options.KeepMissingRows;
         versionedOptions.UseLookupCache = Options.UseLookupCache;
         versionedOptions.Timestamp = Options.Timestamp;
+        versionedOptions.CachedSyncReplicasTimeout = Options.CachedSyncReplicasTimeout;
         versionedOptions.RetentionConfig = RetentionConfig;
         auto asyncRowset = clientBase->VersionedLookupRows(Path.GetPath(), std::move(nameTable), std::move(keyRange), versionedOptions);
         auto rowset = WaitFor(asyncRowset)
