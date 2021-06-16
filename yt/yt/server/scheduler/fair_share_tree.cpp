@@ -1122,7 +1122,11 @@ private:
         WaitFor(asyncUpdate)
             .ThrowOnError();
 
-        YT_LOG_DEBUG("Fair share tree update finished (UnschedulableReasons: %v)",
+        YT_LOG_DEBUG(
+            "Fair share tree update finished "
+            "(TreeSize: %v, SchedulableElementCount: %v, UnschedulableReasons: %v)",
+            rootElement->GetTreeSize(),
+            rootElement->GetSchedulableElementCount(),
             fairSharePostUpdateContext.UnschedulableReasons);
 
         TError error;
