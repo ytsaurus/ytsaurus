@@ -33,6 +33,8 @@ TFairShareTreeProfiler::TFairShareTreeProfiler(
             .WithRequiredTag("tree", treeId))
     , ProfilingInvoker_(profilingInvoker)
     , PoolCountGauge_(Registry_.Gauge("/pools/pool_count"))
+    , TotalElementCountGauge_(Registry_.Gauge("/pools/total_element_count"))
+    , SchedulableElementCountGauge_(Registry_.Gauge("/pools/schedulable_element_count"))
     , DistributedResourcesBufferedProducer_(New<TBufferedProducer>())
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -84,6 +86,8 @@ void TFairShareTreeProfiler::ProfileElements(const TFairShareTreeSnapshotImplPtr
     VERIFY_INVOKER_AFFINITY(ProfilingInvoker_);
 
     PoolCountGauge_.Update(treeSnapshot->PoolMap().size());
+    TotalElementCountGauge_.Update(treeSnapshot->RootElement()->GetTreeSize());
+    SchedulableElementCountGauge_.Update(treeSnapshot->RootElement()->GetSchedulableElementCount());
 
     ProfileDistributedResources(treeSnapshot);
 

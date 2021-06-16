@@ -78,6 +78,8 @@ private:
     };
 
     NProfiling::TGauge PoolCountGauge_;
+    NProfiling::TGauge TotalElementCountGauge_;
+    NProfiling::TGauge SchedulableElementCountGauge_;
 
     THashMap<TString, TJobMetrics> JobMetricsMap_;
 
