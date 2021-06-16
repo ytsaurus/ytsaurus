@@ -661,13 +661,25 @@ func Test8BitIntegerSlices(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, []byte("[1,2,3]"), js)
 
+		var ii []int8
+		require.NoError(t, json.Unmarshal(js, &ii))
+		require.Equal(t, i, ii)
+
 		js, err = json.Marshal(u)
 		require.NoError(t, err)
 		require.Equal(t, []byte(`"AQID"`), js)
 
+		var uu []uint8
+		require.NoError(t, json.Unmarshal(js, &uu))
+		require.Equal(t, u, uu)
+
 		js, err = json.Marshal(b)
 		require.NoError(t, err)
 		require.Equal(t, []byte(`"AQID"`), js)
+
+		var bb []byte
+		require.NoError(t, json.Unmarshal(js, &bb))
+		require.Equal(t, b, bb)
 	}
 
 	{
@@ -675,12 +687,24 @@ func Test8BitIntegerSlices(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, []byte("[1;2;3;]"), ys)
 
+		var ii []int8
+		require.NoError(t, yson.Unmarshal(ys, &ii))
+		require.Equal(t, i, ii)
+
 		ys, err = yson.Marshal(u)
 		require.NoError(t, err)
 		require.Equal(t, []byte(`"\1\2\3"`), ys)
 
+		var uu []uint8
+		require.NoError(t, yson.Unmarshal(ys, &uu))
+		require.Equal(t, u, uu)
+
 		ys, err = yson.Marshal(b)
 		require.NoError(t, err)
 		require.Equal(t, []byte(`"\1\2\3"`), ys)
+
+		var bb []byte
+		require.NoError(t, yson.Unmarshal(ys, &bb))
+		require.Equal(t, b, bb)
 	}
 }
