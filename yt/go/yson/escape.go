@@ -87,7 +87,7 @@ func allHex(b []byte) bool {
 	return true
 }
 
-func escapeByte(b, next byte) (escaped [4]byte, n int) {
+func escapeByte(b, nextByte byte, nextRune rune) (escaped [4]byte, n int, encodedAsRune bool) {
 	switch {
 	case b == '"':
 		escaped[0] = '\\'
@@ -118,12 +118,23 @@ func escapeByte(b, next byte) (escaped [4]byte, n int) {
 		escaped[1] = 't'
 		n = 2
 
-	case b < 8 && !isOctDigit(next):
+	case b < 8 && !isOctDigit(nextByte):
 		escaped[0] = '\\'
 		escaped[1] = octDigit(int(b))
 		n = 2
 
-	case !isHexDigit(next):
+	case isHexDigit(nextByte):
+		escaped[0] = '\\'
+		escaped[1] = octDigit(int(b&0300) >> 6)
+		escaped[2] = octDigit(int(b&0070) >> 3)
+		escaped[3] = octDigit(int(b&0007) >> 0)
+		n = 4
+
+	case nextRune != utf8.RuneError:
+		n = utf8.EncodeRune(escaped[:], nextRune)
+		encodedAsRune = true
+
+	case !isHexDigit(nextByte):
 		escaped[0] = '\\'
 		escaped[1] = 'x'
 		escaped[2] = hexDigit(int(b&0xF0) >> 4)
@@ -142,14 +153,21 @@ func escapeByte(b, next byte) (escaped [4]byte, n int) {
 }
 
 func escapeC(b []byte) (escaped []byte) {
-	for i, bb := range b {
-		var next byte
+	for i, w := 0, 0; i < len(b); i += w {
+		var nextByte byte
 		if i+1 < len(b) {
-			next = b[i+1]
+			nextByte = b[i+1]
 		}
 
-		buf, n := escapeByte(bb, next)
+		nextRune, runeWidth := utf8.DecodeRune(b[i:])
+
+		buf, n, encodedAsRune := escapeByte(b[i], nextByte, nextRune)
 		escaped = append(escaped, buf[:n]...)
+
+		w = 1
+		if encodedAsRune {
+			w = runeWidth
+		}
 	}
 
 	return

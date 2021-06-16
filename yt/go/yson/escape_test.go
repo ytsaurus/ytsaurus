@@ -13,7 +13,7 @@ var testData = []struct {
 	escaped, raw string
 }{
 	{"http://ya.ru/", "http://ya.ru/"},
-	{"http://ya.ru/\\x17\\n", "http://ya.ru/\x17\n"},
+	{"http://ya.ru/\x17\\n", "http://ya.ru/\x17\n"},
 
 	{"http://ya.ru/\\0", "http://ya.ru/" + string([]byte{0})},
 	{"http://ya.ru/\\0\\0", "http://ya.ru/" + string([]byte{0, 0})},
@@ -27,6 +27,8 @@ var testData = []struct {
 	{"Slash\\\\dash!", "Slash\\dash!"},
 	{"There\\nare\\r\\nnewlines.", "There\nare\r\nnewlines."},
 	{"There\\tare\\ttabs.", "There\tare\ttabs."},
+
+	{"русский текст", "русский текст"},
 }
 
 func TestEscape(t *testing.T) {
@@ -36,7 +38,7 @@ func TestEscape(t *testing.T) {
 		assert.Equal(t, []byte(testCase.raw), unescapeC([]byte(testCase.escaped)))
 	}
 
-	assert.Equal(t, []byte("http://ya.ru/\\x17\\n\\xAB"), escapeC([]byte("http://ya.ru/\x17\n\xab")))
+	assert.Equal(t, []byte("http://ya.ru/\x17\\n\\xAB"), escapeC([]byte("http://ya.ru/\x17\n\xab")))
 	assert.Equal(t, []byte("http://ya.ru/\x17\n\xab"), unescapeC([]byte("http://ya.ru/\\x17\\n\\xAB")))
 
 	assert.Equal(t, []byte("h"), escapeC([]byte("h")))
