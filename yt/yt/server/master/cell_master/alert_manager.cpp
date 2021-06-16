@@ -69,9 +69,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        YT_VERIFY(multicellManager->IsPrimaryMaster());
-
         std::vector<TError> alerts;
         for (const auto& [cellTag, cellAlerts] : CellTagToAlerts_) {
             alerts.insert(alerts.end(), cellAlerts.begin(), cellAlerts.end());
