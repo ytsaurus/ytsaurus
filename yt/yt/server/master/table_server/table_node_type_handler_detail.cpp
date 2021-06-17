@@ -403,8 +403,8 @@ void TTableNodeTypeHandlerBase<TImpl>::DoEndCopy(
         node->SetLastCommitTimestamp(Load<TTimestamp>(*context));
         node->MutableTabletBalancerConfig() = ConvertTo<TTabletBalancerConfigPtr>(Load<TYsonString>(*context));
         node->SetEnableDynamicStoreRead(Load<std::optional<bool>>(*context));
-        node->SetProfilingMode(Load<NTabletNode::EDynamicTableProfilingMode>(*context));
-        node->SetProfilingTag(Load<TString>(*context));
+        node->SetProfilingMode(Load<std::optional<NTabletNode::EDynamicTableProfilingMode>>(*context));
+        node->SetProfilingTag(Load<std::optional<TString>>(*context));
     }
 }
 
