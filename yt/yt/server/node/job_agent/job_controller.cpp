@@ -20,7 +20,6 @@
 #include <yt/yt/server/lib/job_agent/gpu_helpers.h>
 #include <yt/yt/server/lib/job_agent/job_reporter.h>
 
-#include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
 #include <yt/yt/ytlib/job_tracker_client/helpers.h>
 #include <yt/yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
 
@@ -29,12 +28,10 @@
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/ytlib/scheduler/public.h>
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -107,6 +104,10 @@ public:
     void RegisterJobFactory(
         EJobType type,
         TJobFactory factory);
+    
+    void RegisterHeartbeatProcessor(
+        EObjectType type,
+        IJobHeartbeatProcessorPtr heartbeatProcessor);
 
     IJobPtr FindJob(TJobId jobId) const;
     IJobPtr GetJobOrThrow(TJobId jobId) const;
@@ -130,13 +131,19 @@ public:
 
     NYTree::IYPathServicePtr GetOrchidService();
 
+    TFuture<void> RequestJobSpecsAndStartJobs(
+        std::vector<NJobTrackerClient::NProto::TJobStartInfo> jobStartInfos);
+
 private:
+    friend class TJobController::IJobHeartbeatProcessor;
+
     const TJobControllerConfigPtr Config_;
     NClusterNode::TBootstrap* const Bootstrap_;
 
     TAtomicObject<TJobControllerDynamicConfigPtr> DynamicConfig_ = New<TJobControllerDynamicConfig>();
 
     THashMap<EJobType, TJobFactory> JobFactoryMap_;
+    THashMap<EObjectType, IJobHeartbeatProcessorPtr> JobHeartbeatProcessors_;
 
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, JobMapLock_);
     THashMap<TJobId, IJobPtr> JobMap_;
@@ -187,7 +194,6 @@ private:
     TPeriodicExecutorPtr ReservedMappedMemoryChecker_;
     TPeriodicExecutorPtr JobProxyBuildInfoUpdater_;
 
-    THashSet<TJobId> JobIdsToConfirm_;
     TInstant LastStoredJobsSendTime_;
 
     THashSet<int> FreePorts_;
@@ -199,12 +205,16 @@ private:
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
         const TClusterNodeDynamicConfigPtr& newNodeConfig);
+    const THashMap<TJobId, TOperationId>& GetSpecFetchFailedJobIds() const;
+    bool StatisticsThrottlerTryAcquire(int size);
+    void RemoveSchedulerJobsOnFatalAlert();
+    bool NeedTotalConfirmation();
 
     void DoPrepareHeartbeatRequest(TCellTag cellTag, EObjectType jobObjectType, const TReqHeartbeatPtr& request);
+    void PrepareHeartbeatCommonRequestPart(const TReqHeartbeatPtr& request);
     void DoProcessHeartbeatResponse(const TRspHeartbeatPtr& response, EObjectType jobObjectType);
+    void ProcessHeartbeatCommonResponsePart(const TRspHeartbeatPtr& response);
 
-    TFuture<void> RequestJobSpecsAndStartJobs(
-        std::vector<NJobTrackerClient::NProto::TJobStartInfo> jobStartInfos);
     void OnJobSpecsReceived(
         std::vector<NJobTrackerClient::NProto::TJobStartInfo> startInfos,
         const TAddressWithNetwork& addressWithNetwork,
@@ -368,6 +378,11 @@ void TJobController::TImpl::RegisterJobFactory(EJobType type, TJobFactory factor
     YT_VERIFY(JobFactoryMap_.emplace(type, factory).second);
 }
 
+void TJobController::TImpl::RegisterHeartbeatProcessor(EObjectType type, IJobHeartbeatProcessorPtr heartbeatProcessor)
+{
+    YT_VERIFY(JobHeartbeatProcessors_.emplace(type, std::move(heartbeatProcessor)).second);
+}
+
 TJobFactory TJobController::TImpl::GetFactory(EJobType type) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -418,6 +433,38 @@ std::vector<IJobPtr> TJobController::TImpl::GetJobs() const
         result.push_back(job);
     }
     return result;
+}
+
+void TJobController::TImpl::RemoveSchedulerJobsOnFatalAlert()
+{
+    std::vector<TJobId> jobIdsToRemove;
+    for (const auto& [jobId, job] : JobMap_) {
+        if (TypeFromId(jobId) == EObjectType::SchedulerJob) {
+            YT_LOG_INFO("Removing job %v due to fatal alert");
+            job->Abort(TError("Job aborted due to fatal alert"));
+            jobIdsToRemove.push_back(jobId);
+        }
+    }
+
+    auto guard = WriterGuard(JobMapLock_);
+    for (auto jobId : jobIdsToRemove) {
+        YT_VERIFY(JobMap_.erase(jobId) == 1);
+    }
+}
+
+bool TJobController::TImpl::NeedTotalConfirmation()
+{
+    if (const auto now = TInstant::Now(); LastStoredJobsSendTime_ + GetTotalConfirmationPeriod() < now) {
+        LastStoredJobsSendTime_ = now;
+        return true;
+    }
+
+    return false;
+}
+
+bool TJobController::TImpl::StatisticsThrottlerTryAcquire(const int size)
+{
+    return StatisticsThrottler_->TryAcquire(size);
 }
 
 std::vector<IJobPtr> TJobController::TImpl::GetRunningSchedulerJobsSortedByStartTime() const
@@ -1097,6 +1144,11 @@ void TJobController::TImpl::DoPrepareHeartbeatRequest(
     EObjectType jobObjectType,
     const TReqHeartbeatPtr& request)
 {
+    GetOrCrash(JobHeartbeatProcessors_, jobObjectType)->PrepareRequest(cellTag, request);
+}
+
+void TJobController::TImpl::PrepareHeartbeatCommonRequestPart(const TReqHeartbeatPtr& request)
+{
     VERIFY_THREAD_AFFINITY(JobThread);
 
     const auto& masterConnector = Bootstrap_->GetClusterNodeMasterConnector();
@@ -1109,149 +1161,6 @@ void TJobController::TImpl::DoPrepareHeartbeatRequest(
 
     request->set_job_reporter_write_failures_count(Bootstrap_->GetJobReporter()->ExtractWriteFailuresCount());
     request->set_job_reporter_queue_is_too_large(Bootstrap_->GetJobReporter()->GetQueueIsTooLarge());
-
-    // A container for all scheduler jobs that are candidate to send statistics. This set contains
-    // only the running jobs since all completed/aborted/failed jobs always send their statistics.
-    std::vector<std::pair<IJobPtr, TJobStatus*>> runningJobs;
-
-    i64 completedJobsStatisticsSize = 0;
-
-    bool totalConfirmation = false;
-    if (jobObjectType == EObjectType::SchedulerJob) {
-        auto now = TInstant::Now();
-        if (LastStoredJobsSendTime_ + GetTotalConfirmationPeriod() < now) {
-            LastStoredJobsSendTime_ = now;
-            YT_LOG_INFO("Including all stored jobs in heartbeat");
-            totalConfirmation = true;
-        }
-    }
-
-    if (jobObjectType == EObjectType::SchedulerJob && Bootstrap_->GetExecSlotManager()->HasFatalAlert()) {
-        // NB(psushin): if slot manager is disabled with fatal alert we might have experienced an unrecoverable failure (e.g. hanging Porto)
-        // and to avoid inconsistent state with scheduler we decide not to report to it any jobs at all.
-        // We also drop all scheduler jobs from |JobMap_|.
-        std::vector<TJobId> jobIdsToRemove;
-        for (const auto& [jobId, job] : JobMap_) {
-            if (TypeFromId(jobId) == EObjectType::SchedulerJob) {
-                YT_LOG_INFO("Removing job %v due to fatal alert");
-                job->Abort(TError("Job aborted due to fatal alert"));
-                jobIdsToRemove.push_back(jobId);
-            }
-        }
-
-        for (auto jobId : jobIdsToRemove) {
-            YT_VERIFY(JobMap_.erase(jobId) == 1);
-        }
-
-        request->set_confirmed_job_count(0);
-
-        return;
-    }
-
-    int confirmedJobCount = 0;
-
-    for (const auto& job : GetJobs()) {
-        auto jobId = job->GetId();
-
-        if (CellTagFromId(jobId) != cellTag || TypeFromId(jobId) != jobObjectType) {
-            continue;
-        }
-
-        auto confirmIt = JobIdsToConfirm_.find(jobId);
-        if (job->GetStored() && !totalConfirmation && confirmIt == JobIdsToConfirm_.end()) {
-            continue;
-        }
-
-        if (job->GetStored() || confirmIt != JobIdsToConfirm_.end()) {
-            YT_LOG_DEBUG("Confirming job (JobId: %v, OperationId: %v, Stored: %v, State: %v)",
-                jobId,
-                job->GetOperationId(),
-                job->GetStored(),
-                job->GetState());
-            ++confirmedJobCount;
-        }
-        if (confirmIt != JobIdsToConfirm_.end()) {
-            JobIdsToConfirm_.erase(confirmIt);
-        }
-
-        auto* jobStatus = request->add_jobs();
-        FillJobStatus(jobStatus, job);
-        switch (job->GetState()) {
-            case EJobState::Running:
-                *jobStatus->mutable_resource_usage() = job->GetResourceUsage();
-                if (jobObjectType == EObjectType::SchedulerJob) {
-                    runningJobs.emplace_back(job, jobStatus);
-                }
-                break;
-
-            case EJobState::Completed:
-            case EJobState::Aborted:
-            case EJobState::Failed:
-                *jobStatus->mutable_result() = job->GetResult();
-                if (auto statistics = job->GetStatistics()) {
-                    auto statisticsString = statistics.ToString();
-                    completedJobsStatisticsSize += statisticsString.size();
-                    job->ResetStatisticsLastSendTime();
-                    jobStatus->set_statistics(statisticsString);
-                }
-                break;
-
-            default:
-                break;
-        }
-    }
-
-    request->set_confirmed_job_count(confirmedJobCount);
-
-    if (jobObjectType == EObjectType::SchedulerJob) {
-        std::sort(
-            runningJobs.begin(),
-            runningJobs.end(),
-            [] (const auto& lhs, const auto& rhs) {
-                return lhs.first->GetStatisticsLastSendTime() < rhs.first->GetStatisticsLastSendTime();
-            });
-
-        i64 runningJobsStatisticsSize = 0;
-        for (const auto& [job, jobStatus] : runningJobs) {
-            if (auto statistics = job->GetStatistics()) {
-                auto statisticsString = statistics.ToString();
-                if (StatisticsThrottler_->TryAcquire(statisticsString.size())) {
-                    runningJobsStatisticsSize += statisticsString.size();
-                    job->ResetStatisticsLastSendTime();
-                    jobStatus->set_statistics(statisticsString);
-                }
-            }
-        }
-
-        YT_LOG_DEBUG("Job statistics prepared (RunningJobsStatisticsSize: %v, CompletedJobsStatisticsSize: %v)",
-            runningJobsStatisticsSize,
-            completedJobsStatisticsSize);
-
-        // TODO(ignat): make it in more general way (non-scheduler specific).
-        for (auto [jobId, operationId] : SpecFetchFailedJobIds_) {
-            auto* jobStatus = request->add_jobs();
-            ToProto(jobStatus->mutable_job_id(), jobId);
-            ToProto(jobStatus->mutable_operation_id(), operationId);
-            jobStatus->set_job_type(static_cast<int>(EJobType::SchedulerUnknown));
-            jobStatus->set_state(static_cast<int>(EJobState::Aborted));
-            jobStatus->set_phase(static_cast<int>(EJobPhase::Missing));
-            jobStatus->set_progress(0.0);
-
-            TJobResult jobResult;
-            auto error = TError("Failed to get job spec")
-                << TErrorAttribute("abort_reason", NScheduler::EAbortReason::GetSpecFailed);
-            ToProto(jobResult.mutable_error(), error);
-            *jobStatus->mutable_result() = jobResult;
-        }
-
-        if (!JobIdsToConfirm_.empty()) {
-            YT_LOG_WARNING("Unconfirmed jobs found (UnconfirmedJobCount: %v)", JobIdsToConfirm_.size());
-            for (auto jobId : JobIdsToConfirm_) {
-                YT_LOG_DEBUG("Unconfirmed job (JobId: %v)", jobId);
-            }
-            ToProto(request->mutable_unconfirmed_jobs(), JobIdsToConfirm_);
-        }
-    }
 }
 
 TFuture<void> TJobController::TImpl::ProcessHeartbeatResponse(
@@ -1269,6 +1178,11 @@ TFuture<void> TJobController::TImpl::ProcessHeartbeatResponse(
 void TJobController::TImpl::DoProcessHeartbeatResponse(
     const TRspHeartbeatPtr& response,
     EObjectType jobObjectType)
+{    
+    GetOrCrash(JobHeartbeatProcessors_, jobObjectType)->ProcessResponse(response);
+}
+
+void TJobController::TImpl::ProcessHeartbeatCommonResponsePart(const TRspHeartbeatPtr& response)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -1346,44 +1260,13 @@ void TJobController::TImpl::DoProcessHeartbeatResponse(
                 jobId);
         }
     }
+}
 
-    JobIdsToConfirm_.clear();
-    if (jobObjectType == EObjectType::SchedulerJob) {
-        auto jobIdsToConfirm = FromProto<std::vector<TJobId>>(response->jobs_to_confirm());
-        JobIdsToConfirm_.insert(jobIdsToConfirm.begin(), jobIdsToConfirm.end());
-    }
+const THashMap<TJobId, TOperationId>& TJobController::TImpl::GetSpecFetchFailedJobIds() const
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
 
-    std::vector<TJobSpec> specs(response->jobs_to_start_size());
-
-    YT_VERIFY(response->Attachments().empty() || std::ssize(response->Attachments()) == response->jobs_to_start_size());
-
-    if (response->Attachments().empty()) {
-        std::vector<NJobTrackerClient::NProto::TJobStartInfo> jobWithoutSpecStartInfos;
-        for (const auto& startInfo : response->jobs_to_start()) {
-            jobWithoutSpecStartInfos.push_back(startInfo);
-        }
-        Y_UNUSED(WaitFor(RequestJobSpecsAndStartJobs(std::move(jobWithoutSpecStartInfos))));
-    } else {
-        int attachmentIndex = 0;
-        for (const auto& startInfo : response->jobs_to_start()) {
-            auto operationId = FromProto<TJobId>(startInfo.operation_id());
-            auto jobId = FromProto<TJobId>(startInfo.job_id());
-            YT_LOG_DEBUG("Job spec is passed via attachments (OperationId: %v, JobId: %v)",
-                operationId,
-                jobId);
-
-            const auto& attachment = response->Attachments()[attachmentIndex];
-
-            TJobSpec spec;
-            DeserializeProtoWithEnvelope(&spec, attachment);
-
-            const auto& resourceLimits = startInfo.resource_limits();
-
-            CreateJob(jobId, operationId, resourceLimits, std::move(spec));
-
-            ++attachmentIndex;
-        }
-    }
+    return SpecFetchFailedJobIds_;
 }
 
 TFuture<void> TJobController::TImpl::RequestJobSpecsAndStartJobs(std::vector<NJobTrackerClient::NProto::TJobStartInfo> jobStartInfos)
@@ -1826,6 +1709,68 @@ IYPathServicePtr TJobController::GetOrchidService()
 DELEGATE_SIGNAL(TJobController, void(), ResourcesUpdated, *Impl_)
 DELEGATE_SIGNAL(TJobController, void(const IJobPtr&), JobFinished, *Impl_)
 DELEGATE_SIGNAL(TJobController, void(const TError&), JobProxyBuildInfoUpdated, *Impl_)
+
+void TJobController::RegisterHeartbeatProcessor(
+    const EObjectType type,
+    IJobHeartbeatProcessorPtr heartbeatProcessor)
+{
+    Impl_->RegisterHeartbeatProcessor(type, std::move(heartbeatProcessor));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobController::IJobHeartbeatProcessor::IJobHeartbeatProcessor(
+    TJobController* const controller, 
+    NClusterNode::TBootstrap* const bootstrap) 
+    : JobController_{controller}, Bootstrap_{bootstrap}
+{
+
+}
+
+void TJobController::IJobHeartbeatProcessor::RemoveSchedulerJobsOnFatalAlert()
+{
+    JobController_->Impl_->RemoveSchedulerJobsOnFatalAlert();
+}
+
+bool TJobController::IJobHeartbeatProcessor::NeedTotalConfirmation()
+{
+    return JobController_->Impl_->NeedTotalConfirmation();
+}
+
+TFuture<void> TJobController::IJobHeartbeatProcessor::RequestJobSpecsAndStartJobs(
+    std::vector<NJobTrackerClient::NProto::TJobStartInfo> jobStartInfos)
+{
+    return JobController_->Impl_->RequestJobSpecsAndStartJobs(std::move(jobStartInfos));
+}
+
+IJobPtr TJobController::IJobHeartbeatProcessor::CreateJob(
+        TJobId jobId,
+        TOperationId operationId,
+        const TNodeResources& resourceLimits,
+        TJobSpec&& jobSpec)
+{
+    return JobController_->Impl_->CreateJob(jobId, operationId, resourceLimits, std::move(jobSpec));
+}
+
+const THashMap<TJobId, TOperationId>& TJobController::IJobHeartbeatProcessor::GetSpecFetchFailedJobIds()
+{
+    return JobController_->Impl_->GetSpecFetchFailedJobIds();
+}
+
+bool TJobController::IJobHeartbeatProcessor::StatisticsThrottlerTryAcquire(const int size)
+{
+    return JobController_->Impl_->StatisticsThrottlerTryAcquire(size);
+}
+
+void TJobController::IJobHeartbeatProcessor::PrepareHeartbeatCommonRequestPart(const TReqHeartbeatPtr& request)
+{
+    JobController_->Impl_->PrepareHeartbeatCommonRequestPart(request);
+}
+
+void TJobController::IJobHeartbeatProcessor::ProcessHeartbeatCommonResponsePart(const TRspHeartbeatPtr& response)
+{
+    JobController_->Impl_->ProcessHeartbeatCommonResponsePart(response);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

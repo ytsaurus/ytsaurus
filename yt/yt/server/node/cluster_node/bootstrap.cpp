@@ -23,6 +23,7 @@
 #include <yt/yt/server/node/data_node/config.h>
 #include <yt/yt/server/node/data_node/data_node_service.h>
 #include <yt/yt/server/node/data_node/job.h>
+#include <yt/yt/server/node/data_node/job_heartbeat_processor.h>
 #include <yt/yt/server/node/data_node/journal_dispatcher.h>
 #include <yt/yt/server/node/data_node/location.h>
 #include <yt/yt/server/node/data_node/legacy_master_connector.h>
@@ -41,6 +42,7 @@
 
 #include <yt/yt/server/node/exec_agent/job_environment.h>
 #include <yt/yt/server/node/exec_agent/job.h>
+#include <yt/yt/server/node/exec_agent/job_heartbeat_processor.h>
 #include <yt/yt/server/node/exec_agent/job_prober_service.h>
 #include <yt/yt/server/node/exec_agent/master_connector.h>
 #include <yt/yt/server/node/exec_agent/private.h>
@@ -684,6 +686,9 @@ void TBootstrap::DoInitialize()
     JobController_->RegisterJobFactory(NJobAgent::EJobType::RepairChunk, createChunkJob);
     JobController_->RegisterJobFactory(NJobAgent::EJobType::SealChunk, createChunkJob);
     JobController_->RegisterJobFactory(NJobAgent::EJobType::MergeChunks, createChunkJob);
+
+    JobController_->AddHeartbeatProcessor<NDataNode::TMasterJobHeartbeatProcessor>(EObjectType::MasterJob, this);
+    JobController_->AddHeartbeatProcessor<NExecAgent::TSchedulerJobHeartbeatProcessor>(EObjectType::SchedulerJob, this);
 
     JobReporter_ = New<TJobReporter>(
         Config_->ExecAgent->JobReporter,
