@@ -1035,7 +1035,13 @@ class TestSchedulerPreemption(YTEnvSetup):
     }
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {"event_log": {"flush_period": 300, "retry_backoff_time": 300}}
+        "controller_agent": {
+            "event_log": {
+                "flush_period": 300,
+                "retry_backoff_time": 300
+            },
+            "enable_operation_progress_archivation": False,
+        }
     }
 
     def setup(self):
@@ -1480,6 +1486,8 @@ class TestSchedulerPreemption(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_pass_preemption_reason_to_node(self):
+        update_controller_agent_config("enable_operation_progress_archivation", True)
+
         create_pool("research")
         create_pool("prod", attributes={"strong_guarantee_resources": {"cpu": 3}})
 
