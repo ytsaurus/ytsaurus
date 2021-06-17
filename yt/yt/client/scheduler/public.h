@@ -96,6 +96,7 @@ DEFINE_ENUM(EAbortReason,
     ((NodeWithZeroUserSlots)           ( 18))
     ((NodeSchedulingSegmentChanged)    ( 19))
     ((NodeFairShareTreeChanged)        ( 20))
+    ((JobOnUnexpectedNode)             ( 21))
     ((SchedulingFirst)                 (100))
     ((SchedulingTimeout)               (101))
     ((SchedulingResourceOvercommit)    (102))

@@ -721,6 +721,8 @@ public:
     //! Minimum about of resources to continue schedule job attempts.
     TJobResourcesConfigPtr MinSpareJobResourcesOnNode;
 
+    bool SendPreemptionReasonInNodeHeartbeat;
+
     TSchedulerConfig();
 };
 

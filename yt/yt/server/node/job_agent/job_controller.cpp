@@ -21,6 +21,7 @@
 #include <yt/yt/server/lib/job_agent/job_reporter.h>
 
 #include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
+#include <yt/yt/ytlib/job_tracker_client/helpers.h>
 #include <yt/yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
@@ -220,7 +221,7 @@ private:
     /*!
      *  If the job is running, aborts it.
      */
-    void AbortJob(const IJobPtr& job);
+    void AbortJob(const IJobPtr& job, const TJobToAbort& abortAttributes);
 
     void FailJob(const IJobPtr& job);
 
@@ -862,14 +863,24 @@ void TJobController::TImpl::ScheduleStart()
     StartScheduled_ = true;
 }
 
-void TJobController::TImpl::AbortJob(const IJobPtr& job)
+void TJobController::TImpl::AbortJob(const IJobPtr& job, const TJobToAbort& abortAttributes)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    YT_LOG_INFO("Job abort requested (JobId: %v)",
-        job->GetId());
+    YT_LOG_INFO("Job abort requested (JobId: %v, AbortReason: %v, PreemptionReason: %v)",
+        job->GetId(),
+        abortAttributes.AbortReason,
+        abortAttributes.PreemptionReason);
 
-    job->Abort(TError(NExecAgent::EErrorCode::AbortByScheduler, "Job aborted by scheduler"));
+    TError error(NExecAgent::EErrorCode::AbortByScheduler, "Job aborted by scheduler");
+    if (abortAttributes.AbortReason) {
+        error = error << TErrorAttribute("abort_reason", *abortAttributes.AbortReason);
+    }
+    if (abortAttributes.PreemptionReason) {
+        error = error << TErrorAttribute("preemption_reason", *abortAttributes.PreemptionReason);
+    }
+
+    job->Abort(error);
 }
 
 void TJobController::TImpl::FailJob(const IJobPtr& job)
@@ -1277,14 +1288,27 @@ void TJobController::TImpl::DoProcessHeartbeatResponse(
         }
     }
 
-    for (const auto& protoJobId : response->jobs_to_abort()) {
-        auto jobId = FromProto<TJobId>(protoJobId);
-        auto job = FindJob(jobId);
-        if (job) {
-            AbortJob(job);
+    {
+        auto doAbortJob = [&] (const TJobToAbort& jobToAbort) {
+            if (auto job = FindJob(jobToAbort.JobId)) {
+                AbortJob(job, jobToAbort);
+            } else {
+                YT_LOG_WARNING("Requested to abort a non-existent job (JobId: %v, AbortReason: %v, PreemptionReason: %v)",
+                    jobToAbort.JobId,
+                    jobToAbort.AbortReason,
+                    jobToAbort.PreemptionReason);
+            }
+        };
+
+        if (response->jobs_to_abort_size() > 0) {
+            for (const auto& protoJobToAbort : response->jobs_to_abort()) {
+                doAbortJob(FromProto<TJobToAbort>(protoJobToAbort));
+            }
         } else {
-            YT_LOG_WARNING("Requested to abort a non-existent job (JobId: %v)",
-                jobId);
+            // COMPAT(eshcherbin)
+            for (const auto& protoJobId : response->old_jobs_to_abort()) {
+                doAbortJob({FromProto<TJobId>(protoJobId)});
+            }
         }
     }
 

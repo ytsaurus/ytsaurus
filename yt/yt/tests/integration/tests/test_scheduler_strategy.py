@@ -38,7 +38,7 @@ from yt_commands import (  # noqa
     create_test_tables, PrepareTables,
     get_statistics,
     make_random_string, raises_yt_error,
-    normalize_schema, make_schema)
+    normalize_schema, make_schema, retry)
 
 import yt_error_codes
 
@@ -47,6 +47,8 @@ from yt_helpers import Profiler
 from yt.test_helpers import are_almost_equal
 
 from yt.common import YtError
+
+import yt.environment.init_operation_archive as init_operation_archive
 
 import pytest
 from flaky import flaky
@@ -1036,6 +1038,13 @@ class TestSchedulerPreemption(YTEnvSetup):
         "controller_agent": {"event_log": {"flush_period": 300, "retry_backoff_time": 300}}
     }
 
+    def setup(self):
+        sync_create_cells(1)
+        init_operation_archive.create_tables_latest_version(
+            self.Env.create_native_client(),
+            override_tablet_cell_bundle="default",
+        )
+
     def setup_method(self, method):
         super(TestSchedulerPreemption, self).setup_method(method)
         set("//sys/pool_trees/default/@config/preemption_satisfaction_threshold", 0.99)
@@ -1468,6 +1477,27 @@ class TestSchedulerPreemption(YTEnvSetup):
         for i in range(100):
             time.sleep(0.1)
             assert get(scheduler_orchid_pool_path("<Root>") + "/resource_usage/cpu") <= total_cpu_limit
+
+    @authors("eshcherbin")
+    def test_pass_preemption_reason_to_node(self):
+        create_pool("research")
+        create_pool("prod", attributes={"strong_guarantee_resources": {"cpu": 3}})
+
+        op1 = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "research"})
+        job_id = wait_breakpoint(job_count=1)[0]
+
+        op2 = run_sleeping_vanilla(spec={"pool": "prod"}, job_count=3)
+
+        wait(lambda: op1.get_job_count(state="aborted") == 1)
+
+        job = retry(lambda: get_job(op1.id, job_id, verbose_error=False))
+        print_debug(job["error"])
+        assert job["state"] == "aborted"
+        assert job["abort_reason"] == "preemption"
+        assert job["error"]["attributes"]["abort_reason"] == "preemption"
+        preemption_reason = job["error"]["attributes"]["preemption_reason"]
+        assert preemption_reason.startswith("Preempted to start job") and \
+               preemption_reason.endswith("of operation {}".format(op2.id))
 
 
 class TestSchedulingBugOfOperationWithGracefulPreemption(YTEnvSetup):
