@@ -1,11 +1,14 @@
 from yt_env_setup import YTEnvSetup
-from yt_commands import *  # noqa
+
+from yt_commands import authors, print_debug, wait, ls, get, set, create_rack, start_transaction
+
 from yt_helpers import Profiler
+
+from yt.common import YtError
 
 from flaky import flaky
 
 import time
-
 from sys import stderr
 
 #################################################################
@@ -44,7 +47,7 @@ class Base:
                 try:
                     for i in range(10):
                         make_request()
-                except:
+                except YtError:
                     continue
                 time.sleep(0.5)
 
@@ -224,19 +227,16 @@ class TestTimestampProvider(Base, YTEnvSetup):
         return sorted(get("//sys/cluster_nodes/@timestamp_provider_nodes"))
 
     def get_node_addresses_list(self, node):
-        return sorted(
-            list(
-                get(
-                    "//sys/cluster_nodes/{}/orchid/cluster_connection/timestamp_provider/channel_attributes/addresses".format(
-                        node
-                    )
-                )
+        return sorted(list(
+            get(
+                "//sys/cluster_nodes/{}/orchid/cluster_connection/timestamp_provider/channel_attributes/addresses"
+                .format(node)
             )
-        )
+        ))
 
     def wait_for_config(self, expected_node_ids):
         expected_nodes = self.select_nodes(expected_node_ids)
-        print >> stderr, "Expecting timestamp providers:", expected_nodes
+        print_debug("Expecting timestamp providers:", expected_nodes)
 
         wait(
             lambda: self.get_discovered_node_list() == expected_nodes,
