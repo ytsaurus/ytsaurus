@@ -333,7 +333,8 @@ TFuture<TTableReplicaInfoPtrList> TClient::PickInSyncReplicas(
             tableInfo,
             totalTabletCount,
             cachedSyncReplicasAt,
-            Passed(std::move(replicaIdToCount))));
+            Passed(std::move(replicaIdToCount)))
+            .AsyncVia(GetCurrentInvoker()));
     }
 }
 
