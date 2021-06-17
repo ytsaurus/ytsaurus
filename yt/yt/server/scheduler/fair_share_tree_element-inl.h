@@ -48,19 +48,19 @@ inline bool TSchedulerElement::IsActive(const TDynamicAttributesList& dynamicAtt
 
 inline TDynamicAttributes& TScheduleJobsContext::DynamicAttributesFor(const TSchedulerElement* element)
 {
-    YT_VERIFY(Initialized_);
+    YT_ASSERT(Initialized_);
 
     int index = element->GetTreeIndex();
-    YT_VERIFY(index != UnassignedTreeIndex && index < std::ssize(DynamicAttributesList_));
+    YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(DynamicAttributesList_));
     return DynamicAttributesList_[index];
 }
 
 inline const TDynamicAttributes& TScheduleJobsContext::DynamicAttributesFor(const TSchedulerElement* element) const
 {
-    YT_VERIFY(Initialized_);
+    YT_ASSERT(Initialized_);
 
     int index = element->GetTreeIndex();
-    YT_VERIFY(index != UnassignedTreeIndex && index < std::ssize(DynamicAttributesList_));
+    YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(DynamicAttributesList_));
     return DynamicAttributesList_[index];
 }
 
