@@ -748,6 +748,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("min_spare_job_resources_on_node", MinSpareJobResourcesOnNode)
         .Default(GetDefaultMinSpareJobResourcesOnNode());
 
+    RegisterParameter("send_preemption_reason_in_node_heartbeat", SendPreemptionReasonInNodeHeartbeat)
+        .Default(true);
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {

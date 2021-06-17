@@ -13,6 +13,8 @@
 
 #include <yt/yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
+#include <yt/yt/ytlib/job_tracker_client/helpers.h>
+
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/ytlib/scheduler/job_resources.h>
@@ -403,6 +405,7 @@ private:
     void SetOperationJobsReleaseDeadline(TOperationState* operationState);
 
     void PreemptJob(const TJobPtr& job, std::optional<NProfiling::TCpuDuration> interruptTimeout);
+    NJobTrackerClient::TJobToAbort BuildPreemptedJobAbortAttributes(const TJobPtr& job) const;
 
     void DoInterruptJob(
         const TJobPtr& job,

@@ -1875,12 +1875,12 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
 
             case EJobState::Running:
                 YT_LOG_DEBUG("Unknown job is running, abort scheduled");
-                ToProto(response->add_jobs_to_abort(), jobId);
+                AddJobToAbort(response, {jobId});
                 break;
 
             case EJobState::Waiting:
                 YT_LOG_DEBUG("Unknown job is waiting, abort scheduled");
-                ToProto(response->add_jobs_to_abort(), jobId);
+                AddJobToAbort(response, {jobId});
                 break;
 
             case EJobState::Aborting:
@@ -1909,7 +1909,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
             YT_LOG_WARNING("Job status report was expected from %v, removal scheduled",
                 expectedAddress);
         } else {
-            ToProto(response->add_jobs_to_abort(), jobId);
+            AddJobToAbort(response, {jobId, EAbortReason::JobOnUnexpectedNode});
             YT_LOG_WARNING("Job status report was expected from %v, abort scheduled",
                 expectedAddress);
         }
@@ -1966,8 +1966,9 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         case EJobState::Running:
         case EJobState::Waiting:
             if (job->GetState() == EJobState::Aborted) {
+                // NB(eshcherbin): Should never happen.
                 YT_LOG_DEBUG("Aborting job");
-                ToProto(response->add_jobs_to_abort(), jobId);
+                AddJobToAbort(response, {jobId});
             } else {
                 SetJobState(job, state);
                 switch (state) {
@@ -1977,7 +1978,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                         if (job->GetInterruptDeadline() != 0 && GetCpuInstant() > job->GetInterruptDeadline()) {
                             YT_LOG_DEBUG("Interrupted job deadline reached, aborting (InterruptDeadline: %v)",
                                 CpuInstantToInstant(job->GetInterruptDeadline()));
-                            ToProto(response->add_jobs_to_abort(), jobId);
+                            AddJobToAbort(response, BuildPreemptedJobAbortAttributes(job));
                         } else if (job->GetFailRequested()) {
                             YT_LOG_DEBUG("Job fail requested");
                             ToProto(response->add_jobs_to_fail(), jobId);
@@ -2180,7 +2181,7 @@ void TNodeShard::ProcessScheduledAndPreemptedJobs(
             // Else do nothing: job was already interrupted, by deadline not reached yet.
         } else {
             PreemptJob(job, std::nullopt);
-            ToProto(response->add_jobs_to_abort(), job->GetId());
+            AddJobToAbort(response, BuildPreemptedJobAbortAttributes(job));
         }
     }
 }
@@ -2564,6 +2565,20 @@ void TNodeShard::PreemptJob(const TJobPtr& job, std::optional<TCpuDuration> inte
     if (interruptTimeout) {
         DoInterruptJob(job, EInterruptReason::Preemption, *interruptTimeout);
     }
+}
+
+TJobToAbort TNodeShard::BuildPreemptedJobAbortAttributes(const TJobPtr& job) const
+{
+    TJobToAbort jobToAbort{
+        .JobId = job->GetId(),
+        .AbortReason = EAbortReason::Preemption,
+    };
+
+    if (Config_->SendPreemptionReasonInNodeHeartbeat) {
+        jobToAbort.PreemptionReason = job->GetPreemptionReason();
+    }
+
+    return jobToAbort;
 }
 
 void TNodeShard::DoInterruptJob(

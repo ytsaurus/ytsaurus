@@ -33,6 +33,13 @@ message TJobStartInfo
     optional NNodeTrackerClient.NProto.TAddressMap spec_service_addresses = 4;
 }
 
+message TJobToAbort
+{
+    required NYT.NProto.TGuid job_id = 1;
+    optional int32 abort_reason = 2;
+    optional string preemption_reason = 3;
+}
+
 message TJobToRemove
 {
     required NYT.NProto.TGuid job_id = 1;
@@ -46,7 +53,8 @@ message TJobToRemove
 message TRspHeartbeat
 {
     repeated TJobStartInfo jobs_to_start = 1;
-    repeated NYT.NProto.TGuid jobs_to_abort = 2;
+    repeated NYT.NProto.TGuid old_jobs_to_abort = 2; // COMPAT
+    repeated TJobToAbort jobs_to_abort = 15;
     repeated TJobToRemove jobs_to_remove = 3;
     repeated NYT.NProto.TGuid jobs_to_store = 4;
     repeated NYT.NProto.TGuid jobs_to_interrupt = 5;

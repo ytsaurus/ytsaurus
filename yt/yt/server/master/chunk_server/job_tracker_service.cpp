@@ -18,6 +18,7 @@
 
 #include <yt/yt/server/lib/chunk_server/proto/job.pb.h>
 
+#include <yt/yt/ytlib/job_tracker_client/helpers.h>
 #include <yt/yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
@@ -118,13 +119,13 @@ private:
                     case EJobState::Running:
                         YT_LOG_DEBUG("Unknown job is running, abort scheduled (JobId: %v)",
                             jobId);
-                        ToProto(response->add_jobs_to_abort(), jobId);
+                        AddJobToAbort(response, {jobId});
                         break;
 
                     case EJobState::Waiting:
                         YT_LOG_DEBUG("Unknown job is waiting, abort scheduled (JobId: %v)",
                             jobId);
-                        ToProto(response->add_jobs_to_abort(), jobId);
+                        AddJobToAbort(response, {jobId});
                         break;
 
                     default:
@@ -165,7 +166,7 @@ private:
         }
 
         for (const auto& job : jobsToAbort) {
-            ToProto(response->add_jobs_to_abort(), job->GetJobId());
+            AddJobToAbort(response, {job->GetJobId()});
         }
 
         for (const auto& job : jobsToRemove) {
