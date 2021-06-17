@@ -1223,6 +1223,32 @@ class TestPortals(YTEnvSetup):
         assert read_table("//tmp/p1/t") == [{"c": "d"}]
 
     @authors("shakurov")
+    def test_cross_shard_copy_dynamic_table_attrs_on_static_table(self):
+        # NB: cross-shard copying dynamic tables is not supported at the moment,
+        # but that does not preclude setting dyntable-specific attributes
+        # on a static table.
+        attributes = {
+            "atomicity": "full",
+            "commit_ordering": "weak",
+            "in_memory_mode": "uncompressed",
+            "enable_dynamic_store_read": True,
+            "profiling_mode": "path",
+            "profiling_tag": "some_tag",
+            "external_cell_tag": 2  # To be removed below.
+        }
+        create("table", "//tmp/t", attributes=attributes)
+        del attributes["external_cell_tag"]
+
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
+
+        # Must not crash.
+        copy("//tmp/t", "//tmp/p1/t")
+
+        copy_attributes = get("//tmp/p1/t/@")
+        for k, v in attributes.iteritems():
+            assert copy_attributes[k] == v
+
+    @authors("shakurov")
     def test_recursive_resource_usage_portal(self):
         create("map_node", "//tmp/d")
         create("portal_entrance", "//tmp/d/p1", attributes={"exit_cell_tag": 1})
