@@ -519,9 +519,8 @@ private:
             req->SetTimeout(Config_->JobHeartbeatTimeout);
 
             const auto& jobController = Bootstrap_->GetJobController();
-            // TODO(ignat): it should not throw.
-            WaitFor(jobController->PrepareHeartbeatRequest(cellTag, EObjectType::MasterJob, req))
-                .ThrowOnError();
+            YT_VERIFY(WaitFor(jobController->PrepareHeartbeatRequest(cellTag, EObjectType::MasterJob, req))
+                .IsOK());
 
             YT_LOG_INFO("Job heartbeat sent to master (ResourceUsage: %v, CellTag: %v)",
                 FormatResourceUsage(req->resource_usage(), req->resource_limits()),
@@ -534,9 +533,8 @@ private:
                     cellTag);
 
                 const auto& rsp = rspOrError.Value();
-                // TODO(ignat): it should not throw.
-                WaitFor(jobController->ProcessHeartbeatResponse(rsp, EObjectType::MasterJob))
-                    .ThrowOnError();
+                YT_VERIFY(WaitFor(jobController->ProcessHeartbeatResponse(rsp, EObjectType::MasterJob))
+                    .IsOK());
             } else {
                 YT_LOG_WARNING(rspOrError, "Error reporting job heartbeat to master (CellTag: %v)",
                     cellTag);

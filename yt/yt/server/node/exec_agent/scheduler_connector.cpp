@@ -93,12 +93,11 @@ void TSchedulerConnector::SendHeartbeat()
 
     const auto& jobController = Bootstrap_->GetJobController();
     const auto& masterConnection = client->GetNativeConnection();
-    // TODO(ignat): it should not throw.
-    WaitFor(jobController->PrepareHeartbeatRequest(
+    YT_VERIFY(WaitFor(jobController->PrepareHeartbeatRequest(
         masterConnection->GetPrimaryMasterCellTag(),
         EObjectType::SchedulerJob,
         req))
-        .ThrowOnError();
+        .IsOK());
 
     auto profileInterval = [&] (TInstant lastTime, NProfiling::TEventTimer& counter) {
         if (lastTime != TInstant::Zero()) {
