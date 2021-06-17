@@ -468,7 +468,7 @@ private:
             workloadDescriptor);
 
         ValidateConnected();
-        
+
         const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
 
         int completeChunkCount = 0;
@@ -926,7 +926,7 @@ private:
                 this_ = MakeStrong(this),
                 fragments = std::move(fragments),
                 chunkReadGuards = std::move(chunkReadGuards)
-            ] (const TError& error) {
+            ] (const TError& error) mutable {
                 if (!error.IsOK()) {
                     context->Reply(error);
                     return;
@@ -971,17 +971,22 @@ private:
                 }
 
                 AllSucceeded(std::move(readFutures))
-                    .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
-                        if (!error.IsOK()) {
-                            context->Reply(error);
-                            return;
-                        }
+                    .Subscribe(BIND(
+                        [
+                            =,
+                            this_ = MakeStrong(this),
+                            chunkReadGuards = std::move(chunkReadGuards)
+                        ] (const TError& error) {
+                            if (!error.IsOK()) {
+                                context->Reply(error);
+                                return;
+                            }
 
-                        // TODO(babenko): fill chunk_reader_statistics
+                            // TODO(babenko): fill chunk_reader_statistics
 
-                        context->SetComplete();
-                        context->ReplyFrom(netThrottler->Throttle(totalFragmentSize));
-                    }));
+                            context->SetComplete();
+                            context->ReplyFrom(netThrottler->Throttle(totalFragmentSize));
+                        }));
             };
 
         if (prepareReaderFutures.empty()) {
