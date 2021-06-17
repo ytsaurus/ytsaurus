@@ -1537,6 +1537,55 @@ TEST_F(TWriterForWebJson, YqlValueFormat_Any)
     }
 }
 
+TEST_F(TWriterForWebJson, YqlValueFormat_CompositeNoSchema)
+{
+    Config_->ValueFormat = EWebJsonValueFormat::Yql;
+
+    auto schema = New<TTableSchema>();
+
+    auto yqlTypeA = ConvertToNode(TYsonString(TStringBuf(R"(["DataType"; "Yson"])")));
+
+    CreateStandardWriter({schema});
+    {
+        TUnversionedOwningRowBuilder builder;
+        builder.AddValue(MakeUnversionedCompositeValue("[1;2]", KeyAId_));
+        EXPECT_EQ(true, Writer_->Write({builder.FinishRow()}));
+        Writer_->Close().Get().ThrowOnError();
+    }
+
+    auto result = ParseJsonToNode(OutputStream_.Str());
+    ASSERT_EQ(result->GetType(), ENodeType::Map);
+
+    auto rows = result->AsMap()->FindChild("rows");
+    ASSERT_TRUE(rows);
+    auto yqlTypeRegistry = result->AsMap()->FindChild("yql_type_registry");
+    ASSERT_TRUE(yqlTypeRegistry);
+
+    ASSERT_EQ(yqlTypeRegistry->GetType(), ENodeType::List);
+    auto yqlTypes = ConvertTo<std::vector<INodePtr>>(yqlTypeRegistry);
+
+    ASSERT_EQ(rows->GetType(), ENodeType::List);
+    ASSERT_EQ(rows->AsList()->GetChildCount(), 1);
+
+    {
+        auto row = rows->AsList()->GetChildOrThrow(0);
+        ASSERT_EQ(row->GetType(), ENodeType::Map);
+        auto rowAValue = ConvertToNode(TYsonString(TStringBuf(R"({
+            "val" = [
+                {
+                    "$type" = "int64";
+                    "$value" = "1";
+                };
+                {
+                    "$type" = "int64";
+                    "$value" = "2";
+                }
+            ]
+        })")));
+        CHECK_YQL_TYPE_AND_VALUE(row, "column_a", yqlTypeA, rowAValue, yqlTypes);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

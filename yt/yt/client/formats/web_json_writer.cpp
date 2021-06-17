@@ -277,10 +277,12 @@ public:
         auto converterConfig = CreateYqlJsonConsumerConfig(config);
 
         for (auto valueType : TEnumTraits<EValueType>::GetDomainValues()) {
-            if (IsValueType(valueType) || valueType == EValueType::Null) {
-                Types_.push_back(SimpleLogicalType(GetLogicalType(valueType)));
-                Converters_.push_back(
-                    CreateUnversionedValueToYqlConverter(Types_.back(), converterConfig, Consumer_));
+            if (IsValueType(valueType) || valueType == EValueType::Null || valueType == EValueType::Composite) {
+                TLogicalTypePtr logicalType = valueType == EValueType::Composite
+                    ? SimpleLogicalType(ESimpleLogicalValueType::Any)
+                    : SimpleLogicalType(GetLogicalType(valueType));
+                Types_.push_back(logicalType);
+                Converters_.push_back(CreateUnversionedValueToYqlConverter(Types_.back(), converterConfig, Consumer_));
                 ValueTypeToTypeIndex_[valueType] = static_cast<int>(Types_.size()) - 1;
             } else {
                 ValueTypeToTypeIndex_[valueType] = UnknownTypeIndex;
