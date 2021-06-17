@@ -1,9 +1,59 @@
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
+
+from yt_commands import (  # noqa
+    authors, print_debug, wait, retry, wait_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
+    events_on_fs, reset_events_on_fs,
+    create, ls, get, set, copy, move, remove, link, exists, concatenate,
+    create_account, remove_account,
+    create_network_project, create_tmpdir, create_user, create_group, create_medium,
+    create_pool, create_pool_tree, remove_pool_tree,
+    create_data_center, create_rack, create_table, create_proxy_role,
+    create_tablet_cell_bundle, remove_tablet_cell_bundle, create_tablet_cell, create_table_replica,
+    make_ace, check_permission, add_member, remove_member, remove_group, remove_user,
+    remove_network_project,
+    make_batch_request, execute_batch, get_batch_error,
+    start_transaction, abort_transaction, commit_transaction, lock,
+    insert_rows, select_rows, lookup_rows, delete_rows, trim_rows, alter_table,
+    read_file, write_file, read_table, write_table, write_local_file, read_blob_table,
+    read_journal, write_journal, truncate_journal, wait_until_sealed,
+    map, reduce, map_reduce, join_reduce, merge, vanilla, sort, erase, remote_copy,
+    run_test_vanilla, run_sleeping_vanilla,
+    abort_job, list_jobs, get_job, abandon_job, interrupt_job,
+    get_job_fail_context, get_job_input, get_job_stderr, get_job_spec, get_job_input_paths,
+    dump_job_context, poll_job_shell,
+    abort_op, complete_op, suspend_op, resume_op,
+    get_operation, list_operations, clean_operations,
+    get_operation_cypress_path, scheduler_orchid_pool_path,
+    scheduler_orchid_default_pool_tree_path, scheduler_orchid_operation_path,
+    scheduler_orchid_default_pool_tree_config_path, scheduler_orchid_path,
+    scheduler_orchid_node_path, scheduler_orchid_pool_tree_config_path, scheduler_orchid_pool_tree_path,
+    mount_table, unmount_table, freeze_table, unfreeze_table, reshard_table, remount_table, generate_timestamp,
+    reshard_table_automatic, wait_for_tablet_state, wait_for_cells,
+    get_tablet_infos, get_table_pivot_keys, get_tablet_leader_address,
+    sync_create_cells, sync_mount_table, sync_unmount_table,
+    sync_freeze_table, sync_unfreeze_table, sync_reshard_table,
+    sync_flush_table, sync_compact_table, sync_remove_tablet_cells,
+    sync_reshard_table_automatic, sync_balance_tablet_cells,
+    get_first_chunk_id, get_singular_chunk_id, get_chunk_replication_factor, multicell_sleep,
+    update_nodes_dynamic_config, update_controller_agent_config,
+    update_op_parameters, enable_op_detailed_logs,
+    set_node_banned, set_banned_flag,
+    set_account_disk_space_limit, set_node_decommissioned,
+    get_account_disk_space, get_account_committed_disk_space, get_account_disk_space_limit,
+    check_all_stderrs,
+    create_test_tables, create_dynamic_table, PrepareTables,
+    get_statistics, get_recursive_disk_space, get_chunk_owner_disk_space, get_media,
+    make_random_string, raises_yt_error,
+    build_snapshot, build_master_snapshots,
+    gc_collect, is_multicell, clear_metadata_caches,
+    get_driver, Driver, execute_command,
+    AsyncLastCommittedTimestamp, MinTimestamp)
+
+from yt.common import YtError
+
 import pytest
 
-from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
-from yt_commands import *  # noqa
-
-import copy
+from copy import deepcopy
 import __builtin__
 
 
@@ -30,15 +80,15 @@ class TestMedia(YTEnvSetup):
         assert len(config["data_node"]["store_locations"]) == 1
         location_prototype = config["data_node"]["store_locations"][0]
 
-        default_location = copy.deepcopy(location_prototype)
+        default_location = deepcopy(location_prototype)
         default_location["path"] += "_0"
         default_location["medium_name"] = "default"
 
-        non_default_location = copy.deepcopy(location_prototype)
+        non_default_location = deepcopy(location_prototype)
         non_default_location["path"] += "_1"
         non_default_location["medium_name"] = cls.NON_DEFAULT_MEDIUM
 
-        non_default_transient_location = copy.deepcopy(location_prototype)
+        non_default_transient_location = deepcopy(location_prototype)
         non_default_transient_location["path"] += "_2"
         non_default_transient_location["medium_name"] = cls.NON_DEFAULT_TRANSIENT_MEDIUM
 
@@ -226,10 +276,10 @@ class TestMedia(YTEnvSetup):
         assert get("//tmp/t2/@replication_factor") == 7
 
         wait(
-            lambda: self._count_chunks_on_medium("t2", "default") == 3
-                    and self._count_chunks_on_medium("t2", TestMedia.NON_DEFAULT_MEDIUM) == 7
-                    and self._check_account_and_table_usage_equal("t2")
-        )
+            lambda:
+                self._count_chunks_on_medium("t2", "default") == 3
+                and self._count_chunks_on_medium("t2", TestMedia.NON_DEFAULT_MEDIUM) == 7
+                and self._check_account_and_table_usage_equal("t2"))
 
     @authors("babenko")
     def test_move_between_media(self):
@@ -257,9 +307,9 @@ class TestMedia(YTEnvSetup):
         assert get("//tmp/t3/@replication_factor") == 3
 
         wait(
-            lambda: self._check_all_chunks_on_medium("t3", TestMedia.NON_DEFAULT_MEDIUM)
-                    and self._check_account_and_table_usage_equal("t3")
-        )
+            lambda:
+                self._check_all_chunks_on_medium("t3", TestMedia.NON_DEFAULT_MEDIUM)
+                and self._check_account_and_table_usage_equal("t3"))
 
     @authors("babenko")
     def test_move_between_media_shortcut(self):
@@ -278,9 +328,9 @@ class TestMedia(YTEnvSetup):
         assert get("//tmp/t4/@replication_factor") == 3
 
         wait(
-            lambda: self._check_all_chunks_on_medium("t4", TestMedia.NON_DEFAULT_MEDIUM)
-                    and self._check_account_and_table_usage_equal("t4")
-        )
+            lambda:
+                self._check_all_chunks_on_medium("t4", TestMedia.NON_DEFAULT_MEDIUM)
+                and self._check_account_and_table_usage_equal("t4"))
 
     @authors("shakurov")
     def test_assign_empty_medium_fails(self):
@@ -307,9 +357,9 @@ class TestMedia(YTEnvSetup):
         )
 
         wait(
-            lambda: self._check_all_chunks_on_medium("t6", TestMedia.NON_DEFAULT_MEDIUM)
-                    and self._check_account_and_table_usage_equal("t6")
-        )
+            lambda:
+                self._check_all_chunks_on_medium("t6", TestMedia.NON_DEFAULT_MEDIUM)
+                and self._check_account_and_table_usage_equal("t6"))
 
     @authors("shakurov", "babenko")
     def test_chunks_inherit_properties(self):
@@ -321,14 +371,14 @@ class TestMedia(YTEnvSetup):
 
         chunk_id = get_singular_chunk_id("//tmp/t7")
 
-        chunk_media_1 = copy.deepcopy(tbl_media_1)
+        chunk_media_1 = deepcopy(tbl_media_1)
         chunk_vital_1 = tbl_vital_1
 
         assert chunk_media_1 == get("#" + chunk_id + "/@media")
         assert chunk_vital_1 == get("#" + chunk_id + "/@vital")
 
         # Modify table properties in some way.
-        tbl_media_2 = copy.deepcopy(tbl_media_1)
+        tbl_media_2 = deepcopy(tbl_media_1)
         tbl_vital_2 = not tbl_vital_1
         tbl_media_2["hdd6"] = {"replication_factor": 7, "data_parts_only": True}
 
@@ -338,13 +388,13 @@ class TestMedia(YTEnvSetup):
         assert tbl_media_2 == get("//tmp/t7/@media")
         assert tbl_vital_2 == get("//tmp/t7/@vital")
 
-        chunk_media_2 = copy.deepcopy(tbl_media_2)
+        chunk_media_2 = deepcopy(tbl_media_2)
         chunk_vital_2 = tbl_vital_2
 
         wait(
-            lambda: chunk_media_2 == get("#" + chunk_id + "/@media")
-                    and chunk_vital_2 == get("#" + chunk_id + "/@vital")
-        )
+            lambda:
+                chunk_media_2 == get("#" + chunk_id + "/@media")
+                and chunk_vital_2 == get("#" + chunk_id + "/@vital"))
 
     @authors("babenko")
     def test_no_create_cache_media(self):
@@ -372,9 +422,9 @@ class TestMedia(YTEnvSetup):
         assert get("//tmp/t8/@media/{}/replication_factor".format(TestMedia.NON_DEFAULT_MEDIUM)) == TestMedia.NUM_NODES
 
         wait(
-            lambda: self._count_chunks_on_medium("t8", "default") == TestMedia.NUM_NODES
-                    and self._count_chunks_on_medium("t8", TestMedia.NON_DEFAULT_MEDIUM) == TestMedia.NUM_NODES
-        )
+            lambda:
+                self._count_chunks_on_medium("t8", "default") == TestMedia.NUM_NODES
+                and self._count_chunks_on_medium("t8", TestMedia.NON_DEFAULT_MEDIUM) == TestMedia.NUM_NODES)
 
     @authors("shakurov")
     def test_default_media_priorities(self):
@@ -445,10 +495,10 @@ class TestMedia(YTEnvSetup):
         chunk_id = get_singular_chunk_id("//tmp/t9")
 
         wait(
-            lambda: self._check_chunk_ok(True, chunk_id, {"default"})
-                    and len(get("#{0}/@stored_replicas".format(chunk_id))) == codec_replica_count
-                    and self._get_chunk_replica_media(chunk_id) == {"default"}
-        )
+            lambda:
+                self._check_chunk_ok(True, chunk_id, {"default"})
+                and len(get("#{0}/@stored_replicas".format(chunk_id))) == codec_replica_count
+                and self._get_chunk_replica_media(chunk_id) == {"default"})
 
         self._ban_nodes(self._get_chunk_replica_nodes(chunk_id))
 
@@ -476,10 +526,10 @@ class TestMedia(YTEnvSetup):
         chunk_id = get_singular_chunk_id("//tmp/t9")
 
         wait(
-            lambda: self._check_chunk_ok(True, chunk_id, relevant_media)
-                    and len(get("#{0}/@stored_replicas".format(chunk_id))) == len(relevant_media) * codec_replica_count
-                    and self._get_chunk_replica_media(chunk_id) == relevant_media
-        )
+            lambda:
+                self._check_chunk_ok(True, chunk_id, relevant_media)
+                and len(get("#{0}/@stored_replicas".format(chunk_id))) == len(relevant_media) * codec_replica_count
+                and self._get_chunk_replica_media(chunk_id) == relevant_media)
 
         self._ban_nodes(self._get_chunk_replica_nodes(chunk_id))
 
@@ -526,9 +576,9 @@ class TestMedia(YTEnvSetup):
         chunk2 = get_singular_chunk_id("//tmp/t10_transient")
 
         wait(
-            lambda: len(get("#{0}/@stored_replicas".format(chunk1))) == 2
-                    and len(get("#{0}/@stored_replicas".format(chunk2))) == 2
-        )
+            lambda:
+                len(get("#{0}/@stored_replicas".format(chunk1))) == 2
+                and len(get("#{0}/@stored_replicas".format(chunk2))) == 2)
 
         set("//sys/@config/chunk_manager/enable_chunk_replicator", False, recursive=True)
         wait(lambda: not get("//sys/@chunk_replicator_enabled"))

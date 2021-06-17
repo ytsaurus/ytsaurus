@@ -1,5 +1,8 @@
 from yt_env_setup import YTEnvSetup
-from yt_commands import *  # noqa
+
+from yt_commands import authors, wait, get, switch_leader
+
+from yt.common import YtError
 
 import pytest
 
@@ -20,13 +23,13 @@ class TestMasterLeaderSwitch(YTEnvSetup):
     def _is_active_leader(self, rpc_address):
         try:
             return get("//sys/primary_masters/{}/orchid/monitoring/hydra/active_leader".format(rpc_address))
-        except:
+        except YtError:
             return False
 
     def _is_active_follower(self, rpc_address):
         try:
             return get("//sys/primary_masters/{}/orchid/monitoring/hydra/active_follower".format(rpc_address))
-        except:
+        except YtError:
             return False
 
     def _get_active_leader_address(self):
