@@ -176,7 +176,9 @@ TJaegerTracer::TJaegerTracer(
     , Config_(config)
     , TracesDequeued_(Profiler.Counter("/traces_dequeued"))
     , TracesDropped_(Profiler.Counter("/traces_dropped"))
+    , PushedBytes_(Profiler.Counter("/pushed_bytes"))
     , PushErrors_(Profiler.Counter("/push_errors"))
+    , PayloadSize_(Profiler.Summary("/payload_size"))
     , MemoryUsage_(Profiler.Gauge("/memory_usage"))
     , TraceQueueSize_(Profiler.Gauge("/queue_size"))
     , PushDuration_(Profiler.Timer("/push_duration"))
@@ -278,7 +280,7 @@ void TJaegerTracer::DequeueAll(const TJaegerTracerConfigPtr& config)
     flushBatch();
 }
 
-std::pair<std::vector<TSharedRef>, int> TJaegerTracer::PeekQueue(const TJaegerTracerConfigPtr& config)
+std::tuple<std::vector<TSharedRef>, int, int> TJaegerTracer::PeekQueue(const TJaegerTracerConfigPtr& config)
 {
     std::vector<TSharedRef> batches;
     if (config->IsEnabled()) {
@@ -286,6 +288,7 @@ std::pair<std::vector<TSharedRef>, int> TJaegerTracer::PeekQueue(const TJaegerTr
     }
 
     int size = 0;
+    int batchSize = 0;
 
     int i = 0;
     for (; i < static_cast<int>(BatchQueue_.size()); i++) {
@@ -294,10 +297,11 @@ std::pair<std::vector<TSharedRef>, int> TJaegerTracer::PeekQueue(const TJaegerTr
         }
 
         size += BatchQueue_[i].second.Size();
+        batchSize += BatchQueue_[i].first;
         batches.push_back(BatchQueue_[i].second);
     }
 
-    return std::make_pair(batches, i);
+    return std::make_tuple(batches, i, batchSize);
 }
 
 void TJaegerTracer::DropQueue(int i)
@@ -323,8 +327,8 @@ void TJaegerTracer::Flush()
 
         auto dropFullQueue = [&] {
             while (true) {
-                auto [batch, i] = PeekQueue(config);
-                TracesDropped_.Increment(i);
+                auto [batch, i, batchSize] = PeekQueue(config);
+                TracesDropped_.Increment(batchSize);
                 DropQueue(i);
 
                 if (i == 0) {
@@ -353,7 +357,7 @@ void TJaegerTracer::Flush()
         proxy.SetDefaultTimeout(config->RpcTimeout);
         auto req = proxy.PostSpans();
 
-        auto [batch, i] = PeekQueue(config);
+        auto [batch, i, batchSize] = PeekQueue(config);
         if (i > 0) {
             req->SetEnableLegacyRpcCodecs(false);
             req->set_batch(MergeRefsToString(batch));
@@ -368,7 +372,10 @@ void TJaegerTracer::Flush()
         LastSuccessfullFlushTime_ = TInstant::Now();
         NotifyEmptyQueue();
 
-        YT_LOG_DEBUG("Finished span flush");
+        PushedBytes_.Increment(req->batch().size());
+        PayloadSize_.Record(req->batch().size());
+
+        YT_LOG_DEBUG("Finished span flush (BatchSize: %v, PayloadSize: %v)", batchSize, req->batch().size());
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Failed to send spans");
         PushErrors_.Increment();

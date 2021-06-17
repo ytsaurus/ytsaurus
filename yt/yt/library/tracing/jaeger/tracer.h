@@ -119,12 +119,14 @@ private:
     void DequeueAll(const TJaegerTracerConfigPtr& config);
     void NotifyEmptyQueue();
 
-    std::pair<std::vector<TSharedRef>, int> PeekQueue(const TJaegerTracerConfigPtr& config);
+    std::tuple<std::vector<TSharedRef>, int, int> PeekQueue(const TJaegerTracerConfigPtr& config);
     void DropQueue(int i);
 
     NProfiling::TCounter TracesDequeued_;
     NProfiling::TCounter TracesDropped_;
+    NProfiling::TCounter PushedBytes_;
     NProfiling::TCounter PushErrors_;
+    NProfiling::TSummary PayloadSize_;
     NProfiling::TGauge MemoryUsage_;
     NProfiling::TGauge TraceQueueSize_;
     NProfiling::TEventTimer PushDuration_;
