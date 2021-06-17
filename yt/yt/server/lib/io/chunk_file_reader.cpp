@@ -382,8 +382,9 @@ TFuture<std::shared_ptr<TFileHandle>> TChunkFileReader::OpenDataFile()
 
 std::shared_ptr<TFileHandle> TChunkFileReader::OnDataFileOpened(const std::shared_ptr<TFileHandle>& file)
 {
-    YT_LOG_DEBUG("Finished opening chunk data file (FileName: %v)",
-        FileName_);
+    YT_LOG_DEBUG("Finished opening chunk data file (FileName: %v, Handle: %v)",
+        FileName_,
+        static_cast<FHANDLE>(*file));
 
     DataFile_ = file;
     DataFileOpened_.store(true);
