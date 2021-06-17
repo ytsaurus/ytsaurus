@@ -9,7 +9,7 @@
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/finally.h>
 
-#include <contrib/libs/zstd/zstd.h>
+#include <contrib/libs/zstd/include/zstd.h>
 
 namespace NYT {
 namespace NLogging {
