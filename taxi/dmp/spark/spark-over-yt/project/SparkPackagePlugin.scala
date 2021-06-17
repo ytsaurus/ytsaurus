@@ -73,7 +73,8 @@ object SparkPackagePlugin extends AutoPlugin {
     sparkLocalConfigs := {
       Seq(
         (resourceDirectory in Compile).value / "spark-defaults.conf",
-        (resourceDirectory in Compile).value / "spark-env.sh"
+        (resourceDirectory in Compile).value / "spark-env.sh",
+        (resourceDirectory in Compile).value / "metrics.properties"
       )
     },
     sparkAdditionalBin := {
@@ -96,19 +97,24 @@ object SparkPackagePlugin extends AutoPlugin {
       val sparkVersion = version.value
       val versionConfPath = s"$confBasePath/${sparkYtSubdir.value}/$sparkVersion"
 
-      val launchConfig = SparkLaunchConfig(binBasePath, versionConfPath,
-        ytserver_proxy_path = sparkYtServerProxyPath.value)
+      val sidecarConfigs = ((resourceDirectory in Compile).value / "config").listFiles()
+      val sidecarConfigsClusterPaths = sidecarConfigs.map(file => s"$versionConfPath/${file.getName}")
+
+      val launchConfig = SparkLaunchConfig(
+        binBasePath,
+        ytserver_proxy_path = sparkYtServerProxyPath.value,
+        file_paths = Seq(
+          s"$binBasePath/spark.tgz",
+          s"$binBasePath/spark-yt-launcher.jar"
+        ) ++ sidecarConfigsClusterPaths
+      )
       val launchConfigPublish = YtPublishDocument(
         launchConfig,
         versionConfPath,
         None,
         "spark-launch-conf"
       )
-      val ytServerProxyConfigPublish = YtPublishFile(
-        (resourceDirectory in Compile).value / "ytserver-proxy.template.yson",
-        versionConfPath,
-        None
-      )
+      val configsPublish = sidecarConfigs.map( file => YtPublishFile(file, versionConfPath, None))
 
       val globalConfigPublish = if (sparkReleaseGlobalConfig.value) {
         sparkYtProxies.value.map { proxy =>
@@ -121,7 +127,7 @@ object SparkPackagePlugin extends AutoPlugin {
         }
       } else Nil
 
-      ytServerProxyConfigPublish +: (launchConfigPublish +: globalConfigPublish)
+      configsPublish ++ (launchConfigPublish +: globalConfigPublish)
     },
     sparkPackage := {
       val sparkDist = sparkHome.value / "dist"

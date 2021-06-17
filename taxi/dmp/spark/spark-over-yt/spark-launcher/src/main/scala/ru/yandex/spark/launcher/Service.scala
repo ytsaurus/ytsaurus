@@ -16,7 +16,7 @@ sealed trait Service {
   def isAlive(retry: Int = 0): Boolean = thread.isAlive
 
   def waitAlive(timeout: Duration): Boolean = {
-    DiscoveryService.waitFor(isAlive(), timeout)
+    DiscoveryService.waitFor(isAlive(), timeout, name)
     thread.isAlive
   }
 
@@ -36,14 +36,21 @@ sealed trait Service {
 }
 
 sealed trait ServiceWithAddress extends Service {
+  private val log = LoggerFactory.getLogger(getClass)
+
   def address: HostAndPort
 
   def isAddressAvailable(retry: Int = 0): Boolean = DiscoveryService.isAlive(address, retry)
 
-  override def isAlive(retry: Int = 0): Boolean = isAddressAvailable(retry) && thread.isAlive
+  override def isAlive(retry: Int = 0): Boolean = {
+    val isAlive = isAddressAvailable(retry) && thread.isAlive
+    if (!isAlive) log.error(s"$name is not alive")
+    isAlive
+  }
 
   override def waitAlive(timeout: Duration): Boolean = {
-    DiscoveryService.waitFor(isAddressAvailable() || !thread.isAlive, timeout)
+    DiscoveryService.waitFor(isAddressAvailable() || !thread.isAlive, timeout,
+      s"$name on port ${address.getPort}")
     thread.isAlive
   }
 
@@ -60,8 +67,6 @@ object Service {
   }
 
   case class MasterService(name: String, masterAddress: Address, thread: Thread) extends ServiceWithAddress {
-    override def address: HostAndPort = masterAddress.hostAndPort
+    override def address: HostAndPort = masterAddress.webUiHostAndPort
   }
-
-  case class WorkerService(name: String, thread: Thread) extends Service
 }

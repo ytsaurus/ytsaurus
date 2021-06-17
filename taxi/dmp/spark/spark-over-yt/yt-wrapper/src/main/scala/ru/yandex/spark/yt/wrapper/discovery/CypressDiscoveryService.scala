@@ -110,14 +110,16 @@ class CypressDiscoveryService(discoveryPath: String)(implicit yt: CompoundClient
   override def waitAddress(timeout: Duration): Option[Address] = {
     DiscoveryService.waitFor(
       discoverAddress().filter(a => DiscoveryService.isAlive(a.hostAndPort, 0)),
-      timeout
+      timeout,
+      s"spark component address in $discoveryPath"
     )
   }
 
   override def waitAlive(hostPort: HostAndPort, timeout: Duration): Boolean = {
     DiscoveryService.waitFor(
       DiscoveryService.isAlive(hostPort, 0),
-      timeout
+      timeout,
+      s"address available $hostPort"
     )
   }
 

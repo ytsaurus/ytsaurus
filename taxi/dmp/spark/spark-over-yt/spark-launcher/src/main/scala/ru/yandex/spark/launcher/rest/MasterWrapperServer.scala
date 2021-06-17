@@ -17,7 +17,7 @@ class MasterWrapperServer(server: Server) {
           throw e
       }
     })
-    thread.setDaemon(false)
+    thread.setDaemon(true)
     thread.start()
     thread
   }

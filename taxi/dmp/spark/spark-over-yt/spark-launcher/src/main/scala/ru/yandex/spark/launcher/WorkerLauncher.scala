@@ -10,7 +10,7 @@ import ru.yandex.spark.yt.wrapper.discovery.DiscoveryService
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-object WorkerLauncher extends App with VanillaLauncher with SparkLauncher with ByopLauncher {
+object WorkerLauncher extends App with VanillaLauncher with SparkLauncher with ByopLauncher with SolomonLauncher {
   private val log = LoggerFactory.getLogger(getClass)
   private val workerArgs = WorkerLauncherArgs(args)
   private val byopConfig = ByopConfig.create(sparkSystemProperties, args)
@@ -19,8 +19,7 @@ object WorkerLauncher extends App with VanillaLauncher with SparkLauncher with B
 
   prepareProfiler()
 
-
-  withOptionService(byopConfig.map(startByop(_, ytConfig, waitMasterTimeout))) { byop =>
+  withOptionService(byopConfig.map(startByop)) { byop =>
     withDiscovery(ytConfig, discoveryPath) { discoveryService =>
       log.info("Waiting for master http address")
       val masterAddress = discoveryService.waitAddress(waitMasterTimeout)
@@ -28,19 +27,18 @@ object WorkerLauncher extends App with VanillaLauncher with SparkLauncher with B
 
       log.info(s"Starting worker for master $masterAddress")
       withService(startWorker(masterAddress, cores, memory)) { worker =>
-        def isAlive: Boolean = {
-          val isMasterAlive = DiscoveryService.isAlive(masterAddress.hostAndPort, 3)
-          val isWorkerAlive = worker.isAlive(3)
-          val isRpcProxyAlive = byop.forall(_.isAlive(3))
+        withService(startSolomonAgent(args, "worker", worker.address.getPort)) { solomonAgent =>
+          def isAlive: Boolean = {
+            val isMasterAlive = DiscoveryService.isAlive(masterAddress.hostAndPort, 3)
+            val isWorkerAlive = worker.isAlive(3)
+            val isRpcProxyAlive = byop.forall(_.isAlive(3))
+            val isSolomonAgentAlive = solomonAgent.isAlive(3)
 
-          if (!isMasterAlive) log.error("Master is not alive")
-          if (!isWorkerAlive) log.error("Worker is not alive")
-          if (!isRpcProxyAlive) log.error("Rpc proxy is not alive")
+            isMasterAlive && isWorkerAlive && isRpcProxyAlive && isSolomonAgentAlive
+          }
 
-          isMasterAlive && isWorkerAlive && isRpcProxyAlive
+          checkPeriodically(isAlive)
         }
-
-        checkPeriodically(isAlive)
       }
     }
   }

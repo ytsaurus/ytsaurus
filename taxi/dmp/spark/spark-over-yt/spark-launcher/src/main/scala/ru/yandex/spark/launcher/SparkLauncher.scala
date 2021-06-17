@@ -1,15 +1,14 @@
 package ru.yandex.spark.launcher
 
-import java.io.File
-
 import io.circe.generic.auto._
 import io.circe.parser._
 import org.slf4j.{Logger, LoggerFactory}
-import ru.yandex.spark.launcher.Service.{BasicService, MasterService, WorkerService}
+import ru.yandex.spark.launcher.Service.{BasicService, MasterService}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 import ru.yandex.spark.yt.wrapper.discovery.{Address, CypressDiscoveryService, DiscoveryService}
 
+import java.io.File
 import scala.annotation.tailrec
 import scala.concurrent.duration._
 import scala.io.Source
@@ -26,12 +25,13 @@ trait SparkLauncher {
   private val historyServerClass = "org.apache.spark.deploy.history.HistoryServer"
 
   def startMaster: MasterService = {
+    log.info("Start Spark master")
     val thread = runSparkThread(masterClass, namedArgs = Map("host" -> Utils.ytHostnameOrIpAddress))
     val address = readAddressOrDie("master", 5 minutes, thread)
     MasterService("Master", address, thread)
   }
 
-  def startWorker(master: Address, cores: Int, memory: String): WorkerService = {
+  def startWorker(master: Address, cores: Int, memory: String): BasicService = {
     val thread = runSparkThread(
       workerClass,
       namedArgs = Map(
@@ -41,8 +41,9 @@ trait SparkLauncher {
       ),
       positionalArgs = Seq(s"spark://${master.hostAndPort}")
     )
+    val address = readAddressOrDie("worker", 5 minutes, thread)
 
-    WorkerService("Worker", thread)
+    BasicService("Worker", address.hostAndPort, thread)
   }
 
   def startHistoryServer(path: String): BasicService = {
@@ -68,7 +69,7 @@ trait SparkLauncher {
   private def readAddress(name: String, timeout: Duration): Address = {
     val successFlag = new File(s"${name}_address_success")
     val file = new File(s"${name}_address")
-    if (!DiscoveryService.waitFor(successFlag.exists(), timeout)) {
+    if (!DiscoveryService.waitFor(successFlag.exists(), timeout, s"spark component address in file $file")) {
       throw new RuntimeException("Service address is not found")
     }
     val source = Source.fromFile(file)
