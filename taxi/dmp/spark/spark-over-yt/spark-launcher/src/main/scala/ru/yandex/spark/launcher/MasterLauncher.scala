@@ -9,31 +9,36 @@ import ru.yandex.spark.yt.wrapper.discovery.SparkConfYsonable
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-object MasterLauncher extends App with VanillaLauncher with SparkLauncher with MasterWrapperLauncher {
+object MasterLauncher extends App
+  with VanillaLauncher
+  with SparkLauncher
+  with MasterWrapperLauncher
+  with SolomonLauncher {
+
   private val log = LoggerFactory.getLogger(getClass)
   val masterArgs = MasterLauncherArgs(args)
   import masterArgs._
 
   withDiscovery(ytConfig, discoveryPath) { discoveryService =>
-    log.info("Start master")
     withService(startMaster) { master =>
-      log.info("Start byop discovery service")
       withService(startMasterWrapper(args, master)) { masterWrapper =>
-        master.waitAndThrowIfNotAlive(5 minutes)
-        masterWrapper.waitAndThrowIfNotAlive(5 minutes)
+        withService(startSolomonAgent(args, "master", master.masterAddress.webUiHostAndPort.getPort)) { solomonAgent =>
+          master.waitAndThrowIfNotAlive(5 minutes)
+          masterWrapper.waitAndThrowIfNotAlive(5 minutes)
 
-        log.info("Register master")
-        discoveryService.register(
-          operationId,
-          master.masterAddress,
-          clusterVersion,
-          masterWrapper.address,
-          SparkConfYsonable(sparkSystemProperties)
-        )
-        log.info("Master registered")
+          log.info("Register master")
+          discoveryService.register(
+            operationId,
+            master.masterAddress,
+            clusterVersion,
+            masterWrapper.address,
+            SparkConfYsonable(sparkSystemProperties)
+          )
+          log.info("Master registered")
 
-        checkPeriodically(master.isAlive(3))
-        log.error("Master is not alive")
+          checkPeriodically(master.isAlive(3) && solomonAgent.isAlive(3))
+          log.error("Master is not alive")
+        }
       }
     }
   }

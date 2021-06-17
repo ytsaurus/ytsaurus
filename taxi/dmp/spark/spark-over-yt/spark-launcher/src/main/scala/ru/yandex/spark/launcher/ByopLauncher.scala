@@ -1,12 +1,6 @@
 package ru.yandex.spark.launcher
 
-import java.io.{ByteArrayInputStream, File}
-import java.nio.charset.StandardCharsets
-import java.nio.file.{Files, Path, Paths}
-
-import com.google.common.net.HostAndPort
 import com.twitter.scalding.Args
-import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.inside.yt.kosher.ytree.{YTreeMapNode, YTreeNode}
@@ -14,88 +8,58 @@ import ru.yandex.spark.launcher.ByopLauncher.ByopConfig
 import ru.yandex.spark.launcher.Service.BasicService
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.{ByopConfiguration, YtClientConfiguration}
-import ru.yandex.spark.yt.wrapper.discovery.DiscoveryService
 
+import java.io.ByteArrayInputStream
+import java.nio.charset.StandardCharsets
+import java.nio.file.{Files, Path, Paths}
 import scala.annotation.tailrec
 import scala.concurrent.duration._
 import scala.language.postfixOps
-import scala.sys.process._
+import scala.util.Try
 
 
-trait ByopLauncher {
+trait ByopLauncher extends SidecarLauncher {
   self: VanillaLauncher =>
 
-  private val log = LoggerFactory.getLogger(getClass)
-
-  private def waitByopStart(config: ByopConfig, process: Thread, timeout: Duration): Unit = {
-    val address = HostAndPort.fromParts("localhost", config.rpcPort)
-    val monitoringAddress = HostAndPort.fromParts("localhost", config.monitoringPort)
-    DiscoveryService.waitFor(DiscoveryService.isAlive(address, 0) || !process.isAlive, timeout)
-    DiscoveryService.waitFor(DiscoveryService.isAlive(monitoringAddress, 0) || !process.isAlive, timeout)
+  private def prepareBinaryFile(path: Path): Path = {
+    ByopLauncher.prepareBinary(path)
   }
 
-  def startByop(config: ByopConfig,
-                ytConf: YtClientConfiguration,
-                timeout: Duration): BasicService = {
-    log.info(s"Start RPC proxy with config: ${config.copy(tvm_client_secret = "***")}")
-
-    val ytRpc = YtWrapper.createRpcClient("byop", ytConf.copy(byop = ByopConfiguration.DISABLED))
-
-    try {
-      val binaryAbsolutePath = ByopLauncher.prepareBinary(Paths.get(path(config.binaryPath)))
-      val configTemplatePath = path(config.configPath)
-      val configFile = createFromTemplate(new File(configTemplatePath)) { content =>
-        val replacedAliases = replaceHome(content)
-          .replaceAll("\\$SPARK_YT_BYOP_PORT", config.rpcPort.toString)
-          .replaceAll("\\$SPARK_YT_BYOP_MONITORING_PORT", config.monitoringPort.toString)
-          .replaceAll("\\$YT_OPERATION_ALIAS", config.operationAlias)
-          .replaceAll("\\$YT_JOB_COOKIE", config.ytJobCookie)
-          .replaceAll("\\$TVM_ENABLED", config.tvm_enabled.toString)
-          .replaceAll("\\$TVM_CLIENT_ID", config.tvm_client_id.toString)
-          .replaceAll("\\$TVM_CLIENT_SECRET", config.tvm_client_secret)
-          .replaceAll("\\$TVM_ENABLE_USER_TICKET_CHECKING", config.tvm_enable_user_ticket_checking.toString)
-          .replaceAll("\\$TVM_ENABLE_SERVICE_TICKET_FETCHING", config.tvm_client_enable_service_ticket_fetching.toString)
-          .replaceAll("\\$TVM_HOST", config.tvm_host)
-          .replaceAll("\\$TVM_PORT", config.tvm_port.toString)
+  private def prepareConfigFile(templateContent: String,
+                                config: SidecarConfig): String = {
+    config match {
+      case c: ByopConfig =>
+        val replacedAliases = templateContent
+          .replaceAll("\\$SPARK_YT_BYOP_PORT", c.port.toString)
+          .replaceAll("\\$SPARK_YT_BYOP_MONITORING_PORT", c.monitoringPort.toString)
+          .replaceAll("\\$TVM_ENABLED", c.tvm_enabled.toString)
+          .replaceAll("\\$TVM_CLIENT_ID", c.tvm_client_id.toString)
+          .replaceAll("\\$TVM_CLIENT_SECRET", c.tvm_client_secret)
+          .replaceAll("\\$TVM_ENABLE_USER_TICKET_CHECKING", c.tvm_enable_user_ticket_checking.toString)
+          .replaceAll("\\$TVM_ENABLE_SERVICE_TICKET_FETCHING", c.tvm_client_enable_service_ticket_fetching.toString)
+          .replaceAll("\\$TVM_HOST", c.tvm_host)
+          .replaceAll("\\$TVM_PORT", c.tvm_port.toString)
 
         val is = new ByteArrayInputStream(replacedAliases.getBytes(StandardCharsets.UTF_8))
-        try {
-          val ysonConfig = YTreeTextSerializer.deserialize(is).asInstanceOf[YTreeMapNode]
-          val remoteClusterConnection = YtWrapper.attribute("//sys", "cluster_connection")(ytRpc.yt)
-          ByopLauncher.update(ysonConfig, remoteClusterConnection, "cluster_connection")
-          YTreeTextSerializer.serialize(ysonConfig)
-        } finally {
-          is.close()
-        }
-      }
+        val ysonConfigTry = Try(YTreeTextSerializer.deserialize(is).asInstanceOf[YTreeMapNode])
+        is.close()
+        val ysonConfig = ysonConfigTry.get
 
-      val thread = new Thread(() => {
-        val process = Process(
-          s"$binaryAbsolutePath --config ${configFile.getAbsolutePath}",
-          cwd = None,
-          "YT_ALLOC_CONFIG" -> "{profiling_backtrace_depth=10;enable_eager_memory_release=%true;bugs=%false}"
-        ).run()
-        try {
-          val exitCode = process.exitValue()
+        val ytRpc = YtWrapper.createRpcClient("byop", config.ytConf.copy(byop = ByopConfiguration.DISABLED))
+        val remoteClusterConnection = Try(YtWrapper.attribute("//sys", "cluster_connection")(ytRpc.yt))
+        ytRpc.close()
 
-          log.info(s"Rpc proxy exit code is $exitCode")
-        } catch {
-          case e: Throwable =>
-            process.destroy()
-            throw e
-        }
-      })
-      thread.setDaemon(true)
-      thread.start()
-      waitByopStart(config, thread, timeout)
-      if (thread.isAlive) {
-        log.info(s"Rpc proxy started on port ${config.rpcPort}, monitoring port ${config.monitoringPort}")
-      }
-      BasicService("RPC Proxy", config.rpcPort, thread)
-    } finally {
-      log.info("Close yt rpc")
-      ytRpc.close()
+        ByopLauncher.update(ysonConfig, remoteClusterConnection.get, "cluster_connection")
+        YTreeTextSerializer.serialize(ysonConfig)
     }
+  }
+
+  private val serviceEnv: Map[String, String] = Map(
+    "YT_ALLOC_CONFIG" -> "{profiling_backtrace_depth=10;enable_eager_memory_release=%true;bugs=%false}"
+  )
+
+  def startByop(config: ByopConfig): BasicService = {
+    startService(config, prepareConfigFile, prepareBinaryFile, serviceEnv = serviceEnv)
   }
 }
 
@@ -140,32 +104,28 @@ object ByopLauncher {
   }
 
   case class ByopConfig(binaryPath: String,
-                        configPath: String,
-                        rpcPort: Int,
+                        configPaths: Seq[String],
+                        port: Int,
                         monitoringPort: Int,
                         operationAlias: String,
                         ytJobCookie: String,
+                        ytConf: YtClientConfiguration,
+                        timeout: Duration,
                         tvm_enabled: Boolean,
                         tvm_host: String,
                         tvm_port: Int,
                         tvm_client_id: Int,
                         tvm_client_secret: String,
                         tvm_enable_user_ticket_checking: Boolean,
-                        tvm_client_enable_service_ticket_fetching: Boolean)
+                        tvm_client_enable_service_ticket_fetching: Boolean) extends SidecarConfig {
+    override def host: String = "localhost"
 
-  object ByopConfig {
-    private val baseName = "byop"
-    private val envBaseName = "SPARK_YT_BYOP"
+    override def serviceName: String = "BYOP"
+  }
 
-    private def envName(name: String): String = s"${envBaseName}_${name.toUpperCase().replace("-", "_")}"
+  object ByopConfig extends SidecarConfigUtils {
 
-    private def arg(name: String)(implicit args: Args): String = {
-      args.optional(s"$baseName-$name").getOrElse(sys.env(envName(name)))
-    }
-
-    def optionArg(name: String)(implicit args: Args): Option[String] = {
-      args.optional(s"$baseName-$name").orElse(sys.env.get(envName(name)))
-    }
+    override protected def argBaseName: String = "byop"
 
     def create(sparkConf: Map[String, String], args: Array[String]): Option[ByopConfig] = {
       create(sparkConf, Args(args))
@@ -189,11 +149,13 @@ object ByopLauncher {
         val tvmEnabled = optionArg("tvm-enabled").exists(_.toBoolean)
         Some(ByopConfig(
           binaryPath = arg("binary-path"),
-          configPath = arg("config-path"),
-          rpcPort = arg("port").toInt,
+          configPaths = arg("config-path").split(",").map(_.trim),
+          port = arg("port").toInt,
           monitoringPort = optionArg("monitoring-port").map(_.toInt).getOrElse(27001),
           operationAlias = args.optional("operation-alias").getOrElse(sys.env("YT_OPERATION_ALIAS")),
           ytJobCookie = args.optional("job-cookie").getOrElse(sys.env("YT_JOB_COOKIE")),
+          ytConf = ytConf,
+          timeout = timeout,
           tvm_enabled = tvmEnabled,
           tvm_host = optionArg("tvm-host").getOrElse("localhost"),
           tvm_port = optionArg("tvm-port").map(_.toInt).getOrElse(13000),

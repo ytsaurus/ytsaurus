@@ -32,29 +32,29 @@ object DiscoveryService {
   private val log = LoggerFactory.getLogger(getClass)
 
   @tailrec
-  final def waitFor[T](f: => Option[T], timeout: Long, retryCount: Int = 2): Option[T] = {
+  final def waitFor[T](f: => Option[T], timeout: Long, description: String, retryCount: Int = 2): Option[T] = {
     val start = System.currentTimeMillis()
 
     f match {
       case r@Some(_) => r
       case _ =>
-        log.info("Sleep 5 seconds before next retry")
+        log.info(s"Waiting for $description, sleep 5 seconds before next retry")
         Thread.sleep((5 seconds).toMillis)
-        log.info(s"Retry ($retryCount)")
+        log.info(s"Waiting for $description, retry ($retryCount)")
         if (timeout > 0) {
-          waitFor(f, timeout - (System.currentTimeMillis() - start), retryCount + 1)
+          waitFor(f, timeout - (System.currentTimeMillis() - start), description, retryCount + 1)
         } else {
           None
         }
     }
   }
 
-  def waitFor[T](f: => Option[T], timeout: Duration): Option[T] = {
-    waitFor(f, timeout.toMillis)
+  def waitFor[T](f: => Option[T], timeout: Duration, description: String): Option[T] = {
+    waitFor(f, timeout.toMillis, description)
   }
 
-  def waitFor(f: => Boolean, timeout: Duration): Boolean = {
-    waitFor(Option(true).filter(_ => f), timeout.toMillis).getOrElse(false)
+  def waitFor(f: => Boolean, timeout: Duration, description: String): Boolean = {
+    waitFor(Option(true).filter(_ => f), timeout.toMillis, description).getOrElse(false)
   }
 
   @tailrec
