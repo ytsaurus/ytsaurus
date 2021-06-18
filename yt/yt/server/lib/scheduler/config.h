@@ -723,6 +723,9 @@ public:
 
     bool SendPreemptionReasonInNodeHeartbeat;
 
+    //! Duration of ScheduleJob call to log this result.
+    TDuration ScheduleJobDurationLoggingThreshold;
+
     TSchedulerConfig();
 };
 
