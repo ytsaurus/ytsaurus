@@ -730,8 +730,15 @@ class YTInstance(object):
                                name, proc.pid, os.path.join(self.path, name), proc.returncode))
             return
 
+        def safe_kill(kill):
+            try:
+                kill()
+            except OSError as e:
+                if e.errno != errno.ESRCH:
+                    raise
+
         logger.info("Sending SIGTERM (pid: {}, current_process_pid: {})".format(proc.pid, os.getpid()))
-        os.kill(proc.pid, signal.SIGTERM)
+        safe_kill(lambda: os.kill(proc.pid, signal.SIGTERM))
 
         # leave 5s for process to finish writing coverage profile.
         for i in range(50):
@@ -740,14 +747,9 @@ class YTInstance(object):
             time.sleep(0.1)
         else:
             logger.info("Sending SIGKILL (pid: {}, current_process_pid: {})".format(proc.pid, os.getpid()))
-            os.kill(proc.pid, signal.SIGKILL)
-
-        try:
-            os.killpg(proc.pid, signal.SIGKILL)
-        except OSError as e:
-            logger.error("killpg({}) failed: {}({})".format(proc.pid, e.errno, errno.errorcode[e.errno]))
-            if e.errno != errno.ESRCH:
-                raise
+            safe_kill(lambda: os.kill(proc.pid, signal.SIGKILL))
+                
+        safe_kill(lambda: os.killpg(proc.pid, signal.SIGKILL))
 
         # XXX: KERNEL-579 – temporarily solution for diagnostics
         # try:
