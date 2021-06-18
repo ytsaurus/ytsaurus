@@ -30,6 +30,7 @@
 
 #include <util/system/compiler.h>
 #include <util/system/thread.h>
+#include <util/system/type_name.h>
 
 #include <exception>
 
@@ -320,7 +321,7 @@ TEST_F(TSchedulerTest, CurrentInvokerSync)
     auto currentInvokerPtr = GetCurrentInvoker();
     const auto& currentInvoker = *currentInvokerPtr;
     EXPECT_EQ(GetSyncInvoker(), currentInvokerPtr)
-        << "Current invoker: " << typeid(currentInvoker).name();
+        << "Current invoker: " << TypeName(currentInvoker);
 }
 
 TEST_F(TSchedulerTest, CurrentInvokerInActionQueue)
