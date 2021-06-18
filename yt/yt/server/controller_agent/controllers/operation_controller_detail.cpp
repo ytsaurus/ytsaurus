@@ -4379,9 +4379,9 @@ void TOperationControllerBase::DoScheduleJob(
         return;
     }
 
-    TryScheduleJob(context, jobLimits, treeId, scheduleJobResult, /*scheduleLocalJob=*/true);
+    TryScheduleJob(context, jobLimits, treeId, scheduleJobResult, /*scheduleLocalJob*/ true);
     if (!scheduleJobResult->StartDescriptor) {
-        TryScheduleJob(context, jobLimits, treeId, scheduleJobResult, /*scheduleLocalJob=*/false);
+        TryScheduleJob(context, jobLimits, treeId, scheduleJobResult, /*scheduleLocalJob*/ false);
     }
 }
 
@@ -4466,7 +4466,7 @@ void TOperationControllerBase::TryScheduleJob(
         if (scheduleJobResult->StartDescriptor) {
             RegisterTestingSpeculativeJobIfNeeded(task, scheduleJobResult->StartDescriptor->Id);
             UpdateTask(task);
-            break;
+            return;
         }
     }
 
