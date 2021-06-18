@@ -681,9 +681,7 @@ public:
         header.parts[1] = ReadUint64();
 
         ValidateKeyColumnCount(header.value.KeyCount);
-        ValidateRowValueCount(header.value.ValueCount);
-        ValidateRowValueCount(header.value.WriteTimestampCount);
-        ValidateRowValueCount(header.value.DeleteTimestampCount);
+        ValidateVersionedRowTimestampCount(header.value);
 
         auto row = TMutableVersionedRow::Allocate(
             RowBuffer_->GetPool(),
@@ -697,6 +695,8 @@ public:
 
         DoReadSchemafulValueRange(schemaData, captureValues, row.BeginKeys(), header.value.KeyCount);
         DoReadVersionedValueRange(captureValues, row.BeginValues(), header.value.ValueCount, valueIdMapping);
+
+        ValidateVersionedRowDataWeight(row);
 
         return row;
     }
@@ -936,6 +936,27 @@ private:
             if (valueIdMapping) {
                 DoApplyIdMapping(&values[index].Id, index, valueIdMapping);
             }
+        }
+    }
+
+    void ValidateVersionedRowTimestampCount(const TVersionedRowHeader& rowHeader)
+    {
+        if (rowHeader.WriteTimestampCount > MaxTimestampCountPerRow) {
+            THROW_ERROR_EXCEPTION("Too many write timestamps in a versioned row");
+        }
+        if (rowHeader.DeleteTimestampCount > MaxTimestampCountPerRow) {
+            THROW_ERROR_EXCEPTION("Too many delete timestamps in a versioned row");
+        }
+    }
+
+    void ValidateVersionedRowDataWeight(TVersionedRow row)
+    {
+        auto dataWeight = GetDataWeight(row);
+        if (dataWeight > MaxServerVersionedRowDataWeight) {
+            THROW_ERROR_EXCEPTION("Versioned row data weight is too large: %v > %v",
+                dataWeight,
+                MaxServerVersionedRowDataWeight)
+                << TErrorAttribute("key", RowToKey(row));
         }
     }
 };

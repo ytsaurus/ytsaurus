@@ -70,6 +70,11 @@ constexpr i64 MaxCompositeValueLength = 16_MB;
 constexpr i64 MaxServerVersionedRowDataWeight = 512_MB;
 constexpr i64 MaxClientVersionedRowDataWeight = 128_MB;
 constexpr int MaxKeyColumnCountInDynamicTable = 32;
+constexpr int MaxTimestampCountPerRow = std::numeric_limits<ui16>::max();
+
+static_assert(
+    MaxTimestampCountPerRow <= std::numeric_limits<ui16>::max(),
+    "Max timestamp count cannot be larger than UINT16_MAX");
 
 // Only for static tables.
 constexpr i64 MaxRowWeightLimit = 128_MB;

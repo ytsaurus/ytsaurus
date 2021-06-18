@@ -335,11 +335,11 @@ private:
         ValidateRowsOrder(row, beginPrevKey, endPrevKey);
         ValidateRowDataWeight(row, dataWeight);
 
-        if (row.GetWriteTimestampCount() > std::numeric_limits<ui16>::max()) {
+        if (row.GetWriteTimestampCount() > MaxTimestampCountPerRow) {
             THROW_ERROR_EXCEPTION("Too many write timestamps in a versioned row")
                 << TErrorAttribute("key", RowToKey(row));
         }
-        if (row.GetDeleteTimestampCount() > std::numeric_limits<ui16>::max()) {
+        if (row.GetDeleteTimestampCount() > MaxTimestampCountPerRow) {
             THROW_ERROR_EXCEPTION("Too many delete timestamps in a versioned row")
                 << TErrorAttribute("key", RowToKey(row));
         }
