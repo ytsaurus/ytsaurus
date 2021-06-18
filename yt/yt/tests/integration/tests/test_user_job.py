@@ -121,6 +121,36 @@ class TestSandboxTmpfs(YTEnvSetup):
         assert ["file", "content"] == words
 
     @authors("ignat")
+    def test_tmpfs_profiling(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        map(
+            track=False,
+            command="cat; echo 'content' > tmpfs/file; sleep 1000;",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "tmpfs_size": 1024 * 1024,
+                    "tmpfs_path": "tmpfs",
+                },
+                "max_failed_job_count": 1,
+            },
+        )
+
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) == 1
+        node = nodes[0]
+
+        tmpfs_size = Profiler.at_node(node).gauge("job_controller/tmpfs/size")
+        tmpfs_usage = Profiler.at_node(node).gauge("job_controller/tmpfs/usage")
+        wait(lambda: tmpfs_size.get() == 1024 * 1024)
+        wait(lambda: tmpfs_usage.get() > 0)
+        assert tmpfs_usage.get() <= 4 * 1024
+
+    @authors("ignat")
     def test_dot_tmpfs_path(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
