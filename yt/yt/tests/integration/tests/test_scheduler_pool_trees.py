@@ -827,10 +827,8 @@ class TestTentativePoolTrees(YTEnvSetup):
         orchid_other_operations_path = (
             "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/other/fair_share_info/operations"
         )
-        assert (
-            get("{}/{}/deactivation_reasons/saturated_in_tentative_tree".format(orchid_other_operations_path, op.id))
-            > 0
-        )
+        wait(lambda: get("{}/{}/deactivation_reasons/saturated_in_tentative_tree"
+                         .format(orchid_other_operations_path, op.id)) > 0)
 
     @authors("ignat")
     def test_tentative_pool_tree_not_supported(self):

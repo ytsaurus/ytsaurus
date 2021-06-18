@@ -30,13 +30,15 @@ public:
     TSchedulerStrategyHost(
         const std::vector<NScheduler::TExecNodePtr>* execNodes,
         IOutputStream* eventLogOutputStream,
-        const TRemoteEventLogConfigPtr& remoteEventLogConfig);
+        const TRemoteEventLogConfigPtr& remoteEventLogConfig,
+        const IInvokerPtr& nodeShardsInvoker);
 
     virtual IInvokerPtr GetControlInvoker(NScheduler::EControlQueue queue) const override;
     virtual IInvokerPtr GetFairShareLoggingInvoker() const override;
     virtual IInvokerPtr GetFairShareProfilingInvoker() const override;
     virtual IInvokerPtr GetFairShareUpdateInvoker() const override;
     virtual IInvokerPtr GetOrchidWorkerInvoker() const override;
+    virtual const std::vector<IInvokerPtr>& GetNodeShardInvokers() const override;
 
     virtual NEventLog::TFluentLogEvent LogFairShareEventFluently(TInstant now) override;
 
@@ -115,6 +117,7 @@ private:
     std::unique_ptr<NYson::IYsonConsumer> RemoteEventLogConsumer_;
 
     NChunkClient::TMediumDirectoryPtr MediumDirectory_;
+    std::vector<IInvokerPtr> NodeShardsInvokers_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

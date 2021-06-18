@@ -1405,6 +1405,11 @@ public:
     {
         return OrchidWorkerPool_->GetInvoker();
     }
+    
+    virtual const std::vector<IInvokerPtr>& GetNodeShardInvokers() const override
+    {
+        return CancelableNodeShardInvokers_;
+    }
 
     IYsonConsumer* GetControlEventLogConsumer()
     {
@@ -2097,7 +2102,7 @@ private:
 
             const auto& invokers = invokerOrError.Value();
             for (size_t index = 0; index < NodeShards_.size(); ++index) {
-                CancelableNodeShardInvokers_[index ] = invokers[index];
+                CancelableNodeShardInvokers_[index] = invokers[index];
             }
         }
 

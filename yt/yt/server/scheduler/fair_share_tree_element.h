@@ -867,6 +867,7 @@ class TSchedulerOperationElementSharedState
 {
 public:
     TSchedulerOperationElementSharedState(
+        ISchedulerStrategyHost* host,
         int updatePreemptableJobsListLoggingPeriod,
         const NLogging::TLogger& logger);
 
@@ -904,12 +905,12 @@ public:
         const TScheduleJobsContext& context,
         const TJobResources& availableResources,
         const TJobResources& minNeededResources);
-    TEnumIndexedVector<EJobResourceType, int> GetMinNeededResourcesUnsatisfiedCount() const;
+    TEnumIndexedVector<EJobResourceType, int> GetMinNeededResourcesUnsatisfiedCount();
 
     void OnOperationDeactivated(const TScheduleJobsContext& context, EDeactivationReason reason);
-    TEnumIndexedVector<EDeactivationReason, int> GetDeactivationReasons() const;
+    TEnumIndexedVector<EDeactivationReason, int> GetDeactivationReasons();
     void ResetDeactivationReasonsFromLastNonStarvingTime();
-    TEnumIndexedVector<EDeactivationReason, int> GetDeactivationReasonsFromLastNonStarvingTime() const;
+    TEnumIndexedVector<EDeactivationReason, int> GetDeactivationReasonsFromLastNonStarvingTime();
 
     TInstant GetLastScheduleJobSuccessTime() const;
 
@@ -928,8 +929,9 @@ public:
         const TFairShareStrategyPackingConfigPtr& config);
 
 private:
-    using TJobIdList = std::list<TJobId>;
+    const ISchedulerStrategyHost* Host_;
 
+    using TJobIdList = std::list<TJobId>;
     TJobIdList NonpreemptableJobs_;
     TJobIdList AggressivelyPreemptableJobs_;
     TJobIdList PreemptableJobs_;
@@ -943,6 +945,9 @@ private:
 
     std::atomic<int> UpdatePreemptableJobsListCount_ = {0};
     const int UpdatePreemptableJobsListLoggingPeriod_;
+
+    // TODO(ignat): make it configurable.
+    TDuration UpdateStateShardsBackoff_ = TDuration::Seconds(5);
 
     struct TJobProperties
     {
@@ -983,9 +988,13 @@ private:
         TEnumIndexedVector<EDeactivationReason, std::atomic<int>> DeactivationReasons;
         TEnumIndexedVector<EDeactivationReason, std::atomic<int>> DeactivationReasonsFromLastNonStarvingTime;
         TEnumIndexedVector<EJobResourceType, std::atomic<int>> MinNeededResourcesUnsatisfiedCount;
+        TEnumIndexedVector<EDeactivationReason, int> DeactivationReasonsLocal;
+        TEnumIndexedVector<EDeactivationReason, int> DeactivationReasonsFromLastNonStarvingTimeLocal;
+        TEnumIndexedVector<EJobResourceType, int> MinNeededResourcesUnsatisfiedCountLocal;
         char Padding[64];
     };
     std::array<TStateShard, MaxNodeShardCount> StateShards_;
+    TInstant LastStateShardsUpdateTime_ = TInstant();
 
     bool Enabled_ = false;
 
@@ -995,6 +1004,9 @@ private:
 
     TJobProperties* GetJobProperties(TJobId jobId);
     const TJobProperties* GetJobProperties(TJobId jobId) const;
+
+    // Update atomic values from local values in shard state.
+    void UpdateShardState();
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerOperationElementSharedState)
@@ -1082,6 +1094,7 @@ public:
 
     TEnumIndexedVector<EDeactivationReason, int> GetDeactivationReasons() const;
     TEnumIndexedVector<EDeactivationReason, int> GetDeactivationReasonsFromLastNonStarvingTime() const;
+    TEnumIndexedVector<EJobResourceType, int> GetMinNeededResourcesUnsatisfiedCount() const;
 
     TPreemptionStatusStatisticsVector GetPreemptionStatusStatistics() const;
 
@@ -1130,8 +1143,6 @@ public:
         bool isAggressivePreemption,
         const TDynamicAttributesList& dynamicAttributesList,
         const TFairShareStrategyTreeConfigPtr& config) const;
-
-    TEnumIndexedVector<EJobResourceType, int> GetMinNeededResourcesUnsatisfiedCount() const;
 
     bool IsLimitingAncestorCheckEnabled() const;
 

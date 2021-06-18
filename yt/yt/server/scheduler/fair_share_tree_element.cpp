@@ -1821,9 +1821,11 @@ TSchedulerOperationElementFixedState::TSchedulerOperationElementFixedState(
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerOperationElementSharedState::TSchedulerOperationElementSharedState(
+    ISchedulerStrategyHost* host,
     int updatePreemptableJobsListLoggingPeriod,
     const NLogging::TLogger& logger)
-    : UpdatePreemptableJobsListLoggingPeriod_(updatePreemptableJobsListLoggingPeriod)
+    : Host_(host)
+    , UpdatePreemptableJobsListLoggingPeriod_(updatePreemptableJobsListLoggingPeriod)
     , Logger(logger)
 { }
 
@@ -2125,14 +2127,16 @@ void TSchedulerOperationElementSharedState::OnMinNeededResourcesUnsatisfied(
     auto& shard = StateShards_[context.SchedulingContext()->GetNodeShardId()];
     #define XX(name, Name) \
         if (availableResources.Get##Name() < minNeededResources.Get##Name()) { \
-            ++shard.MinNeededResourcesUnsatisfiedCount[EJobResourceType::Name]; \
+            ++shard.MinNeededResourcesUnsatisfiedCountLocal[EJobResourceType::Name]; \
         }
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
 }
 
-TEnumIndexedVector<EJobResourceType, int> TSchedulerOperationElementSharedState::GetMinNeededResourcesUnsatisfiedCount() const
+TEnumIndexedVector<EJobResourceType, int> TSchedulerOperationElementSharedState::GetMinNeededResourcesUnsatisfiedCount()
 {
+    UpdateShardState();
+
     TEnumIndexedVector<EJobResourceType, int> result;
     for (const auto& shard : StateShards_) {
         for (auto resource : TEnumTraits<EJobResourceType>::GetDomainValues()) {
@@ -2145,12 +2149,14 @@ TEnumIndexedVector<EJobResourceType, int> TSchedulerOperationElementSharedState:
 void TSchedulerOperationElementSharedState::OnOperationDeactivated(const TScheduleJobsContext& context, EDeactivationReason reason)
 {
     auto& shard = StateShards_[context.SchedulingContext()->GetNodeShardId()];
-    ++shard.DeactivationReasons[reason];
-    ++shard.DeactivationReasonsFromLastNonStarvingTime[reason];
+    ++shard.DeactivationReasonsLocal[reason];
+    ++shard.DeactivationReasonsFromLastNonStarvingTimeLocal[reason];
 }
 
-TEnumIndexedVector<EDeactivationReason, int> TSchedulerOperationElementSharedState::GetDeactivationReasons() const
+TEnumIndexedVector<EDeactivationReason, int> TSchedulerOperationElementSharedState::GetDeactivationReasons()
 {
+    UpdateShardState();
+
     TEnumIndexedVector<EDeactivationReason, int> result;
     for (const auto& shard : StateShards_) {
         for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
@@ -2160,8 +2166,10 @@ TEnumIndexedVector<EDeactivationReason, int> TSchedulerOperationElementSharedSta
     return result;
 }
 
-TEnumIndexedVector<EDeactivationReason, int> TSchedulerOperationElementSharedState::GetDeactivationReasonsFromLastNonStarvingTime() const
+TEnumIndexedVector<EDeactivationReason, int> TSchedulerOperationElementSharedState::GetDeactivationReasonsFromLastNonStarvingTime()
 {
+    UpdateShardState();
+
     TEnumIndexedVector<EDeactivationReason, int> result;
     for (const auto& shard : StateShards_) {
         for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
@@ -2173,13 +2181,44 @@ TEnumIndexedVector<EDeactivationReason, int> TSchedulerOperationElementSharedSta
 
 void TSchedulerOperationElementSharedState::ResetDeactivationReasonsFromLastNonStarvingTime()
 {
-    for (auto& shard : StateShards_) {
-        for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
-            shard.DeactivationReasonsFromLastNonStarvingTime[reason].store(0);
-        }
+    int index = 0;
+    for (const auto& invoker : Host_->GetNodeShardInvokers()) {
+        invoker->Invoke(BIND([this, this_=MakeStrong(this), index] {
+            auto& shard = StateShards_[index];
+            for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
+                shard.DeactivationReasonsFromLastNonStarvingTime[reason].store(0);
+                shard.DeactivationReasonsFromLastNonStarvingTimeLocal[reason] = 0;
+            }
+        }));
+        ++index;
     }
 }
 
+void TSchedulerOperationElementSharedState::UpdateShardState()
+{
+    auto now = TInstant::Now();
+    if (now < LastStateShardsUpdateTime_ + UpdateStateShardsBackoff_) {
+        return;
+    }
+    int index = 0;
+    for (const auto& invoker : Host_->GetNodeShardInvokers()) {
+        invoker->Invoke(BIND([this, this_=MakeStrong(this), index] {
+            auto& shard = StateShards_[index];
+            for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
+                shard.DeactivationReasonsFromLastNonStarvingTime[reason].store(
+                    shard.DeactivationReasonsFromLastNonStarvingTimeLocal[reason]);
+                shard.DeactivationReasons[reason].store(shard.DeactivationReasonsLocal[reason]);
+            }
+            for (auto resource : TEnumTraits<EJobResourceType>::GetDomainValues()) {
+                shard.MinNeededResourcesUnsatisfiedCount[resource].store(
+                    shard.MinNeededResourcesUnsatisfiedCountLocal[resource]);
+            }
+        }));
+        ++index;
+    }
+    LastStateShardsUpdateTime_ = now;
+}
+        
 TInstant TSchedulerOperationElementSharedState::GetLastScheduleJobSuccessTime() const
 {
     auto guard = ReaderGuard(JobPropertiesMapLock_);
@@ -2401,7 +2440,10 @@ TSchedulerOperationElement::TSchedulerOperationElement(
     , TSchedulerOperationElementFixedState(operation, std::move(controllerConfig), TSchedulingTagFilter(spec->SchedulingTagFilter))
     , RuntimeParameters_(std::move(runtimeParameters))
     , Spec_(std::move(spec))
-    , OperationElementSharedState_(New<TSchedulerOperationElementSharedState>(Spec_->UpdatePreemptableJobsListLoggingPeriod, Logger))
+    , OperationElementSharedState_(New<TSchedulerOperationElementSharedState>(
+        host,
+        Spec_->UpdatePreemptableJobsListLoggingPeriod,
+        Logger))
     , Controller_(std::move(controller))
 { }
 

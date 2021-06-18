@@ -68,11 +68,11 @@ private:
     std::vector<TSimulatorNodeShardPtr> NodeShards_;
 
     const NConcurrency::TActionQueuePtr ActionQueue_;
+    TSharedEventQueue NodeShardEventQueue_;
+    const NConcurrency::TThreadPoolPtr NodeShardThreadPool_;
     TSchedulerStrategyHost StrategyHost_;
     NScheduler::ISchedulerStrategyPtr SchedulerStrategy_;
     TSharedSchedulerStrategy SchedulerStrategyForNodeShards_;
-    TSharedEventQueue NodeShardEventQueue_;
-    const NConcurrency::TThreadPoolPtr NodeShardThreadPool_;
 
     TSharedOperationStatistics OperationStatistics_;
     TSharedRunningOperationsMap RunningOperationsMap_;

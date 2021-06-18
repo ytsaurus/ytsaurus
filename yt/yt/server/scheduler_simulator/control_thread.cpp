@@ -76,9 +76,6 @@ TSimulatorControlThread::TSimulatorControlThread(
     , Config_(config)
     , ExecNodes_(execNodes)
     , ActionQueue_(New<TActionQueue>(Format("ControlThread")))
-    , StrategyHost_(execNodes, eventLogOutputStream, config->RemoteEventLog)
-    , SchedulerStrategy_(CreateFairShareStrategy(schedulerConfig, &StrategyHost_, {ActionQueue_->GetInvoker()}))
-    , SchedulerStrategyForNodeShards_(SchedulerStrategy_, StrategyHost_, ActionQueue_->GetInvoker())
     , NodeShardEventQueue_(
         *execNodes,
         config->HeartbeatPeriod,
@@ -86,6 +83,9 @@ TSimulatorControlThread::TSimulatorControlThread(
         config->NodeShardCount,
         /* maxAllowedOutrunning */ FairShareUpdateAndLogPeriod_ + FairShareUpdateAndLogPeriod_)
     , NodeShardThreadPool_(New<TThreadPool>(config->ThreadCount, "NodeShardPool"))
+    , StrategyHost_(execNodes, eventLogOutputStream, config->RemoteEventLog, NodeShardThreadPool_->GetInvoker())
+    , SchedulerStrategy_(CreateFairShareStrategy(schedulerConfig, &StrategyHost_, {ActionQueue_->GetInvoker()}))
+    , SchedulerStrategyForNodeShards_(SchedulerStrategy_, StrategyHost_, ActionQueue_->GetInvoker())
     , OperationStatistics_(operations)
     , JobAndOperationCounter_(operations.size())
     , Logger(NSchedulerSimulator::Logger.WithTag("ControlThread"))
