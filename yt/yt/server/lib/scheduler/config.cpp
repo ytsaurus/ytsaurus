@@ -747,6 +747,9 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("min_spare_job_resources_on_node", MinSpareJobResourcesOnNode)
         .Default(GetDefaultMinSpareJobResourcesOnNode());
+    
+    RegisterParameter("schedule_job_duration_logging_threshold", ScheduleJobDurationLoggingThreshold)
+        .Default(TDuration::MilliSeconds(500));
 
     RegisterParameter("send_preemption_reason_in_node_heartbeat", SendPreemptionReasonInNodeHeartbeat)
         .Default(true);

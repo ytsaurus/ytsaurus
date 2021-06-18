@@ -1313,11 +1313,14 @@ void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
     auto& entry = it->second;
     YT_VERIFY(operationId == entry.OperationId);
 
-    YT_LOG_DEBUG("Job schedule response received (OperationId: %v, JobId: %v, Success: %v, Duration: %v)",
-        operationId,
-        jobId,
-        response.has_job_type(),
-        CpuDurationToDuration(GetCpuInstant() - entry.StartTime).MilliSeconds());
+    auto scheduleJobDuration = CpuDurationToDuration(GetCpuInstant() - entry.StartTime);
+    if (scheduleJobDuration > Config_->ScheduleJobDurationLoggingThreshold) {
+        YT_LOG_DEBUG("Job schedule response received (OperationId: %v, JobId: %v, Success: %v, Duration: %v)",
+            operationId,
+            jobId,
+            response.has_job_type(),
+            scheduleJobDuration.MilliSeconds());
+    }
 
     auto result = New<TControllerScheduleJobResult>();
     if (response.has_job_type()) {
