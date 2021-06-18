@@ -1485,6 +1485,7 @@ class TestSchedulerPreemption(YTEnvSetup):
             assert get(scheduler_orchid_pool_path("<Root>") + "/resource_usage/cpu") <= total_cpu_limit
 
     @authors("eshcherbin")
+    @flaky(max_runs=3)
     def test_pass_preemption_reason_to_node(self):
         update_controller_agent_config("enable_operation_progress_archivation", True)
 
