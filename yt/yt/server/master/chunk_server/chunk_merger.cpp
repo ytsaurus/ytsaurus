@@ -459,14 +459,18 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer) const
             continue;
         }
         buffer->PushTag({"account", account->GetName()});
-        buffer->AddGauge("/account_queue_size", queue.size());
+        buffer->AddGauge("/chunk_merger_account_queue_size", queue.size());
         buffer->PopTag();
     }
 
-    buffer->AddGauge("/merge_jobs_awaiting_chunk_creation", JobsAwaitingChunkCreation_.size());
-    buffer->AddGauge("/merge_jobs_undergoing_chunk_creation", JobsUndergoingChunkCreation_.size());
-    buffer->AddGauge("/merge_jobs_awaiting_node_heartbeat", JobsAwaitingNodeHeartbeat_.size());
-    buffer->AddGauge("/running_merge_jobs", RunningJobs_.size());
+    buffer->AddGauge("/chunk_merger_jobs_awaiting_chunk_creation", JobsAwaitingChunkCreation_.size());
+    buffer->AddGauge("/chunk_merger_jobs_undergoing_chunk_creation", JobsUndergoingChunkCreation_.size());
+    buffer->AddGauge("/chunk_merger_jobs_awaiting_node_heartbeat", JobsAwaitingNodeHeartbeat_.size());
+    buffer->AddGauge("/chunk_merger_running_jobs", RunningJobs_.size());
+
+    buffer->AddCounter("/chunk_merger_chunk_replacement_succeeded", ChunkReplacementSucceded_);
+    buffer->AddCounter("/chunk_merger_chunk_replacement_failed", ChunkReplacementFailed_);
+    buffer->AddCounter("/chunk_merger_chunk_count_saving", ChunkCountSaving_);
 }
 
 void TChunkMerger::OnRecoveryComplete()
@@ -970,6 +974,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
     if (!chunkOwner) {
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cannot replace chunks after merge: no such chunk owner node (NodeId: %v)",
             nodeId);
+        ++ChunkReplacementFailed_;
         return;
     }
 
@@ -983,6 +988,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cannot replace chunks after merge: no such chunk (NodeId: %v, ChunkId: %v)",
             nodeId,
             newChunkId);
+        ++ChunkReplacementFailed_;
         if (IsLeader()) {
             ScheduleMerge(chunkOwner);
         }
@@ -1001,6 +1007,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
     if (!ChunkReplacer_.Replace(oldChunkList, newChunkList, newChunk, oldChunkIds)) {
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cannot replace chunks after merge: root has changed (NodeId: %v)",
             nodeId);
+        ++ChunkReplacementFailed_;
         if (IsLeader()) {
             ScheduleMerge(chunkOwner);
         }
@@ -1022,6 +1029,8 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
         nodeId,
         oldChunkList->GetId(),
         newChunkList->GetId());
+    ++ChunkReplacementSucceded_;
+    ChunkCountSaving_ += oldChunkIds.size() - 1;
 
     objectManager->UnrefObject(oldChunkList);
 
