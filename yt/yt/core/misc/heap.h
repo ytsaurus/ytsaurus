@@ -28,18 +28,24 @@ template <class TIterator>
 void ExtractHeap(TIterator begin, TIterator end);
 
 //! Readjusts the min-heap on |[begin, end)| by pushing current item down if needed.
+template <class TIterator, class TComparer, class TOnAssign>
+void SiftDown(TIterator begin, TIterator end, TIterator current, TComparer comparer, TOnAssign onAssign);
 template <class TIterator, class TComparer>
 void SiftDown(TIterator begin, TIterator end, TIterator current, TComparer comparer);
 template <class TIterator>
 void SiftDown(TIterator begin, TIterator end, TIterator current);
 
 //! Readjusts the min-heap on |[begin, end)| by pushing current item up if needed.
+template <class TIterator, class TComparer, class TOnAssign>
+void SiftUp(TIterator begin, TIterator end, TIterator current, TComparer comparer, TOnAssign onAssign);
 template <class TIterator, class TComparer>
 void SiftUp(TIterator begin, TIterator end, TIterator current, TComparer comparer);
 template <class TIterator>
 void SiftUp(TIterator begin, TIterator end, TIterator current);
 
 //! Readjusts the min-heap on |[begin, end)| by pushing current item up or down if needed.
+template <class TIterator, class TComparer, class TOnAssign>
+void AdjustHeapItem(TIterator begin, TIterator end, TIterator current, TComparer comparer, TOnAssign onAssign);
 template <class TIterator, class TComparer>
 void AdjustHeapItem(TIterator begin, TIterator end, TIterator current, TComparer comparer);
 template <class TIterator>
