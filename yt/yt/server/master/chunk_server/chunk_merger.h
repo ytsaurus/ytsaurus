@@ -74,6 +74,10 @@ private:
     TTransactionId TransactionId_;
     TTransactionId PreviousTransactionId_;
 
+    i64 ChunkReplacementSucceded_ = 0;
+    i64 ChunkReplacementFailed_ = 0;
+    i64 ChunkCountSaving_ = 0;
+
     const TCallback<void(NTransactionServer::TTransaction* transaction)> TransactionAbortedCallback_ =
         BIND(&TChunkMerger::OnTransactionAborted, MakeWeak(this));
 
