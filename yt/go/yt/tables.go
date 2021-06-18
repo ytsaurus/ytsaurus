@@ -64,7 +64,7 @@ type TableReader interface {
 	// happened while preparing it. Err should be consulted to distinguish between the two cases.
 	Next() bool
 
-	// Err returns error that occured during read.
+	// Err returns error that occurred during read.
 	Err() error
 
 	// Close frees any associated resources.

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"a.yandex-team.ru/library/go/core/xerrors"
-
 	"a.yandex-team.ru/yt/go/schema"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
@@ -57,7 +56,7 @@ func MountAndWait(ctx context.Context, yc yt.Client, path ypath.Path) error {
 	return waitTabletState(ctx, yc, path, yt.TabletMounted)
 }
 
-// FreezeAndWait freezes dynamic table and waits for a table to become freezed.
+// FreezeAndWait freezes dynamic table and waits for a table to become frozen.
 func FreezeAndWait(ctx context.Context, yc yt.Client, path ypath.Path) error {
 	err := yc.FreezeTable(ctx, path, nil)
 	if err != nil {

@@ -149,7 +149,7 @@ func (p *Pinger) onFinishError(err error) {
 			close(p.finished)
 		}
 	} else {
-		// Launch backgroud abort.
+		// Launch background abort.
 		close(p.finishFailed)
 		p.aborting = true
 	}
