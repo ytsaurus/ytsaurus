@@ -37,6 +37,9 @@
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/lookup_reader.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NTabletNode {
@@ -687,7 +690,7 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(std::optional<EWorkloadCategor
                 ReaderConfig_,
                 New<TRemoteReaderOptions>(),
                 Client_,
-                New<TNodeDirectory>(),
+                Client_->GetNativeConnection()->GetNodeDirectory(),
                 LocalDescriptor_,
                 std::nullopt,
                 DoGetBlockCache(),
