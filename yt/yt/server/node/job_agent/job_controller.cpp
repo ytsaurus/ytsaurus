@@ -179,14 +179,14 @@ private:
     TBufferedProducerPtr ResourceUsageBuffer_ = New<TBufferedProducer>();
     TBufferedProducerPtr GpuUtilizationBuffer_ = New<TBufferedProducer>();
 
-    TEnumIndexedVector<EJobOrigin, TGauge> ActiveJobCount_;
-
     THashMap<std::pair<EJobState, EJobOrigin>, TCounter> JobFinalStateCounters_;
 
     // Chunk cache counters.
     TCounter CacheHitArtifactsSizeCounter_;
     TCounter CacheMissArtifactsSizeCounter_;
     TCounter CacheBypassedArtifactsSizeCounter_;
+    TGauge TmpfsSizeGauge_;
+    TGauge TmpfsUsageGauge_;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr ResourceAdjustmentExecutor_;
@@ -314,6 +314,8 @@ TJobController::TImpl::TImpl(
     , CacheHitArtifactsSizeCounter_(Profiler_.Counter("/chunk_cache/cache_hit_artifacts_size"))
     , CacheMissArtifactsSizeCounter_(Profiler_.Counter("/chunk_cache/cache_miss_artifacts_size"))
     , CacheBypassedArtifactsSizeCounter_(Profiler_.Counter("/chunk_cache/cache_bypassed_artifacts_size"))
+    , TmpfsSizeGauge_(Profiler_.Gauge("/tmpfs/size"))
+    , TmpfsUsageGauge_(Profiler_.Gauge("/tmpfs/usage"))
 {
     Profiler_.AddProducer("/resource_limits", ResourceLimitsBuffer_);
     Profiler_.AddProducer("/resource_usage", ResourceUsageBuffer_);
@@ -1575,6 +1577,55 @@ void TJobController::TImpl::OnProfiling()
             writer->PopTag();
         }
     });
+
+    i64 tmpfsSize = 0;
+    i64 tmpfsUsage = 0;
+    for (const auto& job : GetJobs()) {
+        if (TypeFromId(job->GetId()) != EObjectType::SchedulerJob) {
+            continue;
+        }
+        
+        const auto& jobSpec = job->GetSpec();
+        auto extensionId = NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext;
+        if (!jobSpec.HasExtension(extensionId)) {
+            continue;
+        }
+        
+        auto extension = jobSpec.GetExtension(extensionId);
+        if (!extension.has_user_job_spec()) {
+            continue;
+        }
+            
+        for (const auto& tmpfsVolumeProto : extension.user_job_spec().tmpfs_volumes()) {
+            tmpfsSize += tmpfsVolumeProto.size();
+        }
+
+        auto statisticsYson = job->GetStatistics();
+        if (!statisticsYson) {
+            continue;
+        }
+
+        TString sensorName = "/user_job/tmpfs_size/sum";
+
+        auto statisticsNode = ConvertToNode(statisticsYson);
+        auto tmpfsSizeNode = FindNodeByYPath(statisticsNode, sensorName);
+        if (!tmpfsSizeNode) {
+            continue;
+        }
+
+        if (tmpfsSizeNode->GetType() != ENodeType::Int64) {
+            YT_LOG_WARNING("Wrong type of sensor (SensorName: %v, ExpectedType: %v, ActualType: %v)",
+                sensorName,
+                ENodeType::Int64,
+                tmpfsSizeNode->GetType());
+            continue;
+        }
+
+        tmpfsUsage += tmpfsSizeNode->GetValue<i64>();
+    }
+
+    TmpfsSizeGauge_.Update(tmpfsSize);
+    TmpfsUsageGauge_.Update(tmpfsUsage);
 }
 
 TCounter* TJobController::TImpl::GetJobFinalStateCounter(EJobState state, EJobOrigin origin)
