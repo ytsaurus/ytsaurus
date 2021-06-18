@@ -2888,7 +2888,6 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     NNative::IClientPtr client,
-    // TODO(akozhikhov): Extract nodeDirectory from client.
     TNodeDirectoryPtr nodeDirectory,
     const TNodeDescriptor& localDescriptor,
     std::optional<TNodeId> localNodeId,
