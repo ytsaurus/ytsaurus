@@ -76,7 +76,8 @@ struct TPersistentAttributes
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChildHeap;
-class TChildHeapItem;
+
+static const int InvalidHeapIndex = -1;
 
 struct TDynamicAttributes
 {
@@ -85,7 +86,7 @@ struct TDynamicAttributes
     TSchedulerElement* BestLeafDescendant = nullptr;
     TJobResources ResourceUsage;
 
-    TChildHeapItem* HeapIterator = nullptr;
+    int HeapIndex = InvalidHeapIndex;
 };
 
 using TDynamicAttributesList = std::vector<TDynamicAttributes>;
@@ -166,7 +167,7 @@ private:
         TStageState(TScheduleJobsStage* schedulingStage, const TString& name);
 
         TScheduleJobsStage* const SchedulingStage;
-
+        
         TString Name;
 
         bool PrescheduleExecuted = false;
@@ -786,10 +787,10 @@ public:
 protected:
     //! Pre fair share update methods.
     virtual TJobResources GetSpecifiedResourceLimits() const override;
-
+    
     //! Post fair share update methods.
     virtual void SetStarving(bool starving) override;
-
+    
     virtual void BuildElementMapping(TFairSharePostUpdateContext* context) override;
 
 private:
@@ -1255,7 +1256,7 @@ public:
     virtual TSchedulerElementPtr Clone(TSchedulerCompositeElement* clonedParent) override;
 
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
-
+    
     // Used for diagnostics purposes.
     virtual TJobResources GetSpecifiedStrongGuaranteeResources() const override;
     virtual TResourceVector GetMaxShare() const override;
@@ -1319,52 +1320,28 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerRootElement)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChildHeapItem
-{
-public:
-    TChildHeapItem(const TChildHeapItem&) = delete;
-    TChildHeapItem& operator=(const TChildHeapItem&) = delete;
-
-    TChildHeapItem(TChildHeapItem&& other) noexcept;
-    TChildHeapItem& operator=(TChildHeapItem&& other) noexcept;
-
-    TChildHeapItem(TSchedulerElement* element, TDynamicAttributesList* dynamicAttributesList);
-
-    TSchedulerElement* GetElement() const;
-
-    ~TChildHeapItem();
-
-private:
-    TSchedulerElement* Element_ = nullptr;
-    TDynamicAttributesList* DynamicAttributesList_ = nullptr;
-    
-    void AdjustBackReference();
-
-    friend class TChildHeap;
-};
-
 class TChildHeap
 {
 public:
     TChildHeap(
         const std::vector<TSchedulerElementPtr>& children,
-        const TSchedulerCompositeElement* owningElement,
         TDynamicAttributesList* dynamicAttributesList,
+        const TSchedulerCompositeElement* owningElement,
         ESchedulingMode mode);
-    TSchedulerElement* GetTopElement() const;
+    TSchedulerElement* GetTop() const;
     void Update(TSchedulerElement* child);
-    
+
     // For testing purposes.
-    const std::vector<TChildHeapItem>& GetHeap() const;
+    const std::vector<TSchedulerElement*>& GetHeap() const;
 
 private:
-    TDynamicAttributesList* const DynamicAttributesList_;
+    TDynamicAttributesList& DynamicAttributesList_;
     const TSchedulerCompositeElement* OwningElement_;
     const ESchedulingMode Mode_;
 
-    std::vector<TChildHeapItem> ChildHeap_;
+    std::vector<TSchedulerElement*> ChildHeap_;
 
-    bool Comparator(const TChildHeapItem& lhs, const TChildHeapItem& rhs) const;
+    bool Comparator(const TSchedulerElement* lhs, const TSchedulerElement* rhs) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

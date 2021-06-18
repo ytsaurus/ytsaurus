@@ -2228,10 +2228,11 @@ TEST_F(TFairShareTreeTest, ChildHeap)
             YT_VERIFY(childHeapMap.contains(rootElement->GetTreeIndex()));
 
             const auto& childHeap = GetOrCrash(context.ChildHeapMap(), rootElement->GetTreeIndex());
-            const auto& heapVector = childHeap.GetHeap();
-            for (const auto& heapItem : heapVector) {
-                auto* heapIteratorFromAttributes = context.DynamicAttributesFor(heapItem.GetElement()).HeapIterator;
-                ASSERT_TRUE(heapIteratorFromAttributes == &heapItem);
+
+            int heapIndex = 0;
+            for (auto* element : childHeap.GetHeap()) {
+                ASSERT_EQ(context.DynamicAttributesFor(element).HeapIndex, heapIndex);
+                ++heapIndex;
             }
         }
     }
@@ -2249,10 +2250,10 @@ TEST_F(TFairShareTreeTest, ChildHeap)
         YT_VERIFY(childHeapMap.contains(rootElement->GetTreeIndex()));
 
         const auto& childHeap = GetOrCrash(context.ChildHeapMap(), rootElement->GetTreeIndex());
-        const auto& heapVector = childHeap.GetHeap();
-        for (const auto& heapItem : heapVector) {
-            auto* heapIteratorFromAttributes = context.DynamicAttributesFor(heapItem.GetElement()).HeapIterator;
-            ASSERT_TRUE(heapIteratorFromAttributes == &heapItem);
+        int heapIndex = 0;
+        for (auto* element : childHeap.GetHeap()) {
+            ASSERT_EQ(context.DynamicAttributesFor(element).HeapIndex, heapIndex);
+            ++heapIndex;
         }
     }
 }
