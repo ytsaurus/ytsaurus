@@ -171,6 +171,7 @@ public class PeriodicDiscovery implements AutoCloseable, Closeable {
                     .setUrl(discoverProxiesUrl)
                     .setHeader("X-YT-Header-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT))
                     .setHeader("X-YT-Output-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT))
+                    .setHeader("Authorization", String.format("OAuth %s", credentials.getToken()))
                     .build());
 
         responseFuture.addListener(() -> {
@@ -284,11 +285,13 @@ class HttpProxyGetter implements ProxyGetter {
     AsyncHttpClient httpClient;
     String balancerHost;
     @Nullable String role;
+    @Nullable String token;
 
-    HttpProxyGetter(AsyncHttpClient httpClient, String balancerHost, @Nullable String role) {
+    HttpProxyGetter(AsyncHttpClient httpClient, String balancerHost, @Nullable String role, @Nullable String token) {
         this.httpClient = httpClient;
         this.balancerHost = balancerHost;
         this.role = role;
+        this.token = token;
     }
 
     @Override
@@ -301,6 +304,10 @@ class HttpProxyGetter implements ProxyGetter {
                         .setUrl(discoverProxiesUrl)
                         .setHeader("X-YT-Header-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT))
                         .setHeader("X-YT-Output-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT));
+        if (token != null) {
+            // NB. token should be set https://st.yandex-team.ru/YTADMINREQ-25316#60c516ddf76e1021d1143001
+            requestBuilder.setHeader("Authorization", String.format("OAuth %s", token));
+        }
         CompletableFuture<Response> responseFuture =
                 httpClient.executeRequest(requestBuilder.build()).toCompletableFuture();
 
