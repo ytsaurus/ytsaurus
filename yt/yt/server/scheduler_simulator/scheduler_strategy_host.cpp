@@ -19,9 +19,11 @@ static const auto& Logger = SchedulerSimulatorLogger;
 TSchedulerStrategyHost::TSchedulerStrategyHost(
     const std::vector<NScheduler::TExecNodePtr>* execNodes,
     IOutputStream* eventLogOutputStream,
-    const TRemoteEventLogConfigPtr& remoteEventLogConfig)
+    const TRemoteEventLogConfigPtr& remoteEventLogConfig,
+    const IInvokerPtr& nodeShardsInvoker)
     : ExecNodes_(execNodes)
     , MediumDirectory_(CreateDefaultMediumDirectory())
+    , NodeShardsInvokers_({nodeShardsInvoker})
 {
     YT_VERIFY(eventLogOutputStream || remoteEventLogConfig);
 
@@ -60,6 +62,11 @@ IInvokerPtr TSchedulerStrategyHost::GetFairShareUpdateInvoker() const
 IInvokerPtr TSchedulerStrategyHost::GetOrchidWorkerInvoker() const
 {
     return GetCurrentInvoker();
+}
+
+const std::vector<IInvokerPtr>& TSchedulerStrategyHost::GetNodeShardInvokers() const
+{
+    return NodeShardsInvokers_;
 }
 
 TFluentLogEvent TSchedulerStrategyHost::LogFairShareEventFluently(TInstant now)

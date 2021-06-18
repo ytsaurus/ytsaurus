@@ -70,6 +70,11 @@ struct TSchedulerStrategyHostMock
         return GetCurrentInvoker();
     }
 
+    virtual const std::vector<IInvokerPtr>& GetNodeShardInvokers() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     virtual NEventLog::TFluentLogEvent LogFairShareEventFluently(TInstant /*now*/) override
     {
         YT_UNIMPLEMENTED();
