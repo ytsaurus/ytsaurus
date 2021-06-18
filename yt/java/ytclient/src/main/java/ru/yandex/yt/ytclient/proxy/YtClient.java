@@ -29,7 +29,6 @@ import com.google.common.cache.LoadingCache;
 import com.google.protobuf.MessageLite;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
-
 import ru.yandex.bolts.collection.Cf;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
@@ -164,6 +163,7 @@ public class YtClient extends CompoundClient {
                     builder.builder.clusters,
                     builder.builder.preferredClusterName,
                     builder.builder.proxyRole,
+                    builder.credentials,
                     rpcClientFactory,
                     builder.builder.options);
         } else {
@@ -311,6 +311,7 @@ public class YtClient extends CompoundClient {
             List<YtCluster> clusters,
             @Nullable String localDataCenterName,
             @Nullable String proxyRole,
+            RpcCredentials credentials,
             RpcClientFactory rpcClientFactory,
             RpcOptions options
         ) {
@@ -333,6 +334,7 @@ public class YtClient extends CompoundClient {
                                     .setDataCenterName(curCluster.getName())
                                     .setBalancerAddress(curCluster.balancerFqdn, curCluster.httpPort)
                                     .setRole(proxyRole)
+                                    .setToken(credentials.getToken())
                                     .setOptions(options)
                                     .setClientFactory(rpcClientFactory)
                                     .setEventLoop(eventLoopGroup)
@@ -742,7 +744,7 @@ public class YtClient extends CompoundClient {
          * it will be used for all requests unless it's unavailable.
          *
          * <p>
-         * If preferred cluster is not set or is set but unavailable YtClient choses
+         * If preferred cluster is not set or is set but unavailable YtClient chooses
          * cluster based on network metrics.
          */
         public Builder setPreferredClusterName(@Nullable String preferredClusterName) {

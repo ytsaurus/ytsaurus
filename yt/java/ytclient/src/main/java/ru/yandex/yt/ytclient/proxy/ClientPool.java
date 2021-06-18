@@ -281,7 +281,8 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
         proxyGetter = new HttpProxyGetter(
                 asyncHttpClient,
                 Objects.requireNonNull(httpBuilder.balancerAddress),
-                httpBuilder.role
+                httpBuilder.role,
+                httpBuilder.token
         );
         toClose.add(asyncHttpClient);
 
@@ -393,6 +394,7 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
 
     abstract static class BaseBuilder<T extends BaseBuilder<T>> {
         @Nullable String role;
+        @Nullable String token;
         @Nullable String dataCenterName;
         @Nullable RpcOptions options;
         @Nullable RpcClientFactory clientFactory;
@@ -431,6 +433,12 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
 
         T setRole(@Nullable String role) {
             this.role = role;
+            //noinspection unchecked
+            return (T) this;
+        }
+
+        T setToken(@Nullable String token) {
+            this.token = token;
             //noinspection unchecked
             return (T) this;
         }
