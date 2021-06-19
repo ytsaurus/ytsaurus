@@ -1099,8 +1099,8 @@ bool TFutureBase<T>::Cancel(const TError& error) const
 template <class T>
 TFuture<T> TFutureBase<T>::ToUncancelable() const
 {
-    if (!Impl_) {
-        return TFuture<T>();
+    if (!Impl_ || IsSet()) {
+        return TFuture<T>(Impl_);
     }
 
     auto promise = NewPromise<T>();
