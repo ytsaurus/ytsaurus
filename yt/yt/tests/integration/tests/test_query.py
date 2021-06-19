@@ -1510,22 +1510,28 @@ class TestQueryRpcProxy(TestQuery):
             name="rpc_proxy/table_detailed_profiler/select_duration",
             fixed_tags={"table_path": "//tmp/t"})
 
-        for _ in range(5):
+        def check():
+            def _check(select_duration_histogram):
+                try:
+                    bins = select_duration_histogram.get_bins(verbose=True, driver=driver)
+                    bin_counters = [bin["count"] for bin in bins]
+                    if sum(bin_counters) != 1:
+                        return False
+                    if len(bin_counters) < 20:
+                        return False
+                    return True
+                except YtError as e:
+                    # TODO(eshcherbin): get rid of this.
+                    if "No sensors have been collected so far" not in str(e):
+                        raise e
+
             assert select_rows("""* from [//tmp/t]""", driver=rpc_driver) == rows
 
-        def _check(select_duration_histogram):
             try:
-                bins = select_duration_histogram.get_bins(verbose=True, driver=driver)
-                bin_counters = [bin["count"] for bin in bins]
-                if sum(bin_counters) == 0:
-                    return False
-                if len(bin_counters) < 20:
-                    return False
+                wait(lambda: _check(node_select_duration_histogram), iter=5, sleep_backoff=0.5)
+                wait(lambda: _check(proxy_select_duration_histogram), iter=5, sleep_backoff=0.5)
                 return True
-            except YtError as e:
-                # TODO(eshcherbin): get rid of this.
-                if "No sensors have been collected so far" not in str(e):
-                    raise e
+            except WaitFailed:
+                return False
 
-        wait(lambda: _check(node_select_duration_histogram))
-        wait(lambda: _check(proxy_select_duration_histogram))
+        wait(lambda: check())
