@@ -345,6 +345,26 @@ void TBootstrap::DoInitialize()
         Config_->Tags,
         Flavors_);
 
+    // NB: Connection thread pool is required for dynamic config manager
+    // initialization, so it is created before other thread pools.
+    ConnectionThreadPool_ = New<TThreadPool>(
+        Config_->ClusterConnection->ThreadPoolSize,
+        "Connection");
+
+    NApi::NNative::TConnectionOptions connectionOptions;
+    connectionOptions.ConnectionInvoker = GetConnectionInvoker();
+    connectionOptions.BlockCache = GetBlockCache();
+    MasterConnection_ = NApi::NNative::CreateConnection(
+        Config_->ClusterConnection,
+        std::move(connectionOptions));
+
+    MasterClient_ = MasterConnection_->CreateNativeClient(
+        TClientOptions::FromUser(NSecurityClient::RootUserName));
+
+    DynamicConfigManager_ = New<TClusterNodeDynamicConfigManager>(this);
+    DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
+    auto dynamicConfig = DynamicConfigManager_->GetConfig();
+
     MemoryUsageTracker_ = New<TNodeMemoryTracker>(
         Config_->ResourceLimits->TotalMemory,
         std::vector<std::pair<EMemoryCategory, i64>>{},
@@ -375,25 +395,15 @@ void TBootstrap::DoInitialize()
     StorageLookupThreadPool_ = CreateFairShareThreadPool(
         Config_->DataNode->StorageLookupThreadCount,
         "StorageLookup");
-    ConnectionThreadPool_ = New<TThreadPool>(
-        Config_->ClusterConnection->ThreadPoolSize,
-        "Connection");
+    MasterJobThreadPool_ = New<TThreadPool>(
+        dynamicConfig->DataNode->MasterJobThreadCount,
+        "MasterJob");
 
     BlockCache_ = ClientBlockCache_ = CreateClientBlockCache(
         Config_->DataNode->BlockCache,
         EBlockType::UncompressedData | EBlockType::CompressedData,
         MemoryUsageTracker_->WithCategory(EMemoryCategory::BlockCache),
         DataNodeProfiler.WithPrefix("/block_cache"));
-
-    NApi::NNative::TConnectionOptions connectionOptions;
-    connectionOptions.ConnectionInvoker = GetConnectionInvoker();
-    connectionOptions.BlockCache = GetBlockCache();
-    MasterConnection_ = NApi::NNative::CreateConnection(
-        Config_->ClusterConnection,
-        std::move(connectionOptions));
-
-    MasterClient_ = MasterConnection_->CreateNativeClient(
-        TClientOptions::FromUser(NSecurityClient::RootUserName));
 
     BusServer_ = CreateTcpBusServer(Config_->BusServer);
 
@@ -430,9 +440,6 @@ void TBootstrap::DoInitialize()
     ExecNodeMasterConnector_ = NExecAgent::CreateMasterConnector(this);
     CellarNodeMasterConnector_ = NCellarNode::CreateMasterConnector(this);
     TabletNodeMasterConnector_ = NTabletNode::CreateMasterConnector(this);
-
-    DynamicConfigManager_ = New<TClusterNodeDynamicConfigManager>(this);
-    DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
 
     BlobReaderCache_ = CreateBlobReaderCache(this);
 
@@ -667,25 +674,25 @@ void TBootstrap::DoInitialize()
     JobController_->RegisterJobFactory(NJobAgent::EJobType::JoinReduce, createExecJob);
     JobController_->RegisterJobFactory(NJobAgent::EJobType::Vanilla, createExecJob);
 
-    auto createChunkJob = BIND([this] (
+    auto createMasterJob = BIND([this] (
             NJobAgent::TJobId jobId,
             NJobAgent::TOperationId /*operationId*/,
             const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
             NJobTrackerClient::NProto::TJobSpec&& jobSpec) ->
             NJobAgent::IJobPtr
         {
-            return CreateChunkJob(
+            return CreateMasterJob(
                 jobId,
                 std::move(jobSpec),
                 resourceLimits,
                 Config_->DataNode,
                 this);
         });
-    JobController_->RegisterJobFactory(NJobAgent::EJobType::RemoveChunk, createChunkJob);
-    JobController_->RegisterJobFactory(NJobAgent::EJobType::ReplicateChunk, createChunkJob);
-    JobController_->RegisterJobFactory(NJobAgent::EJobType::RepairChunk, createChunkJob);
-    JobController_->RegisterJobFactory(NJobAgent::EJobType::SealChunk, createChunkJob);
-    JobController_->RegisterJobFactory(NJobAgent::EJobType::MergeChunks, createChunkJob);
+    JobController_->RegisterJobFactory(NJobAgent::EJobType::RemoveChunk, createMasterJob);
+    JobController_->RegisterJobFactory(NJobAgent::EJobType::ReplicateChunk, createMasterJob);
+    JobController_->RegisterJobFactory(NJobAgent::EJobType::RepairChunk, createMasterJob);
+    JobController_->RegisterJobFactory(NJobAgent::EJobType::SealChunk, createMasterJob);
+    JobController_->RegisterJobFactory(NJobAgent::EJobType::MergeChunks, createMasterJob);
 
     JobController_->AddHeartbeatProcessor<NDataNode::TMasterJobHeartbeatProcessor>(EObjectType::MasterJob, this);
     JobController_->AddHeartbeatProcessor<NExecAgent::TSchedulerJobHeartbeatProcessor>(EObjectType::SchedulerJob, this);
@@ -1065,6 +1072,11 @@ const IInvokerPtr& TBootstrap::GetStorageLightInvoker() const
 const IInvokerPtr& TBootstrap::GetConnectionInvoker() const
 {
     return ConnectionThreadPool_->GetInvoker();
+}
+
+const IInvokerPtr& TBootstrap::GetMasterJobInvoker() const
+{
+    return MasterJobThreadPool_->GetInvoker();
 }
 
 // NB: Despite other getters we need to return pointer, not a reference to pointer.
@@ -1508,6 +1520,7 @@ void TBootstrap::OnDynamicConfigChanged(
         newConfig->DataNode->StorageLightThreadCount.value_or(Config_->DataNode->StorageLightThreadCount));
     StorageLookupThreadPool_->Configure(
         newConfig->DataNode->StorageLookupThreadCount.value_or(Config_->DataNode->StorageLookupThreadCount));
+    MasterJobThreadPool_->Configure(newConfig->DataNode->MasterJobThreadCount);
 
     for (auto kind : TEnumTraits<NDataNode::EDataNodeThrottlerKind>::GetDomainValues()) {
         const auto& initialThrottlerConfig = newConfig->DataNode->Throttlers[kind]

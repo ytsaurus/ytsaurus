@@ -1125,6 +1125,9 @@ public:
     std::optional<int> StorageLightThreadCount;
     std::optional<int> StorageLookupThreadCount;
 
+    //! Number of threads in MasterJob thread pool (used for master jobs execution).
+    int MasterJobThreadCount;
+
     TEnumIndexedVector<EDataNodeThrottlerKind, NConcurrency::TRelativeThroughputThrottlerConfigPtr> Throttlers;
 
     TSlruCacheDynamicConfigPtr ChunkMetaCache;
@@ -1158,6 +1161,9 @@ public:
         RegisterParameter("storage_lookup_thread_count", StorageLookupThreadCount)
             .GreaterThan(0)
             .Optional();
+        RegisterParameter("master_job_thread_count", MasterJobThreadCount)
+            .GreaterThan(0)
+            .Default(4);
 
         RegisterParameter("throttlers", Throttlers)
             .Optional();

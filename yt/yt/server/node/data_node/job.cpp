@@ -101,7 +101,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkJobBase
+class TMasterJobBase
     : public IJob
 {
 public:
@@ -111,7 +111,7 @@ public:
     DEFINE_SIGNAL(void(), JobFinished);
 
 public:
-    TChunkJobBase(
+    TMasterJobBase(
         TJobId jobId,
         const TJobSpec& jobSpec,
         const TNodeResources& resourceLimits,
@@ -136,7 +136,7 @@ public:
 
         JobState_ = EJobState::Running;
         JobPhase_ = EJobPhase::Running;
-        JobFuture_ = BIND(&TChunkJobBase::GuardedRun, MakeStrong(this))
+        JobFuture_ = BIND(&TMasterJobBase::GuardedRun, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetJobInvoker())
             .Run();
     }
@@ -469,7 +469,10 @@ protected:
 
         try {
             JobPrepared_.Fire();
-            DoRun();
+            WaitFor(BIND(&TMasterJobBase::DoRun, MakeStrong(this))
+                .AsyncVia(Bootstrap_->GetMasterJobInvoker())
+                .Run())
+                .ThrowOnError();
         } catch (const std::exception& ex) {
             SetFailed(ex);
             return;
@@ -533,7 +536,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkRemovalJob
-    : public TChunkJobBase
+    : public TMasterJobBase
 {
 public:
     TChunkRemovalJob(
@@ -542,7 +545,7 @@ public:
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
-        : TChunkJobBase(
+        : TMasterJobBase(
             jobId,
             std::move(jobSpec),
             resourceLimits,
@@ -556,7 +559,7 @@ private:
 
     virtual void DoRun() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         auto chunkId = FromProto<TChunkId>(JobSpecExt_.chunk_id());
         int mediumIndex = JobSpecExt_.medium_index();
@@ -597,7 +600,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkReplicationJob
-    : public TChunkJobBase
+    : public TMasterJobBase
 {
 public:
     TChunkReplicationJob(
@@ -606,7 +609,7 @@ public:
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
-        : TChunkJobBase(
+        : TMasterJobBase(
             jobId,
             std::move(jobSpec),
             resourceLimits,
@@ -620,7 +623,7 @@ private:
 
     virtual void DoRun() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         auto chunkId = FromProto<TChunkId>(JobSpecExt_.chunk_id());
         int sourceMediumIndex = JobSpecExt_.source_medium_index();
@@ -764,7 +767,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkRepairJob
-    : public TChunkJobBase
+    : public TMasterJobBase
 {
 public:
     TChunkRepairJob(
@@ -773,7 +776,7 @@ public:
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
-        : TChunkJobBase(
+        : TMasterJobBase(
             jobId,
             std::move(jobSpec),
             resourceLimits,
@@ -869,7 +872,7 @@ private:
 
     virtual void DoRun() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         auto codecId = CheckedEnumCast<NErasure::ECodec>(JobSpecExt_.erasure_codec());
         auto* codec = NErasure::GetCodec(codecId);
@@ -971,7 +974,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSealChunkJob
-    : public TChunkJobBase
+    : public TMasterJobBase
 {
 public:
     TSealChunkJob(
@@ -980,7 +983,7 @@ public:
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
-        : TChunkJobBase(
+        : TMasterJobBase(
             jobId,
             std::move(jobSpec),
             resourceLimits,
@@ -994,7 +997,7 @@ private:
 
     virtual void DoRun() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         auto chunkId = FromProto<TChunkId>(JobSpecExt_.chunk_id());
         auto codecId = CheckedEnumCast<NErasure::ECodec>(JobSpecExt_.codec_id());
@@ -1118,7 +1121,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkMergeJob
-    : public TChunkJobBase
+    : public TMasterJobBase
 {
 public:
     TChunkMergeJob(
@@ -1127,7 +1130,7 @@ public:
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
-        : TChunkJobBase(
+        : TMasterJobBase(
             jobId,
             std::move(jobSpec),
             resourceLimits,
@@ -1143,7 +1146,7 @@ private:
 
     virtual void DoRun() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
         nodeDirectory->MergeFrom(JobSpecExt_.node_directory());
@@ -1290,7 +1293,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobPtr CreateChunkJob(
+IJobPtr CreateMasterJob(
     TJobId jobId,
     TJobSpec&& jobSpec,
     const TNodeResources& resourceLimits,

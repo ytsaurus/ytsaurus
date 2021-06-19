@@ -22,7 +22,12 @@ TClusterNodeDynamicConfigManager::TClusterNodeDynamicConfigManager(TBootstrap* b
         bootstrap->GetMasterClient(),
         bootstrap->GetControlInvoker())
     , Bootstrap_(bootstrap)
+{ }
+
+void TClusterNodeDynamicConfigManager::Start()
 {
+    TDynamicConfigManagerBase::Start();
+
     Bootstrap_->GetClusterNodeMasterConnector()->SubscribePopulateAlerts(
         BIND([this, this_ = MakeStrong(this)] (std::vector<TError>* alerts) {
             auto errors = GetErrors();
