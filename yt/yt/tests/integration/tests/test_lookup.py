@@ -990,22 +990,28 @@ class TestLookupRpcProxy(TestLookup):
             name="rpc_proxy/table_detailed_profiler/lookup_duration",
             fixed_tags={"table_path": "//tmp/t"})
 
-        for i in range(5):
+        def check():
+            def _check(lookup_duration_histogram):
+                try:
+                    bins = lookup_duration_histogram.get_bins(verbose=True, driver=driver)
+                    bin_counters = [bin["count"] for bin in bins]
+                    if sum(bin_counters) != 1:
+                        return False
+                    if len(bin_counters) < 20:
+                        return False
+                    return True
+                except YtError as e:
+                    # TODO(eshcherbin): get rid of this.
+                    if "No sensors have been collected so far" not in str(e):
+                        raise e
+
             assert lookup_rows("//tmp/t", [{"key": 1}], driver=rpc_driver) == rows
 
-        def _check(lookup_duration_histogram):
             try:
-                bins = lookup_duration_histogram.get_bins(verbose=True, driver=driver)
-                bin_counters = [bin["count"] for bin in bins]
-                if sum(bin_counters) == 0:
-                    return False
-                if len(bin_counters) < 20:
-                    return False
+                wait(lambda: _check(node_lookup_duration_histogram), iter=5, sleep_backoff=0.5)
+                wait(lambda: _check(proxy_lookup_duration_histogram), iter=5, sleep_backoff=0.5)
                 return True
-            except YtError as e:
-                # TODO(eshcherbin): get rid of this.
-                if "No sensors have been collected so far" not in str(e):
-                    raise e
+            except WaitFailed:
+                return False
 
-        wait(lambda: _check(node_lookup_duration_histogram))
-        wait(lambda: _check(proxy_lookup_duration_histogram))
+        wait(lambda: check())

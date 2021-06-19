@@ -2536,7 +2536,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        assert _insert() < 2
+        assert _insert() < 3
 
     @authors("savrus")
     def test_mounted_table_attributes_update_validation(self):
