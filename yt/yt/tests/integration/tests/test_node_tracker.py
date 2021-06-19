@@ -1,8 +1,17 @@
-import pytest
-
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE
-from yt_commands import *  # noqa
+
+from yt_commands import (
+    authors, wait, execute_command, get_driver, build_snapshot,
+    exists, ls, get, set, create, remove,
+    read_table, write_table,
+    create_rack, create_data_center, vanilla,
+    set_node_banned)
+
 import yt_error_codes
+
+from yt.common import YtError
+
+import pytest
 
 from time import sleep
 
@@ -57,7 +66,7 @@ class TestNodeTracker(YTEnvSetup):
             try:
                 write_table("//tmp/t", {"a": "b"})
                 return True
-            except:
+            except YtError:
                 return False
 
         assert not can_write()
@@ -131,7 +140,7 @@ class TestNodeTracker(YTEnvSetup):
             try:
                 write_table("//tmp/t", {"a": "b"})
                 return True
-            except:
+            except YtError:
                 return False
 
         for node in nodes:

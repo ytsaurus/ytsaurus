@@ -1,7 +1,17 @@
 from yt_env_setup import YTEnvSetup, wait, Restarter, NODES_SERVICE
-from yt_commands import *  # noqa
+
+from yt_commands import (
+    authors, exists, get, set, ls, create, remove,
+    read_table, write_table,
+    run_test_vanilla, get_applied_node_dynamic_config,
+    sync_create_cells)
+
 import yt_error_codes
-from yt.yson import YsonEntity
+
+import yt.yson as yson
+from yt.common import YtError
+
+import pytest
 
 #################################################################
 
@@ -19,7 +29,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
 
     def get_dynamic_config_annotation(self, node):
         dynamic_config = get_applied_node_dynamic_config(node)
-        if type(dynamic_config) == YsonEntity:
+        if type(dynamic_config) == yson.YsonEntity:
             return ""
 
         return dynamic_config.get("config_annotation", "")
@@ -312,7 +322,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
             try:
                 write_table("//tmp/w", [{"x": "y"}])
                 return True
-            except:
+            except YtError:
                 return False
 
         def check_jobs():
@@ -320,7 +330,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
                 op = run_test_vanilla("sleep 0.1")
                 op.track()
                 return True
-            except:
+            except YtError:
                 return False
 
         def check_tablet_cells():
@@ -388,7 +398,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
             config["nodeA"]["cellar_node"] = {
                 "cellar_manager": {
                     "cellars": {
-                        "tablet" : {
+                        "tablet": {
                             "type": "tablet",
                             "size": 0,
                         }
@@ -419,5 +429,6 @@ class TestNodeDynamicConfig(YTEnvSetup):
             }
         }
         set("//sys/cluster_nodes/@config", config)
-        key = "//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/effective_config/tablet_node/versioned_chunk_meta_cache/capacity"
+        key = "//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/"\
+              "effective_config/tablet_node/versioned_chunk_meta_cache/capacity"
         wait(lambda: get(key.format(nodes[0])) == 300, ignore_exceptions=True)

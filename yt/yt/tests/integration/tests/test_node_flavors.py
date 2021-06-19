@@ -1,8 +1,13 @@
 from yt_env_setup import YTEnvSetup
-from yt_commands import *  # noqa
 
+from yt_commands import (
+    authors, with_breakpoint, wait_breakpoint, release_breakpoint,
+    create, get, ls, write_table,
+    get_data_nodes, get_exec_nodes, get_tablet_nodes,
+    run_test_vanilla, sync_create_cells)
 
 #################################################################
+
 
 class TestNodeFlavors(YTEnvSetup):
     NUM_MASTERS = 1
