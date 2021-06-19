@@ -20,6 +20,9 @@ class TClusterNodeDynamicConfigManager
 public:
     explicit TClusterNodeDynamicConfigManager(TBootstrap* bootstrap);
 
+    //! Starts the dynamic config manager.
+    void Start();
+
 protected:
     virtual std::vector<TString> GetInstanceTags() const override;
 

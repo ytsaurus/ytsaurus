@@ -14,7 +14,7 @@ namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NJobAgent::IJobPtr CreateChunkJob(
+NJobAgent::IJobPtr CreateMasterJob(
     NJobTrackerClient::TJobId jobId,
     NJobTrackerClient::NProto::TJobSpec&& jobSpec,
     const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
@@ -24,4 +24,3 @@ NJobAgent::IJobPtr CreateChunkJob(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDataNode
-
