@@ -12,6 +12,27 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue, class THash>
+TAsyncSlruCacheBase<TKey, TValue, THash>::TItem::TItem()
+    : ValuePromise(NewPromise<TValuePtr>())
+{ }
+
+template <class TKey, class TValue, class THash>
+TAsyncSlruCacheBase<TKey, TValue, THash>::TItem::TItem(TValuePtr value)
+    : ValuePromise(MakePromise(TValuePtr(value)))
+    , Value(std::move(value))
+{ }
+
+template <class TKey, class TValue, class THash>
+auto TAsyncSlruCacheBase<TKey, TValue, THash>::TItem::GetValueFuture() const -> TValueFuture
+{
+    return ValuePromise
+        .ToFuture()
+        .ToUncancelable();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TKey, class TValue, class THash>
 const TKey& TAsyncCacheValueBase<TKey, TValue, THash>::GetKey() const
 {
     return Key_;
@@ -20,8 +41,7 @@ const TKey& TAsyncCacheValueBase<TKey, TValue, THash>::GetKey() const
 template <class TKey, class TValue, class THash>
 void TAsyncCacheValueBase<TKey, TValue, THash>::UpdateWeight() const
 {
-    auto cache = Cache_.Lock();
-    if (cache) {
+    if (auto cache = Cache_.Lock()) {
         cache->UpdateWeight(GetKey());
     }
 }
@@ -34,8 +54,7 @@ TAsyncCacheValueBase<TKey, TValue, THash>::TAsyncCacheValueBase(const TKey& key)
 template <class TKey, class TValue, class THash>
 NYT::TAsyncCacheValueBase<TKey, TValue, THash>::~TAsyncCacheValueBase()
 {
-    auto cache = Cache_.Lock();
-    if (cache) {
+    if (auto cache = Cache_.Lock()) {
         cache->Unregister(Key_);
     }
 }
@@ -87,7 +106,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Clear()
 
         shard->TouchBufferPosition = 0;
 
-        Size_ -= shard->ItemMap.size();
+        Size_ -= std::ssize(shard->ItemMap);
         shard->ItemMap.clear();
 
         TIntrusiveListWithAutoDelete<TItem, TDelete> youngerLruList;
@@ -109,8 +128,8 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Clear()
         shard->OlderWeightCounter -= totalOlderWeight;
         YoungerWeightCounter_.fetch_sub(totalYoungerWeight);
         OlderWeightCounter_.fetch_sub(totalOlderWeight);
-        YoungerSizeCounter_.fetch_sub(youngerLruList.size());
-        OlderSizeCounter_.fetch_sub(olderLruList.size());
+        YoungerSizeCounter_.fetch_sub(std::ssize(youngerLruList));
+        OlderSizeCounter_.fetch_sub(std::ssize(olderLruList));
 
         // NB: Lists must die outside the critical section.
         writerGuard.Release();
@@ -200,7 +219,17 @@ typename TAsyncSlruCacheBase<TKey, TValue, THash>::TValueFuture
 TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
 {
     auto* shard = GetShardByKey(key);
+    auto valueFuture = DoLookup(shard, key);
+    if (!valueFuture) {
+        MissedCounter_.Increment();
+    }
+    return valueFuture;
+}
 
+template <class TKey, class TValue, class THash>
+typename TAsyncSlruCacheBase<TKey, TValue, THash>::TValueFuture
+TAsyncSlruCacheBase<TKey, TValue, THash>::DoLookup(TShard* shard, const TKey& key)
+{
     while (true) {
         auto readerGuard = ReaderGuard(shard->SpinLock);
 
@@ -211,7 +240,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
         if (itemIt != itemMap.end()) {
             auto* item = itemIt->second;
             bool needToDrain = Touch(shard, item);
-            auto promise = item->ValuePromise;
+            auto valueFuture = item->GetValueFuture();
 
             if (item->Value) {
                 SyncHitWeightCounter_.Increment(item->CachedWeight);
@@ -228,12 +257,11 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
                 DrainTouchBuffer(shard);
             }
 
-            return promise;
+            return valueFuture;
         }
 
         auto valueIt = valueMap.find(key);
         if (valueIt == valueMap.end()) {
-            MissedCounter_.Increment();
             return TValueFuture();
         }
 
@@ -251,8 +279,9 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
             }
 
             auto* item = new TItem(value);
+
             // This holds an extra reference to the promise state...
-            auto promise = item->ValuePromise;
+            auto valueFuture = item->GetValueFuture();
 
             YT_VERIFY(itemMap.emplace(key, item).second);
             ++Size_;
@@ -264,7 +293,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
             Trim(shard, writerGuard);
             // ...since the item can be dead at this moment.
 
-            return promise;
+            return valueFuture;
         }
 
         // Back off.
@@ -277,6 +306,14 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
 {
     auto* shard = GetShardByKey(key);
 
+    if (auto valueFuture = DoLookup(shard, key)) {
+        return TInsertCookie(
+            key,
+            nullptr,
+            std::move(valueFuture),
+            false);
+    }
+
     while (true) {
         auto guard = WriterGuard(shard->SpinLock);
 
@@ -288,9 +325,8 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
         auto itemIt = itemMap.find(key);
         if (itemIt != itemMap.end()) {
             auto* item = itemIt->second;
-            auto valueFuture = item->ValuePromise
-                .ToFuture()
-                .ToUncancelable();
+            Touch(shard, item);
+            auto valueFuture = item->GetValueFuture();
 
             if (item->Value) {
                 SyncHitWeightCounter_.Increment(item->CachedWeight);
@@ -310,9 +346,7 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
         auto valueIt = valueMap.find(key);
         if (valueIt == valueMap.end()) {
             auto* item = new TItem();
-            auto valuePromise = item->ValuePromise
-                .ToFuture()
-                .ToUncancelable();
+            auto valueFuture = item->GetValueFuture();
 
             YT_VERIFY(itemMap.emplace(key, item).second);
             ++Size_;
@@ -322,12 +356,11 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
             return TInsertCookie(
                 key,
                 this,
-                std::move(valuePromise),
+                std::move(valueFuture),
                 true);
         }
 
-        auto value = DangerousGetPtr(valueIt->second);
-        if (value) {
+        if (auto value = DangerousGetPtr(valueIt->second)) {
             auto* item = new TItem(value);
 
             YT_VERIFY(itemMap.emplace(key, item).second);
@@ -551,7 +584,11 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::GetShardByKey(const TKey& key) co
 template <class TKey, class TValue, class THash>
 bool TAsyncSlruCacheBase<TKey, TValue, THash>::Touch(TShard* shard, TItem* item)
 {
-    int capacity = shard->TouchBuffer.size();
+    if (!item->Value) {
+        return false;
+    }
+
+    int capacity = std::ssize(shard->TouchBuffer);
     int index = shard->TouchBufferPosition++;
     if (index >= capacity) {
         // Drop touch request due to buffer overflow.
@@ -569,7 +606,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::DrainTouchBuffer(TShard* shard)
 {
     int count = std::min<int>(
         shard->TouchBufferPosition.load(),
-        shard->TouchBuffer.size());
+        std::ssize(shard->TouchBuffer));
     for (int index = 0; index < count; ++index) {
         MoveToOlder(shard, shard->TouchBuffer[index]);
     }
