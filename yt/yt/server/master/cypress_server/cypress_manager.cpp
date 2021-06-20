@@ -414,10 +414,9 @@ public:
             {
                 auto* table = trunkNode->As<TTableNode>();
                 auto* schema = table->GetSchema();
-                const auto& objectManager = Bootstrap_->GetObjectManager();
                 // NB: this sometimes will lead to a synchronous serialization of
                 // schemas in automaton thread. This is unavoidable.
-                auto ysonSchema = schema->AsYsonSync(objectManager);
+                auto ysonSchema = schema->AsYsonSync();
                 replicationExplicitAttributes->SetYson("schema", std::move(ysonSchema));
             }
 

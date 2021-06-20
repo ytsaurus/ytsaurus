@@ -18,27 +18,31 @@ class TMasterTableSchema
     : public NObjectServer::TNonversionedObjectBase
 {
 public:
-    using TTableSchemaToObjectMap = THashMap<NTableClient::TTableSchema, TMasterTableSchema*>;
+    using TTableSchemaToObjectMap = THashMap<
+        NTableClient::TTableSchemaPtr,
+        TMasterTableSchema*,
+        NTableClient::TTableSchemaHash,
+        NTableClient::TTableSchemaEquals
+    >;
     using TTableSchemaToObjectMapIterator = TTableSchemaToObjectMap::iterator;
+
     using TAccountToMasterMemoryUsage = TSmallFlatMap<NSecurityServer::TAccount*, i64, 2>;
     using TAccountToRefCounterMap = TSmallFlatMap<NSecurityServer::TAccount*, i64, 2>;
 
-    DEFINE_BYVAL_RO_PROPERTY(TTableSchemaToObjectMapIterator, TableSchemaToObjectMapIterator);
     // These are transient and are used for master memory accounting only.
     DEFINE_BYREF_RW_PROPERTY(TAccountToMasterMemoryUsage, ChargedMasterMemoryUsage);
     DEFINE_BYREF_RW_PROPERTY(TAccountToRefCounterMap, ReferencingAccounts);
 
+    using TNonversionedObjectBase::TNonversionedObjectBase;
     TMasterTableSchema(TMasterTableSchemaId id, TTableSchemaToObjectMapIterator it);
-    // For persistence.
-    explicit TMasterTableSchema(TMasterTableSchemaId id);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    const NTableClient::TTableSchema& AsTableSchema() const;
-    const TFuture<NYson::TYsonString>& AsYsonAsync(const NObjectServer::TObjectManagerPtr& objectManager);
+    const NTableClient::TTableSchemaPtr& AsTableSchema() const;
+    const TFuture<NYson::TYsonString>& AsYsonAsync() const;
     // Whenever possible, prefer the above.
-    NYson::TYsonString AsYsonSync(const NObjectServer::TObjectManagerPtr& objectManager);
+    NYson::TYsonString AsYsonSync() const;
 
     //! Increases the number of times this schema is referenced by #account.
     //! Returns true iff this schema has just become referenced by it for the
@@ -54,9 +58,18 @@ public:
     void SetChargedMasterMemoryUsage(NSecurityServer::TAccount* account, i64 usage);
 
 private:
+    friend class TTableManager;
+
     using TBase = NObjectServer::TNonversionedObjectBase;
 
-    TFuture<NYson::TYsonString> MemoizedYson_;
+    TTableSchemaToObjectMapIterator TableSchemaToObjectMapIterator_;
+    NTableClient::TTableSchemaPtr TableSchema_;
+
+    mutable TFuture<NYson::TYsonString> MemoizedYson_;
+
+    TTableSchemaToObjectMapIterator GetTableSchemaToObjectMapIterator() const;
+    void SetTableSchemaToObjectMapIterator(TTableSchemaToObjectMapIterator it);
+    void ResetTableSchemaToObjectMapIterator();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

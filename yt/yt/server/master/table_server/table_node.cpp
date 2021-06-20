@@ -159,7 +159,7 @@ void TTableNode::EndUpload(const TEndUploadContext& context)
 {
     if (IsDynamic()) {
         if (SchemaMode_ != context.SchemaMode ||
-            GetSchema()->AsTableSchema() != context.Schema->AsTableSchema())
+            *GetSchema()->AsTableSchema() != *context.Schema->AsTableSchema())
         {
             YT_LOG_ALERT("Schema of a dynamic table changed during end upload (TableId: %v, TransactionId: %v, "
                 "OriginalSchemaMode: %v, NewSchemaMode: %v, OriginalSchema: %v, NewSchema: %v)",
@@ -232,12 +232,12 @@ void TTableNode::RecomputeTabletMasterMemoryUsage()
 
 bool TTableNode::IsSorted() const
 {
-    return GetSchema()->AsTableSchema().IsSorted();
+    return GetSchema()->AsTableSchema()->IsSorted();
 }
 
 bool TTableNode::IsUniqueKeys() const
 {
-    return GetSchema()->AsTableSchema().IsUniqueKeys();
+    return GetSchema()->AsTableSchema()->IsUniqueKeys();
 }
 
 bool TTableNode::IsReplicated() const
@@ -318,7 +318,7 @@ void TTableNode::LoadTableSchema(NCellMaster::TLoadContext& context)
         // would cause trouble. Luckily, there's no need for that.
         const auto& tableManager = context.GetBootstrap()->GetTableManager();
         auto* emptyMasterTableSchema = tableManager->GetEmptyMasterTableSchema();
-        const auto& emptyTableSchema = emptyMasterTableSchema->AsTableSchema();
+        const auto& emptyTableSchema = *emptyMasterTableSchema->AsTableSchema();
 
         switch (Load<ESchemaSerializationMethod>(context)) {
             case ESchemaSerializationMethod::Schema: {

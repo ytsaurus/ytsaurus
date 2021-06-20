@@ -43,7 +43,7 @@ public:
         switch (key) {
             case EInternedAttributeKey::MemoryUsage:
                 BuildYsonFluently(consumer)
-                    .Value(schema->AsTableSchema().GetMemoryUsage());
+                    .Value(schema->AsTableSchema()->GetMemoryUsage());
                 return true;
 
             case EInternedAttributeKey::ReferencingAccounts:
