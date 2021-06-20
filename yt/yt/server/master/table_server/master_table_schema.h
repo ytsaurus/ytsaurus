@@ -30,8 +30,8 @@ public:
     using TAccountToRefCounterMap = TSmallFlatMap<NSecurityServer::TAccount*, i64, 2>;
 
     // These are transient and are used for master memory accounting only.
-    DEFINE_BYREF_RW_PROPERTY(TAccountToMasterMemoryUsage, ChargedMasterMemoryUsage);
-    DEFINE_BYREF_RW_PROPERTY(TAccountToRefCounterMap, ReferencingAccounts);
+    DEFINE_BYREF_RO_PROPERTY(TAccountToMasterMemoryUsage, ChargedMasterMemoryUsage);
+    DEFINE_BYREF_RO_PROPERTY(TAccountToRefCounterMap, ReferencingAccounts);
 
     using TNonversionedObjectBase::TNonversionedObjectBase;
     TMasterTableSchema(TMasterTableSchemaId id, TTableSchemaToObjectMapIterator it);

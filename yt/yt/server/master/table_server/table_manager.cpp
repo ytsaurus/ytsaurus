@@ -449,6 +449,28 @@ public:
         if (context.GetVersion() >= EMasterReign::MoveTableStatisticsGossipToTableManager) {
             LoadStatisticsUpdateRequests(context);
         } // Otherwise loading is initiated from tablet manager.
+
+        // COMPAT(shakurov)
+        if (context.GetVersion() < EMasterReign::RefBuiltinEmptySchema) {
+            NeedFixEmptyMasterTableSchemaRefCounter_ = true;
+        }
+    }
+
+    virtual void OnBeforeSnapshotLoaded() override
+    {
+        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
+
+        NeedFixEmptyMasterTableSchemaRefCounter_ = false;
+    }
+
+    virtual void OnAfterSnapshotLoaded() override
+    {
+        TMasterAutomatonPart::OnAfterSnapshotLoaded();
+
+        // COMPAT(shakurov)
+        if (NeedFixEmptyMasterTableSchemaRefCounter_) {
+            GetEmptyMasterTableSchema()->RefObject();
+        }
     }
 
     void SaveKeys(NCellMaster::TSaveContext& context) const
@@ -600,6 +622,7 @@ public:
         }
 
         EmptyMasterTableSchema_ = DoCreateMasterTableSchema(EmptyMasterTableSchemaId_, EmptyTableSchema);
+        YT_VERIFY(EmptyMasterTableSchema_->RefObject() == 1);
     }
 
     TMasterTableSchema* CreateMasterTableSchema(const TTableSchema& tableSchema)
@@ -615,6 +638,20 @@ public:
 
     void ZombifySchema(TMasterTableSchema* schema)
     {
+        YT_VERIFY(schema != EmptyMasterTableSchema_);
+
+        if (!schema->ReferencingAccounts().empty()) {
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Table schema being destroyed is still referenced by some accounts (SchemaId: %v, AccountCount: %v)",
+                schema->GetId(),
+                schema->ReferencingAccounts().size());
+        }
+
+        if (!schema->ChargedMasterMemoryUsage().empty()) {
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Table schema being destroyed is still charged to some accounts (SchemaId: %v, AccountCount: %v)",
+                schema->GetId(),
+                schema->ChargedMasterMemoryUsage().size());
+        }
+
         TableSchemaToObjectMap_.erase(schema->GetTableSchemaToObjectMapIterator());
         schema->ResetTableSchemaToObjectMapIterator();
     }
@@ -704,6 +741,9 @@ private:
     TRandomAccessQueue<TNodeId, TStatisticsUpdateRequest> StatisticsUpdateRequests_;
     TPeriodicExecutorPtr StatisticsGossipExecutor_;
     IReconfigurableThroughputThrottlerPtr StatisticsGossipThrottler_;
+
+    // COMPAT(shakurov)
+    bool NeedFixEmptyMasterTableSchemaRefCounter_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 };

@@ -1496,10 +1496,11 @@ class TestSchemaDeduplication(YTEnvSetup):
     def _get_schema(self, strict):
         return make_schema([make_column("value", "string")], unique_keys=False, strict=strict)
 
-    @authors("ermolovd")
+    @authors("ermolovd", "shakurov")
     def test_empty_schema(self):
         create("table", "//tmp/table")
-        assert get("//tmp/table/@schema_duplicate_count") == 2
+        # 1 from the table, 1 from self-ref, 1 from event_log.
+        assert get("//tmp/table/@schema_duplicate_count") == 3
 
     @authors("ermolovd")
     def test_simple_schema(self):
