@@ -616,11 +616,13 @@ public:
     void ZombifySchema(TMasterTableSchema* schema)
     {
         TableSchemaToObjectMap_.erase(schema->GetTableSchemaToObjectMapIterator());
+        schema->ResetTableSchemaToObjectMapIterator();
     }
 
-    TMasterTableSchema* DoCreateMasterTableSchema(TMasterTableSchemaId id, const TTableSchema& tableSchema)
+    TMasterTableSchema* DoCreateMasterTableSchema(TMasterTableSchemaId id, TTableSchema tableSchema)
     {
-        auto [it, inserted] = TableSchemaToObjectMap_.emplace(tableSchema, nullptr);
+        auto sharedTableSchema = New<TTableSchema>(std::move(tableSchema));
+        auto [it, inserted] = TableSchemaToObjectMap_.emplace(std::move(sharedTableSchema), nullptr);
         YT_VERIFY(inserted);
 
         auto schemaHolder = std::make_unique<TMasterTableSchema>(id, it);
@@ -632,11 +634,12 @@ public:
         return schema;
     }
 
-    TMasterTableSchema::TTableSchemaToObjectMapIterator InitializeSchema(
+    TMasterTableSchema::TTableSchemaToObjectMapIterator RegisterSchema(
         TMasterTableSchema* schema,
-        const TTableSchema& tableSchema)
+        TTableSchema tableSchema)
     {
-        auto [it, inserted] = TableSchemaToObjectMap_.emplace(tableSchema, schema);
+        auto sharedTableSchema = New<TTableSchema>(std::move(tableSchema));
+        auto [it, inserted] = TableSchemaToObjectMap_.emplace(std::move(sharedTableSchema), schema);
         YT_VERIFY(inserted);
         return it;
     }
@@ -813,11 +816,11 @@ TMasterTableSchema* TTableManager::GetEmptyMasterTableSchema()
     return Impl_->GetEmptyMasterTableSchema();
 }
 
-TMasterTableSchema::TTableSchemaToObjectMapIterator TTableManager::InitializeSchema(
+TMasterTableSchema::TTableSchemaToObjectMapIterator TTableManager::RegisterSchema(
     TMasterTableSchema* schema,
-    const TTableSchema& tableSchema)
+    TTableSchema tableSchema)
 {
-    return Impl_->InitializeSchema(schema, tableSchema);
+    return Impl_->RegisterSchema(schema, std::move(tableSchema));
 }
 
 void TTableManager::SetTableSchema(TTableNode* table, TMasterTableSchema* schema)

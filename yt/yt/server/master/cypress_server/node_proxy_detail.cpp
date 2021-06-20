@@ -1716,7 +1716,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, BeginCopy)
     for (auto [schema, key] : copyContext.GetRegisteredSchemas()) {
         auto* entry = response->add_schemas();
         entry->set_key(key.Index);
-        ToProto(entry->mutable_schema(), schema->AsTableSchema());
+        ToProto(entry->mutable_schema(), *schema->AsTableSchema());
     }
 
     ToProto(response->mutable_portal_child_ids(), copyContext.PortalRootIds());

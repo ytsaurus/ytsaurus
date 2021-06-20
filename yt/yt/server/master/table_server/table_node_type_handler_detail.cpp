@@ -111,12 +111,12 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
                     THROW_ERROR_EXCEPTION("Both \"schema\" and \"schema_id\" specified and they refer to different schemas");
                 }
             } else {
-                if (schemaById->AsTableSchema() != *tableSchema) {
+                if (*schemaById->AsTableSchema() != *tableSchema) {
                     THROW_ERROR_EXCEPTION("Both \"schema\" and \"schema_id\" specified and the schemas do not match");
                 }
             }
         }
-        effectiveTableSchema = &schemaById->AsTableSchema();
+        effectiveTableSchema = schemaById->AsTableSchema().Get();
     } else if (tableSchema) {
         effectiveTableSchema = &*tableSchema;
     }
@@ -431,8 +431,7 @@ bool TTableNodeTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const TSt
 template <class TImpl>
 std::optional<std::vector<TString>> TTableNodeTypeHandlerBase<TImpl>::DoListColumns(TImpl* node) const
 {
-    YT_VERIFY(IsObjectAlive(node->GetSchema()));
-    const auto& schema = node->GetSchema()->AsTableSchema();
+    const auto& schema = *node->GetSchema()->AsTableSchema();
 
     std::vector<TString> result;
     result.reserve(schema.Columns().size());

@@ -1341,7 +1341,7 @@ public:
 
                 // Validate pivot keys against table schema.
                 for (const auto& pivotKey : pivotKeys) {
-                    ValidatePivotKey(pivotKey, table->GetSchema()->AsTableSchema());
+                    ValidatePivotKey(pivotKey, *table->GetSchema()->AsTableSchema());
                 }
             }
 
@@ -3326,7 +3326,7 @@ private:
                 req.set_mount_revision(tablet->GetMountRevision());
                 ToProto(req.mutable_table_id(), table->GetId());
 
-                ToProto(req.mutable_schema(), table->GetSchema()->AsTableSchema());
+                ToProto(req.mutable_schema(), *table->GetSchema()->AsTableSchema());
 
                 if (table->IsPhysicallySorted()) {
                     ToProto(req.mutable_pivot_key(), tablet->GetPivotKey());
@@ -3808,7 +3808,7 @@ private:
 
             SortUnique(chunksOrViews, TObjectRefComparer::Compare);
 
-            auto keyColumnCount = table->GetSchema()->AsTableSchema().GetKeyColumnCount();
+            auto keyColumnCount = table->GetSchema()->AsTableSchema()->GetKeyColumnCount();
 
             // Create new tablet chunk lists.
             for (int index = 0; index < newTabletCount; ++index) {

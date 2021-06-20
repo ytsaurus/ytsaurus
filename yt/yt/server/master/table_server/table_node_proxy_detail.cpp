@@ -103,7 +103,7 @@ void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
         if (context->Columns) {
             checkOptions.Columns = std::move(context->Columns);
         } else {
-            const auto& tableSchema = table->GetSchema()->AsTableSchema();
+            const auto& tableSchema = *table->GetSchema()->AsTableSchema();
             checkOptions.Columns.emplace();
             checkOptions.Columns->reserve(tableSchema.Columns().size());
             for (const auto& columnSchema : tableSchema.Columns()) {
@@ -402,12 +402,12 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
 
         case EInternedAttributeKey::Sorted:
             BuildYsonFluently(consumer)
-                .Value(table->GetSchema()->AsTableSchema().IsSorted());
+                .Value(table->GetSchema()->AsTableSchema()->IsSorted());
             return true;
 
         case EInternedAttributeKey::KeyColumns:
             BuildYsonFluently(consumer)
-                .Value(table->GetSchema()->AsTableSchema().GetKeyColumns());
+                .Value(table->GetSchema()->AsTableSchema()->GetKeyColumns());
             return true;
 
         case EInternedAttributeKey::SchemaId: {
@@ -434,7 +434,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 break;
             }
             BuildYsonFluently(consumer)
-                .Value(table->GetSchema()->AsTableSchema().GetKeyColumns());
+                .Value(table->GetSchema()->AsTableSchema()->GetKeyColumns());
             return true;
 
         case EInternedAttributeKey::Dynamic:
@@ -887,10 +887,8 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
             return ComputeChunkStatistics(Bootstrap_, chunkList, optimizeForExtractor);
         }
 
-        case EInternedAttributeKey::Schema: {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            return table->GetSchema()->AsYsonAsync(objectManager);
-        }
+        case EInternedAttributeKey::Schema:
+            return table->GetSchema()->AsYsonAsync();
 
         default:
             break;
@@ -1259,7 +1257,7 @@ void TTableNodeProxy::ValidateReadLimit(const NChunkClient::NProto::TReadLimit& 
 TComparator TTableNodeProxy::GetComparator() const
 {
     auto* schema = GetThisImpl()->GetSchema();
-    return schema->AsTableSchema().ToComparator();
+    return schema->AsTableSchema()->ToComparator();
 }
 
 bool TTableNodeProxy::DoInvoke(const IServiceContextPtr& context)
@@ -1277,7 +1275,7 @@ void TTableNodeProxy::ValidateBeginUpload()
     TBase::ValidateBeginUpload();
     const auto* table = GetThisImpl();
 
-    if (table->IsDynamic() && !table->GetSchema()->AsTableSchema().IsSorted()) {
+    if (table->IsDynamic() && !table->GetSchema()->AsTableSchema()->IsSorted()) {
         THROW_ERROR_EXCEPTION("Cannot upload into ordered dynamic table");
     }
 
@@ -1336,7 +1334,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
     ToProto(response->mutable_table_id(), trunkTable->GetId());
     response->set_dynamic(trunkTable->IsDynamic());
     ToProto(response->mutable_upstream_replica_id(), trunkTable->GetUpstreamReplicaId());
-    ToProto(response->mutable_schema(), trunkTable->GetSchema()->AsTableSchema());
+    ToProto(response->mutable_schema(), *trunkTable->GetSchema()->AsTableSchema());
     response->set_enable_detailed_profiling(trunkTable->GetEnableDetailedProfiling());
 
     THashSet<TTabletCell*> cells;
@@ -1378,14 +1376,14 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
 
     struct TAlterTableOptions
     {
-        std::optional<NTableClient::TTableSchema> Schema;
+        NTableClient::TTableSchemaPtr Schema;
         std::optional<bool> Dynamic;
         std::optional<NTabletClient::TTableReplicaId> UpstreamReplicaId;
         std::optional<NTableClient::ETableSchemaModification> SchemaModification;
     } options;
 
     if (request->has_schema()) {
-        options.Schema = FromProto<TTableSchema>(request->schema());
+        options.Schema = New<TTableSchema>(FromProto<TTableSchema>(request->schema()));
     }
     if (request->has_dynamic()) {
         options.Dynamic = request->dynamic();
@@ -1406,17 +1404,17 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     const auto& tabletManager = Bootstrap_->GetTabletManager();
     auto* table = LockThisImpl();
     auto dynamic = options.Dynamic.value_or(table->IsDynamic());
-    auto schema = options.Schema.value_or(table->GetSchema()->AsTableSchema());
+    auto schema = options.Schema ? options.Schema : table->GetSchema()->AsTableSchema();
 
     // NB: Sorted dynamic tables contain unique keys, set this for user.
     if (dynamic && options.Schema && options.Schema->IsSorted() && !options.Schema->GetUniqueKeys()) {
-        schema = *schema.ToUniqueKeys();
+        schema = schema->ToUniqueKeys();
     }
 
     if (table->IsNative()) {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
-        if (table->GetSchema()->AsTableSchema().HasNontrivialSchemaModification()) {
+        if (table->GetSchema()->AsTableSchema()->HasNontrivialSchemaModification()) {
             THROW_ERROR_EXCEPTION("Cannot alter table with nontrivial schema modification");
         }
 
@@ -1456,24 +1454,24 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             if (!table->IsEmpty()) {
                 THROW_ERROR_EXCEPTION("Schema modification can only be applied to an empty table");
             }
-            if (!schema.IsSorted()) {
+            if (!schema->IsSorted()) {
                 THROW_ERROR_EXCEPTION("Schema modification can only be applied to sorted schema");
             }
-            if (!schema.GetStrict()) {
+            if (!schema->GetStrict()) {
                 THROW_ERROR_EXCEPTION("Schema modification can only be applied to strict schema");
             }
         }
 
         ValidateTableSchemaUpdate(
-            table->GetSchema()->AsTableSchema(),
-            schema,
+            *table->GetSchema()->AsTableSchema(),
+            *schema,
             dynamic,
             table->IsEmpty() && !table->IsDynamic());
 
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
 
         if (!config->EnableDescendingSortOrder || (dynamic && !config->EnableDescendingSortOrderDynamic)) {
-            ValidateNoDescendingSortOrder(schema);
+            ValidateNoDescendingSortOrder(*schema);
         }
 
         if (options.Dynamic) {
@@ -1493,11 +1491,11 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
 
     if (options.Schema || options.SchemaModification) {
         if (options.SchemaModification) {
-            schema = *schema.ToModifiedSchema(*options.SchemaModification);
+            schema = schema->ToModifiedSchema(*options.SchemaModification);
         }
 
         const auto& tableManager = Bootstrap_->GetTableManager();
-        tableManager->GetOrCreateMasterTableSchema(schema, table);
+        tableManager->GetOrCreateMasterTableSchema(*schema, table);
 
         table->SetSchemaMode(ETableSchemaMode::Strong);
     }

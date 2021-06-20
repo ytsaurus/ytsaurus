@@ -73,9 +73,9 @@ public:
         const NTableClient::TTableSchema& schema);
 
     // For loading from snapshot.
-    TMasterTableSchema::TTableSchemaToObjectMapIterator InitializeSchema(
+    TMasterTableSchema::TTableSchemaToObjectMapIterator RegisterSchema(
         TMasterTableSchema* schema,
-        const NTableClient::TTableSchema& tableSchema);
+        NTableClient::TTableSchema tableSchema);
 
     TMasterTableSchema* GetEmptyMasterTableSchema();
 

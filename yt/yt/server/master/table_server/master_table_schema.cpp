@@ -3,13 +3,12 @@
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
+#include <yt/yt/server/master/object_server/helpers.h>
 #include <yt/yt/server/master/object_server/object_manager.h>
 
 #include <yt/yt/server/master/security_server/account.h>
 
 #include <yt/yt/server/master/table_server/table_manager.h>
-
-#include <yt/yt/client/table_client/unversioned_row.h>
 
 namespace NYT::NTableServer {
 
@@ -21,12 +20,9 @@ using namespace NYson;
 
 TMasterTableSchema::TMasterTableSchema(TMasterTableSchemaId id, TTableSchemaToObjectMapIterator it)
     : TBase(id)
-    , TableSchemaToObjectMapIterator_(it)
-{ }
-
-TMasterTableSchema::TMasterTableSchema(TMasterTableSchemaId id)
-    :TBase(id)
-{ }
+{
+    SetTableSchemaToObjectMapIterator(it);
+}
 
 void TMasterTableSchema::Save(NCellMaster::TSaveContext& context) const
 {
@@ -34,7 +30,7 @@ void TMasterTableSchema::Save(NCellMaster::TSaveContext& context) const
 
     using NYT::Save;
 
-    Save(context, AsTableSchema());
+    Save(context, *TableSchema_);
 }
 
 void TMasterTableSchema::Load(NCellMaster::TLoadContext& context)
@@ -46,57 +42,39 @@ void TMasterTableSchema::Load(NCellMaster::TLoadContext& context)
     auto tableSchema = Load<TTableSchema>(context);
 
     const auto& tableManager = context.GetBootstrap()->GetTableManager();
-    TableSchemaToObjectMapIterator_ = tableManager->InitializeSchema(this, tableSchema);
+    SetTableSchemaToObjectMapIterator(tableManager->RegisterSchema(this, std::move(tableSchema)));
 }
 
-const NTableClient::TTableSchema& TMasterTableSchema::AsTableSchema() const
+const NTableClient::TTableSchemaPtr& TMasterTableSchema::AsTableSchema() const
 {
-    return TableSchemaToObjectMapIterator_->first;
+    YT_ASSERT(IsObjectAlive(this));
+
+    return TableSchema_;
 }
 
-const TFuture<TYsonString>& TMasterTableSchema::AsYsonAsync(const NObjectServer::TObjectManagerPtr& objectManager)
+const TFuture<TYsonString>& TMasterTableSchema::AsYsonAsync() const
 {
-    YT_ASSERT(!IsDestroyed());
-    objectManager->EphemeralRefObject(this);
-    auto automatonInvoker = GetCurrentInvoker();
-
     if (!MemoizedYson_) {
-        const auto& rpcInvoker = NRpc::TDispatcher::Get()->GetHeavyInvoker();
-        MemoizedYson_ = BIND([objectManager, schema = this, automatonInvoker = std::move(automatonInvoker)] {
-            auto unrefSchema = [&] {
-                automatonInvoker->Invoke(BIND([schema, objectManager = std::move(objectManager)] {
-                    objectManager->EphemeralUnrefObject(schema);
-                }));
-            };
-
-            if (!IsObjectAlive(schema)) {
-                auto schemaId = schema->GetId();
-                unrefSchema();
-                THROW_ERROR_EXCEPTION("Schema object is already destroyed")
-                    << TErrorAttribute("object_id", schemaId);
-            }
-
-            auto result = NYTree::ConvertToYsonString(schema->AsTableSchema());
-            unrefSchema();
-            return result;
+        MemoizedYson_ = BIND([schema = AsTableSchema()] {
+            return NYTree::ConvertToYsonString(schema);
         })
-        .AsyncVia(rpcInvoker)
+        .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
         .Run();
     }
     return MemoizedYson_;
 }
 
-TYsonString TMasterTableSchema::AsYsonSync(const NObjectServer::TObjectManagerPtr& objectManager)
+TYsonString TMasterTableSchema::AsYsonSync() const
 {
     // It's quite likely that this schema has already been serialized. And even
     // if it hasn't, it's wise to start the serialization.
-    const auto& asyncYson = AsYsonAsync(objectManager);
-    if (asyncYson.IsSet() && asyncYson.Get().IsOK()) {
-        return asyncYson.Get().Value();
+    const auto& asyncYson = AsYsonAsync();
+    if (auto optionalYsonOrError = asyncYson.TryGet()) {
+        return optionalYsonOrError->ValueOrThrow();
     }
 
     // There's no escape - serialize it right here and now.
-    return NYTree::ConvertToYsonString(AsTableSchema());
+    return NYTree::ConvertToYsonString(*AsTableSchema());
 }
 
 bool TMasterTableSchema::RefBy(TAccount* account)
@@ -123,7 +101,7 @@ bool TMasterTableSchema::UnrefBy(TAccount* account)
 
 i64 TMasterTableSchema::GetMasterMemoryUsage(TAccount* account) const
 {
-    return ReferencingAccounts_.contains(account) ? AsTableSchema().GetMemoryUsage() : 0;
+    return ReferencingAccounts_.contains(account) ? AsTableSchema()->GetMemoryUsage() : 0;
 }
 
 i64 TMasterTableSchema::GetChargedMasterMemoryUsage(TAccount* account) const
@@ -144,6 +122,23 @@ void TMasterTableSchema::SetChargedMasterMemoryUsage(TAccount* account, i64 usag
             it->second = usage;
         }
     }
+}
+
+TMasterTableSchema::TTableSchemaToObjectMapIterator TMasterTableSchema::GetTableSchemaToObjectMapIterator() const
+{
+    return TableSchemaToObjectMapIterator_;
+}
+
+void TMasterTableSchema::SetTableSchemaToObjectMapIterator(TTableSchemaToObjectMapIterator it)
+{
+    TableSchemaToObjectMapIterator_ = it;
+    TableSchema_ = it->first;
+}
+
+void TMasterTableSchema::ResetTableSchemaToObjectMapIterator()
+{
+    TableSchemaToObjectMapIterator_ = {};
+    // NB: Retain TableSchema_ for possible future snapshot serialization.
 }
 
 ////////////////////////////////////////////////////////////////////////////////

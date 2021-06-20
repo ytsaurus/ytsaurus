@@ -781,7 +781,7 @@ bool TChunkMerger::CreateMergeJob(TNode* node, const TMergeJobInfo& jobInfo, TJo
     TChunkMergerWriterOptions chunkMergerWriterOptions;
     if (chunkOwner->GetType() == EObjectType::Table) {
         const auto* table = chunkOwner->As<TTableNode>();
-        ToProto(chunkMergerWriterOptions.mutable_schema(), table->GetSchema()->AsTableSchema());
+        ToProto(chunkMergerWriterOptions.mutable_schema(), *table->GetSchema()->AsTableSchema());
         chunkMergerWriterOptions.set_optimize_for(ToProto<int>(table->GetOptimizeFor()));
     }
     chunkMergerWriterOptions.set_compression_codec(ToProto<int>(chunkOwner->GetCompressionCodec()));
