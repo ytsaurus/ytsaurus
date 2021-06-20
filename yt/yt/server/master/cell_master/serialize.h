@@ -147,6 +147,7 @@ DEFINE_ENUM(EMasterReign,
     ((TrueTableSchemaObjects)                                       (1621))  // shakurov
     ((ChunkFormat)                                                  (1622))  // gritukan
     ((HunksAlter)                                                   (1623))  // babenko
+    ((RefBuiltinEmptySchema)                                        (1624))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
