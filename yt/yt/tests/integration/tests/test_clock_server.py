@@ -10,8 +10,8 @@ class TestClockServer(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_CLOCKS = 3
     NUM_NODES = 3
-    NUM_SCHEDULERS = 1
-    NUM_CONTROLLER_AGENTS = 1
+    NUM_SCHEDULERS = 0
+    NUM_CONTROLLER_AGENTS = 0
 
     @authors("savrus")
     def test_generate_timestamp(self):
@@ -33,9 +33,6 @@ class TestClockServer(YTEnvSetup):
         for timestamp_provider in ls("//sys/timestamp_providers"):
             assert "monitoring" in get("//sys/timestamp_providers/{}/orchid".format(timestamp_provider))
 
-    def _wait_for_hydra(self, rpc_address):
-        wait(lambda: exists("//sys/timestamp_providers/{}/orchid/monitoring/hydra".format(rpc_address)))
-
     @authors("aleksandra-zh")
     def test_leader_switch(self):
         timestamp_providers = ls("//sys/timestamp_providers")
@@ -45,16 +42,12 @@ class TestClockServer(YTEnvSetup):
         old_leader_rpc_address = None
         new_leader_rpc_address = None
 
-        def get_peer_state(rpc_address):
-            try:
-                return get("//sys/timestamp_providers/{}/orchid/monitoring/hydra/state".format(rpc_address))
-            except:
-                return None
+        def try_get_peer_state(rpc_address):
+            return get("//sys/timestamp_providers/{}/orchid/monitoring/hydra/state".format(rpc_address), None)
 
         while old_leader_rpc_address is None or new_leader_rpc_address is None:
             for rpc_address in timestamp_provider_rpc_addresses:
-                self._wait_for_hydra(rpc_address)
-                peer_state = get_peer_state(rpc_address)
+                peer_state = try_get_peer_state(rpc_address)
                 if peer_state == "leading":
                     old_leader_rpc_address = rpc_address
                 elif peer_state == "following":
@@ -62,23 +55,27 @@ class TestClockServer(YTEnvSetup):
 
         switch_leader(cell_id, new_leader_rpc_address)
 
-        wait(lambda: get_peer_state(new_leader_rpc_address) == "leading")
-        wait(lambda: get_peer_state(old_leader_rpc_address) == "following")
+        wait(lambda: try_get_peer_state(new_leader_rpc_address) == "leading")
+        wait(lambda: try_get_peer_state(old_leader_rpc_address) == "following")
 
     @authors("aleksandra-zh")
     def test_build_snapshot(self):
         timestamp_providers = ls("//sys/timestamp_providers")
-        ts = timestamp_providers[0]
-        cell_id = get("//sys/timestamp_providers/{}/orchid/config/clock_cell/cell_id".format(ts))
+        rpc_address = timestamp_providers[0]
+        cell_id = get("//sys/timestamp_providers/{}/orchid/config/clock_cell/cell_id".format(rpc_address))
+
+        def try_get_last_snapshot_id():
+            return get("//sys/timestamp_providers/{}/orchid/monitoring/hydra/last_snapshot_id".format(rpc_address))
 
         def get_last_snapshot_id():
-            self._wait_for_hydra(ts)
-            return int(get("//sys/timestamp_providers/{}/orchid/monitoring/hydra/committed_version".format(ts)).split(":")[0])
+            wait(lambda: try_get_last_snapshot_id() is not None)
+            return try_get_last_snapshot_id()
 
         last_snapshot_id = get_last_snapshot_id()
+
         build_snapshot(cell_id=cell_id)
 
-        wait(lambda: get_last_snapshot_id() == last_snapshot_id + 1)
+        wait(lambda: get_last_snapshot_id() > last_snapshot_id)
 
 ##################################################################
 
