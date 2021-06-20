@@ -119,7 +119,7 @@ protected:
         const NProfiling::TProfiler& profiler = {});
 
     // Called once when the value is inserted to the cache.
-    // If item weight ever changes, UpdateWeight() should be called to apply the changes. 
+    // If item weight ever changes, UpdateWeight() should be called to apply the changes.
     virtual i64 GetWeight(const TValuePtr& value) const;
 
     virtual void OnAdded(const TValuePtr& value);
@@ -133,22 +133,18 @@ private:
     struct TItem
         : public TIntrusiveListItem<TItem>
     {
-        TItem()
-            : ValuePromise(NewPromise<TValuePtr>())
-        { }
+        TItem();
+        explicit TItem(TValuePtr value);
 
-        explicit TItem(TValuePtr value)
-            : ValuePromise(MakePromise(TValuePtr(value)))
-            , Value(std::move(value))
-        { }
+        TValueFuture GetValueFuture() const;
 
         TValuePromise ValuePromise;
         TValuePtr Value;
         i64 CachedWeight;
         //! Counter for accurate calculation of AsyncHitWeight.
         //! It can be updated concurrently under the ReadLock.
-        std::atomic<i32> AsyncHitCount = 0;
-        bool Younger;
+        std::atomic<int> AsyncHitCount = 0;
+        bool Younger = false;
     };
 
     struct TShard
@@ -177,12 +173,12 @@ private:
      * Every request counts to one of the following metric types:
      *
      * SyncHit* - Item is present in the cache and contains the value.
-     * 
+     *
      * AsyncHit* - Item is present in the cache and contains the value future.
      * Caller should wait till the concurrent request set the value.
-     * 
+     *
      * Missed* - Item is missing in the cache and should be requested.
-     *  
+     *
      * Hit/Missed counters are updated immediately, while the update of
      * all Weight* metrics can be delayed till the EndInsert call,
      * because we do not know the weight of the object before it arrives.
@@ -202,6 +198,8 @@ private:
 
     bool Touch(TShard* shard, TItem* item);
     void DrainTouchBuffer(TShard* shard);
+
+    TValueFuture DoLookup(TShard* shard, const TKey& key);
 
     void DoTryRemove(const TKey& key, const TValuePtr& value, bool forbidResurrection);
 

@@ -175,6 +175,29 @@ TEST(TAsyncSlruCacheTest, Resurrection)
     }
 }
 
+TEST(TAsyncSlruCacheTest, LookupBetweenBeginAndEndInsert)
+{
+    const int cacheSize = 10;
+    auto config = CreateCacheConfig(cacheSize);
+    auto cache = New<TSimpleSlruCache>(config);
+
+    auto cookie = cache->BeginInsert(1);
+    EXPECT_TRUE(cookie.IsActive());
+
+    EXPECT_FALSE(cache->Find(1).operator bool ());
+
+    auto future = cache->Lookup(1);
+    EXPECT_TRUE(future.operator bool());
+    EXPECT_FALSE(future.IsSet());
+
+    auto value = New<TSimpleCachedValue>(1, 10);
+    cookie.EndInsert(value);
+
+    EXPECT_TRUE(future.IsSet());
+    EXPECT_TRUE(future.Get().IsOK());
+    EXPECT_EQ(value, future.Get().Value());
+}
+
 TEST(TAsyncSlruCacheTest, UpdateWeight)
 {
     const int cacheSize = 10;
