@@ -7,9 +7,9 @@ namespace NYT::NDataNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMasterJobHeartbeatProcessor
-    : public NJobAgent::TJobController::IJobHeartbeatProcessor
+    : public NJobAgent::TJobController::TJobHeartbeatProcessorBase
 {
-    using IJobHeartbeatProcessor::IJobHeartbeatProcessor;
+    using TJobHeartbeatProcessorBase::TJobHeartbeatProcessorBase;
     
     virtual void PrepareRequest(
         NObjectClient::TCellTag cellTag,

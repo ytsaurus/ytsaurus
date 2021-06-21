@@ -1,15 +1,14 @@
 #include "job_heartbeat_processor.h"
-
-#include <yt/yt/server/node/exec_agent/private.h>
+#include "private.h"
+#include "slot_manager.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
-#include <yt/yt/server/node/exec_agent/slot_manager.h>
 
 namespace NYT::NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-auto& Logger = ExecAgentLogger;
+static const auto& Logger = ExecAgentLogger;
 
 using TJobController = NJobAgent::TJobController;
 using IJobPtr = NJobAgent::IJobPtr;
@@ -66,7 +65,6 @@ void TSchedulerJobHeartbeatProcessor::PrepareRequest(
     // A container for all scheduler jobs that are candidate to send statistics. This set contains
     // only the running jobs since all completed/aborted/failed jobs always send their statistics.
     std::vector<std::pair<IJobPtr, TJobStatus*>> runningJobs;
-
 
     for (const auto& job : JobController_->GetJobs()) {
         auto jobId = job->GetId();
