@@ -3723,7 +3723,7 @@ void TOperationControllerBase::AnalyzeMemoryAndTmpfsUsage()
                 memoryErrors.push_back(TError(
                     "Jobs of type %Qlv use less than %.1f%% of requested memory",
                     task->GetVertexDescriptor(),
-                    1.0 - Config->OperationAlerts->MemoryUsageAlertMaxUnusedRatio)
+                    100.0 * (1.0 - Config->OperationAlerts->MemoryUsageAlertMaxUnusedRatio))
                     << TErrorAttribute("memory_reserve", memoryInfo.MemoryReserve)
                     << TErrorAttribute("memory_usage", memoryUsage));
             }
