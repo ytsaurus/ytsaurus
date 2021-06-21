@@ -148,6 +148,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChunkFormat)                                                  (1622))  // gritukan
     ((HunksAlter)                                                   (1623))  // babenko
     ((RefBuiltinEmptySchema)                                        (1624))  // shakurov
+    ((DoNotMergeDynamicTables)                                      (1625))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////
