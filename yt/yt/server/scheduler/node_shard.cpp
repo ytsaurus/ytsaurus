@@ -1335,6 +1335,7 @@ void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
     }
     FromProto(&result->Duration, response.duration());
     result->IncarnationId = entry.IncarnationId;
+    result->ControllerEpoch = response.controller_epoch();
 
     entry.Promise.Set(std::move(result));
 
@@ -2449,11 +2450,12 @@ void TNodeShard::RegisterJob(const TJobPtr& job)
     YT_VERIFY(node->IdToJob().emplace(job->GetId(), job).second);
     ++ActiveJobCount_;
 
-    YT_LOG_DEBUG("Job registered (JobId: %v, JobType: %v, Revived: %v, OperationId: %v)",
+    YT_LOG_DEBUG("Job registered (JobId: %v, JobType: %v, Revived: %v, OperationId: %v, ControllerEpoch: %v)",
         job->GetId(),
         job->GetType(),
         job->IsRevived(),
-        job->GetOperationId());
+        job->GetOperationId(),
+        job->GetControllerEpoch());
 }
 
 void TNodeShard::UnregisterJob(const TJobPtr& job, bool enableLogging)
