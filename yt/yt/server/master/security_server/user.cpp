@@ -270,6 +270,11 @@ void TUser::SetRequestQueueSize(int size)
     RequestQueueSizeSummary_.Record(size);
 }
 
+void TUser::ResetRequestQueueSize()
+{
+    RequestQueueSize_ = 0;
+}
+
 void TUser::UpdateCounters(const TUserWorkload& workload)
 {
     RequestCounter_.Increment(workload.RequestCount);
