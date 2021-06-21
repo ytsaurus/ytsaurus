@@ -1,4 +1,8 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import (
+    YTEnvSetup,
+    Restarter,
+    CONTROLLER_AGENTS_SERVICE,
+)
 
 from yt_commands import (  # noqa
     authors, print_debug, wait, wait_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
@@ -45,6 +49,8 @@ import yt.environment.init_operation_archive as init_operation_archive
 
 from flaky import flaky
 
+import pytest
+
 import time
 
 
@@ -61,6 +67,21 @@ class TestSpeculativeJobEngine(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 500,
+            "operations_update_period": 100,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "total_confirmation_period": 5000,
+            }
+        }
+    }
 
     @authors("renadeen")
     def test_both_jobs_ends_simultaneously(self):
@@ -102,6 +123,36 @@ class TestSpeculativeJobEngine(YTEnvSetup):
         job_counters = get(op.get_path() + "/@progress/jobs")
         assert job_counters["aborted"]["scheduled"]["speculative_run_lost"] == 0
         assert job_counters["aborted"]["scheduled"]["speculative_run_won"] == 1
+
+    @authors("gritukan")
+    @pytest.mark.parametrize("revive_type", ["before_scheduling", "after_scheduling"])
+    def test_abort_speculative_job_after_revival(self, revive_type):
+        spec = {"resource_limits": {"user_slots": 0}, "testing": {"testing_speculative_launch_mode": "always"}}
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec=spec, job_count=1)
+        op.wait_for_fresh_snapshot()
+
+        if revive_type == "before_scheduling":
+            with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+                pass
+
+        update_op_parameters(op.id, parameters={"scheduling_options_per_pool_tree": {
+            "default": {"resource_limits": {"user_slots": 100}}},
+        })
+
+        wait_breakpoint(job_count=2)
+        wait(lambda: get(op.get_path() + "/@progress/jobs")["running"] == 2)
+        original, speculative = get_sorted_jobs(op)
+
+        if revive_type == "after_scheduling":
+            with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+                pass
+
+        release_breakpoint(job_id=original["id"])
+        op.track()
+
+        job_counters = get(op.get_path() + "/@progress/jobs")
+        assert job_counters["aborted"]["scheduled"]["speculative_run_lost"] == 1
+        assert job_counters["aborted"]["scheduled"]["speculative_run_won"] == 0
 
     @authors("renadeen")
     def test_speculative_job_fail_fails_whole_operation(self):
