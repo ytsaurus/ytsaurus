@@ -1,10 +1,16 @@
-import threading
-
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
-from yt_commands import *  # noqa
-from yt_helpers import *
+
+from yt_commands import (
+    authors, wait, print_debug,
+    get, set, ls, create, read_table, write_table,
+    get_singular_chunk_id)
+
+from yt_helpers import Profiler
 
 from flaky import flaky
+
+import threading
+import time
 
 
 def clear_everything_after_test(func):
@@ -147,9 +153,12 @@ class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSyn
     @clear_everything_after_test
     def test_wow_such_flappy_test_so_many_failures(self):
         metric_s_delta = Profiler.at_node(self.seed).counter("data_node/block_cache/compressed_data/hit_weight_sync")
-        metric_ns0_delta = Profiler.at_node(self.non_seeds[0]).counter("data_node/block_cache/compressed_data/hit_weight_sync")
-        metric_ns1_delta = Profiler.at_node(self.non_seeds[1]).counter("data_node/block_cache/compressed_data/hit_weight_sync")
-        metric_ns2_delta = Profiler.at_node(self.non_seeds[2]).counter("data_node/block_cache/compressed_data/hit_weight_sync")
+        metric_ns0_delta = Profiler.at_node(self.non_seeds[0]).counter(
+            "data_node/block_cache/compressed_data/hit_weight_sync")
+        metric_ns1_delta = Profiler.at_node(self.non_seeds[1]).counter(
+            "data_node/block_cache/compressed_data/hit_weight_sync")
+        metric_ns2_delta = Profiler.at_node(self.non_seeds[2]).counter(
+            "data_node/block_cache/compressed_data/hit_weight_sync")
 
         def read_table():
             for i in range(10):
