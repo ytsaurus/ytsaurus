@@ -146,6 +146,7 @@ public:
 
     int GetRequestQueueSize() const;
     void SetRequestQueueSize(int size);
+    void ResetRequestQueueSize();
 
     using TStatistics = TEnumIndexedVector<EUserWorkloadType, TUserWorkloadStatistics>;
     DEFINE_BYREF_RW_PROPERTY(TStatistics, Statistics);

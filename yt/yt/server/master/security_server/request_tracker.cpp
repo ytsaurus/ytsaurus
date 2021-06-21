@@ -81,7 +81,7 @@ void TRequestTracker::Stop()
     for (auto [userId, user] : securityManager->Users()) {
         user->SetRequestRateThrottler(nullptr, EUserWorkloadType::Read);
         user->SetRequestRateThrottler(nullptr, EUserWorkloadType::Write);
-        user->SetRequestQueueSize(0);
+        user->ResetRequestQueueSize();
     }
 
     AlivePeerCount_ = 0;
