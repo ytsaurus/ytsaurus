@@ -66,4 +66,11 @@ inline const TDynamicAttributes& TScheduleJobsContext::DynamicAttributesFor(cons
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline bool TSchedulerOperationElement::AreDetailedLogsEnabled() const
+{
+    return RuntimeParameters_->EnableDetailedLogs;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NScheduler

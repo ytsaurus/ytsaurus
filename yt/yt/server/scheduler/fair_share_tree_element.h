@@ -394,7 +394,7 @@ public:
     virtual bool IsAggressiveStarvationPreemptionAllowed() const = 0;
     virtual bool HasAggressivelyStarvingElements(TScheduleJobsContext* context, bool aggressiveStarvationEnabled) const = 0;
 
-    virtual void CalculateCurrentResourceUsage(TScheduleJobsContext* context) = 0;
+    virtual const TJobResources& CalculateCurrentResourceUsage(TScheduleJobsContext* context) = 0;
 
     int GetTreeIndex() const;
 
@@ -595,7 +595,7 @@ public:
 
     virtual TFairShareScheduleJobResult ScheduleJob(TScheduleJobsContext* context, bool ignorePacking) override;
 
-    virtual void CalculateCurrentResourceUsage(TScheduleJobsContext* context) override;
+    virtual const TJobResources& CalculateCurrentResourceUsage(TScheduleJobsContext* context) override;
 
     virtual bool IsAggressiveStarvationEnabled() const;
     virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
@@ -1129,7 +1129,7 @@ public:
         TDynamicAttributesList* dynamicAttributesList,
         const TChildHeapMap& childHeapMap) override;
 
-    virtual void CalculateCurrentResourceUsage(TScheduleJobsContext* context) override;
+    virtual const TJobResources& CalculateCurrentResourceUsage(TScheduleJobsContext* context) override;
 
     virtual TFairShareScheduleJobResult ScheduleJob(TScheduleJobsContext* context, bool ignorePacking) override;
 

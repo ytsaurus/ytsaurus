@@ -1001,15 +1001,16 @@ void TSchedulerCompositeElement::IncreaseRunningOperationCount(int delta)
     }
 }
 
-void TSchedulerCompositeElement::CalculateCurrentResourceUsage(TScheduleJobsContext* context)
+const TJobResources& TSchedulerCompositeElement::CalculateCurrentResourceUsage(TScheduleJobsContext* context)
 {
     auto& attributes = context->DynamicAttributesFor(this);
 
     attributes.ResourceUsage = Attributes_.UnschedulableOperationsResourceUsage;
     for (const auto& child : SchedulableChildren_) {
-        child->CalculateCurrentResourceUsage(context);
-        attributes.ResourceUsage += child->GetCurrentResourceUsage(context->DynamicAttributesList());
+        attributes.ResourceUsage += child->CalculateCurrentResourceUsage(context);
     }
+
+    return attributes.ResourceUsage;
 }
 
 void TSchedulerCompositeElement::PrescheduleJob(
@@ -2587,13 +2588,15 @@ void TSchedulerOperationElement::UpdateControllerConfig(const TFairShareStrategy
     ControllerConfig_ = config;
 }
 
-void TSchedulerOperationElement::CalculateCurrentResourceUsage(TScheduleJobsContext* context)
+const TJobResources& TSchedulerOperationElement::CalculateCurrentResourceUsage(TScheduleJobsContext* context)
 {
     auto& attributes = context->DynamicAttributesFor(this);
 
     attributes.ResourceUsage = IsAlive()
         ? GetInstantResourceUsage()
         : TJobResources();
+
+    return attributes.ResourceUsage;
 }
 
 void TSchedulerOperationElement::PrescheduleJob(
@@ -3470,11 +3473,6 @@ void TSchedulerOperationElement::InitOrUpdateSchedulingSegment(ESegmentedSchedul
 bool TSchedulerOperationElement::IsLimitingAncestorCheckEnabled() const
 {
     return Spec_->EnableLimitingAncestorCheck;
-}
-
-bool TSchedulerOperationElement::AreDetailedLogsEnabled() const
-{
-    return RuntimeParameters_->EnableDetailedLogs;
 }
 
 bool TSchedulerOperationElement::IsSchedulingSegmentCompatibleWithNode(ESchedulingSegment nodeSegment, const TDataCenter& nodeDataCenter) const
