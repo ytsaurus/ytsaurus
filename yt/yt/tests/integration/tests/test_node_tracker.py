@@ -162,7 +162,7 @@ class TestNodeTracker(YTEnvSetup):
         wait(lambda: can_write())
 
     @authors("gritukan")
-    @pytest.skip("Per-slot location statistics can be heavy; enable after switching to new heartbeats")
+    @pytest.mark.skip("Per-slot location statistics can be heavy; enable after switching to new heartbeats")
     def test_slot_location_statistics(self):
         def get_max_slot_space_usage():
             max_slot_space_usage = -1
