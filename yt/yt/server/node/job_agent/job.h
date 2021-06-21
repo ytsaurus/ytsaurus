@@ -130,7 +130,7 @@ struct IJob
     virtual void Interrupt() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IJob);
+DEFINE_REFCOUNTED_TYPE(IJob)
 
 using TJobFactory = TCallback<IJobPtr(
     TJobId jobId,

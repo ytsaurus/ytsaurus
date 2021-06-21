@@ -5,7 +5,7 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h> 
+#include <yt/yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
 
 #include <yt/yt/core/yson/consumer.h>
 
@@ -100,11 +100,13 @@ public:
     DECLARE_SIGNAL(void(const IJobPtr&), JobFinished);
     DECLARE_SIGNAL(void(const TError& error), JobProxyBuildInfoUpdated);
 
-    class IJobHeartbeatProcessor
+    class TJobHeartbeatProcessorBase
         : public TRefCounted
     {
     public:
-        IJobHeartbeatProcessor(TJobController* const controller, NClusterNode::TBootstrap* const bootstrap);
+        TJobHeartbeatProcessorBase(
+            TJobController* controller,
+            NClusterNode::TBootstrap* bootstrap);
 
         virtual void PrepareRequest(
             NObjectClient::TCellTag cellTag,
@@ -122,7 +124,7 @@ public:
             const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
             NJobTrackerClient::NProto::TJobSpec&& jobSpec);
         const THashMap<TJobId, TOperationId>& GetSpecFetchFailedJobIds();
-        bool StatisticsThrottlerTryAcquire(const int size);
+        bool StatisticsThrottlerTryAcquire(int size);
 
         void PrepareHeartbeatCommonRequestPart(const TReqHeartbeatPtr& request);
         void ProcessHeartbeatCommonResponsePart(const TRspHeartbeatPtr& response);
@@ -131,12 +133,14 @@ public:
         NClusterNode::TBootstrap* const Bootstrap_;
     };
 
-    using IJobHeartbeatProcessorPtr = TIntrusivePtr<IJobHeartbeatProcessor>;
+    using TJobHeartbeatProcessorBasePtr = TIntrusivePtr<TJobHeartbeatProcessorBase>;
 
-    friend class IJobHeartbeatProcessor;
+    friend class TJobHeartbeatProcessorBase;
 
     template <typename T>
-    void AddHeartbeatProcessor(NObjectClient::EObjectType jobObjectType, NClusterNode::TBootstrap* const bootstrap)
+    void AddHeartbeatProcessor(
+        NObjectClient::EObjectType jobObjectType,
+        NClusterNode::TBootstrap* const bootstrap)
     {
         auto heartbeatProcessor = New<T>(this, bootstrap);
         RegisterHeartbeatProcessor(jobObjectType, std::move(heartbeatProcessor));
@@ -148,7 +152,7 @@ private:
 
     void RegisterHeartbeatProcessor(
         NObjectClient::EObjectType type,
-        IJobHeartbeatProcessorPtr heartbeatProcessor);
+        TJobHeartbeatProcessorBasePtr heartbeatProcessor);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobController)

@@ -1,12 +1,11 @@
 #include "job_heartbeat_processor.h"
-
-#include <yt/yt/server/node/data_node/private.h>
+#include "private.h"
 
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-auto& Logger = DataNodeLogger;
+static const auto& Logger = DataNodeLogger;
 
 using TJobController = NJobAgent::TJobController;
 using EJobState = NJobTrackerClient::EJobState;

@@ -107,7 +107,7 @@ public:
     
     void RegisterHeartbeatProcessor(
         EObjectType type,
-        IJobHeartbeatProcessorPtr heartbeatProcessor);
+        TJobHeartbeatProcessorBasePtr heartbeatProcessor);
 
     IJobPtr FindJob(TJobId jobId) const;
     IJobPtr GetJobOrThrow(TJobId jobId) const;
@@ -135,7 +135,7 @@ public:
         std::vector<NJobTrackerClient::NProto::TJobStartInfo> jobStartInfos);
 
 private:
-    friend class TJobController::IJobHeartbeatProcessor;
+    friend class TJobController::TJobHeartbeatProcessorBase;
 
     const TJobControllerConfigPtr Config_;
     NClusterNode::TBootstrap* const Bootstrap_;
@@ -143,7 +143,7 @@ private:
     TAtomicObject<TJobControllerDynamicConfigPtr> DynamicConfig_ = New<TJobControllerDynamicConfig>();
 
     THashMap<EJobType, TJobFactory> JobFactoryMap_;
-    THashMap<EObjectType, IJobHeartbeatProcessorPtr> JobHeartbeatProcessors_;
+    THashMap<EObjectType, TJobHeartbeatProcessorBasePtr> JobHeartbeatProcessors_;
 
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, JobMapLock_);
     THashMap<TJobId, IJobPtr> JobMap_;
@@ -380,7 +380,7 @@ void TJobController::TImpl::RegisterJobFactory(EJobType type, TJobFactory factor
     YT_VERIFY(JobFactoryMap_.emplace(type, factory).second);
 }
 
-void TJobController::TImpl::RegisterHeartbeatProcessor(EObjectType type, IJobHeartbeatProcessorPtr heartbeatProcessor)
+void TJobController::TImpl::RegisterHeartbeatProcessor(EObjectType type, TJobHeartbeatProcessorBasePtr heartbeatProcessor)
 {
     YT_VERIFY(JobHeartbeatProcessors_.emplace(type, std::move(heartbeatProcessor)).second);
 }
@@ -1763,62 +1763,61 @@ DELEGATE_SIGNAL(TJobController, void(const TError&), JobProxyBuildInfoUpdated, *
 
 void TJobController::RegisterHeartbeatProcessor(
     const EObjectType type,
-    IJobHeartbeatProcessorPtr heartbeatProcessor)
+    TJobHeartbeatProcessorBasePtr heartbeatProcessor)
 {
     Impl_->RegisterHeartbeatProcessor(type, std::move(heartbeatProcessor));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobController::IJobHeartbeatProcessor::IJobHeartbeatProcessor(
+TJobController::TJobHeartbeatProcessorBase::TJobHeartbeatProcessorBase(
     TJobController* const controller, 
     NClusterNode::TBootstrap* const bootstrap) 
-    : JobController_{controller}, Bootstrap_{bootstrap}
-{
+    : JobController_(controller)
+    , Bootstrap_(bootstrap)
+{ }
 
-}
-
-void TJobController::IJobHeartbeatProcessor::RemoveSchedulerJobsOnFatalAlert()
+void TJobController::TJobHeartbeatProcessorBase::RemoveSchedulerJobsOnFatalAlert()
 {
     JobController_->Impl_->RemoveSchedulerJobsOnFatalAlert();
 }
 
-bool TJobController::IJobHeartbeatProcessor::NeedTotalConfirmation()
+bool TJobController::TJobHeartbeatProcessorBase::NeedTotalConfirmation()
 {
     return JobController_->Impl_->NeedTotalConfirmation();
 }
 
-TFuture<void> TJobController::IJobHeartbeatProcessor::RequestJobSpecsAndStartJobs(
+TFuture<void> TJobController::TJobHeartbeatProcessorBase::RequestJobSpecsAndStartJobs(
     std::vector<NJobTrackerClient::NProto::TJobStartInfo> jobStartInfos)
 {
     return JobController_->Impl_->RequestJobSpecsAndStartJobs(std::move(jobStartInfos));
 }
 
-IJobPtr TJobController::IJobHeartbeatProcessor::CreateJob(
-        TJobId jobId,
-        TOperationId operationId,
-        const TNodeResources& resourceLimits,
-        TJobSpec&& jobSpec)
+IJobPtr TJobController::TJobHeartbeatProcessorBase::CreateJob(
+    TJobId jobId,
+    TOperationId operationId,
+    const TNodeResources& resourceLimits,
+    TJobSpec&& jobSpec)
 {
     return JobController_->Impl_->CreateJob(jobId, operationId, resourceLimits, std::move(jobSpec));
 }
 
-const THashMap<TJobId, TOperationId>& TJobController::IJobHeartbeatProcessor::GetSpecFetchFailedJobIds()
+const THashMap<TJobId, TOperationId>& TJobController::TJobHeartbeatProcessorBase::GetSpecFetchFailedJobIds()
 {
     return JobController_->Impl_->GetSpecFetchFailedJobIds();
 }
 
-bool TJobController::IJobHeartbeatProcessor::StatisticsThrottlerTryAcquire(const int size)
+bool TJobController::TJobHeartbeatProcessorBase::StatisticsThrottlerTryAcquire(const int size)
 {
     return JobController_->Impl_->StatisticsThrottlerTryAcquire(size);
 }
 
-void TJobController::IJobHeartbeatProcessor::PrepareHeartbeatCommonRequestPart(const TReqHeartbeatPtr& request)
+void TJobController::TJobHeartbeatProcessorBase::PrepareHeartbeatCommonRequestPart(const TReqHeartbeatPtr& request)
 {
     JobController_->Impl_->PrepareHeartbeatCommonRequestPart(request);
 }
 
-void TJobController::IJobHeartbeatProcessor::ProcessHeartbeatCommonResponsePart(const TRspHeartbeatPtr& response)
+void TJobController::TJobHeartbeatProcessorBase::ProcessHeartbeatCommonResponsePart(const TRspHeartbeatPtr& response)
 {
     JobController_->Impl_->ProcessHeartbeatCommonResponsePart(response);
 }
