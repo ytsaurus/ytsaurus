@@ -1054,9 +1054,9 @@ public:
         reduceJobSpecExt->set_join_key_column_count(ForeignSortColumns_.size());
     }
 
-    virtual void DoInitialize() override
+    virtual void CustomPrepare() override
     {
-        TSortedControllerBase::DoInitialize();
+        TSortedControllerBase::CustomPrepare();
 
         int teleportOutputCount = 0;
         for (int i = 0; i < static_cast<int>(OutputTables_.size()); ++i) {

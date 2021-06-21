@@ -1462,6 +1462,60 @@ done
             {"Host": "bar", "Path": "foo", "LastAccess": "a"},
         ]
 
+    @authors("gritukan")
+    def test_foreign_table_read_range(self):
+        create("table", "//tmp/in1")
+        write_table(
+            "//tmp/in1",
+            [
+                {"key": -1, "value": 1},
+                {"key": 1, "value": 2},
+                {"key": 3, "value": 3},
+                {"key": 7, "value": 4},
+            ],
+            sorted_by=[{"name": "key", "sort_order": "ascending"}],
+        )
+
+        create("table", "//tmp/in2")
+        write_table(
+            "//tmp/in2",
+            [
+                {"key": -1, "value": 5},
+                {"key": 1, "value": 6},
+                {"key": 3, "value": 7},
+                {"key": 5, "value": 8},
+            ],
+            sorted_by=[{"name": "key", "sort_order": "ascending"}],
+        )
+
+        create("table", "//tmp/out")
+
+        primary_table = "<ranges=[{lower_limit={key=[0]};upper_limit={key=[2]}}]>//tmp/in1"
+        foreign_table = "<foreign=true;ranges=[{lower_limit={key=[0]};upper_limit={key=[2]}}]>//tmp/in2"
+
+        join_reduce(
+            in_=[primary_table, foreign_table],
+            out="<sorted_by=[{name=key;sort_order=ascending}]>//tmp/out",
+            join_by={"name": "key", "sort_order": "ascending"},
+            command="cat",
+            spec={"reducer": {"format": "dsv"}},
+        )
+
+        assert read_table("//tmp/out") == [
+            {"key": "1", "value": "2"},
+            {"key": "1", "value": "6"},
+        ]
+
+        with raises_yt_error("does not support foreign tables with multiple ranges"):
+            foreign_table = "<foreign=true;ranges=[{lower_limit={key=[0]};upper_limit={key=[2]}};{lower_limit={key=[3]};upper_limit={key=[4]}}]>//tmp/in2"
+            join_reduce(
+                in_=[primary_table, foreign_table],
+                out="<sorted_by=[{name=key;sort_order=ascending}]>//tmp/out",
+                join_by={"name": "key", "sort_order": "ascending"},
+                command="cat",
+                spec={"reducer": {"format": "dsv"}},
+            )
+
 
 class TestSchedulerJoinReduceCommandsMulticell(TestSchedulerJoinReduceCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
