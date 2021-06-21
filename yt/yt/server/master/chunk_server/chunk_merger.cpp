@@ -978,6 +978,15 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
         return;
     }
 
+    if (chunkOwner->GetType() == EObjectType::Table) {
+        auto* table = chunkOwner->As<TTableNode>();
+        if (table->IsDynamic()) {
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cannot replace chunks after merge: table is dynamic (NodeId: %v)",
+                chunkOwner->GetId());
+            ++ChunkReplacementFailed_;
+            return;
+        }
+    }
     auto* oldChunkList = chunkOwner->GetChunkList();
 
     auto newChunkId = FromProto<TChunkId>(request->new_chunk_id());
