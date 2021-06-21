@@ -89,22 +89,20 @@ TFuture<void> TSlotLocation::Initialize()
                 .ThrowOnError();
 
             ValidateMinimumSpace();
-
+        
+            auto slotLocationBuilderConfig = New<TSlotLocationBuilderConfig>();
+            slotLocationBuilderConfig->LocationPath = Config_->Path;
+            slotLocationBuilderConfig->NodeUid = getuid();
             for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
-                auto slotLocationBuilderConfig = New<TSlotLocationBuilderConfig>();
-                slotLocationBuilderConfig->LocationPath = Config_->Path;
-                slotLocationBuilderConfig->NodeUid = getuid();
-                for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
-                    auto slotConfig = New<TSlotConfig>();
-                    slotConfig->Index = slotIndex;
-                    if (!Bootstrap_->IsSimpleEnvironment()) {
-                        slotConfig->Uid = SlotIndexToUserId_(slotIndex);
-                    }
-                    slotLocationBuilderConfig->SlotConfigs.push_back(std::move(slotConfig));
+                auto slotConfig = New<TSlotConfig>();
+                slotConfig->Index = slotIndex;
+                if (!Bootstrap_->IsSimpleEnvironment()) {
+                    slotConfig->Uid = SlotIndexToUserId_(slotIndex);
                 }
-
-                RunTool<TSlotLocationBuilderTool>(slotLocationBuilderConfig);
+                slotLocationBuilderConfig->SlotConfigs.push_back(std::move(slotConfig));
             }
+
+            RunTool<TSlotLocationBuilderTool>(slotLocationBuilderConfig);
         } catch (const std::exception& ex) {
             auto error = TError("Failed to initialize slot location %v", Config_->Path)
                 << ex;
