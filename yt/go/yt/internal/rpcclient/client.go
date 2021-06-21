@@ -737,3 +737,55 @@ func (c *client) CommitTx(
 
 	return
 }
+
+func (c *client) AddMember(
+	ctx context.Context,
+	group string,
+	member string,
+	opts *yt.AddMemberOptions,
+) (err error) {
+	if opts == nil {
+		opts = &yt.AddMemberOptions{}
+	}
+
+	req := &rpc_proxy.TReqAddMember{
+		Group:               &group,
+		Member:              &member,
+		MutatingOptions:     convertMutatingOptions(opts.MutatingOptions),
+		PrerequisiteOptions: convertPrerequisiteOptions(opts.PrerequisiteOptions),
+	}
+
+	var rsp rpc_proxy.TRspAddMember
+	err = c.do(ctx, "AddMember", req, &rsp)
+	if err != nil {
+		return
+	}
+
+	return
+}
+
+func (c *client) RemoveMember(
+	ctx context.Context,
+	group string,
+	member string,
+	opts *yt.RemoveMemberOptions,
+) (err error) {
+	if opts == nil {
+		opts = &yt.RemoveMemberOptions{}
+	}
+
+	req := &rpc_proxy.TReqRemoveMember{
+		Group:               &group,
+		Member:              &member,
+		MutatingOptions:     convertMutatingOptions(opts.MutatingOptions),
+		PrerequisiteOptions: convertPrerequisiteOptions(opts.PrerequisiteOptions),
+	}
+
+	var rsp rpc_proxy.TRspRemoveMember
+	err = c.do(ctx, "RemoveMember", req, &rsp)
+	if err != nil {
+		return
+	}
+
+	return
+}
