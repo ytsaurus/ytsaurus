@@ -2200,7 +2200,10 @@ class TestEventLog(YTEnvSetup):
         op.track()
 
         def check():
-            res = read_table("//sys/scheduler/event_log")
+            try:
+                res = read_table("//sys/scheduler/event_log")
+            except YtError:
+                return False
             event_types = __builtin__.set([item["event_type"] for item in res])
             for event in [
                 "scheduler_started",
