@@ -573,12 +573,12 @@ public:
     virtual void PreUpdateBottomUp(NFairShare::TFairShareUpdateContext* context) override;
 
     //! Fair share update methods that implements NFairShare::TCompositeElement interface.
-    virtual TElement* GetChild(int index) override;
-    virtual const TElement* GetChild(int index) const override;
-    virtual int GetChildrenCount() const override;
+    virtual TElement* GetChild(int index) override final;
+    virtual const TElement* GetChild(int index) const override final;
+    virtual int GetChildrenCount() const override final;
 
-    virtual ESchedulingMode GetMode() const override;
-    virtual bool HasHigherPriorityInFifoMode(const NFairShare::TElement* lhs, const NFairShare::TElement* rhs) const override;
+    virtual ESchedulingMode GetMode() const;
+    virtual bool HasHigherPriorityInFifoMode(const NFairShare::TElement* lhs, const NFairShare::TElement* rhs) const override final;
 
     //! Post fair share update methods.
     virtual void MarkImmutable() override;
@@ -587,15 +587,15 @@ public:
     virtual void PrescheduleJob(
         TScheduleJobsContext* context,
         EPrescheduleJobOperationCriterion operationCriterion,
-        bool aggressiveStarvationEnabled) override;
+        bool aggressiveStarvationEnabled) override final;
 
     virtual void UpdateDynamicAttributes(
         TDynamicAttributesList* dynamicAttributesList,
-        const TChildHeapMap& childHeapMap) override;
+        const TChildHeapMap& childHeapMap) override final;
 
-    virtual TFairShareScheduleJobResult ScheduleJob(TScheduleJobsContext* context, bool ignorePacking) override;
+    virtual TFairShareScheduleJobResult ScheduleJob(TScheduleJobsContext* context, bool ignorePacking) override final;
 
-    virtual const TJobResources& CalculateCurrentResourceUsage(TScheduleJobsContext* context) override;
+    virtual const TJobResources& CalculateCurrentResourceUsage(TScheduleJobsContext* context) override final;
 
     virtual bool IsAggressiveStarvationEnabled() const;
     virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
@@ -754,7 +754,7 @@ public:
     virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const override;
 
     //! Fair share update methods that implements NFairShare::TPool interface.
-    virtual bool AreDetailedLogsEnabled() const override;
+    virtual bool AreDetailedLogsEnabled() const override final;
     virtual TJobResourcesConfigPtr GetStrongGuaranteeResourcesConfig() const override;
 
     virtual double GetSpecifiedBurstRatio() const override;
@@ -1045,7 +1045,7 @@ public:
     virtual TString GetId() const override;
 
     virtual TString GetLoggingString() const override;
-    virtual bool AreDetailedLogsEnabled() const override;
+    virtual bool AreDetailedLogsEnabled() const override final;
 
     virtual ESchedulableStatus GetStatus(bool atUpdate = true) const override;
 
@@ -1123,15 +1123,15 @@ public:
     virtual void PrescheduleJob(
         TScheduleJobsContext* context,
         EPrescheduleJobOperationCriterion operationCriterion,
-        bool aggressiveStarvationEnabled) override;
+        bool aggressiveStarvationEnabled) override final;
 
     virtual void UpdateDynamicAttributes(
         TDynamicAttributesList* dynamicAttributesList,
-        const TChildHeapMap& childHeapMap) override;
+        const TChildHeapMap& childHeapMap) override final;
 
-    virtual const TJobResources& CalculateCurrentResourceUsage(TScheduleJobsContext* context) override;
+    virtual const TJobResources& CalculateCurrentResourceUsage(TScheduleJobsContext* context) override final;
 
-    virtual TFairShareScheduleJobResult ScheduleJob(TScheduleJobsContext* context, bool ignorePacking) override;
+    virtual TFairShareScheduleJobResult ScheduleJob(TScheduleJobsContext* context, bool ignorePacking) override final;
 
     void ActivateOperation(TScheduleJobsContext* context);
     void DeactivateOperation(TScheduleJobsContext* context, EDeactivationReason reason);
