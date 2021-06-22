@@ -569,7 +569,7 @@ type ListOperationsOptions struct {
 }
 
 type ListJobsOptions struct {
-	JobType         *OperationType `http:"job_type,omitnil"`
+	JobType         *JobType       `http:"job_type,omitnil"`
 	JobState        *JobState      `http:"job_state,omitnil"`
 	Address         *string        `http:"address,omitnil"`
 	WithStderr      *bool          `http:"with_stderr,omitnil"`
@@ -578,7 +578,7 @@ type ListJobsOptions struct {
 	SortOrder       *JobSortOrder  `http:"sort_order,omitnil"`
 	Limit           *int           `http:"limit,omitnil"`
 	Offset          *int           `http:"offset,omitnil"`
-	DataSource      *string        `http:"data_source,omitnil"`
+	DataSource      *JobDataSource `http:"data_source,omitnil"`
 }
 
 type JobStatus struct {

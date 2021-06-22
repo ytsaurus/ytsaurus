@@ -83,6 +83,28 @@ func (o OperationState) Ptr() *OperationState {
 	return &o
 }
 
+type JobType string
+
+var (
+	JobTypeMap              JobType = "map"
+	JobTypePartitionMap     JobType = "partition_map"
+	JobTypeSortedMerge      JobType = "sorted_merge"
+	JobTypeOrderedMerge     JobType = "ordered_merge"
+	JobTypeUnorderedMerge   JobType = "unordered_merge"
+	JobTypePartition        JobType = "partition"
+	JobTypeSimpleSort       JobType = "simple_sort"
+	JobTypeFinalSort        JobType = "final_sort"
+	JobTypeSortedReduce     JobType = "sorted_reduce"
+	JobTypePartitionReduce  JobType = "partition_reduce"
+	JobTypeReduceCombiner   JobType = "reduce_combiner"
+	JobTypeRemoteCopy       JobType = "remote_copy"
+	JobTypeIntermediateSort JobType = "intermediate_sort"
+	JobTypeOrderedMap       JobType = "ordered_map"
+	JobTypeJoinReduce       JobType = "join_reduce"
+	JobTypeVanilla          JobType = "vanilla"
+	JobTypeSchedulerUnknown JobType = "scheduler_unknown"
+)
+
 type JobState string
 
 var (
@@ -91,6 +113,15 @@ var (
 	JobCompleted JobState = "completed"
 	JobFailed    JobState = "failed"
 	JobAborted   JobState = "aborted"
+)
+
+type JobDataSource string
+
+var (
+	JobDataSourceArchive JobDataSource = "archive"
+	JobDataSourceRuntime JobDataSource = "runtime"
+	JobDataSourceAuto    JobDataSource = "auto"
+	JobDataSourceManual  JobDataSource = "manual"
 )
 
 type NodeID guid.GUID
