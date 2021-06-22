@@ -816,7 +816,8 @@ void ValidateDynamicValue(const TUnversionedValue& value, bool isKey)
     switch (value.Type) {
         case EValueType::String:
             if (value.Length > MaxStringValueLength) {
-                THROW_ERROR_EXCEPTION("Value is too long: length %v, limit %v",
+                THROW_ERROR_EXCEPTION("Value of type %Qlv is too long for dynamic data: length %v, limit %v",
+                    value.Type,
                     value.Length,
                     MaxStringValueLength);
             }
@@ -824,7 +825,8 @@ void ValidateDynamicValue(const TUnversionedValue& value, bool isKey)
 
         case EValueType::Any:
             if (value.Length > MaxAnyValueLength) {
-                THROW_ERROR_EXCEPTION("Value is too long: length %v, limit %v",
+                THROW_ERROR_EXCEPTION("Value of type %Qlv is too long for dynamic data: length %v, limit %v",
+                    value.Type,
                     value.Length,
                     MaxAnyValueLength);
             }
@@ -1200,9 +1202,10 @@ void ValidateStaticValue(const TUnversionedValue& value)
     ValidateDataValueType(value.Type);
     if (IsStringLikeType(value.Type)) {
         if (value.Length > MaxRowWeightLimit) {
-            THROW_ERROR_EXCEPTION("Value is too long: length %v, limit %v",
-                    value.Length,
-                    MaxRowWeightLimit);
+            THROW_ERROR_EXCEPTION("Value of type %Qlv is too long for static data: length %v, limit %v",
+                value.Type,
+                value.Length,
+                MaxRowWeightLimit);
         }
     }
 }

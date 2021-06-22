@@ -818,7 +818,8 @@ private:
             limit = MaxCompositeValueLength;
         }
         if (length > limit) {
-            THROW_ERROR_EXCEPTION("Value is too long: length %v, limit %v",
+            THROW_ERROR_EXCEPTION("Value of type %Qlv is too long: length %v, limit %v",
+                type,
                 length,
                 limit);
         }
