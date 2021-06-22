@@ -166,10 +166,11 @@ public:
     TSchedulingTagFilter NodesFilter;
 
     // The following settings can be overridden in operation spec.
-    TDuration FairSharePreemptionTimeout;
+    TDuration FairShareStarvationTimeout;
+    TDuration FairShareAggressiveStarvationTimeout;
     double FairShareStarvationTolerance;
 
-    TDuration FairSharePreemptionTimeoutLimit;
+    TDuration FairShareStarvationTimeoutLimit;
     double FairShareStarvationToleranceLimit;
 
     bool EnableAggressiveStarvation;

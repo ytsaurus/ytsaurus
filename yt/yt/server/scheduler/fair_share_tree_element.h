@@ -52,10 +52,18 @@ DEFINE_ENUM(EPrescheduleJobOperationCriterion,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EStarvationStatus,
+    (NonStarving)
+    (Starving)
+    (AggressivelyStarving)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Attributes that are kept between fair share updates.
 struct TPersistentAttributes
 {
-    bool Starving = false;
+    EStarvationStatus StarvationStatus;
     TInstant LastNonStarvingTime = TInstant::Now();
     std::optional<TInstant> BelowFairShareSince;
     THistoricUsageAggregator HistoricUsageAggregator;
@@ -167,7 +175,7 @@ private:
         TStageState(TScheduleJobsStage* schedulingStage, const TString& name);
 
         TScheduleJobsStage* const SchedulingStage;
-        
+
         TString Name;
 
         bool PrescheduleExecuted = false;
@@ -256,7 +264,7 @@ public:
 
     // These fields are set in post update and used in schedule jobs.
     DEFINE_BYVAL_RO_PROPERTY(double, AdjustedFairShareStarvationTolerance, 1.0);
-    DEFINE_BYVAL_RO_PROPERTY(TDuration, AdjustedFairSharePreemptionTimeout);
+    DEFINE_BYVAL_RO_PROPERTY(TDuration, AdjustedFairShareStarvationTimeout);
 
 protected:
     TSchedulerElementFixedState(
@@ -324,12 +332,12 @@ public:
     bool IsAlive() const;
     void SetNonAlive();
 
-    bool GetStarving() const;
+    EStarvationStatus GetStarvationStatus() const;
 
     TJobResources GetInstantResourceUsage() const;
 
     virtual double GetFairShareStarvationTolerance() const = 0;
-    virtual TDuration GetFairSharePreemptionTimeout() const = 0;
+    virtual TDuration GetFairShareStarvationTimeout() const = 0;
 
     virtual ESchedulableStatus GetStatus(bool atUpdate = true) const;
 
@@ -382,8 +390,7 @@ public:
     //! Schedule jobs interface.
     virtual void PrescheduleJob(
         TScheduleJobsContext* context,
-        EPrescheduleJobOperationCriterion operationCriterion,
-        bool aggressiveStarvationEnabled) = 0;
+        EPrescheduleJobOperationCriterion operationCriterion) = 0;
 
     virtual void UpdateDynamicAttributes(
         TDynamicAttributesList* dynamicAttributesList,
@@ -392,7 +399,7 @@ public:
     virtual TFairShareScheduleJobResult ScheduleJob(TScheduleJobsContext* context, bool ignorePacking) = 0;
 
     virtual bool IsAggressiveStarvationPreemptionAllowed() const = 0;
-    virtual bool HasAggressivelyStarvingElements(TScheduleJobsContext* context, bool aggressiveStarvationEnabled) const = 0;
+    virtual bool HasAggressivelyStarvingElements(TScheduleJobsContext* context) const = 0;
 
     virtual const TJobResources& CalculateCurrentResourceUsage(TScheduleJobsContext* context) = 0;
 
@@ -436,15 +443,18 @@ protected:
     TJobResources ComputeResourceLimits() const;
 
     //! Post update methods.
-    virtual void SetStarving(bool starving);
+    virtual void SetStarvationStatus(EStarvationStatus starvationStatus);
 
     ESchedulableStatus GetStatusImpl(double defaultTolerance, bool atUpdate) const;
-    void CheckForStarvationImpl(TDuration fairSharePreemptionTimeout, TInstant now);
+    void CheckForStarvationImpl(
+        TDuration fairShareStarvationTimeout,
+        TDuration fairShareAggressiveStarvationTimeout,
+        TInstant now);
 
     TResourceVector GetResourceUsageShare() const;
 
     // Publishes fair share and updates preemptable job lists of operations.
-    virtual void PublishFairShareAndUpdatePreemption() = 0;
+    virtual void PublishFairShareAndUpdatePreemptionSettings(bool aggressiveStarvationEnabled) = 0;
     virtual void UpdatePreemptionAttributes();
 
     // This method reuses common code with schedule jobs logic to calculate dynamic attributes.
@@ -506,7 +516,7 @@ public:
 
     // Used only in schedule jobs.
     DEFINE_BYREF_RO_PROPERTY(double, AdjustedFairShareStarvationToleranceLimit);
-    DEFINE_BYREF_RO_PROPERTY(TDuration, AdjustedFairSharePreemptionTimeoutLimit);
+    DEFINE_BYREF_RO_PROPERTY(TDuration, AdjustedFairShareStarvationTimeoutLimit);
 
 protected:
     // Used in fair share update.
@@ -586,8 +596,7 @@ public:
     //! Schedule jobs related methods.
     virtual void PrescheduleJob(
         TScheduleJobsContext* context,
-        EPrescheduleJobOperationCriterion operationCriterion,
-        bool aggressiveStarvationEnabled) override final;
+        EPrescheduleJobOperationCriterion operationCriterion) override final;
 
     virtual void UpdateDynamicAttributes(
         TDynamicAttributesList* dynamicAttributesList,
@@ -599,7 +608,7 @@ public:
 
     virtual bool IsAggressiveStarvationEnabled() const;
     virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
-    virtual bool HasAggressivelyStarvingElements(TScheduleJobsContext* context, bool aggressiveStarvationEnabled) const override;
+    virtual bool HasAggressivelyStarvingElements(TScheduleJobsContext* context) const override;
 
     //! Other methods.
     virtual THashSet<TString> GetAllowedProfilingTags() const = 0;
@@ -635,7 +644,7 @@ protected:
 
     virtual int EnumerateElements(int startIndex, bool isSchedulableValueFilter) override;
 
-    virtual void PublishFairShareAndUpdatePreemption() override;
+    virtual void PublishFairShareAndUpdatePreemptionSettings(bool aggressiveStarvationEnabled) override;
     virtual void UpdatePreemptionAttributes() override;
 
     virtual void UpdateSchedulableAttributesFromDynamicAttributes(
@@ -650,7 +659,7 @@ protected:
     virtual void BuildElementMapping(TFairSharePostUpdateContext* context) override;
 
     virtual double GetFairShareStarvationToleranceLimit() const;
-    virtual TDuration GetFairSharePreemptionTimeoutLimit() const;
+    virtual TDuration GetFairShareStarvationTimeoutLimit() const;
 
     // Used to implement GetWeight.
     virtual bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const = 0;
@@ -770,10 +779,10 @@ public:
     virtual void CheckForStarvation(TInstant now) override;
 
     virtual double GetFairShareStarvationTolerance() const override;
-    virtual TDuration GetFairSharePreemptionTimeout() const override;
+    virtual TDuration GetFairShareStarvationTimeout() const override;
 
     virtual double GetFairShareStarvationToleranceLimit() const override;
-    virtual TDuration GetFairSharePreemptionTimeoutLimit() const override;
+    virtual TDuration GetFairShareStarvationTimeoutLimit() const override;
 
     //! Schedule job methods.
     virtual bool IsAggressiveStarvationEnabled() const override;
@@ -787,10 +796,10 @@ public:
 protected:
     //! Pre fair share update methods.
     virtual TJobResources GetSpecifiedResourceLimits() const override;
-    
+
     //! Post fair share update methods.
-    virtual void SetStarving(bool starving) override;
-    
+    virtual void SetStarvationStatus(EStarvationStatus starvationStatus) override;
+
     virtual void BuildElementMapping(TFairSharePostUpdateContext* context) override;
 
 private:
@@ -1107,23 +1116,22 @@ public:
     virtual TResourceVector GetBestAllocationShare() const override;
 
     //! Post fair share update methods.
-    virtual void SetStarving(bool starving) override;
+    virtual void SetStarvationStatus(EStarvationStatus starvationStatus) override;
     virtual void CheckForStarvation(TInstant now) override;
 
     TInstant GetLastNonStarvingTime() const;
 
 
-    virtual void PublishFairShareAndUpdatePreemption() override;
+    virtual void PublishFairShareAndUpdatePreemptionSettings(bool aggressiveStarvationEnabled) override;
     virtual void UpdatePreemptionAttributes() override;
 
     virtual double GetFairShareStarvationTolerance() const override;
-    virtual TDuration GetFairSharePreemptionTimeout() const override;
+    virtual TDuration GetFairShareStarvationTimeout() const override;
 
     //! Schedule job methods.
     virtual void PrescheduleJob(
         TScheduleJobsContext* context,
-        EPrescheduleJobOperationCriterion operationCriterion,
-        bool aggressiveStarvationEnabled) override final;
+        EPrescheduleJobOperationCriterion operationCriterion) override final;
 
     virtual void UpdateDynamicAttributes(
         TDynamicAttributesList* dynamicAttributesList,
@@ -1137,7 +1145,7 @@ public:
     void DeactivateOperation(TScheduleJobsContext* context, EDeactivationReason reason);
 
     virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
-    virtual bool HasAggressivelyStarvingElements(TScheduleJobsContext* context, bool aggressiveStarvationEnabled) const override;
+    virtual bool HasAggressivelyStarvingElements(TScheduleJobsContext* context) const override;
 
     bool IsPreemptionAllowed(
         bool isAggressivePreemption,
@@ -1267,7 +1275,7 @@ public:
     virtual TSchedulerElementPtr Clone(TSchedulerCompositeElement* clonedParent) override;
 
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
-    
+
     // Used for diagnostics purposes.
     virtual TJobResources GetSpecifiedStrongGuaranteeResources() const override;
     virtual TResourceVector GetMaxShare() const override;
@@ -1301,7 +1309,7 @@ public:
     virtual void CheckForStarvation(TInstant now) override;
 
     virtual double GetFairShareStarvationTolerance() const override;
-    virtual TDuration GetFairSharePreemptionTimeout() const override;
+    virtual TDuration GetFairShareStarvationTimeout() const override;
 
     //! Schedule job methods.
     virtual bool IsAggressiveStarvationEnabled() const override;

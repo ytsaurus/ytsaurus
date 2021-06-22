@@ -92,6 +92,8 @@ struct TSchedulableAttributes
     double SatisfactionRatio = 0.0;
     double LocalSatisfactionRatio = 0.0;
 
+    bool AggressiveStarvationEnabled = false;
+
     TResourceVector GetGuaranteeShare() const;
 
     void SetFairShare(const TResourceVector& fairShare);
@@ -124,7 +126,7 @@ public:
     virtual bool IsOperation() const;
 
     virtual TString GetId() const = 0;
-    
+
     virtual const NLogging::TLogger& GetLogger() const = 0;
     virtual bool AreDetailedLogsEnabled() const = 0;
 
@@ -303,11 +305,11 @@ struct TFairShareUpdateContext
         const std::optional<TInstant> previousUpdateTime);
 
     const TJobResources TotalResourceLimits;
-    
+
     const EJobResourceType MainResource;
     const TDuration IntegralPoolCapacitySaturationPeriod;
     const TDuration IntegralSmoothPeriod;
-    
+
     const TInstant Now;
     const std::optional<TInstant> PreviousUpdateTime;
 

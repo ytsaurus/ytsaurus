@@ -843,11 +843,11 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool_tree("my_tree", wait_for_orchid=False)
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
 
-        set("//sys/pool_trees/my_tree/@config/fair_share_preemption_timeout", 1)
-        assert get("//sys/pool_trees/my_tree/@config/fair_share_preemption_timeout") == 1
+        set("//sys/pool_trees/my_tree/@config/fair_share_starvation_timeout", 1)
+        assert get("//sys/pool_trees/my_tree/@config/fair_share_starvation_timeout") == 1
 
-        set("//sys/pool_trees/my_tree/nirvana/@fair_share_preemption_timeout", 2)
-        assert get("//sys/pool_trees/my_tree/nirvana/@fair_share_preemption_timeout") == 2
+        set("//sys/pool_trees/my_tree/nirvana/@fair_share_starvation_timeout", 2)
+        assert get("//sys/pool_trees/my_tree/nirvana/@fair_share_starvation_timeout") == 2
 
     def test_access_to_pool_tree_config_attribute_on_pool_tree_object_is_forbidden(self):
         create_pool_tree("my_tree", wait_for_orchid=False)

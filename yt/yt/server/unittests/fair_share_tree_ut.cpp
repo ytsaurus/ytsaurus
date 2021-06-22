@@ -572,7 +572,7 @@ protected:
 
         context.PrepareForScheduling(rootElement);
         rootElement->CalculateCurrentResourceUsage(&context);
-        rootElement->PrescheduleJob(&context, EPrescheduleJobOperationCriterion::All, /* aggressiveStarvationEnabled */ false);
+        rootElement->PrescheduleJob(&context, EPrescheduleJobOperationCriterion::All);
 
         operationElement->ScheduleJob(&context, /* ignorePacking */ true);
 
@@ -2217,7 +2217,7 @@ TEST_F(TFairShareTreeTest, ChildHeap)
     context.StartStage(&SchedulingStageMock_, "stage1");
     context.PrepareForScheduling(rootElement);
     rootElement->CalculateCurrentResourceUsage(&context);
-    rootElement->PrescheduleJob(&context, EPrescheduleJobOperationCriterion::All, /* aggressiveStarvationEnabled */ false);
+    rootElement->PrescheduleJob(&context, EPrescheduleJobOperationCriterion::All);
 
     for (auto operationElement : operationElements) {
         const auto& dynamicAttributes = context.DynamicAttributesFor(rootElement.Get());
@@ -2248,7 +2248,7 @@ TEST_F(TFairShareTreeTest, ChildHeap)
     context.StartStage(&SchedulingStageMock_, "stage2");
     context.PrepareForScheduling(rootElement);
     rootElement->CalculateCurrentResourceUsage(&context);
-    rootElement->PrescheduleJob(&context, EPrescheduleJobOperationCriterion::All, /* aggressiveStarvationEnabled */ false);
+    rootElement->PrescheduleJob(&context, EPrescheduleJobOperationCriterion::All);
 
     for (auto operationElement : operationElements) {
         const auto& childHeapMap = context.ChildHeapMap();

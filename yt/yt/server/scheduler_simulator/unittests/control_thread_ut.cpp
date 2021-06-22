@@ -73,10 +73,10 @@ NYTree::INodePtr CreatePoolTreesConfig()
     physicalTreeConfig->NodesFilter = NYTree::ConvertTo<TSchedulingTagFilter>("internal");
     physicalTreeConfig->DefaultParentPool = "research";
 
-    physicalTreeConfig->FairSharePreemptionTimeout = TDuration::Seconds(30);
+    physicalTreeConfig->FairShareStarvationTimeout = TDuration::Seconds(30);
     physicalTreeConfig->FairShareStarvationTolerance = 0.8;
 
-    physicalTreeConfig->FairSharePreemptionTimeoutLimit = TDuration::Seconds(30);
+    physicalTreeConfig->FairShareStarvationTimeoutLimit = TDuration::Seconds(30);
     physicalTreeConfig->FairShareStarvationToleranceLimit = 0.8;
 
     physicalTreeConfig->PreemptionSatisfactionThreshold = 1.0;
