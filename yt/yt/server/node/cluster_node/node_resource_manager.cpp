@@ -178,7 +178,9 @@ void TNodeResourceManager::UpdateMemoryFootprint()
     for (auto memoryCategory : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
         if (memoryCategory == EMemoryCategory::UserJobs ||
             memoryCategory == EMemoryCategory::Footprint ||
-            memoryCategory == EMemoryCategory::AllocFragmentation) {
+            memoryCategory == EMemoryCategory::AllocFragmentation ||
+            memoryCategory == EMemoryCategory::TmpfsLayers ||
+            memoryCategory == EMemoryCategory::SystemJobs) {
             continue;
         }
 
