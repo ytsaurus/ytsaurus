@@ -639,7 +639,7 @@ type OperationStatus struct {
 	FullSpec          yson.RawValue              `yson:"full_spec"`
 	StartTime         yson.Time                  `yson:"start_time"`
 	Suspend           bool                       `yson:"suspend"`
-	AuthenticatedUsed string                     `yson:"authenticated_used"`
+	AuthenticatedUser string                     `yson:"authenticated_user"`
 	RuntimeParameters OperationRuntimeParameters `yson:"runtime_parameters"`
 }
 
