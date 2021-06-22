@@ -17,7 +17,7 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <Common/FieldVisitors.h>
+#include <Common/FieldVisitorToString.h>
 
 #include <DataTypes/DataTypeNullable.h>
 
