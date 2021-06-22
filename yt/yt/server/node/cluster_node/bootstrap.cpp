@@ -32,7 +32,6 @@
 #include <yt/yt/server/node/data_node/network_statistics.h>
 #include <yt/yt/server/node/data_node/p2p_block_distributor.h>
 #include <yt/yt/server/node/data_node/block_peer_table.h>
-#include <yt/yt/server/node/data_node/block_peer_updater.h>
 #include <yt/yt/server/node/data_node/private.h>
 #include <yt/yt/server/node/data_node/session_manager.h>
 #include <yt/yt/server/node/data_node/table_schema_cache.h>
@@ -459,7 +458,6 @@ void TBootstrap::DoInitialize()
 
     P2PBlockDistributor_ = New<TP2PBlockDistributor>(this);
     BlockPeerTable_ = New<TBlockPeerTable>(this);
-    BlockPeerUpdater_ = New<TBlockPeerUpdater>(this);
 
     SessionManager_ = New<TSessionManager>(Config_->DataNode, this);
 
@@ -944,7 +942,6 @@ void TBootstrap::DoRun()
     YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
 
     // Do not start subsystems until everything is initialized.
-    BlockPeerUpdater_->Start();
     P2PBlockDistributor_->Start();
     MediumUpdater_->Start();
 
@@ -1228,11 +1225,6 @@ const TP2PBlockDistributorPtr& TBootstrap::GetP2PBlockDistributor() const
 const TBlockPeerTablePtr& TBootstrap::GetBlockPeerTable() const
 {
     return BlockPeerTable_;
-}
-
-const TBlockPeerUpdaterPtr& TBootstrap::GetBlockPeerUpdater() const
-{
-    return BlockPeerUpdater_;
 }
 
 const IBlobReaderCachePtr& TBootstrap::GetBlobReaderCache() const

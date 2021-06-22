@@ -76,8 +76,7 @@ public:
     virtual void PutBlock(
         const TBlockId& /*id*/,
         EBlockType /*type*/,
-        const TBlock& /*block*/,
-        const std::optional<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
+        const TBlock& /*block*/) override
     {
         YT_ABORT();
     }

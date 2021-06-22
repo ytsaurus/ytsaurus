@@ -350,33 +350,19 @@ TP2PBlockDistributor::TChosenBlocks TP2PBlockDistributor::ChooseBlocks()
         auto lastDistributionTime = candidate.LastDistributionTime;
         int distributionCount = candidate.DistributionCount;
         i64 blockSize = cachedBlock.Block.Size();
-        auto source = cachedBlock.Source;
         auto block = cachedBlock.Block;
-        if (!source) {
-            // TODO(max42): seems like the idea of remembering the source of a block
-            // is currently not working properly (it is almost always null) as there
-            // are no calls of IBlockCache::Put with non-null fourth argument except
-            // in the replication reader.
-            // I'm trying to deal with it assuming that the origin of a block with
-            // Null source is current node.
-            source = Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor();
-        }
         if (chosenBlocks.TotalSize + blockSize <= Config_->MaxPopulateRequestSize || chosenBlocks.TotalSize == 0) {
             YT_LOG_DEBUG("Block is ready for distribution (BlockId: %v, RequestCount: %v, LastDistributionTime: %v, "
-                "DistributionCount: %v, Source: %v, Size: %v)",
+                "DistributionCount: %v, Size: %v)",
                 blockId,
                 requestCount,
                 lastDistributionTime,
                 distributionCount,
-                source,
                 blockSize);
             chosenBlocks.ReqTemplates.emplace_back();
             auto& reqTemplate = chosenBlocks.ReqTemplates.back();
             auto* protoBlock = reqTemplate.add_blocks();
             ToProto(protoBlock->mutable_block_id(), blockId);
-            if (source) {
-                ToProto(protoBlock->mutable_source_descriptor(), *source);
-            }
             chosenBlocks.Blocks.emplace_back(std::move(block));
             chosenBlocks.BlockIds.emplace_back(blockId);
             chosenBlocks.TotalSize += blockSize;

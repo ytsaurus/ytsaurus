@@ -646,8 +646,7 @@ public:
     virtual void PutBlock(
         const TBlockId& id,
         EBlockType type,
-        const TBlock& data,
-        const std::optional<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
+        const TBlock& data) override
     {
         if (type != MapInMemoryModeToBlockType(InMemoryMode_)) {
             return;
@@ -846,8 +845,7 @@ public:
     virtual void PutBlock(
         const TBlockId& /*id*/,
         EBlockType /*type*/,
-        const TBlock& /*data*/,
-        const std::optional<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
+        const TBlock& /*data*/) override
     { }
 
     virtual TCachedBlock FindBlock(

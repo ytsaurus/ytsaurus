@@ -252,7 +252,7 @@ private:
             DecompressionStatistics_.Append(TCodecDuration{codecId, timer.GetElapsedTime()});
 
             if (codecId != NCompression::ECodec::None) {
-                blockCache->PutBlock(blockId, EBlockType::UncompressedData, TBlock(uncompressedBlock), std::nullopt);
+                blockCache->PutBlock(blockId, EBlockType::UncompressedData, TBlock(uncompressedBlock));
             }
             return uncompressedBlock;
         }

@@ -8,9 +8,9 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCachedBlock::TCachedBlock(TBlock block, std::optional<TNodeDescriptor> source)
+TCachedBlock::TCachedBlock(TBlock block, bool p2p)
     : Block(std::move(block))
-    , Source(std::move(source))
+    , P2P(p2p)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

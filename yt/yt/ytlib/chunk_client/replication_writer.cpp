@@ -906,7 +906,7 @@ private:
             EnsureCurrentGroup();
 
             auto blockId = TBlockId(SessionId_.ChunkId, currentBlockIndex);
-            BlockCache_->PutBlock(blockId, EBlockType::CompressedData, block, std::nullopt);
+            BlockCache_->PutBlock(blockId, EBlockType::CompressedData, block);
 
             CurrentGroup_->AddBlock(block);
 

@@ -371,10 +371,9 @@ public:
     virtual void PutBlock(
         const TBlockId& id,
         EBlockType type,
-        const TBlock& data,
-        const std::optional<NNodeTrackerClient::TNodeDescriptor>& source) override
+        const TBlock& data) override
     {
-        UnderlyingCache_->PutBlock(id, type, data, source);
+        UnderlyingCache_->PutBlock(id, type, data);
     }
 
     virtual TCachedBlock FindBlock(

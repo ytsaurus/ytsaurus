@@ -1804,10 +1804,10 @@ private:
 
             auto& cookie = blocks[index].Cookie;
             if (cookie) {
-                TCachedBlock cachedBlock(block, sourceDescriptor);
+                TCachedBlock cachedBlock(block);
                 cookie->SetBlock(cachedBlock);
             } else {
-                reader->BlockCache_->PutBlock(blockId, EBlockType::CompressedData, block, sourceDescriptor);
+                reader->BlockCache_->PutBlock(blockId, EBlockType::CompressedData, block);
             }
 
             YT_VERIFY(Blocks_.emplace(blockIndex, block).second);

@@ -238,7 +238,7 @@ void TBlockFetcher::DecompressBlocks(
         UncompressedDataSize_ += uncompressedBlock.Size();
         CompressedDataSize_ += compressedBlock.Size();
 
-        BlockCache_->PutBlock(blockId, EBlockType::UncompressedData, TBlock(uncompressedBlock), std::nullopt);
+        BlockCache_->PutBlock(blockId, EBlockType::UncompressedData, TBlock(uncompressedBlock));
     }
 }
 
