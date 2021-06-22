@@ -269,7 +269,7 @@ public:
         }
 
         if (ProcessedStage_ == DB::QueryProcessingStage::FetchColumns) {
-            // See getQueryProcessingStage for more details about FetchColumns stage.  
+            // See getQueryProcessingStage for more details about FetchColumns stage.
             RemoveJoinFromQuery();
         }
 
@@ -429,60 +429,13 @@ private:
     std::vector<DB::ASTPtr> SecondaryQueryAsts_;
     DB::Pipes Pipes_;
 
-    // TODO(dakovalkov): This code was partly copy-pasted from modifySelect (src/Storages/StorageMerge.cpp). Generalize it.
     void RemoveJoinFromQuery()
     {
         QueryInfo_.query = QueryInfo_.query->clone();
         auto& select = QueryInfo_.query->as<DB::ASTSelectQuery&>();
 
-        YT_VERIFY(removeJoin(select));
-
         DB::TreeRewriterResult newRewriterResult = *QueryInfo_.syntax_analyzer_result;
-
-        newRewriterResult.aggregates.clear();
-
-        // Replace select list to remove joined columns
-        auto selectList = std::make_shared<DB::ASTExpressionList>();
-        for (const auto & column : QueryInfo_.syntax_analyzer_result->required_source_columns) {
-            selectList->children.emplace_back(std::make_shared<DB::ASTIdentifier>(column.name));
-        }
-
-        select.setExpression(DB::ASTSelectQuery::Expression::SELECT, selectList);
-
-        const DB::IdentifierMembershipCollector membershipCollector{select, Context_};
-
-        // Remove unknown identifiers from where, leave only ones from left table
-        auto replaceWhere = [&membershipCollector] (DB::ASTSelectQuery& query, DB::ASTSelectQuery::Expression expr) {
-            auto where = query.getExpression(expr, false);
-            if (!where) {
-                return;
-            }
-
-            // Test each argument of `and` function and select ones related to only left table
-            std::shared_ptr<DB::ASTFunction> newConj = DB::makeASTFunction("and");
-            for (const auto & node : DB::collectConjunctions(where)) {
-                if (membershipCollector.getIdentsMembership(node) == 0) {
-                    newConj->arguments->children.push_back(std::move(node));
-                }
-            }
-
-            if (newConj->arguments->children.empty()) {
-                // No identifiers from left table
-                query.setExpression(expr, {});
-            } else if (newConj->arguments->children.size() == 1) {
-                // Only one expression, lift from `and`
-                query.setExpression(expr, std::move(newConj->arguments->children[0]));
-            } else {
-                // Set new expression
-                query.setExpression(expr, std::move(newConj));
-            }
-        };
-        replaceWhere(select, DB::ASTSelectQuery::Expression::WHERE);
-        replaceWhere(select, DB::ASTSelectQuery::Expression::PREWHERE);
-        select.setExpression(DB::ASTSelectQuery::Expression::HAVING, {});
-        select.setExpression(DB::ASTSelectQuery::Expression::ORDER_BY, {});
-        // Also remove GROUP BY cause ExpressionAnalyzer would check if it has all aggregate columns but joined columns would be missed.
-        select.setExpression(DB::ASTSelectQuery::Expression::GROUP_BY, {});
+        YT_VERIFY(removeJoin(select, newRewriterResult, Context_));
 
         QueryInfo_.syntax_analyzer_result = std::make_shared<DB::TreeRewriterResult>(std::move(newRewriterResult));
     }

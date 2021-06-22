@@ -345,7 +345,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
                 }
             }
 
-            keyCondition = DB::KeyCondition(queryInfoForKeyCondition, getContext(), ToNames(schema->GetKeyColumns()), primaryKeyExpression);
+            keyCondition.emplace(queryInfoForKeyCondition, getContext(), ToNames(schema->GetKeyColumns()), primaryKeyExpression);
         }
         result.KeyConditions.emplace_back(std::move(keyCondition));
         result.TableSchemas.emplace_back(storage->GetSchema());

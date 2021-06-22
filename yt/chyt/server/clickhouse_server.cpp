@@ -157,7 +157,7 @@ private:
 
     std::shared_ptr<DB::IDatabase> SystemDatabase_;
 
-    ext::scope_guard DictionaryGuard_;
+    scope_guard DictionaryGuard_;
 
     void SetupLogger()
     {
