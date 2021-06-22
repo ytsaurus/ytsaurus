@@ -50,7 +50,7 @@ TTestingSettings::TTestingSettings()
         .Default(false);
     RegisterParameter("subquery_allocation_size", SubqueryAllocationSize)
         .Default(0);
-    
+
     RegisterParameter("hang_control_invoker", HangControlInvoker)
         .Default(false);
 }
@@ -62,28 +62,28 @@ TExecutionSettings::TExecutionSettings()
     RegisterParameter("query_depth_limit", QueryDepthLimit)
         .GreaterThanOrEqual(-1)
         .Default(-1);
-    
+
     RegisterParameter("min_data_weight_per_secondary_query", MinDataWeightPerSecondaryQuery)
         .GreaterThanOrEqual(0)
         .Default();
-    
+
     RegisterParameter("distributed_join_node_limit", DistributedJoinNodeLimit)
         .GreaterThanOrEqual(-1)
         .Default(-1);
     RegisterParameter("distributed_select_node_limit", DistributedSelectNodeLimit)
         .GreaterThanOrEqual(-1)
         .Default(-1);
-    
+
     RegisterParameter("distributed_join_depth_limit", DistributedJoinDepthLimit)
         .GreaterThanOrEqual(-1)
         .Default(-1);
     RegisterParameter("distributed_select_depth_limit", DistributedSelectDepthLimit)
         .GreaterThanOrEqual(-1)
         .Default(-1);
-    
+
     RegisterParameter("join_policy", JoinPolicy)
         .Default(EJoinPolicy::DistributeSecondary);
-    
+
     RegisterParameter("distribution_seed", DistributionSeed)
         .Default(42);
 
@@ -231,7 +231,7 @@ TQueryStatisticsReporterConfig::TQueryStatisticsReporterConfig()
 
     RegisterParameter("user", User)
         .Default("yt-clickhouse");
-    
+
     RegisterPreprocessor([&] {
         Enabled = false;
     });

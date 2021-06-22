@@ -88,7 +88,7 @@ TQueryContext::TQueryContext(
         SelectQueryIndex = secondaryQueryHeader->StorageIndex;
 
         QueryDepth = secondaryQueryHeader->QueryDepth;
-        
+
         Logger.AddTag("InitialQueryId: %v", InitialQueryId);
         Logger.AddTag("ParentQueryId: %v", ParentQueryId);
     }
