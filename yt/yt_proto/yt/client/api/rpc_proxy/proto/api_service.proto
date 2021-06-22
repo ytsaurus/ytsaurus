@@ -1344,7 +1344,7 @@ message TReqGetColumnarStatistics
         optional uint64 node_rpc_timeout = 1 [default = 30000000]; // TDuration, 30 seconds by default
     }
 
-    repeated string path = 1; // RichYPath
+    repeated string paths = 1; // RichYPath
     required TFetchChunkSpec fetch_chunk_spec = 2;
     required TFetcher fetcher = 3;
     optional EColumnarStatisticsFetcherMode fetcher_mode = 4;

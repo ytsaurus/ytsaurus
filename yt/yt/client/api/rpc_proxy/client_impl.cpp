@@ -1179,7 +1179,7 @@ TFuture<std::vector<TColumnarStatistics>> TClient::GetColumnarStatistics(
     SetTimeoutOptions(*req, options);
 
     for (const auto& subPath: path) {
-        req->add_path(ConvertToYsonString(subPath).ToString());
+        req->add_paths(ConvertToYsonString(subPath).ToString());
     }
 
     req->set_fetcher_mode(static_cast<NProto::EColumnarStatisticsFetcherMode>(options.FetcherMode));
