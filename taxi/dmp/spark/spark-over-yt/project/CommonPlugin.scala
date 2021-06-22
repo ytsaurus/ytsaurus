@@ -3,6 +3,7 @@ import sbt._
 import sbt.plugins.JvmPlugin
 import sbtassembly.AssemblyPlugin.autoImport._
 import Dependencies._
+import SpytPlugin.autoImport.spytClusterVersion
 
 object CommonPlugin extends AutoPlugin {
   override def trigger = AllRequirements
@@ -15,7 +16,7 @@ object CommonPlugin extends AutoPlugin {
     resolvers += Resolver.mavenCentral,
     resolvers += "YandexMediaReleases" at "http://artifactory.yandex.net/artifactory/yandex_media_releases",
     resolvers += "YandexSparkReleases" at "http://artifactory.yandex.net/artifactory/yandex_spark_releases",
-    version in ThisBuild := "1.6.3-SNAPSHOT",
+    version in ThisBuild := (spytClusterVersion in ThisBuild).value,
     organization := "ru.yandex",
     name := s"spark-yt-${name.value}",
     scalaVersion := "2.12.8",

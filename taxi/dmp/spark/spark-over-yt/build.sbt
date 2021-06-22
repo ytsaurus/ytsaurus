@@ -6,8 +6,7 @@ import TarArchiverPlugin.autoImport._
 import DebianPackagePlugin.autoImport._
 import ZipPlugin.autoImport._
 import PythonPlugin.autoImport._
-
-val clientVersion = "1.6.1-SNAPSHOT"
+import SpytPlugin.autoImport._
 
 lazy val `yt-wrapper` = (project in file("yt-wrapper"))
   .settings(
@@ -54,7 +53,7 @@ lazy val `data-source` = (project in file("data-source"))
   .configs(IntegrationTest)
   .dependsOn(`yt-wrapper`, `file-system`, `yt-wrapper` % "test->test", `file-system` % "test->test")
   .settings(
-    version := clientVersion,
+    version := (spytClientVersion in ThisBuild).value,
     Defaults.itSettings,
     libraryDependencies ++= itTestDeps,
     libraryDependencies ++= commonDependencies,
@@ -97,12 +96,6 @@ lazy val `file-system` = (project in file("file-system"))
     ),
     test in assembly := {}
   )
-
-lazy val `file-system-fat` = (project in file("file-system-fat"))
-  .settings(
-    addArtifact(artifact in (Compile, assembly), assembly in `file-system`).settings: _*
-  )
-
 
 lazy val `client` = (project in file("client"))
   .enablePlugins(SparkPackagePlugin, DebianPackagePlugin, PythonPlugin)
@@ -177,24 +170,50 @@ lazy val `client` = (project in file("client"))
 //  )
 
 
-lazy val `test-job` = (project in file("test-job"))
-  .dependsOn(`data-source` % Provided)
-  .settings(
-    libraryDependencies ++= spark,
-    libraryDependencies ++= logging.map(_ % Provided),
-    libraryDependencies ++= scaldingArgs,
-    excludeDependencies += ExclusionRule(organization = "org.slf4j"),
-    mainClass in assembly := Some("ru.yandex.spark.test.Test"),
-    publishYtArtifacts += YtPublishFile(assembly.value, "//home/sashbel", None),
-    publishYtArtifacts += YtPublishFile(sourceDirectory.value / "main" / "python" / "test_conf.py", "//home/sashbel", None)
-  )
+//lazy val `test-job` = (project in file("test-job"))
+//  .dependsOn(`data-source` % Provided)
+//  .settings(
+//    libraryDependencies ++= spark,
+//    libraryDependencies ++= logging.map(_ % Provided),
+//    libraryDependencies ++= scaldingArgs,
+//    excludeDependencies += ExclusionRule(organization = "org.slf4j"),
+//    mainClass in assembly := Some("ru.yandex.spark.test.Test"),
+//    publishYtArtifacts += YtPublishFile(assembly.value, "//home/sashbel", None),
+//    publishYtArtifacts += YtPublishFile(sourceDirectory.value / "main" / "python" / "test_conf.py", "//home/sashbel", None)
+//  )
 // -----
 
 lazy val root = (project in file("."))
+  .enablePlugins(SpytPlugin)
   .aggregate(
     `yt-wrapper`,
     `spark-launcher`,
     `file-system`,
     `data-source`,
     `client`
+  )
+  .settings(
+    spytPublishCluster := (publishYt in client).value,
+    spytPublishClient := Def.sequential(
+      spytUpdatePythonVersion,
+      publishYt in `data-source`,
+      pythonBuildAndUpload in `data-source`,
+      spytIncreasePythonBetaVersion
+    ).value,
+    spytPublishAll := Def.taskDyn {
+      val rebuildSpark = Option(System.getProperty("rebuildSpark")).exists(_.toBoolean)
+      if (rebuildSpark) {
+        Def.sequential(
+          spytIncreaseSparkPythonBetaVersion,
+          spytPublishCluster,
+          pythonBuildAndUpload in `client`,
+          spytPublishClient
+        )
+      } else {
+        Def.sequential(
+          spytPublishCluster,
+          spytPublishClient
+        )
+      }
+    }.value
   )
