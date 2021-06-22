@@ -1584,6 +1584,10 @@ void TJobController::TImpl::OnProfiling()
         if (TypeFromId(job->GetId()) != EObjectType::SchedulerJob) {
             continue;
         }
+
+        if (job->GetState() != EJobState::Running || job->GetPhase() != EJobPhase::Running) {
+            continue;
+        }
         
         const auto& jobSpec = job->GetSpec();
         auto extensionId = NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext;
