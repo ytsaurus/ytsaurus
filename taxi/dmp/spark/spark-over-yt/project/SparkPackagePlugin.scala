@@ -131,7 +131,7 @@ object SparkPackagePlugin extends AutoPlugin {
     },
     sparkPackage := {
       val sparkDist = sparkHome.value / "dist"
-      val rebuildSpark = Option(System.getProperty("rebuildSpark")).forall(_.toBoolean)
+      val rebuildSpark = Option(System.getProperty("rebuildSpark")).exists(_.toBoolean) || !sparkDist.exists()
 
       if (rebuildSpark) {
         buildSpark(sparkHome.value.toString)
