@@ -188,7 +188,7 @@ private:
         };
 
         bool missingRequiredArgument = false;
-        
+
         for (const auto& argument: requiredArguments) {
             if (!parseResult.Has(argument)) {
                 missingRequiredArgument = true;

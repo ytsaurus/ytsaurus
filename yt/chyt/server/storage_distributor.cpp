@@ -434,11 +434,11 @@ private:
     {
         QueryInfo_.query = QueryInfo_.query->clone();
         auto& select = QueryInfo_.query->as<DB::ASTSelectQuery&>();
-        
+
         YT_VERIFY(removeJoin(select));
 
         DB::TreeRewriterResult newRewriterResult = *QueryInfo_.syntax_analyzer_result;
-        
+
         newRewriterResult.aggregates.clear();
 
         // Replace select list to remove joined columns
@@ -502,7 +502,7 @@ private:
             RealColumnNames_,
             VirtualColumnNames_,
             TClickHouseIndexBuilder(&QueryInfo_, Context_));
-        
+
         YT_VERIFY(!SpecTemplate_.DataSourceDirectory);
         SpecTemplate_.DataSourceDirectory = std::move(input.DataSourceDirectory);
 

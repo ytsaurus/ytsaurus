@@ -192,7 +192,7 @@ public:
         , SecondaryQueryIds_(ConvertToYsonString(queryContext->SecondaryQueryIds))
         , ProxyAddress_(
             queryContext->QueryKind == EQueryKind::InitialQuery ?
-                std::make_optional(queryContext->CurrentAddress) : 
+                std::make_optional(queryContext->CurrentAddress) :
                 std::nullopt)
     { }
 
@@ -211,7 +211,7 @@ public:
             SecondaryQueryIds_,
             ProxyAddress_);
     }
-    
+
     virtual TUnversionedOwningRow ToRow(int /* archiveVersion */) const override
     {
         const auto& index = TDistributedQueriesTableDescirptor::Get().Index;
@@ -231,7 +231,7 @@ public:
         if (ProxyAddress_) {
             builder.AddValue(MakeUnversionedStringValue(*ProxyAddress_, index.ProxyAddress));
         }
-        
+
         return builder.FinishRow();
     }
 
@@ -280,7 +280,7 @@ public:
             SelectQueryIndex_,
             Statistics_);
     }
-    
+
     virtual TUnversionedOwningRow ToRow(int /* archiveVersion */) const override
     {
         const auto& index = TSecondaryQueriesTableDescirptor::Get().Index;
@@ -295,7 +295,7 @@ public:
         builder.AddValue(MakeUnversionedUint64Value(FinishTime_.GetValue(), index.FinishTime));
         builder.AddValue(MakeUnversionedInt64Value(SelectQueryIndex_, index.SelectQueryIndex));
         builder.AddValue(MakeUnversionedAnyValue(Statistics_.AsStringBuf(), index.Statistics));
-        
+
         return builder.FinishRow();
     }
 
@@ -330,7 +330,7 @@ public:
             ParentQueryId_,
             InitialQueryId_);
     }
-    
+
     virtual TUnversionedOwningRow ToRow(int /* archiveVersion */) const override
     {
         const auto& index = TAncestorQueryIdsTableDescriptor::Get().Index;

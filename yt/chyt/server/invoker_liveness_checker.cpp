@@ -47,7 +47,7 @@ void TInvokerLivenessChecker::DoCheck()
             .AsyncVia(InvokerToCheck_)
             .Run()
             .WithTimeout(Timeout_));
-    
+
     // Core dump on timeout.
     YT_LOG_FATAL_IF(
         !error.IsOK(),
