@@ -639,7 +639,7 @@ private:
     }
 
     TTableDetailedProfilingCounters* GetOrCreateDetailedProfilingCounters(const TString& tablePath)
-    {    
+    {
         return TableToDetailedProfilingCounters_.FindOrInsert(
             tablePath,
             [&] {
@@ -3768,9 +3768,9 @@ private:
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
-        std::vector<NYPath::TRichYPath> path;
-        for (const auto& protoSubPath: request->path()) {
-            path.emplace_back(ConvertTo<NYPath::TRichYPath>(TYsonString(protoSubPath)));
+        std::vector<NYPath::TRichYPath> paths;
+        for (const auto& protoSubPath: request->paths()) {
+            paths.emplace_back(ConvertTo<NYPath::TRichYPath>(TYsonString(protoSubPath)));
         }
 
         TGetColumnarStatisticsOptions options;
@@ -3791,12 +3791,12 @@ private:
             FromProto(&options, request->transactional_options());
         }
 
-        context->SetRequestInfo("Path: %v", path);
+        context->SetRequestInfo("Paths: %v", paths);
 
         CompleteCallWith(
             client,
             context,
-            client->GetColumnarStatistics(path, options),
+            client->GetColumnarStatistics(paths, options),
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 NYT::ToProto(response->mutable_statistics(), result);
