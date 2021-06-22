@@ -1168,6 +1168,9 @@ class Operation(object):
                 and date_string_to_datetime(get(snapshot_path + "/@creation_time")) > timepoint
             )
 
+    def wait_presence_in_scheduler(self):
+        wait(lambda: exists("//sys/scheduler/orchid/scheduler/operations/" + self.id))
+
     def get_alerts(self):
         try:
             return get(self.get_path() + "/@alerts")

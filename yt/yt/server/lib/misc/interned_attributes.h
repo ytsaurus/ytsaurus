@@ -152,6 +152,9 @@
     XX(ExternalRequisitions, external_requisitions) \
     XX(FairSharePreemptionTimeout, fair_share_preemption_timeout) \
     XX(FairSharePreemptionTimeoutLimit, fair_share_preemption_timeout_limit) \
+    XX(FairShareStarvationTimeout, fair_share_starvation_timeout) \
+    XX(FairShareAggressiveStarvationTimeout, fair_share_aggressive_starvation_timeout) \
+    XX(FairShareStarvationTimeoutLimit, fair_share_starvation_timeout_limit) \
     XX(FairShareStarvationTolerance, fair_share_starvation_tolerance) \
     XX(FairShareStarvationToleranceLimit, fair_share_starvation_tolerance_limit) \
     XX(FifoSortParameters, fifo_sort_parameters) \

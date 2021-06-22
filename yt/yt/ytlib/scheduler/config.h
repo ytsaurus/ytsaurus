@@ -143,10 +143,10 @@ public:
     TJobResourcesConfigPtr StrongGuaranteeResources;
 
     // The following settings override scheduler configuration.
-    std::optional<TDuration> FairSharePreemptionTimeout;
+    std::optional<TDuration> FairShareStarvationTimeout;
     std::optional<double> FairShareStarvationTolerance;
 
-    std::optional<TDuration> FairSharePreemptionTimeoutLimit;
+    std::optional<TDuration> FairShareStarvationTimeoutLimit;
     std::optional<double> FairShareStarvationToleranceLimit;
 
     std::optional<bool> AllowAggressiveStarvationPreemption;

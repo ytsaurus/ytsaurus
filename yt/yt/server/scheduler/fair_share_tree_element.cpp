@@ -281,9 +281,9 @@ void TSchedulerElement::UpdatePreemptionAttributes()
             GetFairShareStarvationTolerance(),
             Parent_->AdjustedFairShareStarvationToleranceLimit());
 
-        AdjustedFairSharePreemptionTimeout_ = std::max(
-            GetFairSharePreemptionTimeout(),
-            Parent_->AdjustedFairSharePreemptionTimeoutLimit());
+        AdjustedFairShareStarvationTimeout_ = std::max(
+            GetFairShareStarvationTimeout(),
+            Parent_->AdjustedFairShareStarvationTimeoutLimit());
     }
 }
 
@@ -320,7 +320,7 @@ TString TSchedulerElement::GetLoggingAttributesString() const
         "Satisfaction: %.4lg, "
         "LocalSatisfaction: %.4lg, "
         "PromisedFairShare: %.6g, "
-        "Starving: %v, "
+        "StarvationStatus: %v, "
         "Weight: %v, "
         "Volume: %v",
         GetStatus(),
@@ -333,7 +333,7 @@ TString TSchedulerElement::GetLoggingAttributesString() const
         Attributes_.SatisfactionRatio,
         Attributes_.LocalSatisfactionRatio,
         Attributes_.PromisedFairShare,
-        GetStarving(),
+        GetStarvationStatus(),
         GetWeight(),
         GetAccumulatedResourceRatioVolume());
 }
@@ -459,16 +459,16 @@ ESchedulableStatus TSchedulerElement::GetStatus(bool /* atUpdate */) const
     return ESchedulableStatus::Normal;
 }
 
-bool TSchedulerElement::GetStarving() const
+EStarvationStatus TSchedulerElement::GetStarvationStatus() const
 {
-    return PersistentAttributes_.Starving;
+    return PersistentAttributes_.StarvationStatus;
 }
 
-void TSchedulerElement::SetStarving(bool starving)
+void TSchedulerElement::SetStarvationStatus(EStarvationStatus starvationStatus)
 {
     YT_VERIFY(Mutable_);
 
-    PersistentAttributes_.Starving = starving;
+    PersistentAttributes_.StarvationStatus = starvationStatus;
 }
 
 bool TSchedulerElement::AreResourceLimitsViolated() const
@@ -659,7 +659,10 @@ ESchedulableStatus TSchedulerElement::GetStatusImpl(double tolerance, bool atUpd
     return ESchedulableStatus::Normal;
 }
 
-void TSchedulerElement::CheckForStarvationImpl(TDuration fairSharePreemptionTimeout, TInstant now)
+void TSchedulerElement::CheckForStarvationImpl(
+    TDuration fairShareStarvationTimeout,
+    TDuration fairShareAggressiveStarvationTimeout,
+    TInstant now)
 {
     YT_VERIFY(Mutable_);
 
@@ -668,14 +671,16 @@ void TSchedulerElement::CheckForStarvationImpl(TDuration fairSharePreemptionTime
         case ESchedulableStatus::BelowFairShare:
             if (!PersistentAttributes_.BelowFairShareSince) {
                 PersistentAttributes_.BelowFairShareSince = now;
-            } else if (now > *PersistentAttributes_.BelowFairShareSince + fairSharePreemptionTimeout) {
-                SetStarving(true);
+            } else if (Attributes_.AggressiveStarvationEnabled && now > *PersistentAttributes_.BelowFairShareSince + fairShareAggressiveStarvationTimeout) {
+                SetStarvationStatus(EStarvationStatus::AggressivelyStarving);
+            } else if (now > *PersistentAttributes_.BelowFairShareSince + fairShareStarvationTimeout) {
+                SetStarvationStatus(EStarvationStatus::Starving);
             }
             break;
 
         case ESchedulableStatus::Normal:
             PersistentAttributes_.BelowFairShareSince = std::nullopt;
-            SetStarving(false);
+            SetStarvationStatus(EStarvationStatus::NonStarving);
             break;
 
         default:
@@ -861,15 +866,17 @@ void TSchedulerCompositeElement::PreUpdateBottomUp(NFairShare::TFairShareUpdateC
     TSchedulerElement::PreUpdateBottomUp(context);
 }
 
-void TSchedulerCompositeElement::PublishFairShareAndUpdatePreemption()
+void TSchedulerCompositeElement::PublishFairShareAndUpdatePreemptionSettings(bool aggressiveStarvationEnabled)
 {
     // This version is global and used to balance preemption lists.
     ResourceTreeElement_->SetFairShare(Attributes_.FairShare.Total);
 
     UpdatePreemptionAttributes();
 
+    aggressiveStarvationEnabled = aggressiveStarvationEnabled || IsAggressiveStarvationEnabled();
+
     for (const auto& child : EnabledChildren_) {
-        child->PublishFairShareAndUpdatePreemption();
+        child->PublishFairShareAndUpdatePreemptionSettings(aggressiveStarvationEnabled);
     }
 }
 
@@ -896,9 +903,9 @@ void TSchedulerCompositeElement::UpdatePreemptionAttributes()
             GetFairShareStarvationToleranceLimit(),
             Parent_->AdjustedFairShareStarvationToleranceLimit());
 
-        AdjustedFairSharePreemptionTimeoutLimit_ = std::max(
-            GetFairSharePreemptionTimeoutLimit(),
-            Parent_->AdjustedFairSharePreemptionTimeoutLimit());
+        AdjustedFairShareStarvationTimeoutLimit_ = std::max(
+            GetFairShareStarvationTimeoutLimit(),
+            Parent_->AdjustedFairShareStarvationTimeoutLimit());
     }
 }
 
@@ -918,7 +925,7 @@ double TSchedulerCompositeElement::GetFairShareStarvationToleranceLimit() const
     return 1.0;
 }
 
-TDuration TSchedulerCompositeElement::GetFairSharePreemptionTimeoutLimit() const
+TDuration TSchedulerCompositeElement::GetFairShareStarvationTimeoutLimit() const
 {
     return TDuration::Zero();
 }
@@ -1015,8 +1022,7 @@ const TJobResources& TSchedulerCompositeElement::CalculateCurrentResourceUsage(T
 
 void TSchedulerCompositeElement::PrescheduleJob(
     TScheduleJobsContext* context,
-    EPrescheduleJobOperationCriterion operationCriterion,
-    bool aggressiveStarvationEnabled)
+    EPrescheduleJobOperationCriterion operationCriterion)
 {
     auto& attributes = context->DynamicAttributesFor(this);
 
@@ -1035,19 +1041,20 @@ void TSchedulerCompositeElement::PrescheduleJob(
         return;
     }
 
-    auto starving = PersistentAttributes_.Starving;
-    aggressiveStarvationEnabled = aggressiveStarvationEnabled || IsAggressiveStarvationEnabled();
-    if (starving && aggressiveStarvationEnabled) {
+    auto starvationStatus = PersistentAttributes_.StarvationStatus;
+    if (starvationStatus == EStarvationStatus::AggressivelyStarving) {
         context->SetHasAggressivelyStarvingElements(true);
     }
 
     auto operationCriterionForChildren = operationCriterion;
     {
         // If pool is starving, any child will do.
-        bool satisfiedByPoolAggressiveStarvation = starving &&
-            operationCriterion == EPrescheduleJobOperationCriterion::AggressivelyStarvingOnly &&
-            aggressiveStarvationEnabled;
-        bool satisfiedByPoolStarvation = starving && operationCriterion == EPrescheduleJobOperationCriterion::StarvingOnly;
+        bool satisfiedByPoolAggressiveStarvation =
+            starvationStatus == EStarvationStatus::AggressivelyStarving &&
+            operationCriterion == EPrescheduleJobOperationCriterion::AggressivelyStarvingOnly;
+        bool satisfiedByPoolStarvation =
+            starvationStatus != EStarvationStatus::NonStarving &&
+            operationCriterion == EPrescheduleJobOperationCriterion::StarvingOnly;
         bool satisfiedByPool = satisfiedByPoolAggressiveStarvation || satisfiedByPoolStarvation;
 
         if (satisfiedByPool) {
@@ -1056,7 +1063,7 @@ void TSchedulerCompositeElement::PrescheduleJob(
     }
 
     for (const auto& child : SchedulableChildren_) {
-        child->PrescheduleJob(context, operationCriterionForChildren, aggressiveStarvationEnabled);
+        child->PrescheduleJob(context, operationCriterionForChildren);
     }
 
     UpdateDynamicAttributes(&context->DynamicAttributesList(), context->ChildHeapMap());
@@ -1073,16 +1080,14 @@ bool TSchedulerCompositeElement::IsSchedulable() const
     return IsRoot() || !SchedulableChildren_.empty();
 }
 
-bool TSchedulerCompositeElement::HasAggressivelyStarvingElements(TScheduleJobsContext* context, bool aggressiveStarvationEnabled) const
+bool TSchedulerCompositeElement::HasAggressivelyStarvingElements(TScheduleJobsContext* context) const
 {
-    // TODO(ignat): eliminate copy/paste
-    aggressiveStarvationEnabled = aggressiveStarvationEnabled || IsAggressiveStarvationEnabled();
-    if (PersistentAttributes_.Starving && aggressiveStarvationEnabled) {
+    if (PersistentAttributes_.StarvationStatus == EStarvationStatus::AggressivelyStarving) {
         return true;
     }
 
     for (const auto& child : EnabledChildren_) {
-        if (child->HasAggressivelyStarvingElements(context, aggressiveStarvationEnabled)) {
+        if (child->HasAggressivelyStarvingElements(context)) {
             return true;
         }
     }
@@ -1550,9 +1555,9 @@ double TSchedulerPoolElement::GetFairShareStarvationTolerance() const
     return Config_->FairShareStarvationTolerance.value_or(Parent_->GetAdjustedFairShareStarvationTolerance());
 }
 
-TDuration TSchedulerPoolElement::GetFairSharePreemptionTimeout() const
+TDuration TSchedulerPoolElement::GetFairShareStarvationTimeout() const
 {
-    return Config_->FairSharePreemptionTimeout.value_or(Parent_->GetAdjustedFairSharePreemptionTimeout());
+    return Config_->FairShareStarvationTimeout.value_or(Parent_->GetAdjustedFairShareStarvationTimeout());
 }
 
 double TSchedulerPoolElement::GetFairShareStarvationToleranceLimit() const
@@ -1560,29 +1565,31 @@ double TSchedulerPoolElement::GetFairShareStarvationToleranceLimit() const
     return Config_->FairShareStarvationToleranceLimit.value_or(TreeConfig_->FairShareStarvationToleranceLimit);
 }
 
-TDuration TSchedulerPoolElement::GetFairSharePreemptionTimeoutLimit() const
+TDuration TSchedulerPoolElement::GetFairShareStarvationTimeoutLimit() const
 {
-    return Config_->FairSharePreemptionTimeoutLimit.value_or(TreeConfig_->FairSharePreemptionTimeoutLimit);
+    return Config_->FairShareStarvationTimeoutLimit.value_or(TreeConfig_->FairShareStarvationTimeoutLimit);
 }
 
-void TSchedulerPoolElement::SetStarving(bool starving)
+void TSchedulerPoolElement::SetStarvationStatus(EStarvationStatus starvationStatus)
 {
     YT_VERIFY(Mutable_);
 
-    if (starving && !GetStarving()) {
-        TSchedulerElement::SetStarving(true);
-        YT_LOG_INFO("Pool is now starving (Status: %v)", GetStatus());
-    } else if (!starving && GetStarving()) {
-        TSchedulerElement::SetStarving(false);
-        YT_LOG_INFO("Pool is no longer starving");
+    if (starvationStatus != GetStarvationStatus()) {
+        YT_LOG_INFO("Pool starvation status changed (Current: %v, New: %v)",
+            GetStarvationStatus(),
+            starvationStatus);
     }
+    TSchedulerElement::SetStarvationStatus(starvationStatus);
 }
 
 void TSchedulerPoolElement::CheckForStarvation(TInstant now)
 {
     YT_VERIFY(Mutable_);
 
-    TSchedulerElement::CheckForStarvationImpl(AdjustedFairSharePreemptionTimeout_, now);
+    TSchedulerElement::CheckForStarvationImpl(
+        AdjustedFairShareStarvationTimeout_,
+        TreeConfig_->FairShareAggressiveStarvationTimeout,
+        now);
 }
 
 const TSchedulingTagFilter& TSchedulerPoolElement::GetSchedulingTagFilter() const
@@ -2464,9 +2471,9 @@ double TSchedulerOperationElement::GetFairShareStarvationTolerance() const
     return Spec_->FairShareStarvationTolerance.value_or(Parent_->GetAdjustedFairShareStarvationTolerance());
 }
 
-TDuration TSchedulerOperationElement::GetFairSharePreemptionTimeout() const
+TDuration TSchedulerOperationElement::GetFairShareStarvationTimeout() const
 {
-    return Spec_->FairSharePreemptionTimeout.value_or(Parent_->GetAdjustedFairSharePreemptionTimeout());
+    return Spec_->FairShareStarvationTimeout.value_or(Parent_->GetAdjustedFairShareStarvationTimeout());
 }
 
 void TSchedulerOperationElement::DisableNonAliveElements()
@@ -2502,12 +2509,14 @@ void TSchedulerOperationElement::PreUpdateBottomUp(NFairShare::TFairShareUpdateC
     TSchedulerElement::PreUpdateBottomUp(context);
 }
 
-void TSchedulerOperationElement::PublishFairShareAndUpdatePreemption()
+void TSchedulerOperationElement::PublishFairShareAndUpdatePreemptionSettings(bool aggressiveStarvationEnabled)
 {
     // This version is global and used to balance preemption lists.
     ResourceTreeElement_->SetFairShare(Attributes_.FairShare.Total);
 
     UpdatePreemptionAttributes();
+
+    Attributes_.AggressiveStarvationEnabled = aggressiveStarvationEnabled;
 }
 
 void TSchedulerOperationElement::BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context)
@@ -2601,8 +2610,7 @@ const TJobResources& TSchedulerOperationElement::CalculateCurrentResourceUsage(T
 
 void TSchedulerOperationElement::PrescheduleJob(
     TScheduleJobsContext* context,
-    EPrescheduleJobOperationCriterion operationCriterion,
-    bool aggressiveStarvationEnabled)
+    EPrescheduleJobOperationCriterion operationCriterion)
 {
     auto& attributes = context->DynamicAttributesFor(this);
 
@@ -2647,14 +2655,14 @@ void TSchedulerOperationElement::PrescheduleJob(
     }
 
     if (operationCriterion == EPrescheduleJobOperationCriterion::AggressivelyStarvingOnly &&
-        !(PersistentAttributes_.Starving && aggressiveStarvationEnabled))
+        PersistentAttributes_.StarvationStatus != EStarvationStatus::AggressivelyStarving)
     {
         onOperationDeactivated(EDeactivationReason::IsNotAggressivelyStarving);
         return;
     }
 
     if (operationCriterion == EPrescheduleJobOperationCriterion::StarvingOnly &&
-        !PersistentAttributes_.Starving)
+        PersistentAttributes_.StarvationStatus == EStarvationStatus::NonStarving)
     {
         onOperationDeactivated(EDeactivationReason::IsNotStarving);
         return;
@@ -2680,10 +2688,9 @@ void TSchedulerOperationElement::PrescheduleJob(
     }
 }
 
-bool TSchedulerOperationElement::HasAggressivelyStarvingElements(TScheduleJobsContext* /*context*/, bool /*aggressiveStarvationEnabled*/) const
+bool TSchedulerOperationElement::HasAggressivelyStarvingElements(TScheduleJobsContext* /*context*/) const
 {
-    // TODO(ignat): Support aggressive starvation by starving operation.
-    return false;
+    return PersistentAttributes_.StarvationStatus == EStarvationStatus::AggressivelyStarving;
 }
 
 TString TSchedulerOperationElement::GetLoggingString() const
@@ -2978,36 +2985,45 @@ ESchedulableStatus TSchedulerOperationElement::GetStatus(bool atUpdate) const
     return TSchedulerElement::GetStatusImpl(AdjustedFairShareStarvationTolerance_, atUpdate);
 }
 
-void TSchedulerOperationElement::SetStarving(bool starving)
+void TSchedulerOperationElement::SetStarvationStatus(EStarvationStatus starvationStatus)
 {
     YT_VERIFY(Mutable_);
 
-    if (!starving) {
+    if (starvationStatus == EStarvationStatus::NonStarving) {
         PersistentAttributes_.LastNonStarvingTime = TInstant::Now();
     }
 
-    if (starving && !GetStarving()) {
-        OperationElementSharedState_->ResetDeactivationReasonsFromLastNonStarvingTime();
-        TSchedulerElement::SetStarving(true);
-        YT_LOG_INFO("Operation is now starving (Status: %v)", GetStatus());
-    } else if (!starving && GetStarving()) {
-        TSchedulerElement::SetStarving(false);
-        YT_LOG_INFO("Operation is no longer starving");
+    if (starvationStatus != GetStarvationStatus()) {
+        YT_LOG_INFO("Operation starvation status changed (Current: %v, New: %v)",
+            GetStarvationStatus(),
+            starvationStatus);
+    } else {
+        return;
     }
+
+    if (GetStarvationStatus() == EStarvationStatus::NonStarving && starvationStatus != EStarvationStatus::NonStarving) {
+        OperationElementSharedState_->ResetDeactivationReasonsFromLastNonStarvingTime();
+    }
+    TSchedulerElement::SetStarvationStatus(starvationStatus);
 }
 
 void TSchedulerOperationElement::CheckForStarvation(TInstant now)
 {
     YT_VERIFY(Mutable_);
 
-    auto fairSharePreemptionTimeout = AdjustedFairSharePreemptionTimeout_;
+    auto fairShareStarvationTimeout = AdjustedFairShareStarvationTimeout_;
+    auto fairShareAggressiveStarvationTimeout = TreeConfig_->FairShareAggressiveStarvationTimeout;
 
     double jobCountRatio = GetPendingJobCount() / TreeConfig_->JobCountPreemptionTimeoutCoefficient;
     if (jobCountRatio < 1.0) {
-        fairSharePreemptionTimeout *= jobCountRatio;
+        fairShareStarvationTimeout *= jobCountRatio;
+        fairShareAggressiveStarvationTimeout *= jobCountRatio;
     }
 
-    TSchedulerElement::CheckForStarvationImpl(fairSharePreemptionTimeout, now);
+    TSchedulerElement::CheckForStarvationImpl(
+        fairShareStarvationTimeout,
+        fairShareAggressiveStarvationTimeout,
+        now);
 }
 
 bool TSchedulerOperationElement::IsPreemptionAllowed(
@@ -3033,7 +3049,7 @@ bool TSchedulerOperationElement::IsPreemptionAllowed(
     // TODO(eshcherbin): Rethink this check, perhaps we don't need to perform it at every ancestor (see: YT-13670)
     const TSchedulerElement* element = this;
     while (element && !element->IsRoot()) {
-        if (config->PreemptionCheckStarvation && element->GetStarving()) {
+        if (config->PreemptionCheckStarvation && element->GetStarvationStatus() != EStarvationStatus::NonStarving) {
             OperationElementSharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceStarvingParentOrSelf);
             return false;
         }
@@ -3551,9 +3567,9 @@ TSchedulerRootElement::TSchedulerRootElement(
 
     Mode_ = ESchedulingMode::FairShare;
     AdjustedFairShareStarvationTolerance_ = GetFairShareStarvationTolerance();
-    AdjustedFairSharePreemptionTimeout_ = GetFairSharePreemptionTimeout();
+    AdjustedFairShareStarvationTimeout_ = GetFairShareStarvationTimeout();
     AdjustedFairShareStarvationToleranceLimit_ = GetFairShareStarvationToleranceLimit();
-    AdjustedFairSharePreemptionTimeoutLimit_ = GetFairSharePreemptionTimeoutLimit();
+    AdjustedFairShareStarvationTimeoutLimit_ = GetFairShareStarvationTimeoutLimit();
 }
 
 TSchedulerRootElement::TSchedulerRootElement(const TSchedulerRootElement& other)
@@ -3566,7 +3582,7 @@ void TSchedulerRootElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigP
     TSchedulerCompositeElement::UpdateTreeConfig(config);
 
     AdjustedFairShareStarvationTolerance_ = GetFairShareStarvationTolerance();
-    AdjustedFairSharePreemptionTimeout_ = GetFairSharePreemptionTimeout();
+    AdjustedFairShareStarvationTimeout_ = GetFairShareStarvationTimeout();
 }
 
 void TSchedulerRootElement::PreUpdate(NFairShare::TFairShareUpdateContext* context)
@@ -3596,7 +3612,7 @@ void TSchedulerRootElement::PostUpdate(
 
     YT_VERIFY(Mutable_);
 
-    PublishFairShareAndUpdatePreemption();
+    PublishFairShareAndUpdatePreemptionSettings(IsAggressiveStarvationEnabled());
 
     BuildSchedulableChildrenLists(postUpdateContext);
 
@@ -3644,9 +3660,9 @@ double TSchedulerRootElement::GetFairShareStarvationTolerance() const
     return TreeConfig_->FairShareStarvationTolerance;
 }
 
-TDuration TSchedulerRootElement::GetFairSharePreemptionTimeout() const
+TDuration TSchedulerRootElement::GetFairShareStarvationTimeout() const
 {
-    return TreeConfig_->FairSharePreemptionTimeout;
+    return TreeConfig_->FairShareStarvationTimeout;
 }
 
 bool TSchedulerRootElement::IsAggressiveStarvationEnabled() const

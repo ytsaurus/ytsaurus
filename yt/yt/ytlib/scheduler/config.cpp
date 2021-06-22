@@ -1690,13 +1690,15 @@ TSchedulableConfig::TSchedulableConfig()
         .Alias("min_share_resources")
         .DefaultNew();
 
-    RegisterParameter("fair_share_preemption_timeout", FairSharePreemptionTimeout)
+    RegisterParameter("fair_share_starvation_timeout", FairShareStarvationTimeout)
+        .Alias("fair_share_preemption_timeout")
         .Default();
     RegisterParameter("fair_share_starvation_tolerance", FairShareStarvationTolerance)
         .InRange(0.0, 1.0)
         .Default();
 
-    RegisterParameter("fair_share_preemption_timeout_limit", FairSharePreemptionTimeoutLimit)
+    RegisterParameter("fair_share_starvation_timeout_limit", FairShareStarvationTimeoutLimit)
+        .Alias("fair_share_preemption_timeout_limit")
         .Default();
     RegisterParameter("fair_share_starvation_tolerance_limit", FairShareStarvationToleranceLimit)
         .InRange(0.0, 1.0)

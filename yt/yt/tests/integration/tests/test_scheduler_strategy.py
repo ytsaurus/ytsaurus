@@ -1056,7 +1056,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         set("//sys/pool_trees/default/@config/preemption_satisfaction_threshold", 0.99)
         set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance", 0.7)
         set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance_limit", 0.9)
-        set("//sys/pool_trees/default/@config/fair_share_preemption_timeout", 1000)
+        set("//sys/pool_trees/default/@config/fair_share_starvation_timeout", 1000)
         set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 0)
         set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
         set("//sys/pool_trees/default/@config/job_graceful_interrupt_timeout", 10000)
@@ -1101,7 +1101,7 @@ class TestSchedulerPreemption(YTEnvSetup):
     @authors("ignat")
     @pytest.mark.parametrize("interruptible", [False, True])
     def test_interrupt_job_on_preemption(self, interruptible):
-        set("//sys/pool_trees/default/@config/fair_share_preemption_timeout", 100)
+        set("//sys/pool_trees/default/@config/fair_share_starvation_timeout", 100)
         set("//sys/pool_trees/default/@config/max_ephemeral_pools_per_user", 2)
         create("table", "//tmp/t_in")
         write_table(
@@ -1999,9 +1999,11 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
         set("//sys/pool_trees/default/@config/aggressive_preemption_satisfaction_threshold", 0.2)
         set("//sys/pool_trees/default/@config/preemption_satisfaction_threshold", 1.0)
         set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance", 0.9)
+        set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance_limit", 0.9)
         set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 0)
-        set("//sys/pool_trees/default/@config/fair_share_preemption_timeout", 100)
-        set("//sys/pool_trees/default/@config/fair_share_preemption_timeout_limit", 100)
+        set("//sys/pool_trees/default/@config/fair_share_starvation_timeout", 100)
+        set("//sys/pool_trees/default/@config/fair_share_starvation_timeout_limit", 100)
+        set("//sys/pool_trees/default/@config/fair_share_aggressive_starvation_timeout", 200)
         set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
         set("//sys/pool_trees/default/@config/max_ephemeral_pools_per_user", 5)
         time.sleep(0.5)
@@ -2051,11 +2053,11 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
     @authors("eshcherbin")
     def test_no_aggressive_preemption_for_non_aggressively_starving_operation(self):
         create_pool("fake_pool", attributes={"weight": 10.0})
-        create_pool("regular_pool")
+        create_pool("regular_pool", attributes={"weight": 1.0})
         create_pool("special_pool", attributes={"weight": 2.0})
 
-        def is_starving(op):
-            return op.get_runtime_progress("scheduling_info_per_pool_tree/default/starving")
+        def get_starvation_status(op):
+            return op.get_runtime_progress("scheduling_info_per_pool_tree/default/starvation_status")
 
         def get_fair_share_ratio(op):
             return op.get_runtime_progress("scheduling_info_per_pool_tree/default/fair_share_ratio", 0.0)
@@ -2071,39 +2073,42 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
                 "update_preemptable_jobs_list_logging_period": 1,
             },
         )
-        time.sleep(3)
+        bad_op.wait_presence_in_scheduler()
 
         wait(lambda: are_almost_equal(get_fair_share_ratio(bad_op), 1.0))
         wait(lambda: are_almost_equal(get_usage_ratio(bad_op), 1.0))
         wait(lambda: len(bad_op.get_running_jobs()) == 8)
 
         op1 = run_sleeping_vanilla(job_count=2, spec={"pool": "special_pool", "locality_timeout": 0})
-        time.sleep(3)
+        op1.wait_presence_in_scheduler()
 
         wait(lambda: are_almost_equal(get_fair_share_ratio(op1), 2.0 / 12.0))
         wait(lambda: are_almost_equal(get_usage_ratio(op1), 1.0 / 8.0))
         wait(lambda: len(op1.get_running_jobs()) == 1)
 
         time.sleep(3)
-        wait(lambda: are_almost_equal(get_usage_ratio(op1), 1.0 / 8.0))
-        wait(lambda: len(op1.get_running_jobs()) == 1)
+        assert are_almost_equal(get_usage_ratio(op1), 1.0 / 8.0)
+        assert len(op1.get_running_jobs()) == 1
 
         op2 = run_sleeping_vanilla(job_count=1, spec={"pool": "regular_pool", "locality_timeout": 0})
-        time.sleep(3)
+        op2.wait_presence_in_scheduler()
 
-        wait(lambda: is_starving(op2))
+        wait(lambda: get_starvation_status(op2) == "starving")
         wait(lambda: are_almost_equal(get_fair_share_ratio(op2), 1.0 / 13.0))
         wait(lambda: are_almost_equal(get_usage_ratio(op2), 0.0))
         wait(lambda: len(op2.get_running_jobs()) == 0)
 
         time.sleep(3)
-        wait(lambda: are_almost_equal(get_usage_ratio(op2), 0.0))
-        wait(lambda: len(op2.get_running_jobs()) == 0)
+        assert are_almost_equal(get_usage_ratio(op2), 0.0)
+        assert len(op2.get_running_jobs()) == 0
+
+        # (1/8) / (1/6) = 0.75 < 0.9 (which is fair_share_starvation_tolerance).
+        assert get_starvation_status(op1) == "starving"
 
         set("//sys/pools/special_pool/@aggressive_starvation_enabled", True)
-
-        wait(lambda: are_almost_equal(get_usage_ratio(op1), 0.25))
+        wait(lambda: are_almost_equal(get_usage_ratio(op1), 2.0 / 8.0))
         wait(lambda: len(op1.get_running_jobs()) == 2)
+        assert get_starvation_status(op1) == "non_starving"
 
 
 ##################################################################
@@ -2122,7 +2127,7 @@ class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
         set("//sys/pool_trees/default/@config/preemption_satisfaction_threshold", 0.75)
         set("//sys/pool_trees/default/@config/preemption_check_starvation", False)
         set("//sys/pool_trees/default/@config/preemption_check_satisfaction", False)
-        set("//sys/pool_trees/default/@config/fair_share_preemption_timeout", 100)
+        set("//sys/pool_trees/default/@config/fair_share_starvation_timeout", 100)
         set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 2)
         set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
         time.sleep(0.5)
@@ -3122,8 +3127,8 @@ class TestSchedulingSegments(YTEnvSetup):
         )
         # Not to let preemption abort the jobs instead of segments manager.
         set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
-        set("//sys/pool_trees/default/@config/fair_share_preemption_timeout", 100)
-        set("//sys/pool_trees/default/@config/fair_share_preemption_timeout_limit", 100)
+        set("//sys/pool_trees/default/@config/fair_share_starvation_timeout", 100)
+        set("//sys/pool_trees/default/@config/fair_share_starvation_timeout_limit", 100)
         set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance", 0.95)
         set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance_limit", 0.95)
         set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 80)
@@ -3873,8 +3878,8 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
         )
         # Not to let preemption abort the jobs instead of segments manager.
         set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
-        set("//sys/pool_trees/default/@config/fair_share_preemption_timeout", 100)
-        set("//sys/pool_trees/default/@config/fair_share_preemption_timeout_limit", 100)
+        set("//sys/pool_trees/default/@config/fair_share_starvation_timeout", 100)
+        set("//sys/pool_trees/default/@config/fair_share_starvation_timeout_limit", 100)
         set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance", 0.95)
         set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance_limit", 0.95)
         set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 80)

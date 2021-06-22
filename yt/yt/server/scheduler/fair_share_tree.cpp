@@ -1384,7 +1384,7 @@ private:
                 if (!context->StageState()->PrescheduleExecuted) {
                     TWallTimer prescheduleTimer;
                     context->PrepareForScheduling(treeSnapshotImpl->RootElement());
-                    rootElement->PrescheduleJob(context, EPrescheduleJobOperationCriterion::All, /* aggressiveStarvationEnabled */ false);
+                    rootElement->PrescheduleJob(context, EPrescheduleJobOperationCriterion::All);
                     context->StageState()->PrescheduleDuration = prescheduleTimer.GetElapsedTime();
                     context->StageState()->PrescheduleExecuted = true;
                 }
@@ -1444,7 +1444,7 @@ private:
 
         // TODO(ignat): move this logic inside TScheduleJobsContext.
         if (!context->GetHasAggressivelyStarvingElements()) {
-            context->SetHasAggressivelyStarvingElements(rootElement->HasAggressivelyStarvingElements(context, false));
+            context->SetHasAggressivelyStarvingElements(rootElement->HasAggressivelyStarvingElements(context));
         }
 
         bool hasAggressivelyStarvingElements = *context->GetHasAggressivelyStarvingElements();
@@ -1528,8 +1528,7 @@ private:
                         context,
                         isAggressive
                             ? EPrescheduleJobOperationCriterion::AggressivelyStarvingOnly
-                            : EPrescheduleJobOperationCriterion::StarvingOnly,
-                        /* aggressiveStarvationEnabled */ false);
+                            : EPrescheduleJobOperationCriterion::StarvingOnly);
 
                     context->StageState()->PrescheduleDuration = prescheduleTimer.GetElapsedTime();
                     context->StageState()->PrescheduleExecuted = true;
@@ -2434,7 +2433,7 @@ private:
                 })
             .EndList()
             .Item("tentative").Value(element->GetRuntimeParameters()->Tentative)
-            .Item("starving_since").Value(element->GetStarving()
+            .Item("starving_since").Value(element->GetStarvationStatus() != EStarvationStatus::NonStarving
                 ? std::make_optional(element->GetLastNonStarvingTime())
                 : std::nullopt)
             .Do(BIND(&TFairShareTree::DoBuildElementYson, Unretained(this), Unretained(element)));
@@ -2451,11 +2450,11 @@ private:
         // Also rethink which scalar fields should be exported to Orchid.
         fluent
             .Item("scheduling_status").Value(element->GetStatus())
-            .Item("starving").Value(element->GetStarving())
+            .Item("starvation_status").Value(element->GetStarvationStatus())
             .Item("fair_share_starvation_tolerance").Value(element->GetFairShareStarvationTolerance())
-            .Item("fair_share_preemption_timeout").Value(element->GetFairSharePreemptionTimeout())
+            .Item("fair_share_starvation_timeout").Value(element->GetFairShareStarvationTimeout())
             .Item("adjusted_fair_share_starvation_tolerance").Value(element->GetAdjustedFairShareStarvationTolerance())
-            .Item("adjusted_fair_share_preemption_timeout").Value(element->GetAdjustedFairSharePreemptionTimeout())
+            .Item("adjusted_fair_share_starvation_timeout").Value(element->GetAdjustedFairShareStarvationTimeout())
             .Item("weight").Value(element->GetWeight())
             .Item("max_share_ratio").Value(element->GetMaxShareRatio())
             .Item("dominant_resource").Value(attributes.DominantResource)

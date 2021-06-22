@@ -125,13 +125,17 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("nodes_filter", NodesFilter)
         .Default();
 
-    RegisterParameter("fair_share_preemption_timeout", FairSharePreemptionTimeout)
+    RegisterParameter("fair_share_starvation_timeout", FairShareStarvationTimeout)
+        .Alias("fair_share_preemption_timeout")
         .Default(TDuration::Seconds(30));
+    RegisterParameter("fair_share_aggressive_starvation_timeout", FairShareAggressiveStarvationTimeout)
+        .Default(TDuration::Seconds(120));
     RegisterParameter("fair_share_starvation_tolerance", FairShareStarvationTolerance)
         .InRange(0.0, 1.0)
         .Default(0.8);
 
-    RegisterParameter("fair_share_preemption_timeout_limit", FairSharePreemptionTimeoutLimit)
+    RegisterParameter("fair_share_starvation_timeout_limit", FairShareStarvationTimeoutLimit)
+        .Alias("fair_share_preemption_timeout_limit")
         .Default(TDuration::Seconds(30));
     RegisterParameter("fair_share_starvation_tolerance_limit", FairShareStarvationToleranceLimit)
         .InRange(0.0, 1.0)
@@ -293,9 +297,14 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
 
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
-            THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")
+            THROW_ERROR_EXCEPTION("Aggressive starvation satisfaction threshold must be less than starvation satisfaction threshold")
                 << TErrorAttribute("aggressive_threshold", AggressivePreemptionSatisfactionThreshold)
                 << TErrorAttribute("threshold", PreemptionSatisfactionThreshold);
+        }
+        if (FairShareAggressiveStarvationTimeout < FairShareStarvationTimeout) {
+            THROW_ERROR_EXCEPTION("Aggressive starvation timeout must be greater than starvation timeout")
+                << TErrorAttribute("aggressive_timeout", FairShareAggressiveStarvationTimeout)
+                << TErrorAttribute("timeout", FairShareStarvationTimeout);
         }
     });
 }
