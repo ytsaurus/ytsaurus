@@ -23,6 +23,11 @@ struct IClientBlockCache
     //! Returns all the cached blocks with given types.
     virtual std::vector<TBlockCacheEntry> GetSnapshot(EBlockType blockTypes) const = 0;
 
+    virtual void PutP2PBlock(
+        const TBlockId& id,
+        EBlockType type,
+        const TBlock& data) = 0;
+
     virtual void Reconfigure(const TBlockCacheDynamicConfigPtr& config) = 0;
 };
 

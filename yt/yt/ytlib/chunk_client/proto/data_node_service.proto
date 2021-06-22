@@ -373,9 +373,9 @@ message TRspGetChunkMeta
 message TReqUpdatePeer
 {
     reserved 2;
-    repeated TBlockId block_ids = 1;
-    required uint64 peer_expiration_deadline = 3;
-    required int32 peer_node_id = 4;
+    reserved 1;
+    reserved 3;
+    reserved 4;
 }
 
 message TRspUpdatePeer

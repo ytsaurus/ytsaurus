@@ -10,7 +10,6 @@
 #include "legacy_master_connector.h"
 #include "network_statistics.h"
 #include "block_peer_table.h"
-#include "block_peer_updater.h"
 #include "p2p_block_distributor.h"
 #include "session.h"
 #include "session_manager.h"
@@ -393,21 +392,13 @@ private:
                 << TErrorAttribute("blocks_length", request->blocks_size());
         }
 
-        const auto& blockCache = Bootstrap_->GetBlockCache();
+        const auto& blockCache = Bootstrap_->GetClientBlockCache();
         for (size_t index = 0; index < blocks.size(); ++index) {
             const auto& block = blocks[index];
             const auto& protoBlock = request->blocks(index);
             auto blockId = FromProto<TBlockId>(protoBlock.block_id());
-            auto sourceDescriptor = protoBlock.has_source_descriptor()
-                ? std::make_optional(FromProto<TNodeDescriptor>(protoBlock.source_descriptor()))
-                : std::nullopt;
-            blockCache->PutBlock(blockId, EBlockType::CompressedData, block, sourceDescriptor);
+            blockCache->PutP2PBlock(blockId, EBlockType::CompressedData, block);
         }
-
-        // We mimic TBlockPeerUpdater behavior here.
-        const auto& peerBlockUpdater = Bootstrap_->GetBlockPeerUpdater();
-        auto expirationDeadline = peerBlockUpdater->GetPeerUpdateExpirationTime().ToDeadLine();
-        response->set_expiration_deadline(ToProto<i64>(expirationDeadline));
 
         context->Reply();
     }
@@ -1727,24 +1718,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdatePeer)
     {
-        auto expirationDeadline = FromProto<TInstant>(request->peer_expiration_deadline());
-
-        const auto& nodeDirectory = Bootstrap_->GetNodeDirectory();
-        const auto* nodeDescriptor = nodeDirectory->FindDescriptor(request->peer_node_id());
-
-        context->SetRequestInfo("PeerNodeId: %v, PeerAddress: %v, ExpirationDeadline: %v, BlockCount: %v",
-            request->peer_node_id(),
-            (nodeDescriptor ? nodeDescriptor : &NullNodeDescriptor())->GetDefaultAddress(),
-            expirationDeadline,
-            request->block_ids_size());
-
-        const auto& blockPeerTable = Bootstrap_->GetBlockPeerTable();
-        for (const auto& protoBlockId : request->block_ids()) {
-            auto blockId = FromProto<TBlockId>(protoBlockId);
-            auto peerList = blockPeerTable->GetOrCreatePeerList(blockId);
-            peerList->AddPeer(request->peer_node_id(), expirationDeadline);
-        }
-
+        // NB: this method is no longer used, but noop stub is kept here for smooth rolling update. 
         context->Reply();
     }
 

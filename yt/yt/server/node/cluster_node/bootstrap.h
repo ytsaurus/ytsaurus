@@ -106,7 +106,6 @@ public:
     const NChunkClient::IClientBlockCachePtr& GetClientBlockCache() const;
     const NDataNode::TP2PBlockDistributorPtr& GetP2PBlockDistributor() const;
     const NDataNode::TBlockPeerTablePtr& GetBlockPeerTable() const;
-    const NDataNode::TBlockPeerUpdaterPtr& GetBlockPeerUpdater() const;
     const NDataNode::IBlobReaderCachePtr& GetBlobReaderCache() const;
     const NDataNode::TTableSchemaCachePtr& GetTableSchemaCache() const;
     const NDataNode::IJournalDispatcherPtr& GetJournalDispatcher() const;
@@ -203,7 +202,6 @@ private:
     NChunkClient::IBlockCachePtr BlockCache_;
     NChunkClient::IClientBlockCachePtr ClientBlockCache_;
     NDataNode::TBlockPeerTablePtr BlockPeerTable_;
-    NDataNode::TBlockPeerUpdaterPtr BlockPeerUpdater_;
     NDataNode::TP2PBlockDistributorPtr P2PBlockDistributor_;
     NDataNode::IBlobReaderCachePtr BlobReaderCache_;
     NDataNode::TTableSchemaCachePtr TableSchemaCache_;

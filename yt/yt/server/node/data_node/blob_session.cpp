@@ -493,7 +493,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
         slot.MemoryTrackerGuard = std::move(memoryTrackerGuards[localIndex]);
 
         if (enableCaching) {
-            blockCache->PutBlock(blockId, EBlockType::CompressedData, block, /* source */ std::nullopt);
+            blockCache->PutBlock(blockId, EBlockType::CompressedData, block);
         }
 
         Location_->UpdateUsedSpace(block.Size());
