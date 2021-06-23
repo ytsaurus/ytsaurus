@@ -80,13 +80,13 @@ public:
 
     //! Constructs an instance from TString.
     //! Zero-copy for CoW TString: retains the reference to TString in payload.
-    TYsonString(
+    explicit TYsonString(
         const TString& data,
         EYsonType type = EYsonType::Node);
 
     //! Constructs an instance from TSharedRef.
     //! Zero-copy; retains the reference to TSharedRef holder in payload.
-    TYsonString(
+    explicit TYsonString(
         const TSharedRef& ref,
         EYsonType type = EYsonType::Node);
 
