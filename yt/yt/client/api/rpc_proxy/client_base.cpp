@@ -871,6 +871,7 @@ TFuture<TSelectRowsResult> TClientBase::SelectRows(
     auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.SelectRows();
+    req->SetHeavy(true);
     req->set_query(query);
 
     FillRequestBySelectRowsOptionsBase(options, req);
