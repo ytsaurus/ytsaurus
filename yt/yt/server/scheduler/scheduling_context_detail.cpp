@@ -32,7 +32,10 @@ TSchedulingContextBase::TSchedulingContextBase(
     , ResourceUsage_(node->GetResourceUsage())
     , ResourceLimits_(node->GetResourceLimits())
     , DiskResources_(node->GetDiskResources())
-    , MinSpareJobResources_(ToJobResources(config->MinSpareJobResourcesOnNode, TJobResources()))
+    , MinSpareJobResources_(
+        config->MinSpareJobResourcesOnNode
+        ? ToJobResources(*config->MinSpareJobResourcesOnNode, TJobResources())
+        : TJobResources())
     , RunningJobs_(runningJobs)
     , Config_(std::move(config))
     , Node_(std::move(node))
