@@ -1,4 +1,5 @@
 #include "rowset_builder.h"
+#include "dispatch_by_type.h"
 
 namespace NYT::NNewTableClient {
 
@@ -566,7 +567,9 @@ private:
                 values[index] = {row.BeginValues(), WriteTimestamps_ + writeTimestampsBegin, tsIdRange};
             } else {
                 // In case of all versions produce only versions after latest (before read timestamp) delete.
-                auto deleteTimestamp = lowerDeleteIdx != deleteTimestampsEnd ? DeleteTimestamps_[lowerDeleteIdx] : NullTimestamp;
+                auto deleteTimestamp = lowerDeleteIdx != deleteTimestampsEnd
+                    ? DeleteTimestamps_[lowerDeleteIdx]
+                    : NullTimestamp;
                 auto upperWriteIdx = GetUpperWriteIndex(lowerWriteIdx, writeTimestampsEnd, deleteTimestamp);
 
                 auto tsIdRange = std::make_pair(lowerWriteIdx - writeTimestampsBegin, upperWriteIdx - writeTimestampsBegin);

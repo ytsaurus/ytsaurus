@@ -28,11 +28,6 @@ struct TValueProducerInfo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <template <EValueType Type> class TFunction, class... TArgs>
-auto DispatchByDataType(EValueType type, TArgs&&... args);
-
-////////////////////////////////////////////////////////////////////////////////
-
 // TODO(lukyan): Replace data weight with row buffer allocated memory count.
 // Data weight does not match actual memory read/write footprint.
 // Types of memory are not counted: value types, ids, pointer to string data, length.
@@ -157,6 +152,8 @@ public:
 
     TRange<std::unique_ptr<TKeyColumnBase>> GetKeyColumns() const;
     TRange<std::unique_ptr<TVersionedValueColumnBase>> GetValueColumns() const;
+
+    void ResetPosition(ui16 id);
 
 protected:
     // Positions in segments are kept separately to minimize write memory footprint.
