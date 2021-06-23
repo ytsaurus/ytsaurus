@@ -4,6 +4,8 @@
 
 #include <yt/yt/client/ypath/rich.h>
 
+#include <yt/yt/client/api/public.h>
+
 #include <yt/yt/core/ytree/permission.h>
 
 namespace NYT::NDriver {
@@ -160,12 +162,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EProxyType,
-    ((Http) (1))
-    ((Rpc)  (2))
-    ((Grpc) (3))
-);
-
 struct TDiscoverProxiesOptions
     : public NApi::TTimeoutOptions
 { };
@@ -177,8 +173,8 @@ public:
     TDiscoverProxiesCommand();
 
 private:
-    EProxyType Type;
-    std::optional<TString> Role;
+    NApi::EProxyType Type;
+    TString Role;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };

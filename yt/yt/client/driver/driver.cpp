@@ -9,6 +9,7 @@
 #include "scheduler_commands.h"
 #include "table_commands.h"
 #include "transaction_commands.h"
+#include "proxy_discovery_cache.h"
 
 #include <yt/yt/client/api/transaction.h>
 #include <yt/yt/client/api/connection.h>
@@ -104,14 +105,16 @@ class TDriver
 {
 public:
     TDriver(TDriverConfigPtr config, IConnectionPtr connection)
-        : ClientCache_(New<TClientCache>(config->ClientCache, connection))
-        , Config_(std::move(config))
+        : Config_(std::move(config))
         , Connection_(std::move(connection))
+        , ClientCache_(New<TClientCache>(Config_->ClientCache, Connection_))
+        , ProxyDiscoveryCache_(CreateProxyDiscoveryCache(
+            Config_->ProxyDiscoveryCache,
+            ClientCache_->Get(
+                NRpc::GetRootAuthenticationIdentity(),
+                TClientOptions::FromAuthenticationIdentity(NRpc::GetRootAuthenticationIdentity()))))
         , StickyTransactionPool_(CreateStickyTransactionPool(Logger))
     {
-        YT_VERIFY(Config_);
-        YT_VERIFY(Connection_);
-
         // Register all commands.
 #define REGISTER(command, name, inDataType, outDataType, isVolatile, isHeavy, version) \
             if (version == Config_->ApiVersion) { \
@@ -361,6 +364,11 @@ public:
         return StickyTransactionPool_;
     }
 
+    virtual IProxyDiscoveryCachePtr GetProxyDiscoveryCache() override
+    {
+        return ProxyDiscoveryCache_;
+    }
+
     virtual IConnectionPtr GetConnection() override
     {
         return Connection_;
@@ -378,20 +386,20 @@ public:
         if (Connection_) {
             Connection_->Terminate();
             ClientCache_.Reset();
+            ProxyDiscoveryCache_.Reset();
             Connection_.Reset();
         }
     }
 
 private:
+    const TDriverConfigPtr Config_;
+    IConnectionPtr Connection_;
     TClientCachePtr ClientCache_;
+    IProxyDiscoveryCachePtr ProxyDiscoveryCache_;
 
     class TCommandContext;
     typedef TIntrusivePtr<TCommandContext> TCommandContextPtr;
     typedef TCallback<void(ICommandContextPtr)> TExecuteCallback;
-
-    const TDriverConfigPtr Config_;
-
-    IConnectionPtr Connection_;
 
     const IStickyTransactionPoolPtr StickyTransactionPool_;
 
@@ -564,10 +572,15 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IDriverPtr CreateDriver(
-    NApi::IConnectionPtr connection,
+    IConnectionPtr connection,
     TDriverConfigPtr config)
 {
-    return New<TDriver>(std::move(config), std::move(connection));
+    YT_VERIFY(connection);
+    YT_VERIFY(config);
+
+    return New<TDriver>(
+        std::move(config),
+        std::move(connection));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

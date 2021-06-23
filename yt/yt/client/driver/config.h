@@ -14,6 +14,8 @@
 
 #include <yt/yt/core/ytree/yson_serializable.h>
 
+#include <yt/yt/core/misc/cache_config.h>
+
 namespace NYT::NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,7 +44,10 @@ public:
 
     std::optional<TString> Token;
 
+
     bool ForceTracing;
+
+    TAsyncExpiringCacheConfigPtr ProxyDiscoveryCache;
 
     TDriverConfig()
     {
@@ -79,15 +84,24 @@ public:
         RegisterParameter("token", Token)
             .Optional();
 
+        RegisterParameter("force_tracing", ForceTracing)
+            .Default(false);
+
+        RegisterParameter("proxy_discovery_cache", ProxyDiscoveryCache)
+            .DefaultNew();
+
+        RegisterPreprocessor([&] {
+            ProxyDiscoveryCache->RefreshTime = TDuration::Seconds(15);
+            ProxyDiscoveryCache->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(15);
+            ProxyDiscoveryCache->ExpireAfterFailedUpdateTime = TDuration::Seconds(15);
+        });
+
         RegisterPostprocessor([&] {
             if (ApiVersion != ApiVersion3 && ApiVersion != ApiVersion4) {
                 THROW_ERROR_EXCEPTION("Unsupported API version %v",
                     ApiVersion);
             }
         });
-
-        RegisterParameter("force_tracing", ForceTracing)
-            .Default(false);
     }
 };
 

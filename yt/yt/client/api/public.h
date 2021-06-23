@@ -55,6 +55,12 @@ DEFINE_ENUM(ETransactionCoordinatorCommitMode,
     ((Lazy)   (1))
 );
 
+DEFINE_ENUM(EProxyType,
+    ((Http) (1))
+    ((Rpc)  (2))
+    ((Grpc) (3))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TRow>
@@ -121,6 +127,15 @@ DECLARE_REFCOUNTED_STRUCT(TSchedulingOptions)
 DECLARE_REFCOUNTED_CLASS(TJobInputReader)
 
 DECLARE_REFCOUNTED_CLASS(TClientCache)
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const TString RpcProxiesPath;
+extern const TString GrpcProxiesPath;
+extern const TString DefaultProxyRole;
+extern const TString BannedAttributeName;
+extern const TString RoleAttributeName;
+extern const TString AliveNodeName;
 
 ////////////////////////////////////////////////////////////////////////////////
 

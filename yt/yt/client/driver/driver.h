@@ -128,6 +128,9 @@ struct IDriver
     //! Returns the pool of sticky transactions stored in the driver.
     virtual NApi::IStickyTransactionPoolPtr GetStickyTransactionPool() = 0;
 
+    //! Returns the cache for proxy discovery requests.
+    virtual IProxyDiscoveryCachePtr GetProxyDiscoveryCache() = 0;
+
     //! Returns the underlying connection.
     virtual NApi::IConnectionPtr GetConnection() = 0;
 
