@@ -96,6 +96,10 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     } else {
         WarnForUnrecognizedOptions(Logger, Config_);
     }
+
+    if (!Config_->ClusterConnection) {
+        THROW_ERROR_EXCEPTION("Cluster connection is missing");
+    }
 }
 
 TBootstrap::~TBootstrap() = default;
