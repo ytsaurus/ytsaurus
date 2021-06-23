@@ -120,7 +120,6 @@ def get_scheduler_config():
 b"""
 {
     cluster_connection = {
-        enable_read_from_followers = %true;
         scheduler = {
             retry_backoff_time = 100;
         }
@@ -207,7 +206,6 @@ b"""
     };
 
     cluster_connection = {
-        enable_read_from_followers = %true;
         scheduler = {
             retry_backoff_time = 100;
         };
@@ -317,8 +315,6 @@ b"""
     };
 
     cluster_connection = {
-        enable_read_from_followers = %true;
-
         transaction_manager = {
             default_transaction_timeout = 3000;
         };
@@ -512,8 +508,6 @@ b"""
     };
 
     cluster_connection = {
-        enable_read_from_followers = %true;
-
         transaction_manager = {
             default_transaction_timeout = 3000;
         };
@@ -596,7 +590,6 @@ def get_master_cache_config():
 b"""
 {
     cluster_connection = {
-        enable_read_from_followers = %true;
         scheduler = {
             retry_backoff_time = 100;
         };
@@ -624,8 +617,6 @@ def get_driver_config():
     return yson.loads(
 b"""
 {
-    enable_read_from_followers = %true;
-
     format_defaults = {
         structured = <
             format = text;
