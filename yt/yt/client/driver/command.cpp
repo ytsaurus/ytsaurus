@@ -66,9 +66,6 @@ void ProduceSingleOutput(
 TCommandBase::TCommandBase()
 {
     SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::Keep);
-
-    RegisterParameter("rewrite_operation_path", RewriteOperationPathOption)
-        .Default();
 }
 
 void TCommandBase::Execute(ICommandContextPtr context)
@@ -78,12 +75,6 @@ void TCommandBase::Execute(ICommandContextPtr context)
         request.Id,
         request.AuthenticatedUser);
     Deserialize(*this, request.Parameters);
-    if (!RewriteOperationPathOption) {
-        RewriteOperationPathOption = context->GetConfig()->RewriteOperationPath;
-    }
-    RewriteOperationPath = RewriteOperationPathOption
-        ? *RewriteOperationPathOption
-        : true;
 
     if (!HasResponseParameters()) {
         ProduceResponseParameters(context, /* producer */ {});
@@ -121,46 +112,6 @@ TYPath GetNewOperationPath(TGuid operationId)
         Format("%02x", hashByte) +
         "/" +
         ToYPathLiteral(ToString(operationId));
-}
-
-TYPath RewritePath(const TYPath& path, bool rewriteOperationPath)
-{
-    if (!rewriteOperationPath) {
-        return path;
-    }
-
-    using NYPath::ETokenType;
-    static const std::vector<std::pair<ETokenType, TString>> expectedTokens = {
-        {ETokenType::Slash, "/"},
-        {ETokenType::Slash, "/"},
-        {ETokenType::Literal, "sys"},
-        {ETokenType::Slash, "/"},
-        {ETokenType::Literal, "operations"},
-        {ETokenType::Slash, "/"},
-    };
-
-    NYPath::TTokenizer tokenizer(path);
-    tokenizer.Advance();
-
-    for (const auto& [expectedTokenType, expectedTokenValue] : expectedTokens) {
-        if (expectedTokenType != tokenizer.GetType() ||
-            expectedTokenValue != tokenizer.GetToken())
-        {
-            return path;
-        }
-        tokenizer.Advance();
-    }
-
-    if (tokenizer.GetType() != ETokenType::Literal) {
-        return path;
-    }
-
-    TGuid operationId;
-    if (!TGuid::FromString(tokenizer.GetToken(), &operationId)) {
-        return path;
-    }
-
-    return GetNewOperationPath(operationId) + tokenizer.GetSuffix();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

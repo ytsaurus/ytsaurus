@@ -42,7 +42,6 @@ public:
 
     std::optional<TString> Token;
 
-    std::optional<bool> RewriteOperationPath;
     bool ForceTracing;
 
     TDriverConfig()
@@ -78,9 +77,6 @@ public:
             .LessThanOrEqual(ApiVersion4);
 
         RegisterParameter("token", Token)
-            .Optional();
-
-        RegisterParameter("rewrite_operation_path", RewriteOperationPath)
             .Optional();
 
         RegisterPostprocessor([&] {

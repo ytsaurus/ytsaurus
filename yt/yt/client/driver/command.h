@@ -82,9 +82,6 @@ protected:
         ICommandContextPtr context,
         const std::function<void(NYson::IYsonConsumer*)>& producer);
 
-    std::optional<bool> RewriteOperationPathOption;
-    bool RewriteOperationPath = true;
-
 public:
     virtual void Execute(ICommandContextPtr context) override;
 };
@@ -312,10 +309,6 @@ class TTypedCommand
     , public TTimeoutCommandBase<TOptions>
     , public TSelectRowsCommandBase<TOptions>
 { };
-
-////////////////////////////////////////////////////////////////////////////////
-
-NYPath::TYPath RewritePath(const NYPath::TYPath& path, bool rewriteOperationPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 
