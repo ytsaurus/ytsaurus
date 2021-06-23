@@ -720,7 +720,7 @@ public:
     THashMap<TString, TExperimentConfigPtr> Experiments;
 
     //! Minimum about of resources to continue schedule job attempts.
-    TJobResourcesConfigPtr MinSpareJobResourcesOnNode;
+    std::optional<TJobResourcesConfigPtr> MinSpareJobResourcesOnNode;
 
     bool SendPreemptionReasonInNodeHeartbeat;
 
