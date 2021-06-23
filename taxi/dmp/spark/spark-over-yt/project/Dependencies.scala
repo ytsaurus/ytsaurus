@@ -42,7 +42,7 @@ object Dependencies {
   lazy val spark = Seq(
     "org.apache.spark" %% "spark-core",
     "org.apache.spark" %% "spark-sql"
-  ).map(_ % sparkVersion % Provided)
+  ).map(_ % sparkForkVersion % Provided)
 
   lazy val sparkFork = Seq(
     "org.apache.spark" %% "spark-core"
