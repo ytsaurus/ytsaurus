@@ -242,6 +242,12 @@ TLogManagerConfigPtr TLogManagerConfig::CreateYtServer(const TString& componentN
     for (const auto& logLevel : levels) {
         auto rule = New<TRuleConfig>();
         rule->MinLevel = logLevel;
+
+        // Due to historic reasons, error logs usually contain warning messages.
+        if (logLevel == ELogLevel::Error) {
+            rule->MinLevel = ELogLevel::Warning;
+        }
+
         rule->Writers.push_back(ToString(logLevel));
 
         auto fileWriterConfig = New<TWriterConfig>();
@@ -254,6 +260,24 @@ TLogManagerConfigPtr TLogManagerConfig::CreateYtServer(const TString& componentN
 
         config->Rules.push_back(rule);
         config->Writers.emplace(ToString(logLevel), fileWriterConfig);
+    }
+
+    {
+        auto rule = New<TRuleConfig>();
+        rule->MinLevel = ELogLevel::Info;
+        rule->Writers.emplace_back("yson");
+        rule->Family = ELogFamily::Structured;
+
+        auto fileWriterConfig = New<TWriterConfig>();
+        fileWriterConfig->Type = EWriterType::File;
+        fileWriterConfig->FileName = Format(
+            "%v/%v.yson.log",
+            directory,
+            componentName);
+        fileWriterConfig->Format = ELogFormat::Yson;
+
+        config->Rules.push_back(rule);
+        config->Writers.emplace("yson", fileWriterConfig);
     }
 
     return config;

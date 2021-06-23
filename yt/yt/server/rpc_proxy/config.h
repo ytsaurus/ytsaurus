@@ -218,7 +218,8 @@ public:
 
     TProxyConfig()
     {
-        RegisterParameter("cluster_connection", ClusterConnection);
+        RegisterParameter("cluster_connection", ClusterConnection)
+            .Default();
 
         RegisterParameter("grpc_server", GrpcServer)
             .Default();
