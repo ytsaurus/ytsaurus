@@ -104,7 +104,7 @@ public:
     void RegisterJobFactory(
         EJobType type,
         TJobFactory factory);
-    
+
     void RegisterHeartbeatProcessor(
         EObjectType type,
         TJobHeartbeatProcessorBasePtr heartbeatProcessor);
@@ -370,7 +370,13 @@ void TJobController::TImpl::Initialize()
     JobProxyBuildInfoUpdater_->Start();
     // Fetch initial job proxy build info immediately.
     JobProxyBuildInfoUpdater_->ScheduleOutOfBand();
-        
+
+    // Wait synchronously for one update in order to get some reasonable value in CachedJobProxyBuildInfo_.
+    // Note that if somebody manages to request orchid before this field is set, this will result to nullptr
+    // dereference.
+    WaitFor(JobProxyBuildInfoUpdater_->GetExecutedEvent())
+        .ThrowOnError();
+
     const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
     dynamicConfigManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
 }
@@ -1180,7 +1186,7 @@ TFuture<void> TJobController::TImpl::ProcessHeartbeatResponse(
 void TJobController::TImpl::DoProcessHeartbeatResponse(
     const TRspHeartbeatPtr& response,
     EObjectType jobObjectType)
-{    
+{
     GetOrCrash(JobHeartbeatProcessors_, jobObjectType)->ProcessResponse(response);
 }
 
@@ -1310,7 +1316,7 @@ TFuture<void> TJobController::TImpl::RequestJobSpecsAndStartJobs(std::vector<NJo
     for (auto& [addressWithNetwork, startInfos] : groupedStartInfos) {
         auto channel = getSpecServiceChannel(addressWithNetwork);
         TJobSpecServiceProxy jobSpecServiceProxy(channel);
-    
+
         auto dynamicConfig = DynamicConfig_.Load();
         auto getJobSpecsTimeout = dynamicConfig
             ? dynamicConfig->GetJobSpecsTimeout.value_or(Config_->GetJobSpecsTimeout)
@@ -1413,15 +1419,15 @@ void TJobController::TImpl::OnDynamicConfigChanged(
     const TClusterNodeDynamicConfigPtr& newNodeConfig)
 {
     auto jobControllerConfig = newNodeConfig->ExecAgent->JobController;
-    
+
     DynamicConfig_.Store(jobControllerConfig);
-    
+
     if (jobControllerConfig && jobControllerConfig->ResourceAdjustmentPeriod) {
         ResourceAdjustmentExecutor_->SetPeriod(*jobControllerConfig->ResourceAdjustmentPeriod);
     } else {
         ResourceAdjustmentExecutor_->SetPeriod(Config_->ResourceAdjustmentPeriod);
     }
-    
+
     if (jobControllerConfig && jobControllerConfig->RecentlyRemovedJobsCleanPeriod) {
         RecentlyRemovedJobCleaner_->SetPeriod(*jobControllerConfig->RecentlyRemovedJobsCleanPeriod);
     } else {
@@ -1588,18 +1594,18 @@ void TJobController::TImpl::OnProfiling()
         if (job->GetState() != EJobState::Running || job->GetPhase() != EJobPhase::Running) {
             continue;
         }
-        
+
         const auto& jobSpec = job->GetSpec();
         auto extensionId = NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext;
         if (!jobSpec.HasExtension(extensionId)) {
             continue;
         }
-        
+
         auto extension = jobSpec.GetExtension(extensionId);
         if (!extension.has_user_job_spec()) {
             continue;
         }
-            
+
         for (const auto& tmpfsVolumeProto : extension.user_job_spec().tmpfs_volumes()) {
             tmpfsSize += tmpfsVolumeProto.size();
         }
@@ -1775,8 +1781,8 @@ void TJobController::RegisterHeartbeatProcessor(
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobController::TJobHeartbeatProcessorBase::TJobHeartbeatProcessorBase(
-    TJobController* const controller, 
-    NClusterNode::TBootstrap* const bootstrap) 
+    TJobController* const controller,
+    NClusterNode::TBootstrap* const bootstrap)
     : JobController_(controller)
     , Bootstrap_(bootstrap)
 { }
