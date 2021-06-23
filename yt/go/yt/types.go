@@ -42,7 +42,7 @@ func (n NodeType) String() string {
 
 type OperationType string
 
-const (
+var (
 	OperationMap        OperationType = "map"
 	OperationReduce     OperationType = "reduce"
 	OperationMapReduce  OperationType = "map_reduce"
@@ -55,7 +55,7 @@ const (
 
 type OperationState string
 
-const (
+var (
 	StateRunning       OperationState = "running"
 	StatePending       OperationState = "pending"
 	StateCompleted     OperationState = "completed"
@@ -77,10 +77,6 @@ func (o OperationState) IsFinished() bool {
 	}
 
 	return false
-}
-
-func (o OperationState) Ptr() *OperationState {
-	return &o
 }
 
 type JobType string
@@ -109,7 +105,7 @@ type JobState string
 
 var (
 	JobRunning   JobState = "running"
-	JobPending   JobState = "pending"
+	JobWaiting   JobState = "waiting"
 	JobCompleted JobState = "completed"
 	JobFailed    JobState = "failed"
 	JobAborted   JobState = "aborted"
@@ -243,7 +239,7 @@ const (
 
 type JobSortField string
 
-const (
+var (
 	SortFieldNone       JobSortField = "none"
 	SortFieldType       JobSortField = "type"
 	SortFieldState      JobSortField = "state"
@@ -257,7 +253,7 @@ const (
 
 type JobSortOrder string
 
-const (
+var (
 	Ascending  JobSortOrder = "ascending"
 	Descending JobSortOrder = "descending"
 )

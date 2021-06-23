@@ -20,7 +20,7 @@ import (
 var root = ypath.Path("//tmp/strawberry")
 
 func abortAll(t *testing.T, ytc yt.Client) {
-	ops, err := yt.ListAllOperations(context.TODO(), ytc, &yt.ListOperationsOptions{State: yt.StateRunning.Ptr()})
+	ops, err := yt.ListAllOperations(context.TODO(), ytc, &yt.ListOperationsOptions{State: &yt.StateRunning})
 	require.NoError(t, err)
 	for _, op := range ops {
 		err := ytc.AbortOperation(context.TODO(), op.ID, &yt.AbortOperationOptions{})
@@ -99,7 +99,7 @@ func waitOp(t *testing.T, ytc yt.Client, alias string) *yt.OperationStatus {
 }
 
 func listAliases(t *testing.T, ytc yt.Client) []string {
-	ops, err := yt.ListAllOperations(context.TODO(), ytc, &yt.ListOperationsOptions{State: yt.StateRunning.Ptr()})
+	ops, err := yt.ListAllOperations(context.TODO(), ytc, &yt.ListOperationsOptions{State: &yt.StateRunning})
 	require.NoError(t, err)
 
 	aliases := make([]string, 0)
