@@ -35,10 +35,7 @@ void TReadFileCommand::DoExecute(ICommandContextPtr context)
         context->GetConfig()->FileReader,
         FileReader);
 
-    auto reader = WaitFor(
-        context->GetClient()->CreateFileReader(
-            RewritePath(Path.GetPath(), RewriteOperationPath),
-            Options))
+    auto reader = WaitFor(context->GetClient()->CreateFileReader(Path.GetPath(), Options))
         .ValueOrThrow();
 
     ProduceResponseParameters(context, [&] (NYson::IYsonConsumer* consumer) {

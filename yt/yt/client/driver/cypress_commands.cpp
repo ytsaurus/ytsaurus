@@ -36,9 +36,7 @@ void TGetCommand::DoExecute(ICommandContextPtr context)
 {
     Options.Options = IAttributeDictionary::FromMap(GetUnrecognized());
 
-    auto asyncResult = context->GetClient()->GetNode(
-        RewritePath(Path.GetPath(), RewriteOperationPath),
-        Options);
+    auto asyncResult = context->GetClient()->GetNode(Path.GetPath(), Options);
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 
@@ -65,10 +63,7 @@ void TSetCommand::DoExecute(ICommandContextPtr context)
 {
     auto value = context->ConsumeInputValue();
 
-    auto asyncResult = context->GetClient()->SetNode(
-        RewritePath(Path.GetPath(), RewriteOperationPath),
-        value,
-        Options);
+    auto asyncResult = context->GetClient()->SetNode(Path.GetPath(), value, Options);
     WaitFor(asyncResult)
         .ThrowOnError();
 
@@ -86,10 +81,7 @@ void TMultisetAttributesCommand::DoExecute(ICommandContextPtr context)
 {
     auto attributes = ConvertTo<IMapNodePtr>(context->ConsumeInputValue());
 
-    auto asyncResult = context->GetClient()->MultisetAttributesNode(
-        RewritePath(Path.GetPath(), RewriteOperationPath),
-        attributes,
-        Options);
+    auto asyncResult = context->GetClient()->MultisetAttributesNode(Path.GetPath(), attributes, Options);
     WaitFor(asyncResult)
         .ThrowOnError();
 
@@ -134,9 +126,7 @@ TListCommand::TListCommand()
 
 void TListCommand::DoExecute(ICommandContextPtr context)
 {
-    auto asyncResult = context->GetClient()->ListNode(
-        RewritePath(Path.GetPath(), RewriteOperationPath),
-        Options);
+    auto asyncResult = context->GetClient()->ListNode(Path.GetPath(), Options);
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 
@@ -193,10 +183,7 @@ void TCreateNodeCommand::DoExecute(ICommandContextPtr context)
         ? ConvertToAttributes(Attributes)
         : CreateEphemeralAttributes();
 
-    auto asyncNodeId = context->GetClient()->CreateNode(
-        RewritePath(Path.GetPath(), RewriteOperationPath),
-        Type,
-        Options);
+    auto asyncNodeId = context->GetClient()->CreateNode(Path.GetPath(), Type, Options);
     auto nodeId = WaitFor(asyncNodeId)
         .ValueOrThrow();
 
@@ -260,10 +247,7 @@ TLockCommand::TLockCommand()
 
 void TLockCommand::DoExecute(ICommandContextPtr context)
 {
-    auto asyncLockResult = context->GetClient()->LockNode(
-        RewritePath(Path.GetPath(), RewriteOperationPath),
-        Mode,
-        Options);
+    auto asyncLockResult = context->GetClient()->LockNode(Path.GetPath(), Mode, Options);
     auto lockResult = WaitFor(asyncLockResult)
         .ValueOrThrow();
 
@@ -293,9 +277,7 @@ TUnlockCommand::TUnlockCommand()
 
 void TUnlockCommand::DoExecute(ICommandContextPtr context)
 {
-    auto asyncUnlockResult = context->GetClient()->UnlockNode(
-        RewritePath(Path.GetPath(), RewriteOperationPath),
-        Options);
+    auto asyncUnlockResult = context->GetClient()->UnlockNode(Path.GetPath(), Options);
     WaitFor(asyncUnlockResult)
         .ThrowOnError();
 
@@ -397,9 +379,7 @@ TExistsCommand::TExistsCommand()
 
 void TExistsCommand::DoExecute(ICommandContextPtr context)
 {
-    auto asyncResult = context->GetClient()->NodeExists(
-        RewritePath(Path.GetPath(), RewriteOperationPath),
-        Options);
+    auto asyncResult = context->GetClient()->NodeExists(Path.GetPath(), Options);
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 
