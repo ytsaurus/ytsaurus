@@ -25,6 +25,31 @@ using namespace NProfiling;
 
 static const auto& Logger = ConcurrencyLogger;
 
+DECLARE_REFCOUNTED_CLASS(TRefCountedGauge)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRefCountedGauge
+    : public TRefCounted
+    , public NProfiling::TGauge
+{
+public:
+    explicit TRefCountedGauge(const NProfiling::TRegistry& profiler)
+        : NProfiling::TGauge(profiler.Gauge("/waiting_fibers"))
+    { }
+
+    void Increment(i64 delta)
+    {
+        auto value = Value_.fetch_add(delta, std::memory_order_relaxed) + delta;
+        NProfiling::TGauge::Update(value);
+    }
+
+private:
+    std::atomic<i64> Value_ = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(TRefCountedGauge)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void RunInFiberContext(TClosure callback);
@@ -43,6 +68,8 @@ struct TFiberContext
     TClosure AfterSwitch;
     TFiberPtr ResumerFiber;
     TFiberPtr CurrentFiber;
+
+    TRefCountedGaugePtr WaitingFibersCounter;
 };
 
 thread_local TFiberContext* FiberContext = nullptr;
@@ -90,6 +117,9 @@ bool TFiberScheduler::OnLoop(TEventCount::TCookie* cookie)
     Cookie_ = *cookie;
 
     TFiberContext fiberContext;
+
+    fiberContext.WaitingFibersCounter = New<TRefCountedGauge>(
+        NProfiling::TRegistry{"/action_queue"}.WithTag("thread", ThreadName_));
 
     CurrentThread = this;
     FiberContext = &fiberContext;
@@ -267,6 +297,11 @@ void SetAfterSwitch(TClosure&& closure)
 {
     YT_VERIFY(!AfterSwitch());
     AfterSwitch() = std::move(closure);
+}
+
+TRefCountedGaugePtr GetWaitingFibersCounter()
+{
+    return FiberContext->WaitingFibersCounter;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -471,8 +506,13 @@ void YieldFiber(TClosure afterSwitch)
     }
 #endif
 
+    auto waitingFibersCounter = GetWaitingFibersCounter();
+    waitingFibersCounter->Increment(1);
+
     SwitchFromFiber(std::move(targetFiber));
     YT_VERIFY(ResumerFiber());
+
+    waitingFibersCounter->Increment(-1);
 }
 
 void ResumeFiber(TFiberPtr fiber)
