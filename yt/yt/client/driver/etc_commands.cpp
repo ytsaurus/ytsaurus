@@ -1,4 +1,5 @@
 #include "etc_commands.h"
+#include "proxy_discovery_cache.h"
 
 #include <yt/yt/client/api/client.h>
 
@@ -24,7 +25,6 @@ using namespace NObjectClient;
 using namespace NConcurrency;
 using namespace NFormats;
 using namespace NApi;
-using namespace NApi::NRpcProxy;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -333,60 +333,26 @@ void TExecuteBatchCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-TYPath GetProxyRegistryPath(EProxyType type)
-{
-    switch (type) {
-        case EProxyType::Rpc:
-            return RpcProxiesPath;
-        case EProxyType::Grpc:
-            return GrpcProxiesPath;
-        default:
-            THROW_ERROR_EXCEPTION("Proxy type %Qlv is not supported",
-                type);
-    }
-}
-
-} // namespace
-
 TDiscoverProxiesCommand::TDiscoverProxiesCommand()
 {
     RegisterParameter("type", Type)
         .Default(EProxyType::Rpc);
     RegisterParameter("role", Role)
-        .Default(NRpcProxy::DefaultProxyRole);
+        .Default(DefaultProxyRole);
 }
 
 void TDiscoverProxiesCommand::DoExecute(ICommandContextPtr context)
 {
-    TGetNodeOptions options;
-    options.ReadFrom = EMasterChannelKind::LocalCache;
-    options.Attributes = {BannedAttributeName, RoleAttributeName};
-    options.Timeout = Options.Timeout;
+    TProxyDiscoveryRequest request{
+        .Type = Type,
+        .Role = Role
+    };
 
-    auto path = GetProxyRegistryPath(Type);
-    auto nodesYson = WaitFor(context->GetClient()->GetNode(path, options))
+    const auto& proxyDiscoveryCache = context->GetDriver()->GetProxyDiscoveryCache();
+    auto response = WaitFor(proxyDiscoveryCache->Discover(request))
         .ValueOrThrow();
 
-    std::vector<TString> addresses;
-    for (const auto& proxy : ConvertTo<THashMap<TString, IMapNodePtr>>(nodesYson)) {
-        if (!proxy.second->FindChild(AliveNodeName)) {
-            continue;
-        }
-
-        if (proxy.second->Attributes().Get(BannedAttributeName, false)) {
-            continue;
-        }
-
-        if (Role && proxy.second->Attributes().Get<TString>(RoleAttributeName, DefaultProxyRole) != *Role) {
-            continue;
-        }
-
-        addresses.push_back(proxy.first);
-    }
-
-    ProduceSingleOutputValue(context, "proxies", addresses);
+    ProduceSingleOutputValue(context, "proxies", response.Addresses);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
