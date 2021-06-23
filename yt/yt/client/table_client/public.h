@@ -40,6 +40,11 @@ class THunkChunkRef;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TRefCountedBlockMeta = TRefCountedProto<NProto::TBlockMetaExt>;
+using TRefCountedBlockMetaPtr = TIntrusivePtr<TRefCountedBlockMeta>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 using NTransactionClient::TTimestamp;
 using NTransactionClient::NullTimestamp;
 using NTransactionClient::MinTimestamp;

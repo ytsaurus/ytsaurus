@@ -1,14 +1,13 @@
 #include "versioned_chunk_reader.h"
+#include "column_block_manager.h"
 #include "segment_readers.h"
 #include "read_span_refiner.h"
 #include "rowset_builder.h"
-
-#include <yt/yt/ytlib/table_chunk_format/helpers.h>
+#include "dispatch_by_type.h"
 
 #include <yt/yt/ytlib/chunk_client/block.h>
 
 #include <yt/yt/ytlib/chunk_client/block_fetcher.h>
-#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/hunks.h>
@@ -29,9 +28,6 @@ using NTableChunkFormat::NProto::TColumnMeta;
 using NProfiling::TValueIncrementingTimingGuard;
 using NProfiling::TWallTimer;
 
-using NChunkClient::TBlock;
-using NChunkClient::TBlockFetcher;
-using NChunkClient::IBlockCache;
 using NChunkClient::IBlockCachePtr;
 using NChunkClient::TBlockFetcherPtr;
 using NChunkClient::IChunkReaderPtr;
@@ -40,10 +36,7 @@ using NChunkClient::TChunkReaderMemoryManager;
 using NChunkClient::TChunkReaderMemoryManagerOptions;
 using NChunkClient::TClientChunkReadOptions;
 
-using NTableClient::TCachedVersionedChunkMetaPtr;
-using NTableClient::TRefCountedBlockMetaPtr;
 using NTableClient::TChunkReaderConfigPtr;
-using NTableClient::TColumnIdMapping;
 using NTableClient::TColumnFilter;
 
 using NTableClient::IVersionedReader;
@@ -406,291 +399,8 @@ std::unique_ptr<IRefiner> MakeRefiner(TSharedRange<TLegacyKey> keys, TRange<EVal
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<ui32> BuildColumnBlockSequence(TSegmentMetas segmentMetas)
-{
-    std::vector<ui32> blockSequence;
-    ui32 segmentIndex = 0;
-
-    while (segmentIndex < segmentMetas.size()) {
-        auto blockIndex = segmentMetas[segmentIndex]->block_index();
-        blockSequence.push_back(blockIndex);
-        do {
-            ++segmentIndex;
-        } while (segmentIndex < segmentMetas.size() &&
-             segmentMetas[segmentIndex]->block_index() == blockIndex);
-    }
-    return blockSequence;
-}
-
-std::vector<TBlockFetcher::TBlockInfo> BuildBlockInfos(
-    const std::vector<TRange<ui32>>& columnsBlockIndexes,
-    TRange<TSpanMatching> windows,
-    const TCachedVersionedChunkMetaPtr& chunkMeta)
-{
-    const auto& blockMetas = chunkMeta->BlockMeta();
-
-    std::vector<TBlockFetcher::TBlockInfo> blockInfos;
-    for (const auto& blockIds : columnsBlockIndexes) {
-        auto windowIt = windows.begin();
-        auto blockIdsIt = blockIds.begin();
-
-        while (windowIt != windows.end() && blockIdsIt != blockIds.end()) {
-            blockIdsIt = ExponentialSearch(blockIdsIt, blockIds.end(), [&] (auto blockIt) {
-                const auto& blockMeta = blockMetas->blocks(*blockIt);
-                return blockMeta.chunk_row_count() < windowIt->Chunk.Upper;
-            });
-
-            YT_VERIFY(blockIdsIt != blockIds.end());
-
-            auto blockIndex = *blockIdsIt;
-            const auto& blockMeta = blockMetas->blocks(blockIndex);
-
-            TBlockFetcher::TBlockInfo blockInfo;
-            blockInfo.Index = blockIndex;
-            blockInfo.Priority = blockMeta.chunk_row_count() - blockMeta.row_count();
-            blockInfo.UncompressedDataSize = blockMeta.uncompressed_size();
-
-            blockInfos.push_back(blockInfo);
-
-            windowIt = ExponentialSearch(windowIt, windows.end(), [&] (auto it) {
-                return it->Chunk.Upper <= blockMeta.chunk_row_count();
-            });
-        }
-    }
-
-    return blockInfos;
-}
-
-using TSharedSegmentMetas = TSharedRange<const NProto::TSegmentMeta*>;
-
-class TColumnBlockHolder
-{
-public:
-    TColumnBlockHolder(const TColumnBlockHolder&) = delete;
-    TColumnBlockHolder(TColumnBlockHolder&&) = default;
-
-    explicit TColumnBlockHolder(TSharedSegmentMetas segmentMetas)
-        : SegmentMetas_(std::move(segmentMetas))
-        , BlockIds_(BuildColumnBlockSequence(SegmentMetas_))
-    { }
-
-    // TODO(lukyan): Return segmentIt. Get data = Block.Begin() + segmentIt->offset() outside.
-    // Or return InitSegmentFlag and create accessor to CurrentSegment?
-    void SkipToSegment(ui32 rowIndex, IColumnBase* column, TTmpBuffers* tmpBuffers)
-    {
-        if (rowIndex < SegmentRowLimit_) {
-            return;
-        }
-
-        auto segmentIt = BinarySearch(
-            SegmentMetas_.begin() + SegmentStart_,
-            SegmentMetas_.begin() + SegmentEnd_,
-            [&] (auto segmentMetaIt) {
-                return (*segmentMetaIt)->chunk_row_count() <= rowIndex;
-            });
-
-        if (segmentIt != SegmentMetas_.begin() + SegmentEnd_) {
-            YT_VERIFY(Block_);
-            column->SetSegmentData(**segmentIt, Block_.Begin() + (*segmentIt)->offset(), tmpBuffers);
-            SegmentRowLimit_ = (*segmentIt)->chunk_row_count();
-        }
-    }
-
-    TColumnSlice GetColumnSlice()
-    {
-        return TColumnSlice{Block_, SegmentMetas_.Slice(SegmentStart_, SegmentEnd_)};
-    }
-
-    bool NeedUpdateBlock(ui32 rowIndex) const
-    {
-        return rowIndex >= BlockRowLimit_ && BlockIdIndex_ < BlockIds_.size();
-    }
-
-    void SetBlock(TSharedRef data, const TRefCountedBlockMetaPtr& blockMeta)
-    {
-        YT_VERIFY(BlockIdIndex_ < BlockIds_.size());
-        int blockId = BlockIds_[BlockIdIndex_];
-
-        Block_ = data;
-
-        auto segmentIt = BinarySearch(
-            SegmentMetas_.begin(),
-            SegmentMetas_.end(),
-            [&] (auto segmentMetaIt) {
-                return (*segmentMetaIt)->block_index() < blockId;
-            });
-
-        auto segmentItEnd = BinarySearch(
-            segmentIt,
-            SegmentMetas_.end(),
-            [&] (auto segmentMetaIt) {
-                return (*segmentMetaIt)->block_index() <= blockId;
-            });
-
-        SegmentStart_ = segmentIt - SegmentMetas_.begin();
-        SegmentEnd_ = segmentItEnd - SegmentMetas_.begin();
-
-        BlockRowLimit_ = blockMeta->blocks(blockId).chunk_row_count();
-        YT_VERIFY(segmentIt != segmentItEnd);
-
-        auto limitBySegment = segmentItEnd[-1]->chunk_row_count();
-        YT_VERIFY(limitBySegment == BlockRowLimit_);
-    }
-
-    // TODO(lukyan): Use block row limits vector instead of blockMeta.
-    // Returns block id.
-    std::optional<ui32> SkipToBlock(ui32 rowIndex, const TRefCountedBlockMetaPtr& blockMeta)
-    {
-        if (!NeedUpdateBlock(rowIndex)) {
-            return std::nullopt;
-        }
-
-        // Need to find block with rowIndex.
-        while (BlockIdIndex_ < BlockIds_.size() &&
-            blockMeta->blocks(BlockIds_[BlockIdIndex_]).chunk_row_count() <= rowIndex)
-        {
-            ++BlockIdIndex_;
-        }
-
-        // It is used for generating sentinel rows in lookup (for keys after end of chunk).
-        if (BlockIdIndex_ == BlockIds_.size()) {
-            return std::nullopt;
-        }
-
-        YT_VERIFY(BlockIdIndex_ < BlockIds_.size());
-        return BlockIds_[BlockIdIndex_];
-    }
-
-    TRange<ui32> GetBlockIds() const
-    {
-        return BlockIds_;
-    }
-
-private:
-    const TSharedSegmentMetas SegmentMetas_;
-    const std::vector<ui32> BlockIds_;
-
-    // Blob value data is stored in blocks without capturing in TRowBuffer.
-    // Therefore block must not change during from the current call of ReadRows till the next one.
-    TSharedRef Block_;
-
-    ui32 SegmentStart_ = 0;
-    ui32 SegmentEnd_ = 0;
-
-    ui32 BlockIdIndex_ = 0;
-    ui32 BlockRowLimit_ = 0;
-
-    // TODO(lukyan): Do not keep SegmentRowLimit_ here. Use value from IColumnBase.
-    ui32 SegmentRowLimit_ = 0;
-};
-
-std::vector<TColumnBlockHolder> CreateColumnBlockHolders(
-    const TCachedVersionedChunkMetaPtr& chunkMeta,
-    TRange<TColumnIdMapping> valueIdMapping)
-{
-    std::vector<TColumnBlockHolder> columns;
-    const auto& columnMetas = chunkMeta->ColumnMeta();
-
-    // Init columns.
-    {
-        int timestampReaderIndex = chunkMeta->ColumnMeta()->columns().size() - 1;
-        const auto& columnMeta = columnMetas->columns(timestampReaderIndex);
-        columns.emplace_back(TSharedSegmentMetas(MakeRange(columnMeta.segments()), columnMetas));
-    }
-
-    for (int index = 0; index < chunkMeta->GetChunkKeyColumnCount(); ++index) {
-        const auto& columnMeta = columnMetas->columns(index);
-        columns.emplace_back(TSharedSegmentMetas(MakeRange(columnMeta.segments()), columnMetas));
-    }
-
-    for (size_t index = 0; index < valueIdMapping.size(); ++index) {
-        const auto& columnMeta = columnMetas->columns(valueIdMapping[index].ChunkSchemaIndex);
-        columns.emplace_back(TSharedSegmentMetas(MakeRange(columnMeta.segments()), columnMetas));
-    }
-
-    return columns;
-}
-
-// Rows (and theirs indexes) in chunk are partitioned by block borders.
-// Block borders are block last keys and corresponding block last indexes (block.chunk_row_count).
-// Window is the range of row indexes between block borders.
-// TBlockWindowManager updates blocks in column block holders for each window (range of row indexes between block).
-class TBlockWindowManager
-{
-public:
-    TBlockWindowManager(
-        std::vector<TColumnBlockHolder> columns,
-        TRefCountedBlockMetaPtr blockMeta,
-        TBlockFetcherPtr blockFetcher,
-        TReaderTimeStatisticsPtr timeStatistics)
-        : Columns_(std::move(columns))
-        , BlockFetcher_(std::move(blockFetcher))
-        , TimeStatistics_(timeStatistics)
-        , BlockMeta_(std::move(blockMeta))
-    { }
-
-    // Returns true if need wait for ready event.
-    bool TryUpdateWindow(ui32 rowIndex)
-    {
-        TValueIncrementingTimingGuard<TWallTimer> timingGuard(&TimeStatistics_->FetchBlockTime);
-        if (FetchedBlocks_) {
-            if (!FetchedBlocks_.IsSet()) {
-                return true;
-            }
-
-            YT_VERIFY(FetchedBlocks_.IsSet());
-
-            const auto& loadedBlocks = FetchedBlocks_.Get().ValueOrThrow();
-
-            size_t index = 0;
-            for (auto& column : Columns_) {
-                if (column.NeedUpdateBlock(rowIndex)) {
-                    YT_VERIFY(index < loadedBlocks.size());
-                    column.SetBlock(loadedBlocks[index++].Data, BlockMeta_);
-                }
-            }
-            YT_VERIFY(index == loadedBlocks.size());
-
-            FetchedBlocks_.Reset();
-            return false;
-        }
-
-        // Skip to window.
-        std::vector<TFuture<TBlock>> pendingBlocks;
-        for (auto& column : Columns_) {
-            if (auto blockId = column.SkipToBlock(rowIndex, BlockMeta_)) {
-                YT_VERIFY(column.NeedUpdateBlock(rowIndex));
-                pendingBlocks.push_back(BlockFetcher_->FetchBlock(*blockId));
-            }
-        }
-
-        // Not every window switch causes block updates.
-        // Read windows are built by all block last keys but here only reading block set is considered.
-        if (pendingBlocks.empty()) {
-            return false;
-        }
-
-        FetchedBlocks_ = AllSucceeded(std::move(pendingBlocks));
-        ReadyEvent_ = FetchedBlocks_.As<void>();
-
-        return true;
-    }
-
-protected:
-    std::vector<TColumnBlockHolder> Columns_;
-    TBlockFetcherPtr BlockFetcher_;
-    TFuture<void> ReadyEvent_ = VoidFuture;
-    TReaderTimeStatisticsPtr TimeStatistics_;
-
-private:
-    const TRefCountedBlockMetaPtr BlockMeta_;
-    TFuture<std::vector<TBlock>> FetchedBlocks_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TVersionedChunkReader
-    : protected TBlockWindowManager
+    : public TBlockWindowManager
 {
 public:
     TVersionedChunkReader(
@@ -713,11 +423,6 @@ public:
         , WindowsList_(std::move(windowsList))
     {
         std::reverse(WindowsList_.begin(), WindowsList_.end());
-    }
-
-    TFuture<void> GetReadyEvent() const
-    {
-        return ReadyEvent_;
     }
 
     bool ReadRows(std::vector<TMutableVersionedRow>* rows, ui32 readCount, TDataWeightStatistics* statistics)
@@ -773,7 +478,8 @@ protected:
             std::vector<TColumnSlice> columnSlices;
             for (size_t index = 0; index < ChunkKeyColumnCount_; ++index) {
                 // Skip timestamp column.
-                columnSlices.push_back(Columns_[index + 1].GetColumnSlice());
+                auto& column = Columns_[index + 1];
+                columnSlices.push_back(TColumnSlice{column.GetBlock(), column.GetSegmentMetas()});
             }
 
             SpanList_ = Refiner_->BuildReadListForWindow(columnSlices, WindowsList_.back());
@@ -788,31 +494,45 @@ protected:
     void UpdateSegments(ui32 startRowIndex)
     {
         // TODO(lukyan): Return limit from SkipToSegment?
-        TValueIncrementingTimingGuard<TWallTimer> timingGuard(&TimeStatistics_->DecodeSegmentTime);
 
         // Adjust segments for column readers within blocks.
+        {
+            TValueIncrementingTimingGuard<TWallTimer> timingGuard(&TimeStatistics_->DecodeTimestampSegmentTime);
 
-        // Init timestamp column.
-        Columns_[0].SkipToSegment(startRowIndex, RowsetBuilder_.get(), &LocalBuffers_);
-
-        YT_VERIFY(ChunkKeyColumnCount_ <= RowsetBuilder_->GetKeyColumnCount());
-
-        // Key columns after ChunkKeyColumnCount_ are left nullable.
-        auto keyColumns = RowsetBuilder_->GetKeyColumns();
-        for (size_t index = 0; index < ChunkKeyColumnCount_; ++index) {
-            // TODO(lukyan): Return true if segment updated. Reset position in this case.
-            Columns_[1 + index].SkipToSegment(
-                startRowIndex,
-                keyColumns[index].get(),
-                &LocalBuffers_);
+            // Init timestamp column.
+            if (auto segment = Columns_[0].SkipToSegment(startRowIndex)) {
+                RowsetBuilder_->SetSegmentData(*segment, Columns_[0].GetBlock().Begin() + segment->offset(), &LocalBuffers_);
+            }
         }
 
-        auto valueColumns = RowsetBuilder_->GetValueColumns();
-        for (size_t index = 0; index < valueColumns.size(); ++index) {
-            Columns_[1 + ChunkKeyColumnCount_ + index].SkipToSegment(
-                startRowIndex,
-                valueColumns[index].get(),
-                &LocalBuffers_);
+        auto schemaKeyColumnCount = RowsetBuilder_->GetKeyColumnCount();
+        YT_VERIFY(ChunkKeyColumnCount_ <= schemaKeyColumnCount);
+
+        {
+            TValueIncrementingTimingGuard<TWallTimer> timingGuard(&TimeStatistics_->DecodeKeySegmentTime);
+
+            // Key columns after ChunkKeyColumnCount_ are left nullable.
+            auto keyColumns = RowsetBuilder_->GetKeyColumns();
+            for (size_t index = 0; index < ChunkKeyColumnCount_; ++index) {
+                auto& column = Columns_[1 + index];
+                if (auto segment = column.SkipToSegment(startRowIndex)) {
+                    keyColumns[index]->SetSegmentData(*segment, column.GetBlock().Begin() + segment->offset(), &LocalBuffers_);
+                    RowsetBuilder_->ResetPosition(index);
+                }
+            }
+        }
+
+        {
+            TValueIncrementingTimingGuard<TWallTimer> timingGuard(&TimeStatistics_->DecodeValueSegmentTime);
+
+            auto valueColumns = RowsetBuilder_->GetValueColumns();
+            for (size_t index = 0; index < valueColumns.size(); ++index) {
+                auto& column = Columns_[1 + ChunkKeyColumnCount_ + index];
+                if (auto segment = column.SkipToSegment(startRowIndex)) {
+                    valueColumns[index]->SetSegmentData(*segment, column.GetBlock().Begin() + segment->offset(), &LocalBuffers_);
+                    RowsetBuilder_->ResetPosition(schemaKeyColumnCount + index);
+                }
+            }
         }
     }
 
@@ -1095,6 +815,43 @@ bool IsKeys(const TSharedRange<TLegacyKey>&)
     return true;
 }
 
+std::vector<TBlockFetcher::TBlockInfo> BuildBlockInfos(
+    const std::vector<TRange<ui32>>& columnsBlockIndexes,
+    TRange<TSpanMatching> windows,
+    const TRefCountedBlockMetaPtr& blockMetas)
+{
+    std::vector<TBlockFetcher::TBlockInfo> blockInfos;
+    for (const auto& blockIds : columnsBlockIndexes) {
+        auto windowIt = windows.begin();
+        auto blockIdsIt = blockIds.begin();
+
+        while (windowIt != windows.end() && blockIdsIt != blockIds.end()) {
+            blockIdsIt = ExponentialSearch(blockIdsIt, blockIds.end(), [&] (auto blockIt) {
+                const auto& blockMeta = blockMetas->blocks(*blockIt);
+                return blockMeta.chunk_row_count() < windowIt->Chunk.Upper;
+            });
+
+            YT_VERIFY(blockIdsIt != blockIds.end());
+
+            auto blockIndex = *blockIdsIt;
+            const auto& blockMeta = blockMetas->blocks(blockIndex);
+
+            TBlockFetcher::TBlockInfo blockInfo;
+            blockInfo.Index = blockIndex;
+            blockInfo.Priority = blockMeta.chunk_row_count() - blockMeta.row_count();
+            blockInfo.UncompressedDataSize = blockMeta.uncompressed_size();
+
+            blockInfos.push_back(blockInfo);
+
+            windowIt = ExponentialSearch(windowIt, windows.end(), [&] (auto it) {
+                return it->Chunk.Upper <= blockMeta.chunk_row_count();
+            });
+        }
+    }
+
+    return blockInfos;
+}
+
 template <class TItem>
 IVersionedReaderPtr CreateVersionedChunkReader(
     TSharedRange<TItem> readItems,
@@ -1126,7 +883,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             columnsBlockIds.push_back(column.GetBlockIds());
         }
 
-        auto blockInfos = BuildBlockInfos(columnsBlockIds, windowsList, chunkMeta);
+        auto blockInfos = BuildBlockInfos(columnsBlockIds, windowsList, chunkMeta->BlockMeta());
 
         auto memoryManager = New<TChunkReaderMemoryManager>(TChunkReaderMemoryManagerOptions(config->WindowSize));
 

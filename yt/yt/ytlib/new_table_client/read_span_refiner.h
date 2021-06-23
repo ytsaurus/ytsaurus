@@ -27,7 +27,7 @@ class TRleIterator
     : protected TRleBase
 {
 public:
-    void SetBlock(TSharedRef block, TSegmentMetas segmentsMeta)
+    void SetBlock(TRef block, TSegmentMetas segmentsMeta)
     {
         if (Block_.Begin() == block.Begin() && Block_.End() == block.End()) {
             return;
@@ -38,21 +38,26 @@ public:
         TRleBase::Reset();
     }
 
+    Y_NO_INLINE void SkipToSegment(ui32 rowIndex)
+    {
+        // Search segment
+        auto segmentIt = ExponentialSearch(
+            SegmentsMeta_.begin() + SegmentIndex_,
+            SegmentsMeta_.end(),
+            [=] (auto segmentMetaIt) {
+                return (*segmentMetaIt)->chunk_row_count() <= rowIndex;
+            });
+
+        YT_VERIFY(segmentIt != SegmentsMeta_.end());
+        SegmentIndex_ = std::distance(SegmentsMeta_.begin(), segmentIt);
+        static_cast<TDerived*>(this)->UpdateSegment();
+        Position_ = 0;
+}
+
     Y_FORCE_INLINE void SkipTo(ui32 rowIndex)
     {
         if (Y_UNLIKELY(rowIndex >= SegmentRowLimit_)) {
-            // Search segment
-            auto segmentIt = ExponentialSearch(
-                SegmentsMeta_.begin() + SegmentIndex_,
-                SegmentsMeta_.end(),
-                [=] (auto segmentMetaIt) {
-                    return (*segmentMetaIt)->chunk_row_count() <= rowIndex;
-                });
-
-            YT_VERIFY(segmentIt != SegmentsMeta_.end());
-            SegmentIndex_ = std::distance(SegmentsMeta_.begin(), segmentIt);
-            static_cast<TDerived*>(this)->UpdateSegment();
-            Position_ = 0;
+            SkipToSegment(rowIndex);
         }
 
         Position_ = ExponentialSearch(Position_, Count_, [=] (auto position) {
@@ -63,7 +68,7 @@ public:
         YT_ASSERT(Position_ < Count_);
     }
 
-    // For pred(index) no need to know value, move helper to rle base.
+    // For pred(index) no need to know value, helper can be moved to rle base.
     template <class TPredicate>
     Y_FORCE_INLINE ui32 SkipInSegment(ui32 upperRowBound, TPredicate pred, ui32 position)
     {
@@ -80,9 +85,11 @@ public:
             // TODO(lukyan): Increment position if equal?
             return upperRowBound;
         }
+
         // Predicate is true at current position so start search from next position.
         Position_ = SkipInSegment(upperRowBound, pred, Position_ + 1);
 
+        // TODO(lukyan): Move this branch into noinline function?
         if (Y_UNLIKELY(Position_ == Count_)) {
             // TODO(lukyan): Use lookup segment readers here.
             YT_ASSERT(UpperRowBound(Count_ - 1) < upperRowBound && pred(Count_ - 1));
@@ -101,7 +108,7 @@ public:
     }
 
 protected:
-    TSharedRef Block_;
+    TRef Block_;
     TSegmentMetas SegmentsMeta_;
 
     ui32 SegmentIndex_ = 0;
@@ -142,7 +149,6 @@ public:
         }
     }
 
-    // This is the only place where Value used.
     TUnversionedValue GetValue()
     {
         return Value_[Position_];
@@ -179,7 +185,6 @@ private:
     TValueExtractor<Type> Value_;
     TReadSpan Span_;
     TTmpBuffers LocalBuffers_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

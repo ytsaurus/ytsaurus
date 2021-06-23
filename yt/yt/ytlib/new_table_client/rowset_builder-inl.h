@@ -10,43 +10,6 @@ namespace NYT::NNewTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <template <EValueType Type> class TFunction, class... TArgs>
-auto DispatchByDataType(EValueType type, TArgs&&... args)
-{
-     switch (type) {
-        case EValueType::Int64:
-            return TFunction<EValueType::Int64>::Do(std::forward<TArgs>(args)...);
-
-        case EValueType::Uint64:
-            return TFunction<EValueType::Uint64>::Do(std::forward<TArgs>(args)...);
-
-        case EValueType::Double:
-            return TFunction<EValueType::Double>::Do(std::forward<TArgs>(args)...);
-
-        case EValueType::Boolean:
-            return TFunction<EValueType::Boolean>::Do(std::forward<TArgs>(args)...);
-
-        case EValueType::String:
-            return TFunction<EValueType::String>::Do(std::forward<TArgs>(args)...);
-
-        case EValueType::Any:
-            return TFunction<EValueType::Any>::Do(std::forward<TArgs>(args)...);
-
-        case EValueType::Composite:
-            return TFunction<EValueType::Composite>::Do(std::forward<TArgs>(args)...);
-
-        case EValueType::Null:
-        case EValueType::Min:
-        case EValueType::Max:
-        case EValueType::TheBottom:
-            break;
-    }
-
-    ThrowUnexpectedValueType(type);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 inline ui32 TReaderBase::GetKeySegmentsRowLimit(ui32 limit)
 {
     for (const auto& column : GetKeyColumns()) {
@@ -105,6 +68,11 @@ inline TRange<std::unique_ptr<TKeyColumnBase>> TReaderBase::GetKeyColumns() cons
 inline TRange<std::unique_ptr<TVersionedValueColumnBase>> TReaderBase::GetValueColumns() const
 {
     return ValueColumns_;
+}
+
+inline void TReaderBase::ResetPosition(ui16 id)
+{
+    Positions_[id] = 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

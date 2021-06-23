@@ -196,9 +196,7 @@ inline ui32 TRleBase::GetSegmentRowLimit() const
 // Skip is allowed till SegmentRowLimit.
 inline ui32 TRleBase::SkipTo(ui32 rowIndex, ui32 position) const
 {
-    if (Y_UNLIKELY(position >= Count_ || rowIndex < LowerRowBound(position))) {
-        position = 0;
-    }
+    YT_ASSERT(position < Count_ && rowIndex >= LowerRowBound(position));
 
     if (Y_LIKELY(rowIndex < UpperRowBound(position))) {
         return position;
@@ -258,10 +256,8 @@ inline ui32 TMultiValueBase::GetSegmentRowLimit() const
 
 inline ui32 TMultiValueBase::SkipTo(ui32 rowIndex, ui32 position) const
 {
-    // Position is a hint only.
-    if (Y_UNLIKELY(position >= IndexCount_ || position > 0 && rowIndex <= RowToValue_[position - 1].RowIndex)) {
-        position = 0;
-    }
+    // Position can point to end of segment.
+    YT_ASSERT(position <= IndexCount_ && (position == 0 || RowToValue_[position - 1].RowIndex <= rowIndex));
 
     if (Y_LIKELY(rowIndex <= RowToValue_[position].RowIndex)) {
         return position;

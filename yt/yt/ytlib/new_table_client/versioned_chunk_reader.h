@@ -1,5 +1,7 @@
 #pragma once
 
+#include "reader_statistics.h"
+
 #include <yt/yt/client/table_client/versioned_reader.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/versioned_row.h>
@@ -10,16 +12,6 @@
 namespace NYT::NNewTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-struct TReaderTimeStatistics final
-{
-    TDuration DecodeSegmentTime;
-    TDuration FetchBlockTime;
-    TDuration BuildRangesTime;
-    TDuration DoReadTime;
-};
-
-using TReaderTimeStatisticsPtr = TIntrusivePtr<TReaderTimeStatistics>;
 
 template <class TItem>
 NTableClient::IVersionedReaderPtr CreateVersionedChunkReader(

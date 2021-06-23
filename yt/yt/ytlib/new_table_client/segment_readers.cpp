@@ -328,12 +328,23 @@ void TBlobExtractor::InitNull()
 const ui64* TRleBase::Init(const NProto::TSegmentMeta& meta, const ui64* ptr, bool isDense)
 {
     SegmentRowLimit_ = meta.chunk_row_count();
+    ui32 rowOffset = meta.chunk_row_count() - meta.row_count();
 
     if (isDense) {
         Count_ = meta.row_count();
         RowIndex_.Resize(Count_ + 1, GetRefCountedTypeCookie<TRowIndexTag>());
-        for (size_t index = 0; index < Count_; ++index) {
-            RowIndex_[index] = index;
+
+        auto rowIndexData = RowIndex_.GetData();
+        auto rowIndexDataEnd = rowIndexData + Count_;
+        while (rowIndexData + 4 < rowIndexDataEnd) {
+            *rowIndexData++ = rowOffset++;
+            *rowIndexData++ = rowOffset++;
+            *rowIndexData++ = rowOffset++;
+            *rowIndexData++ = rowOffset++;
+        }
+
+        while (rowIndexData < rowIndexDataEnd) {
+            *rowIndexData++ = rowOffset++;
         }
     } else {
         TCompressedVectorView rowIndexView(ptr);
@@ -342,11 +353,19 @@ const ui64* TRleBase::Init(const NProto::TSegmentMeta& meta, const ui64* ptr, bo
         Count_ = rowIndexView.GetSize();
         RowIndex_.Resize(Count_ + 1, GetRefCountedTypeCookie<TRowIndexTag>());
         rowIndexView.UnpackTo(RowIndex_.GetData());
-    }
 
-    auto rowOffset = meta.chunk_row_count() - meta.row_count();
-    for (size_t index = 0; index < Count_; ++index) {
-        RowIndex_[index] += rowOffset;
+        auto rowIndexData = RowIndex_.GetData();
+        auto rowIndexDataEnd = rowIndexData + Count_;
+        while (rowIndexData + 4 < rowIndexDataEnd) {
+            *rowIndexData++ += rowOffset;
+            *rowIndexData++ += rowOffset;
+            *rowIndexData++ += rowOffset;
+            *rowIndexData++ += rowOffset;
+        }
+
+        while (rowIndexData < rowIndexDataEnd) {
+            *rowIndexData++ += rowOffset;
+        }
     }
 
     RowIndex_[Count_] = meta.chunk_row_count();
@@ -502,38 +521,29 @@ const ui64* TMultiValueBase::Init(
         auto rowToValue = RowToValue_.Resize(valueCount + 1, GetRefCountedTypeCookie<TRowToValueTag>());
 
         ui32 valueOffset = 0;
+#define ITERATION { \
+            ui32 nextOffset = expectedPerRow * (rowIndex + 1) + ZigZagDecode32(diffs[rowIndex]); \
+            if (nextOffset - valueOffset) { \
+                *rowToValue++ = {rowOffset + rowIndex, valueOffset}; \
+            }   \
+            valueOffset = nextOffset; \
+            ++rowIndex; \
+        }
+
 #ifdef UNROLL_LOOPS
         ui32 rowIndex = 0;
         while (rowIndex + 4 < rowCount) {
-#define ITERATION { \
-                ui32 nextOffset = expectedPerRow * (rowIndex + 1) + ZigZagDecode32(diffs[rowIndex]); \
-                if (nextOffset - valueOffset) { \
-                    *rowToValue++ = {rowOffset + rowIndex, valueOffset}; \
-                }   \
-                valueOffset = nextOffset; \
-                ++rowIndex; \
-            }
-
             ITERATION
             ITERATION
             ITERATION
             ITERATION
         }
-
+#endif
         while (rowIndex < rowCount) {
             ITERATION
         }
-#undef ITERATION
 
-#else
-        for (ui32 rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
-            ui32 nextOffset = expectedPerRow * (rowIndex + 1) + ZigZagDecode32(diffs[rowIndex]);
-            if (nextOffset - valueOffset) {
-                *rowToValue++ = {rowOffset + rowIndex, valueOffset};
-            }
-            valueOffset = nextOffset;
-        }
-#endif
+#undef ITERATION
 
         SegmentRowLimit_ = rowOffset + rowCount;
         YT_VERIFY(meta.chunk_row_count() == SegmentRowLimit_);
