@@ -230,74 +230,85 @@ template <class TKey, class TValue, class THash>
 typename TAsyncSlruCacheBase<TKey, TValue, THash>::TValueFuture
 TAsyncSlruCacheBase<TKey, TValue, THash>::DoLookup(TShard* shard, const TKey& key)
 {
-    while (true) {
-        auto readerGuard = ReaderGuard(shard->SpinLock);
+    auto readerGuard = ReaderGuard(shard->SpinLock);
 
-        auto& itemMap = shard->ItemMap;
-        const auto& valueMap = shard->ValueMap;
+    auto& itemMap = shard->ItemMap;
+    const auto& valueMap = shard->ValueMap;
 
-        auto itemIt = itemMap.find(key);
-        if (itemIt != itemMap.end()) {
-            auto* item = itemIt->second;
-            bool needToDrain = Touch(shard, item);
-            auto valueFuture = item->GetValueFuture();
+    auto itemIt = itemMap.find(key);
+    if (itemIt != itemMap.end()) {
+        auto* item = itemIt->second;
+        bool needToDrain = Touch(shard, item);
+        auto valueFuture = item->GetValueFuture();
 
-            if (item->Value) {
-                SyncHitWeightCounter_.Increment(item->CachedWeight);
-                SyncHitCounter_.Increment();
-            } else {
-                AsyncHitCounter_.Increment();
-                item->AsyncHitCount.fetch_add(1);
-            }
-
-            readerGuard.Release();
-
-            if (needToDrain) {
-                auto writerGuard = WriterGuard(shard->SpinLock);
-                DrainTouchBuffer(shard);
-            }
-
-            return valueFuture;
+        if (item->Value) {
+            SyncHitWeightCounter_.Increment(item->CachedWeight);
+            SyncHitCounter_.Increment();
+        } else {
+            AsyncHitCounter_.Increment();
+            item->AsyncHitCount.fetch_add(1);
         }
-
-        auto valueIt = valueMap.find(key);
-        if (valueIt == valueMap.end()) {
-            return TValueFuture();
-        }
-
-        auto value = DangerousGetPtr(valueIt->second);
 
         readerGuard.Release();
 
-        if (value) {
+        if (needToDrain) {
             auto writerGuard = WriterGuard(shard->SpinLock);
-
             DrainTouchBuffer(shard);
-
-            if (itemMap.find(key) != itemMap.end()) {
-                continue;
-            }
-
-            auto* item = new TItem(value);
-
-            // This holds an extra reference to the promise state...
-            auto valueFuture = item->GetValueFuture();
-
-            YT_VERIFY(itemMap.emplace(key, item).second);
-            ++Size_;
-
-            i64 weight = PushToYounger(shard, item);
-            SyncHitWeightCounter_.Increment(weight);
-            SyncHitCounter_.Increment();
-
-            Trim(shard, writerGuard);
-            // ...since the item can be dead at this moment.
-
-            return valueFuture;
         }
 
-        // Back off.
-        ThreadYield();
+        return valueFuture;
+    }
+
+    auto valueIt = valueMap.find(key);
+    if (valueIt == valueMap.end()) {
+        return {};
+    }
+
+    auto value = DangerousGetPtr(valueIt->second);
+    if (!value) {
+        return {};
+    }
+
+    readerGuard.Release();
+
+    auto writerGuard = WriterGuard(shard->SpinLock);
+
+    DrainTouchBuffer(shard);
+
+    if (itemMap.find(key) != itemMap.end()) {
+        auto* item = itemIt->second;
+
+        Touch(shard, item);
+        auto valueFuture = item->GetValueFuture();
+
+        if (item->Value) {
+            SyncHitWeightCounter_.Increment(item->CachedWeight);
+            SyncHitCounter_.Increment();
+        } else {
+            AsyncHitCounter_.Increment();
+            item->AsyncHitCount.fetch_add(1);
+        }
+
+        DrainTouchBuffer(shard);
+
+        return valueFuture;
+    }
+
+    {
+        auto* item = new TItem(value);
+
+        auto valueFuture = item->GetValueFuture();
+
+        YT_VERIFY(itemMap.emplace(key, item).second);
+        ++Size_;
+
+        i64 weight = PushToYounger(shard, item);
+        SyncHitWeightCounter_.Increment(weight);
+        SyncHitCounter_.Increment();
+
+        Trim(shard, writerGuard);
+
+        return valueFuture;
     }
 }
 
