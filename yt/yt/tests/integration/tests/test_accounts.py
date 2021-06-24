@@ -1729,18 +1729,20 @@ class TestAccounts(AccountsTestSuiteBase):
                 {"name": "value", "type": "string"},
             ]})
 
-        master_memory_sleep()
-
         t1_schema_id = get("//tmp/t1/@schema_id")
         t2_schema_id = get("//tmp/t2/@schema_id")
         assert __builtin__.set(get("#" + t2_schema_id + "/@referencing_accounts")) == {"tmp"}
-        memory_usage_delta = \
-            get("#" + t2_schema_id + "/@memory_usage") - get("#" + t1_schema_id + "/@memory_usage")
+
+        t1_schema_master_memory = get("#" + t1_schema_id + "/@memory_usage")
+        t2_schema_master_memory = get("#" + t2_schema_id + "/@memory_usage")
+        memory_usage_delta = t2_schema_master_memory - t1_schema_master_memory
         assert memory_usage_delta > 0
 
-        master_memory_sleep()
+        old_memory_usage = t1_schema_master_memory
+        if get("//tmp/t1/@external"):
+            old_memory_usage += t1_schema_master_memory
+        wait(lambda: get("//sys/accounts/a/@resource_usage/detailed_master_memory/schemas") == old_memory_usage)
 
-        old_memory_usage = get("//sys/accounts/a/@resource_usage/master_memory")
         copy("//tmp/t2", "//tmp/t1", force=True)  # NB: overwriting.
         set("//tmp/t1/@account", "a")
         assert get("//tmp/t1/@schema_id") == t2_schema_id
@@ -1749,7 +1751,7 @@ class TestAccounts(AccountsTestSuiteBase):
             # Schema object is present on external cell also.
             expected_memory_usage += memory_usage_delta
         assert __builtin__.set(get("#" + t2_schema_id + "/@referencing_accounts")) == {"tmp", "a"}
-        wait(lambda: get("//sys/accounts/a/@resource_usage/master_memory") == expected_memory_usage,
+        wait(lambda: get("//sys/accounts/a/@resource_usage/detailed_master_memory/schemas") == expected_memory_usage,
              sleep_backoff=2.0)
 
     @authors("babenko")
