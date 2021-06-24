@@ -194,7 +194,7 @@ class YTInstance(object):
         makedirp(self.logs_path)
         makedirp(self.configs_path)
         makedirp(self.runtime_data_path)
-        
+
         # NB: we should not write logs before this point.
         _configure_logger(os.path.join(self.path, "yt_local.log"))
 
@@ -260,7 +260,7 @@ class YTInstance(object):
                 "node": self._make_service_dirs("node", self.yt_config.node_count),
                 "node_tmpfs": self._make_service_dirs("node", self.yt_config.node_count, in_tmpfs=True),
                 "chaos_node": self._make_service_dirs("chaos_node", self.yt_config.chaos_node_count),
-                "master_cache_dirs": self._make_service_dirs("master_cache", self.yt_config.master_cache_count),
+                "master_cache": self._make_service_dirs("master_cache", self.yt_config.master_cache_count),
                 "http_proxy": self._make_service_dirs("http_proxy", self.yt_config.http_proxy_count),
                 "rpc_proxy": self._make_service_dirs("rpc_proxy", self.yt_config.rpc_proxy_count)}
 
@@ -748,7 +748,7 @@ class YTInstance(object):
         else:
             logger.info("Sending SIGKILL (pid: {}, current_process_pid: {})".format(proc.pid, os.getpid()))
             safe_kill(lambda: os.kill(proc.pid, signal.SIGKILL))
-                
+
         safe_kill(lambda: os.killpg(proc.pid, signal.SIGKILL))
 
         # XXX: KERNEL-579 – temporarily solution for diagnostics
