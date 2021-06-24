@@ -24,6 +24,15 @@ class YsonTypeTest extends FlatSpec with Matchers with LocalSpark with TmpDir wi
       .as[Array[Byte]].collect()
   }
 
+  def typeV3(path: String, fieldName: String): String = {
+    val schema = YtWrapper.attribute(path, "schema")
+    schema.asList()
+      .find((t: YTreeNode) => t.asMap().getOrThrow("name").stringValue() == fieldName)
+      .get().asMap()
+      .getOrThrow("type_v3").asMap()
+      .getOrThrow("item").stringValue()
+  }
+
   def typeV2(path: String, fieldName: String): String = {
     val schema = YtWrapper.attribute(path, "schema")
     schema.asList()
@@ -31,6 +40,14 @@ class YsonTypeTest extends FlatSpec with Matchers with LocalSpark with TmpDir wi
       .get().asMap()
       .getOrThrow("type_v2").asMap()
       .getOrThrow("element").stringValue()
+  }
+
+  def typeV1(path: String, fieldName: String): String = {
+    val schema = YtWrapper.attribute(path, "schema")
+    schema.asList()
+      .find((t: YTreeNode) => t.asMap().getOrThrow("name").stringValue() == fieldName)
+      .get().asMap()
+      .getOrThrow("type").stringValue()
   }
 
   "YtFormat" should "read and write yson" in {
@@ -71,7 +88,7 @@ class YsonTypeTest extends FlatSpec with Matchers with LocalSpark with TmpDir wi
       .write.yt(tmpPath)
     val res = spark.read.schemaHint("value" -> ArrayType(LongType)).yt(tmpPath).as[Array[Long]]
 
-    typeV2(tmpPath, "value") shouldEqual "any"
+    typeV1(tmpPath, "value") shouldEqual "any"
     res.collect().map(_.toList) should contain theSameElementsAs Seq(
       Seq(1L, 2L, 3L),
       Seq(4L, 5L, 6L)
@@ -176,7 +193,7 @@ class YsonTypeTest extends FlatSpec with Matchers with LocalSpark with TmpDir wi
       (1, Seq(1L, 2L, 3L), "a"),
       (2, Seq(4L, 5L, 6L), "b")
     )
-    typeV2(s"$tmpPath/2", "value1") shouldEqual "any"
+    typeV1(s"$tmpPath/2", "value1") shouldEqual "any"
   }
 
   it should "prohibit yson type in complex types" in {
@@ -238,7 +255,7 @@ class YsonTypeTest extends FlatSpec with Matchers with LocalSpark with TmpDir wi
     sys.props -= "spark.testing"
     val res = spark.read.schemaHint("value" -> ArrayType(LongType)).yt(tmpPath).as[Array[Long]]
 
-    typeV2(tmpPath, "value") shouldEqual "any"
+    typeV1(tmpPath, "value") shouldEqual "any"
     res.collect() should contain theSameElementsAs Seq(
       Seq(1L, 2L, 3L),
       Seq(4L, 5L, 6L)
