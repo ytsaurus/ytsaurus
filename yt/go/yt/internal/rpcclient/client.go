@@ -17,6 +17,7 @@ import (
 	"a.yandex-team.ru/library/go/core/xerrors"
 	"a.yandex-team.ru/library/go/ptr"
 	"a.yandex-team.ru/yt/go/bus"
+	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/proto/client/api/rpc_proxy"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yson"
@@ -788,4 +789,336 @@ func (c *client) RemoveMember(
 	}
 
 	return
+}
+
+func (c *client) StartOperation(
+	ctx context.Context,
+	opType yt.OperationType,
+	spec interface{},
+	opts *yt.StartOperationOptions,
+) (opID yt.OperationID, err error) {
+	if opts == nil {
+		opts = &yt.StartOperationOptions{}
+	}
+
+	operationType, err := convertOperationType(&opType)
+	if err != nil {
+		return
+	}
+
+	specBytes, err := yson.Marshal(spec)
+	if err != nil {
+		err = xerrors.Errorf("unable to serialize spec: %w", err)
+		return
+	}
+
+	req := &rpc_proxy.TReqStartOperation{
+		Type:                 operationType,
+		Spec:                 specBytes,
+		TransactionalOptions: convertTransactionOptions(opts.TransactionOptions),
+		MutatingOptions:      convertMutatingOptions(opts.MutatingOptions),
+	}
+
+	var rsp rpc_proxy.TRspStartOperation
+	err = c.do(ctx, "StartOperation", req, &rsp)
+	if err != nil {
+		return
+	}
+
+	opID = yt.OperationID(makeNodeID(rsp.GetOperationId()))
+	return
+}
+
+func (c *client) AbortOperation(
+	ctx context.Context,
+	opID yt.OperationID,
+	opts *yt.AbortOperationOptions,
+) (err error) {
+	if opts == nil {
+		opts = &yt.AbortOperationOptions{}
+	}
+
+	req := &rpc_proxy.TReqAbortOperation{
+		OperationIdOrAlias: &rpc_proxy.TReqAbortOperation_OperationId{
+			OperationId: convertGUID(guid.GUID(opID)),
+		},
+		AbortMessage: opts.AbortMessage,
+	}
+
+	var rsp rpc_proxy.TRspAbortOperation
+	err = c.do(ctx, "AbortOperation", req, &rsp)
+	if err != nil {
+		return
+	}
+
+	return
+}
+
+func (c *client) SuspendOperation(
+	ctx context.Context,
+	opID yt.OperationID,
+	opts *yt.SuspendOperationOptions,
+) (err error) {
+	if opts == nil {
+		opts = &yt.SuspendOperationOptions{}
+	}
+
+	req := &rpc_proxy.TReqSuspendOperation{
+		OperationIdOrAlias: &rpc_proxy.TReqSuspendOperation_OperationId{
+			OperationId: convertGUID(guid.GUID(opID)),
+		},
+		AbortRunningJobs: &opts.AbortRunningJobs,
+	}
+
+	var rsp rpc_proxy.TRspSuspendOperation
+	err = c.do(ctx, "SuspendOperation", req, &rsp)
+	if err != nil {
+		return
+	}
+
+	return
+}
+
+func (c *client) ResumeOperation(
+	ctx context.Context,
+	opID yt.OperationID,
+	opts *yt.ResumeOperationOptions,
+) (err error) {
+	req := &rpc_proxy.TReqResumeOperation{
+		OperationIdOrAlias: &rpc_proxy.TReqResumeOperation_OperationId{
+			OperationId: convertGUID(guid.GUID(opID)),
+		},
+	}
+
+	var rsp rpc_proxy.TRspResumeOperation
+	err = c.do(ctx, "ResumeOperation", req, &rsp)
+	if err != nil {
+		return
+	}
+
+	return
+}
+
+func (c *client) CompleteOperation(
+	ctx context.Context,
+	opID yt.OperationID,
+	opts *yt.CompleteOperationOptions,
+) (err error) {
+	req := &rpc_proxy.TReqCompleteOperation{
+		OperationIdOrAlias: &rpc_proxy.TReqCompleteOperation_OperationId{
+			OperationId: convertGUID(guid.GUID(opID)),
+		},
+	}
+
+	var rsp rpc_proxy.TRspCompleteOperation
+	err = c.do(ctx, "CompleteOperation", req, &rsp)
+	if err != nil {
+		return
+	}
+
+	return
+}
+
+func (c *client) UpdateOperationParameters(
+	ctx context.Context,
+	opID yt.OperationID,
+	params interface{},
+	opts *yt.UpdateOperationParametersOptions,
+) (err error) {
+	paramsBytes, err := yson.Marshal(params)
+	if err != nil {
+		err = xerrors.Errorf("unable to serialize params: %w", err)
+		return
+	}
+
+	req := &rpc_proxy.TReqUpdateOperationParameters{
+		OperationIdOrAlias: &rpc_proxy.TReqUpdateOperationParameters_OperationId{
+			OperationId: convertGUID(guid.GUID(opID)),
+		},
+		Parameters: paramsBytes,
+	}
+
+	var rsp rpc_proxy.TRspUpdateOperationParameters
+	err = c.do(ctx, "UpdateOperationParameters", req, &rsp)
+	if err != nil {
+		return
+	}
+
+	return
+}
+
+func (c *client) GetOperation(
+	ctx context.Context,
+	opID yt.OperationID,
+	opts *yt.GetOperationOptions,
+) (status *yt.OperationStatus, err error) {
+	if opts == nil {
+		opts = &yt.GetOperationOptions{}
+	}
+
+	req := &rpc_proxy.TReqGetOperation{
+		OperationIdOrAlias: &rpc_proxy.TReqGetOperation_OperationId{
+			OperationId: convertGUID(guid.GUID(opID)),
+		},
+		Attributes:                opts.Attributes,
+		IncludeRuntime:            opts.IncludeRuntime,
+		MaximumCypressProgressAge: nil, // todo
+		MasterReadOptions:         convertMasterReadOptions(opts.MasterReadOptions),
+	}
+
+	var rsp rpc_proxy.TRspGetOperation
+	err = c.do(ctx, "GetOperation", req, &rsp)
+	if err != nil {
+		return
+	}
+
+	status = &yt.OperationStatus{}
+	if err := yson.Unmarshal(rsp.Meta, status); err != nil {
+		return nil, err
+	}
+
+	return
+}
+
+func (c *client) ListOperations(
+	ctx context.Context,
+	opts *yt.ListOperationsOptions,
+) (operations *yt.ListOperationsResult, err error) {
+	if opts == nil {
+		opts = &yt.ListOperationsOptions{}
+	}
+
+	opState, err := convertOperationState(opts.State)
+	if err != nil {
+		return nil, err
+	}
+
+	opType, err := convertOperationType(opts.Type)
+	if err != nil {
+		return nil, err
+	}
+
+	var limit *uint64
+	if opts.Limit != nil {
+		limit = ptr.Uint64(uint64(*opts.Limit))
+	}
+
+	req := &rpc_proxy.TReqListOperations{
+		FromTime:               convertTime(opts.FromTime),
+		ToTime:                 convertTime(opts.ToTime),
+		CursorTime:             convertTime(opts.Cursor),
+		CursorDirection:        nil, // todo
+		UserFilter:             opts.User,
+		StateFilter:            opState,
+		TypeFilter:             opType,
+		SubstrFilter:           opts.Filter,
+		Pool:                   nil,   // todo
+		IncludeArchive:         nil,   // todo
+		IncludeCounters:        nil,   // todo
+		Limit:                  limit, // todo
+		Attributes:             nil,   // todo
+		AccessFilter:           nil,   // todo
+		ArchiveFetchingTimeout: nil,   // todo
+		MasterReadOptions:      convertMasterReadOptions(opts.MasterReadOptions),
+	}
+
+	var rsp rpc_proxy.TRspListOperations
+	err = c.do(ctx, "ListOperations", req, &rsp)
+	if err != nil {
+		return
+	}
+
+	operations, err = makeListOperationsResult(rsp.Result)
+	if err != nil {
+		return nil, xerrors.Errorf("unable to deserializer response: %w", err)
+	}
+
+	return
+}
+
+func (c *client) ListJobs(
+	ctx context.Context,
+	opID yt.OperationID,
+	opts *yt.ListJobsOptions,
+) (r *yt.ListJobsResult, err error) {
+	if opts == nil {
+		opts = &yt.ListJobsOptions{}
+	}
+
+	jobType, err := convertJobType(opts.JobType)
+	if err != nil {
+		return nil, err
+	}
+
+	jobState, err := convertJobState(opts.JobState)
+	if err != nil {
+		return nil, err
+	}
+
+	sortOrder, err := convertJobSortOrder(opts.SortOrder)
+	if err != nil {
+		return nil, err
+	}
+
+	var limit *int64
+	if opts.Limit != nil {
+		limit = ptr.Int64(int64(*opts.Limit))
+	}
+
+	var offset *int64
+	if opts.Offset != nil {
+		offset = ptr.Int64(int64(*opts.Offset))
+	}
+
+	dataSource, err := convertDataSource(opts.DataSource)
+	if err != nil {
+		return nil, err
+	}
+
+	req := &rpc_proxy.TReqListJobs{
+		OperationIdOrAlias: &rpc_proxy.TReqListJobs_OperationId{
+			OperationId: convertGUID(guid.GUID(opID)),
+		},
+		Type:                        jobType,
+		State:                       jobState,
+		Address:                     opts.Address,
+		WithStderr:                  opts.WithStderr,
+		WithFailContext:             opts.WithFailContext,
+		WithSpec:                    nil, // todo
+		SortField:                   nil, // todo
+		SortOrder:                   sortOrder,
+		Limit:                       limit,
+		Offset:                      offset,
+		IncludeCypress:              nil, // todo
+		IncludeControllerAgent:      nil, // todo
+		IncludeArchive:              nil, // todo
+		DataSource:                  dataSource,
+		RunningJobsLookbehindPeriod: nil, // todo
+		JobCompetitionId:            nil, // todo
+		WithCompetitors:             nil, // todo
+		TaskName:                    nil, // todo
+		MasterReadOptions:           nil, // todo
+	}
+
+	var rsp rpc_proxy.TRspListJobs
+	err = c.do(ctx, "ListJobs", req, &rsp)
+	if err != nil {
+		return
+	}
+
+	r, err = makeListJobsResult(rsp.Result)
+	if err != nil {
+		return nil, xerrors.Errorf("unable to deserializer response: %w", err)
+	}
+
+	return
+}
+
+func (c *client) GetJobStderr(
+	ctx context.Context,
+	opID yt.OperationID,
+	jobID yt.JobID,
+	opts *yt.GetJobStderrOptions,
+) (r []byte, err error) {
+	return nil, xerrors.New("implement me")
 }

@@ -195,6 +195,14 @@ func convertTime(t *yson.Time) *uint64 {
 	return ptr.Uint64(uint64(time.Time(*t).UTC().UnixNano() / time.Hour.Microseconds()))
 }
 
+func makeTime(us *uint64) yson.Time {
+	if us == nil {
+		return yson.Time{}
+	}
+
+	return yson.Time(time.Unix(0, time.Microsecond.Nanoseconds()*int64(*us)).UTC())
+}
+
 func convertAtomicity(a *yt.Atomicity) (*rpc_proxy.EAtomicity, error) {
 	if a == nil {
 		return nil, nil
@@ -212,4 +220,557 @@ func convertAtomicity(a *yt.Atomicity) (*rpc_proxy.EAtomicity, error) {
 	}
 
 	return &ret, nil
+}
+
+func convertOperationType(typ *yt.OperationType) (*rpc_proxy.EOperationType, error) {
+	if typ == nil {
+		return nil, nil
+	}
+
+	var ret rpc_proxy.EOperationType
+
+	switch *typ {
+	case yt.OperationMap:
+		ret = rpc_proxy.EOperationType_OT_MAP
+	case yt.OperationReduce:
+		ret = rpc_proxy.EOperationType_OT_REDUCE
+	case yt.OperationMapReduce:
+		ret = rpc_proxy.EOperationType_OT_MAP_REDUCE
+	case yt.OperationSort:
+		ret = rpc_proxy.EOperationType_OT_SORT
+	case yt.OperationMerge:
+		ret = rpc_proxy.EOperationType_OT_MERGE
+	case yt.OperationErase:
+		ret = rpc_proxy.EOperationType_OT_ERASE
+	case yt.OperationRemoteCopy:
+		ret = rpc_proxy.EOperationType_OT_REMOTE_COPY
+	case yt.OperationVanilla:
+		ret = rpc_proxy.EOperationType_OT_VANILLA
+	default:
+		return nil, xerrors.Errorf("unexpected operation type %q", *typ)
+	}
+
+	return &ret, nil
+}
+
+func makeOperationType(typ *rpc_proxy.EOperationType) (yt.OperationType, error) {
+	if typ == nil {
+		return "", xerrors.Errorf("unable to convert nil operation type")
+	}
+
+	var ret yt.OperationType
+
+	switch *typ {
+	case rpc_proxy.EOperationType_OT_MAP:
+		ret = yt.OperationMap
+	case rpc_proxy.EOperationType_OT_MERGE:
+		ret = yt.OperationMerge
+	case rpc_proxy.EOperationType_OT_ERASE:
+		ret = yt.OperationErase
+	case rpc_proxy.EOperationType_OT_SORT:
+		ret = yt.OperationSort
+	case rpc_proxy.EOperationType_OT_REDUCE:
+		ret = yt.OperationReduce
+	case rpc_proxy.EOperationType_OT_MAP_REDUCE:
+		ret = yt.OperationMapReduce
+	case rpc_proxy.EOperationType_OT_REMOTE_COPY:
+		ret = yt.OperationRemoteCopy
+	case rpc_proxy.EOperationType_OT_VANILLA:
+		ret = yt.OperationVanilla
+	case rpc_proxy.EOperationType_OT_JOIN_REDUCE:
+		return "", xerrors.Errorf("unsupported operation type %q", *typ)
+	default:
+		return "", xerrors.Errorf("unexpected operation type %q", *typ)
+	}
+
+	return ret, nil
+}
+
+func convertOperationState(state *yt.OperationState) (*rpc_proxy.EOperationState, error) {
+	if state == nil {
+		return nil, nil
+	}
+
+	var ret rpc_proxy.EOperationState
+
+	switch *state {
+	case yt.StateRunning:
+		ret = rpc_proxy.EOperationState_OS_RUNNING
+	case yt.StatePending:
+		ret = rpc_proxy.EOperationState_OS_PENDING
+	case yt.StateCompleted:
+		ret = rpc_proxy.EOperationState_OS_COMPLETED
+	case yt.StateFailed:
+		ret = rpc_proxy.EOperationState_OS_FAILED
+	case yt.StateAborted:
+		ret = rpc_proxy.EOperationState_OS_ABORTED
+	case yt.StateReviving:
+		ret = rpc_proxy.EOperationState_OS_REVIVING
+	case yt.StateInitializing:
+		ret = rpc_proxy.EOperationState_OS_INITIALIZING
+	case yt.StatePreparing:
+		ret = rpc_proxy.EOperationState_OS_PREPARING
+	case yt.StateMaterializing:
+		ret = rpc_proxy.EOperationState_OS_MATERIALIZING
+	case yt.StateCompleting:
+		ret = rpc_proxy.EOperationState_OS_COMPLETING
+	case yt.StateAborting:
+		ret = rpc_proxy.EOperationState_OS_ABORTING
+	case yt.StateFailing:
+		ret = rpc_proxy.EOperationState_OS_FAILING
+	default:
+		return nil, xerrors.Errorf("unexpected operation state %q", *state)
+	}
+
+	return &ret, nil
+}
+
+func makeOperationState(state *rpc_proxy.EOperationState) (yt.OperationState, error) {
+	if state == nil {
+		return "", xerrors.Errorf("unable to convert nil operation state")
+	}
+
+	var ret yt.OperationState
+
+	switch *state {
+	case rpc_proxy.EOperationState_OS_INITIALIZING:
+		ret = yt.StateInitializing
+	case rpc_proxy.EOperationState_OS_PREPARING:
+		ret = yt.StatePreparing
+	case rpc_proxy.EOperationState_OS_MATERIALIZING:
+		ret = yt.StateMaterializing
+	case rpc_proxy.EOperationState_OS_REVIVING:
+		ret = yt.StateReviving
+	case rpc_proxy.EOperationState_OS_PENDING:
+		ret = yt.StatePending
+	case rpc_proxy.EOperationState_OS_RUNNING:
+		ret = yt.StateRunning
+	case rpc_proxy.EOperationState_OS_COMPLETING:
+		ret = yt.StateCompleting
+	case rpc_proxy.EOperationState_OS_COMPLETED:
+		ret = yt.StateCompleted
+	case rpc_proxy.EOperationState_OS_ABORTING:
+		ret = yt.StateAborting
+	case rpc_proxy.EOperationState_OS_ABORTED:
+		ret = yt.StateAborted
+	case rpc_proxy.EOperationState_OS_FAILING:
+		ret = yt.StateFailing
+	case rpc_proxy.EOperationState_OS_FAILED:
+		ret = yt.StateFailed
+	case rpc_proxy.EOperationState_OS_NONE,
+		rpc_proxy.EOperationState_OS_STARTING,
+		rpc_proxy.EOperationState_OS_ORPHANED,
+		rpc_proxy.EOperationState_OS_WAITING_FOR_AGENT,
+		rpc_proxy.EOperationState_OS_REVIVING_JOBS:
+		return "", xerrors.Errorf("unsupported operation state %q", *state)
+	default:
+		return "", xerrors.Errorf("unexpected operation state %q", *state)
+	}
+
+	return ret, nil
+}
+
+func makeOperationID(g *misc.TGuid) yt.OperationID {
+	return yt.OperationID(guid.FromHalves(g.GetFirst(), g.GetSecond()))
+}
+
+func makeListOperationsResult(result *rpc_proxy.TListOperationsResult) (*yt.ListOperationsResult, error) {
+	if result == nil {
+		return nil, nil
+	}
+
+	operations := make([]yt.OperationStatus, 0, len(result.GetOperations()))
+	for _, op := range result.GetOperations() {
+		opID := makeOperationID(op.Id)
+
+		opState, err := makeOperationState(op.State)
+		if err != nil {
+			return nil, xerrors.Errorf("unable to convert operation state of operation %q: %w", opID, err)
+		}
+
+		opType, err := makeOperationType(op.Type)
+		if err != nil {
+			return nil, xerrors.Errorf("unable to convert operation type of operation %q: %w", opID, err)
+		}
+
+		var briefSpec map[string]interface{}
+		if err := yson.Unmarshal(op.BriefSpec, &briefSpec); err != nil {
+			return nil, xerrors.Errorf("unable to deserialize brief spec of operation %q: %w", opID, err)
+		}
+
+		var runtimeParameters yt.OperationRuntimeParameters
+		if err := yson.Unmarshal(op.RuntimeParameters, &runtimeParameters); err != nil {
+			return nil, xerrors.Errorf("unable to deserialize runtime parameters of operation %q: %w", opID, err)
+		}
+
+		var opResult yt.OperationResult
+
+		if op.Result != nil {
+			if err := yson.Unmarshal(op.Result, &opResult); err != nil {
+				return nil, xerrors.Errorf("unable to deserialize result of operation %q: %w", opID, err)
+			}
+		}
+
+		operations = append(operations, yt.OperationStatus{
+			ID:                opID,
+			State:             opState,
+			Result:            &opResult,
+			Type:              opType,
+			BriefSpec:         briefSpec,
+			FullSpec:          op.GetFullSpec(),
+			StartTime:         makeTime(op.StartTime),
+			Suspend:           op.GetSuspended(),
+			AuthenticatedUser: op.GetAuthenticatedUser(),
+			RuntimeParameters: runtimeParameters,
+		})
+	}
+
+	poolCounts, err := makePoolCounts(result.GetPoolCounts())
+	if err != nil {
+		return nil, xerrors.Errorf("unable to convert pool counts: %w", err)
+	}
+
+	userCounts, err := makeUserCounts(result.GetUserCounts())
+	if err != nil {
+		return nil, xerrors.Errorf("unable to convert user counts: %w", err)
+	}
+
+	stateCounts, err := makeStateCounts(result.GetStateCounts())
+	if err != nil {
+		return nil, xerrors.Errorf("unable to convert state counts: %w", err)
+	}
+
+	typeCounts, err := makeTypeCounts(result.GetTypeCounts())
+	if err != nil {
+		return nil, xerrors.Errorf("unable to convert type counts: %w", err)
+	}
+
+	ret := &yt.ListOperationsResult{
+		Operations:      operations,
+		Incomplete:      result.GetIncomplete(),
+		PoolCounts:      poolCounts,
+		UserCounts:      userCounts,
+		StateCounts:     stateCounts,
+		TypeCounts:      typeCounts,
+		FailedJobsCount: int(result.GetFailedJobsCount()),
+	}
+
+	return ret, nil
+}
+
+func makePoolCounts(counts *rpc_proxy.TListOperationsResult_TPoolCounts) (map[string]int, error) {
+	if counts == nil {
+		return nil, nil
+	}
+
+	ret := make(map[string]int)
+	for _, entry := range counts.GetEntries() {
+		if entry.Pool == nil {
+			return nil, xerrors.Errorf("misssing pool in pool counts entry")
+		}
+		ret[entry.GetPool()] = int(entry.GetCount())
+	}
+
+	return ret, nil
+}
+
+func makeUserCounts(counts *rpc_proxy.TListOperationsResult_TUserCounts) (map[string]int, error) {
+	if counts == nil {
+		return nil, nil
+	}
+
+	ret := make(map[string]int)
+	for _, entry := range counts.GetEntries() {
+		if entry.User == nil {
+			return nil, xerrors.Errorf("misssing user in user counts entry")
+		}
+		ret[entry.GetUser()] = int(entry.GetCount())
+	}
+
+	return ret, nil
+}
+
+func makeStateCounts(counts *rpc_proxy.TListOperationsResult_TOperationStateCounts) (map[string]int, error) {
+	if counts == nil {
+		return nil, nil
+	}
+
+	ret := make(map[string]int)
+	for _, entry := range counts.GetEntries() {
+		opState, err := makeOperationState(entry.State)
+		if err != nil {
+			return nil, xerrors.Errorf("unable to convert operation state: %w", err)
+		}
+		ret[string(opState)] = int(entry.GetCount())
+	}
+
+	return ret, nil
+}
+
+func makeTypeCounts(counts *rpc_proxy.TListOperationsResult_TOperationTypeCounts) (map[string]int, error) {
+	if counts == nil {
+		return nil, nil
+	}
+
+	ret := make(map[string]int)
+	for _, entry := range counts.GetEntries() {
+		opType, err := makeOperationType(entry.Type)
+		if err != nil {
+			return nil, xerrors.Errorf("unable to convert operation type: %w", err)
+		}
+		ret[string(opType)] = int(entry.GetCount())
+	}
+
+	return ret, nil
+}
+
+func convertJobType(typ *yt.JobType) (*rpc_proxy.EJobType, error) {
+	if typ == nil {
+		return nil, nil
+	}
+
+	var ret rpc_proxy.EJobType
+
+	switch *typ {
+	case yt.JobTypeMap:
+		ret = rpc_proxy.EJobType_JT_MAP
+	case yt.JobTypePartitionMap:
+		ret = rpc_proxy.EJobType_JT_PARTITION_MAP
+	case yt.JobTypeSortedMerge:
+		ret = rpc_proxy.EJobType_JT_SORTED_MERGE
+	case yt.JobTypeOrderedMerge:
+		ret = rpc_proxy.EJobType_JT_ORDERED_MERGE
+	case yt.JobTypeUnorderedMerge:
+		ret = rpc_proxy.EJobType_JT_UNORDERED_MERGE
+	case yt.JobTypePartition:
+		ret = rpc_proxy.EJobType_JT_PARTITION
+	case yt.JobTypeSimpleSort:
+		ret = rpc_proxy.EJobType_JT_SIMPLE_SORT
+	case yt.JobTypeFinalSort:
+		ret = rpc_proxy.EJobType_JT_FINAL_SORT
+	case yt.JobTypeSortedReduce:
+		ret = rpc_proxy.EJobType_JT_SORTED_REDUCE
+	case yt.JobTypePartitionReduce:
+		ret = rpc_proxy.EJobType_JT_PARTITION_REDUCE
+	case yt.JobTypeReduceCombiner:
+		ret = rpc_proxy.EJobType_JT_REDUCE_COMBINER
+	case yt.JobTypeRemoteCopy:
+		ret = rpc_proxy.EJobType_JT_REMOTE_COPY
+	case yt.JobTypeIntermediateSort:
+		ret = rpc_proxy.EJobType_JT_INTERMEDIATE_SORT
+	case yt.JobTypeOrderedMap:
+		ret = rpc_proxy.EJobType_JT_ORDERED_MAP
+	case yt.JobTypeJoinReduce:
+		ret = rpc_proxy.EJobType_JT_JOIN_REDUCE
+	case yt.JobTypeVanilla:
+		ret = rpc_proxy.EJobType_JT_VANILLA
+	case yt.JobTypeSchedulerUnknown:
+		ret = rpc_proxy.EJobType_JT_SCHEDULER_UNKNOWN
+	default:
+		return nil, xerrors.Errorf("unexpected job type %q", *typ)
+	}
+
+	return &ret, nil
+}
+
+func makeJobType(typ *rpc_proxy.EJobType) (yt.JobType, error) {
+	if typ == nil {
+		return "", xerrors.Errorf("unable to convert nil job type")
+	}
+
+	var ret yt.JobType
+
+	switch *typ {
+	case rpc_proxy.EJobType_JT_MAP:
+		ret = yt.JobTypeMap
+	case rpc_proxy.EJobType_JT_PARTITION_MAP:
+		ret = yt.JobTypePartitionMap
+	case rpc_proxy.EJobType_JT_SORTED_MERGE:
+		ret = yt.JobTypeSortedMerge
+	case rpc_proxy.EJobType_JT_ORDERED_MERGE:
+		ret = yt.JobTypeOrderedMerge
+	case rpc_proxy.EJobType_JT_UNORDERED_MERGE:
+		ret = yt.JobTypeUnorderedMerge
+	case rpc_proxy.EJobType_JT_PARTITION:
+		ret = yt.JobTypePartition
+	case rpc_proxy.EJobType_JT_SIMPLE_SORT:
+		ret = yt.JobTypeSimpleSort
+	case rpc_proxy.EJobType_JT_FINAL_SORT:
+		ret = yt.JobTypeFinalSort
+	case rpc_proxy.EJobType_JT_SORTED_REDUCE:
+		ret = yt.JobTypeSortedReduce
+	case rpc_proxy.EJobType_JT_PARTITION_REDUCE:
+		ret = yt.JobTypePartitionReduce
+	case rpc_proxy.EJobType_JT_REDUCE_COMBINER:
+		ret = yt.JobTypeReduceCombiner
+	case rpc_proxy.EJobType_JT_REMOTE_COPY:
+		ret = yt.JobTypeRemoteCopy
+	case rpc_proxy.EJobType_JT_INTERMEDIATE_SORT:
+		ret = yt.JobTypeIntermediateSort
+	case rpc_proxy.EJobType_JT_ORDERED_MAP:
+		ret = yt.JobTypeOrderedMap
+	case rpc_proxy.EJobType_JT_JOIN_REDUCE:
+		ret = yt.JobTypeJoinReduce
+	case rpc_proxy.EJobType_JT_VANILLA:
+		ret = yt.JobTypeVanilla
+	case rpc_proxy.EJobType_JT_SCHEDULER_UNKNOWN:
+		ret = yt.JobTypeSchedulerUnknown
+	default:
+		return "", xerrors.Errorf("unexpected job type %q", *typ)
+	}
+
+	return ret, nil
+}
+
+func convertJobState(state *yt.JobState) (*rpc_proxy.EJobState, error) {
+	if state == nil {
+		return nil, nil
+	}
+
+	var ret rpc_proxy.EJobState
+
+	switch *state {
+	case yt.JobRunning:
+		ret = rpc_proxy.EJobState_JS_RUNNING
+	case yt.JobWaiting:
+		ret = rpc_proxy.EJobState_JS_WAITING
+	case yt.JobCompleted:
+		ret = rpc_proxy.EJobState_JS_COMPLETED
+	case yt.JobFailed:
+		ret = rpc_proxy.EJobState_JS_FAILED
+	case yt.JobAborted:
+		ret = rpc_proxy.EJobState_JS_ABORTED
+	default:
+		return nil, xerrors.Errorf("unexpected job state %q", *state)
+	}
+
+	return &ret, nil
+}
+
+func makeJobState(state *rpc_proxy.EJobState) (yt.JobState, error) {
+	if state == nil {
+		return "", xerrors.Errorf("unable to convert nil job state")
+	}
+
+	var ret yt.JobState
+
+	switch *state {
+	case rpc_proxy.EJobState_JS_RUNNING:
+		ret = yt.JobRunning
+	case rpc_proxy.EJobState_JS_WAITING:
+		ret = yt.JobWaiting
+	case rpc_proxy.EJobState_JS_COMPLETED:
+		ret = yt.JobCompleted
+	case rpc_proxy.EJobState_JS_FAILED:
+		ret = yt.JobFailed
+	case rpc_proxy.EJobState_JS_ABORTED:
+		ret = yt.JobAborted
+	default:
+		return "", xerrors.Errorf("unexpected job state %q", *state)
+	}
+
+	return ret, nil
+}
+
+func convertJobSortOrder(o *yt.JobSortOrder) (*rpc_proxy.EJobSortDirection, error) {
+	if o == nil {
+		return nil, nil
+	}
+
+	var ret rpc_proxy.EJobSortDirection
+
+	switch *o {
+	case yt.Ascending:
+		ret = rpc_proxy.EJobSortDirection_JSD_ASCENDING
+	case yt.Descending:
+		ret = rpc_proxy.EJobSortDirection_JSD_DESCENDING
+	default:
+		return nil, xerrors.Errorf("unexpected job sort order %q", *o)
+	}
+
+	return &ret, nil
+}
+
+func convertDataSource(dataSource *yt.JobDataSource) (*rpc_proxy.EDataSource, error) {
+	if dataSource == nil {
+		return nil, nil
+	}
+
+	var ret rpc_proxy.EDataSource
+
+	switch *dataSource {
+	case yt.JobDataSourceArchive:
+		ret = rpc_proxy.EDataSource_DS_ARCHIVE
+	case yt.JobDataSourceRuntime:
+		ret = rpc_proxy.EDataSource_DS_RUNTIME
+	case yt.JobDataSourceAuto:
+		ret = rpc_proxy.EDataSource_DS_AUTO
+	case yt.JobDataSourceManual:
+		ret = rpc_proxy.EDataSource_DS_MANUAL
+	default:
+		return nil, xerrors.Errorf("unexpected data source %q", *dataSource)
+	}
+
+	return &ret, nil
+}
+
+func makeJobID(g *misc.TGuid) yt.JobID {
+	return yt.JobID(guid.FromHalves(g.GetFirst(), g.GetSecond()))
+}
+
+func makeListJobsResult(result *rpc_proxy.TListJobsResult) (*yt.ListJobsResult, error) {
+	if result == nil {
+		return nil, nil
+	}
+
+	jobs := make([]yt.JobStatus, 0, len(result.GetJobs()))
+	for _, job := range result.GetJobs() {
+		jobID := makeJobID(job.Id)
+
+		j := yt.JobStatus{
+			ID:         jobID,
+			StartTime:  makeTime(job.StartTime),
+			FinishTime: makeTime(job.FinishTime),
+		}
+
+		jobType, err := makeJobType(job.Type)
+		if err != nil {
+			return nil, xerrors.Errorf("unable to deserialize job type of job %q: %w", jobID, err)
+		}
+		j.Type = string(jobType)
+
+		jobState, err := makeJobState(job.State)
+		if err != nil {
+			return nil, xerrors.Errorf("unable to deserialize job state of job %q: %w", jobID, err)
+		}
+		j.State = string(jobState)
+
+		if job.Address != nil {
+			j.Address = *job.Address
+		}
+
+		if job.FailContextSize != nil {
+			j.FailContextSize = int(*job.FailContextSize)
+		}
+
+		var jobError yterrors.Error
+		if job.Error != nil {
+			if err := json.Unmarshal(job.Error, &jobError); err != nil {
+				return nil, xerrors.Errorf("unable to deserialize job error of job %q: %w", jobID, err)
+			}
+		}
+		j.Error = jobError
+
+		if job.Progress != nil {
+			j.Progress = *job.Progress
+		}
+
+		jobs = append(jobs, j)
+	}
+
+	ret := &yt.ListJobsResult{
+		Jobs: jobs,
+	}
+
+	return ret, nil
 }
