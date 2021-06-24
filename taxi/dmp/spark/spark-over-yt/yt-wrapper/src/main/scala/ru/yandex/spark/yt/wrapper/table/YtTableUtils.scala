@@ -36,7 +36,10 @@ trait YtTableUtils {
                   settings: YtTableSettings,
                   transaction: Option[String] = None)
                  (implicit yt: CompoundClient): Unit = {
-    createDir(Paths.get(path).getParent.toString, transaction, ignoreExisting = true)
+    val parent = Paths.get(path).getParent
+    if (parent != null) {
+      createDir(parent.toString, transaction, ignoreExisting = true)
+    }
     createTable(path, settings.options, transaction)
   }
 

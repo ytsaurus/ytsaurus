@@ -12,7 +12,10 @@ trait YtCypressUtils {
 
   private val log = LoggerFactory.getLogger(getClass)
 
-  def formatPath(path: String): String = if (path.startsWith("//")) path else "/" + path
+  def formatPath(path: String): String = {
+    if (!path.startsWith("/")) throw new IllegalArgumentException("Relative paths are not allowed")
+    if (path.startsWith("//")) path else "/" + path
+  }
 
   def escape(s: String): String = s.replaceAll("([\\\\/@&*\\[{])", "\\\\$1")
 
