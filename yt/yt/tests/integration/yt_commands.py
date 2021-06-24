@@ -1545,6 +1545,15 @@ def remove_account(name, **kwargs):
         wait(lambda: not exists(account_path, driver=driver))
 
 
+def create_account_resource_usage_lease(account, transaction_id, **kwargs):
+    kwargs["type"] = "account_resource_usage_lease"
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["account"] = account
+    kwargs["attributes"]["transaction_id"] = transaction_id
+    return execute_command("create", kwargs, parse_yson=True)
+
+
 def create_pool_tree(name, config=None, wait_for_orchid=True, allow_patching=True, **kwargs):
     kwargs["type"] = "scheduler_pool_tree"
     if "attributes" not in kwargs:

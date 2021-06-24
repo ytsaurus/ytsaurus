@@ -85,6 +85,7 @@ using namespace NAuth;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NObjectClient;
+using namespace NSecurityClient;
 using namespace NScheduler;
 using namespace NTransactionClient;
 using namespace NYPath;

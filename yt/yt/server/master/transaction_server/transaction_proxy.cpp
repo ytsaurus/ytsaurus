@@ -9,6 +9,7 @@
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/server/master/security_server/account.h>
+#include <yt/yt/server/master/security_server/account_resource_usage_lease.h>
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
@@ -88,6 +89,8 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ResourceUsage)
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MulticellResourceUsage)
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AccountResourceUsageLeaseIds)
             .SetOpaque(true));
         descriptors->push_back(EInternedAttributeKey::PrerequisiteTransactionIds);
         descriptors->push_back(EInternedAttributeKey::DependentTransactionIds);
@@ -175,6 +178,15 @@ private:
                 BuildYsonFluently(consumer)
                     .Value(transaction->GetDepth());
                 return true;
+
+            case EInternedAttributeKey::AccountResourceUsageLeaseIds: {
+                BuildYsonFluently(consumer)
+                    .DoListFor(transaction->AccountResourceUsageLeases(), [=] (auto fluent, const auto* accountResourceUsageLease) {
+                        fluent.Item().Value(accountResourceUsageLease->GetId());
+                    });
+                return true;
+            }
+
 
             default:
                 break;

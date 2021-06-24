@@ -121,6 +121,7 @@ public:
     void Initialize();
 
     DECLARE_ENTITY_MAP_ACCESSORS(Account, TAccount);
+    DECLARE_ENTITY_MAP_ACCESSORS(AccountResourceUsageLease, TAccountResourceUsageLease);
     DECLARE_ENTITY_MAP_ACCESSORS(User, TUser);
     DECLARE_ENTITY_MAP_ACCESSORS(Group, TGroup);
     DECLARE_ENTITY_MAP_ACCESSORS(NetworkProject, TNetworkProject);
@@ -184,6 +185,11 @@ public:
         const NChunkServer::TChunk* chunk,
         const NChunkServer::TChunkRequisition& requisition,
         i64 delta);
+    
+    //! Update resources of account usage lease.
+    void UpdateAccountResourceUsageLease(
+        TAccountResourceUsageLease* accountResourceUsageLease,
+        const TClusterResources& resources);
 
     //! Updates tablet-related resource usage. Only table count and static
     //! memory are used; everything else in #resourceUsageDelta must be zero.
@@ -432,6 +438,7 @@ public:
 private:
     class TImpl;
     class TAccountTypeHandler;
+    class TAccountResourceUsageLeaseTypeHandler;
     class TUserTypeHandler;
     class TGroupTypeHandler;
     class TNetworkProjectTypeHandler;

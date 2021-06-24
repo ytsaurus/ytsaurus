@@ -9,6 +9,7 @@ from yt_commands import (  # noqa
     create_pool, create_pool_tree, remove_pool_tree,
     create_data_center, create_rack, create_table, create_proxy_role,
     create_tablet_cell_bundle, remove_tablet_cell_bundle, create_tablet_cell, create_table_replica,
+    create_account_resource_usage_lease,
     make_ace, check_permission, add_member, remove_member, remove_group, remove_user,
     remove_network_project,
     make_batch_request, execute_batch, get_batch_error,
@@ -352,6 +353,25 @@ def check_error_attribute():
     assert exists("#{}/@peers/0/last_revocation_reason".format(cell_id))
 
 
+def check_account_resource_usage_lease():
+    create_account("a42")
+    tx = start_transaction()
+    lease_id = create_account_resource_usage_lease(account="a42", transaction_id=tx)
+    assert exists("#" + lease_id)
+
+    set("#{}/@resource_usage".format(lease_id), {"disk_space_per_medium": {"default": 1000}})
+    assert get_account_disk_space("a42") == 1000
+
+    yield
+
+    assert exists("#" + lease_id)
+    assert get_account_disk_space("a42") == 1000
+    abort_transaction(tx)
+
+    assert not exists("#" + lease_id)
+    assert get_account_disk_space("a42") == 0
+
+
 MASTER_SNAPSHOT_CHECKER_LIST = [
     check_simple_node,
     check_schema,
@@ -367,6 +387,10 @@ MASTER_SNAPSHOT_CHECKER_LIST = [
     check_removed_account,  # keep this item last as it's sensitive to timings
 ]
 
+MASTER_SNAPSHOT_21_2_CHECKER_LIST = [
+    check_account_resource_usage_lease,
+]
+
 
 class TestMasterSnapshots(YTEnvSetup):
     NUM_MASTERS = 3
@@ -375,7 +399,10 @@ class TestMasterSnapshots(YTEnvSetup):
 
     @authors("ermolovd")
     def test(self):
-        checker_state_list = [iter(c()) for c in MASTER_SNAPSHOT_CHECKER_LIST]
+        checker_list = MASTER_SNAPSHOT_CHECKER_LIST[:-1] + \
+            MASTER_SNAPSHOT_21_2_CHECKER_LIST + \
+            MASTER_SNAPSHOT_CHECKER_LIST[-1:]
+        checker_state_list = [iter(c()) for c in checker_list]
         for s in checker_state_list:
             next(s)
 

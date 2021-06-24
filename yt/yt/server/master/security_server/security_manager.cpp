@@ -2,6 +2,8 @@
 #include "private.h"
 #include "account.h"
 #include "account_proxy.h"
+#include "account_resource_usage_lease.h"
+#include "account_resource_usage_lease_proxy.h"
 #include "acl.h"
 #include "config.h"
 #include "detailed_master_memory.h"
@@ -211,6 +213,45 @@ private:
     virtual TProxyPtr GetMapObjectProxy(TAccount* account) override;
 
     virtual void DoZombifyObject(TAccount* account) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSecurityManager::TAccountResourceUsageLeaseTypeHandler
+    : public TObjectTypeHandlerWithMapBase<TAccountResourceUsageLease>
+{
+public:
+    explicit TAccountResourceUsageLeaseTypeHandler(TImpl* owner);
+
+    virtual ETypeFlags GetFlags() const override
+    {
+        return
+            ETypeFlags::Creatable |
+            ETypeFlags::Removable;
+    }
+
+    virtual TObject* CreateObject(
+        TObjectId hintId,
+        IAttributeDictionary* attributes) override;
+
+    virtual EObjectType GetType() const override
+    {
+        return EObjectType::AccountResourceUsageLease;
+    }
+
+private:
+    using TBase = TObjectTypeHandlerWithMapBase<TAccountResourceUsageLease>;
+
+    TImpl* const Owner_;
+
+    virtual IObjectProxyPtr DoGetProxy(
+        TAccountResourceUsageLease* accountResourceUsageLease,
+        TTransaction* /*transaction*/) override
+    {
+        return CreateAccountResourceUsageLeaseProxy(Bootstrap_, &Metadata_, accountResourceUsageLease);
+    }
+
+    virtual void DoZombifyObject(TAccountResourceUsageLease* accountResourceUsageLease) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -439,8 +480,17 @@ public:
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
 
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        transactionManager->SubscribeTransactionCommitted(BIND(
+            &TImpl::OnTransactionFinished,
+            MakeStrong(this)));
+        transactionManager->SubscribeTransactionAborted(BIND(
+            &TImpl::OnTransactionFinished,
+            MakeStrong(this)));
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TAccountTypeHandler>(this));
+        objectManager->RegisterHandler(New<TAccountResourceUsageLeaseTypeHandler>(this));
         objectManager->RegisterHandler(New<TUserTypeHandler>(this));
         objectManager->RegisterHandler(New<TGroupTypeHandler>(this));
         objectManager->RegisterHandler(New<TNetworkProjectTypeHandler>(this));
@@ -457,6 +507,7 @@ public:
 
 
     DECLARE_ENTITY_MAP_ACCESSORS(Account, TAccount);
+    DECLARE_ENTITY_MAP_ACCESSORS(AccountResourceUsageLease, TAccountResourceUsageLease);
     DECLARE_ENTITY_MAP_ACCESSORS(User, TUser);
     DECLARE_ENTITY_MAP_ACCESSORS(Group, TGroup);
     DECLARE_ENTITY_MAP_ACCESSORS(NetworkProject, TNetworkProject);
@@ -838,6 +889,37 @@ public:
             });
     }
 
+    void UpdateAccountResourceUsageLease(
+        TAccountResourceUsageLease* accountResourceUsageLease,
+        const TClusterResources& resources)
+    {
+        auto* account = accountResourceUsageLease->GetAccount();
+        auto* transaction = accountResourceUsageLease->GetTransaction();
+
+        if (resources.GetNodeCount() > 0) {
+            THROW_ERROR_EXCEPTION("Update account usage lease resources supports only disk resources, but node_count is specified");
+        }
+        if (resources.GetChunkCount() > 0) {
+            THROW_ERROR_EXCEPTION("Update account usage lease resources supports only disk resources, but chunk_count is specified");
+        }
+        if (resources.GetTabletCount() > 0) {
+            THROW_ERROR_EXCEPTION("Update account usage lease resources supports only disk resources, but tablet_count is specified");
+        }
+        if (resources.GetTabletStaticMemory() > 0) {
+            THROW_ERROR_EXCEPTION("Update account usage lease resources supports only disk resources, but tablet_static_memory is specified");
+        }
+
+        ValidatePermission(account, EPermission::Use);
+        ValidatePermission(transaction, EPermission::Write);
+
+        auto resourcesDelta = resources - accountResourceUsageLease->Resources();
+
+        ValidateResourceUsageIncrease(account, resourcesDelta, /*allowRootAccount*/ true);
+
+        DoUpdateAccountResourceUsageLease(accountResourceUsageLease, resources);
+
+    }
+
     void UpdateTransactionResourceUsage(
         const TChunk* chunk,
         const TChunkRequisition& requisition,
@@ -1131,6 +1213,57 @@ public:
                     account->LocalStatistics().CommittedResourceUsage += resourceUsageDelta;
                 }
             });
+    }
+
+    TAccountResourceUsageLease* CreateAccountResourceUsageLease(const TString& accountName, TTransactionId transactionId, TObjectId hintId)
+    {
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
+
+        auto* account = GetAccountByNameOrThrow(accountName, /*activeLifeStageOnly*/ true);
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto id = objectManager->GenerateId(EObjectType::AccountResourceUsageLease, hintId);
+
+        auto accountResourceUsageLeaseHolder = std::make_unique<TAccountResourceUsageLease>(
+            id,
+            transaction,
+            account);
+        auto* accountResourceUsageLease = AccountResourceUsageLeaseMap_.Insert(id, std::move(accountResourceUsageLeaseHolder));
+        YT_VERIFY(accountResourceUsageLease->RefObject() == 1);
+
+        // NB: lifetime of the lease is bounded to the lifetime of transaction.
+        // Therefore we should not call RefObject on the transaction object.
+        objectManager->RefObject(account);
+        YT_VERIFY(transaction->AccountResourceUsageLeases().insert(accountResourceUsageLease).second);
+
+        YT_LOG_DEBUG_IF(
+            IsMutationLoggingEnabled(),
+            "Account usage lease created (Id: %v, Account: %v, TransactionId: %v)",
+            accountResourceUsageLease->GetId(),
+            accountResourceUsageLease->GetAccount()->GetName(),
+            accountResourceUsageLease->GetTransaction()->GetId());
+
+        return accountResourceUsageLease;
+    }
+
+    void DestroyAccountResourceUsageLease(TAccountResourceUsageLease* accountResourceUsageLease)
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+
+        auto accountResourceUsageLeaseId = accountResourceUsageLease->GetId();
+
+        DoUpdateAccountResourceUsageLease(accountResourceUsageLease, TClusterResources());
+
+        auto* transaction = accountResourceUsageLease->GetTransaction();
+        YT_VERIFY(transaction->AccountResourceUsageLeases().erase(accountResourceUsageLease) == 1);
+
+        objectManager->UnrefObject(accountResourceUsageLease->GetAccount());
+
+        YT_LOG_DEBUG_IF(
+            IsMutationLoggingEnabled(),
+            "Account usage lease destroyed (Id: %v)",
+            accountResourceUsageLeaseId);
     }
 
     void DestroySubject(TSubject* subject)
@@ -2219,8 +2352,6 @@ public:
         return SecurityTagsRegistry_;
     }
 
-    DEFINE_SIGNAL(void(TUser*, const TUserWorkload&), UserCharged);
-
     void SetSubjectAliases(TSubject* subject, const std::vector<TString>& newAliases)
     {
         THashSet<TString> uniqAliases;
@@ -2247,8 +2378,11 @@ public:
         }
     }
 
+    DEFINE_SIGNAL(void(TUser*, const TUserWorkload&), UserCharged);
+
 private:
     friend class TAccountTypeHandler;
+    friend class TAccountResourceUsageLeaseTypeHandler;
     friend class TUserTypeHandler;
     friend class TGroupTypeHandler;
     friend class TNetworkProjectTypeHandler;
@@ -2264,6 +2398,8 @@ private:
 
     NHydra::TEntityMap<TAccount> AccountMap_;
     THashMap<TString, TAccount*> AccountNameMap_;
+
+    NHydra::TEntityMap<TAccountResourceUsageLease> AccountResourceUsageLeaseMap_;
 
     TAccountId RootAccountId_;
     TAccount* RootAccount_ = nullptr;
@@ -2349,6 +2485,8 @@ private:
 
     // COMPAT(aleksandra-zh)
     bool MustInitializeChunkHostMasterMemoryLimits_ = false;
+
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     static i64 GetDiskSpaceToCharge(i64 diskSpace, NErasure::ECodec erasureCodec, TReplicationPolicy policy)
     {
@@ -2627,6 +2765,7 @@ private:
         GroupMap_.SaveKeys(context);
         NetworkProjectMap_.SaveKeys(context);
         ProxyRoleMap_.SaveKeys(context);
+        AccountResourceUsageLeaseMap_.SaveKeys(context);
     }
 
     void SaveValues(NCellMaster::TSaveContext& context) const
@@ -2637,6 +2776,7 @@ private:
         NetworkProjectMap_.SaveValues(context);
         Save(context, MustRecomputeMembershipClosure_);
         ProxyRoleMap_.SaveValues(context);
+        AccountResourceUsageLeaseMap_.SaveValues(context);
     }
 
 
@@ -2650,6 +2790,10 @@ private:
         // COMPAT(gritukan)
         if (context.GetVersion() >= EMasterReign::ProxyRoles) {
             ProxyRoleMap_.LoadKeys(context);
+        }
+        // COMPAT(ignat)
+        if (context.GetVersion() >= EMasterReign::AccountResourceUsageLease) {
+            AccountResourceUsageLeaseMap_.LoadKeys(context);
         }
     }
 
@@ -2673,6 +2817,10 @@ private:
         // COMPAT(gritukan)
         if (context.GetVersion() >= EMasterReign::ProxyRoles) {
             ProxyRoleMap_.LoadValues(context);
+        }
+        // COMPAT(ignat)
+        if (context.GetVersion() >= EMasterReign::AccountResourceUsageLease) {
+            AccountResourceUsageLeaseMap_.LoadValues(context);
         }
     }
 
@@ -2961,6 +3109,8 @@ private:
 
         AccountMap_.Clear();
         AccountNameMap_.clear();
+
+        AccountResourceUsageLeaseMap_.Clear();
 
         UserMap_.Clear();
         UserNameMap_.clear();
@@ -3275,6 +3425,8 @@ private:
 
     virtual void OnLeaderActive() override
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         TMasterAutomatonPart::OnLeaderActive();
 
         AccountStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
@@ -3501,6 +3653,45 @@ private:
             account->ClusterStatistics().CommittedResourceUsage.DetailedMasterMemory() += masterMemoryUsageDelta;
             account->LocalStatistics().CommittedResourceUsage.DetailedMasterMemory() = newDetailedMasterMemory;
         }
+    }
+
+    void DoUpdateAccountResourceUsageLease(
+        TAccountResourceUsageLease* accountResourceUsageLease,
+        const TClusterResources& resources)
+    {
+        auto* account = accountResourceUsageLease->GetAccount();
+        auto* transaction = accountResourceUsageLease->GetTransaction();
+
+        auto resourcesDelta = resources - accountResourceUsageLease->Resources();
+
+        account->ClusterStatistics().ResourceUsage += resourcesDelta;
+        account->LocalStatistics().ResourceUsage += resourcesDelta;
+
+        auto* transactionResources = GetTransactionAccountUsage(transaction, account);
+        *transactionResources += resourcesDelta;
+
+        accountResourceUsageLease->Resources() = resources;
+    }
+
+    void OnTransactionFinished(TTransaction* transaction)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        YT_VERIFY(transaction->NestedTransactions().empty());
+
+        if (transaction->AccountResourceUsageLeases().empty()) {
+            return;
+        }
+
+        // Remove account usage leases that belong to transaction.
+        auto accountResourceUsageLeases = transaction->AccountResourceUsageLeases();
+        for (auto* accountResourceUsageLease : accountResourceUsageLeases) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            // NB: Unref of account usage lease removes it from transacation that lease belongs to.
+            objectManager->UnrefObject(accountResourceUsageLease);
+        }
+
+        YT_VERIFY(transaction->AccountResourceUsageLeases().empty());
     }
 
     void OnReplicateKeysToSecondaryMaster(TCellTag cellTag)
@@ -3932,9 +4123,11 @@ private:
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Account, TAccount, AccountMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, AccountResourceUsageLease, TAccountResourceUsageLease, AccountResourceUsageLeaseMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, User, TUser, UserMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Group, TGroup, GroupMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, NetworkProject, TNetworkProject, NetworkProjectMap_)
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3997,6 +4190,29 @@ TString TSecurityManager::TAccountTypeHandler::GetRootPath(const TAccount* rootA
 {
     YT_VERIFY(rootAccount == Owner_->GetRootAccount());
     return RootAccountCypressPath;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSecurityManager::TAccountResourceUsageLeaseTypeHandler::TAccountResourceUsageLeaseTypeHandler(TImpl* owner)
+    : TObjectTypeHandlerWithMapBase<TAccountResourceUsageLease>(owner->Bootstrap_, &owner->AccountResourceUsageLeaseMap_)
+    , Owner_(owner)
+{ }
+
+TObject* TSecurityManager::TAccountResourceUsageLeaseTypeHandler::CreateObject(
+    TObjectId hintId,
+    IAttributeDictionary* attributes)
+{
+    auto transactionId = attributes->GetAndRemove<TTransactionId>("transaction_id");
+    auto accountName = attributes->GetAndRemove<TString>("account");
+
+    return Owner_->CreateAccountResourceUsageLease(accountName, transactionId, hintId);
+}
+
+void TSecurityManager::TAccountResourceUsageLeaseTypeHandler::DoZombifyObject(TAccountResourceUsageLease* accountResourceUsageLease)
+{
+    TObjectTypeHandlerWithMapBase<TAccountResourceUsageLease>::DoZombifyObject(accountResourceUsageLease);
+    Owner_->DestroyAccountResourceUsageLease(accountResourceUsageLease);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4199,6 +4415,13 @@ void TSecurityManager::TransferAccountResources(
 void TSecurityManager::UpdateResourceUsage(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta)
 {
     Impl_->UpdateResourceUsage(chunk, requisition, delta);
+}
+
+void TSecurityManager::UpdateAccountResourceUsageLease(
+    TAccountResourceUsageLease* accountResourceUsageLease,
+    const TClusterResources& resources)
+{
+    Impl_->UpdateAccountResourceUsageLease(accountResourceUsageLease, resources);
 }
 
 void TSecurityManager::UpdateTabletResourceUsage(TCypressNode* node, const TClusterResources& resourceUsageDelta)
@@ -4535,18 +4758,20 @@ const TSecurityTagsRegistryPtr& TSecurityManager::GetSecurityTagsRegistry() cons
     return Impl_->GetSecurityTagsRegistry();
 }
 
+void TSecurityManager::SetSubjectAliases(TSubject* subject, const std::vector<TString>& aliases)
+{
+    Impl_->SetSubjectAliases(subject, aliases);
+}
+
+
 DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Account, TAccount, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, AccountResourceUsageLease, TAccountResourceUsageLease, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, User, TUser, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Group, TGroup, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, NetworkProject, TNetworkProject, *Impl_)
 
 DELEGATE_SIGNAL(TSecurityManager, void(TUser*, const TUserWorkload&), UserCharged, *Impl_);
 
-
-void TSecurityManager::SetSubjectAliases(TSubject* subject, const std::vector<TString>& aliases)
-{
-    Impl_->SetSubjectAliases(subject, aliases);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

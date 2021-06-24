@@ -886,6 +886,7 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateReplicatedTableTypeHandler(this));
     CypressManager_->RegisterHandler(CreateJournalTypeHandler(this));
     CypressManager_->RegisterHandler(CreateAccountMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateAccountResourceUsageLeaseMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateUserMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateGroupMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateNetworkProjectMapTypeHandler(this));

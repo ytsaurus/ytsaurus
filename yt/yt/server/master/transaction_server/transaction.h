@@ -75,6 +75,9 @@ public:
     typedef THashMap<NSecurityServer::TAccount*, NSecurityServer::TClusterResources> TAccountResourcesMap;
     DEFINE_BYREF_RW_PROPERTY(TAccountResourcesMap, AccountResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
+    
+    typedef THashSet<NSecurityServer::TAccountResourceUsageLease*> TAccountResourceUsageLeaseSet;
+    DEFINE_BYREF_RW_PROPERTY(TAccountResourceUsageLeaseSet, AccountResourceUsageLeases);
 
 public:
     explicit TTransaction(TTransactionId id, bool upload = false);

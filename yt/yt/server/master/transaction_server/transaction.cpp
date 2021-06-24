@@ -6,6 +6,7 @@
 #include <yt/yt/server/master/chunk_server/chunk_owner_base.h>
 
 #include <yt/yt/server/master/security_server/account.h>
+#include <yt/yt/server/master/security_server/account_resource_usage_lease.h>
 #include <yt/yt/server/master/security_server/subject.h>
 
 #include <yt/yt/server/master/table_server/table_node.h>
@@ -23,6 +24,7 @@ using namespace NYson;
 using namespace NCellMaster;
 using namespace NChunkClient;
 using namespace NObjectClient;
+using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,6 +91,7 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, Depth_);
     Save(context, Upload_);
     Save(context, NativeCommitMutationRevision_);
+    Save(context, AccountResourceUsageLeases_);
 }
 
 void TTransaction::Load(NCellMaster::TLoadContext& context)
@@ -130,6 +133,10 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     // COMPAT(shakurov)
     if (context.GetVersion() >= EMasterReign::NativeContentRevision) {
         Load(context, NativeCommitMutationRevision_);
+    }
+    // COMPAT(ignat)
+    if (context.GetVersion() >= EMasterReign::AccountResourceUsageLease) {
+        Load(context, AccountResourceUsageLeases_);
     }
 }
 

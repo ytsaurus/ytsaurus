@@ -51,6 +51,7 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::AccountMap ||
         type == EObjectType::UserMap ||
         type == EObjectType::GroupMap ||
+        type == EObjectType::AccountResourceUsageLeaseMap ||
         type == EObjectType::SchedulerPoolTreeMap ||
         type == EObjectType::Link ||
         type == EObjectType::Document ||

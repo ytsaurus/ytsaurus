@@ -31,6 +31,7 @@ using NSecurityClient::TUserId;
 using NSecurityClient::TGroupId;
 using NSecurityClient::TNetworkProjectId;
 using NSecurityClient::TProxyRoleId;
+using NSecurityClient::TAccountResourceUsageLeaseId;
 
 using NYTree::EPermission;
 using NYTree::EPermissionSet;
@@ -42,6 +43,7 @@ using NSecurityClient::EProxyKind;
 using NSecurityClient::TSecurityTag;
 
 DECLARE_ENTITY_TYPE(TAccount, TAccountId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TAccountResourceUsageLease, TAccountResourceUsageLeaseId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TUser, TUserId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TGroup, TGroupId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TNetworkProject, TNetworkProjectId, NObjectClient::TDirectObjectIdHash)
