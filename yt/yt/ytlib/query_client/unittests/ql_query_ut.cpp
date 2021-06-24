@@ -1331,7 +1331,7 @@ protected:
                     std::move(keys),
                     permanentBuffer);
 
-                auto pipe = New<NTableClient::TSchemafulPipe>();
+                auto pipe = New<NTableClient::TSchemafulPipe>(GetDefaultMemoryChunkProvider());
 
                 DoExecuteQuery(
                     Evaluator_,

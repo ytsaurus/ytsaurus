@@ -190,7 +190,7 @@ struct TWriteOpClosure
     std::vector<TRow> OutputRowsBatch;
     size_t RowSize;
 
-    TWriteOpClosure();
+    explicit TWriteOpClosure(IMemoryChunkProviderPtr chunkProvider);
 };
 
 typedef TRowBuffer TExpressionContext;

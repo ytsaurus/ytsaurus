@@ -525,7 +525,7 @@ private:
 
                         YT_LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
 
-                        auto pipe = New<NTableClient::TSchemafulPipe>();
+                        auto pipe = New<NTableClient::TSchemafulPipe>(MemoryChunkProvider_);
 
                         auto asyncResult = remoteExecutor->Execute(
                             subquery,
@@ -568,7 +568,7 @@ private:
 
                             YT_LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", foreignQuery->Id);
 
-                            auto pipe = New<NTableClient::TSchemafulPipe>();
+                            auto pipe = New<NTableClient::TSchemafulPipe>(MemoryChunkProvider_);
 
                             auto asyncResult = remoteExecutor->Execute(
                                 foreignQuery,
@@ -595,7 +595,7 @@ private:
 
                 YT_LOG_DEBUG("Evaluating subquery (SubqueryId: %v)", subquery->Id);
 
-                auto pipe = New<TSchemafulPipe>();
+                auto pipe = New<TSchemafulPipe>(MemoryChunkProvider_);
 
                 auto asyncStatistics = BIND(&IEvaluator::Run, Evaluator_)
                     .AsyncVia(Invoker_)
