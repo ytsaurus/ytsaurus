@@ -670,3 +670,49 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         op.track()
         assert read_table("//tmp/out") == [{"x": 1}, {"x": 2}]
         assert "auto_merge_disabled" in op.get_alerts()
+
+    @authors("cookiedoth")
+    def test_transaction_chunk_usage(self):
+        self._create_account(35)
+        
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        row_count = 300
+        write_table(
+            "//tmp/t_in",
+            [{"a": i} for i in range(row_count)],
+            max_row_buffer_size=1,
+            table_writer={"desired_chunk_size": 1},
+        )
+        op = map(
+            track=False,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="cat",
+            spec={
+                "auto_merge": {
+                    "mode": "manual",
+                    "max_intermediate_chunk_count": 35,
+                    "chunk_count_per_merge_job": 20,
+                    "use_intermediate_data_account": True,
+                },
+                "data_size_per_job": 1,
+                "suspend_operation_if_account_limit_exceeded": True,
+                "intermediate_data_account": "acc",
+            }
+        )
+
+
+        wait(lambda: op.get_job_count("completed") >= 100)
+        op.suspend()
+
+        if (exists(op.get_path())):
+            tx = get(op.get_path() + "/@output_transaction_id")
+            transaction_chunk_count = get("#" + tx + "/@resource_usage/acc/chunk_count")
+            chunk_count = get("//sys/accounts/acc/@resource_usage/chunk_count")
+            print_debug("chunk count =", chunk_count)
+            print_debug("transaction_chunk_count =", transaction_chunk_count)
+            assert abs(transaction_chunk_count - chunk_count) <= 10
+            assert transaction_chunk_count <= 40
+            assert chunk_count <= 40
