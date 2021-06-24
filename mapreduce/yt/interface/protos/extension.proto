@@ -27,11 +27,11 @@ message EWrapperFieldFlag
         // repeated field corresponds to Optional<List<T>> type.
         OPTIONAL_LIST = 7;
 
-        // map<Key, Value> corresponds to List<Struct<Key, String>>, i.e.
+        // map<Key, Value> corresponds to List<Struct<key: Key, value: String>>, i.e.
         // the type for Value is inferred as if it had SERIALIZATION_PROTOBUF flag.
         MAP_AS_LIST_OF_STRUCTS_LEGACY = 8;
 
-        // map<Key, Value> corresponds to List<Struct<Key, Inferred(Value)>>,
+        // map<Key, Value> corresponds to List<Struct<key: Key, value: Inferred(Value)>>,
         // where Inferred(Value) is the type inferred as if Value had SERIALIZATION_YT flag,
         // e.g. Struct for message type.
         MAP_AS_LIST_OF_STRUCTS = 9;

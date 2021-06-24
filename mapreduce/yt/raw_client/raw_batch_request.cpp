@@ -335,11 +335,14 @@ TFuture<void> TRawBatchRequest::Remove(
         Nothing());
 }
 
-TFuture<bool> TRawBatchRequest::Exists(const TTransactionId& transaction, const TYPath& path)
+TFuture<bool> TRawBatchRequest::Exists(
+    const TTransactionId& transaction,
+    const TYPath& path,
+    const TExistsOptions& options)
 {
     return AddRequest<TExistsResponseParser>(
         "exists",
-        SerializeParamsForExists(transaction, path),
+        SerializeParamsForExists(transaction, path, options),
         Nothing());
 }
 

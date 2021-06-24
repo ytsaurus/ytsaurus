@@ -618,6 +618,16 @@ EValueType NodeTypeToValueType(TNode::EType nodeType);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+enum class EMasterReadKind : int
+{
+    Leader /* "leader" */,
+    Follower /* "follower" */,
+    Cache /* "cache" */,
+    MasterCache /* "master_cache" */,
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NDetail {
 
 // MUST NOT BE USED BY CLIENTS

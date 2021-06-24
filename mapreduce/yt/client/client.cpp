@@ -92,9 +92,11 @@ void TClientBase::Remove(
     return NRawClient::Remove(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, path, options);
 }
 
-bool TClientBase::Exists(const TYPath& path)
+bool TClientBase::Exists(
+    const TYPath& path,
+    const TExistsOptions& options)
 {
-    return NRawClient::Exists(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, path);
+    return NRawClient::Exists(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, path, options);
 }
 
 TNode TClientBase::Get(

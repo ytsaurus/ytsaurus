@@ -84,6 +84,14 @@ static TString GetDefaultTransactionTitle()
     return res.Str();
 }
 
+template <typename T>
+void SerializeMasterReadOptions(TNode* node, const TMasterReadOptions<T>& options)
+{
+    if (options.ReadFrom_) {
+        (*node)["read_from"] = ::ToString(*options.ReadFrom_);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////
 
 TNode SerializeParamsForCreate(
@@ -120,11 +128,13 @@ TNode SerializeParamsForRemove(
 
 TNode SerializeParamsForExists(
     const TTransactionId& transactionId,
-    const TYPath& path)
+    const TYPath& path,
+    const TExistsOptions& options)
 {
     TNode result;
     SetTransactionIdParam(&result, transactionId);
     SetPathParam(&result, path);
+    SerializeMasterReadOptions(&result, options);
     return result;
 }
 
@@ -136,6 +146,7 @@ TNode SerializeParamsForGet(
     TNode result;
     SetTransactionIdParam(&result, transactionId);
     SetPathParam(&result, path);
+    SerializeMasterReadOptions(&result, options);
     if (options.AttributeFilter_) {
         result["attributes"] = SerializeAttributeFilter(*options.AttributeFilter_);
     }
@@ -179,6 +190,7 @@ TNode SerializeParamsForList(
     TNode result;
     SetTransactionIdParam(&result, transactionId);
     SetPathParam(&result, path);
+    SerializeMasterReadOptions(&result, options);
     if (options.MaxSize_) {
         result["max_size"] = *options.MaxSize_;
     }

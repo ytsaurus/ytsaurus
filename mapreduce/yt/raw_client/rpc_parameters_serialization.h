@@ -20,7 +20,8 @@ TNode SerializeParamsForRemove(
 
 TNode SerializeParamsForExists(
     const TTransactionId& transactionId,
-    const TYPath& path);
+    const TYPath& path,
+    const TExistsOptions& options);
 
 TNode SerializeParamsForGet(
     const TTransactionId& transactionId,

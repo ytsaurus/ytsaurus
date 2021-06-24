@@ -39,7 +39,9 @@ public:
     /// @brief Check wether cypress node exists.
     ///
     /// @see NYT::ICypressClient::Exists
-    virtual NThreading::TFuture<bool> Exists(const TYPath& path) = 0;
+    virtual NThreading::TFuture<bool> Exists(
+        const TYPath& path,
+        const TExistsOptions& options = TExistsOptions()) = 0;
 
     ///
     /// @brief Get cypress node.

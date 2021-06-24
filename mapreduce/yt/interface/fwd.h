@@ -167,6 +167,8 @@ namespace NYT {
 
     enum EErasureCodecAttr : i8;
 
+    enum class EMasterReadKind : int;
+
     class TColumnSchema;
 
     class TTableSchema;

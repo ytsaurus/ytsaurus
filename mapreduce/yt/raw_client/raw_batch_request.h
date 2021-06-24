@@ -70,7 +70,8 @@ public:
         const TRemoveOptions& options);
     NThreading::TFuture<bool> Exists(
         const TTransactionId& transaction,
-        const TYPath& path);
+        const TYPath& path,
+        const TExistsOptions& options);
     NThreading::TFuture<TNode> Get(
         const TTransactionId& transaction,
         const TYPath& path,

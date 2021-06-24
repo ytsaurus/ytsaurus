@@ -134,17 +134,14 @@ bool UseLocalModeOptimization(const TAuth& auth, const IClientRetryPolicyPtr& cl
 
     bool isLocalMode = false;
     TString localModeAttr("//sys/@local_mode_fqdn");
-    if (Exists(clientRetryPolicy->CreatePolicyForGenericRequest(),
-        auth, TTransactionId(),
-        localModeAttr))
-    {
-        auto fqdn = Get(
-            clientRetryPolicy->CreatePolicyForGenericRequest(),
-            auth,
-            TTransactionId(),
-            localModeAttr,
-            TGetOptions()
-        ).AsString();
+    auto fqdnNode = TryGet(
+        clientRetryPolicy->CreatePolicyForGenericRequest(),
+        auth,
+        TTransactionId(),
+        localModeAttr,
+        TGetOptions().ReadFrom(EMasterReadKind::Cache));
+    if (!fqdnNode.IsUndefined()) {
+        auto fqdn = fqdnNode.AsString();
         isLocalMode = (fqdn == TProcessState::Get()->FqdnHostName);
         LOG_DEBUG("Checking local mode; LocalModeFqdn: %s FqdnHostName: %s IsLocalMode: %s",
             fqdn.c_str(),

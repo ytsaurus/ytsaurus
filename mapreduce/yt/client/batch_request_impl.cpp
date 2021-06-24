@@ -71,9 +71,9 @@ TFuture<TNode::TListType> TBatchRequest::List(const TYPath& path, const TListOpt
     return Impl_->List(DefaultTransaction_, path, options);
 }
 
-TFuture<bool> TBatchRequest::Exists(const TYPath& path)
+TFuture<bool> TBatchRequest::Exists(const TYPath& path, const TExistsOptions& options)
 {
-    return Impl_->Exists(DefaultTransaction_, path);
+    return Impl_->Exists(DefaultTransaction_, path, options);
 }
 
 TFuture<ILockPtr> TBatchRequest::Lock(
