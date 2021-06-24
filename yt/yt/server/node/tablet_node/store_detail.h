@@ -261,12 +261,15 @@ protected:
     EStoreCompactionState CompactionState_ = EStoreCompactionState::None;
     TInstant AllowedCompactionTimestamp_;
 
-    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock_);
-    std::atomic<NProfiling::TCpuInstant> LocalChunkCheckDeadline_ = 0;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, ReaderLock_);
+    NProfiling::TCpuInstant ChunkReaderEvictionDeadline_ = 0;
     NChunkClient::IChunkReaderPtr CachedChunkReader_;
     NTableClient::ILookupReaderPtr CachedLookupReader_;
     bool CachedReadersLocal_ = false;
     TWeakPtr<NDataNode::IChunk> CachedWeakChunk_;
+
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, VersionedChunkMetaLock_);
+    TWeakPtr<NTableClient::TCachedVersionedChunkMeta> CachedWeakVersionedChunkMeta_;
 
     // Cached for fast retrieval from ChunkMeta_.
     NChunkClient::NProto::TMiscExt MiscExt_;
@@ -283,6 +286,10 @@ protected:
     virtual NNodeTrackerClient::EMemoryCategory GetMemoryCategory() const override;
 
     NTableClient::TChunkStatePtr FindPreloadedChunkState();
+
+    NTableClient::TCachedVersionedChunkMetaPtr GetCachedVersionedChunkMeta(
+        const NChunkClient::IChunkReaderPtr& chunkReader,
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions);
 
     virtual NTableClient::TKeyComparer GetKeyComparer() = 0;
 

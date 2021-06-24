@@ -109,7 +109,7 @@ private:
         const TSharedRange<NTableClient::TRowRange>& singletonClippingRange);
 
     NTableClient::TChunkStatePtr PrepareChunkState(
-        NChunkClient::IChunkReaderPtr chunkReader,
+        const NChunkClient::IChunkReaderPtr& chunkReader,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions);
 
     void ValidateBlockSize(
