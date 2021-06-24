@@ -1,5 +1,6 @@
 #include "account_proxy.h"
 #include "account.h"
+#include "helpers.h"
 #include "security_manager.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -175,6 +176,7 @@ private:
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto* account = GetThisImpl();
 
         switch (key) {
@@ -184,12 +186,16 @@ private:
                 }
                 auto resourceUsage =
                     account->ClusterStatistics().ResourceUsage - account->ComputeTotalChildrenResourceUsage();
-                SerializeClusterResources(resourceUsage, account, consumer);
+                SerializeClusterResources(chunkManager, resourceUsage, account, consumer);
                 return true;
             }
 
             case EInternedAttributeKey::RecursiveResourceUsage:
-                SerializeClusterResources(account->ClusterStatistics().ResourceUsage, account, consumer);
+                SerializeClusterResources(
+                    chunkManager,
+                    account->ClusterStatistics().ResourceUsage,
+                    account,
+                    consumer);
                 return true;
 
             case EInternedAttributeKey::CommittedResourceUsage: {
@@ -198,12 +204,16 @@ private:
                 }
                 auto resourceUsage =
                     account->ClusterStatistics().CommittedResourceUsage - account->ComputeTotalChildrenCommittedResourceUsage();
-                SerializeClusterResources(resourceUsage, account, consumer);
+                SerializeClusterResources(chunkManager, resourceUsage, account, consumer);
                 return true;
             }
 
             case EInternedAttributeKey::RecursiveCommittedResourceUsage:
-                SerializeClusterResources(account->ClusterStatistics().CommittedResourceUsage, account, consumer);
+                SerializeClusterResources(
+                    chunkManager,
+                    account->ClusterStatistics().CommittedResourceUsage,
+                    account,
+                    consumer);
                 return true;
 
             case EInternedAttributeKey::MulticellStatistics: {
@@ -400,31 +410,6 @@ private:
         }
 
         return TBase::RemoveBuiltinAttribute(key);
-    }
-
-    void SerializeClusterResources(
-        const TClusterResources& clusterResources,
-        const TAccount* account,
-        NYson::IYsonConsumer* consumer)
-    {
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto resourceSerializer = New<TSerializableClusterResources>(
-            chunkManager,
-            clusterResources);
-
-        if (account) {
-            // Make sure medium disk space usage is serialized even if it's zero - for media with limits set.
-            for (auto [mediumIndex, _] : account->ClusterResourceLimits().DiskSpace()) {
-                const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-                if (!medium || medium->GetCache()) {
-                    continue;
-                }
-                resourceSerializer->AddToMediumDiskSpace(medium->GetName(), 0);
-            }
-        }
-
-        BuildYsonFluently(consumer)
-            .Value(resourceSerializer);
     }
 
     void SerializeClusterResourceLimits(

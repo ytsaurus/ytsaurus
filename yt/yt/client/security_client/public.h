@@ -14,6 +14,7 @@ using TUserId = NObjectClient::TObjectId;
 using TGroupId = NObjectClient::TObjectId;
 using TNetworkProjectId = NObjectClient::TObjectId;
 using TProxyRoleId = NObjectClient::TObjectId;
+using TAccountResourceUsageLeaseId = NObjectClient::TObjectId;
 
 extern const TString RootAccountName;
 extern const TString RootAccountCypressPath;

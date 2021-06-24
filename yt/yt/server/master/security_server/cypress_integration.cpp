@@ -1,6 +1,7 @@
 #include "private.h"
 #include "cypress_integration.h"
 #include "account.h"
+#include "account_resource_usage_lease.h"
 #include "group.h"
 #include "user.h"
 #include "network_project.h"
@@ -148,6 +149,68 @@ INodeTypeHandlerPtr CreateAccountMapTypeHandler(TBootstrap* bootstrap)
         EObjectType::AccountMap,
         BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualAccountMap>(bootstrap, owningNode);
+        }),
+        EVirtualNodeOptions::RedirectSelf);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVirtualAccountResourceUsageLeaseMap
+    : public TVirtualMapBase
+{
+public:
+    TVirtualAccountResourceUsageLeaseMap(TBootstrap* bootstrap, INodePtr owningNode)
+        : TVirtualMapBase(owningNode)
+        , Bootstrap_(bootstrap)
+    { }
+
+private:
+    TBootstrap* const Bootstrap_;
+
+    virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
+    {
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+
+        std::vector<TString> keys;
+        keys.reserve(sizeLimit);
+        for (auto [accountResourceUsageLeaseId, _] : securityManager->AccountResourceUsageLeases()) {
+            if (static_cast<i64>(keys.size()) >= sizeLimit) {
+                break;
+            }
+            keys.emplace_back(ToString(accountResourceUsageLeaseId));
+        }
+        return keys;
+    }
+
+    virtual i64 GetSize() const override
+    {
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        return securityManager->AccountResourceUsageLeases().GetSize();
+    }
+
+    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
+    {
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto accountResourceUsageLeaseId = TAccountResourceUsageLeaseId::FromString(key);
+        auto* accountResourceUsageLease = securityManager->FindAccountResourceUsageLease(accountResourceUsageLeaseId);
+        if (!accountResourceUsageLease) {
+            return nullptr;
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        return objectManager->GetProxy(accountResourceUsageLease);
+    }
+};
+
+INodeTypeHandlerPtr CreateAccountResourceUsageLeaseMapTypeHandler(TBootstrap* bootstrap)
+{
+    YT_VERIFY(bootstrap);
+
+    return CreateVirtualTypeHandler(
+        bootstrap,
+        EObjectType::AccountResourceUsageLeaseMap,
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return New<TVirtualAccountResourceUsageLeaseMap>(bootstrap, owningNode);
         }),
         EVirtualNodeOptions::RedirectSelf);
 }

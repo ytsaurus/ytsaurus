@@ -512,6 +512,11 @@ private:
                     .EndMap());
 
             ScheduleCreateNode(
+                "//sys/account_resource_usage_leases",
+                transactionId,
+                EObjectType::AccountResourceUsageLeaseMap);
+
+            ScheduleCreateNode(
                 "//sys/users",
                 transactionId,
                 EObjectType::UserMap);
@@ -660,7 +665,7 @@ private:
                 auto cellPath = "//sys/discovery/secondary_master_cells/" + ToYPathLiteral(cellTag);
                 createDiscoveryOrchid(cellPath, cellConfig);
             }
-            
+
             if (Config_->DiscoveryServer && Config_->DiscoveryServer->Addresses) {
                 for (const auto& discoveryServerAddress : *Config_->DiscoveryServer->Addresses) {
                     auto addressPath = "//sys/discovery_servers/" + ToYPathLiteral(discoveryServerAddress);

@@ -186,6 +186,8 @@ DEFINE_ENUM(EObjectType,
     // Security Manager stuff
     ((Account)                       (500))
     ((AccountMap)                    (414))
+    ((AccountResourceUsageLease)     (505))
+    ((AccountResourceUsageLeaseMap)  (506))
     ((User)                          (501))
     ((UserMap)                       (415))
     ((Group)                         (502))

@@ -10,6 +10,7 @@
     XX(AccessTime, access_time) \
     XX(Account, account) \
     XX(AccountStatistics, account_statistics) \
+    XX(AccountResourceUsageLeaseIds, account_resource_usage_lease_ids) \
     XX(Acl, acl) \
     XX(ActionId, action_id) \
     XX(ActionIds, action_ids) \

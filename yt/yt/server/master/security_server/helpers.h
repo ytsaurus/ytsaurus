@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/master/cell_master/public.h>
 
+#include <yt/yt/server/master/chunk_server/public.h>
+
 #include <yt/yt/client/object_client/public.h>
 
 #include <yt/yt/core/misc/public.h>
@@ -21,7 +23,15 @@ template <class T>
 THashMap<NObjectClient::TCellTag, T> CellNameMapToCellTagMapOrThrow(const THashMap<TString, T>& map, const NCellMaster::TMulticellManagerPtr& multicellManager);
 
 ////////////////////////////////////////////////////////////////////////////////
+    
+void SerializeClusterResources(
+    const NChunkServer::TChunkManagerPtr& chunkManager,
+    const TClusterResources& clusterResources,
+    const TAccount* account,
+    NYson::IYsonConsumer* consumer);
 
+////////////////////////////////////////////////////////////////////////////////
+    
 } // namespace NYT::NSecurityServer
 
 #define HELPERS_INL_H_

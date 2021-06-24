@@ -149,6 +149,8 @@ DEFINE_ENUM(EMasterReign,
     ((HunksAlter)                                                   (1623))  // babenko
     ((RefBuiltinEmptySchema)                                        (1624))  // shakurov
     ((DoNotMergeDynamicTables)                                      (1625))  // aleksandra-zh
+    ((AccountResourceUsageLease)                                    (1626))  // ignat
+    // 21.3 starts here.
 );
 
 ////////////////////////////////////////////////////////////////////////////////
