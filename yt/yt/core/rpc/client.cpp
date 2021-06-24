@@ -13,6 +13,8 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
+#include <yt/yt/build/ya_version.h>
+
 namespace NYT::NRpc {
 
 using namespace NBus;
@@ -304,6 +306,11 @@ TClientContextPtr TClientRequest::CreateClientContext()
         if (traceContext->IsSampled()) {
             TraceRequest(traceContext);
         }
+    }
+
+    // If user-agent was not specified explicitly, generate it from build information.
+    if (!Header().has_user_agent()) {
+        Header().set_user_agent(GetRpcUserAgent());
     }
 
     if (StreamingEnabled_) {
