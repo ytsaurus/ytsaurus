@@ -593,10 +593,7 @@ public:
         }
 
         if (!chunk->IsJournal()) {
-            if (chunk->IsStaged()) {
-                UpdateTransactionResourceUsage(chunk, +1);
-            }
-            UpdateAccountResourceUsage(chunk, +1);
+            UpdateResourceUsage(chunk, +1);
         }
 
         ScheduleChunkRefresh(chunk);
@@ -628,6 +625,13 @@ public:
             : chunk->GetAggregatedRequisition(GetChunkRequisitionRegistry());
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->UpdateResourceUsage(chunk, requisition, delta);
+    }
+
+    void UpdateResourceUsage(const TChunk* chunk, i64 delta, const TChunkRequisition* forcedRequisition = nullptr) {
+        if (chunk->IsStaged()) {
+            UpdateTransactionResourceUsage(chunk, delta);
+        }
+        UpdateAccountResourceUsage(chunk, delta, forcedRequisition);
     }
 
     void SealChunk(TChunk* chunk, const TChunkSealInfo& info)
@@ -1016,6 +1020,9 @@ public:
 
     void UnstageChunk(TChunk* chunk)
     {
+        if (chunk->IsStaged() && chunk->IsDiskSizeFinal()) {
+            UpdateTransactionResourceUsage(chunk, -1);
+        }
         CancelChunkExpiration(chunk);
         UnstageChunkTree(chunk);
     }
@@ -1129,14 +1136,14 @@ public:
             const auto isChunkDiskSizeFinal = chunk->IsDiskSizeFinal();
             if (isChunkDiskSizeFinal) {
                 const auto& requisitionBefore = chunk->GetAggregatedRequisition(requisitionRegistry);
-                UpdateAccountResourceUsage(chunk, -1, &requisitionBefore);
+                UpdateResourceUsage(chunk, -1, &requisitionBefore);
                 // Don't use the old requisition after unexporting the chunk.
             }
 
             unexportChunk();
 
             if (isChunkDiskSizeFinal) {
-                UpdateAccountResourceUsage(chunk, +1, nullptr);
+                UpdateResourceUsage(chunk, +1, nullptr);
             }
 
             ScheduleChunkRefresh(chunk);
@@ -1716,7 +1723,8 @@ private:
         }
 
         if (chunk->IsNative() && chunk->IsDiskSizeFinal()) {
-            UpdateAccountResourceUsage(chunk, -1);
+            // The chunk has been already unstaged.
+            UpdateResourceUsage(chunk, -1);
         }
 
         auto job = chunk->GetJob();
@@ -2122,13 +2130,13 @@ private:
                     // destruction of their control blocks (that hold strong and weak counters).
                     // So be sure to use the old requisition *before* setting the new one.
                     const auto& requisitionBefore = chunk->GetAggregatedRequisition(requisitionRegistry);
-                    UpdateAccountResourceUsage(chunk, -1, &requisitionBefore);
+                    UpdateResourceUsage(chunk, -1, &requisitionBefore);
                 }
 
                 setChunkRequisitionIndex(chunk, newRequisitionIndex); // potentially destroys the old requisition
 
                 if (isChunkDiskSizeFinal) {
-                    UpdateAccountResourceUsage(chunk, +1, nullptr);
+                    UpdateResourceUsage(chunk, +1, nullptr);
                 }
 
                 ScheduleChunkRefresh(chunk);
@@ -3373,10 +3381,7 @@ private:
         YT_VERIFY(chunk->IsSealed());
 
         if (chunk->IsJournal()) {
-            if (chunk->IsStaged()) {
-                UpdateTransactionResourceUsage(chunk, +1);
-            }
-            UpdateAccountResourceUsage(chunk, +1);
+            UpdateResourceUsage(chunk, +1);
         }
 
         auto parentCount = chunk->GetParentCount();
