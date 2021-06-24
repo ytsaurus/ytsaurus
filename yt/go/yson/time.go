@@ -4,7 +4,7 @@ import "time"
 
 const ytTimeLayout = "2006-01-02T15:04:05.000000Z"
 
-// Time is alias for time.Time with YT specific time representation format.
+// Time is an alias for time.Time with YT specific time representation format.
 type Time time.Time
 
 func (t *Time) UnmarshalText(text []byte) error {
@@ -45,5 +45,5 @@ func MarshalTime(t Time) (s string, err error) {
 	return time.Time(t).UTC().Format(ytTimeLayout), nil
 }
 
-// Duration is alias for time.Duration with YT specific time representation format.
+// Duration is an alias for time.Duration with YT specific time representation format.
 type Duration time.Duration

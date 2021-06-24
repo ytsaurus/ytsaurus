@@ -60,7 +60,7 @@ func (e *Encoder) Encode(value interface{}) (err error) {
 //
 // Signed integer types int8, int16, int32, int64 and int are encoded as signed YSON integers.
 //
-// string and []byte values are encoded as YSON strings. Note that YSON string are always binary.
+// string and []byte values are encoded as YSON strings. Note that YSON strings are always binary.
 //
 // Slice values are encoded as YSON lists (with exception of []byte).
 //

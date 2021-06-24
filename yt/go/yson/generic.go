@@ -1,13 +1,13 @@
 package yson
 
-// ValueWithAttrs is generic representation of YSON node with attached attributes.
+// ValueWithAttrs is a generic representation of YSON node with attached attributes.
 type ValueWithAttrs struct {
 	Attrs map[string]interface{} `yson:",attrs"`
 	Value interface{}            `yson:",value"`
 }
 
-// AttrsOf is a helper function for working with ValueWithAttrs.
-// If value is pointer to ValueWithAttrs, returns attributes.
+// AttrsOf is a helper function to work with ValueWithAttrs.
+// If value is a pointer to ValueWithAttrs, returns attributes.
 // Otherwise returns nil.
 func AttrsOf(value interface{}) map[string]interface{} {
 	if v, ok := value.(*ValueWithAttrs); ok {
@@ -16,8 +16,8 @@ func AttrsOf(value interface{}) map[string]interface{} {
 	return nil
 }
 
-// ValueOf is a helper function for working with ValueWithAttrs.
-// If value is pointer to ValueWithAttrs, return inner value.
+// ValueOf is a helper function to work with ValueWithAttrs.
+// If value is a pointer to ValueWithAttrs, returns inner value.
 // Otherwise returns value directly.
 func ValueOf(value interface{}) interface{} {
 	if v, ok := value.(*ValueWithAttrs); ok {
