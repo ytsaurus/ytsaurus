@@ -1,5 +1,3 @@
-import pytest
-
 from test_replicated_dynamic_tables import (
     TestReplicatedDynamicTablesBase,
     SIMPLE_SCHEMA_SORTED,
@@ -7,11 +5,15 @@ from test_replicated_dynamic_tables import (
 )
 
 from yt_env_setup import parametrize_external
-from yt_commands import *  # noqa
-from time import sleep, time
-from yt.environment.helpers import wait
+from yt_commands import (
+    authors, wait, get, generate_uuid,
+    sync_mount_table, sync_unmount_table, create_table_replica, sync_enable_table_replica, sync_disable_table_replica,
+    insert_rows, select_rows)
 
 from flaky import flaky
+import pytest
+
+from time import sleep, time
 
 ##################################################################
 

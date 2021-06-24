@@ -1,8 +1,59 @@
-import pytest
-
 from yt_env_setup import YTEnvSetup, wait
+
+from yt_commands import (  # noqa
+    authors, print_debug, wait, retry, wait_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
+    events_on_fs, reset_events_on_fs,
+    create, ls, get, set, copy, move, remove, link, exists, concatenate,
+    create_account, remove_account,
+    create_network_project, create_tmpdir, create_user, create_group, create_medium,
+    create_pool, create_pool_tree, remove_pool_tree,
+    create_data_center, create_rack, create_table, create_proxy_role,
+    create_tablet_cell_bundle, remove_tablet_cell_bundle, create_tablet_cell, create_table_replica,
+    make_ace, check_permission, add_member, remove_member, remove_group, remove_user,
+    remove_network_project, remove_rack,
+    make_batch_request, execute_batch, get_batch_error,
+    start_transaction, abort_transaction, commit_transaction, lock,
+    externalize, internalize,
+    insert_rows, select_rows, lookup_rows, delete_rows, trim_rows, alter_table,
+    read_file, write_file, read_table, write_table, write_local_file, read_blob_table,
+    read_journal, write_journal, truncate_journal, wait_until_sealed,
+    map, reduce, map_reduce, join_reduce, merge, vanilla, sort, erase, remote_copy,
+    run_test_vanilla, run_sleeping_vanilla,
+    abort_job, list_jobs, get_job, abandon_job, interrupt_job,
+    get_job_fail_context, get_job_input, get_job_stderr, get_job_spec, get_job_input_paths,
+    dump_job_context, poll_job_shell,
+    abort_op, complete_op, suspend_op, resume_op,
+    get_operation, list_operations, clean_operations,
+    get_operation_cypress_path, scheduler_orchid_pool_path,
+    scheduler_orchid_default_pool_tree_path, scheduler_orchid_operation_path,
+    scheduler_orchid_default_pool_tree_config_path, scheduler_orchid_path,
+    scheduler_orchid_node_path, scheduler_orchid_pool_tree_config_path, scheduler_orchid_pool_tree_path,
+    mount_table, unmount_table, freeze_table, unfreeze_table, reshard_table, remount_table, generate_timestamp,
+    reshard_table_automatic, wait_for_tablet_state, wait_for_cells,
+    get_tablet_infos, get_table_pivot_keys, get_tablet_leader_address,
+    sync_create_cells, sync_mount_table, sync_unmount_table,
+    sync_freeze_table, sync_unfreeze_table, sync_reshard_table,
+    sync_flush_table, sync_compact_table, sync_remove_tablet_cells,
+    sync_reshard_table_automatic, sync_balance_tablet_cells,
+    get_first_chunk_id, get_singular_chunk_id, get_chunk_replication_factor, multicell_sleep,
+    update_nodes_dynamic_config, update_controller_agent_config,
+    update_op_parameters, enable_op_detailed_logs,
+    set_node_banned, set_banned_flag,
+    set_account_disk_space_limit, set_node_decommissioned, get_nodes, get_racks,
+    get_account_disk_space, get_account_committed_disk_space,
+    check_all_stderrs,
+    create_test_tables, create_dynamic_table, PrepareTables,
+    get_statistics, get_recursive_disk_space, get_chunk_owner_disk_space, cluster_resources_equal,
+    make_random_string, raises_yt_error,
+    build_snapshot, build_master_snapshots,
+    gc_collect, is_multicell, clear_metadata_caches,
+    get_driver, Driver, execute_command, generate_uuid,
+    AsyncLastCommittedTimestamp, MinTimestamp)
+
 from yt.environment.helpers import assert_items_equal
-from yt_commands import *  # noqa
+from yt.common import YtError
+
+import pytest
 
 import __builtin__
 
@@ -188,18 +239,18 @@ class TestRacks(YTEnvSetup):
         replicas = self._get_replica_nodes(chunk_id)
         assert len(replicas) == 3
 
-        map = {}
+        mapping = {}
         nodes = get_nodes()
         for node in nodes:
             if node in replicas:
-                map[node] = "r1"
+                mapping[node] = "r1"
             else:
-                map[node] = "r2"
-        self._set_rack_map(map)
+                mapping[node] = "r2"
+        self._set_rack_map(mapping)
 
         self._wait_for_safely_placed(chunk_id)
 
-        assert self._get_max_replicas_per_rack(map, chunk_id) <= 2
+        assert self._get_max_replicas_per_rack(mapping, chunk_id) <= 2
 
     @authors("babenko", "ignat")
     def test_erasure_move_to_safe_place(self):
@@ -220,7 +271,7 @@ class TestRacks(YTEnvSetup):
                 replicas_plus_nodes.append(node)
 
         assert len(replicas_plus_nodes) == TestRacks.NUM_NODES
-        map = {
+        mapping = {
             replicas_plus_nodes[0]: "r1",
             replicas_plus_nodes[1]: "r1",
             replicas_plus_nodes[2]: "r1",
@@ -242,11 +293,11 @@ class TestRacks(YTEnvSetup):
             replicas_plus_nodes[18]: "r6",
             replicas_plus_nodes[19]: "r6",
         }
-        self._set_rack_map(map)
+        self._set_rack_map(mapping)
 
         self._wait_for_safely_placed(chunk_id)
 
-        assert self._get_max_replicas_per_rack(map, chunk_id) <= 3
+        assert self._get_max_replicas_per_rack(mapping, chunk_id) <= 3
 
     @authors("shakurov")
     def test_decommission_with_3_racks_yt_9720(self):
@@ -292,25 +343,25 @@ class TestRacks(YTEnvSetup):
         replicas = self._get_replica_nodes(chunk_id)
         assert len(replicas) == 3
 
-        map = {}
+        mapping = {}
         nodes = get_nodes()
         for i in xrange(len(nodes)):
-            map[nodes[i]] = "r" + str(i % 3)
+            mapping[nodes[i]] = "r" + str(i % 3)
         for node in replicas:
-            map[node] = "r0"
-        self._set_rack_map(map)
+            mapping[node] = "r0"
+        self._set_rack_map(mapping)
 
         self._wait_for_safely_placed(chunk_id)
 
-        assert self._get_max_replicas_per_rack(map, chunk_id) <= 1
+        assert self._get_max_replicas_per_rack(mapping, chunk_id) <= 1
 
     @authors("babenko")
     def test_journals_with_degraded_racks(self):
-        map = {}
+        mapping = {}
         nodes = get_nodes()
         for i in xrange(len(nodes)):
-            map[nodes[i]] = "r" + str(i % 2)
-        self._set_rack_map(map)
+            mapping[nodes[i]] = "r" + str(i % 2)
+        self._set_rack_map(mapping)
 
         create("journal", "//tmp/j")
         write_journal("//tmp/j", self.JOURNAL_DATA)
