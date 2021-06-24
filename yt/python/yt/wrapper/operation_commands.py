@@ -338,16 +338,29 @@ def get_operation_progress(operation, with_build_time=False, client=None):
 
 def order_progress(progress):
     filter_out = ("completed_details",)
+    filter_out_if_zero = ("suspended", "invalidated", "uncategorized")
     keys = ("running", "completed", "pending", "failed", "aborted", "lost", "total")
     result = []
+
+    # Predefined keys.
     for key in keys:
         if key in filter_out:
             continue
+        if progress[key] == 0 and key in filter_out_if_zero:
+            continue
         if key in progress:
             result.append((key, progress[key]))
+
+    # Other keys.
     for key, value in iteritems(progress):
-        if key not in keys:
-            result.append((key, value))
+        if key in keys:
+            continue
+        if key in filter_out:
+            continue
+        if progress[key] == 0 and key in filter_out_if_zero:
+            continue
+        result.append((key, value))
+
     return result
 
 class PrintOperationInfo(object):
