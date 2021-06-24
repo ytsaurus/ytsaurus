@@ -27,35 +27,44 @@ class YtOutputWriterTest extends FlatSpec with TmpDir with LocalSpark with Match
   private val schema = StructType(Seq(StructField("a", IntegerType)))
 
   "YtOutputWriterTest" should "write several batches" in {
-    val transaction = prepareWrite(tmpPath, Nil)
-    val writer = new MockYtOutputWriter(tmpPath.drop(1), transaction, 2, Nil)
-    val rows = Seq(Row(1), Row(2), Row(3), Row(4))
+    prepareWrite(tmpPath, Nil) { transaction =>
+      val writer = new MockYtOutputWriter(tmpPath.drop(1), transaction, 2, Nil)
+      val rows = Seq(Row(1), Row(2), Row(3), Row(4))
 
-    writeRows(rows, writer, transaction)
+      writeRows(rows, writer, transaction)
 
-    spark.read.yt(tmpPath).collect() should contain theSameElementsAs rows
-    YtWrapper.chunkCount(tmpPath) shouldEqual 2
+      spark.read.yt(tmpPath).collect() should contain theSameElementsAs rows
+      YtWrapper.chunkCount(tmpPath) shouldEqual 2
+    }
   }
 
   it should "not write several batches if table is sorted" in {
-    val transaction = prepareWrite(tmpPath, Seq("a"))
-    val writer = new MockYtOutputWriter(tmpPath.drop(1), transaction, 2, Seq("a"))
-    val rows = Seq(Row(1), Row(2), Row(3), Row(4))
+    prepareWrite(tmpPath, Seq("a")) { transaction =>
+      val writer = new MockYtOutputWriter(tmpPath.drop(1), transaction, 2, Seq("a"))
+      val rows = Seq(Row(1), Row(2), Row(3), Row(4))
 
-    writeRows(rows, writer, transaction)
+      writeRows(rows, writer, transaction)
 
-    spark.read.yt(tmpPath).collect() should contain theSameElementsAs rows
-    YtWrapper.chunkCount(tmpPath) shouldEqual 1
+      spark.read.yt(tmpPath).collect() should contain theSameElementsAs rows
+      YtWrapper.chunkCount(tmpPath) shouldEqual 1
+    }
   }
 
-  def prepareWrite(path: String, sortColumns: Seq[String]): ApiServiceTransaction = {
+  def prepareWrite(path: String, sortColumns: Seq[String])
+                  (f: ApiServiceTransaction => Unit): Unit = {
     val transaction = YtWrapper.createTransaction(parent = None, timeout = 5 minutes)
     val transactionId = transaction.getId.toString
 
     YtWrapper.createTable(path, TestTableSettings(schema, sortColumns = sortColumns),
       transaction = Some(transactionId))
 
-    transaction
+    try {
+      f(transaction)
+    } catch {
+      case e: Throwable =>
+        transaction.abort().join()
+        throw e
+    }
   }
 
   def writeRows(rows: Seq[Row], writer: YtOutputWriter, transaction: ApiServiceTransaction): Unit = {
