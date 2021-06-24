@@ -472,6 +472,14 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
 
     spark.read.yt(tmpPath).as[Double].collect() should contain theSameElementsAs data
   }
+
+  it should "ytTable:/ write and read" in {
+    val customPath = "ytTable:/" + tmpPath
+    val data = Seq(0.4, 0.5, 0.6)
+    data.toDF().coalesce(1).write.yt(customPath)
+
+    spark.read.yt(customPath).as[Double].collect() should contain theSameElementsAs data
+  }
 }
 
 object Counter {

@@ -27,14 +27,16 @@ class YtOutputWriterTest extends FlatSpec with TmpDir with LocalSpark with Match
   private val schema = StructType(Seq(StructField("a", IntegerType)))
 
   "YtOutputWriterTest" should "write several batches" in {
-    prepareWrite(tmpPath, Nil) { transaction =>
-      val writer = new MockYtOutputWriter(tmpPath.drop(1), transaction, 2, Nil)
-      val rows = Seq(Row(1), Row(2), Row(3), Row(4))
+    runTestWithSpecificPath(tmpPath)
+  }
 
-      writeRows(rows, writer, transaction)
+  it should "write several batches with '#' in path" in {
+    runTestWithSpecificPath(tmpPath + "#")
+  }
 
-      spark.read.yt(tmpPath).collect() should contain theSameElementsAs rows
-      YtWrapper.chunkCount(tmpPath) shouldEqual 2
+  it should "exception while writing several batches with relative in path" in {
+    a[IllegalArgumentException] shouldBe thrownBy {
+      prepareWrite("subfolder", Nil) { transaction => }
     }
   }
 
@@ -50,9 +52,21 @@ class YtOutputWriterTest extends FlatSpec with TmpDir with LocalSpark with Match
     }
   }
 
+  def runTestWithSpecificPath(path: String): Unit = {
+    prepareWrite(path, Nil) { transaction =>
+      val writer = new MockYtOutputWriter(path.drop(1), transaction, 2, Nil)
+      val rows = Seq(Row(1), Row(2), Row(3), Row(4))
+
+      writeRows(rows, writer, transaction)
+
+      spark.read.yt(path).collect() should contain theSameElementsAs rows
+      YtWrapper.chunkCount(path) shouldEqual 2
+    }
+  }
+
   def prepareWrite(path: String, sortColumns: Seq[String])
                   (f: ApiServiceTransaction => Unit): Unit = {
-    val transaction = YtWrapper.createTransaction(parent = None, timeout = 5 minutes)
+    val transaction = YtWrapper.createTransaction(parent = None, timeout = 1 minute)
     val transactionId = transaction.getId.toString
 
     YtWrapper.createTable(path, TestTableSettings(schema, sortColumns = sortColumns),

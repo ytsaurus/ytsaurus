@@ -62,7 +62,7 @@ class YtOutputWriter(path: String,
   }
 
   private def appendPath(): String = {
-    s"""<append=true>/${new Path(path).toUri}""".stripMargin
+    s"""<append=true>/${new Path(path).toString}""".stripMargin
   }
 
   override def write(record: InternalRow): Unit = {
