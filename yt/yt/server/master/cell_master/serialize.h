@@ -150,6 +150,7 @@ DEFINE_ENUM(EMasterReign,
     ((RefBuiltinEmptySchema)                                        (1624))  // shakurov
     ((DoNotMergeDynamicTables)                                      (1625))  // aleksandra-zh
     ((AccountResourceUsageLease)                                    (1626))  // ignat
+    ((FixZombieSchemaLoading)                                       (1627))  // shakurov
     // 21.3 starts here.
 );
 

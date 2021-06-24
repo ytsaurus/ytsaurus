@@ -41,8 +41,12 @@ void TMasterTableSchema::Load(NCellMaster::TLoadContext& context)
 
     auto tableSchema = Load<TTableSchema>(context);
 
-    const auto& tableManager = context.GetBootstrap()->GetTableManager();
-    SetTableSchemaToObjectMapIterator(tableManager->RegisterSchema(this, std::move(tableSchema)));
+    if (IsObjectAlive(this)) {
+        const auto& tableManager = context.GetBootstrap()->GetTableManager();
+        SetTableSchemaToObjectMapIterator(tableManager->RegisterSchema(this, std::move(tableSchema)));
+    } else {
+        TableSchema_ = New<TTableSchema>(std::move(tableSchema));
+    }
 }
 
 const NTableClient::TTableSchemaPtr& TMasterTableSchema::AsTableSchema() const

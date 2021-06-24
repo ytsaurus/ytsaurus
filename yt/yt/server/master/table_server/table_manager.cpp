@@ -636,7 +636,7 @@ public:
         return schema;
     }
 
-    void ZombifySchema(TMasterTableSchema* schema)
+    void ZombifyMasterTableSchema(TMasterTableSchema* schema)
     {
         YT_VERIFY(schema != EmptyMasterTableSchema_);
 
@@ -779,7 +779,7 @@ IObjectProxyPtr TTableManager::TMasterTableSchemaTypeHandler::DoGetProxy(
 void TTableManager::TMasterTableSchemaTypeHandler::DoZombifyObject(TMasterTableSchema* schema)
 {
     TObjectTypeHandlerWithMapBase::DoZombifyObject(schema);
-    Owner_->ZombifySchema(schema);
+    Owner_->ZombifyMasterTableSchema(schema);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
