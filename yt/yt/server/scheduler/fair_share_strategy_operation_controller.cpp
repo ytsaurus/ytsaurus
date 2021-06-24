@@ -28,13 +28,13 @@ TFairShareStrategyOperationController::TFairShareStrategyOperationController(
 void TFairShareStrategyOperationController::IncreaseConcurrentScheduleJobCalls(int nodeShardId)
 {
     auto& shard = StateShards_[nodeShardId];
-    shard.ConcurrentScheduleJobCalls.fetch_add(1, std::memory_order_relaxed);
+    shard.ConcurrentScheduleJobCalls += 1;
 }
 
 void TFairShareStrategyOperationController::DecreaseConcurrentScheduleJobCalls(int nodeShardId)
 {
     auto& shard = StateShards_[nodeShardId];
-    shard.ConcurrentScheduleJobCalls.fetch_add(-1, std::memory_order_relaxed);
+    shard.ConcurrentScheduleJobCalls -= 1;
 }
 
 void TFairShareStrategyOperationController::IncreaseScheduleJobCallsSinceLastUpdate(int nodeShardId)
@@ -90,7 +90,7 @@ bool TFairShareStrategyOperationController::IsMaxConcurrentScheduleJobCallsPerNo
     int maxConcurrentScheduleJobCallsPerNodeShard) const
 {
     auto& shard = StateShards_[schedulingContext->GetNodeShardId()];
-    return shard.ConcurrentScheduleJobCalls.load(std::memory_order_relaxed) >= maxConcurrentScheduleJobCallsPerNodeShard;
+    return shard.ConcurrentScheduleJobCalls >= maxConcurrentScheduleJobCallsPerNodeShard;
 }
 
 bool TFairShareStrategyOperationController::HasRecentScheduleJobFailure(TCpuInstant now) const

@@ -68,9 +68,9 @@ private:
 
     struct TStateShard
     {
-        std::atomic<int> ConcurrentScheduleJobCalls = 0;
         mutable std::atomic<int> ScheduleJobCallsSinceLastUpdate = 0;
         char Padding[64];
+        int ConcurrentScheduleJobCalls = 0;
     };
     std::array<TStateShard, MaxNodeShardCount> StateShards_;
 
