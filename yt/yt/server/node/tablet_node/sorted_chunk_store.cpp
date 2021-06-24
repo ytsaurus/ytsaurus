@@ -3,7 +3,6 @@
 #include "in_memory_manager.h"
 #include "tablet.h"
 #include "transaction.h"
-#include "versioned_chunk_meta_manager.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -547,7 +546,7 @@ void TSortedChunkStore::Load(TLoadContext& context)
 }
 
 TChunkStatePtr TSortedChunkStore::PrepareChunkState(
-    IChunkReaderPtr chunkReader,
+    const IChunkReaderPtr& chunkReader,
     const TClientChunkReadOptions& chunkReadOptions)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -555,26 +554,7 @@ TChunkStatePtr TSortedChunkStore::PrepareChunkState(
     TChunkSpec chunkSpec;
     ToProto(chunkSpec.mutable_chunk_id(), ChunkId_);
 
-    NProfiling::TWallTimer metaWaitTimer;
-    TFuture<TCachedVersionedChunkMetaPtr> asyncChunkMeta;
-
-    if (ChunkMetaManager_) {
-        asyncChunkMeta = ChunkMetaManager_->GetMeta(
-            chunkReader,
-            Schema_,
-            chunkReadOptions);
-    } else {
-        asyncChunkMeta = TCachedVersionedChunkMeta::Load(
-            chunkReader,
-            chunkReadOptions,
-            Schema_,
-            {},
-            nullptr);
-    }
-
-    auto chunkMeta = WaitFor(asyncChunkMeta)
-        .ValueOrThrow();
-    chunkReadOptions.ChunkReaderStatistics->MetaWaitTime += metaWaitTimer.GetElapsedValue();
+    auto chunkMeta = GetCachedVersionedChunkMeta(chunkReader, chunkReadOptions);
 
     return New<TChunkState>(
         BlockCache_,

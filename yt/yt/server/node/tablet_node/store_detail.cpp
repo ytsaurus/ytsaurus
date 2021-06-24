@@ -7,6 +7,7 @@
 #include "tablet.h"
 #include "tablet_profiling.h"
 #include "hunk_chunk.h"
+#include "versioned_chunk_meta_manager.h"
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
@@ -42,6 +43,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/core/concurrency/delayed_executor.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NApi;
@@ -63,7 +66,7 @@ using NChunkClient::NProto::TMiscExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto LocalChunkRecheckPeriod = TDuration::Seconds(15);
+static const auto ChunkReaderEvictionTimeout = TDuration::Seconds(15);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -557,7 +560,7 @@ IDynamicStorePtr TChunkStoreBase::GetBackingStore()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto guard = ReaderGuard(SpinLock_);
+    auto guard = ReaderGuard(ReaderLock_);
     return BackingStore_;
 }
 
@@ -565,7 +568,7 @@ void TChunkStoreBase::SetBackingStore(IDynamicStorePtr store)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto guard = WriterGuard(SpinLock_);
+    auto guard = WriterGuard(ReaderLock_);
     std::swap(store, BackingStore_);
 }
 
@@ -573,7 +576,7 @@ bool TChunkStoreBase::HasBackingStore() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto guard = ReaderGuard(SpinLock_);
+    auto guard = ReaderGuard(ReaderLock_);
     return BackingStore_.operator bool();
 }
 
@@ -703,7 +706,7 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(std::optional<EWorkloadCategor
 
     auto now = NProfiling::GetCpuInstant();
     auto createCachedReader = [&] {
-        LocalChunkCheckDeadline_.store(now + NProfiling::DurationToCpuDuration(LocalChunkRecheckPeriod));
+        ChunkReaderEvictionDeadline_ = now + NProfiling::DurationToCpuDuration(ChunkReaderEvictionTimeout);
 
         if (hasValidCachedLocalReader()) {
             return;
@@ -737,27 +740,65 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(std::optional<EWorkloadCategor
         };
     };
 
-    // Periodic check.
-    if (now > LocalChunkCheckDeadline_.load()) {
-        auto guard = WriterGuard(SpinLock_);
-        createCachedReader();
-        return makeResult();
-    }
-
     // Fast lane.
     {
-        auto guard = ReaderGuard(SpinLock_);
-        if (hasValidCachedLocalReader() || hasValidCachedRemoteReader()) {
+        auto guard = ReaderGuard(ReaderLock_);
+        if (now < ChunkReaderEvictionDeadline_ && (hasValidCachedLocalReader() || hasValidCachedRemoteReader())) {
             return makeResult();
         }
     }
 
     // Slow lane.
     {
-        auto guard = WriterGuard(SpinLock_);
+        auto guard = WriterGuard(ReaderLock_);
         createCachedReader();
         return makeResult();
     }
+}
+
+TCachedVersionedChunkMetaPtr TChunkStoreBase::GetCachedVersionedChunkMeta(
+    const IChunkReaderPtr& chunkReader,
+    const TClientChunkReadOptions& chunkReadOptions)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    // Fast lane.
+    {
+        auto guard = ReaderGuard(VersionedChunkMetaLock_);
+        if (auto chunkMeta = CachedWeakVersionedChunkMeta_.Lock()) {
+            return chunkMeta;
+        }
+    }
+
+    // Slow lane.
+    NProfiling::TWallTimer metaWaitTimer;
+
+    auto chunkMetaFuture = ChunkMetaManager_
+        ? ChunkMetaManager_->GetMeta(
+            chunkReader,
+            Schema_,
+            chunkReadOptions)
+        : TCachedVersionedChunkMeta::Load(
+            chunkReader,
+            chunkReadOptions,
+            Schema_,
+            {},
+            nullptr);
+
+    auto chunkMeta = WaitFor(chunkMetaFuture)
+        .ValueOrThrow();
+
+    chunkReadOptions.ChunkReaderStatistics->MetaWaitTime += metaWaitTimer.GetElapsedValue();
+
+    {
+        auto guard = WriterGuard(VersionedChunkMetaLock_);
+        auto oldCachedWeakVersionedChunkMeta = std::move(CachedWeakVersionedChunkMeta_);
+        CachedWeakVersionedChunkMeta_ = chunkMeta;
+        // Prevent destroying oldCachedWeakVersionedChunkMeta under spinlock.
+        guard.Release();
+    }
+
+    return chunkMeta;
 }
 
 const std::vector<THunkChunkRef>& TChunkStoreBase::HunkChunkRefs() const
@@ -794,7 +835,7 @@ EInMemoryMode TChunkStoreBase::GetInMemoryMode() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto guard = ReaderGuard(SpinLock_);
+    auto guard = ReaderGuard(ReaderLock_);
     return InMemoryMode_;
 }
 
@@ -802,7 +843,7 @@ void TChunkStoreBase::SetInMemoryMode(EInMemoryMode mode)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto guard = WriterGuard(SpinLock_);
+    auto guard = WriterGuard(ReaderLock_);
 
     if (InMemoryMode_ != mode) {
         YT_LOG_INFO("Changed in-memory mode (CurrentMode: %v, NewMode: %v)",
@@ -836,7 +877,7 @@ void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto guard = WriterGuard(SpinLock_);
+    auto guard = WriterGuard(ReaderLock_);
 
     // Otherwise action must be cancelled.
     YT_VERIFY(chunkData->InMemoryMode == InMemoryMode_);
@@ -871,7 +912,7 @@ TTimestamp TChunkStoreBase::GetOverrideTimestamp() const
 
 TChunkReplicaList TChunkStoreBase::GetReplicas(NNodeTrackerClient::TNodeId localNodeId) const
 {
-    auto guard = ReaderGuard(SpinLock_);
+    auto guard = ReaderGuard(ReaderLock_);
 
     if (CachedChunkReader_ && !CachedReadersLocal_) {
         auto* remoteReader = dynamic_cast<IRemoteChunkReader*>(CachedChunkReader_.Get());
@@ -915,13 +956,13 @@ IBlockCachePtr TChunkStoreBase::GetBlockCache()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto guard = ReaderGuard(SpinLock_);
+    auto guard = ReaderGuard(ReaderLock_);
     return DoGetBlockCache();
 }
 
 IBlockCachePtr TChunkStoreBase::DoGetBlockCache()
 {
-    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+    VERIFY_SPINLOCK_AFFINITY(ReaderLock_);
 
     return PreloadedBlockCache_ ? PreloadedBlockCache_ : BlockCache_;
 }
@@ -941,7 +982,7 @@ TChunkStatePtr TChunkStoreBase::FindPreloadedChunkState()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto guard = ReaderGuard(SpinLock_);
+    auto guard = ReaderGuard(ReaderLock_);
 
     if (InMemoryMode_ == EInMemoryMode::None) {
         return nullptr;

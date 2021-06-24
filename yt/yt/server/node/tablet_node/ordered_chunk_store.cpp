@@ -1,6 +1,5 @@
 #include "ordered_chunk_store.h"
 #include "tablet.h"
-#include "versioned_chunk_meta_manager.h"
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
@@ -253,12 +252,8 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
     }
 
     auto chunkReader = GetReaders(workloadCategory).ChunkReader;
-    auto asyncChunkMeta = ChunkMetaManager_->GetMeta(
-        chunkReader,
-        Schema_,
-        chunkReadOptions);
-    auto chunkMeta = WaitFor(asyncChunkMeta)
-        .ValueOrThrow();
+
+    auto chunkMeta = GetCachedVersionedChunkMeta(chunkReader, chunkReadOptions);
 
     auto chunkState = New<TChunkState>(GetBlockCache());
 
