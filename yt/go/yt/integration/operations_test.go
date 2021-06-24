@@ -226,7 +226,7 @@ func TestListAllJobs(t *testing.T) {
 
 	env := yttest.New(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*2)
 	defer cancel()
 
 	s := spec.Vanilla().AddVanillaTask("job", 10)

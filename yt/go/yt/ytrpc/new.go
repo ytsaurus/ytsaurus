@@ -48,3 +48,16 @@ func NewAdminClient(c *yt.Config) (yt.AdminClient, error) {
 
 	return rpcclient.NewClient(c)
 }
+
+// NewLowLevelSchedulerClient creates new stateless scheduler client from config.
+//
+// Clients should rarely use it directly.
+//
+// Note! RPC streaming call GetJobStderr is not implemented yet.
+func NewLowLevelSchedulerClient(c *yt.Config) (yt.LowLevelSchedulerClient, error) {
+	if err := checkNotInsideJob(c); err != nil {
+		return nil, err
+	}
+
+	return rpcclient.NewClient(c)
+}
