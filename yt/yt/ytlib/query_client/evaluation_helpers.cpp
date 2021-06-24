@@ -180,8 +180,8 @@ TGroupByClosure::TGroupByClosure(
     Lookup.set_empty_key(nullptr);
 }
 
-TWriteOpClosure::TWriteOpClosure()
-    : OutputBuffer(New<TRowBuffer>(TOutputBufferTag()))
+TWriteOpClosure::TWriteOpClosure(IMemoryChunkProviderPtr chunkProvider)
+    : OutputBuffer(New<TRowBuffer>(TOutputBufferTag(), std::move(chunkProvider)))
 {
     OutputRowsBatch.reserve(WriteRowsetSize);
 }

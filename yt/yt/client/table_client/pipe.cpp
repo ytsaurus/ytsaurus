@@ -21,7 +21,7 @@ struct TSchemafulPipe::TData
 {
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock);
 
-    const TRowBufferPtr RowBuffer = New<TRowBuffer>(TSchemafulPipeBufferTag());
+    const TRowBufferPtr RowBuffer;
     TRingQueue<TUnversionedRow> RowQueue;
 
     TPromise<void> ReaderReadyEvent;
@@ -32,7 +32,8 @@ struct TSchemafulPipe::TData
     bool WriterClosed = false;
     bool Failed = false;
 
-    TData()
+    explicit TData(IMemoryChunkProviderPtr chunkProvider)
+        : RowBuffer(New<TRowBuffer>(TSchemafulPipeBufferTag(), std::move(chunkProvider)))
     {
         ResetReaderReadyEvent();
     }
@@ -235,8 +236,8 @@ class TSchemafulPipe::TImpl
     : public TRefCounted
 {
 public:
-    TImpl()
-        : Data_(New<TData>())
+    explicit TImpl(IMemoryChunkProviderPtr chunkProvider)
+        : Data_(New<TData>(std::move(chunkProvider)))
         , Reader_(New<TReader>(Data_))
         , Writer_(New<TWriter>(Data_))
     { }
@@ -265,8 +266,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchemafulPipe::TSchemafulPipe()
-    : Impl_(New<TImpl>())
+TSchemafulPipe::TSchemafulPipe(IMemoryChunkProviderPtr chunkProvider)
+    : Impl_(New<TImpl>(std::move(chunkProvider)))
 { }
 
 TSchemafulPipe::~TSchemafulPipe() = default;

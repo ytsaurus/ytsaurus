@@ -13,7 +13,7 @@ class TSchemafulPipe
     : public TRefCounted
 {
 public:
-    TSchemafulPipe();
+    explicit TSchemafulPipe(IMemoryChunkProviderPtr chunkProvider);
     ~TSchemafulPipe();
 
     //! Returns the reader side of the pipe.

@@ -896,7 +896,7 @@ void WriteOpHelper(
     void** collectRowsClosure,
     void (*collectRows)(void** closure, TWriteOpClosure* writeOpClosure))
 {
-    TWriteOpClosure closure;
+    TWriteOpClosure closure(context->MemoryChunkProvider);
     closure.RowSize = rowSize;
 
     try {
