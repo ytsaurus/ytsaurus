@@ -84,15 +84,32 @@ struct TRemoveOptions
     FLUENT_FIELD_DEFAULT(bool, Force, false);
 };
 
+template <typename TDerived>
+struct TMasterReadOptions
+{
+    using TSelf = TDerived;
+
+    /// @brief Where to read from.
+    FLUENT_FIELD_OPTION(EMasterReadKind, ReadFrom);
+};
+
+///
+/// @brief Options for @ref NYT::ICypressClient::Exists
+///
+/// @see https://yt.yandex-team.ru/docs/api/commands.html#exists
+struct TExistsOptions
+    : public TMasterReadOptions<TExistsOptions>
+{
+};
+
 ///
 /// @brief Options for @ref NYT::ICypressClient::Get
 ///
 /// @see https://yt.yandex-team.ru/docs/api/commands.html#get
 struct TGetOptions
+    : public TMasterReadOptions<TGetOptions>
 {
-    using TSelf = TGetOptions;
-
-    /// Attributes that should be fetched with each node.
+    /// @brief Attributes that should be fetched with each node.
     FLUENT_FIELD_OPTION(TAttributeFilter, AttributeFilter);
 
     /// @brief Limit for the number of children node.
@@ -126,6 +143,7 @@ struct TMultisetAttributesOptions
 ///
 /// @see https://yt.yandex-team.ru/docs/api/commands.html#list
 struct TListOptions
+    : public TMasterReadOptions<TListOptions>
 {
     using TSelf = TListOptions;
 

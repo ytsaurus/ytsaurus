@@ -47,7 +47,9 @@ public:
         const TYPath& path,
         const TRemoveOptions& options = TRemoveOptions()) override;
 
-    virtual NThreading::TFuture<bool> Exists(const TYPath& path) override;
+    virtual NThreading::TFuture<bool> Exists(
+        const TYPath& path,
+        const TExistsOptions& options = TExistsOptions()) override;
 
     virtual NThreading::TFuture<TNode> Get(
         const TYPath& path,

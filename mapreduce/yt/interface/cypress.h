@@ -72,7 +72,8 @@ public:
     ///
     /// @see [YT doc](https://yt.yandex-team.ru/docs/api/commands.html#exists)
     virtual bool Exists(
-        const TYPath& path) = 0;
+        const TYPath& path,
+        const TExistsOptions& options = TExistsOptions()) = 0;
 
     ///
     /// @brief Get Cypress node contents.

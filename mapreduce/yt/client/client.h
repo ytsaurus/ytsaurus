@@ -41,7 +41,9 @@ public:
         const TYPath& path,
         const TRemoveOptions& options) override;
 
-    bool Exists(const TYPath& path) override;
+    bool Exists(
+        const TYPath& path,
+        const TExistsOptions& options) override;
 
     TNode Get(
         const TYPath& path,

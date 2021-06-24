@@ -13,7 +13,7 @@ namespace NTesting {
 
         MOCK_METHOD3(Create, TNodeId(const TYPath&, ENodeType, const TCreateOptions&));
         MOCK_METHOD2(Remove, void(const TYPath&, const TRemoveOptions&));
-        MOCK_METHOD1(Exists, bool(const TYPath&));
+        MOCK_METHOD2(Exists, bool(const TYPath&, const TExistsOptions&));
         MOCK_METHOD2(Get, TNode(const TYPath&, const TGetOptions&));
         MOCK_METHOD3(Set, void(const TYPath&, const TNode&, const TSetOptions&));
         MOCK_METHOD3(MultisetAttributes, void(const TYPath&, const TNode::TMapType&, const TMultisetAttributesOptions&));
@@ -111,7 +111,7 @@ namespace NTesting {
 
         MOCK_METHOD3(Create, TNodeId(const TYPath&, ENodeType, const TCreateOptions&));
         MOCK_METHOD2(Remove, void(const TYPath&, const TRemoveOptions&));
-        MOCK_METHOD1(Exists, bool(const TYPath&));
+        MOCK_METHOD2(Exists, bool(const TYPath&, const TExistsOptions&));
         MOCK_METHOD2(Get, TNode(const TYPath&, const TGetOptions&));
         MOCK_METHOD3(Set, void(const TYPath&, const TNode&, const TSetOptions&));
         MOCK_METHOD2(List, TNode::TListType(const TYPath&, const TListOptions&));

@@ -73,7 +73,8 @@ bool Exists(
     const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TTransactionId& transactionId,
-    const TYPath& path);
+    const TYPath& path,
+    const TExistsOptions& options = TExistsOptions());
 
 TNodeId Create(
     const IRequestRetryPolicyPtr& retryPolicy,
