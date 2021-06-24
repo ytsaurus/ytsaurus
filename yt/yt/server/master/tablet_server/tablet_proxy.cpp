@@ -14,6 +14,9 @@
 
 #include <yt/yt/server/master/table_server/table_node.h>
 
+#include <yt/yt/server/master/orchid/manifest.h>
+#include <yt/yt/server/master/orchid/orchid_holder_base.h>
+
 #include <yt/yt/core/yson/consumer.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -25,11 +28,13 @@ using namespace NYTree;
 using namespace NObjectServer;
 using namespace NTransactionClient;
 using namespace NObjectClient;
+using namespace NOrchid;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletProxy
     : public TNonversionedObjectProxyBase<TTablet>
+    , public TOrchidHolderBase
 {
 public:
     TTabletProxy(
@@ -37,10 +42,33 @@ public:
         TObjectTypeMetadata* metadata,
         TTablet* tablet)
         : TBase(bootstrap, metadata, tablet)
+        , TOrchidHolderBase(
+            Bootstrap_->GetNodeChannelFactory(),
+            BIND(&TTabletProxy::CreateOrchidManifest, Unretained(this)))
     { }
 
 private:
     typedef TNonversionedObjectProxyBase<TTablet> TBase;
+
+    TOrchidManifestPtr CreateOrchidManifest()
+    {
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+
+        auto* tablet = GetThisImpl<TTablet>();
+
+        auto* node = tabletManager->FindTabletLeaderNode(tablet);
+        if (!node) {
+            THROW_ERROR_EXCEPTION("Tablet has no leader node");
+        }
+
+        auto cellId = tablet->GetCell()->GetId();
+
+        auto manifest = New<TOrchidManifest>();
+        manifest->RemoteAddresses = ConvertTo<INodePtr>(
+            node->GetAddressesOrThrow(NNodeTrackerClient::EAddressType::InternalRpc));
+        manifest->RemoteRoot = Format("//tablet_cells/%v/tablets/%v", cellId, tablet->GetId());
+        return manifest;
+    }
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
