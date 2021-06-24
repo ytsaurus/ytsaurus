@@ -38,7 +38,6 @@ protected:
         if (User_) {
             request->SetUser(*User_);
         }
-        request->SetUserAgent("yt-cpp-rpc-client/1.0");
     }
 
 private:
