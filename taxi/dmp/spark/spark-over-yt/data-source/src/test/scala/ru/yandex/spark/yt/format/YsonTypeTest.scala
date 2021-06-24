@@ -223,20 +223,22 @@ class YsonTypeTest extends FlatSpec with Matchers with LocalSpark with TmpDir wi
     spark.conf.set(CODEGEN_FACTORY_MODE.key, CodegenObjectFactoryMode.NO_CODEGEN.toString)
     sys.props += "spark.testing" -> "true"
 
-    Seq(Seq(1, 2, 3), Seq(4, 5, 6)).toDF().coalesce(1).write.yt(tmpPath)
+    try {
+      Seq(Seq(1, 2, 3), Seq(4, 5, 6)).toDF().coalesce(1).write.yt(tmpPath)
 
-    val res = spark.read.yt(tmpPath)
-      .withColumn("value", 'value.cast(BinaryType))
-      .as[Array[Byte]].collect()
+      val res = spark.read.yt(tmpPath)
+        .withColumn("value", 'value.cast(BinaryType))
+        .as[Array[Byte]].collect()
 
-    res should contain theSameElementsAs Seq(
-      Array[Byte](91, 2, 2, 59, 2, 4, 59, 2, 6, 93),
-      Array[Byte](91, 2, 8, 59, 2, 10, 59, 2, 12, 93)
-    )
-
-    spark.conf.set(WHOLESTAGE_CODEGEN_ENABLED.key, "true")
-    spark.conf.set(CODEGEN_FACTORY_MODE.key, CodegenObjectFactoryMode.FALLBACK.toString)
-    sys.props -= "spark.testing"
+      res should contain theSameElementsAs Seq(
+        Array[Byte](91, 2, 2, 59, 2, 4, 59, 2, 6, 93),
+        Array[Byte](91, 2, 8, 59, 2, 10, 59, 2, 12, 93)
+      )
+    } finally {
+      spark.conf.set(WHOLESTAGE_CODEGEN_ENABLED.key, "true")
+      spark.conf.set(CODEGEN_FACTORY_MODE.key, CodegenObjectFactoryMode.FALLBACK.toString)
+      sys.props -= "spark.testing"
+    }
   }
 
   it should "cast binary to yson with disabled codegen" in {
@@ -244,25 +246,27 @@ class YsonTypeTest extends FlatSpec with Matchers with LocalSpark with TmpDir wi
     spark.conf.set(CODEGEN_FACTORY_MODE.key, CodegenObjectFactoryMode.NO_CODEGEN.toString)
     sys.props += "spark.testing" -> "true"
 
-    Seq(
-      Array[Byte](91, 2, 2, 59, 2, 4, 59, 2, 6, 93),
-      Array[Byte](91, 2, 8, 59, 2, 10, 59, 2, 12, 93)
-    ).toDF()
-      .coalesce(1)
-      .withColumn("value", 'value.cast(YsonType))
-      .write.yt(tmpPath)
+    try {
+      Seq(
+        Array[Byte](91, 2, 2, 59, 2, 4, 59, 2, 6, 93),
+        Array[Byte](91, 2, 8, 59, 2, 10, 59, 2, 12, 93)
+      ).toDF()
+        .coalesce(1)
+        .withColumn("value", 'value.cast(YsonType))
+        .write.yt(tmpPath)
 
-    sys.props -= "spark.testing"
-    val res = spark.read.schemaHint("value" -> ArrayType(LongType)).yt(tmpPath).as[Array[Long]]
+      sys.props -= "spark.testing"
+      val res = spark.read.schemaHint("value" -> ArrayType(LongType)).yt(tmpPath).as[Array[Long]]
 
-    typeV1(tmpPath, "value") shouldEqual "any"
-    res.collect() should contain theSameElementsAs Seq(
-      Seq(1L, 2L, 3L),
-      Seq(4L, 5L, 6L)
-    )
-
-    spark.conf.set(WHOLESTAGE_CODEGEN_ENABLED.key, "true")
-    spark.conf.set(CODEGEN_FACTORY_MODE.key, CodegenObjectFactoryMode.FALLBACK.toString)
-    sys.props -= "spark.testing"
+      typeV1(tmpPath, "value") shouldEqual "any"
+      res.collect() should contain theSameElementsAs Seq(
+        Seq(1L, 2L, 3L),
+        Seq(4L, 5L, 6L)
+      )
+    } finally {
+      spark.conf.set(WHOLESTAGE_CODEGEN_ENABLED.key, "true")
+      spark.conf.set(CODEGEN_FACTORY_MODE.key, CodegenObjectFactoryMode.FALLBACK.toString)
+      sys.props -= "spark.testing"
+    }
   }
 }

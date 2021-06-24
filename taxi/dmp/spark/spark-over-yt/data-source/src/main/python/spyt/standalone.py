@@ -36,7 +36,7 @@ class SparkDefaultArguments(object):
         return {
             "operation_spec": {
                 "annotations": {"is_spark": True},
-                "max_failed_job_count": 5,
+                "max_failed_job_count": 10000,
                 "max_stderr_count": 150,
                 "job_cpu_monitor": {
                     "enable_cpu_reclaim": False
