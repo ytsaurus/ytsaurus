@@ -1,14 +1,68 @@
-from yt_env_setup import YTEnvSetup, wait
 from proxy_format_config import _TestProxyFormatConfigBase
-from yt_commands import *  # noqa
+
+from yt_env_setup import YTEnvSetup
+
+from yt_commands import (  # noqa
+    authors, print_debug, wait, retry, wait_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
+    events_on_fs, reset_events_on_fs,
+    create, ls, get, set, copy, move, remove, link, exists, concatenate,
+    create_account, remove_account,
+    create_network_project, create_tmpdir, create_user, create_group, create_medium,
+    create_pool, create_pool_tree, remove_pool_tree,
+    create_data_center, create_rack, create_table, create_proxy_role,
+    create_tablet_cell_bundle, remove_tablet_cell_bundle, create_tablet_cell, create_table_replica,
+    make_ace, check_permission, add_member, remove_member, remove_group, remove_user,
+    remove_network_project,
+    make_batch_request, execute_batch, get_batch_error,
+    start_transaction, abort_transaction, commit_transaction, ping_transaction, lock,
+    externalize, internalize,
+    insert_rows, select_rows, lookup_rows, delete_rows, trim_rows, alter_table, explain_query,
+    read_file, write_file, read_table, write_table, write_local_file, read_blob_table,
+    read_journal, write_journal, truncate_journal, wait_until_sealed,
+    map, reduce, map_reduce, join_reduce, merge, vanilla, sort, erase, remote_copy,
+    run_test_vanilla, run_sleeping_vanilla,
+    abort_job, list_jobs, get_job, abandon_job, interrupt_job,
+    get_job_fail_context, get_job_input, get_job_stderr, get_job_spec, get_job_input_paths,
+    dump_job_context, poll_job_shell,
+    abort_op, complete_op, suspend_op, resume_op,
+    get_operation, list_operations, clean_operations,
+    get_operation_cypress_path, scheduler_orchid_pool_path,
+    scheduler_orchid_default_pool_tree_path, scheduler_orchid_operation_path,
+    scheduler_orchid_default_pool_tree_config_path, scheduler_orchid_path,
+    scheduler_orchid_node_path, scheduler_orchid_pool_tree_config_path, scheduler_orchid_pool_tree_path,
+    mount_table, unmount_table, freeze_table, unfreeze_table, reshard_table, remount_table, generate_timestamp,
+    reshard_table_automatic, wait_for_tablet_state, wait_for_cells,
+    get_tablet_infos, get_table_pivot_keys, get_tablet_leader_address,
+    sync_create_cells, sync_mount_table, sync_unmount_table,
+    sync_freeze_table, sync_unfreeze_table, sync_reshard_table,
+    sync_flush_table, sync_compact_table, sync_remove_tablet_cells,
+    sync_reshard_table_automatic, sync_balance_tablet_cells,
+    get_first_chunk_id, get_singular_chunk_id, get_chunk_replication_factor, multicell_sleep,
+    update_nodes_dynamic_config, update_controller_agent_config,
+    update_op_parameters, enable_op_detailed_logs,
+    set_node_banned, set_banned_flag,
+    set_account_disk_space_limit, set_node_decommissioned,
+    get_account_disk_space, get_account_committed_disk_space,
+    check_all_stderrs,
+    create_test_tables, create_dynamic_table, PrepareTables,
+    get_statistics, get_recursive_disk_space, get_chunk_owner_disk_space, cluster_resources_equal,
+    make_random_string, raises_yt_error,
+    build_snapshot, build_master_snapshots,
+    gc_collect, is_multicell, clear_metadata_caches,
+    get_driver, Driver, execute_command, generate_uuid, Operation,
+    AsyncLastCommittedTimestamp, MinTimestamp)
+
+from yt_type_helpers import make_schema
 
 from yt.wrapper import JsonFormat
+from yt.common import YtError, YtResponseError
+import yt.yson as yson
+
+from flaky import flaky
+import pytest
 
 from copy import deepcopy
-from flaky import flaky
 from random import shuffle
-
-import pytest
 import time
 
 ##################################################################
@@ -319,8 +373,8 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
         new_table = deepcopy(original_table)
         shuffle(new_table)
 
-        self._create_simple_table("//tmp/t_in1", data=new_table[: size / 2], sorted=False)
-        self._create_simple_table("//tmp/t_in2", data=new_table[size / 2 :], sorted=False)
+        self._create_simple_table("//tmp/t_in1", data=new_table[:size / 2], sorted=False)
+        self._create_simple_table("//tmp/t_in2", data=new_table[size / 2:], sorted=False)
         self._create_simple_table("//tmp/t_out", dynamic=False, sorted=True)
         sort(in_=["//tmp/t_in1", "//tmp/t_in2"], out="//tmp/t_out", sort_by="index")
 
@@ -346,34 +400,6 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
 
         op.track()
         assert op.get_state() == "completed"
-
-    def _check_get_operation(self, op):
-        def filter_attrs(attrs):
-            PROPER_ATTRS = [
-                "id",
-                "authenticated_user",
-                "brief_progress",
-                "brief_spec",
-                "runtime_parameters",
-                "finish_time",
-                "type",
-                # COMPAT(levysotsky): Old name for "type"
-                "operation_type",
-                "result",
-                "start_time",
-                "state",
-                "suspended",
-                "spec",
-                "unrecognized_spec",
-                "full_spec",
-                "slot_index_per_pool_tree",
-            ]
-            return {key: attrs[key] for key in PROPER_ATTRS if key in attrs}
-
-        res_get_operation = get_operation(op.id, include_scheduler=True)
-        res_cypress = _get_operation_from_cypress(op.id)
-
-        assert filter_attrs(res_get_operation) == filter_attrs(res_cypress)
 
     @authors("kiselyovp")
     def test_suspend_resume_operation(self):
