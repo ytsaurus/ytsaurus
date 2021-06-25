@@ -126,16 +126,16 @@ public:
         , Logger(StrategyLogger.WithTag("TreeId: %v", TreeId_))
         , NonPreemptiveSchedulingStage_(
             /* nameInLogs */ "Non preemptive",
-            TreeProfiler_->GetRegistry().WithPrefix("/non_preemptive"))
+            TreeProfiler_->GetRegistry().WithTag("schedule_jobs_stage", "no_preemption"))
         , AggressivelyPreemptiveSchedulingStage_(
             /* nameInLogs */ "Aggressively preemptive",
-            TreeProfiler_->GetRegistry().WithPrefix("/aggressively_preemptive"))
+            TreeProfiler_->GetRegistry().WithTag("schedule_jobs_stage", "aggressive_preemption"))
         , PreemptiveSchedulingStage_(
             /* nameInLogs */ "Preemptive",
-            TreeProfiler_->GetRegistry().WithPrefix("/preemptive"))
+            TreeProfiler_->GetRegistry().WithTag("schedule_jobs_stage", "preemption"))
         , PackingFallbackSchedulingStage_(
             /* nameInLogs */ "Packing fallback",
-            TreeProfiler_->GetRegistry().WithPrefix("/packing_fallback"))
+            TreeProfiler_->GetRegistry().WithTag("schedule_jobs_stage", "packing_fallback"))
         , FairSharePreUpdateTimer_(TreeProfiler_->GetRegistry().Timer("/fair_share_preupdate_time"))
         , FairShareUpdateTimer_(TreeProfiler_->GetRegistry().Timer("/fair_share_update_time"))
         , FairShareFluentLogTimer_(TreeProfiler_->GetRegistry().Timer("/fair_share_fluent_log_time"))
