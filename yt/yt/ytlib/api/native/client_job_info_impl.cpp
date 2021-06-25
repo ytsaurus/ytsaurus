@@ -779,9 +779,7 @@ TYsonString TClient::DoGetJobSpec(
     };
     WriteProtobufMessage(&jobSpecYsonWriter, jobSpec, parserOptions);
 
-    auto jobSpecNode = ConvertToNode(TYsonString(jobSpecYsonBytes));
-
-    return ConvertToYsonString(jobSpecNode);
+    return TYsonString(jobSpecYsonBytes);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
