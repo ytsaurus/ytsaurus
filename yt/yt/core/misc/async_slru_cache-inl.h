@@ -18,7 +18,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::TItem::TItem()
 
 template <class TKey, class TValue, class THash>
 TAsyncSlruCacheBase<TKey, TValue, THash>::TItem::TItem(TValuePtr value)
-    : ValuePromise(MakePromise(TValuePtr(value)))
+    : ValuePromise(MakePromise(value))
     , Value(std::move(value))
 { }
 
