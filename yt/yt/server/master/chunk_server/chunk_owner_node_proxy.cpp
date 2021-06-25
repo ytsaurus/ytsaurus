@@ -947,6 +947,20 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
     return TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(key, value);
 }
 
+void TChunkOwnerNodeProxy::OnStorageParametersUpdated()
+{
+    auto* node = GetThisImpl<TChunkOwnerBase>();
+    if (node->IsExternal()) {
+        return;
+    }
+
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    chunkManager->ScheduleChunkRequisitionUpdate(node->GetChunkList());
+
+    const auto& tabletManager = Bootstrap_->GetTabletManager();
+    tabletManager->OnNodeStorageParametersUpdated(node);
+}
+
 void TChunkOwnerNodeProxy::SetReplicationFactor(int replicationFactor)
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
@@ -970,10 +984,7 @@ void TChunkOwnerNodeProxy::SetReplicationFactor(int replicationFactor)
     ValidateChunkReplication(chunkManager, replication, mediumIndex);
 
     node->Replication() = replication;
-
-    if (!node->IsExternal()) {
-        chunkManager->ScheduleChunkRequisitionUpdate(node->GetChunkList());
-    }
+    OnStorageParametersUpdated();
 }
 
 void TChunkOwnerNodeProxy::SetVital(bool vital)
@@ -987,11 +998,7 @@ void TChunkOwnerNodeProxy::SetVital(bool vital)
     }
 
     replication.SetVital(vital);
-
-    if (!node->IsExternal()) {
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        chunkManager->ScheduleChunkRequisitionUpdate(node->GetChunkList());
-    }
+    OnStorageParametersUpdated();
 }
 
 void TChunkOwnerNodeProxy::SetReplication(const TChunkReplication& replication)
@@ -1005,10 +1012,7 @@ void TChunkOwnerNodeProxy::SetReplication(const TChunkReplication& replication)
     ValidateMediaChange(node->Replication(), primaryMediumIndex, replication);
 
     node->Replication() = replication;
-
-    if (!node->IsExternal()) {
-        chunkManager->ScheduleChunkRequisitionUpdate(node->GetChunkList());
-    }
+    OnStorageParametersUpdated();
 
     const auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
 
@@ -1037,11 +1041,7 @@ void TChunkOwnerNodeProxy::SetPrimaryMedium(TMedium* medium)
 
     node->Replication() = newReplication;
     node->SetPrimaryMediumIndex(medium->GetIndex());
-
-    if (!node->IsExternal()) {
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        chunkManager->ScheduleChunkRequisitionUpdate(node->GetChunkList());
-    }
+    OnStorageParametersUpdated();
 
     YT_LOG_DEBUG_IF(
         IsMutationLoggingEnabled(),

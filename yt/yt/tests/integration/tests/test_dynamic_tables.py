@@ -49,7 +49,8 @@ from yt_commands import (  # noqa
     make_random_string, raises_yt_error,
     build_snapshot, is_multicell,
     get_driver, Driver, execute_command,
-    AsyncLastCommittedTimestamp)
+    AsyncLastCommittedTimestamp,
+    create_medium)
 
 from yt_helpers import Profiler
 from yt_type_helpers import make_schema, optional_type
@@ -2556,6 +2557,44 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             set("//tmp/t/@commit_ordering", "weak")
         with pytest.raises(YtError):
             set("//tmp/t/@in_memory_mode", "compressed")
+
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("table_type", ["sorted", "ordered", "replicated"])
+    def test_dynamic_table_change_medium(self, table_type):
+        sync_create_cells(1)
+        if table_type == "sorted":
+            self._create_sorted_table("//tmp/t", replication_factor=1)
+        elif table_type == "ordered":
+            self._create_ordered_table("//tmp/t", replication_factor=1)
+        else:
+            schema = yson.YsonList([
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ])
+            create("replicated_table", "//tmp/t", attributes={
+                "dynamic": True,
+                "schema": schema,
+                "replication_factor": 1})
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 1, "value": "foo"}], require_sync_replica=False)
+        sync_unmount_table("//tmp/t")
+
+        def _validate(disk_space, medium):
+            assert get("//tmp/t/@tablet_statistics/disk_space_per_medium") == \
+                {medium: disk_space}
+            assert get("//tmp/t/@tablets/0/statistics/disk_space_per_medium") == \
+                {medium: disk_space}
+
+        disk_space = get("//tmp/t/@resource_usage/disk_space")
+        _validate(disk_space, "default")
+
+        if "test_medium" not in ls("//sys/media"):
+            create_medium("test_medium")
+        set("//tmp/t/@primary_medium", "test_medium")
+        _validate(disk_space, "test_medium")
+
+        set("//tmp/t/@replication_factor", 10)
+        _validate(disk_space * 10, "test_medium")
 
 
 ##################################################################
