@@ -757,7 +757,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         profiler = Profiler.at_scheduler(fixed_tags={"tree": "default", "pool": "unique_pool"})
 
         metric_prefix = "scheduler/pools/"
-        dominant_fair_share_sensor = profiler.gauge(metric_prefix + "dominant_fair_share")
+        dominant_fair_share_sensor = profiler.gauge(metric_prefix + "dominant_fair_share/total")
         dominant_usage_share_sensor = profiler.gauge(metric_prefix + "dominant_usage_share")
         dominant_demand_share_sensor = profiler.gauge(metric_prefix + "dominant_demand_share")
         dominant_promised_fair_share_sensor = profiler.gauge(metric_prefix + "promised_dominant_fair_share")
@@ -806,7 +806,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         profiler = Profiler.at_scheduler(fixed_tags={"tree": "default", "pool": "some_pool"})
 
         metric_prefix = "scheduler/operations_by_slot/"
-        dominant_fair_share_sensor = profiler.gauge(metric_prefix + "dominant_fair_share")
+        dominant_fair_share_sensor = profiler.gauge(metric_prefix + "dominant_fair_share/total")
         dominant_usage_share_sensor = profiler.gauge(metric_prefix + "dominant_usage_share")
         dominant_demand_share_sensor = profiler.gauge(metric_prefix + "dominant_demand_share")
         dominant_promised_fair_share_sensor = profiler.gauge(metric_prefix + "promised_dominant_fair_share")
@@ -862,7 +862,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         profiler = Profiler.at_scheduler(fixed_tags={"tree": "default"})
 
         metric_prefix = "scheduler/operations_by_user/"
-        dominant_fair_share_sensor = profiler.gauge(metric_prefix + "dominant_fair_share")
+        dominant_fair_share_sensor = profiler.gauge(metric_prefix + "dominant_fair_share/total")
         dominant_usage_share_sensor = profiler.gauge(metric_prefix + "dominant_usage_share")
         dominant_demand_share_sensor = profiler.gauge(metric_prefix + "dominant_demand_share")
         dominant_promised_fair_share_sensor = profiler.gauge(metric_prefix + "promised_dominant_fair_share")
