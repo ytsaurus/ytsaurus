@@ -238,8 +238,9 @@ void BuildChunkSpec(
     if (chunkSpec->row_count_override() >= chunk->MiscExt().row_count()) {
         chunkSpec->set_data_weight_override(dataWeight);
     } else {
-        chunkSpec->set_data_weight_override(
-            DivCeil(dataWeight, chunk->MiscExt().row_count()) * chunkSpec->row_count_override());
+        // NB: If overlayed chunk is nested into another, it has zero row count and non-zero data weight.
+        i64 dataWeightPerRow = DivCeil(dataWeight, std::max<i64>(chunk->MiscExt().row_count(), 1));
+        chunkSpec->set_data_weight_override(dataWeightPerRow * chunkSpec->row_count_override());
     }
 
     if (timestampTransactionId) {
