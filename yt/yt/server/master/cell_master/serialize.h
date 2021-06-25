@@ -151,6 +151,7 @@ DEFINE_ENUM(EMasterReign,
     ((DoNotMergeDynamicTables)                                      (1625))  // aleksandra-zh
     ((AccountResourceUsageLease)                                    (1626))  // ignat
     ((FixZombieSchemaLoading)                                       (1627))  // shakurov
+    ((UpdateTransactionChunkUsageAfterUnstage)                      (1628))  // cookiedoth
     // 21.3 starts here.
 );
 
