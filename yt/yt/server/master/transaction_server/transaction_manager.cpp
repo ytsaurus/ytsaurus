@@ -34,7 +34,6 @@
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
 #include <yt/yt/server/master/security_server/account.h>
-#include <yt/yt/server/master/security_server/account_resource_usage_lease.h>
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/user.h>
 

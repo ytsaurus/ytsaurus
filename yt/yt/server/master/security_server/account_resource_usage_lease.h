@@ -30,7 +30,7 @@ public:
 
 public:
     // NB: it is necessary for LoadKeys in EntityMap.
-    explicit TAccountResourceUsageLease(TAccountResourceUsageLeaseId id);
+    using TNonversionedObjectBase::TNonversionedObjectBase;
 
     TAccountResourceUsageLease(
         TAccountResourceUsageLeaseId id,

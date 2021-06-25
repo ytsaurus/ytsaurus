@@ -30,9 +30,6 @@ using namespace NObjectClient;
 using namespace NTabletClient;
 using namespace NSecurityClient;
 
-using NYT::ToProto;
-using NYT::FromProto;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {

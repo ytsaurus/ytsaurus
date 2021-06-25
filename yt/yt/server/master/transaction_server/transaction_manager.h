@@ -6,8 +6,6 @@
 
 #include <yt/yt/server/master/cypress_server/public.h>
 
-#include <yt/yt/server/master/security_server/public.h>
-
 #include <yt/yt/server/lib/hive/transaction_manager.h>
 
 #include <yt/yt/server/lib/hydra/entity_map.h>
