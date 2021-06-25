@@ -1,7 +1,7 @@
 package ru.yandex.spark.yt.format
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.Path
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.mapreduce.{JobContext, TaskAttemptContext}
 import org.apache.spark.internal.io.FileCommitProtocol
 import org.slf4j.LoggerFactory
@@ -23,6 +23,8 @@ class YtOutputCommitter(jobId: String,
   private val path = new Path(outputPath).toUri.getPath
   private val tmpPath = s"${path}_tmp"
 
+  @transient private val deletedDirectories = ThreadLocal.withInitial[Seq[Path]](() => Nil)
+
   import YtOutputCommitter._
   import ru.yandex.spark.yt.format.conf.SparkYtInternalConfiguration._
 
@@ -31,6 +33,8 @@ class YtOutputCommitter(jobId: String,
     implicit val ytClient: CompoundClient = yt(conf)
     withTransaction(createTransaction(conf, GlobalTransaction, None))({ transaction =>
       GlobalTableSettings.setTransaction(path, transaction)
+      deletedDirectories.get().foreach(p => YtWrapper.remove(p.toUri.getPath, Some(transaction)))
+      deletedDirectories.set(Nil)
       if (isTableSorted(conf)) setupSortedTmpTables(transaction)
       if (isTable(conf)) setupTable(path, conf, transaction)
     }, removeGlobalTransactions())
@@ -57,7 +61,7 @@ class YtOutputCommitter(jobId: String,
 
   private def setupTable(path: String, conf: Configuration, transaction: String)
                         (implicit yt: CompoundClient): Unit = {
-    if (!YtWrapper.exists(path)) {
+    if (!YtWrapper.exists(path, Some(transaction))) {
       val options = YtTableSparkSettings.deserialize(conf)
       YtWrapper.createTable(path, options, Some(transaction))
     }
@@ -85,6 +89,7 @@ class YtOutputCommitter(jobId: String,
   }
 
   override def abortJob(jobContext: JobContext): Unit = {
+    deletedDirectories.set(Nil)
     removeGlobalTransactions()
     abortTransaction(jobContext.getConfiguration, GlobalTransaction)
   }
@@ -123,6 +128,11 @@ class YtOutputCommitter(jobId: String,
   override def commitTask(taskContext: TaskAttemptContext): FileCommitProtocol.TaskCommitMessage = {
     commitTransaction(taskContext.getConfiguration, Transaction)
     null
+  }
+
+  override def deleteWithJob(fs: FileSystem, path: Path, recursive: Boolean): Boolean = {
+    deletedDirectories.set(path +: deletedDirectories.get())
+    true
   }
 
   private def tmpTablePath(taskContext: TaskAttemptContext): String = {
