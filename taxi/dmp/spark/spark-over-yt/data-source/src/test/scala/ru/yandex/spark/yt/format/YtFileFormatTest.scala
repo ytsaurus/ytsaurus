@@ -1,8 +1,5 @@
 package ru.yandex.spark.yt.format
 
-import java.nio.charset.StandardCharsets
-import java.nio.file.{Files, Paths}
-
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.execution.InputAdapter
@@ -16,10 +13,12 @@ import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.serializers.YtLogicalType
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
-import ru.yandex.spark.yt.wrapper.{YtJavaConverters, YtWrapper}
+import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 
+import java.nio.charset.StandardCharsets
+import java.nio.file.{Files, Paths}
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
@@ -135,6 +134,19 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
 
     val res = spark.read.yt(tmpPath)
     res.as[Long].collect() should contain theSameElementsAs Seq(4L, 5L, 6L)
+  }
+
+  it should "not lose old table while overwriting by table with errors" in {
+    import spark.implicits._
+
+    Seq(1, 2, 3).toDF.coalesce(1).write.yt(tmpPath)
+
+    a[SparkException] shouldBe thrownBy {
+      Seq(4, 5, 6).toDS.map(_ / 0).write.mode(SaveMode.Overwrite).yt(tmpPath)
+    }
+
+    val res = spark.read.yt(tmpPath)
+    res.as[Long].collect() should contain theSameElementsAs Seq(1L, 2L, 3L)
   }
 
   it should "append rows to table" in {
