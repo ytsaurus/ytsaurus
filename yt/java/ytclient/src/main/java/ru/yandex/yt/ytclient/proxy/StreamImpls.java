@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.annotation.Nullable;
 
@@ -233,6 +234,8 @@ abstract class StreamWriterImpl<T extends Message> extends StreamBase<T> impleme
     private final List<byte[]> payloadAttachments = new LinkedList<>();
     private long payloadOffset = 0;
 
+    private final AtomicBoolean closed = new AtomicBoolean(false);
+
     protected StreamWriterImpl(long windowSize, long packetSize) {
         this.windowSize = windowSize;
         this.packetSize = packetSize;
@@ -371,6 +374,10 @@ abstract class StreamWriterImpl<T extends Message> extends StreamBase<T> impleme
 
         control.wakeUp();
 
+        if (closed.get() && data != null) {
+            throw new IllegalStateException("StreamWriter is already closed");
+        }
+
         return true;
     }
 
@@ -405,9 +412,10 @@ abstract class StreamWriterImpl<T extends Message> extends StreamBase<T> impleme
 
     @Override
     public CompletableFuture<?> close() {
-        push(null);
-
-        return result;
+        closed.set(true);
+        return readyEvent()
+                .thenAccept((unused) -> push(null))
+                .thenCompose((unused) -> result);
     }
 }
 
@@ -528,8 +536,8 @@ class TableWriterImpl<T> extends StreamWriterImpl<TRspWriteTable> implements Tab
         TRowsetDescriptor currentDescriptor = builder.build();
 
         int[] idMapping = isUnversionedRows
-            ? new int[column2id.size()]
-            : null;
+                ? new int[column2id.size()]
+                : null;
 
         if (isUnversionedRows) {
             for (UnversionedRow row : (List<UnversionedRow>) rows) {
