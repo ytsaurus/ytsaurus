@@ -19,7 +19,6 @@ namespace NYT::NObjectServer {
 using namespace NCellMaster;
 using namespace NCypressServer;
 using namespace NObjectClient;
-using namespace NSecurityClient;
 using namespace NTransactionServer;
 using namespace NYPath;
 using namespace NYTree;

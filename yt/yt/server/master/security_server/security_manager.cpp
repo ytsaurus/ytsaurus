@@ -897,16 +897,20 @@ public:
         auto* transaction = accountResourceUsageLease->GetTransaction();
 
         if (resources.GetNodeCount() > 0) {
-            THROW_ERROR_EXCEPTION("Update account usage lease resources supports only disk resources, but node_count is specified");
+            THROW_ERROR_EXCEPTION(
+                "Account resource usage lease update supports only disk resources, but \"node_count\" is specified");
         }
         if (resources.GetChunkCount() > 0) {
-            THROW_ERROR_EXCEPTION("Update account usage lease resources supports only disk resources, but chunk_count is specified");
+            THROW_ERROR_EXCEPTION(
+                "Account resource usage lease update supports only disk resources, but \"chunk_count\" is specified");
         }
         if (resources.GetTabletCount() > 0) {
-            THROW_ERROR_EXCEPTION("Update account usage lease resources supports only disk resources, but tablet_count is specified");
+            THROW_ERROR_EXCEPTION(
+                "Account resource usage lease update supports only disk resources, but \"tablet_count\" is specified");
         }
         if (resources.GetTabletStaticMemory() > 0) {
-            THROW_ERROR_EXCEPTION("Update account usage lease resources supports only disk resources, but tablet_static_memory is specified");
+            THROW_ERROR_EXCEPTION(
+                "Account resource usage lease update supports only disk resources, but \"tablet_static_memory\" is specified");
         }
 
         ValidatePermission(account, EPermission::Use);
@@ -1232,7 +1236,7 @@ public:
         auto* accountResourceUsageLease = AccountResourceUsageLeaseMap_.Insert(id, std::move(accountResourceUsageLeaseHolder));
         YT_VERIFY(accountResourceUsageLease->RefObject() == 1);
 
-        // NB: lifetime of the lease is bounded to the lifetime of transaction.
+        // NB: lifetime of the lease is bound to the lifetime of the transaction.
         // Therefore we should not call RefObject on the transaction object.
         objectManager->RefObject(account);
         YT_VERIFY(transaction->AccountResourceUsageLeases().insert(accountResourceUsageLease).second);
@@ -4763,7 +4767,6 @@ void TSecurityManager::SetSubjectAliases(TSubject* subject, const std::vector<TS
     Impl_->SetSubjectAliases(subject, aliases);
 }
 
-
 DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Account, TAccount, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, AccountResourceUsageLease, TAccountResourceUsageLease, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, User, TUser, *Impl_)
@@ -4771,7 +4774,6 @@ DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Group, TGroup, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, NetworkProject, TNetworkProject, *Impl_)
 
 DELEGATE_SIGNAL(TSecurityManager, void(TUser*, const TUserWorkload&), UserCharged, *Impl_);
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

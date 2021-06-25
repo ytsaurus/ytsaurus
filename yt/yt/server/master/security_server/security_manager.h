@@ -186,7 +186,7 @@ public:
         const NChunkServer::TChunkRequisition& requisition,
         i64 delta);
     
-    //! Update resources of account usage lease.
+    //! Updates resources of account resource usage lease.
     void UpdateAccountResourceUsageLease(
         TAccountResourceUsageLease* accountResourceUsageLease,
         const TClusterResources& resources);

@@ -24,10 +24,6 @@ TAccountResourceUsageLease::TAccountResourceUsageLease(
     , Account_(account)
 { }
 
-TAccountResourceUsageLease::TAccountResourceUsageLease(TAccountResourceUsageLeaseId id)
-    : TNonversionedObjectBase(id)
-{ }
-
 TString TAccountResourceUsageLease::GetLowercaseObjectName() const
 {
     return Format("account resource usage lease %v", GetId());
