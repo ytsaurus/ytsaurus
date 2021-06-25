@@ -261,15 +261,14 @@ void TFairShareTreeProfiler::ProfileElement(
     const auto& attributes = element->Attributes();
 
     const auto& detailedFairShare = attributes.FairShare;
-    writer->AddGauge("/dominant_fair_share", MaxComponent(attributes.FairShare.Total));
     writer->AddGauge("/dominant_usage_share", element->GetResourceDominantUsageShareAtUpdate());
     writer->AddGauge("/dominant_demand_share", MaxComponent(attributes.DemandShare));
     writer->AddGauge("/promised_dominant_fair_share", MaxComponent(attributes.PromisedFairShare));
     writer->AddGauge("/accumulated_volume_dominant_share", element->GetAccumulatedResourceRatioVolume());
-    writer->AddGauge("/detailed_dominant_fair_share/strong_guarantee", MaxComponent(detailedFairShare.StrongGuarantee));
-    writer->AddGauge("/detailed_dominant_fair_share/integral_guarantee", MaxComponent(detailedFairShare.IntegralGuarantee));
-    writer->AddGauge("/detailed_dominant_fair_share/weight_proportional", MaxComponent(detailedFairShare.WeightProportional));
-    writer->AddGauge("/detailed_dominant_fair_share/total", MaxComponent(detailedFairShare.Total));
+    writer->AddGauge("/dominant_fair_share/strong_guarantee", MaxComponent(detailedFairShare.StrongGuarantee));
+    writer->AddGauge("/dominant_fair_share/integral_guarantee", MaxComponent(detailedFairShare.IntegralGuarantee));
+    writer->AddGauge("/dominant_fair_share/weight_proportional", MaxComponent(detailedFairShare.WeightProportional));
+    writer->AddGauge("/dominant_fair_share/total", MaxComponent(detailedFairShare.Total));
 
     ProfileResources(writer, element->GetResourceUsageAtUpdate(), "/resource_usage");
     ProfileResources(writer, element->GetResourceLimits(), "/resource_limits");

@@ -4247,7 +4247,7 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
 
     def _get_pool_fair_share_ratio(self, pool):
         try:
-            return get(scheduler_orchid_pool_path(pool) + "/dominant_fair_share")
+            return get(scheduler_orchid_pool_path(pool) + "/dominant_fair_share/total")
         except YtError:
             return 0.0
 
@@ -4277,7 +4277,7 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
 
         dominant_fair_share_sensor = Profiler\
             .at_scheduler(fixed_tags={"tree": "default", "pool": "child2"})\
-            .gauge("scheduler/pools/dominant_fair_share")
+            .gauge("scheduler/pools/dominant_fair_share/total")
 
         op2 = vanilla(spec={"pool": "child2", "tasks": op2_tasks_spec}, track=False)
 
@@ -4333,7 +4333,7 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
 
         dominant_fair_share_sensor = Profiler \
             .at_scheduler(fixed_tags={"tree": "default", "pool": "child2"}) \
-            .gauge("scheduler/pools/dominant_fair_share")
+            .gauge("scheduler/pools/dominant_fair_share/total")
 
         op2 = vanilla(spec={"pool": "child2", "tasks": op2_tasks_spec}, track=False)
 
