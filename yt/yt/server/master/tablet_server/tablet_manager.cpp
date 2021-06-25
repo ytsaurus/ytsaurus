@@ -2174,6 +2174,31 @@ public:
         response->set_confirmed(it && it->second.PendingTabletCount == 0);
     }
 
+    void RecomputeTableTabletStatistics(TTableNode* table)
+    {
+        table->ResetTabletStatistics();
+        for (const auto* tablet : table->Tablets()) {
+            table->AccountTabletStatistics(GetTabletStatistics(tablet));
+        }
+    }
+
+    void OnNodeStorageParametersUpdated(TChunkOwnerBase* node)
+    {
+        if (!IsTableType(node->GetType())) {
+            return;
+        }
+
+        auto* tableNode = node->As<TTableNode>();
+        if (!tableNode->IsDynamic()) {
+            return;
+        }
+
+        YT_LOG_DEBUG("Table replication changed, will recompute tablet statistics "
+            "(TableId: %v)",
+            tableNode->GetId());
+        RecomputeTableTabletStatistics(tableNode);
+    }
+
 
     TTabletCell* GetTabletCellOrThrow(TTabletCellId id)
     {
@@ -4105,7 +4130,7 @@ private:
         }
 
         // COMPAT(ifsmirnov)
-        RecomputeAggregateTabletStatistics_ = (context.GetVersion() < EMasterReign::VersionedRemoteCopy);
+        RecomputeAggregateTabletStatistics_ = (context.GetVersion() < EMasterReign::ChangeDynamicTableMedium);
 
         // COMPAT(ifsmirnov)
         RecomputeBundleResourceUsage_ = (context.GetVersion() < EMasterReign::BundleQuotas);
@@ -7034,6 +7059,11 @@ void TTabletManager::DestroyTabletAction(TTabletAction* action)
 void TTabletManager::MergeTable(TTableNode* originatingNode, NTableServer::TTableNode* branchedNode)
 {
     Impl_->MergeTable(originatingNode, branchedNode);
+}
+
+void TTabletManager::OnNodeStorageParametersUpdated(TChunkOwnerBase* node)
+{
+    Impl_->OnNodeStorageParametersUpdated(node);
 }
 
 void TTabletManager::RecomputeTabletCellStatistics(TCellBase* cellBase)

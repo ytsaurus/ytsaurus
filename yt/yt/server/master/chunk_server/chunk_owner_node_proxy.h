@@ -92,6 +92,8 @@ private:
 
     class TFetchChunkVisitor;
 
+    void OnStorageParametersUpdated();
+
     void SetReplicationFactor(int replicationFactor);
     void SetVital(bool vital);
     void SetReplication(const TChunkReplication& replication);

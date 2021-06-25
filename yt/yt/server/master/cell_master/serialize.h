@@ -153,6 +153,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixZombieSchemaLoading)                                       (1627))  // shakurov
     ((UpdateTransactionChunkUsageAfterUnstage)                      (1628))  // cookiedoth
     ((FixTablesWithNullTabletCellBundle)                            (1629))  // shakurov
+    ((ChangeDynamicTableMedium)                                     (1630))  // ifsmirnov
     // 21.3 starts here.
 );
 

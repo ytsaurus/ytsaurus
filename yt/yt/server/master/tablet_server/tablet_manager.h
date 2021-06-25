@@ -154,6 +154,8 @@ public:
         NTableServer::TTableNode* originatingNode,
         NTableServer::TTableNode* branchedNode);
 
+    void OnNodeStorageParametersUpdated(NChunkServer::TChunkOwnerBase* node);
+
     TTabletCellBundle* FindTabletCellBundle(TTabletCellBundleId id);
     TTabletCellBundle* GetTabletCellBundleOrThrow(TTabletCellBundleId id);
     TTabletCellBundle* GetTabletCellBundleByNameOrThrow(const TString& name, bool activeLifeStageOnly);
