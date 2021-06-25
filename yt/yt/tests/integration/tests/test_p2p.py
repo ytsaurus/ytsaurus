@@ -174,6 +174,4 @@ class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSyn
             reader.join()
 
         wait(lambda: metric_s_delta.get_delta() > 0)
-        wait(lambda: metric_ns0_delta.get_delta() > 0)
-        wait(lambda: metric_ns1_delta.get_delta() > 0)
-        wait(lambda: metric_ns2_delta.get_delta() > 0)
+        wait(lambda: metric_ns0_delta.get_delta() > 0 or metric_ns1_delta.get_delta() > 0 or metric_ns2_delta.get_delta() > 0)
