@@ -111,7 +111,15 @@ func WithRecursive() CreateTableOption {
 
 func WithAttributes(attrs map[string]interface{}) CreateTableOption {
 	return func(options *CreateNodeOptions) {
-		options.Attributes = attrs
+		if options.Attributes == nil {
+			options.Attributes = map[string]interface{}{}
+		}
+
+		for k, v := range attrs {
+			if _, ok := options.Attributes[k]; !ok {
+				options.Attributes[k] = v
+			}
+		}
 	}
 }
 
