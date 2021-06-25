@@ -25,7 +25,7 @@ public:
         NScheduler::TJobCpuMonitorConfigPtr config,
         IInvokerPtr invoker,
         TJobProxy* jobProxy,
-        double hardCpuLimit);
+        double initialCpuGuarantee);
 
     void Start();
     TFuture<void> Stop();

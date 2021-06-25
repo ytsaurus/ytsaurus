@@ -25,9 +25,12 @@
 #include <yt/yt/ytlib/tools/tools.h>
 #include <yt/yt/ytlib/tools/proc.h>
 
+#include <yt/yt/library/process/process.h>
+
 #include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/yt/library/process/process.h>
+#include <yt/yt/core/net/connection.h>
+
 #include <yt/yt/core/misc/proc.h>
 
 #include <util/generic/guid.h>
@@ -307,28 +310,26 @@ public:
         try {
             EnsureJobProxyFinished(slotIndex, true);
 
-            DestroyAllSubcontainers(GetFullSlotMetaContainerName(
-                MetaInstance_->GetAbsoluteName(),
-                slotIndex));
+            auto slotContainer = GetFullSlotMetaContainerName(MetaInstance_->GetName(), slotIndex);
+
+            DestroyAllSubcontainers(slotContainer);
 
             // Reset CPU guarantee.
             WaitFor(PortoExecutor_->SetContainerProperty(
-                GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex),
+                slotContainer,
                 "cpu_guarantee",
                 "0.05c"))
                 .ThrowOnError();
 
             // Reset CPU limit.
             WaitFor(PortoExecutor_->SetContainerProperty(
-                GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex),
+                slotContainer,
                 "cpu_limit",
                 "0"))
                 .ThrowOnError();
 
             // Drop reference to a process if there were any.
             JobProxyProcesses_.erase(slotIndex);
-
-            JobProxyInstances_.erase(slotIndex);
         } catch (const std::exception& ex) {
             auto error = TError("Failed to clean processes (SlotIndex: %v)",
                 slotIndex) << ex;
@@ -363,27 +364,28 @@ public:
                     jobId,
                     command->Path,
                     command->Args);
-                auto instance = this_->CreateSetupInstance(slotIndex, jobId, rootFS, user, startIndex + index);
+                auto launcher = this_->CreateSetupInstanceLauncher(slotIndex, jobId, rootFS, user, startIndex + index);
                 if (devices) {
-                    instance->SetDevices(*devices);
+                    launcher->SetDevices(*devices);
                 }
-                try {
-                    auto process = CreateSetupProcess(instance, command);
-                    WaitFor(process->Spawn())
-                        .ThrowOnError();
-                } catch (const std::exception& ex) {
+
+                auto instanceOrError = WaitFor(launcher->Launch(command->Path, command->Args, {}));
+                YT_LOG_WARNING_IF(!instanceOrError.IsOK(), instanceOrError, "Failed to launch setup command (JobId: %v)",
+                    jobId);
+                const auto& instance = instanceOrError.ValueOrThrow();
+
+                auto error = WaitFor(instance->Wait());
+                if (!error.IsOK()) {
                     auto instanceStderr = instance->GetStderr();
-                    YT_LOG_WARNING(ex, "Setup command failed (JobId: %v, Stderr: %v)",
+                    YT_LOG_WARNING(error, "Setup command failed (JobId: %v, Stderr: %v)",
                         jobId,
                         instanceStderr);
 
-                    auto error = TError(ex);
                     if (instanceStderr.size() > MaxStderrSizeInError) {
                         error.MutableAttributes()->Set("stderr_truncated", true);
                         instanceStderr = instanceStderr.substr(0, MaxStderrSizeInError);
                     }
                     error.MutableAttributes()->Set("stderr", instanceStderr);
-
                     THROW_ERROR error;
                 }
             }
@@ -397,7 +399,6 @@ private:
     IPortoExecutorPtr PortoExecutor_;
 
     IInstancePtr MetaInstance_;
-    THashMap<int, IInstancePtr> JobProxyInstances_;
 
     double CpuLimit_;
 
@@ -411,12 +412,6 @@ private:
 
         std::vector<TFuture<void>> futures;
         for (const auto& container : containers) {
-            if (container.find('/', rootContainer.length() + 1) != TStringBuf::npos) {
-                // YT-13559: We're interested only in the immediate children of rootContainer.
-                YT_LOG_DEBUG("Skip destroying subcontainer (Container: %v, RootContainer: %v)", container, rootContainer);
-                continue;
-            }
-
             YT_LOG_DEBUG("Destroying subcontainer (Container: %v)", container);
             futures.push_back(PortoExecutor_->DestroyContainer(container));
         }
@@ -456,49 +451,51 @@ private:
         PortoExecutor_->SubscribeFailed(portoFatalErrorHandler);
         auto selfInstance = GetSelfPortoInstance(PortoExecutor_);
 
-        auto getMetaContainer = [&] () -> IInstancePtr {
-            auto baseContainer = Config_->UseDaemonSubcontainer
-                ? selfInstance->GetParentName()
-                : selfInstance->GetAbsoluteName();
-            auto metaInstanceName = Format("%v/%v", baseContainer, GetDefaultJobsMetaContainerName());
+        YT_VERIFY(!Config_->UseDaemonSubcontainer || selfInstance->GetParentName());
+        auto baseContainer = Config_->UseDaemonSubcontainer
+            ? *selfInstance->GetParentName()
+            : selfInstance->GetName();
 
-            try {
-                WaitFor(PortoExecutor_->DestroyContainer(metaInstanceName))
-                    .ThrowOnError();
-            } catch (const TErrorException& ex) {
-                // If container doesn't exist it's ok.
-                if (!ex.Error().FindMatching(EPortoErrorCode::ContainerDoesNotExist)) {
-                    throw;
-                }
-            }
-
-            auto instance = CreatePortoInstance(
-                metaInstanceName,
-                PortoExecutor_);
-            instance->SetIOWeight(Config_->JobsIOWeight);
-            instance->SetCpuLimit(CpuLimit_);
-            return instance;
-        };
-
-        MetaInstance_ = getMetaContainer();
-        DestroyAllSubcontainers(MetaInstance_->GetAbsoluteName());
+        // If we are in the top-level container of current namespace, use names without prefix.
+        auto metaInstanceName = baseContainer.empty()
+            ? GetDefaultJobsMetaContainerName()
+            : Format("%v/%v", baseContainer, GetDefaultJobsMetaContainerName());
 
         try {
+            // Cleanup leftovers during restart.
+            WaitFor(PortoExecutor_->DestroyContainer(metaInstanceName))
+                .ThrowOnError();
+        } catch (const TErrorException& ex) {
+            // If container doesn't exist it's ok.
+            if (!ex.Error().FindMatching(EPortoErrorCode::ContainerDoesNotExist)) {
+                throw;
+            }
+        }
+
+        WaitFor(PortoExecutor_->CreateContainer(metaInstanceName))
+            .ThrowOnError();
+        
+        MetaInstance_ = GetPortoInstance(
+            PortoExecutor_,
+            metaInstanceName);
+        MetaInstance_->SetIOWeight(Config_->JobsIOWeight);
+        MetaInstance_->SetCpuLimit(CpuLimit_);
+       
+        try {
             for (int slotIndex = 0; slotIndex < slotCount; ++slotIndex) {
-                WaitFor(PortoExecutor_->CreateContainer(GetFullSlotMetaContainerName(
-                    MetaInstance_->GetAbsoluteName(),
-                    slotIndex)))
+                auto slotContainer = GetFullSlotMetaContainerName(MetaInstance_->GetName(), slotIndex);
+                WaitFor(PortoExecutor_->CreateContainer(slotContainer))
                     .ThrowOnError();
 
                 // This forces creation of CPU cgroup for this container.
                 WaitFor(PortoExecutor_->SetContainerProperty(
-                    GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex),
+                    slotContainer,
                     "cpu_guarantee",
                     "0.05c"))
                     .ThrowOnError();
 
                 WaitFor(PortoExecutor_->SetContainerProperty(
-                    GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex),
+                    slotContainer,
                     "controllers",
                     "freezer;cpu;cpuacct;cpuset;net_cls"))
                     .ThrowOnError();
@@ -511,23 +508,24 @@ private:
         TProcessJobEnvironmentBase::DoInit(slotCount, CpuLimit_);
     }
 
-    void InitJobProxyInstance(int slotIndex, TJobId jobId)
+    IInstanceLauncherPtr CreateJobProxyInstanceLauncher(int slotIndex, TJobId jobId)
     {
-        if (!JobProxyInstances_[slotIndex]) {
-            TString jobProxyContainerName = Config_->UseShortContainerNames
-                ? "/jp"
-                : Format("/jp-%v-%v", IntToString<16>(jobId.Parts32[3]), IntToString<16>(jobId.Parts32[2]));
+        TString jobProxyContainerName = Config_->UseShortContainerNames
+            ? "/jp"
+            : Format("/jp-%v-%v", IntToString<16>(jobId.Parts32[3]), IntToString<16>(jobId.Parts32[2]));
 
-            JobProxyInstances_[slotIndex] = CreatePortoInstance(
-                GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex) + jobProxyContainerName,
-                PortoExecutor_);
-        }
+        auto launcher = CreatePortoInstanceLauncher(
+            GetFullSlotMetaContainerName(MetaInstance_->GetName(), slotIndex) + jobProxyContainerName,
+            PortoExecutor_);
+        launcher->SetEnablePorto(EEnablePorto::Full);
+        launcher->SetIsolate(false);
+        return launcher;
     }
 
     virtual TProcessBasePtr CreateJobProxyProcess(int slotIndex, TJobId jobId) override
     {
-        InitJobProxyInstance(slotIndex, jobId);
-        return New<TPortoProcess>(JobProxyProgramName, JobProxyInstances_.at(slotIndex));
+        auto launcher = CreateJobProxyInstanceLauncher(slotIndex, jobId);
+        return New<TPortoProcess>(JobProxyProgramName, launcher);
     }
 
     virtual void UpdateCpuLimit(double cpuLimit)
@@ -539,29 +537,23 @@ private:
         if (MetaInstance_) {
             MetaInstance_->SetCpuLimit(cpuLimit);
         }
+
         CpuLimit_ = cpuLimit;
     }
 
-    IInstancePtr CreateSetupInstance(int slotIndex, TJobId jobId, const TRootFS& rootFS, const TString& user, int index)
+    IInstanceLauncherPtr CreateSetupInstanceLauncher(int slotIndex, TJobId jobId, const TRootFS& rootFS, const TString& user, int index)
     {
         TString setupCommandContainerJobPart = Config_->UseShortContainerNames
             ? "/sc"
             : Format("/jp-%v-%v", IntToString<16>(jobId.Parts32[3]), IntToString<16>(jobId.Parts32[2]));
         auto setupCommandContainerName = setupCommandContainerJobPart + "_" + ToString(index);
 
-        auto instance = CreatePortoInstance(
-            GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex) + setupCommandContainerName,
+        auto launcher = CreatePortoInstanceLauncher(
+            GetFullSlotMetaContainerName(MetaInstance_->GetName(), slotIndex) + setupCommandContainerName,
             PortoExecutor_);
-        instance->SetRoot(rootFS);
-        instance->SetUser(user);
-        return instance;
-    }
-
-    static TProcessBasePtr CreateSetupProcess(const IInstancePtr& instance, const NJobAgent::TShellCommandConfigPtr& command)
-    {
-        auto process = New<TPortoProcess>(command->Path, instance);
-        process->AddArguments(command->Args);
-        return process;
+        launcher->SetRoot(rootFS);
+        launcher->SetUser(user);
+        return launcher;
     }
 };
 

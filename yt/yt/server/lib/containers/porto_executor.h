@@ -6,10 +6,12 @@
 
 #include "public.h"
 
+#include <yt/yt/library/profiling/sensor.h>
+
 #include <yt/yt/core/actions/future.h>
 #include <yt/yt/core/actions/signal.h>
 
-#include <yt/yt/library/profiling/sensor.h>
+#include <yt/yt/core/net/address.h>
 
 #include <infra/porto/api/libporto.hpp>
 #include <infra/porto/proto/rpc.pb.h>
@@ -68,23 +70,59 @@ DEFINE_ENUM(EPortoErrorCode,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TRunnableContainerSpec
+{
+    TString Name;
+    TString Command;
+
+    EEnablePorto EnablePorto = EEnablePorto::None;
+    bool Isolate = true;
+
+    std::optional<TString> StdinPath;
+    std::optional<TString> StdoutPath;
+    std::optional<TString> StderrPath;
+    std::optional<TString> CurrentWorkingDirectory;
+    std::optional<TString> CoreCommand;
+    std::optional<TString> User;
+    std::optional<int> GroupId;
+
+    std::optional<i64> ThreadLimit;
+
+    std::optional<TString> HostName;
+    std::vector<NYT::NNet::TIP6Address> IPAddresses;
+
+    THashMap<TString, TString> Labels;
+    THashMap<TString, TString> Env;
+    std::vector<TString> CGroupControllers;    
+    std::vector<TDevice> Devices;
+    std::optional<TRootFS> RootFS;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IPortoExecutor
     : public TRefCounted
 {
     virtual TFuture<void> CreateContainer(const TString& container) = 0;
+
+    virtual TFuture<void> CreateContainer(const TRunnableContainerSpec& containerSpec, bool start) = 0;
+
     virtual TFuture<void> SetContainerProperty(
         const TString& container,
         const TString& property,
         const TString& value) = 0;
+
     virtual TFuture<std::optional<TString>> GetContainerProperty(
         const TString& container,
         const TString& property) = 0;
+
     virtual TFuture<THashMap<TString, TErrorOr<TString>>> GetContainerProperties(
         const TString& container,
         const std::vector<TString>& properties) = 0;
     virtual TFuture<THashMap<TString, THashMap<TString, TErrorOr<TString>>>> GetContainerProperties(
         const std::vector<TString>& containers,
         const std::vector<TString>& properties) = 0;
+
     virtual TFuture<THashMap<TString, i64>> GetContainerMetrics(
         const std::vector<TString>& containers,
         const TString& metric) = 0;
@@ -92,12 +130,17 @@ struct IPortoExecutor
     virtual TFuture<void> StopContainer(const TString& container) = 0;
     virtual TFuture<void> StartContainer(const TString& container) = 0;
     virtual TFuture<void> KillContainer(const TString& container, int signal) = 0;
-    virtual TFuture<std::vector<TString>> ListContainers() = 0;
+
+    // Returns absolute names of immediate children only.
     virtual TFuture<std::vector<TString>> ListSubcontainers(
         const TString& rootContainer,
         bool includeRoot) = 0;
     // Starts polling a given container, returns future with exit code of finished process.
     virtual TFuture<int> PollContainer(const TString& container) = 0;
+
+    // Returns future with exit code of finished process.
+    // NB: temporarily broken, see https://st.yandex-team.ru/PORTO-846 for details.
+    virtual TFuture<int> WaitContainer(const TString& container) = 0;
 
     virtual TFuture<TString> CreateVolume(
         const TString& path,
@@ -118,6 +161,8 @@ struct IPortoExecutor
         const TString& layerId,
         const TString& place) = 0;
     virtual TFuture<std::vector<TString>> ListLayers(const TString& place) = 0;
+
+    virtual IInvokerPtr GetInvoker() const = 0;
 
     DECLARE_INTERFACE_SIGNAL(void(const TError&), Failed)
 };

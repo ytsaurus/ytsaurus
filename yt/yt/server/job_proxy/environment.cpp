@@ -15,12 +15,13 @@
 #ifdef _linux_
 #include <yt/yt/server/lib/containers/porto_executor.h>
 #include <yt/yt/server/lib/containers/instance.h>
-
-#include <yt/yt/server/lib/misc/process.h>
 #endif
+
+#include <yt/yt/library/process/process.h>
 
 #include <yt/yt/core/logging/log_manager.h>
 
+#include <yt/yt/core/misc/atomic_object.h>
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
 
@@ -209,27 +210,43 @@ class TPortoUserJobEnvironment
 {
 public:
     TPortoUserJobEnvironment(
+        TGuid jobId,
         TPortoJobEnvironmentConfigPtr config,
-        const TString& slotAbsoluteName,
-        IPortoExecutorPtr portoExecutor,
-        IInstancePtr instance,
-        bool usePortoMemoryTracking)
-        : Config_(std::move(config))
-        , SlotAbsoluteName_(slotAbsoluteName)
-        , UsePortoMemoryTracking_(usePortoMemoryTracking)
+        const TUserJobEnvironmentOptions& options,
+        const TString& slotContainerName,
+        IPortoExecutorPtr portoExecutor)
+        : JobId_(jobId)
+        , Config_(std::move(config))
+        , Options_(options)
+        , SlotContainerName_(slotContainerName)
         , PortoExecutor_(std::move(portoExecutor))
-        , Instance_(std::move(instance))
-        , ResourceTracker_(New<TPortoResourceTracker>(Instance_, ResourceUsageUpdatePeriod))
-    { }
+    { 
+        if (Options_.EnableCudaGpuCoreDump && Options_.SlotCoreWatcherDirectory) {
+            auto slotGpuCorePipeFile = NFS::CombinePaths(*Options_.SlotCoreWatcherDirectory, NCoreDump::CudaGpuCoreDumpPipeName);
+            Envirnoment_.push_back("CUDA_ENABLE_COREDUMP_ON_EXCEPTION=1");
+            Envirnoment_.push_back(Format("CUDA_COREDUMP_FILE=%v", slotGpuCorePipeFile));
+        }
+        for (const auto& networkAddress : Options_.NetworkAddresses) {
+            Envirnoment_.push_back(Format("YT_IP_ADDRESS_%v=%v", to_upper(networkAddress->Name), networkAddress->Address));
+        }
+    }
 
     virtual TCpuStatistics GetCpuStatistics() const override
     {
-        return ResourceTracker_->GetCpuStatistics();
+        if (auto resourceTracker = ResourceTracker_.Load()) {
+            return resourceTracker->GetCpuStatistics();
+        } else {
+            return {};
+        }
     }
 
     virtual TBlockIOStatistics GetBlockIOStatistics() const override
     {
-        return ResourceTracker_->GetBlockIOStatistics();
+        if (auto resourceTracker = ResourceTracker_.Load()) {
+            return resourceTracker->GetBlockIOStatistics();
+        } else {
+            return {};
+        }
     }
 
     virtual TDuration GetBlockIOWatchdogPeriod() const override
@@ -240,7 +257,9 @@ public:
     virtual void CleanProcesses() override
     {
         try {
-            Instance_->Stop();
+            if (auto instance = GetUserJobInstance()) {
+                instance->Stop();    
+            }
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to stop user container");
         }
@@ -248,29 +267,83 @@ public:
 
     virtual void SetIOThrottle(i64 operations) override
     {
-        Instance_->SetIOThrottle(operations);
+        if (auto instance = GetUserJobInstance()) {
+            instance->SetIOThrottle(operations);    
+        }
     }
 
     virtual std::optional<TMemoryStatistics> GetMemoryStatistics() const
     {
-        if (UsePortoMemoryTracking_) {
-            return ResourceTracker_->GetMemoryStatistics();
+        auto resourceTracker = ResourceTracker_.Load();
+        if (Options_.EnablePortoMemoryTracking && resourceTracker) {
+            return resourceTracker->GetMemoryStatistics();
         } else {
             return std::nullopt;
         }
     }
 
-    virtual TProcessBasePtr CreateUserJobProcess(
+    virtual TFuture<void> SpawnUserProcess(
         const TString& path,
-        const TUserJobProcessOptions& options) override
+        const std::vector<TString>& arguments,
+        const TString& workingDirectory) override
     {
-        TString slotGpuCorePipeFile;
+        auto containerName = Config_->UseShortContainerNames
+            ? Format("%v/uj", SlotContainerName_)
+            : Format("%v/uj_%v-%v", SlotContainerName_, IntToString<16>(JobId_.Parts32[3]), IntToString<16>(JobId_.Parts32[2]));
 
-        if (options.SlotCoreWatcherDirectory) {
+        auto launcher = CreatePortoInstanceLauncher(containerName, PortoExecutor_);
+
+        auto portoUser = *WaitFor(PortoExecutor_->GetContainerProperty(SlotContainerName_, "user"))
+            .ValueOrThrow();
+        launcher->SetUser(portoUser);
+
+        if (Options_.RootFS) {
+            auto rootFS = *Options_.RootFS;
+            auto newPath = NFS::CombinePaths(rootFS.RootPath, "slot");
+            YT_LOG_INFO("Mount slot directory into container (Path: %v)", newPath);
+
+            THashMap<TString, TString> properties;
+            properties["backend"] = "rbind";
+            properties["storage"] = NFs::CurrentWorkingDirectory();
+            auto volumePath = WaitFor(PortoExecutor_->CreateVolume(newPath, properties))
+                .ValueOrThrow();
+
+            // TODO(gritukan): ytserver-exec can be resolved into something strange in tests,
+            // so let's live with exec in layer for a while.
+            if (!Config_->UseExecFromLayer) {
+                rootFS.Binds.push_back(TBind {
+                    ResolveBinaryPath(ExecProgramName).ValueOrThrow(),
+                    RootFSBinaryDirectory + ExecProgramName,
+                    true});
+            }
+
+            launcher->SetRoot(rootFS);
+        }
+
+        std::vector<TDevice> devices;
+        for (const auto& descriptor : ListGpuDevices()) {
+            const auto& deviceName = descriptor.DeviceName;
+            if (std::find(Options_.GpuDevices.begin(), Options_.GpuDevices.end(), deviceName) == Options_.GpuDevices.end()) {
+                devices.push_back(TDevice{
+                    .DeviceName = deviceName,
+                    .Enabled = false});
+            }
+        }
+
+        if (!devices.empty() && NFS::Exists("/dev/kvm")) {	
+            devices.push_back(TDevice{
+                .DeviceName = "/dev/kvm",
+                .Enabled = true});
+        }
+
+        // Restrict access to devices, that are not explicitly granted.
+        launcher->SetDevices(std::move(devices));
+
+        if (Options_.SlotCoreWatcherDirectory) {
             // NB: Core watcher expects core info file to be created before
             // core pipe file.
-            auto slotCoreDirectory = *options.SlotCoreWatcherDirectory;
-            auto coreDirectory = *options.CoreWatcherDirectory;
+            auto slotCoreDirectory = *Options_.SlotCoreWatcherDirectory;
+            auto coreDirectory = *Options_.CoreWatcherDirectory;
             auto slotCoreInfoFile = slotCoreDirectory + "/core_\"${CORE_PID}\".info";
             auto slotCorePipeFile = slotCoreDirectory + "/core_\"${CORE_PID}\".pipe";
             auto bashCoreHandler =
@@ -285,10 +358,10 @@ public:
             auto coreHandler = "bash -c \'" + bashCoreHandler + "\'";
             YT_LOG_DEBUG("Enabling core forwarding for Porto container (CoreHandler: %v)",
                 coreHandler);
-            Instance_->SetCoreDumpHandler(coreHandler);
+            launcher->SetCoreDumpHandler(coreHandler);
 
-            if (options.EnableCudaGpuCoreDump) {
-                slotGpuCorePipeFile = NFS::CombinePaths(slotCoreDirectory, NCoreDump::CudaGpuCoreDumpPipeName);
+            if (Options_.EnableCudaGpuCoreDump) {
+                auto slotGpuCorePipeFile = NFS::CombinePaths(slotCoreDirectory, NCoreDump::CudaGpuCoreDumpPipeName);
                 auto gpuCorePipeFile = NFS::CombinePaths(coreDirectory, NCoreDump::CudaGpuCoreDumpPipeName);
                 YT_LOG_DEBUG("Creating pipe for GPU core dumps (SlotGpuCorePipeFile: %v, GpuCorePipeFile: %v)",
                     slotGpuCorePipeFile,
@@ -301,63 +374,55 @@ public:
             }
         }
 
-        if (options.HostName) {
-            const auto& hostName = *options.HostName;
-            Instance_->SetHostName(hostName);
-            if (!options.NetworkAddresses.empty()) {
-                const auto& address = options.NetworkAddresses[0]->Address;
-                Instance_->AddHostsRecord(hostName, address);
-            }
+        if (Options_.HostName) {
+            launcher->SetHostName(*Options_.HostName);
         }
 
         //! There is no HBF in test environment, so setting IP addresses to
         //! user job will cause multiple problems during container startup.
-        if (!options.NetworkAddresses.empty() && !Config_->TestNetwork) {
+        if (!Options_.NetworkAddresses.empty()) {
             std::vector<TIP6Address> addresses;
-            addresses.reserve(options.NetworkAddresses.size());
-            for (const auto& address : options.NetworkAddresses) {
+            addresses.reserve(Options_.NetworkAddresses.size());
+            for (const auto& address : Options_.NetworkAddresses) {
                 addresses.push_back(address->Address);
             }
 
-            Instance_->SetIPAddresses(addresses);
+            launcher->SetIPAddresses(addresses);
         }
 
-        Instance_->SetEnablePorto(options.EnablePorto);
-        if (options.EnablePorto == EEnablePorto::Full) {
-            Instance_->SetIsolate(false);
-        } else {
-            Instance_->SetIsolate(true);
-        }
-
-        if (UsePortoMemoryTracking_) {
+        launcher->SetEnablePorto(Options_.EnablePorto);
+        launcher->SetIsolate(Options_.EnablePorto != EEnablePorto::Full);
+        
+        if (Options_.EnablePortoMemoryTracking) {
             // NB(psushin): typically we don't use memory cgroups for memory usage tracking, since memory cgroups are expensive and
             // shouldn't be created too often. But for special reasons (e.g. Nirvana) we still make a backdoor to track memory via cgroups.
             // More about malicious cgroups here https://st.yandex-team.ru/YTADMIN-8554#1516791797000.
             // Future happiness here https://st.yandex-team.ru/KERNEL-141.
-            Instance_->EnableMemoryTracking();
+            launcher->EnableMemoryTracking();
         }
 
-        Instance_->SetThreadLimit(options.ThreadLimit);
+        launcher->SetThreadLimit(Options_.ThreadLimit);
+        launcher->SetCwd(workingDirectory);
 
-        auto adjustedPath = Instance_->HasRoot()
+        auto adjustedPath = launcher->HasRoot()
             ? RootFSBinaryDirectory + path
-            : path;
+            : ResolveBinaryPath(path).ValueOrThrow();
 
-        Process_ = New<TPortoProcess>(adjustedPath, Instance_, false);
-        if (options.EnableCudaGpuCoreDump) {
-            Envirnoment_.push_back("CUDA_ENABLE_COREDUMP_ON_EXCEPTION=1");
-            Envirnoment_.push_back(Format("CUDA_COREDUMP_FILE=%v", slotGpuCorePipeFile));
-        }
-        for (const auto& networkAddress : options.NetworkAddresses) {
-            Envirnoment_.push_back(Format("YT_IP_ADDRESS_%v=%v", to_upper(networkAddress->Name), networkAddress->Address));
-        }
+        auto instance = WaitFor(launcher->Launch(adjustedPath, arguments, {}))
+            .ValueOrThrow();
 
-        return Process_;
+        auto finishedFuture = instance->Wait();
+
+        Instance_.Store(instance);
+
+        // Now instance is finally created and we can instantiate resource tracker.
+        ResourceTracker_.Store(New<TPortoResourceTracker>(instance, ResourceUsageUpdatePeriod));
+        return finishedFuture;
     }
 
     virtual IInstancePtr GetUserJobInstance() const override
     {
-        return Instance_;
+        return Instance_.Load();
     }
 
     const std::vector<TString>& GetEnvironmentVariables() const override
@@ -365,16 +430,26 @@ public:
         return Envirnoment_;
     }
 
+    std::vector<pid_t> GetJobPids() const override
+    {
+        if (auto instance = GetUserJobInstance()) {
+            return instance->GetPids();
+        } else {
+            return {};
+        }
+    }
+
 private:
+    const TGuid JobId_;
     const TPortoJobEnvironmentConfigPtr Config_;
-    const TString SlotAbsoluteName_;
-    const bool UsePortoMemoryTracking_;
+    const TUserJobEnvironmentOptions Options_;
+    const TString SlotContainerName_;
     const IPortoExecutorPtr PortoExecutor_;
-    const IInstancePtr Instance_;
-    const TPortoResourceTrackerPtr ResourceTracker_;
+    
     std::vector<TString> Envirnoment_;
 
-    TProcessBasePtr Process_;
+    TAtomicObject<IInstancePtr> Instance_;
+    TAtomicObject<TPortoResourceTrackerPtr> ResourceTracker_;
 };
 
 DECLARE_REFCOUNTED_CLASS(TPortoUserJobEnvironment)
@@ -386,17 +461,12 @@ class TPortoJobProxyEnvironment
     : public IJobProxyEnvironment
 {
 public:
-    TPortoJobProxyEnvironment(
-        TPortoJobEnvironmentConfigPtr config,
-        const std::optional<TRootFS>& rootFS,
-        std::vector<TString> gpuDevices)
+    TPortoJobProxyEnvironment(TPortoJobEnvironmentConfigPtr config)
         : Config_(std::move(config))
-        , RootFS_(rootFS)
-        , GpuDevices_(std::move(gpuDevices))
         , PortoExecutor_(CreatePortoExecutor(Config_->PortoExecutor, "environ"))
         , Self_(GetSelfPortoInstance(PortoExecutor_))
         , ResourceTracker_(New<TPortoResourceTracker>(Self_, ResourceUsageUpdatePeriod))
-        , SlotAbsoluteName_(GetAbsoluteName(Self_))
+        , SlotContainerName_(*Self_->GetParentName())
     {
         PortoExecutor_->SubscribeFailed(BIND(&TPortoJobProxyEnvironment::OnFatalError, MakeWeak(this)));
     }
@@ -411,96 +481,37 @@ public:
         return ResourceTracker_->GetBlockIOStatistics();
     }
 
-    virtual void SetCpuShare(double share) override
+    virtual void SetCpuGuarantee(double value) override
     {
-        WaitFor(PortoExecutor_->SetContainerProperty(SlotAbsoluteName_, "cpu_guarantee", ToString(share) + "c"))
+        WaitFor(PortoExecutor_->SetContainerProperty(SlotContainerName_, "cpu_guarantee", ToString(value) + "c"))
             .ThrowOnError();
     }
 
-    virtual void SetCpuLimit(double share) override
+    virtual void SetCpuLimit(double value) override
     {
-        WaitFor(PortoExecutor_->SetContainerProperty(SlotAbsoluteName_, "cpu_limit", ToString(share) + "c"))
+        WaitFor(PortoExecutor_->SetContainerProperty(SlotContainerName_, "cpu_limit", ToString(value) + "c"))
             .ThrowOnError();
     }
 
-    virtual void EnablePortoMemoryTracking() override
-    {
-        UsePortoMemoryTracking_ = true;
-    }
-
-    virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(TGuid jobId) override
-    {
-        auto containerName = Config_->UseShortContainerNames
-            ? Format("%v/uj", SlotAbsoluteName_)
-            : Format("%v/uj_%v-%v", SlotAbsoluteName_, IntToString<16>(jobId.Parts32[3]), IntToString<16>(jobId.Parts32[2]));
-
-        auto instance = CreatePortoInstance(containerName, PortoExecutor_);
-
-        auto portoUser = *WaitFor(PortoExecutor_->GetContainerProperty(SlotAbsoluteName_, "user"))
-            .ValueOrThrow();
-        instance->SetUser(portoUser);
-
-        if (RootFS_) {
-            auto newPath = NFS::CombinePaths(RootFS_->RootPath, "slot");
-            YT_LOG_INFO("Mount slot directory into container (Path: %v)", newPath);
-
-            THashMap<TString, TString> properties;
-            properties["backend"] = "rbind";
-            properties["storage"] = NFs::CurrentWorkingDirectory();
-            auto volumePath = WaitFor(PortoExecutor_->CreateVolume(newPath, properties))
-                .ValueOrThrow();
-
-            // TODO(gritukan): ytserver-exec can be resolved into something strange in tests,
-            // so let's live with exec in layer for a while.
-            if (!Config_->UseExecFromLayer) {
-                RootFS_->Binds.emplace_back(TBind {
-                    ResolveBinaryPath(ExecProgramName).ValueOrThrow(),
-                    RootFSBinaryDirectory + ExecProgramName,
-                    true});
-            }
-
-            instance->SetRoot(*RootFS_);
-        }
-
-        std::vector<TDevice> devices;
-        for (const auto& descriptor : ListGpuDevices()) {
-            const auto& deviceName = descriptor.DeviceName;
-            if (std::find(GpuDevices_.begin(), GpuDevices_.end(), deviceName) == GpuDevices_.end()) {
-                devices.emplace_back(TDevice{
-                    .DeviceName = deviceName,
-                    .Enabled = false});
-            }
-        }
-
-        // Restrict access to devices, that are not explicitly granted.
-        instance->SetDevices(std::move(devices));
-
+    virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(
+        TGuid jobId, 
+        const TUserJobEnvironmentOptions& options) override
+    {  
         return New<TPortoUserJobEnvironment>(
+            jobId,
             Config_,
-            SlotAbsoluteName_,
-            PortoExecutor_,
-            std::move(instance),
-            UsePortoMemoryTracking_);
+            options,
+            SlotContainerName_,
+            PortoExecutor_);
     }
 
 private:
     const TPortoJobEnvironmentConfigPtr Config_;
-    std::optional<TRootFS> RootFS_;
-    const std::vector<TString> GpuDevices_;
     const IPortoExecutorPtr PortoExecutor_;
     const IInstancePtr Self_;
     const TPortoResourceTrackerPtr ResourceTracker_;
-    const TString SlotAbsoluteName_;
+    const TString SlotContainerName_;
 
-    bool UsePortoMemoryTracking_ = false;
-
-    static TString GetAbsoluteName(const IInstancePtr& instance)
-    {
-        auto absoluteName = instance->GetAbsoluteName();
-        // ../yt_jobs_meta/slot_meta_N/job_proxy_ID
-        auto jobProxyStart = absoluteName.find_last_of('/');
-        return absoluteName.substr(0, jobProxyStart);
-    }
 
     void OnFatalError(const TError& error)
     {
@@ -519,32 +530,147 @@ DEFINE_REFCOUNTED_TYPE(TPortoJobProxyEnvironment)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
-    NYTree::INodePtr config,
-    const std::optional<TRootFS>& rootFS,
-    std::vector<TString> gpuDevices)
+class TSimpleUserJobEnvironment
+    : public IUserJobEnvironment
 {
+public:
+    virtual TDuration GetBlockIOWatchdogPeriod() const override
+    {
+        // No IO watchdog for simple job environment.
+        return TDuration::Max();
+    }
 
+    virtual std::optional<TMemoryStatistics> GetMemoryStatistics() const override
+    {
+        return std::nullopt;
+    }
+
+    virtual TCpuStatistics GetCpuStatistics() const override
+    {
+        return {};
+    }
+
+    virtual TBlockIOStatistics GetBlockIOStatistics() const override
+    {
+        return {};
+    }
+
+    virtual void CleanProcesses() override 
+    {
+        if (auto process = Process_.Load()) {
+            process->Kill(9);
+        }
+    }
+
+    virtual void SetIOThrottle(i64 /* operations */) override
+    {
+        // Noop.
+    }
+
+    virtual TFuture<void> SpawnUserProcess(
+        const TString& path,
+        const std::vector<TString>& arguments,
+        const TString& workingDirectory) override
+    {
+        auto process = New<TSimpleProcess>(path, false);
+        process->AddArguments(arguments);
+        process->SetWorkingDirectory(workingDirectory);
+        Process_.Store(process);
+        return process->Spawn();
+    }
+
+    virtual NContainers::IInstancePtr GetUserJobInstance() const override
+    {
+        return nullptr;
+    }
+
+    virtual std::vector<pid_t> GetJobPids() const override
+    {
+        if (auto process = Process_.Load()) {
+            auto pid = process->GetProcessId();
+            return GetPidsUnderParent(pid);
+        }
+        
+        return {};
+    }
+
+    //! Returns the list of environment-specific environment variables in key=value format.
+    virtual const std::vector<TString>& GetEnvironmentVariables() const override
+    {
+        static std::vector<TString> emptyEnvironment;
+        return emptyEnvironment;
+    }
+
+private:
+    TAtomicObject<TProcessBasePtr> Process_;
+};
+
+DECLARE_REFCOUNTED_CLASS(TSimpleUserJobEnvironment)
+DEFINE_REFCOUNTED_TYPE(TSimpleUserJobEnvironment)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSimpleJobProxyEnvironment
+    : public IJobProxyEnvironment
+{
+public:
+    virtual void SetCpuGuarantee(double /* value */) override
+    {
+        YT_LOG_WARNING("Cpu guarantees are not supported in simple job environment");
+    }
+    
+    virtual void SetCpuLimit(double /* value */) override
+    {
+        YT_LOG_WARNING("Cpu limits are not supported in simple job environment");
+    }
+
+    virtual TCpuStatistics GetCpuStatistics() const override
+    {
+        return {};
+    }
+
+    virtual TBlockIOStatistics GetBlockIOStatistics() const override
+    {
+        return {};
+    }
+
+    virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(
+        TGuid /* jobId */,
+        const TUserJobEnvironmentOptions& options) 
+    {
+        if (options.RootFS) {
+            THROW_ERROR_EXCEPTION("Root FS isolation is not supported in simple job environment");
+        }
+
+        if (!options.GpuDevices.empty()) {
+            // This could only happen in tests, e.g. TestSchedulerGpu.
+            YT_LOG_WARNING("GPU devices are not supported in simple job environment");
+        }
+
+        if (options.EnablePortoMemoryTracking) {
+            THROW_ERROR_EXCEPTION("Porto memory tracking is not supported in simple job environment");
+        }
+
+        return New<TSimpleUserJobEnvironment>();
+    }
+};
+
+DECLARE_REFCOUNTED_CLASS(TSimpleJobProxyEnvironment)
+DEFINE_REFCOUNTED_TYPE(TSimpleJobProxyEnvironment)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IJobProxyEnvironmentPtr CreateJobProxyEnvironment(NYTree::INodePtr config)
+{
     auto environmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(config);
     switch (environmentConfig->Type) {
 #ifdef _linux_
         case EJobEnvironmentType::Porto:
-            return New<TPortoJobProxyEnvironment>(
-                ConvertTo<TPortoJobEnvironmentConfigPtr>(config),
-                rootFS,
-                std::move(gpuDevices));
+            return New<TPortoJobProxyEnvironment>(ConvertTo<TPortoJobEnvironmentConfigPtr>(config));
 #endif
 
         case EJobEnvironmentType::Simple:
-            if (rootFS) {
-                THROW_ERROR_EXCEPTION("Simple job environment does not support custom root FS");
-            }
-
-            if (!gpuDevices.empty()) {
-                YT_LOG_WARNING("Simple job environment does not support GPU device isolation (Devices: %v)", gpuDevices);
-            }
-
-            return nullptr;
+            return New<TSimpleJobProxyEnvironment>();
 
         default:
             THROW_ERROR_EXCEPTION("Unable to create resource controller for %Qlv environment",

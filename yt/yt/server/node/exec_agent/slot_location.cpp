@@ -96,7 +96,7 @@ TFuture<void> TSlotLocation::Initialize()
             for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
                 auto slotConfig = New<TSlotConfig>();
                 slotConfig->Index = slotIndex;
-                if (!Bootstrap_->IsSimpleEnvironment()) {
+                if (!Bootstrap_->IsSimpleEnvironment() && !Bootstrap_->GetConfig()->ExecAgent->DoNotSetUserId) {
                     slotConfig->Uid = SlotIndexToUserId_(slotIndex);
                 }
                 slotLocationBuilderConfig->SlotConfigs.push_back(std::move(slotConfig));
@@ -534,7 +534,7 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
                 slotLocationBuilderConfig->NodeUid = getuid();
                 auto slotConfig = New<TSlotConfig>();
                 slotConfig->Index = slotIndex;
-                if (!Bootstrap_->IsSimpleEnvironment()) {
+                if (!Bootstrap_->IsSimpleEnvironment() && !Bootstrap_->GetConfig()->ExecAgent->DoNotSetUserId) {
                     slotConfig->Uid = SlotIndexToUserId_(slotIndex);
                 }
                 slotLocationBuilderConfig->SlotConfigs.push_back(std::move(slotConfig));

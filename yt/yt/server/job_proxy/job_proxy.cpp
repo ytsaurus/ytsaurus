@@ -296,14 +296,25 @@ void TJobProxy::RetrieveJobSpec()
     // Job spec is copied intentionally.
     LogJobSpec(rsp->job_spec());
 
-    JobProxyMemoryReserve_ = resourceUsage.memory();
-    CpuShare_ = resourceUsage.cpu();
+    auto totalMemoryReserve = resourceUsage.memory();
+    CpuGuarantee_ = resourceUsage.cpu();
     NetworkUsage_ = resourceUsage.network();
 
     // We never report to node less memory usage, than was initially reserved.
-    TotalMaxMemoryUsage_ = JobProxyMemoryReserve_ - Config_->AheadMemoryReserve;
-    ApprovedMemoryReserve_ = JobProxyMemoryReserve_;
-    RequestedMemoryReserve_ = JobProxyMemoryReserve_;
+    TotalMaxMemoryUsage_ = totalMemoryReserve - Config_->AheadMemoryReserve;
+    ApprovedMemoryReserve_ = totalMemoryReserve;
+    RequestedMemoryReserve_ = totalMemoryReserve;
+
+    auto schedulerJobSpecExt = JobSpecHelper_->GetSchedulerJobSpecExt();
+    if (schedulerJobSpecExt.has_user_job_spec()) {
+        const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+        JobProxyMemoryReserve_ = totalMemoryReserve - userJobSpec.memory_reserve();
+        YT_LOG_DEBUG("Adjusting job proxy memory limit (JobProxyMemoryReserve: %v, UserJobMemoryReserve: %v)",
+            JobProxyMemoryReserve_,
+            userJobSpec.memory_reserve());
+    } else {
+        JobProxyMemoryReserve_ = totalMemoryReserve;
+    }
 
     std::vector<TString> annotations{
         Format("Type: SchedulerJob"),
@@ -527,46 +538,7 @@ TJobResult TJobProxy::DoRun()
     IJobPtr job;
 
     try {
-        // Use everything.
-
-        auto createRootFS = [&] () -> std::optional<TRootFS> {
-            if (!Config_->RootPath) {
-                YT_LOG_DEBUG("Job is not using custom root fs");
-                return std::nullopt;
-            }
-
-            if (Config_->TestRootFS) {
-                YT_LOG_DEBUG("Job is running in testing root fs mode");
-                return std::nullopt;
-            }
-
-            YT_LOG_DEBUG("Job is using custom root fs (Path: %v)", Config_->RootPath);
-
-            TRootFS rootFS;
-            rootFS.IsRootReadOnly = !Config_->MakeRootFSWritable;
-            rootFS.RootPath = *Config_->RootPath;
-
-            for (const auto& bind : Config_->Binds) {
-                rootFS.Binds.emplace_back(TBind {bind->ExternalPath, bind->InternalPath, bind->ReadOnly});
-            }
-
-            rootFS.Binds.emplace_back(TBind {GetPreparationPath(), GetSlotPath(), false});
-            for (const auto& tmpfsPath : Config_->TmpfsManager->TmpfsPaths) {
-                rootFS.Binds.emplace_back(TBind {tmpfsPath, AdjustPath(tmpfsPath), false});
-            }
-
-            // Temporary workaround for nirvana - make tmp directories writable.
-            auto tmpPath = NFS::CombinePaths(NFs::CurrentWorkingDirectory(), SandboxDirectoryNames[ESandboxKind::Tmp]);
-            rootFS.Binds.emplace_back(TBind {tmpPath, "/tmp", false});
-            rootFS.Binds.emplace_back(TBind {tmpPath, "/var/tmp", false});
-
-            return rootFS;
-        };
-
-        auto environment = CreateJobProxyEnvironment(
-            Config_->JobEnvironment,
-            createRootFS(),
-            Config_->GpuDevices);
+        auto environment = CreateJobProxyEnvironment(Config_->JobEnvironment);
         SetJobProxyEnvironment(environment);
 
         LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(Config_->Addresses, Config_->Rack, Config_->DataCenter);
@@ -591,7 +563,7 @@ TJobResult TJobProxy::DoRun()
         Client_ = clusterConnection->CreateNativeClient(TClientOptions::FromUser(GetJobUserName()));
 
         auto cpuMonitorConfig = ConvertTo<TJobCpuMonitorConfigPtr>(TYsonString(JobSpecHelper_->GetSchedulerJobSpecExt().job_cpu_monitor_config()));
-        CpuMonitor_ = New<TCpuMonitor>(std::move(cpuMonitorConfig), JobThread_->GetInvoker(), this, CpuShare_);
+        CpuMonitor_ = New<TCpuMonitor>(std::move(cpuMonitorConfig), JobThread_->GetInvoker(), this, CpuGuarantee_);
 
         if (Config_->JobThrottler) {
             YT_LOG_DEBUG("Job throttling enabled");
@@ -636,13 +608,13 @@ TJobResult TJobProxy::DoRun()
         RefCountedTrackerLogPeriod_ = FromProto<TDuration>(schedulerJobSpecExt.job_proxy_ref_counted_tracker_log_period());
 
         if (environment) {
-            environment->SetCpuShare(CpuShare_);
+            environment->SetCpuGuarantee(CpuGuarantee_);
             if (schedulerJobSpecExt.has_user_job_spec() &&
                 schedulerJobSpecExt.user_job_spec().set_container_cpu_limit())
             {
                 auto limit = schedulerJobSpecExt.user_job_spec().container_cpu_limit() > 0
                     ? schedulerJobSpecExt.user_job_spec().container_cpu_limit()
-                    : CpuShare_.load();
+                    : CpuGuarantee_.load();
                 environment->SetCpuLimit(limit);
             }
         }
@@ -662,19 +634,9 @@ TJobResult TJobProxy::DoRun()
             jobEnvironmentConfig->MemoryWatchdogPeriod);
 
         if (schedulerJobSpecExt.has_user_job_spec()) {
-            const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
-
-            if (environment && userJobSpec.use_porto_memory_tracking()) {
-                environment->EnablePortoMemoryTracking();
-            }
-
-            JobProxyMemoryReserve_ -= userJobSpec.memory_reserve();
-            YT_LOG_DEBUG("Adjusting job proxy memory limit (JobProxyMemoryReserve: %v, UserJobMemoryReserve: %v)",
-                JobProxyMemoryReserve_,
-                userJobSpec.memory_reserve());
             job = CreateUserJob(
                 this,
-                userJobSpec,
+                schedulerJobSpecExt.user_job_spec(),
                 JobId_,
                 Ports_,
                 std::make_unique<TUserJobWriteController>(this));
@@ -797,13 +759,65 @@ TStatistics TJobProxy::GetStatistics() const
     return statistics;
 }
 
-IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment() const
+IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnvironmentOptions& options) const
 {
-    if (auto environment = FindJobProxyEnvironment()) {
-        return environment->CreateUserJobEnvironment(JobId_);
-    } else {
-        return nullptr;
+    auto environment = FindJobProxyEnvironment();
+    YT_VERIFY(environment);
+
+    auto createRootFS = [&] () -> std::optional<TRootFS> {
+        if (!Config_->RootPath) {
+            YT_LOG_DEBUG("Job is not using custom root fs");
+            return std::nullopt;
+        }
+
+        if (Config_->TestRootFS) {
+            YT_LOG_DEBUG("Job is running in testing root fs mode");
+            return std::nullopt;
+        }
+
+        YT_LOG_DEBUG("Job is using custom root fs (Path: %v)", Config_->RootPath);
+
+        TRootFS rootFS {
+            .IsRootReadOnly = !Config_->MakeRootFSWritable,
+            .RootPath = *Config_->RootPath
+        };
+
+        for (const auto& bind : Config_->Binds) {
+            rootFS.Binds.emplace_back(TBind{bind->ExternalPath, bind->InternalPath, bind->ReadOnly});
+        }
+
+        rootFS.Binds.emplace_back(TBind{GetPreparationPath(), GetSlotPath(), /*readOnly*/ false});
+        for (const auto& tmpfsPath : Config_->TmpfsManager->TmpfsPaths) {
+            rootFS.Binds.emplace_back(TBind{tmpfsPath, AdjustPath(tmpfsPath), /*readOnly*/ false});
+        }
+
+        // Temporary workaround for nirvana - make tmp directories writable.
+        auto tmpPath = NFS::CombinePaths(NFs::CurrentWorkingDirectory(), SandboxDirectoryNames[ESandboxKind::Tmp]);
+        rootFS.Binds.emplace_back(TBind{tmpPath, "/tmp", /*readOnly*/ false});
+        rootFS.Binds.emplace_back(TBind{tmpPath, "/var/tmp", /*readOnly*/ false});
+
+        return rootFS;
+    };
+
+    TUserJobEnvironmentOptions environmentOptions {
+        .RootFS = createRootFS(),
+        .GpuDevices = Config_->GpuDevices,
+        .HostName = Config_->HostName,
+        .NetworkAddresses = Config_->NetworkAddresses,
+        .EnablePortoMemoryTracking = options.EnablePortoMemoryTracking,
+        .EnableCudaGpuCoreDump = options.EnableGpuCoreDumps,
+        .EnablePorto = options.EnablePorto,
+        .ThreadLimit = options.ThreadLimit
+    };
+
+    if (options.EnableCoreDumps) {
+        environmentOptions.SlotCoreWatcherDirectory = NFS::CombinePaths({GetSlotPath(), "cores"});
+        environmentOptions.CoreWatcherDirectory = NFS::CombinePaths({GetPreparationPath(), "cores"});
     }
+
+    return environment->CreateUserJobEnvironment(
+        JobId_,
+        environmentOptions);
 }
 
 TJobProxyConfigPtr TJobProxy::GetConfig() const
@@ -840,7 +854,7 @@ void TJobProxy::UpdateResourceUsage()
     auto req = SupervisorProxy_->UpdateResourceUsage();
     ToProto(req->mutable_job_id(), JobId_);
     auto* resourceUsage = req->mutable_resource_usage();
-    resourceUsage->set_cpu(CpuShare_);
+    resourceUsage->set_cpu(CpuGuarantee_);
     resourceUsage->set_network(NetworkUsage_);
     resourceUsage->set_memory(RequestedMemoryReserve_);
     req->Invoke().Subscribe(BIND(&TJobProxy::OnResourcesUpdated, MakeWeak(this), RequestedMemoryReserve_.load()));
@@ -1060,22 +1074,22 @@ void TJobProxy::Exit(EJobProxyExitCode exitCode)
     _exit(static_cast<int>(exitCode));
 }
 
-bool TJobProxy::TrySetCpuShare(double cpuShare)
+bool TJobProxy::TrySetCpuGuarantee(double cpuGuarantee)
 {
     if (auto environment = FindJobProxyEnvironment()) {
         try {
-            environment->SetCpuShare(cpuShare);
+            environment->SetCpuGuarantee(cpuGuarantee);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Failed to set CPU share (OldCpuShare: %v, NewCpuShare: %v)",
-                CpuShare_.load(),
-                cpuShare);
+                CpuGuarantee_.load(),
+                cpuGuarantee);
             return false;
         }
-        CpuShare_ = cpuShare;
-        UpdateResourceUsage();
         YT_LOG_INFO("Changed CPU share (OldCpuShare: %v, NewCpuShare: %v)",
-            CpuShare_.load(),
-            cpuShare);
+            CpuGuarantee_.load(),
+            cpuGuarantee);
+        CpuGuarantee_ = cpuGuarantee;
+        UpdateResourceUsage();
         return true;
     } else {
         YT_LOG_INFO("Unable to change CPU share: environment is not set");
