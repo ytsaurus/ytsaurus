@@ -112,7 +112,7 @@ public:
         , Type_(type)
         , P2PHitWeight_(profiler.Counter("/p2p_hit_weight"))
         , P2PSuccessWeight_(profiler.Counter("/p2p_success_weight"))
-        , P2PWastedWeight_(profiler.Counter("/p2p_waster_weight"))
+        , P2PWastedWeight_(profiler.Counter("/p2p_wasted_weight"))
     { }
 
     void PutBlock(const TBlockId& id, const TBlock& block, bool p2p)
