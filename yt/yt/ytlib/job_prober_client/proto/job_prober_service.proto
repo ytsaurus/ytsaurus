@@ -78,4 +78,10 @@ message TReqAbort
 message TRspAbort
 { }
 
+message TReqDumpSensors
+{ }
+
+message TRspDumpSensors
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////

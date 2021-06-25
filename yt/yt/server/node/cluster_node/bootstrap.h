@@ -28,6 +28,8 @@
 
 #include <yt/yt/ytlib/misc/public.h>
 
+#include <yt/yt/library/profiling/solomon/exporter.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/ytlib/query_client/public.h>
@@ -121,6 +123,7 @@ public:
     const TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const;
     const TNodeResourceManagerPtr& GetNodeResourceManager() const;
     const NDataNode::TMediumUpdaterPtr& GetMediumUpdater() const;
+    const NProfiling::TSolomonExporterPtr& GetJobProxySolomonExporter() const;
 
     const NConcurrency::IThroughputThrottlerPtr& GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind kind) const;
     const NConcurrency::IThroughputThrottlerPtr& GetTabletNodeThrottler(NTabletNode::ETabletNodeThrottlerKind kind) const;
@@ -256,6 +259,8 @@ private:
     THashSet<NNodeTrackerClient::ENodeFlavor> Flavors_;
 
     bool Decommissioned_ = false;
+
+    NProfiling::TSolomonExporterPtr JobProxySolomonExporter_;
 
     void DoInitialize();
     void DoRun();

@@ -69,6 +69,9 @@ public:
     //! Returns the maximum allowed resource usage.
     NNodeTrackerClient::NProto::TNodeResources GetResourceLimits() const;
 
+    //! Checks dynamic config to see if job proxy profiling is disabled.
+    bool IsJobProxyProfilingDisabled() const;
+
     //! Set resource limits overrides.
     void SetResourceLimitsOverrides(const NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides& resourceLimits);
 

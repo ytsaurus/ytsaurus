@@ -97,6 +97,23 @@ public:
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
     }
 
+    virtual TSharedRef DumpSensors() override
+    {
+        auto* proxy = GetOrCreateJobProberProxy();
+
+        auto req = proxy->DumpSensors();
+
+        auto rsp = WaitFor(req->Invoke())
+            .ValueOrThrow();
+
+        if (rsp->Attachments().size() != 1) {
+            THROW_ERROR_EXCEPTION("Invalid attachment count")
+                << TErrorAttribute("count", rsp->Attachments().size());
+        }
+
+        return rsp->Attachments()[0];
+    }
+
 private:
     const TTcpBusClientConfigPtr TcpBusClientConfig_;
     const TJobId JobId_;

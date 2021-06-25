@@ -24,6 +24,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NJobProberClient::NProto, Interrupt);
     DEFINE_RPC_PROXY_METHOD(NJobProberClient::NProto, Fail);
     DEFINE_RPC_PROXY_METHOD(NJobProberClient::NProto, Abort);
+    DEFINE_RPC_PROXY_METHOD(NJobProberClient::NProto, DumpSensors);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

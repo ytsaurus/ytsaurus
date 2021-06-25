@@ -134,6 +134,8 @@ public:
     TFuture<void> RequestJobSpecsAndStartJobs(
         std::vector<NJobTrackerClient::NProto::TJobStartInfo> jobStartInfos);
 
+    bool IsJobProxyProfilingDisabled() const;
+
 private:
     friend class TJobController::TJobHeartbeatProcessorBase;
 
@@ -1277,6 +1279,14 @@ const THashMap<TJobId, TOperationId>& TJobController::TImpl::GetSpecFetchFailedJ
     return SpecFetchFailedJobIds_;
 }
 
+bool TJobController::TImpl::IsJobProxyProfilingDisabled() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto config = DynamicConfig_.Load();
+    return config ? config->DisableJobProxyProfiling.value_or(Config_->DisableJobProxyProfiling) : Config_->DisableJobProxyProfiling;
+}
+
 TFuture<void> TJobController::TImpl::RequestJobSpecsAndStartJobs(std::vector<NJobTrackerClient::NProto::TJobStartInfo> jobStartInfos)
 {
     THashMap<TAddressWithNetwork, std::vector<NJobTrackerClient::NProto::TJobStartInfo>> groupedStartInfos;
@@ -1765,6 +1775,11 @@ TFuture<void> TJobController::ProcessHeartbeatResponse(
 IYPathServicePtr TJobController::GetOrchidService()
 {
     return Impl_->GetOrchidService();
+}
+
+bool TJobController::IsJobProxyProfilingDisabled() const
+{
+    return Impl_->IsJobProxyProfilingDisabled();
 }
 
 DELEGATE_SIGNAL(TJobController, void(), ResourcesUpdated, *Impl_)

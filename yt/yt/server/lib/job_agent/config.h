@@ -247,6 +247,8 @@ public:
     
     std::optional<TDuration> RecentlyRemovedJobsCleanPeriod;
     std::optional<TDuration> RecentlyRemovedJobsStoreTimeout;
+
+    std::optional<bool> DisableJobProxyProfiling;
     
     TGpuManagerDynamicConfigPtr GpuManager;
 
@@ -275,6 +277,9 @@ public:
         
         RegisterParameter("gpu_manager", GpuManager)
             .DefaultNew();
+        
+        RegisterParameter("disable_job_proxy_profiling", DisableJobProxyProfiling)
+            .Default();
     }
 };
 
@@ -317,6 +322,8 @@ public:
     TString SetupCommandUser;
 
     TDuration JobProxyBuildInfoUpdatePeriod;
+
+    bool DisableJobProxyProfiling;
 
     TJobControllerConfig()
     {
@@ -380,6 +387,9 @@ public:
 
         RegisterParameter("job_proxy_build_info_update_period", JobProxyBuildInfoUpdatePeriod)
             .Default(TDuration::Seconds(5));
+
+        RegisterParameter("disable_job_proxy_profiling", DisableJobProxyProfiling)
+            .Default(false);
 
         RegisterPreprocessor([&] () {
             // 100 kB/sec * 1000 [nodes] = 100 MB/sec that corresponds to

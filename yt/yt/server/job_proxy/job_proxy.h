@@ -16,6 +16,8 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/yt/library/profiling/solomon/exporter.h>
+
 #include <yt/yt/core/concurrency/public.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -49,6 +51,7 @@ public:
         const NYson::TYsonString& parameters) override;
     virtual void Interrupt() override;
     virtual void Fail() override;
+    virtual TSharedRef DumpSensors() override;
 
     virtual NJobTrackerClient::TJobId GetJobId() const override;
 
@@ -136,6 +139,8 @@ private:
     NConcurrency::IThroughputThrottlerPtr OutRpsThrottler_;
 
     NChunkClient::IBlockCachePtr ReaderBlockCache_;
+
+    NProfiling::TSolomonExporterPtr SolomonExporter_;
 
     void SetJob(IJobPtr job);
     IJobPtr FindJob() const;
