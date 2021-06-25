@@ -674,7 +674,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
     @authors("cookiedoth")
     def test_transaction_chunk_usage(self):
         self._create_account(35)
-        
+
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
@@ -702,7 +702,6 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 "intermediate_data_account": "acc",
             }
         )
-
 
         wait(lambda: op.get_job_count("completed") >= 100)
         op.suspend()
