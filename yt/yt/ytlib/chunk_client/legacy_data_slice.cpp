@@ -137,8 +137,11 @@ bool TLegacyDataSlice::IsEmpty() const
 
 bool TLegacyDataSlice::HasLimits() const
 {
-    YT_VERIFY(!IsLegacy);
-    return !LowerLimit_.IsTrivial() || !UpperLimit_.IsTrivial();
+    if (IsLegacy) {
+        return !LegacyLowerLimit_.Key && !LegacyLowerLimit_.RowIndex && !LegacyUpperLimit_.Key && !LegacyUpperLimit_.RowIndex;
+    } else {
+        return !LowerLimit_.IsTrivial() || !UpperLimit_.IsTrivial();
+    }
 }
 
 std::pair<TLegacyDataSlicePtr, TLegacyDataSlicePtr> TLegacyDataSlice::SplitByRowIndex(i64 rowIndex) const
