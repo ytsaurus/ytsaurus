@@ -115,6 +115,11 @@ i64 TJob::GetStderrSize() const
     return 0;
 }
 
+TSharedRef TJob::DumpSensors()
+{
+    YT_UNIMPLEMENTED();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSimpleJobBase::TSimpleJobBase(IJobHost* host)

@@ -16,6 +16,7 @@
 
 #include <yt/yt/server/node/job_agent/job.h>
 #include <yt/yt/server/node/job_agent/gpu_manager.h>
+#include <yt/yt/server/node/job_agent/job_controller.h>
 
 #include <yt/yt/server/lib/containers/public.h>
 
@@ -307,6 +308,10 @@ public:
 
             ValidateJobPhase(EJobPhase::SpawningJobProxy);
             SetJobPhase(EJobPhase::PreparingArtifacts);
+
+            if (!Bootstrap_->GetJobController()->IsJobProxyProfilingDisabled()) {
+                Bootstrap_->GetJobProxySolomonExporter()->AttachRemoteProcess(BIND(&TJob::DumpSensors, MakeStrong(this)));
+            }
         });
     }
 
@@ -2426,6 +2431,17 @@ private:
         }
     }
 
+    TFuture<TSharedRef> DumpSensors()
+    {
+        auto jobProbe = GetJobProbeOrThrow();
+
+        return BIND([jobProbe] {
+            return jobProbe->DumpSensors();
+        })
+            .AsyncVia(Invoker_)
+            .Run()
+            .WithTimeout(Config_->SensorDumpTimeout);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

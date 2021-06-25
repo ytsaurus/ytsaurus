@@ -45,6 +45,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PollJobShell));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Interrupt));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Fail));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpSensors));
     }
 
 private:
@@ -97,6 +98,13 @@ private:
         Y_UNUSED(response);
 
         GetJobProxy()->Fail();
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, DumpSensors)
+    {
+        response->Attachments().push_back(GetJobProxy()->DumpSensors());
 
         context->Reply();
     }

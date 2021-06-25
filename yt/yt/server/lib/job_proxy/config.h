@@ -292,6 +292,11 @@ public:
 
         RegisterParameter("do_not_set_user_id", DoNotSetUserId)
             .Default(false);
+        
+        RegisterPreprocessor([&] {
+            SolomonExporter->EnableSelfProfiling = false;
+            SolomonExporter->WindowSize = 1;
+        });
     }
 };
 

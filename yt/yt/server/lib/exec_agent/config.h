@@ -418,6 +418,9 @@ public:
 
     TMasterConnectorConfigPtr MasterConnector;
 
+    NProfiling::TSolomonExporterConfigPtr JobProxySolomonExporter;
+    TDuration SensorDumpTimeout;
+
     TExecAgentConfig()
     {
         RegisterParameter("slot_manager", SlotManager)
@@ -486,6 +489,11 @@ public:
 
         RegisterParameter("master_connector", MasterConnector)
             .DefaultNew();
+
+        RegisterParameter("job_proxy_solomon_exporter", JobProxySolomonExporter)
+            .DefaultNew();
+        RegisterParameter("sensor_dump_timeout", SensorDumpTimeout)
+            .Default(TDuration::Seconds(5));
     }
 };
 

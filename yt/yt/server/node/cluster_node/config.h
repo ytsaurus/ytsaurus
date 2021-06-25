@@ -31,6 +31,8 @@
 
 #include <yt/yt/ytlib/chunk_client/config.h>
 
+#include <yt/yt/library/profiling/solomon/exporter.h>
+
 #include <yt/yt/core/rpc/config.h>
 
 #include <yt/yt/core/concurrency/config.h>

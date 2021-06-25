@@ -47,6 +47,8 @@
 
 #include <yt/yt/core/logging/log_manager.h>
 
+#include <yt/yt/core/profiling/profile_manager.h>
+
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/memory_usage_tracker.h>
 #include <yt/yt/core/misc/proc.h>
@@ -91,6 +93,7 @@ using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
 using namespace NContainers;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -158,6 +161,11 @@ void TJobProxy::Fail()
 {
     auto job = GetJobOrThrow();
     job->Fail();
+}
+
+TSharedRef TJobProxy::DumpSensors()
+{
+    return SolomonExporter_->DumpSensors();
 }
 
 IServerPtr TJobProxy::GetRpcServer() const
@@ -538,6 +546,10 @@ TJobResult TJobProxy::DoRun()
     IJobPtr job;
 
     try {
+        SolomonExporter_ = New<TSolomonExporter>(
+            Config_->SolomonExporter,
+            TProfileManager::Get()->GetInvoker());
+
         auto environment = CreateJobProxyEnvironment(Config_->JobEnvironment);
         SetJobProxyEnvironment(environment);
 

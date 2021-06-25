@@ -141,6 +141,8 @@
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/library/profiling/solomon/registry.h>
+
 #include <yt/yt/core/bus/server.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
@@ -870,6 +872,14 @@ void TBootstrap::DoRun()
         &MonitoringManager_,
         &OrchidRoot_);
 
+    JobProxySolomonExporter_ = New<TSolomonExporter>(
+        Config_->ExecAgent->JobProxySolomonExporter,
+        TProfileManager::Get()->GetInvoker(),
+        New<TSolomonRegistry>());
+
+    JobProxySolomonExporter_->Register("/solomon/job_proxy", HttpServer_);
+    JobProxySolomonExporter_->Start();
+
     StoreCompactor_ = CreateStoreCompactor(this);
     StoreFlusher_ = CreateStoreFlusher(this);
     StoreTrimmer_ = CreateStoreTrimmer(this);
@@ -925,6 +935,10 @@ void TBootstrap::DoRun()
         "/object_service_cache",
         CreateVirtualNode(ObjectServiceCache_->GetOrchidService()
             ->Via(GetControlInvoker())));
+    SetNodeByYPath(
+        OrchidRoot_,
+        "/job_proxy_sensors",
+        CreateVirtualNode(JobProxySolomonExporter_->GetSensorService()));
     SetBuildAttributes(
         OrchidRoot_,
         "node");
@@ -1285,6 +1299,11 @@ const TClusterNodeDynamicConfigManagerPtr& TBootstrap::GetDynamicConfigManager()
 const TMediumUpdaterPtr& TBootstrap::GetMediumUpdater() const
 {
     return MediumUpdater_;
+}
+
+const TSolomonExporterPtr& TBootstrap::GetJobProxySolomonExporter() const
+{
+    return JobProxySolomonExporter_;
 }
 
 const TNodeResourceManagerPtr& TBootstrap::GetNodeResourceManager() const

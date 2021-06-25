@@ -26,6 +26,8 @@ struct IJobProbe
     virtual void Interrupt() = 0;
 
     virtual void Fail() = 0;
+
+    virtual TSharedRef DumpSensors() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobProbe)

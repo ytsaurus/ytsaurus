@@ -1,6 +1,8 @@
 from yt_env_setup import (YTEnvSetup, Restarter, NODES_SERVICE)
 from yt_commands import (ls, get, print_debug, authors, wait, run_test_vanilla)
 
+from yt_helpers import Profiler
+
 import os.path
 import shutil
 import requests
@@ -138,3 +140,24 @@ class TestUnavailableJobProxy(JobProxyTestBase):
         self._unhide_job_proxy()
 
         op.track()
+
+
+class TestJobProxyProfiling(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    @authors("prime")
+    def test_sensors(self):
+        op = run_test_vanilla("sleep 100", job_count=10, track=False)
+
+        node = ls("//sys/cluster_nodes")[0]
+        profiler = Profiler.at_job_proxy(node)
+
+        thread_count = profiler.gauge("resource_tracker/thread_count")
+
+        wait(lambda: thread_count.get() > 0)
+
+        op.abort()
+
+        wait(lambda: thread_count.get() is None)

@@ -45,6 +45,7 @@ public:
     virtual void Fail() override;
     virtual TCpuStatistics GetCpuStatistics() const override;
     virtual i64 GetStderrSize() const override;
+    virtual TSharedRef DumpSensors() override;
 
 protected:
     IJobHost* Host_;

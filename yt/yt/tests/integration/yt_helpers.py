@@ -297,6 +297,11 @@ class Profiler(object):
         return Profiler("//sys/cluster_nodes/{0}/orchid/sensors".format(node), *args, **kwargs)
 
     @staticmethod
+    def at_job_proxy(node, *args, **kwargs):
+        return Profiler("//sys/cluster_nodes/{0}/orchid/job_proxy_sensors".format(node), *args, **kwargs)
+
+
+    @staticmethod
     def at_tablet_node(table, tablet_cell_bundle="default", fixed_tags={}):
         fixed_tags["tablet_cell_bundle"] = tablet_cell_bundle
 
