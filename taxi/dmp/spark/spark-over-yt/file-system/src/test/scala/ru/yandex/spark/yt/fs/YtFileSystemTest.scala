@@ -2,10 +2,12 @@ package ru.yandex.spark.yt.fs
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
+import org.apache.hadoop.io.IOUtils
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.spark.yt.test.{LocalYtClient, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 
+import java.io.ByteArrayInputStream
 import scala.concurrent.duration._
 import scala.io.Source
 import scala.language.postfixOps
@@ -134,4 +136,18 @@ class YtFileSystemTest extends FlatSpec with Matchers with LocalYtClient with Tm
     res shouldEqual "123"
   }
 
+  it should "write file to fs" in {
+    val dest = new Path(s"yt://$tmpPath")
+    val text = ("1" * 1024 * 1024 * 10).getBytes
+
+    val in = new ByteArrayInputStream(text)
+    try {
+      IOUtils.copyBytes(in, fs.create(dest), 1048576, true)
+    } finally {
+      in.close()
+    }
+
+    YtWrapper.exists(tmpPath) shouldEqual true
+    YtWrapper.fileSize(tmpPath) shouldEqual text.length
+  }
 }
