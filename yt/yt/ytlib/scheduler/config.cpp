@@ -39,7 +39,7 @@ static void ValidateOperationAcl(const TSerializableAccessControlList& acl)
         }
         if (Any(ace.Permissions & ~(EPermission::Read | EPermission::Manage))) {
             THROW_ERROR_EXCEPTION("Only \"read\" and \"manage\" permissions are allowed in operation ACL, got %v",
-                ConvertToYsonString(ace.Permissions))
+                ConvertToYsonString(ace.Permissions, EYsonFormat::Text))
                 << TErrorAttribute("ace", ace);
         }
     }
