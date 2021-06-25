@@ -113,7 +113,7 @@ lazy val `client` = (project in file("client"))
     debPackagePublishRepo := "yandex-taxi-common",
     debPackageVersion := {
       val debBuildNumber = Option(System.getProperty("build")).getOrElse("")
-      val beta = if ((version in ThisBuild).value.contains("SNAPSHOT")) "~beta1" else ""
+      val beta = if ((version in ThisBuild).value.contains("SNAPSHOT")) s"~beta1-${sys.env("USER")}" else ""
       s"$sparkVersion-${(version in ThisBuild).value.takeWhile(_ != '-')}$beta+yandex$debBuildNumber"
     },
     version := debPackageVersion.value,
