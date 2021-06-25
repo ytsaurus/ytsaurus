@@ -7,6 +7,7 @@
 #include <yt/yt/library/profiling/producer.h>
 
 #include <yt/yt/library/profiling/solomon/registry.h>
+#include <yt/yt/library/profiling/solomon/remote.h>
 
 #include <util/string/join.h>
 
@@ -93,8 +94,16 @@ struct TTestMetricConsumer
     virtual void OnLogHistogram(TInstant, NMonitoring::TLogHistogramSnapshotPtr) override
     { }
 
-    virtual void OnSummaryDouble(TInstant, NMonitoring::ISummaryDoubleSnapshotPtr) override
-    { }
+    virtual void OnSummaryDouble(TInstant, NMonitoring::ISummaryDoubleSnapshotPtr snapshot) override
+    {
+        Cerr << FormatName() << " summary{"
+            << "min: " << snapshot->GetMin()
+            << ", max: " << snapshot->GetMax()
+            << ", sum: " << snapshot->GetSum()
+            << ", count: " << snapshot->GetCount()
+            << ", last: " << snapshot->GetLast()
+            << "}" << Endl;
+    }
 
     TString Name;
     std::vector<TString> Labels;
@@ -143,6 +152,21 @@ TTestMetricConsumer CollectSensors(TSolomonRegistryPtr impl, int subsample = 1, 
     for (int j = subsample - 1; j >= 0; --j) {
         options.Times[0].first.push_back(impl->IndexOf(i - j));
     }
+
+    impl->ReadSensors(options, &testConsumer);
+    Cerr << "-------------------------------------" << Endl;
+
+    return testConsumer;
+}
+
+TTestMetricConsumer ReadSensors(TSolomonRegistryPtr impl)
+{
+    auto i = impl->GetNextIteration();
+
+    TTestMetricConsumer testConsumer;
+
+    TReadOptions options;
+    options.Times = {{{impl->IndexOf(i - 1)}, TInstant::Now()}};
 
     impl->ReadSensors(options, &testConsumer);
     Cerr << "-------------------------------------" << Endl;
@@ -692,6 +716,53 @@ TEST(TSolomonRegistry, CounterTagsBug)
     c.Increment();
 
     impl->ProcessRegistrations();
+}
+
+TEST(TSolomonRegistry, TestRemoteTransfer)
+{
+    auto impl = New<TSolomonRegistry>();
+    impl->SetWindowSize(12);
+
+    auto remote = New<TSolomonRegistry>();
+    remote->SetWindowSize(12);
+    TProfiler r(remote, "/r");
+
+    auto c0 = r.Counter("/c");
+    c0.Increment(1);
+
+    auto d0 = r.Gauge("/d");
+    d0.Update(1.0);
+
+    auto c1 = r.TimeCounter("/t");
+    c1.Add(TDuration::Seconds(1));
+
+    auto s0 = r.Summary("/s");
+    s0.Record(1.0);
+
+    auto t0 = r.Timer("/dt");
+    t0.Record(TDuration::Seconds(1));
+
+    auto h0 = r.Histogram("/h", TDuration::Zero(), TDuration::MilliSeconds(20));
+    h0.Record(TDuration::MilliSeconds(1));
+
+    remote->ProcessRegistrations();
+    remote->Collect();
+
+    auto dump = remote->DumpSensors();
+
+    TRemoteRegistry remoteRegistry(impl.Get());
+
+    impl->Collect();
+    remoteRegistry.Transfer(dump);
+
+    auto sensors = ReadSensors(impl);
+    ASSERT_EQ(1, sensors.Counters["yt.r.c{}"]);
+
+    impl->Collect();
+    remoteRegistry.Detach();
+
+    sensors = ReadSensors(impl);
+    ASSERT_TRUE(sensors.Counters.empty());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

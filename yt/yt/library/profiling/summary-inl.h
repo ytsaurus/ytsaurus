@@ -14,6 +14,15 @@ namespace NYT::NProfiling {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
+TSummarySnapshot<T>::TSummarySnapshot(T sum, T min, T max, T last, i64 count)
+    : Sum_(sum)
+    , Min_(min)
+    , Max_(max)
+    , Last_(last)
+    , Count_(count)
+{ }
+
+template <class T>
 void TSummarySnapshot<T>::Record(T value)
 {
     if (Count_ == 0) {

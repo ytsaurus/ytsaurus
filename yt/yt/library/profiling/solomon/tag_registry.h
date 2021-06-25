@@ -1,9 +1,11 @@
 #pragma once
 
-#include "library/cpp/monlib/encode/buffered/buffered_encoder_base.h"
 #include <yt/yt/core/profiling/public.h>
 
 #include <yt/yt/library/profiling/tag.h>
+#include <yt/yt/library/profiling/solomon/sensor_dump.pb.h>
+
+#include <library/cpp/monlib/encode/buffered/buffered_encoder_base.h>
 
 #include <util/generic/hash_set.h>
 
@@ -16,6 +18,7 @@ class TTagRegistry
 public:
     TTagIdList Encode(const TTagSet& tags);
     TTagIdList Encode(const TTagList& tags);
+    TTagId Encode(const TTag& tag);
 
     //! TryEncode returns null for an unknown tag.
     SmallVector<std::optional<TTagId>, TypicalTagCount> TryEncode(const TTagList& tags) const;
@@ -25,6 +28,8 @@ public:
     THashMap<TString, int> TopByKey() const;
 
     TTagIdList EncodeLegacy(const TTagIdList& tagIds);
+
+    void DumpTags(NProto::TSensorDump* dump);
 
 private:
     // TODO(prime@): maybe do something about the fact that tags are never freed.

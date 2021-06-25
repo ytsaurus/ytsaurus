@@ -24,8 +24,6 @@
 #include <yt/yt/core/ytree/ypath_client.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
 
-#include <yt/yt_proto/yt/core/profiling/proto/profiling.pb.h>
-
 #include <util/generic/iterator_range.h>
 
 namespace NYT::NProfiling {
@@ -182,13 +180,6 @@ public:
             .Run();
     }
 
-    std::pair<i64, NProto::TPointBatch> GetSamples(std::optional<i64> count = std::nullopt)
-    {
-        auto result = BIND(&TSampleStorage::GetProtoSamples, &Storage_, count)
-            .AsyncVia(GetInvoker()).Run();
-        return WaitFor(result).ValueOrThrow();
-    }
-
     TResourceTrackerPtr GetResourceTracker() const
     {
         return ResourceTracker_;
@@ -246,42 +237,6 @@ private:
                 ++RemovedCount_;
                 Samples_.pop_front();
             }
-        }
-
-        std::pair<i64, NProto::TPointBatch> GetProtoSamples(std::optional<i64> count = std::nullopt)
-        {
-            auto [index, samples] = GetSamples(count);
-
-            for (const auto& sample : samples) {
-                for (auto tagId : sample.TagIds) {
-                    TagIdToValue_.emplace(tagId, TStringTag());
-                }
-            }
-
-            {
-                const auto& profilingManager = TProfileManager::Get()->Impl_;
-                TGuard<TForkAwareSpinLock> tagGuard(profilingManager->GetTagSpinLock());
-                for (auto& [tagId, tag] : TagIdToValue_) {
-                    tag = profilingManager->GetTag(tagId);
-                }
-            }
-
-            NProto::TPointBatch protoVec;
-            for (const auto& sample : samples) {
-                auto* protoSample = protoVec.add_points();
-                protoSample->set_time(ToProto<i64>(sample.Time));
-                protoSample->set_value(sample.Value);
-                ToProto(protoSample->mutable_tag_ids(), sample.TagIds);
-                protoSample->set_metric_type(static_cast<NProfiling::NProto::EMetricType>(sample.MetricType));
-                ToProto(protoSample->mutable_path(), sample.Path);
-            }
-            for (const auto& [id, tag] : TagIdToValue_) {
-                auto* sample = protoVec.add_tags();
-                sample->set_tag_id(id);
-                ToProto(sample->mutable_key(), tag.Key);
-                ToProto(sample->mutable_value(), tag.Value);
-            }
-            return {index, protoVec};
         }
 
     private:
@@ -650,11 +605,6 @@ TStringTag TProfileManager::LookupTag(TTagId tag)
 void TProfileManager::SetGlobalTag(TTagId id)
 {
     Impl_->SetGlobalTag(id);
-}
-
-std::pair<i64, NProto::TPointBatch> TProfileManager::GetSamples(std::optional<i64> count)
-{
-    return Impl_->GetSamples(count);
 }
 
 TResourceTrackerPtr TProfileManager::GetResourceTracker() const

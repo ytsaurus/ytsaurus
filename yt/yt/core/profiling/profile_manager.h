@@ -12,8 +12,6 @@
 
 #include <yt/yt/core/concurrency/spinlock.h>
 
-#include <yt/yt_proto/yt/core/profiling/proto/profiling.pb.h>
-
 namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -105,8 +103,6 @@ public:
 
     //! Registers or updates a tag that is attached to every sample generated in this process.
     void SetGlobalTag(TTagId id);
-
-    std::pair<i64, NProto::TPointBatch> GetSamples(std::optional<i64> cnt = std::nullopt);
 
     TResourceTrackerPtr GetResourceTracker() const;
 

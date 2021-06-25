@@ -1,5 +1,6 @@
 #include "cube.h"
 #include "histogram_snapshot.h"
+#include "remote.h"
 
 #include <yt/yt/library/profiling/summary.h>
 #include <yt/yt/library/profiling/tag.h>
@@ -82,7 +83,8 @@ void TCube<T>::Remove(TTagIdList tagIds)
     std::sort(tagIds.begin(), tagIds.end());
     auto it = Projections_.find(tagIds);
     if (it == Projections_.end()) {
-        THROW_ERROR_EXCEPTION("Broken cube");
+        THROW_ERROR_EXCEPTION("Can't remove tags from cube")
+            << TErrorAttribute("tag_ids", tagIds);
     }
 
     it->second.UsageCount--;
@@ -105,10 +107,12 @@ void TCube<T>::Update(TTagIdList tagIds, T value)
     std::sort(tagIds.begin(), tagIds.end());
     auto it = Projections_.find(tagIds);
     if (it == Projections_.end()) {
-        THROW_ERROR_EXCEPTION("Broken cube");
+        THROW_ERROR_EXCEPTION("Can't update tags in cube")
+            << TErrorAttribute("tag_ids", tagIds);
     }
 
     if constexpr (std::is_same_v<T, double>) {
+        // Special value for gauges with DisableDefault option enabled.
         if (std::isnan(value)) {
             return;
         }
@@ -582,6 +586,34 @@ int TCube<T>::ReadSensorValues(
     }
 
     return valuesRead;
+}
+
+template <class T>
+void TCube<T>::DumpCube(NProto::TCube *cube) const
+{
+    for (const auto& [tagIds, window] : Projections_) {
+        auto projection = cube->add_projections();
+        for (auto tagId : tagIds) {
+            projection->add_tag_ids(tagId);
+        }
+
+        projection->set_has_value(window.HasValue[Index_]);
+        if constexpr (std::is_same_v<T, i64>) {
+            projection->set_counter(window.Values[Index_]);
+        } else if constexpr (std::is_same_v<T, TDuration>) {
+            projection->set_duration(window.Values[Index_].GetValue());
+        } else if constexpr (std::is_same_v<T, double>) {
+            projection->set_gauge(window.Values[Index_]);
+        } else if constexpr (std::is_same_v<T, TSummarySnapshot<double>>) {
+            ToProto(projection->mutable_summary(), window.Values[Index_]);
+        } else if constexpr (std::is_same_v<T, TSummarySnapshot<TDuration>>) {
+            ToProto(projection->mutable_timer(), window.Values[Index_]);
+        } else if constexpr (std::is_same_v<T, THistogramSnapshot>) {
+            ToProto(projection->mutable_histogram(), window.Values[Index_]);
+        } else {
+            THROW_ERROR_EXCEPTION("Unexpected cube type");
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

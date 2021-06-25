@@ -101,6 +101,8 @@ public:
         const TTagRegistry& tagRegistry,
         NYTree::TFluentAny fluent) const;
 
+    void DumpCube(NProto::TCube* cube) const;
+
 private:
     const int WindowSize_;
 

@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "registry.h"
+#include "remote.h"
 
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -190,6 +191,10 @@ public:
     // You should not use this function directly. Use Register() instead.
     std::optional<TString> ReadJson(const TReadOptions& options = {});
 
+    void AttachRemoteProcess(TCallback<TFuture<TSharedRef>()> dumpSensors);
+
+    TSharedRef DumpSensors();
+
     // There must be at most 1 running exporter per registry.
     void Start();
     void Stop();
@@ -237,6 +242,20 @@ private:
     TCounter ReadDelays_;
     TCounter ResponseCacheHit_, ResponseCacheMiss_;
 
+    struct TRemoteProcess final
+    {
+        TRemoteProcess(TCallback<TFuture<TSharedRef>()> dumpSensors, TSolomonRegistry* registry)
+            : DumpSensors(dumpSensors)
+            , Registry(registry)
+        { }
+
+        TCallback<TFuture<TSharedRef>()> DumpSensors;
+        TRemoteRegistry Registry;
+    };
+
+    TSpinLock RemoteProcessLock_;
+    THashSet<TIntrusivePtr<TRemoteProcess>> RemoteProcessList_;
+
     class TSensorService
         : public NYTree::TYPathServiceBase
         , public NYTree::TSupportsGet
@@ -258,6 +277,7 @@ private:
 
     void DoCollect();
     void DoPushCoreProfiling();
+    void TransferSensors();
 
     void HandleIndex(const TString& prefix, const NHttp::IRequestPtr& req, const NHttp::IResponseWriterPtr& rsp);
     void HandleStatus(const NHttp::IRequestPtr& req, const NHttp::IResponseWriterPtr& rsp);

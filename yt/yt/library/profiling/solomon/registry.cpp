@@ -478,9 +478,26 @@ TSensorSet* TSolomonRegistry::FindSet(const TString& name, const TSensorOptions&
 
 void TSolomonRegistry::LegacyReadSensors()
 {
-    for (auto [name, set] : Sensors_) {
+    for (const auto& [name, set] : Sensors_) {
         set.LegacyReadSensors(name, &Tags_);
     }
+}
+
+NProto::TSensorDump TSolomonRegistry::DumpSensors() {
+    NProto::TSensorDump dump;
+    Tags_.DumpTags(&dump);
+
+    for (const auto& [name, set] : Sensors_) {
+        if (!set.GetError().IsOK()) {
+            continue;
+        }
+
+        auto cube = dump.add_cubes();
+        cube->set_name(name);
+        set.DumpCube(cube);
+    }
+
+    return dump;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -18,6 +18,8 @@
 #include <yt/yt/library/profiling/sensor.h>
 #include <yt/yt/library/profiling/impl.h>
 
+#include <yt/yt/library/profiling/solomon/sensor_dump.pb.h>
+
 namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -137,6 +139,8 @@ public:
     void Profile(const TProfiler& profiler);
     const TProfiler& GetSelfProfiler() const;
 
+    NProto::TSensorDump DumpSensors();
+
 private:
     i64 Iteration_ = 0;
     std::optional<int> WindowSize_;
@@ -162,6 +166,8 @@ private:
     TCounter RegistrationCount_;
     TEventTimer SensorCollectDuration_, ReadDuration_;
     TGauge SensorCount_, ProjectionCount_, TagCount_;
+
+    friend class TRemoteRegistry;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSolomonRegistry)

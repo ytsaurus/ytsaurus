@@ -25,6 +25,17 @@ TTagIdList TTagRegistry::Encode(const TTagList& tags)
     return ids;
 }
 
+TTagId TTagRegistry::Encode(const TTag& tag)
+{
+    if (auto it = TagByName_.find(tag); it != TagByName_.end()) {
+        return it->second;
+    } else {
+        TagById_.push_back(tag);
+        TagByName_[tag] = TagById_.size();
+        return TagById_.size();
+    }
+}
+
 TTagIdList TTagRegistry::Encode(const TTagSet& tags)
 {
     return Encode(tags.Tags());
@@ -86,6 +97,17 @@ TTagIdList TTagRegistry::EncodeLegacy(const TTagIdList& tagIds)
     }
 
     return legacy;
+}
+
+void TTagRegistry::DumpTags(NProto::TSensorDump* dump)
+{
+    dump->add_tags();
+
+    for (int i = 0; i < std::ssize(TagById_); i++) {
+        auto tag = dump->add_tags();
+        tag->set_key(TagById_[i].first);
+        tag->set_value(TagById_[i].second);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

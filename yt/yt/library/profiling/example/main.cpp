@@ -20,6 +20,7 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 #include <yt/yt/library/profiling/solomon/exporter.h>
+#include <yt/yt/library/profiling/solomon/registry.h>
 
 #include <util/stream/output.h>
 #include <util/system/compiler.h>
@@ -102,6 +103,30 @@ int main(int argc, char* argv[])
 
         auto poolUsage = r.WithTag("pool", "prime").WithGlobal().Gauge("/cpu");
         poolUsage.Update(3000.0);
+
+        auto remoteActionQueue = New<TActionQueue>("Remote");
+        for (int i = 0; i < 10; i++) {
+            auto remoteRegistry = New<TSolomonRegistry>();
+            auto config = New<TSolomonExporterConfig>();
+            config->EnableSelfProfiling = false;
+            config->ReportRestart = false;
+
+            auto remoteExporter = New<TSolomonExporter>(config, remoteActionQueue->GetInvoker(), remoteRegistry);
+
+            TProfiler r{remoteRegistry, "/remote"};
+            r.AddFuncGauge("/value", remoteExporter, [] { return 1.0; });
+
+            exporter->AttachRemoteProcess(BIND([remoteExporter] () -> TFuture<TSharedRef> {
+                return MakeFuture(remoteExporter->DumpSensors());
+            }));
+        }
+
+        exporter->AttachRemoteProcess(BIND([] () -> TFuture<TSharedRef> {
+            THROW_ERROR_EXCEPTION("Process is dead");
+        }));
+        exporter->AttachRemoteProcess(BIND([] () -> TFuture<TSharedRef> {
+            return MakeFuture<TSharedRef>(TError("Process is dead"));
+        }));
 
         std::default_random_engine rng;
         double value = 0.0;
