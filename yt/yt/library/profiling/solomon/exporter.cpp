@@ -167,6 +167,51 @@ void TSolomonExporter::Stop()
     }
 }
 
+void TSolomonExporter::TransferSensors()
+{
+    std::vector<std::pair<TFuture<TSharedRef>, TIntrusivePtr<TRemoteProcess>>> remoteFutures;
+    {
+        auto processGuard = Guard(RemoteProcessLock_);
+
+        for (auto process : RemoteProcessList_) {
+            try {
+                auto asyncDump = process->DumpSensors();
+                remoteFutures.emplace_back(asyncDump, process);
+            } catch (const std::exception& ex) {
+                remoteFutures.emplace_back(MakeFuture<TSharedRef>(TError(ex)), process);
+            }
+        }
+    }
+
+    std::vector<TIntrusivePtr<TRemoteProcess>> deadProcesses;
+    for (auto [dumpFuture, process] : remoteFutures) {
+        // Use blocking Get(), because we want to lock current thread while data structure is updating.
+        auto result = dumpFuture.Get();
+
+        if (result.IsOK()) {
+            try {
+                NProto::TSensorDump sensorDump;
+                DeserializeProto(&sensorDump, result.Value());
+                process->Registry.Transfer(sensorDump);
+            } catch (const std::exception& ex) {
+                result = TError(ex);
+            }
+        }
+
+        if (!result.IsOK()) {
+            process->Registry.Detach();
+            deadProcesses.push_back(process);
+        }
+    }
+
+    {
+        auto processGuard = Guard(RemoteProcessLock_);
+        for (auto process : deadProcesses) {
+            RemoteProcessList_.erase(process);
+        }
+    }
+}
+
 void TSolomonExporter::DoCollect()
 {
     auto nowUnix = TInstant::Now().GetValue();
@@ -215,6 +260,8 @@ void TSolomonExporter::DoCollect()
 
         auto iteration = Registry_->GetNextIteration();
         Registry_->Collect(ThreadPool_ ? ThreadPool_->GetInvoker() : GetSyncInvoker());
+
+        TransferSensors();
 
         Window_.emplace_back(iteration, nextGridTime);
         if (Window_.size() > static_cast<size_t>(Registry_->GetWindowSize())) {
@@ -801,6 +848,23 @@ bool TSolomonExporter::FilterDefaultGrid(const TString& sensorName)
     return true;
 }
 
+TSharedRef TSolomonExporter::DumpSensors()
+{
+    auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&Lock_))
+        .ValueOrThrow();
+
+    Registry_->ProcessRegistrations();
+    Registry_->Collect(ThreadPool_ ? ThreadPool_->GetInvoker() : GetSyncInvoker());
+
+    return SerializeProtoToRef(Registry_->DumpSensors());
+}
+
+void TSolomonExporter::AttachRemoteProcess(TCallback<TFuture<TSharedRef>()> dumpSensors)
+{
+    auto guard = Guard(RemoteProcessLock_);
+    RemoteProcessList_.insert(New<TRemoteProcess>(dumpSensors, Registry_.Get()));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSolomonExporter::TCacheKey::operator size_t() const
@@ -831,7 +895,7 @@ bool TSolomonExporter::TSensorService::DoInvoke(const NRpc::IServiceContextPtr& 
 
 void TSolomonExporter::TSensorService::GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context)
 {
-    auto options = FromProto(request->options());
+    auto options = NYTree::FromProto(request->options());
     auto name = options->Find<TString>("name");
     auto tagMap = options->Find<TTagMap>("tags").value_or(TTagMap{});
     auto readAllProjections = options->Find<bool>("read_all_projections").value_or(false);
@@ -868,7 +932,7 @@ void TSolomonExporter::TSensorService::ListSelf(TReqList* request, TRspList* res
     auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&Exporter_->Lock_))
         .ValueOrThrow();
 
-    auto attributeKeys = FromProto<THashSet<TString>>(request->attributes().keys());
+    auto attributeKeys = NYT::FromProto<THashSet<TString>>(request->attributes().keys());
     context->SetRequestInfo("AttributeKeys: %v", attributeKeys);
 
     response->set_value(BuildYsonStringFluently()

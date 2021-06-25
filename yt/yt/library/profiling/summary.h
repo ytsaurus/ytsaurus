@@ -14,6 +14,8 @@ public:
     void Add(const TSummarySnapshot& other);
 
     TSummarySnapshot<T>& operator += (const TSummarySnapshot& other);
+    TSummarySnapshot() = default;
+    TSummarySnapshot(T sum, T min, T max, T last, i64 count);
 
     bool operator == (const TSummarySnapshot& other) const;
     bool operator != (const TSummarySnapshot& other) const;

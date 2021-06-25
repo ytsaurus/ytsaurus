@@ -5,6 +5,7 @@
 #include "sensor.h"
 
 #include <yt/yt/library/profiling/tag.h>
+#include <yt/yt/library/profiling/solomon/sensor_dump.pb.h>
 
 #include <yt/yt/core/profiling/public.h>
 
@@ -164,6 +165,17 @@ DEFINE_REFCOUNTED_TYPE(THistogramState)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ESensorType,
+    ((Counter)     (1))
+    ((TimeCounter) (2))
+    ((Gauge)       (3))
+    ((Summary)     (4))
+    ((Timer)       (5))
+    ((Histogram)   (6))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSensorSet
 {
 public:
@@ -200,14 +212,19 @@ public:
         const TTagRegistry& tagRegistry,
         NYTree::TFluentAny fluent) const;
 
-    void LegacyReadSensors(const TString& name, TTagRegistry* tagRegistry);
+    void LegacyReadSensors(const TString& name, TTagRegistry* tagRegistry) const;
+
+    void DumpCube(NProto::TCube* cube) const;
 
     int GetGridFactor() const;
     int GetObjectCount() const;
     int GetCubeSize() const;
     const TError& GetError() const;
+    std::optional<ESensorType> GetType() const;
 
 private:
+    friend class TRemoteRegistry;
+
     const TSensorOptions Options_;
     const int GridFactor_;
 
@@ -231,13 +248,13 @@ private:
     THashSet<THistogramStatePtr> Histograms_;
     TCube<THistogramSnapshot> HistogramsCube_;
 
-    std::optional<int> Type_;
+    std::optional<ESensorType> Type_;
     TGauge CubeSize_;
     TGauge SensorsEmitted_;
 
     void OnError(TError error);
 
-    void InitializeType(int index);
+    void InitializeType(ESensorType type);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
