@@ -1,10 +1,9 @@
 package ru.yandex.spark.yt.wrapper.file
 
-import java.io.OutputStream
-
 import ru.yandex.spark.yt.wrapper.client.YtRpcClient
 import ru.yandex.yt.ytclient.proxy.FileWriter
 
+import java.io.OutputStream
 import scala.annotation.tailrec
 
 class YtFileOutputStream(writer: FileWriter, yt: Option[YtRpcClient]) extends OutputStream {
@@ -36,6 +35,7 @@ class YtFileOutputStream(writer: FileWriter, yt: Option[YtRpcClient]) extends Ou
   override def close(): Unit = {
     if (!closed) {
       try {
+        writer.readyEvent().join()
         writer.close().join()
       } finally {
         try {
