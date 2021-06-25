@@ -33,6 +33,32 @@ DEFINE_REFCOUNTED_TYPE(IResourceTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TUserJobEnvironmentOptions
+{
+    //! Path to core watcher pipes directory relative to user job working directory.
+    std::optional<TString> SlotCoreWatcherDirectory;
+
+    //! Path to core watcher pipes directory relative to job proxy working directory.
+    std::optional<TString> CoreWatcherDirectory;
+
+    std::optional<NContainers::TRootFS> RootFS;
+
+    std::vector<TString> GpuDevices;
+
+    std::optional<TString> HostName;
+    std::vector<TUserJobNetworkAddressPtr> NetworkAddresses;
+
+    bool EnableCudaGpuCoreDump = false;
+
+    bool EnablePortoMemoryTracking = false;
+
+    NContainers::EEnablePorto EnablePorto = NContainers::EEnablePorto::None;
+
+    i64 ThreadLimit;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IUserJobEnvironment
     : public virtual IResourceTracker
 {
@@ -44,27 +70,14 @@ struct IUserJobEnvironment
 
     virtual void SetIOThrottle(i64 operations) = 0;
 
-    struct TUserJobProcessOptions
-    {
-        //! Path to core watcher pipes directory relative to user job working directory.
-        std::optional<TString> SlotCoreWatcherDirectory;
-
-        //! Path to core watcher pipes directory relative to job proxy working directory.
-        std::optional<TString> CoreWatcherDirectory;
-
-        NContainers::EEnablePorto EnablePorto = NContainers::EEnablePorto::None;
-        bool EnableCudaGpuCoreDump = false;
-        std::optional<TString> HostName;
-        std::vector<TUserJobNetworkAddressPtr> NetworkAddresses;
-
-        i64 ThreadLimit;
-    };
-
-    virtual TProcessBasePtr CreateUserJobProcess(
+    virtual TFuture<void> SpawnUserProcess(
         const TString& path,
-        const TUserJobProcessOptions& options) = 0;
+        const std::vector<TString>& arguments,
+        const TString& workingDirectory) = 0;
 
     virtual NContainers::IInstancePtr GetUserJobInstance() const = 0;
+
+    virtual std::vector<pid_t> GetJobPids() const = 0;
 
     //! Returns the list of environment-specific environment variables in key=value format.
     virtual const std::vector<TString>& GetEnvironmentVariables() const = 0;
@@ -77,20 +90,18 @@ DEFINE_REFCOUNTED_TYPE(IUserJobEnvironment)
 struct IJobProxyEnvironment
     : public virtual IResourceTracker
 {
-    virtual void SetCpuShare(double share) = 0;
-    virtual void SetCpuLimit(double limit) = 0;
-    virtual void EnablePortoMemoryTracking() = 0;
-    virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(TGuid jobId) = 0;
+    virtual void SetCpuGuarantee(double value) = 0;
+    virtual void SetCpuLimit(double value) = 0;
+    virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(
+        TGuid jobId,
+        const TUserJobEnvironmentOptions& options) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobProxyEnvironment)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
-    NYTree::INodePtr config,
-    const std::optional<NContainers::TRootFS>& rootFS,
-    std::vector<TString> gpuDevices);
+IJobProxyEnvironmentPtr CreateJobProxyEnvironment(NYTree::INodePtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

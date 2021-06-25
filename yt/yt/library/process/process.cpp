@@ -326,6 +326,25 @@ IConnectionWriterPtr TSimpleProcess::GetStdInWriter()
 TFuture<void> TProcessBase::Spawn()
 {
     try {
+        // Resolve binary path.
+        std::vector<TError> innerErrors;
+        for (int retryIndex = ResolveRetryCount; retryIndex >= 0; --retryIndex) {
+            auto errorOrPath = ResolveBinaryPath(Path_);
+            if (errorOrPath.IsOK()) {
+                ResolvedPath_ = errorOrPath.Value();
+                break;
+            }
+
+            innerErrors.push_back(errorOrPath);
+
+            if (retryIndex == 0) {
+                THROW_ERROR_EXCEPTION("Failed to resolve binary path %v", Path_)
+                    << innerErrors;
+            }
+
+            TDelayedExecutor::WaitForDuration(ResolveRetryTimeout);
+        }
+
         DoSpawn();
     } catch (const std::exception& ex) {
         FinishedPromise_.TrySet(ex);
@@ -344,25 +363,6 @@ void TSimpleProcess::DoSpawn()
     });
 
     YT_VERIFY(ProcessId_ == InvalidProcessId && !Finished_);
-
-    // Resolve binary path.
-    std::vector<TError> innerErrors;
-    for (int retryIndex = ResolveRetryCount; retryIndex >= 0; --retryIndex) {
-        auto errorOrPath = ResolveBinaryPath(Path_);
-        if (errorOrPath.IsOK()) {
-            ResolvedPath_ = errorOrPath.Value();
-            break;
-        }
-
-        innerErrors.push_back(errorOrPath);
-
-        if (retryIndex == 0) {
-            THROW_ERROR_EXCEPTION("Failed to resolve binary path %v", Path_)
-                << innerErrors;
-        }
-
-        TDelayedExecutor::WaitForDuration(ResolveRetryTimeout);
-    }
 
     // Make sure no spawn action closes Pipe_.WriteFD
     TPipeFactory pipeFactory(MaxSpawnActionFD_ + 1);

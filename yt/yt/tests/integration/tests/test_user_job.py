@@ -1101,7 +1101,10 @@ class TestUserJobIsolation(YTEnvSetup):
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
-                    "test_network": True,
+                    "test_network": True, # Deprecated from 21.2+
+                    "porto_executor" : {
+                        "enable_network_isolation" : False
+                    }
                 },
             }
         }
@@ -1165,7 +1168,7 @@ class TestUserJobIsolation(YTEnvSetup):
             with_breakpoint("getent hosts $(hostname) | awk '{ print $1 }' >&2; BREAKPOINT"),
             task_patch={"network_project": "n"},
         )
-
+        
         job_id = wait_breakpoint()[0]
         assert "dead:beef" in get_job_stderr(op.id, job_id)
 

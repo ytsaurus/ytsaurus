@@ -29,9 +29,7 @@ TMemoryTracker::TMemoryTracker(
     , Environment_(std::move(environment))
     , TmpfsManager_(std::move(tmpfsManager))
 {
-    if (!Environment_) {
-        YT_LOG_WARNING("Memory tracker is running without user job envirnment, memory tracking will be unavailable");
-    }
+    YT_VERIFY(Environment_);
 }
 
 void TMemoryTracker::DumpMemoryUsageStatistics(TStatistics* statistics, const TString& path)
@@ -58,10 +56,6 @@ TMemoryStatistics TMemoryTracker::GetMemoryStatistics()
 {
     auto guard = Guard(MemoryStatisticsLock_);
 
-    if (!Environment_) {
-        return {};
-    }
-
     auto now = TInstant::Now();
 
     if (LastMemoryMeasureTime_ + Config_->MemoryStatisticsCachePeriod >= now &&
@@ -75,15 +69,10 @@ TMemoryStatistics TMemoryTracker::GetMemoryStatistics()
     if (auto statistics = Environment_->GetMemoryStatistics()) {
         memoryStatistics = *statistics;
     } else {
-        auto instance = Environment_->GetUserJobInstance();
-        if (!instance) {
-            return {};
-        }
-
         std::vector<int> pids;
 
         try {
-            pids = instance->GetPids();
+            pids = Environment_->GetJobPids();
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to get list of user job processes");
             return {};
@@ -137,6 +126,12 @@ TMemoryStatistics TMemoryTracker::GetMemoryStatistics()
                     memoryStatistics.Rss += memoryUsage.Rss - memoryUsage.Shared;
                     memoryStatistics.MappedFile += memoryUsage.Shared;
 
+                    try {
+                        memoryStatistics.MajorPageFaults = GetProcessCumulativeMajorPageFaults(pid);
+                    } catch (const std::exception& ex) {
+                        YT_LOG_WARNING(ex, "Failed to get major page fault count");
+                    }
+
                     YT_LOG_DEBUG("Memory statistics collected (Pid: %v, ProcessName: %v, Rss: %v, Shared: %v)",
                         pid,
                         GetProcessName(pid),
@@ -151,12 +146,6 @@ TMemoryStatistics TMemoryTracker::GetMemoryStatistics()
         YT_LOG_DEBUG("Current memory usage (Private: %v, Shared: %v)",
             memoryStatistics.Rss,
             memoryStatistics.MappedFile);
-
-        try {
-            memoryStatistics.MajorPageFaults = GetProcessCumulativeMajorPageFaults(instance->GetPid());
-        } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to get major page fault count");
-        }
     }
 
     auto memoryUsage = memoryStatistics.Rss + memoryStatistics.MappedFile;

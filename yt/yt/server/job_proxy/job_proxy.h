@@ -68,7 +68,7 @@ public:
 
     TDuration GetSpentCpuTime() const;
 
-    bool TrySetCpuShare(double cpuShare);
+    bool TrySetCpuGuarantee(double cpuShare);
 
 private:
     const TJobProxyConfigPtr Config_;
@@ -99,7 +99,7 @@ private:
 
     std::atomic<i32> NetworkUsage_ = {0};
 
-    std::atomic<double> CpuShare_ = {0};
+    std::atomic<double> CpuGuarantee_ = {0};
 
     const NConcurrency::TActionQueuePtr JobThread_;
     const NConcurrency::TActionQueuePtr ControlThread_;
@@ -167,7 +167,7 @@ private:
 
     // IJobHost implementation.
     virtual TJobProxyConfigPtr GetConfig() const override;
-    virtual IUserJobEnvironmentPtr CreateUserJobEnvironment() const override;
+    virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(const TJobSpecEnvironmentOptions& options) const override;
     virtual NJobTrackerClient::TOperationId GetOperationId() const override;
 
     virtual const IJobSpecHelperPtr& GetJobSpecHelper() const override;

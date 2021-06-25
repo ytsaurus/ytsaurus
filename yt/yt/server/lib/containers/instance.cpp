@@ -21,7 +21,7 @@
 #include <util/stream/file.h>
 
 #include <util/string/cast.h>
-#include <util/string/subst.h>
+#include <util/string/split.h>
 
 #include <initializer_list>
 #include <string>
@@ -111,38 +111,176 @@ const THashMap<EStatField, TPortoStatRule> PortoStatRules = {
         BIND([] (const TString& in) { return std::stol(in);                     } ) } },
 };
 
-std::optional<TString> GetParentName(const TString& absoluteName)
+std::optional<TString> GetParentName(const TString& name)
 {
-    static const TString Prefix("/porto");
-    YT_VERIFY(absoluteName.length() > Prefix.length());
-
-    auto slashPosition = absoluteName.rfind('/');
-    auto parentName = absoluteName.substr(0, slashPosition);
-
-    if (parentName == Prefix) {
+    if (name.empty()) {
         return std::nullopt;
-    } else {
-        return parentName;
     }
-}
 
-TString GetAbsoluteName(const TString& name, const IPortoExecutorPtr& executor)
-{
-    try {
-        auto properties = WaitFor(executor->GetContainerProperties(
-            name,
-            std::vector<TString>{"absolute_name"}))
-            .ValueOrThrow();
-
-        return properties.at("absolute_name")
-            .ValueOrThrow();
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Failed to get absolute name for container %Qv", name)
-            << ex;
+    auto slashPosition = name.rfind('/');
+    if (slashPosition == TString::npos) {
+        return "";
     }
+    
+    return name.substr(0, slashPosition);
 }
 
 } // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPortoInstanceLauncher
+    : public IInstanceLauncher 
+{
+public:
+    TPortoInstanceLauncher(const TString& name, IPortoExecutorPtr executor)
+        : Executor_(std::move(executor))
+        , Logger(ContainersLogger.WithTag("Container: %v", name))
+    {
+        Spec_.Name = name;
+        Spec_.CGroupControllers = {
+            "freezer",
+            "cpu",
+            "cpuacct",
+            "net_cls",
+            "blkio",
+            "devices",
+            "pids"
+        };
+    }
+
+    virtual const TString& GetName() const override 
+    {
+        return Spec_.Name;
+    }
+
+    virtual bool HasRoot() const override 
+    {
+        return static_cast<bool>(Spec_.RootFS);
+    }
+
+    virtual void SetStdIn(const TString& inputPath) override
+    {
+        Spec_.StdinPath = inputPath;
+    }
+
+    virtual void SetStdOut(const TString& outPath) override
+    {
+        Spec_.StdoutPath = outPath;
+    }
+
+    virtual void SetStdErr(const TString& errorPath) override
+    {
+        Spec_.StderrPath = errorPath;
+    }
+
+    virtual void SetCwd(const TString& pwd) override
+    {
+        Spec_.CurrentWorkingDirectory = pwd;
+    }
+
+    virtual void SetCoreDumpHandler(const TString& handler) override
+    {
+        Spec_.CoreCommand = handler;
+    }
+
+    virtual void SetRoot(const TRootFS& rootFS) override
+    {
+        Spec_.RootFS = rootFS;
+    }
+
+    virtual void SetThreadLimit(i64 threadLimit) override
+    {
+        Spec_.ThreadLimit = threadLimit;
+    }
+
+    virtual void SetDevices(const std::vector<TDevice>& devices) override
+    {
+        Spec_.Devices = devices;
+    }
+
+    virtual void SetEnablePorto(EEnablePorto enablePorto) override
+    {
+        Spec_.EnablePorto = enablePorto;
+    }
+
+    virtual void SetIsolate(bool isolate) override
+    {
+        Spec_.Isolate = isolate;
+    }
+
+    virtual void EnableMemoryTracking() override
+    {
+        Spec_.CGroupControllers.push_back("memory");   
+    }
+
+    virtual void SetGroup(int groupId) override
+    {
+        Spec_.GroupId = groupId;
+    }
+
+    virtual void SetUser(const TString& user) override
+    {
+        Spec_.User = user;
+    }
+
+    virtual void SetIPAddresses(const std::vector<NNet::TIP6Address>& addresses) override
+    {
+        Spec_.IPAddresses = addresses;
+    }
+
+    virtual void SetHostName(const TString& hostName) override
+    {
+        Spec_.HostName = hostName;
+    }
+
+    virtual TFuture<IInstancePtr> Launch(
+        const TString& path,
+        const std::vector<TString>& args,
+        const THashMap<TString, TString>& env) override
+    {
+        TStringBuilder commandBuilder;
+        auto append = [&] (const auto& value) {
+            commandBuilder.AppendString("'");
+            commandBuilder.AppendString(NDetail::EscapeForWordexp(value.c_str()));
+            commandBuilder.AppendString("' ");
+        };	
+
+        append(path);
+        for (const auto& arg : args) {
+            append(arg);
+        }
+
+        Spec_.Command = commandBuilder.Flush();
+        YT_LOG_DEBUG("Executing Porto container (Name: %v, Command: %v)",
+            Spec_.Name,
+            Spec_.Command);
+
+        Spec_.Env = env;
+
+        auto onContainerCreated = [this, this_ = MakeStrong(this)] (const TError& error) -> IInstancePtr {
+            if (!error.IsOK()) {
+                THROW_ERROR_EXCEPTION(EErrorCode::FailedToStartContainer, "Unable to start container")
+                    << error;
+            }
+
+            return GetPortoInstance(Executor_, Spec_.Name);
+        };
+
+        return Executor_->CreateContainer(Spec_, /* start */ true)
+            .Apply(BIND(onContainerCreated));
+    }
+
+private:
+    IPortoExecutorPtr Executor_;
+    TRunnableContainerSpec Spec_;
+    const NLogging::TLogger Logger;
+};
+
+IInstanceLauncherPtr CreatePortoInstanceLauncher(const TString& name, IPortoExecutorPtr executor)
+{
+    return New<TPortoInstanceLauncher>(name, executor);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -150,89 +288,14 @@ class TPortoInstance
     : public IInstance
 {
 public:
-    static IInstancePtr Create(const TString& name, IPortoExecutorPtr executor, bool autoDestroy)
-    {
-        auto error = WaitFor(executor->CreateContainer(name));
-        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to create container");
-        auto absoluteName = NDetail::GetAbsoluteName(name, executor);
-
-        return New<TPortoInstance>(name, absoluteName, executor, autoDestroy);
-    }
-
     static IInstancePtr GetSelf(IPortoExecutorPtr executor)
     {
-        auto absoluteName = NDetail::GetAbsoluteName("self", executor);
-        return New<TPortoInstance>("self", absoluteName, executor, false);
+        return New<TPortoInstance>(GetSelfContainerName(executor), executor);
     }
 
     static IInstancePtr GetInstance(IPortoExecutorPtr executor, const TString& name)
     {
-        auto absoluteName = NDetail::GetAbsoluteName(name, executor);
-        return New<TPortoInstance>(name, absoluteName, executor, false);
-    }
-
-    ~TPortoInstance()
-    {
-        // We can't wait here, but even if this request fails
-        // it is not a big issue - Porto has its own GC.
-        if (!Destroyed_ && AutoDestroy_) {
-            Executor_->DestroyContainer(Name_);
-        }
-    }
-
-    virtual void SetStdIn(const TString& inputPath) override
-    {
-        SetProperty("stdin_path", inputPath);
-    }
-
-    virtual void SetStdOut(const TString& outPath) override
-    {
-        SetProperty("stdout_path", outPath);
-    }
-
-    virtual void SetStdErr(const TString& errorPath) override
-    {
-        SetProperty("stderr_path", errorPath);
-    }
-
-    virtual void SetCwd(const TString& cwd) override
-    {
-        SetProperty("cwd", cwd);
-    }
-
-    virtual void SetCoreDumpHandler(const TString& handler) override
-    {
-        SetProperty("core_command", handler);
-    }
-
-    virtual void SetIPAddresses(const std::vector<TIP6Address>& addresses) override
-    {
-        // This label is intended for HBF-agent: YT-12512.
-        SetProperty("labels", "HBF.ignore_address: 1");
-        SetProperty("net", "L3 veth0");
-
-        TString ipProperty;
-        for (const auto& address : addresses) {
-            if (!ipProperty.empty()) {
-                ipProperty += ";";
-            }
-            ipProperty += "veth0 " + ToString(address);
-        }
-        SetProperty("ip", ipProperty);
-    }
-
-    virtual void SetHostName(const TString& hostName) override
-    {
-        SetProperty("hostname", hostName);
-    }
-
-    virtual void AddHostsRecord(const TString& host, const NNet::TIP6Address& address) override
-    {
-        THostsRecord record{
-            .Host = host,
-            .Address = address
-        };
-        HostsRecords_.push_back(record);
+        return New<TPortoInstance>(name, executor);
     }
 
     virtual void Kill(int signal) override
@@ -250,89 +313,17 @@ public:
         }
     }
 
-    virtual void SetRoot(const TRootFS& rootFS) override
-    {
-        HasRoot_ = true;
-        SetProperty("root", rootFS.RootPath);
-        SetProperty("root_readonly", ToString(FormatBool(rootFS.IsRootReadOnly)));
-
-        TStringBuilder builder;
-        for (const auto& bind : rootFS.Binds) {
-            builder.AppendString(bind.SourcePath);
-            builder.AppendString(" ");
-            builder.AppendString(bind.TargetPath);
-            builder.AppendString(" ");
-            builder.AppendString(bind.IsReadOnly ? "ro" : "rw");
-            builder.AppendString(" ; ");
-        }
-
-        SetProperty("bind", builder.Flush());
-    }
-
-    virtual void SetDevices(const std::vector<TDevice>& devices) override
-    {
-        TStringBuilder builder;
-        for (const auto& device : devices) {
-            builder.AppendString(device.DeviceName);
-            builder.AppendString(" ");
-            if (device.Enabled) {
-                builder.AppendString("rw");
-            } else {
-                builder.AppendString("-");
-            }
-            builder.AppendString(" ; ");
-        }
-
-        if (NFS::Exists("/dev/kvm")) {
-            builder.AppendString("/dev/kvm rw");
-        }
-
-        SetProperty("devices", builder.Flush());
-    }
-
-    virtual bool HasRoot() const override
-    {
-        return HasRoot_;
-    }
-
     virtual void Destroy() override
     {
-        WaitFor(Executor_->DestroyContainer(AbsoluteName_))
+        WaitFor(Executor_->DestroyContainer(Name_))
             .ThrowOnError();
         Destroyed_ = true;
     }
 
     virtual void Stop() override
     {
-        WaitFor(Executor_->StopContainer(AbsoluteName_))
+        WaitFor(Executor_->StopContainer(Name_))
             .ThrowOnError();
-    }
-
-    virtual TString GetRoot() override
-    {
-        auto getRoot = [&] (TString name) {
-            return *WaitFor(Executor_->GetContainerProperty(name, "root"))
-                .ValueOrThrow();
-        };
-
-        static const TString Prefix("/porto");
-
-        TString root = "/";
-        auto absoluteName = GetAbsoluteName();
-        while (true) {
-            YT_VERIFY(absoluteName.length() >= Prefix.length());
-            if (absoluteName == Prefix) {
-                return root;
-            }
-
-            root = getRoot(absoluteName);
-            if (root != "/") {
-                return root;
-            }
-
-            auto slashPosition = absoluteName.rfind('/');
-            absoluteName = absoluteName.substr(0, slashPosition);
-        }
     }
 
     virtual TResourceUsage GetResourceUsage(const std::vector<EStatField>& fields) const override
@@ -353,7 +344,7 @@ public:
             }
         }
 
-        auto propertyMap = WaitFor(Executor_->GetContainerProperties(AbsoluteName_, properties))
+        auto propertyMap = WaitFor(Executor_->GetContainerProperties(Name_, properties))
             .ValueOrThrow();
 
         TResourceUsage result;
@@ -391,11 +382,7 @@ public:
 
         // We should maintain context switch information even if this field
         // is not requested since metrics of individual containers can go up and down.
-
-        auto selfAbsoluteName = GetOrCrash(propertyMap, "absolute_name")
-            .ValueOrThrow();
-
-        auto subcontainers = WaitFor(Executor_->ListSubcontainers(selfAbsoluteName, true))
+        auto subcontainers = WaitFor(Executor_->ListSubcontainers(Name_, /*includeRoot*/ true))
             .ValueOrThrow();
 
         auto metricMap = WaitFor(Executor_->GetContainerMetrics(subcontainers, "ctxsw"))
@@ -421,14 +408,16 @@ public:
     virtual TResourceLimits GetResourceLimits() const override
     {
         std::vector<TString> properties;
-        properties.push_back("memory_limit");
-        properties.push_back("cpu_limit");
+        static TString memoryLimitProperty = "memory_limit_total";
+        static TString cpuLimitProperty = "cpu_limit_bound";
+        properties.push_back(memoryLimitProperty);
+        properties.push_back(cpuLimitProperty);
 
         auto responseOrError = WaitFor(Executor_->GetContainerProperties(Name_, properties));
         THROW_ERROR_EXCEPTION_IF_FAILED(responseOrError, "Failed to get Porto container resource limits");
 
         const auto& response = responseOrError.Value();
-        const auto& memoryLimitRsp = response.at("memory_limit");
+        const auto& memoryLimitRsp = response.at(memoryLimitProperty);
 
         THROW_ERROR_EXCEPTION_IF_FAILED(memoryLimitRsp, "Failed to get memory limit from Porto");
 
@@ -436,10 +425,10 @@ public:
 
         if (!TryFromString<i64>(memoryLimitRsp.Value(), memoryLimit)) {
             THROW_ERROR_EXCEPTION("Failed to parse memory limit value from Porto")
-                << TErrorAttribute("memory_limit", memoryLimitRsp.Value());
+                << TErrorAttribute(memoryLimitProperty, memoryLimitRsp.Value());
         }
 
-        const auto& cpuLimitRsp = response.at("cpu_limit");
+        const auto& cpuLimitRsp = response.at(cpuLimitProperty);
 
         THROW_ERROR_EXCEPTION_IF_FAILED(cpuLimitRsp, "Failed to get CPU limit from Porto");
 
@@ -449,38 +438,10 @@ public:
         auto cpuLimitValue = TStringBuf(cpuLimitRsp.Value().begin(), cpuLimitRsp.Value().size() - 1);
         if (!TryFromString<double>(cpuLimitValue, cpuLimit)) {
             THROW_ERROR_EXCEPTION("Failed to parse CPU limit value from Porto")
-                << TErrorAttribute("cpu_limit", cpuLimitRsp.Value());
+                << TErrorAttribute(cpuLimitProperty, cpuLimitRsp.Value());
         }
 
         return TResourceLimits{cpuLimit, memoryLimit};
-    }
-
-    virtual TResourceLimits GetResourceLimitsRecursive() const override
-    {
-        auto resourceLimits = GetResourceLimits();
-
-        auto parentName = NDetail::GetParentName(AbsoluteName_);
-
-        if (parentName) {
-            auto parent = GetInstance(Executor_, *parentName);
-            auto parentLimits = parent->GetResourceLimitsRecursive();
-
-            if (resourceLimits.Cpu == 0 || (parentLimits.Cpu < resourceLimits.Cpu && parentLimits.Cpu > 0)) {
-                resourceLimits.Cpu = parentLimits.Cpu;
-            }
-
-            if (resourceLimits.Memory == 0 || (parentLimits.Memory < resourceLimits.Memory && parentLimits.Memory > 0)) {
-                resourceLimits.Memory = parentLimits.Memory;
-            }
-        }
-
-        return resourceLimits;
-    }
-
-    virtual TString GetStderr() const override
-    {
-        return *WaitFor(Executor_->GetContainerProperty(AbsoluteName_, "stderr"))
-            .ValueOrThrow();
     }
 
     virtual void SetCpuGuarantee(double cores) override
@@ -498,30 +459,9 @@ public:
         SetProperty("cpu_weight", weight);
     }
 
-    virtual void SetEnablePorto(EEnablePorto enablePorto) override
-    {
-        EnablePorto_ = enablePorto;
-    }
-
-    virtual void SetIsolate(bool isolate) override
-    {
-        Isolate_ = isolate;
-    }
-
-    virtual void EnableMemoryTracking() override
-    {
-        RequireMemoryController_ = true;
-    }
-
     virtual void SetMemoryGuarantee(i64 memoryGuarantee) override
     {
         SetProperty("memory_guarantee", memoryGuarantee);
-        RequireMemoryController_ = true;
-    }
-
-    virtual void SetThreadLimit(i64 threadLimit) override
-    {
-        SetProperty("thread_limit", threadLimit);
     }
 
     virtual void SetIOWeight(double weight) override
@@ -534,14 +474,10 @@ public:
         SetProperty("io_ops_limit", operations);
     }
 
-    virtual void SetUser(const TString& user) override
-    {
-        User_ = user;
-    }
-
-    virtual void SetGroup(int groupId) override
-    {
-        GroupId_ = groupId;
+    virtual TString GetStderr() const override	
+    {	
+        return *WaitFor(Executor_->GetContainerProperty(Name_, "stderr"))	
+            .ValueOrThrow();	
     }
 
     virtual TString GetName() const override
@@ -549,17 +485,9 @@ public:
         return Name_;
     }
 
-    virtual TString GetAbsoluteName() const override
+    virtual std::optional<TString> GetParentName() const override
     {
-        return AbsoluteName_;
-    }
-
-    virtual TString GetParentName() const override
-    {
-        auto maybeParentName = NDetail::GetParentName(AbsoluteName_);
-        return maybeParentName
-            ? *maybeParentName
-            : AbsoluteName_;
+        return NDetail::GetParentName(Name_);
     }
 
     virtual pid_t GetPid() const override
@@ -571,16 +499,22 @@ public:
 
     virtual std::vector<pid_t> GetPids() const override
     {
-        // NB(gritukan): Separator can be either "/" or "%" depending on isolation policy.
-        auto normalizePidCgroup = [](TString cgroup) {
-            SubstGlobal(cgroup, "/", "%", 0);
-            if (cgroup[0] == '%') {
-                cgroup = cgroup.substr(1);
+        auto getPidCgroup = [&] (const TString& cgroups) {
+            for (TStringBuf cgroup : StringSplitter(cgroups).SplitByString("; ")) {
+                if (cgroup.StartsWith("pids:")) {
+                    auto startPosition = cgroup.find('/');
+                    YT_VERIFY(startPosition != TString::npos);
+                    return cgroup.substr(startPosition);
+                }
             }
-            return cgroup;
+            THROW_ERROR_EXCEPTION("Pids cgroup not found for container %Qv", GetName())
+                << TErrorAttribute("cgroups", cgroups);
         };
 
-        auto instanceCgroup = normalizePidCgroup(GetAbsoluteName());
+        auto cgroups = *WaitFor(Executor_->GetContainerProperty(Name_, "cgroups"))
+            .ValueOrThrow();
+        // Porto returns full cgroup name, with mount prefix, such as "/sys/fs/cgroup/pids".
+        auto instanceCgroup = getPidCgroup(cgroups);
 
         std::vector<pid_t> pids;
         for (auto pid : ListPids()) {
@@ -592,8 +526,9 @@ public:
                 continue;
             }
 
-            auto processPidCgroup = normalizePidCgroup(cgroups["pids"]);
-            if (instanceCgroup == processPidCgroup) {
+            // Pid cgroups are returned in short form. 
+            auto processPidCgroup = cgroups["pids"];
+            if (!processPidCgroup.empty() && instanceCgroup.EndsWith(processPidCgroup)) {
                 pids.push_back(pid);
             }
         }
@@ -601,131 +536,38 @@ public:
         return pids;
     }
 
-    virtual TFuture<int> Exec(
-        const std::vector<const char*>& argv,
-        const std::vector<const char*>& env) override
+    virtual TFuture<void> Wait() override 
     {
-        TStringBuilder commandBuilder;
-        for (const auto* arg : argv) {
-            commandBuilder.AppendString("'");
-            commandBuilder.AppendString(NDetail::EscapeForWordexp(arg));
-            commandBuilder.AppendString("' ");
-        }
-        auto command = commandBuilder.Flush();
-
-        YT_LOG_DEBUG("Executing Porto container (Command: %v)", command);
-        SetProperty("command", command);
-
-        if (User_) {
-            SetProperty("user", *User_);
-        } else {
-            // NB(psushin): Make sure subcontainer starts with the same user.
-            // For unknown reason in the cloud we've seen user_job containers with user=loadbase.
-            SetProperty("user", ToString(::getuid()));
-        }
-
-        if (GroupId_) {
-            SetProperty("group", i64(*GroupId_));
-        }
-
-        // Enable core dumps for all container instances.
-        SetProperty("ulimit", "core: unlimited");
-
-        std::vector<TString> controllers{
-            "freezer",
-            "cpu",
-            "cpuacct",
-            "net_cls",
-            "blkio",
-            "devices",
-            "pids"
-        };
-        if (RequireMemoryController_) {
-            controllers.push_back("memory");
-        }
-        SetProperty("controllers", JoinToString(controllers, TStringBuf(";")));
-
-        SetProperty("enable_porto", FormatEnablePorto(EnablePorto_));
-        SetProperty("isolate", Isolate_ ? "true" : "false");
-
-        TStringBuilder envBuilder;
-        for (const auto* arg : env) {
-            envBuilder.AppendString(arg);
-            envBuilder.AppendString(";");
-        }
-        SetProperty("env", envBuilder.Flush());
-
-        if (!HostsRecords_.empty()) {
-            TString etcHosts;
-            for (const auto& record : HostsRecords_) {
-                etcHosts += Format("%v %v", record.Address, record.Host);
-                etcHosts += "\n";
-            }
-
-            SetProperty("etc_hosts", etcHosts);
-        }
-
-        // Wait for all pending actions - do not start real execution if
-        // preparation has failed
-        WaitForActions()
-            .ThrowOnError();
-        auto startAction = Executor_->StartContainer(Name_);
-
-        // Wait for starting process - here we get error if exec has failed
-        // i.e. no such file, execution bit, etc
-        // In theory it is not necessarily to wait here, but in this case
-        // error handling will be more difficult.
-        auto error = WaitFor(startAction);
-        if (!error.IsOK()) {
-            THROW_ERROR_EXCEPTION(EErrorCode::FailedToStartContainer, "Unable to start container")
-                << error;
-        }
-
-        return Executor_->PollContainer(Name_);
+        return Executor_->PollContainer(Name_)
+            .Apply(BIND([] (int status) {
+                StatusToError(status)
+                    .ThrowOnError();
+            }));
     }
 
 private:
     const TString Name_;
-    const TString AbsoluteName_;
     const IPortoExecutorPtr Executor_;
-    const bool AutoDestroy_;
     const NLogging::TLogger Logger;
 
-    std::vector<TFuture<void>> Actions_;
     bool Destroyed_ = false;
-    bool HasRoot_ = false;
-    EEnablePorto EnablePorto_ = EEnablePorto::Full;
-    bool Isolate_ = false;
-    bool RequireMemoryController_ = false;
-    std::optional<TString> User_;
-    std::optional<int> GroupId_;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, ContextSwitchMapLock_);
     mutable i64 TotalContextSwitches_ = 0;
     mutable THashMap<TString, i64> ContextSwitchMap_;
 
-    struct THostsRecord
-    {
-        const TString Host;
-        const TIP6Address Address;
-    };
-    std::vector<THostsRecord> HostsRecords_;
-
     TPortoInstance(
         const TString name,
-        const TString absoluteName,
-        IPortoExecutorPtr executor,
-        bool autoDestroy)
+        IPortoExecutorPtr executor)
         : Name_(std::move(name))
-        , AbsoluteName_(std::move(absoluteName))
-        , Executor_(executor)
-        , AutoDestroy_(autoDestroy)
+        , Executor_(std::move(executor))
         , Logger(ContainersLogger.WithTag("Container: %v", Name_))
     { }
 
     void SetProperty(const TString& key, const TString& value)
     {
-        Actions_.push_back(Executor_->SetContainerProperty(Name_, key, value));
+        WaitFor(Executor_->SetContainerProperty(Name_, key, value))
+            .ThrowOnError();
     }
 
     void SetProperty(const TString& key, i64 value)
@@ -738,31 +580,39 @@ private:
         SetProperty(key, ToString(value));
     }
 
-    TError WaitForActions()
-    {
-        auto error = WaitFor(AllSucceeded(Actions_));
-        Actions_.clear();
-        return error;
-    }
-
-    static TString FormatEnablePorto(EEnablePorto value)
-    {
-        switch (value) {
-            case EEnablePorto::None:    return "none";
-            case EEnablePorto::Isolate: return "isolate";
-            case EEnablePorto::Full:    return "full";
-            default:                    YT_ABORT();
-        }
-    }
-
     DECLARE_NEW_FRIEND();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IInstancePtr CreatePortoInstance(const TString& name, IPortoExecutorPtr executor, bool autoDestroy)
+TString GetSelfContainerName(const IPortoExecutorPtr& executor)
 {
-    return TPortoInstance::Create(name, executor, autoDestroy);
+    try {
+        auto properties = WaitFor(executor->GetContainerProperties(
+            "self",
+            std::vector<TString>{"absolute_name", "absolute_namespace"}))
+            .ValueOrThrow();
+
+        auto absoluteName = properties.at("absolute_name")
+            .ValueOrThrow();
+        auto absoluteNamespace = properties.at("absolute_namespace")
+            .ValueOrThrow();
+
+        if (absoluteName == "/") {
+            return absoluteName;
+        }
+
+        if (absoluteName.length() < absoluteNamespace.length()) {
+            YT_VERIFY(absoluteName + "/" == absoluteNamespace);
+            return "";    
+        } else {
+            YT_VERIFY(absoluteName.StartsWith(absoluteNamespace));
+            return absoluteName.substr(absoluteNamespace.length());
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to get name for container \"self\"")
+            << ex;
+    }
 }
 
 IInstancePtr GetSelfPortoInstance(IPortoExecutorPtr executor)

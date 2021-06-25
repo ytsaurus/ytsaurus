@@ -31,12 +31,22 @@ namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TJobSpecEnvironmentOptions
+{
+    bool EnablePortoMemoryTracking = false;
+    bool EnableCoreDumps = false;
+    bool EnableGpuCoreDumps = false;
+    NContainers::EEnablePorto EnablePorto = NContainers::EEnablePorto::None;
+    i64 ThreadLimit;
+};
+
 //! Represents a context for running jobs inside job proxy.
 struct IJobHost
     : public virtual TRefCounted
 {
     virtual TJobProxyConfigPtr GetConfig() const = 0;
-    virtual IUserJobEnvironmentPtr CreateUserJobEnvironment() const = 0;
+    virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(const TJobSpecEnvironmentOptions& options) const = 0;
+
     virtual NJobTrackerClient::TOperationId GetOperationId() const = 0;
     virtual NJobTrackerClient::TJobId GetJobId() const = 0;
 

@@ -11,6 +11,8 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/core/misc/fs.h>
+
 #include <yt/yt/core/profiling/profile_manager.h>
 #include <yt/yt/core/profiling/timing.h>
 
@@ -82,6 +84,16 @@ THashMap<TString, THashMap<TString, TErrorOr<TString>>> ParseMultiplePortoGetRes
     return result;
 }
 
+TString FormatEnablePorto(EEnablePorto value)
+{
+    switch (value) {
+        case EEnablePorto::None:    return "none";
+        case EEnablePorto::Isolate: return "isolate";
+        case EEnablePorto::Full:    return "full";
+        default:                    YT_ABORT();
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPortoExecutor
@@ -109,6 +121,13 @@ public:
     virtual TFuture<void> CreateContainer(const TString& container) override
     {
         return BIND(&TPortoExecutor::DoCreateContainer, MakeStrong(this), container)
+            .AsyncVia(Queue_->GetInvoker())
+            .Run();
+    }
+
+    virtual TFuture<void> CreateContainer(const TRunnableContainerSpec& containerSpec, bool start) override
+    {
+        return BIND(&TPortoExecutor::DoCreateContainerFromSpec, MakeStrong(this), containerSpec, start)
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
@@ -204,50 +223,25 @@ public:
             .Run();
     }
 
-    virtual TFuture<std::vector<TString>> ListContainers() override
-    {
-        return BIND(&TPortoExecutor::DoListContainers, MakeStrong(this))
-            .AsyncVia(Queue_->GetInvoker())
-            .Run();
-    }
-
     virtual TFuture<std::vector<TString>> ListSubcontainers(
         const TString& rootContainer,
         bool includeRoot) override
     {
-        return ListContainers()
-            .Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<TString>& allContainers) {
-                return
-                    GetContainerProperties(
-                        allContainers,
-                        std::vector<TString>{"absolute_name"})
-                    .Apply(BIND([=, this_ = MakeStrong(this)] (const THashMap<TString, THashMap<TString, TErrorOr<TString>>>& propertyMap) {
-                        std::vector<TString> matchingContainers;
-                        for (const auto& [someContainer, someProperties] : propertyMap) {
-                            if (someContainer == "/") {
-                                continue;
-                            }
-
-                            const auto& absoluteNameOrError = GetOrCrash(someProperties, "absolute_name");
-                            if (!absoluteNameOrError.IsOK()) {
-                                continue;
-                            }
-
-                            const auto& absoluteName = absoluteNameOrError.Value();
-                            if (absoluteName.StartsWith(rootContainer + "/") ||
-                                includeRoot && absoluteName == rootContainer)
-                            {
-                                matchingContainers.push_back(someContainer);
-                            }
-                        }
-                        return matchingContainers;
-                    }));
-            }));
+        return BIND(&TPortoExecutor::DoListSubcontainers, MakeStrong(this), rootContainer, includeRoot)
+            .AsyncVia(Queue_->GetInvoker())
+            .Run();
     }
 
     virtual TFuture<int> PollContainer(const TString& container) override
     {
         return BIND(&TPortoExecutor::DoPollContainer, MakeStrong(this), container)
+            .AsyncVia(Queue_->GetInvoker())
+            .Run();
+    }
+
+    virtual TFuture<int> WaitContainer(const TString& container) override
+    {
+        return BIND(&TPortoExecutor::DoWaitContainer, MakeStrong(this), container)
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
@@ -317,6 +311,11 @@ public:
             .Run();
     }
 
+    virtual IInvokerPtr GetInvoker() const override 
+    {
+        return Queue_->GetInvoker();
+    }
+
 private:
     const TPortoExecutorConfigPtr Config_;
     const TActionQueuePtr Queue_;
@@ -363,6 +362,122 @@ private:
             "Create");
     }
 
+    void DoCreateContainerFromSpec(const TRunnableContainerSpec& spec, bool start)
+    {
+        Porto::TContainerSpec portoSpec;
+
+        // Required properties.
+        portoSpec.set_name(spec.Name);
+        portoSpec.set_command(spec.Command);
+
+        portoSpec.set_enable_porto(FormatEnablePorto(spec.EnablePorto));
+        portoSpec.set_isolate(spec.Isolate);
+        
+        if (spec.StdinPath) {
+            portoSpec.set_stdin_path(*spec.StdinPath);
+        }
+        if (spec.StdoutPath) {
+            portoSpec.set_stdout_path(*spec.StdoutPath);
+        }
+        if (spec.StderrPath) {
+            portoSpec.set_stderr_path(*spec.StderrPath);
+        }
+
+        if (spec.CurrentWorkingDirectory) {
+            portoSpec.set_cwd(*spec.CurrentWorkingDirectory);
+        }
+    
+        if (spec.CoreCommand) {
+            portoSpec.set_core_command(*spec.CoreCommand);
+        }
+        if (spec.User) {
+            portoSpec.set_user(*spec.User);
+        }
+
+        // Useful for jobs, where we operate with numeric group ids.
+        if (spec.GroupId) {
+            portoSpec.set_group(ToString(*spec.GroupId));
+        }
+
+        if (spec.ThreadLimit) {
+            portoSpec.set_thread_limit(*spec.ThreadLimit);
+        }
+
+        portoSpec.set_resolv_conf("keep");
+        if (spec.HostName) {
+            // To get a reasonable and unique host name inside container.
+            portoSpec.set_hostname(*spec.HostName);
+            if (!spec.IPAddresses.empty()) {
+                const auto& address = spec.IPAddresses[0];
+                auto etcHosts = Format("%v %v\n", address, *spec.HostName);
+                // To be able to resolve hostname into IP inside container.
+                portoSpec.set_etc_hosts(etcHosts);
+            }
+        }
+
+        if (!spec.IPAddresses.empty() && Config_->EnableNetworkIsolation) {
+            // This label is intended for HBF-agent: YT-12512.	
+            auto* label = portoSpec.mutable_labels()->add_map();
+            label->set_key("HBF.ignore_address");
+            label->set_val("1");
+            
+            auto* netConfig = portoSpec.mutable_net()->add_cfg();
+            netConfig->set_opt("L3");
+            netConfig->add_arg("veth0");
+
+            for (const auto& address : spec.IPAddresses) {	
+                auto* ipConfig = portoSpec.mutable_ip()->add_cfg();
+                ipConfig->set_dev("veth0");
+                ipConfig->set_ip(ToString(address));
+            }	
+        }
+
+        for (const auto& [key, value] : spec.Labels) {
+            auto* map = portoSpec.mutable_labels()->add_map();
+            map->set_key(key);
+            map->set_val(value);
+        }
+
+        for (const auto& [name, value] : spec.Env) {
+            auto* var = portoSpec.mutable_env()->add_var();
+            var->set_name(name);
+            var->set_value(value);
+        }
+
+        for (const auto& controller : spec.CGroupControllers) {
+            portoSpec.mutable_controllers()->add_controller(controller);
+        }
+
+        for (const auto& device : spec.Devices) {
+            auto* portoDevice = portoSpec.mutable_devices()->add_device();
+            portoDevice->set_device(device.DeviceName);
+            portoDevice->set_access(device.Enabled ? "rw" : "-");
+        }
+
+        if (spec.RootFS) {
+            portoSpec.set_root_readonly(spec.RootFS->IsRootReadOnly);
+            portoSpec.set_root(spec.RootFS->RootPath);
+
+            for (const auto& bind : spec.RootFS->Binds) {
+                auto* portoBind = portoSpec.mutable_bind()->add_bind();
+                portoBind->set_target(bind.TargetPath);
+                portoBind->set_source(bind.SourcePath);
+                portoBind->add_flag(bind.IsReadOnly ? "ro" : "rw");
+            }
+        }
+
+        // Set some universal defaults.
+        portoSpec.set_oom_is_fatal(false);
+
+        auto* ulimit = portoSpec.mutable_ulimit()->add_ulimit();
+        ulimit->set_type("core");
+        ulimit->set_unlimited(true);
+
+        ExecuteApiCall(
+            [&] { return Api_->CreateFromSpec(portoSpec, {}, start); },
+            "CreateFromSpec");
+    }
+
     void DoSetContainerProperty(const TString& container, const TString& property, const TString& value)
     {
         ExecuteApiCall(
@@ -404,13 +519,85 @@ private:
             "Kill");
     }
 
-    std::vector<TString> DoListContainers()
+    std::vector<TString> DoListSubcontainers(const TString& rootContainer, bool includeRoot)
     {
-        TVector<TString> containers;
+        Porto::TListContainersRequest req;
+        auto filter = req.add_filters();
+        filter->set_name(rootContainer + "/*");
+        if (includeRoot) {
+            auto rootFilter = req.add_filters();
+            rootFilter->set_name(rootContainer);
+        }
+        auto fieldOptions = req.mutable_field_options();
+        fieldOptions->add_properties("absolute_name");
+        TVector<Porto::TContainer> containers;
+
         ExecuteApiCall(
-            [&] { return Api_->List(containers); },
-            "List");
-        return {containers.begin(), containers.end()};
+            [&] { return Api_->ListContainersBy(req, containers); },
+            "ListContainersBy");
+        std::vector<TString> containerNames;
+        containerNames.reserve(containers.size());
+        for (const auto& container : containers) {
+            const auto& absoluteName = container.status().absolute_name();
+            if (!absoluteName.empty()) {
+                containerNames.push_back(absoluteName);
+            }
+        }
+        return containerNames;
+    }
+
+    TFuture<int> DoWaitContainer(const TString& container)
+    {
+        auto result = NewPromise<int>();
+        auto waitCallback = [=, this_ = MakeStrong(this)] (const Porto::TWaitResponse& rsp) {
+            return this_->OnContainerTerminated(rsp, result);
+        };
+
+        ExecuteApiCall(
+            [&] { return Api_->AsyncWait({container}, {}, waitCallback); },
+            "AsyncWait");
+
+        return result.ToFuture().ToImmediatelyCancelable();
+    }
+
+    void OnContainerTerminated(const Porto::TWaitResponse& portoWaitResponse, TPromise<int> result)
+    {
+        const auto& container = portoWaitResponse.name();
+        const auto& state = portoWaitResponse.state();
+        if (state != "dead" && state != "stopped") {
+            result.TrySet(TError("Container finished with unexpected state") 
+                << TErrorAttribute("container_name", container)
+                << TErrorAttribute("container_state", state));
+            return;
+        }
+
+        GetContainerProperty(container, "exit_status").Apply(BIND(
+            [=, this_ = MakeStrong(this)] (const TErrorOr<std::optional<TString>>& errorOrExitCode) {
+                if (!errorOrExitCode.IsOK()) {
+                    result.TrySet(TError("Container finished, but exit status is unknown") 
+                        << errorOrExitCode);
+                    return;
+                }
+
+                const auto& optionalExitCode = errorOrExitCode.Value();
+                if (!optionalExitCode) {
+                    result.TrySet(TError("Container finished, but exit status is unknown") 
+                        << TErrorAttribute("container_name", container)
+                        << TErrorAttribute("container_state", state));
+                    return;
+                }
+
+                try {
+                    int exitStatus = FromString<int>(*optionalExitCode);
+                    result.TrySet(exitStatus);
+                } catch (const std::exception& ex) {
+                    auto error = TError("Failed to parse porto exit status") 
+                        << TErrorAttribute("container_name", container)
+                        << TErrorAttribute("exit_status", optionalExitCode.value());
+                    error.MutableInnerErrors()->push_back(TError(ex));
+                    result.TrySet(error);
+                }
+            }));
     }
 
     TFuture<int> DoPollContainer(const TString& container)

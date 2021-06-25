@@ -138,15 +138,15 @@ public:
                 }
                 options->Id = TGuid::Create();
                 options->Index = NextShellIndex_++;
-                auto subcontainerAbsoluteName = RootInstance_->GetAbsoluteName() + jobShellDescriptor.Subcontainer;
-                options->ContainerName = Format("%v/js-%v", subcontainerAbsoluteName, options->Index);
+                auto subcontainerName = RootInstance_->GetName() + jobShellDescriptor.Subcontainer;
+                options->ContainerName = Format("%v/js-%v", subcontainerName, options->Index);
 #ifdef _linux_
-                options->ContainerUser = *WaitFor(PortoExecutor_->GetContainerProperty(subcontainerAbsoluteName, "user"))
+                options->ContainerUser = *WaitFor(PortoExecutor_->GetContainerProperty(subcontainerName, "user"))
                     .ValueOrThrow();
                 {
                     auto enablePorto = WaitFor(
                         PortoExecutor_->GetContainerProperty(
-                            subcontainerAbsoluteName,
+                            subcontainerName,
                             "enable_porto"))
                         .ValueOrThrow();
                     if (enablePorto && enablePorto != "none" && enablePorto != "false") {
@@ -155,7 +155,7 @@ public:
                 }
 
                 if (!jobShellDescriptor.Subcontainer.empty()) {
-                    options->WorkingDir = *WaitFor(PortoExecutor_->GetContainerProperty(subcontainerAbsoluteName, "cwd"))
+                    options->WorkingDir = *WaitFor(PortoExecutor_->GetContainerProperty(subcontainerName, "cwd"))
                         .ValueOrThrow();
                 } else {
                     options->WorkingDir = WorkingDir_;

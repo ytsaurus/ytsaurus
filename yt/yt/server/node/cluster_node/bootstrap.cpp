@@ -815,7 +815,7 @@ void TBootstrap::DoInitialize()
         auto self = GetSelfPortoInstance(portoExecutor);
         if (Config_->InstanceLimitsUpdatePeriod) {
             auto instance = portoEnvironmentConfig->UseDaemonSubcontainer
-                ? GetPortoInstance(portoExecutor, self->GetParentName())
+                ? GetPortoInstance(portoExecutor, *self->GetParentName())
                 : self;
 
             InstanceLimitsTracker_ = New<TInstanceLimitsTracker>(

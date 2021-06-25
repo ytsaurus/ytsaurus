@@ -11,16 +11,16 @@ TCpuMonitor::TCpuMonitor(
     NScheduler::TJobCpuMonitorConfigPtr config,
     IInvokerPtr invoker,
     TJobProxy* jobProxy,
-    const double hardCpuLimit)
+    const double initialCpuGuarantee)
     : Config_(std::move(config))
     , MonitoringExecutor_(New<NConcurrency::TPeriodicExecutor>(
         std::move(invoker),
         BIND(&TCpuMonitor::DoCheck, MakeWeak(this)),
         Config_->CheckPeriod))
     , JobProxy_(jobProxy)
-    , HardLimit_(hardCpuLimit)
-    , SoftLimit_(hardCpuLimit)
-    , MinCpuLimit_(std::min(hardCpuLimit, Config_->MinCpuLimit))
+    , HardLimit_(initialCpuGuarantee)
+    , SoftLimit_(initialCpuGuarantee)
+    , MinCpuLimit_(std::min(initialCpuGuarantee, Config_->MinCpuLimit))
     , Logger("CpuMonitor")
 { }
 
@@ -62,7 +62,7 @@ void TCpuMonitor::DoCheck()
 
     auto decision = TryMakeDecision();
     if (decision) {
-        if (!Config_->EnableCpuReclaim || JobProxy_->TrySetCpuShare(*decision)) {
+        if (!Config_->EnableCpuReclaim || JobProxy_->TrySetCpuGuarantee(*decision)) {
             YT_LOG_DEBUG("Soft limit changed (OldValue: %v, NewValue: %v)",
                 SoftLimit_,
                 *decision);

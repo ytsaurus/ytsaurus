@@ -169,7 +169,14 @@ public:
         , UserJobSpec_(userJobSpec)
         , Config_(Host_->GetConfig())
         , JobIOConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig())
-        , UserJobEnvironment_(Host_->CreateUserJobEnvironment())
+        , UserJobEnvironment_(Host_->CreateUserJobEnvironment(
+            TJobSpecEnvironmentOptions{
+                .EnablePortoMemoryTracking = UserJobSpec_.use_porto_memory_tracking(),
+                .EnableCoreDumps = UserJobSpec_.has_core_table_spec(),
+                .EnableGpuCoreDumps = UserJobSpec_.enable_cuda_gpu_core_dump(),
+                .EnablePorto = TranslateEnablePorto(CheckedEnumCast<NScheduler::EEnablePorto>(UserJobSpec_.enable_porto())),
+                .ThreadLimit = UserJobSpec_.thread_limit()
+            }))
         , Ports_(ports)
         , JobErrorPromise_(NewPromise<void>())
         , JobEnvironmentType_(ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment)->Type)
@@ -208,7 +215,7 @@ public:
             BIND(&TUserJob::CheckMemoryUsage, MakeWeak(this)),
             MemoryWatchdogPeriod_);
 
-        if (jobEnvironmentConfig->Type != EJobEnvironmentType::Simple) {
+        if (JobEnvironmentType_ != EJobEnvironmentType::Simple) {
             UserId_ = jobEnvironmentConfig->StartUid + Config_->SlotIndex;
         }
 
@@ -218,33 +225,14 @@ public:
             UserId_ = 0;
         }
 
-        if (UserJobEnvironment_) {
-            if (!host->GetConfig()->BusServer->UnixDomainSocketPath) {
-                THROW_ERROR_EXCEPTION("Unix domain socket path is not configured");
-            }
-
-            IUserJobEnvironment::TUserJobProcessOptions options;
-            if (UserJobSpec_.has_core_table_spec()) {
-                options.SlotCoreWatcherDirectory = NFS::CombinePaths({Host_->GetSlotPath(), "cores"});
-                options.CoreWatcherDirectory = NFS::CombinePaths({Host_->GetPreparationPath(), "cores"});
-            }
-            options.EnablePorto = TranslateEnablePorto(CheckedEnumCast<NScheduler::EEnablePorto>(UserJobSpec_.enable_porto()));
-            options.EnableCudaGpuCoreDump = UserJobSpec_.enable_cuda_gpu_core_dump();
-            options.HostName = Config_->HostName;
-            options.NetworkAddresses = Config_->NetworkAddresses;
-            options.ThreadLimit = UserJobSpec_.thread_limit();
-
-            Process_ = UserJobEnvironment_->CreateUserJobProcess(
-                ExecProgramName,
-                options);
-
-            BlockIOWatchdogExecutor_ = New<TPeriodicExecutor>(
-                AuxQueue_->GetInvoker(),
-                BIND(&TUserJob::CheckBlockIOUsage, MakeWeak(this)),
-                UserJobEnvironment_->GetBlockIOWatchdogPeriod());
-        } else {
-            Process_ = New<TSimpleProcess>(ExecProgramName, false);
+        if (!Config_->BusServer->UnixDomainSocketPath) {
+            THROW_ERROR_EXCEPTION("Unix domain socket path is not configured");
         }
+
+        BlockIOWatchdogExecutor_ = New<TPeriodicExecutor>(
+            AuxQueue_->GetInvoker(),
+            BIND(&TUserJob::CheckBlockIOUsage, MakeWeak(this)),
+            UserJobEnvironment_->GetBlockIOWatchdogPeriod());
 
         if (UserJobSpec_.has_core_table_spec()) {
             const auto& coreTableSpec = UserJobSpec_.core_table_spec();
@@ -281,8 +269,10 @@ public:
 
         bool expected = false;
         if (Prepared_.compare_exchange_strong(expected, true)) {
-            ProcessFinished_ = Process_->Spawn();
+            ProcessFinished_ = SpawnUserProcess();
             YT_LOG_INFO("Job process started");
+
+            InitShellManager();
 
             if (BlockIOWatchdogExecutor_) {
                 BlockIOWatchdogExecutor_->Start();
@@ -544,8 +534,6 @@ private:
     const TActionQueuePtr AuxQueue_;
     const IInvokerPtr ReadStderrInvoker_;
 
-    TProcessBasePtr Process_;
-
     TString InputPipePath_;
 
     std::optional<int> UserId_;
@@ -618,15 +606,16 @@ private:
 
     std::atomic<bool> NotFullyConsumed_ = false;
 
-    void Prepare()
+    TFuture<void> SpawnUserProcess()
     {
-        PreparePipes();
-        PrepareEnvironment();
-        PrepareExecutorConfig();
+        return UserJobEnvironment_->SpawnUserProcess(
+            ExecProgramName,
+            {"--config", Host_->AdjustPath(GetExecutorConfigPath())},
+            NFS::CombinePaths(Host_->GetSlotPath(), SandboxDirectoryNames[ESandboxKind::User]));
+    }
 
-        Process_->AddArguments({"--config", Host_->AdjustPath(GetExecutorConfigPath())});
-        Process_->SetWorkingDirectory(NFS::CombinePaths(Host_->GetSlotPath(), SandboxDirectoryNames[ESandboxKind::User]));
-
+    void InitShellManager()
+    {
         if (JobEnvironmentType_ == EJobEnvironmentType::Porto) {
 #ifdef _linux_
             auto portoJobEnvironmentConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(Config_->JobEnvironment);
@@ -655,10 +644,11 @@ private:
 
             std::optional<int> shellManagerGid;
             // YT-13790.
-            if (Host_->GetConfig()->RootPath) {
+            if (Config_->RootPath) {
                 shellManagerGid = 1001;
             }
-
+                
+            // ToDo(psushin): move ShellManager into user job environment.    
             ShellManager_ = CreateShellManager(
                 portoExecutor,
                 UserJobEnvironment_->GetUserJobInstance(),
@@ -671,6 +661,13 @@ private:
             );
 #endif
         }
+    }
+
+    void Prepare()
+    {
+        PreparePipes();
+        PrepareEnvironment();
+        PrepareExecutorConfig();
     }
 
     void CleanupUserProcesses() const
@@ -867,6 +864,8 @@ private:
         const TJobShellDescriptor& jobShellDescriptor,
         const TYsonString& parameters) override
     {
+        ValidatePrepared();
+
         if (!ShellManager_) {
             THROW_ERROR_EXCEPTION("Job shell polling is not supported in non-Porto environment");
         }
@@ -879,17 +878,7 @@ private:
 
         if (!InterruptionSignalSent_.exchange(true) && UserJobSpec_.has_interruption_signal()) {
             try {
-                std::vector<int> pids;
-                if (UserJobEnvironment_) {
-#ifdef _linux_
-                    pids = UserJobEnvironment_->GetUserJobInstance()->GetPids();
-#endif
-                } else {
-                    // Fallback for non-sudo tests run.
-                    auto pid = Process_->GetProcessId();
-                    pids = GetPidsUnderParent(pid);
-                }
-
+                auto pids = UserJobEnvironment_->GetJobPids();
                 auto signal = UserJobSpec_.interruption_signal();
 
                 YT_LOG_DEBUG("Sending interruption signal to user job (SignalName: %v, UserJobPids: %v)",
@@ -1137,18 +1126,16 @@ private:
             Environment_.emplace_back(formatter.Format(UserJobSpec_.environment(i)));
         }
 
-        if (Host_->GetConfig()->TestRootFS && Host_->GetConfig()->RootPath) {
-            Environment_.push_back(Format("YT_ROOT_FS=%v", *Host_->GetConfig()->RootPath));
+        if (Config_->TestRootFS && Config_->RootPath) {
+            Environment_.push_back(Format("YT_ROOT_FS=%v", *Config_->RootPath));
         }
 
         for (int index = 0; index < std::ssize(Ports_); ++index) {
             Environment_.push_back(Format("YT_PORT_%v=%v", index, Ports_[index]));
         }
 
-        if (UserJobEnvironment_) {
-            const auto& environment = UserJobEnvironment_->GetEnvironmentVariables();
-            Environment_.insert(Environment_.end(), environment.begin(), environment.end());
-        }
+        const auto& environment = UserJobEnvironment_->GetEnvironmentVariables();
+        Environment_.insert(Environment_.end(), environment.begin(), environment.end());
     }
 
     void AddCustomStatistics(const INodePtr& sample)
@@ -1207,7 +1194,7 @@ private:
         }
 
         // Job environment statistics.
-        if (UserJobEnvironment_ && Prepared_) {
+        if (Prepared_) {
             try {
                 auto cpuStatistics = UserJobEnvironment_->GetCpuStatistics();
                 statistics.AddSample("/user_job/cpu", cpuStatistics);
@@ -1291,7 +1278,7 @@ private:
 
     virtual TCpuStatistics GetCpuStatistics() const override
     {
-        return UserJobEnvironment_ ? UserJobEnvironment_->GetCpuStatistics() : TCpuStatistics();
+        return UserJobEnvironment_->GetCpuStatistics();
     }
 
     void OnIOErrorOrFinished(const TError& error, const TString& message)
@@ -1365,7 +1352,7 @@ private:
         {
             auto connectionConfig = New<TUserJobSynchronizerConnectionConfig>();
             auto processWorkingDirectory = NFS::CombinePaths(Host_->GetPreparationPath(), SandboxDirectoryNames[ESandboxKind::User]);
-            connectionConfig->BusClientConfig->UnixDomainSocketPath = GetRelativePath(processWorkingDirectory, *Host_->GetConfig()->BusServer->UnixDomainSocketPath);
+            connectionConfig->BusClientConfig->UnixDomainSocketPath = GetRelativePath(processWorkingDirectory, *Config_->BusServer->UnixDomainSocketPath);
             executorConfig->UserJobSynchronizerConnectionConfig = connectionConfig;
         }
 
@@ -1512,10 +1499,6 @@ private:
 
     void CheckBlockIOUsage()
     {
-        if (!UserJobEnvironment_) {
-            return;
-        }
-
         TBlockIOStatistics blockIOStats;
         try {
             blockIOStats = UserJobEnvironment_->GetBlockIOStatistics();

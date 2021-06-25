@@ -37,7 +37,7 @@ void TInstanceLimitsTracker::DoUpdateLimits()
     YT_LOG_DEBUG("Checking for instance limits update");
 
     try {
-        auto limits = Instance_->GetResourceLimitsRecursive();
+        auto limits = Instance_->GetResourceLimits();
         bool limitsUpdated = false;
 
         if (CpuLimit_ != limits.Cpu) {

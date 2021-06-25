@@ -16,6 +16,7 @@ public:
     TDuration PollPeriod;
     TDuration ApiTimeout;
     TDuration ApiDiskTimeout;
+    bool EnableNetworkIsolation;
 
     TPortoExecutorConfig()
     {
@@ -27,6 +28,8 @@ public:
             .Default(TDuration::Minutes(5));
         RegisterParameter("api_disk_timeout", ApiDiskTimeout)
             .Default(TDuration::Minutes(30));
+        RegisterParameter("enable_network_isolation", EnableNetworkIsolation)
+            .Default(true);
     }
 };
 

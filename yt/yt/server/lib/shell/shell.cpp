@@ -5,11 +5,8 @@
 
 #include <yt/yt/server/lib/containers/instance.h>
 
-#include <yt/yt/server/lib/misc/process.h>
-
 #endif
 
-#include <yt/yt/library/process/process.h>
 #include <yt/yt/library/process/pty.h>
 
 #include <yt/yt/core/actions/bind.h>
@@ -75,7 +72,7 @@ public:
         IsRunning_ = true;
 
         YT_LOG_INFO("Spawning job shell container (ContainerName: %v)", Options_->ContainerName);
-        Instance_ = CreatePortoInstance(Options_->ContainerName, PortoExecutor_);
+        auto launcher = CreatePortoInstanceLauncher(Options_->ContainerName, PortoExecutor_);
 
         int uid = Options_->Uid.value_or(::getuid());
         auto user = SafeGetUsernameByUid(uid);
@@ -99,24 +96,19 @@ public:
         Pty_ = std::make_unique<TPty>(CurrentHeight_, CurrentWidth_);
         const TString tty = Format("/dev/fd/%v", Pty_->GetSlaveFD());
 
-        Instance_->SetStdIn(tty);
-        Instance_->SetStdOut(tty);
-        Instance_->SetStdErr(tty);
+        launcher->SetStdIn(tty);
+        launcher->SetStdOut(tty);
+        launcher->SetStdErr(tty);
 
         // NB(gritukan, psushin): Porto is unable to resolve username inside subcontainer
         // so we pass uid instead.
-        Instance_->SetUser(ToString(uid));
+        launcher->SetUser(ToString(uid));
         if (gid) {
-            Instance_->SetGroup(*gid);
+            launcher->SetGroup(*gid);
         }
 
-        Instance_->SetEnablePorto(Options_->EnablePorto ? EEnablePorto::Full : EEnablePorto::None);
-        Instance_->SetIsolate(false);
-
-        Process_ = New<TPortoProcess>("/bin/bash", Instance_, false);
-        if (Options_->Command) {
-            Process_->AddArguments({"-c", *Options_->Command});
-        }
+        launcher->SetEnablePorto(Options_->EnablePorto ? EEnablePorto::Full : EEnablePorto::None);
+        launcher->SetIsolate(false);
 
         Reader_ = Pty_->CreateMasterAsyncReader();
         auto bufferingReader = CreateBufferingAdapter(Reader_, ReaderBufferSize);
@@ -125,24 +117,23 @@ public:
         Writer_ = Pty_->CreateMasterAsyncWriter();
         ZeroCopyWriter_ = CreateZeroCopyAdapter(Writer_);
 
-        Process_->SetWorkingDirectory(workingDir);
-
-        auto addEnv = [&] (const TString& name, const TString& value) {
-            Process_->AddEnvVar(Format("%v=%v", name, value));
-        };
+        launcher->SetCwd(workingDir);
 
         // Init environment variables.
-        addEnv("HOME", workingDir);
-        addEnv("G_HOME", workingDir);
-        addEnv("TMPDIR", NFS::CombinePaths(workingDir, "tmp"));
-        addEnv("LOGNAME", user);
-        addEnv("USER", user);
-        addEnv("TERM", Options_->Term);
-        addEnv("LANG", "en_US.UTF-8");
-        addEnv("YT_SHELL_ID", ToString(Id_));
+        THashMap<TString, TString> env;
+        env["HOME"] = workingDir;
+        env["G_HOME"] = workingDir;
+        env["TMPDIR"] = NFS::CombinePaths(workingDir, "tmp");
+        env["LOGNAME"] = user;
+        env["USER"] = user;
+        env["TERM"] = Options_->Term;
+        env["LANG"] = "en_US.UTF-8";
+        env["YT_SHELL_ID"] = ToString(Id_);
 
         for (const auto& var : Options_->Environment) {
-            Process_->AddEnvVar(var);
+            TStringBuf name, value;
+            TStringBuf(var).TrySplit('=', name, value); 
+            env[name] = value;
         }
 
         if (Options_->MessageOfTheDay) {
@@ -172,7 +163,17 @@ public:
             }
         }
         ResizeWindow(CurrentHeight_, CurrentWidth_);
-        Process_->Spawn()
+
+        TString path("/bin/bash");
+        std::vector<TString> args;
+        if (Options_->Command) {
+            args = {"-c", *Options_->Command};
+        }
+        
+        Instance_ = WaitFor(launcher->Launch(path, args, env))
+            .ValueOrThrow();
+
+        Instance_->Wait()
             .Subscribe(
                 BIND(&TShell::Terminate, MakeWeak(this))
                     .Via(GetCurrentInvoker()));
@@ -290,7 +291,6 @@ private:
     int CurrentWidth_;
 
     IInstancePtr Instance_;
-    TProcessBasePtr Process_;
 
     bool IsRunning_ = false;
 
