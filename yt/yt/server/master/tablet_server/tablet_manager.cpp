@@ -2399,6 +2399,8 @@ private:
     bool RecomputeAggregateTabletStatistics_ = false;
     bool RecomputeBundleResourceUsage_ = false;
     bool RecomputeHunkResourceUsage_ = false;
+    // COMPAT(shakurov)
+    bool FixTablesWithNullTabletCellBundle_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -4110,6 +4112,9 @@ private:
 
         // COMPAT(ifsmirnov)
         RecomputeHunkResourceUsage_ = (context.GetVersion() < EMasterReign::HunksNotInTabletStatic);
+
+        // COMPAT(shakurov)
+        FixTablesWithNullTabletCellBundle_ = context.GetVersion() < EMasterReign::FixTablesWithNullTabletCellBundle;
     }
 
     void RecomputeBundleResourceUsage()
@@ -4186,6 +4191,14 @@ private:
         }
     }
 
+    virtual void OnBeforeSnapshotLoaded() override
+    {
+        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
+
+        RecomputeAggregateTabletStatistics_ = false;
+        FixTablesWithNullTabletCellBundle_ = false;
+    }
+
     virtual void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
@@ -4203,6 +4216,50 @@ private:
         }
 
         InitBuiltins();
+
+        if (FixTablesWithNullTabletCellBundle_) {
+            auto* defaultTabletCellBundle = GetDefaultTabletCellBundle();
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            auto tablesFixed = 0;
+            TTabletResources resourcesAdded;
+            for (auto [nodeId, node] : cypressManager->Nodes()) {
+                if (!IsObjectAlive(node)) {
+                    continue;
+                }
+
+                if (!node->IsTrunk()) {
+                    continue;
+                }
+
+                if (!IsTableType(node->GetType())) {
+                    continue;
+                }
+
+                auto* tableNode = node->As<NTableServer::TTableNode>();
+                if (tableNode->GetTabletCellBundle()) {
+                    continue;
+                }
+
+                if (!tableNode->IsExternal() && tableNode->IsDynamic()) {
+                    auto resourceDelta = tableNode->GetTabletResourceUsage();
+                    resourcesAdded += resourceDelta;
+                    if (resourceDelta != TTabletResources()) {
+                        YT_LOG_DEBUG("Fixed null tablet cell bundle for a table with non-zero tablet resources (TableId: %v, ResourceUsage: %v)",
+                            tableNode->GetId(),
+                            resourceDelta);
+                    }
+                }
+
+                SetTabletCellBundle(tableNode, defaultTabletCellBundle);
+                ++tablesFixed;
+            }
+
+            if (tablesFixed > 0) {
+                YT_LOG_ALERT("Fixed tablet cell bundle from null to default (TableCount: %v, ResourcesAdded: %v)",
+                    tablesFixed,
+                    resourcesAdded);
+            }
+        }
     }
 
     void OnAfterCellManagerSnapshotLoaded()

@@ -2003,7 +2003,7 @@ private:
     // COMPAT(babenko)
     bool NeedSetJournalChunkListKinds_ = false;
     // COMPAT(shakurov)
-    bool NeedAbortStuckExternalizedTransactions_YT_12559 = false;
+    bool NeedAbortStuckExternalizedTransactions_YT_12559_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -2043,7 +2043,7 @@ private:
         // COMPAT(babenko)
         NeedSetJournalChunkListKinds_ = context.GetVersion() < EMasterReign::OverlayedJournals;
         // COMPAT(shakurov)
-        NeedAbortStuckExternalizedTransactions_YT_12559 = context.GetVersion() < EMasterReign::YT_12559_AbortStuckExternalizedTransactions;
+        NeedAbortStuckExternalizedTransactions_YT_12559_ = context.GetVersion() < EMasterReign::YT_12559_AbortStuckExternalizedTransactions;
     }
 
     virtual void Clear() override
@@ -2078,6 +2078,7 @@ private:
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
 
         NeedSetJournalChunkListKinds_ = false;
+        NeedAbortStuckExternalizedTransactions_YT_12559_ = false;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -2195,7 +2196,7 @@ private:
         }
 
         // COMPAT(shakurov)
-        if (NeedAbortStuckExternalizedTransactions_YT_12559) {
+        if (NeedAbortStuckExternalizedTransactions_YT_12559_) {
             struct TStuckTransactionDescriptor
             {
                 TTransactionId TransactionId;
