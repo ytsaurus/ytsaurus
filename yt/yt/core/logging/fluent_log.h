@@ -25,7 +25,12 @@ public:
     TOneShotFluentLogEventImpl& operator=(TOneShotFluentLogEventImpl&& other) = default;
     TOneShotFluentLogEventImpl& operator=(const TOneShotFluentLogEventImpl& other) = delete;
 
+    // TODO(max42): why these two methods must be re-implemented here? Maybe it is enough to replace TFluentYsonVoid with TFluentMap below?
+
     NYTree::TFluentYsonBuilder::TAny<TThis&&> Item(TStringBuf key);
+
+    template <class T, class... TExtraArgs>
+    TThis& OptionalItem(TStringBuf key, const T& optionalValue, TExtraArgs&&... extraArgs);
 
 private:
     TStatePtr State_;

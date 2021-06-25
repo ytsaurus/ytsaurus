@@ -37,6 +37,19 @@ TOneShotFluentLogEventImpl<TParent>::~TOneShotFluentLogEventImpl()
     }
 }
 
+template <class TParent>
+template <class T, class... TExtraArgs>
+typename TOneShotFluentLogEventImpl<TParent>::TThis& TOneShotFluentLogEventImpl<TParent>::OptionalItem(TStringBuf key, const T& optionalValue, TExtraArgs&&... extraArgs)
+{
+    using NYTree::Serialize;
+
+    if (optionalValue) {
+        this->Consumer->OnKeyedItem(key);
+        Serialize(optionalValue, this->Consumer, std::forward<TExtraArgs>(extraArgs)...);
+    }
+    return *this;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NLogging
