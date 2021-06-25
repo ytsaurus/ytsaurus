@@ -87,7 +87,11 @@ TString GetYaBuildDate()
     return GetProgramBuildDate();
 }
 
-TString GetRpcUserAgent()
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString BuildRpcUserAgent() noexcept
 {
     // Fill user agent from build information.
     // For trunk:
@@ -126,6 +130,17 @@ TString GetRpcUserAgent()
     }
 
     return out.Str();
+}
+
+const TString CachedUserAgent = BuildRpcUserAgent();
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+const TString& GetRpcUserAgent()
+{
+    return CachedUserAgent;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -9,7 +9,8 @@ namespace NYT {
 TString CreateYTVersion(int major, int minor, int patch, TStringBuf branch);
 TString GetYaHostName();
 TString GetYaBuildDate();
-TString GetRpcUserAgent();
+
+const TString& GetRpcUserAgent();
 
 ////////////////////////////////////////////////////////////////////////////////
 
