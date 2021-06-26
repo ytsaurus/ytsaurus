@@ -52,7 +52,7 @@ NLogging::ELogLevel SeverityToLevel(NYTAlloc::ELogEventSeverity severity)
 
 void LogHandler(const NYTAlloc::TLogEvent& event)
 {
-    YT_LOG_EVENT(GetLogger(), SeverityToLevel(event.Severity), "%v", event.Message);
+    YT_LOG_EVENT(GetLogger(), SeverityToLevel(event.Severity), event.Message);
 }
 
 } // namespace

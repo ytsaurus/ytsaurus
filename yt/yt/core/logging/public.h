@@ -52,7 +52,7 @@ DECLARE_REFCOUNTED_CLASS(TWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TRuleConfig)
 
 struct TLoggingCategory;
-struct TLoggingPosition;
+struct TLoggingAnchor;
 struct TLogEvent;
 class TLogger;
 class TLogManager;

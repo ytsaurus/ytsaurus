@@ -45,7 +45,10 @@ public:
 
     const TLoggingCategory* GetCategory(TStringBuf categoryName);
     void UpdateCategory(TLoggingCategory* category);
-    void UpdatePosition(TLoggingPosition* position, TStringBuf message);
+
+    void RegisterStaticAnchor(TLoggingAnchor* position, ::TSourceLocation sourceLocation, TStringBuf anchorMessage);
+    TLoggingAnchor* RegisterDynamicAnchor(TString anchorMessage);
+    void UpdateAnchor(TLoggingAnchor* position);
 
     int GetVersion() const;
     bool GetAbortOnAlert() const;

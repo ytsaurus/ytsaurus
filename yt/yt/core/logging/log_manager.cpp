@@ -32,10 +32,13 @@
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/library/profiling/producer.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 #include <util/system/defaults.h>
 #include <util/system/sigset.h>
 #include <util/system/yield.h>
+
+#include <util/generic/algorithm.h>
 
 #include <atomic>
 #include <mutex>
@@ -65,6 +68,7 @@ using namespace NTracing;
 static const TLogger Logger(SystemLoggingCategoryName);
 
 static constexpr auto DiskProfilingPeriod = TDuration::Minutes(5);
+static constexpr auto AnchorProfilingPeriod = TDuration::Minutes(1);
 static constexpr auto DequeuePeriod = TDuration::MilliSeconds(30);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -308,7 +312,7 @@ private:
 
 struct TConfigEvent
 {
-    NProfiling::TCpuInstant Instant = 0;
+    TCpuInstant Instant = 0;
     TLogManagerConfigPtr Config;
     bool FromEnv;
     TPromise<void> Promise = NewPromise<void>();
@@ -319,7 +323,7 @@ using TLoggerQueueItem = std::variant<
     TConfigEvent
 >;
 
-NProfiling::TCpuInstant GetEventInstant(const TLoggerQueueItem& item)
+TCpuInstant GetEventInstant(const TLoggerQueueItem& item)
 {
     return Visit(item,
         [&] (const TConfigEvent& event) {
@@ -391,7 +395,7 @@ public:
         EnsureStarting();
 
         TConfigEvent event{
-            .Instant = NProfiling::GetCpuInstant(),
+            .Instant = GetCpuInstant(),
             .Config = std::move(config),
             .FromEnv = fromEnv
         };
@@ -473,10 +477,46 @@ public:
         DoUpdateCategory(category);
     }
 
-    void UpdatePosition(TLoggingPosition* position, TStringBuf message)
+    void UpdateAnchor(TLoggingAnchor* anchor)
     {
         TGuard<TForkAwareSpinLock> guard(SpinLock_);
-        DoUpdatePosition(position, message);
+        bool enabled = true;
+        for (const auto& prefix : Config_->SuppressedMessages) {
+            if (anchor->AnchorMessage.StartsWith(prefix)) {
+                enabled = false;
+                break;
+            }
+        }
+
+        anchor->Enabled.store(enabled, std::memory_order_relaxed);
+        anchor->CurrentVersion.store(GetVersion(), std::memory_order_relaxed);
+    }
+
+    void RegisterStaticAnchor(TLoggingAnchor* anchor, ::TSourceLocation sourceLocation, TStringBuf message)
+    {
+        if (anchor->Registered.exchange(true)) {
+            return;
+        }
+
+        TGuard<TForkAwareSpinLock> guard(SpinLock_);
+        anchor->SourceLocation = sourceLocation;
+        anchor->AnchorMessage = BuildAnchorMessage(sourceLocation, message);
+        DoRegisterAnchor(anchor);
+    }
+
+    TLoggingAnchor* RegisterDynamicAnchor(TString anchorMessage)
+    {
+        TGuard<TForkAwareSpinLock> guard(SpinLock_);
+        if (auto it = AnchorMap_.find(anchorMessage)) {
+            return it->second;
+        }
+        auto anchor = std::make_unique<TLoggingAnchor>();
+        anchor->Registered = true;
+        anchor->AnchorMessage = std::move(anchorMessage);
+        auto* rawAnchor = anchor.get();
+        DynamicAnchors_.push_back(std::move(anchor));
+        DoRegisterAnchor(rawAnchor);
+        return rawAnchor;
     }
 
     void Enqueue(TLogEvent&& event)
@@ -488,7 +528,7 @@ public:
                 Sleep(TDuration::Max());
             }
 
-            // CollectSensors last-minute information.
+            // Collect last-minute information.
             TRawFormatter<1024> formatter;
             formatter.AppendString("\n*** Fatal error ***\n");
             formatter.AppendString(TStringBuf(event.Message.Begin(), event.Message.End()));
@@ -648,6 +688,12 @@ private:
                 BIND(&TImpl::OnDiskProfiling, MakeStrong(this)),
                 DiskProfilingPeriod);
             DiskProfilingExecutor_->Start();
+
+            AnchorProfilingExecutor_ = New<TPeriodicExecutor>(
+                EventQueue_,
+                BIND(&TImpl::OnAnchorProfiling, MakeStrong(this)),
+                AnchorProfilingPeriod);
+            AnchorProfilingExecutor_->Start();
 
             DequeueExecutor_ = New<TPeriodicExecutor>(
                 EventQueue_,
@@ -958,7 +1004,7 @@ private:
 
         if (it == WrittenEventsCounters_.end()) {
             // TODO(prime@): optimize sensor count
-            auto counter = LoggingProfiler
+            auto counter = Profiler
                 .WithSparse()
                 .WithTag("category", TString{event.Category->Name})
                 .WithTag("level", FormatEnum(event.Level))
@@ -1009,13 +1055,80 @@ private:
         }
     }
 
+    struct TLoggingAnchorStat
+    {
+        TLoggingAnchor* Anchor;
+        double MessageRate;
+        double ByteRate;
+    };
+
+    std::vector<TLoggingAnchorStat> CaptureAnchorStats()
+    {
+        auto now = TInstant::Now();
+        auto deltaSeconds = (now - LastAnchorStatsCaptureTime_).SecondsFloat();
+        LastAnchorStatsCaptureTime_ = now;
+
+        std::vector<TLoggingAnchorStat> result;
+        auto* currentAnchor = FirstAnchor_.load();
+        while (currentAnchor) {
+            auto getRate = [&] (auto& counter) {
+                auto current = counter.Current.load(std::memory_order_relaxed);
+                auto rate = (current - counter.Previous) / deltaSeconds;
+                counter.Previous = current;
+                return rate;
+            };
+
+            auto messageRate = getRate(currentAnchor->MessageCounter);
+            auto byteRate = getRate(currentAnchor->ByteCounter);
+            result.push_back({
+                currentAnchor,
+                messageRate,
+                byteRate
+            });
+
+            currentAnchor = currentAnchor->NextAnchor;
+        }
+        return result;
+    }
+
+    void OnAnchorProfiling()
+    {
+        if (Config_->EnableAnchorProfiling && !AnchorBufferedProducer_) {
+            AnchorBufferedProducer_ = New<TBufferedProducer>();
+            Profiler
+                .WithSparse()
+                .WithDefaultDisabled()
+                .AddProducer("/anchors", AnchorBufferedProducer_);
+        } else if (!Config_->EnableAnchorProfiling && AnchorBufferedProducer_) {
+            AnchorBufferedProducer_.Reset();
+        }
+
+        if (!AnchorBufferedProducer_) {
+            return;
+        }
+
+        auto stats = CaptureAnchorStats();
+
+        TSensorBuffer sensorBuffer;
+        for (const auto& stat : stats) {
+            if (stat.MessageRate < Config_->MinLoggedMessageRateToProfile) {
+                continue;
+            }
+            TWithTagGuard withTagGuard(&sensorBuffer, {"message", stat.Anchor->AnchorMessage});
+            sensorBuffer.AddGauge("/logged_messages/rate", stat.MessageRate);
+            sensorBuffer.AddGauge("/logged_bytes/rate", stat.ByteRate);
+        }
+
+        AnchorBufferedProducer_->Update(std::move(sensorBuffer));
+    }
+
     void OnDequeue()
     {
         VERIFY_THREAD_AFFINITY(LoggingThread);
 
         ScheduledOutOfBand_.clear();
 
-        auto instant = NProfiling::GetCpuInstant();
+        auto instant = GetCpuInstant();
 
         RegisteredLocalQueues_.DequeueAll(true, [&] (TThreadLocalQueue* item) {
             YT_VERIFY(LocalQueues_.insert(item).second);
@@ -1039,7 +1152,7 @@ private:
                 Queue->Pop();
             }
 
-            NProfiling::TCpuInstant GetInstant() const
+            TCpuInstant GetInstant() const
             {
                 auto front = Front();
                 if (Y_LIKELY(front)) {
@@ -1063,7 +1176,7 @@ private:
             }
         }
 
-        NYT::MakeHeap(heap.begin(), heap.end());
+        MakeHeap(heap.begin(), heap.end());
 
         // TODO(lukyan): Get next minimum instant and pop from top queue in loop.
         // NB: Messages are not totally ordered beacause of race around high/low watermark check
@@ -1077,7 +1190,7 @@ private:
 
             TimeOrderedBuffer_.emplace_back(std::move(*event));
             queue.Pop();
-            NYT::AdjustHeapFront(heap.begin(), heap.end());
+            AdjustHeapFront(heap.begin(), heap.end());
         }
 
         UnregisteredLocalQueues_.DequeueAll(true, [&] (TThreadLocalQueue* item) {
@@ -1173,18 +1286,24 @@ private:
         category->CurrentVersion.store(GetVersion(), std::memory_order_relaxed);
     }
 
-    void DoUpdatePosition(TLoggingPosition* position, TStringBuf message)
+    void DoRegisterAnchor(TLoggingAnchor* anchor)
     {
-        bool positionEnabled = true;
-        for (const auto& prefix : Config_->SuppressedMessages) {
-            if (message.StartsWith(prefix)) {
-                positionEnabled = false;
-                break;
-            }
-        }
+        // NB: Duplicates are not desirable but possible.
+        AnchorMap_.emplace(anchor->AnchorMessage, anchor);
+        anchor->NextAnchor = FirstAnchor_;
+        FirstAnchor_.store(anchor);
+    }
 
-        position->Enabled.store(positionEnabled, std::memory_order_relaxed);
-        position->CurrentVersion.store(GetVersion(), std::memory_order_relaxed);
+    static TString BuildAnchorMessage(::TSourceLocation sourceLocation, TStringBuf message)
+    {
+        if (message) {
+            auto index = message.find_first_of('(');
+            return Strip(TString(message.substr(0, index)));
+        } else {
+            return Format("%v:%v",
+                sourceLocation.File,
+                sourceLocation.Line);
+        }
     }
 
 private:
@@ -1231,9 +1350,13 @@ private:
     using TEventProfilingKey = std::pair<TStringBuf, ELogLevel>;
     THashMap<TEventProfilingKey, TCounter> WrittenEventsCounters_;
 
-    TProfiler LoggingProfiler{"/logging"};
-    TGauge MinLogStorageAvailableSpace_ = LoggingProfiler.Gauge("/min_log_storage_available_space");
-    TGauge MinLogStorageFreeSpace_ = LoggingProfiler.Gauge("/min_log_storage_free_space");
+    TProfiler Profiler{"/logging"};
+
+    TGauge MinLogStorageAvailableSpace_ = Profiler.Gauge("/min_log_storage_available_space");
+    TGauge MinLogStorageFreeSpace_ = Profiler.Gauge("/min_log_storage_free_space");
+
+    TBufferedProducerPtr AnchorBufferedProducer_;
+    TInstant LastAnchorStatsCaptureTime_;
 
     std::atomic<ui64> EnqueuedEvents_ = 0;
     std::atomic<ui64> WrittenEvents_ = 0;
@@ -1253,11 +1376,16 @@ private:
     TPeriodicExecutorPtr WatchExecutor_;
     TPeriodicExecutorPtr CheckSpaceExecutor_;
     TPeriodicExecutorPtr DiskProfilingExecutor_;
+    TPeriodicExecutorPtr AnchorProfilingExecutor_;
     TPeriodicExecutorPtr DequeueExecutor_;
 
     std::unique_ptr<TNotificationHandle> NotificationHandle_;
     std::vector<std::unique_ptr<TNotificationWatch>> NotificationWatches_;
     THashMap<int, TNotificationWatch*> NotificationWatchesIndex_;
+
+    THashMap<TString, TLoggingAnchor*> AnchorMap_;
+    std::atomic<TLoggingAnchor*> FirstAnchor_ = nullptr;
+    std::vector<std::unique_ptr<TLoggingAnchor>> DynamicAnchors_;
 };
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1282,7 +1410,7 @@ TLogManager::TLogManager()
     : Impl_(New<TImpl>())
 {
     // NB: TLogManager is instanciated before main. We can't rely on global variables here.
-    NProfiling::TProfiler{""}.AddProducer("/logging", Impl_);
+    TProfiler{""}.AddProducer("/logging", Impl_);
 }
 
 TLogManager::~TLogManager() = default;
@@ -1337,9 +1465,19 @@ void TLogManager::UpdateCategory(TLoggingCategory* category)
     Impl_->UpdateCategory(category);
 }
 
-void TLogManager::UpdatePosition(TLoggingPosition* position, TStringBuf message)
+void TLogManager::UpdateAnchor(TLoggingAnchor* anchor)
 {
-    Impl_->UpdatePosition(position, message);
+    Impl_->UpdateAnchor(anchor);
+}
+
+void TLogManager::RegisterStaticAnchor(TLoggingAnchor* anchor, ::TSourceLocation sourceLocation, TStringBuf anchorMessage)
+{
+    Impl_->RegisterStaticAnchor(anchor, sourceLocation, anchorMessage);
+}
+
+TLoggingAnchor* TLogManager::RegisterDynamicAnchor(TString anchorMessage)
+{
+    return Impl_->RegisterDynamicAnchor(std::move(anchorMessage));
 }
 
 void TLogManager::Enqueue(TLogEvent&& event)

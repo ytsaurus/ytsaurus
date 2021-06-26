@@ -637,11 +637,16 @@ protected:
         : public TRefCounted
     {
         TRuntimeMethodInfo(
-            const TMethodDescriptor& descriptor,
+            TServiceId serviceId,
+            TMethodDescriptor descriptor,
             const NProfiling::TProfiler& profiler);
 
+        const TServiceId ServiceId;
         const TMethodDescriptor Descriptor;
         const NProfiling::TProfiler Profiler;
+
+        NLogging::TLoggingAnchor* const RequestLoggingAnchor;
+        NLogging::TLoggingAnchor* const ResponseLoggingAnchor;
 
         std::atomic<bool> Heavy = false;
 

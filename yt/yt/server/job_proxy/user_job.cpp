@@ -1291,7 +1291,7 @@ private:
             return;
         }
 
-        YT_LOG_ERROR(error, "%v", message);
+        YT_LOG_ERROR(TError(message) << error);
 
         CleanupUserProcesses();
 
