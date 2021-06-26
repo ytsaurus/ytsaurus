@@ -44,7 +44,7 @@ class TExecNode
     : public TRefCounted
 {
 private:
-    typedef THashMap<TJobId, TJobPtr> TJobMap;
+    using TJobMap = THashMap<TJobId, TJobPtr>;
 
 public:
     DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerClient::TNodeId, Id);
