@@ -28,7 +28,7 @@ public:
     { }
 
 private:
-    typedef TSubjectProxy<TGroup> TBase;
+    using TBase = TSubjectProxy<TGroup>;
 
     virtual void ValidateRemoval() override
     {

@@ -20,7 +20,7 @@ class TSubject
 public:
     DEFINE_BYVAL_RW_PROPERTY(TString, Name);
 
-    typedef THashSet<TGroup*> TGroupSet;
+    using TGroupSet = THashSet<TGroup*>;
     //! Set of groups containing this given subject.
     DEFINE_BYREF_RW_PROPERTY(TGroupSet, MemberOf);
     //! Transitive closure of the set of groups containing this given subject.
@@ -28,7 +28,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(THashSet<TString>, Aliases);
 
 
-    typedef THashMap<TObject*, int> TLinkedObjects;
+    using TLinkedObjects = THashMap<TObject*, int>;
     //! Objects whose ACLs reference this particular subject, with counters.
     DEFINE_BYREF_RW_PROPERTY(TLinkedObjects, LinkedObjects);
 

@@ -21,7 +21,7 @@ namespace NYT::NSecurityServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 const int TypicalSubjectCount = 4;
-typedef SmallVector<TSubject*, TypicalSubjectCount> TSubjectList;
+using TSubjectList = SmallVector<TSubject*, TypicalSubjectCount>;
 
 struct TAccessControlEntry
 {

@@ -39,7 +39,7 @@ public:
     { }
 
 private:
-    typedef TMapNodeProxy TBase;
+    using TBase = TMapNodeProxy;
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {

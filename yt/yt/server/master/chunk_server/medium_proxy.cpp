@@ -31,7 +31,7 @@ public:
     { }
 
 private:
-    typedef TNonversionedObjectProxyBase<TMedium> TBase;
+    using TBase = TNonversionedObjectProxyBase<TMedium>;
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {

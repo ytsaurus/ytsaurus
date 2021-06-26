@@ -28,7 +28,7 @@ bool DelegateInvocation(
     typedef typename TServerRequest::TMessage  TRequestMessage;
     typedef typename TServerResponse::TMessage TResponseMessage;
 
-    typedef TTypedYPathRequest<TRequestMessage, TResponseMessage>  TClientRequest;
+    using TClientRequest = TTypedYPathRequest<TRequestMessage, TResponseMessage>;
 
     auto clientRequest = New<TClientRequest>(context->RequestHeader());
     clientRequest->MergeFrom(*serverRequest);

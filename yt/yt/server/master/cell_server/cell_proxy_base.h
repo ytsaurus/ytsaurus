@@ -26,7 +26,7 @@ public:
         TCellBase* cell);
 
 protected:
-    typedef NObjectServer::TNonversionedObjectProxyBase<TCellBase> TBase;
+    using TBase = NObjectServer::TNonversionedObjectProxyBase<TCellBase>;
 
     virtual void ValidateRemoval() override;
     virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override;

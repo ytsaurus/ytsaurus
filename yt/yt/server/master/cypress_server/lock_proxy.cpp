@@ -31,7 +31,7 @@ public:
     { }
 
 private:
-    typedef TNonversionedObjectProxyBase<TLock> TBase;
+    using TBase = TNonversionedObjectProxyBase<TLock>;
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {

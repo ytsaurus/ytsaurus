@@ -161,7 +161,7 @@ public:
     void SaveTableSchema(NCellMaster::TSaveContext& context) const;
     void LoadTableSchema(NCellMaster::TLoadContext& context);
 
-    typedef TTabletList::const_iterator TTabletListIterator;
+    using TTabletListIterator = TTabletList::const_iterator;
     std::pair<TTabletListIterator, TTabletListIterator> GetIntersectingTablets(
         const NTableClient::TLegacyOwningKey& minKey,
         const NTableClient::TLegacyOwningKey& maxKey);

@@ -48,7 +48,7 @@ public:
     { }
 
 private:
-    typedef TNonversionedObjectProxyBase<TTablet> TBase;
+    using TBase = TNonversionedObjectProxyBase<TTablet>;
 
     TOrchidManifestPtr CreateOrchidManifest()
     {

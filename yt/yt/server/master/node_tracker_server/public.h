@@ -18,9 +18,9 @@ namespace NProto {
 
 class TReqRemoveNode;
 
-typedef NNodeTrackerClient::NProto::TReqRegisterNode TReqRegisterNode;
-typedef NNodeTrackerClient::NProto::TReqIncrementalHeartbeat TReqIncrementalHeartbeat;
-typedef NNodeTrackerClient::NProto::TReqFullHeartbeat TReqFullHeartbeat;
+using TReqRegisterNode = NNodeTrackerClient::NProto::TReqRegisterNode;
+using TReqIncrementalHeartbeat = NNodeTrackerClient::NProto::TReqIncrementalHeartbeat;
+using TReqFullHeartbeat = NNodeTrackerClient::NProto::TReqFullHeartbeat;
 
 } // namespace NProto
 

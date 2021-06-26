@@ -54,7 +54,7 @@ public:
     { }
 
 private:
-    typedef TCellBundleProxy TBase;
+    using TBase = TCellBundleProxy;
 
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override
     {

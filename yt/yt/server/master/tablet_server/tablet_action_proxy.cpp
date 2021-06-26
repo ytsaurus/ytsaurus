@@ -34,7 +34,7 @@ public:
     { }
 
 private:
-    typedef TNonversionedObjectProxyBase<TTabletAction> TBase;
+    using TBase = TNonversionedObjectProxyBase<TTabletAction>;
 
     virtual void ValidateRemoval() override
     { }

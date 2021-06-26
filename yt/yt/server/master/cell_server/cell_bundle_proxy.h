@@ -20,7 +20,7 @@ public:
         TCellBundle* cellBundle);
 
 protected:
-    typedef TNonversionedObjectProxyBase<TCellBundle> TBase;
+    using TBase = TNonversionedObjectProxyBase<TCellBundle>;
 
     virtual void ValidateRemoval() override;
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override;

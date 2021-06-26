@@ -75,7 +75,7 @@ public:
     }
 
 private:
-    typedef TObjectTypeHandlerBase<TSchemaObject> TBase;
+    using TBase = TObjectTypeHandlerBase<TSchemaObject>;
 
     const EObjectType Type_;
 
