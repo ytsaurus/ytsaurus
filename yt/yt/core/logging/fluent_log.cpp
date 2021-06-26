@@ -18,10 +18,11 @@ TOneShotFluentLogEvent LogStructuredEventFluently(const TLogger& logger, ELogLev
 
 TOneShotFluentLogEvent LogStructuredEventFluentlyToNowhere()
 {
+    static const TLogger NullLogger;
     return TOneShotFluentLogEvent(
         New<TFluentYsonWriterState>(EYsonFormat::Binary, EYsonType::MapFragment),
         NullLogger,
-        ELogLevel{});
+        ELogLevel::Debug);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

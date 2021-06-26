@@ -12,9 +12,11 @@ namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline bool TLogger::IsPositionUpToDate(const TLoggingPosition& position) const
+inline bool TLogger::IsAnchorUpToDate(const TLoggingAnchor& position) const
 {
-    return !Category_ || position.CurrentVersion == Category_->ActualVersion->load(std::memory_order_relaxed);
+    return
+        !Category_ ||
+        position.CurrentVersion == Category_->ActualVersion->load(std::memory_order_relaxed);
 }
 
 template <class... TArgs>
@@ -82,10 +84,8 @@ private:
 
     TSharedMutableRef Buffer_;
 
-#ifndef __APPLE__
     static thread_local TPerThreadCache* Cache_;
     static thread_local bool CacheDestroyed_;
-#endif
     static TPerThreadCache* GetCache();
 
     static constexpr size_t ChunkSize = 64_KB;
@@ -169,8 +169,14 @@ void AppendLogMessageWithFormat(
     }
 }
 
+struct TLogMessage
+{
+    TSharedRef Message;
+    TStringBuf Anchor;
+};
+
 template <class... TArgs, size_t FormatLength>
-TSharedRef BuildLogMessage(
+TLogMessage BuildLogMessage(
     const NTracing::TTraceContext* traceContext,
     const TLogger& logger,
     const char (&format)[FormatLength],
@@ -178,25 +184,26 @@ TSharedRef BuildLogMessage(
 {
     TMessageStringBuilder builder;
     AppendLogMessageWithFormat(&builder, traceContext, logger, format, std::forward<TArgs>(args)...);
-    return builder.Flush();
+    return {builder.Flush(), AsStringBuf(format)};
 }
 
 template <class... TArgs, size_t FormatLength>
-TSharedRef BuildLogMessage(
+TLogMessage BuildLogMessage(
     const NTracing::TTraceContext* traceContext,
     const TLogger& logger,
     const TError& error,
-    const char (&format)[FormatLength], TArgs&&... args)
+    const char (&format)[FormatLength],
+    TArgs&&... args)
 {
     TMessageStringBuilder builder;
     AppendLogMessageWithFormat(&builder, traceContext, logger, format, std::forward<TArgs>(args)...);
     builder.AppendChar('\n');
     FormatValue(&builder, error, TStringBuf());
-    return builder.Flush();
+    return {builder.Flush(), AsStringBuf(format)};
 }
 
 template <class T>
-TSharedRef BuildLogMessage(
+TLogMessage BuildLogMessage(
     const NTracing::TTraceContext* traceContext,
     const TLogger& logger,
     const T& obj)
@@ -208,10 +215,10 @@ TSharedRef BuildLogMessage(
         AppendMessageTags(&builder, traceContext, logger);
         builder.AppendChar(')');
     }
-    return builder.Flush();
+    return {builder.Flush(), TStringBuf()};
 }
 
-inline TSharedRef BuildLogMessage(
+inline TLogMessage BuildLogMessage(
     const NTracing::TTraceContext* traceContext,
     const TLogger& logger,
     TSharedRef&& message)
@@ -219,13 +226,11 @@ inline TSharedRef BuildLogMessage(
     if (HasMessageTags(traceContext, logger)) {
         TMessageStringBuilder builder;
         AppendLogMessage(&builder, traceContext, logger, message);
-        return builder.Flush();
+        return {builder.Flush(), TStringBuf()};
     } else {
-        return std::move(message);
+        return {std::move(message), TStringBuf()};
     }
 }
-
-#ifndef __APPLE__
 
 extern thread_local bool CachedThreadNameInitialized;
 extern thread_local TLogEvent::TThreadName CachedThreadName;
@@ -233,28 +238,22 @@ extern thread_local int CachedThreadNameLength;
 
 void CacheThreadName();
 
-#endif
-
 inline TLogEvent CreateLogEvent(
     const NTracing::TTraceContext* traceContext,
     const TLogger& logger,
     ELogLevel level)
 {
-#ifndef __APPLE__
     if (!CachedThreadNameInitialized) {
         CacheThreadName();
     }
-#endif
     TLogEvent event;
     event.Instant = NProfiling::GetCpuInstant();
     event.Category = logger.GetCategory();
     event.Essential = logger.IsEssential();
     event.Level = level;
     event.ThreadId = TThread::CurrentThreadId();
-#ifndef __APPLE__
     event.ThreadName = CachedThreadName;
     event.ThreadNameLength = CachedThreadNameLength;
-#endif
     event.FiberId = NConcurrency::GetCurrentFiberId();
     if (traceContext) {
         event.TraceId = traceContext->GetTraceId();

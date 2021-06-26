@@ -18,10 +18,8 @@ TSharedRef TMessageStringBuilder::Flush()
 
 void TMessageStringBuilder::DisablePerThreadCache()
 {
-#ifndef __APPLE__
     Cache_ = nullptr;
     CacheDestroyed_ = true;
-#endif
 }
 
 void TMessageStringBuilder::DoReset()
@@ -57,7 +55,6 @@ void TMessageStringBuilder::DoPreallocate(size_t newLength)
 
 TMessageStringBuilder::TPerThreadCache* TMessageStringBuilder::GetCache()
 {
-#ifndef __APPLE__
     if (Y_LIKELY(Cache_)) {
         return Cache_;
     }
@@ -67,17 +64,12 @@ TMessageStringBuilder::TPerThreadCache* TMessageStringBuilder::GetCache()
     static thread_local TPerThreadCache Cache;
     Cache_ = &Cache;
     return Cache_;
-#else
-    return nullptr;
-#endif
 }
 
 TMessageStringBuilder::TPerThreadCache::~TPerThreadCache()
 {
     TMessageStringBuilder::DisablePerThreadCache();
 }
-
-#ifndef __APPLE__
 
 thread_local TMessageStringBuilder::TPerThreadCache* TMessageStringBuilder::Cache_;
 thread_local bool TMessageStringBuilder::CacheDestroyed_;
@@ -94,8 +86,6 @@ void CacheThreadName()
     }
     CachedThreadNameInitialized = true;
 }
-
-#endif
 
 } // namespace NDetail
 
@@ -141,9 +131,14 @@ bool TLogger::IsEssential() const
     return Essential_;
 }
 
-void TLogger::UpdatePosition(TLoggingPosition* position, TStringBuf message) const
+void TLogger::UpdateAnchor(TLoggingAnchor* anchor) const
 {
-    LogManager_->UpdatePosition(position, message);
+    LogManager_->UpdateAnchor(anchor);
+}
+
+void TLogger::RegisterStaticAnchor(TLoggingAnchor* anchor, ::TSourceLocation sourceLocation, TStringBuf message) const
+{
+    LogManager_->RegisterStaticAnchor(anchor, sourceLocation, message);
 }
 
 void TLogger::Write(TLogEvent&& event) const
@@ -221,10 +216,6 @@ void TLogger::Load(TStreamLoadContext& context)
     Load(context, MinLevel_);
     Load(context, Tag_);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-TLogger NullLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

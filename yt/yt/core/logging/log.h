@@ -36,10 +36,24 @@ struct TLoggingCategory
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TLoggingPosition
+struct TLoggingAnchor
 {
-    std::atomic<bool> Enabled = false;
+    std::atomic<bool> Registered = false;
+    ::TSourceLocation SourceLocation = {TStringBuf{}, 0};
+    TString AnchorMessage;
+    TLoggingAnchor* NextAnchor = nullptr;
+
     std::atomic<int> CurrentVersion = 0;
+    std::atomic<bool> Enabled = false;
+
+    struct TCounter
+    {
+        std::atomic<i64> Current = 0;
+        i64 Previous = 0;
+    };
+
+    TCounter MessageCounter;
+    TCounter ByteCounter;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -106,8 +120,9 @@ public:
 
     bool IsEssential() const;
 
-    bool IsPositionUpToDate(const TLoggingPosition& position) const;
-    void UpdatePosition(TLoggingPosition* position, TStringBuf message) const;
+    bool IsAnchorUpToDate(const TLoggingAnchor& anchor) const;
+    void UpdateAnchor(TLoggingAnchor* anchor) const;
+    void RegisterStaticAnchor(TLoggingAnchor* anchor, ::TSourceLocation sourceLocation, TStringBuf message) const;
 
     void Write(TLogEvent&& event) const;
 
@@ -144,16 +159,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern TLogger NullLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Typically serves as a virtual base for classes that need a member logger.
 class TLoggerOwner
 {
 protected:
     TLogger Logger;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -208,31 +218,58 @@ void LogStructuredEvent(const TLogger& logger,
 #define YT_LOG_FATAL_UNLESS(condition, ...)    if (!Y_LIKELY(condition)) YT_LOG_FATAL(__VA_ARGS__)
 
 #define YT_LOG_EVENT(logger, level, ...) \
+    YT_LOG_EVENT_WITH_ANCHOR(logger, level, nullptr, __VA_ARGS__)
+
+#define YT_LOG_EVENT_WITH_ANCHOR(logger, level, anchor, ...) \
     do { \
-        if (!logger.IsLevelEnabled(level)) { \
+        const auto& logger__##__LINE__ = (logger); \
+        auto level__##__LINE__ = (level); \
+        \
+        if (!logger__##__LINE__.IsLevelEnabled(level__##__LINE__)) { \
             break; \
         } \
         \
-        static ::NYT::NLogging::TLoggingPosition position__##__LINE__; \
-        bool positionUpToDate__##__LINE__ = logger.IsPositionUpToDate(position__##__LINE__); \
-        if (positionUpToDate__##__LINE__ && !position__##__LINE__.Enabled) { \
+        auto location__##__LINE__ = __LOCATION__; \
+        \
+        ::NYT::NLogging::TLoggingAnchor* anchor__##__LINE__ = (anchor); \
+        if (!anchor__##__LINE__) { \
+            static ::NYT::NLogging::TLoggingAnchor staticAnchor__##__LINE__; \
+            anchor__##__LINE__ = &staticAnchor__##__LINE__; \
+        } \
+        \
+        bool anchorUpToDate__##__LINE__ = logger__##__LINE__.IsAnchorUpToDate(*anchor__##__LINE__); \
+        if (anchorUpToDate__##__LINE__ && !anchor__##__LINE__->Enabled.load(std::memory_order_relaxed)) { \
             break; \
         } \
         \
         const auto* traceContext__##__LINE__ = ::NYT::NTracing::GetCurrentTraceContext(); \
-        auto message__##__LINE__ = ::NYT::NLogging::NDetail::BuildLogMessage(traceContext__##__LINE__, logger, __VA_ARGS__); \
-        if (!positionUpToDate__##__LINE__) { \
-            logger.UpdatePosition(&position__##__LINE__, TStringBuf(message__##__LINE__.Begin(), message__##__LINE__.Size())); \
+        auto message__##__LINE__ = ::NYT::NLogging::NDetail::BuildLogMessage(traceContext__##__LINE__, logger__##__LINE__, __VA_ARGS__); \
+        \
+        if (!anchorUpToDate__##__LINE__) { \
+            logger__##__LINE__.RegisterStaticAnchor(anchor__##__LINE__, location__##__LINE__, message__##__LINE__.Anchor); \
+            logger__##__LINE__.UpdateAnchor(anchor__##__LINE__); \
         } \
         \
-        if (position__##__LINE__.Enabled) { \
-            ::NYT::NLogging::NDetail::LogEventImpl( \
-                traceContext__##__LINE__, \
-                logger, \
-                level, \
-                __LOCATION__, \
-                std::move(message__##__LINE__)); \
+        if (!anchor__##__LINE__->Enabled.load(std::memory_order_relaxed)) { \
+            break; \
         } \
+        \
+        static thread_local i64 localByteCounter__##__LINE__; \
+        static thread_local ui8 localMessageCounter__##__LINE__; \
+        \
+        localByteCounter__##__LINE__ += message__##__LINE__.Message.Size(); \
+        if (Y_UNLIKELY(++localMessageCounter__##__LINE__ == 0)) { \
+            anchor__##__LINE__->MessageCounter.Current += 256; \
+            anchor__##__LINE__->ByteCounter.Current += localByteCounter__##__LINE__; \
+            localByteCounter__##__LINE__ = 0; \
+        } \
+        \
+        ::NYT::NLogging::NDetail::LogEventImpl( \
+            traceContext__##__LINE__, \
+            logger__##__LINE__, \
+            level__##__LINE__, \
+            location__##__LINE__, \
+            std::move(message__##__LINE__.Message)); \
     } while (false)
 
 ////////////////////////////////////////////////////////////////////////////////

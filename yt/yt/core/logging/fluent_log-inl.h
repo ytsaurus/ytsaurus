@@ -32,7 +32,7 @@ NYTree::TFluentYsonBuilder::TAny<TOneShotFluentLogEventImpl<TParent>&&> TOneShot
 template <class TParent>
 TOneShotFluentLogEventImpl<TParent>::~TOneShotFluentLogEventImpl()
 {
-    if (State_ && Logger_ != &NullLogger) {
+    if (State_ && *Logger_) {
         LogStructuredEvent(*Logger_, State_->GetValue(), Level_);
     }
 }

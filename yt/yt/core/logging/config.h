@@ -79,6 +79,9 @@ public:
 
     TDuration RequestSuppressionTimeout;
 
+    bool EnableAnchorProfiling;
+    double MinLoggedMessageRateToProfile;
+
     bool AbortOnAlert;
 
     TLogManagerConfig();
@@ -115,6 +118,9 @@ public:
     std::optional<THashMap<TString, size_t>> CategoryRateLimits;
 
     std::optional<TDuration> RequestSuppressionTimeout;
+
+    std::optional<bool> EnableAnchorProfiling;
+    std::optional<double> MinLoggedMessageRateToProfile;
 
     std::optional<bool> AbortOnAlert;
 

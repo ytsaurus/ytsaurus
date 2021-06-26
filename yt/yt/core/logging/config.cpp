@@ -126,6 +126,11 @@ TLogManagerConfig::TLogManagerConfig()
         .Alias("trace_suppression_timeout")
         .Default(TDuration::Zero());
 
+    RegisterParameter("enable_anchor_profiling", EnableAnchorProfiling)
+        .Default(false);
+    RegisterParameter("min_logged_message_rate_to_profile", MinLoggedMessageRateToProfile)
+        .Default(1.0);
+
     RegisterParameter("abort_on_alert", AbortOnAlert)
         .Default(false);
 
@@ -163,6 +168,8 @@ TLogManagerConfigPtr TLogManagerConfig::ApplyDynamic(const TLogManagerDynamicCon
     mergedConfig->SuppressedMessages = dynamicConfig->SuppressedMessages.value_or(SuppressedMessages);
     mergedConfig->CategoryRateLimits = dynamicConfig->CategoryRateLimits.value_or(CategoryRateLimits);
     mergedConfig->RequestSuppressionTimeout = dynamicConfig->RequestSuppressionTimeout.value_or(RequestSuppressionTimeout);
+    mergedConfig->EnableAnchorProfiling = dynamicConfig->EnableAnchorProfiling.value_or(EnableAnchorProfiling);
+    mergedConfig->MinLoggedMessageRateToProfile = dynamicConfig->MinLoggedMessageRateToProfile.value_or(MinLoggedMessageRateToProfile);
     mergedConfig->AbortOnAlert = dynamicConfig->AbortOnAlert.value_or(AbortOnAlert);
     mergedConfig->Postprocess();
     return mergedConfig;
@@ -380,6 +387,11 @@ TLogManagerDynamicConfig::TLogManagerDynamicConfig()
         .Optional();
 
     RegisterParameter("request_suppression_timeout", RequestSuppressionTimeout)
+        .Optional();
+
+    RegisterParameter("enable_anchor_profiling", EnableAnchorProfiling)
+        .Optional();
+    RegisterParameter("min_logged_message_rate_to_profile", MinLoggedMessageRateToProfile)
         .Optional();
 
     RegisterParameter("abort_on_alert", AbortOnAlert)

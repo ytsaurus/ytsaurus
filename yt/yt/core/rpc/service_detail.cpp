@@ -197,10 +197,16 @@ TServiceBase::TMethodPerformanceCounters::TMethodPerformanceCounters(const NProf
 { }
 
 TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
-    const TMethodDescriptor& descriptor,
+    TServiceId serviceId,
+    TMethodDescriptor descriptor,
     const NProfiling::TProfiler& profiler)
-    : Descriptor(descriptor)
-    , Profiler(profiler.WithTag("method", descriptor.Method, -1))
+    : ServiceId(std::move(serviceId))
+    , Descriptor(std::move(descriptor))
+    , Profiler(profiler.WithTag("method", Descriptor.Method, -1))
+    , RequestLoggingAnchor(NLogging::TLogManager::Get()->RegisterDynamicAnchor(
+        Format("%v.%v <-", ServiceId.ServiceName, Descriptor.Method)))
+    , ResponseLoggingAnchor(NLogging::TLogManager::Get()->RegisterDynamicAnchor(
+        Format("%v.%v ->", ServiceId.ServiceName, Descriptor.Method)))
     , LoggingSuppressionFailedRequestThrottler(
         CreateReconfigurableThroughputThrottler(DefaultLoggingSuppressionFailedRequestThrottlerConfig))
     , DefaultRequestQueue("default")
@@ -868,7 +874,7 @@ private:
         if (TraceContext_ && TraceContext_->IsSampled()) {
             TraceContext_->AddTag(RequestInfoAnnotation, logMessage);
         }
-        YT_LOG_EVENT(Logger, LogLevel_, logMessage);
+        YT_LOG_EVENT_WITH_ANCHOR(Logger, LogLevel_, RuntimeInfo_->RequestLoggingAnchor, logMessage);
     }
 
     virtual void LogResponse() override
@@ -911,7 +917,7 @@ private:
         if (TraceContext_ && TraceContext_->IsSampled()) {
             TraceContext_->AddTag(ResponseInfoAnnotation, logMessage);
         }
-        YT_LOG_EVENT(Logger, LogLevel_, logMessage);
+        YT_LOG_EVENT_WITH_ANCHOR(Logger, LogLevel_, RuntimeInfo_->ResponseLoggingAnchor, logMessage);
     }
 
 
@@ -1893,7 +1899,7 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDe
 {
     ValidateInactive();
 
-    auto runtimeInfo = New<TRuntimeMethodInfo>(descriptor, Profiler_);
+    auto runtimeInfo = New<TRuntimeMethodInfo>(ServiceId_, descriptor, Profiler_);
 
     runtimeInfo->RootPerformanceCounters = CreateMethodPerformanceCounters(
         runtimeInfo.Get(),

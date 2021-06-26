@@ -618,14 +618,14 @@ TEST_P(TLoggingTagsTest, All)
                 traceContext.Get(),
                 logger,
                 "Log message (Value: %v)",
-                123)));
+                123).Message));
     } else {
         EXPECT_EQ(
             expected,
             ToString(NLogging::NDetail::BuildLogMessage(
                 traceContext.Get(),
                 logger,
-                "Log message")));
+                "Log message").Message));
     }
 }
 
