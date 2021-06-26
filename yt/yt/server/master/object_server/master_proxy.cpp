@@ -57,7 +57,7 @@ public:
     { }
 
 private:
-    typedef TNonversionedObjectProxyBase<TMasterObject> TBase;
+    using TBase = TNonversionedObjectProxyBase<TMasterObject>;
 
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override
     {

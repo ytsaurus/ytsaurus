@@ -181,7 +181,7 @@ public:
     void SetExpirationTime(TCypressNode* node, std::optional<TInstant> time);
     void SetExpirationTimeout(TCypressNode* node, std::optional<TDuration> time);
 
-    typedef SmallVector<TCypressNode*, 1> TSubtreeNodes;
+    using TSubtreeNodes = SmallVector<TCypressNode*, 1>;
     TSubtreeNodes ListSubtreeNodes(
         TCypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction,

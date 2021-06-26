@@ -45,7 +45,7 @@ public:
     { }
 
 private:
-    typedef TNonversionedObjectProxyBase<TTransaction> TBase;
+    using TBase = TNonversionedObjectProxyBase<TTransaction>;
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {

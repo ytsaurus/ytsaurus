@@ -597,7 +597,7 @@ public:
     }
 
 private:
-    typedef TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IEntityNode, TVirtualNode> TBase;
+    using TBase = TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IEntityNode, TVirtualNode>;
 
     const EVirtualNodeOptions Options_;
     const TYPathServiceProducer Producer_;

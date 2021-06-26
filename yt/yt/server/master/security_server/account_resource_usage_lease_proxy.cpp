@@ -35,7 +35,7 @@ public:
     { }
 
 private:
-    typedef TNonversionedObjectProxyBase<TAccountResourceUsageLease> TBase;
+    using TBase = TNonversionedObjectProxyBase<TAccountResourceUsageLease>;
 
     virtual void ValidateRemoval() override
     {

@@ -61,22 +61,22 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<NObjectServer::TObject*>, ImportedObjects);
 
     // Cypress stuff
-    typedef THashSet<NCypressServer::TCypressNode*> TLockedNodeSet;
+    using TLockedNodeSet = THashSet<NCypressServer::TCypressNode*>;
     DEFINE_BYREF_RW_PROPERTY(TLockedNodeSet, LockedNodes);
-    typedef THashSet<NCypressServer::TLock*> TLockSet;
+    using TLockSet = THashSet<NCypressServer::TLock*>;
     DEFINE_BYREF_RW_PROPERTY(TLockSet, Locks);
-    typedef std::vector<NCypressServer::TCypressNode*> TBranchedNodeList;
+    using TBranchedNodeList = std::vector<NCypressServer::TCypressNode*>;
     DEFINE_BYREF_RW_PROPERTY(TBranchedNodeList, BranchedNodes);
-    typedef std::vector<NCypressServer::TCypressNode*> TStagedNodeList;
+    using TStagedNodeList = std::vector<NCypressServer::TCypressNode*>;
     DEFINE_BYREF_RW_PROPERTY(TStagedNodeList, StagedNodes);
     DEFINE_BYREF_RW_PROPERTY(THashSet<NTableServer::TTableNode*>, LockedDynamicTables);
 
     // Security Manager stuff
-    typedef THashMap<NSecurityServer::TAccount*, NSecurityServer::TClusterResources> TAccountResourcesMap;
+    using TAccountResourcesMap = THashMap<NSecurityServer::TAccount*, NSecurityServer::TClusterResources>;
     DEFINE_BYREF_RW_PROPERTY(TAccountResourcesMap, AccountResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
     
-    typedef THashSet<NSecurityServer::TAccountResourceUsageLease*> TAccountResourceUsageLeaseSet;
+    using TAccountResourceUsageLeaseSet = THashSet<NSecurityServer::TAccountResourceUsageLease*>;
     DEFINE_BYREF_RW_PROPERTY(TAccountResourceUsageLeaseSet, AccountResourceUsageLeases);
 
 public:

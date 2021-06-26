@@ -43,7 +43,7 @@ public:
     { }
 
 private:
-    typedef TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TFileNode> TBase;
+    using TBase = TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TFileNode>;
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {

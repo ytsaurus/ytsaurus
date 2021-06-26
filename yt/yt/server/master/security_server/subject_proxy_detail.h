@@ -34,7 +34,7 @@ public:
     { }
 
 private:
-    typedef NObjectServer::TNonversionedObjectProxyBase<TImpl> TBase;
+    using TBase = NObjectServer::TNonversionedObjectProxyBase<TImpl>;
 
 protected:
     virtual void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override

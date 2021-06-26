@@ -32,7 +32,7 @@ public:
     { }
 
 private:
-    typedef TNonversionedObjectProxyBase<TDataCenter> TBase;
+    using TBase = TNonversionedObjectProxyBase<TDataCenter>;
 
     virtual void ValidateRemoval() override
     {

@@ -2481,7 +2481,7 @@ void TMapNodeProxy::Clear()
     auto keyToChildList = SortHashMapByKeys(keyToChildMap);
 
     // Take shared locks for children.
-    typedef std::pair<TString, TCypressNode*> TChild;
+    using TChild = std::pair<TString, TCypressNode*>;
     std::vector<TChild> children;
     children.reserve(keyToChildList.size());
     for (const auto& [key, child] : keyToChildList) {

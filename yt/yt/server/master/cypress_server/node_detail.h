@@ -541,7 +541,7 @@ public:
     }
 
 protected:
-    typedef TCypressNodeTypeHandlerBase<TScalarNode<TValue>> TBase;
+    using TBase = TCypressNodeTypeHandlerBase<TScalarNode<TValue>>;
 
     virtual ICypressNodeProxyPtr DoGetProxy(
         TScalarNode<TValue>* trunkNode,

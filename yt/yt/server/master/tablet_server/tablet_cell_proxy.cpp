@@ -95,7 +95,7 @@ public:
     { }
 
 private:
-    typedef TCellProxyBase TBase;
+    using TBase = TCellProxyBase;
 
     virtual void ValidateRemoval() override
     {

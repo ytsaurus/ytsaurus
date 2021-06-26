@@ -34,7 +34,7 @@ public:
     { }
 
 private:
-    typedef TNonversionedObjectProxyBase<TSchemaObject> TBase;
+    using TBase = TNonversionedObjectProxyBase<TSchemaObject>;
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {

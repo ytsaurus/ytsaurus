@@ -33,7 +33,7 @@ public:
     { }
 
 private:
-    typedef TNonversionedObjectProxyBase<TCypressShard> TBase;
+    using TBase = TNonversionedObjectProxyBase<TCypressShard>;
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override
     {
