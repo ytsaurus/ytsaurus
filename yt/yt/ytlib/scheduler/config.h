@@ -75,19 +75,6 @@ void Serialize(const TPoolName& value, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSupportsSchedulingTagsConfig
-    : public virtual NYTree::TYsonSerializable
-{
-public:
-    TBooleanFormula SchedulingTagFilter;
-
-    TSupportsSchedulingTagsConfig();
-};
-
-DEFINE_REFCOUNTED_TYPE(TSupportsSchedulingTagsConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TJobResourcesConfig
     : public NYTree::TYsonSerializable
 {
@@ -127,8 +114,30 @@ DEFINE_REFCOUNTED_TYPE(TJobResourcesConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPreemptionConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    // The following settings override scheduler configuration is specified.
+    std::optional<TDuration> FairShareStarvationTimeout;
+    std::optional<double> FairShareStarvationTolerance;
+
+    std::optional<TDuration> FairShareStarvationTimeoutLimit;
+    std::optional<double> FairShareStarvationToleranceLimit;
+
+    std::optional<bool> AllowAggressivePreemption;
+    std::optional<bool> EnableAggressiveStarvation;
+
+    TPreemptionConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TPreemptionConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchedulableConfig
-    : public TSupportsSchedulingTagsConfig
+    : public virtual NYTree::TYsonSerializable
+    , public TPreemptionConfig
 {
 public:
     std::optional<double> Weight;
@@ -141,15 +150,8 @@ public:
 
     // Specifies guaranteed resources in absolute values.
     TJobResourcesConfigPtr StrongGuaranteeResources;
-
-    // The following settings override scheduler configuration.
-    std::optional<TDuration> FairShareStarvationTimeout;
-    std::optional<double> FairShareStarvationTolerance;
-
-    std::optional<TDuration> FairShareStarvationTimeoutLimit;
-    std::optional<double> FairShareStarvationToleranceLimit;
-
-    std::optional<bool> AllowAggressiveStarvationPreemption;
+    
+    TBooleanFormula SchedulingTagFilter;
 
     TSchedulableConfig();
 };
@@ -225,8 +227,6 @@ public:
 
     std::vector<EFifoSortParameter> FifoSortParameters;
 
-    bool EnableAggressiveStarvation;
-
     bool ForbidImmediateOperations;
 
     bool CreateEphemeralSubpools;
@@ -245,6 +245,8 @@ public:
     TPoolIntegralGuaranteesConfigPtr IntegralGuarantees;
 
     bool EnableDetailedLogs;
+
+    std::optional<TString> ConfigPreset;
 
     TPoolConfig();
 
@@ -1617,6 +1619,18 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobCpuMonitorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+// This config contains options allowed in pool preset configs.
+class TPoolPresetConfig
+    : public TPreemptionConfig
+{
+public:
+    TPoolPresetConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TPoolPresetConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

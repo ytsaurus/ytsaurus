@@ -280,6 +280,8 @@ public:
 
     THashMap<TString, TString> MeteringTags;
 
+    THashMap<TString, NYTree::INodePtr> PoolConfigPresets;
+
     TFairShareStrategyTreeConfig();
 };
 

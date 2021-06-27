@@ -24,6 +24,7 @@
     XX(Aliases, aliases) \
     XX(AllowChildrenLimitOvercommit, allow_children_limit_overcommit) \
     XX(AllowedProfilingTags, allowed_profiling_tags) \
+    XX(AllowAggressivePreemption, allow_aggressive_preemption) \
     XX(AllowAggressiveStarvationPreemption, allow_aggressive_starvation_preemption) \
     XX(Annotation, annotation) \
     XX(AnnotationPath, annotation_path) \
@@ -76,6 +77,7 @@
     XX(CompressionRatio, compression_ratio) \
     XX(CompressionStatistics, compression_statistics) \
     XX(Config, config) \
+    XX(ConfigPreset, config_preset) \
     XX(ConfigVersion, config_version) \
     XX(Confirmed, confirmed) \
     XX(ContentRevision, content_revision) \
@@ -302,6 +304,7 @@
     XX(PerformanceCounters, performance_counters) \
     XX(PivotKey, pivot_key) \
     XX(PivotKeys, pivot_keys) \
+    XX(PoolConfigPresets, pool_config_presets) \
     XX(PreemptionSatisfactionThreshold, preemption_satisfaction_threshold) \
     XX(PreemptionCheckStarvation, preemption_check_starvation) \
     XX(PreemptionCheckSatisfaction, preemption_check_satisfaction) \

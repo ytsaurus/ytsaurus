@@ -580,7 +580,10 @@ public:
             }
         }
 
-        TPoolsConfigParser poolsConfigParser(std::move(poolToParentMap), std::move(ephemeralPools));
+        TPoolsConfigParser poolsConfigParser(
+            std::move(poolToParentMap),
+            std::move(ephemeralPools),
+            Config_->PoolConfigPresets);
 
         TError parseResult = poolsConfigParser.TryParse(poolsNode);
         if (!parseResult.IsOK()) {
@@ -1470,8 +1473,9 @@ private:
                     continue;
                 }
 
-                bool isAggressivePreemptionEnabled = isAggressive &&
-                    operationElement->IsAggressiveStarvationPreemptionAllowed();
+                bool isAggressivePreemptionEnabled =
+                    isAggressive &&
+                    operationElement->GetEffectiveAggressivePreemptionAllowed();
 
                 bool isJobPreemptable = operationElement->IsPreemptionAllowed(isAggressive, context->DynamicAttributesList(), treeConfig) &&
                     operationElement->IsJobPreemptable(job->GetId(), isAggressivePreemptionEnabled);
@@ -2358,6 +2362,9 @@ private:
                 .Item("max_operation_count").Value(element->GetMaxOperationCount())
                 .Item("forbid_immediate_operations").Value(element->AreImmediateOperationsForbidden())
                 .Item("aggressive_starvation_enabled").Value(element->IsAggressiveStarvationEnabled())
+                .Item("effective_aggressive_starvation_enabled").Value(element->GetEffectiveAggressiveStarvationEnabled())
+                .Item("aggressive_preemption_allowed").Value(element->IsAggressivePreemptionAllowed())
+                .Item("effective_aggressive_preemption_allowed").Value(element->GetEffectiveAggressivePreemptionAllowed())
                 .Item("total_resource_flow_ratio").Value(attributes.TotalResourceFlowRatio)
                 .Item("total_burst_ratio").Value(attributes.TotalBurstRatio)
                 .DoIf(element->GetParent(), [&] (TFluentMap fluent) {

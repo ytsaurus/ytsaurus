@@ -92,8 +92,6 @@ struct TSchedulableAttributes
     double SatisfactionRatio = 0.0;
     double LocalSatisfactionRatio = 0.0;
 
-    bool AggressiveStarvationEnabled = false;
-
     TResourceVector GetGuaranteeShare() const;
 
     void SetFairShare(const TResourceVector& fairShare);

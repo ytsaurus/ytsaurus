@@ -30,7 +30,10 @@ public:
         EUpdatePoolActionType Type = EUpdatePoolActionType::Keep;
     };
 
-    TPoolsConfigParser(THashMap<TString, TString> poolToParentMap, THashSet<TString> ephemeralPools);
+    TPoolsConfigParser(
+        THashMap<TString, TString> poolToParentMap,
+        THashSet<TString> ephemeralPools,
+        THashMap<TString, NYTree::INodePtr> poolConfigPresets);
 
     TError TryParse(const NYTree::INodePtr& rootNode);
 
@@ -39,6 +42,7 @@ public:
 private:
     const THashMap<TString, TString> OldPoolToParentMap_;
     const THashSet<TString> EphemeralPools_;
+    const THashMap<TString, NYTree::INodePtr> PoolConfigPresets_;
 
     THashSet<TString> ParsedPoolNames_;
     std::vector<TUpdatePoolAction> UpdatePoolActions;
@@ -46,6 +50,7 @@ private:
 
     bool TryParse(const NYTree::INodePtr& configNode, const TString& parentName, bool isFifo);
     void ProcessErasedPools();
+    void ValidatePoolPresetConfig(const TString& presetName, const NYTree::INodePtr& presetNode);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

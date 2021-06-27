@@ -266,6 +266,9 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(double, AdjustedFairShareStarvationTolerance, 1.0);
     DEFINE_BYVAL_RO_PROPERTY(TDuration, AdjustedFairShareStarvationTimeout);
 
+    DEFINE_BYVAL_RO_PROPERTY(bool, EffectiveAggressiveStarvationEnabled, false)
+    DEFINE_BYVAL_RO_PROPERTY(bool, EffectiveAggressivePreemptionAllowed, true);
+
 protected:
     TSchedulerElementFixedState(
         ISchedulerStrategyHost* host,
@@ -398,7 +401,8 @@ public:
 
     virtual TFairShareScheduleJobResult ScheduleJob(TScheduleJobsContext* context, bool ignorePacking) = 0;
 
-    virtual bool IsAggressiveStarvationPreemptionAllowed() const = 0;
+    virtual std::optional<bool> IsAggressiveStarvationEnabled() const = 0;
+    virtual std::optional<bool> IsAggressivePreemptionAllowed() const = 0;
     virtual bool HasAggressivelyStarvingElements(TScheduleJobsContext* context) const = 0;
 
     virtual const TJobResources& CalculateCurrentResourceUsage(TScheduleJobsContext* context) = 0;
@@ -454,7 +458,7 @@ protected:
     TResourceVector GetResourceUsageShare() const;
 
     // Publishes fair share and updates preemptable job lists of operations.
-    virtual void PublishFairShareAndUpdatePreemptionSettings(bool aggressiveStarvationEnabled) = 0;
+    virtual void PublishFairShareAndUpdatePreemptionSettings() = 0;
     virtual void UpdatePreemptionAttributes();
 
     // This method reuses common code with schedule jobs logic to calculate dynamic attributes.
@@ -606,8 +610,6 @@ public:
 
     virtual const TJobResources& CalculateCurrentResourceUsage(TScheduleJobsContext* context) override final;
 
-    virtual bool IsAggressiveStarvationEnabled() const;
-    virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
     virtual bool HasAggressivelyStarvingElements(TScheduleJobsContext* context) const override;
 
     //! Other methods.
@@ -644,7 +646,7 @@ protected:
 
     virtual int EnumerateElements(int startIndex, bool isSchedulableValueFilter) override;
 
-    virtual void PublishFairShareAndUpdatePreemptionSettings(bool aggressiveStarvationEnabled) override;
+    virtual void PublishFairShareAndUpdatePreemptionSettings() override;
     virtual void UpdatePreemptionAttributes() override;
 
     virtual void UpdateSchedulableAttributesFromDynamicAttributes(
@@ -785,8 +787,8 @@ public:
     virtual TDuration GetFairShareStarvationTimeoutLimit() const override;
 
     //! Schedule job methods.
-    virtual bool IsAggressiveStarvationEnabled() const override;
-    virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
+    virtual std::optional<bool> IsAggressiveStarvationEnabled() const override;
+    virtual std::optional<bool> IsAggressivePreemptionAllowed() const override;
 
     //! Other methods.
     virtual void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* meteringMap) const override;
@@ -1121,8 +1123,7 @@ public:
 
     TInstant GetLastNonStarvingTime() const;
 
-
-    virtual void PublishFairShareAndUpdatePreemptionSettings(bool aggressiveStarvationEnabled) override;
+    virtual void PublishFairShareAndUpdatePreemptionSettings() override;
     virtual void UpdatePreemptionAttributes() override;
 
     virtual double GetFairShareStarvationTolerance() const override;
@@ -1144,7 +1145,8 @@ public:
     void ActivateOperation(TScheduleJobsContext* context);
     void DeactivateOperation(TScheduleJobsContext* context, EDeactivationReason reason);
 
-    virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
+    virtual std::optional<bool> IsAggressiveStarvationEnabled() const override;
+    virtual std::optional<bool> IsAggressivePreemptionAllowed() const override;
     virtual bool HasAggressivelyStarvingElements(TScheduleJobsContext* context) const override;
 
     bool IsPreemptionAllowed(
@@ -1312,7 +1314,8 @@ public:
     virtual TDuration GetFairShareStarvationTimeout() const override;
 
     //! Schedule job methods.
-    virtual bool IsAggressiveStarvationEnabled() const override;
+    virtual std::optional<bool> IsAggressiveStarvationEnabled() const override;
+    virtual std::optional<bool> IsAggressivePreemptionAllowed() const override;
 
     //! Other methods.
     virtual THashSet<TString> GetAllowedProfilingTags() const override;
