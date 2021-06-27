@@ -116,7 +116,7 @@ public:
         }
 
         auto size = GetTabletBalancingSize(tablet, Bootstrap_->GetTabletManager());
-        auto bounds = GetTabletSizeConfig(tablet);
+        auto bounds = GetTabletSizeConfig(tablet->GetTable());
         if (size < bounds.MinTabletSize || size > bounds.MaxTabletSize) {
             auto bundleId = tablet->GetTable()->GetTabletCellBundle()->GetId();
             TabletIdQueue_[bundleId].push_back(tablet->GetId());
@@ -138,7 +138,7 @@ private:
     bool Enabled_ = false;
     bool Started_ = false;
 
-    THashMap<TTabletCellBundleId, std::deque<TTabletId>> TabletIdQueue_;
+    THashMap<TTabletCellBundleId, std::vector<TTabletId>> TabletIdQueue_;
 
     THashSet<TTabletId> QueuedTabletIds_;
     TTabletBalancerContext Context_;
@@ -641,19 +641,6 @@ private:
         bundle->ProfilingCounters().ExtMemoryMoves.Increment(actionCount);
     }
 
-    bool BalanceTablet(TTablet* tablet)
-    {
-        if (!IsTabletReshardable(tablet) ||
-            TablesWithActiveActions_.contains(tablet->GetTable()))
-        {
-            return false;
-        }
-
-        auto bounds = GetTabletSizeConfig(tablet);
-
-        return MergeSplitTablet(tablet, bounds);
-    }
-
     void BalanceTablets(const TTabletCellBundle* bundle)
     {
         if (!TabletIdQueue_.contains(bundle->GetId())) {
@@ -662,20 +649,53 @@ private:
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
 
-        int actionCount = 0;
-
         auto it = TabletIdQueue_.find(bundle->GetId());
         if (it == TabletIdQueue_.end()) {
             return;
         }
-        auto& queue = it->second;
-        while (!queue.empty()) {
-            auto tabletId = queue.front();
-            queue.pop_front();
-            QueuedTabletIds_.erase(tabletId);
 
+        std::vector<TTablet*> tablets;
+        for (auto tabletId : it->second) {
+            QueuedTabletIds_.erase(tabletId);
             auto* tablet = tabletManager->FindTablet(tabletId);
-            actionCount += BalanceTablet(tablet);
+            if (IsTabletReshardable(tablet)) {
+                tablets.push_back(tablet);
+            }
+        }
+
+        it->second.clear();
+
+        std::sort(
+            tablets.begin(),
+            tablets.end(),
+            [&] (const TTablet* lhs, const TTablet* rhs) {
+                return lhs->GetTable()->GetId() < rhs->GetTable()->GetId();
+            });
+
+        int actionCount = 0;
+
+        auto beginIt = tablets.begin();
+        while (beginIt != tablets.end()) {
+            auto endIt = beginIt;
+            while (endIt != tablets.end() && (*beginIt)->GetTable() == (*endIt)->GetTable()) {
+                ++endIt;
+            }
+            auto tabletRange = MakeRange(beginIt, endIt);
+            beginIt = endIt;
+
+            const auto* table = tabletRange.Front()->GetTable();
+            if (TablesWithActiveActions_.contains(table)) {
+                continue;
+            }
+
+            auto descriptors = MergeSplitTabletsOfTable(
+                tabletRange,
+                &Context_,
+                tabletManager);
+            for (auto descriptor : descriptors) {
+                CreateReshardAction(descriptor.Tablets, descriptor.TabletCount, descriptor.DataSize);
+            }
+            actionCount += descriptors.size();
         }
 
         bundle->ProfilingCounters().TabletMerges.Increment(actionCount);
@@ -684,21 +704,6 @@ private:
     bool IsTabletUntouched(const TTablet* tablet) const
     {
         return Context_.IsTabletUntouched(tablet);
-    }
-
-    bool MergeSplitTablet(TTablet* tablet, const TTabletSizeConfig& bounds)
-    {
-        auto descriptors = NTabletServer::MergeSplitTablet(
-            tablet,
-            bounds,
-            &Context_,
-            Bootstrap_->GetTabletManager());
-
-        for (auto descriptor : descriptors) {
-            CreateReshardAction(descriptor.Tablets, descriptor.TabletCount, descriptor.DataSize);
-        }
-
-        return !descriptors.empty();
     }
 
     void PurgeDeletedBundles()

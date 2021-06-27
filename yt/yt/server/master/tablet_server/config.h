@@ -41,6 +41,8 @@ public:
 
     TTimeFormula TabletBalancerSchedule;
 
+    bool EnableVerboseLogging;
+
     TTabletBalancerConfig()
     {
         RegisterParameter("enable_in_memory_cell_balancer", EnableInMemoryCellBalancer)
@@ -89,6 +91,9 @@ public:
 
         RegisterParameter("tablet_balancer_schedule", TabletBalancerSchedule)
             .Default();
+
+        RegisterParameter("enable_verbose_logging", EnableVerboseLogging)
+            .Default(false);
 
         RegisterPostprocessor([&] () {
             if (MinTabletSize > DesiredTabletSize) {

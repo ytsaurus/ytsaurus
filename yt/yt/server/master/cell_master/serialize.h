@@ -154,6 +154,7 @@ DEFINE_ENUM(EMasterReign,
     ((UpdateTransactionChunkUsageAfterUnstage)                      (1628))  // cookiedoth
     ((FixTablesWithNullTabletCellBundle)                            (1629))  // shakurov
     ((ChangeDynamicTableMedium)                                     (1630))  // ifsmirnov
+    ((MinTabletCountForTabletBalancer)                              (1631))  // ifsmirnov
     // 21.3 starts here.
 );
 

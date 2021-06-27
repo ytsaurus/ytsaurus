@@ -1724,7 +1724,7 @@ public:
         bool keepActions)
     {
         if (bundle->GetActiveTabletActionCount() > 0) {
-            return {};
+            THROW_ERROR_EXCEPTION("Bundle is already being balanced, try again later");
         }
 
         std::optional<THashSet<const TTableNode*>> tablesSet;
@@ -1740,7 +1740,7 @@ public:
             true, // ignoreConfig
             Bootstrap_->GetTabletManager());
 
-        for (auto descriptor : descriptors) {
+        for (const auto& descriptor : descriptors) {
             if (auto actionId = SpawnTabletAction(descriptor)) {
                 actions.push_back(actionId);
             }
@@ -1761,13 +1761,14 @@ public:
             THROW_ERROR_EXCEPTION("Cannot reshard a static table");
         }
 
-        if (table->IsReplicated() && !table->IsEmpty()) {
-            THROW_ERROR_EXCEPTION("Cannot reshard non-empty replicated table");
+        if (table->IsReplicated()) {
+            THROW_ERROR_EXCEPTION("Cannot automatically reshard a replicated table");
         }
 
         for (const auto& tablet : table->Tablets()) {
             if (tablet->GetAction()) {
-                return {};
+                THROW_ERROR_EXCEPTION("Table is already being balanced, try again later")
+                    << TErrorAttribute("tablet_id", tablet->GetId());
             }
         }
 
@@ -1775,19 +1776,15 @@ public:
 
         std::vector<TTabletActionId> actions;
         TTabletBalancerContext context;
-        for (const auto& tablet : table->Tablets()) {
-            if (!IsTabletReshardable(tablet, /*ignoreConfig*/ true) || !context.IsTabletUntouched(tablet)) {
-                continue;
-            }
 
-            auto bounds = GetTabletSizeConfig(tablet);
+        auto descriptors = MergeSplitTabletsOfTable(
+            table->Tablets(),
+            &context,
+            tabletManager);
 
-            auto descriptors = MergeSplitTablet(tablet, bounds, &context, tabletManager);
-
-            for (auto descriptor : descriptors) {
-                if (auto actionId = SpawnTabletAction(descriptor)) {
-                    actions.push_back(actionId);
-                }
+        for (const auto& descriptor : descriptors) {
+            if (auto actionId = SpawnTabletAction(descriptor)) {
+                actions.push_back(actionId);
             }
         }
 

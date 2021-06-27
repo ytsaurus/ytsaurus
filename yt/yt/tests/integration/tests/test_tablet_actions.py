@@ -1051,6 +1051,7 @@ class TestTabletBalancer(TabletActionsBase):
         assert get("//tmp/t/@tablet_balancer_config") == {
             "enable_auto_tablet_move": True,
             "enable_auto_reshard": True,
+            "enable_verbose_logging": False,
         }
         wait(lambda: get("//tmp/t/@tablet_count") == 1)
 
@@ -1067,6 +1068,7 @@ class TestTabletBalancer(TabletActionsBase):
         assert get("//tmp/t/@tablet_balancer_config") == {
             "enable_auto_tablet_move": True,
             "enable_auto_reshard": True,
+            "enable_verbose_logging": False,
             "min_tablet_size": 1,
             "desired_tablet_size": 2,
             "max_tablet_size": 3,
@@ -1089,6 +1091,7 @@ class TestTabletBalancer(TabletActionsBase):
         assert get("//tmp/t/@tablet_balancer_config") == {
             "enable_auto_tablet_move": True,
             "enable_auto_reshard": True,
+            "enable_verbose_logging": False,
         }
 
         assert not exists("//tmp/t/@enable_tablet_balancer")
@@ -1203,6 +1206,52 @@ class TestTabletBalancer(TabletActionsBase):
         sync_balance_tablet_cells("b")
         with pytest.raises(YtError):
             sync_balance_tablet_cells("b", ["//tmp/t"])
+
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("sync", [True, False])
+    @pytest.mark.parametrize("min_tablet_count", [3, 5, 14])
+    def test_min_tablet_count_empty_table(self, sync, min_tablet_count):
+        if sync:
+            set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
+        cells = sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        set("//tmp/t/@tablet_balancer_config/min_tablet_count", min_tablet_count)
+        tablet_count = 20
+        sync_reshard_table("//tmp/t", [[]] + [[i] for i in range(1, tablet_count)])
+        sync_mount_table("//tmp/t")
+
+        if sync:
+            sync_reshard_table_automatic("//tmp/t")
+        else:
+            wait(lambda: get("//tmp/t/@tablet_count") == min_tablet_count)
+
+        pivot_keys = get("//tmp/t/@pivot_keys")
+        keys = [0] + [p[0] for p in pivot_keys[1:]] + [tablet_count]
+        sizes = [keys[i + 1] - keys[i] for i in range(len(pivot_keys) - 1)]
+        print_debug(sizes)
+        assert max(sizes) - min(sizes) <= 1
+
+    @authors("ifsmirnov")
+    def test_min_tablet_count(self):
+        set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
+        cells = sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        set("//tmp/t/@tablet_balancer_config/min_tablet_count", 3)
+        set("//tmp/t/@tablet_balancer_config/enable_verbose_logging", True)
+        tablet_count = 10
+        sync_reshard_table("//tmp/t", [[]] + [[i] for i in range(1, tablet_count)])
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": i} for i in range(tablet_count)])
+        sync_flush_table("//tmp/t")
+        sync_compact_table("//tmp/t")
+        sync_reshard_table_automatic("//tmp/t")
+
+        pivot_keys = get("//tmp/t/@pivot_keys")
+        keys = [0] + [p[0] for p in pivot_keys[1:]] + [tablet_count]
+        sizes = [keys[i + 1] - keys[i] for i in range(len(pivot_keys) - 1)]
+        print_debug(sizes)
+        assert max(sizes) - min(sizes) <= 1
 
 
 ##################################################################
