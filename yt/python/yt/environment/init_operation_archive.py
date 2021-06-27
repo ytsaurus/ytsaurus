@@ -2,10 +2,6 @@
 
 import yt.yson as yson
 from yt.wrapper import YtClient, TablePath, config, ypath_join
-from yt.tools.dynamic_tables import (
-    make_dynamic_table_attributes, unmount_table_new, mount_table_new,
-    wait_for_state_new
-)
 
 from yt.environment.init_cluster import get_default_resource_limits
 
@@ -30,6 +26,17 @@ NODES_LIMIT_ATTRIBUTE = "node_count"
 JOB_TABLE_PARTITION_COUNT = 10
 
 
+def wait_for_predicate(predicate, message, timeout=60, pause=1):
+    start = time.time()
+    while not predicate():
+        if time.time() - start > timeout:
+            error = "Timeout while waiting for \"%s\"" % message
+            logging.info(error)
+            raise YtError(error)
+        logging.info("Waiting for \"%s\"" % message)
+        time.sleep(pause)
+
+
 def get_job_table_pivots(shard_count):
     pivot_keys = [[]]
     shards_per_partition = shard_count // JOB_TABLE_PARTITION_COUNT + 1
@@ -41,11 +48,24 @@ def get_job_table_pivots(shard_count):
 
 def unmount_table(client, path):
     logging.info("Unmounting table %s", path)
-    unmount_table_new(client, path)
+    client.unmount_table(path, sync=True)
+
 
 def mount_table(client, path):
     logging.info("Mounting table %s", path)
-    mount_table_new(client, path)
+    client.mount_table(path, sync=True)
+
+
+def make_dynamic_table_attributes(schema, key_columns, optimize_for):
+    attributes = {
+        "dynamic": True,
+        "optimize_for": optimize_for,
+        "schema": schema,
+    }
+    for column in schema:
+        assert (column.get("sort_order") == "ascending") == (column["name"] in key_columns)
+    return attributes
+
 
 class TableInfo(object):
     def __init__(self, key_columns, value_columns, in_memory=False, get_pivot_keys=None, attributes={}):
@@ -57,6 +77,7 @@ class TableInfo(object):
 
         def make_key_column(name, type_name, expression=None):
             result = make_column(name, type_name)
+            result["sort_order"] = "ascending"
             if expression:
                 result["expression"] = expression
             return result
@@ -75,7 +96,13 @@ class TableInfo(object):
         else:
             key_columns = []
 
-        attributes = make_dynamic_table_attributes(client, self.schema, key_columns, "scan")
+        schema = copy.deepcopy(self.schema)
+        if not sorted:
+            for column in schema:
+                if "sort_order" in column:
+                    del column["sort_order"]
+
+        attributes = make_dynamic_table_attributes(schema, key_columns, "scan")
         attributes.update(self.attributes)
         attributes["dynamic"] = False
 
@@ -83,22 +110,28 @@ class TableInfo(object):
         client.create("table", path, recursive=True, attributes=attributes)
 
     def create_dynamic_table(self, client, path):
-        attributes = make_dynamic_table_attributes(client, self.schema, self.key_columns, "scan")
+        attributes = make_dynamic_table_attributes(self.schema, self.key_columns, "scan")
         attributes.update(self.attributes)
 
         logging.info("Creating dynamic table %s with attributes %s", path, attributes)
         client.create("table", path, recursive=True, attributes=attributes)
 
     def to_dynamic_table(self, client, path):
-        attributes = make_dynamic_table_attributes(client, self.schema, self.key_columns, "scan")
+        attributes = make_dynamic_table_attributes(self.schema, self.key_columns, "scan")
 
         # add unique_keys to schema
         attributes["schema"] = yson.to_yson_type(attributes["schema"], attributes={"unique_keys": True})
 
         logging.info("Sorting table %s with attributes %s", path, attributes)
+        primary_medium = client.get(path + "/@primary_medium")
+        account = client.get(path + "/@account")
         client.run_sort(path, TablePath(path, attributes=attributes), sort_by=self.key_columns, spec={
-            "job_io": {"table_writer": {"block_size": 256 * 2**10, "desired_chunk_size": 100 * 2**20}},
-            "force_transform": True
+            "merge_job_io": {"table_writer": {"block_size": 256 * 2**10, "desired_chunk_size": 100 * 2**20}},
+            "force_transform": True,
+            "intermediate_data_medium": primary_medium,
+            "intermediate_data_account": account,
+            "use_new_partitions_heuristic": True,
+            "max_speculative_job_count_per_task": 20,
         })
         logging.info("Converting table to dynamic %s", path)
         client.alter_table(path, dynamic=True)
@@ -108,15 +141,15 @@ class TableInfo(object):
     def alter_table(self, client, path, shard_count, mount=True):
         logging.info("Altering table %s", path)
         unmount_table(client, path)
-        attributes = make_dynamic_table_attributes(client, self.schema, self.key_columns, "scan")
+        attributes = make_dynamic_table_attributes(self.schema, self.key_columns, "scan")
 
         logging.info("Alter table %s with attributes %s", path, attributes)
-        client.alter_table(path, schema=attributes['schema'])
+        client.alter_table(path, schema=attributes["schema"])
         for attr, value in self.attributes.items():
             client.set("{0}/@{1}".format(path, attr), value)
 
         if self.get_pivot_keys:
-            client.reshard_table(path, self.get_pivot_keys(shard_count))
+            client.reshard_table(path, self.get_pivot_keys(shard_count), sync=True)
 
         if mount:
             mount_table(client, path)
@@ -155,17 +188,21 @@ class Conversion(object):
 
         if source_table:
             if client.exists(source_table):
+                primary_medium = client.get(source_table + "/@primary_medium")
                 # If need_sort == True, we create target table non-sorted to avoid
                 # sort order violation error during map.
                 table_info.create_table(client, target_table, sorted=not need_sort)
                 client.set(target_table + "/@tablet_cell_bundle", client.get(source_table + "/@tablet_cell_bundle"))
+                client.set(target_table + "/@primary_medium", primary_medium)
+                for key, value in client.get(source_table + "/@user_attributes").items():
+                    client.set(target_table + "/@" + key, value)
                 mapper = self.mapper if self.mapper else table_info.get_default_mapper()
                 unmount_table(client, source_table)
 
                 logging.info("Run mapper '%s': %s -> %s", mapper.__name__, source_table, target_table)
-                client.run_map(mapper, source_table, target_table)
+                client.run_map(mapper, source_table, target_table, spec={"data_size_per_job": 2 * 2**30})
                 table_info.to_dynamic_table(client, target_table)
-                client.set(target_table + "/@forced_compaction_revision", client.get(target_table + "/@revision"))
+                client.set(target_table + "/@forced_compaction_revision", 1)
         else:
             logging.info("Creating dynamic table %s", target_table)
             table_info.create_dynamic_table(client, target_table)
@@ -195,7 +232,7 @@ def set_table_ttl(client, table, ttl=None, auto_compaction_period=None, forbid_o
         client.set(table + "/@max_data_versions", 1)
         client.set(table + "/@min_data_ttl", 0)
     client.set(table + "/@min_data_versions", 0)
-    client.set(table + "/@forced_compaction_revision", client.get(table + "/@revision"))
+    client.set(table + "/@forced_compaction_revision", 1)
     if client.get(table + "/@tablet_state") == "mounted":
         client.remount_table(table)
 
@@ -421,7 +458,9 @@ def _initialize_archive(client, archive_path, version=INITIAL_VERSION, tablet_ce
         for table_name in table_infos.keys():
             client.mount_table(ypath_join(archive_path, table_name), sync=False)
         for table_name in table_infos.keys():
-            wait_for_state_new(client, ypath_join(archive_path, table_name), "mounted")
+            wait_for_predicate(
+                lambda: client.get(ypath_join(archive_path, table_name) + "/@tablet_state") == "mounted",
+                "table {} becomes mounted".format(table_name))
 
     client.set(archive_path + "/@version", version)
 
@@ -477,7 +516,7 @@ TRANSFORMS[28] = [
             get_pivot_keys=get_default_pivots,
             attributes={
                 "atomicity": "none",
-                "tablet_cell_bundle": "sys"
+                "tablet_cell_bundle": SYS_BUNDLE_NAME,
             }),
         use_default_mapper=True)
 ]
@@ -963,7 +1002,7 @@ TRANSFORMS[41] = [
             get_pivot_keys=get_default_pivots,
             attributes={
                 "atomicity": "none",
-                "tablet_cell_bundle": "sys"
+                "tablet_cell_bundle": SYS_BUNDLE_NAME,
             }),
         use_default_mapper=True)
 ]
