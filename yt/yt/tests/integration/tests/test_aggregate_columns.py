@@ -1,10 +1,16 @@
-import pytest
-
 from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
-from yt_commands import *  # noqa
+from yt_commands import (
+    authors,
+    create, create_dynamic_table, alter_table, read_table,
+    start_transaction, commit_transaction,
+    lookup_rows, select_rows, insert_rows, delete_rows,
+    sync_create_cells, sync_mount_table, sync_flush_table, sync_compact_table, sync_unmount_table)
 
 from yt.environment.helpers import assert_items_equal
+from yt.common import YtError
+
+import pytest
 
 ##################################################################
 

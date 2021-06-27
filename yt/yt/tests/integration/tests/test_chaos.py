@@ -1,7 +1,15 @@
-from copy import deepcopy
-
 from yt_env_setup import YTEnvSetup
-from yt_commands import *  # noqa
+
+from yt_commands import (
+    authors, wait, execute_command, get_driver,
+    ls, get, set)
+
+from yt.common import YtError
+import yt.yson as yson
+
+import pytest
+
+from copy import deepcopy
 
 ##################################################################
 
@@ -14,7 +22,7 @@ class TestChaos(YTEnvSetup):
 
     DELTA_MASTER_CONFIG = {
         "tablet_manager": {
-            "peer_revocation_timeout" : 10000,
+            "peer_revocation_timeout": 10000,
         },
     }
 
@@ -74,7 +82,12 @@ class TestChaos(YTEnvSetup):
                     {"remote": True, "alien_cluster": "remote_0"},
                     {"remote": True, "alien_cluster": "remote_1"}
                 ]},
-                "options": {"changelog_account": "sys", "snapshot_account": "sys", "peer_count": 3, "independent_peers": True}
+                "options": {
+                    "changelog_account": "sys",
+                    "snapshot_account": "sys",
+                    "peer_count": 3,
+                    "independent_peers": True,
+                }
             }
         }
 
