@@ -133,6 +133,7 @@ struct TScheduleJobsProfilingCounters
     TScheduleJobsProfilingCounters(const NProfiling::TProfiler& profiler);
 
     NProfiling::TCounter PrescheduleJobCount;
+    NProfiling::TCounter UselessPrescheduleJobCount;
     NProfiling::TEventTimer PrescheduleJobTime;
     NProfiling::TEventTimer TotalControllerScheduleJobTime;
     NProfiling::TEventTimer ExecControllerScheduleJobTime;

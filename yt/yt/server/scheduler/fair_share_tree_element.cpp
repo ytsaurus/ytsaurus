@@ -42,6 +42,7 @@ static const TString InvalidCustomProfilingTag("invalid");
 TScheduleJobsProfilingCounters::TScheduleJobsProfilingCounters(
     const NProfiling::TProfiler& profiler)
     : PrescheduleJobCount(profiler.Counter("/preschedule_job_count"))
+    , UselessPrescheduleJobCount(profiler.Counter("/useless_preschedule_job_count"))
     , PrescheduleJobTime(profiler.Timer("/preschedule_job_time"))
     , TotalControllerScheduleJobTime(profiler.Timer("/controller_schedule_job_time/total"))
     , ExecControllerScheduleJobTime(profiler.Timer("/controller_schedule_job_time/exec"))
@@ -170,6 +171,9 @@ void TScheduleJobsContext::ProfileStageTimings()
 
     if (StageState_->PrescheduleExecuted) {
         profilingCounters->PrescheduleJobCount.Increment();
+        if (StageState_->ScheduleJobAttemptCount == 0) {
+            profilingCounters->UselessPrescheduleJobCount.Increment();
+        }
     }
 
     auto strategyScheduleJobDuration = StageState_->TotalDuration
