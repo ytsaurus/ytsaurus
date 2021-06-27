@@ -17,6 +17,8 @@ public:
     std::optional<i64> MaxTabletSize;
     std::optional<i64> DesiredTabletSize;
     std::optional<int> DesiredTabletCount;
+    std::optional<int> MinTabletCount;
+    bool EnableVerboseLogging;
 
     TTabletBalancerConfig()
     {
@@ -37,6 +39,13 @@ public:
 
         RegisterParameter("desired_tablet_count", DesiredTabletCount)
             .Default();
+
+        RegisterParameter("min_tablet_count", MinTabletCount)
+            .Default()
+            .GreaterThan(0);
+
+        RegisterParameter("enable_verbose_logging", EnableVerboseLogging)
+            .Default(false);
 
         RegisterPostprocessor([&] {
             CheckTabletSizeInequalities();
@@ -67,6 +76,9 @@ private:
         }
         if (DesiredTabletSize && MaxTabletSize && *DesiredTabletSize > *MaxTabletSize) {
             THROW_ERROR_EXCEPTION("\"desired_tablet_size\" must be less than or equal to \"max_tablet_size\"");
+        }
+        if (DesiredTabletCount && MinTabletCount && *MinTabletCount > *DesiredTabletCount) {
+            THROW_ERROR_EXCEPTION("\"min_tablet_count\" must be less than or equal to \"desired_tablet_count\"");
         }
     }
 

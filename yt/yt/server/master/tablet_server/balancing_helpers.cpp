@@ -29,61 +29,103 @@ bool TTabletBalancerContext::IsTabletUntouched(const TTablet* tablet) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletSizeConfig GetTabletSizeConfig(TTablet* tablet)
+TTabletSizeConfig GetTabletSizeConfig(const TTableNode* table)
 {
     i64 minTabletSize;
     i64 maxTabletSize;
     i64 desiredTabletSize = 0;
 
-    const auto& config = tablet->GetCell()->GetTabletCellBundle()->TabletBalancerConfig();
-    auto* table = tablet->GetTable();
-    auto desiredTabletCount = table->GetDesiredTabletCount();
-    auto statistics = table->ComputeTotalStatistics();
-    i64 tableSize = tablet->GetInMemoryMode() == EInMemoryMode::Compressed
+    const auto& bundleConfig = table->GetTabletCellBundle()->TabletBalancerConfig();
+    const auto& tableConfig = table->TabletBalancerConfig();
+    const auto statistics = table->ComputeTotalStatistics();
+    i64 tableSize = table->GetInMemoryMode() == EInMemoryMode::Compressed
         ? statistics.compressed_data_size()
         : statistics.uncompressed_data_size();
-    i64 cellCount = tablet->GetCell()->GetTabletCellBundle()->Cells().size() *
-        config->TabletToCellRatio;
+    bool enableVerboseLogging = tableConfig->EnableVerboseLogging || bundleConfig->EnableVerboseLogging;
 
-    if (!desiredTabletCount) {
-        minTabletSize = tablet->GetInMemoryMode() == EInMemoryMode::None
-            ? config->MinTabletSize
-            : config->MinInMemoryTabletSize;
-        maxTabletSize = tablet->GetInMemoryMode() == EInMemoryMode::None
-            ? config->MaxTabletSize
-            : config->MaxInMemoryTabletSize;
-        desiredTabletSize = tablet->GetInMemoryMode() == EInMemoryMode::None
-            ? config->DesiredTabletSize
-            : config->DesiredInMemoryTabletSize;
-
-        auto tableMinTabletSize = table->GetMinTabletSize();
-        auto tableMaxTabletSize = table->GetMaxTabletSize();
-        auto tableDesiredTabletSize = table->GetDesiredTabletSize();
-
-        if (tableMinTabletSize && tableMaxTabletSize && tableDesiredTabletSize &&
-            *tableMinTabletSize < *tableDesiredTabletSize &&
-            *tableDesiredTabletSize < *tableMaxTabletSize)
-        {
-            minTabletSize = *tableMinTabletSize;
-            maxTabletSize = *tableMaxTabletSize;
-            desiredTabletSize = *tableDesiredTabletSize;
-        }
-    } else {
-        cellCount = *desiredTabletCount;
-    }
-
-    if (cellCount == 0) {
-        cellCount = 1;
-    }
-
-    auto tabletSize = DivCeil(tableSize, cellCount);
-    if (desiredTabletSize < tabletSize) {
-        desiredTabletSize = tabletSize;
+    if (tableConfig->DesiredTabletCount) {
+        // DesiredTabletCount from table config.
+        i64 desiredTabletCount = std::max(1, *tableConfig->DesiredTabletCount);
+        desiredTabletSize = DivCeil(tableSize, desiredTabletCount);
         minTabletSize = static_cast<i64>(desiredTabletSize / 1.9);
         maxTabletSize = static_cast<i64>(desiredTabletSize * 1.9);
+    } else if (tableConfig->MinTabletSize &&
+        tableConfig->MaxTabletSize &&
+        tableConfig->DesiredTabletSize)
+    {
+        // Tablet size attributes from table config.
+        minTabletSize = *tableConfig->MinTabletSize;
+        maxTabletSize = *tableConfig->MaxTabletSize;
+        desiredTabletSize = *tableConfig->DesiredTabletSize;
+
+        // This should probably never happen.
+        if (*tableConfig->MinTabletSize >= *tableConfig->DesiredTabletSize ||
+            *tableConfig->DesiredTabletSize >= *tableConfig->MaxTabletSize)
+        {
+            YT_LOG_WARNING("Tablet size inequalities violated in tablet balancer config "
+                "(TableId: %v, Config: %v)",
+                table->GetId(),
+                ConvertToYsonString(tableConfig, NYson::EYsonFormat::Text));
+            desiredTabletSize = std::max(desiredTabletSize, minTabletSize + 1);
+            maxTabletSize = std::max(maxTabletSize, desiredTabletSize + 1);
+        }
+    } else if (table->GetInMemoryMode() == EInMemoryMode::None) {
+        // Tablet size attributes from bundle for ext-memory tables.
+        minTabletSize = bundleConfig->MinTabletSize;
+        maxTabletSize = bundleConfig->MaxTabletSize;
+        desiredTabletSize = bundleConfig->DesiredTabletSize;
+    } else {
+        // Tablet size attributes from bundle for in-memory tables.
+        minTabletSize = bundleConfig->MinInMemoryTabletSize;
+        maxTabletSize = bundleConfig->MaxInMemoryTabletSize;
+        desiredTabletSize = bundleConfig->DesiredInMemoryTabletSize;
     }
 
-    return TTabletSizeConfig{minTabletSize, maxTabletSize, desiredTabletSize};
+    // Balancer would not create too many tablets unless desired_tablet_count is set.
+    if (!tableConfig->DesiredTabletCount) {
+        i64 maxTabletCount = table->GetTabletCellBundle()->Cells().size() *
+            bundleConfig->TabletToCellRatio;
+        auto tabletSizeLimit = DivCeil(tableSize, maxTabletCount);
+        if (desiredTabletSize < tabletSizeLimit) {
+            desiredTabletSize = tabletSizeLimit;
+            minTabletSize = static_cast<i64>(desiredTabletSize / 1.9);
+            maxTabletSize = static_cast<i64>(desiredTabletSize * 1.9);
+
+            YT_LOG_DEBUG_IF(enableVerboseLogging,
+                "Tablet size config overridden by tablet to cell ratio"
+                "(TableId: %v, MaxTabletCount: %v, MinTabletSize: %v, DesiredTabletSize: %v, "
+                "MaxTabletSize: %v)",
+                table->GetId(),
+                maxTabletCount,
+                minTabletSize,
+                desiredTabletSize,
+                maxTabletSize);
+        }
+    }
+
+    if (tableConfig->MinTabletCount) {
+        i64 minTabletCount = *tableConfig->MinTabletCount;
+        auto tabletSizeLimit = tableSize / minTabletCount;
+        if (desiredTabletSize > tabletSizeLimit) {
+            // minTabletSize should be nonzero so desiredTabletSize is bounded with 2.
+            desiredTabletSize = std::max<i64>(2, tabletSizeLimit);
+            minTabletSize = std::min(minTabletSize, desiredTabletSize - 1);
+            YT_LOG_DEBUG_IF(enableVerboseLogging,
+                "Tablet size config overridden by min tablet count (TableId: %v, "
+                "MinTabletSize: %v, DesiredTabletSize: %v, MaxTabletSize: %v)",
+                table->GetId(),
+                minTabletSize,
+                desiredTabletSize,
+                maxTabletSize);
+        }
+    }
+
+    return TTabletSizeConfig{
+        minTabletSize,
+        maxTabletSize,
+        desiredTabletSize,
+        tableConfig->MinTabletCount,
+    };
 }
 
 i64 GetTabletBalancingSize(TTablet* tablet, const TTabletManagerPtr& tabletManager)
@@ -109,9 +151,10 @@ bool IsTabletReshardable(const TTablet* tablet, bool ignoreConfig)
         tablet->Replicas().empty();
 }
 
-std::vector<TReshardDescriptor> MergeSplitTablet(
+std::optional<TReshardDescriptor> MergeSplitTablet(
     TTablet* tablet,
     const TTabletSizeConfig& bounds,
+    std::vector<int>* mergeBudgetByTabletIndex,
     TTabletBalancerContext* context,
     const TTabletManagerPtr& tabletManager)
 {
@@ -128,6 +171,13 @@ std::vector<TReshardDescriptor> MergeSplitTablet(
         return {};
     }
 
+    if (bounds.MinTabletCount &&
+        ssize(table->Tablets()) <= *bounds.MinTabletCount &&
+        size < bounds.MinTabletSize)
+    {
+        return {};
+    }
+
     if (desiredSize == 0) {
         desiredSize = 1;
     }
@@ -141,11 +191,32 @@ std::vector<TReshardDescriptor> MergeSplitTablet(
         return tabletSize >= bounds.MinTabletSize && tabletSize <= bounds.MaxTabletSize;
     };
 
+    auto takeMergeBudget = [&] (int index) {
+        if (mergeBudgetByTabletIndex) {
+            int result = (*mergeBudgetByTabletIndex)[index];
+            (*mergeBudgetByTabletIndex)[index] = 0;
+            return result;
+        } else {
+            return 0;
+        }
+    };
+
+    // If the tablet is going to be split then we are not constrained
+    // by MinTabletCount and set mergeBudget to infinity for convenience.
+    int mergeBudget = bounds.MinTabletCount && size < bounds.MinTabletSize
+        ? takeMergeBudget(startIndex)
+        : std::numeric_limits<int>::max() / 2;
+
     while (!sizeGood() &&
         startIndex > 0 &&
         context->IsTabletUntouched(table->Tablets()[startIndex - 1]) &&
         table->Tablets()[startIndex - 1]->GetState() == tablet->GetState())
     {
+        mergeBudget += takeMergeBudget(startIndex - 1);
+        if (mergeBudget == 0) {
+            break;
+        }
+        --mergeBudget;
         --startIndex;
         size += GetTabletBalancingSize(table->Tablets()[startIndex], tabletManager);
     }
@@ -154,6 +225,11 @@ std::vector<TReshardDescriptor> MergeSplitTablet(
         context->IsTabletUntouched(table->Tablets()[endIndex + 1]) &&
         table->Tablets()[endIndex + 1]->GetState() == tablet->GetState())
     {
+        mergeBudget += takeMergeBudget(endIndex + 1);
+        if (mergeBudget == 0) {
+            break;
+        }
+        --mergeBudget;
         ++endIndex;
         size += GetTabletBalancingSize(table->Tablets()[endIndex], tabletManager);
     }
@@ -164,12 +240,23 @@ std::vector<TReshardDescriptor> MergeSplitTablet(
         return {};
     }
 
-    if (newTabletCount == endIndex - startIndex + 1 && newTabletCount == 1) {
+    if (endIndex == startIndex && newTabletCount == 1) {
         YT_LOG_DEBUG("Tablet balancer is unable to reshard tablet (TableId: %v, TabletId: %v, TabletSize: %v)",
             table->GetId(),
             tablet->GetId(),
             size);
         return {};
+    }
+
+    if (static_cast<int>(table->Tablets().size()) + newTabletCount -
+        (endIndex - startIndex + 1) >= MaxTabletCount)
+    {
+        YT_LOG_DEBUG("Tablet balancer will not split tablets since tablet count "
+            "would exceed the limit (TableId: %v, TabletId: %v, TabletsSize: %v, DesiredCount: %v)",
+            table->GetId(),
+            tablet->GetId(),
+            size,
+            newTabletCount);
     }
 
     std::vector<TTablet*> tablets;
@@ -180,6 +267,67 @@ std::vector<TReshardDescriptor> MergeSplitTablet(
     }
 
     return {TReshardDescriptor{tablets, newTabletCount, size}};
+}
+
+std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
+    TRange<TTablet*> tabletRange,
+    TTabletBalancerContext* context,
+    const TTabletManagerPtr& tabletManager)
+{
+    YT_VERIFY(!tabletRange.Empty());
+
+    std::vector<TTablet*> tablets(tabletRange.Begin(), tabletRange.End());
+    std::sort(
+        tablets.begin(),
+        tablets.end(),
+        [] (const TTablet* lhs, const TTablet* rhs) {
+            return lhs->GetIndex() < rhs->GetIndex();
+        });
+
+    auto* table = tablets.front()->GetTable();
+    auto config = GetTabletSizeConfig(table);
+
+    // If MinTabletCount is set then the number of merges is limited. We want
+    // to distribute merges evenly across the table. Merge budget (the number
+    // of allowed merges) is distributed between starving tablets. When the
+    // tablet is going to merge with its neighbour, the action should be paid
+    // for from either of their budgets.
+    std::vector<int> mergeBudgetByTabletIndex;
+    if (config.MinTabletCount) {
+        mergeBudgetByTabletIndex.resize(table->Tablets().size());
+
+        int mergeBudget = std::max(
+            0,
+            static_cast<int>(table->Tablets().size()) - *config.MinTabletCount);
+        std::vector<int> tabletsPendingMerge;
+        for (auto* tablet : tablets) {
+            if (GetTabletBalancingSize(tablet, tabletManager) < config.MinTabletSize) {
+                tabletsPendingMerge.push_back(tablet->GetIndex());
+            }
+        }
+
+        mergeBudget = std::min<int>(mergeBudget, tabletsPendingMerge.size());
+        for (i64 multiplier = 0; multiplier < mergeBudget; ++multiplier) {
+            int position = tabletsPendingMerge.size() * multiplier / mergeBudget;
+            // Subsequent merging works more uniformly if budget tends to the right.
+            position = tabletsPendingMerge.size() - position - 1;
+            ++mergeBudgetByTabletIndex[tabletsPendingMerge[position]];
+        }
+    }
+
+    std::vector<TReshardDescriptor> descriptors;
+    for (auto* tablet : tablets) {
+        auto descriptor = MergeSplitTablet(
+            tablet,
+            config,
+            config.MinTabletCount ? &mergeBudgetByTabletIndex : nullptr,
+            context,
+            tabletManager);
+        if (descriptor) {
+            descriptors.push_back(*descriptor);
+        }
+    }
+    return descriptors;
 }
 
 std::vector<TTabletMoveDescriptor> ReassignInMemoryTablets(
