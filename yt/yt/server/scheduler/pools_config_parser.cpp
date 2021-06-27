@@ -1,5 +1,7 @@
 #include "pools_config_parser.h"
 
+#include "private.h"
+
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
@@ -12,12 +14,16 @@ namespace NYT::NScheduler {
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
-    
-TPoolsConfigParser::TPoolsConfigParser(THashMap<TString, TString> poolToParentMap, THashSet<TString> ephemeralPools)
+
+TPoolsConfigParser::TPoolsConfigParser(
+    THashMap<TString, TString> poolToParentMap,
+    THashSet<TString> ephemeralPools,
+    THashMap<TString, INodePtr> poolConfigPresets)
     : OldPoolToParentMap_(std::move(poolToParentMap))
     , EphemeralPools_(std::move(ephemeralPools))
+    , PoolConfigPresets_(std::move(poolConfigPresets))
 { }
-    
+
 TError TPoolsConfigParser::TryParse(const INodePtr& rootNode)
 {
     if (TryParse(rootNode, RootPoolName, /* isFifo */ false)) {
@@ -30,7 +36,7 @@ const std::vector<TPoolsConfigParser::TUpdatePoolAction>& TPoolsConfigParser::Ge
 {
     return UpdatePoolActions;
 }
-    
+
 bool TPoolsConfigParser::TryParse(const INodePtr& configNode, const TString& parentName, bool isFifo)
 {
     auto nodeType = configNode->GetType();
@@ -61,8 +67,24 @@ bool TPoolsConfigParser::TryParse(const INodePtr& configNode, const TString& par
         updatePoolAction.Name = childName;
         updatePoolAction.ParentName = parentName;
         try {
-            updatePoolAction.PoolConfig = ConvertTo<TPoolConfigPtr>(childNode->Attributes());
-            updatePoolAction.PoolConfig->Validate();
+            auto poolConfigNode = ConvertToNode(childNode->Attributes());
+            auto poolConfig = ConvertTo<TPoolConfigPtr>(poolConfigNode);
+            if (poolConfig->ConfigPreset) {
+                auto it = PoolConfigPresets_.find(*poolConfig->ConfigPreset);
+                if (it == PoolConfigPresets_.end()) {
+                    THROW_ERROR_EXCEPTION("Config preset %Qv is not found", *poolConfig->ConfigPreset);
+                }
+
+                const auto& presetNode = it->second;
+                ValidatePoolPresetConfig(*poolConfig->ConfigPreset, presetNode);
+
+                // Explicit config has higher priority than preset.
+                poolConfigNode = PatchNode(presetNode, poolConfigNode);
+                poolConfig = ConvertTo<TPoolConfigPtr>(poolConfigNode);
+            }
+            poolConfig->Validate();
+
+            updatePoolAction.PoolConfig = poolConfig;
         } catch (const std::exception& ex) {
             Error_ = TError("Parsing configuration of pool %Qv failed", childName)
                 << ex;
@@ -135,6 +157,26 @@ void TPoolsConfigParser::ProcessErasedPools()
         }
     }
     YT_VERIFY(eraseActionCount == std::ssize(erasingPoolToParent));
+}
+
+void TPoolsConfigParser::ValidatePoolPresetConfig(const TString& presetName, const INodePtr& presetNode)
+{
+    auto presetConfig = New<TPoolPresetConfig>();
+
+    try {
+        presetConfig->Load(presetNode, /* validate */ true);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Config of preset %Qv failed to load as TPoolPresetConfig",
+            presetName)
+            << ex;
+    }
+
+    auto unrecognized = presetConfig->GetUnrecognizedRecursively();
+    if (unrecognized && unrecognized->GetChildCount() > 0) {
+        THROW_ERROR_EXCEPTION("Config of preset %Qv contains unrecognized options",
+            presetName)
+            << TErrorAttribute("unrecognized", unrecognized);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

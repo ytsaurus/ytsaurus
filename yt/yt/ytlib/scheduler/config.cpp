@@ -276,22 +276,6 @@ TAutoMergeConfig::TAutoMergeConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSupportsSchedulingTagsConfig::TSupportsSchedulingTagsConfig()
-{
-    RegisterParameter("scheduling_tag_filter", SchedulingTagFilter)
-        .Alias("scheduling_tag")
-        .Default();
-
-    RegisterPostprocessor([&] {
-        if (SchedulingTagFilter.Size() > MaxSchedulingTagRuleCount) {
-            THROW_ERROR_EXCEPTION("Specifying more than %v tokens in scheduling tag filter is not allowed",
-                 MaxSchedulingTagRuleCount);
-        }
-    });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TTentativeTreeEligibilityConfig::TTentativeTreeEligibilityConfig()
 {
     RegisterParameter("sample_job_count", SampleJobCount)
@@ -1672,6 +1656,31 @@ TJobResourcesConfig::TJobResourcesConfig()
         .GreaterThanOrEqual(0);
 }
 
+TPreemptionConfig::TPreemptionConfig()
+{
+    RegisterParameter("fair_share_starvation_timeout", FairShareStarvationTimeout)
+        .Alias("fair_share_preemption_timeout")
+        .Default();
+    RegisterParameter("fair_share_starvation_tolerance", FairShareStarvationTolerance)
+        .InRange(0.0, 1.0)
+        .Default();
+
+    RegisterParameter("fair_share_starvation_timeout_limit", FairShareStarvationTimeoutLimit)
+        .Alias("fair_share_preemption_timeout_limit")
+        .Default();
+    RegisterParameter("fair_share_starvation_tolerance_limit", FairShareStarvationToleranceLimit)
+        .InRange(0.0, 1.0)
+        .Default();
+
+    RegisterParameter("allow_aggressive_preemption", AllowAggressivePreemption)
+        .Alias("allow_aggressive_starvation_preemption")
+        .Default();
+    
+    RegisterParameter("enable_aggressive_starvation", EnableAggressiveStarvation)
+        .Alias("aggressive_starvation_enabled")
+        .Default();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulableConfig::TSchedulableConfig()
@@ -1689,23 +1698,16 @@ TSchedulableConfig::TSchedulableConfig()
     RegisterParameter("strong_guarantee_resources", StrongGuaranteeResources)
         .Alias("min_share_resources")
         .DefaultNew();
-
-    RegisterParameter("fair_share_starvation_timeout", FairShareStarvationTimeout)
-        .Alias("fair_share_preemption_timeout")
-        .Default();
-    RegisterParameter("fair_share_starvation_tolerance", FairShareStarvationTolerance)
-        .InRange(0.0, 1.0)
+    RegisterParameter("scheduling_tag_filter", SchedulingTagFilter)
+        .Alias("scheduling_tag")
         .Default();
 
-    RegisterParameter("fair_share_starvation_timeout_limit", FairShareStarvationTimeoutLimit)
-        .Alias("fair_share_preemption_timeout_limit")
-        .Default();
-    RegisterParameter("fair_share_starvation_tolerance_limit", FairShareStarvationToleranceLimit)
-        .InRange(0.0, 1.0)
-        .Default();
-
-    RegisterParameter("allow_aggressive_starvation_preemption", AllowAggressiveStarvationPreemption)
-        .Default(true);
+    RegisterPostprocessor([&] {
+        if (SchedulingTagFilter.Size() > MaxSchedulingTagRuleCount) {
+            THROW_ERROR_EXCEPTION("Specifying more than %v tokens in scheduling tag filter is not allowed",
+                 MaxSchedulingTagRuleCount);
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1772,10 +1774,6 @@ TPoolConfig::TPoolConfig()
         .Default({EFifoSortParameter::Weight, EFifoSortParameter::StartTime})
         .NonEmpty();
 
-    RegisterParameter("enable_aggressive_starvation", EnableAggressiveStarvation)
-        .Alias("aggressive_starvation_enabled")
-        .Default(false);
-
     RegisterParameter("forbid_immediate_operations", ForbidImmediateOperations)
         .Default(false);
 
@@ -1804,6 +1802,9 @@ TPoolConfig::TPoolConfig()
 
     RegisterParameter("enable_detailed_logs", EnableDetailedLogs)
         .Default(false);
+
+    RegisterParameter("config_preset", ConfigPreset)
+        .Default(std::nullopt);
 }
 
 void TPoolConfig::Validate()
@@ -1888,6 +1889,7 @@ TStrategyOperationSpec::TStrategyOperationSpec()
         .Default();
     RegisterParameter("max_speculative_job_count_per_task", MaxSpeculativeJobCountPerTask)
         .Default(10);
+    // TODO(ignat): move it to preemption settings.
     RegisterParameter("preemption_mode", PreemptionMode)
         .Default(EPreemptionMode::Normal);
     RegisterParameter("scheduling_segment", SchedulingSegment)
@@ -1903,14 +1905,15 @@ TStrategyOperationSpec::TStrategyOperationSpec()
                 "scheduling_segment_data_centers",
                 MaxSchedulingSegmentDataCenterCount);
         }
-    });
-
-    RegisterPostprocessor([&] {
         if (ScheduleInSingleTree && (TentativePoolTrees || UseDefaultTentativePoolTrees)) {
             THROW_ERROR_EXCEPTION("%Qv option cannot be used simultaneously with tentative pool trees (check %Qv and %Qv)",
                 "schedule_in_single_tree",
                 "tentative_pool_trees",
                 "use_default_tentative_pool_trees");
+        }
+        if (AllowAggressivePreemption.has_value()) {
+            THROW_ERROR_EXCEPTION("%Qv option is forbidden to specify in operation spec",
+                "allow_aggressive_preemption");
         }
     });
 }
@@ -2133,6 +2136,13 @@ TJobCpuMonitorConfig::TJobCpuMonitorConfig()
     RegisterParameter("min_cpu_limit", MinCpuLimit)
         .InRange(0, 1)
         .Default(1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TPoolPresetConfig::TPoolPresetConfig()
+{
+    SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

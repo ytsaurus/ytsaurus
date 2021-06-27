@@ -2114,7 +2114,8 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
 ##################################################################
 
 
-class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
+# TODO(ignat): merge with class above.
+class TestSchedulerAggressivePreemption2(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -2122,7 +2123,7 @@ class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {"scheduler": {"fair_share_update_period": 100}}
 
     def setup_method(self, method):
-        super(TestSchedulerAggressiveStarvationPreemption, self).setup_method(method)
+        super(TestSchedulerAggressivePreemption2, self).setup_method(method)
         set("//sys/pool_trees/default/@config/aggressive_preemption_satisfaction_threshold", 0.2)
         set("//sys/pool_trees/default/@config/preemption_satisfaction_threshold", 0.75)
         set("//sys/pool_trees/default/@config/preemption_check_starvation", False)
@@ -2148,7 +2149,10 @@ class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
         create_pool(
             "honest_subpool_big",
             parent_name="honest_pool",
-            attributes={"min_share_resources": {"cpu": 10}},
+            attributes={
+                "min_share_resources": {"cpu": 10},
+                "allow_aggressive_preemption": False,
+            },
         )
         create_pool(
             "honest_subpool_small",
@@ -2172,13 +2176,7 @@ class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
         wait(lambda: are_almost_equal(get_fair_share_ratio(op_honest_small.id), 0.2))
         wait(lambda: are_almost_equal(get_usage_ratio(op_honest_small.id), 0.2))
 
-        op_honest_big = run_sleeping_vanilla(
-            spec={
-                "pool": "honest_subpool_big",
-                "allow_aggressive_starvation_preemption": False,
-            },
-            job_count=20,
-        )
+        op_honest_big = run_sleeping_vanilla(spec={"pool": "honest_subpool_big"}, job_count=20)
         wait(lambda: are_almost_equal(get_fair_share_ratio(op_honest_big.id), 0.6))
         wait(lambda: are_almost_equal(get_usage_ratio(op_honest_big.id), 0.4))
 
@@ -2202,7 +2200,7 @@ class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
             "honest_pool",
             attributes={
                 "min_share_resources": {"cpu": 15},
-                "allow_aggressive_starvation_preemption": False,
+                "allow_aggressive_preemption": False,
             },
         )
         create_pool(

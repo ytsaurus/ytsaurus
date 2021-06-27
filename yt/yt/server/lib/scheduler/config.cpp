@@ -294,6 +294,9 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
 
     RegisterParameter("metering_tags", MeteringTags)
         .Default();
+    
+    RegisterParameter("pool_config_presets", PoolConfigPresets)
+        .Default();
 
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {

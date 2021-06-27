@@ -39,6 +39,7 @@ from yt_commands import (  # noqa
 import yt_error_codes
 
 from yt.common import YtError
+import yt.yson as yson
 
 import pytest
 
@@ -1259,3 +1260,90 @@ class TestSchedulerPoolAcls(YTEnvSetup):
 
         create_pool_tree("new_tree", wait_for_orchid=False, authenticated_user="u")
         remove_pool_tree("my_tree", wait_for_orchid=False, authenticated_user="u")
+
+
+@authors("ignat")
+class TestSchedulerPoolConfigPresets(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+
+    def test_presets(self):
+        create_pool(
+            "pool",
+            attributes={"fair_share_starvation_timeout": 1000},
+            wait_for_orchid=True)
+
+        wait(lambda: get(scheduler_orchid_pool_path("pool"))["fair_share_starvation_timeout"] == 1000)
+
+        set("//sys/pool_trees/default/@config/pool_config_presets",
+            {
+                "presetA": {
+                    "fair_share_starvation_tolerance": 0.6,
+                },
+                "presetB": {
+                    "fair_share_starvation_tolerance": 0.5,
+                    "fair_share_starvation_timeout": 2000,
+                },
+            })
+
+        config_path = scheduler_orchid_default_pool_tree_config_path()
+        wait(lambda: sorted(list(get(config_path)["pool_config_presets"].keys())) == ["presetA", "presetB"])
+
+        set("//sys/pool_trees/default/pool/@config_preset", "presetA")
+        wait(lambda: get(scheduler_orchid_pool_path("pool"))["fair_share_starvation_tolerance"] == 0.6)
+
+        set("//sys/pool_trees/default/pool/@config_preset", "presetB")
+        wait(lambda: get(scheduler_orchid_pool_path("pool"))["fair_share_starvation_tolerance"] == 0.5)
+        wait(lambda: get(scheduler_orchid_pool_path("pool"))["fair_share_starvation_timeout"] == 1000)
+
+        remove("//sys/pool_trees/default/pool/@fair_share_starvation_timeout")
+        wait(lambda: get(scheduler_orchid_pool_path("pool"))["fair_share_starvation_timeout"] == 2000)
+
+    def test_preset_with_forbidden_option(self):
+        create_pool("pool", wait_for_orchid=True)
+
+        assert get("//sys/scheduler/@alerts") == []
+
+        set("//sys/pool_trees/default/@config/pool_config_presets",
+            {
+                "preset": {
+                    "mode": "fifo",
+                },
+            })
+        set("//sys/pool_trees/default/pool/@config_preset", "preset")
+
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
+        assert "contains unrecognized options" in yson.dumps(get("//sys/scheduler/@alerts")[0], yson_format="text")
+
+    def test_preset_with_unrecognized_option(self):
+        create_pool("pool", wait_for_orchid=True)
+
+        assert get("//sys/scheduler/@alerts") == []
+
+        set("//sys/pool_trees/default/@config/pool_config_presets",
+            {
+                "preset": {
+                    "ffair_share_starvation_timeout": "fifo",
+                },
+            })
+        set("//sys/pool_trees/default/pool/@config_preset", "preset")
+
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
+        assert "contains unrecognized options" in yson.dumps(get("//sys/scheduler/@alerts")[0], yson_format="text")
+
+    def test_preset_with_incorrect_option(self):
+        create_pool("pool", wait_for_orchid=True)
+
+        assert get("//sys/scheduler/@alerts") == []
+
+        set("//sys/pool_trees/default/@config/pool_config_presets",
+            {
+                "preset": {
+                    "fair_share_starvation_timeout": -10,
+                },
+            })
+        set("//sys/pool_trees/default/pool/@config_preset", "preset")
+
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
+        assert "failed to load as TPoolPresetConfig" \
+            in yson.dumps(get("//sys/scheduler/@alerts")[0], yson_format="text")
