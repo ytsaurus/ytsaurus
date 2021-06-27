@@ -11,12 +11,12 @@ func (c *CompressionCodec) UnmarshalText(text []byte) error {
 	return nil
 }
 
-// UnmarshalText is implementation of encoding.TexMarshaler.
+// MarshalText is implementation of encoding.TexMarshaler.
 func (c CompressionCodec) MarshalText() (text []byte, err error) {
 	return []byte(c), nil
 }
 
-func compressionLevel(codec string, n, max, min int) CompressionCodec {
+func compressionLevel(codec string, n, min, max int) CompressionCodec {
 	if n < min {
 		n = min
 	}
