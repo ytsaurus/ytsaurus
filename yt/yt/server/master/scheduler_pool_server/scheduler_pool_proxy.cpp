@@ -65,7 +65,6 @@ void TSchedulerPoolProxy::ListSystemAttributes(std::vector<ISystemAttributeProvi
     TNonversionedMapObjectProxyBase::ListSystemAttributes(descriptors);
     const auto& schedulerPoolManager = Bootstrap_->GetSchedulerPoolManager();
     const auto& poolAttributes = schedulerPoolManager->GetKnownPoolAttributes();
-    const auto& poolTreeAttributes = schedulerPoolManager->GetKnownPoolTreeAttributes();
     auto schedulerPool = GetThisImpl();
 
     for (auto poolAttributeKey : poolAttributes) {
@@ -79,17 +78,6 @@ void TSchedulerPoolProxy::ListSystemAttributes(std::vector<ISystemAttributeProvi
         .SetWritable(true)
         .SetRemovable(true)
         .SetPresent(schedulerPool->IsRoot()));
-
-    // COMPAT(renadeen): we want custom handling of pool tree attributes to show specific error message.
-    // It will be removed in 20.4.
-    for (auto poolTreeAttribute : poolTreeAttributes) {
-        if (!poolAttributes.contains(poolTreeAttribute)) {
-            descriptors->push_back(TAttributeDescriptor(poolTreeAttribute)
-                .SetWritable(true)
-                .SetRemovable(true)
-                .SetPresent(false));
-        }
-    }
 }
 
 bool TSchedulerPoolProxy::GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer)
@@ -127,8 +115,6 @@ bool TSchedulerPoolProxy::SetBuiltinAttribute(NYTree::TInternedAttributeKey key,
             schedulerPool->ValidateStrongGuaranteesRecursively(treeConfig);
             schedulerPoolTree->UpdateSpecifiedConfig(value);
             return true;
-        } else if (IsKnownPoolTreeAttribute(key)) {
-            THROW_ERROR_EXCEPTION("All pool tree attributes have been moved into \"config\" attribute");
         }
     } else if (IsKnownPoolAttribute(key)) {
         ValidateNoAliasClash(schedulerPool->FullConfig(), schedulerPool->SpecifiedAttributes(), key);
@@ -151,8 +137,6 @@ bool TSchedulerPoolProxy::RemoveBuiltinAttribute(NYTree::TInternedAttributeKey k
             schedulerPool->ValidateStrongGuaranteesRecursively(defaultPoolTreeConfig);
             schedulerPool->GetMaybePoolTree()->UpdateSpecifiedConfig(ConvertToYsonString(EmptyAttributes()));
             return true;
-        } else if (IsKnownPoolTreeAttribute(key)) {
-            THROW_ERROR_EXCEPTION("All pool tree attributes have been moved into \"config\" attribute");
         }
     } else if (IsKnownPoolAttribute(key)) {
         auto it = schedulerPool->SpecifiedAttributes().find(key);

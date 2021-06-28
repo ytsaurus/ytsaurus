@@ -850,16 +850,6 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         set("//sys/pool_trees/my_tree/nirvana/@fair_share_starvation_timeout", 2)
         assert get("//sys/pool_trees/my_tree/nirvana/@fair_share_starvation_timeout") == 2
 
-    def test_access_to_pool_tree_config_attribute_on_pool_tree_object_is_forbidden(self):
-        create_pool_tree("my_tree", wait_for_orchid=False)
-
-        with pytest.raises(YtError):
-            set("//sys/pool_trees/my_tree/@default_parent_pool", "research")
-        with pytest.raises(YtError):
-            get("//sys/pool_trees/my_tree/@default_parent_pool")
-        with pytest.raises(YtError):
-            remove("//sys/pool_trees/my_tree/@default_parent_pool")
-
     def test_access_to_pool_attribute_on_pooltree_is_forbidden(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
 

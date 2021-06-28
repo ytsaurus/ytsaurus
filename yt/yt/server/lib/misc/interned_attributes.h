@@ -17,7 +17,6 @@
     XX(ActualTabletState, actual_tablet_state) \
     XX(AcquisitionTime, acquisition_time) \
     XX(Addresses, addresses) \
-    XX(AggressivePreemptionSatisfactionThreshold, aggressive_preemption_satisfaction_threshold) \
     XX(AggressiveStarvationEnabled, aggressive_starvation_enabled) \
     XX(AlertCount, alert_count) \
     XX(Alerts, alerts) \
@@ -37,7 +36,6 @@
     XX(AvailableSpacePerMedium, available_space_per_medium) \
     XX(Banned, banned) \
     XX(BannedNodeCount, banned_node_count) \
-    XX(BestAllocationRatioUpdatePeriod, best_allocation_ratio_update_period) \
     XX(BoundaryKeys, boundary_keys) \
     XX(BranchedNodeIds, branched_node_ids) \
     XX(Broken, broken) \
@@ -93,7 +91,6 @@
     XX(Deadline, deadline) \
     XX(Decommissioned, decommissioned) \
     XX(DecommissionedNodeCount, decommissioned_node_count) \
-    XX(DefaultParentPool, default_parent_pool) \
     XX(DependentTransactionIds, dependent_transaction_ids) \
     XX(Depth, depth) \
     XX(DesiredTabletCount, desired_tablet_count) \
@@ -114,17 +111,9 @@
     XX(EnableByUserProfiling, enable_by_user_profiling) \
     XX(EnableDetailedLogs, enable_detailed_logs) \
     XX(EnableDetailedProfiling, enable_detailed_profiling) \
-    XX(EnableLimitingAncestorCheck, enable_limiting_ancestor_check) \
-    XX(EnableOperationsProfiling, enable_operations_profiling) \
-    XX(EnableOperationsVectorProfiling, enable_operations_vector_profiling) \
-    XX(EnablePoolStarvation, enable_pool_starvation) \
-    XX(EnablePoolsVectorProfiling, enable_pools_vector_profiling) \
     XX(EnableTabletBalancer, enable_tablet_balancer) \
     XX(EnableDynamicStoreRead, enable_dynamic_store_read) \
     XX(EnableReplicatedTableTracker, enable_replicated_table_tracker) \
-    XX(EnableResourceTreeStructureLockProfiling, enable_resource_tree_structure_lock_profiling) \
-    XX(EnableResourceTreeUsageLockProfiling, enable_resource_tree_usage_lock_profiling) \
-    XX(EnableSchedulingTags, enable_scheduling_tags) \
     XX(EnableChunkMerger, enable_chunk_merger) \
     XX(EnableSkynetSharing, enable_skynet_sharing) \
     XX(EntranceCellTag, entrance_cell_tag) \
@@ -177,7 +166,6 @@
     XX(Full, full) \
     XX(FullNodeCount, full_node_count) \
     XX(Health, health) \
-    XX(HeartbeatTreeSchedulingInfoLogPeriod, heartbeat_tree_scheduling_info_log_period) \
     XX(HistoricUsageConfig, historic_usage_config) \
     XX(HunkChunkRefs, hunk_chunk_refs) \
     XX(HunkChunkReader, hunk_chunk_reader) \
@@ -192,15 +180,10 @@
     XX(InMemoryMode, in_memory_mode) \
     XX(Index, index) \
     XX(InferChildrenWeightsFromHistoricUsage, infer_children_weights_from_historic_usage) \
-    XX(InferWeightFromMinShareRatioMultiplier, infer_weight_from_min_share_ratio_multiplier) \
-    XX(InferWeightFromStrongGuaranteeShareMultiplier, infer_weight_from_strong_guarantee_share_multiplier) \
     XX(InheritAcl, inherit_acl) \
     XX(IntegralGuarantees, integral_guarantees) \
     XX(IOWeights, io_weights) \
     XX(Job, job) \
-    XX(JobInterruptTimeout, job_interrupt_timeout) \
-    XX(JobGracefulInterruptTimeout, job_graceful_interrupt_timeout) \
-    XX(JobCountPreemptionTimeoutCoefficient, job_count_preemption_timeout_coefficient) \
     XX(KeepFinished, keep_finished) \
     XX(Key, key) \
     XX(KeyColumns, key_columns) \
@@ -225,24 +208,18 @@
     XX(LockedNodeIds, locked_node_ids) \
     XX(Locks, locks) \
     XX(LowerLimit, lower_limit) \
-    XX(MainResource, main_resource) \
-    XX(MeteringTags, metering_tags) \
     XX(MasterAlerts, master_alerts) \
     XX(MasterCacheNodes, master_cache_nodes) \
     XX(MasterMetaSize, master_meta_size) \
     XX(MaxBlockSize, max_block_size) \
     XX(MaxChangelogId, max_changelog_id) \
-    XX(MaxEphemeralPoolsPerUser, max_ephemeral_pools_per_user) \
     XX(MaxKey, max_key) \
     XX(MaxRunningOperationCount, max_running_operation_count) \
-    XX(MaxRunningOperationCountPerPool, max_running_operation_count_per_pool) \
     XX(MaxOperationCount, max_operation_count) \
-    XX(MaxOperationCountPerPool, max_operation_count_per_pool) \
     XX(MaxShareRatio, max_share_ratio) \
     XX(MaxSnapshotId, max_snapshot_id) \
     XX(MaxTabletSize, max_tablet_size) \
     XX(MaxTimestamp, max_timestamp) \
-    XX(MaxUnpreemptableRunningJobCount, max_unpreemptable_running_job_count) \
     XX(MD5, md5) \
     XX(Media, media) \
     XX(MemberCount, member_count) \
@@ -255,8 +232,6 @@
     XX(MetaSize, meta_size) \
     XX(MinChildHeapSize, min_child_heap_size) \
     XX(MinKey, min_key) \
-    XX(MinSharePreemptionTimeoutLimit, min_share_preemption_timeout_limit) \
-    XX(MinSharePreemptionTimeout, min_share_preemption_timeout) \
     XX(MinShareResources, min_share_resources) \
     XX(MinTabletSize, min_tablet_size) \
     XX(MinTimestamp, min_timestamp) \
@@ -275,10 +250,8 @@
     XX(NativeContentRevision, native_content_revision) \
     XX(NestedTransactionIds, nested_transaction_ids) \
     XX(NodeId, node_id) \
-    XX(NodeTagFilter, node_tag_filter) \
-    XX(NodesFilter, nodes_filter) \
     XX(Nodes, nodes) \
-    XX(NonTentativeOperationTypes, non_tentative_operation_types) \
+    XX(NodeTagFilter, node_tag_filter) \
     XX(Offline, offline) \
     XX(OfflineNodeCount, offline_node_count) \
     XX(Online, online) \
@@ -305,10 +278,6 @@
     XX(PivotKey, pivot_key) \
     XX(PivotKeys, pivot_keys) \
     XX(PoolConfigPresets, pool_config_presets) \
-    XX(PreemptionSatisfactionThreshold, preemption_satisfaction_threshold) \
-    XX(PreemptionCheckStarvation, preemption_check_starvation) \
-    XX(PreemptionCheckSatisfaction, preemption_check_satisfaction) \
-    XX(PreemptiveSchedulingBackoff, preemptive_scheduling_backoff) \
     XX(PreloadState, preload_state) \
     XX(PrerequisiteTransactionId, prerequisite_transaction_id) \
     XX(PrerequisiteTransactionIds, prerequisite_transaction_ids) \
@@ -317,8 +286,6 @@
     XX(PrimaryCellTag, primary_cell_tag) \
     XX(PrimaryMedium, primary_medium) \
     XX(Priority, priority) \
-    XX(ProfiledOperationResources, profiled_operation_resources) \
-    XX(ProfiledPoolResources, profiled_pool_resources) \
     XX(ProfilingMode, profiling_mode) \
     XX(ProfilingTag, profiling_tag) \
     XX(ProjectId, project_id) \
@@ -358,7 +325,6 @@
     XX(RootNodeId, root_node_id) \
     XX(RowCount, row_count) \
     XX(ScanFlags, scan_flags) \
-    XX(SchedulingSegments, scheduling_segments) \
     XX(SchedulingTag, scheduling_tag) \
     XX(SchedulingTagFilter, scheduling_tag_filter) \
     XX(Schema, schema) \
@@ -411,7 +377,6 @@
     XX(Tablets, tablets) \
     XX(Tags, tags) \
     XX(TargetPath, target_path) \
-    XX(TentativeTreeSaturationDeactivationPeriod, tentative_tree_saturation_deactivation_period) \
     XX(Timeout, timeout) \
     XX(Timestamp, timestamp) \
     XX(TimestampProviderNodes, timestamp_provider_nodes) \
@@ -421,7 +386,6 @@
     XX(TotalChildrenResourceLimits, total_children_resource_limits) \
     XX(TotalCommittedResourceUsage, total_committed_resource_usage) \
     XX(TotalResourceLimits, total_resource_limits) \
-    XX(TotalResourceLimitsConsiderDelay, total_resource_limits_consider_delay) \
     XX(TotalResourceUsage, total_resource_usage) \
     XX(TotalStatistics, total_statistics) \
     XX(TransactionId, transaction_id) \
@@ -436,14 +400,11 @@
     XX(UnmergedRowCount, unmerged_row_count) \
     XX(Unregistered, unregistered) \
     XX(UpdateMode, update_mode) \
-    XX(UpdatePreemptableListDurationLoggingThreshold, update_preemptable_list_duration_logging_threshold) \
     XX(UpperLimit, upper_limit) \
     XX(UpstreamReplicaId, upstream_replica_id) \
     XX(UsableAccounts, usable_accounts) \
     XX(UsableNetworkProjects, usable_network_projects) \
     XX(UsableTabletCellBundles, usable_tablet_cell_bundles) \
-    XX(UseClassicScheduler, use_classic_scheduler) \
-    XX(UseRecentResourceUsageForLocalSatisfaction, use_recent_resource_usage_for_local_satisfaction) \
     XX(UsedSpace, used_space) \
     XX(UsedSpacePerMedium, used_space_per_medium) \
     XX(UserAttributes, user_attributes) \
@@ -454,7 +415,6 @@
     XX(Version, version) \
     XX(ViolatedResourceLimits, violated_resource_limits) \
     XX(Vital, vital) \
-    XX(WaitingJobTimeout, waiting_job_timeout) \
     XX(Weight, weight) \
     XX(WeakRefCounter, weak_ref_counter) \
     XX(WithAlertsNodeCount, with_alerts_node_count) \
