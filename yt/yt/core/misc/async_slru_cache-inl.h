@@ -235,8 +235,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::DoLookup(TShard* shard, const TKey& ke
     auto& itemMap = shard->ItemMap;
     const auto& valueMap = shard->ValueMap;
 
-    auto itemIt = itemMap.find(key);
-    if (itemIt != itemMap.end()) {
+    if (auto itemIt = itemMap.find(key); itemIt != itemMap.end()) {
         auto* item = itemIt->second;
         bool needToDrain = Touch(shard, item);
         auto valueFuture = item->GetValueFuture();
@@ -273,9 +272,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::DoLookup(TShard* shard, const TKey& ke
 
     auto writerGuard = WriterGuard(shard->SpinLock);
 
-    DrainTouchBuffer(shard);
-
-    if (itemMap.find(key) != itemMap.end()) {
+    if (auto itemIt = itemMap.find(key); itemIt != itemMap.end()) {
         auto* item = itemIt->second;
 
         Touch(shard, item);
@@ -293,6 +290,8 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::DoLookup(TShard* shard, const TKey& ke
 
         return valueFuture;
     }
+
+    DrainTouchBuffer(shard);
 
     {
         auto* item = new TItem(value);
