@@ -158,8 +158,14 @@ TDuration TTraceContext::GetDuration() const
 
 TTraceContext::TTagList TTraceContext::GetTags() const
 {
-    auto guard = Guard(TagsLock_);
+    auto guard = Guard(Lock_);
     return Tags_;
+}
+
+TTraceContext::TLogList TTraceContext::GetLogs() const
+{
+    auto guard = Guard(Lock_);
+    return Logs_;
 }
 
 void TTraceContext::AddTag(const TString& tagKey, const TString& tagValue)
@@ -167,8 +173,18 @@ void TTraceContext::AddTag(const TString& tagKey, const TString& tagValue)
     if (Finished_.load()) {
         return;
     }
-    auto guard = Guard(TagsLock_);
+    auto guard = Guard(Lock_);
     Tags_.emplace_back(tagKey, tagValue);
+}
+
+void TTraceContext::AddLog(TCpuInstant at, const TString& message)
+{
+    if (Finished_.load()) {
+        return;
+    }
+
+    auto guard = Guard(Lock_);
+    Logs_.emplace_back(TTraceLogEntry{at, message});
 }
 
 void TTraceContext::Finish()
