@@ -20,6 +20,18 @@ func checkNotInsideJob(c *yt.Config) error {
 	return nil
 }
 
+// NewClient creates new client from config.
+//
+// Note! Table, Tablet, Mount and File clients have stub implementations.
+// If you need on of those use http client instead.
+func NewClient(c *yt.Config) (yt.Client, error) {
+	if err := checkNotInsideJob(c); err != nil {
+		return nil, err
+	}
+
+	return rpcclient.NewClient(c)
+}
+
 // NewCypressClient creates new cypress client from config.
 func NewCypressClient(c *yt.Config) (yt.CypressClient, error) {
 	if err := checkNotInsideJob(c); err != nil {

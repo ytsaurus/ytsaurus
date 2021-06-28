@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -25,6 +26,8 @@ import (
 	"a.yandex-team.ru/yt/go/yt/internal"
 	"a.yandex-team.ru/yt/go/yterrors"
 )
+
+var _ yt.Client = (*client)(nil)
 
 type client struct {
 	conf       *yt.Config
@@ -586,6 +589,173 @@ func (c *client) LinkNode(
 	return
 }
 
+var _ yt.FileClient = (*client)(nil)
+
+func (c *client) WriteFile(
+	ctx context.Context,
+	path ypath.YPath,
+	opts *yt.WriteFileOptions,
+) (w io.WriteCloser, err error) {
+	return nil, xerrors.New("implement me")
+}
+
+func (c *client) ReadFile(
+	ctx context.Context,
+	path ypath.YPath,
+	opts *yt.ReadFileOptions,
+) (r io.ReadCloser, err error) {
+	return nil, xerrors.New("implement me")
+}
+
+func (c *client) PutFileToCache(
+	ctx context.Context,
+	path ypath.YPath,
+	md5 string,
+	opts *yt.PutFileToCacheOptions,
+) (cachedPath ypath.YPath, err error) {
+	return nil, xerrors.New("implement me")
+}
+
+func (c *client) GetFileFromCache(
+	ctx context.Context,
+	md5 string,
+	opts *yt.GetFileFromCacheOptions,
+) (path ypath.YPath, err error) {
+	return ypath.Path(""), xerrors.New("implement me")
+}
+
+var _ yt.TableClient = (*client)(nil)
+
+func (c *client) WriteTable(
+	ctx context.Context,
+	path ypath.YPath,
+	opts *yt.WriteTableOptions,
+) (w yt.TableWriter, err error) {
+	return nil, xerrors.New("implement me")
+}
+
+func (c *client) ReadTable(
+	ctx context.Context,
+	path ypath.YPath,
+	opts *yt.ReadTableOptions,
+) (r yt.TableReader, err error) {
+	return nil, xerrors.New("implement me")
+}
+
+var _ yt.TabletClient = (*client)(nil)
+
+func (c *client) SelectRows(
+	ctx context.Context,
+	query string,
+	opts *yt.SelectRowsOptions,
+) (r yt.TableReader, err error) {
+	return nil, xerrors.New("implement me")
+}
+
+func (c *client) LookupRows(
+	ctx context.Context,
+	path ypath.Path,
+	keys []interface{},
+	opts *yt.LookupRowsOptions,
+) (r yt.TableReader, err error) {
+	return nil, xerrors.New("implement me")
+}
+
+func (c *client) LockRows(
+	ctx context.Context,
+	path ypath.Path,
+	locks []string,
+	lockType yt.LockType,
+	keys []interface{},
+	opts *yt.LockRowsOptions,
+) (err error) {
+	return xerrors.New("implement me")
+}
+
+func (c *client) InsertRows(
+	ctx context.Context,
+	path ypath.Path,
+	rows []interface{},
+	opts *yt.InsertRowsOptions,
+) (err error) {
+	return xerrors.New("implement me")
+}
+
+func (c *client) DeleteRows(
+	ctx context.Context,
+	path ypath.Path,
+	keys []interface{},
+	opts *yt.DeleteRowsOptions,
+) (err error) {
+	return xerrors.New("implement me")
+}
+
+var _ yt.MountClient = (*client)(nil)
+
+func (c *client) MountTable(
+	ctx context.Context,
+	path ypath.Path,
+	opts *yt.MountTableOptions,
+) (err error) {
+	return xerrors.New("implement me")
+}
+
+func (c *client) UnmountTable(
+	ctx context.Context,
+	path ypath.Path,
+	opts *yt.UnmountTableOptions,
+) (err error) {
+	return xerrors.New("implement me")
+}
+
+func (c *client) RemountTable(
+	ctx context.Context,
+	path ypath.Path,
+	opts *yt.RemountTableOptions,
+) (err error) {
+	return xerrors.New("implement me")
+}
+
+func (c *client) ReshardTable(
+	ctx context.Context,
+	path ypath.Path,
+	opts *yt.ReshardTableOptions,
+) (err error) {
+	return xerrors.New("implement me")
+}
+
+func (c *client) AlterTable(
+	ctx context.Context,
+	path ypath.Path,
+	opts *yt.AlterTableOptions,
+) (err error) {
+	return xerrors.New("implement me")
+}
+
+func (c *client) FreezeTable(
+	ctx context.Context,
+	path ypath.Path,
+	opts *yt.FreezeTableOptions,
+) (err error) {
+	return xerrors.New("implement me")
+}
+
+func (c *client) UnfreezeTable(
+	ctx context.Context,
+	path ypath.Path,
+	opts *yt.UnfreezeTableOptions,
+) (err error) {
+	return xerrors.New("implement me")
+}
+
+func (c *client) AlterTableReplica(
+	ctx context.Context,
+	id yt.NodeID,
+	opts *yt.AlterTableReplicaOptions,
+) (err error) {
+	return xerrors.New("implement me")
+}
+
 func (c *client) StartTx(
 	ctx context.Context,
 	opts *yt.StartTxOptions,
@@ -1120,5 +1290,44 @@ func (c *client) GetJobStderr(
 	jobID yt.JobID,
 	opts *yt.GetJobStderrOptions,
 ) (r []byte, err error) {
+	return nil, xerrors.New("implement me")
+}
+
+func (c *client) GenerateTimestamp(
+	ctx context.Context,
+	opts *yt.GenerateTimestampOptions,
+) (ts yt.Timestamp, err error) {
+	return 0, xerrors.New("implement me")
+}
+
+func (c *client) LocateSkynetShare(
+	ctx context.Context,
+	path ypath.YPath,
+	opts *yt.LocateSkynetShareOptions,
+) (l yt.ShareLocation, err error) {
+	return yt.ShareLocation{}, xerrors.New("implement me")
+}
+
+func (c *client) GetInSyncReplicas(
+	ctx context.Context,
+	path ypath.Path,
+	ts yt.Timestamp,
+	keys []interface{},
+	opts *yt.GetInSyncReplicasOptions,
+) (ids []yt.NodeID, err error) {
+	return nil, xerrors.New("implement me")
+}
+
+func (c *client) BeginTx(
+	ctx context.Context,
+	opts *yt.StartTxOptions,
+) (tx yt.Tx, err error) {
+	return nil, xerrors.New("implement me")
+}
+
+func (c *client) BeginTabletTx(
+	ctx context.Context,
+	opts *yt.StartTabletTxOptions,
+) (tx yt.TabletTx, err error) {
 	return nil, xerrors.New("implement me")
 }
