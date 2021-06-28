@@ -156,6 +156,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChangeDynamicTableMedium)                                     (1630))  // ifsmirnov
     ((MinTabletCountForTabletBalancer)                              (1631))  // ifsmirnov
     // 21.3 starts here.
+    ((DropPoolTreeInternedAttributes)                               (1700))  // ignat
 );
 
 ////////////////////////////////////////////////////////////////////////////////
