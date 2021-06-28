@@ -308,7 +308,7 @@ public:
                         }
                     } catch (const std::exception& ex) {
                         YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), ex,
-                            "Unexpected error: caught exception while changing ACL (Bundle: %v, TabletCellId: %v)",
+                            "Caught exception while changing ACL (Bundle: %v, TabletCellId: %v)",
                             cellBundle->GetName(),
                             cell->GetId());
                     }
@@ -1929,7 +1929,7 @@ private:
         auto transaction = transactionManager->FindTransaction(transactionId);
 
         if (!IsObjectAlive(transaction)) {
-            YT_LOG_WARNING("Unexpected error: prerequisite transaction not found at secondary master (CellId: %v, PeerId: %v, TransactionId: %v)",
+            YT_LOG_ALERT("Prerequisite transaction not found at secondary master (CellId: %v, PeerId: %v, TransactionId: %v)",
                 cellId,
                 peerId,
                 transactionId);

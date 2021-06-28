@@ -136,10 +136,6 @@ i64 TPlainTextLogFormatter::WriteFormatted(IOutputStream* outputStream, const TL
 
     buffer->AppendChar('\t');
 
-    // COMPAT(babenko)
-    if (event.Level == ELogLevel::Alert) {
-        buffer->AppendString(TStringBuf("Unexpected error: "));
-    }
     FormatMessage(buffer, TStringBuf(event.Message.Begin(), event.Message.End()));
 
     buffer->AppendChar('\t');
