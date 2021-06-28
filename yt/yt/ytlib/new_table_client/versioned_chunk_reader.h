@@ -18,6 +18,7 @@ NTableClient::IVersionedReaderPtr CreateVersionedChunkReader(
     TSharedRange<TItem> readItems,
     NTableClient::TTimestamp timestamp,
     NTableClient::TCachedVersionedChunkMetaPtr chunkMeta,
+    const NTableClient::TTableSchemaPtr& tableSchema,
     const NTableClient::TColumnFilter& columnFilter,
     NChunkClient::IBlockCachePtr blockCache,
     const NTableClient::TChunkReaderConfigPtr config,

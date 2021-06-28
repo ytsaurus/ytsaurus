@@ -279,6 +279,8 @@ private:
     SmallVector<int, 4> HunkColumnsIds_;
 };
 
+DEFINE_REFCOUNTED_TYPE(TTableSchema);
+
 void FormatValue(TStringBuilderBase* builder, const TTableSchema& schema, TStringBuf spec);
 void FormatValue(TStringBuilderBase* builder, const TTableSchemaPtr& schema, TStringBuf spec);
 

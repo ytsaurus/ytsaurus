@@ -1199,7 +1199,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             nullptr,
             performanceCounters,
             nullptr,
-            nullptr);
+            nullptr,
+            versionedReadSchema);
 
         return CreateVersionedChunkReader(
             config,

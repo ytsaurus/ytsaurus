@@ -231,7 +231,8 @@ TSharedRef TLookupSession::DoRun(TCachedVersionedChunkMetaPtr chunkMeta)
         nullptr /* lookupHashTable */,
         New<TChunkReaderPerformanceCounters>(),
         TableSchema_->RowKeyComparer,
-        nullptr /* virtualValueDirectory */);
+        nullptr /* virtualValueDirectory */,
+        TableSchema_->TableSchema);
 
     TWireProtocolWriter writer;
     auto onRow = [&] (TVersionedRow row) {

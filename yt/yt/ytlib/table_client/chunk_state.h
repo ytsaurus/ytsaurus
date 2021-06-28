@@ -20,7 +20,8 @@ struct TChunkState
         IChunkLookupHashTablePtr lookupHashTable = nullptr,
         TChunkReaderPerformanceCountersPtr performanceCounters = nullptr,
         TKeyComparer keyComparer = {},
-        TVirtualValueDirectoryPtr virtualValueDirectory = nullptr);
+        TVirtualValueDirectoryPtr virtualValueDirectory = nullptr,
+        TTableSchemaPtr tableSchema = nullptr);
 
     NChunkClient::IBlockCachePtr BlockCache;
     NChunkClient::NProto::TChunkSpec ChunkSpec;
@@ -30,6 +31,7 @@ struct TChunkState
     TChunkReaderPerformanceCountersPtr PerformanceCounters;
     TKeyComparer KeyComparer;
     TVirtualValueDirectoryPtr VirtualValueDirectory;
+    TTableSchemaPtr TableSchema;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkState)

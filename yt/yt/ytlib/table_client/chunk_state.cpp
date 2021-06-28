@@ -14,7 +14,8 @@ TChunkState::TChunkState(
     IChunkLookupHashTablePtr lookupHashTable,
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TKeyComparer keyComparer,
-    TVirtualValueDirectoryPtr virtualValueDirectory)
+    TVirtualValueDirectoryPtr virtualValueDirectory,
+    TTableSchemaPtr tableSchema)
     : BlockCache(std::move(preloadedBlockCache))
     , ChunkSpec(std::move(chunkSpec))
     , ChunkMeta(std::move(chunkMeta))
@@ -25,6 +26,7 @@ TChunkState::TChunkState(
         : New<TChunkReaderPerformanceCounters>())
     , KeyComparer(std::move(keyComparer))
     , VirtualValueDirectory(std::move(virtualValueDirectory))
+    , TableSchema(std::move(tableSchema))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

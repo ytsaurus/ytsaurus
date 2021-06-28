@@ -270,7 +270,8 @@ protected:
                 nullptr,
                 New<TChunkReaderPerformanceCounters>(),
                 KeyComparer_,
-                nullptr);
+                nullptr,
+                Schema);
 
             IVersionedReaderPtr chunkReader;
             if (testNewReader) {
@@ -278,6 +279,7 @@ protected:
                     sharedKeys,
                     MaxTimestamp,
                     chunkMeta,
+                    Schema,
                     TColumnFilter(),
                     chunkState->BlockCache,
                     TChunkReaderConfig::GetDefault(),
@@ -426,6 +428,7 @@ protected:
             .ValueOrThrow();
 
         auto chunkState = New<TChunkState>(GetNullBlockCache());
+        chunkState->TableSchema = readSchema;
 
         IVersionedReaderPtr chunkReader;
         if (testNewReader) {
@@ -433,6 +436,7 @@ protected:
                 MakeSingletonRowRange(lowerKey, upperKey),
                 timestamp,
                 chunkMeta,
+                readSchema,
                 TColumnFilter(),
                 chunkState->BlockCache,
                 TChunkReaderConfig::GetDefault(),

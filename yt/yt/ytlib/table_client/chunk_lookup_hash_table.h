@@ -29,6 +29,7 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
     int startBlockIndex,
     const std::vector<NChunkClient::TBlock>& blocks,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
+    const TTableSchemaPtr& tableSchema,
     const TKeyComparer& keyComparer);
 
 ////////////////////////////////////////////////////////////////////////////////

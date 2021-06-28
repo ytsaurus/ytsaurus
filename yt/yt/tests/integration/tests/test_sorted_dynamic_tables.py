@@ -1913,7 +1913,8 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
         sync_mount_table(path, first_tablet_index=0, last_tablet_index=1, cell_id=cells[0])
         sync_mount_table(path, first_tablet_index=2, last_tablet_index=3, cell_id=cells[1])
 
-        def gen_rows(x, y, size=1500, value="x"):
+        # size of one chunk must be greater than granularity of memory tracker
+        def gen_rows(x, y, size=1700, value="x"):
             return [{"key": i, "value": value * size} for i in xrange(x, y)]
 
         insert_rows(path, gen_rows(0, 10))

@@ -100,6 +100,7 @@ void FinalizeChunkData(
             data->StartBlockIndex,
             data->Blocks,
             data->ChunkMeta,
+            tabletSnapshot->PhysicalSchema,
             tabletSnapshot->RowKeyComparer);
         if (data->LookupHashTable && data->MemoryTrackerGuard) {
             data->MemoryTrackerGuard.IncrementSize(data->LookupHashTable->GetByteSize());

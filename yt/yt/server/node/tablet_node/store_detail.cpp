@@ -897,7 +897,8 @@ void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
         chunkData->LookupHashTable,
         PerformanceCounters_,
         GetKeyComparer(),
-        nullptr);
+        nullptr,
+        Schema_);
 }
 
 TChunkId TChunkStoreBase::GetChunkId() const

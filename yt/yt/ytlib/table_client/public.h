@@ -23,6 +23,8 @@ struct TColumnIdMapping
     int ReaderSchemaIndex;
 };
 
+DECLARE_REFCOUNTED_CLASS(TTableSchema)
+
 class TSchemaDictionary;
 class TColumnFilterDictionary;
 
