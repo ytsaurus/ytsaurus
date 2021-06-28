@@ -109,7 +109,7 @@ private:
             auto poolTag = dynamicOptions->EnableTabletDynamicMemoryLimit
                 ? std::make_optional(slot->GetTabletCellBundleName())
                 : std::nullopt;
-            memoryLimit = memoryTracker->GetFree(EMemoryCategory::TabletDynamic, poolTag) *
+            memoryLimit = memoryTracker->GetLimit(EMemoryCategory::TabletDynamic, poolTag) *
                 *dynamicOptions->MaxBackingStoreMemoryRatio;
         } else {
             memoryLimit = std::numeric_limits<i64>::max() / 2;
@@ -229,6 +229,18 @@ private:
                     tabletManager->ReleaseBackingStore(store);
                 }
             }));
+        }
+
+        // Do not send profiling for bundles that do not exist anymore.
+        std::vector<TString> bundlesToRemove;
+        for (const auto& [bundleName, counters] : Counters_) {
+            if (!NameToBundleData_.contains(bundleName)) {
+                bundlesToRemove.push_back(bundleName);
+            }
+        }
+
+        for (const auto& bundleName : bundlesToRemove) {
+            Counters_.erase(bundleName);
         }
     }
 };
