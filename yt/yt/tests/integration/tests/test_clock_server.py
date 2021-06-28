@@ -1,7 +1,11 @@
-from copy import deepcopy
-
 from yt_env_setup import YTEnvSetup
-from yt_commands import *  # noqa
+
+from yt_commands import (
+    authors, wait, Driver, ls, get,
+    build_snapshot, switch_leader,
+    generate_timestamp, start_transaction, commit_transaction)
+
+from copy import deepcopy
 
 ##################################################################
 
@@ -36,7 +40,8 @@ class TestClockServer(YTEnvSetup):
     @authors("aleksandra-zh")
     def test_leader_switch(self):
         timestamp_providers = ls("//sys/timestamp_providers")
-        timestamp_provider_rpc_addresses = get("//sys/timestamp_providers/{}/orchid/config/clock_cell/addresses".format(timestamp_providers[0]))
+        timestamp_provider_rpc_addresses = get("//sys/timestamp_providers/{}/orchid/config/clock_cell/addresses"
+                                               .format(timestamp_providers[0]))
         cell_id = get("//sys/timestamp_providers/{}/orchid/config/clock_cell/cell_id".format(timestamp_providers[0]))
 
         old_leader_rpc_address = None

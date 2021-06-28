@@ -1,5 +1,8 @@
 from yt_env_setup import YTEnvSetup, wait
-from yt_commands import *  # noqa
+
+from yt_commands import authors, ls, get, exists
+
+##################################################################
 
 
 class TestCypressAnnotations(YTEnvSetup):

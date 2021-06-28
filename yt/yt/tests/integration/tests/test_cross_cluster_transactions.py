@@ -1,6 +1,10 @@
 from yt_env_setup import YTEnvSetup
-from yt_commands import *  # noqa
-from yt_helpers import *
+
+from yt_commands import (
+    authors, get_driver,
+    create, insert_rows, select_rows,
+    start_transaction, commit_transaction,
+    sync_create_cells, sync_mount_table)
 
 from yt.environment.helpers import assert_items_equal
 
