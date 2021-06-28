@@ -154,7 +154,7 @@ public class ColumnSchema implements YTreeConvertible {
     public static ColumnSchema fromYTree(YTreeNode node) {
         YTreeMapNode map = node.mapNode();
         String name = map.getOrThrow("name").stringValue();
-        YTreeNode typeV3Node = map.get("type_v3").getOrNull();
+        YTreeNode typeV3Node = map.get("type_v3").orElse(null);
         TiType typeV3;
         if (typeV3Node != null) {
             typeV3 = TypeIO.parseYson(c -> YTreeNodeUtils.walk(
@@ -173,13 +173,13 @@ public class ColumnSchema implements YTreeConvertible {
         }
         ColumnSortOrder sortOrder =
                 map.get("sort_order").map(YTreeNode::stringValue).map(ColumnSortOrder::fromName)
-                        .getOrNull();
+                        .orElse(null);
         return ColumnSchema.builder(name, typeV3)
                 .setSortOrder(sortOrder)
-                .setLock(map.get("lock").map(YTreeNode::stringValue).getOrNull())
-                .setExpression(map.get("expression").map(YTreeNode::stringValue).getOrNull())
-                .setAggregate(map.get("aggregate").map(YTreeNode::stringValue).getOrNull())
-                .setGroup(map.get("group").map(YTreeNode::stringValue).getOrNull())
+                .setLock(map.get("lock").map(YTreeNode::stringValue).orElse(null))
+                .setExpression(map.get("expression").map(YTreeNode::stringValue).orElse(null))
+                .setAggregate(map.get("aggregate").map(YTreeNode::stringValue).orElse(null))
+                .setGroup(map.get("group").map(YTreeNode::stringValue).orElse(null))
                 .build();
     }
 
