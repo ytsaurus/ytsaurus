@@ -34,6 +34,8 @@ int main(int argc, char* argv[])
         traceContext->AddTag("user", "prime");
         traceContext->SetSampled();
 
+        traceContext->AddLog(NProfiling::GetCpuInstant(), "Request started");
+
         Sleep(TDuration::MilliSeconds(10));
         auto childTraceContext = CreateChildTraceContext(traceContext, "Subrequest");
         childTraceContext->AddTag("index", "0");
@@ -42,6 +44,7 @@ int main(int argc, char* argv[])
         childTraceContext->Finish();
 
         Sleep(TDuration::MilliSeconds(2));
+        traceContext->AddLog(NProfiling::GetCpuInstant(), "Request finished");
         traceContext->Finish();
 
         jaeger->WaitFlush().Get();

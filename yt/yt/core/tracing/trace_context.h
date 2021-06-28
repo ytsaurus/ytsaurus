@@ -82,6 +82,14 @@ public:
     using TTagList = SmallVector<std::pair<TString, TString>, 4>;
     TTagList GetTags() const;
 
+    struct TTraceLogEntry
+    {
+        NProfiling::TCpuInstant At;
+        TString Message;
+    };
+    using TLogList = SmallVector<TTraceLogEntry, 4>;
+    TLogList GetLogs() const;
+
     void AddTag(const TString& tagKey, const TString& tagValue);
 
     template <class T>
@@ -89,6 +97,8 @@ public:
 
     //! Adds error tag. Spans containing errors are highlited in Jaeger UI.
     void AddErrorTag();
+
+    void AddLog(NProfiling::TCpuInstant at, const TString& message);
 
     TTraceContextPtr CreateChild(
         TString spanName,
@@ -115,8 +125,9 @@ private:
 
     std::atomic<NProfiling::TCpuDuration> ElapsedCpuTime_ = 0;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, TagsLock_);
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
     TTagList Tags_;
+    TLogList Logs_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTraceContext)
