@@ -32,6 +32,15 @@ public:
 
     virtual std::optional<TInstant> GetStartTime() const override;
     virtual std::optional<TDuration> GetTimeout() const override;
+    virtual TInstant GetArriveInstant() const override;
+    virtual std::optional<TInstant> GetRunInstant() const override;
+    virtual std::optional<TInstant> GetFinishInstant() const override;
+    virtual std::optional<TDuration> GetWaitDuration() const override;
+    virtual std::optional<TDuration> GetExecutionDuration() const override;
+
+    virtual NTracing::TTraceContextPtr GetTraceContext() const override;
+    virtual std::optional<TDuration> GetTraceContextTime() const override;
+
     virtual bool IsRetry() const override;
     virtual TMutationId GetMutationId() const override;
 
@@ -56,6 +65,9 @@ public:
 
     virtual void SubscribeCanceled(const TClosure& callback) override;
     virtual void UnsubscribeCanceled(const TClosure& callback) override;
+
+    virtual void SubscribeReplied(const TClosure& callback) override;
+    virtual void UnsubscribeReplied(const TClosure& callback) override;
 
     virtual bool IsCanceled() override;
     virtual void Cancel() override;
@@ -112,6 +124,8 @@ protected:
 
     NCompression::ECodec ResponseCodec_ = NCompression::ECodec::None;
 
+    TSingleShotCallbackList<void()> RepliedList_;
+
     TServiceContextBase(
         std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray requestMessage,
@@ -156,6 +170,15 @@ public:
 
     virtual std::optional<TInstant> GetStartTime() const override;
     virtual std::optional<TDuration> GetTimeout() const override;
+    virtual TInstant GetArriveInstant() const override;
+    virtual std::optional<TInstant> GetRunInstant() const override;
+    virtual std::optional<TInstant> GetFinishInstant() const override;
+    virtual std::optional<TDuration> GetWaitDuration() const override;
+    virtual std::optional<TDuration> GetExecutionDuration() const override;
+
+    virtual NTracing::TTraceContextPtr GetTraceContext() const override;
+    virtual std::optional<TDuration> GetTraceContextTime() const override;
+
     virtual bool IsRetry() const override;
     virtual TMutationId GetMutationId() const override;
 
@@ -175,6 +198,9 @@ public:
 
     virtual void SubscribeCanceled(const TClosure& callback) override;
     virtual void UnsubscribeCanceled(const TClosure& callback) override;
+
+    virtual void SubscribeReplied(const TClosure& callback) override;
+    virtual void UnsubscribeReplied(const TClosure& callback) override;
 
     virtual bool IsCanceled() override;
     virtual void Cancel() override;

@@ -249,7 +249,7 @@ public:
 
     ~TServiceContext()
     {
-        if (!Replied_ && !Canceled_.IsFired()) {
+        if (!Replied_ && !CanceledList_.IsFired()) {
             Reply(TError(NRpc::EErrorCode::Unavailable, "Service is unable to complete your request"));
         }
 
@@ -322,22 +322,32 @@ public:
 
     virtual void SubscribeCanceled(const TClosure& callback) override
     {
-        Canceled_.Subscribe(callback);
+        CanceledList_.Subscribe(callback);
     }
 
     virtual void UnsubscribeCanceled(const TClosure& callback) override
     {
-        Canceled_.Unsubscribe(callback);
+        CanceledList_.Unsubscribe(callback);
+    }
+
+    virtual void SubscribeReplied(const TClosure& callback) override
+    {
+        RepliedList_.Subscribe(callback);
+    }
+
+    virtual void UnsubscribeReplied(const TClosure& callback) override
+    {
+        RepliedList_.Unsubscribe(callback);
     }
 
     virtual bool IsCanceled() override
     {
-        return Canceled_.IsFired();
+        return CanceledList_.IsFired();
     }
 
     virtual void Cancel() override
     {
-        if (!Canceled_.Fire()) {
+        if (!CanceledList_.Fire()) {
             return;
         }
 
@@ -348,6 +358,8 @@ public:
             static const auto CanceledError = TError("Request canceled");
             AbortStreamsUnlessClosed(CanceledError);
         }
+
+        CancelInstant_ = GetCpuInstant();
 
         PerformanceCounters_->CanceledRequestCounter.Increment();
     }
@@ -371,7 +383,7 @@ public:
             AbortStreamsUnlessClosed(TimedOutError);
         }
 
-        Canceled_.Fire();
+        CanceledList_.Fire();
         PerformanceCounters_->TimedOutRequestCounter.Increment();
 
         // Guards from race with DoGuardedRun.
@@ -380,6 +392,42 @@ public:
         if (!RunLatch_.test_and_set()) {
             SetComplete();
         }
+    }
+
+    virtual TInstant GetArriveInstant() const override
+    {
+        return CpuInstantToInstant(ArriveInstant_);
+    }
+
+    virtual std::optional<TInstant> GetRunInstant() const override
+    {
+        return RunInstant_ == 0 ? std::nullopt : std::make_optional(CpuInstantToInstant(RunInstant_));
+    }
+
+    virtual std::optional<TInstant> GetFinishInstant() const override
+    {
+        if (ReplyInstant_ != 0) {
+            return CpuInstantToInstant(ReplyInstant_);
+        } else if (CancelInstant_ != 0) {
+            return CpuInstantToInstant(CancelInstant_);
+        } else {
+            return std::nullopt;
+        }
+    }
+
+    virtual std::optional<TDuration> GetWaitDuration() const override
+    {
+        return LocalWaitTime_ == TDuration::Zero() ? std::nullopt : std::make_optional(LocalWaitTime_);
+    }
+
+    virtual std::optional<TDuration> GetExecutionDuration() const override
+    {
+        return ExecutionTime_ == TDuration::Zero() ? std::nullopt : std::make_optional(ExecutionTime_);
+    }
+
+    virtual TTraceContextPtr GetTraceContext() const override
+    {
+        return TraceContext_;
     }
 
     virtual IAsyncZeroCopyInputStreamPtr GetRequestAttachmentsStream() override
@@ -471,11 +519,12 @@ private:
     TDelayedExecutorCookie TimeoutCookie_;
 
     bool Cancelable_ = false;
-    TSingleShotCallbackList<void()> Canceled_;
+    TSingleShotCallbackList<void()> CanceledList_;
 
     const NProfiling::TCpuInstant ArriveInstant_;
     NProfiling::TCpuInstant RunInstant_ = 0;
     NProfiling::TCpuInstant ReplyInstant_ = 0;
+    NProfiling::TCpuInstant CancelInstant_ = 0;
 
     TDuration ExecutionTime_;
     TDuration TotalTime_;
@@ -742,7 +791,7 @@ private:
                 auto cancelationHandler = BIND([fiberCanceler = std::move(fiberCanceler)] {
                     fiberCanceler(TError("RPC request canceled"));
                 });
-                if (!Canceled_.TrySubscribe(std::move(cancelationHandler))) {
+                if (!CanceledList_.TrySubscribe(std::move(cancelationHandler))) {
                     YT_LOG_DEBUG("Request was canceled before being run (RequestId: %v)",
                         RequestId_);
                     return;
@@ -767,10 +816,18 @@ private:
 
         PerformanceCounters_->HandlerFiberTimeCounter.Add(handlerElapsedValue);
 
+        if (auto traceContextTime = GetTraceContextTime()) {
+            PerformanceCounters_->TraceContextTimeCounter.Add(*traceContextTime);
+        }
+    }
+
+    virtual std::optional<TDuration> GetTraceContextTime() const override
+    {
         if (TraceContext_) {
             FlushCurrentTraceContextTime();
-            auto traceContextTime = TraceContext_->GetElapsedTime();
-            PerformanceCounters_->TraceContextTimeCounter.Add(traceContextTime);
+            return TraceContext_->GetElapsedTime();
+        } else {
+            return std::nullopt;
         }
     }
 
@@ -912,6 +969,10 @@ private:
         delimitedBuilder->AppendFormat("ExecutionTime: %v, TotalTime: %v",
             ExecutionTime_,
             TotalTime_);
+
+        if (auto traceContextTime = GetTraceContextTime()) {
+            delimitedBuilder->AppendFormat("CpuTime: %v", traceContextTime);
+        }
 
         auto logMessage = builder.Flush();
         if (TraceContext_ && TraceContext_->IsSampled()) {

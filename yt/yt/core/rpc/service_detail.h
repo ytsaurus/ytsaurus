@@ -280,6 +280,11 @@ public:
         }
     }
 
+    const IServiceContextPtr& GetUnderlyingContext() const
+    {
+        return UnderlyingContext_;
+    }
+
 protected:
     const THandlerInvocationOptions Options_;
     typename TObjectPool<TTypedRequest, TPooledTypedRequestTraits<TRequestMessage>>::TObjectPtr Request_;

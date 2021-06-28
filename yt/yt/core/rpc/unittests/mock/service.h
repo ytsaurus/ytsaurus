@@ -1,14 +1,22 @@
 #pragma once
 
 #include <yt/yt/core/rpc/service.h>
+
 #include <yt/yt/core/bus/bus.h>
 
 #include <library/cpp/testing/gtest/gtest.h>
 
 namespace NYT::NRpc {
 
-class TMockServiceContext : public IServiceContext
+////////////////////////////////////////////////////////////////////////////////
+
+class TMockServiceContext
+    : public IServiceContext
 {
+public:
+    NProto::TRequestHeader RequestHeader_;
+    std::vector<TSharedRef> ResponseAttachments_;
+
 public:
     TMockServiceContext();
 
@@ -57,6 +65,55 @@ public:
     MOCK_METHOD(
         std::optional<TDuration>,
         GetTimeout,
+        (),
+        (const, override)
+    );
+
+    MOCK_METHOD(
+        TInstant,
+        GetArriveInstant,
+        (),
+        (const, override)
+    );
+
+    MOCK_METHOD(
+        std::optional<TInstant>,
+        GetRunInstant,
+        (),
+        (const, override)
+    );
+
+    MOCK_METHOD(
+        std::optional<TInstant>,
+        GetFinishInstant,
+        (),
+        (const, override)
+    );
+
+    MOCK_METHOD(
+        std::optional<TDuration>,
+        GetWaitDuration,
+        (),
+        (const, override)
+    );
+
+    MOCK_METHOD(
+        std::optional<TDuration>,
+        GetExecutionDuration,
+        (),
+        (const)
+    );
+
+    MOCK_METHOD(
+        NTracing::TTraceContextPtr,
+        GetTraceContext,
+        (),
+        (const, override)
+    );
+
+    MOCK_METHOD(
+        std::optional<TDuration>,
+        GetTraceContextTime,
         (),
         (const, override)
     );
@@ -141,14 +198,28 @@ public:
     MOCK_METHOD(
         void,
         SubscribeCanceled,
-        (const ::NYT::TCallback<void()>& callback),
+        (const TCallback<void()>& callback),
         (override)
     );
 
     MOCK_METHOD(
         void,
         UnsubscribeCanceled,
-        (const ::NYT::TCallback<void()>& callback),
+        (const TCallback<void()>& callback),
+        (override)
+    );
+
+    MOCK_METHOD(
+        void,
+        SubscribeReplied,
+        (const TCallback<void()>& callback),
+        (override)
+    );
+
+    MOCK_METHOD(
+        void,
+        UnsubscribeReplied,
+        (const TCallback<void()>& callback),
         (override)
     );
 
@@ -291,9 +362,8 @@ public:
         (NCompression::ECodec codec),
         (override)
     );
-
-    NProto::TRequestHeader RequestHeader_;
-    std::vector<TSharedRef> ResponseAttachments_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NRpc
