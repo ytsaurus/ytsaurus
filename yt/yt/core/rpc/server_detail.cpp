@@ -16,6 +16,7 @@ using namespace NConcurrency;
 using namespace NBus;
 using namespace NYTree;
 using namespace NRpc::NProto;
+using namespace NTracing;
 
 using NYT::FromProto;
 
@@ -71,6 +72,8 @@ void TServiceContextBase::Reply(const TError& error)
     Error_ = error;
 
     ReplyEpilogue();
+
+    RepliedList_.Fire();
 }
 
 void TServiceContextBase::Reply(const TSharedRefArray& responseMessage)
@@ -98,6 +101,8 @@ void TServiceContextBase::Reply(const TSharedRefArray& responseMessage)
     }
 
     ReplyEpilogue();
+
+    RepliedList_.Fire();
 }
 
 void TServiceContextBase::ReplyEpilogue()
@@ -199,6 +204,12 @@ void TServiceContextBase::SubscribeCanceled(const TClosure& /*callback*/)
 void TServiceContextBase::UnsubscribeCanceled(const TClosure& /*callback*/)
 { }
 
+void TServiceContextBase::SubscribeReplied(const TClosure& /*callback*/)
+{ }
+
+void TServiceContextBase::UnsubscribeReplied(const TClosure& /*callback*/)
+{ }
+
 bool TServiceContextBase::IsCanceled()
 {
     return false;
@@ -288,6 +299,41 @@ std::optional<TDuration> TServiceContextBase::GetTimeout() const
     return RequestHeader_->has_timeout()
         ? std::make_optional(FromProto<TDuration>(RequestHeader_->timeout()))
         : std::nullopt;
+}
+
+TInstant TServiceContextBase::GetArriveInstant() const
+{
+    return TInstant::Zero();
+}
+
+std::optional<TInstant> TServiceContextBase::GetRunInstant() const
+{
+    return std::nullopt;
+}
+
+std::optional<TInstant> TServiceContextBase::GetFinishInstant() const
+{
+    return std::nullopt;
+}
+
+std::optional<TDuration> TServiceContextBase::GetWaitDuration() const
+{
+    return std::nullopt;
+}
+
+std::optional<TDuration> TServiceContextBase::GetExecutionDuration() const
+{
+    return std::nullopt;
+}
+
+TTraceContextPtr TServiceContextBase::GetTraceContext() const
+{
+    return nullptr;
+}
+
+std::optional<TDuration> TServiceContextBase::GetTraceContextTime() const
+{
+    return std::nullopt;
 }
 
 bool TServiceContextBase::IsRetry() const
@@ -428,6 +474,41 @@ std::optional<TDuration> TServiceContextWrapper::GetTimeout() const
     return UnderlyingContext_->GetTimeout();
 }
 
+TInstant TServiceContextWrapper::GetArriveInstant() const
+{
+    return UnderlyingContext_->GetArriveInstant();
+}
+
+std::optional<TInstant> TServiceContextWrapper::GetRunInstant() const
+{
+    return UnderlyingContext_->GetRunInstant();
+}
+
+std::optional<TInstant> TServiceContextWrapper::GetFinishInstant() const
+{
+    return UnderlyingContext_->GetFinishInstant();
+}
+
+std::optional<TDuration> TServiceContextWrapper::GetWaitDuration() const
+{
+    return UnderlyingContext_->GetWaitDuration();
+}
+
+std::optional<TDuration> TServiceContextWrapper::GetExecutionDuration() const
+{
+    return UnderlyingContext_->GetExecutionDuration();
+}
+
+TTraceContextPtr TServiceContextWrapper::GetTraceContext() const
+{
+    return UnderlyingContext_->GetTraceContext();
+}
+
+std::optional<TDuration> TServiceContextWrapper::GetTraceContextTime() const
+{
+    return UnderlyingContext_->GetTraceContextTime();
+}
+
 bool TServiceContextWrapper::IsRetry() const
 {
     return UnderlyingContext_->IsRetry();
@@ -486,6 +567,16 @@ void TServiceContextWrapper::SubscribeCanceled(const TClosure& callback)
 void TServiceContextWrapper::UnsubscribeCanceled(const TClosure& callback)
 {
     UnderlyingContext_->UnsubscribeCanceled(callback);
+}
+
+void TServiceContextWrapper::SubscribeReplied(const TClosure& callback)
+{
+    UnderlyingContext_->SubscribeReplied(callback);
+}
+
+void TServiceContextWrapper::UnsubscribeReplied(const TClosure& callback)
+{
+    UnderlyingContext_->UnsubscribeReplied(callback);
 }
 
 bool TServiceContextWrapper::IsCanceled()

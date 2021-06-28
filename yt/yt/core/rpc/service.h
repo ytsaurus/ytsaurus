@@ -62,6 +62,27 @@ struct IServiceContext
     //! Returns the client-specified request timeout, if any.
     virtual std::optional<TDuration> GetTimeout() const = 0;
 
+    //! Returns the instant request has arrived.
+    virtual TInstant GetArriveInstant() const = 0;
+
+    //! Returns the instant request become executing (if it already has started executing).
+    virtual std::optional<TInstant> GetRunInstant() const = 0;
+
+    //! Returns the instant request finished, i.e. either replied or canceled (if it already has finished).
+    virtual std::optional<TInstant> GetFinishInstant() const = 0;
+
+    //! Returns time between request arrival and execution start (if it already has started executing).
+    virtual std::optional<TDuration> GetWaitDuration() const = 0;
+
+    //! Returns time between request execution start and the moment of reply or cancellation (if it already happened).
+    virtual std::optional<TDuration> GetExecutionDuration() const = 0;
+
+    //! Returns trace context associated with request.
+    virtual NTracing::TTraceContextPtr GetTraceContext() const = 0;
+
+    //! If trace context is present, return total CPU time accounted to this trace context.
+    virtual std::optional<TDuration> GetTraceContextTime() const = 0;
+
     //! Returns |true| if this is a duplicate copy of a previously sent (and possibly served) request.
     virtual bool IsRetry() const = 0;
 
@@ -106,6 +127,9 @@ struct IServiceContext
 
     //! Raised when request processing is canceled.
     DECLARE_INTERFACE_SIGNAL(void(), Canceled);
+
+    //! Raised when Reply() was called. Allows doing some post-request stuff like extended structured logging.
+    DECLARE_INTERFACE_SIGNAL(void(), Replied);
 
     //! Cancels request processing.
     /*!
