@@ -196,7 +196,7 @@ cdef class Client:
         if yson:
             return _TNode_to_yson(value)
         else:
-            return _TNode_to_pyobj(value)
+            return _TNode_to_pyobj(value, True)
 
     def set(self, path, value):
         cython.operator.dereference(self._client).Set(_to_TString(path), _pyobj_to_TNode(value))
@@ -286,7 +286,7 @@ cdef class Client:
         if yson:
             return [_TNode_to_yson(row) for row in rows]
         else:
-            return [_TNode_to_pyobj(row) for row in rows]
+            return [_TNode_to_pyobj(row, True) for row in rows]
 
     def lookup_rows(self, path, keys, timeout=None, columns=None, keep_missing_rows=False, versioned=False, yson=False):
         cdef TLookupRowsOptions opts
@@ -304,7 +304,7 @@ cdef class Client:
         if yson:
             return [_TNode_to_yson(row) for row in rows]
         else:
-            return [_TNode_to_pyobj(row) for row in rows]
+            return [_TNode_to_pyobj(row, True) for row in rows]
 
     def delete_rows(self, path, keys, atomicity=None, durability=None, require_sync_replica=None):
         cdef TDeleteRowsOptions opts
