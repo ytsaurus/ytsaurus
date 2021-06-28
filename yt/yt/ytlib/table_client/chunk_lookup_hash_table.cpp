@@ -117,6 +117,7 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
     int startBlockIndex,
     const std::vector<TBlock>& blocks,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
+    const TTableSchemaPtr& tableSchema,
     const TKeyComparer& keyComparer)
 {
     if (chunkMeta->GetChunkFormat() != EChunkFormat::TableVersionedSimple &&
@@ -163,7 +164,7 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
                     chunkMeta->GetChunkSchema(),
                     chunkMeta->GetChunkKeyColumnCount(),
                     chunkMeta->GetKeyColumnCount(),
-                    BuildVersionedSimpleSchemaIdMapping(TColumnFilter(), chunkMeta),
+                    BuildVersionedSimpleSchemaIdMapping(TColumnFilter(), tableSchema, chunkMeta->GetChunkSchema()),
                     keyComparer,
                     AllCommittedTimestamp,
                     true,
@@ -175,7 +176,7 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
                     uncompressedBlock.Data,
                     blockMeta,
                     chunkMeta->GetChunkSchema(),
-                    BuildSchemalessHorizontalSchemaIdMapping(TColumnFilter(), chunkMeta),
+                    BuildSchemalessHorizontalSchemaIdMapping(TColumnFilter(), tableSchema, chunkMeta->GetChunkSchema()),
                     chunkMeta->GetChunkKeyColumnCount(),
                     chunkMeta->GetKeyColumnCount(),
                     chunkMeta->Misc().min_timestamp());

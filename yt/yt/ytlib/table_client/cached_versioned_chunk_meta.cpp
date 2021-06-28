@@ -83,8 +83,6 @@ void TCachedVersionedChunkMeta::Init(
     ValidateChunkMeta();
     ValidateSchema(*schema);
 
-    Schema_ = schema;
-
     auto boundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(chunkMeta.extensions());
     if (boundaryKeysExt) {
         MinKey_ = WidenKey(FromProto<TLegacyOwningKey>(boundaryKeysExt->min()), GetKeyColumnCount());
@@ -174,19 +172,12 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
                 column.Name(),
                 ConvertToYsonString(ChunkSchema_, EYsonFormat::Text).AsStringBuf());
         }
-
-        TColumnIdMapping mapping;
-        mapping.ChunkSchemaIndex = ChunkSchema_->GetColumnIndex(*chunkColumn);
-        mapping.ReaderSchemaIndex = readerIndex;
-        SchemaIdMapping_.push_back(mapping);
     }
 }
 
 i64 TCachedVersionedChunkMeta::GetMemoryUsage() const
 {
-    return
-        TColumnarChunkMeta::GetMemoryUsage() +
-        Schema_->GetMemoryUsage();
+    return TColumnarChunkMeta::GetMemoryUsage();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

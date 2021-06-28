@@ -39,11 +39,13 @@ DEFINE_REFCOUNTED_TYPE(TChunkReaderPerformanceCounters)
 
 std::vector<TColumnIdMapping> BuildVersionedSimpleSchemaIdMapping(
     const TColumnFilter& columnFilter,
-    const TCachedVersionedChunkMetaPtr& chunkMeta);
+    const TTableSchemaPtr& tableSchema,
+    const TTableSchemaPtr& chunkSchema);
 
 std::vector<TColumnIdMapping> BuildSchemalessHorizontalSchemaIdMapping(
     const TColumnFilter& columnFilter,
-    const TCachedVersionedChunkMetaPtr& chunkMeta);
+    const TTableSchemaPtr& tableSchema,
+    const TTableSchemaPtr& chunkSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -322,6 +322,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             std::move(ranges),
             timestamp,
             chunkState->ChunkMeta,
+            Schema_,
             columnFilter,
             chunkState->BlockCache,
             ReaderConfig_,
@@ -446,6 +447,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             filteredKeys,
             timestamp,
             chunkState->ChunkMeta,
+            Schema_,
             columnFilter,
             chunkState->BlockCache,
             ReaderConfig_,
@@ -564,7 +566,8 @@ TChunkStatePtr TSortedChunkStore::PrepareChunkState(
         nullptr,
         PerformanceCounters_,
         GetKeyComparer(),
-        nullptr);
+        nullptr,
+        Schema_);
 }
 
 void TSortedChunkStore::ValidateBlockSize(

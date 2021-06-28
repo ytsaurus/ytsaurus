@@ -52,14 +52,17 @@ using NTableClient::IVersionedRowBatchPtr;
 using NTableClient::TRowBatchReadOptions;
 using NTableClient::CreateEmptyVersionedRowBatch;
 
+using NTableClient::TTableSchemaPtr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<EValueType> GetKeyTypes(const TCachedVersionedChunkMetaPtr& chunkMeta)
+std::vector<EValueType> GetKeyTypes(const TTableSchemaPtr& tableSchema)
 {
     std::vector<EValueType> keyTypes;
 
-    auto keyColumnCount = chunkMeta->GetKeyColumnCount();
-    const auto& schemaColumns = chunkMeta->GetSchema()->Columns();
+    auto keyColumnCount = tableSchema->GetKeyColumnCount();
+    const auto& schemaColumns = tableSchema->Columns();
+
     for (int keyColumnIndex = 0; keyColumnIndex < keyColumnCount; ++keyColumnIndex) {
         auto type = schemaColumns[keyColumnIndex].GetPhysicalType();
         keyTypes.push_back(type);
@@ -69,18 +72,18 @@ std::vector<EValueType> GetKeyTypes(const TCachedVersionedChunkMetaPtr& chunkMet
 }
 
 std::vector<TValueSchema> GetValueTypes(
-    const TCachedVersionedChunkMetaPtr& chunkMeta,
+    const TTableSchemaPtr& tableSchema,
     TRange<TColumnIdMapping> valueIdMapping)
 {
     std::vector<TValueSchema> valueSchema;
 
-    const auto& schemaColumns = chunkMeta->GetChunkSchema()->Columns();
+    const auto& schemaColumns = tableSchema->Columns();
     for (const auto& idMapping : valueIdMapping) {
-        auto type = schemaColumns[idMapping.ChunkSchemaIndex].GetPhysicalType();
+        auto type = schemaColumns[idMapping.ReaderSchemaIndex].GetPhysicalType();
         valueSchema.push_back(TValueSchema{
             type,
             ui16(idMapping.ReaderSchemaIndex),
-            schemaColumns[idMapping.ChunkSchemaIndex].Aggregate().has_value()});
+            schemaColumns[idMapping.ReaderSchemaIndex].Aggregate().has_value()});
     }
 
     return valueSchema;
@@ -677,7 +680,7 @@ public:
             std::move(timeStatistics))
         , PerformanceCounters_(std::move(performanceCounters))
         , Lookup_(lookup)
-        , HasHunkColumns_(ChunkMeta_->GetSchema()->HasHunkColumns())
+        , HasHunkColumns_(ChunkMeta_->GetChunkSchema()->HasHunkColumns())
     { }
 
     virtual TFuture<void> Open() override
@@ -857,6 +860,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TSharedRange<TItem> readItems,
     TTimestamp timestamp,
     TCachedVersionedChunkMetaPtr chunkMeta,
+    const TTableSchemaPtr& tableSchema,
     const TColumnFilter& columnFilter,
     IBlockCachePtr blockCache,
     const TChunkReaderConfigPtr config,
@@ -870,10 +874,13 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         timeStatistics = New<TReaderTimeStatistics>();
     }
 
-    auto keyTypes = GetKeyTypes(chunkMeta);
+    auto keyTypes = GetKeyTypes(tableSchema);
     auto refiner = MakeRefiner(readItems, keyTypes);
     auto windowsList = refiner->BuildReadWindows(chunkMeta);
-    auto schemaIdMapping = BuildVersionedSimpleSchemaIdMapping(columnFilter, chunkMeta);
+    auto schemaIdMapping = BuildVersionedSimpleSchemaIdMapping(
+        columnFilter,
+        tableSchema,
+        chunkMeta->GetChunkSchema());
     auto columnBlockHolders = CreateColumnBlockHolders(chunkMeta, schemaIdMapping);
 
     TBlockFetcherPtr blockFetcher;
@@ -898,7 +905,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             chunkReadOptions);
     }
 
-    auto valueSchema = GetValueTypes(chunkMeta, schemaIdMapping);
+    auto valueSchema = GetValueTypes(tableSchema, schemaIdMapping);
 
     const auto& Logger = NTableClient::TableClientLogger;
 
@@ -929,6 +936,7 @@ IVersionedReaderPtr CreateVersionedChunkReader<TRowRange>(
     TSharedRange<TRowRange> readItems,
     TTimestamp timestamp,
     TCachedVersionedChunkMetaPtr chunkMeta,
+    const TTableSchemaPtr& tableSchema,
     const TColumnFilter& columnFilter,
     IBlockCachePtr blockCache,
     const TChunkReaderConfigPtr config,
@@ -943,6 +951,7 @@ IVersionedReaderPtr CreateVersionedChunkReader<TLegacyKey>(
     TSharedRange<TLegacyKey> readItems,
     TTimestamp timestamp,
     TCachedVersionedChunkMetaPtr chunkMeta,
+    const TTableSchemaPtr& tableSchema,
     const TColumnFilter& columnFilter,
     IBlockCachePtr blockCache,
     const TChunkReaderConfigPtr config,

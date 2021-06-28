@@ -24,20 +24,20 @@ using namespace NClusterNode;
 struct TVersionedChunkMetaCacheKey
 {
     TChunkId ChunkId;
-    TTableSchemaPtr Schema;
+    int TableSchemaKeyColumnCount;
 
     bool operator ==(const TVersionedChunkMetaCacheKey& other) const
     {
         return
             ChunkId == other.ChunkId &&
-            *Schema == *other.Schema;
+            TableSchemaKeyColumnCount == other.TableSchemaKeyColumnCount;
     }
 
     operator size_t() const
     {
         size_t hash = 0;
         HashCombine(hash, ChunkId);
-        HashCombine(hash, *Schema);
+        HashCombine(hash, TableSchemaKeyColumnCount);
         return hash;
     }
 };
@@ -90,7 +90,7 @@ public:
         const TClientChunkReadOptions& chunkReadOptions) override
     {
         auto chunkId = chunkReader->GetChunkId();
-        auto key = TVersionedChunkMetaCacheKey{chunkId, schema};
+        auto key = TVersionedChunkMetaCacheKey{chunkId, schema->GetKeyColumnCount()};
         auto cookie = BeginInsert(key);
         if (cookie.IsActive()) {
             // TODO(savrus,psushin) Move call to dispatcher?

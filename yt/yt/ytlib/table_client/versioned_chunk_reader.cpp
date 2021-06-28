@@ -59,60 +59,101 @@ static constexpr i64 MinRowsPerRead = 32;
 
 std::vector<TColumnIdMapping> BuildVersionedSimpleSchemaIdMapping(
     const TColumnFilter& columnFilter,
-    const TCachedVersionedChunkMetaPtr& chunkMeta)
+    const TTableSchemaPtr& tableSchema,
+    const TTableSchemaPtr& chunkSchema)
 {
+    std::vector<TColumnIdMapping> valueIdMapping;
+    valueIdMapping.reserve(tableSchema->GetColumnCount() - tableSchema->GetKeyColumnCount());
+
+    THashMap<TStringBuf, int> chunkValueColumnNames;
+    for (int index = chunkSchema->GetKeyColumnCount(); index < chunkSchema->GetColumnCount(); ++index) {
+        const auto& column = chunkSchema->Columns()[index];
+        chunkValueColumnNames.emplace(column.Name(), index);
+    }
+
+    auto addMapping = [&] (int index) {
+        auto& column = tableSchema->Columns()[index];
+
+        auto it = chunkValueColumnNames.find(column.Name());
+        if (it == chunkValueColumnNames.end()) {
+            // This is a valid case, simply skip the column.
+            return;
+        }
+
+        auto chunkIndex = it->second;
+
+        TColumnIdMapping mapping;
+        mapping.ChunkSchemaIndex = chunkIndex;
+        mapping.ReaderSchemaIndex = index;
+        valueIdMapping.push_back(mapping);
+    };
+
     if (columnFilter.IsUniversal()) {
-        return chunkMeta->SchemaIdMapping();
-    }
-
-    std::vector<TColumnIdMapping> schemaIdMapping;
-    schemaIdMapping.reserve(chunkMeta->SchemaIdMapping().size());
-    for (auto index : columnFilter.GetIndexes()) {
-        if (index < chunkMeta->GetKeyColumnCount()) {
-            continue;
+        for (int index = tableSchema->GetKeyColumnCount(); index < tableSchema->GetColumnCount(); ++index) {
+            addMapping(index);
         }
-
-        for (const auto& mapping : chunkMeta->SchemaIdMapping()) {
-            if (mapping.ReaderSchemaIndex == index) {
-                schemaIdMapping.push_back(mapping);
-                break;
+    } else {
+        for (auto index : columnFilter.GetIndexes()) {
+            if (index < tableSchema->GetKeyColumnCount()) {
+                continue;
             }
+
+            addMapping(index);
         }
     }
 
-    return schemaIdMapping;
+    return valueIdMapping;
 }
 
 std::vector<TColumnIdMapping> BuildSchemalessHorizontalSchemaIdMapping(
     const TColumnFilter& columnFilter,
-    const TCachedVersionedChunkMetaPtr& chunkMeta)
+    const TTableSchemaPtr& tableSchema,
+    const TTableSchemaPtr& chunkSchema)
 {
-    int keyColumnCount = chunkMeta->GetChunkKeyColumnCount();
+    int chunkKeyColumnCount = chunkSchema->GetKeyColumnCount();
+
     std::vector<TColumnIdMapping> idMapping;
     idMapping.resize(
-        keyColumnCount + chunkMeta->SchemaIdMapping().size(),
+        chunkSchema->GetColumnCount(),
         TColumnIdMapping{-1,-1});
 
-    for (int index = 0; index < keyColumnCount; ++index) {
+    for (int index = 0; index < chunkKeyColumnCount; ++index) {
         idMapping[index].ReaderSchemaIndex = index;
     }
 
+    THashMap<TStringBuf, int> chunkValueColumnNames;
+    for (int index = chunkSchema->GetKeyColumnCount(); index < chunkSchema->GetColumnCount(); ++index) {
+        const auto& column = chunkSchema->Columns()[index];
+        chunkValueColumnNames.emplace(column.Name(), index);
+    }
+
+    auto addMapping = [&] (int index) {
+        auto& column = tableSchema->Columns()[index];
+
+        auto it = chunkValueColumnNames.find(column.Name());
+        if (it == chunkValueColumnNames.end()) {
+            // This is a valid case, simply skip the column.
+            return;
+        }
+
+        auto chunkIndex = it->second;
+        YT_VERIFY(chunkIndex < std::ssize(idMapping));
+        YT_VERIFY(chunkIndex >= chunkKeyColumnCount);
+        idMapping[chunkIndex].ReaderSchemaIndex = index;
+    };
+
+
     if (columnFilter.IsUniversal()) {
-        for (const auto& mapping : chunkMeta->SchemaIdMapping()) {
-            YT_VERIFY(mapping.ChunkSchemaIndex < std::ssize(idMapping));
-            YT_VERIFY(mapping.ChunkSchemaIndex >= keyColumnCount);
-            idMapping[mapping.ChunkSchemaIndex].ReaderSchemaIndex = mapping.ReaderSchemaIndex;
+        for (int index = tableSchema->GetKeyColumnCount(); index < tableSchema->GetColumnCount(); ++index) {
+            addMapping(index);
         }
     } else {
         for (auto index : columnFilter.GetIndexes()) {
-            for (const auto& mapping : chunkMeta->SchemaIdMapping()) {
-                if (mapping.ReaderSchemaIndex == index) {
-                    YT_VERIFY(mapping.ChunkSchemaIndex < std::ssize(idMapping));
-                    YT_VERIFY(mapping.ChunkSchemaIndex >= keyColumnCount);
-                    idMapping[mapping.ChunkSchemaIndex].ReaderSchemaIndex = mapping.ReaderSchemaIndex;
-                    break;
-                }
+            if (index < tableSchema->GetKeyColumnCount()) {
+                continue;
             }
+
+            addMapping(index);
         }
     }
 
@@ -134,7 +175,7 @@ public:
         IChunkReaderPtr underlyingReader,
         IBlockCachePtr blockCache,
         const TClientChunkReadOptions& chunkReadOptions,
-        const TColumnFilter& columnFilter,
+        const std::vector<TColumnIdMapping>& schemaIdMapping,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp,
         bool produceAllVersions,
@@ -180,7 +221,7 @@ TSimpleVersionedChunkReaderBase::TSimpleVersionedChunkReaderBase(
     IChunkReaderPtr underlyingReader,
     IBlockCachePtr blockCache,
     const TClientChunkReadOptions& chunkReadOptions,
-    const TColumnFilter& columnFilter,
+    const std::vector<TColumnIdMapping>& schemaIdMapping,
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp,
     bool produceAllVersions,
@@ -196,14 +237,13 @@ TSimpleVersionedChunkReaderBase::TSimpleVersionedChunkReaderBase(
     , Timestamp_(timestamp)
     , ProduceAllVersions_(produceAllVersions)
     , KeyComparer_(std::move(keyComparer))
-    , SchemaIdMapping_(BuildVersionedSimpleSchemaIdMapping(columnFilter, ChunkMeta_))
+    , SchemaIdMapping_(schemaIdMapping)
     , MemoryPool_(TVersionedChunkReaderPoolTag())
     , PerformanceCounters_(std::move(performanceCounters))
 {
     YT_VERIFY(ChunkMeta_->Misc().sorted());
     YT_VERIFY(ChunkMeta_->GetChunkType() == EChunkType::Table);
     YT_VERIFY(ChunkMeta_->GetChunkFormat() == EChunkFormat::TableVersionedSimple);
-    YT_VERIFY(Timestamp_ != AllCommittedTimestamp || columnFilter.IsUniversal());
     YT_VERIFY(PerformanceCounters_);
 }
 
@@ -220,7 +260,7 @@ public:
         IBlockCachePtr blockCache,
         const TClientChunkReadOptions& chunkReadOptions,
         TSharedRange<TRowRange> ranges,
-        const TColumnFilter& columnFilter,
+        const std::vector<TColumnIdMapping>& schemaIdMapping,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp,
         bool produceAllVersions,
@@ -232,7 +272,7 @@ public:
             std::move(underlyingReader),
             std::move(blockCache),
             chunkReadOptions,
-            columnFilter,
+            schemaIdMapping,
             std::move(performanceCounters),
             timestamp,
             produceAllVersions,
@@ -276,7 +316,7 @@ public:
         i64 rowCount = 0;
         i64 dataWeight = 0;
 
-        auto hasHunkColumns = ChunkMeta_->GetSchema()->HasHunkColumns();
+        auto hasHunkColumns = ChunkMeta_->GetChunkSchema()->HasHunkColumns();
 
         while (rows.size() < rows.capacity()) {
             if (CheckKeyLimit_ && KeyComparer_(
@@ -461,7 +501,7 @@ public:
         IBlockCachePtr blockCache,
         const TClientChunkReadOptions& chunkReadOptions,
         const TSharedRange<TLegacyKey>& keys,
-        const TColumnFilter& columnFilter,
+        const std::vector<TColumnIdMapping>& schemaIdMapping,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         TKeyComparer keyComparer,
         TTimestamp timestamp,
@@ -473,7 +513,7 @@ public:
             std::move(underlyingReader),
             std::move(blockCache),
             chunkReadOptions,
-            columnFilter,
+            schemaIdMapping,
             std::move(performanceCounters),
             timestamp,
             produceAllVersions,
@@ -527,7 +567,7 @@ public:
             return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
         }
 
-        auto hasHunkColumns = ChunkMeta_->GetSchema()->HasHunkColumns();
+        auto hasHunkColumns = ChunkMeta_->GetChunkSchema()->HasHunkColumns();
 
         while (rows.size() < rows.capacity()) {
             if (KeyIndex_ == std::ssize(Keys_)) {
@@ -663,7 +703,7 @@ public:
         const TSortColumns& sortColumns,
         IBlockCachePtr blockCache,
         const TClientChunkReadOptions& chunkReadOptions,
-        const TColumnFilter& columnFilter,
+        const std::vector<TColumnIdMapping>& schemaIdMapping,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp,
         const TChunkReaderMemoryManagerPtr& memoryManager)
@@ -678,13 +718,12 @@ public:
             memoryManager)
         , ChunkMeta_(std::move(chunkMeta))
         , Timestamp_(timestamp)
-        , SchemaIdMapping_(BuildVersionedSimpleSchemaIdMapping(columnFilter, ChunkMeta_))
+        , SchemaIdMapping_(schemaIdMapping)
         , PerformanceCounters_(std::move(performanceCounters))
     {
         YT_VERIFY(ChunkMeta_->Misc().sorted());
         YT_VERIFY(ChunkMeta_->GetChunkType() == EChunkType::Table);
         YT_VERIFY(ChunkMeta_->GetChunkFormat() == EChunkFormat::TableVersionedColumnar);
-        YT_VERIFY(Timestamp_ != AllCommittedTimestamp || columnFilter.IsUniversal());
         YT_VERIFY(PerformanceCounters_);
 
         KeyColumnReaders_.resize(ChunkMeta_->GetKeyColumnCount());
@@ -754,6 +793,17 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+int GetMaxReaderSchemaIndex(TRange<TColumnIdMapping> schemaIdMapping)
+{
+    int maxReaderSchemaIndex = 0;
+    for (const auto& idMapping : schemaIdMapping) {
+        maxReaderSchemaIndex = std::max(maxReaderSchemaIndex, idMapping.ReaderSchemaIndex);
+    }
+   return maxReaderSchemaIndex;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TRowBuilderBase
 {
 public:
@@ -766,7 +816,7 @@ public:
         , ValueColumnReaders_(valueColumnReaders)
         , SchemaIdMapping_(schemaIdMapping)
         , Timestamp_(timestamp)
-        , ColumnHunkFlags_(new bool[ChunkMeta_->GetSchema()->GetColumnCount()])
+        , ColumnHunkFlags_(new bool[GetMaxReaderSchemaIndex(schemaIdMapping) + 1])
     {
         for (const auto& idMapping : SchemaIdMapping_) {
             const auto& columnSchema = ChunkMeta_->GetChunkSchema()->Columns()[idMapping.ChunkSchemaIndex];
@@ -1068,7 +1118,7 @@ public:
         IBlockCachePtr blockCache,
         const TClientChunkReadOptions& chunkReadOptions,
         TSharedRange<TRowRange> ranges,
-        const TColumnFilter& columnFilter,
+        const std::vector<TColumnIdMapping>& schemaIdMapping,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp,
         const TChunkReaderMemoryManagerPtr& memoryManager)
@@ -1079,7 +1129,7 @@ public:
             sortColumns,
             std::move(blockCache),
             chunkReadOptions,
-            columnFilter,
+            schemaIdMapping,
             std::move(performanceCounters),
             timestamp,
             memoryManager)
@@ -1141,7 +1191,7 @@ public:
             return nullptr;
         }
 
-        auto hasHunkColumns = ChunkMeta_->GetSchema()->HasHunkColumns();
+        auto hasHunkColumns = ChunkMeta_->GetChunkSchema()->HasHunkColumns();
 
         while (rows.size() < rows.capacity()) {
             FeedBlocksToReaders();
@@ -1423,7 +1473,7 @@ public:
         IBlockCachePtr blockCache,
         const TClientChunkReadOptions& chunkReadOptions,
         const TSharedRange<TLegacyKey>& keys,
-        const TColumnFilter& columnFilter,
+        const std::vector<TColumnIdMapping>& schemaIdMapping,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp,
         const TChunkReaderMemoryManagerPtr& memoryManager)
@@ -1434,11 +1484,11 @@ public:
             sortColumns,
             std::move(blockCache),
             chunkReadOptions,
-            columnFilter,
+            schemaIdMapping,
             std::move(performanceCounters),
             timestamp,
             memoryManager)
-        , HasHunkColumns_(ChunkMeta_->GetSchema()->HasHunkColumns())
+        , HasHunkColumns_(ChunkMeta_->GetChunkSchema()->HasHunkColumns())
         , RowBuilder_(
             chunkMeta,
             KeyColumnReaders_,
@@ -1710,6 +1760,13 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         return CreateEmptyVersionedReader();
     }
 
+    YT_VERIFY(timestamp != AllCommittedTimestamp || columnFilter.IsUniversal());
+
+    auto schemaIdMapping = BuildVersionedSimpleSchemaIdMapping(
+        columnFilter,
+        chunkState->TableSchema,
+        chunkMeta->GetChunkSchema());
+
     IVersionedReaderPtr reader;
 
     switch (chunkMeta->GetChunkFormat()) {
@@ -1721,7 +1778,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 blockCache,
                 chunkReadOptions,
                 std::move(ranges),
-                columnFilter,
+                schemaIdMapping,
                 performanceCounters,
                 timestamp,
                 produceAllVersions,
@@ -1738,11 +1795,11 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     std::move(config),
                     chunkMeta,
                     std::move(chunkReader),
-                    chunkMeta->GetSchema()->GetSortColumns(),
+                    chunkState->TableSchema->GetSortColumns(),
                     blockCache,
                     chunkReadOptions,
                     getCappedBounds(),
-                    columnFilter,
+                    schemaIdMapping,
                     performanceCounters,
                     timestamp,
                     memoryManager);
@@ -1751,11 +1808,11 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     std::move(config),
                     chunkMeta,
                     std::move(chunkReader),
-                    chunkMeta->GetSchema()->GetSortColumns(),
+                    chunkState->TableSchema->GetSortColumns(),
                     blockCache,
                     chunkReadOptions,
                     getCappedBounds(),
-                    columnFilter,
+                    schemaIdMapping,
                     performanceCounters,
                     timestamp,
                     memoryManager);
@@ -1786,7 +1843,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
                 auto cappedBounds = getCappedBounds();
 
-                int keyColumnCount = chunkMeta->GetSchema()->GetKeyColumnCount();
+                int keyColumnCount = chunkState->TableSchema->GetKeyColumnCount();
                 auto lowerKeyBound = KeyBoundFromLegacyRow(cappedBounds.Front().first, /* isUpper */ false, keyColumnCount);
                 auto upperKeyBound = KeyBoundFromLegacyRow(cappedBounds.Front().second, /* isUpper */ true, keyColumnCount);
 
@@ -1800,7 +1857,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     chunkReader,
                     nameTable,
                     chunkReadOptions,
-                    chunkMeta->GetSchema()->GetSortColumns(),
+                    chunkState->TableSchema->GetSortColumns(),
                     /* omittedInaccessibleColumns */ {},
                     columnFilter,
                     readRange,
@@ -1813,7 +1870,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
             auto unwrappedReader = CreateVersionedReaderAdapter(
                 schemafulReaderFactory,
-                chunkMeta->GetSchema(),
+                chunkState->TableSchema,
                 columnFilter,
                 chunkTimestamp);
 
@@ -1883,6 +1940,13 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
     IVersionedReaderPtr reader;
 
+    YT_VERIFY(timestamp != AllCommittedTimestamp || columnFilter.IsUniversal());
+
+    auto schemaIdMapping = BuildVersionedSimpleSchemaIdMapping(
+        columnFilter,
+        chunkState->TableSchema,
+        chunkMeta->GetChunkSchema());
+
     switch (chunkMeta->GetChunkFormat()) {
         case EChunkFormat::TableVersionedSimple:
             reader = New<TSimpleVersionedLookupChunkReader>(
@@ -1892,7 +1956,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 blockCache,
                 chunkReadOptions,
                 keys,
-                columnFilter,
+                schemaIdMapping,
                 performanceCounters,
                 keyComparer,
                 timestamp,
@@ -1909,11 +1973,11 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     std::move(config),
                     chunkMeta,
                     std::move(chunkReader),
-                    chunkMeta->GetSchema()->GetSortColumns(),
+                    chunkState->TableSchema->GetSortColumns(),
                     blockCache,
                     chunkReadOptions,
                     keys,
-                    columnFilter,
+                    schemaIdMapping,
                     performanceCounters,
                     timestamp,
                     memoryManager);
@@ -1922,11 +1986,11 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     std::move(config),
                     chunkMeta,
                     std::move(chunkReader),
-                    chunkMeta->GetSchema()->GetSortColumns(),
+                    chunkState->TableSchema->GetSortColumns(),
                     blockCache,
                     chunkReadOptions,
                     keys,
-                    columnFilter,
+                    schemaIdMapping,
                     performanceCounters,
                     timestamp,
                     memoryManager);
@@ -1959,7 +2023,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     chunkReader,
                     nameTable,
                     chunkReadOptions,
-                    chunkMeta->GetSchema()->GetSortColumns(),
+                    chunkState->TableSchema->GetSortColumns(),
                     /* omittedInaccessibleColumns */ {},
                     columnFilter,
                     keys,
@@ -1973,7 +2037,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
             return CreateVersionedReaderAdapter(
                 std::move(schemafulReaderFactory),
-                chunkMeta->GetSchema(),
+                chunkState->TableSchema,
                 columnFilter,
                 chunkTimestamp);
         }
