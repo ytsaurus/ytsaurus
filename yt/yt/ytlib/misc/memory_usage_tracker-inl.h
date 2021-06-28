@@ -136,7 +136,7 @@ i64 TMemoryUsageTracker<ECategory, TPoolTag>::GetLimit(ECategory category, const
 template <class ECategory, class TPoolTag>
 i64 TMemoryUsageTracker<ECategory, TPoolTag>::DoGetLimit(ECategory category) const
 {
-    return Categories_[category].Limit.load();
+    return std::min(Categories_[category].Limit.load(), GetTotalLimit());
 }
 
 template <class ECategory, class TPoolTag>
