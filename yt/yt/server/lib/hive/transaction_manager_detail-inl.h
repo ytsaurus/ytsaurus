@@ -54,7 +54,7 @@ void TTransactionManagerBase<TTransaction>::RunCommitTransactionActions(TTransac
             }
             it->second.Run(transaction, action.Value);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Unexpected error: commit action failed (TransactionId: %v, ActionType: %v)",
+            YT_LOG_ALERT(ex, "Commit action failed (TransactionId: %v, ActionType: %v)",
                 transaction->GetId(),
                 action.Type);
         }
