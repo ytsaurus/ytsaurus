@@ -5,8 +5,8 @@
 #include <util/generic/hash.h>
 #include <util/string/printf.h>
 #include <util/system/filemap.h>
+#include <util/system/type_name.h>
 #include <util/system/unaligned_mem.h>
-#include <util/memory/tempbuf.h>
 
 #include <dlfcn.h>
 #include <link.h>
@@ -17,21 +17,6 @@
 #include <cxxabi.h>
 
 namespace NYT::NYTProf {
-
-////////////////////////////////////////////////////////////////////////////////
-
-static TString DemangleCxxName(const char* mangledName)
-{
-    TTempBuf buffer;
-
-    size_t returnedLength = buffer.Size();
-    int returnedStatus = 0;
-
-    abi::__cxa_demangle(mangledName, buffer.Data(), &returnedLength, &returnedStatus);
-    return TString(returnedStatus == 0 ? buffer.Data() : mangledName);
-}
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TDLAddrSymbolizer
 {
@@ -61,7 +46,7 @@ public:
                 demangledName = name;
             } else {
                 name = dlinfo.dli_sname;
-                demangledName = DemangleCxxName(dlinfo.dli_sname);
+                demangledName = CppDemangle(dlinfo.dli_sname);
             }
 
             function->set_name(SymbolizeString(demangledName));
@@ -664,7 +649,7 @@ public:
             void* ip = reinterpret_cast<void*>(function->id());
 
             if (auto symbol = SymbolIndex_.FindSymbol(ip)) {
-                function->set_name(SymbolizeString(DemangleCxxName(symbol->Name)));
+                function->set_name(SymbolizeString(CppDemangle(symbol->Name)));
                 function->set_system_name(SymbolizeString(symbol->Name));
             } else if(auto object = SymbolIndex_.FindObject(ip)) {
                 auto offset = reinterpret_cast<intptr_t>(ip) - reinterpret_cast<intptr_t>(object->AddressBegin);
