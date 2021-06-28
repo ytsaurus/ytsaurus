@@ -8,6 +8,7 @@ from util.system.types cimport i64, ui64
 
 from yt.yson.yson_types import YsonStringProxy, get_bytes, YsonType, YsonUint64, YsonInt64, YsonDouble, YsonBoolean, YsonList, YsonMap, YsonString, YsonUnicode, YsonEntity
 
+import six
 
 cdef extern from "library/cpp/yson/node/node.h" namespace "NYT" nogil:
     cdef cppclass TNode:
@@ -84,9 +85,11 @@ cdef TString _to_TString(s):
     return TString(<const char*>s, len(s))
 
 
-cdef _TNode_to_pyobj(TNode node) except +:
+cdef _TNode_to_pyobj(TNode node, bint to_string=False) except +:
     if node.IsString():
-        return node.AsString()
+        r = node.AsString()
+        r = six.ensure_str(r) if to_string else r
+        return r
     elif node.IsInt64():
         return node.AsInt64()
     elif node.IsUint64():
@@ -101,10 +104,14 @@ cdef _TNode_to_pyobj(TNode node) except +:
         return None
     elif node.IsList():
         node_list = node.AsList()
-        return [_TNode_to_pyobj(n) for n in node_list]
+        return [_TNode_to_pyobj(n, to_string) for n in node_list]
     elif node.IsMap():
         node_map = node.AsMap()
-        return {p.first: _TNode_to_pyobj(p.second) for p in node_map}
+        return {
+            six.ensure_str(p.first) if to_string else p.first:
+                _TNode_to_pyobj(p.second, to_string)
+            for p in node_map
+        }
     else:
         # should never happen
         raise Exception()
