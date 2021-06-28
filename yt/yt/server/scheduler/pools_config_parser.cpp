@@ -53,7 +53,7 @@ bool TPoolsConfigParser::TryParse(const INodePtr& configNode, const TString& par
     }
 
     for (const auto& [childName, childNode] : children) {
-        Error_ = CheckPoolName(childName, EPoolNameValidationLevel::Compatible);
+        Error_ = CheckPoolName(childName, EPoolNameValidationLevel::NonStrict);
         if (!Error_.IsOK()) {
             return false;
         }
