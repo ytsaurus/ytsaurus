@@ -1,5 +1,10 @@
 from yt_env_setup import YTEnvSetup
-from yt_commands import *  # noqa
+
+from yt_commands import authors, create, read_table, write_table, raises_yt_error
+
+from yt_type_helpers import optional_type, list_type
+
+import yt.yson as yson
 
 
 class TestDsvFormat(YTEnvSetup):

@@ -1,5 +1,6 @@
 from yt_env_setup import YTEnvSetup
-from yt_commands import *  # noqa
+
+from yt_commands import authors, wait, get, set, ls, exists, create_user
 
 ##################################################################
 
@@ -32,16 +33,18 @@ class TestDiscoveryServers(YTEnvSetup):
 
     @authors("aleksandra-zh")
     def test_discovery_servers_orchid(self):
+        def primary_cell_tag_in_master_cells(ds):
+            master_cells = ls("//sys/discovery_servers/{}/orchid/discovery_server/security/master_cells".format(ds))
+            return str(primary_cell_tag) in master_cells
+
+        def enough_members(ds, primary_cell_tag):
+            members = ls("//sys/discovery_servers/{}/orchid/discovery_server/security/master_cells/{}/@members"
+                         .format(ds, primary_cell_tag))
+            return len(members) == self.NUM_MASTERS
+
         primary_cell_tag = get("//sys/@primary_cell_tag")
         wait(lambda: exists("//sys/discovery_servers"))
 
         ds = ls(("//sys/discovery_servers"))[0]
-        def primary_cell_tag_in_master_cells():
-            master_cells = ls(("//sys/discovery_servers/{}/orchid/discovery_server/security/master_cells").format(ds))
-            return str(primary_cell_tag) in master_cells
-        wait(primary_cell_tag_in_master_cells)
-
-        def enough_members():
-            members = ls(("//sys/discovery_servers/{}/orchid/discovery_server/security/master_cells/{}/@members").format(ds, primary_cell_tag))
-            return len(members) == self.NUM_MASTERS
-        wait(enough_members)
+        wait(lambda: primary_cell_tag_in_master_cells(ds))
+        wait(lambda: enough_members(ds, primary_cell_tag))
