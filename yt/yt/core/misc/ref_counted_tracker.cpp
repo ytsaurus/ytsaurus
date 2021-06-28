@@ -1,7 +1,7 @@
 #include "ref_counted_tracker.h"
-#include "demangle.h"
 #include "format.h"
 
+#include <util/system/type_name.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <algorithm>
@@ -70,7 +70,7 @@ const TSourceLocation& TRefCountedTracker::TNamedSlot::GetLocation() const
 
 TString TRefCountedTracker::TNamedSlot::GetTypeName() const
 {
-    return DemangleCxxName(static_cast<const std::type_info*>(GetTypeKey())->name());
+    return TypeName(*static_cast<const std::type_info*>(GetTypeKey()));
 }
 
 TString TRefCountedTracker::TNamedSlot::GetFullName() const
