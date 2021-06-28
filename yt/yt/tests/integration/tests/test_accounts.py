@@ -4282,6 +4282,8 @@ class TestAccountsMulticell(TestAccounts):
         assert get("//sys/accounts/a/@resource_limits/master_memory/per_cell") ==\
             {"Julia": 100, "1": 200, "George": 300}
 
+        assert sorted(ls("//sys/accounts/a/@multicell_statistics")) == ["1", "George", "Julia"]
+
 
 class TestAccountTreeMulticell(TestAccountTree):
     NUM_SECONDARY_MASTER_CELLS = 2

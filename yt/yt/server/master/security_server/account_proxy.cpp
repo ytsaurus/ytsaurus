@@ -221,10 +221,11 @@ private:
                     break;
                 }
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
                 BuildYsonFluently(consumer)
                     .DoMapFor(account->MulticellStatistics(), [&] (TFluentMap fluent, const std::pair<TCellTag, const TAccountStatistics&>& pair) {
-                        fluent.Item(ToString(pair.first));
+                        fluent.Item(multicellManager->GetMasterCellName(pair.first));
                         Serialize(pair.second, fluent.GetConsumer(), chunkManager);
                     });
                 return true;
