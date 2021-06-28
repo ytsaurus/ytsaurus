@@ -110,7 +110,6 @@ TErrorOr<NApi::IUnversionedRowsetPtr> LookupOperationsInArchive(
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EPoolNameValidationLevel,
-    (Compatible)
     (NonStrict)
     (Strict))
 
