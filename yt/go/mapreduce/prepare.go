@@ -104,8 +104,16 @@ func (p *prepare) setGoMaxProc(spec *spec.UserScript) {
 	}
 }
 
+func isSelfUploadOperationType(operationType yt.OperationType) bool {
+	switch operationType {
+	case yt.OperationRemoteCopy, yt.OperationMerge, yt.OperationSort, yt.OperationErase:
+		return false
+	}
+	return true
+}
+
 func (p *prepare) prepare(opts []OperationOption) error {
-	skipSelfUpload := false
+	skipSelfUpload := !isSelfUploadOperationType(p.spec.Type)
 	for _, opt := range opts {
 		switch opt := opt.(type) {
 		case *localFilesOption:
@@ -117,7 +125,7 @@ func (p *prepare) prepare(opts []OperationOption) error {
 		}
 	}
 
-	if p.spec.Type != yt.OperationRemoteCopy && !skipSelfUpload {
+	if !skipSelfUpload {
 		if err := p.mr.uploadSelf(p.ctx); err != nil {
 			return err
 		}
