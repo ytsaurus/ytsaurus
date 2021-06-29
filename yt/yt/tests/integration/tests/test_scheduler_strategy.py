@@ -1055,7 +1055,6 @@ class TestSchedulerPreemption(YTEnvSetup):
         super(TestSchedulerPreemption, self).setup_method(method)
         set("//sys/pool_trees/default/@config/preemption_satisfaction_threshold", 0.99)
         set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance", 0.7)
-        set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance_limit", 0.9)
         set("//sys/pool_trees/default/@config/fair_share_starvation_timeout", 1000)
         set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 0)
         set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
@@ -1227,21 +1226,24 @@ class TestSchedulerPreemption(YTEnvSetup):
 
     @authors("ignat")
     def test_recursive_preemption_settings(self):
-        create_pool("p1", attributes={"fair_share_starvation_tolerance_limit": 0.6})
+        def get_pool_tolerance(pool):
+            return get(scheduler_orchid_pool_path(pool) + "/effective_fair_share_starvation_tolerance")
+
+        def get_operation_tolerance(op):
+            return op.get_runtime_progress(
+                "scheduling_info_per_pool_tree/default/effective_fair_share_starvation_tolerance", 0.0)
+
+        create_pool("p1", attributes={"fair_share_starvation_tolerance": 0.6})
         create_pool("p2", parent_name="p1")
         create_pool("p3", parent_name="p1", attributes={"fair_share_starvation_tolerance": 0.5})
         create_pool("p4", parent_name="p1", attributes={"fair_share_starvation_tolerance": 0.9})
         create_pool("p5", attributes={"fair_share_starvation_tolerance": 0.8})
         create_pool("p6", parent_name="p5")
 
-        get_pool_tolerance = lambda pool: get(
-            scheduler_orchid_pool_path(pool) + "/adjusted_fair_share_starvation_tolerance"
-        )
-
-        wait(lambda: get_pool_tolerance("p1") == 0.7)
+        wait(lambda: get_pool_tolerance("p1") == 0.6)
         wait(lambda: get_pool_tolerance("p2") == 0.6)
         wait(lambda: get_pool_tolerance("p3") == 0.5)
-        wait(lambda: get_pool_tolerance("p4") == 0.6)
+        wait(lambda: get_pool_tolerance("p4") == 0.9)
         wait(lambda: get_pool_tolerance("p5") == 0.8)
         wait(lambda: get_pool_tolerance("p6") == 0.8)
 
@@ -1257,7 +1259,7 @@ class TestSchedulerPreemption(YTEnvSetup):
             command="sleep 1000; cat",
             in_="//tmp/t_in",
             out="//tmp/t_out1",
-            spec={"pool": "p2", "fair_share_starvation_tolerance": 0.4},
+            spec={"pool": "p2"},
         )
 
         op2 = map(
@@ -1265,31 +1267,11 @@ class TestSchedulerPreemption(YTEnvSetup):
             command="sleep 1000; cat",
             in_="//tmp/t_in",
             out="//tmp/t_out2",
-            spec={"pool": "p2", "fair_share_starvation_tolerance": 0.8},
-        )
-
-        op3 = map(
-            track=False,
-            command="sleep 1000; cat",
-            in_="//tmp/t_in",
-            out="//tmp/t_out3",
             spec={"pool": "p6"},
         )
 
-        op4 = map(
-            track=False,
-            command="sleep 1000; cat",
-            in_="//tmp/t_in",
-            out="//tmp/t_out4",
-            spec={"pool": "p6", "fair_share_starvation_tolerance": 0.9},
-        )
-
-        get_operation_tolerance = lambda op: op.get_runtime_progress("scheduling_info_per_pool_tree/default/adjusted_fair_share_starvation_tolerance", 0.0)
-
-        wait(lambda: get_operation_tolerance(op1) == 0.4)
-        wait(lambda: get_operation_tolerance(op2) == 0.6)
-        wait(lambda: get_operation_tolerance(op3) == 0.8)
-        wait(lambda: get_operation_tolerance(op4) == 0.9)
+        wait(lambda: get_operation_tolerance(op1) == 0.6)
+        wait(lambda: get_operation_tolerance(op2) == 0.8)
 
     @authors("asaitgalin", "ignat")
     def test_preemption_of_jobs_excessing_resource_limits(self):
@@ -1524,6 +1506,7 @@ class TestSchedulingBugOfOperationWithGracefulPreemption(YTEnvSetup):
         # 3. operation status becomes Normal since usage/fair_share is greater than fair_share_starvation_tolerance;
         # 4. next job will never be scheduled cause scheduler doesn't schedule jobs for operations with graceful preemption and Normal status.
 
+        create_pool("pool", attributes={"fair_share_starvation_tolerance": 0.4})
         # TODO(renadeen): need this placeholder operation to work around some bugs in scheduler (YT-13840).
         run_test_vanilla(with_breakpoint("BREAKPOINT", breakpoint_name="placeholder"))
 
@@ -1532,7 +1515,7 @@ class TestSchedulingBugOfOperationWithGracefulPreemption(YTEnvSetup):
             job_count=2,
             spec={
                 "preemption_mode": "graceful",
-                "fair_share_starvation_tolerance": 0.4
+                "pool": "pool",
             }
         )
 
@@ -1999,7 +1982,6 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
         set("//sys/pool_trees/default/@config/aggressive_preemption_satisfaction_threshold", 0.2)
         set("//sys/pool_trees/default/@config/preemption_satisfaction_threshold", 1.0)
         set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance", 0.9)
-        set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance_limit", 0.9)
         set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 0)
         set("//sys/pool_trees/default/@config/fair_share_starvation_timeout", 100)
         set("//sys/pool_trees/default/@config/fair_share_starvation_timeout_limit", 100)
@@ -3128,7 +3110,6 @@ class TestSchedulingSegments(YTEnvSetup):
         set("//sys/pool_trees/default/@config/fair_share_starvation_timeout", 100)
         set("//sys/pool_trees/default/@config/fair_share_starvation_timeout_limit", 100)
         set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance", 0.95)
-        set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance_limit", 0.95)
         set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 80)
         wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/max_unpreemptable_running_job_count") == 80)
 
@@ -3879,7 +3860,6 @@ class TestSchedulingSegmentsMultiDataCenter(YTEnvSetup):
         set("//sys/pool_trees/default/@config/fair_share_starvation_timeout", 100)
         set("//sys/pool_trees/default/@config/fair_share_starvation_timeout_limit", 100)
         set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance", 0.95)
-        set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance_limit", 0.95)
         set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 80)
         wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/max_unpreemptable_running_job_count") == 80)
 

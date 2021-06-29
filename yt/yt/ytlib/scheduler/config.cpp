@@ -1915,6 +1915,14 @@ TStrategyOperationSpec::TStrategyOperationSpec()
             THROW_ERROR_EXCEPTION("%Qv option is forbidden to specify in operation spec",
                 "allow_aggressive_preemption");
         }
+        if (FairShareStarvationTimeout.has_value()) {
+            THROW_ERROR_EXCEPTION("%Qv option is forbidden to specify in operation spec",
+                "fair_share_starvation_timeout");
+        }
+        if (FairShareStarvationTolerance.has_value()) {
+            THROW_ERROR_EXCEPTION("%Qv option is forbidden to specify in operation spec",
+                "fair_share_starvation_tolerance");
+        }
     });
 }
 

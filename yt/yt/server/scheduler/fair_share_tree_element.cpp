@@ -281,23 +281,27 @@ void TSchedulerElement::UpdatePreemptionAttributes()
     YT_VERIFY(Mutable_);
 
     if (Parent_) {
-        AdjustedFairShareStarvationTolerance_ = std::min(
-            GetFairShareStarvationTolerance(),
-            Parent_->AdjustedFairShareStarvationToleranceLimit());
+        EffectiveFairShareStarvationTolerance_ = GetSpecifiedFairShareStarvationTolerance().value_or(
+            Parent_->GetEffectiveFairShareStarvationTolerance());
 
-        AdjustedFairShareStarvationTimeout_ = std::max(
-            GetFairShareStarvationTimeout(),
-            Parent_->AdjustedFairShareStarvationTimeoutLimit());
+        EffectiveFairShareStarvationTimeout_ = GetSpecifiedFairShareStarvationTimeout().value_or(
+            Parent_->GetEffectiveFairShareStarvationTimeout());
 
         EffectiveAggressivePreemptionAllowed_ = IsAggressivePreemptionAllowed()
             .value_or(Parent_->GetEffectiveAggressivePreemptionAllowed());
-        
+
         EffectiveAggressiveStarvationEnabled_ = IsAggressiveStarvationEnabled()
             .value_or(Parent_->GetEffectiveAggressiveStarvationEnabled());
     } else { // Root case
+        YT_VERIFY(GetSpecifiedFairShareStarvationTolerance().has_value());
+        EffectiveFairShareStarvationTolerance_ = *GetSpecifiedFairShareStarvationTolerance();
+
+        YT_VERIFY(GetSpecifiedFairShareStarvationTimeout().has_value());
+        EffectiveFairShareStarvationTimeout_ = *GetSpecifiedFairShareStarvationTimeout();
+
         YT_VERIFY(IsAggressivePreemptionAllowed().has_value());
         EffectiveAggressivePreemptionAllowed_ = *IsAggressivePreemptionAllowed();
-        
+
         YT_VERIFY(IsAggressiveStarvationEnabled().has_value());
         EffectiveAggressiveStarvationEnabled_ = *IsAggressiveStarvationEnabled();
     }
@@ -866,7 +870,7 @@ void TSchedulerCompositeElement::PreUpdateBottomUp(NFairShare::TFairShareUpdateC
         ResourceUsageAtUpdate_ += child->GetResourceUsageAtUpdate();
         ResourceDemand_ += child->GetResourceDemand();
         PendingJobCount_ += child->GetPendingJobCount();
-        
+
         if (IsInferringChildrenWeightsFromHistoricUsageEnabled()) {
             // NB(eshcherbin): This is a lazy parameters update so it has to be done every time.
             child->PersistentAttributes_.HistoricUsageAggregator.UpdateParameters(
@@ -907,22 +911,6 @@ void TSchedulerCompositeElement::BuildSchedulableChildrenLists(TFairSharePostUpd
     }
 }
 
-void TSchedulerCompositeElement::UpdatePreemptionAttributes()
-{
-    YT_VERIFY(Mutable_);
-    TSchedulerElement::UpdatePreemptionAttributes();
-
-    if (Parent_) {
-        AdjustedFairShareStarvationToleranceLimit_ = std::min(
-            GetFairShareStarvationToleranceLimit(),
-            Parent_->AdjustedFairShareStarvationToleranceLimit());
-
-        AdjustedFairShareStarvationTimeoutLimit_ = std::max(
-            GetFairShareStarvationTimeoutLimit(),
-            Parent_->AdjustedFairShareStarvationTimeoutLimit());
-    }
-}
-
 void TSchedulerCompositeElement::UpdateSchedulableAttributesFromDynamicAttributes(
     TDynamicAttributesList* dynamicAttributesList,
     const TChildHeapMap& childHeapMap)
@@ -932,16 +920,6 @@ void TSchedulerCompositeElement::UpdateSchedulableAttributesFromDynamicAttribute
     }
 
     TSchedulerElement::UpdateSchedulableAttributesFromDynamicAttributes(dynamicAttributesList, childHeapMap);
-}
-
-double TSchedulerCompositeElement::GetFairShareStarvationToleranceLimit() const
-{
-    return 1.0;
-}
-
-TDuration TSchedulerCompositeElement::GetFairShareStarvationTimeoutLimit() const
-{
-    return TDuration::Zero();
 }
 
 void TSchedulerCompositeElement::UpdateDynamicAttributes(
@@ -1551,27 +1529,17 @@ TIntegralResourcesState& TSchedulerPoolElement::IntegralResourcesState()
 
 ESchedulableStatus TSchedulerPoolElement::GetStatus(bool atUpdate) const
 {
-    return TSchedulerElement::GetStatusImpl(AdjustedFairShareStarvationTolerance_, atUpdate);
+    return TSchedulerElement::GetStatusImpl(EffectiveFairShareStarvationTolerance_, atUpdate);
 }
 
-double TSchedulerPoolElement::GetFairShareStarvationTolerance() const
+std::optional<double> TSchedulerPoolElement::GetSpecifiedFairShareStarvationTolerance() const
 {
-    return Config_->FairShareStarvationTolerance.value_or(Parent_->GetAdjustedFairShareStarvationTolerance());
+    return Config_->FairShareStarvationTolerance;
 }
 
-TDuration TSchedulerPoolElement::GetFairShareStarvationTimeout() const
+std::optional<TDuration> TSchedulerPoolElement::GetSpecifiedFairShareStarvationTimeout() const
 {
-    return Config_->FairShareStarvationTimeout.value_or(Parent_->GetAdjustedFairShareStarvationTimeout());
-}
-
-double TSchedulerPoolElement::GetFairShareStarvationToleranceLimit() const
-{
-    return Config_->FairShareStarvationToleranceLimit.value_or(TreeConfig_->FairShareStarvationToleranceLimit);
-}
-
-TDuration TSchedulerPoolElement::GetFairShareStarvationTimeoutLimit() const
-{
-    return Config_->FairShareStarvationTimeoutLimit.value_or(TreeConfig_->FairShareStarvationTimeoutLimit);
+    return Config_->FairShareStarvationTimeout;
 }
 
 void TSchedulerPoolElement::SetStarvationStatus(EStarvationStatus starvationStatus)
@@ -1591,7 +1559,7 @@ void TSchedulerPoolElement::CheckForStarvation(TInstant now)
     YT_VERIFY(Mutable_);
 
     TSchedulerElement::CheckForStarvationImpl(
-        AdjustedFairShareStarvationTimeout_,
+        EffectiveFairShareStarvationTimeout_,
         TreeConfig_->FairShareAggressiveStarvationTimeout,
         now);
 }
@@ -1721,7 +1689,7 @@ void TSchedulerPoolElement::ChangeParent(TSchedulerCompositeElement* newParent)
     {
         const auto* currentParent = newParent;
         while (currentParent != nullptr) {
-            destinationHasSpecifiedResourceLimits = destinationHasSpecifiedResourceLimits || 
+            destinationHasSpecifiedResourceLimits = destinationHasSpecifiedResourceLimits ||
                 (currentParent->PersistentAttributes().AppliedResourceLimits != TJobResources::Infinite());
             currentParent = currentParent->GetParent();
         }
@@ -2230,7 +2198,7 @@ void TSchedulerOperationElementSharedState::UpdateShardState()
     }
     LastStateShardsUpdateTime_ = now;
 }
-        
+
 TInstant TSchedulerOperationElementSharedState::GetLastScheduleJobSuccessTime() const
 {
     auto guard = ReaderGuard(JobPropertiesMapLock_);
@@ -2470,14 +2438,14 @@ TSchedulerOperationElement::TSchedulerOperationElement(
     , Controller_(other.Controller_)
 { }
 
-double TSchedulerOperationElement::GetFairShareStarvationTolerance() const
+std::optional<double> TSchedulerOperationElement::GetSpecifiedFairShareStarvationTolerance() const
 {
-    return Spec_->FairShareStarvationTolerance.value_or(Parent_->GetAdjustedFairShareStarvationTolerance());
+    return Spec_->FairShareStarvationTolerance;
 }
 
-TDuration TSchedulerOperationElement::GetFairShareStarvationTimeout() const
+std::optional<TDuration> TSchedulerOperationElement::GetSpecifiedFairShareStarvationTimeout() const
 {
-    return Spec_->FairShareStarvationTimeout.value_or(Parent_->GetAdjustedFairShareStarvationTimeout());
+    return Spec_->FairShareStarvationTimeout;
 }
 
 void TSchedulerOperationElement::DisableNonAliveElements()
@@ -2989,7 +2957,7 @@ ESchedulableStatus TSchedulerOperationElement::GetStatus(bool atUpdate) const
         return ESchedulableStatus::Normal;
     }
 
-    return TSchedulerElement::GetStatusImpl(AdjustedFairShareStarvationTolerance_, atUpdate);
+    return TSchedulerElement::GetStatusImpl(EffectiveFairShareStarvationTolerance_, atUpdate);
 }
 
 void TSchedulerOperationElement::SetStarvationStatus(EStarvationStatus starvationStatus)
@@ -3018,7 +2986,7 @@ void TSchedulerOperationElement::CheckForStarvation(TInstant now)
 {
     YT_VERIFY(Mutable_);
 
-    auto fairShareStarvationTimeout = AdjustedFairShareStarvationTimeout_;
+    auto fairShareStarvationTimeout = EffectiveFairShareStarvationTimeout_;
     auto fairShareAggressiveStarvationTimeout = TreeConfig_->FairShareAggressiveStarvationTimeout;
 
     double jobCountRatio = GetPendingJobCount() / TreeConfig_->JobCountPreemptionTimeoutCoefficient;
@@ -3061,7 +3029,7 @@ bool TSchedulerOperationElement::IsPreemptionAllowed(
             return false;
         }
 
-        bool aggressivePreemptionAllowed = 
+        bool aggressivePreemptionAllowed =
             isAggressivePreemption &&
             element->GetEffectiveAggressivePreemptionAllowed() &&
             GetEffectiveAggressivePreemptionAllowed();
@@ -3572,12 +3540,7 @@ TSchedulerRootElement::TSchedulerRootElement(
             RootPoolName,
             ESchedulingMode::FairShare))
 {
-
     Mode_ = ESchedulingMode::FairShare;
-    AdjustedFairShareStarvationTolerance_ = GetFairShareStarvationTolerance();
-    AdjustedFairShareStarvationTimeout_ = GetFairShareStarvationTimeout();
-    AdjustedFairShareStarvationToleranceLimit_ = GetFairShareStarvationToleranceLimit();
-    AdjustedFairShareStarvationTimeoutLimit_ = GetFairShareStarvationTimeoutLimit();
 }
 
 TSchedulerRootElement::TSchedulerRootElement(const TSchedulerRootElement& other)
@@ -3588,9 +3551,6 @@ TSchedulerRootElement::TSchedulerRootElement(const TSchedulerRootElement& other)
 void TSchedulerRootElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config)
 {
     TSchedulerCompositeElement::UpdateTreeConfig(config);
-
-    AdjustedFairShareStarvationTolerance_ = GetFairShareStarvationTolerance();
-    AdjustedFairShareStarvationTimeout_ = GetFairShareStarvationTimeout();
 }
 
 void TSchedulerRootElement::PreUpdate(NFairShare::TFairShareUpdateContext* context)
@@ -3663,12 +3623,12 @@ TResourceVector TSchedulerRootElement::GetMaxShare() const
     return TResourceVector::Ones();
 }
 
-double TSchedulerRootElement::GetFairShareStarvationTolerance() const
+std::optional<double> TSchedulerRootElement::GetSpecifiedFairShareStarvationTolerance() const
 {
     return TreeConfig_->FairShareStarvationTolerance;
 }
 
-TDuration TSchedulerRootElement::GetFairShareStarvationTimeout() const
+std::optional<TDuration> TSchedulerRootElement::GetSpecifiedFairShareStarvationTimeout() const
 {
     return TreeConfig_->FairShareStarvationTimeout;
 }

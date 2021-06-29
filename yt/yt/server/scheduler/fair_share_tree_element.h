@@ -264,8 +264,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, SchedulingTagFilterIndex, EmptySchedulingTagFilterIndex);
 
     // These fields are set in post update and used in schedule jobs.
-    DEFINE_BYVAL_RO_PROPERTY(double, AdjustedFairShareStarvationTolerance, 1.0);
-    DEFINE_BYVAL_RO_PROPERTY(TDuration, AdjustedFairShareStarvationTimeout);
+    DEFINE_BYVAL_RO_PROPERTY(double, EffectiveFairShareStarvationTolerance, 1.0);
+    DEFINE_BYVAL_RO_PROPERTY(TDuration, EffectiveFairShareStarvationTimeout);
 
     DEFINE_BYVAL_RO_PROPERTY(bool, EffectiveAggressiveStarvationEnabled, false)
     DEFINE_BYVAL_RO_PROPERTY(bool, EffectiveAggressivePreemptionAllowed, true);
@@ -340,8 +340,8 @@ public:
 
     TJobResources GetInstantResourceUsage() const;
 
-    virtual double GetFairShareStarvationTolerance() const = 0;
-    virtual TDuration GetFairShareStarvationTimeout() const = 0;
+    virtual std::optional<double> GetSpecifiedFairShareStarvationTolerance() const = 0;
+    virtual std::optional<TDuration> GetSpecifiedFairShareStarvationTimeout() const = 0;
 
     virtual ESchedulableStatus GetStatus(bool atUpdate = true) const;
 
@@ -519,10 +519,6 @@ public:
     DEFINE_BYREF_RW_PROPERTY(int, OperationCount);
     DEFINE_BYREF_RW_PROPERTY(std::list<TOperationId>, PendingOperationIds);
 
-    // Used only in schedule jobs.
-    DEFINE_BYREF_RO_PROPERTY(double, AdjustedFairShareStarvationToleranceLimit);
-    DEFINE_BYREF_RO_PROPERTY(TDuration, AdjustedFairShareStarvationTimeoutLimit);
-
 protected:
     // Used in fair share update.
     ESchedulingMode Mode_ = ESchedulingMode::Fifo;
@@ -648,7 +644,6 @@ protected:
     virtual int EnumerateElements(int startIndex, bool isSchedulableValueFilter) override;
 
     virtual void PublishFairShareAndUpdatePreemptionSettings() override;
-    virtual void UpdatePreemptionAttributes() override;
 
     virtual void UpdateSchedulableAttributesFromDynamicAttributes(
         TDynamicAttributesList* dynamicAttributesList,
@@ -660,9 +655,6 @@ protected:
         const THashMap<TOperationId, TOperationSchedulingSegmentContext>& operationContexts) override;
 
     virtual void BuildElementMapping(TFairSharePostUpdateContext* context) override;
-
-    virtual double GetFairShareStarvationToleranceLimit() const;
-    virtual TDuration GetFairShareStarvationTimeoutLimit() const;
 
     // Used to implement GetWeight.
     virtual bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const = 0;
@@ -781,11 +773,8 @@ public:
     //! Post fair share update methods.
     virtual void CheckForStarvation(TInstant now) override;
 
-    virtual double GetFairShareStarvationTolerance() const override;
-    virtual TDuration GetFairShareStarvationTimeout() const override;
-
-    virtual double GetFairShareStarvationToleranceLimit() const override;
-    virtual TDuration GetFairShareStarvationTimeoutLimit() const override;
+    virtual std::optional<double> GetSpecifiedFairShareStarvationTolerance() const override;
+    virtual std::optional<TDuration> GetSpecifiedFairShareStarvationTimeout() const override;
 
     //! Schedule job methods.
     virtual std::optional<bool> IsAggressiveStarvationEnabled() const override;
@@ -1127,8 +1116,8 @@ public:
     virtual void PublishFairShareAndUpdatePreemptionSettings() override;
     virtual void UpdatePreemptionAttributes() override;
 
-    virtual double GetFairShareStarvationTolerance() const override;
-    virtual TDuration GetFairShareStarvationTimeout() const override;
+    virtual std::optional<double> GetSpecifiedFairShareStarvationTolerance() const override;
+    virtual std::optional<TDuration> GetSpecifiedFairShareStarvationTimeout() const override;
 
     //! Schedule job methods.
     virtual void PrescheduleJob(
@@ -1311,8 +1300,8 @@ public:
 
     virtual void CheckForStarvation(TInstant now) override;
 
-    virtual double GetFairShareStarvationTolerance() const override;
-    virtual TDuration GetFairShareStarvationTimeout() const override;
+    virtual std::optional<double> GetSpecifiedFairShareStarvationTolerance() const override;
+    virtual std::optional<TDuration> GetSpecifiedFairShareStarvationTimeout() const override;
 
     //! Schedule job methods.
     virtual std::optional<bool> IsAggressiveStarvationEnabled() const override;
