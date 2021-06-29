@@ -85,12 +85,12 @@ TClientChunkReadOptions CreateChunkReadOptions(const TString& user)
 }
 
 // Analog of the method from MergeTreeBaseSelectBlockInputStream::executePrewhereActions from CH.
-void ExecutePrewhereActions(DB::Block& block, const DB::PrewhereInfoPtr& prewhereInfo)
+void ExecutePrewhereActions(DB::Block& block, const DB::ExpressionActionsPtr & prewhereAliasActions, const DB::ExpressionActionsPtr & prewhereActions)
 {
-    if (prewhereInfo->alias_actions) {
-        prewhereInfo->alias_actions->execute(block);
+    if (prewhereAliasActions) {
+        prewhereAliasActions->execute(block);
     }
-    prewhereInfo->prewhere_actions->execute(block);
+    prewhereActions->execute(block);
     if (!block) {
         block.insert({nullptr, std::make_shared<DB::DataTypeNothing>(), "_nothing"});
     }
@@ -98,18 +98,18 @@ void ExecutePrewhereActions(DB::Block& block, const DB::PrewhereInfoPtr& prewher
 
 DB::Block FilterRowsByPrewhereInfo(
     DB::Block&& blockToFilter,
-    const DB::PrewhereInfoPtr& prewhereInfo)
+    const DB::ExpressionActionsPtr & prewhereAliasActions, const DB::ExpressionActionsPtr & prewhereActions, const std::string & prewhereColumnName)
 {
     auto columnsWithTypeAndName = blockToFilter.getColumnsWithTypeAndName();
 
     // Create prewhere column for filtering.
-    ExecutePrewhereActions(blockToFilter, prewhereInfo);
+    ExecutePrewhereActions(blockToFilter, prewhereAliasActions, prewhereActions);
 
     // Extract or materialize filter data.
     // Note that prewhere column is either UInt8 or Nullable(UInt8).
     const DB::IColumn::Filter* filter;
     DB::IColumn::Filter materializedFilter;
-    const auto& prewhereColumn = blockToFilter.getByName(prewhereInfo->prewhere_column_name).column;
+    const auto& prewhereColumn = blockToFilter.getByName(prewhereColumnName).column;
     if (const auto* nullablePrewhereColumn = DB::checkAndGetColumn<DB::ColumnNullable>(prewhereColumn.get())) {
         const auto* prewhereNullsColumn = DB::checkAndGetColumn<DB::ColumnVector<DB::UInt8>>(nullablePrewhereColumn->getNullMapColumn());
         YT_VERIFY(prewhereNullsColumn);
@@ -139,7 +139,7 @@ DB::Block FilterRowsByPrewhereInfo(
     auto filteredBlock = DB::Block(std::move(columnsWithTypeAndName));
 
     // Execute prewhere actions for filtered block.
-    ExecutePrewhereActions(filteredBlock, prewhereInfo);
+    ExecutePrewhereActions(filteredBlock, prewhereAliasActions, prewhereActions);
 
     return filteredBlock;
 }
@@ -278,7 +278,7 @@ DB::Block TBlockInputStream::readImpl()
         }
 
         if (PrewhereInfo_) {
-            block = FilterRowsByPrewhereInfo(std::move(block), PrewhereInfo_);
+            block = FilterRowsByPrewhereInfo(std::move(block), PrewhereAliasActions_, PrewhereActions_, PrewhereInfo_->prewhere_column_name);
         }
 
         // NB: ConvertToField copies all strings, so clearing row buffer is safe here.
@@ -299,8 +299,11 @@ void TBlockInputStream::Prepare()
     OutputHeaderBlock_ = ToHeaderBlock(*ReadSchemaWithVirtualColumns_, Settings_->Composite);
 
     if (PrewhereInfo_) {
+        if (PrewhereInfo_->alias_actions)
+            PrewhereAliasActions_ = std::make_shared<DB::ExpressionActions>(PrewhereInfo_->alias_actions);
+        PrewhereActions_ = std::make_shared<DB::ExpressionActions>(PrewhereInfo_->prewhere_actions);
         // Create header with executed prewhere actions.
-        ExecutePrewhereActions(OutputHeaderBlock_, PrewhereInfo_);
+        ExecutePrewhereActions(OutputHeaderBlock_, PrewhereAliasActions_, PrewhereActions_);
     }
 
     for (int index = 0; index < ReadSchemaWithVirtualColumns_->GetColumnCount(); ++index) {

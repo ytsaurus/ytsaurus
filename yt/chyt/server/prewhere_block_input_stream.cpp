@@ -28,9 +28,9 @@ Names ExtractColumnsFromPrewhereInfo(PrewhereInfoPtr prewhereInfo)
 {
     Names prewhereColumns;
     if (prewhereInfo->alias_actions) {
-        prewhereColumns = prewhereInfo->alias_actions->getRequiredColumns();
+        prewhereColumns = prewhereInfo->alias_actions->getRequiredColumnsNames();
     } else {
-        prewhereColumns = prewhereInfo->prewhere_actions->getRequiredColumns();
+        prewhereColumns = prewhereInfo->prewhere_actions->getRequiredColumnsNames();
     }
     return prewhereColumns;
 }
