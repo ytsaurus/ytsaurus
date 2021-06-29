@@ -5,15 +5,6 @@ namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TPyObjectDeleter::operator() (PyObject* object) const
-{
-    if (object) {
-        Py::_XDECREF(object);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TPythonStringCache::TItem::TItem() = default;
 
 TPythonStringCache::TItem::TItem(const TItem& other)

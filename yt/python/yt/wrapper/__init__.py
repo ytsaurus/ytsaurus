@@ -27,10 +27,12 @@ from .format import (DsvFormat, YamrFormat, YsonFormat, JsonFormat, SchemafulDsv
                      YamredDsvFormat, Format, create_format, dumps_row, loads_row, YtFormatError, create_table_switch)
 from .ypath import YPath, TablePath, FilePath, ypath_join, ypath_dirname, ypath_split, escape_ypath_literal
 from .operation_commands import format_operation_stderrs, Operation
+from .prepare_operation import TypedJob
 from .operations_tracker import OperationsTracker, OperationsTrackerPool
 from .py_wrapper import (aggregator, raw, raw_io, reduce_aggregator,
                          enable_python_job_processing_for_standalone_binary, initialize_python_job_processing,
                          with_context, with_skiff_schemas)
+from .schema import yt_dataclass, OutputRow
 from .string_iter_io import StringIterIO
 from .user_statistics import write_statistics
 from .yamr_mode import set_yamr_mode
@@ -46,6 +48,8 @@ from .http_helpers import (_cleanup_http_session,
                            get_token as _get_token,
                            get_proxy_url as _get_proxy_url,
                            make_request_with_retries as _make_http_request_with_retries)
+
+from . import schema
 
 # For PyCharm checks
 from . import config

@@ -79,6 +79,8 @@ class YtResponseError(yt.common.YtResponseError):
             self.__class__ = YtTransportError
         elif self.is_operation_progress_outdated():
             self.__class__ = YtOperationProgressOutdated
+        elif self.is_resolve_error():
+            self.__class__ = YtResolveError
         else:
             pass
 
@@ -231,4 +233,8 @@ class YtAllTargetNodesFailed(YtHttpResponseError):
 
 class YtOperationProgressOutdated(YtHttpResponseError):
     """Operation progress in Cypress is outdated while archive request failed."""
+    pass
+
+class YtResolveError(YtHttpResponseError):
+    """Cypress node not found"""
     pass
