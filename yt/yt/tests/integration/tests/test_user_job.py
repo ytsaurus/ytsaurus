@@ -979,7 +979,9 @@ class TestArtifactCacheBypass(YTEnvSetup):
         )
 
         statistics = get(op.get_path() + "/@progress/job_statistics")
-        bypassed_size = get_statistics(statistics, "exec_agent.artifacts.cache_bypassed_artifacts_size.$.completed.map.sum")
+        bypassed_size = get_statistics(
+            statistics,
+            "exec_agent.artifacts.cache_bypassed_artifacts_size.$.completed.map.sum")
         assert bypassed_size == 18
 
         wait(lambda: sum(counter.get_delta() for counter in counters) == 18)
@@ -1082,7 +1084,7 @@ class TestArtifactCacheBypass(YTEnvSetup):
         def check():
             try:
                 return get("{0}/@progress/jobs/aborted/total".format(op.get_path())) > 0
-            except:
+            except YtError:
                 return False
         wait(check, sleep_backoff=0.6)
 
@@ -1101,9 +1103,9 @@ class TestUserJobIsolation(YTEnvSetup):
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
-                    "test_network": True, # Deprecated from 21.2+
-                    "porto_executor" : {
-                        "enable_network_isolation" : False
+                    "test_network": True,  # Deprecated from 21.2+
+                    "porto_executor": {
+                        "enable_network_isolation": False
                     }
                 },
             }
@@ -1168,7 +1170,7 @@ class TestUserJobIsolation(YTEnvSetup):
             with_breakpoint("getent hosts $(hostname) | awk '{ print $1 }' >&2; BREAKPOINT"),
             task_patch={"network_project": "n"},
         )
-        
+
         job_id = wait_breakpoint()[0]
         assert "dead:beef" in get_job_stderr(op.id, job_id)
 
@@ -1218,7 +1220,10 @@ class TestJobStderr(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
 
-        command = """cat > /dev/null; echo stderr 1>&2; echo {operation='"'$YT_OPERATION_ID'"'}';'; echo {job_index=$YT_JOB_INDEX};"""
+        command = "cat > /dev/null;\n"\
+                  "echo stderr 1>&2;\n"\
+                  "echo \"{operation=\"\'\"\'$YT_OPERATION_ID\'\"\'}\';\';\n"\
+                  "echo \"{job_index=$YT_JOB_INDEX}\";"
 
         op = map(in_="//tmp/t1", out="//tmp/t2", command=command)
 

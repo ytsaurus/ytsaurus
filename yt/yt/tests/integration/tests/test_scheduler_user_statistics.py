@@ -1,7 +1,13 @@
-import pytest
+from yt_env_setup import YTEnvSetup
 
-from yt_env_setup import YTEnvSetup, wait
-from yt_commands import *  # noqa
+from yt_commands import (
+    authors, wait,
+    get, create, write_table, get_statistics, map,
+    with_breakpoint, wait_breakpoint, release_breakpoint)
+
+from yt.common import YtError
+
+import pytest
 
 ##################################################################
 
@@ -63,7 +69,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         long_name = "a" * 2048
 
         with pytest.raises(YtError):
-            op = map(
+            map(
                 in_="//tmp/t1",
                 out="//tmp/t2",
                 spec={"max_failed_job_count": 1},
