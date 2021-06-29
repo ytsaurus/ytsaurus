@@ -114,30 +114,35 @@ DEFINE_REFCOUNTED_TYPE(TJobResourcesConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPreemptionConfig
+class TCommonPreemptionConfig
     : public virtual NYTree::TYsonSerializable
+{
+public:
+    std::optional<bool> EnableAggressiveStarvation;
+
+    TCommonPreemptionConfig();
+};
+
+class TPoolPreemptionConfig
+    : public virtual NYTree::TYsonSerializable
+    , public TCommonPreemptionConfig
 {
 public:
     // The following settings override scheduler configuration is specified.
     std::optional<TDuration> FairShareStarvationTimeout;
     std::optional<double> FairShareStarvationTolerance;
 
-    std::optional<TDuration> FairShareStarvationTimeoutLimit;
-    std::optional<double> FairShareStarvationToleranceLimit;
-
     std::optional<bool> AllowAggressivePreemption;
-    std::optional<bool> EnableAggressiveStarvation;
 
-    TPreemptionConfig();
+    TPoolPreemptionConfig();
 };
 
-DEFINE_REFCOUNTED_TYPE(TPreemptionConfig)
+DEFINE_REFCOUNTED_TYPE(TPoolPreemptionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulableConfig
     : public virtual NYTree::TYsonSerializable
-    , public TPreemptionConfig
 {
 public:
     std::optional<double> Weight;
@@ -218,6 +223,7 @@ DEFINE_REFCOUNTED_TYPE(TPoolIntegralGuaranteesConfig)
 
 class TPoolConfig
     : public TSchedulableConfig
+    , public TPoolPreemptionConfig
 {
 public:
     ESchedulingMode Mode;
@@ -336,6 +342,7 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategyPackingConfig)
 
 class TStrategyOperationSpec
     : public TSchedulableConfig
+    , public TCommonPreemptionConfig
     , public virtual NPhoenix::TDynamicTag
 {
 public:
@@ -1624,7 +1631,7 @@ DEFINE_REFCOUNTED_TYPE(TJobCpuMonitorConfig)
 
 // This config contains options allowed in pool preset configs.
 class TPoolPresetConfig
-    : public TPreemptionConfig
+    : public TPoolPreemptionConfig
 {
 public:
     TPoolPresetConfig();
