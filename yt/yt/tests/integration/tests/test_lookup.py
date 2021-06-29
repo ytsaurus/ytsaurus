@@ -47,7 +47,7 @@ from yt_commands import (  # noqa
     make_random_string, raises_yt_error,
     build_snapshot, gc_collect, is_multicell,
     get_driver, Driver, execute_command,
-    AsyncLastCommittedTimestamp)
+    AsyncLastCommittedTimestamp, WaitFailed)
 
 from yt_helpers import Profiler
 from yt_type_helpers import make_schema

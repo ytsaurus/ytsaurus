@@ -2549,7 +2549,7 @@ for l in sys.stdin:
                     [{"a": 12, "b": "NotBool"}],
                 ],
             )
-        
+
         with pytest.raises(YtError):
             # Key column types must be castable.
             run(
@@ -2607,7 +2607,7 @@ for l in sys.stdin:
                 [{"a": None, "b": b"\xd0\xa3\xd1\x85"}],
             ],
         )
-        
+
         # Non-key columns can differ.
         run(
             ["a"],

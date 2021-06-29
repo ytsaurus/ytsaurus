@@ -1213,7 +1213,7 @@ class TestTabletBalancer(TabletActionsBase):
     def test_min_tablet_count_empty_table(self, sync, min_tablet_count):
         if sync:
             set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
-        cells = sync_create_cells(1)
+        sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
         set("//tmp/t/@tablet_balancer_config/min_tablet_count", min_tablet_count)
         tablet_count = 20
@@ -1234,7 +1234,7 @@ class TestTabletBalancer(TabletActionsBase):
     @authors("ifsmirnov")
     def test_min_tablet_count(self):
         set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
-        cells = sync_create_cells(1)
+        sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
         set("//tmp/t/@tablet_balancer_config/min_tablet_count", 3)
         set("//tmp/t/@tablet_balancer_config/enable_verbose_logging", True)
