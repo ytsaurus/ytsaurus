@@ -2440,12 +2440,12 @@ TSchedulerOperationElement::TSchedulerOperationElement(
 
 std::optional<double> TSchedulerOperationElement::GetSpecifiedFairShareStarvationTolerance() const
 {
-    return Spec_->FairShareStarvationTolerance;
+    return std::nullopt;
 }
 
 std::optional<TDuration> TSchedulerOperationElement::GetSpecifiedFairShareStarvationTimeout() const
 {
-    return Spec_->FairShareStarvationTimeout;
+    return std::nullopt;
 }
 
 void TSchedulerOperationElement::DisableNonAliveElements()
@@ -2923,7 +2923,7 @@ TString TSchedulerOperationElement::GetId() const
 
 std::optional<bool> TSchedulerOperationElement::IsAggressivePreemptionAllowed() const
 {
-    return Spec_->AllowAggressivePreemption;
+    return std::nullopt;
 }
 
 std::optional<bool> TSchedulerOperationElement::IsAggressiveStarvationEnabled() const

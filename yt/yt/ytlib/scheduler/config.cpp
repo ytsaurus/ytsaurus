@@ -1656,7 +1656,16 @@ TJobResourcesConfig::TJobResourcesConfig()
         .GreaterThanOrEqual(0);
 }
 
-TPreemptionConfig::TPreemptionConfig()
+////////////////////////////////////////////////////////////////////////////////
+
+TCommonPreemptionConfig::TCommonPreemptionConfig()
+{
+    RegisterParameter("enable_aggressive_starvation", EnableAggressiveStarvation)
+        .Alias("aggressive_starvation_enabled")
+        .Default();
+}
+
+TPoolPreemptionConfig::TPoolPreemptionConfig()
 {
     RegisterParameter("fair_share_starvation_timeout", FairShareStarvationTimeout)
         .Alias("fair_share_preemption_timeout")
@@ -1665,19 +1674,8 @@ TPreemptionConfig::TPreemptionConfig()
         .InRange(0.0, 1.0)
         .Default();
 
-    RegisterParameter("fair_share_starvation_timeout_limit", FairShareStarvationTimeoutLimit)
-        .Alias("fair_share_preemption_timeout_limit")
-        .Default();
-    RegisterParameter("fair_share_starvation_tolerance_limit", FairShareStarvationToleranceLimit)
-        .InRange(0.0, 1.0)
-        .Default();
-
     RegisterParameter("allow_aggressive_preemption", AllowAggressivePreemption)
         .Alias("allow_aggressive_starvation_preemption")
-        .Default();
-    
-    RegisterParameter("enable_aggressive_starvation", EnableAggressiveStarvation)
-        .Alias("aggressive_starvation_enabled")
         .Default();
 }
 
@@ -1910,18 +1908,6 @@ TStrategyOperationSpec::TStrategyOperationSpec()
                 "schedule_in_single_tree",
                 "tentative_pool_trees",
                 "use_default_tentative_pool_trees");
-        }
-        if (AllowAggressivePreemption.has_value()) {
-            THROW_ERROR_EXCEPTION("%Qv option is forbidden to specify in operation spec",
-                "allow_aggressive_preemption");
-        }
-        if (FairShareStarvationTimeout.has_value()) {
-            THROW_ERROR_EXCEPTION("%Qv option is forbidden to specify in operation spec",
-                "fair_share_starvation_timeout");
-        }
-        if (FairShareStarvationTolerance.has_value()) {
-            THROW_ERROR_EXCEPTION("%Qv option is forbidden to specify in operation spec",
-                "fair_share_starvation_tolerance");
         }
     });
 }
