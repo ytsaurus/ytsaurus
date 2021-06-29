@@ -36,6 +36,7 @@ import yt.wrapper as yt
 
 from yandex.type_info import typing
 
+import copy
 import io
 import json
 import logging
@@ -400,6 +401,38 @@ print(op.id)
         yt.run_map_reduce(mapper=None, reduce_combiner="cat", reducer="cat", reduce_by=["x"],
                           source_table=table, destination_table=output_table)
         check_rows_equality([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
+
+    @authors("levysotsky")
+    def test_reduce_combiner_large(self):
+        table = TEST_DIR + "/table"
+        output_table = TEST_DIR + "/output_table"
+        row_count = 10000
+        slice_size = 1000
+        rows = [{"x": i // 10, "y": i} for i in xrange(row_count)]
+        for i in xrange(0, row_count, slice_size):
+            yt.write_table(yt.TablePath(table, append=True), rows[i:i+slice_size])
+
+        def sum_combiner(key, rows):
+            s = 0
+            for row in rows:
+                s += row["y"]
+            yield {"x": key["x"], "y": s}
+
+        yt.run_map_reduce(
+            mapper=None,
+            reduce_combiner=sum_combiner,
+            reducer=sum_combiner,
+            reduce_by=["x"],
+            source_table=table,
+            destination_table=output_table,
+            spec={
+                "partition_count": 1,
+                "force_reduce_combiners": True,
+            },
+        )
+        rows_actual = sorted(list(yt.read_table(output_table)), key=lambda row: row["x"])
+        rows_expected = [{"x": i, "y": sum(j for j in xrange(10 * i, 10 * i + 10))} for i in xrange(row_count // 10)]
+        check_rows_equality(rows_expected, rows_actual)
 
     @authors("ignat")
     def test_reduce_differently_sorted_table(self):

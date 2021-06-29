@@ -427,6 +427,14 @@ class TablePath(YPathSupportingAppend):
         return any(key in self.attributes for key in ["columns", "lower_limit", "upper_limit", "ranges"])
 
     @property
+    def columns(self):
+        return self.attributes.get("columns")
+
+    @columns.setter
+    def columns(self, value):
+        self.attributes["columns"] = value
+
+    @property
     def ranges(self):
         return self.attributes.get("ranges", [])
 

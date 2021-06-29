@@ -1,4 +1,5 @@
 from .common import EMPTY_GENERATOR, YtError, get_binary_std_stream, get_value
+from .format import StructuredSkiffFormat
 
 from yt.packages.six.moves import xrange
 
@@ -119,6 +120,49 @@ class FDOutputStream(object):
     def dup(self):
         return FDOutputStream(os.dup(self.fd))
 
+class StructuredKeySwitchGroup(object):
+    def __init__(self, structured_iterator, first_row):
+        self._structured_iterator = structured_iterator
+        self._with_context = False
+        self._first_row = first_row
+        self._outstanding_row = None
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._first_row is not None:
+            row = self._first_row
+            self._first_row = None
+        else:
+            if self._outstanding_row is not None:
+                raise StopIteration()
+            row = next(self._structured_iterator)
+            if self._structured_iterator.get_key_switch():
+                self._outstanding_row = row
+                raise StopIteration()
+        if self._with_context:
+            return (self._structured_iterator, row)
+        else:
+            return row
+
+    def with_context(self):
+        self._with_context = True
+        return self
+
+def group_structured_rows_by_key_switch(structured_iterator):
+    first_row = next(structured_iterator)
+    while True:
+        group = StructuredKeySwitchGroup(structured_iterator, first_row)
+        yield (group,)
+        # Read all the remaining rows.
+        for _ in group:
+            pass
+        first_row = group._outstanding_row
+        # Check if there is next row to start group with.
+        if first_row is None:
+            break
+
 class group_by_key_switch(object):
     def __init__(self, rows, extract_key_by_group_by, context=None):
         self.rows = rows
@@ -190,6 +234,23 @@ def apply_stdout_fd_protection(output_streams, protection_type):
             os.dup2(fd, stdout_fd)
             os.close(fd)
 
+
+def check_allowed_structured_skiff_attributes(params):
+    attributes = params.attributes
+    if attributes.get("is_raw_io", False):
+        raise YtError("@yt.wrapper.raw_io decorator is not compatible with TypedJob")
+    if attributes.get("is_raw", False):
+        raise YtError("@yt.wrapper.raw decorator is not compatible with TypedJob")
+    with_context = attributes.get("with_context", False)
+    if with_context and \
+            (attributes.get("is_aggregator", False) or attributes.get("is_reduce_aggregator", False)):
+        raise YtError("@yt.wrapper.with_context decorator is not compatible with "
+                      "@yt.wrapper.aggregator and @yt.wrapper.reduce_aggregator; "
+                      "instead, use `for row, context in rows.with_context()`")
+    if with_context and params.job_type != "mapper":
+        raise YtError("@yt.wrapper.with_context decorator may be used only with mappers")
+
+
 def process_rows(operation_dump_filename, config_dump_filename, start_time):
     from itertools import chain, groupby, starmap
     try:
@@ -239,13 +300,17 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
         sys.stderr.write("Python version on cluster differs from local python version")
         sys.exit(1)
 
+    is_structured_skiff = isinstance(params.input_format, StructuredSkiffFormat)
+    if is_structured_skiff:
+        check_allowed_structured_skiff_attributes(params)
+
     if params.attributes.get("is_raw_io", False) or params.job_type == "vanilla":
         operation()
         return
 
     raw = params.attributes.get("is_raw", False)
 
-    if not params.is_local_mode and isinstance(params.input_format, YsonFormat):
+    if not params.is_local_mode and isinstance(params.input_format, (YsonFormat, StructuredSkiffFormat)):
         params.input_format._check_bindings()
 
     rows = params.input_format.load_rows(get_binary_std_stream(sys.stdin), raw=raw)
@@ -256,15 +321,18 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
 
     context = None
     if params.attributes.get("with_context", False):
-        set_zero_table_index = params.operation_type in ("reduce", "map") \
-            and params.input_table_count == 1
-        table_index = 0 if set_zero_table_index else None
-        context = Context(table_index=table_index)
-        if is_reducer:
-            grouped_rows = group_by_key_switch(rows, extract_key_by_group_by, context=context)
-            rows = None
+        if is_structured_skiff:
+            context = rows
         else:
-            rows = enrich_context(rows, context)
+            set_zero_table_index = params.operation_type in ("reduce", "map") \
+                and params.input_table_count == 1
+            table_index = 0 if set_zero_table_index else None
+            context = Context(table_index=table_index)
+            if is_reducer:
+                grouped_rows = group_by_key_switch(rows, extract_key_by_group_by, context=context)
+                rows = None
+            else:
+                rows = enrich_context(rows, context)
 
     skiff_input_schemas = None
     skiff_output_schemas = None
@@ -295,12 +363,15 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
                     chain.from_iterable(imap(run, rows)),
                     finish())
             else:
-                if grouped_rows is None:
+                if is_structured_skiff:
+                    assert grouped_rows is None
+                    grouped_rows = group_structured_rows_by_key_switch(rows)
+                elif grouped_rows is None:
                     if params.should_process_key_switch:
                         grouped_rows = group_by_key_switch(rows, extract_key_by_group_by)
                     else:
                         grouped_rows = groupby(rows, extract_key_by_group_by)
-                if params.attributes.get("is_reduce_aggregator"):
+                if params.attributes.get("is_reduce_aggregator", False):
                     result = run(grouped_rows)
                 else:
                     result = chain(

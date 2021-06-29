@@ -92,6 +92,12 @@ class YtClient(ClientState):
         """
         return client_api.suspend_operation(operation, client=self, abort_running_jobs=abort_running_jobs)
 
+    def write_table_structured(self, table, row_type, input_stream, table_writer=None, max_row_buffer_size=None, is_stream_compressed=False, force_create=None):
+        """
+        Writes rows from input_stream to table in structured format. Cf. docstring for write_table
+        """
+        return client_api.write_table_structured(table, row_type, input_stream, client=self, table_writer=table_writer, max_row_buffer_size=max_row_buffer_size, is_stream_compressed=is_stream_compressed, force_create=force_create)
+
     def mount_table(self, path, first_tablet_index=None, last_tablet_index=None, cell_id=None, freeze=False, sync=False, target_cell_ids=None):
         """
         Mounts table.
@@ -340,6 +346,12 @@ class YtClient(ClientState):
         Represents a local path of a file and its path in job's sandbox
         """
         return client_api.LocalFile(path, client=self, file_name=file_name, attributes=attributes)
+
+    def read_table_structured(self, table, row_type, table_reader=None, unordered=None, enable_read_parallel=None):
+        """
+        Reads rows from table in structured format. Cf. docstring for read_table
+        """
+        return client_api.read_table_structured(table, row_type, client=self, table_reader=table_reader, unordered=unordered, enable_read_parallel=enable_read_parallel)
 
     def batch_apply(self, function, data):
         """

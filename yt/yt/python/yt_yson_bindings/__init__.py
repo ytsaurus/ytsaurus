@@ -1,7 +1,11 @@
 try:
-    from .yson_lib import load, loads, dump, dumps, loads_proto, dumps_proto, load_skiff, dump_skiff, SkiffRecord, SkiffSchema, SkiffTableSwitch
+    from .yson_lib import (load, loads, dump, dumps, loads_proto, dumps_proto,
+                           load_skiff, load_skiff_structured, dump_skiff, dump_skiff_structured,
+                           SkiffRecord, SkiffSchema, SkiffTableSwitch, SkiffOtherColumns)
 except ImportError:
-    from yson_lib import load, loads, dump, dumps, loads_proto, dumps_proto, load_skiff, dump_skiff, SkiffRecord, SkiffSchema, SkiffTableSwitch
+    from yson_lib import (load, loads, dump, dumps, loads_proto, dumps_proto,
+                          load_skiff, load_skiff_structured, dump_skiff, dump_skiff_structured,
+                          SkiffRecord, SkiffSchema, SkiffTableSwitch, SkiffOtherColumns)
 
 try:
     from .yson_lib import parse_ypath
