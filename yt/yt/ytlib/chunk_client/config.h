@@ -311,9 +311,6 @@ public:
     //! Minimal delay between sequential chunk replica locations.
     TDuration SeedsExpirationTimeout;
 
-    //! Config of async expiring cache that stores peer probing results.
-    TAsyncExpiringCacheConfigPtr PeerProbingResultCache;
-
     //! Delay between background cache updates.
     TDuration PeriodicUpdateDelay;
 
@@ -344,9 +341,6 @@ public:
         RegisterParameter("seeds_expiration_timeout", SeedsExpirationTimeout)
             .Default(TDuration::Seconds(3));
 
-        RegisterParameter("peer_probing_result_cache", PeerProbingResultCache)
-            .DefaultNew();
-
         RegisterParameter("periodic_update_delay", PeriodicUpdateDelay)
             .GreaterThan(TDuration::Zero())
             .Default(TDuration::Seconds(10));
@@ -369,19 +363,6 @@ public:
 
         RegisterParameter("evict_after_successful_access_time", EvictAfterSuccessfulAccessTime)
             .Default(TDuration::Seconds(30));
-
-        RegisterPreprocessor([&] {
-            // XXX(akozhikhov): Reconsider the values.
-            PeerProbingResultCache->ExpireAfterAccessTime = TDuration::Seconds(30);
-            PeerProbingResultCache->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(30);
-            PeerProbingResultCache->ExpireAfterFailedUpdateTime = TDuration::Seconds(30);
-
-            PeerProbingResultCache->RefreshTime = PeriodicUpdateDelay;
-        });
-
-        RegisterPostprocessor([&] {
-            PeerProbingResultCache->BatchUpdate = true;
-        });
     }
 };
 
