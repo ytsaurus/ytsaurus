@@ -694,7 +694,7 @@ std::vector<TChunkPtrWithIndexes> TChunkPlacement::GetBalancingChunks(
         if (chunk->GetScanFlag(EChunkScanKind::Refresh, epoch)) {
             continue;
         }
-        if (chunk->IsJobScheduled()) {
+        if (chunk->HasJobs()) {
             continue;
         }
         if (chunk->IsJournal() && replica.GetState() == EChunkReplicaState::Unsealed) {

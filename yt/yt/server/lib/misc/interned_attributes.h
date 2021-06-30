@@ -183,7 +183,7 @@
     XX(InheritAcl, inherit_acl) \
     XX(IntegralGuarantees, integral_guarantees) \
     XX(IOWeights, io_weights) \
-    XX(Job, job) \
+    XX(Jobs, jobs) \
     XX(KeepFinished, keep_finished) \
     XX(Key, key) \
     XX(KeyColumns, key_columns) \

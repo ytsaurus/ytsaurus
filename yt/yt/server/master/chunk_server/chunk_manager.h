@@ -14,6 +14,8 @@
 
 #include <yt/yt/server/master/object_server/public.h>
 
+#include <yt/yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
+
 #include <yt/yt/ytlib/journal_client/helpers.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
@@ -73,6 +75,11 @@ public:
     using TCtxExecuteBatchPtr = TIntrusivePtr<TCtxExecuteBatch>;
     std::unique_ptr<NHydra::TMutation> CreateExecuteBatchMutation(
         TCtxExecuteBatchPtr context);
+
+    using TCtxJobHeartbeat = NRpc::TTypedServiceContext<
+        NJobTrackerClient::NProto::TReqHeartbeat,
+        NJobTrackerClient::NProto::TRspHeartbeat>;
+    using TCtxJobHeartbeatPtr = TIntrusivePtr<TCtxJobHeartbeat>;
 
     DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk);
     TChunk* GetChunkOrThrow(TChunkId id);
@@ -175,14 +182,9 @@ public:
 
     void ClearChunkList(TChunkList* chunkList);
 
-    void ScheduleJobs(
-        TNode* node,
-        const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
-        const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
-        const std::vector<TJobPtr>& currentJobs,
-        std::vector<TJobPtr>* jobsToStart,
-        std::vector<TJobPtr>* jobsToAbort,
-        std::vector<TJobPtr>* jobsToRemove);
+    void ProcessJobHeartbeat(TNode* node, const TCtxJobHeartbeatPtr& context);
+
+    TJobId GenerateJobId() const;
 
     bool IsChunkReplicatorEnabled();
     bool IsChunkRefreshEnabled();

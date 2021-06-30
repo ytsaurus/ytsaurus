@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "chunk_replacer.h"
+#include "job_controller.h"
 
 #include <yt/yt/server/master/chunk_server/proto/chunk_merger.pb.h>
 
@@ -37,6 +38,7 @@ struct TMergeJobInfo
 
 class TChunkMerger
     : public NCellMaster::TMasterAutomatonPart
+    , public IJobController
 {
 public:
     explicit TChunkMerger(NCellMaster::TBootstrap* bootstrap);
@@ -44,17 +46,17 @@ public:
     void ScheduleMerge(NCypressServer::TNodeId nodeId);
     void ScheduleMerge(TChunkOwnerBase* trunkNode);
 
-    void ScheduleJobs(
-        TNode* node,
-        NNodeTrackerClient::NProto::TNodeResources* resourceUsage,
-        const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
-        std::vector<TJobPtr>* jobsToStart);
-
-    void ProcessJobs(const std::vector<TJobPtr>& jobs);
-
-    void SetJobTracker(TJobTrackerPtr jobTracker);
-
     void OnProfiling(NProfiling::TSensorBuffer* buffer) const;
+
+    // IJobController implementation.
+    virtual void ScheduleJobs(IJobSchedulingContext* context) override;
+
+    virtual void OnJobWaiting(const TJobPtr& job, IJobControllerCallbacks* callbacks) override;
+    virtual void OnJobRunning(const TJobPtr& job, IJobControllerCallbacks* callbacks) override;
+
+    virtual void OnJobCompleted(const TJobPtr& job) override;
+    virtual void OnJobAborted(const TJobPtr& job) override;
+    virtual void OnJobFailed(const TJobPtr& job) override;
 
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -62,8 +64,6 @@ private:
     NCellMaster::TBootstrap* const Bootstrap_;
 
     TChunkReplacer ChunkReplacer_;
-
-    TJobTrackerPtr JobTracker_;
 
     NConcurrency::TPeriodicExecutorPtr ScheduleExecutor_;
     NConcurrency::TPeriodicExecutorPtr ChunkCreatorExecutor_;
@@ -122,9 +122,13 @@ private:
 
     void CreateChunks();
 
-    bool CreateMergeJob(TNode* node, const TMergeJobInfo& jobInfo, TJobPtr* job);
+    bool TryScheduleMergeJob(
+        IJobSchedulingContext* context,
+        const TMergeJobInfo& jobInfo);
 
     void ScheduleReplaceChunks(const TMergeJobInfo& jobInfo);
+
+    void OnJobFinished(const TJobPtr& job);
 
     const TDynamicChunkMergerConfigPtr& GetDynamicConfig() const;
     void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr /*oldConfig*/ = nullptr);

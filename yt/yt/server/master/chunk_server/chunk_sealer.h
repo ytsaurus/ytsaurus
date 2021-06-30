@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "job_controller.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -10,40 +11,27 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkSealer
-    : public TRefCounted
+struct IChunkSealer
+    : public IJobController
 {
 public:
-    TChunkSealer(
-        TChunkManagerConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap,
-        TJobTrackerPtr jobTracker);
-    ~TChunkSealer();
+    virtual void Start(TChunk* frontJournalChunk, int journalChunkCount) = 0;
+    virtual void Stop() = 0;
 
-    void Start(TChunk* frontJournalChunk, int journalChunkCount);
-    void Stop();
+    virtual bool IsEnabled() = 0;
 
-    bool IsEnabled();
+    virtual void ScheduleSeal(TChunk* chunk) = 0;
 
-    void ScheduleSeal(TChunk* chunk);
+    virtual void OnChunkDestroyed(NChunkServer::TChunk* chunk) = 0;
 
-    void OnChunkDestroyed(NChunkServer::TChunk* chunk);
-
-    void OnProfiling(NProfiling::TSensorBuffer* buffer) const;
-
-    void ScheduleJobs(
-        TNode* node,
-        NNodeTrackerClient::NProto::TNodeResources* resourceUsage,
-        const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
-        std::vector<TJobPtr>* jobsToStart);
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
-
+    virtual void OnProfiling(NProfiling::TSensorBuffer* buffer) const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TChunkSealer)
+DEFINE_REFCOUNTED_TYPE(IChunkSealer)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IChunkSealerPtr CreateChunkSealer(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

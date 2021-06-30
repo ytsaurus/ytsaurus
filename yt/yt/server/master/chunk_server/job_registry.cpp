@@ -1,6 +1,7 @@
+#include "job_registry.h"
+
 #include "chunk_manager.h"
 #include "config.h"
-#include "job_tracker.h"
 #include "job.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -33,7 +34,7 @@ static const auto& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobTracker::TJobTracker(
+TJobRegistry::TJobRegistry(
     TChunkManagerConfigPtr config,
     TBootstrap* bootstrap)
     : Config_(config)
@@ -46,22 +47,22 @@ TJobTracker::TJobTracker(
     InitInterDCEdges();
 }
 
-TJobTracker::~TJobTracker() = default;
+TJobRegistry::~TJobRegistry() = default;
 
-void TJobTracker::Start()
+void TJobRegistry::Start()
 {
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
     OnDynamicConfigChanged();
 }
 
-void TJobTracker::Stop()
+void TJobRegistry::Stop()
 {
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);
 }
 
-void TJobTracker::OnNodeDataCenterChanged(TNode* node, TDataCenter* oldDataCenter)
+void TJobRegistry::OnNodeDataCenterChanged(TNode* node, TDataCenter* oldDataCenter)
 {
     YT_ASSERT(node->GetDataCenter() != oldDataCenter);
 
@@ -71,18 +72,18 @@ void TJobTracker::OnNodeDataCenterChanged(TNode* node, TDataCenter* oldDataCente
     }
 }
 
-int TJobTracker::GetCappedSecondaryCellCount()
+int TJobRegistry::GetCappedSecondaryCellCount()
 {
     return std::max<int>(1, Bootstrap_->GetMulticellManager()->GetSecondaryCellTags().size());
 }
 
-void TJobTracker::InitInterDCEdges()
+void TJobRegistry::InitInterDCEdges()
 {
     UpdateInterDCEdgeCapacities();
     InitUnsaturatedInterDCEdges();
 }
 
-void TJobTracker::InitUnsaturatedInterDCEdges()
+void TJobRegistry::InitUnsaturatedInterDCEdges()
 {
     UnsaturatedInterDCEdges_.clear();
 
@@ -118,7 +119,7 @@ void TJobTracker::InitUnsaturatedInterDCEdges()
     }
 }
 
-void TJobTracker::UpdateInterDCEdgeConsumption(
+void TJobRegistry::UpdateInterDCEdgeConsumption(
     const TJobPtr& job,
     const TDataCenter* srcDataCenter,
     int sizeMultiplier)
@@ -182,7 +183,7 @@ void TJobTracker::UpdateInterDCEdgeConsumption(
     }
 }
 
-bool TJobTracker::HasUnsaturatedInterDCEdgeStartingFrom(const TDataCenter* srcDataCenter) const
+bool TJobRegistry::HasUnsaturatedInterDCEdgeStartingFrom(const TDataCenter* srcDataCenter) const
 {
     auto it = UnsaturatedInterDCEdges_.find(srcDataCenter);
     if (it == UnsaturatedInterDCEdges_.end()) {
@@ -191,7 +192,7 @@ bool TJobTracker::HasUnsaturatedInterDCEdgeStartingFrom(const TDataCenter* srcDa
     return !it->second.empty();
 }
 
-void TJobTracker::OnDataCenterCreated(const TDataCenter* dataCenter)
+void TJobRegistry::OnDataCenterCreated(const TDataCenter* dataCenter)
 {
     UpdateInterDCEdgeCapacities(true);
 
@@ -215,7 +216,7 @@ void TJobTracker::OnDataCenterCreated(const TDataCenter* dataCenter)
     }
 }
 
-void TJobTracker::OnDataCenterDestroyed(const TDataCenter* dataCenter)
+void TJobRegistry::OnDataCenterDestroyed(const TDataCenter* dataCenter)
 {
     InterDCEdgeCapacities_.erase(dataCenter);
     for (auto& [srcDataCenter, dstDataCenterCapacities] : InterDCEdgeCapacities_) {
@@ -233,7 +234,7 @@ void TJobTracker::OnDataCenterDestroyed(const TDataCenter* dataCenter)
     }
 }
 
-void TJobTracker::UpdateInterDCEdgeCapacities(bool force)
+void TJobRegistry::UpdateInterDCEdgeCapacities(bool force)
 {
     if (!force &&
         GetCpuInstant() - InterDCEdgeCapacitiesLastUpdateTime_ <= GetDynamicConfig()->InterDCLimits->GetUpdateInterval())
@@ -282,29 +283,13 @@ void TJobTracker::UpdateInterDCEdgeCapacities(bool force)
     InterDCEdgeCapacitiesLastUpdateTime_ = GetCpuInstant();
 }
 
-const TJobTracker::TDataCenterSet& TJobTracker::GetUnsaturatedInterDCEdgesStartingFrom(const TDataCenter* dc)
+const TJobRegistry::TDataCenterSet& TJobRegistry::GetUnsaturatedInterDCEdgesStartingFrom(const TDataCenter* dc)
 {
     return UnsaturatedInterDCEdges_[dc];
 }
 
-TJobId TJobTracker::GenerateJobId() const
+void TJobRegistry::RegisterJob(const TJobPtr& job)
 {
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    return MakeRandomId(EObjectType::MasterJob, multicellManager->GetCellTag());
-}
-
-void TJobTracker::RegisterJob(
-    const TJobPtr& job,
-    std::vector<TJobPtr>* jobsToStart,
-    TNodeResources* resourceUsage)
-{
-    if (!job) {
-        return;
-    }
-
-    *resourceUsage += job->ResourceUsage();
-    jobsToStart->push_back(job);
-
     job->GetNode()->RegisterJob(job);
 
     auto jobType = job->GetType();
@@ -315,15 +300,20 @@ void TJobTracker::RegisterJob(
     auto chunkId = job->GetChunkIdWithIndexes().Id;
     auto* chunk = chunkManager->FindChunk(chunkId);
     if (chunk) {
-        chunk->SetJob(job);
+        chunk->AddJob(job);
     }
 
     UpdateInterDCEdgeConsumption(job, job->GetNode()->GetDataCenter(), +1);
 
     JobThrottler_->Acquire(1);
+
+    YT_LOG_DEBUG("Job registered (JobId: %v, JobType: %v, Address: %v)",
+        job->GetJobId(),
+        job->GetType(),
+        job->GetNode()->GetDefaultAddress());
 }
 
-void TJobTracker::UnregisterJob(const TJobPtr& job)
+void TJobRegistry::UnregisterJob(const TJobPtr& job)
 {
     job->GetNode()->UnregisterJob(job);
     auto jobType = job->GetType();
@@ -347,158 +337,35 @@ void TJobTracker::UnregisterJob(const TJobPtr& job)
     auto chunkId = job->GetChunkIdWithIndexes().Id;
     auto* chunk = chunkManager->FindChunk(chunkId);
     if (chunk) {
-        chunk->SetJob(nullptr);
+        chunk->RemoveJob(job);
         chunkManager->ScheduleChunkRefresh(chunk);
     }
 
     UpdateInterDCEdgeConsumption(job, job->GetNode()->GetDataCenter(), -1);
+
+    YT_LOG_DEBUG("Job unregistered (JobId: %v, JobType: %v, Address: %v)",
+        job->GetJobId(),
+        job->GetType(),
+        job->GetNode()->GetDefaultAddress());
 }
 
-void TJobTracker::ProcessJobs(
-    TNode* node,
-    const std::vector<TJobPtr>& currentJobs,
-    std::vector<TJobPtr>* jobsToAbort,
-    std::vector<TJobPtr>* jobsToRemove)
-{
-    // Pull capacity changes.
-    UpdateInterDCEdgeCapacities();
-
-    const auto& address = node->GetDefaultAddress();
-
-    for (const auto& job : currentJobs) {
-        auto jobId = job->GetJobId();
-        auto jobType = job->GetType();
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        YT_VERIFY(CellTagFromId(jobId) == multicellManager->GetCellTag());
-
-        YT_VERIFY(TypeFromId(jobId) == EObjectType::MasterJob);
-
-        switch (job->GetState()) {
-            case EJobState::Running:
-            case EJobState::Waiting: {
-                if (TInstant::Now() - job->GetStartTime() > GetDynamicConfig()->JobTimeout) {
-                    jobsToAbort->push_back(job);
-                    YT_LOG_WARNING("Job timed out (JobId: %v, JobType: %v, Address: %v, Duration: %v, ChunkId: %v)",
-                        jobId,
-                        jobType,
-                        address,
-                        TInstant::Now() - job->GetStartTime(),
-                        job->GetChunkIdWithIndexes());
-                    break;
-                }
-
-                switch (job->GetState()) {
-                    case EJobState::Running:
-                        YT_LOG_DEBUG("Job is running (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
-                            jobId,
-                            jobType,
-                            address,
-                            job->GetChunkIdWithIndexes());
-                        break;
-
-                    case EJobState::Waiting:
-                        YT_LOG_DEBUG("Job is waiting (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
-                            jobId,
-                            jobType,
-                            address,
-                            job->GetChunkIdWithIndexes());
-                        break;
-
-                    default:
-                        YT_ABORT();
-                }
-                break;
-            }
-
-            case EJobState::Completed:
-            case EJobState::Failed:
-            case EJobState::Aborted: {
-                jobsToRemove->push_back(job);
-                auto rescheduleChunkRemoval = [&] {
-                    if (jobType == EJobType::RemoveChunk &&
-                        !job->Error().FindMatching(NChunkClient::EErrorCode::NoSuchChunk))
-                    {
-                        const auto& replica = job->GetChunkIdWithIndexes();
-                        node->AddToChunkRemovalQueue(replica);
-                    }
-                };
-
-                switch (job->GetState()) {
-                    case EJobState::Completed:
-                        YT_LOG_DEBUG("Job completed (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
-                            jobId,
-                            jobType,
-                            address,
-                            job->GetChunkIdWithIndexes());
-                        break;
-
-                    case EJobState::Failed:
-                        YT_LOG_WARNING(job->Error(), "Job failed (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
-                            jobId,
-                            jobType,
-                            address,
-                            job->GetChunkIdWithIndexes());
-                        rescheduleChunkRemoval();
-                        break;
-
-                    case EJobState::Aborted:
-                        YT_LOG_WARNING(job->Error(), "Job aborted (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
-                            jobId,
-                            jobType,
-                            address,
-                            job->GetChunkIdWithIndexes());
-                        rescheduleChunkRemoval();
-                        break;
-
-                    default:
-                        YT_ABORT();
-                }
-                UnregisterJob(job);
-                break;
-            }
-
-            default:
-                YT_ABORT();
-        }
-    }
-
-    // Check for missing jobs
-    THashSet<TJobPtr> currentJobSet(currentJobs.begin(), currentJobs.end());
-    std::vector<TJobPtr> missingJobs;
-    for (const auto& [jobId, job] : node->IdToJob()) {
-        if (currentJobSet.find(job) == currentJobSet.end()) {
-            missingJobs.push_back(job);
-            YT_LOG_WARNING("Job is missing (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
-                jobId,
-                job->GetType(),
-                address,
-                job->GetChunkIdWithIndexes());
-        }
-    }
-
-    for (const auto& job : missingJobs) {
-        UnregisterJob(job);
-    }
-}
-
-bool TJobTracker::IsOverdraft() const
+bool TJobRegistry::IsOverdraft() const
 {
     return JobThrottler_->IsOverdraft();
 }
 
-const TDynamicChunkManagerConfigPtr& TJobTracker::GetDynamicConfig()
+const TDynamicChunkManagerConfigPtr& TJobRegistry::GetDynamicConfig()
 {
     const auto& configManager = Bootstrap_->GetConfigManager();
     return configManager->GetConfig()->ChunkManager;
 }
 
-void TJobTracker::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
+void TJobRegistry::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
     JobThrottler_->Reconfigure(GetDynamicConfig()->JobThrottler);
 }
 
-void TJobTracker::OverrideResourceLimits(TNodeResources* resourceLimits, const TNode& node)
+void TJobRegistry::OverrideResourceLimits(TNodeResources* resourceLimits, const TNode& node)
 {
     const auto& resourceLimitsOverrides = node.ResourceLimitsOverrides();
     #define XX(name, Name) \
@@ -509,7 +376,7 @@ void TJobTracker::OverrideResourceLimits(TNodeResources* resourceLimits, const T
     #undef XX
 }
 
-void TJobTracker::OnProfiling(TSensorBuffer* buffer) const
+void TJobRegistry::OnProfiling(TSensorBuffer* buffer) const
 {
     for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
         if (jobType >= NJobTrackerClient::FirstMasterJobType && jobType <= NJobTrackerClient::LastMasterJobType) {

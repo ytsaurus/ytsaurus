@@ -33,31 +33,21 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobTracker
+class TJobRegistry
     : public TRefCounted
 {
-public:    
-    TJobTracker(
+public:
+    TJobRegistry(
         TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
-    ~TJobTracker();
+    ~TJobRegistry();
 
     using TDataCenterSet = SmallSet<const NNodeTrackerServer::TDataCenter*, NNodeTrackerServer::TypicalInterDCEdgeCount>;
     bool HasUnsaturatedInterDCEdgeStartingFrom(const NNodeTrackerServer::TDataCenter* srcDataCenter) const;
     const TDataCenterSet& GetUnsaturatedInterDCEdgesStartingFrom(const NNodeTrackerServer::TDataCenter* dc);
 
-    TJobId GenerateJobId() const;
-    void RegisterJob(
-        const TJobPtr& job,
-        std::vector<TJobPtr>* jobsToStart,
-        NNodeTrackerClient::NProto::TNodeResources* resourceUsage);
+    void RegisterJob(const TJobPtr& job);
     void UnregisterJob(const TJobPtr& job);
-
-    void ProcessJobs(
-        TNode* node,
-        const std::vector<TJobPtr>& currentJobs,
-        std::vector<TJobPtr>* jobsToAbort,
-        std::vector<TJobPtr>* jobsToRemove);
 
     void OnNodeDataCenterChanged(TNode* node, NNodeTrackerServer::TDataCenter* oldDataCenter);
     void OnDataCenterCreated(const NNodeTrackerServer::TDataCenter* dataCenter);
@@ -97,7 +87,7 @@ private:
     const NConcurrency::IReconfigurableThroughputThrottlerPtr JobThrottler_;
 
     const TCallback<void(NCellMaster::TDynamicClusterConfigPtr)> DynamicConfigChangedCallback_ =
-        BIND(&TJobTracker::OnDynamicConfigChanged, MakeWeak(this));
+        BIND(&TJobRegistry::OnDynamicConfigChanged, MakeWeak(this));
 
     int GetCappedSecondaryCellCount();
 
@@ -113,7 +103,7 @@ private:
     void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr /*oldConfig*/ = nullptr);
 };
 
-DEFINE_REFCOUNTED_TYPE(TJobTracker)
+DEFINE_REFCOUNTED_TYPE(TJobRegistry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
