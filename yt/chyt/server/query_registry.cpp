@@ -181,14 +181,14 @@ public:
         ++StatePointer_;
         YT_LOG_DEBUG("Skipped previous string (StatePointer: %v)", StatePointer_);
 
-        size_t remainingSize = StateAllocationSize_ - StatePointer_ - 1;
-        YT_LOG_DEBUG("New query registry state built (StateSize: %v, RemainingSize: %v)", stateString.size(), remainingSize);
-        if (remainingSize < stateString.size()) {
+        i64 remainingSize = StateAllocationSize_ - StatePointer_ - 1;
+        YT_LOG_DEBUG("Building new query registry state (StateSize: %v, RemainingSize: %v)", stateString.size(), remainingSize);
+        if (remainingSize < static_cast<i64>(stateString.size())) {
             YT_LOG_DEBUG("Not enough place for new query registry state, moving pointer to the beginning", StatePointer_);
             StatePointer_ = 0;
         }
         remainingSize = StateAllocationSize_ - StatePointer_ - 1;
-        if (remainingSize < stateString.size()) {
+        if (remainingSize < static_cast<i64>(stateString.size())) {
             YT_LOG_ERROR("Query registry state is too large, it is going to be truncated (StateSize: %v, StateAllocationSize: %v)",
                 stateString.size(),
                 StateAllocationSize_);
@@ -196,6 +196,8 @@ public:
             stateString.resize(StateAllocationSize_ - 13 /* sizeof(truncatedMarker)*/);
             stateString += truncatedMarker;
         }
+
+        YT_VERIFY(StatePointer_ + stateString.size() + 1 <= StateAllocationSize_);
 
         strcpy(&StateBuffer_[StatePointer_], stateString.data());
         YT_LOG_DEBUG("Query registry state saved (StatePointer: %v, Length: %v)", StatePointer_, stateString.size());
@@ -214,9 +216,9 @@ public:
     }
 
 private:
-    static constexpr size_t StateAllocationSize_ = 128_MB;
+    static constexpr i64 StateAllocationSize_ = 128_MB;
     std::array<char, StateAllocationSize_> StateBuffer_;
-    int StatePointer_ = 0;
+    i64 StatePointer_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
