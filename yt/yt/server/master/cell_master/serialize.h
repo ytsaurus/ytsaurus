@@ -157,6 +157,7 @@ DEFINE_ENUM(EMasterReign,
     ((MinTabletCountForTabletBalancer)                              (1631))  // ifsmirnov
     ((SocratesReservedReign1)                                       (1632))  // aleksandra-zh
     ((SocratesReservedReign2)                                       (1633))  // aleksandra-zh
+    ((AccessLogImprovement)                                         (1634))  // cookiedoth
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1700))  // ignat
 );
