@@ -46,8 +46,6 @@ using NYT::ToProto;
 
 namespace {
 
-////////////////////////////////////////////////////////////////////////////////
-
 // TODO(akozhikhov): Drop this after chunk replica cache.
 using TChunkReplicaLocatorCache = TSyncExpiringCache<TChunkId, TChunkReplicaLocatorPtr>;
 using TChunkReplicaLocatorCachePtr = TIntrusivePtr<TChunkReplicaLocatorCache>;
@@ -65,237 +63,8 @@ using TPeerInfoCachePtr = TIntrusivePtr<TPeerInfoCache>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TPeerProbingKey
-{
-    TNodeId NodeId;
-    TChunkId ChunkId;
-
-    bool operator==(const TPeerProbingKey& other) const
-    {
-        return
-            NodeId == other.NodeId &&
-            ChunkId == other.ChunkId;
-    }
-
-    operator size_t() const
-    {
-        return MultiHash(
-            NodeId,
-            ChunkId);
-    }
-};
-
-void FormatValue(TStringBuilderBase* builder, const TPeerProbingKey& key, TStringBuf /*spec*/)
-{
-    builder->AppendFormat("%v@%v",
-        key.ChunkId,
-        key.NodeId);
-};
-
-using TPeerNodeIdList = SmallVector<TNodeId, DefaultReplicationFactor>;
-
-struct TPeerProbingResult
-{
-    bool HasCompleteChunk;
-
-    bool NetThrottling;
-    bool DiskThrottling;
-    i64 NetQueueSize;
-    i64 DiskQueueSize;
-
-    TPeerNodeIdList PeerNodeIds;
-};
-
-using TErrorOrPeerProbingResult = TErrorOr<TPeerProbingResult>;
-
 using TProbeChunkSetResult = TDataNodeServiceProxy::TRspProbeChunkSetPtr;
 using TErrorOrProbeChunkSetResult = TDataNodeServiceProxy::TErrorOrRspProbeChunkSetPtr;
-
-////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_CLASS(TPeerProbingResultCache)
-
-class TPeerProbingResultCache
-    : public TAsyncExpiringCache<TPeerProbingKey, TPeerProbingResult>
-{
-public:
-    TPeerProbingResultCache(
-        TAsyncExpiringCacheConfigPtr config,
-        IClientPtr client,
-        TPeerInfoCachePtr peerInfoCache,
-        IInvokerPtr readerInvoker,
-        TDuration probeChunkSetRpcTimeout)
-        : TAsyncExpiringCache(
-            std::move(config),
-            ChunkClientLogger.WithTag("Cache: PeerProbingResultCache"))
-        , Client_(std::move(client))
-        , PeerInfoCache_(std::move(peerInfoCache))
-        , ReaderInvoker_(std::move(readerInvoker))
-        , ProbeChunkSetRpcTimeout_(probeChunkSetRpcTimeout)
-    { }
-
-private:
-    const IClientPtr Client_;
-    const TWorkloadDescriptor WorkloadDescriptor_;
-    const TPeerInfoCachePtr PeerInfoCache_;
-    const IInvokerPtr ReaderInvoker_;
-    const TDuration ProbeChunkSetRpcTimeout_;
-
-
-    virtual TFuture<TPeerProbingResult> DoGet(
-        const TPeerProbingKey& /*key*/,
-        bool /*isPeriodicUpdate*/) noexcept override
-    {
-        // NB: We always request multiple records and BatchUpdate option is used for periodic updates.
-        YT_ABORT();
-    }
-
-    virtual TFuture<std::vector<TErrorOrPeerProbingResult>> DoGetMany(
-        const std::vector<TPeerProbingKey>& keys,
-        bool isPeriodicUpdate) noexcept override
-    {
-        if (keys.empty()) {
-            return MakeFuture(std::vector<TErrorOrPeerProbingResult>());
-        }
-
-        auto sendProbingRequest = [&] (
-            TNodeId nodeId,
-            const std::vector<TPeerProbingKey>& keys)
-        {
-            auto peerInfoOrError = PeerInfoCache_->Get(nodeId);
-            if (!peerInfoOrError.IsOK()) {
-                return MakeFuture<TProbeChunkSetResult>(TError(peerInfoOrError));
-            }
-
-            auto peerInfo = std::move(peerInfoOrError.Value());
-            YT_VERIFY(peerInfo.Channel);
-
-            TDataNodeServiceProxy proxy(peerInfo.Channel);
-            proxy.SetDefaultTimeout(ProbeChunkSetRpcTimeout_);
-
-            auto req = proxy.ProbeChunkSet();
-            req->SetHeavy(true);
-            ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
-
-            for (const auto& key : keys) {
-                YT_VERIFY(key.NodeId == nodeId);
-                ToProto(req->add_chunk_ids(), key.ChunkId);
-            }
-
-            req->SetAcknowledgementTimeout(std::nullopt);
-
-            return req->Invoke();
-        };
-
-        auto handleBatchResult = [] (
-            std::vector<TErrorOrPeerProbingResult>* values,
-            const TErrorOrProbeChunkSetResult& resultOrError,
-            const std::vector<int>& keyIndexes)
-        {
-            if (!resultOrError.IsOK()) {
-                for (auto index : keyIndexes) {
-                    (*values)[index] = TError(resultOrError);
-                }
-                return;
-            }
-
-            const auto& result = resultOrError.Value();
-            TPeerProbingResult probingResult{
-                .NetThrottling = result->net_throttling(),
-                .NetQueueSize = result->net_queue_size()
-            };
-
-            YT_VERIFY(std::ssize(keyIndexes) == result->subresponses_size());
-            for (int i = 0; i < std::ssize(keyIndexes); ++i) {
-                int index = keyIndexes[i];
-                const auto& subresponse = result->subresponses(i);
-
-                probingResult.HasCompleteChunk = subresponse.has_complete_chunk();
-                probingResult.PeerNodeIds = FromProto<TPeerNodeIdList>(subresponse.peer_node_ids());
-                if (probingResult.HasCompleteChunk) {
-                    probingResult.DiskThrottling = subresponse.disk_throttling();
-                    probingResult.DiskQueueSize = subresponse.disk_queue_size();
-                }
-                (*values)[index] = probingResult;
-            }
-        };
-
-        if (isPeriodicUpdate) {
-            struct TPeerProbingRequestInfo
-            {
-                std::vector<TPeerProbingKey> Keys;
-                std::vector<int> KeyIndexes;
-            };
-
-            THashMap<TNodeId, TPeerProbingRequestInfo> nodeIdToRequestInfo;
-            std::vector<std::pair<TNodeId, const TPeerProbingRequestInfo*>> nodeIdAndRequestInfos;
-
-            for (int i = 0; i < std::ssize(keys); ++i) {
-                const auto& key = keys[i];
-                auto nodeId = key.NodeId;
-
-                auto it = nodeIdToRequestInfo.find(nodeId);
-                if (it == nodeIdToRequestInfo.end()) {
-                    it = nodeIdToRequestInfo.emplace(nodeId, TPeerProbingRequestInfo()).first;
-                    nodeIdAndRequestInfos.emplace_back(nodeId, &it->second);
-                }
-
-                auto& requestInfo = it->second;
-                requestInfo.Keys.push_back(key);
-                requestInfo.KeyIndexes.push_back(i);
-            }
-
-            std::vector<TFuture<TProbeChunkSetResult>> futures;
-            futures.reserve(nodeIdAndRequestInfos.size());
-            for (auto [nodeId, requestInfo] : nodeIdAndRequestInfos) {
-                futures.push_back(sendProbingRequest(nodeId, requestInfo->Keys));
-            }
-
-            return AllSet(std::move(futures))
-                .Apply(BIND(
-                    [
-                        keyCount = keys.size(),
-                        nodeIdToRequestInfo = std::move(nodeIdToRequestInfo),
-                        nodeIdAndRequestInfos = std::move(nodeIdAndRequestInfos),
-                        handleBatchResult = std::move(handleBatchResult)
-                    ]
-                    (const std::vector<TErrorOrProbeChunkSetResult>& resultOrErrors)
-                {
-                    std::vector<TErrorOrPeerProbingResult> values(keyCount);
-
-                    YT_VERIFY(nodeIdAndRequestInfos.size() == resultOrErrors.size());
-
-                    for (int i = 0; i < std::ssize(nodeIdAndRequestInfos); ++i) {
-                        const auto& resultOrError = resultOrErrors[i];
-                        handleBatchResult(&values, resultOrError, nodeIdAndRequestInfos[i].second->KeyIndexes);
-                    }
-
-                    return values;
-                })
-                .AsyncVia(ReaderInvoker_));
-        } else {
-            return sendProbingRequest(keys[0].NodeId, keys)
-                .Apply(BIND(
-                    [
-                        keyCount = keys.size(),
-                        handleBatchResult = std::move(handleBatchResult)
-                    ]
-                    (const TErrorOrProbeChunkSetResult& resultOrError)
-                {
-                    std::vector<TErrorOrPeerProbingResult> values(keyCount);
-
-                    std::vector<int> keyIndexes(keyCount);
-                    std::iota(keyIndexes.begin(), keyIndexes.end(), 0);
-                    handleBatchResult(&values, resultOrError, keyIndexes);
-
-                    return values;
-                })
-                .AsyncVia(ReaderInvoker_));
-        }
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TPeerProbingResultCache)
 
 }  // namespace
 
@@ -318,19 +87,17 @@ public:
         , Networks_(Client_->GetNativeConnection()->GetNetworks())
         , Logger(ChunkClientLogger.WithTag("ChunkFragmentReaderId: %v", TGuid::Create()))
         , ReaderInvoker_(TDispatcher::Get()->GetReaderInvoker())
-        , ChunkReplicaLocatorCache_(New<TChunkReplicaLocatorCache>(
-            BIND([
+        , ChunkReplicaLocatorCache_(New<TChunkReplicaLocatorCache>(BIND([
                 logger = Logger,
                 client = Client_,
                 nodeDirectory = NodeDirectory_,
-                expirationTimeout = Config_->SeedsExpirationTimeout]
-                (TChunkId chunkId)
-            {
+                config = Config_
+            ] (TChunkId chunkId) {
                 return New<TChunkReplicaLocator>(
                     client,
                     nodeDirectory,
                     chunkId,
-                    expirationTimeout,
+                    config->SeedsExpirationTimeout,
                     TChunkReplicaList{},
                     logger.WithTag("ChunkId: %v", chunkId));
             }),
@@ -347,12 +114,6 @@ public:
             }),
             Config_->PeerInfoExpirationTimeout,
             ReaderInvoker_))
-        , ProbingResultCache_(New<TPeerProbingResultCache>(
-            Config_->PeerProbingResultCache,
-            Client_,
-            PeerInfoCache_,
-            ReaderInvoker_,
-            Config_->ProbeChunkSetRpcTimeout))
     {
         SchedulePeriodicUpdate();
     }
@@ -386,7 +147,6 @@ private:
 
     const TChunkReplicaLocatorCachePtr ChunkReplicaLocatorCache_;
     const TPeerInfoCachePtr PeerInfoCache_;
-    const TPeerProbingResultCachePtr ProbingResultCache_;
 
     // TODO(akozhikhov): Implement lock sharding.
     YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, ChunkIdToPeerAccessInfoLock_);
@@ -466,11 +226,10 @@ protected:
     struct TPeerProbingInfo
     {
         TNodeId NodeId;
-
         TErrorOr<TPeerInfo> PeerInfoOrError;
 
-        std::vector<TPeerProbingKey> ProbingKeys;
         std::vector<int> ChunkIndexes;
+        std::vector<TChunkId> ChunkIds;
     };
 
     const TChunkFragmentReaderPtr Reader_;
@@ -557,10 +316,7 @@ protected:
                 }
 
                 probingInfos[it->second].ChunkIndexes.push_back(chunkIndex);
-                probingInfos[it->second].ProbingKeys.push_back({
-                    .NodeId = nodeId,
-                    .ChunkId = chunkId
-                });
+                probingInfos[it->second].ChunkIds.push_back(chunkId);
             }
         }
 
@@ -573,11 +329,32 @@ protected:
         return probingInfos;
     }
 
-    double ComputeProbingPenalty(const TPeerProbingResult& probingResult) const
+    TFuture<TProbeChunkSetResult> DoProbePeer(const TPeerProbingInfo& probingInfo) const
+    {
+        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+
+        const auto& peerInfo = probingInfo.PeerInfoOrError.Value();
+        YT_VERIFY(peerInfo.Channel);
+
+        TDataNodeServiceProxy proxy(peerInfo.Channel);
+        proxy.SetDefaultTimeout(Config_->ProbeChunkSetRpcTimeout);
+
+        auto req = proxy.ProbeChunkSet();
+        req->SetHeavy(true);
+        ToProto(req->mutable_workload_descriptor(), Options_.WorkloadDescriptor);
+
+        ToProto(req->mutable_chunk_ids(), probingInfo.ChunkIds);
+
+        req->SetAcknowledgementTimeout(std::nullopt);
+
+        return req->Invoke();
+    }
+
+    double ComputeProbingPenalty(i64 netQueueSize, i64 diskQueueSize) const
     {
         return
-            Config_->NetQueueSizeFactor * probingResult.NetQueueSize +
-            Config_->DiskQueueSizeFactor * probingResult.DiskQueueSize;
+            Config_->NetQueueSizeFactor * netQueueSize +
+            Config_->DiskQueueSizeFactor * diskQueueSize;
     }
 
     virtual TChunkId GetPendingChunkId(int chunkIndex) const = 0;
@@ -807,8 +584,8 @@ private:
 
         auto probingInfos = GetProbingInfos(chunkReplicaLists);
 
-        std::vector<TFuture<std::vector<TErrorOrPeerProbingResult>>> probingFutures;
         std::vector<TPeerProbingInfo> goodProbingInfos;
+        std::vector<TFuture<TProbeChunkSetResult>> probingFutures;
 
         goodProbingInfos.reserve(probingInfos.size());
         probingFutures.reserve(probingInfos.size());
@@ -832,12 +609,11 @@ private:
                 continue;
             }
 
-            probingFutures.push_back(
-                Reader_->ProbingResultCache_->Get(probingInfo.ProbingKeys));
+            probingFutures.push_back(DoProbePeer(probingInfo));
             goodProbingInfos.push_back(std::move(probingInfo));
         }
 
-        auto future = AllSucceeded(std::move(probingFutures));
+        auto future = AllSet(std::move(probingFutures));
         if (const auto& result = future.TryGet()) {
             OnPeersProbed(
                 std::move(goodProbingInfos),
@@ -853,58 +629,67 @@ private:
 
     void OnPeersProbed(
         std::vector<TPeerProbingInfo> probingInfos,
-        const TErrorOr<std::vector<std::vector<TErrorOrPeerProbingResult>>>& resultOrError)
+        const TErrorOr<std::vector<TErrorOrProbeChunkSetResult>>& resultOrError)
     {
         VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
         YT_VERIFY(resultOrError.IsOK());
-        const auto& nodeProbingResultOrErrors = resultOrError.Value();
+        const auto& probingResultOrErrors = resultOrError.Value();
 
-        YT_VERIFY(probingInfos.size() == nodeProbingResultOrErrors.size());
+        YT_VERIFY(probingInfos.size() == probingResultOrErrors.size());
 
         std::vector<int> chunkBestNodeIndex(PendingChunkFragmentSetInfos_.size(), -1);
         std::vector<double> chunkLowestProbingPenalty(PendingChunkFragmentSetInfos_.size());
 
         for (int nodeIndex = 0; nodeIndex < std::ssize(probingInfos); ++nodeIndex) {
-            const auto& probingResultOrErrors = nodeProbingResultOrErrors[nodeIndex];
             const auto& probingInfo = probingInfos[nodeIndex];
-            YT_VERIFY(probingInfo.PeerInfoOrError.IsOK());
-            YT_VERIFY(probingInfo.ChunkIndexes.size() == probingResultOrErrors.size());
 
-            for (int resultIndex = 0; resultIndex < std::ssize(probingResultOrErrors); ++resultIndex) {
+            const auto& probingResultOrError = probingResultOrErrors[nodeIndex];
+            if (!probingResultOrError.IsOK()) {
+                YT_VERIFY(probingResultOrError.GetCode() != EErrorCode::NoSuchChunk);
+                auto error = TError("Probing of peer %v has failed for %v chunks",
+                    probingInfo.PeerInfoOrError.Value().Address,
+                    probingInfo.ChunkIds.size())
+                    << probingResultOrError;
+                ProcessRpcError(std::move(error), probingInfo.NodeId, probingInfo.PeerInfoOrError);
+                continue;
+            }
+
+            const auto& probingResult = probingResultOrError.Value();
+            YT_VERIFY(std::ssize(probingInfo.ChunkIds) == probingResult->subresponses_size());
+
+            if (probingResult->net_throttling()) {
+                YT_LOG_DEBUG("Peer is throttling (Address: %v, NetQueueSize: %v)",
+                    probingInfo.PeerInfoOrError.Value().Address,
+                    probingResult->net_queue_size());
+            }
+
+            for (int resultIndex = 0; resultIndex < std::ssize(probingInfo.ChunkIds); ++resultIndex) {
                 auto chunkIndex = probingInfo.ChunkIndexes[resultIndex];
+                const auto& subresponse = probingResult->subresponses(resultIndex);
 
-                const auto& probingResultOrError = probingResultOrErrors[resultIndex];
-                if (!probingResultOrError.IsOK()) {
-                    YT_VERIFY(probingResultOrError.GetCode() != EErrorCode::NoSuchChunk);
-                    auto error = TError("Probing of peer %v for chunk %v has failed",
-                        probingInfo.PeerInfoOrError.Value().Address,
-                        PendingChunkFragmentSetInfos_[chunkIndex].ChunkId)
-                        << probingResultOrError;
-                    ProcessRpcError(std::move(error), probingInfo.NodeId, probingInfo.PeerInfoOrError);
-                    continue;
-                }
-
-                const auto& probingResult = probingResultOrError.Value();
-                if (!probingResult.HasCompleteChunk) {
+                if (!subresponse.has_complete_chunk()) {
                     // TODO(akozhikhov): consider suggested peer descriptors.
-                    TryDiscardChunkReplicas(PendingChunkFragmentSetInfos_[chunkIndex].ChunkId);
+                    auto chunkId = probingInfo.ChunkIds[resultIndex];
+                    YT_VERIFY(chunkId == PendingChunkFragmentSetInfos_[chunkIndex].ChunkId);
+                    TryDiscardChunkReplicas(chunkId);
 
                     ProcessError(TError(
                         "Peer %v does not contain chunk %v",
                         probingInfo.PeerInfoOrError.Value().Address,
-                        PendingChunkFragmentSetInfos_[chunkIndex].ChunkId));
+                        chunkId));
                     continue;
                 }
 
-                if (probingResult.NetThrottling || probingResult.DiskThrottling) {
-                    YT_LOG_DEBUG("Peer is throttling (Address: %v, NetThrottling: %v, DiskThrottling: %v)",
+                if (subresponse.disk_throttling()) {
+                    YT_LOG_DEBUG("Peer is throttling (Address: %v, DiskQueueSize: %v)",
                         probingInfo.PeerInfoOrError.Value().Address,
-                        probingResult.NetThrottling,
-                        probingResult.DiskThrottling);
+                        subresponse.disk_queue_size());
                 }
 
-                auto currentProbingPenalty = ComputeProbingPenalty(probingResult);
+                auto currentProbingPenalty = ComputeProbingPenalty(
+                    probingResult->net_queue_size(),
+                    subresponse.disk_queue_size());
                 if (chunkBestNodeIndex[chunkIndex] == -1 ||
                     currentProbingPenalty < chunkLowestProbingPenalty[chunkIndex])
                 {
@@ -934,6 +719,10 @@ private:
             }
             it->second.ChunkFragmentSetInfos.push_back(std::move(pendingChunkFragmentSetInfo));
         }
+
+        YT_LOG_DEBUG("Finished probing peers (PeerCount: %v, ChunkCount: %v)",
+            probingInfos.size(),
+            PendingChunkFragmentSetInfos_.size());
 
         PendingChunkFragmentSetInfos_.clear();
 
@@ -1364,7 +1153,7 @@ private:
 
         auto probingInfos = GetProbingInfos(ChunkReplicaLists_);
 
-        std::vector<TFuture<std::vector<TErrorOrPeerProbingResult>>> probingFutures;
+        std::vector<TFuture<TProbeChunkSetResult>> probingFutures;
         probingFutures.reserve(probingInfos.size());
         for (const auto& probingInfo : probingInfos) {
             if (!probingInfo.PeerInfoOrError.IsOK()) {
@@ -1373,15 +1162,14 @@ private:
                 // TODO(akozhikhov): Node should be marked suspicious as we cannot get address.
                 Reader_->PeerInfoCache_->Invalidate(probingInfo.NodeId);
 
-                probingFutures.push_back(MakeFuture<std::vector<TErrorOrPeerProbingResult>>({}));
+                probingFutures.push_back(MakeFuture<TProbeChunkSetResult>({}));
                 continue;
             }
 
-            probingFutures.push_back(
-                Reader_->ProbingResultCache_->Get(probingInfo.ProbingKeys));
+            probingFutures.push_back(DoProbePeer(probingInfo));
         }
 
-        AllSucceeded(std::move(probingFutures)).Subscribe(BIND(
+        AllSet(std::move(probingFutures)).Subscribe(BIND(
             &TPeriodicUpdateSession::OnPeersProbed,
             MakeStrong(this),
             Passed(std::move(probingInfos)))
@@ -1390,54 +1178,59 @@ private:
 
     void OnPeersProbed(
         std::vector<TPeerProbingInfo> probingInfos,
-        const TErrorOr<std::vector<std::vector<TErrorOrPeerProbingResult>>>& resultOrError)
+        const TErrorOr<std::vector<TErrorOrProbeChunkSetResult>>& resultOrError)
     {
         VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
         YT_VERIFY(resultOrError.IsOK());
-        const auto& nodeProbingResultOrErrors = resultOrError.Value();
+        const auto& probingResultOrErrors = resultOrError.Value();
 
-        YT_VERIFY(probingInfos.size() == nodeProbingResultOrErrors.size());
+        YT_VERIFY(probingInfos.size() == probingResultOrErrors.size());
 
         std::vector<int> chunkBestNodeIndex(ChunkIds_.size(), -1);
         std::vector<double> chunkLowestProbingPenalty(ChunkIds_.size());
 
         for (int nodeIndex = 0; nodeIndex < std::ssize(probingInfos); ++nodeIndex) {
             const auto& probingInfo = probingInfos[nodeIndex];
-            const auto& probingResultOrErrors = nodeProbingResultOrErrors[nodeIndex];
-
             if (!probingInfo.PeerInfoOrError.IsOK()) {
                 continue;
             }
 
-            YT_VERIFY(probingInfo.ChunkIndexes.size() == probingResultOrErrors.size());
+            const auto& probingResultOrError = probingResultOrErrors[nodeIndex];
 
-            for (int resultIndex = 0; resultIndex < std::ssize(probingResultOrErrors); ++resultIndex) {
+            if (!probingResultOrError.IsOK()) {
+                YT_LOG_ERROR(probingResultOrError, "Failed to probe peer (Address: %v)",
+                    probingInfo.PeerInfoOrError.Value().Address);
+
+                YT_VERIFY(probingResultOrError.GetCode() != EErrorCode::NoSuchChunk);
+                // TODO(akozhikhov): Mark node as suspicious.
+                // TODO(akozhikhov): Don't invalidate upon specific errors like RequestQueueSizeLimitExceeded.
+                Reader_->PeerInfoCache_->Invalidate(probingInfo.NodeId);
+                continue;
+            }
+
+            const auto& probingResult = probingResultOrError.Value();
+            YT_VERIFY(std::ssize(probingInfo.ChunkIndexes) == probingResult->subresponses_size());
+
+            for (int resultIndex = 0; resultIndex < std::ssize(probingInfo.ChunkIndexes); ++resultIndex) {
                 auto chunkIndex = probingInfo.ChunkIndexes[resultIndex];
+                const auto& subresponse = probingResult->subresponses(resultIndex);
 
-                const auto& probingResultOrError = probingResultOrErrors[resultIndex];
-                if (!probingResultOrError.IsOK()) {
-                    YT_LOG_ERROR(probingResultOrError, "Failed to probe peer");
-
-                    YT_VERIFY(probingResultOrError.GetCode() != EErrorCode::NoSuchChunk);
-                    // TODO(akozhikhov): Mark node as suspicious.
-                    // TODO(akozhikhov): Don't invalidate upon specific errors like RequestQueueSizeLimitExceeded.
-                    Reader_->PeerInfoCache_->Invalidate(probingInfo.NodeId);
-                    continue;
-                }
-
-                const auto& probingResult = probingResultOrError.Value();
-                if (!probingResult.HasCompleteChunk) {
+                if (!subresponse.has_complete_chunk()) {
+                    auto chunkId = probingInfo.ChunkIds[resultIndex];
+                    YT_VERIFY(chunkId == ChunkIds_[chunkIndex]);
                     YT_LOG_ERROR("Chunk is missing from node (ChunkId: %v, Address: %v)",
-                        ChunkIds_[chunkIndex],
+                        chunkId,
                         probingInfo.PeerInfoOrError.Value().Address);
 
                     // TODO(akozhikhov): Consider suggested peer descriptors.
-                    TryDiscardChunkReplicas(ChunkIds_[chunkIndex]);
+                    TryDiscardChunkReplicas(chunkId);
                     continue;
                 }
 
-                auto currentProbingPenalty = ComputeProbingPenalty(probingResult);
+                auto currentProbingPenalty = ComputeProbingPenalty(
+                    probingResult->net_queue_size(),
+                    subresponse.disk_queue_size());
                 if (chunkBestNodeIndex[chunkIndex] == -1 ||
                     currentProbingPenalty < chunkLowestProbingPenalty[chunkIndex])
                 {
