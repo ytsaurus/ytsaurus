@@ -155,6 +155,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixTablesWithNullTabletCellBundle)                            (1629))  // shakurov
     ((ChangeDynamicTableMedium)                                     (1630))  // ifsmirnov
     ((MinTabletCountForTabletBalancer)                              (1631))  // ifsmirnov
+    ((ReserveReignIWillUseItLater)                                  (1632))  // aleksandra-zh
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1700))  // ignat
 );
