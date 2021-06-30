@@ -50,7 +50,8 @@ void TraverseTransactionAncestors(
             const auto& attributeMap = attributes->Attributes();
             static const std::vector<TString> Keys{
                 TString("operation_id"),
-                TString("operation_title")
+                TString("operation_title"),
+                TString("operation_type")
             };
             for (const auto& key : Keys) {
                 if (auto it = attributeMap.find(key)) {

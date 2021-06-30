@@ -55,6 +55,9 @@ message TReqStartForeignTransaction
     optional NYT.NProto.TGuid parent_id = 2;
     optional string title = 3;
     required bool upload = 4;
+    optional string operation_type = 5;
+    optional string operation_id = 6;
+    optional string operation_title = 7;
 }
 
 // Used as a signal when replication of a missing transaction was requested.

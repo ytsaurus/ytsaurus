@@ -62,6 +62,7 @@ import os
 @authors("shakurov", "avmatrosov")
 class TestAccessLog(YTEnvSetup):
     NUM_MASTERS = 2
+    NUM_SCHEDULERS = 1
     NUM_NONVOTING_MASTERS = 1
     NUM_NODES = 3
     USE_DYNAMIC_TABLES = True
@@ -99,8 +100,10 @@ class TestAccessLog(YTEnvSetup):
 
         def _check_entry_is_in_log(log, line_json):
             for key, value in log.iteritems():
-                if key in ["attributes", "transaction_id"]:
-                    if line_json.get("transaction_info") is None or line_json.get("transaction_info")[key] != value:
+                if key in ["attributes", "transaction_id", "operation_type"]:
+                    if line_json.get("transaction_info") is None or \
+                        key not in line_json.get("transaction_info") or \
+                        line_json.get("transaction_info")[key] != value:
                         return False
                 elif line_json.get(key) != value:
                     return False
@@ -424,6 +427,66 @@ class TestAccessLog(YTEnvSetup):
 
         log_list.append({"path": "//tmp/access_log/table", "method": "TtlRemove"})
         self._validate_entries_against_log(log_list)
+    
+    def test_write_table(self):
+        log_list = []
+
+        create("map_node", "//tmp/access_log")
+        table_id = create("table", "//tmp/access_log/t1")
+
+        write_table("//tmp/access_log/t1", {"foo": "bar"})
+
+        log_list.append(
+            {
+                "path": "//tmp/access_log/t1",
+                "type": "table",
+                "id": table_id,
+                "method": "BeginUpload",
+                "mode": "overwrite"
+            }
+        )
+
+        self._validate_entries_against_log(log_list)
+        write_table("<append=%true>//tmp/access_log/t1", {"foo2": "bar2"})
+
+        log_list.append(
+            {
+                "path": "//tmp/access_log/t1",
+                "type": "table",
+                "id": table_id,
+                "method": "BeginUpload",
+                "mode": "append"
+            }
+        )
+
+        self._validate_entries_against_log(log_list)
+    
+    def test_sort(self):
+        log_list = []
+
+        create("map_node", "//tmp/access_log")
+        table_id = create("table", "//tmp/access_log/t1")
+        table_id2 = create("table", "//tmp/access_log/t2")
+
+        write_table("<append=%true>//tmp/access_log/t1", {"a": 25, "b": "foo"})
+        write_table("<append=%true>//tmp/access_log/t1", {"a": 100, "b": "bar"})
+        write_table("<append=%true>//tmp/access_log/t1", {"a": 41, "b": "foobar"})
+        write_table("<append=%true>//tmp/access_log/t1", {"a": 23, "b": "barfoo"})
+
+        sort(in_="//tmp/access_log/t1", out="//tmp/access_log/t2", sort_by=["a"])
+
+        log_list.append(
+            {
+                "path": "//tmp/access_log/t2",
+                "type": "table",
+                "id": table_id2,
+                "method": "BeginUpload",
+                "operation_type": "sort"
+            }
+        )
+
+        self._validate_entries_against_log(log_list)
+
 
 ##################################################################
 
@@ -462,3 +525,4 @@ class TestAccessLogPortal(TestAccessLog):
         self._validate_entries_against_log(log_list, cell_tag_to_directory={
             1: "//tmp/access_log",
             2: "//tmp/access_log/p1"})
+

@@ -1413,6 +1413,7 @@ TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
     if (Spec_->Title) {
         attributes->Set("operation_title", Spec_->Title);
     }
+    attributes->Set("operation_type", GetOperationType());
     options.Attributes = std::move(attributes);
     options.ParentId = parentTransactionId;
      if (prerequisiteTransactionId) {

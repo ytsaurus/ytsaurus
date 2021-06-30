@@ -778,6 +778,17 @@ public:
                 startRequest.set_title(*currentTransaction->GetTitle());
             }
             startRequest.set_upload(currentTransaction->IsUpload());
+            if (const auto* attributes = transaction->GetAttributes()) {
+                if (auto operationType = attributes->Find("operation_type")) {
+                    startRequest.set_operation_type(ConvertTo<TString>(operationType));
+                }
+                if (auto operationId = attributes->Find("operation_id")) {
+                    startRequest.set_operation_id(ConvertTo<TString>(operationId));
+                }
+                if (auto operationTitle = attributes->Find("operation_title")) {
+                    startRequest.set_operation_title(ConvertTo<TString>(operationTitle));
+                }
+            }
             multicellManager->PostToMasters(startRequest, cellTags);
         }
 
@@ -1253,6 +1264,17 @@ private:
             isUpload == (
                 TypeFromId(hintId) == EObjectType::UploadTransaction ||
                 TypeFromId(hintId) == EObjectType::UploadNestedTransaction));
+        
+        auto attributes = CreateEphemeralAttributes();
+        if (request->has_operation_type()) {
+            attributes->Set("operation_type", request->operation_type());
+        }
+        if (request->has_operation_id()) {
+            attributes->Set("operation_id", request->operation_id());
+        }
+        if (request->has_operation_title()) {
+            attributes->Set("operation_title", request->operation_title());
+        }
 
         auto* transaction = DoStartTransaction(
             isUpload,
@@ -1262,7 +1284,7 @@ private:
             std::nullopt /*timeout*/,
             std::nullopt /*deadline*/,
             title,
-            EmptyAttributes(),
+            *attributes,
             hintId);
         YT_VERIFY(transaction->GetId() == hintId);
     }

@@ -78,6 +78,15 @@ bool TAttributeSet::Remove(const TString& key)
     return true;
 }
 
+NYson::TYsonString TAttributeSet::Find(const TString& key) const {
+    auto it = Attributes_.find(key);
+    if (it == Attributes_.end()) {
+        return NYson::TYsonString();
+    } else {
+        return it->second;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NObjectServer
