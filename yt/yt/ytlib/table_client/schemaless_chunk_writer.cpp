@@ -1307,10 +1307,9 @@ private:
                 currentKey,
                 nextKey)
                 << TErrorAttribute("comparator", comparator);
-        }
-
-        if (Options_->ExplodeOnValidationError) {
-            YT_LOG_FATAL(error);
+            if (Options_->ExplodeOnValidationError) {
+                YT_LOG_FATAL(error);
+            }
         }
 
         THROW_ERROR_EXCEPTION(error);
