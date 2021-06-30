@@ -179,7 +179,7 @@ func EnsureTables(
 			}
 		} else {
 			fixUniqueKeys := func(s schema.Schema) schema.Schema {
-				if len(s.Columns) > 0 && s.Columns[0].SortOrder != schema.SortNode {
+				if len(s.Columns) > 0 && s.Columns[0].SortOrder != schema.SortNone {
 					s.UniqueKeys = true
 				}
 

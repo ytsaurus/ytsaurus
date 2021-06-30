@@ -68,8 +68,9 @@ func (o *SortOrder) UnmarshalText(text []byte) error {
 }
 
 const (
-	SortNode      SortOrder = ""
-	SortAscending SortOrder = "ascending"
+	SortNone       SortOrder = ""
+	SortAscending  SortOrder = "ascending"
+	SortDescending SortOrder = "descending"
 )
 
 type AggregateFunction string
@@ -183,7 +184,7 @@ func (s Schema) Copy() Schema {
 func (s Schema) KeyColumns() []string {
 	var keys []string
 	for _, c := range s.Columns {
-		if c.SortOrder != SortNode {
+		if c.SortOrder != SortNone {
 			keys = append(keys, c.Name)
 		}
 	}
@@ -203,7 +204,7 @@ func (s Schema) SortedBy(keyColumns ...string) Schema {
 		if _, ok := allKeys[s.Columns[i].Name]; ok {
 			s.Columns[i].SortOrder = SortAscending
 		} else {
-			s.Columns[i].SortOrder = SortNode
+			s.Columns[i].SortOrder = SortNone
 		}
 	}
 
@@ -260,7 +261,7 @@ func MergeSchemas(lhs, rhs Schema) Schema {
 			// If one row does not have such column we need to mark this
 			// column as not required due to `null` values.
 			lCol.Required = false
-			lCol.SortOrder = SortNode
+			lCol.SortOrder = SortNone
 			schema.Columns = append(schema.Columns, lCol)
 		}
 		lhsColumns[lCol.Name] = lCol
@@ -268,7 +269,7 @@ func MergeSchemas(lhs, rhs Schema) Schema {
 	for _, c := range rhs.Columns {
 		if _, ok := lhsColumns[c.Name]; !ok {
 			c.Required = false
-			c.SortOrder = SortNode
+			c.SortOrder = SortNone
 			schema.Columns = append(schema.Columns, c)
 		}
 	}
@@ -283,6 +284,6 @@ func mergeColumns(lhs, rhs Column) Column {
 		lhs.Required = false
 		lhs.Type = TypeAny
 	}
-	lhs.SortOrder = SortNode
+	lhs.SortOrder = SortNone
 	return lhs
 }
