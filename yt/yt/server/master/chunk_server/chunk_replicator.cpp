@@ -7,7 +7,7 @@
 #include "chunk_tree_traverser.h"
 #include "chunk_view.h"
 #include "job.h"
-#include "job_tracker.h"
+#include "job_registry.h"
 #include "chunk_scanner.h"
 #include "chunk_replica.h"
 #include "medium.h"
@@ -99,11 +99,11 @@ TChunkReplicator::TChunkReplicator(
     TChunkManagerConfigPtr config,
     TBootstrap* bootstrap,
     TChunkPlacementPtr chunkPlacement,
-    TJobTrackerPtr jobTracker)
+    TJobRegistryPtr jobRegistry)
     : Config_(config)
     , Bootstrap_(bootstrap)
     , ChunkPlacement_(std::move(chunkPlacement))
-    , JobTracker_(std::move(jobTracker))
+    , JobRegistry_(std::move(jobRegistry))
     , RefreshExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
         BIND(&TChunkReplicator::OnRefresh, MakeWeak(this))))
@@ -143,7 +143,7 @@ TChunkReplicator::TChunkReplicator(
     YT_VERIFY(Config_);
     YT_VERIFY(Bootstrap_);
     YT_VERIFY(ChunkPlacement_);
-    YT_VERIFY(JobTracker_);
+    YT_VERIFY(JobRegistry_);
 
     for (int i = 0; i < MaxMediumCount; ++i) {
         // We "balance" medium indexes, not the repair queues themselves.
@@ -192,19 +192,6 @@ void TChunkReplicator::Stop()
 {
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);
-
-    const auto& chunkManager = Bootstrap_->GetChunkManager();
-    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-    for (const auto& nodePair : nodeTracker->Nodes()) {
-        const auto* node = nodePair.second;
-        for (const auto& jobPair : node->IdToJob()) {
-            const auto& job = jobPair.second;
-            auto* chunk = chunkManager->FindChunk(job->GetChunkIdWithIndexes().Id);
-            if (chunk) {
-                chunk->SetJob(nullptr);
-            }
-        }
-    }
 
     for (const auto& queue : MissingPartChunkRepairQueues_) {
         for (auto chunkWithIndexes : queue) {
@@ -826,16 +813,6 @@ void TChunkReplicator::ComputeRegularChunkStatisticsCrossMedia(
     }
 }
 
-void TChunkReplicator::OnNodeUnregistered(TNode* node)
-{
-    auto idToJob = node->IdToJob();
-    for (const auto& [jobId, job] : idToJob) {
-        YT_LOG_DEBUG("Job canceled (JobId: %v)", job->GetJobId());
-        JobTracker_->UnregisterJob(job);
-    }
-    node->Reset();
-}
-
 void TChunkReplicator::OnNodeDisposed(TNode* node)
 {
     YT_VERIFY(node->IdToJob().empty());
@@ -852,7 +829,6 @@ void TChunkReplicator::OnChunkDestroyed(TChunk* chunk)
     GetChunkRequisitionUpdateScanner(chunk)->OnChunkDestroyed(chunk);
     ResetChunkStatus(chunk);
     RemoveChunkFromQueuesOnDestroy(chunk);
-    CancelChunkJobs(chunk);
 }
 
 void TChunkReplicator::OnReplicaRemoved(
@@ -886,12 +862,12 @@ void TChunkReplicator::ScheduleReplicaRemoval(
     node->AddToChunkRemovalQueue(chunkIdWithIndexes);
 }
 
-bool TChunkReplicator::CreateReplicationJob(
-    TNode* sourceNode,
+bool TChunkReplicator::TryScheduleReplicationJob(
+    IJobSchedulingContext* context,
     TChunkPtrWithIndexes chunkWithIndexes,
-    TMedium* targetMedium,
-    TJobPtr* job)
+    TMedium* targetMedium)
 {
+    auto* sourceNode = context->GetNode();
     auto* chunk = chunkWithIndexes.GetPtr();
     auto replicaIndex = chunkWithIndexes.GetReplicaIndex();
 
@@ -904,7 +880,7 @@ bool TChunkReplicator::CreateReplicationJob(
         return true;
     }
 
-    if (chunk->IsJobScheduled()) {
+    if (chunk->HasJobs()) {
         return true;
     }
 
@@ -943,7 +919,7 @@ bool TChunkReplicator::CreateReplicationJob(
         replicasNeeded,
         1,
         std::nullopt,
-        JobTracker_->GetUnsaturatedInterDCEdgesStartingFrom(sourceNode->GetDataCenter()),
+        JobRegistry_->GetUnsaturatedInterDCEdgesStartingFrom(sourceNode->GetDataCenter()),
         ESessionType::Replication);
     if (targetNodes.empty()) {
         return false;
@@ -954,14 +930,15 @@ bool TChunkReplicator::CreateReplicationJob(
         targetReplicas.emplace_back(node, replicaIndex, targetMediumIndex);
     }
 
-    *job = New<TReplicationJob>(
-        JobTracker_->GenerateJobId(),
+    auto job = New<TReplicationJob>(
+        context->GenerateJobId(),
         sourceNode,
         chunkWithIndexes,
         targetReplicas);
+    context->ScheduleJob(job);
 
     YT_LOG_DEBUG("Replication job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddresses: %v)",
-        (*job)->GetJobId(),
+        job->GetJobId(),
         sourceNode->GetDefaultAddress(),
         chunkWithIndexes,
         MakeFormattableView(targetNodes, TNodePtrAddressFormatter()));
@@ -969,12 +946,12 @@ bool TChunkReplicator::CreateReplicationJob(
     return std::ssize(targetNodes) == replicasNeeded;
 }
 
-bool TChunkReplicator::CreateBalancingJob(
-    TNode* sourceNode,
+bool TChunkReplicator::TryScheduleBalancingJob(
+    IJobSchedulingContext* context,
     TChunkPtrWithIndexes chunkWithIndexes,
-    double maxFillFactor,
-    TJobPtr* job)
+    double maxFillFactor)
 {
+    auto* sourceNode = context->GetNode();
     auto* chunk = chunkWithIndexes.GetPtr();
 
     const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -982,7 +959,7 @@ bool TChunkReplicator::CreateBalancingJob(
         return true;
     }
 
-    if (chunk->IsJobScheduled()) {
+    if (chunk->HasJobs()) {
         return true;
     }
 
@@ -996,7 +973,7 @@ bool TChunkReplicator::CreateBalancingJob(
         medium,
         chunk,
         maxFillFactor,
-        JobTracker_->GetUnsaturatedInterDCEdgesStartingFrom(sourceNode->GetDataCenter()));
+        JobRegistry_->GetUnsaturatedInterDCEdgesStartingFrom(sourceNode->GetDataCenter()));
     if (!targetNode) {
         return false;
     }
@@ -1005,14 +982,15 @@ bool TChunkReplicator::CreateBalancingJob(
         TNodePtrWithIndexes(targetNode, replicaIndex, mediumIndex)
     };
 
-    *job = New<TReplicationJob>(
-        JobTracker_->GenerateJobId(),
+    auto job = New<TReplicationJob>(
+        context->GenerateJobId(),
         sourceNode,
         chunkWithIndexes,
         targetReplicas);
+    context->ScheduleJob(job);
 
     YT_LOG_DEBUG("Balancing job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddress: %v)",
-        (*job)->GetJobId(),
+        job->GetJobId(),
         sourceNode->GetDefaultAddress(),
         chunkWithIndexes,
         targetNode->GetDefaultAddress());
@@ -1020,10 +998,9 @@ bool TChunkReplicator::CreateBalancingJob(
     return true;
 }
 
-bool TChunkReplicator::CreateRemovalJob(
-    TNode* node,
-    const TChunkIdWithIndexes& chunkIdWithIndexes,
-    TJobPtr* job)
+bool TChunkReplicator::TryScheduleRemovalJob(
+    IJobSchedulingContext* context,
+    const TChunkIdWithIndexes& chunkIdWithIndexes)
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1034,30 +1011,30 @@ bool TChunkReplicator::CreateRemovalJob(
         if (chunk->GetScanFlag(EChunkScanKind::Refresh, objectManager->GetCurrentEpoch())) {
             return true;
         }
-        if (chunk->IsJobScheduled()) {
+        if (chunk->HasJobs()) {
             return true;
         }
     }
 
-    *job = New<TRemovalJob>(
-        JobTracker_->GenerateJobId(),
-        node,
+    auto job = New<TRemovalJob>(
+        context->GenerateJobId(),
+        context->GetNode(),
         IsObjectAlive(chunk) ? chunk : nullptr,
         chunkIdWithIndexes);
+    context->ScheduleJob(job);
 
     YT_LOG_DEBUG("Removal job scheduled (JobId: %v, Address: %v, ChunkId: %v)",
-        (*job)->GetJobId(),
-        node->GetDefaultAddress(),
+        job->GetJobId(),
+        context->GetNode()->GetDefaultAddress(),
         chunkIdWithIndexes);
 
     return true;
 }
 
-bool TChunkReplicator::CreateRepairJob(
+bool TChunkReplicator::TryScheduleRepairJob(
+    IJobSchedulingContext* context,
     EChunkRepairQueue repairQueue,
-    TNode* node,
-    TChunkPtrWithIndexes chunkWithIndexes,
-    TRepairJobPtr* job)
+    TChunkPtrWithIndexes chunkWithIndexes)
 {
     YT_VERIFY(chunkWithIndexes.GetReplicaIndex() == GenericChunkReplicaIndex);
 
@@ -1078,7 +1055,7 @@ bool TChunkReplicator::CreateRepairJob(
         return true;
     }
 
-    if (chunk->IsJobScheduled()) {
+    if (chunk->HasJobs()) {
         return true;
     }
 
@@ -1134,7 +1111,7 @@ bool TChunkReplicator::CreateRepairJob(
         erasedPartCount,
         erasedPartCount,
         std::nullopt,
-        JobTracker_->GetUnsaturatedInterDCEdgesStartingFrom(node->GetDataCenter()),
+        JobRegistry_->GetUnsaturatedInterDCEdgesStartingFrom(context->GetNode()->GetDataCenter()),
         ESessionType::Repair);
     if (targetNodes.empty()) {
         return false;
@@ -1148,17 +1125,22 @@ bool TChunkReplicator::CreateRepairJob(
         targetReplicas.emplace_back(node, erasedPartIndexes[targetIndex++], mediumIndex);
     }
 
-    *job = New<TRepairJob>(
-        JobTracker_->GenerateJobId(),
-        node,
+    auto job = New<TRepairJob>(
+        context->GenerateJobId(),
+        context->GetNode(),
         GetDynamicConfig()->RepairJobMemoryUsage,
         chunk,
         targetReplicas,
         repairQueue == EChunkRepairQueue::Decommissioned);
+    context->ScheduleJob(job);
+
+    ChunkRepairQueueBalancer(repairQueue).AddWeight(
+        mediumIndex,
+        job->ResourceUsage().repair_data_size() * job->TargetReplicas().size());
 
     YT_LOG_DEBUG("Repair job scheduled (JobId: %v, Address: %v, ChunkId: %v, Targets: %v, ErasedPartIndexes: %v)",
-        (*job)->GetJobId(),
-        node->GetDefaultAddress(),
+        job->GetJobId(),
+        context->GetNode()->GetDefaultAddress(),
         chunkWithIndexes,
         MakeFormattableView(targetNodes, TNodePtrAddressFormatter()),
         erasedPartIndexes);
@@ -1166,19 +1148,15 @@ bool TChunkReplicator::CreateRepairJob(
     return true;
 }
 
-void TChunkReplicator::ScheduleJobs(
-    TNode* node,
-    TNodeResources* resourceUsage,
-    const TNodeResources& resourceLimits,
-    std::vector<TJobPtr>* jobsToStart)
+void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
 {
-    if (JobTracker_->IsOverdraft()) {
-        return;
-    }
-
     if (!IsReplicatorEnabled()) {
         return;
     }
+
+    auto* node = context->GetNode();
+    const auto& resourceUsage = context->GetNodeResourceUsage();
+    const auto& resourceLimits = context->GetNodeResourceLimits();
 
     const auto* nodeDataCenter = node->GetDataCenter();
 
@@ -1187,25 +1165,25 @@ void TChunkReplicator::ScheduleJobs(
     int misscheduledRemovalJobs = 0;
 
     // NB: Beware of chunks larger than the limit; we still need to be able to replicate them one by one.
-    auto hasSpareReplicationResources = [&] () {
+    auto hasSpareReplicationResources = [&] {
         return
             misscheduledReplicationJobs < GetDynamicConfig()->MaxMisscheduledReplicationJobsPerHeartbeat &&
-            resourceUsage->replication_slots() < resourceLimits.replication_slots() &&
-            (resourceUsage->replication_slots() == 0 || resourceUsage->replication_data_size() < resourceLimits.replication_data_size());
+            resourceUsage.replication_slots() < resourceLimits.replication_slots() &&
+            (resourceUsage.replication_slots() == 0 || resourceUsage.replication_data_size() < resourceLimits.replication_data_size());
     };
 
     // NB: Beware of chunks larger than the limit; we still need to be able to repair them one by one.
-    auto hasSpareRepairResources = [&] () {
+    auto hasSpareRepairResources = [&] {
         return
             misscheduledRepairJobs < GetDynamicConfig()->MaxMisscheduledRepairJobsPerHeartbeat &&
-            resourceUsage->repair_slots() < resourceLimits.repair_slots() &&
-            (resourceUsage->repair_slots() == 0 || resourceUsage->repair_data_size() < resourceLimits.repair_data_size());
+            resourceUsage.repair_slots() < resourceLimits.repair_slots() &&
+            (resourceUsage.repair_slots() == 0 || resourceUsage.repair_data_size() < resourceLimits.repair_data_size());
     };
 
-    auto hasSpareRemovalResources = [&] () {
+    auto hasSpareRemovalResources = [&] {
         return
             misscheduledRemovalJobs < GetDynamicConfig()->MaxMisscheduledRemovalJobsPerHeartbeat &&
-            resourceUsage->removal_slots() < resourceLimits.removal_slots();
+            resourceUsage.removal_slots() < resourceLimits.removal_slots();
     };
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -1215,21 +1193,19 @@ void TChunkReplicator::ScheduleJobs(
         auto it = queue.begin();
         while (it != queue.end() &&
             hasSpareReplicationResources() &&
-            JobTracker_->HasUnsaturatedInterDCEdgeStartingFrom(nodeDataCenter))
+            JobRegistry_->HasUnsaturatedInterDCEdgeStartingFrom(nodeDataCenter))
         {
             auto jt = it++;
             auto chunkWithIndexes = jt->first;
             auto& mediumIndexSet = jt->second;
             for (int mediumIndex = 0; mediumIndex < std::ssize(mediumIndexSet); ++mediumIndex) {
                 if (mediumIndexSet.test(mediumIndex)) {
-                    TJobPtr job;
                     auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
-                    if (CreateReplicationJob(node, chunkWithIndexes, medium, &job)) {
+                    if (TryScheduleReplicationJob(context, chunkWithIndexes, medium)) {
                         mediumIndexSet.reset(mediumIndex);
                     } else {
                         ++misscheduledReplicationJobs;
                     }
-                    JobTracker_->RegisterJob(std::move(job), jobsToStart, resourceUsage);
                 }
             }
 
@@ -1252,7 +1228,7 @@ void TChunkReplicator::ScheduleJobs(
         }
 
         while (hasSpareRepairResources() &&
-            JobTracker_->HasUnsaturatedInterDCEdgeStartingFrom(nodeDataCenter))
+            JobRegistry_->HasUnsaturatedInterDCEdgeStartingFrom(nodeDataCenter))
         {
             auto winner = ChunkRepairQueueBalancer(queue).TakeWinnerIf(
                 [&] (int mediumIndex) {
@@ -1273,19 +1249,12 @@ void TChunkReplicator::ScheduleJobs(
             auto chunkIt = iteratorPerRepairQueue[mediumIndex].first++;
             auto chunkWithIndexes = *chunkIt;
             auto* chunk = chunkWithIndexes.GetPtr();
-            TRepairJobPtr job;
-            if (CreateRepairJob(queue, node, chunkWithIndexes, &job)) {
+            if (TryScheduleRepairJob(context, queue, chunkWithIndexes)) {
                 chunk->SetRepairQueueIterator(chunkWithIndexes.GetMediumIndex(), queue, TChunkRepairQueueIterator());
                 chunkRepairQueue.erase(chunkIt);
-                if (job) {
-                    ChunkRepairQueueBalancer(queue).AddWeight(
-                        *winner,
-                        job->ResourceUsage().repair_data_size() * job->TargetReplicas().size());
-                }
             } else {
                 ++misscheduledRepairJobs;
             }
-            JobTracker_->RegisterJob(std::move(job), jobsToStart, resourceUsage);
         }
     }
 
@@ -1307,13 +1276,11 @@ void TChunkReplicator::ScheduleJobs(
                         chunkIdWithIndex.Id,
                         chunkIdWithIndex.ReplicaIndex,
                         mediumIndex);
-                    TJobPtr job;
-                    if (CreateRemovalJob(node, chunkIdWithIndexes, &job)) {
+                    if (TryScheduleRemovalJob(context, chunkIdWithIndexes)) {
                         mediumIndexSet.reset(mediumIndex);
                     } else {
                         ++misscheduledRemovalJobs;
                     }
-                    JobTracker_->RegisterJob(std::move(job), jobsToStart, resourceUsage);
                 }
             }
             if (mediumIndexSet.none()) {
@@ -1338,24 +1305,22 @@ void TChunkReplicator::ScheduleJobs(
         double targetFillFactor = *sourceFillFactor - GetDynamicConfig()->MinChunkBalancingFillFactorDiff;
         if (hasSpareReplicationResources() &&
             *sourceFillFactor > GetDynamicConfig()->MinChunkBalancingFillFactor &&
-            JobTracker_->HasUnsaturatedInterDCEdgeStartingFrom(nodeDataCenter) &&
+            JobRegistry_->HasUnsaturatedInterDCEdgeStartingFrom(nodeDataCenter) &&
             ChunkPlacement_->HasBalancingTargets(
-                JobTracker_->GetUnsaturatedInterDCEdgesStartingFrom(node->GetDataCenter()),
+                JobRegistry_->GetUnsaturatedInterDCEdgesStartingFrom(node->GetDataCenter()),
                 medium,
                 targetFillFactor))
         {
-            int maxJobs = std::max(0, resourceLimits.replication_slots() - resourceUsage->replication_slots());
+            int maxJobs = std::max(0, resourceLimits.replication_slots() - resourceUsage.replication_slots());
             auto chunksToBalance = ChunkPlacement_->GetBalancingChunks(medium, node, maxJobs);
             for (auto chunkWithIndexes : chunksToBalance) {
                 if (!hasSpareReplicationResources()) {
                     break;
                 }
 
-                TJobPtr job;
-                if (!CreateBalancingJob(node, chunkWithIndexes, targetFillFactor, &job)) {
+                if (!TryScheduleBalancingJob(context, chunkWithIndexes, targetFillFactor)) {
                     ++misscheduledReplicationJobs;
                 }
-                JobTracker_->RegisterJob(std::move(job), jobsToStart, resourceUsage);
             }
         }
     }
@@ -1417,7 +1382,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
             UnsafelyPlacedChunks_.insert(chunk);
         }
 
-        if (!chunk->IsJobScheduled()) {
+        if (!chunk->HasJobs()) {
             if (Any(statistics.Status & EChunkStatus::Overreplicated) &&
                 None(allMediaStatistics.Status & (ECrossMediumChunkStatus::Deficient | ECrossMediumChunkStatus::MediumWiseLost)))
             {
@@ -1655,15 +1620,6 @@ void TChunkReplicator::RemoveChunkFromQueuesOnDestroy(TChunk* chunk)
             TChunkPtrWithIndexes chunkPtrWithIndexes(chunk, GenericChunkReplicaIndex, mediumIndex);
             RemoveFromChunkRepairQueues(chunkPtrWithIndexes);
         }
-    }
-}
-
-void TChunkReplicator::CancelChunkJobs(TChunk* chunk)
-{
-    auto job = chunk->GetJob();
-    if (job) {
-        YT_LOG_DEBUG("Job canceled (JobId: %v)", job->GetJobId());
-        JobTracker_->UnregisterJob(job);
     }
 }
 
@@ -1929,12 +1885,60 @@ void TChunkReplicator::OnCheckEnabledSecondary()
     }
 }
 
+void TChunkReplicator::TryRescheduleChunkRemoval(const TJobPtr& unsucceededJob)
+{
+    if (unsucceededJob->GetType() == EJobType::RemoveChunk &&
+        !unsucceededJob->Error().FindMatching(NChunkClient::EErrorCode::NoSuchChunk))
+    {
+        auto* node = unsucceededJob->GetNode();
+        // If job was aborted due to node unregistration, do not reschedule job.
+        if (!node->ReportedDataNodeHeartbeat()) {
+            return;
+        }
+        const auto& replica = unsucceededJob->GetChunkIdWithIndexes();
+        node->AddToChunkRemovalQueue(replica);
+    }
+}
+
 void TChunkReplicator::OnProfiling(TSensorBuffer* buffer) const
 {
     buffer->AddGauge("/blob_refresh_queue_size", BlobRefreshScanner_->GetQueueSize());
     buffer->AddGauge("/blob_requisition_update_queue_size", BlobRequisitionUpdateScanner_->GetQueueSize());
     buffer->AddGauge("/journal_refresh_queue_size", JournalRefreshScanner_->GetQueueSize());
     buffer->AddGauge("/journal_requisition_update_queue_size", JournalRequisitionUpdateScanner_->GetQueueSize());
+}
+
+void TChunkReplicator::OnJobWaiting(const TJobPtr& job, IJobControllerCallbacks* callbacks)
+{
+    // In Replicator we don't distinguish between running and waiting jobs.
+    OnJobRunning(job, callbacks);
+}
+
+void TChunkReplicator::OnJobRunning(const TJobPtr& job, IJobControllerCallbacks* callbacks)
+{
+    if (TInstant::Now() - job->GetStartTime() > GetDynamicConfig()->JobTimeout) {
+        YT_LOG_WARNING("Job timed out, aborting (JobId: %v, JobType: %v, Address: %v, Duration: %v, ChunkId: %v)",
+            job->GetJobId(),
+            job->GetType(),
+            job->GetNode()->GetDefaultAddress(),
+            TInstant::Now() - job->GetStartTime(),
+            job->GetChunkIdWithIndexes());
+
+        callbacks->AbortJob(job);
+    }
+}
+
+void TChunkReplicator::OnJobCompleted(const TJobPtr& /*job*/)
+{ }
+
+void TChunkReplicator::OnJobAborted(const TJobPtr& job)
+{
+    TryRescheduleChunkRemoval(job);
+}
+
+void TChunkReplicator::OnJobFailed(const TJobPtr& job)
+{
+    TryRescheduleChunkRemoval(job);
 }
 
 void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)

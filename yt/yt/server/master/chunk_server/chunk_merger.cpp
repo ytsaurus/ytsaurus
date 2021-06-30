@@ -4,7 +4,7 @@
 #include "chunk_manager.h"
 #include "chunk_tree_traverser.h"
 #include "config.h"
-#include "job_tracker.h"
+#include "job_registry.h"
 #include "job.h"
 #include "medium.h"
 
@@ -158,11 +158,9 @@ class TMergeChunkVisitor
 public:
     TMergeChunkVisitor(
         TBootstrap* bootstrap,
-        TJobTrackerPtr jobTracker,
         TChunkOwnerBase* node,
         std::queue<TMergeJobInfo>* jobsAwaitingChunkCreation)
         : Bootstrap_(bootstrap)
-        , JobTracker_(std::move(jobTracker))
         , Node_(node)
         , RootChunkList_(Node_->GetChunkList())
         , Account_(Node_->GetAccount())
@@ -189,7 +187,6 @@ public:
 
 private:
     TBootstrap* const Bootstrap_;
-    const TJobTrackerPtr JobTracker_;
     TChunkOwnerBase* const Node_;
     TChunkList* const RootChunkList_;
     TAccount* const Account_;
@@ -284,7 +281,8 @@ private:
 
         IncrementMergeJobCounter(Bootstrap_, Node_);
 
-        auto jobId = JobTracker_->GenerateJobId();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto jobId = chunkManager->GenerateJobId();
         JobsAwaitingChunkCreation_->push({
             .JobId = jobId,
             .NodeId = Node_->GetId(),
@@ -364,90 +362,29 @@ void TChunkMerger::ScheduleMerge(TChunkOwnerBase* trunkNode)
     }
 }
 
-void TChunkMerger::ScheduleJobs(
-    TNode* node,
-    NNodeTrackerClient::NProto::TNodeResources* resourceUsage,
-    const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
-    std::vector<TJobPtr>* jobsToStart)
+void TChunkMerger::ScheduleJobs(IJobSchedulingContext* context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto hasSpareMergeResources = [&] () {
-        return resourceUsage->merge_slots() < resourceLimits.merge_slots();
+    const auto& resourceUsage = context->GetNodeResourceUsage();
+    const auto& resourceLimits = context->GetNodeResourceLimits();
+
+    auto hasSpareMergeResources = [&] {
+        return resourceUsage.merge_slots() < resourceLimits.merge_slots();
     };
 
     while (!JobsAwaitingNodeHeartbeat_.empty() && hasSpareMergeResources()) {
         auto jobInfo = std::move(JobsAwaitingNodeHeartbeat_.front());
         JobsAwaitingNodeHeartbeat_.pop();
 
-        TJobPtr job;
-        if (!CreateMergeJob(node, jobInfo, &job)) {
+        if (!TryScheduleMergeJob(context, jobInfo)) {
             if (auto* trunkNode = FindChunkOwner(jobInfo.NodeId)) {
                 DecrementMergeJobCounter(Bootstrap_, trunkNode);
             }
             ScheduleMerge(jobInfo.NodeId);
             continue;
         }
-
-        JobTracker_->RegisterJob(job, jobsToStart, resourceUsage);
-
-        YT_LOG_DEBUG("Merge job scheduled (JobId: %v, Address: %v, NodeId: %v, InputChunkIds: %v, OutputChunkId: %v)",
-            job->GetJobId(),
-            node->GetDefaultAddress(),
-            jobInfo.NodeId,
-            jobInfo.InputChunkIds,
-            jobInfo.OutputChunkId);
-
-        YT_VERIFY(RunningJobs_.emplace(job->GetJobId(), std::move(jobInfo)).second);
     }
-}
-
-void TChunkMerger::ProcessJobs(const std::vector<TJobPtr>& jobs)
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    for (const auto& job : jobs) {
-        auto jobType = job->GetType();
-        if (jobType != EJobType::MergeChunks) {
-            continue;
-        }
-
-        auto jobId = job->GetJobId();
-        auto it = RunningJobs_.find(jobId);
-        if (it == RunningJobs_.end()) {
-            YT_LOG_DEBUG("Chunk merger skipped processing an unknown job (JobId: %v)",
-                jobId);
-            continue;
-        }
-
-        const auto& jobInfo = it->second;
-        if (auto* trunkNode = FindChunkOwner(jobInfo.NodeId)) {
-            DecrementMergeJobCounter(Bootstrap_, trunkNode);
-        }
-
-        switch (job->GetState()) {
-            case EJobState::Completed:
-                ScheduleReplaceChunks(jobInfo);
-                break;
-
-            case EJobState::Failed:
-            case EJobState::Aborted:
-                ScheduleMerge(jobInfo.NodeId);
-                break;
-
-            default:
-                break;
-        }
-
-        RunningJobs_.erase(it);
-    }
-}
-
-void TChunkMerger::SetJobTracker(TJobTrackerPtr jobTracker)
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    JobTracker_ = std::move(jobTracker);
 }
 
 void TChunkMerger::OnProfiling(TSensorBuffer* buffer) const
@@ -471,6 +408,43 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer) const
     buffer->AddCounter("/chunk_merger_chunk_replacement_succeeded", ChunkReplacementSucceded_);
     buffer->AddCounter("/chunk_merger_chunk_replacement_failed", ChunkReplacementFailed_);
     buffer->AddCounter("/chunk_merger_chunk_count_saving", ChunkCountSaving_);
+}
+
+void TChunkMerger::OnJobWaiting(const TJobPtr& job, IJobControllerCallbacks* callbacks)
+{
+    // In Chunk Merger we don't distinguish between waiting and running jobs.
+    OnJobRunning(job, callbacks);
+}
+
+void TChunkMerger::OnJobRunning(const TJobPtr& job, IJobControllerCallbacks* callbacks)
+{
+    const auto& configManager = Bootstrap_->GetConfigManager();
+    auto jobTimeout = configManager->GetConfig()->ChunkManager->JobTimeout;
+    if (TInstant::Now() - job->GetStartTime() > jobTimeout) {
+        YT_LOG_WARNING("Job timed out, aborting (JobId: %v, JobType: %v, Address: %v, Duration: %v, ChunkId: %v)",
+            job->GetJobId(),
+            job->GetType(),
+            job->GetNode()->GetDefaultAddress(),
+            TInstant::Now() - job->GetStartTime(),
+            job->GetChunkIdWithIndexes());
+
+        callbacks->AbortJob(job);
+    }
+}
+
+void TChunkMerger::OnJobCompleted(const TJobPtr& job)
+{
+    OnJobFinished(job);
+}
+
+void TChunkMerger::OnJobAborted(const TJobPtr& job)
+{
+    OnJobFinished(job);
+}
+
+void TChunkMerger::OnJobFailed(const TJobPtr& job)
+{
+    OnJobFinished(job);
 }
 
 void TChunkMerger::OnRecoveryComplete()
@@ -680,7 +654,6 @@ void TChunkMerger::ProcessTouchedNodes()
                 account->IncrementMergeJobRate(1);
                 New<TMergeChunkVisitor>(
                     Bootstrap_,
-                    JobTracker_,
                     node,
                     &JobsAwaitingChunkCreation_)
                     ->Run();
@@ -766,7 +739,7 @@ void TChunkMerger::CreateChunks()
         ->CommitAndLog(Logger);
 }
 
-bool TChunkMerger::CreateMergeJob(TNode* node, const TMergeJobInfo& jobInfo, TJobPtr* job)
+bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMergeJobInfo& jobInfo)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -800,12 +773,22 @@ bool TChunkMerger::CreateMergeJob(TNode* node, const TMergeJobInfo& jobInfo, TJo
         inputChunks.push_back(chunk);
     }
 
-    *job = New<TMergeJob>(
+    auto job = New<TMergeJob>(
         jobInfo.JobId,
-        node,
+        context->GetNode(),
         TChunkIdWithIndexes(jobInfo.OutputChunkId, GenericChunkReplicaIndex, chunkOwner->GetPrimaryMediumIndex()),
         std::move(inputChunks),
         std::move(chunkMergerWriterOptions));
+    context->ScheduleJob(job);
+
+    YT_LOG_DEBUG("Merge job scheduled (JobId: %v, Address: %v, NodeId: %v, InputChunkIds: %v, OutputChunkId: %v)",
+        job->GetJobId(),
+        context->GetNode()->GetDefaultAddress(),
+        jobInfo.NodeId,
+        jobInfo.InputChunkIds,
+        jobInfo.OutputChunkId);
+
+    YT_VERIFY(RunningJobs_.emplace(job->GetJobId(), std::move(jobInfo)).second);
 
     return true;
 }
@@ -825,6 +808,42 @@ void TChunkMerger::ScheduleReplaceChunks(const TMergeJobInfo& jobInfo)
 
     CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
         ->CommitAndLog(Logger);
+}
+
+void TChunkMerger::OnJobFinished(const TJobPtr& job)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    YT_VERIFY(job->GetType() == EJobType::MergeChunks);
+
+    auto jobId = job->GetJobId();
+    auto it = RunningJobs_.find(jobId);
+    if (it == RunningJobs_.end()) {
+        YT_LOG_ALERT("Unknown job finished in chunk merger (JobId: %v)",
+            jobId);
+        return;
+    }
+
+    const auto& jobInfo = it->second;
+    if (auto* trunkNode = FindChunkOwner(jobInfo.NodeId)) {
+        DecrementMergeJobCounter(Bootstrap_, trunkNode);
+    }
+
+    switch (job->GetState()) {
+        case EJobState::Completed:
+            ScheduleReplaceChunks(jobInfo);
+            break;
+
+        case EJobState::Failed:
+        case EJobState::Aborted:
+            ScheduleMerge(jobInfo.NodeId);
+            break;
+
+        default:
+            YT_ABORT();
+    }
+
+    RunningJobs_.erase(it);
 }
 
 const TDynamicChunkMergerConfigPtr& TChunkMerger::GetDynamicConfig() const

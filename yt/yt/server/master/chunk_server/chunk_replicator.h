@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "chunk.h"
+#include "job_controller.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -34,14 +35,14 @@ namespace NYT::NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkReplicator
-    : public TRefCounted
+    : public IJobController
 {
 public:
     TChunkReplicator(
         TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap,
         TChunkPlacementPtr chunkPlacement,
-        TJobTrackerPtr jobTracker);
+        TJobRegistryPtr jobRegistry);
 
     ~TChunkReplicator();
 
@@ -52,7 +53,6 @@ public:
         int journalChunkCount);
     void Stop();
 
-    void OnNodeUnregistered(TNode* node);
     void OnNodeDisposed(TNode* node);
 
     // 'On all of the media' chunk states. E.g. LostChunks contain chunks that
@@ -118,6 +118,16 @@ public:
 
     void OnProfiling(NProfiling::TSensorBuffer* buffer) const;
 
+    // IJobController implementation.
+    virtual void ScheduleJobs(IJobSchedulingContext* context) override;
+
+    virtual void OnJobWaiting(const TJobPtr& job, IJobControllerCallbacks* callbacks) override;
+    virtual void OnJobRunning(const TJobPtr& job, IJobControllerCallbacks* callbacks) override;
+
+    virtual void OnJobCompleted(const TJobPtr& job) override;
+    virtual void OnJobAborted(const TJobPtr& job) override;
+    virtual void OnJobFailed(const TJobPtr& job) override;
+
 private:
     struct TPerMediumChunkStatistics
     {
@@ -170,7 +180,7 @@ private:
     const TChunkManagerConfigPtr Config_;
     NCellMaster::TBootstrap* const Bootstrap_;
     const TChunkPlacementPtr ChunkPlacement_;
-    const TJobTrackerPtr JobTracker_;
+    const TJobRegistryPtr JobRegistry_;
 
     const NConcurrency::TPeriodicExecutorPtr RefreshExecutor_;
     const std::unique_ptr<TChunkScanner> BlobRefreshScanner_;
@@ -203,25 +213,21 @@ private:
 
     std::optional<bool> Enabled_;
 
-    bool CreateReplicationJob(
-        TNode* sourceNode,
+    bool TryScheduleReplicationJob(
+        IJobSchedulingContext* context,
         TChunkPtrWithIndexes chunkWithIndex,
-        TMedium* targetMedium,
-        TJobPtr* job);
-    bool CreateBalancingJob(
-        TNode* sourceNode,
+        TMedium* targetMedium);
+    bool TryScheduleBalancingJob(
+        IJobSchedulingContext* context,
         TChunkPtrWithIndexes chunkWithIndex,
-        double maxFillCoeff,
-        TJobPtr* jobsToStart);
-    bool CreateRemovalJob(
-        TNode* node,
-        const NChunkClient::TChunkIdWithIndexes& chunkIdWithIndex,
-        TJobPtr* job);
-    bool CreateRepairJob(
+        double maxFillCoeff);
+    bool TryScheduleRemovalJob(
+        IJobSchedulingContext* context,
+        const NChunkClient::TChunkIdWithIndexes& chunkIdWithIndex);
+    bool TryScheduleRepairJob(
+        IJobSchedulingContext* context,
         EChunkRepairQueue repairQueue,
-        TNode* node,
-        TChunkPtrWithIndexes chunkWithIndexes,
-        TRepairJobPtr* job);
+        TChunkPtrWithIndexes chunkWithIndexes);
 
     void OnRefresh();
     void RefreshChunk(TChunk* chunk);
@@ -229,7 +235,6 @@ private:
     void ResetChunkStatus(TChunk* chunk);
     void RemoveChunkFromQueuesOnRefresh(TChunk* chunk);
     void RemoveChunkFromQueuesOnDestroy(TChunk* chunk);
-    void CancelChunkJobs(TChunk* chunk);
 
     void MaybeRememberPartMissingChunk(TChunk* chunk);
 
@@ -314,6 +319,8 @@ private:
     void OnCheckEnabled();
     void OnCheckEnabledPrimary();
     void OnCheckEnabledSecondary();
+
+    void TryRescheduleChunkRemoval(const TJobPtr& unsucceededJob);
 
     TChunkRequisitionRegistry* GetChunkRequisitionRegistry();
 

@@ -19,11 +19,13 @@
 #include "dynamic_store_proxy.h"
 #include "expiration_tracker.h"
 #include "helpers.h"
-#include "job_tracker.h"
+#include "job_controller.h"
+#include "job_registry.h"
 #include "job.h"
 #include "medium.h"
 #include "medium_proxy.h"
 
+#include <yt/yt/server/master/cell_master/alert_manager.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
@@ -34,6 +36,8 @@
 #include <yt/yt/server/master/chunk_server/proto/chunk_manager.pb.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
+
+#include <yt/yt/server/lib/controller_agent/helpers.h>
 
 #include <yt/yt/server/lib/hydra/composite_automaton.h>
 #include <yt/yt/server/lib/hydra/entity_map.h>
@@ -60,7 +64,11 @@
 
 #include <yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
 
+#include <yt/yt/ytlib/job_tracker_client/helpers.h>
+#include <yt/yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
+
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
+#include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/session_id.h>
@@ -78,6 +86,7 @@
 
 #include <yt/yt/client/tablet_client/public.h>
 
+#include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/compression/codec.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
@@ -110,6 +119,7 @@ using namespace NChunkClient::NProto;
 using namespace NDataNodeTrackerClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
+using namespace NJobTrackerClient;
 using namespace NJournalClient;
 using namespace NJournalServer;
 using namespace NTabletServer;
@@ -341,6 +351,92 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobSchedulingContext
+    : public IJobSchedulingContext
+{
+public:
+    TJobSchedulingContext(
+        TBootstrap* bootstrap,
+        TNode* node,
+        NNodeTrackerClient::NProto::TNodeResources* nodeResourceUsage,
+        NNodeTrackerClient::NProto::TNodeResources* nodeResourceLimits,
+        TJobRegistryPtr jobRegistry)
+        : Bootstrap_(bootstrap)
+        , Node_(node)
+        , NodeResourceUsage_(nodeResourceUsage)
+        , NodeResourceLimits_(nodeResourceLimits)
+        , JobRegistry_(std::move(jobRegistry))
+    { }
+
+    virtual TNode* GetNode() const override
+    {
+        return Node_;
+    }
+
+    virtual const NNodeTrackerClient::NProto::TNodeResources& GetNodeResourceUsage() const override
+    {
+        return *NodeResourceUsage_;
+    }
+
+    virtual const NNodeTrackerClient::NProto::TNodeResources& GetNodeResourceLimits() const override
+    {
+        return *NodeResourceLimits_;
+    }
+
+    virtual TJobId GenerateJobId() const override
+    {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        return chunkManager->GenerateJobId();
+    }
+
+    virtual void ScheduleJob(const TJobPtr& job) override
+    {
+        JobRegistry_->RegisterJob(job);
+
+        *NodeResourceUsage_ += job->ResourceUsage();
+
+        ScheduledJobs_.push_back(job);
+    }
+
+    const std::vector<TJobPtr>& GetScheduledJobs() const
+    {
+        return ScheduledJobs_;
+    }
+
+private:
+    TBootstrap* const Bootstrap_;
+
+    TNode* const Node_;
+    NNodeTrackerClient::NProto::TNodeResources* const NodeResourceUsage_;
+    NNodeTrackerClient::NProto::TNodeResources* const NodeResourceLimits_;
+
+    const TJobRegistryPtr JobRegistry_;
+
+    std::vector<TJobPtr> ScheduledJobs_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJobControllerCallbacks
+    : public IJobControllerCallbacks
+{
+public:
+    virtual void AbortJob(const TJobPtr& job) override
+    {
+        JobsToAbort_.push_back(job);
+    }
+
+    const std::vector<TJobPtr>& GetJobsToAbort() const
+    {
+        return JobsToAbort_;
+    }
+
+private:
+    std::vector<TJobPtr> JobsToAbort_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkManager::TImpl
     : public TMasterAutomatonPart
 {
@@ -421,6 +517,9 @@ public:
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
         dataNodeTracker->SubscribeFullHeartbeat(BIND(&TImpl::OnFullDataNodeHeartbeat, MakeWeak(this)));
         dataNodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalDataNodeHeartbeat, MakeWeak(this)));
+
+        const auto& alertManager = Bootstrap_->GetAlertManager();
+        alertManager->RegisterAlertSource(BIND(&TImpl::GetAlerts, MakeStrong(this)));
 
         BufferedProducer_ = New<TBufferedProducer>();
         ChunkServerProfilerRegistry
@@ -1171,44 +1270,220 @@ public:
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk list cleared (ChunkListId: %v)", chunkList->GetId());
     }
 
-
-    void ScheduleJobs(
-        TNode* node,
-        TNodeResources resourceUsage,
-        TNodeResources resourceLimits,
-        const std::vector<TJobPtr>& currentJobs,
-        std::vector<TJobPtr>* jobsToStart,
-        std::vector<TJobPtr>* jobsToAbort,
-        std::vector<TJobPtr>* jobsToRemove)
+    void ProcessJobHeartbeat(TNode* node, const TCtxJobHeartbeatPtr& context)
     {
         YT_VERIFY(IsLeader());
 
-        JobTracker_->OverrideResourceLimits(
+        auto* request = &context->Request();
+        auto* response = &context->Response();
+
+        const auto& address = node->GetDefaultAddress();
+
+        // Node resource usage and limits should be changed inside a mutation,
+        // so we store them at the beginning of the job heartbeat processing, then work
+        // with local copies and update real values via mutation at the end.
+        auto resourceUsage = request->resource_usage();
+        auto resourceLimits = request->resource_limits();
+
+        JobRegistry_->OverrideResourceLimits(
             &resourceLimits,
             *node);
 
-        JobTracker_->ProcessJobs(
-            node,
-            currentJobs,
-            jobsToAbort,
-            jobsToRemove);
-        ChunkMerger_->ProcessJobs(*jobsToRemove);
+        auto removeJob = [&] (TJobId jobId) {
+            ToProto(response->add_jobs_to_remove(), {jobId});
 
-        ChunkReplicator_->ScheduleJobs(
-            node,
-            &resourceUsage,
-            resourceLimits,
-            jobsToStart);
-        ChunkSealer_->ScheduleJobs(
-            node,
-            &resourceUsage,
-            resourceLimits,
-            jobsToStart);
-        ChunkMerger_->ScheduleJobs(
-            node,
-            &resourceUsage,
-            resourceLimits,
-            jobsToStart);
+            if (auto job = node->FindJob(jobId)) {
+                JobRegistry_->UnregisterJob(job);
+            }
+        };
+
+        auto abortJob = [&] (TJobId jobId) {
+            AddJobToAbort(response, {jobId});
+        };
+
+        TJobControllerCallbacks jobControllerCallbacks;
+
+        // Process job events and find missing jobs.
+        THashSet<TJobPtr> processedJobs;
+        for (const auto& jobStatus : request->jobs()) {
+            auto jobId = FromProto<TJobId>(jobStatus.job_id());
+            auto state = CheckedEnumCast<EJobState>(jobStatus.state());
+            auto jobError = FromProto<TError>(jobStatus.result().error());
+            auto job = node->FindJob(jobId);
+            if (job) {
+                YT_VERIFY(processedJobs.emplace(job).second);
+
+                auto jobType = job->GetType();
+                job->SetState(state);
+                if (state == EJobState::Completed || state == EJobState::Failed || state == EJobState::Aborted) {
+                    job->Error() = jobError;
+                }
+
+                switch (state) {
+                    case EJobState::Completed:
+                        YT_LOG_DEBUG(jobError, "Job completed (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
+                            jobId,
+                            jobType,
+                            address,
+                            job->GetChunkIdWithIndexes());
+
+                        JobController_->OnJobCompleted(job);
+                        removeJob(jobId);
+                        break;
+
+                    case EJobState::Failed:
+                        YT_LOG_WARNING(jobError, "Job failed (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
+                            jobId,
+                            jobType,
+                            address,
+                            job->GetChunkIdWithIndexes());
+
+                        JobController_->OnJobFailed(job);
+                        removeJob(jobId);
+                        break;
+
+                    case EJobState::Aborted:
+                        YT_LOG_WARNING(jobError, "Job aborted (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
+                            jobId,
+                            jobType,
+                            address,
+                            job->GetChunkIdWithIndexes());
+
+                        JobController_->OnJobAborted(job);
+                        removeJob(jobId);
+                        break;
+
+                    case EJobState::Running:
+                        YT_LOG_DEBUG("Job is running (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
+                            jobId,
+                            jobType,
+                            address,
+                            job->GetChunkIdWithIndexes());
+
+                        JobController_->OnJobRunning(job, &jobControllerCallbacks);
+                        break;
+
+                    case EJobState::Waiting:
+                        YT_LOG_DEBUG("Job is waiting (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
+                            jobId,
+                            jobType,
+                            address,
+                            job->GetChunkIdWithIndexes());
+
+                        JobController_->OnJobWaiting(job, &jobControllerCallbacks);
+                        break;
+                    default:
+                        YT_ABORT();
+                }
+            } else {
+                // Unknown jobs are aborted and removed.
+                switch (state) {
+                    case EJobState::Completed:
+                        YT_LOG_DEBUG(jobError, "Unknown job has completed, removal scheduled (JobId: %v, Address: %v)",
+                            jobId,
+                            address);
+                        removeJob(jobId);
+                        break;
+
+                    case EJobState::Failed:
+                        YT_LOG_DEBUG(jobError, "Unknown job has failed, removal scheduled (JobId: %v, Address: %v)",
+                            jobId,
+                            address);
+                        removeJob(jobId);
+                        break;
+
+                    case EJobState::Aborted:
+                        YT_LOG_DEBUG(jobError, "Job aborted, removal scheduled (JobId: %v, Address: %v)",
+                            jobId,
+                            address);
+                        removeJob(jobId);
+                        break;
+
+                    case EJobState::Running:
+                        YT_LOG_DEBUG("Unknown job is running, abort scheduled (JobId: %v, Address: %v)",
+                            jobId,
+                            address);
+                        abortJob(jobId);
+                        break;
+
+                    case EJobState::Waiting:
+                        YT_LOG_DEBUG("Unknown job is waiting, abort scheduled (JobId: %v, Address: %v)",
+                            jobId,
+                            address);
+                        abortJob(jobId);
+                        break;
+
+                    default:
+                        YT_ABORT();
+                }
+            }
+        }
+
+        for (const auto& jobToAbort : jobControllerCallbacks.GetJobsToAbort()) {
+            YT_LOG_DEBUG("Aborting job (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
+                jobToAbort->GetJobId(),
+                jobToAbort->GetType(),
+                address,
+                jobToAbort->GetChunkIdWithIndexes());
+            abortJob(jobToAbort->GetJobId());
+        }
+
+        for (const auto& [jobId, job] : node->IdToJob()) {
+            if (!processedJobs.contains(job)) {
+                YT_LOG_WARNING("Job is missing, aborting (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
+                    jobId,
+                    job->GetType(),
+                    address,
+                    job->GetChunkIdWithIndexes());
+                AbortAndRemoveJob(job);
+            }
+        }
+
+        // Now we schedule new jobs.
+        if (!JobRegistry_->IsOverdraft()) {
+            TJobSchedulingContext schedulingContext(
+                Bootstrap_,
+                node,
+                &resourceUsage,
+                &resourceLimits,
+                JobRegistry_);
+
+            JobController_->ScheduleJobs(&schedulingContext);
+
+            for (const auto& scheduledJob : schedulingContext.GetScheduledJobs()) {
+                auto* jobInfo = response->add_jobs_to_start();
+                ToProto(jobInfo->mutable_job_id(), scheduledJob->GetJobId());
+                *jobInfo->mutable_resource_limits() = scheduledJob->ResourceUsage();
+
+                NJobTrackerClient::NProto::TJobSpec jobSpec;
+                jobSpec.set_type(static_cast<int>(scheduledJob->GetType()));
+                scheduledJob->FillJobSpec(Bootstrap_, &jobSpec);
+
+                auto serializedJobSpec = SerializeProtoToRefWithEnvelope(jobSpec);
+                response->Attachments().push_back(serializedJobSpec);
+            }
+        } else {
+            YT_LOG_ERROR("Job throttler is overdrafted, skip job scheduling (Address: %v)",
+                node->GetDefaultAddress());
+        }
+
+        // If node resource usage or limits have changed, we commit mutation with new values.
+        if (node->ResourceUsage() != resourceUsage || node->ResourceLimits() != resourceLimits) {
+            NNodeTrackerServer::NProto::TReqUpdateNodeResources request;
+            request.set_node_id(node->GetId());
+            request.mutable_resource_usage()->CopyFrom(resourceUsage);
+            request.mutable_resource_limits()->CopyFrom(resourceLimits);
+
+            const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+            nodeTracker->CreateUpdateNodeResourcesMutation(request)
+                ->CommitAndLog(Logger);
+        }
+    }
+
+    TJobId GenerateJobId() const
+    {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        return MakeRandomId(EObjectType::MasterJob, multicellManager->GetCellTag());
     }
 
 
@@ -1645,9 +1920,9 @@ private:
 
     TChunkPlacementPtr ChunkPlacement_;
     TChunkReplicatorPtr ChunkReplicator_;
-    TChunkSealerPtr ChunkSealer_;
+    IChunkSealerPtr ChunkSealer_;
 
-    TJobTrackerPtr JobTracker_;
+    TJobRegistryPtr JobRegistry_;
 
     const TExpirationTrackerPtr ExpirationTracker_;
 
@@ -1682,6 +1957,8 @@ private:
     // (whose number coincides with the chunk list's multiplicity) to ensure that.
     THashMultiSet<TChunkList*> ChunkListsAwaitingRequisitionTraverse_;
 
+    ICompositeJobControllerPtr JobController_;
+
 
     const TDynamicChunkManagerConfigPtr& GetDynamicConfig()
     {
@@ -1714,6 +1991,12 @@ private:
         // Decrease staging resource usage; release account.
         UnstageChunk(chunk);
 
+        // Abort all chunk jobs.
+        auto jobs = chunk->GetJobs();
+        for (const auto& job : jobs) {
+            AbortAndRemoveJob(job);
+        }
+
         // Cancel all jobs, reset status etc.
         if (ChunkReplicator_) {
             ChunkReplicator_->OnChunkDestroyed(chunk);
@@ -1726,8 +2009,6 @@ private:
             // The chunk has been already unstaged.
             UpdateResourceUsage(chunk, -1);
         }
-
-        auto job = chunk->GetJob();
 
         // Unregister chunk replicas from all known locations.
         // Schedule removal jobs.
@@ -1755,13 +2036,6 @@ private:
                 return;
             }
             if (!node->ReportedDataNodeHeartbeat()) {
-                return;
-            }
-            if (job &&
-                job->GetNode() == node &&
-                job->GetType() == EJobType::RemoveChunk &&
-                job->GetChunkIdWithIndexes() == chunkIdWithIndexes)
-            {
                 return;
             }
             ChunkReplicator_->ScheduleReplicaRemoval(node, chunkWithIndexes);
@@ -1885,9 +2159,13 @@ private:
             ChunkPlacement_->OnNodeUnregistered(node);
         }
 
-        if (ChunkReplicator_) {
-            ChunkReplicator_->OnNodeUnregistered(node);
+        auto jobs = node->IdToJob();
+        for (const auto& [jobId, job] : jobs) {
+            AbortAndRemoveJob(job);
         }
+
+        // XXX(gritukan): Do we really need to do it here?
+        node->Reset();
     }
 
     void OnNodeDisposed(TNode* node)
@@ -1942,8 +2220,8 @@ private:
     {
         YT_VERIFY(node->GetDataCenter() != oldDataCenter);
 
-        if (JobTracker_) {
-            JobTracker_->OnNodeDataCenterChanged(node, oldDataCenter);
+        if (JobRegistry_) {
+            JobRegistry_->OnNodeDataCenterChanged(node, oldDataCenter);
         }
 
         if (ChunkPlacement_) {
@@ -2017,8 +2295,8 @@ private:
 
     void OnDataCenterCreated(TDataCenter* dataCenter)
     {
-        if (JobTracker_) {
-            JobTracker_->OnDataCenterCreated(dataCenter);
+        if (JobRegistry_) {
+            JobRegistry_->OnDataCenterCreated(dataCenter);
         }
     }
 
@@ -2027,8 +2305,8 @@ private:
 
     void OnDataCenterDestroyed(TDataCenter* dataCenter)
     {
-        if (JobTracker_) {
-            JobTracker_->OnDataCenterDestroyed(dataCenter);
+        if (JobRegistry_) {
+            JobRegistry_->OnDataCenterDestroyed(dataCenter);
         }
     }
 
@@ -3051,11 +3329,17 @@ private:
     {
         TMasterAutomatonPart::OnLeaderRecoveryComplete();
 
-        JobTracker_ = New<TJobTracker>(Config_, Bootstrap_);
-        ChunkMerger_->SetJobTracker(JobTracker_);
+        JobRegistry_ = New<TJobRegistry>(Config_, Bootstrap_);
         ChunkPlacement_ = New<TChunkPlacement>(Config_, Bootstrap_);
-        ChunkReplicator_ = New<TChunkReplicator>(Config_, Bootstrap_, ChunkPlacement_, JobTracker_);
-        ChunkSealer_ = New<TChunkSealer>(Config_, Bootstrap_, JobTracker_);
+        ChunkReplicator_ = New<TChunkReplicator>(Config_, Bootstrap_, ChunkPlacement_, JobRegistry_);
+        ChunkSealer_ = CreateChunkSealer(Bootstrap_);
+
+        JobController_ = CreateCompositeJobController();
+        JobController_->RegisterJobController(EJobType::ReplicateChunk, ChunkReplicator_);
+        JobController_->RegisterJobController(EJobType::RemoveChunk, ChunkReplicator_);
+        JobController_->RegisterJobController(EJobType::RepairChunk, ChunkReplicator_);
+        JobController_->RegisterJobController(EJobType::SealChunk, ChunkSealer_);
+        JobController_->RegisterJobController(EJobType::MergeChunks, ChunkMerger_);
 
         ExpirationTracker_->Start();
     }
@@ -3064,7 +3348,7 @@ private:
     {
         TMasterAutomatonPart::OnLeaderActive();
 
-        JobTracker_->Start();
+        JobRegistry_->Start();
         ChunkReplicator_->Start(
             BlobChunks_.GetFront(),
             BlobChunks_.GetSize(),
@@ -3091,9 +3375,17 @@ private:
     {
         TMasterAutomatonPart::OnStopLeading();
 
-        if (JobTracker_) {
-            JobTracker_->Stop();
-            JobTracker_.Reset();
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        for (const auto& node : nodeTracker->Nodes()) {
+            auto jobMap = node.second->IdToJob();
+            for (const auto& [jobId, job] : jobMap) {
+                AbortAndRemoveJob(job);
+            }
+        }
+
+        if (JobRegistry_) {
+            JobRegistry_->Stop();
+            JobRegistry_.Reset();
         }
 
         ChunkPlacement_.Reset();
@@ -3109,6 +3401,8 @@ private:
         }
 
         ExpirationTracker_->Stop();
+
+        JobController_.Reset();
     }
 
 
@@ -3490,7 +3784,7 @@ private:
 
         ChunkReplicator_->OnProfiling(&buffer);
         ChunkSealer_->OnProfiling(&buffer);
-        JobTracker_->OnProfiling(&buffer);
+        JobRegistry_->OnProfiling(&buffer);
         ChunkMerger_->OnProfiling(&buffer);
 
         buffer.AddGauge("/chunk_count", ChunkMap_.GetSize());
@@ -3608,6 +3902,25 @@ private:
     void InitializeMediumMaxReplicationFactor(TMedium* medium)
     {
         medium->Config()->MaxReplicationFactor = Config_->MaxReplicationFactor;
+    }
+
+    void AbortAndRemoveJob(const TJobPtr& job)
+    {
+        job->SetState(EJobState::Aborted);
+
+        JobController_->OnJobAborted(job);
+
+        JobRegistry_->UnregisterJob(job);
+    }
+
+    std::vector<TError> GetAlerts() const
+    {
+        std::vector<TError> alerts;
+        if (JobRegistry_->IsOverdraft()) {
+            alerts.push_back(TError("Job registry throttler is overdrafted"));
+        }
+
+        return alerts;
     }
 
     static void ValidateMediumName(const TString& name)
@@ -4069,23 +4382,16 @@ void TChunkManager::ClearChunkList(TChunkList* chunkList)
     Impl_->ClearChunkList(chunkList);
 }
 
-void TChunkManager::ScheduleJobs(
+void TChunkManager::ProcessJobHeartbeat(
     TNode* node,
-    const TNodeResources& resourceUsage,
-    const TNodeResources& resourceLimits,
-    const std::vector<TJobPtr>& currentJobs,
-    std::vector<TJobPtr>* jobsToStart,
-    std::vector<TJobPtr>* jobsToAbort,
-    std::vector<TJobPtr>* jobsToRemove)
+    const TCtxJobHeartbeatPtr& context)
 {
-    Impl_->ScheduleJobs(
-        node,
-        resourceUsage,
-        resourceLimits,
-        currentJobs,
-        jobsToStart,
-        jobsToAbort,
-        jobsToRemove);
+    Impl_->ProcessJobHeartbeat(node, context);
+}
+
+TJobId TChunkManager::GenerateJobId() const
+{
+    return Impl_->GenerateJobId();
 }
 
 bool TChunkManager::IsChunkReplicatorEnabled()

@@ -176,7 +176,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::ScanFlags);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CreationTime)
             .SetPresent(chunk->IsConfirmed() && miscExt.has_creation_time()));
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Job)
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Jobs)
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PartLossTime)
             .SetOpaque(true));
@@ -733,21 +733,22 @@ private:
                     });
                 return true;
 
-            case EInternedAttributeKey::Job: {
+            case EInternedAttributeKey::Jobs: {
                 RequireLeader();
-                if (auto job = chunk->GetJob()) {
-                    BuildYsonFluently(consumer)
-                        .BeginMap()
-                            .Item("id").Value(job->GetJobId())
-                            .Item("type").Value(job->GetType())
-                            .Item("start_time").Value(job->GetStartTime())
-                            .Item("address").Value(job->GetNode()->GetDefaultAddress())
-                            .Item("state").Value(job->GetState())
-                        .EndMap();
-                } else {
-                    BuildYsonFluently(consumer)
-                        .Entity();
-                }
+                BuildYsonFluently(consumer)
+                    .DoListFor(
+                        chunk->GetJobs(),
+                        [&] (TFluentList fluent, const TJobPtr& job) {
+                            fluent
+                                .Item()
+                                .BeginMap()
+                                    .Item("id").Value(job->GetJobId())
+                                    .Item("type").Value(job->GetType())
+                                    .Item("start_time").Value(job->GetStartTime())
+                                    .Item("address").Value(job->GetNode()->GetDefaultAddress())
+                                    .Item("state").Value(job->GetState())
+                                .EndMap();
+                        });
                 return true;
             }
 

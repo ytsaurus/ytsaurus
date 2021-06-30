@@ -141,19 +141,24 @@ inline TChunkDynamicData::TMediumToRepairQueueIterator* TChunk::SelectRepairQueu
     }
 }
 
-inline bool TChunk::IsJobScheduled() const
+inline const TChunkDynamicData::TJobSet& TChunk::GetJobs() const
 {
-    return GetJob().operator bool();
+    return GetDynamicData()->Jobs;
 }
 
-inline TJobPtr TChunk::GetJob() const
+inline bool TChunk::HasJobs() const
 {
-    return GetDynamicData()->Job;
+    return !GetJobs().empty();
 }
 
-inline void TChunk::SetJob(TJobPtr job)
+inline void TChunk::AddJob(TJobPtr job)
 {
-    GetDynamicData()->Job = std::move(job);
+    GetDynamicData()->Jobs.insert(std::move(job));
+}
+
+inline void TChunk::RemoveJob(const TJobPtr& job)
+{
+    GetDynamicData()->Jobs.erase(job);
 }
 
 inline void TChunk::RefUsedRequisitions(TChunkRequisitionRegistry* registry) const

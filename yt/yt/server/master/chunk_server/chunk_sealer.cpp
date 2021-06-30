@@ -9,7 +9,7 @@
 #include "helpers.h"
 #include "chunk_scanner.h"
 #include "job.h"
-#include "job_tracker.h"
+#include "job_registry.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
@@ -61,20 +61,16 @@ static const auto& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkSealer::TImpl
-    : public TRefCounted
+class TChunkSealer
+    : public IChunkSealer
 {
 public:
-    TImpl(
-        TChunkManagerConfigPtr config,
-        TBootstrap* bootstrap,
-        TJobTrackerPtr jobTracker)
-        : Config_(config)
+    explicit TChunkSealer(TBootstrap* bootstrap)
+        : Config_(bootstrap->GetConfig()->ChunkManager)
         , Bootstrap_(bootstrap)
-        , JobTracker_(std::move(jobTracker))
         , SealExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
-            BIND(&TImpl::OnRefresh, MakeWeak(this))))
+            BIND(&TChunkSealer::OnRefresh, MakeWeak(this))))
         , SealScanner_(std::make_unique<TChunkScanner>(
             Bootstrap_->GetObjectManager(),
             EChunkScanKind::Seal,
@@ -82,10 +78,9 @@ public:
     {
         YT_VERIFY(Config_);
         YT_VERIFY(Bootstrap_);
-        YT_VERIFY(JobTracker_);
     }
 
-    void Start(TChunk* frontJournalChunk, int journalChunkCount)
+    virtual void Start(TChunk* frontJournalChunk, int journalChunkCount) override
     {
         SealScanner_->Start(frontJournalChunk, journalChunkCount);
         SealExecutor_->Start();
@@ -95,7 +90,7 @@ public:
         OnDynamicConfigChanged();
     }
 
-    void Stop()
+    virtual void Stop() override
     {
         SealExecutor_->Stop();
 
@@ -103,12 +98,12 @@ public:
         configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);
     }
 
-    bool IsEnabled()
+    virtual bool IsEnabled() override
     {
         return Enabled_;
     }
 
-    void ScheduleSeal(TChunk* chunk)
+    virtual void ScheduleSeal(TChunk* chunk) override
     {
         YT_ASSERT(chunk->IsAlive());
 
@@ -117,28 +112,29 @@ public:
         }
     }
 
-    void OnChunkDestroyed(TChunk* chunk)
+    virtual void OnChunkDestroyed(TChunk* chunk) override
     {
         SealScanner_->OnChunkDestroyed(chunk);
     }
 
-    void OnProfiling(TSensorBuffer* buffer) const
+    virtual void OnProfiling(TSensorBuffer* buffer) const override
     {
         buffer->AddGauge("/seal_queue_size", SealScanner_->GetQueueSize());
     }
 
-    void ScheduleJobs(
-        TNode* node,
-        TNodeResources* resourceUsage,
-        const TNodeResources& resourceLimits,
-        std::vector<TJobPtr>* jobsToStart)
+    // IJobController implementation.
+    virtual void ScheduleJobs(IJobSchedulingContext* context) override
     {
+        auto* node = context->GetNode();
+        const auto& resourceUsage = context->GetNodeResourceUsage();
+        const auto& resourceLimits = context->GetNodeResourceLimits();
+
         int misscheduledSealJobs = 0;
 
-        auto hasSpareSealResources = [&] () {
+        auto hasSpareSealResources = [&] {
             return
                 misscheduledSealJobs < GetDynamicConfig()->MaxMisscheduledSealJobsPerHeartbeat &&
-                resourceUsage->seal_slots() < resourceLimits.seal_slots();
+                resourceUsage.seal_slots() < resourceLimits.seal_slots();
         };
 
         auto& queue = node->ChunkSealQueue();
@@ -146,20 +142,46 @@ public:
         while (it != queue.end() && hasSpareSealResources()) {
             auto jt = it++;
             auto chunkWithIndexes = *jt;
-            TJobPtr job;
-            if (CreateSealJob(node, chunkWithIndexes, &job)) {
+            if (TryScheduleSealJob(context, chunkWithIndexes)) {
                 queue.erase(jt);
             } else {
                 ++misscheduledSealJobs;
             }
-            JobTracker_->RegisterJob(std::move(job), jobsToStart, resourceUsage);
         }
     }
+
+    void OnJobWaiting(const TJobPtr& job, IJobControllerCallbacks* callbacks)
+    {
+        // In Chunk Sealer we don't distinguish between waiting and running jobs.
+        OnJobRunning(job, callbacks);
+    }
+
+    void OnJobRunning(const TJobPtr& job, IJobControllerCallbacks* callbacks)
+    {
+        if (TInstant::Now() - job->GetStartTime() > GetDynamicConfig()->JobTimeout) {
+            YT_LOG_WARNING("Job timed out, aborting (JobId: %v, JobType: %v, Address: %v, Duration: %v, ChunkId: %v)",
+                job->GetJobId(),
+                job->GetType(),
+                job->GetNode()->GetDefaultAddress(),
+                TInstant::Now() - job->GetStartTime(),
+                job->GetChunkIdWithIndexes());
+
+            callbacks->AbortJob(job);
+        }
+    }
+
+    void OnJobCompleted(const TJobPtr& /*job*/)
+    { }
+
+    void OnJobAborted(const TJobPtr& /*job*/)
+    { }
+
+    void OnJobFailed(const TJobPtr& /*job*/)
+    { }
 
 private:
     const TChunkManagerConfigPtr Config_;
     TBootstrap* const Bootstrap_;
-    const TJobTrackerPtr JobTracker_;
 
     const TAsyncSemaphorePtr Semaphore_ = New<TAsyncSemaphore>(0);
 
@@ -167,7 +189,7 @@ private:
     const std::unique_ptr<TChunkScanner> SealScanner_;
 
     const TCallback<void(TDynamicClusterConfigPtr)> DynamicConfigChangedCallback_ =
-        BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this));
+        BIND(&TChunkSealer::OnDynamicConfigChanged, MakeWeak(this));
 
     bool Enabled_ = true;
 
@@ -283,7 +305,7 @@ private:
             }
 
             if (CanBeSealed(chunk)) {
-                BIND(&TImpl::SealChunk, MakeStrong(this), chunk->GetId(), Passed(std::move(guard)))
+                BIND(&TChunkSealer::SealChunk, MakeStrong(this), chunk->GetId(), Passed(std::move(guard)))
                     .AsyncVia(GetCurrentInvoker())
                     .Run();
             }
@@ -324,7 +346,7 @@ private:
                 chunkId);
 
             TDelayedExecutor::Submit(
-                BIND(&TImpl::RescheduleSeal, MakeStrong(this), chunkId)
+                BIND(&TChunkSealer::RescheduleSeal, MakeStrong(this), chunkId)
                     .Via(GetCurrentInvoker()),
                 GetDynamicConfig()->ChunkSealBackoffTime);
         }
@@ -444,10 +466,9 @@ private:
         }
     }
 
-    bool CreateSealJob(
-        TNode* node,
-        TChunkPtrWithIndexes chunkWithIndexes,
-        TJobPtr* job)
+    bool TryScheduleSealJob(
+        IJobSchedulingContext* context,
+        TChunkPtrWithIndexes chunkWithIndexes)
     {
         auto* chunk = chunkWithIndexes.GetPtr();
         YT_VERIFY(chunk->IsJournal());
@@ -457,7 +478,7 @@ private:
             return true;
         }
 
-        if (chunk->IsJobScheduled()) {
+        if (chunk->HasJobs()) {
             return true;
         }
 
@@ -467,14 +488,15 @@ private:
             return true;
         }
 
-        *job = New<TSealJob>(
-            JobTracker_->GenerateJobId(),
-            node,
+        auto job = New<TSealJob>(
+            context->GenerateJobId(),
+            context->GetNode(),
             chunkWithIndexes);
+        context->ScheduleJob(job);
 
         YT_LOG_DEBUG("Seal job scheduled (JobId: %v, Address: %v, ChunkId: %v)",
-            (*job)->GetJobId(),
-            node->GetDefaultAddress(),
+            job->GetJobId(),
+            job->GetNode()->GetDefaultAddress(),
             chunkWithIndexes);
 
         return true;
@@ -483,56 +505,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkSealer::TChunkSealer(
-    TChunkManagerConfigPtr config,
-    TBootstrap* bootstrap,
-    TJobTrackerPtr jobTracker)
-    : Impl_(New<TImpl>(config, bootstrap, jobTracker))
-{ }
-
-TChunkSealer::~TChunkSealer() = default;
-
-void TChunkSealer::Start(TChunk* frontJournalChunk, int journalChunkCount)
+IChunkSealerPtr CreateChunkSealer(NCellMaster::TBootstrap* bootstrap)
 {
-    Impl_->Start(frontJournalChunk, journalChunkCount);
-}
-
-void TChunkSealer::Stop()
-{
-    Impl_->Stop();
-}
-
-bool TChunkSealer::IsEnabled()
-{
-    return Impl_->IsEnabled();
-}
-
-void TChunkSealer::ScheduleSeal(TChunk* chunk)
-{
-    Impl_->ScheduleSeal(chunk);
-}
-
-void TChunkSealer::OnChunkDestroyed(TChunk* chunk)
-{
-    Impl_->OnChunkDestroyed(chunk);
-}
-
-void TChunkSealer::OnProfiling(TSensorBuffer* buffer) const
-{
-    Impl_->OnProfiling(buffer);
-}
-
-void TChunkSealer::ScheduleJobs(
-    TNode* node,
-    TNodeResources* resourceUsage,
-    const TNodeResources& resourceLimits,
-    std::vector<TJobPtr>* jobsToStart)
-{
-    Impl_->ScheduleJobs(
-        node,
-        resourceUsage,
-        resourceLimits,
-        jobsToStart);
+    return New<TChunkSealer>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -22,6 +22,7 @@
 #include <yt/yt/core/misc/ref_tracked.h>
 #include <yt/yt/core/misc/small_flat_map.h>
 #include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/small_set.h>
 #include <yt/yt/core/misc/intrusive_linked_list.h>
 
 namespace NYT::NChunkServer {
@@ -45,6 +46,8 @@ struct TChunkDynamicData
 {
     using TMediumToRepairQueueIterator = TSmallFlatMap<int, TChunkRepairQueueIterator, 2>;
 
+    using TJobSet = SmallSet<TJobPtr, 1>;
+
     //! The time since this chunk needs repairing.
     NProfiling::TCpuInstant EpochPartLossTime = {};
 
@@ -59,8 +62,8 @@ struct TChunkDynamicData
     TMediumToRepairQueueIterator MissingPartRepairQueueIterators;
     TMediumToRepairQueueIterator DecommissionedPartRepairQueueIterators;
 
-    //! The job that is currently scheduled for this chunk (at most one).
-    TJobPtr Job;
+    //! Set of jobs that are currently scheduled for this chunk.
+    TJobSet Jobs;
 
     //! All blob chunks are linked via this node, as are all journal
     //! chunks. (The two lists are separate.)
@@ -161,9 +164,11 @@ public:
     TChunkRepairQueueIterator GetRepairQueueIterator(int mediumIndex, EChunkRepairQueue queue) const;
     void SetRepairQueueIterator(int mediumIndex, EChunkRepairQueue queue, TChunkRepairQueueIterator value);
 
-    bool IsJobScheduled() const;
-    TJobPtr GetJob() const;
-    void SetJob(TJobPtr job);
+    const TChunkDynamicData::TJobSet& GetJobs() const;
+
+    bool HasJobs() const;
+    void AddJob(TJobPtr job);
+    void RemoveJob(const TJobPtr& job);
 
     //! Refs all (local, external and aggregated) requisitions this chunk uses.
     //! Supposed to be called soon after the chunk is constructed or loaded.

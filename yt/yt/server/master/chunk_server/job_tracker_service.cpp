@@ -69,7 +69,7 @@ private:
         auto nodeId = request->node_id();
 
         const auto& resourceLimits = request->resource_limits();
-        auto resourceUsage = request->resource_usage();
+        const auto& resourceUsage = request->resource_usage();
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
@@ -85,103 +85,8 @@ private:
                 "Cannot process a job heartbeat unless data node heartbeat is reported");
         }
 
-        std::vector<TJobPtr> currentJobs;
-        for (const auto& jobStatus : request->jobs()) {
-            auto jobId = FromProto<TJobId>(jobStatus.job_id());
-            auto state = EJobState(jobStatus.state());
-            auto job = node->FindJob(jobId);
-            if (job) {
-                job->SetState(state);
-                if (state == EJobState::Completed || state == EJobState::Failed) {
-                    job->Error() = FromProto<TError>(jobStatus.result().error());
-                }
-                currentJobs.push_back(job);
-            } else {
-                switch (state) {
-                    case EJobState::Completed:
-                        YT_LOG_DEBUG("Unknown job has completed, removal scheduled (JobId: %v)",
-                            jobId);
-                        ToProto(response->add_jobs_to_remove(), {jobId});
-                        break;
-
-                    case EJobState::Failed:
-                        YT_LOG_DEBUG("Unknown job has failed, removal scheduled (JobId: %v)",
-                            jobId);
-                        ToProto(response->add_jobs_to_remove(), {jobId});
-                        break;
-
-                    case EJobState::Aborted:
-                        YT_LOG_DEBUG("Job aborted, removal scheduled (JobId: %v)",
-                            jobId);
-                        ToProto(response->add_jobs_to_remove(), {jobId});
-                        break;
-
-                    case EJobState::Running:
-                        YT_LOG_DEBUG("Unknown job is running, abort scheduled (JobId: %v)",
-                            jobId);
-                        AddJobToAbort(response, {jobId});
-                        break;
-
-                    case EJobState::Waiting:
-                        YT_LOG_DEBUG("Unknown job is waiting, abort scheduled (JobId: %v)",
-                            jobId);
-                        AddJobToAbort(response, {jobId});
-                        break;
-
-                    default:
-                        YT_ABORT();
-                }
-            }
-        }
-
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-
-        std::vector<TJobPtr> jobsToStart;
-        std::vector<TJobPtr> jobsToAbort;
-        std::vector<TJobPtr> jobsToRemove;
-        chunkManager->ScheduleJobs(
-            node,
-            resourceUsage,
-            resourceLimits,
-            currentJobs,
-            &jobsToStart,
-            &jobsToAbort,
-            &jobsToRemove);
-
-        for (const auto& job : jobsToStart) {
-            resourceUsage += job->ResourceUsage();
-        }
-
-        for (const auto& job : jobsToStart) {
-            auto* jobInfo = response->add_jobs_to_start();
-            ToProto(jobInfo->mutable_job_id(), job->GetJobId());
-            *jobInfo->mutable_resource_limits() = job->ResourceUsage();
-
-            TJobSpec jobSpec;
-            jobSpec.set_type(static_cast<int>(job->GetType()));
-            job->FillJobSpec(Bootstrap_, &jobSpec);
-
-            auto serializedJobSpec = SerializeProtoToRefWithEnvelope(jobSpec);
-            response->Attachments().push_back(serializedJobSpec);
-        }
-
-        for (const auto& job : jobsToAbort) {
-            AddJobToAbort(response, {job->GetJobId()});
-        }
-
-        for (const auto& job : jobsToRemove) {
-            ToProto(response->add_jobs_to_remove(), {job->GetJobId()});
-        }
-
-        if (node->ResourceUsage() != resourceUsage || node->ResourceLimits() != resourceLimits) {
-            TReqUpdateNodeResources request;
-            request.set_node_id(node->GetId());
-            request.mutable_resource_usage()->CopyFrom(resourceUsage);
-            request.mutable_resource_limits()->CopyFrom(resourceLimits);
-
-            nodeTracker->CreateUpdateNodeResourcesMutation(request)
-                ->CommitAndLog(Logger);
-        }
+        chunkManager->ProcessJobHeartbeat(node, context);
 
         context->Reply();
     }
