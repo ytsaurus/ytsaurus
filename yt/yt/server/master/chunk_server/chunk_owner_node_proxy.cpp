@@ -99,7 +99,6 @@ bool IsAccessLoggedMethod(const TString& method)
 {
     static const THashSet<TString> methodsForAccessLog = {
         "Fetch",
-        "BeginUpload",
         "EndUpload"
     };
     return methodsForAccessLog.contains(method);
@@ -1161,6 +1160,13 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         THROW_ERROR_EXCEPTION("Invalid update mode %Qlv for a chunk owner node",
             uploadContext.Mode);
     }
+
+    YT_LOG_ACCESS(
+        context,
+        GetId(),
+        GetPath(),
+        Transaction_,
+        {{"mode", FormatEnum(uploadContext.Mode)}});
 
     auto lockMode = CheckedEnumCast<ELockMode>(request->lock_mode());
 
