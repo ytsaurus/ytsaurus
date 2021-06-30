@@ -745,8 +745,11 @@ protected:
     using IRowBatchPtr = typename TRowBatchTrait<TImmutableRow>::IRowBatchPtr;
 
     IRowBatchPtr UnderlyingRowBatch_;
-    TSharedRange<TImmutableRow> UnderlyingRows_;
-    int CurrentUnderlyingRowIndex_ = 0;
+
+    TSharedRange<TImmutableRow> EncodedRows_;
+    int CurrentEncodedRowIndex_ = 0;
+
+    TSharedRange<TMutableRow> DecodableRows_;
 
     IRowBatchPtr ReadyRowBatch_;
 
@@ -762,10 +765,11 @@ protected:
         const THunkValueChecker& valueChecker)
     {
         if (ReadyRowBatch_) {
+            DecodableRows_ = {};
             return std::move(ReadyRowBatch_);
         }
 
-        if (CurrentUnderlyingRowIndex_ >= std::ssize(UnderlyingRows_)) {
+        if (CurrentEncodedRowIndex_ >= std::ssize(EncodedRows_)) {
             UnderlyingRowBatch_ = Underlying_->Read(options);
             if (!UnderlyingRowBatch_) {
                 return nullptr;
@@ -776,11 +780,11 @@ protected:
                 return UnderlyingRowBatch_;
             }
 
-            UnderlyingRows_ = UnderlyingRowBatch_->MaterializeRows();
-            CurrentUnderlyingRowIndex_ = 0;
+            EncodedRows_ = UnderlyingRowBatch_->MaterializeRows();
+            CurrentEncodedRowIndex_ = 0;
 
             YT_LOG_DEBUG("Hunk-encoded rows materialized (RowCount: %v)",
-                UnderlyingRows_.size());
+                EncodedRows_.size());
         }
 
         RowBuffer_->Clear();
@@ -790,12 +794,12 @@ protected:
         std::vector<TMutableRow> mutableRows;
         std::vector<TUnversionedValue*> values;
 
-        auto startRowIndex = CurrentUnderlyingRowIndex_;
-        while (CurrentUnderlyingRowIndex_ < std::ssize(UnderlyingRows_) &&
+        auto startRowIndex = CurrentEncodedRowIndex_;
+        while (CurrentEncodedRowIndex_ < std::ssize(EncodedRows_) &&
                hunkCount < Config_->MaxHunkCountPerRead &&
                totalHunkLength < Config_->MaxTotalHunkLengthPerRead)
         {
-            auto row = UnderlyingRows_[CurrentUnderlyingRowIndex_++];
+            auto row = EncodedRows_[CurrentEncodedRowIndex_++];
             auto mutableRow = RowBuffer_->CaptureRow(row, /*captureValues*/ false);
             mutableRows.push_back(mutableRow);
             rowVisitor.ForEachHunkValue(
@@ -808,7 +812,7 @@ protected:
                     }
                 });
         }
-        auto endRowIndex = CurrentUnderlyingRowIndex_;
+        auto endRowIndex = CurrentEncodedRowIndex_;
 
         auto sharedMutableRows = MakeSharedRange(std::move(mutableRows), MakeStrong(this));
 
@@ -822,13 +826,15 @@ protected:
             return MakeBatch(sharedMutableRows);
         }
 
+        DecodableRows_ = std::move(sharedMutableRows);
+
         ReadyEvent_ =
             DecodeHunks(
                 ChunkFragmentReader_,
                 Options_,
-                MakeSharedRange(std::move(values), sharedMutableRows))
+                MakeSharedRange(std::move(values), DecodableRows_))
             .Apply(
-                BIND(&TBatchHunkReader::OnHunksRead, MakeStrong(this), sharedMutableRows));
+                BIND(&TBatchHunkReader::OnHunksRead, MakeStrong(this), DecodableRows_));
 
         return CreateEmptyRowBatch<TImmutableRow>();
     }
@@ -1052,7 +1058,21 @@ public:
     virtual TInterruptDescriptor GetInterruptDescriptor(
         TRange<TUnversionedRow> unreadRows) const override
     {
-        return this->Underlying_->GetInterruptDescriptor(std::move(unreadRows));
+        std::vector<TUnversionedRow> underlyingUnreadRows;
+        auto addRows = [&] (auto firstIt, auto lastIt) {
+            underlyingUnreadRows.insert(underlyingUnreadRows.end(), firstIt, lastIt);
+        };
+
+        // Fetched but not decodable rows.
+        addRows(EncodedRows_.begin() + CurrentEncodedRowIndex_, EncodedRows_.end());
+
+        // Decodable rows.
+        addRows(DecodableRows_.begin(), DecodableRows_.end());
+
+        // Unread rows.
+        addRows(unreadRows.begin(), unreadRows.end());
+
+        return this->Underlying_->GetInterruptDescriptor(MakeRange(underlyingUnreadRows));
     }
 
     virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
