@@ -17,6 +17,10 @@ services:
       - PROXY=${docker_hostname}:${proxy_port}
       - APP_ENV=local
       - PROXY_INTERNAL=${yt_container_name}
+      - UI_CORE_CDN=false
+      - DENY_DISPENSER_PROXY=1
+      - DENY_YQL_PROXY=1
+      - RUM_ENV=local
     logging:
       driver: none
     container_name: ${ui_container_name}
