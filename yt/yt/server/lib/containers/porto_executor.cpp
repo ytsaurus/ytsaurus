@@ -403,7 +403,6 @@ private:
             portoSpec.set_thread_limit(*spec.ThreadLimit);
         }
 
-        portoSpec.set_resolv_conf("keep");
         if (spec.HostName) {
             // To get a reasonable and unique host name inside container.
             portoSpec.set_hostname(*spec.HostName);
