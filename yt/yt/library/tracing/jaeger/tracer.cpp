@@ -153,7 +153,7 @@ void ToProto(NProto::Span* proto, const TTraceContextPtr& traceContext)
         protoTag->set_v_str(value);
     }
 
-    for (const auto& logEntry: traceContext->GetLogs()) {
+    for (const auto& logEntry: traceContext->GetLogEntries()) {
         auto* log = proto->add_logs();
 
         auto at = CpuInstantToInstant(logEntry.At);
@@ -162,10 +162,9 @@ void ToProto(NProto::Span* proto, const TTraceContextPtr& traceContext)
 
         auto* message = log->add_fields();
 
-        message->set_key("msg");
+        message->set_key("message");
         message->set_v_str(logEntry.Message);
     }
-
 
     if (auto parentSpanId = traceContext->GetParentSpanId(); parentSpanId != InvalidSpanId) {
         auto* ref = proto->add_references();

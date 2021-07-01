@@ -88,7 +88,7 @@ public:
         TString Message;
     };
     using TLogList = SmallVector<TTraceLogEntry, 4>;
-    TLogList GetLogs() const;
+    TLogList GetLogEntries() const;
 
     void AddTag(const TString& tagKey, const TString& tagValue);
 
@@ -98,7 +98,7 @@ public:
     //! Adds error tag. Spans containing errors are highlited in Jaeger UI.
     void AddErrorTag();
 
-    void AddLog(NProfiling::TCpuInstant at, const TString& message);
+    void AddLogEntry(NProfiling::TCpuInstant at, TString message);
 
     TTraceContextPtr CreateChild(
         TString spanName,
