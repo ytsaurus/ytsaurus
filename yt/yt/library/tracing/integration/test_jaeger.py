@@ -69,6 +69,8 @@ def test_start(jaeger_server):
     assert root_span["operationName"] == "Example"
     assert {'key': 'user', 'type': 'string', 'value': 'prime'} in root_span["tags"]
 
+    assert len(root_span["logs"]) == 2
+
     assert child_span["operationName"] == "Subrequest"
     assert child_span["references"]
     assert {'key': 'index', 'type': 'string', 'value': '0'} in child_span["tags"]

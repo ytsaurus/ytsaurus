@@ -162,7 +162,7 @@ TTraceContext::TTagList TTraceContext::GetTags() const
     return Tags_;
 }
 
-TTraceContext::TLogList TTraceContext::GetLogs() const
+TTraceContext::TLogList TTraceContext::GetLogEntries() const
 {
     auto guard = Guard(Lock_);
     return Logs_;
@@ -177,14 +177,14 @@ void TTraceContext::AddTag(const TString& tagKey, const TString& tagValue)
     Tags_.emplace_back(tagKey, tagValue);
 }
 
-void TTraceContext::AddLog(TCpuInstant at, const TString& message)
+void TTraceContext::AddLogEntry(TCpuInstant at, TString message)
 {
     if (Finished_.load()) {
         return;
     }
 
     auto guard = Guard(Lock_);
-    Logs_.emplace_back(TTraceLogEntry{at, message});
+    Logs_.push_back(TTraceLogEntry{at, std::move(message)});
 }
 
 void TTraceContext::Finish()
