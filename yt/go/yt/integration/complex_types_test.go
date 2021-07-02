@@ -91,6 +91,10 @@ func TestComplexType(t *testing.T) {
 				Name:        "c0",
 				ComplexType: s,
 			},
+			{
+				Name:        "b0",
+				ComplexType: schema.TypeBoolean,
+			},
 		},
 	}
 
@@ -107,6 +111,8 @@ func TestComplexType(t *testing.T) {
 
 	readSchema.Columns[0].Type = ""
 	readSchema.Columns[0].Required = false
+	readSchema.Columns[1].Type = ""
+	readSchema.Columns[1].Required = false
 
 	if !assert.True(t, readSchema.Equal(testSchema)) {
 		require.Equal(t, readSchema, testSchema)
