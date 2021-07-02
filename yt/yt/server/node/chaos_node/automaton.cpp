@@ -3,8 +3,6 @@
 #include "serialize.h"
 #include "chaos_slot.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
-
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra/hydra_manager.h>
 
@@ -73,7 +71,7 @@ EFinalRecoveryAction TChaosAutomaton::GetActionToRecoverFromReign(TReign reign)
 
 TChaosAutomatonPart::TChaosAutomatonPart(
     IChaosSlotPtr slot,
-    TBootstrap* bootstrap)
+    IBootstrap* bootstrap)
     : TCompositeAutomatonPart(
         slot->GetHydraManager(),
         slot->GetAutomaton(),

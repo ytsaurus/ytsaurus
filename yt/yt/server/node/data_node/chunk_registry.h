@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
 namespace NYT::NDataNode {
 
@@ -36,7 +36,7 @@ struct IChunkRegistry
 
 DEFINE_REFCOUNTED_TYPE(IChunkRegistry)
 
-IChunkRegistryPtr CreateChunkRegistry(NClusterNode::TBootstrap* bootstrap);
+IChunkRegistryPtr CreateChunkRegistry(NClusterNode::IBootstrapBase* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

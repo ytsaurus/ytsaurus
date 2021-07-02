@@ -5,6 +5,8 @@
 #include "chunk_detail.h"
 #include "chunk_meta_manager.h"
 
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+
 #include <yt/yt/server/lib/io/public.h>
 
 #include <yt/yt/ytlib/chunk_client/block.h>
@@ -54,7 +56,7 @@ public:
 
 protected:
     TBlobChunkBase(
-        NClusterNode::TBootstrap* bootstrap,
+        NClusterNode::IBootstrapBase* bootstrap,
         TLocationPtr location,
         const TChunkDescriptor& descriptor,
         NChunkClient::TRefCountedChunkMetaPtr meta);
@@ -146,7 +148,7 @@ class TStoredBlobChunk
 {
 public:
     TStoredBlobChunk(
-        NClusterNode::TBootstrap* bootstrap,
+        NClusterNode::IBootstrapBase* bootstrap,
         TLocationPtr location,
         const TChunkDescriptor& descriptor,
         NChunkClient::TRefCountedChunkMetaPtr meta = nullptr);
@@ -163,7 +165,7 @@ class TCachedBlobChunk
 {
 public:
     TCachedBlobChunk(
-        NClusterNode::TBootstrap* bootstrap,
+        NClusterNode::IBootstrapBase* bootstrap,
         TLocationPtr location,
         const TChunkDescriptor& descriptor,
         NChunkClient::TRefCountedChunkMetaPtr meta,
@@ -181,4 +183,3 @@ DEFINE_REFCOUNTED_TYPE(TCachedBlobChunk)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDataNode
-

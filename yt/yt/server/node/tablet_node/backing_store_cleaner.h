@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -16,7 +14,7 @@ struct IBackingStoreCleaner
 
 DEFINE_REFCOUNTED_TYPE(IBackingStoreCleaner)
 
-IBackingStoreCleanerPtr CreateBackingStoreCleaner(NClusterNode::TBootstrap* bootstrap);
+IBackingStoreCleanerPtr CreateBackingStoreCleaner(IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

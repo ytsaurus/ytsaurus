@@ -106,7 +106,7 @@ DEFINE_REFCOUNTED_TYPE(IMasterConnector)
 ////////////////////////////////////////////////////////////////////////////////
 
 IMasterConnectorPtr CreateMasterConnector(
-    TBootstrap* bootstrap,
+    IBootstrap* bootstrap,
     const NNodeTrackerClient::TAddressMap& rpcAddresses,
     const NNodeTrackerClient::TAddressMap& skynetHttpAddresses,
     const NNodeTrackerClient::TAddressMap& monitoringHttpAddresses,

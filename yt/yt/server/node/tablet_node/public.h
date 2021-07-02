@@ -26,6 +26,8 @@ using TTabletDistributedThrottlersVector = TEnumIndexedVector<
     ETabletDistributedThrottlerKind,
     NConcurrency::IThroughputThrottlerPtr>;
 
+struct IBootstrap;
+
 DECLARE_REFCOUNTED_STRUCT(ITabletSnapshotStore)
 DECLARE_REFCOUNTED_STRUCT(ISlotManager)
 DECLARE_REFCOUNTED_STRUCT(IMasterConnector)

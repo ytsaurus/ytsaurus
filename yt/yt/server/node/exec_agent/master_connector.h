@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
+#include <yt/yt/client/node_tracker_client/public.h>
 
 #include <yt/yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.pb.h>
 
@@ -34,7 +34,7 @@ DEFINE_REFCOUNTED_TYPE(IMasterConnector)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IMasterConnectorPtr CreateMasterConnector(NClusterNode::TBootstrap* bootstrap);
+IMasterConnectorPtr CreateMasterConnector(IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

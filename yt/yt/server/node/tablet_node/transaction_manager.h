@@ -47,7 +47,7 @@ public:
     TTransactionManager(
         TTransactionManagerConfigPtr config,
         ITabletSlotPtr slot,
-        NClusterNode::TBootstrap* bootstrap);
+        IBootstrap* bootstrap);
     ~TTransactionManager();
 
     //! Finds transaction by id.

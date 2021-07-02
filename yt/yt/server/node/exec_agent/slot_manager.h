@@ -2,11 +2,13 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/yt/server/node/data_node/public.h>
 
 #include <yt/yt/server/node/job_agent/job.h>
+
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/yt/core/actions/public.h>
 
@@ -42,7 +44,7 @@ class TSlotManager
 public:
     TSlotManager(
         TSlotManagerConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap);
+        IBootstrap* bootstrap);
 
     //! Initializes slots etc.
     void Initialize();
@@ -97,7 +99,7 @@ public:
 
 private:
     const TSlotManagerConfigPtr Config_;
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
     const int SlotCount_;
     const TString NodeTag_;
 
@@ -106,7 +108,7 @@ private:
 
     TAtomicObject<TSlotManagerDynamicConfigPtr> DynamicConfig_;
 
-    NDataNode::IVolumeManagerPtr RootVolumeManager_;
+    IVolumeManagerPtr RootVolumeManager_;
 
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, LocationsLock_);
     std::vector<TSlotLocationPtr> Locations_;

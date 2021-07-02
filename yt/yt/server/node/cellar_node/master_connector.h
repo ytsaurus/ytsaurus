@@ -4,9 +4,9 @@
 
 #include <yt/yt/server/lib/cellar_agent/public.h>
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/ytlib/cellar_node_tracker_client/proto/cellar_node_tracker_service.pb.h>
+
+#include <yt/yt/client/object_client/public.h>
 
 #include <yt/yt/core/actions/signal.h>
 
@@ -54,7 +54,7 @@ DEFINE_REFCOUNTED_TYPE(IMasterConnector)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IMasterConnectorPtr CreateMasterConnector(NClusterNode::TBootstrap* bootstrap);
+IMasterConnectorPtr CreateMasterConnector(IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,21 +1,23 @@
 #include "job.h"
+
+#include "bootstrap.h"
+#include "chunk_cache.h"
+#include "gpu_manager.h"
 #include "private.h"
 #include "slot.h"
 #include "slot_manager.h"
+#include "volume_manager.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/data_node/artifact.h>
+#include <yt/yt/server/node/data_node/bootstrap.h>
 #include <yt/yt/server/node/data_node/chunk.h>
-#include <yt/yt/server/node/data_node/chunk_cache.h>
 #include <yt/yt/server/node/data_node/location.h>
 #include <yt/yt/server/node/data_node/legacy_master_connector.h>
-#include <yt/yt/server/node/data_node/volume_manager.h>
 
 #include <yt/yt/server/node/job_agent/job.h>
-#include <yt/yt/server/node/job_agent/gpu_manager.h>
 #include <yt/yt/server/node/job_agent/job_controller.h>
 
 #include <yt/yt/server/lib/containers/public.h>
@@ -115,7 +117,7 @@ public:
         TOperationId operationId,
         const TNodeResources& resourceUsage,
         TJobSpec&& jobSpec,
-        NClusterNode::TBootstrap* bootstrap)
+        IBootstrap* bootstrap)
         : Id_(jobId)
         , OperationId_(operationId)
         , Bootstrap_(bootstrap)
@@ -123,7 +125,7 @@ public:
         , Invoker_(Bootstrap_->GetJobInvoker())
         , StartTime_(TInstant::Now())
         , TrafficMeter_(New<TTrafficMeter>(
-            Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor().GetDataCenter()))
+            Bootstrap_->GetLocalDescriptor().GetDataCenter()))
         , JobSpec_(std::move(jobSpec))
         , SchedulerJobSpecExt_(&JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
         , UserJobSpec_(SchedulerJobSpecExt_ && SchedulerJobSpecExt_->has_user_job_spec() ? &SchedulerJobSpecExt_->user_job_spec() : nullptr)
@@ -236,7 +238,7 @@ public:
 
             YT_LOG_INFO("Acquiring slot (DiskRequest: %v)", diskRequest);
 
-            auto slotManager = Bootstrap_->GetExecSlotManager();
+            auto slotManager = Bootstrap_->GetSlotManager();
             Slot_ = slotManager->AcquireSlot(diskRequest);
 
             YT_LOG_INFO("Slot acquired (SlotIndex: %v)", Slot_->GetSlotIndex());
@@ -903,7 +905,7 @@ public:
 private:
     const TJobId Id_;
     const TOperationId OperationId_;
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
     const TExecAgentConfigPtr Config_;
     const IInvokerPtr Invoker_;
@@ -1238,7 +1240,7 @@ private:
 
                 // Corrupted user layers should not disable scheduler jobs.
                 if (!error.FindMatching(NDataNode::EErrorCode::LayerUnpackingFailed)) {
-                    Bootstrap_->GetExecSlotManager()->Disable(error);
+                    Bootstrap_->GetSlotManager()->Disable(error);
                 }
 
                 THROW_ERROR error;
@@ -1430,7 +1432,7 @@ private:
         if (JobState_ == EJobState::Aborting) {
             auto error = TError("Failed to abort job %v within timeout", Id_)
                 << TErrorAttribute("job_abortion_timeout", Config_->JobAbortionTimeout);
-            Bootstrap_->GetExecSlotManager()->Disable(error);
+            Bootstrap_->GetSlotManager()->Disable(error);
         }
     }
 
@@ -1563,7 +1565,7 @@ private:
                     // Errors during cleanup phase do not affect job outcome.
                     YT_LOG_ERROR(ex, "Failed to clean sandbox (SlotIndex: %v)", Slot_->GetSlotIndex());
                 }
-                Bootstrap_->GetExecSlotManager()->ReleaseSlot(Slot_->GetSlotIndex());
+                Bootstrap_->GetSlotManager()->ReleaseSlot(Slot_->GetSlotIndex());
             } else {
                 YT_LOG_WARNING("Sandbox cleanup is disabled by environment variable %v; should be used for testing purposes only",
                     DisableSandboxCleanupEnv);
@@ -1572,7 +1574,7 @@ private:
 
         // NB: we should disable slot here to give scheduler information about job failure.
         if (error.FindMatching(EErrorCode::GpuCheckCommandFailed)) {
-            Bootstrap_->GetExecSlotManager()->OnGpuCheckCommandFailed(error);
+            Bootstrap_->GetSlotManager()->OnGpuCheckCommandFailed(error);
         }
 
         ResourcesUpdated_.Fire(-oneUserSlotResources);
@@ -1665,7 +1667,12 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        auto proxyConfig = Bootstrap_->BuildJobProxyConfig();
+        auto proxyConfig = CloneYsonSerializable(Bootstrap_->GetJobProxyConfigTemplate());
+        auto localDescriptor = Bootstrap_->GetLocalDescriptor();
+        proxyConfig->DataCenter = localDescriptor.GetDataCenter();
+        proxyConfig->Rack = localDescriptor.GetRack();
+        proxyConfig->Addresses = localDescriptor.Addresses();
+
         proxyConfig->BusServer = Slot_->GetBusServerConfig();
 
         proxyConfig->TmpfsManager = New<TTmpfsManagerConfig>();
@@ -2451,7 +2458,7 @@ NJobAgent::IJobPtr CreateUserJob(
     TOperationId operationId,
     const TNodeResources& resourceUsage,
     TJobSpec&& jobSpec,
-    NClusterNode::TBootstrap* bootstrap)
+    IBootstrap* bootstrap)
 {
     return New<TJob>(
         jobId,

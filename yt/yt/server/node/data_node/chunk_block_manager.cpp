@@ -1,5 +1,6 @@
 #include "chunk_block_manager.h"
 
+#include "bootstrap.h"
 #include "private.h"
 #include "blob_reader_cache.h"
 #include "chunk.h"
@@ -7,7 +8,6 @@
 #include "config.h"
 #include "location.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 
 #include <yt/yt/server/lib/io/chunk_file_reader.h>
@@ -39,7 +39,7 @@ class TChunkBlockManager
     : public IChunkBlockManager
 {
 public:
-    explicit TChunkBlockManager(TBootstrap* bootstrap)
+    explicit TChunkBlockManager(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
     { }
 
@@ -101,12 +101,12 @@ public:
     }
 
 private:
-    TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChunkBlockManagerPtr CreateChunkBlockManager(TBootstrap* bootstrap)
+IChunkBlockManagerPtr CreateChunkBlockManager(IBootstrap* bootstrap)
 {
     return New<TChunkBlockManager>(bootstrap);
 }

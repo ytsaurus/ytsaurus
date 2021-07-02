@@ -79,7 +79,7 @@ class TBlockPeerTable
     : public TRefCounted
 {
 public:
-    explicit TBlockPeerTable(NClusterNode::TBootstrap* bootstrap);
+    explicit TBlockPeerTable(IBootstrap* bootstrap);
 
     //! Retrieves peer list for a given #blockId; returns null if none is known.
     TCachedPeerListPtr FindPeerList(const TBlockId& blockId);

@@ -1,5 +1,6 @@
 #include "store_compactor.h"
 
+#include "bootstrap.h"
 #include "hunk_chunk.h"
 #include "in_memory_manager.h"
 #include "lsm_interop.h"
@@ -17,7 +18,6 @@
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
@@ -119,7 +119,7 @@ class TStoreCompactionSessionBase
     : public TRefCounted
 {
 protected:
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
     const TTabletSnapshotPtr TabletSnapshot_;
     const ITransactionPtr Transaction_;
     const bool ResultsInEden_;
@@ -140,7 +140,7 @@ protected:
 
 
     TStoreCompactionSessionBase(
-        NClusterNode::TBootstrap* bootstrap,
+        IBootstrap* bootstrap,
         TTabletSnapshotPtr tabletSnapshot,
         ITransactionPtr transaction,
         bool resultsInEden,
@@ -225,7 +225,7 @@ private:
         HunkWriterOptions_->ConsistentChunkReplicaPlacementHash = TabletSnapshot_->ConsistentChunkReplicaPlacementHash;
 
         Throttler_ = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
-            Bootstrap_->GetTabletNodeOutThrottler(WorkloadCategory_),
+            Bootstrap_->GetOutThrottler(WorkloadCategory_),
             TabletSnapshot_->CompactionThrottler
         });
 
@@ -247,7 +247,7 @@ private:
 
         auto blockCacheFuture = CreateRemoteInMemoryBlockCache(
             Bootstrap_->GetMasterClient(),
-            Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor(),
+            Bootstrap_->GetLocalDescriptor(),
             Bootstrap_->GetRpcServer(),
             Bootstrap_
                 ->GetMasterClient()
@@ -317,7 +317,7 @@ class TEdenPartitioningSession
 {
 public:
     TEdenPartitioningSession(
-        NClusterNode::TBootstrap* bootstrap,
+        IBootstrap* bootstrap,
         TTabletSnapshotPtr tabletSnapshot,
         ITransactionPtr transaction,
         NLogging::TLogger logger)
@@ -487,7 +487,7 @@ class TPartitionCompactionSession
 {
 public:
     TPartitionCompactionSession(
-        NClusterNode::TBootstrap* bootstrap,
+        IBootstrap* bootstrap,
         TTabletSnapshotPtr tabletSnapshot,
         TPartition* partition,
         ITransactionPtr transaction,
@@ -547,7 +547,7 @@ class TStoreCompactor
     : public IStoreCompactor
 {
 public:
-    explicit TStoreCompactor(NClusterNode::TBootstrap* bootstrap)
+    explicit TStoreCompactor(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
         , Config_(bootstrap->GetConfig()->TabletNode->StoreCompactor)
         , ThreadPool_(New<TThreadPool>(Config_->ThreadPoolSize, "StoreCompact"))
@@ -670,7 +670,7 @@ public:
     }
 
 private:
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
     const TStoreCompactorConfigPtr Config_;
 
     const TProfiler Profiler_ = TabletNodeProfiler.WithPrefix("/store_compactor");
@@ -1981,7 +1981,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TStoreCompactor)
 
-IStoreCompactorPtr CreateStoreCompactor(NClusterNode::TBootstrap* bootstrap)
+IStoreCompactorPtr CreateStoreCompactor(IBootstrap* bootstrap)
 {
     return New<TStoreCompactor>(bootstrap);
 }

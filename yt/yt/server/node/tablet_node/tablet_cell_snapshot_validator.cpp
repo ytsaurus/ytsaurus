@@ -1,5 +1,7 @@
 #include "bootstrap.h"
 
+#include <yt/yt/server/node/cellar_node/bootstrap.h>
+
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
 #include <yt/yt/server/lib/cellar_agent/occupant.h>
@@ -15,11 +17,12 @@
 
 #include <yt/yt/core/concurrency/async_stream.h>
 
-namespace NYT::NClusterNode {
+namespace NYT::NTabletNode {
 
 using namespace NApi;
 using namespace NCellarClient;
 using namespace NCellarAgent;
+using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NHiveClient;
 using namespace NObjectClient;
@@ -28,9 +31,11 @@ using namespace NCellarNodeTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateTabletCellSnapshot(TBootstrap* bootstrap, const IAsyncZeroCopyInputStreamPtr& reader)
+void ValidateTabletCellSnapshot(IBootstrapBase* bootstrap, const IAsyncZeroCopyInputStreamPtr& reader)
 {
-    const auto& cellarManager = bootstrap->GetCellarManager();
+    const auto& cellarManager = bootstrap
+        ->GetCellarNodeBootstrap()
+        ->GetCellarManager();
     const auto& cellar = cellarManager->GetCellar(ECellarType::Tablet);
 
     auto cellId = TCellId::Create();
@@ -81,4 +86,4 @@ void ValidateTabletCellSnapshot(TBootstrap* bootstrap, const IAsyncZeroCopyInput
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NClusterNode
+} // namespace NYT::NTabletNode

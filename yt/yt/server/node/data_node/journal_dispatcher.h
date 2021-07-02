@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/server/lib/hydra/public.h>
 
 #include <yt/yt/core/actions/future.h>
@@ -45,7 +43,7 @@ struct IJournalDispatcher
 
 DEFINE_REFCOUNTED_TYPE(IJournalDispatcher)
 
-IJournalDispatcherPtr CreateJournalDispatcher(NClusterNode::TBootstrap* bootstrap);
+IJournalDispatcherPtr CreateJournalDispatcher(IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

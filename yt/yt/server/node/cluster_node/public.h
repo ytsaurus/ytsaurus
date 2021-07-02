@@ -10,7 +10,8 @@ namespace NYT::NClusterNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBootstrap;
+struct IBootstrap;
+struct IBootstrapBase;
 
 DECLARE_REFCOUNTED_STRUCT(IMasterConnector)
 

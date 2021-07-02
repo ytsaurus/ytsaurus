@@ -1,6 +1,8 @@
 #include "tablet_slot.h"
 
 #include "automaton.h"
+#include "bootstrap.h"
+#include "master_connector.h"
 #include "private.h"
 #include "security_manager.h"
 #include "serialize.h"
@@ -105,7 +107,7 @@ public:
     TTabletSlot(
         int slotIndex,
         TTabletNodeConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap)
+        IBootstrap* bootstrap)
         : THood(Format("TabletSlot:%v", slotIndex))
         , Config_(config)
         , Bootstrap_(bootstrap)
@@ -367,12 +369,12 @@ public:
         return NChunkClient::CreateChunkFragmentReader(
             tablet->GetSettings().HunkReaderConfig,
             Bootstrap_->GetMasterClient(),
-            Bootstrap_->GetTabletNodeHintManager());
+            Bootstrap_->GetHintManager());
     }
 
 private:
     const TTabletNodeConfigPtr Config_;
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
     ICellarOccupantPtr Occupant_;
 
@@ -409,16 +411,15 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeMasterConnector();
-        if (!clusterNodeMasterConnector->IsConnected()) {
+        if (!Bootstrap_->IsConnected()) {
             return;
         }
 
         // Notify master about recovery completion as soon as possible via out-of-order heartbeat.
-        if (clusterNodeMasterConnector->UseNewHeartbeats()) {
-            const auto& masterConnector = Bootstrap_->GetCellarNodeMasterConnector();
-            for (auto masterCellTag : clusterNodeMasterConnector->GetMasterCellTags()) {
-                masterConnector->ScheduleHeartbeat(masterCellTag, /* immediately */ true);
+        if (Bootstrap_->UseNewHeartbeats()) {
+            const auto& cellarNodeMasterConnector = Bootstrap_->GetCellarNodeMasterConnector();
+            for (auto masterCellTag : Bootstrap_->GetMasterCellTags()) {
+                cellarNodeMasterConnector->ScheduleHeartbeat(masterCellTag, /* immediately */ true);
             }
         } else {
             // Old heartbeats are heavy, so we send out-of-order heartbeat to primary master cell only.
@@ -443,14 +444,13 @@ private:
 ITabletSlotPtr CreateTabletSlot(
     int slotIndex,
     TTabletNodeConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap)
+    IBootstrap* bootstrap)
 {
     return New<TTabletSlot>(
         slotIndex,
         std::move(config),
         bootstrap);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

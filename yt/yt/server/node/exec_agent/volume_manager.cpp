@@ -4,32 +4,35 @@
 
 // (psushin) Just a stub for Mac-lovers.
 
-namespace NYT::NDataNode {
+namespace NYT::NExecAgent {
 
 IVolumeManagerPtr CreatePortoVolumeManager(
-    TVolumeManagerConfigPtr /*config*/,
-    NClusterNode::TBootstrap* /*bootstrap*/)
+    NDataNode::TVolumeManagerConfigPtr /*config*/,
+    IBootstrap* /*bootstrap*/)
 {
     THROW_ERROR_EXCEPTION("Volume manager is not supported");
 }
 
-} // namespace NYT::NDataNode
+} // namespace NYT::NExecAgent
 
 #else
 
-#include "disk_location.h"
 
-#include "artifact.h"
-#include "chunk.h"
+#include "bootstrap.h"
 #include "chunk_cache.h"
 #include "helpers.h"
 #include "private.h"
 
-#include <yt/yt/server/node/data_node/volume.pb.h>
+#include <yt/yt/server/node/data_node/private.h>
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
+
+#include <yt/yt/server/node/data_node/artifact.h>
+#include <yt/yt/server/node/data_node/chunk.h>
+#include <yt/yt/server/node/data_node/disk_location.h>
+
+#include <yt/yt/server/node/exec_agent/volume.pb.h>
 
 #include <yt/yt/server/lib/containers/instance.h>
 #include <yt/yt/server/lib/containers/porto_executor.h>
@@ -67,12 +70,13 @@ IVolumeManagerPtr CreatePortoVolumeManager(
 
 #include <util/system/fs.h>
 
-namespace NYT::NDataNode {
+namespace NYT::NExecAgent {
 
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NContainers;
 using namespace NClusterNode;
+using namespace NDataNode;
 using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NTools;
@@ -81,7 +85,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = DataNodeLogger;
+static const auto& Logger = ExecAgentLogger;
 static const auto ProfilingPeriod = TDuration::Seconds(1);
 
 static const TString StorageSuffix = "storage";
@@ -111,7 +115,7 @@ struct TLayerMetaHeader
 };
 
 struct TLayerMeta
-    : public NProto::TLayerMeta
+    : public NDataNode::NProto::TLayerMeta
 {
     TString Path;
     TLayerId Id;
@@ -120,7 +124,7 @@ struct TLayerMeta
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TVolumeMeta
-    : public NProto::TVolumeMeta
+    : public NDataNode::NProto::TVolumeMeta
 {
     TVolumeId Id;
     TString StoragePath;
@@ -154,7 +158,7 @@ struct TLayerLocationPerformanceCounters
     NProfiling::TGauge UsedSpace;
     NProfiling::TGauge AvailableSpace;
     NProfiling::TGauge Full;
-    
+
     TEventTimer ImportLayerTimer;
 };
 
@@ -175,7 +179,7 @@ public:
         IPortoExecutorPtr volumeExecutor,
         IPortoExecutorPtr layerExecutor,
         const TString& id)
-        : TDiskLocation(locationConfig, id, DataNodeLogger)
+        : TDiskLocation(locationConfig, id, ExecAgentLogger)
         , Config_(locationConfig)
         , VolumeExecutor_(std::move(volumeExecutor))
         , LayerExecutor_(std::move(layerExecutor))
@@ -533,7 +537,7 @@ private:
                     metaFileName);
             }
 
-            NProto::TLayerMeta protoMeta;
+            NDataNode::NProto::TLayerMeta protoMeta;
             if (!TryDeserializeProtoWithEnvelope(&protoMeta, metaBlob)) {
                 THROW_ERROR_EXCEPTION("Failed to parse chunk meta file %v",
                     metaFileName);
@@ -590,7 +594,7 @@ private:
                 YT_LOG_WARNING(ex, "Failed to cleanup directory after failed layer internalization");
             }
 
-            THROW_ERROR_EXCEPTION(EErrorCode::LayerUnpackingFailed, "Layer internalization failed")
+            THROW_ERROR_EXCEPTION(NDataNode::EErrorCode::LayerUnpackingFailed, "Layer internalization failed")
                 << ex;
         }
     }
@@ -672,7 +676,7 @@ private:
                     id,
                     archivePath,
                     tag);
-                THROW_ERROR_EXCEPTION(EErrorCode::LayerUnpackingFailed, "Layer unpacking failed")
+                THROW_ERROR_EXCEPTION(NDataNode::EErrorCode::LayerUnpackingFailed, "Layer unpacking failed")
                     << ex;
             }
 
@@ -698,7 +702,7 @@ private:
                 << ex;
 
             auto innerError = TError(ex);
-            if (innerError.GetCode() == EErrorCode::LayerUnpackingFailed) {
+            if (innerError.GetCode() == NDataNode::EErrorCode::LayerUnpackingFailed) {
                 THROW_ERROR error;
             }
 
@@ -984,7 +988,7 @@ public:
         const TVolumeManagerConfigPtr& config,
         std::vector<TLayerLocationPtr> layerLocations,
         IPortoExecutorPtr tmpfsExecutor,
-        TBootstrap* bootstrap)
+        IBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
             New<TSlruCacheConfig>(GetCacheCapacity(layerLocations) * config->CacheCapacityFraction),
             DataNodeProfiler.WithPrefix("/layer_cache"))
@@ -1090,7 +1094,7 @@ public:
 
 private:
     const TVolumeManagerConfigPtr Config_;
-    TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
     const std::vector<TLayerLocationPtr> LayerLocations_;
 
     TAsyncSemaphorePtr Semaphore_;
@@ -1133,10 +1137,10 @@ private:
         }
 
         auto path = NFS::CombinePaths(NFs::CurrentWorkingDirectory(), "tmpfs_layers");
-        Bootstrap_->GetClusterNodeMasterConnector()->SubscribePopulateAlerts(BIND(
+
+        Bootstrap_->SubscribePopulateAlerts(BIND(
             &TLayerCache::PopulateTmpfsAlert,
             MakeWeak(this)));
-
         {
             YT_LOG_DEBUG("Cleanup tmpfs layer cache volume (Path: %v)", path);
             auto error = WaitFor(TmpfsPortoExecutor_->UnlinkVolume(path, "self"));
@@ -1595,7 +1599,7 @@ class TPortoVolumeManager
 public:
     TPortoVolumeManager(
         const TVolumeManagerConfigPtr& config,
-        TBootstrap* bootstrap)
+        IBootstrap* bootstrap)
     {
         // Create locations.
         for (int index = 0; index < std::ssize(config->LayerLocations); ++index) {
@@ -1620,7 +1624,7 @@ public:
                 auto error = TError("Layer location at %v is disabled", locationConfig->Path)
                     << ex;
                 YT_LOG_WARNING(error);
-                bootstrap->GetClusterNodeMasterConnector()->RegisterStaticAlert(error);
+                bootstrap->RegisterStaticAlert(error);
             }
         }
 
@@ -1749,13 +1753,13 @@ DEFINE_REFCOUNTED_TYPE(TPortoVolumeManager)
 
 IVolumeManagerPtr CreatePortoVolumeManager(
     TVolumeManagerConfigPtr config,
-    TBootstrap* bootstrap)
+    IBootstrap* bootstrap)
 {
     return New<TPortoVolumeManager>(std::move(config), bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDataNode
+} // namespace NYT::NExecAgent
 
 #endif

@@ -1,10 +1,12 @@
+#include "store_flusher.h"
+
+#include "bootstrap.h"
 #include "in_memory_manager.h"
 #include "private.h"
 #include "public.h"
 #include "slot_manager.h"
 #include "sorted_chunk_store.h"
 #include "sorted_dynamic_store.h"
-#include "store_flusher.h"
 #include "store_manager.h"
 #include "tablet.h"
 #include "tablet_manager.h"
@@ -12,7 +14,6 @@
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
@@ -70,7 +71,7 @@ class TStoreFlusher
     : public IStoreFlusher
 {
 public:
-    explicit TStoreFlusher(NClusterNode::TBootstrap* bootstrap)
+    explicit TStoreFlusher(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
         , Config_(Bootstrap_->GetConfig()->TabletNode)
         , ThreadPool_(New<TThreadPool>(Config_->StoreFlusher->ThreadPoolSize, "StoreFlush"))
@@ -85,14 +86,14 @@ public:
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         dynamicConfigManager->SubscribeConfigChanged(BIND(&TStoreFlusher::OnDynamicConfigChanged, MakeWeak(this)));
 
-        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
+        const auto& slotManager = Bootstrap_->GetSlotManager();
         slotManager->SubscribeBeginSlotScan(BIND(&TStoreFlusher::OnBeginSlotScan, MakeStrong(this)));
         slotManager->SubscribeScanSlot(BIND(&TStoreFlusher::OnScanSlot, MakeStrong(this)));
         slotManager->SubscribeEndSlotScan(BIND(&TStoreFlusher::OnEndSlotScan, MakeStrong(this)));
     }
 
 private:
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
     const TTabletNodeConfigPtr Config_;
 
     const NProfiling::TProfiler Profiler = TabletNodeProfiler.WithPrefix("/store_flusher");
@@ -496,7 +497,7 @@ private:
             YT_LOG_INFO("Store flush transaction created (TransactionId: %v)",
                 transaction->GetId());
 
-            auto throttler = Bootstrap_->GetTabletNodeOutThrottler(EWorkloadCategory::SystemTabletStoreFlush);
+            auto throttler = Bootstrap_->GetOutThrottler(EWorkloadCategory::SystemTabletStoreFlush);
 
             auto asyncFlushResult = BIND(flushCallback)
                 .AsyncVia(ThreadPool_->GetInvoker())
@@ -571,7 +572,7 @@ private:
     }
 };
 
-IStoreFlusherPtr CreateStoreFlusher(NClusterNode::TBootstrap* bootstrap)
+IStoreFlusherPtr CreateStoreFlusher(IBootstrap* bootstrap)
 {
     return New<TStoreFlusher>(bootstrap);
 }

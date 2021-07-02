@@ -1,12 +1,14 @@
 #include "scheduler_connector.h"
+
+#include "bootstrap.h"
 #include "private.h"
 #include "job.h"
+#include "master_connector.h"
 
 #include <yt/yt/server/lib/exec_agent/config.h>
 
 #include <yt/yt/server/lib/job_agent/job_reporter.h>
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/exec_agent/slot_manager.h>
@@ -37,7 +39,7 @@ static const auto& Logger = ExecAgentLogger;
 
 TSchedulerConnector::TSchedulerConnector(
     TSchedulerConnectorConfigPtr config,
-    TBootstrap* bootstrap)
+    IBootstrap* bootstrap)
     : Config_(config)
     , Bootstrap_(bootstrap)
     , HeartbeatExecutor_(New<TPeriodicExecutor>(
@@ -70,12 +72,11 @@ void TSchedulerConnector::SendHeartbeat()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    const auto& masterConnector = Bootstrap_->GetClusterNodeMasterConnector();
-    if (!masterConnector->IsConnected()) {
+    if (!Bootstrap_->IsConnected()) {
         return;
     }
 
-    const auto slotManager = Bootstrap_->GetExecSlotManager();
+    const auto slotManager = Bootstrap_->GetSlotManager();
     if (!slotManager->IsInitialized()) {
         return;
     }

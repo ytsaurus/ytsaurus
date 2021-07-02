@@ -11,7 +11,7 @@ class TJournalChunk
 {
 public:
     TJournalChunk(
-        NClusterNode::TBootstrap* bootstrap,
+        IBootstrap* bootstrap,
         TStoreLocationPtr location,
         const TChunkDescriptor& descriptor);
 
@@ -51,6 +51,8 @@ public:
     bool IsSealed() const;
 
 private:
+    IBootstrap* const Bootstrap_;
+
     const TStoreLocationPtr StoreLocation_;
 
     std::atomic<bool> Active_ = false;

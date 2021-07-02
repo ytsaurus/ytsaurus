@@ -40,7 +40,7 @@ class TJobController
 public:
     TJobController(
         TJobControllerConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap);
+        NClusterNode::IBootstrapBase* bootstrap);
 
     ~TJobController();
 
@@ -109,7 +109,7 @@ public:
     public:
         TJobHeartbeatProcessorBase(
             TJobController* controller,
-            NClusterNode::TBootstrap* bootstrap);
+            NClusterNode::IBootstrapBase* bootstrap);
 
         virtual void PrepareRequest(
             NObjectClient::TCellTag cellTag,
@@ -133,7 +133,7 @@ public:
         void ProcessHeartbeatCommonResponsePart(const TRspHeartbeatPtr& response);
 
         TJobController* const JobController_;
-        NClusterNode::TBootstrap* const Bootstrap_;
+        NClusterNode::IBootstrapBase* const Bootstrap_;
     };
 
     using TJobHeartbeatProcessorBasePtr = TIntrusivePtr<TJobHeartbeatProcessorBase>;
@@ -143,7 +143,7 @@ public:
     template <typename T>
     void AddHeartbeatProcessor(
         NObjectClient::EObjectType jobObjectType,
-        NClusterNode::TBootstrap* const bootstrap)
+        NClusterNode::IBootstrapBase* const bootstrap)
     {
         auto heartbeatProcessor = New<T>(this, bootstrap);
         RegisterHeartbeatProcessor(jobObjectType, std::move(heartbeatProcessor));

@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/ytlib/chunk_client/block_id.h>
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 
@@ -24,7 +22,7 @@ class TP2PBlockDistributor
     : public TRefCounted
 {
 public:
-    explicit TP2PBlockDistributor(NClusterNode::TBootstrap* bootstrap);
+    explicit TP2PBlockDistributor(IBootstrap* bootstrap);
 
     //! Method that should be called on each block request.
     void OnBlockRequested(TBlockId blockId, i64 blockSize);
@@ -33,7 +31,7 @@ public:
     void Start();
 
 private:
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
     const TP2PBlockDistributorConfigPtr Config_;
     const NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
 

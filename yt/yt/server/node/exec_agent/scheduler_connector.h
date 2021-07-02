@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -20,14 +18,14 @@ class TSchedulerConnector
 public:
     TSchedulerConnector(
         TSchedulerConnectorConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap);
+        IBootstrap* bootstrap);
 
     void Start();
 
 private:
     const TSchedulerConnectorConfigPtr Config_;
-    NClusterNode::TBootstrap* const Bootstrap_;
-    
+    IBootstrap* const Bootstrap_;
+
     const NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
 
     TInstant LastSentHeartbeatTime_;

@@ -1,4 +1,6 @@
 #include "journal_dispatcher.h"
+
+#include "bootstrap.h"
 #include "private.h"
 #include "chunk.h"
 #include "chunk_store.h"
@@ -7,7 +9,6 @@
 #include "journal_manager.h"
 #include "location.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 
@@ -61,7 +62,7 @@ class TJournalDispatcher
     , public IJournalDispatcher
 {
 public:
-    explicit TJournalDispatcher(NClusterNode::TBootstrap* bootstrap)
+    explicit TJournalDispatcher(IBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
             bootstrap->GetConfig()->DataNode->ChangelogReaderCache,
             DataNodeProfiler.WithPrefix("/changelog_cache"))
@@ -92,7 +93,7 @@ public:
     virtual TFuture<void> SealChangelog(TJournalChunkPtr chunk) override;
 
 private:
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
     friend class TCachedChangelog;
 
@@ -342,7 +343,7 @@ void TJournalDispatcher::OnRemoved(const TCachedChangelogPtr& changelog)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJournalDispatcherPtr CreateJournalDispatcher(NClusterNode::TBootstrap* bootstrap)
+IJournalDispatcherPtr CreateJournalDispatcher(IBootstrap* bootstrap)
 {
     return New<TJournalDispatcher>(bootstrap);
 }

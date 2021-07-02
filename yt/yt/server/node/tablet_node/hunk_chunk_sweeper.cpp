@@ -1,4 +1,5 @@
 #include "hunk_chunk_sweeper.h"
+#include "bootstrap.h"
 #include "hunk_chunk.h"
 #include "slot_manager.h"
 #include "tablet.h"
@@ -6,7 +7,6 @@
 #include "tablet_slot.h"
 #include "private.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
@@ -40,18 +40,18 @@ class THunkChunkSweeper
     : public IHunkChunkSweeper
 {
 public:
-    explicit THunkChunkSweeper(NClusterNode::TBootstrap* bootstrap)
+    explicit THunkChunkSweeper(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
     { }
 
     virtual void Start() override
     {
-        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
+        const auto& slotManager = Bootstrap_->GetSlotManager();
         slotManager->SubscribeScanSlot(BIND(&THunkChunkSweeper::OnScanSlot, MakeStrong(this)));
     }
 
 private:
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
 
     void OnScanSlot(const ITabletSlotPtr& slot)
@@ -195,7 +195,7 @@ private:
     }
 };
 
-IHunkChunkSweeperPtr CreateHunkChunkSweeper(NClusterNode::TBootstrap* bootstrap)
+IHunkChunkSweeperPtr CreateHunkChunkSweeper(IBootstrap* bootstrap)
 {
     return New<THunkChunkSweeper>(bootstrap);
 }

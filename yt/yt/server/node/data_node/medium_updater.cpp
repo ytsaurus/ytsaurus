@@ -1,12 +1,12 @@
 #include "medium_updater.h"
 
+#include "bootstrap.h"
 #include "config.h"
 #include "private.h"
 #include "master_connector.h"
 #include "chunk_store.h"
 #include "location.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
@@ -34,7 +34,7 @@ static const auto& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMediumUpdater::TMediumUpdater(NClusterNode::TBootstrap* bootstrap)
+TMediumUpdater::TMediumUpdater(IBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
     , ControlInvoker_(Bootstrap_->GetControlInvoker())
 {

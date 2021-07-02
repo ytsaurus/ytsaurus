@@ -3,7 +3,6 @@
 #include "artifact.h"
 #include "chunk_block_manager.h"
 #include "chunk.h"
-#include "chunk_cache.h"
 #include "chunk_store.h"
 #include "config.h"
 #include "location.h"
@@ -11,6 +10,7 @@
 #include "session_manager.h"
 #include "network_statistics.h"
 
+#include <yt/yt/server/node/cellar_node/bootstrap.h>
 #include <yt/yt/server/node/cellar_node/master_connector.h>
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
@@ -19,14 +19,18 @@
 #include <yt/yt/server/node/cluster_node/node_resource_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
+#include <yt/yt/server/node/data_node/bootstrap.h>
 #include <yt/yt/server/node/data_node/journal_dispatcher.h>
 
 #include <yt/yt/server/node/job_agent/job_controller.h>
 
+#include <yt/yt/server/node/exec_agent/bootstrap.h>
+#include <yt/yt/server/node/exec_agent/chunk_cache.h>
 #include <yt/yt/server/node/exec_agent/master_connector.h>
 #include <yt/yt/server/node/exec_agent/slot_location.h>
 #include <yt/yt/server/node/exec_agent/slot_manager.h>
 
+#include <yt/yt/server/node/tablet_node/bootstrap.h>
 #include <yt/yt/server/node/tablet_node/master_connector.h>
 #include <yt/yt/server/node/tablet_node/slot_manager.h>
 #include <yt/yt/server/node/tablet_node/tablet.h>
@@ -118,7 +122,7 @@ static const auto& Logger = DataNodeLogger;
 TLegacyMasterConnector::TLegacyMasterConnector(
     TDataNodeConfigPtr config,
     const std::vector<TString>& nodeTags,
-    TBootstrap* bootstrap)
+    NClusterNode::IBootstrap* bootstrap)
     : Config_(config)
     , NodeTags_(nodeTags)
     , Bootstrap_(bootstrap)
@@ -155,7 +159,7 @@ void TLegacyMasterConnector::ScheduleNodeHeartbeat(bool immedately)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto cellTags = Bootstrap_->GetClusterNodeMasterConnector()->GetMasterCellTags();
+    auto cellTags = Bootstrap_->GetMasterCellTags();
     for (auto cellTag : cellTags) {
         ScheduleNodeHeartbeat(cellTag, immedately);
     }
@@ -169,7 +173,7 @@ void TLegacyMasterConnector::DoScheduleNodeHeartbeat(TCellTag cellTag, bool imme
         ? TDuration::Zero()
         : IncrementalHeartbeatPeriod_ + RandomDuration(IncrementalHeartbeatPeriodSplay_);
     ++HeartbeatsScheduled_[cellTag];
-    const auto& heartbeatInvoker = Bootstrap_->GetClusterNodeMasterConnector()->GetMasterConnectionInvoker();
+    const auto& heartbeatInvoker = Bootstrap_->GetMasterConnectionInvoker();
     TDelayedExecutor::Submit(
         BIND(&TLegacyMasterConnector::ReportNodeHeartbeat, MakeStrong(this), cellTag)
             .Via(heartbeatInvoker),
@@ -180,7 +184,7 @@ void TLegacyMasterConnector::OnMasterConnected()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    for (auto cellTag : Bootstrap_->GetClusterNodeMasterConnector()->GetMasterCellTags()) {
+    for (auto cellTag : Bootstrap_->GetMasterCellTags()) {
         DoScheduleNodeHeartbeat(cellTag, true);
     }
 }
@@ -190,7 +194,9 @@ void TLegacyMasterConnector::ReportNodeHeartbeat(TCellTag cellTag)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     --HeartbeatsScheduled_[cellTag];
-    const auto& dataNodeMasterConnector = Bootstrap_->GetDataNodeMasterConnector();
+    const auto& dataNodeMasterConnector = Bootstrap_
+        ->GetDataNodeBootstrap()
+        ->GetMasterConnector();
     auto state = dataNodeMasterConnector->GetMasterConnectorState(cellTag);
     switch (state) {
         case EMasterConnectorState::Registered:
@@ -223,27 +229,35 @@ void TLegacyMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
 
     auto Logger = DataNodeLogger.WithTag("CellTag: %v", cellTag);
 
-    const auto& masterConnector = Bootstrap_->GetClusterNodeMasterConnector();
-    auto channel = masterConnector->GetMasterChannel(cellTag);
+    auto channel = Bootstrap_->GetMasterChannel(cellTag);
     TNodeTrackerServiceProxy proxy(channel);
 
     auto request = proxy.FullHeartbeat();
     request->SetRequestCodec(NCompression::ECodec::Lz4);
     request->SetTimeout(Config_->FullHeartbeatTimeout);
 
-    YT_VERIFY(masterConnector->IsConnected());
-    request->set_node_id(masterConnector->GetNodeId());
+    YT_VERIFY(Bootstrap_->IsConnected());
+    request->set_node_id(Bootstrap_->GetNodeId());
 
-    auto fullDataNodeHeartbeat = Bootstrap_->GetDataNodeMasterConnector()->GetFullHeartbeatRequest(cellTag);
+    auto fullDataNodeHeartbeat = Bootstrap_
+        ->GetDataNodeBootstrap()
+        ->GetMasterConnector()
+        ->GetFullHeartbeatRequest(cellTag);
     FillDataNodeHeartbeatPart(request.Get(), fullDataNodeHeartbeat);
 
-    auto cellarNodeHeartbeat = Bootstrap_->GetCellarNodeMasterConnector()->GetHeartbeatRequest(cellTag);
+    auto cellarNodeHeartbeat = Bootstrap_
+        ->GetCellarNodeBootstrap()
+        ->GetMasterConnector()
+        ->GetHeartbeatRequest(cellTag);
     FillCellarNodeHeartbeatPart(request.Get(), cellarNodeHeartbeat);
 
-    auto execNodeHeartbeat = Bootstrap_->GetExecNodeMasterConnector()->GetHeartbeatRequest();
+    auto execNodeHeartbeat = Bootstrap_
+        ->GetExecNodeBootstrap()
+        ->GetMasterConnector()
+        ->GetHeartbeatRequest();
     FillExecNodeHeartbeatPart(request.Get(), execNodeHeartbeat);
 
-    auto clusterNodeHeartbeat = Bootstrap_->GetClusterNodeMasterConnector()->GetHeartbeatRequest();
+    auto clusterNodeHeartbeat = Bootstrap_->GetMasterConnector()->GetHeartbeatRequest();
     FillClusterNodeHeartbeatPart(request.Get(), clusterNodeHeartbeat);
 
     YT_LOG_INFO("Full node heartbeat sent to master (StoredChunkCount: %v, CachedChunkCount: %v, %v)",
@@ -260,14 +274,17 @@ void TLegacyMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
         if (NRpc::IsRetriableError(rspOrError)) {
             DoScheduleNodeHeartbeat(cellTag);
         } else {
-            Bootstrap_->GetClusterNodeMasterConnector()->ResetAndRegisterAtMaster();
+            Bootstrap_->ResetAndRegisterAtMaster();
         }
         return;
     }
 
     YT_LOG_INFO("Successfully reported full node heartbeat to master");
 
-    Bootstrap_->GetDataNodeMasterConnector()->OnFullHeartbeatReported(cellTag);
+    Bootstrap_
+        ->GetDataNodeBootstrap()
+        ->GetMasterConnector()
+        ->OnFullHeartbeatReported(cellTag);
 
     DoScheduleNodeHeartbeat(cellTag);
 }
@@ -301,7 +318,7 @@ void TLegacyMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 
     auto primaryCellTag = CellTagFromId(Bootstrap_->GetCellId());
 
-    const auto& masterConnector = Bootstrap_->GetClusterNodeMasterConnector();
+    const auto& masterConnector = Bootstrap_->GetMasterConnector();
     auto channel = masterConnector->GetMasterChannel(cellTag);
     TNodeTrackerServiceProxy proxy(channel);
 
@@ -312,19 +329,31 @@ void TLegacyMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
     YT_VERIFY(masterConnector->IsConnected());
     request->set_node_id(masterConnector->GetNodeId());
 
-    auto incrementalDataNodeHeartbeat = Bootstrap_->GetDataNodeMasterConnector()->GetIncrementalHeartbeatRequest(cellTag);
+    auto incrementalDataNodeHeartbeat = Bootstrap_
+        ->GetDataNodeBootstrap()
+        ->GetMasterConnector()
+        ->GetIncrementalHeartbeatRequest(cellTag);
     FillDataNodeHeartbeatPart(request.Get(), incrementalDataNodeHeartbeat);
 
-    auto clusterNodeHeartbeat = Bootstrap_->GetClusterNodeMasterConnector()->GetHeartbeatRequest();
+    auto clusterNodeHeartbeat = masterConnector->GetHeartbeatRequest();
     FillClusterNodeHeartbeatPart(request.Get(), clusterNodeHeartbeat);
 
-    auto cellarNodeHeartbeat = Bootstrap_->GetCellarNodeMasterConnector()->GetHeartbeatRequest(cellTag);
+    auto cellarNodeHeartbeat = Bootstrap_
+        ->GetCellarNodeBootstrap()
+        ->GetMasterConnector()
+        ->GetHeartbeatRequest(cellTag);
     FillCellarNodeHeartbeatPart(request.Get(), cellarNodeHeartbeat);
 
-    auto tabletNodeHeartbeat = Bootstrap_->GetTabletNodeMasterConnector()->GetHeartbeatRequest(cellTag);
+    auto tabletNodeHeartbeat = Bootstrap_
+        ->GetTabletNodeBootstrap()
+        ->GetMasterConnector()
+        ->GetHeartbeatRequest(cellTag);
     FillTabletNodeHeartbeatPart(request.Get(), tabletNodeHeartbeat);
 
-    auto execNodeHeartbeat = Bootstrap_->GetExecNodeMasterConnector()->GetHeartbeatRequest();
+    auto execNodeHeartbeat = Bootstrap_
+        ->GetExecNodeBootstrap()
+        ->GetMasterConnector()
+        ->GetHeartbeatRequest();
     FillExecNodeHeartbeatPart(request.Get(), execNodeHeartbeat);
 
     YT_LOG_INFO("Incremental node heartbeat sent to master (%v, AddedChunks: %v, RemovedChunks: %v)",
@@ -334,13 +363,16 @@ void TLegacyMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 
     auto rspOrError = WaitFor(request->Invoke());
     if (!rspOrError.IsOK()) {
-        Bootstrap_->GetDataNodeMasterConnector()->OnIncrementalHeartbeatFailed(cellTag);
+        Bootstrap_
+            ->GetDataNodeBootstrap()
+            ->GetMasterConnector()
+            ->OnIncrementalHeartbeatFailed(cellTag);
 
         YT_LOG_WARNING(rspOrError, "Error reporting incremental node heartbeat to master");
         if (NRpc::IsRetriableError(rspOrError)) {
             DoScheduleNodeHeartbeat(cellTag);
         } else {
-            Bootstrap_->GetClusterNodeMasterConnector()->ResetAndRegisterAtMaster();
+            Bootstrap_->ResetAndRegisterAtMaster();
         }
         return;
     }
@@ -352,21 +384,30 @@ void TLegacyMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
     {
         NDataNodeTrackerClient::NProto::TRspIncrementalHeartbeat incrementalDataNodeHeartbeatResponse;
         FromIncrementalHeartbeatResponse(&incrementalDataNodeHeartbeatResponse, *rsp);
-        Bootstrap_->GetDataNodeMasterConnector()->OnIncrementalHeartbeatResponse(cellTag, incrementalDataNodeHeartbeatResponse);
+        Bootstrap_
+            ->GetDataNodeBootstrap()
+            ->GetMasterConnector()
+            ->OnIncrementalHeartbeatResponse(cellTag, incrementalDataNodeHeartbeatResponse);
     }
 
     if (cellTag == primaryCellTag) {
         NNodeTrackerClient::NProto::TRspHeartbeat clusterNodeHeartbeatResponse;
         FromIncrementalHeartbeatResponse(&clusterNodeHeartbeatResponse, *rsp);
-        Bootstrap_->GetClusterNodeMasterConnector()->OnHeartbeatResponse(clusterNodeHeartbeatResponse);
+        Bootstrap_->GetMasterConnector()->OnHeartbeatResponse(clusterNodeHeartbeatResponse);
 
         NCellarNodeTrackerClient::NProto::TRspHeartbeat cellarNodeHeartbeatResponse;
         FromIncrementalHeartbeatResponse(&cellarNodeHeartbeatResponse, *rsp);
-        Bootstrap_->GetCellarNodeMasterConnector()->OnHeartbeatResponse(cellarNodeHeartbeatResponse);
+        Bootstrap_
+            ->GetCellarNodeBootstrap()
+            ->GetMasterConnector()
+            ->OnHeartbeatResponse(cellarNodeHeartbeatResponse);
 
         NExecNodeTrackerClient::NProto::TRspHeartbeat execNodeHeartbeatResponse;
         FromIncrementalHeartbeatResponse(&execNodeHeartbeatResponse, *rsp);
-        Bootstrap_->GetExecNodeMasterConnector()->OnHeartbeatResponse(execNodeHeartbeatResponse);
+        Bootstrap_
+            ->GetExecNodeBootstrap()
+            ->GetMasterConnector()
+            ->OnHeartbeatResponse(execNodeHeartbeatResponse);
     }
 
     if (HeartbeatsScheduled_[cellTag] == 0) {

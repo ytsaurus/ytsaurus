@@ -1,9 +1,9 @@
 #include "transaction_manager.h"
+#include "bootstrap.h"
 #include "private.h"
 #include "automaton.h"
 #include "tablet_slot.h"
 #include "transaction.h"
-#include "yt/yt/library/profiling/sensor.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -85,7 +85,7 @@ public:
     TImpl(
         TTransactionManagerConfigPtr config,
         ITabletSlotPtr slot,
-        NClusterNode::TBootstrap* bootstrap)
+        IBootstrap* bootstrap)
         : TTabletAutomatonPart(
             slot,
             bootstrap)
@@ -1077,7 +1077,7 @@ private:
 TTransactionManager::TTransactionManager(
     TTransactionManagerConfigPtr config,
     ITabletSlotPtr slot,
-    TBootstrap* bootstrap)
+    IBootstrap* bootstrap)
     : Impl_(New<TImpl>(
         config,
         slot,

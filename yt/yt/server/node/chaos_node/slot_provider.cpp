@@ -1,8 +1,7 @@
 #include "public.h"
+#include "bootstrap.h"
 #include "chaos_slot.h"
 #include "slot_provider.h"
-
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/yt/server/lib/cellar_agent/occupier.h>
 
@@ -20,7 +19,7 @@ class TChaosSlotProvider
 public:
     TChaosSlotProvider(
         TChaosNodeConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap)
+        IBootstrap* bootstrap)
         : Config_(std::move(config))
         , Bootstrap_(bootstrap)
     { }
@@ -32,14 +31,14 @@ public:
 
 private:
     const TChaosNodeConfigPtr Config_;
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 ICellarOccupierProviderPtr CreateChaosCellarOccupierProvider(
     TChaosNodeConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap)
+    IBootstrap* bootstrap)
 {
     return New<TChaosSlotProvider>(std::move(config), bootstrap);
 }

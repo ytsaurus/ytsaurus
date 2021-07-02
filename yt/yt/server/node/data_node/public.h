@@ -18,6 +18,8 @@ using NNodeTrackerClient::TNodeId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IBootstrap;
+
 struct TChunkDescriptor;
 struct TSessionOptions;
 struct TChunkReadOptions;
@@ -34,10 +36,10 @@ DECLARE_REFCOUNTED_STRUCT(IMasterConnector)
 DECLARE_REFCOUNTED_CLASS(TLegacyMasterConnector)
 
 DECLARE_REFCOUNTED_CLASS(TChunkStore)
-DECLARE_REFCOUNTED_CLASS(TChunkCache)
 
 DECLARE_REFCOUNTED_STRUCT(IChunkRegistry)
 DECLARE_REFCOUNTED_STRUCT(IChunkBlockManager)
+DECLARE_REFCOUNTED_STRUCT(IChunkReaderSweeper)
 DECLARE_REFCOUNTED_STRUCT(IBlobReaderCache)
 DECLARE_REFCOUNTED_STRUCT(IJournalDispatcher)
 
@@ -87,10 +89,6 @@ DECLARE_REFCOUNTED_CLASS(TVolumeManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTableSchemaCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TTableSchemaCacheDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TRepairReaderConfig)
-
-DECLARE_REFCOUNTED_STRUCT(IVolume)
-DECLARE_REFCOUNTED_STRUCT(IVolumeManager)
-DECLARE_REFCOUNTED_STRUCT(IPlainVolumeManager)
 
 DECLARE_REFCOUNTED_STRUCT(TCachedTableSchema)
 DECLARE_REFCOUNTED_CLASS(TTableSchemaCache)

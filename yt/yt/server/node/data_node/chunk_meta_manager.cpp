@@ -1,8 +1,9 @@
 #include "chunk_meta_manager.h"
+
+#include "bootstrap.h"
 #include "config.h"
 #include "private.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 
@@ -59,7 +60,7 @@ class TChunkMetaManager
     : public IChunkMetaManager
 {
 public:
-    explicit TChunkMetaManager(TBootstrap* bootstrap)
+    explicit TChunkMetaManager(IBootstrapBase* bootstrap)
         : Bootstrap_(bootstrap)
         , Config_(Bootstrap_->GetConfig()->DataNode)
         , ChunkMetaCache_(New<TChunkMetaCache>(
@@ -178,7 +179,7 @@ public:
     }
 
 private:
-    TBootstrap* const Bootstrap_;
+    IBootstrapBase* const Bootstrap_;
     const TDataNodeConfigPtr Config_;
 
     class TChunkMetaCache
@@ -244,7 +245,7 @@ private:
     }
 };
 
-IChunkMetaManagerPtr CreateChunkMetaManager(NClusterNode::TBootstrap* bootstrap)
+IChunkMetaManagerPtr CreateChunkMetaManager(IBootstrapBase* bootstrap)
 {
     return New<TChunkMetaManager>(bootstrap);
 }

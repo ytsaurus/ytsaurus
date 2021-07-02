@@ -3,7 +3,7 @@
 #include "public.h"
 #include "chunk.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -57,7 +57,7 @@ public:
     virtual void TrySweepReader() override;
 
 protected:
-    NClusterNode::TBootstrap* const Bootstrap_;
+    NClusterNode::IBootstrapBase* const Bootstrap_;
     const TLocationPtr Location_;
     const TChunkId Id_;
 
@@ -94,7 +94,7 @@ protected:
 
 
     TChunkBase(
-        NClusterNode::TBootstrap* bootstrap,
+        NClusterNode::IBootstrapBase* bootstrap,
         TLocationPtr location,
         TChunkId id);
     ~TChunkBase();

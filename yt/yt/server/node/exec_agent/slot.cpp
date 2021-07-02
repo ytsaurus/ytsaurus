@@ -1,11 +1,11 @@
 #include "slot.h"
+#include "chunk_cache.h"
 #include "private.h"
 #include "job_environment.h"
 #include "slot_location.h"
+#include "volume_manager.h"
 
 #include <yt/yt/server/lib/exec_agent/config.h>
-
-#include <yt/yt/server/node/data_node/volume_manager.h>
 
 #include <yt/yt/ytlib/tools/tools.h>
 

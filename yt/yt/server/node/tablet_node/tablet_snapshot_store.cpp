@@ -1,11 +1,11 @@
+#include "tablet_snapshot_store.h"
+
 #include "private.h"
+#include "bootstrap.h"
 #include "tablet.h"
 #include "tablet_slot.h"
 #include "security_manager.h"
 #include "slot_manager.h"
-#include "tablet_snapshot_store.h"
-
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -35,7 +35,7 @@ class TTabletSnapshotStore
 public:
     TTabletSnapshotStore(
         TTabletNodeConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap)
+        IBootstrap* bootstrap)
         : Config_(std::move(config))
         , Bootstrap_(bootstrap)
     { }
@@ -198,7 +198,7 @@ public:
 
 private:
     const TTabletNodeConfigPtr Config_;
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
     YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, TabletSnapshotsSpinLock_);
     THashMultiMap<TTabletId, TTabletSnapshotPtr> TabletIdToSnapshot_;
@@ -278,7 +278,7 @@ private:
                 << TErrorAttribute("tablet_id", tabletId);
         }
 
-        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
+        const auto& slotManager = Bootstrap_->GetSlotManager();
         auto slot = slotManager->FindSlot(cellId);
         if (!slot){
             THROW_ERROR_EXCEPTION(
@@ -312,7 +312,7 @@ private:
 
 ITabletSnapshotStorePtr CreateTabletSnapshotStore(
     TTabletNodeConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap)
+    IBootstrap* bootstrap)
 {
     return New<TTabletSnapshotStore>(std::move(config), bootstrap);
 }

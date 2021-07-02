@@ -38,7 +38,7 @@ struct ISlotManager
 
 DEFINE_REFCOUNTED_TYPE(ISlotManager)
 
-ISlotManagerPtr CreateSlotManager(NClusterNode::TBootstrap* bootstrap);
+ISlotManagerPtr CreateSlotManager(IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

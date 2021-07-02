@@ -1,9 +1,9 @@
 #include "p2p_block_distributor.h"
 
+#include "bootstrap.h"
 #include "block_peer_table.h"
 #include "private.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
@@ -50,7 +50,7 @@ static const auto& Logger = P2PLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TP2PBlockDistributor::TP2PBlockDistributor(TBootstrap* bootstrap)
+TP2PBlockDistributor::TP2PBlockDistributor(IBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
     , Config_(Bootstrap_->GetConfig()->DataNode->P2PBlockDistributor)
     , PeriodicExecutor_(New<TPeriodicExecutor>(
@@ -142,7 +142,7 @@ bool TP2PBlockDistributor::ShouldDistributeBlocks()
     UpdateTransmittedBytes();
     i64 outTraffic = TransmittedBytes_ - oldTransmittedBytes;
 
-    i64 outThrottlerQueueSize = Bootstrap_->GetDataNodeOutThrottler(TWorkloadDescriptor())->GetQueueTotalCount();
+    i64 outThrottlerQueueSize = Bootstrap_->GetOutThrottler(TWorkloadDescriptor())->GetQueueTotalCount();
     i64 defaultNetworkPendingOutBytes = 0;
     if (auto defaultNetwork = Bootstrap_->GetDefaultNetworkName()) {
         defaultNetworkPendingOutBytes = TTcpDispatcher::Get()->GetCounters(*defaultNetwork)->PendingOutBytes;
@@ -217,7 +217,7 @@ void TP2PBlockDistributor::DistributeBlocks()
 
     // Filter nodes that are not local and that are allowed by node tag filter.
     auto nodes = Bootstrap_->GetNodeDirectory()->GetAllDescriptors();
-    auto localNodeId = Bootstrap_->GetClusterNodeMasterConnector()->GetNodeId();
+    auto localNodeId = Bootstrap_->GetNodeId();
     nodes.erase(std::remove_if(nodes.begin(), nodes.end(), [&] (const auto& pair) {
         return
             pair.first == localNodeId ||
@@ -324,7 +324,7 @@ TP2PBlockDistributor::TChosenBlocks TP2PBlockDistributor::ChooseBlocks()
     TP2PBlockDistributor::TChosenBlocks chosenBlocks;
 
     const auto& blockCache = Bootstrap_->GetBlockCache();
-    const auto& distributionThrottler = Bootstrap_->GetDataNodeThrottler(EDataNodeThrottlerKind::P2POut);
+    const auto& distributionThrottler = Bootstrap_->GetThrottler(EDataNodeThrottlerKind::P2POut);
 
     for (const auto& candidate : candidates) {
         if (distributionThrottler->IsOverdraft()) {

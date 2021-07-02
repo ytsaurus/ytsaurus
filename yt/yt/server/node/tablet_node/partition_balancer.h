@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/server/lib/lsm/lsm_backend.h>
 
 namespace NYT::NTabletNode {
@@ -20,7 +18,7 @@ struct IPartitionBalancer
 
 DEFINE_REFCOUNTED_TYPE(IPartitionBalancer)
 
-IPartitionBalancerPtr CreatePartitionBalancer(NClusterNode::TBootstrap* bootstrap);
+IPartitionBalancerPtr CreatePartitionBalancer(IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

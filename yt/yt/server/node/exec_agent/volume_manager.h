@@ -4,13 +4,11 @@
 
 #include "chunk_cache.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
-namespace NYT::NDataNode {
+namespace NYT::NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,10 +28,10 @@ struct IVolumeManager
     : public virtual TRefCounted
 {
     virtual TFuture<IVolumePtr> PrepareVolume(
-        const std::vector<TArtifactKey>& layers,
+        const std::vector<NDataNode::TArtifactKey>& layers,
         const TArtifactDownloadOptions& downloadOptions) = 0;
 
-    virtual bool IsLayerCached(const TArtifactKey& artifactKey) const = 0;
+    virtual bool IsLayerCached(const NDataNode::TArtifactKey& artifactKey) const = 0;
 
     virtual void BuildOrchidYson(NYTree::TFluentMap fluent) const = 0;
 };
@@ -41,9 +39,9 @@ struct IVolumeManager
 DEFINE_REFCOUNTED_TYPE(IVolumeManager)
 
 IVolumeManagerPtr CreatePortoVolumeManager(
-    TVolumeManagerConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap);
+    NDataNode::TVolumeManagerConfigPtr config,
+    IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDataNode
+} // namespace NYT::NExecAgent

@@ -56,229 +56,234 @@ namespace NYT::NClusterNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBootstrap
+//! Common base for all node bootstraps.
+struct IBootstrapBase
 {
-public:
-    TBootstrap(TClusterNodeConfigPtr config, NYTree::INodePtr configNode);
-    ~TBootstrap();
+    virtual ~IBootstrapBase() = default;
 
-    const TClusterNodeConfigPtr& GetConfig() const;
-    const IInvokerPtr& GetControlInvoker() const;
-    const IInvokerPtr& GetJobInvoker() const;
-    IInvokerPtr GetQueryPoolInvoker(
-        const TString& poolName,
-        double weight,
-        const NConcurrency::TFairShareThreadPoolTag& tag) const;
-    const IInvokerPtr& GetTabletLookupPoolInvoker() const;
-    const IInvokerPtr& GetTabletFetchPoolInvoker() const;
-    const IInvokerPtr& GetTableReplicatorPoolInvoker() const;
-    const IInvokerPtr& GetTransactionTrackerInvoker() const;
-    const IPrioritizedInvokerPtr& GetStorageHeavyInvoker() const;
-    const IInvokerPtr& GetStorageLightInvoker() const;
-    IInvokerPtr GetStorageLookupInvoker() const;
-    const IInvokerPtr& GetJobThrottlerInvoker() const;
-    const IInvokerPtr& GetConnectionInvoker() const;
-    const IInvokerPtr& GetMasterJobInvoker() const;
-    const NApi::NNative::IClientPtr& GetMasterClient() const;
-    const NApi::NNative::IConnectionPtr& GetMasterConnection() const;
-    const NRpc::IServerPtr& GetRpcServer() const;
-    const NYTree::IMapNodePtr& GetOrchidRoot() const;
-    const NJobAgent::TJobControllerPtr& GetJobController() const;
-    const NJobAgent::TJobReporterPtr& GetJobReporter() const;
-    const NTabletNode::IHintManagerPtr& GetTabletNodeHintManager() const;
-    const NCellarAgent::ICellarManagerPtr& GetCellarManager() const;
-    const NTabletNode::ISlotManagerPtr& GetTabletSlotManager() const;
-    const NTabletNode::TSecurityManagerPtr& GetSecurityManager() const;
-    const NTabletNode::IInMemoryManagerPtr& GetInMemoryManager() const;
-    const NTabletNode::IVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const;
-    const NTabletNode::IStructuredLoggerPtr& GetTabletNodeStructuredLogger() const;
-    const NTabletNode::ITabletSnapshotStorePtr& GetTabletSnapshotStore() const;
-    const NExecAgent::TSlotManagerPtr& GetExecSlotManager() const;
-    const NChaosNode::ISlotManagerPtr& GetChaosSlotManager() const;
-    const NJobAgent::TGpuManagerPtr& GetGpuManager() const;
-    const TNodeMemoryTrackerPtr& GetMemoryUsageTracker() const;
-    const NDataNode::TChunkStorePtr& GetChunkStore() const;
-    const NDataNode::TChunkCachePtr& GetChunkCache() const;
-    const NDataNode::IChunkRegistryPtr& GetChunkRegistry() const;
-    const NDataNode::TSessionManagerPtr& GetSessionManager() const;
-    const NDataNode::IChunkMetaManagerPtr& GetChunkMetaManager() const;
-    const NDataNode::IChunkBlockManagerPtr& GetChunkBlockManager() const;
-    NDataNode::TNetworkStatistics& GetNetworkStatistics() const;
-    const NChunkClient::IBlockCachePtr& GetBlockCache() const;
-    const NChunkClient::IClientBlockCachePtr& GetClientBlockCache() const;
-    const NDataNode::TP2PBlockDistributorPtr& GetP2PBlockDistributor() const;
-    const NDataNode::TBlockPeerTablePtr& GetBlockPeerTable() const;
-    const NDataNode::IBlobReaderCachePtr& GetBlobReaderCache() const;
-    const NDataNode::TTableSchemaCachePtr& GetTableSchemaCache() const;
-    const NDataNode::IJournalDispatcherPtr& GetJournalDispatcher() const;
-    const NDataNode::TLegacyMasterConnectorPtr& GetLegacyMasterConnector() const;
-    const IMasterConnectorPtr& GetClusterNodeMasterConnector() const;
-    const NDataNode::IMasterConnectorPtr& GetDataNodeMasterConnector() const;
-    const NExecAgent::IMasterConnectorPtr& GetExecNodeMasterConnector() const;
-    const NCellarNode::IMasterConnectorPtr& GetCellarNodeMasterConnector() const;
-    const NTabletNode::IMasterConnectorPtr& GetTabletNodeMasterConnector() const;
-    const NQueryClient::IColumnEvaluatorCachePtr& GetColumnEvaluatorCache() const;
-    const NTabletNode::IRowComparerProviderPtr& GetRowComparerProvider() const;
-    const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
-    const TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const;
-    const TNodeResourceManagerPtr& GetNodeResourceManager() const;
-    const NDataNode::TMediumUpdaterPtr& GetMediumUpdater() const;
-    const NProfiling::TSolomonExporterPtr& GetJobProxySolomonExporter() const;
+    // Resourse management.
+    virtual const TNodeMemoryTrackerPtr& GetMemoryUsageTracker() const = 0;
+    virtual const TNodeResourceManagerPtr& GetNodeResourceManager() const = 0;
 
-    const NConcurrency::IThroughputThrottlerPtr& GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind kind) const;
-    const NConcurrency::IThroughputThrottlerPtr& GetTabletNodeThrottler(NTabletNode::ETabletNodeThrottlerKind kind) const;
-    const NConcurrency::IThroughputThrottlerPtr& GetDataNodeInThrottler(const TWorkloadDescriptor& descriptor) const;
-    const NConcurrency::IThroughputThrottlerPtr& GetDataNodeOutThrottler(const TWorkloadDescriptor& descriptor) const;
-    const NConcurrency::IThroughputThrottlerPtr& GetTabletNodeInThrottler(EWorkloadCategory category) const;
-    const NConcurrency::IThroughputThrottlerPtr& GetTabletNodeOutThrottler(EWorkloadCategory category) const;
+    // Total throttlers.
+    virtual const NConcurrency::IThroughputThrottlerPtr& GetTotalInThrottler() const = 0;
+    virtual const NConcurrency::IThroughputThrottlerPtr& GetTotalOutThrottler() const = 0;
+    virtual const NConcurrency::IThroughputThrottlerPtr& GetReadRpsOutThrottler() const = 0;
 
-    NObjectClient::TCellId GetCellId() const;
-    NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const;
+    // Config stuff.
+    virtual const TClusterNodeConfigPtr& GetConfig() const = 0;
+    virtual const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const = 0;
 
-    std::vector<TString> GetMasterAddressesOrThrow(NObjectClient::TCellTag cellTag) const;
-    NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const;
-    std::optional<TString> GetDefaultNetworkName() const;
-    TString GetDefaultLocalAddressOrThrow() const;
-    NExecAgent::EJobEnvironmentType GetEnvironmentType() const;
-    bool IsSimpleEnvironment() const;
+    // Common invokers.
+    virtual const IInvokerPtr& GetControlInvoker() const = 0;
+    virtual const IInvokerPtr& GetJobInvoker() const = 0;
+    virtual const IInvokerPtr& GetMasterConnectionInvoker() const = 0;
+    virtual const IInvokerPtr& GetStorageLightInvoker() const = 0;
+    virtual const IPrioritizedInvokerPtr& GetStorageHeavyInvoker() const = 0;
 
-    NJobProxy::TJobProxyConfigPtr BuildJobProxyConfig() const;
+    // Master connection stuff.
+    virtual const NApi::NNative::IClientPtr& GetMasterClient() const = 0;
+    virtual const NApi::NNative::IConnectionPtr& GetMasterConnection() const = 0;
+    virtual NRpc::IChannelPtr GetMasterChannel(NObjectClient::TCellTag cellTag) = 0;
 
-    void Initialize();
-    void Run();
-    void ValidateSnapshot(const TString& fileName);
+    virtual NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const = 0;
 
-    bool IsReadOnly() const;
+    virtual NObjectClient::TCellId GetCellId() const = 0;
+    virtual NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const = 0;
+    virtual const NObjectClient::TCellTagList& GetMasterCellTags() const = 0;
+    virtual std::vector<TString> GetMasterAddressesOrThrow(NObjectClient::TCellTag cellTag) const = 0;
 
-    void SetDecommissioned(bool decommissioned);
-    bool Decommissioned() const;
+    virtual const NDataNode::TLegacyMasterConnectorPtr& GetLegacyMasterConnector() const = 0;
+    virtual bool UseNewHeartbeats() const = 0;
 
-    const THashSet<NNodeTrackerClient::ENodeFlavor>& GetFlavors() const;
-    bool IsDataNode() const;
-    bool IsExecNode() const;
-    bool IsCellarNode() const;
-    bool IsTabletNode() const;
-    bool IsChaosNode() const;
+    virtual void ResetAndRegisterAtMaster() = 0;
 
-private:
-    const TClusterNodeConfigPtr Config_;
-    const NYTree::INodePtr ConfigNode_;
+    virtual bool IsConnected() const = 0;
+    virtual NNodeTrackerClient::TNodeId GetNodeId() const = 0;
 
-    NConcurrency::TActionQueuePtr ControlActionQueue_;
-    NConcurrency::TActionQueuePtr JobActionQueue_;
-    NConcurrency::ITwoLevelFairShareThreadPoolPtr QueryThreadPool_;
-    NConcurrency::TThreadPoolPtr TabletLookupThreadPool_;
-    NConcurrency::TThreadPoolPtr TabletFetchThreadPool_;
-    NConcurrency::TThreadPoolPtr TableReplicatorThreadPool_;
-    NConcurrency::TActionQueuePtr TransactionTrackerQueue_;
-    NConcurrency::TThreadPoolPtr StorageHeavyThreadPool_;
-    IPrioritizedInvokerPtr StorageHeavyInvoker_;
-    NConcurrency::TThreadPoolPtr StorageLightThreadPool_;
-    NConcurrency::IFairShareThreadPoolPtr StorageLookupThreadPool_;
-    NConcurrency::TActionQueuePtr MasterCacheQueue_;
-    NConcurrency::TThreadPoolPtr ConnectionThreadPool_;
-    NConcurrency::TThreadPoolPtr MasterJobThreadPool_;
+    DECLARE_INTERFACE_SIGNAL(void(NNodeTrackerClient::TNodeId nodeId), MasterConnected);
+    DECLARE_INTERFACE_SIGNAL(void(), MasterDisconnected);
 
-    NMonitoring::TMonitoringManagerPtr MonitoringManager_;
-    NBus::IBusServerPtr BusServer_;
-    NApi::NNative::IConnectionPtr MasterConnection_;
-    NApi::NNative::IClientPtr MasterClient_;
-    NRpc::IServerPtr RpcServer_;
-    std::vector<NObjectClient::ICachingObjectServicePtr> CachingObjectServices_;
-    NHttp::IServerPtr HttpServer_;
-    NHttp::IServerPtr SkynetHttpServer_;
-    NYTree::IMapNodePtr OrchidRoot_;
-    NJobAgent::TJobControllerPtr JobController_;
-    NJobAgent::TJobReporterPtr JobReporter_;
-    NExecAgent::TSlotManagerPtr ExecSlotManager_;
-    NJobAgent::TGpuManagerPtr GpuManager_;
-    NJobProxy::TJobProxyConfigPtr JobProxyConfigTemplate_;
-    TNodeMemoryTrackerPtr MemoryUsageTracker_;
-    NExecAgent::TSchedulerConnectorPtr SchedulerConnector_;
-    NDataNode::TChunkStorePtr ChunkStore_;
-    NDataNode::TChunkCachePtr ChunkCache_;
-    NDataNode::IChunkRegistryPtr ChunkRegistry_;
-    NDataNode::TSessionManagerPtr SessionManager_;
-    NDataNode::IChunkMetaManagerPtr ChunkMetaManager_;
-    NDataNode::IChunkBlockManagerPtr ChunkBlockManager_;
-    std::unique_ptr<NDataNode::TNetworkStatistics> NetworkStatistics_;
-    NChunkClient::IBlockCachePtr BlockCache_;
-    NChunkClient::IClientBlockCachePtr ClientBlockCache_;
-    NDataNode::TBlockPeerTablePtr BlockPeerTable_;
-    NDataNode::TP2PBlockDistributorPtr P2PBlockDistributor_;
-    NDataNode::IBlobReaderCachePtr BlobReaderCache_;
-    NDataNode::TTableSchemaCachePtr TableSchemaCache_;
-    NDataNode::IJournalDispatcherPtr JournalDispatcher_;
-    NDataNode::TLegacyMasterConnectorPtr LegacyMasterConnector_;
-    IMasterConnectorPtr ClusterNodeMasterConnector_;
-    NDataNode::IMasterConnectorPtr DataNodeMasterConnector_;
-    NExecAgent::IMasterConnectorPtr ExecNodeMasterConnector_;
-    NCellarNode::IMasterConnectorPtr CellarNodeMasterConnector_;
-    NTabletNode::IMasterConnectorPtr TabletNodeMasterConnector_;
-    ICoreDumperPtr CoreDumper_;
-    TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
-    NObjectClient::TObjectServiceCachePtr ObjectServiceCache_;
-    NDataNode::TMediumUpdaterPtr MediumUpdater_;
+    // Node directory.
+    virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const = 0;
 
-    TEnumIndexedVector<NDataNode::EDataNodeThrottlerKind, NConcurrency::IReconfigurableThroughputThrottlerPtr> RawDataNodeThrottlers_;
-    TEnumIndexedVector<NDataNode::EDataNodeThrottlerKind, NConcurrency::IThroughputThrottlerPtr> DataNodeThrottlers_;
-    TEnumIndexedVector<NTabletNode::ETabletNodeThrottlerKind, NConcurrency::IReconfigurableThroughputThrottlerPtr> RawTabletNodeThrottlers_;
-    TEnumIndexedVector<NTabletNode::ETabletNodeThrottlerKind, NConcurrency::IThroughputThrottlerPtr> TabletNodeThrottlers_;
+    // Network stuff.
+    virtual NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const = 0;
+    virtual std::optional<TString> GetDefaultNetworkName() const = 0;
+    virtual TString GetDefaultLocalAddressOrThrow() const = 0;
 
-    NConcurrency::IThroughputThrottlerPtr TabletNodePreloadInThrottler_;
+    // Servers.
+    virtual const NHttp::IServerPtr& GetHttpServer() const = 0;
+    virtual const NRpc::IServerPtr& GetRpcServer() const = 0;
 
-    NCellarAgent::ICellarManagerPtr CellarManager_;
+    // Common node caches.
+    virtual const NChunkClient::IBlockCachePtr& GetBlockCache() const = 0;
+    virtual const NChunkClient::IClientBlockCachePtr& GetClientBlockCache() const = 0;
+    virtual const NDataNode::IChunkMetaManagerPtr& GetChunkMetaManager() const = 0;
+    virtual const NTabletNode::IVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const = 0;
 
-    NTabletNode::IHintManagerPtr TabletNodeHintManager_;
-    NTabletNode::ISlotManagerPtr TabletSlotManager_;
-    NTabletNode::TSecurityManagerPtr SecurityManager_;
-    NTabletNode::IInMemoryManagerPtr InMemoryManager_;
-    NTabletNode::IVersionedChunkMetaManagerPtr VersionedChunkMetaManager_;
-    NTabletNode::IStructuredLoggerPtr TabletNodeStructuredLogger_;
-    NTabletNode::ITabletSnapshotStorePtr TabletSnapshotStore_;
+    // Orchid.
+    virtual const NYTree::IMapNodePtr& GetOrchidRoot() const = 0;
 
-    NChaosNode::ISlotManagerPtr ChaosSlotManager_;
+    // Global node state.
+    virtual bool IsReadOnly() const = 0;
+    virtual bool Decommissioned() const = 0;
 
-    NQueryClient::IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
-    NTabletNode::IRowComparerProviderPtr RowComparerProvider_;
+    // Alerts.
+    virtual void RegisterStaticAlert(const TError& alert) = 0;
 
-#ifdef __linux__
-    NContainers::TInstanceLimitsTrackerPtr InstanceLimitsTracker_;
-#endif
+    DECLARE_INTERFACE_SIGNAL(void(std::vector<TError>* alerts), PopulateAlerts);
 
-    TNodeResourceManagerPtr NodeResourceManager_;
+    // Network statistics.
+    virtual NDataNode::TNetworkStatistics& GetNetworkStatistics() const = 0;
 
-    NTabletNode::IStoreCompactorPtr StoreCompactor_;
-    NTabletNode::IStoreFlusherPtr StoreFlusher_;
-    NTabletNode::IStoreTrimmerPtr StoreTrimmer_;
-    NTabletNode::IHunkChunkSweeperPtr HunkChunkSweeper_;
-    NTabletNode::IPartitionBalancerPtr PartitionBalancer_;
-    NTabletNode::IBackingStoreCleanerPtr BackingStoreCleaner_;
-    NTabletNode::ILsmInteropPtr LsmInterop_;
+    // Global chunk management.
+    virtual const NDataNode::IChunkRegistryPtr& GetChunkRegistry() const = 0;
 
-    THashSet<NNodeTrackerClient::ENodeFlavor> Flavors_;
+    virtual const NDataNode::IBlobReaderCachePtr& GetBlobReaderCache() const = 0;
 
-    bool Decommissioned_ = false;
+    // Job controller.
+    virtual const NJobAgent::TJobControllerPtr& GetJobController() const = 0;
 
-    NProfiling::TSolomonExporterPtr JobProxySolomonExporter_;
+    // Job environment.
+    virtual NExecAgent::EJobEnvironmentType GetJobEnvironmentType() const = 0;
 
-    void DoInitialize();
-    void DoRun();
-    void DoValidateConfig();
-    void DoValidateSnapshot(const TString& fileName);
-    void PopulateAlerts(std::vector<TError>* alerts);
+    // Node flavors accessors.
+    virtual const THashSet<NNodeTrackerClient::ENodeFlavor>& GetFlavors() const = 0;
 
-    void OnMasterConnected(NNodeTrackerClient::TNodeId nodeId);
-    void OnMasterDisconnected();
+    virtual bool IsDataNode() const = 0;
+    virtual bool IsExecNode() const = 0;
+    virtual bool IsCellarNode() const = 0;
+    virtual bool IsTabletNode() const = 0;
+    virtual bool IsChaosNode() const = 0;
 
-    void OnDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& oldConfig,
-        const TClusterNodeDynamicConfigPtr& newConfig);
-
-    NConcurrency::TRelativeThroughputThrottlerConfigPtr PatchRelativeNetworkThrottlerConfig(
-        const NConcurrency::TRelativeThroughputThrottlerConfigPtr& config) const;
+    // Per-flavor node bootstraps.
+    virtual NCellarNode::IBootstrap* GetCellarNodeBootstrap() const = 0;
+    virtual NDataNode::IBootstrap* GetDataNodeBootstrap() const = 0;
+    virtual NExecAgent::IBootstrap* GetExecNodeBootstrap() const = 0;
+    virtual NChaosNode::IBootstrap* GetChaosNodeBootstrap() const = 0;
+    virtual NTabletNode::IBootstrap* GetTabletNodeBootstrap() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTabletNode
+struct IBootstrap
+    : public IBootstrapBase
+{
+    virtual void Initialize() = 0;
+    virtual void Run() = 0;
+
+    virtual void ValidateSnapshot(const TString& fileName) = 0;
+
+    virtual const IMasterConnectorPtr& GetMasterConnector() const = 0;
+
+    virtual NConcurrency::TRelativeThroughputThrottlerConfigPtr PatchRelativeNetworkThrottlerConfig(
+        const NConcurrency::TRelativeThroughputThrottlerConfigPtr& config) const = 0;
+
+    virtual void SetDecommissioned(bool decommissioned) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<IBootstrap> CreateBootstrap(TClusterNodeConfigPtr config, NYTree::INodePtr configNode);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBootstrapBase
+    : public virtual IBootstrapBase
+{
+public:
+    DEFINE_SIGNAL(void(NNodeTrackerClient::TNodeId nodeId), MasterConnected);
+    DEFINE_SIGNAL(void(), MasterDisconnected);
+    DEFINE_SIGNAL(void(std::vector<TError>* alerts), PopulateAlerts);
+
+public:
+    explicit TBootstrapBase(IBootstrapBase* bootstrap);
+
+    virtual const TNodeMemoryTrackerPtr& GetMemoryUsageTracker() const override;
+    virtual const TNodeResourceManagerPtr& GetNodeResourceManager() const override;
+
+    virtual const NConcurrency::IThroughputThrottlerPtr& GetTotalInThrottler() const override;
+    virtual const NConcurrency::IThroughputThrottlerPtr& GetTotalOutThrottler() const override;
+    virtual const NConcurrency::IThroughputThrottlerPtr& GetReadRpsOutThrottler() const override;
+
+    virtual const TClusterNodeConfigPtr& GetConfig() const override;
+    virtual const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const override;
+
+    virtual const IInvokerPtr& GetControlInvoker() const override;
+    virtual const IInvokerPtr& GetJobInvoker() const override;
+    virtual const IInvokerPtr& GetMasterConnectionInvoker() const override;
+    virtual const IInvokerPtr& GetStorageLightInvoker() const override;
+    virtual const IPrioritizedInvokerPtr& GetStorageHeavyInvoker() const override;
+
+    virtual const NApi::NNative::IClientPtr& GetMasterClient() const override;
+    virtual const NApi::NNative::IConnectionPtr& GetMasterConnection() const override;
+    virtual NRpc::IChannelPtr GetMasterChannel(NObjectClient::TCellTag cellTag) override;
+
+    virtual NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const override;
+
+    virtual NObjectClient::TCellId GetCellId() const override;
+    virtual NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const override;
+    virtual const NObjectClient::TCellTagList& GetMasterCellTags() const override;
+    virtual std::vector<TString> GetMasterAddressesOrThrow(NObjectClient::TCellTag cellTag) const override;
+
+    virtual const NDataNode::TLegacyMasterConnectorPtr& GetLegacyMasterConnector() const override;
+    virtual bool UseNewHeartbeats() const override;
+
+    virtual void ResetAndRegisterAtMaster() override;
+
+    virtual bool IsConnected() const override;
+    virtual NNodeTrackerClient::TNodeId GetNodeId() const override;
+
+    virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const override;
+
+    virtual NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const override;
+    virtual std::optional<TString> GetDefaultNetworkName() const override;
+    virtual TString GetDefaultLocalAddressOrThrow() const override;
+
+    virtual const NHttp::IServerPtr& GetHttpServer() const override;
+    virtual const NRpc::IServerPtr& GetRpcServer() const override;
+
+    virtual const NChunkClient::IBlockCachePtr& GetBlockCache() const override;
+    virtual const NChunkClient::IClientBlockCachePtr& GetClientBlockCache() const override;
+    virtual const NDataNode::IChunkMetaManagerPtr& GetChunkMetaManager() const override;
+    virtual const NTabletNode::IVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const override;
+
+    virtual const NYTree::IMapNodePtr& GetOrchidRoot() const override;
+
+    virtual bool IsReadOnly() const override;
+    virtual bool Decommissioned() const override;
+
+    virtual void RegisterStaticAlert(const TError& alert) override;
+
+    virtual NDataNode::TNetworkStatistics& GetNetworkStatistics() const override;
+
+    virtual const NDataNode::IChunkRegistryPtr& GetChunkRegistry() const override;
+
+    virtual const NDataNode::IBlobReaderCachePtr& GetBlobReaderCache() const override;
+
+    virtual const NJobAgent::TJobControllerPtr& GetJobController() const override;
+
+    virtual NExecAgent::EJobEnvironmentType GetJobEnvironmentType() const override;
+
+    virtual const THashSet<NNodeTrackerClient::ENodeFlavor>& GetFlavors() const override;
+
+    virtual bool IsDataNode() const override;
+    virtual bool IsExecNode() const override;
+    virtual bool IsCellarNode() const override;
+    virtual bool IsTabletNode() const override;
+    virtual bool IsChaosNode() const override;
+
+    virtual NCellarNode::IBootstrap* GetCellarNodeBootstrap() const override;
+    virtual NDataNode::IBootstrap* GetDataNodeBootstrap() const override;
+    virtual NExecAgent::IBootstrap* GetExecNodeBootstrap() const override;
+    virtual NChaosNode::IBootstrap* GetChaosNodeBootstrap() const override;
+    virtual NTabletNode::IBootstrap* GetTabletNodeBootstrap() const override;
+
+private:
+    IBootstrapBase* const Bootstrap_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NClusterNode

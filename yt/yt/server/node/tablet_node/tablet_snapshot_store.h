@@ -76,7 +76,7 @@ DEFINE_REFCOUNTED_TYPE(ITabletSnapshotStore)
 
 ITabletSnapshotStorePtr CreateTabletSnapshotStore(
     TTabletNodeConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap);
+    IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

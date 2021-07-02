@@ -1,10 +1,11 @@
 #include "journal_chunk.h"
+
+#include "bootstrap.h"
 #include "private.h"
 #include "journal_dispatcher.h"
 #include "location.h"
 #include "session.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 
 #include <yt/yt/server/lib/hydra/changelog.h>
@@ -55,13 +56,14 @@ void UpdateMax(std::atomic<i64>& value, i64 candidate)
 ////////////////////////////////////////////////////////////////////////////////
 
 TJournalChunk::TJournalChunk(
-    TBootstrap* bootstrap,
+    IBootstrap* bootstrap,
     TStoreLocationPtr location,
     const TChunkDescriptor& descriptor)
     : TChunkBase(
         bootstrap,
         location,
         descriptor.Id)
+    , Bootstrap_(bootstrap)
     , StoreLocation_(location)
 {
     FlushedRowCount_.store(descriptor.RowCount);

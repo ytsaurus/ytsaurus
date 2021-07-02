@@ -13,6 +13,8 @@ namespace NYT::NChaosNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IBootstrap;
+
 DECLARE_REFCOUNTED_CLASS(TChaosAutomaton)
 DECLARE_REFCOUNTED_STRUCT(ISlotManager)
 DECLARE_REFCOUNTED_STRUCT(IChaosSlot)

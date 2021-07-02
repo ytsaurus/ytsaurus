@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -16,7 +14,7 @@ struct IStoreTrimmer
 
 DEFINE_REFCOUNTED_TYPE(IStoreTrimmer)
 
-IStoreTrimmerPtr CreateStoreTrimmer(NClusterNode::TBootstrap* bootstrap);
+IStoreTrimmerPtr CreateStoreTrimmer(IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

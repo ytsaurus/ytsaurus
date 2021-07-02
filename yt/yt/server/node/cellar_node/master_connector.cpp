@@ -1,9 +1,9 @@
 #include "master_connector.h"
 
+#include "bootstrap.h"
 #include "private.h"
 #include "config.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
@@ -50,7 +50,7 @@ class TMasterConnector
     DEFINE_SIGNAL(OnHeartbeatRequestedSignature, HeartbeatRequested);
 
 public:
-    explicit TMasterConnector(TBootstrap* bootstrap)
+    explicit TMasterConnector(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
         , Config_(bootstrap->GetConfig()->CellarNode->MasterConnector)
         , HeartbeatPeriod_(Config_->HeartbeatPeriod)
@@ -63,10 +63,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeMasterConnector();
-        clusterNodeMasterConnector->SubscribeMasterConnected(BIND(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
-        clusterNodeMasterConnector->SubscribeMasterDisconnected(BIND(&TMasterConnector::OnMasterDisconnected, MakeWeak(this)));
-        clusterNodeMasterConnector->SubscribePopulateAlerts(BIND(&TMasterConnector::PopulateAlerts, MakeWeak(this)));
+        Bootstrap_->SubscribeMasterConnected(BIND(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
+        Bootstrap_->SubscribeMasterDisconnected(BIND(&TMasterConnector::OnMasterDisconnected, MakeWeak(this)));
+        Bootstrap_->SubscribePopulateAlerts(BIND(&TMasterConnector::PopulateAlerts, MakeWeak(this)));
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         dynamicConfigManager->SubscribeConfigChanged(BIND(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
@@ -84,10 +83,10 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_VERIFY(NodeId_);
+        YT_VERIFY(Bootstrap_->IsConnected());
 
         TReqHeartbeat heartbeatRequest;
-        heartbeatRequest.set_node_id(*NodeId_);
+        heartbeatRequest.set_node_id(Bootstrap_->GetNodeId());
 
         const auto& cellarManager = Bootstrap_->GetCellarManager();
 
@@ -140,10 +139,8 @@ public:
     }
 
 private:
-    TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
     const TMasterConnectorConfigPtr Config_;
-
-    std::optional<TNodeId> NodeId_;
 
     IInvokerPtr HeartbeatInvoker_;
     TDuration HeartbeatPeriod_;
@@ -169,16 +166,13 @@ private:
         }
     }
 
-    void OnMasterConnected(TNodeId nodeId)
+    void OnMasterConnected(TNodeId /*nodeId*/)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_VERIFY(!NodeId_);
-        NodeId_ = nodeId;
+        HeartbeatInvoker_ = Bootstrap_->GetMasterConnectionInvoker();
 
-        HeartbeatInvoker_ = Bootstrap_->GetClusterNodeMasterConnector()->GetMasterConnectionInvoker();
-
-        if (Bootstrap_->GetClusterNodeMasterConnector()->UseNewHeartbeats()) {
+        if (Bootstrap_->UseNewHeartbeats()) {
             StartHeartbeats();
         }
     }
@@ -190,8 +184,6 @@ private:
         for (auto& [_, data] : PerCellTagData_) {
             data.ScheduledHeartbeatCount = 0;
         }
-
-        NodeId_ = std::nullopt;
     }
 
     void OnDynamicConfigChanged(
@@ -210,9 +202,8 @@ private:
 
         YT_LOG_INFO("Starting cellar node heartbeats");
 
-        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeMasterConnector();
-        for (auto cellTag : clusterNodeMasterConnector->GetMasterCellTags()) {
-            DoScheduleHeartbeat(cellTag, /* immediately */ true);
+        for (auto cellTag : Bootstrap_->GetMasterCellTags()) {
+            DoScheduleHeartbeat(cellTag, /*immediately*/ true);
         }
     }
 
@@ -238,7 +229,7 @@ private:
 
         --PerCellTagData_[cellTag].ScheduledHeartbeatCount;
 
-        auto masterChannel = Bootstrap_->GetClusterNodeMasterConnector()->GetMasterChannel(cellTag);
+        auto masterChannel = Bootstrap_->GetMasterChannel(cellTag);
         TCellarNodeTrackerServiceProxy proxy(masterChannel);
 
         auto req = proxy.Heartbeat();
@@ -266,7 +257,7 @@ private:
             if (IsRetriableError(rspOrError)) {
                 DoScheduleHeartbeat(cellTag, /* immediately */ false);
             } else {
-                Bootstrap_->GetClusterNodeMasterConnector()->ResetAndRegisterAtMaster();
+                Bootstrap_->ResetAndRegisterAtMaster();
             }
         }
     }
@@ -274,7 +265,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IMasterConnectorPtr CreateMasterConnector(TBootstrap* bootstrap)
+IMasterConnectorPtr CreateMasterConnector(IBootstrap* bootstrap)
 {
     return New<TMasterConnector>(bootstrap);
 }

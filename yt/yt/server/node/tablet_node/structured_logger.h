@@ -141,7 +141,7 @@ DEFINE_REFCOUNTED_TYPE(IPerTabletStructuredLogger)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IStructuredLoggerPtr CreateStructuredLogger(NClusterNode::TBootstrap* bootstrap);
+IStructuredLoggerPtr CreateStructuredLogger(IBootstrap* bootstrap);
 
 IPerTabletStructuredLoggerPtr CreateMockPerTabletStructuredLogger(TTablet* tablet);
 

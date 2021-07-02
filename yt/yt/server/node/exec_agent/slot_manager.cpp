@@ -1,19 +1,19 @@
 #include "slot_manager.h"
+
+#include "bootstrap.h"
+#include "chunk_cache.h"
 #include "private.h"
 #include "slot.h"
 #include "job_environment.h"
 #include "slot_location.h"
+#include "volume_manager.h"
 
 #include <yt/yt/server/lib/exec_agent/config.h>
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/node_resource_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 #include <yt/yt/server/node/cluster_node/config.h>
-
-#include <yt/yt/server/node/data_node/chunk_cache.h>
-#include <yt/yt/server/node/data_node/volume_manager.h>
 
 #include <yt/yt/server/node/job_agent/job_controller.h>
 
@@ -41,7 +41,7 @@ static const auto& Logger = ExecAgentLogger;
 
 TSlotManager::TSlotManager(
     TSlotManagerConfigPtr config,
-    TBootstrap* bootstrap)
+    IBootstrap* bootstrap)
     : Config_(config)
     , Bootstrap_(bootstrap)
     , SlotCount_(Bootstrap_->GetConfig()->ExecAgent->JobController->ResourceLimits->UserSlots)
@@ -52,7 +52,7 @@ TSlotManager::TSlotManager(
 
 void TSlotManager::Initialize()
 {
-    Bootstrap_->GetClusterNodeMasterConnector()->SubscribePopulateAlerts(
+    Bootstrap_->SubscribePopulateAlerts(
         BIND(&TSlotManager::PopulateAlerts, MakeStrong(this)));
     Bootstrap_->GetJobController()->SubscribeJobFinished(
         BIND(&TSlotManager::OnJobFinished, MakeStrong(this)));
@@ -72,7 +72,7 @@ void TSlotManager::Initialize()
         Config_->JobEnvironment,
         Bootstrap_);
 
-    // Job environment must be initialized first, since it cleans up all the processes, 
+    // Job environment must be initialized first, since it cleans up all the processes,
     // which may hold open decsriptors to volumes, layers and files in sandboxes.
     // It should also be initialized synchronously, since it may prevent delection of chunk cache artifacts.
     JobEnvironment_->Init(
@@ -415,9 +415,9 @@ void TSlotManager::InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDire
 
 void TSlotManager::AsyncInitialize()
 {
-    auto finally = Finally([&] () {
+    auto finally = Finally([&] {
         Initialized_.store(true);
-    }); 
+    });
 
     YT_LOG_INFO("Start async slot manager initialization");
 

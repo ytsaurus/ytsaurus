@@ -1,11 +1,11 @@
 #include "session_detail.h"
+
+#include "bootstrap.h"
 #include "private.h"
 #include "config.h"
 #include "location.h"
 #include "legacy_master_connector.h"
 #include "session_manager.h"
-
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -22,7 +22,7 @@ using namespace NConcurrency;
 
 TSessionBase::TSessionBase(
     TDataNodeConfigPtr config,
-    TBootstrap* bootstrap,
+    IBootstrap* bootstrap,
     TSessionId sessionId,
     const TSessionOptions& options,
     TStoreLocationPtr location,

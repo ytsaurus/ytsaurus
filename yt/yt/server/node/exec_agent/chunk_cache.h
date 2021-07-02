@@ -4,6 +4,10 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
+#include <yt/yt/server/node/data_node/public.h>
+
+#include <yt/yt/ytlib/chunk_client/public.h>
+
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
@@ -14,7 +18,7 @@
 
 #include <yt/yt/core/misc/error.h>
 
-namespace NYT::NDataNode {
+namespace NYT::NExecAgent{
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,8 +40,8 @@ class TChunkCache
 {
 public:
     TChunkCache(
-        TDataNodeConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap);
+        NDataNode::TDataNodeConfigPtr config,
+        IBootstrap* bootstrap);
     ~TChunkCache();
 
     void Initialize();
@@ -46,10 +50,10 @@ public:
     bool IsEnabled() const;
 
     //! Finds chunk by id. Returns |nullptr| if no chunk exists.
-    IChunkPtr FindChunk(TChunkId chunkId);
+    NDataNode::IChunkPtr FindChunk(NChunkClient::TChunkId chunkId);
 
     //! Returns the list of all registered chunks.
-    std::vector<IChunkPtr> GetChunks();
+    std::vector<NDataNode::IChunkPtr> GetChunks();
 
     //! Returns the number of registered chunks.
     int GetChunkCount();
@@ -59,24 +63,24 @@ public:
      *  The download process is asynchronous.
      *  If the chunk is already cached, it returns a pre-set result.
      */
-    TFuture<IChunkPtr> DownloadArtifact(
-        const TArtifactKey& key,
+    TFuture<NDataNode::IChunkPtr> DownloadArtifact(
+        const NDataNode::TArtifactKey& key,
         const TArtifactDownloadOptions& artifactDownloadOptions,
         bool* fetchedFromCache = nullptr);
 
     //! Constructs a producer that will download the artifact and feed its content to a stream.
     std::function<void(IOutputStream*)> MakeArtifactDownloadProducer(
-        const TArtifactKey& key,
+        const NDataNode::TArtifactKey& key,
         const TArtifactDownloadOptions& artifactDownloadOptions);
 
     //! Cache locations.
-    DECLARE_BYREF_RO_PROPERTY(std::vector<TCacheLocationPtr>, Locations);
+    DECLARE_BYREF_RO_PROPERTY(std::vector<NDataNode::TCacheLocationPtr>, Locations);
 
     //! Raised when a chunk is added to the cache.
-    DECLARE_SIGNAL(void(IChunkPtr), ChunkAdded);
+    DECLARE_SIGNAL(void(NDataNode::IChunkPtr), ChunkAdded);
 
     //! Raised when a chunk is removed from the cache.
-    DECLARE_SIGNAL(void(IChunkPtr), ChunkRemoved);
+    DECLARE_SIGNAL(void(NDataNode::IChunkPtr), ChunkRemoved);
 
 private:
     class TImpl;
@@ -87,5 +91,4 @@ DEFINE_REFCOUNTED_TYPE(TChunkCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDataNode
-
+} // namespace NYT::NExecAgent

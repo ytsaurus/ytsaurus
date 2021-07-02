@@ -3,11 +3,12 @@
 #include "public.h"
 #include "private.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/query_agent/config.h>
 
+#include <yt/yt/server/node/tablet_node/bootstrap.h>
+#include <yt/yt/server/node/tablet_node/master_connector.h>
 #include <yt/yt/server/node/tablet_node/security_manager.h>
 #include <yt/yt/server/node/tablet_node/store.h>
 #include <yt/yt/server/node/tablet_node/tablet.h>
@@ -367,7 +368,7 @@ class TQueryService
 public:
     TQueryService(
         TQueryAgentConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap)
+        NTabletNode::IBootstrap* bootstrap)
         : TServiceBase(
             bootstrap->GetQueryPoolInvoker(
                 DefaultQLExecutionPoolName,
@@ -409,7 +410,7 @@ public:
 
 private:
     const TQueryAgentConfigPtr Config_;
-    NClusterNode::TBootstrap* const Bootstrap_;
+    NTabletNode::IBootstrap* const Bootstrap_;
 
     const TPoolWeightCachePtr PoolWeightCache_;
     const TFunctionImplCachePtr FunctionImplCache_;
@@ -777,7 +778,7 @@ private:
             ValidateColumnFilterContainsAllKeyColumns(columnFilter, *tabletSnapshot->PhysicalSchema);
         }
 
-        auto bandwidthThrottler = Bootstrap_->GetTabletNodeOutThrottler(EWorkloadCategory::UserDynamicStoreRead);
+        auto bandwidthThrottler = Bootstrap_->GetOutThrottler(EWorkloadCategory::UserDynamicStoreRead);
 
         if (sorted) {
             auto lowerBound = request->has_lower_bound()
@@ -985,7 +986,7 @@ private:
             ToProto(chunkSpec->mutable_upper_limit(), upperLimit);
         }
 
-        auto localNodeId = Bootstrap_->GetClusterNodeMasterConnector()->GetNodeId();
+        auto localNodeId = Bootstrap_->GetNodeId();
         ToProto(chunkSpec->mutable_replicas(), chunk->GetReplicas(localNodeId));
 
         chunkSpec->set_erasure_codec(miscExt.erasure_codec());
@@ -1020,7 +1021,7 @@ private:
         // For dynamic stores it is more or less the same.
         chunkSpec->set_data_weight_override(dynamicStore->GetUncompressedDataSize());
 
-        auto localNodeId = Bootstrap_->GetClusterNodeMasterConnector()->GetNodeId();
+        auto localNodeId = Bootstrap_->GetNodeId();
         TChunkReplica replica(localNodeId, GenericChunkReplicaIndex);
         chunkSpec->add_replicas(ToProto<ui32>(replica));
 
@@ -1283,7 +1284,7 @@ private:
 
 IServicePtr CreateQueryService(
     TQueryAgentConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap)
+    NTabletNode::IBootstrap* bootstrap)
 {
     return New<TQueryService>(config, bootstrap);
 }

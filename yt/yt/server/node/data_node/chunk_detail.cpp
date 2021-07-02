@@ -1,11 +1,10 @@
 #include "chunk_detail.h"
+#include "bootstrap.h"
 #include "private.h"
 #include "location.h"
 #include "session_manager.h"
 #include "chunk_meta_manager.h"
 #include "chunk_registry.h"
-
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
@@ -26,7 +25,7 @@ static const auto& Logger = DataNodeLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkBase::TChunkBase(
-    TBootstrap* bootstrap,
+    IBootstrapBase* bootstrap,
     TLocationPtr location,
     TChunkId id)
     : Bootstrap_(bootstrap)

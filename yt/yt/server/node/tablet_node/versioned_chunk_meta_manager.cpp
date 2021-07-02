@@ -72,7 +72,7 @@ class TVersionedChunkMetaManager
 public:
     TVersionedChunkMetaManager(
         TSlruCacheConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap)
+        NClusterNode::IBootstrapBase* bootstrap)
         : TAsyncSlruCacheBase(
             config,
             TabletNodeProfiler.WithPrefix("/versioned_chunk_meta_cache"))
@@ -120,7 +120,7 @@ public:
     }
 
 private:
-    TBootstrap* const Bootstrap_;
+    IBootstrapBase* const Bootstrap_;
 
     virtual i64 GetWeight(const TVersionedChunkMetaCacheEntryPtr& entry) const override
     {
@@ -132,7 +132,7 @@ private:
 
 IVersionedChunkMetaManagerPtr CreateVersionedChunkMetaManager(
     TSlruCacheConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap)
+    IBootstrapBase* bootstrap)
 {
     return New<TVersionedChunkMetaManager>(
         std::move(config),

@@ -1,3 +1,6 @@
+#include "lsm_interop.h"
+
+#include "bootstrap.h"
 #include "private.h"
 #include "slot_manager.h"
 #include "store.h"
@@ -5,12 +8,10 @@
 #include "tablet_manager.h"
 #include "tablet_slot.h"
 #include "store_manager.h"
-#include "lsm_interop.h"
 #include "store_compactor.h"
 #include "partition_balancer.h"
 #include "slot_manager.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
@@ -45,7 +46,7 @@ class TLsmInterop
 {
 public:
     TLsmInterop(
-        TBootstrap* bootstrap,
+        IBootstrap* bootstrap,
         const IStoreCompactorPtr& storeCompactor,
         const IPartitionBalancerPtr& partitionBalancer)
         : Bootstrap_(bootstrap)
@@ -56,14 +57,14 @@ public:
 
     virtual void Start() override
     {
-        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
+        const auto& slotManager = Bootstrap_->GetSlotManager();
         slotManager->SubscribeBeginSlotScan(BIND(&TLsmInterop::OnBeginSlotScan, MakeWeak(this)));
         slotManager->SubscribeScanSlot(BIND(&TLsmInterop::OnScanSlot, MakeWeak(this)));
         slotManager->SubscribeEndSlotScan(BIND(&TLsmInterop::OnEndSlotScan, MakeWeak(this)));
     }
 
 private:
-    TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
     const IStoreCompactorPtr StoreCompactor_;
     const IPartitionBalancerPtr PartitionBalancer_;
     const NLsm::ILsmBackendPtr Backend_;
@@ -214,7 +215,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ILsmInteropPtr CreateLsmInterop(
-    TBootstrap* bootstrap,
+    IBootstrap* bootstrap,
     const IStoreCompactorPtr& storeCompactor,
     const IPartitionBalancerPtr& partitionBalancer)
 {

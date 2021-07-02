@@ -11,7 +11,7 @@ using namespace NDynamicConfig;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClusterNodeDynamicConfigManager::TClusterNodeDynamicConfigManager(TBootstrap* bootstrap)
+TClusterNodeDynamicConfigManager::TClusterNodeDynamicConfigManager(IBootstrap* bootstrap)
     : TDynamicConfigManagerBase(
         TDynamicConfigManagerOptions{
             .ConfigPath = "//sys/cluster_nodes/@config",
@@ -28,7 +28,7 @@ void TClusterNodeDynamicConfigManager::Start()
 {
     TDynamicConfigManagerBase::Start();
 
-    Bootstrap_->GetClusterNodeMasterConnector()->SubscribePopulateAlerts(
+    Bootstrap_->SubscribePopulateAlerts(
         BIND([this, this_ = MakeStrong(this)] (std::vector<TError>* alerts) {
             auto errors = GetErrors();
             for (auto error : errors) {
@@ -39,7 +39,7 @@ void TClusterNodeDynamicConfigManager::Start()
 
 std::vector<TString> TClusterNodeDynamicConfigManager::GetInstanceTags() const
 {
-    return Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor().GetTags();
+    return Bootstrap_->GetLocalDescriptor().GetTags();
 }
 
 DEFINE_REFCOUNTED_TYPE(TClusterNodeDynamicConfigManager)

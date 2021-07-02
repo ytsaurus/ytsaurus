@@ -1,12 +1,11 @@
 #include "blob_session.h"
+#include "bootstrap.h"
 #include "private.h"
 #include "blob_chunk.h"
 #include "chunk_store.h"
 #include "config.h"
 #include "location.h"
 #include "session_manager.h"
-
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/yt/server/lib/io/chunk_file_writer.h>
 
@@ -288,7 +287,7 @@ DEFINE_REFCOUNTED_TYPE(TBlobWritePipeline)
 
 TBlobSession::TBlobSession(
     TDataNodeConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap,
+    IBootstrap* bootstrap,
     TSessionId sessionId,
     const TSessionOptions& options,
     TStoreLocationPtr location,
@@ -561,7 +560,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
         }
     }
 
-    const auto& netThrottler = Bootstrap_->GetDataNodeInThrottler(Options_.WorkloadDescriptor);
+    const auto& netThrottler = Bootstrap_->GetInThrottler(Options_.WorkloadDescriptor);
     const auto& diskThrottler = Location_->GetInThrottler(Options_.WorkloadDescriptor);
     return AllSucceeded(std::vector{
         netThrottler->Throttle(totalSize),
@@ -640,7 +639,7 @@ TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TBlobSession::DoSendBlocks(
     }
     SetRpcAttachedBlocks(req, blocks);
 
-    const auto& throttler = Bootstrap_->GetDataNodeOutThrottler(Options_.WorkloadDescriptor);
+    const auto& throttler = Bootstrap_->GetOutThrottler(Options_.WorkloadDescriptor);
     return throttler->Throttle(requestSize).Apply(BIND([=] () {
         return req->Invoke();
     }));

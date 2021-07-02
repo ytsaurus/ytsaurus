@@ -1,7 +1,8 @@
 #include "master_connector.h"
+
+#include "bootstrap.h"
 #include "private.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
@@ -37,7 +38,7 @@ class TMasterConnector
     : public IMasterConnector
 {
 public:
-    TMasterConnector(TBootstrap* bootstrap)
+    TMasterConnector(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
         , Config_(Bootstrap_->GetConfig()->ExecAgent->MasterConnector)
         , HeartbeatPeriod_(Config_->HeartbeatPeriod)
@@ -48,9 +49,7 @@ public:
 
     virtual void Initialize() override
     {
-        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeMasterConnector();
-        clusterNodeMasterConnector->SubscribeMasterConnected(BIND(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
-        clusterNodeMasterConnector->SubscribeMasterDisconnected(BIND(&TMasterConnector::OnMasterDisconnected, MakeWeak(this)));
+        Bootstrap_->SubscribeMasterConnected(BIND(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         dynamicConfigManager->SubscribeConfigChanged(BIND(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
@@ -59,14 +58,14 @@ public:
     virtual TReqHeartbeat GetHeartbeatRequest() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YT_VERIFY(NodeId_);
+        YT_VERIFY(Bootstrap_->IsConnected());
 
         TReqHeartbeat heartbeat;
 
-        heartbeat.set_node_id(*NodeId_);
+        heartbeat.set_node_id(Bootstrap_->GetNodeId());
 
         auto* statistics = heartbeat.mutable_statistics();
-        const auto& slotManager = Bootstrap_->GetExecSlotManager();
+        const auto& slotManager = Bootstrap_->GetSlotManager();
         for (const auto& location : slotManager->GetLocations()) {
             auto* locationStatistics = statistics->add_slot_locations();
             *locationStatistics = location->GetSlotLocationStatistics();
@@ -87,36 +86,24 @@ public:
     }
 
 private:
-    TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
     const TMasterConnectorConfigPtr Config_;
-
-    std::optional<TNodeId> NodeId_;
 
     IInvokerPtr HeartbeatInvoker_;
 
     TDuration HeartbeatPeriod_;
     TDuration HeartbeatPeriodSplay_;
 
-    void OnMasterConnected(TNodeId nodeId)
+    void OnMasterConnected(TNodeId /*nodeId*/)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_VERIFY(!NodeId_);
-        NodeId_ = nodeId;
+        HeartbeatInvoker_ = Bootstrap_->GetMasterConnectionInvoker();
 
-        HeartbeatInvoker_ = Bootstrap_->GetClusterNodeMasterConnector()->GetMasterConnectionInvoker();
-
-        if (Bootstrap_->GetClusterNodeMasterConnector()->UseNewHeartbeats()) {
+        if (Bootstrap_->UseNewHeartbeats()) {
             StartHeartbeats();
         }
-    }
-
-    void OnMasterDisconnected()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        NodeId_ = std::nullopt;
     }
 
     void OnDynamicConfigChanged(
@@ -153,7 +140,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         // Exec node heartbeats are required at primary master only.
-        auto masterChannel = Bootstrap_->GetClusterNodeMasterConnector()->GetMasterChannel(PrimaryMasterCellTag);
+        auto masterChannel = Bootstrap_->GetMasterChannel(PrimaryMasterCellTag);
         TExecNodeTrackerServiceProxy proxy(masterChannel);
 
         auto req = proxy.Heartbeat();
@@ -177,7 +164,7 @@ private:
             if (IsRetriableError(rspOrError)) {
                 ScheduleHeartbeat(/* immediately*/ false);
             } else {
-                Bootstrap_->GetClusterNodeMasterConnector()->ResetAndRegisterAtMaster();
+                Bootstrap_->ResetAndRegisterAtMaster();
             }
         }
     }
@@ -187,7 +174,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IMasterConnectorPtr CreateMasterConnector(TBootstrap* bootstrap)
+IMasterConnectorPtr CreateMasterConnector(IBootstrap* bootstrap)
 {
     return New<TMasterConnector>(bootstrap);
 }
