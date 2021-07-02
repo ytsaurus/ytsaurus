@@ -680,28 +680,6 @@ private:
         }
     }
 
-    int GetFileCacheMinUploadReplicationFactor() const
-    {
-        if (IsLocalMode()) {
-            return 1;
-        }
-
-        // 70% of upload replicas should succeed.
-        int uploadReplicationFactor = TConfig::Get()->FileCacheReplicationFactor * 0.7;
-        // But not less than 2.
-        uploadReplicationFactor = Max(uploadReplicationFactor, 2);
-        // And not greater than replication factor.
-        return Min(uploadReplicationFactor, TConfig::Get()->FileCacheReplicationFactor);
-    }
-
-    TFileWriterOptions GetUploadFileWriterOptions() const
-    {
-        return TFileWriterOptions()
-            .WriterOptions(TWriterOptions()
-                .UploadReplicationFactor(GetFileCacheReplicationFactor())
-                .MinUploadReplicationFactor(GetFileCacheMinUploadReplicationFactor()));
-    }
-
     TString UploadToRandomPath(const IItemToUpload& itemToUpload) const
     {
         TString uniquePath = AddPathPrefix(TStringBuilder() << GetFileStorage() << "/cpp_" << CreateGuidAsString());
@@ -726,8 +704,7 @@ private:
                 uniquePath,
                 OperationPreparer_.GetClientRetryPolicy(),
                 OperationPreparer_.GetAuth(),
-                Options_.FileStorageTransactionId_,
-                GetUploadFileWriterOptions());
+                Options_.FileStorageTransactionId_);
             itemToUpload.CreateInputStream()->ReadAll(writer);
             writer.Finish();
         }
@@ -779,7 +756,7 @@ private:
                 OperationPreparer_.GetClientRetryPolicy(),
                 OperationPreparer_.GetAuth(),
                 TTransactionId(),
-                GetUploadFileWriterOptions().ComputeMD5(true));
+                TFileWriterOptions().ComputeMD5(true));
             itemToUpload.CreateInputStream()->ReadAll(writer);
             writer.Finish();
         }
