@@ -43,6 +43,8 @@ class TChunkMerger
 public:
     explicit TChunkMerger(NCellMaster::TBootstrap* bootstrap);
 
+    void Initialize();
+
     void ScheduleMerge(NCypressServer::TNodeId nodeId);
     void ScheduleMerge(TChunkOwnerBase* trunkNode);
 
@@ -77,9 +79,6 @@ private:
     i64 ChunkReplacementSucceded_ = 0;
     i64 ChunkReplacementFailed_ = 0;
     i64 ChunkCountSaving_ = 0;
-
-    const TCallback<void(NTransactionServer::TTransaction* transaction)> TransactionAbortedCallback_ =
-        BIND(&TChunkMerger::OnTransactionAborted, MakeWeak(this));
 
     // Per-account queue. All touched tables start here.
     // Keys (accounts) and  values (Cypress nodes) are locked ephemerally.

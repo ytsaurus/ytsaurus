@@ -532,6 +532,8 @@ public:
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
             ProfilingPeriod);
         ProfilingExecutor_->Start();
+
+        ChunkMerger_->Initialize();
     }
 
     IYPathServicePtr GetOrchidService()
