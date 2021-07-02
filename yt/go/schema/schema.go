@@ -118,10 +118,14 @@ type Column struct {
 	Group      string            `yson:"group,omitempty"`
 }
 
-func (c *Column) MarshalYSON(w *yson.Writer) error {
+var (
+	_ yson.StreamMarshaler = Column{}
+)
+
+func (c Column) MarshalYSON(w *yson.Writer) error {
 	type column Column
 
-	cc := column(*c)
+	cc := column(c)
 	cc.ComplexType = fixV3type(cc.ComplexType)
 	w.Any(cc)
 

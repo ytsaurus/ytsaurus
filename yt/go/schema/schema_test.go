@@ -75,3 +75,14 @@ func TestSchemaEqual(t *testing.T) {
 
 	require.True(t, s0.Equal(s1))
 }
+
+func TestBoolColumn(t *testing.T) {
+	c := Column{
+		ComplexType: TypeBoolean,
+	}
+
+	ys, err := yson.MarshalFormat(c, yson.FormatText)
+	require.NoError(t, err)
+
+	require.Equal(t, string(ys), `{name="";"type_v3"=bool;}`)
+}
