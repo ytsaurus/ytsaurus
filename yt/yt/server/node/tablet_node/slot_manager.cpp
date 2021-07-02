@@ -1,10 +1,11 @@
-#include "private.h"
 #include "slot_manager.h"
+
+#include "bootstrap.h"
+#include "private.h"
 #include "slot_provider.h"
 #include "tablet_slot.h"
 #include "structured_logger.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
@@ -47,7 +48,7 @@ class TSlotManager
     : public ISlotManager
 {
 public:
-    explicit TSlotManager(NClusterNode::TBootstrap* bootstrap)
+    explicit TSlotManager(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
         , Config_(Bootstrap_->GetConfig()->TabletNode)
         , SlotScanExecutor_(New<TPeriodicExecutor>(
@@ -115,7 +116,7 @@ public:
     DEFINE_SIGNAL(void(), EndSlotScan);
 
 private:
-    TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
     const TTabletNodeConfigPtr Config_;
     const TPeriodicExecutorPtr SlotScanExecutor_;
     const IYPathServicePtr OrchidService_;
@@ -184,7 +185,7 @@ private:
 
         YT_LOG_DEBUG("Slot scan started");
 
-        Bootstrap_->GetTabletNodeStructuredLogger()->LogEvent("begin_slot_scan");
+        Bootstrap_->GetStructuredLogger()->LogEvent("begin_slot_scan");
 
         BeginSlotScan_.Fire();
 
@@ -213,7 +214,7 @@ private:
 
         EndSlotScan_.Fire();
 
-        Bootstrap_->GetTabletNodeStructuredLogger()->LogEvent("end_slot_scan");
+        Bootstrap_->GetStructuredLogger()->LogEvent("end_slot_scan");
 
         YT_LOG_DEBUG("Slot scan completed");
     }
@@ -226,7 +227,7 @@ private:
     }
 };
 
-ISlotManagerPtr CreateSlotManager(TBootstrap* bootstrap)
+ISlotManagerPtr CreateSlotManager(IBootstrap* bootstrap)
 {
     return New<TSlotManager>(bootstrap);
 }

@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/ytlib/node_tracker_client/node_status_directory.h>
 
 namespace NYT::NTabletNode {
@@ -22,7 +20,7 @@ struct IHintManager
 
 DEFINE_REFCOUNTED_TYPE(IHintManager)
 
-IHintManagerPtr CreateHintManager(NClusterNode::TBootstrap* bootstrap);
+IHintManagerPtr CreateHintManager(IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

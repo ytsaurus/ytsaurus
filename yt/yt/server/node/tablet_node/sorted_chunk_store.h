@@ -22,7 +22,7 @@ class TSortedChunkStore
 {
 public:
     TSortedChunkStore(
-        NClusterNode::TBootstrap* bootstrap,
+        IBootstrap* bootstrap,
         TTabletManagerConfigPtr config,
         TStoreId id,
         NChunkClient::TChunkId chunkId,

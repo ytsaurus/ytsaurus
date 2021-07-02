@@ -1,14 +1,19 @@
 #include "chunk_cache.h"
-#include "private.h"
-#include "artifact.h"
-#include "blob_chunk.h"
-#include "blob_reader_cache.h"
-#include "chunk_block_manager.h"
-#include "config.h"
-#include "location.h"
-#include "legacy_master_connector.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include "bootstrap.h"
+#include "master_connector.h"
+#include "private.h"
+
+#include <yt/yt/server/node/data_node/artifact.h>
+#include <yt/yt/server/node/data_node/blob_chunk.h>
+#include <yt/yt/server/node/data_node/blob_reader_cache.h>
+#include <yt/yt/server/node/data_node/chunk_block_manager.h>
+#include <yt/yt/server/node/data_node/config.h>
+#include <yt/yt/server/node/data_node/legacy_master_connector.h>
+#include <yt/yt/server/node/data_node/location.h>
+#include <yt/yt/server/node/data_node/master_connector.h>
+#include <yt/yt/server/node/data_node/private.h>
+
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
@@ -47,6 +52,7 @@
 #include <yt/yt/core/concurrency/async_stream.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/logging/log.h>
 
@@ -58,11 +64,12 @@
 
 #include <util/random/random.h>
 
-namespace NYT::NDataNode {
+namespace NYT::NExecAgent {
 
 using namespace NYTree;
 using namespace NYson;
 using namespace NChunkClient;
+using namespace NDataNode;
 using namespace NIO;
 using namespace NObjectClient;
 using namespace NFileClient;
@@ -81,7 +88,7 @@ using NChunkClient::TChunkReaderStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = DataNodeLogger;
+static const auto& Logger = ExecAgentLogger;
 static const int TableArtifactBufferRowCount = 10000;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -267,10 +274,10 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<TCacheLocationPtr>, Locations);
 
 public:
-    TImpl(TDataNodeConfigPtr config, TBootstrap* bootstrap)
+    TImpl(TDataNodeConfigPtr config, IBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
             New<TSlruCacheConfig>(config->GetCacheCapacity()),
-            DataNodeProfiler.WithPrefix("/chunk_cache"))
+            ExecAgentProfiler.WithPrefix("/chunk_cache"))
         , Config_(config)
         , Bootstrap_(bootstrap)
         , ArtifactCacheReaderConfig_(New<TArtifactCacheReaderConfig>())
@@ -368,7 +375,7 @@ public:
             artifactDownloadOptions,
             /* bypassArtifactCache */ false);
 
-        auto Logger = DataNodeLogger.WithTag("Key: %v, ReadSessionId: %v",
+        auto Logger = ExecAgentLogger.WithTag("Key: %v, ReadSessionId: %v",
             key,
             chunkReadOptions.ReadSessionId);
 
@@ -427,7 +434,7 @@ public:
 
 private:
     const TDataNodeConfigPtr Config_;
-    TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
     TAtomicObject<TArtifactCacheReaderConfigPtr> ArtifactCacheReaderConfig_;
 
@@ -900,7 +907,7 @@ private:
         const auto& chunkSpec = key.chunk_specs(0);
         auto seedReplicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
 
-        auto Logger = DataNodeLogger.WithTag("ChunkId: %v, ReadSessionId: %v, Location: %v",
+        auto Logger = ExecAgentLogger.WithTag("ChunkId: %v, ReadSessionId: %v, Location: %v",
             chunkId,
             chunkReadOptions.ReadSessionId,
             location->GetId());
@@ -916,16 +923,16 @@ private:
                 artifactDownloadOptions,
                 Bootstrap_->GetMasterClient(),
                 nodeDirectory,
-                Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor(),
-                Bootstrap_->GetClusterNodeMasterConnector()->GetNodeId(),
+                Bootstrap_->GetLocalDescriptor(),
+                Bootstrap_->GetNodeId(),
                 chunkId,
                 seedReplicas,
                 Bootstrap_->GetBlockCache(),
                 /*chunkMetaCache*/ nullptr,
                 trafficMeter,
                 /*nodeStatusDirectory*/ nullptr,
-                Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ArtifactCacheIn),
-                Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ReadRpsOut));
+                Bootstrap_->GetThrottler(EExecNodeThrottlerKind::ArtifactCacheIn),
+                Bootstrap_->GetReadRpsOutThrottler());
 
             auto fileName = location->GetChunkPath(chunkId);
             auto chunkWriter = New<TChunkFileWriter>(
@@ -1068,16 +1075,16 @@ private:
             GetArtifactCacheReaderConfig(),
             readerOptions,
             Bootstrap_->GetMasterClient(),
-            Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor(),
-            Bootstrap_->GetClusterNodeMasterConnector()->GetNodeId(),
+            Bootstrap_->GetLocalDescriptor(),
+            Bootstrap_->GetNodeId(),
             Bootstrap_->GetBlockCache(),
             /*chunkMetaCache*/ nullptr,
             nodeDirectory,
             chunkReadOptions,
             chunkSpecs,
             trafficMeter,
-            Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ArtifactCacheIn),
-            Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ReadRpsOut));
+            Bootstrap_->GetThrottler(EExecNodeThrottlerKind::ArtifactCacheIn),
+            Bootstrap_->GetReadRpsOutThrottler());
 
         return [=] (IOutputStream* output) {
             TBlock block;
@@ -1169,8 +1176,8 @@ private:
             GetArtifactCacheReaderConfig(),
             readerOptions,
             Bootstrap_->GetMasterClient(),
-            Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor(),
-            Bootstrap_->GetClusterNodeMasterConnector()->GetNodeId(),
+            Bootstrap_->GetLocalDescriptor(),
+            Bootstrap_->GetNodeId(),
             Bootstrap_->GetBlockCache(),
             /*chunkMetaCache*/ nullptr,
             nodeDirectory,
@@ -1182,8 +1189,8 @@ private:
             /*sortColumns*/ {},
             /*partitionTag*/ std::nullopt,
             trafficMeter,
-            Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ArtifactCacheIn),
-            Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ReadRpsOut));
+            Bootstrap_->GetThrottler(EExecNodeThrottlerKind::ArtifactCacheIn),
+            Bootstrap_->GetReadRpsOutThrottler());
 
         auto schema = dataSource.Schema();
         auto format = ConvertTo<NFormats::TFormat>(TYsonString(key.format()));
@@ -1392,7 +1399,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkCache::TChunkCache(TDataNodeConfigPtr config, TBootstrap* bootstrap)
+TChunkCache::TChunkCache(TDataNodeConfigPtr config, IBootstrap* bootstrap)
     : Impl_(New<TImpl>(config, bootstrap))
 { }
 

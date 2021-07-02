@@ -1,13 +1,13 @@
+#include "in_memory_service.h"
+
+#include "bootstrap.h"
 #include "public.h"
 #include "private.h"
-#include "in_memory_service.h"
 #include "in_memory_service_proxy.h"
 #include "tablet_snapshot_store.h"
 
 #include <yt/yt/server/node/tablet_node/in_memory_manager.h>
 #include <yt/yt/server/node/tablet_node/slot_manager.h>
-
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -44,7 +44,7 @@ static const auto& Logger = TabletNodeLogger;
 class TInterceptingBlockCache
 {
 public:
-    TInterceptingBlockCache(EInMemoryMode mode, NClusterNode::TBootstrap* bootstrap)
+    TInterceptingBlockCache(EInMemoryMode mode, IBootstrap* bootstrap)
         : Mode_(mode)
         , Bootstrap_(bootstrap)
     { }
@@ -121,7 +121,7 @@ public:
 
 private:
     const EInMemoryMode Mode_;
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     THashMap<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
@@ -134,7 +134,7 @@ struct TInMemorySession
     : public TRefCounted
     , public TInterceptingBlockCache
 {
-    TInMemorySession(EInMemoryMode mode, NClusterNode::TBootstrap* bootstrap, TLease lease)
+    TInMemorySession(EInMemoryMode mode, IBootstrap* bootstrap, TLease lease)
         : TInterceptingBlockCache(mode, bootstrap)
         , Lease(std::move(lease))
     { }
@@ -152,7 +152,7 @@ class TInMemoryService
 public:
     TInMemoryService(
         TInMemoryManagerConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap)
+        IBootstrap* bootstrap)
         : TServiceBase(
             bootstrap->GetStorageLightInvoker(),
             TInMemoryServiceProxy::GetDescriptor(),
@@ -168,7 +168,7 @@ public:
 
 private:
     const TInMemoryManagerConfigPtr Config_;
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
     YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SessionMapLock_);
     THashMap<TInMemorySessionId, TInMemorySessionPtr> SessionMap_;
@@ -352,7 +352,7 @@ private:
 
 IServicePtr CreateInMemoryService(
     TInMemoryManagerConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap)
+    IBootstrap* bootstrap)
 {
     return New<TInMemoryService>(config, bootstrap);
 }

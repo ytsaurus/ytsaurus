@@ -1,6 +1,7 @@
 #include "tablet_manager.h"
 #include "private.h"
 #include "automaton.h"
+#include "bootstrap.h"
 #include "distributed_throttler_manager.h"
 #include "sorted_chunk_store.h"
 #include "ordered_chunk_store.h"
@@ -23,7 +24,6 @@
 #include "tablet_profiling.h"
 #include "tablet_snapshot_store.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/data_node/chunk_block_manager.h>
@@ -132,7 +132,7 @@ public:
     explicit TImpl(
         TTabletManagerConfigPtr config,
         ITabletSlotPtr slot,
-        TBootstrap* bootstrap)
+        IBootstrap* bootstrap)
         : TTabletAutomatonPart(
             slot,
             bootstrap)
@@ -628,7 +628,7 @@ private:
 
         virtual NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() override
         {
-            return Owner_->Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor();
+            return Owner_->Bootstrap_->GetLocalDescriptor();
         }
 
     private:
@@ -773,13 +773,13 @@ private:
 
         for (auto [tabletId, tablet] : TabletMap_) {
             tablet->SetStructuredLogger(
-                Bootstrap_->GetTabletNodeStructuredLogger()->CreateLogger(tablet));
+                Bootstrap_->GetStructuredLogger()->CreateLogger(tablet));
             auto storeManager = CreateStoreManager(tablet);
             tablet->SetStoreManager(storeManager);
             tablet->ReconfigureDistributedThrottlers(DistributedThrottlerManager_);
             tablet->FillProfilerTags();
             tablet->UpdateReplicaCounters();
-            Bootstrap_->GetTabletNodeStructuredLogger()->OnHeartbeatRequest(
+            Bootstrap_->GetStructuredLogger()->OnHeartbeatRequest(
                 Slot_->GetTabletManager(),
                 true /*initial*/);
         }
@@ -969,7 +969,7 @@ private:
         tabletHolder->ReconfigureDistributedThrottlers(DistributedThrottlerManager_);
         tabletHolder->FillProfilerTags();
         tabletHolder->SetStructuredLogger(
-            Bootstrap_->GetTabletNodeStructuredLogger()->CreateLogger(tabletHolder.get()));
+            Bootstrap_->GetStructuredLogger()->CreateLogger(tabletHolder.get()));
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
 
         if (tablet->IsPhysicallyOrdered()) {
@@ -3390,10 +3390,10 @@ private:
                 Bootstrap_->GetMasterClient()->GetNativeConnection(),
                 Slot_,
                 Bootstrap_->GetTabletSnapshotStore(),
-                Bootstrap_->GetTabletNodeHintManager(),
+                Bootstrap_->GetHintManager(),
                 CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker()),
                 EWorkloadCategory::SystemTabletReplication,
-                Bootstrap_->GetTabletNodeOutThrottler(EWorkloadCategory::SystemTabletReplication));
+                Bootstrap_->GetOutThrottler(EWorkloadCategory::SystemTabletReplication));
             replicaInfo->SetReplicator(replicator);
 
             if (replicaInfo->GetState() == ETableReplicaState::Enabled) {
@@ -3647,7 +3647,7 @@ private:
 
     void ValidateMemoryLimit(const std::optional<TString>& poolTag)
     {
-        if (Bootstrap_->GetTabletSlotManager()->IsOutOfMemory(poolTag)) {
+        if (Bootstrap_->GetSlotManager()->IsOutOfMemory(poolTag)) {
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::AllWritesDisabled,
                 "Node is out of tablet memory, all writes disabled");
@@ -3946,7 +3946,7 @@ private:
                     Bootstrap_->GetChunkBlockManager(),
                     Bootstrap_->GetVersionedChunkMetaManager(),
                     Bootstrap_->GetMasterClient(),
-                    Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor());
+                    Bootstrap_->GetLocalDescriptor());
             }
 
             case EStoreType::SortedDynamic:
@@ -3972,7 +3972,7 @@ private:
                     Bootstrap_->GetChunkBlockManager(),
                     Bootstrap_->GetVersionedChunkMetaManager(),
                     Bootstrap_->GetMasterClient(),
-                    Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor());
+                    Bootstrap_->GetLocalDescriptor());
             }
 
             case EStoreType::OrderedDynamic:
@@ -4238,7 +4238,7 @@ DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TabletMap_)
 TTabletManager::TTabletManager(
     TTabletManagerConfigPtr config,
     ITabletSlotPtr slot,
-    TBootstrap* bootstrap)
+    IBootstrap* bootstrap)
     : Impl_(New<TImpl>(
         config,
         slot,

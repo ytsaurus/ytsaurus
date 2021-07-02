@@ -169,7 +169,7 @@ class TChunkStoreBase
 {
 public:
     TChunkStoreBase(
-        NClusterNode::TBootstrap* bootstrap,
+        IBootstrap* bootstrap,
         TTabletManagerConfigPtr config,
         TStoreId id,
         NChunkClient::TChunkId chunkId,
@@ -241,7 +241,7 @@ public:
     virtual const std::vector<THunkChunkRef>& HunkChunkRefs() const override;
 
 protected:
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
     const NChunkClient::IBlockCachePtr BlockCache_;
     const NDataNode::IChunkRegistryPtr ChunkRegistry_;
     const NDataNode::IChunkBlockManagerPtr ChunkBlockManager_;

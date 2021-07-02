@@ -1,4 +1,6 @@
 #include "slot_location.h"
+
+#include "bootstrap.h"
 #include "slot_manager.h"
 #include "private.h"
 #include "job_directory_manager.h"
@@ -6,7 +8,6 @@
 #include <yt/yt/server/lib/exec_agent/config.h>
 #include <yt/yt/server/lib/exec_agent/slot_location_builder.h>
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
@@ -44,7 +45,7 @@ using namespace NYTree;
 
 TSlotLocation::TSlotLocation(
     TSlotLocationConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap,
+    IBootstrap* bootstrap,
     const TString& id,
     IJobDirectoryManagerPtr jobDirectoryManager,
     bool enableTmpfs,
@@ -729,8 +730,7 @@ void TSlotLocation::Disable(const TError& error)
     YT_LOG_ERROR(alert);
     YT_VERIFY(!Logger.GetAbortOnAlert());
 
-    const auto& masterConnector = Bootstrap_->GetClusterNodeMasterConnector();
-    masterConnector->RegisterStaticAlert(alert);
+    Bootstrap_->RegisterStaticAlert(alert);
 
     DiskResourcesUpdateExecutor_->Stop();
 }

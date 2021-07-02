@@ -1,4 +1,6 @@
 #include "in_memory_manager.h"
+
+#include "bootstrap.h"
 #include "in_memory_service_proxy.h"
 #include "private.h"
 #include "slot_manager.h"
@@ -137,7 +139,7 @@ class TInMemoryManager
 public:
     TInMemoryManager(
         TInMemoryManagerConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap)
+        IBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
         , CompressionInvoker_(CreateFixedPriorityInvoker(
@@ -145,7 +147,7 @@ public:
             Config_->WorkloadDescriptor.GetPriority()))
         , PreloadSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentPreloads))
     {
-        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        auto slotManager = Bootstrap_->GetSlotManager();
         slotManager->SubscribeScanSlot(BIND(&TInMemoryManager::ScanSlot, MakeWeak(this)));
     }
 
@@ -198,7 +200,7 @@ public:
 
 private:
     const TInMemoryManagerConfigPtr Config_;
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
     const IInvokerPtr CompressionInvoker_;
 
@@ -354,7 +356,7 @@ DEFINE_REFCOUNTED_TYPE(TInMemoryManager)
 
 IInMemoryManagerPtr CreateInMemoryManager(
     TInMemoryManagerConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap)
+    IBootstrap* bootstrap)
 {
     return New<TInMemoryManager>(config, bootstrap);
 }

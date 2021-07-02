@@ -1,11 +1,11 @@
 #include "blob_reader_cache.h"
+#include "bootstrap.h"
 #include "private.h"
 #include "blob_chunk.h"
 #include "config.h"
 #include "location.h"
 #include "chunk_meta_manager.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 
@@ -17,6 +17,7 @@ namespace NYT::NDataNode {
 
 using namespace NIO;
 using namespace NChunkClient;
+using namespace NClusterNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,7 +90,7 @@ class TBlobReaderCache
     , public IBlobReaderCache
 {
 public:
-    explicit TBlobReaderCache(NClusterNode::TBootstrap* bootstrap)
+    explicit TBlobReaderCache(IBootstrapBase* bootstrap)
         : TSyncSlruCacheBase(
             bootstrap->GetConfig()->DataNode->BlobReaderCache,
             DataNodeProfiler.WithPrefix("/block_reader_cache"))
@@ -125,7 +126,7 @@ public:
     }
 
 private:
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrapBase* const Bootstrap_;
     const TDataNodeConfigPtr Config_;
 
     void OnDynamicConfigChanged(
@@ -139,7 +140,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IBlobReaderCachePtr CreateBlobReaderCache(NClusterNode::TBootstrap* bootstrap)
+IBlobReaderCachePtr CreateBlobReaderCache(IBootstrapBase* bootstrap)
 {
     return New<TBlobReaderCache>(bootstrap);
 }

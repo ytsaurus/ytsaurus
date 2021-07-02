@@ -9,12 +9,13 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
-#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
+
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
 #include <yt/yt/core/misc/ref.h>
 
@@ -72,7 +73,7 @@ DEFINE_REFCOUNTED_TYPE(IInMemoryManager)
 
 IInMemoryManagerPtr CreateInMemoryManager(
     TInMemoryManagerConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap);
+    IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

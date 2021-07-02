@@ -1,6 +1,6 @@
 #include "job_controller.h"
+
 #include "private.h"
-#include "gpu_manager.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -8,9 +8,12 @@
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 #include <yt/yt/server/node/cluster_node/node_resource_manager.h>
 
+#include <yt/yt/server/node/data_node/bootstrap.h>
 #include <yt/yt/server/node/data_node/legacy_master_connector.h>
-#include <yt/yt/server/node/data_node/chunk_cache.h>
 
+#include <yt/yt/server/node/exec_agent/bootstrap.h>
+#include <yt/yt/server/node/exec_agent/chunk_cache.h>
+#include <yt/yt/server/node/exec_agent/gpu_manager.h>
 #include <yt/yt/server/node/exec_agent/slot_manager.h>
 
 #include <yt/yt/server/node/tablet_node/slot_manager.h>
@@ -97,7 +100,7 @@ public:
 public:
     TImpl(
         TJobControllerConfigPtr config,
-        TBootstrap* bootstrap);
+        IBootstrapBase* bootstrap);
 
     void Initialize();
 
@@ -140,7 +143,7 @@ private:
     friend class TJobController::TJobHeartbeatProcessorBase;
 
     const TJobControllerConfigPtr Config_;
-    NClusterNode::TBootstrap* const Bootstrap_;
+    NClusterNode::IBootstrapBase* const Bootstrap_;
 
     TAtomicObject<TJobControllerDynamicConfigPtr> DynamicConfig_ = New<TJobControllerDynamicConfig>();
 
@@ -308,7 +311,7 @@ private:
 
 TJobController::TImpl::TImpl(
     TJobControllerConfigPtr config,
-    TBootstrap* bootstrap)
+    IBootstrapBase* bootstrap)
     : Config_(std::move(config))
     , Bootstrap_(bootstrap)
     , StatisticsThrottler_(CreateReconfigurableThroughputThrottler(Config_->StatisticsThrottler))
@@ -502,8 +505,14 @@ TNodeResources TJobController::TImpl::GetResourceLimits() const
     TNodeResources result;
 
     // If chunk cache is disabled, we disable all scheduler jobs.
-    result.set_user_slots(Bootstrap_->GetChunkCache()->IsEnabled() && !DisableSchedulerJobs_.load() && !Bootstrap_->IsReadOnly()
-        ? Bootstrap_->GetExecSlotManager()->GetSlotCount()
+    bool chunkCacheEnabled = false;
+    if (Bootstrap_->IsExecNode()) {
+        const auto& chunkCache = Bootstrap_->GetExecNodeBootstrap()->GetChunkCache();
+        chunkCacheEnabled = chunkCache->IsEnabled();
+    }
+
+    result.set_user_slots(chunkCacheEnabled && !DisableSchedulerJobs_.load() && !Bootstrap_->IsReadOnly()
+        ? Bootstrap_->GetExecNodeBootstrap()->GetSlotManager()->GetSlotCount()
         : 0);
 
     auto resourceLimitsOverrides = ResourceLimitsOverrides_.Load();
@@ -514,7 +523,12 @@ TNodeResources TJobController::TImpl::GetResourceLimits() const
     ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX)
     #undef XX
 
-    result.set_gpu(Bootstrap_->GetGpuManager()->GetTotalGpuCount());
+    if (Bootstrap_->IsExecNode()) {
+        const auto& gpuManager = Bootstrap_->GetExecNodeBootstrap()->GetGpuManager();
+        result.set_gpu(gpuManager->GetTotalGpuCount());
+    } else {
+        result.set_gpu(0);
+    }
 
     const auto& memoryUsageTracker = Bootstrap_->GetMemoryUsageTracker();
 
@@ -549,8 +563,16 @@ TNodeResources TJobController::TImpl::GetResourceUsage(bool includeWaiting) cons
         }
     }
 
-    result.set_user_slots(Bootstrap_->GetExecSlotManager()->GetUsedSlotCount());
-    result.set_gpu(Bootstrap_->GetGpuManager()->GetUsedGpuCount());
+    if (Bootstrap_->IsExecNode()) {
+        const auto& slotManager = Bootstrap_->GetExecNodeBootstrap()->GetSlotManager();
+        result.set_user_slots(slotManager->GetUsedSlotCount());
+
+        const auto& gpuManager = Bootstrap_->GetExecNodeBootstrap()->GetGpuManager();
+        result.set_gpu(gpuManager->GetUsedGpuCount());
+    } else {
+        result.set_user_slots(0);
+        result.set_gpu(0);
+    }
 
     return result;
 }
@@ -686,7 +708,12 @@ TDiskResources TJobController::TImpl::GetDiskResources() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    return Bootstrap_->GetExecSlotManager()->GetDiskResources();
+    if (Bootstrap_->IsExecNode()) {
+        const auto& slotManager = Bootstrap_->GetExecNodeBootstrap()->GetSlotManager();
+        return slotManager->GetDiskResources();
+    } else {
+        return TDiskResources{};
+    }
 }
 
 void TJobController::TImpl::SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits)
@@ -1161,16 +1188,21 @@ void TJobController::TImpl::PrepareHeartbeatCommonRequestPart(const TReqHeartbea
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    const auto& masterConnector = Bootstrap_->GetClusterNodeMasterConnector();
-    request->set_node_id(Bootstrap_->GetClusterNodeMasterConnector()->GetNodeId());
-    ToProto(request->mutable_node_descriptor(), masterConnector->GetLocalDescriptor());
+    request->set_node_id(Bootstrap_->GetNodeId());
+    ToProto(request->mutable_node_descriptor(), Bootstrap_->GetLocalDescriptor());
     *request->mutable_resource_limits() = GetResourceLimits();
     *request->mutable_resource_usage() = GetResourceUsage(/* includeWaiting */ true);
 
     *request->mutable_disk_resources() = GetDiskResources();
 
-    request->set_job_reporter_write_failures_count(Bootstrap_->GetJobReporter()->ExtractWriteFailuresCount());
-    request->set_job_reporter_queue_is_too_large(Bootstrap_->GetJobReporter()->GetQueueIsTooLarge());
+    if (Bootstrap_->IsExecNode()) {
+        const auto& jobReporter = Bootstrap_->GetExecNodeBootstrap()->GetJobReporter();
+        request->set_job_reporter_write_failures_count(jobReporter->ExtractWriteFailuresCount());
+        request->set_job_reporter_queue_is_too_large(jobReporter->GetQueueIsTooLarge());
+    } else {
+        request->set_job_reporter_write_failures_count(0);
+        request->set_job_reporter_queue_is_too_large(false);
+    }
 }
 
 TFuture<void> TJobController::TImpl::ProcessHeartbeatResponse(
@@ -1479,27 +1511,29 @@ void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
                                 .EndMap();
                         });
                 })
-            .Item("gpu_utilization").DoMapFor(
-                Bootstrap_->GetGpuManager()->GetGpuInfoMap(),
-                [&] (TFluentMap fluent, const auto& pair) {
-                    const auto& [_, gpuInfo] = pair;
-                    fluent.Item(ToString(gpuInfo.Index))
-                        .BeginMap()
-                            .Item("update_time").Value(gpuInfo.UpdateTime)
-                            .Item("utilization_gpu_rate").Value(gpuInfo.UtilizationGpuRate)
-                            .Item("utilization_memory_rate").Value(gpuInfo.UtilizationMemoryRate)
-                            .Item("memory_used").Value(gpuInfo.MemoryUsed)
-                            .Item("memory_limit").Value(gpuInfo.MemoryTotal)
-                            .Item("power_used").Value(gpuInfo.PowerDraw)
-                            .Item("power_limit").Value(gpuInfo.PowerLimit)
-                            .Item("clocks_sm_used").Value(gpuInfo.ClocksSm)
-                            .Item("clocks_sm_limit").Value(gpuInfo.ClocksMaxSm)
-                        .EndMap();
-                }
-            )
-            .Item("slot_manager").DoMap(BIND(
-                &NExecAgent::TSlotManager::BuildOrchidYson,
-                Bootstrap_->GetExecSlotManager()))
+            .DoIf(Bootstrap_->IsExecNode(), [&] (auto fluent) {
+                fluent
+                    .Item("gpu_utilization").DoMapFor(
+                        Bootstrap_->GetExecNodeBootstrap()->GetGpuManager()->GetGpuInfoMap(),
+                        [&] (TFluentMap fluent, const auto& pair) {
+                            const auto& [_, gpuInfo] = pair;
+                            fluent.Item(ToString(gpuInfo.Index))
+                                .BeginMap()
+                                    .Item("update_time").Value(gpuInfo.UpdateTime)
+                                    .Item("utilization_gpu_rate").Value(gpuInfo.UtilizationGpuRate)
+                                    .Item("utilization_memory_rate").Value(gpuInfo.UtilizationMemoryRate)
+                                    .Item("memory_used").Value(gpuInfo.MemoryUsed)
+                                    .Item("memory_limit").Value(gpuInfo.MemoryTotal)
+                                    .Item("power_used").Value(gpuInfo.PowerDraw)
+                                    .Item("power_limit").Value(gpuInfo.PowerLimit)
+                                    .Item("clocks_sm_used").Value(gpuInfo.ClocksSm)
+                                    .Item("clocks_sm_limit").Value(gpuInfo.ClocksMaxSm)
+                                .EndMap();
+                        })
+                    .Item("slot_manager").DoMap(BIND(
+                        &NExecAgent::TSlotManager::BuildOrchidYson,
+                        Bootstrap_->GetExecNodeBootstrap()->GetSlotManager()));
+            })
             .Item("job_proxy_build").Do(BIND(&TJobController::TImpl::BuildJobProxyBuildInfo, MakeStrong(this)))
         .EndMap();
 }
@@ -1582,17 +1616,20 @@ void TJobController::TImpl::OnProfiling()
         ProfileResources(writer, GetResourceLimits());
     });
 
-    GpuUtilizationBuffer_->Update([this] (ISensorWriter* writer) {
-        for (const auto& [index, gpuInfo] : Bootstrap_->GetGpuManager()->GetGpuInfoMap()) {
-            writer->PushTag(TTag{"gpu_name", gpuInfo.Name});
-            writer->PushTag(TTag{"device_number", ToString(index)});
+    if (Bootstrap_->IsExecNode()) {
+        const auto& gpuManager = Bootstrap_->GetExecNodeBootstrap()->GetGpuManager();
+        GpuUtilizationBuffer_->Update([this, gpuManager] (ISensorWriter* writer) {
+            for (const auto& [index, gpuInfo] : gpuManager->GetGpuInfoMap()) {
+                writer->PushTag(TTag{"gpu_name", gpuInfo.Name});
+                writer->PushTag(TTag{"device_number", ToString(index)});
 
-            ProfileGpuInfo(writer, gpuInfo);
+                ProfileGpuInfo(writer, gpuInfo);
 
-            writer->PopTag();
-            writer->PopTag();
-        }
-    });
+                writer->PopTag();
+                writer->PopTag();
+            }
+        });
+    }
 
     i64 tmpfsSize = 0;
     i64 tmpfsUsage = 0;
@@ -1702,7 +1739,7 @@ TDuration TJobController::TImpl::GetRecentlyRemovedJobsStoreTimeout() const
 
 TJobController::TJobController(
     TJobControllerConfigPtr config,
-    TBootstrap* bootstrap)
+    IBootstrapBase* bootstrap)
     : Impl_(New<TImpl>(
         config,
         bootstrap))
@@ -1797,7 +1834,7 @@ void TJobController::RegisterHeartbeatProcessor(
 
 TJobController::TJobHeartbeatProcessorBase::TJobHeartbeatProcessorBase(
     TJobController* const controller,
-    NClusterNode::TBootstrap* const bootstrap)
+    IBootstrapBase* const bootstrap)
     : JobController_(controller)
     , Bootstrap_(bootstrap)
 { }

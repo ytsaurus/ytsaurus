@@ -1,13 +1,12 @@
 #include "lookup_session.h"
 
+#include "bootstrap.h"
 #include "chunk.h"
 #include "chunk_registry.h"
 #include "local_chunk_reader.h"
 #include "private.h"
 #include "table_schema_cache.h"
 #include "chunk_meta_manager.h"
-
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/yt/server/node/tablet_node/versioned_chunk_meta_manager.h>
 
@@ -46,7 +45,7 @@ static const auto& Logger = DataNodeLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TLookupSession::TLookupSession(
-    TBootstrap* bootstrap,
+    IBootstrap* bootstrap,
     IChunkPtr chunk,
     TReadSessionId readSessionId,
     TWorkloadDescriptor workloadDescriptor,

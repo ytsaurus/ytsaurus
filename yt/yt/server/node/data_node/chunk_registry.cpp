@@ -1,12 +1,15 @@
 #include "chunk_registry.h"
+
+#include "bootstrap.h"
 #include "chunk.h"
-#include "chunk_cache.h"
 #include "chunk_store.h"
 #include "location.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/config.h>
+
+#include <yt/yt/server/node/exec_agent/bootstrap.h>
+#include <yt/yt/server/node/exec_agent/chunk_cache.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -27,7 +30,7 @@ class TChunkRegistry
     : public IChunkRegistry
 {
 public:
-    explicit TChunkRegistry(TBootstrap* bootstrap)
+    explicit TChunkRegistry(IBootstrapBase* bootstrap)
         : Bootstrap_(bootstrap)
         , ChunkReaderSweepExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetStorageHeavyInvoker(),
@@ -44,16 +47,22 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         // There are two possible places where we can look for a chunk: ChunkStore and ChunkCache.
-        if (auto storedChunk = Bootstrap_->GetChunkStore()->FindChunk(chunkId, mediumIndex)) {
-            return storedChunk;
+        if (Bootstrap_->IsDataNode()) {
+            const auto& chunkStore = Bootstrap_->GetDataNodeBootstrap()->GetChunkStore();
+            if (auto storedChunk = chunkStore->FindChunk(chunkId, mediumIndex)) {
+                return storedChunk;
+            }
         }
 
         if (mediumIndex != AllMediaIndex) {
             return nullptr;
         }
 
-        if (auto cachedChunk = Bootstrap_->GetChunkCache()->FindChunk(chunkId)) {
-            return cachedChunk;
+        if (Bootstrap_->IsExecNode()) {
+            const auto& chunkCache = Bootstrap_->GetExecNodeBootstrap()->GetChunkCache();
+            if (auto cachedChunk = chunkCache->FindChunk(chunkId)) {
+                return cachedChunk;
+            }
         }
 
         return nullptr;
@@ -86,7 +95,7 @@ public:
     }
 
 private:
-    TBootstrap* const Bootstrap_;
+    IBootstrapBase* const Bootstrap_;
     const TPeriodicExecutorPtr ChunkReaderSweepExecutor_;
 
     struct TChunkReaderSweepEntry
@@ -114,7 +123,7 @@ private:
     }
 };
 
-IChunkRegistryPtr CreateChunkRegistry(TBootstrap* bootstrap)
+IChunkRegistryPtr CreateChunkRegistry(IBootstrapBase* bootstrap)
 {
     return New<TChunkRegistry>(bootstrap);
 }

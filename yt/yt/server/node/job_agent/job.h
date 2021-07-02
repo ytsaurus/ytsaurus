@@ -1,6 +1,6 @@
 #pragma once
 
-#include "gpu_manager.h"
+#include "public.h"
 
 #include <yt/yt/server/lib/job_agent/job_report.h>
 

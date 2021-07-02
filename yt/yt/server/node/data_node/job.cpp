@@ -1,4 +1,6 @@
 #include "job.h"
+
+#include "bootstrap.h"
 #include "private.h"
 #include "block_peer_table.h"
 #include "chunk_block_manager.h"
@@ -14,7 +16,6 @@
 
 #include <yt/yt/server/lib/hydra/changelog.h>
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
@@ -116,7 +117,7 @@ public:
         const TJobSpec& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
-        TBootstrap* bootstrap)
+        IBootstrap* bootstrap)
         : JobId_(jobId)
         , JobSpec_(jobSpec)
         , Config_(config)
@@ -441,7 +442,7 @@ protected:
     const TJobSpec JobSpec_;
     const TDataNodeConfigPtr Config_;
     const TInstant StartTime_;
-    TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
     const NLogging::TLogger Logger;
 
@@ -544,7 +545,7 @@ public:
         const TJobSpec& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
-        TBootstrap* bootstrap)
+        IBootstrap* bootstrap)
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
@@ -591,7 +592,7 @@ private:
         // Once we switch from push replication to pull, this code is likely
         // to appear in TReplicateChunkJob as well.
         YT_LOG_INFO("Waiting for heartbeat barrier");
-        const auto& masterConnector = Bootstrap_->GetDataNodeMasterConnector();
+        const auto& masterConnector = Bootstrap_->GetMasterConnector();
         WaitFor(masterConnector->GetHeartbeatBarrier(CellTagFromId(chunkId)))
             .ThrowOnError();
     }
@@ -608,7 +609,7 @@ public:
         const TJobSpec& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
-        TBootstrap* bootstrap)
+        IBootstrap* bootstrap)
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
@@ -679,7 +680,7 @@ private:
             Bootstrap_->GetMasterClient(),
             GetNullBlockCache(),
             /* trafficMeter */ nullptr,
-            Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ReplicationOut));
+            Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::ReplicationOut));
 
         {
             YT_LOG_DEBUG("Started opening writer");
@@ -775,7 +776,7 @@ public:
         const TJobSpec& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
-        TBootstrap* bootstrap)
+        IBootstrap* bootstrap)
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
@@ -830,15 +831,15 @@ private:
             options,
             Bootstrap_->GetMasterClient(),
             NodeDirectory_,
-            Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor(),
-            Bootstrap_->GetClusterNodeMasterConnector()->GetNodeId(),
+            Bootstrap_->GetLocalDescriptor(),
+            Bootstrap_->GetNodeId(),
             partChunkId,
             partReplicas,
             Bootstrap_->GetBlockCache(),
             /*chunkMetaCache*/ nullptr,
             /*trafficMeter*/ nullptr,
             /*nodeStatusDirectory*/ nullptr,
-            Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::RepairIn));
+            Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::RepairIn));
 
         return reader;
     }
@@ -866,7 +867,7 @@ private:
             Bootstrap_->GetMasterClient(),
             GetNullBlockCache(),
             /* trafficMeter */ nullptr,
-            Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::RepairOut));
+            Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::RepairOut));
         return writer;
     }
 
@@ -982,7 +983,7 @@ public:
         TJobSpec&& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
-        TBootstrap* bootstrap)
+        IBootstrap* bootstrap)
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
@@ -1055,7 +1056,7 @@ private:
                 Bootstrap_->GetBlockCache(),
                 /*chunkMetaCache*/ nullptr,
                 /*trafficMeter*/ nullptr,
-                Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ReplicationIn));
+                Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::ReplicationIn));
 
             // TODO(savrus): profile chunk reader statistics.
             TClientChunkReadOptions chunkReadOptions{
@@ -1129,7 +1130,7 @@ public:
         const TJobSpec& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
-        TBootstrap* bootstrap)
+        IBootstrap* bootstrap)
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
@@ -1177,7 +1178,7 @@ private:
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetBlockCache(),
             /*trafficMeter*/ nullptr,
-            Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::MergeOut),
+            Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::MergeOut),
             sessionId);
 
         auto chunkWriterOptions = New<TChunkWriterOptions>();
@@ -1217,13 +1218,13 @@ private:
                 New<TRemoteReaderOptions>(),
                 Bootstrap_->GetMasterClient(),
                 nodeDirectory,
-                Bootstrap_->GetClusterNodeMasterConnector()->GetLocalDescriptor(),
-                Bootstrap_->GetClusterNodeMasterConnector()->GetNodeId(),
+                Bootstrap_->GetLocalDescriptor(),
+                Bootstrap_->GetNodeId(),
                 Bootstrap_->GetBlockCache(),
                 /*chunkMetaCache*/ nullptr,
                 /*trafficMeter*/ nullptr,
                 /*nodeStatusDirectory*/ nullptr,
-                Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::MergeIn));
+                Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::MergeIn));
 
             auto chunkMeta = GetChunkMeta(remoteReader);
             auto chunkState = New<TChunkState>(
@@ -1298,7 +1299,7 @@ IJobPtr CreateMasterJob(
     TJobSpec&& jobSpec,
     const TNodeResources& resourceLimits,
     TDataNodeConfigPtr config,
-    TBootstrap* bootstrap)
+    IBootstrap* bootstrap)
 {
     auto type = CheckedEnumCast<EJobType>(jobSpec.type());
     switch (type) {

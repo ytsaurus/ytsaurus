@@ -20,7 +20,7 @@ class TTabletSlotProvider
 public:
     TTabletSlotProvider(
         TTabletNodeConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap)
+        IBootstrap* bootstrap)
         : Config_(std::move(config))
         , Bootstrap_(bootstrap)
     { }
@@ -32,14 +32,14 @@ public:
 
 private:
     const TTabletNodeConfigPtr Config_;
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 ICellarOccupierProviderPtr CreateTabletSlotOccupierProvider(
     TTabletNodeConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap)
+    IBootstrap* bootstrap)
 {
     return New<TTabletSlotProvider>(std::move(config), bootstrap);
 }

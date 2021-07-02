@@ -33,7 +33,7 @@ public:
     TTabletManager(
         TTabletManagerConfigPtr config,
         ITabletSlotPtr slot,
-        NClusterNode::TBootstrap* bootstrap);
+        IBootstrap* bootstrap);
     ~TTabletManager();
 
     void Initialize();

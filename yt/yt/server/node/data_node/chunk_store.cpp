@@ -1,4 +1,6 @@
 #include "chunk_store.h"
+
+#include "bootstrap.h"
 #include "private.h"
 #include "blob_chunk.h"
 #include "config.h"
@@ -8,8 +10,6 @@
 #include "legacy_master_connector.h"
 #include "session.h"
 #include "session_manager.h"
-
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 
@@ -37,8 +37,8 @@ static const auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkStore::TChunkStore(TDataNodeConfigPtr config, TBootstrap* bootstrap)
-    : Config_(config)
+TChunkStore::TChunkStore(TDataNodeConfigPtr config, IBootstrap* bootstrap)
+    : Config_(std::move(config))
     , Bootstrap_(bootstrap)
     , ProfilingExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetControlInvoker(),

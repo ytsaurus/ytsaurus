@@ -1,6 +1,5 @@
 #include "helpers.h"
-
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include "bootstrap.h"
 
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
@@ -23,11 +22,12 @@
 
 #include <yt/yt/core/ytree/permission.h>
 
-namespace NYT::NDataNode {
+namespace NYT::NExecAgent {
 
 using namespace NApi;
 using namespace NClusterNode;
 using namespace NChunkClient;
+using namespace NDataNode;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NFileClient;
@@ -42,7 +42,7 @@ static constexpr int MaxChunksPerLocateRequest = 10000;
 namespace {
 
 void FetchContentRevision(
-    NClusterNode::TBootstrap const* bootstrap,
+    IBootstrap const* bootstrap,
     TUserObject* userObject)
 {
     auto objectIdPath = FromObjectId(userObject->ObjectId);
@@ -67,7 +67,7 @@ void FetchContentRevision(
 TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     const NYPath::TYPath& path,
     NHydra::TRevision contentRevision,
-    NClusterNode::TBootstrap const* bootstrap,
+    IBootstrap const* bootstrap,
     const NLogging::TLogger& logger)
 {
     const auto& Logger = logger;
@@ -176,4 +176,4 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDataNode
+} // namespace NYT::NExecAgent

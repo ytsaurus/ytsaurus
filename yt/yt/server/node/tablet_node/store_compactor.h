@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/server/lib/lsm/lsm_backend.h>
 
 #include <yt/yt/core/ytree/public.h>
@@ -27,7 +25,7 @@ struct IStoreCompactor
 
 DEFINE_REFCOUNTED_TYPE(IStoreCompactor)
 
-IStoreCompactorPtr CreateStoreCompactor(NClusterNode::TBootstrap* bootstrap);
+IStoreCompactorPtr CreateStoreCompactor(IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

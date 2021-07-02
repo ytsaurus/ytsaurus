@@ -23,7 +23,7 @@ DEFINE_REFCOUNTED_TYPE(IVersionedChunkMetaManager)
 
 IVersionedChunkMetaManagerPtr CreateVersionedChunkMetaManager(
     TSlruCacheConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap);
+    NClusterNode::IBootstrapBase* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

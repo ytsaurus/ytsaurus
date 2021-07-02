@@ -36,7 +36,7 @@ class TChaosService
 public:
     TChaosService(
         IChaosSlotPtr slot,
-        TBootstrap* bootstrap)
+        IBootstrap* bootstrap)
         : THydraServiceBase(
             slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Default),
             TChaosServiceProxy::GetDescriptor(),
@@ -51,7 +51,7 @@ public:
 
 private:
     const IChaosSlotPtr Slot_;
-    TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
 
     // THydraServiceBase overrides.
@@ -61,7 +61,7 @@ private:
     }
 };
 
-IServicePtr CreateChaosService(IChaosSlotPtr slot, TBootstrap* bootstrap)
+IServicePtr CreateChaosService(IChaosSlotPtr slot, IBootstrap* bootstrap)
 {
     return New<TChaosService>(slot, bootstrap);
 }

@@ -1,4 +1,6 @@
 #include "session_manager.h"
+
+#include "bootstrap.h"
 #include "private.h"
 #include "blob_chunk.h"
 #include "blob_session.h"
@@ -7,8 +9,6 @@
 #include "config.h"
 #include "journal_session.h"
 #include "location.h"
-
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 #include <yt/yt/client/chunk_client/chunk_replica.h>
@@ -42,7 +42,7 @@ static const auto& Logger = DataNodeLogger;
 
 TSessionManager::TSessionManager(
     TDataNodeConfigPtr config,
-    TBootstrap* bootstrap)
+    IBootstrap* bootstrap)
     : Config_(std::move(config))
     , Bootstrap_(bootstrap)
 {

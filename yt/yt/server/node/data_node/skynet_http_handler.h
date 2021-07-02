@@ -1,14 +1,14 @@
 #pragma once
 
-#include <yt/yt/core/http/public.h>
+#include "public.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/core/http/public.h>
 
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NHttp::IHttpHandlerPtr MakeSkynetHttpHandler(NClusterNode::TBootstrap* bootstrap);
+NHttp::IHttpHandlerPtr MakeSkynetHttpHandler(IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

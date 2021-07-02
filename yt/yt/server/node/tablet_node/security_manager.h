@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
+#include <yt/yt/server/node/cellar_node/bootstrap.h>
+
 #include <yt/yt/server/lib/security_server/resource_limits_manager.h>
 
 #include <yt/yt/core/actions/future.h>
@@ -22,7 +24,7 @@ class TSecurityManager
 public:
     TSecurityManager(
         TSecurityManagerConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap);
+        NCellarNode::IBootstrap* bootstrap);
     ~TSecurityManager();
 
     TFuture<void> CheckResourceLimits(
@@ -40,7 +42,6 @@ public:
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TSecurityManager)

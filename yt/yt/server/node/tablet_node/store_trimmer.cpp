@@ -1,4 +1,6 @@
 #include "store_trimmer.h"
+
+#include "bootstrap.h"
 #include "store.h"
 #include "ordered_chunk_store.h"
 #include "slot_manager.h"
@@ -8,7 +10,6 @@
 #include "tablet_slot.h"
 #include "private.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
@@ -51,18 +52,18 @@ class TStoreTrimmer
     : public IStoreTrimmer
 {
 public:
-    explicit TStoreTrimmer(NClusterNode::TBootstrap* bootstrap)
+    explicit TStoreTrimmer(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
     { }
 
     virtual void Start() override
     {
-        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
+        const auto& slotManager = Bootstrap_->GetSlotManager();
         slotManager->SubscribeScanSlot(BIND(&TStoreTrimmer::OnScanSlot, MakeStrong(this)));
     }
 
 private:
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
 
     void OnScanSlot(const ITabletSlotPtr& slot)
@@ -263,7 +264,7 @@ private:
     }
 };
 
-IStoreTrimmerPtr CreateStoreTrimmer(NClusterNode::TBootstrap* bootstrap)
+IStoreTrimmerPtr CreateStoreTrimmer(IBootstrap* bootstrap)
 {
     return New<TStoreTrimmer>(bootstrap);
 }

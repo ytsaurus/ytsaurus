@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
 
 namespace NYT::NDataNode {
@@ -73,7 +71,7 @@ DEFINE_REFCOUNTED_TYPE(IMasterConnector)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IMasterConnectorPtr CreateMasterConnector(NClusterNode::TBootstrap* bootstrap);
+IMasterConnectorPtr CreateMasterConnector(IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

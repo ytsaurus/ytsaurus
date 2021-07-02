@@ -16,7 +16,7 @@ class TNodeResourceManager
     : public TRefCounted
 {
 public:
-    explicit TNodeResourceManager(TBootstrap* bootstrap);
+    explicit TNodeResourceManager(IBootstrap* bootstrap);
 
     void Start();
 
@@ -36,7 +36,7 @@ public:
     DEFINE_SIGNAL(void(i64), SelfMemoryGuaranteeUpdated);
 
 private:
-    TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
     const NConcurrency::TPeriodicExecutorPtr UpdateExecutor_;
 

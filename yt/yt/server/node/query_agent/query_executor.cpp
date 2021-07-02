@@ -2,7 +2,6 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 
 #include <yt/yt/server/node/data_node/chunk_block_manager.h>
@@ -16,6 +15,8 @@
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
+
+#include <yt/yt/server/node/tablet_node/bootstrap.h>
 #include <yt/yt/server/node/tablet_node/security_manager.h>
 #include <yt/yt/server/node/tablet_node/tablet.h>
 #include <yt/yt/server/node/tablet_node/tablet_manager.h>
@@ -293,7 +294,7 @@ public:
     TQueryExecution(
         TQueryAgentConfigPtr config,
         TFunctionImplCachePtr functionImplCache,
-        TBootstrap* bootstrap,
+        NTabletNode::IBootstrap* bootstrap,
         IEvaluatorPtr evaluator,
         TConstQueryPtr query,
         TConstExternalCGInfoPtr externalCGInfo,
@@ -352,7 +353,7 @@ public:
 private:
     const TQueryAgentConfigPtr Config_;
     const TFunctionImplCachePtr FunctionImplCache_;
-    TBootstrap* const Bootstrap_;
+    NTabletNode::IBootstrap* const Bootstrap_;
     const IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     const IEvaluatorPtr Evaluator_;
 
@@ -1061,7 +1062,7 @@ private:
 TQueryStatistics ExecuteSubquery(
     TQueryAgentConfigPtr config,
     TFunctionImplCachePtr functionImplCache,
-    TBootstrap* const bootstrap,
+    NTabletNode::IBootstrap* const bootstrap,
     IEvaluatorPtr evaluator,
     TConstQueryPtr query,
     TConstExternalCGInfoPtr externalCGInfo,

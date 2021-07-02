@@ -1,7 +1,6 @@
 #include "distributed_throttler_manager.h"
+#include "bootstrap.h"
 #include "private.h"
-
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -28,7 +27,7 @@ class TDistributedThrottlerManager
 {
 public:
     TDistributedThrottlerManager(
-        NClusterNode::TBootstrap* bootstrap,
+        IBootstrap* bootstrap,
         TCellId cellId)
         : Bootstrap_(bootstrap)
         , MemberId_(ToString(cellId))
@@ -84,7 +83,7 @@ public:
 private:
     using TKey = std::tuple<TString, NDistributedThrottler::EDistributedThrottlerMode>;
 
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
     const TString MemberId_;
 
     THashMap<TKey, NDistributedThrottler::IDistributedThrottlerFactoryPtr> Factories_;
@@ -135,7 +134,7 @@ DEFINE_REFCOUNTED_TYPE(TDistributedThrottlerManager)
 ////////////////////////////////////////////////////////////////////////////////
 
 IDistributedThrottlerManagerPtr CreateDistributedThrottlerManager(
-    NClusterNode::TBootstrap* bootstrap,
+    IBootstrap* bootstrap,
     TCellId cellId)
 {
     return New<TDistributedThrottlerManager>(bootstrap, cellId);

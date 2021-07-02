@@ -1,5 +1,6 @@
 #include "structured_logger.h"
 
+#include "bootstrap.h"
 #include "hunk_chunk.h"
 #include "partition.h"
 #include "private.h"
@@ -42,7 +43,7 @@ class TStructuredLogger
     : public IStructuredLogger
 {
 public:
-    explicit TStructuredLogger(TBootstrap* bootstrap)
+    explicit TStructuredLogger(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
         , Logger_(LsmLogger)
     {
@@ -52,7 +53,7 @@ public:
             &TStructuredLogger::OnDynamicConfigChanged,
             MakeWeak(this)));
 
-        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
+        const auto& slotManager = Bootstrap_->GetSlotManager();
         slotManager->SubscribeScanSlot(BIND(
             &TStructuredLogger::OnScanSlot,
             MakeWeak(this)));
@@ -117,7 +118,7 @@ public:
     }
 
 private:
-    TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
     const NLogging::TLogger Logger_;
 
     // TODO(ifsmirnov): MPSC queue collector thread that handles reordering and throttling.
@@ -619,7 +620,7 @@ IPerTabletStructuredLoggerPtr TStructuredLogger::CreateLogger(TTablet* tablet)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IStructuredLoggerPtr CreateStructuredLogger(TBootstrap* bootstrap)
+IStructuredLoggerPtr CreateStructuredLogger(IBootstrap* bootstrap)
 {
     return New<TStructuredLogger>(bootstrap);
 }

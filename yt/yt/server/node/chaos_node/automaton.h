@@ -3,8 +3,6 @@
 #include "public.h"
 #include "serialize.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/server/lib/hydra/composite_automaton.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
@@ -44,11 +42,11 @@ class TChaosAutomatonPart
 {
 protected:
     const IChaosSlotPtr Slot_;
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
     TChaosAutomatonPart(
         IChaosSlotPtr slot,
-        NClusterNode::TBootstrap* bootstrap);
+        IBootstrap* bootstrap);
 
     virtual bool ValidateSnapshotVersion(int version) override;
     virtual int GetCurrentSnapshotVersion() override;

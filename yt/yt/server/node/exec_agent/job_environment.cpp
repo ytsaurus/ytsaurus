@@ -1,10 +1,11 @@
 #include "job_environment.h"
+
+#include "bootstrap.h"
 #include "job_directory_manager.h"
 #include "private.h"
 
 #include <yt/yt/server/lib/exec_agent/config.h>
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
@@ -57,7 +58,9 @@ class TProcessJobEnvironmentBase
     : public IJobEnvironment
 {
 public:
-    TProcessJobEnvironmentBase(TJobEnvironmentConfigPtr config, TBootstrap* bootstrap)
+    TProcessJobEnvironmentBase(
+        TJobEnvironmentConfigPtr config,
+        IBootstrap* bootstrap)
         : BasicConfig_(std::move(config))
         , Bootstrap_(bootstrap)
     { }
@@ -158,7 +161,7 @@ protected:
     };
 
     const TJobEnvironmentConfigPtr BasicConfig_;
-    TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
     const TActionQueuePtr ActionQueue_ = New<TActionQueue>("JobEnvironment");
 
@@ -218,7 +221,7 @@ protected:
         YT_LOG_ERROR(alert);
         YT_VERIFY(!Logger.GetAbortOnAlert());
 
-        Bootstrap_->GetClusterNodeMasterConnector()->RegisterStaticAlert(alert);
+        Bootstrap_->RegisterStaticAlert(alert);
     }
 
     virtual void AddArguments(TProcessBasePtr /*process*/, int /*slotIndex*/)
@@ -237,7 +240,9 @@ class TSimpleJobEnvironment
     : public TProcessJobEnvironmentBase
 {
 public:
-    TSimpleJobEnvironment(TSimpleJobEnvironmentConfigPtr config, TBootstrap* bootstrap)
+    TSimpleJobEnvironment(
+        TSimpleJobEnvironmentConfigPtr config,
+        IBootstrap* bootstrap)
         : TProcessJobEnvironmentBase(config, bootstrap)
         , Config_(std::move(config))
     { }
@@ -294,7 +299,9 @@ class TPortoJobEnvironment
     : public TProcessJobEnvironmentBase
 {
 public:
-    TPortoJobEnvironment(TPortoJobEnvironmentConfigPtr config, TBootstrap* bootstrap)
+    TPortoJobEnvironment(
+        TPortoJobEnvironmentConfigPtr config,
+        IBootstrap* bootstrap)
         : TProcessJobEnvironmentBase(config, bootstrap)
         , Config_(std::move(config))
         , PortoExecutor_(CreatePortoExecutor(
@@ -561,7 +568,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobEnvironmentPtr CreateJobEnvironment(INodePtr configNode, TBootstrap* bootstrap)
+IJobEnvironmentPtr CreateJobEnvironment(INodePtr configNode, IBootstrap* bootstrap)
 {
     auto config = ConvertTo<TJobEnvironmentConfigPtr>(configNode);
     switch (config->Type) {

@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/server/node/job_agent/public.h>
 
 #include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
@@ -17,7 +15,7 @@ NJobAgent::IJobPtr CreateUserJob(
     NJobTrackerClient::TOperationId operationId,
     const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
     NJobTrackerClient::NProto::TJobSpec&& jobSpec,
-    NClusterNode::TBootstrap* bootstrap);
+    IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

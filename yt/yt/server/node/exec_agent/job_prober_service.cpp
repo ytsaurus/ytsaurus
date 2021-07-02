@@ -1,7 +1,7 @@
 #include "job_prober_service.h"
-#include "private.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include "bootstrap.h"
+#include "private.h"
 
 #include <yt/yt/server/node/job_agent/job_controller.h>
 
@@ -26,7 +26,7 @@ class TJobProberService
     : public TServiceBase
 {
 public:
-    explicit TJobProberService(NClusterNode::TBootstrap* bootstrap)
+    explicit TJobProberService(IBootstrap* bootstrap)
         : TServiceBase(
             bootstrap->GetJobInvoker(),
             TJobProberServiceProxy::GetDescriptor(),
@@ -45,7 +45,7 @@ public:
     }
 
 private:
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
@@ -157,7 +157,7 @@ private:
     }
 };
 
-IServicePtr CreateJobProberService(NClusterNode::TBootstrap* bootstrap)
+IServicePtr CreateJobProberService(IBootstrap* bootstrap)
 {
     return New<TJobProberService>(bootstrap);
 }

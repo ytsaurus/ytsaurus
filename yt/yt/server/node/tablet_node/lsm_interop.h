@@ -17,7 +17,7 @@ struct ILsmInterop
 DEFINE_REFCOUNTED_TYPE(ILsmInterop)
 
 ILsmInteropPtr CreateLsmInterop(
-    NClusterNode::TBootstrap* bootstrap,
+    IBootstrap* bootstrap,
     const IStoreCompactorPtr& storeCompactor,
     const IPartitionBalancerPtr& partitionBalancer);
 

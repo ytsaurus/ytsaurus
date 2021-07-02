@@ -6,13 +6,15 @@
 #include "dynamic_config_manager.h"
 #include "node_resource_manager.h"
 
-#include <yt/yt/server/node/data_node/chunk_cache.h>
+#include <yt/yt/server/node/data_node/bootstrap.h>
 #include <yt/yt/server/node/data_node/chunk_store.h>
 #include <yt/yt/server/node/data_node/location.h>
 #include <yt/yt/server/node/data_node/legacy_master_connector.h>
 #include <yt/yt/server/node/data_node/network_statistics.h>
 #include <yt/yt/server/node/data_node/session_manager.h>
 
+#include <yt/yt/server/node/exec_agent/bootstrap.h>
+#include <yt/yt/server/node/exec_agent/chunk_cache.h>
 #include <yt/yt/server/node/exec_agent/slot_manager.h>
 
 #include <yt/yt/server/node/job_agent/job_controller.h>
@@ -69,7 +71,7 @@ public:
 
 public:
     TMasterConnector(
-        TBootstrap* bootstrap,
+        IBootstrap* bootstrap,
         const TAddressMap& rpcAddresses,
         const TAddressMap& skynetHttpAddresses,
         const TAddressMap& monitoringHttpAddresses,
@@ -248,7 +250,7 @@ public:
     }
 
 private:
-    NClusterNode::TBootstrap* const Bootstrap_;
+    NClusterNode::IBootstrap* const Bootstrap_;
 
     const TMasterConnectorConfigPtr Config_;
 
@@ -402,11 +404,24 @@ private:
             ->RecentSync())
             .ThrowOnError();
 
-        for (const auto& location : Bootstrap_->GetChunkStore()->Locations()) {
-            location->UpdateMediumName(location->GetMediumName());
+        if (Bootstrap_->IsDataNode()) {
+            const auto& storeLocations = Bootstrap_
+                ->GetDataNodeBootstrap()
+                ->GetChunkStore()
+                ->Locations();
+            for (const auto& location : storeLocations) {
+                location->UpdateMediumName(location->GetMediumName());
+            }
         }
-        for (const auto& location : Bootstrap_->GetChunkCache()->Locations()) {
-            location->UpdateMediumName(location->GetMediumName());
+
+        if (Bootstrap_->IsExecNode()) {
+            const auto& cacheLocations = Bootstrap_
+                ->GetExecNodeBootstrap()
+                ->GetChunkCache()
+                ->Locations();
+            for (const auto& location : cacheLocations) {
+                location->UpdateMediumName(location->GetMediumName());
+            }
         }
 
         auto mediumDirectory = Bootstrap_
@@ -414,7 +429,12 @@ private:
             ->GetNativeConnection()
             ->GetMediumDirectory();
 
-        Bootstrap_->GetExecSlotManager()->InitMedia(mediumDirectory);
+        if (Bootstrap_->IsExecNode()) {
+            Bootstrap_
+                ->GetExecNodeBootstrap()
+                ->GetSlotManager()
+                ->InitMedia(mediumDirectory);
+        }
     }
 
     void StartLeaseTransaction()
@@ -477,9 +497,15 @@ private:
         req->set_cypress_annotations(ConvertToYsonString(Bootstrap_->GetConfig()->CypressAnnotations).ToString());
         req->set_build_version(GetVersion());
 
-        for (const auto& location : Bootstrap_->GetChunkStore()->Locations()) {
-            if (location->IsEnabled()) {
-                ToProto(req->add_location_uuids(), location->GetUuid());
+        if (Bootstrap_->IsDataNode()) {
+            const auto& storeLocations = Bootstrap_
+                ->GetDataNodeBootstrap()
+                ->GetChunkStore()
+                ->Locations();
+            for (const auto& location : storeLocations) {
+                if (location->IsEnabled()) {
+                    ToProto(req->add_location_uuids(), location->GetUuid());
+                }
             }
         }
 
@@ -587,7 +613,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IMasterConnectorPtr CreateMasterConnector(
-    TBootstrap* bootstrap,
+    IBootstrap* bootstrap,
     const NNodeTrackerClient::TAddressMap& rpcAddresses,
     const NNodeTrackerClient::TAddressMap& skynetHttpAddresses,
     const NNodeTrackerClient::TAddressMap& monitoringHttpAddresses,

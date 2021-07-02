@@ -1,6 +1,9 @@
 #include "job_heartbeat_processor.h"
+#include "bootstrap.h"
 #include "private.h"
 #include "slot_manager.h"
+
+#include <yt/yt/server/node/exec_agent/private.h>
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 
@@ -45,7 +48,8 @@ void TSchedulerJobHeartbeatProcessor::PrepareRequest(
 {
     PrepareHeartbeatCommonRequestPart(request);
 
-    if (Bootstrap_->GetExecSlotManager()->HasFatalAlert()) {
+    auto* execNodeBootstrap = Bootstrap_->GetExecNodeBootstrap();
+    if (execNodeBootstrap->GetSlotManager()->HasFatalAlert()) {
         // NB(psushin): if slot manager is disabled with fatal alert we might have experienced an unrecoverable failure (e.g. hanging Porto)
         // and to avoid inconsistent state with scheduler we decide not to report to it any jobs at all.
         // We also drop all scheduler jobs from |JobMap_|.

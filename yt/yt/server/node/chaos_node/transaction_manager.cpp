@@ -1,10 +1,10 @@
 #include "transaction_manager.h"
+#include "bootstrap.h"
 #include "transaction.h"
 #include "private.h"
 #include "automaton.h"
 #include "chaos_slot.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 
 #include <yt/yt/server/lib/hive/transaction_detail.h>
@@ -59,7 +59,7 @@ public:
     TTransactionManager(
         TTransactionManagerConfigPtr config,
         IChaosSlotPtr slot,
-        NClusterNode::TBootstrap* bootstrap)
+        IBootstrap* bootstrap)
         : TChaosAutomatonPart(
             slot,
             bootstrap)
@@ -451,7 +451,7 @@ private:
 ITransactionManagerPtr CreateTransactionManager(
     TTransactionManagerConfigPtr config,
     IChaosSlotPtr slot,
-    TBootstrap* bootstrap)
+    IBootstrap* bootstrap)
 {
     return New<TTransactionManager>(
         config,

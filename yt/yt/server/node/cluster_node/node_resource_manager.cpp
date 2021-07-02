@@ -3,11 +3,12 @@
 #include "bootstrap.h"
 #include "config.h"
 
-#include <yt/yt/server/lib/containers/instance_limits_tracker.h>
-
+#include <yt/yt/server/node/tablet_node/bootstrap.h>
 #include <yt/yt/server/node/tablet_node/slot_manager.h>
 
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+
+#include <yt/yt/server/lib/containers/instance_limits_tracker.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
@@ -29,7 +30,7 @@ static const auto& Logger = ClusterNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeResourceManager::TNodeResourceManager(TBootstrap* bootstrap)
+TNodeResourceManager::TNodeResourceManager(IBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
     , UpdateExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetControlInvoker(),
@@ -220,9 +221,12 @@ void TNodeResourceManager::UpdateJobsCpuLimit()
             newJobsCpuLimit = Bootstrap_->GetConfig()->ExecAgent->JobController->ResourceLimits->Cpu;
         }
 
-        if (const auto& tabletSlotManager = Bootstrap_->GetTabletSlotManager(); tabletSlotManager) {
-            double cpuPerTabletSlot = dynamicConfig->CpuPerTabletSlot.value_or(*config->CpuPerTabletSlot);
-            newJobsCpuLimit -= tabletSlotManager->GetUsedCpu(cpuPerTabletSlot);
+        if (Bootstrap_->IsTabletNode()) {
+            const auto& tabletSlotManager = Bootstrap_->GetTabletNodeBootstrap()->GetSlotManager();
+            if (tabletSlotManager) {
+                double cpuPerTabletSlot = dynamicConfig->CpuPerTabletSlot.value_or(*config->CpuPerTabletSlot);
+                newJobsCpuLimit -= tabletSlotManager->GetUsedCpu(cpuPerTabletSlot);
+            }
         }
     }
     newJobsCpuLimit = std::max<double>(newJobsCpuLimit, 0);

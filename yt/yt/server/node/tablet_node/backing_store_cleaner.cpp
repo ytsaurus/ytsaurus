@@ -1,5 +1,6 @@
 #include "backing_store_cleaner.h"
 
+#include "bootstrap.h"
 #include "private.h"
 #include "slot_manager.h"
 #include "store.h"
@@ -17,7 +18,6 @@
 
 namespace NYT::NTabletNode {
 
-using namespace NClusterNode;
 using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,20 +36,20 @@ class TBackingStoreCleaner
     : public IBackingStoreCleaner
 {
 public:
-    explicit TBackingStoreCleaner(TBootstrap* bootstrap)
+    explicit TBackingStoreCleaner(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
     { }
 
     virtual void Start() override
     {
-        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
+        const auto& slotManager = Bootstrap_->GetSlotManager();
         slotManager->SubscribeBeginSlotScan(BIND(&TBackingStoreCleaner::OnBeginSlotScan, MakeStrong(this)));
         slotManager->SubscribeScanSlot(BIND(&TBackingStoreCleaner::OnScanSlot, MakeStrong(this)));
         slotManager->SubscribeEndSlotScan(BIND(&TBackingStoreCleaner::OnEndSlotScan, MakeStrong(this)));
     }
 
 private:
-    TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
 
@@ -245,7 +245,7 @@ private:
     }
 };
 
-IBackingStoreCleanerPtr CreateBackingStoreCleaner(NClusterNode::TBootstrap* bootstrap)
+IBackingStoreCleanerPtr CreateBackingStoreCleaner(IBootstrap* bootstrap)
 {
     return New<TBackingStoreCleaner>(bootstrap);
 }

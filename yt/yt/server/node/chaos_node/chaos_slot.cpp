@@ -1,6 +1,7 @@
 #include "chaos_slot.h"
 
 #include "automaton.h"
+#include "bootstrap.h"
 #include "private.h"
 #include "serialize.h"
 #include "slot_manager.h"
@@ -16,8 +17,6 @@
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 
 #include <yt/yt/server/lib/chaos_node/config.h>
-
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/yt/ytlib/api/public.h>
 
@@ -54,7 +53,7 @@ public:
     TChaosSlot(
         int slotIndex,
         TChaosNodeConfigPtr config,
-        TBootstrap* bootstrap)
+        IBootstrap* bootstrap)
         : THood(Format("ChaosSlot:%v", slotIndex))
         , Config_(config)
         , Bootstrap_(bootstrap)
@@ -276,7 +275,7 @@ public:
 
 private:
     const TChaosNodeConfigPtr Config_;
-    TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
     ICellarOccupantPtr Occupant_;
 
@@ -326,7 +325,7 @@ private:
 IChaosSlotPtr CreateChaosSlot(
     int slotIndex,
     TChaosNodeConfigPtr config,
-    TBootstrap* bootstrap)
+    IBootstrap* bootstrap)
 {
     return New<TChaosSlot>(
         slotIndex,

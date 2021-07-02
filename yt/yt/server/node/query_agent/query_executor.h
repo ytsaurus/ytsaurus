@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/tablet_node/public.h>
 
 #include <yt/yt/server/lib/misc/public.h>
 
@@ -24,7 +24,7 @@ namespace NYT::NQueryAgent {
 NQueryClient::TQueryStatistics ExecuteSubquery(
     TQueryAgentConfigPtr config,
     NQueryClient::TFunctionImplCachePtr functionImplCache,
-    NClusterNode::TBootstrap* const bootstrap,
+    NTabletNode::IBootstrap* const bootstrap,
     NQueryClient::IEvaluatorPtr evaluator,
     NQueryClient::TConstQueryPtr query,
     NQueryClient::TConstExternalCGInfoPtr externalCGInfo,

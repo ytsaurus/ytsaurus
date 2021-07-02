@@ -4,8 +4,6 @@
 
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/core/concurrency/spinlock.h>
 
 #include <atomic>
@@ -24,7 +22,7 @@ class TSessionManager
 public:
     TSessionManager(
         TDataNodeConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap);
+        IBootstrap* bootstrap);
 
     void Initialize();
 
@@ -53,7 +51,7 @@ public:
 
 private:
     const TDataNodeConfigPtr Config_;
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SessionMapLock_);
     THashMap<TSessionId, ISessionPtr> SessionMap_;

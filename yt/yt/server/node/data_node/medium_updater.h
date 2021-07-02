@@ -20,9 +20,8 @@ namespace NYT::NDataNode {
 class TMediumUpdater
     : public TRefCounted
 {
-
 public:
-    TMediumUpdater(NClusterNode::TBootstrap* bootstrap);
+    explicit TMediumUpdater(IBootstrap* bootstrap);
 
     void Start();
 
@@ -32,13 +31,14 @@ public:
     void OnDynamicConfigChanged(
         const NClusterNode::TClusterNodeDynamicConfigPtr& oldNodeConfig,
         const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig);
+
 private:
     void DoFetchConfig();
     void TryFetchConfig();
 
     void UpdateMedia();
 
-    const NClusterNode::TBootstrap* Bootstrap_;
+    IBootstrap* const Bootstrap_;
     const IInvokerPtr ControlInvoker_;
     NConcurrency::TPeriodicExecutorPtr Executor_;
     bool Enabled_;

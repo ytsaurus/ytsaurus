@@ -1,8 +1,8 @@
 #include "master_connector.h"
 
+#include "bootstrap.h"
 #include "private.h"
 #include "chunk.h"
-#include "chunk_cache.h"
 #include "chunk_meta_manager.h"
 #include "chunk_store.h"
 #include "config.h"
@@ -10,7 +10,6 @@
 #include "network_statistics.h"
 #include "session_manager.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
@@ -18,6 +17,9 @@
 
 #include <yt/yt/server/node/data_node/journal_dispatcher.h>
 #include <yt/yt/server/node/data_node/chunk_meta_manager.h>
+
+#include <yt/yt/server/node/exec_agent/bootstrap.h>
+#include <yt/yt/server/node/exec_agent/chunk_cache.h>
 
 #include <yt/yt/server/node/job_agent/job_controller.h>
 
@@ -60,7 +62,7 @@ class TMasterConnector
     : public IMasterConnector
 {
 public:
-    explicit TMasterConnector(TBootstrap* bootstrap)
+    explicit TMasterConnector(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
         , Config_(bootstrap->GetConfig()->DataNode->MasterConnector)
         , IncrementalHeartbeatPeriod_(*Config_->IncrementalHeartbeatPeriod)
@@ -75,14 +77,13 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        for (auto cellTag : Bootstrap_->GetClusterNodeMasterConnector()->GetMasterCellTags()) {
+        for (auto cellTag : Bootstrap_->GetMasterCellTags()) {
             auto cellTagData = std::make_unique<TPerCellTagData>();
             YT_VERIFY(PerCellTagData_.emplace(cellTag, std::move(cellTagData)).second);
         }
 
-        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeMasterConnector();
-        clusterNodeMasterConnector->SubscribeMasterConnected(BIND(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
-        clusterNodeMasterConnector->SubscribeMasterDisconnected(BIND(&TMasterConnector::OnMasterDisconnected, MakeWeak(this)));
+        Bootstrap_->SubscribeMasterConnected(BIND(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
+        Bootstrap_->SubscribeMasterDisconnected(BIND(&TMasterConnector::OnMasterDisconnected, MakeWeak(this)));
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         dynamicConfigManager->SubscribeConfigChanged(BIND(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
@@ -99,24 +100,26 @@ public:
             BIND(&TMasterConnector::OnChunkMediumChanged, MakeWeak(this))
                 .Via(controlInvoker));
 
-        const auto& chunkCache = Bootstrap_->GetChunkCache();
-        chunkCache->SubscribeChunkAdded(
-            BIND(&TMasterConnector::OnChunkAdded, MakeWeak(this))
-                .Via(controlInvoker));
-        chunkCache->SubscribeChunkRemoved(
-            BIND(&TMasterConnector::OnChunkRemoved, MakeWeak(this))
-                .Via(controlInvoker));
+        if (Bootstrap_->IsExecNode()) {
+            const auto& chunkCache = Bootstrap_->GetExecNodeBootstrap()->GetChunkCache();
+            chunkCache->SubscribeChunkAdded(
+                BIND(&TMasterConnector::OnChunkAdded, MakeWeak(this))
+                    .Via(controlInvoker));
+            chunkCache->SubscribeChunkRemoved(
+                BIND(&TMasterConnector::OnChunkRemoved, MakeWeak(this))
+                    .Via(controlInvoker));
+        }
     }
 
     virtual TReqFullHeartbeat GetFullHeartbeatRequest(TCellTag cellTag) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_VERIFY(NodeId_);
+        YT_VERIFY(Bootstrap_->IsConnected());
 
         TReqFullHeartbeat heartbeat;
 
-        heartbeat.set_node_id(*NodeId_);
+        heartbeat.set_node_id(Bootstrap_->GetNodeId());
 
         ComputeStatistics(heartbeat.mutable_statistics());
 
@@ -152,9 +155,11 @@ public:
             addStoredChunkInfo(chunk);
         }
 
-        const auto& chunkCache = Bootstrap_->GetChunkCache();
-        for (const auto& chunk : chunkCache->GetChunks()) {
-            addCachedChunkInfo(chunk);
+        if (Bootstrap_->IsExecNode()) {
+            const auto& chunkCache = Bootstrap_->GetExecNodeBootstrap()->GetChunkCache();
+            for (const auto& chunk : chunkCache->GetChunks()) {
+                addCachedChunkInfo(chunk);
+            }
         }
 
         for (const auto& [mediumIndex, chunkCount] : chunkCounts) {
@@ -172,11 +177,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_VERIFY(NodeId_);
+        YT_VERIFY(Bootstrap_->IsConnected());
 
         TReqIncrementalHeartbeat heartbeat;
 
-        heartbeat.set_node_id(*NodeId_);
+        heartbeat.set_node_id(Bootstrap_->GetNodeId());
 
         ComputeStatistics(heartbeat.mutable_statistics());
 
@@ -215,7 +220,6 @@ public:
             ++chunkEventCount;
             *heartbeat.add_added_chunks() = BuildAddChunkInfo(chunk);
             ++chunkEventCount;
-
         }
 
 
@@ -340,7 +344,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         const auto& controlInvoker = Bootstrap_->GetControlInvoker();
-        const auto& masterCellTags = Bootstrap_->GetClusterNodeMasterConnector()->GetMasterCellTags();
+        const auto& masterCellTags = Bootstrap_->GetMasterCellTags();
         for (auto cellTag : masterCellTags) {
             controlInvoker->Invoke(
                 BIND(&TMasterConnector::DoScheduleHeartbeat, MakeWeak(this), cellTag, immediately));
@@ -387,13 +391,11 @@ private:
     };
     THashMap<TCellTag, std::unique_ptr<TPerCellTagData>> PerCellTagData_;
 
-    TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
     const TMasterConnectorConfigPtr Config_;
 
     int JobHeartbeatCellIndex_ = 0;
-
-    std::optional<TNodeId> NodeId_;
 
     IInvokerPtr HeartbeatInvoker_;
 
@@ -409,9 +411,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        NodeId_ = std::nullopt;
-
-        const auto& masterCellTags = Bootstrap_->GetClusterNodeMasterConnector()->GetMasterCellTags();
+        const auto& masterCellTags = Bootstrap_->GetMasterCellTags();
         for (auto cellTag : masterCellTags) {
             auto* delta = GetChunksDelta(cellTag);
             delta->State = EMasterConnectorState::Offline;
@@ -427,22 +427,19 @@ private:
         JobHeartbeatCellIndex_ = 0;
     }
 
-    void OnMasterConnected(TNodeId nodeId)
+    void OnMasterConnected(TNodeId /*nodeId*/)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_VERIFY(!NodeId_);
-        NodeId_ = nodeId;
+        HeartbeatInvoker_ = Bootstrap_->GetMasterConnectionInvoker();
 
-        HeartbeatInvoker_ = Bootstrap_->GetClusterNodeMasterConnector()->GetMasterConnectionInvoker();
-
-        const auto& masterCellTags = Bootstrap_->GetClusterNodeMasterConnector()->GetMasterCellTags();
+        const auto& masterCellTags = Bootstrap_->GetMasterCellTags();
         for (auto cellTag : masterCellTags) {
             auto* delta = GetChunksDelta(cellTag);
             delta->State = EMasterConnectorState::Registered;
         }
 
-        if (Bootstrap_->GetClusterNodeMasterConnector()->UseNewHeartbeats()) {
+        if (Bootstrap_->UseNewHeartbeats()) {
             StartHeartbeats();
         }
         // Job heartbeats are sent using data node master connector in both old and new protocols.
@@ -470,7 +467,7 @@ private:
 
         YT_LOG_INFO("Starting data node and job heartbeats");
 
-        const auto& masterCellTags = Bootstrap_->GetClusterNodeMasterConnector()->GetMasterCellTags();
+        const auto& masterCellTags = Bootstrap_->GetMasterCellTags();
         for (auto cellTag : masterCellTags) {
             DoScheduleHeartbeat(cellTag, /* immediately */ true);
         }
@@ -506,13 +503,12 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeMasterConnector();
-        const auto& masterCellTags = clusterNodeMasterConnector->GetMasterCellTags();
+        const auto& masterCellTags = Bootstrap_->GetMasterCellTags();
         auto cellTag = masterCellTags[JobHeartbeatCellIndex_];
 
         auto state = GetMasterConnectorState(cellTag);
         if (state == EMasterConnectorState::Online) {
-            auto channel = clusterNodeMasterConnector->GetMasterChannel(cellTag);
+            auto channel = Bootstrap_->GetMasterChannel(cellTag);
             TJobTrackerServiceProxy proxy(channel);
 
             auto req = proxy.Heartbeat();
@@ -541,7 +537,7 @@ private:
                 if (NRpc::IsRetriableError(rspOrError)) {
                     ScheduleJobHeartbeat(/* immediately */ false);
                 } else {
-                    clusterNodeMasterConnector->ResetAndRegisterAtMaster();
+                    Bootstrap_->ResetAndRegisterAtMaster();
                 }
                 return;
             }
@@ -589,7 +585,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto masterChannel = Bootstrap_->GetClusterNodeMasterConnector()->GetMasterChannel(cellTag);
+        auto masterChannel = Bootstrap_->GetMasterChannel(cellTag);
         TDataNodeTrackerServiceProxy proxy(masterChannel);
 
         auto req = proxy.FullHeartbeat();
@@ -616,7 +612,7 @@ private:
             if (IsRetriableError(rspOrError)) {
                 DoScheduleHeartbeat(cellTag, /* immediately*/ false);
             } else {
-                Bootstrap_->GetClusterNodeMasterConnector()->ResetAndRegisterAtMaster();
+                Bootstrap_->ResetAndRegisterAtMaster();
             }
         }
     }
@@ -625,7 +621,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto masterChannel = Bootstrap_->GetClusterNodeMasterConnector()->GetMasterChannel(cellTag);
+        auto masterChannel = Bootstrap_->GetMasterChannel(cellTag);
         TDataNodeTrackerServiceProxy proxy(masterChannel);
 
         auto req = proxy.IncrementalHeartbeat();
@@ -655,7 +651,7 @@ private:
             if (IsRetriableError(rspOrError)) {
                 DoScheduleHeartbeat(cellTag, /*immediately*/ false);
             } else {
-                Bootstrap_->GetClusterNodeMasterConnector()->ResetAndRegisterAtMaster();
+                Bootstrap_->ResetAndRegisterAtMaster();
             }
         }
     }
@@ -713,8 +709,11 @@ private:
             protoStatistics->set_io_weight(ioWeight);
         }
 
-        const auto& chunkCache = Bootstrap_->GetChunkCache();
-        int totalCachedChunkCount = chunkCache->GetChunkCount();
+        int totalCachedChunkCount = 0;
+        if (Bootstrap_->IsExecNode()) {
+            const auto& chunkCache = Bootstrap_->GetExecNodeBootstrap()->GetChunkCache();
+            totalCachedChunkCount = chunkCache->GetChunkCount();
+        }
 
         statistics->set_total_available_space(totalAvailableSpace);
         statistics->set_total_low_watermark_space(totalLowWatermarkSpace);
@@ -864,7 +863,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IMasterConnectorPtr CreateMasterConnector(TBootstrap* bootstrap)
+IMasterConnectorPtr CreateMasterConnector(IBootstrap* bootstrap)
 {
     return New<TMasterConnector>(bootstrap);
 }

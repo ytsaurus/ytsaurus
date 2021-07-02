@@ -1,9 +1,8 @@
 #pragma once
 
-#include "public.h"
+#include "chunk_cache.h"
 
 #include <yt/yt/server/node/data_node/artifact.h>
-#include <yt/yt/server/node/data_node/chunk_cache.h>
 
 #include <yt/yt/server/lib/containers/public.h>
 
@@ -72,9 +71,9 @@ struct ISlot
 
     virtual bool IsLayerCached(const NDataNode::TArtifactKey& artifactKey) const = 0;
 
-    virtual TFuture<NDataNode::IVolumePtr> PrepareRootVolume(
+    virtual TFuture<IVolumePtr> PrepareRootVolume(
         const std::vector<NDataNode::TArtifactKey>& layers,
-        const NDataNode::TArtifactDownloadOptions& downloadOptions) = 0;
+        const TArtifactDownloadOptions& downloadOptions) = 0;
 
     virtual NBus::TTcpBusServerConfigPtr GetBusServerConfig() const = 0;
     virtual NBus::TTcpBusClientConfigPtr GetBusClientConfig() const = 0;
@@ -109,7 +108,7 @@ ISlotPtr CreateSlot(
     int slotIndex,
     TSlotLocationPtr location,
     IJobEnvironmentPtr environment,
-    NDataNode::IVolumeManagerPtr volumeManager,
+    IVolumeManagerPtr volumeManager,
     const TString& nodeTag);
 
 ////////////////////////////////////////////////////////////////////////////////

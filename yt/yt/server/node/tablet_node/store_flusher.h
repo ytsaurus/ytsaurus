@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -16,7 +14,7 @@ struct IStoreFlusher
 
 DEFINE_REFCOUNTED_TYPE(IStoreFlusher)
 
-IStoreFlusherPtr CreateStoreFlusher(NClusterNode::TBootstrap* bootstrap);
+IStoreFlusherPtr CreateStoreFlusher(IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

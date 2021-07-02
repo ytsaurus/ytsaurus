@@ -2,7 +2,7 @@
 
 #include "disk_location.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/yt/server/lib/io/public.h>
 
@@ -117,7 +117,7 @@ public:
         ELocationType type,
         const TString& id,
         TStoreLocationConfigBasePtr config,
-        NClusterNode::TBootstrap* bootstrap);
+        NClusterNode::IBootstrapBase* bootstrap);
 
     //! Returns the type.
     ELocationType GetType() const;
@@ -256,7 +256,7 @@ public:
     void Unlock(TChunkId chunkId);
 
 protected:
-    NClusterNode::TBootstrap* const Bootstrap_;
+    NClusterNode::IBootstrapBase* const Bootstrap_;
     NProfiling::TProfiler Profiler_;
 
     static TString GetRelativeChunkPath(TChunkId chunkId);
@@ -332,7 +332,7 @@ public:
     TStoreLocation(
         const TString& id,
         TStoreLocationConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap);
+        NClusterNode::IBootstrapBase* bootstrap);
 
     //! Returns the location's config.
     const TStoreLocationConfigPtr& GetConfig() const;
@@ -416,7 +416,7 @@ public:
     TCacheLocation(
         const TString& id,
         TCacheLocationConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap);
+        NClusterNode::IBootstrapBase* bootstrap);
 
     const NConcurrency::IThroughputThrottlerPtr& GetInThrottler() const;
 

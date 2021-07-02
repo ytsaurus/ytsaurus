@@ -2,11 +2,13 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
+
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/yt/core/actions/future.h>
 
@@ -118,7 +120,7 @@ struct IChunkMetaManager
 
 DEFINE_REFCOUNTED_TYPE(IChunkMetaManager)
 
-IChunkMetaManagerPtr CreateChunkMetaManager(NClusterNode::TBootstrap* bootstrap);
+IChunkMetaManagerPtr CreateChunkMetaManager(NClusterNode::IBootstrapBase* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -42,7 +42,7 @@ public:
     TLegacyMasterConnector(
         TDataNodeConfigPtr config,
         const std::vector<TString>& nodeTags,
-        NClusterNode::TBootstrap* bootstrap);
+        NClusterNode::IBootstrap* bootstrap);
 
     //! Starts interaction with master.
     void Start();
@@ -61,7 +61,7 @@ private:
     const TDataNodeConfigPtr Config_;
 
     const std::vector<TString> NodeTags_;
-    const NClusterNode::TBootstrap* Bootstrap_;
+    NClusterNode::IBootstrap* const Bootstrap_;
     const IInvokerPtr ControlInvoker_;
 
     bool Started_ = false;

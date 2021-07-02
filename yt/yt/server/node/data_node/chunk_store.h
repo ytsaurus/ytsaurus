@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
@@ -31,7 +29,7 @@ class TChunkStore
 public:
     TChunkStore(
         TDataNodeConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap);
+        IBootstrap* bootstrap);
 
     //! Scans locations for chunks and registers them.
     /*!
@@ -134,7 +132,7 @@ public:
 
 private:
     const TDataNodeConfigPtr Config_;
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
     const NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 
     struct TChunkEntry
@@ -191,7 +189,6 @@ private:
     void OnLocationDisabled(int locationIndex);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkStore)

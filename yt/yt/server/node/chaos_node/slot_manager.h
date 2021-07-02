@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/server/lib/chaos_node/public.h>
 
 #include <yt/yt/core/actions/signal.h>
@@ -27,7 +25,7 @@ DEFINE_REFCOUNTED_TYPE(ISlotManager)
 
 ISlotManagerPtr CreateSlotManager(
     TChaosNodeConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap);
+    IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,9 +1,8 @@
 #pragma once
 
 #include "public.h"
-#include "artifact.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/data_node/artifact.h>
 
 #include <yt/yt/client/api/public.h>
 
@@ -13,22 +12,22 @@
 
 #include <yt/yt/core/logging/public.h>
 
-namespace NYT::NDataNode {
+namespace NYT::NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TFetchedArtifactKey
 {
     NHydra::TRevision ContentRevision;
-    std::optional<TArtifactKey> ArtifactKey;
+    std::optional<NDataNode::TArtifactKey> ArtifactKey;
 };
 
 TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     const NYPath::TYPath& path,
     NHydra::TRevision contentRevision,
-    NClusterNode::TBootstrap const* bootstrap,
+    IBootstrap const* bootstrap,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDataNode
+} // namespace NYT::NExecAgent

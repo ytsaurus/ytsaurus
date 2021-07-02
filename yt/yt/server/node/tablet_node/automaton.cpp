@@ -3,8 +3,6 @@
 #include "serialize.h"
 #include "tablet_slot.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
-
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 
 #include <yt/yt/client/table_client/unversioned_row.h>
@@ -58,7 +56,7 @@ EFinalRecoveryAction TTabletAutomaton::GetActionToRecoverFromReign(TReign reign)
 
 TTabletAutomatonPart::TTabletAutomatonPart(
     ITabletSlotPtr slot,
-    TBootstrap* bootstrap)
+    IBootstrap* bootstrap)
     : TCompositeAutomatonPart(
         slot->GetHydraManager(),
         slot->GetAutomaton(),

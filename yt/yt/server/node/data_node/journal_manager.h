@@ -22,7 +22,7 @@ public:
     TJournalManager(
         TDataNodeConfigPtr config,
         TStoreLocation* location,
-        NClusterNode::TBootstrap* bootstrap);
+        IBootstrap* bootstrap);
     ~TJournalManager();
 
     void Initialize();
@@ -54,7 +54,6 @@ private:
     typedef TIntrusivePtr<TImpl> TImplPtr;
 
     const TIntrusivePtr<TImpl> Impl_;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TJournalManager)

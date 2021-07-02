@@ -13,7 +13,7 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-namespace NYT::NJobAgent {
+namespace NYT::NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,28 +55,28 @@ class TGpuManager
 {
 public:
     TGpuManager(
-        NClusterNode::TBootstrap* bootstrap,
-        TGpuManagerConfigPtr config);
+        IBootstrap* bootstrap,
+        NJobAgent::TGpuManagerConfigPtr config);
 
     int GetTotalGpuCount() const;
     int GetFreeGpuCount() const;
     int GetUsedGpuCount() const;
     const std::vector<TString>& ListGpuDevices() const;
-    THashMap<int, TGpuInfo> GetGpuInfoMap() const;
+    THashMap<int, NJobAgent::TGpuInfo> GetGpuInfoMap() const;
 
     using TGpuSlotPtr = std::unique_ptr<TGpuSlot, std::function<void(TGpuSlot*)>>;
     TGpuSlotPtr AcquireGpuSlot();
 
     std::vector<TGpuSlotPtr> AcquireGpuSlots(int slotCount);
 
-    std::vector<TShellCommandConfigPtr> GetSetupCommands();
+    std::vector<NJobAgent::TShellCommandConfigPtr> GetSetupCommands();
     std::vector<NDataNode::TArtifactKey> GetToppingLayers();
     void VerifyCudaToolkitDriverVersion(const TString& toolkitVersion);
 
 private:
-    NClusterNode::TBootstrap* const Bootstrap_;
-    const TGpuManagerConfigPtr Config_;
-    TAtomicObject<TGpuManagerDynamicConfigPtr> DynamicConfig_;
+    IBootstrap* const Bootstrap_;
+    const NJobAgent::TGpuManagerConfigPtr Config_;
+    TAtomicObject<NJobAgent::TGpuManagerDynamicConfigPtr> DynamicConfig_;
 
     const NConcurrency::TPeriodicExecutorPtr HealthCheckExecutor_;
     const NConcurrency::TPeriodicExecutorPtr FetchDriverLayerExecutor_;
@@ -84,7 +84,7 @@ private:
     std::vector<TString> GpuDevices_;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
-    THashMap<int, TGpuInfo> HealthyGpuInfoMap_;
+    THashMap<int, NJobAgent::TGpuInfo> HealthyGpuInfoMap_;
     THashSet<int> LostGpuDeviceNumbers_;
 
     THashSet<int> AcquiredGpuDeviceNumbers_;
@@ -113,7 +113,7 @@ private:
 
     TDuration GetHealthCheckTimeout() const;
     TDuration GetHealthCheckFailureBackoff() const;
-	THashMap<TString, TString> GetCudaToolkitMinDriverVersion() const;
+    THashMap<TString, TString> GetCudaToolkitMinDriverVersion() const;
 
     void ReleaseGpuSlot(TGpuSlot* slot);
 
@@ -127,4 +127,4 @@ DEFINE_REFCOUNTED_TYPE(TGpuManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NY::NJobAgent
+} // namespace NY::NExecAgent

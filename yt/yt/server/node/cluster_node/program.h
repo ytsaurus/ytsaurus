@@ -96,7 +96,7 @@ protected:
         // TODO(babenko): This memory leak is intentional.
         // We should avoid destroying bootstrap since some of the subsystems
         // may be holding a reference to it and continue running some actions in background threads.
-        auto* bootstrap = new NClusterNode::TBootstrap(std::move(config), std::move(configNode));
+        auto* bootstrap = CreateBootstrap(std::move(config), std::move(configNode)).release();
         bootstrap->Initialize();
 
         if (SleepAfterInitialize_) {

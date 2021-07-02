@@ -3,8 +3,6 @@
 #include "public.h"
 #include "session.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -23,7 +21,7 @@ class TSessionBase
 public:
     TSessionBase(
         TDataNodeConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap,
+        IBootstrap* bootstrap,
         TSessionId sessionId,
         const TSessionOptions& options,
         TStoreLocationPtr location,
@@ -61,7 +59,7 @@ public:
 
 protected:
     const TDataNodeConfigPtr Config_;
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
     const TSessionId SessionId_;
     const TSessionOptions Options_;
     const TStoreLocationPtr Location_;
@@ -74,7 +72,7 @@ protected:
     // Affinity: session invoker.
     bool Active_ = false;
     TError PendingCancelationError_;
-    
+
     std::atomic<bool> Canceled_ = false;
 
 

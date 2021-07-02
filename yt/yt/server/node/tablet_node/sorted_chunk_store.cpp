@@ -158,7 +158,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TSortedChunkStore::TSortedChunkStore(
-    TBootstrap* bootstrap,
+    IBootstrap* bootstrap,
     TTabletManagerConfigPtr config,
     TStoreId id,
     NChunkClient::TChunkId chunkId,

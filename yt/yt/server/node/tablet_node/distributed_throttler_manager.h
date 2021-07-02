@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/ytlib/distributed_throttler/config.h>
 
 namespace NYT::NTabletNode {
@@ -28,7 +26,7 @@ DEFINE_REFCOUNTED_TYPE(IDistributedThrottlerManager)
 ////////////////////////////////////////////////////////////////////////////////
 
 IDistributedThrottlerManagerPtr CreateDistributedThrottlerManager(
-    NClusterNode::TBootstrap* bootstrap,
+    IBootstrap* bootstrap,
     TCellId cellId);
 
 ////////////////////////////////////////////////////////////////////////////////

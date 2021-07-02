@@ -3,8 +3,6 @@
 #include "chunk.h"
 #include "private.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
-
 #include <yt/yt/server/node/tablet_node/sorted_dynamic_comparer.h>
 
 #include <yt/yt/client/table_client/unversioned_row.h>
@@ -23,17 +21,17 @@ class TLookupSession
 {
 public:
     TLookupSession(
-        NClusterNode::TBootstrap* bootstrap,
+        IBootstrap* bootstrap,
         IChunkPtr chunk,
         NChunkClient::TReadSessionId readSessionId,
         TWorkloadDescriptor workloadDescriptor,
-        NQueryClient::TColumnFilter columnFilter,
-        NQueryClient::TTimestamp timestamp,
+        NTableClient::TColumnFilter columnFilter,
+        NTransactionClient::TTimestamp timestamp,
         bool produceAllVersions,
         TCachedTableSchemaPtr tableSchema,
         const std::vector<TSharedRef>& serializedKeys,
         NCompression::ECodec codecId,
-        NQueryClient::TTimestamp chunkTimestamp,
+        NTransactionClient::TTimestamp chunkTimestamp,
         bool populateCache);
 
     TFuture<TSharedRef> Run();
@@ -50,16 +48,16 @@ public:
 private:
     struct TKeyReaderBufferTag { };
 
-    NClusterNode::TBootstrap const* Bootstrap_;
+    IBootstrap const* Bootstrap_;
     const IChunkPtr Chunk_;
     const TChunkId ChunkId_;
     const NChunkClient::TReadSessionId ReadSessionId_;
-    const NQueryClient::TColumnFilter ColumnFilter_;
-    const NQueryClient::TTimestamp Timestamp_;
+    const NTableClient::TColumnFilter ColumnFilter_;
+    const NTransactionClient::TTimestamp Timestamp_;
     const bool ProduceAllVersions_;
     const TCachedTableSchemaPtr TableSchema_;
     NCompression::ICodec* const Codec_;
-    const NQueryClient::TTimestamp ChunkTimestamp_;
+    const NTransactionClient::TTimestamp ChunkTimestamp_;
 
     TChunkReadOptions Options_;
     NChunkClient::IChunkReaderPtr UnderlyingChunkReader_;

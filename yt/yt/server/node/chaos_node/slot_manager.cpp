@@ -1,9 +1,8 @@
 #include "private.h"
+#include "bootstrap.h"
 #include "slot_manager.h"
 #include "slot_provider.h"
 #include "chaos_slot.h"
-
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
@@ -32,7 +31,7 @@ class TSlotManager
 public:
     TSlotManager(
         TChaosNodeConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap)
+        IBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
         , SlotScanExecutor_(New<TPeriodicExecutor>(
@@ -55,7 +54,7 @@ public:
 
 private:
     const TChaosNodeConfigPtr Config_;
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
     TPeriodicExecutorPtr SlotScanExecutor_;
 
@@ -109,7 +108,7 @@ private:
 
 ISlotManagerPtr CreateSlotManager(
     TChaosNodeConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap)
+    IBootstrap* bootstrap)
 {
     return New<TSlotManager>(
         config,

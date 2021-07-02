@@ -18,7 +18,7 @@ class TClusterNodeDynamicConfigManager
     : public NDynamicConfig::TDynamicConfigManagerBase<TClusterNodeDynamicConfig>
 {
 public:
-    explicit TClusterNodeDynamicConfigManager(TBootstrap* bootstrap);
+    explicit TClusterNodeDynamicConfigManager(IBootstrap* bootstrap);
 
     //! Starts the dynamic config manager.
     void Start();
@@ -27,7 +27,7 @@ protected:
     virtual std::vector<TString> GetInstanceTags() const override;
 
 private:
-    TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 };
 
 DECLARE_REFCOUNTED_CLASS(TClusterNodeDynamicConfigManager)

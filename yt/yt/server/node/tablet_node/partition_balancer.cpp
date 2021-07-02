@@ -1,4 +1,5 @@
 #include "partition_balancer.h"
+#include "bootstrap.h"
 #include "private.h"
 #include "sorted_chunk_store.h"
 #include "partition.h"
@@ -10,7 +11,6 @@
 #include "structured_logger.h"
 #include "yt/yt/library/profiling/sensor.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
@@ -70,7 +70,7 @@ class TPartitionBalancer
     : public IPartitionBalancer
 {
 public:
-    explicit TPartitionBalancer(NClusterNode::TBootstrap* bootstrap)
+    explicit TPartitionBalancer(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
         , Config_(Bootstrap_->GetConfig()->TabletNode->PartitionBalancer)
         , Semaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentSamplings))
@@ -80,7 +80,7 @@ public:
     { }
 
 private:
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
     const TPartitionBalancerConfigPtr Config_;
 
     const TAsyncSemaphorePtr Semaphore_;
@@ -669,7 +669,7 @@ private:
     }
 };
 
-IPartitionBalancerPtr CreatePartitionBalancer(NClusterNode::TBootstrap* bootstrap)
+IPartitionBalancerPtr CreatePartitionBalancer(IBootstrap* bootstrap)
 {
     return New<TPartitionBalancer>(bootstrap);
 }

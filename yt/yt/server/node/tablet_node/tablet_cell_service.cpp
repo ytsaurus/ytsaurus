@@ -1,12 +1,12 @@
 #include "tablet_cell_service.h"
 
+#include "bootstrap.h"
 #include "private.h"
 
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/server/node/cellar_node/master_connector.h>
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/data_node/legacy_master_connector.h>
@@ -29,7 +29,7 @@ class TTabletCellService
     : public TServiceBase
 {
 public:
-    TTabletCellService(TBootstrap* bootstrap)
+    TTabletCellService(IBootstrap* bootstrap)
         : TServiceBase(
             bootstrap->GetControlInvoker(),
             NTabletCellClient::TTabletCellServiceProxy::GetDescriptor(),
@@ -42,16 +42,15 @@ public:
     }
 
 private:
-    TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
     DECLARE_RPC_SERVICE_METHOD(NTabletCellClient::NProto, RequestHeartbeat)
     {
         context->SetRequestInfo();
 
-        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeMasterConnector();
-        if (clusterNodeMasterConnector->IsConnected()) {
+        if (Bootstrap_->IsConnected()) {
             auto primaryCellTag = CellTagFromId(Bootstrap_->GetCellId());
-            if (clusterNodeMasterConnector->UseNewHeartbeats()) {
+            if (Bootstrap_->UseNewHeartbeats()) {
                 const auto& masterConnector = Bootstrap_->GetCellarNodeMasterConnector();
                 masterConnector->ScheduleHeartbeat(primaryCellTag, /* immediately */ true);
             } else {
@@ -65,7 +64,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IServicePtr CreateTabletCellService(NClusterNode::TBootstrap* bootstrap)
+IServicePtr CreateTabletCellService(IBootstrap* bootstrap)
 {
     return New<TTabletCellService>(bootstrap);
 }

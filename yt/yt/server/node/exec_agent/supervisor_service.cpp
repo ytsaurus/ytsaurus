@@ -1,11 +1,14 @@
 #include "supervisor_service.h"
+
+#include "bootstrap.h"
 #include "private.h"
 #include "job.h"
 
 #include <yt/yt/server/lib/exec_agent/supervisor_service_proxy.h>
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
+
+#include <yt/yt/server/node/data_node/bootstrap.h>
 
 #include <yt/yt/server/node/job_agent/job_controller.h>
 #include <yt/yt/server/node/job_agent/public.h>
@@ -37,7 +40,7 @@ class TSupervisorService
     : public NRpc::TServiceBase
 {
 public:
-    explicit TSupervisorService(NClusterNode::TBootstrap* bootstrap)
+    explicit TSupervisorService(IBootstrap* bootstrap)
         : NRpc::TServiceBase(
             bootstrap->GetJobInvoker(),
             TSupervisorServiceProxy::GetDescriptor(),
@@ -67,7 +70,7 @@ public:
     }
 
 private:
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
     THashMap<TGuid, TFuture<void>> OutstandingThrottlingRequests_;
 
@@ -115,13 +118,14 @@ private:
 
     const IThroughputThrottlerPtr& GetJobThrottler(EJobThrottlerType throttlerType)
     {
+
         switch (throttlerType) {
             case EJobThrottlerType::InBandwidth:
-                return Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::JobIn);
+                return Bootstrap_->GetThrottler(EExecNodeThrottlerKind::JobIn);
             case EJobThrottlerType::OutBandwidth:
-                return Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::JobOut);
+                return Bootstrap_->GetThrottler(EExecNodeThrottlerKind::JobOut);
             case EJobThrottlerType::OutRps:
-                return Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ReadRpsOut);
+                return Bootstrap_->GetReadRpsOutThrottler();
             default:
                 THROW_ERROR_EXCEPTION("Unknown throttler type %Qlv", throttlerType);
         }
@@ -373,7 +377,7 @@ private:
     }
 };
 
-NRpc::IServicePtr CreateSupervisorService(NClusterNode::TBootstrap* bootstrap)
+NRpc::IServicePtr CreateSupervisorService(IBootstrap* bootstrap)
 {
     return New<TSupervisorService>(bootstrap);
 }

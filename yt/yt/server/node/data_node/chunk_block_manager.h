@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/public.h>
-
 #include <yt/yt/ytlib/chunk_client/block.h>
 #include <yt/yt/ytlib/chunk_client/block_id.h>
 
@@ -58,7 +56,7 @@ DEFINE_REFCOUNTED_TYPE(IChunkBlockManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChunkBlockManagerPtr CreateChunkBlockManager(NClusterNode::TBootstrap* bootstrap);
+IChunkBlockManagerPtr CreateChunkBlockManager(IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

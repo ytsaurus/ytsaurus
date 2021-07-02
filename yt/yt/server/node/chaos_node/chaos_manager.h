@@ -23,7 +23,7 @@ DEFINE_REFCOUNTED_TYPE(IChaosManager)
 IChaosManagerPtr CreateChaosManager(
     TChaosManagerConfigPtr config,
     IChaosSlotPtr slot,
-    NClusterNode::TBootstrap* bootstrap);
+    IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

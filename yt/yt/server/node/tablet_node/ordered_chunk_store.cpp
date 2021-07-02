@@ -153,7 +153,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TOrderedChunkStore::TOrderedChunkStore(
-    NClusterNode::TBootstrap* bootstrap,
+    IBootstrap* bootstrap,
     TTabletManagerConfigPtr config,
     TStoreId id,
     TTablet* tablet,

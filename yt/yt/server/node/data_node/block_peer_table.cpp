@@ -1,8 +1,8 @@
 #include "block_peer_table.h"
+#include "bootstrap.h"
 #include "private.h"
 #include "config.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -91,7 +91,7 @@ void TCachedPeerList::DoSweep(F&& func)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlockPeerTable::TBlockPeerTable(TBootstrap* bootstrap)
+TBlockPeerTable::TBlockPeerTable(IBootstrap* bootstrap)
     : Config_(bootstrap->GetConfig()->DataNode->BlockPeerTable)
     , SweepExecutor_(New<TPeriodicExecutor>(
         bootstrap->GetStorageHeavyInvoker(),

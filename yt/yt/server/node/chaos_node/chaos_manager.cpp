@@ -1,6 +1,7 @@
 #include "chaos_manager.h"
 
 #include "automaton.h"
+#include "bootstrap.h"
 #include "chaos_slot.h"
 #include "private.h"
 #include "slot_manager.h"
@@ -40,7 +41,7 @@ public:
     TChaosManager(
         TChaosManagerConfigPtr config,
         IChaosSlotPtr slot,
-        TBootstrap* bootstrap)
+        IBootstrap* bootstrap)
         : TChaosAutomatonPart(
             slot,
             bootstrap)
@@ -194,12 +195,12 @@ private:
 
     void StartEpoch()
     {
-        // TODO(savrus): Start chaos cell synchronization 
+        // TODO(savrus): Start chaos cell synchronization
     }
 
     void StopEpoch()
     {
-        // TODO(savrus): Stop chaos cell synchronization 
+        // TODO(savrus): Stop chaos cell synchronization
     }
 };
 
@@ -208,7 +209,7 @@ private:
 IChaosManagerPtr CreateChaosManager(
     TChaosManagerConfigPtr config,
     IChaosSlotPtr slot,
-    TBootstrap* bootstrap)
+    IBootstrap* bootstrap)
 {
     return New<TChaosManager>(
         config,

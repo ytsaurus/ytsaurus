@@ -33,7 +33,7 @@ class TBlobSession
 public:
     TBlobSession(
         TDataNodeConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap,
+        IBootstrap* bootstrap,
         TSessionId sessionId,
         const TSessionOptions& options,
         TStoreLocationPtr location,

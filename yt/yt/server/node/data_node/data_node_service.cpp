@@ -1,8 +1,8 @@
 #include "data_node_service.h"
+#include "bootstrap.h"
 #include "private.h"
 #include "chunk_block_manager.h"
 #include "chunk.h"
-#include "chunk_cache.h"
 #include "chunk_registry.h"
 #include "chunk_store.h"
 #include "config.h"
@@ -15,8 +15,8 @@
 #include "session_manager.h"
 #include "table_schema_cache.h"
 #include "chunk_meta_manager.h"
+#include "master_connector.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/lib/io/io_engine.h>
@@ -99,7 +99,7 @@ class TDataNodeService
 public:
     TDataNodeService(
         TDataNodeConfigPtr config,
-        TBootstrap* bootstrap)
+        IBootstrap* bootstrap)
         : TServiceBase(
             bootstrap->GetStorageLightInvoker(),
             TDataNodeServiceProxy::GetDescriptor(),
@@ -177,7 +177,7 @@ public:
 
 private:
     const TDataNodeConfigPtr Config_;
-    TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, StartChunk)
@@ -497,7 +497,7 @@ private:
             }
         }
 
-        const auto& netThrottler = Bootstrap_->GetDataNodeOutThrottler(workloadDescriptor);
+        const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
         i64 netThrottlerQueueSize = netThrottler->GetQueueTotalCount();
         i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
         i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
@@ -547,7 +547,7 @@ private:
         bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
         response->set_disk_throttling(diskThrottling);
 
-        const auto& netThrottler = Bootstrap_->GetDataNodeOutThrottler(workloadDescriptor);
+        const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
         i64 netThrottlerQueueSize = netThrottler->GetQueueTotalCount();
         i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
         i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
@@ -614,7 +614,7 @@ private:
             location->GetPerformanceCounters().ThrottleRead();
         }
 
-        const auto& netThrottler = Bootstrap_->GetDataNodeOutThrottler(workloadDescriptor);
+        const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
         i64 netThrottlerQueueSize = netThrottler->GetQueueTotalCount();
         i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
         i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
@@ -743,7 +743,7 @@ private:
             location->GetPerformanceCounters().ThrottleRead();
         }
 
-        const auto& netThrottler = Bootstrap_->GetDataNodeOutThrottler(workloadDescriptor);
+        const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
         i64 netThrottlerQueueSize = netThrottler->GetQueueTotalCount();
         i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
         i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
@@ -833,7 +833,7 @@ private:
 
         ValidateConnected();
 
-        const auto& netThrottler = Bootstrap_->GetDataNodeOutThrottler(workloadDescriptor);
+        const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
         i64 netThrottlerQueueSize = netThrottler->GetQueueTotalCount();
         i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
         i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
@@ -1044,7 +1044,7 @@ private:
             location->GetPerformanceCounters().ThrottleRead();
         }
 
-        i64 netThrottlerQueueSize = Bootstrap_->GetDataNodeOutThrottler(workloadDescriptor)->GetQueueTotalCount();
+        i64 netThrottlerQueueSize = Bootstrap_->GetOutThrottler(workloadDescriptor)->GetQueueTotalCount();
         i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
         i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
         bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
@@ -1109,7 +1109,7 @@ private:
                     netQueueSize);
 
                 if (rejectIfThrottling) {
-                    i64 netThrottlerQueueSize = Bootstrap_->GetDataNodeOutThrottler(workloadDescriptor)->GetQueueTotalCount();
+                    i64 netThrottlerQueueSize = Bootstrap_->GetOutThrottler(workloadDescriptor)->GetQueueTotalCount();
                     i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
                     i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
                     bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
@@ -1142,7 +1142,7 @@ private:
 
                 context->SetComplete();
 
-                const auto& netThrottler = Bootstrap_->GetDataNodeOutThrottler(workloadDescriptor);
+                const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
                 return netThrottler->Throttle(GetByteSize(response->Attachments()));
             })));
     }
@@ -1718,14 +1718,14 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdatePeer)
     {
-        // NB: this method is no longer used, but noop stub is kept here for smooth rolling update. 
+        // NB: this method is no longer used, but noop stub is kept here for smooth rolling update.
         context->Reply();
     }
 
 
     void ValidateConnected()
     {
-        if (!Bootstrap_->GetClusterNodeMasterConnector()->IsConnected()) {
+        if (!Bootstrap_->IsConnected()) {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::MasterNotConnected,
                 "Master is not connected");
@@ -1774,7 +1774,7 @@ private:
 
 IServicePtr CreateDataNodeService(
     TDataNodeConfigPtr config,
-    TBootstrap* bootstrap)
+    IBootstrap* bootstrap)
 {
     return New<TDataNodeService>(
         config,

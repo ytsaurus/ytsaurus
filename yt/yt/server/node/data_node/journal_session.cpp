@@ -1,4 +1,6 @@
 #include "journal_session.h"
+
+#include "bootstrap.h"
 #include "chunk_store.h"
 #include "journal_chunk.h"
 #include "journal_dispatcher.h"

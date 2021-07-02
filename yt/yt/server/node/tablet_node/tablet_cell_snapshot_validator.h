@@ -1,15 +1,17 @@
 #include "public.h"
 
+#include <yt/yt/server/node/cluster_node/public.h>
+
 #include <yt/yt/core/concurrency/public.h>
 
-namespace NYT::NClusterNode {
+namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void ValidateTabletCellSnapshot(
-    TBootstrap* bootstrap,
+    NClusterNode::IBootstrapBase* bootstrap,
     const NConcurrency::IAsyncZeroCopyInputStreamPtr& reader);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NClusterNode
+} // namespace NYT::NTabletNode

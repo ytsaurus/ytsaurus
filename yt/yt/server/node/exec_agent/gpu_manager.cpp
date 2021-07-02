@@ -1,4 +1,6 @@
 #include "gpu_manager.h"
+
+#include "bootstrap.h"
 #include "private.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
@@ -6,7 +8,7 @@
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/yt/server/node/data_node/helpers.h>
+#include <yt/yt/server/node/exec_agent/helpers.h>
 
 #include <yt/yt/server/lib/job_agent/gpu_helpers.h>
 
@@ -29,7 +31,7 @@
 
 #include <util/string/strip.h>
 
-namespace NYT::NJobAgent {
+namespace NYT::NExecAgent {
 
 using namespace NConcurrency;
 using namespace NClusterNode;
@@ -37,13 +39,14 @@ using namespace NApi;
 using namespace NObjectClient;
 using namespace NFileClient;
 using namespace NChunkClient;
+using namespace NJobAgent;
 using namespace NYTree;
 using namespace NCypressClient;
 using namespace NDataNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = JobAgentServerLogger;
+static const auto& Logger = ExecAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,7 +67,7 @@ int TGpuSlot::GetDeviceNumber() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TGpuManager::TGpuManager(
-    TBootstrap* bootstrap,
+    IBootstrap* bootstrap,
     TGpuManagerConfigPtr config)
     : Bootstrap_(bootstrap)
     , Config_(std::move(config))
@@ -141,7 +144,7 @@ TGpuManager::TGpuManager(
         HealthCheckExecutor_->Start();
     }
 
-    Bootstrap_->GetClusterNodeMasterConnector()->SubscribePopulateAlerts(
+    Bootstrap_->SubscribePopulateAlerts(
         BIND(&TGpuManager::PopulateAlerts, MakeStrong(this)));
 
     const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
@@ -175,7 +178,7 @@ TDuration TGpuManager::GetHealthCheckTimeout() const
         ? dynamicConfig->HealthCheckTimeout.value_or(Config_->HealthCheckTimeout)
         : Config_->HealthCheckTimeout;
 }
-    
+
 TDuration TGpuManager::GetHealthCheckFailureBackoff() const
 {
     auto dynamicConfig = DynamicConfig_.Load();
@@ -234,7 +237,7 @@ void TGpuManager::OnHealthCheck()
             for (int deviceNumber : deviceNumbersToRemove) {
                 HealthyGpuInfoMap_.erase(deviceNumber);
             }
-            
+
             std::vector<TGpuSlot> newFreeSlots;
             for (int deviceNumber : deviceNumbersToAdd) {
                 if (AcquiredGpuDeviceNumbers_.find(deviceNumber) == AcquiredGpuDeviceNumbers_.end()) {
@@ -258,12 +261,12 @@ void TGpuManager::OnHealthCheck()
             }
 
             FreeSlots_ = std::move(newFreeSlots);
-            
+
             std::vector<TError> newAlerts;
             for (auto number : LostGpuDeviceNumbers_) {
                 newAlerts.push_back(TError("GPU device %v is lost", number));
             }
-            
+
             Enabled_ = true;
             Error_ = TError();
             Alerts_ = newAlerts;
@@ -289,7 +292,7 @@ void TGpuManager::OnFetchDriverLayerInfo()
         auto fetchedArtifactKey = FetchLayerArtifactKeyIfRevisionChanged(
             DriverLayerPath_,
             DriverLayerRevision_,
-            Bootstrap_,
+            Bootstrap_->GetExecNodeBootstrap(),
             Logger);
 
         if (fetchedArtifactKey.ContentRevision != DriverLayerRevision_) {
@@ -510,4 +513,4 @@ void TGpuManager::PopulateAlerts(std::vector<TError>* alerts) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NJobAgent
+} // namespace NYT::NExecAgent

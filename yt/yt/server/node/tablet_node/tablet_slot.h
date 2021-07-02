@@ -78,7 +78,7 @@ DEFINE_REFCOUNTED_TYPE(ITabletSlot)
 ITabletSlotPtr CreateTabletSlot(
     int slotIndex,
     TTabletNodeConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap);
+    IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

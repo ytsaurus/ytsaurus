@@ -1,8 +1,7 @@
 #include "security_manager.h"
+#include "bootstrap.h"
 #include "private.h"
 #include "tablet.h"
-
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -77,7 +76,7 @@ class TResourceLimitsCache
 public:
     TResourceLimitsCache(
         TAsyncExpiringCacheConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap)
+        NCellarNode::IBootstrap* bootstrap)
         : TAsyncExpiringCache(
             std::move(config),
             TabletNodeLogger.WithTag("Cache: ResourceLimits"))
@@ -85,7 +84,7 @@ public:
     { }
 
 private:
-    NClusterNode::TBootstrap* const Bootstrap_;
+    NCellarNode::IBootstrap* const Bootstrap_;
 
     virtual TFuture<void> DoGet(const TResourceLimitsKey& key, bool /*isPeriodicUpdate*/) noexcept override
     {
@@ -224,7 +223,7 @@ class TSecurityManager::TImpl
 public:
     TImpl(
         TSecurityManagerConfigPtr config,
-        NClusterNode::TBootstrap* bootstrap)
+        NCellarNode::IBootstrap* bootstrap)
         : Config_(std::move(config))
         , Bootstrap_(bootstrap)
         , ResourceLimitsCache_(New<TResourceLimitsCache>(Config_->ResourceLimitsCache, Bootstrap_))
@@ -258,7 +257,7 @@ public:
 
 private:
     const TSecurityManagerConfigPtr Config_;
-    NClusterNode::TBootstrap* const Bootstrap_;
+    NCellarNode::IBootstrap* const Bootstrap_;
 
     const TResourceLimitsCachePtr ResourceLimitsCache_;
 };
@@ -267,7 +266,7 @@ private:
 
 TSecurityManager::TSecurityManager(
     TSecurityManagerConfigPtr config,
-    NClusterNode::TBootstrap* bootstrap)
+    NCellarNode::IBootstrap* bootstrap)
     : Impl_(New<TImpl>(
         std::move(config),
         bootstrap))

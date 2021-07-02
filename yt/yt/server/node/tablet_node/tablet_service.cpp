@@ -1,4 +1,5 @@
 #include "tablet_service.h"
+#include "bootstrap.h"
 #include "private.h"
 #include "security_manager.h"
 #include "slot_manager.h"
@@ -52,7 +53,7 @@ class TTabletService
 public:
     TTabletService(
         ITabletSlotPtr slot,
-        NClusterNode::TBootstrap* bootstrap)
+        IBootstrap* bootstrap)
         : THydraServiceBase(
             slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Write),
             TTabletServiceProxy::GetDescriptor(),
@@ -71,7 +72,7 @@ public:
 
 private:
     const ITabletSlotPtr Slot_;
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
 
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Write)
@@ -145,24 +146,24 @@ private:
             }
         }
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        const auto& resourceLimitsManager = Bootstrap_->GetResourceLimitsManager();
         const auto& tabletCellBundleName = Slot_->GetTabletCellBundleName();
-        securityManager->ValidateResourceLimits(
+        resourceLimitsManager->ValidateResourceLimits(
             tabletSnapshot->Settings.StoreWriterOptions->Account,
             tabletSnapshot->Settings.StoreWriterOptions->MediumName,
             tabletCellBundleName,
             tabletSnapshot->Settings.MountConfig->InMemoryMode);
-        securityManager->ValidateResourceLimits(
+        resourceLimitsManager->ValidateResourceLimits(
             tabletSnapshot->Settings.HunkWriterOptions->Account,
             tabletSnapshot->Settings.HunkWriterOptions->MediumName,
             tabletCellBundleName,
             EInMemoryMode::None);
 
         auto slotOptions = Slot_->GetOptions();
-        securityManager->ValidateResourceLimits(
+        resourceLimitsManager->ValidateResourceLimits(
             slotOptions->ChangelogAccount,
             slotOptions->ChangelogPrimaryMedium);
-        securityManager->ValidateResourceLimits(
+        resourceLimitsManager->ValidateResourceLimits(
             slotOptions->SnapshotAccount,
             slotOptions->SnapshotPrimaryMedium);
 
@@ -286,7 +287,7 @@ private:
     }
 };
 
-IServicePtr CreateTabletService(ITabletSlotPtr slot, NClusterNode::TBootstrap* bootstrap)
+IServicePtr CreateTabletService(ITabletSlotPtr slot, IBootstrap* bootstrap)
 {
     return New<TTabletService>(slot, bootstrap);
 }

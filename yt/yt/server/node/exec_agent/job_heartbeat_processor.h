@@ -16,7 +16,7 @@ class TSchedulerJobHeartbeatProcessor
         const NJobAgent::TJobController::TReqHeartbeatPtr& request) final;
     virtual void ProcessResponse(
         const NJobAgent::TJobController::TRspHeartbeatPtr& response) final;
-    
+
     THashSet<NObjectClient::TJobId> JobIdsToConfirm_;
 };
 

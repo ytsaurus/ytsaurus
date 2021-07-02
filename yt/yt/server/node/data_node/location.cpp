@@ -1,4 +1,6 @@
 #include "location.h"
+
+#include "bootstrap.h"
 #include "private.h"
 #include "blob_chunk.h"
 #include "blob_reader_cache.h"
@@ -11,7 +13,6 @@
 #include "master_connector.h"
 #include "medium_updater.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
@@ -135,7 +136,7 @@ TLocation::TLocation(
     ELocationType type,
     const TString& id,
     TStoreLocationConfigBasePtr config,
-    TBootstrap* bootstrap)
+    IBootstrapBase* bootstrap)
     : TDiskLocation(config, id, DataNodeLogger)
     , Bootstrap_(bootstrap)
     , Type_(type)
@@ -337,12 +338,14 @@ void TLocation::Disable(const TError& reason)
 
         // Notify masters about disaster as soon as possible via out-of-order heartbeat.
         // NB: Heartbeat should be reported after all the signal subscribers completed.
-        if (Bootstrap_->GetClusterNodeMasterConnector()->UseNewHeartbeats()) {
-            const auto& masterConnector = Bootstrap_->GetDataNodeMasterConnector();
-            masterConnector->ScheduleHeartbeat(/*immediately*/ true);
-        } else {
-            const auto& masterConnector = Bootstrap_->GetLegacyMasterConnector();
-            masterConnector->ScheduleNodeHeartbeat(/*immediately*/ true);
+        if (Bootstrap_->IsDataNode()) {
+            if (Bootstrap_->UseNewHeartbeats()) {
+                const auto& masterConnector = Bootstrap_->GetDataNodeBootstrap()->GetMasterConnector();
+                masterConnector->ScheduleHeartbeat(/*immediately*/ true);
+            } else {
+                const auto& masterConnector = Bootstrap_->GetLegacyMasterConnector();
+                masterConnector->ScheduleNodeHeartbeat(/*immediately*/ true);
+            }
         }
     }
 }
@@ -730,7 +733,7 @@ void TLocation::MarkAsDisabled(const TError& error)
 {
     auto alert = TError("Chunk location at %v is disabled", GetPath())
         << error;
-    Bootstrap_->GetClusterNodeMasterConnector()->RegisterStaticAlert(alert);
+    Bootstrap_->RegisterStaticAlert(alert);
 
     Enabled_.store(false);
     AvailableSpace_.store(0);
@@ -808,9 +811,11 @@ void TLocation::DoStart()
     InitializeCellId();
     InitializeUuid();
 
-    auto mediumOverride = Bootstrap_->GetMediumUpdater()->GetMediumOverride(GetUuid());
-    if (mediumOverride) {
-        MediumName_.Store(*mediumOverride);
+    if (Bootstrap_->IsDataNode()) {
+        auto mediumOverride = Bootstrap_->GetDataNodeBootstrap()->GetMediumUpdater()->GetMediumOverride(GetUuid());
+        if (mediumOverride) {
+            MediumName_.Store(*mediumOverride);
+        }
     }
 
     HealthChecker_->SubscribeFailed(BIND(&TLocation::OnHealthCheckFailed, Unretained(this)));
@@ -819,7 +824,6 @@ void TLocation::DoStart()
 
 bool TLocation::UpdateMediumName(const TString& newMediumName)
 {
-
     const auto& connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
     const auto& mediumDirectorySynchronizer = connection->GetMediumDirectorySynchronizer();
 
@@ -858,8 +862,10 @@ bool TLocation::UpdateMediumName(const TString& newMediumName)
     }
     MediumDescriptors_.push_back(std::make_unique<TMediumDescriptor>(*newDescriptor));
     CurrentMediumDescriptor_ = MediumDescriptors_.back().get();
-    const auto& chunkStore = Bootstrap_->GetChunkStore();
-    chunkStore->ChangeLocationMedium(this, oldDescriptor.Index);
+    if (Bootstrap_->IsDataNode()) {
+        const auto& chunkStore = Bootstrap_->GetDataNodeBootstrap()->GetChunkStore();
+        chunkStore->ChangeLocationMedium(this, oldDescriptor.Index);
+    }
 
     YT_LOG_INFO("Location medium descriptor updated (Location: %v, MediumName: %v, MediumIndex: %v)",
         GetId(),
@@ -868,13 +874,12 @@ bool TLocation::UpdateMediumName(const TString& newMediumName)
     return true;
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TStoreLocation::TStoreLocation(
     const TString& id,
     TStoreLocationConfigPtr config,
-    TBootstrap* bootstrap)
+    IBootstrapBase* bootstrap)
     : TLocation(
         ELocationType::Store,
         id,
@@ -884,7 +889,7 @@ TStoreLocation::TStoreLocation(
     , JournalManager_(New<TJournalManager>(
         bootstrap->GetConfig()->DataNode,
         this,
-        bootstrap))
+        bootstrap->GetDataNodeBootstrap()))
     , TrashCheckQueue_(New<TActionQueue>(Format("Trash:%v", id)))
     , TrashCheckExecutor_(New<TPeriodicExecutor>(
         TrashCheckQueue_->GetInvoker(),
@@ -1220,7 +1225,7 @@ std::optional<TChunkDescriptor> TStoreLocation::RepairJournalChunk(TChunkId chun
     bool hasIndex = NFS::Exists(indexFileName);
 
     if (hasData) {
-        const auto& dispatcher = Bootstrap_->GetJournalDispatcher();
+        const auto& dispatcher = Bootstrap_->GetDataNodeBootstrap()->GetJournalDispatcher();
         // NB: This also creates the index file, if missing.
         auto changelog = WaitFor(dispatcher->OpenChangelog(this, chunkId))
             .ValueOrThrow();
@@ -1356,7 +1361,7 @@ void TStoreLocation::DoStart()
 TCacheLocation::TCacheLocation(
     const TString& id,
     TCacheLocationConfigPtr config,
-    TBootstrap* bootstrap)
+    IBootstrapBase* bootstrap)
     : TLocation(
         ELocationType::Cache,
         id,

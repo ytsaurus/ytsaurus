@@ -1,4 +1,5 @@
 #include "automaton.h"
+#include "bootstrap.h"
 #include "hint_manager.h"
 #include "in_memory_manager.h"
 #include "private.h"
@@ -19,7 +20,6 @@
 #include <yt/yt/server/node/data_node/chunk_registry.h>
 #include <yt/yt/server/node/data_node/local_chunk_reader.h>
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
@@ -424,7 +424,7 @@ DEFINE_REFCOUNTED_TYPE(TPreloadedBlockCache)
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkStoreBase::TChunkStoreBase(
-    TBootstrap* bootstrap,
+    IBootstrap* bootstrap,
     TTabletManagerConfigPtr config,
     TStoreId id,
     TChunkId chunkId,
@@ -678,11 +678,11 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(std::optional<EWorkloadCategor
         *chunkSpec.mutable_chunk_meta() = *ChunkMeta_;
         CachedWeakChunk_.Reset();
         auto nodeStatusDirectory = Bootstrap_
-            ? Bootstrap_->GetTabletNodeHintManager()
+            ? Bootstrap_->GetHintManager()
             : nullptr;
 
         auto bandwidthThrottler = workloadCategory
-            ? Bootstrap_->GetTabletNodeInThrottler(*workloadCategory)
+            ? Bootstrap_->GetInThrottler(*workloadCategory)
             : GetUnlimitedThrottler();
 
         setCachedReaders(

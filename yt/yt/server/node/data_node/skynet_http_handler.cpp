@@ -1,5 +1,6 @@
 #include "skynet_http_handler.h"
 
+#include "bootstrap.h"
 #include "local_chunk_reader.h"
 #include "chunk_meta_manager.h"
 
@@ -84,7 +85,7 @@ class TSkynetHttpHandler
     : public IHttpHandler
 {
 public:
-    explicit TSkynetHttpHandler(TBootstrap* bootstrap)
+    explicit TSkynetHttpHandler(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
     { }
 
@@ -159,7 +160,7 @@ public:
 
         rsp->SetStatus(EStatusCode::OK);
 
-        const auto& throttler = Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::SkynetOut);
+        const auto& throttler = Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::SkynetOut);
         while (true) {
             auto blob = WaitFor(blobReader->Read())
                 .ValueOrThrow();
@@ -180,10 +181,10 @@ public:
     }
 
 private:
-    TBootstrap* Bootstrap_;
+    IBootstrap* Bootstrap_;
 };
 
-IHttpHandlerPtr MakeSkynetHttpHandler(TBootstrap* bootstrap)
+IHttpHandlerPtr MakeSkynetHttpHandler(IBootstrap* bootstrap)
 {
     return New<TSkynetHttpHandler>(bootstrap);
 }

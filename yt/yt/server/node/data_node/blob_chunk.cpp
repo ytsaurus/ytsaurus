@@ -1,13 +1,13 @@
 #include "blob_chunk.h"
+
+#include "bootstrap.h"
 #include "private.h"
 #include "blob_reader_cache.h"
 #include "chunk_block_manager.h"
-#include "chunk_cache.h"
 #include "location.h"
 #include "chunk_meta_manager.h"
 #include "chunk_store.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 
 #include <yt/yt/server/lib/io/chunk_file_reader.h>
@@ -49,7 +49,7 @@ static const auto& Logger = DataNodeLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TBlobChunkBase::TBlobChunkBase(
-    TBootstrap* bootstrap,
+    IBootstrapBase* bootstrap,
     TLocationPtr location,
     const TChunkDescriptor& descriptor,
     TRefCountedChunkMetaPtr meta)
@@ -314,8 +314,14 @@ void TBlobChunkBase::DoReadMeta(
             YT_LOG_WARNING("Chunk meta has checksum mismatch, removing it (ChunkId: %v, LocationId: %v)",
                 Id_,
                 Location_->GetId());
-            const auto& chunkStore = Bootstrap_->GetChunkStore();
-            chunkStore->RemoveChunk(this);
+            // TODO(gritukan): Removing cached chunks through chunk store seems strange, but
+            // let's keep old behaviour for now.
+            if (Bootstrap_->IsDataNode()) {
+                const auto& chunkStore = Bootstrap_->GetDataNodeBootstrap()->GetChunkStore();
+                chunkStore->RemoveChunk(this);
+            } else {
+                ScheduleRemove();
+            }
         } else if (error.FindMatching(NFS::EErrorCode::IOError)) {
             // Location is probably broken.
             Location_->Disable(error);
@@ -596,8 +602,14 @@ void TBlobChunkBase::OnBlocksRead(
                 YT_LOG_WARNING("Block in chunk without \"sync_on_close\" has checksum mismatch, removing it (ChunkId: %v, LocationId: %v)",
                     Id_,
                     Location_->GetId());
-                const auto& chunkStore = Bootstrap_->GetChunkStore();
-                chunkStore->RemoveChunk(this);
+                // TODO(gritukan): Removing cached chunks through chunk store seems strange, but
+                // let's keep old behaviour for now.
+                if (Bootstrap_->IsDataNode()) {
+                    const auto& chunkStore = Bootstrap_->GetDataNodeBootstrap()->GetChunkStore();
+                    chunkStore->RemoveChunk(this);
+                } else {
+                    ScheduleRemove();
+                }
             }
         } else if (blocksOrError.FindMatching(NFS::EErrorCode::IOError)) {
             Location_->Disable(error);
@@ -851,7 +863,7 @@ TFuture<void> TBlobChunkBase::AsyncRemove()
 ////////////////////////////////////////////////////////////////////////////////
 
 TStoredBlobChunk::TStoredBlobChunk(
-    TBootstrap* bootstrap,
+    IBootstrapBase* bootstrap,
     TLocationPtr location,
     const TChunkDescriptor& descriptor,
     TRefCountedChunkMetaPtr meta)
@@ -865,7 +877,7 @@ TStoredBlobChunk::TStoredBlobChunk(
 ////////////////////////////////////////////////////////////////////////////////
 
 TCachedBlobChunk::TCachedBlobChunk(
-    TBootstrap* bootstrap,
+    IBootstrapBase* bootstrap,
     TLocationPtr location,
     const TChunkDescriptor& descriptor,
     TRefCountedChunkMetaPtr meta,

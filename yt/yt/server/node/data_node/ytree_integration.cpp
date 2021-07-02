@@ -1,14 +1,16 @@
 #include "ytree_integration.h"
 #include "artifact.h"
 #include "chunk.h"
-#include "chunk_cache.h"
 #include "chunk_store.h"
 #include "journal_chunk.h"
 #include "location.h"
 
-#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt/server/node/exec_agent/chunk_cache.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -17,6 +19,7 @@
 
 namespace NYT::NDataNode {
 
+using namespace NExecAgent;
 using namespace NYTree;
 using namespace NYson;
 using namespace NChunkClient;
@@ -88,12 +91,12 @@ private:
 
 IYPathServicePtr CreateStoredChunkMapService(TChunkStorePtr chunkStore)
 {
-    return New< TVirtualChunkMap<TChunkStore> >(chunkStore);
+    return New<TVirtualChunkMap<TChunkStore>>(chunkStore);
 }
 
 IYPathServicePtr CreateCachedChunkMapService(TChunkCachePtr chunkCache)
 {
-    return New< TVirtualChunkMap<TChunkCache> >(chunkCache);
+    return New<TVirtualChunkMap<TChunkCache>>(chunkCache);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,7 +1,7 @@
 #include "hint_manager.h"
+#include "bootstrap.h"
 #include "private.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 
@@ -34,7 +34,7 @@ class TReplicatorHintConfigFetcher
     : public TDynamicConfigManagerBase<TReplicatorHintConfig>
 {
 public:
-    TReplicatorHintConfigFetcher(TDynamicConfigManagerConfigPtr config, const TBootstrap* bootstrap)
+    TReplicatorHintConfigFetcher(TDynamicConfigManagerConfigPtr config, const IBootstrap* bootstrap)
         : TDynamicConfigManagerBase<TReplicatorHintConfig>(
             TDynamicConfigManagerOptions{
                 .ConfigPath = "//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint",
@@ -59,7 +59,7 @@ class THintManager
     : public IHintManager
 {
 public:
-    explicit THintManager(TBootstrap* bootstrap)
+    explicit THintManager(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
         , Config_(Bootstrap_->GetConfig()->TabletNode->HintManager)
         , ReplicatorHintConfigFetcher_(New<TReplicatorHintConfigFetcher>(
@@ -143,7 +143,7 @@ public:
 private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
-    NClusterNode::TBootstrap* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
     const THintManagerConfigPtr Config_;
     const TReplicatorHintConfigFetcherPtr ReplicatorHintConfigFetcher_;
 
@@ -170,7 +170,7 @@ private:
     }
 };
 
-IHintManagerPtr CreateHintManager(NClusterNode::TBootstrap* bootstrap)
+IHintManagerPtr CreateHintManager(IBootstrap* bootstrap)
 {
     return New<THintManager>(bootstrap);
 }
