@@ -326,6 +326,12 @@ TChunkMerger::TChunkMerger(TBootstrap* bootstrap)
     RegisterMethod(BIND(&TChunkMerger::HydraReplaceChunks, Unretained(this)));
 }
 
+void TChunkMerger::Initialize()
+{
+    const auto& transactionManager = Bootstrap_->GetTransactionManager();
+    transactionManager->SubscribeTransactionAborted(BIND(&TChunkMerger::OnTransactionAborted, MakeWeak(this)));
+}
+
 void TChunkMerger::ScheduleMerge(NCypressServer::TNodeId nodeId)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -488,9 +494,6 @@ void TChunkMerger::OnLeaderActive()
         BIND(&TChunkMerger::StartMergeTransaction, MakeWeak(this)),
         config->TransactionUpdatePeriod);
     StartTransactionExecutor_->Start();
-
-    const auto& transactionManager = Bootstrap_->GetTransactionManager();
-    transactionManager->SubscribeTransactionAborted(TransactionAbortedCallback_);
 }
 
 void TChunkMerger::OnStopLeading()
@@ -500,9 +503,6 @@ void TChunkMerger::OnStopLeading()
     TMasterAutomatonPart::OnStopLeading();
 
     ResetTransientState();
-
-    const auto& transactionManager = Bootstrap_->GetTransactionManager();
-    transactionManager->UnsubscribeTransactionAborted(TransactionAbortedCallback_);
 
     if (ScheduleExecutor_) {
         ScheduleExecutor_->Stop();
