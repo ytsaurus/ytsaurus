@@ -1211,8 +1211,7 @@ class TestTabletBalancer(TabletActionsBase):
     @pytest.mark.parametrize("sync", [True, False])
     @pytest.mark.parametrize("min_tablet_count", [3, 5, 14])
     def test_min_tablet_count_empty_table(self, sync, min_tablet_count):
-        if sync:
-            set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
+        set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
         set("//tmp/t/@tablet_balancer_config/min_tablet_count", min_tablet_count)
@@ -1220,9 +1219,13 @@ class TestTabletBalancer(TabletActionsBase):
         sync_reshard_table("//tmp/t", [[]] + [[i] for i in range(1, tablet_count)])
         sync_mount_table("//tmp/t")
 
+        # Wait for the heartbeat so all tablets are put to the balancer queue.
+        wait(lambda: get("//tmp/t/@tablet_statistics/store_count") == 20)
+
         if sync:
             sync_reshard_table_automatic("//tmp/t")
         else:
+            set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", True)
             wait(lambda: get("//tmp/t/@tablet_count") == min_tablet_count)
 
         pivot_keys = get("//tmp/t/@pivot_keys")
