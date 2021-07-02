@@ -102,8 +102,8 @@ class TestAccessLog(YTEnvSetup):
             for key, value in log.iteritems():
                 if key in ["attributes", "transaction_id", "operation_type"]:
                     if line_json.get("transaction_info") is None or \
-                        key not in line_json.get("transaction_info") or \
-                        line_json.get("transaction_info")[key] != value:
+                            key not in line_json.get("transaction_info") or \
+                            line_json.get("transaction_info")[key] != value:
                         return False
                 elif line_json.get(key) != value:
                     return False
@@ -427,7 +427,7 @@ class TestAccessLog(YTEnvSetup):
 
         log_list.append({"path": "//tmp/access_log/table", "method": "TtlRemove"})
         self._validate_entries_against_log(log_list)
-    
+
     def test_write_table(self):
         log_list = []
 
@@ -460,12 +460,12 @@ class TestAccessLog(YTEnvSetup):
         )
 
         self._validate_entries_against_log(log_list)
-    
+
     def test_sort(self):
         log_list = []
 
         create("map_node", "//tmp/access_log")
-        table_id = create("table", "//tmp/access_log/t1")
+        create("table", "//tmp/access_log/t1")
         table_id2 = create("table", "//tmp/access_log/t2")
 
         write_table("<append=%true>//tmp/access_log/t1", {"a": 25, "b": "foo"})
@@ -525,4 +525,3 @@ class TestAccessLogPortal(TestAccessLog):
         self._validate_entries_against_log(log_list, cell_tag_to_directory={
             1: "//tmp/access_log",
             2: "//tmp/access_log/p1"})
-
