@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/lib/containers/public.h>
 
-#include <yt/yt/server/lib/exec_agent/config.h>
+#include <yt/yt/server/lib/exec_node/config.h>
 
 #include <yt/yt/server/lib/job_agent/gpu_helpers.h>
 
@@ -34,7 +34,7 @@ namespace NYT::NJobProxy {
 using namespace NConcurrency;
 using namespace NContainers;
 using namespace NCGroup;
-using namespace NExecAgent;
+using namespace NExecNode;
 using namespace NJobAgent;
 using namespace NNet;
 using namespace NYTree;

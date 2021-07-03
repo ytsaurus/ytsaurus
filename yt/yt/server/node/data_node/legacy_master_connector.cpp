@@ -24,11 +24,11 @@
 
 #include <yt/yt/server/node/job_agent/job_controller.h>
 
-#include <yt/yt/server/node/exec_agent/bootstrap.h>
-#include <yt/yt/server/node/exec_agent/chunk_cache.h>
-#include <yt/yt/server/node/exec_agent/master_connector.h>
-#include <yt/yt/server/node/exec_agent/slot_location.h>
-#include <yt/yt/server/node/exec_agent/slot_manager.h>
+#include <yt/yt/server/node/exec_node/bootstrap.h>
+#include <yt/yt/server/node/exec_node/chunk_cache.h>
+#include <yt/yt/server/node/exec_node/master_connector.h>
+#include <yt/yt/server/node/exec_node/slot_location.h>
+#include <yt/yt/server/node/exec_node/slot_manager.h>
 
 #include <yt/yt/server/node/tablet_node/bootstrap.h>
 #include <yt/yt/server/node/tablet_node/master_connector.h>

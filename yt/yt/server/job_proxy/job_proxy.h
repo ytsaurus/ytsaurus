@@ -5,7 +5,7 @@
 #include "job.h"
 #include "environment.h"
 
-#include <yt/yt/server/lib/exec_agent/supervisor_service_proxy.h>
+#include <yt/yt/server/lib/exec_node/supervisor_service_proxy.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -113,7 +113,7 @@ private:
 
     NRpc::IServerPtr RpcServer_;
 
-    std::unique_ptr<NExecAgent::TSupervisorServiceProxy> SupervisorProxy_;
+    std::unique_ptr<NExecNode::TSupervisorServiceProxy> SupervisorProxy_;
 
     NApi::NNative::IClientPtr Client_;
 

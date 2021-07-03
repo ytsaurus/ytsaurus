@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/exec_agent/config.h>
+#include <yt/yt/server/lib/exec_node/config.h>
 
 #include <yt/yt/server/lib/misc/config.h>
 
@@ -168,7 +168,7 @@ public:
 
     TMemoryTrackerConfigPtr MemoryTracker;
 
-    std::vector<NExecAgent::TBindConfigPtr> Binds;
+    std::vector<NExecNode::TBindConfigPtr> Binds;
 
     std::vector<TString> GpuDevices;
 

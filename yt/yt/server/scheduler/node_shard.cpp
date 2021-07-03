@@ -7,7 +7,7 @@
 #include "helpers.h"
 #include "persistent_scheduler_state.h"
 
-#include <yt/yt/server/lib/exec_agent/public.h>
+#include <yt/yt/server/lib/exec_node/public.h>
 
 #include <yt/yt/server/lib/job_agent/job_report.h>
 
@@ -1952,7 +1952,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
             YT_LOG_DEBUG(error, "Job aborted, storage scheduled");
             AddRecentlyFinishedJob(job);
             if (job->GetPreempted() &&
-                (error.FindMatching(NExecAgent::EErrorCode::AbortByScheduler) ||
+                (error.FindMatching(NExecNode::EErrorCode::AbortByScheduler) ||
                 error.FindMatching(NJobProxy::EErrorCode::JobNotPrepared)))
             {
                 auto error = TError("Job preempted")

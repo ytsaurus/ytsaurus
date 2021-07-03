@@ -13,8 +13,8 @@
 
 #include <yt/yt/server/lib/containers/public.h>
 
-#include <yt/yt/server/lib/exec_agent/config.h>
-#include <yt/yt/server/lib/exec_agent/proto/supervisor_service.pb.h>
+#include <yt/yt/server/lib/exec_node/config.h>
+#include <yt/yt/server/lib/exec_node/proto/supervisor_service.pb.h>
 
 #include <yt/yt/server/lib/user_job_synchronizer_client/user_job_synchronizer.h>
 
@@ -74,8 +74,8 @@
 namespace NYT::NJobProxy {
 
 using namespace NScheduler;
-using namespace NExecAgent;
-using namespace NExecAgent::NProto;
+using namespace NExecNode;
+using namespace NExecNode::NProto;
 using namespace NBus;
 using namespace NRpc;
 using namespace NApi;

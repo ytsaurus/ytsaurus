@@ -13,9 +13,9 @@
 #include <yt/yt/server/node/data_node/network_statistics.h>
 #include <yt/yt/server/node/data_node/session_manager.h>
 
-#include <yt/yt/server/node/exec_agent/bootstrap.h>
-#include <yt/yt/server/node/exec_agent/chunk_cache.h>
-#include <yt/yt/server/node/exec_agent/slot_manager.h>
+#include <yt/yt/server/node/exec_node/bootstrap.h>
+#include <yt/yt/server/node/exec_node/chunk_cache.h>
+#include <yt/yt/server/node/exec_node/slot_manager.h>
 
 #include <yt/yt/server/node/job_agent/job_controller.h>
 

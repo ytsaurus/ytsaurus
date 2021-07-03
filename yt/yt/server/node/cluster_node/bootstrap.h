@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/exec_agent/public.h>
+#include <yt/yt/server/node/exec_node/public.h>
 
 #include <yt/yt/server/node/cellar_node/public.h>
 
@@ -146,7 +146,7 @@ struct IBootstrapBase
     virtual const NJobAgent::TJobControllerPtr& GetJobController() const = 0;
 
     // Job environment.
-    virtual NExecAgent::EJobEnvironmentType GetJobEnvironmentType() const = 0;
+    virtual NExecNode::EJobEnvironmentType GetJobEnvironmentType() const = 0;
 
     // Node flavors accessors.
     virtual const THashSet<NNodeTrackerClient::ENodeFlavor>& GetFlavors() const = 0;
@@ -160,7 +160,7 @@ struct IBootstrapBase
     // Per-flavor node bootstraps.
     virtual NCellarNode::IBootstrap* GetCellarNodeBootstrap() const = 0;
     virtual NDataNode::IBootstrap* GetDataNodeBootstrap() const = 0;
-    virtual NExecAgent::IBootstrap* GetExecNodeBootstrap() const = 0;
+    virtual NExecNode::IBootstrap* GetExecNodeBootstrap() const = 0;
     virtual NChaosNode::IBootstrap* GetChaosNodeBootstrap() const = 0;
     virtual NTabletNode::IBootstrap* GetTabletNodeBootstrap() const = 0;
 };
@@ -264,7 +264,7 @@ public:
 
     virtual const NJobAgent::TJobControllerPtr& GetJobController() const override;
 
-    virtual NExecAgent::EJobEnvironmentType GetJobEnvironmentType() const override;
+    virtual NExecNode::EJobEnvironmentType GetJobEnvironmentType() const override;
 
     virtual const THashSet<NNodeTrackerClient::ENodeFlavor>& GetFlavors() const override;
 
@@ -276,7 +276,7 @@ public:
 
     virtual NCellarNode::IBootstrap* GetCellarNodeBootstrap() const override;
     virtual NDataNode::IBootstrap* GetDataNodeBootstrap() const override;
-    virtual NExecAgent::IBootstrap* GetExecNodeBootstrap() const override;
+    virtual NExecNode::IBootstrap* GetExecNodeBootstrap() const override;
     virtual NChaosNode::IBootstrap* GetChaosNodeBootstrap() const override;
     virtual NTabletNode::IBootstrap* GetTabletNodeBootstrap() const override;
 
