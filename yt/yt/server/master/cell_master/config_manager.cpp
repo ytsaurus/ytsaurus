@@ -79,6 +79,7 @@ public:
         if (unrecognizedOptions->GetChildCount() > 0) {
             UnrecognizedOptionsAlert_ = TError("Found unrecognized options in dynamic cluster config")
                 << TErrorAttribute("unrecognized_options", ConvertToYsonString(unrecognizedOptions, EYsonFormat::Text));
+            UnrecognizedOptionsAlert_ = UnrecognizedOptionsAlert_.Sanitize();
         } else {
             UnrecognizedOptionsAlert_ = TError();
         }
