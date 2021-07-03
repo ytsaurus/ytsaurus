@@ -158,6 +158,7 @@ DEFINE_ENUM(EMasterReign,
     ((SocratesReservedReign1)                                       (1632))  // aleksandra-zh
     ((SocratesReservedReign2)                                       (1633))  // aleksandra-zh
     ((AccessLogImprovement)                                         (1634))  // cookiedoth
+    ((SanitizeUnrecognizedOptionsAlert)                             (1635))  // gritukan
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1700))  // ignat
 );
