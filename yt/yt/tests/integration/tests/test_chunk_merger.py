@@ -90,13 +90,16 @@ class TestChunkMerger(YTEnvSetup):
         }
     }
 
-    def _abort_chunk_merger_txs(self):
+    def _get_chunk_merger_txs(self):
         txs = []
         for tx in ls("//sys/transactions", attributes=["title"]):
             title = tx.attributes.get("title", "")
             if "Chunk merger" in title:
                 txs.append(tx)
+        return txs
 
+    def _abort_chunk_merger_txs(self):
+        txs = self._get_chunk_merger_txs()
         assert len(txs) > 0
         for tx in txs:
             abort_transaction(tx)
@@ -177,7 +180,7 @@ class TestChunkMerger(YTEnvSetup):
         assert read_table("//tmp/t") == rows
         wait(lambda: get("//tmp/t/@merge_job_counter") == 0)
 
-    @authors("aleksandra-zh")
+    @authors("aleksandra-zh", "gritukan")
     def test_abort_merge_tx(self):
         set("//sys/@config/chunk_manager/chunk_merger/enable", True)
 
@@ -189,10 +192,12 @@ class TestChunkMerger(YTEnvSetup):
 
         rows = read_table("//tmp/t")
 
-        self._abort_chunk_merger_txs()
-
         set("//tmp/t/@enable_chunk_merger", True)
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+
+        for _ in range(10):
+            wait(lambda: self._get_chunk_merger_txs() > 0)
+            self._abort_chunk_merger_txs()
 
         rows = read_table("//tmp/t")
         wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
