@@ -1,7 +1,7 @@
 #include "job_proxy.h"
 #include "private.h"
 
-#include <yt/yt/server/lib/exec_agent/config.h>
+#include <yt/yt/server/lib/exec_node/config.h>
 
 #include <yt/yt/ytlib/program/program.h>
 #include <yt/yt/ytlib/program/program_config_mixin.h>

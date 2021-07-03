@@ -6,7 +6,7 @@
 
 #include <yt/yt/server/lib/dynamic_config/config.h>
 
-#include <yt/yt/server/lib/exec_agent/config.h>
+#include <yt/yt/server/lib/exec_node/config.h>
 
 #include <yt/yt/server/lib/misc/config.h>
 
@@ -441,7 +441,7 @@ public:
     NDataNode::TDataNodeConfigPtr DataNode;
 
     //! Exec node configuration part.
-    NExecAgent::TExecAgentConfigPtr ExecAgent;
+    NExecNode::TExecNodeConfigPtr ExecNode;
 
     //! Cellar node configuration part.
     NCellarNode::TCellarNodeConfigPtr CellarNode;
@@ -513,7 +513,8 @@ public:
         RegisterParameter("cluster_connection", ClusterConnection);
         RegisterParameter("data_node", DataNode)
             .DefaultNew();
-        RegisterParameter("exec_agent", ExecAgent)
+        RegisterParameter("exec_node", ExecNode)
+            .Alias("exec_agent")
             .DefaultNew();
         RegisterParameter("cellar_node", CellarNode)
             .DefaultNew();
@@ -609,23 +610,23 @@ public:
             }
             if (!ResourceLimits->FreeMemoryWatermark) {
                 ResourceLimits->FreeMemoryWatermark = 0;
-                auto freeMemoryWatermarkNode = ExecAgent->SlotManager->JobEnvironment->AsMap()->FindChild("free_memory_watermark");
+                auto freeMemoryWatermarkNode = ExecNode->SlotManager->JobEnvironment->AsMap()->FindChild("free_memory_watermark");
                 if (freeMemoryWatermarkNode) {
                     ResourceLimits->FreeMemoryWatermark = freeMemoryWatermarkNode->GetValue<i64>();
                 }
             }
             if (!ResourceLimits->NodeDedicatedCpu) {
                 ResourceLimits->NodeDedicatedCpu = 2; // Old default.
-                auto nodeDedicatedCpuNode = ExecAgent->SlotManager->JobEnvironment->AsMap()->FindChild("node_dedicated_cpu");
+                auto nodeDedicatedCpuNode = ExecNode->SlotManager->JobEnvironment->AsMap()->FindChild("node_dedicated_cpu");
                 if (nodeDedicatedCpuNode) {
                     ResourceLimits->NodeDedicatedCpu = nodeDedicatedCpuNode->GetValue<double>();
                 }
             }
             if (!ResourceLimits->CpuPerTabletSlot) {
-                ResourceLimits->CpuPerTabletSlot = ExecAgent->JobController->CpuPerTabletSlot;
+                ResourceLimits->CpuPerTabletSlot = ExecNode->JobController->CpuPerTabletSlot;
             }
             if (!InstanceLimitsUpdatePeriod) {
-                auto resourceLimitsUpdatePeriodNode = ExecAgent->SlotManager->JobEnvironment->AsMap()->FindChild("resource_limits_update_period");
+                auto resourceLimitsUpdatePeriodNode = ExecNode->SlotManager->JobEnvironment->AsMap()->FindChild("resource_limits_update_period");
                 if (resourceLimitsUpdatePeriodNode) {
                     InstanceLimitsUpdatePeriod = NYTree::ConvertTo<std::optional<TDuration>>(resourceLimitsUpdatePeriodNode);
                 }
@@ -697,7 +698,7 @@ public:
     NQueryAgent::TQueryAgentDynamicConfigPtr QueryAgent;
 
     //! Exec agent configuration part.
-    NExecAgent::TExecAgentDynamicConfigPtr ExecAgent;
+    NExecNode::TExecNodeDynamicConfigPtr ExecNode;
 
     //! Metadata cache service configuration.
     NObjectClient::TCachingObjectServiceDynamicConfigPtr CachingObjectService;
@@ -719,7 +720,8 @@ public:
             .DefaultNew();
         RegisterParameter("query_agent", QueryAgent)
             .DefaultNew();
-        RegisterParameter("exec_agent", ExecAgent)
+        RegisterParameter("exec_node", ExecNode)
+            .Alias("exec_agent")
             .DefaultNew();
         RegisterParameter("caching_object_service", CachingObjectService)
             .DefaultNew();

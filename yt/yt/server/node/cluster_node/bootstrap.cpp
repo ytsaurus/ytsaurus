@@ -6,7 +6,7 @@
 #include "master_connector.h"
 #include "private.h"
 
-#include <yt/yt/server/lib/exec_agent/config.h>
+#include <yt/yt/server/lib/exec_node/config.h>
 
 #include <yt/yt/server/node/cellar_node/bootstrap.h>
 #include <yt/yt/server/node/cellar_node/config.h>
@@ -39,16 +39,16 @@
 #include <yt/yt/server/node/data_node/chunk_meta_manager.h>
 #include <yt/yt/server/node/data_node/skynet_http_handler.h>
 
-#include <yt/yt/server/node/exec_agent/bootstrap.h>
-#include <yt/yt/server/node/exec_agent/job_environment.h>
-#include <yt/yt/server/node/exec_agent/job.h>
-#include <yt/yt/server/node/exec_agent/job_heartbeat_processor.h>
-#include <yt/yt/server/node/exec_agent/job_prober_service.h>
-#include <yt/yt/server/node/exec_agent/master_connector.h>
-#include <yt/yt/server/node/exec_agent/private.h>
-#include <yt/yt/server/node/exec_agent/scheduler_connector.h>
-#include <yt/yt/server/node/exec_agent/slot_manager.h>
-#include <yt/yt/server/node/exec_agent/supervisor_service.h>
+#include <yt/yt/server/node/exec_node/bootstrap.h>
+#include <yt/yt/server/node/exec_node/job_environment.h>
+#include <yt/yt/server/node/exec_node/job.h>
+#include <yt/yt/server/node/exec_node/job_heartbeat_processor.h>
+#include <yt/yt/server/node/exec_node/job_prober_service.h>
+#include <yt/yt/server/node/exec_node/master_connector.h>
+#include <yt/yt/server/node/exec_node/private.h>
+#include <yt/yt/server/node/exec_node/scheduler_connector.h>
+#include <yt/yt/server/node/exec_node/slot_manager.h>
+#include <yt/yt/server/node/exec_node/supervisor_service.h>
 
 #include <yt/yt/server/node/job_agent/job_controller.h>
 #include <yt/yt/server/lib/job_agent/job_reporter.h>
@@ -193,7 +193,7 @@ using namespace NNodeTrackerClient;
 using namespace NConcurrency;
 using namespace NDataNode;
 using namespace NElection;
-using namespace NExecAgent;
+using namespace NExecNode;
 using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NHydra;
@@ -551,7 +551,7 @@ public:
 
     virtual EJobEnvironmentType GetJobEnvironmentType() const override
     {
-        const auto& slotManagerConfig = Config_->ExecAgent->SlotManager;
+        const auto& slotManagerConfig = Config_->ExecNode->SlotManager;
         return ConvertTo<EJobEnvironmentType>(slotManagerConfig->JobEnvironment->AsMap()->FindChild("type"));
     }
 
@@ -595,7 +595,7 @@ public:
         return DataNodeBootstrap_.get();
     }
 
-    virtual NExecAgent::IBootstrap* GetExecNodeBootstrap() const override
+    virtual NExecNode::IBootstrap* GetExecNodeBootstrap() const override
     {
         return ExecNodeBootstrap_.get();
     }
@@ -676,7 +676,7 @@ private:
 
     std::unique_ptr<NCellarNode::IBootstrap> CellarNodeBootstrap_;
     std::unique_ptr<NChaosNode::IBootstrap> ChaosNodeBootstrap_;
-    std::unique_ptr<NExecAgent::IBootstrap> ExecNodeBootstrap_;
+    std::unique_ptr<NExecNode::IBootstrap> ExecNodeBootstrap_;
     std::unique_ptr<NDataNode::IBootstrap> DataNodeBootstrap_;
     std::unique_ptr<NTabletNode::IBootstrap> TabletNodeBootstrap_;
 
@@ -818,7 +818,7 @@ private:
 
         auto localAddress = GetDefaultAddress(localRpcAddresses);
 
-        JobController_ = New<TJobController>(Config_->ExecAgent->JobController, this);
+        JobController_ = New<TJobController>(Config_->ExecNode->JobController, this);
 
         auto timestampProviderConfig = Config_->TimestampProvider;
         if (!timestampProviderConfig) {
@@ -863,7 +863,7 @@ private:
         }
 
         if (IsExecNode()) {
-            ExecNodeBootstrap_ = NExecAgent::CreateBootstrap(this);
+            ExecNodeBootstrap_ = NExecNode::CreateBootstrap(this);
         }
 
         if (IsCellarNode()) {
@@ -884,7 +884,7 @@ private:
 
     #ifdef __linux__
         if (GetJobEnvironmentType() == EJobEnvironmentType::Porto) {
-            auto portoEnvironmentConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(Config_->ExecAgent->SlotManager->JobEnvironment);
+            auto portoEnvironmentConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(Config_->ExecNode->SlotManager->JobEnvironment);
             auto portoExecutor = CreatePortoExecutor(
                 portoEnvironmentConfig->PortoExecutor,
                 "limits_tracker");
@@ -1445,7 +1445,7 @@ NDataNode::IBootstrap* TBootstrapBase::GetDataNodeBootstrap() const
     return Bootstrap_->GetDataNodeBootstrap();
 }
 
-NExecAgent::IBootstrap* TBootstrapBase::GetExecNodeBootstrap() const
+NExecNode::IBootstrap* TBootstrapBase::GetExecNodeBootstrap() const
 {
     return Bootstrap_->GetExecNodeBootstrap();
 }

@@ -18,7 +18,7 @@
 
 #include <yt/yt/server/lib/job_proxy/config.h>
 
-#include <yt/yt/server/lib/exec_agent/supervisor_service_proxy.h>
+#include <yt/yt/server/lib/exec_node/supervisor_service_proxy.h>
 
 #include <yt/yt/server/lib/misc/public.h>
 
@@ -117,7 +117,7 @@ using namespace NPipes;
 using namespace NQueryClient;
 using namespace NRpc;
 using namespace NCoreDump;
-using namespace NExecAgent;
+using namespace NExecNode;
 using namespace NYPath;
 using namespace NJobProberClient;
 using namespace NJobTrackerClient;

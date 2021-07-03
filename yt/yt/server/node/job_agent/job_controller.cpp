@@ -11,10 +11,10 @@
 #include <yt/yt/server/node/data_node/bootstrap.h>
 #include <yt/yt/server/node/data_node/legacy_master_connector.h>
 
-#include <yt/yt/server/node/exec_agent/bootstrap.h>
-#include <yt/yt/server/node/exec_agent/chunk_cache.h>
-#include <yt/yt/server/node/exec_agent/gpu_manager.h>
-#include <yt/yt/server/node/exec_agent/slot_manager.h>
+#include <yt/yt/server/node/exec_node/bootstrap.h>
+#include <yt/yt/server/node/exec_node/chunk_cache.h>
+#include <yt/yt/server/node/exec_node/gpu_manager.h>
+#include <yt/yt/server/node/exec_node/slot_manager.h>
 
 #include <yt/yt/server/node/tablet_node/slot_manager.h>
 
@@ -627,7 +627,7 @@ void TJobController::TImpl::AdjustResources()
 
             usage -= schedulerJobs.back()->GetResourceUsage();
             schedulerJobs.back()->Abort(TError(
-                NExecAgent::EErrorCode::ResourceOverdraft,
+                NExecNode::EErrorCode::ResourceOverdraft,
                 "Resource usage overdraft adjustment"));
             schedulerJobs.pop_back();
         }
@@ -698,7 +698,7 @@ void TJobController::TImpl::CheckReservedMappedMemory()
 
         usage -= schedulerJobs.back()->GetResourceUsage();
         schedulerJobs.back()->Abort(TError(
-            NExecAgent::EErrorCode::ResourceOverdraft,
+            NExecNode::EErrorCode::ResourceOverdraft,
             "Mapped memory usage overdraft"));
         schedulerJobs.pop_back();
     }
@@ -930,7 +930,7 @@ void TJobController::TImpl::OnWaitingJobTimeout(const TWeakPtr<IJob>& weakJob, T
     }
 
     if (job->GetState() == EJobState::Waiting) {
-        job->Abort(TError(NExecAgent::EErrorCode::WaitingJobTimeout, "Job waiting has timed out")
+        job->Abort(TError(NExecNode::EErrorCode::WaitingJobTimeout, "Job waiting has timed out")
             << TErrorAttribute("timeout", waitingJobTimeout));
     }
 }
@@ -956,7 +956,7 @@ void TJobController::TImpl::AbortJob(const IJobPtr& job, const TJobToAbort& abor
         abortAttributes.AbortReason,
         abortAttributes.PreemptionReason);
 
-    TError error(NExecAgent::EErrorCode::AbortByScheduler, "Job aborted by scheduler");
+    TError error(NExecNode::EErrorCode::AbortByScheduler, "Job aborted by scheduler");
     if (abortAttributes.AbortReason) {
         error = error << TErrorAttribute("abort_reason", *abortAttributes.AbortReason);
     }
@@ -1050,7 +1050,7 @@ void TJobController::TImpl::OnResourcesUpdated(const TWeakPtr<IJob>& job, const 
         auto job_ = job.Lock();
         if (job_) {
             job_->Abort(TError(
-                NExecAgent::EErrorCode::ResourceOverdraft,
+                NExecNode::EErrorCode::ResourceOverdraft,
                 "Failed to increase resource usage")
                 << TErrorAttribute("resource_delta", FormatResources(resourceDelta)));
         }
@@ -1460,7 +1460,7 @@ void TJobController::TImpl::OnDynamicConfigChanged(
     const TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
     const TClusterNodeDynamicConfigPtr& newNodeConfig)
 {
-    auto jobControllerConfig = newNodeConfig->ExecAgent->JobController;
+    auto jobControllerConfig = newNodeConfig->ExecNode->JobController;
 
     DynamicConfig_.Store(jobControllerConfig);
 
@@ -1531,7 +1531,7 @@ void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
                                 .EndMap();
                         })
                     .Item("slot_manager").DoMap(BIND(
-                        &NExecAgent::TSlotManager::BuildOrchidYson,
+                        &NExecNode::TSlotManager::BuildOrchidYson,
                         Bootstrap_->GetExecNodeBootstrap()->GetSlotManager()));
             })
             .Item("job_proxy_build").Do(BIND(&TJobController::TImpl::BuildJobProxyBuildInfo, MakeStrong(this)))

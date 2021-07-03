@@ -218,7 +218,7 @@ void TNodeResourceManager::UpdateJobsCpuLimit()
             double nodeDedicatedCpu = dynamicConfig->NodeDedicatedCpu.value_or(*config->NodeDedicatedCpu);
             newJobsCpuLimit = *TotalCpu_ - nodeDedicatedCpu;
         } else {
-            newJobsCpuLimit = Bootstrap_->GetConfig()->ExecAgent->JobController->ResourceLimits->Cpu;
+            newJobsCpuLimit = Bootstrap_->GetConfig()->ExecNode->JobController->ResourceLimits->Cpu;
         }
 
         if (Bootstrap_->IsTabletNode()) {

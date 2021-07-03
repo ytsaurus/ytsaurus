@@ -8,8 +8,8 @@
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 
-#include <yt/yt/server/node/exec_agent/bootstrap.h>
-#include <yt/yt/server/node/exec_agent/chunk_cache.h>
+#include <yt/yt/server/node/exec_node/bootstrap.h>
+#include <yt/yt/server/node/exec_node/chunk_cache.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>

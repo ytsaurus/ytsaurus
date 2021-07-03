@@ -10,7 +10,7 @@ namespace NYT::NJobProxy {
 using namespace NRpc;
 using namespace NConcurrency;
 using namespace NJobTrackerClient;
-using namespace NExecAgent;
+using namespace NExecNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 

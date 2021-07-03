@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/exec_agent/public.h>
+#include <yt/yt/server/node/exec_node/public.h>
 
 #include <yt/yt/core/ytree/public.h>
 
@@ -14,7 +14,7 @@ NYTree::IYPathServicePtr CreateStoredChunkMapService(
     TChunkStorePtr chunkStore);
 
 NYTree::IYPathServicePtr CreateCachedChunkMapService(
-    NExecAgent::TChunkCachePtr chunkCache);
+    NExecNode::TChunkCachePtr chunkCache);
 
 ////////////////////////////////////////////////////////////////////////////////
 

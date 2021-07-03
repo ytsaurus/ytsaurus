@@ -5,7 +5,7 @@
 #include "journal_chunk.h"
 #include "location.h"
 
-#include <yt/yt/server/node/exec_agent/chunk_cache.h>
+#include <yt/yt/server/node/exec_node/chunk_cache.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
@@ -19,7 +19,7 @@
 
 namespace NYT::NDataNode {
 
-using namespace NExecAgent;
+using namespace NExecNode;
 using namespace NYTree;
 using namespace NYson;
 using namespace NChunkClient;

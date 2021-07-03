@@ -2,7 +2,7 @@
 #include "job_detail.h"
 #include "private.h"
 
-#include <yt/yt/server/lib/exec_agent/public.h>
+#include <yt/yt/server/lib/exec_node/public.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
@@ -32,7 +32,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NScheduler;
 using namespace NQueryClient;
-using namespace NExecAgent;
+using namespace NExecNode;
 using namespace NJobAgent;
 using namespace NCoreDump;
 

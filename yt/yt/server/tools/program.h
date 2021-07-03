@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/server/lib/exec_agent/slot_location_builder.h>
+#include <yt/yt/server/lib/exec_node/slot_location_builder.h>
 
 #include <yt/yt/ytlib/program/program.h>
 #include <yt/yt/ytlib/program/helpers.h>
@@ -35,9 +35,9 @@ namespace NCGroup {
 REGISTER_TOOL(TKillProcessGroupTool)
 } // namespace NCGroup
 
-namespace NExecAgent {
+namespace NExecNode {
 REGISTER_TOOL(TSlotLocationBuilderTool)
-} // namespace NExecAgent
+} // namespace NExecNode
 
 ////////////////////////////////////////////////////////////////////////////////
 

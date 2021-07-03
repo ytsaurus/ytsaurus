@@ -18,8 +18,8 @@
 #include <yt/yt/server/node/data_node/journal_dispatcher.h>
 #include <yt/yt/server/node/data_node/chunk_meta_manager.h>
 
-#include <yt/yt/server/node/exec_agent/bootstrap.h>
-#include <yt/yt/server/node/exec_agent/chunk_cache.h>
+#include <yt/yt/server/node/exec_node/bootstrap.h>
+#include <yt/yt/server/node/exec_node/chunk_cache.h>
 
 #include <yt/yt/server/node/job_agent/job_controller.h>
 
