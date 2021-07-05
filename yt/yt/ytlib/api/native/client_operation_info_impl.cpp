@@ -342,11 +342,20 @@ std::optional<TOperation> TClient::DoGetOperationFromArchive(
         /* defaultAttributes */ SupportedOperationAttributes,
         IgnoredAttributes);
 
-    auto operations = LookupOperationsInArchiveTyped(
-        {operationId},
-        attributes,
-        deadline - Now(),
-        Logger);
+    THashMap<TOperationId, TOperation> operations;
+
+    try {
+        operations = LookupOperationsInArchiveTyped(
+            {operationId},
+            attributes,
+            deadline - Now(),
+            Logger);
+    } catch (const TErrorException& exception) {
+        if (exception.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
+            return {};
+        }
+        throw;
+    }
 
     if (operations.empty()) {
         return {};
@@ -450,17 +459,15 @@ TOperation TClient::DoGetOperationImpl(
         archiveOptions.Attributes->insert("state");
     }
 
-    auto archiveFuture = MakeFuture(std::optional<TOperation>());
-    if (DoesOperationsArchiveExist()) {
-        archiveFuture = BIND(&TClient::DoGetOperationFromArchive,
-            MakeStrong(this),
-            operationId,
-            deadline,
-            std::move(archiveOptions))
-            .AsyncVia(Connection_->GetInvoker())
-            .Run()
-            .WithTimeout(options.ArchiveTimeout);
-    }
+    auto archiveFuture = BIND(&TClient::DoGetOperationFromArchive,
+        MakeStrong(this),
+        operationId,
+        deadline,
+        std::move(archiveOptions))
+        .AsyncVia(Connection_->GetInvoker())
+        .Run()
+        .WithTimeout(options.ArchiveTimeout);
+
     getOperationFutures.push_back(archiveFuture.As<void>());
 
     WaitFor(AllSet<void>(getOperationFutures))
