@@ -26,7 +26,7 @@ TPoolsConfigParser::TPoolsConfigParser(
 
 TError TPoolsConfigParser::TryParse(const INodePtr& rootNode)
 {
-    if (TryParse(rootNode, RootPoolName, /* isFifo */ false)) {
+    if (TryParse(rootNode, RootPoolName, /*isFifo*/ false)) {
         ProcessErasedPools();
     }
     return Error_;
@@ -41,14 +41,14 @@ bool TPoolsConfigParser::TryParse(const INodePtr& configNode, const TString& par
 {
     auto nodeType = configNode->GetType();
     if (nodeType != ENodeType::Map) {
-        Error_ = TError("Found node with type %v, but only Map is allowed", nodeType);
+        Error_ = TError("Found node with type %v, but only map is allowed", nodeType);
         return false;
     }
 
     auto children = configNode->AsMap()->GetChildren();
 
     if (isFifo && !children.empty()) {
-        Error_ = TError("Pool %Qv cannot have subpools since it is in fifo mode", parentName);
+        Error_ = TError("Pool %Qv cannot have subpools since it is in FIFO mode", parentName);
         return false;
     }
 
@@ -59,7 +59,7 @@ bool TPoolsConfigParser::TryParse(const INodePtr& configNode, const TString& par
         }
 
         if (ParsedPoolNames_.contains(childName)) {
-            Error_ = TError("Duplicate poolId %v found in new configuration", childName);
+            Error_ = TError("Duplicate pool %Qv found in new configuration", childName);
             return false;
         }
 
@@ -143,7 +143,7 @@ void TPoolsConfigParser::ProcessErasedPools()
             .Name = poolName,
             .Type = EUpdatePoolActionType::Erase
         };
-        UpdatePoolActions.emplace_back(eraseAction);
+        UpdatePoolActions.push_back(eraseAction);
         ++eraseActionCount;
 
         const auto& parent = GetOrCrash(OldPoolToParentMap_, poolName);
