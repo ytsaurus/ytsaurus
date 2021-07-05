@@ -387,7 +387,9 @@ void TChunkMerger::ScheduleJobs(IJobSchedulingContext* context)
             if (auto* trunkNode = FindChunkOwner(jobInfo.NodeId)) {
                 DecrementMergeJobCounter(Bootstrap_, trunkNode);
             }
-            ScheduleMerge(jobInfo.NodeId);
+            if (IsLeader()) {
+                ScheduleMerge(jobInfo.NodeId);
+            }
             continue;
         }
     }
@@ -836,7 +838,9 @@ void TChunkMerger::OnJobFinished(const TJobPtr& job)
 
         case EJobState::Failed:
         case EJobState::Aborted:
-            ScheduleMerge(jobInfo.NodeId);
+            if (IsLeader()) {
+                ScheduleMerge(jobInfo.NodeId);
+            }
             break;
 
         default:
