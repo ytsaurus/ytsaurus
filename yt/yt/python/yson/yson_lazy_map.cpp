@@ -246,36 +246,37 @@ PyObject* LazyYsonMapDeepCopy(TLazyYsonMap* self, PyObject* /*args*/, PyObject* 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-PyMethodDef LazyYsonMapBaseMethods[] = {
-    {"has_key", (PyCFunction)LazyYsonMapBaseHasKey, METH_O, ""},
-    {"get", (PyCFunction)LazyYsonMapBaseGet, METH_VARARGS | METH_KEYWORDS, ""},
-    {"clear", (PyCFunction)LazyYsonMapBaseClear, METH_NOARGS, ""},
-    {"setdefault", (PyCFunction)LazyYsonMapBaseSetDefault, METH_VARARGS | METH_KEYWORDS, ""},
-    {"__copy__", (PyCFunction)LazyYsonMapBaseCopy, METH_NOARGS, ""},
-    {"__deepcopy__", (PyCFunction)LazyYsonMapBaseDeepCopy, METH_VARARGS | METH_KEYWORDS, ""},
-    {nullptr, nullptr, 0, nullptr}
+PyDoc_STRVAR(EmptyDoc, "");
+
+static PyMethodDef LazyYsonMapBaseMethods[] = {
+    {"has_key", (PyCFunction)LazyYsonMapBaseHasKey, METH_O, EmptyDoc},
+    {"get", (PyCFunction)LazyYsonMapBaseGet, METH_VARARGS | METH_KEYWORDS, EmptyDoc},
+    {"clear", (PyCFunction)LazyYsonMapBaseClear, METH_NOARGS, EmptyDoc},
+    {"setdefault", (PyCFunction)LazyYsonMapBaseSetDefault, METH_VARARGS | METH_KEYWORDS, EmptyDoc},
+    {"__copy__", (PyCFunction)LazyYsonMapBaseCopy, METH_NOARGS, EmptyDoc},
+    {"__deepcopy__", (PyCFunction)LazyYsonMapBaseDeepCopy, METH_VARARGS | METH_KEYWORDS, EmptyDoc},
+    {nullptr, nullptr, 0, nullptr} // sentinel
 };
 
-PyMethodDef LazyYsonMapMethods[] = {
-    {"__copy__", (PyCFunction)LazyYsonMapCopy, METH_NOARGS, ""},
-    {"__deepcopy__", (PyCFunction)LazyYsonMapDeepCopy, METH_VARARGS | METH_KEYWORDS, ""},
-    {nullptr, nullptr, 0, nullptr}
+static PyMethodDef LazyYsonMapMethods[] = {
+    {"__copy__", (PyCFunction)LazyYsonMapCopy, METH_NOARGS, EmptyDoc},
+    {"__deepcopy__", (PyCFunction)LazyYsonMapDeepCopy, METH_VARARGS | METH_KEYWORDS, EmptyDoc},
+    {nullptr, nullptr, 0, nullptr} // sentinel
 };
 
-PyMemberDef LazyYsonMapMembers[] = {
-    {"attributes", T_OBJECT_EX, offsetof(TLazyYsonMap, Attributes), 0, ""},
-    {nullptr, 0, 0, 0, nullptr}
+static const char LazyYsonMapAttributesMember[] = "attributes";
+
+static PyMemberDef LazyYsonMapMembers[] = {
+    {const_cast<char*>(LazyYsonMapAttributesMember), T_OBJECT_EX, offsetof(TLazyYsonMap, Attributes), 0, EmptyDoc},
+    {nullptr, 0, 0, 0, nullptr} // sentinel
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 #if PY_MAJOR_VERSION >= 3
 
-char TLazyYsonMapBaseDoc[] = "YsonLazyMapBase";
-
-////////////////////////////////////////////////////////////////////////////////
-
-char TLazyYsonMapDoc[] = "YsonLazyMap";
+static const char TLazyYsonMapBaseDoc[] = "YsonLazyMapBase";
+static const char TLazyYsonMapDoc[] = "YsonLazyMap";
 
 PyTypeObject* TLazyYsonMapBaseType = nullptr;
 PyTypeObject* TLazyYsonMapType = nullptr;
@@ -283,7 +284,7 @@ PyTypeObject* TLazyYsonMapType = nullptr;
 void InitTLazyYsonMapType()
 {
     static PyType_Slot TLazyYsonMapBaseSlots[] = {
-        {Py_tp_doc, &TLazyYsonMapBaseDoc},
+        {Py_tp_doc, const_cast<char*>(TLazyYsonMapBaseDoc)},
         {Py_tp_new, reinterpret_cast<void*>(LazyYsonMapBaseNew)},
         {Py_tp_init, reinterpret_cast<void*>(LazyYsonMapBaseInit)},
         {Py_tp_dealloc, reinterpret_cast<void*>(LazyYsonMapBaseDealloc)},
@@ -306,7 +307,7 @@ void InitTLazyYsonMapType()
 
     static PyType_Slot TLazyYsonMapSlots[] = {
         {Py_tp_base, reinterpret_cast<void*>(TLazyYsonMapBaseType)},
-        {Py_tp_doc, &TLazyYsonMapDoc},
+        {Py_tp_doc, const_cast<char*>(TLazyYsonMapDoc)},
         {Py_tp_new, reinterpret_cast<void*>(LazyYsonMapNew)},
         {Py_tp_init, reinterpret_cast<void*>(LazyYsonMapInit)},
         {Py_tp_dealloc, reinterpret_cast<void*>(LazyYsonMapDealloc)},
