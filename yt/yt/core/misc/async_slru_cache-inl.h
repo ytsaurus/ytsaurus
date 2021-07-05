@@ -729,7 +729,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Trim(TShard* shard, NConcurrency:
     // Evict from younger.
     std::vector<TValuePtr> evictedValues;
     while (!shard->YoungerLruList.Empty() &&
-        static_cast<i64>(Config_->ShardCount * shard->YoungerWeightCounter + OlderWeightCounter_.load()) > capacity)
+        static_cast<i64>(Config_->ShardCount * (shard->YoungerWeightCounter + shard->OlderWeightCounter)) > capacity)
     {
         auto* item = &*(--shard->YoungerLruList.End());
         auto value = item->Value;
