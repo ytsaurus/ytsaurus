@@ -65,11 +65,12 @@ TStringBuf TYsonSyntaxChecker::StateExpectationString(EYsonState state)
     YT_VERIFY(false);
 }
 
-void TYsonSyntaxChecker::ThrowUnexpectedToken(TStringBuf token)
+void TYsonSyntaxChecker::ThrowUnexpectedToken(TStringBuf token, TStringBuf extraMessage)
 {
-    THROW_ERROR_EXCEPTION("Unexpected %Qv, expected %Qv",
+    THROW_ERROR_EXCEPTION("Unexpected %Qv, expected %Qv%v",
         token,
-        StateExpectationString(StateStack_.back()))
+        StateExpectationString(StateStack_.back()),
+        extraMessage)
         << TErrorAttribute("yson_parser_state", StateStack_.back());
 }
 

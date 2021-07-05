@@ -333,6 +333,13 @@ TEST(TYsonPullParserTest, ListFragment)
     EXPECT_EQ(GetYsonPullSignature("[];{};<>#;", EYsonType::ListFragment), "[ ] { } < > #");
 }
 
+TEST(TYsonPullParserTest, StraySemicolon)
+{
+    EXPECT_THROW_THAT(
+        GetYsonPullSignature("{x=y};", EYsonType::Node),
+        testing::HasSubstr("yson_type = \"list_fragment\""));
+}
+
 TEST(TYsonPullParserTest, MapFragment)
 {
     EXPECT_EQ(GetYsonPullSignature("", EYsonType::MapFragment), "");

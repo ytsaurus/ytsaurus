@@ -95,7 +95,7 @@ private:
     Y_FORCE_INLINE void DecrementNestingLevel();
 
     static TStringBuf StateExpectationString(EYsonState state);
-    void ThrowUnexpectedToken(TStringBuf token);
+    void ThrowUnexpectedToken(TStringBuf token, TStringBuf extraMessage = {});
 
 private:
     SmallVector<EYsonState, 16> StateStack_;

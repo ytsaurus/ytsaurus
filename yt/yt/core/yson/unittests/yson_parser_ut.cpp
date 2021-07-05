@@ -458,6 +458,18 @@ TEST_F(TYsonParserTest, EmptyListFragment)
     Run("  ", EYsonType::ListFragment);
 }
 
+TEST_F(TYsonParserTest, StraySemicolon)
+{
+    InSequence dummy;
+    EXPECT_CALL(Mock, OnBeginMap());
+    EXPECT_CALL(Mock, OnKeyedItem("x"));
+    EXPECT_CALL(Mock, OnStringScalar("y"));
+    EXPECT_CALL(Mock, OnEndMap());
+    EXPECT_THROW_THAT(
+        Run("{x=y};", EYsonType::Node),
+        HasSubstr("yson_type = \"list_fragment\""));
+}
+
 TEST_F(TYsonParserTest, MapFragment)
 {
     InSequence dummy;
