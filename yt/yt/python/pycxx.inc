@@ -2,6 +2,4 @@ SET(PYCXX_FLAGS
     -DPYCXX_PYTHON_2TO3
     -DPYCXX_6_2_COMPATIBILITY
     -DPy_LIMITED_API=0x03040000
-    -Wno-writable-strings
-    -Wno-unused-parameter
 )

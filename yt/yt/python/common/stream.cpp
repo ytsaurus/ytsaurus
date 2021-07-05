@@ -193,6 +193,7 @@ std::unique_ptr<IOutputStream> CreateOutputStreamWrapper(const Py::Object& pytho
         return outputStreamHolder;
     }
 #else
+    Y_UNUSED(addBuffering);
     // Python 3 has "io" module with fine-grained buffering control, no need in
     // additional buferring here.
     return std::unique_ptr<TOutputStreamForwarder>(new TOutputStreamForwarder(pythonOutputStream));

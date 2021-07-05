@@ -146,7 +146,10 @@ void SerializeMapFragment(
         context->Pop();
     };
 
-    auto items = Py::Object(PyDict_CheckExact(*map) ? PyDict_Items(*map) : PyMapping_Items(*map), true);
+    const char itemsKeyword[] = "items";
+    auto items = Py::Object(
+        PyDict_CheckExact(*map) ? PyDict_Items(*map) : PyObject_CallMethod(*map, const_cast<char*>(itemsKeyword), nullptr),
+        true);
     auto iterator = CreateIterator(items);
 
     if (sortKeys) {
