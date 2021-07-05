@@ -1,16 +1,19 @@
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
-from yt_commands import *
+from yt_commands import (
+    authors, print_debug,
+    create, get, exists, write_journal, get_singular_chunk_id, build_master_snapshots)
 
 from original_tests.yt.yt.tests.integration.tests.test_master_snapshots \
     import MASTER_SNAPSHOT_CHECKER_LIST, check_master_memory, check_proxy_roles
 
 import os
-import sys
 import pytest
 import random
+import string
 import yatest.common
 
 ##################################################################
+
 
 def check_replica_lag_limit():
     DATA = [
