@@ -61,8 +61,15 @@ public:
 
             while (!(TBase::IsFinished() && TBase::IsEmpty())) {
                 if (TBase::template SkipSpaceAndGetChar<true>() != EndSymbol) {
+                    auto character = *TBase::Current();
+                    if (character == ItemSeparatorSymbol) {
+                        THROW_ERROR_EXCEPTION("Stray %Qv found; maybe you should use yson_type = %Qlv",
+                            character,
+                            EYsonType::ListFragment)
+                            << *this;
+                    }
                     THROW_ERROR_EXCEPTION("Stray %Qv found",
-                        *TBase::Current())
+                        character)
                         << *this;
                 } else if (!TBase::IsEmpty()) {
                     TBase::Advance(1);

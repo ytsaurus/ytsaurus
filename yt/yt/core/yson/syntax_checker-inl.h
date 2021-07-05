@@ -71,6 +71,9 @@ void TYsonSyntaxChecker::OnSeparator()
             StateStack_.back() = EYsonState::InsideListFragmentExpectValue;
             break;
         default:
+            if (StateStack_.back() == EYsonState::Terminated) {
+                ThrowUnexpectedToken(";", Format("; maybe you should use yson_type = %Qlv", EYsonType::ListFragment));
+            }
             ThrowUnexpectedToken(";");
     }
 }
