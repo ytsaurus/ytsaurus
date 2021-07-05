@@ -49,7 +49,8 @@ MAX_DECIMAL_PRECISION = 35
 class Metric(object):
     AGGREGATION_METHOD_TO_DEFAULT_FACTORY = {
         "none": list,  # No aggregation, just collects all samples as a list of (time, value) tuples sorted by time.
-        "delta": int,  # The difference between the last value and the init value (the last value prior to initialization).
+        "delta": int,  # The difference between the last value and the init value
+                       # (the last value prior to initialization).
         "sum": int,  # The sum of all values.
         "max": lambda: None,  # The maximum value.
         "last": lambda: None,  # The last value.
@@ -299,7 +300,6 @@ class Profiler(object):
     @staticmethod
     def at_job_proxy(node, *args, **kwargs):
         return Profiler("//sys/cluster_nodes/{0}/orchid/job_proxy_sensors".format(node), *args, **kwargs)
-
 
     @staticmethod
     def at_tablet_node(table, tablet_cell_bundle="default", fixed_tags={}):
