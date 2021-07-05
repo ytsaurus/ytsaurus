@@ -3,6 +3,7 @@ import os
 
 PTRACE_SCOPE_CHECK_RESULT_CACHED = None
 
+
 def _check_ptrace_scope():
     global PTRACE_SCOPE_CHECK_RESULT_CACHED
     if PTRACE_SCOPE_CHECK_RESULT_CACHED is not None:
@@ -62,7 +63,8 @@ continue
 end
 
 echo \\n
-echo You may set up all necessary stuff for your debugging session. After doing so, type 'resume' to continue tracee execution and resume tests.\\n
+echo -e "You may set up all necessary stuff for your debugging session."
+echo -e "After doing so, type 'resume' to continue trace execution and resume tests.\\n"
 echo Barrier path: {filename}\\n
 echo \\n
 """.format(filename=barrier_path)

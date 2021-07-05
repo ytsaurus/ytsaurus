@@ -6,7 +6,7 @@ from yt_helpers import get_current_time, parse_yt_time
 
 from yt.environment import YTInstance, arcadia_interop
 from yt.environment.api import LocalYtConfig
-from yt.environment.helpers import emergency_exit_within_tests, push_front_env_path
+from yt.environment.helpers import emergency_exit_within_tests
 from yt.environment.default_config import (
     get_dynamic_master_config,
     get_dynamic_node_config,
@@ -321,8 +321,10 @@ class YTEnvSetup(object):
                 if cls.get_param("NUM_CONTROLLER_AGENTS", index) is not None
                 else cls.get_param("NUM_SCHEDULERS", index)),
             defer_controller_agent_start=cls.get_param("DEFER_CONTROLLER_AGENT_START", index),
-            http_proxy_count=cls.get_param("NUM_HTTP_PROXIES", index) if cls.get_param("ENABLE_HTTP_PROXY", index) else 0,
-            rpc_proxy_count=cls.get_param("NUM_RPC_PROXIES", index) if cls.get_param("ENABLE_RPC_PROXY", index) else 0,
+            http_proxy_count=(
+                cls.get_param("NUM_HTTP_PROXIES", index) if cls.get_param("ENABLE_HTTP_PROXY", index) else 0),
+            rpc_proxy_count=(
+                cls.get_param("NUM_RPC_PROXIES", index) if cls.get_param("ENABLE_RPC_PROXY", index) else 0),
             fqdn="localhost",
             enable_master_cache=cls.get_param("USE_MASTER_CACHE", index),
             enable_permission_cache=cls.get_param("USE_PERMISSION_CACHE", index),
@@ -339,7 +341,10 @@ class YTEnvSetup(object):
             watcher_config={"disable_logrotate": True},
             kill_child_processes=True,
             modify_configs_func=modify_configs_func,
-            stderrs_path=os.path.join(arcadia_interop.yatest_common.output_path("yt_stderrs"), cls.run_name, str(index)),
+            stderrs_path=os.path.join(
+                arcadia_interop.yatest_common.output_path("yt_stderrs"),
+                cls.run_name,
+                str(index)),
             external_bin_path=cls.bin_path
         )
 
@@ -401,8 +406,14 @@ class YTEnvSetup(object):
         cls.default_disk_path = os.path.join(disk_path, cls.run_name, "disk_default")
         cls.ssd_disk_path = os.path.join(disk_path, cls.run_name, "disk_ssd")
 
-        cls.fake_default_disk_path = os.path.join(arcadia_interop.yatest_common.output_path(), cls.run_name, "disk_default")
-        cls.fake_ssd_disk_path = os.path.join(arcadia_interop.yatest_common.output_path(), cls.run_name, "disk_ssd")
+        cls.fake_default_disk_path = os.path.join(
+            arcadia_interop.yatest_common.output_path(),
+            cls.run_name,
+            "disk_default")
+        cls.fake_ssd_disk_path = os.path.join(
+            arcadia_interop.yatest_common.output_path(),
+            cls.run_name,
+            "disk_ssd")
 
         cls.primary_cluster_path = cls.path_to_run
         if cls.NUM_REMOTE_CLUSTERS > 0:
@@ -410,7 +421,7 @@ class YTEnvSetup(object):
 
         try:
             cls.start_envs()
-        except:
+        except:  # noqa
             cls.teardown_class()
             raise
 
@@ -886,7 +897,12 @@ class YTEnvSetup(object):
 
         wait(check)
 
-    def _restore_globals(self, cluster_index, master_cell_roles, scheduler_count, scheduler_pool_trees_root, driver=None):
+    def _restore_globals(self,
+                         cluster_index,
+                         master_cell_roles,
+                         scheduler_count,
+                         scheduler_pool_trees_root,
+                         driver=None):
         dynamic_master_config = get_dynamic_master_config()
         dynamic_master_config = update_inplace(
             dynamic_master_config, self.get_param("DELTA_DYNAMIC_MASTER_CONFIG", cluster_index)
