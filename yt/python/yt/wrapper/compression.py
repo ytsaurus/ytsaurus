@@ -66,6 +66,9 @@ try:
 
     def _create_brotli_compressor(quality=3):
         inner_compressor = brotli.Compressor(quality=quality)
+        if not hasattr(inner_compressor, "process"):
+            raise YtError("You use outdated version of brotli (probable deprecated package with named 'brotlipy'), "
+                          "please update it (or completely remove)")
         return _Compressor(inner_compressor.process, inner_compressor.finish)
 
     _CODECS["br"] = _create_brotli_compressor
