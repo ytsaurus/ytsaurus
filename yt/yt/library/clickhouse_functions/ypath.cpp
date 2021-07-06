@@ -161,7 +161,7 @@ public:
                         << ex;
                 } else {
                     // Just ignore the error.
-                    
+
                     // TODO(dakovalkov): insertDefault() inserts Null for Nullable columns.
                     // For backward compatibility we always insert default type value.
                     // If we want to make it more consistent, we need to make an announcement for users first.
@@ -197,7 +197,7 @@ public:
         this->OutputDataType_ = std::make_shared<TCHOutputDataType>();
     }
 
-    static FunctionPtr create(ContextConstPtr /*context*/)
+    static FunctionPtr create(ContextPtr /*context*/)
     {
         return std::make_shared<TScalarYPathFunction>();
     }
@@ -213,7 +213,7 @@ public:
         this->OutputDataType_ = std::make_shared<DataTypeArray>(std::make_shared<TCHOutputElementDataType>());
     }
 
-    static FunctionPtr create(ContextConstPtr /* context */)
+    static FunctionPtr create(ContextPtr /* context */)
     {
         return std::make_shared<TArrayYPathFunction>();
     }
@@ -293,7 +293,7 @@ public:
         return 0;
     }
 
-    static FunctionPtr create(ContextConstPtr /*context*/)
+    static FunctionPtr create(ContextPtr /*context*/)
     {
         return std::make_shared<TFunctionYPathRawImpl>();
     }
@@ -447,7 +447,7 @@ public:
         return 3;
     }
 
-    static FunctionPtr create(ContextConstPtr /* context */)
+    static FunctionPtr create(ContextPtr /* context */)
     {
         return std::make_shared<TFunctionYPathExtractImpl>();
     }
