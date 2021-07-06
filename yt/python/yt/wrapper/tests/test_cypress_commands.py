@@ -236,6 +236,13 @@ class TestCypressCommands(object):
 
         assert list(yt.search())
 
+        yt.create("map_node", TEST_DIR + "/search_test_with_binary")
+        yt.create("map_node", TEST_DIR + "/search_test_with_binary/uhu_\\xf3")
+        assert list(yt.search(TEST_DIR + "/search_test_with_binary")) == [
+            TEST_DIR + "/search_test_with_binary",
+            TEST_DIR + "/search_test_with_binary/uhu_\\xf3",
+        ]
+
     @authors("asaitgalin")
     def test_create(self):
         with pytest.raises(yt.YtError):

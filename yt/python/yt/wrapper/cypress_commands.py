@@ -13,6 +13,8 @@ from .http_helpers import get_retriable_errors
 
 import yt.logger as logger
 
+from yt.yson import is_unicode, get_bytes
+
 from yt.packages.six import iteritems, binary_type, text_type
 from yt.packages.six.moves import builtins, map as imap, filter as ifilter
 
@@ -487,6 +489,7 @@ def find_free_subpath(path, client=None):
         if not exists(name, client=client):
             return name
 
+
 def search(root="", node_type=None, path_filter=None, object_filter=None, subtree_filter=None,
            map_node_order=MAP_ORDER_SORTED, list_node_order=None, attributes=None,
            exclude=None, depth_bound=None, follow_links=False, read_from=None, cache_sticky_group_size=None,
@@ -516,7 +519,11 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
     from .batch_helpers import create_batch_client
 
     if map_node_order is MAP_ORDER_SORTED:
-        map_node_order = lambda path, obj: sorted(obj)
+        def _convert_to_unicode(str_obj):
+            if is_unicode(str_obj):
+                return str_obj
+            return get_bytes(str_obj).decode("utf-8", "replace")
+        map_node_order = lambda path, obj: sorted(obj, key=_convert_to_unicode)
 
     encoding = get_structured_format(format=None, client=client)._encoding
 
