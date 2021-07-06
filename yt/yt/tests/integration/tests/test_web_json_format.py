@@ -40,7 +40,7 @@ from yt_commands import (  # noqa
     get_statistics, get_recursive_disk_space, get_chunk_owner_disk_space,
     make_random_string, raises_yt_error,
     build_snapshot, is_multicell,
-    get_driver, Driver, execute_command)
+    get_driver, execute_command)
 
 from yt_type_helpers import optional_type, variant_tuple_type, list_type, struct_type, make_schema
 

@@ -39,8 +39,7 @@ from yt_commands import (  # noqa
     create_test_tables, create_dynamic_table, PrepareTables,
     get_statistics,
     make_random_string, raises_yt_error,
-    build_snapshot,
-    get_driver, Driver)
+    build_snapshot, get_driver)
 
 from yt_helpers import create_custom_pool_tree_with_one_node
 

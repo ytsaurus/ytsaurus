@@ -48,7 +48,7 @@ from yt_commands import (  # noqa
     get_statistics, get_recursive_disk_space, get_chunk_owner_disk_space,
     make_random_string, raises_yt_error,
     build_snapshot, is_multicell,
-    get_driver, Driver, execute_command,
+    get_driver, execute_command,
     AsyncLastCommittedTimestamp,
     create_medium)
 
@@ -59,6 +59,8 @@ import yt_error_codes
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
 import yt.yson as yson
+
+from yt_driver_bindings import Driver
 
 import pytest
 

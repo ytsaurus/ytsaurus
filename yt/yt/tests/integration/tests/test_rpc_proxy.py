@@ -49,7 +49,7 @@ from yt_commands import (  # noqa
     make_random_string, raises_yt_error,
     build_snapshot, build_master_snapshots,
     gc_collect, is_multicell, clear_metadata_caches,
-    get_driver, Driver, execute_command, generate_uuid, Operation,
+    get_driver, execute_command, generate_uuid, Operation,
     AsyncLastCommittedTimestamp, MinTimestamp)
 
 from yt_type_helpers import make_schema
@@ -57,6 +57,8 @@ from yt_type_helpers import make_schema
 from yt.wrapper import JsonFormat
 from yt.common import YtError, YtResponseError
 import yt.yson as yson
+
+from yt_driver_bindings import Driver
 
 from flaky import flaky
 import pytest

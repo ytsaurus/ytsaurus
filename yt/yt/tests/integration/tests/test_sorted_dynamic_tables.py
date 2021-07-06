@@ -40,7 +40,7 @@ from yt_commands import (  # noqa
     get_statistics, get_tablet_leader_address,
     make_random_string, raises_yt_error,
     build_snapshot,
-    get_driver, Driver, execute_command,
+    get_driver, execute_command,
     AsyncLastCommittedTimestamp, MinTimestamp)
 
 import yt_error_codes
@@ -51,6 +51,8 @@ from yt_helpers import Profiler
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError, YtResponseError
 import yt.yson as yson
+
+from yt_driver_bindings import Driver
 
 import pytest
 

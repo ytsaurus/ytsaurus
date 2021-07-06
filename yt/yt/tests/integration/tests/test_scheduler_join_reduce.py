@@ -31,9 +31,7 @@ from yt_commands import (  # noqa
     check_all_stderrs,
     create_test_tables, PrepareTables,
     get_statistics,
-    make_random_string, raises_yt_error,
-    normalize_schema, make_schema,
-    Driver)
+    make_random_string, raises_yt_error)
 
 from yt_helpers import skip_if_no_descending
 
@@ -836,12 +834,14 @@ echo {v = 2} >&7
 
         if sort_order == "ascending":
             in_ = [
-                '<ranges=[{lower_limit={row_index=100;key=["10010"]};upper_limit={row_index=540;key=["10280"]}}];primary=true>//tmp/in1',
+                '<ranges=[{lower_limit={row_index=100;key=["10010"]}'
+                ';upper_limit={row_index=540;key=["10280"]}}];primary=true>//tmp/in1',
                 "<foreign=true>//tmp/in2",
             ]
         else:
             in_ = [
-                '<ranges=[{lower_limit={row_index=60;key=["10280"]};upper_limit={row_index=500;key=["10010"]}}];primary=true>//tmp/in1',
+                '<ranges=[{lower_limit={row_index=60;key=["10280"]};'
+                'upper_limit={row_index=500;key=["10010"]}}];primary=true>//tmp/in1',
                 "<foreign=true>//tmp/in2",
             ]
 
@@ -1507,7 +1507,8 @@ done
         ]
 
         with raises_yt_error("does not support foreign tables with multiple ranges"):
-            foreign_table = "<foreign=true;ranges=[{lower_limit={key=[0]};upper_limit={key=[2]}};{lower_limit={key=[3]};upper_limit={key=[4]}}]>//tmp/in2"
+            foreign_table = "<foreign=true;ranges=[{lower_limit={key=[0]};upper_limit={key=[2]}};"\
+                            "{lower_limit={key=[3]};upper_limit={key=[4]}}]>//tmp/in2"
             join_reduce(
                 in_=[primary_table, foreign_table],
                 out="<sorted_by=[{name=key;sort_order=ascending}]>//tmp/out",

@@ -1,9 +1,11 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, wait, Driver, ls, get,
+    authors, wait, ls, get,
     build_snapshot, switch_leader,
     generate_timestamp, start_transaction, commit_transaction)
+
+from yt_driver_bindings import Driver
 
 from copy import deepcopy
 

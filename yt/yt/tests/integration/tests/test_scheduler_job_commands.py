@@ -36,14 +36,15 @@ from yt_commands import (  # noqa
     create_test_tables, PrepareTables,
     get_statistics,
     make_random_string, raises_yt_error,
-    normalize_schema, make_schema,
-    Driver)
+    normalize_schema, make_schema)
 
 from yt_helpers import get_job_count_profiling
 
 import yt_error_codes
 
 from yt.common import YtError, YtResponseError
+
+from yt_driver_bindings import Driver
 
 import pytest
 import time

@@ -36,7 +36,7 @@ from yt_commands import (  # noqa
     get_statistics, get_recursive_disk_space, get_chunk_owner_disk_space,
     make_random_string, raises_yt_error,
     build_snapshot,
-    get_driver, Driver, execute_command)
+    get_driver, execute_command)
 
 from yt_helpers import skip_if_no_descending
 from yt_type_helpers import make_schema, normalize_schema

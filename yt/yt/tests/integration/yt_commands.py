@@ -3,7 +3,7 @@ from __future__ import print_function
 from yt.environment.yt_env import set_environment_driver_logging_config
 
 import yt.yson as yson
-from yt_driver_bindings import Driver, Request, reopen_logs  # noqa
+from yt_driver_bindings import Driver, Request
 from yt.common import (
     YtError,
     YtResponseError,
@@ -15,13 +15,6 @@ from yt.common import (
 
 from yt.test_helpers import wait, WaitFailed
 from yt.test_helpers.job_events import JobEvents, TimeoutError
-
-# TODO(ignat): drop it
-from yt_type_helpers import (  # noqa
-    make_column, make_sorted_column, make_schema, normalize_schema, normalize_schema_v3,
-    optional_type, make_struct_members, make_tuple_elements, struct_type, list_type, tuple_type,
-    variant_struct_type, variant_tuple_type, dict_type, tagged_type, decimal_type)
-
 
 import __builtin__
 import contextlib

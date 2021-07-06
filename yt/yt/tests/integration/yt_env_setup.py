@@ -24,6 +24,8 @@ import yt.test_helpers.cleanup as test_cleanup
 from yt.common import YtResponseError, format_error, update_inplace
 import yt.logger
 
+from yt_driver_bindings import reopen_logs
+
 import pytest
 
 import gc
@@ -384,7 +386,7 @@ class YTEnvSetup(object):
 
         cls.liveness_checkers = []
 
-        log_rotator = Checker(yt_commands.reopen_logs)
+        log_rotator = Checker(reopen_logs)
         log_rotator.daemon = True
         log_rotator.start()
         cls.liveness_checkers.append(log_rotator)

@@ -31,8 +31,7 @@ from yt_commands import (  # noqa
     check_all_stderrs,
     create_test_tables, PrepareTables,
     get_statistics,
-    make_random_string, raises_yt_error,
-    Driver)
+    make_random_string, raises_yt_error)
 
 from yt_type_helpers import struct_type, list_type, tuple_type, optional_type
 

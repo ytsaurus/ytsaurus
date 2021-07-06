@@ -37,9 +37,7 @@ from yt_commands import (  # noqa
     check_all_stderrs,
     create_test_tables, PrepareTables,
     get_statistics,
-    make_random_string, raises_yt_error,
-    normalize_schema, make_schema,
-    Driver)
+    make_random_string, raises_yt_error)
 
 import yt_error_codes
 
@@ -1248,7 +1246,7 @@ class TestJobProfiling(YTEnvSetup):
             fi
         """
 
-        spec={
+        spec = {
             "mapper": {
                 "supported_profilers": ["cpu"],
             },

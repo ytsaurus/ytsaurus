@@ -48,7 +48,7 @@ from yt_commands import (  # noqa
     build_snapshot, build_master_snapshots, master_memory_sleep,
     assert_true_for_all_cells, wait_true_for_all_cells,
     gc_collect, is_multicell, clear_metadata_caches,
-    get_driver, Driver, execute_command, generate_uuid,
+    get_driver, execute_command, generate_uuid,
     AsyncLastCommittedTimestamp, MinTimestamp)
 
 from yt.yson import to_yson_type, YsonEntity
