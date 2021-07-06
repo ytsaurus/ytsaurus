@@ -368,6 +368,7 @@ NODES_SERVICE = "nodes"
 # TODO(ignat): migrate to new naming.
 MASTER_CELL_SERVICE = "masters"
 MASTERS_SERVICE = "masters"
+MASTER_CACHES_SERVICE = "master_caches"
 
 class Restarter(object):
     def __init__(self, yt_instance, components, sync=True, *args, **kwargs):
@@ -386,13 +387,15 @@ class Restarter(object):
             SCHEDULERS_SERVICE: self.yt_instance.start_schedulers,
             CONTROLLER_AGENTS_SERVICE: self.yt_instance.start_controller_agents,
             NODES_SERVICE: self.yt_instance.start_nodes,
-            MASTERS_SERVICE: start_all_masters
+            MASTERS_SERVICE: start_all_masters,
+            MASTER_CACHES_SERVICE: self.yt_instance.start_master_caches
         }
         self.kill_dict = {
             SCHEDULERS_SERVICE: lambda: self.yt_instance.kill_schedulers(*self.kill_args, **self.kill_kwargs),
             CONTROLLER_AGENTS_SERVICE: lambda: self.yt_instance.kill_controller_agents(*self.kill_args, **self.kill_kwargs),
             NODES_SERVICE: lambda: self.yt_instance.kill_nodes(*self.kill_args, **self.kill_kwargs),
-            MASTERS_SERVICE: lambda: self.yt_instance.kill_all_masters(*self.kill_args, **self.kill_kwargs)
+            MASTERS_SERVICE: lambda: self.yt_instance.kill_all_masters(*self.kill_args, **self.kill_kwargs),
+            MASTER_CACHES_SERVICE: lambda: self.yt_instance.kill_master_caches(*self.kill_args, **self.kill_kwargs)
         }
 
     def __enter__(self):

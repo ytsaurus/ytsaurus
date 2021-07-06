@@ -253,6 +253,10 @@ def modify_cluster_configuration(yt_config, cluster_configuration):
     for config in cluster_configuration["rpc_proxy"]:
         if yt_config.delta_rpc_proxy_config:
             update_inplace(config, yt_config.delta_rpc_proxy_config)
+    
+    if config in cluster_configuration["master_cache"]:
+        if yt_config.delta_master_cache_config:
+            update_inplace(config, yt_config.delta_master_cache_config)
 
     if yt_config.optimize_config:
         _remove_none_fields(cluster_configuration)

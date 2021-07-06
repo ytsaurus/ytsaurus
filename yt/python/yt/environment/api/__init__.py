@@ -90,6 +90,7 @@ class LocalYtConfig(object):
     delta_http_proxy_config = attr.ib(None)
     delta_rpc_proxy_config = attr.ib(None)
     delta_driver_config = attr.ib(None)
+    delta_master_cache_config = attr.ib(None)
 
 
 __all__ = ["LocalYtConfig"]
