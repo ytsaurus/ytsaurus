@@ -580,16 +580,6 @@ class YtClient(ClientState):
         """
         return client_api.lock_rows(table, input_stream, client=self, locks=locks, lock_type=lock_type, durability=durability, format=format, raw=raw)
 
-    def list_attributes(self, path, attribute_path=''):
-        """
-        Lists all attributes of Cypress node.
-
-    :param str path: path.
-    :param str attribute_path: attribute path.
-    
-        """
-        return client_api.list_attributes(path, client=self, attribute_path=attribute_path)
-
     def run_map_reduce(self, mapper, reducer, source_table, destination_table, format=None, map_input_format=None, map_output_format=None, reduce_input_format=None, reduce_output_format=None, sync=True, job_io=None, table_writer=None, spec=None, map_local_files=None, map_yt_files=None, reduce_local_files=None, reduce_yt_files=None, mapper_memory_limit=None, reducer_memory_limit=None, sort_by=None, reduce_by=None, reduce_combiner=None, reduce_combiner_input_format=None, reduce_combiner_output_format=None, reduce_combiner_local_files=None, reduce_combiner_yt_files=None, reduce_combiner_memory_limit=None, stderr_table=None):
         """
         Runs map (optionally), sort, reduce and reduce-combine (optionally) operations.
