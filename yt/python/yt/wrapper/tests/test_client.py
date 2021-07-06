@@ -68,8 +68,6 @@ class TestClient(object):
             assert client.has_attribute(TEST_DIR + "/table_link&", "broken")
 
             client.set_attribute(other_table, "test_attr", "value")
-            for attribute in ["id", "test_attr"]:
-                assert attribute in client.list_attributes(other_table)
 
             assert not client.exists(client.find_free_subpath(TEST_DIR))
 

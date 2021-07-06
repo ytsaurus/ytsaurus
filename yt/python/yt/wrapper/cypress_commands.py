@@ -460,14 +460,6 @@ def set_attribute(path, attribute, value, client=None):
     """
     return set("%s/@%s" % (path, attribute), value, client=client)
 
-def list_attributes(path, attribute_path="", client=None):
-    """Lists all attributes of Cypress node.
-
-    :param str path: path.
-    :param str attribute_path: attribute path.
-    """
-    return list("%s/@%s" % (path, attribute_path), client=client)
-
 @deprecated(alternative="get 'type' attribute")
 def get_type(path, client=None):
     """Gets Cypress node attribute type.

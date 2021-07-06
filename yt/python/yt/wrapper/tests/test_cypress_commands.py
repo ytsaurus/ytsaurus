@@ -285,7 +285,6 @@ class TestCypressCommands(object):
         yt.set_attribute(table, "my_attribute/000", 10)
         assert yt.get_attribute(table, "my_attribute/000") == 10
         assert yt.get_attribute(table, "my_attribute/001", default=2) == 2
-        assert yt.list_attributes(table, "my_attribute") == ["000"]
         assert yt.get_attribute(table, "user_attribute_keys") == ["my_attribute"]
         assert yt.get(table + "/@my_attribute") == {"000": 10}
 
