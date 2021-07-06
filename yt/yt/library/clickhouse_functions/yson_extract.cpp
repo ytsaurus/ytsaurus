@@ -28,12 +28,12 @@ class TFunctionYson : public IFunction, WithConstContext
 {
 public:
 
-    TFunctionYson(ContextConstPtr context_) : WithConstContext(context_)
+    TFunctionYson(ContextPtr context_) : WithConstContext(context_)
     { }
 
     static constexpr auto name = Name::name;
 
-    static FunctionPtr create(ContextConstPtr context_)
+    static FunctionPtr create(ContextPtr context_)
     {
         return std::make_shared<TFunctionYson>(context_);
     }
