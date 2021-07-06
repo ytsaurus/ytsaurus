@@ -564,7 +564,6 @@ bool TChunkMerger::CanScheduleMerge(TChunkOwnerBase* chunkOwner) const
 
     return
         Enabled_ &&
-        IsMergeTransactionAlive() &&
         IsObjectAlive(chunkOwner) &&
         IsObjectAlive(chunkOwner->GetChunkList());
 }
