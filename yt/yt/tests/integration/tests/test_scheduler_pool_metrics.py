@@ -38,7 +38,7 @@ from yt_commands import (  # noqa
     create_test_tables, create_dynamic_table, PrepareTables,
     get_statistics,
     make_random_string, raises_yt_error,
-    get_driver, Driver)
+    get_driver)
 
 from yt_helpers import Profiler
 

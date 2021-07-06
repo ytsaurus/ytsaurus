@@ -48,13 +48,16 @@ from yt_commands import (  # noqa
     make_random_string, raises_yt_error,
     build_snapshot, build_master_snapshots,
     gc_collect, is_multicell, clear_metadata_caches,
-    get_driver, Driver, execute_command, get_batch_output, generate_uuid,
+    get_driver, execute_command, get_batch_output, generate_uuid,
     AsyncLastCommittedTimestamp, MinTimestamp)
+
 from yt_helpers import get_current_time
 
 from yt.common import YtError
 from yt.environment.helpers import assert_items_equal
 import yt.yson as yson
+
+from yt_driver_bindings import Driver
 
 from flaky import flaky
 import pytest

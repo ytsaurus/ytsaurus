@@ -39,7 +39,7 @@ from yt_commands import (  # noqa
     get_statistics, get_recursive_disk_space, get_chunk_owner_disk_space,
     make_random_string, raises_yt_error,
     build_snapshot, gc_collect, clear_metadata_caches,
-    get_driver, Driver, execute_command, generate_uuid)
+    get_driver, execute_command, generate_uuid)
 
 from yt_helpers import Profiler
 

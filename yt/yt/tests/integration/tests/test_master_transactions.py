@@ -47,7 +47,7 @@ from yt_commands import (  # noqa
     make_random_string, raises_yt_error,
     build_snapshot, build_master_snapshots,
     gc_collect, is_multicell, clear_metadata_caches,
-    get_driver, Driver, execute_command,
+    get_driver, execute_command,
     AsyncLastCommittedTimestamp, MinTimestamp)
 
 from yt.environment.helpers import assert_items_equal

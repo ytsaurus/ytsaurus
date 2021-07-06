@@ -42,7 +42,7 @@ from yt_commands import (  # noqa
     get_statistics, get_tablet_leader_address,
     make_random_string, raises_yt_error,
     build_snapshot,
-    get_driver, Driver, execute_command,
+    get_driver, execute_command,
     AsyncLastCommittedTimestamp, MinTimestamp)
 
 import yt.environment.init_operation_archive as init_operation_archive

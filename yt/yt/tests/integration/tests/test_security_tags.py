@@ -35,8 +35,7 @@ from yt_commands import (  # noqa
     create_test_tables, create_dynamic_table, PrepareTables,
     get_statistics,
     make_random_string, raises_yt_error,
-    build_snapshot,
-    get_driver, Driver, execute_command)
+    build_snapshot, get_driver, execute_command)
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError

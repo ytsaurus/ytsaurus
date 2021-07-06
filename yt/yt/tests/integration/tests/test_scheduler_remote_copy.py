@@ -40,8 +40,7 @@ from yt_commands import (  # noqa
     create_test_tables, create_dynamic_table, PrepareTables,
     get_statistics,
     make_random_string, raises_yt_error,
-    build_snapshot,
-    get_driver, Driver)
+    build_snapshot, get_driver)
 
 from yt_helpers import skip_if_no_descending
 from yt_type_helpers import make_schema, normalize_schema, normalize_schema_v3, optional_type, list_type
