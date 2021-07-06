@@ -47,7 +47,7 @@ public:
     const TDataCenterSet& GetUnsaturatedInterDCEdgesStartingFrom(const NNodeTrackerServer::TDataCenter* dc);
 
     void RegisterJob(const TJobPtr& job);
-    void UnregisterJob(const TJobPtr& job);
+    void UnregisterJob(TJobPtr job);
 
     void OnNodeDataCenterChanged(TNode* node, NNodeTrackerServer::TDataCenter* oldDataCenter);
     void OnDataCenterCreated(const NNodeTrackerServer::TDataCenter* dataCenter);

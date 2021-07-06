@@ -313,7 +313,7 @@ void TJobRegistry::RegisterJob(const TJobPtr& job)
         job->GetNode()->GetDefaultAddress());
 }
 
-void TJobRegistry::UnregisterJob(const TJobPtr& job)
+void TJobRegistry::UnregisterJob(TJobPtr job)
 {
     job->GetNode()->UnregisterJob(job);
     auto jobType = job->GetType();
