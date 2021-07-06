@@ -1430,7 +1430,8 @@ public:
             abortJob(jobToAbort->GetJobId());
         }
 
-        for (const auto& [jobId, job] : node->IdToJob()) {
+        auto jobs = node->IdToJob();
+        for (const auto& [jobId, job] : jobs) {
             if (!processedJobs.contains(job)) {
                 YT_LOG_WARNING("Job is missing, aborting (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
                     jobId,
