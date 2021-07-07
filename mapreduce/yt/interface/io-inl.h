@@ -186,7 +186,7 @@ public:
         : Reader_(reader)
     { }
 
-    ~TTableReaderBase()
+    ~TTableReaderBase() override
     {
         NDetail::LogTableReaderStatistics(ReadRowCount_, Reader_->GetReadByteCount());
     }
