@@ -166,6 +166,8 @@ class OperationsTrackerBase(object):
         self._tracking_thread = self.THREAD_CLASS(poll_period, print_progress, batch_size)
         self._tracking_thread.start()
 
+        self._stopped = False
+
     def _add_operation(self, operation):
         if operation.id in self.operations:
             raise YtError("Operation {0} is already tracked".format(operation.id))
@@ -177,6 +179,8 @@ class OperationsTrackerBase(object):
 
         :param Operation operation: operation to track.
         """
+        if self._stopped:
+            raise YtError("OperationsTracker must not be used after the with-block")
 
         if operation is None:
             return
@@ -243,8 +247,15 @@ class OperationsTrackerBase(object):
                 "Operations wait failed with error %s, aborting all operations in tracker...",
                 repr(exc_value))
             self.abort_all()
+        self._tracking_thread.stop()
+        self._stopped = True
 
     def __del__(self):
+        if self._stopped:
+            return
+        logger.warning(
+            "OperationsTracker is supposed to be used as context manager, "
+            "cf. https://yt.yandex-team.ru/docs/api/python/userdoc#operations_tracker_class")
         self._tracking_thread.stop()
 
 

@@ -87,11 +87,11 @@ class TestOperationsTracker(object):
             assert op2.get_state().is_finished()
 
             with pytest.raises(ZeroDivisionError):
-                with tracker:
+                with yt.OperationsTracker() as another_tracker:
                     op1 = clientA.run_map("sleep 100; cat", table, TEST_DIR + "/out", sync=False)
-                    tracker.add(op1)
+                    another_tracker.add(op1)
                     op2 = clientB.run_map("sleep 100; cat", table, TEST_DIR + "/out", sync=False)
-                    tracker.add(op2)
+                    another_tracker.add(op2)
                     raise ZeroDivisionError
 
             assert op2.get_state() == "aborted"
@@ -145,15 +145,15 @@ class TestOperationsTracker(object):
             tracker.wait_all(keep_finished=True)
             tracker.abort_all()
 
-            with tracker:
+            with yt.OperationsTracker() as another_tracker:
                 op = yt.run_map("sleep 2; true", table, TEST_DIR + "/out", sync=False)
-                tracker.add(op)
+                another_tracker.add(op)
             assert op.get_state() == "completed"
 
             with pytest.raises(ZeroDivisionError):
-                with tracker:
+                with yt.OperationsTracker() as another_tracker:
                     op = yt.run_map("sleep 100; cat", table, TEST_DIR + "/out", sync=False)
-                    tracker.add(op)
+                    another_tracker.add(op)
                     raise ZeroDivisionError
 
             assert op.get_state() == "aborted"
