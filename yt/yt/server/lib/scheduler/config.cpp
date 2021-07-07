@@ -298,6 +298,9 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("pool_config_presets", PoolConfigPresets)
         .Default();
 
+    RegisterParameter("truncate_fifo_pool_unsatisfied_child_fair_share", TruncateFifoPoolUnsatisfiedChildFairShare)
+        .Default(false);
+
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive starvation satisfaction threshold must be less than starvation satisfaction threshold")

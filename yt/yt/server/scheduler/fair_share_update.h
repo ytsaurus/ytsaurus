@@ -21,6 +21,7 @@ using NScheduler::TJobResourcesConfig;
 using NScheduler::TJobResourcesConfigPtr;
 using NScheduler::ESchedulingMode;
 using NScheduler::ResourceCount;
+using NScheduler::RatioComparisonPrecision;
 using NScheduler::RatioComputationPrecision;
 
 using TVectorPiecewiseSegment = NScheduler::TVectorPiecewiseSegment;
@@ -179,6 +180,8 @@ public:
 
     virtual double GetSpecifiedBurstRatio() const = 0;
     virtual double GetSpecifiedResourceFlowRatio() const = 0;
+
+    virtual bool ShouldTruncateUnsatisfiedChildFairShareInFifoPool() const = 0;
 
 private:
     using TChildSuggestions = std::vector<double>;

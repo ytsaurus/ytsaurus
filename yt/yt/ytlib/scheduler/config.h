@@ -254,6 +254,8 @@ public:
 
     std::optional<TString> ConfigPreset;
 
+    std::optional<bool> TruncateFifoPoolUnsatisfiedChildFairShare;
+
     TPoolConfig();
 
     void Validate();

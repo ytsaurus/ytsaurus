@@ -282,6 +282,8 @@ public:
 
     THashMap<TString, NYTree::INodePtr> PoolConfigPresets;
 
+    bool TruncateFifoPoolUnsatisfiedChildFairShare;
+
     TFairShareStrategyTreeConfig();
 };
 

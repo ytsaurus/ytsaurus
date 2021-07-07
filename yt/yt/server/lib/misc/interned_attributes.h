@@ -393,6 +393,7 @@
     XX(Tree, tree) \
     XX(TrimmedChildCount, trimmed_child_count) \
     XX(TrimmedRowCount, trimmed_row_count) \
+    XX(TruncateFifoPoolUnsatisfiedChildFairShare, truncate_fifo_pool_unsatisfied_child_fair_share) \
     XX(Type, type) \
     XX(UncompressedDataSize, uncompressed_data_size) \
     XX(UnconfirmedDynamicTableLocks, unconfirmed_dynamic_table_locks) \
