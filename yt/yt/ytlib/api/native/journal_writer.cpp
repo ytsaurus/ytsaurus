@@ -185,6 +185,8 @@ private:
                 return MakeFuture(Error_);
             }
 
+            YT_VERIFY(!Closing_);
+
             auto result = VoidFuture;
             for (const auto& row : rows) {
                 YT_VERIFY(row);
@@ -373,12 +375,16 @@ private:
             TError Error;
         };
 
+        struct TCompleteCommand
+        { };
+
         using TCommand = std::variant<
             TBatchCommand,
             TCloseCommand,
             TCancelCommand,
             TSwitchChunkCommand,
-            TFailCommand
+            TFailCommand,
+            TCompleteCommand
         >;
 
         TNonblockingQueue<TCommand> CommandQueue_;
@@ -957,14 +963,13 @@ private:
 
         void WriteChunk()
         {
-            while (true) {
+            while (!IsCompleted()) {
                 ValidateAborted();
                 auto command = DequeueCommand();
-                auto mustBreak = false;
+                auto switchChunk = false;
                 Visit(command,
                     [&] (TCloseCommand) {
                         HandleClose();
-                        mustBreak = true;
                     },
                     [&] (TCancelCommand) {
                         HandleCancel();
@@ -982,13 +987,16 @@ private:
                         if (typedCommand.Session != CurrentChunkSession_) {
                             return;
                         }
-                        mustBreak = true;
+                        switchChunk = true;
                     },
                     [&] (const TFailCommand& typedCommand) {
                         THROW_ERROR(typedCommand.Error);
+                    },
+                    [&] (TCompleteCommand) {
+                        YT_VERIFY(IsCompleted());
                     });
 
-                if (mustBreak) {
+                if (switchChunk) {
                     YT_LOG_DEBUG("Switching chunk");
                     break;
                 }
@@ -997,6 +1005,10 @@ private:
 
         void HandleClose()
         {
+            if (Closing_) {
+                return;
+            }
+
             YT_LOG_DEBUG("Closing journal writer");
             Closing_ = true;
         }
@@ -1139,7 +1151,7 @@ private:
                 OpenChunk();
                 WriteChunk();
                 CloseChunk();
-            } while (!Closing_ || !QuorumUnflushedBatches_.empty());
+            } while (!IsCompleted());
             CloseJournal();
         }
 
@@ -1485,6 +1497,10 @@ private:
                     front->FirstRowIndex + front->RowCount - 1);
             }
 
+            if (IsCompleted()) {
+                EnqueueCommand(TCompleteCommand());
+            }
+
             for (const auto& promise : fulfilledPromises) {
                 promise.Set();
             }
@@ -1803,8 +1819,12 @@ private:
             SealInProgress_ = false;
             MaybeSealChunks();
         }
-    };
 
+        bool IsCompleted() const
+        {
+            return Closing_ && QuorumUnflushedBatches_.empty();
+        }
+    };
 
     const TIntrusivePtr<TImpl> Impl_;
 };

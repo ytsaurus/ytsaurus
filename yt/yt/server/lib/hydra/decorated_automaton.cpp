@@ -49,6 +49,7 @@ namespace NYT::NHydra {
 using namespace NConcurrency;
 using namespace NElection;
 using namespace NHydra::NProto;
+using namespace NLogging;
 using namespace NPipes;
 using namespace NProfiling;
 using namespace NRpc;
@@ -142,6 +143,60 @@ TUserLockGuard::TUserLockGuard(TDecoratedAutomatonPtr automaton)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChangelogDiscarder
+    : public IChangelogDiscarder
+{
+public:
+    explicit TChangelogDiscarder(const TLogger& logger)
+        : Logger(logger)
+    { }
+
+    virtual void CloseChangelog(TFuture<IChangelogPtr> changelogFuture, int changelogId) override
+    {
+        if (!changelogFuture) {
+            return;
+        }
+
+        changelogFuture.Apply(BIND([this, this_ = MakeStrong(this), changelogId] (const TErrorOr<IChangelogPtr>& changelogOrError) {
+            if (changelogOrError.IsOK()) {
+                CloseChangelog(changelogOrError.Value(), changelogId);
+            } else {
+                YT_LOG_INFO(changelogOrError,
+                    "Changelog allocation failed but it is already discarded, ignored (ChangelogId: %v)",
+                    changelogId);
+            }
+        }));
+    }
+
+    virtual void CloseChangelog(const IChangelogPtr& changelog, int changelogId) override
+    {
+        if (!changelog) {
+            return;
+        }
+
+        // NB: Changelog is captured into a closure to prevent
+        // its destruction before closing.
+        changelog->Close()
+            .Apply(BIND(&TChangelogDiscarder::OnChangelogDiscarded, MakeStrong(this), changelog, changelogId));
+    }
+
+private:
+    const TLogger Logger;
+
+    void OnChangelogDiscarded(IChangelogPtr /*changelog*/, int changelogId, const TError& error)
+    {
+        if (error.IsOK()) {
+            YT_LOG_DEBUG("Changelog closed successfully (ChangelogId: %v)",
+                changelogId);
+        } else {
+            YT_LOG_WARNING(error, "Failed to close changelog (ChangelogId: %v)",
+                changelogId);
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDecoratedAutomaton::TSystemInvoker
     : public TInvokerWrapper
 {
@@ -165,7 +220,6 @@ public:
 
 private:
     TDecoratedAutomaton* const Owner_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -201,7 +255,6 @@ public:
 
 private:
     const TDecoratedAutomatonPtr Owner_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -617,7 +670,8 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     TStateHashCheckerPtr stateHashChecker,
     const NLogging::TLogger& logger,
     const NProfiling::TProfiler& profiler)
-    : Config_(std::move(config))
+    : Logger(logger)
+    , Config_(std::move(config))
     , Options_(options)
     , Automaton_(std::move(automaton))
     , AutomatonInvoker_(std::move(automatonInvoker))
@@ -626,7 +680,7 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , SystemInvoker_(New<TSystemInvoker>(this))
     , SnapshotStore_(std::move(snapshotStore))
     , StateHashChecker_(std::move(stateHashChecker))
-    , Logger(logger)
+    , ChangelogDiscarder_(New<TChangelogDiscarder>(Logger))
     , BatchCommitTimer_(profiler.Timer("/batch_commit_time"))
     , SnapshotLoadTime_(profiler.TimeGauge("/snapshot_load_time"))
 {
@@ -985,6 +1039,10 @@ void TDecoratedAutomaton::DoRotateChangelog()
         if (!NextChangelogFuture_) {
             YT_LOG_INFO("Creating changelog (ChangelogId: %v)", nextChangelogId);
             NextChangelogFuture_ = EpochContext_->ChangelogStore->CreateChangelog(nextChangelogId);
+        }
+
+        if (Config_->CloseChangelogs) {
+            ChangelogDiscarder_->CloseChangelog(Changelog_, currentChangelogId);
         }
 
         YT_LOG_INFO("Waiting for changelog to open (ChangelogId: %v)",
@@ -1386,6 +1444,13 @@ void TDecoratedAutomaton::StopEpoch()
     }
 
     RotatingChangelog_ = false;
+
+    if (Config_->CloseChangelogs) {
+        auto currentChangelogId = LoggedVersion_.load().SegmentId;
+        ChangelogDiscarder_->CloseChangelog(Changelog_, currentChangelogId);
+        ChangelogDiscarder_->CloseChangelog(NextChangelogFuture_, currentChangelogId + 1);
+    }
+
     Changelog_.Reset();
     NextChangelogFuture_.Reset();
     {

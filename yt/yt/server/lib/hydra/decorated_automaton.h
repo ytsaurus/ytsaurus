@@ -93,7 +93,6 @@ private:
     explicit TSystemLockGuard(TDecoratedAutomatonPtr automaton);
 
     TDecoratedAutomatonPtr Automaton_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -118,8 +117,18 @@ private:
     explicit TUserLockGuard(TDecoratedAutomatonPtr automaton);
 
     TDecoratedAutomatonPtr Automaton_;
-
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IChangelogDiscarder
+    : public TRefCounted
+{
+    virtual void CloseChangelog(TFuture<IChangelogPtr> changelogFuture, int changelogId) = 0;
+    virtual void CloseChangelog(const IChangelogPtr& changelog, int changelogId) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IChangelogDiscarder)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -251,6 +260,8 @@ private:
     class TSwitchableSnapshotWriter;
     class TNoForkSnapshotBuilder;
 
+    const NLogging::TLogger Logger;
+
     const TDistributedHydraManagerConfigPtr Config_;
     const TDistributedHydraManagerOptions Options_;
     const NElection::TCellManagerPtr CellManager_;
@@ -261,6 +272,7 @@ private:
     const IInvokerPtr SystemInvoker_;
     const ISnapshotStorePtr SnapshotStore_;
     const TStateHashCheckerPtr StateHashChecker_;
+    const IChangelogDiscarderPtr ChangelogDiscarder_;
 
     std::atomic<int> UserLock_ = {0};
     std::atomic<int> SystemLock_ = {0};
@@ -297,8 +309,6 @@ private:
     NProto::TMutationHeader MutationHeader_; // pooled instance
     TRingQueue<TPendingMutation> PendingMutations_;
 
-    const NLogging::TLogger Logger;
-
     NProfiling::TEventTimer BatchCommitTimer_;
     NProfiling::TTimeGauge SnapshotLoadTime_;
 
@@ -333,7 +343,6 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TDecoratedAutomaton)

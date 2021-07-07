@@ -323,6 +323,9 @@ public:
     //! If true, empty changelogs are preallocated to avoid hiccups of segment rotation.
     bool PreallocateChangelogs;
 
+    //! If true, changelogs are gracefully closed on segment rotation and epoch end.
+    bool CloseChangelogs;
+
     //! Interval between automatic "heartbeat" mutations commit.
     /*!
      *  These mutations are no-ops. Committing them regularly helps to ensure
@@ -439,6 +442,8 @@ public:
             .GreaterThan(0);
         RegisterParameter("preallocate_changelogs", PreallocateChangelogs)
             .Default(false);
+        RegisterParameter("close_changelogs", CloseChangelogs)
+            .Default(true);
 
         RegisterParameter("heartbeat_mutation_period", HeartbeatMutationPeriod)
             .Default(TDuration::Seconds(60));
