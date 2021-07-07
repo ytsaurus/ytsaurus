@@ -79,7 +79,7 @@ public:
     TFuture<NYson::TYsonString> GetOperationNodeProgressAttributes(const TOperationPtr& operation);
 
     void InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState);
-    void StoreSchedulingSegmentsStateAsync(TPersistentSchedulingSegmentsStatePtr segmentsState);
+    void InvokeStoringSchedulingSegmentsState(TPersistentSchedulingSegmentsStatePtr segmentsState);
 
     void AttachJobContext(
         const NYPath::TYPath& path,
