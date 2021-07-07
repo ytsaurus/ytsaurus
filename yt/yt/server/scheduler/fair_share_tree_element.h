@@ -785,6 +785,8 @@ public:
 
     virtual THashSet<TString> GetAllowedProfilingTags() const override;
 
+    virtual bool ShouldTruncateUnsatisfiedChildFairShareInFifoPool() const override;
+
 protected:
     //! Pre fair share update methods.
     virtual TJobResources GetSpecifiedResourceLimits() const override;
@@ -1309,6 +1311,8 @@ public:
 
     //! Other methods.
     virtual THashSet<TString> GetAllowedProfilingTags() const override;
+
+    virtual bool ShouldTruncateUnsatisfiedChildFairShareInFifoPool() const override;
 
     virtual void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* meteringMap) const override;
 

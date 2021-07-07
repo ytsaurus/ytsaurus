@@ -606,6 +606,12 @@ TCompositeElement::TChildSuggestions TCompositeElement::GetChildSuggestionsFifo(
         childSuggestions[i] = 1.0;
     }
 
+    // NB(eshcherbin, YT-15061): This option is only used in GPU-trees to enable preemption of jobs of gang operations
+    // which fair share is less than demand.
+    if (ShouldTruncateUnsatisfiedChildFairShareInFifoPool() && unsatisfiedChildSuggestion < 1.0 - RatioComparisonPrecision) {
+        unsatisfiedChildSuggestion = 0.0;
+    }
+
     if (unsatisfiedChildSuggestion != 0.0) {
         childSuggestions[satisfiedChildCount] = unsatisfiedChildSuggestion;
     }

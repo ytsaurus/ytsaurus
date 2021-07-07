@@ -5053,3 +5053,64 @@ class TestVectorStrongGuarantees(YTEnvSetup):
             {"cpu": 1.0, "user_slots": 1.0, "network": 1.0}))
 
         self._wait_for_guarantee_overcommit_alert()
+
+
+##################################################################
+
+
+class TestFifoPools(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 100,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "user_slots": 10,
+                    "cpu": 10
+                }
+            }
+        }
+    }
+
+    def setup_method(self, method):
+        super(TestFifoPools, self).setup_method(method)
+        set("//sys/pool_trees/default/@config/fair_share_starvation_timeout", 1000)
+        set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
+        set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 0)
+        time.sleep(0.5)
+
+    @authors("eshcherbin")
+    def test_truncate_unsatisfied_child_fair_share_in_fifo_pools(self):
+        create_pool("fifo", attributes={"mode": "fifo"})
+        create_pool("normal")
+
+        blocking_op1 = run_sleeping_vanilla(task_patch={"cpu_limit": 3.0}, spec={"pool": "fifo"})
+        blocking_op1.wait_for_state("running")
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(blocking_op1.id) + "/detailed_fair_share/total/cpu"), 0.3))
+
+        blocking_op2 = run_sleeping_vanilla(task_patch={"cpu_limit": 3.0}, spec={"pool": "fifo"})
+        blocking_op2.wait_for_state("running")
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(blocking_op2.id) + "/detailed_fair_share/total/cpu"), 0.3))
+
+        op = run_sleeping_vanilla(task_patch={"cpu_limit": 5.0}, spec={"pool": "normal"})
+        op.wait_for_state("running")
+
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op.id) + "/detailed_fair_share/total/cpu"), 0.5))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(blocking_op1.id) + "/detailed_fair_share/total/cpu"), 0.3))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(blocking_op2.id) + "/detailed_fair_share/total/cpu"), 0.2))
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/starvation_status") != "non_starving")
+
+        set("//sys/pool_trees/default/@config/truncate_fifo_pool_unsatisfied_child_fair_share", True)
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(blocking_op2.id) + "/detailed_fair_share/total/cpu"), 0.0))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op.id) + "/usage_share/cpu"), 0.5))
+
+        set("//sys/pool_trees/default/fifo/@truncate_fifo_pool_unsatisfied_child_fair_share", False)
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(blocking_op2.id) + "/detailed_fair_share/total/cpu"), 0.2))

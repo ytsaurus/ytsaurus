@@ -1599,6 +1599,12 @@ THashSet<TString> TSchedulerPoolElement::GetAllowedProfilingTags() const
     return Config_->AllowedProfilingTags;
 }
 
+bool TSchedulerPoolElement::ShouldTruncateUnsatisfiedChildFairShareInFifoPool() const
+{
+    return Config_->TruncateFifoPoolUnsatisfiedChildFairShare.value_or(
+        TreeConfig_->TruncateFifoPoolUnsatisfiedChildFairShare);
+}
+
 bool TSchedulerPoolElement::IsInferringChildrenWeightsFromHistoricUsageEnabled() const
 {
     return Config_->InferChildrenWeightsFromHistoricUsage;
@@ -3676,6 +3682,11 @@ bool TSchedulerRootElement::AreImmediateOperationsForbidden() const
 THashSet<TString> TSchedulerRootElement::GetAllowedProfilingTags() const
 {
     return {};
+}
+
+bool TSchedulerRootElement::ShouldTruncateUnsatisfiedChildFairShareInFifoPool() const
+{
+    return false;
 }
 
 bool TSchedulerRootElement::IsInferringChildrenWeightsFromHistoricUsageEnabled() const

@@ -1802,7 +1802,10 @@ TPoolConfig::TPoolConfig()
         .Default(false);
 
     RegisterParameter("config_preset", ConfigPreset)
-        .Default(std::nullopt);
+        .Default();
+
+    RegisterParameter("truncate_fifo_pool_unsatisfied_child_fair_share", TruncateFifoPoolUnsatisfiedChildFairShare)
+        .Default();
 }
 
 void TPoolConfig::Validate()

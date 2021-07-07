@@ -1503,6 +1503,63 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareImpreciseComposition)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TFairShareTreeTest, TruncateUnsatisfiedChildFairShareInFifoPools)
+{
+    TJobResourcesWithQuota nodeResources;
+    nodeResources.SetUserSlots(10);
+    nodeResources.SetCpu(100);
+    nodeResources.SetMemory(100);
+
+    auto execNode = CreateTestExecNode(static_cast<NNodeTrackerClient::TNodeId>(0), nodeResources);
+
+    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(1, nodeResources));
+
+    auto poolConfig = New<TPoolConfig>();
+    poolConfig->TruncateFifoPoolUnsatisfiedChildFairShare = true;
+    poolConfig->Mode = ESchedulingMode::Fifo;
+
+    auto rootElement = CreateTestRootElement(host.Get());
+    auto poolA = CreateTestPool(host.Get(), "poolA", poolConfig);
+    auto poolB = CreateTestPool(host.Get(), "poolB", poolConfig);
+    poolA->AttachParent(rootElement.Get());
+    poolB->AttachParent(rootElement.Get());
+
+    TJobResourcesWithQuota jobResources;
+    jobResources.SetUserSlots(3);
+    jobResources.SetCpu(30);
+    jobResources.SetMemory(30);
+
+    auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
+    operationOptions->Weight = 1.0;
+
+    auto operationAFirst = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList({jobResources}));
+    auto operationElementAFirst = CreateTestOperationElement(host.Get(), operationAFirst.Get(), poolA.Get(), operationOptions);
+
+    auto operationASecond = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList({jobResources}));
+    auto operationElementASecond = CreateTestOperationElement(host.Get(), operationASecond.Get(), poolA.Get(), operationOptions);
+
+    auto operationBFirst = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList({jobResources}));
+    auto operationElementBFirst = CreateTestOperationElement(host.Get(), operationBFirst.Get(), poolB.Get(), operationOptions);
+
+    auto operationBSecond = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList({jobResources}));
+    auto operationElementBSecond = CreateTestOperationElement(host.Get(), operationBSecond.Get(), poolB.Get(), operationOptions);
+
+    DoFairShareUpdate(host.Get(), rootElement);
+
+    EXPECT_EQ(TResourceVector({0.3, 0.3, 0.0, 0.3, 0.0}), operationElementAFirst->Attributes().DemandShare);
+    EXPECT_EQ(TResourceVector({0.3, 0.3, 0.0, 0.3, 0.0}), operationElementASecond->Attributes().DemandShare);
+    EXPECT_EQ(TResourceVector({0.3, 0.3, 0.0, 0.3, 0.0}), operationElementBFirst->Attributes().DemandShare);
+    EXPECT_EQ(TResourceVector({0.3, 0.3, 0.0, 0.3, 0.0}), operationElementBSecond->Attributes().DemandShare);
+
+    EXPECT_EQ(TResourceVector({0.3, 0.3, 0.0, 0.3, 0.0}), operationElementAFirst->Attributes().FairShare.Total);
+    EXPECT_EQ(TResourceVector({0.0, 0.0, 0.0, 0.0, 0.0}), operationElementASecond->Attributes().FairShare.Total);
+    EXPECT_EQ(TResourceVector({0.3, 0.3, 0.0, 0.3, 0.0}), operationElementBFirst->Attributes().FairShare.Total);
+    EXPECT_EQ(TResourceVector({0.0, 0.0, 0.0, 0.0, 0.0}), operationElementBSecond->Attributes().FairShare.Total);
+
+    EXPECT_EQ(TResourceVector({0.3, 0.3, 0.0, 0.3, 0.0}), poolA->Attributes().FairShare.Total);
+    EXPECT_EQ(TResourceVector({0.3, 0.3, 0.0, 0.3, 0.0}), poolB->Attributes().FairShare.Total);
+}
+
 TEST_F(TFairShareTreeTest, DoNotPreemptJobsIfFairShareRatioEqualToDemandRatio)
 {
     TJobResourcesWithQuota nodeResources;
