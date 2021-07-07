@@ -136,13 +136,22 @@ public:
             }
 
             ProxiedRequestHeaders_ = Request_->GetHeaders()->Duplicate();
+            // User authentication is done on proxy only. We do not need to send the token to the clique.
+            // Instead, we send the authenticated username via "X-Clickhouse-User" header.
             ProxiedRequestHeaders_->Remove("Authorization");
             ProxiedRequestHeaders_->Set("X-Clickhouse-User", User_);
+            // In rare cases the request can be sent to an instance from another clique.
+            // Setting 'expected clique id' helps to detect these situations and reject the request.
             ProxiedRequestHeaders_->Set("X-Clique-Id", ToString(OperationId_));
+            // Status '100 Continue' is not handled properly in our HttpClient.
+            // Remove 'Expect' header to prevent such response status.
+            ProxiedRequestHeaders_->Remove("Expect");
 
             CgiParameters_.EraseAll("database");
             CgiParameters_.EraseAll("query_id");
             CgiParameters_.EraseAll("span_id");
+            CgiParameters_.EraseAll("user");
+            CgiParameters_.EraseAll("password");
 
             auto* traceContext = GetCurrentTraceContext();
             YT_VERIFY(traceContext);
@@ -225,15 +234,28 @@ public:
         }
 
         if (responseOrError.IsOK()) {
-            if (responseOrError.Value()->GetStatusCode() == EStatusCode::MovedPermanently) {
+            auto response = responseOrError.Value();
+
+            if (response->GetStatusCode() == EStatusCode::MovedPermanently) {
                 // Special status code which means that the instance is stopped by signal or clique-id in header isn't correct.
                 // It is guaranteed that this instance didn't start to invoke the request, so we can retry it.
                 responseOrError = TError("Instance moved, request rejected");
-            } else if (!responseOrError.Value()->GetHeaders()->Find("X-ClickHouse-Server-Display-Name")) {
+            } else if (!response->GetHeaders()->Find("X-ClickHouse-Server-Display-Name")) {
                 // We got the response, but not from clickhouse instance.
                 // Probably the instance had died and another service was started at the same host:port.
                 // We can safely retry such requests.
-                responseOrError = TError("The requested server is not a clickhouse instance");
+
+                THashSet<TString> headers;
+                for (const auto& [header, value] : response->GetHeaders()->Dump()) {
+                    headers.emplace(header);
+                }
+
+                auto statusCode = response->GetStatusCode();
+                auto statusCodeStr = ToString(static_cast<int>(statusCode)) + " (" + ToString(statusCode)+ ")";
+
+                responseOrError = TError("The requested server is not a clickhouse instance")
+                    << TErrorAttribute("status_code", statusCodeStr)
+                    << TErrorAttribute("headers", headers);
             }
         }
 
@@ -400,8 +422,6 @@ private:
                 }
             } else if (CgiParameters_.Has("password")) {
                 Token_ = CgiParameters_.Get("password");
-                CgiParameters_.EraseAll("password");
-                CgiParameters_.EraseAll("user");
                 if (!Token_.empty()) {
                     AllowGetRequests_ = true;
                 }

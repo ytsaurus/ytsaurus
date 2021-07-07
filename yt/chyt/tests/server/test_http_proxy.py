@@ -277,6 +277,12 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         with raises_yt_error(QueryFailedError):
             assert clique.make_query_via_proxy("select 1 as a", database=clique.op.id)[0] == {"a": 1}
 
+    @authors("dakovalkov")
+    def test_expect_100_continue(self):
+        headers = {"Expect": "100-continue"}
+        with Clique(1, spec={"alias": "*alias"}) as clique:
+            assert clique.make_query_via_proxy("select 1 as a", database="*alias", headers=headers)[0] == {"a": 1}
+
     @authors("max42")
     def test_operation_acl_validation(self):
         sync_create_cells(1)
