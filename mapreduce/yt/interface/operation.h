@@ -2648,6 +2648,10 @@ struct TJobAttributes
     TMaybe<TString> Address;
 
     ///
+    /// @brief The name of the task that job corresponds to.
+    TMaybe<TString> TaskName;
+
+    ///
     /// @brief Job start time.
     TMaybe<TInstant> StartTime;
 
