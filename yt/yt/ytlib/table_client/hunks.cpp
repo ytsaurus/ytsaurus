@@ -59,8 +59,10 @@ void SetValueRef(TUnversionedValue* value, TRef ref)
 class TSchemafulUnversionedRowVisitor
 {
 public:
-    explicit TSchemafulUnversionedRowVisitor(TTableSchemaPtr schema)
-        : Schema_(std::move(schema))
+    TSchemafulUnversionedRowVisitor(
+        const TTableSchemaPtr& schema,
+        const TColumnFilter& columnFilter)
+        : HunkColumnIds_(GetHunkColumnIds(schema, columnFilter))
     { }
 
     template <class TRow, class F>
@@ -71,7 +73,7 @@ public:
         if (!row) {
             return;
         }
-        for (auto id : Schema_->GetHunkColumnIds()) {
+        for (auto id : HunkColumnIds_) {
             auto& value = row[id];
             if (Any(value.Flags & EValueFlags::Hunk)) {
                 func(&value);
@@ -80,7 +82,26 @@ public:
     }
 
 private:
-    const TTableSchemaPtr Schema_;
+    const THunkColumnIds HunkColumnIds_;
+
+    static THunkColumnIds GetHunkColumnIds(
+        const TTableSchemaPtr& schema,
+        const TColumnFilter& columnFilter)
+    {
+        if (columnFilter.IsUniversal()) {
+            return schema->GetHunkColumnIds();
+        }
+
+        THunkColumnIds hunkColumnIds;
+        const auto& columnIndexes = columnFilter.GetIndexes();
+        for (int i = 0; i < std::ssize(columnIndexes); ++i) {
+            if (schema->Columns()[columnIndexes[i]].MaxInlineHunkSize()) {
+                hunkColumnIds.push_back(i);
+            }
+        }
+
+        return hunkColumnIds;
+    }
 };
 
 class TSchemalessUnversionedRowVisitor
@@ -591,7 +612,7 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
     }
 
     return chunkFragmentReader
-        ->ReadFragments(options, std::move(requests))
+        ->ReadFragments(std::move(options), std::move(requests))
         .ApplyUnique(BIND([
             =,
             values = std::move(values),
@@ -618,7 +639,7 @@ TSharedRange<TUnversionedValue*> CollectHunkValues(
                 values.push_back(value);
             });
     }
-    return MakeSharedRange(std::move(values), rows);
+    return MakeSharedRange(std::move(values), std::move(rows));
 }
 
 std::optional<i64> UniversalHunkValueChecker(const TUnversionedValue& value)
@@ -651,14 +672,15 @@ TFuture<TSharedRange<TRow>> DecodeHunksInRows(
             std::move(chunkFragmentReader),
             std::move(options),
             CollectHunkValues(rows, rowVisitor))
-        .Apply(BIND([=] (const TSharedRange<TUnversionedValue*>& sharedValues) {
-            return MakeSharedRange(rows, rows, sharedValues);
+        .ApplyUnique(BIND([rows = std::move(rows)] (TSharedRange<TUnversionedValue*>&& sharedValues) {
+            return MakeSharedRange(rows, rows, std::move(sharedValues));
         }));
 }
 
 TFuture<TSharedRange<TMutableUnversionedRow>> DecodeHunksInSchemafulUnversionedRows(
+    const TTableSchemaPtr& schema,
+    const TColumnFilter& columnFilter,
     IChunkFragmentReaderPtr chunkFragmentReader,
-    TTableSchemaPtr schema,
     TClientChunkReadOptions options,
     TSharedRange<TMutableUnversionedRow> rows)
 {
@@ -666,7 +688,7 @@ TFuture<TSharedRange<TMutableUnversionedRow>> DecodeHunksInSchemafulUnversionedR
         std::move(chunkFragmentReader),
         std::move(options),
         std::move(rows),
-        TSchemafulUnversionedRowVisitor(std::move(schema)));
+        TSchemafulUnversionedRowVisitor(schema, columnFilter));
 }
 
 TFuture<TSharedRange<TMutableVersionedRow>> DecodeHunksInVersionedRows(
@@ -862,17 +884,18 @@ class THunkDecodingSchemafulUnversionedReader
 {
 public:
     THunkDecodingSchemafulUnversionedReader(
+        const TTableSchemaPtr& schema,
+        const TColumnFilter& columnFilter,
         TBatchHunkReaderConfigPtr config,
         ISchemafulUnversionedReaderPtr underlying,
         IChunkFragmentReaderPtr chunkFragmentReader,
-        TTableSchemaPtr schema,
         TClientChunkReadOptions options)
         : TBatchHunkReader(
             std::move(config),
             std::move(underlying),
             std::move(chunkFragmentReader),
             std::move(options))
-        , RowVisitor_(std::move(schema))
+        , RowVisitor_(schema, columnFilter)
     { }
 
     virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
@@ -888,20 +911,23 @@ private:
 };
 
 ISchemafulUnversionedReaderPtr CreateHunkDecodingSchemafulReader(
+    const TTableSchemaPtr& schema,
+    const TColumnFilter& columnFilter,
     TBatchHunkReaderConfigPtr config,
     ISchemafulUnversionedReaderPtr underlying,
     IChunkFragmentReaderPtr chunkFragmentReader,
-    TTableSchemaPtr schema,
     TClientChunkReadOptions options)
 {
     if (!schema || !schema->HasHunkColumns()) {
         return underlying;
     }
+
     return New<THunkDecodingSchemafulUnversionedReader>(
+        schema,
+        columnFilter,
         std::move(config),
         std::move(underlying),
         std::move(chunkFragmentReader),
-        std::move(schema),
         std::move(options));
 }
 

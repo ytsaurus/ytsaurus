@@ -103,6 +103,8 @@ extern const TString TabletIndexColumnName;
 extern const TString TimestampColumnName;
 extern const TString PrimaryLockName;
 
+constexpr int TypicalHunkColumnCount = 8;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Do not change these values since they are stored in the master snapshot.
@@ -177,6 +179,8 @@ using TTableId = NCypressClient::TNodeId;
 using TNameTableToSchemaIdMapping = SmallVector<int, TypicalColumnCount>;
 
 using TIdMapping = SmallVector<int, TypicalColumnCount>;
+
+using THunkColumnIds = SmallVector<int, TypicalHunkColumnCount>;
 
 union TUnversionedValueData;
 

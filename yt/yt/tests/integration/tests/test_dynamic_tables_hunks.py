@@ -611,3 +611,27 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         self._create_table()
         with pytest.raises(YtError):
             alter_table("//tmp/t", schema=self._get_table_schema(schema=self.SCHEMA, max_inline_hunk_size=None))
+
+    @authors("akozhikhov")
+    def test_hunks_with_filtered_columns(self):
+        sync_create_cells(1)
+        self._create_table()
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in xrange(10)]
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        def _check(column_names):
+            row = [{column: rows[0][column] for column in column_names}]
+            assert_items_equal(
+                lookup_rows("//tmp/t", [{"key": 0}], column_names=column_names),
+                row)
+            assert_items_equal(
+                select_rows("{} from [//tmp/t] where value = \"{}\"".format(
+                    ", ".join(column_names),
+                    rows[0]["value"])),
+                row)
+
+        _check(["key"])
+        _check(["value"])
+        _check(["value", "key"])

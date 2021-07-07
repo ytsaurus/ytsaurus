@@ -129,8 +129,9 @@ void GlobalizeHunkValues(
 
 //! Reads hunks in schemaful #rows and decodes them (updating #rows in-place).
 TFuture<TSharedRange<TMutableUnversionedRow>> DecodeHunksInSchemafulUnversionedRows(
+    const TTableSchemaPtr& schema,
+    const TColumnFilter& columnFilter,
     NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader,
-    TTableSchemaPtr schema,
     NChunkClient::TClientChunkReadOptions options,
     TSharedRange<TMutableUnversionedRow> rows);
 
@@ -152,13 +153,14 @@ IVersionedChunkWriterPtr CreateHunkEncodingVersionedWriter(
 //! (obtained by reading it via #chunkFragmentReader).
 //! If #schema does not contain hunk columns then #underlying is returned as is.
 ISchemafulUnversionedReaderPtr CreateHunkDecodingSchemafulReader(
+    const TTableSchemaPtr& schema,
+    const TColumnFilter& columnFilter,
     TBatchHunkReaderConfigPtr config,
     ISchemafulUnversionedReaderPtr underlying,
     NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader,
-    TTableSchemaPtr schema,
     NChunkClient::TClientChunkReadOptions options);
 
-//! A schemaless counterparts of #CreateHunkDecodingSchemafulReader.
+//! Schemaless counterparts of #CreateHunkDecodingSchemafulReader.
 ISchemalessUnversionedReaderPtr CreateHunkDecodingSchemalessReader(
     TBatchHunkReaderConfigPtr config,
     ISchemalessUnversionedReaderPtr underlying,

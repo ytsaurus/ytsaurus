@@ -658,9 +658,9 @@ std::vector<TString> TTableSchema::GetColumnNames() const
     return result;
 }
 
-TRange<int> TTableSchema::GetHunkColumnIds() const
+const THunkColumnIds& TTableSchema::GetHunkColumnIds() const
 {
-    return MakeRange(HunkColumnsIds_);
+    return HunkColumnsIds_;
 }
 
 int TTableSchema::GetKeyColumnCount() const
