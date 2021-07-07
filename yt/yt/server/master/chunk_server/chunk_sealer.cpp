@@ -68,6 +68,8 @@ public:
     explicit TChunkSealer(TBootstrap* bootstrap)
         : Config_(bootstrap->GetConfig()->ChunkManager)
         , Bootstrap_(bootstrap)
+        , SuccessfulSealCounter_(ChunkServerProfilerRegistry.Counter("/chunk_sealer/successful_seals"))
+        , UnsuccessfuleSealCounter_(ChunkServerProfilerRegistry.Counter("/chunk_sealer/unsuccessful_seals"))
         , SealExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
             BIND(&TChunkSealer::OnRefresh, MakeWeak(this))))
@@ -182,6 +184,10 @@ public:
 private:
     const TChunkManagerConfigPtr Config_;
     TBootstrap* const Bootstrap_;
+
+    // Profiling stuff.
+    const TCounter SuccessfulSealCounter_;
+    const TCounter UnsuccessfuleSealCounter_;
 
     const TAsyncSemaphorePtr Semaphore_ = New<TAsyncSemaphore>(0);
 
@@ -341,9 +347,12 @@ private:
 
         try {
             GuardedSealChunk(chunk);
+            SuccessfulSealCounter_.Increment();
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Error sealing journal chunk; backing off (ChunkId: %v)",
                 chunkId);
+
+            UnsuccessfuleSealCounter_.Increment();
 
             TDelayedExecutor::Submit(
                 BIND(&TChunkSealer::RescheduleSeal, MakeStrong(this), chunkId)
