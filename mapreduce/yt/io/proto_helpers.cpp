@@ -88,7 +88,7 @@ void ParseFromArcadiaStream(IInputStream* stream, Message& row, ui32 length)
     TLengthLimitedInput input(stream, length);
     TCopyingInputStreamAdaptor adaptor(&input);
     CodedInputStream codedStream(&adaptor);
-    codedStream.SetTotalBytesLimit(length + 1, length + 1);
+    codedStream.SetTotalBytesLimit(length + 1);
     bool parsedOk = row.ParseFromCodedStream(&codedStream);
     Y_ENSURE(parsedOk, "Failed to parse protobuf message");
 
