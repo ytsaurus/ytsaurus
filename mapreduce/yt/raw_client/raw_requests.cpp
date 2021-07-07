@@ -539,6 +539,9 @@ TJobAttributes ParseJobAttributes(const TNode& node)
     if (auto addressNode = mapNode.FindPtr("address")) {
         result.Address = addressNode->AsString();
     }
+    if (auto taskNameNode = mapNode.FindPtr("task_name")) {
+        result.TaskName = taskNameNode->AsString();
+    }
     if (auto startTimeNode = mapNode.FindPtr("start_time")) {
         result.StartTime = TInstant::ParseIso8601(startTimeNode->AsString());
     }
