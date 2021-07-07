@@ -281,10 +281,12 @@ class TestCypressCommands(object):
 
         assert yt.get_attribute(table, "non_existing", default=0) == 0
 
-        yt.set_attribute(table, "my_attribute", {})
-        yt.set_attribute(table, "my_attribute/000", 10)
-        assert yt.get_attribute(table, "my_attribute/000") == 10
-        assert yt.get_attribute(table, "my_attribute/001", default=2) == 2
+        yt.set_attribute(table, "my_attribute", {"000": 10})
+        with pytest.raises(yt.YtError):
+            yt.get_attribute(table, "my_attribute/000")
+        with pytest.raises(yt.YtError):
+            yt.set_attribute(table, "my_attribute/000", 20)
+
         assert yt.get_attribute(table, "user_attribute_keys") == ["my_attribute"]
         assert yt.get(table + "/@my_attribute") == {"000": 10}
 

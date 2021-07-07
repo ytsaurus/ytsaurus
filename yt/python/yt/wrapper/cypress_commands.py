@@ -430,7 +430,12 @@ def mkdir(path, recursive=None, client=None):
     recursive = get_value(recursive, get_config(client)["yamr_mode"]["create_recursive"])
     return create("map_node", path, recursive=recursive, ignore_existing=recursive, client=client)
 
-# TODO: maybe remove this methods
+def _check_attribute_name(attribute_name):
+    if "/" in attribute_name:
+        raise YtError("Attribute commands forbid to use '/' in attribute names")
+    if "@" in attribute_name:
+        raise YtError("Attribute commands forbid to use '@' in attribute names")
+
 def get_attribute(path, attribute, default=_KWARG_SENTINEL, client=None):
     """Gets attribute of Cypress node.
 
@@ -438,6 +443,7 @@ def get_attribute(path, attribute, default=_KWARG_SENTINEL, client=None):
     :param str attribute: attribute.
     :param default: if node hasn't attribute `attribute` this value will be returned.
     """
+    _check_attribute_name(attribute)
     attribute_path = "{0}/@{1}".format(YPath(path, client=client), attribute)
     if default is not _KWARG_SENTINEL and not exists(attribute_path, client=client):
         return default
@@ -449,6 +455,7 @@ def has_attribute(path, attribute, client=None):
     :param str path: path.
     :param str attribute: attribute.
     """
+    _check_attribute_name(attribute)
     return exists("%s/@%s" % (path, attribute), client=client)
 
 def set_attribute(path, attribute, value, client=None):
@@ -458,6 +465,7 @@ def set_attribute(path, attribute, value, client=None):
     :param str attribute: attribute.
     :param value: value.
     """
+    _check_attribute_name(attribute)
     return set("%s/@%s" % (path, attribute), value, client=client)
 
 @deprecated(alternative="get 'type' attribute")
