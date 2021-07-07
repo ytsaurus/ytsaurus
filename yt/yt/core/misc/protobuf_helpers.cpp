@@ -85,9 +85,7 @@ bool TryDeserializeProto(google::protobuf::MessageLite* message, TRef data)
     CodedInputStream codedInputStream(
         reinterpret_cast<const ui8*>(data.Begin()),
         static_cast<int>(data.Size()));
-    codedInputStream.SetTotalBytesLimit(
-        data.Size() + 1,
-        data.Size() + 1);
+    codedInputStream.SetTotalBytesLimit(data.Size() + 1);
 
     // Raise recursion limit.
     codedInputStream.SetRecursionLimit(1024);
