@@ -45,6 +45,7 @@
 namespace NYT::NHydra {
 
 using namespace NElection;
+using namespace NLogging;
 using namespace NRpc;
 using namespace NYTree;
 using namespace NYson;
@@ -139,7 +140,6 @@ public:
     private:
         const TWeakPtr<TDistributedHydraManager> Owner_;
         const IInvokerPtr CancelableControlInvoker_;
-
     };
 
     TDistributedHydraManager(

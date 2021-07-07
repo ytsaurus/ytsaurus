@@ -27,6 +27,8 @@ DECLARE_REFCOUNTED_CLASS(TFollowerCommitter)
 DECLARE_REFCOUNTED_CLASS(TCheckpointer)
 DECLARE_REFCOUNTED_CLASS(TStateHashChecker)
 
+DECLARE_REFCOUNTED_STRUCT(IChangelogDiscarder)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const TString SnapshotExtension;

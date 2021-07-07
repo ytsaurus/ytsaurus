@@ -330,9 +330,7 @@ private:
                     << ex;
             }
         }
-
     };
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TRemoteChangelogStore)

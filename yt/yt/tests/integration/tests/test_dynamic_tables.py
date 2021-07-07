@@ -423,6 +423,9 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         )
         set("//sys/@config/tablet_manager/extra_peer_drop_delay", 15000)
 
+        # Check that client-side chunk seal is used during all the reconfigurations.
+        set("//sys/@config/chunk_manager/enable_chunk_sealer", False)
+
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count": 1}})
         sync_create_cells(1, tablet_cell_bundle="b")
         self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
