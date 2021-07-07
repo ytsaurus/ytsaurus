@@ -4238,7 +4238,7 @@ private:
         if (context.Now > NodeSchedulingSegmentManager_.GetNodeSegmentsInitializationDeadline()) {
             auto segmentsState = New<TPersistentSchedulingSegmentsState>();
             segmentsState->NodeStates = NodeSchedulingSegmentManager_.BuildPersistentNodeSegmentsState(&context);
-            MasterConnector_->StoreSchedulingSegmentsStateAsync(std::move(segmentsState));
+            MasterConnector_->InvokeStoringSchedulingSegmentsState(std::move(segmentsState));
         }
 
         YT_LOG_DEBUG("Finished managing node scheduling segments");

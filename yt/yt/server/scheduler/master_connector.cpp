@@ -329,6 +329,17 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
+        if (StoringStrategyState_) {
+            YT_LOG_INFO("Skip storing persistent strategy state because the previous attempt hasn't finished yet");
+
+            return;
+        }
+
+        StoringStrategyState_ = true;
+        auto finally = Finally([&] {
+            StoringStrategyState_ = false;
+        });
+
         YT_LOG_INFO("Storing persistent strategy state");
 
         auto batchReq = StartObjectBatchRequest();
@@ -369,6 +380,17 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
+
+        if (StoringStrategyState_) {
+            YT_LOG_INFO("Skip storing persistent scheduling segments state because the previous attempt hasn't finished yet");
+
+            return;
+        }
+
+        StoringSchedulingSegmentsState_ = true;
+        auto finally = Finally([&] {
+            StoringSchedulingSegmentsState_ = false;
+        });
 
         YT_LOG_INFO("Storing persistent scheduling segments state");
 
@@ -534,6 +556,9 @@ private:
     };
 
     TIntrusivePtr<TUpdateExecutor<TOperationId, TOperationNodeUpdate>> OperationNodesUpdateExecutor_;
+
+    bool StoringStrategyState_ = false;
+    bool StoringSchedulingSegmentsState_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -1919,7 +1944,7 @@ void TMasterConnector::InvokeStoringStrategyState(TPersistentStrategyStatePtr st
     Impl_->InvokeStoringStrategyState(std::move(strategyState));
 }
 
-void TMasterConnector::StoreSchedulingSegmentsStateAsync(TPersistentSchedulingSegmentsStatePtr segmentsState)
+void TMasterConnector::InvokeStoringSchedulingSegmentsState(TPersistentSchedulingSegmentsStatePtr segmentsState)
 {
     Impl_->InvokeStoringSchedulingSegmentsState(std::move(segmentsState));
 }
