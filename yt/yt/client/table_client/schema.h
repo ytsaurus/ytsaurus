@@ -181,7 +181,7 @@ public:
     int GetKeyColumnCount() const;
     int GetValueColumnCount() const;
     std::vector<TString> GetColumnNames() const;
-    TRange<int> GetHunkColumnIds() const;
+    const THunkColumnIds& GetHunkColumnIds() const;
 
     TSortColumns GetSortColumns() const;
 
@@ -276,7 +276,7 @@ private:
     int KeyColumnCount_ = 0;
     bool HasComputedColumns_ = false;
     bool HasAggregateColumns_ = false;
-    SmallVector<int, 4> HunkColumnsIds_;
+    THunkColumnIds HunkColumnsIds_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableSchema);

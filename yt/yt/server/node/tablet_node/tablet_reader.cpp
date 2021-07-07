@@ -185,6 +185,7 @@ ISchemafulUnversionedReaderPtr WrapSchemafulTabletReader(
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     const TTabletSnapshotPtr& tabletSnapshot,
     const TClientChunkReadOptions& chunkReadOptions,
+    const TColumnFilter& columnFilter,
     ISchemafulUnversionedReaderPtr reader)
 {
     reader = MaybeWrapWithThrottlerAwareReader<TThrottlerAwareSchemafulUnversionedReader>(
@@ -193,10 +194,11 @@ ISchemafulUnversionedReaderPtr WrapSchemafulTabletReader(
         std::move(reader));
 
     reader = CreateHunkDecodingSchemafulReader(
+        tabletSnapshot->PhysicalSchema,
+        columnFilter,
         tabletSnapshot->Settings.HunkReaderConfig,
         std::move(reader),
         tabletSnapshot->ChunkFragmentReader,
-        tabletSnapshot->PhysicalSchema,
         chunkReadOptions);
 
     return reader;
@@ -329,6 +331,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
         tabletThrottlerKind,
         tabletSnapshot,
         chunkReadOptions,
+        columnFilter,
         std::move(reader));
 }
 
@@ -461,6 +464,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
         tabletThrottlerKind,
         tabletSnapshot,
         chunkReadOptions,
+        columnFilter,
         std::move(reader));
 }
 
@@ -613,7 +617,6 @@ ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
 
     auto readerFactory = [
         =,
-        columnFilter = std::move(columnFilter),
         partitions = std::move(partitions),
         partitionedKeys = std::move(partitionedKeys),
         rowBuffer = std::move(rowBuffer),
@@ -642,6 +645,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
         tabletThrottlerKind,
         tabletSnapshot,
         chunkReadOptions,
+        columnFilter,
         std::move(reader));
 }
 

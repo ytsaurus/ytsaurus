@@ -131,8 +131,9 @@ void ValidateSchemaValueType(EValueType type)
 
 void ValidateColumnFilter(const TColumnFilter& columnFilter, int schemaColumnCount)
 {
-    if (columnFilter.IsUniversal())
+    if (columnFilter.IsUniversal()) {
         return;
+    }
 
     SmallVector<bool, TypicalColumnCount> flags;
     flags.resize(schemaColumnCount);
