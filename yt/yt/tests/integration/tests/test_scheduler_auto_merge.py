@@ -3,7 +3,9 @@ from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, is_asan_buil
 from yt_commands import (
     authors, print_debug, wait, create, get, set, exists,
     create_account, read_table,
-    write_table, map, reduce, merge, sync_create_cells, sync_mount_table, normalize_schema, make_schema)
+    write_table, map, reduce, merge, sync_create_cells, sync_mount_table)
+
+from yt_type_helpers import normalize_schema, make_schema
 
 from yt.common import YtError
 
