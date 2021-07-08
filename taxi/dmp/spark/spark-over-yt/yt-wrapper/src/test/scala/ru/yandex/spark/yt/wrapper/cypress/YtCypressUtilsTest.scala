@@ -31,6 +31,19 @@ class YtCypressUtilsTest extends FlatSpec with Matchers with LocalYtClient with 
     res.getOrThrow("b").intValue() shouldEqual 1
   }
 
+  it should "format path" in {
+    YtWrapper.formatPath("ytEventLog:///home/path") shouldEqual "//home/path"
+    YtWrapper.formatPath("//home/path") shouldEqual "//home/path"
+    YtWrapper.formatPath("/home/path") shouldEqual "//home/path"
+    YtWrapper.formatPath("ytEventLog:/home/path") shouldEqual "//home/path"
+    YtWrapper.formatPath(
+      YtWrapper.formatPath("ytEventLog:///home/dev/alex-shishkin/spark-test/logs/event_log_table")
+    ) shouldEqual "//home/dev/alex-shishkin/spark-test/logs/event_log_table"
+    an [IllegalArgumentException] should be thrownBy {
+      YtWrapper.formatPath("home/path")
+    }
+  }
+
   it should "escape path" in {
     // https://yt.yandex-team.ru/docs/description/common/ypath#simple_ypath_lexis
     val unescaped = "\\a/b@c&d*e[f{g"

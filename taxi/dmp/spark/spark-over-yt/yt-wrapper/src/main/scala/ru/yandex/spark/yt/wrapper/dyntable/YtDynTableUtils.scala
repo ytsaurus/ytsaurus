@@ -1,17 +1,19 @@
 package ru.yandex.spark.yt.wrapper.dyntable
 
 import org.slf4j.LoggerFactory
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer
+import ru.yandex.inside.yt.kosher.ytree.{YTreeMapNode, YTreeNode}
+import ru.yandex.spark.yt.wrapper.YtJavaConverters._
+import ru.yandex.spark.yt.wrapper.YtWrapper
+import ru.yandex.spark.yt.wrapper.cypress.{YtAttributes, YtCypressUtils}
+import ru.yandex.spark.yt.wrapper.table.YtTableSettings
+import ru.yandex.yt.ytclient.proxy.request.GetTablePivotKeys
+import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient, ModifyRowsRequest, SelectRowsRequest}
+import ru.yandex.yt.ytclient.tables.TableSchema
 
 import java.io.ByteArrayOutputStream
 import java.time.{Duration => JDuration}
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
-import ru.yandex.spark.yt.wrapper.YtJavaConverters._
-import ru.yandex.spark.yt.wrapper.cypress.{YtAttributes, YtCypressUtils}
-import ru.yandex.yt.ytclient.proxy.{CompoundClient, YtClient}
-import ru.yandex.yt.ytclient.proxy.request.GetTablePivotKeys
-
 import scala.annotation.tailrec
 import scala.concurrent.TimeoutException
 import scala.concurrent.duration._
@@ -26,7 +28,7 @@ trait YtDynTableUtils {
   type PivotKey = Array[Byte]
   val emptyPivotKey: PivotKey = serialiseYson(new YTreeBuilder().beginMap().endMap().build())
 
-  private def serialiseYson(node: YTreeNode): Array[Byte] = {
+  def serialiseYson(node: YTreeNode): Array[Byte] = {
     val baos = new ByteArrayOutputStream
     try {
       YTreeBinarySerializer.serialize(node, baos)
@@ -91,6 +93,77 @@ trait YtDynTableUtils {
     }
 
     waitUnmount(timeout.toMillis)
+  }
+
+  def createDynTable(path: String, schema: TableSchema)(implicit yt: CompoundClient): Unit = {
+    YtWrapper.createTable(path, new YtTableSettings {
+      override def ytSchema: YTreeNode = schema.toYTree
+
+      override def optionsAny: Map[String, Any] = Map(
+        "dynamic" -> "true"
+      )
+    })
+
+    YtWrapper.mountTable(path)
+    YtWrapper.waitState(path, YtWrapper.TabletState.Mounted, 10 seconds)
+  }
+
+  def selectRows(path: String, schema: TableSchema, condition: Option[String] = None,
+                 parentTransaction: Option[ApiServiceTransaction] = None)(implicit yt: CompoundClient): Seq[YTreeMapNode] = {
+    import scala.collection.JavaConverters._
+    val request = SelectRowsRequest.of(s"""* from [${formatPath(path)}] ${condition.map("where " + _).mkString}""")
+
+    runUnderTransaction(parentTransaction)(transaction => {
+      val selected = transaction.selectRows(request).get(1, MINUTES)
+      selected.getRows.asScala.map(x => x.toYTreeMap(schema)).toList
+    })
+  }
+
+  private def processModifyRowsRequest(request: ModifyRowsRequest,
+                                       parentTransaction: Option[ApiServiceTransaction] = None)(implicit yt: CompoundClient) = {
+    runUnderTransaction(parentTransaction)(transaction => {
+      transaction.modifyRows(request).get(1, MINUTES)
+    })
+  }
+
+  def runUnderTransaction[T](parent: Option[ApiServiceTransaction])
+                            (f: ApiServiceTransaction => T)(implicit yt: CompoundClient): T = {
+    val transaction = parent.getOrElse(YtWrapper.createTransaction(parent = None, timeout = 1 minute, sticky = true))
+    try {
+      val res = f(transaction)
+      if (parent.isEmpty) transaction.commit().join()
+      res
+    } catch {
+      case e: Throwable =>
+        try {
+          transaction.abort().join()
+        } catch {
+          case e2: Throwable => log.error("Transaction abort failed with: " + e2.getMessage)
+        }
+        throw e
+    }
+  }
+
+  def insertRows(path: String, schema: TableSchema, rows: java.util.List[java.util.List[Any]],
+                 parentTransaction: Option[ApiServiceTransaction])(implicit yt: CompoundClient): Unit = {
+    processModifyRowsRequest(new ModifyRowsRequest(formatPath(path), schema).addInserts(rows), parentTransaction)
+  }
+
+  def insertRows(path: String, schema: TableSchema, rows: List[List[Any]],
+                 parentTransaction: Option[ApiServiceTransaction])(implicit yt: CompoundClient): Unit = {
+    import scala.collection.JavaConverters._
+
+    processModifyRowsRequest(new ModifyRowsRequest(formatPath(path), schema).addInserts(rows.map(_.asJava).asJava), parentTransaction)
+  }
+
+  def updateRows(path: String, schema: TableSchema, map: java.util.Map[String, Any],
+                 parentTransaction: Option[ApiServiceTransaction] = None)(implicit yt: CompoundClient): Unit = {
+    processModifyRowsRequest(new ModifyRowsRequest(formatPath(path), schema).addUpdate(map), parentTransaction)
+  }
+
+  def deleteRow(path: String, schema: TableSchema, map: java.util.Map[String, Any],
+                parentTransaction: Option[ApiServiceTransaction] = None)(implicit yt: CompoundClient): Unit = {
+    processModifyRowsRequest(new ModifyRowsRequest(formatPath(path), schema).addDelete(map), parentTransaction)
   }
 
   def tabletState(path: String)(implicit yt: CompoundClient): TabletState = {

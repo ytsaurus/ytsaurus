@@ -61,6 +61,9 @@ class SparkDiscovery(object):
     def event_log(self):
         return self.logs().join("event_log")
 
+    def event_log_table(self):
+        return self.logs().join("event_log_table")
+
     def master_spark(self):
         return self.discovery().join("address") if self.spark_id else self.discovery().join("spark_address")
 
@@ -137,7 +140,7 @@ def base_spark_conf(client, discovery):
         "spark.hadoop.yt.proxy": yt_proxy,
         "spark.hadoop.yt.user": yt_user,
         "spark.master.rest.enabled": "true",
-        "spark.eventLog.dir": "yt:/{}".format(discovery.event_log()),
+        "spark.eventLog.dir": "ytEventLog:/{}".format(discovery.event_log_table()),
         "spark.yt.cluster.version": spark_cluster_version
     }
     if exists(spark_cluster_conf, client=client):

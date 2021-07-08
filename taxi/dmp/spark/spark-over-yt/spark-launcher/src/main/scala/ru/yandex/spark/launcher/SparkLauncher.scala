@@ -7,6 +7,7 @@ import ru.yandex.spark.launcher.Service.{BasicService, MasterService}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 import ru.yandex.spark.yt.wrapper.discovery.{Address, CypressDiscoveryService, DiscoveryService}
+import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 import java.io.File
 import scala.annotation.tailrec
@@ -141,11 +142,11 @@ trait SparkLauncher {
     }
   }
 
-  def withDiscovery(ytConfig: YtClientConfiguration, discoveryPath: String)(f: DiscoveryService => Unit): Unit = {
+  def withDiscovery(ytConfig: YtClientConfiguration, discoveryPath: String)(f: (DiscoveryService, CompoundClient) => Unit): Unit = {
     val client = YtWrapper.createRpcClient("discovery", ytConfig)
     try {
       val discoveryService = new CypressDiscoveryService(discoveryPath)(client.yt)
-      f(discoveryService)
+      f(discoveryService, client.yt)
     } finally {
       log.info("Close yt client")
       client.close()
