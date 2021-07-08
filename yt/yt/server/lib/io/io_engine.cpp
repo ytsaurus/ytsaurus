@@ -1,4 +1,5 @@
 #include "io_engine.h"
+#include "read_request_combiner.h"
 #include "private.h"
 
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -33,6 +34,7 @@ namespace NYT::NIO {
 
 using namespace NConcurrency;
 using namespace NProfiling;
+using namespace NYTAlloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,20 +62,27 @@ static const auto& Logger = IOLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<TSharedMutableRef> IIOEngine::ReadAll(
+TIOEngineHandle::TIOEngineHandle(const TString& fName, EOpenMode oMode) noexcept
+    : TFileHandle(fName, oMode)
+    , OpenForDirectIO_(oMode & DirectAligned)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<TSharedRef> IIOEngine::ReadAll(
     const TString& path,
     i64 priority)
 {
     return Open({path, OpenExisting | RdOnly | Seq | CloseOnExec}, priority)
-        .Apply(BIND([=, this_ = MakeStrong(this)] (const std::shared_ptr<TFileHandle>& handle) {
+        .Apply(BIND([=, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& handle) {
             struct TReadAllBufferTag
             { };
-            auto buffer = TSharedMutableRef::Allocate<TReadAllBufferTag>(handle->GetLength(), false);
-            return Read({{*handle, 0, buffer}}, priority)
-                .Apply(BIND([=, this_ = MakeStrong(this), handle = handle, buffer = buffer] {
+            return Read<TReadAllBufferTag>({{handle, 0, handle->GetLength()}}, priority)
+                .Apply(BIND([=, this_ = MakeStrong(this), handle = handle] (const std::vector<TSharedRef>& buffers) {
+                    YT_VERIFY(buffers.size() == 1);
                     return Close({handle}, priority)
-                        .Apply(BIND([buffer] {
-                            return buffer;
+                        .Apply(BIND([buffers] {
+                            return buffers[0];
                         }));
                 }));
         }));
@@ -238,7 +247,7 @@ class TIOEngineBase
     : public IIOEngine
 {
 public:
-    virtual TFuture<std::shared_ptr<TFileHandle>> Open(
+    virtual TFuture<TIOEngineHandlePtr> Open(
         TOpenRequest request,
         i64 priority) override
     {
@@ -313,12 +322,12 @@ protected:
         });
     }
 
-    std::shared_ptr<TFileHandle> DoOpen(const TOpenRequest& request)
+    TIOEngineHandlePtr DoOpen(const TOpenRequest& request)
     {
-        std::shared_ptr<TFileHandle> handle;
+        TIOEngineHandlePtr handle;
         {
             NTracing::TNullTraceContextGuard nullTraceContextGuard;
-            handle = std::make_shared<TFileHandle>(request.Path, request.Mode);
+            handle = New<TIOEngineHandle>(request.Path, request.Mode);
         }
         if (!handle->IsOpen()) {
             THROW_ERROR_EXCEPTION(
@@ -356,14 +365,13 @@ protected:
     {
 #ifdef _linux_
         NTracing::TNullTraceContextGuard nullTraceContextGuard;
-        if (HandleEintr(::fallocate, request.Handle, FALLOC_FL_CONVERT_UNWRITTEN, 0, request.Size) != 0) {
+        if (HandleEintr(::fallocate, *request.Handle, FALLOC_FL_CONVERT_UNWRITTEN, 0, request.Size) != 0) {
             YT_LOG_WARNING(TError::FromSystem(), "fallocate call failed");
         }
 #else
         Y_UNUSED(request);
 #endif
     }
-
 
     void AddWriteWaitTimeSample(TDuration duration)
     {
@@ -487,19 +495,50 @@ public:
         , FsyncTimer_(Profiler.Timer("/fsync_time"))
     { }
 
-    virtual TFuture<void> Read(
+    virtual TFuture<std::vector<TSharedRef>> Read(
         std::vector<TReadRequest> requests,
-        i64 priority) override
+        i64 priority,
+        EMemoryZone memoryZone,
+        TRefCountedTypeCookie tagCookie) override
     {
+
         std::vector<TFuture<void>> futures;
         futures.reserve(requests.size());
+
         auto invoker = CreateFixedPriorityInvoker(ReadInvoker_, priority);
-        for (auto&& request : requests) {
-            futures.push_back(BIND(&TThreadPoolIOEngine::DoRead, MakeStrong(this), std::move(request), TWallTimer())
+
+        TSharedRefArray result;
+        std::vector<TMutableRef> buffers;
+        buffers.reserve(requests.size());
+        {
+            TMemoryZoneGuard zoneGuard(memoryZone);
+
+            i64 totalSize = 0;
+            for (const auto& request : requests) {
+                totalSize += request.Size;
+            }
+
+            TSharedRefArrayBuilder resultBuilder(requests.size(), totalSize, tagCookie);
+            for (const auto& request : requests) {
+                buffers.push_back(resultBuilder.AllocateAndAdd(request.Size));
+            }
+            result = resultBuilder.Finish();
+        }
+
+        for (int index = 0; index < std::ssize(requests); ++index) {
+            futures.push_back(
+                BIND(&TThreadPoolIOEngine::DoRead,
+                    MakeStrong(this),
+                    std::move(requests[index]),
+                    buffers[index],
+                    TWallTimer())
                 .AsyncVia(invoker)
                 .Run());
         }
-        return AllSucceeded(std::move(futures));
+        return AllSucceeded(std::move(futures))
+            .Apply(BIND([result] {
+                return result.ToVector();
+            }));
     }
 
     virtual TFuture<void> Write(
@@ -535,11 +574,14 @@ private:
 
     void DoRead(
         const TReadRequest& request,
+        TMutableRef buffer,
         TWallTimer timer)
     {
+        YT_VERIFY(std::ssize(buffer) == request.Size);
+
         AddReadWaitTimeSample(timer.GetElapsedTime());
 
-        auto toReadRemaining = static_cast<i64>(request.Buffer.Size());
+        auto toReadRemaining = static_cast<i64>(buffer.Size());
         auto fileOffset = request.Offset;
         i64 bufferOffset = 0;
 
@@ -551,7 +593,7 @@ private:
                 {
                     TEventTimerGuard eventTimer(PreadTimer_);
                     NTracing::TNullTraceContextGuard nullTraceContextGuard;
-                    reallyRead = HandleEintr(::pread, request.Handle, request.Buffer.Begin() + bufferOffset, toRead, fileOffset);
+                    reallyRead = HandleEintr(::pread, *request.Handle, buffer.Begin() + bufferOffset, toRead, fileOffset);
                 }
 
                 if (reallyRead < 0) {
@@ -610,7 +652,7 @@ private:
                     std::array<iovec, MaxIovCountPerRequest> iov;
                     int iovCount = 0;
                     i64 toWrite = 0;
-                    while (bufferIndex + iovCount < static_cast<int>(request.Buffers.size()) &&
+                    while (bufferIndex + iovCount < std::ssize(request.Buffers) &&
                            iovCount < std::ssize(iov) &&
                            toWrite < Config_->MaxBytesPerWrite)
                     {
@@ -635,7 +677,7 @@ private:
                     {
                         TEventTimer eventTimer(PwriteTimer_);
                         NTracing::TNullTraceContextGuard nullTraceContextGuard;
-                        reallyWritten = HandleEintr(::pwritev, request.Handle, iov.data(), iovCount, fileOffset);
+                        reallyWritten = HandleEintr(::pwritev, *request.Handle, iov.data(), iovCount, fileOffset);
                     }
 
                     if (reallyWritten < 0) {
@@ -671,7 +713,7 @@ private:
                     {
                         TEventTimer timer(PwriteTimer_);
                         NTracing::TNullTraceContextGuard nullTraceContextGuard;
-                        reallyWritten = HandleEintr(::pwrite, request.Handle, const_cast<char*>(buffer.Begin()) + bufferOffset, toWrite, fileOffset);
+                        reallyWritten = HandleEintr(::pwrite, *request.Handle, const_cast<char*>(buffer.Begin()) + bufferOffset, toWrite, fileOffset);
                     }
 
                     if (reallyWritten < 0) {
@@ -704,13 +746,13 @@ private:
 
         auto doFsync = [&] {
             TEventTimerGuard timer(FsyncTimer_);
-            return HandleEintr(::fsync, request.Handle);
+            return HandleEintr(::fsync, *request.Handle);
         };
 
 #ifdef _linux_
         auto doFdatasync = [&] {
             TEventTimerGuard timer(FdatasyncTimer_);
-            return HandleEintr(::fdatasync, request.Handle);
+            return HandleEintr(::fdatasync, *request.Handle);
         };
 #else
         auto doFdatasync = doFsync;
@@ -869,20 +911,7 @@ struct TUringRequest
     struct TReadSubrequestState
     {
         iovec Iov;
-
-        // Owning for large buffers.
-        // Non-owning for pooled buffers.
-        TSharedMutableRef DirectIOBuffer;
-
-        bool IsDirectIOBufferPooled() const
-        {
-            return DirectIOBuffer && !DirectIOBuffer.GetHolder();
-        }
-
-        bool IsDirectIOBufferLarge() const
-        {
-            return DirectIOBuffer && DirectIOBuffer.GetHolder();
-        }
+        TMutableRef Buffer;
     };
 
     const TPromise<void> Promise = NewPromise<void>();
@@ -899,6 +928,7 @@ struct TUringRequest
     std::vector<TReadSubrequest> ReadSubrequests;
     SmallVector<TReadSubrequestState, TypicalSubrequestCount> ReadSubrequestStates;
     SmallVector<int, TypicalSubrequestCount> PendingReadSubrequestIndexes;
+    TReadRequestCombiner ReadRequestCombiner;
 
     // EUringRequestType::Write
     IIOEngine::TWriteRequest WriteRequest;
@@ -965,13 +995,8 @@ private:
             , Index_(index)
             , Config_(ThreadPool_->Config_)
             , Thread_(std::make_unique<TThread>(&StaticThreadMain, this))
-            , PooledDirectIOReadBuffers_(TSharedMutableRef::AllocatePageAligned<TPooledDirectIOReadBufferTag>(
-                Config_->MaxConcurrentRequestsPerThread * Config_->PooledDirectIOReadBufferSize,
-                false))
             , Uring_(Config_->MaxConcurrentRequestsPerThread + UringEngineNotificationCount)
         {
-            RegisterDirectIOBuffersWithUring();
-            PopulateSpareDirectIOBuffers();
             InitIovBuffers();
         }
 
@@ -993,7 +1018,6 @@ private:
 
         const TUringIOEngineConfigPtr Config_;
         const std::unique_ptr<TThread> Thread_;
-        const TSharedMutableRef PooledDirectIOReadBuffers_;
 
         TUring Uring_;
 
@@ -1011,9 +1035,6 @@ private:
         std::array<TUringIovBuffer, MaxUringConcurrentRequestsPerThread + UringEngineNotificationCount> AllIovBuffers_;
         std::vector<TUringIovBuffer*> FreeIovBuffers_;
 
-        bool PooledDirectIOReadBufferRegistered_ = false;
-        std::vector<TMutableRef> SparePooledDirectIOReadBuffers_;
-
         static constexpr int StopNotificationIndex = 0;
         static constexpr int RequestNotificationIndex = 1;
 
@@ -1025,32 +1046,6 @@ private:
             FreeIovBuffers_.reserve(AllIovBuffers_.size());
             for (auto& buffer : AllIovBuffers_) {
                 FreeIovBuffers_.push_back(&buffer);
-            }
-        }
-
-        void RegisterDirectIOBuffersWithUring()
-        {
-            std::array<iovec, 1> iovs{
-                iovec{
-                    .iov_base = PooledDirectIOReadBuffers_.Begin(),
-                    .iov_len = PooledDirectIOReadBuffers_.Size()
-                }
-            };
-            auto error = Uring_.TryRegisterBuffers(MakeRange(iovs));
-            if (error.IsOK()) {
-                PooledDirectIOReadBufferRegistered_ = true;
-            } else {
-                YT_LOG_ERROR(error, "Failed to register direct IO read buffers");
-            }
-        }
-
-        void PopulateSpareDirectIOBuffers()
-        {
-            SparePooledDirectIOReadBuffers_.reserve(Config_->MaxConcurrentRequestsPerThread);
-            for (int bufferIndex = 0; bufferIndex < Config_->MaxConcurrentRequestsPerThread; ++bufferIndex) {
-                SparePooledDirectIOReadBuffers_.emplace_back(
-                    PooledDirectIOReadBuffers_.Begin() + bufferIndex * Config_->PooledDirectIOReadBufferSize,
-                    Config_->PooledDirectIOReadBufferSize);
             }
         }
 
@@ -1149,7 +1144,6 @@ private:
             bool result = PendingSubmissionsCount_ < Config_->MaxConcurrentRequestsPerThread;
 
             YT_VERIFY(!result || Uring_.GetSQSpaceLeft() > 0);
-            YT_VERIFY(!result || !SparePooledDirectIOReadBuffers_.empty());
 
             return result;
         }
@@ -1195,7 +1189,7 @@ private:
 
         void HandleReadRequest(TUringRequest* request)
         {
-            auto totalSubrequestCount = static_cast<int>(request->ReadSubrequests.size());
+            auto totalSubrequestCount = std::ssize(request->ReadSubrequests);
 
             YT_LOG_TRACE("Handling read request (Request: %p, FinishedSubrequestCount: %v, TotalSubrequestCount: %v)",
                 request,
@@ -1223,67 +1217,28 @@ private:
 
                 const auto& subrequest = request->ReadSubrequests[subrequestIndex];
                 auto& subrequestState = request->ReadSubrequestStates[subrequestIndex];
+                auto& buffer = subrequestState.Buffer;
 
                 auto* sqe = AllocateSqe();
+                subrequestState.Iov = {
+                    .iov_base = buffer.Begin(),
+                    .iov_len = Min<size_t>(buffer.Size(), Config_->MaxBytesPerRead)
+                };
 
-                if (subrequest.UseDirectIO &&
-                    !(IsBufferDirectIOCapable(subrequest.Buffer) && IsRequestDirectIOCapable(subrequest.Offset, subrequest.Buffer.Size())))
-                {
-                    auto startOffset = AlignDown(subrequest.Offset, PageSize);
-                    auto endOffset = AlignUp(subrequest.Offset + static_cast<i64>(subrequest.Buffer.Size()), PageSize);
+                YT_LOG_TRACE("Submitting read operation (Request: %p/%v, FD: %v, Offset: %v, Buffer: %p@%v)",
+                    request,
+                    subrequestIndex,
+                    static_cast<FHANDLE>(*subrequest.Handle),
+                    subrequest.Offset,
+                    subrequestState.Iov.iov_base,
+                    subrequestState.Iov.iov_len);
 
-                    i64 readSize;
-                    if (std::ssize(subrequest.Buffer) >= Config_->LargeUnalignedDirectIOReadSize) {
-                        readSize = Min(endOffset - startOffset, AlignUp(Config_->MaxBytesPerRead, PageSize));
-                        AllocateLargeDirectIOReadBuffer(request, subrequestIndex, readSize);
-                    } else {
-                        AllocatePooledDirectIOReadBuffer(request, subrequestIndex);
-                        readSize = Min<i64>(endOffset - startOffset, static_cast<i64>(subrequestState.DirectIOBuffer.Size()));
-                    }
-
-                    YT_LOG_TRACE("Submitting read operation with direct IO buffer (Request: %p/%v, FD: %v, Offset: %v, Buffer: %p@%v)",
-                        request,
-                        subrequestIndex,
-                        subrequest.Handle,
-                        startOffset,
-                        subrequestState.DirectIOBuffer.Begin(),
-                        readSize);
-
-                    if (PooledDirectIOReadBufferRegistered_ && subrequestState.IsDirectIOBufferPooled()) {
-                        io_uring_prep_read_fixed(sqe, subrequest.Handle, subrequestState.DirectIOBuffer.Begin(), readSize, startOffset, /* buf_index */ 0);
-                    } else {
-                        subrequestState.Iov = {
-                            .iov_base = subrequestState.DirectIOBuffer.Begin(),
-                            .iov_len = static_cast<size_t>(readSize)
-                        };
-                        io_uring_prep_readv(
-                            sqe,
-                            subrequest.Handle,
-                            &subrequestState.Iov,
-                            1,
-                            startOffset);
-                    }
-                } else {
-                    subrequestState.Iov = {
-                        .iov_base = subrequest.Buffer.Begin(),
-                        .iov_len = Min(subrequest.Buffer.Size(), static_cast<size_t>(Config_->MaxBytesPerRead))
-                    };
-
-                    YT_LOG_TRACE("Submitting read operation (Request: %p/%v, FD: %v, Offset: %v, Buffer: %p@%v)",
-                        request,
-                        subrequestIndex,
-                        subrequest.Handle,
-                        subrequest.Offset,
-                        subrequestState.Iov.iov_base,
-                        subrequestState.Iov.iov_len);
-
-                    io_uring_prep_readv(
-                        sqe,
-                        subrequest.Handle,
-                        &subrequestState.Iov,
-                        1,
-                        subrequest.Offset);
-                }
+                io_uring_prep_readv(
+                    sqe,
+                    *subrequest.Handle,
+                    &subrequestState.Iov,
+                    1,
+                    subrequest.Offset);
 
                 SetRequestUserData(sqe, request, subrequestIndex);
             }
@@ -1295,7 +1250,7 @@ private:
 
         void HandleWriteRequest(TUringRequest* request)
         {
-            auto totalSubrequestCount = static_cast<int>(request->WriteRequest.Buffers.size());
+            auto totalSubrequestCount = std::ssize(request->WriteRequest.Buffers);
 
             YT_LOG_TRACE("Handling write request (Request: %p, FinishedSubrequestCount: %v, TotalSubrequestCount: %v)",
                 request,
@@ -1334,7 +1289,7 @@ private:
 
             YT_LOG_TRACE("Submitting write operation (Request: %p, FD: %v, Offset: %v, Buffers: %v)",
                 request,
-                request->WriteRequest.Handle,
+                static_cast<FHANDLE>(*request->WriteRequest.Handle),
                 request->WriteRequest.Offset,
                 MakeFormattableView(
                     xrange(request->WriteIovBuffer->begin(), request->WriteIovBuffer->begin() + iovCount),
@@ -1347,7 +1302,7 @@ private:
             auto* sqe = AllocateSqe();
             io_uring_prep_writev(
                 sqe,
-                request->WriteRequest.Handle,
+                *request->WriteRequest.Handle,
                 &request->WriteIovBuffer->front(),
                 iovCount,
                 request->WriteRequest.Offset);
@@ -1374,11 +1329,11 @@ private:
 
             YT_LOG_TRACE("Submitting flush file request (Request: %p, FD: %v, Mode: %v)",
                 request,
-                request->FlushFileRequest.Handle,
+                static_cast<FHANDLE>(*request->FlushFileRequest.Handle),
                 request->FlushFileRequest.Mode);
 
             auto* sqe = AllocateSqe();
-            io_uring_prep_fsync(sqe, request->FlushFileRequest.Handle, GetSyncFlags(request->FlushFileRequest.Mode));
+            io_uring_prep_fsync(sqe, *request->FlushFileRequest.Handle, GetSyncFlags(request->FlushFileRequest.Mode));
             SetRequestUserData(sqe, request);
         }
 
@@ -1389,11 +1344,11 @@ private:
 
             YT_LOG_TRACE("Submitting allocate request (Request: %p, FD: %v, Size: %v)",
                 request,
-                request->AllocateRequest.Handle,
+                static_cast<FHANDLE>(*request->AllocateRequest.Handle),
                 request->AllocateRequest.Size);
 
             auto* sqe = AllocateSqe();
-            io_uring_prep_fallocate(sqe, request->AllocateRequest.Handle, FALLOC_FL_CONVERT_UNWRITTEN, 0, request->AllocateRequest.Size);
+            io_uring_prep_fallocate(sqe, *request->AllocateRequest.Handle, FALLOC_FL_CONVERT_UNWRITTEN, 0, request->AllocateRequest.Size);
             SetRequestUserData(sqe, request);
         }
 
@@ -1430,11 +1385,22 @@ private:
             auto& subrequest = request->ReadSubrequests[subrequestIndex];
             auto& subrequestState = request->ReadSubrequestStates[subrequestIndex];
 
-            bool disposeDirectIOBuffer = true;
-
-            if (cqe->res == 0 && subrequest.Buffer.Size() > 0) {
+            if (cqe->res == 0 && subrequestState.Buffer.Size() > 0) {
+                auto error = request->ReadRequestCombiner.CheckEOF(subrequestState.Buffer);
+                if (!error.IsOK()) {
+                    YT_LOG_TRACE("Read subrequest failed at EOF (Request: %p/%v, Remaining: %v)",
+                        request,
+                        subrequestIndex,
+                        subrequestState.Buffer.Size());
+                    TrySetRequestFailed(request, error);
+                } else {
+                    YT_LOG_TRACE("Read subrequest succeeded at EOF (Request: %p/%v, Remaining: %v)",
+                        request,
+                        subrequestIndex,
+                        subrequestState.Buffer.Size());
+                }
+                subrequestState.Buffer = {};
                 ++request->FinishedSubrequestCount;
-                TrySetRequestFailed(request, TError(NFS::EErrorCode::IOError, "Unexpected end-of-file in read request"));
             } else if (cqe->res < 0) {
                 ++request->FinishedSubrequestCount;
                 TrySetRequestFailed(request, cqe);
@@ -1444,43 +1410,23 @@ private:
                     readSize = Min(readSize, *Config_->SimulatedMaxBytesPerRead);
                 }
 
-                auto bufferSize = static_cast<i64>(subrequest.Buffer.Size());
-
-                YT_VERIFY(!subrequest.UseDirectIO || readSize % PageSize == 0);
-
-                if (subrequestState.DirectIOBuffer) {
-                    YT_VERIFY(readSize % PageSize == 0);
-                    auto alignmentGap = subrequest.Offset % PageSize;
-                    readSize = Min(readSize - alignmentGap, bufferSize);
-                    YT_LOG_TRACE("Copying data from direct IO read buffer (Request: %p/%v, Size: %v)",
-                        request,
-                        subrequestIndex,
-                        readSize);
-                    ::memcpy(subrequest.Buffer.Begin(), subrequestState.DirectIOBuffer.Begin() + alignmentGap, readSize);
-                }
-
+                auto bufferSize = static_cast<i64>(subrequestState.Buffer.Size());
                 subrequest.Offset += readSize;
                 if (bufferSize == readSize) {
                     YT_LOG_TRACE("Read subrequest fully succeeded (Request: %p/%v, Size: %v)",
                         request,
                         subrequestIndex,
                         readSize);
-                    subrequest.Buffer = {};
+                    subrequestState.Buffer = {};
                     ++request->FinishedSubrequestCount;
                 } else {
                     YT_LOG_TRACE("Read subrequest partially succeeded (Request: %p/%v, Size: %v)",
                         request,
                         subrequestIndex,
                         readSize);
-                    subrequest.Buffer = subrequest.Buffer.Slice(readSize, bufferSize);
+                    subrequestState.Buffer = subrequestState.Buffer.Slice(readSize, bufferSize);
                     request->PendingReadSubrequestIndexes.push_back(subrequestIndex);
-                    // NB: Don't dispose direct IO read buffer; HandleReadRequest will need it below.
-                    disposeDirectIOBuffer = false;
                 }
-            }
-
-            if (disposeDirectIOBuffer) {
-                DisposeDirectIOReadBuffer(request, subrequestIndex);
             }
 
             HandleReadRequest(request);
@@ -1687,7 +1633,6 @@ private:
             }
         }
 
-
         static void SetRequestUserData(io_uring_sqe* sqe, TUringRequest* request, int subrequestIndex = 0)
         {
             auto userData = reinterpret_cast<void*>(
@@ -1706,92 +1651,11 @@ private:
             };
         }
 
-
         void DisposeRequest(TUringRequest* request)
         {
             YT_LOG_TRACE("Request disposed (Request: %v)",
                 request);
-            for (int subrequestIndex = 0; subrequestIndex < static_cast<int>(request->ReadSubrequestStates.size()); ++subrequestIndex) {
-                DisposeDirectIOReadBuffer(request, subrequestIndex);
-            }
             delete request;
-        }
-
-
-        void AllocatePooledDirectIOReadBuffer(TUringRequest* request, int subrequestIndex)
-        {
-            auto& state = request->ReadSubrequestStates[subrequestIndex];
-            if (state.IsDirectIOBufferPooled()) {
-                return;
-            }
-
-            DisposeDirectIOReadBuffer(request, subrequestIndex);
-
-            YT_VERIFY(!SparePooledDirectIOReadBuffers_.empty());
-            state.DirectIOBuffer = TSharedMutableRef(SparePooledDirectIOReadBuffers_.back(), nullptr);
-            SparePooledDirectIOReadBuffers_.pop_back();
-
-            YT_LOG_TRACE("Pooled direct IO read buffer allocated (Request: %p, Buffer: %p@%v, SpareBufferCount: %v)",
-                request,
-                state.DirectIOBuffer.Begin(),
-                state.DirectIOBuffer.Size(),
-                SparePooledDirectIOReadBuffers_.size());
-        }
-
-        void AllocateLargeDirectIOReadBuffer(TUringRequest* request, int subrequestIndex, i64 size)
-        {
-            auto& state = request->ReadSubrequestStates[subrequestIndex];
-            if (state.IsDirectIOBufferLarge() && state.DirectIOBuffer.Size() >= static_cast<size_t>(size)) {
-                return;
-            }
-
-            DisposeDirectIOReadBuffer(request, subrequestIndex);
-
-            state.DirectIOBuffer = TSharedMutableRef::AllocatePageAligned<TLargeDirectIOReadBufferTag>(size, false);;
-
-            YT_LOG_TRACE("Large direct IO read buffer allocated (Request: %p/%v, Buffer: %p@%v)",
-                request,
-                subrequestIndex,
-                state.DirectIOBuffer.Begin(),
-                state.DirectIOBuffer.Size());
-        }
-
-        void DisposeDirectIOReadBuffer(TUringRequest* request, int subrequestIndex)
-        {
-            auto& state = request->ReadSubrequestStates[subrequestIndex];
-
-            if (state.IsDirectIOBufferLarge()) {
-                YT_LOG_TRACE("Large direct IO read buffer disposed (Request: %p/%v, Buffer: %p@%v)",
-                    request,
-                    subrequestIndex,
-                    state.DirectIOBuffer.Begin(),
-                    state.DirectIOBuffer.Size());
-            }
-
-            if (state.IsDirectIOBufferPooled()) {
-                YT_LOG_TRACE("Pooled direct IO read buffer disposed (Request: %p/%v, Buffer: %p, SpareBufferCount: %v)",
-                    request,
-                    subrequestIndex,
-                    state.DirectIOBuffer.Begin(),
-                    SparePooledDirectIOReadBuffers_.size());
-                SparePooledDirectIOReadBuffers_.push_back(state.DirectIOBuffer);
-            }
-
-            state.DirectIOBuffer = {};
-        }
-
-        static bool IsBufferDirectIOCapable(TRef buffer)
-        {
-            return
-                reinterpret_cast<uintptr_t>(buffer.Begin()) % PageSize == 0 &&
-                buffer.Size() % PageSize == 0;
-        }
-
-        static bool IsRequestDirectIOCapable(i64 offset, i64 size)
-        {
-            return
-                offset % PageSize == 0 &&
-                size % PageSize == 0;
         }
     };
 
@@ -1856,26 +1720,45 @@ public:
         }));
     }
 
-    virtual TFuture<void> Read(
+    virtual TFuture<std::vector<TSharedRef>> Read(
         std::vector<TReadRequest> requests,
-        i64 /* priority */) override
+        i64 /* priority */,
+        EMemoryZone memoryZone,
+        TRefCountedTypeCookie tagCookie) override
     {
-        if (static_cast<int>(requests.size()) > MaxSubrequestCount) {
-            return MakeFuture(TError("Too many read requests: %v > %v",
+        if (std::ssize(requests) > MaxSubrequestCount) {
+            return MakeFuture<std::vector<TSharedRef>>(TError("Too many read requests: %v > %v",
                 requests.size(),
                 MaxSubrequestCount));
         }
 
         auto uringRequest = std::make_unique<TUringRequest>();
+
+        uringRequest->ReadRequestCombiner.Combine(requests, PageSize, memoryZone, tagCookie);
+        const auto& ioRequests = uringRequest->ReadRequestCombiner.GetIORequests();
+
         uringRequest->Type = EUringRequestType::Read;
-        uringRequest->ReadSubrequests = std::move(requests);
-        uringRequest->ReadSubrequestStates.resize(uringRequest->ReadSubrequests.size());
-        uringRequest->PendingReadSubrequestIndexes.reserve(uringRequest->ReadSubrequests.size());
-        int subrequestCount = static_cast<int>(uringRequest->ReadSubrequests.size());
-        for (int index = subrequestCount - 1; index >= 0; --index) {
+        uringRequest->ReadSubrequests.reserve(ioRequests.size());
+        uringRequest->ReadSubrequestStates.reserve(ioRequests.size());
+        uringRequest->PendingReadSubrequestIndexes.reserve(ioRequests.size());
+
+        for (int index = 0; index < std::ssize(ioRequests); ++index) {
+            uringRequest->ReadSubrequests.push_back({
+                .Handle = ioRequests[index].Handle,
+                .Offset = ioRequests[index].Offset,
+                .Size = ioRequests[index].Size
+            });
+            uringRequest->ReadSubrequestStates.push_back({
+                .Buffer = ioRequests[index].ResultBuffer
+            });
             uringRequest->PendingReadSubrequestIndexes.push_back(index);
         }
-        return SubmitRequest(std::move(uringRequest));
+
+        const auto& result = uringRequest->ReadRequestCombiner.GetOutputBuffers();
+        return SubmitRequest(std::move(uringRequest))
+            .Apply(BIND([result] {
+                return result;
+            }));
     }
 
     virtual TFuture<void> Write(

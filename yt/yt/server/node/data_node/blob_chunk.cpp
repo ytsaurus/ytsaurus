@@ -827,8 +827,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockRange(
 }
 
 IIOEngine::TReadRequest TBlobChunkBase::MakeChunkFragmentReadRequest(
-    const TChunkFragmentDescriptor& fragmentDescriptor,
-    TSharedMutableRef data)
+    const TChunkFragmentDescriptor& fragmentDescriptor)
 {
     YT_ASSERT(ReadLockCounter_.load() > 0);
     YT_ASSERT(PreparedReader_);
@@ -838,7 +837,7 @@ IIOEngine::TReadRequest TBlobChunkBase::MakeChunkFragmentReadRequest(
             GetId());
     }
 
-    return PreparedReader_->MakeChunkFragmentReadRequest(fragmentDescriptor, std::move(data));
+    return PreparedReader_->MakeChunkFragmentReadRequest(fragmentDescriptor);
 }
 
 void TBlobChunkBase::SyncRemove(bool force)

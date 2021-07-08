@@ -23,7 +23,9 @@ protected:
     TSharedMutableRef GenerateRandomBlob(i64 size)
     {
         auto data = TSharedMutableRef::Allocate(size);
-        ::memset(data.Begin(), 0xdeadbeaf, data.Size());
+        for (ui32 index = 0; index < data.Size(); ++index) {
+            data[index] = ((index + size) * 1103515245L) >> 24;
+        }
         return data;
     }
 
@@ -71,23 +73,23 @@ TEST_P(TIOEngineTest, ReadWrite)
     auto data = GenerateRandomBlob(S);
 
     auto write = [&] {
-        engine->Write({*file, 0, {data}})
+        engine->Write({file, 0, {data}})
             .Get()
             .ThrowOnError();
     };
 
     auto flush = [&] {
-        engine->FlushFile({*file, EFlushFileMode::Data})
+        engine->FlushFile({file, EFlushFileMode::Data})
             .Get()
             .ThrowOnError();
     };
 
     auto read = [&] (i64 offset, i64 size) {
-        auto buffer = TSharedMutableRef::Allocate(size);
-        engine->Read({{*file, offset, buffer}})
+        auto result = engine->Read({{file, offset, size}})
             .Get()
-            .ThrowOnError();
-        EXPECT_TRUE(TRef::AreBitwiseEqual(buffer, data.Slice(offset, offset + size)));
+            .ValueOrThrow();
+        EXPECT_TRUE(result.size() == 1);
+        EXPECT_TRUE(TRef::AreBitwiseEqual(result[0], data.Slice(offset, offset + size)));
     };
 
     write();
@@ -148,22 +150,22 @@ TEST_P(TIOEngineTest, DirectIO)
         .Get()
         .ValueOrThrow();
 
-    auto read = [&] (i64 offset, i64 size, bool aligned) {
-        auto buffer = aligned ? TSharedMutableRef::AllocatePageAligned(size) : TSharedMutableRef::Allocate(size);
-        engine->Read({{*file, offset, buffer, true}})
+    auto read = [&] (i64 offset, i64 size) {
+        auto result = engine->Read({{file, offset, size}})
             .Get()
-            .ThrowOnError();
-        EXPECT_TRUE(TRef::AreBitwiseEqual(buffer, data.Slice(offset, offset + size)));
+            .ValueOrThrow();
+        EXPECT_TRUE(result.size() == 1);
+        EXPECT_TRUE(TRef::AreBitwiseEqual(result[0], data.Slice(offset, offset + size)));
     };
 
-    read(1, S - 2, false);
-    read(0, S, true);
-    read(4_KB, 8_KB, true);
+    read(1, S - 2);
+    read(0, S);
+    read(4_KB, 8_KB);
 
-    read(0, S, false);
-    read(100, 200, false);
-    read(4_KB - 1, 2, false);
-    read(4_KB - 1, 4_KB + 2, false);
+    read(0, S);
+    read(100, 200);
+    read(4_KB - 1, 2);
+    read(4_KB - 1, 4_KB + 2);
 }
 
 TEST_P(TIOEngineTest, ManyConcurrentDirectIOReads)
@@ -187,12 +189,11 @@ TEST_P(TIOEngineTest, ManyConcurrentDirectIOReads)
         .Get()
         .ValueOrThrow();
 
-    std::vector<TFuture<void>> futures;
+    std::vector<TFuture<std::vector<TSharedRef>>> futures;
     constexpr auto N = 100;
 
     for (int i = 0; i < N; ++i) {
-        auto buffer = TSharedMutableRef::Allocate(20);
-        futures.push_back(engine->Read({{*file, 10, buffer, true}}));
+        futures.push_back(engine->Read({{file, 10, 20}}));
     }
 
     AllSucceeded(std::move(futures))

@@ -194,8 +194,7 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockRange(
 }
 
 IIOEngine::TReadRequest TJournalChunk::MakeChunkFragmentReadRequest(
-    const TChunkFragmentDescriptor& /* fragmentDescriptor */,
-    TSharedMutableRef /* data */)
+    const TChunkFragmentDescriptor& /* fragmentDescriptor */)
 {
     THROW_ERROR_EXCEPTION("Journal chunks do not support reading fragments");
 }

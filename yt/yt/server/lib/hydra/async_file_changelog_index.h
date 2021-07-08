@@ -4,6 +4,7 @@
 #include "file_helpers.h"
 
 #include <yt/yt/server/lib/io/public.h>
+#include <yt/yt/server/lib/io/io_engine.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
@@ -22,7 +23,7 @@ public:
     void PushHeader();
     void Push(const TChangelogIndexRecord& record);
 
-    TFuture<void> Write(const std::shared_ptr<TFileHandle>& file, const NIO::IIOEnginePtr& ioEngine) const;
+    TFuture<void> Write(const NIO::TIOEngineHandlePtr& file, const NIO::IIOEnginePtr& ioEngine) const;
     void UpdateRecordCount(int newRecordCount);
     i64 GetOffset() const;
     int GetCurrentIndexId() const;
@@ -77,7 +78,7 @@ private:
     const bool EnableSync_;
 
     std::vector<TChangelogIndexRecord> Index_;
-    std::shared_ptr<TFileHandle> IndexFile_;
+    NIO::TIOEngineHandlePtr IndexFile_;
 
     i64 CurrentBlockSize_ = 0;
 

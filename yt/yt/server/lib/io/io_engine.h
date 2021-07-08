@@ -16,6 +16,21 @@ namespace NYT::NIO {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TIOEngineHandle final
+    : public TFileHandle
+{
+public:
+    TIOEngineHandle() = default;
+    TIOEngineHandle(const TString& fName, EOpenMode oMode) noexcept;
+
+    bool IsOpenForDirectIO() const;
+
+private:
+    bool OpenForDirectIO_ = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(EFlushFileMode,
     (All)
     (Data)
@@ -28,15 +43,14 @@ struct IIOEngine
 
     struct TReadRequest
     {
-        FHANDLE Handle;
+        TIOEngineHandlePtr Handle;
         i64 Offset = -1;
-        TSharedMutableRef Buffer;
-        bool UseDirectIO = false;
+        i64 Size = -1;
     };
 
     struct TWriteRequest
     {
-        FHANDLE Handle;
+        TIOEngineHandlePtr Handle;
         i64 Offset = -1;
         std::vector<TSharedRef> Buffers;
     };
@@ -49,20 +63,20 @@ struct IIOEngine
 
     struct TCloseRequest
     {
-        std::shared_ptr<TFileHandle> Handle;
+        TIOEngineHandlePtr Handle;
         std::optional<i64> Size = {};
         bool Flush = false;
     };
 
     struct TAllocateRequest
     {
-        FHANDLE Handle;
+        TIOEngineHandlePtr Handle;
         i64 Size = -1;
     };
 
     struct TFlushFileRequest
     {
-        FHANDLE Handle;
+        TIOEngineHandlePtr Handle;
         EFlushFileMode Mode;
     };
 
@@ -71,10 +85,14 @@ struct IIOEngine
         TString Path;
     };
 
+    struct TDefaultReadTag
+    { };
 
-    virtual TFuture<void> Read(
+    virtual TFuture<std::vector<TSharedRef>> Read(
         std::vector<TReadRequest> requests,
-        i64 priority = DefaultPriority) = 0;
+        i64 priority,
+        NYTAlloc::EMemoryZone memoryZone,
+        TRefCountedTypeCookie tagCookie) = 0;
     virtual TFuture<void> Write(
         TWriteRequest request,
         i64 priority = DefaultPriority) = 0;
@@ -86,7 +104,7 @@ struct IIOEngine
         TFlushDirectoryRequest request,
         i64 priority = DefaultPriority) = 0;
 
-    virtual TFuture<std::shared_ptr<TFileHandle>> Open(
+    virtual TFuture<TIOEngineHandlePtr> Open(
         TOpenRequest request,
         i64 priority = DefaultPriority) = 0;
     virtual TFuture<void> Close(
@@ -102,7 +120,13 @@ struct IIOEngine
     virtual const IInvokerPtr& GetAuxPoolInvoker() = 0;
 
     // Extension methods
-    TFuture<TSharedMutableRef> ReadAll(
+    template <class TTag = TDefaultReadTag>
+    TFuture<std::vector<TSharedRef>> Read(
+        std::vector<TReadRequest> requests,
+        i64 priority = DefaultPriority,
+        NYTAlloc::EMemoryZone memoryZone = NYTAlloc::EMemoryZone::Normal);
+
+    TFuture<TSharedRef> ReadAll(
         const TString& path,
         i64 priority = DefaultPriority);
 };
@@ -121,3 +145,7 @@ std::vector<EIOEngineType> GetSupportedIOEngineTypes();
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NIO
+
+#define IO_ENGINE_INL_H_
+#include "io_engine-inl.h"
+#undef IO_ENGINE_INL_H_

@@ -89,8 +89,7 @@ struct IChunk
      *  Thread affinity: any
      */
     virtual NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
-        const NIO::TChunkFragmentDescriptor& fragmentDescriptor,
-        TSharedMutableRef data) = 0;
+        const NIO::TChunkFragmentDescriptor& fragmentDescriptor) = 0;
 
     //! Tries to acquire a read lock; throws on failure.
     /*!

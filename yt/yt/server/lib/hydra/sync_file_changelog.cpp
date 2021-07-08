@@ -270,7 +270,7 @@ public:
             if (Config_->EnableSync) {
                 std::vector<TFuture<void>> futures{
                     IndexFile_.FlushData(),
-                    IOEngine_->FlushFile({*DataFile_, EFlushFileMode::Data})
+                    IOEngine_->FlushFile({DataFile_, EFlushFileMode::Data})
                 };
                 WaitFor(AllSucceeded(std::move(futures)))
                     .ThrowOnError();
@@ -340,7 +340,7 @@ public:
 
         YT_LOG_DEBUG("Started preallocating changelog");
 
-        WaitFor(IOEngine_->Allocate({*DataFile_, size}))
+        WaitFor(IOEngine_->Allocate({DataFile_, size}))
             .ThrowOnError();
 
         YT_LOG_DEBUG("Finished preallocating changelog");
@@ -362,7 +362,7 @@ private:
     std::optional<int> TruncatedRecordCount_;
     std::atomic<i64> CurrentFilePosition_ = -1;
 
-    std::shared_ptr<TFileHandle> DataFile_;
+    TIOEngineHandlePtr DataFile_;
     TAsyncFileChangelogIndex IndexFile_;
 
     // Reused by Append.
@@ -394,7 +394,7 @@ private:
 
         TChangelogIndexRecord LowerBound;
         TChangelogIndexRecord UpperBound;
-        TSharedMutableRef Blob;
+        TSharedRef Blob;
     };
 
     //! Resets mutable state to default values.
@@ -529,16 +529,16 @@ private:
     void DoUpdateLogHeader()
     {
         NFS::ExpectIOErrors([&] {
-            WaitFor(IOEngine_->FlushFile({*DataFile_, EFlushFileMode::Data}))
+            WaitFor(IOEngine_->FlushFile({DataFile_, EFlushFileMode::Data}))
                 .ThrowOnError();
 
             auto header = MakeChangelogHeader<T>();
             auto data = TSharedMutableRef::AllocatePageAligned(header.FirstRecordOffset, true);
             ::memcpy(data.Begin(), &header, sizeof(header));
 
-            WaitFor(IOEngine_->Write({*DataFile_, 0, {std::move(data)}}))
+            WaitFor(IOEngine_->Write({DataFile_, 0, {std::move(data)}}))
                 .ThrowOnError();
-            WaitFor(IOEngine_->FlushFile({*DataFile_, EFlushFileMode::Data}))
+            WaitFor(IOEngine_->FlushFile({DataFile_, EFlushFileMode::Data}))
                 .ThrowOnError();
         });
     }
@@ -580,10 +580,12 @@ private:
 
         struct TEnvelopeBufferTag
         { };
-        result.Blob = TSharedMutableRef::Allocate<TEnvelopeBufferTag>(result.GetLength(), false);
+        auto responseData = WaitFor(IOEngine_->Read<TEnvelopeBufferTag>(
+            {{DataFile_, result.GetStartPosition(), result.GetLength()}}))
+            .ValueOrThrow();
 
-        WaitFor(IOEngine_->Read({{*DataFile_, result.GetStartPosition(), result.Blob}}))
-            .ThrowOnError();
+        YT_VERIFY(responseData.size() == 1);
+        result.Blob = responseData[0];
 
         YT_VERIFY(std::ssize(result.Blob) == result.GetLength());
 
@@ -901,7 +903,7 @@ private:
             TSharedRef data(AppendOutput_.Blob().Begin(), AppendOutput_.Size(), MakeStrong(this));
 
             // Write blob to file.
-            WaitFor(IOEngine_->Write({*DataFile_, CurrentFilePosition_, {std::move(data)}}))
+            WaitFor(IOEngine_->Write({DataFile_, CurrentFilePosition_, {std::move(data)}}))
                 .ThrowOnError();
 
             // Process written records (update index etc).

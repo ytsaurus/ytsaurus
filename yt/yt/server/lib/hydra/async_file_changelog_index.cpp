@@ -93,9 +93,9 @@ TIndexBucket::TIndexBucket(size_t capacity, i64 offset)
     }
 }
 
-TFuture<void> TIndexBucket::Write(const std::shared_ptr<TFileHandle>& file, const IIOEnginePtr& ioEngine) const
+TFuture<void> TIndexBucket::Write(const TIOEngineHandlePtr& file, const IIOEnginePtr& ioEngine) const
 {
-    return ioEngine->Write({*file, Offset_, {Data_}});
+    return ioEngine->Write({file, Offset_, {Data_}});
 }
 
 void TIndexBucket::Push(const TChangelogIndexRecord& record)
@@ -405,7 +405,7 @@ TFuture<void> TAsyncFileChangelogIndex::FlushData()
     asyncResults.reserve(2);
     asyncResults.push_back(FlushDirtyBuckets());
     if (EnableSync_) {
-        asyncResults.push_back(IOEngine_->FlushFile({*IndexFile_, EFlushFileMode::Data}));
+        asyncResults.push_back(IOEngine_->FlushFile({IndexFile_, EFlushFileMode::Data}));
     }
     return AllSucceeded(asyncResults);
 }

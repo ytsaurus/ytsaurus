@@ -39,7 +39,7 @@ namespace {
 
 template <class T>
 void ReadHeader(
-    const TSharedMutableRef& metaFileBlob,
+    const TSharedRef& metaFileBlob,
     const TString& fileName,
     TChunkMetaHeader_2* metaHeader,
     TRef* metaBlob)
@@ -160,16 +160,14 @@ TFuture<void> TChunkFileReader::PrepareToReadChunkFragments()
 }
 
 IIOEngine::TReadRequest TChunkFileReader::MakeChunkFragmentReadRequest(
-    const TChunkFragmentDescriptor& fragmentDescriptor,
-    TSharedMutableRef data)
+    const TChunkFragmentDescriptor& fragmentDescriptor)
 {
     YT_ASSERT(DataFileOpened_.load());
-    YT_ASSERT(fragmentDescriptor.Length == std::ssize(data));
 
     return IIOEngine::TReadRequest{
-        *DataFile_,
+        DataFile_,
         fragmentDescriptor.Offset,
-        std::move(data)
+        fragmentDescriptor.Length
     };
 }
 
@@ -178,8 +176,11 @@ std::vector<TBlock> TChunkFileReader::OnBlocksRead(
     int firstBlockIndex,
     int blockCount,
     const TRefCountedBlocksExtPtr& blocksExt,
-    const TSharedMutableRef& buffer)
+    const std::vector<TSharedRef>& readResult)
 {
+    YT_VERIFY(readResult.size() == 1);
+    const auto& buffer = readResult[0];
+
     options.ChunkReaderStatistics->DataBytesReadFromDisk += buffer.Size();
     const auto& firstBlockInfo = blocksExt->blocks(firstBlockIndex);
 
@@ -219,7 +220,7 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
     int firstBlockIndex,
     int blockCount,
     TRefCountedBlocksExtPtr blocksExt,
-    std::shared_ptr<TFileHandle> dataFile)
+    TIOEngineHandlePtr dataFile)
 {
     if (!blocksExt && BlocksExtCache_) {
         blocksExt = BlocksExtCache_->Find();
@@ -242,7 +243,7 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
         auto optionalDataFileOrError = asyncDataFile.TryGet();
         if (!optionalDataFileOrError || !optionalDataFileOrError->IsOK()) {
             return asyncDataFile
-                .Apply(BIND([=, this_ = MakeStrong(this)] (const std::shared_ptr<TFileHandle>& dataFile) {
+                .Apply(BIND([=, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& dataFile) {
                     return DoReadBlocks(options, firstBlockIndex, blockCount, blocksExt, dataFile);
                 }));
         }
@@ -265,21 +266,16 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
     const auto& lastBlockInfo = blocksExt->blocks(lastBlockIndex);
     i64 totalSize = lastBlockInfo.offset() + lastBlockInfo.size() - firstBlockInfo.offset();
 
-    TSharedMutableRef buffer;
-    {
-        TMemoryZoneGuard guard(EMemoryZone::Undumpable);
-        struct TChunkFileReaderBufferTag
-        { };
-        buffer = TSharedMutableRef::Allocate<TChunkFileReaderBufferTag>(totalSize, false);
-    }
-
-    return IOEngine_->Read({{
-            *dataFile,
+    struct TChunkFileReaderBufferTag
+    { };
+    return IOEngine_->Read<TChunkFileReaderBufferTag>({{
+            dataFile,
             firstBlockInfo.offset(),
-            buffer
+            totalSize
         }},
-        options.WorkloadDescriptor.GetPriority())
-        .Apply(BIND(&TChunkFileReader::OnBlocksRead, MakeStrong(this), options, firstBlockIndex, blockCount, blocksExt, buffer));
+        options.WorkloadDescriptor.GetPriority(),
+        EMemoryZone::Undumpable)
+        .Apply(BIND(&TChunkFileReader::OnBlocksRead, MakeStrong(this), options, firstBlockIndex, blockCount, blocksExt));
 }
 
 TFuture<TRefCountedChunkMetaPtr> TChunkFileReader::DoReadMeta(
@@ -303,7 +299,7 @@ TFuture<TRefCountedChunkMetaPtr> TChunkFileReader::DoReadMeta(
 TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
     const TString& metaFileName,
     TChunkReaderStatisticsPtr chunkReaderStatistics,
-    const TSharedMutableRef& metaFileBlob)
+    const TSharedRef& metaFileBlob)
 {
     YT_LOG_DEBUG("Finished reading chunk meta file (FileName: %v)",
         FileName_);
@@ -366,7 +362,7 @@ TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
     return New<TRefCountedChunkMeta>(std::move(meta));
 }
 
-TFuture<std::shared_ptr<TFileHandle>> TChunkFileReader::OpenDataFile()
+TFuture<TIOEngineHandlePtr> TChunkFileReader::OpenDataFile()
 {
     auto guard = Guard(DataFileLock_);
     if (!DataFileFuture_) {
@@ -380,7 +376,7 @@ TFuture<std::shared_ptr<TFileHandle>> TChunkFileReader::OpenDataFile()
     return DataFileFuture_;
 }
 
-std::shared_ptr<TFileHandle> TChunkFileReader::OnDataFileOpened(const std::shared_ptr<TFileHandle>& file)
+TIOEngineHandlePtr TChunkFileReader::OnDataFileOpened(const TIOEngineHandlePtr& file)
 {
     YT_LOG_DEBUG("Finished opening chunk data file (FileName: %v, Handle: %v)",
         FileName_,

@@ -47,8 +47,7 @@ public:
         const TChunkReadOptions& options);
 
     virtual NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
-        const NIO::TChunkFragmentDescriptor& fragmentDescriptor,
-        TSharedMutableRef data) override;
+        const NIO::TChunkFragmentDescriptor& fragmentDescriptor) override;
 
     virtual void SyncRemove(bool force) override;
 
