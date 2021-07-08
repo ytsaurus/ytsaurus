@@ -149,8 +149,8 @@ trait YtDynTableUtils {
     processModifyRowsRequest(new ModifyRowsRequest(formatPath(path), schema).addInserts(rows), parentTransaction)
   }
 
-  def insertRows(path: String, schema: TableSchema, rows: List[List[Any]],
-                 parentTransaction: Option[ApiServiceTransaction])(implicit yt: CompoundClient): Unit = {
+  def insertRows(path: String, schema: TableSchema, rows: Seq[Seq[Any]],
+                 parentTransaction: Option[ApiServiceTransaction] = None)(implicit yt: CompoundClient): Unit = {
     import scala.collection.JavaConverters._
 
     processModifyRowsRequest(new ModifyRowsRequest(formatPath(path), schema).addInserts(rows.map(_.asJava).asJava), parentTransaction)
