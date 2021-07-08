@@ -16,6 +16,10 @@ DECLARE_REFCOUNTED_STRUCT(IIOEngine)
 DECLARE_REFCOUNTED_CLASS(TChunkFileReader)
 DECLARE_REFCOUNTED_CLASS(TChunkFileWriter)
 
+class TIOEngineHandle;
+
+using TIOEngineHandlePtr = TIntrusivePtr<TIOEngineHandle>;
+
 struct TChunkFragmentDescriptor;
 
 struct IBlocksExtCache;

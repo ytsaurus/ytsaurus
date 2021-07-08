@@ -72,8 +72,7 @@ public:
 
     //! Reader must be prepared (see #PrepareToReadChunkFragments) prior to this call.
     IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
-        const TChunkFragmentDescriptor& fragmentDescriptor,
-        TSharedMutableRef data);
+        const TChunkFragmentDescriptor& fragmentDescriptor);
 
     NChunkClient::TChunkId GetChunkId() const;
 
@@ -85,8 +84,8 @@ private:
     IBlocksExtCache* const BlocksExtCache_;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, DataFileLock_);
-    TFuture<std::shared_ptr<TFileHandle>> DataFileFuture_;
-    std::shared_ptr<TFileHandle> DataFile_;
+    TFuture<TIOEngineHandlePtr> DataFileFuture_;
+    TIOEngineHandlePtr DataFile_;
     std::atomic<bool> DataFileOpened_ = false;
 
     TFuture<std::vector<NChunkClient::TBlock>> DoReadBlocks(
@@ -94,25 +93,25 @@ private:
         int firstBlockIndex,
         int blockCount,
         NChunkClient::TRefCountedBlocksExtPtr blocksExt = nullptr,
-        std::shared_ptr<TFileHandle> dataFile = nullptr);
+        TIOEngineHandlePtr dataFile = nullptr);
     std::vector<NChunkClient::TBlock> OnBlocksRead(
         const NChunkClient::TClientChunkReadOptions& options,
         int firstBlockIndex,
         int blockCount,
         const NChunkClient::TRefCountedBlocksExtPtr& blocksExt,
-        const TSharedMutableRef& buffer);
+        const std::vector<TSharedRef>& readResult);
     TFuture<NChunkClient::TRefCountedChunkMetaPtr> DoReadMeta(
         const NChunkClient::TClientChunkReadOptions& options,
         std::optional<int> partitionTag);
     NChunkClient::TRefCountedChunkMetaPtr OnMetaRead(
         const TString& metaFileName,
         NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics,
-        const TSharedMutableRef& data);
+        const TSharedRef& data);
 
     TFuture<NChunkClient::TRefCountedBlocksExtPtr> ReadBlocksExt(const NChunkClient::TClientChunkReadOptions& options);
 
-    TFuture<std::shared_ptr<TFileHandle>> OpenDataFile();
-    std::shared_ptr<TFileHandle> OnDataFileOpened(const std::shared_ptr<TFileHandle>& file);
+    TFuture<TIOEngineHandlePtr> OpenDataFile();
+    TIOEngineHandlePtr OnDataFileOpened(const TIOEngineHandlePtr& file);
 
     void DumpBrokenBlock(
         int blockIndex,

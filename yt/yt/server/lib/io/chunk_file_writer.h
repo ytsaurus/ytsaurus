@@ -92,7 +92,7 @@ private:
     i64 DataSize_ = 0;
     i64 MetaDataSize_ = 0;
 
-    std::shared_ptr<TFileHandle> DataFile_;
+    TIOEngineHandlePtr DataFile_;
 
     const NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_ = New<NChunkClient::TRefCountedChunkMeta>();
     NChunkClient::NProto::TChunkInfo ChunkInfo_;

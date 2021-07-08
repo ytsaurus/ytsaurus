@@ -105,7 +105,7 @@ TFuture<void> TChunkFileWriter::Open()
     // NB: Races are possible between file creation and a call to flock.
     // Unfortunately in Linux we can't create'n'flock a file atomically.
     return IOEngine_->Open({FileName_ + NFS::TempFileSuffix, FileMode})
-        .Apply(BIND([=, this_ = MakeStrong(this)] (const std::shared_ptr<TFileHandle>& file) {
+        .Apply(BIND([=, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& file) {
             YT_VERIFY(State_.load() == EState::Opening);
 
             DataFile_ = file;
@@ -161,7 +161,7 @@ bool TChunkFileWriter::WriteBlocks(const std::vector<TBlock>& blocks)
 
     ReadyEvent_ =
         IOEngine_->Write({
-            *DataFile_,
+            DataFile_,
             startOffset,
             std::move(buffers)
         })
@@ -209,7 +209,7 @@ TFuture<void> TChunkFileWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
 
             return IOEngine_->Open({metaFileName + NFS::TempFileSuffix, FileMode});
         }))
-        .Apply(BIND([=, _this = MakeStrong(this)] (const std::shared_ptr<TFileHandle>& chunkMetaFile) {
+        .Apply(BIND([=, _this = MakeStrong(this)] (const TIOEngineHandlePtr& chunkMetaFile) {
             YT_VERIFY(State_.load() == EState::Closing);
 
             auto metaData = SerializeProtoToRefWithEnvelope(*ChunkMeta_);
@@ -230,7 +230,7 @@ TFuture<void> TChunkFileWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
 
             return
                 IOEngine_->Write({
-                    *chunkMetaFile,
+                    chunkMetaFile,
                     0,
                     {std::move(buffer)}
                 })
@@ -290,7 +290,7 @@ TFuture<void> TChunkFileWriter::Abort()
         BIND([=, _this = MakeStrong(this)] {
             YT_VERIFY(State_.load() == EState::Aborting);
 
-            DataFile_.reset();
+            DataFile_.Reset();
 
             auto removeIfExists = [] (const TString& path) {
                 if (NFS::Exists(path)) {
