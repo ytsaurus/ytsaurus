@@ -24,6 +24,7 @@ import time
 import pytest
 import datetime
 
+
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestCypressCommands(object):
     @authors("ignat")
@@ -81,7 +82,7 @@ class TestCypressCommands(object):
 
         yt.set_attribute(TEST_DIR + "/some_node", "attr", 1)
         assert yt.get(TEST_DIR + "/some_node", attributes=["attr", "other_attr"])\
-                .attributes == {"attr": 1}
+            .attributes == {"attr": 1}
 
         assert json.loads(yt.get(TEST_DIR, format=yt.format.JsonFormat())) == {"some_node": {}}
         assert json.loads(yt.get(TEST_DIR, format="json")) == {"some_node": {}}
@@ -108,6 +109,11 @@ class TestCypressCommands(object):
             yt.remove(TEST_DIR + "/some_node",
                       recursive=True,
                       force=force)
+
+        yt.set_attribute(TEST_DIR, "my_attr", "my_value")
+        assert yt.get_attribute(TEST_DIR, "my_attr") == "my_value"
+        yt.remove_attribute(TEST_DIR, "my_attr")
+        assert yt.get_attribute(TEST_DIR, "my_attr", None) is None
 
     @authors("asaitgalin")
     def test_mkdir(self):

@@ -1,5 +1,5 @@
 from .cypress_commands import (set, get, list, exists, remove, externalize, internalize, mkdir, copy, move, link, get_type, create,
-                               has_attribute, set_attribute)
+                               has_attribute, get_attribute, set_attribute, remove_attribute)
 from .acl_commands import check_permission, add_member, remove_member
 from .lock_commands import lock, unlock
 from .file_commands import LocalFile, put_file_to_cache, get_file_from_cache
