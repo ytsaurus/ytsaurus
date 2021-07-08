@@ -3,6 +3,7 @@ package ru.yandex.spark.yt.wrapper.cypress
 import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.cypress.YPath
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
+import ru.yandex.spark.yt.wrapper.YtWrapper.RichLogger
 import ru.yandex.spark.yt.wrapper.transaction.YtTransactionUtils
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.proxy.request._
@@ -13,8 +14,16 @@ trait YtCypressUtils {
   private val log = LoggerFactory.getLogger(getClass)
 
   def formatPath(path: String): String = {
-    if (!path.startsWith("/")) throw new IllegalArgumentException("Relative paths are not allowed")
-    if (path.startsWith("//")) path else "/" + path
+    log.debugLazy(s"Formatting path $path")
+    if (!path.startsWith("/")) {
+      if (path.contains(":/")) {
+        formatPath('/' + path.split(":", 2).last.dropWhile(_ == '/'))
+      } else {
+        throw new IllegalArgumentException(s"Relative paths are not allowed: $path")
+      }
+    }
+    else if (path.startsWith("//")) path
+    else "/" + path
   }
 
   def escape(s: String): String = s.replaceAll("([\\\\/@&*\\[{])", "\\\\$1")

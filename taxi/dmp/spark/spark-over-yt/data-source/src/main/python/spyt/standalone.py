@@ -222,7 +222,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     master_command = _launcher_command("Master")
     worker_command = _launcher_command("Worker") + \
         "--cores {0} --memory {1} --wait-master-timeout {2}".format(worker_cores, worker_memory, worker_timeout)
-    history_command = _launcher_command("HistoryServer") + "--log-path yt:/{}".format(spark_discovery.event_log())
+    history_command = _launcher_command("HistoryServer") + "--log-path ytEventLog:/{}".format(spark_discovery.event_log_table())
 
     user = get_user_name(client=client)
 

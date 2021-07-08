@@ -1,13 +1,13 @@
 package ru.yandex.spark.yt.fs
 
 import java.io.FileNotFoundException
-
 import org.apache.hadoop.fs._
 import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.util.Progressable
 import org.apache.spark.sql.SparkSession
 import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
+import ru.yandex.spark.yt.fs.PathUtils.hadoopPathToYt
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.cypress.PathType
 import ru.yandex.spark.yt.wrapper.table.TableType
@@ -22,7 +22,7 @@ class YtTableFileSystem extends YtFileSystemBase {
   override def listStatus(f: Path): Array[FileStatus] = {
     log.debugLazy(s"List status $f")
     implicit val ytClient: CompoundClient = yt
-    val path = ytPath(f)
+    val path = hadoopPathToYt(f)
 
     val transaction = GlobalTableSettings.getTransaction(path)
     val attributes = YtWrapper.attributes(path, transaction)
@@ -91,7 +91,7 @@ class YtTableFileSystem extends YtFileSystemBase {
   override def getFileStatus(f: Path): FileStatus = {
     log.debugLazy(s"Get file status $f")
     implicit val ytClient: CompoundClient = yt
-    val path = ytPath(f)
+    val path = hadoopPathToYt(f)
     val transaction = GlobalTableSettings.getTransaction(path)
 
     f match {

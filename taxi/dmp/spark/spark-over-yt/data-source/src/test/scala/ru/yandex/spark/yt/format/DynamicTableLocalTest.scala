@@ -1,8 +1,5 @@
 package ru.yandex.spark.yt.format
 
-import io.circe._
-import io.circe.generic.semiauto._
-import io.circe.syntax._
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Encoders
@@ -11,6 +8,7 @@ import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.test.{LocalSpark, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.yt.ytclient.proxy.CompoundClient
+import ru.yandex.yt.ytclient.tables.{ColumnSchema, ColumnSortOrder, ColumnValueType, TableSchema}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -19,7 +17,12 @@ import scala.language.postfixOps
 class DynamicTableLocalTest extends FlatSpec with Matchers with LocalSpark with TmpDir {
 
   import spark.implicits._
-
+  private val testSchema = new TableSchema.Builder()
+    .setUniqueKeys(false)
+    .add(new ColumnSchema("a", ColumnValueType.INT64, ColumnSortOrder.ASCENDING))
+    .add(new ColumnSchema("b", ColumnValueType.INT64, ColumnSortOrder.ASCENDING))
+    .addValue("c", ColumnValueType.STRING)
+    .build()
   private val testData = (1 to 10).map(i => TestRow(i, i * 2, ('a'.toInt + i).toChar.toString))
 
   "YtFileFormat" should "read dynamic table" in {
@@ -48,26 +51,17 @@ class DynamicTableLocalTest extends FlatSpec with Matchers with LocalSpark with 
   }
 
   def prepareTestTable(path: String, data: Seq[TestRow], pivotKeys: Seq[String]): Unit = {
+    import scala.collection.JavaConverters._
     val schema = Encoders.product[TestRow].schema
     YtWrapper.createTable(path, TestTableSettings(schema, isDynamic = true, sortColumns = Seq("a", "b")))
     YtWrapper.mountTable(path)
     YtWrapper.waitState(path, YtWrapper.TabletState.Mounted, 10 seconds)
-    insertRows(path, data)
+    YtWrapper.insertRows(path, testSchema, data.map(r => r.productIterator.toList.asJava).asJava)
     YtWrapper.unmountTable(path)
     YtWrapper.waitState(path, YtWrapper.TabletState.Unmounted, 10 seconds)
     if (pivotKeys.nonEmpty) reshardTable(path, pivotKeys)
     YtWrapper.mountTable(path)
     YtWrapper.waitState(path, YtWrapper.TabletState.Mounted, 10 seconds)
-  }
-
-  def insertRows(path: String, rows: Seq[TestRow]): Unit = {
-    import scala.language.postfixOps
-    import sys.process._
-
-    implicit val encoder: Encoder[TestRow] = deriveEncoder[TestRow]
-    val json = rows.map(_.asJson.noSpaces).mkString("\n")
-
-    s"echo $json" #| s"yt --proxy localhost:8000 insert-rows --format json $path" !
   }
 
   def reshardTable(path: String, pivotKeys: Seq[String])(implicit yt: CompoundClient): Unit = {
