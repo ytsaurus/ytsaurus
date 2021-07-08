@@ -512,6 +512,7 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
     :type exclude: list[str]
     :param int depth_bound: recursion depth.
     :param bool follow_links: follow links.
+    :param lambda action: apply given method to each found path.
     :return: result paths as iterable over :class:`YsonString <yt.yson.yson_types.YsonString>`.
     """
 
@@ -761,3 +762,4 @@ def create_revision_parameter(path, transaction_id=None, revision=None, client=N
     if transaction_id is None:
         transaction_id = get_command_param("transaction_id", client)
     return {"path": path, "transaction_id": transaction_id, "revision": revision}
+

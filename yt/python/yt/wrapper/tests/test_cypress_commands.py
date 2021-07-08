@@ -9,6 +9,7 @@ import yt.json_wrapper as json
 import yt.yson as yson
 
 from yt.common import datetime_to_string
+import yt.wrapper.cli_impl as cli_impl
 import yt.wrapper as yt
 from yt.wrapper.schema import TableSchema, ColumnSchema
 from yt.packages.six import PY3
@@ -781,3 +782,33 @@ class TestCypressCommands(object):
         with set_config_option("structured_data_format", yt.YsonFormat(encoding=None)):
             assert [item.encode("ascii") for item in search_result] == list(yt.search(TEST_DIR))
             assert yt.get(TEST_DIR + "/some_node") == value_bytes
+
+    @authors("ignat")
+    def test_set_remove_attribute_recursively(self):
+        yt.create("table", yt.ypath_join(TEST_DIR, "table"))
+        yt.create("file", yt.ypath_join(TEST_DIR, "file"))
+        yt.create("map_node", yt.ypath_join(TEST_DIR, "dir"))
+        yt.create("document", yt.ypath_join(TEST_DIR, "dir/document"))
+        yt.link(yt.ypath_join(TEST_DIR, "table"), yt.ypath_join(TEST_DIR, "dir/link"))
+
+        paths = [
+            yt.ypath_join(TEST_DIR, "table"),
+            yt.ypath_join(TEST_DIR, "file"),
+            yt.ypath_join(TEST_DIR, "dir"),
+            yt.ypath_join(TEST_DIR, "dir/document"),
+            yt.ypath_join(TEST_DIR, "dir/link")
+        ]
+
+        cli_impl._set_attribute(TEST_DIR, "my_attr", "my_value", recursive=True)
+        for path in paths:
+            assert yt.get(path + "&/@my_attr") == "my_value"
+        
+        cli_impl._set_attribute(yt.ypath_join(TEST_DIR, "dir"), "my_attr", {"key": 10}, recursive=True)
+        for path in paths[:2]:
+            assert yt.get(path + "&/@my_attr") == "my_value"
+        for path in paths[2:]:
+            assert yt.get(path + "&/@my_attr") == {"key": 10}
+
+        cli_impl._remove_attribute(TEST_DIR, "my_attr", recursive=True)
+        for path in paths:
+            assert not yt.exists(path + "&/@my_attr")
