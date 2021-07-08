@@ -14,7 +14,9 @@ from yt_commands import (
     map_reduce, merge, sort,
     run_test_vanilla, get_job_fail_context, dump_job_context,
     complete_op, get_singular_chunk_id, PrepareTables,
-    get_statistics, make_schema)
+    get_statistics)
+
+from yt_type_helpers import make_schema
 
 import yt.yson as yson
 
