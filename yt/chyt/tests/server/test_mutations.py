@@ -1,5 +1,6 @@
-from yt_commands import (create, read_table, get, write_table, authors, raises_yt_error, normalize_schema, make_schema,
-                         remove)
+from yt_commands import authors, raises_yt_error, create, get, remove, write_table, read_table
+
+from yt_type_helpers import make_schema, normalize_schema
 
 from base import ClickHouseTestBase, QueryFailedError, Clique
 
