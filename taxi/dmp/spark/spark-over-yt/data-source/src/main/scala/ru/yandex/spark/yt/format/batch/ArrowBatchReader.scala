@@ -1,22 +1,27 @@
 package ru.yandex.spark.yt.format.batch
 
+import org.apache.arrow.memory.{BufferAllocator, RootAllocator}
 import org.apache.arrow.vector.{FieldVector, VectorSchemaRoot}
 import org.apache.arrow.vector.dictionary.Dictionary
 import org.apache.arrow.vector.ipc.ArrowStreamReader
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.vectorized.{ColumnVector, ColumnarBatch}
+import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType
 import ru.yandex.spark.yt.serializers.SchemaConverter
+import ru.yandex.spark.yt.wrapper.LogLazy
 import ru.yandex.spark.yt.wrapper.table.YtArrowInputStream
 
 import scala.collection.JavaConverters._
 
 class ArrowBatchReader(stream: YtArrowInputStream,
                        totalRowCount: Long,
-                       schema: StructType) extends BatchReaderBase(totalRowCount) {
+                       schema: StructType) extends BatchReaderBase(totalRowCount) with LogLazy {
+  private val log = LoggerFactory.getLogger(getClass)
+
   private val indexedSchema = schema.fields.map(f => SchemaConverter.indexedDataType(f.dataType))
 
-  private val allocator = ArrowUtils.rootAllocator.newChildAllocator(s"stdin reader", 0, Long.MaxValue)
+  private var _allocator: BufferAllocator = _
   private var _reader: ArrowStreamReader = _
   private var _root: VectorSchemaRoot = _
   private var _dictionaries: java.util.Map[java.lang.Long, Dictionary] = _
@@ -33,10 +38,14 @@ class ArrowBatchReader(stream: YtArrowInputStream,
       setNumRows(_root.getRowCount)
       true
     } else {
-      _reader.close(false)
-      allocator.close()
+      closeReader()
       false
     }
+  }
+
+  private def closeReader(): Unit = {
+    Option(_reader).foreach(_.close(false))
+    Option(_allocator).foreach(_.close())
   }
 
   override protected def finalRead(): Unit = {
@@ -53,7 +62,13 @@ class ArrowBatchReader(stream: YtArrowInputStream,
   }
 
   private def updateReader(): Unit = {
-    _reader = new ArrowStreamReader(stream, allocator)
+    log.debugLazy(s"Update arrow reader, " +
+      s"allocated ${Option(_allocator).map(_.getAllocatedMemory)}, " +
+      s"peak allocated ${Option(_allocator).map(_.getPeakMemoryAllocation)}")
+    closeReader()
+
+    _allocator = new RootAllocator().newChildAllocator(s"arrow reader", 0, Long.MaxValue)
+    _reader = new ArrowStreamReader(stream, _allocator)
     _root = _reader.getVectorSchemaRoot
     _dictionaries = _reader.getDictionaryVectors
   }
@@ -71,6 +86,10 @@ class ArrowBatchReader(stream: YtArrowInputStream,
   }
 
   private def updateBatch(): Unit = {
+    log.traceLazy(s"Read arrow batch, " +
+      s"allocated ${Option(_allocator).map(_.getAllocatedMemory)}, " +
+      s"peak allocated ${Option(_allocator).map(_.getPeakMemoryAllocation)}")
+
     _columnVectors = new Array[ColumnVector](schema.fields.length)
 
     val arrowSchema = _root.getSchema.getFields.asScala.map(_.getName)
