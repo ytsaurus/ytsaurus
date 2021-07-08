@@ -55,7 +55,7 @@ class YtClient(ClientState):
         super(YtClient, self).__init__()
         initialize_client(self, proxy, token, config)
 ''')
-        for name in client_api.all_names:
+        for name in sorted(client_api.all_names):
             func = getattr(client_api, name)
             doc = _fix_indentation(func.__doc__, 8)
 

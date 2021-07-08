@@ -1,6 +1,5 @@
 from .idm_client import make_idm_client
-from .cypress_commands import (search, concatenate, find_free_subpath, create_revision_parameter,
-                               get_attribute)
+from .cypress_commands import search, concatenate, find_free_subpath, create_revision_parameter
 from .table_commands import (create_temp_table, write_table, read_table, read_blob_table,
                              write_table_structured, read_table_structured)
 from .download_core_dump import download_core_dump

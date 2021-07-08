@@ -235,8 +235,8 @@ def _try_get_schema(table, client=None):
     try:
         schema_node = get(table + "/@schema", client=client)
         return TableSchema.from_yson_type(schema_node)
-    except YtResponseError as e:
-        if e.is_resolve_error():
+    except YtResponseError as err:
+        if err.is_resolve_error():
             return None
         raise
 

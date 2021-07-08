@@ -42,6 +42,14 @@ class _MapOrderSorted(object):
         return cls.__instance
 MAP_ORDER_SORTED = _MapOrderSorted()
 
+
+def _is_batch_client(client):
+    # XXX: Import inside function to avoid import loop.
+    # batch_client imports all API, including current module
+    from .batch_client import BatchClient
+
+    return isinstance(client, BatchClient)
+
 def get(path, max_size=None, attributes=None, format=None, read_from=None,
         cache_sticky_group_size=None, suppress_transaction_coordinator_sync=None, client=None):
     """Gets Cypress node content (attribute tree).
@@ -443,11 +451,29 @@ def get_attribute(path, attribute, default=_KWARG_SENTINEL, client=None):
     :param str attribute: attribute.
     :param default: if node hasn't attribute `attribute` this value will be returned.
     """
+    def process_default_value(result, raw_error):
+        if raw_error is not None:
+            error = YtResponseError(raw_error)
+            if default is not _KWARG_SENTINEL and error.is_resolve_error():
+                return default, None
+        return result, raw_error
+
     _check_attribute_name(attribute)
+
     attribute_path = "{0}/@{1}".format(YPath(path, client=client), attribute)
-    if default is not _KWARG_SENTINEL and not exists(attribute_path, client=client):
-        return default
-    return get(attribute_path, client=client)
+
+    if _is_batch_client(client):
+        return apply_function_to_result(
+            process_default_value,
+            get(attribute_path, client=client),
+            include_error=True)
+    else:
+        try:
+            return get(attribute_path, client=client)
+        except YtResponseError as err:
+            if default is not _KWARG_SENTINEL and err.is_resolve_error():
+                return default
+            raise
 
 def has_attribute(path, attribute, client=None):
     """Checks if Cypress node has attribute.
@@ -467,6 +493,15 @@ def set_attribute(path, attribute, value, client=None):
     """
     _check_attribute_name(attribute)
     return set("%s/@%s" % (path, attribute), value, client=client)
+
+def remove_attribute(path, attribute, client=None):
+    """Removes Cypress node `attribute`
+
+    :param str path: path.
+    :param str attribute: attribute.
+    """
+    _check_attribute_name(attribute)
+    return remove("%s/@%s" % (path, attribute), client=client)
 
 @deprecated(alternative="get 'type' attribute")
 def get_type(path, client=None):
