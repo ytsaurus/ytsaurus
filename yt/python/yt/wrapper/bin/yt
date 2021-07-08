@@ -17,6 +17,7 @@ from yt.wrapper.spec_builders import (
     MapSpecBuilder, ReduceSpecBuilder, MapReduceSpecBuilder, EraseSpecBuilder,
     MergeSpecBuilder, SortSpecBuilder, JoinReduceSpecBuilder, RemoteCopySpecBuilder,
     VanillaSpecBuilder)
+import yt.wrapper.cli_impl as cli_impl
 import yt.wrapper.job_tool as yt_job_tool
 import yt.wrapper.completers as completers
 import yt.wrapper.idm_cli_helpers as idm
@@ -629,11 +630,26 @@ def add_set_parser(add_parser):
                         help="new node attribute value, in {0} format. You can specify in bash pipe: "
                              "\"cat file_with_value | yt set //tmp/my_node\"".format(YT_ARGUMENTS_FORMAT))
 
+
+def add_set_attribute_parser(add_parser):
+    parser = add_parser("set-attribute", cli_impl._set_attribute)
+    add_ypath_argument(parser, "path", hybrid=True)
+    parser.add_argument("name")
+    add_structured_argument(parser, "value")
+    parser.add_argument("-r", "--recursive", action="store_true")
+
 def add_remove_parser(add_parser):
     parser = add_parser("remove", yt.remove)
     add_ypath_argument(parser, "path", hybrid=True)
     parser.add_argument("-r", "--recursive", action="store_true")
     parser.add_argument("-f", "--force", action="store_true")
+
+
+def add_remove_attribute_parser(add_parser):
+    parser = add_parser("remove-attribute", cli_impl._remove_attribute)
+    add_ypath_argument(parser, "path", hybrid=True)
+    parser.add_argument("name")
+    parser.add_argument("-r", "--recursive", action="store_true")
 
 def add_copy_move_preserve_arguments(parser):
     preserve_account_parser = parser.add_mutually_exclusive_group(required=False)
@@ -1858,10 +1874,12 @@ def main():
 
     add_get_parser(add_parser)
     add_set_parser(add_parser)
+    add_set_attribute_parser(add_parser)
     add_copy_parser(add_parser)
     add_move_parser(add_parser)
     add_link_parser(add_parser)
     add_remove_parser(add_parser)
+    add_remove_attribute_parser(add_parser)
     add_externalize_parser(add_parser)
     add_internalize_parser(add_parser)
     add_concatenate_parser(add_parser)
