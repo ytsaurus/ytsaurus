@@ -1,10 +1,11 @@
-import pytest
-
 from yt_env_setup import YTEnvSetup
-from yt_commands import (
-    authors, create, get, read_table, write_table, erase, make_schema)
+from yt_commands import authors, create, get, read_table, write_table, erase
+
+from yt_type_helpers import make_schema
 
 from yt.common import YtError
+
+import pytest
 
 
 ##################################################################
