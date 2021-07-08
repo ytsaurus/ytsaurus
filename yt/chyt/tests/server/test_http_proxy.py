@@ -280,8 +280,8 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
     @authors("dakovalkov")
     def test_expect_100_continue(self):
         headers = {"Expect": "100-continue"}
-        with Clique(1, spec={"alias": "*alias"}) as clique:
-            assert clique.make_query_via_proxy("select 1 as a", database="*alias", headers=headers)[0] == {"a": 1}
+        with Clique(1) as clique:
+            assert clique.make_query_via_proxy("select 1 as a", headers=headers)[0] == {"a": 1}
 
     @authors("max42")
     def test_operation_acl_validation(self):
