@@ -3673,6 +3673,7 @@ class TestSchedulingSegments(YTEnvSetup):
         op = run_sleeping_vanilla(spec={"pool": "large_gpu"}, task_patch={"gpu_limit": 8, "enable_gpu_layers": False})
         wait(lambda: len(op.get_running_jobs()) == 1)
 
+        wait(lambda: len(self._get_nodes_for_segment_in_tree("large_gpu", tree="default")) > 0)
         large_nodes = self._get_nodes_for_segment_in_tree("large_gpu", tree="default")
         assert len(large_nodes) == 1
         node = large_nodes[0]
