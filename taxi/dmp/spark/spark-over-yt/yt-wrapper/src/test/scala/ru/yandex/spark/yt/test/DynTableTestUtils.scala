@@ -26,7 +26,7 @@ trait DynTableTestUtils {
     import scala.collection.JavaConverters._
     YtWrapper.createTable(path, TestTableSettings(testSchemaYt, isDynamic = true, sortColumns = Seq("a", "b")))
     YtWrapper.mountTable(path)
-
+    YtWrapper.waitState(path, YtWrapper.TabletState.Mounted, 10 seconds)
     YtWrapper.insertRows(path, testSchema, data.map(r => r.productIterator.toList.asJava).asJava, None)
     YtWrapper.unmountTable(path)
     YtWrapper.waitState(path, YtWrapper.TabletState.Unmounted, 10 seconds)

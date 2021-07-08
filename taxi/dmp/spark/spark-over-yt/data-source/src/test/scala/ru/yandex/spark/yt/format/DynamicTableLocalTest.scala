@@ -56,7 +56,7 @@ class DynamicTableLocalTest extends FlatSpec with Matchers with LocalSpark with 
     YtWrapper.createTable(path, TestTableSettings(schema, isDynamic = true, sortColumns = Seq("a", "b")))
     YtWrapper.mountTable(path)
     YtWrapper.waitState(path, YtWrapper.TabletState.Mounted, 10 seconds)
-    YtWrapper.insertRows(path, testSchema, data.map(r => r.productIterator.toList.asJava).asJava)
+    YtWrapper.insertRows(path, testSchema, data.map(r => r.productIterator.toList))
     YtWrapper.unmountTable(path)
     YtWrapper.waitState(path, YtWrapper.TabletState.Unmounted, 10 seconds)
     if (pivotKeys.nonEmpty) reshardTable(path, pivotKeys)
