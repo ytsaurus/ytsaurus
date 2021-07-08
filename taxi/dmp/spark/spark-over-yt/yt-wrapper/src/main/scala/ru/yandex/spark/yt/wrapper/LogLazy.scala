@@ -10,6 +10,12 @@ trait LogLazy {
         log.debug(message)
       }
     }
+
+    def traceLazy(message: => String): Unit = {
+      if (log.isTraceEnabled()) {
+        log.trace(message)
+      }
+    }
   }
 
 }
