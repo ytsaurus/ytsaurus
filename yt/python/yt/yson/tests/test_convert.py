@@ -3,9 +3,9 @@
 from __future__ import absolute_import
 
 from yt.yson.convert import to_yson_type, json_to_yson, yson_to_json
-from yt.packages.six import PY3
 
 import json
+
 
 def test_convert_json_to_yson():
     x = json_to_yson({
@@ -32,6 +32,7 @@ def test_convert_json_to_yson():
 
     assert json_to_yson("abc") == "abc"
     assert json_to_yson({"$type": "string", "$value": "abc"}) == "abc"
+
 
 def test_convert_yson_to_json():
     x = yson_to_json({
