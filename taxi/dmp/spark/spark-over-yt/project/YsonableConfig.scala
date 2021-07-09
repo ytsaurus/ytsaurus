@@ -52,7 +52,7 @@ object YsonableConfig {
 case class SparkGlobalConfig(spark_conf: Map[String, String],
                              latest_spark_cluster_version: String,
                              layer_paths: Seq[String] = Seq(
-                               "//home/sashbel/delta/layer_with_solomon_agent.tar.gz",
+                               "//sys/spark/delta/layer_with_solomon_agent.tar.gz",
                                "//sys/spark/delta/jdk/layer_with_jdk_lastest.tar.gz",
                                "//sys/spark/delta/python/layer_with_python37_libs_3.tar.gz",
                                "//sys/spark/delta/python/layer_with_python34.tar.gz",
@@ -82,7 +82,7 @@ case class SparkLaunchConfig(spark_yt_base_path: String,
                              enablers: SpytEnablers = SpytEnablers(),
                              ytserver_proxy_path: Option[String] = None,
                              layer_paths: Seq[String] = Seq(
-                               "//home/sashbel/delta/layer_with_solomon_agent.tar.gz",
+                               "//sys/spark/delta/layer_with_solomon_agent.tar.gz",
                                "//porto_layers/delta/jdk/layer_with_jdk_lastest.tar.gz",
                                "//sys/spark/delta/python/layer_with_python37_libs_3.tar.gz",
                                "//sys/spark/delta/python/layer_with_python34.tar.gz",
