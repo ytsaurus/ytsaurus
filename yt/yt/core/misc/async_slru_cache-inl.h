@@ -75,6 +75,10 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::TAsyncSlruCacheBase(
     , AsyncHitCounter_(profiler.Counter("/hit_count_async"))
     , MissedCounter_(profiler.Counter("/missed_count"))
 {
+    static_assert(
+        std::is_base_of_v<TAsyncCacheValueBase<TKey, TValue, THash>, TValue>,
+        "TValue must be derived from TAsyncCacheValueBase");
+
     profiler.AddFuncGauge("/younger_weight", MakeStrong(this), [this] {
         return YoungerWeightCounter_.load();
     });
@@ -88,6 +92,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::TAsyncSlruCacheBase(
         return OlderSizeCounter_.load();
     });
 
+    YT_VERIFY(IsPowerOf2(Config_->ShardCount));
     Shards_.reset(new TShard[Config_->ShardCount]);
 
     int touchBufferCapacity = Config_->TouchBufferCapacity / Config_->ShardCount;
@@ -227,6 +232,26 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
 }
 
 template <class TKey, class TValue, class THash>
+void TAsyncSlruCacheBase<TKey, TValue, THash>::Touch(const TValuePtr& value)
+{
+    auto* shard = GetShardByKey(value->GetKey());
+    auto readerGuard = ReaderGuard(shard->SpinLock);
+
+    if (!value->Item_) {
+        return;
+    }
+
+    auto needToDrain = Touch(shard, value->Item_);
+
+    readerGuard.Release();
+
+    if (needToDrain) {
+        auto writerGuard = WriterGuard(shard->SpinLock);
+        DrainTouchBuffer(shard);
+    }
+}
+
+template <class TKey, class TValue, class THash>
 typename TAsyncSlruCacheBase<TKey, TValue, THash>::TValueFuture
 TAsyncSlruCacheBase<TKey, TValue, THash>::DoLookup(TShard* shard, const TKey& key)
 {
@@ -295,6 +320,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::DoLookup(TShard* shard, const TKey& ke
 
     {
         auto* item = new TItem(value);
+        value->Item_ = item;
 
         auto valueFuture = item->GetValueFuture();
 
@@ -372,6 +398,7 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
 
         if (auto value = DangerousGetPtr(valueIt->second)) {
             auto* item = new TItem(value);
+            value->Item_ = item;
 
             YT_VERIFY(itemMap.emplace(key, item).second);
             ++Size_;
@@ -416,6 +443,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value)
 
     auto* item = GetOrCrash(shard->ItemMap, key);
     item->Value = value;
+    value->Item_ = item;
     auto promise = item->ValuePromise;
 
     YT_VERIFY(shard->ValueMap.emplace(key, value.Get()).second);
@@ -451,6 +479,8 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key, con
 
     itemMap.erase(itemIt);
     --Size_;
+
+    YT_VERIFY(!item->Value);
 
     delete item;
 
@@ -529,6 +559,11 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::DoTryRemove(
 
     Pop(shard, item);
 
+    if (value) {
+        YT_VERIFY(value->Item_ == item);
+        value->Item_ = nullptr;
+    }
+
     delete item;
 
     guard.Release();
@@ -588,7 +623,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::UpdateWeight(const TValuePtr& val
 template <class TKey, class TValue, class THash>
 auto TAsyncSlruCacheBase<TKey, TValue, THash>::GetShardByKey(const TKey& key) const -> TShard*
 {
-    return &Shards_[THash()(key) % Config_->ShardCount];
+    return &Shards_[THash()(key) & (Config_->ShardCount - 1)];
 }
 
 template <class TKey, class TValue, class THash>
@@ -743,6 +778,9 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Trim(TShard* shard, NConcurrency:
             YT_VERIFY(shard->ValueMap.erase(value->GetKey()) == 1);
             value->Cache_.Reset();
         }
+
+        YT_VERIFY(value->Item_ == item);
+        value->Item_ = nullptr;
 
         evictedValues.push_back(std::move(value));
 

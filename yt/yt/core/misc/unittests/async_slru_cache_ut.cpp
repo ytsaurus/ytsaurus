@@ -167,7 +167,7 @@ TEST(TAsyncSlruCacheTest, Resurrection)
     EXPECT_EQ(GetAllKeys(cache), GetKeysFromRanges({{0, 2 * cacheSize}}));
 
     for (int i = 0; i < 2 * cacheSize; ++i) {
-        // It's expired because our cache is too smal.
+        // It's expired because our cache is too small.
         EXPECT_EQ(cache->Find(i), nullptr);
         // But lookup can find and restore it (and make some other values expired)
         // because the value is alive in 'values' vector.
@@ -249,6 +249,35 @@ TEST(TAsyncSlruCacheTest, UpdateWeight)
         EXPECT_EQ(cache->Find(0), nullptr);
         EXPECT_EQ(cache->Find(1), value);
     }
+}
+
+TEST(TAsyncSlruCacheTest, Touch)
+{
+    const int cacheSize = 2;
+    auto config = CreateCacheConfig(cacheSize);
+    auto cache = New<TSimpleSlruCache>(config);
+
+    std::vector<TSimpleCachedValuePtr> values;
+
+    for (int i = 0; i < cacheSize; ++i) {
+        values.push_back(New<TSimpleCachedValue>(i, i));
+        auto cookie = cache->BeginInsert(i);
+        EXPECT_TRUE(cookie.IsActive());
+        cookie.EndInsert(values.back());
+    }
+
+    // Move v0 to touch buffer.
+    cache->Touch(values[0]);
+
+    values.push_back(New<TSimpleCachedValue>(cacheSize, cacheSize));
+    auto cookie = cache->BeginInsert(cacheSize);
+    EXPECT_TRUE(cookie.IsActive());
+    // Move v0 to older, evict v1 and insert v2.
+    cookie.EndInsert(values.back());
+
+    EXPECT_EQ(cache->Find(0), values[0]);
+    EXPECT_EQ(cache->Find(1), nullptr);
+    EXPECT_EQ(cache->Find(2), values[2]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

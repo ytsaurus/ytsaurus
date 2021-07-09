@@ -43,6 +43,7 @@ private:
 
     TWeakPtr<TCache> Cache_;
     TKey Key_;
+    typename TCache::TItem* Item_ = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -97,6 +98,7 @@ public:
 
     TValuePtr Find(const TKey& key);
     TValueFuture Lookup(const TKey& key);
+    void Touch(const TValuePtr& value);
 
     TInsertCookie BeginInsert(const TKey& key);
     void TryRemove(const TKey& key, bool forbidResurrection = false);

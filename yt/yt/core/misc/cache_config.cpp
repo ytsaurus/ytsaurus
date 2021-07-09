@@ -18,6 +18,13 @@ TSlruCacheConfig::TSlruCacheConfig(i64 capacity)
     RegisterParameter("touch_buffer_capacity", TouchBufferCapacity)
         .Default(65536)
         .GreaterThan(0);
+
+    RegisterPostprocessor([&] () {
+        if (!IsPowerOf2(ShardCount)) {
+            THROW_ERROR_EXCEPTION("\"shard_count\" must be power of two, actual: %v",
+                ShardCount);
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
