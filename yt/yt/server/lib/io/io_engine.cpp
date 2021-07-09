@@ -1754,9 +1754,9 @@ public:
             uringRequest->PendingReadSubrequestIndexes.push_back(index);
         }
 
-        const auto& result = uringRequest->ReadRequestCombiner.GetOutputBuffers();
+        auto result = uringRequest->ReadRequestCombiner.GetOutputBuffers();
         return SubmitRequest(std::move(uringRequest))
-            .Apply(BIND([result] {
+            .Apply(BIND([result = std::move(result)] {
                 return result;
             }));
     }
