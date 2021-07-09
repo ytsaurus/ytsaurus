@@ -17,12 +17,14 @@ from yt_commands import (
     map, map_reduce, merge,
     vanilla, sort, run_test_vanilla,
     run_sleeping_vanilla, get_job, abort_op,
-    scheduler_orchid_pool_path, scheduler_orchid_default_pool_tree_path,
-    scheduler_orchid_operation_path, scheduler_orchid_default_pool_tree_config_path,
-    scheduler_orchid_path, scheduler_orchid_node_path, scheduler_orchid_pool_tree_config_path,
     sync_create_cells, get_first_chunk_id, get_singular_chunk_id, update_controller_agent_config, update_op_parameters,
     enable_op_detailed_logs, set_banned_flag,
     create_test_tables, PrepareTables, retry)
+
+from yt_scheduler_helpers import (
+    scheduler_orchid_pool_path, scheduler_orchid_default_pool_tree_path,
+    scheduler_orchid_operation_path, scheduler_orchid_default_pool_tree_config_path,
+    scheduler_orchid_path, scheduler_orchid_node_path, scheduler_orchid_pool_tree_config_path)
 
 import yt_error_codes
 
