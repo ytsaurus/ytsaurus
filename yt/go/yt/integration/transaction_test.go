@@ -2,6 +2,8 @@ package integration
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -10,6 +12,7 @@ import (
 	"a.yandex-team.ru/library/go/core/xerrors"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
+	"a.yandex-team.ru/yt/go/yt/internal/httpclient"
 	"a.yandex-team.ru/yt/go/yterrors"
 	"a.yandex-team.ru/yt/go/yttest"
 )
@@ -189,5 +192,40 @@ func TestExecTx_retries(t *testing.T) {
 				require.True(t, v >= 3)
 			})
 		})
+	}
+}
+
+type disconnectingRoundTripper struct {
+	disconnect chan struct{}
+}
+
+func (d *disconnectingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	select {
+	case <-d.disconnect:
+		return nil, fmt.Errorf("network unavailable")
+	default:
+		return http.DefaultClient.Do(req)
+	}
+}
+
+func TestTxAbortedDuringNetworkPartition(t *testing.T) {
+	env := yttest.New(t)
+
+	drt := &disconnectingRoundTripper{
+		disconnect: make(chan struct{}),
+	}
+
+	ctx := httpclient.WithRoundTripper(env.Ctx, drt)
+
+	tx, err := env.YT.BeginTx(ctx, nil)
+	require.NoError(t, err)
+
+	close(drt.disconnect)
+
+	select {
+	case <-tx.Finished():
+		return
+	case <-time.After(time.Second * 30):
+		t.Errorf("transaction is not aborted during network partition")
 	}
 }
