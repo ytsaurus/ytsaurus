@@ -1,7 +1,9 @@
 from . import yson_types
 from .yson_token import *
 
-from .common import raise_yson_error, YsonError
+from .common import (raise_yson_error, _ENCODING_SENTINEL,
+                     STRING_MARKER, INT64_MARKER, DOUBLE_MARKER,
+                     FALSE_MARKER, TRUE_MARKER, UINT64_MARKER)
 
 from yt.packages.six.moves import xrange
 from yt.packages.six import int2byte, iterbytes
@@ -11,14 +13,6 @@ import struct
 _SEEMS_INT64 = int2byte(0)
 _SEEMS_UINT64 = int2byte(1)
 _SEEMS_DOUBLE = int2byte(2)
-
-# Binary literals markers
-STRING_MARKER = int2byte(1)
-INT64_MARKER = int2byte(2)
-DOUBLE_MARKER = int2byte(3)
-FALSE_MARKER = int2byte(4)
-TRUE_MARKER = int2byte(5)
-UINT64_MARKER = int2byte(6)
 
 PERCENT_LITERALS = [b"true", b"false", b"nan", b"inf", b"-inf", b"+inf"]
 PERCENT_LITERAL_LENGTH = dict((s[0:1], len(s)) for s in PERCENT_LITERALS)
@@ -37,13 +31,17 @@ def _zig_zag_decode(value):
     return (value >> 1) ^ -(value & 1)
 
 class YsonLexer(object):
-    def __init__(self, stream, encoding):
+    def __init__(self, stream, encoding=None, output_buffer=None):
+        assert (encoding is _ENCODING_SENTINEL) != (output_buffer is None), \
+            "Exactly one of encoding and output_buffer parameters must be specified"
+
         self._line_index = 1
         self._position = 1
         self._offset = 0
         self._stream = stream
         self._lookahead = None
         self._encoding = encoding
+        self._output_buffer = output_buffer
 
     def _get_start_state(self, ch):
         tokens = {
@@ -85,37 +83,34 @@ class YsonLexer(object):
 
         elif ch == FALSE_MARKER:
             self._expect_char(ch)
-            return YsonToken(value=False, type=TOKEN_BOOLEAN)
+            return YsonToken(value=self._maybe_value(False), type=TOKEN_BOOLEAN)
 
         elif ch == TRUE_MARKER:
             self._expect_char(ch)
-            return YsonToken(value=True, type=TOKEN_BOOLEAN)
+            return YsonToken(value=self._maybe_value(True), type=TOKEN_BOOLEAN)
 
         elif ch == b"%":
             value, token_type = self._parse_percent_literal()
-            return YsonToken(value=value, type=token_type)
+            return YsonToken(value=self._maybe_value(value), type=token_type)
 
         elif ch == b"#":
             return YsonToken(value=self._parse_entity(), type=TOKEN_HASH)
 
         elif ch == b"+" or ch == b"-" or ch.isdigit():
-            value = self._parse_numeric()
-            token_type = None
-            if isinstance(value, yson_types._YsonIntegerBase):
-                token_type = TOKEN_INT64
-            elif isinstance(value, yson_types.YsonUint64):
-                token_type = TOKEN_UINT64
-            elif isinstance(value, float):
-                token_type = TOKEN_DOUBLE
-            return YsonToken(value=value, type=token_type)
-
+            value, token_type = self._parse_numeric()
+            return YsonToken(value=self._maybe_value(value), type=token_type)
 
         state = self._get_start_state(ch)
         self._read_char()
-        return YsonToken(value=ch, type=state)
+        return YsonToken(value=self._maybe_value(ch), type=state)
 
     def get_position_info(self):
         return self._line_index, self._position, self._offset
+
+    def _maybe_value(self, value):
+        if self._output_buffer is None:
+            return value
+        return None
 
     def _read_char(self, binary_input=False):
         if self._lookahead is None:
@@ -131,6 +126,9 @@ class YsonLexer(object):
         else:
             self._position += 1
 
+        if self._output_buffer is not None:
+            self._output_buffer.append(ord(result))
+
         return result
 
     def _peek_char(self):
@@ -140,6 +138,16 @@ class YsonLexer(object):
         return self._lookahead
 
     def _read_binary_chars(self, char_count):
+        if self._output_buffer is not None:
+            string = self._stream.read(char_count)
+            self._position += len(string)
+            if len(string) != char_count:
+                raise_yson_error(
+                    "Premature end-of-stream while reading byte {0} out of {1}".format(len(string) + 1, char_count),
+                    self.get_position_info())
+            self._output_buffer += string
+            return string
+
         result = []
         for i in xrange(char_count):
             ch = self._read_char(True)
@@ -184,7 +192,9 @@ class YsonLexer(object):
     def _read_binary_string(self):
         self._expect_char(STRING_MARKER)
         length = _zig_zag_decode(self._read_varint())
-        return self._decode_string(self._read_binary_chars(length))
+        string = self._read_binary_chars(length)
+        if self._output_buffer is None:
+            return self._decode_string(string)
 
     def _read_varint(self):
         count = 0
@@ -209,7 +219,8 @@ class YsonLexer(object):
 
     def _read_quoted_string(self):
         self._expect_char(b'"')
-        result = []
+        if self._output_buffer is None:
+            result = []
         pending_next_char = False
         while True:
             ch = self._read_char()
@@ -219,17 +230,20 @@ class YsonLexer(object):
                     self.get_position_info())
             if ch == b'"' and not pending_next_char:
                 break
-            result.append(ch)
+            if self._output_buffer is None:
+                result.append(ch)
             if pending_next_char:
                 pending_next_char = False
             elif ch == b"\\":
                 pending_next_char = True
-        return self._decode_string(self._unescape(b"".join(result)))
+        if self._output_buffer is None:
+            return self._decode_string(self._unescape(b"".join(result)))
 
     def _unescape(self, string):
         return string.decode("unicode_escape").encode("latin1")
 
     def _decode_string(self, string):
+        assert self._encoding is not _ENCODING_SENTINEL
         if self._encoding is not None:
             try:
                 return string.decode(self._encoding)
@@ -241,15 +255,18 @@ class YsonLexer(object):
             return string
 
     def _read_unquoted_string(self):
-        result = []
+        if self._output_buffer is None:
+            result = []
         while True:
             ch = self._peek_char()
             if ch and (ch.isalpha() or ch.isdigit() or ch in b"_%-"):
                 self._read_char()
-                result.append(ch)
+                if self._output_buffer is None:
+                    result.append(ch)
             else:
                 break
-        return self._decode_string(b"".join(result))
+        if self._output_buffer is None:
+            return self._decode_string(b"".join(result))
 
     def _read_numeric(self):
         result = []
@@ -290,24 +307,25 @@ class YsonLexer(object):
         return None
 
     def _parse_string(self):
-        result = self._read_string()
-        return result
+        return self._read_string()
 
     def _parse_binary_int64(self):
         self._expect_char(INT64_MARKER)
-        result = _zig_zag_decode(self._read_varint())
-        return result
+        varint = self._read_varint()
+        if self._output_buffer is None:
+            return _zig_zag_decode(varint)
 
     def _parse_binary_uint64(self):
         self._expect_char(UINT64_MARKER)
-        result = yson_types.YsonUint64(self._read_varint())
-        return result
+        varint = self._read_varint()
+        if self._output_buffer is None:
+            return yson_types.YsonUint64(varint)
 
     def _parse_binary_double(self):
         self._expect_char(DOUBLE_MARKER)
-        bytes_ = self._read_binary_chars(struct.calcsize(b"d"))
-        result = struct.unpack(b"d", bytes_)[0]
-        return result
+        bytes_ = self._read_binary_chars(struct.calcsize(b"<d"))
+        if self._output_buffer is None:
+            return struct.unpack(b"<d", bytes_)[0]
 
     def _parse_numeric(self):
         string = self._read_numeric()
@@ -315,6 +333,7 @@ class YsonLexer(object):
         if numeric_type == _SEEMS_INT64:
             try:
                 result = yson_types._YsonIntegerBase(string)
+                token_type = TOKEN_INT64
                 if result > 2 ** 63 - 1 or result < -(2 ** 63):
                     raise ValueError()
             except ValueError:
@@ -327,7 +346,8 @@ class YsonLexer(object):
                     string = string[:-1]
                 else:
                     raise ValueError()
-                result = yson_types.YsonUint64(int(string))
+                result = int(string)
+                token_type = TOKEN_UINT64
                 if result > 2 ** 64 - 1:
                     raise ValueError()
             except ValueError:
@@ -337,8 +357,9 @@ class YsonLexer(object):
         else:
             try:
                 result = float(string)
+                token_type = TOKEN_DOUBLE
             except ValueError:
                 raise_yson_error(
                     "Failed to parse Double literal {0} in Yson".format(string),
                     self.get_position_info())
-        return result
+        return result, token_type

@@ -50,3 +50,13 @@ class StreamWrap(object):
 
         if self.state == 3:
             return b""
+
+_ENCODING_SENTINEL = object()
+
+# Binary literals markers
+STRING_MARKER = int2byte(1)
+INT64_MARKER = int2byte(2)
+DOUBLE_MARKER = int2byte(3)
+FALSE_MARKER = int2byte(4)
+TRUE_MARKER = int2byte(5)
+UINT64_MARKER = int2byte(6)
