@@ -16,10 +16,10 @@ import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read.VectorizedCapacity
 import ru.yandex.spark.yt.format.{YtInputSplit, YtPartitionedFile}
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
-import ru.yandex.spark.yt.fs.YtClientProvider
 import ru.yandex.spark.yt.fs.conf._
 import ru.yandex.spark.yt.serializers.InternalRowDeserializer
 import ru.yandex.spark.yt.wrapper.YtWrapper
+import ru.yandex.spark.yt.wrapper.client.YtClientProvider
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 case class YtPartitionReaderFactory(sqlConf: SQLConf,

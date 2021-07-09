@@ -6,29 +6,29 @@ import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, TestSuite}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 
 trait TmpDir extends BeforeAndAfterEach with BeforeAndAfterAll {
-  self: TestSuite with LocalYtClientCreator =>
+  self: TestSuite with LocalYt =>
 
   def testDir: String = s"//tmp/test-${self.getClass.getCanonicalName}"
   val tmpPath = s"$testDir/test-${UUID.randomUUID()}"
 
 
-  override protected def beforeAll(): Unit = {
+  override def beforeAll(): Unit = {
     super.beforeAll()
     YtWrapper.removeDirIfExists(testDir, recursive = true)
     YtWrapper.createDir(testDir)
   }
 
-  override protected def beforeEach(): Unit = {
+  override def beforeEach(): Unit = {
     super.beforeEach()
     YtWrapper.removeIfExists(tmpPath)
   }
 
-  override protected def afterEach(): Unit = {
+  override def afterEach(): Unit = {
     YtWrapper.removeIfExists(tmpPath)
     super.afterEach()
   }
 
-  override protected def afterAll(): Unit = {
+  override def afterAll(): Unit = {
     YtWrapper.removeDirIfExists(testDir, recursive = true)
     super.afterAll()
   }

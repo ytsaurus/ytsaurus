@@ -3,8 +3,7 @@ package org.apache.spark.deploy.master
 import org.apache.spark.SparkConf
 import org.apache.spark.serializer.Serializer
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
-import ru.yandex.spark.yt.fs.YtClientProvider
-import ru.yandex.yt.ytclient.proxy.YtClient
+import ru.yandex.spark.yt.wrapper.client.YtClientProvider
 
 class YtRecoveryModeFactory(conf: SparkConf, serializer: Serializer)
   extends StandaloneRecoveryModeFactory(conf, serializer) {

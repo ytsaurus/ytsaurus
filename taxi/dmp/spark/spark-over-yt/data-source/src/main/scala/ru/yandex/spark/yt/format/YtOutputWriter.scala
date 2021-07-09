@@ -2,7 +2,6 @@ package ru.yandex.spark.yt.format
 
 import java.util
 import java.util.concurrent.{CompletableFuture, TimeUnit}
-
 import org.apache.hadoop.fs.Path
 import org.apache.spark.metrics.yt.YtMetricsRegister
 import org.apache.spark.metrics.yt.YtMetricsRegister.ytMetricsSource._
@@ -14,14 +13,15 @@ import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.spark.yt.format.conf.SparkYtWriteConfiguration
 import ru.yandex.spark.yt.format.conf.YtTableSparkSettings._
 import ru.yandex.spark.yt.fs.conf._
-import ru.yandex.spark.yt.fs.{GlobalTableSettings, YtClientProvider}
+import ru.yandex.spark.yt.fs.GlobalTableSettings
 import ru.yandex.spark.yt.serializers.InternalRowSerializer
 import ru.yandex.spark.yt.wrapper.LogLazy
-import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
+import ru.yandex.spark.yt.wrapper.client.{YtClientConfiguration, YtClientProvider}
 import ru.yandex.yt.ytclient.proxy.request.{TransactionalOptions, WriteTable}
 import ru.yandex.yt.ytclient.proxy.{CompoundClient, TableWriter}
 
 import scala.concurrent.{Await, Future}
+import scala.util.{Failure, Try}
 
 class YtOutputWriter(path: String,
                      schema: StructType,
@@ -92,11 +92,16 @@ class YtOutputWriter(path: String,
   }
 
   private def closeCurrentWriter(): Unit = {
-    prevFuture.foreach(Await.result(_, timeout))
+    val closePrev = prevFuture.map(f => Try(Await.result(f, timeout)))
     val currentWriter = writers.head
     writeFutures = currentWriter.readyEvent().thenComposeAsync((unused) => {
       currentWriter.close().thenAccept(unused => null)
     }) +: writeFutures
+    closePrev.foreach {
+      case Failure(exception) =>
+        throw new IllegalStateException("Yt writer is not closed properly", exception)
+      case _ => // ok
+    }
   }
 
   private def writeBatch(): Unit = {
@@ -118,8 +123,13 @@ class YtOutputWriter(path: String,
   private def closeWriters(): Unit = {
     log.debugLazy("Close writer")
     YtMetricsRegister.time(writeCloseTime, writeCloseTimeSum) {
-      closeCurrentWriter()
-      writeFutures.foreach(_.get(timeout.toMillis, TimeUnit.MILLISECONDS))
+      val currentClose = Try(closeCurrentWriter())
+      val prevClose = writeFutures.map(f => Try(f.get(timeout.toMillis, TimeUnit.MILLISECONDS)))
+
+      (currentClose +: prevClose).collectFirst {
+        case Failure(exception) =>
+          throw new IllegalStateException("Yt writer is not closed properly", exception)
+      }
     }
     log.debugLazy("Writer closed")
   }
@@ -127,11 +137,14 @@ class YtOutputWriter(path: String,
   override def close(): Unit = {
     log.debugLazy("Closing YtOutputWriter")
     YtMetricsRegister.time(writeTime, writeTimeSum) {
-      if (count != 0) {
-        log.debugLazy(s"Writing last batch, list size: ${list.size()}, writer: $this ")
-        writeMiniBatch()
+      try {
+        if (count != 0) {
+          log.debugLazy(s"Writing last batch, list size: ${list.size()}, writer: $this ")
+          writeMiniBatch()
+        }
+      } finally {
+        closeWriters()
       }
-      closeWriters()
     }
   }
 

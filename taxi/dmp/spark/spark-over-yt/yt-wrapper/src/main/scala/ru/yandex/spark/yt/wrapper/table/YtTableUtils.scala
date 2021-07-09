@@ -133,7 +133,7 @@ trait YtTableUtils {
                   sorted: Boolean,
                   transaction: Option[String] = None,
                   specParams: Map[String, YTreeNode] = Map.empty)
-                 (implicit yt: CompoundClient, ytHttp: Yt): Unit = {
+                 (implicit yt: CompoundClient): Unit = {
     log.debug(s"Merge tables: $srcDir -> $dstTable, transaction: $transaction")
 
     val srcList = dstTable +: listDir(srcDir, transaction).map(name => s"$srcDir/$name")

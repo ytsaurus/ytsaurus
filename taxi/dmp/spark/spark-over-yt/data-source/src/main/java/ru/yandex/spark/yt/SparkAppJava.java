@@ -2,9 +2,8 @@ package ru.yandex.spark.yt;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.sql.SparkSession;
-
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter;
-import ru.yandex.spark.yt.fs.YtClientProvider;
+import ru.yandex.spark.yt.wrapper.client.YtClientProvider;
 import ru.yandex.yt.ytclient.proxy.CompoundClient;
 
 

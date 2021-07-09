@@ -3,14 +3,13 @@ package ru.yandex.spark.yt.test
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanExec
 import org.apache.spark.sql.execution.{SparkPlan, SparkStrategy}
+import org.apache.spark.sql.internal.SQLConf.FILE_COMMIT_PROTOCOL_CLASS
 import org.apache.spark.sql.{DataFrame, SparkSession, Strategy}
 import org.scalatest.TestSuite
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter._
-import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.spark.yt.wrapper.client.YtRpcClient
+import ru.yandex.spark.yt.wrapper.client.{YtClientProvider, YtRpcClient}
 
 import scala.annotation.tailrec
-import org.apache.spark.sql.internal.SQLConf.FILE_COMMIT_PROTOCOL_CLASS
 
 trait LocalSpark extends LocalYtClient {
   self: TestSuite =>
@@ -45,7 +44,9 @@ trait LocalSpark extends LocalYtClient {
     .withExtensions(_.injectPlannerStrategy(_ => plannerStrategy))
     .getOrCreate()
 
-  override lazy val ytClient: YtRpcClient = YtWrapper.createRpcClient("test", ytClientConfiguration(spark))
+  override protected def ytRpcClient: YtRpcClient = {
+    YtClientProvider.ytRpcClient(ytClientConfiguration(spark), "test")
+  }
 
   def physicalPlan(df: DataFrame): SparkPlan = {
     spark.sessionState.executePlan(df.queryExecution.logical)

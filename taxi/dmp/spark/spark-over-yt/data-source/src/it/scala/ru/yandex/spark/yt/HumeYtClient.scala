@@ -11,11 +11,7 @@ import scala.language.postfixOps
 trait HumeYtClient extends LocalYtClient {
   self: TestSuite =>
 
-  override protected lazy val ytClient: YtRpcClient = HumeYtClient.ytClient
-}
-
-object HumeYtClient {
-  val conf: YtClientConfiguration = YtClientConfiguration(
+  private val conf: YtClientConfiguration = YtClientConfiguration(
     proxy = "hume",
     user = DefaultRpcCredentials.user,
     token = DefaultRpcCredentials.token,
@@ -32,5 +28,7 @@ object HumeYtClient {
     extendedFileTimeout = true
   )
 
-  lazy val ytClient = YtWrapper.createRpcClient("test", conf)
+  override protected val ytRpcClient: YtRpcClient = {
+    YtClientProvider.ytRpcClient(conf, "test")
+  }
 }

@@ -23,11 +23,18 @@ object Dependencies {
     "org.mockito" %% "mockito-scala" % mockitoVersion % Test
   )
 
+  lazy val dockerTest = Seq(
+    "com.whisk" %% "docker-testkit-scalatest" % "0.9.9" % "test",
+    "com.whisk" %% "docker-testkit-impl-docker-java" % "0.9.9" % "test"
+  ).map(_ excludeAll(
+    ExclusionRule(organization = "io.netty")
+  ))
+
   lazy val testDeps = Seq(
     "org.scalacheck" %% "scalacheck" % "1.14.1" % Test,
     "org.scalactic" %% "scalactic" % scalatestVersion,
     "org.scalatest" %% "scalatest" % scalatestVersion % Test
-  ) ++ mockito
+  ) ++ mockito ++ dockerTest
 
   lazy val itTestDeps = Seq(
     "org.scalacheck" %% "scalacheck" % "1.14.1" % "it,test",

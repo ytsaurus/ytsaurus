@@ -3,7 +3,7 @@ package ru.yandex.spark.yt.wrapper.client
 import io.netty.channel.nio.NioEventLoopGroup
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
-import ru.yandex.spark.yt.test.{LocalYtClient, LocalYtClientCreator, TestUtils, TmpDir}
+import ru.yandex.spark.yt.test.{LocalYt, TestUtils, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtJavaConverters.toJavaDuration
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector
@@ -15,9 +15,11 @@ import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-class SingleProxyYtClientTest extends FlatSpec with Matchers with LocalYtClientCreator with TmpDir with TestUtils {
+class SingleProxyYtClientTest extends FlatSpec with Matchers with LocalYt with TmpDir with TestUtils {
 
-  override protected implicit val yt: CompoundClient = createClient("localhost:8002", new RpcCredentials("root", ""))
+  override protected implicit val ytRpcClient: YtRpcClient = {
+    createClient(s"localhost:${LocalYt.rpcProxyPort}", new RpcCredentials("root", ""))
+  }
 
   "SingleProxyYtClient" should "create and list nodes" in {
     YtWrapper.createDir(tmpPath)
@@ -47,7 +49,7 @@ class SingleProxyYtClientTest extends FlatSpec with Matchers with LocalYtClientC
     res should contain theSameElementsAs data
   }
 
-  def createClient(address: String, rpcCredentials: RpcCredentials): SingleProxyYtClient = {
+  def createClient(address: String, rpcCredentials: RpcCredentials): YtRpcClient = {
     import ru.yandex.spark.yt.wrapper.YtWrapper._
     val connector = new DefaultBusConnector(new NioEventLoopGroup(1), true)
       .setReadTimeout(toJavaDuration(300 seconds))
@@ -56,6 +58,10 @@ class SingleProxyYtClientTest extends FlatSpec with Matchers with LocalYtClientC
     val rpcOptions = new RpcOptions()
     rpcOptions.setTimeouts(300 seconds)
 
-    new SingleProxyYtClient(connector, rpcCredentials, rpcOptions, HostPort.parse(address))
+    YtRpcClient(
+      "single",
+      new SingleProxyYtClient(connector, rpcCredentials, rpcOptions, HostPort.parse(address)),
+      connector
+    )
   }
 }

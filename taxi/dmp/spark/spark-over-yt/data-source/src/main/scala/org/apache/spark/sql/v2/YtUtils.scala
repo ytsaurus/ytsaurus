@@ -5,10 +5,10 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.types.{BinaryType, StructType}
 import org.apache.spark.sql.yson.YsonType
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
-import ru.yandex.spark.yt.fs.{YtClientProvider, YtPath}
+import ru.yandex.spark.yt.fs.YtPath
 import ru.yandex.spark.yt.serializers.SchemaConverter
 import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.yt.ytclient.proxy.YtClient
+import ru.yandex.spark.yt.wrapper.client.YtClientProvider
 
 object YtUtils {
   def inferSchema(sparkSession: SparkSession,

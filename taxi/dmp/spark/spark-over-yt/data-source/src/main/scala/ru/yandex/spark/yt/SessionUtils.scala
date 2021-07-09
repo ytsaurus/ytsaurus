@@ -1,14 +1,13 @@
 package ru.yandex.spark.yt
 
 import java.util.UUID
-
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.SparkSession
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
-import ru.yandex.spark.yt.fs.YtClientProvider
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper.YtWrapper
+import ru.yandex.spark.yt.wrapper.client.YtClientProvider
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 object SessionUtils {
