@@ -204,6 +204,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
                                tmpfs_limit, ssd_limit,
                                master_memory_limit, history_server_memory_limit,
                                network_project, tvm_id, tvm_secret,
+                               enable_event_log,
                                pool, enablers, client):
     if ssd_limit:
         spark_home = "."
@@ -222,7 +223,10 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     master_command = _launcher_command("Master")
     worker_command = _launcher_command("Worker") + \
         "--cores {0} --memory {1} --wait-master-timeout {2}".format(worker_cores, worker_memory, worker_timeout)
-    history_command = _launcher_command("HistoryServer") + "--log-path ytEventLog:/{}".format(spark_discovery.event_log_table())
+    event_log_path = "yt:/{}".format(spark_discovery.event_log())
+    if enable_event_log:
+        event_log_path = "ytEventLog:/{}".format(spark_discovery.event_log_table())
+    history_command = _launcher_command("HistoryServer") + "--log-path {}".format(event_log_path)
 
     user = get_user_name(client=client)
 
@@ -337,6 +341,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
                         master_memory_limit=SparkDefaultArguments.SPARK_MASTER_MEMORY_LIMIT,
                         history_server_memory_limit=SparkDefaultArguments.SPARK_HISTORY_SERVER_MEMORY_LIMIT,
                         network_project=None, tvm_id=None, tvm_secret=None,
+                        enable_event_log=False,
                         params=None, spark_cluster_version=None,
                         enablers=None,
                         client=None):
@@ -355,6 +360,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     :param history_server_memory_limit: memory limit for history server, default 8G
     :param spark_cluster_version: Spark cluster version
     :param network_project: YT network project
+    :param enable_event_log: Start Spark History Server with ytEventLog directory
     :param tvm_id: TVM id for network project
     :param tvm_secret: TVM secret for network project
     :param params: YT operation params: file_paths, layer_paths, operation_spec, environment, spark_conf
@@ -396,6 +402,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
                                               network_project=network_project,
                                               tvm_id=tvm_id,
                                               tvm_secret=tvm_secret,
+                                              enable_event_log=enable_event_log,
                                               pool=pool,
                                               enablers=enablers,
                                               client=client)

@@ -15,8 +15,10 @@ object HistoryServerLauncher extends App with VanillaLauncher with SparkLauncher
   import launcherArgs._
 
   withDiscovery(ytConfig, discoveryPath) { case (discoveryService, yt) =>
-    createIfNotExists(logPath, schema, yt)
-    createIfNotExists(s"${logPath}_meta", metaSchema, yt)
+    if (logPath.startsWith("ytEventLog")) {
+      createIfNotExists(logPath, schema, yt)
+      createIfNotExists(s"${logPath}_meta", metaSchema, yt)
+    }
     withService(startHistoryServer(logPath)) { historyServer =>
       discoveryService.registerSHS(historyServer.address)
       checkPeriodically(historyServer.isAlive(3))
