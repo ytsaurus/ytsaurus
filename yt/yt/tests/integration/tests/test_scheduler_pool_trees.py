@@ -10,9 +10,11 @@ from yt_commands import (
     create, ls,
     get, set, remove, exists, create_pool, create_pool_tree, remove_pool_tree, write_table, map,
     map_reduce, run_test_vanilla, run_sleeping_vanilla, abort_job, list_jobs,
+    sync_create_cells, update_controller_agent_config, update_op_parameters, create_test_tables)
+
+from yt_scheduler_helpers import (
     scheduler_orchid_default_pool_tree_path, scheduler_orchid_operation_path, scheduler_orchid_path,
-    scheduler_orchid_pool_tree_path, sync_create_cells,
-    update_controller_agent_config, update_op_parameters, create_test_tables)
+    scheduler_orchid_pool_tree_path)
 
 from yt_helpers import create_custom_pool_tree_with_one_node
 

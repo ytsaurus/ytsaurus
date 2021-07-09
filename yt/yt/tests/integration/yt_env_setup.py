@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 import yt_commands
-
+import yt_scheduler_helpers
 from yt_helpers import get_current_time, parse_yt_time
 
 from yt.environment import YTInstance, arcadia_interop
@@ -867,22 +867,22 @@ class YTEnvSetup(object):
                 [
                     yt_commands.make_batch_request(
                         "list",
-                        path=yt_commands.scheduler_orchid_path() + "/scheduler/scheduling_info_per_pool_tree",
+                        path=yt_scheduler_helpers.scheduler_orchid_path() + "/scheduler/scheduling_info_per_pool_tree",
                         return_only_value=True,
                     ),
                     yt_commands.make_batch_request(
                         "get",
-                        path=yt_commands.scheduler_orchid_path() + "/scheduler/default_pool_tree",
+                        path=yt_scheduler_helpers.scheduler_orchid_path() + "/scheduler/default_pool_tree",
                         return_only_value=True,
                     ),
                     yt_commands.make_batch_request(
                         "list",
-                        path=yt_commands.scheduler_orchid_default_pool_tree_path() + "/pools",
+                        path=yt_scheduler_helpers.scheduler_orchid_default_pool_tree_path() + "/pools",
                         return_only_value=True,
                     ),
                     yt_commands.make_batch_request(
                         "get",
-                        path=yt_commands.scheduler_orchid_path()
+                        path=yt_scheduler_helpers.scheduler_orchid_path()
                         + "/scheduler/scheduling_info_per_pool_tree/default/node_count",
                         return_only_value=True,
                     ),

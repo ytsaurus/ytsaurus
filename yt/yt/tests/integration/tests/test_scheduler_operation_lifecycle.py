@@ -13,9 +13,10 @@ from yt_commands import (
     read_file, read_table, write_table, map, sort,
     run_test_vanilla, run_sleeping_vanilla,
     abort_job, get_job,
-    abandon_job, get_operation_cypress_path, scheduler_orchid_pool_path,
-    scheduler_orchid_default_pool_tree_path, sync_create_cells, update_controller_agent_config,
+    abandon_job, get_operation_cypress_path, sync_create_cells, update_controller_agent_config,
     set_banned_flag, PrepareTables, get_statistics)
+
+from yt_scheduler_helpers import scheduler_orchid_pool_path, scheduler_orchid_default_pool_tree_path
 
 from yt_helpers import get_current_time, parse_yt_time, Profiler, get_job_count_profiling
 

@@ -3,8 +3,10 @@ from yt_env_setup import YTEnvSetup, is_asan_build
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     ls, get,
-    set, exists, create_pool, read_file, write_file, read_table, write_table, map, scheduler_orchid_pool_path,
+    set, exists, create_pool, read_file, write_file, read_table, write_table, map,
     update_nodes_dynamic_config)
+
+from yt_scheduler_helpers import scheduler_orchid_pool_path
 
 from yt.common import YtError
 

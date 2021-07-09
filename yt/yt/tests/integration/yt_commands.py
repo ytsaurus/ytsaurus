@@ -1,5 +1,7 @@
 from __future__ import print_function
 
+import yt_scheduler_helpers
+
 from yt.environment.yt_env import set_environment_driver_logging_config
 
 import yt.yson as yson
@@ -1562,13 +1564,13 @@ def create_pool_tree(name, config=None, wait_for_orchid=True, allow_patching=Tru
 
     execute_command("create", kwargs, parse_yson=True)
     if wait_for_orchid:
-        wait(lambda: exists(scheduler_orchid_pool_tree_path(name)))
+        wait(lambda: exists(yt_scheduler_helpers.scheduler_orchid_pool_tree_path(name)))
 
 
 def remove_pool_tree(name, wait_for_orchid=True, **kwargs):
     remove("//sys/pool_trees/" + name, **kwargs)
     if wait_for_orchid:
-        wait(lambda: not exists(scheduler_orchid_pool_tree_path(name)))
+        wait(lambda: not exists(yt_scheduler_helpers.scheduler_orchid_pool_tree_path(name)))
 
 
 def create_pool(name, pool_tree="default", parent_name=None, wait_for_orchid=True, **kwargs):
@@ -1581,9 +1583,9 @@ def create_pool(name, pool_tree="default", parent_name=None, wait_for_orchid=Tru
         kwargs["attributes"]["parent_name"] = parent_name
     execute_command("create", kwargs, parse_yson=True)
     if wait_for_orchid:
-        wait(lambda: exists(scheduler_orchid_pool_path(name, pool_tree)))
+        wait(lambda: exists(yt_scheduler_helpers.scheduler_orchid_pool_path(name, pool_tree)))
         expected_parent_name = parent_name if parent_name else "<Root>"
-        wait(lambda: get(scheduler_orchid_pool_path(name, pool_tree))["parent"] == expected_parent_name)
+        wait(lambda: get(yt_scheduler_helpers.scheduler_orchid_pool_path(name, pool_tree))["parent"] == expected_parent_name)
 
 
 def create_user(name, **kwargs):
@@ -2301,38 +2303,6 @@ def get_singular_chunk_id(path, **kwargs):
 
 def get_first_chunk_id(path, **kwargs):
     return get(path + "/@chunk_ids/0", **kwargs)
-
-
-def scheduler_orchid_path():
-    return "//sys/scheduler/orchid"
-
-
-def scheduler_orchid_pool_tree_path(tree):
-    return scheduler_orchid_path() + "/scheduler/scheduling_info_per_pool_tree/{}/fair_share_info".format(tree)
-
-
-def scheduler_orchid_default_pool_tree_path():
-    return scheduler_orchid_pool_tree_path("default")
-
-
-def scheduler_orchid_pool_tree_config_path(tree):
-    return scheduler_orchid_path() + "/scheduler/scheduling_info_per_pool_tree/{}/config".format(tree)
-
-
-def scheduler_orchid_default_pool_tree_config_path():
-    return scheduler_orchid_pool_tree_config_path("default")
-
-
-def scheduler_orchid_pool_path(pool, tree="default"):
-    return scheduler_orchid_pool_tree_path(tree) + "/pools/{}".format(pool)
-
-
-def scheduler_orchid_operation_path(op, tree="default"):
-    return scheduler_orchid_pool_tree_path(tree) + "/operations/{}".format(op)
-
-
-def scheduler_orchid_node_path(node):
-    return scheduler_orchid_path() + "/scheduler/nodes/{}".format(node)
 
 
 def get_applied_node_dynamic_config(node):

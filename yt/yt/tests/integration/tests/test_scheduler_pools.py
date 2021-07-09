@@ -3,7 +3,9 @@ from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
 from yt_commands import (
     authors, wait, get, set, move, remove, exists,
     create_user, create_pool,
-    create_pool_tree, remove_pool_tree, make_ace, check_permission, scheduler_orchid_pool_path, scheduler_orchid_default_pool_tree_config_path, raises_yt_error, build_snapshot)
+    create_pool_tree, remove_pool_tree, make_ace, check_permission, raises_yt_error, build_snapshot)
+
+from yt_scheduler_helpers import scheduler_orchid_pool_path, scheduler_orchid_default_pool_tree_config_path
 
 import yt_error_codes
 

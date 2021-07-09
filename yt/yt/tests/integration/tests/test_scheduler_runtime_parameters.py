@@ -9,9 +9,11 @@ from yt_commands import (
     authors, wait, create, ls, get, set, remove,
     exists, create_user,
     create_pool, add_member, read_table, write_table, map, run_test_vanilla, run_sleeping_vanilla,
-    scheduler_orchid_pool_path, scheduler_orchid_default_pool_tree_path,
-    scheduler_orchid_operation_path, update_op_parameters, create_test_tables, execute_command)
+    update_op_parameters, create_test_tables, execute_command)
 
+from yt_scheduler_helpers import (
+    scheduler_orchid_pool_path, scheduler_orchid_default_pool_tree_path,
+    scheduler_orchid_operation_path)
 from yt_helpers import create_custom_pool_tree_with_one_node
 import yt_error_codes
 
