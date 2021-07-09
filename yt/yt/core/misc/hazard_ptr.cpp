@@ -313,6 +313,10 @@ bool ScanDeleteList()
 {
     auto* threadState = HazardPointerManager.GetThreadState();
 
+    if (threadState->DeleteList.empty()) {
+        return false;
+    }
+
     YT_VERIFY(!threadState->Scanning);
 
     bool hasNewPointers = HazardPointerManager.Scan(threadState);
