@@ -71,7 +71,7 @@ func NewPinger(
 	}
 }
 
-func (p *Pinger) abortBackground() {
+func (p *Pinger) abortBackground(leaseLost bool, leaseCtx context.Context) {
 	p.l.Lock()
 	if p.dead {
 		p.l.Unlock()
@@ -80,11 +80,26 @@ func (p *Pinger) abortBackground() {
 	p.aborting = true
 	p.l.Unlock()
 
-	ctx, cancel := context.WithTimeout(p.abortCtx, p.config.GetTxTimeout())
-	defer cancel()
+	sendBestEffortAbort := false
+	if !leaseLost {
+		err := p.yc.AbortTx(leaseCtx, p.txID, nil)
 
-	_ = p.yc.AbortTx(ctx, p.txID, nil)
+		sendBestEffortAbort = errors.Is(err, context.DeadlineExceeded) ||
+			errors.Is(err, context.Canceled) ||
+			err != nil && !yterrors.ContainsErrorCode(err, yterrors.CodeNoSuchTransaction)
+	}
+
+	// Notify user that the lease is lost.
 	p.finish()
+
+	// Send best effort abort. We try to abort tx in case lease was extended by the master restart,
+	// or a ping that we didn't receive reply to.
+	if sendBestEffortAbort {
+		ctx, cancel := context.WithTimeout(p.abortCtx, p.config.TxTimeout)
+		defer cancel()
+
+		_ = p.yc.AbortTx(ctx, p.txID, nil)
+	}
 }
 
 func (p *Pinger) checkAlive() error {
@@ -221,27 +236,48 @@ func (p *Pinger) Run() {
 	ticker := time.NewTicker(p.config.GetTxPingPeriod())
 	defer ticker.Stop()
 
+	var (
+		leaseCtx       context.Context
+		leaseCtxCancel func()
+	)
+
+	refreshLease := func() {
+		if leaseCtxCancel != nil {
+			leaseCtxCancel()
+		}
+
+		leaseCtx, leaseCtxCancel = context.WithTimeout(p.abortCtx, p.config.GetTxTimeout())
+	}
+
+	refreshLease()
+
 	for {
 		select {
 		case <-p.finished:
 			return
 
 		case <-p.finishFailed:
-			p.abortBackground()
+			p.abortBackground(false, leaseCtx)
 			return
 
 		case <-p.ctx.Done():
-			p.abortBackground()
+			p.abortBackground(false, leaseCtx)
 			return
 
 		case <-p.stop.C():
-			p.abortBackground()
+			p.abortBackground(false, leaseCtx)
+			return
+
+		case <-leaseCtx.Done():
+			p.abortBackground(true, leaseCtx)
 			return
 
 		case <-ticker.C:
-			err := p.yc.PingTx(p.ctx, p.txID, nil)
+			err := p.yc.PingTx(leaseCtx, p.txID, nil)
 			if err != nil {
 				p.OnTxError(err)
+			} else {
+				refreshLease()
 			}
 		}
 	}
