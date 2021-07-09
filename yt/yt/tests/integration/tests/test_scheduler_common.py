@@ -29,7 +29,6 @@ import json
 import io
 import os
 import time
-import sys
 import zstd
 
 import __builtin__
@@ -2276,7 +2275,7 @@ class TestJobStatisticsPorto(YTEnvSetup):
         statistics = get(op.get_path() + "/@progress/job_statistics")
 
         for component in ["user_job", "job_proxy"]:
-            print_debug(component, file=sys.stderr)
+            print_debug(component)
             assert get_statistics(statistics, component + ".cpu.user.$.completed.map.sum") > 0
             assert get_statistics(statistics, component + ".cpu.system.$.completed.map.sum") > 0
             assert get_statistics(statistics, component + ".cpu.context_switches.$.completed.map.sum") is not None
