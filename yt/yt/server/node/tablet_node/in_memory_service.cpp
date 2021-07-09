@@ -49,41 +49,32 @@ public:
         , Bootstrap_(bootstrap)
     { }
 
-    void PutBlock(
-        const TBlockId& id,
-        const TBlock& block)
+    TError PutBlock(const TBlockId& id, const TBlock& block)
     {
-        const auto& memoryTracker = Bootstrap_->GetMemoryUsageTracker();
-
-        if (memoryTracker->IsExceeded(EMemoryCategory::TabletStatic)) {
-            Dropped_ = true;
-        }
-
         auto chunkId = id.ChunkId;
-
-        if (Dropped_) {
-            auto guard = Guard(SpinLock_);
-            if (ChunkIdToData_.erase(chunkId) == 1) {
-                YT_LOG_WARNING("Intercepted chunk data dropped due to memory pressure (ChunkId: %v)",
-                    chunkId);
-            }
-            return;
-        }
 
         auto guard = Guard(SpinLock_);
 
-        auto it = ChunkIdToData_.find(chunkId);
         TInMemoryChunkDataPtr data;
+
+        auto it = ChunkIdToData_.find(chunkId);
         if (it == ChunkIdToData_.end()) {
             data = New<TInMemoryChunkData>();
 
             data->InMemoryMode = Mode_;
-            data->MemoryTrackerGuard = TMemoryUsageTrackerGuard::Acquire(
+
+            auto guardOrError = TMemoryUsageTrackerGuard::TryAcquire(
                 Bootstrap_
                     ->GetMemoryUsageTracker()
                     ->WithCategory(EMemoryCategory::TabletStatic),
                 0 /*size*/,
                 MemoryUsageGranularity);
+
+            if (!guardOrError.IsOK()) {
+                return guardOrError;
+            }
+
+            data->MemoryTrackerGuard = std::move(guardOrError.Value());
 
             YT_LOG_INFO("Intercepted chunk data created (ChunkId: %v, Mode: %v)",
                 chunkId,
@@ -92,7 +83,7 @@ public:
             // Replace the old data, if any, by a new one.
             ChunkIdToData_[chunkId] = data;
         } else {
-            data = GetOrCrash(ChunkIdToData_, chunkId);
+            data = it->second;
             YT_VERIFY(data->InMemoryMode == Mode_);
         }
 
@@ -111,12 +102,15 @@ public:
             data->MemoryTrackerGuard.IncrementSize(block.Size());
         }
         YT_VERIFY(!data->ChunkMeta);
+
+        return TError();
     }
 
     TInMemoryChunkDataPtr ExtractChunkData(TChunkId chunkId)
     {
         auto guard = Guard(SpinLock_);
-        return GetOrCrash(ChunkIdToData_, chunkId);
+        auto it = ChunkIdToData_.find(chunkId);
+        return it == ChunkIdToData_.end() ? nullptr : it->second;
     }
 
 private:
@@ -125,7 +119,6 @@ private:
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     THashMap<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
-    bool Dropped_ = false;
 };
 
 DECLARE_REFCOUNTED_STRUCT(TInMemorySession)
@@ -218,7 +211,7 @@ private:
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
 
         if (auto session = FindSession(sessionId)) {
-
+            bool dropSession = false;
             std::vector<TFuture<void>> asyncResults;
             for (int index = 0; index < request->chunk_id_size(); ++index) {
                 auto tabletId = FromProto<TTabletId>(request->tablet_id(index));
@@ -236,6 +229,15 @@ private:
                 auto chunkId = FromProto<TChunkId>(request->chunk_id(index));
                 auto chunkData = session->ExtractChunkData(chunkId);
 
+                if (!chunkData) {
+                    YT_LOG_WARNING("Chunk data does not exist, dropping in-memory session (SessionId: %v, ChunkId: %v)",
+                        sessionId,
+                        chunkId);
+
+                    dropSession = true;
+                    break;
+                }
+
                 auto asyncResult = BIND(&IInMemoryManager::FinalizeChunk, Bootstrap_->GetInMemoryManager())
                     .AsyncVia(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker())
                     .Run(
@@ -247,8 +249,10 @@ private:
                 asyncResults.push_back(std::move(asyncResult));
             }
 
-            WaitFor(AllSucceeded(asyncResults))
-                .ThrowOnError();
+            if (!dropSession) {
+                WaitFor(AllSucceeded(asyncResults))
+                    .ThrowOnError();
+            }
 
             TLeaseManager::CloseLease(session->Lease);
 
@@ -257,7 +261,9 @@ private:
                 SessionMap_.erase(sessionId);
             }
 
-            YT_LOG_DEBUG("In-memory session finished (SessionId: %v)", sessionId);
+            if (!dropSession) {
+                YT_LOG_DEBUG("In-memory session finished (SessionId: %v)", sessionId);
+            }
         } else {
             YT_LOG_DEBUG("In-memory session does not exist (SessionId: %v)", sessionId);
         }
@@ -276,16 +282,30 @@ private:
         if (auto session = FindSession(sessionId)) {
             RenewSessionLease(session);
 
+            bool dropped = false;
             for (int index = 0; index < request->block_ids_size(); ++index) {
                 auto blockId = FromProto<TBlockId>(request->block_ids(index));
 
-                session->PutBlock(
+                auto error = session->PutBlock(
                     blockId,
                     TBlock(request->Attachments()[index]));
-            }
 
-            bool dropped = Bootstrap_->GetMemoryUsageTracker()->IsExceeded(
-                NNodeTrackerClient::EMemoryCategory::TabletStatic);
+                if (!error.IsOK()) {
+                    TLeaseManager::CloseLease(session->Lease);
+
+                    auto guard = WriterGuard(SessionMapLock_);
+                    if (SessionMap_.erase(sessionId) == 1) {
+                        guard.Release();
+
+                        YT_LOG_WARNING("In-memory session is dropped due to memory pressure (SessionId: %v, ChunkId: %v)",
+                            sessionId,
+                            blockId.ChunkId);
+                    }
+
+                    dropped = true;
+                    break;
+                }
+            }
 
             response->set_dropped(dropped);
         } else {
