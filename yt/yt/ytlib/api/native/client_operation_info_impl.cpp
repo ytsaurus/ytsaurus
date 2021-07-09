@@ -463,7 +463,7 @@ TOperation TClient::DoGetOperationImpl(
         MakeStrong(this),
         operationId,
         deadline,
-        std::move(archiveOptions))
+        archiveOptions)
         .AsyncVia(Connection_->GetInvoker())
         .Run()
         .WithTimeout(options.ArchiveTimeout);
