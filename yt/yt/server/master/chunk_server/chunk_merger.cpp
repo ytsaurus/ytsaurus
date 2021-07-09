@@ -922,6 +922,7 @@ void TChunkMerger::HydraCreateChunks(NProto::TReqCreateChunks* request)
 
             if (auto* trunkNode = FindChunkOwner(it->second.NodeId)) {
                 DecrementMergeJobCounter(Bootstrap_, trunkNode);
+                ScheduleMerge(trunkNode);
             }
             JobsUndergoingChunkCreation_.erase(it);
         };

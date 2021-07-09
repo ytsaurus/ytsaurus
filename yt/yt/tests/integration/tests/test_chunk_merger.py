@@ -57,7 +57,6 @@ class TestChunkMerger(YTEnvSetup):
 
     def _abort_chunk_merger_txs(self):
         txs = self._get_chunk_merger_txs()
-        assert len(txs) > 0
         for tx in txs:
             abort_transaction(tx)
 
