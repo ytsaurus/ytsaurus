@@ -1,15 +1,11 @@
-package ru.yandex.spark.yt.fs
+package ru.yandex.spark.yt.wrapper.client
 
-import java.util.concurrent.atomic.AtomicReference
-
-import org.apache.spark.sql.SparkSession
 import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.Yt
-import ru.yandex.spark.yt.fs.YtClientConfigurationConverter._
 import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.spark.yt.wrapper.client.{YtClientConfiguration, YtRpcClient}
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 
+import java.util.concurrent.atomic.AtomicReference
 import scala.collection.concurrent.TrieMap
 
 object YtClientProvider {
@@ -20,16 +16,10 @@ object YtClientProvider {
 
   private def threadId: String = Thread.currentThread().getId.toString
 
-  private def sparkDefaultConf: YtClientConfiguration = SparkSession.getDefaultSession
-    .map(ytClientConfiguration)
-    .getOrElse(throw new IllegalStateException("Spark is not initialized"))
-
   def ytClient(conf: YtClientConfiguration, id: String): CompoundClient = ytRpcClient(conf, id).yt
 
   // for java
   def ytClient(conf: YtClientConfiguration): CompoundClient = ytRpcClient(conf, threadId).yt
-
-  def ytClient: CompoundClient = client.getOrElseUpdate(threadId, ytRpcClient(sparkDefaultConf)).yt
 
   def ytRpcClient(conf: YtClientConfiguration, id: String = threadId): YtRpcClient = client.getOrElseUpdate(id, {
     this.conf.set(conf)

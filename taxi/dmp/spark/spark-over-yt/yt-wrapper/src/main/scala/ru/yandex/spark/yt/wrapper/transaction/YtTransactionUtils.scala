@@ -66,11 +66,12 @@ trait YtTransactionUtils {
   def pingTransaction(tr: ApiServiceTransaction, interval: Duration)
                      (implicit yt: CompoundClient, ec: ExecutionContext): Cancellable[Unit] = {
     @tailrec
-    def ping(cancel: Future[Unit], retry: Int): Unit = {
+    def ping(cancel: Future[Unit], retry: Int): Boolean = {
       try {
         if (!cancel.isCompleted) {
           tr.ping().join()
-        }
+          true
+        } else false
       } catch {
         case e: Throwable =>
           log.error(s"Error in ping transaction ${tr.getId}, ${e.getMessage},\n" +
@@ -78,14 +79,15 @@ trait YtTransactionUtils {
           if (retry > 0) {
             Thread.sleep(new Random().nextInt(2000) + 100)
             ping(cancel, retry - 1)
-          }
+          } else false
       }
     }
 
     cancellable { cancel =>
-      while (!cancel.isCompleted) {
+      var success = true
+      while (!cancel.isCompleted && success) {
         log.debugLazy(s"Ping transaction ${tr.getId}")
-        ping(cancel, 3)
+        success = ping(cancel, 3)
         Thread.sleep(interval.toMillis)
       }
       log.debugLazy(s"Ping transaction ${tr.getId} cancelled")

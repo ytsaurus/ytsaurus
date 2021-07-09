@@ -1,14 +1,13 @@
 package ru.yandex.spark.yt
 
-import java.io.File
-import java.util.UUID
-
 import io.circe.parser._
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 import ru.yandex.spark.yt.ProgrammingLanguage._
-import ru.yandex.spark.yt.fs.YtClientProvider
 import ru.yandex.spark.yt.wrapper.YtWrapper
+import ru.yandex.spark.yt.wrapper.client.YtClientProvider
 
+import java.io.File
+import java.util.UUID
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.language.postfixOps
@@ -99,10 +98,10 @@ class ItTest extends FlatSpec with Matchers with BeforeAndAfterAll with ItTestUt
     testEnabledOldSpyt("new_enable")
     testEnabledOldSpyt("old_new_launcher")
     testDisabledOldSpyt("old_old_launcher")
-//    submitAndCheckConf("new_disable", expected = Map(confName -> None))
-//    submitAndCheckConf("new_enable", expected = Map(confName -> None))
-//    submitAndCheckConf("old_new_launcher", expected = Map(confName -> None))
-//    submitAndCheckConf("old_old_launcher", expected = Map(confName -> None))
+    //    submitAndCheckConf("new_disable", expected = Map(confName -> None))
+    //    submitAndCheckConf("new_enable", expected = Map(confName -> None))
+    //    submitAndCheckConf("old_new_launcher", expected = Map(confName -> None))
+    //    submitAndCheckConf("old_old_launcher", expected = Map(confName -> None))
   }
 
   "ItTest" should "work for scala" in {

@@ -16,9 +16,10 @@ import ru.yandex.spark.yt.format._
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read._
 import ru.yandex.spark.yt.format.conf.{SparkYtWriteConfiguration, YtTableSparkSettings}
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
-import ru.yandex.spark.yt.fs.{YtClientProvider, YtPath}
+import ru.yandex.spark.yt.fs.YtPath
 import ru.yandex.spark.yt.serializers.{InternalRowDeserializer, SchemaConverter}
 import ru.yandex.spark.yt.wrapper.YtWrapper
+import ru.yandex.spark.yt.wrapper.client.YtClientProvider
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 class YtFileFormat extends FileFormat with DataSourceRegister with Serializable {

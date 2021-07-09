@@ -10,8 +10,9 @@ import ru.yandex.spark.yt.format.conf.YtTableSparkSettings._
 import ru.yandex.spark.yt.format.conf.{SparkYtConfiguration, YtTableSparkSettings}
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
 import ru.yandex.spark.yt.fs.conf._
-import ru.yandex.spark.yt.fs.{GlobalTableSettings, YtClientProvider}
+import ru.yandex.spark.yt.fs.GlobalTableSettings
 import ru.yandex.spark.yt.wrapper.YtWrapper
+import ru.yandex.spark.yt.wrapper.client.YtClientProvider
 import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient}
 
 import scala.concurrent.ExecutionContext
@@ -152,7 +153,7 @@ object YtOutputCommitter {
 
   private val log = LoggerFactory.getLogger(getClass)
 
-  private val pingFutures = scala.collection.concurrent.TrieMap.empty[String, (ApiServiceTransaction, YtWrapper.Cancellable[Unit])]
+  private val pingFutures = scala.collection.concurrent.TrieMap.empty[String, ApiServiceTransaction]
 
   private def yt(conf: Configuration): CompoundClient = YtClientProvider.ytClient(ytClientConfiguration(conf))
 
@@ -179,14 +180,13 @@ object YtOutputCommitter {
 
     val transaction = YtWrapper.createTransaction(parent, transactionTimeout)
     try {
-      val pingFuture = YtWrapper.pingTransaction(transaction, pingInterval)(yt, ExecutionContext.global)
-      pingFutures += transaction.getId.toString -> (transaction, pingFuture)
+      pingFutures += transaction.getId.toString -> transaction
       log.info(s"Create write transaction: ${transaction.getId}")
       conf.setYtConf(confEntry, transaction.getId.toString)
       transaction.getId.toString
     } catch {
       case e: Throwable =>
-        transaction.abort().join()
+        abortTransaction(transaction.getId.toString)
         throw e
     }
   }
@@ -197,8 +197,7 @@ object YtOutputCommitter {
 
   def abortTransaction(transaction: String): Unit = {
     log.info(s"Abort write transaction: $transaction")
-    pingFutures.remove(transaction).foreach { case (transaction, (cancel, _)) =>
-      cancel.complete(Success())
+    pingFutures.remove(transaction).foreach { transaction =>
       transaction.abort().join()
     }
   }
@@ -206,10 +205,8 @@ object YtOutputCommitter {
   def commitTransaction(conf: Configuration, confEntry: StringConfigEntry): Unit = {
     withTransaction(conf.ytConf(confEntry)) { transactionGuid =>
       log.info(s"Commit write transaction: $transactionGuid")
-      pingFutures.remove(transactionGuid).foreach { case (transaction, (cancel, _)) =>
-        log.info(s"Cancel ping transaction: $transactionGuid")
-        cancel.complete(Success())
-        log.info(s"Send commit request transaction: $transactionGuid")
+      pingFutures.remove(transactionGuid).foreach { transaction =>
+        log.info(s"Send commit transaction request: $transactionGuid")
         transaction.commit().join()
         log.info(s"Success commit transaction: $transactionGuid")
       }

@@ -7,7 +7,7 @@ import org.apache.hadoop.util.Progressable
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.fs.PathUtils.hadoopPathToYt
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter._
-import ru.yandex.spark.yt.wrapper.client.{YtClientConfiguration, YtRpcClient}
+import ru.yandex.spark.yt.wrapper.client.{YtClientConfiguration, YtClientProvider, YtRpcClient}
 import ru.yandex.spark.yt.wrapper.{LogLazy, YtWrapper}
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 
@@ -56,7 +56,7 @@ trait YtFileSystemBase extends FileSystem with LogLazy {
 
     if (_ytConf.extendedFileTimeout) {
       val ytConf = _ytConf.copy(timeout = 7 days)
-      val ytRpcClient: YtRpcClient = YtWrapper.createRpcClient(s"create-file-${UUID.randomUUID().toString}", ytConf)
+      val ytRpcClient: YtRpcClient = YtClientProvider.ytRpcClient(ytConf, s"create-file-${UUID.randomUUID().toString}")
       try {
         createFile(Some(ytRpcClient), ytRpcClient.yt)
       } catch {

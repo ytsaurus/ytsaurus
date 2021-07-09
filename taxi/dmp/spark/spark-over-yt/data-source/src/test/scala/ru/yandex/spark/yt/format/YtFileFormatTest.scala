@@ -16,6 +16,7 @@ import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
+import org.apache.spark.sql.internal.SQLConf.PARALLEL_PARTITION_DISCOVERY_THRESHOLD
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
@@ -193,18 +194,18 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     import spark.implicits._
     spark.sqlContext.setConf("spark.yt.timeout", "5")
     spark.sqlContext.setConf("spark.yt.write.timeout", "0")
+    Logger.getRootLogger.setLevel(Level.OFF)
 
     try {
-      Logger.getRootLogger.setLevel(Level.OFF)
       a[SparkException] shouldBe thrownBy {
         Seq(1, 2, 3).toDS.coalesce(1).write.yt(tmpPath)
       }
-      Logger.getRootLogger.setLevel(Level.WARN)
 
       YtWrapper.exists(s"$tmpPath-tmp") shouldEqual false
     } finally {
       spark.sqlContext.setConf("spark.yt.timeout", "300")
       spark.sqlContext.setConf("spark.yt.write.timeout", "120")
+      Logger.getRootLogger.setLevel(Level.WARN)
     }
   }
 
@@ -292,21 +293,27 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
 
   it should "read many tables" in {
     YtWrapper.createDir(tmpPath)
-    val tableCount = 35
-    (1 to tableCount).par.foreach(i =>
-      writeTableFromYson(Seq(
-        """{a = 1; b = "a"; c = 0.3}""",
-        """{a = 2; b = "b"; c = 0.5}"""
-      ), s"$tmpPath/$i", atomicSchema)
-    )
+    spark.conf.set(PARALLEL_PARTITION_DISCOVERY_THRESHOLD.key, 2)
+    try {
+      val tableCount = 3
+      (1 to tableCount).foreach(i =>
+        writeTableFromYson(Seq(
+          """{a = 1; b = "a"; c = 0.3}""",
+          """{a = 2; b = "b"; c = 0.5}"""
+        ), s"$tmpPath/$i", atomicSchema)
+      )
 
-    val res = spark.read.yt((1 to tableCount).map(i => s"$tmpPath/$i"): _*)
+      val res = spark.read.yt((1 to tableCount).map(i => s"$tmpPath/$i"): _*)
 
-    res.columns should contain theSameElementsAs Seq("a", "b", "c")
-    res.select("a", "b", "c").collect() should contain theSameElementsAs (1 to tableCount).flatMap(_ => Seq(
-      Row(1, "a", 0.3),
-      Row(2, "b", 0.5)
-    ))
+      res.columns should contain theSameElementsAs Seq("a", "b", "c")
+      res.select("a", "b", "c").collect() should contain theSameElementsAs (1 to tableCount).flatMap(_ => Seq(
+        Row(1, "a", 0.3),
+        Row(2, "b", 0.5)
+      ))
+    } finally {
+      spark.conf.set(PARALLEL_PARTITION_DISCOVERY_THRESHOLD.key,
+        PARALLEL_PARTITION_DISCOVERY_THRESHOLD.defaultValue.get)
+    }
   }
 
   it should "read csv" in {

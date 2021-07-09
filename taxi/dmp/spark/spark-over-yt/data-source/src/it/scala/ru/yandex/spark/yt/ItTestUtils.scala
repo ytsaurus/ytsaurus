@@ -1,16 +1,11 @@
 package ru.yandex.spark.yt
 
-import java.io.File
-
 import org.scalatest.{Matchers, Suite}
 import ru.yandex.spark.yt.ProgrammingLanguage.{LocalPython, LocalPython2}
-import ru.yandex.spark.yt.fs.YtClientProvider
-import ru.yandex.spark.yt.wrapper.client.{DefaultRpcCredentials, YtClientConfiguration}
-import ru.yandex.yt.ytclient.proxy.YtClient
 
-import scala.sys.process.Process
-import scala.concurrent.duration._
+import java.io.File
 import scala.language.postfixOps
+import scala.sys.process.Process
 
 trait ItTestUtils {
   self: Suite with Matchers =>
