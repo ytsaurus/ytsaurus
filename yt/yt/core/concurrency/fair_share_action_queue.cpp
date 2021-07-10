@@ -6,6 +6,8 @@
 #include <yt/yt/core/actions/invoker_util.h>
 #include <yt/yt/core/actions/invoker_detail.h>
 
+#include <yt/yt/core/misc/collection_helpers.h>
+
 #include <yt/yt/core/ypath/token.h>
 
 #include <yt/yt/library/profiling/sensor.h>
@@ -27,20 +29,29 @@ public:
         const std::vector<TString>& queueNames,
         const THashMap<TString, std::vector<TString>>& queueToBucket)
     {
+        THashMap<TString, int> queueNameToIndex;
+        for (int queueIndex = 0; queueIndex < std::ssize(queueNames); ++queueIndex) {
+            YT_VERIFY(queueNameToIndex.emplace(queueNames[queueIndex], queueIndex).second);
+        }
+
+        QueueIndexToBucketIndex_.resize(queueNames.size(), -1);
+        QueueIndexToBucketQueueIndex_.resize(queueNames.size(), -1);
+
         std::vector<TBucketDescription> bucketDescriptions;
         THashSet<TString> createdQueues;
         int nextBucketIndex = 0;
         for (const auto& [bucketName, bucketQueues] : queueToBucket) {
+            int bucketIndex = nextBucketIndex++;
             auto& bucketDescription = bucketDescriptions.emplace_back();
             bucketDescription.BucketTagSet = GetBucketTags(threadName, bucketName);
-            for (int queueIndex = 0; queueIndex < std::ssize(bucketQueues); ++queueIndex) {
-                const auto& queueName = bucketQueues[queueIndex];
+            for (int bucketQueueIndex = 0; bucketQueueIndex < std::ssize(bucketQueues); ++bucketQueueIndex) {
+                const auto& queueName = bucketQueues[bucketQueueIndex];
+                auto queueIndex = GetOrCrash(queueNameToIndex, queueName);
                 YT_VERIFY(createdQueues.insert(queueName).second);
-                QueueIndexToBucketIndex_.push_back(nextBucketIndex);
-                QueueIndexToBucketQueueIndex_.push_back(queueIndex);
+                QueueIndexToBucketIndex_[queueIndex] = bucketIndex;
+                QueueIndexToBucketQueueIndex_[queueIndex] = bucketQueueIndex;
                 bucketDescription.QueueTagSets.push_back(GetQueueTags(threadName, queueName));
             }
-            ++nextBucketIndex;
         }
 
         // Create separate buckets for queues with no bucket specified.
@@ -52,12 +63,18 @@ public:
             auto& bucketDescription = bucketDescriptions.emplace_back();
             bucketDescription.BucketTagSet = GetBucketTags(threadName, queueName);
             bucketDescription.QueueTagSets.push_back(GetQueueTags(threadName, queueName));
-            QueueIndexToBucketIndex_.push_back(nextBucketIndex++);
-            QueueIndexToBucketQueueIndex_.push_back(0);
+            auto queueIndex = GetOrCrash(queueNameToIndex, queueName);
+            QueueIndexToBucketIndex_[queueIndex] = nextBucketIndex++;
+            QueueIndexToBucketQueueIndex_[queueIndex] = 0;
             YT_VERIFY(createdQueues.emplace(queueName).second);
         }
 
         YT_VERIFY(createdQueues.size() == queueNames.size());
+
+        for (int queueIndex = 0; queueIndex < std::ssize(queueNames); ++queueIndex) {
+            YT_VERIFY(QueueIndexToBucketIndex_[queueIndex] != -1);
+            YT_VERIFY(QueueIndexToBucketQueueIndex_[queueIndex] != -1);
+        }
 
         Queue_ = New<TFairShareInvokerQueue>(CallbackEventCount_, std::move(bucketDescriptions));
         Thread_ = New<TFairShareQueueSchedulerThread>(Queue_, CallbackEventCount_, threadName);
