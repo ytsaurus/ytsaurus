@@ -297,11 +297,7 @@ TSlabAllocator::TSlabAllocator(
     IMemoryUsageTrackerPtr memoryTracker)
     : Profiler_(profiler)
 {
-    for (size_t rank = 2; rank < NYTAlloc::SmallRankCount; ++rank) {
-        // Rank is not used.
-        if (rank == 3) {
-            continue;
-        }
+    for (size_t rank = 1; rank < NYTAlloc::SmallRankCount; ++rank) {
         // There is no std::make_unique overload with custom deleter.
         SmallArenas_[rank].Exchange(New<TSmallArena>(rank, SegmentSize, memoryTracker, Profiler_));
     }
