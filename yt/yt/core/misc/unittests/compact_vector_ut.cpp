@@ -1,4 +1,5 @@
-//===- llvm/unittest/ADT/SmallVectorTest.cpp ------------------------------===//
+// Adapted from the following:
+//===- llvm/unittest/ADT/CompactVectorTest.cpp ------------------------------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -13,7 +14,7 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/core/misc/small_vector.h>
+#include <yt/yt/core/misc/compact_vector.h>
 
 #include <algorithm>
 #include <list>
@@ -128,6 +129,10 @@ public:
   friend bool operator==(const Constructable & c0, const Constructable & c1) {
     return c0.getValue() == c1.getValue();
   }
+
+  friend bool operator!=(const Constructable & c0, const Constructable & c1) {
+    return c0.getValue() != c1.getValue();
+  }
 };
 
 int Constructable::numConstructorCalls;
@@ -148,11 +153,11 @@ private:
 };
 
 [[maybe_unused]] void CompileTest() {
-  SmallVector<NonCopyable, 0> V;
+  TCompactVector<NonCopyable, 0> V;
   V.resize(42);
 }
 
-class SmallVectorTestBase : public testing::Test {
+class CompactVectorTestBase : public testing::Test {
 protected:
 
   void SetUp() {
@@ -195,23 +200,23 @@ protected:
 
 // Test fixture class
 template <typename VectorT>
-class SmallVectorTest : public SmallVectorTestBase {
+class CompactVectorTest : public CompactVectorTestBase {
 protected:
   VectorT theVector;
   VectorT otherVector;
 };
 
 
-typedef ::testing::Types<SmallVector<Constructable, 0>,
-                         SmallVector<Constructable, 1>,
-                         SmallVector<Constructable, 2>,
-                         SmallVector<Constructable, 4>,
-                         SmallVector<Constructable, 5>
-                         > SmallVectorTestTypes;
-TYPED_TEST_SUITE(SmallVectorTest, SmallVectorTestTypes);
+typedef ::testing::Types<TCompactVector<Constructable, 0>,
+                         TCompactVector<Constructable, 1>,
+                         TCompactVector<Constructable, 2>,
+                         TCompactVector<Constructable, 4>,
+                         TCompactVector<Constructable, 5>
+                         > CompactVectorTestTypes;
+TYPED_TEST_SUITE(CompactVectorTest, CompactVectorTestTypes);
 
 // New vector test.
-TYPED_TEST(SmallVectorTest, EmptyVectorTest) {
+TYPED_TEST(CompactVectorTest, EmptyVectorTest) {
   SCOPED_TRACE("EmptyVectorTest");
   this->assertEmpty(this->theVector);
   EXPECT_TRUE(this->theVector.rbegin() == this->theVector.rend());
@@ -220,7 +225,7 @@ TYPED_TEST(SmallVectorTest, EmptyVectorTest) {
 }
 
 // Simple insertions and deletions.
-TYPED_TEST(SmallVectorTest, PushPopTest) {
+TYPED_TEST(CompactVectorTest, PushPopTest) {
   SCOPED_TRACE("PushPopTest");
 
   // Track whether the vector will potentially have to grow.
@@ -267,7 +272,7 @@ TYPED_TEST(SmallVectorTest, PushPopTest) {
 }
 
 // Clear test.
-TYPED_TEST(SmallVectorTest, ClearTest) {
+TYPED_TEST(CompactVectorTest, ClearTest) {
   SCOPED_TRACE("ClearTest");
 
   this->theVector.reserve(2);
@@ -280,7 +285,7 @@ TYPED_TEST(SmallVectorTest, ClearTest) {
 }
 
 // Resize smaller test.
-TYPED_TEST(SmallVectorTest, ResizeShrinkTest) {
+TYPED_TEST(CompactVectorTest, ResizeShrinkTest) {
   SCOPED_TRACE("ResizeShrinkTest");
 
   this->theVector.reserve(3);
@@ -293,7 +298,7 @@ TYPED_TEST(SmallVectorTest, ResizeShrinkTest) {
 }
 
 // Resize bigger test.
-TYPED_TEST(SmallVectorTest, ResizeGrowTest) {
+TYPED_TEST(CompactVectorTest, ResizeGrowTest) {
   SCOPED_TRACE("ResizeGrowTest");
 
   this->theVector.resize(2);
@@ -303,7 +308,7 @@ TYPED_TEST(SmallVectorTest, ResizeGrowTest) {
   EXPECT_EQ(2u, this->theVector.size());
 }
 
-TYPED_TEST(SmallVectorTest, ResizeWithElementsTest) {
+TYPED_TEST(CompactVectorTest, ResizeWithElementsTest) {
   this->theVector.resize(2);
 
   Constructable::reset();
@@ -319,7 +324,7 @@ TYPED_TEST(SmallVectorTest, ResizeWithElementsTest) {
 }
 
 // Resize with fill value.
-TYPED_TEST(SmallVectorTest, ResizeFillTest) {
+TYPED_TEST(CompactVectorTest, ResizeFillTest) {
   SCOPED_TRACE("ResizeFillTest");
 
   this->theVector.resize(3, Constructable(77));
@@ -327,7 +332,7 @@ TYPED_TEST(SmallVectorTest, ResizeFillTest) {
 }
 
 // Overflow past fixed size.
-TYPED_TEST(SmallVectorTest, OverflowTest) {
+TYPED_TEST(CompactVectorTest, OverflowTest) {
   SCOPED_TRACE("OverflowTest");
 
   // Push more elements than the fixed size.
@@ -346,7 +351,7 @@ TYPED_TEST(SmallVectorTest, OverflowTest) {
 }
 
 // Iteration tests.
-TYPED_TEST(SmallVectorTest, IterationTest) {
+TYPED_TEST(CompactVectorTest, IterationTest) {
   this->makeSequence(this->theVector, 1, 2);
 
   // Forward Iteration
@@ -385,7 +390,7 @@ TYPED_TEST(SmallVectorTest, IterationTest) {
 }
 
 // Swap test.
-TYPED_TEST(SmallVectorTest, SwapTest) {
+TYPED_TEST(CompactVectorTest, SwapTest) {
   SCOPED_TRACE("SwapTest");
 
   this->makeSequence(this->theVector, 1, 2);
@@ -396,28 +401,28 @@ TYPED_TEST(SmallVectorTest, SwapTest) {
 }
 
 // Append test
-TYPED_TEST(SmallVectorTest, AppendTest) {
+TYPED_TEST(CompactVectorTest, AppendTest) {
   SCOPED_TRACE("AppendTest");
 
   this->makeSequence(this->otherVector, 2, 3);
 
   this->theVector.push_back(Constructable(1));
-  this->theVector.append(this->otherVector.begin(), this->otherVector.end());
+  this->theVector.insert(this->theVector.end(), this->otherVector.begin(), this->otherVector.end());
 
   this->assertValuesInOrder(this->theVector, 3u, 1, 2, 3);
 }
 
 // Append repeated test
-TYPED_TEST(SmallVectorTest, AppendRepeatedTest) {
+TYPED_TEST(CompactVectorTest, AppendRepeatedTest) {
   SCOPED_TRACE("AppendRepeatedTest");
 
   this->theVector.push_back(Constructable(1));
-  this->theVector.append(2, Constructable(77));
+  this->theVector.insert(this->theVector.end(), 2, Constructable(77));
   this->assertValuesInOrder(this->theVector, 3u, 1, 77, 77);
 }
 
 // Assign test
-TYPED_TEST(SmallVectorTest, AssignTest) {
+TYPED_TEST(CompactVectorTest, AssignTest) {
   SCOPED_TRACE("AssignTest");
 
   this->theVector.push_back(Constructable(1));
@@ -426,7 +431,7 @@ TYPED_TEST(SmallVectorTest, AssignTest) {
 }
 
 // Move-assign test
-TYPED_TEST(SmallVectorTest, MoveAssignTest) {
+TYPED_TEST(CompactVectorTest, MoveAssignTest) {
   SCOPED_TRACE("MoveAssignTest");
 
   // Set up our vector with a single element, but enough capacity for 4.
@@ -456,7 +461,7 @@ TYPED_TEST(SmallVectorTest, MoveAssignTest) {
 }
 
 // Erase a single element
-TYPED_TEST(SmallVectorTest, EraseTest) {
+TYPED_TEST(CompactVectorTest, EraseTest) {
   SCOPED_TRACE("EraseTest");
 
   this->makeSequence(this->theVector, 1, 3);
@@ -465,7 +470,7 @@ TYPED_TEST(SmallVectorTest, EraseTest) {
 }
 
 // Erase a range of elements
-TYPED_TEST(SmallVectorTest, EraseRangeTest) {
+TYPED_TEST(CompactVectorTest, EraseRangeTest) {
   SCOPED_TRACE("EraseRangeTest");
 
   this->makeSequence(this->theVector, 1, 3);
@@ -474,7 +479,7 @@ TYPED_TEST(SmallVectorTest, EraseRangeTest) {
 }
 
 // Insert a single element.
-TYPED_TEST(SmallVectorTest, InsertTest) {
+TYPED_TEST(CompactVectorTest, InsertTest) {
   SCOPED_TRACE("InsertTest");
 
   this->makeSequence(this->theVector, 1, 3);
@@ -485,7 +490,7 @@ TYPED_TEST(SmallVectorTest, InsertTest) {
 }
 
 // Insert a copy of a single element.
-TYPED_TEST(SmallVectorTest, InsertCopy) {
+TYPED_TEST(CompactVectorTest, InsertCopy) {
   SCOPED_TRACE("InsertTest");
 
   this->makeSequence(this->theVector, 1, 3);
@@ -497,7 +502,7 @@ TYPED_TEST(SmallVectorTest, InsertCopy) {
 }
 
 // Insert repeated elements.
-TYPED_TEST(SmallVectorTest, InsertRepeatedTest) {
+TYPED_TEST(CompactVectorTest, InsertRepeatedTest) {
   SCOPED_TRACE("InsertRepeatedTest");
 
   this->makeSequence(this->theVector, 1, 4);
@@ -522,7 +527,7 @@ TYPED_TEST(SmallVectorTest, InsertRepeatedTest) {
 }
 
 
-TYPED_TEST(SmallVectorTest, InsertRepeatedAtEndTest) {
+TYPED_TEST(CompactVectorTest, InsertRepeatedAtEndTest) {
   SCOPED_TRACE("InsertRepeatedTest");
 
   this->makeSequence(this->theVector, 1, 4);
@@ -541,7 +546,7 @@ TYPED_TEST(SmallVectorTest, InsertRepeatedAtEndTest) {
   this->assertValuesInOrder(this->theVector, 6u, 1, 2, 3, 4, 16, 16);
 }
 
-TYPED_TEST(SmallVectorTest, InsertRepeatedEmptyTest) {
+TYPED_TEST(CompactVectorTest, InsertRepeatedEmptyTest) {
   SCOPED_TRACE("InsertRepeatedTest");
 
   this->makeSequence(this->theVector, 10, 15);
@@ -556,7 +561,7 @@ TYPED_TEST(SmallVectorTest, InsertRepeatedEmptyTest) {
 }
 
 // Insert range.
-TYPED_TEST(SmallVectorTest, InsertRangeTest) {
+TYPED_TEST(CompactVectorTest, InsertRangeTest) {
   SCOPED_TRACE("InsertRangeTest");
 
   Constructable Arr[3] =
@@ -581,7 +586,7 @@ TYPED_TEST(SmallVectorTest, InsertRangeTest) {
 }
 
 
-TYPED_TEST(SmallVectorTest, InsertRangeAtEndTest) {
+TYPED_TEST(CompactVectorTest, InsertRangeAtEndTest) {
   SCOPED_TRACE("InsertRangeTest");
 
   Constructable Arr[3] =
@@ -606,7 +611,7 @@ TYPED_TEST(SmallVectorTest, InsertRangeAtEndTest) {
                             1, 2, 3, 77, 77, 77);
 }
 
-TYPED_TEST(SmallVectorTest, InsertEmptyRangeTest) {
+TYPED_TEST(CompactVectorTest, InsertEmptyRangeTest) {
   SCOPED_TRACE("InsertRangeTest");
 
   this->makeSequence(this->theVector, 1, 3);
@@ -623,7 +628,7 @@ TYPED_TEST(SmallVectorTest, InsertEmptyRangeTest) {
 }
 
 // Comparison tests.
-TYPED_TEST(SmallVectorTest, ComparisonTest) {
+TYPED_TEST(CompactVectorTest, ComparisonTest) {
   SCOPED_TRACE("ComparisonTest");
 
   this->makeSequence(this->theVector, 1, 3);
@@ -640,7 +645,7 @@ TYPED_TEST(SmallVectorTest, ComparisonTest) {
 }
 
 // Constant vector tests.
-TYPED_TEST(SmallVectorTest, ConstVectorTest) {
+TYPED_TEST(CompactVectorTest, ConstVectorTest) {
   const TypeParam constVector;
 
   EXPECT_EQ(0u, constVector.size());
@@ -649,7 +654,7 @@ TYPED_TEST(SmallVectorTest, ConstVectorTest) {
 }
 
 // Direct array access.
-TYPED_TEST(SmallVectorTest, DirectVectorTest) {
+TYPED_TEST(CompactVectorTest, DirectVectorTest) {
   EXPECT_EQ(0u, this->theVector.size());
   this->theVector.reserve(4);
   EXPECT_LE(4u, this->theVector.capacity());
@@ -666,37 +671,37 @@ TYPED_TEST(SmallVectorTest, DirectVectorTest) {
   EXPECT_EQ(4, this->theVector[3].getValue());
 }
 
-TYPED_TEST(SmallVectorTest, IteratorTest) {
+TYPED_TEST(CompactVectorTest, IteratorTest) {
   std::list<int> L;
   this->theVector.insert(this->theVector.end(), L.begin(), L.end());
 }
 
-template <typename InvalidType> class DualSmallVectorsTest;
+template <typename InvalidType> class DualCompactVectorsTest;
 
 template <typename VectorT1, typename VectorT2>
-class DualSmallVectorsTest<std::pair<VectorT1, VectorT2>> : public SmallVectorTestBase {
+class DualCompactVectorsTest<std::pair<VectorT1, VectorT2>> : public CompactVectorTestBase {
 protected:
   VectorT1 theVector;
   VectorT2 otherVector;
 
-  template <typename T, unsigned N>
-  static unsigned NumBuiltinElts(const SmallVector<T, N>&) { return N; }
+  template <typename T, size_t N>
+  static size_t NumBuiltinElts(const TCompactVector<T, N>&) { return N; }
 };
 
 typedef ::testing::Types<
     // Small mode -> Small mode.
-    std::pair<SmallVector<Constructable, 4>, SmallVector<Constructable, 4>>,
+    std::pair<TCompactVector<Constructable, 4>, TCompactVector<Constructable, 4>>,
     // Small mode -> Big mode.
-    std::pair<SmallVector<Constructable, 4>, SmallVector<Constructable, 2>>,
+    std::pair<TCompactVector<Constructable, 4>, TCompactVector<Constructable, 2>>,
     // Big mode -> Small mode.
-    std::pair<SmallVector<Constructable, 2>, SmallVector<Constructable, 4>>,
+    std::pair<TCompactVector<Constructable, 2>, TCompactVector<Constructable, 4>>,
     // Big mode -> Big mode.
-    std::pair<SmallVector<Constructable, 2>, SmallVector<Constructable, 2>>
-  > DualSmallVectorTestTypes;
+    std::pair<TCompactVector<Constructable, 2>, TCompactVector<Constructable, 2>>
+  > DualCompactVectorTestTypes;
 
-TYPED_TEST_SUITE(DualSmallVectorsTest, DualSmallVectorTestTypes);
+TYPED_TEST_SUITE(DualCompactVectorsTest, DualCompactVectorTestTypes);
 
-TYPED_TEST(DualSmallVectorsTest, MoveAssignment) {
+TYPED_TEST(DualCompactVectorsTest, MoveAssignment) {
   SCOPED_TRACE("MoveAssignTest-DualVectorTypes");
 
   // Set up our vector with four elements.
@@ -707,7 +712,7 @@ TYPED_TEST(DualSmallVectorsTest, MoveAssignment) {
 
   // Move-assign from the other vector.
   this->theVector =
-    std::move(static_cast<SmallVectorImpl<Constructable>&>(this->otherVector));
+    std::move(this->otherVector);
 
   // Make sure we have the right result.
   this->assertValuesInOrder(this->theVector, 4u, 0, 1, 2, 3);
@@ -737,12 +742,12 @@ struct notassignable {
   notassignable(int &x) : x(x) {}
 };
 
-TEST(SmallVectorCustomTest, NoAssignTest) {
+TEST(CompactVectorCustomTest, NoAssignTest) {
   int x = 0;
-  SmallVector<notassignable, 2> vec;
+  TCompactVector<notassignable, 2> vec;
   vec.push_back(notassignable(x));
   x = 42;
-  EXPECT_EQ(42, vec.pop_back_val().x);
+  EXPECT_EQ(42, vec.back().x);
 }
 
 struct MovedFrom {
@@ -759,8 +764,8 @@ struct MovedFrom {
   }
 };
 
-TEST(SmallVectorTest, MidInsert) {
-  SmallVector<MovedFrom, 3> v;
+TEST(CompactVectorTest, MidInsert) {
+  TCompactVector<MovedFrom, 3> v;
   v.push_back(MovedFrom());
   v.insert(v.begin(), MovedFrom());
   for (MovedFrom &m : v)
@@ -830,13 +835,13 @@ private:
   Emplaceable &operator=(const Emplaceable &) = delete;
 };
 
-TEST(SmallVectorTest, EmplaceBack) {
+TEST(CompactVectorTest, EmplaceBack) {
   EmplaceableArg<0> A0(true);
   EmplaceableArg<1> A1(true);
   EmplaceableArg<2> A2(true);
   EmplaceableArg<3> A3(true);
   {
-    SmallVector<Emplaceable, 3> V;
+    TCompactVector<Emplaceable, 3> V;
     V.emplace_back();
     EXPECT_TRUE(V.size() == 1);
     EXPECT_TRUE(V.back().State == ES_Emplaced);
@@ -846,7 +851,7 @@ TEST(SmallVectorTest, EmplaceBack) {
     EXPECT_TRUE(V.back().A3.State == EAS_Defaulted);
   }
   {
-    SmallVector<Emplaceable, 3> V;
+    TCompactVector<Emplaceable, 3> V;
     V.emplace_back(std::move(A0));
     EXPECT_TRUE(V.size() == 1);
     EXPECT_TRUE(V.back().State == ES_Emplaced);
@@ -856,7 +861,7 @@ TEST(SmallVectorTest, EmplaceBack) {
     EXPECT_TRUE(V.back().A3.State == EAS_Defaulted);
   }
   {
-    SmallVector<Emplaceable, 3> V;
+    TCompactVector<Emplaceable, 3> V;
     V.emplace_back(A0);
     EXPECT_TRUE(V.size() == 1);
     EXPECT_TRUE(V.back().State == ES_Emplaced);
@@ -866,7 +871,7 @@ TEST(SmallVectorTest, EmplaceBack) {
     EXPECT_TRUE(V.back().A3.State == EAS_Defaulted);
   }
   {
-    SmallVector<Emplaceable, 3> V;
+    TCompactVector<Emplaceable, 3> V;
     V.emplace_back(A0, A1);
     EXPECT_TRUE(V.size() == 1);
     EXPECT_TRUE(V.back().State == ES_Emplaced);
@@ -876,7 +881,7 @@ TEST(SmallVectorTest, EmplaceBack) {
     EXPECT_TRUE(V.back().A3.State == EAS_Defaulted);
   }
   {
-    SmallVector<Emplaceable, 3> V;
+    TCompactVector<Emplaceable, 3> V;
     V.emplace_back(std::move(A0), std::move(A1));
     EXPECT_TRUE(V.size() == 1);
     EXPECT_TRUE(V.back().State == ES_Emplaced);
@@ -886,7 +891,7 @@ TEST(SmallVectorTest, EmplaceBack) {
     EXPECT_TRUE(V.back().A3.State == EAS_Defaulted);
   }
   {
-    SmallVector<Emplaceable, 3> V;
+    TCompactVector<Emplaceable, 3> V;
     V.emplace_back(std::move(A0), A1, std::move(A2), A3);
     EXPECT_TRUE(V.size() == 1);
     EXPECT_TRUE(V.back().State == ES_Emplaced);
@@ -896,7 +901,7 @@ TEST(SmallVectorTest, EmplaceBack) {
     EXPECT_TRUE(V.back().A3.State == EAS_LValue);
   }
   {
-    SmallVector<int, 1> V;
+    TCompactVector<int, 1> V;
     V.emplace_back();
     V.emplace_back(42);
     EXPECT_EQ(2U, V.size());
@@ -905,11 +910,86 @@ TEST(SmallVectorTest, EmplaceBack) {
   }
 }
 
-template <class T, unsigned N>
+TEST(CompactVectorTest, Emplace) {
+  EmplaceableArg<0> A0(true);
+  EmplaceableArg<1> A1(true);
+  EmplaceableArg<2> A2(true);
+  EmplaceableArg<3> A3(true);
+  {
+    TCompactVector<Emplaceable, 3> V;
+    V.emplace(V.end());
+    EXPECT_TRUE(V.size() == 1);
+    EXPECT_TRUE(V.back().State == ES_Emplaced);
+    EXPECT_TRUE(V.back().A0.State == EAS_Defaulted);
+    EXPECT_TRUE(V.back().A1.State == EAS_Defaulted);
+    EXPECT_TRUE(V.back().A2.State == EAS_Defaulted);
+    EXPECT_TRUE(V.back().A3.State == EAS_Defaulted);
+  }
+  {
+    TCompactVector<Emplaceable, 3> V;
+    V.emplace(V.end(), std::move(A0));
+    EXPECT_TRUE(V.size() == 1);
+    EXPECT_TRUE(V.back().State == ES_Emplaced);
+    EXPECT_TRUE(V.back().A0.State == EAS_RValue);
+    EXPECT_TRUE(V.back().A1.State == EAS_Defaulted);
+    EXPECT_TRUE(V.back().A2.State == EAS_Defaulted);
+    EXPECT_TRUE(V.back().A3.State == EAS_Defaulted);
+  }
+  {
+    TCompactVector<Emplaceable, 3> V;
+    V.emplace(V.end(), A0);
+    EXPECT_TRUE(V.size() == 1);
+    EXPECT_TRUE(V.back().State == ES_Emplaced);
+    EXPECT_TRUE(V.back().A0.State == EAS_LValue);
+    EXPECT_TRUE(V.back().A1.State == EAS_Defaulted);
+    EXPECT_TRUE(V.back().A2.State == EAS_Defaulted);
+    EXPECT_TRUE(V.back().A3.State == EAS_Defaulted);
+  }
+  {
+    TCompactVector<Emplaceable, 3> V;
+    V.emplace(V.end(), A0, A1);
+    EXPECT_TRUE(V.size() == 1);
+    EXPECT_TRUE(V.back().State == ES_Emplaced);
+    EXPECT_TRUE(V.back().A0.State == EAS_LValue);
+    EXPECT_TRUE(V.back().A1.State == EAS_LValue);
+    EXPECT_TRUE(V.back().A2.State == EAS_Defaulted);
+    EXPECT_TRUE(V.back().A3.State == EAS_Defaulted);
+  }
+  {
+    TCompactVector<Emplaceable, 3> V;
+    V.emplace(V.end(), std::move(A0), std::move(A1));
+    EXPECT_TRUE(V.size() == 1);
+    EXPECT_TRUE(V.back().State == ES_Emplaced);
+    EXPECT_TRUE(V.back().A0.State == EAS_RValue);
+    EXPECT_TRUE(V.back().A1.State == EAS_RValue);
+    EXPECT_TRUE(V.back().A2.State == EAS_Defaulted);
+    EXPECT_TRUE(V.back().A3.State == EAS_Defaulted);
+  }
+  {
+    TCompactVector<Emplaceable, 3> V;
+    V.emplace(V.end(), std::move(A0), A1, std::move(A2), A3);
+    EXPECT_TRUE(V.size() == 1);
+    EXPECT_TRUE(V.back().State == ES_Emplaced);
+    EXPECT_TRUE(V.back().A0.State == EAS_RValue);
+    EXPECT_TRUE(V.back().A1.State == EAS_LValue);
+    EXPECT_TRUE(V.back().A2.State == EAS_RValue);
+    EXPECT_TRUE(V.back().A3.State == EAS_LValue);
+  }
+  {
+    TCompactVector<int, 1> V;
+    V.emplace_back(42);
+    V.emplace(V.begin(), 0);
+    EXPECT_EQ(2U, V.size());
+    EXPECT_EQ(0, V[0]);
+    EXPECT_EQ(42, V[1]);
+  }
+}
+
+template <class T, size_t N>
 class TStubArray
 {
 public:
-    TStubArray(const SmallVector<T, N>& vector)
+    TStubArray(const TCompactVector<T, N>& vector)
         : Vector_(vector)
     { }
 
@@ -918,28 +998,28 @@ public:
         return std::equal(Vector_.begin(), Vector_.end(), list.begin());
     }
 
-    SmallVector<T, N> Vector_;
+    TCompactVector<T, N> Vector_;
 };
 
-template <typename T, unsigned N>
-TStubArray<T, N> makeArrayRef(const SmallVector<T, N>& vector)
+template <typename T, size_t N>
+TStubArray<T, N> makeArrayRef(const TCompactVector<T, N>& vector)
 {
     return TStubArray<T, N>(vector);
 }
 
-TEST(SmallVectorTest, InitializerList) {
-  SmallVector<int, 2> V1 = {};
+TEST(CompactVectorTest, InitializerList) {
+  TCompactVector<int, 2> V1 = {};
   EXPECT_TRUE(V1.empty());
   V1 = {0, 0};
   EXPECT_TRUE(makeArrayRef(V1).equals({0, 0}));
   V1 = {-1, -1};
   EXPECT_TRUE(makeArrayRef(V1).equals({-1, -1}));
 
-  SmallVector<int, 2> V2 = {1, 2, 3, 4};
+  TCompactVector<int, 2> V2 = {1, 2, 3, 4};
   EXPECT_TRUE(makeArrayRef(V2).equals({1, 2, 3, 4}));
   V2.assign({4});
   EXPECT_TRUE(makeArrayRef(V2).equals({4}));
-  V2.append({3, 2});
+  V2.insert(V2.end(), {3, 2});
   EXPECT_TRUE(makeArrayRef(V2).equals({4, 3, 2}));
   V2.insert(V2.begin() + 1, 5);
   EXPECT_TRUE(makeArrayRef(V2).equals({4, 5, 3, 2}));
