@@ -138,7 +138,7 @@ bool TLegacyDataSlice::IsEmpty() const
 bool TLegacyDataSlice::HasLimits() const
 {
     if (IsLegacy) {
-        return !LegacyLowerLimit_.Key && !LegacyLowerLimit_.RowIndex && !LegacyUpperLimit_.Key && !LegacyUpperLimit_.RowIndex;
+        return LegacyLowerLimit_.Key || LegacyLowerLimit_.RowIndex || LegacyUpperLimit_.Key || LegacyUpperLimit_.RowIndex;
     } else {
         return !LowerLimit_.IsTrivial() || !UpperLimit_.IsTrivial();
     }
