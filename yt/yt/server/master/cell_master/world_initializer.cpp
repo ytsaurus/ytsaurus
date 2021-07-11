@@ -602,6 +602,11 @@ private:
                 transactionId,
                 EObjectType::MapNode);
 
+            ScheduleCreateNode(
+                "//sys/scheduler/pool_trees_lock",
+                transactionId,
+                EObjectType::MapNode);
+
             std::vector<TYPath> orchidAddresses;
 
             auto createOrchidNode = [&] (const TYPath& addressPath, const TString& address) {

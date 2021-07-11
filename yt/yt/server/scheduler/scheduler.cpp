@@ -57,6 +57,8 @@
 
 #include <yt/yt/ytlib/security_client/helpers.h>
 
+#include <yt/yt/ytlib/transaction_client/helpers.h>
+
 #include <yt/yt/core/actions/cancelable_context.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -110,6 +112,7 @@ using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NSecurityClient;
 using namespace NEventLog;
+using namespace NTransactionClient;
 
 using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::TNodeDescriptor;
@@ -209,10 +212,17 @@ public:
             BIND(&TImpl::HandleConfig, Unretained(this)),
             ESchedulerAlertType::UpdateConfig);
 
-        MasterConnector_->AddCommonWatcher(
+        MasterConnector_->SetCustomWatcher(
+            EWatcherType::PoolTrees,
             BIND(&TImpl::RequestPoolTrees, Unretained(this)),
             BIND(&TImpl::HandlePoolTrees, Unretained(this)),
-            ESchedulerAlertType::UpdatePools);
+            Config_->WatchersUpdatePeriod,
+            ESchedulerAlertType::UpdatePools,
+            TWatcherLockOptions{
+                .LockPath = GetPoolTreesLockPath(),
+                .CheckBackoff = Config_->PoolTreesLockCheckBackoff,
+                .WaitTimeout = Config_->PoolTreesLockTransactionTimeout
+            });
 
         MasterConnector_->SetCustomWatcher(
             EWatcherType::NodeAttributes,
@@ -2277,7 +2287,6 @@ private:
         }
     }
 
-
     void RequestPoolTrees(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
         static const TPoolTreeKeysHolder PoolTreeKeysHolder;
@@ -2285,6 +2294,7 @@ private:
         YT_LOG_INFO("Requesting pool trees");
 
         auto req = TYPathProxy::Get(Config_->PoolTreesRoot);
+
         ToProto(req->mutable_attributes()->mutable_keys(), PoolTreeKeysHolder.Keys);
         batchReq->AddRequest(req, "get_pool_trees");
 

@@ -53,6 +53,11 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TYPath GetPoolTreesLockPath()
+{
+    return "//sys/scheduler/pool_trees_lock";
+}
+
 TYPath GetOperationsPath()
 {
     return "//sys/operations";
