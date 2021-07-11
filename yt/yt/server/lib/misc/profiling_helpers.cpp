@@ -32,7 +32,7 @@ std::optional<TString> GetProfilingUser(const NRpc::TAuthenticationIdentity& ide
     if (&identity == &NRpc::GetRootAuthenticationIdentity()) {
         return {};
     }
-    return identity.User;
+    return identity.UserTag;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
