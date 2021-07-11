@@ -26,6 +26,13 @@ struct TMasterHandshakeResult
 using TWatcherRequester = TCallback<void(NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr)>;
 using TWatcherHandler = TCallback<void(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr)>;
 
+struct TWatcherLockOptions
+{
+    TString LockPath;
+    TDuration CheckBackoff;
+    TDuration WaitTimeout;
+};
+
 DEFINE_ENUM(EMasterConnectorState,
     (Disconnected)
     (Connecting)
@@ -34,6 +41,7 @@ DEFINE_ENUM(EMasterConnectorState,
 
 DEFINE_ENUM(EWatcherType,
     (NodeAttributes)
+    (PoolTrees)
 );
 
 //! Mediates communication between scheduler and master.
@@ -100,7 +108,8 @@ public:
         TWatcherRequester requester,
         TWatcherHandler handler,
         TDuration period,
-        std::optional<ESchedulerAlertType> alertType = std::nullopt);
+        std::optional<ESchedulerAlertType> alertType = std::nullopt,
+        std::optional<TWatcherLockOptions> lockOptions = std::nullopt);
 
     void UpdateConfig(const TSchedulerConfigPtr& config);
 

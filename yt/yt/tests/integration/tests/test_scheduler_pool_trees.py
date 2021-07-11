@@ -9,7 +9,7 @@ from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
     create, ls,
     get, set, remove, exists, create_pool, create_pool_tree, remove_pool_tree, write_table, map,
-    map_reduce, run_test_vanilla, run_sleeping_vanilla, abort_job, list_jobs,
+    map_reduce, run_test_vanilla, run_sleeping_vanilla, abort_job, list_jobs, start_transaction, lock,
     sync_create_cells, update_controller_agent_config, update_op_parameters, create_test_tables)
 
 from yt_scheduler_helpers import (
@@ -664,6 +664,25 @@ class TestConfigurablePoolTreeRoot(YTEnvSetup):
         wait(lambda: get(pools_path + "/pool/parent") == "parent")
         wait(lambda: get(pools_path + "/pool/max_operation_count") == 10)
 
+
+@authors("renadeen")
+class TestPoolTreesUpdateUnderLock(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 0
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 1000,  # Update pools configuration period
+            "pool_trees_lock_transaction_timeout": 1000
+        }
+    }
+
+    def test_scheduler_updates_pool_config_with_lock(self):
+        tx = start_transaction(timeout=60000)
+        lock("//sys/scheduler/pool_trees_lock", mode="exclusive", tx=tx)
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
+        assert get("//sys/scheduler/@alerts")[0]["attributes"]["alert_type"] == "update_pools"
 
 ##################################################################
 

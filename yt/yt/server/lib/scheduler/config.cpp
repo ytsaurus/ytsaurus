@@ -601,6 +601,11 @@ TSchedulerConfig::TSchedulerConfig()
     // NB: This setting is NOT synchronized with the Cypress while scheduler is connected to master.
     RegisterParameter("lock_transaction_timeout", LockTransactionTimeout)
         .Default(TDuration::Seconds(30));
+    RegisterParameter("pool_trees_lock_transaction_timeout", PoolTreesLockTransactionTimeout)
+        .Default(TDuration::Seconds(30));
+    RegisterParameter("pool_trees_lock_check_backoff", PoolTreesLockCheckBackoff)
+        .Default(TDuration::MilliSeconds(500));
+
     RegisterParameter("job_prober_rpc_timeout", JobProberRpcTimeout)
         .Default(TDuration::Seconds(300));
 

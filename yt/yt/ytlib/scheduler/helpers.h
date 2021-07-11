@@ -20,6 +20,7 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NYPath::TYPath GetPoolTreesLockPath();
 NYPath::TYPath GetOperationsPath();
 NYPath::TYPath GetOperationPath(TOperationId operationId);
 NYPath::TYPath GetJobsPath(TOperationId operationId);

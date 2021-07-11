@@ -11,18 +11,14 @@
 #include <yt/yt/server/lib/scheduler/experiments.h>
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
+#include <yt/yt/server/lib/transaction_server/helpers.h>
+
 #include <yt/yt/server/lib/misc/update_executor.h>
 
-#include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
-#include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
-
-#include <yt/yt/ytlib/file_client/file_ypath_proxy.h>
-
-#include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
@@ -65,6 +61,7 @@ using namespace NRpc;
 using namespace NApi;
 using namespace NSecurityClient;
 using namespace NConcurrency;
+using namespace NTransactionServer;
 
 using NNodeTrackerClient::TAddressMap;
 using NNodeTrackerClient::GetDefaultAddress;
@@ -467,11 +464,21 @@ public:
         TWatcherRequester requester,
         TWatcherHandler handler,
         TDuration period,
-        std::optional<ESchedulerAlertType> alertType)
+        std::optional<ESchedulerAlertType> alertType,
+        std::optional<TWatcherLockOptions> lockOptions)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        CustomWatcherRecords_[type] = TCustomWatcherRecord{{std::move(requester), std::move(handler), alertType}, type, period};
+        CustomWatcherRecords_[type] = TCustomWatcherRecord{
+            TWatcherRecord{
+                .Requester = std::move(requester),
+                .Handler = std::move(handler),
+                .AlertType = alertType,
+            },
+            .WatcherType = type,
+            .Period = period,
+            .LockOptions = lockOptions
+        };
     }
 
     void UpdateConfig(const TSchedulerConfigPtr& config)
@@ -500,6 +507,8 @@ public:
         if (CustomWatcherExecutors_[EWatcherType::NodeAttributes]) {
             CustomWatcherExecutors_[EWatcherType::NodeAttributes]->SetPeriod(Config_->NodesAttributesUpdatePeriod);
             CustomWatcherRecords_[EWatcherType::NodeAttributes].Period = Config_->NodesAttributesUpdatePeriod;
+            CustomWatcherExecutors_[EWatcherType::PoolTrees]->SetPeriod(Config_->WatchersUpdatePeriod);
+            CustomWatcherRecords_[EWatcherType::PoolTrees].Period = Config_->WatchersUpdatePeriod;
         }
 
         ScheduleTestingDisconnect();
@@ -537,6 +546,7 @@ private:
     {
         EWatcherType WatcherType;
         TDuration Period;
+        std::optional<TWatcherLockOptions> LockOptions;
     };
 
     std::vector<TWatcherRecord> CommonWatcherRecords_;
@@ -631,7 +641,7 @@ private:
         for (const auto& record : CustomWatcherRecords_) {
             auto executor = New<TPeriodicExecutor>(
                 GetCancelableControlInvoker(EControlQueue::CommonPeriodicActivity),
-                BIND(&TImpl::ExecuteCustomWatcherUpdate, MakeWeak(this), record),
+                BIND(&TImpl::ExecuteCustomWatcherUpdate, MakeWeak(this), record, /* strictMode */ false),
                 record.Period);
             CustomWatcherExecutors_[record.WatcherType] = executor;
         }
@@ -1180,29 +1190,30 @@ private:
 
         void StrictUpdateWatchers()
         {
-            YT_LOG_INFO("Request watcher updates");
+            YT_LOG_INFO("Request common watcher updates");
             auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
             for (const auto& watcher : Owner_->CommonWatcherRecords_) {
-                watcher.Requester.Run(batchReq);
-            }
-            for (const auto& watcher : Owner_->CustomWatcherRecords_) {
                 watcher.Requester.Run(batchReq);
             }
 
             auto watcherResponses = WaitFor(batchReq->Invoke())
                 .ValueOrThrow();
 
-            YT_LOG_INFO("Handling watcher update results");
+            YT_LOG_INFO("Handling common watcher update results");
 
             for (const auto& watcher : Owner_->CommonWatcherRecords_) {
                 Owner_->RunWatcherHandler(watcher, watcherResponses, /* strictMode */ true);
             }
 
+            YT_LOG_INFO("Common watchers update results handled");
+
             for (const auto& watcher : Owner_->CustomWatcherRecords_) {
-                Owner_->RunWatcherHandler(watcher, watcherResponses, /* strictMode */ true);
+                YT_LOG_INFO("Updating custom watcher %Qv", watcher.WatcherType);
+                Owner_->ExecuteCustomWatcherUpdate(watcher, /* strictMode */ true);
+                YT_LOG_INFO("Custom watcher %Qv updated", watcher.WatcherType);
             }
 
-            YT_LOG_INFO("Watchers update results handled");
+            Owner_->SetSchedulerAlert(ESchedulerAlertType::SchedulerCannotConnect, TError());
         }
 
         void FireHandshake()
@@ -1730,18 +1741,69 @@ private:
             operationId);
     }
 
-    void ExecuteCustomWatcherUpdate(const TWatcherRecord& watcher)
+    ITransactionPtr StartWatcherLockTransaction(const TCustomWatcherRecord& watcher)
+    {
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("title", Format("Scheduler watcher %Qv lock at %v", watcher.WatcherType, GetDefaultAddress(Bootstrap_->GetLocalAddresses())));
+        TTransactionStartOptions options{
+            .Timeout = watcher.LockOptions->WaitTimeout,
+            .AutoAbort = true,
+            .Ping = false,
+            .Attributes = std::move(attributes),
+        };
+
+        auto transactionOrError = WaitFor(LockTransaction_->StartTransaction(ETransactionType::Master, options));
+
+        if (!transactionOrError.IsOK()) {
+            THROW_ERROR (transactionOrError.Wrap("Failed to start lock transaction for watcher %Qv", watcher.WatcherType));
+        }
+        YT_LOG_INFO("Watcher %Qv lock transaction is %v", watcher.WatcherType, transactionOrError.Value()->GetId());
+
+        return transactionOrError.Value();
+    }
+
+    void ExecuteCustomWatcherUpdate(const TCustomWatcherRecord& watcher, bool strictMode)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
+
+        ITransactionPtr watcherLockTransaction;
+        if (watcher.LockOptions) {
+            try {
+                watcherLockTransaction = StartWatcherLockTransaction(watcher);
+                LockNodeWithWait(
+                    Bootstrap_->GetMasterClient(),
+                    watcherLockTransaction,
+                    watcher.LockOptions->LockPath,
+                    watcher.LockOptions->CheckBackoff,
+                    watcher.LockOptions->WaitTimeout);
+            } catch (const TErrorException& ex) {
+                HandleWatcherError(ex.Error(), strictMode, watcher.AlertType);
+                return;
+            }
+
+            YT_LOG_INFO("Lock for watcher %v acquired", FormatEnum(watcher.WatcherType));
+
+            TPrerequisiteOptions prerequisiteOptions;
+            prerequisiteOptions.PrerequisiteTransactionIds.push_back(watcherLockTransaction->GetId());
+            SetPrerequisites(batchReq, prerequisiteOptions);
+        }
+
         watcher.Requester.Run(batchReq);
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         if (!batchRspOrError.IsOK()) {
-            YT_LOG_WARNING(batchRspOrError, "Error updating custom watcher");
+            HandleWatcherError(
+                batchRspOrError.Wrap("Watcher %Qv batch request failed", watcher.WatcherType),
+                strictMode,
+                watcher.AlertType);
             return;
         }
-        RunWatcherHandler(watcher, batchRspOrError.Value(), /* strictMode */ false);
+        if (watcherLockTransaction) {
+            watcherLockTransaction->Abort();
+        }
+
+        RunWatcherHandler(watcher, batchRspOrError.Value(), strictMode);
     }
 
     void UpdateWatchers()
@@ -1780,27 +1842,31 @@ private:
 
     void RunWatcherHandler(const TWatcherRecord& watcher, TObjectServiceProxy::TRspExecuteBatchPtr responses, bool strictMode)
     {
-        std::optional<ESchedulerAlertType> alertType = strictMode
-            ? ESchedulerAlertType::SchedulerCannotConnect
-            : watcher.AlertType;
         try {
             watcher.Handler.Run(responses);
-            if (alertType) {
-                SetSchedulerAlert(*alertType, TError());
+            if (watcher.AlertType) {
+                SetSchedulerAlert(*watcher.AlertType, TError());
             }
-        } catch (TErrorException& ex) {
+        } catch (const TErrorException& ex) {
             if (ex.Error().GetCode() != EErrorCode::WatcherHandlerFailed) {
                 throw;
             }
-            if (alertType) {
-                SetSchedulerAlert(*alertType, ex.Error());
-            }
-            if (strictMode) {
-                UpdateAlerts();
-                throw;
-            }
-            YT_LOG_WARNING(ex.Error());
+            HandleWatcherError(ex.Error(), strictMode, watcher.AlertType);
         }
+    }
+
+    void HandleWatcherError(const TError& error, bool strictMode, std::optional<ESchedulerAlertType> alertType)
+    {
+        if (strictMode) {
+            SetSchedulerAlert(ESchedulerAlertType::SchedulerCannotConnect, error);
+            UpdateAlerts();
+            THROW_ERROR(error);
+        }
+
+        if (alertType) {
+            SetSchedulerAlert(*alertType, error);
+        }
+        YT_LOG_WARNING(error);
     }
 
     void UpdateAlerts()
@@ -1982,9 +2048,10 @@ void TMasterConnector::SetCustomWatcher(
     TWatcherRequester requester,
     TWatcherHandler handler,
     TDuration period,
-    std::optional<ESchedulerAlertType> alertType)
+    std::optional<ESchedulerAlertType> alertType,
+    std::optional<TWatcherLockOptions> lockOptions)
 {
-    Impl_->SetCustomWatcher(type, std::move(requester), std::move(handler), period, alertType);
+    Impl_->SetCustomWatcher(type, std::move(requester), std::move(handler), period, alertType, lockOptions);
 }
 
 DELEGATE_SIGNAL(TMasterConnector, void(), MasterConnecting, *Impl_);

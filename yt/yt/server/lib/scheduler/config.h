@@ -572,6 +572,10 @@ public:
 
     TDuration LockTransactionTimeout;
 
+    TDuration PoolTreesLockTransactionTimeout;
+
+    TDuration PoolTreesLockCheckBackoff;
+
     TDuration JobProberRpcTimeout;
 
     TDuration ClusterInfoLoggingPeriod;
