@@ -45,7 +45,8 @@ public:
     TServiceProfilerGuard();
     ~TServiceProfilerGuard();
 
-    TServiceProfilerGuard(const TServiceProfilerGuard& ) = delete;
+    TServiceProfilerGuard(const TServiceProfilerGuard&) = delete;
+    TServiceProfilerGuard(TServiceProfilerGuard&&) = default;
 
     void Start(const TMethodCounters& counters);
 

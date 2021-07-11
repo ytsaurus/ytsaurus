@@ -549,8 +549,6 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Multiread)
     {
-        TServiceProfilerGuard profilerGuard;
-
         auto requestCodecId = CheckedEnumCast<NCompression::ECodec>(request->request_codec());
         auto responseCodecId = CheckedEnumCast<NCompression::ECodec>(request->response_codec());
         auto timestamp = FromProto<TTimestamp>(request->timestamp());
@@ -609,19 +607,46 @@ private:
 
         bool useLookupCache = request->use_lookup_cache();
 
-        std::vector<TCallback<TFuture<TSharedRef>()>> subrequestCallbacks;
+        auto addResult = [] (auto* request, auto* response, const TErrorOr<TSharedRef>& result) {
+            if (request->enable_partial_result() && !result.IsOK()) {
+                response->Attachments().emplace_back();
+                return;
+            }
+            response->Attachments().push_back(result.ValueOrThrow());
+        };
+
+        struct TSession final
+        {
+            struct TSubrequest
+            {
+                TServiceProfilerGuard ProfilerGuard;
+                NTabletNode::TTabletSnapshotPtr TabletSnapshot;
+                std::function<TSharedRef()> Callback;
+            };
+
+            SmallVector<TSubrequest, 16> Subrequests;
+        };
+
+        auto session = New<TSession>();
+        session->Subrequests.resize(subrequestCount);
+
+        auto identity = NRpc::GetCurrentAuthenticationIdentity();
+        auto currentProfilingUser = GetProfilingUser(identity);
+
         for (int index = 0; index < subrequestCount; ++index) {
             auto tabletId = FromProto<TTabletId>(request->tablet_ids(index));
             auto cellId = index < request->cell_ids_size() ? FromProto<TCellId>(request->cell_ids(index)) : TCellId();
             auto mountRevision = request->mount_revisions(index);
             auto attachment = request->Attachments()[index];
+            auto& subrequest = session->Subrequests[index];
 
-            if (auto tabletSnapshot = snapshotStore->FindTabletSnapshot(tabletId, mountRevision)) {
-                auto counters = tabletSnapshot->TableProfiler->GetQueryServiceCounters(GetCurrentProfilingUser());
-                profilerGuard.Start(counters->Multiread);
+            subrequest.TabletSnapshot = snapshotStore->FindTabletSnapshot(tabletId, mountRevision);
+            if (subrequest.TabletSnapshot) {
+                auto counters = subrequest.TabletSnapshot->TableProfiler->GetQueryServiceCounters(currentProfilingUser);
+                subrequest.ProfilerGuard.Start(counters->Multiread);
             }
 
-            auto callback = BIND([=, identity = NRpc::GetCurrentAuthenticationIdentity()] {
+            subrequest.Callback = [=] {
                 try {
                     return ExecuteRequestWithRetries<TSharedRef>(
                         Config_->MaxQueryRetries,
@@ -657,24 +682,43 @@ private:
 
                     throw;
                 }
-            }).AsyncVia(Bootstrap_->GetTabletLookupPoolInvoker());
-
-            subrequestCallbacks.push_back(callback);
+            };
         }
 
-        auto results = WaitFor(RunWithBoundedConcurrency(subrequestCallbacks, Config_->MaxSubqueries))
-            .ValueOrThrow();
-
-        for (const auto& result : results) {
-            if (request->enable_partial_result() && !result.IsOK()) {
-                response->Attachments().emplace_back();
-                continue;
+        // Fast path for single subrequest.
+        if (subrequestCount == 1) {
+            TErrorOr<TSharedRef> result;
+            try {
+                result = session->Subrequests[0].Callback();
+            } catch (const std::exception& ex) {
+                result = TError(ex);
             }
-
-            response->Attachments().push_back(result.ValueOrThrow());
+            addResult(request, response, result);
+            context->Reply();
+            return;
         }
 
-        context->Reply();
+        std::vector<TCallback<TFuture<TSharedRef>()>> subrequestCallbacks;
+        for (int index = 0; index < subrequestCount; ++index) {
+            const auto& subrequest = session->Subrequests[index];
+            subrequestCallbacks.push_back(
+                BIND(std::move(subrequest.Callback))
+                    .AsyncVia(Bootstrap_->GetTabletLookupPoolInvoker()));
+        }
+
+        RunWithBoundedConcurrency(std::move(subrequestCallbacks), Config_->MaxSubqueries)
+            .Subscribe(
+                BIND([=, session = std::move(session)] (const TErrorOr<std::vector<TErrorOr<TSharedRef>>>& resultsOrError) {
+                    try {
+                        const auto& results = resultsOrError.ValueOrThrow();
+                        for (const auto& result : results) {
+                            addResult(request, response, result);
+                        }
+                        context->Reply();
+                    } catch (const std::exception& ex) {
+                        context->Reply(ex);
+                    }
+                }));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, GetTabletInfo)
