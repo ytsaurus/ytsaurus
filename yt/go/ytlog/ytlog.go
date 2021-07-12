@@ -38,12 +38,28 @@ var defaultRotationOptions = selfrotate.Options{
 	RotateInterval: selfrotate.RotateHourly,
 }
 
-// NewSelfrotate returns logger configured with YT defaults.
-func NewSelfrotate(logPath string) (l *logzap.Logger, stop func(), err error) {
-	options := defaultRotationOptions
-	options.Name = logPath
+type (
+	logLevel struct {
+		level zapcore.Level
+	}
 
-	w, err := selfrotate.New(options)
+	Option interface {
+		isOption()
+	}
+)
+
+func (logLevel) isOption() {}
+
+func WithLogLevel(level zapcore.Level) Option {
+	return logLevel{level: level}
+}
+
+// NewSelfrotate returns logger configured with YT defaults.
+func NewSelfrotate(logPath string, options ...Option) (l *logzap.Logger, stop func(), err error) {
+	rotateOptions := defaultRotationOptions
+	rotateOptions.Name = logPath
+
+	w, err := selfrotate.New(rotateOptions)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -51,7 +67,15 @@ func NewSelfrotate(logPath string) (l *logzap.Logger, stop func(), err error) {
 	encoder := zap.NewProductionEncoderConfig()
 	encoder.EncodeTime = zapcore.ISO8601TimeEncoder
 
-	core := asynczap.NewCore(zapcore.NewJSONEncoder(encoder), w, zap.DebugLevel, asynczap.Options{})
+	level := zap.DebugLevel
+	for _, opt := range options {
+		switch v := opt.(type) {
+		case logLevel:
+			level = v.level
+		}
+	}
+
+	core := asynczap.NewCore(zapcore.NewJSONEncoder(encoder), w, level, asynczap.Options{})
 
 	stop = func() {
 		core.Stop()
