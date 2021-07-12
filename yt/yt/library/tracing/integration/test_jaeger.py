@@ -16,7 +16,7 @@ def jaeger_server():
         query_port = pm.get_port()
 
         cmd = [
-            yatest.common.binary_path("vendor/github.com/jaegertracing/jaeger/cmd/all-in-one/all-in-one"),
+            yatest.common.binary_path("yt/jaeger/bundle/jaeger-all-in-one"),
             "--collector.grpc-server.host-port", f"127.0.0.1:{collector_port}",
             "--query.http-server.host-port", f"127.0.0.1:{query_port}",
             "--admin.http.host-port", "127.0.0.1:0",
