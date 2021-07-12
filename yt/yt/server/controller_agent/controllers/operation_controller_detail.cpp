@@ -602,10 +602,9 @@ const IChunkPoolInputPtr& TOperationControllerBase::GetSink()
     return Sink_;
 }
 
-void TOperationControllerBase::ValidateIntermediateDataAccountPermission(EPermission permission) const
+void TOperationControllerBase::ValidateAccountPermission(const TString& account, EPermission permission) const
 {
     auto user = AuthenticatedUser;
-    auto account = Spec_->IntermediateDataAccount;
 
     const auto& client = Host->GetClient();
     auto asyncResult = client->CheckPermission(
@@ -1674,7 +1673,7 @@ std::vector<TStreamDescriptor> TOperationControllerBase::GetAutoMergeStreamDescr
 
     std::optional<TString> intermediateDataAccount;
     if (Spec_->AutoMerge->UseIntermediateDataAccount) {
-        ValidateIntermediateDataAccountPermission(EPermission::Use);
+        ValidateAccountPermission(Spec_->IntermediateDataAccount, EPermission::Use);
         intermediateDataAccount = Spec_->IntermediateDataAccount;
     }
 
@@ -8247,78 +8246,76 @@ i64 TOperationControllerBase::GetDataSliceCount() const
 
 void TOperationControllerBase::InitUserJobSpecTemplate(
     NScheduler::NProto::TUserJobSpec* jobSpec,
-    const TUserJobSpecPtr& config,
+    const TUserJobSpecPtr& jobSpecConfig,
     const std::vector<TUserFile>& files,
     const TString& fileAccount)
 {
     const auto& userJobOptions = Options->UserJobOptions;
 
-    jobSpec->set_shell_command(config->Command);
-    if (config->JobTimeLimit) {
-        jobSpec->set_job_time_limit(ToProto<i64>(*config->JobTimeLimit));
+    jobSpec->set_shell_command(jobSpecConfig->Command);
+    if (jobSpecConfig->JobTimeLimit) {
+        jobSpec->set_job_time_limit(ToProto<i64>(*jobSpecConfig->JobTimeLimit));
     }
-    jobSpec->set_prepare_time_limit(ToProto<i64>(config->PrepareTimeLimit));
-    jobSpec->set_memory_limit(config->MemoryLimit);
-    jobSpec->set_include_memory_mapped_files(config->IncludeMemoryMappedFiles);
-    jobSpec->set_use_yamr_descriptors(config->UseYamrDescriptors);
-    jobSpec->set_check_input_fully_consumed(config->CheckInputFullyConsumed);
-    jobSpec->set_max_stderr_size(config->MaxStderrSize);
+    jobSpec->set_prepare_time_limit(ToProto<i64>(jobSpecConfig->PrepareTimeLimit));
+    jobSpec->set_memory_limit(jobSpecConfig->MemoryLimit);
+    jobSpec->set_include_memory_mapped_files(jobSpecConfig->IncludeMemoryMappedFiles);
+    jobSpec->set_use_yamr_descriptors(jobSpecConfig->UseYamrDescriptors);
+    jobSpec->set_check_input_fully_consumed(jobSpecConfig->CheckInputFullyConsumed);
+    jobSpec->set_max_stderr_size(jobSpecConfig->MaxStderrSize);
     if (Spec_->ProfilingProbability) {
         jobSpec->set_profiling_probability(*Spec_->ProfilingProbability);
     }
-    jobSpec->set_custom_statistics_count_limit(config->CustomStatisticsCountLimit);
-    jobSpec->set_copy_files(config->CopyFiles);
+    jobSpec->set_custom_statistics_count_limit(jobSpecConfig->CustomStatisticsCountLimit);
+    jobSpec->set_copy_files(jobSpecConfig->CopyFiles);
     jobSpec->set_file_account(fileAccount);
-    jobSpec->set_set_container_cpu_limit(config->SetContainerCpuLimit || Options->SetContainerCpuLimit);
+    jobSpec->set_set_container_cpu_limit(jobSpecConfig->SetContainerCpuLimit || Options->SetContainerCpuLimit);
 
     // This is common policy for all operations of given type.
     if (Options->SetContainerCpuLimit) {
-        jobSpec->set_container_cpu_limit(Options->CpuLimitOvercommitMultiplier * config->CpuLimit + Options->InitialCpuLimitOvercommit);
+        jobSpec->set_container_cpu_limit(Options->CpuLimitOvercommitMultiplier * jobSpecConfig->CpuLimit + Options->InitialCpuLimitOvercommit);
     }
 
     // This is common policy for all operations of given type.
-    i64 threadLimit = ceil(userJobOptions->InitialThreadLimit + userJobOptions->ThreadLimitMultiplier * config->CpuLimit);
+    i64 threadLimit = ceil(userJobOptions->InitialThreadLimit + userJobOptions->ThreadLimitMultiplier * jobSpecConfig->CpuLimit);
     jobSpec->set_thread_limit(threadLimit);
 
     // Option in task spec overrides value in operation options.
-    if (config->SetContainerCpuLimit) {
-        jobSpec->set_container_cpu_limit(config->CpuLimit);
+    if (jobSpecConfig->SetContainerCpuLimit) {
+        jobSpec->set_container_cpu_limit(jobSpecConfig->CpuLimit);
     }
 
-    jobSpec->set_force_core_dump(config->ForceCoreDump);
+    jobSpec->set_force_core_dump(jobSpecConfig->ForceCoreDump);
 
-    jobSpec->set_port_count(config->PortCount);
-    jobSpec->set_use_porto_memory_tracking(config->UsePortoMemoryTracking);
+    jobSpec->set_port_count(jobSpecConfig->PortCount);
+    jobSpec->set_use_porto_memory_tracking(jobSpecConfig->UsePortoMemoryTracking);
 
     if (Config->EnableTmpfs) {
-        for (const auto& volume : config->TmpfsVolumes) {
+        for (const auto& volume : jobSpecConfig->TmpfsVolumes) {
             ToProto(jobSpec->add_tmpfs_volumes(), *volume);
         }
     }
 
-    if (config->DiskRequest) {
+    if (auto& diskRequest = jobSpecConfig->DiskRequest) {
         auto mediumDirectory = GetMediumDirectory();
-        if (config->DiskRequest->MediumName) {
-            auto* mediumDescriptor = mediumDirectory->FindByName(*config->DiskRequest->MediumName);
+        if (diskRequest->MediumName) {
+            auto* mediumDescriptor = mediumDirectory->FindByName(*diskRequest->MediumName);
             if (!mediumDescriptor) {
-                THROW_ERROR_EXCEPTION("Unknown medium %Qv", *config->DiskRequest->MediumName);
+                THROW_ERROR_EXCEPTION("Unknown medium %Qv", *diskRequest->MediumName);
             }
-            config->DiskRequest->MediumIndex = mediumDescriptor->Index;
+            diskRequest->MediumIndex = mediumDescriptor->Index;
         }
 
-        ToProto(jobSpec->mutable_disk_request(), *config->DiskRequest);
+        ToProto(jobSpec->mutable_disk_request(), *diskRequest);
 
-        // COMPAT(ignat): remove after nodes update.
-        jobSpec->set_disk_space_limit(config->DiskRequest->DiskSpace);
-        if (config->DiskRequest->InodeCount) {
-            jobSpec->set_inode_limit(*config->DiskRequest->InodeCount);
+        if (diskRequest->InodeCount) {
+            jobSpec->set_inode_limit(*diskRequest->InodeCount);
         }
     }
-    if (config->InterruptionSignal) {
-        jobSpec->set_interruption_signal(*config->InterruptionSignal);
+    if (jobSpecConfig->InterruptionSignal) {
+        jobSpec->set_interruption_signal(*jobSpecConfig->InterruptionSignal);
     }
-    if (config->RestartExitCode) {
-        jobSpec->set_restart_exit_code(*config->RestartExitCode);
+    if (jobSpecConfig->RestartExitCode) {
+        jobSpec->set_restart_exit_code(*jobSpecConfig->RestartExitCode);
     }
 
     if (Config->IopsThreshold) {
@@ -8333,46 +8330,46 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         TFormat inputFormat(EFormatType::Yson);
         TFormat outputFormat(EFormatType::Yson);
 
-        if (config->Format) {
-            inputFormat = outputFormat = *config->Format;
+        if (jobSpecConfig->Format) {
+            inputFormat = outputFormat = *jobSpecConfig->Format;
         }
 
-        if (config->InputFormat) {
-            inputFormat = *config->InputFormat;
+        if (jobSpecConfig->InputFormat) {
+            inputFormat = *jobSpecConfig->InputFormat;
         }
 
-        if (config->OutputFormat) {
-            outputFormat = *config->OutputFormat;
+        if (jobSpecConfig->OutputFormat) {
+            outputFormat = *jobSpecConfig->OutputFormat;
         }
 
         jobSpec->set_input_format(ConvertToYsonString(inputFormat).ToString());
         jobSpec->set_output_format(ConvertToYsonString(outputFormat).ToString());
     }
 
-    jobSpec->set_enable_gpu_layers(config->EnableGpuLayers);
+    jobSpec->set_enable_gpu_layers(jobSpecConfig->EnableGpuLayers);
 
-    if (config->CudaToolkitVersion) {
-        jobSpec->set_cuda_toolkit_version(*config->CudaToolkitVersion);
+    if (jobSpecConfig->CudaToolkitVersion) {
+        jobSpec->set_cuda_toolkit_version(*jobSpecConfig->CudaToolkitVersion);
     }
 
     if (Config->GpuCheckLayerDirectoryPath &&
-        config->GpuCheckBinaryPath &&
-        config->GpuCheckLayerName &&
-        config->EnableGpuLayers)
+        jobSpecConfig->GpuCheckBinaryPath &&
+        jobSpecConfig->GpuCheckLayerName &&
+        jobSpecConfig->EnableGpuLayers)
     {
-        jobSpec->set_gpu_check_binary_path(*config->GpuCheckBinaryPath);
+        jobSpec->set_gpu_check_binary_path(*jobSpecConfig->GpuCheckBinaryPath);
     }
 
-    if (config->NetworkProject) {
+    if (jobSpecConfig->NetworkProject) {
         const auto& client = Host->GetClient();
-        const auto networkProjectPath = "//sys/network_projects/" + ToYPathLiteral(*config->NetworkProject);
+        const auto networkProjectPath = "//sys/network_projects/" + ToYPathLiteral(*jobSpecConfig->NetworkProject);
         auto checkPermissionRspOrError = WaitFor(client->CheckPermission(AuthenticatedUser,
             networkProjectPath,
             EPermission::Use));
         if (checkPermissionRspOrError.ValueOrThrow().Action == ESecurityAction::Deny) {
             THROW_ERROR_EXCEPTION("User %Qv is not allowed to use network project %Qv",
                 AuthenticatedUser,
-                *config->NetworkProject);
+                *jobSpecConfig->NetworkProject);
         }
 
         auto getRspOrError = WaitFor(client->GetNode(networkProjectPath + "/@project_id"));
@@ -8382,17 +8379,17 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     // COMPAT(gritukan): Drop it when nodes will be fresh enough.
     jobSpec->set_write_sparse_core_dumps(true);
 
-    jobSpec->set_enable_porto(static_cast<int>(config->EnablePorto.value_or(Config->DefaultEnablePorto)));
-    jobSpec->set_fail_job_on_core_dump(config->FailJobOnCoreDump);
+    jobSpec->set_enable_porto(static_cast<int>(jobSpecConfig->EnablePorto.value_or(Config->DefaultEnablePorto)));
+    jobSpec->set_fail_job_on_core_dump(jobSpecConfig->FailJobOnCoreDump);
     jobSpec->set_enable_cuda_gpu_core_dump(GetEnableCudaGpuCoreDump());
 
-    bool makeRootFSWritable = config->MakeRootFSWritable;
+    bool makeRootFSWritable = jobSpecConfig->MakeRootFSWritable;
     if (!Config->TestingOptions->RootfsTestLayers.empty()) {
         makeRootFSWritable = true;
     }
     jobSpec->set_make_rootfs_writable(makeRootFSWritable);
 
-    jobSpec->set_use_smaps_memory_tracker(config->UseSMapsMemoryTracker);
+    jobSpec->set_use_smaps_memory_tracker(jobSpecConfig->UseSMapsMemoryTracker);
 
     auto fillEnvironment = [&] (THashMap<TString, TString>& env) {
         for (const auto& [key, value] : env) {
@@ -8404,14 +8401,14 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     fillEnvironment(Config->Environment);
 
     // Local environment.
-    fillEnvironment(config->Environment);
+    fillEnvironment(jobSpecConfig->Environment);
 
     jobSpec->add_environment(Format("YT_OPERATION_ID=%v", OperationId));
 
-    BuildFileSpecs(jobSpec, files, config, Config->EnableBypassArtifactCache);
+    BuildFileSpecs(jobSpec, files, jobSpecConfig, Config->EnableBypassArtifactCache);
 
-    if (config->Monitoring->Enable) {
-        ToProto(jobSpec->mutable_monitoring_config()->mutable_sensor_names(), config->Monitoring->SensorNames);
+    if (jobSpecConfig->Monitoring->Enable) {
+        ToProto(jobSpec->mutable_monitoring_config()->mutable_sensor_names(), jobSpecConfig->Monitoring->SensorNames);
     }
 }
 
