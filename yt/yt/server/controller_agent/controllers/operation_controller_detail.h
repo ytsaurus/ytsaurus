@@ -289,7 +289,7 @@ public:
     virtual ui64 NextJobIndex() override;
     virtual void InitUserJobSpecTemplate(
         NScheduler::NProto::TUserJobSpec* proto,
-        const NScheduler::TUserJobSpecPtr& config,
+        const NScheduler::TUserJobSpecPtr& jobSpecConfig,
         const std::vector<TUserFile>& files,
         const TString& fileAccount) override;
     virtual const std::vector<TUserFile>& GetUserFiles(const NScheduler::TUserJobSpecPtr& userJobSpec) const override;
@@ -959,7 +959,7 @@ protected:
 
     const NChunkPools::IChunkPoolInputPtr& GetSink();
 
-    void ValidateIntermediateDataAccountPermission(NYTree::EPermission permission) const;
+    void ValidateAccountPermission(const TString& account, NYTree::EPermission permission) const;
 
     //! One output table can have row_count_limit attribute in operation.
     std::optional<int> RowCountLimitTableIndex;

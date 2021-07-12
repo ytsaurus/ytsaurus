@@ -2848,7 +2848,7 @@ protected:
     {
         TOperationControllerBase::CustomMaterialize();
 
-        ValidateIntermediateDataAccountPermission(EPermission::Use);
+        ValidateAccountPermission(Spec->IntermediateDataAccount, EPermission::Use);
 
         for (const auto& table : InputTables_) {
             for (const auto& sortColumn : Spec->SortBy) {
