@@ -20,12 +20,17 @@ class YtFileSystem extends YtFileSystemBase {
     log.debugLazy(s"List status $f")
     implicit val ytClient: CompoundClient = yt
     val path = hadoopPathToYt(f)
-    val pathType = YtWrapper.pathType(path)
 
-    pathType match {
-      case PathType.File => Array(getFileStatus(f))
-      case PathType.Directory => listYtDirectory(f, path, None)
-      case _ => throw new IllegalArgumentException(s"Can't list $pathType")
+    if (!YtWrapper.exists(path)) {
+      throw new PathNotFoundException(s"Path $f doesn't exist")
+    } else {
+      val pathType = YtWrapper.pathType(path)
+
+      pathType match {
+        case PathType.File => Array(getFileStatus(f))
+        case PathType.Directory => listYtDirectory(f, path, None)
+        case _ => throw new IllegalArgumentException(s"Can't list $pathType")
+      }
     }
   }
 

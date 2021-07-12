@@ -1,7 +1,7 @@
 package ru.yandex.spark.yt.fs
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.Path
+import org.apache.hadoop.fs.{Path, PathNotFoundException}
 import org.apache.hadoop.io.IOUtils
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.spark.yt.test.{LocalYtClient, TmpDir}
@@ -48,6 +48,17 @@ class YtFileSystemTest extends FlatSpec with Matchers with LocalYtClient with Tm
       (new Path(s"$tmpPath/2"), true, 0),
       (new Path(s"$tmpPath/3"), false, 3)
     )
+  }
+
+  it should "throw an exception in listStatus of wrong path" in {
+    val paths = List("//home/user/folder", "/slash").map(new Path(_))
+
+    paths.foreach {
+      path =>
+        a[PathNotFoundException] shouldBe thrownBy {
+          fs.listStatus(path)
+        }
+    }
   }
 
   it should "open" in {
