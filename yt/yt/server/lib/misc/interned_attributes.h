@@ -28,6 +28,8 @@
     XX(Annotation, annotation) \
     XX(AnnotationPath, annotation_path) \
     XX(Annotations, annotations) \
+    XX(Areas, areas) \
+    XX(AreaNodes, area_nodes) \
     XX(Atomicity, atomicity) \
     XX(AttributeKey, attribute_key) \
     XX(AttributeRevision, attribute_revision) \

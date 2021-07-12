@@ -8,6 +8,8 @@
 #include "cellar_node_tracker.h"
 #include "tamed_cell_manager.h"
 #include "cell_tracker.h"
+#include "area.h"
+#include "area_type_handler.h"
 
 #include <yt/yt/server/master/tablet_server/tablet_cell_decommissioner.h>
 #include <yt/yt/server/master/tablet_server/cypress_integration.h>
@@ -127,9 +129,10 @@ class TTamedCellManager::TImpl
     : public TMasterAutomatonPart
 {
 public:
-    DEFINE_SIGNAL(void(TCellBundle* bundle), CellBundleCreated);
     DEFINE_SIGNAL(void(TCellBundle* bundle), CellBundleDestroyed);
-    DEFINE_SIGNAL(void(TCellBundle* bundle), CellBundleNodeTagFilterChanged);
+    DEFINE_SIGNAL(void(TArea* area), AreaCreated);
+    DEFINE_SIGNAL(void(TArea* area), AreaDestroyed);
+    DEFINE_SIGNAL(void(TArea* area), AreaNodeTagFilterChanged);
     DEFINE_SIGNAL(void(TCellBase* cell), CellDecommissionStarted);
     DEFINE_SIGNAL(void(), CellPeersAssigned);
     DEFINE_SIGNAL(void(), AfterSnapshotLoaded);
@@ -187,6 +190,9 @@ public:
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
 
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        objectManager->RegisterHandler(CreateAreaTypeHandler(Bootstrap_, &AreaMap_));
+
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->SubscribeTransactionCommitted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
         transactionManager->SubscribeTransactionAborted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
@@ -234,7 +240,7 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(cellBundle);
 
-        CellBundleCreated_.Fire(cellBundle);
+        CreateDefaultArea(cellBundle);
 
         return cellBundle;
     }
@@ -242,6 +248,9 @@ public:
     void ZombifyCellBundle(TCellBundle* cellBundle)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        YT_VERIFY(cellBundle->Cells().empty());
+        YT_VERIFY(cellBundle->Areas().empty());
 
         // Remove tablet cell bundle from maps.
         YT_VERIFY(NameToCellBundleMap_.erase(cellBundle->GetName()) == 1);
@@ -321,9 +330,74 @@ public:
         }
     }
 
+    TArea* CreateDefaultArea(TCellBundle* cellBundle)
+    {
+        auto areaId = ReplaceTypeInId(cellBundle->GetId(), EObjectType::Area);
+        auto* area = CreateArea(DefaultAreaName, cellBundle, areaId);
+        if (area->GetNativeCellTag() != Bootstrap_->GetCellTag()) {
+            area->SetForeign();
+        }
+        return area;
+    }
+
+    TArea* CreateArea(
+        const TString& name,
+        TCellBundle* cellBundle,
+        TObjectId hintId)
+    {
+        ValidateAreaName(name);
+
+        if (cellBundle->Areas().contains(name)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Area %Qv already exists at cell bundle %Qv",
+                name,
+                cellBundle->GetName());
+        }
+
+        if (cellBundle->Areas().size() >= MaxAreaCount) {
+            THROW_ERROR_EXCEPTION("Area count limit %v is reached",
+                MaxAreaCount);
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto id = objectManager->GenerateId(EObjectType::Area, hintId);
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Creating area (CellBundle: %v, Area: %v, AreaId: %v)",
+            cellBundle->GetName(),
+            name,
+            id);
+
+        auto areaHolder = std::make_unique<TArea>(id);
+        areaHolder->SetName(name);
+        areaHolder->SetCellBundle(cellBundle);
+
+        auto* area = AreaMap_.Insert(id, std::move(areaHolder));
+
+        YT_VERIFY(cellBundle->Areas().emplace(name, area).second);
+
+        // Make the fake reference.
+        YT_VERIFY(area->RefObject() == 1);
+
+        AreaCreated_.Fire(area);
+
+        return area;
+    }
+
+    void ZombifyArea(TArea* area)
+    {
+        YT_VERIFY(area->Cells().empty());
+
+        AreaDestroyed_.Fire(area);
+
+        auto* cellBundle = area->GetCellBundle();
+        area->SetCellBundle(nullptr);
+        YT_VERIFY(cellBundle->Areas().erase(area->GetName()) == 1);
+    }
+
     void CreateSnapshotAndChangelogNodes(
-        TString path,
-        IMapNodePtr cellMapNodeProxy,
+        const TString& path,
+        const IMapNodePtr& cellMapNodeProxy,
         const IAttributeDictionaryPtr& snapshotAttributes,
         const IAttributeDictionaryPtr& changelogAttributes)
     {
@@ -344,7 +418,7 @@ public:
         }
     }
 
-    TCellBase* CreateCell(TCellBundle* cellBundle, std::unique_ptr<TCellBase> holder)
+    TCellBase* CreateCell(TCellBundle* cellBundle, TArea* area, std::unique_ptr<TCellBase> holder)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -366,6 +440,9 @@ public:
         holder->SetCellBundle(cellBundle);
         YT_VERIFY(cellBundle->Cells().insert(holder.get()).second);
         objectManager->RefObject(cellBundle);
+
+        holder->SetArea(area);
+        YT_VERIFY(area->Cells().insert(holder.get()).second);
 
         auto* cell = CellMap_.Insert(id, std::move(holder));
 
@@ -500,11 +577,17 @@ public:
             }
         }
 
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+
         auto* cellBundle = cell->GetCellBundle();
         YT_VERIFY(cellBundle->Cells().erase(cell) == 1);
-        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(cellBundle);
         cell->SetCellBundle(nullptr);
+
+        auto* area = cell->GetArea();
+        YT_VERIFY(area->Cells().erase(cell) == 1);
+        cell->SetArea(nullptr);
+
         cell->Peers().clear();
     }
 
@@ -805,16 +888,40 @@ public:
         cellBundle->SetName(newName);
     }
 
-    void SetCellBundleNodeTagFilter(TCellBundle* bundle, const TString& formula)
+    void RenameArea(TArea* area, const TString& newName)
     {
-        if (bundle->NodeTagFilter().GetFormula() != formula) {
-            bundle->NodeTagFilter() = MakeBooleanFormula(formula);
-            CellBundleNodeTagFilterChanged_.Fire(bundle);
+        if (newName == area->GetName()) {
+            return;
+        }
+
+        ValidateAreaName(newName);
+
+        auto* cellBundle = area->GetCellBundle();
+
+        if (cellBundle->Areas().contains(newName)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Area %Qv already exists at cell bundle %Qv",
+                newName,
+                cellBundle->GetName());
+        }
+
+        YT_VERIFY(cellBundle->Areas().erase(area->GetName()) == 1);
+        YT_VERIFY(cellBundle->Areas().emplace(newName, area).second);
+        area->SetName(newName);
+    }
+
+    void SetAreaNodeTagFilter(TArea* area, const TString& formula)
+    {
+        if (area->NodeTagFilter().GetFormula() != formula) {
+            area->NodeTagFilter() = MakeBooleanFormula(formula);
+            AreaNodeTagFilterChanged_.Fire(area);
         }
     }
 
     DECLARE_ENTITY_MAP_ACCESSORS(CellBundle, TCellBundle);
     DECLARE_ENTITY_MAP_ACCESSORS(Cell, TCellBase);
+    DECLARE_ENTITY_MAP_ACCESSORS(Area, TArea);
 
 private:
     template <class T>
@@ -843,6 +950,7 @@ private:
 
     TEntityMap<TCellBundle, TEntityMapTypeTraits<TCellBundle>> CellBundleMap_;
     TEntityMap<TCellBase, TEntityMapTypeTraits<TCellBase>> CellMap_;
+    TEntityMap<TArea> AreaMap_;
 
     THashMap<TString, TCellBundle*> NameToCellBundleMap_;
 
@@ -855,6 +963,9 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     TPeriodicExecutorPtr ProfilingExecutor_;
+
+    bool CreateDefaultAreas_ = false;
+
 
     const NTabletServer::TDynamicTabletManagerConfigPtr& GetDynamicConfig()
     {
@@ -879,12 +990,14 @@ private:
     {
         CellBundleMap_.SaveKeys(context);
         CellMap_.SaveKeys(context);
+        AreaMap_.SaveKeys(context);
     }
 
     void SaveValues(NCellMaster::TSaveContext& context) const
     {
         CellBundleMap_.SaveValues(context);
         CellMap_.SaveValues(context);
+        AreaMap_.SaveValues(context);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -893,6 +1006,10 @@ private:
 
         CellBundleMap_.LoadKeys(context);
         CellMap_.LoadKeys(context);
+        // COMPAT(savrus)
+        if (context.GetVersion() >= EMasterReign::Areas) {
+            AreaMap_.LoadKeys(context);
+        }
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -901,6 +1018,13 @@ private:
 
         CellBundleMap_.LoadValues(context);
         CellMap_.LoadValues(context);
+        // COMPAT(savrus)
+        if (context.GetVersion() >= EMasterReign::Areas) {
+            AreaMap_.LoadValues(context);
+        }
+
+        // COMPAT(savrus)
+        CreateDefaultAreas_ = (context.GetVersion() < EMasterReign::Areas);
     }
 
 
@@ -909,8 +1033,44 @@ private:
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
         NameToCellBundleMap_.clear();
-        for (auto [bundleId, bundle] : CellBundleMap_) {
+        for (auto [_, bundle] : CellBundleMap_) {
+            if (!IsObjectAlive(bundle)) {
+                continue;
+            }
+
             YT_VERIFY(NameToCellBundleMap_.emplace(bundle->GetName(), bundle).second);
+        }
+
+        for (auto [_, area] : AreaMap_) {
+            if (!IsObjectAlive(area)) {
+                continue;
+            }
+
+            YT_VERIFY(area->GetCellBundle()->Areas().emplace(area->GetName(), area).second);
+        }
+
+        // COMPAT(savrus)
+        if (CreateDefaultAreas_) {
+            for (auto [_, bundle] : CellBundleMap_) {
+                if (!IsObjectAlive(bundle)) {
+                    continue;
+                }
+                if (bundle->Areas().contains(DefaultAreaName)) {
+                    YT_VERIFY(bundle->GetName() == DefaultCellBundleName);
+                    continue;
+                }
+                auto* area = CreateDefaultArea(bundle);
+                area->NodeTagFilter() = bundle->NodeTagFilter();
+                bundle->NodeTagFilter() = TBooleanFormula();
+            }
+            for (auto [_, cell] : CellMap_) {
+                if (!IsObjectAlive(cell)) {
+                    continue;
+                }
+                YT_VERIFY(cell->GetCellBundle()->Areas().size() == 1);
+                auto* area = cell->GetCellBundle()->Areas().begin()->second;
+                cell->SetArea(area);
+            }
         }
 
         AddressToCell_.clear();
@@ -920,6 +1080,7 @@ private:
             }
 
             YT_VERIFY(cell->GetCellBundle()->Cells().insert(cell).second);
+            YT_VERIFY(cell->GetArea()->Cells().insert(cell).second);
 
             for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
                 const auto& peer = cell->Peers()[peerId];
@@ -955,11 +1116,14 @@ private:
 
         CellBundleMap_.Clear();
         CellMap_.Clear();
+        AreaMap_.Clear();
         NameToCellBundleMap_.clear();
         AddressToCell_.clear();
         TransactionToCellMap_.clear();
 
         BundleNodeTracker_->Clear();
+
+        CreateDefaultAreas_ = false;
     }
 
     void OnCellStatusGossip(bool incremental)
@@ -2095,7 +2259,14 @@ private:
     static void ValidateCellBundleName(const TString& name)
     {
         if (name.empty()) {
-            THROW_ERROR_EXCEPTION("Tablet cell bundle name cannot be empty");
+            THROW_ERROR_EXCEPTION("Cell bundle name cannot be empty");
+        }
+    }
+
+    static void ValidateAreaName(const TString& name)
+    {
+        if (name.empty()) {
+            THROW_ERROR_EXCEPTION("Area name cannot be empty");
         }
     }
 
@@ -2114,6 +2285,7 @@ private:
 
 DEFINE_ENTITY_MAP_ACCESSORS(TTamedCellManager::TImpl, CellBundle, TCellBundle, CellBundleMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TTamedCellManager::TImpl, Cell, TCellBase, CellMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TTamedCellManager::TImpl, Area, TArea, AreaMap_)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2163,14 +2335,9 @@ void TTamedCellManager::RenameCellBundle(TCellBundle* cellBundle, const TString&
     return Impl_->RenameCellBundle(cellBundle, newName);
 }
 
-void TTamedCellManager::SetCellBundleNodeTagFilter(TCellBundle* bundle, const TString& formula)
+TCellBase* TTamedCellManager::CreateCell(TCellBundle* cellBundle, TArea* area, std::unique_ptr<TCellBase> holder)
 {
-    return Impl_->SetCellBundleNodeTagFilter(bundle, formula);
-}
-
-TCellBase* TTamedCellManager::CreateCell(TCellBundle* cellBundle, std::unique_ptr<TCellBase> holder)
-{
-    return Impl_->CreateCell(cellBundle, std::move(holder));
+    return Impl_->CreateCell(cellBundle, area, std::move(holder));
 }
 
 void TTamedCellManager::ZombifyCell(TCellBase* cell)
@@ -2211,12 +2378,37 @@ void TTamedCellManager::SetCellBundleOptions(TCellBundle* cellBundle, TTabletCel
     Impl_->SetCellBundleOptions(cellBundle, std::move(options));
 }
 
+TArea* TTamedCellManager::CreateArea(
+    const TString& name,
+    TCellBundle* cellBundle,
+    TObjectId hintId)
+{
+    return Impl_->CreateArea(name, cellBundle, hintId);
+}
+
+void TTamedCellManager::RenameArea(TArea* area, const TString& name)
+{
+    Impl_->RenameArea(area, name);
+}
+
+void TTamedCellManager::ZombifyArea(TArea* area)
+{
+    Impl_->ZombifyArea(area);
+}
+
+void TTamedCellManager::SetAreaNodeTagFilter(TArea* area, const TString& formula)
+{
+    return Impl_->SetAreaNodeTagFilter(area, formula);
+}
+
 DELEGATE_ENTITY_MAP_ACCESSORS(TTamedCellManager, CellBundle, TCellBundle, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TTamedCellManager, Cell, TCellBase, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TTamedCellManager, Area, TArea, *Impl_)
 
-DELEGATE_SIGNAL(TTamedCellManager, void(TCellBundle*), CellBundleCreated, *Impl_);
 DELEGATE_SIGNAL(TTamedCellManager, void(TCellBundle*), CellBundleDestroyed, *Impl_);
-DELEGATE_SIGNAL(TTamedCellManager, void(TCellBundle*), CellBundleNodeTagFilterChanged, *Impl_);
+DELEGATE_SIGNAL(TTamedCellManager, void(TArea*), AreaCreated, *Impl_);
+DELEGATE_SIGNAL(TTamedCellManager, void(TArea*), AreaDestroyed, *Impl_);
+DELEGATE_SIGNAL(TTamedCellManager, void(TArea*), AreaNodeTagFilterChanged, *Impl_);
 DELEGATE_SIGNAL(TTamedCellManager, void(TCellBase*), CellDecommissionStarted, *Impl_);
 DELEGATE_SIGNAL(TTamedCellManager, void(), CellPeersAssigned, *Impl_);
 DELEGATE_SIGNAL(TTamedCellManager, void(), AfterSnapshotLoaded, *Impl_);

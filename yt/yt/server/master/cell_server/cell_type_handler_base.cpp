@@ -59,10 +59,10 @@ NObjectServer::TObject* TCellTypeHandlerBase<TImpl>::DoCreateObject(
         cellBundleName.value_or(tabletCellBundleName.value_or(DefaultCellBundleName)),
         /*activeLifeStageOnly*/ true);
 
-    const auto& objectManager = TBase::Bootstrap_->GetObjectManager();
-    objectManager->ValidateObjectLifeStage(cellBundle);
+    auto areaName = attributes->GetAndRemove<TString>("area", DefaultAreaName);
+    auto* area = cellBundle->GetAreaOrThrow(areaName);
 
-    return cellManager->CreateCell(cellBundle, std::move(holder));
+    return cellManager->CreateCell(cellBundle, area, std::move(holder));
 }
 
 template <class TImpl>

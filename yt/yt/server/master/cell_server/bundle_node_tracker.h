@@ -25,9 +25,9 @@ public:
     void Initialize();
     void Clear();
 
-    const TNodeSet& GetBundleNodes(const TCellBundle* bundle) const;
+    const TNodeSet& GetAreaNodes(const TArea* area) const;
 
-    DECLARE_SIGNAL(void(const TCellBundle*), BundleNodesChanged);
+    DECLARE_SIGNAL(void(const TArea*), AreaNodesChanged);
 
 private:
     class TImpl;

@@ -55,7 +55,6 @@ void TCellBundle::Save(TSaveContext& context) const
     Save(context, *Options_);
     Save(context, *DynamicOptions_);
     Save(context, DynamicConfigVersion_);
-    Save(context, NodeTagFilter_);
     Save(context, *CellBalancerConfig_);
     Save(context, Health_);
 }
@@ -70,7 +69,9 @@ void TCellBundle::Load(TLoadContext& context)
     Load(context, *Options_);
     Load(context, *DynamicOptions_);
     Load(context, DynamicConfigVersion_);
-    Load(context, NodeTagFilter_);
+    if (context.GetVersion() < EMasterReign::Areas) {
+        Load(context, NodeTagFilter_);
+    }
     Load(context, *CellBalancerConfig_);
     Load(context, Health_);
 
@@ -133,6 +134,17 @@ TCounter& TCellBundleProfilingCounters::GetPeerRevocation(const TString& reason)
         it = PeerRevocation.emplace(
             reason,
             Profiler.WithTag("reason", reason).Counter("/tablet_tracker/peer_revocation")).first;
+    }
+    return it->second;
+}
+
+TArea* TCellBundle::GetAreaOrThrow(const TString& name)
+{
+    auto it = Areas_.find(name);
+    if (!it) {
+        THROW_ERROR_EXCEPTION("Cell bundle %Qv has no area named %Qv",
+            GetName(),
+            name);
     }
     return it->second;
 }

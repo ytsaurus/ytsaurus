@@ -1,3 +1,4 @@
+#include "area.h"
 #include "bundle_node_tracker.h"
 #include "config.h"
 #include "private.h"
@@ -59,7 +60,7 @@ public:
         , BalanceRequestTime_(Now())
     {
         const auto& bundleNodeTracker = Bootstrap_->GetTamedCellManager()->GetBundleNodeTracker();
-        bundleNodeTracker->SubscribeBundleNodesChanged(BIND(&TCellBalancerProvider::OnBundleNodesChanged, MakeWeak(this)));
+        bundleNodeTracker->SubscribeAreaNodesChanged(BIND(&TCellBalancerProvider::OnAreaNodesChanged, MakeWeak(this)));
     }
 
     virtual std::vector<TNodeHolder> GetNodes() override
@@ -102,10 +103,10 @@ public:
         return Bootstrap_->GetTamedCellManager()->CellBundles();
     }
 
-    virtual bool IsPossibleHost(const TNode* node, const TCellBundle* bundle) override
+    virtual bool IsPossibleHost(const TNode* node, const TArea* area) override
     {
         const auto& bundleNodeTracker = Bootstrap_->GetTamedCellManager()->GetBundleNodeTracker();
-        return bundleNodeTracker->GetBundleNodes(bundle).contains(node);
+        return bundleNodeTracker->GetAreaNodes(area).contains(node);
     }
 
     virtual bool IsVerboseLoggingEnabled() override
@@ -136,7 +137,7 @@ private:
 
     std::optional<TInstant> BalanceRequestTime_;
 
-    void OnBundleNodesChanged(const TCellBundle* /*bundle*/)
+    void OnAreaNodesChanged(const TArea* /*area*/)
     {
         if (!BalanceRequestTime_) {
             BalanceRequestTime_ = Now();
@@ -232,7 +233,7 @@ void TCellTrackerImpl::ScanCellarCells(ECellarType cellarType)
                     ToProto(revocation->mutable_cell_id(), cell->GetId());
                 }
 
-                if (!target && IsDecommissioned(source, cell->GetCellBundle())) {
+                if (!target && IsDecommissioned(source, cell)) {
                     continue;
                 }
 
@@ -292,7 +293,7 @@ void TCellTrackerImpl::ScheduleLeaderReassignment(TCellBase* cell)
     TError error;
 
     if (!leadingPeer.Descriptor.IsNull()) {
-        error = IsFailed(leadingPeer, cell->GetCellBundle(), GetDynamicConfig()->LeaderReassignmentTimeout);
+        error = IsFailed(leadingPeer, cell, GetDynamicConfig()->LeaderReassignmentTimeout);
         if (error.IsOK()) {
             return;
         }
@@ -408,7 +409,7 @@ void TCellTrackerImpl::SchedulePeerRevocation(
             continue;
         }
 
-        auto error = IsFailed(peer, cell->GetCellBundle(), GetDynamicConfig()->PeerRevocationTimeout);
+        auto error = IsFailed(peer, cell, GetDynamicConfig()->PeerRevocationTimeout);
         if (!error.IsOK()) {
             if (GetDynamicConfig()->DecommissionThroughExtraPeers && error.FindMatching(NCellServer::EErrorCode::NodeDecommissioned)) {
                 // If decommission through extra peers is enabled we never revoke leader during decommission.
@@ -471,7 +472,7 @@ bool TCellTrackerImpl::SchedulePeerCountChange(TCellBase* cell, TReqReassignPeer
 
 TError TCellTrackerImpl::IsFailed(
     const TCellBase::TPeer& peer,
-    const TCellBundle* bundle,
+    const TCellBase* cell,
     TDuration timeout)
 {
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -506,12 +507,13 @@ TError TCellTrackerImpl::IsFailed(
                 node->GetDefaultAddress());
         }
 
-        if (!bundle->NodeTagFilter().IsSatisfiedBy(node->Tags())) {
+        if (!cell->GetArea()->NodeTagFilter().IsSatisfiedBy(node->Tags())) {
             return TError(
                 NCellServer::EErrorCode::NodeFilterMismatch,
-                "Node %v does not satisfy tag filter of cell bundle %Qv",
+                "Node %v does not satisfy tag filter of cell bundle %Qv area %Qv",
                 node->GetDefaultAddress(),
-                bundle->GetName());
+                cell->GetArea()->GetCellBundle()->GetName(),
+                cell->GetArea()->GetName());
         }
     }
 
@@ -520,7 +522,7 @@ TError TCellTrackerImpl::IsFailed(
 
 bool TCellTrackerImpl::IsDecommissioned(
     const TNode* node,
-    const TCellBundle* bundle)
+    const TCellBase* cell)
 {
     if (!node) {
         return false;
@@ -530,7 +532,7 @@ bool TCellTrackerImpl::IsDecommissioned(
         return false;
     }
 
-    if (!bundle->NodeTagFilter().IsSatisfiedBy(node->Tags())) {
+    if (!cell->GetArea()->NodeTagFilter().IsSatisfiedBy(node->Tags())) {
         return false;
     }
 

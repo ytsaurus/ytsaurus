@@ -1,14 +1,15 @@
-#include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
-
 #include "config.h"
 #include "private.h"
 #include "cell_base.h"
 #include "cell_balancer.h"
 #include "cell_bundle.h"
+#include "area.h"
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 
 #include <yt/yt/server/master/object_server/helpers.h>
+
+#include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>
 
@@ -88,14 +89,14 @@ std::pair<const TCellBase*, int> TNodeHolder::ExtractCell(int cellIndex)
     auto pair = Slots_[cellIndex];
     Slots_[cellIndex] = Slots_.back();
     Slots_.pop_back();
-    --CellCount_[pair.first->GetCellBundle()];
+    --CellCount_[pair.first->GetArea()];
     return pair;
 }
 
 void TNodeHolder::InsertCell(std::pair<const TCellBase*, int> pair)
 {
     Slots_.push_back(pair);
-    ++CellCount_[pair.first->GetCellBundle()];
+    ++CellCount_[pair.first->GetArea()];
 }
 
 std::optional<int> TNodeHolder::FindCell(const TCellBase* cell)
@@ -113,16 +114,16 @@ std::pair<const TCellBase*, int> TNodeHolder::RemoveCell(const TCellBase* cell)
     return ExtractCell(*FindCell(cell));
 }
 
-int TNodeHolder::GetCellCount(const TCellBundle* bundle) const
+int TNodeHolder::GetCellCount(const TArea* area) const
 {
-    auto it = CellCount_.find(bundle);
+    auto it = CellCount_.find(area);
     return it != CellCount_.end() ? it->second : 0;
 }
 
 void TNodeHolder::UpdateCellCounts()
 {
     for (auto [cell, _] : Slots_) {
-        CellCount_[cell->GetCellBundle()] += 1;
+        CellCount_[cell->GetArea()] += 1;
     }
 }
 
@@ -340,8 +341,8 @@ private:
     THashMap<const TNode*, int> NodeToIndex_;
     TPeerTracker PeerTracker_;
     TPeerTracker BannedPeerTracker_;
-    THashMap<const TCellBundle*, std::vector<int>> FreeNodes_;
-    THashMap<const TCellBundle*, THashSet<int>> FilledNodes_;
+    THashMap<const TArea*, std::vector<int>> FreeNodes_;
+    THashMap<const TArea*, THashSet<int>> FilledNodes_;
 
     std::vector<TCellMoveDescriptor> MoveDescriptors_;
 
@@ -353,7 +354,11 @@ private:
                 MakeFormattableView(node.GetSlots(), [] (TStringBuilderBase* builder, const std::pair<const TCellBase*, int>& pair) {
                     const auto* cell = pair.first;
                     int peerId = pair.second;
-                    builder->AppendFormat("<%v,%v,%v>", cell->GetCellBundle()->GetName(), cell->GetId(), peerId);
+                    builder->AppendFormat("<%v,%v,%v,%v>",
+                        cell->GetCellBundle()->GetName(),
+                        cell->GetArea()->GetName(),
+                        cell->GetId(),
+                        peerId);
                 }),
                 dumpId);
         }
@@ -377,11 +382,13 @@ private:
                 if (!IsObjectAlive(bundle)) {
                     continue;
                 }
-                if (Provider_->IsPossibleHost(node.GetNode(), bundle)) {
-                    if (node.GetTotalSlots() > std::ssize(node.GetSlots())) {
-                        FreeNodes_[bundle].push_back(nodeIndex);
-                    } else {
-                        FilledNodes_[bundle].insert(nodeIndex);
+                for (const auto& [_, area] : bundle->Areas()) {
+                    if (Provider_->IsPossibleHost(node.GetNode(), area)) {
+                        if (node.GetTotalSlots() > std::ssize(node.GetSlots())) {
+                            FreeNodes_[area].push_back(nodeIndex);
+                        } else {
+                            FilledNodes_[area].insert(nodeIndex);
+                        }
                     }
                 }
             }
@@ -417,9 +424,9 @@ private:
 
     TNodeHolder* TryAllocateNode(const TCellBase* cell)
     {
-        auto* bundle = cell->GetCellBundle();
+        auto* area = cell->GetArea();
 
-        auto it = FreeNodes_.find(bundle);
+        auto it = FreeNodes_.find(area);
         if (it == FreeNodes_.end()) {
             return nullptr;
         }
@@ -434,8 +441,8 @@ private:
             if (node->GetTotalSlots() == std::ssize(node->GetSlots())) {
                 std::swap(queue[index], queue.back());
                 queue.pop_back();
-                YT_ASSERT(!FilledNodes_[bundle].contains(nodeIndex));
-                FilledNodes_[bundle].insert(nodeIndex);
+                YT_ASSERT(!FilledNodes_[area].contains(nodeIndex));
+                FilledNodes_[area].insert(nodeIndex);
                 --index;
             } else if (!NodeInPeers(cell, node)) {
                 return node;
@@ -455,7 +462,7 @@ private:
     {
         auto* peerNode = &Nodes_[peerNodeIndex];
 
-        auto it = FilledNodes_.find(cell->GetCellBundle());
+        auto it = FilledNodes_.find(cell->GetArea());
         if (it == FilledNodes_.end()) {
             return nullptr;
         }
@@ -483,7 +490,7 @@ private:
         int dstIndex = 0;
         for (auto [dstCell, _] : dstNode->GetSlots()) {
             if (NodeInPeers(dstCell, srcNode) ||
-                !Provider_->IsPossibleHost(srcNode->GetNode(), dstCell->GetCellBundle()))
+                !Provider_->IsPossibleHost(srcNode->GetNode(), dstCell->GetArea()))
             {
                 ++dstIndex;
                 continue;
@@ -574,11 +581,14 @@ private:
             if (!IsObjectAlive(bundle)) {
                 continue;
             }
-            if (Provider_->IsPossibleHost(node->GetNode(), bundle)) {
-                if (FilledNodes_[bundle].contains(nodeIndex)) {
-                    FilledNodes_[bundle].erase(nodeIndex);
-                    YT_ASSERT(std::find(FreeNodes_[bundle].begin(), FreeNodes_[bundle].end(), nodeIndex) == FreeNodes_[bundle].end());
-                    FreeNodes_[bundle].emplace_back(nodeIndex);
+            for (const auto& [_, area] : bundle->Areas()) {
+                if (Provider_->IsPossibleHost(node->GetNode(), area)) {
+                    if (auto it = FilledNodes_[area].find(nodeIndex); it != FilledNodes_[area].end()) {
+                        FilledNodes_[area].erase(it);
+                        YT_ASSERT(std::find(FreeNodes_[area].begin(), FreeNodes_[area].end(), nodeIndex) ==
+                            FreeNodes_[area].end());
+                        FreeNodes_[area].emplace_back(nodeIndex);
+                    }
                 }
             }
         }
@@ -590,9 +600,9 @@ private:
             BannedPeerTracker_.IsPeer(cell, node->GetNode());
     };
 
-    void SmoothNodes(TNodeHolder* srcNode, TNodeHolder* dstNode, const TCellBundle* bundle, int limit)
+    void SmoothNodes(TNodeHolder* srcNode, TNodeHolder* dstNode, const TArea* area, int limit)
     {
-        if (srcNode->GetCellCount(bundle) < dstNode->GetCellCount(bundle)) {
+        if (srcNode->GetCellCount(area) < dstNode->GetCellCount(area)) {
             std::swap(srcNode, dstNode);
         }
 
@@ -600,11 +610,11 @@ private:
         int dstIndex = 0;
         while (srcIndex < std::ssize(srcNode->GetSlots()) &&
             dstIndex < dstNode->GetTotalSlots() &&
-            srcNode->GetCellCount(bundle) != limit &&
-            dstNode->GetCellCount(bundle) != limit)
+            srcNode->GetCellCount(area) != limit &&
+            dstNode->GetCellCount(area) != limit)
         {
             auto* srcCell = srcNode->GetSlots()[srcIndex].first;
-            if (srcCell->GetCellBundle() != bundle ||
+            if (srcCell->GetArea() != area ||
                 NodeInPeers(srcCell, dstNode))
             {
                 ++srcIndex;
@@ -617,11 +627,11 @@ private:
             }
 
             const auto* dstCell = dstNode->GetSlots()[dstIndex].first;
-            const auto* dstBundle = dstCell->GetCellBundle();
-            if (dstBundle == bundle ||
+            const auto* dstArea = dstCell->GetArea();
+            if (dstArea == area ||
                 NodeInPeers(dstCell, srcNode) ||
-                srcNode->GetCellCount(dstBundle) >= dstNode->GetCellCount(dstBundle) ||
-                !Provider_->IsPossibleHost(srcNode->GetNode(), dstBundle))
+                srcNode->GetCellCount(dstArea) >= dstNode->GetCellCount(dstArea) ||
+                !Provider_->IsPossibleHost(srcNode->GetNode(), dstArea))
             {
                 ++dstIndex;
                 continue;
@@ -633,9 +643,16 @@ private:
 
     void RebalanceBundle(const TCellBundle* bundle)
     {
+        for (const auto& [_, area] : bundle->Areas()) {
+            RebalanceArea(area);
+        }
+    }
+
+    void RebalanceArea(const TArea* area)
+    {
         std::vector<TNodeHolder*> nodes;
         for (auto& node : Nodes_) {
-            if (Provider_->IsPossibleHost(node.GetNode(), bundle)) {
+            if (Provider_->IsPossibleHost(node.GetNode(), area)) {
                 nodes.push_back(&node);
             }
         }
@@ -652,12 +669,12 @@ private:
 
                 int candidateIndex = 0;
                 while (candidateIndex < std::ssize(candidates)) {
-                    if (srcNode->GetCellCount(bundle) == limit) {
+                    if (srcNode->GetCellCount(area) == limit) {
                         break;
                     }
                     auto* dstNode = candidates[candidateIndex];
-                    SmoothNodes(srcNode, dstNode, bundle, limit);
-                    if (dstNode->GetCellCount(bundle) == limit) {
+                    SmoothNodes(srcNode, dstNode, area, limit);
+                    if (dstNode->GetCellCount(area) == limit) {
                         candidates[candidateIndex] = candidates.back();
                         candidates.pop_back();
                     } else {
@@ -667,20 +684,21 @@ private:
             }
         };
 
-        auto slotCount = std::ssize(bundle->Cells()) * bundle->GetOptions()->PeerCount;
+        auto slotCount = std::ssize(area->Cells()) * area->GetCellBundle()->GetOptions()->PeerCount;
         auto ceil = DivCeil<i64>(slotCount, std::ssize(nodes));
         auto floor = slotCount / std::ssize(nodes);
 
         auto aboveCeil = std::count_if(nodes.begin(), nodes.end(), [&] (const auto* node) {
-            return node->GetCellCount(bundle) > ceil;
+            return node->GetCellCount(area) > ceil;
         });
         auto belowFloor = std::count_if(nodes.begin(), nodes.end(), [&] (const auto* node) {
-            return node->GetCellCount(bundle) < floor;
+            return node->GetCellCount(area) < floor;
         });
 
         if (aboveCeil > 0 || belowFloor > 0) {
-            YT_LOG_DEBUG("Tablet cell balancer need to smooth bundle (Bundle: %v, Ceil: %v, Floor: %v, AboveCeilCount: %v, BelowFloorCount: %v)",
-                bundle->GetName(),
+            YT_LOG_DEBUG("Tablet cell balancer need to smooth bundle (Bundle: %v, Area: %v, Ceil: %v, Floor: %v, AboveCeilCount: %v, BelowFloorCount: %v)",
+                area->GetCellBundle()->GetName(),
+                area->GetName(),
                 ceil,
                 floor,
                 aboveCeil,
@@ -689,18 +707,18 @@ private:
 
         std::vector<TNodeHolder*> candidates;
         std::copy_if(nodes.begin(), nodes.end(), std::back_inserter(candidates), [&] (const auto* node) {
-            return node->GetCellCount(bundle) < ceil;
+            return node->GetCellCount(area) < ceil;
         });
         smooth(candidates, ceil, [&] (const auto* node) {
-            return node->GetCellCount(bundle) > ceil;
+            return node->GetCellCount(area) > ceil;
         });
 
         candidates.clear();
         std::copy_if(nodes.begin(), nodes.end(), std::back_inserter(candidates), [&] (const auto* node) {
-            return node->GetCellCount(bundle) > floor;
+            return node->GetCellCount(area) > floor;
         });
         smooth(candidates, floor, [&] (const auto* node) {
-            return node->GetCellCount(bundle) < floor;
+            return node->GetCellCount(area) < floor;
         });
     }
 };

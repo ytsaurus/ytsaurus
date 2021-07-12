@@ -7,9 +7,10 @@
 #include <yt/yt/server/master/node_tracker_server/public.h>
 #include <yt/yt/server/master/node_tracker_server/node.h>
 
+#include <yt/yt/server/master/cell_server/area.h>
 #include <yt/yt/server/master/cell_server/cell_balancer.h>
-#include <yt/yt/server/master/cell_server/cell_bundle.h>
 #include <yt/yt/server/master/cell_server/cell_base.h>
+#include <yt/yt/server/master/cell_server/cell_bundle.h>
 
 #include <yt/yt/server/master/tablet_server/tablet_cell.h>
 
@@ -26,6 +27,7 @@ using namespace NNodeTrackerClient;
 using namespace NYson;
 using namespace NHydra;
 using namespace NTabletServer;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,7 +92,7 @@ public:
             auto* node = GetNode(nodeName);
             for (const auto& bundleName : bundleNames) {
                 auto* bundle = GetBundle(bundleName, false);
-                YT_VERIFY(FeasibilityMap_[node].insert(bundle).second);
+                YT_VERIFY(FeasibilityMap_[node].insert(GetBundleArea(bundle)).second);
             }
         }
 
@@ -196,10 +198,10 @@ public:
         return CellBundleMap_;
     }
 
-    virtual bool IsPossibleHost(const NNodeTrackerServer::TNode* node, const TCellBundle* bundle) override
+    virtual bool IsPossibleHost(const NNodeTrackerServer::TNode* node, const TArea* area) override
     {
         if (auto it = FeasibilityMap_.find(node)) {
-            return it->second.contains(bundle);
+            return it->second.contains(area);
         }
         return false;
     }
@@ -217,10 +219,11 @@ public:
 private:
     TEntityMap<TCellBundle> CellBundleMap_;
     TEntityMap<TCellBase> CellMap_;
+    TEntityMap<TArea> AreaMap_;
     TEntityMap<TNode> NodeMap_;
     std::vector<TNodeHolder> NodeHolders_;
 
-    THashMap<const TNode*, THashSet<const TCellBundle*>> FeasibilityMap_;
+    THashMap<const TNode*, THashSet<const TArea*>> FeasibilityMap_;
 
     THashMap<TString, TCellBundle*> NameToBundle_;
     THashMap<TString, const TNode*> NameToNode_;
@@ -248,6 +251,15 @@ private:
         auto* bundle = CellBundleMap_.Insert(id, std::move(bundleHolder));
         YT_VERIFY(NameToBundle_.emplace(name, bundle).second);
         bundle->RefObject();
+
+        auto areaId = ReplaceTypeInId(id, EObjectType::Area);
+        auto areaHolder = std::make_unique<TArea>(areaId);
+        areaHolder->SetName(DefaultAreaName);
+        areaHolder->SetCellBundle(bundle);
+        auto* area = AreaMap_.Insert(areaId, std::move(areaHolder));
+        bundle->Areas().emplace(DefaultAreaName, area);
+        area->RefObject();
+
         return bundle;
     }
 
@@ -257,11 +269,16 @@ private:
         auto cellHolder = std::make_unique<TTabletCell>(id);
         cellHolder->Peers().resize(bundle->GetOptions()->PeerCount);
         cellHolder->SetCellBundle(bundle);
+
         auto* cell = CellMap_.Insert(id, std::move(cellHolder));
         YT_VERIFY(IndexToCell_.emplace(index, cell).second);
         YT_VERIFY(CellToIndex_.emplace(cell, index).second);
         cell->RefObject();
         YT_VERIFY(bundle->Cells().insert(cell).second);
+
+        auto* area = GetBundleArea(bundle);
+        cell->SetArea(area);
+        YT_VERIFY(area->Cells().insert(cell).second);
     }
 
     TCellBase* GetCell(int index)
@@ -287,6 +304,12 @@ private:
             EAddressType::InternalRpc,
             TAddressMap{std::make_pair(DefaultNetworkName, name)})});
         return node;
+    }
+
+
+    TArea* GetBundleArea(TCellBundle* bundle)
+    {
+        return bundle->Areas().begin()->second;
     }
 
     void RevokePeer(TNodeHolder* holder, const TCellBase* cell, int peerId)
@@ -346,7 +369,7 @@ private:
         for (const auto& holder : NodeHolders_) {
             THashSet<const TCellBase*> cellSet;
             for (const auto& slot : holder.GetSlots()) {
-                if (!IsPossibleHost(holder.GetNode(), slot.first->GetCellBundle())) {
+                if (!IsPossibleHost(holder.GetNode(), GetBundleArea(slot.first->GetCellBundle()))) {
                     THROW_ERROR_EXCEPTION("Cell %v is assigned to infeasible node %v",
                         CellToIndex_[slot.first],
                         NodeToName_[holder.GetNode()]);
@@ -364,7 +387,7 @@ private:
 
             for (const auto& holder : NodeHolders_) {
                 auto* node = holder.GetNode();
-                if (!IsPossibleHost(node, bundle)) {
+                if (!IsPossibleHost(node, GetBundleArea(bundle))) {
                     continue;
                 }
                 ++feasibleNodes;

@@ -3,7 +3,8 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, move,
     remove, link,
-    exists, concatenate, create_account, create_user, create_tablet_cell_bundle, make_ace, check_permission, start_transaction, abort_transaction, commit_transaction,
+    exists, concatenate, create_account, create_user, create_tablet_cell_bundle, remove_tablet_cell_bundle,
+    make_ace, check_permission, start_transaction, abort_transaction, commit_transaction,
     lock, externalize,
     internalize, select_rows, read_file, write_file, read_table,
     write_table, map, sync_create_cells,
@@ -622,7 +623,7 @@ class TestPortals(YTEnvSetup):
             attributes={"external_cell_tag": 3, "tablet_cell_bundle": "b"},
         )
 
-        remove("//sys/tablet_cell_bundles/b")
+        remove_tablet_cell_bundle("b")
         wait(lambda: get("//sys/tablet_cell_bundles/b/@life_stage") == "removal_pre_committed")
 
         with pytest.raises(YtError):

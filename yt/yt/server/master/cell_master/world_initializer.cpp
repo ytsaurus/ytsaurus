@@ -556,6 +556,11 @@ private:
                 EObjectType::TabletActionMap);
 
             ScheduleCreateNode(
+                "//sys/areas",
+                transactionId,
+                EObjectType::AreaMap);
+
+            ScheduleCreateNode(
                 "//sys/portal_entrances",
                 transactionId,
                 EObjectType::PortalEntranceMap);

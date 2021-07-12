@@ -61,6 +61,7 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::TabletCellNode ||
         type == EObjectType::TabletCellBundleMap ||
         type == EObjectType::TabletActionMap ||
+        type == EObjectType::AreaMap ||
         type == EObjectType::SysNode ||
         type == EObjectType::PortalEntrance ||
         type == EObjectType::PortalExit ||

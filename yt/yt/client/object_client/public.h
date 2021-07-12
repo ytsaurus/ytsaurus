@@ -222,6 +222,8 @@ DEFINE_ENUM(EObjectType,
     ((TableReplica)                  (709))
     ((TabletAction)                  (711))
     ((TabletActionMap)               (712))
+    ((Area)                          (713))
+    ((AreaMap)                       (714))
 
     // Node Tracker stuff
     ((Rack)                          (800))

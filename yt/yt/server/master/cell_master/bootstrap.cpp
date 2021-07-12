@@ -49,6 +49,7 @@
 #include <yt/yt/server/master/cell_server/cellar_node_tracker_service.h>
 #include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
 #include <yt/yt/server/master/cell_server/cell_hydra_janitor.h>
+#include <yt/yt/server/master/cell_server/cypress_integration.h>
 
 #include <yt/yt/server/master/node_tracker_server/cypress_integration.h>
 #include <yt/yt/server/master/node_tracker_server/exec_node_tracker.h>
@@ -898,6 +899,7 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateTabletMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletCellBundleMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletActionMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateAreaMapTypeHandler(this));
 
     CypressManager_->RegisterHandler(CreateEstimatedCreationTimeMapTypeHandler(this));
 

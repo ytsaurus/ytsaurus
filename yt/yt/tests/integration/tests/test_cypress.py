@@ -3,7 +3,8 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, move,
     remove, link,
-    exists, multiset_attributes, create_account, create_user, create_group, create_medium, create_tablet_cell_bundle, make_ace, remove_user, make_batch_request,
+    exists, multiset_attributes, create_account, create_user, create_group, create_medium,
+    create_tablet_cell_bundle, remove_tablet_cell_bundle, make_ace, remove_user, make_batch_request,
     execute_batch,
     start_transaction, abort_transaction,
     commit_transaction, lock, unlock, read_file, read_table,
@@ -656,7 +657,7 @@ class TestCypress(YTEnvSetup):
 
         create("table", "//tmp/p1/t", attributes={"tablet_cell_bundle": "b"})
 
-        remove("//sys/tablet_cell_bundles/b")
+        remove_tablet_cell_bundle("b")
         wait(lambda: get("//sys/tablet_cell_bundles/b/@life_stage") in ["removal_started", "removal_pre_committed"])
 
         with pytest.raises(YtError):
@@ -2701,10 +2702,10 @@ class TestCypress(YTEnvSetup):
 
         remove("//tmp/dir3_move")
 
-        remove("//sys/tablet_cell_bundles/b1")
+        remove_tablet_cell_bundle("b1")
         wait(lambda: not exists("//sys/tablet_cell_bundles/b1"))
 
-        remove("//sys/tablet_cell_bundles/b2")
+        remove_tablet_cell_bundle("b2")
         wait(lambda: get("//sys/tablet_cell_bundles/b2/@life_stage") in ["removal_started", "removal_pre_committed"])
 
         remove("//tmp/dir1")

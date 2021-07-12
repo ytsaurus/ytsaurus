@@ -251,6 +251,9 @@ std::vector<TValue*> GetValuesSortedByKey(const NHydra::TReadOnlyEntityMap<TValu
 template <class TValue>
 std::vector<TValue*> GetValuesSortedByKey(const THashSet<TValue*>& entities);
 
+template <typename TKey, class TValue>
+std::vector<TValue*> GetValuesSortedById(const THashMap<TKey, TValue*>& entities);
+
 template <class TObject, class TValue>
 std::vector<typename THashMap<TObject*, TValue>::iterator> GetIteratorsSortedByKey(THashMap<TObject*, TValue>& entities);
 

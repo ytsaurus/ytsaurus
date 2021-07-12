@@ -85,9 +85,7 @@ protected:
         const NApi::IClientPtr& client = Client_);
 
 private:
-    static void RemoveSystemObjects(
-        const NYPath::TYPath& path,
-        std::function<bool(const TString&)> filter = [] (const TString&) { return true; });
+    static void RemoveSystemObjects(const NYPath::TYPath& path);
 
     static void RemoveTabletCells(
         std::function<bool(const TString&)> filter = [] (const TString&) { return true; });
