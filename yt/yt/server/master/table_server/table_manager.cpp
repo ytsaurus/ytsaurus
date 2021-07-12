@@ -501,7 +501,7 @@ public:
 
         // NB: a newly created schema object has zero reference count.
         // Thus the new schema may technically be not alive here.
-        YT_ASSERT(!schema->IsDestroyed());
+        YT_VERIFY(!schema->IsDestroyed());
 
         if (schema == table->GetSchema()) {
             // Typical when branched nodes are being merged back in.
@@ -675,6 +675,7 @@ public:
         TMasterTableSchema* schema,
         TTableSchema tableSchema)
     {
+        YT_VERIFY(IsObjectAlive(schema));
         auto sharedTableSchema = New<TTableSchema>(std::move(tableSchema));
         auto [it, inserted] = TableSchemaToObjectMap_.emplace(std::move(sharedTableSchema), schema);
         YT_VERIFY(inserted);
