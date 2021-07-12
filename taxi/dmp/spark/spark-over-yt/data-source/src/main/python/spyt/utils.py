@@ -41,6 +41,14 @@ class SparkDiscovery(object):
             logging.warning("Failed to get path {}, message: {}".format(path, e.message))
             for inner in e.inner_errors:
                 logging.warning("Failed to get path {}, inner message {}".format(path, inner["message"]))
+            raise e
+
+    @staticmethod
+    def getOption(path, client=None):
+        try:
+            return SparkDiscovery.get(path, client)
+        except YtHttpResponseError as _:
+            return None
 
     def create(self, client):
         create("map_node", self.discovery(), recursive=True, ignore_existing=True, client=client)

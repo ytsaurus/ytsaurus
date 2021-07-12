@@ -6,6 +6,7 @@ import subprocess
 
 from yt.wrapper.common import update_inplace, update
 from yt.wrapper.cypress_commands import exists
+from yt.wrapper.acl_commands import check_permission
 from yt.wrapper.http_helpers import get_token, get_user_name, get_proxy_url
 from yt.wrapper.operation_commands import TimeWatcher, process_operation_unsuccesful_finish_state
 from yt.wrapper.run_operation_commands import run_operation
@@ -151,6 +152,9 @@ def submit_python(discovery_path, spark_home, deploy_mode, spark_conf, main_py_p
 def raw_submit(discovery_path, spark_home, spark_args, spyt_version=None, client=None, spark_id=None):
     spark_submit_path = "{}/bin/spark-submit".format(spark_home)
     spark_base_args = [spark_submit_path]
+    permission_status = check_permission(user=client.get_user_name(), permission='read', path=discovery_path, client=client)
+    if permission_status.get('action', 'deny') != 'allow':
+        raise RuntimeError('No permission for reading cluster, actual permission status is ' + str(permission_status))
     discovery = SparkDiscovery(discovery_path=discovery_path, spark_id=spark_id)
     _add_master(discovery, spark_base_args, rest=True, client=client)
     _add_base_spark_conf(client, discovery, spark_base_args)
@@ -424,10 +428,10 @@ def find_spark_cluster(discovery_path=None, client=None):
     """
     discovery = SparkDiscovery(discovery_path=discovery_path)
     return SparkCluster(
-        master_endpoint=SparkDiscovery.get(discovery.master_spark(), client=client),
-        master_web_ui_url=SparkDiscovery.get(discovery.master_webui(), client=client),
-        master_rest_endpoint=SparkDiscovery.get(discovery.master_rest(), client=client),
-        operation_id=SparkDiscovery.get(discovery.operation(), client=client),
-        shs_url=SparkDiscovery.get(discovery.shs(), client=client),
-        spark_cluster_version=SparkDiscovery.get(discovery.spark_cluster_version(), client=client)
+        master_endpoint=SparkDiscovery.getOption(discovery.master_spark(), client=client),
+        master_web_ui_url=SparkDiscovery.getOption(discovery.master_webui(), client=client),
+        master_rest_endpoint=SparkDiscovery.getOption(discovery.master_rest(), client=client),
+        operation_id=SparkDiscovery.getOption(discovery.operation(), client=client),
+        shs_url=SparkDiscovery.getOption(discovery.shs(), client=client),
+        spark_cluster_version=SparkDiscovery.getOption(discovery.spark_cluster_version(), client=client)
     )
