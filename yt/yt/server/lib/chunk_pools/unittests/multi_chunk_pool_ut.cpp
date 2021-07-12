@@ -123,7 +123,7 @@ TEST_F(TMultiChunkPoolInputTest, TestResume)
 
 TEST_F(TMultiChunkPoolInputTest, TestReset)
 {
-    auto mapping = New<TInputChunkMapping>();
+    auto mapping = New<TInputChunkMapping>(EChunkMappingMode::Sorted);
 
     InSequence sequence;
     EXPECT_CALL(*Mocks_[0], Add(Stripes_[0]))
