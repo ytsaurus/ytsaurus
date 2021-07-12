@@ -5,13 +5,17 @@
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
-#include <yt/yt/server/master/node_tracker_server/node.h>
+#include <yt/yt/server/master/cypress_server/node_detail.h>
 
-#include <yt/yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/master/node_tracker_server/node.h>
 
 #include <yt/yt/server/master/object_server/object_detail.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
+
+#include <yt/yt/server/lib/cellar_agent/helpers.h>
+
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>
 
@@ -24,6 +28,8 @@
 namespace NYT::NCellServer {
 
 using namespace NConcurrency;
+using namespace NCellarAgent;
+using namespace NCypressServer;
 using namespace NNodeTrackerServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
@@ -102,6 +108,10 @@ void TCellProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* des
     descriptors->push_back(EInternedAttributeKey::TabletCellLifeStage);
     descriptors->push_back(EInternedAttributeKey::Status);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MulticellStatus)
+        .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MaxChangelogId)
+        .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MaxSnapshotId)
         .SetOpaque(true));
 }
 
@@ -201,11 +211,51 @@ bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYson
                 });
             return true;
 
+        case EInternedAttributeKey::MaxChangelogId: {
+            auto changelogPath = Format("%v/%v/changelogs", GetCellCypressPrefix(cell->GetId()), cell->GetId());
+            int maxId = GetMaxHydraFileId(changelogPath);
+            BuildYsonFluently(consumer)
+                .Value(maxId);
+            return true;
+        }
+
+        case EInternedAttributeKey::MaxSnapshotId: {
+            auto snapshotPath = Format("%v/%v/snapshots", GetCellCypressPrefix(cell->GetId()), cell->GetId());
+            int maxId = GetMaxHydraFileId(snapshotPath);
+            BuildYsonFluently(consumer)
+                .Value(maxId);
+            return true;
+        }
+
         default:
             break;
     }
 
     return TBase::GetBuiltinAttribute(key, consumer);
+}
+
+int TCellProxyBase::GetMaxHydraFileId(const TYPath& path) const
+{
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+
+    auto* node = cypressManager->ResolvePathToTrunkNode(path);
+    if (node->GetType() != EObjectType::MapNode) {
+        THROW_ERROR_EXCEPTION("Unexpected node type: expected %Qlv, got %Qlv",
+            EObjectType::MapNode,
+            node->GetType())
+            << TErrorAttribute("path", path);
+    }
+    auto* mapNode = node->As<TMapNode>();
+
+    int maxId = -1;
+    for (const auto& [key, child] : mapNode->KeyToChild()) {
+        int id;
+        if (TryFromString<int>(key, id)) {
+            maxId = std::max(maxId, id);
+        }
+    }
+
+    return maxId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

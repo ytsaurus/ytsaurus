@@ -223,7 +223,7 @@ public:
 
         ValidateCellBundleName(name);
 
-        if (FindCellBundleByName(name, false /*activeLifeStageOnly*/)) {
+        if (FindCellBundleByName(name, holder->GetCellarType(), false /*activeLifeStageOnly*/)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
                 "Cell bundle %Qv already exists",
@@ -234,7 +234,8 @@ public:
 
         auto id = holder->GetId();
         auto* cellBundle = CellBundleMap_.Insert(id, std::move(holder));
-        YT_VERIFY(NameToCellBundleMap_.emplace(cellBundle->GetName(), cellBundle).second);
+        YT_VERIFY(NameToCellBundleMap_[cellBundle->GetCellarType()].emplace(cellBundle->GetName(), cellBundle).second);
+        YT_VERIFY(CellBundlesPerTypeMap_[cellBundle->GetCellarType()].insert(cellBundle).second);
         cellBundle->SetOptions(std::move(options));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -253,7 +254,8 @@ public:
         YT_VERIFY(cellBundle->Areas().empty());
 
         // Remove tablet cell bundle from maps.
-        YT_VERIFY(NameToCellBundleMap_.erase(cellBundle->GetName()) == 1);
+        YT_VERIFY(NameToCellBundleMap_[cellBundle->GetCellarType()].erase(cellBundle->GetName()) == 1);
+        YT_VERIFY(CellBundlesPerTypeMap_[cellBundle->GetCellarType()].erase(cellBundle) == 1);
 
         CellBundleDestroyed_.Fire(cellBundle);
     }
@@ -439,6 +441,7 @@ public:
         holder->Peers().resize(peerCount);
         holder->SetCellBundle(cellBundle);
         YT_VERIFY(cellBundle->Cells().insert(holder.get()).second);
+        YT_VERIFY(CellsPerTypeMap_[holder->GetCellarType()].insert(holder.get()).second);
         objectManager->RefObject(cellBundle);
 
         holder->SetArea(area);
@@ -460,7 +463,7 @@ public:
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         hiveManager->CreateMailbox(id);
 
-        auto cellMapNodeProxy = GetCellMapNode();
+        auto cellMapNodeProxy = GetCellMapNode(id);
         auto cellNodePath = "/" + ToString(id);
 
         try {
@@ -577,10 +580,10 @@ public:
             }
         }
 
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-
         auto* cellBundle = cell->GetCellBundle();
         YT_VERIFY(cellBundle->Cells().erase(cell) == 1);
+        YT_VERIFY(CellsPerTypeMap_[cell->GetCellarType()].erase(cell) == 1);
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(cellBundle);
         cell->SetCellBundle(nullptr);
 
@@ -685,6 +688,11 @@ public:
     const TBundleNodeTrackerPtr& GetBundleNodeTracker()
     {
         return BundleNodeTracker_;
+    }
+
+    const THashSet<TCellBase*>& Cells(ECellarType cellarType)
+    {
+        return CellsPerTypeMap_[cellarType];
     }
 
     TCellBase* GetCellOrThrow(TTamedCellId id)
@@ -827,15 +835,14 @@ public:
             cell->GetId());
     }
 
-    TCellBundle* DoFindCellBundleByName(const TString& name)
+    const THashSet<TCellBundle*>& CellBundles(ECellarType cellarType)
     {
-        auto it = NameToCellBundleMap_.find(name);
-        return it == NameToCellBundleMap_.end() ? nullptr : it->second;
+        return CellBundlesPerTypeMap_[cellarType];
     }
 
-    TCellBundle* FindCellBundleByName(const TString& name, bool activeLifeStageOnly)
+    TCellBundle* FindCellBundleByName(const TString& name, ECellarType cellarType, bool activeLifeStageOnly)
     {
-        auto* cellBundle = DoFindCellBundleByName(name);
+        auto* cellBundle = DoFindCellBundleByName(name, cellarType);
         if (!cellBundle) {
             return cellBundle;
         }
@@ -850,14 +857,32 @@ public:
         }
     }
 
-    TCellBundle* GetCellBundleByNameOrThrow(const TString& name, bool activeLifeStageOnly)
+    TCellBundle* GetCellBundleByNameOrThrow(const TString& name, ECellarType cellarType, bool activeLifeStageOnly)
     {
-        auto* cellBundle = DoFindCellBundleByName(name);
+        auto* cellBundle = DoFindCellBundleByName(name, cellarType);
         if (!cellBundle) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::ResolveError,
                 "No such tablet cell bundle %Qv",
                 name);
+        }
+
+        if (activeLifeStageOnly) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            objectManager->ValidateObjectLifeStage(cellBundle);
+        }
+
+        return cellBundle;
+    }
+
+    TCellBundle* GetCellBundleByIdOrThrow(TCellBundleId cellBundleId, bool activeLifeStageOnly)
+    {
+        auto* cellBundle = FindCellBundle(cellBundleId);
+        if (!cellBundle) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::ResolveError,
+                "No such tablet cell bundle %v",
+                cellBundleId);
         }
 
         if (activeLifeStageOnly) {
@@ -876,15 +901,15 @@ public:
 
         ValidateCellBundleName(newName);
 
-        if (FindCellBundleByName(newName, false)) {
+        if (FindCellBundleByName(newName, cellBundle->GetCellarType(), false)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
                 "Tablet cell bundle %Qv already exists",
                 newName);
         }
 
-        YT_VERIFY(NameToCellBundleMap_.erase(cellBundle->GetName()) == 1);
-        YT_VERIFY(NameToCellBundleMap_.emplace(newName, cellBundle).second);
+        YT_VERIFY(NameToCellBundleMap_[cellBundle->GetCellarType()].erase(cellBundle->GetName()) == 1);
+        YT_VERIFY(NameToCellBundleMap_[cellBundle->GetCellarType()].emplace(newName, cellBundle).second);
         cellBundle->SetName(newName);
     }
 
@@ -952,7 +977,10 @@ private:
     TEntityMap<TCellBase, TEntityMapTypeTraits<TCellBase>> CellMap_;
     TEntityMap<TArea> AreaMap_;
 
-    THashMap<TString, TCellBundle*> NameToCellBundleMap_;
+    THashMap<ECellarType, THashSet<TCellBundle*>> CellBundlesPerTypeMap_;
+    THashMap<ECellarType, THashSet<TCellBase*>> CellsPerTypeMap_;
+
+    THashMap<ECellarType, THashMap<TString, TCellBundle*>> NameToCellBundleMap_;
 
     THashMap<TString, TCellSet> AddressToCell_;
     THashMap<TTransaction*, std::pair<TCellBase*, std::optional<TPeerId>>> TransactionToCellMap_;
@@ -1033,12 +1061,14 @@ private:
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
         NameToCellBundleMap_.clear();
+        CellBundlesPerTypeMap_.clear();
         for (auto [_, bundle] : CellBundleMap_) {
             if (!IsObjectAlive(bundle)) {
                 continue;
             }
 
-            YT_VERIFY(NameToCellBundleMap_.emplace(bundle->GetName(), bundle).second);
+            YT_VERIFY(NameToCellBundleMap_[bundle->GetCellarType()].emplace(bundle->GetName(), bundle).second);
+            YT_VERIFY(CellBundlesPerTypeMap_[bundle->GetCellarType()].insert(bundle).second);
         }
 
         for (auto [_, area] : AreaMap_) {
@@ -1074,6 +1104,7 @@ private:
         }
 
         AddressToCell_.clear();
+        CellsPerTypeMap_.clear();
         for (auto [cellId, cell] : CellMap_) {
             if (!IsObjectAlive(cell)) {
                 continue;
@@ -1081,6 +1112,8 @@ private:
 
             YT_VERIFY(cell->GetCellBundle()->Cells().insert(cell).second);
             YT_VERIFY(cell->GetArea()->Cells().insert(cell).second);
+
+            YT_VERIFY(CellsPerTypeMap_[cell->GetCellarType()].insert(cell).second);
 
             for (TPeerId peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
                 const auto& peer = cell->Peers()[peerId];
@@ -1120,6 +1153,8 @@ private:
         NameToCellBundleMap_.clear();
         AddressToCell_.clear();
         TransactionToCellMap_.clear();
+        CellBundlesPerTypeMap_.clear();
+        CellsPerTypeMap_.clear();
 
         BundleNodeTracker_->Clear();
 
@@ -1528,11 +1563,11 @@ private:
                 continue;
             }
 
-            if (GetCellarTypeFromId(cellId) != cellarType) {
+            if (GetCellarTypeFromCellId(cellId) != cellarType) {
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell with unexpected cellar type is running (Address: %v, CellId: %v, CellarType: %v, CellarType: %v)",
                     address,
                     cellId,
-                    GetCellarTypeFromId(cellId),
+                    GetCellarTypeFromCellId(cellId),
                     cellarType);
                 requestRemoveSlot(cellId);
                 continue;
@@ -2162,15 +2197,15 @@ private:
         cell->RevokePeer(peerId, reason);
     }
 
-    IMapNodePtr GetCellMapNode()
+    IMapNodePtr GetCellMapNode(TTamedCellId cellId)
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        return cypressManager->ResolvePathToNodeProxy("//sys/tablet_cells")->AsMap();
+        return cypressManager->ResolvePathToNodeProxy(GetCellCypressPrefix(cellId))->AsMap();
     }
 
     IMapNodePtr FindCellNode(TTamedCellId cellId)
     {
-        auto cellMapNodeProxy = GetCellMapNode();
+        auto cellMapNodeProxy = GetCellMapNode(cellId);
         return cellMapNodeProxy->FindChild(ToString(cellId))->AsMap();
     }
 
@@ -2256,6 +2291,12 @@ private:
         }
     }
 
+    TCellBundle* DoFindCellBundleByName(const TString& name, ECellarType cellarType)
+    {
+        auto it = NameToCellBundleMap_[cellarType].find(name);
+        return it == NameToCellBundleMap_[cellarType].end() ? nullptr : it->second;
+    }
+
     static void ValidateCellBundleName(const TString& name)
     {
         if (name.empty()) {
@@ -2310,6 +2351,11 @@ const TBundleNodeTrackerPtr& TTamedCellManager::GetBundleNodeTracker()
     return Impl_->GetBundleNodeTracker();
 }
 
+const THashSet<TCellBase*>& TTamedCellManager::Cells(ECellarType cellarType)
+{
+    return Impl_->Cells(cellarType);
+}
+
 TCellBase* TTamedCellManager::GetCellOrThrow(TTamedCellId id)
 {
     return Impl_->GetCellOrThrow(id);
@@ -2320,14 +2366,30 @@ void TTamedCellManager::RemoveCell(TCellBase* cell, bool force)
     return Impl_->RemoveCell(cell, force);
 }
 
-TCellBundle* TTamedCellManager::FindCellBundleByName(const TString& name, bool activeLifeStageOnly)
+const THashSet<TCellBundle*>& TTamedCellManager::CellBundles(ECellarType cellarType)
 {
-    return Impl_->FindCellBundleByName(name, activeLifeStageOnly);
+    return Impl_->CellBundles(cellarType);
 }
 
-TCellBundle* TTamedCellManager::GetCellBundleByNameOrThrow(const TString& name, bool activeLifeStageOnly)
+TCellBundle* TTamedCellManager::FindCellBundleByName(
+    const TString& name,
+    ECellarType cellarType,
+    bool activeLifeStageOnly)
 {
-    return Impl_->GetCellBundleByNameOrThrow(name, activeLifeStageOnly);
+    return Impl_->FindCellBundleByName(name, cellarType, activeLifeStageOnly);
+}
+
+TCellBundle* TTamedCellManager::GetCellBundleByNameOrThrow(
+    const TString& name,
+    ECellarType cellarType,
+    bool activeLifeStageOnly)
+{
+    return Impl_->GetCellBundleByNameOrThrow(name, cellarType, activeLifeStageOnly);
+}
+
+TCellBundle* TTamedCellManager::GetCellBundleByIdOrThrow(TCellBundleId cellBundleId, bool activeLifeStageOnly)
+{
+    return Impl_->GetCellBundleByIdOrThrow(cellBundleId, activeLifeStageOnly);
 }
 
 void TTamedCellManager::RenameCellBundle(TCellBundle* cellBundle, const TString& newName)

@@ -1,6 +1,7 @@
 #include "occupant.h"
 
 #include "bootstrap_proxy.h"
+#include "helpers.h"
 #include "occupier.h"
 #include "private.h"
 
@@ -312,7 +313,7 @@ public:
 
         bool independent = Options_->IndependentPeers;
         TStringBuilder builder;
-        builder.AppendFormat("//sys/tablet_cells/%v", GetCellId());
+        builder.AppendFormat("%v/%v", GetCellCypressPrefix(GetCellId()), GetCellId());
         if (independent) {
             builder.AppendFormat("/%v", PeerId_);
         }

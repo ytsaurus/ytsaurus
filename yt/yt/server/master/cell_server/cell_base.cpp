@@ -400,7 +400,7 @@ bool TCellBase::IsIndependent() const
 
 ECellarType TCellBase::GetCellarType() const
 {
-    return GetCellarTypeFromId(GetId());
+    return GetCellarTypeFromCellId(GetId());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

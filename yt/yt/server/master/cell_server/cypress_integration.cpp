@@ -1,6 +1,7 @@
 #include "cypress_integration.h"
 
 #include "area.h"
+#include "cell_base.h"
 #include "tamed_cell_manager.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -80,6 +81,142 @@ INodeTypeHandlerPtr CreateAreaMapTypeHandler(TBootstrap* bootstrap)
         EObjectType::AreaMap,
         BIND([=] (INodePtr /*owningNode*/) -> IYPathServicePtr {
             return New<TVirtualAreaMap>(bootstrap);
+        }),
+        EVirtualNodeOptions::RedirectSelf);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCellNodeProxy
+    : public TMapNodeProxy
+{
+public:
+    using TMapNodeProxy::TMapNodeProxy;
+
+    virtual TResolveResult ResolveSelf(
+        const TYPath& path,
+        const IServiceContextPtr& context) override
+    {
+        const auto& method = context->GetMethod();
+        if (method == "Remove") {
+            return TResolveResultThere{GetTargetProxy(), path};
+        } else {
+            return TMapNodeProxy::ResolveSelf(path, context);
+        }
+    }
+
+    virtual IYPathService::TResolveResult ResolveAttributes(
+        const TYPath& path,
+        const IServiceContextPtr& /*context*/) override
+    {
+        return TResolveResultThere{GetTargetProxy(), "/@" + path};
+    }
+
+    virtual void DoWriteAttributesFragment(
+        IAsyncYsonConsumer* consumer,
+        const std::optional<std::vector<TString>>& attributeKeys,
+        bool stable) override
+    {
+        GetTargetProxy()->WriteAttributesFragment(consumer, attributeKeys, stable);
+    }
+
+private:
+    IObjectProxyPtr GetTargetProxy() const
+    {
+        auto key = GetParent()->AsMap()->GetChildKeyOrThrow(this);
+        auto id = TCellId::FromString(key);
+
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        auto* cell = cellManager->GetCellOrThrow(id);
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        return objectManager->GetProxy(cell, nullptr);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCellNodeTypeHandler
+    : public TMapNodeTypeHandler
+{
+public:
+    using TMapNodeTypeHandler::TMapNodeTypeHandlerImpl;
+
+    virtual EObjectType GetObjectType() const override
+    {
+        return EObjectType::TabletCellNode;
+    }
+
+private:
+    virtual ICypressNodeProxyPtr DoGetProxy(
+        TMapNode* trunkNode,
+        TTransaction* transaction) override
+    {
+        return New<TCellNodeProxy>(
+            Bootstrap_,
+            &Metadata_,
+            transaction,
+            trunkNode);
+    }
+};
+
+INodeTypeHandlerPtr CreateCellNodeTypeHandler(TBootstrap* bootstrap)
+{
+    return New<TCellNodeTypeHandler>(bootstrap);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVirtualCellBundleMap
+    : public TVirtualMapBase
+{
+public:
+    TVirtualCellBundleMap(TBootstrap* bootstrap, ECellarType cellarType)
+        : Bootstrap_(bootstrap)
+        , CellarType_(cellarType)
+    { }
+
+private:
+    TBootstrap* const Bootstrap_;
+    const ECellarType CellarType_;
+
+    virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
+    {
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        return ToNames(GetItems(cellManager->CellBundles(CellarType_), sizeLimit));
+    }
+
+    virtual i64 GetSize() const override
+    {
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        return std::ssize(cellManager->CellBundles(CellarType_));
+    }
+
+    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
+    {
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        auto* cellBundle = cellManager->FindCellBundleByName(TString(key), CellarType_, false /*activeLifeStageOnly*/);
+        if (!IsObjectAlive(cellBundle)) {
+            return nullptr;
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        return objectManager->GetProxy(cellBundle);
+    }
+};
+
+INodeTypeHandlerPtr CreateCellBundleMapTypeHandler(
+    TBootstrap* bootstrap,
+    ECellarType cellarType,
+    EObjectType cellBundleMapType)
+{
+    YT_VERIFY(bootstrap);
+
+    return CreateVirtualTypeHandler(
+        bootstrap,
+        cellBundleMapType,
+        BIND([=] (INodePtr /*owningNode*/) -> IYPathServicePtr {
+            return New<TVirtualCellBundleMap>(bootstrap, cellarType);
         }),
         EVirtualNodeOptions::RedirectSelf);
 }

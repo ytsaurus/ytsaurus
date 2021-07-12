@@ -1326,7 +1326,8 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//sys/tablet_cell_bundles/default/@node_tag_filter", "a")
         default_area_id = get("//sys/tablet_cell_bundles/default/@areas/default/id")
 
-        custom_area_id = create_area("custom", cell_bundle="default", attributes={"node_tag_filter": "b"})
+        default_bundle_id = get("//sys/tablet_cell_bundles/default/@id")
+        custom_area_id = create_area("custom", cell_bundle_id=default_bundle_id, attributes={"node_tag_filter": "b"})
 
         def _validate(area_id, name, tag, cell, node):
             assert get("#{0}/@cell_ids".format(area_id)) == [cell]
@@ -1371,8 +1372,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     @authors("savrus")
     def test_bundle_areas_removal(self):
         create_tablet_cell_bundle("custom", attributes={"node_tag_filter": "a"})
+        custom_bundle_id = get("//sys/tablet_cell_bundles/custom/@id")
         default_area = get("//sys/tablet_cell_bundles/custom/@areas/default/id")
-        custom_area = create_area("custom", cell_bundle="custom")
+        custom_area = create_area("custom", cell_bundle_id=custom_bundle_id)
 
         assert get("#{0}/@node_tag_filter".format(default_area)) == "a"
         assert not exists("#{0}/@node_tag_filter".format(custom_area))

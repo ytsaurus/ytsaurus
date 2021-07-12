@@ -34,8 +34,18 @@ public:
     const TBundleNodeTrackerPtr& GetBundleNodeTracker();
 
     DECLARE_ENTITY_MAP_ACCESSORS(CellBundle, TCellBundle);
-    TCellBundle* FindCellBundleByName(const TString& name, bool activeLifeStageOnly);
-    TCellBundle* GetCellBundleByNameOrThrow(const TString& name, bool activeLifeStageOnly);
+    const THashSet<TCellBundle*>& CellBundles(NCellarClient::ECellarType cellarType);
+    TCellBundle* FindCellBundleByName(
+        const TString& name,
+        NCellarClient::ECellarType cellarType,
+        bool activeLifeStageOnly);
+    TCellBundle* GetCellBundleByNameOrThrow(
+        const TString& name,
+        NCellarClient::ECellarType cellarType,
+        bool activeLifeStageOnly);
+    TCellBundle* GetCellBundleByIdOrThrow(
+        TCellBundleId cellBundleId,
+        bool activeLifeStageOnly);
     void RenameCellBundle(TCellBundle* cellBundle, const TString& newName);
     void SetCellBundleOptions(TCellBundle* cellBundle, TTabletCellOptionsPtr options);
     TCellBundle* CreateCellBundle(
@@ -46,6 +56,7 @@ public:
     void DestroyCellBundle(TCellBundle* cellBundle);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Cell, TCellBase);
+    const THashSet<TCellBase*>& Cells(NCellarClient::ECellarType cellarType);
     TCellBase* GetCellOrThrow(TTamedCellId id);
     void RemoveCell(TCellBase* cell, bool force);
 

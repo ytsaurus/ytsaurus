@@ -45,11 +45,13 @@
 #include <yt/yt/server/master/journal_server/journal_node.h>
 #include <yt/yt/server/master/journal_server/journal_node_type_handler.h>
 
+#include <yt/yt/server/master/cell_server/cell_hydra_janitor.h>
+#include <yt/yt/server/master/cell_server/cell_hydra_janitor.h>
+#include <yt/yt/server/master/cell_server/cell_map_type_handler.h>
 #include <yt/yt/server/master/cell_server/cellar_node_tracker.h>
 #include <yt/yt/server/master/cell_server/cellar_node_tracker_service.h>
-#include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
-#include <yt/yt/server/master/cell_server/cell_hydra_janitor.h>
 #include <yt/yt/server/master/cell_server/cypress_integration.h>
+#include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
 
 #include <yt/yt/server/master/node_tracker_server/cypress_integration.h>
 #include <yt/yt/server/master/node_tracker_server/exec_node_tracker.h>
@@ -80,7 +82,6 @@
 
 #include <yt/yt/server/master/tablet_server/cypress_integration.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
-#include <yt/yt/server/master/tablet_server/tablet_cell_map_type_handler.h>
 #include <yt/yt/server/master/tablet_server/replicated_table_tracker.h>
 #include <yt/yt/server/master/tablet_server/tablet_node_tracker.h>
 #include <yt/yt/server/master/tablet_server/tablet_node_tracker_service.h>
@@ -163,6 +164,7 @@ namespace NYT::NCellMaster {
 using namespace NAdmin;
 using namespace NApi;
 using namespace NBus;
+using namespace NCellarClient;
 using namespace NChaosServer;
 using namespace NChunkServer;
 using namespace NConcurrency;
@@ -894,10 +896,12 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateProxyRoleMapTypeHandler(this, EObjectType::HttpProxyRoleMap));
     CypressManager_->RegisterHandler(CreateProxyRoleMapTypeHandler(this, EObjectType::RpcProxyRoleMap));
     CypressManager_->RegisterHandler(CreatePoolTreeMapTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateTabletCellNodeTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateTabletCellMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateCellNodeTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateCellBundleMapTypeHandler(this, ECellarType::Chaos, EObjectType::ChaosCellBundleMap));
+    CypressManager_->RegisterHandler(CreateCellMapTypeHandler(this, ECellarType::Chaos, EObjectType::ChaosCellMap));
+    CypressManager_->RegisterHandler(CreateCellBundleMapTypeHandler(this, ECellarType::Tablet, EObjectType::TabletCellBundleMap));
+    CypressManager_->RegisterHandler(CreateCellMapTypeHandler(this, ECellarType::Tablet, EObjectType::TabletCellMap));
     CypressManager_->RegisterHandler(CreateTabletMapTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateTabletCellBundleMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletActionMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateAreaMapTypeHandler(this));
 

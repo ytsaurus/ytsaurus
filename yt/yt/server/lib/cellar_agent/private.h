@@ -13,6 +13,9 @@ namespace NYT::NCellarAgent {
 extern const NLogging::TLogger CellarAgentLogger;
 extern const NProfiling::TProfiler CellarAgentProfiler;
 
+extern const TString TabletCellCypressPrefix;
+extern const TString ChaosCellCypressPrefix;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCellarAgent

@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, wait, execute_command, get_driver,
+    authors, wait, execute_command, get_driver, sync_create_cells,
     ls, get, set)
 
 from yt.common import YtError
@@ -10,6 +10,8 @@ import yt.yson as yson
 import pytest
 
 from copy import deepcopy
+
+from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 
@@ -25,6 +27,37 @@ class TestChaos(YTEnvSetup):
             "peer_revocation_timeout": 10000,
         },
     }
+
+    @authors("savrus")
+    def test_virtual_maps(self):
+        tablet_cell_id = sync_create_cells(1)[0]
+        tablet_bundle_id = get("//sys/tablet_cell_bundles/default/@id")
+
+        result = execute_command("create", {
+            "type": "chaos_cell_bundle",
+            "attributes": {
+                "name": "default",
+                "chaos_options": {"peers": [{"remote": False}]},
+                "options": {"changelog_account": "sys", "snapshot_account": "sys", "peer_count": 1, "independent_peers": True}
+            }
+        })
+        chaos_bundle_id = yson.loads(result)["object_id"]
+
+        assert chaos_bundle_id != tablet_bundle_id
+        assert get("//sys/chaos_cell_bundles/default/@id") == chaos_bundle_id
+
+        result = execute_command("create", {
+            "type": "chaos_cell",
+            "attributes": {
+                "cell_bundle": "default",
+            }
+        })
+        chaos_cell_id = yson.loads(result)["object_id"]
+
+        assert_items_equal(get("//sys/chaos_cell_bundles"), ["default"])
+        assert_items_equal(get("//sys/tablet_cell_bundles"), ["default"])
+        assert_items_equal(get("//sys/tablet_cells"), [tablet_cell_id])
+        assert_items_equal(get("//sys/chaos_cells"), [chaos_cell_id])
 
     @authors("savrus")
     def test_bundle_bad_options(self):
@@ -46,7 +79,7 @@ class TestChaos(YTEnvSetup):
         }
         execute_command("create", create_parameters)
         with pytest.raises(YtError):
-            set("//sys/tablet_cell_bundles/chaos_bundle/@options/independent_peers", False)
+            set("//sys/chaos_cell_bundles/chaos_bundle/@options/independent_peers", False)
 
     @authors("savrus")
     def test_chaos_cells(self):

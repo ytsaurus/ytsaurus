@@ -2284,12 +2284,12 @@ def create_dynamic_table(path, schema=None, **attributes):
     create("table", path, attributes=attributes)
 
 
-def create_area(name, cell_bundle="default", **kwargs):
+def create_area(name, cell_bundle_id, **kwargs):
     kwargs["type"] = "area"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
     kwargs["attributes"]["name"] = name
-    kwargs["attributes"]["cell_bundle"] = cell_bundle
+    kwargs["attributes"]["cell_bundle_id"] = cell_bundle_id
     return execute_command("create", kwargs, parse_yson=True)
 
 

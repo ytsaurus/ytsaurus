@@ -38,7 +38,7 @@ void ValidateTabletCellSnapshot(IBootstrapBase* bootstrap, const IAsyncZeroCopyI
         ->GetCellarManager();
     const auto& cellar = cellarManager->GetCellar(ECellarType::Tablet);
 
-    auto cellId = TCellId::Create();
+    auto cellId = MakeRandomId(EObjectType::TabletCell, 1);
 
     // We create fake tablet slot here populating descriptors with the least amount
     // of data such that configuration succeeds.
@@ -60,7 +60,7 @@ void ValidateTabletCellSnapshot(IBootstrapBase* bootstrap, const IAsyncZeroCopyI
 
     {
         TCellDescriptor cellDescriptor;
-        cellDescriptor.CellId = TGuid{};
+        cellDescriptor.CellId = cellId;
         cellDescriptor.ConfigVersion = 0;
         TCellPeerDescriptor peerDescriptor;
         peerDescriptor.SetVoting(true);

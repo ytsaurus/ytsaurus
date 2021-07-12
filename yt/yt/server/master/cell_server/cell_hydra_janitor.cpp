@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/master/tablet_server/config.h>
 
+#include <yt/yt/server/lib/cellar_agent/helpers.h>
+
 #include <yt/yt/server/lib/hydra/hydra_janitor_helpers.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>
@@ -23,6 +25,7 @@
 namespace NYT::NCellServer {
 
 using namespace NConcurrency;
+using namespace NCellarAgent;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NYson;
@@ -232,12 +235,12 @@ private:
                 if (cell->GetCellBundle()->GetOptions()->IndependentPeers) {
                     for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
                         if (!cell->IsAlienPeer(peerId)) {
-                            auto path = Format("//sys/tablet_cells/%v/%v", ToYPathLiteral(ToString(cellId)), peerId);
+                            auto path = Format("%v/%v/%v", GetCellCypressPrefix(cellId), cellId, peerId);
                             CleanSnapshotsAndChangelogs(cellId, path, &snapshotBudget, &changelogBudget);
                         }
                     }
                 } else {
-                    auto path = Format("//sys/tablet_cells/%v", ToYPathLiteral(ToString(cellId)));
+                    auto path = Format("%v/%v", GetCellCypressPrefix(cellId), cellId);
                     CleanSnapshotsAndChangelogs(cellId, path, &snapshotBudget, &changelogBudget);
                 }
             } catch (const std::exception& ex) {

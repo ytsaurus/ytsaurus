@@ -10,16 +10,19 @@
 
 #include <yt/yt/server/master/cell_master/public.h>
 
-namespace NYT::NTabletServer {
+#include <yt/yt/ytlib/cellar_client/public.h>
+
+namespace NYT::NCellServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NCypressServer::ICypressNodeProxyPtr CreateTabletCellMapProxy(
+NCypressServer::ICypressNodeProxyPtr CreateCellMapProxy(
     NCellMaster::TBootstrap* bootstrap,
     NObjectServer::TObjectTypeMetadata* metadata,
     NTransactionServer::TTransaction* transaction,
-    NCypressServer::TMapNode* trunkNode);
+    NCypressServer::TMapNode* trunkNode,
+    NCellarClient::ECellarType cellarType);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTabletServer
+} // namespace NYT::NCellServer

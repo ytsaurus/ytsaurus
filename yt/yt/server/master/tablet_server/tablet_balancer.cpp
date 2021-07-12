@@ -195,27 +195,25 @@ private:
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         THashSet<TTabletCellBundleId> bundlesForCellBalancingOnNextIteration;
-        for (auto [bundleId, bundleBase] : cellManager->CellBundles()) {
-            if (bundleBase->GetType() != EObjectType::TabletCellBundle) {
-                continue;
-            }
+        for (auto* bundleBase : cellManager->CellBundles(NCellarClient::ECellarType::Tablet)) {
+            YT_VERIFY(bundleBase->GetType() == EObjectType::TabletCellBundle);
             const auto* bundle = bundleBase->As<TTabletCellBundle>();
 
             // If it is necessary and possible to balance cells, do it...
-            if (BundlesPendingCellBalancing_.contains(bundleId) && bundle->GetActiveTabletActionCount() == 0) {
+            if (BundlesPendingCellBalancing_.contains(bundle->GetId()) && bundle->GetActiveTabletActionCount() == 0) {
                 forMove.push_back(bundle);
             // ... else if time has come for reshard, do it.
             } else if (DidBundleBalancingTimeHappen(bundle)) {
                 forReshard.push_back(bundle);
-                bundlesForCellBalancingOnNextIteration.insert(bundleId);
+                bundlesForCellBalancingOnNextIteration.insert(bundle->GetId());
             }
 
             // If it was nesessary but not possible to balance cells, postpone balancing to the next iteration and log it.
-            if (BundlesPendingCellBalancing_.contains(bundleId) && bundle->GetActiveTabletActionCount() > 0) {
+            if (BundlesPendingCellBalancing_.contains(bundle->GetId()) && bundle->GetActiveTabletActionCount() > 0) {
                 YT_LOG_DEBUG(
                     "Tablet balancer did not balance cells because bundle participates in action (Bundle: %v)",
                     bundle->GetName());
-                bundlesForCellBalancingOnNextIteration.insert(bundleId);
+                bundlesForCellBalancingOnNextIteration.insert(bundle->GetId());
             }
         }
 
