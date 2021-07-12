@@ -4,17 +4,11 @@
 
 #include <yt/yt/server/master/cypress_server/public.h>
 
-#include <yt/yt/server/master/object_server/public.h>
-
 namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NCypressServer::INodeTypeHandlerPtr CreateTabletCellNodeTypeHandler(
-    NCellMaster::TBootstrap* bootstrap);
 NCypressServer::INodeTypeHandlerPtr CreateTabletMapTypeHandler(
-    NCellMaster::TBootstrap* bootstrap);
-NCypressServer::INodeTypeHandlerPtr CreateTabletCellBundleMapTypeHandler(
     NCellMaster::TBootstrap* bootstrap);
 NCypressServer::INodeTypeHandlerPtr CreateTabletActionMapTypeHandler(
     NCellMaster::TBootstrap* bootstrap);

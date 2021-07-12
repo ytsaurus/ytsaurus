@@ -160,9 +160,9 @@ DEFINE_ENUM(EMasterReign,
     ((AccessLogImprovement)                                         (1634))  // cookiedoth
     ((SanitizeUnrecognizedOptionsAlert)                             (1635))  // gritukan
     ((Areas)                                                        (1636))  // savrus
+    ((ChaosCellMaps)                                                (1637))  // savrus
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1700))  // ignat
-    // 21.3 starts here.
 );
 
 ////////////////////////////////////////////////////////////////////////////////

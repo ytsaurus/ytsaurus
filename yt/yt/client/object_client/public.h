@@ -250,6 +250,8 @@ DEFINE_ENUM(EObjectType,
     // Chaos stuff
     ((ChaosCell)                    (1200))
     ((ChaosCellBundle)              (1201))
+    ((ChaosCellMap)                 (1202))
+    ((ChaosCellBundleMap)           (1203))
 );
 
 //! A bit mask marking schema types.

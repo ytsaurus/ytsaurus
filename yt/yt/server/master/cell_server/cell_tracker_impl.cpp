@@ -192,12 +192,8 @@ void TCellTrackerImpl::ScanCellarCells(ECellarType cellarType)
 
     TReqReassignPeers request;
 
-    for (auto [cellId, cell] : cellManger->Cells()) {
+    for (auto* cell : cellManger->Cells(cellarType)) {
         if (!IsObjectAlive(cell)) {
-            continue;
-        }
-
-        if (cell->GetCellarType() != cellarType) {
             continue;
         }
 

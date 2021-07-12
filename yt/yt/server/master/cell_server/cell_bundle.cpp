@@ -9,6 +9,8 @@
 #include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>
 #include <yt/yt/server/master/tablet_server/config.h>
 
+#include <yt/yt/server/lib/cellar_agent/helpers.h>
+
 #include <yt/yt/ytlib/tablet_client/config.h>
 
 #include <yt/yt/core/profiling/profile_manager.h>
@@ -16,13 +18,15 @@
 namespace NYT::NCellServer {
 
 using namespace NCellMaster;
+using namespace NCellarAgent;
+using namespace NCellarClient;
+using namespace NChunkClient;
 using namespace NObjectServer;
+using namespace NProfiling;
 using namespace NTabletClient;
 using namespace NTabletServer;
-using namespace NChunkClient;
-using namespace NYson;
 using namespace NYTree;
-using namespace NProfiling;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,6 +102,11 @@ void TCellBundle::SetDynamicOptions(TDynamicTabletCellOptionsPtr dynamicOptions)
 {
     DynamicOptions_ = std::move(dynamicOptions);
     ++DynamicConfigVersion_;
+}
+
+ECellarType TCellBundle::GetCellarType() const
+{
+    return GetCellarTypeFromCellBundleId(GetId());
 }
 
 void TCellBundle::InitializeProfilingCounters()

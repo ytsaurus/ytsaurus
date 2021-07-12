@@ -22,6 +22,11 @@ std::vector<typename T::mapped_type> GetValues(
     const T& collection,
     size_t sizeLimit = std::numeric_limits<size_t>::max());
 
+template <class T>
+std::vector<typename T::value_type> GetItems(
+    const T& collection,
+    size_t sizeLimit = std::numeric_limits<size_t>::max());
+
 template <size_t N, class T>
 std::vector<typename std::tuple_element<N, typename T::value_type>::type> GetIths(
     const T& collection,

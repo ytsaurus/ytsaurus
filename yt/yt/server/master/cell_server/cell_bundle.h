@@ -11,6 +11,8 @@
 
 #include <yt/yt/server/master/tablet_server/public.h>
 
+#include <yt/yt/server/lib/cellar_agent/public.h>
+
 #include <yt/yt/ytlib/tablet_client/public.h>
 
 #include <yt/yt/core/misc/ref_tracked.h>
@@ -83,6 +85,8 @@ public:
     virtual void Load(NCellMaster::TLoadContext& context);
 
     TArea* GetAreaOrThrow(const TString& name);
+
+    NCellarClient::ECellarType GetCellarType() const;
 
 private:
     TString Name_;

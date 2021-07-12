@@ -43,10 +43,10 @@ public:
         IAttributeDictionary* attributes) override
     {
         auto name = attributes->GetAndRemove<TString>("name");
-        auto cellBundleName = attributes->GetAndRemove<TString>("cell_bundle");
+        auto cellBundleId = attributes->GetAndRemove<TCellBundleId>("cell_bundle_id");
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        auto* cellBundle = cellManager->GetCellBundleByNameOrThrow(
-            cellBundleName,
+        auto* cellBundle = cellManager->GetCellBundleByIdOrThrow(
+            cellBundleId,
             /*activeLifeStageOnly*/ true);
         return cellManager->CreateArea(name, cellBundle, hintId);
     }

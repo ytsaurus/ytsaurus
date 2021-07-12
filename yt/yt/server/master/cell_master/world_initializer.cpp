@@ -532,6 +532,20 @@ private:
                 EObjectType::NetworkProjectMap);
 
             ScheduleCreateNode(
+                "//sys/chaos_cell_bundles",
+                transactionId,
+                EObjectType::ChaosCellBundleMap);
+
+            ScheduleCreateNode(
+                "//sys/chaos_cells",
+                transactionId,
+                EObjectType::ChaosCellMap,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
+
+            ScheduleCreateNode(
                 "//sys/tablet_cell_bundles",
                 transactionId,
                 EObjectType::TabletCellBundleMap);

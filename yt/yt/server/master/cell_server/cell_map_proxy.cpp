@@ -1,9 +1,9 @@
-#include "tablet_cell_map_proxy.h"
+#include "cell_map_proxy.h"
+
+#include "cell_base.h"
+#include "tamed_cell_manager.h"
 
 #include <yt/yt/server/master/cypress_server/node_proxy_detail.h>
-
-#include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
-#include <yt/yt/server/master/cell_server/cell_base.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
@@ -11,35 +11,40 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
-namespace NYT::NTabletServer {
+namespace NYT::NCellServer {
 
-using namespace NYson;
-using namespace NYTree;
+using namespace NCellMaster;
+using namespace NCellarClient;
 using namespace NCypressServer;
 using namespace NObjectServer;
 using namespace NTransactionServer;
-using namespace NCellMaster;
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletCellMapProxy
+class TCellMapProxy
     : public TMapNodeProxy
 {
 public:
-    TTabletCellMapProxy(
+    TCellMapProxy(
         TBootstrap* bootstrap,
         TObjectTypeMetadata* metadata,
         TTransaction* transaction,
-        TMapNode* trunkNode)
+        TMapNode* trunkNode,
+        ECellarType cellarType)
         : TBase(
             bootstrap,
             metadata,
             transaction,
             trunkNode)
+        , CellarType_(cellarType)
     { }
 
 private:
     using TBase = TMapNodeProxy;
+
+    ECellarType CellarType_;
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
@@ -53,15 +58,15 @@ private:
         switch (key) {
             case EInternedAttributeKey::CountByHealth: {
                 const auto& cellManager = Bootstrap_->GetTamedCellManager();
-                TEnumIndexedVector<ETabletCellHealth, int> counts;
-                for (auto [cellId, cell] : cellManager->Cells()) {
+                TEnumIndexedVector<ECellHealth, int> counts;
+                for (auto* cell : cellManager->Cells(CellarType_)) {
                     if (!IsObjectAlive(cell)) {
                         continue;
                     }
                     ++counts[cell->GetHealth()];
                 }
                 BuildYsonFluently(consumer)
-                    .DoMapFor(TEnumTraits<ETabletCellHealth>::GetDomainValues(), [&] (TFluentMap fluent, ETabletCellHealth health) {
+                    .DoMapFor(TEnumTraits<ECellHealth>::GetDomainValues(), [&] (TFluentMap fluent, ECellHealth health) {
                         fluent
                             .Item(FormatEnum(health)).Value(counts[health]);
                     });
@@ -78,19 +83,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ICypressNodeProxyPtr CreateTabletCellMapProxy(
+ICypressNodeProxyPtr CreateCellMapProxy(
     TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
     TTransaction* transaction,
-    TMapNode* trunkNode)
+    TMapNode* trunkNode,
+    ECellarType cellarType)
 {
-    return New<TTabletCellMapProxy>(
+    return New<TCellMapProxy>(
         bootstrap,
         metadata,
         transaction,
-        trunkNode);
+        trunkNode,
+        cellarType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTabletServer
+} // namespace NYT::NCellServer

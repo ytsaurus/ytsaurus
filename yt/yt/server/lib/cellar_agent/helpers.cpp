@@ -1,5 +1,7 @@
 #include "helpers.h"
 
+#include "private.h"
+
 #include <yt/yt/client/object_client/helpers.h>
 
 namespace NYT::NCellarAgent {
@@ -9,7 +11,7 @@ using namespace NCellarClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ECellarType GetCellarTypeFromId(TCellId id)
+ECellarType GetCellarTypeFromCellId(TCellId id)
 {
     switch (TypeFromId(id)) {
         case EObjectType::TabletCell:
@@ -17,6 +19,34 @@ ECellarType GetCellarTypeFromId(TCellId id)
 
         case EObjectType::ChaosCell:
             return ECellarType::Chaos;
+
+        default:
+            YT_ABORT();
+    }
+}
+
+ECellarType GetCellarTypeFromCellBundleId(TObjectId id)
+{
+    switch (TypeFromId(id)) {
+        case EObjectType::TabletCellBundle:
+            return ECellarType::Tablet;
+
+        case EObjectType::ChaosCellBundle:
+            return ECellarType::Chaos;
+
+        default:
+            YT_ABORT();
+    }
+}
+
+const TString& GetCellCypressPrefix(TCellId id)
+{
+    switch (TypeFromId(id)) {
+        case EObjectType::TabletCell:
+            return TabletCellCypressPrefix;
+
+        case EObjectType::ChaosCell:
+            return ChaosCellCypressPrefix;
 
         default:
             YT_ABORT();

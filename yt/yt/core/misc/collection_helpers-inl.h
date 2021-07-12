@@ -34,15 +34,15 @@ struct TKeyLess<false>
     }
 };
 
-template <size_t I, class TItem, class T>
-std::vector<TItem> GetIthsImpl(const T& collection, size_t sizeLimit)
+template <class TItem, class T, class TGetter>
+std::vector<TItem> GetIthsImpl(const T& collection, size_t sizeLimit, const TGetter& getter)
 {
     std::vector<TItem> result;
     result.reserve(std::min(collection.size(), sizeLimit));
     for (const auto& item : collection) {
         if (result.size() >= sizeLimit)
             break;
-        result.emplace_back(std::get<I>(item));
+        result.push_back(getter(item));
     }
     return result;
 }
@@ -79,19 +79,45 @@ std::vector<typename T::const_iterator> GetSortedIterators(const T& collection)
 template <class T>
 std::vector<typename T::key_type> GetKeys(const T& collection, size_t sizeLimit)
 {
-    return GetIthsImpl<0U, typename T::key_type>(collection, sizeLimit);
+    return GetIthsImpl<typename T::key_type>(
+        collection,
+        sizeLimit,
+        [] (const auto& item) {
+            return std::get<0u>(item);
+        });
 }
 
 template <class T>
 std::vector<typename T::mapped_type> GetValues(const T& collection, size_t sizeLimit)
 {
-    return GetIthsImpl<1U, typename T::mapped_type>(collection, sizeLimit);
+    return GetIthsImpl<typename T::mapped_type>(
+        collection,
+        sizeLimit,
+        [] (const auto& item) {
+            return std::get<1u>(item);
+        });
+}
+
+template <class T>
+std::vector<typename T::value_type> GetItems(const T& collection, size_t sizeLimit)
+{
+    return GetIthsImpl<typename T::value_type>(
+        collection,
+        sizeLimit,
+        [] (const auto& item) {
+            return item;
+        });
 }
 
 template <size_t I, class T>
 std::vector<typename std::tuple_element<I, typename T::value_type>::type> GetIths(const T& collection, size_t sizeLimit)
 {
-    return GetIthsImpl<I, typename std::tuple_element<I, typename T::value_type>::type>(collection, sizeLimit);
+    return GetIthsImpl<typename std::tuple_element<I, typename T::value_type>::type>(
+        collection,
+        sizeLimit,
+        [] (const auto& item) {
+            return std::get<I>(item);
+        });
 }
 
 template <class T>

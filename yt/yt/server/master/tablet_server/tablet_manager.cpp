@@ -101,6 +101,8 @@
 namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
+using namespace NCellServer;
+using namespace NCellarClient;
 using namespace NChunkClient::NProto;
 using namespace NChunkClient;
 using namespace NChunkServer;
@@ -117,6 +119,7 @@ using namespace NNodeTrackerServer;
 using namespace NObjectClient::NProto;
 using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NProfiling;
 using namespace NSecurityServer;
 using namespace NTableClient::NProto;
 using namespace NTableClient;
@@ -125,13 +128,11 @@ using namespace NTabletClient::NProto;
 using namespace NTabletClient;
 using namespace NTabletNode::NProto;
 using namespace NTabletNodeTrackerClient::NProto;
-using namespace NTransactionServer;
 using namespace NTransactionClient;
+using namespace NTransactionServer;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
-using namespace NCellServer;
-using namespace NProfiling;
 
 using NNodeTrackerClient::TNodeDescriptor;
 using NTabletNode::EStoreType;
@@ -2342,11 +2343,8 @@ public:
     void RecomputeAllTabletCellStatistics()
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        for (auto [cellId, cellBase] : cellManager->Cells()) {
-            if (cellBase->GetType() != EObjectType::TabletCell) {
-                continue;
-            }
-
+        for (auto* cellBase : cellManager->Cells(ECellarType::Tablet)) {
+            YT_VERIFY(cellBase->GetType() == EObjectType::TabletCell);
             auto* cell = cellBase->As<TTabletCell>();
             cell->GossipStatistics().Local() = NTabletServer::TTabletCellStatistics();
             for (const auto* tablet : cell->Tablets()) {
@@ -2474,13 +2472,12 @@ private:
     TTabletCellBundle* DoFindTabletCellBundleByName(const TString& name)
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        auto* bundle = cellManager->FindCellBundleByName(name, false);
+        auto* bundle = cellManager->FindCellBundleByName(name, ECellarType::Tablet, false);
         if (!bundle) {
             return nullptr;
         }
-        return bundle->GetType() == EObjectType::TabletCellBundle
-            ? bundle->As<TTabletCellBundle>()
-            : nullptr;
+        YT_VERIFY(bundle->GetType() == EObjectType::TabletCellBundle);
+        return bundle->As<TTabletCellBundle>();
     }
 
     TTabletCellBundle* FindTabletCellBundleByName(const TString& name, bool activeLifeStageOnly)
@@ -3075,8 +3072,8 @@ private:
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         THashSet<TCellBundle*> healthyBundles;
-        for (auto [bundleId, bundle] : cellManager->CellBundles()) {
-            if (!IsObjectAlive(bundle) || bundle->GetType() != EObjectType::TabletCellBundle) {
+        for (auto* bundle : cellManager->CellBundles(ECellarType::Tablet)) {
+            if (!IsObjectAlive(bundle)) {
                 continue;
             }
 
@@ -4142,11 +4139,12 @@ private:
     void RecomputeBundleResourceUsage()
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        for (auto [bundleId, bundleBase] : cellManager->CellBundles()) {
-            if (!IsObjectAlive(bundleBase) || bundleBase->GetType() != EObjectType::TabletCellBundle) {
+        for (auto* bundleBase : cellManager->CellBundles(ECellarType::Tablet)) {
+            if (!IsObjectAlive(bundleBase)) {
                 continue;
             }
 
+            YT_VERIFY(bundleBase->GetType() == EObjectType::TabletCellBundle);
             auto* bundle = bundleBase->As<TTabletCellBundle>();
             bundle->ResourceUsage() = {};
             bundle->ResourceUsage().Initialize(Bootstrap_);
@@ -4290,20 +4288,14 @@ private:
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
 
-        for (auto [cellId, cellBase] : cellManager->Cells()) {
-            if (cellBase->GetType() != EObjectType::TabletCell) {
-                continue;
-            }
-
+        for (auto* cellBase : cellManager->Cells(ECellarType::Tablet)) {
+            YT_VERIFY(cellBase->GetType() == EObjectType::TabletCell);
             auto* cell = cellBase->As<TTabletCell>();
             cell->GossipStatistics().Initialize(Bootstrap_);
         }
 
-        for (auto [bundleId, bundleBase] : cellManager->CellBundles()) {
-            if (bundleBase->GetType() != EObjectType::TabletCellBundle) {
-                continue;
-            }
-
+        for (auto* bundleBase : cellManager->CellBundles(ECellarType::Tablet)) {
+            YT_VERIFY(bundleBase->GetType() == EObjectType::TabletCellBundle);
             auto* bundle = bundleBase->As<TTabletCellBundle>();
             bundle->ResourceUsage().Initialize(Bootstrap_);
         }
@@ -4408,11 +4400,12 @@ private:
         request.set_cell_tag(multicellManager->GetCellTag());
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        for (auto [cellId, cellBase] : cellManager->Cells()) {
-            if (!IsObjectAlive(cellBase) || cellBase->GetType() != EObjectType::TabletCell) {
+        for (auto* cellBase : GetValuesSortedByKey(cellManager->Cells(ECellarType::Tablet))) {
+            if (!IsObjectAlive(cellBase)) {
                 continue;
             }
 
+            YT_VERIFY(cellBase->GetType() == EObjectType::TabletCell);
             auto* cell = cellBase->As<TTabletCell>();
             auto* entry = request.add_entries();
             ToProto(entry->mutable_tablet_cell_id(), cell->GetId());
@@ -5992,11 +5985,12 @@ private:
 
         YT_VERIFY(multicellManager->IsPrimaryMaster());
 
-        for (auto [bundleId, bundleBase] : cellManager->CellBundles()) {
-            if (!IsObjectAlive(bundleBase) || bundleBase->GetType() != EObjectType::TabletCellBundle) {
+        for (auto* bundleBase : GetValuesSortedByKey(cellManager->CellBundles(ECellarType::Tablet))) {
+            if (!IsObjectAlive(bundleBase)) {
                 continue;
             }
 
+            YT_VERIFY(bundleBase->GetType() == EObjectType::TabletCellBundle);
             auto* bundle = bundleBase->As<TTabletCellBundle>();
             bundle->RecomputeClusterResourceUsage();
         }
@@ -6015,14 +6009,15 @@ private:
         request.set_cell_tag(multicellManager->GetCellTag());
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        for (auto [bundleId, bundleBase] : cellManager->CellBundles()) {
-            if (!IsObjectAlive(bundleBase) || bundleBase->GetType() != EObjectType::TabletCellBundle) {
+        for (auto* bundleBase : cellManager->CellBundles(ECellarType::Tablet)) {
+            if (!IsObjectAlive(bundleBase)) {
                 continue;
             }
 
+            YT_VERIFY(bundleBase->GetType() == EObjectType::TabletCellBundle);
             auto* bundle = bundleBase->As<TTabletCellBundle>();
             auto* entry = request.add_entries();
-            ToProto(entry->mutable_bundle_id(), bundleId);
+            ToProto(entry->mutable_bundle_id(), bundle->GetId());
 
             if (multicellManager->IsPrimaryMaster()) {
                 ToProto(entry->mutable_resource_usage(), bundle->ResourceUsage().Cluster());
@@ -6109,11 +6104,12 @@ private:
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
 
-        for (auto [bundleId, bundleBase] : cellManager->CellBundles()) {
-            if (!IsObjectAlive(bundleBase) || bundleBase->GetType() != EObjectType::TabletCellBundle) {
+        for (auto* bundleBase : cellManager->CellBundles(ECellarType::Tablet)) {
+            if (!IsObjectAlive(bundleBase)) {
                 continue;
             }
 
+            YT_VERIFY(bundleBase->GetType() == EObjectType::TabletCellBundle);
             auto* bundle = bundleBase->As<TTabletCellBundle>();
             auto counters = GetOrCreateBundleProfilingCounters(bundle);
             bundle->OnProfiling(&counters);

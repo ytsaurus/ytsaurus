@@ -78,7 +78,7 @@ void UpdateCellarFromHeartbeatResponse(
 
     for (const auto& info : response.slots_to_remove()) {
         auto cellId = FromProto<TCellId>(info.cell_id());
-        YT_VERIFY(GetCellarTypeFromId(cellId) == cellarType);
+        YT_VERIFY(GetCellarTypeFromCellId(cellId) == cellarType);
 
         auto slot = cellar->FindOccupant(cellId);
         if (!slot) {
@@ -95,7 +95,7 @@ void UpdateCellarFromHeartbeatResponse(
 
     for (const auto& info : response.slots_to_create()) {
         auto cellId = FromProto<TCellId>(info.cell_id());
-        YT_VERIFY(GetCellarTypeFromId(cellId) == cellarType);
+        YT_VERIFY(GetCellarTypeFromCellId(cellId) == cellarType);
 
         if (cellar->GetAvailableSlotCount() == 0) {
             YT_LOG_WARNING("Requested to start cell when all slots are used, ignored (CellId: %v)",
@@ -118,7 +118,7 @@ void UpdateCellarFromHeartbeatResponse(
     for (const auto& info : response.slots_to_configure()) {
         auto descriptor = FromProto<TCellDescriptor>(info.cell_descriptor());
         const auto& cellId = descriptor.CellId;
-        YT_VERIFY(GetCellarTypeFromId(cellId) == cellarType);
+        YT_VERIFY(GetCellarTypeFromCellId(cellId) == cellarType);
 
         auto slot = cellar->FindOccupant(cellId);
         if (!slot) {
@@ -142,7 +142,7 @@ void UpdateCellarFromHeartbeatResponse(
 
     for (const auto& info : response.slots_to_update()) {
         auto cellId = FromProto<TCellId>(info.cell_id());
-        YT_VERIFY(GetCellarTypeFromId(cellId) == cellarType);
+        YT_VERIFY(GetCellarTypeFromCellId(cellId) == cellarType);
 
         auto slot = cellar->FindOccupant(cellId);
         if (!slot) {

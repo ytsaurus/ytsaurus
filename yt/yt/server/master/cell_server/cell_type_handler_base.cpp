@@ -11,6 +11,8 @@
 
 #include <yt/yt/server/master/tablet_server/tablet_cell.h>
 
+#include <yt/yt/server/lib/cellar_agent/helpers.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/ytree/helpers.h>
@@ -22,6 +24,7 @@ using namespace NObjectServer;
 using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NCellMaster;
+using namespace NCellarAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,6 +60,7 @@ NObjectServer::TObject* TCellTypeHandlerBase<TImpl>::DoCreateObject(
     const auto& cellManager = TBase::Bootstrap_->GetTamedCellManager();
     auto* cellBundle = cellManager->GetCellBundleByNameOrThrow(
         cellBundleName.value_or(tabletCellBundleName.value_or(DefaultCellBundleName)),
+        GetCellarTypeFromCellId(holder->GetId()),
         /*activeLifeStageOnly*/ true);
 
     auto areaName = attributes->GetAndRemove<TString>("area", DefaultAreaName);

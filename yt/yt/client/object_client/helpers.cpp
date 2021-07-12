@@ -62,6 +62,8 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::TabletCellBundleMap ||
         type == EObjectType::TabletActionMap ||
         type == EObjectType::AreaMap ||
+        type == EObjectType::ChaosCellMap ||
+        type == EObjectType::ChaosCellBundleMap ||
         type == EObjectType::SysNode ||
         type == EObjectType::PortalEntrance ||
         type == EObjectType::PortalExit ||
@@ -113,12 +115,16 @@ bool IsTableType(EObjectType type)
 
 bool IsCellType(EObjectType type)
 {
-    return type == EObjectType::TabletCell;
+    return
+        type == EObjectType::TabletCell ||
+        type == EObjectType::ChaosCell;
 }
 
 bool IsCellBundleType(EObjectType type)
 {
-    return type == EObjectType::TabletCellBundle;
+    return
+        type == EObjectType::TabletCellBundle ||
+        type == EObjectType::ChaosCellBundle;
 }
 
 bool IsAlienType(EObjectType type)
