@@ -483,7 +483,7 @@ protected:
         const THashMap<TOperationId, TOperationSchedulingSegmentContext>& operationContexts) = 0;
 
     //! Schedule jobs methods.
-    bool CheckDemand(const TJobResources& delta, const TScheduleJobsContext& context);
+    bool CheckDemand(const TJobResources& delta);
     TJobResources GetLocalAvailableResourceLimits(const TScheduleJobsContext& context) const;
 
     double ComputeLocalSatisfactionRatio(const TJobResources& resourceUsage) const;
@@ -1222,7 +1222,6 @@ private:
         TJobResources* availableResourceLimitsOutput = nullptr);
 
     TJobResources GetHierarchicalAvailableResources(const TScheduleJobsContext& context) const;
-    TJobResources GetLocalAvailableResourceDemand(const TScheduleJobsContext& context) const;
 
     std::optional<EDeactivationReason> CheckBlocked(const ISchedulingContextPtr& schedulingContext) const;
     bool HasRecentScheduleJobFailure(NProfiling::TCpuInstant now) const;

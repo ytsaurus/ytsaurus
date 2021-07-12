@@ -33,7 +33,7 @@ struct IOperationControllerStrategyHost
     //! Called during heartbeat processing to request actions the node must perform.
     virtual TFuture<TControllerScheduleJobResultPtr> ScheduleJob(
         const ISchedulingContextPtr& context,
-        const TJobResourcesWithQuota& availableResources,
+        const TJobResources& availableResources,
         const TString& treeId,
         const TFairShareStrategyTreeConfigPtr& treeConfig) = 0;
 

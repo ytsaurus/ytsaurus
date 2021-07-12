@@ -235,7 +235,7 @@ public:
 
     MOCK_METHOD4(ScheduleJob, TFuture<TControllerScheduleJobResultPtr>(
         const ISchedulingContextPtr& context,
-        const TJobResourcesWithQuota& jobLimits,
+        const TJobResources& jobLimits,
         const TString& treeId,
         const TFairShareStrategyTreeConfigPtr& treeConfig));
 

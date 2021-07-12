@@ -626,7 +626,7 @@ void TOperationControllerImpl::SetControllerRuntimeData(const TControllerRuntime
 
 TFuture<TControllerScheduleJobResultPtr> TOperationControllerImpl::ScheduleJob(
     const ISchedulingContextPtr& context,
-    const TJobResourcesWithQuota& jobLimits,
+    const TJobResources& jobLimits,
     const TString& treeId,
     const TFairShareStrategyTreeConfigPtr& treeConfig)
 {
@@ -639,7 +639,7 @@ TFuture<TControllerScheduleJobResultPtr> TOperationControllerImpl::ScheduleJob(
     auto request = std::make_unique<TScheduleJobRequest>();
     request->OperationId = OperationId_;
     request->JobId = jobId;
-    request->JobResourceLimits = jobLimits.ToJobResources();
+    request->JobResourceLimits = jobLimits;
     request->TreeId = treeId;
     request->NodeId = nodeId;
     request->NodeResourceLimits = context->ResourceLimits();

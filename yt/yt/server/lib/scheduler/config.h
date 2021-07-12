@@ -49,6 +49,7 @@ DEFINE_ENUM(EDeactivationReason,
     (MaxConcurrentScheduleJobCallsPerNodeShardViolated)
     (RecentScheduleJobFailed)
     (IncompatibleSchedulingSegment)
+    (NoAvailableDemand)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
