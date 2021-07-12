@@ -9,6 +9,7 @@ namespace NYT::NChunkPools {
 DEFINE_ENUM(EChunkMappingMode,
     (Sorted)
     (Unordered)
+    (SortedWithoutKeyGuarantree)
 );
 
 //! This class is companion for IChunkPoolInput.
@@ -28,7 +29,10 @@ class TInputChunkMapping
     : public TRefCounted
 {
 public:
-    TInputChunkMapping(EChunkMappingMode mode = EChunkMappingMode::Sorted);
+    //! Used for persistence only.
+    TInputChunkMapping() = default;
+
+    explicit TInputChunkMapping(EChunkMappingMode mode);
 
     //! Modify given stripe, replacing all the input chunks with their current
     //! substitutes.

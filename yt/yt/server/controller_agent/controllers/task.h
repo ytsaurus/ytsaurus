@@ -208,6 +208,8 @@ protected:
 
     std::unique_ptr<IJobSplitter> JobSplitter_;
 
+    NChunkPools::TInputChunkMappingPtr InputChunkMapping_;
+
     virtual std::optional<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context);
 
     virtual void OnTaskCompleted();
@@ -330,8 +332,6 @@ private:
 
     //! For each lost job currently being replayed and destination pool, maps output cookie to corresponding input cookie.
     std::map<TCookieAndPool, NChunkPools::IChunkPoolInput::TCookie> LostJobCookieMap;
-
-    NChunkPools::TInputChunkMappingPtr InputChunkMapping_;
 
     TCompetitiveJobManager CompetitiveJobManager_;
 

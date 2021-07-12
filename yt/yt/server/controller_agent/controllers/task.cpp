@@ -68,9 +68,9 @@ TTask::TTask(ITaskHostPtr taskHost, std::vector<TStreamDescriptor> streamDescrip
     : Logger(taskHost->GetLogger())
     , TaskHost_(taskHost.Get())
     , StreamDescriptors_(std::move(streamDescriptors))
+    , InputChunkMapping_(New<TInputChunkMapping>(EChunkMappingMode::Sorted))
     , CachedPendingJobCount_(0)
     , CachedTotalJobCount_(0)
-    , InputChunkMapping_(New<TInputChunkMapping>())
     , CompetitiveJobManager_(
         std::bind(&TTask::OnSpeculativeJobScheduled, this, _1),
         std::bind(&TTask::AbortJobViaScheduler, this, _1, _2),

@@ -1520,7 +1520,8 @@ protected:
 
         TSortedMergeTask(
             TSortControllerBase* controller,
-            std::vector<TStreamDescriptor> streamDescriptors)
+            std::vector<TStreamDescriptor> streamDescriptors,
+            bool enableKeyGuarantee)
             : TTask(controller, std::move(streamDescriptors))
             , Controller_(controller)
             , MultiChunkPool_(CreateMultiChunkPool({}))
@@ -1528,6 +1529,12 @@ protected:
             ChunkPoolInput_ = CreateTaskUpdatingAdapter(MultiChunkPool_, this);
 
             MultiChunkPool_->GetJobCounter()->AddParent(Controller_->SortedMergeJobCounter);
+
+            if (enableKeyGuarantee) {
+                InputChunkMapping_ = New<TInputChunkMapping>(EChunkMappingMode::Sorted);
+            } else {
+                InputChunkMapping_ = New<TInputChunkMapping>(EChunkMappingMode::SortedWithoutKeyGuarantree);
+            }
         }
 
         virtual TDuration GetLocalityTimeout() const override
@@ -2068,11 +2075,6 @@ protected:
         FinalSortTask->SetupJobCounters();
         FinalSortTask->RegisterInGraph(GetFinalPartitionTask()->GetVertexDescriptor());
         RegisterTask(FinalSortTask);
-    }
-
-    void CreateSortedMergeTask()
-    {
-        SortedMergeTask = New<TSortedMergeTask>(this, GetFinalStreamDescriptors());
     }
 
     void PrepareSortedMergeTask()
@@ -3023,6 +3025,8 @@ protected:
     virtual TUserJobSpecPtr GetSortUserJobSpec(bool isFinalSort) const = 0;
     virtual TUserJobSpecPtr GetSortedMergeUserJobSpec() const = 0;
 
+    virtual void CreateSortedMergeTask() = 0;
+
     virtual TSortColumns GetSortedMergeSortColumns() const = 0;
 };
 
@@ -3724,6 +3728,11 @@ private:
     virtual EJobType GetPartitionJobType(bool /*isRoot*/) const override
     {
         return EJobType::Partition;
+    }
+
+    virtual void CreateSortedMergeTask() override
+    {
+        SortedMergeTask = New<TSortedMergeTask>(this, GetFinalStreamDescriptors(), /* enableKeyGuarantee */ false);
     }
 
     virtual TSortColumns GetSortedMergeSortColumns() const override
@@ -4600,6 +4609,11 @@ private:
         } else {
             return nullptr;
         }
+    }
+
+    virtual void CreateSortedMergeTask() override
+    {
+        SortedMergeTask = New<TSortedMergeTask>(this, GetFinalStreamDescriptors(), /* enableKeyGuarantee */ true);
     }
 
     virtual TSortColumns GetSortedMergeSortColumns() const override

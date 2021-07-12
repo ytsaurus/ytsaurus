@@ -109,6 +109,11 @@ void TInputChunkMapping::OnStripeRegenerated(
     const auto& oldStripe = OriginalStripes_[cookie];
     YT_VERIFY(oldStripe);
 
+    // NB(gritukan, max42): YT-14252.
+    if (Mode_ == EChunkMappingMode::SortedWithoutKeyGuarantree) {
+        THROW_ERROR_EXCEPTION("Chunk mapping invalidation cannot be reliably checked when key guarantee is disabled");
+    }
+
     if (Mode_ == EChunkMappingMode::Sorted) {
         if (oldStripe->DataSlices.size() != newStripe->DataSlices.size()) {
             THROW_ERROR_EXCEPTION("New stripe has different number of data slices")
