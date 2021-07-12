@@ -1,4 +1,4 @@
-from yt_driver_bindings import BufferedStream
+from yt_driver_rpc_bindings import BufferedStream
 
 import signal
 

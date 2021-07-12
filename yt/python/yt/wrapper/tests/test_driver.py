@@ -1,5 +1,5 @@
 from .conftest import authors
-from .helpers import TEST_DIR, get_test_file_path, yatest_common, get_python, wait
+from .helpers import TEST_DIR, get_test_file_path, get_python, wait
 
 from yt.wrapper.common import update_inplace
 
@@ -61,18 +61,23 @@ def test_sanitize_structure():
     assert yt.get(table + "/@schema/@unique_keys")
 
 @authors("asaitgalin")
-@pytest.mark.usefixtures("yt_env")
-def test_catching_sigint(yt_env):
+@pytest.mark.usefixtures("yt_env_with_rpc")
+@pytest.mark.only_backend("rpc")
+def test_catching_sigint(yt_env_with_rpc):
     if yt.config["backend"] != "rpc":
         pytest.skip()
 
-    driver_config_path = yt_env.env.config_paths["driver"]
-    driver_logging_config_path = yt_env.env.config_paths["driver_logging"]
+    driver_config_path = yt_env_with_rpc.env.config_paths["rpc_driver"]
+    driver_logging_config_path = yt_env_with_rpc.env.config_paths["driver_logging"]
     binary = get_test_file_path("driver_catch_sigint.py")
 
     process = subprocess.Popen(
         [get_python(), binary, driver_config_path, driver_logging_config_path],
         stderr=sys.stderr)
+
+    time.sleep(2)
+    if process.poll() is not None:
+        assert False, "Process finished early"
 
     wait(lambda: yt.exists("//tmp/test_file"))
     wait(lambda: yt.get("//tmp/test_file/@uncompressed_data_size") == 50 * 1000 * 1000)

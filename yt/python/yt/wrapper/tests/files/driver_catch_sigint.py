@@ -4,7 +4,7 @@ from yt.common import update
 
 import yt.wrapper as yt
 
-import yt_driver_bindings
+import yt_driver_rpc_bindings
 
 import signal
 import sys
@@ -34,12 +34,12 @@ def main():
     with open(sys.argv[2], "rb") as f:
         logging_config = load(f)
 
-    yt_driver_bindings.configure_logging(logging_config)
+    yt_driver_rpc_bindings.configure_logging(logging_config)
 
     normal_client = yt.YtClient(
         config={
             "driver_config": driver_config,
-            "backend": "native"
+            "backend": "rpc"
         }
     )
 
@@ -47,7 +47,7 @@ def main():
         config=update(
             {
                 "driver_config": driver_config,
-                "backend": "native"
+                "backend": "rpc"
             },
             hanging_client_config
         )
