@@ -6,8 +6,6 @@
 
 #include <mapreduce/yt/interface/protos/extension.pb.h>
 
-#include <mapreduce/yt/interface/serialize.h>
-
 #include <library/cpp/yson/node/node_builder.h>
 #include <library/cpp/yson/node/node_io.h>
 #include <library/cpp/type_info/type.h>
