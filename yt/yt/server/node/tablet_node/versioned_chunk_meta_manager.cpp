@@ -11,8 +11,6 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 
-#include <yt/yt/core/misc/async_slru_cache.h>
-
 namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
@@ -21,47 +19,28 @@ using namespace NClusterNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TVersionedChunkMetaCacheKey
+bool TVersionedChunkMetaCacheKey::operator ==(const TVersionedChunkMetaCacheKey& other) const
 {
-    TChunkId ChunkId;
-    int TableSchemaKeyColumnCount;
+    return
+        ChunkId == other.ChunkId &&
+        TableSchemaKeyColumnCount == other.TableSchemaKeyColumnCount;
+}
 
-    bool operator ==(const TVersionedChunkMetaCacheKey& other) const
-    {
-        return
-            ChunkId == other.ChunkId &&
-            TableSchemaKeyColumnCount == other.TableSchemaKeyColumnCount;
-    }
-
-    operator size_t() const
-    {
-        size_t hash = 0;
-        HashCombine(hash, ChunkId);
-        HashCombine(hash, TableSchemaKeyColumnCount);
-        return hash;
-    }
-};
+TVersionedChunkMetaCacheKey::operator size_t() const
+{
+    return MultiHash(
+        ChunkId,
+        TableSchemaKeyColumnCount);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TVersionedChunkMetaCacheEntry)
-
-class TVersionedChunkMetaCacheEntry
-    : public TAsyncCacheValueBase<TVersionedChunkMetaCacheKey, TVersionedChunkMetaCacheEntry>
-{
-public:
-    DEFINE_BYVAL_RO_PROPERTY(TCachedVersionedChunkMetaPtr, Meta);
-
-public:
-    TVersionedChunkMetaCacheEntry(
-        const TVersionedChunkMetaCacheKey& key,
-        TCachedVersionedChunkMetaPtr meta)
-        : TAsyncCacheValueBase(key)
-        , Meta_(std::move(meta))
-    { }
-};
-
-DEFINE_REFCOUNTED_TYPE(TVersionedChunkMetaCacheEntry)
+TVersionedChunkMetaCacheEntry::TVersionedChunkMetaCacheEntry(
+    const TVersionedChunkMetaCacheKey& key,
+    TCachedVersionedChunkMetaPtr meta)
+    : TAsyncCacheValueBase(key)
+    , Meta_(std::move(meta))
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,51 +51,63 @@ class TVersionedChunkMetaManager
 public:
     TVersionedChunkMetaManager(
         TSlruCacheConfigPtr config,
-        NClusterNode::IBootstrapBase* bootstrap)
+        IBootstrapBase* bootstrap)
         : TAsyncSlruCacheBase(
-            config,
+            std::move(config),
             TabletNodeProfiler.WithPrefix("/versioned_chunk_meta_cache"))
         , Bootstrap_(bootstrap)
     { }
 
-    virtual void Reconfigure(TSlruCacheDynamicConfigPtr config) override
-    {
-        TAsyncSlruCacheBase::Reconfigure(config);
-    }
-
-    virtual TFuture<TCachedVersionedChunkMetaPtr> GetMeta(
+    virtual TFuture<TVersionedChunkMetaCacheEntryPtr> GetMeta(
         const IChunkReaderPtr& chunkReader,
         const TTableSchemaPtr& schema,
         const TClientChunkReadOptions& chunkReadOptions) override
     {
-        auto chunkId = chunkReader->GetChunkId();
-        auto key = TVersionedChunkMetaCacheKey{chunkId, schema->GetKeyColumnCount()};
+        TVersionedChunkMetaCacheKey key{
+            chunkReader->GetChunkId(),
+            schema->GetKeyColumnCount()
+        };
+
         auto cookie = BeginInsert(key);
         if (cookie.IsActive()) {
             // TODO(savrus,psushin) Move call to dispatcher?
-            auto asyncMeta = TCachedVersionedChunkMeta::Load(
+            return TCachedVersionedChunkMeta::Load(
                 std::move(chunkReader),
                 chunkReadOptions,
                 schema,
                 {} /* columnRenameDescriptors */,
                 Bootstrap_
                     ->GetMemoryUsageTracker()
-                    ->WithCategory(EMemoryCategory::VersionedChunkMeta));
-
-            asyncMeta.Subscribe(BIND([cookie = std::move(cookie), key] (const TErrorOr<TCachedVersionedChunkMetaPtr>& metaOrError) mutable {
-                if (metaOrError.IsOK()) {
-                    cookie.EndInsert(New<TVersionedChunkMetaCacheEntry>(key, metaOrError.Value()));
-                } else {
+                    ->WithCategory(EMemoryCategory::VersionedChunkMeta))
+                .ApplyUnique(BIND(
+                    [cookie = std::move(cookie), key]
+                    (TErrorOr<TCachedVersionedChunkMetaPtr>&& metaOrError) mutable
+                {
+                    if (metaOrError.IsOK()) {
+                        auto result = New<TVersionedChunkMetaCacheEntry>(
+                            key,
+                            std::move(metaOrError.Value()));
+                        cookie.EndInsert(result);
+                        return result;
+                    }
+                
                     cookie.Cancel(metaOrError);
-                }
-            }));
-
-            return asyncMeta;
+                    metaOrError.ValueOrThrow();
+                    YT_ABORT();
+                }));
         } else {
-            return cookie.GetValue().Apply(BIND([] (const TVersionedChunkMetaCacheEntryPtr& entry) {
-                return entry->GetMeta();
-            }));
+            return cookie.GetValue();
         }
+    }
+
+    virtual void Touch(const TVersionedChunkMetaCacheEntryPtr& entry) override
+    {
+        TAsyncSlruCacheBase::Touch(entry);
+    }
+
+    virtual void Reconfigure(const TSlruCacheDynamicConfigPtr& config) override
+    {
+        TAsyncSlruCacheBase::Reconfigure(config);
     }
 
 private:
@@ -124,7 +115,7 @@ private:
 
     virtual i64 GetWeight(const TVersionedChunkMetaCacheEntryPtr& entry) const override
     {
-        return entry->GetMeta()->GetMemoryUsage();
+        return entry->Meta()->GetMemoryUsage();
     }
 };
 

@@ -3944,9 +3944,9 @@ private:
                     tablet,
                     descriptor,
                     Bootstrap_->GetBlockCache(),
+                    Bootstrap_->GetVersionedChunkMetaManager(),
                     Bootstrap_->GetChunkRegistry(),
                     Bootstrap_->GetChunkBlockManager(),
-                    Bootstrap_->GetVersionedChunkMetaManager(),
                     Bootstrap_->GetMasterClient(),
                     Bootstrap_->GetLocalDescriptor());
             }
@@ -3970,9 +3970,9 @@ private:
                     tablet,
                     descriptor,
                     Bootstrap_->GetBlockCache(),
+                    Bootstrap_->GetVersionedChunkMetaManager(),
                     Bootstrap_->GetChunkRegistry(),
                     Bootstrap_->GetChunkBlockManager(),
-                    Bootstrap_->GetVersionedChunkMetaManager(),
                     Bootstrap_->GetMasterClient(),
                     Bootstrap_->GetLocalDescriptor());
             }

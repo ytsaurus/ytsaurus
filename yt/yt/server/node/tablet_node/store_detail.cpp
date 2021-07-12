@@ -432,17 +432,17 @@ TChunkStoreBase::TChunkStoreBase(
     TTablet* tablet,
     const NTabletNode::NProto::TAddStoreDescriptor* addStoreDescriptor,
     IBlockCachePtr blockCache,
+    IVersionedChunkMetaManagerPtr chunkMetaManager,
     IChunkRegistryPtr chunkRegistry,
     IChunkBlockManagerPtr chunkBlockManager,
-    IVersionedChunkMetaManagerPtr chunkMetaManager,
     NNative::IClientPtr client,
     const TNodeDescriptor& localDescriptor)
     : TStoreBase(std::move(config), id, tablet)
     , Bootstrap_(bootstrap)
     , BlockCache_(std::move(blockCache))
+    , ChunkMetaManager_(std::move(chunkMetaManager))
     , ChunkRegistry_(std::move(chunkRegistry))
     , ChunkBlockManager_(std::move(chunkBlockManager))
-    , ChunkMetaManager_(std::move(chunkMetaManager))
     , Client_(std::move(client))
     , LocalDescriptor_(localDescriptor)
     , ChunkMeta_(New<TRefCountedChunkMeta>())
@@ -463,6 +463,8 @@ TChunkStoreBase::TChunkStoreBase(
         TypeFromId(ChunkId_) == EObjectType::ErasureChunk);
 
     YT_VERIFY(TypeFromId(StoreId_) == EObjectType::ChunkView || StoreId_ == ChunkId_ || !ChunkId_);
+
+    YT_VERIFY(ChunkMetaManager_);
 
     SetStoreState(EStoreState::Persistent);
 
@@ -766,24 +768,18 @@ TCachedVersionedChunkMetaPtr TChunkStoreBase::GetCachedVersionedChunkMeta(
     {
         auto guard = ReaderGuard(VersionedChunkMetaLock_);
         if (auto chunkMeta = CachedWeakVersionedChunkMeta_.Lock()) {
-            return chunkMeta;
+            ChunkMetaManager_->Touch(chunkMeta);
+            return chunkMeta->Meta();
         }
     }
 
     // Slow lane.
     NProfiling::TWallTimer metaWaitTimer;
 
-    auto chunkMetaFuture = ChunkMetaManager_
-        ? ChunkMetaManager_->GetMeta(
-            chunkReader,
-            Schema_,
-            chunkReadOptions)
-        : TCachedVersionedChunkMeta::Load(
-            chunkReader,
-            chunkReadOptions,
-            Schema_,
-            {},
-            nullptr);
+    auto chunkMetaFuture = ChunkMetaManager_->GetMeta(
+        chunkReader,
+        Schema_,
+        chunkReadOptions);
 
     auto chunkMeta = WaitFor(chunkMetaFuture)
         .ValueOrThrow();
@@ -798,7 +794,7 @@ TCachedVersionedChunkMetaPtr TChunkStoreBase::GetCachedVersionedChunkMeta(
         guard.Release();
     }
 
-    return chunkMeta;
+    return chunkMeta->Meta();
 }
 
 const std::vector<THunkChunkRef>& TChunkStoreBase::HunkChunkRefs() const
