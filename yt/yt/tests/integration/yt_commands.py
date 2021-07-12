@@ -1720,6 +1720,9 @@ def create_tablet_cell_bundle(name, initialize_options=True, **kwargs):
 
 
 def remove_tablet_cell_bundle(name, driver=None):
+    areas = get("//sys/tablet_cell_bundles/{0}/@areas".format(name), driver=driver)
+    for area in areas.values():
+        remove("#{0}".format(area["id"]), driver=driver)
     remove("//sys/tablet_cell_bundles/" + name, driver=driver)
 
 
@@ -2102,10 +2105,10 @@ def wait_for_cells(cell_ids=None, decommissioned_addresses=[], driver=None):
         wait(lambda: check_cells(driver=driver))
 
 
-def sync_create_cells(cell_count, tablet_cell_bundle="default", driver=None):
+def sync_create_cells(cell_count, driver=None, **attributes):
     cell_ids = []
     for _ in xrange(cell_count):
-        cell_id = create_tablet_cell(attributes={"tablet_cell_bundle": tablet_cell_bundle}, driver=driver)
+        cell_id = create_tablet_cell(attributes=attributes, driver=driver)
         cell_ids.append(cell_id)
     wait_for_cells(cell_ids, driver=driver)
     return cell_ids
@@ -2279,6 +2282,19 @@ def create_dynamic_table(path, schema=None, **attributes):
     attributes.update({"schema": schema})
 
     create("table", path, attributes=attributes)
+
+
+def create_area(name, cell_bundle="default", **kwargs):
+    kwargs["type"] = "area"
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["name"] = name
+    kwargs["attributes"]["cell_bundle"] = cell_bundle
+    return execute_command("create", kwargs, parse_yson=True)
+
+
+def remove_area(id, **kwargs):
+    remove("#" + id, **kwargs)
 
 
 def sync_control_chunk_replicator(enabled):

@@ -5,6 +5,7 @@
 #include "cell_bundle.h"
 #include "cell_bundle_proxy.h"
 #include "tamed_cell_manager.h"
+#include "area.h"
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -46,9 +47,15 @@ void TCellBundleProxy::ValidateRemoval()
 {
     const auto* cellBundle = GetThisImpl();
     if (!cellBundle->Cells().empty()) {
-        THROW_ERROR_EXCEPTION("Cannot remove tablet cell bundle %Qv since it has %v active tablet cell(s)",
+        THROW_ERROR_EXCEPTION("Cannot remove cell bundle %Qv since it has %v active cell(s)",
             cellBundle->GetName(),
             cellBundle->Cells().size());
+    }
+
+    if (!cellBundle->Areas().empty()) {
+        THROW_ERROR_EXCEPTION("Cannot remove cell bundle %Qv since it has %v areas",
+            cellBundle->GetName(),
+            cellBundle->Areas().size());
     }
 }
 
@@ -70,6 +77,7 @@ void TCellBundleProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* a
         .SetMandatory(true));
     attributes->push_back(EInternedAttributeKey::DynamicConfigVersion);
     attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::NodeTagFilter)
+        .SetPresent(cellBundle->Areas().size() == 1)
         .SetWritable(true)
         .SetReplicated(true)
         .SetPresent(!cellBundle->NodeTagFilter().IsEmpty()));
@@ -82,9 +90,14 @@ void TCellBundleProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* a
         .SetMandatory(true)
         .SetWritePermission(EPermission::Use));
     attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::Nodes)
+        .SetPresent(cellBundle->Areas().size() == 1)
         .SetOpaque(true));
     attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::Health)
         .SetReplicated(true));
+    attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::Areas)
+        .SetOpaque(true));
+    attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::AreaNodes)
+        .SetOpaque(true));
 
     TBase::ListSystemAttributes(attributes);
 }
@@ -114,13 +127,18 @@ bool TCellBundleProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
                 .Value(cellBundle->GetDynamicConfigVersion());
             return true;
 
-        case EInternedAttributeKey::NodeTagFilter:
-            if (cellBundle->NodeTagFilter().IsEmpty()) {
+        case EInternedAttributeKey::NodeTagFilter: {
+            if (cellBundle->Areas().size() != 1) {
+                break;
+            }
+            auto* area = cellBundle->Areas().begin()->second;
+            if (area->NodeTagFilter().IsEmpty()) {
                 break;
             }
             BuildYsonFluently(consumer)
-                .Value(cellBundle->NodeTagFilter().GetFormula());
+                .Value(area->NodeTagFilter().GetFormula());
             return true;
+        }
 
         case EInternedAttributeKey::TabletCellIds:
             BuildYsonFluently(consumer)
@@ -141,17 +159,48 @@ bool TCellBundleProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
             return true;
 
         case EInternedAttributeKey::Nodes: {
+            if (cellBundle->Areas().size() != 1) {
+                return false;
+            }
             const auto& bundleTracker = Bootstrap_->GetTamedCellManager()->GetBundleNodeTracker();
             BuildYsonFluently(consumer)
-                .DoListFor(bundleTracker->GetBundleNodes(cellBundle), [] (TFluentList fluent, const TNode* node) {
+                .DoListFor(bundleTracker->GetAreaNodes(cellBundle->Areas().begin()->second), [] (TFluentList fluent, const TNode* node) {
                     fluent
                         .Item().Value(node->GetDefaultAddress());
                 });
             return true;
         }
-        case EInternedAttributeKey::Health: {
+        case EInternedAttributeKey::Health:
             BuildYsonFluently(consumer)
                 .Value(cellBundle->Health());
+            return true;
+
+        case EInternedAttributeKey::Areas: {
+            BuildYsonFluently(consumer)
+                .DoMapFor(cellBundle->Areas(), [] (TFluentMap fluent, const auto& pair) {
+                    const auto* area = pair.second;
+                    fluent
+                        .Item(ToString(area->GetName()))
+                        .BeginMap()
+                            .Item("id").Value(area->GetId())
+                            .Item("cell_count").Value(std::ssize(area->Cells()))
+                        .EndMap();
+                });
+            return true;
+        }
+
+        case EInternedAttributeKey::AreaNodes: {
+            const auto& bundleTracker = Bootstrap_->GetTamedCellManager()->GetBundleNodeTracker();
+            BuildYsonFluently(consumer)
+                .DoMapFor(cellBundle->Areas(), [&] (TFluentMap fluent, const auto& pair) {
+                    const auto* area = pair.second;
+                    fluent
+                        .Item(area->GetName())
+                        .DoListFor(bundleTracker->GetAreaNodes(area), [] (TFluentList fluent, const TNode* node) {
+                            fluent
+                                .Item().Value(node->GetDefaultAddress());
+                        });
+                });
             return true;
         }
 
@@ -188,8 +237,12 @@ bool TCellBundleProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
         }
 
         case EInternedAttributeKey::NodeTagFilter: {
+            if (cellBundle->Areas().size() != 1) {
+                THROW_ERROR_EXCEPTION("Unable to identify unique area for bundle %Qv");
+            }
+            auto* area = cellBundle->Areas().begin()->second;
             auto formula = ConvertTo<TString>(value);
-            cellManager->SetCellBundleNodeTagFilter(cellBundle, ConvertTo<TString>(value));
+            cellManager->SetAreaNodeTagFilter(area, ConvertTo<TString>(value));
             return true;
         }
 

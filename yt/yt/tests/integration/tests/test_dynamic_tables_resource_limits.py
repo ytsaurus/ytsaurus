@@ -760,7 +760,7 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
     def test_balancer_cannot_exceed_tablet_count_limit(self):
         create_tablet_cell_bundle("b")
         self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 1)
-        sync_create_cells(1, "b")
+        sync_create_cells(1, tablet_cell_bundle="b")
         self._create_sorted_table("//tmp/t", tablet_cell_bundle="b", dynamic=False)
         for i in range(5):
             write_table("<append=%true>//tmp/t", [{"key": i}])
@@ -795,7 +795,7 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
         create_account("a")
         self._multicell_set("//sys/accounts/a/@resource_limits/tablet_static_memory", 1000000)
         self._multicell_set("//sys/accounts/a/@resource_limits/tablet_count", 1000000)
-        sync_create_cells(1, "b")
+        sync_create_cells(1, tablet_cell_bundle="b")
         self._create_sorted_table(
             "//tmp/t",
             account="a",

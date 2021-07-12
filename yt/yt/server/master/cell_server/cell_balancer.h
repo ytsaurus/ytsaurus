@@ -46,13 +46,13 @@ public:
     std::pair<const TCellBase*, int> ExtractCell(int cellIndex);
     void InsertCell(std::pair<const TCellBase*, int> pair);
     std::pair<const TCellBase*, int> RemoveCell(const TCellBase* cell);
-    int GetCellCount(const TCellBundle* bundle) const;
+    int GetCellCount(const TArea* area) const;
 
 private:
     const NNodeTrackerServer::TNode* Node_;
     const int TotalSlots_;
     TCellSet Slots_;
-    THashMap<const TCellBundle*, int> CellCount_;
+    THashMap<const TArea*, int> CellCount_;
 
     void UpdateCellCounts();
 };
@@ -64,7 +64,7 @@ struct ICellBalancerProvider
 {
     virtual std::vector<TNodeHolder> GetNodes() = 0;
     virtual const NHydra::TReadOnlyEntityMap<TCellBundle>& CellBundles() = 0;
-    virtual bool IsPossibleHost(const NNodeTrackerServer::TNode* node, const TCellBundle* bundle) = 0;
+    virtual bool IsPossibleHost(const NNodeTrackerServer::TNode* node, const TArea* area) = 0;
     virtual bool IsVerboseLoggingEnabled() = 0;
     virtual bool IsBalancingRequired() = 0;
 };

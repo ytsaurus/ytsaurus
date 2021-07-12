@@ -436,7 +436,7 @@ class TestTabletActions(TabletActionsBase):
     @authors("ifsmirnov")
     def test_removing_bundle_removes_actions(self):
         create_tablet_cell_bundle("b")
-        (cell_id,) = sync_create_cells(1, "b")
+        (cell_id,) = sync_create_cells(1, tablet_cell_bundle="b")
         self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
         sync_mount_table("//tmp/t")
         action_id = create(
@@ -1133,7 +1133,7 @@ class TestTabletBalancer(TabletActionsBase):
             make_ace("allow", "u", ["read", "write"]),
         )
         set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("deny", "u", ["use"]))
-        sync_create_cells(1, "b")
+        sync_create_cells(1, tablet_cell_bundle="b")
 
         self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
         sync_mount_table("//tmp/t")

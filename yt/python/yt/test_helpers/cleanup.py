@@ -48,6 +48,7 @@ def cleanup_objects(list_multiple_action, remove_multiple_action, exists_multipl
         "racks",
         "data_centers",
         "tablet_cells",
+        "areas",
         "tablet_cell_bundles",
         "network_projects",
         "http_proxy_roles",

@@ -53,11 +53,11 @@ private:
 
     TError IsFailed(
         const TCellBase::TPeer& peer,
-        const TCellBundle* bundle,
+        const TCellBase* cell,
         TDuration timeout);
     bool IsDecommissioned(
         const NNodeTrackerServer::TNode* node,
-        const TCellBundle* bundle);
+        const TCellBase* cell);
 
     static TPeerId FindGoodPeer(const TCellBase* cell);
     static TPeerId FindGoodFollower(const TCellBase* cell);

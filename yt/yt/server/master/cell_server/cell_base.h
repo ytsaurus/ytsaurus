@@ -79,6 +79,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, PrerequisiteTransaction);
 
     DEFINE_BYVAL_RW_PROPERTY(TCellBundle*, CellBundle);
+    DEFINE_BYVAL_RW_PROPERTY(TArea*, Area);
 
     DEFINE_BYVAL_RW_PROPERTY(ECellLifeStage, CellLifeStage, ECellLifeStage::Running);
 

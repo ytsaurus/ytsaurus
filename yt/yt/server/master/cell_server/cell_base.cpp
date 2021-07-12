@@ -1,4 +1,6 @@
 #include "cell_base.h"
+
+#include "area.h"
 #include "cell_bundle.h"
 
 #include <yt/yt/server/master/tablet_server/tablet.h>
@@ -106,6 +108,7 @@ void TCellBase::Save(TSaveContext& context) const
     Save(context, *Config_);
     Save(context, PrerequisiteTransaction_);
     Save(context, CellBundle_);
+    Save(context, Area_);
     Save(context, CellLifeStage_);
     Save(context, GossipStatus_);
     Save(context, PeerCount_);
@@ -123,6 +126,9 @@ void TCellBase::Load(TLoadContext& context)
     Load(context, *Config_);
     Load(context, PrerequisiteTransaction_);
     Load(context, CellBundle_);
+    if (context.GetVersion() >= EMasterReign::Areas) {
+        Load(context, Area_);
+    }
     Load(context, CellLifeStage_);
     Load(context, GossipStatus_);
     Load(context, PeerCount_);

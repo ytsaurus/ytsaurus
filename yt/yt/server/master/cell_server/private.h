@@ -16,6 +16,8 @@ DECLARE_REFCOUNTED_CLASS(TCellTracker)
 
 extern const NLogging::TLogger CellServerLogger;
 
+constexpr int MaxAreaCount = 100;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCellServer

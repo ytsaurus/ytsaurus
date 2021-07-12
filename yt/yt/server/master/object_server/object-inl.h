@@ -254,6 +254,21 @@ std::vector<TValue*> GetValuesSortedByKey(const THashSet<TValue*>& entities)
     return values;
 }
 
+template <typename TKey, class TValue>
+std::vector<TValue*> GetValuesSortedById(const THashMap<TKey, TValue*>& entities)
+{
+    std::vector<TValue*> values;
+    values.reserve(entities.size());
+
+    for (const auto& [_, object] : entities) {
+        if (IsObjectAlive(object)) {
+            values.push_back(object);
+        }
+    }
+    std::sort(values.begin(), values.end(), TObjectRefComparer::Compare);
+    return values;
+}
+
 template <class TObject, class TValue>
 std::vector<typename THashMap<TObject*, TValue>::iterator> GetIteratorsSortedByKey(THashMap<TObject*, TValue>& entities)
 {

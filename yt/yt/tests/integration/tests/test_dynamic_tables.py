@@ -9,7 +9,9 @@ from yt_env_setup import (
 from yt_commands import (
     authors, wait, create, ls, get, set, copy,
     move, remove,
-    exists, create_account, create_user, create_tablet_cell_bundle, create_tablet_cell, make_ace, make_batch_request,
+    exists, create_account, create_user, make_ace, make_batch_request,
+    create_tablet_cell_bundle, remove_tablet_cell_bundle,
+    create_area, remove_area, create_tablet_cell, remove_tablet_cell,
     execute_batch, start_transaction, abort_transaction,
     commit_transaction, lock, insert_rows, select_rows, lookup_rows,
     trim_rows, alter_table, read_table,
@@ -1197,7 +1199,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         create_tablet_cell_bundle("b")
         create("table", "//tmp/t", attributes={"tablet_cell_bundle": "b"})
         assert get("//tmp/t/@tablet_cell_bundle") == "b"
-        remove("//sys/tablet_cell_bundles/b")
+        remove_tablet_cell_bundle("b")
         assert get("//sys/tablet_cell_bundles/b/@life_stage") in [
             "removal_started",
             "removal_pre_committed",
@@ -1312,6 +1314,73 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         for peer in get("#{0}/@peers".format(default_cell)):
             assert peer["address"] != node
+
+    @authors("savrus")
+    def test_bundle_areas(self):
+        nodes = list(get("//sys/cluster_nodes"))
+        set("//sys/cluster_nodes/{0}/@user_tags".format(nodes[1]), ["a"])
+        set("//sys/cluster_nodes/{0}/@user_tags".format(nodes[2]), ["b"])
+        set("//sys/cluster_nodes/{0}/@user_tags".format(nodes[3]), ["c"])
+        set("//sys/cluster_nodes/{0}/@user_tags".format(nodes[0]), ["d"])
+
+        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "a")
+        default_area_id = get("//sys/tablet_cell_bundles/default/@areas/default/id")
+
+        custom_area_id = create_area("custom", cell_bundle="default", attributes={"node_tag_filter": "b"})
+
+        def _validate(area_id, name, tag, cell, node):
+            assert get("#{0}/@cell_ids".format(area_id)) == [cell]
+            assert get("#{0}/@node_tag_filter".format(area_id)) == tag
+            assert get("#{0}/@nodes".format(area_id)) == [node]
+            assert get("//sys/tablet_cell_bundles/default/@areas/{0}/id".format(name)) == area_id
+            assert get("//sys/tablet_cell_bundles/default/@areas/{0}/cell_count".format(name)) == 1
+            assert get("//sys/tablet_cell_bundles/default/@area_nodes/{0}".format(name)) == [node]
+            with pytest.raises(YtError):
+                remove("#{0}".format(area_id))
+
+        def _get_peer(cell):
+            try:
+                return get("#{0}/@peers/0/address".format(cell))
+            except:
+                return None
+
+        default_cell = sync_create_cells(1)[0]
+        custom_cell = sync_create_cells(1, area="custom")[0]
+
+        _validate(default_area_id, "default", "a", default_cell, nodes[1])
+        _validate(custom_area_id, "custom", "b", custom_cell, nodes[2])
+
+        assert get("#{0}/@peers/0/address".format(default_cell)) == nodes[1]
+        assert get("#{0}/@peers/0/address".format(custom_cell)) == nodes[2]
+
+        set("#{0}/@node_tag_filter".format(default_area_id), "c")
+        set("#{0}/@node_tag_filter".format(custom_area_id), "d")
+
+        _validate(default_area_id, "default", "c", default_cell, nodes[3])
+        _validate(custom_area_id, "custom", "d", custom_cell, nodes[0])
+
+        wait(lambda: _get_peer(default_cell) == nodes[3])
+        wait(lambda: _get_peer(custom_cell) == nodes[0])
+
+        remove_tablet_cell(custom_cell)
+        wait(lambda: not exists("#{0}".format(custom_cell)))
+
+        remove_area(custom_area_id)
+        set("#{0}/@node_tag_filter".format(default_area_id), "")
+
+    @authors("savrus")
+    def test_bundle_areas_removal(self):
+        create_tablet_cell_bundle("custom", attributes={"node_tag_filter": "a"})
+        default_area = get("//sys/tablet_cell_bundles/custom/@areas/default/id")
+        custom_area = create_area("custom", cell_bundle="custom")
+
+        assert get("#{0}/@node_tag_filter".format(default_area)) == "a"
+        assert not exists("#{0}/@node_tag_filter".format(custom_area))
+
+        remove_tablet_cell_bundle("custom")
+        wait(lambda: not exists("#{0}".format(default_area)))
+        wait(lambda: not exists("#{0}".format(custom_area)))
+        wait(lambda: not exists("//sys/tablet_cell_bundles/custom"))
 
     def _test_cell_bundle_distribution(self, test_decommission=False):
         set("//sys/@config/tablet_manager/tablet_cell_balancer/rebalance_wait_time", 500)
@@ -1439,7 +1508,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             return True
 
         create_tablet_cell_bundle("custom")
-        cell_id = sync_create_cells(1, "custom")[0]
+        cell_id = sync_create_cells(1, tablet_cell_bundle="custom")[0]
 
         self._create_sorted_table("//tmp/t", tablet_cell_bundle="custom")
         sync_mount_table("//tmp/t")
@@ -1515,7 +1584,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     @pytest.mark.parametrize("target", ["changelog", "snapshot"])
     def test_bundle_options_acl_reconfiguration(self, target):
         create_tablet_cell_bundle("custom")
-        cell_ids = sync_create_cells(2, "custom")
+        cell_ids = sync_create_cells(2, tablet_cell_bundle="custom")
 
         create_user("user1")
         create_user("user2")

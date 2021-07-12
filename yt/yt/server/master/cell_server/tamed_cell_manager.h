@@ -37,7 +37,6 @@ public:
     TCellBundle* FindCellBundleByName(const TString& name, bool activeLifeStageOnly);
     TCellBundle* GetCellBundleByNameOrThrow(const TString& name, bool activeLifeStageOnly);
     void RenameCellBundle(TCellBundle* cellBundle, const TString& newName);
-    void SetCellBundleNodeTagFilter(TCellBundle* bundle, const TString& formula);
     void SetCellBundleOptions(TCellBundle* cellBundle, TTabletCellOptionsPtr options);
     TCellBundle* CreateCellBundle(
         const TString& name,
@@ -50,14 +49,24 @@ public:
     TCellBase* GetCellOrThrow(TTamedCellId id);
     void RemoveCell(TCellBase* cell, bool force);
 
-    TCellBase* CreateCell(TCellBundle* cellBundle, std::unique_ptr<TCellBase> holder);
+    TCellBase* CreateCell(TCellBundle* cellBundle, TArea* area, std::unique_ptr<TCellBase> holder);
     void ZombifyCell(TCellBase* cell);
     void DestroyCell(TCellBase* cell);
     void UpdatePeerCount(TCellBase* cell, std::optional<int> peerCount);
 
-    DECLARE_SIGNAL(void(TCellBundle* bundle), CellBundleCreated);
+    DECLARE_ENTITY_MAP_ACCESSORS(Area, TArea);
+    TArea* CreateArea(
+        const TString& name,
+        TCellBundle* cellBundle,
+        NObjectClient::TObjectId hintId);
+    void RenameArea(TArea* area, const TString& name);
+    void ZombifyArea(TArea* area);
+    void SetAreaNodeTagFilter(TArea* area, const TString& formula);
+
     DECLARE_SIGNAL(void(TCellBundle* bundle), CellBundleDestroyed);
-    DECLARE_SIGNAL(void(TCellBundle* bundle), CellBundleNodeTagFilterChanged);
+    DECLARE_SIGNAL(void(TArea* area), AreaCreated);
+    DECLARE_SIGNAL(void(TArea* area), AreaDestroyed);
+    DECLARE_SIGNAL(void(TArea* area), AreaNodeTagFilterChanged);
     DECLARE_SIGNAL(void(TCellBase* cell), CellDecommissionStarted);
     DECLARE_SIGNAL(void(), CellPeersAssigned);
     DECLARE_SIGNAL(void(), AfterSnapshotLoaded);

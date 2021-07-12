@@ -87,10 +87,8 @@ void TDynamicTablesTestBase::TearDownTestCase()
         .ThrowOnError();
 
     RemoveTabletCells();
-
-    RemoveSystemObjects("//sys/tablet_cell_bundles", [] (const TString& name) {
-        return name != "default";
-    });
+    RemoveSystemObjects("//sys/areas");
+    RemoveSystemObjects("//sys/tablet_cell_bundles");
 
     WaitFor(Client_->SetNode(TYPath("//sys/accounts/tmp/@resource_limits/tablet_count"), ConvertToYsonString(0)))
         .ThrowOnError();
@@ -266,20 +264,24 @@ void TDynamicTablesTestBase::WriteRows(
         .ValueOrThrow();
 }
 
-void TDynamicTablesTestBase::RemoveSystemObjects(
-    const TYPath& path,
-    std::function<bool(const TString&)> filter)
+void TDynamicTablesTestBase::RemoveSystemObjects(const TYPath& path)
 {
-    auto items = WaitFor(Client_->ListNode(path))
+    TListNodeOptions options;
+    options.Attributes = {"builtin"};
+    auto items = WaitFor(Client_->ListNode(path, options))
          .ValueOrThrow();
     auto itemsList = ConvertTo<IListNodePtr>(items);
 
     std::vector<TFuture<void>> asyncWait;
     for (const auto& item : itemsList->GetChildren()) {
         const auto& name = item->AsString()->GetValue();
-        if (filter(name)) {
-            asyncWait.push_back(Client_->RemoveNode(path + "/" + name));
+        if (item->Attributes().Get<bool>("builtin", false)) {
+            YT_LOG_DEBUG("Do not remove builtin object during teardown (Path: %v, Item: %v)",
+                path,
+                name);
+            continue;
         }
+        asyncWait.push_back(Client_->RemoveNode(path + "/" + name));
     }
 
     WaitFor(AllSucceeded(asyncWait))

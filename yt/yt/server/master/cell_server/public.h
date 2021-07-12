@@ -34,6 +34,7 @@ using NTabletClient::NullTabletCellBundleId;
 using TTamedCellId = NTabletClient::TTabletCellId;
 using NTabletClient::NullTabletCellId;
 using NTabletClient::TypicalPeerCount;
+using TAreaId = NObjectClient::TObjectId;
 
 using TTamedCellConfig = NTabletClient::TTabletCellConfig;
 using TTamedCellConfigPtr = NTabletClient::TTabletCellConfigPtr;
@@ -62,8 +63,10 @@ struct ICellBalancer;
 
 DECLARE_ENTITY_TYPE(TCellBundle, TCellBundleId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TCellBase, TTamedCellId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TArea, TAreaId, NObjectClient::TDirectObjectIdHash)
 
 extern const TString DefaultCellBundleName;
+extern const TString DefaultAreaName;
 
 using TCellSet = SmallVector<std::pair<const TCellBase*, int>, NCellarClient::TypicalCellarSize>;
 
