@@ -983,6 +983,8 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
     TOperationControllerMaterializeResult result;
 
     try {
+        MemoryUsageCheckExecutor->Start();
+
         FetchInputTables();
         FetchUserFiles();
         ValidateUserFileSizes();
@@ -1053,7 +1055,6 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         MinNeededResourcesSanityCheckExecutor->Start();
         MaxAvailableExecNodeResourcesUpdateExecutor->Start();
         CheckTentativeTreeEligibilityExecutor_->Start();
-        MemoryUsageCheckExecutor->Start();
 
         if (auto maybeDelay = Spec_->TestingOperationOptions->DelayInsideMaterialize) {
             TDelayedExecutor::WaitForDuration(*maybeDelay);
