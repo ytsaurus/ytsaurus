@@ -326,6 +326,7 @@ public:
         if (AtAttributes_) {
             THROW_ERROR_EXCEPTION("Timestamp should have string type");
         }
+        bool isFieldKnown = true;
         AtSummaryMap_ = true;
         if (LastKey_ == "sum") {
             CurrentSummary_.Sum_ = value;
@@ -336,10 +337,12 @@ public:
         } else if (LastKey_ == "max") {
             CurrentSummary_.Max_ = value;
         } else {
-            THROW_ERROR_EXCEPTION("Invalid summary key for statistics")
-                << TErrorAttribute("key", LastKey_);
+            isFieldKnown = false;
         }
-        ++FilledSummaryFields_;
+
+        if (isFieldKnown) {
+            ++FilledSummaryFields_;
+        }
     }
 
     virtual void OnUint64Scalar(ui64 /*value*/) override
