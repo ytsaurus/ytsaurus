@@ -1,4 +1,4 @@
-#include "chunk_slice_fetcher_mock.h"
+#include "chunk_slice_fetcher.h"
 
 namespace NYT::NChunkPools {
 

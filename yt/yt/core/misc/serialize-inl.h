@@ -1023,7 +1023,6 @@ public:
 
 private:
     TIterators Iterators_;
-
 };
 
 struct TSortedTag { };

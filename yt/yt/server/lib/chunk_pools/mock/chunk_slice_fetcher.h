@@ -26,7 +26,7 @@ public:
     MOCK_METHOD1(SetCancelableContext, void(TCancelableContextPtr));
 };
 
-typedef TIntrusivePtr<::testing::StrictMock<TMockChunkSliceFetcher>> TStrictMockChunkSliceFetcherPtr;
+using TStrictMockChunkSliceFetcherPtr = TIntrusivePtr<::testing::StrictMock<TMockChunkSliceFetcher>>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

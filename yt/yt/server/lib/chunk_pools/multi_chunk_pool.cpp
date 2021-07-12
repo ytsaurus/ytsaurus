@@ -158,6 +158,7 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TMultiChunkPoolInput);
 
 class TMultiChunkPoolOutput
     : public virtual IMultiChunkPoolOutput
+    , public TJobSplittingBase
 {
 public:
     DEFINE_SIGNAL(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
@@ -228,16 +229,16 @@ public:
     virtual TExternalCookie Extract(TNodeId nodeId) override
     {
         int poolIndex = -1;
-        auto cookie = NullCookie;
+        auto cookie = IChunkPoolOutput::NullCookie;
 
         if (PendingPools_.empty()) {
             if (BlockedPools_.empty()) {
-                return NullCookie;
+                return IChunkPoolOutput::NullCookie;
             } else {
                 poolIndex = *BlockedPools_.begin();
                 auto* pool = Pool(poolIndex);
                 cookie = pool->Extract(nodeId);
-                YT_VERIFY(cookie != NullCookie);
+                YT_VERIFY(cookie != IChunkPoolOutput::NullCookie);
             }
         } else {
             poolIndex = CurrentPoolIndex();
@@ -245,7 +246,7 @@ public:
         }
 
         YT_VERIFY(poolIndex != -1);
-        YT_VERIFY(cookie != NullCookie);
+        YT_VERIFY(cookie != IChunkPoolOutput::NullCookie);
 
         TCookieDescriptor cookieDescriptor(poolIndex, cookie);
         auto cookieIt = CookieDescriptorToExternalCookie_.find(cookieDescriptor);
@@ -273,7 +274,7 @@ public:
         }
 
         auto cookie = pool->Extract(nodeId);
-        if (cookie == NullCookie) {
+        if (cookie == IChunkPoolOutput::NullCookie) {
             return Extract(nodeId);
         } else {
             auto externalCookie = Cookies_.size();

@@ -1264,7 +1264,7 @@ private:
             isUpload == (
                 TypeFromId(hintId) == EObjectType::UploadTransaction ||
                 TypeFromId(hintId) == EObjectType::UploadNestedTransaction));
-        
+
         auto attributes = CreateEphemeralAttributes();
         if (request->has_operation_type()) {
             attributes->Set("operation_type", request->operation_type());
@@ -1584,6 +1584,8 @@ private:
 
     void SaveValues(NCellMaster::TSaveContext& context)
     {
+        using NYT::Save;
+
         TransactionMap_.SaveValues(context);
         Save(context, TimestampHolderMap_);
         BoomerangTracker_->Save(context);
@@ -1599,6 +1601,8 @@ private:
     void LoadValues(NCellMaster::TLoadContext& context)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        using NYT::Load;
 
         TransactionMap_.LoadValues(context);
         Load(context, TimestampHolderMap_);

@@ -198,6 +198,7 @@ private:
 
     class TOutput
         : public TChunkPoolOutputWithCountersBase
+        , public TJobSplittingBase
         , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
     {
     public:
@@ -311,7 +312,7 @@ private:
         virtual TCookie Extract(TNodeId /* nodeId */) override
         {
             if (JobCounter->GetPending() == 0) {
-                return NullCookie;
+                return IChunkPoolOutput::NullCookie;
             }
 
             auto it = PendingRuns_.begin();

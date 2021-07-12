@@ -216,11 +216,6 @@ TString TLegacyJobStub::GetDebugString() const
     return builder.Flush();
 }
 
-void TLegacyJobStub::SetUnsplittable()
-{
-    StripeList_->IsSplittable = false;
-}
-
 const TChunkStripePtr& TLegacyJobStub::GetStripe(int streamIndex, int rangeIndex, bool isStripePrimary)
 {
     auto& stripe = StripeMap_[std::make_pair(streamIndex, rangeIndex)];
@@ -419,16 +414,19 @@ TLegacyJobManager::TLegacyJobManager(const TLogger& logger)
     , Logger(logger)
 { }
 
-void TLegacyJobManager::AddJobs(std::vector<std::unique_ptr<TLegacyJobStub>> jobStubs)
+std::vector<IChunkPoolOutput::TCookie> TLegacyJobManager::AddJobs(std::vector<std::unique_ptr<TLegacyJobStub>> jobStubs)
 {
     if (jobStubs.empty()) {
-        return;
+        return {};
     }
-    YT_LOG_DEBUG("Adding jobs to job manager (JobCount: %v)",
-        jobStubs.size());
+    YT_LOG_DEBUG("Adding jobs to job manager (JobCount: %v)", jobStubs.size());
+    std::vector<IChunkPoolOutput::TCookie> outputCookies;
+    outputCookies.reserve(jobStubs.size());
     for (auto& jobStub : jobStubs) {
-        AddJob(std::move(jobStub));
+        auto outputCookie = AddJob(std::move(jobStub));
+        outputCookies.push_back(outputCookie);
     }
+    return outputCookies;
 }
 
 //! Add a job that is built from the given stub.

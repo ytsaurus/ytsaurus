@@ -36,6 +36,8 @@ class TUnorderedChunkPool
     : public TChunkPoolInputBase
     , public TChunkPoolOutputWithCountersBase
     , public IChunkPool
+    , public TJobSplittingBase
+    , public virtual NLogging::TLoggerOwner
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
@@ -64,8 +66,9 @@ public:
         , FreeJobCounter_(New<TProgressCounter>())
         , FreeDataWeightCounter_(New<TProgressCounter>())
         , FreeRowCounter_(New<TProgressCounter>())
-        , Logger(options.Logger)
     {
+        Logger = options.Logger;
+        ValidateLogger(Logger);
         // TODO(max42): why do we need row buffer in unordered pool at all?
         YT_VERIFY(RowBuffer_);
 
@@ -379,6 +382,7 @@ public:
     {
         TChunkPoolInputBase::Persist(context);
         TChunkPoolOutputWithCountersBase::Persist(context);
+        TLoggerOwner::Persist(context);
 
         using NYT::Persist;
         Persist(context, InputCookieToInternalCookies_);
@@ -402,7 +406,6 @@ public:
         Persist(context, FreeDataWeightCounter_);
         Persist(context, FreeRowCounter_);
         Persist(context, IsCompleted_);
-        Persist(context, Logger);
 
         if (context.IsLoad()) {
             ValidateLogger(Logger);
@@ -470,8 +473,6 @@ private:
     TProgressCounterPtr FreeRowCounter_;
 
     bool IsCompleted_ = false;
-
-    TLogger Logger;
 
     // XXX(max42): looks like this comment became obsolete even
     // before I got into this company.

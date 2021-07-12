@@ -244,6 +244,40 @@ std::vector<std::pair<typename T::key_type, typename T::mapped_type>> SortHashMa
     return vector;
 }
 
+template <class T>
+Y_FORCE_INLINE void EnsureVectorSize(std::vector<T>& vector, ssize_t size, const T& defaultValue)
+{
+    if (static_cast<ssize_t>(vector.size()) < size) {
+        vector.resize(size, defaultValue);
+    }
+}
+
+template <class T>
+Y_FORCE_INLINE void EnsureVectorIndex(std::vector<T>& vector, ssize_t index, const T& defaultValue)
+{
+    EnsureVectorSize(vector, index + 1, defaultValue);
+}
+
+template <class T>
+Y_FORCE_INLINE void AssignVectorAt(std::vector<T>& vector, ssize_t index, const T& value, const T& defaultValue)
+{
+    EnsureVectorIndex(vector, index, defaultValue);
+    vector[index] = value;
+}
+
+template <class T>
+Y_FORCE_INLINE void AssignVectorAt(std::vector<T>& vector, ssize_t index, T&& value, const T& defaultValue)
+{
+    EnsureVectorIndex(vector, index, defaultValue);
+    vector[index] = std::move(value);
+}
+
+template <class T>
+Y_FORCE_INLINE const T& VectorAtOr(const std::vector<T>& vector, ssize_t index, const T& defaultValue)
+{
+    return index < static_cast<ssize_t>(vector.size()) ? vector[index] : defaultValue;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

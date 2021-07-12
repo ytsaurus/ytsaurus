@@ -3,6 +3,8 @@
 #include <yt/yt/server/controller_agent/controller_agent.h>
 #include <yt/yt/server/controller_agent/config.h>
 
+#include <yt/yt/server/lib/controller_agent/public.h>
+
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 
 #include <yt/yt/ytlib/job_tracker_client/statistics.h>
@@ -19,15 +21,6 @@ using namespace NChunkClient;
 using namespace NPhoenix;
 using namespace NScheduler;
 using namespace NJobTrackerClient;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static const TString InputRowCountPath = "/data/input/row_count";
-static const TString InputUncompressedDataSizePath = "/data/input/uncompressed_data_size";
-static const TString InputCompressedDataSizePath = "/data/input/compressed_data_size";
-static const TString InputDataWeightPath = "/data/input/data_weight";
-static const TString InputPipeIdleTimePath = "/user_job/pipes/input/idle_time";
-static const TString JobProxyCpuUsagePath = "/job_proxy/cpu/user";
 
 ////////////////////////////////////////////////////////////////////////////////
 

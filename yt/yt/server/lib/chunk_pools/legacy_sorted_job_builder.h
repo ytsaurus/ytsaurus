@@ -37,7 +37,6 @@ ILegacySortedJobBuilderPtr CreateLegacySortedJobBuilder(
     NControllerAgent::IJobSizeConstraintsPtr jobSizeConstraints,
     const NTableClient::TRowBufferPtr& rowBuffer,
     const std::vector<NChunkClient::TInputChunkPtr>& teleportChunks,
-    bool inSplit,
     int reftryIndex,
     const NLogging::TLogger& logger);
 

@@ -32,7 +32,6 @@ INewSortedJobBuilderPtr CreateNewSortedJobBuilder(
     NControllerAgent::IJobSizeConstraintsPtr jobSizeConstraints,
     const NTableClient::TRowBufferPtr& rowBuffer,
     const std::vector<NChunkClient::TInputChunkPtr>& teleportChunks,
-    bool inSplit,
     int retryIndex,
     const TInputStreamDirectory& inputStreamDirectory,
     const NLogging::TLogger& logger);

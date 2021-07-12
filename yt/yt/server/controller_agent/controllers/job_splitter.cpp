@@ -31,11 +31,13 @@ public:
 
     TJobSplitter(
         TJobSplitterConfigPtr config,
+        IChunkPoolJobSplittingHost* chunkPool,
         const NLogging::TLogger& logger)
         : Config_(config)
         , CanSplitJobs_(config->EnableJobSplitting)
         , CanLaunchSpeculativeJobs_(config->EnableJobSpeculation)
         , JobTimeTracker_(std::move(config))
+        , ChunkPool_(chunkPool)
         , Logger(logger)
     {
         YT_VERIFY(Config_);
@@ -64,7 +66,7 @@ public:
                 isLongAmongRunning)
             {
                 YT_LOG_DEBUG("Job splitter detected long job among running (JobId: %v)", jobId);
-                if (CanSplitJobs_ && job.GetIsSplittable() && job.GetTotalDataWeight() > Config_->MinTotalDataWeight) {
+                if (CanSplitJobs_ && job.IsSplittable() && job.GetTotalDataWeight() > Config_->MinTotalDataWeight) {
                     job.OnSplitRequested(Config_->SplitTimeoutBeforeSpeculate);
                     return EJobSplitterVerdict::Split;
                 } else if (CanLaunchSpeculativeJobs_) {
@@ -77,7 +79,7 @@ public:
                 isResidual)
             {
                 YT_LOG_DEBUG("Job splitter detected residual job (JobId: %v)", jobId);
-                if (CanSplitJobs_ && job.GetIsSplittable() && job.GetTotalDataWeight() > Config_->MinTotalDataWeight) {
+                if (CanSplitJobs_ && job.IsSplittable() && job.GetTotalDataWeight() > Config_->MinTotalDataWeight) {
                     job.OnSplitRequested(Config_->SplitTimeoutBeforeSpeculate);
                     return EJobSplitterVerdict::Split;
                 } else if (CanLaunchSpeculativeJobs_) {
@@ -108,10 +110,21 @@ public:
             YT_LOG_DEBUG(
                 "Job splitter detailed information (JobId: %v, PrepareDuration: %v, PrepareWithoutDownloadDuration: %v, "
                 "ExecDuration: %v, RemainingDuration: %v, TotalDataWeight: %v, RowCount: %v, IsLongAmongRunning: %v, "
-                "IsResidual: %v, IsSplittable: %v, SplitDeadline: %v, SuccessJobPrepareDurationSum: %v, SuccessJobCount: %v)",
-                jobId, job.GetPrepareDuration(), job.GetPrepareWithoutDownloadDuration(), job.GetExecDuration(),
-                job.GetRemainingDuration(), job.GetTotalDataWeight(), job.GetRowCount(), isLongAmongRunning, isResidual,
-                job.GetIsSplittable(), job.GetSplitDeadline(), SuccessJobPrepareDurationSum_, SuccessJobCount_);
+                "IsResidual: %v, IsInterruptible: %v, IsSplittable: %v, SplitDeadline: %v, SuccessJobPrepareDurationSum: %v, SuccessJobCount: %v)",
+                jobId,
+                job.GetPrepareDuration(),
+                job.GetPrepareWithoutDownloadDuration(),
+                job.GetExecDuration(),
+                job.GetRemainingDuration(),
+                job.GetTotalDataWeight(),
+                job.GetRowCount(),
+                isLongAmongRunning,
+                isResidual,
+                job.GetIsInterruptible(),
+                job.IsSplittable(),
+                job.GetSplitDeadline(),
+                SuccessJobPrepareDurationSum_,
+                SuccessJobCount_);
         }
 
         return EJobSplitterVerdict::DoNothing;
@@ -120,16 +133,17 @@ public:
     virtual void OnJobStarted(
         TJobId jobId,
         const TChunkStripeListPtr& inputStripeList,
+        TOutputCookie cookie,
         bool isInterruptible) override
     {
-        RunningJobs_.emplace(jobId, TRunningJob(inputStripeList, this, isInterruptible));
+        RunningJobs_.emplace(jobId, TRunningJob(inputStripeList, cookie, this, isInterruptible));
         MaxRunningJobCount_ = std::max<i64>(MaxRunningJobCount_, RunningJobs_.size());
     }
 
     void OnJobRunning(const TJobSummary& summary) override
     {
         auto& job = GetOrCrash(RunningJobs_, summary.Id);
-        job.UpdateCompletionTime(&JobTimeTracker_, summary);
+        job.Update(&JobTimeTracker_, summary);
     }
 
     virtual void OnJobFailed(const TFailedJobSummary& summary) override
@@ -248,6 +262,7 @@ public:
         Persist(context, Logger);
         Persist(context, SuccessJobPrepareDurationSum_);
         Persist(context, SuccessJobCount_);
+        Persist(context, ChunkPool_);
     }
 
 private:
@@ -355,14 +370,19 @@ private:
         //! Used only for persistence.
         TRunningJob() = default;
 
-        TRunningJob(const TChunkStripeListPtr& inputStripeList, TJobSplitter* owner, bool isSplittable)
+        TRunningJob(
+            const TChunkStripeListPtr& inputStripeList,
+            TOutputCookie cookie,
+            TJobSplitter* owner,
+            bool isInterruptible)
             : TotalRowCount_(inputStripeList->TotalRowCount)
             , TotalDataWeight_(inputStripeList->TotalDataWeight)
-            , IsSplittable_(inputStripeList->IsSplittable && isSplittable)
+            , IsInterruptible_(isInterruptible)
             , Owner_(owner)
+            , Cookie_(cookie)
         { }
 
-        void UpdateCompletionTime(TJobTimeTracker* jobTimeTracker, const TJobSummary& summary)
+        void Update(TJobTimeTracker* jobTimeTracker, const TJobSummary& summary)
         {
             PrepareDuration_ = summary.TimeStatistics.PrepareDuration.value_or(TDuration());
             auto downloadDuration = summary.TimeStatistics.ArtifactsDownloadDuration.value_or(TDuration());
@@ -402,11 +422,17 @@ private:
         {
             fluent
                 .Item("row_count").Value(RowCount_)
-                .Item("splittable").Value(IsSplittable_)
+                .Item("interruptible").Value(IsInterruptible_)
+                .Item("splittable").Value(Owner_->ChunkPool_->IsSplittable(Cookie_))
                 .Item("total_row_count").Value(TotalRowCount_)
                 .Item("seconds_per_row").Value(SecondsPerRow_)
                 .Item("remaining_duration").Value(CompletionTime_ - GetInstant())
                 .Item("interrupt_deadline").Value(SplitDeadline_);
+        }
+
+        bool IsSplittable() const
+        {
+            return IsInterruptible_ && Owner_->ChunkPool_->IsSplittable(Cookie_);
         }
 
         void Persist(const TPersistenceContext& context)
@@ -422,7 +448,8 @@ private:
             Persist(context, CompletionTime_);
             Persist(context, RowCount_);
             Persist(context, SecondsPerRow_);
-            Persist(context, IsSplittable_);
+            Persist(context, Cookie_);
+            Persist(context, IsInterruptible_);
             Persist(context, SplitDeadline_);
             Persist(context, PrepareDuration_);
         }
@@ -433,7 +460,7 @@ private:
         DEFINE_BYVAL_RO_PROPERTY(TDuration, PrepareWithoutDownloadDuration)
         DEFINE_BYVAL_RO_PROPERTY(TDuration, ExecDuration)
         DEFINE_BYVAL_RO_PROPERTY(TDuration, RemainingDuration)
-        DEFINE_BYVAL_RO_PROPERTY(bool, IsSplittable)
+        DEFINE_BYVAL_RO_PROPERTY(bool, IsInterruptible);
         DEFINE_BYVAL_RO_PROPERTY(std::optional<TInstant>, SplitDeadline)
         DEFINE_BYVAL_RO_PROPERTY(TDuration, PrepareDuration)
         DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, NextLoggingTime)
@@ -441,6 +468,7 @@ private:
     private:
         TJobSplitter* Owner_ = nullptr;
 
+        TOutputCookie Cookie_;
         TInstant CompletionTime_;
         double SecondsPerRow_ = 0;
     };
@@ -455,7 +483,7 @@ private:
     i64 MaxRunningJobCount_ = 0;
     TDuration SuccessJobPrepareDurationSum_;
     int SuccessJobCount_ = 0;
-
+    IChunkPoolJobSplittingHost* ChunkPool_;
     NLogging::TLogger Logger;
 
     void OnJobFinished(const TJobSummary& summary)
@@ -488,9 +516,10 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TJobSplitter);
 
 std::unique_ptr<IJobSplitter> CreateJobSplitter(
     TJobSplitterConfigPtr config,
+    IChunkPoolJobSplittingHost* chunkPool,
     const NLogging::TLogger& logger)
 {
-    return std::make_unique<TJobSplitter>(std::move(config), logger);
+    return std::make_unique<TJobSplitter>(std::move(config), chunkPool, logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

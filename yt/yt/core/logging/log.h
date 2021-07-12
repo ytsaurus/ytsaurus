@@ -164,6 +164,12 @@ class TLoggerOwner
 {
 protected:
     TLogger Logger;
+
+    TLoggerOwner() = default;
+
+    void Save(TStreamSaveContext& context) const;
+    void Load(TStreamLoadContext& context);
+    void Persist(const TStreamPersistenceContext& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

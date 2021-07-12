@@ -1,5 +1,6 @@
-#include "chunk_slice_fetcher_mock.h"
 #include "chunk_pools_helpers.h"
+
+#include <yt/yt/server/lib/chunk_pools/mock/chunk_slice_fetcher.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 

@@ -29,6 +29,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((JSCInitialPrimaryDataWeight)          (300605))
     ((OptimizeShufflePool)                  (300606))
     ((RemoveFinishedJobs)                   (300608))
+    ((TinyJobSplittingFix)                  (300609))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

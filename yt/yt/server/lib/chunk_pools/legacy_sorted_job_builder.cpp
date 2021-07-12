@@ -40,7 +40,6 @@ public:
         IJobSizeConstraintsPtr jobSizeConstraints,
         const TRowBufferPtr& rowBuffer,
         const std::vector<TInputChunkPtr>& teleportChunks,
-        bool inSplit,
         int retryIndex,
         const TLogger& logger)
         : Options_(options)
@@ -48,7 +47,6 @@ public:
         , JobSampler_(JobSizeConstraints_->GetSamplingRate())
         , RowBuffer_(rowBuffer)
         , TeleportChunks_(teleportChunks)
-        , InSplit_(inSplit)
         , RetryIndex_(retryIndex)
         , Logger(logger)
     { }
@@ -246,8 +244,6 @@ private:
     i64 TotalSliceCount_ = 0;
 
     const std::vector<TInputChunkPtr>& TeleportChunks_;
-
-    bool InSplit_ = false;
 
     int RetryIndex_;
 
@@ -534,13 +530,6 @@ private:
             Jobs_.pop_back();
         }
         YT_LOG_DEBUG("Jobs created (Count: %v)", Jobs_.size());
-        if (InSplit_ && Jobs_.size() == 1 && JobSizeConstraints_->GetJobCount() > 1) {
-            YT_LOG_DEBUG("Pool was not able to split job properly (SplitJobCount: %v, JobCount: %v)",
-                JobSizeConstraints_->GetJobCount(),
-                Jobs_.size());
-
-            Jobs_.front()->SetUnsplittable();
-        }
     }
 
     void AttachForeignSlices()
@@ -636,11 +625,10 @@ ILegacySortedJobBuilderPtr CreateLegacySortedJobBuilder(
     IJobSizeConstraintsPtr jobSizeConstraints,
     const TRowBufferPtr& rowBuffer,
     const std::vector<TInputChunkPtr>& teleportChunks,
-    bool inSplit,
     int retryIndex,
     const TLogger& logger)
 {
-    return New<TLegacySortedJobBuilder>(options, std::move(jobSizeConstraints), rowBuffer, teleportChunks, inSplit, retryIndex, logger);
+    return New<TLegacySortedJobBuilder>(options, std::move(jobSizeConstraints), rowBuffer, teleportChunks, retryIndex, logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
