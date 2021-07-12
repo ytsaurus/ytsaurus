@@ -65,6 +65,30 @@ void SortByFirst(T& collection);
 template <class T>
 std::vector<std::pair<typename T::key_type, typename T::mapped_type>> SortHashMapByKeys(const T& hashMap);
 
+// Below follow helpers for representing a map (small unsigned integer) -> T over std::vector<T> using keys as indices.
+
+//! If vector size is less than provided size, resize vector up to provided size.
+template <class T>
+void EnsureVectorSize(std::vector<T>& vector, ssize_t size, const T& defaultValue = T());
+
+//! If vector size is not enough for vector[index] to exist, resize vector up to index + 1.
+template <class T>
+void EnsureVectorIndex(std::vector<T>& vector, ssize_t index, const T& defaultValue = T());
+
+//! If vector size is not enough for vector[size] to exist, resize vector to size + 1.
+//! After that perform assignment vector[size] = value. Const reference version.
+template <class T>
+void AssignVectorAt(std::vector<T>& vector, ssize_t index, const T& value, const T& defaultValue = T());
+
+//! If vector size is not enough for vector[size] to exist, resize vector to size + 1.
+//! After that perform assignment vector[size] = std::move(value). Rvalue reference version.
+template <class T>
+void AssignVectorAt(std::vector<T>& vector, ssize_t index, T&& value, const T& defaultValue = T());
+
+//! If vector size is not enough for vector[size] to exist, return defaultValue, otherwise return vector[size].
+template <class T>
+const T& VectorAtOr(const std::vector<T>& vector, ssize_t index, const T& defaultValue = T());
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

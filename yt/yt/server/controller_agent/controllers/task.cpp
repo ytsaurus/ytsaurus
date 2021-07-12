@@ -105,6 +105,7 @@ void TTask::Prepare()
 
     JobSplitter_ = CreateJobSplitter(
         GetJobSplitterConfig(),
+        GetChunkPoolOutput().Get(),
         Logger);
 }
 
@@ -459,7 +460,7 @@ void TTask::ScheduleJob(
 
     // Check the usage against the limits. This is the last chance to give up.
     if (!Dominates(jobLimits, neededResources.ToJobResources()) ||
-        !CanSatisfyDiskQuotaRequests(context->DiskResources(), {neededResources.GetDiskQuota()})) 
+        !CanSatisfyDiskQuotaRequests(context->DiskResources(), {neededResources.GetDiskQuota()}))
     {
         YT_LOG_DEBUG("Job actual resource demand is not met (AvailableJobResources: %v, AvailableDiskResources: %v, NeededResources: %v)",
             FormatResources(jobLimits),
@@ -515,7 +516,7 @@ void TTask::ScheduleJob(
 
     YT_LOG_DEBUG(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, SliceCount: %v (%v local), "
-        "Approximate: %v, DataWeight: %v (%v local), RowCount: %v, Splittable: %v, PartitionTag: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
+        "Approximate: %v, DataWeight: %v (%v local), RowCount: %v, PartitionTag: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
         "UserJobMemoryReserveFactor: %v, ResourceLimits: %v, Speculative: %v, JobSpeculationTimeout: %v)",
         joblet->JobId,
         TaskHost_->GetOperationId(),
@@ -529,7 +530,6 @@ void TTask::ScheduleJob(
         joblet->InputStripeList->TotalDataWeight,
         joblet->InputStripeList->LocalDataWeight,
         joblet->InputStripeList->TotalRowCount,
-        joblet->InputStripeList->IsSplittable,
         joblet->InputStripeList->PartitionTag,
         restarted,
         FormatResources(estimatedResourceUsage),
@@ -568,7 +568,7 @@ void TTask::ScheduleJob(
 
     OnJobStarted(joblet);
 
-    JobSplitter_->OnJobStarted(joblet->JobId, joblet->InputStripeList, IsJobInterruptible());
+    JobSplitter_->OnJobStarted(joblet->JobId, joblet->InputStripeList, joblet->OutputCookie, IsJobInterruptible());
 
     joblet->JobSpecProtoFuture = BIND([
         weakTaskHost = MakeWeak(TaskHost_),
@@ -845,11 +845,14 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
     }
 
     if (jobSummary.InterruptReason != EInterruptReason::None) {
-        jobSummary.SplitJobCount = EstimateSplitJobCount(jobSummary, joblet);
-        YT_LOG_DEBUG("Job interrupted (JobId: %v, InterruptReason: %v, UnreadDataSliceCount: %v, SplitJobCount: %v)",
+        auto isSplittable = GetChunkPoolOutput()->IsSplittable(joblet->OutputCookie);
+        jobSummary.SplitJobCount = isSplittable ? EstimateSplitJobCount(jobSummary, joblet) : 1;
+        YT_LOG_DEBUG("Job interrupted (JobId: %v, OutputCookie: %v, InterruptReason: %v, UnreadDataSliceCount: %v, IsSplittable: %v, SplitJobCount: %v)",
             jobSummary.Id,
+            joblet->OutputCookie,
             jobSummary.InterruptReason,
             jobSummary.UnreadInputDataSlices.size(),
+            isSplittable,
             jobSummary.SplitJobCount);
     }
     JobSplitter_->OnJobCompleted(jobSummary);

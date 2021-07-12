@@ -49,6 +49,8 @@ class TOrderedChunkPool
     : public TChunkPoolInputBase
     , public TChunkPoolOutputWithNewJobManagerBase
     , public IChunkPool
+    , public TJobSplittingBase
+    , public virtual NLogging::TLoggerOwner
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
@@ -68,8 +70,9 @@ public:
         , ShouldSliceByRowIndices_(options.ShouldSliceByRowIndices)
         , EnablePeriodicYielder_(options.EnablePeriodicYielder)
         , OutputOrder_(options.KeepOutputOrder ? New<TOutputOrder>() : nullptr)
-        , Logger(options.Logger)
     {
+        Logger = options.Logger;
+
         ValidateLogger(Logger);
 
         if (JobSizeConstraints_->IsExplicitJobCount() && JobSizeConstraints_->GetJobCount() == 1) {
@@ -144,12 +147,15 @@ public:
 
     virtual void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
     {
+        TJobSplittingBase::Completed(cookie, jobSummary);
+
         if (jobSummary.InterruptReason != EInterruptReason::None) {
             YT_LOG_DEBUG("Splitting job (OutputCookie: %v, InterruptReason: %v, SplitJobCount: %v)",
                 cookie,
                 jobSummary.InterruptReason,
                 jobSummary.SplitJobCount);
-            SplitJob(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount, cookie);
+            auto childCookies = SplitJob(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount, cookie);
+            RegisterChildCookies(cookie, std::move(childCookies));
         }
         JobManager_->Completed(cookie, jobSummary.InterruptReason);
         CheckCompleted();
@@ -171,6 +177,8 @@ public:
     {
         TChunkPoolInputBase::Persist(context);
         TChunkPoolOutputWithJobManagerBase::Persist(context);
+        TJobSplittingBase::Persist(context);
+        // TLoggerOwner is persisted by TJobSplittingBase.
 
         using NYT::Persist;
 
@@ -188,7 +196,6 @@ public:
         Persist(context, BuiltJobCount_);
         Persist(context, SingleJob_);
         Persist(context, IsCompleted_);
-        Persist(context, Logger);
 
         if (context.IsLoad()) {
             ValidateLogger(Logger);
@@ -230,8 +237,6 @@ private:
     bool SingleJob_ = false;
 
     bool IsCompleted_ = false;
-
-    TLogger Logger;
 
     void SetupSuspendedStripes()
     {
@@ -312,7 +317,6 @@ private:
                 } else {
                     AddPrimaryDataSlice(dataSlice, inputCookie, JobSizeConstraints_->GetDataWeightPerJob());
                 }
-
             }
         }
         EndJob();
@@ -331,7 +335,7 @@ private:
         JobSizeConstraints_->UpdateInputDataWeight(JobManager_->DataWeightCounter()->GetTotal());
     }
 
-    void SplitJob(
+    std::vector<IChunkPoolOutput::TCookie> SplitJob(
         std::vector<TLegacyDataSlicePtr> unreadInputDataSlices,
         int splitJobCount,
         IChunkPoolOutput::TCookie cookie)
@@ -347,20 +351,29 @@ private:
             dataSizePerJob = DivCeil(dataSize, static_cast<i64>(splitJobCount));
         }
 
-        auto jobIndex = JobIndex_;
         // Teleport chunks do not affect the job split process since each original
         // job is already located between the teleport chunks.
         std::vector<TInputChunkPtr> teleportChunks;
         if (OutputOrder_) {
             OutputOrder_->SeekCookie(cookie);
         }
+        std::vector<IChunkPoolOutput::TCookie> childCookies;
         for (const auto& dataSlice : unreadInputDataSlices) {
             int inputCookie = *dataSlice->Tag;
-            AddPrimaryDataSlice(dataSlice, inputCookie, dataSizePerJob);
+            auto outputCookie = AddPrimaryDataSlice(dataSlice, inputCookie, dataSizePerJob);
+            if (outputCookie != IChunkPoolOutput::NullCookie) {
+                childCookies.push_back(outputCookie);
+            }
         }
-        // We wanted to create several jobs, but failed to do it => job is unsplittable.
-        auto unsplittable = splitJobCount > 1 && jobIndex == JobIndex_;
-        EndJob(unsplittable);
+
+        {
+            auto outputCookie = EndJob();
+            if (outputCookie != IChunkPoolOutput::NullCookie) {
+                childCookies.push_back(outputCookie);
+            }
+        }
+
+        return childCookies;
     }
 
     i64 GetDataWeightPerJob() const
@@ -371,7 +384,7 @@ private:
             : JobSizeConstraints_->GetDataWeightPerJob();
     }
 
-    void AddPrimaryDataSlice(
+    IChunkPoolOutput::TCookie AddPrimaryDataSlice(
         const TLegacyDataSlicePtr& dataSlice,
         IChunkPoolInput::TCookie cookie,
         i64 dataSizePerJob)
@@ -380,16 +393,18 @@ private:
         bool jobIsLargeEnough =
             CurrentJob()->GetPreliminarySliceCount() + 1 > JobSizeConstraints_->GetMaxDataSlicesPerJob() ||
             CurrentJob()->GetDataWeight() >= dataSizePerJob;
+        IChunkPoolOutput::TCookie result = IChunkPoolOutput::NullCookie;
         if (jobIsLargeEnough && !SingleJob_) {
-            EndJob();
+            result = EndJob();
         }
         auto dataSliceCopy = CreateInputDataSlice(dataSlice);
         dataSliceCopy->Tag = cookie;
         dataSlice->CopyPayloadFrom(*dataSlice);
         CurrentJob()->AddDataSlice(dataSliceCopy, cookie, true /* isPrimary */);
+        return result;
     }
 
-    void EndJob(bool unsplittable = false)
+    IChunkPoolOutput::TCookie EndJob()
     {
         if (CurrentJob()->GetSliceCount() > 0) {
             if (Sampler_.Sample()) {
@@ -410,9 +425,6 @@ private:
                         << TErrorAttribute("max_total_slice_count", MaxTotalSliceCount_)
                         << TErrorAttribute("current_job_count", JobIndex_);
                 }
-                if (unsplittable) {
-                    CurrentJob()->SetUnsplittable();
-                }
 
                 CurrentJob()->Finalize();
 
@@ -422,6 +434,8 @@ private:
                 }
 
                 YT_ASSERT(!CurrentJob_);
+
+                return cookie;
             } else {
                 YT_LOG_DEBUG("Ordered job skipped (JobIndex: %v, BuiltJobCount: %v, PrimatyDataWeight: %v, DataWeight: %v, RowCount: %v, SliceCount: %v)",
                     JobIndex_,
@@ -433,6 +447,7 @@ private:
             }
             ++JobIndex_;
         }
+        return IChunkPoolOutput::NullCookie;
     }
 
     std::unique_ptr<TNewJobStub>& CurrentJob()
@@ -443,7 +458,8 @@ private:
         return CurrentJob_;
     }
 
-    void CheckCompleted() {
+    void CheckCompleted()
+    {
         bool completed =
             Finished &&
             JobManager_->JobCounter()->GetPending() == 0 &&

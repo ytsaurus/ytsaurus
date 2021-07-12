@@ -23,6 +23,7 @@ DECLARE_REFCOUNTED_STRUCT(ISortedChunkPool)
 DECLARE_REFCOUNTED_STRUCT(IMultiChunkPoolInput)
 DECLARE_REFCOUNTED_STRUCT(IMultiChunkPoolOutput)
 DECLARE_REFCOUNTED_STRUCT(IMultiChunkPool)
+DECLARE_REFCOUNTED_STRUCT(IChunkPoolJobSplittingHost)
 
 DEFINE_ENUM(EErrorCode,
     ((DataSliceLimitExceeded)             (2000))
@@ -31,6 +32,13 @@ DEFINE_ENUM(EErrorCode,
 );
 
 constexpr double ApproximateSizesBoostFactor = 1.3;
+
+////////////////////////////////////////////////////////////////////////////////
+
+// It's quite easy to mix up input cookies with output cookies,
+// so we use two following aliases to visually distinguish them.
+using TInputCookie = int;
+using TOutputCookie = int;
 
 ////////////////////////////////////////////////////////////////////////////////
 

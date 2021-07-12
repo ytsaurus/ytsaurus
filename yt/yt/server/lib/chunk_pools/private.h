@@ -17,11 +17,6 @@ using NControllerAgent::TLoadContext;
 using NControllerAgent::TPersistenceContext;
 using NControllerAgent::IPersistent;
 
-// It's quite easy to mix up input cookies with output cookies,
-// so we use two following aliases to visually distinguish them.
-using TInputCookie = int;
-using TOutputCookie = int;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(ILegacySortedJobBuilder);

@@ -95,7 +95,7 @@ public:
 
     explicit TLegacyJobManager(const NLogging::TLogger& logger);
 
-    void AddJobs(std::vector<std::unique_ptr<TLegacyJobStub>> jobStubs);
+    std::vector<IChunkPoolOutput::TCookie> AddJobs(std::vector<std::unique_ptr<TLegacyJobStub>> jobStubs);
 
     //! Add a job that is built from the given stub.
     IChunkPoolOutput::TCookie AddJob(std::unique_ptr<TLegacyJobStub> jobStub);

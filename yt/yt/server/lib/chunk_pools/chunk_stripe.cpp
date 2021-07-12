@@ -181,16 +181,9 @@ void TChunkStripeList::Persist(const TPersistenceContext& context)
     Persist(context, TotalRowCount);
     Persist(context, TotalChunkCount);
     Persist(context, LocalChunkCount);
-    Persist(context, IsSplittable);
 }
 
-TChunkStripeList* TChunkStripeList::SetSplittable(bool splittable)
-{
-    IsSplittable = splittable;
-    return this;
-}
-
-const TChunkStripeListPtr NullStripeList = New<TChunkStripeList>()->SetSplittable(true);
+const TChunkStripeListPtr NullStripeList = New<TChunkStripeList>();
 
 ////////////////////////////////////////////////////////////////////////////////
 

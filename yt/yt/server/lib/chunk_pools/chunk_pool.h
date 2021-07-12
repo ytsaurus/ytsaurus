@@ -21,7 +21,7 @@ struct IChunkPoolInput
     , public virtual IPersistent
 {
     using TCookie = TInputCookie;
-    static const TCookie NullCookie = -1;
+    static constexpr TCookie NullCookie = -1;
 
     virtual TCookie Add(TChunkStripePtr stripe) = 0;
 
@@ -85,9 +85,23 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! This interface is a chunk pool counterpart for a job splitter.
+struct IChunkPoolJobSplittingHost
+    : public virtual TRefCounted
+    , public virtual IPersistent
+{
+    //! Returns true if a job corresponding to this cookie may be considered for splitting and false otherwise.
+    virtual bool IsSplittable(TOutputCookie cookie) const = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IChunkPoolJobSplittingHost)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IChunkPoolOutput
     : public virtual TRefCounted
     , public virtual IPersistent
+    , public virtual IChunkPoolJobSplittingHost
 {
     using TCookie = TOutputCookie;
     static constexpr TCookie NullCookie = -1;
@@ -120,6 +134,7 @@ struct IChunkPoolOutput
     virtual void Failed(TCookie cookie) = 0;
     virtual void Aborted(TCookie cookie, NScheduler::EAbortReason reason) = 0;
     virtual void Lost(TCookie cookie) = 0;
+
 
     //! Raises when chunk teleports.
     DECLARE_INTERFACE_SIGNAL(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
@@ -223,6 +238,68 @@ protected:
 
 using TChunkPoolOutputWithLegacyJobManagerBase = TChunkPoolOutputWithJobManagerBase<TLegacyJobManager>;
 using TChunkPoolOutputWithNewJobManagerBase = TChunkPoolOutputWithJobManagerBase<TNewJobManager>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A base implementing IsSplittable.
+//!
+//! Prerequisite (*): chunk pool implementation must call #Completed for each job before
+//!   its own completion routine and #RegisterChildCookies for any job splitting event.
+//!
+//! As a consequence, IsSplittable returns false for jobs that should not be split. The logic
+//! is following: if (a) job's parent was asked to split into more than one job and
+//! (b) all but one siblings of a job are completed without interruption after reading zero rows,
+//! then we mark all descendants of a job unsplittable.
+//!
+//! (*) If the prerequisite is not met, IsSplittable is guaranteed to always return true
+//! and state of this base is trivial, i.e. the derived class may skip persisting the base class.
+class TJobSplittingBase
+    : public virtual IChunkPoolJobSplittingHost
+    , public virtual NLogging::TLoggerOwner
+{
+public:
+    using TCookie = TOutputCookie;
+    static constexpr TCookie NullCookie = -1;
+
+    //! For a non-completed job, returns false if job was a single job split result or if we later
+    //! found out that all its siblings were actually empty (in this case we also mark all descendants
+    //! of the job empty).
+    //! For a completed job return value is undefined (yet safe to call).
+    virtual bool IsSplittable(TCookie cookie) const;
+
+protected:
+    //! Registers the children of the job in the job splitting tree. If there is only one child,
+    //! it is marked as unsplittable.
+    void RegisterChildCookies(TCookie cookie, std::vector<TCookie> childCookies);
+
+    // The method below is a part of an internal interface between a derived class and this base.
+    // It does not participate in IChunkPoolOutput::Completed overriding, thus should always
+    // be explicitly qualified with "TJobSplittingBase::".
+
+    //! Should be called before to possibly indicate that the job was actually empty.
+    void Completed(TCookie cookie, const NControllerAgent::TCompletedJobSummary& jobSummary);
+
+    //! Used in tests to ensure that we do not resize vectors more than needed.
+    size_t GetMaxVectorSize() const;
+
+    virtual void Persist(const TPersistenceContext& context) override;
+
+private:
+    //! List of children output cookies for split jobs. Empty list corresponds to a job that was not split.
+    std::vector<std::vector<IChunkPoolOutput::TCookie>> CookieToChildCookies_;
+    //! The number of already known empty children.
+    std::vector<int> CookieToEmptyChildCount_;
+    //! List of parent output cookies for split jobs. Null cookie corresponds to a job that was originally built.
+    std::vector<IChunkPoolOutput::TCookie> CookieToParentCookie_;
+    //! Marker indicating of output cookie is splittable. We may mark a completed job as unsplittable
+    //! as we do not save information about job being completed, but this is not an issue.
+    std::vector<bool> CookieIsSplittable_;
+    //! True if split job count is greater than 1, i.e. proper splitting is expected.
+    std::vector<bool> CookieShouldBeSplitProperly_;
+
+    //! Mark all descendants of the cookie as unsplittable.
+    void MarkDescendantsUnsplittable(TCookie cookie);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

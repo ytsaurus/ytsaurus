@@ -1,3 +1,7 @@
+#include <yt/yt/core/test_framework/framework.h>
+
+#include <yt/yt/server/lib/chunk_pools/mock/chunk_pool.h>
+
 #include <yt/yt/server/scheduler/public.h>
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
@@ -9,8 +13,6 @@
 #include <yt/yt/server/lib/controller_agent/structs.h>
 
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
-
-#include <yt/yt/core/test_framework/framework.h>
 
 #include <random>
 
@@ -27,125 +29,6 @@ using ::testing::_;
 using namespace NChunkClient;
 using namespace NControllerAgent;
 using namespace NScheduler;
-using namespace NNodeTrackerClient;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TChunkPoolInputMock
-    : public virtual IChunkPoolInput
-{
-public:
-    MOCK_METHOD(TCookie, Add, (TChunkStripePtr), (override));
-
-    MOCK_METHOD(TCookie, AddWithKey, (TChunkStripePtr, TChunkStripeKey), (override));
-
-    MOCK_METHOD(void, Suspend, (TCookie), (override));
-
-    MOCK_METHOD(void, Resume, (TCookie), (override));
-
-    MOCK_METHOD(void, Reset, (TCookie, TChunkStripePtr, TInputChunkMappingPtr), (override));
-
-    MOCK_METHOD(void, Finish, (), (override));
-
-    MOCK_METHOD(bool, IsFinished, (), (const override));
-
-    void Persist(const TPersistenceContext& /*context*/)
-    {
-        YT_UNIMPLEMENTED();
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TChunkPoolInputMock)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TChunkPoolOutputMock
-    : public virtual IChunkPoolOutput
-{
-public:
-    DEFINE_SIGNAL(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
-    DEFINE_SIGNAL(void(), Completed);
-    DEFINE_SIGNAL(void(), Uncompleted);
-
-public:
-    MOCK_METHOD(TOutputOrderPtr, GetOutputOrder, (), (const override));
-
-    MOCK_METHOD(i64, GetLocality, (TNodeId), (const override));
-
-    MOCK_METHOD(TChunkStripeStatisticsVector, GetApproximateStripeStatistics, (), (const override));
-
-    MOCK_METHOD(TCookie, Extract, (TNodeId), (override));
-
-    MOCK_METHOD(TChunkStripeListPtr, GetStripeList, (TCookie cookie), (override));
-
-    MOCK_METHOD(bool, IsCompleted, (), (const override));
-
-    MOCK_METHOD(int, GetStripeListSliceCount, (TCookie), (const override));
-
-    MOCK_METHOD(void, Completed, (TCookie, const TCompletedJobSummary&), (override));
-
-    MOCK_METHOD(void, Failed, (TCookie), (override));
-
-    MOCK_METHOD(void, Aborted, (TCookie, EAbortReason), (override));
-
-    MOCK_METHOD(void, Lost, (TCookie), (override));
-
-    const TProgressCounterPtr& GetJobCounter() const override
-    {
-        return JobCounter;
-    }
-
-    const TProgressCounterPtr& GetDataWeightCounter() const override
-    {
-        return DataWeightCounter;
-    }
-
-    const TProgressCounterPtr& GetRowCounter() const override
-    {
-        return RowCounter;
-    }
-
-    const TProgressCounterPtr& GetDataSliceCounter() const override
-    {
-        return DataSliceCounter;
-    }
-
-    void TeleportChunk(TInputChunkPtr teleportChunk)
-    {
-        ChunkTeleported_.Fire(std::move(teleportChunk), /*tag=*/std::any{});
-    }
-
-    void Complete()
-    {
-        Completed_.Fire();
-    }
-
-    void Persist(const TPersistenceContext& /*context*/)
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    TProgressCounterPtr JobCounter = New<TProgressCounter>();
-    TProgressCounterPtr DataWeightCounter = New<TProgressCounter>();
-    TProgressCounterPtr RowCounter = New<TProgressCounter>();
-    TProgressCounterPtr DataSliceCounter = New<TProgressCounter>();
-};
-
-DEFINE_REFCOUNTED_TYPE(TChunkPoolOutputMock)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TChunkPoolMock
-    : public IMultiChunkPool
-    , public TChunkPoolInputMock
-    , public TChunkPoolOutputMock
-{
-public:
-    void Persist(const TPersistenceContext& /*context*/)
-    {
-        YT_UNIMPLEMENTED();
-    }
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

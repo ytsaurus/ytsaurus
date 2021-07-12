@@ -25,6 +25,7 @@ struct IJobSplitter
     virtual void OnJobStarted(
         TJobId jobId,
         const NChunkPools::TChunkStripeListPtr& inputStripeList,
+        const NChunkPools::TOutputCookie cookie,
         bool isInterruptible) = 0;
     virtual void OnJobRunning(const TJobSummary& summary) = 0;
     virtual void OnJobFailed(const TFailedJobSummary& summary) = 0;
@@ -41,6 +42,7 @@ struct IJobSplitter
 
 std::unique_ptr<IJobSplitter> CreateJobSplitter(
     TJobSplitterConfigPtr config,
+    NChunkPools::IChunkPoolJobSplittingHost* chunkPool,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////

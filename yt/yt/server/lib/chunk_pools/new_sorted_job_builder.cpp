@@ -46,7 +46,6 @@ public:
         IJobSizeConstraintsPtr jobSizeConstraints,
         const TRowBufferPtr& rowBuffer,
         const std::vector<TInputChunkPtr>& teleportChunks,
-        bool inSplit,
         int retryIndex,
         const TInputStreamDirectory& inputStreamDirectory,
         const TLogger& logger)
@@ -56,7 +55,6 @@ public:
         , JobSizeConstraints_(std::move(jobSizeConstraints))
         , JobSampler_(JobSizeConstraints_->GetSamplingRate())
         , RowBuffer_(rowBuffer)
-        , InSplit_(inSplit)
         , RetryIndex_(retryIndex)
         , InputStreamDirectory_(inputStreamDirectory)
         , Logger(logger)
@@ -350,9 +348,6 @@ private:
     i64 TotalDataWeight_ = 0;
 
     i64 TotalDataSliceCount_ = 0;
-
-    //! Indicates if this sorted job builder is used during job splitting.
-    bool InSplit_ = false;
 
     int RetryIndex_;
 
@@ -882,14 +877,6 @@ private:
 
         YT_LOG_DEBUG("Jobs created (Count: %v)", Jobs_.size());
 
-        if (InSplit_ && Jobs_.size() == 1 && JobSizeConstraints_->GetJobCount() > 1) {
-            YT_LOG_DEBUG("Pool was not able to split job properly (SplitJobCount: %v, JobCount: %v)",
-                JobSizeConstraints_->GetJobCount(),
-                Jobs_.size());
-
-            Jobs_.front().SetUnsplittable();
-        }
-
         TotalDataSliceCount_ = StagingArea_->GetTotalDataSliceCount();
     }
 };
@@ -903,7 +890,6 @@ INewSortedJobBuilderPtr CreateNewSortedJobBuilder(
     IJobSizeConstraintsPtr jobSizeConstraints,
     const TRowBufferPtr& rowBuffer,
     const std::vector<TInputChunkPtr>& teleportChunks,
-    bool inSplit,
     int retryIndex,
     const TInputStreamDirectory& inputStreamDirectory,
     const TLogger& logger)
@@ -913,7 +899,6 @@ INewSortedJobBuilderPtr CreateNewSortedJobBuilder(
         std::move(jobSizeConstraints),
         rowBuffer,
         teleportChunks,
-        inSplit,
         retryIndex,
         inputStreamDirectory,
         logger);

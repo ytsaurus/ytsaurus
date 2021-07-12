@@ -720,6 +720,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        using NYT::Load;
+
         TabletMap_.LoadValues(context);
 
         Load(context, CellLifeStage_);

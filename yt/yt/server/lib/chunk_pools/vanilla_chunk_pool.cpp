@@ -20,6 +20,7 @@ using namespace NControllerAgent;
 class TVanillaChunkPool
     : public TChunkPoolOutputWithNewJobManagerBase
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
+    , public TJobSplittingBase
 {
 public:
     explicit TVanillaChunkPool(const TVanillaChunkPoolOptions& options)

@@ -139,6 +139,11 @@ void TChunkPoolOutputAdapterBase::Lost(TCookie cookie)
     UnderlyingOutput_->Lost(cookie);
 }
 
+bool TChunkPoolOutputAdapterBase::IsSplittable(NChunkPools::TOutputCookie cookie) const
+{
+    return UnderlyingOutput_->IsSplittable(cookie);
+}
+
 void TChunkPoolOutputAdapterBase::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;

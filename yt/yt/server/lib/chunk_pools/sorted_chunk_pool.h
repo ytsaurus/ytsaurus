@@ -43,6 +43,7 @@ DEFINE_REFCOUNTED_TYPE(ISortedChunkPool)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(max42): move to ytlib.
 struct IChunkSliceFetcherFactory
     : public IPersistent
     , public virtual TRefCounted

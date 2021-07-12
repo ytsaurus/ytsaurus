@@ -76,6 +76,8 @@ public:
     virtual void Aborted(TCookie cookie, NScheduler::EAbortReason reason) override;
     virtual void Lost(TCookie cookie) override;
 
+    virtual bool IsSplittable(NChunkPools::TOutputCookie cookie) const;
+
     void Persist(const TPersistenceContext& context);
 
     DECLARE_SIGNAL(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);

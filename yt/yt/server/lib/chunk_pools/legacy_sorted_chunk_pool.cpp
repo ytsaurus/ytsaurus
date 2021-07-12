@@ -41,6 +41,8 @@ class TLegacySortedChunkPool
     , public TChunkPoolOutputWithLegacyJobManagerBase
     , public ISortedChunkPool
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
+    , public TJobSplittingBase
+    , public virtual TLoggerOwner
 {
 public:
     //! Used only for persistence.
@@ -65,8 +67,8 @@ public:
         , SupportLocality_(options.SupportLocality)
         , ReturnNewDataSlices_(options.ReturnNewDataSlices)
         , RowBuffer_(options.RowBuffer)
-        , Logger(options.Logger)
     {
+        Logger = options.Logger;
         ValidateLogger(Logger);
 
         if (options.SortedJobOptions.PrimaryComparator.HasDescendingSortOrder() ||
@@ -158,6 +160,8 @@ public:
 
     virtual void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
     {
+        TJobSplittingBase::Completed(cookie, jobSummary);
+
         if (jobSummary.InterruptReason != EInterruptReason::None) {
             YT_LOG_DEBUG("Splitting job (OutputCookie: %v, InterruptReason: %v, SplitJobCount: %v)",
                 cookie,
@@ -165,7 +169,8 @@ public:
                 jobSummary.SplitJobCount);
             auto foreignSlices = JobManager_->ReleaseForeignSlices(cookie);
 
-            SplitJob(jobSummary.UnreadInputDataSlices, std::move(foreignSlices), jobSummary.SplitJobCount);
+            auto childCookies = SplitJob(jobSummary.UnreadInputDataSlices, std::move(foreignSlices), jobSummary.SplitJobCount);
+            RegisterChildCookies(cookie, std::move(childCookies));
         }
         JobManager_->Completed(cookie, jobSummary.InterruptReason);
         CheckCompleted();
@@ -182,6 +187,8 @@ public:
     {
         TChunkPoolInputBase::Persist(context);
         TChunkPoolOutputWithJobManagerBase::Persist(context);
+        TJobSplittingBase::Persist(context);
+        // TLoggerOwner is persisted by TJobSplittingBase.
 
         using NYT::Persist;
         Persist(context, SortedJobOptions_);
@@ -200,7 +207,6 @@ public:
         Persist(context, TeleportChunks_);
         Persist(context, IsCompleted_);
         Persist(context, ReturnNewDataSlices_);
-        Persist(context, Logger);
 
         if (context.IsLoad()) {
             // TODO(max42): Why is it here?
@@ -239,7 +245,6 @@ public:
         auto legacyStripeList = JobManager_->GetStripeList(cookie);
         newStripeList->PartitionTag = legacyStripeList->PartitionTag;
         newStripeList->IsApproximate = legacyStripeList->IsApproximate;
-        newStripeList->IsSplittable = legacyStripeList->IsSplittable;
         for (const auto& legacyStripe : legacyStripeList->Stripes) {
             auto newStripe = New<TChunkStripe>();
             newStripe->Foreign = legacyStripe->Foreign;
@@ -306,8 +311,6 @@ private:
     bool IsCompleted_ = false;
 
     std::vector<TChunkStripeListPtr> CachedNewStripeLists_;
-
-    TLogger Logger;
 
     //! This method processes all input stripes that do not correspond to teleported chunks
     //! and either slices them using ChunkSliceFetcher (for unversioned stripes) or leaves them as is
@@ -621,7 +624,6 @@ private:
                     JobSizeConstraints_,
                     RowBuffer_,
                     TeleportChunks_,
-                    false /* inSplit */,
                     retryIndex,
                     Logger);
 
@@ -660,7 +662,7 @@ private:
         CheckCompleted();
     }
 
-    void SplitJob(
+    std::vector<IChunkPoolOutput::TCookie> SplitJob(
         std::vector<TLegacyDataSlicePtr> unreadInputDataSlices,
         std::vector<TLegacyDataSlicePtr> foreignInputDataSlices,
         int splitJobCount)
@@ -705,7 +707,6 @@ private:
             std::move(jobSizeConstraints),
             RowBuffer_,
             teleportChunks,
-            true /* inSplit */,
             0 /* retryIndex */,
             Logger);
 
@@ -721,7 +722,9 @@ private:
         }
 
         auto jobs = builder->Build();
-        JobManager_->AddJobs(std::move(jobs));
+        auto childCookies = JobManager_->AddJobs(std::move(jobs));
+
+        return childCookies;
     }
 
     void InvalidateCurrentJobs()
@@ -733,7 +736,8 @@ private:
         JobManager_->InvalidateAllJobs();
     }
 
-    void CheckCompleted() {
+    void CheckCompleted()
+    {
         bool completed =
             Finished &&
             JobManager_->JobCounter()->GetPending() == 0 &&

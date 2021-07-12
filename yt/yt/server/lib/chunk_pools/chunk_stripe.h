@@ -82,9 +82,6 @@ struct TChunkStripeList
 
     void Persist(const TPersistenceContext& context);
 
-    //! Setter that may be used in chain-like manner.
-    TChunkStripeList* SetSplittable(bool splittable);
-
     std::vector<TChunkStripePtr> Stripes;
 
     std::optional<int> PartitionTag;
@@ -99,8 +96,6 @@ struct TChunkStripeList
 
     int TotalChunkCount = 0;
     int LocalChunkCount = 0;
-
-    bool IsSplittable = true;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkStripeList)
