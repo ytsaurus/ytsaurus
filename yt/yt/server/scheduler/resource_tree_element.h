@@ -30,8 +30,7 @@ public:
 
     bool CheckDemand(
         const TJobResources& delta,
-        const TJobResources& resourceDemand,
-        const TJobResources& resourceDiscount);
+        const TJobResources& resourceDemand);
 
     void SetResourceLimits(
         const TJobResources& resourceLimits,

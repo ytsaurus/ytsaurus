@@ -65,7 +65,7 @@ public:
     
     virtual TFuture<TControllerScheduleJobResultPtr> ScheduleJob(
         const ISchedulingContextPtr& context,
-        const TJobResourcesWithQuota& jobLimits,
+        const TJobResources& jobLimits,
         const TString& treeId,
         const TFairShareStrategyTreeConfigPtr& treeConfig) override;
     

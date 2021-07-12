@@ -96,7 +96,9 @@ TScheduleJobsContext::TScheduleJobsContext(
 
 void TScheduleJobsContext::PrepareForScheduling(const TSchedulerRootElementPtr& rootElement)
 {
-    // TODO(ignat): add check that this method called before rootElement->PrescheduleJob (or refactor this code).
+    YT_VERIFY(StageState_);
+    YT_VERIFY(!StageState_->PrescheduleExecuted);
+
     if (!Initialized_) {
         Initialized_ = true;
 
@@ -526,9 +528,9 @@ TString TSchedulerElement::GetTreeId() const
     return TreeId_;
 }
 
-bool TSchedulerElement::CheckDemand(const TJobResources& delta, const TScheduleJobsContext& context)
+bool TSchedulerElement::CheckDemand(const TJobResources& delta)
 {
-    return ResourceTreeElement_->CheckDemand(delta, GetResourceDemand(), context.GetUsageDiscountFor(this));
+    return ResourceTreeElement_->CheckDemand(delta, GetResourceDemand());
 }
 
 TJobResources TSchedulerElement::GetLocalAvailableResourceLimits(const TScheduleJobsContext& context) const
@@ -2328,21 +2330,12 @@ std::optional<EDeactivationReason> TSchedulerOperationElement::TryStartScheduleJ
 {
     const auto& minNeededResources = AggregatedMinNeededJobResources_;
 
-    auto nodeFreeResources = context.SchedulingContext()->GetNodeFreeResourcesWithDiscount();
-    if (!Dominates(nodeFreeResources, minNeededResources)) {
-        OnMinNeededResourcesUnsatisfied(context, nodeFreeResources, minNeededResources);
-        return EDeactivationReason::MinNeededResourcesUnsatisfied;
-    }
-
     // Do preliminary checks to avoid the overhead of updating and reverting precommit usage.
-    auto availableResources = GetHierarchicalAvailableResources(context);
-    auto availableDemand = GetLocalAvailableResourceDemand(context);
-    if (!Dominates(availableResources, minNeededResources) || !Dominates(availableDemand, minNeededResources)) {
+    if (!Dominates(GetHierarchicalAvailableResources(context), minNeededResources)) {
         return EDeactivationReason::ResourceLimitsExceeded;
     }
-
-    if (!CheckDemand(minNeededResources, context)) {
-        return EDeactivationReason::ResourceLimitsExceeded;
+    if (!CheckDemand(minNeededResources)) {
+        return EDeactivationReason::NoAvailableDemand;
     }
 
     TJobResources availableResourceLimits;
@@ -2361,7 +2354,7 @@ std::optional<EDeactivationReason> TSchedulerOperationElement::TryStartScheduleJ
     Controller_->IncreaseScheduleJobCallsSinceLastUpdate(context.SchedulingContext()->GetNodeShardId());
 
     *precommittedResourcesOutput = minNeededResources;
-    *availableResourcesOutput = Min(availableResourceLimits, nodeFreeResources);
+    *availableResourcesOutput = Min(availableResourceLimits, context.SchedulingContext()->GetNodeFreeResourcesWithDiscount());
     return std::nullopt;
 }
 
@@ -3220,25 +3213,14 @@ std::optional<EDeactivationReason> TSchedulerOperationElement::CheckBlocked(
 
 TJobResources TSchedulerOperationElement::GetHierarchicalAvailableResources(const TScheduleJobsContext& context) const
 {
-    // Bound available resources with node free resources.
-    auto availableResources = context.SchedulingContext()->GetNodeFreeResourcesWithDiscount();
-
-    // Bound available resources with pool free resources.
-    const TSchedulerElement* parent = this;
-    while (parent) {
-        availableResources = Min(availableResources, parent->GetLocalAvailableResourceLimits(context));
-        parent = parent->GetParent();
+    auto availableResources = TJobResources::Infinite();
+    const TSchedulerElement* element = this;
+    while (element) {
+        availableResources = Min(availableResources, element->GetLocalAvailableResourceLimits(context));
+        element = element->GetParent();
     }
 
     return availableResources;
-}
-
-TJobResources TSchedulerOperationElement::GetLocalAvailableResourceDemand(const TScheduleJobsContext& context) const
-{
-    return ComputeAvailableResources(
-        GetResourceDemand(),
-        ResourceTreeElement_->GetResourceUsageWithPrecommit(),
-        context.GetUsageDiscountFor(this));
 }
 
 TControllerScheduleJobResultPtr TSchedulerOperationElement::DoScheduleJob(
@@ -3268,6 +3250,8 @@ TControllerScheduleJobResultPtr TSchedulerOperationElement::DoScheduleJob(
             }
             case EResourceTreeIncreaseResult::ResourceLimitExceeded: {
                 auto jobId = scheduleJobResult->StartDescriptor->Id;
+                // NB(eshcherbin): GetHierarchicalAvailableResource will never return infinite resources here,
+                // because ResourceLimitExceeded could only be triggered if there's an ancestor with specified limits.
                 const auto availableDelta = GetHierarchicalAvailableResources(*context);
                 YT_LOG_DEBUG("Aborting job with resource overcommit (JobId: %v, Limits: %v, JobResources: %v)",
                     jobId,

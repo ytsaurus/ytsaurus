@@ -36,8 +36,7 @@ TJobResources TResourceTreeElement::GetResourceUsageWithPrecommit()
 
 bool TResourceTreeElement::CheckDemand(
     const TJobResources& delta,
-    const TJobResources& resourceDemand,
-    const TJobResources& resourceDiscount)
+    const TJobResources& resourceDemand)
 {
     auto guard = ReaderGuard(ResourceUsageLock_);
 
@@ -46,7 +45,7 @@ bool TResourceTreeElement::CheckDemand(
     auto availableDemand = ComputeAvailableResources(
         resourceDemand,
         ResourceUsage_ + ResourceUsagePrecommit_,
-        resourceDiscount);
+        /* resourceDiscount */ {});
 
     return Dominates(availableDemand, delta);
 }

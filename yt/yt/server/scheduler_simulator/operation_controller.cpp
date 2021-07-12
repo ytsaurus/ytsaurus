@@ -78,7 +78,7 @@ public:
     }
 
     bool FindJobToSchedule(
-        const TJobResourcesWithQuota& nodeLimits,
+        const TJobResources& nodeLimits,
         TJobDescription* jobToScheduleOutput,
         EScheduleJobFailReason* failReasonOutput)
     {
@@ -91,7 +91,7 @@ public:
         auto jobDescription = PendingJobs_.front();
 
         // TODO(ignat, antonkikh): support disk quota in scheduler simulator (YT-9009)
-        if (!Dominates(nodeLimits.ToJobResources(), jobDescription.ResourceLimits)) {
+        if (!Dominates(nodeLimits, jobDescription.ResourceLimits)) {
             *failReasonOutput = EScheduleJobFailReason::NotEnoughResources;
             return false;
         }
@@ -202,7 +202,7 @@ public:
     //! Called during heartbeat processing to request actions the node must perform.
     virtual TFuture<TControllerScheduleJobResultPtr> ScheduleJob(
         const ISchedulingContextPtr& context,
-        const TJobResourcesWithQuota& nodeLimits,
+        const TJobResources& nodeLimits,
         const TString& /* treeId */,
         const TFairShareStrategyTreeConfigPtr& /* treeConfig */) override;
 
@@ -436,7 +436,7 @@ bool TSimulatorOperationController::FindJobToSchedule(
 
 TFuture<TControllerScheduleJobResultPtr> TSimulatorOperationController::ScheduleJob(
     const ISchedulingContextPtr& context,
-    const TJobResourcesWithQuota& nodeLimits,
+    const TJobResources& nodeLimits,
     const TString& /* treeId */,
     const TFairShareStrategyTreeConfigPtr& /* treeConfig */)
 {
