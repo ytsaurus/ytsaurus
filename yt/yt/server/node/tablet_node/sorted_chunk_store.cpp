@@ -167,9 +167,9 @@ TSortedChunkStore::TSortedChunkStore(
     TTablet* tablet,
     const NTabletNode::NProto::TAddStoreDescriptor* addStoreDescriptor,
     IBlockCachePtr blockCache,
+    IVersionedChunkMetaManagerPtr chunkMetaManager,
     IChunkRegistryPtr chunkRegistry,
     IChunkBlockManagerPtr chunkBlockManager,
-    IVersionedChunkMetaManagerPtr chunkMetaManager,
     NNative::IClientPtr client,
     const TNodeDescriptor& localDescriptor)
     : TChunkStoreBase(
@@ -181,9 +181,9 @@ TSortedChunkStore::TSortedChunkStore(
         tablet,
         addStoreDescriptor,
         blockCache,
+        chunkMetaManager,
         chunkRegistry,
         chunkBlockManager,
-        chunkMetaManager,
         client,
         localDescriptor)
     , KeyComparer_(tablet->GetRowKeyComparer())

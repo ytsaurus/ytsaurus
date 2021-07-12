@@ -114,9 +114,12 @@ TFuture<TSharedRef> TLookupSession::Run()
 
     return
         chunkMetaManager->GetMeta(UnderlyingChunkReader_, TableSchema_->TableSchema, Options_)
-            .Apply(BIND([=, this_ = MakeStrong(this), metaWaitTimer = std::move(metaWaitTimer)] (const TCachedVersionedChunkMetaPtr& chunkMeta) {
+            .Apply(BIND(
+                [=, this_ = MakeStrong(this), metaWaitTimer = std::move(metaWaitTimer)]
+                (const TVersionedChunkMetaCacheEntryPtr& chunkMeta)
+            {
                 Options_.ChunkReaderStatistics->MetaWaitTime += metaWaitTimer.GetElapsedValue();
-                return DoRun(std::move(chunkMeta));
+                return DoRun(chunkMeta->Meta());
             })
             .AsyncVia(Bootstrap_->GetStorageLookupInvoker()));
 }

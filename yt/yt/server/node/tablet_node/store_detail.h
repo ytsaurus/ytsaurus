@@ -177,9 +177,9 @@ public:
         TTablet* tablet,
         const NTabletNode::NProto::TAddStoreDescriptor* addStoreDescriptor,
         NChunkClient::IBlockCachePtr blockCache,
+        IVersionedChunkMetaManagerPtr chunkMetaManager,
         NDataNode::IChunkRegistryPtr chunkRegistry,
         NDataNode::IChunkBlockManagerPtr chunkBlockManager,
-        IVersionedChunkMetaManagerPtr chunkMetaManager,
         NApi::NNative::IClientPtr client,
         const NNodeTrackerClient::TNodeDescriptor& localDescriptor);
 
@@ -243,9 +243,9 @@ public:
 protected:
     IBootstrap* const Bootstrap_;
     const NChunkClient::IBlockCachePtr BlockCache_;
+    const IVersionedChunkMetaManagerPtr ChunkMetaManager_;
     const NDataNode::IChunkRegistryPtr ChunkRegistry_;
     const NDataNode::IChunkBlockManagerPtr ChunkBlockManager_;
-    const IVersionedChunkMetaManagerPtr ChunkMetaManager_;
     const NApi::NNative::IClientPtr Client_;
     const NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 
@@ -269,7 +269,7 @@ protected:
     TWeakPtr<NDataNode::IChunk> CachedWeakChunk_;
 
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, VersionedChunkMetaLock_);
-    TWeakPtr<NTableClient::TCachedVersionedChunkMeta> CachedWeakVersionedChunkMeta_;
+    TWeakPtr<TVersionedChunkMetaCacheEntry> CachedWeakVersionedChunkMeta_;
 
     // Cached for fast retrieval from ChunkMeta_.
     NChunkClient::NProto::TMiscExt MiscExt_;
