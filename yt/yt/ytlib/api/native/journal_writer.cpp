@@ -354,6 +354,9 @@ private:
         std::deque<TBatchPtr> QuorumUnflushedBatches_;
         std::deque<TBatchPtr> ReplicationFactorUnflushedBatches_;
 
+        //! Number of flushed batches that are not still written to quorum.
+        std::atomic<int> QuorumUnflushedBatchCount_ = 0;
+
         struct TBatchCommand
         {
             TBatchPtr Batch;
@@ -1011,6 +1014,11 @@ private:
 
             YT_LOG_DEBUG("Closing journal writer");
             Closing_ = true;
+
+            {
+                auto guard = Guard(CurrentBatchSpinLock_);
+                FlushCurrentBatch();
+            }
         }
 
         [[noreturn]] void HandleCancel()
@@ -1177,6 +1185,7 @@ private:
                 batch->FlushedPromise.Set(error);
             }
             QuorumUnflushedBatches_.clear();
+            QuorumUnflushedBatchCount_ = 0;
             ReplicationFactorUnflushedBatches_.clear();
 
             while (true) {
@@ -1209,6 +1218,7 @@ private:
         TBatchPtr EnsureCurrentBatch()
         {
             VERIFY_SPINLOCK_AFFINITY(CurrentBatchSpinLock_);
+            YT_VERIFY(!Closing_);
 
             if (CurrentBatch_ &&
                 (CurrentBatch_->RowCount >= Config_->MaxBatchRowCount ||
@@ -1242,6 +1252,10 @@ private:
         {
             VERIFY_SPINLOCK_AFFINITY(CurrentBatchSpinLock_);
 
+            if (!CurrentBatch_) {
+                return;
+            }
+
             TDelayedExecutor::CancelAndClear(CurrentBatchFlushCookie_);
 
             YT_LOG_DEBUG("Flushing batch (Rows: %v-%v, DataSize: %v)",
@@ -1249,6 +1263,7 @@ private:
                 CurrentBatch_->FirstRowIndex + CurrentBatch_->RowCount - 1,
                 CurrentBatch_->DataSize);
 
+            ++QuorumUnflushedBatchCount_;
             EnqueueCommand(TBatchCommand{CurrentBatch_});
             CurrentBatch_.Reset();
         }
@@ -1491,6 +1506,7 @@ private:
                 session->QuorumFlushedRowCount += front->RowCount;
                 session->QuorumFlushedDataSize += front->DataSize;
                 QuorumUnflushedBatches_.pop_front();
+                YT_VERIFY(--QuorumUnflushedBatchCount_ >= 0);
 
                 YT_LOG_DEBUG("Rows are written by quorum (Rows: %v-%v)",
                     front->FirstRowIndex,
@@ -1822,7 +1838,7 @@ private:
 
         bool IsCompleted() const
         {
-            return Closing_ && QuorumUnflushedBatches_.empty();
+            return Closing_ && QuorumUnflushedBatchCount_ == 0;
         }
     };
 
