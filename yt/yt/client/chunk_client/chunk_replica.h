@@ -137,6 +137,12 @@ bool IsErasureChunkId(TChunkId id);
 //! Returns |true| iff this is an erasure chunk part.
 bool IsErasureChunkPartId(TChunkId id);
 
+//! Returns |true| iff this is a regular (not erasure) chunk.
+inline bool IsRegularChunkType(NObjectClient::EObjectType type);
+
+//! Returns |true| iff this is a regular (not erasure) chunk.
+inline bool IsRegularChunkId(TChunkId id);
+
 //! Returns id for a part of a given erasure chunk.
 TChunkId ErasurePartIdFromChunkId(TChunkId id, int index);
 

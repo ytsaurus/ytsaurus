@@ -704,6 +704,9 @@ private:
     void StartChunk(TChunkReplicaWithMedium target)
     {
         VERIFY_THREAD_AFFINITY(WriterThread);
+        if (IsRegularChunkId(SessionId_.ChunkId)) {
+            YT_VERIFY(target.GetReplicaIndex() == GenericChunkReplicaIndex);
+        }
 
         auto nodeDescriptor = NodeDirectory_->GetDescriptor(target);
         auto addressWithNetwork = nodeDescriptor.GetAddressWithNetworkOrThrow(Networks_);
