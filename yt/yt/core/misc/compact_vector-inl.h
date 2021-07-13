@@ -364,7 +364,7 @@ template <class T, size_t N>
 auto TCompactVector<T, N>::erase(const_iterator first, const_iterator last) -> iterator
 {
     YT_ASSERT(first >= begin());
-    YT_ASSERT(last < end());
+    YT_ASSERT(last <= end());
 
     auto* mutableFirst = const_cast<iterator>(first);
     auto* mutableLast = const_cast<iterator>(last);
@@ -488,10 +488,7 @@ void TCompactVector<T, N>::assign(TIterator first, TIterator last)
         EnsureOnHeapCapacity(count, /*incremental*/ false);
     }
 
-    auto* dst = begin();
-    for (auto current = first; current != last; ++current) {
-        ::new(dst++) T(*current);
-    }
+    std::uninitialized_copy(first, last, begin());
 
     SetSize(count);
 }
@@ -504,25 +501,24 @@ void TCompactVector<T, N>::assign(std::initializer_list<T> list)
 
 template <class T, size_t N>
 template <size_t OtherN>
-auto TCompactVector<T, N>::operator=(const TCompactVector<T, OtherN>& other) -> TCompactVector&
+void TCompactVector<T, N>::assign(const TCompactVector<T, OtherN>& other)
 {
     if constexpr(N == OtherN) {
         if (this == &other) {
-            return *this;
+            return;
         }
     }
 
     auto otherSize = other.size();
     auto otherBegin = other.begin();
 
-    if (Y_LIKELY(capacity() >= otherSize)) {
+    if (capacity() >= otherSize) {
         auto* dst = begin();
         Copy(otherBegin, otherBegin + otherSize, dst);
         dst += otherSize;
         Destroy(dst, end());
         SetSize(otherSize);
-        other.clear();
-        return *this;
+        return;
     }
 
     clear();
@@ -533,19 +529,15 @@ auto TCompactVector<T, N>::operator=(const TCompactVector<T, OtherN>& other) -> 
     auto* storage = OnHeapMeta_.Storage;
     UninitializedCopy(otherBegin, otherBegin + otherSize, storage->Elements);
     storage->End = storage->Elements + otherSize;
-
-    other.clear();
-
-    return *this;
 }
 
 template <class T, size_t N>
 template <size_t OtherN>
-auto TCompactVector<T, N>::operator=(TCompactVector<T, OtherN>&& other) -> TCompactVector&
+void TCompactVector<T, N>::assign(TCompactVector<T, OtherN>&& other)
 {
     if constexpr(N == OtherN) {
         if (this == &other) {
-            return *this;
+            return;
         }
     }
 
@@ -557,7 +549,7 @@ auto TCompactVector<T, N>::operator=(TCompactVector<T, OtherN>&& other) -> TComp
         }
         OnHeapMeta_.Storage = other.OnHeapMeta_.Storage;
         other.InlineMeta_.SizePlusOne = 1;
-        return *this;
+        return;
     }
 
     auto otherSize = other.size();
@@ -570,7 +562,35 @@ auto TCompactVector<T, N>::operator=(TCompactVector<T, OtherN>&& other) -> TComp
     SetSize(otherSize);
 
     other.clear();
+}
 
+template <class T, size_t N>
+auto TCompactVector<T, N>::operator=(const TCompactVector& other) -> TCompactVector&
+{
+    assign(other);
+    return *this;
+}
+
+template <class T, size_t N>
+template <size_t OtherN>
+auto TCompactVector<T, N>::operator=(const TCompactVector<T, OtherN>& other) -> TCompactVector&
+{
+    assign(other);
+    return *this;
+}
+
+template <class T, size_t N>
+auto TCompactVector<T, N>::operator=(TCompactVector&& other) -> TCompactVector&
+{
+    assign(std::move(other));
+    return *this;
+}
+
+template <class T, size_t N>
+template <size_t OtherN>
+auto TCompactVector<T, N>::operator=(TCompactVector<T, OtherN>&& other) -> TCompactVector&
+{
+    assign(std::move(other));
     return *this;
 }
 
@@ -689,7 +709,7 @@ void TCompactVector<T, N>::EnsureOnHeapCapacity(size_t newCapacity, bool increme
     newStorage->Capacity = newStorage->Elements + newCapacity;
 
     size_t size;
-    if (Y_LIKELY(IsInline())) {
+    if (IsInline()) {
         size = InlineMeta_.SizePlusOne - 1;
         UninitializedMove(&InlineElements_[0], &InlineElements_[0] + size, newStorage->Elements);
         Destroy(&InlineElements_[0], &InlineElements_[0] + size);
@@ -788,7 +808,7 @@ auto TCompactVector<T, N>::InsertOneImpl(const_iterator pos, TPtr valuePtr, Unin
     if (moveCount == 0) {
         uninitializedFunc(end, valuePtr);
     } else {
-        if constexpr(std::is_pod_v<T>) {
+        if constexpr(std::is_trivially_copyable_v<T>) {
             ::memmove(mutablePos + 1, mutablePos, moveCount * sizeof(T));
         } else {
             ::new(end) T(std::move(end[-1]));
@@ -824,7 +844,7 @@ auto TCompactVector<T, N>::InsertManyImpl(const_iterator pos, size_t insertCount
 
     auto* end = this->end();
     auto moveCount = std::distance(mutablePos, end);
-    if constexpr(std::is_pod_v<T>) {
+    if constexpr(std::is_trivially_copyable_v<T>) {
         ::memmove(mutablePos + insertCount, mutablePos, moveCount * sizeof(T));
         initializedFunc(mutablePos, mutablePos + insertCount);
     } else {
@@ -859,7 +879,7 @@ template <class T, size_t N>
 template <class T1, class T2>
 void TCompactVector<T, N>::Copy(const T1* srcFirst, const T1* srcLast, T2* dst)
 {
-    if constexpr(std::is_pod_v<T1> && std::is_same_v<std::remove_const_t<T1>, T2>) {
+    if constexpr(std::is_trivially_copyable_v<T1> && std::is_same_v<T1, T2>) {
         ::memcpy(dst, srcFirst, (srcLast - srcFirst) * sizeof(T));
     } else {
         std::copy(srcFirst, srcLast, dst);
@@ -870,7 +890,7 @@ template <class T, size_t N>
 template <class T1, class T2>
 void TCompactVector<T, N>::UninitializedCopy(const T1* srcFirst, const T1* srcLast, T2* dst)
 {
-    if constexpr(std::is_pod_v<T1> && std::is_same_v<std::remove_const_t<T1>, T2>) {
+    if constexpr(std::is_trivially_copyable_v<T1> && std::is_same_v<T1, T2>) {
         ::memcpy(dst, srcFirst, (srcLast - srcFirst) * sizeof(T));
     } else {
         std::uninitialized_copy(srcFirst, srcLast, dst);
@@ -880,7 +900,7 @@ void TCompactVector<T, N>::UninitializedCopy(const T1* srcFirst, const T1* srcLa
 template <class T, size_t N>
 void TCompactVector<T, N>::Move(T* srcFirst, T* srcLast, T* dst)
 {
-    if constexpr(std::is_pod_v<T>) {
+    if constexpr(std::is_trivially_copyable_v<T>) {
         ::memcpy(dst, srcFirst, (srcLast - srcFirst) * sizeof(T));
     } else {
         std::move(srcFirst, srcLast, dst);
@@ -890,7 +910,7 @@ void TCompactVector<T, N>::Move(T* srcFirst, T* srcLast, T* dst)
 template <class T, size_t N>
 void TCompactVector<T, N>::UninitializedMove(T* srcFirst, T* srcLast, T* dst)
 {
-    if constexpr(std::is_pod_v<T>) {
+    if constexpr(std::is_trivially_copyable_v<T>) {
         ::memcpy(dst, srcFirst, (srcLast - srcFirst) * sizeof(T));
     } else {
         std::uninitialized_move(srcFirst, srcLast, dst);
@@ -910,7 +930,7 @@ void TCompactVector<T, N>::MoveBackward(T* srcFirst, T* srcLast, T* dst)
 /////////////////////////////////////////////////////////////////////////////
 
 template <class T, size_t LhsN, size_t RhsN>
-bool operator==(const TCompactVector<T, LhsN>& lhs, TCompactVector<T, RhsN>& rhs)
+bool operator==(const TCompactVector<T, LhsN>& lhs, const TCompactVector<T, RhsN>& rhs)
 {
     if constexpr(LhsN == RhsN) {
         if (&lhs == &rhs) {
@@ -922,23 +942,17 @@ bool operator==(const TCompactVector<T, LhsN>& lhs, TCompactVector<T, RhsN>& rhs
         return false;
     }
 
-    for (size_t index = 0; index < lhs.size(); ++index) {
-        if (lhs[index] != rhs[index]) {
-            return false;
-        }
-    }
-
-    return true;
+    return std::equal(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
 }
 
 template <class T, size_t LhsN, size_t RhsN>
-bool operator!=(const TCompactVector<T, LhsN>& lhs, TCompactVector<T, RhsN>& rhs)
+bool operator!=(const TCompactVector<T, LhsN>& lhs, const TCompactVector<T, RhsN>& rhs)
 {
     return !(lhs == rhs);
 }
 
 template <class T, size_t LhsN, size_t RhsN>
-bool operator<(const TCompactVector<T, LhsN>& lhs, TCompactVector<T, RhsN>& rhs)
+bool operator<(const TCompactVector<T, LhsN>& lhs, const TCompactVector<T, RhsN>& rhs)
 {
     return std::lexicographical_compare(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
 }
