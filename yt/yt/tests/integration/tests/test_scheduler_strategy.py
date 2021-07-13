@@ -1012,6 +1012,7 @@ class TestSchedulerPreemption(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
+    USE_DYNAMIC_TABLES = True
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -1453,7 +1454,6 @@ class TestSchedulerPreemption(YTEnvSetup):
             assert get(scheduler_orchid_pool_path("<Root>") + "/resource_usage/cpu") <= total_cpu_limit
 
     @authors("eshcherbin")
-    @flaky(max_runs=3)
     def test_pass_preemption_reason_to_node(self):
         update_controller_agent_config("enable_operation_progress_archivation", True)
 
