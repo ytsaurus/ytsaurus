@@ -30,7 +30,7 @@ DEFINE_ENUM(EErrorCode,
  *  Part 0: some hash
  *  Part 1: bits 0..15:  object type
  *          bits 16..31: cell id
- *  Part 2: the lo1wer  part of 64-bit sequential counter
+ *  Part 2: the lower  part of 64-bit sequential counter
  *  Part 3: the higher part of 64-bit sequential counter
  */
 using TObjectId = TGuid;
