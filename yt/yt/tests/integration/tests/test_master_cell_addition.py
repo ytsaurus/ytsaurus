@@ -12,6 +12,7 @@ from yt_commands import (
     exists, get, set, ls, create, remove,
     create_account, create_medium, remove_account,
     start_transaction, abort_transaction,
+    create_area, remove_area,
     assert_true_for_secondary_cells,
     build_snapshot, get_driver)
 
@@ -227,6 +228,28 @@ class TestMasterCellAddition(YTEnvSetup):
         create("table", "//tmp/p2/t", tx=tx)  # replicate tx to cell 3
         assert get("#{}/@replicated_to_cell_tags".format(tx)) == [2, 3]
 
+    def check_areas(self):
+        default_bundle_id = get("//sys/tablet_cell_bundles/default/@id")
+        default_area_id = get("//sys/tablet_cell_bundles/default/@areas/default/id")
+        set("#{0}/@node_tag_filter".format(default_area_id), "default")
+        custom_area_id = create_area("custom", cell_bundle_id=default_bundle_id, attributes={"node_tag_filter": "custom"})
+
+        yield
+
+        assert_true_for_secondary_cells(
+            self.Env,
+            lambda driver: get("//sys/tablet_cell_bundles/default/@areas/default/node_tag_filter", driver=driver) == "default",
+        )
+
+        assert_true_for_secondary_cells(
+            self.Env,
+            lambda driver: get("//sys/tablet_cell_bundles/default/@areas/custom/node_tag_filter", driver=driver) == "custom",
+        )
+
+        # cleanup just in case
+        remove_area(custom_area_id)
+        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "")
+
     @authors("shakurov")
     def test_add_new_cell(self):
         CHECKER_LIST = [
@@ -234,6 +257,7 @@ class TestMasterCellAddition(YTEnvSetup):
             self.check_accounts,
             self.check_sys_masters_node,
             self.check_transactions,
+            self.check_areas,
         ]
 
         checker_state_list = [iter(c()) for c in CHECKER_LIST]

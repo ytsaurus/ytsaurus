@@ -184,6 +184,7 @@ bool TCellBundleProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
                         .BeginMap()
                             .Item("id").Value(area->GetId())
                             .Item("cell_count").Value(std::ssize(area->Cells()))
+                            .Item("node_tag_filter").Value(area->NodeTagFilter().GetFormula())
                         .EndMap();
                 });
             return true;

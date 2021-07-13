@@ -62,6 +62,10 @@ private:
             .SetPresent(!area->NodeTagFilter().IsEmpty()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CellBundle)
             .SetPresent(area->GetCellBundle()));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CellBundleId)
+            .SetReplicated(true)
+            .SetMandatory(true)
+            .SetPresent(area->GetCellBundle()));
         descriptors->push_back(EInternedAttributeKey::CellIds);
         descriptors->push_back(EInternedAttributeKey::Nodes);
     }
@@ -90,6 +94,14 @@ private:
                 }
                 BuildYsonFluently(consumer)
                     .Value(area->GetCellBundle()->GetName());
+                return true;
+
+            case EInternedAttributeKey::CellBundleId:
+                if (!area->GetCellBundle()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(area->GetCellBundle()->GetId());
                 return true;
 
             case EInternedAttributeKey::CellIds:
