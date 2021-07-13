@@ -1420,13 +1420,15 @@ public:
         }
         group->Members().clear();
 
-        for  (auto [userId, user] : UserMap_) {
-            user->RecursiveMemberOf().erase(group);
+        for (auto [subjectId, subject] : UserMap_) {
+            subject->RecursiveMemberOf().erase(group);
+        }
+
+        for (auto [subjectId, subject] : GroupMap_) {
+            subject->RecursiveMemberOf().erase(group);
         }
 
         DestroySubject(group);
-
-        MaybeRecomputeMembershipClosure();
 
         LogStructuredEventFluently(Logger, ELogLevel::Info)
             .Item("event").Value(EAccessControlEvent::GroupDestroyed)
