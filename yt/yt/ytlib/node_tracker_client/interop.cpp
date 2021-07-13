@@ -226,6 +226,7 @@ void FromIncrementalHeartbeatRequest(
     incrementalDataNodeHeartbeat->mutable_added_chunks()->CopyFrom(incrementalHeartbeat.added_chunks());
     incrementalDataNodeHeartbeat->mutable_removed_chunks()->CopyFrom(incrementalHeartbeat.removed_chunks());
     incrementalDataNodeHeartbeat->set_write_sessions_disabled(incrementalHeartbeat.write_sessions_disabled());
+    incrementalDataNodeHeartbeat->mutable_confirmed_replica_announcement_requests()->CopyFrom(incrementalHeartbeat.confirmed_replica_announcement_requests());
 }
 
 void FillDataNodeHeartbeatPart(
@@ -236,6 +237,7 @@ void FillDataNodeHeartbeatPart(
     incrementalHeartbeat->mutable_added_chunks()->CopyFrom(incrementalDataNodeHeartbeat.added_chunks());
     incrementalHeartbeat->mutable_removed_chunks()->CopyFrom(incrementalDataNodeHeartbeat.removed_chunks());
     incrementalHeartbeat->set_write_sessions_disabled(incrementalDataNodeHeartbeat.write_sessions_disabled());
+    incrementalHeartbeat->mutable_confirmed_replica_announcement_requests()->CopyFrom(incrementalDataNodeHeartbeat.confirmed_replica_announcement_requests());
 }
 
 void FillDataNodeHeartbeatPart(
@@ -248,11 +250,38 @@ void FillDataNodeHeartbeatPart(
     fullHeartbeat->set_write_sessions_disabled(fullDataNodeHeartbeat.write_sessions_disabled());
 }
 
+void FromFullHeartbeatResponse(
+    NDataNodeTrackerClient::NProto::TRspFullHeartbeat* fullDataNodeHeartbeatResponse,
+    const NProto::TRspFullHeartbeat& fullHeartbeatResponse)
+{
+    fullDataNodeHeartbeatResponse->set_revision(fullHeartbeatResponse.revision());
+    if (fullHeartbeatResponse.has_enable_lazy_replica_announcements()) {
+        fullDataNodeHeartbeatResponse->set_enable_lazy_replica_announcements(fullHeartbeatResponse.enable_lazy_replica_announcements());
+    }
+    fullDataNodeHeartbeatResponse->mutable_replica_announcement_requests()->CopyFrom(fullHeartbeatResponse.replica_announcement_requests());
+}
+
+void FillFullHeartbeatResponse(
+    NProto::TRspFullHeartbeat* fullHeartbeatResponse,
+    const NDataNodeTrackerClient::NProto::TRspFullHeartbeat& fullDataNodeHeartbeatResponse)
+{
+    fullHeartbeatResponse->set_revision(fullDataNodeHeartbeatResponse.revision());
+    if (fullDataNodeHeartbeatResponse.has_enable_lazy_replica_announcements()) {
+        fullHeartbeatResponse->set_enable_lazy_replica_announcements(fullDataNodeHeartbeatResponse.enable_lazy_replica_announcements());
+    }
+    fullHeartbeatResponse->mutable_replica_announcement_requests()->CopyFrom(fullDataNodeHeartbeatResponse.replica_announcement_requests());
+}
+
 void FromIncrementalHeartbeatResponse(
     NDataNodeTrackerClient::NProto::TRspIncrementalHeartbeat* incrementalDataNodeHeartbeatResponse,
     const NProto::TRspIncrementalHeartbeat& incrementalHeartbeatResponse)
 {
     incrementalDataNodeHeartbeatResponse->set_disable_write_sessions(incrementalHeartbeatResponse.disable_write_sessions());
+    incrementalDataNodeHeartbeatResponse->set_revision(incrementalHeartbeatResponse.revision());
+    if (incrementalHeartbeatResponse.has_enable_lazy_replica_announcements()) {
+        incrementalDataNodeHeartbeatResponse->set_enable_lazy_replica_announcements(incrementalHeartbeatResponse.enable_lazy_replica_announcements());
+    }
+    incrementalDataNodeHeartbeatResponse->mutable_replica_announcement_requests()->CopyFrom(incrementalHeartbeatResponse.replica_announcement_requests());
 }
 
 void FillIncrementalHeartbeatResponse(
@@ -260,6 +289,11 @@ void FillIncrementalHeartbeatResponse(
     const NDataNodeTrackerClient::NProto::TRspIncrementalHeartbeat& incrementalDataNodeHeartbeatResponse)
 {
     incrementalHeartbeatResponse->set_disable_write_sessions(incrementalDataNodeHeartbeatResponse.disable_write_sessions());
+    incrementalHeartbeatResponse->set_revision(incrementalDataNodeHeartbeatResponse.revision());
+    if (incrementalDataNodeHeartbeatResponse.has_enable_lazy_replica_announcements()) {
+        incrementalHeartbeatResponse->set_enable_lazy_replica_announcements(incrementalDataNodeHeartbeatResponse.enable_lazy_replica_announcements());
+    }
+    incrementalHeartbeatResponse->mutable_replica_announcement_requests()->CopyFrom(incrementalDataNodeHeartbeatResponse.replica_announcement_requests());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

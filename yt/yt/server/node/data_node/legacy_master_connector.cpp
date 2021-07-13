@@ -281,10 +281,16 @@ void TLegacyMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
 
     YT_LOG_INFO("Successfully reported full node heartbeat to master");
 
-    Bootstrap_
-        ->GetDataNodeBootstrap()
-        ->GetMasterConnector()
-        ->OnFullHeartbeatReported(cellTag);
+    {
+        NDataNodeTrackerClient::NProto::TRspFullHeartbeat fullDataNodeHeartbeatResponse;
+        FromFullHeartbeatResponse(&fullDataNodeHeartbeatResponse, *rspOrError.Value());
+        Bootstrap_
+            ->GetDataNodeBootstrap()
+            ->GetMasterConnector()
+            ->OnFullHeartbeatResponse(
+                cellTag,
+                fullDataNodeHeartbeatResponse);
+    }
 
     DoScheduleNodeHeartbeat(cellTag);
 }

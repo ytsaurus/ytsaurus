@@ -658,6 +658,34 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAllyReplicaManagerDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Period between consequent requests to a certain node.
+    TDuration AnnouncementBackoffTime;
+
+    //! Maximum number of chunks per a single announcement request.
+    i64 MaxChunksPerAnnouncementRequest;
+
+    //! Timeout for AnnounceChunkReplicas request.
+    TDuration AnnouncementRequestTimeout;
+
+    TAllyReplicaManagerDynamicConfig()
+    {
+        RegisterParameter("announcement_backoff_time", AnnouncementBackoffTime)
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("max_chunks_per_announcement_request", MaxChunksPerAnnouncementRequest)
+            .Default(5'000);
+        RegisterParameter("announcement_request_timeout", AnnouncementRequestTimeout)
+            .Default(TDuration::Seconds(15));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TAllyReplicaManagerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDataNodeConfig
     : public NYTree::TYsonSerializable
 {
@@ -1140,6 +1168,7 @@ public:
 
     TMasterConnectorDynamicConfigPtr MasterConnector;
     TMediumUpdaterDynamicConfigPtr MediumUpdater;
+    TAllyReplicaManagerDynamicConfigPtr AllyReplicaManager;
 
     //! Prepared chunk readers are kept open during this period of time after the last use.
     TDuration ChunkReaderRetentionTimeout;
@@ -1186,6 +1215,8 @@ public:
         RegisterParameter("master_connector", MasterConnector)
             .DefaultNew();
         RegisterParameter("medium_updater", MediumUpdater)
+            .DefaultNew();
+        RegisterParameter("ally_replica_manager", AllyReplicaManager)
             .DefaultNew();
 
         RegisterParameter("chunk_reader_retention_timeout", ChunkReaderRetentionTimeout)

@@ -1,8 +1,8 @@
 package NYT.NDataNodeTrackerClient.NProto;
 
-import "yt/ytlib/chunk_client/proto/heartbeat.proto";
-
+import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
+import "yt/ytlib/chunk_client/proto/heartbeat.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,9 +19,22 @@ message TReqFullHeartbeat
 }
 
 message TRspFullHeartbeat
-{ }
+{
+    //! Hydra revision.
+    optional uint64 revision = 1;
+
+    repeated NChunkClient.NProto.TChunkReplicaAnnouncementRequest replica_announcement_requests = 2;
+    optional bool enable_lazy_replica_announcements = 3;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
+
+// COMPAT(ifsmirnov): move into TReqIncrementalHeartbeatRequest when old heartbeats are dropped.
+message TConfirmedReplicaAnnouncementRequest
+{
+    required NYT.NProto.TGuid chunk_id = 1;
+    required uint64 revision = 2;
+}
 
 message TReqIncrementalHeartbeat
 {
@@ -33,11 +46,19 @@ message TReqIncrementalHeartbeat
     repeated NChunkClient.NProto.TChunkRemoveInfo removed_chunks = 4;
 
     optional bool write_sessions_disabled = 5;
+
+    repeated TConfirmedReplicaAnnouncementRequest confirmed_replica_announcement_requests = 6;
 }
 
 message TRspIncrementalHeartbeat
 {
     optional bool disable_write_sessions = 1;
+
+    //! Hydra revision.
+    optional uint64 revision = 2;
+
+    repeated NChunkClient.NProto.TChunkReplicaAnnouncementRequest replica_announcement_requests = 3;
+    optional bool enable_lazy_replica_announcements = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

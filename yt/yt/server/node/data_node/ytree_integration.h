@@ -11,7 +11,8 @@ namespace NYT::NDataNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 NYTree::IYPathServicePtr CreateStoredChunkMapService(
-    TChunkStorePtr chunkStore);
+    TChunkStorePtr chunkStore,
+    IAllyReplicaManagerPtr allyReplicaManager);
 
 NYTree::IYPathServicePtr CreateCachedChunkMapService(
     NExecNode::TChunkCachePtr chunkCache);

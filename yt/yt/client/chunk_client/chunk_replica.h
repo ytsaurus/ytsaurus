@@ -18,7 +18,10 @@ class TChunkReplicaWithMedium
 {
 public:
     TChunkReplicaWithMedium();
-    TChunkReplicaWithMedium(int nodeId, int replicaIndex, int mediumIndex);
+    TChunkReplicaWithMedium(
+        NNodeTrackerClient::TNodeId nodeId,
+        int replicaIndex,
+        int mediumIndex);
 
     NNodeTrackerClient::TNodeId GetNodeId() const;
     int GetReplicaIndex() const;

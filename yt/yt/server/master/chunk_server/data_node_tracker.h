@@ -18,13 +18,15 @@ struct IDataNodeTracker
     //! Fired when a full data node heartbeat is received.
     DECLARE_INTERFACE_SIGNAL(void(
         TNode* node,
-        NDataNodeTrackerClient::NProto::TReqFullHeartbeat* request),
+        NDataNodeTrackerClient::NProto::TReqFullHeartbeat* request,
+        NDataNodeTrackerClient::NProto::TRspFullHeartbeat* response),
         FullHeartbeat);
 
     //! Fired when an incremental data node heartbeat is received.
     DECLARE_INTERFACE_SIGNAL(void(
         TNode* node,
-        NDataNodeTrackerClient::NProto::TReqIncrementalHeartbeat* request),
+        NDataNodeTrackerClient::NProto::TReqIncrementalHeartbeat* request,
+        NDataNodeTrackerClient::NProto::TRspIncrementalHeartbeat* response),
         IncrementalHeartbeat);
 
     virtual void Initialize() = 0;
@@ -38,7 +40,8 @@ struct IDataNodeTracker
     // COMPAT(gritukan)
     virtual void ProcessFullHeartbeat(
         NNodeTrackerServer::TNode* node,
-        NDataNodeTrackerClient::NProto::TReqFullHeartbeat* request) = 0;
+        NDataNodeTrackerClient::NProto::TReqFullHeartbeat* request,
+        NDataNodeTrackerClient::NProto::TRspFullHeartbeat* response) = 0;
 
     using TCtxIncrementalHeartbeat = NRpc::TTypedServiceContext<
         NDataNodeTrackerClient::NProto::TReqIncrementalHeartbeat,

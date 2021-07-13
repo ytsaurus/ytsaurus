@@ -20,7 +20,9 @@ class TReqRemoveNode;
 
 using TReqRegisterNode = NNodeTrackerClient::NProto::TReqRegisterNode;
 using TReqIncrementalHeartbeat = NNodeTrackerClient::NProto::TReqIncrementalHeartbeat;
+using TRspIncrementalHeartbeat = NNodeTrackerClient::NProto::TRspIncrementalHeartbeat;
 using TReqFullHeartbeat = NNodeTrackerClient::NProto::TReqFullHeartbeat;
+using TRspFullHeartbeat = NNodeTrackerClient::NProto::TRspFullHeartbeat;
 
 } // namespace NProto
 

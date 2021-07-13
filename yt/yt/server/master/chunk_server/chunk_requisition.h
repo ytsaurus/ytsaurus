@@ -82,6 +82,21 @@ void Deserialize(TReplicationPolicy& policy, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Statistics that, given the erasure codec of a chunk, provide the total number
+//! of physical replicas that the chunk is replicated to.
+struct TPhysicalReplication
+{
+    // Sum of RFs over all (non-cache) media. Used for regular chunks.
+    int ReplicaCount = 0;
+
+    // Number of (non-cache) media. Used for erasure chunks.
+    // NB: DataPartsOnly is ignored, so |MediumCount| * |codec.TotalPartCount|
+    // may be larger than actual number of physically stored parts.
+    int MediumCount = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Settings specifying how a chunk or a chunk owner should be replicated over each medium.
 /*!
  *  This includes the 'vital' flag, because even though it doesn't affect
@@ -374,12 +389,16 @@ public:
         NSecurityServer::TAccount* account,
         bool committed);
 
-    //! Convert this requisition to a replication.
+    //! Converts this requisition to a replication.
     /*!
      *  By default, ONLY COMMITTED ENTRIES are taken into account. If, however
      *  there aren't any, non-committed ones are used.
      */
     TChunkReplication ToReplication() const;
+
+    //! Converts this requisition to pyhsical replication.
+    //! Unlike #ToReplication(), non-committed entries are included as well.
+    TPhysicalReplication ToPhysicalReplication() const;
 
     bool operator==(const TChunkRequisition& rhs) const;
 
@@ -498,6 +517,7 @@ public:
 
     const TChunkRequisition& GetRequisition(TChunkRequisitionIndex index) const;
     const TChunkReplication& GetReplication(TChunkRequisitionIndex index) const;
+    const TPhysicalReplication& GetPhysicalReplication(TChunkRequisitionIndex index) const;
 
     //! Returns specified requisition's index. Allocates a new index if necessary.
     /*!
@@ -525,6 +545,7 @@ private:
     {
         TChunkRequisition Requisition;
         TChunkReplication Replication;
+        TPhysicalReplication PhysicalReplication;
         i64 RefCount = 0;
 
         void Save(NCellMaster::TSaveContext& context) const;

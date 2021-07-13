@@ -37,6 +37,9 @@ class TDataSourceDirectoryExt;
 
 class TReqGetChunkMeta;
 
+class TChunkReplicaAnnouncement;
+class TChunkReplicaAnnouncementRequest;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NProto

@@ -293,6 +293,49 @@ DEFINE_REFCOUNTED_TYPE(TDynamicDataNodeTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDynamicAllyReplicaManagerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Enables scheduling of ally replica announce requests and endorsements.
+    bool EnableAllyReplicaAnnouncement;
+
+    //! If |false|, ally replica endorsements will not be stored.
+    /*!
+     *  WARNING: setting this from |true| to |false| will trigger immediate
+     *  cleanup of existing endorsement queues and may stall automaton thread
+     *  for a while.
+     */
+    bool EnableEndorsements;
+
+    //! When a chunk is not fully replicated by approved replicas, its new replicas
+    //! still announce replicas to allies but with a certain delay.
+    TDuration UnderreplicatedChunkAnnouncementRequestDelay;
+
+    //! Override of |SafeOnlineNodeCount| for replica announcements and endorsements.
+    std::optional<int> SafeOnlineNodeCount;
+
+    TDynamicAllyReplicaManagerConfig()
+    {
+        RegisterParameter("enable_ally_replica_announcement", EnableAllyReplicaAnnouncement)
+            .Default(false);
+
+        RegisterParameter("enable_endorsements", EnableEndorsements)
+            .Default(false);
+
+        RegisterParameter("underreplicated_chunk_announcement_request_delay", UnderreplicatedChunkAnnouncementRequestDelay)
+            .Default(TDuration::Seconds(60));
+
+        RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
+            .GreaterThanOrEqual(0)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicAllyReplicaManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDynamicChunkManagerConfig
     : public NYTree::TYsonSerializable
 {
@@ -378,7 +421,8 @@ public:
     TDuration JobTimeout;
 
     //! When the number of online nodes drops below this margin,
-    //! replicator gets disabled.
+    //! replicator gets disabled. Also ally replica announcements are done lazily
+    //! and endorsements are not flushed.
     int SafeOnlineNodeCount;
     //! When the fraction of lost chunks grows above this margin,
     //! replicator gets disabled.
@@ -428,6 +472,8 @@ public:
     TDynamicDataNodeTrackerConfigPtr DataNodeTracker;
 
     TDynamicChunkMergerConfigPtr ChunkMerger;
+
+    TDynamicAllyReplicaManagerConfigPtr AllyReplicaManager;
 
     TDynamicChunkManagerConfig()
     {
@@ -570,6 +616,9 @@ public:
             .DefaultNew();
 
         RegisterParameter("chunk_merger", ChunkMerger)
+            .DefaultNew();
+
+        RegisterParameter("ally_replica_manager", AllyReplicaManager)
             .DefaultNew();
 
         RegisterPreprocessor([&] () {

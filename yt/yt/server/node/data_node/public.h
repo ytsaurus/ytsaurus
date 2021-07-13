@@ -37,6 +37,7 @@ DECLARE_REFCOUNTED_CLASS(TLegacyMasterConnector)
 
 DECLARE_REFCOUNTED_CLASS(TChunkStore)
 
+DECLARE_REFCOUNTED_STRUCT(IAllyReplicaManager)
 DECLARE_REFCOUNTED_STRUCT(IChunkRegistry)
 DECLARE_REFCOUNTED_STRUCT(IChunkBlockManager)
 DECLARE_REFCOUNTED_STRUCT(IChunkReaderSweeper)
@@ -79,6 +80,7 @@ DECLARE_REFCOUNTED_CLASS(TMediumUpdaterDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TSealReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TMasterConnectorConfig)
 DECLARE_REFCOUNTED_CLASS(TMasterConnectorDynamicConfig)
+DECLARE_REFCOUNTED_CLASS(TAllyReplicaManagerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TDataNodeConfig)
 DECLARE_REFCOUNTED_CLASS(TDataNodeDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TP2PBlockDistributorConfig)
@@ -151,6 +153,8 @@ DEFINE_ENUM(EDataNodeThrottlerKind,
     (TabletReplicationOut)
     //! Controls outcoming RPS of GetBlockSet and GetBlockRange requests.
     (ReadRpsOut)
+    //! Controls outcoming RPS of AnnounceChunkReplicas requests.
+    (AnnounceChunkReplicasRpsOut)
     //! Controls incoming bandwidth consumed by local jobs.
     (JobIn)
     //! Controls outcoming bandwidth consumed by local jobs.

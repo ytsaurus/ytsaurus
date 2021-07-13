@@ -1,4 +1,5 @@
 #include "ytree_integration.h"
+#include "ally_replica_manager.h"
 #include "artifact.h"
 #include "chunk.h"
 #include "chunk_store.h"
@@ -31,16 +32,20 @@ class TVirtualChunkMap
     : public TVirtualMapBase
 {
 public:
-    explicit TVirtualChunkMap(TIntrusivePtr<TCollection> collection)
-        : Collection(collection)
+    TVirtualChunkMap(
+        TIntrusivePtr<TCollection> collection,
+        IAllyReplicaManagerPtr allyReplicaManager)
+        : Collection_(std::move(collection))
+        , AllyReplicaManager_(std::move(allyReplicaManager))
     { }
 
 private:
-    TIntrusivePtr<TCollection> Collection;
+    const TIntrusivePtr<TCollection> Collection_;
+    const IAllyReplicaManagerPtr AllyReplicaManager_;
 
     virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
-        auto chunks = Collection->GetChunks();
+        auto chunks = Collection_->GetChunks();
         std::vector<TString> keys;
         keys.reserve(chunks.size());
         for (auto chunk : chunks) {
@@ -53,13 +58,13 @@ private:
 
     virtual i64 GetSize() const override
     {
-        return Collection->GetChunkCount();
+        return Collection_->GetChunkCount();
     }
 
     virtual IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         auto id = TChunkId::FromString(key);
-        auto chunk = Collection->FindChunk(id);
+        auto chunk = Collection_->FindChunk(id);
         if (!chunk) {
             return nullptr;
         }
@@ -83,20 +88,28 @@ private:
                         fluent
                             .Item("flushed_row_count").Value(chunk->AsJournalChunk()->GetFlushedRowCount());
                     })
+                    .DoIf(static_cast<bool>(AllyReplicaManager_), [&] (TFluentMap fluent) {
+                        AllyReplicaManager_->BuildChunkOrchidYson(fluent, chunk->GetId());
+                    })
                 .EndMap();
         }));
     }
-
 };
 
-IYPathServicePtr CreateStoredChunkMapService(TChunkStorePtr chunkStore)
+IYPathServicePtr CreateStoredChunkMapService(
+    TChunkStorePtr chunkStore,
+    IAllyReplicaManagerPtr allyReplicaManager)
 {
-    return New<TVirtualChunkMap<TChunkStore>>(chunkStore);
+    return New<TVirtualChunkMap<TChunkStore>>(
+        std::move(chunkStore),
+        std::move(allyReplicaManager));
 }
 
 IYPathServicePtr CreateCachedChunkMapService(TChunkCachePtr chunkCache)
 {
-    return New<TVirtualChunkMap<TChunkCache>>(chunkCache);
+    return New<TVirtualChunkMap<TChunkCache>>(
+        std::move(chunkCache),
+        /*allyReplicaManager*/ nullptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

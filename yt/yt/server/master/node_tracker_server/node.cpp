@@ -425,6 +425,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, LocationUuids_);
     Save(context, Flavors_);
     Save(context, ReportedHeartbeats_);
+    Save(context, ReplicaEndorsements_);
 }
 
 void TNode::Load(NCellMaster::TLoadContext& context)
@@ -523,6 +524,11 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     }
     if (context.GetVersion() < EMasterReign::RemoveClusterNodeFlavor) {
         Flavors_.erase(ENodeFlavor::Cluster);
+    }
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::AllyReplicas) {
+        Load(context, ReplicaEndorsements_);
     }
 
     ComputeDefaultAddress();

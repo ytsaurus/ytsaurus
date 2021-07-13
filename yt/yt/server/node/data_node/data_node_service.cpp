@@ -1,6 +1,7 @@
 #include "data_node_service.h"
 #include "bootstrap.h"
 #include "private.h"
+#include "ally_replica_manager.h"
 #include "chunk_block_manager.h"
 #include "chunk.h"
 #include "chunk_registry.h"
@@ -86,6 +87,7 @@ using namespace NTableClient::NProto;
 using namespace NProfiling;
 
 using NChunkClient::TChunkReaderStatistics;
+using NYT::ToProto;
 using NYT::FromProto;
 
 using TRefCountedColumnarStatisticsSubresponse = TRefCountedProto<TRspGetColumnarStatistics::TSubresponse>;
@@ -173,6 +175,8 @@ public:
             .SetResponseCodec(NCompression::ECodec::Lz4));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetColumnarStatistics)
             .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AnnounceChunkReplicas)
+            .SetInvoker(Bootstrap_->GetStorageLightInvoker()));
     }
 
 private:
@@ -1726,6 +1730,20 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdatePeer)
     {
         // NB: this method is no longer used, but noop stub is kept here for smooth rolling update.
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, AnnounceChunkReplicas)
+    {
+        context->SetRequestInfo("SubrequestCount: %v, SourceNodeId: %v",
+            request->announcements_size(),
+            request->source_node_id());
+
+        const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
+        allyReplicaManager->OnAnnouncementsReceived(
+            MakeRange(request->announcements()),
+            request->source_node_id());
+
         context->Reply();
     }
 

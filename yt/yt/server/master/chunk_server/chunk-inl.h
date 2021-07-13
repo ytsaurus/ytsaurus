@@ -7,6 +7,8 @@
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
+#include <yt/yt/library/erasure/impl/codec.h>
+
 namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -294,6 +296,19 @@ inline int TChunk::GetAggregatedReplicationFactor(int mediumIndex, const TChunkR
     return GetAggregatedReplication(registry).Get(mediumIndex).GetReplicationFactor();
 }
 
+inline int TChunk::GetAggregatedPhysicalReplicationFactor(const TChunkRequisitionRegistry* registry) const
+{
+    YT_VERIFY(AggregatedRequisitionIndex_ != EmptyChunkRequisitionIndex);
+    const auto& physicalReplication = registry->GetPhysicalReplication(AggregatedRequisitionIndex_);
+
+    if (IsErasure()) {
+        auto* codec = NErasure::GetCodec(GetErasureCodec());
+        return physicalReplication.MediumCount * codec->GetTotalPartCount();
+    } else {
+        return physicalReplication.ReplicaCount;
+    }
+}
+
 inline int TChunk::GetReadQuorum() const
 {
     return ReadQuorum_;
@@ -347,6 +362,11 @@ inline bool TChunk::IsErasure() const
 inline bool TChunk::IsJournal() const
 {
     return NChunkClient::IsJournalChunkType(GetType());
+}
+
+inline bool TChunk::IsBlob() const
+{
+    return NChunkClient::IsBlobChunkType(GetType());
 }
 
 inline bool TChunk::IsDiskSizeFinal() const

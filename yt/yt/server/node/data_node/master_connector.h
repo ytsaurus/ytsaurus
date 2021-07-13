@@ -39,7 +39,9 @@ struct IMasterConnector
     virtual NDataNodeTrackerClient::NProto::TReqIncrementalHeartbeat GetIncrementalHeartbeatRequest(NObjectClient::TCellTag cellTag) = 0;
 
     //! Called when full data node heartbeat is successfully reported.
-    virtual void OnFullHeartbeatReported(NObjectClient::TCellTag cellTag) = 0;
+    virtual void OnFullHeartbeatResponse(
+        NObjectClient::TCellTag cellTag,
+        const NDataNodeTrackerClient::NProto::TRspFullHeartbeat& response) = 0;
 
     //! Called when incremental data node heartbeat report failed.
     virtual void OnIncrementalHeartbeatFailed(NObjectClient::TCellTag cellTag) = 0;

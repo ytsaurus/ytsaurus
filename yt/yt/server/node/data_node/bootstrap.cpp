@@ -1,5 +1,6 @@
 #include "bootstrap.h"
 
+#include "ally_replica_manager.h"
 #include "blob_reader_cache.h"
 #include "block_peer_table.h"
 #include "chunk_block_manager.h"
@@ -152,6 +153,9 @@ public:
             Throttlers_[kind] = throttler;
         }
 
+        // Should be created after throttlers.
+        AllyReplicaManager_ = CreateAllyReplicaManager(this);
+
         StorageLookupThreadPool_ = CreateFairShareThreadPool(
             GetConfig()->DataNode->StorageLookupThreadCount,
             "StorageLookup");
@@ -198,8 +202,13 @@ public:
         SetNodeByYPath(
             GetOrchidRoot(),
             "/stored_chunks",
-            CreateVirtualNode(CreateStoredChunkMapService(ChunkStore_)
+            CreateVirtualNode(CreateStoredChunkMapService(ChunkStore_, GetAllyReplicaManager())
                 ->Via(GetControlInvoker())));
+
+        SetNodeByYPath(
+            GetOrchidRoot(),
+            "/ally_replica_manager",
+            CreateVirtualNode(AllyReplicaManager_->GetOrchidService()));
 
         MasterConnector_->Initialize();
 
@@ -208,11 +217,18 @@ public:
         P2PBlockDistributor_->Start();
 
         SkynetHttpServer_->Start();
+
+        AllyReplicaManager_->Start();
     }
 
     virtual const TChunkStorePtr& GetChunkStore() const override
     {
         return ChunkStore_;
+    }
+
+    virtual const IAllyReplicaManagerPtr& GetAllyReplicaManager() const override
+    {
+        return AllyReplicaManager_;
     }
 
     virtual const IChunkBlockManagerPtr& GetChunkBlockManager() const override
@@ -310,6 +326,7 @@ private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
     TChunkStorePtr ChunkStore_;
+    IAllyReplicaManagerPtr AllyReplicaManager_;
 
     IChunkBlockManagerPtr ChunkBlockManager_;
 

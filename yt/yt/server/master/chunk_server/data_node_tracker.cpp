@@ -33,8 +33,16 @@ class TDataNodeTracker
     , public TMasterAutomatonPart
 {
 public:
-    DEFINE_SIGNAL(void(TNode* node, TReqFullHeartbeat* request), FullHeartbeat);
-    DEFINE_SIGNAL(void(TNode* node, TReqIncrementalHeartbeat* request), IncrementalHeartbeat);
+    DEFINE_SIGNAL(void(
+        TNode* node,
+        TReqFullHeartbeat* request,
+        TRspFullHeartbeat* response),
+        FullHeartbeat);
+    DEFINE_SIGNAL(void(
+        TNode* node,
+        TReqIncrementalHeartbeat* request,
+        TRspIncrementalHeartbeat* response),
+        IncrementalHeartbeat);
 
 public:
     explicit TDataNodeTracker(TBootstrap* bootstrap)
@@ -62,7 +70,8 @@ public:
 
     virtual void ProcessFullHeartbeat(
         TNode* node,
-        TReqFullHeartbeat* request) override
+        TReqFullHeartbeat* request,
+        TRspFullHeartbeat* response) override
     {
         YT_VERIFY(node->IsDataNode() || node->IsExecNode());
 
@@ -73,7 +82,7 @@ public:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->OnNodeHeartbeat(node, ENodeHeartbeatType::Data);
 
-        FullHeartbeat_.Fire(node, request);
+        FullHeartbeat_.Fire(node, request, response);
     }
 
     virtual void ProcessIncrementalHeartbeat(TCtxIncrementalHeartbeatPtr context) override
@@ -108,7 +117,7 @@ public:
             node->SetDisableWriteSessionsSentToNode(node->GetDisableWriteSessions());
         }
 
-        IncrementalHeartbeat_.Fire(node, request);
+        IncrementalHeartbeat_.Fire(node, request, response);
     }
 
 private:
@@ -157,7 +166,7 @@ private:
     void HydraFullDataNodeHeartbeat(
         const TCtxFullHeartbeatPtr& /*context*/,
         TReqFullHeartbeat* request,
-        TRspFullHeartbeat* /*response*/)
+        TRspFullHeartbeat* response)
     {
         auto nodeId = request->node_id();
         auto& statistics = *request->mutable_statistics();
@@ -182,7 +191,7 @@ private:
 
             nodeTracker->UpdateLastSeenTime(node);
 
-            ProcessFullHeartbeat(node, request);
+            ProcessFullHeartbeat(node, request, response);
         }
     }
 

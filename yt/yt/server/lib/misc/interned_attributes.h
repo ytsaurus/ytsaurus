@@ -28,6 +28,7 @@
     XX(Annotation, annotation) \
     XX(AnnotationPath, annotation_path) \
     XX(Annotations, annotations) \
+    XX(ApprovedReplicaCount, approved_replica_count) \
     XX(Areas, areas) \
     XX(AreaNodes, area_nodes) \
     XX(Atomicity, atomicity) \
@@ -119,6 +120,7 @@
     XX(EnableReplicatedTableTracker, enable_replicated_table_tracker) \
     XX(EnableChunkMerger, enable_chunk_merger) \
     XX(EnableSkynetSharing, enable_skynet_sharing) \
+    XX(EndorsementRequired, endorsement_required) \
     XX(EntranceCellTag, entrance_cell_tag) \
     XX(EntranceNodeId, entrance_node_id) \
     XX(EphemeralRefCounter, ephemeral_ref_counter) \

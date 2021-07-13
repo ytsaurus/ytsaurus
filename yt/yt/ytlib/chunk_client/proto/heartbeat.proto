@@ -20,4 +20,21 @@ message TChunkRemoveInfo
     required int32 medium_index = 3;
 }
 
+message TChunkReplicaAnnouncementRequest
+{
+    required NYT.NProto.TGuid chunk_id = 1;
+    repeated fixed64 replicas = 2;
+
+    //! If |true|, node should send announcement request only if sending lazy announcements
+    //! is explicitly enabled.
+    optional bool lazy = 3;
+
+    //! If set, node should send announcement request after |delay|.
+    optional int64 delay = 4; // TDuration
+
+    //! If set, node should confirm receival upon next heartbeat.
+    //! Such requests only come in incremental heartbeats.
+    optional bool confirmation_needed = 5;
+}
+
 ////////////////////////////////////////////////////////////////////////////////

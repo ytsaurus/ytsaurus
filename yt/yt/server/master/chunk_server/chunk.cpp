@@ -152,6 +152,7 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
         Save(context, ReplicasData_->CachedReplicas);
         Save(context, ReplicasData_->LastSeenReplicas);
         Save(context, ReplicasData_->CurrentLastSeenReplicaIndex);
+        Save(context, ReplicasData_->ApprovedReplicaCount);
     } else {
         Save(context, false);
     }
@@ -160,6 +161,7 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
         YT_ASSERT(ExportDataList_);
         TPodSerializer::Save(context, *ExportDataList_);
     }
+    Save(context, EndorsementRequired_);
 }
 
 void TChunk::Load(NCellMaster::TLoadContext& context)
@@ -201,6 +203,10 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
         Load(context, data->CachedReplicas);
         Load(context, data->LastSeenReplicas);
         Load(context, data->CurrentLastSeenReplicaIndex);
+        // COMPAT(ifsmirnov)
+        if (context.GetVersion() >= EMasterReign::AllyReplicas) {
+            Load(context, data->ApprovedReplicaCount);
+        }
     }
 
     Load(context, ExportCounter_);
@@ -210,6 +216,11 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
         YT_VERIFY(std::any_of(
             ExportDataList_->begin(), ExportDataList_->end(),
             [] (auto data) { return data.RefCounter != 0; }));
+    }
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::AllyReplicas) {
+        Load(context, EndorsementRequired_);
     }
 
     if (IsConfirmed()) {
@@ -245,7 +256,7 @@ bool TChunk::HasParents() const
     return !Parents_.empty();
 }
 
-void TChunk::AddReplica(TNodePtrWithIndexes replica, const TMedium* medium)
+void TChunk::AddReplica(TNodePtrWithIndexes replica, const TMedium* medium, bool approved)
 {
     auto* data = MutableReplicasData();
     if (medium->GetCache()) {
@@ -264,6 +275,11 @@ void TChunk::AddReplica(TNodePtrWithIndexes replica, const TMedium* medium)
                 }
             }
         }
+
+        if (approved) {
+            ++data->ApprovedReplicaCount;
+        }
+
         data->StoredReplicas.push_back(replica);
         if (!medium->GetTransient()) {
             if (IsErasure()) {
@@ -276,7 +292,7 @@ void TChunk::AddReplica(TNodePtrWithIndexes replica, const TMedium* medium)
     }
 }
 
-void TChunk::RemoveReplica(TNodePtrWithIndexes replica, const TMedium* medium)
+void TChunk::RemoveReplica(TNodePtrWithIndexes replica, const TMedium* medium, bool approved)
 {
     auto* data = MutableReplicasData();
     if (medium->GetCache()) {
@@ -288,6 +304,11 @@ void TChunk::RemoveReplica(TNodePtrWithIndexes replica, const TMedium* medium)
             ShrinkHashTable(cachedReplicas.get());
         }
     } else {
+        if (approved) {
+            --data->ApprovedReplicaCount;
+            YT_ASSERT(data->ApprovedReplicaCount >= 0);
+        }
+
         auto doRemove = [&] (auto converter) {
             auto& storedReplicas = data->StoredReplicas;
             for (auto& existingReplica : storedReplicas) {
@@ -320,8 +341,10 @@ TNodePtrWithIndexesList TChunk::GetReplicas() const
 
 void TChunk::ApproveReplica(TNodePtrWithIndexes replica)
 {
+    auto* data = MutableReplicasData();
+    ++data->ApprovedReplicaCount;
+
     if (IsJournal()) {
-        auto* data = MutableReplicasData();
         auto genericReplica = replica.ToGenericState();
         for (auto& existingReplica : data->StoredReplicas) {
             if (existingReplica.ToGenericState() == genericReplica) {
@@ -331,6 +354,11 @@ void TChunk::ApproveReplica(TNodePtrWithIndexes replica)
         }
         YT_ABORT();
     }
+}
+
+int TChunk::GetApprovedReplicaCount() const
+{
+    return ReplicasData().ApprovedReplicaCount;
 }
 
 void TChunk::Confirm(

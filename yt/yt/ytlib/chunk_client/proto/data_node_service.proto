@@ -484,3 +484,21 @@ message TRspGetColumnarStatistics
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TChunkReplicaAnnouncement
+{
+    required NYT.NProto.TGuid chunk_id = 1;
+    repeated fixed64 replicas = 2;
+    required uint64 revision = 3;
+}
+
+message TReqAnnounceChunkReplicas
+{
+    required int32 source_node_id = 1;
+    repeated TChunkReplicaAnnouncement announcements = 2;
+}
+
+message TRspAnnounceChunkReplicas
+{ }
+
+////////////////////////////////////////////////////////////////////////////////

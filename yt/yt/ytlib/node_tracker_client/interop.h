@@ -120,6 +120,14 @@ void FillDataNodeHeartbeatPart(
     NProto::TReqFullHeartbeat* fullHeartbeat,
     const NDataNodeTrackerClient::NProto::TReqFullHeartbeat& fullDataNodeHeartbeat);
 
+void FromFullHeartbeatResponse(
+    NDataNodeTrackerClient::NProto::TRspFullHeartbeat* fullDataNodeHeartbeatResponse,
+    const NProto::TRspFullHeartbeat& fullHeartbeatResponse);
+
+void FillFullHeartbeatResponse(
+    NProto::TRspFullHeartbeat* fullHeartbeatResponse,
+    const NDataNodeTrackerClient::NProto::TRspFullHeartbeat& fullDataNodeHeartbeatResponse);
+
 void FromIncrementalHeartbeatResponse(
     NDataNodeTrackerClient::NProto::TRspIncrementalHeartbeat* incrementalDataNodeHeartbeatResponse,
     const NProto::TRspIncrementalHeartbeat& incrementalHeartbeatResponse);

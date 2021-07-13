@@ -43,6 +43,7 @@ using NChunkClient::TypicalReplicaCount;
 using NChunkClient::MaxMediumCount;
 using NChunkClient::MediumIndexBound;
 using NChunkClient::DefaultStoreMediumIndex;
+using NChunkClient::DefaultCacheMediumIndex;
 using NChunkClient::MaxMediumPriority;
 using NChunkClient::TDataCenterName;
 using NChunkClient::TMediumMap;
@@ -115,6 +116,7 @@ DECLARE_REFCOUNTED_CLASS(TDynamicDataNodeTrackerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkMergerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkServiceConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicAllyReplicaManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TMediumConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IChunkSealer)

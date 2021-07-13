@@ -211,6 +211,8 @@ private:
     const TCallback<void(NCellMaster::TDynamicClusterConfigPtr)> DynamicConfigChangedCallback_ =
         BIND(&TChunkReplicator::OnDynamicConfigChanged, MakeWeak(this));
 
+    std::vector<TChunkId> ChunkIdsPendingEndorsementRegistration_;
+
     std::optional<bool> Enabled_;
 
     bool TryScheduleReplicationJob(
@@ -315,6 +317,8 @@ private:
 
     void AddToChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndexes, EChunkRepairQueue queue);
     void RemoveFromChunkRepairQueues(TChunkPtrWithIndexes chunkWithIndexes);
+
+    void FlushEndorsementQueue();
 
     void OnCheckEnabled();
     void OnCheckEnabledPrimary();
