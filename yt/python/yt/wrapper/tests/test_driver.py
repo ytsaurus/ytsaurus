@@ -60,40 +60,14 @@ def test_sanitize_structure():
     yt.create("table", table, attributes={"schema": schema})
     assert yt.get(table + "/@schema/@unique_keys")
 
-@authors("asaitgalin")
-@pytest.mark.usefixtures("yt_env_with_rpc")
-@pytest.mark.only_backend("rpc")
-def test_catching_sigint(yt_env_with_rpc):
-    if yt.config["backend"] != "rpc":
-        pytest.skip()
-
-    driver_config_path = yt_env_with_rpc.env.config_paths["rpc_driver"]
-    driver_logging_config_path = yt_env_with_rpc.env.config_paths["driver_logging"]
-    binary = get_test_file_path("driver_catch_sigint.py")
-
-    process = subprocess.Popen(
-        [get_python(), binary, driver_config_path, driver_logging_config_path],
-        stderr=sys.stderr)
-
-    time.sleep(2)
-    if process.poll() is not None:
-        assert False, "Process finished early"
-
-    wait(lambda: yt.exists("//tmp/test_file"))
-    wait(lambda: yt.get("//tmp/test_file/@uncompressed_data_size") == 50 * 1000 * 1000)
-    time.sleep(3)
-
-    os.kill(process.pid, signal.SIGINT)
-    try:
-        process.wait(5)
-    except:
-        os.kill(process.pid, signal.SIGKILL)
-        assert False, "Process hanged up for more than 5 seconds on SIGINT"
-
+@authors("ignat")
+def test_catching_sigint():
     binary = get_test_file_path("driver_read_request_catch_sigint.py")
     process = subprocess.Popen([get_python(), binary])
 
-    time.sleep(3)
+    time.sleep(2)
+    assert process.poll() is None
+
     os.kill(process.pid, signal.SIGINT)
     try:
         process.wait(5)
