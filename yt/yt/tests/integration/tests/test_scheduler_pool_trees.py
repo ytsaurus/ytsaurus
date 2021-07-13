@@ -680,7 +680,10 @@ class TestPoolTreesUpdateUnderLock(YTEnvSetup):
 
     def test_scheduler_updates_pool_config_with_lock(self):
         tx = start_transaction(timeout=60000)
-        lock("//sys/scheduler/pool_trees_lock", mode="exclusive", tx=tx)
+        lock_id = lock("//sys/scheduler/pool_trees_lock", mode="exclusive", tx=tx, waitable=True)["lock_id"]
+
+        wait(lambda: get("#" + lock_id + "/@state") == "acquired")
+
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
         assert get("//sys/scheduler/@alerts")[0]["attributes"]["alert_type"] == "update_pools"
 
