@@ -228,6 +228,18 @@ inline bool IsErasureChunkPartId(TChunkId id)
         type >= NObjectClient::MinErasureJournalChunkPartType && type <= NObjectClient::MaxErasureJournalChunkPartType;
 }
 
+inline bool IsRegularChunkType(NObjectClient::EObjectType type)
+{
+    return
+        type == NObjectClient::EObjectType::Chunk ||
+        type == NObjectClient::EObjectType::JournalChunk;
+}
+
+inline bool IsRegularChunkId(TChunkId id)
+{
+    return IsRegularChunkType(NObjectClient::TypeFromId(id));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient
