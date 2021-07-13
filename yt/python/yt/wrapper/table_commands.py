@@ -860,7 +860,9 @@ def is_sorted(table, client=None):
     :rtype: bool
     """
     if get_config(client)["yamr_mode"]["use_yamr_sort_reduce_columns"]:
-        return get_sorted_by(table, [], client=client) == ["key", "subkey"]
+        def is_key_subkey(sorted_by):
+            return sorted_by == ["key", "subkey"]
+        return apply_function_to_result(is_key_subkey, get_sorted_by(table, [], client=client))
     else:
         return get_attribute(
             TablePath(table, client=client),
