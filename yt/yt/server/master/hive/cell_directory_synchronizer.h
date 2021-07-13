@@ -21,7 +21,7 @@ public:
     TCellDirectorySynchronizer(
         TCellDirectorySynchronizerConfigPtr config,
         NHiveClient::TCellDirectoryPtr cellDirectory,
-        NCellServer::TTamedCellManagerPtr cellManager,
+        NCellServer::ITamedCellManagerPtr cellManager,
         NHydra::IHydraManagerPtr hydraManager,
         IInvokerPtr automatonInvoker);
     ~TCellDirectorySynchronizer();

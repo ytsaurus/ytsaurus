@@ -178,6 +178,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS_IMPL(entityName, entityNamePlural, entityType) \
+    virtual entityType* Find ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) const = 0; \
+    virtual entityType* Get ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) const = 0; \
+    virtual const ::NYT::NHydra::TReadOnlyEntityMap<entityType>& entityNamePlural() const = 0;
+
+#define DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(entityName, entityType) \
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS_IMPL(entityName, entityName ## s, entityType)
+
 #define DECLARE_ENTITY_MAP_ACCESSORS_IMPL(entityName, entityNamePlural, entityType) \
     entityType* Find ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) const; \
     entityType* Get ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) const; \

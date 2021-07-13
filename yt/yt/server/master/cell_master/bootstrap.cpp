@@ -413,7 +413,7 @@ const TTableManagerPtr& TBootstrap::GetTableManager() const
     return TableManager_;
 }
 
-const TTamedCellManagerPtr& TBootstrap::GetTamedCellManager() const
+const ITamedCellManagerPtr& TBootstrap::GetTamedCellManager() const
 {
     return TamedCellManager_;
 }
@@ -757,7 +757,7 @@ void TBootstrap::DoInitialize()
 
     JournalManager_ = New<NJournalServer::TJournalManager>(this);
 
-    TamedCellManager_ = New<TTamedCellManager>(this);
+    TamedCellManager_ = CreateTamedCellManager(this);
 
     CellHydraJanitor_ = New<TCellHydraJanitor>(this);
 

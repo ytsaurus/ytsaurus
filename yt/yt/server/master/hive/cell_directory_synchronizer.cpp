@@ -41,7 +41,7 @@ public:
     TImpl(
         TCellDirectorySynchronizerConfigPtr config,
         TCellDirectoryPtr cellDirectory,
-        TTamedCellManagerPtr cellManager,
+        ITamedCellManagerPtr cellManager,
         IHydraManagerPtr hydraManager,
         IInvokerPtr automatonInvoker)
         : Config_(std::move(config))
@@ -67,7 +67,7 @@ public:
 private:
     const TCellDirectorySynchronizerConfigPtr Config_;
     const TCellDirectoryPtr CellDirectory_;
-    const TTamedCellManagerPtr CellManager_;
+    const ITamedCellManagerPtr CellManager_;
     const IHydraManagerPtr HydraManager_;
 
     const TPeriodicExecutorPtr SyncExecutor_;
@@ -122,7 +122,7 @@ private:
 TCellDirectorySynchronizer::TCellDirectorySynchronizer(
     TCellDirectorySynchronizerConfigPtr config,
     TCellDirectoryPtr cellDirectory,
-    TTamedCellManagerPtr cellManager,
+    ITamedCellManagerPtr cellManager,
     IHydraManagerPtr hydraManager,
     IInvokerPtr automatonInvoker)
     : Impl_(New<TImpl>(
