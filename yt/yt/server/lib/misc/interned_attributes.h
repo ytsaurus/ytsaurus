@@ -47,6 +47,7 @@
     XX(Cellars, cellars) \
     XX(CellBalancerConfig, cell_balancer_config) \
     XX(CellBundle, cell_bundle) \
+    XX(CellBundleId, cell_bundle_id) \
     XX(CellId, cell_id) \
     XX(CellIds, cell_ids) \
     XX(CellTag, cell_tag) \

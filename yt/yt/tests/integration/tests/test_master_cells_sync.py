@@ -4,7 +4,7 @@ from yt_commands import (
     authors, wait,
     exists, get, set, ls, remove, create_account, remove_account, make_ace, create_rack,
     create_user, remove_user, add_member, remove_member, create_group, remove_group,
-    create_tablet_cell, create_tablet_cell_bundle, remove_tablet_cell_bundle, wait_for_cells,
+    create_tablet_cell, create_tablet_cell_bundle, remove_tablet_cell_bundle, create_area, wait_for_cells,
     get_driver)
 
 import pytest
@@ -171,6 +171,26 @@ class TestMasterCellsSync(YTEnvSetup):
 
         remove_tablet_cell_bundle("b")
         self._check_true_for_secondary(lambda driver: "b" not in ls("//sys/tablet_cell_bundles", driver=driver))
+
+    @authors("savrus")
+    def test_area_sync(self):
+        create_tablet_cell_bundle("custom")
+        set("//sys/tablet_cell_bundles/custom/@node_tag_filter", "default")
+        custom_bundle_id = get("//sys/tablet_cell_bundles/custom/@id")
+        custom_area_id = create_area("custom", cell_bundle_id=custom_bundle_id, attributes={"node_tag_filter": "custom"})
+        default_area_id = get("//sys/tablet_cell_bundles/custom/@areas/default/id")
+
+        self._check_true_for_secondary(lambda driver: get("//sys/tablet_cell_bundles/custom/@areas/default/node_tag_filter", driver=driver) == "default")
+        self._check_true_for_secondary(lambda driver: get("//sys/tablet_cell_bundles/custom/@areas/custom/node_tag_filter", driver=driver) == "custom")
+        self._check_true_for_secondary(lambda driver: get("#{0}/@cell_bundle_id".format(default_area_id), driver=driver) == custom_bundle_id)
+        self._check_true_for_secondary(lambda driver: get("#{0}/@cell_bundle_id".format(custom_area_id), driver=driver) == custom_bundle_id)
+        self._check_true_for_secondary(lambda driver: str(default_area_id) in get("//sys/areas", driver=driver))
+        self._check_true_for_secondary(lambda driver: str(custom_area_id) in get("//sys/areas", driver=driver))
+
+        remove_tablet_cell_bundle("custom")
+
+        self._check_true_for_secondary(lambda driver: str(default_area_id) not in get("//sys/areas", driver=driver))
+        self._check_true_for_secondary(lambda driver: str(custom_area_id) not in get("//sys/areas", driver=driver))
 
     @authors("savrus")
     @flaky(max_runs=5)

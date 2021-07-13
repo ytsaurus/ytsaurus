@@ -919,6 +919,11 @@ public:
             return;
         }
 
+        if (area->GetName() == DefaultAreaName) {
+            // NB: Restrict default area name change to avoid attribute replication problems.
+            THROW_ERROR_EXCEPTION("Cannot change default area name");
+        }
+
         ValidateAreaName(newName);
 
         auto* cellBundle = area->GetCellBundle();
@@ -2218,6 +2223,14 @@ private:
             objectManager->ReplicateObjectCreationToSecondaryMaster(cellBundle, cellTag);
         }
 
+        auto areas = GetValuesSortedByKey(AreaMap_);
+        for (auto* area : areas) {
+            if (area->GetId() == ReplaceTypeInId(area->GetCellBundle()->GetId(), EObjectType::Area)) {
+                continue;
+            }
+            objectManager->ReplicateObjectCreationToSecondaryMaster(area, cellTag);
+        }
+
         auto cells = GetValuesSortedByKey(CellMap_);
         for (auto* cell : cells) {
             objectManager->ReplicateObjectCreationToSecondaryMaster(cell, cellTag);
@@ -2231,6 +2244,11 @@ private:
         auto cellBundles = GetValuesSortedByKey(CellBundleMap_);
         for (auto* cellBundle : cellBundles) {
             objectManager->ReplicateObjectAttributesToSecondaryMaster(cellBundle, cellTag);
+        }
+
+        auto areas = GetValuesSortedByKey(AreaMap_);
+        for (auto* area : areas) {
+            objectManager->ReplicateObjectAttributesToSecondaryMaster(area, cellTag);
         }
 
         auto cells = GetValuesSortedByKey(CellMap_);
