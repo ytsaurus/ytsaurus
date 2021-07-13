@@ -126,7 +126,7 @@ struct TProtobufStructuredRowStream
     const ::google::protobuf::Descriptor* Descriptor = nullptr;
 };
 
-/// Tag class to specify type of rows in an operation row stream 
+/// Tag class to specify type of rows in an operation row stream
 using TStructuredRowStreamDescription = ::TVariant<
     TVoidStructuredRowStream,
     TTNodeStructuredRowStream,
@@ -356,7 +356,7 @@ public:
     /// Set direct map output table path no. `tableIndex`.
     TDerived& SetMapOutput(size_t tableIndex, const TRichYPath& path);
 
-    /// Get all direct map output table paths 
+    /// Get all direct map output table paths
     const TVector<TRichYPath>& GetMapOutputs() const;
 
 private:
@@ -509,7 +509,7 @@ struct TUserOperationSpecBase
     /// On any unsuccessful job completion (i.e. abortion or failure) force the whole operation to fail.
     FLUENT_FIELD_OPTION(bool, FailOnJobRestart);
 
-    /// 
+    ///
     /// @brief Table to save whole stderr of operation.
     ///
     /// @see https://clubs.at.yandex-team.ru/yt/1045
@@ -557,7 +557,7 @@ struct TIntermediateTablesHintSpec
     /// Specify reduce combiner input.
     template <class T>
     TDerived& HintReduceCombinerInput();
-    
+
     /// Specify reduce combiner output.
     template <class T>
     TDerived& HintReduceCombinerOutput();
@@ -759,14 +759,14 @@ struct TMapOperationSpecBase
 
     ///
     /// @brief Whether to guarantee the order of rows passed to mapper matches the order in the table.
-    /// 
+    ///
     /// When `Ordered' is false (by default), there is no guaranties about order of reading rows.
     /// In this case mapper might work slightly faster because row delivered from fast node can be processed YT waits
     /// response from slow nodes.
     /// When `Ordered' is true, rows will come in order in which they are stored in input tables.
     FLUENT_FIELD_OPTION(bool, Ordered);
 
-    /// 
+    ///
     /// @brief Recommended number of jobs to run.
     ///
     /// `JobCount' has higher priority than @ref NYT::TMapOperationSpecBase::DataSizePerJob.
@@ -835,7 +835,7 @@ struct TReduceOperationSpecBase
     /// @brief Guarantee to feed all rows with same `ReduceBy` columns to a single job (`true` by default).
     FLUENT_FIELD_OPTION(bool, EnableKeyGuarantee);
 
-    /// 
+    ///
     /// @brief Recommended number of jobs to run.
     ///
     /// `JobCount' has higher priority than @ref NYT::TReduceOperationSpecBase::DataSizePerJob.
@@ -893,8 +893,8 @@ struct TJoinReduceOperationSpecBase
     ///
     /// @see https://yt.yandex-team.ru/docs/description/mr/reduce#foreign_tables
     FLUENT_FIELD(TKeyColumns, JoinBy);
-   
-    /// 
+
+    ///
     /// @brief Recommended number of jobs to run.
     ///
     /// `JobCount' has higher priority than @ref NYT::TJoinReduceOperationSpecBase::DataSizePerJob.
@@ -966,7 +966,7 @@ struct TMapReduceOperationSpecBase
     /// @brief Columns to group rows by.
     FLUENT_FIELD(TKeyColumns, ReduceBy);
 
-    /// 
+    ///
     /// @brief Recommended number of map jobs to run.
     ///
     /// `JobCount' has higher priority than @ref NYT::TMapReduceOperationSpecBase::DataSizePerMapJob.
@@ -998,7 +998,7 @@ struct TMapReduceOperationSpecBase
 
     ///
     /// @brief Whether to guarantee the order of rows passed to mapper matches the order in the table.
-    /// 
+    ///
     /// @see @ref NYT::TMapOperationSpec::Ordered for more info.
     FLUENT_FIELD_OPTION(bool, Ordered);
 
@@ -1081,8 +1081,8 @@ struct TSortOperationSpec
     ///
     /// @brief Recommended size of intermediate data partitions.
     FLUENT_FIELD_OPTION(ui64, PartitionDataSize);
-    
-    /// 
+
+    ///
     /// @brief Recommended number of partition jobs to run.
     ///
     /// `JobCount' has higher priority than @ref NYT::TSortOperationSpec::DataSizePerPartitionJob.
@@ -1137,7 +1137,7 @@ struct TMergeOperationSpec
     ///
     /// @brief Columns by which to merge (for @ref NYT::EMergeMode::MM_SORTED).
     FLUENT_FIELD(TKeyColumns, MergeBy);
-    
+
     ///
     /// @brief Merge mode.
     FLUENT_FIELD_DEFAULT(EMergeMode, Mode, MM_UNORDERED);
@@ -1150,7 +1150,7 @@ struct TMergeOperationSpec
     /// @brief Guarantee that all input chunks will be read.
     FLUENT_FIELD_DEFAULT(bool, ForceTransform, false);
 
-    /// 
+    ///
     /// @brief Recommended number of jobs to run.
     ///
     /// `JobCount' has higher priority than @ref NYT::TMergeOperationSpec::DataSizePerJob.
@@ -1348,7 +1348,7 @@ struct TOperationOptions
     ///
     /// @brief Path to directory to store temporary files.
     FLUENT_FIELD_OPTION(TString, FileStorage);
-    
+
     ///
     /// @brief Info to be passed securely to the job.
     FLUENT_FIELD_OPTION(TNode, SecureVault);
@@ -1498,7 +1498,7 @@ public:
         /// @brief Specify renaming of input columns.
         TInputGroup& ColumnRenaming(const THashMap<TString, TString>& renaming);
 
-        /// @brief Specify what input columns to send to job 
+        /// @brief Specify what input columns to send to job
         ///
         /// @note Filter is applied before renaming, so it must specify original column names.
         TInputGroup& ColumnFilter(const TVector<TString>& columns);
@@ -1510,7 +1510,7 @@ public:
         TJobOperationPreparer& Preparer_;
         TVector<int> Indices_;
     };
-    
+
     ///
     /// @brief Group of output tables that allows to specify properties on all of them at once.
     ///
@@ -1583,7 +1583,7 @@ public:
     /// @brief Specify renaming of input columns for table no. `tableIndex`.
     TJobOperationPreparer& InputColumnRenaming(int tableIndex, const THashMap<TString, TString>& renaming);
 
-    /// @brief Specify what input columns of table no. `tableIndex` to send to job 
+    /// @brief Specify what input columns of table no. `tableIndex` to send to job
     ///
     /// @note Filter is applied before renaming, so it must specify original column names.
     TJobOperationPreparer& InputColumnFilter(int tableIndex, const TVector<TString>& columns);
@@ -2188,7 +2188,7 @@ struct TOperationAttributes
     ///
     /// @brief Operation id.
     TMaybe<TOperationId> Id;
-    
+
     ///
     /// @brief Operation type.
     TMaybe<EOperationType> Type;
@@ -2210,7 +2210,7 @@ struct TOperationAttributes
     TMaybe<TInstant> StartTime;
 
     ///
-    /// @brief Operation finish time (if the operation has finished). 
+    /// @brief Operation finish time (if the operation has finished).
     TMaybe<TInstant> FinishTime;
 
     ///
@@ -2324,7 +2324,7 @@ struct TListOperationsOptions
     ///
     /// @brief Choose operations with given @ref NYT::TOperationAttributes::Type.
     FLUENT_FIELD_OPTION(EOperationType, Type);
-    
+
     ///
     /// @brief Choose operations having (or not having) any failed jobs.
     FLUENT_FIELD_OPTION(bool, WithFailedJobs);
@@ -2471,9 +2471,9 @@ enum class ETaskName : int
 class TTaskName
 {
 public:
-    
+
     // Constructors are implicit by design.
-    
+
     ///
     /// @brief Construct a custom task name.
     TTaskName(TString taskName);
@@ -2811,7 +2811,7 @@ struct IOperation
 
     ///
     /// Get operation progress.
-    /// 
+    ///
     /// @return `Nothing()` if operation has no running jobs yet, e.g. when it is in "materializing" or "pending" state.
     virtual TMaybe<TOperationBriefProgress> GetBriefProgress() = 0;
 
