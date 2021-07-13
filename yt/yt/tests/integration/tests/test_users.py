@@ -485,6 +485,27 @@ class TestUsers(YTEnvSetup):
         set("//sys/@config/security_manager/enable_distributed_throttler", False)
         get("//tmp", authenticated_user="u")
 
+    @authors("gritukan")
+    def test_recomute_membership_closure_on_group_destruction(self):
+        create_user("u")
+        create_group("g1")
+        create_group("g2")
+
+        add_member("u", "g1")
+        add_member("g1", "g2")
+
+        assert_items_equal(get("//sys/users/u/@member_of_closure"), ["g1", "g2", "everyone", "users"])
+        assert_items_equal(get("//sys/groups/g1/@member_of_closure"), ["g2"])
+
+        # Disable periodic membership closure recomputation.
+        set("//sys/@config/security_manager/enable_delayed_membership_closure_recomputation", True)
+        set("//sys/@config/security_manager/membership_closure_recomputation_period", 10**8)
+
+        remove_group("g2")
+
+        assert_items_equal(get("//sys/users/u/@member_of_closure"), ["g1", "everyone", "users"])
+        assert_items_equal(get("//sys/groups/g1/@member_of_closure"), [])
+
 
 ##################################################################
 
