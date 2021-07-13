@@ -14,7 +14,7 @@ struct TCompactVectorOnHeapStorage;
 //! A vector-like structure optimized for storing elements inline
 //! and with little memory overhead.
 /*!
- *  Stores up to #N (<= 255) elements inline.
+ *  Stores up to #N (<= 254) elements inline.
  *
  *  When capacity starts exceeding #N, moves all elements to heap;
  *  \see #TCompactVectorOnHeapStorage.
@@ -122,9 +122,15 @@ public:
     template <class TIterator>
     void assign(TIterator first, TIterator last);
     void assign(std::initializer_list<T> list);
+    template <size_t OtherN>
+    void assign(const TCompactVector<T, OtherN>& other);
+    template <size_t OtherN>
+    void assign(TCompactVector<T, OtherN>&& other);
 
+    TCompactVector& operator=(const TCompactVector& other);
     template <size_t OtherN>
     TCompactVector& operator=(const TCompactVector<T, OtherN>& other);
+    TCompactVector& operator=(TCompactVector&& other);
     template <size_t OtherN>
     TCompactVector& operator=(TCompactVector<T, OtherN>&& other);
     TCompactVector& operator=(std::initializer_list<T> list);
@@ -192,13 +198,13 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T, size_t LhsN, size_t RhsN>
-bool operator==(const TCompactVector<T, LhsN>& lhs, TCompactVector<T, RhsN>& rhs);
+bool operator==(const TCompactVector<T, LhsN>& lhs, const TCompactVector<T, RhsN>& rhs);
 
 template <class T, size_t LhsN, size_t RhsN>
-bool operator!=(const TCompactVector<T, LhsN>& lhs, TCompactVector<T, RhsN>& rhs);
+bool operator!=(const TCompactVector<T, LhsN>& lhs, const TCompactVector<T, RhsN>& rhs);
 
 template <class T, size_t LhsN, size_t RhsN>
-bool operator<(const TCompactVector<T, LhsN>& lhs, TCompactVector<T, RhsN>& rhs);
+bool operator<(const TCompactVector<T, LhsN>& lhs, const TCompactVector<T, RhsN>& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
