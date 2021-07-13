@@ -350,14 +350,6 @@ def _create_py_schema(py_type, ti_type=None):
         raise YtError("Cannot create py_schema from type {}".format(py_type))
 
 
-def _create_row_py_schema(py_type, control_attributes=None):
-    assert is_yt_dataclass(py_type)
-    return RowSchema(
-        _create_struct_schema(py_type, allow_other_columns=True),
-        control_attributes=control_attributes,
-    )
-
-
 def _ti_type_to_wire_type(ti_type):
     if not hasattr(_ti_type_to_wire_type, "_dict"):
         _ti_type_to_wire_type._dict = {
