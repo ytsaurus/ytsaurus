@@ -1512,6 +1512,10 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
     } else if (chunk->GetPartLossTime(epoch)) {
         chunk->ResetPartLossTime(epoch);
     }
+
+    if (chunk->IsBlob() && chunk->GetEndorsementRequired()) {
+        ChunkIdsPendingEndorsementRegistration_.push_back(chunk->GetId());
+    }
 }
 
 void TChunkReplicator::ResetChunkStatus(TChunk* chunk)
@@ -1747,6 +1751,8 @@ void TChunkReplicator::OnRefresh()
     int aliveBlobCount = 0;
     int aliveJournalCount = 0;
 
+    ChunkIdsPendingEndorsementRegistration_.clear();
+
     YT_PROFILE_TIMING("/chunk_server/refresh_time") {
         doRefreshChunks(
             BlobRefreshScanner_,
@@ -1761,6 +1767,8 @@ void TChunkReplicator::OnRefresh()
             GetDynamicConfig()->MaxJournalChunksPerRefresh,
             GetDynamicConfig()->MaxTimePerJournalChunkRefresh);
     }
+
+    FlushEndorsementQueue();
 
     YT_LOG_DEBUG("Chunk refresh iteration completed (TotalBlobCount: %v, AliveBlobCount: %v, TotalJournalCount: %v, AliveJournalCount: %v)",
         totalBlobCount,
@@ -2320,6 +2328,27 @@ void TChunkReplicator::RemoveFromChunkRepairQueues(TChunkPtrWithIndexes chunkWit
             chunk->SetRepairQueueIterator(mediumIndex, queue, TChunkRepairQueueIterator());
         }
     }
+}
+
+void TChunkReplicator::FlushEndorsementQueue()
+{
+    if (ChunkIdsPendingEndorsementRegistration_.empty()) {
+        return;
+    }
+
+    NProto::TReqRegisterChunkEndorsements req;
+    ToProto(req.mutable_chunk_ids(), ChunkIdsPendingEndorsementRegistration_);
+    ChunkIdsPendingEndorsementRegistration_.clear();
+
+    YT_LOG_DEBUG("Scheduled chunk endorsement registration (EndorsementCount: %v)",
+        req.chunk_ids_size());
+
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    // Fire-and-forget. Mutation commit failure indicates the epoch change,
+    // and that results in refreshing all chunks once again.
+    chunkManager
+        ->CreateRegisterChunkEndorsementsMutation(req)
+        ->CommitAndLog(Logger);
 }
 
 const std::unique_ptr<TChunkScanner>& TChunkReplicator::GetChunkRefreshScanner(TChunk* chunk) const

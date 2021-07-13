@@ -161,6 +161,7 @@ DEFINE_ENUM(EMasterReign,
     ((SanitizeUnrecognizedOptionsAlert)                             (1635))  // gritukan
     ((Areas)                                                        (1636))  // savrus
     ((ChaosCellMaps)                                                (1637))  // savrus
+    ((AllyReplicas)                                                 (1638))  // ifsmirnov
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1700))  // ignat
 );

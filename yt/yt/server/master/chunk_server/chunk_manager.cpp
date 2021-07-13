@@ -452,6 +452,7 @@ public:
     {
         RegisterMethod(BIND(&TImpl::HydraConfirmChunkListsRequisitionTraverseFinished, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateChunkRequisition, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraRegisterChunkEndorsements, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraExportChunks, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraImportChunks, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraExecuteBatch, Unretained(this)));
@@ -552,6 +553,7 @@ public:
                     fluent
                         .Item("requisition_registry").Value(TSerializableChunkRequisitionRegistry(Bootstrap_->GetChunkManager()));
                 })
+                .Item("endorsement_count").Value(EndorsementCount_)
             .EndMap();
     }
 
@@ -571,6 +573,16 @@ public:
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             request,
             &TImpl::HydraConfirmChunkListsRequisitionTraverseFinished,
+            this);
+    }
+
+    std::unique_ptr<TMutation> CreateRegisterChunkEndorsementsMutation(
+        const NProto::TReqRegisterChunkEndorsements& request)
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            request,
+            &TImpl::HydraRegisterChunkEndorsements,
             this);
     }
 
@@ -1921,6 +1933,13 @@ private:
     i64 ChunkListsCreated_ = 0;
     i64 ChunkListsDestroyed_ = 0;
 
+    i64 ImmediateAllyReplicasAnnounced_ = 0;
+    i64 DelayedAllyReplicasAnnounced_ = 0;
+    i64 LazyAllyReplicasAnnounced_ = 0;
+    i64 EndorsementsAdded_ = 0;
+    i64 EndorsementsConfirmed_ = 0;
+    i64 EndorsementCount_ = 0;
+
     TChunkPlacementPtr ChunkPlacement_;
     TChunkReplicatorPtr ChunkReplicator_;
     IChunkSealerPtr ChunkSealer_;
@@ -2058,6 +2077,10 @@ private:
 
         UnregisterChunk(chunk);
 
+        if (auto* node = chunk->GetNodeWithEndorsement()) {
+            RemoveEndorsement(chunk, node);
+        }
+
         ++ChunksDestroyed_;
     }
 
@@ -2179,9 +2202,22 @@ private:
                 continue;
             }
             for (auto replica : replicas) {
-                RemoveChunkReplica(medium, node, replica, ERemoveReplicaReason::NodeDisposed);
+                bool approved = !node->HasUnapprovedReplica(replica);
+                RemoveChunkReplica(
+                    medium,
+                    node,
+                    replica,
+                    ERemoveReplicaReason::NodeDisposed,
+                    approved);
+
+                auto* chunk = replica.GetPtr();
+                if (!medium->GetCache() && chunk->IsBlob()) {
+                    ScheduleEndorsement(chunk);
+                }
             }
         }
+
+        DiscardEndorsements(node);
 
         node->ClearReplicas();
 
@@ -2232,9 +2268,104 @@ private:
         }
     }
 
+    bool IsExactlyReplicatedByApprovedReplicas(const TChunk* chunk)
+    {
+        YT_VERIFY(chunk->IsBlob());
+
+        int physicalReplicaCount = chunk->GetAggregatedPhysicalReplicationFactor(
+            GetChunkRequisitionRegistry());
+        int approvedReplicaCount = chunk->GetApprovedReplicaCount();
+
+        return physicalReplicaCount == approvedReplicaCount;
+    }
+
+    void DiscardEndorsements(TNode* node)
+    {
+        // This node might be the last replica for some chunks.
+        for (auto [chunk, revision] : node->ReplicaEndorsements()) {
+            YT_VERIFY(chunk->GetNodeWithEndorsement() == node);
+            chunk->SetNodeWithEndorsement(nullptr);
+        }
+        EndorsementCount_ -= ssize(node->ReplicaEndorsements());
+        node->ReplicaEndorsements().clear();
+    }
+
+    template <class TResponse>
+    void SetAnnounceReplicaRequests(
+        TResponse* response,
+        TNode* node,
+        const std::vector<TChunk*>& chunks)
+    {
+        const auto& dynamicConfig = GetDynamicConfig()->AllyReplicaManager;
+        if (!dynamicConfig->EnableAllyReplicaAnnouncement) {
+            return;
+        }
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        int safeOnlineNodeCount = dynamicConfig->SafeOnlineNodeCount.value_or(
+            GetDynamicConfig()->SafeOnlineNodeCount);
+        bool enoughOnlineNodes = nodeTracker->GetOnlineNodeCount() >=
+            safeOnlineNodeCount;
+        // Other criteria may apper later.
+        bool clusterIsStableEnough = enoughOnlineNodes;
+
+        if (multicellManager->IsPrimaryMaster()) {
+            response->set_enable_lazy_replica_announcements(clusterIsStableEnough);
+        }
+
+        auto onChunk = [&] (TChunk* chunk, bool confirmationNeeded) {
+            // Fast path: no need to announce replicas of chunks with RF=1.
+            if (!chunk->IsErasure() &&
+                chunk->GetAggregatedPhysicalReplicationFactor(GetChunkRequisitionRegistry()) <= 1)
+            {
+                return;
+            }
+
+            auto* request = response->add_replica_announcement_requests();
+            ToProto(request->mutable_chunk_id(), chunk->GetId());
+            ToProto(request->mutable_replicas(), chunk->StoredReplicas());
+            request->set_confirmation_needed(confirmationNeeded);
+
+            if (!clusterIsStableEnough) {
+                request->set_lazy(true);
+                ++LazyAllyReplicasAnnounced_;
+            } else if (!IsExactlyReplicatedByApprovedReplicas(chunk)) {
+                request->set_delay(ToProto<i64>(
+                    dynamicConfig->UnderreplicatedChunkAnnouncementRequestDelay));
+                ++DelayedAllyReplicasAnnounced_;
+            } else {
+                ++ImmediateAllyReplicasAnnounced_;
+            }
+        };
+
+        for (auto* chunk : chunks) {
+            onChunk(chunk, false);
+        }
+
+        if (dynamicConfig->EnableEndorsements) {
+            if (clusterIsStableEnough) {
+                auto currentRevision = GetCurrentMutationContext()->GetVersion().ToRevision();
+                for (auto& [chunk, revision] : node->ReplicaEndorsements()) {
+                    revision = currentRevision;
+                    onChunk(chunk, true);
+                }
+            }
+        } else if (!node->ReplicaEndorsements().empty()) {
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Discarded endorsements from node "
+                "since endorsements are not enabled (NodeId: %v, Address: %v, EndorsementCount: %v)",
+                node->GetId(),
+                node->GetDefaultAddress(),
+                node->ReplicaEndorsements().size());
+            DiscardEndorsements(node);
+        }
+    }
+
     void OnFullDataNodeHeartbeat(
         TNode* node,
-        NDataNodeTrackerClient::NProto::TReqFullHeartbeat* request)
+        NDataNodeTrackerClient::NProto::TReqFullHeartbeat* request,
+        NDataNodeTrackerClient::NProto::TRspFullHeartbeat* response)
     {
         for (const auto& [mediumIndex, mediumReplicas] : node->Replicas()) {
             YT_VERIFY(mediumReplicas.empty());
@@ -2245,27 +2376,127 @@ private:
             node->ReserveReplicas(mediumIndex, stats.chunk_count());
         }
 
+        std::vector<TChunk*> announceReplicaRequests;
+        announceReplicaRequests.reserve(request->chunks().size());
+
         for (const auto& chunkInfo : request->chunks()) {
-            ProcessAddedChunk(node, chunkInfo, false);
+            if (auto* chunk = ProcessAddedChunk(node, chunkInfo, false)) {
+                if (chunk->IsBlob()) {
+                    announceReplicaRequests.push_back(chunk);
+                }
+            }
         }
+
+        response->set_revision(GetCurrentMutationContext()->GetVersion().ToRevision());
+        SetAnnounceReplicaRequests(response, node, announceReplicaRequests);
 
         if (ChunkPlacement_) {
             ChunkPlacement_->OnNodeUpdated(node);
         }
     }
 
+    void ScheduleEndorsement(TChunk* chunk)
+    {
+        if (!chunk->GetEndorsementRequired()) {
+            chunk->SetEndorsementRequired(true);
+            ScheduleChunkRefresh(chunk);
+        }
+    }
+
+    void RegisterEndorsement(TChunk* chunk)
+    {
+        if (!GetDynamicConfig()->AllyReplicaManager->EnableEndorsements) {
+            return;
+        }
+
+        TNode* nodeWithMaxId = nullptr;
+
+        for (auto replica : chunk->StoredReplicas()) {
+            auto* medium = FindMediumByIndex(replica.GetMediumIndex());
+            if (!medium || medium->GetCache()) {
+                continue;
+            }
+
+            // We do not care about approvedness.
+            auto* node = replica.GetPtr();
+            if (!nodeWithMaxId || node->GetId() > nodeWithMaxId->GetId()) {
+                nodeWithMaxId = node;
+            }
+        }
+
+        if (!nodeWithMaxId) {
+            return;
+        }
+
+        if (auto* formerNode = chunk->GetNodeWithEndorsement()) {
+            if (formerNode == nodeWithMaxId) {
+                return;
+            }
+
+            YT_VERIFY(formerNode->ReplicaEndorsements().erase(chunk) == 1);
+            --EndorsementCount_;
+        }
+
+        chunk->SetNodeWithEndorsement(nodeWithMaxId);
+        nodeWithMaxId->ReplicaEndorsements().emplace(chunk, NullRevision);
+        ++EndorsementsAdded_;
+        ++EndorsementCount_;
+
+        YT_LOG_TRACE_IF(IsMutationLoggingEnabled(),
+            "Chunk replica endorsement added (ChunkId: %v, NodeId: %v, Address: %v)",
+            chunk->GetId(),
+            nodeWithMaxId->GetId(),
+            nodeWithMaxId->GetDefaultAddress());
+    }
+
+    void RemoveEndorsement(TChunk* chunk, TNode* node)
+    {
+        if (chunk->GetNodeWithEndorsement() != node) {
+            return;
+        }
+        YT_VERIFY(node->ReplicaEndorsements().erase(chunk) == 1);
+        chunk->SetNodeWithEndorsement(nullptr);
+        --EndorsementCount_;
+    }
+
     void OnIncrementalDataNodeHeartbeat(
         TNode* node,
-        NDataNodeTrackerClient::NProto::TReqIncrementalHeartbeat* request)
+        NDataNodeTrackerClient::NProto::TReqIncrementalHeartbeat* request,
+        NDataNodeTrackerClient::NProto::TRspIncrementalHeartbeat* response)
     {
         node->ShrinkHashTables();
 
-        for (const auto& chunkInfo : request->added_chunks()) {
-            ProcessAddedChunk(node, chunkInfo, true);
+        for (const auto& protoRequest : request->confirmed_replica_announcement_requests()) {
+            auto chunkId = FromProto<TChunkId>(protoRequest.chunk_id());
+            auto revision = FromProto<ui64>(protoRequest.revision());
+
+            if (auto* chunk = FindChunk(chunkId); IsObjectAlive(chunk)) {
+                auto it = node->ReplicaEndorsements().find(chunk);
+                if (it != node->ReplicaEndorsements().end() && it->second == revision) {
+                    RemoveEndorsement(chunk, node);
+                    ++EndorsementsConfirmed_;
+                }
+            }
         }
 
+        std::vector<TChunk*> announceReplicaRequests;
+        for (const auto& chunkInfo : request->added_chunks()) {
+            if (auto* chunk = ProcessAddedChunk(node, chunkInfo, true)) {
+                if (chunk->IsBlob()) {
+                    announceReplicaRequests.push_back(chunk);
+                }
+            }
+        }
+
+        response->set_revision(GetCurrentMutationContext()->GetVersion().ToRevision());
+        SetAnnounceReplicaRequests(response, node, announceReplicaRequests);
+
         for (const auto& chunkInfo : request->removed_chunks()) {
-            ProcessRemovedChunk(node, chunkInfo);
+            if (auto* chunk = ProcessRemovedChunk(node, chunkInfo)) {
+                if (IsObjectAlive(chunk) && chunk->IsBlob()) {
+                    ScheduleEndorsement(chunk);
+                }
+            }
         }
 
         const auto* mutationContext = GetCurrentMutationContext();
@@ -2287,7 +2518,7 @@ private:
                 // This also removes replica from unapproved set.
                 auto mediumIndex = replica.GetMediumIndex();
                 const auto* medium = GetMediumByIndex(mediumIndex);
-                RemoveChunkReplica(medium, node, replica, reason);
+                RemoveChunkReplica(medium, node, replica, reason, /*approved*/ false);
             }
         }
 
@@ -2435,6 +2666,40 @@ private:
         for (const auto& update : updates) {
             requisitionRegistry->Unref(update.TranslatedRequisitionIndex, objectManager);
         }
+    }
+
+    void HydraRegisterChunkEndorsements(NProto::TReqRegisterChunkEndorsements* request)
+    {
+        constexpr static int MaxChunkIdsPerLogMessage = 100;
+
+        std::vector<TChunkId> logQueue;
+        auto maybeFlushLogQueue = [&] (bool force) {
+            if (force || ssize(logQueue) >= MaxChunkIdsPerLogMessage) {
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                    "Registered endorsements for chunks (ChunkIds: %v)",
+                    logQueue);
+                logQueue.clear();
+            }
+        };
+
+        for (const auto& protoChunkId : request->chunk_ids()) {
+            auto chunkId = FromProto<TChunkId>(protoChunkId);
+            auto* chunk = FindChunk(chunkId);
+            if (!IsObjectAlive(chunk)) {
+                continue;
+            }
+            if (!chunk->GetEndorsementRequired()) {
+                continue;
+            }
+
+            RegisterEndorsement(chunk);
+            chunk->SetEndorsementRequired(false);
+
+            logQueue.push_back(chunk->GetId());;
+            maybeFlushLogQueue(false);
+        }
+
+        maybeFlushLogQueue(true);
     }
 
     struct TRequisitionUpdate
@@ -2975,6 +3240,15 @@ private:
             RegisterMedium(medium);
         }
 
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        for (auto [id, node] : nodeTracker->Nodes()) {
+            for (auto [chunk, revision] : node->ReplicaEndorsements()) {
+                YT_VERIFY(!chunk->GetNodeWithEndorsement());
+                chunk->SetNodeWithEndorsement(node);
+            }
+            EndorsementCount_ += ssize(node->ReplicaEndorsements());
+        }
+
         InitBuiltins();
 
         if (NeedFixTrunkNodeInvalidDeltaStatistics_) {
@@ -3040,6 +3314,13 @@ private:
         ChunkViewsDestroyed_ = 0;
         ChunkListsCreated_ = 0;
         ChunkListsDestroyed_ = 0;
+
+        ImmediateAllyReplicasAnnounced_ = 0;
+        DelayedAllyReplicasAnnounced_ = 0;
+        LazyAllyReplicasAnnounced_ = 0;
+        EndorsementsAdded_ = 0;
+        EndorsementsConfirmed_ = 0;
+        EndorsementCount_ = 0;
 
         DefaultStoreMedium_ = nullptr;
         DefaultCacheMedium_ = nullptr;
@@ -3445,7 +3726,9 @@ private:
             return;
         }
 
-        chunk->AddReplica(nodeWithIndexes, medium);
+        bool approved = reason == EAddReplicaReason::FullHeartbeat ||
+            reason == EAddReplicaReason::IncrementalHeartbeat;
+        chunk->AddReplica(nodeWithIndexes, medium, approved);
 
         if (IsMutationLoggingEnabled()) {
             YT_LOG_EVENT(
@@ -3499,7 +3782,8 @@ private:
         const TMedium* medium,
         TNode* node,
         TChunkPtrWithIndexes chunkWithIndexes,
-        ERemoveReplicaReason reason)
+        ERemoveReplicaReason reason,
+        bool approved)
     {
         auto* chunk = chunkWithIndexes.GetPtr();
         bool cached = medium->GetCache();
@@ -3514,7 +3798,7 @@ private:
             return;
         }
 
-        chunk->RemoveReplica(nodeWithIndexes, medium);
+        chunk->RemoveReplica(nodeWithIndexes, medium, approved);
 
         switch (reason) {
             case ERemoveReplicaReason::IncrementalHeartbeat:
@@ -3570,7 +3854,7 @@ private:
         }
     }
 
-    void ProcessAddedChunk(
+    TChunk* ProcessAddedChunk(
         TNode* node,
         const TChunkAddInfo& chunkAddInfo,
         bool incremental)
@@ -3586,7 +3870,7 @@ private:
                 nodeId,
                 node->GetDefaultAddress(),
                 chunkIdWithIndexes);
-            return;
+            return nullptr;
         }
 
         bool cached = medium->GetCache();
@@ -3596,7 +3880,7 @@ private:
             if (cached) {
                 // Nodes may still contain cached replicas of chunks that no longer exist.
                 // We just silently ignore this case.
-                return;
+                return nullptr;
             }
 
             auto isUnknown = node->AddDestroyedReplica(chunkIdWithIndexes);
@@ -3611,7 +3895,7 @@ private:
                 ChunkReplicator_->ScheduleUnknownReplicaRemoval(node, chunkIdWithIndexes);
             }
 
-            return;
+            return nullptr;
         }
 
         auto state = GetAddedChunkReplicaState(chunk, chunkAddInfo);
@@ -3629,9 +3913,11 @@ private:
                 chunkWithIndexes,
                 incremental ? EAddReplicaReason::IncrementalHeartbeat : EAddReplicaReason::FullHeartbeat);
         }
+
+        return chunk;
     }
 
-    void ProcessRemovedChunk(
+    TChunk* ProcessRemovedChunk(
         TNode* node,
         const TChunkRemoveInfo& chunkInfo)
     {
@@ -3645,7 +3931,7 @@ private:
                 nodeId,
                 node->GetDefaultAddress(),
                 chunkIdWithIndexes);
-            return;
+            return nullptr;
         }
 
         auto* chunk = FindChunk(chunkIdWithIndex.Id);
@@ -3658,18 +3944,22 @@ private:
                 chunkIdWithIndexes,
                 node->GetDefaultAddress(),
                 nodeId);
-            return;
+            return nullptr;
         }
 
         TChunkPtrWithIndexes chunkWithIndexes(
             chunk,
             chunkIdWithIndexes.ReplicaIndex,
             chunkIdWithIndexes.MediumIndex);
+        bool approved = !node->HasUnapprovedReplica(chunkWithIndexes);
         RemoveChunkReplica(
             medium,
             node,
             chunkWithIndexes,
-            ERemoveReplicaReason::IncrementalHeartbeat);
+            ERemoveReplicaReason::IncrementalHeartbeat,
+            approved);
+
+        return chunk;
     }
 
 
@@ -3805,6 +4095,23 @@ private:
         buffer.AddGauge("/chunk_list_count", ChunkListMap_.GetSize());
         buffer.AddCounter("/chunk_lists_created", ChunkListsCreated_);
         buffer.AddCounter("/chunk_lists_destroyed", ChunkListsDestroyed_);
+
+        {
+            TWithTagGuard guard(&buffer, TTag{"mode", "immediate"});
+            buffer.AddCounter("/ally_replicas_announced", ImmediateAllyReplicasAnnounced_);
+        }
+        {
+            TWithTagGuard guard(&buffer, TTag{"mode", "delayed"});
+            buffer.AddCounter("/ally_replicas_announced", DelayedAllyReplicasAnnounced_);
+        }
+        {
+            TWithTagGuard guard(&buffer, TTag{"mode", "lazy"});
+            buffer.AddCounter("/ally_replicas_announced", LazyAllyReplicasAnnounced_);
+        }
+
+        buffer.AddGauge("/endorsement_count", EndorsementCount_);
+        buffer.AddCounter("/endorsements_added", EndorsementsAdded_);
+        buffer.AddCounter("/endorsements_confirmed", EndorsementsConfirmed_);
 
         buffer.AddGauge("/lost_chunk_count", LostChunks().size());
         buffer.AddGauge("/lost_vital_chunk_count", LostVitalChunks().size());
@@ -4212,6 +4519,12 @@ std::unique_ptr<NHydra::TMutation> TChunkManager::CreateConfirmChunkListsRequisi
     const NProto::TReqConfirmChunkListsRequisitionTraverseFinished& request)
 {
     return Impl_->CreateConfirmChunkListsRequisitionTraverseFinishedMutation(request);
+}
+
+std::unique_ptr<NHydra::TMutation> TChunkManager::CreateRegisterChunkEndorsementsMutation(
+    const NProto::TReqRegisterChunkEndorsements& request)
+{
+    return Impl_->CreateRegisterChunkEndorsementsMutation(request);
 }
 
 std::unique_ptr<TMutation> TChunkManager::CreateExportChunksMutation(TCtxExportChunksPtr context)

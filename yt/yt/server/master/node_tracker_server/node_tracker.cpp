@@ -1142,7 +1142,7 @@ private:
     void HydraFullHeartbeat(
         const TCtxFullHeartbeatPtr& /*context*/,
         TReqFullHeartbeat* request,
-        TRspFullHeartbeat* /*response*/)
+        TRspFullHeartbeat* response)
     {
         auto nodeId = request->node_id();
         auto& statistics = *request->mutable_statistics();
@@ -1174,10 +1174,12 @@ private:
 
             {
                 NDataNodeTrackerClient::NProto::TReqFullHeartbeat req;
+                NDataNodeTrackerClient::NProto::TRspFullHeartbeat rsp;
                 FromFullHeartbeatRequest(&req, *request);
 
                 const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-                dataNodeTracker->ProcessFullHeartbeat(node, &req);
+                dataNodeTracker->ProcessFullHeartbeat(node, &req, &rsp);
+                FillFullHeartbeatResponse(response, rsp);
             }
 
             if (multicellManager->IsPrimaryMaster()) {

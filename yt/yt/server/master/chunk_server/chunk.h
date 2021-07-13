@@ -96,6 +96,12 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, ExpirationTime);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TChunkExpirationMapIterator>, ExpirationIterator);
 
+    DEFINE_BYVAL_RW_PROPERTY(NNodeTrackerServer::TNode*, NodeWithEndorsement);
+
+    //! Indicates that the list of replicas has changed and endorsement
+    //! for ally replicas announcement should be registered.
+    DEFINE_BYVAL_RW_PROPERTY(bool, EndorsementRequired);
+
 public:
     explicit TChunk(TChunkId id);
 
@@ -134,11 +140,12 @@ public:
     //! For erasure chunks, this array is directly addressed by replica indexes; at most one replica is kept per part.
     const TLastSeenReplicas& LastSeenReplicas() const;
 
-    void AddReplica(TNodePtrWithIndexes replica, const TMedium* medium);
-    void RemoveReplica(TNodePtrWithIndexes replica, const TMedium* medium);
+    void AddReplica(TNodePtrWithIndexes replica, const TMedium* medium, bool approved);
+    void RemoveReplica(TNodePtrWithIndexes replica, const TMedium* medium, bool approved);
     TNodePtrWithIndexesList GetReplicas() const;
 
     void ApproveReplica(TNodePtrWithIndexes replica);
+    int GetApprovedReplicaCount() const;
 
     void Confirm(
         NChunkClient::NProto::TChunkInfo* chunkInfo,
@@ -215,6 +222,10 @@ public:
     //! the local and the external values. See #GetAggregatedReplication().
     int GetAggregatedReplicationFactor(int mediumIndex, const TChunkRequisitionRegistry* registry) const;
 
+    //! Returns the number of physical replicas the chunk should be replicated to.
+    //! Unlike similar methods, non-committed owners always contribute to this value.
+    int GetAggregatedPhysicalReplicationFactor(const TChunkRequisitionRegistry* registry) const;
+
     int GetReadQuorum() const;
     void SetReadQuorum(int value);
 
@@ -232,6 +243,9 @@ public:
 
     //! Returns |true| iff this is a journal chunk.
     bool IsJournal() const;
+
+    //! Returns |true| iff this is a blob chunk.
+    bool IsBlob() const;
 
     //! Returns |true| iff the chunk can be read immediately, i.e. without repair.
     /*!
@@ -333,6 +347,8 @@ private:
 
         //! Just all the stored replicas.
         TStoredReplicas StoredReplicas;
+        //! Number of approved replicas among stored.
+        int ApprovedReplicaCount = 0;
 
         //! Null entries are InvalidNodeId.
         TLastSeenReplicas LastSeenReplicas;

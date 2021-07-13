@@ -342,6 +342,11 @@ inline const TChunkReplication& TChunkRequisitionRegistry::GetReplication(TChunk
     return GetOrCrash(IndexToItem_, index).Replication;
 }
 
+inline const TPhysicalReplication& TChunkRequisitionRegistry::GetPhysicalReplication(TChunkRequisitionIndex index) const
+{
+    return GetOrCrash(IndexToItem_, index).PhysicalReplication;
+}
+
 inline TChunkRequisitionIndex TChunkRequisitionRegistry::GenerateIndex()
 {
     auto result = NextIndex_++;

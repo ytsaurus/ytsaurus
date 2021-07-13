@@ -207,6 +207,11 @@ public:
     using TChunkSealQueue = THashSet<TChunkPtrWithIndexes>;
     DEFINE_BYREF_RW_PROPERTY(TChunkSealQueue, ChunkSealQueue);
 
+    //! Chunk replica announcement requests that should be sent to the node upon next heartbeat.
+    //! Non-null revision means that the request was already sent and is pending confirmation.
+    using TEndorsementMap = THashMap<TChunk*, NHydra::TRevision>;
+    DEFINE_BYREF_RW_PROPERTY(TEndorsementMap, ReplicaEndorsements);
+
     // Cell Manager stuff.
     struct TCellSlot
     {

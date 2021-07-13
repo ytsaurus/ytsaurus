@@ -26,7 +26,10 @@ Y_FORCE_INLINE TChunkReplicaWithMedium::TChunkReplicaWithMedium(ui64 value)
     : Value(value)
 { }
 
-Y_FORCE_INLINE TChunkReplicaWithMedium::TChunkReplicaWithMedium(int nodeId, int replicaIndex, int mediumIndex)
+Y_FORCE_INLINE TChunkReplicaWithMedium::TChunkReplicaWithMedium(
+    NNodeTrackerClient::TNodeId nodeId,
+    int replicaIndex,
+    int mediumIndex)
     : Value(static_cast<ui64>(nodeId) | (static_cast<ui64>(replicaIndex) << 24) | (static_cast<ui64>(mediumIndex) << 29))
 {
     YT_ASSERT(nodeId >= 0 && nodeId <= static_cast<int>(NNodeTrackerClient::MaxNodeId));

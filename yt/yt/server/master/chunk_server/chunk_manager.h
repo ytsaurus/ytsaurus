@@ -54,6 +54,8 @@ public:
         const NProto::TReqUpdateChunkRequisition& request);
     std::unique_ptr<NHydra::TMutation> CreateConfirmChunkListsRequisitionTraverseFinishedMutation(
         const NProto::TReqConfirmChunkListsRequisitionTraverseFinished& request);
+    std::unique_ptr<NHydra::TMutation> CreateRegisterChunkEndorsementsMutation(
+        const NProto::TReqRegisterChunkEndorsements& request);
 
     using TCtxExportChunks = NRpc::TTypedServiceContext<
         NChunkClient::NProto::TReqExportChunks,

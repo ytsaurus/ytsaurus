@@ -189,6 +189,9 @@ private:
             .SetPresent(hasHunkChunkMiscExt));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TotalHunkLength)
             .SetPresent(hasHunkChunkMiscExt));
+        descriptors->push_back(EInternedAttributeKey::ApprovedReplicaCount);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EndorsementRequired)
+            .SetPresent(chunk->IsBlob()));
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -802,6 +805,19 @@ private:
                     return true;
                 }
                 break;
+
+            case EInternedAttributeKey::ApprovedReplicaCount:
+                BuildYsonFluently(consumer)
+                    .Value(chunk->GetApprovedReplicaCount());
+                return true;
+
+            case EInternedAttributeKey::EndorsementRequired:
+                if (!chunk->IsBlob()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(chunk->GetEndorsementRequired());
+                return true;
 
             default:
                 break;

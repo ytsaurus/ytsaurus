@@ -418,6 +418,20 @@ TChunkReplication TChunkRequisition::ToReplication() const
     return result;
 }
 
+TPhysicalReplication TChunkRequisition::ToPhysicalReplication() const
+{
+    TPhysicalReplication physicalReplication;
+
+    for (const auto& entry : Entries_) {
+        if (entry.MediumIndex != DefaultCacheMediumIndex) {
+            ++physicalReplication.MediumCount;
+            physicalReplication.ReplicaCount += entry.ReplicationPolicy.GetReplicationFactor();
+        }
+    }
+
+    return physicalReplication;
+}
+
 void TChunkRequisition::AggregateEntries(const TEntries& newEntries)
 {
     if (newEntries.empty()) {
@@ -569,7 +583,7 @@ void TChunkRequisitionRegistry::TIndexedItem::Save(NCellMaster::TSaveContext& co
     using NYT::Save;
     Save(context, RefCount);
     Save(context, Requisition);
-    // Replication is not persisted as it's restored from Requisition.
+    // Replication and PhysicalReplication are not persisted as they're restored from Requisition.
 }
 
 void TChunkRequisitionRegistry::TIndexedItem::Load(NCellMaster::TLoadContext& context)
@@ -578,6 +592,7 @@ void TChunkRequisitionRegistry::TIndexedItem::Load(NCellMaster::TLoadContext& co
     Load(context, RefCount);
     Load(context, Requisition);
     Replication = Requisition.ToReplication();
+    PhysicalReplication = Requisition.ToPhysicalReplication();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -708,6 +723,7 @@ TChunkRequisitionIndex TChunkRequisitionRegistry::Insert(
     TIndexedItem item;
     item.Requisition = requisition;
     item.Replication = requisition.ToReplication();
+    item.PhysicalReplication = requisition.ToPhysicalReplication();
     item.RefCount = 0; // This is ok, Ref()/Unref() will be called soon.
     YT_VERIFY(IndexToItem_.emplace(index, item).second);
     YT_VERIFY(RequisitionToIndex_.emplace(requisition, index).second);

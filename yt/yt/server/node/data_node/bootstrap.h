@@ -18,6 +18,7 @@ struct IBootstrap
 
     // Chunk storage.
     virtual const TChunkStorePtr& GetChunkStore() const = 0;
+    virtual const IAllyReplicaManagerPtr& GetAllyReplicaManager() const = 0;
 
     virtual const IChunkBlockManagerPtr& GetChunkBlockManager() const = 0;
 

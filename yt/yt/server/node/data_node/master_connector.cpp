@@ -2,6 +2,7 @@
 
 #include "bootstrap.h"
 #include "private.h"
+#include "ally_replica_manager.h"
 #include "chunk.h"
 #include "chunk_meta_manager.h"
 #include "chunk_store.h"
@@ -222,13 +223,22 @@ public:
             ++chunkEventCount;
         }
 
-
         delta->CurrentHeartbeatBarrier = delta->NextHeartbeatBarrier.Exchange(NewPromise<void>());
+
+        const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
+        auto unconfirmedAnnouncementRequests = allyReplicaManager->TakeUnconfirmedAnnouncementRequests(cellTag);
+        for (auto [chunkId, revision] : unconfirmedAnnouncementRequests) {
+            auto* protoRequest = heartbeat.add_confirmed_replica_announcement_requests();
+            ToProto(protoRequest->mutable_chunk_id(), chunkId);
+            protoRequest->set_revision(revision);
+        }
 
         return heartbeat;
     }
 
-    virtual void OnFullHeartbeatReported(TCellTag cellTag) override
+    virtual void OnFullHeartbeatResponse(
+        TCellTag cellTag,
+        const TRspFullHeartbeat& response) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -237,6 +247,18 @@ public:
         YT_VERIFY(delta->AddedSinceLastSuccess.empty());
         YT_VERIFY(delta->RemovedSinceLastSuccess.empty());
         YT_VERIFY(delta->ChangedMediumSinceLastSuccess.empty());
+
+        const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
+        if (!response.replica_announcement_requests().empty()) {
+            YT_VERIFY(response.has_revision());
+            allyReplicaManager->ScheduleAnnouncements(
+                MakeRange(response.replica_announcement_requests()),
+                response.revision(),
+                /*onFullHeartbeat*/ true);
+        }
+        if (response.has_enable_lazy_replica_announcements()) {
+            allyReplicaManager->SetEnableLazyAnnouncements(response.enable_lazy_replica_announcements());
+        }
     }
 
     virtual void OnIncrementalHeartbeatFailed(TCellTag cellTag) override
@@ -299,6 +321,17 @@ public:
             delta->ReportedChangedMedium.clear();
         }
 
+        const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
+        if (!response.replica_announcement_requests().empty()) {
+            YT_VERIFY(response.has_revision());
+            allyReplicaManager->ScheduleAnnouncements(
+                MakeRange(response.replica_announcement_requests()),
+                response.revision(),
+                /*onFullHeartbeat*/ false);
+        }
+        if (response.has_enable_lazy_replica_announcements()) {
+            allyReplicaManager->SetEnableLazyAnnouncements(response.enable_lazy_replica_announcements());
+        }
 
         if (cellTag == PrimaryMasterCellTag) {
             const auto& sessionManager = Bootstrap_->GetSessionManager();
@@ -599,7 +632,7 @@ private:
 
         auto rspOrError = WaitFor(req->Invoke());
         if (rspOrError.IsOK()) {
-            OnFullHeartbeatReported(cellTag);
+            OnFullHeartbeatResponse(cellTag, *rspOrError.Value());
 
             YT_LOG_INFO("Successfully reported full data node heartbeat to master (CellTag: %v)",
                 cellTag);
