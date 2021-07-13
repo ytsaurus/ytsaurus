@@ -46,6 +46,12 @@ class Row1:
     int32_field: Int64
 
 
+@yt_dataclass
+class SumRow:
+    key: str
+    sum: Int64
+
+
 ROW_DICTS = [
     {
         "int32_field": -(2 ** 31),
@@ -84,13 +90,22 @@ ROWS = [
     ),
 ]
 
-
+@yt.with_context
 class IdentityMapper(TypedJob):
-    def prepare_operation(self, context, preparer):
-        preparer.input(0, type=TheRow).output(0, type=TheRow)
+    def __init__(self, row_types=None):
+        if row_types is None:
+            row_types = [TheRow]
+        self._row_types = row_types
 
-    def __call__(self, row):
-        yield row
+    def prepare_operation(self, context, preparer):
+        for i, row_type in enumerate(self._row_types):
+            preparer.input(i, type=row_type).output(i, type=row_type)
+
+    def __call__(self, row, context):
+        yield OutputRow(row, table_index=context.get_table_index())
+
+    def get_intermediate_stream_count(self):
+        return len(self._row_types)
 
 
 class IdentityReducer(TypedJob):
@@ -104,12 +119,6 @@ class IdentityReducer(TypedJob):
 
 @yt.with_context
 class TwoOutputMapper(TypedJob):
-    def get_intermediate_stream_count(self):
-        if self._for_map_reduce:
-            return 2
-        else:
-            return 0
-
     def __init__(self, for_map_reduce):
         self._for_map_reduce = for_map_reduce
 
@@ -123,6 +132,9 @@ class TwoOutputMapper(TypedJob):
             Row1(int32_field=row.int32_field + 1, str_field="Mapped: " + row.str_field),
             table_index=1,
         )
+
+    def get_intermediate_stream_count(self):
+        return 2 if self._for_map_reduce else 0
 
 
 @yt.with_context
@@ -162,7 +174,41 @@ class TwoInputReducer(TypedJob):
                 yield TheRow(
                     int32_field=row.int32_field,
                     str_field=row.str_field,
+                    struct_field=Struct(str_field="foo", uint8_field=12),
                 )
+
+
+class SummingReducer(TypedJob):
+    def prepare_operation(self, context, preparer):
+        preparer.input(0, type=TheRow).output(0, type=SumRow)
+
+    def __call__(self, rows):
+        s = 0
+        key = None
+        for row in rows:
+            key = row.str_field
+            s += row.int32_field
+        assert key is not None
+        yield SumRow(key=key, sum=s)
+
+
+class TwoInputSummingReducer(TypedJob):
+    def prepare_operation(self, context, preparer):
+        preparer.input(0, type=TheRow).input(1, type=Row1).output(0, type=SumRow)
+
+    def __call__(self, rows):
+        s = 0
+        key = None
+        for ctx, row in rows.with_context():
+            if ctx.get_table_index() == 0:
+                assert isinstance(row, TheRow)
+            else:
+                assert ctx.get_table_index() == 1
+                assert isinstance(row, Row1)
+            key = row.str_field
+            s += row.int32_field
+        assert key is not None
+        yield SumRow(key=key, sum=s)
 
 
 TWO_OUTPUT_MAPPER_ROWS_SECOND_TABLE = [
@@ -177,7 +223,24 @@ TWO_OUTPUT_MAPPER_ROWS_SECOND_TABLE = [
 ]
 
 
-ROW_DICTS_SEVERAL_INTERMEDIATE_STREAMS = ROW_DICTS + TWO_OUTPUT_MAPPER_ROWS_SECOND_TABLE
+TWO_INPUT_REDUCER_OUTPUT_ROWS = ROW_DICTS + [
+    {
+        "int32_field": -(2 ** 31) + 1,
+        "str_field": "Mapped: Привет, мир",
+        "struct_field": {
+            "str_field": "foo",
+            "uint8_field": 12,
+        },
+    },
+    {
+        "int32_field": -123 + 1,
+        "str_field": "Mapped: spam",
+        "struct_field": {
+            "str_field": "foo",
+            "uint8_field": 12,
+        },
+    },
+]
 
 
 @pytest.mark.usefixtures("yt_env_v4")
@@ -309,15 +372,11 @@ class TestTypedApi(object):
             spec={"max_failed_job_count": 1},
         )
         read_rows = list(yt.read_table(output_table))
-        for row in read_rows:
-            assert "struct_field" in row
-            if row["struct_field"] is None:
-                del row["struct_field"]
 
         def sort_key(d):
             return (d["int32_field"], "struct_field" not in d)
 
-        assert sorted(read_rows, key=sort_key) == sorted(ROW_DICTS_SEVERAL_INTERMEDIATE_STREAMS, key=sort_key)
+        assert sorted(read_rows, key=sort_key) == sorted(TWO_INPUT_REDUCER_OUTPUT_ROWS, key=sort_key)
 
     @authors("levysotsky")
     def test_map_reduce_trivial_mapper_several_intermediate_streams(self):
@@ -342,15 +401,107 @@ class TestTypedApi(object):
             spec={"max_failed_job_count": 1},
         )
         read_rows = list(yt.read_table(output_table))
-        for row in read_rows:
-            assert "struct_field" in row
-            if row["struct_field"] is None:
-                del row["struct_field"]
 
         def sort_key(d):
             return (d["int32_field"], "struct_field" not in d)
 
-        assert sorted(read_rows, key=sort_key) == sorted(ROW_DICTS_SEVERAL_INTERMEDIATE_STREAMS, key=sort_key)
+        assert sorted(read_rows, key=sort_key) == sorted(TWO_INPUT_REDUCER_OUTPUT_ROWS, key=sort_key)
+
+    
+    def _do_test_grouping(self, input_rows, row_types, expected_output_rows, reducer):
+        table_count = len(input_rows)
+        input_tables = ["//tmp/input_{}".format(i) for i in range(table_count)]
+        for input_table, row_type, rows in zip(input_tables, row_types, input_rows):
+            yt.remove(input_table, force=True)
+            yt.create_table(input_table, attributes={"schema": TableSchema.from_row_type(row_type)})
+            yt.write_table(input_table, rows)
+        output_table = "//tmp/output"
+
+        def sort_key(d):
+            return d["key"]
+        
+        yt.run_map_reduce(
+            mapper=IdentityMapper(row_types),
+            reducer=reducer,
+            source_table=input_tables,
+            destination_table=output_table,
+            reduce_by=["str_field"],
+            spec={"max_failed_job_count": 1},
+        )
+
+        assert sorted(yt.read_table(output_table), key=sort_key) == expected_output_rows
+
+        yt.run_map_reduce(
+            mapper=None,
+            reducer=reducer,
+            source_table=input_tables,
+            destination_table=output_table,
+            reduce_by=["str_field"],
+            spec={"max_failed_job_count": 1},
+        )
+
+        assert sorted(yt.read_table(output_table), key=sort_key) == expected_output_rows
+
+        for input_table in input_tables:
+            yt.run_sort(input_table, sort_by="str_field")
+
+        yt.run_reduce(
+            reducer,
+            source_table=input_tables,
+            destination_table=output_table,
+            reduce_by=["str_field"],
+            spec={"max_failed_job_count": 1},
+        )
+
+        assert sorted(yt.read_table(output_table), key=sort_key) == expected_output_rows
+
+    @authors("levysotsky")
+    def test_grouping_single_input(self):
+        rows = [
+            [
+                {"int32_field": 10, "str_field": "b"},
+                {"int32_field": 10, "str_field": "b"},
+                {"int32_field": 10, "str_field": "c"},
+                {"int32_field": 10, "str_field": "a"},
+                {"int32_field": 10, "str_field": "a"},
+                {"int32_field": 10, "str_field": "a"},
+            ],
+        ]
+        
+        expected_rows = [
+            {"key": "a", "sum": 30},
+            {"key": "b", "sum": 20},
+            {"key": "c", "sum": 10},
+        ]
+
+        self._do_test_grouping(rows, [TheRow], expected_rows, SummingReducer())
+
+    @authors("levysotsky")
+    def test_grouping_two_inputs(self):
+        rows = [
+            [
+                {"int32_field": 10, "str_field": "b"},
+                {"int32_field": 10, "str_field": "b"},
+                {"int32_field": 10, "str_field": "c"},
+                {"int32_field": 10, "str_field": "a"},
+                {"int32_field": 10, "str_field": "a"},
+                {"int32_field": 10, "str_field": "a"},
+            ],
+            [
+                {"int32_field": 100, "str_field": "c"},
+                {"int32_field": 100, "str_field": "c"},
+                {"int32_field": 100, "str_field": "a"},
+                {"int32_field": 100, "str_field": "a"},
+            ],
+        ]
+        
+        expected_rows = [
+            {"key": "a", "sum": 230},
+            {"key": "b", "sum": 20},
+            {"key": "c", "sum": 210},
+        ]
+
+        self._do_test_grouping(rows, [TheRow, Row1], expected_rows, TwoInputSummingReducer())
 
     @authors("levysotsky")
     @pytest.mark.parametrize("other_columns_as_bytes", [True, False])

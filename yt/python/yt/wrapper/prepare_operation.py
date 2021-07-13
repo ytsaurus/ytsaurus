@@ -154,11 +154,19 @@ class OperationPreparer:
     def _finish(self):
         input_schemas = self._context.get_input_schemas()
         output_schemas = self._context.get_output_schemas()
+        input_control_attributes = {
+            "enable_key_switch": True,
+        }
         for index, type_ in enumerate(self._input_types):
             if type_ is None:
                 self._raise_missing("input", index)
             column_renaming = self._input_column_renamings[index]
-            py_schema = _create_row_py_schema(type_, input_schemas[index], column_renaming=column_renaming)
+            py_schema = _create_row_py_schema(
+                type_,
+                input_schemas[index],
+                column_renaming=column_renaming,
+                control_attributes=input_control_attributes,
+            )
             self._input_py_schemas.append(py_schema)
             _validate_py_schema(py_schema, for_reading=True)
         for index, type_ in enumerate(self._output_types):

@@ -1659,24 +1659,30 @@ class MapReduceSpecBuilder(SpecBuilder):
 
         is_first_task = True
         intermediate_stream_schemas = None
+
         if "mapper" in spec:
             spec, intermediate_stream_schemas = self._do_build_mapper(
                 spec,
                 client=client)
             is_first_task = False
+        else:
+            map_job_io_control_attributes = spec.setdefault("map_job_io", {}).setdefault("control_attributes", {})
+            map_job_io_control_attributes["enable_table_index"] = True
+
         if "reduce_combiner" in spec:
             spec, intermediate_stream_schemas = self._do_build_reduce_combiner(
                 spec,
-                is_first_task,
-                intermediate_stream_schemas,
+                is_first_task=is_first_task,
+                intermediate_stream_schemas=intermediate_stream_schemas,
                 client=client,
             )
             is_first_task = False
+
         if "reducer" in spec:
             spec = self._do_build_reducer(
                 spec,
-                is_first_task,
-                intermediate_stream_schemas,
+                is_first_task=is_first_task,
+                intermediate_stream_schemas=intermediate_stream_schemas,
                 client=client,
             )
 
