@@ -47,7 +47,7 @@ using ECellLifeStage = NTabletClient::ETabletCellLifeStage;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TTamedCellManager)
+DECLARE_REFCOUNTED_STRUCT(ITamedCellManager)
 DECLARE_REFCOUNTED_CLASS(TBundleNodeTracker)
 DECLARE_REFCOUNTED_CLASS(TCellBaseDecommissioner)
 DECLARE_REFCOUNTED_CLASS(TCellHydraJanitor)

@@ -125,8 +125,9 @@ static const auto ProfilingPeriod = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTamedCellManager::TImpl
-    : public TMasterAutomatonPart
+class TTamedCellManager
+    : public ITamedCellManager
+    , public TMasterAutomatonPart
 {
 public:
     DEFINE_SIGNAL(void(TCellBundle* bundle), CellBundleDestroyed);
@@ -138,7 +139,7 @@ public:
     DEFINE_SIGNAL(void(), AfterSnapshotLoaded);
 
 public:
-    explicit TImpl(NCellMaster::TBootstrap* bootstrap)
+    explicit TTamedCellManager(NCellMaster::TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::TamedCellManager)
         , CellTracker_(New<TCellTracker>(Bootstrap_))
         , BundleNodeTracker_(New<TBundleNodeTracker>(Bootstrap_))
@@ -150,66 +151,66 @@ public:
 
         RegisterLoader(
             "CellManager.Keys",
-            BIND(&TImpl::LoadKeys, Unretained(this)));
+            BIND(&TTamedCellManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "CellManager.Values",
-            BIND(&TImpl::LoadValues, Unretained(this)));
+            BIND(&TTamedCellManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "CellManager.Keys",
-            BIND(&TImpl::SaveKeys, Unretained(this)));
+            BIND(&TTamedCellManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "CellManager.Values",
-            BIND(&TImpl::SaveValues, Unretained(this)));
+            BIND(&TTamedCellManager::SaveValues, Unretained(this)));
 
-        RegisterMethod(BIND(&TImpl::HydraAssignPeers, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraRevokePeers, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraReassignPeers, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraSetLeadingPeer, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraStartPrerequisiteTransaction, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraAbortPrerequisiteTransaction, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraDecommissionCellOnMaster, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraOnCellDecommissionedOnNode, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraOnCellDecommissionedOnMaster, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraSetCellConfigVersion, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraSetCellStatus, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraUpdateCellHealth, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraUpdatePeerCount, Unretained(this)));
+        RegisterMethod(BIND(&TTamedCellManager::HydraAssignPeers, Unretained(this)));
+        RegisterMethod(BIND(&TTamedCellManager::HydraRevokePeers, Unretained(this)));
+        RegisterMethod(BIND(&TTamedCellManager::HydraReassignPeers, Unretained(this)));
+        RegisterMethod(BIND(&TTamedCellManager::HydraSetLeadingPeer, Unretained(this)));
+        RegisterMethod(BIND(&TTamedCellManager::HydraStartPrerequisiteTransaction, Unretained(this)));
+        RegisterMethod(BIND(&TTamedCellManager::HydraAbortPrerequisiteTransaction, Unretained(this)));
+        RegisterMethod(BIND(&TTamedCellManager::HydraDecommissionCellOnMaster, Unretained(this)));
+        RegisterMethod(BIND(&TTamedCellManager::HydraOnCellDecommissionedOnNode, Unretained(this)));
+        RegisterMethod(BIND(&TTamedCellManager::HydraOnCellDecommissionedOnMaster, Unretained(this)));
+        RegisterMethod(BIND(&TTamedCellManager::HydraSetCellConfigVersion, Unretained(this)));
+        RegisterMethod(BIND(&TTamedCellManager::HydraSetCellStatus, Unretained(this)));
+        RegisterMethod(BIND(&TTamedCellManager::HydraUpdateCellHealth, Unretained(this)));
+        RegisterMethod(BIND(&TTamedCellManager::HydraUpdatePeerCount, Unretained(this)));
     }
 
     void Initialize()
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeUnregistered, MakeWeak(this)));
+        nodeTracker->SubscribeNodeUnregistered(BIND(&TTamedCellManager::OnNodeUnregistered, MakeWeak(this)));
 
         const auto& cellarNodeTracker = Bootstrap_->GetCellarNodeTracker();
-        cellarNodeTracker->SubscribeHeartbeat(BIND(&TImpl::OnCellarNodeHeartbeat, MakeWeak(this)));
+        cellarNodeTracker->SubscribeHeartbeat(BIND(&TTamedCellManager::OnCellarNodeHeartbeat, MakeWeak(this)));
 
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND(&TTamedCellManager::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(CreateAreaTypeHandler(Bootstrap_, &AreaMap_));
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->SubscribeTransactionCommitted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
-        transactionManager->SubscribeTransactionAborted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
+        transactionManager->SubscribeTransactionCommitted(BIND(&TTamedCellManager::OnTransactionFinished, MakeWeak(this)));
+        transactionManager->SubscribeTransactionAborted(BIND(&TTamedCellManager::OnTransactionFinished, MakeWeak(this)));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
             multicellManager->SubscribeReplicateKeysToSecondaryMaster(
-                BIND(&TImpl::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
+                BIND(&TTamedCellManager::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
             multicellManager->SubscribeReplicateValuesToSecondaryMaster(
-                BIND(&TImpl::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
+                BIND(&TTamedCellManager::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
         }
 
         BundleNodeTracker_->Initialize();
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
-            BIND(&TImpl::OnProfiling, MakeWeak(this)),
+            BIND(&TTamedCellManager::OnProfiling, MakeWeak(this)),
             ProfilingPeriod);
         ProfilingExecutor_->Start();
     }
@@ -1858,11 +1859,11 @@ private:
 
         CellStatusIncrementalGossipExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletGossip),
-            BIND(&TImpl::OnCellStatusGossip, MakeWeak(this), /* incremental */true));
+            BIND(&TTamedCellManager::OnCellStatusGossip, MakeWeak(this), /* incremental */true));
         CellStatusIncrementalGossipExecutor_->Start();
         CellStatusFullGossipExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletGossip),
-            BIND(&TImpl::OnCellStatusGossip, MakeWeak(this), /* incremental */false));
+            BIND(&TTamedCellManager::OnCellStatusGossip, MakeWeak(this), /* incremental */false));
         CellStatusFullGossipExecutor_->Start();
 
         OnDynamicConfigChanged();
@@ -2342,156 +2343,16 @@ private:
     }
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TTamedCellManager::TImpl, CellBundle, TCellBundle, CellBundleMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TTamedCellManager::TImpl, Cell, TCellBase, CellMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TTamedCellManager::TImpl, Area, TArea, AreaMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TTamedCellManager, CellBundle, TCellBundle, CellBundleMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TTamedCellManager, Cell, TCellBase, CellMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TTamedCellManager, Area, TArea, AreaMap_)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTamedCellManager::TTamedCellManager(NCellMaster::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(bootstrap))
-{ }
-
-TTamedCellManager::~TTamedCellManager() = default;
-
-void TTamedCellManager::Initialize()
+ITamedCellManagerPtr CreateTamedCellManager(NCellMaster::TBootstrap* bootstrap)
 {
-    return Impl_->Initialize();
+    return New<TTamedCellManager>(bootstrap);
 }
-
-const TCellSet* TTamedCellManager::FindAssignedCells(const TString& address) const
-{
-    return Impl_->FindAssignedCells(address);
-}
-
-const TBundleNodeTrackerPtr& TTamedCellManager::GetBundleNodeTracker()
-{
-    return Impl_->GetBundleNodeTracker();
-}
-
-const THashSet<TCellBase*>& TTamedCellManager::Cells(ECellarType cellarType)
-{
-    return Impl_->Cells(cellarType);
-}
-
-TCellBase* TTamedCellManager::GetCellOrThrow(TTamedCellId id)
-{
-    return Impl_->GetCellOrThrow(id);
-}
-
-void TTamedCellManager::RemoveCell(TCellBase* cell, bool force)
-{
-    return Impl_->RemoveCell(cell, force);
-}
-
-const THashSet<TCellBundle*>& TTamedCellManager::CellBundles(ECellarType cellarType)
-{
-    return Impl_->CellBundles(cellarType);
-}
-
-TCellBundle* TTamedCellManager::FindCellBundleByName(
-    const TString& name,
-    ECellarType cellarType,
-    bool activeLifeStageOnly)
-{
-    return Impl_->FindCellBundleByName(name, cellarType, activeLifeStageOnly);
-}
-
-TCellBundle* TTamedCellManager::GetCellBundleByNameOrThrow(
-    const TString& name,
-    ECellarType cellarType,
-    bool activeLifeStageOnly)
-{
-    return Impl_->GetCellBundleByNameOrThrow(name, cellarType, activeLifeStageOnly);
-}
-
-TCellBundle* TTamedCellManager::GetCellBundleByIdOrThrow(TCellBundleId cellBundleId, bool activeLifeStageOnly)
-{
-    return Impl_->GetCellBundleByIdOrThrow(cellBundleId, activeLifeStageOnly);
-}
-
-void TTamedCellManager::RenameCellBundle(TCellBundle* cellBundle, const TString& newName)
-{
-    return Impl_->RenameCellBundle(cellBundle, newName);
-}
-
-TCellBase* TTamedCellManager::CreateCell(TCellBundle* cellBundle, TArea* area, std::unique_ptr<TCellBase> holder)
-{
-    return Impl_->CreateCell(cellBundle, area, std::move(holder));
-}
-
-void TTamedCellManager::ZombifyCell(TCellBase* cell)
-{
-    Impl_->ZombifyCell(cell);
-}
-
-void TTamedCellManager::DestroyCell(TCellBase* cell)
-{
-    Impl_->DestroyCell(cell);
-}
-
-void TTamedCellManager::UpdatePeerCount(TCellBase* cell, std::optional<int> peerCount)
-{
-    Impl_->UpdatePeerCount(cell, peerCount);
-}
-
-TCellBundle* TTamedCellManager::CreateCellBundle(
-    const TString& name,
-    std::unique_ptr<TCellBundle> holder,
-    TTabletCellOptionsPtr options)
-{
-    return Impl_->CreateCellBundle(name, std::move(holder), std::move(options));
-}
-
-void TTamedCellManager::ZombifyCellBundle(TCellBundle* cellBundle)
-{
-    Impl_->ZombifyCellBundle(cellBundle);
-}
-
-void TTamedCellManager::DestroyCellBundle(TCellBundle* cellBundle)
-{
-    Impl_->DestroyCellBundle(cellBundle);
-}
-
-void TTamedCellManager::SetCellBundleOptions(TCellBundle* cellBundle, TTabletCellOptionsPtr options)
-{
-    Impl_->SetCellBundleOptions(cellBundle, std::move(options));
-}
-
-TArea* TTamedCellManager::CreateArea(
-    const TString& name,
-    TCellBundle* cellBundle,
-    TObjectId hintId)
-{
-    return Impl_->CreateArea(name, cellBundle, hintId);
-}
-
-void TTamedCellManager::RenameArea(TArea* area, const TString& name)
-{
-    Impl_->RenameArea(area, name);
-}
-
-void TTamedCellManager::ZombifyArea(TArea* area)
-{
-    Impl_->ZombifyArea(area);
-}
-
-void TTamedCellManager::SetAreaNodeTagFilter(TArea* area, const TString& formula)
-{
-    return Impl_->SetAreaNodeTagFilter(area, formula);
-}
-
-DELEGATE_ENTITY_MAP_ACCESSORS(TTamedCellManager, CellBundle, TCellBundle, *Impl_)
-DELEGATE_ENTITY_MAP_ACCESSORS(TTamedCellManager, Cell, TCellBase, *Impl_)
-DELEGATE_ENTITY_MAP_ACCESSORS(TTamedCellManager, Area, TArea, *Impl_)
-
-DELEGATE_SIGNAL(TTamedCellManager, void(TCellBundle*), CellBundleDestroyed, *Impl_);
-DELEGATE_SIGNAL(TTamedCellManager, void(TArea*), AreaCreated, *Impl_);
-DELEGATE_SIGNAL(TTamedCellManager, void(TArea*), AreaDestroyed, *Impl_);
-DELEGATE_SIGNAL(TTamedCellManager, void(TArea*), AreaNodeTagFilterChanged, *Impl_);
-DELEGATE_SIGNAL(TTamedCellManager, void(TCellBase*), CellDecommissionStarted, *Impl_);
-DELEGATE_SIGNAL(TTamedCellManager, void(), CellPeersAssigned, *Impl_);
-DELEGATE_SIGNAL(TTamedCellManager, void(), AfterSnapshotLoaded, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

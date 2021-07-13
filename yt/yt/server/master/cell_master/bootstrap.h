@@ -111,7 +111,7 @@ public:
     const NJournalServer::TJournalManagerPtr& GetJournalManager() const;
     const NSecurityServer::TSecurityManagerPtr& GetSecurityManager() const;
     const NSchedulerPoolServer::TSchedulerPoolManagerPtr& GetSchedulerPoolManager() const;
-    const NCellServer::TTamedCellManagerPtr& GetTamedCellManager() const;
+    const NCellServer::ITamedCellManagerPtr& GetTamedCellManager() const;
     const NTableServer::TTableManagerPtr& GetTableManager() const;
     const NTabletServer::TTabletManagerPtr& GetTabletManager() const;
     const NChaosServer::IChaosManagerPtr& GetChaosManager() const;
@@ -179,7 +179,7 @@ private:
     NChunkServer::TChunkMergerPtr ChunkMerger_;
     NJournalServer::TJournalManagerPtr JournalManager_;
     NSecurityServer::TSecurityManagerPtr SecurityManager_;
-    NCellServer::TTamedCellManagerPtr TamedCellManager_;
+    NCellServer::ITamedCellManagerPtr TamedCellManager_;
     NCellServer::TCellHydraJanitorPtr CellHydraJanitor_;
     NTableServer::TTableManagerPtr TableManager_;
     NTabletServer::TTabletManagerPtr TabletManager_;
