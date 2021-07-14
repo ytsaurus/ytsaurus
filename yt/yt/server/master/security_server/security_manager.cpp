@@ -1420,13 +1420,13 @@ public:
         }
         group->Members().clear();
 
-        for (auto [subjectId, subject] : UserMap_) {
-            subject->RecursiveMemberOf().erase(group);
-        }
-
-        for (auto [subjectId, subject] : GroupMap_) {
-            subject->RecursiveMemberOf().erase(group);
-        }
+        auto removeFromRecursiveClosure = [&] <typename TSubjectMap> (TSubjectMap& subjectMap) {
+            for (auto [subjectId, subject] : subjectMap) {
+                subject->RecursiveMemberOf().erase(group);
+            }
+        };
+        removeFromRecursiveClosure(UserMap_);
+        removeFromRecursiveClosure(GroupMap_);
 
         DestroySubject(group);
 
