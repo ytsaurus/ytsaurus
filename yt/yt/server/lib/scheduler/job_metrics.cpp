@@ -30,7 +30,7 @@ void TCustomJobMetricDescription::Persist(const TStreamPersistenceContext& conte
 
     Persist(context, StatisticsPath);
     Persist(context, ProfilingName);
-    Persist(context, AggregateType);
+    Persist(context, SummaryValueType);
     Persist(context, JobStateFilter);
 }
 
@@ -54,7 +54,9 @@ void Serialize(const TCustomJobMetricDescription& customJobMetricDescription, NY
         .BeginMap()
             .Item("statistics_path").Value(customJobMetricDescription.StatisticsPath)
             .Item("profiling_name").Value(customJobMetricDescription.ProfilingName)
-            .Item("aggregate_type").Value(FormatEnum<EAggregateType>(customJobMetricDescription.AggregateType))
+            .Item("summary_value_type").Value(FormatEnum<ESummaryValueType>(customJobMetricDescription.SummaryValueType))
+            // COMPAT(ignat)
+            .Item("aggregate_type").Value(FormatEnum<ESummaryValueType>(customJobMetricDescription.SummaryValueType))
             .Item("job_state_filter").Value(customJobMetricDescription.JobStateFilter)
         .EndMap();
 }
@@ -65,9 +67,13 @@ void Deserialize(TCustomJobMetricDescription& customJobMetricDescription, NYTree
     customJobMetricDescription.StatisticsPath = mapNode->GetChildOrThrow("statistics_path")->GetValue<TString>();
     customJobMetricDescription.ProfilingName = mapNode->GetChildOrThrow("profiling_name")->GetValue<TString>();
 
-    auto aggregateTypeNode = mapNode->FindChild("aggregate_type");
-    if (aggregateTypeNode) {
-        customJobMetricDescription.AggregateType = ParseEnum<EAggregateType>(aggregateTypeNode->GetValue<TString>());
+    auto summaryValueTypeNode = mapNode->FindChild("summary_value_type");
+    if (!summaryValueTypeNode) {
+        // COMPAT(ignat)
+        summaryValueTypeNode = mapNode->FindChild("aggregate_type");
+    }
+    if (summaryValueTypeNode) {
+        customJobMetricDescription.SummaryValueType = ParseEnum<ESummaryValueType>(summaryValueTypeNode->GetValue<TString>());
     }
 
     auto jobStateFilterNode = mapNode->FindChild("job_state_filter");
@@ -81,7 +87,8 @@ void Deserialize(TCustomJobMetricDescription& customJobMetricDescription, NYTree
 TJobMetrics TJobMetrics::FromJobStatistics(
     const TStatistics& statistics,
     EJobState jobState,
-    const std::vector<TCustomJobMetricDescription>& customJobMetricDescriptions)
+    const std::vector<TCustomJobMetricDescription>& customJobMetricDescriptions,
+    bool considerNonMonotonicMetrics)
 {
     TJobMetrics metrics;
 
@@ -135,15 +142,22 @@ TJobMetrics TJobMetrics::FromJobStatistics(
         i64 value = 0;
         auto summary = FindSummary(statistics, jobMetricDescription.StatisticsPath);
         if (summary) {
-            switch (jobMetricDescription.AggregateType) {
-                case EAggregateType::Sum:
+            switch (jobMetricDescription.SummaryValueType) {
+                case ESummaryValueType::Sum:
                     value = summary->GetSum();
                     break;
-                case EAggregateType::Max:
+                case ESummaryValueType::Max:
                     value = summary->GetMax();
                     break;
-                case EAggregateType::Min:
-                    value = summary->GetMin();
+                case ESummaryValueType::Min:
+                    if (considerNonMonotonicMetrics) {
+                        value = summary->GetMin();
+                    }
+                    break;
+                case ESummaryValueType::Last:
+                    if (considerNonMonotonicMetrics) {
+                        value = summary->GetLast().value_or(0);
+                    }
                     break;
                 default:
                     YT_ABORT();
@@ -163,15 +177,11 @@ bool TJobMetrics::IsEmpty() const
 
 void TJobMetrics::Profile(NProfiling::ISensorWriter* writer) const
 {
-    // NB(renadeen): you cannot use EMetricType::Gauge here.
+    // NB: all job metrics are counters since we use straightforward aggregation of deltas.
     for (auto metricName : TEnumTraits<EJobMetricName>::GetDomainValues()) {
         writer->AddCounter("/metrics/" + FormatEnum(metricName), Values_[metricName]);
     }
-
     for (const auto& [jobMetriDescription, value] : CustomValues_) {
-        if (jobMetriDescription.AggregateType != EAggregateType::Sum) {
-            continue;
-        }
         writer->AddCounter("/metrics/" + jobMetriDescription.ProfilingName, value);
     }
 }

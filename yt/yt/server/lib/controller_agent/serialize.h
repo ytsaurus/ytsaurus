@@ -30,6 +30,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((OptimizeShufflePool)                  (300606))
     ((RemoveFinishedJobs)                   (300608))
     ((TinyJobSplittingFix)                  (300609))
+    ((LastFieldInStatistics)                (300610))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

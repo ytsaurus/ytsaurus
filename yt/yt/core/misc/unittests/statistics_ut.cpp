@@ -24,16 +24,26 @@ TEST(TStatistics, Summary)
     EXPECT_EQ(20, summary.GetMax());
     EXPECT_EQ(2, summary.GetCount());
     EXPECT_EQ(30, summary.GetSum());
-
-    summary.Update(summary);
+    EXPECT_EQ(20, summary.GetLast());
+    
+    summary.AddSample(15);
     EXPECT_EQ(10, summary.GetMin());
     EXPECT_EQ(20, summary.GetMax());
-    EXPECT_EQ(4, summary.GetCount());
-    EXPECT_EQ(60, summary.GetSum());
+    EXPECT_EQ(3, summary.GetCount());
+    EXPECT_EQ(45, summary.GetSum());
+    EXPECT_EQ(15, summary.GetLast());
+
+    summary.Merge(summary);
+    EXPECT_EQ(10, summary.GetMin());
+    EXPECT_EQ(20, summary.GetMax());
+    EXPECT_EQ(6, summary.GetCount());
+    EXPECT_EQ(90, summary.GetSum());
+    EXPECT_EQ(std::nullopt, summary.GetLast());
 
     summary.Reset();
     EXPECT_EQ(0, summary.GetCount());
     EXPECT_EQ(0, summary.GetSum());
+    EXPECT_EQ(std::nullopt, summary.GetLast());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,7 +75,7 @@ TEST(TStatistics, AddSample)
     // Cannot add sample to the map node.
     EXPECT_THROW(statistics.AddSample("/key/subkey", 24), std::exception);
 
-    statistics.Update(CreateStatistics({
+    statistics.Merge(CreateStatistics({
         {"/key/subkey/x", 5},
         {"/key/subkey/z", 9}}));
 
@@ -74,7 +84,7 @@ TEST(TStatistics, AddSample)
     EXPECT_EQ(9, GetNumericValue(statistics, "/key/subkey/z"));
 
     EXPECT_THROW(
-        statistics.Update(CreateStatistics({{"/key", 5}})),
+        statistics.Merge(CreateStatistics({{"/key", 5}})),
         std::exception);
 
     statistics.AddSample("/key/subkey/x", 10);
@@ -153,11 +163,11 @@ TEST(TStatistics, BuildingConsumer)
             "{"
                 "def="
                 "{"
-                    "sum=42; count=3; min=5; max=21;"
+                    "sum=42; count=3; min=5; max=21; last=10;"
                 "};"
                 "degh="
                 "{"
-                    "sum=27; count=1; min=27; max=27;"
+                    "sum=27; count=1; min=27; max=27; last=27;"
                 "};"
             "};"
             "xyz="
@@ -169,9 +179,9 @@ TEST(TStatistics, BuildingConsumer)
     auto data = statistics.Data();
 
     std::map<TString, TSummary> expectedData {
-        { "/abc/def", TSummary(42, 3, 5, 21) },
-        { "/abc/degh", TSummary(27, 1, 27, 27) },
-        { "/xyz", TSummary(50, 5, 8, 12) },
+        { "/abc/def", TSummary(42, 3, 5, 21, 10) },
+        { "/abc/degh", TSummary(27, 1, 27, 27, 27) },
+        { "/xyz", TSummary(50, 5, 8, 12, std::nullopt) },
     };
 
     EXPECT_EQ(expectedData, data);

@@ -1194,7 +1194,7 @@ private:
     int GetOnlineExecNodeCount();
 
     void UpdateJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary);
-    void UpdateJobMetrics(const TJobletPtr& joblet, const TJobSummary& jobSummary);
+    void UpdateJobMetrics(const TJobletPtr& joblet, const TJobSummary& jobSummary, bool isJobFinished);
 
     void LogProgress(bool force = false);
 

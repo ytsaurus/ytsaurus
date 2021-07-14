@@ -131,7 +131,10 @@ public:
 
     virtual void Persist(const TPersistenceContext& context) override;
 
-    NScheduler::TJobMetrics UpdateJobMetrics(const TJobSummary& jobSummary, bool* monotonicityViolated);
+    NScheduler::TJobMetrics UpdateJobMetrics(
+        const TJobSummary& jobSummary,
+        bool isJobFinished,
+        bool* monotonicityViolated);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJoblet)

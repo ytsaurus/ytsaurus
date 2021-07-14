@@ -24,11 +24,11 @@ class TSummary
 public:
     TSummary();
 
-    TSummary(i64 sum, i64 count, i64 min, i64 max);
+    TSummary(i64 sum, i64 count, i64 min, i64 max, std::optional<i64> last);
 
     void AddSample(i64 sample);
 
-    void Update(const TSummary& summary);
+    void Merge(const TSummary& summary);
 
     void Reset();
 
@@ -36,6 +36,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(i64, Count);
     DEFINE_BYVAL_RO_PROPERTY(i64, Min);
     DEFINE_BYVAL_RO_PROPERTY(i64, Max);
+    DEFINE_BYVAL_RO_PROPERTY(std::optional<i64>, Last);
 
     void Persist(const TStreamPersistenceContext& context);
 
@@ -64,7 +65,7 @@ public:
     template <class T>
     void AddSample(const NYPath::TYPath& path, const T& sample);
 
-    void Update(const TStatistics& statistics);
+    void Merge(const TStatistics& statistics);
 
     void AddSuffixToNames(const TString& suffix);
 

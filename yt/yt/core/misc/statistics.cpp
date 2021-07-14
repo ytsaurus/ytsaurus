@@ -20,11 +20,12 @@ TSummary::TSummary()
     Reset();
 }
 
-TSummary::TSummary(i64 sum, i64 count, i64 min, i64 max)
+TSummary::TSummary(i64 sum, i64 count, i64 min, i64 max, std::optional<i64> last)
     : Sum_(sum)
     , Count_(count)
     , Min_(min)
     , Max_(max)
+    , Last_(last)
 { }
 
 void TSummary::AddSample(i64 sample)
@@ -33,14 +34,17 @@ void TSummary::AddSample(i64 sample)
     Count_ += 1;
     Min_ = std::min(Min_, sample);
     Max_ = std::max(Max_, sample);
+    Last_ = sample;
 }
 
-void TSummary::Update(const TSummary& summary)
+void TSummary::Merge(const TSummary& summary)
 {
     Sum_ += summary.GetSum();
     Count_ += summary.GetCount();
     Min_ = std::min(Min_, summary.GetMin());
     Max_ = std::max(Max_, summary.GetMax());
+    // This method used to aggregate summaries of different objects. Last is intentionally dropped.
+    Last_ = std::nullopt;
 }
 
 void TSummary::Reset()
@@ -49,6 +53,7 @@ void TSummary::Reset()
     Count_ = 0;
     Min_ = std::numeric_limits<i64>::max();
     Max_ = std::numeric_limits<i64>::min();
+    Last_ = std::nullopt;
 }
 
 void TSummary::Persist(const TStreamPersistenceContext& context)
@@ -59,6 +64,12 @@ void TSummary::Persist(const TStreamPersistenceContext& context)
     Persist(context, Count_);
     Persist(context, Min_);
     Persist(context, Max_);
+    // COMPAT(ignat)
+    if (context.IsLoad() && context.GetVersion() < /* ESnapshotVersion::LastFieldInStatistics */ 300610) {
+        Last_ = std::nullopt;
+    } else {
+        Persist(context, Last_);
+    }
 }
 
 void Serialize(const TSummary& summary, IYsonConsumer* consumer)
@@ -69,6 +80,7 @@ void Serialize(const TSummary& summary, IYsonConsumer* consumer)
             .Item("count").Value(summary.GetCount())
             .Item("min").Value(summary.GetMin())
             .Item("max").Value(summary.GetMax())
+            .OptionalItem("last", summary.GetLast())
         .EndMap();
 }
 
@@ -78,7 +90,8 @@ bool TSummary::operator ==(const TSummary& other) const
         Sum_ == other.Sum_ &&
         Count_ == other.Count_ &&
         Min_ == other.Min_ &&
-        Max_ == other.Max_;
+        Max_ == other.Max_ &&
+        Last_ == other.Last_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -148,10 +161,10 @@ void TStatistics::AddSample(const NYPath::TYPath& path, const INodePtr& sample)
     }
 }
 
-void TStatistics::Update(const TStatistics& statistics)
+void TStatistics::Merge(const TStatistics& statistics)
 {
     for (const auto& [path, summary] : statistics.Data()) {
-        GetSummary(path).Update(summary);
+        GetSummary(path).Merge(summary);
     }
 }
 
@@ -336,6 +349,9 @@ public:
             CurrentSummary_.Min_ = value;
         } else if (LastKey_ == "max") {
             CurrentSummary_.Max_ = value;
+        } else if (LastKey_ == "last") {
+            CurrentSummary_.Last_ = value;
+            LastFound_ = true;
         } else {
             isFieldKnown = false;
         }
@@ -411,11 +427,17 @@ public:
     virtual void OnEndMap() override
     {
         if (AtSummaryMap_) {
-            if (FilledSummaryFields_ != 4) {
-                THROW_ERROR_EXCEPTION("All four summary fields should be filled for statistics");
+            int requiredFilledSummaryFields = FilledSummaryFields_ - (LastFound_ ? 1 : 0);
+            if (requiredFilledSummaryFields != 4) {
+                THROW_ERROR_EXCEPTION("All 4 required summary fields must be filled for statistics, but found %v",
+                    requiredFilledSummaryFields);
+            }
+            if (!LastFound_) {
+                CurrentSummary_.Last_ = std::nullopt;
             }
             Statistics_.Data_[CurrentPath_] = CurrentSummary_;
             FilledSummaryFields_ = 0;
+            LastFound_ = false;
             AtSummaryMap_ = false;
         }
 
@@ -452,6 +474,7 @@ private:
 
     TSummary CurrentSummary_;
     i64 FilledSummaryFields_ = 0;
+    bool LastFound_ = false;
 
     TString LastKey_;
 
