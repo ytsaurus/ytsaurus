@@ -3,7 +3,7 @@
 
 import os
 import sys
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # noqa
 
 from prepare_source_tree_helpers import (
     apply_multiple,
@@ -56,7 +56,8 @@ YT_PREFIX_BINARIES = [
 ]
 
 
-def prepare_python_source_tree(python_root, yt_root, arcadia_root=None, prepare_binary_symlinks=False, prepare_bindings=True):
+def prepare_python_source_tree(python_root, yt_root, arcadia_root=None,
+                               prepare_binary_symlinks=False, prepare_bindings=True):
     def python_contrib_path(path):
         return os.path.join(python_root, "contrib", path)
 

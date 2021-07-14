@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-from six.moves import xrange
 import logging
 import os
 import shutil
@@ -9,6 +8,7 @@ import shutil
 logger = logging.getLogger("prepare_source_tree")
 logger.addHandler(logging.StreamHandler())
 logger.setLevel(logging.INFO)
+
 
 def chown_r(path, uid, gid):
     logger.info("Chown %s with uid %d and gid %d", path, uid, gid)
@@ -20,6 +20,7 @@ def chown_r(path, uid, gid):
                 continue
             os.chown(os.path.join(root, f), uid, gid)
 
+
 def chmod_r(path, permissions):
     logger.info("Chmod %s with permissions %o", path, permissions)
     for root, dirs, files in os.walk(path):
@@ -27,6 +28,7 @@ def chmod_r(path, permissions):
             if os.path.islink(os.path.join(root, f)):
                 continue
             os.chmod(os.path.join(root, f), permissions)
+
 
 def rm_rf(path):
     """remove recursive"""
@@ -67,6 +69,6 @@ def replace_symlink(source, destination):
 
 
 def apply_multiple(times, func, argument):
-    for _ in xrange(times):
+    for _ in range(times):
         argument = func(argument)
     return argument
