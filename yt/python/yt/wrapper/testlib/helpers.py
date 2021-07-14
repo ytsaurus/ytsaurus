@@ -31,19 +31,23 @@ from copy import deepcopy
 
 TEST_DIR = "//home/wrapper_tests"
 
+
 def get_tests_location():
     if yatest_common is None:
-        return os.path.dirname(os.path.abspath(__file__))
+        return os.path.abspath(os.path.join(os.path.dirname(__file__), "../tests"))
     else:
         return yatest_common.source_path("yt/python/yt/wrapper/tests")
+
 
 def get_tests_sandbox():
     return get_tests_sandbox_impl(
         os.environ.get("TESTS_SANDBOX", os.path.dirname(os.path.abspath(__file__)) + ".sandbox")
     )
 
+
 def get_test_files_dir_path():
     return os.path.join(get_tests_location(), "files")
+
 
 def get_test_file_path(name, use_files=True):
     if yatest_common is not None:
@@ -64,6 +68,7 @@ def get_test_file_path(name, use_files=True):
         else:
             return os.path.join(get_tests_location(), name)
 
+
 def get_binary_path(name):
     if yatest_common is not None:
         import library.python.resource
@@ -79,6 +84,7 @@ def get_binary_path(name):
     else:
         return os.path.join(get_tests_location(), "../bin", name)
 
+
 def get_python():
     if yatest_common is None:
         return sys.executable
@@ -87,6 +93,7 @@ def get_python():
             return arcadia_interop.search_binary_path("yt-python3")
         else:
             return arcadia_interop.search_binary_path("yt-python")
+
 
 def _filter_simple_types(obj):
     if isinstance(obj, integer_types) or \
@@ -100,6 +107,7 @@ def _filter_simple_types(obj):
     elif isinstance(obj, collections.Mapping):
         return dict([(key, _filter_simple_types(value)) for key, value in iteritems(obj)])
     return None
+
 
 def get_environment_for_binary_test(yt_env, enable_request_logging=True):
     binaries_dir = os.path.join(os.path.dirname(get_tests_location()), "bin")
@@ -139,6 +147,7 @@ def get_environment_for_binary_test(yt_env, enable_request_logging=True):
     env["YT_CONFIG_PATCHES"] = yson._dumps_to_native_str(config)
     return env
 
+
 def build_python_egg(egg_contents_dir, temp_dir=None):
     dir_ = tempfile.mkdtemp(dir=temp_dir)
 
@@ -162,9 +171,11 @@ def build_python_egg(egg_contents_dir, temp_dir=None):
     finally:
         shutil.rmtree(dir_, ignore_errors=True)
 
+
 def dumps_yt_config():
     config = _filter_simple_types(yt.config.config)
     return yson._dumps_to_native_str(config)
+
 
 def run_python_script_with_check(yt_env, script):
     dir_ = yt_env.env.path
@@ -173,26 +184,31 @@ def run_python_script_with_check(yt_env, script):
         f.write(script)
         f.close()
 
-        proc = subprocess.Popen([sys.executable, f.name], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc = subprocess.Popen(
+            [sys.executable, f.name],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE)
 
         out, err = proc.communicate(b(dumps_yt_config()))
         assert proc.returncode == 0, err
 
         return out, err
 
+
 # By default, accounts have empty resource limits upon creation.
 def get_default_resource_limits(client):
     GB = 1024 ** 3
     TB = 1024 ** 4
 
-    result = {"node_count": 500000,
-            "chunk_count": 1000000,
-            "master_memory":
-            {
-                "total": 100 * GB, 
-                "chunk_host": 100 * GB,
-                "per_cell": {}
-            }
+    result = {
+        "node_count": 500000,
+        "chunk_count": 1000000,
+        "master_memory": {
+            "total": 100 * GB,
+            "chunk_host": 100 * GB,
+            "per_cell": {}
+        }
     }
 
     # Backwards compatibility.
@@ -203,9 +219,11 @@ def get_default_resource_limits(client):
 
     return result
 
+
 def sync_create_cell():
     tablet_id = yt.create("tablet_cell", attributes={"size": 1})
-    wait(lambda : yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) == "good")
+    wait(lambda: yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) == "good")
+
 
 def wait_record_in_job_archive(operation_id, job_id):
     operation_id_hash_pair = yt.common.uuid_hash_pair(operation_id)
@@ -220,13 +238,16 @@ def wait_record_in_job_archive(operation_id, job_id):
     key["job_id_hi"], key["job_id_lo"] = job_id_hash_pair.hi, job_id_hash_pair.lo
     wait(lambda: any(yt.lookup_rows("//sys/operations_archive/job_specs", [key], column_names=["spec_version"])))
 
+
 def get_operation_path(operation_id):
     return "//sys/operations/{:02x}/{}".format(int(operation_id.split("-")[-1], 16) % 256, operation_id)
+
 
 def create_job_events():
     tmpdir = tempfile.mkdtemp(prefix="job_events", dir=get_tests_sandbox())
     os.chmod(tmpdir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
     return JobEvents(tmpdir)
+
 
 @contextmanager
 def failing_heavy_request(module, n_fails, assert_exhausted=True):
@@ -253,6 +274,7 @@ def failing_heavy_request(module, n_fails, assert_exhausted=True):
 
     if assert_exhausted:
         assert fail_state["exhausted"]
+
 
 def random_string(length):
     char_set = string.ascii_lowercase + string.digits + string.ascii_uppercase
