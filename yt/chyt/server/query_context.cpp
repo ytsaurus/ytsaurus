@@ -207,7 +207,7 @@ EQueryPhase TQueryContext::GetQueryPhase() const
 void TQueryContext::Finish()
 {
     FinishTime_ = TInstant::Now();
-    AggregatedStatistics.Update(InstanceStatistics);
+    AggregatedStatistics.Merge(InstanceStatistics);
     Host->GetQueryStatisticsReporter()->ReportQueryStatistics(MakeStrong(this));
 }
 

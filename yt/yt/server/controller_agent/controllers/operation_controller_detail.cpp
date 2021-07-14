@@ -2664,7 +2664,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     FinalizeJoblet(joblet, jobSummary.get());
     LogFinishedJobFluently(ELogEventType::JobCompleted, joblet, *jobSummary);
 
-    UpdateJobMetrics(joblet, *jobSummary);
+    UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ true);
     UpdateJobStatistics(joblet, *jobSummary);
 
     auto taskResult = joblet->Task->OnJobCompleted(joblet, *jobSummary);
@@ -2751,7 +2751,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     LogFinishedJobFluently(ELogEventType::JobFailed, joblet, *jobSummary)
         .Item("error").Value(error);
 
-    UpdateJobMetrics(joblet, *jobSummary);
+    UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ true);
     UpdateJobStatistics(joblet, *jobSummary);
 
     auto taskResult = joblet->Task->OnJobFailed(joblet, *jobSummary);
@@ -2761,7 +2761,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
     jobSummary->ReleaseFlags.ArchiveJobSpec = true;
 
-    ProcessFinishedJobResult(std::move(jobSummary), /* requestJobNodeCreation */ true);
+    ProcessFinishedJobResult(std::move(jobSummary), /*requestJobNodeCreation*/ true);
 
     UnregisterJoblet(joblet);
 
@@ -2851,7 +2851,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
         UpdateJobStatistics(joblet, *jobSummary);
     }
 
-    UpdateJobMetrics(joblet, *jobSummary);
+    UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ true);
 
     if (abortReason == EAbortReason::FailedChunks) {
         const auto& result = jobSummary->Result;
@@ -2950,7 +2950,7 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
         joblet->StatisticsYson = jobSummary->StatisticsYson;
         joblet->LastUpdateTime = TInstant::Now();
 
-        UpdateJobMetrics(joblet, *jobSummary);
+        UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ false);
     }
 
     joblet->Task->OnJobRunning(joblet, *jobSummary);
@@ -8116,14 +8116,14 @@ void TOperationControllerBase::UpdateJobStatistics(const TJobletPtr& joblet, con
     auto statisticsState = GetStatisticsJobState(joblet, jobSummary.State);
     auto statisticsSuffix = GetStatisticsSuffix(joblet->Task, statisticsState);
     statistics.AddSuffixToNames(statisticsSuffix);
-    JobStatistics.Update(statistics);
+    JobStatistics.Merge(statistics);
 }
 
-void TOperationControllerBase::UpdateJobMetrics(const TJobletPtr& joblet, const TJobSummary& jobSummary)
+void TOperationControllerBase::UpdateJobMetrics(const TJobletPtr& joblet, const TJobSummary& jobSummary, bool isJobFinished)
 {
     YT_LOG_TRACE("Updating job metrics (JobId: %v)", joblet->JobId);
 
-    auto delta = joblet->UpdateJobMetrics(jobSummary, &(joblet->JobMetricsMonotonicityViolated));
+    auto delta = joblet->UpdateJobMetrics(jobSummary, isJobFinished, &(joblet->JobMetricsMonotonicityViolated));
     {
         auto guard = Guard(JobMetricsDeltaPerTreeLock_);
 

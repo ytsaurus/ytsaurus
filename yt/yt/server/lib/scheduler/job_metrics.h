@@ -43,17 +43,18 @@ DEFINE_ENUM(EJobMetricName,
     (TotalTimeOperationAborted)
 );
 
-DEFINE_ENUM(EAggregateType,
+DEFINE_ENUM(ESummaryValueType,
     (Sum)
     (Min)
     (Max)
+    (Last)
 );
 
 struct TCustomJobMetricDescription
 {
     TString StatisticsPath;
     TString ProfilingName;
-    EAggregateType AggregateType = EAggregateType::Sum;
+    ESummaryValueType SummaryValueType = ESummaryValueType::Sum;
     std::optional<NJobTrackerClient::EJobState> JobStateFilter = {};
 
     void Persist(const TStreamPersistenceContext& context);
@@ -94,7 +95,8 @@ public:
     static TJobMetrics FromJobStatistics(
         const TStatistics& statistics,
         NJobTrackerClient::EJobState jobState,
-        const std::vector<TCustomJobMetricDescription>& customJobMetrics);
+        const std::vector<TCustomJobMetricDescription>& customJobMetrics,
+        bool considerNonMonotonicMetrics);
 
     bool IsEmpty() const;
 

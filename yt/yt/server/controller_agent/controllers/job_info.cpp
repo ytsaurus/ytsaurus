@@ -63,7 +63,7 @@ TJoblet::TJoblet(TTask* task, int jobIndex, int taskJobIndex, const TString& tre
     , OutputCookie(IChunkPoolOutput::NullCookie)
 { }
 
-TJobMetrics TJoblet::UpdateJobMetrics(const TJobSummary& jobSummary, bool* monotonicityViolated)
+TJobMetrics TJoblet::UpdateJobMetrics(const TJobSummary& jobSummary, bool isJobFinished, bool* monotonicityViolated)
 {
     const auto Logger = ControllerLogger.WithTag("JobId: %v", JobId);
 
@@ -78,7 +78,8 @@ TJobMetrics TJoblet::UpdateJobMetrics(const TJobSummary& jobSummary, bool* monot
     const auto newJobMetrics = TJobMetrics::FromJobStatistics(
         *jobSummary.Statistics,
         jobSummary.State,
-        Task->GetTaskHost()->GetConfig()->CustomJobMetrics);
+        Task->GetTaskHost()->GetConfig()->CustomJobMetrics,
+        /*considerNonMonotonicMetrics*/ isJobFinished);
 
     if (!(*monotonicityViolated) && !Dominates(newJobMetrics, JobMetrics)) {
         YT_LOG_WARNING("Job metrics monotonicity violated (Previous: %v, Current: %v)",

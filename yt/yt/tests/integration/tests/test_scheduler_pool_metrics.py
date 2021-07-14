@@ -72,12 +72,17 @@ class TestPoolMetrics(YTEnvSetup):
                 {
                     "statistics_path": "/custom/value",
                     "profiling_name": "my_custom_metric_sum",
-                    "aggregate_type": "sum",
+                    "summary_value_type": "sum",
                 },
                 {
                     "statistics_path": "/custom/value",
                     "profiling_name": "my_custom_metric_max",
-                    "aggregate_type": "max",
+                    "summary_value_type": "max",
+                },
+                {
+                    "statistics_path": "/custom/value",
+                    "profiling_name": "my_custom_metric_last",
+                    "summary_value_type": "last",
                 },
             ],
         }
@@ -469,11 +474,12 @@ class TestPoolMetrics(YTEnvSetup):
         write_table("<append=%true>//tmp/t_input", {"foo": "bar"})
 
         before_breakpoint = """for i in $(seq 10) ; do python -c "import os; os.write(5, '{value=$i};')" ; sleep 0.5 ; done ; sleep 5 ; """
-        after_breakpoint = """for i in $(seq 11 15) ; do python -c "import os; os.write(5, '{value=$i};')" ; sleep 0.5 ; done ; cat ; sleep 5 ; echo done > /dev/stderr ; """
+        after_breakpoint = """for i in $(seq 9 -1 5) ; do python -c "import os; os.write(5, '{value=$i};')" ; sleep 0.5 ; done ; cat ; sleep 5 ; echo done > /dev/stderr ; """
 
         profiler = Profiler.at_scheduler(fixed_tags={"tree": "default", "pool": "unique_pool"})
         total_time_counter = profiler.counter("scheduler/pools/metrics/total_time")
-        custom_counter = profiler.counter("scheduler/pools/metrics/my_custom_metric_sum")
+        custom_counter_sum = profiler.counter("scheduler/pools/metrics/my_custom_metric_sum")
+        custom_counter_last = profiler.counter("scheduler/pools/metrics/my_custom_metric_last")
 
         op = map(
             command=with_breakpoint(before_breakpoint + "BREAKPOINT ; " + after_breakpoint),
@@ -487,7 +493,8 @@ class TestPoolMetrics(YTEnvSetup):
         assert len(jobs) == 1
 
         total_time_before_restart = total_time_counter.get_delta()
-        wait(lambda: custom_counter.get_delta() == 55)
+        wait(lambda: custom_counter_sum.get_delta() == 55)
+        assert custom_counter_last.get_delta() == 0
 
         # We need to have the job in the snapshot, so that it is not restarted after operation revival.
         op.wait_for_fresh_snapshot()
@@ -503,7 +510,8 @@ class TestPoolMetrics(YTEnvSetup):
         op.track()
 
         wait(lambda: total_time_counter.get_delta() > total_time_before_restart)
-        wait(lambda: custom_counter.get_delta() == 120)
+        wait(lambda: custom_counter_sum.get_delta() == 90)
+        wait(lambda: custom_counter_last.get_delta() == 5)
 
     @authors("eshcherbin")
     def test_distributed_resources_profiling(self):
