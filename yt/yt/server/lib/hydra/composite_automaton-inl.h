@@ -38,7 +38,7 @@ void TCompositeAutomatonPart::RegisterSaver(
     RegisterSaver(
         priority,
         name,
-        BIND([=] () {
+        BIND([=] () -> TCallback<void(TSaveContext&)> {
             auto continuation = callback.Run();
             return BIND([=] (TSaveContext& context) {
                 return continuation.Run(dynamic_cast<TContext&>(context));

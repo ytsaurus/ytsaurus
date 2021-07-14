@@ -619,7 +619,7 @@ bool TStickyGroupSizeCache::TKey::operator == (const TKey& other) const
 TStickyGroupSizeCache::TStickyGroupSizeCache(TDuration expirationTimeout)
     : AdvisedStickyGroupSize_(New<TSyncExpiringCache<TKey, std::optional<int>>>(
         BIND([] (const TKey& /*key*/) {
-            return std::nullopt;
+            return std::optional<int>{};
         }),
         expirationTimeout,
         GetSyncInvoker()))

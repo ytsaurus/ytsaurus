@@ -81,7 +81,7 @@ private:
 
         AllSucceeded(asyncResults).Subscribe(
             BIND(&TDiscoverChangelogSession::OnComplete, MakeStrong(this))
-                .AsyncVia(GetCurrentInvoker()));
+                .Via(GetCurrentInvoker()));
     }
 
     void OnResponse(

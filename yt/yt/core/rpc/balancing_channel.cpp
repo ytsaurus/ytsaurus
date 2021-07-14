@@ -116,7 +116,7 @@ private:
                 BIND(&TBalancingChannelSubprovider::OnEndpointsResolved, MakeWeak(this)));
     }
 
-    void OnEndpointsResolved(const TErrorOr<TEndpointSet> endpointSetOrError)
+    void OnEndpointsResolved(const TErrorOr<TEndpointSet>& endpointSetOrError)
     {
         if (!endpointSetOrError.IsOK()) {
             Pool_->SetPeerDiscoveryError(endpointSetOrError);

@@ -84,7 +84,7 @@ private:
 
     std::atomic<bool> Enabled_;
 
-    void OnProxyRoleUpdated(TString newRole)
+    void OnProxyRoleUpdated(const TString& newRole)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
