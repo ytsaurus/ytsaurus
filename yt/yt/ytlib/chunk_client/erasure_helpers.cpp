@@ -167,37 +167,36 @@ std::vector<TPartRange> TParityPartSplitInfo::SplitRangesByStripesAndAlignToPari
 
     auto rangeIt = ranges.begin();
     TPartRange stripe = {};
+    TPartRange range = {};
+
     for (int stripeIndex = 0; stripeIndex < std::ssize(StripeBlockCounts_); ++stripeIndex) {
         stripe.Begin = stripe.End;
         if (StripeBlockCounts_[stripeIndex] > 0) {
             stripe.End += (StripeBlockCounts_[stripeIndex] - 1) * BlockSize_ + StripeLastBlockSizes_[stripeIndex];
         }
 
-        while (rangeIt != ranges.end() && rangeIt->Begin < stripe.End) {
-            TPartRange output;
-
-            // Get block-aligned intersection with current stripe.
-            output.Begin = stripe.Begin + Max(0L, RoundDown(rangeIt->Begin - stripe.Begin, BlockSize_));
-            output.End = stripe.Begin + Min(stripe.Size(), RoundUp(rangeIt->End - stripe.Begin, BlockSize_));
-
-            if (output.Begin >= output.End) {
-                YT_VERIFY(rangeIt->End <= stripe.Begin);
+        while (!range.IsEmpty() || rangeIt != ranges.end()) {
+            if (range.IsEmpty()) {
+                range = *rangeIt;
                 ++rangeIt;
                 continue;
-            }
-
-            if (!result.empty() && result.back().End != stripe.Begin && output.Begin <= result.back().End) {
-                // Combine adjacent ranges within a single stripe.
-                result.back().End = output.End;
-            } else {
-                result.push_back(output);
-            }
-
-            if (rangeIt->End > stripe.End) {
-                // Continue processing range using next stripe.
+            } else if (range.Begin >= stripe.End) {
                 break;
             }
-            ++rangeIt;
+
+            TPartRange output;
+
+            // Get next block of intersection with current stripe.
+            output.Begin = stripe.Begin + Max(0L, RoundDown(range.Begin - stripe.Begin, BlockSize_));
+            output.End = Min(stripe.End, output.Begin + BlockSize_);
+
+            if (output.Begin >= output.End) {
+                YT_VERIFY(range.End <= stripe.Begin);
+                range = {};
+                continue;
+            }
+            result.push_back(output);
+            range.Begin = output.End;
         }
     }
     return result;
@@ -279,7 +278,7 @@ public:
             memcpy(CurrentBlock_.Begin() + PositionInCurrentBlock_, block.Begin(), copySize);
             PositionInCurrentBlock_ += copySize;
 
-            if (PositionInCurrentBlock_ == CurrentBlock_.Size()) {
+            if (PositionInCurrentBlock_ == std::ssize(CurrentBlock_)) {
                 blocksToWrite.push_back(TBlock(CurrentBlock_));
 
                 ++CurrentBlockIndex_;
@@ -289,23 +288,26 @@ public:
 
         // Processing part blocks that fit inside given block.
         while (CurrentBlockIndex_ < std::ssize(BlockRanges_) && BlockRanges_[CurrentBlockIndex_].End <= range.End) {
-            int blockPosition = BlockRanges_[CurrentBlockIndex_].Begin - range.Begin;
+            int blockPosition = BlockRanges_[CurrentBlockIndex_].Begin + PositionInCurrentBlock_ - range.Begin;
             YT_VERIFY(blockPosition >= 0);
 
-            auto size = BlockRanges_[CurrentBlockIndex_].Size();
+            auto size = BlockRanges_[CurrentBlockIndex_].Size() - PositionInCurrentBlock_;
             blocksToWrite.push_back(TBlock(block.Slice(blockPosition, blockPosition + size)));
             ++CurrentBlockIndex_;
+            PositionInCurrentBlock_ = 0;
         }
 
         // Process part block that just overlap with given block.
-        if (CurrentBlockIndex_ < std::ssize(BlockRanges_) && BlockRanges_[CurrentBlockIndex_].Begin < range.End) {
-            int blockPosition = BlockRanges_[CurrentBlockIndex_].Begin - range.Begin;
+        if (CurrentBlockIndex_ < std::ssize(BlockRanges_) &&
+            BlockRanges_[CurrentBlockIndex_].Begin + PositionInCurrentBlock_ < range.End) {
+
+            int blockPosition = BlockRanges_[CurrentBlockIndex_].Begin + PositionInCurrentBlock_ - range.Begin;
             YT_VERIFY(blockPosition >= 0);
 
             CurrentBlock_ = TSharedMutableRef::Allocate(BlockRanges_[CurrentBlockIndex_].Size());
-            i64 copySize = block.Size() - blockPosition;
+            i64 copySize = Min<i64>(block.Size(), range.Size() - blockPosition);
             memcpy(CurrentBlock_.Begin(), block.Begin() + blockPosition, copySize);
-            PositionInCurrentBlock_ = copySize;
+            PositionInCurrentBlock_ += copySize;
         }
 
         if (ComputeChecksum_) {
@@ -333,7 +335,7 @@ private:
 
     TSharedMutableRef CurrentBlock_;
     int CurrentBlockIndex_ = 0;
-    size_t PositionInCurrentBlock_ = 0;
+    i64 PositionInCurrentBlock_ = 0;
     i64 Cursor_ = 0;
 
     std::vector<TChecksum> BlockChecksums_;
