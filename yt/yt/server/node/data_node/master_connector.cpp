@@ -622,6 +622,7 @@ private:
         TDataNodeTrackerServiceProxy proxy(masterChannel);
 
         auto req = proxy.FullHeartbeat();
+        req->SetRequestCodec(NCompression::ECodec::Lz4);
         req->SetTimeout(*Config_->FullHeartbeatTimeout);
 
         static_cast<TReqFullHeartbeat&>(*req) = GetFullHeartbeatRequest(cellTag);
@@ -658,6 +659,7 @@ private:
         TDataNodeTrackerServiceProxy proxy(masterChannel);
 
         auto req = proxy.IncrementalHeartbeat();
+        req->SetRequestCodec(NCompression::ECodec::Lz4);
         req->SetTimeout(*Config_->IncrementalHeartbeatTimeout);
 
         static_cast<TReqIncrementalHeartbeat&>(*req) = GetIncrementalHeartbeatRequest(cellTag);
