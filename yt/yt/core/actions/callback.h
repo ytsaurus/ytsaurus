@@ -186,17 +186,15 @@ public:
     }
 
     template <class R2, class... TArgs2>
-    operator TCallback<R2(TArgs2...)>() const
+    explicit operator TCallback<R2(TArgs2...)>() const
     {
-        typedef TCallableBindState<R(TArgs...), R2(TArgs2...)> TBindState;
+        return CastImpl<R2, TArgs2...>();
+    }
 
-        return TCallback<R2(TArgs2...)>(
-            New<TBindState>(
-#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
-                BindState->Location,
-#endif
-                *this),
-            &TBindState::Run);
+    template <class... TArgs2>
+    operator TCallback<R(TArgs2...)>() const
+    {
+        return CastImpl<R, TArgs2...>();
     }
 
 #ifndef __cpp_impl_three_way_comparison
@@ -225,6 +223,21 @@ public:
     R operator()(TArgs... args) const
     {
         return Run(std::forward<TArgs>(args)...);
+    }
+
+private:
+    template <class R2, class... TArgs2>
+    TCallback<R2(TArgs2...)> CastImpl() const
+    {
+        typedef TCallableBindState<R(TArgs...), R2(TArgs2...)> TBindState;
+
+        return TCallback<R2(TArgs2...)>(
+            New<TBindState>(
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
+                BindState->Location,
+#endif
+                *this),
+            &TBindState::Run);
     }
 };
 

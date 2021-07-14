@@ -80,7 +80,7 @@ public:
     bool IsDead(const TProxyEntryPtr& proxy, TInstant at) const;
 
     //! Raised when proxy role changes.
-    DEFINE_SIGNAL(void(const TString), OnSelfRoleChanged);
+    DEFINE_SIGNAL(void(const TString&), OnSelfRoleChanged);
 
 private:
     const TCoordinatorConfigPtr Config_;

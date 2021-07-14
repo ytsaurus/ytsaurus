@@ -918,7 +918,7 @@ std::vector<TSubquery> BuildThreadSubqueries(
                 .RowBuffer = queryContext->RowBuffer,
                 .Logger = queryContext->Logger.WithTag("Name: Root"),
             },
-            CreateCallbackChunkSliceFetcherFactory(BIND([] { return nullptr; })),
+            CreateCallbackChunkSliceFetcherFactory(BIND([] { return IChunkSliceFetcherPtr{}; })),
             TInputStreamDirectory({
                 // isVersioned is almost a meaningless specification for modern sorted pool.
                 // By forcefully considering both streams to be versioned, we only disable some

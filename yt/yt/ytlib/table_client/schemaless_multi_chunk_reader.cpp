@@ -1259,7 +1259,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
                 timestamp,
                 multiReaderMemoryManager->CreateChunkReaderMemoryManager(
                     DefaultRemoteDynamicStoreReaderMemoryEstimate),
-                BIND(createVersionedChunkReader));
+                    BIND(createVersionedChunkReader));
         } else {
             return createVersionedChunkReader(chunkSpec, nullptr);
         }

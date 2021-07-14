@@ -49,7 +49,7 @@ private:
         return tags;
     }
 
-    void OnProxyRoleChanged(TString newRole)
+    void OnProxyRoleChanged(const TString& newRole)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

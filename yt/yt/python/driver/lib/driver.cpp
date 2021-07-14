@@ -157,7 +157,7 @@ Py::Object TDriverBase::Execute(Py::Tuple& args, Py::Dict& kwargs)
         response->SetResponse(driverResponse);
         if (bufferedOutputStream) {
             auto outputStream = bufferedOutputStream->GetStream();
-            driverResponse.Subscribe(BIND([=] (TError /*error*/) {
+            driverResponse.Subscribe(BIND([=] (const TError& /*error*/) {
                 outputStream->Finish();
             }));
         }

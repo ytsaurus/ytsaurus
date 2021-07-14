@@ -835,7 +835,7 @@ private:
                 auto result = std::accumulate(resourceUsage.begin(), resourceUsage.end(), LocalCellResourceUsage_);
                 auto usage = New<TSerializableRichClusterResources>(Bootstrap_->GetChunkManager(), result);
                 Promise_.Set(ConvertToYsonString(usage));
-            }).AsyncVia(GetCurrentInvoker()));
+            }).Via(GetCurrentInvoker()));
     }
 };
 
