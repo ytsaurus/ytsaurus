@@ -238,7 +238,9 @@ func TestPyTest(t *testing.T) {
 		"--cache-clear",
 		"--debug",
 		"--verbose",
+		"--capture=no",
 		"--durations=0",
+		"--timeout=2400",
 	}
 	pytestArgs = append(pytestArgs, testPaths...)
 
@@ -262,6 +264,7 @@ func TestPyTest(t *testing.T) {
 		"LD_LIBRARY_PATH="+yatest.PythonLibPath(),
 		"TESTS_SANDBOX="+sandboxDir,
 		"YT_ENABLE_VERBOSE_LOGGING=1",
+		"PYTEST_PLUGINS=pytest_timeout",
 	)
 
 	t.Logf("env: %s", cmdPytest.Env)
