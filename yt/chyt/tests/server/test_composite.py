@@ -90,6 +90,8 @@ class TestComposite(ClickHouseTestBase):
             # assert clique.make_query("select a.1, a.2 from `//tmp/t`") == [
             #     {"a.s": "foo", "a.i": 42}
             # ]
-            assert clique.make_query("select untuple(a) from `//tmp/t`") == [
-                {"s": "foo", "i": 42}
-            ]
+
+            # TODO(max42): commented until untuple behavior is fixed (or it is completely removed from CH).
+            # assert clique.make_query("select untuple(a) from `//tmp/t`") == [
+            #     {"s": "foo", "i": 42}
+            # ]
