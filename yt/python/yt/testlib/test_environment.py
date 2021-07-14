@@ -2,7 +2,6 @@ from __future__ import print_function
 
 from .helpers import yatest_common
 
-from yt.test_helpers import wait
 import yt.test_helpers.cleanup as test_cleanup
 
 from yt.environment import YTInstance, arcadia_interop
@@ -17,8 +16,6 @@ from yt.packages.six import iteritems, itervalues
 
 import yt.wrapper as yt
 
-import pytest
-
 import os
 import sys
 import uuid
@@ -27,17 +24,21 @@ import logging
 import socket
 import warnings
 
-# Disables """cryptography/hazmat/primitives/constant_time.py:26: CryptographyDeprecationWarning: Support for your Python version is deprecated.
-# The next version of cryptography will remove support. Please upgrade to a 2.7.x release that supports hmac.compare_digest as soon as possible."""
+# Disables """cryptography/hazmat/primitives/constant_time.py:26: CryptographyDeprecationWarning:
+# Support for your Python version is deprecated.
+# The next version of cryptography will remove support.
+# Please upgrade to a 2.7.x release that supports hmac.compare_digest as soon as possible."""
 warnings.filterwarnings(action="ignore", module="cryptography.hazmat.primitives.*")
 
 yt.http_helpers.RECEIVE_TOKEN_FROM_SSH_SESSION = False
 
 ASAN_USER_JOB_MEMORY_LIMIT = 1280 * MB
 
+
 def rmtree(path):
     if os.path.exists(path):
         shutil.rmtree(path)
+
 
 class YtTestEnvironment(object):
     def __init__(self,
@@ -156,16 +157,18 @@ class YtTestEnvironment(object):
             rpc_proxy_count=1,
             fqdn="localhost",
             allow_chunk_storage_in_tmpfs=True,
+            enable_log_compression=True,
+            log_compression_method="zstd",
             **env_options
         )
 
-        self.env = YTInstance(self.sandbox_dir, yt_config,                
+        self.env = YTInstance(self.sandbox_dir, yt_config,
                               modify_configs_func=modify_configs,
                               kill_child_processes=True)
 
         try:
             self.env.start()
-        except:
+        except Exception:
             self.save_sandbox()
             raise
 
@@ -202,7 +205,8 @@ class YtTestEnvironment(object):
         self.config["read_parallel"]["max_thread_count"] = 10
 
         self.config["enable_token"] = False
-        self.config["pickling"]["module_filter"] = lambda module: hasattr(module, "__file__") and not "driver_lib" in module.__file__
+        self.config["pickling"]["module_filter"] = lambda module: \
+            hasattr(module, "__file__") and "driver_lib" not in module.__file__
 
         self.config["pickling"]["python_binary"] = sys.executable
         self.config["user_job_spec_defaults"] = {
@@ -254,7 +258,7 @@ class YtTestEnvironment(object):
     def save_sandbox(self):
         try:
             arcadia_interop.save_sandbox(self.sandbox_dir, self.uniq_dir_name)
-        except:
+        except:  # noqa
             # Additional logging added due to https://github.com/pytest-dev/pytest/issues/2237
             logging.exception("YtTestEnvironment cleanup failed")
             raise
@@ -268,10 +272,12 @@ class YtTestEnvironment(object):
         yt._cleanup_http_session()
         yt.config.config = self.config
 
+
 def _cleanup_transactions():
     test_cleanup.abort_transactions(
         list_action=yt.list,
         abort_action=yt.abort_transaction)
+
 
 def _cleanup_operations(remove_operations_archive):
     if yt.get("//sys/scheduler/instances/@count") == 0:
@@ -282,6 +288,7 @@ def _cleanup_operations(remove_operations_archive):
         abort_action=yt.abort_operation,
         remove_action=yt.remove,
         remove_operations_archive=remove_operations_archive)
+
 
 def _cleanup_objects(object_ids_to_ignore):
     def remove_multiple_action(remove_kwargs):
@@ -308,6 +315,7 @@ def _cleanup_objects(object_ids_to_ignore):
         exists_multiple_action=lambda object_ids: [yt.exists(object_id) for object_id in object_ids],
         object_ids_to_ignore=object_ids_to_ignore)
 
+
 def test_method_teardown(remove_operations_archive=True):
     if yt.config["backend"] == "proxy":
         assert yt.config["proxy"]["url"].startswith("localhost")
@@ -327,4 +335,3 @@ def test_method_teardown(remove_operations_archive=True):
     yt.remove("//tmp/*", recursive=True)
 
     _cleanup_objects(object_ids_to_ignore=object_ids_to_ignore)
-
