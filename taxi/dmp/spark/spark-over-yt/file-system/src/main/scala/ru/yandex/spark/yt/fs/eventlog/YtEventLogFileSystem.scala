@@ -10,8 +10,8 @@ import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguratio
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.YtWrapper.RichLogger
 import ru.yandex.spark.yt.wrapper.client.{YtClientConfiguration, YtClientProvider, YtRpcClient}
-import ru.yandex.spark.yt.wrapper.model.EventLogSchema.{metaSchema, schema}
 import ru.yandex.spark.yt.wrapper.cypress.PathType
+import ru.yandex.spark.yt.wrapper.model.EventLogSchema.{metaSchema, schema}
 import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient}
 
 import java.io.FileNotFoundException
@@ -19,6 +19,7 @@ import java.net.URI
 import java.time.Clock
 import java.util
 import java.util.UUID
+import scala.util.{Failure, Success, Try}
 
 class YtEventLogFileSystem extends FileSystem {
   val id: String = UUID.randomUUID().toString
@@ -48,6 +49,10 @@ class YtEventLogFileSystem extends FileSystem {
     val (tablePath, fullTableName) = splitTablePath(f)
     val ytTablePath = hadoopPathToYt(tablePath)
 
+    if (!overwrite && exists(f)) {
+      throw new FileAlreadyExistsException()
+    }
+
     YtWrapper.createDir(hadoopPathToYt(tablePath.getParent), None, ignoreExisting = true)(yt)
 
     def createFile(ytRpcClient: Option[YtRpcClient], ytClient: CompoundClient): FSDataOutputStream = {
@@ -59,7 +64,10 @@ class YtEventLogFileSystem extends FileSystem {
     val out = createFile(None, yt)
 
     oldDetails match {
-      case Some(v) => deleteAllRowsWithId(ytTablePath, v.id, v.meta.blocksCnt, None)
+      case Some(v) =>
+        YtWrapper.runUnderTransaction(None)(transaction => {
+          deleteAllRowsWithId(ytTablePath, v.id, v.meta.blocksCnt, Some(transaction))
+        })(yt)
       case _ =>
     }
 
@@ -68,6 +76,18 @@ class YtEventLogFileSystem extends FileSystem {
 
   def splitTablePath(f: Path): (Path, String) = {
     (f.getParent, f.getName)
+  }
+
+  private def isCreatedAndMounted(f: Path): Boolean = {
+    YtWrapper.exists(hadoopPathToYt(f))(yt) && YtWrapper.tabletState(hadoopPathToYt(f))(yt) == YtWrapper.TabletState.Mounted
+  }
+
+  override def exists(f: Path): Boolean = {
+    getFileStatusEither(f).toOption.exists(_ != null)
+  }
+
+  def existsTable(f: Path): Boolean = {
+    isCreatedAndMounted(f) && isCreatedAndMounted(new Path(getMetaPath(f)))
   }
 
   override def getUri: URI = _uri
@@ -131,22 +151,24 @@ class YtEventLogFileSystem extends FileSystem {
 
   override def listStatus(f: Path): Array[FileStatus] = {
     log.debugLazy(s"List status $f")
-    val meta_path = getMetaPath(f)
+    val meta_path = getMetaPath(hadoopPathToYt(f))
     implicit val ytClient: CompoundClient = yt
 
-    val path = hadoopPathToYt(f)
-    val pathType = YtWrapper.pathType(path)
+    val pathType = YtWrapper.pathType(hadoopPathToYt(f))
     pathType match {
       case PathType.Table =>
+        if (!existsTable(f)) {
+          throw new IllegalArgumentException(s"Corrupted table found at $f")
+        }
         val rows = YtWrapper.selectRows(meta_path, metaSchema, None)
-        rows.map(x => YtEventLogFileDetails(x)).map {
+        rows.map(YtEventLogFileDetails.apply).map {
           details => {
             new FileStatus(
               details.meta.length, false, 1, 0,
               details.meta.modificationTs, new Path(f, details.fileName))
           }
         }.toArray
-      case _ => throw new IllegalArgumentException(s"Can't visit $path")
+      case _ => throw new IllegalArgumentException(s"Can't visit $f")
     }
   }
 
@@ -157,7 +179,11 @@ class YtEventLogFileSystem extends FileSystem {
   override def getWorkingDirectory: Path = _workingDirectory
 
   override def mkdirs(f: Path, permission: FsPermission): Boolean = {
-    YtWrapper.createDir(hadoopPathToYt(f.getParent), ignoreExisting = true)(yt)
+    implicit val ytClient: CompoundClient = yt
+    YtWrapper.createDir(hadoopPathToYt(f.getParent), ignoreExisting = true)
+    val path = hadoopPathToYt(f)
+    YtWrapper.createDynTableAndMount(path, schema)
+    YtWrapper.createDynTableAndMount(getMetaPath(path), metaSchema)
     true
   }
 
@@ -171,13 +197,12 @@ class YtEventLogFileSystem extends FileSystem {
       selectedRows match {
         case Nil => None
         case meta :: Nil => Some(YtEventLogFileDetails(meta))
-        case _ => throw new RuntimeException(s"Meta table ${meta_path} has a few rows with file_name=$fileName")
+        case _ => throw new RuntimeException(s"Meta table $meta_path has a few rows with file_name=$fileName")
       }
     }
   }
 
-  override def getFileStatus(f: Path): FileStatus = {
-    log.debugLazy(s"Get file status $f")
+  private def getFileStatusEither(f: Path): Try[FileStatus] = Try {
     implicit val ytClient: CompoundClient = yt
 
     val (tablePath, fullTableName) = splitTablePath(f)
@@ -189,12 +214,16 @@ class YtEventLogFileSystem extends FileSystem {
       val parentPathType = YtWrapper.pathType(tablePathStr)
       parentPathType match {
         case PathType.Table =>
-          getFileDetailsImpl(tablePathStr, fullTableName) match {
-            case Some(details) =>
-              new FileStatus(
-                details.meta.length, false, 1, 0, details.meta.modificationTs, f
-              )
-            case _ => throw new FileNotFoundException(s"File $fullTableName doesn't exist in $tablePathStr")
+          if (!existsTable(tablePath)) {
+            throw new FileNotFoundException(s"Corrupted table found at $f")
+          } else {
+            getFileDetailsImpl(tablePathStr, fullTableName) match {
+              case Some(details) =>
+                new FileStatus(
+                  details.meta.length, false, 1, 0, details.meta.modificationTs, f
+                )
+              case _ => throw new FileNotFoundException(s"File $fullTableName doesn't exist in $tablePathStr")
+            }
           }
         case PathType.Directory =>
           val fStr = hadoopPathToYt(f)
@@ -203,12 +232,23 @@ class YtEventLogFileSystem extends FileSystem {
           } else {
             val pathType = YtWrapper.pathType(fStr)
             pathType match {
-              case PathType.Table => new FileStatus(0, true, 1, 0, YtWrapper.modificationTimeTs(fStr), f)
+              case PathType.Table =>
+                new FileStatus(0, true, 1, 0, YtWrapper.modificationTimeTs(fStr), f)
               case _ => null
             }
           }
         case _ => null
       }
+    }
+  }
+
+  override def getFileStatus(f: Path): FileStatus = {
+    log.debugLazy(s"Get file status $f")
+
+    val res = getFileStatusEither(f)
+    res match {
+      case Failure(e) => throw e
+      case Success(v) => v
     }
   }
 }

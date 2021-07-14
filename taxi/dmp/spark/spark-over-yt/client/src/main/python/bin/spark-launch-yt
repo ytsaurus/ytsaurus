@@ -58,9 +58,9 @@ def main():
     parser.set_defaults(enable_mtn=default_enablers.enable_mtn)
 
     group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument('--enable-event-log', dest='enable_event_log', action='store_true')
-    group.add_argument('--disable-event-log', dest='enable_event_log', action='store_false')
-    parser.set_defaults(enable_event_log=False)
+    group.add_argument('--enable-advanced-event-log', dest='advanced_event_log', action='store_true')
+    group.add_argument('--disable-advanced-event-log', dest='advanced_event_log', action='store_false')
+    parser.set_defaults(advanced_event_log=False)
 
     args, unknown_args = spark_utils.parse_args(parser)
 
@@ -81,7 +81,7 @@ def main():
                         network_project=args.network_project,
                         tvm_id=spark_utils.default_tvm_id(),
                         tvm_secret=spark_utils.default_tvm_secret(),
-                        enable_event_log=args.enable_event_log,
+                        advanced_event_log=args.advanced_event_log,
                         params=args.params,
                         spark_cluster_version=args.spark_cluster_version,
                         enablers=SpytEnablers(

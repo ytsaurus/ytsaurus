@@ -5,7 +5,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer
 import ru.yandex.inside.yt.kosher.ytree.{YTreeMapNode, YTreeNode}
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
-import ru.yandex.spark.yt.wrapper.YtWrapper
+import ru.yandex.spark.yt.wrapper.YtWrapper.{createTable, createTransaction}
 import ru.yandex.spark.yt.wrapper.cypress.{YtAttributes, YtCypressUtils}
 import ru.yandex.spark.yt.wrapper.table.YtTableSettings
 import ru.yandex.yt.ytclient.proxy.request.GetTablePivotKeys
@@ -95,17 +95,35 @@ trait YtDynTableUtils {
     waitUnmount(timeout.toMillis)
   }
 
+  def isDynTablePrepared(path: String)(implicit yt: CompoundClient): Boolean = {
+    exists(path) && tabletState(path) == TabletState.Mounted
+  }
+
+  def createDynTableAndMount(path: String, schema: TableSchema, ignoreExisting: Boolean = true)(implicit yt: CompoundClient): Unit = {
+    if (isDynTablePrepared(path) && !ignoreExisting) {
+      throw new RuntimeException("Table already exists")
+    }
+    if (!exists(path)) {
+      createDynTable(path, schema)
+    }
+    if (tabletState(path) == TabletState.Unmounted) {
+      mountAndWait(path)
+    }
+  }
+
   def createDynTable(path: String, schema: TableSchema)(implicit yt: CompoundClient): Unit = {
-    YtWrapper.createTable(path, new YtTableSettings {
+    createTable(path, new YtTableSettings {
       override def ytSchema: YTreeNode = schema.toYTree
 
       override def optionsAny: Map[String, Any] = Map(
         "dynamic" -> "true"
       )
     })
+  }
 
-    YtWrapper.mountTable(path)
-    YtWrapper.waitState(path, YtWrapper.TabletState.Mounted, 10 seconds)
+  def mountAndWait(path: String)(implicit yt: CompoundClient): Unit = {
+    mountTable(path)
+    waitState(path, TabletState.Mounted, 10 seconds)
   }
 
   def selectRows(path: String, schema: TableSchema, condition: Option[String] = None,
@@ -128,7 +146,7 @@ trait YtDynTableUtils {
 
   def runUnderTransaction[T](parent: Option[ApiServiceTransaction])
                             (f: ApiServiceTransaction => T)(implicit yt: CompoundClient): T = {
-    val transaction = parent.getOrElse(YtWrapper.createTransaction(parent = None, timeout = 1 minute, sticky = true))
+    val transaction = parent.getOrElse(createTransaction(parent = None, timeout = 1 minute, sticky = true))
     try {
       val res = f(transaction)
       if (parent.isEmpty) transaction.commit().join()

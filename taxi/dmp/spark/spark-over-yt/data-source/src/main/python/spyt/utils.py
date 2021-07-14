@@ -52,7 +52,7 @@ class SparkDiscovery(object):
 
     def create(self, client):
         create("map_node", self.discovery(), recursive=True, ignore_existing=True, client=client)
-        create("map_node", self.event_log(), recursive=True, ignore_existing=True, client=client)
+        create("map_node", self.logs(), recursive=True, ignore_existing=True, client=client)
 
     def discovery(self):
         if self.spark_id:
