@@ -225,11 +225,9 @@ class YtTestEnvironment(object):
         # Interrupt main in tests is unrelaible and can cause 'Test crashed' or other errors in case of flaps.
         self.config["ping_failed_mode"] = "pass"
 
-        # NB: temporary hack
-        if arcadia_interop.yatest_common is not None:
-            self.config["is_local_mode"] = True
-        else:
-            self.config["is_local_mode"] = False
+        self.config["is_local_mode"] = True
+        # TODO(ignat): YT-14218: enable tmpfs in jobs.
+        self.config["pickling"]["enable_tmpfs_archive"] = False
 
         self.reload_global_configuration()
 
