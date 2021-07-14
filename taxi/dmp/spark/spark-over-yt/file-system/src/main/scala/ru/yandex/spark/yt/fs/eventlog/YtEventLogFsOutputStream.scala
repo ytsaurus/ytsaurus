@@ -5,7 +5,6 @@ import ru.yandex.spark.yt.fs.PathUtils.getMetaPath
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.model.EventLogSchema.{metaSchema, schema}
 import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient}
-import ru.yandex.yt.ytclient.tables.TableSchema
 
 import java.io.OutputStream
 import java.time.Clock
@@ -24,15 +23,9 @@ class YtEventLogFsOutputStream(conf: Configuration, path: String, fileName: Stri
 
   open()
 
-  def createIfNotExists(path: String, schema: TableSchema): Unit = {
-    if (!YtWrapper.exists(path)) {
-      YtWrapper.createDynTable(path, schema)
-    }
-  }
-
   def open(): Unit = {
-    createIfNotExists(path, schema)
-    createIfNotExists(meta_path, metaSchema)
+    YtWrapper.createDynTableAndMount(path, schema)
+    YtWrapper.createDynTableAndMount(meta_path, metaSchema)
     syncInfo()
   }
 

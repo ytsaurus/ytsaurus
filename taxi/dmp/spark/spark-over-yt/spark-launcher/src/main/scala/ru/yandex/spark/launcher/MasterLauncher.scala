@@ -19,7 +19,7 @@ object MasterLauncher extends App
   val masterArgs = MasterLauncherArgs(args)
   import masterArgs._
 
-  withDiscovery(ytConfig, discoveryPath) { case (discoveryService, _) =>
+  withDiscovery(ytConfig, discoveryPath) { discoveryService =>
     withService(startMaster) { master =>
       withService(startMasterWrapper(args, master)) { masterWrapper =>
         withService(startSolomonAgent(args, "master", master.masterAddress.webUiHostAndPort.getPort)) { solomonAgent =>

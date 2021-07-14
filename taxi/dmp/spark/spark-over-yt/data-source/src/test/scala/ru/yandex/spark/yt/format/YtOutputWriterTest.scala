@@ -35,7 +35,7 @@ class YtOutputWriterTest extends FlatSpec with TmpDir with LocalSpark with Match
   }
 
   it should "exception while writing several batches with relative in path" in {
-    a[IllegalArgumentException] shouldBe thrownBy {
+    an[IllegalArgumentException] shouldBe thrownBy {
       prepareWrite("subfolder", Nil) { transaction => }
     }
   }

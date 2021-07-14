@@ -1,7 +1,7 @@
 package ru.yandex.spark.yt.fs.eventlog
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{FSDataInputStream, Path}
+import org.apache.hadoop.fs.{FSDataInputStream, FileStatus, Path}
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.spark.yt.fs.PathUtils.{getMetaPath, hadoopPathToYt}
@@ -20,7 +20,9 @@ class YtEventLogFileSystemTest extends FlatSpec with Matchers with LocalSpark wi
 
   override def testDir: String = "/tmp/test" // should start with single slash
 
-  def tableLocation = s"${tmpPath}/table"
+  def tableName = "table"
+
+  def tableLocation = s"$tmpPath/$tableName"
 
   def metaTableLocation: String = getMetaPath(tableLocation)
 
@@ -46,12 +48,12 @@ class YtEventLogFileSystemTest extends FlatSpec with Matchers with LocalSpark wi
   it should "open" in {
     val (fileName, tablePath) = getNameAndFileLocation("testLog")
 
-    YtWrapper.createDynTable(hadoopPathToYt(tableLocation), schema)
+    YtWrapper.createDynTableAndMount(hadoopPathToYt(tableLocation), schema)
     YtWrapper.insertRows(hadoopPathToYt(tableLocation), schema, List(
       new YtEventLogBlock(fileName, 1, "12".getBytes).toList,
       new YtEventLogBlock(fileName, 2, "3".getBytes).toList,
     ), None)
-    YtWrapper.createDynTable(hadoopPathToYt(metaTableLocation), metaSchema)
+    YtWrapper.createDynTableAndMount(hadoopPathToYt(metaTableLocation), metaSchema)
     YtWrapper.insertRows(hadoopPathToYt(metaTableLocation), metaSchema,
       List(
         new YtEventLogFileDetails(
@@ -62,9 +64,9 @@ class YtEventLogFileSystemTest extends FlatSpec with Matchers with LocalSpark wi
     readAllData(tablePath) shouldEqual "123"
   }
 
-  it should "exception while reading not existing file" in {
-    a[IllegalArgumentException] shouldBe thrownBy {
-      fs.open(new Path(getNameAndFileLocation("unknownTestLog")._2))
+  it should "throw an exception when reading not existing file" in {
+    an[IllegalArgumentException] shouldBe thrownBy {
+      fs.open(new Path(getNameAndFileLocation("unknownTestLog")._2)).close()
     }
   }
 
@@ -176,7 +178,7 @@ class YtEventLogFileSystemTest extends FlatSpec with Matchers with LocalSpark wi
     val out2 = fs.create(new Path(tablePath2))
 
     val (fileName3, tablePath3) = getNameAndFileLocation("testLog3")
-    fs.create(new Path(tablePath3))
+    fs.create(new Path(tablePath3)).close()
 
     try {
       out1.write("123".getBytes())
@@ -215,24 +217,28 @@ class YtEventLogFileSystemTest extends FlatSpec with Matchers with LocalSpark wi
         fs.getFileStatus(new Path(q))
       }
     }
-    val res = validQueries.map(x => fs.getFileStatus(new Path(x))).map(x => (x.getLen, x.isDirectory, x.getPath))
+    val res = validQueries.map(x => fs.getFileStatus(new Path(x))).map(unpackFileStatus)
     res should contain theSameElementsAs Seq(
-      (0, true, new Path(dirPath)),
-      (3, false, new Path(tablePath1))
+      (new Path(dirPath), true, 0),
+      (new Path(tablePath1), false, 3)
     )
+  }
+
+  private def unpackFileStatus(fileStatus: FileStatus): (Path, Boolean, Long) = {
+    (fileStatus.getPath, fileStatus.isDirectory, fileStatus.getLen)
   }
 
   it should "listStatus" in {
     fs.setClock(Clock.systemUTC())
 
     val (_, tablePath1) = getNameAndFileLocation("testLog1")
-    fs.create(new Path(tablePath1))
+    fs.create(new Path(tablePath1)).close()
 
     val (_, tablePath2) = getNameAndFileLocation("testLog2")
     writeSingleStringToLog(tablePath2, "1")
 
     val list = fs.listStatus(new Path(tableLocation))
-    val res = list.map(f => (f.getPath, f.isDirectory, f.getLen))
+    val res = list.map(unpackFileStatus)
     val mts = list.map(l => l.getModificationTime)
 
     res should contain theSameElementsAs Seq(
@@ -245,11 +251,52 @@ class YtEventLogFileSystemTest extends FlatSpec with Matchers with LocalSpark wi
   private def renameAndCheckExisting(tablePathOld: Path, tablePathNew: Path, fileSize: Long) = {
     fs.rename(tablePathOld, tablePathNew)
 
-    val res = fs.listStatus(new Path(tableLocation)).map(f => (f.getPath, f.isDirectory, f.getLen))
+    val res = fs.listStatus(new Path(tableLocation)).map(unpackFileStatus)
 
     res should contain theSameElementsAs Seq(
       (tablePathNew, false, fileSize)
     )
+  }
+
+  it should "exists" in {
+    val (_, tablePath1) = getNameAndFileLocation("testLog1")
+    val (_, tablePath2) = getNameAndFileLocation("testLog2")
+    fs.create(new Path(tablePath1)).close()
+
+    fs.exists(new Path(tablePath1)) shouldEqual true
+    fs.exists(new Path(tablePath2)) shouldEqual false
+    fs.exists(new Path(tableLocation)) shouldEqual true
+  }
+
+  it should "mkdirs" in {
+    fs.mkdirs(new Path(tableLocation))
+
+    val fileStatus = unpackFileStatus(fs.getFileStatus(new Path(tableLocation)))
+    fileStatus shouldEqual (new Path(tableLocation), true, 0)
+
+    val listDirectory = fs.listStatus(new Path(tableLocation))
+    val resDirectory = listDirectory.map(unpackFileStatus)
+    resDirectory.isEmpty shouldEqual true
+  }
+
+  it should "throw a correct exception after failed mkdirs" in {
+    val (_, tablePath) = getNameAndFileLocation("testLog")
+
+    YtWrapper.createDynTable(hadoopPathToYt(tableLocation), schema)
+    an[IllegalArgumentException] shouldBe thrownBy {
+      fs.listStatus(new Path(tableLocation))
+    }
+    a[FileNotFoundException] shouldBe thrownBy {
+      fs.getFileStatus(new Path(tablePath))
+    }
+
+    YtWrapper.mountAndWait(hadoopPathToYt(tableLocation))
+    an[IllegalArgumentException] shouldBe thrownBy {
+      fs.listStatus(new Path(tableLocation))
+    }
+    a[FileNotFoundException] shouldBe thrownBy {
+      fs.getFileStatus(new Path(tablePath))
+    }
   }
 
   it should "rename" in {
@@ -262,7 +309,7 @@ class YtEventLogFileSystemTest extends FlatSpec with Matchers with LocalSpark wi
 
   it should "rename empty file" in {
     val (_, tablePathOld) = getNameAndFileLocation("testLog1")
-    fs.create(new Path(tablePathOld))
+    fs.create(new Path(tablePathOld)).close()
     val (_, tablePathNew) = getNameAndFileLocation("testLog4")
 
     renameAndCheckExisting(new Path(tablePathOld), new Path(tablePathNew), 0)
@@ -305,13 +352,13 @@ class YtEventLogFileSystemTest extends FlatSpec with Matchers with LocalSpark wi
     val (_, tablePath2) = getNameAndFileLocation("testLog2")
     val (_, tablePath3) = getNameAndFileLocation("testLog3")
 
-    fs.create(new Path(tablePath1))
+    fs.create(new Path(tablePath1)).close()
     writeSingleStringToLog(tablePath2, "4567")
 
-    fs.delete(new Path(tablePath1), recursive = false) shouldBe true
-    fs.delete(new Path(tablePath2), recursive = true) shouldBe true
-    fs.delete(new Path(tablePath3), recursive = false) shouldBe false
+    fs.delete(new Path(tablePath1), recursive = false) shouldEqual true
+    fs.delete(new Path(tablePath2), recursive = true) shouldEqual true
+    fs.delete(new Path(tablePath3), recursive = false) shouldEqual false
 
-    fs.listStatus(new Path(tableLocation)) should contain theSameElementsAs Seq()
+    fs.listStatus(new Path(tableLocation)).isEmpty shouldEqual true
   }
 }
