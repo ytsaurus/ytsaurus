@@ -1125,6 +1125,10 @@ public:
         auto* request = &context->Request();
         auto nodeId = request->node_id();
 
+        if (nodeId == InvalidNodeId) {
+            THROW_ERROR_EXCEPTION("Cannot process a heartbeat with invalid node id");
+        }
+
         auto unregisterFuture = VoidFuture;
         if (HandleNodeIdChangesStrictly_) {
             auto guard = Guard(NodeAddressToNodeShardIdLock_);
