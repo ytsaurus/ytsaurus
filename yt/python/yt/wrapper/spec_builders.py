@@ -160,7 +160,7 @@ class Finalizer(object):
             tables_to_merge.append(table)
             data_sizes_per_job.append(data_size_per_job)
         
-        is_sorted_list = batch_apply(is_sorted, tables_to_merge, client=self.client)
+        is_sorted_list = batch_apply(is_sorted, tables_to_merge, raise_errors=False, client=self.client)
 
         for table, is_table_sorted, data_size_per_job in izip(tables_to_merge, is_sorted_list, data_sizes_per_job):
             mode = "sorted" if is_table_sorted else "ordered"
