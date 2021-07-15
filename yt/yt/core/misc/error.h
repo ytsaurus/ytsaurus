@@ -41,6 +41,9 @@ private:
     int Value_;
 };
 
+void FormatValue(TStringBuilderBase* builder, TErrorCode code, TStringBuf spec);
+TString ToString(TErrorCode code);
+
 template <class E>
 typename std::enable_if<TEnumTraits<E>::IsEnum, bool>::type operator == (E lhs, TErrorCode rhs);
 template <class E>
