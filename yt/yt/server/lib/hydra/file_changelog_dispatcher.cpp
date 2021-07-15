@@ -112,6 +112,10 @@ public:
             return true;
         }
 
+        if (config->FlushPeriod == TDuration::Zero()) {
+            return true;
+        }
+
         if (LastFlushed_.load() + NProfiling::DurationToCpuDuration(config->FlushPeriod) <  NProfiling::GetCpuInstant()) {
             return true;
         }
@@ -204,8 +208,7 @@ public:
             return;
         }
 
-        bool expected = false;
-        if (ProcessQueueCallbackPending_.compare_exchange_strong(expected, true)) {
+        if (!ProcessQueueCallbackPending_.exchange(true)) {
             GetInvoker()->Invoke(ProcessQueueCallback_);
         }
     }
@@ -214,7 +217,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(SyncThread);
 
-        ProcessQueueCallbackPending_ = false;
+        ProcessQueueCallbackPending_.store(false);
 
         if (HasPendingFlushes()) {
             RunPendingFlushes();
@@ -301,7 +304,7 @@ class TFileChangelogDispatcher
 public:
     TFileChangelogDispatcher(
         NIO::IIOEnginePtr ioEngine,
-        IFileChangelogDispatcherConfigPtr config,
+        TFileChangelogDispatcherConfigPtr config,
         TString threadName,
         TProfiler profiler)
         : IOEngine_(std::move(ioEngine))
@@ -434,7 +437,7 @@ public:
 
 private:
     const NIO::IIOEnginePtr IOEngine_;
-    const IFileChangelogDispatcherConfigPtr Config_;
+    const TFileChangelogDispatcherConfigPtr Config_;
     const TClosure ProcessQueuesCallback_;
 
     const TActionQueuePtr ActionQueue_;
@@ -679,7 +682,7 @@ IChangelogPtr CreateFileChangelog(
 
 IFileChangelogDispatcherPtr CreateFileChangelogDispatcher(
     NIO::IIOEnginePtr ioEngine,
-    IFileChangelogDispatcherConfigPtr config,
+    TFileChangelogDispatcherConfigPtr config,
     TString threadName,
     TProfiler profiler)
 {
