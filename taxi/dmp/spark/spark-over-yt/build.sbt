@@ -1,14 +1,14 @@
-import DebianPackagePlugin.autoImport._
 import Dependencies._
-import PythonPlugin.autoImport._
-import SparkPackagePlugin.autoImport._
-import TarArchiverPlugin.autoImport._
-import YtPublishPlugin.autoImport._
-import ZipPlugin.autoImport._
 import com.typesafe.sbt.packager.linux.{LinuxPackageMapping, LinuxSymlink}
 import sbtrelease.ReleasePlugin.autoImport.releaseProcess
-import spyt.SpytPlugin
+import spyt.DebianPackagePlugin.autoImport._
+import spyt.PythonPlugin.autoImport._
+import spyt.SparkPackagePlugin.autoImport._
 import spyt.SpytPlugin.autoImport._
+import spyt.TarArchiverPlugin.autoImport._
+import spyt.YtPublishPlugin.autoImport._
+import spyt.ZipPlugin.autoImport._
+import spyt._
 
 lazy val `yt-wrapper` = (project in file("yt-wrapper"))
   .settings(

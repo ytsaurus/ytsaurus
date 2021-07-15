@@ -1,6 +1,6 @@
-import java.time.Duration
+package spyt
 
-import _root_.io.netty.channel.nio.NioEventLoopGroup
+import io.netty.channel.nio.NioEventLoopGroup
 import ru.yandex.yt.ytclient.bus.{BusConnector, DefaultBusConnector}
 import ru.yandex.yt.ytclient.proxy.YtClient
 import ru.yandex.yt.ytclient.proxy.request.{CreateNode, ObjectType}
@@ -8,8 +8,8 @@ import ru.yandex.yt.ytclient.rpc.RpcCredentials
 import sbt.Keys._
 import sbt._
 
+import java.time.Duration
 import scala.io.Source
-import scala.language.postfixOps
 import scala.sys.process._
 
 object YtPublishPlugin extends AutoPlugin {
@@ -113,27 +113,27 @@ object YtPublishPlugin extends AutoPlugin {
     publishYt := {
       val log = streams.value.log
 
-        val creds = publishYtCredentials.value
-        ytProxies.par.foreach { proxy =>
-          val (ytClient, connector) = createYtClient(proxy, creds)
-          implicit val yt: YtClient = ytClient
-          try {
-            publishYtArtifacts.value.par.foreach { artifact =>
-              if (artifact.proxy.forall(_ == proxy)) {
-                if (sys.env.get("RELEASE_TEST").exists(_.toBoolean)) {
-                  log.info(s"RELEASE_TEST: Publish $artifact to $proxy")
-                } else {
-                  createDir(artifact.remoteDir, proxy, log)
-                  artifact.publish(proxy, log)
-                }
-
+      val creds = publishYtCredentials.value
+      ytProxies.par.foreach { proxy =>
+        val (ytClient, connector) = createYtClient(proxy, creds)
+        implicit val yt: YtClient = ytClient
+        try {
+          publishYtArtifacts.value.par.foreach { artifact =>
+            if (artifact.proxy.forall(_ == proxy)) {
+              if (sys.env.get("RELEASE_TEST").exists(_.toBoolean)) {
+                log.info(s"RELEASE_TEST: Publish $artifact to $proxy")
+              } else {
+                createDir(artifact.remoteDir, proxy, log)
+                artifact.publish(proxy, log)
               }
+
             }
-          } finally {
-            yt.close()
-            connector.close()
           }
+        } finally {
+          yt.close()
+          connector.close()
         }
+      }
     }
   )
 }

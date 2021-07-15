@@ -1,8 +1,9 @@
+package spyt
+
 import sbt.Keys._
 import sbt._
 
-import scala.language.postfixOps
-import sys.process._
+import scala.sys.process._
 
 object PythonPlugin extends AutoPlugin {
   override def trigger = NoTrigger

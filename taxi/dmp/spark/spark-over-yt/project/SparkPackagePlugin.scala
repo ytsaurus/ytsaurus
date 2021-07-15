@@ -1,13 +1,13 @@
-import java.io.{File, FileInputStream, FilenameFilter, InputStreamReader}
-import java.util.Properties
+package spyt
 
 import com.typesafe.sbt.packager.linux.LinuxPackageMapping
 import sbt.Keys._
 import sbt.PluginTrigger.NoTrigger
 import sbt._
 
+import java.io.{FileInputStream, FilenameFilter, InputStreamReader}
+import java.util.Properties
 import scala.annotation.tailrec
-import scala.language.postfixOps
 
 object SparkPackagePlugin extends AutoPlugin {
   override def requires = super.requires && YtPublishPlugin
@@ -16,10 +16,12 @@ object SparkPackagePlugin extends AutoPlugin {
 
   import YtPublishPlugin.autoImport._
   import autoImport._
+
   object autoImport {
     val sparkPackage = taskKey[File]("Build spark and add custom files")
 
     val sparkHome = settingKey[File]("")
+    val sparkVersionPyFile = settingKey[File]("")
 
     val sparkAdditionalJars = taskKey[Seq[File]]("Jars to copy in SPARK_HOME/jars")
     val sparkAdditionalBin = settingKey[Seq[File]]("Scripts to copy in SPARK_HOME/bin")
@@ -60,13 +62,14 @@ object SparkPackagePlugin extends AutoPlugin {
     } finally {
       reader.close()
     }
-    properties.stringPropertyNames().asScala.map{name =>
+    properties.stringPropertyNames().asScala.map { name =>
       name -> properties.getProperty(name)
     }.toMap
   }
 
   override def projectSettings: Seq[Def.Setting[_]] = super.projectSettings ++ Seq(
-    sparkHome := baseDirectory.value.getParentFile.getParentFile / "spark",
+    sparkHome := (ThisBuild / baseDirectory).value / "spark",
+    (ThisBuild / sparkVersionPyFile) := sparkHome.value / "python" / "pyspark" / "version.py",
     sparkIsSnapshot := isSnapshot.value || version.value.contains("beta"),
     sparkReleaseGlobalConfig := !sparkIsSnapshot.value,
     sparkLocalConfigs := {
@@ -115,7 +118,7 @@ object SparkPackagePlugin extends AutoPlugin {
         None,
         "spark-launch-conf"
       )
-      val configsPublish = sidecarConfigs.map( file => YtPublishFile(file, versionConfPath, None))
+      val configsPublish = sidecarConfigs.map(file => YtPublishFile(file, versionConfPath, None))
 
       val globalConfigPublish = if (sparkReleaseGlobalConfig.value) {
         log.info(s"Prepare configs for ${ytProxies.mkString(", ")}")

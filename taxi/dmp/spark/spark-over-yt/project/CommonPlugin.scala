@@ -4,6 +4,7 @@ import sbt.plugins.JvmPlugin
 import sbtassembly.AssemblyPlugin.autoImport._
 import Dependencies._
 import spyt.SpytPlugin.autoImport._
+import spyt.YtPublishPlugin
 
 object CommonPlugin extends AutoPlugin {
   override def trigger = AllRequirements

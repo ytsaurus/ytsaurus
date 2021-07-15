@@ -1,13 +1,14 @@
-import java.io.{BufferedOutputStream, FileInputStream, FileOutputStream}
-import java.nio.file.attribute.PosixFilePermission
-import java.nio.file.{Files, Paths}
-import java.util.zip.GZIPOutputStream
+package spyt
 
 import org.apache.commons.compress.archivers.tar.{TarArchiveEntry, TarArchiveOutputStream}
 import org.apache.commons.compress.utils.IOUtils
 import sbt.PluginTrigger.AllRequirements
 import sbt._
 
+import java.io.{BufferedOutputStream, FileInputStream, FileOutputStream}
+import java.nio.file.attribute.PosixFilePermission
+import java.nio.file.{Files, Paths}
+import java.util.zip.GZIPOutputStream
 import scala.annotation.tailrec
 
 object TarArchiverPlugin extends AutoPlugin {
