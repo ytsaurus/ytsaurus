@@ -95,7 +95,7 @@ object SpytRelease {
   }
 
   lazy val setYtProxies: ReleaseStep = { st: State =>
-    System.setProperty("proxies", Seq("hume"/*, "hahn", "arnold"*/).mkString(","))
+    System.setProperty("proxies", Seq("hume", "hahn", "arnold").mkString(","))
     st
   }
 
