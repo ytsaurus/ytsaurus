@@ -237,10 +237,7 @@ class YtTestEnvironment(object):
         if "YT_PROXY" in os.environ:
             del os.environ["YT_PROXY"]
 
-        # NB: temporary hack
-        if arcadia_interop.yatest_common is not None:
-            self.env._create_cluster_client().set("//sys/@local_mode_fqdn", socket.getfqdn())
-
+        self.env._create_cluster_client().set("//sys/@local_mode_fqdn", socket.getfqdn())
         self.env._create_cluster_client().set("//sys/@cluster_connection", self.config["driver_config"])
 
         # Resolve indeterminacy in sys.modules due to presence of lazy imported modules.
