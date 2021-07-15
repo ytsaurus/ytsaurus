@@ -68,8 +68,9 @@ object Dependencies {
     //    "ru.yandex" % "yt-client-protos" % "custom"
   ).map(_ excludeAll(
     ExclusionRule(organization = "com.fasterxml.jackson.core"),
-    ExclusionRule(organization = "org.apache.commons"))
-  ).excludeLogging
+    ExclusionRule(organization = "org.apache.commons"),
+    ExclusionRule(organization = "com.google.code.findbugs", name = "jsr305")
+  )).excludeLogging
 
   lazy val grpc = Seq(
     "io.grpc" % "grpc-netty" % scalapb.compiler.Version.grpcJavaVersion,

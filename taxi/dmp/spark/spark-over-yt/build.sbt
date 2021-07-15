@@ -1,12 +1,14 @@
-import Dependencies._
-import SparkPackagePlugin.autoImport._
-import YtPublishPlugin.autoImport._
-import com.typesafe.sbt.packager.linux.{LinuxPackageMapping, LinuxSymlink}
-import TarArchiverPlugin.autoImport._
 import DebianPackagePlugin.autoImport._
-import ZipPlugin.autoImport._
+import Dependencies._
 import PythonPlugin.autoImport._
-import SpytPlugin.autoImport._
+import SparkPackagePlugin.autoImport._
+import TarArchiverPlugin.autoImport._
+import YtPublishPlugin.autoImport._
+import ZipPlugin.autoImport._
+import com.typesafe.sbt.packager.linux.{LinuxPackageMapping, LinuxSymlink}
+import sbtrelease.ReleasePlugin.autoImport.releaseProcess
+import spyt.SpytPlugin
+import spyt.SpytPlugin.autoImport._
 
 lazy val `yt-wrapper` = (project in file("yt-wrapper"))
   .settings(
@@ -26,8 +28,8 @@ lazy val `spark-launcher` = (project in file("spark-launcher"))
     libraryDependencies ++= scalatra,
     libraryDependencies ++= itTestDeps,
     libraryDependencies ++= scalatraTestDeps,
-    assemblyJarName in assembly := s"spark-yt-launcher.jar",
-    assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = true)
+    assembly / assemblyJarName := s"spark-yt-launcher.jar",
+    assembly / assemblyOption := (assembly / assemblyOption).value.copy(includeScala = true)
   )
 
 lazy val `spark-submit` = (project in file("spark-submit"))
@@ -36,7 +38,7 @@ lazy val `spark-submit` = (project in file("spark-submit"))
     libraryDependencies ++= scaldingArgs,
     libraryDependencies ++= py4j,
     libraryDependencies ++= commonDependencies,
-    assemblyJarName in assembly := s"spark-yt-submit.jar"
+    assembly / assemblyJarName := s"spark-yt-submit.jar"
   )
 
 lazy val `submit-client` = (project in file("submit-client"))
@@ -53,11 +55,11 @@ lazy val `data-source` = (project in file("data-source"))
   .configs(IntegrationTest)
   .dependsOn(`yt-wrapper`, `file-system`, `yt-wrapper` % "test->test", `file-system` % "test->test")
   .settings(
-    version := (spytClientVersion in ThisBuild).value,
+    version := (ThisBuild / spytClientVersion).value,
     Defaults.itSettings,
     libraryDependencies ++= itTestDeps,
     libraryDependencies ++= commonDependencies,
-    assemblyJarName in assembly := "spark-yt-data-source.jar",
+    assembly / assemblyJarName := "spark-yt-data-source.jar",
     zipPath := Some(target.value / "spyt.zip"),
     zipMapping += sourceDirectory.value / "main" / "python" / "spyt" -> "",
     zipIgnore := { file: File =>
@@ -71,7 +73,7 @@ lazy val `data-source` = (project in file("data-source"))
         YtPublishFile(zip.value, publishDir, proxy = None)
       )
     },
-    test in assembly := {}
+    assembly / test := {}
   )
 
 lazy val `file-system` = (project in file("file-system"))
@@ -80,13 +82,13 @@ lazy val `file-system` = (project in file("file-system"))
     libraryDependencies ++= commonDependencies
   )
   .settings(
-    assemblyMergeStrategy in assembly := {
+    assembly / assemblyMergeStrategy := {
       case x if x endsWith "ahc-default.properties" => MergeStrategy.first
       case x =>
-        val oldStrategy = (assemblyMergeStrategy in assembly).value
+        val oldStrategy = (assembly / assemblyMergeStrategy).value
         oldStrategy(x)
     },
-    assemblyShadeRules in assembly ++= Seq(
+    assembly / assemblyShadeRules ++= Seq(
       ShadeRule.rename(
         "ru.yandex.spark.yt.fs.YtFileSystem" -> "ru.yandex.spark.yt.fs.YtFileSystem",
         "ru.yandex.spark.yt.fs.eventlog.YtEventLogFileSystem" -> "ru.yandex.spark.yt.fs.eventlog.YtEventLogFileSystem",
@@ -95,18 +97,18 @@ lazy val `file-system` = (project in file("file-system"))
         "org.asynchttpclient.**" -> "shadedyandex.org.asynchttpclient.@1"
       ).inAll
     ),
-    test in assembly := {}
+    assembly / test := {}
   )
 
 lazy val `client` = (project in file("client"))
   .enablePlugins(SparkPackagePlugin, DebianPackagePlugin, PythonPlugin)
   .settings(
     sparkAdditionalJars := Seq(
-      (assembly in `file-system`).value,
-      (assembly in `spark-submit`).value
+      (`file-system` / assembly).value,
+      (`spark-submit` / assembly).value
     ),
     sparkAdditionalPython := Seq(
-      (sourceDirectory in `data-source`).value / "main" / "python"
+      (`data-source` / sourceDirectory).value / "main" / "python"
     )
   )
   .settings(
@@ -114,8 +116,8 @@ lazy val `client` = (project in file("client"))
     debPackagePublishRepo := "yandex-taxi-common",
     debPackageVersion := {
       val debBuildNumber = Option(System.getProperty("build")).getOrElse("")
-      val beta = if ((version in ThisBuild).value.contains("SNAPSHOT")) s"~beta1-${sys.env("USER")}" else ""
-      s"$sparkVersion-${(version in ThisBuild).value.takeWhile(_ != '-')}$beta+yandex$debBuildNumber"
+      val beta = if ((ThisBuild / version).value.contains("SNAPSHOT")) s"~beta1-${sys.env("USER")}" else ""
+      s"$sparkVersion-${(ThisBuild / version).value.takeWhile(_ != '-')}$beta+yandex$debBuildNumber"
     },
     version := debPackageVersion.value,
     packageSummary := "Spark over YT Client Debian Package",
@@ -126,7 +128,7 @@ lazy val `client` = (project in file("client"))
       Seq(
         createPackageMapping(sparkDist, sparkBasePath),
         LinuxPackageMapping(Map(
-          (resourceDirectory in Compile).value / "log4j.local.properties" -> s"$sparkBasePath/conf/log4j.properties"
+          (Compile / resourceDirectory).value / "log4j.local.properties" -> s"$sparkBasePath/conf/log4j.properties"
         ))
       )
     },
@@ -148,9 +150,8 @@ lazy val `client` = (project in file("client"))
     tarArchivePath := Some(target.value / s"spark.tgz")
   )
   .settings(
-    sparkYtProxies := publishYtProxies.value,
     publishYtArtifacts += YtPublishFile(tarArchiveBuild.value, sparkYtBinBasePath.value, None),
-    publishYtArtifacts += YtPublishFile((assembly in `spark-launcher`).value, sparkYtBinBasePath.value, None),
+    publishYtArtifacts += YtPublishFile((`spark-launcher` / assembly).value, sparkYtBinBasePath.value, None),
     publishYtArtifacts ++= sparkYtConfigs.value
   )
   .settings(
@@ -178,7 +179,7 @@ lazy val `client` = (project in file("client"))
 //    libraryDependencies ++= logging.map(_ % Provided),
 //    libraryDependencies ++= scaldingArgs,
 //    excludeDependencies += ExclusionRule(organization = "org.slf4j"),
-//    mainClass in assembly := Some("ru.yandex.spark.test.Test"),
+//    assembly / mainClass := Some("ru.yandex.spark.test.Test"),
 //    publishYtArtifacts += YtPublishFile(assembly.value, "//home/sashbel", None),
 //    publishYtArtifacts += YtPublishFile(sourceDirectory.value / "main" / "python" / "test_conf.py", "//home/sashbel", None)
 //  )
@@ -194,27 +195,17 @@ lazy val root = (project in file("."))
     `client`
   )
   .settings(
-    spytPublishCluster := (publishYt in client).value,
+    spytPublishCluster := (client / publishYt).value,
     spytPublishClient := Def.sequential(
-      spytUpdatePythonVersion,
-      publishYt in `data-source`,
-      pythonBuildAndUpload in `data-source`,
-      spytIncreasePythonBetaVersion
+      `data-source` / publishYt,
+      `data-source` / pythonBuildAndUpload
     ).value,
-    spytPublishAll := Def.taskDyn {
-      val rebuildSpark = Option(System.getProperty("rebuildSpark")).exists(_.toBoolean)
-      if (rebuildSpark) {
-        Def.sequential(
-          spytIncreaseSparkPythonBetaVersion,
-          spytPublishCluster,
-          pythonBuildAndUpload in `client`,
-          spytPublishClient
-        )
-      } else {
-        Def.sequential(
-          spytPublishCluster,
-          spytPublishClient
-        )
-      }
-    }.value
+    spytPublishAll := Def.sequential(
+      spytPublishCluster,
+      `client` / pythonBuildAndUpload,
+      spytPublishClient
+    ).value,
+    releaseProcess := spytReleaseProcess.value
   )
+
+

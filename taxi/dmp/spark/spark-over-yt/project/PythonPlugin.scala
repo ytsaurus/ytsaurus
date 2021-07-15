@@ -44,8 +44,13 @@ object PythonPlugin extends AutoPlugin {
       runCommand(command, pythonBuildDir.value)
     },
     pythonUpload := {
+      val log = streams.value.log
       val command = s"${pythonCommand.value} -m twine upload -r yandex --verbose dist/*"
-      runCommand(command, pythonBuildDir.value)
+      if (sys.env.get("RELEASE_TEST").exists(_.toBoolean)) {
+        log.info(s"RELEASE_TEST: run $command")
+      } else {
+        runCommand(command, pythonBuildDir.value)
+      }
     },
     pythonBuildAndUpload := Def.sequential(
       pythonClean,

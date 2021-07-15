@@ -26,7 +26,6 @@ object SparkPackagePlugin extends AutoPlugin {
     val sparkAdditionalPython = settingKey[Seq[File]]("Files to copy in SPARK_HOME/python")
     val sparkLocalConfigs = taskKey[Seq[File]]("Configs to copy in SPARK_HOME/conf")
 
-    val sparkYtProxies = settingKey[Seq[String]]("YT proxies to create configs")
     val sparkYtConfigs = taskKey[Seq[YtPublishArtifact]]("Configs to copy in YT conf dir")
     val sparkYtBasePath = settingKey[String]("YT base path for spark")
     val sparkYtBinBasePath = taskKey[String]("YT base path for spark binaries")
@@ -72,9 +71,9 @@ object SparkPackagePlugin extends AutoPlugin {
     sparkReleaseGlobalConfig := !sparkIsSnapshot.value,
     sparkLocalConfigs := {
       Seq(
-        (resourceDirectory in Compile).value / "spark-defaults.conf",
-        (resourceDirectory in Compile).value / "spark-env.sh",
-        (resourceDirectory in Compile).value / "metrics.properties"
+        (Compile / resourceDirectory).value / "spark-defaults.conf",
+        (Compile / resourceDirectory).value / "spark-env.sh",
+        (Compile / resourceDirectory).value / "metrics.properties"
       )
     },
     sparkAdditionalBin := {
@@ -92,12 +91,14 @@ object SparkPackagePlugin extends AutoPlugin {
       )
     },
     sparkYtConfigs := {
+      val log = streams.value.log
+
       val binBasePath = sparkYtBinBasePath.value
       val confBasePath = s"${sparkYtBasePath.value}/conf"
       val sparkVersion = version.value
       val versionConfPath = s"$confBasePath/${sparkYtSubdir.value}/$sparkVersion"
 
-      val sidecarConfigs = ((resourceDirectory in Compile).value / "config").listFiles()
+      val sidecarConfigs = ((Compile / resourceDirectory).value / "config").listFiles()
       val sidecarConfigsClusterPaths = sidecarConfigs.map(file => s"$versionConfPath/${file.getName}")
 
       val launchConfig = SparkLaunchConfig(
@@ -117,9 +118,10 @@ object SparkPackagePlugin extends AutoPlugin {
       val configsPublish = sidecarConfigs.map( file => YtPublishFile(file, versionConfPath, None))
 
       val globalConfigPublish = if (sparkReleaseGlobalConfig.value) {
-        sparkYtProxies.value.map { proxy =>
+        log.info(s"Prepare configs for ${ytProxies.mkString(", ")}")
+        ytProxies.map { proxy =>
           val proxyShort = proxy.split("\\.").head
-          val proxyDefaultsFile = (resourceDirectory in Compile).value / s"spark-defaults-$proxyShort.conf"
+          val proxyDefaultsFile = (Compile / resourceDirectory).value / s"spark-defaults-$proxyShort.conf"
           val proxyDefaults = readSparkDefaults(proxyDefaultsFile)
           val globalConfig = SparkGlobalConfig(proxyDefaults, sparkVersion)
 
@@ -130,9 +132,11 @@ object SparkPackagePlugin extends AutoPlugin {
       configsPublish ++ (launchConfigPublish +: globalConfigPublish)
     },
     sparkPackage := {
+      val log = streams.value.log
       val sparkDist = sparkHome.value / "dist"
       val rebuildSpark = Option(System.getProperty("rebuildSpark")).exists(_.toBoolean) || !sparkDist.exists()
-
+      log.info(s"System property rebuildSpark=${Option(System.getProperty("rebuildSpark"))}," +
+        s"spark dist ${if (sparkDist.exists()) "already exists" else "doesn't exist"}")
       if (rebuildSpark) {
         buildSpark(sparkHome.value.toString)
       } else {
