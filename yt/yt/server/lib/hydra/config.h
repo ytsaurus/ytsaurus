@@ -426,7 +426,7 @@ public:
             .GreaterThan(0)
             .Default(32_MB);
 
-        RegisterParameter("max_commmit_batch_delay", MaxCommitBatchDelay)
+        RegisterParameter("max_commit_batch_delay", MaxCommitBatchDelay)
             .Default(TDuration::MilliSeconds(10));
         RegisterParameter("max_commit_batch_record_count", MaxCommitBatchRecordCount)
             .Default(10000);
