@@ -337,7 +337,7 @@ DEFINE_REFCOUNTED_TYPE(TCacheLocationConfig)
 
 class TMultiplexedChangelogConfig
     : public NHydra::TFileChangelogConfig
-    , public NHydra::IFileChangelogDispatcherConfig
+    , public NHydra::TFileChangelogDispatcherConfig
 {
 public:
     //! Multiplexed changelog record count limit.
@@ -1085,6 +1085,9 @@ public:
 
             // Expect many splits -- adjust configuration.
             HighLatencySplitChangelog->FlushPeriod = TDuration::Seconds(15);
+
+            // Turn off batching for non-multiplexed split changelogs.
+            LowLatencySplitChangelog->FlushPeriod = TDuration::Zero();
 
             // Disable target allocation from master.
             ReplicationWriter->UploadReplicationFactor = 1;

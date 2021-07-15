@@ -37,7 +37,7 @@ DEFINE_REFCOUNTED_TYPE(IFileChangelogDispatcher)
 
 IFileChangelogDispatcherPtr CreateFileChangelogDispatcher(
     NIO::IIOEnginePtr ioEngine,
-    IFileChangelogDispatcherConfigPtr config,
+    TFileChangelogDispatcherConfigPtr config,
     TString threadName,
     NProfiling::TProfiler profiler);
 
