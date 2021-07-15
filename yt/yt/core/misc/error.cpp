@@ -41,6 +41,16 @@ void TErrorCode::Load(TStreamLoadContext& context)
     NYT::Load(context, Value_);
 }
 
+void FormatValue(TStringBuilderBase* builder, TErrorCode code, TStringBuf spec)
+{
+    FormatValue(builder, static_cast<int>(code), spec);
+}
+
+TString ToString(TErrorCode code)
+{
+    return ToStringViaBuilder(code);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TError::TImpl
