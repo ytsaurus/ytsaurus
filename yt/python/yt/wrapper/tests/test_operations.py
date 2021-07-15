@@ -515,6 +515,12 @@ print(op.id)
 
     @authors("ignat")
     def test_stderr_decoding(self):
+        @yt.aggregator
+        def mapper(rows):
+            sys.stderr.write("фываxyz" * 1000000)
+            if False:
+                yield
+
         input_table = TEST_DIR + "/input"
         output_table = TEST_DIR + "/output"
         yt.write_table(input_table, [{"x": 0}, {"x": 1}, {"x": 2}])
@@ -523,6 +529,15 @@ print(op.id)
             job_infos = op.get_jobs_with_error_or_stderr()
             assert len(job_infos) == 1
             assert job_infos[0]["stderr"] == "\xF1\xF2\xF3\xF4"
+
+
+        with set_config_option("operation_tracker/stderr_logging_level", "NOTSET"):
+            op = yt.run_map(mapper, input_table, output_table)
+            job_infos = op.get_jobs_with_error_or_stderr()
+            assert len(job_infos) == 1
+            stderr = job_infos[0]["stderr"]
+            assert stderr.endswith("фываxyz")
+            assert stderr.startswith("фываxyz")
 
     @authors("ignat")
     def test_operation_alert(self):
