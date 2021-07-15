@@ -294,7 +294,7 @@ public:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Tablet, NullObjectId);
-        auto tabletHolder = std::make_unique<TTablet>(id);
+        auto tabletHolder = TPoolAllocator::New<TTablet>(id);
         tabletHolder->SetTable(table);
 
         auto* tablet = TabletMap_.Insert(id, std::move(tabletHolder));
@@ -389,7 +389,7 @@ public:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::TableReplica, NullObjectId);
-        auto replicaHolder = std::make_unique<TTableReplica>(id);
+        auto replicaHolder = TPoolAllocator::New<TTableReplica>(id);
         replicaHolder->SetTable(table);
         replicaHolder->SetClusterName(clusterName);
         replicaHolder->SetReplicaPath(replicaPath);
@@ -2516,7 +2516,7 @@ private:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::TabletAction, hintId);
-        auto actionHolder = std::make_unique<TTabletAction>(id);
+        auto actionHolder = TPoolAllocator::New<TTabletAction>(id);
         auto* action = TabletActionMap_.Insert(id, std::move(actionHolder));
         objectManager->RefObject(action);
 
@@ -4380,7 +4380,7 @@ private:
         options->ChangelogAccount = DefaultStoreAccountName;
         options->SnapshotAccount = DefaultStoreAccountName;
 
-        auto holder = std::make_unique<TTabletCellBundle>(id);
+        auto holder = TPoolAllocator::New<TTabletCellBundle>(id);
         holder->ResourceUsage().Initialize(Bootstrap_);
         cellBundle = cellManager->CreateCellBundle(name, std::move(holder), std::move(options))
             ->As<TTabletCellBundle>();

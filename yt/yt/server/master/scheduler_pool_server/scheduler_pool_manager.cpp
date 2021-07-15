@@ -84,7 +84,7 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::SchedulerPool, NullObjectId);
 
-        auto* schedulerPool = SchedulerPoolMap_.Insert(id, std::make_unique<TSchedulerPool>(id, isRoot));
+        auto* schedulerPool = SchedulerPoolMap_.Insert(id, TPoolAllocator::New<TSchedulerPool>(id, isRoot));
 
         // Make the fake reference.
         YT_VERIFY(schedulerPool->RefObject() == 1);
@@ -97,7 +97,7 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::SchedulerPoolTree, NullObjectId);
 
-        auto* poolTree = SchedulerPoolTreeMap_.Insert(id, std::make_unique<TSchedulerPoolTree>(id));
+        auto* poolTree = SchedulerPoolTreeMap_.Insert(id, TPoolAllocator::New<TSchedulerPoolTree>(id));
 
         // Make the fake reference.
         YT_VERIFY(poolTree->RefObject() == 1);

@@ -1229,7 +1229,7 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::AccountResourceUsageLease, hintId);
 
-        auto accountResourceUsageLeaseHolder = std::make_unique<TAccountResourceUsageLease>(
+        auto accountResourceUsageLeaseHolder = TPoolAllocator::New<TAccountResourceUsageLease>(
             id,
             transaction,
             account);
@@ -2585,7 +2585,7 @@ private:
 
     TAccount* DoCreateAccount(TAccountId id)
     {
-        auto accountHolder = std::make_unique<TAccount>(id, id == RootAccountId_);
+        auto accountHolder = TPoolAllocator::New<TAccount>(id, id == RootAccountId_);
 
         auto* account = AccountMap_.Insert(id, std::move(accountHolder));
 
@@ -2626,7 +2626,7 @@ private:
 
     TUser* DoCreateUser(TUserId id, const TString& name)
     {
-        auto userHolder = std::make_unique<TUser>(id);
+        auto userHolder = TPoolAllocator::New<TUser>(id);
         userHolder->SetName(name);
 
         auto* user = UserMap_.Insert(id, std::move(userHolder));
@@ -2645,7 +2645,7 @@ private:
 
     TGroup* DoCreateGroup(TGroupId id, const TString& name)
     {
-        auto groupHolder = std::make_unique<TGroup>(id);
+        auto groupHolder = TPoolAllocator::New<TGroup>(id);
         groupHolder->SetName(name);
 
         auto* group = GroupMap_.Insert(id, std::move(groupHolder));
@@ -2659,7 +2659,7 @@ private:
 
     TNetworkProject* DoCreateNetworkProject(TNetworkProjectId id, const TString& name)
     {
-        auto networkProjectHolder = std::make_unique<TNetworkProject>(id);
+        auto networkProjectHolder = TPoolAllocator::New<TNetworkProject>(id);
         networkProjectHolder->SetName(name);
 
         auto* networkProject = NetworkProjectMap_.Insert(id, std::move(networkProjectHolder));
@@ -2673,7 +2673,7 @@ private:
 
     TProxyRole* DoCreateProxyRole(TProxyRoleId id, const TString& name, EProxyKind proxyKind)
     {
-        auto proxyRoleHolder = std::make_unique<TProxyRole>(id);
+        auto proxyRoleHolder = TPoolAllocator::New<TProxyRole>(id);
         proxyRoleHolder->SetName(name);
         proxyRoleHolder->SetProxyKind(proxyKind);
 
@@ -4157,7 +4157,7 @@ TObject* TSecurityManager::TAccountTypeHandler::CreateObject(
 
 std::unique_ptr<TObject> TSecurityManager::TAccountTypeHandler::InstantiateObject(TObjectId id)
 {
-    return std::make_unique<TAccount>(id, id == Owner_->RootAccountId_);
+    return TPoolAllocator::New<TAccount>(id, id == Owner_->RootAccountId_);
 }
 
 std::optional<TObject*> TSecurityManager::TAccountTypeHandler::FindObjectByAttributes(

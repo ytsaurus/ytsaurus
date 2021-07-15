@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
+#include <yt/yt/core/misc/pool_allocator.h>
+
 namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,6 +46,7 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EObjectLifeStage, ui8,
 //! Provides a base for all objects in YT master server.
 class TObject
     : public NHydra::TEntityBase
+    , public TPoolAllocator::TObjectBase
 {
 public:
     explicit TObject(TObjectId id);

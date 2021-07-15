@@ -963,7 +963,7 @@ void TObjectManager::TImpl::Clear()
 
     TMasterAutomatonPart::Clear();
 
-    MasterObject_.reset(new TMasterObject(MasterObjectId_));
+    MasterObject_ = TPoolAllocator::New<TMasterObject>(MasterObjectId_);
     MasterObject_->RefObject();
 
     MasterProxy_ = GetHandler(EObjectType::Master)->GetProxy(MasterObject_.get(), nullptr);
@@ -994,7 +994,7 @@ void TObjectManager::TImpl::InitSchemas()
 
         auto id = MakeSchemaObjectId(type, primaryCellTag);
         if (!SchemaMap_.Contains(id)) {
-            auto schemaObject = std::make_unique<TSchemaObject>(id);
+            auto schemaObject = TPoolAllocator::New<TSchemaObject>(id);
             schemaObject->RefObject();
             SchemaMap_.Insert(id, std::move(schemaObject));
         }

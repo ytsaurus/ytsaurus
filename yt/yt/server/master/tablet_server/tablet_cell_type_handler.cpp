@@ -40,7 +40,7 @@ public:
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::TabletCell, hintId);
-        auto holder = std::make_unique<TTabletCell>(id);
+        auto holder = TPoolAllocator::New<TTabletCell>(id);
         holder->GossipStatistics().Initialize(Bootstrap_);
         return DoCreateObject(std::move(holder), attributes);
     }
@@ -48,7 +48,7 @@ public:
     virtual std::unique_ptr<TObject> InstantiateObject(
         TObjectId hintId) override
     {
-        return std::make_unique<TTabletCell>(hintId);
+        return TPoolAllocator::New<TTabletCell>(hintId);
     }
 
 private:

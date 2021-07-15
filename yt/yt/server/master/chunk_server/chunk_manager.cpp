@@ -1996,7 +1996,7 @@ private:
 
     TChunk* DoCreateChunk(TChunkId chunkId)
     {
-        auto chunkHolder = std::make_unique<TChunk>(chunkId);
+        auto chunkHolder = TPoolAllocator::New<TChunk>(chunkId);
         auto* chunk = ChunkMap_.Insert(chunkId, std::move(chunkHolder));
         RegisterChunk(chunk);
         chunk->RefUsedRequisitions(GetChunkRequisitionRegistry());
@@ -2090,7 +2090,7 @@ private:
         ++ChunkListsCreated_;
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::ChunkList, NullObjectId);
-        auto chunkListHolder = std::make_unique<TChunkList>(id);
+        auto chunkListHolder = TPoolAllocator::New<TChunkList>(id);
         auto* chunkList = ChunkListMap_.Insert(id, std::move(chunkListHolder));
         chunkList->SetKind(kind);
         return chunkList;
@@ -2119,7 +2119,7 @@ private:
         ++ChunkViewsCreated_;
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::ChunkView, NullObjectId);
-        auto chunkViewHolder = std::make_unique<TChunkView>(id);
+        auto chunkViewHolder = TPoolAllocator::New<TChunkView>(id);
         auto* chunkView = ChunkViewMap_.Insert(id, std::move(chunkViewHolder));
         chunkView->SetUnderlyingChunk(underlyingChunk);
         underlyingChunk->AddParent(chunkView);
@@ -2158,7 +2158,7 @@ private:
 
     TDynamicStore* DoCreateDynamicStore(TDynamicStoreId storeId, const TTablet* tablet)
     {
-        auto holder = std::make_unique<TDynamicStore>(storeId);
+        auto holder = TPoolAllocator::New<TDynamicStore>(storeId);
         auto* dynamicStore = DynamicStoreMap_.Insert(storeId, std::move(holder));
         dynamicStore->SetTablet(tablet);
         return dynamicStore;
@@ -4146,7 +4146,7 @@ private:
         std::optional<bool> cache,
         std::optional<int> priority)
     {
-        auto mediumHolder = std::make_unique<TMedium>(id);
+        auto mediumHolder = TPoolAllocator::New<TMedium>(id);
         mediumHolder->SetName(name);
         mediumHolder->SetIndex(mediumIndex);
         if (transient) {

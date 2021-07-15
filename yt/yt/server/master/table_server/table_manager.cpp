@@ -662,7 +662,7 @@ public:
         auto [it, inserted] = TableSchemaToObjectMap_.emplace(std::move(sharedTableSchema), nullptr);
         YT_VERIFY(inserted);
 
-        auto schemaHolder = std::make_unique<TMasterTableSchema>(id, it);
+        auto schemaHolder = TPoolAllocator::New<TMasterTableSchema>(id, it);
         auto* schema = MasterTableSchemaMap_.Insert(id, std::move(schemaHolder));
         it->second = schema;
 
