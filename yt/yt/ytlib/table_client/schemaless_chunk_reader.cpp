@@ -466,14 +466,16 @@ TFuture<void> THorizontalSchemalessChunkReaderBase::InitializeBlockSequence()
     YT_LOG_DEBUG("Reading %v blocks", BlockIndexes_.size());
 
     std::vector<TBlockFetcher::TBlockInfo> blocks;
+    blocks.reserve(BlockIndexes_.size());
     for (int blockIndex : BlockIndexes_) {
         YT_VERIFY(blockIndex < BlockMetaExt_->blocks_size());
         auto& blockMeta = BlockMetaExt_->blocks(blockIndex);
-        TBlockFetcher::TBlockInfo blockInfo;
-        blockInfo.Index = blockMeta.block_index();
-        blockInfo.UncompressedDataSize = blockMeta.uncompressed_size();
-        blockInfo.Priority = blocks.size();
-        blocks.push_back(blockInfo);
+        int priority = blocks.size();
+        blocks.push_back({
+            .UncompressedDataSize = blockMeta.uncompressed_size(),
+            .Index = blockMeta.block_index(),
+            .Priority = priority
+        });
     }
 
     return DoOpen(std::move(blocks), ChunkMeta_->Misc());

@@ -30,7 +30,7 @@ TChunkReaderMemoryManager::TChunkReaderMemoryManager(
     , PrefetchMemorySize_(Options_.BufferSize)
     , AsyncSemaphore_(New<TAsyncSemaphore>(Options_.BufferSize))
     , HostMemoryManager_(std::move(hostMemoryManager))
-    , ProfilingTagList_(std::move(options.ProfilingTagList))
+    , ProfilingTagList_(std::move(Options_.ProfilingTagList))
     , Id_(TGuid::Create())
     , Logger(ReaderMemoryManagerLogger.WithTag("Id: %v", Id_))
 {
@@ -84,7 +84,7 @@ void TChunkReaderMemoryManager::SetReservedMemorySize(i64 size)
         size);
 
     ReservedMemorySize_ = size;
-    AsyncSemaphore_->SetTotal(ReservedMemorySize_);
+    AsyncSemaphore_->SetTotal(size);
 }
 
 const NProfiling::TTagList& TChunkReaderMemoryManager::GetProfilingTagList() const
@@ -125,7 +125,10 @@ TFuture<TMemoryUsageGuardPtr> TChunkReaderMemoryManager::AsyncAcquire(i64 size)
     auto memoryPromise = NewPromise<TMemoryUsageGuardPtr>();
     auto memoryFuture = memoryPromise.ToFuture();
     AsyncSemaphore_->AsyncAcquire(
-        BIND(&TChunkReaderMemoryManager::OnSemaphoreAcquired, MakeWeak(this), std::move(memoryPromise)),
+        BIND(
+            &TChunkReaderMemoryManager::OnSemaphoreAcquired,
+            MakeWeak(this),
+            Passed(std::move(memoryPromise))),
         GetSyncInvoker(),
         size);
 
@@ -160,8 +163,9 @@ i64 TChunkReaderMemoryManager::GetFreeMemorySize() const
 
 void TChunkReaderMemoryManager::SetTotalSize(i64 size)
 {
-    YT_LOG_DEBUG_UNLESS(TotalMemorySize_.load() == size, "Updating total memory size (OldTotalSize: %v, NewTotalSize: %v)",
-        TotalMemorySize_.load(),
+    auto oldTotalMemorySize = TotalMemorySize_.load();
+    YT_LOG_DEBUG_UNLESS(oldTotalMemorySize == size, "Updating total memory size (OldTotalSize: %v, NewTotalSize: %v)",
+        oldTotalMemorySize,
         size);
 
     TotalMemorySize_ = size;
@@ -178,7 +182,7 @@ void TChunkReaderMemoryManager::SetRequiredMemorySize(i64 size)
             break;
         }
         if (RequiredMemorySize_.compare_exchange_weak(oldValue, size)) {
-            YT_LOG_DEBUG_UNLESS(RequiredMemorySize_.load() == size, "Updating required memory size (OldRequiredMemorySize: %v, NewRequiredMemorySize: %v)",
+            YT_LOG_DEBUG("Updating required memory size (OldRequiredMemorySize: %v, NewRequiredMemorySize: %v)",
                 oldValue,
                 size);
             OnMemoryRequirementsUpdated();
@@ -189,8 +193,9 @@ void TChunkReaderMemoryManager::SetRequiredMemorySize(i64 size)
 
 void TChunkReaderMemoryManager::SetPrefetchMemorySize(i64 size)
 {
-    YT_LOG_DEBUG_UNLESS(PrefetchMemorySize_.load() == size, "Updating prefetch memory size (OldPrefetchMemorySize: %v, NewPrefetchMemorySize: %v)",
-        PrefetchMemorySize_.load(),
+    auto oldPrefetchMemorySize = PrefetchMemorySize_.load();
+    YT_LOG_DEBUG_UNLESS(oldPrefetchMemorySize == size, "Updating prefetch memory size (OldPrefetchMemorySize: %v, NewPrefetchMemorySize: %v)",
+        oldPrefetchMemorySize,
         size);
 
     PrefetchMemorySize_ = size;
@@ -223,8 +228,7 @@ void TChunkReaderMemoryManager::OnMemoryRequirementsUpdated()
         GetRequiredMemorySize(),
         PrefetchMemorySize_.load());
 
-    auto hostMemoryManager = HostMemoryManager_.Lock();
-    if (hostMemoryManager) {
+    if (auto hostMemoryManager = HostMemoryManager_.Lock()) {
         hostMemoryManager->UpdateMemoryRequirements(MakeStrong(this));
     }
 }
@@ -233,8 +237,7 @@ void TChunkReaderMemoryManager::DoUnregister()
 {
     if (!Unregistered_.test_and_set()) {
         YT_LOG_DEBUG("Unregistering chunk reader memory manager");
-        auto hostMemoryManager = HostMemoryManager_.Lock();
-        if (hostMemoryManager) {
+        if (auto hostMemoryManager = HostMemoryManager_.Lock()) {
             hostMemoryManager->Unregister(MakeStrong(this));
         }
     }
@@ -247,28 +250,36 @@ i64 TChunkReaderMemoryManager::GetUsedMemorySize() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMemoryManagedData::TMemoryManagedData(TSharedRef data, TMemoryUsageGuardPtr memoryUsageGuard)
-    : Data(std::move(data))
-    , MemoryUsageGuard(std::move(memoryUsageGuard))
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 TMemoryUsageGuard::TMemoryUsageGuard(
     NConcurrency::TAsyncSemaphoreGuard guard,
     TWeakPtr<TChunkReaderMemoryManager> memoryManager)
-    : Guard(std::move(guard))
-    , MemoryManager(std::move(memoryManager))
+    : Guard_(std::move(guard))
+    , MemoryManager_(std::move(memoryManager))
 { }
 
 TMemoryUsageGuard::~TMemoryUsageGuard()
 {
-    Guard.Release();
-    auto memoryManager = MemoryManager.Lock();
-    if (memoryManager) {
+    Guard_.Release();
+    if (auto memoryManager = MemoryManager_.Lock()) {
 
         memoryManager->TryUnregister();
     }
+}
+
+TAsyncSemaphoreGuard* TMemoryUsageGuard::GetGuard()
+{
+    return &Guard_;
+}
+
+TWeakPtr<TChunkReaderMemoryManager> TMemoryUsageGuard::GetMemoryManager() const
+{
+    return MemoryManager_;
+}
+
+void TMemoryUsageGuard::CaptureBlock(TSharedRef block)
+{
+    YT_VERIFY(!Block_);
+    Block_ = std::move(block);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

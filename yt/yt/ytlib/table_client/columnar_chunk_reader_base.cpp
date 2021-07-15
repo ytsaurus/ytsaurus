@@ -167,11 +167,11 @@ TBlockFetcher::TBlockInfo TColumnarChunkReaderBase::CreateBlockInfo(int blockInd
 {
     YT_VERIFY(ChunkMeta_);
     const auto& blockMeta = ChunkMeta_->BlockMeta()->blocks(blockIndex);
-    TBlockFetcher::TBlockInfo blockInfo;
-    blockInfo.Index = blockIndex;
-    blockInfo.Priority = blockMeta.chunk_row_count() - blockMeta.row_count();
-    blockInfo.UncompressedDataSize = blockMeta.uncompressed_size();
-    return blockInfo;
+    return {
+        .UncompressedDataSize = blockMeta.uncompressed_size(),
+        .Index = blockIndex,
+        .Priority = static_cast<int>(blockMeta.chunk_row_count() - blockMeta.row_count())
+    };
 }
 
 i64 TColumnarChunkReaderBase::GetSegmentIndex(const TColumn& column, i64 rowIndex) const

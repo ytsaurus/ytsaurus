@@ -960,10 +960,11 @@ private:
             std::vector<TBlockFetcher::TBlockInfo> blocks;
             blocks.reserve(blockCount);
             for (int index = 0; index < blockCount; ++index) {
-                blocks.push_back(TBlockFetcher::TBlockInfo{
-                    index,
-                    blocksExt.blocks(index).size(),
-                    index /* priority */});
+                blocks.push_back({
+                    .UncompressedDataSize = blocksExt.blocks(index).size(),
+                    .Index = index,
+                    .Priority = index
+                });
             }
 
             auto memoryManager = New<TChunkReaderMemoryManager>(

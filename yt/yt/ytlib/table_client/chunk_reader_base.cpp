@@ -52,7 +52,8 @@ TChunkReaderBase::TChunkReaderBase(
 
 TChunkReaderBase::~TChunkReaderBase()
 {
-    YT_LOG_DEBUG("Chunk reader timing statistics (TimingStatistics: %v)", TTimingReaderBase::GetTimingStatistics());
+    YT_LOG_DEBUG("Chunk reader timing statistics (TimingStatistics: %v)",
+        TTimingReaderBase::GetTimingStatistics());
 }
 
 TFuture<void> TChunkReaderBase::DoOpen(
@@ -76,6 +77,7 @@ TFuture<void> TChunkReaderBase::DoOpen(
     InitFirstBlockNeeded_ = true;
     YT_VERIFY(SequentialBlockFetcher_->HasMoreBlocks());
     MemoryManager_->SetRequiredMemorySize(SequentialBlockFetcher_->GetNextBlockSize());
+    // FIXME(akozhikhov): This may result in a redundant GetBlockSet call.
     CurrentBlock_ = SequentialBlockFetcher_->FetchNextBlock();
     return CurrentBlock_.As<void>();
 }

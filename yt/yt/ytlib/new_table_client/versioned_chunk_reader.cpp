@@ -836,15 +836,14 @@ std::vector<TBlockFetcher::TBlockInfo> BuildBlockInfos(
 
             YT_VERIFY(blockIdsIt != blockIds.end());
 
-            auto blockIndex = *blockIdsIt;
+            int blockIndex = *blockIdsIt;
             const auto& blockMeta = blockMetas->blocks(blockIndex);
 
-            TBlockFetcher::TBlockInfo blockInfo;
-            blockInfo.Index = blockIndex;
-            blockInfo.Priority = blockMeta.chunk_row_count() - blockMeta.row_count();
-            blockInfo.UncompressedDataSize = blockMeta.uncompressed_size();
-
-            blockInfos.push_back(blockInfo);
+            blockInfos.push_back({
+                .UncompressedDataSize = blockMeta.uncompressed_size(),
+                .Index = blockIndex,
+                .Priority = static_cast<int>(blockMeta.chunk_row_count() - blockMeta.row_count())
+            });
 
             windowIt = ExponentialSearch(windowIt, windows.end(), [&] (auto it) {
                 return it->Chunk.Upper <= blockMeta.chunk_row_count();

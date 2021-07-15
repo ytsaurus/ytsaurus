@@ -213,7 +213,7 @@ private:
 
 IInvokerPtr CreateSerializedInvoker(IInvokerPtr underlyingInvoker)
 {
-    return New<TSerializedInvoker>(underlyingInvoker);
+    return New<TSerializedInvoker>(std::move(underlyingInvoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -585,7 +585,7 @@ private:
 
 ISuspendableInvokerPtr CreateSuspendableInvoker(IInvokerPtr underlyingInvoker)
 {
-    return New<TSuspendableInvoker>(underlyingInvoker);
+    return New<TSuspendableInvoker>(std::move(underlyingInvoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -661,4 +661,3 @@ IInvokerPtr CreateCodicilGuardedInvoker(IInvokerPtr underlyingInvoker, TString c
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NConcurrency
-
