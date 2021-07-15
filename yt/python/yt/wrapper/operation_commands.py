@@ -460,7 +460,10 @@ def get_jobs_with_error_or_stderr(operation, only_failed_jobs, client=None):
 
         if get_config(client)["enable_operations_api"]:
             try:
-                stderr = to_native_str(get_job_stderr(operation, job, client=client).read(), encoding=stderr_encoding)
+                stderr = to_native_str(
+                    get_job_stderr(operation, job, client=client).read(),
+                    encoding=stderr_encoding,
+                    errors="replace")
             except join_exceptions(get_retriable_errors(), YtResponseError) as err:
                 if isinstance(err, YtResponseError) and err.is_no_such_job():
                     pass
@@ -473,7 +476,10 @@ def get_jobs_with_error_or_stderr(operation, only_failed_jobs, client=None):
             has_stderr = exists(stderr_path, client=yt_client)
             if has_stderr:
                 try:
-                    stderr = to_native_str(read_file(stderr_path, client=yt_client).read(), encoding=stderr_encoding)
+                    stderr = to_native_str(
+                        read_file(stderr_path, client=yt_client).read(),
+                        encoding=stderr_encoding,
+                        errors="replace")
                 except join_exceptions(get_retriable_errors(), YtResponseError):
                     if not ignore_errors:
                         raise

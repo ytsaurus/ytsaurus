@@ -600,11 +600,11 @@ def make_non_blocking(fd):
     flags = fcntl.fcntl(fd, fcntl.F_GETFL)
     fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
 
-def to_native_str(string, encoding="utf-8"):
+def to_native_str(string, encoding="utf-8", errors="strict"):
     if not PY3 and isinstance(string, text_type):
         return string.encode(encoding)
     if PY3 and isinstance(string, binary_type):
-        return string.decode(encoding)
+        return string.decode(encoding, errors=errors)
     return string
 
 def copy_docstring_from(documented_function):
