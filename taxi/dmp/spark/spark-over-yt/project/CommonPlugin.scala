@@ -3,7 +3,7 @@ import sbt._
 import sbt.plugins.JvmPlugin
 import sbtassembly.AssemblyPlugin.autoImport._
 import Dependencies._
-import SpytPlugin.autoImport.spytClusterVersion
+import spyt.SpytPlugin.autoImport._
 
 object CommonPlugin extends AutoPlugin {
   override def trigger = AllRequirements
@@ -14,23 +14,25 @@ object CommonPlugin extends AutoPlugin {
     externalResolvers := Resolver.combineDefaultResolvers(resolvers.value.toVector, mavenCentral = false),
     resolvers += Resolver.mavenLocal,
     resolvers += Resolver.mavenCentral,
-    resolvers += "YandexMediaReleases" at "http://artifactory.yandex.net/artifactory/yandex_media_releases",
-    resolvers += "YandexSparkReleases" at "http://artifactory.yandex.net/artifactory/yandex_spark_releases",
-    version in ThisBuild := (spytClusterVersion in ThisBuild).value,
+    resolvers += ("YandexMediaReleases" at "http://artifactory.yandex.net/artifactory/yandex_media_releases")
+      .withAllowInsecureProtocol(true),
+    resolvers += ("YandexSparkReleases" at "http://artifactory.yandex.net/artifactory/yandex_spark_releases")
+      .withAllowInsecureProtocol(true),
+    ThisBuild / version := (ThisBuild / spytClusterVersion).value,
     organization := "ru.yandex",
     name := s"spark-yt-${name.value}",
     scalaVersion := "2.12.8",
-    assemblyMergeStrategy in assembly := {
+    assembly / assemblyMergeStrategy := {
       case x if x endsWith "io.netty.versions.properties" => MergeStrategy.first
       case x if x endsWith "Log4j2Plugins.dat" => MergeStrategy.last
       case x if x endsWith "git.properties" => MergeStrategy.last
       case x if x endsWith "libnetty_transport_native_epoll_x86_64.so" => MergeStrategy.last
       case x if x endsWith "libnetty_transport_native_kqueue_x86_64.jnilib" => MergeStrategy.last
       case x =>
-        val oldStrategy = (assemblyMergeStrategy in assembly).value
+        val oldStrategy = (assembly / assemblyMergeStrategy).value
         oldStrategy(x)
     },
-    assemblyShadeRules in assembly := {
+    assembly / assemblyShadeRules := {
       // TODO get names from arrow dependency
       // Preserve arrow classes from shading
       val arrowBuffers = Seq("ArrowBuf", "ExpandableByteBuf", "LargeBuffer", "MutableWrappedByteBuf",
@@ -49,16 +51,16 @@ object CommonPlugin extends AutoPlugin {
           .inAll
       )
     },
-    assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = false),
+    assembly / assemblyOption := (assembly / assemblyOption).value.copy(includeScala = false),
     publishTo := {
       val nexus = "http://artifactory.yandex.net/artifactory/"
       if (isSnapshot.value)
-        Some("snapshots" at nexus + "yandex_spark_snapshots")
+        Some(("snapshots" at nexus + "yandex_spark_snapshots").withAllowInsecureProtocol(true))
       else
-        Some("releases" at nexus + "yandex_spark_releases")
+        Some(("releases" at nexus + "yandex_spark_releases").withAllowInsecureProtocol(true))
     },
     credentials += Credentials(Path.userHome / ".sbt" / ".credentials"),
     libraryDependencies ++= testDeps,
-    fork in Test := true
+    Test / fork := true
   )
 }

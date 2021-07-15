@@ -1,7 +1,13 @@
 resolvers += MavenCache("local-maven", Path.userHome / ".m2" / "repository")
-resolvers += "YandexMediaReleases" at "http://artifactory.yandex.net/artifactory/yandex_media_releases"
+resolvers += ("YandexMediaReleases" at "http://artifactory.yandex.net/artifactory/yandex_media_releases")
+  .withAllowInsecureProtocol(true)
 
 addSbtPlugin("com.eed3si9n" % "sbt-assembly" % "0.14.10")
+libraryDependencies ++= Seq(
+  "com.eed3si9n.jarjarabrams" %% "jarjar-abrams-core" % "0.3.1",
+  "org.ow2.asm" % "asm" % "9.2",
+  "org.ow2.asm" % "asm-commons" % "9.2"
+)
 
 addSbtPlugin("net.virtual-void" % "sbt-dependency-graph" % "0.10.0-RC1")
 
@@ -25,3 +31,5 @@ libraryDependencies ++= Seq(
     ExclusionRule(organization = "com.fasterxml.jackson.core")
   )
 )
+
+addSbtPlugin("com.github.sbt" % "sbt-release" % "1.1.0")

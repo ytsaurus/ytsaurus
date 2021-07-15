@@ -42,7 +42,7 @@ object DebianPackagePlugin extends AutoPlugin {
     debPackagePublishRepo := "common",
 
     debPackageWithSources := {
-      val targetPath = (target in Debian).value
+      val targetPath = (Debian / target).value
       val debianPath = targetPath / "debian"
       if (!debianPath.exists()) {
         IO.move(targetPath / "DEBIAN", debianPath)
@@ -61,10 +61,10 @@ object DebianPackagePlugin extends AutoPlugin {
 
       targetPath / s"${targetPath.getName}.dsc"
     },
-    debPackageWithSources := (debPackageWithSources dependsOn (packageBin in Debian)).value,
+    debPackageWithSources := (debPackageWithSources dependsOn (Debian / packageBin)).value,
     debPackageFilesList := {
-      val debName = (name in Debian).value + "_" + (version in Debian).value
-      val debianPath = (target in Debian).value / "debian"
+      val debName = (Debian / name).value + "_" + (Debian / version).value
+      val debianPath = (Debian / target).value / "debian"
       val output = debianPath / "files"
       val content = s"""${debName}_all.deb misc optional
                        |$debName.dsc text important""".stripMargin
@@ -73,14 +73,14 @@ object DebianPackagePlugin extends AutoPlugin {
       output
     },
     debPackageChanges := {
-      val debName = (name in Debian).value + "_" + (version in Debian).value
+      val debName = (Debian / name).value + "_" + (Debian / version).value
       val control = debPackageSourceControlFile.value
       val files = debPackageFilesList.value
       val output = target.value / s"${debName}_all.changes"
       runProcess(
         Process(
           s"dpkg-genchanges -f${files.getAbsolutePath} -c${control.getAbsolutePath} -O${output.getAbsolutePath}",
-          (target in Debian).value
+          (Debian / target).value
         ),
         "Failed to run dpkg-genchanges"
       )
@@ -100,24 +100,24 @@ object DebianPackagePlugin extends AutoPlugin {
       )
     },
     debPackageSourceControlFile := {
-      val data = (debianPackageMetadata in Debian).value
+      val data = (Debian / debianPackageMetadata).value
       if (data.info.description == null || data.info.description.isEmpty) {
         sys.error(
           """packageDescription in Debian cannot be empty. Use
                  packageDescription in Debian := "My package Description"""")
       }
-      val cfile = (target in Debian).value / "debian" / "control-source"
+      val cfile = (Debian / target).value / "debian" / "control-source"
       IO.write(cfile, makeControlFileContent(data), java.nio.charset.Charset.defaultCharset)
       cfile
     },
     debPackageSign := {
-      val debName = (name in Debian).value + "_" + (version in Debian).value
+      val debName = (Debian / name).value + "_" + (Debian / version).value
 
       signFile(debPackageSignKey.value, target.value / s"$debName.dsc")
       signFile(debPackageSignKey.value, target.value / s"${debName}_all.changes")
     },
     debPackagePublish := {
-      val debName = (name in Debian).value + "_" + (version in Debian).value
+      val debName = (Debian / name).value + "_" + (Debian / version).value
       val changes = target.value / s"${debName}_all.changes"
 
       runProcess(

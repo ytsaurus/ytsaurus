@@ -64,9 +64,12 @@ object YtPublishPlugin extends AutoPlugin {
       }
     }
 
+    def ytProxies: Seq[String] = {
+      Option(System.getProperty("proxies")).map(_.split(",").toSeq).getOrElse(Nil)
+    }
+
     val publishYt = taskKey[Unit]("Publish to yt directory")
     val publishYtArtifacts = taskKey[Seq[YtPublishArtifact]]("Yt publish artifacts")
-    val publishYtProxies = settingKey[Seq[String]]("Yt publish proxies")
     val publishYtCredentials = settingKey[RpcCredentials]("Yt publish credentials")
   }
 
@@ -106,31 +109,31 @@ object YtPublishPlugin extends AutoPlugin {
       sys.env.getOrElse("YT_USER", sys.env("USER")),
       sys.env.getOrElse("YT_TOKEN", readDefaultToken)
     ),
-    publishYtArtifacts := Seq(),
-    publishYtProxies := {
-      System.getProperty("proxies") match {
-        case null => Seq(sys.env.get("YT_PROXY")).flatten
-        case str => str.split(",")
-      }
-    },
+    publishYtArtifacts := Nil,
     publishYt := {
       val log = streams.value.log
-      val creds = publishYtCredentials.value
-      publishYtProxies.value.par.foreach { proxy =>
-        val (ytClient, connector) = createYtClient(proxy, creds)
-        implicit val yt: YtClient = ytClient
-        try {
-          publishYtArtifacts.value.par.foreach { artifact =>
-            if (artifact.proxy.forall(_ == proxy)) {
-              createDir(artifact.remoteDir, proxy, log)
-              artifact.publish(proxy, log)
+
+        val creds = publishYtCredentials.value
+        ytProxies.par.foreach { proxy =>
+          val (ytClient, connector) = createYtClient(proxy, creds)
+          implicit val yt: YtClient = ytClient
+          try {
+            publishYtArtifacts.value.par.foreach { artifact =>
+              if (artifact.proxy.forall(_ == proxy)) {
+                if (sys.env.get("RELEASE_TEST").exists(_.toBoolean)) {
+                  log.info(s"RELEASE_TEST: Publish $artifact to $proxy")
+                } else {
+                  createDir(artifact.remoteDir, proxy, log)
+                  artifact.publish(proxy, log)
+                }
+
+              }
             }
+          } finally {
+            yt.close()
+            connector.close()
           }
-        } finally {
-          yt.close()
-          connector.close()
         }
-      }
     }
   )
 }
