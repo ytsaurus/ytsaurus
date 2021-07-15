@@ -211,7 +211,11 @@ private:
                 return true;
             } else if (selectedSize < EndOffset_) {
                 selectedSize += size;
-                blockSequence.push_back(TBlockFetcher::TBlockInfo{index, size, index /* priority */});
+                blockSequence.push_back({
+                    .UncompressedDataSize = size,
+                    .Index = index,
+                    .Priority = index
+                });
                 return true;
             }
             return false;

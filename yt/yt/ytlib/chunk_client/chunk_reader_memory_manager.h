@@ -151,9 +151,10 @@ DEFINE_REFCOUNTED_TYPE(TChunkReaderMemoryManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TMemoryUsageGuard
+class TMemoryUsageGuard
     : public TRefCounted
 {
+public:
     TMemoryUsageGuard() = default;
 
     TMemoryUsageGuard(
@@ -162,26 +163,19 @@ struct TMemoryUsageGuard
 
     ~TMemoryUsageGuard();
 
-    NConcurrency::TAsyncSemaphoreGuard Guard;
-    TWeakPtr<TChunkReaderMemoryManager> MemoryManager;
+    void CaptureBlock(TSharedRef block);
+
+    NConcurrency::TAsyncSemaphoreGuard* GetGuard();
+
+    TWeakPtr<TChunkReaderMemoryManager> GetMemoryManager() const;
+
+private:
+    NConcurrency::TAsyncSemaphoreGuard Guard_;
+    TWeakPtr<TChunkReaderMemoryManager> MemoryManager_;
+    TSharedRef Block_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TMemoryUsageGuard)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TMemoryManagedData
-    : public TRefCounted
-{
-    TMemoryManagedData() = default;
-
-    TMemoryManagedData(TSharedRef data, TMemoryUsageGuardPtr memoryUsageGuard);
-
-    TSharedRef Data;
-    TMemoryUsageGuardPtr MemoryUsageGuard;
-};
-
-DEFINE_REFCOUNTED_TYPE(TMemoryManagedData)
 
 ////////////////////////////////////////////////////////////////////////////////
 

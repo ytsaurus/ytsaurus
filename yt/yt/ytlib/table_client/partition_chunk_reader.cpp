@@ -94,15 +94,17 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
 
     BlockMetaExt_ = GetProtoExtension<NProto::TBlockMetaExt>(ChunkMeta_->extensions());
     std::vector<TBlockFetcher::TBlockInfo> blocks;
-    for (auto& blockMeta : BlockMetaExt_.blocks()) {
-        TBlockFetcher::TBlockInfo blockInfo;
-        blockInfo.Index = blockMeta.block_index();
-        blockInfo.UncompressedDataSize = blockMeta.uncompressed_size();
-        blockInfo.Priority = blocks.size();
-        blocks.push_back(blockInfo);
+    blocks.reserve(BlockMetaExt_.blocks_size());
+    for (const auto& blockMeta : BlockMetaExt_.blocks()) {
+        int priority = blocks.size();
+        blocks.push_back({
+            .UncompressedDataSize = blockMeta.uncompressed_size(),
+            .Index = blockMeta.block_index(),
+            .Priority = priority
+        });
     }
 
-    return DoOpen(blocks, GetProtoExtension<TMiscExt>(ChunkMeta_->extensions()));
+    return DoOpen(std::move(blocks), GetProtoExtension<TMiscExt>(ChunkMeta_->extensions()));
 }
 
 void TPartitionChunkReader::InitFirstBlock()

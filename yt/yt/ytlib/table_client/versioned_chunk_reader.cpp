@@ -443,7 +443,11 @@ private:
                 BlockIndexes_.push_back(blockIndex);
                 auto& blockMeta = blockMetaExt->blocks(blockIndex);
                 int priority = blocks.size();
-                blocks.push_back(TBlockFetcher::TBlockInfo{blockIndex, blockMeta.uncompressed_size(), priority});
+                blocks.push_back({
+                    .UncompressedDataSize = blockMeta.uncompressed_size(),
+                    .Index = blockIndex,
+                    .Priority = priority
+                });
             }
 
             blocksIt = blockKeysEnd;
@@ -654,7 +658,11 @@ private:
                 BlockIndexes_.push_back(blockIndex);
                 auto& blockMeta = blockMetaExt->blocks(blockIndex);
                 int priority = blocks.size();
-                blocks.push_back(TBlockFetcher::TBlockInfo{blockIndex, blockMeta.uncompressed_size(), priority});
+                blocks.push_back({
+                    .UncompressedDataSize = blockMeta.uncompressed_size(),
+                    .Index = blockIndex,
+                    .Priority = priority
+                });
 
                 ++blocksIt;
             } else {

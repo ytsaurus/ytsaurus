@@ -34,8 +34,8 @@ class TBlockFetcher
 public:
     struct TBlockInfo
     {
-        int Index = -1;
         i64 UncompressedDataSize = 0;
+        int Index = -1;
         int Priority = 0;
     };
 
@@ -65,7 +65,7 @@ public:
     TFuture<TBlock> FetchBlock(int blockIndex);
 
     //! Returns true if all blocks are fetched and false otherwise.
-    bool IsFetchingCompleted();
+    bool IsFetchingCompleted() const;
 
     //! Returns total uncompressed size of read blocks.
     i64 GetUncompressedDataSize() const;
@@ -89,9 +89,9 @@ private:
     const TClientChunkReadOptions ChunkReadOptions_;
     NLogging::TLogger Logger;
 
-    std::atomic<i64> UncompressedDataSize_ = {0};
-    std::atomic<i64> CompressedDataSize_ = {0};
-    std::atomic<NProfiling::TCpuDuration> DecompressionTime_ = {0};
+    std::atomic<i64> UncompressedDataSize_ = 0;
+    std::atomic<i64> CompressedDataSize_ = 0;
+    std::atomic<NProfiling::TCpuDuration> DecompressionTime_ = 0;
 
     THashMap<int, int> BlockIndexToWindowIndex_;
 
@@ -103,7 +103,7 @@ private:
         YT_DECLARE_SPINLOCK(TAdaptiveLock, BlockPromiseLock);
         TPromise<TBlock> BlockPromise;
 
-        std::atomic<int> RemainingFetches = { 0 };
+        std::atomic<int> RemainingFetches = 0;
 
         TMemoryUsageGuardPtr MemoryUsageGuard;
 
@@ -111,34 +111,34 @@ private:
     };
 
     std::unique_ptr<TWindowSlot[]> Window_;
-    int WindowSize_ = 0;
 
     int TotalRemainingFetches_ = 0;
-    std::atomic<i64> TotalRemainingSize_ = { 0 };
+    std::atomic<i64> TotalRemainingSize_ = 0;
     int FirstUnfetchedWindowIndex_ = 0;
     bool FetchingCompleted_ = false;
 
-    void FetchNextGroup(TErrorOr<TMemoryUsageGuardPtr> memoryUsageGuardOrError);
+
+    void FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryUsageGuardOrError);
 
     void RequestBlocks(
-        const std::vector<int>& windowIndexes,
-        const std::vector<int>& blockIndexes,
+        std::vector<int> windowIndexes,
+        std::vector<int> blockIndexes,
         i64 uncompressedSize);
 
     void OnGotBlocks(
-        const std::vector<int>& windowIndexes,
-        const std::vector<int>& blockIndexes,
-        const TErrorOr<std::vector<TBlock>>& blocksOrError);
+        std::vector<int> windowIndexes,
+        std::vector<int> blockIndexes,
+        TErrorOr<std::vector<TBlock>>&& blocksOrError);
 
     void DecompressBlocks(
-        const std::vector<int>& windowIndexes,
-        const std::vector<TBlock>& compressedBlocks);
+        std::vector<int> windowIndexes,
+        std::vector<TBlock> compressedBlocks);
 
     void MarkFailedBlocks(
         const std::vector<int>& windowIndexes,
         const TError& error);
 
-    void ReleaseBlock(int windowIndex);
+    void ReleaseBlocks(const std::vector<int>& windowIndexes);
 
     static TPromise<TBlock> GetBlockPromise(TWindowSlot& windowSlot);
     static void ResetBlockPromise(TWindowSlot& windowSlot);

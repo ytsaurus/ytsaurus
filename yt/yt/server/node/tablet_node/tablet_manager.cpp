@@ -478,12 +478,18 @@ public:
             transaction->GetId());
 
         auto promise = NewPromise<void>();
+        auto future = promise.ToFuture();
         tablet
             ->GetStoresUpdateCommitSemaphore()
             ->AsyncAcquire(
-                BIND(&TImpl::OnStoresUpdateCommitSemaphoreAcquired, MakeWeak(this), tablet, transaction, promise),
+                BIND(
+                    &TImpl::OnStoresUpdateCommitSemaphoreAcquired,
+                    MakeWeak(this),
+                    tablet,
+                    transaction,
+                    Passed(std::move(promise))),
                 tablet->GetEpochAutomatonInvoker());
-        return promise;
+        return future;
     }
 
     IYPathServicePtr GetOrchidService()

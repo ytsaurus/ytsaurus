@@ -199,8 +199,6 @@ DECLARE_REFCOUNTED_CLASS(TChunkReplicaLocator)
 
 struct TChunkReaderMemoryManagerOptions;
 
-DECLARE_REFCOUNTED_STRUCT(TMemoryManagedData)
-
 struct TUserObject;
 
 using TRefCountedChunkMeta = TRefCountedProto<NChunkClient::NProto::TChunkMeta>;
@@ -229,7 +227,7 @@ DECLARE_REFCOUNTED_CLASS(TKeySetWriter)
 
 using TDataCenterName = std::optional<TString>;
 
-DECLARE_REFCOUNTED_STRUCT(TMemoryUsageGuard)
+DECLARE_REFCOUNTED_CLASS(TMemoryUsageGuard)
 
 DECLARE_REFCOUNTED_STRUCT(IMultiReaderMemoryManager)
 DECLARE_REFCOUNTED_STRUCT(IReaderMemoryManagerHost)
