@@ -371,7 +371,7 @@ public:
             name,
             id);
 
-        auto areaHolder = std::make_unique<TArea>(id);
+        auto areaHolder = TPoolAllocator::New<TArea>(id);
         areaHolder->SetName(name);
         areaHolder->SetCellBundle(cellBundle);
 

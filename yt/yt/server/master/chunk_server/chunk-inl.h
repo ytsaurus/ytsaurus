@@ -39,7 +39,7 @@ inline const TChunk::TReplicasData& TChunk::ReplicasData() const
 inline TChunk::TReplicasData* TChunk::MutableReplicasData()
 {
     if (!ReplicasData_) {
-        ReplicasData_ = std::make_unique<TReplicasData>();
+        ReplicasData_ = TPoolAllocator::New<TReplicasData>();
         std::fill(ReplicasData_->LastSeenReplicas.begin(), ReplicasData_->LastSeenReplicas.end(), InvalidNodeId);
     }
     return ReplicasData_.get();

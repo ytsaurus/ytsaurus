@@ -246,14 +246,14 @@ private:
         YT_VERIFY(create);
 
         auto id = GenerateTabletCellBundleId();
-        auto bundleHolder = std::make_unique<TCellBundle>(id);
+        auto bundleHolder = TPoolAllocator::New<TCellBundle>(id);
         bundleHolder->SetName(name);
         auto* bundle = CellBundleMap_.Insert(id, std::move(bundleHolder));
         YT_VERIFY(NameToBundle_.emplace(name, bundle).second);
         bundle->RefObject();
 
         auto areaId = ReplaceTypeInId(id, EObjectType::Area);
-        auto areaHolder = std::make_unique<TArea>(areaId);
+        auto areaHolder = TPoolAllocator::New<TArea>(areaId);
         areaHolder->SetName(DefaultAreaName);
         areaHolder->SetCellBundle(bundle);
         auto* area = AreaMap_.Insert(areaId, std::move(areaHolder));
@@ -266,7 +266,7 @@ private:
     void CreateCell(TCellBundle* bundle, int index)
     {
         auto id = GenerateTabletCellId();
-        auto cellHolder = std::make_unique<TTabletCell>(id);
+        auto cellHolder = TPoolAllocator::New<TTabletCell>(id);
         cellHolder->Peers().resize(bundle->GetOptions()->PeerCount);
         cellHolder->SetCellBundle(bundle);
 
@@ -295,14 +295,15 @@ private:
         YT_VERIFY(create);
 
         auto id = GenerateClusterNodeId();
-        auto nodeHolder = std::make_unique<TNode>(id);
+        auto nodeHolder = TPoolAllocator::New<TNode>(id);
         auto* node = NodeMap_.Insert(id, std::move(nodeHolder));
         YT_VERIFY(NameToNode_.emplace(name, node).second);
         YT_VERIFY(NodeToName_.emplace(node, name).second);
         node->RefObject();
         node->SetNodeAddresses(TNodeAddressMap{std::make_pair(
             EAddressType::InternalRpc,
-            TAddressMap{std::make_pair(DefaultNetworkName, name)})});
+            TAddressMap{std::make_pair(DefaultNetworkName, name)}
+        )});
         return node;
     }
 

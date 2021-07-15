@@ -6,6 +6,7 @@
 #endif
 
 #include <yt/yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/pool_allocator.h>
 
 namespace NYT::NHydra {
 
@@ -14,7 +15,11 @@ namespace NYT::NHydra {
 template <class TValue>
 std::unique_ptr<TValue> TDefaultEntityMapTraits<TValue>::Create(const TEntityKey<TValue>& key) const
 {
-    return std::make_unique<TValue>(key);
+    if constexpr(std::is_base_of_v<TPoolAllocator::TObjectBase, TValue>) {
+        return TPoolAllocator::New<TValue>(key);
+    } else {
+        return std::make_unique<TValue>(key);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

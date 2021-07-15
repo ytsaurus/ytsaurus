@@ -39,7 +39,7 @@ public:
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::ChaosCellBundle, hintId);
-        auto holder = std::make_unique<TChaosCellBundle>(id);
+        auto holder = TPoolAllocator::New<TChaosCellBundle>(id);
         auto chaosOptions = attributes->GetAndRemove<TChaosHydraConfigPtr>("chaos_options");
         auto options = attributes->GetAndRemove<TTabletCellOptionsPtr>("options");
         if (options->PeerCount != std::ssize(chaosOptions->Peers)) {
@@ -53,7 +53,7 @@ public:
     virtual std::unique_ptr<TObject> InstantiateObject(
         TObjectId hintId) override
     {
-        return std::make_unique<TChaosCellBundle>(hintId);
+        return TPoolAllocator::New<TChaosCellBundle>(hintId);
     }
 
 private:

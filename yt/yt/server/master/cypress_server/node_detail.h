@@ -137,7 +137,7 @@ public:
         TVersionedNodeId id,
         NObjectClient::TCellTag externalCellTag) override
     {
-        std::unique_ptr<TCypressNode> nodeHolder(new TImpl(id));
+        auto nodeHolder = std::unique_ptr<TCypressNode>(TPoolAllocator::New<TImpl>(id));
         nodeHolder->SetExternalCellTag(externalCellTag);
         nodeHolder->SetTrunkNode(nodeHolder.get());
 
@@ -209,7 +209,7 @@ public:
         // Instantiate a branched copy.
         auto originatingId = originatingNode->GetVersionedId();
         auto branchedId = TVersionedNodeId(originatingId.ObjectId, GetObjectId(transaction));
-        auto branchedNodeHolder = std::make_unique<TImpl>(branchedId);
+        auto branchedNodeHolder = TPoolAllocator::New<TImpl>(branchedId);
         auto* typedBranchedNode = branchedNodeHolder.get();
 
         // Run core stuff.
@@ -305,7 +305,7 @@ protected:
         NCypressServer::TVersionedNodeId id,
         const TCreateNodeContext& context)
     {
-        auto nodeHolder = std::make_unique<TImpl>(id);
+        auto nodeHolder = TPoolAllocator::New<TImpl>(id);
         nodeHolder->SetExternalCellTag(context.ExternalCellTag);
         nodeHolder->SetTrunkNode(nodeHolder.get());
 

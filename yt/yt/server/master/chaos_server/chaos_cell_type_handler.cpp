@@ -38,14 +38,14 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         hintId = attributes->Get("chaos_cell_id", NullObjectId);
         auto id = objectManager->GenerateId(EObjectType::ChaosCell, hintId);
-        auto holder = std::make_unique<TChaosCell>(id);
+        auto holder = TPoolAllocator::New<TChaosCell>(id);
         return DoCreateObject(std::move(holder), attributes);
     }
 
     virtual std::unique_ptr<TObject> InstantiateObject(
         TObjectId hintId) override
     {
-        return std::make_unique<TChaosCell>(hintId);
+        return TPoolAllocator::New<TChaosCell>(hintId);
     }
 
 private:

@@ -341,6 +341,7 @@ private:
     std::unique_ptr<TChunkExportDataList> ExportDataList_;
 
     struct TReplicasData
+        : public TPoolAllocator::TObjectBase
     {
         //! This set is usually empty. Keeping a holder is very space efficient.
         std::unique_ptr<TCachedReplicas> CachedReplicas;

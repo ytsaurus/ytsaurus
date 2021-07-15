@@ -522,7 +522,7 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Rack, hintId);
 
-        auto rackHolder = std::make_unique<TRack>(id);
+        auto rackHolder = TPoolAllocator::New<TRack>(id);
         rackHolder->SetName(name);
         rackHolder->SetIndex(AllocateRackIndex());
 
@@ -636,7 +636,7 @@ public:
         auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::DataCenter, hintId);
 
-        auto dcHolder = std::make_unique<TDataCenter>(id);
+        auto dcHolder = TPoolAllocator::New<TDataCenter>(id);
         dcHolder->SetName(name);
 
         auto* dc = DataCenterMap_.Insert(id, std::move(dcHolder));
@@ -1679,7 +1679,7 @@ private:
     {
         auto objectId = ObjectIdFromNodeId(nodeId);
 
-        auto nodeHolder = std::make_unique<TNode>(objectId);
+        auto nodeHolder = TPoolAllocator::New<TNode>(objectId);
         auto* node = NodeMap_.Insert(objectId, std::move(nodeHolder));
 
         // Make the fake reference.

@@ -38,7 +38,7 @@ TChunk* TChunkGeneratorBase::CreateChunk(
     NTableClient::TLegacyOwningKey maxKey,
     EChunkType chunkType)
 {
-    auto chunk = std::make_unique<TChunk>(GenerateId(EObjectType::Chunk));
+    auto chunk = TPoolAllocator::New<TChunk>(GenerateId(EObjectType::Chunk));
     chunk->RefObject();
 
     NChunkClient::NProto::TChunkMeta chunkMeta;
@@ -67,7 +67,7 @@ TChunk* TChunkGeneratorBase::CreateChunk(
 
 TChunk* TChunkGeneratorBase::CreateUnconfirmedChunk()
 {
-    auto chunk = std::make_unique<TChunk>(GenerateId(EObjectType::Chunk));
+    auto chunk = TPoolAllocator::New<TChunk>(GenerateId(EObjectType::Chunk));
     chunk->RefObject();
 
     auto ptr = chunk.get();
@@ -77,7 +77,7 @@ TChunk* TChunkGeneratorBase::CreateUnconfirmedChunk()
 
 TChunk* TChunkGeneratorBase::CreateJournalChunk(bool sealed, bool overlayed)
 {
-    auto chunk = std::make_unique<TChunk>(GenerateId(EObjectType::JournalChunk));
+    auto chunk = TPoolAllocator::New<TChunk>(GenerateId(EObjectType::JournalChunk));
     chunk->SetOverlayed(overlayed);
     chunk->RefObject();
 
@@ -105,7 +105,7 @@ TChunk* TChunkGeneratorBase::CreateJournalChunk(bool sealed, bool overlayed)
 
 TChunkList* TChunkGeneratorBase::CreateChunkList(EChunkListKind kind)
 {
-    auto chunkList = std::make_unique<TChunkList>(GenerateId(EObjectType::ChunkList));
+    auto chunkList = TPoolAllocator::New<TChunkList>(GenerateId(EObjectType::ChunkList));
     chunkList->SetKind(kind);
     chunkList->RefObject();
 
@@ -121,7 +121,7 @@ TChunkView* TChunkGeneratorBase::CreateChunkView(
 {
     NChunkClient::TLegacyReadRange readRange{
         NChunkClient::TLegacyReadLimit(lowerLimit), NChunkClient::TLegacyReadLimit(upperLimit)};
-    auto chunkView = std::make_unique<TChunkView>(GenerateId(EObjectType::ChunkView));
+    auto chunkView = TPoolAllocator::New<TChunkView>(GenerateId(EObjectType::ChunkView));
 
     chunkView->SetUnderlyingChunk(underlyingChunk);
     chunkView->SetReadRange(readRange);

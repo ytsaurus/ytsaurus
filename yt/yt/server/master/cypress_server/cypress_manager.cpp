@@ -964,7 +964,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto shardHolder = std::make_unique<TCypressShard>(shardId);
+        auto shardHolder = TPoolAllocator::New<TCypressShard>(shardId);
         auto* shard = shardHolder.get();
         ShardMap_.Insert(shardId, std::move(shardHolder));
         return shard;
@@ -2323,7 +2323,7 @@ private:
         } else {
             // Create the root node.
             const auto& securityManager = Bootstrap_->GetSecurityManager();
-            auto rootNodeHolder = std::make_unique<TMapNode>(TVersionedNodeId(RootNodeId_));
+            auto rootNodeHolder = TPoolAllocator::New<TMapNode>(TVersionedNodeId(RootNodeId_));
             rootNodeHolder->SetTrunkNode(rootNodeHolder.get());
             rootNodeHolder->SetAccount(securityManager->GetSysAccount());
             rootNodeHolder->Acd().SetInherit(false);
@@ -2341,7 +2341,7 @@ private:
         RootShard_ = FindShard(RootShardId_);
         if (!RootShard_) {
             // Create the root shard.
-            auto rootShardHolder = std::make_unique<TCypressShard>(RootShardId_);
+            auto rootShardHolder = TPoolAllocator::New<TCypressShard>(RootShardId_);
             rootShardHolder->SetRoot(RootNode_);
 
             RootShard_ = rootShardHolder.get();
@@ -2991,7 +2991,7 @@ private:
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Lock, NullObjectId);
-        auto lockHolder = std::make_unique<TLock>(id);
+        auto lockHolder = TPoolAllocator::New<TLock>(id);
         auto* lock = LockMap_.Insert(id, std::move(lockHolder));
 
         lock->SetImplicit(implicit);

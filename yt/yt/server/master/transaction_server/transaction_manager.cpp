@@ -358,7 +358,7 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto transactionId = objectManager->GenerateId(transactionObjectType, hintId);
 
-        auto transactionHolder = std::make_unique<TTransaction>(transactionId, upload);
+        auto transactionHolder = TPoolAllocator::New<TTransaction>(transactionId, upload);
         auto* transaction = TransactionMap_.Insert(transactionId, std::move(transactionHolder));
 
         // Every active transaction has a fake reference to itself.
