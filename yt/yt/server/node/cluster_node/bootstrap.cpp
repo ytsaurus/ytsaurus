@@ -913,8 +913,13 @@ private:
                 self->SetCpuWeight(Config_->ResourceLimits->NodeCpuWeight);
 
                 NodeResourceManager_->SubscribeSelfMemoryGuaranteeUpdated(BIND([self] (i64 memoryGuarantee) {
-                    YT_LOG_DEBUG("Self memory guarantee updated (MemoryGuarantee: %v)", memoryGuarantee);
-                    self->SetMemoryGuarantee(memoryGuarantee);
+                    try {
+                        self->SetMemoryGuarantee(memoryGuarantee);
+                        YT_LOG_DEBUG("Self memory guarantee updated (MemoryGuarantee: %v)", memoryGuarantee);
+                    } catch (const std::exception& ex) {
+                        // This probably means container limits misconfiguration on host.
+                        YT_LOG_FATAL(ex, "Failed to set self memory guarantee (MemoryGuarantee: %v)", memoryGuarantee);
+                    }
                 }));
             }
         }
