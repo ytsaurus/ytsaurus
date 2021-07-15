@@ -4,6 +4,7 @@ from ..skiff import check_skiff_bindings
 from yt.packages.six import PY3
 
 try:
+    import yandex.type_info.typing  # noqa
     _TI_AVAILABLE = True
 except ImportError:
     _TI_AVAILABLE = False
