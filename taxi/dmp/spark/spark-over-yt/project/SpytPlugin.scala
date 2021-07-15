@@ -1,15 +1,15 @@
 package spyt
 
-import sbt.Keys.baseDirectory
+import sbt.Keys._
 import sbt.PluginTrigger.NoTrigger
 import sbt._
 import sbtrelease.ReleasePlugin.autoImport._
 import sbtrelease.ReleaseStateTransformations._
-import sbtrelease.SpytRelease._
-import sbtrelease.{Version, versionFormatError}
+import sbtrelease._
+import spyt.SparkPackagePlugin.autoImport._
+import spyt.SpytRelease._
 
 import java.io.File
-import scala.language.postfixOps
 
 object SpytPlugin extends AutoPlugin {
   override def trigger = NoTrigger
@@ -108,7 +108,7 @@ object SpytPlugin extends AutoPlugin {
     spytSparkVersionFile := baseDirectory.value / "spark_version.sbt",
     // TODO
     spytClientVersionPyFile := baseDirectory.value / "data-source" / "src" / "main" / "python" / "spyt" / "version.py",
-    spytSparkVersionPyFile := baseDirectory.value.getParentFile / "spark" / "python" / "pyspark" / "version.py",
+    spytSparkVersionPyFile := (ThisBuild / sparkVersionPyFile).value,
     spytIncreasePythonBetaVersion := {
       val oldVersion = spytClientPythonVersion.value
       val newVersion = increaseBetaVersion(oldVersion)

@@ -1,10 +1,11 @@
-package sbtrelease
+package spyt
 
-import sbt._
+import sbt.{IO, Project, SettingKey, State, TaskKey, ThisBuild}
 import sbtrelease.ReleasePlugin.autoImport.ReleaseKeys.versions
 import sbtrelease.ReleasePlugin.autoImport._
 import sbtrelease.ReleaseStateTransformations._
 import sbtrelease.Utilities.stateW
+import sbtrelease._
 import spyt.SpytPlugin.autoImport.{spytSparkVersionFile, _}
 
 import java.io.File
@@ -47,12 +48,12 @@ object SpytRelease {
     val vs = st.get(versions).getOrElse(sys.error("No versions are set! Was this release part executed before inquireVersions?"))
     val selected = spytVersions.map(v => v._1 -> v._2.apply(vs))
 
-    st.log.info(s"Setting ${selected.map{case (k, v) => s"${k.key} to $v"}.mkString(", ")}")
+    st.log.info(s"Setting ${selected.map { case (k, v) => s"${k.key} to $v" }.mkString(", ")}")
 
     val file = st.extract.get(fileSetting)
     writeVersion(selected, file)
 
-    reapply(selected.map{ case (k, v) => ThisBuild / k := v }, st)
+    reapply(selected.map { case (k, v) => ThisBuild / k := v }, st)
   }
 
   def writeVersion(versions: Seq[(SettingKey[String], String)],
@@ -60,7 +61,7 @@ object SpytRelease {
     val versionStr =
       s"""import spyt.SpytPlugin.autoImport._
          |
-         |${versions.map{ case (k, v) => s"""ThisBuild / ${k.key} := "$v""""}.mkString("\n")}""".stripMargin
+         |${versions.map { case (k, v) => s"""ThisBuild / ${k.key} := "$v"""" }.mkString("\n")}""".stripMargin
     IO.writeLines(file, Seq(versionStr))
   }
 
@@ -70,8 +71,8 @@ object SpytRelease {
   }
 
   private def commitVersion(st: State,
-                    commitMessage: TaskKey[String],
-                    files: Seq[SettingKey[File]]) = {
+                            commitMessage: TaskKey[String],
+                            files: Seq[SettingKey[File]]) = {
     val log = st.log
     val addFiles = files.map(f => st.extract.get(f).getCanonicalFile)
     val base = vcs(st).baseDir.getCanonicalFile
@@ -105,8 +106,11 @@ object SpytRelease {
   }
 
   def getReleaseVersion(vs: Versions): String = vs._1
+
   def getReleaseSparkVersion(vs: Versions): String = s"3.0.1+${vs._1}" //TODO 3.0.1 -> sparkVersion
+
   def getNextVersion(vs: Versions): String = vs._2
+
   def getNextPythonVersion(vs: Versions): String = vs._2.replace("-SNAPSHOT", "b1")
 
   lazy val clusterReleaseVersions: ReleaseStep = { st: State => releaseVersions(st, spytClusterVersion) }
@@ -145,11 +149,11 @@ object SpytRelease {
       spytClientVersionPyFile,
       spytClusterVersionFile,
       spytSparkVersionFile
-//      spytSparkVersionPyFile
+      //      spytSparkVersionPyFile
     ))
   }
   lazy val commitNextAllVersion = { st: State =>
-    commitVersion(st, releaseNextAllCommitMessage,Seq(
+    commitVersion(st, releaseNextAllCommitMessage, Seq(
       spytClientVersionFile,
       spytClientVersionPyFile,
       spytClusterVersionFile

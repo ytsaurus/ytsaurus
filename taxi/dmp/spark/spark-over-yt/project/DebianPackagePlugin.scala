@@ -1,7 +1,8 @@
-import com.typesafe.sbt.SbtNativePackager.autoImport.maintainer
-import com.typesafe.sbt.packager.Keys.debianPackageMetadata
-import com.typesafe.sbt.packager.debian.DebianPlugin.autoImport.{Debian, debianChangelog, debianSection}
-import com.typesafe.sbt.packager.debian.{DebianPlugin, JDebPackaging, PackageMetaData}
+package spyt
+
+import com.typesafe.sbt.SbtNativePackager.autoImport._
+import com.typesafe.sbt.packager.debian.DebianPlugin.autoImport._
+import com.typesafe.sbt.packager.debian._
 import sbt.Keys._
 import sbt._
 
@@ -66,8 +67,9 @@ object DebianPackagePlugin extends AutoPlugin {
       val debName = (Debian / name).value + "_" + (Debian / version).value
       val debianPath = (Debian / target).value / "debian"
       val output = debianPath / "files"
-      val content = s"""${debName}_all.deb misc optional
-                       |$debName.dsc text important""".stripMargin
+      val content =
+        s"""${debName}_all.deb misc optional
+           |$debName.dsc text important""".stripMargin
 
       IO.write(output, content)
       output
@@ -160,4 +162,3 @@ object DebianPackagePlugin extends AutoPlugin {
     runProcess(s"debsign -k $signKey ${file.getAbsolutePath}", "Failed to run debsign")
   }
 }
-

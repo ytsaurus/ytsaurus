@@ -1,7 +1,8 @@
-import java.io.FilenameFilter
+package spyt
 
 import sbt._
 
+import java.io.FilenameFilter
 import scala.annotation.tailrec
 
 object FileUtils {

@@ -1,13 +1,13 @@
-import java.io.{FileInputStream, FileOutputStream}
-import java.util.zip.{ZipEntry, ZipOutputStream}
+package spyt
 
 import org.apache.commons.compress.utils.IOUtils
 import sbt.Keys._
 import sbt.PluginTrigger.AllRequirements
 import sbt._
 
+import java.io.{FileInputStream, FileOutputStream}
+import java.util.zip.{ZipEntry, ZipOutputStream}
 import scala.annotation.tailrec
-
 
 object ZipPlugin extends AutoPlugin {
 
@@ -58,7 +58,7 @@ object ZipPlugin extends AutoPlugin {
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
     zipMapping := Nil,
     zipPath := None,
-    zipIgnore := {_ => false},
+    zipIgnore := { _ => false },
     zip := {
       val log = streams.value.log
       val path = zipPath.value.get
@@ -73,7 +73,6 @@ object ZipPlugin extends AutoPlugin {
       path
     }
   )
-
 
 
 }
