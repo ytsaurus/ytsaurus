@@ -1017,7 +1017,13 @@ class TestSchedulerPreemption(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "fair_share_update_period": 100,
-            "event_log": {"flush_period": 300, "retry_backoff_time": 300},
+            "event_log": {
+                "flush_period": 300,
+                "retry_backoff_time": 300,
+            },
+            "enable_job_reporter": True,
+            "enable_job_spec_reporter": True,
+            "enable_job_stderr_reporter": True,
         }
     }
 
@@ -1029,6 +1035,17 @@ class TestSchedulerPreemption(YTEnvSetup):
             },
             "enable_operation_progress_archivation": False,
         }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_reporter": {
+                "enabled": True,
+                "reporting_period": 10,
+                "min_repeat_delay": 10,
+                "max_repeat_delay": 10,
+            }
+        },
     }
 
     def setup(self):
