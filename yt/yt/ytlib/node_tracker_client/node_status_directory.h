@@ -16,7 +16,7 @@ struct INodeStatusDirectory
     //! if #previousMarkTime matches the actual mark time.
     virtual void UpdateSuspicionMarkTime(
         TNodeId nodeId,
-        TStringBuf /*address*/,
+        TStringBuf address,
         bool suspicious,
         std::optional<TInstant> previousMarkTime) = 0;
 
