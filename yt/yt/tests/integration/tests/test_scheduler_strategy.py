@@ -1534,7 +1534,7 @@ class TestSchedulingBugOfOperationWithGracefulPreemption(YTEnvSetup):
 ##################################################################
 
 
-class TestInferWeightFromMinShare(YTEnvSetup):
+class TestInferWeightFromGuarantees(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1542,32 +1542,32 @@ class TestInferWeightFromMinShare(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {"scheduler": {"fair_share_update_period": 100}}
 
     @authors("ignat")
-    def test_infer_weight_from_min_share(self):
+    def test_infer_weight_from_strong_guarantees(self):
         total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
         set("//sys/pool_trees/default/@config/infer_weight_from_min_share_ratio_multiplier", 10)
 
         create_pool(
             "test_pool1",
             pool_tree="default",
-            attributes={"min_share_resources": {"cpu": 0.3 * total_cpu_limit}},
+            attributes={"strong_guarantee_resources": {"cpu": 0.3 * total_cpu_limit}},
         )
         create_pool(
             "test_pool2",
             pool_tree="default",
-            attributes={"min_share_resources": {"cpu": 0.4 * total_cpu_limit}},
+            attributes={"strong_guarantee_resources": {"cpu": 0.4 * total_cpu_limit}},
         )
         create_pool("test_pool3", pool_tree="default")
         create_pool(
             "subpool1",
             pool_tree="default",
             parent_name="test_pool2",
-            attributes={"min_share_resources": {"cpu": 0.4 * 0.3 * total_cpu_limit}},
+            attributes={"strong_guarantee_resources": {"cpu": 0.4 * 0.3 * total_cpu_limit}},
         )
         create_pool(
             "subpool2",
             pool_tree="default",
             parent_name="test_pool2",
-            attributes={"min_share_resources": {"cpu": 0.4 * 0.4 * total_cpu_limit}},
+            attributes={"strong_guarantee_resources": {"cpu": 0.4 * 0.4 * total_cpu_limit}},
         )
 
         get_pool_weight = lambda pool: get(scheduler_orchid_pool_path(pool) + "/weight")
@@ -1578,6 +1578,82 @@ class TestInferWeightFromMinShare(YTEnvSetup):
 
         wait(lambda: are_almost_equal(get_pool_weight("subpool1"), 3.0))
         wait(lambda: are_almost_equal(get_pool_weight("subpool2"), 4.0))
+
+    @authors("renadeen")
+    def test_infer_weight_from_resource_flow(self):
+        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
+        set("//sys/pool_trees/default/@config/infer_weight_from_min_share_ratio_multiplier", 10)
+
+        create_pool(
+            "test_pool1",
+            pool_tree="default",
+            attributes={"integral_guarantees": {
+                "resource_flow": {"cpu": 0.3 * total_cpu_limit},
+                "guarantee_type": "relaxed",
+            }},
+        )
+        create_pool(
+            "test_pool2",
+            pool_tree="default",
+            attributes={"integral_guarantees": {
+                "resource_flow": {"cpu": 0.4 * total_cpu_limit},
+                "guarantee_type": "none",
+            }},
+        )
+        create_pool(
+            "subpool1",
+            pool_tree="default",
+            parent_name="test_pool2",
+            attributes={"integral_guarantees": {
+                "resource_flow": {"cpu": 0.4 * 0.4 * total_cpu_limit},
+                "guarantee_type": "burst",
+            }},
+        )
+        create_pool(
+            "subpool2",
+            pool_tree="default",
+            parent_name="test_pool2",
+            attributes={"integral_guarantees": {
+                "resource_flow": {"cpu": 0.4 * 0.6 * total_cpu_limit},
+                "guarantee_type": "relaxed",
+            }},
+        )
+        create_pool("test_pool3", pool_tree="default")
+
+        get_pool_weight = lambda pool: get(scheduler_orchid_pool_path(pool) + "/weight")
+
+        wait(lambda: are_almost_equal(get_pool_weight("test_pool1"), 3.0 / 7.0 * 10.0))
+        wait(lambda: are_almost_equal(get_pool_weight("test_pool2"), 4.0 / 7.0 * 10.0))
+        wait(lambda: are_almost_equal(get_pool_weight("test_pool3"), 1.0))
+
+        wait(lambda: are_almost_equal(get_pool_weight("subpool1"), 4.0))
+        wait(lambda: are_almost_equal(get_pool_weight("subpool2"), 6.0))
+
+    @authors("renadeen")
+    def test_infer_weight_from_both_guarantees(self):
+        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
+        set("//sys/pool_trees/default/@config/infer_weight_from_min_share_ratio_multiplier", 10)
+
+        create_pool(
+            "test_pool1",
+            pool_tree="default",
+            attributes={"strong_guarantee_resources": {"cpu": 0.4 * total_cpu_limit}},
+        )
+        create_pool(
+            "test_pool2",
+            pool_tree="default",
+            attributes={"integral_guarantees": {
+                "resource_flow": {"cpu": 0.6 * total_cpu_limit},
+                "guarantee_type": "relaxed",
+            }},
+        )
+        create_pool("test_pool3", pool_tree="default")
+
+        get_pool_weight = lambda pool: get(scheduler_orchid_pool_path(pool) + "/weight")
+
+        wait(lambda: are_almost_equal(get_pool_weight("test_pool1"), 0.4 * 10.0))
+        wait(lambda: are_almost_equal(get_pool_weight("test_pool2"), 0.6 * 10.0))
+        wait(lambda: are_almost_equal(get_pool_weight("test_pool3"), 1.0))
 
 
 ##################################################################

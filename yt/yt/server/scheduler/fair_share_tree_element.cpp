@@ -391,27 +391,27 @@ double TSchedulerElement::GetWeight() const
         return *specifiedWeight;
     }
 
-    if (!TreeConfig_->InferWeightFromStrongGuaranteeShareMultiplier) {
+    if (!TreeConfig_->InferWeightFromGuaranteesShareMultiplier) {
         return 1.0;
     }
-    double strongGuaranteeDominantShare = MaxComponent(Attributes().StrongGuaranteeShare);
+    double selfGuaranteeDominantShare = MaxComponent(Attributes().StrongGuaranteeShare) + Attributes().TotalResourceFlowRatio;
 
-    if (strongGuaranteeDominantShare < RatioComputationPrecision) {
+    if (selfGuaranteeDominantShare < RatioComputationPrecision) {
         return 1.0;
     }
 
-    double parentStrongGuaranteeDominantShare = 1.0;
+    double parentGuaranteeDominantShare = 1.0;
     if (GetParent()) {
-        parentStrongGuaranteeDominantShare = MaxComponent(GetParent()->Attributes().StrongGuaranteeShare);
+        parentGuaranteeDominantShare = MaxComponent(GetParent()->Attributes().StrongGuaranteeShare) + GetParent()->Attributes().TotalResourceFlowRatio;
     }
 
-    if (parentStrongGuaranteeDominantShare < RatioComputationPrecision) {
+    if (parentGuaranteeDominantShare < RatioComputationPrecision) {
         return 1.0;
     }
 
-    return strongGuaranteeDominantShare *
-        (*TreeConfig_->InferWeightFromStrongGuaranteeShareMultiplier) /
-        parentStrongGuaranteeDominantShare;
+    return selfGuaranteeDominantShare *
+        (*TreeConfig_->InferWeightFromGuaranteesShareMultiplier) /
+        parentGuaranteeDominantShare;
 }
 
 TSchedulableAttributes& TSchedulerElement::Attributes()
