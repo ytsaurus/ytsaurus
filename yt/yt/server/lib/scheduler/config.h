@@ -232,8 +232,8 @@ public:
     TDuration TentativeTreeSaturationDeactivationPeriod;
 
     //! Enables infer of weight from strong guarantee share (if weight is not implicitly specified);
-    //! inferred weight is this number mupltiplied by dominant strong guarantee share.
-    std::optional<double> InferWeightFromStrongGuaranteeShareMultiplier;
+    //! inferred weight is this number multiplied by dominant strong guarantee share.
+    std::optional<double> InferWeightFromGuaranteesShareMultiplier;
 
     TFairShareStrategyPackingConfigPtr Packing;
 
