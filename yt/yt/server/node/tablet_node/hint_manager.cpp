@@ -9,7 +9,7 @@
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
-#include <yt/yt/core/net/address.h>
+#include <yt/yt/client/node_tracker_client/public.h>
 
 namespace NYT::NTabletNode {
 
@@ -17,6 +17,7 @@ using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NDynamicConfig;
 using namespace NNet;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,40 +90,45 @@ public:
     }
 
     virtual void UpdateSuspicionMarkTime(
-        const TString& nodeAddress,
+        TNodeId nodeId,
+        TStringBuf address,
         bool suspicious,
         std::optional<TInstant> previousMarkTime) override
     {
-        auto hostName = GetServiceHostName(nodeAddress);
-
         auto guard = WriterGuard(SuspiciousNodesSpinLock_);
 
-        auto it = SuspiciousNodesMarkTime_.find(hostName);
+        auto it = SuspiciousNodesMarkTime_.find(nodeId);
         if (it == SuspiciousNodesMarkTime_.end() && suspicious) {
-            YT_LOG_DEBUG("Node is marked as suspicious (HostName: %v)",
-                hostName);
-            SuspiciousNodesMarkTime_[hostName] = TInstant::Now();
+            YT_LOG_DEBUG("Node is marked as suspicious (NodeId: %v, Address: %v)",
+                nodeId,
+                address);
+            SuspiciousNodesMarkTime_[nodeId] = TInstant::Now();
         }
         if (it != SuspiciousNodesMarkTime_.end() && 
             previousMarkTime == it->second &&
             !suspicious)
         {
-            YT_LOG_DEBUG("Node is not suspicious anymore (HostName: %v)",
-                hostName);
-            SuspiciousNodesMarkTime_.erase(hostName);
+            YT_LOG_DEBUG("Node is not suspicious anymore (NodeId: %v, Address: %v)",
+                nodeId,
+                address);
+            SuspiciousNodesMarkTime_.erase(nodeId);
         }
     }
 
     virtual std::vector<std::optional<TInstant>> RetrieveSuspicionMarkTimes(
-        const std::vector<TString>& nodeAddresses) const override
+        const std::vector<TNodeId>& nodeIds) const override
     {
-        auto guard = ReaderGuard(SuspiciousNodesSpinLock_);
+        if (nodeIds.empty()) {
+            return {};
+        }
 
         std::vector<std::optional<TInstant>> markTimes;
-        markTimes.reserve(nodeAddresses.size());
-        for (const auto& nodeAddress : nodeAddresses) {
-            auto hostName = GetServiceHostName(nodeAddress);
-            auto it = SuspiciousNodesMarkTime_.find(hostName);
+        markTimes.reserve(nodeIds.size());
+
+        auto guard = ReaderGuard(SuspiciousNodesSpinLock_);
+
+        for (auto nodeId : nodeIds) {
+            auto it = SuspiciousNodesMarkTime_.find(nodeId);
             auto markTime = it != SuspiciousNodesMarkTime_.end()
                 ? std::make_optional(it->second)
                 : std::nullopt;
@@ -132,12 +138,32 @@ public:
         return markTimes;
     }
 
+    virtual std::vector<std::pair<TNodeId, TInstant>> RetrieveSuspiciousNodeIdsWithMarkTime(
+        const std::vector<TNodeId>& nodeIds) const override
+    {
+        if (nodeIds.empty()) {
+            return {};
+        }
+
+        std::vector<std::pair<TNodeId, TInstant>> suspiciousNodesWithMarkTime;
+
+        auto guard = ReaderGuard(SuspiciousNodesSpinLock_);
+
+        for (auto nodeId : nodeIds) {
+            auto it = SuspiciousNodesMarkTime_.find(nodeId);
+            if (it != SuspiciousNodesMarkTime_.end()) {
+                suspiciousNodesWithMarkTime.emplace_back(nodeId, it->second);
+            }
+        }
+
+        return suspiciousNodesWithMarkTime;
+    }
+
     virtual bool ShouldMarkNodeSuspicious(const TError& error) const override
     {
-        auto errorCode = error.GetCode();
         return
-            errorCode == NRpc::EErrorCode::TransportError ||
-            errorCode == NChunkClient::EErrorCode::MasterNotConnected;
+            error.FindMatching(NRpc::EErrorCode::TransportError) ||
+            error.FindMatching(NChunkClient::EErrorCode::MasterNotConnected);
     }
 
 private:
@@ -152,7 +178,7 @@ private:
 
     // TODO(akozhikhov): Add periodic to clear old suspicious nodes.
     YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SuspiciousNodesSpinLock_);
-    THashMap<TString, TInstant> SuspiciousNodesMarkTime_;
+    THashMap<TNodeId, TInstant> SuspiciousNodesMarkTime_;
 
     void OnDynamicConfigChanged(
         const TReplicatorHintConfigPtr& /* oldConfig */,
