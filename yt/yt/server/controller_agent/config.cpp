@@ -582,6 +582,10 @@ TControllerAgentConfig::TControllerAgentConfig()
         .Default(1000)
         .GreaterThan(0);
 
+    RegisterParameter("max_output_table_count", MaxOutputTableCount)
+        .Default(1000)
+        .GreaterThan(0);
+
     RegisterParameter("max_ranges_on_table", MaxRangesOnTable)
         .Default(1000)
         .GreaterThan(0);
