@@ -715,6 +715,13 @@ void TOperationControllerBase::InitializeStructures()
             InputTables_.size());
     }
 
+    if (std::ssize(OutputTables_) > Config->MaxOutputTableCount) {
+        THROW_ERROR_EXCEPTION(
+            "Too many output tables: maximum allowed %v, actual %v",
+            Config->MaxOutputTableCount,
+            OutputTables_.size());
+    }
+
     DoInitialize();
 }
 

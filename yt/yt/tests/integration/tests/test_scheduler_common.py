@@ -14,6 +14,7 @@ from yt_commands import (
     map_reduce, merge, sort,
     run_test_vanilla, get_job_fail_context, dump_job_context,
     complete_op, get_singular_chunk_id, PrepareTables,
+    raises_yt_error,
     get_statistics)
 
 from yt_type_helpers import make_schema
@@ -1074,6 +1075,48 @@ class TestSchedulerMaxChunkPerJob(YTEnvSetup):
 
 ##################################################################
 
+class TestSchedulerMaxInputOutputTableCount(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "max_input_table_count": 2,
+            "max_output_table_count": 2
+        }
+    }
+
+    @authors("alexkolodezny")
+    def test_max_input_table_count(self):
+        create("table", "//tmp/in1")
+        create("table", "//tmp/in2")
+        create("table", "//tmp/in3")
+        create("table", "//tmp/out")
+
+        with raises_yt_error("Too many input tables: maximum allowed 2, actual 3"):
+            map(
+                command="",
+                in_=["//tmp/in1", "//tmp/in2/", "//tmp/in3"],
+                out="//tmp/out"
+            )
+
+    @authors("alexkolodezny")
+    def test_max_output_table_count(self):
+        create("table", "//tmp/in")
+        create("table", "//tmp/out1")
+        create("table", "//tmp/out2")
+        create("table", "//tmp/out3")
+
+        with raises_yt_error("Too many output tables: maximum allowed 2, actual 3"):
+            map(
+                command="",
+                in_="//tmp/in",
+                out=["//tmp/out1", "//tmp/out2", "//tmp/out3"]
+            )
+
+
+##################################################################
 
 class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
     NUM_MASTERS = 1

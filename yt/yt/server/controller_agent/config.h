@@ -710,6 +710,9 @@ public:
     //! Maximum number of input tables an operation can have.
     int MaxInputTableCount;
 
+    //! Maximum number of output tables an operation can have.
+    int MaxOutputTableCount;
+
     //! Maximum number of ranges on the input table.
     int MaxRangesOnTable;
 
