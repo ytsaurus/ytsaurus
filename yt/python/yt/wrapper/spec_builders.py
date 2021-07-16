@@ -111,85 +111,58 @@ class Finalizer(object):
                     os.remove(file_path)
 
         if state == "completed":
-            tables = [TablePath(table, client=self.client) for table in self.output_tables]
-            self.check_for_merge(tables)
+            for table in imap(lambda table: TablePath(table, client=self.client), self.output_tables):
+                self.check_for_merge(table)
         if get_config(self.client)["yamr_mode"]["delete_empty_tables"]:
             for table in imap(lambda table: TablePath(table, client=self.client), self.output_tables):
                 if is_empty(table, client=self.client):
                     remove_with_empty_dirs(table, client=self.client)
 
-    def check_for_merge(self, tables):
-        if get_config(self.client)["auto_merge_output"]["action"] == "none":
-            return
-
-        def get_attributes(path, client):
-            return get(
-                path + "/@",
-                attributes=[
-                    "chunk_count",
-                    "compressed_data_size",
-                    "compression_ratio",
-                    "uncompressed_data_size",
-                ],
-                client=client,
-            )
-
-        attribute_dicts = batch_apply(get_attributes, tables, client=self.client)
-        tables_to_merge = []
-        data_sizes_per_job = []
-        for table, attribute_dict in izip(tables, attribute_dicts):
-            chunk_count = int(attribute_dict["chunk_count"])
-            if chunk_count < get_config(self.client)["auto_merge_output"]["min_chunk_count"]:
-                continue
-
-            # We use uncompressed data size to simplify recommended command
-            chunk_size = float(attribute_dict["compressed_data_size"]) / chunk_count
-            if chunk_size > get_config(self.client)["auto_merge_output"]["max_chunk_size"]:
-                continue
-
-            # NB: just get the limit lower than in default scheduler config.
-            chunk_count_per_job_limit = 10000
-
-            compression_ratio = float(attribute_dict["compression_ratio"])
-            data_size_per_job = min(16 * GB, int(500 * MB / compression_ratio))
-
-            data_size = attribute_dict["uncompressed_data_size"]
-            data_size_per_job = min(data_size_per_job, data_size // max(1, chunk_count // chunk_count_per_job_limit))
-            data_size_per_job = max(data_size_per_job, chunk_count_per_job_limit)
-
-            tables_to_merge.append(table)
-            data_sizes_per_job.append(data_size_per_job)
-        
-        is_sorted_list = batch_apply(is_sorted, tables_to_merge, raise_errors=False, client=self.client)
-
-        for table, is_table_sorted, data_size_per_job in izip(tables_to_merge, is_sorted_list, data_sizes_per_job):
-            mode = "sorted" if is_table_sorted else "ordered"
-            if get_config(self.client)["auto_merge_output"]["action"] == "merge":
-                self._run_merge(table, mode=mode, data_size_per_job=data_size_per_job)
-            else:
-                logger.info(
-                    "Chunks of output table {0} are too small. "
-                    "This may cause suboptimal system performance. "
-                    "If this table is not temporary then consider running the following command:\n"
-                    "yt merge --mode {1} --proxy {3} --src {0} --dst {0} "
-                    "--spec '{{combine_chunks=true;data_size_per_job={2}}}'"
-                    .format(table, mode, data_size_per_job, get_config(self.client)["proxy"]["url"]),
-                )
-
-       
-    def _run_merge(self, table, mode, data_size_per_job):
+    def check_for_merge(self, table):
         # TODO: fix in YT-6615
         from .run_operation_commands import run_merge
 
-        table.attributes.clear()
-        try:
-            spec = {"combine_chunks": True, "data_size_per_job": data_size_per_job}
-            if "pool" in self.spec:
-                spec["pool"] = self.spec["pool"]
-            run_merge(source_table=table, destination_table=table, mode=mode, spec=spec, client=self.client)
-        except YtOperationFailedError:
-            logger.warning("Failed to merge table %s", table)
+        if get_config(self.client)["auto_merge_output"]["action"] == "none":
+            return
 
+        chunk_count = int(get_attribute(table, "chunk_count", client=self.client))
+        if chunk_count < get_config(self.client)["auto_merge_output"]["min_chunk_count"]:
+            return
+
+        # We use uncompressed data size to simplify recommended command
+        chunk_size = float(get_attribute(table, "compressed_data_size", client=self.client)) / chunk_count
+        if chunk_size > get_config(self.client)["auto_merge_output"]["max_chunk_size"]:
+            return
+
+        # NB: just get the limit lower than in default scheduler config.
+        chunk_count_per_job_limit = 10000
+
+        compression_ratio = get_attribute(table, "compression_ratio", client=self.client)
+        data_size_per_job = min(16 * GB, int(500 * MB / float(compression_ratio)))
+
+        data_size = get_attribute(table, "uncompressed_data_size", client=self.client)
+        data_size_per_job = min(data_size_per_job, data_size // max(1, chunk_count // chunk_count_per_job_limit))
+        data_size_per_job = max(data_size_per_job, chunk_count_per_job_limit)
+
+        mode = "sorted" if is_sorted(table, client=self.client) else "ordered"
+
+        if get_config(self.client)["auto_merge_output"]["action"] == "merge":
+            table = TablePath(table, client=self.client)
+            table.attributes.clear()
+            try:
+                spec = {"combine_chunks": True, "data_size_per_job": data_size_per_job}
+                if "pool" in self.spec:
+                    spec["pool"] = self.spec["pool"]
+                run_merge(source_table=table, destination_table=table, mode=mode, spec=spec, client=self.client)
+            except YtOperationFailedError:
+                logger.warning("Failed to merge table %s", table)
+        else:
+            logger.info("Chunks of output table {0} are too small. "
+                        "This may cause suboptimal system performance. "
+                        "If this table is not temporary then consider running the following command:\n"
+                        "yt merge --mode {1} --proxy {3} --src {0} --dst {0} "
+                        "--spec '{{combine_chunks=true;data_size_per_job={2}}}'"
+                        .format(table, mode, data_size_per_job, get_config(self.client)["proxy"]["url"]))
 
 class Toucher(object):
     """Entity for touch operation files in case of retries.
