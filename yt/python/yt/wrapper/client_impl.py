@@ -153,11 +153,11 @@ class YtClient(ClientState):
         """
         return client_api.balance_tablet_cells(bundle, client=self, tables=tables, sync=sync)
 
-    def batch_apply(self, function, data, raise_errors=True):
+    def batch_apply(self, function, data):
         """
         Applies function to each element from data in a batch mode and returns result.
         """
-        return client_api.batch_apply(function, data, raise_errors=raise_errors, client=self)
+        return client_api.batch_apply(function, data, client=self)
 
     def check_permission(self, user, permission, path, format=None, read_from=None, cache_sticky_group_size=None, columns=None):
         """
