@@ -22,7 +22,9 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 static_assert(sizeof(uintptr_t) == 8);
-static_assert(std::endian::native == std::endian::little);
+
+// TODO(gritukan, babenko): Uncomment check below after DEVTOOLS-7870.
+// static_assert(std::endian::native == std::endian::little);
 
 ////////////////////////////////////////////////////////////////////////////////
 
