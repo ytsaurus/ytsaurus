@@ -85,6 +85,9 @@ NScheduler::NProto::TOutputResult GetWrittenChunksBoundaryKeys(
     const ISchemalessMultiChunkWriterPtr& writer);
 
 std::pair<TLegacyOwningKey, TLegacyOwningKey> GetChunkBoundaryKeys(
+    const NTableClient::NProto::TBoundaryKeysExt& boundaryKeysExt,
+    int keyColumnCount);
+std::pair<TLegacyOwningKey, TLegacyOwningKey> GetChunkBoundaryKeys(
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     int keyColumnCount);
 

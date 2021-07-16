@@ -1,0 +1,14 @@
+#pragma once
+
+#include <yt/yt/core/misc/common.h>
+
+namespace NYT::NChunkServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TImmutableChunkMeta;
+using TImmutableChunkMetaPtr = std::unique_ptr<TImmutableChunkMeta>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NChunkServer

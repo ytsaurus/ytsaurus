@@ -9,6 +9,8 @@
 
 #include <yt/yt/server/master/security_server/cluster_resources.h>
 
+#include <yt/yt/server/lib/chunk_server/immutable_chunk_meta.h>
+
 #include <yt/yt/ytlib/chunk_client/proto/chunk_info.pb.h>
 #include <yt/yt/ytlib/chunk_client/proto/chunk_service.pb.h>
 
@@ -84,7 +86,7 @@ class TChunk
     , public TRefTracked<TChunk>
 {
 public:
-    DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TChunkMeta, ChunkMeta);
+    DEFINE_BYREF_RW_PROPERTY(TImmutableChunkMetaPtr, ChunkMeta);
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TChunkInfo, ChunkInfo);
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TMiscExt, MiscExt);
 
@@ -148,8 +150,8 @@ public:
     int GetApprovedReplicaCount() const;
 
     void Confirm(
-        NChunkClient::NProto::TChunkInfo* chunkInfo,
-        NChunkClient::NProto::TChunkMeta* chunkMeta);
+        const NChunkClient::NProto::TChunkInfo& chunkInfo,
+        const NChunkClient::NProto::TChunkMeta& chunkMeta);
 
     bool GetMovable() const;
     void SetMovable(bool value);

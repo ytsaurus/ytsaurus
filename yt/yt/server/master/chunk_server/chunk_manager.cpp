@@ -636,8 +636,8 @@ public:
     void ConfirmChunk(
         TChunk* chunk,
         const NChunkClient::TChunkReplicaWithMediumList& replicas,
-        TChunkInfo* chunkInfo,
-        TChunkMeta* chunkMeta)
+        const TChunkInfo& chunkInfo,
+        const TChunkMeta& chunkMeta)
     {
         auto id = chunk->GetId();
 
@@ -2783,7 +2783,7 @@ private:
                 auto* importData = response->add_chunks();
                 ToProto(importData->mutable_id(), chunkId);
                 importData->mutable_info()->CopyFrom(chunk->ChunkInfo());
-                importData->mutable_meta()->CopyFrom(chunk->ChunkMeta());
+                ToProto(importData->mutable_meta(), chunk->ChunkMeta());
                 importData->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
             }
 
@@ -2818,7 +2818,7 @@ private:
             if (!chunk) {
                 chunk = DoCreateChunk(chunkId);
                 chunk->SetForeign();
-                chunk->Confirm(importData.mutable_info(), importData.mutable_meta());
+                chunk->Confirm(importData.info(), importData.meta());
                 chunk->SetErasureCodec(NErasure::ECodec(importData.erasure_codec()));
                 YT_VERIFY(ForeignChunks_.insert(chunk).second);
             }
@@ -3008,8 +3008,8 @@ private:
         ConfirmChunk(
             chunk,
             replicas,
-            subrequest->mutable_chunk_info(),
-            subrequest->mutable_chunk_meta());
+            subrequest->chunk_info(),
+            subrequest->chunk_meta());
 
         if (subresponse && subrequest->request_statistics()) {
             *subresponse->mutable_statistics() = chunk->GetStatistics().ToDataStatistics();

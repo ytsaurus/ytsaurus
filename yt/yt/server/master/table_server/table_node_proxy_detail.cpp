@@ -859,7 +859,7 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
             return ComputeChunkStatistics(
                 Bootstrap_,
                 chunkList,
-                [] (const TChunk* chunk) { return FromProto<ETableChunkFormat>(chunk->ChunkMeta().format()); },
+                [] (const TChunk* chunk) { return static_cast<ETableChunkFormat>(chunk->GetChunkFormat()); },
                 [] (const TChunk* chunk) { return chunk->GetChunkType() == EChunkType::Table; });
 
         case EInternedAttributeKey::OptimizeForStatistics: {

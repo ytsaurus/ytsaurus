@@ -58,7 +58,7 @@ TChunk* TChunkGeneratorBase::CreateChunk(
 
     NChunkClient::NProto::TChunkInfo chunkInfo;
 
-    chunk->Confirm(&chunkInfo, &chunkMeta);
+    chunk->Confirm(chunkInfo, chunkMeta);
 
     auto ptr = chunk.get();
     CreatedObjects_.push_back(std::move(chunk));
@@ -88,7 +88,8 @@ TChunk* TChunkGeneratorBase::CreateJournalChunk(bool sealed, bool overlayed)
     SetProtoExtension(chunkMeta.mutable_extensions(), miscExt);
 
     NChunkClient::NProto::TChunkInfo chunkInfo;
-    chunk->Confirm(&chunkInfo, &chunkMeta);
+
+    chunk->Confirm(chunkInfo, chunkMeta);
 
     if (sealed) {
         NChunkClient::NProto::TChunkSealInfo sealInfo;
@@ -151,7 +152,9 @@ void TChunkGeneratorBase::ConfirmChunk(
         minKey,
         maxKey);
 
-    chunk->Confirm(&donorChunk->ChunkInfo(), &donorChunk->ChunkMeta());
+    chunk->Confirm(
+        donorChunk->ChunkInfo(),
+        ToProto<NChunkClient::NProto::TChunkMeta>(donorChunk->ChunkMeta()));
 }
 
 NTableClient::TUnversionedOwningRow BuildKey(const TString& yson)

@@ -870,8 +870,7 @@ bool IsHunkChunkList(const TChunkTree* chunkTree)
 
 TLegacyOwningKey GetUpperBoundKeyOrThrow(const TChunk* chunk, std::optional<int> keyColumnCount)
 {
-    auto optionalBoundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(
-        chunk->ChunkMeta().extensions());
+    auto optionalBoundaryKeysExt = chunk->ChunkMeta()->FindExtension<TBoundaryKeysExt>();
     if (!optionalBoundaryKeysExt) {
         THROW_ERROR_EXCEPTION("Cannot compute max key in chunk %v since it's missing boundary info",
             chunk->GetId());
@@ -963,8 +962,7 @@ TOwningKeyBound GetUpperKeyBoundOrThrow(const TChunkTree* chunkTree, int keyColu
 
 TLegacyOwningKey GetMinKeyOrThrow(const TChunk* chunk, std::optional<int> keyColumnCount)
 {
-    auto optionalBoundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(
-        chunk->ChunkMeta().extensions());
+    auto optionalBoundaryKeysExt = chunk->ChunkMeta()->FindExtension<TBoundaryKeysExt>();
     if (!optionalBoundaryKeysExt) {
         THROW_ERROR_EXCEPTION("Cannot compute min key in chunk %v since it's missing boundary info",
             chunk->GetId());
@@ -1054,8 +1052,7 @@ TOwningKeyBound GetLowerKeyBoundOrThrow(const TChunkTree* chunkTree, int keyColu
 
 TLegacyOwningKey GetMaxKeyOrThrow(const TChunk* chunk)
 {
-    auto optionalBoundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(
-        chunk->ChunkMeta().extensions());
+    auto optionalBoundaryKeysExt = chunk->ChunkMeta()->FindExtension<TBoundaryKeysExt>();
     if (!optionalBoundaryKeysExt) {
         THROW_ERROR_EXCEPTION("Cannot compute max key in chunk %v since it is missing boundary info",
             chunk->GetId());
@@ -1102,8 +1099,7 @@ TLegacyOwningKey GetMaxKeyOrThrow(const TChunkTree* chunkTree)
 
 std::pair<TUnversionedOwningRow, TUnversionedOwningRow> GetBoundaryKeysOrThrow(const TChunk* chunk)
 {
-    auto optionalBoundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(
-        chunk->ChunkMeta().extensions());
+    auto optionalBoundaryKeysExt = chunk->ChunkMeta()->FindExtension<TBoundaryKeysExt>();
     if (!optionalBoundaryKeysExt) {
         THROW_ERROR_EXCEPTION("Cannot compute boundary keys in chunk %v since it's missing boundary info",
             chunk->GetId());

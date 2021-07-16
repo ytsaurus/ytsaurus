@@ -46,6 +46,8 @@ class TChunkReplicaAnnouncementRequest;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr int MaxMasterChunkMetaExtensions = 6;
+
 struct TBlock;
 
 constexpr int AllBlocksIndex = -1;
@@ -91,6 +93,8 @@ DEFINE_ENUM(EChunkType,
 
 // Keep in sync with NChunkServer::ETableChunkFormat.
 DEFINE_ENUM(EChunkFormat,
+    // Sentinels.
+    ((Unknown)                   (-1))
     // File chunks.
     ((FileDefault)                (1))
     // Table chunks.

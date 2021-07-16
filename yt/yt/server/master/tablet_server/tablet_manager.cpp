@@ -3852,7 +3852,7 @@ private:
                     readRange = chunkView->GetCompleteReadRange();
                 } else if (IsPhysicalChunkType(chunkOrView->GetType())) {
                     chunk = chunkOrView->AsChunk();
-                    auto keyPair = GetChunkBoundaryKeys(chunk->ChunkMeta(), keyColumnCount);
+                    auto keyPair = GetChunkBoundaryKeys(chunk->ChunkMeta()->GetExtension<NTableClient::NProto::TBoundaryKeysExt>(), keyColumnCount);
                     readRange = {
                         NChunkClient::TLegacyReadLimit(keyPair.first),
                         NChunkClient::TLegacyReadLimit(GetKeySuccessor(keyPair.second))
@@ -4016,7 +4016,7 @@ private:
 
     std::vector<TChunk*> GetReferencedHunkChunks(TChunk* storeChunk)
     {
-        auto hunkRefsExt = FindProtoExtension<THunkChunkRefsExt>(storeChunk->ChunkMeta().extensions());
+        auto hunkRefsExt = storeChunk->ChunkMeta()->FindExtension<THunkChunkRefsExt>();
         if (!hunkRefsExt) {
             return {};
         }
@@ -6572,7 +6572,7 @@ private:
             chunk = chunkOrView->AsChunk();
         }
 
-        descriptor->mutable_chunk_meta()->CopyFrom(chunk->ChunkMeta());
+        ToProto(descriptor->mutable_chunk_meta(), chunk->ChunkMeta());
         descriptor->set_starting_row_index(*startingRowIndex);
         *startingRowIndex += chunk->MiscExt().row_count();
     }
@@ -6582,7 +6582,7 @@ private:
         NTabletNode::NProto::TAddHunkChunkDescriptor* descriptor)
     {
         ToProto(descriptor->mutable_chunk_id(), chunk->GetId());
-        descriptor->mutable_chunk_meta()->CopyFrom(chunk->ChunkMeta());
+        ToProto(descriptor->mutable_chunk_meta(), chunk->ChunkMeta());
     }
 
     void SetTabletEdenStoreIds(TTablet* tablet, std::vector<TStoreId> edenStoreIds)
