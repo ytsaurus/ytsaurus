@@ -42,15 +42,12 @@ const TChunk::TReplicasData TChunk::EmptyReplicasData = {};
 
 TChunk::TChunk(TChunkId id)
     : TChunkTree(id)
+    , ChunkMeta_(TImmutableChunkMeta::CreateNull())
     , AggregatedRequisitionIndex_(IsErasure()
         ? MigrationErasureChunkRequisitionIndex
         : MigrationChunkRequisitionIndex)
     , LocalRequisitionIndex_(AggregatedRequisitionIndex_)
-{
-    ChunkMeta_.set_type(ToProto<int>(EChunkType::Unknown));
-    ChunkMeta_.set_format(-1);
-    ChunkMeta_.mutable_extensions();
-}
+{ }
 
 TChunkTreeStatistics TChunk::GetStatistics() const
 {
@@ -224,7 +221,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     }
 
     if (IsConfirmed()) {
-        MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
+        MiscExt_ = ChunkMeta_->GetExtension<TMiscExt>();
     }
 }
 
@@ -362,20 +359,20 @@ int TChunk::GetApprovedReplicaCount() const
 }
 
 void TChunk::Confirm(
-    TChunkInfo* chunkInfo,
-    TChunkMeta* chunkMeta)
+    const TChunkInfo& chunkInfo,
+    const TChunkMeta& chunkMeta)
 {
     // YT-3251
-    if (!HasProtoExtension<TMiscExt>(chunkMeta->extensions())) {
+    if (!HasProtoExtension<TMiscExt>(chunkMeta.extensions())) {
         THROW_ERROR_EXCEPTION("Missing TMiscExt in chunk meta");
     }
 
-    Y_UNUSED(CheckedEnumCast<EChunkType>(chunkMeta->type()));
-    Y_UNUSED(CheckedEnumCast<EChunkFormat>(chunkMeta->format()));
+    Y_UNUSED(CheckedEnumCast<EChunkType>(chunkMeta.type()));
+    Y_UNUSED(CheckedEnumCast<EChunkFormat>(chunkMeta.format()));
 
-    ChunkInfo_.Swap(chunkInfo);
-    ChunkMeta_.Swap(chunkMeta);
-    MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
+    ChunkInfo_ = chunkInfo;
+    ChunkMeta_ = FromProto<TImmutableChunkMetaPtr>(chunkMeta);
+    MiscExt_ = ChunkMeta_->GetExtension<TMiscExt>();
 
     YT_VERIFY(IsConfirmed());
 }
@@ -402,7 +399,7 @@ void TChunk::SetOverlayed(bool value)
 
 bool TChunk::IsConfirmed() const
 {
-    return FromProto<EChunkType>(ChunkMeta_.type()) != EChunkType::Unknown;
+    return ChunkMeta_->GetType() != EChunkType::Unknown;
 }
 
 bool TChunk::IsAvailable() const
@@ -490,7 +487,12 @@ void TChunk::Seal(const TChunkSealInfo& info)
     if (info.has_physical_row_count()) {
         MiscExt_.set_physical_row_count(info.physical_row_count());
     }
-    SetProtoExtension(ChunkMeta_.mutable_extensions(), MiscExt_);
+
+    NChunkClient::NProto::TChunkMeta protoMeta;
+    ToProto(&protoMeta, ChunkMeta_);
+    SetProtoExtension(protoMeta.mutable_extensions(), MiscExt_);
+    ChunkMeta_ = FromProto<TImmutableChunkMetaPtr>(protoMeta);
+
     ChunkInfo_.set_disk_space(info.uncompressed_data_size());  // an approximation
 }
 
@@ -587,17 +589,21 @@ void TChunk::Unexport(
 
 i64 TChunk::GetMasterMemoryUsage() const
 {
-    return ChunkMeta().ByteSize();
+    return
+        sizeof(TChunk) +
+        sizeof(TChunkDynamicData) +
+        (ReplicasData_ ? sizeof(TReplicasData) : 0) +
+        ChunkMeta_->GetTotalByteSize();
 }
 
 EChunkType TChunk::GetChunkType() const
 {
-    return FromProto<EChunkType>(ChunkMeta().type());
+    return ChunkMeta_->GetType();
 }
 
 EChunkFormat TChunk::GetChunkFormat() const
 {
-    return FromProto<EChunkFormat>(ChunkMeta().format());
+    return ChunkMeta_->GetFormat();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -30,7 +30,6 @@
 #include <random>
 
 namespace NYT::NChunkServer {
-
 namespace {
 
 using namespace NTesting;
@@ -320,7 +319,7 @@ private:
 
     bool HasBoundaryKeys(TChunk* chunk)
     {
-        if (!HasProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(chunk->ChunkMeta().extensions())) {
+        if (!chunk->ChunkMeta()->HasExtension<NTableClient::NProto::TBoundaryKeysExt>()) {
             return false;
         }
         // It is assumed that min and max keys either both exist or both do not.

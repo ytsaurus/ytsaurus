@@ -49,7 +49,7 @@ std::unique_ptr<TChunk> CreateChunk()
 
     NChunkClient::NProto::TChunkInfo chunkInfo;
 
-    chunk->Confirm(&chunkInfo, &chunkMeta);
+    chunk->Confirm(chunkInfo, chunkMeta);
 
     return chunk;
 }

@@ -56,6 +56,7 @@ using namespace NChunkClient;
 using namespace NNodeTrackerClient::NProto;
 
 using NYT::ToProto;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 

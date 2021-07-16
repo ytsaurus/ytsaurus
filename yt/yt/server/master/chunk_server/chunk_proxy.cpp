@@ -77,8 +77,8 @@ private:
         const auto* chunk = GetThisImpl();
         const auto& miscExt = chunk->MiscExt();
 
-        bool hasBoundaryKeysExt = HasProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
-        bool hasHunkChunkMiscExt = HasProtoExtension<THunkChunkMiscExt>(chunk->ChunkMeta().extensions());
+        bool hasBoundaryKeysExt = chunk->ChunkMeta()->HasExtension<TBoundaryKeysExt>();
+        bool hasHunkChunkMiscExt = chunk->ChunkMeta()->HasExtension<THunkChunkMiscExt>();
         auto isForeign = chunk->IsForeign();
 
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CachedReplicas)
@@ -205,7 +205,6 @@ private:
         auto isForeign = chunk->IsForeign();
         auto isConfirmed = chunk->IsConfirmed();
 
-        const auto& extensions = chunk->ChunkMeta().extensions();
         const auto& miscExt = chunk->MiscExt();
 
         auto serializePhysicalReplica = [&] (TFluentList fluent, TNodePtrWithIndexes replica) {
@@ -460,7 +459,7 @@ private:
 
             case EInternedAttributeKey::MasterMetaSize:
                 BuildYsonFluently(consumer)
-                    .Value(chunk->ChunkMeta().ByteSize());
+                    .Value(chunk->ChunkMeta()->GetExtensionsByteSize());
                 return true;
 
             case EInternedAttributeKey::Exports: {
@@ -530,9 +529,8 @@ private:
                 if (!isConfirmed || chunk->GetChunkType() != EChunkType::Table) {
                     break;
                 }
-                auto format = FromProto<ETableChunkFormat>(chunk->ChunkMeta().format());
                 BuildYsonFluently(consumer)
-                    .Value(format);
+                    .Value(static_cast<ETableChunkFormat>(chunk->GetChunkFormat()));
                 return true;
             }
 
@@ -708,7 +706,7 @@ private:
                 return true;
 
             case EInternedAttributeKey::MinKey: {
-                if (auto boundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(extensions)) {
+                if (auto boundaryKeysExt = chunk->ChunkMeta()->FindExtension<TBoundaryKeysExt>()) {
                     BuildYsonFluently(consumer)
                         .Value(FromProto<TLegacyOwningKey>(boundaryKeysExt->min()));
                     return true;
@@ -717,7 +715,7 @@ private:
             }
 
             case EInternedAttributeKey::MaxKey: {
-                if (auto boundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(extensions)) {
+                if (auto boundaryKeysExt = chunk->ChunkMeta()->FindExtension<TBoundaryKeysExt>()) {
                     BuildYsonFluently(consumer)
                         .Value(FromProto<TLegacyOwningKey>(boundaryKeysExt->max()));
                     return true;
@@ -773,7 +771,7 @@ private:
                     break;
                 }
                 std::vector<THunkChunkRef> hunkChunkRefs;
-                if (auto hunkChunkRefsExt = FindProtoExtension<THunkChunkRefsExt>(extensions)) {
+                if (auto hunkChunkRefsExt = chunk->ChunkMeta()->FindExtension<THunkChunkRefsExt>()) {
                     hunkChunkRefs = FromProto<std::vector<THunkChunkRef>>(hunkChunkRefsExt->refs());
                 }
                 BuildYsonFluently(consumer)
@@ -791,7 +789,7 @@ private:
             }
 
             case EInternedAttributeKey::HunkCount:
-                if (auto miscExt = FindProtoExtension<THunkChunkMiscExt>(extensions)) {
+                if (auto miscExt = chunk->ChunkMeta()->FindExtension<THunkChunkMiscExt>()) {
                     BuildYsonFluently(consumer)
                         .Value(miscExt->hunk_count());
                     return true;
@@ -799,7 +797,7 @@ private:
                 break;
 
             case EInternedAttributeKey::TotalHunkLength:
-                if (auto miscExt = FindProtoExtension<THunkChunkMiscExt>(extensions)) {
+                if (auto miscExt = chunk->ChunkMeta()->FindExtension<THunkChunkMiscExt>()) {
                     BuildYsonFluently(consumer)
                         .Value(miscExt->total_hunk_length());
                     return true;
@@ -886,10 +884,7 @@ private:
         ToProto(chunkSpec->mutable_replicas(), replicas);
         ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
         chunkSpec->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
-        chunkSpec->mutable_chunk_meta()->set_type(chunk->ChunkMeta().type());
-        chunkSpec->mutable_chunk_meta()->set_format(chunk->ChunkMeta().format());
-        chunkSpec->mutable_chunk_meta()->set_features(chunk->ChunkMeta().features());
-        chunkSpec->mutable_chunk_meta()->mutable_extensions()->CopyFrom(chunk->ChunkMeta().extensions());
+        ToProto(chunkSpec->mutable_chunk_meta(), chunk->ChunkMeta());
 
         context->Reply();
     }

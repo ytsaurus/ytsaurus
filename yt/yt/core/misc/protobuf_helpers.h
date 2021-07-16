@@ -48,13 +48,22 @@ typename std::enable_if<std::is_convertible_v<T*, ::google::protobuf::MessageLit
     const T& serialized);
 
 template <class T>
-typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type ToProto(
+typename std::enable_if<TEnumTraits<T>::IsEnum && !TEnumTraits<T>::IsBitEnum, void>::type ToProto(
     int* serialized,
     T original);
 template <class T>
-typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type FromProto(
+typename std::enable_if<TEnumTraits<T>::IsEnum && !TEnumTraits<T>::IsBitEnum, void>::type FromProto(
     T* original,
     int serialized);
+
+template <class T>
+typename std::enable_if<TEnumTraits<T>::IsEnum && TEnumTraits<T>::IsBitEnum, void>::type ToProto(
+    ui64* serialized,
+    T original);
+template <class T>
+typename std::enable_if<TEnumTraits<T>::IsEnum && TEnumTraits<T>::IsBitEnum, void>::type FromProto(
+    T* original,
+    ui64 serialized);
 
 ////////////////////////////////////////////////////////////////////////////////
 

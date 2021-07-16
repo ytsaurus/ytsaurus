@@ -192,18 +192,10 @@ void BuildChunkSpec(
     ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
     chunkSpec->set_erasure_codec(ToProto<int>(erasureCodecId));
 
-    chunkSpec->mutable_chunk_meta()->set_type(chunk->ChunkMeta().type());
-    chunkSpec->mutable_chunk_meta()->set_format(chunk->ChunkMeta().format());
-    chunkSpec->mutable_chunk_meta()->set_features(chunk->ChunkMeta().features());
-
-    if (fetchAllMetaExtensions) {
-        *chunkSpec->mutable_chunk_meta()->mutable_extensions() = chunk->ChunkMeta().extensions();
-    } else {
-        FilterProtoExtensions(
-            chunkSpec->mutable_chunk_meta()->mutable_extensions(),
-            chunk->ChunkMeta().extensions(),
-            extensionTags);
-    }
+    ToProto(
+        chunkSpec->mutable_chunk_meta(),
+        chunk->ChunkMeta(),
+        fetchAllMetaExtensions ? nullptr : &extensionTags);
 
     // Try to keep responses small -- avoid producing redundant limits.
     if (!lowerLimit.IsTrivial()) {

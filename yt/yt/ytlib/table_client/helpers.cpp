@@ -259,10 +259,18 @@ std::pair<TLegacyOwningKey, TLegacyOwningKey> GetChunkBoundaryKeys(
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     int keyColumnCount)
 {
-    auto boundaryKeysExt = GetProtoExtension<NProto::TBoundaryKeysExt>(chunkMeta.extensions());
+    return GetChunkBoundaryKeys(
+        GetProtoExtension<NProto::TBoundaryKeysExt>(chunkMeta.extensions()),
+        keyColumnCount);
+}
+
+std::pair<TLegacyOwningKey, TLegacyOwningKey> GetChunkBoundaryKeys(
+    const NTableClient::NProto::TBoundaryKeysExt& boundaryKeysExt,
+    int keyColumnCount)
+{
     auto minKey = WidenKey(FromProto<TLegacyOwningKey>(boundaryKeysExt.min()), keyColumnCount);
     auto maxKey = WidenKey(FromProto<TLegacyOwningKey>(boundaryKeysExt.max()), keyColumnCount);
-    return std::make_pair(minKey, maxKey);
+    return {std::move(minKey), std::move(maxKey)};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

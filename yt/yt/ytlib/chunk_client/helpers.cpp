@@ -93,6 +93,7 @@ const THashSet<int>& GetMasterChunkMetaExtensionTagsFilter()
         TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value,
         TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value
     };
+    YT_VERIFY(Result.size() <= MaxMasterChunkMetaExtensions);
     return Result;
 }
 
