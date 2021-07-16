@@ -267,6 +267,19 @@ TYPED_TEST(CompactVectorTest, PushPopTest) {
   }
 }
 
+TYPED_TEST(CompactVectorTest, InsertEnd)
+{
+    SCOPED_TRACE("InsertEnd");
+
+    TCompactVector<TString, 5> vector;
+    for (int index = 0; index < 10; ++index) {
+        vector.insert(vector.end(), ToString(index));
+    }
+    for (int index = 0; index < 10; ++index) {
+        EXPECT_EQ(vector[index], ToString(index));
+    }
+}
+
 // Clear test.
 TYPED_TEST(CompactVectorTest, ClearTest) {
   SCOPED_TRACE("ClearTest");
