@@ -331,6 +331,10 @@ public:
     //! will stop being accessed within periodic updates and then will be evicted via expiring cache logic.
     TDuration EvictAfterSuccessfulAccessTime;
 
+    //! Will locate new replicas from master
+    //! if node was suspicious for at least the period (unless null).
+    std::optional<TDuration> SuspiciousNodeGracePeriod;
+
     TChunkFragmentReaderConfig()
     {
         RegisterParameter("chunk_replica_locator_expiration_timeout", ChunkReplicaLocatorExpirationTimeout)
@@ -363,6 +367,9 @@ public:
 
         RegisterParameter("evict_after_successful_access_time", EvictAfterSuccessfulAccessTime)
             .Default(TDuration::Seconds(30));
+
+        RegisterParameter("suspicious_node_grace_period", SuspiciousNodeGracePeriod)
+            .Default(TDuration::Minutes(5));
     }
 };
 

@@ -98,18 +98,21 @@ struct TPeer
 {
     TPeer() = default;
     TPeer(
+        TNodeId nodeId,
         TAddressWithNetwork addressWithNetwork,
         TNodeDescriptor nodeDescriptor,
         EPeerType peerType,
         EAddressLocality locality,
         std::optional<TInstant> nodeSuspicionMarkTime)
-        : AddressWithNetwork(std::move(addressWithNetwork))
+        : NodeId(nodeId)
+        , AddressWithNetwork(std::move(addressWithNetwork))
         , NodeDescriptor(std::move(nodeDescriptor))
         , Type(peerType)
         , Locality(locality)
         , NodeSuspicionMarkTime(nodeSuspicionMarkTime)
     { }
 
+    TNodeId NodeId = InvalidNodeId;
     TAddressWithNetwork AddressWithNetwork;
     TNodeDescriptor NodeDescriptor;
     EPeerType Type;
@@ -590,6 +593,7 @@ protected:
 
     //! Register peer and install into the peer queue if neccessary.
     bool AddPeer(
+        TNodeId nodeId,
         const TString& address,
         const TNodeDescriptor& descriptor,
         EPeerType type,
@@ -602,13 +606,13 @@ protected:
 
         // TODO(akozhikhov): catch this exception.
         TPeer peer(
+            nodeId,
             descriptor.GetAddressWithNetworkOrThrow(Networks_),
             descriptor,
             type,
             GetNodeLocality(descriptor),
             nodeSuspicionMarkTime);
-        auto pair = Peers_.insert({address, peer});
-        if (!pair.second) {
+        if (!Peers_.insert({address, peer}).second) {
             // Peer was already handled on current pass.
             return false;
         }
@@ -680,10 +684,12 @@ protected:
             !peer.NodeSuspicionMarkTime &&
             NodeStatusDirectory_->ShouldMarkNodeSuspicious(rspOrError))
         {
-            YT_LOG_WARNING("Node is marked as suspicious (NodeAddress: %v, ErrorCode: %v)",
+            YT_LOG_WARNING("Node is marked as suspicious (NodeId: %v, NodeAddress: %v, Error: %v)",
+                peer.NodeId,
                 peer.AddressWithNetwork.Address,
-                static_cast<int>(code));
+                rspOrError);
             NodeStatusDirectory_->UpdateSuspicionMarkTime(
+                peer.NodeId,
                 peer.AddressWithNetwork.Address,
                 /* suspicious */ true,
                 std::nullopt);
@@ -852,8 +858,10 @@ protected:
         Peers_.clear();
 
         std::vector<const TNodeDescriptor*> peerDescriptors;
+        std::vector<TNodeId> nodeIds;
         std::vector<TString> peerAddresses;
         peerDescriptors.reserve(SeedReplicas_.size());
+        nodeIds.reserve(SeedReplicas_.size());
         peerAddresses.reserve(SeedReplicas_.size());
 
         for (auto replica : SeedReplicas_) {
@@ -877,18 +885,20 @@ protected:
                 return false;
             } else {
                 peerDescriptors.push_back(descriptor);
+                nodeIds.push_back(replica.GetNodeId());
                 peerAddresses.push_back(*address);
             }
         }
 
         auto nodeSuspicionMarkTimes = NodeStatusDirectory_
-            ? NodeStatusDirectory_->RetrieveSuspicionMarkTimes(peerAddresses)
+            ? NodeStatusDirectory_->RetrieveSuspicionMarkTimes(nodeIds)
             : std::vector<std::optional<TInstant>>();
         for (int i = 0; i < std::ssize(peerDescriptors); ++i) {
             auto suspicionMarkTime = NodeStatusDirectory_
                 ? nodeSuspicionMarkTimes[i]
                 : std::nullopt;
             AddPeer(
+                nodeIds[i],
                 std::move(peerAddresses[i]),
                 *peerDescriptors[i],
                 EPeerType::Seed,
@@ -1184,6 +1194,7 @@ private:
 
         if (rspOrError.IsOK()) {
             NodeStatusDirectory_->UpdateSuspicionMarkTime(
+                peer.NodeId,
                 peer.AddressWithNetwork.Address,
                 /* suspicious */ false,
                 peer.NodeSuspicionMarkTime);
@@ -1279,7 +1290,7 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Gathered candidate peers for probing (Addresses: %v, SuspiciousAddressCount: %v)",
+        YT_LOG_DEBUG("Gathered candidate peers for probing (Addresses: %v, SuspiciousNodeCount: %v)",
             candidates,
             asyncSuspiciousResults.size());
 
@@ -1530,6 +1541,7 @@ private:
 
                 if (auto suggestedAddress = maybeSuggestedDescriptor->FindAddress(Networks_)) {
                     if (AddPeer(
+                        peerNodeId,
                         *suggestedAddress,
                         *maybeSuggestedDescriptor,
                         EPeerType::Peer,

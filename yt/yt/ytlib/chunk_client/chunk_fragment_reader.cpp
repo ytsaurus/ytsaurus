@@ -12,6 +12,7 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
+#include <yt/yt/ytlib/node_tracker_client/node_status_directory.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -56,6 +57,7 @@ struct TPeerInfo
 {
     TAddressWithNetwork Address;
     IChannelPtr Channel;
+    std::optional<TInstant> SuspicionMarkTime;
 };
 
 using TPeerInfoCache = TSyncExpiringCache<TNodeId, TErrorOr<TPeerInfo>>;
@@ -176,7 +178,6 @@ private:
         try {
             addressWithNetwork = descriptor->GetAddressWithNetworkOrThrow(Networks_);
         } catch (const std::exception& ex) {
-            // TODO(akozhikhov): mark node as suspicious?
             return TError(ex);
         }
 
@@ -286,14 +287,14 @@ protected:
             ChunkReplicaListFutures_[it->second.FutureIndex]);
     }
 
-    std::vector<TPeerProbingInfo> GetProbingInfos(
+    std::tuple<std::vector<TPeerProbingInfo>, std::vector<TNodeId>> GetProbingInfos(
         const std::vector<TChunkReplicaList>& chunkReplicaLists)
     {
         VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
-        THashMap<TNodeId, int> nodeIdToPeerIndex;
         std::vector<TNodeId> nodeIds;
         std::vector<TPeerProbingInfo> probingInfos;
+        THashMap<TNodeId, int> nodeIdToPeerIndex;
 
         for (int chunkIndex = 0; chunkIndex < std::ssize(chunkReplicaLists); ++chunkIndex) {
             auto chunkId = GetPendingChunkId(chunkIndex);
@@ -314,7 +315,6 @@ protected:
                     });
                     nodeIds.push_back(nodeId);
                 }
-
                 probingInfos[it->second].ChunkIndexes.push_back(chunkIndex);
                 probingInfos[it->second].ChunkIds.push_back(chunkId);
             }
@@ -326,7 +326,10 @@ protected:
             probingInfos[i].PeerInfoOrError = std::move(peerInfoOrErrors[i]);
         }
 
-        return probingInfos;
+        return {
+            std::move(probingInfos),
+            std::move(nodeIds)
+        };
     }
 
     TFuture<TProbeChunkSetResult> DoProbePeer(const TPeerProbingInfo& probingInfo) const
@@ -355,6 +358,23 @@ protected:
         return
             Config_->NetQueueSizeFactor * netQueueSize +
             Config_->DiskQueueSizeFactor * diskQueueSize;
+    }
+
+    void MaybeMarkNodeSuspicious(const TError& error, TNodeId nodeId, const TErrorOr<TPeerInfo>& peerInfo)
+    {
+        if (!peerInfo.Value().SuspicionMarkTime &&
+            Reader_->NodeStatusDirectory_->ShouldMarkNodeSuspicious(error))
+        {
+            YT_LOG_WARNING("Node is marked as suspicious (NodeId: %v, Address: %v, Error: %v)",
+                nodeId,
+                peerInfo.Value().Address,
+                error);
+            Reader_->NodeStatusDirectory_->UpdateSuspicionMarkTime(
+                nodeId,
+                peerInfo.Value().Address.Address,
+                /*suspicious*/ true,
+                std::nullopt);
+        }
     }
 
     virtual TChunkId GetPendingChunkId(int chunkIndex) const = 0;
@@ -458,9 +478,8 @@ private:
             });
         }
 
+        std::vector<TNodeId> nodeIds;
         {
-            // TODO(akozhikhov): Check for suspicous nodes.
-
             auto readerGuard = ReaderGuard(Reader_->ChunkIdToPeerAccessInfoLock_);
 
             for (auto& [chunkId, fragmentInfos] : chunkIdToFragmentInfos) {
@@ -480,6 +499,7 @@ private:
                 auto [it, emplaced] = PeerToRequestInfo_.try_emplace(peerInfoIt->second.NodeId);
                 if (emplaced) {
                     it->second.PeerInfo = peerInfoIt->second;
+                    nodeIds.push_back(peerInfoIt->second.NodeId);
                 }
                 it->second.ChunkFragmentSetInfos.push_back({
                     .ChunkId = chunkId,
@@ -488,11 +508,22 @@ private:
             }
         }
 
+        auto suspiciousNodeIdsWithMarkTime =
+            Reader_->NodeStatusDirectory_->RetrieveSuspiciousNodeIdsWithMarkTime(nodeIds);
+        for (auto [nodeId, _] : suspiciousNodeIdsWithMarkTime) {
+            auto it = PeerToRequestInfo_.find(nodeId);
+            for (auto&& chunkFragmentSetInfo : it->second.ChunkFragmentSetInfos) {
+                PendingChunkFragmentSetInfos_.push_back(std::move(chunkFragmentSetInfo));
+            }
+            PeerToRequestInfo_.erase(it);
+        }
+
         YT_LOG_DEBUG("Starting chunk fragment read session "
-            "(TotalRequestCount: %v, TotalChunkCount: %v, PendingChunkCount: %v)",
+            "(TotalRequestCount: %v, TotalChunkCount: %v, PendingChunkCount: %v, SuspiciousNodeCount: %v)",
             Requests_.size(),
             chunkIdToFragmentInfos.size(),
-            PendingChunkFragmentSetInfos_.size());
+            PendingChunkFragmentSetInfos_.size(),
+            suspiciousNodeIdsWithMarkTime.size());
 
         if (PendingChunkFragmentSetInfos_.empty()) {
             // Fast path.
@@ -582,17 +613,44 @@ private:
             return;
         }
 
-        auto probingInfos = GetProbingInfos(chunkReplicaLists);
+        std::vector<TNodeId> nodeIds;
+        std::vector<TPeerProbingInfo> peerProbingInfos;
+        std::tie(peerProbingInfos, nodeIds) = GetProbingInfos(chunkReplicaLists);
 
-        std::vector<TPeerProbingInfo> goodProbingInfos;
-        std::vector<TFuture<TProbeChunkSetResult>> probingFutures;
+        std::vector<TFuture<TProbeChunkSetResult>> peerProbingFutures;
+        peerProbingFutures.reserve(nodeIds.size());
 
-        goodProbingInfos.reserve(probingInfos.size());
-        probingFutures.reserve(probingInfos.size());
+        auto suspicionMarkTimes = Reader_->NodeStatusDirectory_->RetrieveSuspicionMarkTimes(nodeIds);
 
-        for (auto& probingInfo : probingInfos) {
+        // NB: If a chunk is not assigned to any peer due to failure or ban, session is stopped with fatal error.
+        // If the same happens due to peer being suspicious, we ignore suspiciousness and treat all nodes as normal. 
+        int failedNodeCount = 0;
+        int suspiciousNodeCount = 0;
+        std::vector<int> chunkFailedCounters(chunkReplicaLists.size());
+        std::vector<int> chunkSuspiciousCounters(chunkReplicaLists.size());
+        auto onFailedNode = [&] (const TPeerProbingInfo& probingInfo) {
+            ++failedNodeCount;
+            for (auto chunkIndex : probingInfo.ChunkIndexes) {
+                ++chunkFailedCounters[chunkIndex];
+            }
+            peerProbingFutures.push_back(MakeFuture<TProbeChunkSetResult>({}));
+        };
+        auto onSuspiciousNode = [&] (const TPeerProbingInfo& probingInfo) {
+            ++suspiciousNodeCount;
+            for (auto chunkIndex : probingInfo.ChunkIndexes) {
+                ++chunkSuspiciousCounters[chunkIndex];
+            }
+        };
+
+        for (int i = 0; i < std::ssize(nodeIds); ++i) {
+            auto nodeId = nodeIds[i];
+            auto& probingInfo = peerProbingInfos[i];
+            YT_VERIFY(nodeId == probingInfo.NodeId);
+
             if (!probingInfo.PeerInfoOrError.IsOK()) {
-                Reader_->PeerInfoCache_->Invalidate(probingInfo.NodeId);
+                onFailedNode(probingInfo);
+
+                Reader_->PeerInfoCache_->Invalidate(nodeId);
 
                 if (probingInfo.PeerInfoOrError.GetCode() == NNodeTrackerClient::EErrorCode::NoSuchNetwork) {
                     ProcessFatalError(probingInfo.PeerInfoOrError);
@@ -600,35 +658,94 @@ private:
                 }
 
                 ProcessError(probingInfo.PeerInfoOrError);
-                BanPeer(probingInfo.NodeId, probingInfo.PeerInfoOrError);
+                BanPeer(nodeId, probingInfo.PeerInfoOrError);
                 continue;
             }
 
-            // TODO(akozhikhov): Fail with fatal error if all peers of a replica are banned.
-            if (IsPeerBanned(probingInfo.NodeId)) {
+            if (IsPeerBanned(nodeId)) {
+                onFailedNode(probingInfo);
                 continue;
             }
 
-            probingFutures.push_back(DoProbePeer(probingInfo));
-            goodProbingInfos.push_back(std::move(probingInfo));
+            if (auto markTime = suspicionMarkTimes[i]) {
+                probingInfo.PeerInfoOrError.Value().SuspicionMarkTime = markTime;
+                onSuspiciousNode(probingInfo);
+            }
+
+            peerProbingFutures.push_back(DoProbePeer(probingInfo));
+        }
+        YT_VERIFY(peerProbingFutures.size() == peerProbingInfos.size());
+
+        bool fatalError = false;
+        for (int i = 0; i < std::ssize(chunkFailedCounters); ++i) {
+            auto chunkReplicaCount = std::ssize(chunkReplicaLists[i]);
+            YT_VERIFY(chunkFailedCounters[i] + chunkSuspiciousCounters[i] <= chunkReplicaCount);
+
+            if (chunkFailedCounters[i] == chunkReplicaCount) {
+                auto chunkId = PendingChunkFragmentSetInfos_[i].ChunkId;
+                TryDiscardChunkReplicas(chunkId);
+                ProcessFatalError(TError(
+                    "All replica peers of chunk %v are banned within read session",
+                    chunkId));
+                fatalError = true;
+            } else if (chunkFailedCounters[i] + chunkSuspiciousCounters[i] == chunkReplicaCount) {
+                suspiciousNodeCount = 0;
+            }
+        }
+        if (fatalError) {
+            return;
         }
 
-        auto future = AllSet(std::move(probingFutures));
-        if (const auto& result = future.TryGet()) {
-            OnPeersProbed(
-                std::move(goodProbingInfos),
-                *result);
-        } else {
-            future.Subscribe(BIND(
-                &TReadFragmentsSession::OnPeersProbed,
-                MakeStrong(this),
-                Passed(std::move(goodProbingInfos)))
-                .Via(SessionInvoker_));
+        if (suspiciousNodeCount != 0 || failedNodeCount != 0) {
+            std::vector<TPeerProbingInfo> goodPeerProbingInfos;
+            std::vector<TFuture<TProbeChunkSetResult>> goodPeerProbingFutures;
+
+            auto goodNodeCount = std::ssize(nodeIds) - suspiciousNodeCount - failedNodeCount;
+            goodPeerProbingInfos.reserve(goodNodeCount);
+            goodPeerProbingFutures.reserve(goodNodeCount);
+
+            for (int i = 0; i < std::ssize(nodeIds); ++i) {
+                // Failed node.
+                if (!peerProbingInfos[i].PeerInfoOrError.IsOK() ||
+                    IsPeerBanned(peerProbingInfos[i].NodeId))
+                {
+                    continue;
+                }
+
+                if (suspicionMarkTimes[i]) {
+                    peerProbingFutures[i].Cancel(TError("Node is suspicious"));
+                    continue;
+                }
+
+                goodPeerProbingInfos.push_back(std::move(peerProbingInfos[i]));
+                goodPeerProbingFutures.push_back(std::move(peerProbingFutures[i]));
+            }
+
+            peerProbingInfos = std::move(goodPeerProbingInfos);
+            peerProbingFutures = std::move(goodPeerProbingFutures);
+
+            YT_VERIFY(std::ssize(peerProbingInfos) == goodNodeCount);
         }
+
+        if (suspiciousNodeCount > 0) {
+            Options_.ChunkReaderStatistics->OmittedSuspiciousNodeCount += suspiciousNodeCount;
+        }
+
+        YT_LOG_DEBUG("Started probing peers "
+            "(PeerCount: %v, SuspiciousNodeCount: %v, FailedNodeCount: %v)",
+            peerProbingInfos.size(),
+            suspiciousNodeCount,
+            failedNodeCount);
+
+        AllSet(std::move(peerProbingFutures)).Subscribe(BIND(
+            &TReadFragmentsSession::OnPeersProbed,
+            MakeStrong(this),
+            Passed(std::move(peerProbingInfos)))
+            .Via(SessionInvoker_));
     }
 
     void OnPeersProbed(
-        std::vector<TPeerProbingInfo> probingInfos,
+        std::vector<TPeerProbingInfo> peerProbingInfos,
         const TErrorOr<std::vector<TErrorOrProbeChunkSetResult>>& resultOrError)
     {
         VERIFY_INVOKER_AFFINITY(SessionInvoker_);
@@ -636,13 +753,13 @@ private:
         YT_VERIFY(resultOrError.IsOK());
         const auto& probingResultOrErrors = resultOrError.Value();
 
-        YT_VERIFY(probingInfos.size() == probingResultOrErrors.size());
+        YT_VERIFY(peerProbingInfos.size() == probingResultOrErrors.size());
 
         std::vector<int> chunkBestNodeIndex(PendingChunkFragmentSetInfos_.size(), -1);
         std::vector<double> chunkLowestProbingPenalty(PendingChunkFragmentSetInfos_.size());
 
-        for (int nodeIndex = 0; nodeIndex < std::ssize(probingInfos); ++nodeIndex) {
-            const auto& probingInfo = probingInfos[nodeIndex];
+        for (int nodeIndex = 0; nodeIndex < std::ssize(peerProbingInfos); ++nodeIndex) {
+            const auto& probingInfo = peerProbingInfos[nodeIndex];
 
             const auto& probingResultOrError = probingResultOrErrors[nodeIndex];
             if (!probingResultOrError.IsOK()) {
@@ -710,18 +827,18 @@ private:
                 return;
             }
 
-            const auto& probingInfo = probingInfos[chunkBestNodeIndex[chunkIndex]];
-            YT_VERIFY(probingInfo.PeerInfoOrError.IsOK());
+            auto& probingInfo = peerProbingInfos[chunkBestNodeIndex[chunkIndex]];
 
             auto [it, emplaced] = PeerToRequestInfo_.try_emplace(probingInfo.NodeId);
             if (emplaced) {
-                it->second.PeerInfo = probingInfo.PeerInfoOrError.Value();
+                YT_VERIFY(probingInfo.PeerInfoOrError.IsOK());
+                it->second.PeerInfo = std::move(probingInfo.PeerInfoOrError.Value());
             }
             it->second.ChunkFragmentSetInfos.push_back(std::move(pendingChunkFragmentSetInfo));
         }
 
         YT_LOG_DEBUG("Finished probing peers (PeerCount: %v, ChunkCount: %v)",
-            probingInfos.size(),
+            peerProbingInfos.size(),
             PendingChunkFragmentSetInfos_.size());
 
         PendingChunkFragmentSetInfos_.clear();
@@ -831,6 +948,8 @@ private:
                     std::back_inserter(PendingChunkFragmentSetInfos_));
 
                 chunkFragmentSetInfos.clear();
+
+                // TODO(akozhikhov): We should probably populate |failedChunkIndexes| here as well.
 
                 continue;
             }
@@ -1013,7 +1132,9 @@ private:
 
     void ProcessRpcError(TError error, TNodeId nodeId, const TErrorOr<TPeerInfo>& peerInfo)
     {
-        // TODO(akozhikhov): Check node for suspiciousness.
+        YT_VERIFY(peerInfo.IsOK());
+
+        MaybeMarkNodeSuspicious(error, nodeId, peerInfo);
 
         ProcessError(std::move(error));
 
@@ -1151,19 +1272,29 @@ private:
             }
         }
 
-        auto probingInfos = GetProbingInfos(ChunkReplicaLists_);
+        std::vector<TNodeId> nodeIds;
+        std::vector<TPeerProbingInfo> probingInfos;
+        std::tie(probingInfos, nodeIds) = GetProbingInfos(ChunkReplicaLists_);
 
         std::vector<TFuture<TProbeChunkSetResult>> probingFutures;
         probingFutures.reserve(probingInfos.size());
-        for (const auto& probingInfo : probingInfos) {
+
+        auto suspicionMarkTimes = Reader_->NodeStatusDirectory_->RetrieveSuspicionMarkTimes(nodeIds);
+        YT_VERIFY(std::ssize(suspicionMarkTimes) == std::ssize(probingInfos));
+
+        for (int i = 0; i < std::ssize(probingInfos); ++i) {
+            auto& probingInfo = probingInfos[i];
+
             if (!probingInfo.PeerInfoOrError.IsOK()) {
                 YT_LOG_ERROR(probingInfo.PeerInfoOrError, "Failed to obtain peer info");
 
-                // TODO(akozhikhov): Node should be marked suspicious as we cannot get address.
                 Reader_->PeerInfoCache_->Invalidate(probingInfo.NodeId);
-
                 probingFutures.push_back(MakeFuture<TProbeChunkSetResult>({}));
                 continue;
+            }
+
+            if (auto markTime = suspicionMarkTimes[i]) {
+                probingInfo.PeerInfoOrError.Value().SuspicionMarkTime = markTime;
             }
 
             probingFutures.push_back(DoProbePeer(probingInfo));
@@ -1192,21 +1323,48 @@ private:
 
         for (int nodeIndex = 0; nodeIndex < std::ssize(probingInfos); ++nodeIndex) {
             const auto& probingInfo = probingInfos[nodeIndex];
-            if (!probingInfo.PeerInfoOrError.IsOK()) {
+            const auto& peerInfoOrError = probingInfo.PeerInfoOrError;
+            if (!peerInfoOrError.IsOK()) {
                 continue;
             }
 
             const auto& probingResultOrError = probingResultOrErrors[nodeIndex];
+            auto suspicionMarkTime = peerInfoOrError.Value().SuspicionMarkTime;
 
             if (!probingResultOrError.IsOK()) {
-                YT_LOG_ERROR(probingResultOrError, "Failed to probe peer (Address: %v)",
-                    probingInfo.PeerInfoOrError.Value().Address);
-
                 YT_VERIFY(probingResultOrError.GetCode() != EErrorCode::NoSuchChunk);
-                // TODO(akozhikhov): Mark node as suspicious.
+
+                YT_LOG_ERROR(probingResultOrError, "Failed to probe peer (NodeId: %v, Address: %v)",
+                    probingInfo.NodeId,
+                    peerInfoOrError.Value().Address);
+
+                MaybeMarkNodeSuspicious(probingResultOrError, probingInfo.NodeId, peerInfoOrError);
+                if (suspicionMarkTime && Config_->SuspiciousNodeGracePeriod) {
+                    auto now = NProfiling::GetInstant();
+                    if (*suspicionMarkTime + *Config_->SuspiciousNodeGracePeriod < now) {
+                        YT_LOG_WARNING("Discarding seeds due to node being suspicious "
+                            "(NodeId: %v, Address: %v, SuspicionTime: %v)",
+                            probingInfo.NodeId,
+                            peerInfoOrError.Value().Address,
+                            suspicionMarkTime);
+                        for (auto chunkId : probingInfo.ChunkIds) {
+                            TryDiscardChunkReplicas(chunkId);
+                        }
+                    }
+                }
+
                 // TODO(akozhikhov): Don't invalidate upon specific errors like RequestQueueSizeLimitExceeded.
                 Reader_->PeerInfoCache_->Invalidate(probingInfo.NodeId);
                 continue;
+            } else if (suspicionMarkTime) {
+                YT_LOG_DEBUG("Node is not suspicious anymore (NodeId: %v, Address: %v)",
+                    probingInfo.NodeId,
+                    peerInfoOrError.Value().Address);
+                Reader_->NodeStatusDirectory_->UpdateSuspicionMarkTime(
+                    probingInfo.NodeId,
+                    peerInfoOrError.Value().Address.Address,
+                    /*suspicious*/ false,
+                    suspicionMarkTime);
             }
 
             const auto& probingResult = probingResultOrError.Value();
@@ -1221,7 +1379,7 @@ private:
                     YT_VERIFY(chunkId == ChunkIds_[chunkIndex]);
                     YT_LOG_ERROR("Chunk is missing from node (ChunkId: %v, Address: %v)",
                         chunkId,
-                        probingInfo.PeerInfoOrError.Value().Address);
+                        peerInfoOrError.Value().Address);
 
                     // TODO(akozhikhov): Consider suggested peer descriptors.
                     TryDiscardChunkReplicas(chunkId);
