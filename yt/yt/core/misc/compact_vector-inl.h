@@ -43,7 +43,7 @@ public:
     TCompactVectorReallocationPtrAdjuster(TVector* vector, TPtr& ptr)
         : Vector_(vector)
         , Ptr_(ptr)
-        , Index_(ptr >= Vector_->begin() && ptr < Vector_->end()
+        , Index_(ptr >= Vector_->begin() && ptr <= Vector_->end()
             ? std::distance(Vector_->begin(), const_cast<typename TVector::iterator>(ptr))
             : -1)
     { }
