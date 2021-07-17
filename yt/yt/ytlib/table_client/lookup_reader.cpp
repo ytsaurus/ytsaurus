@@ -90,7 +90,7 @@ public:
             DataWeight_ += GetDataWeight(rows.back());
         }
 
-        return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
+        return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
     virtual TFuture<void> GetReadyEvent() const override

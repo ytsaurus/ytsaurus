@@ -36,7 +36,7 @@ public:
 
         RowCount_ -= count;
 
-        return CreateBatchFromVersionedRows(MakeSharedRange(rows));
+        return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows)));
     }
 
     virtual TFuture<void> GetReadyEvent() const override

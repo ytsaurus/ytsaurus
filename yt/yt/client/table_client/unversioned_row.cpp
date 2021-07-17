@@ -1657,7 +1657,12 @@ std::pair<TSharedRange<TUnversionedRow>, i64> CaptureRowsImpl(
 
     YT_VERIFY(alignedPtr == unalignedPtr);
 
-    return { MakeSharedRange(MakeRange(capturedRows, rows.Size()), std::move(buffer)), bufferSize };
+    return {
+        MakeSharedRange(
+            MakeRange(capturedRows, rows.Size()),
+            std::move(buffer.ReleaseHolder())),
+        bufferSize
+    };
 }
 
 } // namespace
@@ -2077,7 +2082,9 @@ TSharedRange<TRowRange> MakeSingletonRowRange(TLegacyKey lowerBound, TLegacyKey 
     SmallVector<TRowRange, 1> ranges(1, TRowRange(
         rowBuffer->CaptureRow(lowerBound),
         rowBuffer->CaptureRow(upperBound)));
-    return MakeSharedRange(std::move(ranges), std::move(rowBuffer));
+    return MakeSharedRange(
+        std::move(ranges),
+        std::move(rowBuffer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

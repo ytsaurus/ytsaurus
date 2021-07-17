@@ -290,7 +290,7 @@ protected:
         if (rows.empty()) {
             return CreateEmptyRowBatch<TRow>();
         } else {
-            return CreateBatchFromRows(MakeSharedRange(rows, MakeStrong(this)));
+            return CreateBatchFromRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
         }
     }
 

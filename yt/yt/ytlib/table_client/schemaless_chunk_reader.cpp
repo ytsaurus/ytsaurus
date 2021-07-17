@@ -1371,7 +1371,7 @@ private:
 
         ReadEpilogue(&rows);
 
-        return MakeSharedRange(std::move(rows), this);
+        return MakeSharedRange(std::move(rows), MakeStrong(this));
     }
 
     void MaterializeColumns(

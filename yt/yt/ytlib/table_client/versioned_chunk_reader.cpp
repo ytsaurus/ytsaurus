@@ -362,7 +362,7 @@ public:
         PerformanceCounters_->StaticChunkRowReadCount += rowCount;
         PerformanceCounters_->StaticChunkRowReadDataWeightCount += dataWeight;
 
-        return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
+        return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
 private:
@@ -562,13 +562,13 @@ public:
             PerformanceCounters_->StaticChunkRowLookupCount += rowCount;
             PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeight;
 
-            return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
+            return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
         }
 
         if (BlockEnded_) {
             BlockReader_.reset();
             OnBlockEnded();
-            return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
+            return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
         }
 
         auto hasHunkColumns = ChunkMeta_->GetChunkSchema()->HasHunkColumns();
@@ -621,7 +621,7 @@ public:
         PerformanceCounters_->StaticChunkRowLookupCount += rowCount;
         PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeight;
 
-        return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
+        return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
 private:
@@ -1269,7 +1269,7 @@ public:
         PerformanceCounters_->StaticChunkRowReadCount += rowCount;
         PerformanceCounters_->StaticChunkRowReadDataWeightCount += dataWeight;
 
-        return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
+        return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
 private:
@@ -1581,7 +1581,7 @@ public:
         PerformanceCounters_->StaticChunkRowLookupCount += rowCount;
         PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeight;
 
-        return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
+        return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
 private:
@@ -1714,7 +1714,7 @@ public:
         }
 
         if (!rows.empty() || hasMoreData) {
-            return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
+            return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
         } else {
             return nullptr;
         }
