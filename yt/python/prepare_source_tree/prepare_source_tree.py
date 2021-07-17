@@ -56,6 +56,18 @@ YT_PREFIX_BINARIES = [
 ]
 
 
+def fix_chardet_package(chardet_path):
+    for root, dirs, files in os.walk(chardet_path):
+        for file in files:
+            with open(os.path.join(root, file)) as fin:
+                data = fin.read()
+            data = data.replace(
+                "from chardet.sbcharsetprober import SingleByteCharSetModel\n",
+                "from .sbcharsetprober import SingleByteCharSetModel\n")
+            with open(os.path.join(root, file), "w") as fout:
+                fout.write(data)
+
+
 def prepare_python_source_tree(python_root, yt_root, arcadia_root=None,
                                prepare_binary_symlinks=False, prepare_bindings=True):
     def python_contrib_path(path):
@@ -114,6 +126,9 @@ def prepare_python_source_tree(python_root, yt_root, arcadia_root=None,
         for path in files_to_copy:
             cp_r(path, packages_dir)
 
+        if package_name == "chardet":
+            fix_chardet_package(os.path.join(packages_dir, "chardet"))
+
     # Replace certificate.
     cp_r(os.path.join(arcadia_root, "certs", "cacert.pem"), os.path.join(packages_dir, "certifi"))
 
@@ -122,7 +137,11 @@ def prepare_python_source_tree(python_root, yt_root, arcadia_root=None,
 
     if prepare_bindings:
         replace(os.path.join(yt_root, "yt/python/yt_yson_bindings"), python_root)
-        replace(os.path.join(yt_root, "yt/python/yt_driver_bindings"), python_root)
+
+        yt_driver_bindings = os.path.join(yt_root, "yt/python/yt_driver_bindings")
+        if os.path.exists(yt_driver_bindings):
+            replace(yt_driver_bindings, python_root)
+
         yt_driver_rpc_bindings = os.path.join(yt_root, "yt/python/yt_driver_rpc_bindings")
         if os.path.exists(yt_driver_rpc_bindings):
             replace(yt_driver_rpc_bindings, python_root)
