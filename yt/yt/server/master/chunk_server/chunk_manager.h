@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "chunk_placement.h"
 #include "chunk_replica.h"
 #include "chunk_requisition.h"
 
@@ -101,6 +102,8 @@ public:
     TChunkTree* GetChunkTree(TChunkTreeId id);
     TChunkTree* GetChunkTreeOrThrow(TChunkTreeId id);
 
+    //! This function returns a list of nodes where the replicas can be allocated
+    //! or an empty list if the search has not succeeded.
     TNodeList AllocateWriteTargets(
         TMedium* medium,
         TChunk* chunk,
@@ -109,6 +112,14 @@ public:
         std::optional<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes,
         const std::optional<TString>& preferredHostName);
+
+    TNodeList AllocateWriteTargets(
+        TMedium* medium,
+        TChunk* chunk,
+        int desiredCount,
+        int minCount,
+        std::optional<int> replicationFactorOverride,
+        const TChunkPlacement::TDataCenterSet& dataCenters);
 
     TChunkList* CreateChunkList(EChunkListKind kind);
 

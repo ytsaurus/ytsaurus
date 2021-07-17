@@ -151,13 +151,17 @@ class TMergeJob
     : public TJob
 {
 public:
+    DEFINE_BYREF_RO_PROPERTY(TNodePtrWithIndexesList, TargetReplicas);
+
+public:
     using TChunkVector = SmallVector<TChunk*, 16>;
     TMergeJob(
         TJobId jobId,
         NNodeTrackerServer::TNode* node,
         NChunkClient::TChunkIdWithIndexes chunkIdWithIndexes,
         TChunkVector inputChunks,
-        NChunkClient::NProto::TChunkMergerWriterOptions chunkMergerWriterOptions);
+        NChunkClient::NProto::TChunkMergerWriterOptions chunkMergerWriterOptions,
+        TNodePtrWithIndexesList targetReplicas);
 
     virtual void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
 

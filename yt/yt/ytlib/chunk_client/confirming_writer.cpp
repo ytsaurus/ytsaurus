@@ -55,7 +55,8 @@ public:
         IBlockCachePtr blockCache,
         IThroughputThrottlerPtr throttler,
         TTrafficMeterPtr trafficMeter,
-        TSessionId sessionId)
+        TSessionId sessionId,
+        TChunkReplicaWithMediumList targetReplicas)
         : Config_(CloneYsonSerializable(config))
         , Options_(options)
         , CellTag_(cellTag)
@@ -66,6 +67,7 @@ public:
         , BlockCache_(blockCache)
         , Throttler_(throttler)
         , TrafficMeter_(trafficMeter)
+        , TargetReplicas_(std::move(targetReplicas))
         , SessionId_(sessionId)
         , Logger(ChunkClientLogger.WithTag("TransactionId: %v", TransactionId_))
     {
@@ -179,6 +181,7 @@ private:
     const IBlockCachePtr BlockCache_;
     const IThroughputThrottlerPtr Throttler_;
     const TTrafficMeterPtr TrafficMeter_;
+    const TChunkReplicaWithMediumList TargetReplicas_;
 
     IChunkWriterPtr UnderlyingWriter_;
 
@@ -230,7 +233,7 @@ private:
                 Config_,
                 Options_,
                 SessionId_,
-                TChunkReplicaWithMediumList(),
+                std::move(TargetReplicas_),
                 NodeDirectory_,
                 Client_,
                 BlockCache_,
@@ -255,7 +258,8 @@ private:
             Client_,
             TrafficMeter_,
             Throttler_,
-            BlockCache_);
+            BlockCache_,
+            std::move(TargetReplicas_));
         return CreateErasureWriter(
             Config_,
             SessionId_,
@@ -324,7 +328,8 @@ IChunkWriterPtr CreateConfirmingWriter(
     IBlockCachePtr blockCache,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
-    TSessionId sessionId)
+    TSessionId sessionId,
+    TChunkReplicaWithMediumList targetReplicas)
 {
     return New<TConfirmingWriter>(
         config,
@@ -337,7 +342,8 @@ IChunkWriterPtr CreateConfirmingWriter(
         blockCache,
         throttler,
         trafficMeter,
-        sessionId);
+        sessionId,
+        std::move(targetReplicas));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

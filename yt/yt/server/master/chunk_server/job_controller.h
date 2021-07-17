@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "job_registry.h"
 
 namespace NYT::NChunkServer {
 
@@ -17,6 +18,8 @@ struct IJobSchedulingContext
     virtual TJobId GenerateJobId() const = 0;
 
     virtual void ScheduleJob(const TJobPtr& job) = 0;
+
+    virtual const TJobRegistryPtr& GetJobRegistry() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

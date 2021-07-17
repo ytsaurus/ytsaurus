@@ -169,7 +169,7 @@ public:
         TReplicationWriterConfigPtr config,
         TRemoteWriterOptionsPtr options,
         TSessionId sessionId,
-        const TChunkReplicaWithMediumList& initialTargets,
+        TChunkReplicaWithMediumList initialTargets,
         TNodeDirectoryPtr nodeDirectory,
         NNative::IClientPtr client,
         IThroughputThrottlerPtr throttler,
@@ -178,7 +178,7 @@ public:
         : Config_(config)
         , Options_(options)
         , SessionId_(sessionId)
-        , InitialTargets_(initialTargets)
+        , InitialTargets_(std::move(initialTargets))
         , Client_(client)
         , NodeDirectory_(nodeDirectory)
         , Throttler_(throttler)
@@ -1228,7 +1228,7 @@ IChunkWriterPtr CreateReplicationWriter(
     TReplicationWriterConfigPtr config,
     TRemoteWriterOptionsPtr options,
     TSessionId sessionId,
-    const TChunkReplicaWithMediumList& targets,
+    TChunkReplicaWithMediumList targets,
     TNodeDirectoryPtr nodeDirectory,
     NNative::IClientPtr client,
     IBlockCachePtr blockCache,
@@ -1239,7 +1239,7 @@ IChunkWriterPtr CreateReplicationWriter(
         config,
         options,
         sessionId,
-        targets,
+        std::move(targets),
         nodeDirectory,
         client,
         throttler,

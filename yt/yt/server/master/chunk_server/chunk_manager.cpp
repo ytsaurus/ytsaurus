@@ -403,6 +403,11 @@ public:
         return ScheduledJobs_;
     }
 
+    virtual const TJobRegistryPtr& GetJobRegistry() const
+    {
+        return JobRegistry_;
+    }
+
 private:
     TBootstrap* const Bootstrap_;
 
@@ -630,6 +635,24 @@ public:
             replicationFactorOverride,
             forbiddenNodes,
             preferredHostName,
+            ESessionType::User);
+    }
+
+    TNodeList AllocateWriteTargets(
+        TMedium* medium,
+        TChunk* chunk,
+        int desiredCount,
+        int minCount,
+        std::optional<int> replicationFactorOverride,
+        const TChunkPlacement::TDataCenterSet& dataCenters)
+    {
+        return ChunkPlacement_->AllocateWriteTargets(
+            medium,
+            chunk,
+            desiredCount,
+            minCount,
+            replicationFactorOverride,
+            dataCenters,
             ESessionType::User);
     }
 
@@ -4502,6 +4525,23 @@ TNodeList TChunkManager::AllocateWriteTargets(
         replicationFactorOverride,
         forbiddenNodes,
         preferredHostName);
+}
+
+TNodeList TChunkManager::AllocateWriteTargets(
+    TMedium* medium,
+    TChunk* chunk,
+    int desiredCount,
+    int minCount,
+    std::optional<int> replicationFactorOverride,
+    const TChunkPlacement::TDataCenterSet& dataCenters)
+{
+    return Impl_->AllocateWriteTargets(
+        medium,
+        chunk,
+        desiredCount,
+        minCount,
+        replicationFactorOverride,
+        dataCenters);
 }
 
 NYTree::IYPathServicePtr TChunkManager::GetOrchidService()

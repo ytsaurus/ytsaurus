@@ -236,6 +236,35 @@ class TestChunkMerger(YTEnvSetup):
         wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
         assert read_table("//tmp/t") == rows
 
+    @authors("cookiedoth")
+    @pytest.mark.parametrize("enable_erasure", [False, True])
+    def test_multiple_merge(self, enable_erasure):
+        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
+
+        if enable_erasure:
+            create("table", "//tmp/t", attributes={"erasure_codec": "lrc_12_2_2"})
+        else:
+            create("table", "//tmp/t")
+        write_table("<append=true>//tmp/t", {"a": "b"})
+        write_table("<append=true>//tmp/t", {"b": "c"})
+        write_table("<append=true>//tmp/t", {"c": "d"})
+        assert get("//tmp/t/@resource_usage/chunk_count") > 1
+        rows = read_table("//tmp/t")
+
+        set("//tmp/t/@enable_chunk_merger", True)
+        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+
+        wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
+        assert read_table("//tmp/t") == rows
+
+        for i in range(15):
+            write_table("<append=true>//tmp/t", {str(2 * i): str(2 * i)})
+            write_table("<append=true>//tmp/t", {str(2 * i + 1): str(2 * i + 1)})
+            rows = read_table("//tmp/t")
+
+            wait(lambda: get("//tmp/t/@resource_usage/chunk_count") == 1)
+            assert read_table("//tmp/t") == rows
+
     @authors("aleksandra-zh")
     def test_merge_does_not_overwrite_data(self):
         set("//sys/@config/chunk_manager/chunk_merger/enable", True)

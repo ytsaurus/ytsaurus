@@ -232,10 +232,12 @@ TMergeJob::TMergeJob(
     NNodeTrackerServer::TNode* node,
     TChunkIdWithIndexes chunkIdWithIndexes,
     TChunkVector inputChunks,
-    NChunkClient::NProto::TChunkMergerWriterOptions chunkMergerWriterOptions)
+    TChunkMergerWriterOptions chunkMergerWriterOptions,
+    TNodePtrWithIndexesList targetReplicas)
     : TJob(jobId, EJobType::MergeChunks, node, TMergeJob::GetResourceUsage(), chunkIdWithIndexes)
+    , TargetReplicas_(targetReplicas)
     , InputChunks_(std::move(inputChunks))
-    , ChunkMergerWriterOptions_(chunkMergerWriterOptions)
+    , ChunkMergerWriterOptions_(std::move(chunkMergerWriterOptions))
 { }
 
 void TMergeJob::FillJobSpec(NCellMaster::TBootstrap* bootstrap, TJobSpec* jobSpec) const
@@ -260,6 +262,11 @@ void TMergeJob::FillJobSpec(NCellMaster::TBootstrap* bootstrap, TJobSpec* jobSpe
 
         protoChunk->set_erasure_codec(ToProto<int>(chunk->GetErasureCodec()));
         protoChunk->set_row_count(chunk->MiscExt().row_count());
+    }
+
+    builder.Add(TargetReplicas_);
+    for (auto replica : TargetReplicas_) {
+        jobSpecExt->add_target_replicas(ToProto<ui64>(replica));
     }
 }
 
