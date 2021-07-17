@@ -160,7 +160,7 @@ public:
             .Apply(BIND([=, this_ = MakeStrong(this)] (const TError&) {
                 VERIFY_THREAD_AFFINITY(ControlThread);
              
-                if (Occupants_[occupant->GetIndex()] == occupant) {
+                if (occupant->GetIndex() < std::ssize(Occupants_) && Occupants_[occupant->GetIndex()] == occupant) {
                     Occupants_[occupant->GetIndex()].Reset();
                     --OccupantCount_;
                     YT_VERIFY(OccupantCount_ >= 0);
