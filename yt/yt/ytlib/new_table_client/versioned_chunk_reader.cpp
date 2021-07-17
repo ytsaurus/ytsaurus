@@ -993,7 +993,10 @@ TSharedRange<TRowRange> ClipRanges(
             items.back().second = upper;
         }
 
-        return MakeSharedRange(std::move(items), ranges.GetHolder(), holder);
+        return MakeSharedRange(
+            std::move(items),
+            std::move(ranges.ReleaseHolder()),
+            std::move(holder));
     } else {
         return TSharedRange<TRowRange>(); // Empty ranges.
     }

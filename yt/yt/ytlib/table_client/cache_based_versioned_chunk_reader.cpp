@@ -121,7 +121,7 @@ public:
 
         Finished_ = !DoRead(&rows);
 
-        return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
+        return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override

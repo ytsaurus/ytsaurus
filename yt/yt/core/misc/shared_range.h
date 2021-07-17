@@ -21,7 +21,7 @@ class TSharedRange
 public:
     using THolderPtr = TRefCountedPtr;
 
-    //! Constructs a null TMutableRange.
+    //! Constructs a null TSharedRange.
     TSharedRange()
     { }
 
@@ -89,6 +89,11 @@ public:
         return Holder_;
     }
 
+    THolderPtr&& ReleaseHolder()
+    {
+        return std::move(Holder_);
+    }
+
 protected:
     THolderPtr Holder_;
 
@@ -127,7 +132,7 @@ TSharedRange<T> DoMakeSharedRange(TContainer&& elements, THolders&&... holders)
 
     auto range = MakeRange<T>(holder->Elements);
 
-    return TSharedRange<T>(range, holder);
+    return TSharedRange<T>(range, std::move(holder));
 }
 
 //! Constructs a TSharedRange by taking ownership of an std::vector.
@@ -155,6 +160,12 @@ template <class T, class... THolders>
 TSharedRange<T> MakeSharedRange(TRange<T> range, THolders&&... holders)
 {
     return TSharedRange<T>(range, MakeCompositeHolder(std::forward<THolders>(holders)...));
+}
+
+template <class T, class THolder>
+TSharedRange<T> MakeSharedRange(TRange<T> range, TIntrusivePtr<THolder> holder)
+{
+    return TSharedRange<T>(range, std::move(holder));
 }
 
 template <class U, class T>
@@ -241,6 +252,11 @@ public:
     THolderPtr GetHolder() const
     {
         return Holder_;
+    }
+
+    THolderPtr&& ReleaseHolder()
+    {
+        return std::move(Holder_);
     }
 
 protected:

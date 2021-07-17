@@ -496,7 +496,7 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
                 auto upperBound = rangesReader.ReadUnversionedRow(true);
                 ranges.emplace_back(lowerBound, upperBound);
             }
-            result->Ranges = MakeSharedRange(std::move(ranges), rowBuffer);
+            result->Ranges = MakeSharedRange(std::move(ranges), std::move(rowBuffer));
             *original = result;
             return;
         }

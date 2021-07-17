@@ -140,7 +140,7 @@ public:
             RowsFromCache_.resize(LookupKeys_.Size());
         }
 
-        ChunkLookupKeys_ = MakeSharedRange(chunkLookupKeys, LookupKeys_);
+        ChunkLookupKeys_ = MakeSharedRange(std::move(chunkLookupKeys), LookupKeys_);
 
         RetainedTimestamp_ = TabletSnapshot_->RetainedTimestamp;
         StoreFlushIndex_ = TabletSnapshot_->StoreFlushIndex;

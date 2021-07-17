@@ -651,7 +651,7 @@ public:
         Store_->PerformanceCounters_->DynamicRowReadCount += rowCount;
         Store_->PerformanceCounters_->DynamicRowReadDataWeightCount += dataWeight;
 
-        return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
+        return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
     virtual TFuture<void> GetReadyEvent() const override
@@ -808,7 +808,7 @@ public:
         Store_->PerformanceCounters_->DynamicRowLookupCount += rows.size();
         Store_->PerformanceCounters_->DynamicRowLookupDataWeightCount += dataWeight;
 
-        return CreateBatchFromVersionedRows(MakeSharedRange(rows, MakeStrong(this)));
+        return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
     virtual TDataStatistics GetDataStatistics() const override

@@ -799,7 +799,7 @@ private:
                     transaction->WriteRows(
                         StateTablePath_,
                         nameTable,
-                        MakeSharedRange(std::move(writeRows), rowBuffer));
+                        MakeSharedRange(std::move(writeRows), std::move(rowBuffer)));
 
                     YT_LOG_DEBUG("Tablet state update scheduled (TabletIndex: %v, TrimRowIndex: %v)",
                         tabletIndex,
@@ -1041,7 +1041,7 @@ TFuture<void> UpdatePersistentQueueTabletsState(
             transaction->ModifyRows(
                 path,
                 nameTable,
-                MakeSharedRange(modifications, std::move(rowBuffer)));
+                MakeSharedRange(std::move(modifications), std::move(rowBuffer)));
 
             WaitFor(transaction->Commit())
                 .ThrowOnError();

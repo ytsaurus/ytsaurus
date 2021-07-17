@@ -232,7 +232,9 @@ std::pair<TQueryPtr, TDataSource> GetForeignQuery(
             permanentBuffer->CaptureRow(NTableClient::MinKey().Get()),
             permanentBuffer->CaptureRow(NTableClient::MaxKey().Get()));
 
-        auto inClause = New<TInExpression>(foreignEquations, MakeSharedRange(std::move(keys), permanentBuffer));
+        auto inClause = New<TInExpression>(
+            foreignEquations,
+            MakeSharedRange(std::move(keys), permanentBuffer));
 
         dataSource.Ranges = MakeSharedRange(std::move(ranges), std::move(permanentBuffer));
 

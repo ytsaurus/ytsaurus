@@ -26,7 +26,7 @@ void ITransaction::WriteRows(
     ModifyRows(
         path,
         std::move(nameTable),
-        MakeSharedRange(std::move(modifications), rows.GetHolder()),
+        MakeSharedRange(std::move(modifications), std::move(rows.ReleaseHolder())),
         options);
 }
 
@@ -46,7 +46,7 @@ void ITransaction::WriteRows(
     ModifyRows(
         path,
         std::move(nameTable),
-        MakeSharedRange(std::move(modifications), rows.GetHolder()),
+        MakeSharedRange(std::move(modifications), std::move(rows.ReleaseHolder())),
         options);
 }
 
@@ -65,7 +65,7 @@ void ITransaction::DeleteRows(
     ModifyRows(
         path,
         std::move(nameTable),
-        MakeSharedRange(std::move(modifications), keys.GetHolder()),
+        MakeSharedRange(std::move(modifications), std::move(keys.ReleaseHolder())),
         options);
 }
 

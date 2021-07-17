@@ -797,7 +797,8 @@ TRowset TClient::DoLookupRowsOnce(
             resultRows.end());
     }
 
-    auto rowRange = ReinterpretCastRange<TRow>(MakeSharedRange(std::move(resultRows), outputRowBuffer));
+    auto rowRange = ReinterpretCastRange<TRow>(
+        MakeSharedRange(std::move(resultRows), std::move(outputRowBuffer)));
     return CreateRowset(resultSchema, std::move(rowRange));
 }
 

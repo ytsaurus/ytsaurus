@@ -98,7 +98,7 @@ void TColumnarChunkMeta::InitBlockLastKeys(const TKeyColumns& keyColumns)
     for (const auto& lastKey : LegacyBlockLastKeys_) {
         blockLastKeys.push_back(TKey::FromRow(lastKey));
     }
-    BlockLastKeys_ = MakeSharedRange(blockLastKeys, LegacyBlockLastKeys_.GetHolder());
+    BlockLastKeys_ = MakeSharedRange(std::move(blockLastKeys), LegacyBlockLastKeys_.GetHolder());
 }
 
 void TColumnarChunkMeta::RenameColumns(const TColumnRenameDescriptors& renameDescriptors)

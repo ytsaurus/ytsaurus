@@ -672,7 +672,10 @@ TFuture<TSharedRange<TRow>> DecodeHunksInRows(
             std::move(chunkFragmentReader),
             std::move(options),
             CollectHunkValues(rows, rowVisitor))
-        .ApplyUnique(BIND([rows = std::move(rows)] (TSharedRange<TUnversionedValue*>&& sharedValues) {
+        .ApplyUnique(BIND(
+            [rows = std::move(rows)]
+            (TSharedRange<TUnversionedValue*>&& sharedValues)
+        {
             return MakeSharedRange(rows, rows, std::move(sharedValues));
         }));
 }
@@ -845,7 +848,7 @@ protected:
             totalHunkLength);
 
         if (values.empty()) {
-            return MakeBatch(sharedMutableRows);
+            return MakeBatch(std::move(sharedMutableRows));
         }
 
         DecodableRows_ = std::move(sharedMutableRows);
@@ -855,25 +858,31 @@ protected:
                 ChunkFragmentReader_,
                 Options_,
                 MakeSharedRange(std::move(values), DecodableRows_))
-            .Apply(
-                BIND(&TBatchHunkReader::OnHunksRead, MakeStrong(this), DecodableRows_));
+            .ApplyUnique(
+                BIND(&TBatchHunkReader::OnHunksRead,
+                    MakeStrong(this),
+                    DecodableRows_));
 
         return CreateEmptyRowBatch<TImmutableRow>();
     }
 
 private:
-    static IRowBatchPtr MakeBatch(const TSharedRange<TMutableRow>& mutableRows)
+    static IRowBatchPtr MakeBatch(TSharedRange<TMutableRow> mutableRows)
     {
+        auto range = MakeRange<TImmutableRow>(mutableRows.Begin(), mutableRows.Size());
         return CreateBatchFromRows(MakeSharedRange(
-            MakeRange<TImmutableRow>(mutableRows.Begin(), mutableRows.Size()),
-            mutableRows));
+            range,
+            std::move(mutableRows.ReleaseHolder())));
     }
 
     void OnHunksRead(
         const TSharedRange<TMutableRow>& sharedMutableRows,
-        const TSharedRange<TUnversionedValue*>& sharedValues)
+        TSharedRange<TUnversionedValue*>&& sharedValues)
     {
-        ReadyRowBatch_ = MakeBatch(MakeSharedRange(sharedMutableRows, sharedMutableRows, sharedValues));
+        ReadyRowBatch_ = MakeBatch(MakeSharedRange(
+            sharedMutableRows,
+            sharedMutableRows,
+            std::move(sharedValues)));
     }
 };
 

@@ -322,7 +322,7 @@ TSharedRange<TUnversionedRow> ToRowRange(
         rows[rowIndex] = mutableRows[rowIndex];
     }
 
-    // Rows are backed up by row buffer, string data is backed up converters (which
+    // Rows are backed up by row buffer, string data is backed up by converters (which
     // hold original columns if necessary).
     return MakeSharedRange(rows, std::move(converters), std::move(rowBuffer));
 }
