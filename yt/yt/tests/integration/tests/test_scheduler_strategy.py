@@ -1484,7 +1484,14 @@ class TestSchedulerPreemption(YTEnvSetup):
 
         wait(lambda: op1.get_job_count(state="aborted") == 1)
 
-        job = retry(lambda: get_job(op1.id, job_id, verbose_error=False))
+        # NB(eshcherbin): Previous check doesn't guarantee that job's state in the archive is "aborted".
+        def get_aborted_job(op_id, job_id):
+            j = get_job(op_id, job_id, verbose_error=False)
+            if j["state"] != "aborted":
+                raise YtError()
+            return j
+
+        job = retry(lambda: get_aborted_job(op1.id, job_id))
         print_debug(job["error"])
         assert job["state"] == "aborted"
         assert job["abort_reason"] == "preemption"
