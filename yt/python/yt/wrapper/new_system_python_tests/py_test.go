@@ -94,10 +94,6 @@ func PrepareBinaries(destination string) error {
 	}
 
 	ytserverAll := yatest.BuildPath("yt/yt/server/all/ytserver-all")
-	_, err = Copy(ytserverAll, path.Join(destination, "ytserver-all") /* followSymlinks */, true)
-	if err != nil {
-		return fmt.Errorf("Failed to copy ytserver-all: %s", err)
-	}
 
 	var serverBinaries = []string{
 		"master",
@@ -113,9 +109,36 @@ func PrepareBinaries(destination string) error {
 	}
 	for _, binary := range serverBinaries {
 		binaryPath := path.Join(destination, "ytserver-"+binary)
-		err = os.Symlink(path.Join(destination, "ytserver-all"), binaryPath)
+		err = os.Link(ytserverAll, binaryPath)
 		if err != nil {
-			return fmt.Errorf("Failed to make a symlink: %s", err)
+			return fmt.Errorf("Failed to make a link: %s", err)
+		}
+	}
+
+	// Attempt to reimplement sudo fixup.
+	var ytSudoFixup = yatest.BuildPath("yt/yt/tools/yt_sudo_fixup/yt-sudo-fixup")
+	var sudoWrapper = `#!/bin/sh
+	
+	exec sudo -En %v %v %v %v "$@"`
+	var sudoWrapperBinaries = []string{
+		"job-proxy",
+		"exec",
+		"tools",
+	}
+	for _, binary := range sudoWrapperBinaries {
+		binaryPath := path.Join(destination, "ytserver-"+binary)
+		origPath := binaryPath + ".orig"
+		err = os.Rename(binaryPath, origPath)
+		if err != nil {
+			return fmt.Errorf("Failed to rename %s to %s: %s", binaryPath, origPath, err)
+		}
+
+		err = ioutil.WriteFile(
+			binaryPath,
+			[]byte(fmt.Sprintf(sudoWrapper, ytSudoFixup, os.Getuid(), origPath, "ytserver-"+binary)),
+			0755)
+		if err != nil {
+			return fmt.Errorf("Failed to format sudoFixup content for %s: %s", binaryPath, err)
 		}
 	}
 
@@ -125,6 +148,7 @@ func PrepareBinaries(destination string) error {
 func GetPythonPaths() []string {
 	var contribPaths = []string{
 		"contrib/python/pytest",
+		"contrib/python/pytest-timeout",
 		"contrib/python/apipkg",
 		"contrib/python/six",
 		"contrib/python/execnet",
@@ -195,6 +219,8 @@ func PreparePython(preparedPythonPath string, t *testing.T) error {
 }
 
 func TestPyTest(t *testing.T) {
+	var err error
+
 	useSystemPython, ok := yatest.BuildFlag("USE_SYSTEM_PYTHON")
 	if !ok || useSystemPython == "" {
 		t.Skipf("You should specify USE_SYSTEM_PYTHON")
@@ -211,7 +237,7 @@ func TestPyTest(t *testing.T) {
 	}
 
 	preparedPythonPath := filepath.Join(testsRoot, "prepared_python")
-	err := PreparePython(preparedPythonPath, t)
+	err = PreparePython(preparedPythonPath, t)
 	require.NoError(t, err, "failed to prepare python")
 
 	binariesPath := filepath.Join(testsRoot, "bin")
@@ -271,6 +297,7 @@ func TestPyTest(t *testing.T) {
 	t.Logf("running %s", cmdPytest.String())
 
 	if err = cmdPytest.Run(); err != nil {
+		require.NoError(t, os.RemoveAll(binariesPath))
 		t.Errorf("running pytest command failed: %s", err)
 	}
 

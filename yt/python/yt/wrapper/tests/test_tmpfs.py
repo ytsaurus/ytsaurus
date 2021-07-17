@@ -9,8 +9,9 @@ import pytest
 
 import os
 
+
 @pytest.mark.usefixtures("yt_env")
-class TestTmpfs(object):
+class DISABLED_TestTmpfs(object):
     @authors("ignat")
     def test_tmpfs_configuration(self):
         def mapper(row):

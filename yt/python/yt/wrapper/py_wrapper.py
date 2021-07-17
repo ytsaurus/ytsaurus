@@ -308,6 +308,10 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
     for name, module in list(iteritems(sys.modules)):
         if module_filter is not None and not module_filter(module):
             continue
+        # NB: python3 tests could not properly pickle pkg_resources package.
+        if PY3 and "pkg_resources" in str(module):
+            continue
+
         if hasattr(module, "__file__"):
             if module.__file__ is None:
                 continue
