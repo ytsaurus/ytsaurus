@@ -26,6 +26,7 @@
 #include <yt/yt/ytlib/cypress_client/cypress_service_proxy.h>
 
 #include <yt/yt/library/erasure/public.h>
+#include <yt/yt/library/erasure/impl/codec.h>
 
 #include <yt/yt/client/chunk_client/public.h>
 
@@ -775,12 +776,53 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
         inputChunks.push_back(chunk);
     }
 
+    auto* chunkRequstitionRegistry = chunkManager->GetChunkRequisitionRegistry();
+    auto* outputChunk = chunkManager->FindChunk(jobInfo.OutputChunkId);
+    if (!IsObjectAlive(outputChunk)) {
+        return false;
+    }
+
+    const auto& requisition = outputChunk->GetAggregatedRequisition(chunkRequstitionRegistry);
+    TChunkIdWithIndexes chunkIdWithIndexes(
+        jobInfo.OutputChunkId,
+        GenericChunkReplicaIndex,
+        requisition.begin()->MediumIndex);
+    auto erasureCodec = outputChunk->GetErasureCodec();
+    int targetCount = erasureCodec == NErasure::ECodec::None
+        ? outputChunk->GetAggregatedReplicationFactor(
+            chunkIdWithIndexes.MediumIndex,
+            chunkRequstitionRegistry)
+        : NErasure::GetCodec(erasureCodec)->GetTotalPartCount();
+
+    auto* dataCenter = context->GetNode()->GetDataCenter();
+    const auto& feasibleDataCenters = context->GetJobRegistry()->GetUnsaturatedInterDCEdgesStartingFrom(dataCenter);
+    auto targetNodes = chunkManager->AllocateWriteTargets(
+        chunkManager->GetMediumByIndexOrThrow(chunkIdWithIndexes.MediumIndex),
+        outputChunk,
+        targetCount,
+        targetCount,
+        /*replicationFactorOverride*/ std::nullopt,
+        feasibleDataCenters);
+    if (targetNodes.empty()) {
+        return false;
+    }
+
+    TNodePtrWithIndexesList targetReplicas;
+    int targetIndex = 0;
+    for (auto* node : targetNodes) {
+        targetReplicas.emplace_back(
+            node,
+            erasureCodec == NErasure::ECodec::None ? GenericChunkReplicaIndex : targetIndex++,
+            chunkIdWithIndexes.MediumIndex);
+    }
+
     auto job = New<TMergeJob>(
         jobInfo.JobId,
         context->GetNode(),
-        TChunkIdWithIndexes(jobInfo.OutputChunkId, GenericChunkReplicaIndex, chunkOwner->GetPrimaryMediumIndex()),
+        chunkIdWithIndexes,
         std::move(inputChunks),
-        std::move(chunkMergerWriterOptions));
+        std::move(chunkMergerWriterOptions),
+        std::move(targetReplicas));
     context->ScheduleJob(job);
 
     YT_LOG_DEBUG("Merge job scheduled (JobId: %v, Address: %v, NodeId: %v, InputChunkIds: %v, OutputChunkId: %v)",

@@ -675,7 +675,7 @@ private:
             Config_->ReplicationWriter,
             options,
             sessionId,
-            targetReplicas,
+            std::move(targetReplicas),
             nodeDirectory,
             Bootstrap_->GetMasterClient(),
             GetNullBlockCache(),
@@ -1160,6 +1160,7 @@ private:
         auto sessionId = TSessionId(outputChunkId, mediumIndex);
         auto compressionCodec = CheckedEnumCast<NCompression::ECodec>(chunkMergerWriterOptions.compression_codec());
         auto erasureCodec = CheckedEnumCast<NErasure::ECodec>(chunkMergerWriterOptions.erasure_codec());
+        auto targetReplicas = FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas());
 
         YT_LOG_INFO("Merge job started (ChunkId: %v@%v)", outputChunkId, mediumIndex);
 
@@ -1179,7 +1180,8 @@ private:
             Bootstrap_->GetBlockCache(),
             /*trafficMeter*/ nullptr,
             Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::MergeOut),
-            sessionId);
+            sessionId,
+            std::move(targetReplicas));
 
         auto chunkWriterOptions = New<TChunkWriterOptions>();
         chunkWriterOptions->CompressionCodec = compressionCodec;

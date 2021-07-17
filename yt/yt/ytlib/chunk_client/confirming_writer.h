@@ -29,7 +29,8 @@ IChunkWriterPtr CreateConfirmingWriter(
     IBlockCachePtr blockCache = GetNullBlockCache(),
     TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
-    TSessionId sessionId = {});
+    TSessionId sessionId = {},
+    TChunkReplicaWithMediumList targetReplicas = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -145,6 +145,7 @@ message TMergeChunksJobSpecExt
     required int32 medium_index = 4;
     required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 5;
     required TChunkMergerWriterOptions chunk_merger_writer_options = 6;
+    repeated fixed64 target_replicas = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

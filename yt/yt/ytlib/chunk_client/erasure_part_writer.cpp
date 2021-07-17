@@ -53,7 +53,8 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     const TPartIndexList& partIndexList,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
-    IBlockCachePtr blockCache)
+    IBlockCachePtr blockCache,
+    TChunkReplicaWithMediumList targetReplicas)
 {
     auto partConfig = NYTree::CloneYsonSerializable(config);
     // Ignore upload replication factor for erasure chunk parts.
@@ -62,18 +63,20 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     // we have no way of retrying the allocation.
     partConfig->PreferLocalHost = false;
 
-    auto replicas = AllocateWriteTargets(
-        client,
-        sessionId,
-        partIndexList.size(),
-        partIndexList.size(),
-        std::nullopt,
-        partConfig->PreferLocalHost,
-        std::vector<TString>(),
-        nodeDirectory,
-        ChunkClientLogger);
+    if (targetReplicas.empty()) {
+        targetReplicas = AllocateWriteTargets(
+            client,
+            sessionId,
+            partIndexList.size(),
+            partIndexList.size(),
+            std::nullopt,
+            partConfig->PreferLocalHost,
+            std::vector<TString>(),
+            nodeDirectory,
+            ChunkClientLogger);
+    }
 
-    YT_VERIFY(replicas.size() == partIndexList.size());
+    YT_VERIFY(targetReplicas.size() == partIndexList.size());
 
     std::vector<IChunkWriterPtr> writers;
     for (int index = 0; index < std::ssize(partIndexList); ++index) {
@@ -85,7 +88,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
             partConfig,
             options,
             partSessionId,
-            TChunkReplicaWithMediumList(1, replicas[index]),
+            TChunkReplicaWithMediumList(1, targetReplicas[index]),
             nodeDirectory,
             client,
             blockCache,
@@ -105,7 +108,8 @@ std::vector<IChunkWriterPtr> CreateAllErasurePartWriters(
     NApi::NNative::IClientPtr client,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
-    IBlockCachePtr blockCache)
+    IBlockCachePtr blockCache,
+    TChunkReplicaWithMediumList targetReplicas)
 {
     auto totalPartCount = codec->GetTotalPartCount();
     TPartIndexList partIndexList(totalPartCount);
@@ -120,7 +124,8 @@ std::vector<IChunkWriterPtr> CreateAllErasurePartWriters(
         partIndexList,
         trafficMeter,
         throttler,
-        blockCache);
+        blockCache,
+        std::move(targetReplicas));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

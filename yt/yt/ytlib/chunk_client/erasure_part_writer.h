@@ -26,7 +26,8 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     const NErasure::TPartIndexList& partIndexList,
     TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
-    IBlockCachePtr blockCache = GetNullBlockCache());
+    IBlockCachePtr blockCache = GetNullBlockCache(),
+    TChunkReplicaWithMediumList targetReplicas = {});
 
 std::vector<IChunkWriterPtr> CreateAllErasurePartWriters(
     TReplicationWriterConfigPtr config,
@@ -37,7 +38,8 @@ std::vector<IChunkWriterPtr> CreateAllErasurePartWriters(
     NApi::NNative::IClientPtr client,
     TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
-    IBlockCachePtr blockCache = GetNullBlockCache());
+    IBlockCachePtr blockCache = GetNullBlockCache(),
+    TChunkReplicaWithMediumList targetReplicas = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
