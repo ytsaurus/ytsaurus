@@ -569,3 +569,9 @@ class TestLocalMode(object):
             with local_yt(id=_get_id("test_ports"), rpc_proxy_count=1, http_proxy_ports=[http_proxy_port], rpc_proxy_ports=[rpc_proxy_port]) as environment:
                 assert environment.configs["http_proxy"][0]["port"] == http_proxy_port
                 assert environment.configs["rpc_proxy"][0]["rpc_port"] == rpc_proxy_port
+
+    def test_structured_logging(self):
+        with local_yt(id=_get_id("test_structured_logging"), enable_structured_logging=True) as environment:
+            client = environment.create_client()
+            client.get("/")
+            wait(lambda: os.path.exists(os.path.join(environment.logs_path, "http-proxy-0.json.log")))

@@ -172,6 +172,8 @@ def add_start_subparser(subparsers):
                         help="ports for rpc proxues; number of values should be equal to rpc-proxy-count.")
     parser.add_argument("--enable-debug-logging", action="store_true", default=False,
                         help="set logging level threshold to DEBUG")
+    parser.add_argument("--enable-structured-logging", action="store_true", default=False,
+                        help="enables structured logs for services")
     parser.add_argument("--enable-logging-compression", action="store_true", default=False,
                         help="enables logging compression by server")
     parser.add_argument("--log-compression-method", default="gzip", choices=["gzip", "zstd"],
