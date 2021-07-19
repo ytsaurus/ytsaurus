@@ -524,11 +524,6 @@ public:
         return Decommissioned_;
     }
 
-    virtual void RegisterStaticAlert(const TError& alert) override
-    {
-        return MasterConnector_->RegisterStaticAlert(alert);
-    }
-
     virtual NDataNode::TNetworkStatistics& GetNetworkStatistics() const override
     {
         return *NetworkStatistics_;
@@ -668,6 +663,8 @@ private:
 
     IChunkRegistryPtr ChunkRegistry_;
     IBlobReaderCachePtr BlobReaderCache_;
+
+    TError UnrecognizedOptionsAlert_;
 
     TObjectServiceCachePtr ObjectServiceCache_;
     std::vector<ICachingObjectServicePtr> CachingObjectServices_;
@@ -1057,11 +1054,10 @@ private:
         auto unrecognized = Config_->GetUnrecognizedRecursively();
         if (unrecognized && unrecognized->GetChildCount() > 0) {
             if (Config_->EnableUnrecognizedOptionsAlert) {
-                auto error = TError(
+                UnrecognizedOptionsAlert_ = TError(
                     EErrorCode::UnrecognizedConfigOption,
                     "Node config contains unrecognized options")
                     << TErrorAttribute("unrecognized", unrecognized);
-                MasterConnector_->RegisterStaticAlert(error);
             }
             if (Config_->AbortOnUnrecognizedOptions) {
                 YT_LOG_ERROR("Node config contains unrecognized options, aborting (Unrecognized: %v)",
@@ -1142,6 +1138,10 @@ private:
                     << TErrorAttribute("used", used)
                     << TErrorAttribute("limit", limit));
             }
+        }
+
+        if (!UnrecognizedOptionsAlert_.IsOK()) {
+            alerts->push_back(UnrecognizedOptionsAlert_);
         }
     }
 
@@ -1378,11 +1378,6 @@ bool TBootstrapBase::IsReadOnly() const
 bool TBootstrapBase::Decommissioned() const
 {
     return Bootstrap_->Decommissioned();
-}
-
-void TBootstrapBase::RegisterStaticAlert(const TError& alert)
-{
-    return Bootstrap_->RegisterStaticAlert(alert);
 }
 
 TNetworkStatistics& TBootstrapBase::GetNetworkStatistics() const

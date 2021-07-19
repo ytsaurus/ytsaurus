@@ -177,6 +177,8 @@ TLocation::TLocation(
         GetAuxPoolInvoker(),
         DataNodeLogger,
         Profiler_);
+
+    Bootstrap_->SubscribePopulateAlerts(BIND(&TLocation::PopulateAlerts, MakeWeak(this)));
 }
 
 const NIO::IIOEnginePtr& TLocation::GetIOEngine() const
@@ -737,9 +739,8 @@ void TLocation::OnHealthCheckFailed(const TError& error)
 
 void TLocation::MarkAsDisabled(const TError& error)
 {
-    auto alert = TError("Chunk location at %v is disabled", GetPath())
-        << error;
-    Bootstrap_->RegisterStaticAlert(alert);
+    Alert_.Store(TError("Chunk location at %v is disabled", GetPath())
+        << error);
 
     Enabled_.store(false);
     AvailableSpace_.store(0);
@@ -878,6 +879,14 @@ bool TLocation::UpdateMediumName(const TString& newMediumName)
         newDescriptor->Name,
         newDescriptor->Index);
     return true;
+}
+
+void TLocation::PopulateAlerts(std::vector<TError>* alerts)
+{
+    auto alert = Alert_.Load();
+    if (!alert.IsOK()) {
+        alerts->push_back(alert);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -44,13 +44,6 @@ struct IMasterConnector
     //! with legacy master connector and will be removed after switching to new heartbeats.
     virtual void OnHeartbeatResponse(const NNodeTrackerClient::NProto::TRspHeartbeat& response) = 0;
 
-    //! Adds a given message to the list of alerts sent to master with each heartbeat.
-    /*!
-    *  \note
-    *  Thread affinity: any
-    */
-    virtual void RegisterStaticAlert(const TError& alert) = 0;
-
     //! Returns a dynamically updated node descriptor.
     /*!
     *  \note

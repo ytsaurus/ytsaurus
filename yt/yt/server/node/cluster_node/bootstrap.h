@@ -130,8 +130,6 @@ struct IBootstrapBase
     virtual bool Decommissioned() const = 0;
 
     // Alerts.
-    virtual void RegisterStaticAlert(const TError& alert) = 0;
-
     DECLARE_INTERFACE_SIGNAL(void(std::vector<TError>* alerts), PopulateAlerts);
 
     // Network statistics.
@@ -253,8 +251,6 @@ public:
 
     virtual bool IsReadOnly() const override;
     virtual bool Decommissioned() const override;
-
-    virtual void RegisterStaticAlert(const TError& alert) override;
 
     virtual NDataNode::TNetworkStatistics& GetNetworkStatistics() const override;
 
