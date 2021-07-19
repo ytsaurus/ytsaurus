@@ -158,6 +158,7 @@ public:
 
     NIO::EIOEngineType IOEngineType;
     NYTree::INodePtr IOConfig;
+    bool EnableDirectIO;
 
     TDuration ThrottleDuration;
 
@@ -184,6 +185,8 @@ public:
             .Default(NIO::EIOEngineType::ThreadPool);
         RegisterParameter("io_config", IOConfig)
             .Optional();
+        RegisterParameter("enable_direct_io", EnableDirectIO)
+            .Default(false);
         RegisterParameter("throttle_counter_interval", ThrottleDuration)
             .Default(TDuration::Seconds(30));
         RegisterParameter("coalesced_read_max_gap_size", CoalescedReadMaxGapSize)

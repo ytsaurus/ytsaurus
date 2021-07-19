@@ -60,11 +60,13 @@ TChunkFileReader::TChunkFileReader(
     TChunkId chunkId,
     TString fileName,
     bool validateBlocksChecksums,
+    bool useDirectIO,
     IBlocksExtCache* blocksExtCache)
     : IOEngine_(std::move(ioEngine))
     , ChunkId_(chunkId)
     , FileName_(std::move(fileName))
     , ValidateBlockChecksums_(validateBlocksChecksums)
+    , UseDirectIO_(useDirectIO)
     , BlocksExtCache_(std::move(blocksExtCache))
 { }
 
@@ -369,7 +371,11 @@ TFuture<TIOEngineHandlePtr> TChunkFileReader::OpenDataFile()
         YT_LOG_DEBUG("Started opening chunk data file (FileName: %v)",
             FileName_);
 
-        DataFileFuture_ = IOEngine_->Open({FileName_, OpenExisting | RdOnly | CloseOnExec})
+        EOpenMode mode = OpenExisting | RdOnly | CloseOnExec;
+        if (UseDirectIO_) {
+            mode |= DirectAligned;
+        }
+        DataFileFuture_ = IOEngine_->Open({FileName_, mode})
             .ToUncancelable()
             .Apply(BIND(&TChunkFileReader::OnDataFileOpened, MakeStrong(this)));
     }
