@@ -50,6 +50,7 @@ DECLARE_REFCOUNTED_CLASS(TLogManagerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TFormatterConfig)
 DECLARE_REFCOUNTED_CLASS(TWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TRuleConfig)
+DECLARE_REFCOUNTED_STRUCT(ILogWriter)
 
 struct TLoggingCategory;
 struct TLoggingAnchor;
