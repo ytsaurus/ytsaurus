@@ -305,6 +305,7 @@ enum EErasureCodecAttr : i8
     EC_NONE_ATTR                /* "none" */,
     EC_REED_SOLOMON_6_3_ATTR    /* "reed_solomon_6_3" */,
     EC_LRC_12_2_2_ATTR          /* "lrc_12_2_2" */,
+    EC_ISA_LRC_12_2_2_ATTR      /* "isa_lrc_12_2_2" */,
 };
 
 NTi::TTypePtr ToTypeV3(EValueType type, bool required);
