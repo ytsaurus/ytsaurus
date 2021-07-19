@@ -726,10 +726,10 @@ TNode SerializeParamsForSkyShareTable(
     if (options.KeyColumns_) {
         auto keyColumnsList = TNode::CreateList();
         for (const auto& s : options.KeyColumns_->Parts_) {
-            if (s.empty()) {
+            if (s.EnsureAscending().Name().empty()) {
                 continue;
             }
-            keyColumnsList.Add(s);
+            keyColumnsList.Add(s.EnsureAscending().Name());
         }
         result["key_columns"] = keyColumnsList;
     }

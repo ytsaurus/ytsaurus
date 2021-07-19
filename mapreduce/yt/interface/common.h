@@ -177,33 +177,13 @@ public: \
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
+template <class T, class TDerived>
 struct TOneOrMany
 {
+    using TSelf = std::conditional_t<std::is_void_v<TDerived>, TOneOrMany, TDerived>;
+
     TOneOrMany()
     { }
-
-    TOneOrMany(const TOneOrMany& rhs)
-    {
-        Parts_ = rhs.Parts_;
-    }
-
-    TOneOrMany& operator=(const TOneOrMany& rhs)
-    {
-        Parts_ = rhs.Parts_;
-        return *this;
-    }
-
-    TOneOrMany(TOneOrMany&& rhs)
-    {
-        Parts_ = std::move(rhs.Parts_);
-    }
-
-    TOneOrMany& operator=(TOneOrMany&& rhs)
-    {
-        Parts_ = std::move(rhs.Parts_);
-        return *this;
-    }
 
     template<class U>
     TOneOrMany(std::initializer_list<U> il)
@@ -226,26 +206,26 @@ struct TOneOrMany
     }
 
     template <class U, class... TArgs>
-    TOneOrMany& Add(U&& part, TArgs&&... args) &
+    TSelf& Add(U&& part, TArgs&&... args) &
     {
         Parts_.push_back(std::forward<U>(part));
         return Add(std::forward<TArgs>(args)...);
     }
 
     template <class... TArgs>
-    TOneOrMany Add(TArgs&&... args) &&
+    TSelf Add(TArgs&&... args) &&
     {
         return std::move(Add(std::forward<TArgs>(args)...));
     }
 
-    TOneOrMany& Add() &
+    TSelf& Add() &
     {
-        return *this;
+        return static_cast<TSelf&>(*this);
     }
 
-    TOneOrMany Add() &&
+    TSelf Add() &&
     {
-        return std::move(*this);
+        return std::move(static_cast<TSelf&&>(*this));
     }
 
     TVector<T> Parts_;
@@ -307,6 +287,66 @@ enum EErasureCodecAttr : i8
     EC_LRC_12_2_2_ATTR          /* "lrc_12_2_2" */,
     EC_ISA_LRC_12_2_2_ATTR      /* "isa_lrc_12_2_2" */,
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TKeyColumn
+{
+public:
+    using TSelf = TKeyColumn;
+
+    FLUENT_FIELD_DEFAULT_ENCAPSULATED(TString, Name, "");
+    FLUENT_FIELD_DEFAULT_ENCAPSULATED(ESortOrder, SortOrder, ESortOrder::SO_ASCENDING);
+
+    // Intentionally implicit constructors.
+    TKeyColumn(TStringBuf name = "", ESortOrder sortOrder = ESortOrder::SO_ASCENDING);
+    TKeyColumn(const TString& name, ESortOrder sortOrder = ESortOrder::SO_ASCENDING);
+    TKeyColumn(const char* name, ESortOrder sortOrder = ESortOrder::SO_ASCENDING);
+
+    const TKeyColumn& EnsureAscending() const;
+    TNode ToNode() const;
+
+    bool operator == (const TKeyColumn& rhs) const;
+    bool operator != (const TKeyColumn& rhs) const;
+
+    // The following methods are for backward compatibility
+    TKeyColumn& operator = (TStringBuf name);
+    TKeyColumn& operator = (const TString& name);
+    TKeyColumn& operator = (const char* name);
+
+    bool operator == (const TStringBuf rhsName) const;
+    bool operator != (const TStringBuf rhsName) const;
+    bool operator == (const TString& rhsName) const;
+    bool operator != (const TString& rhsName) const;
+    bool operator == (const char* rhsName) const;
+    bool operator != (const char* rhsName) const;
+
+    // Intentionally implicit conversions.
+    operator TString() const;
+    operator TStringBuf() const;
+    operator std::string() const;
+
+    Y_SAVELOAD_DEFINE(Name_, SortOrder_);
+};
+
+class TKeyColumns
+    : public TOneOrMany<TKeyColumn, TKeyColumns>
+{
+public:
+    using TOneOrMany<TKeyColumn, TKeyColumns>::TOneOrMany;
+
+    TKeyColumns();
+    TKeyColumns(const TVector<TString>& names);
+    TKeyColumns(const TColumnNames& names);
+
+    // Intentionally implicit conversion.
+    operator TColumnNames() const;
+
+    const TKeyColumns& EnsureAscending() const;
+    TVector<TString> GetNames() const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 NTi::TTypePtr ToTypeV3(EValueType type, bool required);
 
@@ -403,8 +443,8 @@ public:
     TTableSchema& AddColumn(const TString& name, const NTi::TTypePtr& type, ESortOrder sortOrder) &;
     TTableSchema AddColumn(const TString& name, const NTi::TTypePtr& type, ESortOrder sortOrder) &&;
 
-    TTableSchema& SortBy(const TVector<TString>& columns) &;
-    TTableSchema SortBy(const TVector<TString>& columns) &&;
+    TTableSchema& SortBy(const TKeyColumns& columns) &;
+    TTableSchema SortBy(const TKeyColumns& columns) &&;
 
     TNode ToNode() const;
 
@@ -448,10 +488,29 @@ inline TTableSchema CreateTableSchema()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+enum class ERelation
+{
+    Less            /* "<"  */,
+    LessOrEqual     /* "<=" */,
+    Greater         /* ">"  */,
+    GreaterOrEqual  /* ">=" */,
+};
+
+struct TKeyBound
+{
+    using TSelf = TKeyBound;
+
+    explicit TKeyBound(ERelation relation = ERelation::Less, TKey key = TKey{});
+
+    FLUENT_FIELD_DEFAULT_ENCAPSULATED(ERelation, Relation, ERelation::Less);
+    FLUENT_FIELD_DEFAULT_ENCAPSULATED(TKey, Key, TKey{});
+};
+
 struct TReadLimit
 {
     using TSelf = TReadLimit;
 
+    FLUENT_FIELD_OPTION(TKeyBound, KeyBound);
     FLUENT_FIELD_OPTION(TKey, Key);
     FLUENT_FIELD_OPTION(i64, RowIndex);
     FLUENT_FIELD_OPTION(i64, Offset);
@@ -493,11 +552,10 @@ struct TRichYPath
 
     FLUENT_VECTOR_FIELD(TReadRange, Range);
 
-
     // Specifies columns that should be read.
     // If it's set to Nothing then all columns will be read.
-    // If empty TKeyColumns is specified then each read row will be empty.
-    FLUENT_FIELD_OPTION(TKeyColumns, Columns);
+    // If empty TColumnNames is specified then each read row will be empty.
+    FLUENT_FIELD_OPTION(TColumnNames, Columns);
 
     FLUENT_FIELD_OPTION(bool, Teleport);
     FLUENT_FIELD_OPTION(bool, Primary);

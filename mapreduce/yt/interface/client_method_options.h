@@ -620,7 +620,7 @@ struct TLookupRowsOptions
     using TSelf = TLookupRowsOptions;
 
     FLUENT_FIELD_OPTION(TDuration, Timeout);
-    FLUENT_FIELD_OPTION(TKeyColumns, Columns);
+    FLUENT_FIELD_OPTION(TColumnNames, Columns);
     FLUENT_FIELD_DEFAULT(bool, KeepMissingRows, false);
     FLUENT_FIELD_OPTION(bool, Versioned);
 };

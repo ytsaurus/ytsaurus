@@ -42,10 +42,25 @@ void Deserialize(THashMap<TString, T>& value, const TNode& node)
 struct IYsonConsumer;
 
 void Serialize(const TKey& key, IYsonConsumer* consumer);
+void Deserialize(TKey& key, const TNode& node);
+
 void Serialize(const TKeyColumns& keyColumns, IYsonConsumer* consumer);
+void Deserialize(TKeyColumns& keyColumns, const TNode& node);
+
+void Serialize(const TColumnNames& columnNames, IYsonConsumer* consumer);
+void Deserialize(TColumnNames& columnNames, const TNode& node);
+
+void Serialize(const TKeyColumn& keyColumn, IYsonConsumer* consumer);
+void Deserialize(TKeyColumn& keyColumn, const TNode& node);
+
+void Serialize(const TKeyBound& keyBound, IYsonConsumer* consumer);
+void Deserialize(TKeyBound& keyBound, const TNode& node);
 
 void Serialize(const TReadLimit& readLimit, IYsonConsumer* consumer);
+void Deserialize(TReadLimit& readLimit, const TNode& node);
+
 void Serialize(const TReadRange& readRange, IYsonConsumer* consumer);
+
 void Serialize(const TRichYPath& path, IYsonConsumer* consumer);
 void Deserialize(TRichYPath& path, const TNode& node);
 

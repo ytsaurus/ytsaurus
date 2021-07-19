@@ -1,5 +1,6 @@
 #include "serialize.h"
 
+#include "common.h"
 #include "fluent.h"
 
 #include <library/cpp/yson/parser.h>
@@ -28,20 +29,71 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(const TKeyColumn& keyColumn, IYsonConsumer* consumer)
+{
+    if (keyColumn.SortOrder() == ESortOrder::SO_ASCENDING) {
+        Serialize(keyColumn.Name(), consumer);
+    } else {
+        BuildYsonFluently(consumer).BeginMap()
+            .Item("name").Value(keyColumn.Name())
+            .Item("sort_order").Value(::ToString(keyColumn.SortOrder()))
+        .EndMap();
+    }
+}
+
+void Deserialize(TKeyColumn& keyColumn, const TNode& node)
+{
+    if (node.IsString()) {
+        keyColumn = TKeyColumn(node.AsString());
+    } else if (node.IsMap()) {
+        const auto& name = node["name"].AsString();
+        const auto& sortOrderString = node["sort_order"].AsString();
+        keyColumn = TKeyColumn(name, ::FromString<ESortOrder>(sortOrderString));
+    } else {
+        ythrow yexception() << "Expected sort column to be string or map, got " << node.GetType();
+    }
+}
+
+template <class T, class TDerived>
+void SerializeOneOrMany(const TOneOrMany<T, TDerived>& oneOrMany, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer).List(oneOrMany.Parts_);
+}
+
+template <class T, class TDerived>
+void DeserializeOneOrMany(TOneOrMany<T, TDerived>& oneOrMany, const TNode& node)
+{
+    Deserialize(oneOrMany.Parts_, node);
+}
+
 void Serialize(const TKey& key, IYsonConsumer* consumer)
 {
-    BuildYsonFluently(consumer).List(key.Parts_);
+    SerializeOneOrMany(key, consumer);
+}
+
+void Deserialize(TKey& key, const TNode& node)
+{
+    DeserializeOneOrMany(key, node);
 }
 
 void Serialize(const TKeyColumns& keyColumns, IYsonConsumer* consumer)
 {
-    BuildYsonFluently(consumer).List(keyColumns.Parts_);
+    SerializeOneOrMany(keyColumns, consumer);
 }
 
-template <class T>
-void Deserialize(TOneOrMany<T>& key, const TNode& node)
+void Deserialize(TKeyColumns& keyColumns, const TNode& node)
 {
-    Deserialize(key.Parts_, node);
+    DeserializeOneOrMany(keyColumns, node);
+}
+
+void Serialize(const TColumnNames& columnNames, IYsonConsumer* consumer)
+{
+    SerializeOneOrMany(columnNames, consumer);
+}
+
+void Deserialize(TColumnNames& columnNames, const TNode& node)
+{
+    DeserializeOneOrMany(columnNames, node);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -254,9 +306,36 @@ void Deserialize(TTableSchema& tableSchema, const TNode& node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(const TKeyBound& keyBound, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer).BeginList()
+        .Item().Value(::ToString(keyBound.Relation()))
+        .Item().Value(keyBound.Key())
+    .EndList();
+}
+
+void Deserialize(TKeyBound& keyBound, const TNode& node)
+{
+    const auto& nodeList = node.AsList();
+    Y_ENSURE(nodeList.size() == 2);
+
+    const auto& relationNode = nodeList[0];
+    keyBound.Relation(::FromString<ERelation>(relationNode.AsString()));
+
+    const auto& keyNode = nodeList[1];
+    TKey key;
+    Deserialize(key, keyNode);
+    keyBound.Key(std::move(key));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void Serialize(const TReadLimit& readLimit, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginMap()
+        .DoIf(readLimit.KeyBound_.Defined(), [&] (TFluentMap fluent) {
+            fluent.Item("key_bound").Value(*readLimit.KeyBound_);
+        })
         .DoIf(readLimit.Key_.Defined(), [&] (TFluentMap fluent) {
             fluent.Item("key").Value(*readLimit.Key_);
         })
@@ -275,6 +354,7 @@ void Serialize(const TReadLimit& readLimit, IYsonConsumer* consumer)
 void Deserialize(TReadLimit& readLimit, const TNode& node)
 {
     const auto& nodeMap = node.AsMap();
+    DESERIALIZE_ITEM("key_bound", readLimit.KeyBound_);
     DESERIALIZE_ITEM("key", readLimit.Key_);
     DESERIALIZE_ITEM("row_index", readLimit.RowIndex_);
     DESERIALIZE_ITEM("offset", readLimit.Offset_);

@@ -20,7 +20,7 @@ Y_UNIT_TEST_SUITE(CanonizeYPath)
 
         auto canonized = client->CanonizeYPath(TRichYPath("//foo/bar[#100500]").Columns({"column"}));
         UNIT_ASSERT_EQUAL(canonized.Path_, "//foo/bar");
-        UNIT_ASSERT_EQUAL(canonized.Columns_, TKeyColumns({"column"}));
+        UNIT_ASSERT_EQUAL(canonized.Columns_, TColumnNames({"column"}));
     }
 
     Y_UNIT_TEST(TestBadCanonization)

@@ -3,6 +3,7 @@
 #include "errors.h"
 #include "format.h"
 #include "serialize.h"
+#include "fluent.h"
 
 #include <mapreduce/yt/interface/protos/extension.pb.h>
 
@@ -16,6 +17,148 @@ namespace NYT {
 
 using ::google::protobuf::FieldDescriptor;
 using ::google::protobuf::Descriptor;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TKeyColumn::TKeyColumn(TStringBuf name, ESortOrder sortOrder)
+    : Name_(name)
+    , SortOrder_(sortOrder)
+{ }
+
+TKeyColumn::TKeyColumn(const TString& name, ESortOrder sortOrder)
+    : TKeyColumn(static_cast<TStringBuf>(name), sortOrder)
+{ }
+
+TKeyColumn::TKeyColumn(const char* name, ESortOrder sortOrder)
+    : TKeyColumn(static_cast<TStringBuf>(name), sortOrder)
+{ }
+
+const TKeyColumn& TKeyColumn::EnsureAscending() const
+{
+    Y_ENSURE(SortOrder() == ESortOrder::SO_ASCENDING);
+    return *this;
+}
+
+TNode TKeyColumn::ToNode() const
+{
+    return BuildYsonNodeFluently().Value(*this);
+}
+
+bool TKeyColumn::operator == (const TKeyColumn& rhs) const
+{
+    return Name() == rhs.Name() && SortOrder() == rhs.SortOrder();
+}
+
+bool TKeyColumn::operator != (const TKeyColumn& rhs) const
+{
+    return !(*this == rhs);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Below lie backward compatibility methods.
+////////////////////////////////////////////////////////////////////////////////
+
+TKeyColumn& TKeyColumn::operator = (TStringBuf name)
+{
+    EnsureAscending();
+    Name_ = name;
+    return *this;
+}
+
+TKeyColumn& TKeyColumn::operator = (const TString& name)
+{
+    return (*this = static_cast<TStringBuf>(name));
+}
+
+TKeyColumn& TKeyColumn::operator = (const char* name)
+{
+    return (*this = static_cast<TStringBuf>(name));
+}
+
+bool TKeyColumn::operator == (TStringBuf rhsName) const
+{
+    EnsureAscending();
+    return Name_ == rhsName;
+}
+
+bool TKeyColumn::operator != (TStringBuf rhsName) const
+{
+    return !(*this == rhsName);
+}
+
+bool TKeyColumn::operator == (const TString& rhsName) const
+{
+    return *this == static_cast<TStringBuf>(rhsName);
+}
+
+bool TKeyColumn::operator != (const TString& rhsName) const
+{
+    return !(*this == rhsName);
+}
+
+bool TKeyColumn::operator == (const char* rhsName) const
+{
+    return *this == static_cast<TStringBuf>(rhsName);
+}
+
+bool TKeyColumn::operator != (const char* rhsName) const
+{
+    return !(*this == rhsName);
+}
+
+TKeyColumn::operator TStringBuf() const
+{
+    EnsureAscending();
+    return Name_;
+}
+
+TKeyColumn::operator TString() const
+{
+    return TString(static_cast<TStringBuf>(*this));
+}
+
+TKeyColumn::operator std::string() const
+{
+    EnsureAscending();
+    return static_cast<std::string>(Name_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TKeyColumns::TKeyColumns()
+{ }
+
+TKeyColumns::TKeyColumns(const TVector<TString>& names)
+{
+    Parts_.assign(names.begin(), names.end());
+}
+
+TKeyColumns::TKeyColumns(const TColumnNames& names)
+    : TKeyColumns(names.Parts_)
+{ }
+
+TKeyColumns::operator TColumnNames() const
+{
+    return TColumnNames(EnsureAscending().GetNames());
+}
+
+const TKeyColumns& TKeyColumns::EnsureAscending() const
+{
+    for (const auto& keyColumn : Parts_) {
+        keyColumn.EnsureAscending();
+    }
+    return *this;
+}
+
+TVector<TString> TKeyColumns::GetNames() const
+{
+    TVector<TString> names;
+    names.reserve(Parts_.size());
+    for (const auto& keyColumn : Parts_) {
+        names.push_back(keyColumn.Name());
+    }
+    return names;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -318,40 +461,44 @@ TTableSchema TTableSchema::AddColumn(const TString& name, const NTi::TTypePtr& t
     return std::move(AddColumn(name, type, sortOrder));
 }
 
-TTableSchema& TTableSchema::SortBy(const TVector<TString>& columns) &
+TTableSchema& TTableSchema::SortBy(const TKeyColumns& keyColumns) &
 {
-    THashMap<TString, ui64> columnsIndex;
-    TVector<TColumnSchema> newColumns;
-    newColumns.reserve(Columns_.size());
-    newColumns.resize(columns.size());
+    Y_ENSURE(keyColumns.Parts_.size() <= Columns_.size());
 
-    for (auto i: xrange(columns.size())) {
-        Y_ENSURE(!columnsIndex.contains(columns[i]), "Key column name '"
-            << columns[i] << "' repeats in columns list");
-        columnsIndex[columns[i]] = i;
+    THashMap<TString, ui64> keyColumnIndex;
+    for (auto i: xrange(keyColumns.Parts_.size())) {
+        Y_ENSURE(keyColumnIndex.emplace(keyColumns.Parts_[i].Name(), i).second,
+            "Key column name '" << keyColumns.Parts_[i].Name() << "' repeats in columns list");
     }
 
+    TVector<TColumnSchema> newColumnsSorted(keyColumns.Parts_.size());
+    TVector<TColumnSchema> newColumnsUnsorted;
     for (auto& column : Columns_) {
-        if (auto it = columnsIndex.find(column.Name())) {
-            column.SortOrder(ESortOrder::SO_ASCENDING);
-            newColumns[it->second] = std::move(column); // see newColumns.resize() above
-            columnsIndex.erase(it);
-        } else {
+        auto it = keyColumnIndex.find(column.Name());
+        if (it == keyColumnIndex.end()) {
             column.ResetSortOrder();
-            newColumns.push_back(std::move(column));
+            newColumnsUnsorted.push_back(std::move(column));
+        } else {
+            auto index = it->second;
+            const auto& keyColumn = keyColumns.Parts_[index];
+            column.SortOrder(keyColumn.SortOrder());
+            newColumnsSorted[index] = std::move(column);
+            keyColumnIndex.erase(it);
         }
     }
 
-    Y_ENSURE(columnsIndex.empty(), "Column name '" << columnsIndex.begin()->first
+    Y_ENSURE(keyColumnIndex.empty(), "Column name '" << keyColumnIndex.begin()->first
             << "' not found in table schema");
 
-    newColumns.swap(Columns_);
+    newColumnsSorted.insert(newColumnsSorted.end(), newColumnsUnsorted.begin(), newColumnsUnsorted.end());
+    Columns_ = std::move(newColumnsSorted);
+
     return *this;
 }
 
-TTableSchema TTableSchema::SortBy(const TVector<TString>& columns) &&
+TTableSchema TTableSchema::SortBy(const TKeyColumns& keyColumns) &&
 {
-    return std::move(SortBy(columns));
+    return std::move(SortBy(keyColumns));
 }
 
 TVector<TColumnSchema>& TTableSchema::MutableColumns()
@@ -382,6 +529,13 @@ bool operator!=(const TTableSchema& lhs, const TTableSchema& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TKeyBound::TKeyBound(ERelation relation, TKey key)
+    : Relation_(relation)
+    , Key_(std::move(key))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTableSchema CreateTableSchema(
     const Descriptor& messageDescriptor,
     const TKeyColumns& keyColumns,
@@ -406,7 +560,7 @@ TTableSchema CreateTableSchema(NTi::TTypePtr type)
 
 bool IsTrivial(const TReadLimit& readLimit)
 {
-    return !readLimit.Key_ && !readLimit.RowIndex_ && !readLimit.Offset_ && !readLimit.TabletIndex_;
+    return !readLimit.Key_ && !readLimit.RowIndex_ && !readLimit.Offset_ && !readLimit.TabletIndex_ && !readLimit.KeyBound_;
 }
 
 EValueType NodeTypeToValueType(TNode::EType nodeType)
@@ -421,6 +575,8 @@ EValueType NodeTypeToValueType(TNode::EType nodeType)
             ythrow yexception() << "Cannot convert TNode type " << nodeType << " to EValueType";
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {
 
@@ -488,3 +644,13 @@ TString ToString(EValueType type)
 
 } // namespace NDetail
 } // namespace NYT
+
+template <>
+void Out<NYT::TKeyColumn>(IOutputStream& os, const NYT::TKeyColumn& keyColumn)
+{
+    if (keyColumn.SortOrder() == NYT::ESortOrder::SO_ASCENDING) {
+        os << keyColumn.Name();
+    } else {
+        os << NYT::BuildYsonStringFluently(NYT::EYsonFormat::YF_TEXT).Value(keyColumn);
+    }
+}
