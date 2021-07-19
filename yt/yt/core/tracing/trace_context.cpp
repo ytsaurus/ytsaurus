@@ -168,6 +168,12 @@ TTraceContext::TLogList TTraceContext::GetLogEntries() const
     return Logs_;
 }
 
+TTraceContext::TAsyncChildrenList TTraceContext::GetAsyncChildren() const
+{
+    auto guard = Guard(Lock_);
+    return AsyncChildren_;
+}
+
 void TTraceContext::AddTag(const TString& tagKey, const TString& tagValue)
 {
     if (Finished_.load()) {
@@ -175,6 +181,16 @@ void TTraceContext::AddTag(const TString& tagKey, const TString& tagValue)
     }
     auto guard = Guard(Lock_);
     Tags_.emplace_back(tagKey, tagValue);
+}
+
+void TTraceContext::AddAsyncChild(const TTraceId& traceId)
+{
+    if (Finished_.load()) {
+        return;
+    }
+
+    auto guard = Guard(Lock_);
+    AsyncChildren_.push_back(traceId);
 }
 
 void TTraceContext::AddLogEntry(TCpuInstant at, TString message)
@@ -185,6 +201,11 @@ void TTraceContext::AddLogEntry(TCpuInstant at, TString message)
 
     auto guard = Guard(Lock_);
     Logs_.push_back(TTraceLogEntry{at, std::move(message)});
+}
+
+bool TTraceContext::IsFinished()
+{
+    return Finished_.load();
 }
 
 void TTraceContext::Finish()

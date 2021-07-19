@@ -27,6 +27,7 @@ using namespace NElection;
 using namespace NYTree;
 using namespace NConcurrency;
 using namespace NProfiling;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -487,6 +488,8 @@ TFuture<TMutationResponse> TLeaderCommitter::LogLeaderMutation(
 {
     TSharedRef recordData;
     TFuture<void> localFlushFuture;
+
+    TCurrentTraceContextGuard traceContextGuard(request.TraceContext);
     const auto& loggedMutation = DecoratedAutomaton_->LogLeaderMutation(
         timestamp,
         std::move(request),

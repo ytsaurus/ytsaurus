@@ -51,6 +51,8 @@
 
 #include <yt/yt/core/profiling/profile_manager.h>
 
+#include <yt/yt/library/tracing/async_queue_trace.h>
+
 #include <yt/yt/library/erasure/impl/codec.h>
 
 #include <deque>
@@ -73,6 +75,7 @@ using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
+using namespace NTracing;
 
 using NYT::TRange;
 
@@ -196,6 +199,7 @@ private:
                 result = AppendToBatch(batch, row);
             }
 
+            QueueTrace_.Join(CurrentRowIndex_);
             return result;
         }
 
@@ -398,6 +402,7 @@ private:
         int FirstUnsealedSessionIndex_ = 0;
         std::map<int, TChunkSessionPtr> IndexToChunkSessionToSeal_;
 
+        TAsyncQueueTrace QueueTrace_;
 
         void EnqueueCommand(TCommand command)
         {
@@ -1455,6 +1460,8 @@ private:
                 return;
             }
 
+            auto traceGuard = QueueTrace_.CreateTraceGuard("JournalWriter:FlushBlocks", node->FirstPendingRowIndex, {});
+
             req->Invoke().Subscribe(
                 BIND(&TImpl::OnBlocksWritten, MakeWeak(this), CurrentChunkSession_, node, flushRowCount)
                     .Via(Invoker_));
@@ -1511,6 +1518,8 @@ private:
                 YT_LOG_DEBUG("Rows are written by quorum (Rows: %v-%v)",
                     front->FirstRowIndex,
                     front->FirstRowIndex + front->RowCount - 1);
+
+                QueueTrace_.Commit(front->FirstRowIndex + front->RowCount - 1);
             }
 
             if (IsCompleted()) {
