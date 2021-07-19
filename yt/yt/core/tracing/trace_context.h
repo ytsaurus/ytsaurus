@@ -58,6 +58,7 @@ public:
      *  Safe to call multiple times from arbitrary threads; only the first call matters.
      */
     void Finish();
+    bool IsFinished();
 
     bool IsSampled() const;
     void SetSampled(bool value = true);
@@ -82,14 +83,6 @@ public:
     using TTagList = SmallVector<std::pair<TString, TString>, 4>;
     TTagList GetTags() const;
 
-    struct TTraceLogEntry
-    {
-        NProfiling::TCpuInstant At;
-        TString Message;
-    };
-    using TLogList = SmallVector<TTraceLogEntry, 4>;
-    TLogList GetLogEntries() const;
-
     void AddTag(const TString& tagKey, const TString& tagValue);
 
     template <class T>
@@ -98,7 +91,18 @@ public:
     //! Adds error tag. Spans containing errors are highlited in Jaeger UI.
     void AddErrorTag();
 
+    struct TTraceLogEntry
+    {
+        NProfiling::TCpuInstant At;
+        TString Message;
+    };
+    using TLogList = SmallVector<TTraceLogEntry, 4>;
+    TLogList GetLogEntries() const;
     void AddLogEntry(NProfiling::TCpuInstant at, TString message);
+
+    using TAsyncChildrenList = SmallVector<TTraceId, 4>;
+    TAsyncChildrenList GetAsyncChildren() const;
+    void AddAsyncChild(const TTraceId& traceId);
 
     TTraceContextPtr CreateChild(
         TString spanName,
@@ -128,6 +132,7 @@ private:
     YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
     TTagList Tags_;
     TLogList Logs_;
+    TAsyncChildrenList AsyncChildren_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTraceContext)

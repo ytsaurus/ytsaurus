@@ -1137,15 +1137,8 @@ void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
             StateHash_);
 
         {
-            auto traceContext = pendingMutation.Request.TraceContext
-                ? NTracing::CreateChildTraceContext(
-                    pendingMutation.Request.TraceContext,
-                    ConcatToString(TStringBuf("HydraMutation:"), pendingMutation.Request.Type))
-                : nullptr;
-            if (traceContext && traceContext->IsSampled() && pendingMutation.Request.MutationId) {
-                traceContext->AddTag("mutation_id", ToString(pendingMutation.Request.MutationId));
-            }
-            NTracing::TTraceContextGuard traceContextGuard(std::move(traceContext));
+            NTracing::TTraceContextGuard traceContextGuard(pendingMutation.Request.TraceContext);
+
             DoApplyMutation(&mutationContext);
         }
 
