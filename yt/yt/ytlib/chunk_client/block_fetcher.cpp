@@ -202,6 +202,7 @@ void TBlockFetcher::DecompressBlocks(
     std::vector<int> windowIndexesToRelease;
     for (int i = 0; i < std::ssize(compressedBlocks); ++i) {
         auto& compressedBlock = compressedBlocks[i];
+        auto compressedBlockSize = compressedBlock.Size();
         int windowIndex = windowIndexes[i];
         const auto& blockInfo = BlockInfos_[windowIndex];
         int blockIndex = blockInfo.Index;
@@ -244,7 +245,7 @@ void TBlockFetcher::DecompressBlocks(
         }
 
         UncompressedDataSize_ += uncompressedBlock.Size();
-        CompressedDataSize_ += compressedBlock.Size();
+        CompressedDataSize_ += compressedBlockSize;
 
         BlockCache_->PutBlock(
             blockId,
