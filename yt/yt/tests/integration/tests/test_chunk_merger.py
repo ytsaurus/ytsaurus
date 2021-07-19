@@ -32,6 +32,8 @@ def _schematize_rows(rows, schema):
 
 
 class TestChunkMerger(YTEnvSetup):
+    NUM_TEST_PARTITIONS = 2
+
     NUM_MASTERS = 5
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
