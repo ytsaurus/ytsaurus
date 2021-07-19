@@ -103,6 +103,8 @@ void ReconfigureSingletons(const TSingletonsConfigPtr& config, const TSingletons
         jaeger->Configure(config->Jaeger->ApplyDynamic(dynamicConfig->Jaeger));
     }
 
+    NBus::TTcpDispatcher::Get()->Configure(config->TcpDispatcher->ApplyDynamic(dynamicConfig->TcpDispatcher));
+
     NRpc::TDispatcher::Get()->Configure(config->RpcDispatcher->ApplyDynamic(dynamicConfig->RpcDispatcher));
 
     NChunkClient::TDispatcher::Get()->Configure(config->ChunkClientDispatcher->ApplyDynamic(dynamicConfig->ChunkClientDispatcher));

@@ -85,13 +85,13 @@ void TThreadPoolBase::DoConfigure(int threadCount)
     {
         auto guard = Guard(SpinLock_);
 
-        while (static_cast<int>(Threads_.size()) < threadCount) {
-            auto thread = SpawnThread(static_cast<int>(Threads_.size()));
+        while (std::ssize(Threads_) < threadCount) {
+            auto thread = SpawnThread(std::ssize(Threads_));
             threadsToStart.push_back(thread);
             Threads_.push_back(thread);
         }
 
-        while (static_cast<int>(Threads_.size()) > threadCount) {
+        while (std::ssize(Threads_) > threadCount) {
             threadsToShutdown.push_back(Threads_.back());
             Threads_.pop_back();
         }

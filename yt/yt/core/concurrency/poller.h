@@ -28,7 +28,7 @@ DEFINE_BIT_ENUM(EPollControl,
 struct IPollable
     : public virtual TRefCounted
 {
-    //! Cookie is a opaque ref-counted object that could be attached to a pollable by its poller.
+    //! Cookie is an opaque ref-counted object that could be attached to a pollable by its poller.
     using TCookiePtr = TRefCountedPtr;
 
     //! Attaches a cookie.
@@ -68,6 +68,10 @@ struct IPoller
 
     //! Registers a pollable entity but does not arm the poller yet.
     virtual void Register(const IPollablePtr& pollable) = 0;
+
+    //! Reconfigures number of polling threads.
+    //! Is viable for thread pool implementations only. 
+    virtual void Reconfigure(int threadCount) = 0;
 
     //! Unregisters the previously registered entity.
     /*!

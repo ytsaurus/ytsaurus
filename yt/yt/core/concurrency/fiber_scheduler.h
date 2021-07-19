@@ -4,6 +4,8 @@
 
 namespace NYT::NConcurrency {
 
+/////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TFiber)
 
 //! Executes actions in fiber context.

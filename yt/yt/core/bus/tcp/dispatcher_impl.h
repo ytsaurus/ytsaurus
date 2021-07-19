@@ -42,7 +42,7 @@ public:
 
     void RegisterConnection(TTcpConnectionPtr connection);
 
-    void ValidateNetworkingNotDisabled(EMessageDirection messageDirection);
+    void ValidateNetworkingNotDisabled(EMessageDirection messageDirection) const;
 
     void CollectSensors(NProfiling::ISensorWriter* writer);
 

@@ -23,11 +23,13 @@ namespace NYT::NConcurrency {
 
 using namespace NProfiling;
 
+////////////////////////////////////////////////////////////////////////////////
+
 static const auto& Logger = ConcurrencyLogger;
 
-DECLARE_REFCOUNTED_CLASS(TRefCountedGauge)
-
 ////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TRefCountedGauge)
 
 class TRefCountedGauge
     : public TRefCounted

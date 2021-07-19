@@ -50,6 +50,8 @@ TSingletonsDynamicConfig::TSingletonsDynamicConfig()
         .Optional();
     RegisterParameter("yt_alloc", YTAlloc)
         .Optional();
+    RegisterParameter("tcp_dispatcher", TcpDispatcher)
+        .DefaultNew();
     RegisterParameter("rpc_dispatcher", RpcDispatcher)
         .DefaultNew();
     RegisterParameter("chunk_client_dispatcher", ChunkClientDispatcher)

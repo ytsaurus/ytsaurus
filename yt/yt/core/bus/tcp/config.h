@@ -18,9 +18,23 @@ public:
     int ThreadPoolSize;
 
     TTcpDispatcherConfig();
+    TTcpDispatcherConfigPtr ApplyDynamic(const TTcpDispatcherDynamicConfigPtr& dynamicConfig) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTcpDispatcherConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTcpDispatcherDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    std::optional<int> ThreadPoolSize;
+
+    TTcpDispatcherDynamicConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TTcpDispatcherDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
