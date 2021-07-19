@@ -56,7 +56,6 @@ struct ILogWriter
     virtual void SetCategoryRateLimits(const THashMap<TString, size_t>& categoryRateLimits) = 0;
 };
 
-DECLARE_REFCOUNTED_STRUCT(ILogWriter)
 DEFINE_REFCOUNTED_TYPE(ILogWriter)
 
 ////////////////////////////////////////////////////////////////////////////////

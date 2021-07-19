@@ -86,6 +86,8 @@ DECLARE_REFCOUNTED_STRUCT(ITwoLevelFairShareThreadPool)
 
 class TEventCount;
 
+DECLARE_REFCOUNTED_CLASS(TFiber)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NConcurrency
