@@ -3120,6 +3120,46 @@ Y_UNIT_TEST_SUITE(Operations)
             TApiUsageError);
     }
 
+    // TODO(levysotsky): Enable this test when packages are updated.
+    void Descending()
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        TString inputTable = workingDir + "/table";
+        auto sortBy = TKeyColumns("key1", (TKeyColumn("key2", ESortOrder::SO_DESCENDING)), "key3");
+
+        auto getSortedBy = [&](const TString& table) {
+            TKeyColumns columns;
+            auto schema = client->Get(table + "/@schema");
+            for (const auto& column : schema.AsList()) {
+                columns.Add(TKeyColumn(column["name"].AsString(), ::FromString<ESortOrder>(column["sort_order"].AsString())));
+            }
+            return columns;
+        };
+
+        {
+            auto writer = client->CreateTableWriter<TNode>(inputTable);
+            writer->AddRow(TNode()("key1", "a")("key2", "b")("key3", "c")("value", "x"));
+            writer->AddRow(TNode()("key1", "a")("key2", "b")("key3", "d")("value", "xx"));
+            writer->AddRow(TNode()("key1", "a")("key2", "c")("key3", "a")("value", "xxx"));
+            writer->AddRow(TNode()("key1", "b")("key2", "a")("key3", "a")("value", "xxxx"));
+            writer->Finish();
+        }
+
+        auto outputTable = workingDir + "/output";
+        client->Sort(TSortOperationSpec()
+            .AddInput(inputTable)
+            .AddInput(inputTable)
+            .Output(outputTable)
+            .SortBy(sortBy));
+
+        UNIT_ASSERT_VALUES_EQUAL(getSortedBy(outputTable).Parts_, sortBy.Parts_);
+        UNIT_ASSERT_VALUES_EQUAL(
+            client->Get(outputTable + "/@row_count").AsInt64(),
+            2 * client->Get(inputTable + "/@row_count").AsInt64());
+    }
+
     Y_UNIT_TEST(LazySort)
     {
         TTestFixture fixture;

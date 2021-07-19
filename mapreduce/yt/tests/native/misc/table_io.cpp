@@ -299,13 +299,13 @@ Y_UNIT_TEST_SUITE(TableIo)
 
         TVector<i64> actualKeys;
         TVector<i64> actualRowIndices;
-        TVector<ui32> actualRangeIndecies;
+        TVector<ui32> actualRangeIndicies;
         auto reader = client->CreateTableReader<TNode>(path);
         for (; reader->IsValid(); reader->Next()) {
             const auto& row = reader->GetRow();
             actualKeys.push_back(row["key"].AsInt64());
             actualRowIndices.push_back(reader->GetRowIndex());
-            actualRangeIndecies.push_back(reader->GetRangeIndex());
+            actualRangeIndicies.push_back(reader->GetRangeIndex());
         }
 
         const TVector<i64> expectedKeys = {
@@ -334,11 +334,97 @@ Y_UNIT_TEST_SUITE(TableIo)
         };
         UNIT_ASSERT_VALUES_EQUAL(actualKeys, expectedKeys);
         UNIT_ASSERT_VALUES_EQUAL(actualRowIndices, expectedRowIndices);
-        UNIT_ASSERT_VALUES_EQUAL(actualRangeIndecies, expectedRangeIndicies);
+        UNIT_ASSERT_VALUES_EQUAL(actualRangeIndicies, expectedRangeIndicies);
     }
     INSTANTIATE_NODE_READER_TESTS(ReadMultipleRangesNode)
 
 #undef INSTANTIATE_NODE_READER_TESTS
+
+    // TODO(levysotsky): Enable this test when packages are updated.
+    void Descending()
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        auto path = TRichYPath(workingDir + "/table");
+        auto pathWithSchema = TRichYPath(path)
+            .Schema(TTableSchema()
+                .Strict(true)
+                .AddColumn(TColumnSchema().Name("key").Type(VT_INT64).SortOrder(SO_DESCENDING)));
+        {
+            auto writer = client->CreateTableWriter<TNode>(pathWithSchema);
+            for (int i = 100; i >= 50; --i) {
+                writer->AddRow(TNode()("key", i));
+            }
+            writer->Finish();
+        }
+        {
+            auto writer = client->CreateTableWriter<TNode>(path.Append(true));
+            for (int i = 50; i < 100; ++i) {
+                writer->AddRow(TNode()("key", i));
+            }
+            UNIT_ASSERT_EXCEPTION(writer->Finish(), yexception);
+        }
+        {
+            auto writer = client->CreateTableWriter<TNode>(path.Append(true));
+            for (int i = 49; i >= 0; --i) {
+                writer->AddRow(TNode()("key", i));
+            }
+            writer->Finish();
+        }
+        auto reader = client->CreateTableReader<TNode>(path);
+        int i = 100;
+        for (; reader->IsValid(); reader->Next()) {
+            const auto& row = reader->GetRow();
+            UNIT_ASSERT_VALUES_EQUAL(row["key"].AsInt64(), i);
+            --i;
+        }
+    }
+
+    // TODO(levysotsky): Enable this test when packages are updated.
+    void KeyBound()
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        {
+            auto path = TRichYPath(workingDir + "/table")
+                .Schema(TTableSchema()
+                    .Strict(true)
+                    .AddColumn(TColumnSchema().Name("key1").Type(VT_INT64).SortOrder(SO_ASCENDING))
+                    .AddColumn(TColumnSchema().Name("key2").Type(VT_INT64).SortOrder(SO_ASCENDING)));
+            auto writer = client->CreateTableWriter<TNode>(path);
+
+            for (int i = 0; i < 100; ++i) {
+                writer->AddRow(TNode()("key1", i / 10)("key2", i % 10));
+            }
+            writer->Finish();
+        }
+
+        TRichYPath path(workingDir + "/table");
+        path.AddRange(TReadRange()
+            .LowerLimit(TReadLimit().KeyBound(TKeyBound(ERelation::GreaterOrEqual, TKey(2))))
+            .UpperLimit(TReadLimit().KeyBound(TKeyBound(ERelation::Less, TKey(3)))));
+        path.AddRange(TReadRange()
+            .LowerLimit(TReadLimit().KeyBound(TKeyBound(ERelation::Greater, TKey(4, 3))))
+            .UpperLimit(TReadLimit().KeyBound(TKeyBound(ERelation::LessOrEqual, TKey(5, 2)))));
+        path.AddRange(TReadRange()
+            .LowerLimit(TReadLimit().KeyBound(TKeyBound(ERelation::Greater, TKey(9, 0)))));
+
+        TVector<std::pair<i64, i64>> actualKeys;
+        auto reader = client->CreateTableReader<TNode>(path);
+        for (; reader->IsValid(); reader->Next()) {
+            const auto& row = reader->GetRow();
+            actualKeys.emplace_back(row["key1"].AsInt64(), row["key2"].AsInt64());
+        }
+
+        const TVector<std::pair<i64, i64>> expectedKeys = {
+            {2,0}, {2,1}, {2,2}, {2,3}, {2,4}, {2,5}, {2,6}, {2,7}, {2,8}, {2,9},
+            {4,4}, {4,5}, {4,6}, {4,7}, {4,8}, {4,9}, {5,0}, {5,1}, {5,2},
+            {9,1}, {9,2}, {9,3}, {9,4}, {9,5}, {9,6}, {9,7}, {9,8}, {9,9},
+        };
+        UNIT_ASSERT_VALUES_EQUAL(actualKeys, expectedKeys);
+    }
 
     void TestNodeReader(ENodeReaderFormat format, bool strictSchema) {
         TTestFixture fixture;

@@ -148,14 +148,19 @@ namespace NYT {
     using TYPath = TString;
     using TLocalFilePath = TString;
 
-    template <class T>
+    template <class T, class TDerived = void>
     struct TOneOrMany;
 
     // key column values
     using TKey = TOneOrMany<TNode>;
 
-    // key column names
-    using TKeyColumns = TOneOrMany<TString>;
+    class TKeyColumn;
+
+    // column names
+    using TColumnNames = TOneOrMany<TString>;
+
+    // key column descriptors.
+    class TKeyColumns;
 
     enum EValueType : int;
 
@@ -170,6 +175,10 @@ namespace NYT {
     class TColumnSchema;
 
     class TTableSchema;
+
+    enum class ERelation;
+
+    struct TKeyBound;
 
     struct TReadLimit;
 

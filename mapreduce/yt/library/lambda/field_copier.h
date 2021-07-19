@@ -26,11 +26,11 @@ template <class MsgFrom, class MsgTo,
 class TFieldCopier {
 public:
     TFieldCopier(const TKeyColumns& columns) {
-        for (auto& columnName : columns.Parts_) {
-            auto descFrom = DescriptorByColumn<MsgFrom>(columnName);
-            auto descTo = DescriptorByColumn<MsgTo>(columnName);
+        for (auto& keyColumn : columns.Parts_) {
+            auto descFrom = DescriptorByColumn<MsgFrom>(keyColumn.EnsureAscending().Name());
+            auto descTo = DescriptorByColumn<MsgTo>(keyColumn.EnsureAscending().Name());
 
-            NDetail::CheckFieldCopierTypes(columnName, descFrom, descTo);
+            NDetail::CheckFieldCopierTypes(keyColumn.EnsureAscending().Name(), descFrom, descTo);
             CopyDesc_.emplace_back(descFrom, descTo);
         }
     }
@@ -92,12 +92,13 @@ public:
     TFieldCopier(const TKeyColumns& columns) : Columns_(columns) {}
 
     void operator()(const MsgFrom& from, MsgTo& to) const {
-        for (auto& columnName : Columns_.Parts_) {
-            to[columnName] = from[columnName];
+        for (auto& keyColumn : Columns_.Parts_) {
+            to[keyColumn.EnsureAscending().Name()] = from[keyColumn.EnsureAscending().Name()];
         }
     }
 
 private:
+    // TODO(levysotsky): Replace with TColumnNames.
     TKeyColumns Columns_;
 };
 
@@ -108,7 +109,8 @@ template <class MsgFrom, class MsgTo>
 class TFieldCopier<MsgFrom, MsgTo, false, true> {
 public:
     TFieldCopier(const TKeyColumns& columns) {
-        for (auto& columnName : columns.Parts_) {
+        for (auto& keyColumn : columns.Parts_) {
+            const auto& columnName = keyColumn.EnsureAscending().Name();
             auto descTo = DescriptorByColumn<MsgTo>(columnName);
             NDetail::CheckFieldCopierTypes(columnName, descTo);
             CopyDesc_.emplace_back(columnName, descTo);
@@ -176,7 +178,8 @@ template <class MsgFrom, class MsgTo>
 class TFieldCopier<MsgFrom, MsgTo, true, false> {
 public:
     TFieldCopier(const TKeyColumns& columns) {
-        for (auto& columnName : columns.Parts_) {
+        for (auto& keyColumn : columns.Parts_) {
+            const auto& columnName = keyColumn.EnsureAscending().Name();
             auto descFrom = DescriptorByColumn<MsgFrom>(columnName);
             NDetail::CheckFieldCopierTypes(columnName, descFrom);
             CopyDesc_.emplace_back(descFrom, columnName);

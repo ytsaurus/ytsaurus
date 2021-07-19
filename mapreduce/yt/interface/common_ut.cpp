@@ -1,5 +1,7 @@
 #include "common_ut.h"
 
+#include "fluent.h"
+
 #include <library/cpp/yson/node/node_io.h>
 #include <library/cpp/yson/node/node_builder.h>
 
@@ -11,23 +13,136 @@
 
 using namespace NYT;
 
+template <class T>
+TString SaveToString(const T& obj)
+{
+    TString s;
+    TStringOutput out(s);
+    ::Save(&out, obj);
+    return s;
+}
+
+template <class T>
+T LoadFromString(TStringBuf s)
+{
+    TMemoryInput in(s);
+    T obj;
+    ::Load(&in, obj);
+    return obj;
+}
+
+template <class T>
+T SaveLoad(const T& obj)
+{
+    return LoadFromString<T>(SaveToString(obj));
+}
+
 Y_UNIT_TEST_SUITE(Common)
 {
-    Y_UNIT_TEST(TKeyBaseColunms)
+    Y_UNIT_TEST(KeyColumnsLegacy)
     {
         TKeyColumns keys1("a", "b");
-        UNIT_ASSERT((keys1.Parts_ == TVector<TString>{"a", "b"}));
+        UNIT_ASSERT((keys1.Parts_ == TKeyColumns{"a", "b"}));
 
         keys1.Add("c", "d");
-        UNIT_ASSERT((keys1.Parts_ == TVector<TString>{"a", "b", "c", "d"}));
+        UNIT_ASSERT((keys1.Parts_ == TKeyColumns{"a", "b", "c", "d"}));
 
         auto keys2 = TKeyColumns(keys1).Add("e", "f");
-        UNIT_ASSERT((keys1.Parts_ == TVector<TString>{"a", "b", "c", "d"}));
-        UNIT_ASSERT((keys2.Parts_ == TVector<TString>{"a", "b", "c", "d", "e", "f"}));
+        UNIT_ASSERT((keys1.Parts_ == TKeyColumns{"a", "b", "c", "d"}));
+        UNIT_ASSERT((keys2.Parts_ == TKeyColumns{"a", "b", "c", "d", "e", "f"}));
 
         auto keys3 = TKeyColumns(keys1).Add("e").Add("f").Add("g");
-        UNIT_ASSERT((keys1.Parts_ == TVector<TString>{"a", "b", "c", "d"}));
-        UNIT_ASSERT((keys3.Parts_ == TVector<TString>{"a", "b", "c", "d", "e", "f", "g"}));
+        UNIT_ASSERT((keys1.Parts_ == TKeyColumns{"a", "b", "c", "d"}));
+        UNIT_ASSERT((keys3.Parts_ == TKeyColumns{"a", "b", "c", "d", "e", "f", "g"}));
+    }
+
+    Y_UNIT_TEST(KeyColumn)
+    {
+        auto ascending = TKeyColumn("a");
+        UNIT_ASSERT_VALUES_EQUAL(ascending.Name(), "a");
+        UNIT_ASSERT_VALUES_EQUAL(ascending.SortOrder(), ESortOrder::SO_ASCENDING);
+        UNIT_ASSERT_VALUES_EQUAL(ascending, TKeyColumn("a", ESortOrder::SO_ASCENDING));
+        UNIT_ASSERT_VALUES_UNEQUAL(ascending, TKeyColumn("a", ESortOrder::SO_DESCENDING));
+
+        UNIT_ASSERT_NO_EXCEPTION(ascending.EnsureAscending());
+        UNIT_ASSERT_VALUES_EQUAL(static_cast<TString>(ascending), "a");
+        UNIT_ASSERT_VALUES_EQUAL(ascending, "a");
+
+        auto another = ascending;
+        UNIT_ASSERT_NO_EXCEPTION(another = "another");
+        UNIT_ASSERT_VALUES_EQUAL(another.Name(), "another");
+        UNIT_ASSERT_VALUES_EQUAL(another.SortOrder(), ESortOrder::SO_ASCENDING);
+        UNIT_ASSERT_VALUES_EQUAL(another, TKeyColumn("another", ESortOrder::SO_ASCENDING));
+        UNIT_ASSERT_VALUES_UNEQUAL(another, TKeyColumn("another", ESortOrder::SO_DESCENDING));
+
+        auto ascendingNode = BuildYsonNodeFluently().Value(ascending);
+        UNIT_ASSERT_VALUES_EQUAL(ascendingNode, TNode("a"));
+
+        UNIT_ASSERT_VALUES_EQUAL(SaveLoad(ascending), ascending);
+        UNIT_ASSERT_VALUES_UNEQUAL(SaveToString(ascending), SaveToString(TString("a")));
+
+        auto descending = TKeyColumn("a", ESortOrder::SO_DESCENDING);
+        UNIT_ASSERT_VALUES_EQUAL(descending.Name(), "a");
+        UNIT_ASSERT_VALUES_EQUAL(descending.SortOrder(), ESortOrder::SO_DESCENDING);
+        UNIT_ASSERT_VALUES_EQUAL(descending, TKeyColumn("a", ESortOrder::SO_DESCENDING));
+        UNIT_ASSERT_VALUES_UNEQUAL(descending, TKeyColumn("a", ESortOrder::SO_ASCENDING));
+
+        UNIT_ASSERT_EXCEPTION(descending.EnsureAscending(), yexception);
+        UNIT_ASSERT_EXCEPTION(static_cast<TString>(descending), yexception);
+        UNIT_ASSERT_EXCEPTION(descending == "a", yexception);
+        UNIT_ASSERT_EXCEPTION(descending = "a", yexception);
+
+        auto descendingNode = BuildYsonNodeFluently().Value(descending);
+        UNIT_ASSERT_VALUES_EQUAL(descendingNode, TNode()("name", "a")("sort_order", "descending"));
+
+        UNIT_ASSERT_VALUES_EQUAL(SaveLoad(descending), descending);
+        UNIT_ASSERT_VALUES_UNEQUAL(SaveToString(descending), SaveToString("a"));
+
+        UNIT_ASSERT_VALUES_EQUAL(::ToString(TKeyColumn("blah")), "blah");
+        UNIT_ASSERT_VALUES_EQUAL(::ToString(TKeyColumn("blah", ESortOrder::SO_DESCENDING)), "{\"name\"=\"blah\";\"sort_order\"=\"descending\"}");
+    }
+
+    Y_UNIT_TEST(KeyColumns)
+    {
+        TKeyColumns ascending("a", "b");
+        UNIT_ASSERT(ascending.Parts_ == (TKeyColumns{"a", "b"}));
+        UNIT_ASSERT_NO_EXCEPTION(ascending.EnsureAscending());
+        UNIT_ASSERT_VALUES_EQUAL(static_cast<TColumnNames>(ascending).Parts_, (TVector<TString>{"a", "b"}));
+        UNIT_ASSERT_VALUES_EQUAL(ascending.GetNames(), (TVector<TString>{"a", "b"}));
+
+        auto mixed = ascending;
+        mixed.Add(TKeyColumn("c", ESortOrder::SO_DESCENDING), "d");
+        UNIT_ASSERT((mixed.Parts_ != TVector<TKeyColumn>{"a", "b", "c", "d"}));
+        UNIT_ASSERT((mixed.Parts_ == TVector<TKeyColumn>{"a", "b", TKeyColumn("c", ESortOrder::SO_DESCENDING), "d"}));
+        UNIT_ASSERT_VALUES_EQUAL(mixed.GetNames(), (TVector<TString>{"a", "b", "c", "d"}));
+        UNIT_ASSERT_EXCEPTION(mixed.EnsureAscending(), yexception);
+        UNIT_ASSERT_EXCEPTION(static_cast<TColumnNames>(mixed), yexception);
+    }
+
+    Y_UNIT_TEST(KeyBound)
+    {
+        auto keyBound = TKeyBound(ERelation::Greater, TKey(7, "a", TNode()("x", "y")));
+        UNIT_ASSERT_VALUES_EQUAL(keyBound.Relation(), ERelation::Greater);
+        UNIT_ASSERT_EQUAL(keyBound.Key(), TKey(7, "a", TNode()("x", "y")));
+
+        auto keyBound1 = TKeyBound().Relation(ERelation::Greater).Key(TKey(7, "a", TNode()("x", "y")));
+        auto expectedNode = TNode()
+            .Add(">")
+            .Add(TNode().Add(7).Add("a").Add(TNode()("x", "y")));
+
+        UNIT_ASSERT_VALUES_EQUAL(expectedNode, BuildYsonNodeFluently().Value(keyBound));
+        UNIT_ASSERT_VALUES_EQUAL(expectedNode, BuildYsonNodeFluently().Value(keyBound1));
+
+        keyBound.Relation(ERelation::LessOrEqual);
+        keyBound.Key(TKey("A", 7));
+        UNIT_ASSERT_VALUES_EQUAL(keyBound.Relation(), ERelation::LessOrEqual);
+        UNIT_ASSERT_EQUAL(keyBound.Key(), TKey("A", 7));
+
+        UNIT_ASSERT_VALUES_EQUAL(
+            BuildYsonNodeFluently().Value(keyBound),
+            TNode()
+                .Add("<=")
+                .Add(TNode().Add("A").Add(7)));
     }
 
     Y_UNIT_TEST(TTableSchema)

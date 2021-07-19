@@ -240,24 +240,37 @@ ENodeReaderFormat GetNodeReaderFormat(const TSpec& spec, bool allowSkiff)
     }
 }
 
+static void KeyColumnsToNames(const TKeyColumns& keyColumns, THashSet<TString>* result)
+{
+    auto names = keyColumns.GetNames();
+    result->insert(names.begin(), names.end());
+}
+
+static THashSet<TString> KeyColumnsToNames(const TKeyColumns& keyColumns)
+{
+    THashSet<TString> columnNames;
+    KeyColumnsToNames(keyColumns, &columnNames);
+    return columnNames;
+}
+
 THashSet<TString> GetColumnsUsedInOperation(const TJoinReduceOperationSpec& spec)
 {
-    return THashSet<TString>(spec.JoinBy_.Parts_.begin(), spec.JoinBy_.Parts_.end());
+    return KeyColumnsToNames(spec.JoinBy_);
 }
 
 THashSet<TString> GetColumnsUsedInOperation(const TReduceOperationSpec& spec) {
-    THashSet<TString> result(spec.SortBy_.Parts_.begin(), spec.SortBy_.Parts_.end());
-    result.insert(spec.ReduceBy_.Parts_.begin(), spec.ReduceBy_.Parts_.end());
+    auto result = KeyColumnsToNames(spec.SortBy_);
+    KeyColumnsToNames(spec.ReduceBy_, &result);
     if (spec.JoinBy_) {
-        result.insert(spec.JoinBy_->Parts_.begin(), spec.JoinBy_->Parts_.end());
+        KeyColumnsToNames(*spec.JoinBy_, &result);
     }
     return result;
 }
 
 THashSet<TString> GetColumnsUsedInOperation(const TMapReduceOperationSpec& spec)
 {
-    THashSet<TString> result(spec.SortBy_.Parts_.begin(), spec.SortBy_.Parts_.end());
-    result.insert(spec.ReduceBy_.Parts_.begin(), spec.ReduceBy_.Parts_.end());
+    auto result = KeyColumnsToNames(spec.SortBy_);
+    KeyColumnsToNames(spec.ReduceBy_, &result);
     return result;
 }
 
@@ -2372,7 +2385,7 @@ TOperationId ExecuteRemoteCopy(
             Y_ENSURE_EX(spec.CopyAttributes_, TApiUsageError() <<
                 "Specifying nonempty AttributeKeys in RemoteCopy "
                 "doesn't make sense without CopyAttributes == true");
-            fluent.Item("attribute_keys").Value(spec.AttributeKeys_);
+            fluent.Item("attribute_keys").List(spec.AttributeKeys_);
         })
         .Do(std::bind(BuildCommonOperationPart<TRemoteCopyOperationSpec>, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
