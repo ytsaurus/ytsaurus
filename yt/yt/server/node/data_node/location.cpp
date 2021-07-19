@@ -207,6 +207,12 @@ const TString& TLocation::GetDiskFamily() const
     return Config_->DiskFamily;
 }
 
+bool TLocation::IsDirectIOEnabled() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+    return Config_->EnableDirectIO;
+}
+
 TString TLocation::GetMediumName() const
 {
     VERIFY_THREAD_AFFINITY_ANY();

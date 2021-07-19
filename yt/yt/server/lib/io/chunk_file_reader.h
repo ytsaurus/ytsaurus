@@ -50,6 +50,7 @@ public:
         NChunkClient::TChunkId chunkId,
         TString fileName,
         bool validateBlocksChecksums = true,
+        bool useDirectIO = false,
         IBlocksExtCache* blocksExtCache = nullptr);
 
     TFuture<std::vector<NChunkClient::TBlock>> ReadBlocks(
@@ -81,6 +82,7 @@ private:
     const NChunkClient::TChunkId ChunkId_;
     const TString FileName_;
     const bool ValidateBlockChecksums_;
+    const bool UseDirectIO_;
     IBlocksExtCache* const BlocksExtCache_;
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, DataFileLock_);
