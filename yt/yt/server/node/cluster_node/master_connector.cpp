@@ -164,20 +164,6 @@ public:
         jobController->SetResourceLimitsOverrides(response.resource_limits_overrides());
     }
 
-    virtual void RegisterStaticAlert(const TError& alert) override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        YT_VERIFY(!alert.IsOK());
-
-        YT_LOG_WARNING(alert, "Static alert registered");
-
-        {
-            auto guard = Guard(StaticAlertsLock_);
-            StaticAlerts_.push_back(alert);
-        }
-    }
-
     virtual NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -268,9 +254,6 @@ private:
 
     std::atomic<TNodeId> NodeId_ = InvalidNodeId;
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, StaticAlertsLock_);
-    std::vector<TError> StaticAlerts_;
-
     YT_DECLARE_SPINLOCK(TAdaptiveLock, LocalDescriptorLock_);
     NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 
@@ -291,11 +274,6 @@ private:
         for (const auto& dynamicAlert : alerts) {
             YT_VERIFY(!dynamicAlert.IsOK());
             YT_LOG_WARNING(dynamicAlert, "Dynamic alert registered");
-        }
-
-        {
-            auto guard = Guard(StaticAlertsLock_);
-            alerts.insert(alerts.end(), StaticAlerts_.begin(), StaticAlerts_.end());
         }
 
         return alerts;

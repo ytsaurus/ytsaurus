@@ -1601,6 +1601,8 @@ public:
         const TVolumeManagerConfigPtr& config,
         IBootstrap* bootstrap)
     {
+
+        bootstrap->SubscribePopulateAlerts(BIND(&TPortoVolumeManager::PopulateAlerts, MakeWeak(this)));
         // Create locations.
         for (int index = 0; index < std::ssize(config->LayerLocations); ++index) {
             const auto& locationConfig = config->LayerLocations[index];
@@ -1624,7 +1626,7 @@ public:
                 auto error = TError("Layer location at %v is disabled", locationConfig->Path)
                     << ex;
                 YT_LOG_WARNING(error);
-                bootstrap->RegisterStaticAlert(error);
+                Alerts_.push_back(error);
             }
         }
 
@@ -1693,6 +1695,8 @@ private:
 
     TLayerCachePtr LayerCache_;
 
+    std::vector<TError> Alerts_;
+
     TLayerLocationPtr PickLocation()
     {
         return DoPickLocation(Locations_, [] (const TLayerLocationPtr& candidate, const TLayerLocationPtr& current) {
@@ -1744,6 +1748,11 @@ private:
         } catch (const std::exception& ex) {
             volumeStatePromise.TrySet(TError(ex));
         }
+    }
+
+    void PopulateAlerts(std::vector<TError>* alerts)
+    {
+        std::copy(Alerts_.begin(), Alerts_.end(), std::back_inserter(*alerts));
     }
 };
 

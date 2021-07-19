@@ -279,6 +279,8 @@ private:
 
     TLocationUuid Uuid_;
 
+    TAtomicObject<TError> Alert_;
+
     YT_DECLARE_SPINLOCK(TAdaptiveLock, MediumLock_);
     TAtomicObject<TString> MediumName_;
     std::atomic<NChunkClient::TMediumDescriptor*> CurrentMediumDescriptor_ = nullptr;
@@ -316,6 +318,8 @@ private:
 
     void OnHealthCheckFailed(const TError& error);
     void MarkAsDisabled(const TError& error);
+
+    void PopulateAlerts(std::vector<TError>* alerts);
 
     virtual i64 GetAdditionalSpace() const;
 

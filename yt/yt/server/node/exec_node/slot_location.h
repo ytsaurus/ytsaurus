@@ -145,6 +145,8 @@ private:
     //! If location is disabled, this error contains the reason.
     TAtomicObject<TError> Error_;
 
+    TAtomicObject<TError> Alert_;
+
     void ValidateEnabled() const;
 
     static void ValidateNotExists(const TString& path);
@@ -158,6 +160,8 @@ private:
     void UpdateDiskResources();
 
     void UpdateSlotLocationStatistics();
+
+    void PopulateAlerts(std::vector<TError>* alerts);
 
     TString GetConfigPath(int slotIndex) const;
 

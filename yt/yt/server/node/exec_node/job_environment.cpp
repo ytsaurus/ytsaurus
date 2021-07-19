@@ -67,6 +67,8 @@ public:
 
     virtual void Init(int slotCount, double cpuLimit) override
     {
+        Bootstrap_->SubscribePopulateAlerts(
+            BIND(&TProcessJobEnvironmentBase::PopulateAlerts, MakeWeak(this)));
         // Shutdown all possible processes.
         try {
             DoInit(slotCount, cpuLimit);
@@ -171,6 +173,8 @@ protected:
 
     bool Enabled_ = true;
 
+    TAtomicObject<TError> Alert_;
+
     virtual void DoInit(int slotCount, double /*cpuLimit*/)
     {
         for (int slotIndex = 0; slotIndex < slotCount; ++slotIndex) {
@@ -221,13 +225,21 @@ protected:
         YT_LOG_ERROR(alert);
         YT_VERIFY(!Logger.GetAbortOnAlert());
 
-        Bootstrap_->RegisterStaticAlert(alert);
+        Alert_.Store(alert);
     }
 
     virtual void AddArguments(TProcessBasePtr /*process*/, int /*slotIndex*/)
     { }
 
 private:
+    void PopulateAlerts(std::vector<TError>* alerts)
+    {
+        auto alert = Alert_.Load();
+        if (!alert.IsOK()) {
+            alerts->push_back(alert);
+        }
+    }
+
     virtual TProcessBasePtr CreateJobProxyProcess(int /*slotIndex*/, TJobId /* jobId */)
     {
         return New<TSimpleProcess>(JobProxyProgramName);

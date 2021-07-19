@@ -115,6 +115,8 @@ TFuture<void> TSlotLocation::Initialize()
             .Via(HeavyInvoker_));
         HealthChecker_->Start();
 
+        Bootstrap_->SubscribePopulateAlerts(BIND(&TSlotLocation::PopulateAlerts, MakeWeak(this)));
+
         DiskResourcesUpdateExecutor_->Start();
         SlotLocationStatisticsUpdateExecutor_->Start();
     })
@@ -730,7 +732,7 @@ void TSlotLocation::Disable(const TError& error)
     YT_LOG_ERROR(alert);
     YT_VERIFY(!Logger.GetAbortOnAlert());
 
-    Bootstrap_->RegisterStaticAlert(alert);
+    Alert_.Store(alert);
 
     DiskResourcesUpdateExecutor_->Stop();
 }
@@ -844,6 +846,14 @@ void TSlotLocation::UpdateSlotLocationStatistics()
     YT_LOG_DEBUG("Slot location statistics updated (UsedSpace: %v, AvailableSpace: %v)",
         slotLocationStatistics.used_space(),
         slotLocationStatistics.available_space());
+}
+
+void TSlotLocation::PopulateAlerts(std::vector<TError>* alerts)
+{
+    auto alert = Alert_.Load();
+    if (!alert.IsOK()) {
+        alerts->push_back(alert);
+    }
 }
 
 NNodeTrackerClient::NProto::TDiskLocationResources TSlotLocation::GetDiskResources() const
