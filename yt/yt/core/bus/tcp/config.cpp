@@ -10,6 +10,24 @@ TTcpDispatcherConfig::TTcpDispatcherConfig()
         .Default(8);
 }
 
+TTcpDispatcherConfigPtr TTcpDispatcherConfig::ApplyDynamic(
+    const TTcpDispatcherDynamicConfigPtr& dynamicConfig) const
+{
+    auto mergedConfig = New<TTcpDispatcherConfig>();
+    mergedConfig->ThreadPoolSize = dynamicConfig->ThreadPoolSize.value_or(ThreadPoolSize);
+    mergedConfig->Postprocess();
+    return mergedConfig;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTcpDispatcherDynamicConfig::TTcpDispatcherDynamicConfig()
+{
+    RegisterParameter("thread_pool_size", ThreadPoolSize)
+        .Optional()
+        .GreaterThan(0);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTcpBusServerConfig::TTcpBusServerConfig()

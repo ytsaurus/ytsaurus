@@ -148,7 +148,7 @@ void TTcpDispatcher::TImpl::DisableNetworking()
     NetworkingDisabled_.store(true);
 }
 
-void TTcpDispatcher::TImpl::ValidateNetworkingNotDisabled(EMessageDirection messageDirection)
+void TTcpDispatcher::TImpl::ValidateNetworkingNotDisabled(EMessageDirection messageDirection) const
 {
     if (Y_UNLIKELY(NetworkingDisabled_.load())) {
         YT_LOG_FATAL("Networking is disabled with global switch, %lv message detected",
@@ -171,8 +171,11 @@ IPollerPtr TTcpDispatcher::TImpl::GetXferPoller()
 void TTcpDispatcher::TImpl::Configure(const TTcpDispatcherConfigPtr& config)
 {
     auto guard = WriterGuard(PollerLock_);
-    YT_VERIFY(!XferPoller_);
     Config_ = config;
+
+    if (XferPoller_) {
+        XferPoller_->Reconfigure(Config_->ThreadPoolSize);
+    }
 }
 
 void TTcpDispatcher::TImpl::RegisterConnection(TTcpConnectionPtr connection)
@@ -182,12 +185,12 @@ void TTcpDispatcher::TImpl::RegisterConnection(TTcpConnectionPtr connection)
 
 void TTcpDispatcher::TImpl::StartPeriodicExecutors()
 {
-    auto pollerPtr = GetXferPoller();
-    if (!pollerPtr) {
+    auto poller = GetXferPoller();
+    if (!poller) {
         return;
     }
 
-    auto invoker = pollerPtr->GetInvoker();
+    auto invoker = poller->GetInvoker();
 
     auto guard = Guard(PeriodicExecutorsLock_);
     if (!LivenessCheckExecutor_) {

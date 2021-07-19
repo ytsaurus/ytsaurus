@@ -74,6 +74,8 @@ private:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 TThreadPool::TThreadPool(
     int threadCount,
     const TString& threadNamePrefix)

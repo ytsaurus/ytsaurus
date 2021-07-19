@@ -23,7 +23,10 @@ namespace NYT::NConcurrency {
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr auto PollerThreadQuantum = TDuration::MilliSeconds(100);
+
 static constexpr int MaxEventsPerPoll = 16;
+
+static constexpr int MaxThreadCount = 64;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,7 +40,7 @@ struct TPollableCookie
         return static_cast<TPollableCookie*>(pollable->GetCookie());
     }
 
-    std::atomic<int> UnregisterSeenBy = 0;
+    std::atomic<int> PendingUnregisterCount = -1;
     std::atomic<bool> UnregisterLock = false;
     const TPromise<void> UnregisterPromise = NewPromise<void>();
 };
@@ -82,32 +85,77 @@ class TThreadPoolPoller
 {
 public:
     TThreadPoolPoller(int threadCount, const TString& threadNamePrefix)
-        : ThreadCount_(threadCount)
-        , ThreadNamePrefix_(threadNamePrefix)
+        : ThreadNamePrefix_(threadNamePrefix)
         , Logger(ConcurrencyLogger.WithTag("ThreadNamePrefix: %v", ThreadNamePrefix_))
-        , Threads_(ThreadCount_)
-        , StartLatch_(ThreadCount_)
+        , StartLatch_(threadCount)
+        , Threads_(threadCount)
         , PollerImpl_(std::make_shared<TPollerImpl>())
         , Invoker_(New<TInvoker>(this))
     {
-        for (int index = 0; index < ThreadCount_; ++index) {
+        for (int index = 0; index < threadCount; ++index) {
             Threads_[index] = New<TThread>(Invoker_->GetCallbackEventCount(), this, index);
         }
     }
 
+    ~TThreadPoolPoller()
+    {
+        Shutdown();
+    }
+
     void Start()
     {
-        for (const auto& thread : Threads_) {
-            thread->Start();
+        {
+            auto guard = Guard(SpinLock_);
+            for (const auto& thread : Threads_) {
+                thread->Start();
+            }
         }
         StartLatch_.Wait();
         Invoker_->Start();
         YT_LOG_INFO("Thread pool poller started");
     }
 
-    ~TThreadPoolPoller()
+    virtual void Reconfigure(int threadCount) override
     {
-        Shutdown();
+        if (ShutdownStarted_.load()) {
+            return;
+        }
+
+        threadCount = std::clamp(threadCount, 1, MaxThreadCount);
+
+        int oldThreadCount;
+        std::vector<TThreadPtr> newThreads;
+        {
+            auto guard = Guard(SpinLock_);
+            if (threadCount == std::ssize(Threads_)) {
+                return;
+            }
+
+            oldThreadCount = std::ssize(Threads_);
+
+            while (threadCount > std::ssize(Threads_)) {
+                Threads_.push_back(New<TThread>(
+                    Invoker_->GetCallbackEventCount(),
+                    this,
+                    std::ssize(Threads_)));
+                newThreads.push_back(Threads_.back());
+            }
+
+            while (threadCount < std::ssize(Threads_)) {
+                auto thread = Threads_.back();
+                Threads_.pop_back();
+                YT_VERIFY(DyingThreads_.emplace(thread->GetId(), thread).second);
+                thread->MarkDying();
+            }
+        }
+
+        for (const auto& thread : newThreads) {
+            thread->Start();
+        }
+
+        YT_LOG_DEBUG("Poller thread pool size reconfigured (ThreadPoolSize: %v -> %v)",
+            oldThreadCount,
+            threadCount);
     }
 
     // IPoller implementation.
@@ -146,8 +194,11 @@ public:
 
         YT_LOG_INFO("Shutting down poller threads");
 
-        for (const auto& thread : Threads_) {
-            thread->Shutdown();
+        {
+            auto guard = Guard(SpinLock_);
+            for (const auto& thread : Threads_) {
+                thread->Shutdown();
+            }
         }
 
         YT_VERIFY(Invoker_->DrainQueue());
@@ -198,8 +249,12 @@ public:
             YT_VERIFY(!ShutdownFinished_.load());
 
             if (!cookie->UnregisterLock.exchange(true)) {
+                cookie->PendingUnregisterCount = std::ssize(Threads_) + std::ssize(DyingThreads_);
                 for (const auto& thread : Threads_) {
                     thread->ScheduleUnregister(pollable);
+                }
+                for (const auto& thread : DyingThreads_) {
+                    thread.second->ScheduleUnregister(pollable);
                 }
                 firstTime = true;
             }
@@ -243,15 +298,7 @@ public:
         return Invoker_;
     }
 
-    TString GenerateThreadName(int index)
-    {
-        return ThreadCount_ == 1
-            ? ThreadNamePrefix_
-            : Format("%v:%v", ThreadNamePrefix_, index);
-    }
-
 private:
-    const int ThreadCount_;
     const TString ThreadNamePrefix_;
 
     const NLogging::TLogger Logger;
@@ -266,20 +313,29 @@ private:
             int index)
             : TSchedulerThread(
                 std::move(callbackEventCount),
-                poller->GenerateThreadName(index),
+                Format("%v:%v", poller->ThreadNamePrefix_, index),
                 GetThreadTags("Poller"))
             , Poller_(poller)
-            , Logger(Poller_->Logger.WithTag("ThreadIndex: %v", index))
             , ExecuteCallback_(BIND([this] {
                 HandleEvents();
                 HandleRetry();
                 HandleUnregister();
             }))
+            , DieCallback_(BIND([this] {
+                Die();
+                Shutdown();
+            }))
+            , Logger(Poller_->Logger.WithTag("ThreadIndex: %v", index))
         { }
 
         void ScheduleUnregister(IPollablePtr pollable)
         {
             UnregisterQueue_.Enqueue(std::move(pollable));
+        }
+
+        void MarkDying()
+        {
+            YT_VERIFY(!Dying_.exchange(true));
         }
 
     protected:
@@ -290,15 +346,18 @@ private:
 
         virtual TClosure BeginExecute() override
         {
-            if (ExecutingCallbacks_) {
+            if (MustExecuteCallbacks_) {
                 SetCurrentInvoker(Poller_->Invoker_);
 
-                auto result = Poller_->Invoker_->ExecuteCallbacks();
-                if (result) {
-                    return result;
+                if (auto callback = Poller_->Invoker_->DequeCallback()) {
+                    return callback;
+                } else {
+                    MustExecuteCallbacks_ = false;
                 }
+            }
 
-                ExecutingCallbacks_ = false;
+            if (Dying_.load()) {
+                return DieCallback_;
             }
 
             return ExecuteCallback_;
@@ -316,11 +375,16 @@ private:
 
     private:
         TThreadPoolPoller* const Poller_;
-        const NLogging::TLogger Logger;
         const TClosure ExecuteCallback_;
+        const TClosure DieCallback_;
 
-        bool ExecutingCallbacks_ = false;
+        const NLogging::TLogger Logger;
+
+        bool MustExecuteCallbacks_ = false;
         TMultipleProducerSingleConsumerLockFreeStack<IPollablePtr> UnregisterQueue_;
+
+        std::atomic<bool> Dying_ = false;
+
 
         void HandleEvents()
         {
@@ -345,7 +409,7 @@ private:
                     pollable->OnEvent(control);
                 } else {
                     YT_LOG_TRACE("Got poller callback");
-                    ExecutingCallbacks_ = true;
+                    MustExecuteCallbacks_ = true;
                     Poller_->Invoker_->ClearWakeupHandle();
                 }
             }
@@ -374,7 +438,9 @@ private:
             std::vector<IPollablePtr> deadPollables;
             for (const auto& pollable : pollables) {
                 auto* cookie = TPollableCookie::FromPollable(pollable);
-                if (++cookie->UnregisterSeenBy == Poller_->ThreadCount_) {
+                auto pendingUnregisterCount = --cookie->PendingUnregisterCount;
+                YT_VERIFY(pendingUnregisterCount >= 0);
+                if (pendingUnregisterCount == 0) {
                     deadPollables.push_back(pollable);
                 }
             }
@@ -401,18 +467,26 @@ private:
                 cookie->UnregisterPromise.Set();
             }
         }
+
+        void Die()
+        {
+            auto guard = Guard(Poller_->SpinLock_);
+
+            YT_VERIFY(Poller_->DyingThreads_.erase(GetId()) == 1);
+        }
     };
 
     using TThreadPtr = TIntrusivePtr<TThread>;
-
-    std::vector<TThreadPtr> Threads_;
 
     TCountDownLatch StartLatch_;
     std::atomic<bool> ShutdownStarted_ = false;
     std::atomic<bool> ShutdownFinished_ = false;
 
+    // TODO(akozhikhov): We could try using mutex here.
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     THashSet<IPollablePtr> Pollables_;
+    std::vector<TThreadPtr> Threads_;
+    THashMap<TThreadId, TThreadPtr> DyingThreads_;
 
     TLockFreeQueue<IPollablePtr> RetryQueue_;
 
@@ -445,7 +519,7 @@ private:
             ShutdownStarted_.store(true);
         }
 
-        std::shared_ptr<TEventCount> GetCallbackEventCount()
+        const std::shared_ptr<TEventCount>& GetCallbackEventCount() const
         {
             return CallbackEventCount_;
         }
@@ -455,10 +529,10 @@ private:
         {
             Callbacks_.Enqueue(std::move(callback));
             DrainQueueIfNeeded();
-            WakeupHandle_.Raise();
+            RaiseWakeupHandle();
         }
 
-        TClosure ExecuteCallbacks()
+        TClosure DequeCallback()
         {
             TClosure callback;
             if (!Callbacks_.Dequeue(&callback)) {
@@ -505,9 +579,9 @@ private:
 
     private:
         const std::shared_ptr<TPollerImpl> PollerImpl_;
+        const std::shared_ptr<TEventCount> CallbackEventCount_;
 
         std::atomic<bool> ShutdownStarted_ = false;
-        std::shared_ptr<TEventCount> CallbackEventCount_;
         TLockFreeQueue<TClosure> Callbacks_;
         TNotificationHandle WakeupHandle_;
 
@@ -527,6 +601,8 @@ private:
 
     const TIntrusivePtr<TInvoker> Invoker_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 IPollerPtr CreateThreadPoolPoller(
     int threadCount,

@@ -58,6 +58,7 @@ class TSingletonsDynamicConfig
 public:
     std::optional<TDuration> SpinlockHiccupThreshold;
     NYTAlloc::TYTAllocConfigPtr YTAlloc;
+    NBus::TTcpDispatcherDynamicConfigPtr TcpDispatcher;
     NRpc::TDispatcherDynamicConfigPtr RpcDispatcher;
     NChunkClient::TDispatcherDynamicConfigPtr ChunkClientDispatcher;
     NProfiling::TProfileManagerDynamicConfigPtr ProfileManager;
