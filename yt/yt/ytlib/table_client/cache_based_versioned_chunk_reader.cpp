@@ -108,9 +108,6 @@ public:
                 RetainedUncompressedBlocks_.end() - 1);
         }
 
-        std::vector<TVersionedRow> rows;
-        rows.reserve(options.MaxRowsPerRead);
-
         MemoryPool_.Clear();
 
         if (Finished_) {
@@ -119,7 +116,8 @@ public:
             return nullptr;
         }
 
-        Finished_ = !DoRead(&rows);
+        std::vector<TVersionedRow> rows;
+        std::tie(rows, Finished_) = DoRead(options);
 
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
@@ -160,8 +158,8 @@ protected:
 
     TCodecStatistics DecompressionStatistics_;
 
-    //! Returns |false| on EOF.
-    virtual bool DoRead(std::vector<TVersionedRow>* rows) = 0;
+    //! First is read rows, second is EOF mark.
+    virtual std::tuple<std::vector<TVersionedRow>, bool> DoRead(const TRowBatchReadOptions& options) = 0;
 
     int GetBlockIndex(TLegacyKey key)
     {
@@ -361,16 +359,24 @@ private:
     int KeyIndex_ = 0;
 
 
-    virtual bool DoRead(std::vector<TVersionedRow>* rows) override
+    virtual std::tuple<std::vector<TVersionedRow>, bool> DoRead(const TRowBatchReadOptions& options) override
     {
+        std::vector<TVersionedRow> rows;
+        rows.reserve(
+            std::min(
+                std::ssize(Keys_) - KeyIndex_,
+                options.MaxRowsPerRead));
+
         i64 rowCount = 0;
         i64 dataWeight = 0;
 
-        while (KeyIndex_ < std::ssize(Keys_) && rows->size() < rows->capacity()) {
-            rows->push_back(Lookup(Keys_[KeyIndex_++]));
+        while (rows.size() < rows.capacity()) {
+            YT_VERIFY(KeyIndex_ < std::ssize(Keys_));
+
+            rows.push_back(Lookup(Keys_[KeyIndex_++]));
 
             ++rowCount;
-            dataWeight += GetDataWeight(rows->back());
+            dataWeight += GetDataWeight(rows.back());
         }
 
         this->RowCount_ += rowCount;
@@ -378,7 +384,10 @@ private:
         this->ChunkState_->PerformanceCounters->StaticChunkRowLookupCount += rowCount;
         this->ChunkState_->PerformanceCounters->StaticChunkRowLookupDataWeightCount += dataWeight;
 
-        return KeyIndex_ < std::ssize(Keys_);
+        return {
+            std::move(rows),
+            KeyIndex_ == std::ssize(Keys_)
+        };
     }
 
     TVersionedRow Lookup(TLegacyKey key)
@@ -587,20 +596,23 @@ private:
     bool UpperBoundCheckNeeded_ = false;
     bool NeedLimitUpdate_ = true;
 
-    virtual bool DoRead(std::vector<TVersionedRow>* rows) override
+    virtual std::tuple<std::vector<TVersionedRow>, bool> DoRead(const TRowBatchReadOptions& options) override
     {
         if (NeedLimitUpdate_) {
             if (UpdateLimits()) {
                 NeedLimitUpdate_ = false;
             } else {
-                return false;
+                return {{}, true};
             }
         }
+
+        std::vector<TVersionedRow> rows;
+        rows.reserve(options.MaxRowsPerRead);
 
         i64 rowCount = 0;
         i64 dataWeight = 0;
 
-        while (rows->size() < rows->capacity()) {
+        while (rows.size() < rows.capacity()) {
             if (UpperBoundCheckNeeded_ && BlockReader_->GetKey() >= UpperBound_) {
                 NeedLimitUpdate_ = true;
                 break;
@@ -608,7 +620,7 @@ private:
 
             auto row = this->CaptureRow(BlockReader_.get());
             if (row) {
-                rows->push_back(row);
+                rows.push_back(row);
 
                 ++rowCount;
                 dataWeight += GetDataWeight(row);
@@ -630,7 +642,10 @@ private:
         this->ChunkState_->PerformanceCounters->StaticChunkRowReadCount += rowCount;
         this->ChunkState_->PerformanceCounters->StaticChunkRowReadDataWeightCount += dataWeight;
 
-        return true;
+        return {
+            std::move(rows),
+            false
+        };
     }
 
     void UpdateBlockReader()

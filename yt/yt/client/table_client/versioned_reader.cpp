@@ -28,13 +28,13 @@ public:
         }
 
         std::vector<TVersionedRow> rows;
-        int count = std::min<i64>(options.MaxRowsPerRead, RowCount_);
-        rows.reserve(count);
-        for (int index = 0; index < count; ++index) {
+        int rowCount = std::min<i64>(options.MaxRowsPerRead, RowCount_);
+        rows.reserve(rowCount);
+        for (int index = 0; index < rowCount; ++index) {
             rows.push_back(TVersionedRow());
         }
 
-        RowCount_ -= count;
+        RowCount_ -= rowCount;
 
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows)));
     }

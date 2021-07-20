@@ -80,12 +80,12 @@ public:
         YT_VERIFY(FetchedRows_.size() == LookupKeys_.size());
 
         std::vector<TVersionedRow> rows;
-        int batchSize = std::min(
-            options.MaxRowsPerRead,
-            static_cast<i64>(LookupKeys_.size()) - RowCount_);
-        rows.reserve(batchSize);
+        rows.reserve(
+            std::min(
+                std::ssize(LookupKeys_) - RowCount_,
+                options.MaxRowsPerRead));
 
-        for (int index = 0; index < batchSize; ++index) {
+        while (rows.size() < rows.capacity()) {
             rows.push_back(FetchedRows_[RowCount_++]);
             DataWeight_ += GetDataWeight(rows.back());
         }

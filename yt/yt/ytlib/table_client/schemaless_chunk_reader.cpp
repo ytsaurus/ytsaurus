@@ -959,7 +959,11 @@ IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowB
     MemoryPool_.Clear();
 
     std::vector<TUnversionedRow> rows;
-    rows.reserve(options.MaxRowsPerRead);
+    rows.reserve(
+        std::min(
+            std::ssize(Keys_) - RowCount_,
+            options.MaxRowsPerRead));
+
     i64 dataWeight = 0;
 
     auto success = [&] () {
@@ -974,7 +978,8 @@ IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowB
                 return false;
             }
 
-            while (std::ssize(rows) < options.MaxRowsPerRead && RowCount_ < std::ssize(Keys_)) {
+            while (rows.size() < rows.capacity()) {
+                YT_VERIFY(RowCount_ < std::ssize(Keys_));
                 rows.push_back(TUnversionedRow());
                 ++RowCount_;
             }
@@ -988,13 +993,11 @@ IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowB
             return true;
         }
 
-        while (std::ssize(rows) < options.MaxRowsPerRead &&
-               dataWeight < options.MaxDataWeightPerRead)
+        while (
+            rows.size() < rows.capacity() &&
+            dataWeight < options.MaxDataWeightPerRead)
         {
-            if (RowCount_ == std::ssize(Keys_)) {
-                BlockEnded_ = true;
-                return true;
-            }
+            YT_VERIFY(RowCount_ < std::ssize(Keys_));
 
             if (!KeyFilterTest_[RowCount_]) {
                 rows.push_back(TUnversionedRow());
@@ -1019,6 +1022,10 @@ IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowB
             }
 
             ++RowCount_;
+        }
+
+        if (RowCount_ == std::ssize(Keys_)) {
+            BlockEnded_ = true;
         }
 
         return true;
