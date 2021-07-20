@@ -20,6 +20,27 @@ const (
 	TypeAny     ValueType = 0x11 - typeOffset
 )
 
+func (t ValueType) String() string {
+	switch t {
+	case TypeNull:
+		return "null"
+	case TypeInt64:
+		return "int64"
+	case TypeUint64:
+		return "uint64"
+	case TypeFloat64:
+		return "float64"
+	case TypeBool:
+		return "bool"
+	case TypeBytes:
+		return "bytes"
+	case TypeAny:
+		return "any"
+	default:
+		return ""
+	}
+}
+
 type Value struct {
 	ID        uint16
 	Type      ValueType
