@@ -1080,7 +1080,7 @@ bool TSchedulerCompositeElement::HasAggressivelyStarvingElements(TScheduleJobsCo
         return true;
     }
 
-    for (const auto& child : EnabledChildren_) {
+    for (const auto& child : SchedulableChildren_) {
         if (child->HasAggressivelyStarvingElements(context)) {
             return true;
         }
