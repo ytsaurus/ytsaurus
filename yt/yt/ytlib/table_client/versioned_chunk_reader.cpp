@@ -536,7 +536,10 @@ public:
         YT_VERIFY(options.MaxRowsPerRead > 0);
 
         std::vector<TVersionedRow> rows;
-        rows.reserve(options.MaxRowsPerRead);
+        rows.reserve(
+            std::min(
+                std::ssize(Keys_) - KeyIndex_,
+                options.MaxRowsPerRead));
 
         MemoryPool_.Clear();
 
@@ -554,7 +557,8 @@ public:
                 return nullptr;
             }
 
-            while (rows.size() < rows.capacity() && KeyIndex_ < std::ssize(Keys_)) {
+            while (rows.size() < rows.capacity()) {
+                YT_VERIFY(KeyIndex_ < std::ssize(Keys_));
                 rows.push_back(TVersionedRow());
                 ++KeyIndex_;
             }
@@ -574,10 +578,7 @@ public:
         auto hasHunkColumns = ChunkMeta_->GetChunkSchema()->HasHunkColumns();
 
         while (rows.size() < rows.capacity()) {
-            if (KeyIndex_ == std::ssize(Keys_)) {
-                BlockEnded_ = true;
-                break;
-            }
+            YT_VERIFY(KeyIndex_ < std::ssize(Keys_));
 
             if (!KeyFilterTest_[KeyIndex_]) {
                 rows.push_back(TVersionedRow());
@@ -614,6 +615,10 @@ public:
                     YT_ABORT();
                 }
             }
+        }
+
+        if (KeyIndex_ == std::ssize(Keys_)) {
+            BlockEnded_ = true;
         }
 
         RowCount_ += rowCount;

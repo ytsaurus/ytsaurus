@@ -93,6 +93,7 @@ public:
     {
         std::vector<TUnversionedRow> rows;
         rows.reserve(options.MaxRowsPerRead);
+
         i64 dataWeight = 0;
         while (CurrentRowIndex_ < UpperRowIndex_ &&
                std::ssize(rows) < options.MaxRowsPerRead &&

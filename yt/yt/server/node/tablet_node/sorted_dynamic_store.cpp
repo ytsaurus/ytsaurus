@@ -768,7 +768,10 @@ public:
     {
         YT_ASSERT(options.MaxRowsPerRead > 0);
         std::vector<TVersionedRow> rows;
-        rows.reserve(options.MaxRowsPerRead);
+        rows.reserve(
+            std::min(
+                std::ssize(Keys_) - RowCount_,
+                options.MaxRowsPerRead));
         Pool_.Clear();
 
         if (Finished_) {
@@ -778,8 +781,7 @@ public:
         i64 dataWeight = 0;
 
         while (rows.size() < rows.capacity()) {
-            if (RowCount_ == std::ssize(Keys_))
-                break;
+            YT_VERIFY(RowCount_ < std::ssize(Keys_));
 
             TVersionedRow row;
             if (Y_LIKELY(Store_->LookupHashTable_)) {
