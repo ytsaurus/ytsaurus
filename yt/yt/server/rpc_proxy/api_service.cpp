@@ -69,6 +69,8 @@
 #include <yt/yt/core/rpc/service_detail.h>
 #include <yt/yt/core/rpc/stream.h>
 
+#include <yt/yt/core/misc/backoff_strategy.h>
+
 #include <yt/yt/library/tracing/jaeger/sampler.h>
 
 namespace NYT::NRpcProxy {
@@ -313,7 +315,7 @@ bool IsColumnarRowsetFormat(NApi::NRpcProxy::NProto::ERowsetFormat format)
 
 struct TTableDetailedProfilingCounters
 {
-    TTableDetailedProfilingCounters(const NProfiling::TProfiler& profiler)
+    explicit TTableDetailedProfilingCounters(const NProfiling::TProfiler& profiler)
         : LookupDuration(profiler.Histogram(
             "/lookup_duration",
             TDuration::MicroSeconds(1),
@@ -325,13 +327,27 @@ struct TTableDetailedProfilingCounters
     { }
 
     //! Histograms.
-    NYT::NProfiling::TEventTimer LookupDuration;
-    NYT::NProfiling::TEventTimer SelectDuration;
+    NProfiling::TEventTimer LookupDuration;
+    NProfiling::TEventTimer SelectDuration;
+};
+
+//! |(user, method, errorCode)|
+using TApiServiceCallRetryProfilingCountersKey = std::tuple<TString, TString, TErrorCode>;
+
+struct TApiServiceCallRetryProfilingCounters
+{
+    explicit TApiServiceCallRetryProfilingCounters(const NProfiling::TProfiler& profiler)
+        : CallRetryCounter(profiler.Counter("/call_retries"))
+    { }
+
+   NProfiling::TCounter CallRetryCounter;
 };
 
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TApiService)
 
 class TApiService
     : public TServiceBase
@@ -484,7 +500,7 @@ private:
     const IStickyTransactionPoolPtr StickyTransactionPool_;
     const NNative::TClientCachePtr AuthenticatedClientCache_;
 
-    NConcurrency::TSyncMap<TString, TTableDetailedProfilingCounters> TableToDetailedProfilingCounters_;
+    NConcurrency::TSyncMap<TYPath, TTableDetailedProfilingCounters> TableDetailedProfilingCountersMap_;
 
 
     NNative::IClientPtr GetOrCreateClient(const TString& user)
@@ -590,69 +606,126 @@ private:
         return transaction;
     }
 
-    template <class T>
-    void CompleteCallWith(
-        NNative::IClientPtr client,
-        IServiceContextPtr context,
-        TFuture<T>&& future)
+    class TExecuteCallSessionBase
+        : public TRefCounted
     {
-        future.Subscribe(
-            BIND([client = std::move(client), context] (const TErrorOr<T>& valueOrError) {
-                if (valueOrError.IsOK()) {
-                    context->Reply(TError());
-                } else {
-                    context->Reply(TError(valueOrError.GetCode(), "Internal RPC call failed")
-                        << TError(valueOrError));
-                }
-            }));
+    protected:
+        const TApiServicePtr ApiService_;
+        const NLogging::TLogger& Logger;
+        const IServiceContextPtr Context_;
 
-        context->SubscribeCanceled(BIND([future = std::move(future)] {
-            future.Cancel(MakeCanceledError());
-        }));
-    }
+        TExecuteCallSessionBase(
+            TApiServicePtr apiService,
+            IServiceContextPtr context)
+            : ApiService_(std::move(apiService))
+            , Logger(ApiService_->Logger)
+            , Context_(std::move(context))
+        { }
 
-    template <class TContext, class TResult, class F>
-    void CompleteCallWith(
-        NNative::IClientPtr client,
-        const TIntrusivePtr<TContext>& context,
-        TFuture<TResult>&& future,
-        F&& functor)
+        void HandleError(const TError& error)
+        {
+            Context_->Reply(TError(error.GetCode(), "Internal RPC call failed")
+                << error);
+        }
+
+        virtual void Run() = 0;
+    };
+
+    template <class TContext, class TExecutor, class TResultHandler>
+    class TExecuteCallSession
+        : public TExecuteCallSessionBase
     {
-        future.Subscribe(
-            BIND([client = std::move(client), context, functor = std::move(functor)] (const TErrorOr<TResult>& valueOrError) {
-                if (valueOrError.IsOK()) {
+    public:
+        TExecuteCallSession(
+            TApiServicePtr apiService,
+            TIntrusivePtr<TContext> context,
+            TExecutor&& executor,
+            TResultHandler&& resultHandler)
+            : TExecuteCallSessionBase(
+                apiService,
+                context->GetUnderlyingContext())
+            , Context_(std::move(context))
+            , Executor_(std::move(executor))
+            , ResultHandler_(std::move(resultHandler))
+        { }
+
+        virtual void Run() override
+        {
+            auto future = Executor_();
+
+            using TResult = typename decltype(future)::TValueType;
+
+            future.Subscribe(
+                BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TResult>& resultOrError) {
+                    if (!resultOrError.IsOK()) {
+                        HandleError(resultOrError);
+                        return;
+                    }
+
                     try {
-                        functor(context, valueOrError.Value());
-                        // XXX(sandello): This relies on the typed service context implementation.
-                        context->Reply(TError());
+                        if constexpr(std::is_same_v<TResult, void>) {
+                            ResultHandler_(Context_);
+                        } else {
+                            ResultHandler_(Context_, resultOrError.Value());
+                        }
+                        Context_->Reply();
                     } catch (const std::exception& ex) {
-                        context->Reply(TError(ex));
-                    } catch (const TFiberCanceledException&) { }
-                } else {
-                    context->Reply(TError(valueOrError.GetCode(), "Internal RPC call failed")
-                        << TError(valueOrError));
-                }
-            }));
+                        HandleError(ex);
+                    } catch (const TFiberCanceledException&) {
+                        // Intentially do nothing.
+                    }
+                }));
 
-        context->SubscribeCanceled(BIND([future = std::move(future)] {
-            future.Cancel(MakeCanceledError());
-        }));
+            Context_->SubscribeCanceled(BIND([future = std::move(future)] {
+                future.Cancel(MakeCanceledError());
+            }));
+        }
+
+    private:
+        const TIntrusivePtr<TContext> Context_;
+        const TExecutor Executor_;
+        const TResultHandler ResultHandler_;
+    };
+
+    template <class TContext, class TExecutor, class TResultHandler>
+    void ExecuteCall(
+        TIntrusivePtr<TContext> context,
+        TExecutor&& executor,
+        TResultHandler&& resultHandler)
+    {
+        New<TExecuteCallSession<TContext, TExecutor, TResultHandler>>(
+            this,
+            std::move(context),
+            std::move(executor),
+            std::move(resultHandler))
+        ->Run();
     }
 
-    TTableDetailedProfilingCounters* GetOrCreateDetailedProfilingCounters(const TString& tablePath)
+    template <class TContext, class TExecutor>
+    void ExecuteCall(
+        const TIntrusivePtr<TContext>& context,
+        TExecutor&& executor)
     {
-        return TableToDetailedProfilingCounters_.FindOrInsert(
+        ExecuteCall(
+            context,
+            std::move(executor),
+            [] (const TIntrusivePtr<TContext>& /*context*/) { });
+    }
+
+
+    TTableDetailedProfilingCounters* GetOrCreateTableDetailedProfilingCounters(const TYPath& tablePath)
+    {
+        return TableDetailedProfilingCountersMap_.FindOrInsert(
             tablePath,
             [&] {
-                auto tableDetailedProfiler = RpcProxyProfiler
+                return TTableDetailedProfilingCounters(RpcProxyProfiler
                     .WithPrefix("/table_detailed_profiler")
                     .WithTag("table_path", tablePath)
-                    .WithSparse();
-
-                return TTableDetailedProfilingCounters(tableDetailedProfiler);
+                    .WithSparse());
             })
             .first;
     }
+
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GenerateTimestamps)
     {
@@ -665,10 +738,11 @@ private:
 
         const auto& timestampProvider = Bootstrap_->GetNativeConnection()->GetTimestampProvider();
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            timestampProvider->GenerateTimestamps(count),
+            [=] {
+                return timestampProvider->GenerateTimestamps(count);
+            },
             [] (const auto& context, const TTimestamp& timestamp) {
                 auto* response = &context->Response();
                 response->set_timestamp(timestamp);
@@ -685,6 +759,8 @@ private:
         if (!request->sticky() && request->type() == NApi::NRpcProxy::NProto::ETransactionType::TT_TABLET) {
             THROW_ERROR_EXCEPTION("Tablet transactions must be sticky");
         }
+
+        auto transactionType = FromProto<NTransactionClient::ETransactionType>(request->type());
 
         TTransactionStartOptions options;
         if (request->has_timeout()) {
@@ -710,8 +786,10 @@ private:
         }
         options.PrerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
 
-        context->SetRequestInfo("TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, Timeout: %v, Deadline: %v, AutoAbort: %v, "
+        context->SetRequestInfo("TransactionType: %v, TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, "
+            "Timeout: %v, Deadline: %v, AutoAbort: %v, "
             "Sticky: %v, Ping: %v, PingAncestors: %v, Atomicity: %v, Durability: %v",
+            transactionType,
             options.Id,
             options.ParentId,
             options.PrerequisiteTransactionIds,
@@ -724,11 +802,12 @@ private:
             options.Atomicity,
             options.Durability);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->StartTransaction(NTransactionClient::ETransactionType(request->type()), options),
-            [options, this_ = MakeStrong(this), this] (const auto& context, const auto& transaction) {
+            [=] {
+                return client->StartTransaction(transactionType, options);
+            },
+            [=, this_ = MakeStrong(this)] (const auto& context, const auto& transaction) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_id(), transaction->GetId());
                 response->set_start_timestamp(transaction->GetStartTimestamp());
@@ -760,10 +839,11 @@ private:
             transactionId,
             attachOptions);
 
-        CompleteCallWith(
-            NNative::IClientPtr(),
+        ExecuteCall(
             context,
-            transaction->Ping());
+            [=] {
+                return transaction->Ping();
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CommitTransaction)
@@ -790,10 +870,11 @@ private:
                 .PingAncestors = false
             });
 
-        CompleteCallWith(
-            NNative::IClientPtr(),
+        ExecuteCall(
             context,
-            transaction->Commit(options),
+            [=] {
+                return transaction->Commit(options);
+            },
             [] (const auto& context, const TTransactionCommitResult& result) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_commit_timestamps(), result.CommitTimestamps);
@@ -819,10 +900,11 @@ private:
                 .PingAncestors = false
             });
 
-        CompleteCallWith(
-            NNative::IClientPtr(),
+        ExecuteCall(
             context,
-            transaction->Flush(),
+            [=] {
+                return transaction->Flush();
+            },
             [&] (const auto& context, const TTransactionFlushResult& result) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_participant_cell_ids(), result.ParticipantCellIds);
@@ -848,11 +930,12 @@ private:
                 .PingAncestors = false
             });
 
-        // TODO(sandello): Options!
-        CompleteCallWith(
-            NNative::IClientPtr(),
+        // TODO(sandello): options are ignored
+        ExecuteCall(
             context,
-            transaction->Abort());
+            [=] {
+                return transaction->Abort();
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AttachTransaction)
@@ -919,10 +1002,11 @@ private:
             type,
             options.IgnoreExisting);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->CreateObject(type, options),
+            [=] {
+                return client->CreateObject(type, options);
+            },
             [] (const auto& context, NObjectClient::TObjectId objectId) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_object_id(), objectId);
@@ -940,10 +1024,11 @@ private:
         context->SetRequestInfo("Path: %v", path);
 
         const auto& tableMountCache = client->GetTableMountCache();
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            tableMountCache->GetTableInfo(path),
+            [=] {
+                return tableMountCache->GetTableInfo(path);
+            },
             [] (const auto& context, const TTableMountInfoPtr& tableMountInfo) {
                 auto* response = &context->Response();
 
@@ -979,10 +1064,11 @@ private:
 
         context->SetRequestInfo("Path: %v", path);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->GetTablePivotKeys(path),
+            [=] {
+                return client->GetTablePivotKeys(path);
+            },
             [] (const auto& context, const TYsonString& result) {
                 auto* response = &context->Response();
                 response->set_value(result.ToString());
@@ -1017,10 +1103,11 @@ private:
         context->SetRequestInfo("Path: %v",
             path);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->NodeExists(path, options),
+            [=] {
+                return client->NodeExists(path, options);
+            },
             [] (const auto& context, const bool& result) {
                 auto* response = &context->Response();
                 response->set_exists(result);
@@ -1060,10 +1147,11 @@ private:
         context->SetRequestInfo("Path: %v",
             path);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->GetNode(path, options),
+            [=] {
+                return client->GetNode(path, options);
+            },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 response->set_value(result.ToString());
@@ -1100,10 +1188,11 @@ private:
         context->SetRequestInfo("Path: %v",
             path);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->ListNode(path, options),
+            [=] {
+                return client->ListNode(path, options);
+            },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 response->set_value(result.ToString());
@@ -1149,10 +1238,11 @@ private:
             path,
             type);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->CreateNode(path, type, options),
+            [=] {
+                return client->CreateNode(path, type, options);
+            },
             [] (const auto& context, NCypressClient::TNodeId nodeId) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_node_id(), nodeId);
@@ -1187,10 +1277,11 @@ private:
         context->SetRequestInfo("Path: %v",
             path);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->RemoveNode(path, options));
+            [=] {
+                return client->RemoveNode(path, options);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SetNode)
@@ -1219,10 +1310,11 @@ private:
         context->SetRequestInfo("Path: %v",
             path);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->SetNode(path, value, options));
+            [=] {
+                return client->SetNode(path, value, options);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, MultisetAttributesNode)
@@ -1257,10 +1349,11 @@ private:
             path,
             attributes->GetKeys());
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->MultisetAttributesNode(path, attributes, options));
+            [=] {
+                return client->MultisetAttributesNode(path, attributes, options);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, LockNode)
@@ -1293,10 +1386,11 @@ private:
             path,
             mode);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->LockNode(path, mode, options),
+            [=] {
+                return client->LockNode(path, mode, options);
+            },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_node_id(), result.NodeId);
@@ -1328,10 +1422,11 @@ private:
 
         context->SetRequestInfo("Path: %v", path);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->UnlockNode(path, options));
+            [=] {
+                return client->UnlockNode(path, options);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CopyNode)
@@ -1391,10 +1486,11 @@ private:
             srcPath,
             dstPath);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->CopyNode(srcPath, dstPath, options),
+            [=] {
+                return client->CopyNode(srcPath, dstPath, options);
+            },
             [] (const auto& context, NCypressClient::TNodeId nodeId) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_node_id(), nodeId);
@@ -1452,10 +1548,11 @@ private:
             srcPath,
             dstPath);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->MoveNode(srcPath, dstPath, options),
+            [=] {
+                return client->MoveNode(srcPath, dstPath, options);
+            },
             [] (const auto& context, const auto& nodeId) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_node_id(), nodeId);
@@ -1498,13 +1595,14 @@ private:
             srcPath,
             dstPath);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->LinkNode(
+            [=] {
+                return client->LinkNode(
                 srcPath,
                 dstPath,
-                options),
+                options);
+            },
             [] (const auto& context, const auto& nodeId) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_node_id(), nodeId);
@@ -1538,10 +1636,11 @@ private:
             options.ChunkMetaFetcherConfig->NodeRpcTimeout = FromProto<TDuration>(request->fetcher().node_rpc_timeout());
         }
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->ConcatenateNodes(srcPaths, dstPath, options));
+            [=] {
+                return client->ConcatenateNodes(srcPaths, dstPath, options);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ExternalizeNode)
@@ -1561,10 +1660,11 @@ private:
             path,
             cellTag);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->ExternalizeNode(path, cellTag, options));
+            [=] {
+                return client->ExternalizeNode(path, cellTag, options);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, InternalizeNode)
@@ -1582,10 +1682,11 @@ private:
         context->SetRequestInfo("Path: %v",
             path);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->InternalizeNode(path, options));
+            [=] {
+                return client->InternalizeNode(path, options);
+            });
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -1616,10 +1717,11 @@ private:
         context->SetRequestInfo("Path: %v",
             path);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->MountTable(path, options));
+            [=] {
+                return client->MountTable(path, options);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, UnmountTable)
@@ -1641,10 +1743,11 @@ private:
         context->SetRequestInfo("Path: %v",
             path);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->UnmountTable(path, options));
+            [=] {
+                return client->UnmountTable(path, options);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RemountTable)
@@ -1663,10 +1766,11 @@ private:
         context->SetRequestInfo("Path: %v",
             path);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->RemountTable(path, options));
+            [=] {
+                return client->RemountTable(path, options);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, FreezeTable)
@@ -1685,10 +1789,11 @@ private:
         context->SetRequestInfo("Path: %v",
             path);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->FreezeTable(path, options));
+            [=] {
+                return client->FreezeTable(path, options);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, UnfreezeTable)
@@ -1707,10 +1812,11 @@ private:
         context->SetRequestInfo("Path: %v",
             path);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->UnfreezeTable(path, options));
+            [=] {
+                return client->UnfreezeTable(path, options);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReshardTable)
@@ -1737,10 +1843,11 @@ private:
                 path,
                 tabletCount);
 
-            CompleteCallWith(
-                client,
+            ExecuteCall(
                 context,
-                client->ReshardTable(path, tabletCount, options));
+                [=] {
+                    return client->ReshardTable(path, tabletCount, options);
+                });
         } else {
             TWireProtocolReader reader(MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
             auto keyRange = reader.ReadUnversionedRowset(false);
@@ -1754,10 +1861,11 @@ private:
                 path,
                 keys);
 
-            CompleteCallWith(
-                client,
+            ExecuteCall(
                 context,
-                client->ReshardTable(path, keys, options));
+                [=] {
+                    return client->ReshardTable(path, keys, options);
+                });
         }
     }
 
@@ -1775,12 +1883,11 @@ private:
         }
         options.KeepActions = request->keep_actions();
 
-        TFuture<std::vector<TTabletActionId>> result;
-
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->ReshardTableAutomatic(path, options),
+            [=] {
+                return client->ReshardTableAutomatic(path, options);
+            },
             [] (const auto& context, const auto& tabletActions) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_tablet_actions(), tabletActions);
@@ -1803,14 +1910,15 @@ private:
             tabletIndex,
             trimmedRowCount);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->TrimTable(
-                path,
-                tabletIndex,
-                trimmedRowCount,
-                options));
+            [=] {
+                return client->TrimTable(
+                    path,
+                    tabletIndex,
+                    trimmedRowCount,
+                    options);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AlterTable)
@@ -1841,10 +1949,11 @@ private:
         context->SetRequestInfo("Path: %v",
             path);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->AlterTable(path, options));
+            [=] {
+                return client->AlterTable(path, options);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AlterTableReplica)
@@ -1873,10 +1982,11 @@ private:
             options.Enabled,
             options.Mode);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->AlterTableReplica(replicaId, options));
+            [=] {
+                return client->AlterTableReplica(replicaId, options);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, BalanceTabletCells)
@@ -1893,10 +2003,11 @@ private:
 
         TFuture<std::vector<TTabletActionId>> result;
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->BalanceTabletCells(bundle, tables, options),
+            [=] {
+                return client->BalanceTabletCells(bundle, tables, options);
+            },
             [] (const auto& context, const auto& tabletActions) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_tablet_actions(), tabletActions);
@@ -1931,10 +2042,11 @@ private:
             type,
             specYson);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->StartOperation(type, specYson, options),
+            [=] {
+                return client->StartOperation(type, specYson, options);
+            },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 context->SetResponseInfo("OperationId: %v", result);
@@ -1958,10 +2070,11 @@ private:
             operationIdOrAlias,
             options.AbortMessage);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->AbortOperation(operationIdOrAlias, options));
+            [=] {
+                return client->AbortOperation(operationIdOrAlias, options);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SuspendOperation)
@@ -1980,10 +2093,11 @@ private:
             operationIdOrAlias,
             options.AbortRunningJobs);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->SuspendOperation(operationIdOrAlias, options));
+            [=] {
+                return client->SuspendOperation(operationIdOrAlias, options);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ResumeOperation)
@@ -1998,10 +2112,11 @@ private:
         context->SetRequestInfo("OperationId: %v",
             operationIdOrAlias);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->ResumeOperation(operationIdOrAlias, options));
+            [=] {
+                return client->ResumeOperation(operationIdOrAlias, options);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CompleteOperation)
@@ -2016,10 +2131,11 @@ private:
         context->SetRequestInfo("OperationId: %v",
             operationIdOrAlias);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->CompleteOperation(operationIdOrAlias, options));
+            [=] {
+                return client->CompleteOperation(operationIdOrAlias, options);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, UpdateOperationParameters)
@@ -2037,13 +2153,14 @@ private:
             operationIdOrAlias,
             parameters);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->UpdateOperationParameters(
-                operationIdOrAlias,
-                parameters,
-                options));
+            [=] {
+                return client->UpdateOperationParameters(
+                    operationIdOrAlias,
+                    parameters,
+                    options);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetOperation)
@@ -2071,10 +2188,11 @@ private:
             operationIdOrAlias,
             options.IncludeRuntime);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->GetOperation(operationIdOrAlias, options),
+            [=] {
+                return client->GetOperation(operationIdOrAlias, options);
+            },
             [] (const auto& context, const auto& operation) {
                 auto* response = &context->Response();
                 response->set_meta(ConvertToYsonString(operation).ToString());
@@ -2152,10 +2270,11 @@ private:
             options.TypeFilter,
             options.SubstrFilter);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->ListOperations(options),
+            [=] {
+                return client->ListOperations(options);
+            },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_result(), result);
@@ -2238,10 +2357,11 @@ private:
             options.JobCompetitionId,
             options.WithCompetitors);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->ListJobs(operationIdOrAlias, options),
+            [=] {
+                return client->ListJobs(operationIdOrAlias, options);
+            },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_result(), result);
@@ -2268,10 +2388,11 @@ private:
             jobId,
             path);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->DumpJobContext(jobId, path, options));
+            [=] {
+                return client->DumpJobContext(jobId, path, options);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetJobInput)
@@ -2301,10 +2422,11 @@ private:
 
         context->SetRequestInfo("JobId: %v", jobId);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->GetJobInputPaths(jobId, options),
+            [=] {
+                return client->GetJobInputPaths(jobId, options);
+            },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 response->set_paths(result.ToString());
@@ -2330,10 +2452,11 @@ private:
             options.OmitInputTableSpecs,
             options.OmitOutputTableSpecs);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->GetJobSpec(jobId, options),
+            [=] {
+                return client->GetJobSpec(jobId, options);
+            },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 response->set_job_spec(result.ToString());
@@ -2354,10 +2477,11 @@ private:
             operationIdOrAlias,
             jobId);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->GetJobStderr(operationIdOrAlias, jobId, options),
+            [=] {
+                return client->GetJobStderr(operationIdOrAlias, jobId, options);
+            },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 response->Attachments().push_back(std::move(result));
@@ -2378,10 +2502,11 @@ private:
             operationIdOrAlias,
             jobId);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->GetJobFailContext(operationIdOrAlias, jobId, options),
+            [=] {
+                return client->GetJobFailContext(operationIdOrAlias, jobId, options);
+            },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 response->Attachments().push_back(std::move(result));
@@ -2406,10 +2531,11 @@ private:
             operationIdOrAlias,
             jobId);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->GetJob(operationIdOrAlias, jobId, options),
+            [=] {
+                return client->GetJob(operationIdOrAlias, jobId, options);
+            },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 response->set_info(result.ToString());
@@ -2426,10 +2552,11 @@ private:
 
         context->SetRequestInfo("JobId: %v", jobId);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->AbandonJob(jobId, options));
+            [=] {
+                return client->AbandonJob(jobId, options);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PollJobShell)
@@ -2450,10 +2577,11 @@ private:
             parameters,
             shellName);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->PollJobShell(jobId, shellName, parameters, options),
+            [=] {
+                return client->PollJobShell(jobId, shellName, parameters, options);
+            },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 response->set_result(result.ToString());
@@ -2476,10 +2604,11 @@ private:
             jobId,
             options.InterruptTimeout);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->AbortJob(jobId, options));
+            [=] {
+                return client->AbortJob(jobId, options);
+            });
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -2542,7 +2671,7 @@ private:
         const TDetailedProfilingInfoPtr& detailedProfilingInfo)
     {
         if (detailedProfilingInfo->EnableDetailedProfiling) {
-            auto* counter = GetOrCreateDetailedProfilingCounters(detailedProfilingInfo->TablePath);
+            auto* counter = GetOrCreateTableDetailedProfilingCounters(detailedProfilingInfo->TablePath);
             counter->LookupDuration.Record(timer.GetElapsedTime());
         }
     }
@@ -2552,7 +2681,7 @@ private:
         const TDetailedProfilingInfoPtr& detailedProfilingInfo)
     {
         if (detailedProfilingInfo->EnableDetailedProfiling) {
-            auto* counter = GetOrCreateDetailedProfilingCounters(detailedProfilingInfo->TablePath);
+            auto* counter = GetOrCreateTableDetailedProfilingCounters(detailedProfilingInfo->TablePath);
             counter->SelectDuration.Record(timer.GetElapsedTime());
         }
     }
@@ -2600,14 +2729,15 @@ private:
             keys.Size(),
             options.Timestamp);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->LookupRows(
-                path,
-                std::move(nameTable),
-                std::move(keys),
-                options),
+            [=] {
+                return client->LookupRows(
+                    path,
+                    std::move(nameTable),
+                    std::move(keys),
+                    options);
+            },
             [=, this_ = MakeStrong(this), detailedProfilingInfo = std::move(detailedProfilingInfo)]
             (const auto& context, const auto& rowset) {
                 auto* response = &context->Response();
@@ -2658,14 +2788,15 @@ private:
             FromProto(options.RetentionConfig.Get(), request->retention_config());
         }
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->VersionedLookupRows(
-                path,
-                std::move(nameTable),
-                std::move(keys),
-                options),
+            [=] {
+                return client->VersionedLookupRows(
+                    path,
+                    std::move(nameTable),
+                    std::move(keys),
+                    options);
+            },
             [=, this_ = MakeStrong(this), detailedProfilingInfo = std::move(detailedProfilingInfo)]
             (const auto& context, const auto& rowset) {
                 auto* response = &context->Response();
@@ -2749,12 +2880,13 @@ private:
                         request.Keys.Size());
                 }));
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->MultiLookup(
-                std::move(subrequests),
-                std::move(options)),
+            [=] {
+                return client->MultiLookup(
+                    std::move(subrequests),
+                    std::move(options));
+            },
             [=, this_ = MakeStrong(this), profilingInfos = std::move(profilingInfos)]
             (const auto& context, const auto& rowsets) {
                 auto* response = &context->Response();
@@ -2851,10 +2983,11 @@ private:
             query,
             options.Timestamp);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->SelectRows(query, options),
+            [=] {
+                return client->SelectRows(query, options);
+            },
             [=, this_ = MakeStrong(this), detailedProfilingInfo = std::move(detailedProfilingInfo)]
             (const auto& context, const auto& result) {
                 auto* response = &context->Response();
@@ -2882,10 +3015,11 @@ private:
             query,
             options.Timestamp);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->ExplainQuery(query, options),
+            [=] {
+                return client->ExplainQuery(query, options);
+            },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 response->set_value(result.ToString());
@@ -2918,20 +3052,19 @@ private:
             options.Timestamp,
             keyCount);
 
-        auto future = rowset
-            ? client->GetInSyncReplicas(
-                path,
-                rowset->GetNameTable(),
-                MakeSharedRange(rowset->GetRows(), rowset),
-                options)
-            : client->GetInSyncReplicas(
-                path,
-                options);
-
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            std::move(future),
+            [=] {
+                return rowset
+                    ? client->GetInSyncReplicas(
+                        path,
+                        rowset->GetNameTable(),
+                        MakeSharedRange(rowset->GetRows(), rowset),
+                        options)
+                    : client->GetInSyncReplicas(
+                        path,
+                        options);
+            },
             [] (const auto& context, const std::vector<TTableReplicaId>& replicaIds) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_replica_ids(), replicaIds);
@@ -2955,13 +3088,14 @@ private:
         TGetTabletsInfoOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->GetTabletInfos(
+            [=] {
+                return client->GetTabletInfos(
                 path,
                 tabletIndexes,
-                options),
+                options);
+            },
             [] (const auto& context, const auto& tabletInfos) {
                 auto* response = &context->Response();
                 for (const auto& tabletInfo : tabletInfos) {
@@ -3134,10 +3268,11 @@ private:
             options.WaitForSnapshotCompletion);
 
         auto client = GetAuthenticatedClientOrThrow(context, request);
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->BuildSnapshot(options),
+            [=] {
+                return client->BuildSnapshot(options);
+            },
             [] (const auto& context, int snapshotId) {
                 auto* response = &context->Response();
                 response->set_snapshot_id(snapshotId);
@@ -3154,10 +3289,11 @@ private:
         context->SetRequestInfo("CellId: %v", options.CellId);
 
         auto client = GetAuthenticatedClientOrThrow(context, request);
-        CompleteCallWith(
-            nullptr,
+        ExecuteCall(
             context,
-            client->GCCollect(options));
+            [=] {
+                return client->GCCollect(options);
+            });
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -3184,10 +3320,11 @@ private:
             options.MutationId,
             options.Retry);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->AddMember(group, member, options));
+            [=] {
+                return client->AddMember(group, member, options);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RemoveMember)
@@ -3210,10 +3347,11 @@ private:
             options.MutationId,
             options.Retry);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->RemoveMember(group, member, options));
+            [=] {
+                return client->RemoveMember(group, member, options);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CheckPermission)
@@ -3244,10 +3382,11 @@ private:
             path,
             FormatPermissions(permission));
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->CheckPermission(user, path, permission, options),
+            [=] {
+                return client->CheckPermission(user, path, permission, options);
+            },
             [] (const auto& context, const auto& checkResponse) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_result(), checkResponse);
@@ -3283,10 +3422,11 @@ private:
             user,
             FormatPermissions(permission));
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->CheckPermissionByAcl(user, permission, acl, options),
+            [=] {
+                return client->CheckPermissionByAcl(user, permission, acl, options);
+            },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_result(), result);
@@ -3309,10 +3449,11 @@ private:
             srcAccount,
             dstAccount);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->TransferAccountResources(srcAccount, dstAccount, resourceDelta, options));
+            [=] {
+                return client->TransferAccountResources(srcAccount, dstAccount, resourceDelta, options);
+            });
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -3520,13 +3661,14 @@ private:
             path,
             rowCount);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->TruncateJournal(
+            [=] {
+                return client->TruncateJournal(
                 path,
                 rowCount,
-                options));
+                options);
+            });
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -3708,10 +3850,11 @@ private:
             md5,
             options.CachePath);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->GetFileFromCache(md5, options),
+            [=] {
+                return client->GetFileFromCache(md5, options);
+            },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_result(), result);
@@ -3748,10 +3891,11 @@ private:
             md5,
             options.CachePath);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->PutFileToCache(path, md5, options),
+            [=] {
+                return client->PutFileToCache(path, md5, options);
+            },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_result(), result);
@@ -3794,10 +3938,11 @@ private:
 
         context->SetRequestInfo("Paths: %v", paths);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->GetColumnarStatistics(paths, options),
+            [=] {
+                return client->GetColumnarStatistics(paths, options);
+            },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 NYT::ToProto(response->mutable_statistics(), result);
@@ -3818,10 +3963,11 @@ private:
         context->SetRequestInfo("CheckCypressRoot: %v",
             options.CheckCypressRoot);
 
-        CompleteCallWith(
-            client,
+        ExecuteCall(
             context,
-            client->CheckClusterLiveness(options));
+            [=] {
+                return client->CheckClusterLiveness(options);
+            });
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -3833,6 +3979,8 @@ private:
         return Coordinator_->GetOperableState();
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TApiService)
 
 IServicePtr CreateApiService(TBootstrap* bootstrap)
 {
