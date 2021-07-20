@@ -1,12 +1,33 @@
 package wire
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/mitchellh/copystructure"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestValueType_String(t *testing.T) {
+	for _, tc := range []struct {
+		typ      ValueType
+		expected string
+	}{
+		{typ: TypeNull, expected: "null"},
+		{typ: TypeInt64, expected: "int64"},
+		{typ: TypeUint64, expected: "uint64"},
+		{typ: TypeFloat64, expected: "float64"},
+		{typ: TypeBool, expected: "bool"},
+		{typ: TypeBytes, expected: "bytes"},
+		{typ: TypeAny, expected: "any"},
+	} {
+		t.Run(fmt.Sprintf("%d", tc.typ), func(t *testing.T) {
+			actual := tc.typ.String()
+			require.Equal(t, tc.expected, actual)
+		})
+	}
+}
 
 var testRow = Row{
 	NewNull(1),
