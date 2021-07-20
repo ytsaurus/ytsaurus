@@ -3469,7 +3469,7 @@ private:
             partitionJobSpecExt->set_reduce_key_column_count(Spec->SortBy.size());
             ToProto(partitionJobSpecExt->mutable_sort_key_columns(), GetColumnNames(Spec->SortBy));
             ToProto(partitionJobSpecExt->mutable_sort_columns(), Spec->SortBy);
-            partitionJobSpecExt->set_deterministic(Spec->EnableIntermediateOutputRecalculation);
+            partitionJobSpecExt->set_use_sequential_reader(Spec->EnableIntermediateOutputRecalculation);
         }
 
         {
@@ -3482,7 +3482,7 @@ private:
             partitionJobSpecExt->set_reduce_key_column_count(Spec->SortBy.size());
             ToProto(partitionJobSpecExt->mutable_sort_key_columns(), GetColumnNames(Spec->SortBy));
             ToProto(partitionJobSpecExt->mutable_sort_columns(), Spec->SortBy);
-            partitionJobSpecExt->set_deterministic(Spec->EnableIntermediateOutputRecalculation);
+            partitionJobSpecExt->set_use_sequential_reader(Spec->EnableIntermediateOutputRecalculation);
         }
 
         TJobSpec sortJobSpecTemplate;
@@ -4273,7 +4273,7 @@ private:
             partitionJobSpecExt->set_reduce_key_column_count(Spec->ReduceBy.size());
             ToProto(partitionJobSpecExt->mutable_sort_key_columns(), GetColumnNames(Spec->SortBy));
             ToProto(partitionJobSpecExt->mutable_sort_columns(), Spec->SortBy);
-            partitionJobSpecExt->set_deterministic(Spec->EnableIntermediateOutputRecalculation);
+            partitionJobSpecExt->set_use_sequential_reader(Spec->EnableIntermediateOutputRecalculation || Spec->Ordered);
 
             if (Spec->HasNontrivialMapper()) {
                 InitUserJobSpecTemplate(
@@ -4297,7 +4297,7 @@ private:
             partitionJobSpecExt->set_reduce_key_column_count(Spec->ReduceBy.size());
             ToProto(partitionJobSpecExt->mutable_sort_key_columns(), GetColumnNames(Spec->SortBy));
             ToProto(partitionJobSpecExt->mutable_sort_columns(), Spec->SortBy);
-            partitionJobSpecExt->set_deterministic(Spec->EnableIntermediateOutputRecalculation);
+            partitionJobSpecExt->set_use_sequential_reader(Spec->EnableIntermediateOutputRecalculation || Spec->Ordered);
         }
 
         auto intermediateDataSourceDirectory = BuildIntermediateDataSourceDirectory(IntermediateStreamSchemas_);

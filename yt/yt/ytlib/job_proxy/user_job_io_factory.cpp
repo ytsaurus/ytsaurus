@@ -497,14 +497,12 @@ public:
         const TColumnFilter& columnFilter) override
     {
         const auto& partitionJobSpecExt = JobSpecHelper_->GetJobSpec().GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
-        // COMPAT(gritukan)
-        bool deterministic = !partitionJobSpecExt.has_deterministic() || partitionJobSpecExt.deterministic();
 
         return CreateRegularReader(
             JobSpecHelper_,
             std::move(client),
             nodeDescriptor,
-            /* isParallel */ !deterministic,
+            /*isParallel*/ !partitionJobSpecExt.use_sequential_reader(),
             std::move(nameTable),
             columnFilter,
             ChunkReadOptions_,
