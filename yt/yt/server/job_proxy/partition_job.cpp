@@ -76,12 +76,9 @@ public:
         }
 
         ReaderFactory_ = [=] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
-            // COMPAT(gritukan)
-            bool deterministic = !PartitionJobSpecExt_.has_deterministic() || PartitionJobSpecExt_.deterministic();
-
             const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
 
-            auto factory = deterministic
+            auto factory = PartitionJobSpecExt_.use_sequential_reader()
                 ? CreateSchemalessSequentialMultiReader
                 : CreateSchemalessParallelMultiReader;
             return factory(

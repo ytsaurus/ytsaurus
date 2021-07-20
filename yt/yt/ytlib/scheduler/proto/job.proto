@@ -463,8 +463,7 @@ message TPartitionJobSpecExt
 
     optional NTableClient.NProto.TSortColumnsExt sort_columns = 12;
 
-    // If job does not have to be deterministic, parallel reader can be used.
-    optional bool deterministic = 13;
+    optional bool use_sequential_reader = 13 [default = true];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
