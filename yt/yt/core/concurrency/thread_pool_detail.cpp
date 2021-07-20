@@ -101,8 +101,8 @@ void TThreadPoolBase::DoConfigure(int threadCount)
         thread->Shutdown();
     }
 
-    // New threads will be started eventually due to EnsureStarted call.
     StartFlag_.store(false);
+    EnsureStarted();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
