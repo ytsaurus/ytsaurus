@@ -40,11 +40,12 @@ trait VanillaLauncher {
     }
   }
 
+  def isProfilingEnabled: Boolean = sparkSystemProperties.get("spark.hadoop.yt.profiling.enabled").exists(_.toBoolean)
+
   def prepareProfiler(): Unit = {
     import sys.process._
     import scala.language.postfixOps
 
-    val isProfilingEnabled = sparkSystemProperties.get("spark.hadoop.yt.profiling.enabled").exists(_.toBoolean)
     if (isProfilingEnabled) {
       val code = "unzip profiler.zip" !
 

@@ -67,10 +67,19 @@ class YtEventLogFsInputStream(conf: Configuration, path: String, details: YtEven
 
   private def loadNewBlocks(count: Int = 1): Unit = {
     log.debugLazy(s"Loading $count blocks from yt")
-    val rows = YtWrapper.selectRows(path, schema,
-      Some(s"""id="${details.id}" and order > $order and order <= ${order + count}"""))
+    val rows = YtWrapper
+      .selectRows(
+        path, schema,
+        Some(s"""id="${details.id}" and order > $order and order <= ${order + count}""")
+      )
+      .map(x => YtEventLogBlock(x))
     order += count
-    currentBlock = rows.flatMap(x => YtEventLogBlock(x).log).toArray
+    currentBlock = new Array[Byte](rows.map(_.log.length).sum)
+    rows.foldLeft(0){case (index, next) =>
+      System.arraycopy(next.log, 0, currentBlock, index, next.log.length)
+      index + next.log.length
+    }
+
     posInCurrentBlock = 0
     if (currentBlock.isEmpty) {
       finished = true
@@ -139,6 +148,7 @@ class YtEventLogFsInputStream(conf: Configuration, path: String, details: YtEven
   }
 
   override def close(): Unit = {
+    log.debugLazy(s"Close $path, ${details.fileName}")
     finished = true
     manualClosed = true
   }

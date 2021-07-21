@@ -27,7 +27,7 @@ trait YtTransactionUtils {
 
   def createTransaction(parent: Option[String], timeout: Duration, sticky: Boolean = false)
                        (implicit yt: CompoundClient): ApiServiceTransaction = {
-    log.info(s"Start transaction, parent $parent, timeout $timeout, sticky $sticky")
+    log.debugLazy(s"Start transaction, parent $parent, timeout $timeout, sticky $sticky")
     val request = (if (sticky) StartTransaction.stickyMaster() else StartTransaction.master())
       .setTransactionTimeout(toJavaDuration(timeout))
       .setTimeout(toJavaDuration(timeout))
@@ -40,12 +40,12 @@ trait YtTransactionUtils {
   }
 
   def abortTransaction(guid: String)(implicit yt: CompoundClient): Unit = {
-    log.info(s"Abort transaction $guid")
+    log.debugLazy(s"Abort transaction $guid")
     yt.abortTransaction(GUID.valueOf(guid)).join()
   }
 
   def commitTransaction(guid: String)(implicit yt: CompoundClient): Unit = {
-    log.info(s"Commit transaction $guid")
+    log.debugLazy(s"Commit transaction $guid")
     yt.commitTransaction(GUID.valueOf(guid)).join()
   }
 
