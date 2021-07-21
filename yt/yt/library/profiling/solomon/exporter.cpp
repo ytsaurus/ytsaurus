@@ -39,7 +39,7 @@ static auto& Logger = SolomonLogger;
 TShardConfigPtr TSolomonExporterConfig::MatchShard(const TString& sensorName)
 {
     TShardConfigPtr matchedShard;
-    int matchSize = 0;
+    int matchSize = -1;
 
     for (const auto& [name, config] : Shards) {
         for (auto prefix : config->Filter) {
@@ -47,7 +47,7 @@ TShardConfigPtr TSolomonExporterConfig::MatchShard(const TString& sensorName)
                 continue;
             }
 
-            if (prefix.size() > static_cast<size_t>(matchSize)) {
+            if (static_cast<int>(prefix.size()) > matchSize) {
                 matchSize = prefix.size();
                 matchedShard = config;
             }
