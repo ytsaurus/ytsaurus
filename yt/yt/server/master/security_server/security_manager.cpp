@@ -38,6 +38,7 @@
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
 #include <yt/yt/server/master/object_server/map_object_type_handler.h>
+#include <yt/yt/server/master/object_server/map_object.h>
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
 #include <yt/yt/server/master/table_server/master_table_schema.h>
@@ -209,6 +210,8 @@ private:
     {
         return AccountTreeDepthLimit;
     }
+
+    virtual std::optional<int> GetSubtreeSizeLimit() const override;
 
     virtual TProxyPtr GetMapObjectProxy(TAccount* account) override;
 
@@ -2931,6 +2934,7 @@ private:
         }
 
         RecomputeAccountMasterMemoryUsage();
+        RecomputeSubtreeSize(RootAccount_, /*validateMatch*/ true);
     }
 
     // COMPAT(shakurov): currently unused but may become useful
@@ -4196,6 +4200,10 @@ TString TSecurityManager::TAccountTypeHandler::GetRootPath(const TAccount* rootA
 {
     YT_VERIFY(rootAccount == Owner_->GetRootAccount());
     return RootAccountCypressPath;
+}
+
+std::optional<int> TSecurityManager::TAccountTypeHandler::GetSubtreeSizeLimit() const {
+    return Owner_->GetDynamicConfig()->MaxAccountSubtreeSize;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -120,6 +120,8 @@ TDynamicClusterConfig::TDynamicClusterConfig()
         .DefaultNew();
     RegisterParameter("transaction_manager", TransactionManager)
         .DefaultNew();
+    RegisterParameter("scheduler_pool_manager", SchedulerPoolManager)
+        .DefaultNew();
     RegisterParameter("cell_master", CellMaster)
         .DefaultNew();
     RegisterParameter("object_service", ObjectService)

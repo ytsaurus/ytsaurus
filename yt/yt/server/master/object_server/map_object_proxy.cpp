@@ -225,6 +225,7 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateBeforeAttachChild(
 
     ValidateChildName(key);
     ValidateAttachChildDepth(childProxy);
+    ValidateAttachChildSubtreeSize(childProxy);
 }
 
 template <class TObject>
@@ -515,6 +516,43 @@ NObjectServer::TObject* TNonversionedMapObjectProxyBase<TObject>::ResolvePathToN
     auto rsp = SyncExecuteVerb(rootService, req);
     auto objectId = FromProto<TObjectId>(rsp->object_id());
     return objectManager->GetObjectOrThrow(objectId);
+}
+
+template <class TObject>
+int TNonversionedMapObjectProxyBase<TObject>::GetTopmostAncestorSubtreeSize(const TObject* object) const
+{
+    YT_VERIFY(object);
+    YT_VERIFY(!object->IsRoot());
+
+    while (!object->GetParent()->IsRoot()) {
+        object = object->GetParent();
+    }
+
+    return object->GetSubtreeSize();
+}
+
+template <class TObject>
+void TNonversionedMapObjectProxyBase<TObject>::ValidateAttachChildSubtreeSize(
+    const TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>>& child)
+{
+    YT_VERIFY(child);
+
+    auto* impl = TBase::GetThisImpl();
+    if (impl->IsRoot()) {
+        return;
+    }
+    auto subtreeSizeLimit = GetTypeHandler()->GetSubtreeSizeLimit();
+    if (!subtreeSizeLimit) {
+        return;
+    }
+
+    YT_ASSERT(!child->GetParent());
+    auto newSubtreeSize = child->GetThisImpl()->GetSubtreeSize() + GetTopmostAncestorSubtreeSize(impl);
+    if (newSubtreeSize > subtreeSizeLimit) {
+        THROW_ERROR_EXCEPTION("Subtree size limit exceeded for %v", impl->GetLowercaseObjectName())
+            << TErrorAttribute("new_subtree_size", newSubtreeSize)
+            << TErrorAttribute("subtree_size_limit", subtreeSizeLimit);
+    }
 }
 
 template <class TObject>

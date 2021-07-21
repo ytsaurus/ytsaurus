@@ -56,7 +56,7 @@ protected:
         NYTree::IAttributeDictionary* attributes);
 
     virtual std::optional<int> GetDepthLimit() const;
-    // TODO(kiselyovp) limit the number of objects in a subtree somehow
+    virtual std::optional<int> GetSubtreeSizeLimit() const;
 
     friend class TNonversionedMapObjectProxyBase<TObject>;
 };

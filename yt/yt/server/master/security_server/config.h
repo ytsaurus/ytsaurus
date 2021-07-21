@@ -44,6 +44,8 @@ public:
 
     bool EnableDistributedThrottler;
 
+    int MaxAccountSubtreeSize;
+
     TDynamicSecurityManagerConfig()
     {
         RegisterParameter("account_statistics_gossip_period", AccountStatisticsGossipPeriod)
@@ -68,6 +70,9 @@ public:
 
         RegisterParameter("enable_distributed_throttler", EnableDistributedThrottler)
             .Default(false);
+        
+        RegisterParameter("max_account_subtree_size", MaxAccountSubtreeSize)
+            .Default(1000);
     }
 };
 

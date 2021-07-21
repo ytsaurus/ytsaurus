@@ -163,6 +163,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChaosCellMaps)                                                (1637))  // savrus
     ((AllyReplicas)                                                 (1638))  // ifsmirnov
     ((PersistentCellStatistics)                                     (1639))  // ifsmirnov
+    ((LimitObjectSubtreeSize)                                       (1640))  // cookiedoth
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1700))  // ignat
 );

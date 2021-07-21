@@ -1027,6 +1027,24 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         remove("//sys/pool_trees/default/pool/subpool1")
         set("//sys/pool_trees/default/@config/main_resource", "user_slots")
 
+    @authors("cookiedoth")
+    def test_subtree_size_limits(self):
+        create_pool_tree("my_tree", wait_for_orchid=False)
+        set("//sys/@config/scheduler_pool_manager/max_scheduler_pool_subtree_size", 1)
+        create_pool("a", pool_tree="my_tree", wait_for_orchid=False)
+        create_pool("b", pool_tree="my_tree", wait_for_orchid=False)
+        with pytest.raises(YtError):
+            create_pool("ba", pool_tree="my_tree", parent_name="b", wait_for_orchid=False)
+        set("//sys/@config/scheduler_pool_manager/max_scheduler_pool_subtree_size", 2)
+        create_pool("ba", pool_tree="my_tree", parent_name="b", wait_for_orchid=False)
+        create_pool("aa", pool_tree="my_tree", parent_name="a", wait_for_orchid=False)
+        with pytest.raises(YtError):
+            create_pool("ab", pool_tree="my_tree", parent_name="a", wait_for_orchid=False)
+        set("//sys/@config/scheduler_pool_manager/max_scheduler_pool_subtree_size", 3)
+        with pytest.raises(YtError):
+            move("//sys/pool_trees/my_tree/b", "//sys/pool_trees/my_tree/a/ab")
+        move("//sys/pool_trees/my_tree/b/ba", "//sys/pool_trees/my_tree/a/ab")
+
     def test_min_share_and_strong_guarantee_resources_aliasing(self):
         create_pool_tree("my_tree", wait_for_orchid=False, allow_patching=False)
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)

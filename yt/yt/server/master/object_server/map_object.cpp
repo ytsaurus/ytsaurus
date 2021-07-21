@@ -1,4 +1,5 @@
 #include "map_object.h"
+#include "private.h"
 
 #include <yt/yt/server/master/security_server/account.h>
 
@@ -12,6 +13,7 @@ template <class TSelf>
 TNonversionedMapObjectBase<TSelf>::TNonversionedMapObjectBase(TObjectId id, bool isRoot)
     : TNonversionedObjectBase(id)
     , Acd_(this)
+    , SubtreeSize_(1)
     , IsRoot_(isRoot)
 { }
 
@@ -34,6 +36,9 @@ void TNonversionedMapObjectBase<TSelf>::AttachChild(const TString& key, TSelf* c
     YT_VERIFY(!child->GetParent());
     YT_VERIFY(!child->IsRoot());
     child->SetParent(GetSelf());
+    for (auto* node = As<TSelf>(); node; node = node->GetParent()) {
+        node->SubtreeSize_ += child->SubtreeSize_;
+    }
     YT_VERIFY(KeyToChild().emplace(key, child).second);
     YT_VERIFY(ChildToKey().emplace(child, key).second);
 }
@@ -44,6 +49,9 @@ void TNonversionedMapObjectBase<TSelf>::DetachChild(TSelf* child) noexcept
     YT_VERIFY(child);
     YT_VERIFY(child->GetParent() == this);
     child->ResetParent();
+    for (auto* node = As<TSelf>(); node; node = node->GetParent()) {
+        node->SubtreeSize_ -= child->SubtreeSize_;
+    }
     auto key = GetChildKey(child);
     YT_VERIFY(KeyToChild().erase(key) == 1);
     YT_VERIFY(ChildToKey().erase(child) == 1);
@@ -138,6 +146,7 @@ void TNonversionedMapObjectBase<TSelf>::Save(NCellMaster::TSaveContext& context)
     Save(context, IsRoot_);
     Save(context, Parent_);
     Save(context, KeyToChild_);
+    Save(context, SubtreeSize_);
 }
 
 template <class TSelf>
@@ -151,6 +160,12 @@ void TNonversionedMapObjectBase<TSelf>::Load(NCellMaster::TLoadContext& context)
     Load(context, Parent_);
     Load(context, KeyToChild_);
 
+    if (context.GetVersion() >= NCellMaster::EMasterReign::LimitObjectSubtreeSize) {
+        Load(context, SubtreeSize_);
+    } else {
+        SubtreeSize_ = 0;
+    }
+
     // Reconstruct ChildToKey_ map.
     for (const auto& [key, child] : KeyToChild_) {
         if (child) {
@@ -158,6 +173,28 @@ void TNonversionedMapObjectBase<TSelf>::Load(NCellMaster::TLoadContext& context)
         }
     }
 }
+
+template <class TSelf>
+void RecomputeSubtreeSize(TNonversionedMapObjectBase<TSelf>* mapObject, bool validateMatch)
+{
+    static const auto& Logger = ObjectServerLogger;
+    int subtreeSize = 1;
+    for (const auto& [_, child] : mapObject->KeyToChild()) {
+        RecomputeSubtreeSize(child, validateMatch);
+        subtreeSize += child->GetSubtreeSize();
+    }
+    auto oldSubtreeSize = mapObject->GetSubtreeSize();
+    if (validateMatch && oldSubtreeSize != 0 && oldSubtreeSize != subtreeSize) {
+        YT_LOG_ALERT(
+            "The subtree size loaded from snapshot does not match its recomputed value (SnapshotSubtreeSize: %v, RecomputedSubtreeSize: %v)",
+            oldSubtreeSize,
+            subtreeSize);
+    }
+    mapObject->SetSubtreeSize(subtreeSize);
+}
+
+template void RecomputeSubtreeSize(TNonversionedMapObjectBase<NSecurityServer::TAccount>* mapObject, bool validateMatch);
+template void RecomputeSubtreeSize(TNonversionedMapObjectBase<NSchedulerPoolServer::TSchedulerPool>* mapObject, bool validateMatch);
 
 ////////////////////////////////////////////////////////////////////////////////
 

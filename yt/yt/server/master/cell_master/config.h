@@ -26,6 +26,8 @@
 
 #include <yt/yt/server/master/journal_server/config.h>
 
+#include <yt/yt/server/master/scheduler_pool_server/config.h>
+
 #include <yt/yt/server/lib/timestamp_server/config.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
@@ -341,6 +343,7 @@ public:
     TDynamicCellMasterConfigPtr CellMaster;
     NObjectServer::TDynamicObjectServiceConfigPtr ObjectService;
     NChunkServer::TDynamicChunkServiceConfigPtr ChunkService;
+    NSchedulerPoolServer::TDynamicSchedulerPoolManagerConfigPtr SchedulerPoolManager;
 
     TDynamicClusterConfig();
 };
