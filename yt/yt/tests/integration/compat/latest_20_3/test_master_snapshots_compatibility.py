@@ -4,7 +4,10 @@ from yt_commands import (
     create, get, exists, write_journal, get_singular_chunk_id, build_master_snapshots)
 
 from original_tests.yt.yt.tests.integration.tests.test_master_snapshots \
-    import MASTER_SNAPSHOT_CHECKER_LIST, check_master_memory, check_proxy_roles
+    import MASTER_SNAPSHOT_CHECKER_LIST, \
+    check_master_memory, \
+    check_proxy_roles, \
+    check_scheduler_pool_subtree_size_recalculation
 
 import os
 import pytest
@@ -57,6 +60,7 @@ class TestMasterSnapshotsCompatibility(YTEnvSetup):
         # Remove tests that are not supported in 20.3 masters.
         CHECKER_LIST.remove(check_master_memory)
         CHECKER_LIST.remove(check_proxy_roles)
+        CHECKER_LIST.remove(check_scheduler_pool_subtree_size_recalculation)
 
         checker_state_list = [iter(c()) for c in CHECKER_LIST]
         for s in checker_state_list:

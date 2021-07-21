@@ -102,6 +102,12 @@ std::optional<int> TNonversionedMapObjectTypeHandlerBase<TObject>::GetDepthLimit
     return std::nullopt;
 }
 
+template <class TObject>
+std::optional<int> TNonversionedMapObjectTypeHandlerBase<TObject>::GetSubtreeSizeLimit() const
+{
+    return std::nullopt;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template class TNonversionedMapObjectTypeHandlerBase<NSecurityServer::TAccount>;

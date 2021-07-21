@@ -3,12 +3,13 @@ from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, remove,
     exists, create_account,
-    remove_account, create_proxy_role, create_account_resource_usage_lease, start_transaction, abort_transaction, commit_transaction, lock, insert_rows, lookup_rows, alter_table,
-    write_table, wait_for_cells,
+    remove_account, create_proxy_role, create_account_resource_usage_lease, start_transaction, abort_transaction, commit_transaction, lock, insert_rows,
+    lookup_rows, alter_table, write_table, wait_for_cells,
     sync_create_cells, sync_mount_table, sync_freeze_table, sync_reshard_table, get_singular_chunk_id,
     get_account_disk_space, create_dynamic_table, build_snapshot,
-    build_master_snapshots, clear_metadata_caches)
+    build_master_snapshots, clear_metadata_caches, create_pool_tree, create_pool, move)
 
+from yt.common import YtError
 from yt_helpers import Profiler
 from yt_type_helpers import make_schema, normalize_schema
 
@@ -312,6 +313,64 @@ def check_error_attribute():
     assert exists("#{}/@peers/0/last_revocation_reason".format(cell_id))
 
 
+def check_account_subtree_size_recalculation():
+    set("//sys/@config/security_manager/max_account_subtree_size", 3)
+    create_account("b", empty=True)
+    create_account("c", empty=True)
+    create_account("ca", "c", empty=True)
+    create_account("d", empty=True)
+    create_account("da", "d", empty=True)
+    create_account("db", "d", empty=True)
+
+    yield
+
+    set("//sys/@config/security_manager/max_account_subtree_size", 3)
+    with pytest.raises(YtError):
+        move("//sys/account_tree/b", "//sys/account_tree/d/dc")
+    move("//sys/account_tree/d/db", "//sys/account_tree/c/cb")
+    move("//sys/account_tree/b", "//sys/account_tree/d/db")
+    with pytest.raises(YtError):
+        move("//sys/account_tree/c/ca", "//sys/account_tree/d/dc")
+    set("//sys/@config/security_manager/max_account_subtree_size", 4)
+    move("//sys/account_tree/c/ca", "//sys/account_tree/d/dc")
+    with pytest.raises(YtError):
+        move("//sys/account_tree/c", "//sys/account_tree/d/da/daa")
+    set("//sys/@config/security_manager/max_account_subtree_size", 6)
+    move("//sys/account_tree/c", "//sys/account_tree/d/da/daa")
+
+
+def check_scheduler_pool_subtree_size_recalculation():
+    set("//sys/@config/scheduler_pool_manager/max_scheduler_pool_subtree_size", 3)
+    create_pool_tree("tree1", wait_for_orchid=False)
+    create_pool_tree("tree2", wait_for_orchid=False)
+    create_pool_tree("tree3", wait_for_orchid=False)
+    create_pool("a", pool_tree="tree1", wait_for_orchid=False)
+    create_pool("aa", pool_tree="tree1", parent_name="a", wait_for_orchid=False)
+    create_pool("aaa", pool_tree="tree1", parent_name="aa", wait_for_orchid=False)
+    create_pool("b", pool_tree="tree1", wait_for_orchid=False)
+    create_pool("ba", pool_tree="tree1", parent_name="b", wait_for_orchid=False)
+    create_pool("c", pool_tree="tree1", wait_for_orchid=False)
+    create_pool("a", pool_tree="tree2", wait_for_orchid=False)
+    create_pool("aa", pool_tree="tree2", parent_name="a", wait_for_orchid=False)
+
+    yield
+
+    set("//sys/@config/scheduler_pool_manager/max_scheduler_pool_subtree_size", 3)
+    with pytest.raises(YtError):
+        create_pool("aab", pool_tree="tree1", parent_name="aa", wait_for_orchid=False)
+    create_pool("bb", pool_tree="tree1", parent_name="b", wait_for_orchid=False)
+    with pytest.raises(YtError):
+        create_pool("bba", pool_tree="tree1", parent_name="bb", wait_for_orchid=False)
+    create_pool("ca", pool_tree="tree1", parent_name="c", wait_for_orchid=False)
+    create_pool("cb", pool_tree="tree1", parent_name="c", wait_for_orchid=False)
+    with pytest.raises(YtError):
+        create_pool("cd", pool_tree="tree1", parent_name="c", wait_for_orchid=False)
+    create_pool("aaa", pool_tree="tree2", parent_name="aa", wait_for_orchid=False)
+    with pytest.raises(YtError):
+        create_pool("aaaa", pool_tree="tree2", parent_name="aaa", wait_for_orchid=False)
+    create_pool("a", pool_tree="tree3", wait_for_orchid=False)
+
+
 def check_account_resource_usage_lease():
     create_account("a42")
     tx = start_transaction()
@@ -343,6 +402,8 @@ MASTER_SNAPSHOT_CHECKER_LIST = [
     check_proxy_roles,
     check_attribute_tombstone_yt_14682,
     check_error_attribute,
+    check_account_subtree_size_recalculation,
+    check_scheduler_pool_subtree_size_recalculation,
     check_removed_account,  # keep this item last as it's sensitive to timings
 ]
 

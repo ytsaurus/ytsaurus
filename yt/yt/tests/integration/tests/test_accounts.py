@@ -4116,6 +4116,27 @@ class TestAccountTree(AccountsTestSuiteBase):
             get("//sys/account_tree/a/b/d/@total_children_resource_limits"),
             limits_x0)
 
+    @authors("cookiedoth")
+    def test_subtree_size_limits(self):
+        set("//sys/@config/security_manager/max_account_subtree_size", 3)
+        create_account("a", empty=True)
+        create_account("aa", "a", empty=True)
+        create_account("ab", "a", empty=True)
+        with pytest.raises(YtError):
+            create_account("ac", "a", empty=True)
+        with pytest.raises(YtError):
+            create_account("aba", "ab", empty=True)
+        create_account("b", empty=True)
+        create_account("c", empty=True)
+        create_account("d", empty=True)
+        create_account("da", "d", empty=True)
+        create_account("db", "d", empty=True)
+        create_account("ca", "c", empty=True)
+        with pytest.raises(YtError):
+            move("//sys/account_tree/d", "//sys/account_tree/c/ca/caa")
+        set("//sys/@config/security_manager/max_account_subtree_size", 5)
+        move("//sys/account_tree/d", "//sys/account_tree/c/ca/caa")
+
 
 ##################################################################
 

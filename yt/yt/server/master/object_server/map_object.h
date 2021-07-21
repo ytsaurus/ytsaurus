@@ -28,6 +28,8 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
+    DEFINE_BYVAL_RW_PROPERTY(int, SubtreeSize);
+
 public:
     explicit TNonversionedMapObjectBase(TObjectId id, bool isRoot = false);
 
@@ -83,6 +85,14 @@ TResult AccumulateOverMapObjectSubtree(TObject* object, TResult init, TFunctor f
 
 template <class TObject>
 TObject* FindMapObjectLCA(TObject* lhs, TObject* rhs);
+
+//! Calculates the subtree size for this object and all its descendants.
+//! NB: called one per root after loading a snapshot.
+template <class TSelf>
+void RecomputeSubtreeSize(TNonversionedMapObjectBase<TSelf>* mapObject, bool validateMatch);
+
+extern template void RecomputeSubtreeSize(TNonversionedMapObjectBase<NSecurityServer::TAccount>* mapObject, bool validateMatch);
+extern template void RecomputeSubtreeSize(TNonversionedMapObjectBase<NSchedulerPoolServer::TSchedulerPool>* mapObject, bool validateMatch);
 
 ////////////////////////////////////////////////////////////////////////////////
 

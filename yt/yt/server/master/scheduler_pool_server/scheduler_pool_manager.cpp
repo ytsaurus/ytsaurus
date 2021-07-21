@@ -1,5 +1,6 @@
 #include "scheduler_pool_manager.h"
-
+#include "private.h"
+#include "config.h"
 #include "scheduler_pool.h"
 #include "scheduler_pool_proxy.h"
 
@@ -8,6 +9,7 @@
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
@@ -16,6 +18,7 @@
 
 #include <yt/yt/server/lib/hydra/composite_automaton.h>
 
+#include <yt/yt/server/master/object_server/map_object.h>
 #include <yt/yt/server/master/object_server/map_object_type_handler.h>
 
 namespace NYT::NSchedulerPoolServer {
@@ -239,6 +242,11 @@ public:
         return std::optional(schedulerPool->GetMaybePoolTree()->GetTreeName());
     }
 
+    const TDynamicSchedulerPoolManagerConfigPtr& GetDynamicConfig() const
+    {
+        return Bootstrap_->GetConfigManager()->GetConfig()->SchedulerPoolManager;
+    }
+
 private:
     friend class TSchedulerPoolTypeHandler;
     friend class TSchedulerPoolTreeTypeHandler;
@@ -267,6 +275,10 @@ private:
             YT_VERIFY(inserted);
 
             BuildPoolNameMapRecursively(schedulerPoolTree->GetRootPool(), &it->second);
+        }
+
+        for (const auto& [_, schedulerPoolTree] : PoolTrees_) {
+            RecomputeSubtreeSize(schedulerPoolTree->GetRootPool(), /*validateMatch*/ true);
         }
 
         // COMPAT(renadeen)
@@ -415,6 +427,11 @@ protected:
     virtual std::optional<int> GetDepthLimit() const override
     {
         return 30;
+    }
+
+    virtual std::optional<int> GetSubtreeSizeLimit() const override
+    {
+        return Owner_->GetDynamicConfig()->MaxSchedulerPoolSubtreeSize;
     }
 
     virtual TProxyPtr GetMapObjectProxy(TSchedulerPool* object) override

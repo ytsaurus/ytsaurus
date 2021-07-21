@@ -15,6 +15,8 @@ DECLARE_ENTITY_TYPE(TSchedulerPoolTree, TSchedulerPoolId, NObjectClient::TDirect
 
 DECLARE_REFCOUNTED_CLASS(TSchedulerPoolManager)
 
+DECLARE_REFCOUNTED_CLASS(TDynamicSchedulerPoolManagerConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSchedulerPoolServer

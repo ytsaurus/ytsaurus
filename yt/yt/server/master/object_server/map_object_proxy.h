@@ -126,12 +126,15 @@ protected:
         const TString& key,
         const TSelfPtr& childProxy);
     virtual void ValidateAttachChildDepth(const TSelfPtr& child);
+    virtual void ValidateAttachChildSubtreeSize(const TSelfPtr& child);
     virtual void ValidateRemoval() override;
 
     // XXX(kiselyovp) These methods have total complexity of O(depth_limit + subtree_size) and get called
     // on each call of Create and Move verbs. Those calls are not expected to be common.
     int GetDepth(const TObject* object) const;
     void ValidateHeightLimit(const TObject* root, int heightLimit) const;
+
+    int GetTopmostAncestorSubtreeSize(const TObject* object) const;
 
     virtual std::unique_ptr<TNonversionedMapObjectFactoryBase<TObject>> CreateObjectFactory() const = 0;
 
