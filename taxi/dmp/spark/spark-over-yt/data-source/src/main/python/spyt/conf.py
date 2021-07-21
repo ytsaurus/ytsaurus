@@ -34,6 +34,10 @@ def validate_cluster_version(spark_cluster_version, client=None):
                        "Please update your local yandex-spyt".format(spark_cluster_version, SELF_VERSION))
 
 
+def is_supported_cluster_minor_version(spark_cluster_version, version):
+    return _get_spark_cluster_minor_version(spark_cluster_version) >= version
+
+
 def validate_spyt_version(spyt_version, client=None):
     if not check_spyt_version_exists(spyt_version, client=client):
         raise RuntimeError("Unknown SPYT library version: {}. Available release versions are: {}".format(
