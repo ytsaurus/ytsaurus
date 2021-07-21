@@ -8,6 +8,7 @@ from yt.wrapper.cypress_commands import list as yt_list, create, exists
 from yt.wrapper.errors import YtHttpResponseError
 from yt.wrapper.http_helpers import get_proxy_url, get_user_name
 from yt.wrapper.operation_commands import get_operation_url
+from .conf import is_supported_cluster_minor_version
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -151,6 +152,11 @@ def base_spark_conf(client, discovery):
         "spark.eventLog.dir": "ytEventLog:/{}".format(discovery.event_log_table()),
         "spark.yt.cluster.version": spark_cluster_version
     }
+    if is_supported_cluster_minor_version(spark_cluster_version, "1.9"):
+        conf["spark.master.driverIdRegistration.enabled"] = "true"
+    else:
+        conf["spark.master.driverIdRegistration.enabled"] = "false"
+
     if exists(spark_cluster_conf, client=client):
         conf["spark.yt.cluster.confPath"] = str(spark_cluster_conf)
     if master_wrapper_url:
