@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/master/cell_master/proto/multicell_manager.pb.h>
 
+#include <yt/yt/core/misc/format.h>
+
 namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,6 +24,23 @@ NProto::TCellStatistics operator +  (const NProto::TCellStatistics& lhs, const N
     #undef XX
     return result;
 }
+
+namespace NProto {
+
+void FormatValue(TStringBuilderBase* builder, const NProto::TCellStatistics& statistics, TStringBuf /*format*/)
+{
+    builder->AppendFormat("ChunkCount: %v, LostVitalChunkCount: %v, OnlineNodeCount: %v",
+        statistics.chunk_count(),
+        statistics.lost_vital_chunk_count(),
+        statistics.online_node_count());
+}
+
+TString ToString(const NProto::TCellStatistics& statistics)
+{
+    return ToStringViaBuilder(statistics);
+}
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 
