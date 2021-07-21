@@ -2879,8 +2879,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     UnregisterJoblet(joblet);
 
     // This failure case has highest priority for users. Therefore check must be performed as early as possible.
-    if (Spec_->FailOnJobRestart &&
-        !(abortReason > EAbortReason::SchedulingFirst && abortReason < EAbortReason::SchedulingLast))
+    if (Spec_->FailOnJobRestart && !IsJobAbsenceGuaranteed(abortReason))
     {
         OnOperationFailed(TError(
             NScheduler::EErrorCode::OperationFailedOnJobRestart,

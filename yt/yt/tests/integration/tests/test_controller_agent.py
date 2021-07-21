@@ -8,7 +8,7 @@ from yt_env_setup import (
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, with_breakpoint, create, ls, get,
     set, exists,
-    write_table, map, reduce, map_reduce, merge, erase, run_test_vanilla, get_operation, raises_yt_error)
+    write_table, map, reduce, map_reduce, merge, erase, run_sleeping_vanilla, run_test_vanilla, get_operation, raises_yt_error)
 
 import yt_error_codes
 
@@ -398,6 +398,22 @@ class TestGetJobSpecFailed(YTEnvSetup):
             if jobs is None:
                 return False
             return jobs["aborted"]["non_scheduled"]["get_spec_failed"] > 0
+
+        wait(check)
+
+    # NB: YT-15149
+    @authors("eshcherbin")
+    def test_get_job_spec_failed_with_fail_on_job_restart(self):
+        op = run_sleeping_vanilla(
+            spec={
+                "testing": {"fail_get_job_spec": True},
+                "fail_on_job_restart": True,
+            },
+        )
+
+        def check():
+            assert op.get_state() != "failed"
+            return op.get_job_count("aborted") >= 5
 
         wait(check)
 

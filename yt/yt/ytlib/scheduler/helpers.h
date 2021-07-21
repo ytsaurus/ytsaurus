@@ -70,6 +70,7 @@ int GetJobSpecVersion();
 bool IsSchedulingReason(EAbortReason reason);
 bool IsNonSchedulingReason(EAbortReason reason);
 bool IsSentinelReason(EAbortReason reason);
+bool IsJobAbsenceGuaranteed(EAbortReason reason);
 
 TError GetSchedulerTransactionsAbortedError(const std::vector<NObjectClient::TTransactionId>& transactionIds);
 TError GetUserTransactionAbortedError(NObjectClient::TTransactionId transactionId);

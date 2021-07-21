@@ -332,6 +332,11 @@ bool IsSentinelReason(EAbortReason reason)
         reason == EAbortReason::SchedulingLast;
 }
 
+bool IsJobAbsenceGuaranteed(EAbortReason reason)
+{
+    return IsSchedulingReason(reason) || reason == EAbortReason::GetSpecFailed;
+}
+
 TError GetSchedulerTransactionsAbortedError(const std::vector<TTransactionId>& transactionIds)
 {
     return TError(
