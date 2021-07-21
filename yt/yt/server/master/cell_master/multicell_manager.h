@@ -166,8 +166,8 @@ public:
      */
     NObjectClient::TCellTag PickSecondaryChunkHostCell(double bias);
 
-    //! Computes the total cluster statistics by summing counters for all cells (including primary).
-    NProto::TCellStatistics ComputeClusterStatistics();
+    //! Returns the total cluster statistics by summing counters for all cells (including primary).
+    const NProto::TCellStatistics& GetClusterStatistics();
 
     //! Returns the channel to be used for communicating with another master.
     //! This channel has a properly configured timeout.

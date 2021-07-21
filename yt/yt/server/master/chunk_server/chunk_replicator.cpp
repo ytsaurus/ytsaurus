@@ -1836,7 +1836,7 @@ void TChunkReplicator::OnCheckEnabledPrimary()
     }
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    auto statistics = multicellManager->ComputeClusterStatistics();
+    const auto& statistics = multicellManager->GetClusterStatistics();
     int gotChunkCount = statistics.chunk_count();
     int gotLostChunkCount = statistics.lost_vital_chunk_count();
     int needLostChunkCount = GetDynamicConfig()->SafeLostChunkCount;
