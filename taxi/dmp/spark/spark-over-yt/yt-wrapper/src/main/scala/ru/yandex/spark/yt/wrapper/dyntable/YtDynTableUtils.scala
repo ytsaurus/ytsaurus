@@ -132,7 +132,7 @@ trait YtDynTableUtils {
     val request = SelectRowsRequest.of(s"""* from [${formatPath(path)}] ${condition.map("where " + _).mkString}""")
 
     runUnderTransaction(parentTransaction)(transaction => {
-      val selected = transaction.selectRows(request).get(1, MINUTES)
+      val selected = transaction.selectRows(request).get(10, MINUTES)
       selected.getRows.asScala.map(x => x.toYTreeMap(schema)).toList
     })
   }

@@ -7,8 +7,7 @@ import org.apache.hadoop.util.Progressable
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.fs.PathUtils.{getMetaPath, hadoopPathToYt}
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
-import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.spark.yt.wrapper.YtWrapper.RichLogger
+import ru.yandex.spark.yt.wrapper.{LogLazy, YtWrapper}
 import ru.yandex.spark.yt.wrapper.client.{YtClientConfiguration, YtClientProvider, YtRpcClient}
 import ru.yandex.spark.yt.wrapper.cypress.PathType
 import ru.yandex.spark.yt.wrapper.model.EventLogSchema.{metaSchema, schema}
@@ -21,7 +20,7 @@ import java.util
 import java.util.UUID
 import scala.util.{Failure, Success, Try}
 
-class YtEventLogFileSystem extends FileSystem {
+class YtEventLogFileSystem extends FileSystem with LogLazy {
   val id: String = UUID.randomUUID().toString
 
   private val log = LoggerFactory.getLogger(getClass)
@@ -83,6 +82,7 @@ class YtEventLogFileSystem extends FileSystem {
   }
 
   override def exists(f: Path): Boolean = {
+    log.debugLazy(s"Exists $f")
     getFileStatusEither(f).toOption.exists(_ != null)
   }
 
@@ -93,6 +93,7 @@ class YtEventLogFileSystem extends FileSystem {
   override def getUri: URI = _uri
 
   override def open(f: Path, bufferSize: Int): FSDataInputStream = {
+    log.debugLazy(s"Open $f")
     val (tablePath, fullTableName) = splitTablePath(f)
     getFileDetailsImpl(hadoopPathToYt(tablePath), fullTableName) match {
       case None => throw new IllegalArgumentException("No such file found")
@@ -135,6 +136,7 @@ class YtEventLogFileSystem extends FileSystem {
   }
 
   override def delete(f: Path, recursive: Boolean): Boolean = {
+    log.debugLazy(s"Delete $f")
     implicit val ytClient: CompoundClient = yt
 
     val (tablePath, fullTableName) = splitTablePath(f)
@@ -187,7 +189,10 @@ class YtEventLogFileSystem extends FileSystem {
     true
   }
 
-  def getFileDetailsImpl(path: String, fileName: String, transaction: Option[ApiServiceTransaction] = None): Option[YtEventLogFileDetails] = {
+  def getFileDetailsImpl(path: String,
+                         fileName: String,
+                         transaction: Option[ApiServiceTransaction] = None): Option[YtEventLogFileDetails] = {
+    log.debugLazy(s"Get details $path, $fileName")
     implicit val ytClient: CompoundClient = yt
     val meta_path = getMetaPath(path)
     if (!YtWrapper.exists(meta_path)) {

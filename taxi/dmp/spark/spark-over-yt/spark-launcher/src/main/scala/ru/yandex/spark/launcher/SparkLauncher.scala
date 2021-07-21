@@ -26,7 +26,7 @@ trait SparkLauncher {
 
   def startMaster: MasterService = {
     log.info("Start Spark master")
-    val thread = runSparkThread(masterClass, namedArgs = Map("host" -> Utils.ytHostnameOrIpAddress))
+    val thread = runSparkThread(masterClass, "512M", namedArgs = Map("host" -> Utils.ytHostnameOrIpAddress))
     val address = readAddressOrDie("master", 5 minutes, thread)
     MasterService("Master", address, thread)
   }
@@ -34,6 +34,7 @@ trait SparkLauncher {
   def startWorker(master: Address, cores: Int, memory: String): BasicService = {
     val thread = runSparkThread(
       workerClass,
+      "256M",
       namedArgs = Map(
         "cores" -> cores.toString,
         "memory" -> memory,
@@ -46,12 +47,19 @@ trait SparkLauncher {
     BasicService("Worker", address.hostAndPort, thread)
   }
 
-  def startHistoryServer(path: String): BasicService = {
+  def startHistoryServer(path: String, memory: String, discoveryService: DiscoveryService): BasicService = {
+    val javaOpts = Seq(
+      discoveryService.masterWrapperEndpoint()
+        .map(hp => s"-Dspark.hadoop.yt.masterWrapper.url=$hp"),
+      Some("-agentpath:/slot/sandbox/YourKit-JavaProfiler-2019.8/bin/linux-x86-64/libyjpagent.so=port=27111,listen=all")
+        .filter(_ => isProfilingEnabled),
+      Some(s"-Dspark.history.fs.logDirectory=$path")
+    )
+
     val thread = runSparkThread(
       historyServerClass,
-      systemProperties = Map(
-        "spark.history.fs.logDirectory" -> path
-      )
+      memory,
+      systemProperties = javaOpts.flatten
     )
     val address = readAddressOrDie("history", 5 minutes, thread)
     BasicService("Spark History Server", address.hostAndPort, thread)
@@ -84,14 +92,15 @@ trait SparkLauncher {
   }
 
   private def runSparkThread(className: String,
-                             systemProperties: Map[String, String] = Map.empty,
+                             memory: String,
+                             systemProperties: Seq[String] = Nil,
                              namedArgs: Map[String, String] = Map.empty,
                              positionalArgs: Seq[String] = Nil): Thread = {
     val thread = new Thread(() => {
       var process: Process = null
       try {
         val log = LoggerFactory.getLogger(self.getClass)
-        process = runSparkClass(className, systemProperties, namedArgs, positionalArgs, log)
+        process = runSparkClass(className, systemProperties, namedArgs, positionalArgs, memory, log)
         log.warn(s"Spark exit value: ${process.exitValue()}")
       } catch {
         case e: Throwable =>
@@ -105,15 +114,13 @@ trait SparkLauncher {
   }
 
   private def runSparkClass(className: String,
-                            systemProperties: Map[String, String],
+                            systemProperties: Seq[String],
                             namedArgs: Map[String, String],
                             positionalArgs: Seq[String],
+                            memory: String,
                             log: Logger): Process = {
-    val fullSystemProperties = systemProperties ++ sparkSystemProperties
-
     val sparkHome = new File(env("SPARK_HOME", "./spark")).getAbsolutePath
     val command = s"$sparkHome/bin/spark-class " +
-      s"${fullSystemProperties.map { case (k, v) => s"-D$k=$v" }.mkString(" ")} " +
       s"$className " +
       s"${namedArgs.map { case (k, v) => s"--$k $v" }.mkString(" ")} " +
       s"${positionalArgs.mkString(" ")}"
@@ -122,6 +129,7 @@ trait SparkLauncher {
 
     val javaHome = env("JAVA_HOME", "/opt/jdk11")
     val sparkLocalDirs = env("SPARK_LOCAL_DIRS", "./tmpfs")
+    val javaOpts = (systemProperties ++ sparkSystemProperties.map { case (k, v) => s"-D$k=$v" }).mkString(" ")
     Process(
       command,
       new File("."),
@@ -129,7 +137,9 @@ trait SparkLauncher {
       "SPARK_HOME" -> sparkHome,
       "SPARK_LOCAL_DIRS" -> sparkLocalDirs,
       // when using MTN, Spark should use ip address and not hostname, because hostname is not in DNS
-      "SPARK_LOCAL_HOSTNAME" -> Utils.ytHostnameOrIpAddress
+      "SPARK_LOCAL_HOSTNAME" -> Utils.ytHostnameOrIpAddress,
+      "SPARK_DAEMON_MEMORY" -> memory,
+      "SPARK_DAEMON_JAVA_OPTS" -> javaOpts
     ).run(ProcessLogger(log.info(_)))
   }
 

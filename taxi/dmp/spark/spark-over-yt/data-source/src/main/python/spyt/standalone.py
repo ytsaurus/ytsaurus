@@ -26,9 +26,11 @@ class SparkDefaultArguments(object):
     SPARK_WORKER_TMPFS_LIMIT = "150G"
     SPARK_WORKER_SSD_LIMIT = None
     SPARK_MASTER_MEMORY_LIMIT = "6G"
-    SPARK_HISTORY_SERVER_MEMORY_LIMIT = "8G"
+    SPARK_HISTORY_SERVER_MEMORY_LIMIT = "16G"
+    SPARK_HISTORY_SERVER_MEMORY_OVERHEAD = "4G"
+    SPARK_HISTORY_SERVER_CPU_LIMIT = 8
     DYNAMIC_CONFIG_PATH = "//sys/spark/bin/releases/spark-launch-conf"
-    SPARK_WORKER_TIMEOUT = "5m"
+    SPARK_WORKER_TIMEOUT = "10m"
     SPARK_WORKER_CORES_OVERHEAD = 0
     SPARK_WORKER_CORES_BYOP_OVERHEAD = 0
 
@@ -214,7 +216,8 @@ def get_spark_conf(config, enablers):
 def build_spark_operation_spec(operation_alias, spark_discovery, config,
                                worker_cores, worker_memory, worker_num, worker_cores_overhead, worker_timeout,
                                tmpfs_limit, ssd_limit,
-                               master_memory_limit, history_server_memory_limit,
+                               master_memory_limit,
+                               history_server_memory_limit, history_server_memory_overhead, history_server_cpu_limit,
                                network_project, tvm_id, tvm_secret,
                                advanced_event_log,
                                pool, enablers, client):
@@ -235,11 +238,15 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     master_command = _launcher_command("Master")
     worker_command = _launcher_command("Worker") + \
         "--cores {0} --memory {1} --wait-master-timeout {2}".format(worker_cores, worker_memory, worker_timeout)
+
     if advanced_event_log:
         event_log_path = "ytEventLog:/{}".format(spark_discovery.event_log_table())
     else:
         event_log_path = "yt:/{}".format(spark_discovery.event_log())
-    history_command = _launcher_command("HistoryServer") + "--log-path {}".format(event_log_path)
+    if "spark.history.fs.numReplayThreads" not in config["spark_conf"]:
+        config["spark_conf"]["spark.history.fs.numReplayThreads"] = history_server_cpu_limit
+    history_command = _launcher_command("HistoryServer") + \
+                      "--log-path {} --memory {}".format(event_log_path, history_server_memory_limit)
 
     user = get_user_name(client=client)
 
@@ -295,12 +302,14 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     }
 
     worker_file_paths = copy.copy(common_task_spec["file_paths"])
+    shs_file_paths = copy.copy(common_task_spec["file_paths"])
     if ytserver_proxy_path and enablers.enable_byop:
         worker_file_paths.append(ytserver_proxy_path)
         operation_spec["description"]["BYOP"] = ytserver_proxy_attributes(ytserver_proxy_path, client=client)
 
     if enablers.enable_profiling:
         worker_file_paths.append("//home/sashbel/profiler.zip")
+        shs_file_paths.append("//home/sashbel/profiler.zip")
 
     secure_vault = {"YT_USER": user, "YT_TOKEN": get_token(client=client)}
 
@@ -329,9 +338,10 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
         .begin_task("history") \
             .job_count(1) \
             .command(history_command) \
-            .memory_limit(_parse_memory(history_server_memory_limit)) \
-            .cpu_limit(1) \
+            .memory_limit(_parse_memory(history_server_memory_limit) + _parse_memory(history_server_memory_overhead)) \
+            .cpu_limit(history_server_cpu_limit) \
             .spec(common_task_spec) \
+            .file_paths(shs_file_paths) \
         .end_task() \
         .begin_task("workers") \
             .job_count(worker_num) \
@@ -353,6 +363,8 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
                         ssd_limit=SparkDefaultArguments.SPARK_WORKER_SSD_LIMIT,
                         master_memory_limit=SparkDefaultArguments.SPARK_MASTER_MEMORY_LIMIT,
                         history_server_memory_limit=SparkDefaultArguments.SPARK_HISTORY_SERVER_MEMORY_LIMIT,
+                        history_server_cpu_limit=SparkDefaultArguments.SPARK_HISTORY_SERVER_CPU_LIMIT,
+                        history_server_memory_overhead=SparkDefaultArguments.SPARK_HISTORY_SERVER_MEMORY_OVERHEAD,
                         network_project=None, tvm_id=None, tvm_secret=None,
                         advanced_event_log=False,
                         params=None, spark_cluster_version=None,
@@ -370,7 +382,11 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     :param tmpfs_limit: limit of tmpfs usage, default 150G
     :param ssd_limit: limit of ssd usage, default None, ssd disabled
     :param master_memory_limit: memory limit for master, default 2G
-    :param history_server_memory_limit: memory limit for history server, default 8G
+    :param history_server_memory_limit: memory limit for history server, default 16G,
+    total memory for SHS job is history_server_memory_limit + history_server_memory_overhead
+    :param history_server_cpu_limit: cpu limit for history server, default 20
+    :param history_server_memory_overhead: memory overhead for history server, default 2G,
+    total memory for SHS job is history_server_memory_limit + history_server_memory_overhead
     :param spark_cluster_version: Spark cluster version
     :param network_project: YT network project
     :param advanced_event_log: advanced log format for history server (requires dynamic tables write permission)
@@ -412,6 +428,8 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
                                               ssd_limit=ssd_limit,
                                               master_memory_limit=master_memory_limit,
                                               history_server_memory_limit=history_server_memory_limit,
+                                              history_server_memory_overhead=history_server_memory_overhead,
+                                              history_server_cpu_limit=history_server_cpu_limit,
                                               network_project=network_project,
                                               tvm_id=tvm_id,
                                               tvm_secret=tvm_secret,
