@@ -1525,6 +1525,7 @@ class TestAccounts(AccountsTestSuiteBase):
         set("//tmp/t2/@account", "b")
 
         wait(lambda: self._get_master_memory_usage("b") > 0)
+        wait(lambda: self._get_detailed_master_memory_usage("b", "chunks") > 0)
 
     @authors("aleksandra-zh")
     def test_master_memory_change_account(self):
@@ -1591,17 +1592,11 @@ class TestAccounts(AccountsTestSuiteBase):
             master_memory=10000,
         )
         create_account("a", attributes={"resource_limits": resource_limits})
-
         self._prepare_dynamic_table("//tmp/t", "a", sorted=False)
 
-        master_memory_sleep()
-        wait(lambda: self._get_master_memory_usage("a") > 0)
-        prev_usage = self._get_master_memory_usage("a")
-
+        wait(lambda: self._get_detailed_master_memory_usage("a", "tablets") > 0)
         alter_table("//tmp/t", dynamic=False)
-
-        wait(lambda: self._get_master_memory_usage("a") < prev_usage)
-        assert self._get_master_memory_usage("a") > 0
+        wait(lambda: self._get_detailed_master_memory_usage("a", "tablets") == 0)
 
     @authors("aleksandra-zh")
     def test_master_memory_dynamic_table_reshard(self):
@@ -1619,23 +1614,22 @@ class TestAccounts(AccountsTestSuiteBase):
         sync_mount_table("//tmp/t")
 
         master_memory_sleep()
-        wait(lambda: self._get_master_memory_usage("a") > 0)
-        prev_usage = self._get_master_memory_usage("a")
+        wait(lambda: self._get_detailed_master_memory_usage("a", "tablets") > 0)
+        prev_usage = self._get_detailed_master_memory_usage("a", "tablets")
 
-        master_memory_sleep()
         sync_unmount_table("//tmp/t")
         sync_reshard_table("//tmp/t", [[]] + [[i] for i in xrange(11)])
         sync_mount_table("//tmp/t")
 
         master_memory_sleep()
-        wait(lambda: self._get_master_memory_usage("a") > prev_usage)
-        prev_usage = self._get_master_memory_usage("a")
+        wait(lambda: self._get_detailed_master_memory_usage("a", "tablets") > prev_usage)
+        prev_usage = self._get_detailed_master_memory_usage("a", "tablets")
 
         sync_unmount_table("//tmp/t")
         sync_reshard_table("//tmp/t", [[]] + [[i] for i in xrange(2)])
         sync_mount_table("//tmp/t")
 
-        wait(lambda: self._get_master_memory_usage("a") < prev_usage)
+        wait(lambda: self._get_detailed_master_memory_usage("a", "tablets") < prev_usage)
 
     @authors("aleksandra-zh")
     def test_master_memory_pivot_keys(self):
