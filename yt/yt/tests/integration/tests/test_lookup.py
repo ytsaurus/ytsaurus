@@ -947,7 +947,7 @@ class TestLookupRpcProxy(TestLookup):
         rpc_driver = Driver(config=rpc_driver_config)
 
         proxy_lookup_duration_histogram = Profiler.at_rpc_proxy(rpc_proxy).histogram(
-            name="rpc_proxy/table_detailed_profiler/lookup_duration",
+            name="rpc_proxy/detailed_table_statistics/lookup_duration",
             fixed_tags={"table_path": "//tmp/t"})
 
         def check():

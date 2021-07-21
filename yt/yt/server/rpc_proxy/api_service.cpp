@@ -313,9 +313,9 @@ bool IsColumnarRowsetFormat(NApi::NRpcProxy::NProto::ERowsetFormat format)
     return format == NApi::NRpcProxy::NProto::RF_ARROW;
 }
 
-struct TTableDetailedProfilingCounters
+struct TDetailedTableProfilingCounters
 {
-    explicit TTableDetailedProfilingCounters(const NProfiling::TProfiler& profiler)
+    explicit TDetailedTableProfilingCounters(const NProfiling::TProfiler& profiler)
         : LookupDuration(profiler.Histogram(
             "/lookup_duration",
             TDuration::MicroSeconds(1),
@@ -329,18 +329,6 @@ struct TTableDetailedProfilingCounters
     //! Histograms.
     NProfiling::TEventTimer LookupDuration;
     NProfiling::TEventTimer SelectDuration;
-};
-
-//! |(user, method, errorCode)|
-using TApiServiceCallRetryProfilingCountersKey = std::tuple<TString, TString, TErrorCode>;
-
-struct TApiServiceCallRetryProfilingCounters
-{
-    explicit TApiServiceCallRetryProfilingCounters(const NProfiling::TProfiler& profiler)
-        : CallRetryCounter(profiler.Counter("/call_retries"))
-    { }
-
-   NProfiling::TCounter CallRetryCounter;
 };
 
 } // namespace
@@ -500,7 +488,7 @@ private:
     const IStickyTransactionPoolPtr StickyTransactionPool_;
     const NNative::TClientCachePtr AuthenticatedClientCache_;
 
-    NConcurrency::TSyncMap<TYPath, TTableDetailedProfilingCounters> TableDetailedProfilingCountersMap_;
+    NConcurrency::TSyncMap<TYPath, TDetailedTableProfilingCounters> DetailedTableProfilingCountersMap_;
 
 
     NNative::IClientPtr GetOrCreateClient(const TString& user)
@@ -713,14 +701,14 @@ private:
     }
 
 
-    TTableDetailedProfilingCounters* GetOrCreateTableDetailedProfilingCounters(const TYPath& tablePath)
+    TDetailedTableProfilingCounters* GetOrCreateDetailedTableProfilingCounters(const TYPath& path)
     {
-        return TableDetailedProfilingCountersMap_.FindOrInsert(
-            tablePath,
+        return DetailedTableProfilingCountersMap_.FindOrInsert(
+            path,
             [&] {
-                return TTableDetailedProfilingCounters(RpcProxyProfiler
-                    .WithPrefix("/table_detailed_profiler")
-                    .WithTag("table_path", tablePath)
+                return TDetailedTableProfilingCounters(RpcProxyProfiler
+                    .WithPrefix("/detailed_table_statistics")
+                    .WithTag("table_path", path)
                     .WithSparse());
             })
             .first;
@@ -2671,8 +2659,8 @@ private:
         const TDetailedProfilingInfoPtr& detailedProfilingInfo)
     {
         if (detailedProfilingInfo->EnableDetailedProfiling) {
-            auto* counter = GetOrCreateTableDetailedProfilingCounters(detailedProfilingInfo->TablePath);
-            counter->LookupDuration.Record(timer.GetElapsedTime());
+            auto* counters = GetOrCreateDetailedTableProfilingCounters(detailedProfilingInfo->TablePath);
+            counters->LookupDuration.Record(timer.GetElapsedTime());
         }
     }
 
@@ -2681,8 +2669,8 @@ private:
         const TDetailedProfilingInfoPtr& detailedProfilingInfo)
     {
         if (detailedProfilingInfo->EnableDetailedProfiling) {
-            auto* counter = GetOrCreateTableDetailedProfilingCounters(detailedProfilingInfo->TablePath);
-            counter->SelectDuration.Record(timer.GetElapsedTime());
+            auto* counters = GetOrCreateDetailedTableProfilingCounters(detailedProfilingInfo->TablePath);
+            counters->SelectDuration.Record(timer.GetElapsedTime());
         }
     }
 
