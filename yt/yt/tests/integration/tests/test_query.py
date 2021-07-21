@@ -1512,7 +1512,7 @@ class TestQueryRpcProxy(TestQuery):
         rpc_driver = Driver(config=rpc_driver_config)
 
         proxy_select_duration_histogram = Profiler.at_rpc_proxy(rpc_proxy).histogram(
-            name="rpc_proxy/table_detailed_profiler/select_duration",
+            name="rpc_proxy/detailed_table_statistics/select_duration",
             fixed_tags={"table_path": "//tmp/t"})
 
         def check():
