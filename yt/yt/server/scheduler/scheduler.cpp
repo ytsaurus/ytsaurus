@@ -242,6 +242,11 @@ public:
             BIND(&TImpl::RequestClusterName, Unretained(this)),
             BIND(&TImpl::HandleClusterName, Unretained(this)));
 
+        MasterConnector_->AddCommonWatcher(
+            BIND(&TImpl::RequestDefaultUserPools, Unretained(this)),
+            BIND(&TImpl::HandleDefaultUserPools, Unretained(this)),
+            ESchedulerAlertType::UpdateDefaultUserPoolsFailed);
+
         MasterConnector_->SubscribeMasterConnecting(BIND(
             &TImpl::OnMasterConnecting,
             Unretained(this)));
@@ -2625,6 +2630,26 @@ private:
         }
 
         ClusterName_ = ConvertTo<TString>(TYsonString(rspOrError.Value()->value()));
+    }
+
+    void RequestDefaultUserPools(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+    {
+        YT_LOG_DEBUG("Requesting mapping from user to default pool");
+
+        batchReq->AddRequest(TYPathProxy::Get(GetUserToDefaultPoolMapPath()), "get_user_to_default_pool");
+    }
+
+    void HandleDefaultUserPools(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    {
+        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_user_to_default_pool");
+        if (!rspOrError.IsOK() && rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            YT_LOG_INFO(rspOrError, "Mapping from user to default pool does not exist");
+            return;
+        }
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting mapping from user to default pool");
+
+        auto userToDefaultPool = ConvertTo<THashMap<TString, TString>>(TYsonString(rspOrError.Value()->value()));
+        Strategy_->SetDefaultUserPools(std::move(userToDefaultPool));
     }
 
     void UpdateExecNodeDescriptors()

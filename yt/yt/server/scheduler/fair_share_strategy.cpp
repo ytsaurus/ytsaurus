@@ -524,17 +524,22 @@ public:
             spec->Acl.Entries.begin(),
             spec->Acl.Entries.end());
 
+        auto it = DefaultUserPools_.find(user);
+        auto defaultPool = it == DefaultUserPools_.end()
+            ? user
+            : it->second;
+
         auto poolTrees = ParsePoolTrees(spec, operationType);
         for (const auto& poolTreeDescription : poolTrees) {
             auto treeParams = New<TOperationFairShareTreeRuntimeParameters>();
             auto specIt = spec->SchedulingOptionsPerPoolTree.find(poolTreeDescription.Name);
             if (specIt != spec->SchedulingOptionsPerPoolTree.end()) {
                 treeParams->Weight = spec->Weight ? spec->Weight : specIt->second->Weight;
-                treeParams->Pool = GetTree(poolTreeDescription.Name)->CreatePoolName(spec->Pool ? spec->Pool : specIt->second->Pool, user);
+                treeParams->Pool = GetTree(poolTreeDescription.Name)->CreatePoolName(spec->Pool ? spec->Pool : specIt->second->Pool, user, defaultPool);
                 treeParams->ResourceLimits = spec->ResourceLimits->IsNonTrivial() ? spec->ResourceLimits : specIt->second->ResourceLimits;
             } else {
                 treeParams->Weight = spec->Weight;
-                treeParams->Pool = GetTree(poolTreeDescription.Name)->CreatePoolName(spec->Pool, user);
+                treeParams->Pool = GetTree(poolTreeDescription.Name)->CreatePoolName(spec->Pool, user, defaultPool);
                 treeParams->ResourceLimits = spec->ResourceLimits;
             }
             treeParams->Tentative = poolTreeDescription.Tentative;
@@ -1093,6 +1098,11 @@ public:
         return result;
     }
 
+    virtual void SetDefaultUserPools(THashMap<TString, TString> defaultUserPools) override
+    {
+        DefaultUserPools_ = std::move(defaultUserPools);
+    }
+
 private:
     TFairShareStrategyConfigPtr Config;
     ISchedulerStrategyHost* const Host;
@@ -1124,6 +1134,8 @@ private:
 
     TInstant LastMeteringStatisticsUpdateTime_;
     TMeteringMap MeteringStatistics_;
+
+    THashMap<TString, TString> DefaultUserPools_;
 
     struct TPoolTreeDescription
     {

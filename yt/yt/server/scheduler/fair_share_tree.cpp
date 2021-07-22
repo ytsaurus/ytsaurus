@@ -548,16 +548,15 @@ public:
         }
     }
 
-    virtual TPoolName CreatePoolName(const std::optional<TString>& poolFromSpec, const TString& user) const override
+    virtual TPoolName CreatePoolName(const std::optional<TString>& poolFromSpec, const TString& user, const TString& defaultPool) const override
     {
-        if (!poolFromSpec) {
-            return TPoolName(user, std::nullopt);
-        }
-        auto pool = FindPool(*poolFromSpec);
+        auto poolName = poolFromSpec.value_or(defaultPool);
+
+        auto pool = FindPool(poolName);
         if (pool && pool->GetConfig()->CreateEphemeralSubpools) {
-            return TPoolName(user, *poolFromSpec);
+            return TPoolName(user, poolName);
         }
-        return TPoolName(*poolFromSpec, std::nullopt);
+        return TPoolName(poolName, std::nullopt);
     }
 
     virtual TPoolsUpdateResult UpdatePools(const INodePtr& poolsNode) override

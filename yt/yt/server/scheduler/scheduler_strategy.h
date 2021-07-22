@@ -272,6 +272,8 @@ struct ISchedulerStrategy
 
     //! Called periodically to build resource guarantees and usages statistics.
     virtual void OnBuildResourceMetering() = 0;
+
+    virtual void SetDefaultUserPools(THashMap<TString, TString> pools) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchedulerStrategy)
