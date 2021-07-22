@@ -47,7 +47,6 @@ void TExpirationTracker::Start()
 
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
-    OnDynamicConfigChanged();
 }
 
 void TExpirationTracker::Stop()

@@ -332,6 +332,9 @@ void TChunkMerger::Initialize()
 {
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
     transactionManager->SubscribeTransactionAborted(BIND(&TChunkMerger::OnTransactionAborted, MakeWeak(this)));
+
+    const auto& configManager = Bootstrap_->GetConfigManager();
+    configManager->SubscribeConfigChanged(BIND(&TChunkMerger::OnDynamicConfigChanged, MakeWeak(this)));
 }
 
 void TChunkMerger::ScheduleMerge(NCypressServer::TNodeId nodeId)
@@ -455,18 +458,6 @@ void TChunkMerger::OnJobAborted(const TJobPtr& job)
 void TChunkMerger::OnJobFailed(const TJobPtr& job)
 {
     OnJobFinished(job);
-}
-
-void TChunkMerger::OnRecoveryComplete()
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    TMasterAutomatonPart::OnRecoveryComplete();
-
-    const auto& configManager = Bootstrap_->GetConfigManager();
-    configManager->SubscribeConfigChanged(
-        BIND(&TChunkMerger::OnDynamicConfigChanged, MakeWeak(this)));
-    OnDynamicConfigChanged();
 }
 
 void TChunkMerger::OnLeaderActive()

@@ -99,7 +99,6 @@ void TNodeDiscoveryManager::OnLeaderActive()
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Periodic),
         BIND(&TNodeDiscoveryManager::UpdateNodeList, MakeWeak(this)));
     PeriodicExecutor_->Start();
-    OnDynamicConfigChanged();
 }
 
 void TNodeDiscoveryManager::OnStopLeading()

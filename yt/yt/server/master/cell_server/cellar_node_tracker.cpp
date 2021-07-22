@@ -115,13 +115,6 @@ public:
 private:
     const TAsyncSemaphorePtr HeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
 
-    virtual void OnRecoveryComplete() override
-    {
-        TMasterAutomatonPart::OnRecoveryComplete();
-
-        OnDynamicConfigChanged();
-    }
-
     void HydraCellarNodeHeartbeat(
         const TCtxHeartbeatPtr& /*context*/,
         TReqHeartbeat* request,

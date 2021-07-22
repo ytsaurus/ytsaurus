@@ -914,6 +914,9 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TLockTypeHandler>(this));
         objectManager->RegisterHandler(CreateShardTypeHandler(Bootstrap_, &ShardMap_));
+
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
 
@@ -2360,11 +2363,6 @@ private:
         TMasterAutomatonPart::OnRecoveryComplete();
 
         AccessTracker_->Start();
-
-        const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(
-            BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
-        OnDynamicConfigChanged();
     }
 
     virtual void OnLeaderRecoveryComplete() override

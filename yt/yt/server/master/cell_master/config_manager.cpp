@@ -55,6 +55,13 @@ public:
             Bootstrap_->GetAlertManager()->RegisterAlertSource(
                 BIND(&TImpl::GetAlerts, MakeStrong(this)));
         }
+
+        // NB: Config Manager initialization in performed after all automaton parts registration in Hydra,
+        // so config changed signal will be fired after other {LeaderRecoveryComplete,FollowerRecoveryComplete,LeaderActive}
+        // subscribers. This property is crucial for many automaton parts.
+        HydraManager_->SubscribeAutomatonLeaderRecoveryComplete(BIND(&TConfigManager::TImpl::FireConfigChanged, MakeWeak(this)));
+        HydraManager_->SubscribeAutomatonFollowerRecoveryComplete(BIND(&TConfigManager::TImpl::FireConfigChanged, MakeWeak(this)));
+        HydraManager_->SubscribeLeaderActive(BIND(&TConfigManager::TImpl::FireConfigChanged, MakeWeak(this)));
     }
 
     const TDynamicClusterConfigPtr& GetConfig() const
@@ -154,6 +161,13 @@ private:
         }
 
         return alerts;
+    }
+
+    void FireConfigChanged()
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        ConfigChanged_.Fire(nullptr);
     }
 };
 

@@ -82,8 +82,6 @@ private:
     {
         TMasterAutomatonPart::OnLeaderActive();
 
-        OnDynamicConfigChanged();
-
         StoreMutationTimeExecutor_->Start();
     }
 

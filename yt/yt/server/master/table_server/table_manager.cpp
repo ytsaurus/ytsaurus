@@ -138,8 +138,6 @@ public:
 
         TMasterAutomatonPart::OnLeaderActive();
 
-        OnDynamicConfigChanged();
-
         const auto& gossipConfig = GetGossipConfig();
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();

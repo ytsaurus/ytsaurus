@@ -53,7 +53,6 @@ void TJobRegistry::Start()
 {
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
-    OnDynamicConfigChanged();
 }
 
 void TJobRegistry::Stop()

@@ -1865,8 +1865,6 @@ private:
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletGossip),
             BIND(&TTamedCellManager::OnCellStatusGossip, MakeWeak(this), /* incremental */false));
         CellStatusFullGossipExecutor_->Start();
-
-        OnDynamicConfigChanged();
     }
 
     virtual void OnStopLeading() override

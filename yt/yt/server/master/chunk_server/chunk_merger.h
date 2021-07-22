@@ -99,7 +99,6 @@ private:
     // Scheduled jobs (waiting for node heartbeat with job result).
     THashMap<TJobId, TMergeJobInfo> RunningJobs_;
 
-    virtual void OnRecoveryComplete() override;
     virtual void OnLeaderActive() override;
     virtual void OnStopLeading() override;
 

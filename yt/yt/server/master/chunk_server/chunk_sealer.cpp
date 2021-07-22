@@ -89,7 +89,6 @@ public:
 
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
-        OnDynamicConfigChanged();
     }
 
     virtual void Stop() override

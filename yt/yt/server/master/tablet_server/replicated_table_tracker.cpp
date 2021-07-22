@@ -940,8 +940,6 @@ private:
             CheckerThreadPool_->GetInvoker(),
             BIND(&TImpl::CheckIteration, MakeWeak(this)));
         CheckerExecutor_->Start();
-
-        OnDynamicConfigChanged();
     }
 
     virtual void OnStopLeading() override

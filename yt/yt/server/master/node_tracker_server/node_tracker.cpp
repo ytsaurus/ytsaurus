@@ -1554,7 +1554,6 @@ private:
     {
         TMasterAutomatonPart::OnRecoveryComplete();
 
-        OnDynamicConfigChanged();
         BufferedProducer_->SetEnabled(true);
     }
 
@@ -1589,8 +1588,6 @@ private:
                 CommitDisposeNodeWithSemaphore(node);
             }
         }
-
-        OnDynamicConfigChanged();
     }
 
     virtual void OnStopLeading() override

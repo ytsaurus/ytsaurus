@@ -120,7 +120,6 @@ void TBoomerangTracker::Start()
 
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
-    OnDynamicConfigChanged();
 }
 
 void TBoomerangTracker::Stop()
