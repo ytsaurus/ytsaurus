@@ -219,8 +219,8 @@ public:
     virtual EStoreCompactionState GetCompactionState() const override;
     virtual void SetCompactionState(EStoreCompactionState state) override;
 
-    virtual bool IsCompactionAllowed() const override;
     virtual void UpdateCompactionAttempt() override;
+    virtual TInstant GetLastCompactionTimestamp() const override;
 
     virtual bool IsChunk() const override;
     virtual IChunkStorePtr AsChunk() override;
@@ -261,7 +261,7 @@ protected:
     NTableClient::TChunkStatePtr ChunkState_;
 
     EStoreCompactionState CompactionState_ = EStoreCompactionState::None;
-    TInstant AllowedCompactionTimestamp_;
+    TInstant LastCompactionTimestamp_;
 
     YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, ReaderLock_);
     NProfiling::TCpuInstant ChunkReaderEvictionDeadline_ = 0;

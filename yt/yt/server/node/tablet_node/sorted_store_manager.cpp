@@ -1035,10 +1035,6 @@ bool TSortedStoreManager::IsStoreCompactable(IStorePtr store) const
         return false;
     }
 
-    if (!sortedChunkStore->IsCompactionAllowed()) {
-        return false;
-    }
-
     return true;
 }
 

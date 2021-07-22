@@ -13,6 +13,7 @@
 #include "slot_manager.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
@@ -69,7 +70,6 @@ private:
     const IPartitionBalancerPtr PartitionBalancer_;
     const NLsm::ILsmBackendPtr Backend_;
 
-
     void OnBeginSlotScan()
     {
         YT_LOG_DEBUG("LSM interop begins slot scan ");
@@ -114,6 +114,7 @@ private:
         backendState.CurrentTimestamp = timestampProvider->GetLatestTimestamp();
 
         backendState.TabletNodeConfig = Bootstrap_->GetConfig()->TabletNode;
+        backendState.TabletNodeDynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode;
 
         Backend_->SetLsmBackendState(backendState);
     }
@@ -200,6 +201,7 @@ private:
             lsmStore->SetCompactionState(chunkStore->GetCompactionState());
             lsmStore->SetIsCompactable(storeManager->IsStoreCompactable(store));
             lsmStore->SetCreationTime(chunkStore->GetCreationTime());
+            lsmStore->SetLastCompactionTimestamp(chunkStore->GetLastCompactionTimestamp());
         }
 
         if (store->IsSorted()) {

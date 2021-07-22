@@ -552,6 +552,7 @@ void TChunkStoreBase::BuildOrchidYson(TFluentMap fluent)
         .Item("uncompressed_data_size").Value(GetUncompressedDataSize())
         .Item("row_count").Value(GetRowCount())
         .Item("creation_time").Value(GetCreationTime())
+        .Item("last_compaction_timestamp").Value(GetLastCompactionTimestamp())
         .DoIf(backingStore.operator bool(), [&] (auto fluent) {
             fluent
                 .Item("backing_store").DoMap([&] (auto fluent) {
@@ -822,14 +823,14 @@ void TChunkStoreBase::UpdatePreloadAttempt(bool isBackoff)
     AllowedPreloadTimestamp_ = Now() + (isBackoff ? Config_->PreloadBackoffTime : TDuration::Zero());
 }
 
-bool TChunkStoreBase::IsCompactionAllowed() const
-{
-    return Now() > AllowedCompactionTimestamp_;
-}
-
 void TChunkStoreBase::UpdateCompactionAttempt()
 {
-    AllowedCompactionTimestamp_ = Now() + Config_->CompactionBackoffTime;
+    LastCompactionTimestamp_ = Now();
+}
+
+TInstant TChunkStoreBase::GetLastCompactionTimestamp() const
+{
+    return LastCompactionTimestamp_;
 }
 
 EInMemoryMode TChunkStoreBase::GetInMemoryMode() const

@@ -170,8 +170,8 @@ struct IChunkStore
     virtual EStoreCompactionState GetCompactionState() const = 0;
     virtual void SetCompactionState(EStoreCompactionState state) = 0;
 
-    virtual bool IsCompactionAllowed() const = 0;
     virtual void UpdateCompactionAttempt() = 0;
+    virtual TInstant GetLastCompactionTimestamp() const = 0;
 
     virtual NChunkClient::TChunkId GetChunkId() const = 0;
     //! Returns the timestamp provided by the chunk view, if any, and NullTimestamp otherwise.

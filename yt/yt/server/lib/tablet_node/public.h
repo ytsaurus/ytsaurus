@@ -197,6 +197,13 @@ DEFINE_ENUM(ETabletDynamicMemoryType,
     (Other)
 );
 
+DEFINE_ENUM(EPeriodicCompactionMode,
+    // Periodically compact each store independently.
+    (Store)
+    // Periodically compact all stores in each partition together.
+    (Partition)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TTabletHydraManagerConfig)

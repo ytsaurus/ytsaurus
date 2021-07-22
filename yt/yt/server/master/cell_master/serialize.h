@@ -164,6 +164,7 @@ DEFINE_ENUM(EMasterReign,
     ((AllyReplicas)                                                 (1638))  // ifsmirnov
     ((PersistentCellStatistics)                                     (1639))  // ifsmirnov
     ((LimitObjectSubtreeSize)                                       (1640))  // cookiedoth
+    ((PeriodicCompactionMode)                                       (1641))  // ifsmirnov
     // 21.3 starts here.
     ((DropPoolTreeInternedAttributes)                               (1700))  // ignat
 );

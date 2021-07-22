@@ -64,6 +64,7 @@ struct TLsmBackendState
 {
     TTimestamp CurrentTimestamp;
     NTabletNode::TTabletNodeConfigPtr TabletNodeConfig;
+    NTabletNode::TTabletNodeDynamicConfigPtr TabletNodeDynamicConfig;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
