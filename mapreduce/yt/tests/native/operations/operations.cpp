@@ -1321,7 +1321,7 @@ Y_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT(*escaped == 1337);
     }
 
-    void MapWithProtobuf(bool useDeprecatedAddInput, bool useClientProtobuf)
+    void MapWithProtobuf(bool useDeprecatedAddInput, bool useClientProtobuf, bool enableTabletIndex = false)
     {
         TTestFixture fixture;
         auto client = fixture.GetClient();
@@ -1349,7 +1349,9 @@ Y_UNIT_TEST_SUITE(Operations)
                 .AddOutput<TAllTypesMessage>(outputTable);
         }
 
-        client->Map(spec, new TProtobufMapper);
+        auto specNode = TNode();
+        specNode["job_io"]["control_attributes"]["enable_tablet_index"] = enableTabletIndex;
+        client->Map(spec, new TProtobufMapper, TOperationOptions().Spec(specNode));
 
         TVector<TNode> expected = {
             TNode()("StringField", "raz mapped"),
@@ -1408,6 +1410,11 @@ Y_UNIT_TEST_SUITE(Operations)
     Y_UNIT_TEST(ProtobufMap_Input_VerySlow_Deprecated_ClientProtobuf)
     {
         MapWithProtobuf(true, true);
+    }
+
+    Y_UNIT_TEST(ProtobufMap_EnableTabletIndex)
+    {
+        MapWithProtobuf(false, false, /* enableTabletIndex */ true);
     }
 
     void TestProtobufMap_ComplexTypes(bool useOneOfMapper)
