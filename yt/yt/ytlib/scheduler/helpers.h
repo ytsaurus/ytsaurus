@@ -58,6 +58,8 @@ const NYPath::TYPath& GetOperationsArchiveJobProfilesPath();
 const NYPath::TYPath& GetOperationsArchiveJobFailContextsPath();
 const NYPath::TYPath& GetOperationsArchiveOperationIdsPath();
 
+const NYPath::TYPath& GetUserToDefaultPoolMapPath();
+
 bool IsOperationFinished(EOperationState state);
 bool IsOperationFinishing(EOperationState state);
 bool IsOperationInProgress(EOperationState state);

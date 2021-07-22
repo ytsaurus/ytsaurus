@@ -126,6 +126,12 @@ TYPath GetControllerAgentOrchidOperationPath(
         ToYPathLiteral(ToString(operationId));
 }
 
+const TYPath& GetUserToDefaultPoolMapPath()
+{
+    static TYPath path = "//sys/scheduler/user_to_default_pool";
+    return path;
+}
+
 std::optional<TString> FindControllerAgentAddressFromCypress(
     TOperationId operationId,
     const IChannelPtr& channel)

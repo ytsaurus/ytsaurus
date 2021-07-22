@@ -2320,7 +2320,7 @@ class TestSchedulerAggressivePreemption2(YTEnvSetup):
 ##################################################################
 
 
-class TestSchedulerPoolsCommon(YTEnvSetup):
+class TestEphemeralPools(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -2329,64 +2329,23 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
         "scheduler": {
             "watchers_update_period": 100,
             "fair_share_update_period": 300,
-            "profiling_update_period": 300,
-            "fair_share_profiling_period": 300,
-            "event_log": {"flush_period": 300, "retry_backoff_time": 300},
         }
     }
 
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {"event_log": {"flush_period": 300, "retry_backoff_time": 300}}
-    }
-
-    @authors("ignat")
-    def test_pools_reconfiguration(self):
-        create_test_tables(attributes={"replication_factor": 1})
-
-        testing_options = {"scheduling_delay": 1000}
-
-        create_pool("test_pool_1")
-        create_pool("test_pool_2")
-
-        op = map(
-            track=False,
-            command="cat",
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            spec={"pool": "test_pool_1", "testing": testing_options},
-        )
-        wait(lambda: op.get_state() == "running")
-
-        remove("//sys/pools/test_pool_1")
-        create_pool("test_pool_1", parent_name="test_pool_2", wait_for_orchid=False)
-
-        op.track()
+    def teardown(self):
+        remove("//sys/scheduler/user_to_default_pool", force=True)
 
     @authors("ignat")
     def test_default_parent_pool(self):
-        create("table", "//tmp/t_in")
-        set("//tmp/t_in/@replication_factor", 1)
-        write_table("//tmp/t_in", {"foo": "bar"})
-
-        for output in ["//tmp/t_out1", "//tmp/t_out2"]:
-            create("table", output)
-            set(output + "/@replication_factor", 1)
-
         create_pool("default_pool")
         set("//sys/pool_trees/default/@config/default_parent_pool", "default_pool")
         set("//sys/pool_trees/default/@config/max_ephemeral_pools_per_user", 2)
         time.sleep(0.2)
 
-        command = with_breakpoint("cat ; BREAKPOINT")
-        op1 = map(track=False, command=command, in_="//tmp/t_in", out="//tmp/t_out1")
+        command = with_breakpoint("BREAKPOINT")
+        op1 = run_test_vanilla(command)
+        op2 = run_test_vanilla(command, spec={"pool": "my_pool"})
 
-        op2 = map(
-            track=False,
-            command=command,
-            in_="//tmp/t_in",
-            out="//tmp/t_out2",
-            spec={"pool": "my_pool"},
-        )
         # Each operation has one job.
         wait_breakpoint(job_count=2)
 
@@ -2409,16 +2368,36 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
             op.track()
 
     @authors("renadeen")
+    def test_default_user_pool(self):
+        create_user("u")
+        create_pool("default_for_u")
+
+        create("document", "//sys/scheduler/user_to_default_pool", attributes={"value": {"u": "default_for_u"}})
+        time.sleep(0.2)
+
+        op = run_sleeping_vanilla(authenticated_user="u")
+
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/pool", default="") == "default_for_u")
+
+    @authors("renadeen")
+    def test_default_user_pool_is_hub_for_ephemeral(self):
+        create_user("u")
+        create_pool("default_for_u", attributes={"create_ephemeral_subpools": True})
+
+        create("document", "//sys/scheduler/user_to_default_pool", attributes={"value": {"u": "default_for_u"}})
+        time.sleep(0.2)
+
+        op = run_sleeping_vanilla(authenticated_user="u")
+
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/pool", default="") == "default_for_u$u")
+        wait(lambda: get(scheduler_orchid_pool_path("default_for_u$u") + "/parent", default="") == "default_for_u")
+
+    @authors("renadeen")
     def test_ephemeral_flag(self):
         create_pool("real_pool")
         op = run_sleeping_vanilla(spec={"pool": "ephemeral_pool"})
         op.wait_for_state("running")
-        wait(
-            lambda: get(
-                scheduler_orchid_pool_path("ephemeral_pool") + "/is_ephemeral",
-                default=False,
-            )
-        )
+        wait(lambda: get(scheduler_orchid_pool_path("ephemeral_pool") + "/is_ephemeral", default=False))
         wait(lambda: not get(scheduler_orchid_pool_path("real_pool") + "/is_ephemeral", default=False))
         wait(lambda: not get(scheduler_orchid_pool_path("<Root>") + "/is_ephemeral", default=False))
 
@@ -2495,10 +2474,7 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
     def test_custom_ephemeral_pool_max_operation_count(self):
         create_pool("custom_pool")
         set("//sys/pools/custom_pool/@create_ephemeral_subpools", True)
-        set(
-            "//sys/pools/custom_pool/@ephemeral_subpool_config",
-            {"max_operation_count": 1},
-        )
+        set("//sys/pools/custom_pool/@ephemeral_subpool_config", {"max_operation_count": 1})
         time.sleep(0.2)
 
         op = run_sleeping_vanilla(spec={"pool": "custom_pool"})
@@ -2579,6 +2555,49 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
 
         for op in ops:
             op.track()
+
+
+class TestSchedulerPoolsCommon(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "fair_share_update_period": 300,
+            "profiling_update_period": 300,
+            "fair_share_profiling_period": 300,
+            "event_log": {"flush_period": 300, "retry_backoff_time": 300},
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {"event_log": {"flush_period": 300, "retry_backoff_time": 300}}
+    }
+
+    @authors("ignat")
+    def test_pools_reconfiguration(self):
+        create_test_tables(attributes={"replication_factor": 1})
+
+        testing_options = {"scheduling_delay": 1000}
+
+        create_pool("test_pool_1")
+        create_pool("test_pool_2")
+
+        op = map(
+            track=False,
+            command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"pool": "test_pool_1", "testing": testing_options},
+        )
+        wait(lambda: op.get_state() == "running")
+
+        remove("//sys/pools/test_pool_1")
+        create_pool("test_pool_1", parent_name="test_pool_2", wait_for_orchid=False)
+
+        op.track()
 
     @authors("renadeen", "babenko")
     def test_event_log(self):
