@@ -117,8 +117,6 @@ private:
 
         TMasterAutomatonPart::OnLeaderActive();
 
-        OnDynamicConfigChanged();
-
         UpdateAlertsExecutor_->Start();
     }
 

@@ -79,8 +79,6 @@ private:
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletCellJanitor),
             BIND(&TImpl::OnCleanup, MakeWeak(this)));
         PeriodicExecutor_->Start();
-
-        OnDynamicConfigChanged();
     }
 
     void OnStopLeading()

@@ -66,8 +66,6 @@ void TMutationIdempotizer::Start()
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::ObjectManager),
         BIND(&TMutationIdempotizer::OnCheck, MakeWeak(this)));
     CheckExecutor_->Start();
-
-    OnDynamicConfigChanged();
 }
 
 void TMutationIdempotizer::Stop()

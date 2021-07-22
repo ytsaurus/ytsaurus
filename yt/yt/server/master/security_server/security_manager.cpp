@@ -3453,8 +3453,6 @@ private:
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::SecurityManager),
             BIND(&TImpl::CommitAccountMasterMemoryUsage, MakeWeak(this)));
         AccountMasterMemoryUsageUpdateExecutor_->Start();
-
-        OnDynamicConfigChanged();
     }
 
     virtual void OnStopLeading() override

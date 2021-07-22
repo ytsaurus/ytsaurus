@@ -800,7 +800,6 @@ void TBootstrap::DoInitialize()
 
     fileSnapshotStore->Initialize();
     AlertManager_->Initialize();
-    ConfigManager_->Initialize();
     ObjectManager_->Initialize();
     SecurityManager_->Initialize();
     TransactionManager_->Initialize();
@@ -818,6 +817,11 @@ void TBootstrap::DoInitialize()
     ChaosManager_->Initialize();
     MulticellManager_->Initialize();
     SchedulerPoolManager_->Initialize();
+
+    // NB: Keep Config Manager initialization last and prevent
+    // new automaton parts registration after its initialization.
+    // Cf. TConfigManager::Initialize.
+    ConfigManager_->Initialize();
 
     CellDirectorySynchronizer_ = New<NHiveServer::TCellDirectorySynchronizer>(
         Config_->CellDirectorySynchronizer,

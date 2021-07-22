@@ -57,7 +57,6 @@ void TRequestTracker::Start()
 
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
-    OnDynamicConfigChanged();
 
     const auto& hydraFacade = Bootstrap_->GetHydraFacade();
     AlivePeerCountExecutor_ = New<TPeriodicExecutor>(

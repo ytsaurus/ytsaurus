@@ -6122,8 +6122,6 @@ private:
 
         TMasterAutomatonPart::OnLeaderActive();
 
-        OnDynamicConfigChanged();
-
         const auto& dynamicConfig = GetDynamicConfig();
 
         TabletCellDecommissioner_->Start();

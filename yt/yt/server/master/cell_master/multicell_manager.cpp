@@ -587,8 +587,6 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnRecoveryComplete();
-
-        OnDynamicConfigChanged();
     }
 
     virtual void OnLeaderActive() override
@@ -610,8 +608,6 @@ private:
             RegisterAtPrimaryMasterExecutor_->Start();
 
         }
-
-        OnDynamicConfigChanged();
     }
 
     virtual void OnStartLeading() override
