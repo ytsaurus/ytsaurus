@@ -3,6 +3,7 @@
 #include "config.h"
 #include "columnar_statistics_fetcher.h"
 
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec_fetcher.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
@@ -204,6 +205,7 @@ public:
             Config_->MaxChunksPerLocateRequest,
             [=] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int /*tableIndex*/) {
                 req->set_fetch_all_meta_extensions(false);
+                req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
                 req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value);
                 req->set_omit_dynamic_stores(true);
                 SetTransactionId(req, NullTransactionId);
