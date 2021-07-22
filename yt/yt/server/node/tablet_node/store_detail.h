@@ -42,6 +42,8 @@ public:
     virtual TStoreId GetId() const override;
     virtual TTablet* GetTablet() const override;
 
+    virtual bool IsEmpty() const override;
+
     virtual EStoreState GetStoreState() const override;
     virtual void SetStoreState(EStoreState state) override;
 

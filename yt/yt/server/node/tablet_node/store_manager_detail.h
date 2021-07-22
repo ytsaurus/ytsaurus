@@ -84,6 +84,8 @@ public:
     virtual ISortedStoreManagerPtr AsSorted() override;
     virtual IOrderedStoreManagerPtr AsOrdered() override;
 
+    void UpdatePeriodicRotationMilestone();
+
 protected:
     const TTabletManagerConfigPtr Config_;
     TTablet* Tablet_;
@@ -93,7 +95,7 @@ protected:
     const NApi::NNative::IClientPtr Client_;
 
     bool RotationScheduled_ = false;
-    TInstant LastRotated_;
+    std::optional<TInstant> PeriodicRotationMilestone_;
 
     THashSet<IStorePtr> LockedStores_;
 

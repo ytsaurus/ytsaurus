@@ -120,6 +120,8 @@ bool TSortedStoreManager::ExecuteWrites(
     TWireProtocolReader* reader,
     TWriteContext* context)
 {
+    UpdatePeriodicRotationMilestone();
+
     while (!reader->IsFinished()) {
         TSortedDynamicRowRef rowRef;
         auto readerCheckpoint = reader->GetCurrent();
