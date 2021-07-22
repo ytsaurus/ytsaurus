@@ -115,6 +115,7 @@ public:
     TDuration DynamicStoreFlushPeriodSplay;
     std::optional<TDuration> AutoCompactionPeriod;
     double AutoCompactionPeriodSplayRatio;
+    EPeriodicCompactionMode PeriodicCompactionMode;
 
     bool EnableLookupHashTable;
 
@@ -296,6 +297,8 @@ public:
             .Default();
         RegisterParameter("auto_compaction_period_splay_ratio", AutoCompactionPeriodSplayRatio)
             .Default(0.3);
+        RegisterParameter("periodic_compaction_mode", PeriodicCompactionMode)
+            .Default(EPeriodicCompactionMode::Store);
 
         RegisterParameter("enable_lookup_hash_table", EnableLookupHashTable)
             .Default(false);

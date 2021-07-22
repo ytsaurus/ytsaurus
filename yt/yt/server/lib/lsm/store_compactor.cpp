@@ -13,6 +13,7 @@ namespace NYT::NLsm {
 
 using namespace NTransactionClient;
 using namespace NObjectClient;
+using namespace NTabletNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,6 +38,7 @@ public:
     virtual void SetLsmBackendState(const TLsmBackendState& state) override
     {
         CurrentTimestamp_ = state.CurrentTimestamp;
+        Config_ = state.TabletNodeConfig;
     }
 
     virtual TLsmActionBatch BuildLsmActions(const std::vector<TTabletPtr>& tablets) override
@@ -55,6 +57,7 @@ public:
 
 private:
     TTimestamp CurrentTimestamp_;
+    TTabletNodeConfigPtr Config_;
 
     TLsmActionBatch ScanTablet(TTablet* tablet)
     {
@@ -241,7 +244,7 @@ private:
         std::vector<TStore*> candidates;
 
         for (const auto& store : eden->Stores()) {
-            if (!store->GetIsCompactable()) {
+            if (!IsStoreCompactable(store.get())) {
                 continue;
             }
 
@@ -313,8 +316,10 @@ private:
 
         std::vector<TStore*> candidates;
 
+        TEnumIndexedVector<EStoreCompactionReason, int> storeCountByReason;
+
         for (const auto& store : partition->Stores()) {
-            if (!store->GetIsCompactable()) {
+            if (!IsStoreCompactable(store.get())) {
                 continue;
             }
 
@@ -328,15 +333,41 @@ private:
 
             auto compactionReason = GetStoreCompactionReason(candidate);
             if (compactionReason != EStoreCompactionReason::None) {
-                finalists.push_back(candidate->GetId());
-                YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                    "Finalist store picked out of order (StoreId: %v, CompactionReason: %v)",
-                    candidate->GetId(),
-                    compactionReason);
+                ++storeCountByReason[compactionReason];
             }
+        }
 
-            if (std::ssize(finalists) >= mountConfig->MaxCompactionStoreCount) {
-                break;
+        // Check if periodic compaction for the partition has come.
+        if (mountConfig->PeriodicCompactionMode == EPeriodicCompactionMode::Partition &&
+            storeCountByReason[EStoreCompactionReason::PeriodicCompaction] > 0)
+        {
+            std::sort(
+                candidates.begin(),
+                candidates.end(),
+                [] (auto* lhs, auto* rhs) {
+                    return lhs->GetCreationTime() < rhs->GetCreationTime();
+                });
+
+            for (auto* candidate : candidates) {
+                finalists.push_back(candidate->GetId());
+                if (std::ssize(finalists) >= mountConfig->MaxCompactionStoreCount) {
+                    break;
+                }
+            }
+        } else if (*std::max_element(storeCountByReason.begin(), storeCountByReason.end()) > 0) {
+            for (auto* candidate : candidates) {
+                auto compactionReason = GetStoreCompactionReason(candidate);
+                if (compactionReason != EStoreCompactionReason::None) {
+                    finalists.push_back(candidate->GetId());
+                    YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
+                        "Finalist store picked out of order (StoreId: %v, CompactionReason: %v)",
+                        candidate->GetId(),
+                        compactionReason);
+                }
+
+                if (std::ssize(finalists) >= mountConfig->MaxCompactionStoreCount) {
+                    break;
+                }
             }
         }
 
@@ -403,6 +434,16 @@ private:
         }
 
         return finalists;
+    }
+
+    bool IsStoreCompactable(TStore* store)
+    {
+        if (!store->GetIsCompactable()) {
+            return false;
+        }
+
+        return Now() > store->GetLastCompactionTimestamp() +
+            Config_->TabletManager->CompactionBackoffTime;
     }
 
     static bool IsStoreCompactionForced(const TStore* store)

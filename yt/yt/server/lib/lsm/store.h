@@ -34,6 +34,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(EStoreCompactionState, CompactionState);
     DEFINE_BYVAL_RW_PROPERTY(bool, IsCompactable);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, CreationTime);
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, LastCompactionTimestamp);
 
     // Sorted stores.
     DEFINE_BYREF_RW_PROPERTY(NTableClient::TLegacyOwningKey, MinKey);
