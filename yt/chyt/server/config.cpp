@@ -416,6 +416,8 @@ TMemoryConfig::TMemoryConfig()
         .Default();
     RegisterParameter("uncompressed_block_cache", UncompressedBlockCache)
         .Default();
+    RegisterParameter("compressed_block_cache", CompressedBlockCache)
+        .Default();
     RegisterParameter("chunk_meta_cache", ChunkMetaCache)
         .Default();
     RegisterParameter("memory_limit", MemoryLimit)
@@ -482,16 +484,26 @@ TClickHouseServerBootstrapConfig::TClickHouseServerBootstrapConfig()
             if (Memory->WatchdogOomWindowWatermark) {
                 Yt->MemoryWatchdog->WindowCodicilWatermark = *Memory->WatchdogOomWindowWatermark;
             }
+
+            auto initDefault = [] (auto& config) {
+                if (!config) {
+                    config = New<typename std::remove_reference_t<decltype(config)>::TUnderlying>();
+                }
+            };
+
             if (Memory->UncompressedBlockCache) {
+                initDefault(ClusterConnection->BlockCache);
                 ClusterConnection->BlockCache->UncompressedData->Capacity = *Memory->UncompressedBlockCache;
             }
-            if (Memory->ChunkMetaCache) {
-                if (ClusterConnection->ChunkMetaCache) {
-                    ClusterConnection->ChunkMetaCache->Capacity = *Memory->ChunkMetaCache;
-                } else {
-                    ClusterConnection->ChunkMetaCache = New<NChunkClient::TClientChunkMetaCacheConfig>(*Memory->ChunkMetaCache);
-                }
+            if (Memory->CompressedBlockCache) {
+                initDefault(ClusterConnection->BlockCache);
+                ClusterConnection->BlockCache->CompressedData->Capacity = *Memory->CompressedBlockCache;
             }
+            if (Memory->ChunkMetaCache) {
+                initDefault(ClusterConnection->ChunkMetaCache);
+                ClusterConnection->ChunkMetaCache->Capacity = *Memory->ChunkMetaCache;
+            }
+
             if (Memory->MaxServerMemoryUsage) {
                 ClickHouse->MaxServerMemoryUsage = *Memory->MaxServerMemoryUsage;
             }

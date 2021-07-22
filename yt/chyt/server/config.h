@@ -289,7 +289,7 @@ public:
     //! How many times we will handle ping from an unknown instance before ignoring it.
     int UnknownInstancePingLimit;
     //! Try to ping banned instances. It can help to prevent ban expiration for dead instances and
-    //! to find mistakenly banned instances. 
+    //! to find mistakenly banned instances.
     bool PingBanned;
     //! Allow to unban the instance after successful gossip request.
     //! It can help to restore discovery list faster if the instance was banned because of
@@ -415,11 +415,11 @@ DEFINE_REFCOUNTED_TYPE(TLauncherConfig);
 // Values in braces are not defined explicitly, but rather taken in account when setting
 // the rest of the values. Values starting with hash sign are defined explicitly.
 //
-// | <================================================= #MemoryLimit ==========================================> |
-// | <================= #MaxServerMemoryUsage =================> | <========== (ClickHouseWatermark) ==========> |
-// | #Reader | #UncompressedBlockCache | (CH Memory + Footprint) |                       | #WatchdogOomWatermark |
-// |                                                | <============== #WatchdogOomWindowWatermark =============> |
-//
+// | <================================================= #MemoryLimit ============================================> |
+// | <================== #MaxServerMemoryUsage ==================> | <========== (ClickHouseWatermark) ==========> |
+// | #Reader | #UncompressedBlockCache + | (CH Memory + Footprint) |                       | #WatchdogOomWatermark |
+// |         | #CompressedBlockCache +   |            | <============== #WatchdogOomWindowWatermark =============> |
+// |         | #ClientBlockMetaCache     |
 //                                                         ^              ^                     ^                  ^
 // If min rss over 15 min window resides in this __________|              |                     |                  |
 // range, instance performs graceful self-interruption.                   |                     |                  |
@@ -438,6 +438,7 @@ class TMemoryConfig
 public:
     std::optional<i64> Reader;
     std::optional<i64> UncompressedBlockCache;
+    std::optional<i64> CompressedBlockCache;
     std::optional<i64> ChunkMetaCache;
     std::optional<i64> MemoryLimit;
     std::optional<i64> MaxServerMemoryUsage;
