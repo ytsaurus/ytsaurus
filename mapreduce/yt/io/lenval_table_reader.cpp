@@ -15,6 +15,7 @@ const i32 CONTROL_ATTR_KEY_SWITCH    = -2;
 const i32 CONTROL_ATTR_RANGE_INDEX   = -3;
 const i32 CONTROL_ATTR_ROW_INDEX     = -4;
 const i32 CONTROL_ATTR_END_OF_STREAM = -5;
+const i32 CONTROL_ATTR_TABLET_INDEX  = -6;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,13 +91,20 @@ void TLenvalTableReader::Next()
                         ReadInteger(&value);
                         break;
                     }
+                    case CONTROL_ATTR_TABLET_INDEX: {
+                        ui64 tmp = 0;
+                        ReadInteger(&tmp);
+                        TabletIndex_ = tmp;
+                        ReadInteger(&value);
+                        break;
+                    }
                     case CONTROL_ATTR_END_OF_STREAM: {
                         IsEndOfStream_ = true;
                         break;
                     }
                     default:
                         ythrow yexception() <<
-                            Sprintf("Invalid control integer %d in YaMR stream", value);
+                            Sprintf("Invalid control integer %d in lenval stream", value);
                 }
             }
 
