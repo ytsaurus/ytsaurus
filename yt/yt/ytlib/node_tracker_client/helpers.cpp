@@ -80,14 +80,16 @@ TString FormatResourceUsage(
     return Format("{%v}", FormatResources(usage, limits));
 }
 
-void FormatValue(TStringBuilderBase* /*builder*/, const NProto::TDiskResources& diskResources, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, const NProto::TDiskResources& diskResources, TStringBuf /*spec*/)
 {
-    MakeFormattableView(diskResources.disk_location_resources(), [] (TStringBuilderBase* builder, const NProto::TDiskLocationResources& locationResources) {
-        builder->AppendFormat("{usage: %v, limit: %v, medium_index: %v}",
-            locationResources.usage(),
-            locationResources.limit(),
-            locationResources.medium_index());
-    });
+    builder->AppendFormat(
+        "%v",
+        MakeFormattableView(diskResources.disk_location_resources(), [] (TStringBuilderBase* builder, const NProto::TDiskLocationResources& locationResources) {
+            builder->AppendFormat("{usage: %v, limit: %v, medium_index: %v}",
+                locationResources.usage(),
+                locationResources.limit(),
+                locationResources.medium_index());
+        }));
 }
 
 TString ToString(const NProto::TDiskResources& diskResources)
