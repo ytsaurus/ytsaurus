@@ -25,15 +25,15 @@ func (t Type) String() string {
 }
 
 const (
-	TypeInt64  Type = "int64"
-	TypeInt32  Type = "int32"
-	TypeInt16  Type = "int16"
-	TypeInt8   Type = "int8"
-	TypeUint64 Type = "uint64"
-	TypeUint32 Type = "uint32"
-	TypeUint16 Type = "uint16"
-	TypeUint8  Type = "uint8"
-	// No float32 type :(
+	TypeInt64   Type = "int64"
+	TypeInt32   Type = "int32"
+	TypeInt16   Type = "int16"
+	TypeInt8    Type = "int8"
+	TypeUint64  Type = "uint64"
+	TypeUint32  Type = "uint32"
+	TypeUint16  Type = "uint16"
+	TypeUint8   Type = "uint8"
+	TypeFloat32 Type = "float"
 	TypeFloat64 Type = "double"
 
 	TypeBytes  Type = "string"

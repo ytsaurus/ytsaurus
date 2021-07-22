@@ -23,6 +23,9 @@ type testBasicTypes struct {
 	U32 uint32
 	U16 uint16
 
+	F64 float64
+	F32 float32
+
 	S string
 	B []byte
 	innerStruct
@@ -49,6 +52,8 @@ func TestInfer(t *testing.T) {
 			{Name: "U64", Type: TypeUint64, Required: true},
 			{Name: "U32", Type: TypeUint32, Required: true},
 			{Name: "U16", Type: TypeUint16, Required: true},
+			{Name: "F64", Type: TypeFloat64, Required: true},
+			{Name: "F32", Type: TypeFloat32, Required: true},
 			{Name: "S", Type: TypeString, Required: true},
 			{Name: "B", Type: TypeBytes, Required: true},
 			{Name: "Field", Type: TypeInt64, Required: true},

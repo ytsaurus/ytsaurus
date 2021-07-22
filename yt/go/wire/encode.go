@@ -122,6 +122,8 @@ func ytTypeFor(typ reflect.Type) (ytTyp schema.Type, err error) {
 		return schema.TypeString, nil
 	case reflect.Bool:
 		return schema.TypeBoolean, nil
+	case reflect.Float32:
+		return schema.TypeFloat32, nil
 	case reflect.Float64:
 		return schema.TypeFloat64, nil
 
@@ -282,6 +284,8 @@ func convertValue(typ schema.Type, id uint16, value interface{}) (Value, error) 
 		v = NewUint64(id, uint64(value.(uint16)))
 	case schema.TypeUint8:
 		v = NewUint64(id, uint64(value.(uint8)))
+	case schema.TypeFloat32:
+		v = NewFloat64(id, float64(value.(float32)))
 	case schema.TypeFloat64:
 		v = NewFloat64(id, value.(float64))
 	case schema.TypeBytes:

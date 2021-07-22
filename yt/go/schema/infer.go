@@ -63,6 +63,8 @@ func ytTypeFor(typ reflect.Type) (ytTyp Type, err error) {
 		return TypeString, nil
 	case reflect.Bool:
 		return TypeBoolean, nil
+	case reflect.Float32:
+		return TypeFloat32, nil
 	case reflect.Float64:
 		return TypeFloat64, nil
 
@@ -104,7 +106,7 @@ func parseTag(fieldName string, typ reflect.Type, tag reflect.StructTag) (c *Col
 //
 // Mapping between go and YT types is defined as follows:
 //
-// Go types int, int16, int32, int64, uint, uint16, uint32, uint64, bool and float64 are mapped to equivalent YT types.
+// Go types int, int16, int32, int64, uint, uint16, uint32, uint64, float32, float64 and bool are mapped to equivalent YT types.
 // NOTE: int8 and uint8 types are not supported.
 //
 // Go type []byte is mapped to YT type string.
