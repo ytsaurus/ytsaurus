@@ -10,6 +10,8 @@ from yt_type_helpers import make_schema
 
 import yt.yson as yson
 
+import pytest
+
 from time import sleep, time
 
 ################################################################################
@@ -181,6 +183,30 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
             )
 
         wait(lambda: check())
+
+    @pytest.mark.flaky(max_runs=5)
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("sorted", [True, False])
+    def test_periodic_rotation(self, sorted):
+        sync_create_cells(1)
+        if sorted:
+            self._create_simple_table("//tmp/t")
+        else:
+            self._create_simple_table("//tmp/t", schema=[{"name": "key", "type": "int64"}])
+
+        set("//tmp/t/@dynamic_store_auto_flush_period", 5000)
+        set("//tmp/t/@dynamic_store_flush_period_splay", 0)
+        set("//tmp/t/@enable_dynamic_store_read", 0)
+        sync_mount_table("//tmp/t")
+
+        sleep(5)
+        rows = [{"key": i} for i in xrange(10)]
+        insert_rows("//tmp/t", rows)
+
+        sleep(2)
+        assert get("//tmp/t/@chunk_count") == 0
+
+        wait(lambda: get("//tmp/t/@chunk_count") == 1)
 
     @authors("akozhikhov")
     def test_small_chunks_partition_scenario(self):

@@ -67,6 +67,8 @@ bool TReplicatedStoreManager::ExecuteWrites(
     TWireProtocolReader* reader,
     TWriteContext* context)
 {
+    LogStoreManager_->UpdatePeriodicRotationMilestone();
+
     YT_ASSERT(context->Phase == EWritePhase::Commit);
     while (!reader->IsFinished()) {
         auto command = reader->ReadCommand();
@@ -224,7 +226,7 @@ bool TReplicatedStoreManager::IsStoreFlushable(IStorePtr store) const
     return LogStoreManager_->IsStoreFlushable(std::move(store));
 }
 
-TStoreFlushCallback  TReplicatedStoreManager::BeginStoreFlush(
+TStoreFlushCallback TReplicatedStoreManager::BeginStoreFlush(
     IDynamicStorePtr store,
     TTabletSnapshotPtr tabletSnapshot,
     bool isUnmountWorkflow)

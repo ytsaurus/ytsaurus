@@ -70,6 +70,7 @@ struct IStore
     virtual i64 GetCompressedDataSize() const = 0;
     virtual i64 GetUncompressedDataSize() const = 0;
     virtual i64 GetRowCount() const = 0;
+    virtual bool IsEmpty() const = 0;
 
     //! Returns the minimum timestamp of changes recorded in the store.
     virtual TTimestamp GetMinTimestamp() const = 0;

@@ -130,8 +130,13 @@ void TStoreManagerBase::StopEpoch()
 void TStoreManagerBase::InitializeRotation()
 {
     const auto& mountConfig = Tablet_->GetSettings().MountConfig;
-    if (mountConfig->DynamicStoreAutoFlushPeriod) {
-        LastRotated_ = TInstant::Now() - RandomDuration(*mountConfig->DynamicStoreAutoFlushPeriod);
+    if (mountConfig->DynamicStoreAutoFlushPeriod &&
+        GetActiveStore() &&
+        !GetActiveStore()->IsEmpty())
+    {
+        PeriodicRotationMilestone_ = TInstant::Now() - RandomDuration(*mountConfig->DynamicStoreAutoFlushPeriod);
+    } else {
+        PeriodicRotationMilestone_ = std::nullopt;
     }
 
     RotationScheduled_ = false;
@@ -473,10 +478,8 @@ void TStoreManagerBase::Remount(const TTableSettings& settings)
 
 void TStoreManagerBase::Rotate(bool createNewStore)
 {
-    const auto& mountConfig = Tablet_->GetSettings().MountConfig;
-
     RotationScheduled_ = false;
-    LastRotated_ = TInstant::Now() + RandomDuration(mountConfig->DynamicStoreFlushPeriodSplay);
+    PeriodicRotationMilestone_ = std::nullopt;
 
     auto* activeStore = GetActiveStore();
 
@@ -588,9 +591,10 @@ bool TStoreManagerBase::IsPeriodicRotationNeeded() const
     const auto* activeStore = GetActiveStore();
     const auto& mountConfig = Tablet_->GetSettings().MountConfig;
     return
-        mountConfig->DynamicStoreAutoFlushPeriod  &&
-        TInstant::Now() > LastRotated_ + *mountConfig->DynamicStoreAutoFlushPeriod &&
-        activeStore->GetRowCount() > 0;
+        mountConfig->DynamicStoreAutoFlushPeriod &&
+        !activeStore->IsEmpty() &&
+        PeriodicRotationMilestone_ &&
+        TInstant::Now() > *PeriodicRotationMilestone_ + *mountConfig->DynamicStoreAutoFlushPeriod;
 }
 
 bool TStoreManagerBase::IsRotationPossible() const
@@ -646,6 +650,18 @@ ISortedStoreManagerPtr TStoreManagerBase::AsSorted()
 IOrderedStoreManagerPtr TStoreManagerBase::AsOrdered()
 {
     YT_ABORT();
+}
+
+void TStoreManagerBase::UpdatePeriodicRotationMilestone()
+{
+    if (PeriodicRotationMilestone_) {
+        return;
+    }
+
+    const auto& mountConfig = Tablet_->GetSettings().MountConfig;
+    if (mountConfig->DynamicStoreAutoFlushPeriod) {
+        PeriodicRotationMilestone_ = TInstant::Now() + RandomDuration(mountConfig->DynamicStoreFlushPeriodSplay);
+    }
 }
 
 TDynamicStoreId TStoreManagerBase::GenerateDynamicStoreId()

@@ -126,6 +126,11 @@ TTablet* TStoreBase::GetTablet() const
     return Tablet_;
 }
 
+bool TStoreBase::IsEmpty() const
+{
+    return GetRowCount() == 0;
+}
+
 EStoreState TStoreBase::GetStoreState() const
 {
     return StoreState_;
