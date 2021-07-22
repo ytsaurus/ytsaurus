@@ -259,11 +259,11 @@ private:
     bool MaybeAddChunk(TChunk* chunk)
     {
         const auto& config = GetDynamicConfig();
-        if (CurrentRowCount_ < config->MaxRowCount &&
-            CurrentDataWeight_ < config->MaxDataWeight &&
-            CurrentUncompressedDataSize_ < config->MaxUncompressedDataSize &&
+        if (CurrentRowCount_ + chunk->MiscExt().row_count() < config->MaxRowCount &&
+            CurrentDataWeight_ + chunk->MiscExt().data_weight() < config->MaxDataWeight &&
+            CurrentUncompressedDataSize_ + chunk->MiscExt().uncompressed_data_size() < config->MaxUncompressedDataSize &&
             std::ssize(ChunkIds_) < config->MaxChunkCount &&
-            (ChunkIds_.empty() || CurrentUncompressedDataSize_ / std::ssize(ChunkIds_) < config->MaxAverageChunkSize))
+            chunk->MiscExt().data_weight() < config->MaxInputChunkDataWeight)
         {
             CurrentRowCount_ += chunk->MiscExt().row_count();
             CurrentDataWeight_ += chunk->MiscExt().data_weight();

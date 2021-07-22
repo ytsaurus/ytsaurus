@@ -212,12 +212,11 @@ public:
     i64 MaxRowCount;
     i64 MaxDataWeight;
     i64 MaxUncompressedDataSize;
-    i64 MaxAverageChunkSize;
+    i64 MaxInputChunkDataWeight;
 
     TDuration SchedulePeriod;
     TDuration CreateChunksPeriod;
     TDuration TransactionUpdatePeriod;
-    TDuration StatisticsUpdatePeriod;
 
     int CreateChunksBatchSize;
 
@@ -243,7 +242,7 @@ public:
         RegisterParameter("max_uncompressed_data_size", MaxUncompressedDataSize)
             .GreaterThan(1)
             .Default(2_GB);
-        RegisterParameter("max_average_chunk_size", MaxAverageChunkSize)
+        RegisterParameter("max_input_chunk_data_weight", MaxInputChunkDataWeight)
             .GreaterThan(1)
             .Default(512_MB);
 
@@ -253,8 +252,6 @@ public:
             .Default(TDuration::Seconds(1));
         RegisterParameter("transaction_update_period", TransactionUpdatePeriod)
             .Default(TDuration::Minutes(10));
-        RegisterParameter("statistics_update_period", StatisticsUpdatePeriod)
-            .Default(TDuration::Seconds(1));
 
         RegisterParameter("create_chunks_batch_size", CreateChunksBatchSize)
             .GreaterThan(1)
@@ -262,7 +259,7 @@ public:
 
         RegisterParameter("queue_size_limit", QueueSizeLimit)
             .GreaterThan(1)
-            .Default(1000000);
+            .Default(100000);
     }
 };
 
