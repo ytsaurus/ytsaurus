@@ -697,7 +697,26 @@ func (c *client) MountTable(
 	path ypath.Path,
 	opts *yt.MountTableOptions,
 ) (err error) {
-	return xerrors.New("implement me")
+	if opts == nil {
+		opts = &yt.MountTableOptions{}
+	}
+
+	req := &rpc_proxy.TReqMountTable{
+		Path:               ptr.String(path.YPath().String()),
+		CellId:             convertGUIDPtr(opts.CellID),
+		Freeze:             &opts.Freeze,
+		MutatingOptions:    convertMutatingOptions(opts.MutatingOptions),
+		TabletRangeOptions: convertTabletRangelOptions(opts.TabletRangeOptions),
+		TargetCellIds:      convertGUIDs(opts.TargetCellIDs),
+	}
+
+	var rsp rpc_proxy.TRspMountTable
+	err = c.do(ctx, "MountTable", req, &rsp)
+	if err != nil {
+		return
+	}
+
+	return
 }
 
 func (c *client) UnmountTable(
@@ -705,7 +724,24 @@ func (c *client) UnmountTable(
 	path ypath.Path,
 	opts *yt.UnmountTableOptions,
 ) (err error) {
-	return xerrors.New("implement me")
+	if opts == nil {
+		opts = &yt.UnmountTableOptions{}
+	}
+
+	req := &rpc_proxy.TReqUnmountTable{
+		Path:               ptr.String(path.YPath().String()),
+		Force:              &opts.Force,
+		MutatingOptions:    convertMutatingOptions(opts.MutatingOptions),
+		TabletRangeOptions: convertTabletRangelOptions(opts.TabletRangeOptions),
+	}
+
+	var rsp rpc_proxy.TRspUnmountTable
+	err = c.do(ctx, "UnmountTable", req, &rsp)
+	if err != nil {
+		return
+	}
+
+	return
 }
 
 func (c *client) RemountTable(
@@ -713,7 +749,23 @@ func (c *client) RemountTable(
 	path ypath.Path,
 	opts *yt.RemountTableOptions,
 ) (err error) {
-	return xerrors.New("implement me")
+	if opts == nil {
+		opts = &yt.RemountTableOptions{}
+	}
+
+	req := &rpc_proxy.TReqRemountTable{
+		Path:               ptr.String(path.YPath().String()),
+		MutatingOptions:    convertMutatingOptions(opts.MutatingOptions),
+		TabletRangeOptions: convertTabletRangelOptions(opts.TabletRangeOptions),
+	}
+
+	var rsp rpc_proxy.TRspRemountTable
+	err = c.do(ctx, "RemountTable", req, &rsp)
+	if err != nil {
+		return
+	}
+
+	return
 }
 
 func (c *client) ReshardTable(
@@ -721,7 +773,33 @@ func (c *client) ReshardTable(
 	path ypath.Path,
 	opts *yt.ReshardTableOptions,
 ) (err error) {
-	return xerrors.New("implement me")
+	if opts == nil {
+		opts = &yt.ReshardTableOptions{}
+	}
+
+	attachments, err := encodePivotKeys(opts.PivotKeys)
+	if err != nil {
+		return xerrors.Errorf("unable to encode pivot keys: %w", err)
+	}
+
+	req := &rpc_proxy.TReqReshardTable{
+		Path:               ptr.String(path.YPath().String()),
+		TabletCount:        intPtrToInt32Ptr(opts.TabletCount),
+		Uniform:            nil, // todo
+		MutatingOptions:    convertMutatingOptions(opts.MutatingOptions),
+		TabletRangeOptions: convertTabletRangelOptions(opts.TabletRangeOptions),
+		RowsetDescriptor:   nil,
+	}
+
+	var rsp rpc_proxy.TRspReshardTable
+	err = c.do(ctx, "ReshardTable", req, &rsp,
+		bus.WithAttachments(attachments...),
+	)
+	if err != nil {
+		return
+	}
+
+	return
 }
 
 func (c *client) AlterTable(
@@ -729,7 +807,32 @@ func (c *client) AlterTable(
 	path ypath.Path,
 	opts *yt.AlterTableOptions,
 ) (err error) {
-	return xerrors.New("implement me")
+	if opts == nil {
+		opts = &yt.AlterTableOptions{}
+	}
+
+	schemaBytes, err := yson.Marshal(opts.Schema)
+	if err != nil {
+		return xerrors.Errorf("unable to serialize schema: %w", err)
+	}
+
+	req := &rpc_proxy.TReqAlterTable{
+		Path:                 ptr.String(path.YPath().String()),
+		Schema:               schemaBytes,
+		Dynamic:              opts.Dynamic,
+		UpstreamReplicaId:    convertGUIDPtr(opts.UpstreamReplicaID),
+		SchemaModification:   nil, // todo
+		TransactionalOptions: nil, // todo
+		MutatingOptions:      convertMutatingOptions(opts.MutatingOptions),
+	}
+
+	var rsp rpc_proxy.TRspAlterTable
+	err = c.do(ctx, "AlterTable", req, &rsp)
+	if err != nil {
+		return
+	}
+
+	return
 }
 
 func (c *client) FreezeTable(
@@ -737,7 +840,23 @@ func (c *client) FreezeTable(
 	path ypath.Path,
 	opts *yt.FreezeTableOptions,
 ) (err error) {
-	return xerrors.New("implement me")
+	if opts == nil {
+		opts = &yt.FreezeTableOptions{}
+	}
+
+	req := &rpc_proxy.TReqFreezeTable{
+		Path:               ptr.String(path.YPath().String()),
+		MutatingOptions:    convertMutatingOptions(opts.MutatingOptions),
+		TabletRangeOptions: convertTabletRangelOptions(opts.TabletRangeOptions),
+	}
+
+	var rsp rpc_proxy.TRspFreezeTable
+	err = c.do(ctx, "FreezeTable", req, &rsp)
+	if err != nil {
+		return
+	}
+
+	return
 }
 
 func (c *client) UnfreezeTable(
@@ -745,7 +864,23 @@ func (c *client) UnfreezeTable(
 	path ypath.Path,
 	opts *yt.UnfreezeTableOptions,
 ) (err error) {
-	return xerrors.New("implement me")
+	if opts == nil {
+		opts = &yt.UnfreezeTableOptions{}
+	}
+
+	req := &rpc_proxy.TReqUnfreezeTable{
+		Path:               ptr.String(path.YPath().String()),
+		MutatingOptions:    convertMutatingOptions(opts.MutatingOptions),
+		TabletRangeOptions: convertTabletRangelOptions(opts.TabletRangeOptions),
+	}
+
+	var rsp rpc_proxy.TRspUnfreezeTable
+	err = c.do(ctx, "UnfreezeTable", req, &rsp)
+	if err != nil {
+		return
+	}
+
+	return
 }
 
 func (c *client) AlterTableReplica(
@@ -753,7 +888,30 @@ func (c *client) AlterTableReplica(
 	id yt.NodeID,
 	opts *yt.AlterTableReplicaOptions,
 ) (err error) {
-	return xerrors.New("implement me")
+	if opts == nil {
+		opts = &yt.AlterTableReplicaOptions{}
+	}
+
+	tableReplicaMode, err := convertTableReplicaMode(opts.Mode)
+	if err != nil {
+		return err
+	}
+
+	req := &rpc_proxy.TReqAlterTableReplica{
+		ReplicaId:          convertGUID(guid.GUID(id)),
+		Enabled:            opts.Enabled,
+		Mode:               tableReplicaMode,
+		PreserveTimestamps: nil, // todo
+		Atomicity:          nil, // todo
+	}
+
+	var rsp rpc_proxy.TRspAlterTableReplica
+	err = c.do(ctx, "AlterTableReplica", req, &rsp)
+	if err != nil {
+		return
+	}
+
+	return
 }
 
 func (c *client) StartTx(

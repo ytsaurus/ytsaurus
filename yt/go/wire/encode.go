@@ -326,3 +326,47 @@ func isZeroValue(v reflect.Value) bool {
 	}
 	return false
 }
+
+func EncodePivotKeys(keys []interface{}) ([]Row, error) {
+	rows := make([]Row, 0, len(keys))
+
+	for _, key := range keys {
+		row, err := encodeReflectPivotKey(key)
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, row)
+	}
+
+	return rows, nil
+}
+
+func encodeReflectPivotKey(key interface{}) (row Row, err error) {
+	vv := reflect.ValueOf(key)
+	if vv.Kind() != reflect.Slice {
+		return nil, xerrors.Errorf("unsupported pivot key type: %v", vv.Kind())
+	}
+
+	if vv.Len() == 0 {
+		row = make(Row, 0)
+		return
+	}
+
+	for i := 0; i < vv.Len(); i++ {
+		val := vv.Index(i).Interface()
+
+		ytTyp, err := ytTypeFor(reflect.TypeOf(val))
+		if err != nil {
+			return nil, err
+		}
+
+		value, err := convertValue(ytTyp, 0, val)
+		if err != nil {
+			return nil, err
+		}
+
+		row = append(row, value)
+	}
+
+	return
+}
