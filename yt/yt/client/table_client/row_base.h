@@ -267,6 +267,16 @@ inline constexpr bool IsSentinelType(EValueType type)
     return type == EValueType::Min || type == EValueType::Max;
 }
 
+inline constexpr bool IsPrimitiveType(EValueType type)
+{
+    return
+        type == EValueType::Int64 ||
+        type == EValueType::Uint64 ||
+        type == EValueType::Double ||
+        type == EValueType::Boolean ||
+        type == EValueType::String;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // This class contains ordered collection of indexes of columns of some table.
