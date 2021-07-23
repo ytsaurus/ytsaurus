@@ -3,6 +3,8 @@ package rpcclient
 import (
 	"testing"
 
+	"a.yandex-team.ru/library/go/ptr"
+	"a.yandex-team.ru/library/go/test/requirepb"
 	"a.yandex-team.ru/yt/go/proto/client/api/rpc_proxy"
 	"a.yandex-team.ru/yt/go/yt"
 	"github.com/stretchr/testify/require"
@@ -386,6 +388,71 @@ func TestConvertDataSource(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			converted, err := convertDataSource(tc.dataSource)
+			if tc.err {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				if tc.expected == nil {
+					require.Nil(t, converted)
+				} else {
+					require.Equal(t, *tc.expected, *converted)
+				}
+			}
+		})
+	}
+}
+
+func TestConvertTabletRangelOptions(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		opts     *yt.TabletRangeOptions
+		expected *rpc_proxy.TTabletRangeOptions
+	}{
+		{name: "nil", opts: nil, expected: nil},
+		{
+			name: "simple",
+			opts: &yt.TabletRangeOptions{
+				FirstTabletIndex: 0,
+				LastTabletIndex:  13,
+			},
+			expected: &rpc_proxy.TTabletRangeOptions{
+				FirstTabletIndex: ptr.Int32(0),
+				LastTabletIndex:  ptr.Int32(13),
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			converted := convertTabletRangelOptions(tc.opts)
+			if tc.expected == nil {
+				require.Nil(t, converted)
+			} else {
+				requirepb.Equal(t, tc.expected, converted)
+			}
+
+		})
+	}
+}
+
+func TestConvertTableReplicaMode(t *testing.T) {
+	ptr := func(m rpc_proxy.ETableReplicaMode) *rpc_proxy.ETableReplicaMode {
+		return &m
+	}
+
+	unexpectedMode := yt.TableReplicaMode("unexpected")
+
+	for _, tc := range []struct {
+		name     string
+		mode     *yt.TableReplicaMode
+		expected *rpc_proxy.ETableReplicaMode
+		err      bool
+	}{
+		{name: "nil", mode: nil, expected: nil},
+		{name: "Async", mode: &yt.AsyncMode, expected: ptr(rpc_proxy.ETableReplicaMode_TRM_ASYNC)},
+		{name: "Sync", mode: &yt.SyncMode, expected: ptr(rpc_proxy.ETableReplicaMode_TRM_SYNC)},
+		{name: "unexpected", mode: &unexpectedMode, err: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			converted, err := convertTableReplicaMode(tc.mode)
 			if tc.err {
 				require.Error(t, err)
 			} else {

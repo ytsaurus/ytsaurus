@@ -42,6 +42,21 @@ func convertGUID(g guid.GUID) *misc.TGuid {
 	}
 }
 
+func convertGUIDPtr(g *guid.GUID) *misc.TGuid {
+	if g == nil {
+		return nil
+	}
+	return convertGUID(*g)
+}
+
+func convertGUIDs(guids []guid.GUID) []*misc.TGuid {
+	ret := make([]*misc.TGuid, 0, len(guids))
+	for _, g := range guids {
+		ret = append(ret, convertGUID(g))
+	}
+	return ret
+}
+
 func makeNodeID(g *misc.TGuid) yt.NodeID {
 	return yt.NodeID(guid.FromHalves(g.GetFirst(), g.GetSecond()))
 }
@@ -773,4 +788,41 @@ func makeListJobsResult(result *rpc_proxy.TListJobsResult) (*yt.ListJobsResult, 
 	}
 
 	return ret, nil
+}
+
+func convertTabletRangelOptions(opts *yt.TabletRangeOptions) *rpc_proxy.TTabletRangeOptions {
+	if opts == nil {
+		return nil
+	}
+
+	return &rpc_proxy.TTabletRangeOptions{
+		FirstTabletIndex: ptr.Int32(int32(opts.FirstTabletIndex)),
+		LastTabletIndex:  ptr.Int32(int32(opts.LastTabletIndex)),
+	}
+}
+
+func convertTableReplicaMode(mode *yt.TableReplicaMode) (*rpc_proxy.ETableReplicaMode, error) {
+	if mode == nil {
+		return nil, nil
+	}
+
+	var ret rpc_proxy.ETableReplicaMode
+
+	switch *mode {
+	case yt.AsyncMode:
+		ret = rpc_proxy.ETableReplicaMode_TRM_ASYNC
+	case yt.SyncMode:
+		ret = rpc_proxy.ETableReplicaMode_TRM_SYNC
+	default:
+		return nil, xerrors.Errorf("unexpected table replica mode %q", *mode)
+	}
+
+	return &ret, nil
+}
+
+func intPtrToInt32Ptr(i *int) *int32 {
+	if i == nil {
+		return nil
+	}
+	return ptr.Int32(int32(*i))
 }

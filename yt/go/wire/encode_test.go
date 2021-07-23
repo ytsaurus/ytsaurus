@@ -268,6 +268,36 @@ func TestEncode(t *testing.T) {
 	}
 }
 
+func TestEncodePivotKeys(t *testing.T) {
+	keys := []interface{}{
+		[]interface{}{},
+		[]string{"a", "b"},
+		[]uint64{13, 37},
+		[]interface{}{"a", 42},
+	}
+
+	expectedRows := []Row{
+		make(Row, 0),
+		{
+			NewBytes(0, []byte("a")),
+			NewBytes(0, []byte("b")),
+		},
+		{
+			NewUint64(0, 13),
+			NewUint64(0, 37),
+		},
+		{
+			NewBytes(0, []byte("a")),
+			NewInt64(0, 42),
+		},
+	}
+
+	rows, err := EncodePivotKeys(keys)
+	require.NoError(t, err)
+
+	require.Equal(t, expectedRows, rows)
+}
+
 type EncodeResult struct {
 	NameTable NameTable
 	Rows      []Row
