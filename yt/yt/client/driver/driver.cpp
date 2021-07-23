@@ -291,6 +291,7 @@ public:
         REGISTER_ALL(TBuildSnapshotCommand,               "build_snapshot",                Null,       Structured, true,  false);
         REGISTER_ALL(TBuildMasterSnapshotsCommand,        "build_master_snapshots",        Null,       Structured, true,  false);
         REGISTER_ALL(TSwitchLeaderCommand,                "switch_leader",                 Null,       Structured, true,  false);
+        REGISTER_ALL(TRepairExecNodeCommand,              "repair_exec_node",              Null,       Structured, true,  false);
 
 #undef REGISTER
 #undef REGISTER_ALL

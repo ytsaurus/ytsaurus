@@ -273,6 +273,10 @@ public:
         NJobTrackerClient::TOperationId operationId,
         const NApi::TWriteOperationControllerCoreDumpOptions& options) override;
 
+    virtual TFuture<void> RepairExecNode(
+        const TString& address,
+        const TRepairExecNodeOptions& options) override;
+
 private:
     const TConnectionPtr Connection_;
     const NRpc::TDynamicChannelPoolPtr ChannelPool_;

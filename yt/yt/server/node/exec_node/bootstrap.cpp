@@ -1,6 +1,7 @@
 #include "bootstrap.h"
 
 #include "chunk_cache.h"
+#include "exec_node_admin_service.h"
 #include "gpu_manager.h"
 #include "job.h"
 #include "job_heartbeat_processor.h"
@@ -133,6 +134,8 @@ public:
         GetRpcServer()->RegisterService(CreateJobProberService(this));
 
         GetRpcServer()->RegisterService(CreateSupervisorService(this));
+
+        GetRpcServer()->RegisterService(CreateExecNodeAdminService(this));
 
         SlotManager_->Initialize();
         ChunkCache_->Initialize();

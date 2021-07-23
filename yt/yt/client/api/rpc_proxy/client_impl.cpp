@@ -1281,6 +1281,13 @@ TFuture<TString> TClient::WriteOperationControllerCoreDump(
     ThrowUnimplemented("WriteOperationControllerCoreDump");
 }
 
+TFuture<void> TClient::RepairExecNode(
+    const TString& /* address */,
+    const TRepairExecNodeOptions& /* options */)
+{
+    ThrowUnimplemented("RepairExecNode");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NRpcProxy

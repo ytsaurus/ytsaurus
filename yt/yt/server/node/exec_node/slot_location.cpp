@@ -62,6 +62,7 @@ TSlotLocation::TSlotLocation(
     , LightLocationQueue_(New<TActionQueue>(Format("LightIO:%v", id)))
     , HeavyInvoker_(HeavyLocationQueue_->GetInvoker())
     , LightInvoker_(LightLocationQueue_->GetInvoker())
+    , SerializedHeavyInvoker_(CreateSerializedInvoker(HeavyInvoker_))
     , HealthChecker_(New<TDiskHealthChecker>(
         bootstrap->GetConfig()->DataNode->DiskHealthChecker,
         Config_->Path,
@@ -84,44 +85,51 @@ TFuture<void> TSlotLocation::Initialize()
 
     return BIND([=, this_ = MakeStrong(this)] {
         try {
-            NFS::MakeDirRecursive(Config_->Path, 0755);
-
-            WaitFor(HealthChecker_->RunCheck())
-                .ThrowOnError();
-
-            ValidateMinimumSpace();
-        
-            auto slotLocationBuilderConfig = New<TSlotLocationBuilderConfig>();
-            slotLocationBuilderConfig->LocationPath = Config_->Path;
-            slotLocationBuilderConfig->NodeUid = getuid();
-            for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
-                auto slotConfig = New<TSlotConfig>();
-                slotConfig->Index = slotIndex;
-                if (!Bootstrap_->IsSimpleEnvironment() && !Bootstrap_->GetConfig()->ExecNode->DoNotSetUserId) {
-                    slotConfig->Uid = SlotIndexToUserId_(slotIndex);
-                }
-                slotLocationBuilderConfig->SlotConfigs.push_back(std::move(slotConfig));
-            }
-
-            RunTool<TSlotLocationBuilderTool>(slotLocationBuilderConfig);
+            DoInitialize();
         } catch (const std::exception& ex) {
             auto error = TError("Failed to initialize slot location %v", Config_->Path)
                 << ex;
             Disable(error);
             return;
         }
-
         HealthChecker_->SubscribeFailed(BIND(&TSlotLocation::Disable, MakeWeak(this))
             .Via(HeavyInvoker_));
         HealthChecker_->Start();
 
         Bootstrap_->SubscribePopulateAlerts(BIND(&TSlotLocation::PopulateAlerts, MakeWeak(this)));
 
-        DiskResourcesUpdateExecutor_->Start();
-        SlotLocationStatisticsUpdateExecutor_->Start();
     })
-    .AsyncVia(HeavyInvoker_)
+    .AsyncVia(SerializedHeavyInvoker_)
     .Run();
+}
+
+void TSlotLocation::DoInitialize()
+{
+    VERIFY_INVOKER_AFFINITY(SerializedHeavyInvoker_);
+
+    NFS::MakeDirRecursive(Config_->Path, 0755);
+
+    WaitFor(HealthChecker_->RunCheck())
+        .ThrowOnError();
+
+    ValidateMinimumSpace();
+
+    auto slotLocationBuilderConfig = New<TSlotLocationBuilderConfig>();
+    slotLocationBuilderConfig->LocationPath = Config_->Path;
+    slotLocationBuilderConfig->NodeUid = getuid();
+    for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
+        auto slotConfig = New<TSlotConfig>();
+        slotConfig->Index = slotIndex;
+        if (!Bootstrap_->IsSimpleEnvironment() && !Bootstrap_->GetConfig()->ExecNode->DoNotSetUserId) {
+            slotConfig->Uid = SlotIndexToUserId_(slotIndex);
+        }
+        slotLocationBuilderConfig->SlotConfigs.emplace_back(std::move(slotConfig));
+    }
+
+    RunTool<TSlotLocationBuilderTool>(slotLocationBuilderConfig);
+
+    DiskResourcesUpdateExecutor_->Start();
+    SlotLocationStatisticsUpdateExecutor_->Start();
 }
 
 TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(int slotIndex, TUserSandboxOptions options)
@@ -679,6 +687,42 @@ void TSlotLocation::OnArtifactPreparationFailed(
     }
 }
 
+TFuture<void> TSlotLocation::Repair()
+{
+    return BIND([=, this_ = MakeStrong(this)] {
+        if (Enabled_) {
+            YT_LOG_DEBUG("Skipping location repair as it is already enabled (Location: %v)", Id_);
+            return;
+        }
+
+        try {
+            {
+                auto guard = WriterGuard(SlotsLock_);
+                OccupiedSlotToDiskLimit_.clear();
+                TmpfsPaths_.clear();
+                SlotsWithQuota_.clear();
+            }
+
+            WaitFor(JobDirectoryManager_->CleanDirectories(Config_->Path))
+                .ThrowOnError();
+
+            Error_.Store(TError{});
+            Alert_.Store(TError{});
+
+            DoInitialize();
+        } catch (const std::exception& ex) {
+            auto error = TError("Failed to repair slot location %v", Config_->Path)
+                << ex;
+            THROW_ERROR error;
+        }
+
+        YT_LOG_DEBUG("Location repaired (Location: %v)", Id_);
+        Enabled_ = true;
+    })
+    .AsyncVia(SerializedHeavyInvoker_)
+    .Run();
+}
+
 bool TSlotLocation::IsInsideTmpfs(const TString& path) const
 {
     auto guard = ReaderGuard(SlotsLock_);
@@ -717,24 +761,30 @@ void TSlotLocation::ValidateEnabled() const
 
 void TSlotLocation::Disable(const TError& error)
 {
-    if (!Enabled_.exchange(false)) {
-        return;
-    }
+    WaitFor(BIND([=, this_ = MakeStrong(this)] {
+        if (!Enabled_.exchange(false)) {
+            return;
+        }
 
-    Error_.Store(error);
+        Error_.Store(error);
 
-    auto alert = TError(
-        EErrorCode::SlotLocationDisabled,
-        "Slot location at %v is disabled",
-        Config_->Path)
-        << error;
+        auto alert = TError(
+            EErrorCode::SlotLocationDisabled,
+            "Slot location at %v is disabled",
+            Config_->Path)
+            << error;
 
-    YT_LOG_ERROR(alert);
-    YT_VERIFY(!Logger.GetAbortOnAlert());
+        YT_LOG_ERROR(alert);
+        YT_VERIFY(!Logger.GetAbortOnAlert());
 
-    Alert_.Store(alert);
+        Alert_.Store(alert);
 
-    DiskResourcesUpdateExecutor_->Stop();
+        DiskResourcesUpdateExecutor_->Stop();
+        SlotLocationStatisticsUpdateExecutor_->Stop();
+    })
+    .AsyncVia(SerializedHeavyInvoker_)
+    .Run())
+    .ThrowOnError();
 }
 
 void TSlotLocation::InvokeUpdateDiskResources()

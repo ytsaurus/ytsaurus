@@ -103,6 +103,9 @@ public:
         const std::optional<TString>& destinationPath,
         const TError& error);
 
+    //! Cleans the slot directory, initializes the location and enables it.
+    TFuture<void> Repair();
+
 private:
     const TSlotLocationConfigPtr Config_;
     IBootstrap* const Bootstrap_;
@@ -121,6 +124,9 @@ private:
     //! This invoker is used for light IO actions e.g. copying file to tmpfs,
     //! creating job proxy config on disk.
     const IInvokerPtr LightInvoker_;
+
+    //! This invoker is a serialized wrapper for HeavyInvoker_
+    const IInvokerPtr SerializedHeavyInvoker_;
 
     const TDiskHealthCheckerPtr HealthChecker_;
     const NConcurrency::TPeriodicExecutorPtr DiskResourcesUpdateExecutor_;
@@ -174,6 +180,8 @@ private:
         const TCallback<void()>& callback,
         const std::optional<TString>& destinationPath,
         bool canUseLightInvoker);
+
+    void DoInitialize();
 };
 
 DEFINE_REFCOUNTED_TYPE(TSlotLocation)

@@ -1466,6 +1466,11 @@ def switch_leader(cell_id, new_leader_address):
     return execute_command("switch_leader", parameters, parse_yson=True)
 
 
+def repair_exec_node(address, locations):
+    parameters = {"address": address, "locations": locations}
+    return execute_command("repair_exec_node", parameters, parse_yson=True)
+
+
 def get_version():
     return execute_command("get_version", {}, parse_yson=True)
 

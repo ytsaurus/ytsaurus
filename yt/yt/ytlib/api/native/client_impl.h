@@ -468,6 +468,10 @@ public:
         NScheduler::TOperationId operationId,
         const TWriteOperationControllerCoreDumpOptions& options),
         (operationId, options))
+    IMPLEMENT_METHOD(void, RepairExecNode, (
+        const TString& address,
+        const TRepairExecNodeOptions& options),
+        (address, options))
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
 
@@ -1155,6 +1159,9 @@ private:
     TString DoWriteOperationControllerCoreDump(
         NScheduler::TOperationId operationId,
         const TWriteOperationControllerCoreDumpOptions& options);
+    void DoRepairExecNode(
+        const TString& address,
+        const TRepairExecNodeOptions& options);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClient)
