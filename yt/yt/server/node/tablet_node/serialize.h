@@ -26,10 +26,13 @@ DEFINE_ENUM(ETabletReign,
     ((MountHint)                          (100102)) // ifsmirnov
     ((ReplicationBarrier_YT_14346)        (100103)) // babenko
     ((AllowFlushWhenDecommissioned)       (100104)) // savrus
+    ((PersistChunkTimestamp_20_3)         (100105)) // ifsmirnov
+    // 21.2 starts here.
     ((RowBufferEmptyRowDeserialization)   (100200)) // max42
     ((Hunks1)                             (100201)) // babenko
     ((Hunks2)                             (100202)) // babenko
     ((VersionedWriteToOrderedTablet)      (100203)) // gritukan
+    ((PersistChunkTimestamp)              (100204)) // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

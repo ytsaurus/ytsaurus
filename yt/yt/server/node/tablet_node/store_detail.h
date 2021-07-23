@@ -118,7 +118,7 @@ public:
     //! Sets the store state, as expected.
     //! Additionally, when the store transitions from |ActiveDynamic| to |PassiveDynamic|,
     //! invokes #OnSetPassive.
-    virtual void SetStoreState(EStoreState state);
+    virtual void SetStoreState(EStoreState state) override;
 
     virtual i64 GetCompressedDataSize() const override;
     virtual i64 GetUncompressedDataSize() const override;
@@ -130,8 +130,8 @@ public:
     virtual i64 GetValueCount() const override;
     virtual i64 GetLockCount() const override;
 
-    virtual i64 GetPoolSize() const;
-    virtual i64 GetPoolCapacity() const;
+    virtual i64 GetPoolSize() const override;
+    virtual i64 GetPoolCapacity() const override;
 
     virtual TInstant GetLastFlushAttemptTimestamp() const override;
     virtual void UpdateFlushAttemptTimestamp() override;
@@ -194,6 +194,9 @@ public:
     virtual i64 GetCompressedDataSize() const override;
     virtual i64 GetUncompressedDataSize() const override;
     virtual i64 GetRowCount() const override;
+
+    void Save(TSaveContext& context) const override;
+    void Load(TLoadContext& context) override;
 
     virtual TCallback<void(TSaveContext&)> AsyncSave() override;
     virtual void AsyncLoad(TLoadContext& context) override;
@@ -333,8 +336,8 @@ public:
     virtual i64 GetStartingRowIndex() const override;
     virtual void SetStartingRowIndex(i64 value) override;
 
-    void Save(TSaveContext& context) const;
-    void Load(TLoadContext& context);
+    void Save(TSaveContext& context) const override;
+    void Load(TLoadContext& context) override;
 
 protected:
     i64 StartingRowIndex_ = 0;
