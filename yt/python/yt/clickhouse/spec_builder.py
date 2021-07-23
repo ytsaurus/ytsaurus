@@ -133,7 +133,7 @@ def get_clique_spec_builder(instance_count,
             .job_count(instance_count) \
             .file_paths(file_paths) \
             .command(trampoline_command) \
-            .memory_limit(memory_config["memory_limit"]) \
+            .memory_limit(memory_config["memory_limit"] + memory_config["log_tailer"]) \
             .cpu_limit(cpu_limit) \
             .max_stderr_size(1024 * 1024 * 1024) \
             .port_count(5) \
