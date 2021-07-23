@@ -17,6 +17,7 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/tree_builder.h>
 
+#include <library/cpp/tvmauth/utils.h>
 #include <library/cpp/uri/encode.h>
 
 namespace NYT::NAuth {
@@ -223,9 +224,11 @@ private:
         const auto callId = TGuid::Create();
 
         YT_LOG_DEBUG(
-            "Retrieving delegation token from Vault (SecretId: %v, Signature: %v, CallId: %v)",
+            "Retrieving delegation token from Vault "
+            "(SecretId: %v, Signature: %v, UserTicket: %v, CallId: %v)",
             request.SecretId,
             request.Signature, // signatures are not secret; tokens are
+            NTvmAuth::NUtils::RemoveTicketSignature(request.UserTicket),
             callId);
 
         CallCountCounter_.Increment();
@@ -335,8 +338,9 @@ private:
 
         const auto& rsp = rspOrError.Value();
         if (rsp->GetStatusCode() != EStatusCode::OK) {
-            THROW_ERROR_EXCEPTION("Vault call returned HTTP status code %v",
-                static_cast<int>(rsp->GetStatusCode()));
+            THROW_ERROR_EXCEPTION("Vault call returned HTTP status code %v, response %v",
+                static_cast<int>(rsp->GetStatusCode()),
+                rsp->ReadAll());
         }
 
         return rsp->ReadAll();
