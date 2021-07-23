@@ -51,8 +51,12 @@ func (c *Controller) Prepare(alias string, incarnationIndex int, specletYson yso
 		return
 	}
 
+	if speclet.RuntimeDataPath == nil {
+		speclet.RuntimeDataPath = &defaultRuntimeRoot
+	}
+
 	// Prepare runtime stuff: stderr/core-table, etc.
-	runtimePaths, err := c.prepareRuntime(speclet.RuntimeDataPath, alias, incarnationIndex)
+	runtimePaths, err := c.prepareRuntime(speclet.RuntimeDataPath.Child(alias), alias, incarnationIndex)
 	if err != nil {
 		return
 	}

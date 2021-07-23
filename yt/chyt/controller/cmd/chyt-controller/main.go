@@ -31,10 +31,11 @@ func init() {
 
 func newLogger(name string) *logzap.Logger {
 	if flagLogToStderr {
-		return ytlog.Must()
+		return StderrLogger()
 	}
 
 	l, _, err := ytlog.NewSelfrotate(filepath.Join(flagLogsDir, name+".log"))
+
 	if err != nil {
 		panic(err)
 	}
