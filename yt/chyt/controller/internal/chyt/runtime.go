@@ -21,16 +21,12 @@ func (c *Controller) prepareBlobTable(kind string, root ypath.Path, incarnationI
 	return
 }
 
-func (c *Controller) prepareRuntime(root *ypath.Path, alias string, incarnationIndex int) (paths runtimePaths, err error) {
-	if root == nil {
-		root = &defaultRuntimeRoot
-	}
-	*root = root.Child(alias)
-	paths.StderrTable, err = c.prepareBlobTable("stderrs", *root, incarnationIndex)
+func (c *Controller) prepareRuntime(root ypath.Path, alias string, incarnationIndex int) (paths runtimePaths, err error) {
+	paths.StderrTable, err = c.prepareBlobTable("stderrs", root, incarnationIndex)
 	if err != nil {
 		return
 	}
-	paths.CoreTable, err = c.prepareBlobTable("cores", *root, incarnationIndex)
+	paths.CoreTable, err = c.prepareBlobTable("cores", root, incarnationIndex)
 	if err != nil {
 		return
 	}
