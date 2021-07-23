@@ -48,6 +48,13 @@ struct IIOEngine
         i64 Size = -1;
     };
 
+    struct TReadResponse
+    {
+        std::vector<TSharedRef> OutputBuffers;
+        // NB: |PhysicalBytesRead| may be larger than total buffer size for the O_DIRECT case.
+        i64 PhysicalBytesRead;
+    };
+
     struct TWriteRequest
     {
         TIOEngineHandlePtr Handle;
@@ -88,7 +95,7 @@ struct IIOEngine
     struct TDefaultReadTag
     { };
 
-    virtual TFuture<std::vector<TSharedRef>> Read(
+    virtual TFuture<TReadResponse> Read(
         std::vector<TReadRequest> requests,
         i64 priority,
         NYTAlloc::EMemoryZone memoryZone,
@@ -119,9 +126,9 @@ struct IIOEngine
 
     virtual const IInvokerPtr& GetAuxPoolInvoker() = 0;
 
-    // Extension methods
+    // Extension methods.
     template <class TTag = TDefaultReadTag>
-    TFuture<std::vector<TSharedRef>> Read(
+    TFuture<TReadResponse> Read(
         std::vector<TReadRequest> requests,
         i64 priority = DefaultPriority,
         NYTAlloc::EMemoryZone memoryZone = NYTAlloc::EMemoryZone::Normal);

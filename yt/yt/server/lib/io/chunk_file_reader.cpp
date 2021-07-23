@@ -178,10 +178,10 @@ std::vector<TBlock> TChunkFileReader::OnBlocksRead(
     int firstBlockIndex,
     int blockCount,
     const TRefCountedBlocksExtPtr& blocksExt,
-    const std::vector<TSharedRef>& readResult)
+    const IIOEngine::TReadResponse& readResponse)
 {
-    YT_VERIFY(readResult.size() == 1);
-    const auto& buffer = readResult[0];
+    YT_VERIFY(readResponse.OutputBuffers.size() == 1);
+    const auto& buffer = readResponse.OutputBuffers[0];
 
     options.ChunkReaderStatistics->DataBytesReadFromDisk += buffer.Size();
     const auto& firstBlockInfo = blocksExt->blocks(firstBlockIndex);

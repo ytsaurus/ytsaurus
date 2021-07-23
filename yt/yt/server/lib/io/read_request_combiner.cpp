@@ -67,8 +67,10 @@ void TReadRequestCombiner::Combine(
         });
     }
 
-    std::sort(IORequests_.begin(), IORequests_.end(), [] (const TIORequest& lhs, const TIORequest& rhs)
-{
+    std::sort(
+        IORequests_.begin(),
+        IORequests_.end(),
+        [] (const TIORequest& lhs, const TIORequest& rhs) {
             if (lhs.Handle == rhs.Handle) {
                 return lhs.Offset < rhs.Offset;
             } else if (lhs.Handle->IsOpenForDirectIO() != rhs.Handle->IsOpenForDirectIO()) {

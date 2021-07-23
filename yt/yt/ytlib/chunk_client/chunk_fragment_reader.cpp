@@ -482,7 +482,7 @@ private:
         {
             auto readerGuard = ReaderGuard(Reader_->ChunkIdToPeerAccessInfoLock_);
 
-            for (auto& [chunkId, fragmentInfos] : chunkIdToFragmentInfos) {
+            for (auto&& [chunkId, fragmentInfos] : chunkIdToFragmentInfos) {
                 auto peerInfoIt = Reader_->ChunkIdToPeerAccessInfo_.find(chunkId);
                 if (peerInfoIt == Reader_->ChunkIdToPeerAccessInfo_.end()) {
                     PendingChunkFragmentSetInfos_.push_back({
@@ -570,6 +570,8 @@ private:
         auto chunkReplicaListOrErrors = std::move(resultOrError.Value());
 
         YT_VERIFY(PendingChunkFragmentSetInfos_.size() == chunkReplicaListOrErrors.size());
+
+        NProfiling::TWallTimer probePeersTimer;
 
         std::vector<TChunkReplicaList> chunkReplicaLists;
         chunkReplicaLists.reserve(PendingChunkFragmentSetInfos_.size());
@@ -740,11 +742,13 @@ private:
         AllSet(std::move(peerProbingFutures)).Subscribe(BIND(
             &TReadFragmentsSession::OnPeersProbed,
             MakeStrong(this),
+            probePeersTimer,
             Passed(std::move(peerProbingInfos)))
             .Via(SessionInvoker_));
     }
 
     void OnPeersProbed(
+        NProfiling::TWallTimer probePeersTimer,
         std::vector<TPeerProbingInfo> peerProbingInfos,
         const TErrorOr<std::vector<TErrorOrProbeChunkSetResult>>& resultOrError)
     {
@@ -817,7 +821,7 @@ private:
         }
 
         for (int chunkIndex = 0; chunkIndex < std::ssize(chunkBestNodeIndex); ++chunkIndex) {
-            auto& pendingChunkFragmentSetInfo = PendingChunkFragmentSetInfos_[chunkIndex];
+            auto&& pendingChunkFragmentSetInfo = PendingChunkFragmentSetInfos_[chunkIndex];
 
             if (chunkBestNodeIndex[chunkIndex] == -1) {
                 TryDiscardChunkReplicas(pendingChunkFragmentSetInfo.ChunkId);
@@ -843,12 +847,16 @@ private:
 
         PendingChunkFragmentSetInfos_.clear();
 
+        Options_.ChunkReaderStatistics->PickPeerWaitTime += probePeersTimer.GetElapsedValue();
+
         GetChunkFragments();
     }
 
     void GetChunkFragments()
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
+        NProfiling::TWallTimer dataWaitTimer;
 
         std::vector<TNodeId> nodeIds;
         std::vector<TFuture<TDataNodeServiceProxy::TRspGetChunkFragmentSetPtr>> responseFutures;
@@ -902,11 +910,13 @@ private:
         AllSet(std::move(responseFutures)).Subscribe(BIND(
             &TReadFragmentsSession::OnGotChunkFragments,
             MakeStrong(this),
+            dataWaitTimer,
             Passed(std::move(nodeIds)))
             .Via(SessionInvoker_));
     }
 
     void OnGotChunkFragments(
+        NProfiling::TWallTimer dataWaitTimer,
         std::vector<TNodeId> nodeIds,
         const TErrorOr<std::vector<TDataNodeServiceProxy::TErrorOrRspGetChunkFragmentSetPtr>>& resultOrError)
     {
@@ -916,6 +926,8 @@ private:
         const auto& responseOrErrors = resultOrError.Value();
 
         YT_VERIFY(nodeIds.size() == responseOrErrors.size());
+
+        Options_.ChunkReaderStatistics->DataWaitTime += dataWaitTimer.GetElapsedValue();
 
         std::vector<std::vector<int>> failedChunkIndexesByNode;
         failedChunkIndexesByNode.reserve(nodeIds.size());
@@ -957,15 +969,16 @@ private:
             const auto& response = responseOrError.Value();
 
             if (response->has_chunk_reader_statistics()) {
-                // TODO(akozhikhov): gather other statistics too.
                 UpdateFromProto(&Options_.ChunkReaderStatistics, response->chunk_reader_statistics());
             }
+
+            Options_.ChunkReaderStatistics->DataBytesTransmitted += response->GetTotalSize();
 
             YT_VERIFY(response->subresponses_size() == std::ssize(chunkFragmentSetInfos));
 
             int attachmentIndex = 0;
             for (int i = 0; i < std::ssize(chunkFragmentSetInfos); ++i) {
-                auto& chunkFragmentSetInfo = chunkFragmentSetInfos[i];
+                auto&& chunkFragmentSetInfo = chunkFragmentSetInfos[i];
 
                 const auto& subresponse = response->subresponses(i);
                 if (!subresponse.has_complete_chunk()) {
@@ -987,7 +1000,7 @@ private:
 
                 // NB: If we have received any fragments of a chunk, then we have received all fragments of the chunk.
                 for (const auto& fragmentInfo : chunkFragmentSetInfo.FragmentInfos) {
-                    auto& fragment = response->Attachments()[attachmentIndex++];
+                    auto&& fragment = response->Attachments()[attachmentIndex++];
                     YT_VERIFY(fragment);
                     Fragments_[fragmentInfo.FragmentIndex] = std::move(fragment);
                 }
@@ -1084,7 +1097,7 @@ private:
                 }
             }
 
-            for (auto& [chunkId, peerAccessInfo] : newEntries) {
+            for (auto&& [chunkId, peerAccessInfo] : newEntries) {
                 auto emplaced = Reader_->ChunkIdToPeerAccessInfo_.emplace(
                     chunkId,
                     std::move(peerAccessInfo))

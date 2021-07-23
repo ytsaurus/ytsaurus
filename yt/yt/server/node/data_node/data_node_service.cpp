@@ -939,11 +939,12 @@ private:
 
                 struct TLocationResult {
                     std::vector<int> FragmentIndices;
-                    std::vector<TSharedRef> Response;
+                    IIOEngine::TReadResponse Response;
                 };
 
                 std::vector<TFuture<TLocationResult>> readFutures;
                 readFutures.reserve(locationToReadRequests.size());
+
                 for (auto&& [location, requests] : locationToReadRequests) {
                     YT_LOG_DEBUG("Reading block fragments (LocationId: %v, FragmentCount: %v)",
                         location->GetId(),
@@ -954,10 +955,11 @@ private:
                     { };
                     readFutures.push_back(
                         ioEngine->Read<TChunkFragmentBuffer>(std::move(requests.Requests))
-                        .Apply(BIND([
-                                fragmentIndices = std::move(requests.FragmentIndices)
-                            ] (const std::vector<TSharedRef>& readResponse) {
-                                YT_VERIFY(readResponse.size() == fragmentIndices.size());
+                        .ApplyUnique(BIND(
+                            [fragmentIndices = std::move(requests.FragmentIndices)]
+                            (IIOEngine::TReadResponse&& readResponse)
+                            {
+                                YT_VERIFY(readResponse.OutputBuffers.size() == fragmentIndices.size());
                                 return TLocationResult{
                                     .FragmentIndices = std::move(fragmentIndices),
                                     .Response = std::move(readResponse)
@@ -977,14 +979,16 @@ private:
                                 return;
                             }
 
+                            i64 dataBytesReadFromDisk = 0;
                             for (const auto& result : results.Value()) {
-                                for (int index = 0; index < std::ssize(result.Response); ++index) {
+                                for (int index = 0; index < std::ssize(result.Response.OutputBuffers); ++index) {
                                     int fragmentIndex = result.FragmentIndices[index];
-                                    response->Attachments()[fragmentIndex] = result.Response[index];
+                                    response->Attachments()[fragmentIndex] = result.Response.OutputBuffers[index];
                                 }
+                                dataBytesReadFromDisk += result.Response.PhysicalBytesRead;
                             }
 
-                            // TODO(babenko): fill chunk_reader_statistics
+                            response->mutable_chunk_reader_statistics()->set_data_bytes_read_from_disk(dataBytesReadFromDisk);
 
                             context->SetComplete();
                             context->ReplyFrom(netThrottler->Throttle(totalFragmentSize));
