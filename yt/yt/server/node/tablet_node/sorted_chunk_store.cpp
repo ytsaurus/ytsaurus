@@ -529,6 +529,7 @@ bool TSortedChunkStore::CheckRowLocks(
 void TSortedChunkStore::Save(TSaveContext& context) const
 {
     TStoreBase::Save(context);
+    TChunkStoreBase::Save(context);
 
     using NYT::Save;
     Save(context, ChunkId_);
@@ -539,6 +540,7 @@ void TSortedChunkStore::Save(TSaveContext& context) const
 void TSortedChunkStore::Load(TLoadContext& context)
 {
     TStoreBase::Load(context);
+    TChunkStoreBase::Load(context);
 
     using NYT::Load;
     Load(context, ChunkId_);

@@ -281,12 +281,14 @@ void TOrderedChunkStore::Save(TSaveContext& context) const
 {
     TStoreBase::Save(context);
     TOrderedStoreBase::Save(context);
+    TChunkStoreBase::Save(context);
 }
 
 void TOrderedChunkStore::Load(TLoadContext& context)
 {
     TStoreBase::Load(context);
     TOrderedStoreBase::Load(context);
+    TChunkStoreBase::Load(context);
 }
 
 TKeyComparer TOrderedChunkStore::GetKeyComparer()
