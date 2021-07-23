@@ -288,14 +288,18 @@ def do_wait_for_instances(op, instance_count, operation_alias, client=None):
 def process_memory_config(memory_config=None):
     if memory_config is None:
         raise YtError("Missing memory config; CHYT defaults for the cluster seem to be obsolete")
-    allowed_keys = {"reader", "uncompressed_block_cache", "clickhouse", "footprint",
-                    "clickhouse_watermark", "watchdog_oom_watermark", "log_tailer"}
+    allowed_keys = {"reader", "uncompressed_block_cache", "compressed_block_cache", "chunk_meta_cache", "clickhouse",
+                    "footprint", "clickhouse_watermark", "watchdog_oom_watermark", "log_tailer"}
     for key in allowed_keys:
         if key not in memory_config:
             raise YtError("Missing memory config key {}; CHYT defaults for the cluster seem to be obsolete".format(key))
-    memory_config["max_server_memory_usage"] = (memory_config["reader"] + memory_config["uncompressed_block_cache"] +
-                                                memory_config["clickhouse"] + memory_config["footprint"])
-    memory_config["memory_limit"] = memory_config["max_server_memory_usage"] + memory_config["clickhouse_watermark"]
+    max_server_memory_usage_keys = {
+        "reader", "uncompressed_block_cache", "compressed_block_cache", "clickhouse", "footprint", "chunk_meta_cache"
+    }
+    memory_config["max_server_memory_usage"] = sum(memory_config[key] for key in max_server_memory_usage_keys)
+    memory_config["memory_limit"] = \
+        memory_config["max_server_memory_usage"] + memory_config["clickhouse_watermark"]
+
     return memory_config
 
 

@@ -34,6 +34,8 @@ DEFAULTS = {
         "clickhouse": int(2.5 * 1024 ** 3),
         "reader": 1 * 1024 ** 3,
         "uncompressed_block_cache": 0,
+        "compressed_block_cache": 0,
+        "chunk_meta_cache": 0,
         "log_tailer": 0,
         "watchdog_oom_watermark": 0,
         "watchdog_window_oom_watermark": 0,
