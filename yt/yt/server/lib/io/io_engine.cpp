@@ -78,10 +78,13 @@ TFuture<TSharedRef> IIOEngine::ReadAll(
             struct TReadAllBufferTag
             { };
             return Read<TReadAllBufferTag>({{handle, 0, handle->GetLength()}}, priority)
-                .Apply(BIND([=, this_ = MakeStrong(this), handle = handle] (const std::vector<TSharedRef>& buffers) {
-                    YT_VERIFY(buffers.size() == 1);
+                .Apply(BIND(
+                    [=, this_ = MakeStrong(this), handle = handle]
+                    (const TReadResponse& response)
+                {
+                    YT_VERIFY(response.OutputBuffers.size() == 1);
                     return Close({handle}, priority)
-                        .Apply(BIND([buffers] {
+                        .Apply(BIND([buffers = response.OutputBuffers] {
                             return buffers[0];
                         }));
                 }));
@@ -495,7 +498,7 @@ public:
         , FsyncTimer_(Profiler.Timer("/fsync_time"))
     { }
 
-    virtual TFuture<std::vector<TSharedRef>> Read(
+    virtual TFuture<TReadResponse> Read(
         std::vector<TReadRequest> requests,
         i64 priority,
         EMemoryZone memoryZone,
@@ -535,9 +538,12 @@ public:
                 .AsyncVia(invoker)
                 .Run());
         }
+
         return AllSucceeded(std::move(futures))
-            .Apply(BIND([result] {
-                return result.ToVector();
+            .Apply(BIND([result = std::move(result)] {
+                return TReadResponse{
+                    .OutputBuffers = result.ToVector(),
+                };
             }));
     }
 
@@ -899,7 +905,7 @@ using TUringIovBuffer = std::array<iovec, MaxIovCountPerRequest>;
 struct TUringRequest
     : public TIntrusiveLinkedListNode<TUringRequest>
 {
-    using TReadSubrequest = IIOEngine::TReadRequest;
+    virtual ~TUringRequest() = 0;
 
     struct TRequestToNode
     {
@@ -908,39 +914,108 @@ struct TUringRequest
         }
     };
 
+    EUringRequestType Type;
+};
+
+TUringRequest::~TUringRequest() { }
+
+using TUringRequestPtr = std::unique_ptr<TUringRequest>;
+
+template <typename TResponse>
+struct TUringRequestBase
+    : public TUringRequest
+{
+    virtual ~TUringRequestBase() = 0;
+
+    const TPromise<TResponse> Promise = NewPromise<TResponse>();
+
+    void TrySetSucceeded()
+    {
+        if (Promise.TrySet()) {
+            YT_LOG_TRACE("Request succeeded (Request: %p)",
+                this);
+        }
+    }
+
+    void TrySetFailed(TError error)
+    {
+        if (Promise.TrySet(std::move(error))) {
+            YT_LOG_TRACE(error, "Request failed (Request: %p)",
+                this);
+        }
+    }
+
+    void TrySetFailed(const io_uring_cqe* cqe)
+    {
+        YT_VERIFY(cqe->res < 0);
+        TrySetFailed(TError::FromSystem(-cqe->res));
+    }
+
+    void TrySetFinished(const io_uring_cqe* cqe)
+    {
+        if (cqe->res >= 0) {
+            TrySetSucceeded();
+        } else {
+            TrySetFailed(cqe);
+        }
+    }
+};
+
+template <typename TResponse>
+TUringRequestBase<TResponse>::~TUringRequestBase() { }
+
+struct TFlushFileUringRequest
+    : public TUringRequestBase<void>
+{
+    IIOEngine::TFlushFileRequest FlushFileRequest;
+};
+
+struct TAllocateUringRequest
+    : public TUringRequestBase<void>
+{
+    IIOEngine::TAllocateRequest AllocateRequest;
+};
+
+struct TWriteUringRequest
+    : public TUringRequestBase<void>
+{
+    IIOEngine::TWriteRequest WriteRequest;
+    int CurrentWriteSubrequestIndex = 0;
+    TUringIovBuffer* WriteIovBuffer = nullptr;
+
+    int FinishedSubrequestCount = 0;
+};
+
+struct TReadUringRequest
+    : public TUringRequestBase<IIOEngine::TReadResponse>
+{
     struct TReadSubrequestState
     {
         iovec Iov;
         TMutableRef Buffer;
     };
 
-    const TPromise<void> Promise = NewPromise<void>();
-
-    EUringRequestType Type;
-
-    // EUringRequestType::FlushFile
-    IIOEngine::TFlushFileRequest FlushFileRequest;
-
-    // EUringRequestType::Allocate
-    IIOEngine::TAllocateRequest AllocateRequest;
-
-    // EUringRequestType::Read
-    std::vector<TReadSubrequest> ReadSubrequests;
+    std::vector<IIOEngine::TReadRequest> ReadSubrequests;
     SmallVector<TReadSubrequestState, TypicalSubrequestCount> ReadSubrequestStates;
     SmallVector<int, TypicalSubrequestCount> PendingReadSubrequestIndexes;
     TReadRequestCombiner ReadRequestCombiner;
 
-    // EUringRequestType::Write
-    IIOEngine::TWriteRequest WriteRequest;
-    int CurrentWriteSubrequestIndex = 0;
-    TUringIovBuffer* WriteIovBuffer = nullptr;
-
-    // EUringRequestType::Read
-    // EUringRequestType::Write
+    i64 PhysicalBytesRead = 0;
     int FinishedSubrequestCount = 0;
-};
 
-using TUringRequestPtr = std::unique_ptr<TUringRequest>;
+
+    void TrySetReadSucceeded()
+    {
+        IIOEngine::TReadResponse response{
+            .PhysicalBytesRead = PhysicalBytesRead,
+            .OutputBuffers = ReadRequestCombiner.GetOutputBuffers()
+        };
+        if (Promise.TrySet(std::move(response))) {
+            YT_LOG_TRACE("Request succeeded (Request: %p)",
+                this);
+        }
+    }
+};
 
 class TUringThreadPool
 {
@@ -1109,7 +1184,7 @@ private:
             SubmitSqes();
         }
 
-        std::unique_ptr<TUringRequest> TryDequeueRequest()
+        TUringRequestPtr TryDequeueRequest()
         {
             ThreadPool_->RequestNotificationHandleRaised_.store(false);
 
@@ -1171,23 +1246,23 @@ private:
         {
             switch (request->Type) {
                 case EUringRequestType::Read:
-                    HandleReadRequest(request);
+                    HandleReadRequest(static_cast<TReadUringRequest*>(request));
                     break;
                 case EUringRequestType::Write:
-                    HandleWriteRequest(request);
+                    HandleWriteRequest(static_cast<TWriteUringRequest*>(request));
                     break;
                 case EUringRequestType::FlushFile:
-                    HandleFlushFileRequest(request);
+                    HandleFlushFileRequest(static_cast<TFlushFileUringRequest*>(request));
                     break;
                 case EUringRequestType::Allocate:
-                    HandleAllocateRequest(request);
+                    HandleAllocateRequest(static_cast<TAllocateUringRequest*>(request));
                     break;
                 default:
                     YT_ABORT();
             }
         }
 
-        void HandleReadRequest(TUringRequest* request)
+        void HandleReadRequest(TReadUringRequest* request)
         {
             auto totalSubrequestCount = std::ssize(request->ReadSubrequests);
 
@@ -1201,7 +1276,7 @@ private:
             }
 
             if (request->FinishedSubrequestCount == totalSubrequestCount) {
-                TrySetRequestSucceeded(request);
+                request->TrySetReadSucceeded();
                 DisposeRequest(request);
                 return;
             } else if (request->PendingReadSubrequestIndexes.empty()) {
@@ -1248,7 +1323,7 @@ private:
             }
         }
 
-        void HandleWriteRequest(TUringRequest* request)
+        void HandleWriteRequest(TWriteUringRequest* request)
         {
             auto totalSubrequestCount = std::ssize(request->WriteRequest.Buffers);
 
@@ -1259,7 +1334,7 @@ private:
 
             if (request->CurrentWriteSubrequestIndex == totalSubrequestCount) {
                 ReleaseIovBuffer(request->WriteIovBuffer);
-                TrySetRequestSucceeded(request);
+                request->TrySetSucceeded();
                 DisposeRequest(request);
                 return;
             }
@@ -1322,7 +1397,7 @@ private:
             }
         }
 
-        void HandleFlushFileRequest(TUringRequest* request)
+        void HandleFlushFileRequest(TFlushFileUringRequest* request)
         {
             YT_LOG_TRACE("Handling flush file request (Request: %p)",
                 request);
@@ -1337,7 +1412,7 @@ private:
             SetRequestUserData(sqe, request);
         }
 
-        void HandleAllocateRequest(TUringRequest* request)
+        void HandleAllocateRequest(TAllocateUringRequest* request)
         {
             YT_LOG_TRACE("Handling allocate request (Request: %p)",
                 request);
@@ -1355,7 +1430,7 @@ private:
 
         void HandleCompletion(const io_uring_cqe* cqe)
         {
-            auto [request, _] = GetRequestUserData(cqe);
+            auto [request, _] = GetRequestUserData<TUringRequest>(cqe);
             switch (request->Type) {
                 case EUringRequestType::Read:
                     HandleReadCompletion(cqe);
@@ -1376,7 +1451,7 @@ private:
 
         void HandleReadCompletion(const io_uring_cqe* cqe)
         {
-            auto [request, subrequestIndex] = GetRequestUserData(cqe);
+            auto [request, subrequestIndex] = GetRequestUserData<TReadUringRequest>(cqe);
 
             YT_LOG_TRACE("Handling read completion (Request: %p/%v)",
                 request,
@@ -1392,7 +1467,7 @@ private:
                         request,
                         subrequestIndex,
                         subrequestState.Buffer.Size());
-                    TrySetRequestFailed(request, error);
+                    request->TrySetFailed(std::move(error));
                 } else {
                     YT_LOG_TRACE("Read subrequest succeeded at EOF (Request: %p/%v, Remaining: %v)",
                         request,
@@ -1403,9 +1478,10 @@ private:
                 ++request->FinishedSubrequestCount;
             } else if (cqe->res < 0) {
                 ++request->FinishedSubrequestCount;
-                TrySetRequestFailed(request, cqe);
+                request->TrySetFailed(cqe);
             } else {
                 i64 readSize = cqe->res;
+                request->PhysicalBytesRead += readSize;
                 if (Config_->SimulatedMaxBytesPerRead) {
                     readSize = Min(readSize, *Config_->SimulatedMaxBytesPerRead);
                 }
@@ -1434,13 +1510,13 @@ private:
 
         void HandleWriteCompletion(const io_uring_cqe* cqe)
         {
-            auto [request, _] = GetRequestUserData(cqe);
+            auto [request, _] = GetRequestUserData<TWriteUringRequest>(cqe);
 
             YT_LOG_TRACE("Handling write completion (Request: %p)",
                 request);
 
             if (cqe->res < 0) {
-                TrySetRequestFailed(request, cqe);
+                request->TrySetFailed(cqe);
                 DisposeRequest(request);
                 return;
             }
@@ -1478,23 +1554,23 @@ private:
 
         void HandleFlushFileCompletion(const io_uring_cqe* cqe)
         {
-            auto [request, _] = GetRequestUserData(cqe);
+            auto [request, _] = GetRequestUserData<TFlushFileUringRequest>(cqe);
 
             YT_LOG_TRACE("Handling sync completion (Request: %p)",
                 request);
 
-            TrySetRequestFinished(request, cqe);
+            request->TrySetFinished(cqe);
             DisposeRequest(request);
         }
 
         void HandleAllocateCompletion(const io_uring_cqe* cqe)
         {
-            auto [request, _] = GetRequestUserData(cqe);
+            auto [request, _] = GetRequestUserData<TAllocateUringRequest>(cqe);
 
             YT_LOG_TRACE("Handling allocate completion (Request: %p)",
                 request);
 
-            TrySetRequestFinished(request, cqe);
+            request->TrySetFinished(cqe);
             DisposeRequest(request);
         }
 
@@ -1602,37 +1678,6 @@ private:
             }
         }
 
-        static void TrySetRequestSucceeded(TUringRequest* request)
-        {
-            if (request->Promise.TrySet()) {
-                YT_LOG_TRACE("Request succeeded (Request: %p)",
-                    request);
-            }
-        }
-
-        static void TrySetRequestFailed(TUringRequest* request, const io_uring_cqe* cqe)
-        {
-            YT_VERIFY(cqe->res < 0);
-            TrySetRequestFailed(request, TError::FromSystem(-cqe->res));
-        }
-
-        static void TrySetRequestFailed(TUringRequest* request, const TError& error)
-        {
-            if (request->Promise.TrySet(std::move(error))) {
-                YT_LOG_TRACE(error, "Request failed (Request: %p)",
-                    request);
-            }
-        }
-
-        static void TrySetRequestFinished(TUringRequest* request, const io_uring_cqe* cqe)
-        {
-            if (cqe->res >= 0) {
-                TrySetRequestSucceeded(request);
-            } else {
-                TrySetRequestFailed(request, cqe);
-            }
-        }
-
         static void SetRequestUserData(io_uring_sqe* sqe, TUringRequest* request, int subrequestIndex = 0)
         {
             auto userData = reinterpret_cast<void*>(
@@ -1641,6 +1686,7 @@ private:
             io_uring_sqe_set_data(sqe, userData);
         }
 
+        template <typename TUringRequest>
         static std::tuple<TUringRequest*, int> GetRequestUserData(const io_uring_cqe* cqe)
         {
             constexpr ui64 requestMask = (1ULL << 48) - 1;
@@ -1720,21 +1766,21 @@ public:
         }));
     }
 
-    virtual TFuture<std::vector<TSharedRef>> Read(
+    virtual TFuture<TReadResponse> Read(
         std::vector<TReadRequest> requests,
         i64 /* priority */,
         EMemoryZone memoryZone,
         TRefCountedTypeCookie tagCookie) override
     {
         if (std::ssize(requests) > MaxSubrequestCount) {
-            return MakeFuture<std::vector<TSharedRef>>(TError("Too many read requests: %v > %v",
+            return MakeFuture<TReadResponse>(TError("Too many read requests: %v > %v",
                 requests.size(),
                 MaxSubrequestCount));
         }
 
-        auto uringRequest = std::make_unique<TUringRequest>();
+        auto uringRequest = std::make_unique<TReadUringRequest>();
 
-        uringRequest->ReadRequestCombiner.Combine(requests, PageSize, memoryZone, tagCookie);
+        uringRequest->ReadRequestCombiner.Combine(std::move(requests), PageSize, memoryZone, tagCookie);
         const auto& ioRequests = uringRequest->ReadRequestCombiner.GetIORequests();
 
         uringRequest->Type = EUringRequestType::Read;
@@ -1754,41 +1800,37 @@ public:
             uringRequest->PendingReadSubrequestIndexes.push_back(index);
         }
 
-        auto result = uringRequest->ReadRequestCombiner.GetOutputBuffers();
-        return SubmitRequest(std::move(uringRequest))
-            .Apply(BIND([result = std::move(result)] {
-                return result;
-            }));
+        return SubmitRequest<TReadResponse>(std::move(uringRequest));
     }
 
     virtual TFuture<void> Write(
         TWriteRequest request,
         i64 /* priority */) override
     {
-        auto uringRequest = std::make_unique<TUringRequest>();
+        auto uringRequest = std::make_unique<TWriteUringRequest>();
         uringRequest->Type = EUringRequestType::Write;
         uringRequest->WriteRequest = std::move(request);
-        return SubmitRequest(std::move(uringRequest));
+        return SubmitRequest<void>(std::move(uringRequest));
     }
 
     virtual TFuture<void> FlushFile(
         TFlushFileRequest request,
         i64 /* priority */) override
     {
-        auto uringRequest = std::make_unique<TUringRequest>();
+        auto uringRequest = std::make_unique<TFlushFileUringRequest>();
         uringRequest->Type = EUringRequestType::FlushFile;
         uringRequest->FlushFileRequest = std::move(request);
-        return SubmitRequest(std::move(uringRequest));
+        return SubmitRequest<void>(std::move(uringRequest));
     }
 
     virtual TFuture<void> Allocate(
         TAllocateRequest request,
         i64 /* priority */) override
     {
-        auto uringRequest = std::make_unique<TUringRequest>();
+        auto uringRequest = std::make_unique<TAllocateUringRequest>();
         uringRequest->Type = EUringRequestType::Allocate;
         uringRequest->AllocateRequest = std::move(request);
-        return SubmitRequest(std::move(uringRequest));
+        return SubmitRequest<void>(std::move(uringRequest));
     }
 
 private:
@@ -1797,7 +1839,8 @@ private:
     TUringThreadPoolPtr ThreadPool_;
 
 
-    TFuture<void> SubmitRequest(TUringRequestPtr request)
+    template <typename TUringResponse, typename TUringRequest>
+    TFuture<TUringResponse> SubmitRequest(TUringRequest request)
     {
         auto future = request->Promise.ToFuture();
         ThreadPool_->SubmitRequest(std::move(request));

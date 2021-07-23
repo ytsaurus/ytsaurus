@@ -17,12 +17,12 @@ inline bool TIOEngineHandle::IsOpenForDirectIO() const
 ////////////////////////////////////////////////////////////////////////////////
 
 template<class TTag>
-TFuture<std::vector<TSharedRef>> IIOEngine::Read(
+TFuture<IIOEngine::TReadResponse> IIOEngine::Read(
     std::vector<TReadRequest> requests,
     i64 priority,
     NYTAlloc::EMemoryZone memoryZone)
 {
-    return Read(requests, priority, memoryZone, GetRefCountedTypeCookie<TTag>());
+    return Read(std::move(requests), priority, memoryZone, GetRefCountedTypeCookie<TTag>());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

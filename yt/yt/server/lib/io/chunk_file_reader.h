@@ -101,7 +101,7 @@ private:
         int firstBlockIndex,
         int blockCount,
         const NChunkClient::TRefCountedBlocksExtPtr& blocksExt,
-        const std::vector<TSharedRef>& readResult);
+        const IIOEngine::TReadResponse& readResponse);
     TFuture<NChunkClient::TRefCountedChunkMetaPtr> DoReadMeta(
         const NChunkClient::TClientChunkReadOptions& options,
         std::optional<int> partitionTag);

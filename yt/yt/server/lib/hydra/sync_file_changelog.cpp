@@ -584,8 +584,8 @@ private:
             {{DataFile_, result.GetStartPosition(), result.GetLength()}}))
             .ValueOrThrow();
 
-        YT_VERIFY(responseData.size() == 1);
-        result.Blob = responseData[0];
+        YT_VERIFY(responseData.OutputBuffers.size() == 1);
+        result.Blob = responseData.OutputBuffers[0];
 
         YT_VERIFY(std::ssize(result.Blob) == result.GetLength());
 

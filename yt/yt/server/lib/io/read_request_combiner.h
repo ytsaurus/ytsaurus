@@ -30,8 +30,8 @@ public:
     const std::vector<TSharedRef>& GetOutputBuffers();
 
 private:
-    std::vector<TSharedRef> OutputRefs_;
     std::vector<TIORequest> IORequests_;
+    std::vector<TSharedRef> OutputRefs_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

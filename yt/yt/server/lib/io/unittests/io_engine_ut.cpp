@@ -88,8 +88,8 @@ TEST_P(TIOEngineTest, ReadWrite)
         auto result = engine->Read({{file, offset, size}})
             .Get()
             .ValueOrThrow();
-        EXPECT_TRUE(result.size() == 1);
-        EXPECT_TRUE(TRef::AreBitwiseEqual(result[0], data.Slice(offset, offset + size)));
+        EXPECT_TRUE(result.OutputBuffers.size() == 1);
+        EXPECT_TRUE(TRef::AreBitwiseEqual(result.OutputBuffers[0], data.Slice(offset, offset + size)));
     };
 
     write();
@@ -154,8 +154,8 @@ TEST_P(TIOEngineTest, DirectIO)
         auto result = engine->Read({{file, offset, size}})
             .Get()
             .ValueOrThrow();
-        EXPECT_TRUE(result.size() == 1);
-        EXPECT_TRUE(TRef::AreBitwiseEqual(result[0], data.Slice(offset, offset + size)));
+        EXPECT_TRUE(result.OutputBuffers.size() == 1);
+        EXPECT_TRUE(TRef::AreBitwiseEqual(result.OutputBuffers[0], data.Slice(offset, offset + size)));
     };
 
     read(1, S - 2);
@@ -189,7 +189,7 @@ TEST_P(TIOEngineTest, ManyConcurrentDirectIOReads)
         .Get()
         .ValueOrThrow();
 
-    std::vector<TFuture<std::vector<TSharedRef>>> futures;
+    std::vector<TFuture<IIOEngine::TReadResponse>> futures;
     constexpr auto N = 100;
 
     for (int i = 0; i < N; ++i) {
