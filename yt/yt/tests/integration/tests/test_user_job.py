@@ -11,6 +11,7 @@ from yt_commands import (
     list_jobs, get_job, get_job_stderr,
     sync_create_cells, get_singular_chunk_id, multicell_sleep,
     update_nodes_dynamic_config, set_node_banned, check_all_stderrs, get_statistics,
+    repair_exec_node,
     make_random_string, raises_yt_error)
 
 from yt_helpers import Profiler
@@ -2019,3 +2020,62 @@ class TestUserJobMonitoring(YTEnvSetup):
                     },
                 },
             )
+
+
+##################################################################
+
+
+class TestRepairExecNode(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    USE_PORTO = True
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "disk_health_checker": {
+                "check_period": 1000,
+            },
+        },
+        "logging": {
+            "abort_on_alert": False,
+        },
+    }
+
+    @authors("alexkolodezny")
+    def test_repair_exec_node(self):
+        update_nodes_dynamic_config({"data_node": {"terminate_on_location_disable": False}})
+
+        node_id = list(get("//sys/cluster_nodes"))[0]
+
+        locations = get("//sys/cluster_nodes/{0}/orchid/config/exec_agent/slot_manager/locations".format(node_id))
+
+        for location in locations:
+            with open("{}/disabled".format(location["path"]), "w") as f:
+                f.write("{foo=bar}")
+
+        def is_disabled():
+            with raises_yt_error(required=False) as err:
+                op = run_test_vanilla("sleep 0.1")
+                op.track()
+            return len(err) > 0
+
+        wait(is_disabled)
+
+        with raises_yt_error('No online nodes that match operation scheduling tag filter ""'
+                             ' and have sufficient resources to schedule a job found in trees'):
+            op = run_test_vanilla("sleep 0.1")
+            op.track()
+
+        with raises_yt_error('Unknown location: "[unknownslot]"'):
+            repair_exec_node(node_id, ["unknownslot"])
+
+        with raises_yt_error("Lock file is found"):
+            repair_exec_node(node_id, ["slot0"])
+
+        for location in locations:
+            os.remove("{}/disabled".format(location["path"]))
+
+        repair_exec_node(node_id, ["slot0"])
+
+        wait(lambda: not is_disabled())

@@ -7,6 +7,8 @@
 
 #include <yt/yt/ytlib/controller_agent/controller_agent_service_proxy.h>
 
+#include <yt/yt/ytlib/exec_node_admin/exec_node_admin_service_proxy.h>
+
 #include <yt/yt/ytlib/hive/cell_directory.h>
 #include <yt/yt/ytlib/hive/cell_directory_synchronizer.h>
 
@@ -37,6 +39,7 @@ using namespace NHiveClient;
 using namespace NJobTrackerClient;
 using namespace NScheduler;
 using namespace NControllerAgent;
+using namespace NExecNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -314,6 +317,24 @@ TString TClient::DoWriteOperationControllerCoreDump(
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
     return rsp->path();
+}
+
+void TClient::DoRepairExecNode(
+    const TString& address,
+    const TRepairExecNodeOptions& options)
+{
+    ValidateSuperuserPermissions();
+    auto channel = Connection_->GetChannelFactory()->CreateChannel(address);
+
+    TExecNodeAdminServiceProxy proxy(channel);
+    auto req = proxy.RepairNode();
+
+    for (const auto& location : options.Locations) {
+        req->add_locations(location);
+    }
+
+    WaitFor(req->Invoke())
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

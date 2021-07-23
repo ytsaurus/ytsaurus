@@ -184,6 +184,10 @@ public:
         NJobTrackerClient::TOperationId operationId,
         const TWriteOperationControllerCoreDumpOptions& options));
 
+    MOCK_METHOD2(RepairExecNode, TFuture<void>(
+        const TString& address,
+        const TRepairExecNodeOptions& options));
+
     // IClient
     NTabletClient::ITableMountCachePtr TableMountCache;
     NTransactionClient::ITimestampProviderPtr TimestampProvider;

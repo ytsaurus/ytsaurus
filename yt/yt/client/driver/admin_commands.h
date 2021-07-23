@@ -45,4 +45,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TRepairExecNodeCommand
+    : public TTypedCommand<NApi::TRepairExecNodeOptions>
+{
+public:
+    TRepairExecNodeCommand();
+
+private:
+    TString Address_;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

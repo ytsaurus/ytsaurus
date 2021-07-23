@@ -1258,6 +1258,12 @@ struct TWriteOperationControllerCoreDumpOptions
     : public TTimeoutOptions
 { };
 
+struct TRepairExecNodeOptions
+    : public TTimeoutOptions
+{
+    std::vector<TString> Locations;
+};
+
 using TCellIdToSnapshotIdMap = THashMap<NHydra::TCellId, int>;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1683,6 +1689,10 @@ struct IClient
     virtual TFuture<TString> WriteOperationControllerCoreDump(
         NJobTrackerClient::TOperationId operationId,
         const TWriteOperationControllerCoreDumpOptions& options = {}) = 0;
+    
+    virtual TFuture<void> RepairExecNode(
+        const TString& address,
+        const TRepairExecNodeOptions& options = {}) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClient)

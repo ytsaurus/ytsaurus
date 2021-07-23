@@ -78,4 +78,20 @@ void TSwitchLeaderCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TRepairExecNodeCommand::TRepairExecNodeCommand()
+{
+    RegisterParameter("address", Address_);
+    RegisterParameter("locations", Options.Locations);
+}
+
+void TRepairExecNodeCommand::DoExecute(ICommandContextPtr context)
+{
+    WaitFor(context->GetClient()->RepairExecNode(Address_, Options))
+        .ThrowOnError();
+
+    ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver
