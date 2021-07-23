@@ -31,8 +31,9 @@ DEFINE_ENUM(ETabletReign,
     ((RowBufferEmptyRowDeserialization)   (100200)) // max42
     ((Hunks1)                             (100201)) // babenko
     ((Hunks2)                             (100202)) // babenko
-    ((VersionedWriteToOrderedTablet)      (100203)) // gritukan
-    ((PersistChunkTimestamp)              (100204)) // ifsmirnov
+    ((PersistChunkTimestamp)              (100203)) // ifsmirnov
+    // 21.3 starts here.
+    ((VersionedWriteToOrderedTablet)      (100300)) // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////
