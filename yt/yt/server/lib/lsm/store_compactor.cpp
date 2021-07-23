@@ -142,8 +142,10 @@ private:
             partitionMaxTimestamp = std::max(partitionMaxTimestamp, store->GetMaxTimestamp());
         }
 
+        // NB: min_data_ttl <= max_data ttl should be validated in mount config, see YT-15160.
+        auto maxDataTtl = std::max(mountConfig->MinDataTtl, mountConfig->MaxDataTtl);
         if (partitionMaxTimestamp >= CurrentTimestamp_ ||
-            TimestampDiffToDuration(partitionMaxTimestamp, CurrentTimestamp_).first <= mountConfig->MaxDataTtl)
+            TimestampDiffToDuration(partitionMaxTimestamp, CurrentTimestamp_).first <= maxDataTtl)
         {
             return {};
         }
