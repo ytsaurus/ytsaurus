@@ -1099,7 +1099,7 @@ class TestUserJobIsolation(YTEnvSetup):
                 # NB: ytserver-exec requires many threads on start.
                 "user_job_options": {
                     "thread_limit_multiplier": 5,
-                    "initial_thread_limit": 40,
+                    "initial_thread_limit": 100,
                 },
             },
         },
@@ -1165,9 +1165,9 @@ class TestUserJobIsolation(YTEnvSetup):
             op = run_test_vanilla(cmd, spec={"max_failed_job_count": 1})
             op.track()
 
-        run_fork_bomb(35)
+        run_fork_bomb(50)
         with pytest.raises(YtError):
-            run_fork_bomb(100)
+            run_fork_bomb(200)
 
     @authors("gritukan")
     def test_thread_count_statistics(self):
