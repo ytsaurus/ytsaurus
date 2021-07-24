@@ -9,9 +9,9 @@ import (
 	"a.yandex-team.ru/yt/go/yt"
 )
 
-func (c *Controller) resolveSymlink(path ypath.Path) (target ypath.Path, err error) {
+func (c *Controller) resolveSymlink(ctx context.Context, path ypath.Path) (target ypath.Path, err error) {
 	var nodeType yt.NodeType
-	err = c.ytc.GetNode(context.TODO(), path.SuppressSymlink().Attr("type"), &nodeType, nil)
+	err = c.ytc.GetNode(ctx, path.SuppressSymlink().Attr("type"), &nodeType, nil)
 	if err != nil {
 		return
 	}
@@ -20,17 +20,17 @@ func (c *Controller) resolveSymlink(path ypath.Path) (target ypath.Path, err err
 		return
 	}
 	c.l.Debug("artifact defined by symlink, resolving it", log.String("path", target.String()))
-	err = c.ytc.GetNode(context.TODO(), path.Attr("path"), &target, nil)
+	err = c.ytc.GetNode(ctx, path.Attr("path"), &target, nil)
 	c.l.Debug("symlink resolved", log.String("target_path", target.String()))
 	return
 }
 
-func (c *Controller) buildArtifact(key string, spec *ArtifactSpec, defaultPath ypath.Path) (path ypath.Rich, err error) {
+func (c *Controller) buildArtifact(ctx context.Context, key string, spec *ArtifactSpec, defaultPath ypath.Path) (path ypath.Rich, err error) {
 	path.FileName = key
 	if spec == nil || spec.Path == nil {
-		path.Path, err = c.resolveSymlink(defaultPath)
+		path.Path, err = c.resolveSymlink(ctx, defaultPath)
 	} else {
-		path.Path, err = c.resolveSymlink(*spec.Path)
+		path.Path, err = c.resolveSymlink(ctx, *spec.Path)
 	}
 	return
 }
@@ -41,7 +41,7 @@ type artifact struct {
 	defaultPath ypath.Path
 }
 
-func (c *Controller) appendArtifacts(speclet *Speclet, filePaths *[]ypath.Rich, description *map[string]interface{}) (err error) {
+func (c *Controller) appendArtifacts(ctx context.Context, speclet *Speclet, filePaths *[]ypath.Rich, description *map[string]interface{}) (err error) {
 	artifacts := []artifact{
 		{"ytserver-clickhouse", speclet.YTServerClickHouse, "//sys/bin/ytserver-clickhouse/ytserver-clickhouse"},
 		{"ytserver-log-tailer", speclet.YTServerLogTailer, "//sys/bin/ytserver-log-tailer/ytserver-log-tailer"},
@@ -53,12 +53,12 @@ func (c *Controller) appendArtifacts(speclet *Speclet, filePaths *[]ypath.Rich, 
 
 	for _, artifact := range artifacts {
 		var path ypath.Rich
-		path, err = c.buildArtifact(artifact.name, artifact.spec, artifact.defaultPath)
+		path, err = c.buildArtifact(ctx, artifact.name, artifact.spec, artifact.defaultPath)
 		if err != nil {
 			return
 		}
 		*filePaths = append(*filePaths, path)
-		err = appendArtifactDescription(&artifactDescription, c.ytc, artifact.name, path.Path)
+		err = appendArtifactDescription(ctx, &artifactDescription, c.ytc, artifact.name, path.Path)
 		if err != nil {
 			return
 		}

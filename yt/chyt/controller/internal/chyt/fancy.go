@@ -9,9 +9,9 @@ import (
 	"a.yandex-team.ru/yt/go/yt"
 )
 
-func appendArtifactDescription(description *map[string]yson.RawValue, ytc yt.Client, name string, path ypath.Path) (err error) {
+func appendArtifactDescription(ctx context.Context, description *map[string]yson.RawValue, ytc yt.Client, name string, path ypath.Path) (err error) {
 	var artifactAttrs yson.RawValue
-	err = ytc.GetNode(context.TODO(), path.Attr("user_attributes"), &artifactAttrs, nil)
+	err = ytc.GetNode(ctx, path.Attr("user_attributes"), &artifactAttrs, nil)
 	if err != nil {
 		return
 	}

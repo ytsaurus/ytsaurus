@@ -20,7 +20,7 @@ type Controller struct {
 	cluster           string
 }
 
-func (c *Controller) Prepare(alias string, incarnationIndex int, specletYson yson.RawValue) (
+func (c *Controller) Prepare(ctx context.Context, alias string, incarnationIndex int, specletYson yson.RawValue) (
 	spec map[string]interface{}, description map[string]interface{}, annotations map[string]interface{}, err error) {
 
 	description = buildDescription(c.cluster, alias)
@@ -40,13 +40,13 @@ func (c *Controller) Prepare(alias string, incarnationIndex int, specletYson yso
 	}
 
 	// Build artifacts.
-	err = c.appendArtifacts(&speclet, &filePaths, &description)
+	err = c.appendArtifacts(ctx, &speclet, &filePaths, &description)
 	if err != nil {
 		return
 	}
 
 	// Build configs.
-	err = c.appendConfigs(alias, &speclet, &filePaths)
+	err = c.appendConfigs(ctx, alias, &speclet, &filePaths)
 	if err != nil {
 		return
 	}
@@ -56,7 +56,7 @@ func (c *Controller) Prepare(alias string, incarnationIndex int, specletYson yso
 	}
 
 	// Prepare runtime stuff: stderr/core-table, etc.
-	runtimePaths, err := c.prepareRuntime(speclet.RuntimeDataPath.Child(alias), alias, incarnationIndex)
+	runtimePaths, err := c.prepareRuntime(ctx, speclet.RuntimeDataPath.Child(alias), alias, incarnationIndex)
 	if err != nil {
 		return
 	}
@@ -108,7 +108,7 @@ func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string,
 		root:    root,
 		cluster: cluster,
 	}
-	err := ytc.GetNode(context.TODO(), ypath.Path("//sys/@cluster_connection"), &c.clusterConnection, nil)
+	err := ytc.GetNode(context.Background(), ypath.Path("//sys/@cluster_connection"), &c.clusterConnection, nil)
 	if err != nil {
 		panic(err)
 	}

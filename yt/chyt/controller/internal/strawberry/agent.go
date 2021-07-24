@@ -101,7 +101,7 @@ func NewAgent(proxy string, ytc yt.Client, l log.Logger, controllers map[string]
 
 func (a *Agent) restartOp(oplet *Oplet) {
 	oplet.l.Info("restarting operation")
-	spec, description, annotations, err := oplet.c.Prepare(oplet.Alias, oplet.IncarnationIndex+1, oplet.speclet)
+	spec, description, annotations, err := oplet.c.Prepare(a.ctx, oplet.Alias, oplet.IncarnationIndex+1, oplet.speclet)
 
 	if err != nil {
 		oplet.l.Info("error restarting operation", log.Error(err))
@@ -129,7 +129,7 @@ func (a *Agent) restartOp(oplet *Oplet) {
 		spec["acl"] = oplet.acl
 	}
 
-	opID, err := a.ytc.StartOperation(context.TODO(), yt.OperationVanilla, spec, nil)
+	opID, err := a.ytc.StartOperation(a.ctx, yt.OperationVanilla, spec, nil)
 
 	if yterrors.ContainsMessageRE(err, aliasAlreadyUsedRE) {
 		oplet.l.Debug("alias is already used, aborting previous operation")
@@ -145,12 +145,12 @@ func (a *Agent) restartOp(oplet *Oplet) {
 			panic(fmt.Errorf("malformed YT operation ID in error attributes: %v", parseErr))
 		}
 		oplet.l.Debug("aborting operation", log.String("operation_id", oldOpID.String()))
-		abortErr := a.ytc.AbortOperation(context.TODO(), yt.OperationID(oldOpID), &yt.AbortOperationOptions{})
+		abortErr := a.ytc.AbortOperation(a.ctx, yt.OperationID(oldOpID), &yt.AbortOperationOptions{})
 		if abortErr != nil {
 			oplet.setError(abortErr)
 			return
 		}
-		opID, err = a.ytc.StartOperation(context.TODO(), yt.OperationVanilla, spec, nil)
+		opID, err = a.ytc.StartOperation(a.ctx, yt.OperationVanilla, spec, nil)
 	}
 
 	if err != nil {
@@ -175,7 +175,7 @@ func (a *Agent) flushOp(oplet *Oplet) {
 	annotation := cypAnnotation(a, oplet)
 
 	err := a.ytc.MultisetAttributes(
-		context.TODO(),
+		a.ctx,
 		a.config.Root.Child(oplet.Alias).Attrs(),
 		map[string]interface{}{
 			"strawberry_error":             oplet.err,
@@ -205,7 +205,7 @@ func (a *Agent) abortDangling(family string) {
 	optType := yt.OperationVanilla
 
 	runningOps, err := yt.ListAllOperations(
-		context.TODO(),
+		a.ctx,
 		a.ytc,
 		&yt.ListOperationsOptions{
 			Filter: &optFilter,
@@ -246,7 +246,7 @@ func (a *Agent) abortDangling(family string) {
 		}
 
 		if needAbort {
-			err := a.ytc.AbortOperation(context.TODO(), op.ID, nil)
+			err := a.ytc.AbortOperation(a.ctx, op.ID, nil)
 			if err != nil {
 				l.Error("error aborting operation", log.String("operation_id", op.ID.String()), log.Error(err))
 			}
@@ -291,7 +291,7 @@ func (a *Agent) pass() {
 
 		a.l.Debug("getting operation info", log.String("operation_id", opID.String()))
 
-		ytOp, err := a.ytc.GetOperation(context.TODO(), opID, nil)
+		ytOp, err := a.ytc.GetOperation(a.ctx, opID, nil)
 		if err != nil {
 			op.setError(err)
 			op.setPendingRestart("error getting operation info")
@@ -447,7 +447,7 @@ func (a *Agent) updateFromAttrs(oplet *Oplet, alias string) error {
 		"strawberry_speclet", "strawberry_family", "strawberry_pool",
 	}
 
-	err := a.ytc.GetNode(context.TODO(), a.config.Root.Child(alias).Attrs(), &node, &yt.GetNodeOptions{Attributes: attributes})
+	err := a.ytc.GetNode(a.ctx, a.config.Root.Child(alias).Attrs(), &node, &yt.GetNodeOptions{Attributes: attributes})
 
 	if yterrors.ContainsResolveError(err) {
 		// Node has gone. Remove this oplet.
@@ -525,7 +525,7 @@ func (a *Agent) Start() {
 	a.nodeCh = TrackChildren(a.ctx, a.config.Root, time.Millisecond*1000, a.ytc, a.l)
 
 	var initialAliases []string
-	err := a.ytc.ListNode(context.TODO(), a.config.Root, &initialAliases, nil)
+	err := a.ytc.ListNode(a.ctx, a.config.Root, &initialAliases, nil)
 	if err != nil {
 		panic(err)
 	}
