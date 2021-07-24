@@ -385,16 +385,16 @@ NTracing::TTraceContextPtr GetOrCreateTraceContext(const IRequestPtr& req)
     if (auto* traceParent = headers->Find("traceparent")) {
         NTracing::TSpanContext parentSpan;
         if (TryParseTraceParent(*traceParent, parentSpan)) {
-            traceContext = New<NTracing::TTraceContext>(parentSpan, "HttpServer");
+            traceContext = NTracing::TTraceContext::NewChildFromSpan(parentSpan, "HttpServer");
         }
     }
+
     if (!traceContext) {
         // Generate new trace context from scratch.
-        traceContext = NTracing::CreateRootTraceContext("HttpServer");
+        traceContext = NTracing::TTraceContext::NewRoot("HttpServer");
     }
-    if (traceContext->IsSampled()) {
-        traceContext->AddTag("path", req->GetUrl().Path);
-    }
+
+    traceContext->SetRecorded();
     return traceContext;
 }
 

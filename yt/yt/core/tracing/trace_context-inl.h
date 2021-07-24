@@ -1,4 +1,5 @@
 #pragma once
+#include <atomic>
 #ifndef TRACE_CONTEXT_INL_H_
 #error "Direct inclusion of this file is not allowed, include trace_context.h"
 // For the sake of sane code completion.
@@ -9,9 +10,10 @@ namespace NYT::NTracing {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_FORCE_INLINE bool TTraceContext::IsSampled() const
+Y_FORCE_INLINE bool TTraceContext::IsRecorded() const
 {
-    return Sampled_.load();
+    auto state = State_.load(std::memory_order_relaxed);
+    return state == ETraceContextState::Recorded || state == ETraceContextState::Sampled;
 }
 
 Y_FORCE_INLINE bool TTraceContext::IsDebug() const
@@ -57,6 +59,10 @@ Y_FORCE_INLINE NProfiling::TCpuDuration TTraceContext::GetElapsedCpuTime() const
 template <class T>
 void TTraceContext::AddTag(const TString& tagName, const T& tagValue)
 {
+    if (!IsRecorded()) {
+        return;
+    }
+
     using ::ToString;
     AddTag(tagName, ToString(tagValue));
 }
@@ -150,28 +156,23 @@ inline TTraceContextGuard::TTraceContextGuard(TTraceContextPtr traceContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline bool TChildTraceContextGuard::IsRecorded(const TTraceContextPtr& traceContext)
+{
+    return traceContext && traceContext->IsRecorded();
+}
+
 inline TChildTraceContextGuard::TChildTraceContextGuard(
     const TTraceContextPtr& traceContext,
-    TString spanName,
-    TString loggingTag,
-    bool forceTracing)
-    : TraceContextGuard_(CreateChildTraceContext(
-        traceContext,
-        std::move(spanName),
-        std::move(loggingTag),
-        forceTracing))
-    , FinishGuard_(GetCurrentTraceContext())
+    TString spanName)
+    : TraceContextGuard_(IsRecorded(traceContext) ? traceContext->CreateChild(spanName) : nullptr)
+    , FinishGuard_(IsRecorded(traceContext) ? GetCurrentTraceContext() : nullptr)
 { }
 
 inline TChildTraceContextGuard::TChildTraceContextGuard(
-    TString spanName,
-    TString loggingTag,
-    bool forceTracing)
+    TString spanName)
     : TChildTraceContextGuard(
         GetCurrentTraceContext(),
-        std::move(spanName),
-        std::move(loggingTag),
-        forceTracing)
+        std::move(spanName))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -194,6 +195,16 @@ extern thread_local TTraceContext* CurrentTraceContext;
 Y_FORCE_INLINE TTraceContext* GetCurrentTraceContext()
 {
     return CurrentTraceContext;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TFn>
+void AnnotateTraceContext(const TFn& fn)
+{
+    if (auto traceContext = NTracing::GetCurrentTraceContext(); traceContext && traceContext->IsRecorded()) {
+        fn(traceContext);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

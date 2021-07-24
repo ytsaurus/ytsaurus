@@ -11,6 +11,48 @@
 using namespace NYT;
 using namespace NYT::NTracing;
 
+void SubrequestExample()
+{
+    auto traceContext = TTraceContext::NewRoot("Example");
+    traceContext->SetSampled();
+    traceContext->AddTag("user", "prime");
+
+    traceContext->AddLogEntry(NProfiling::GetCpuInstant(), "Request started");
+
+    Sleep(TDuration::MilliSeconds(10));
+    auto childTraceContext = traceContext->CreateChild("Subrequest");
+    childTraceContext->AddTag("index", "0");
+
+    Sleep(TDuration::MilliSeconds(2));
+    childTraceContext->Finish();
+
+    Sleep(TDuration::MilliSeconds(2));
+    traceContext->AddLogEntry(NProfiling::GetCpuInstant(), "Request finished");
+    traceContext->Finish();
+
+    Cout << ToString(traceContext->GetTraceId()) << Endl;
+}
+
+void DelayedSamplingExample()
+{
+    auto traceContext = TTraceContext::NewRoot("Job");
+    traceContext->SetRecorded();
+
+    auto fastRequestContext = traceContext->CreateChild("FastRequest");
+    fastRequestContext->Finish();
+
+    auto startContext = traceContext->CreateChild("Start");
+    startContext->Finish();
+
+    auto slowRequestContext = startContext->CreateChild("SlowRequest");
+
+    traceContext->SetSampled();
+    YT_VERIFY(slowRequestContext->IsSampled());
+
+    slowRequestContext->Finish();
+    traceContext->Finish();
+}
+
 int main(int argc, char* argv[])
 {
     try {
@@ -30,25 +72,11 @@ int main(int argc, char* argv[])
         auto jaeger = New<NTracing::TJaegerTracer>(config);
         SetGlobalTracer(jaeger);
 
-        auto traceContext = CreateRootTraceContext("Example");
-        traceContext->AddTag("user", "prime");
-        traceContext->SetSampled();
+        SubrequestExample();
 
-        traceContext->AddLogEntry(NProfiling::GetCpuInstant(), "Request started");
-
-        Sleep(TDuration::MilliSeconds(10));
-        auto childTraceContext = CreateChildTraceContext(traceContext, "Subrequest");
-        childTraceContext->AddTag("index", "0");
-
-        Sleep(TDuration::MilliSeconds(2));
-        childTraceContext->Finish();
-
-        Sleep(TDuration::MilliSeconds(2));
-        traceContext->AddLogEntry(NProfiling::GetCpuInstant(), "Request finished");
-        traceContext->Finish();
+        DelayedSamplingExample();
 
         jaeger->WaitFlush().Get();
-        Cout << ToString(traceContext->GetTraceId()) << Endl;
     } catch (const std::exception& ex) {
         Cerr << ex.what() << Endl;
         _exit(1);

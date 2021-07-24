@@ -44,9 +44,6 @@ public:
 
     std::optional<TString> Token;
 
-
-    bool ForceTracing;
-
     TAsyncExpiringCacheConfigPtr ProxyDiscoveryCache;
 
     TDriverConfig()
@@ -83,9 +80,6 @@ public:
 
         RegisterParameter("token", Token)
             .Optional();
-
-        RegisterParameter("force_tracing", ForceTracing)
-            .Default(false);
 
         RegisterParameter("proxy_discovery_cache", ProxyDiscoveryCache)
             .DefaultNew();

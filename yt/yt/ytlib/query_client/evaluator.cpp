@@ -78,10 +78,10 @@ public:
         auto queryFingerprint = InferName(query, true);
 
         NTracing::TChildTraceContextGuard guard("QueryClient.Evaluate");
-        if (auto* traceContext = NTracing::GetCurrentTraceContext(); traceContext && traceContext->IsSampled()) {
+        NTracing::AnnotateTraceContext([&] (const auto& traceContext) {
             traceContext->AddTag("fragment_id", query->Id);
             traceContext->AddTag("query_fingerprint", queryFingerprint);
-        }
+        });
 
         auto Logger = MakeQueryLogger(query);
 

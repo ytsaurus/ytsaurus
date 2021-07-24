@@ -862,7 +862,7 @@ private:
         PerformanceCounters_->ResponseMessageAttachmentSizeCounter.Increment(
             GetTotalMessageAttachmentSize(responseMessage));
 
-        if (!Error_.IsOK() && TraceContext_ && TraceContext_->IsSampled()) {
+        if (!Error_.IsOK() && TraceContext_ && TraceContext_->IsRecorded()) {
             TraceContext_->AddErrorTag();
         }
 
@@ -928,7 +928,7 @@ private:
         }
 
         auto logMessage = builder.Flush();
-        if (TraceContext_ && TraceContext_->IsSampled()) {
+        if (TraceContext_ && TraceContext_->IsRecorded()) {
             TraceContext_->AddTag(RequestInfoAnnotation, logMessage);
         }
         YT_LOG_EVENT_WITH_ANCHOR(Logger, LogLevel_, RuntimeInfo_->RequestLoggingAnchor, logMessage);
@@ -975,7 +975,7 @@ private:
         }
 
         auto logMessage = builder.Flush();
-        if (TraceContext_ && TraceContext_->IsSampled()) {
+        if (TraceContext_ && TraceContext_->IsRecorded()) {
             TraceContext_->AddTag(ResponseInfoAnnotation, logMessage);
         }
         YT_LOG_EVENT_WITH_ANCHOR(Logger, LogLevel_, RuntimeInfo_->ResponseLoggingAnchor, logMessage);
@@ -1409,7 +1409,7 @@ void TServiceBase::HandleRequest(
     auto traceContext = tracingMode == ERequestTracingMode::Disable
         ? NTracing::TTraceContextPtr()
         : GetOrCreateHandlerTraceContext(*header, tracingMode == ERequestTracingMode::Force);
-    if (traceContext && traceContext->IsSampled()) {
+    if (traceContext && traceContext->IsRecorded()) {
         traceContext->AddTag(EndpointAnnotation, replyBus->GetEndpointDescription());
     }
 

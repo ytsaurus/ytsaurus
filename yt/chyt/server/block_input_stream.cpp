@@ -200,7 +200,7 @@ void TBlockInputStream::readSuffixImpl()
         IdleTimer_.GetElapsedTime(),
         ReadCount_);
 
-    if (TraceContext_) {
+    if (TraceContext_ && TraceContext_->IsRecorded()) {
         TraceContext_->AddTag("chyt.reader.data_statistics", Reader_->GetDataStatistics());
         TraceContext_->AddTag("chyt.reader.codec_statistics", Reader_->GetDecompressionStatistics());
         TraceContext_->AddTag("chyt.reader.timing_statistics", Reader_->GetTimingStatistics());
@@ -375,9 +375,10 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
     auto readSchema = subquerySpec.ReadSchema->Filter(realColumns);
     auto readSchemaWithVirtualColumns = InsertVirtualColumns(readSchema, subquerySpec.DataSourceDirectory, virtualColumns);
 
-    auto blockInputStreamTraceContext = NTracing::CreateChildTraceContext(
-        traceContext,
-        "ClickHouseYt.BlockInputStream");
+    NTracing::TTraceContextPtr blockInputStreamTraceContext;
+    if (traceContext) {
+        blockInputStreamTraceContext = traceContext->CreateChild("ClickHouseYt.BlockInputStream");
+    }
 
     TCurrentTraceContextGuard guard(blockInputStreamTraceContext);
     // Readers capture context implicitly, so create NullTraceContextGuard if tracing is disabled.

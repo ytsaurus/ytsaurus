@@ -1414,9 +1414,9 @@ protected:
         }
 
         auto logMessage = builder.Flush();
-        if (auto* traceContext = NTracing::GetCurrentTraceContext(); traceContext && traceContext->IsSampled()) {
+        NTracing::AnnotateTraceContext([&] (const auto& traceContext) {
             traceContext->AddTag(RequestInfoAnnotation, logMessage);
-        }
+        });
         YT_LOG_DEBUG(logMessage);
 
         Timer_.emplace();
@@ -1456,9 +1456,9 @@ protected:
         delimitedBuilder->AppendFormat("Error: %v", Error_);
 
         auto logMessage = builder.Flush();
-        if (auto* traceContext = NTracing::GetCurrentTraceContext(); traceContext && traceContext->IsSampled()) {
+        NTracing::AnnotateTraceContext([&] (const auto& traceContext) {
             traceContext->AddTag(ResponseInfoAnnotation, logMessage);
-        }
+        });
         YT_LOG_DEBUG(logMessage);
     }
 };

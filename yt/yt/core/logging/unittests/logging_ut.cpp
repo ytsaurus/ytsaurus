@@ -570,7 +570,8 @@ TEST_F(TLoggingTest, RequestSuppression)
 
     {
         auto requestId = NTracing::TRequestId::Create();
-        auto traceContext = NTracing::CreateRootTraceContext("Test", requestId);
+        auto traceContext = NTracing::TTraceContext::NewRoot("Test");
+        traceContext->SetRequestId(requestId);
         NTracing::TTraceContextGuard guard(traceContext);
 
         YT_LOG_INFO("Traced message");
@@ -602,8 +603,14 @@ TEST_P(TLoggingTagsTest, All)
     auto hasTraceContext = std::get<2>(GetParam());
     auto expected = std::get<3>(GetParam());
 
+    auto makeTraceContext = [] {
+        auto root = NTracing::TTraceContext::NewRoot("Test");
+        root->SetLoggingTag("TraceContextTag");
+        return root;
+    };
+
     auto traceContext = hasTraceContext
-        ? NTracing::CreateRootTraceContext("Test", /* requestId */ {}, "TraceContextTag")
+        ? makeTraceContext()
         : NTracing::TTraceContextPtr();
 
     auto logger = TLogger("Test");

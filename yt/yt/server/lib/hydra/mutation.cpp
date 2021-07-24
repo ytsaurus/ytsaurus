@@ -76,17 +76,15 @@ void TMutation::SetMutationId(NRpc::TMutationId mutationId, bool retry)
 
 void TMutation::SetTraceContext(NTracing::TTraceContextPtr traceContext)
 {
-    if (traceContext) {
-        traceContext = NTracing::CreateChildTraceContext(
-            traceContext,
-            ConcatToString(TStringBuf("HydraMutation:"), Request_.Type));
+    if (traceContext && traceContext->IsRecorded()) {
+        traceContext = traceContext->CreateChild(ConcatToString(TStringBuf("HydraMutation:"), Request_.Type));
         
-        if (traceContext->IsSampled() && Request_.MutationId) {
+        if (Request_.MutationId) {
             traceContext->AddTag("mutation_id", ToString(Request_.MutationId));
         }
-
-        Request_.TraceContext = std::move(traceContext);
     }
+
+    Request_.TraceContext = std::move(traceContext);
 }
 
 void TMutation::SetCurrentTraceContext()

@@ -37,7 +37,8 @@ void TAsyncQueueTrace::Join(i64 queueIndex)
 
 std::pair<TTraceContextPtr, bool> TAsyncQueueTrace::StartSpan(i64 startIndex, const TString& spanName)
 {
-    auto traceContext = CreateRootTraceContext(spanName);
+    auto traceContext = TTraceContext::NewRoot(spanName);
+    traceContext->SetRecorded();
 
     bool sampled = false;
     if (!Lazy_) {
