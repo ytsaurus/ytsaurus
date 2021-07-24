@@ -2,71 +2,94 @@ package strawberry
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
+	"a.yandex-team.ru/yt/go/ytwalk"
 )
 
-func TrackChildren(root ypath.Path, period time.Duration, ytc yt.Client, l log.Logger) (ch <-chan string, stop func()) {
-	eventCh := make(chan string)
-	stopCh := make(chan struct{})
+type myNode struct {
+	Revision yt.Revision `yson:"revision,attr"`
+}
 
-	revisions := make(map[string]yt.Revision)
+// TrackChildren is a primitive for subscription on changes of Cypress nodes in the given subtree. It emits relative
+// paths w.r.t. root of changed nodes.
+//
+// At the beginning it notifies caller about all nodes in the subtree. After that, it performs
+// lightweight "get with attributes" requests with given periodicity and tracks node revision change events including
+// node disappearance events. Note that each pass which did not result in any event still produces an empty slice which
+// allows building reliable logic assuming the absence of future modifications (see waitForPaths helper from tests
+// for an example)
+//
+// Current implementation does not descend into opaque nodes.
+func TrackChildren(ctx context.Context, root ypath.Path, period time.Duration, ytc yt.Client, l log.Logger) <-chan []ypath.Path {
+	eventCh := make(chan []ypath.Path)
 
 	l.Debug("tracking started", log.String("root", root.String()))
 
 	go func() {
+		revisions := make(map[ypath.Path]yt.Revision)
 		ticker := time.NewTicker(period)
 		for {
 			select {
-			case <-stopCh:
+			case <-ctx.Done():
+				l.Debug("tracking finished", log.String("root", root.String()))
+				close(eventCh)
 				return
 			case <-ticker.C:
-				l.Debug("listing nodes")
-				var nodes []struct {
-					Key      string      `yson:",value"`
-					Revision yt.Revision `yson:"revision,attr"`
-				}
+				l.Debug("walking nodes")
 
-				err := ytc.ListNode(context.TODO(), root, &nodes, &yt.ListNodeOptions{Attributes: []string{"revision"}})
+				toEmit := make([]ypath.Path, 0)
+
+				found := make(map[ypath.Path]struct{})
+
+				// First, walk over all nodes in root subtree (respecting opaques) and find those
+				// whose revisions have changed since the last time we seen them including newly appeared
+				// nodes.
+				err := ytwalk.Do(ctx, ytc, &ytwalk.Walk{
+					Root:       root,
+					Attributes: []string{"revision"},
+					Node:       new(myNode),
+					OnNode: func(path ypath.Path, node interface{}) error {
+						path = ypath.Path(strings.TrimPrefix(string(path), string(root)))
+						myNode := node.(*myNode)
+						found[path] = struct{}{}
+						if prevRevision, ok := revisions[path]; !ok || prevRevision != myNode.Revision {
+							l.Debug(
+								"node changed revision",
+								log.String("path", string(path)),
+								log.UInt64("prev_revision", uint64(prevRevision)),
+								log.UInt64("revision", uint64(myNode.Revision)))
+							toEmit = append(toEmit, path)
+							revisions[path] = myNode.Revision
+						}
+						return nil
+					},
+					RespectOpaque: true,
+				})
+
 				if err != nil {
-					l.Error("error while listing directory", log.Error(err))
+					l.Error("error while walking", log.Error(err))
 				}
 
-				found := make(map[string]struct{})
-
-				for _, node := range nodes {
-					found[node.Key] = struct{}{}
-					if prevRevision, ok := revisions[node.Key]; !ok || prevRevision != node.Revision {
-						l.Debug(
-							"node changed revision",
-							log.String("key", node.Key),
-							log.UInt64("prev_revision", uint64(prevRevision)),
-							log.UInt64("revision", uint64(node.Revision)))
-						eventCh <- node.Key
-						revisions[node.Key] = node.Revision
-					}
-				}
-
-				for key, revision := range revisions {
-					if _, ok := found[key]; !ok {
+				for path, revision := range revisions {
+					if _, ok := found[path]; !ok {
 						l.Debug(
 							"node disappeared",
-							log.String("key", key),
+							log.String("key", string(path)),
 							log.UInt64("prev_revision", uint64(revision)))
-						eventCh <- key
+						toEmit = append(toEmit, path)
+						delete(revisions, path)
 					}
 				}
+
+				eventCh <- toEmit
 			}
 		}
 	}()
 
-	stop = func() {
-		stopCh <- struct{}{}
-		l.Debug("tracking stopped")
-	}
-	ch = eventCh
-	return
+	return eventCh
 }

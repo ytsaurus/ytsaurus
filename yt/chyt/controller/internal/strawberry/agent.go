@@ -6,11 +6,13 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"strings"
 	"time"
 
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/library/go/core/xerrors"
 	"a.yandex-team.ru/yt/go/guid"
+	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yterrors"
@@ -70,15 +72,15 @@ type Agent struct {
 	hostname string
 	Proxy    string
 
-	// nodeCh receives events of form "particular node in root has changed Revision"
-	nodeCh <-chan string
+	// nodeCh receives events of form "particular node in root has changed revision"
+	nodeCh <-chan []ypath.Path
 
 	// pendingAliases contains all aliases that should be updated from Cypress attributes.
 	pendingAliases map[string]struct{}
 
-	started          bool
-	stopBackgroundCh chan struct{}
-	stopTracking     func()
+	started   bool
+	ctx       context.Context
+	cancelCtx context.CancelFunc
 }
 
 func NewAgent(proxy string, ytc yt.Client, l log.Logger, controllers map[string]Controller, config *Config) *Agent {
@@ -332,16 +334,34 @@ func (a *Agent) pass() {
 	}
 }
 
+func tokenize(path ypath.Path) []string {
+	parts := strings.Split(string(path), "/")
+	var j int
+	for i := 0; i < len(parts); i++ {
+		if len(parts[i]) > 0 {
+			parts[j] = parts[i]
+			j++
+		}
+	}
+	return parts[:j]
+}
+
 func (a *Agent) background(period time.Duration) {
 	a.l.Info("starting background activity", log.Duration("period", period))
 	ticker := time.NewTicker(period)
-out:
+loop:
 	for {
 		select {
-		case <-a.stopBackgroundCh:
-			break out
-		case alias := <-a.nodeCh:
-			a.pendingAliases[alias] = struct{}{}
+		case <-a.ctx.Done():
+			break loop
+		case paths := <-a.nodeCh:
+			for _, path := range paths {
+				tokens := tokenize(path)
+				if len(tokens) != 1 {
+					continue
+				}
+				a.pendingAliases[tokens[0]] = struct{}{}
+			}
 		case <-ticker.C:
 			a.pass()
 		}
@@ -494,12 +514,15 @@ func (a *Agent) Start() {
 	if a.started {
 		return
 	}
+	a.l.Info("agent started")
+
 	a.started = true
+	a.ctx, a.cancelCtx = context.WithCancel(context.Background())
 
 	a.aliasToOp = make(map[string]*Oplet)
 	a.pendingAliases = make(map[string]struct{})
 
-	a.nodeCh, a.stopTracking = TrackChildren(a.config.Root, time.Millisecond*1000, a.ytc, a.l)
+	a.nodeCh = TrackChildren(a.ctx, a.config.Root, time.Millisecond*1000, a.ytc, a.l)
 
 	var initialAliases []string
 	err := a.ytc.ListNode(context.TODO(), a.config.Root, &initialAliases, nil)
@@ -514,8 +537,6 @@ func (a *Agent) Start() {
 		}
 	}
 
-	a.stopBackgroundCh = make(chan struct{})
-
 	go a.background(time.Duration(a.config.PassPeriod))
 }
 
@@ -523,12 +544,12 @@ func (a *Agent) Stop() {
 	if !a.started {
 		return
 	}
+	a.l.Info("agent stopped")
+
 	a.started = false
-	a.stopTracking()
-	a.stopBackgroundCh <- struct{}{}
+	a.cancelCtx()
+	a.ctx = nil
 	a.aliasToOp = nil
 	a.pendingAliases = nil
 	a.nodeCh = nil
-	a.stopTracking = nil
-	a.stopBackgroundCh = nil
 }

@@ -27,6 +27,9 @@ type Walk struct {
 
 	// OnNode is invoked for each node during traversal.
 	OnNode func(path ypath.Path, node interface{}) error
+
+	// RespectOpaque defines whether we stop at opaque nodes (true) or not (false).
+	RespectOpaque bool
 }
 
 type treeOrValue struct {
@@ -76,7 +79,7 @@ func Do(ctx context.Context, yc yt.Client, w *Walk) error {
 			}
 		}
 
-		if t.Attributes["opaque"] == true && path != w.Root {
+		if !w.RespectOpaque && t.Attributes["opaque"] == true && path != w.Root {
 			subwalk := *w
 			subwalk.Root = path
 			return Do(ctx, yc, &subwalk)
