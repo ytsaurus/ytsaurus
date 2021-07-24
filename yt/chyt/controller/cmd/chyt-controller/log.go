@@ -1,9 +1,10 @@
 package main
 
 import (
-	logzap "a.yandex-team.ru/library/go/core/log/zap"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	logzap "a.yandex-team.ru/library/go/core/log/zap"
 )
 
 func StderrLogger() *logzap.Logger {
