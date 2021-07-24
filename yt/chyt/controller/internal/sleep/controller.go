@@ -6,11 +6,12 @@ import (
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
+	"context"
 )
 
 type Controller struct{}
 
-func (c Controller) Prepare(alias string, incarnationIndex int, speclet yson.RawValue) (
+func (c Controller) Prepare(ctx context.Context, alias string, incarnationIndex int, speclet yson.RawValue) (
 	spec map[string]interface{}, description map[string]interface{}, annotations map[string]interface{}, err error) {
 	err = nil
 	spec = map[string]interface{}{

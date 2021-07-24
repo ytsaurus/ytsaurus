@@ -8,17 +8,17 @@ import (
 	"a.yandex-team.ru/yt/go/yt"
 )
 
-func (c *Controller) uploadConfig(alias string, filename string, config interface{}) (richPath ypath.Rich, err error) {
+func (c *Controller) uploadConfig(ctx context.Context, alias string, filename string, config interface{}) (richPath ypath.Rich, err error) {
 	configYson, err := yson.MarshalFormat(config, yson.FormatPretty)
 	if err != nil {
 		return
 	}
 	path := c.root.Child(alias).Child(filename)
-	_, err = c.ytc.CreateNode(context.TODO(), path, yt.NodeFile, &yt.CreateNodeOptions{IgnoreExisting: true})
+	_, err = c.ytc.CreateNode(ctx, path, yt.NodeFile, &yt.CreateNodeOptions{IgnoreExisting: true})
 	if err != nil {
 		return
 	}
-	w, err := c.ytc.WriteFile(context.TODO(), path, nil)
+	w, err := c.ytc.WriteFile(ctx, path, nil)
 	if err != nil {
 		return
 	}
@@ -34,7 +34,7 @@ func (c *Controller) uploadConfig(alias string, filename string, config interfac
 	return
 }
 
-func (c *Controller) appendConfigs(alias string, speclet *Speclet, filePaths *[]ypath.Rich) (err error) {
+func (c *Controller) appendConfigs(ctx context.Context, alias string, speclet *Speclet, filePaths *[]ypath.Rich) (err error) {
 	r := speclet.Resources
 	ytServerClickHouseConfig := map[string]interface{}{
 		"clickhouse": map[string]interface{}{
@@ -57,7 +57,7 @@ func (c *Controller) appendConfigs(alias string, speclet *Speclet, filePaths *[]
 		"cpu_limit": r.InstanceCPU,
 		"memory":    r.InstanceMemory.memoryConfig(),
 	}
-	ytServerClickHouseConfigPath, err := c.uploadConfig(alias, "config.yson", ytServerClickHouseConfig)
+	ytServerClickHouseConfigPath, err := c.uploadConfig(ctx, alias, "config.yson", ytServerClickHouseConfig)
 	if err != nil {
 		return
 	}
@@ -70,7 +70,7 @@ func (c *Controller) appendConfigs(alias string, speclet *Speclet, filePaths *[]
 		},
 		"cluster_connection": c.clusterConnection,
 	}
-	logTailerConfigPath, err := c.uploadConfig(alias, "log_tailer_config.yson", logTailerConfig)
+	logTailerConfigPath, err := c.uploadConfig(ctx, alias, "log_tailer_config.yson", logTailerConfig)
 	if err != nil {
 		return
 	}

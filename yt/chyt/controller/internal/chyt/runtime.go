@@ -15,18 +15,18 @@ type runtimePaths struct {
 	CoreTable   ypath.Path
 }
 
-func (c *Controller) prepareBlobTable(kind string, root ypath.Path, incarnationIndex int) (path ypath.Path, err error) {
+func (c *Controller) prepareBlobTable(ctx context.Context, kind string, root ypath.Path, incarnationIndex int) (path ypath.Path, err error) {
 	path = root.Child(kind).Child(strconv.Itoa(incarnationIndex))
-	_, err = c.ytc.CreateNode(context.TODO(), path, yt.NodeTable, &yt.CreateNodeOptions{Force: true, Recursive: true})
+	_, err = c.ytc.CreateNode(ctx, path, yt.NodeTable, &yt.CreateNodeOptions{Force: true, Recursive: true})
 	return
 }
 
-func (c *Controller) prepareRuntime(root ypath.Path, alias string, incarnationIndex int) (paths runtimePaths, err error) {
-	paths.StderrTable, err = c.prepareBlobTable("stderrs", root, incarnationIndex)
+func (c *Controller) prepareRuntime(ctx context.Context, root ypath.Path, alias string, incarnationIndex int) (paths runtimePaths, err error) {
+	paths.StderrTable, err = c.prepareBlobTable(ctx, "stderrs", root, incarnationIndex)
 	if err != nil {
 		return
 	}
-	paths.CoreTable, err = c.prepareBlobTable("cores", root, incarnationIndex)
+	paths.CoreTable, err = c.prepareBlobTable(ctx, "cores", root, incarnationIndex)
 	if err != nil {
 		return
 	}

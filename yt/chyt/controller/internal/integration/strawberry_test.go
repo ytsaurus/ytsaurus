@@ -1,7 +1,7 @@
 package integration
 
 import (
-	"context"
+	"a.yandex-team.ru/library/go/core/log"
 	"reflect"
 	"sort"
 	"testing"
@@ -19,20 +19,22 @@ import (
 
 var root = ypath.Path("//tmp/strawberry")
 
-func abortAll(t *testing.T, ytc yt.Client) {
-	ops, err := yt.ListAllOperations(context.TODO(), ytc, &yt.ListOperationsOptions{State: &yt.StateRunning})
+func abortAll(t *testing.T, env *yttest.Env) {
+	// TODO(max42): introduce some unique annotation and abort only such operations. This would allow
+	// running this testsuite on real cluster.
+	ops, err := yt.ListAllOperations(env.Ctx, env.YT, &yt.ListOperationsOptions{State: &yt.StateRunning})
 	require.NoError(t, err)
 	for _, op := range ops {
-		err := ytc.AbortOperation(context.TODO(), op.ID, &yt.AbortOperationOptions{})
+		err := env.YT.AbortOperation(env.Ctx, op.ID, &yt.AbortOperationOptions{})
 		require.NoError(t, err)
 	}
 }
 
-func prepare(t *testing.T) (yt.Client, *strawberry.Agent) {
+func prepare(t *testing.T) (*yttest.Env, *strawberry.Agent) {
 	env, cancel := yttest.NewEnv(t)
 	t.Cleanup(cancel)
 
-	_, err := env.YT.CreateNode(context.TODO(), root, yt.NodeMap, &yt.CreateNodeOptions{Force: true, Recursive: true})
+	_, err := env.YT.CreateNode(env.Ctx, root, yt.NodeMap, &yt.CreateNodeOptions{Force: true, Recursive: true})
 	require.NoError(t, err)
 
 	l := env.L.Logger()
@@ -43,18 +45,18 @@ func prepare(t *testing.T) (yt.Client, *strawberry.Agent) {
 		RevisionCollectPeriod: yson.Duration(time.Millisecond * 100),
 	}
 
-	abortAll(t, env.YT)
+	abortAll(t, env)
 
 	agent := strawberry.NewAgent("test", env.YT, l, map[string]strawberry.Controller{
 		"sleep": sleep.NewController(l.WithName("strawberry"), env.YT, root, "test", nil),
 	}, config)
 
-	return env.YT, agent
+	return env, agent
 }
 
-func createNode(t *testing.T, ytc yt.Client, alias string) {
-	t.Logf("creating node %v", alias)
-	_, err := ytc.CreateNode(context.TODO(), root.Child(alias), yt.NodeMap, &yt.CreateNodeOptions{
+func createNode(t *testing.T, env *yttest.Env, alias string) {
+	env.L.Debug("creating node", log.String("alias", alias))
+	_, err := env.YT.CreateNode(env.Ctx, root.Child(alias), yt.NodeMap, &yt.CreateNodeOptions{
 		Attributes: map[string]interface{}{
 			"strawberry_family":  "sleep",
 			"strawberry_speclet": map[string]interface{}{},
@@ -63,20 +65,20 @@ func createNode(t *testing.T, ytc yt.Client, alias string) {
 	require.NoError(t, err)
 }
 
-func removeNode(t *testing.T, ytc yt.Client, alias string) {
-	t.Logf("removing node %v", alias)
-	err := ytc.RemoveNode(context.TODO(), root.Child(alias), nil)
+func removeNode(t *testing.T, env *yttest.Env, alias string) {
+	env.L.Debug("removing node", log.String("alias", alias))
+	err := env.YT.RemoveNode(env.Ctx, root.Child(alias), nil)
 	require.NoError(t, err)
 }
 
-func setAttr(t *testing.T, ytc yt.Client, alias string, attr string, value interface{}) {
-	t.Logf("setting attribute %v/@%v", alias, attr)
-	err := ytc.SetNode(context.TODO(), root.Child(alias).Attr(attr), value, nil)
+func setAttr(t *testing.T, env *yttest.Env, alias string, attr string, value interface{}) {
+	env.L.Debug("setting attribute", log.String("attr", alias+"/@"+attr))
+	err := env.YT.SetNode(env.Ctx, root.Child(alias).Attr(attr), value, nil)
 	require.NoError(t, err)
 }
 
-func getOp(t *testing.T, ytc yt.Client, alias string) *yt.OperationStatus {
-	ops, err := yt.ListAllOperations(context.TODO(), ytc, nil)
+func getOp(t *testing.T, env *yttest.Env, alias string) *yt.OperationStatus {
+	ops, err := yt.ListAllOperations(env.Ctx, env.YT, nil)
 	require.NoError(t, err)
 	for _, op := range ops {
 		if opAlias, ok := op.BriefSpec["alias"].(string); ok && opAlias == "*"+alias {
@@ -86,9 +88,9 @@ func getOp(t *testing.T, ytc yt.Client, alias string) *yt.OperationStatus {
 	return nil
 }
 
-func waitOp(t *testing.T, ytc yt.Client, alias string) *yt.OperationStatus {
+func waitOp(t *testing.T, env *yttest.Env, alias string) *yt.OperationStatus {
 	for i := 0; i < 30; i++ {
-		op := getOp(t, ytc, alias)
+		op := getOp(t, env, alias)
 		if op != nil {
 			return op
 		}
@@ -98,8 +100,8 @@ func waitOp(t *testing.T, ytc yt.Client, alias string) *yt.OperationStatus {
 	return nil
 }
 
-func listAliases(t *testing.T, ytc yt.Client) []string {
-	ops, err := yt.ListAllOperations(context.TODO(), ytc, &yt.ListOperationsOptions{State: &yt.StateRunning})
+func listAliases(t *testing.T, env *yttest.Env) []string {
+	ops, err := yt.ListAllOperations(env.Ctx, env.YT, &yt.ListOperationsOptions{State: &yt.StateRunning})
 	require.NoError(t, err)
 
 	aliases := make([]string, 0)
@@ -113,11 +115,11 @@ func listAliases(t *testing.T, ytc yt.Client) []string {
 	return aliases
 }
 
-func waitAliases(t *testing.T, ytc yt.Client, expected []string) {
+func waitAliases(t *testing.T, env *yttest.Env, expected []string) {
 	sort.Strings(expected)
 
 	for i := 0; i < 30; i++ {
-		actual := listAliases(t, ytc)
+		actual := listAliases(t, env)
 		sort.Strings(actual)
 
 		if reflect.DeepEqual(expected, actual) {
@@ -129,17 +131,17 @@ func waitAliases(t *testing.T, ytc yt.Client, expected []string) {
 	t.FailNow()
 }
 
-func waitIncarnation(t *testing.T, ytc yt.Client, alias string, expected int64) {
-	t.Logf("waiting for alias %v incarnation %v", alias, expected)
+func waitIncarnation(t *testing.T, env *yttest.Env, alias string, expected int64) {
+	env.L.Debug("waiting for alias incarnation", log.String("alias", alias), log.Int64("expected_incarnation", expected))
 	for i := 0; i < 30; i++ {
-		op := getOp(t, ytc, alias)
+		op := getOp(t, env, alias)
 		if op != nil {
 			annotations := op.RuntimeParameters.Annotations
 			incarnation, ok := annotations["strawberry_incarnation"]
 			require.True(t, ok)
 			require.LessOrEqual(t, incarnation, expected)
 			if reflect.DeepEqual(incarnation, expected) {
-				t.Logf("alias %v is at incarnation %v", alias, expected)
+				env.L.Debug("alias reached expected incarnation", log.String("alias", alias), log.Int64("incarnation", expected))
 				return
 			}
 		}
@@ -149,58 +151,58 @@ func waitIncarnation(t *testing.T, ytc yt.Client, alias string, expected int64) 
 }
 
 func TestOperationBeforeStart(t *testing.T) {
-	ytc, agent := prepare(t)
+	env, agent := prepare(t)
 	t.Cleanup(agent.Stop)
 
-	createNode(t, ytc, "test1")
+	createNode(t, env, "test1")
 	agent.Start()
 
-	_ = waitOp(t, ytc, "test1")
+	_ = waitOp(t, env, "test1")
 }
 
 func TestOperationAfterStart(t *testing.T) {
-	ytc, agent := prepare(t)
+	env, agent := prepare(t)
 	t.Cleanup(agent.Stop)
 
 	agent.Start()
 	time.Sleep(time.Millisecond * 500)
 
-	createNode(t, ytc, "test2")
+	createNode(t, env, "test2")
 
-	_ = waitOp(t, ytc, "test2")
+	_ = waitOp(t, env, "test2")
 }
 
 func TestAbortDangling(t *testing.T) {
-	ytc, agent := prepare(t)
+	env, agent := prepare(t)
 	t.Cleanup(agent.Stop)
 
 	agent.Start()
-	createNode(t, ytc, "test3")
-	waitAliases(t, ytc, []string{"test3"})
-	createNode(t, ytc, "test4")
-	waitAliases(t, ytc, []string{"test3", "test4"})
-	removeNode(t, ytc, "test3")
-	waitAliases(t, ytc, []string{"test4"})
-	removeNode(t, ytc, "test4")
-	waitAliases(t, ytc, []string{})
+	createNode(t, env, "test3")
+	waitAliases(t, env, []string{"test3"})
+	createNode(t, env, "test4")
+	waitAliases(t, env, []string{"test3", "test4"})
+	removeNode(t, env, "test3")
+	waitAliases(t, env, []string{"test4"})
+	removeNode(t, env, "test4")
+	waitAliases(t, env, []string{})
 }
 
 func TestReincarnations(t *testing.T) {
-	ytc, agent := prepare(t)
+	env, agent := prepare(t)
 	t.Cleanup(agent.Stop)
 
 	agent.Start()
-	createNode(t, ytc, "test5")
-	waitIncarnation(t, ytc, "test5", 1)
-	setAttr(t, ytc, "test5", "strawberry_pool", "foo")
-	waitIncarnation(t, ytc, "test5", 2)
-	setAttr(t, ytc, "test5", "strawberry_pool", "bar")
-	waitIncarnation(t, ytc, "test5", 3)
+	createNode(t, env, "test5")
+	waitIncarnation(t, env, "test5", 1)
+	setAttr(t, env, "test5", "strawberry_pool", "foo")
+	waitIncarnation(t, env, "test5", 2)
+	setAttr(t, env, "test5", "strawberry_pool", "bar")
+	waitIncarnation(t, env, "test5", 3)
 	agent.Stop()
-	waitIncarnation(t, ytc, "test5", 3)
+	waitIncarnation(t, env, "test5", 3)
 	agent.Start()
 	time.Sleep(time.Second * 2)
-	waitIncarnation(t, ytc, "test5", 3)
-	setAttr(t, ytc, "test5", "strawberry_pool", "baz")
-	waitIncarnation(t, ytc, "test5", 4)
+	waitIncarnation(t, env, "test5", 3)
+	setAttr(t, env, "test5", "strawberry_pool", "baz")
+	waitIncarnation(t, env, "test5", 4)
 }
