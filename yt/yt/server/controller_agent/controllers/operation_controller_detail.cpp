@@ -4839,8 +4839,12 @@ void TOperationControllerBase::AddChunksToUnstageList(std::vector<TInputChunkPtr
 
 void TOperationControllerBase::ProcessSafeException(const std::exception& ex)
 {
-    OnOperationFailed(TError("Exception thrown in operation controller that led to operation failure")
-        << ex);
+    auto error = TError("Exception thrown in operation controller that led to operation failure")
+        << ex;
+
+    YT_LOG_ERROR(error);
+
+    OnOperationFailed(error);
 }
 
 void TOperationControllerBase::ProcessSafeException(const TAssertionFailedException& ex)
