@@ -98,30 +98,45 @@ TString ToString(const TSpanContext& context)
 TTraceContext::TTraceContext(
     TSpanContext parentSpanContext,
     TString spanName,
-    TRequestId requestId,
-    TString loggingTag,
     TTraceContextPtr parentTraceContext)
     : TraceId_(parentSpanContext.TraceId)
     , SpanId_(GenerateSpanId())
     , ParentSpanId_(parentSpanContext.SpanId)
-    , Sampled_(parentSpanContext.Sampled)
     , Debug_(parentSpanContext.Debug)
+    , State_(parentTraceContext
+        ? parentTraceContext->State_.load()
+        : (parentSpanContext.Sampled ? ETraceContextState::Sampled : ETraceContextState::Disabled))
     , ParentContext_(std::move(parentTraceContext))
     , SpanName_(std::move(spanName))
-    , RequestId_(requestId)
-    , LoggingTag_(loggingTag || !ParentContext_? std::move(loggingTag) : ParentContext_->GetLoggingTag())
+    , RequestId_(ParentContext_ ? ParentContext_->GetRequestId() : TRequestId{})
+    , LoggingTag_(ParentContext_ ? ParentContext_->GetLoggingTag() : TString{})
     , StartTime_(GetCpuInstant())
-{ }
+{
+
+}
+
+void TTraceContext::SetRequestId(TRequestId requestId)
+{
+    RequestId_ = requestId;
+}
+
+void TTraceContext::SetLoggingTag(const TString& loggingTag)
+{
+    LoggingTag_ = loggingTag;
+}
+
+void TTraceContext::SetRecorded()
+{
+    auto disabled = ETraceContextState::Disabled;
+    State_.compare_exchange_strong(disabled, ETraceContextState::Recorded);
+}
 
 TTraceContextPtr TTraceContext::CreateChild(
-    TString spanName,
-    TString loggingTag)
+    TString spanName)
 {
     return New<TTraceContext>(
         GetSpanContext(),
         std::move(spanName),
-        /* requestId */ TRequestId(),
-        std::move(loggingTag),
         /* parentTraceContext */ this);
 }
 
@@ -131,7 +146,7 @@ TSpanContext TTraceContext::GetSpanContext() const
         .TraceId = GetTraceId(),
         .SpanId = GetSpanId(),
         .Sampled = IsSampled(),
-        .Debug = IsDebug()
+        .Debug = Debug_,
     };
 }
 
@@ -142,7 +157,11 @@ TDuration TTraceContext::GetElapsedTime() const
 
 void TTraceContext::SetSampled(bool value)
 {
-    Sampled_.store(value);
+    if (!value) {
+        State_ = ETraceContextState::Disabled;
+    } else {
+        State_ = ETraceContextState::Sampled;
+    }
 }
 
 TInstant TTraceContext::GetStartTime() const
@@ -153,7 +172,7 @@ TInstant TTraceContext::GetStartTime() const
 TDuration TTraceContext::GetDuration() const
 {
     YT_ASSERT(Finished_.load());
-    return NProfiling::CpuDurationToDuration(Duration_);
+    return NProfiling::CpuDurationToDuration(Duration_.load());
 }
 
 TTraceContext::TTagList TTraceContext::GetTags() const
@@ -176,15 +195,24 @@ TTraceContext::TAsyncChildrenList TTraceContext::GetAsyncChildren() const
 
 void TTraceContext::AddTag(const TString& tagKey, const TString& tagValue)
 {
+    if (!IsRecorded()) {
+        return;
+    }
+
     if (Finished_.load()) {
         return;
     }
+
     auto guard = Guard(Lock_);
     Tags_.emplace_back(tagKey, tagValue);
 }
 
 void TTraceContext::AddAsyncChild(const TTraceId& traceId)
 {
+    if (!IsRecorded()) {
+        return;
+    }
+
     if (Finished_.load()) {
         return;
     }
@@ -193,8 +221,23 @@ void TTraceContext::AddAsyncChild(const TTraceId& traceId)
     AsyncChildren_.push_back(traceId);
 }
 
+void TTraceContext::AddErrorTag()
+{
+    if (!IsRecorded()) {
+        return;
+    }
+
+    static const TString ErrorAnnotationName("error");
+    static const TString ErrorAnnotationValue("true");
+    AddTag(ErrorAnnotationName, ErrorAnnotationValue);
+}
+
 void TTraceContext::AddLogEntry(TCpuInstant at, TString message)
 {
+    if (!IsRecorded()) {
+        return;
+    }
+
     if (Finished_.load()) {
         return;
     }
@@ -208,26 +251,65 @@ bool TTraceContext::IsFinished()
     return Finished_.load();
 }
 
+bool TTraceContext::IsSampled() const
+{
+    auto traceContext = this;
+    while (traceContext) {
+        auto state = traceContext->State_.load(std::memory_order_relaxed);
+        if (state == ETraceContextState::Sampled) {
+            return true;
+        } else if (state == ETraceContextState::Disabled) {
+            return false;
+        }
+
+        traceContext = traceContext->ParentContext_.Get();
+    }
+
+    return false;
+}
+
+void TTraceContext::SetDuration()
+{
+    if (Duration_.load() == 0) {
+        Duration_ = GetCpuInstant() - StartTime_;
+    }
+}
+
 void TTraceContext::Finish()
 {
     if (Finished_.exchange(true)) {
         return;
     }
+    SetDuration();
 
-    Duration_ = GetCpuInstant() - StartTime_;
-
-    if (IsSampled()) {
+    auto state = State_.load(std::memory_order_relaxed);
+    if (state == ETraceContextState::Disabled) {
+        return;
+    } else if (state == ETraceContextState::Sampled) {
         if (auto tracer = GetGlobalTracer(); tracer) {
             tracer->Enqueue(MakeStrong(this));
         }
-    }
-}
+    } else if (state == ETraceContextState::Recorded) {
+        if (!IsSampled()) {
+            return;
+        }
 
-void TTraceContext::AddErrorTag()
-{
-    static const TString ErrorAnnotationName("error");
-    static const TString ErrorAnnotationValue("true");
-    AddTag(ErrorAnnotationName, ErrorAnnotationValue);
+        if (auto tracer = GetGlobalTracer(); tracer) {
+            auto traceContext = this;
+            while (traceContext) {
+                if (traceContext->State_.load() != ETraceContextState::Recorded) {
+                    break;
+                }
+
+                if (traceContext->Finished_.load() && !traceContext->Submitted_.exchange(true)) {
+                    traceContext->SetDuration();
+                    tracer->Enqueue(MakeStrong(traceContext));
+                }
+
+                traceContext = traceContext->ParentContext_.Get();
+            }
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -263,54 +345,31 @@ void ToProto(NProto::TTracingExt* ext, const TTraceContextPtr& context)
     ext->set_debug(context->IsDebug());
 }
 
-TTraceContextPtr CreateRootTraceContext(
-    TString spanName,
-    TRequestId requestId,
-    TString loggingTag,
-    bool sampled,
-    bool debug)
+TTraceContextPtr TTraceContext::NewRoot(TString spanName)
 {
     return New<TTraceContext>(
         TSpanContext{
             .TraceId = TTraceId::Create(),
             .SpanId = InvalidSpanId,
-            .Sampled = sampled,
-            .Debug = debug
+            .Sampled = false,
+            .Debug = false,
         },
-        std::move(spanName),
-        requestId,
-        std::move(loggingTag));
+        std::move(spanName));
 }
 
-TTraceContextPtr CreateChildTraceContext(
-    const TTraceContextPtr& parentContext,
-    TString spanName,
-    TString loggingTag,
-    bool forceTracing)
+TTraceContextPtr TTraceContext::NewChildFromSpan(
+    TSpanContext parentSpanContext,
+    TString spanName)
 {
-    if (parentContext) {
-        return parentContext->CreateChild(
-            std::move(spanName),
-            std::move(loggingTag));
-    }
-
-    if (!forceTracing) {
-        return nullptr;
-    }
-
-    return CreateRootTraceContext(
-        std::move(spanName),
-        /* requestId */ {},
-        /* loggingTag */ std::move(loggingTag),
-        /* sampled */ true,
-        /* debug */ false);
+    return New<TTraceContext>(
+        parentSpanContext,
+        std::move(spanName));
 }
 
-TTraceContextPtr CreateChildTraceContext(
+TTraceContextPtr TTraceContext::NewChildFromRpc(
     const NProto::TTracingExt& ext,
     TString spanName,
     TRequestId requestId,
-    TString loggingTag,
     bool forceTracing)
 {
     auto traceId = FromProto<TTraceId>(ext.trace_id());
@@ -318,22 +377,23 @@ TTraceContextPtr CreateChildTraceContext(
         if (!forceTracing) {
             return nullptr;
         }
-        return CreateRootTraceContext(
-            std::move(spanName),
-            requestId,
-            std::move(loggingTag));
+
+        auto root = NewRoot(std::move(spanName));
+        root->SetRequestId(requestId);
+        root->SetRecorded();
+        return root;
     }
 
-    return New<TTraceContext>(
+    auto traceContext = New<TTraceContext>(
         TSpanContext{
             traceId,
             ext.span_id(),
             ext.sampled(),
             ext.debug()
         },
-        std::move(spanName),
-        requestId,
-        std::move(loggingTag));
+        std::move(spanName));
+    traceContext->SetRequestId(requestId);
+    return traceContext;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

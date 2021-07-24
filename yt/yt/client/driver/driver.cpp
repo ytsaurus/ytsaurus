@@ -429,17 +429,11 @@ private:
     {
         const auto& request = context->Request();
 
-        auto traceContext = NTracing::CreateChildTraceContext(
-            NTracing::GetCurrentTraceContext(),
-            ConcatToString(TStringBuf("Driver:"), request.CommandName),
-            /* loggingTag */ {},
-            context->GetConfig()->ForceTracing);
-        if (traceContext && traceContext->IsSampled()) {
+        NTracing::TChildTraceContextGuard commandSpan(ConcatToString(TStringBuf("Driver:"), request.CommandName));
+        NTracing::AnnotateTraceContext([&] (const auto& traceContext) {
             traceContext->AddTag("user", request.AuthenticatedUser);
             traceContext->AddTag("request_id", request.Id);
-        }
-
-        NTracing::TTraceContextGuard traceContextGuard(std::move(traceContext));
+        });
 
         YT_LOG_DEBUG("Command started (RequestId: %" PRIx64 ", Command: %v, User: %v)",
             request.Id,

@@ -1627,9 +1627,8 @@ private:
 
         const auto& rpcContext = subrequest->RpcContext;
 
-        if (TraceContext_) {
-            subrequest->TraceContext = NTracing::CreateChildTraceContext(
-                TraceContext_,
+        if (TraceContext_ && TraceContext_->IsRecorded()) {
+            subrequest->TraceContext = TraceContext_->CreateChild(
                 ConcatToString(TStringBuf("YPathRead:"), rpcContext->GetService(), TStringBuf("."), rpcContext->GetMethod()));
         }
         NTracing::TCurrentTraceContextGuard traceContextGuard(subrequest->TraceContext);

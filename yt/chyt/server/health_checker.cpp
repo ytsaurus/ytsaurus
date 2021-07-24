@@ -59,7 +59,7 @@ DB::ContextMutablePtr PrepareContextForQuery(
 
     contextForQuery->makeQueryContext();
 
-    auto traceContext = NTracing::CreateRootTraceContext("HealthCheckerQuery");
+    auto traceContext = NTracing::TTraceContext::NewRoot("HealthCheckerQuery");
 
     SetupHostContext(host, contextForQuery, queryId, std::move(traceContext));
 

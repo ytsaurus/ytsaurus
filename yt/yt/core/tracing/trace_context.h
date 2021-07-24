@@ -38,21 +38,33 @@ ITracerPtr GetGlobalTracer();
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ETraceContextState,
+    (Disabled) // Used to propagate TraceId, RequestId and LoggingTag.
+    (Recorded) // May be sampled later.
+    (Sampled)  // Sampled and will be reported to jaeger.
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Accumulates information associated with a single tracing span.
 /*!
+ *  TTraceContext contains 3 distinct pieces of logic.
+ *
+ *  1) TraceId, RequestId and LoggingTag are recorded inside trace context and 
+ *     passed to logger.
+ *  2) ElapsedCpu time is tracked by fiber scheduler during context switch.
+ *  3) Opentracing compatible information is recorded and later pushed to jaeger.
+ *
+ *  TTraceContext objects within a single process form a tree.
+ *
+ *  By default, child objects inherit TraceId, RequestId and LoggingTag from the parent.
+ *
  *  \note Thread affininty: any unless noted otherwise.
  */
  class TTraceContext
     : public TRefCounted
 {
 public:
-    TTraceContext(
-        TSpanContext parentSpanContext,
-        TString spanName,
-        TRequestId requestId = {},
-        TString loggingTag = {},
-        TTraceContextPtr parentTraceContext = nullptr);
-
     //! Finalizes and publishes the context (if sampling is enabled).
     /*!
      *  Safe to call multiple times from arbitrary threads; only the first call matters.
@@ -60,23 +72,42 @@ public:
     void Finish();
     bool IsFinished();
 
+    //! IsRecorded returns a flag indicating that this trace may be sent to jaeger.
+    /*!
+     *  This flag should be used for fast-path optimization to skip trace annotation and child span creation.
+     */
+    bool IsRecorded() const;
+    void SetRecorded();
+
     bool IsSampled() const;
     void SetSampled(bool value = true);
-
-    bool IsDebug() const;
 
     TSpanContext GetSpanContext() const;
     TTraceId GetTraceId() const;
     TSpanId GetSpanId() const;
     TSpanId GetParentSpanId() const;
-    TRequestId GetRequestId() const;
+    bool IsDebug() const;
     const TString& GetSpanName() const;
+
+    //! Sets request id.
+    /*!
+     *  Not thread-safe. 
+     */
+    void SetRequestId(TRequestId requestId);
+    TRequestId GetRequestId() const;
+
+    //! Sets logging tag.
+    /*!
+     *  Not thread-safe. 
+     */
+    void SetLoggingTag(const TString& loggingTag);
     const TString& GetLoggingTag() const;
+
     TInstant GetStartTime() const;
 
     //! Returns the wall time from the context's construction to #Finish call.
     /*!
-     *  Not thread-safe; can only be called after #Finish is complete.
+     *  Can only be called after #Finish is complete.
      */
     TDuration GetDuration() const;
 
@@ -104,28 +135,43 @@ public:
     TAsyncChildrenList GetAsyncChildren() const;
     void AddAsyncChild(const TTraceId& traceId);
 
-    TTraceContextPtr CreateChild(
-        TString spanName,
-        TString loggingTag = {});
-
     void IncrementElapsedCpuTime(NProfiling::TCpuDuration delta);
     NProfiling::TCpuDuration GetElapsedCpuTime() const;
     TDuration GetElapsedTime() const;
+
+    static TTraceContextPtr NewRoot(TString spanName);
+
+    static TTraceContextPtr NewChildFromRpc(
+        const NProto::TTracingExt& ext,
+        TString spanName,
+        TRequestId requestId = {},
+        bool forceTracing = false);
+
+    static TTraceContextPtr NewChildFromSpan(
+        TSpanContext parentSpanContext,
+        TString spanName);
+
+    TTraceContextPtr CreateChild(TString spanName);
 
 private:
     const TTraceId TraceId_;
     const TSpanId SpanId_;
     const TSpanId ParentSpanId_;
-    std::atomic<bool> Sampled_;
+
+    // Right now, debug flag is just passed as-is. It is part of opentracing, but we do not interpret it in any way.
     const bool Debug_;
+
+    mutable std::atomic<ETraceContextState> State_;
+
     const TTraceContextPtr ParentContext_;
     const TString SpanName_;
-    const TRequestId RequestId_;
-    const TString LoggingTag_;
+    TRequestId RequestId_;
+    TString LoggingTag_;
     const NProfiling::TCpuInstant StartTime_;
 
     std::atomic<bool> Finished_ = false;
-    NProfiling::TCpuDuration Duration_;
+    std::atomic<bool> Submitted_ = false;
+    std::atomic<NProfiling::TCpuDuration> Duration_ = {0};
 
     std::atomic<NProfiling::TCpuDuration> ElapsedCpuTime_ = 0;
 
@@ -133,6 +179,14 @@ private:
     TTagList Tags_;
     TLogList Logs_;
     TAsyncChildrenList AsyncChildren_;
+
+    TTraceContext(
+        TSpanContext parentSpanContext,
+        TString spanName,
+        TTraceContextPtr parentTraceContext = nullptr);
+    DECLARE_NEW_FRIEND();
+
+    void SetDuration();
 };
 
 DEFINE_REFCOUNTED_TYPE(TTraceContext)
@@ -146,24 +200,6 @@ TTraceContext* GetCurrentTraceContext();
 void FlushCurrentTraceContextTime();
 
 void ToProto(NProto::TTracingExt* ext, const TTraceContextPtr& context);
-
-TTraceContextPtr CreateRootTraceContext(
-    TString spanName,
-    TRequestId requestId = {},
-    TString loggingTag = {},
-    bool sampled = false,
-    bool debug = false);
-TTraceContextPtr CreateChildTraceContext(
-    const TTraceContextPtr& parentContext,
-    TString spanName,
-    TString loggingTag = {},
-    bool forceTracing = false);
-TTraceContextPtr CreateChildTraceContext(
-    const NProto::TTracingExt& ext,
-    TString spanName,
-    TRequestId requestId = {},
-    TString loggingTag = {},
-    bool forceTracing = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -248,19 +284,22 @@ class TChildTraceContextGuard
 public:
     TChildTraceContextGuard(
         const TTraceContextPtr& traceContext,
-        TString spanName,
-        TString loggingTag = {},
-        bool forceTracing = false);
+        TString spanName);
     explicit TChildTraceContextGuard(
-        TString spanName,
-        TString loggingTag = {},
-        bool forceTracing = false);
+        TString spanName);
     TChildTraceContextGuard(TChildTraceContextGuard&& other) = default;
 
 private:
     TCurrentTraceContextGuard TraceContextGuard_;
     TTraceContextFinishGuard FinishGuard_;
+
+    static bool IsRecorded(const TTraceContextPtr& traceContext);
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TFn>
+void AnnotateTraceContext(const TFn& fn);
 
 ////////////////////////////////////////////////////////////////////////////////
 

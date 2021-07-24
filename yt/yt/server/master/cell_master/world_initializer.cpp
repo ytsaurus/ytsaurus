@@ -160,11 +160,8 @@ private:
             YT_LOG_INFO("World initialization started");
         }
 
-        auto traceContext = NTracing::CreateRootTraceContext(
-            "WorldInitializer",
-            /* requestId */ {},
-            /* loggingTag */ {},
-            /* sampled */ true);
+        auto traceContext = NTracing::TTraceContext::NewRoot("WorldInitializer");
+        traceContext->SetSampled();
         NTracing::TTraceContextGuard contextGuard(traceContext);
 
         TTransactionId transactionId;

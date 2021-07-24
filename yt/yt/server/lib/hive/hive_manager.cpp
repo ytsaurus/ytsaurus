@@ -1422,7 +1422,7 @@ private:
 
         std::optional<TTraceContextGuard> traceContextGuard;
         if (message.has_tracing_ext() && IsLeader()) {
-            auto traceContext = NTracing::CreateChildTraceContext(
+            auto traceContext = NTracing::TTraceContext::NewChildFromRpc(
                 message.tracing_ext(),
                 ConcatToString(TStringBuf("HiveManager:"), message.type()));
             traceContextGuard.emplace(std::move(traceContext));

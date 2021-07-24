@@ -283,7 +283,7 @@ void TJaegerTracer::DequeueAll(const TJaegerTracerConfigPtr& config)
     };
 
     for (const auto& trace : traces) {
-        if (config->SubsamplingRate && !trace->IsDebug()) {
+        if (config->SubsamplingRate) {
             auto traceHash = THash<TGuid>()(trace->GetTraceId());
 
             if (((traceHash % 128) / 128.) > *config->SubsamplingRate) {

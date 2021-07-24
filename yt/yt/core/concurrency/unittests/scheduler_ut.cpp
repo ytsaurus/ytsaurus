@@ -918,7 +918,7 @@ void CheckTraceContextTime(const NTracing::TTraceContextPtr& traceContext, TDura
 
 TEST_W(TSchedulerTest, TraceContextZeroTiming)
 {
-    auto traceContext = NTracing::CreateRootTraceContext("Test");
+    auto traceContext = NTracing::TTraceContext::NewRoot("Test");
 
     {
         NTracing::TTraceContextGuard guard(traceContext);
@@ -930,7 +930,7 @@ TEST_W(TSchedulerTest, TraceContextZeroTiming)
 
 TEST_W(TSchedulerTest, TraceContextThreadSleepTiming)
 {
-    auto traceContext = NTracing::CreateRootTraceContext("Test");
+    auto traceContext = NTracing::TTraceContext::NewRoot("Test");
 
     {
         NTracing::TTraceContextGuard guard(traceContext);
@@ -942,7 +942,7 @@ TEST_W(TSchedulerTest, TraceContextThreadSleepTiming)
 
 TEST_W(TSchedulerTest, TraceContextFiberSleepTiming)
 {
-    auto traceContext = NTracing::CreateRootTraceContext("Test");
+    auto traceContext = NTracing::TTraceContext::NewRoot("Test");
 
     {
         NTracing::TTraceContextGuard guard(traceContext);
@@ -954,7 +954,7 @@ TEST_W(TSchedulerTest, TraceContextFiberSleepTiming)
 
 TEST_W(TSchedulerTest, TraceContextTimingPropagationViaBind)
 {
-    auto traceContext = NTracing::CreateRootTraceContext("Test");
+    auto traceContext = NTracing::TTraceContext::NewRoot("Test");
     auto actionQueue = New<TActionQueue>();
 
     {
