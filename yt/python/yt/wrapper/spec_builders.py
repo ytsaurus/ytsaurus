@@ -1511,22 +1511,18 @@ class MapReduceSpecBuilder(SpecBuilder):
         self._prepare_spec(spec, client=client)
 
     def _do_build_mapper(self, spec, client):
-        additional_mapper_output_table_count = spec.get("mapper_output_table_count", 0)
-        additional_mapper_output_table_slice = slice(
-            len(self.get_output_table_paths()) - additional_mapper_output_table_count,
-            len(self.get_output_table_paths()))
-        intermediate_stream_count = 1
-
         if isinstance(spec["mapper"], UserJobSpecBuilder):
             command = spec["mapper"]._spec["command"]
         else:
             command = spec["mapper"].get("command")
 
+        intermediate_stream_count = 1
         if isinstance(command, TypedJob) and command.get_intermediate_stream_count() is not None:
             intermediate_stream_count = command.get_intermediate_stream_count()
 
+        additional_mapper_output_table_count = spec.get("mapper_output_table_count", 0)
         mapper_output_tables = [None] * intermediate_stream_count + \
-            self.get_output_table_paths()[additional_mapper_output_table_slice]
+            self.get_output_table_paths()[:additional_mapper_output_table_count]
 
         operation_preparation_context = SimpleOperationPreparationContext(
             self.get_input_table_paths(),
@@ -1544,8 +1540,8 @@ class MapReduceSpecBuilder(SpecBuilder):
         )
 
         output_tables = self.get_output_table_paths()
-        output_tables[additional_mapper_output_table_slice] = \
-            mapper_output_tables[additional_mapper_output_table_slice]
+        output_tables[:additional_mapper_output_table_count] = \
+            mapper_output_tables[intermediate_stream_count:]
         self._set_tables(spec, input_tables, output_tables)
 
         if isinstance(command, TypedJob):
