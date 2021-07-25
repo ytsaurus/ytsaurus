@@ -1798,15 +1798,22 @@ class TestOperationsSeveralOutputTables(object):
     @authors("asaitgalin")
     def test_multiple_mapper_output_tables_in_mapreduce(self):
         input_table = TEST_DIR + "/table"
-        mapper_output_table = TEST_DIR + "/mapper_output_table"
-        output_table = TEST_DIR + "/output_table"
+        mapper_output_tables = [TEST_DIR + "/mapper_output_table_{}".format(i) for i in range(2)]
+        reducer_output_tables = [TEST_DIR + "/reducer_output_table_{}".format(i) for i in range(3)]
         yt.write_table(input_table, [{"x": 1}])
 
         def mapper(rec):
-            recs = [{"a": "b"}, {"c": "d"}]
-            for i, rec in enumerate(recs):
-                rec["@table_index"] = i
-                yield rec
+            for i in range(len(reducer_output_tables)):
+                yield {"@table_index": 0, "a": i}
+            for i in range(len(mapper_output_tables)):
+                yield {"@table_index": 1 + i, "b": i}
+
+        def reducer(key, recs):
+            recs = list(recs)
+            assert len(recs) == 1
+            rec = recs[0]
+            rec["@table_index"] = rec["a"]
+            yield rec
 
         spec_builder = MapReduceSpecBuilder() \
             .begin_mapper() \
@@ -1814,17 +1821,19 @@ class TestOperationsSeveralOutputTables(object):
                 .command(mapper) \
             .end_mapper() \
             .begin_reducer() \
-                .command("cat") \
-                .format("json") \
+                .format(yt.YsonFormat(control_attributes_mode="row_fields")) \
+                .command(reducer) \
             .end_reducer() \
             .reduce_by(["a"]) \
-            .mapper_output_table_count(1) \
+            .mapper_output_table_count(len(mapper_output_tables)) \
             .input_table_paths(input_table) \
-            .output_table_paths([mapper_output_table, output_table])
+            .output_table_paths(mapper_output_tables + reducer_output_tables)
 
         yt.run_operation(spec_builder)
-        check_rows_equality([{"c": "d"}], list(yt.read_table(mapper_output_table)))
-        check_rows_equality([{"a": "b"}], list(yt.read_table(output_table)))
+        for i, mapper_output_table in enumerate(mapper_output_tables):
+            check_rows_equality([{"b": i}], list(yt.read_table(mapper_output_table)))
+        for i, reducer_output_table in enumerate(reducer_output_tables):
+            check_rows_equality([{"a": i}], list(yt.read_table(reducer_output_table)))
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestOperationsSkiffFormat(object):
