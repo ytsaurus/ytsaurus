@@ -62,10 +62,10 @@ func (oplet *Oplet) setPendingRestart(reason string) {
 }
 
 type Agent struct {
-	ytc         yt.Client
-	l           log.Logger
-	controllers map[string]Controller
-	config      *Config
+	ytc        yt.Client
+	l          log.Logger
+	controller Controller
+	config     *Config
 
 	aliasToOp map[string]*Oplet
 
@@ -81,21 +81,24 @@ type Agent struct {
 	started   bool
 	ctx       context.Context
 	cancelCtx context.CancelFunc
+
+	backgroundStopCh chan struct{}
 }
 
-func NewAgent(proxy string, ytc yt.Client, l log.Logger, controllers map[string]Controller, config *Config) *Agent {
+func NewAgent(proxy string, ytc yt.Client, l log.Logger, controller Controller, config *Config) *Agent {
 	hostname, err := os.Hostname()
 	if err != nil {
 		l.Fatal("error getting hostname", log.Error(err))
 	}
 
 	return &Agent{
-		ytc:         ytc,
-		l:           l,
-		controllers: controllers,
-		config:      config,
-		hostname:    hostname,
-		Proxy:       proxy,
+		ytc:              ytc,
+		l:                l,
+		controller:       controller,
+		config:           config,
+		hostname:         hostname,
+		Proxy:            proxy,
+		backgroundStopCh: make(chan struct{}),
 	}
 }
 
@@ -196,7 +199,8 @@ func (a *Agent) flushOp(oplet *Oplet) {
 	oplet.pendingFlush = false
 }
 
-func (a *Agent) abortDangling(family string) {
+func (a *Agent) abortDangling() {
+	family := a.controller.Family()
 	l := log.With(a.l, log.String("family", family))
 	l.Info("collecting running operations")
 
@@ -308,6 +312,9 @@ func (a *Agent) pass() {
 		}
 	}
 
+	// TODO(max42): if agent is stopped by this moment, cancellation errors may
+	// be flushed into operations or even lead to unexpected abortions of operations.
+
 	// Flush operation states.
 
 	a.l.Info("flushing operations")
@@ -322,9 +329,7 @@ func (a *Agent) pass() {
 
 	a.l.Info("aborting dangling operations")
 
-	for family := range a.controllers {
-		a.abortDangling(family)
-	}
+	a.abortDangling()
 
 	// Sanity check.
 	for alias, op := range a.aliasToOp {
@@ -366,7 +371,8 @@ loop:
 			a.pass()
 		}
 	}
-	a.l.Info("stopping background activity")
+	a.l.Info("background activity stopped")
+	a.backgroundStopCh <- struct{}{}
 }
 
 type CypressState struct {
@@ -460,9 +466,8 @@ func (a *Agent) updateFromAttrs(oplet *Oplet, alias string) error {
 		return err
 	}
 
-	// Validate operation node.
-	controller, ok := a.controllers[node.Family]
-	if !ok {
+	// Validate operation node
+	if node.Family != a.controller.Family() {
 		l.Debug("skipping node from unknown family",
 			log.String("family", node.Family))
 		return nil
@@ -495,7 +500,7 @@ func (a *Agent) updateFromAttrs(oplet *Oplet, alias string) error {
 		// - agent2 starts and registers new oplet for the operation
 		// Correct way to handle that is to compare ACL, pool and speclet from operation runtime information
 		// with the intended values.
-		newOplet := a.newOplet(alias, controller, CypressState{
+		newOplet := a.newOplet(alias, a.controller, CypressState{
 			ACL:              node.ACL,
 			OperationID:      node.OperationID,
 			IncarnationIndex: node.IncarnationIndex,
@@ -514,8 +519,7 @@ func (a *Agent) Start() {
 	if a.started {
 		return
 	}
-	a.l.Info("agent started")
-
+	a.l.Info("starting agent")
 	a.started = true
 	a.ctx, a.cancelCtx = context.WithCancel(context.Background())
 
@@ -538,18 +542,21 @@ func (a *Agent) Start() {
 	}
 
 	go a.background(time.Duration(a.config.PassPeriod))
+	a.l.Info("agent started")
 }
 
 func (a *Agent) Stop() {
 	if !a.started {
 		return
 	}
-	a.l.Info("agent stopped")
-
-	a.started = false
+	a.l.Info("stopping agent")
 	a.cancelCtx()
+	<-a.backgroundStopCh
+
 	a.ctx = nil
 	a.aliasToOp = nil
 	a.pendingAliases = nil
 	a.nodeCh = nil
+	a.started = false
+	a.l.Info("agent stopped")
 }

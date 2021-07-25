@@ -3,12 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
-
-	logzap "a.yandex-team.ru/library/go/core/log/zap"
-	"a.yandex-team.ru/yt/go/ytlog"
 )
 
 var (
@@ -27,20 +23,6 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-}
-
-func newLogger(name string) *logzap.Logger {
-	if flagLogToStderr {
-		return StderrLogger()
-	}
-
-	l, _, err := ytlog.NewSelfrotate(filepath.Join(flagLogsDir, name+".log"))
-
-	if err != nil {
-		panic(err)
-	}
-
-	return l
 }
 
 func wrapRun(run func() error) func(cmd *cobra.Command, args []string) {

@@ -1,7 +1,6 @@
 package integration
 
 import (
-	"a.yandex-team.ru/library/go/core/log"
 	"reflect"
 	"sort"
 	"testing"
@@ -9,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/yt/chyt/controller/internal/sleep"
 	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
 	"a.yandex-team.ru/yt/go/ypath"
@@ -47,9 +47,7 @@ func prepare(t *testing.T) (*yttest.Env, *strawberry.Agent) {
 
 	abortAll(t, env)
 
-	agent := strawberry.NewAgent("test", env.YT, l, map[string]strawberry.Controller{
-		"sleep": sleep.NewController(l.WithName("strawberry"), env.YT, root, "test", nil),
-	}, config)
+	agent := strawberry.NewAgent("test", env.YT, l, sleep.NewController(l.WithName("strawberry"), env.YT, root, "test", nil), config)
 
 	return env, agent
 }
