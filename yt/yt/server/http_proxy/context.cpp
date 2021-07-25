@@ -577,6 +577,11 @@ void TContext::LogStructuredRequest()
 
     auto path = DriverRequest_.Parameters->AsMap()->FindChild("path");
     const auto* traceContext = NTracing::GetCurrentTraceContext();
+    NTracing::AnnotateTraceContext([&] (const auto& traceContext) {
+        if (path && path->GetType() == ENodeType::String) {
+            traceContext->AddTag("yt.table_path", path->AsString()->GetValue());
+        }
+    });
 
     LogStructuredEventFluently(HttpStructuredProxyLogger, ELogLevel::Info)
         .Item("request_id").Value(Request_->GetRequestId())

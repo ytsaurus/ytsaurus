@@ -2716,6 +2716,9 @@ private:
             request->path(),
             keys.Size(),
             options.Timestamp);
+        NTracing::AnnotateTraceContext([&] (const auto& traceContext) {
+            traceContext->AddTag("yt.table_path", path);
+        });
 
         ExecuteCall(
             context,
@@ -2770,6 +2773,9 @@ private:
             request->path(),
             keys.Size(),
             options.Timestamp);
+        NTracing::AnnotateTraceContext([&] (const auto& traceContext) {
+            traceContext->AddTag("yt.table_path", path);
+        });
 
         if (request->has_retention_config()) {
             options.RetentionConfig = New<TRetentionConfig>();
@@ -2867,6 +2873,11 @@ private:
                         request.Path,
                         request.Keys.Size());
                 }));
+        NTracing::AnnotateTraceContext([&] (const auto& traceContext) {
+            for (const auto& subrequest : subrequests) {
+                traceContext->AddTag("yt.table_path", subrequest.Path);
+            }
+        });
 
         ExecuteCall(
             context,
