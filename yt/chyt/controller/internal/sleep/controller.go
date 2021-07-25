@@ -1,12 +1,13 @@
 package sleep
 
 import (
+	"context"
+
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
-	"context"
 )
 
 type Controller struct{}

@@ -1,14 +1,14 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
+	"os"
 
 	"github.com/spf13/cobra"
 
-	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/yt/chyt/controller/internal/app"
 	"a.yandex-team.ru/yt/chyt/controller/internal/chyt"
-	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
 	"a.yandex-team.ru/yt/go/yson"
 )
 
@@ -28,24 +28,24 @@ func init() {
 }
 
 func doRun() error {
-	l := newLogger("chyt")
-
 	var config app.Config
 
-	l.Debug("reading config from file", log.String("path", flagConfigPath))
 	content, err := ioutil.ReadFile(flagConfigPath)
 	if err != nil {
-		l.Fatal("error reading config file", log.Error(err))
+		fmt.Fprintf(os.Stderr, "error reading config file: %v\n", err)
+		os.Exit(1)
 	}
 	err = yson.Unmarshal(content, &config)
 	if err != nil {
-		l.Fatal("error parsing yson config", log.Error(err))
+		fmt.Fprintf(os.Stderr, "error parsing yson config: %v\n", err)
+		os.Exit(1)
 	}
 
-	options := app.Options{}
+	options := app.Options{
+		LogToStderr: flagLogToStderr,
+	}
 
-	_ = app.New(l, &config, &options, map[string]strawberry.ControllerFactory{"chyt": chyt.NewController})
-	<-make(chan struct{})
-
+	a := app.New(&config, &options, chyt.NewController)
+	a.Run()
 	panic("unreachable")
 }
