@@ -2806,8 +2806,12 @@ private:
             if (response) {
                 auto* importData = response->add_chunks();
                 ToProto(importData->mutable_id(), chunkId);
-                importData->mutable_info()->CopyFrom(chunk->ChunkInfo());
+
+                auto* chunkInfo = importData->mutable_info();
+                chunkInfo->set_disk_space(chunk->GetDiskSpace());
+
                 ToProto(importData->mutable_meta(), chunk->ChunkMeta());
+
                 importData->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
             }
 
@@ -4019,17 +4023,14 @@ private:
                     chunkList->Parents().size());
             }
 
-            const auto& miscExt = chunk->MiscExt();
-            auto firstOverlayedRowIndex = miscExt.has_first_overlayed_row_index()
-                ? std::make_optional(miscExt.first_overlayed_row_index())
-                : std::nullopt;
+            auto firstOverlayedRowIndex = chunk->GetFirstOverlayedRowIndex();
 
             const auto& statistics = chunkList->Statistics();
             YT_VERIFY(statistics.RowCount == statistics.LogicalRowCount);
             i64 oldJournalRowCount = statistics.RowCount;
             i64 newJournalRowCount = firstOverlayedRowIndex
-                ? *firstOverlayedRowIndex + miscExt.row_count()
-                : oldJournalRowCount + miscExt.row_count();
+                ? *firstOverlayedRowIndex + chunk->GetRowCount()
+                : oldJournalRowCount + chunk->GetRowCount();
 
             // NB: Last chunk can be nested into another.
             newJournalRowCount = std::max<i64>(newJournalRowCount, oldJournalRowCount);

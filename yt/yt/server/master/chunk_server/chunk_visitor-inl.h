@@ -54,7 +54,7 @@ private:
         if (Predicate_(chunk)) {
             auto& statistics = StatisticsMap_[KeyExtractor_(chunk)];
             statistics.ChunkTreeStatistics.Accumulate(chunk->GetStatistics());
-            statistics.MaxBlockSize = std::max(statistics.MaxBlockSize, chunk->MiscExt().max_block_size());
+            statistics.MaxBlockSize = std::max(statistics.MaxBlockSize, chunk->GetMaxBlockSize());
         }
         return true;
     }

@@ -1153,8 +1153,9 @@ protected:
 
     i64 GetFirstOverlayedRowIndex(const TChunk* chunk)
     {
+        YT_ASSERT(chunk->GetOverlayed());
         return chunk->IsSealed()
-            ? chunk->MiscExt().first_overlayed_row_index()
+            ? *chunk->GetFirstOverlayedRowIndex()
             : *GetUnsealedChunkStatistics(chunk).FirstOverlayedRowIndex;
     }
 

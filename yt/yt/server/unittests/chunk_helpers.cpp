@@ -152,8 +152,11 @@ void TChunkGeneratorBase::ConfirmChunk(
         minKey,
         maxKey);
 
+    NChunkClient::NProto::TChunkInfo chunkInfo;
+    chunkInfo.set_disk_space(donorChunk->GetDiskSpace());
+
     chunk->Confirm(
-        donorChunk->ChunkInfo(),
+        chunkInfo,
         ToProto<NChunkClient::NProto::TChunkMeta>(donorChunk->ChunkMeta()));
 }
 

@@ -87,8 +87,6 @@ class TChunk
 {
 public:
     DEFINE_BYREF_RW_PROPERTY(TImmutableChunkMetaPtr, ChunkMeta);
-    DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TChunkInfo, ChunkInfo);
-    DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TMiscExt, MiscExt);
 
     // This map is typically small, e.g. has the size of 1.
     using TParents = TSmallFlatMap<TChunkTree*, int, TypicalChunkParentCount>;
@@ -100,9 +98,25 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(NNodeTrackerServer::TNode*, NodeWithEndorsement);
 
+    DEFINE_BYVAL_RW_PROPERTY(i64, DiskSpace);
+
+    //! Some TMiscExt fields extracted for effective access.
+    DEFINE_BYVAL_RW_PROPERTY(i64, RowCount);
+    DEFINE_BYVAL_RW_PROPERTY(i64, PhysicalRowCount);
+    DEFINE_BYVAL_RW_PROPERTY(i64, CompressedDataSize);
+    DEFINE_BYVAL_RW_PROPERTY(i64, UncompressedDataSize);
+    DEFINE_BYVAL_RW_PROPERTY(i64, DataWeight);
+    DEFINE_BYVAL_RW_PROPERTY(i64, MaxBlockSize);
+    DEFINE_BYVAL_RW_PROPERTY(NCompression::ECodec, CompressionCodec);
+
+    DEFINE_BYVAL_RW_PROPERTY(NErasure::ECodec, ErasureCodec);
+
     //! Indicates that the list of replicas has changed and endorsement
     //! for ally replicas announcement should be registered.
     DEFINE_BYVAL_RW_PROPERTY(bool, EndorsementRequired);
+
+    DEFINE_BYVAL_RW_PROPERTY(i8, ReadQuorum);
+    DEFINE_BYVAL_RW_PROPERTY(i8, WriteQuorum);
 
 public:
     explicit TChunk(TChunkId id);
@@ -114,7 +128,7 @@ public:
     //! Get disk size of a single part of the chunk.
     /*!
      *  For a non-erasure chunk, simply returns its size
-     *  (same as ChunkInfo().disk_space()).
+     *  (same as GetDiskSpace()).
      *  For an erasure chunk, returns that size divided by the number of parts
      *  used by the codec.
      */
@@ -226,17 +240,11 @@ public:
     //! Unlike similar methods, non-committed owners always contribute to this value.
     int GetAggregatedPhysicalReplicationFactor(const TChunkRequisitionRegistry* registry) const;
 
-    int GetReadQuorum() const;
-    void SetReadQuorum(int value);
-
-    int GetWriteQuorum() const;
-    void SetWriteQuorum(int value);
-
     i64 GetReplicaLagLimit() const;
     void SetReplicaLagLimit(i64 value);
 
-    NErasure::ECodec GetErasureCodec() const;
-    void SetErasureCodec(NErasure::ECodec value);
+    std::optional<i64> GetFirstOverlayedRowIndex() const;
+    void SetFirstOverlayedRowIndex(std::optional<i64> value);
 
     //! Returns |true| iff this is an erasure chunk.
     bool IsErasure() const;
@@ -257,6 +265,8 @@ public:
     //! Returns |true| iff this is a sealed journal chunk.
     //! For blob chunks always returns |true|.
     bool IsSealed() const;
+
+    void SetSealed(bool value);
 
     //! Returns the number of rows in a sealed chunk.
     i64 GetPhysicalSealedRowCount() const;
@@ -314,31 +324,30 @@ public:
     NChunkClient::EChunkFormat GetChunkFormat() const;
 
 private:
-    ui8 ReadQuorum_ = 0;
-    ui8 WriteQuorum_ = 0;
+    //! -1 stands for std::nullopt for non-overlayed chunks.
+    i64 FirstOverlayedRowIndex_ = -1;
+
+    //! Per-cell data, indexed by cell index; cf. TMulticellManager::GetRegisteredMasterCellIndex.
+    std::unique_ptr<TChunkExportDataList> ExportDataList_;
+
+    TChunkRequisitionIndex AggregatedRequisitionIndex_;
+    TChunkRequisitionIndex LocalRequisitionIndex_;
 
     //! Ceil(log_2 x), where x is an upper bound
     //! for the difference between length of any
     //! two replicas of a journal chunk.
     ui8 LogReplicaLagLimit_ = 0;
 
-    NErasure::ECodec ErasureCodec_ = NErasure::ECodec::None;
-
     struct
     {
         bool Movable : 1;
         bool Overlayed : 1;
+        bool Sealed : 1;
     } Flags_ = {};
-
-    TChunkRequisitionIndex AggregatedRequisitionIndex_;
-    TChunkRequisitionIndex LocalRequisitionIndex_;
 
     //! The number of non-empty entries in #ExportDataList_.
     //! If zero, #ExportDataList_ is null.
     ui8 ExportCounter_ = 0;
-
-    //! Per-cell data, indexed by cell index; cf. TMulticellManager::GetRegisteredMasterCellIndex.
-    std::unique_ptr<TChunkExportDataList> ExportDataList_;
 
     struct TReplicasDataBase
         : public TPoolAllocator::TObjectBase
@@ -421,6 +430,8 @@ private:
         const NObjectServer::TObjectManagerPtr& objectManager);
 
     void MaybeResetObsoleteEpochData(NObjectServer::TEpoch epoch);
+
+    void OnMiscExtUpdated(const NChunkClient::NProto::TMiscExt& miscExt);
 
     static const TCachedReplicas EmptyCachedReplicas;
 

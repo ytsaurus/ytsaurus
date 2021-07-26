@@ -317,26 +317,6 @@ inline int TChunk::GetAggregatedPhysicalReplicationFactor(const TChunkRequisitio
     }
 }
 
-inline int TChunk::GetReadQuorum() const
-{
-    return ReadQuorum_;
-}
-
-inline void TChunk::SetReadQuorum(int value)
-{
-    ReadQuorum_ = value;
-}
-
-inline int TChunk::GetWriteQuorum() const
-{
-    return WriteQuorum_;
-}
-
-inline void TChunk::SetWriteQuorum(int value)
-{
-    WriteQuorum_ = value;
-}
-
 inline i64 TChunk::GetReplicaLagLimit() const
 {
     return 1LL << LogReplicaLagLimit_;
@@ -352,14 +332,16 @@ inline void TChunk::SetReplicaLagLimit(i64 value)
     }
 }
 
-inline NErasure::ECodec TChunk::GetErasureCodec() const
+inline std::optional<i64> TChunk::GetFirstOverlayedRowIndex() const
 {
-    return ErasureCodec_;
+    return FirstOverlayedRowIndex_ == -1
+        ? std::nullopt
+        : std::make_optional(FirstOverlayedRowIndex_);
 }
 
-inline void TChunk::SetErasureCodec(NErasure::ECodec value)
+inline void TChunk::SetFirstOverlayedRowIndex(std::optional<i64> value)
 {
-    ErasureCodec_ = value;
+    FirstOverlayedRowIndex_ = value ? *value : -1;
 }
 
 inline bool TChunk::IsErasure() const

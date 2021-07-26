@@ -206,7 +206,7 @@ void BuildChunkSpec(
     }
 
     i64 lowerRowLimit = lowerLimit.GetRowIndex().value_or(0);
-    i64 upperRowLimit = upperLimit.GetRowIndex().value_or(chunk->MiscExt().row_count());
+    i64 upperRowLimit = upperLimit.GetRowIndex().value_or(chunk->GetRowCount());
 
     // If one of row indexes is present, then fields row_count_override and
     // uncompressed_data_size_override estimate the chunk range
@@ -222,15 +222,15 @@ void BuildChunkSpec(
     }
 
     chunkSpec->set_row_count_override(upperRowLimit - lowerRowLimit);
-    i64 dataWeight = chunk->MiscExt().data_weight() > 0
-        ? chunk->MiscExt().data_weight()
-        : chunk->MiscExt().uncompressed_data_size();
+    i64 dataWeight = chunk->GetDataWeight() > 0
+        ? chunk->GetDataWeight()
+        : chunk->GetUncompressedDataSize();
 
-    if (chunkSpec->row_count_override() >= chunk->MiscExt().row_count()) {
+    if (chunkSpec->row_count_override() >= chunk->GetRowCount()) {
         chunkSpec->set_data_weight_override(dataWeight);
     } else {
         // NB: If overlayed chunk is nested into another, it has zero row count and non-zero data weight.
-        i64 dataWeightPerRow = DivCeil(dataWeight, std::max<i64>(chunk->MiscExt().row_count(), 1));
+        i64 dataWeightPerRow = DivCeil(dataWeight, std::max<i64>(chunk->GetRowCount(), 1));
         chunkSpec->set_data_weight_override(dataWeightPerRow * chunkSpec->row_count_override());
     }
 
@@ -762,7 +762,7 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAtt
                 Bootstrap_,
                 chunkList,
                 [] (const TChunk* chunk) {
-                    return CheckedEnumCast<NCompression::ECodec>(chunk->MiscExt().compression_codec());
+                    return CheckedEnumCast<NCompression::ECodec>(chunk->GetCompressionCodec());
                 });
 
         case EInternedAttributeKey::ErasureStatistics:

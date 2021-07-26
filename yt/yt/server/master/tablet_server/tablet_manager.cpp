@@ -1981,9 +1981,9 @@ public:
         // Compute last commit timestamp.
         auto lastCommitTimestamp = NTransactionClient::MinTimestamp;
         for (auto* chunk : chunks) {
-            const auto& miscExt = chunk->MiscExt();
-            if (miscExt.has_max_timestamp()) {
-                lastCommitTimestamp = std::max(lastCommitTimestamp, static_cast<TTimestamp>(miscExt.max_timestamp()));
+            auto miscExt = chunk->ChunkMeta()->FindExtension<TMiscExt>();
+            if (miscExt && miscExt->has_max_timestamp()) {
+                lastCommitTimestamp = std::max(lastCommitTimestamp, static_cast<TTimestamp>(miscExt->max_timestamp()));
             }
         }
 
@@ -2626,11 +2626,13 @@ private:
                 const auto* chunk = chunkOrView->GetType() == EObjectType::ChunkView
                     ? chunkOrView->AsChunkView()->GetUnderlyingChunk()
                     : chunkOrView->AsChunk();
-                if (chunk->MiscExt().eden() || edenStoreIds.contains(chunkOrView->GetId())) {
+                auto miscExt = chunk->ChunkMeta()->FindExtension<TMiscExt>();
+                auto eden = miscExt && miscExt->eden();
+                if (eden || edenStoreIds.contains(chunkOrView->GetId())) {
                     continue;
                 }
 
-                auto size = chunk->MiscExt().uncompressed_data_size();
+                auto size = chunk->GetUncompressedDataSize();
                 entries.push_back({
                     GetMinKeyOrThrow(chunkOrView),
                     GetUpperBoundKeyOrThrow(chunkOrView),
@@ -5585,11 +5587,12 @@ private:
             if (IsChunkTabletStoreType(type)) {
                 auto* chunk = chunkManager->GetChunkOrThrow(storeId);
                 validateChunkAttach(chunk);
-                const auto& miscExt = chunk->MiscExt();
-                if (miscExt.has_max_timestamp()) {
-                    lastCommitTimestamp = std::max(lastCommitTimestamp, static_cast<TTimestamp>(miscExt.max_timestamp()));
+                auto miscExt = chunk->ChunkMeta()->FindExtension<TMiscExt>();
+                if (miscExt && miscExt->has_max_timestamp()) {
+                    lastCommitTimestamp = std::max(lastCommitTimestamp, static_cast<TTimestamp>(miscExt->max_timestamp()));
                 }
-                attachedRowCount += miscExt.row_count();
+
+                attachedRowCount += chunk->GetRowCount();
                 chunksToAttach.push_back(chunk);
             } else if (IsDynamicTabletStoreType(type)) {
                 if (IsDynamicStoreReadEnabled(table)) {
@@ -5641,15 +5644,13 @@ private:
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
             if (IsChunkTabletStoreType(TypeFromId(storeId))) {
                 auto* chunk = chunkManager->GetChunkOrThrow(storeId);
-                const auto& miscExt = chunk->MiscExt();
-                detachedRowCount += miscExt.row_count();
+                detachedRowCount += chunk->GetRowCount();
                 chunksOrViewsToDetach.push_back(chunk);
                 flatteningRequired |= !CanUnambiguouslyDetachChild(tablet->GetChunkList(), chunk);
             } else if (TypeFromId(storeId) == EObjectType::ChunkView) {
                 auto* chunkView = chunkManager->GetChunkViewOrThrow(storeId);
                 auto* chunk = chunkView->GetUnderlyingChunk();
-                const auto& miscExt = chunk->MiscExt();
-                detachedRowCount += miscExt.row_count();
+                detachedRowCount += chunk->GetRowCount();
                 chunksOrViewsToDetach.push_back(chunkView);
                 flatteningRequired |= !CanUnambiguouslyDetachChild(tablet->GetChunkList(), chunkView);
             } else if (IsDynamicTabletStoreType(TypeFromId(storeId))) {
@@ -6572,7 +6573,7 @@ private:
 
         ToProto(descriptor->mutable_chunk_meta(), chunk->ChunkMeta());
         descriptor->set_starting_row_index(*startingRowIndex);
-        *startingRowIndex += chunk->MiscExt().row_count();
+        *startingRowIndex += chunk->GetRowCount();
     }
 
     void FillHunkChunkDescriptor(
