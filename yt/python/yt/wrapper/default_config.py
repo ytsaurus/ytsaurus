@@ -459,8 +459,11 @@ default_config = {
     # error "ValueError: signal only works in main thread".
     "transaction_use_signal_if_ping_failed": None,
 
-    # interrupt_main (default), send_signal or pass.
+    # Action on failed ping. Valid values listed in yt.wrapper.transaction.PING_FAILED_MODES, default is "interrupt_main".
     "ping_failed_mode": None,
+
+    # Function to call if ping_failed_mode is "call_function", no default (must be supplied by user).
+    "ping_failed_function": None,
 
     # Default value of raw option in read, write, select, insert, lookup, delete.
     "default_value_of_raw_option": False,

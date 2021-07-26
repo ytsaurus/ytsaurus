@@ -18,8 +18,17 @@ from datetime import datetime, timedelta
 import signal
 import time
 import os
+import logging
 
 _sigusr_received = False
+
+PING_FAILED_MODES = (
+    "call_function",
+    "interrupt_main",
+    "pass",
+    "send_signal",
+    "terminate_process",
+)
 
 def _get_ping_failed_mode(client):
     if get_config(client)["ping_failed_mode"] is not None:
@@ -303,9 +312,12 @@ class PingTransaction(Thread):
         self.ignore_no_such_transaction_error = False
 
         ping_failed_mode = _get_ping_failed_mode(self._client)
-        if ping_failed_mode not in ("interrupt_main", "send_signal", "pass"):
-            raise YtError("Incorrect ping failed mode {}, expects one of "
-                          "(\"interrupt_main\", \"send_signal\", \"pass\")".format(ping_failed_mode))
+        if ping_failed_mode not in PING_FAILED_MODES:
+            raise YtError("Incorrect ping failed mode {}, expects one of {!r}".format(ping_failed_mode, PING_FAILED_MODES))
+        if ping_failed_mode == "call_function":
+            ping_failed_function = get_config(client)["ping_failed_function"]
+            if not callable(ping_failed_function):
+                raise YtError("Incorrect or missing ping_failed_function {}, must be callable".format(ping_failed_function))
 
     def __enter__(self):
         self.start()
@@ -321,6 +333,9 @@ class PingTransaction(Thread):
         if not self.is_running:
             return
         self.is_running = False
+        if not self.is_alive():
+            # If the thread has never been started, attempting to join it causes RuntimeError.
+            return
         timeout = get_total_request_timeout(self._client) / 1000.0
         # timeout should be enough to execute ping
         self.join(timeout + 2 * self.step)
@@ -331,12 +346,17 @@ class PingTransaction(Thread):
     def _process_failed_ping(self):
         self.failed = True
         if self.interrupt_on_failed:
-            logger.exception("Ping failed")
             ping_failed_mode = _get_ping_failed_mode(self._client)
+            logger.exception("Ping failed (ping_failed_mode: %s)", ping_failed_mode)
             if ping_failed_mode == "send_signal":
                 os.kill(os.getpid(), signal.SIGUSR1)
             elif ping_failed_mode == "interrupt_main":
-                interrupt_main()
+                Thread(target=interrupt_main).start()
+            elif ping_failed_mode == "terminate_process":
+                logging.shutdown()
+                os.kill(os.getpid(), signal.SIGTERM)
+            elif ping_failed_mode == "call_function":
+                get_config(self._client)["ping_failed_function"]()
             else:  # ping_failed_mode == "pass":
                 pass
         else:
